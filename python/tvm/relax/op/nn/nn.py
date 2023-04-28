@@ -1009,8 +1009,8 @@ def attention(
 
     bias: Optional[Expr]
         The optional attention bias to the operator. The layout of the attention bias should be
-        (batch_size, num_head, seq_len, seq_len_kv),
-        (batch_size, seq_len, seq_len_kv) or (batch_size, seq_len_kv).
+        a 4-D tensor ending with seq_len_kv, and broadcastable to
+        (batch_size, num_head, seq_len, seq_len_kv).
 
     scale: Optional[FloatImm]
         The custom scale applied before the softmax. The default value is 1 / sqrt(head_dim).

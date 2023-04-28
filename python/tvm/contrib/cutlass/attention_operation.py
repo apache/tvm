@@ -23,32 +23,14 @@ def instantiate_attention_template(attrs):
     """Return CUTLASS host code for fused multi head attention
     based on a template and the provided attribute map."""
 
-    bias_template = {
-        "B11S'": """
-  CHECK(${bias}->ndim == 2); // B, 1, 1, S'
-
-  p.attn_bias_ptr = reinterpret_cast<T *>(${bias}->data);
-  p.bias_strideM = 0; // 0
-  p.bias_strideH = 0; // 0
-  p.bias_strideB = p.num_keys; // S'
-""",
-        "B1SS'": """
-  CHECK(${bias}->ndim == 3); // B, 1, S, S'
-
-  p.attn_bias_ptr = reinterpret_cast<T *>(${bias}->data);
-  p.bias_strideM = p.num_keys; // S'
-  p.bias_strideH = 0; // 0
-  p.bias_strideB = p.bias_strideM * p.num_queries; // S' * S
-""",
-        "BNSS'": """
+    bias_template = """
   CHECK(${bias}->ndim == 4); // B, N, S, S'
 
   p.attn_bias_ptr = reinterpret_cast<T *>(${bias}->data);
-  p.bias_strideM = p.num_keys; // S'
-  p.bias_strideH = p.bias_strideM * p.num_queries; // S' * S
-  p.bias_strideB = p.bias_strideH * p.num_heads; // S' * S * N
-""",
-    }
+  p.bias_strideM = ${bias_strideM};
+  p.bias_strideH = ${bias_strideH};
+  p.bias_strideB = ${bias_strideB};
+"""
 
     qkv_template = {
         "default": """
@@ -159,7 +141,7 @@ def instantiate_attention_template(attrs):
         template,
         {
             "qkv_template": qkv_template[attrs["qkv_layout"]],
-            "bias_template": bias_template[attrs["bias_layout"]] if "bias_layout" in attrs else "",
+            "bias_template": bias_template if "bias" in attrs else "",
         },
     )
 

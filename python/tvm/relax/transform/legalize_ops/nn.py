@@ -336,10 +336,6 @@ def _te_attention(
         p = topi.divide(p, tir.sqrt(tir.Cast(p.dtype, head_dim)))
     if bias is not None:
         p = topi.reshape(p, [batch_size, num_head, seq_len, seq_len_kv])
-        if len(bias.shape) == 2:
-            bias = topi.reshape(bias, [batch_size, 1, 1, seq_len_kv])
-        elif len(bias.shape) == 3:
-            bias = topi.reshape(bias, [batch_size, 1, seq_len, seq_len_kv])
         p = topi.add(p, bias)
         p = topi.reshape(p, [batch_size * num_head, seq_len, seq_len_kv])
     s = topi.nn.softmax(p)
