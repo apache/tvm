@@ -1996,7 +1996,7 @@ class LpPool(OnnxOpConverter):
                 # one will need to run dynamic_to_static on this model after import
                 data = autopad(
                     data,
-                    attr.get('strides', [1] * num_spatial_dims),
+                    attr.get("strides", [1] * num_spatial_dims),
                     attr["kernel_shape"],
                     [1] * ndim,
                     mode=attr["auto_pad"],
