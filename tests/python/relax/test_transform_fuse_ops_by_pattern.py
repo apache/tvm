@@ -21,9 +21,9 @@ import tvm
 from tvm import relax
 from tvm.relax.dpl.pattern import (
     is_op,
+    is_tuple_get_item,
     make_fused_bias_activation_pattern,
     wildcard,
-    is_tuple_get_item,
 )
 from tvm.relax.transform import PatternCheckContext
 from tvm.script import ir as I
@@ -339,7 +339,7 @@ class Branch:
 @tvm.script.ir_module
 class Conv2dx2:
     @R.function
-    def main(
+    def main2(
         data: R.Tensor((16, 32, 32, 16), "float16"),
         weight1: R.Tensor((16, 3, 3, 16), "float16"),
         weight2: R.Tensor((16, 3, 3, 16), "float16"),
@@ -355,11 +355,62 @@ class Conv2dx2:
 
         return conv2
 
+    @R.function
+    def main(
+        data: R.Tensor((16, 32, 32, 16), "float16"),
+        weight1: R.Tensor((16, 3, 3, 16), "float16"),
+        weight2: R.Tensor((16, 3, 3, 16), "float16"),
+    ):
+        with R.dataflow():
+            conv1 = relax.op.nn.conv2d(
+                data, weight1, padding=(1, 1), data_layout="NHWC", kernel_layout="OHWI"
+            )
+            conv2 = relax.op.nn.conv2d(
+                conv1, weight2, padding=(1, 1), data_layout="NHWC", kernel_layout="OHWI"
+            )
+            conv3 = Conv2dx2.main2(data, weight1, weight2)
+            result = conv2 + conv3
+            R.output(result)
+
+        return result
+
 
 @tvm.script.ir_module
 class Conv2dx2_partitioned:
     @R.function
-    def main(
+    def fused_relax_nn_conv2d_cutlass(
+        data: R.Tensor((16, 32, 32, 16), dtype="float16"),
+        weight1: R.Tensor((16, 3, 3, 16), dtype="float16"),
+    ) -> R.Tensor((16, 32, 32, 16), dtype="float16"):
+        R.func_attr({"Codegen": "cutlass", "global_symbol": "fused_relax_nn_conv2d_cutlass"})
+
+        @R.function
+        def gv_1(
+            data_1: R.Tensor((16, 32, 32, 16), dtype="float16"),
+            weight1_1: R.Tensor((16, 3, 3, 16), dtype="float16"),
+        ) -> R.Tensor((16, 32, 32, 16), dtype="float16"):
+            R.func_attr({"Composite": "cutlass.conv2d", "Primitive": 1})
+            with R.dataflow():
+                gv_2: R.Tensor((16, 32, 32, 16), dtype="float16") = R.nn.conv2d(
+                    data_1,
+                    weight1_1,
+                    strides=[1, 1],
+                    padding=[1, 1, 1, 1],
+                    dilation=[1, 1],
+                    groups=1,
+                    data_layout="NHWC",
+                    kernel_layout="OHWI",
+                    out_layout="NHWC",
+                    out_dtype="void",
+                )
+                R.output(gv_2)
+            return gv_2
+
+        gv1: R.Tensor((16, 32, 32, 16), dtype="float16") = gv_1(data, weight1)
+        return gv1
+
+    @R.function
+    def main2(
         data: R.Tensor((16, 32, 32, 16), dtype="float16"),
         weight1: R.Tensor((16, 3, 3, 16), dtype="float16"),
         weight2: R.Tensor((16, 3, 3, 16), dtype="float16"),
@@ -376,32 +427,23 @@ class Conv2dx2_partitioned:
         return gv
 
     @R.function
-    def fused_relax_nn_conv2d_cutlass(
+    def main(
         data: R.Tensor((16, 32, 32, 16), dtype="float16"),
         weight1: R.Tensor((16, 3, 3, 16), dtype="float16"),
+        weight2: R.Tensor((16, 3, 3, 16), dtype="float16"),
     ) -> R.Tensor((16, 32, 32, 16), dtype="float16"):
-        R.func_attr({"Codegen": "cutlass", "global_symbol": "fused_relax_nn_conv2d_cutlass"})
-
-        @R.function
-        def gv(
-            data_1: R.Tensor((16, 32, 32, 16), dtype="float16"),
-            weight1_1: R.Tensor((16, 3, 3, 16), dtype="float16"),
-        ) -> R.Tensor((16, 32, 32, 16), dtype="float16"):
-            R.func_attr({"Composite": "cutlass.conv2d", "Primitive": 1})
-            with R.dataflow():
-                gv_1: R.Tensor((16, 32, 32, 16), dtype="float16") = R.nn.conv2d(
-                    data_1,
-                    weight1_1,
-                    padding=[1, 1, 1, 1],
-                    data_layout="NHWC",
-                    kernel_layout="OHWI",
-                    out_layout="NHWC",
-                )
-                R.output(gv_1)
-            return gv_1
-
-        gv1: R.Tensor((16, 32, 32, 16), dtype="float16") = gv(data, weight1)
-        return gv1
+        cls = Conv2dx2_partitioned
+        with R.dataflow():
+            lv1: R.Tensor((16, 32, 32, 16), dtype="float16") = cls.fused_relax_nn_conv2d_cutlass(
+                data, weight1
+            )
+            lv2: R.Tensor((16, 32, 32, 16), dtype="float16") = cls.fused_relax_nn_conv2d_cutlass(
+                lv1, weight2
+            )
+            conv3: R.Tensor((16, 32, 32, 16), dtype="float16") = cls.main2(data, weight1, weight2)
+            result: R.Tensor((16, 32, 32, 16), dtype="float16") = R.add(lv2, conv3)
+            R.output(result)
+        return result
 
 
 conv2d_pat = make_fused_bias_activation_pattern("relax.nn.conv2d", activation=None)
@@ -478,7 +520,7 @@ def test_annotate_codegen():
     )
 
 
-def test_multiple_calls_same_extern():
+def test_multiple_entries_multiple_calls_same_extern():
     pat = make_fused_bias_activation_pattern("relax.nn.conv2d", with_bias=False, activation=None)
     check(Conv2dx2, [("cutlass.conv2d", pat)], Conv2dx2_partitioned, annotate_codegen=True)
 
