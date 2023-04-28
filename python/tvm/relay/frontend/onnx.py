@@ -1988,6 +1988,7 @@ class LpPool(OnnxOpConverter):
         data = inputs[0]
         input_shape = infer_shape(data)
         ndim = len(input_shape)
+        num_spatial_dims = ndim - 2
         if "auto_pad" in attr:
             attr["auto_pad"] = attr["auto_pad"].decode("utf-8")
             if attr["auto_pad"] in ("SAME_UPPER", "SAME_LOWER"):
@@ -1995,7 +1996,7 @@ class LpPool(OnnxOpConverter):
                 # one will need to run dynamic_to_static on this model after import
                 data = autopad(
                     data,
-                    attr["strides"],
+                    attr.get('strides', [1] * num_spatial_dims),
                     attr["kernel_shape"],
                     [1] * ndim,
                     mode=attr["auto_pad"],
