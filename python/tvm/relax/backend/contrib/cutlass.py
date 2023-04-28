@@ -16,11 +16,13 @@
 # under the License.
 
 """Pattern table for CUTLASS backend"""
-
+import operator
 from typing import Mapping, Sequence
+from functools import reduce
 
+import tvm
 from tvm.contrib.cutlass.build import is_shape_valid_for_cutlass_matmul
-from tvm.relax import DataflowVar, Var, transform, Call
+from tvm.relax import DataflowVar, Var, transform, Call, PyExprMutator, expr_functor, Function
 from tvm.relax.transform import PatternCheckContext
 from tvm.relax.dpl import rewrite_call
 
@@ -372,6 +374,41 @@ register_patterns(
 
 _REWRITE_PATTERNS = [*attention_rewrite_patterns()]
 
+@expr_functor.mutator
+class WorkspaceAnnotator(PyExprMutator):
+    def __init__(self, mod):
+        super().__init__(mod)
+
+    def visit_function_(self, f):
+        if f.attrs is None or "Composite" not in f.attrs:
+            body = super().visit_expr(f.body)
+            new_f = Function(f.params, body, f.ret_struct_info, f.attrs, f.span)
+
+            if f.attrs and "global_symbol" in f.attrs and "cutlass" in f.attrs["global_symbol"]:
+                composite_func = body.blocks[0].bindings[0].value
+                if "WorkspaceSize" in composite_func.attrs:
+                    return new_f.with_attr("WorkspaceSize", composite_func.attrs["WorkspaceSize"])
+
+            return new_f
+
+        op_type = f.attrs["Composite"]
+
+        if "attention" in op_type:
+            out_size_1d = reduce(operator.mul, f.ret_struct_info.shape, 1)
+            workspace_size_bytes = out_size_1d * 2 # 2 for half
+            return f.with_attr("WorkspaceSize", workspace_size_bytes)
+
+        return f
+
+
+@tvm.transform.module_pass(opt_level=0)
+def annotate_workspace(mod, _):
+    annotator = WorkspaceAnnotator(mod)
+    for name, f in mod.functions.items():
+        new_f = annotator.visit_expr(f)
+        mod.update_func(name, new_f)
+    return mod
+
 
 def partition_for_cutlass(mod, annotate_codegen=True):
     """
@@ -396,6 +433,10 @@ def partition_for_cutlass(mod, annotate_codegen=True):
     for pattern, rewriter in _REWRITE_PATTERNS:
         mod["main"] = rewrite_call(pattern, rewriter, mod["main"])
     patterns = get_patterns_with_prefix("cutlass")
-    return transform.FuseOpsByPattern(
-        patterns, bind_constants=False, annotate_codegen=annotate_codegen
-    )(mod)
+    return tvm.transform.Sequential([
+        transform.FuseOpsByPattern(
+            patterns, bind_constants=False, annotate_codegen=annotate_codegen
+        ),
+        annotate_workspace,
+        transform.ProvideWorkspace(),
+    ])(mod)

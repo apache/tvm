@@ -82,7 +82,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
       while (context_mod_->ContainGlobalVar(func_name)) {
         func_name = GetUniqueName(func_name_hint);
       }
-      GlobalVar gvar = GlobalVar(func_name);
+      GlobalVar gvar(func_name);
 
       StructInfo finfo;
       if (func->struct_info_.defined()) {

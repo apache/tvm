@@ -98,10 +98,7 @@ def instantiate_attention_template(attrs):
   p.output_ptr = reinterpret_cast<T *>(out0->data);
   p.output_accum_ptr = nullptr;
   if (Attention::kNeedsOutputAccumulatorBuffer) {
-    cudaMalloc(
-      &p.output_accum_ptr,
-      ${output_size} * sizeof(Attention::output_accum_t)
-    );
+    p.output_accum_ptr = static_cast<float*>(${workspace}->data);
   }
 
   p.num_heads = ${num_heads}; // N
@@ -131,10 +128,6 @@ def instantiate_attention_template(attrs):
 
   CHECK(Attention::check_supported(p));
   kernel_fn<<<p.getBlocksGrid(), p.getThreadsGrid(), smem_bytes>>>(p);
-
-  if (Attention::kNeedsOutputAccumulatorBuffer) {
-    cudaFree(p.output_accum_ptr);
-  }
 """
 
     template = substitute_template(

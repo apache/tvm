@@ -791,18 +791,18 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
             arg["arg0_dtype"] = signature["arg0_dtype"]
             arg["arg1_shape"] = q_shape = signature["arg1_shape"]
 
-            if "arg2_shape" not in signature:
+            if "arg3_shape" not in signature:
                 arg["arg2_shape"] = k_shape = signature["arg1_shape"]
                 arg["arg3_shape"] = v_shape = signature["arg1_shape"]
             else:
-                assert "arg3_shape" in signature
                 arg["arg2_shape"] = k_shape = signature["arg2_shape"]
                 arg["arg3_shape"] = v_shape = signature["arg3_shape"]
 
-            if "arg4_dtype" in signature:
-                arg["bias_dtype"] = signature["arg4_dtype"]
-            if "arg4_shape" in signature:
-                arg["bias_shape"] = signature["arg4_shape"]
+            # if "arg4_dtype" in signature:
+            #     arg["bias_dtype"] = signature["arg4_dtype"]
+            # if "arg4_shape" in signature:
+            #     arg["bias_shape"] = signature["arg4_shape"]
+
             qkv_layout = "qkv_stacked"
         else:
             arg["arg0_shape"] = q_shape = signature["arg0_shape"]
@@ -811,10 +811,12 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
             arg["arg0_dtype"] = signature["arg0_dtype"]
             arg["arg1_dtype"] = signature["arg1_dtype"]
             arg["arg2_dtype"] = signature["arg2_dtype"]
-            if "arg3_dtype" in signature:
-                arg["bias_dtype"] = signature["arg3_dtype"]
-            if "arg3_shape" in signature:
-                arg["bias_shape"] = signature["arg3_shape"]
+
+            # if "arg3_dtype" in signature:
+            #     arg["bias_dtype"] = signature["arg3_dtype"]
+            # if "arg3_shape" in signature:
+            #     arg["bias_shape"] = signature["arg3_shape"]
+
             qkv_layout = "default"
         out_shape = signature["ret_shape"]
         out_dtype = signature["ret_dtype"]
