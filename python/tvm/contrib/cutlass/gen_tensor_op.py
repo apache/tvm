@@ -741,11 +741,21 @@ def instantiate_template(func_name, annotations, func_args):
         if "bias" in attrs:
             attrs["kSupportsBias"] = True
             if len(annotations["bias_shape"]) == 4:
-                attrs["bias_layout"] = "BNSS'"
-            elif len(annotations["bias_shape"]) == 3:
-                attrs["bias_layout"] = "B1SS'"
-            elif len(annotations["bias_shape"]) == 2:
-                attrs["bias_layout"] = "B11S'"
+                strides = "p.num_keys"
+                if annotations["bias_shape"][2] == 1:
+                    attrs["bias_strideM"] = 0
+                else:
+                    attrs["bias_strideM"] = strides
+                    strides = f"p.num_queries * {strides}"
+                if annotations["bias_shape"][1] == 1:
+                    attrs["bias_strideH"] = 0
+                else:
+                    attrs["bias_strideH"] = strides
+                    strides = f"p.num_heads * {strides}"
+                if annotations["bias_shape"][0] == 1:
+                    attrs["bias_strideB"] = 0
+                else:
+                    attrs["bias_strideB"] = strides
             else:
                 raise NotImplementedError()
         else:

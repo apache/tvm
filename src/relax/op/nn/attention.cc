@@ -85,23 +85,24 @@ StructInfo InferStructInfoAttention(const Call& call, const BlockBuilder& ctx) {
   if (input_sinfo.size() == 4) {
     TensorStructInfo bias_sinfo = input_sinfo[3];
     const ShapeExprNode* bias_shape = bias_sinfo->shape.as<ShapeExprNode>();
-    if (bias_sinfo->ndim == 4) {
-      diag_equal(num_batches, bias_shape->values[0], "query", "bias", "batch size");
-      diag_equal(num_heads, bias_shape->values[1], "query", "bias", "number of heads");
-      diag_equal(num_queries, bias_shape->values[2], "query", "bias", "sequence length");
-      diag_equal(num_keys, bias_shape->values[3], "key", "bias", "sequence length");
-    } else if (bias_sinfo->ndim == 3) {
-      diag_equal(num_batches, bias_shape->values[0], "query", "bias", "batch size");
-      diag_equal(num_queries, bias_shape->values[1], "query", "bias", "sequence length");
-      diag_equal(num_keys, bias_shape->values[2], "key", "bias", "sequence length");
-    } else if (bias_sinfo->ndim == 2) {
-      diag_equal(num_batches, bias_shape->values[0], "query", "bias", "batch size");
-      diag_equal(num_keys, bias_shape->values[1], "key", "bias", "sequence length");
-    } else {
+    if (bias_sinfo->ndim != 4) {
       ctx->ReportFatal(Diagnostic::Error(call)
-                       << "The bias should have 2, 3 or 4 dimensions."
+                       << "The bias should have 4 dimensions."
                        << "However, the bias input has " << bias_sinfo->ndim << " dimensions.");
     }
+    auto diag_equal_or_broadcast = [&](PrimExpr v1, PrimExpr v2, String m1, String m2, String dim) {
+      if (analyzer->CanProve(v1 != v2) && !tir::is_one(v2)) {
+        ctx->ReportFatal(Diagnostic::Error(call)
+                         << "The " << m1 << " " << dim << " and the " << m2 << " " << dim
+                         << " should be the same or broadcastable. However, the " << dim << " of "
+                         << m1 << " is " << v1 << " while the " << dim << " of " << m2 << " is "
+                         << v2);
+      }
+    };
+    diag_equal_or_broadcast(num_batches, bias_shape->values[0], "query", "bias", "batch size");
+    diag_equal_or_broadcast(num_heads, bias_shape->values[1], "query", "bias", "number of heads");
+    diag_equal_or_broadcast(num_queries, bias_shape->values[2], "query", "bias", "sequence length");
+    diag_equal(num_keys, bias_shape->values[3], "key", "bias", "sequence length");
   }
 
   Array<PrimExpr> output_shape = {num_batches, num_queries, num_heads, head_dim_value};
