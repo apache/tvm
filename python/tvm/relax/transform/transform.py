@@ -784,6 +784,8 @@ def MetaScheduleTuneIRMod(
     params: Dict[str, NDArray],
     work_dir: str,
     max_trials_global: int,
+    max_trials_per_task: Optional[int] = None,
+    op_names: Optional[List[str]] = None,
 ) -> tvm.ir.transform.Pass:
     """Tune Relax IRModule with MetaSchedule.
     Parameters
@@ -794,11 +796,19 @@ def MetaScheduleTuneIRMod(
        work directory
     max_trials_gloabl: int
        maximum number of total trials allowed for tuning
+    max_trials_per_task: int
+       maximum number of trials per task
+    op_names: Optional[List[str]]
+       A list of operator names to specify which op to tune. When it is None, all operators
+        are tuned.
+
     Returns
     -------
     ret: tvm.ir.transform.Pass
     """
-    return _ffi_api.MetaScheduleTuneIRMod(params, work_dir, max_trials_global)  # type: ignore
+    return _ffi_api.MetaScheduleTuneIRMod(
+        params, work_dir, max_trials_global, max_trials_per_task, op_names
+    )  # type: ignore
 
 
 def DecomposeOpsForInference(func_name: Optional[str] = None) -> tvm.ir.transform.Pass:

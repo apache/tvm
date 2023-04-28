@@ -163,8 +163,9 @@ def tune_relax(
     target: Union[str, Target],
     work_dir: str,
     max_trials_global: int,
-    *,
     max_trials_per_task: Optional[int] = None,
+    op_names: Optional[List[str]] = None,
+    *,
     num_trials_per_iter: int = 64,
     builder: Builder.BuilderType = "local",
     runner: Runner.RunnerType = "local",
@@ -193,6 +194,9 @@ def tune_relax(
         The maximum number of trials to run
     max_trials_per_task : Optional[int]
         The maximum number of trials to run for each task
+    op_names: Optional[List[str]]
+        A list of operator names to specify which op to tune. When it is None, all operators
+        are tuned.
     num_trials_per_iter : int
         The number of trials to run per iteration
     builder : BuilderType
@@ -229,8 +233,20 @@ def tune_relax(
     database : Database
         The database that contains the tuning records
     """
+    all_tasks = extract_tasks(mod, target, params, module_equality=module_equality)
+
+    if not op_names:
+        selected_tasks = all_tasks
+    else:
+        selected_tasks = []
+
+        for task in all_tasks:
+            for op_name in op_names:
+                if op_name in task.task_name:
+                    selected_tasks.append(task)
+
     tasks, task_weights = extracted_tasks_to_tune_contexts(
-        extracted_tasks=extract_tasks(mod, target, params, module_equality=module_equality),
+        extracted_tasks=selected_tasks,
         work_dir=work_dir,
         space=space,
         strategy=strategy,
@@ -260,8 +276,9 @@ def _tune_relax(
     target: Union[str, Target],
     work_dir: str,
     max_trials_global: int,
-    *,
     max_trials_per_task: Optional[int] = None,
+    op_names: Optional[List[str]] = None,
+    *,
     num_trials_per_iter: int = 64,
     builder: Builder.BuilderType = "local",
     runner: Runner.RunnerType = "local",
@@ -290,6 +307,9 @@ def _tune_relax(
         The maximum number of trials to run
     max_trials_per_task : Optional[int]
         The maximum number of trials to run for each task
+    op_names: Optional[List[str]]
+        A list of operator names to specify which op to tune. When it is None, all operators
+        are tuned.
     num_trials_per_iter : int
         The number of trials to run per iteration
     builder : BuilderType
@@ -328,6 +348,8 @@ def _tune_relax(
     """
     if isinstance(max_trials_global, IntImm):
         max_trials_global = int(max_trials_global)
+    if isinstance(max_trials_per_task, IntImm):
+        max_trials_per_task = int(max_trials_per_task)
 
     tune_relax(
         mod,
@@ -337,6 +359,7 @@ def _tune_relax(
         max_trials_global,
         max_trials_per_task=max_trials_per_task,
         num_trials_per_iter=num_trials_per_iter,
+        op_names=op_names,
         builder=builder,
         runner=runner,
         database=database,

@@ -36,10 +36,13 @@ namespace transform {
 class MetaScheduleTuner {
  public:
   explicit MetaScheduleTuner(Target target, String work_dir, Integer max_trials_global,
+                             Integer max_trials_per_task, Optional<Array<String>> op_names,
                              Map<String, runtime::NDArray> params = {})
       : target_(target),
         work_dir_(work_dir),
         max_trials_global_(max_trials_global),
+        max_trials_per_task_(max_trials_per_task),
+        op_names_(op_names),
         params_(params) {
     // candgen_func_ = runtime::Registry::Get("relax.tuning_api.default_generate_candidate");
     // ICHECK(candgen_func_) << "Default candidate generation function is not found.";
@@ -49,8 +52,10 @@ class MetaScheduleTuner {
 
   // TODO(@sunggg): Currently, only supports basic arguments.
   IRModule TuneIRMod(IRModule mod, transform::PassContext ctx) {
-    Choice choice("tvm.meta_schedule.tune_relax", {params_, target_, work_dir_, max_trials_global_},
-                  "relax.tuning_api.Choice.default_constr_func", {});
+    Choice choice(
+        "tvm.meta_schedule.tune_relax",
+        {params_, target_, work_dir_, max_trials_global_, max_trials_per_task_, op_names_},
+        "relax.tuning_api.Choice.default_constr_func", {});
     Knob knob("meta_schedule.tune_irmod", {{"0", choice}});
     knob->Apply(mod, "0");
     /*
@@ -88,6 +93,8 @@ class MetaScheduleTuner {
   Target target_;
   String work_dir_;
   Integer max_trials_global_;
+  Integer max_trials_per_task_;
+  Optional<Array<String>> op_names_;
   Map<String, runtime::NDArray> params_;
   // const runtime::PackedFunc* candgen_func_;
   const runtime::PackedFunc* normalize_mod_func_;
@@ -167,11 +174,15 @@ Pass MetaScheduleApplyDatabase(Optional<String> work_dir, bool enable_warning = 
 }
 
 Pass MetaScheduleTuneIRMod(Map<String, runtime::NDArray> params, String work_dir,
-                           Integer max_trials_global) {
+                           Integer max_trials_global,
+                           Optional<Integer> max_trials_per_task = NullOpt,
+                           Optional<Array<String>> op_names = NullOpt) {
   Target target = Target::Current(false);
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule m,
                                                                             PassContext ctx) {
-    return MetaScheduleTuner(target, work_dir, max_trials_global, params).TuneIRMod(m, ctx);
+    auto max_trials_task = max_trials_per_task.value_or(max_trials_global);
+    return MetaScheduleTuner(target, work_dir, max_trials_global, max_trials_task, op_names, params)
+        .TuneIRMod(m, ctx);
   };
   return CreateModulePass(/*pass function*/ pass_func, /*opt level*/ 0,
                           /*pass name*/ "MetaScheduleTuneIRModule",
@@ -183,7 +194,8 @@ Pass MetaScheduleTuneTIR(String work_dir, Integer max_trials_global) {
   Target target = Target::Current(false);
   runtime::TypedPackedFunc<tir::PrimFunc(tir::PrimFunc, IRModule, PassContext)> pass_func =
       [=](tir::PrimFunc f, IRModule mod, PassContext ctx) {
-        return MetaScheduleTuner(target, work_dir, max_trials_global).TuneTIR(f, ctx);
+        return MetaScheduleTuner(target, work_dir, max_trials_global, max_trials_global, NullOpt)
+            .TuneTIR(f, ctx);
       };
   return tir::transform::CreatePrimFuncPass(/*pass function*/ pass_func, /*opt level*/ 0,
                                             /*pass name*/ "MetaScheduleTuneTIR",
