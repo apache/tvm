@@ -14,9 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-wildcard-import, wildcard-import
+# pylint: disable=invalid-name
 """Generator for CUTLASS attention kernels."""
-from .library import *
+from .library import substitute_template
 
 
 def instantiate_attention_template(attrs):

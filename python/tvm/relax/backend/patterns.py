@@ -252,3 +252,12 @@ def make_stacked_attention_pattern(start_op: str, with_bias: bool = False):
     else:
         out = is_op("relax.nn.attention")(query, key, value)
     return out, annotations
+
+
+def make_layer_norm_pattern():
+    """Create a layer norm pattern."""
+    inp = wildcard()
+    gamma = wildcard()
+    beta = wildcard()
+
+    return is_op("relax.nn.layer_norm")(inp, gamma, beta), {}

@@ -32,6 +32,7 @@ from . import _ffi_api as ffi
 from .attention_operation import instantiate_attention_template
 from .conv2d_operation import instantiate_conv2d_template
 from .gemm_operation import instantiate_gemm_template
+from .layer_norm_operation import instantiate_layer_norm_template
 from .library import (
     DataType,
     DataTypeSize,
@@ -763,6 +764,13 @@ def instantiate_template(func_name, annotations, func_args):
             # kSupportsBias should be set true, or there are nan's as result.
             attrs["kSupportsBias"] = attrs["scale"] < 0
         code = instantiate_attention_template(attrs)
+        return CodegenResult(code, headers)
+    elif "layer_norm" in func_name:
+        headers.append("cutlass/util/device_layernorm.h")
+        headers.append("cutlass/layout/matrix.h")
+        attrs = {"input": func_args[0], "gamma": func_args[1], "beta": func_args[2]}
+        attrs.update(dict(annotations))
+        code = instantiate_layer_norm_template(attrs)
         return CodegenResult(code, headers)
 
     raise ValueError("Do not have a template for {}".format(func_name))

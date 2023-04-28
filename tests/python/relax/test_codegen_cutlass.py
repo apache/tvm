@@ -792,5 +792,51 @@ def test_invalid_residual():
     assert "fused_relax_nn_conv2d_relax_add_cutlass" in func_names
 
 
+@pytest.mark.parametrize(
+    "data_shape, dtype, axes",
+    [
+        ((2, 128, 64), "float16", [-1]),
+        ((128, 30), "float32", [-1]),
+        ((2, 128, 64), "float32", [1]),
+        ((2, 128, 64), "float32", [1, 2]),
+    ],
+)
+def test_layer_norm(data_shape, dtype, axes):
+    def get_mod(data_shape, dtype, axes):
+        reduced_shape = [data_shape[axis] for axis in axes]
+        with IRBuilder() as builder:
+            with relax_builder.function():
+                R.func_name("main")
+                inp = R.arg("input", R.Tensor(data_shape, dtype))
+                gamma = R.arg("gamma", R.Tensor(reduced_shape, dtype))
+                beta = R.arg("beta", R.Tensor(reduced_shape, dtype))
+
+                with R.dataflow() as frame:
+                    output = R.emit(R.nn.layer_norm(inp, gamma, beta, axes))
+                    R.output(output)
+
+                R.func_ret_value(frame.output_vars[0])
+
+        func = builder.get()
+        return tvm.IRModule({"main": func})
+
+    Module = get_mod(data_shape, dtype, axes)
+    mod = partition_for_cutlass(Module)
+
+    if len(axes) != 1 or (axes[0] != -1 and axes[0] != len(data_shape) - 1):
+        tvm.ir.assert_structural_equal(mod, Module)
+        return
+
+    mod = relax.transform.RunCodegen()(mod)
+
+    inp = np.random.randn(*data_shape).astype(dtype)
+    gamma = np.random.randn(data_shape[-1]).astype(dtype)
+    beta = np.random.randn(data_shape[-1]).astype(dtype)
+    out = build_and_run(mod, [inp, gamma, beta], "cuda")
+    ref = build_and_run(Module, [inp, gamma, beta], "llvm", legalize=True)
+
+    tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

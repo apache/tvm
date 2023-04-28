@@ -776,7 +776,7 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
         )
 
     def handle_attention(self, f, op_type):
-        """Tune and annotate a dense op."""
+        """Annotate an attention op."""
         signature = _extract_relax_function_signature(f)
         if _get_call_node(f.body, "relax.nn.attention") is not None:
             op_attrs = _get_call_node(f.body, "relax.nn.attention").attrs
@@ -841,6 +841,16 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
             }
         )
 
+    def handle_layer_norm(self, f, _):
+        """Annotate a layer norm op."""
+        signature = _extract_relax_function_signature(f)
+        attrs = {}
+        attrs["M"] = reduce(operator.mul, signature["arg0_shape"][:-1], 1)
+        attrs["N"] = signature["arg0_shape"][-1]
+        dtype = signature["arg0_dtype"]
+        attrs["data_type"] = {"float32": "float", "float16": "cutlass::half_t"}[str(dtype)]
+        return f.with_attrs(attrs)
+
     def visit_function_(self, f):
         if "Composite" not in f.attrs:
             body = super().visit_expr(f.body)
@@ -854,6 +864,8 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
             return self.handle_matmul(f, op_type)
         elif "attention" in op_type:
             return self.handle_attention(f, op_type)
+        elif "layer_norm" in op_type:
+            return self.handle_layer_norm(f, op_type)
 
         raise ValueError("Unsupported composite {}".format(op_type))
 
