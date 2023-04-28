@@ -761,6 +761,175 @@ def test_stacked_attention_strided_slice_offload(stacked_attention_size):
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
+@pytest.fixture(
+    params=[
+        # B, S, N, H, bias_shape, scale
+        (4, (16, 8), 32, (8, 16), "none", 0.5),
+        (4, (16, 8), 32, (8, 16), (4, 32, 16, 8), 0.5),
+        (4, (16, 8), "none", (8, 16), "none", 0.5),
+        (4, (16, 8), "none", (8, 16), (4, 32, 16, 8), 0.5),
+    ]
+)
+def attention_rewrite_size(request):
+    return request.param
+
+
+def get_relax_attention_rewrite_module(
+    q_shape, k_shape, v_shape, out_shape, dtype, bias_shape=None, scale=None
+):
+    from tvm.script.ir_builder import IRBuilder
+    from tvm.script.ir_builder import relax as relax_builder, tir as T
+
+    with IRBuilder() as builder:
+        with relax_builder.function():
+            R.func_name("main")
+            q = R.arg("q", R.Tensor(q_shape, dtype))
+            k = R.arg("k", R.Tensor(k_shape, dtype))
+            v = R.arg("v", R.Tensor(v_shape, dtype))
+            if bias_shape is not None:
+                bias = R.arg("bias", R.Tensor(bias_shape, dtype))
+            with R.dataflow() as frame:
+                if len(q_shape) == 4:
+                    q = R.emit(R.permute_dims(q, axes=[0, 2, 1, 3]))
+                    q = R.emit(R.reshape(q, [q_shape[0] * q_shape[2], q_shape[1], q_shape[3]]))
+
+                if len(k_shape) == 4:
+                    k = R.emit(R.permute_dims(k, axes=[0, 2, 1, 3]))
+                    k = R.emit(R.reshape(k, [k_shape[0] * k_shape[2], k_shape[1], k_shape[3]]))
+
+                if len(v_shape) == 4:
+                    v = R.emit(R.permute_dims(v, axes=[0, 2, 1, 3]))
+                    v = R.emit(R.reshape(v, [v_shape[0] * v_shape[2], v_shape[1], v_shape[3]]))
+
+                k = R.emit(R.permute_dims(k, axes=[0, 2, 1]))
+                qk = R.emit(R.matmul(q, k))
+                qk_scaled = R.emit(R.multiply(qk, R.const(scale, "float32")))
+                if bias_shape is not None:
+                    if len(bias_shape) == 4:
+                        bias = R.emit(
+                            R.reshape(bias, [bias_shape[0] * bias_shape[1], *bias_shape[2:]])
+                        )
+                    qk_added = R.emit(R.add(qk_scaled, bias))
+                    softmax = R.emit(R.nn.softmax(qk_added, axis=-1))
+                else:
+                    softmax = R.emit(R.nn.softmax(qk_scaled, axis=-1))
+                out = R.emit(R.matmul(softmax, v))
+
+                if len(out_shape) == 4:
+                    out = R.emit(
+                        R.reshape(
+                            out,
+                            [out_shape[0], out_shape[2], out_shape[1], out_shape[3]],
+                        )
+                    )
+                    out = R.emit(R.permute_dims(out, axes=[0, 2, 1, 3]))
+                R.output(out)
+
+            R.func_ret_value(frame.output_vars[0])
+
+    original_func = builder.get()
+
+    if scale is not None:
+        scale = T.FloatImm("float32", scale)
+
+    with IRBuilder() as builder:
+        with relax_builder.function():
+            R.func_name("main")
+            q = R.arg("q", R.Tensor(q_shape, dtype))
+            k = R.arg("k", R.Tensor(k_shape, dtype))
+            v = R.arg("v", R.Tensor(v_shape, dtype))
+            if bias_shape is not None:
+                bias = R.arg("bias", R.Tensor(bias_shape, dtype))
+            with R.dataflow() as frame:
+                if len(q_shape) == 3:
+                    q = R.emit(R.reshape(q, [q_shape[0], q_shape[1], 1, q_shape[2]]))
+
+                if len(k_shape) == 3:
+                    k = R.emit(R.reshape(k, [k_shape[0], k_shape[1], 1, k_shape[2]]))
+
+                if len(v_shape) == 3:
+                    v = R.emit(R.reshape(v, [v_shape[0], v_shape[1], 1, v_shape[2]]))
+
+                if bias_shape is not None:
+                    if len(bias_shape) == 4:
+                        bias = R.emit(
+                            R.reshape(
+                                bias,
+                                [
+                                    bias_shape[0] * bias_shape[1],
+                                    bias_shape[2],
+                                    bias_shape[3],
+                                ],
+                            )
+                        )
+                        bias = R.emit(
+                            R.reshape(
+                                bias,
+                                [
+                                    bias_shape[0],
+                                    bias_shape[1],
+                                    bias_shape[2],
+                                    bias_shape[3],
+                                ],
+                            )
+                        )
+                    elif len(bias_shape) == 3:
+                        bias = R.emit(
+                            R.reshape(bias, [bias_shape[0], 1, bias_shape[1], bias_shape[2]])
+                        )
+                else:
+                    bias = None
+                out = R.emit(R.nn.attention(q, k, v, bias, scale))
+
+                if len(out_shape) == 3:
+                    out = R.emit(R.reshape(out, [out_shape[0], out_shape[1], out_shape[2]]))
+                R.output(out)
+
+            R.func_ret_value(frame.output_vars[0])
+
+    expected_func = builder.get()
+    return tvm.IRModule({"main": original_func}), tvm.IRModule({"main": expected_func})
+
+
+def get_numpy_attention_input(q_shape, k_shape, v_shape, bias_shape, dtype):
+    q = np.random.randn(*q_shape).astype(dtype)
+    k = np.random.randn(*k_shape).astype(dtype)
+    v = np.random.randn(*v_shape).astype(dtype)
+    if not bias_shape == "none":
+        bias = np.random.randn(*bias_shape).astype(dtype)
+    else:
+        bias = None
+    return q, k, v, bias
+
+
+def test_attention_rewrite_offload(attention_rewrite_size):
+    b, (s, s_kv), n, (h, h_v), bias_shape, scale = attention_rewrite_size
+    q_shape = [b, s, n, h] if n != "none" else [b, s, h]
+    k_shape = [b, s_kv, n, h] if n != "none" else [b, s_kv, h]
+    v_shape = [b, s_kv, n, h_v] if n != "none" else [b, s_kv, h_v]
+    out_shape = [b, s, n, h_v] if n != "none" else [b, s, h_v]
+    bias_shape = [b, n, s, s_kv] if n != "none" else [b, s, s_kv]
+    q, k, v, bias = get_numpy_attention_input(q_shape, k_shape, v_shape, bias_shape, "float32")
+    original_mod, expected_mod = get_relax_attention_rewrite_module(
+        q_shape, k_shape, v_shape, out_shape, "float32", bias_shape, scale
+    )
+    original_mod = partition_for_cutlass(original_mod, True)
+    expected_mod = partition_for_cutlass(expected_mod, True)
+    tvm.ir.assert_structural_equal(original_mod, expected_mod, True)
+
+    codegen_pass = relax.transform.RunCodegen({"cutlass": {"sm": 80, "find_first_valid": True}})
+    original_mod = codegen_pass(original_mod)
+    expected_mod = codegen_pass(expected_mod)
+    if bias is None:
+        original_out = build_and_run(original_mod, [q, k, v], "cuda")
+        expected_out = build_and_run(expected_mod, [q, k, v], "cuda")
+        tvm.testing.assert_allclose(original_out, expected_out, rtol=1e-5, atol=1e-5)
+    else:
+        original_out = build_and_run(original_mod, [q, k, v, bias], "cuda")
+        expected_out = build_and_run(expected_mod, [q, k, v, bias], "cuda")
+        tvm.testing.assert_allclose(original_out, expected_out, rtol=1e-5, atol=1e-5)
+
+
 def test_invalid_residual():
     @tvm.script.ir_module
     class Module:
