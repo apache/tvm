@@ -3938,7 +3938,7 @@ def test_lppool(target, dev):
         out_shape=[1, 1, 16, 16],
         auto_pad="SAME_UPPER",
     )
-    
+
     # Pool2D with empty stride
     verify_lppool(
         x_shape=[1, 3, 32, 32],
