@@ -103,6 +103,10 @@ class WorkspaceProvider : ExprMutator {
       }
     }
 
+    if (max_workspace_size_ == 0) {
+      return mod_;
+    }
+
     auto new_funcs = relax::ExternFunctionRewriter(mod_, max_workspace_size_).Run();
 
     for (const auto& [gvar, f] : new_funcs) {
