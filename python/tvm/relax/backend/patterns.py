@@ -17,7 +17,7 @@
 
 """Common patterns used in BYOC"""
 
-from typing import Dict, Mapping, Tuple, Union, Optional
+from typing import Dict, Mapping, Tuple, Union
 from tvm.script import relax as R, tir as T
 from tvm.relax.dpl.pattern import DFPattern, is_const, is_op, is_tuple_get_item, wildcard
 
@@ -264,6 +264,32 @@ def make_layer_norm_pattern():
 
 
 def make_attention_rewrite_pattern(qkv_layout: str, out_layout: str, with_bias: bool):
+    """
+    Create pattern for implicit fused multi head attention rewriting.
+
+    Parameters
+    ----------
+    qkv_layout: str
+        The layout of the query, key and value tensor, i.e. BSNH or BSH.
+
+    out_layout: str
+        The layout of the output tensor, i.e. BSNH or BSH.
+
+    with_bias: bool
+        Whether or not to include bias addition
+
+    Returns
+    -------
+    pattern: DFPattern
+        The resulting pattern describing an implicit fused multi head attention.
+
+    rewriter: Callable[[Expr, Dict[DFPattern, Expr]], Expr]
+        The rewriter for the pattern. It will check the matched patterns, and rewrite.
+        If the matched pattern is not able to be rewritten to `R.nn.attention`, the rewriter
+        returns the original IR.
+    """
+
+    # pylint: disable=invalid-name
     def handle_input(tensor, layout, transpose):
         if layout == "BSNH":
             permuted = is_op("relax.permute_dims")(tensor)

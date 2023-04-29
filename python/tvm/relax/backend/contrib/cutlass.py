@@ -370,7 +370,7 @@ register_patterns(
     ]
 )
 
-rewrite_patterns = [*attention_rewrite_patterns()]
+_REWRITE_PATTERNS = [*attention_rewrite_patterns()]
 
 
 def partition_for_cutlass(mod, annotate_codegen=True):
@@ -393,7 +393,7 @@ def partition_for_cutlass(mod, annotate_codegen=True):
         The resulting IRModule, containing partitioned subgraphs to be
         compiled by the CUTLASS backend.
     """
-    for pattern, rewriter in rewrite_patterns:
+    for pattern, rewriter in _REWRITE_PATTERNS:
         mod["main"] = rewrite_call(pattern, rewriter, mod["main"])
     patterns = get_patterns_with_prefix("cutlass")
     return transform.FuseOpsByPattern(
