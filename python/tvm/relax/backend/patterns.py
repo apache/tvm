@@ -18,8 +18,8 @@
 """Common patterns used in BYOC"""
 
 from typing import Dict, Mapping, Tuple, Union
-
-from tvm.relax.dpl.pattern import DFPattern, is_op, is_tuple_get_item, wildcard
+from tvm.script import relax as R, tir as T
+from tvm.relax.dpl.pattern import DFPattern, is_const, is_op, is_tuple_get_item, wildcard
 
 
 def _with_bias_activation_pattern(
@@ -261,3 +261,172 @@ def make_layer_norm_pattern():
     beta = wildcard()
 
     return is_op("relax.nn.layer_norm")(inp, gamma, beta), {}
+
+
+def make_attention_rewrite_pattern(qkv_layout: str, out_layout: str, with_bias: bool):
+    """
+    Create pattern for implicit fused multi head attention rewriting.
+
+    Parameters
+    ----------
+    qkv_layout: str
+        The layout of the query, key and value tensor, i.e. BSNH or BSH.
+
+    out_layout: str
+        The layout of the output tensor, i.e. BSNH or BSH.
+
+    with_bias: bool
+        Whether or not to include bias addition
+
+    Returns
+    -------
+    pattern: DFPattern
+        The resulting pattern describing an implicit fused multi head attention.
+
+    rewriter: Callable[[Expr, Dict[DFPattern, Expr]], Expr]
+        The rewriter for the pattern. It will check the matched patterns, and rewrite.
+        If the matched pattern is not able to be rewritten to `R.nn.attention`, the rewriter
+        returns the original IR.
+    """
+
+    # pylint: disable=invalid-name
+    def handle_input(tensor, layout, transpose):
+        if layout == "BSNH":
+            permuted = is_op("relax.permute_dims")(tensor)
+            shape = wildcard()
+            reshaped = is_op("relax.reshape")(permuted, shape)
+            if transpose:
+                transposed = is_op("relax.permute_dims")(reshaped)
+
+            def rewriter(matchings, x):
+                if matchings[tensor].struct_info.ndim != 4:
+                    return None
+                if list(matchings[permuted].attrs.axes) != [0, 2, 1, 3]:
+                    return None
+                before_reshape = matchings[permuted].struct_info.shape.values
+                after_reshape = matchings[shape].struct_info.values
+                if not (
+                    len(before_reshape) == 4
+                    and len(after_reshape) == 3
+                    and before_reshape[-2:] == after_reshape[-2:]
+                ):
+                    return None
+                if transpose and list(matchings[transposed].attrs.axes) != [0, 2, 1]:
+                    return None
+                return x, x.struct_info.shape
+
+            if transpose:
+                return transposed, rewriter
+            else:
+                return reshaped, rewriter
+        elif layout == "BSH":
+            if transpose:
+                transposed = is_op("relax.permute_dims")(tensor)
+
+            def rewriter(matchings, x):
+                if matchings[tensor].struct_info.ndim != 3:
+                    return None
+                if transpose and list(matchings[transposed].attrs.axes) != [0, 2, 1]:
+                    return None
+                before_reshape = x.struct_info.shape.values
+                after_reshape = [before_reshape[0], before_reshape[1], 1, before_reshape[2]]
+                return R.reshape(x, after_reshape), after_reshape
+
+            if transpose:
+                return transposed, rewriter
+            else:
+                return tensor, rewriter
+        else:
+            raise NotImplementedError()
+
+    def handle_output(tensor, layout):
+        if layout == "BSNH":
+            shape = wildcard()
+            reshaped = is_op("relax.reshape")(tensor, shape)
+            permuted = is_op("relax.permute_dims")(reshaped)
+
+            def rewriter(matchings, x):
+                if matchings[tensor].struct_info.ndim != 3:
+                    return None
+                before_reshape = matchings[tensor].struct_info.shape.values
+                after_reshape = matchings[shape].struct_info.values
+                if not (
+                    len(before_reshape) == 3
+                    and len(after_reshape) == 4
+                    and before_reshape[-2:] == after_reshape[-2:]
+                ):
+                    return None
+                if list(matchings[permuted].attrs.axes) != [0, 2, 1, 3]:
+                    return None
+                return x
+
+            return permuted, rewriter
+        elif layout == "BSH":
+
+            def rewriter(matchings, x):
+                if matchings[tensor].struct_info.ndim != 3:
+                    return None
+                return R.reshape(x, matchings[tensor].struct_info.shape.values)
+
+            return tensor, rewriter
+        else:
+            raise NotImplementedError()
+
+    q_raw, k_raw, v_raw = wildcard(), wildcard(), wildcard()
+    q, q_rewriter = handle_input(q_raw, qkv_layout, False)
+    k, k_rewriter = handle_input(k_raw, qkv_layout, True)
+    v, v_rewriter = handle_input(v_raw, qkv_layout, False)
+    matmul_1 = is_op("relax.matmul")(q, k)
+    scale = is_const()
+    multiply = is_op("relax.multiply")(matmul_1, scale)
+    if with_bias:
+        bias_raw = wildcard()
+        add = is_op("relax.add")(multiply, bias_raw)
+        softmax = is_op("relax.nn.softmax")(add)
+    else:
+        softmax = is_op("relax.nn.softmax")(multiply)
+    matmul_2 = is_op("relax.matmul")(softmax, v)
+    out, out_rewriter = handle_output(matmul_2, out_layout)
+
+    def rewriter(original, matchings):
+        query, query_shape = q_rewriter(matchings, matchings[q_raw])
+        key, key_shape = k_rewriter(matchings, matchings[k_raw])
+        value, _ = v_rewriter(matchings, matchings[v_raw])
+        if query is None or key is None or value is None:
+            return original
+        if matchings[softmax].attrs.axis != -1:
+            return original
+        b, s, n, _ = query_shape
+        _, s_kv, _, _ = key_shape
+        if with_bias:
+            bias = matchings[bias_raw]
+            bias_shape = list(bias.struct_info.shape)
+            if bias_shape == [b * n, s, s_kv]:
+                bias = R.reshape(bias, [b, n, s, s_kv])
+            elif bias_shape == [b * n, 1, s_kv]:
+                bias = R.reshape(bias, [b, n, 1, s_kv])
+            elif bias_shape == [b, s, s_kv]:
+                bias = R.reshape(bias, [b, 1, s, s_kv])
+            elif bias_shape == [b, 1, s_kv]:
+                bias = R.reshape(bias, [b, 1, 1, s_kv])
+            elif bias_shape in [[1, s, s_kv], [s, s_kv]]:
+                bias = R.reshape(bias, [1, 1, s, s_kv])
+            elif bias_shape in [[1, 1, s_kv], [1, s_kv], [s_kv]]:
+                bias = R.reshape(bias, [1, 1, 1, s_kv])
+            else:
+                return original
+        else:
+            bias = None
+        out = out_rewriter(
+            matchings,
+            R.nn.attention(
+                query,
+                key,
+                value,
+                bias,
+                T.FloatImm(matchings[scale].data.dtype, float(matchings[scale].data.numpy())),
+            ),
+        )
+        return out
+
+    return out, rewriter

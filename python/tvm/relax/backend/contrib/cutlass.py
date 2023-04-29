@@ -22,6 +22,7 @@ from typing import Mapping, Sequence
 from tvm.contrib.cutlass.build import is_shape_valid_for_cutlass_matmul
 from tvm.relax import DataflowVar, Var, transform, Call
 from tvm.relax.transform import PatternCheckContext
+from tvm.relax.dpl import rewrite_call
 
 from ..pattern_registry import get_patterns_with_prefix, register_patterns
 from ..patterns import (
@@ -31,6 +32,7 @@ from ..patterns import (
     make_residual_block_pattern,
     make_stacked_attention_pattern,
     make_layer_norm_pattern,
+    make_attention_rewrite_pattern,
 )
 
 
@@ -346,6 +348,18 @@ def layer_norm_pattern():
     ]
 
 
+def attention_rewrite_patterns():
+    """
+    Returns a list of all attention rewriting patterns in cutlass BYOC backend.
+    """
+    patterns = []
+    for qkv_layout in ["BSNH", "BSH"]:
+        for out_layout in ["BSNH", "BSH"]:
+            for with_bias in [True, False]:
+                patterns.append(make_attention_rewrite_pattern(qkv_layout, out_layout, with_bias))
+    return patterns
+
+
 register_patterns(
     [
         *conv2d_patterns(),
@@ -355,6 +369,8 @@ register_patterns(
         *layer_norm_pattern(),
     ]
 )
+
+_REWRITE_PATTERNS = [*attention_rewrite_patterns()]
 
 
 def partition_for_cutlass(mod, annotate_codegen=True):
@@ -377,7 +393,8 @@ def partition_for_cutlass(mod, annotate_codegen=True):
         The resulting IRModule, containing partitioned subgraphs to be
         compiled by the CUTLASS backend.
     """
-
+    for pattern, rewriter in _REWRITE_PATTERNS:
+        mod["main"] = rewrite_call(pattern, rewriter, mod["main"])
     patterns = get_patterns_with_prefix("cutlass")
     return transform.FuseOpsByPattern(
         patterns, bind_constants=False, annotate_codegen=annotate_codegen
