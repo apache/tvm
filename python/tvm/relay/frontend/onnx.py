@@ -1996,6 +1996,7 @@ class LpPool(OnnxOpConverter):
                 # one will need to run dynamic_to_static on this model after import
                 data = autopad(
                     data,
+                    # this is meant to handle the field 'strides' being optional for opsets 11+
                     attr.get("strides", [1] * num_spatial_dims),
                     attr["kernel_shape"],
                     [1] * ndim,
