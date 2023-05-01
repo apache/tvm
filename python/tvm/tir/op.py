@@ -3037,6 +3037,22 @@ def TVMBackendFreeWorkspace(device_type, device_id, ptr):
     return call_intrin("int32", "tir.TVMBackendFreeWorkspace", device_type, device_id, ptr)
 
 
+def cooperative_matrix_load_NV():
+     return call_intrin("handle", "tir.cooperative_matrix_load_NV")
+
+
+def cooperative_matrix_store_NV():
+     return call_intrin("handle", "tir.cooperative_matrix_store_NV")
+
+
+def cooperative_matrix_fill_NV():
+     return call_intrin("handle", "tir.cooperative_matrix_fill_NV")
+
+
+def cooperative_matrix_mad_NV():
+     return call_intrin("handle", "tir.cooperative_matrix_mad_NV")
+
+
 # pylint: disable=unnecessary-lambda
 sum = comm_reducer(lambda x, y: x + y, lambda t: const(0, dtype=t), name="sum")
 min = comm_reducer(lambda x, y: _ffi_api._OpMin(x, y, None), max_value, name="min")  # type: ignore

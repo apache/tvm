@@ -797,6 +797,11 @@ TVM_DLL const Op& start_profile_intrinsic();
  */
 TVM_DLL const Op& end_profile_intrinsic();
 
+TVM_DLL const Op& cooperative_matrix_load_NV();
+TVM_DLL const Op& cooperative_matrix_store_NV();
+TVM_DLL const Op& cooperative_matrix_fill_NV();
+TVM_DLL const Op& cooperative_matrix_mad_NV();
+
 /*! \brief The kind of structure field info used in intrinsic */
 enum TVMStructFieldKind : int {
   // array head address

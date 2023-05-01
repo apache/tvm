@@ -1820,6 +1820,10 @@ TVMBackendAllocWorkspace = _op_wrapper(_tir_op.TVMBackendAllocWorkspace)
 TVMBackendFreeWorkspace = _op_wrapper(_tir_op.TVMBackendFreeWorkspace)
 start_profile_intrinsic = _op_wrapper(_tir_op.start_profile_intrinsic)
 end_profile_intrinsic = _op_wrapper(_tir_op.end_profile_intrinsic)
+cooperative_matrix_load_NV = _op_wrapper(_tir_op.cooperative_matrix_load_NV)
+cooperative_matrix_store_NV = _op_wrapper(_tir_op.cooperative_matrix_store_NV)
+cooperative_matrix_fill_NV = _op_wrapper(_tir_op.cooperative_matrix_fill_NV)
+cooperative_matrix_mad_NV = _op_wrapper(_tir_op.cooperative_matrix_mad_NV)
 
 
 def _dtype_forward(func):
@@ -2144,4 +2148,8 @@ __all__ = [
     "IterVar",
     "CommReducer",
     "Range",
+    "cooperative_matrix_load_NV",
+    "cooperative_matrix_store_NV",
+    "cooperative_matrix_fill_NV",
+    "cooperative_matrix_mad_NV",
 ]
