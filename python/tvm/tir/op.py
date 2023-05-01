@@ -3037,20 +3037,20 @@ def TVMBackendFreeWorkspace(device_type, device_id, ptr):
     return call_intrin("int32", "tir.TVMBackendFreeWorkspace", device_type, device_id, ptr)
 
 
-def cooperative_matrix_load_NV():
-     return call_intrin("handle", "tir.cooperative_matrix_load_NV")
+def cooperative_matrix_load_NV(mat, src, stdride, column_major):
+     return call_intrin("handle", "tir.cooperative_matrix_load_NV", mat, src, stdride, column_major)
 
 
-def cooperative_matrix_store_NV():
-     return call_intrin("handle", "tir.cooperative_matrix_store_NV")
+def cooperative_matrix_store_NV(dst, mat, stride, column_major):
+     return call_intrin("handle", "tir.cooperative_matrix_store_NV", dst, mat, stride, column_major)
 
 
-def cooperative_matrix_fill_NV():
-     return call_intrin("handle", "tir.cooperative_matrix_fill_NV")
+def cooperative_matrix_fill_NV(mat, v):
+     return call_intrin("handle", "tir.cooperative_matrix_fill_NV", mat, v)
 
 
-def cooperative_matrix_mad_NV():
-     return call_intrin("handle", "tir.cooperative_matrix_mad_NV")
+def cooperative_matrix_mad_NV(A, B, C):
+     return call_intrin("handle", "tir.cooperative_matrix_mad_NV", A, B, C)
 
 
 # pylint: disable=unnecessary-lambda
