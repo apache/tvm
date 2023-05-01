@@ -178,8 +178,12 @@ def convert_argsort(g, op, block):
 def convert_assign(g, op, block):
     """Operator converter for assign."""
 
-    out = g.get_node(op.input("X")[0])
-    g.add_node(op.output("Out")[0], out)
+    data = g.get_node(op.input("X")[0])
+    if op.input("output"):
+        op.input("output")[0].copy_(data)
+    else:
+        out = data
+        g.add_node(op.output("Out")[0], out)
 
 
 def convert_assign_value(g, op, block):
@@ -305,6 +309,8 @@ def convert_conv2d(g, op, block):
     paddings = op.attr("paddings")
     padding_algorithm = op.attr("padding_algorithm")
     strides = op.attr("strides")
+    data_format = op.attr("data_format")
+    warnings.warn(str(op.attr("data_format")))
 
     kernel = g.get_node(op.input("Filter")[0])
     input_x = g.get_node(op.input("Input")[0])
@@ -336,6 +342,7 @@ def convert_conv2d(g, op, block):
         groups=groups,
         channels=out_channels,
         kernel_size=[k_h, k_w],
+        data_layout=data_format,
     )
     g.add_node(op.output("Output")[0], out)
 
@@ -348,6 +355,8 @@ def convert_conv2d_transpose(g, op, block):
     paddings = op.attr("paddings")
     padding_algorithm = op.attr("padding_algorithm")
     strides = op.attr("strides")
+    data_format = op.attr("data_format")
+    warnings.warn(str(op.attr("data_format")))
     output_padding = op.attr("output_padding") if op.attr("output_padding") else [0, 0]
 
     kernel = g.get_node(op.input("Filter")[0])
@@ -396,6 +405,7 @@ def convert_conv2d_transpose(g, op, block):
         channels=out_channels * groups,
         kernel_size=k_size,
         output_padding=output_padding,
+        data_layout=data_format,
     )
     g.add_node(op.output("Output")[0], out)
 
@@ -1935,6 +1945,7 @@ def convert_scale(g, op, block):
     scale = op.attr("scale")
     bias = op.attr("bias")
     bias_after_scale = op.attr("bias_after_scale")
+    act = op.attr("act")
     x = g.get_node(op.input("X")[0])
     if np.isclose(scale, 1.0) and np.isclose(bias, 0.0):
         out = x
@@ -1952,6 +1963,14 @@ def convert_scale(g, op, block):
                 out = (x + _expr.const(np.array(bias).astype("float32"))) * _expr.const(
                     np.array(scale).astype("float32")
                 )
+    if act == "softmax":
+        out = op.nn.softmax(out)
+    elif act == "relu":
+        out = op.nn.relu(out)
+    elif act == "sigmoid":
+        out = _op.sigmoid(out)
+    elif act == "tanh":
+        out = _op.tanh(out)
     g.add_node(op.output("Out")[0], out)
 
 
