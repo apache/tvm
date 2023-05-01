@@ -64,6 +64,7 @@ enum class StorageRank {
   kTexture = 7,
   /*! \brief global scope amx tmm memory */
   kAMXTMM = 8,
+  kCooperativeMatrixNV = 9,
 };
 
 /*!
@@ -154,6 +155,9 @@ struct StorageScope {
     } else if (s.compare(0, 7, "amx.tmm") == 0) {
       r.rank = StorageRank::kAMXTMM;
       r.tag = s.substr(7, std::string::npos);
+    } else if (s == "cooperative_matrix_nv") {
+      r.rank = StorageRank::kCooperativeMatrixNV;
+      r.tag = "";
     } else {
       LOG(FATAL) << "unknown storage scope " << s;
     }
