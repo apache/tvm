@@ -282,6 +282,10 @@ def test_forward_assign():
     def assign_value(inputs):
         x = paddle.to_tensor(np.array([3]).astype("float32"))
         return inputs + x
+    
+    @paddle.jit.to_static
+    def assign1(inputs, output):
+        return paddle.assign(inputs, output)
 
     input_shape = [2, 3]
     input_data = paddle.rand(input_shape, dtype="float32")
@@ -299,6 +303,8 @@ def test_forward_assign():
         ],
     )
     verify_model(assign_value, [input_data])
+    output = paddle.rand(input_shape, dtype="float32")
+    verify_model(assign1, input_data, output)
 
 
 @tvm.testing.uses_gpu
@@ -508,6 +514,26 @@ def test_forward_conv():
         @paddle.jit.to_static
         def forward(self, inputs):
             return self.softmax(self.conv(inputs))
+        
+    class Conv2D2(nn.Layer):
+    def __init__(self, stride=1, padding=0, dilation=1, groups=1, padding_mode="zeros", data_layout='NCHW'):
+        super(Conv2D2, self).__init__()
+        self.conv = nn.Conv2D(
+            3,
+            6,
+            3,
+            stride=stride,
+            padding=padding,
+            dilation=dilation,
+            groups=groups,
+            padding_mode=padding_mode,
+            data_layout=data_layout,
+        )
+        self.softmax = nn.Softmax()
+
+    @paddle.jit.to_static
+    def forward(self, inputs):
+        return self.softmax(self.conv(inputs))
 
     input_shapes = [[1, 3, 10, 10], [1, 3, 12, 12]]
 
@@ -521,6 +547,7 @@ def test_forward_conv():
             input_data=input_data,
         )
         verify_model(Conv2D1(stride=2, padding="SAME", dilation=2, groups=3), input_data=input_data)
+        verify_model(Conv2D2(stride=2, padding="SAME", dilation=2, groups=3, data_layout='NHWC'), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -542,6 +569,25 @@ def test_forward_conv_transpose():
         @paddle.jit.to_static
         def forward(self, inputs):
             return self.softmax(self.conv(inputs))
+        
+    class Conv2DTranspose1(nn.Layer):
+    def __init__(self, stride=1, padding=0, dilation=1, groups=1, padding_mode="zeros", data_layout='NCHW'):
+        super(Conv2DTranspose1, self).__init__()
+        self.conv = nn.Conv2DTranspose(
+            6,
+            3,
+            3,
+            stride=stride,
+            padding=padding,
+            dilation=dilation,
+            groups=groups,
+            data_layout = data_layout,
+        )
+        self.softmax = nn.Softmax()
+
+    @paddle.jit.to_static
+    def forward(self, inputs):
+        return self.softmax(self.conv(inputs))
 
     input_shapes = [[1, 6, 10, 10], [2, 6, 8, 8]]
 
@@ -552,6 +598,7 @@ def test_forward_conv_transpose():
         verify_model(Conv2DTranspose(stride=2, padding="SAME", dilation=1), input_data=input_data)
         verify_model(Conv2DTranspose(stride=2, padding=3), input_data=input_data)
         verify_model(Conv2DTranspose(stride=3, padding="SAME", groups=1), input_data=input_data)
+        verify_model(Conv2DTranspose(stride=3, padding="SAME", groups=1, data_layout='NHWC'), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -1470,6 +1517,10 @@ def test_forward_scale():
     @paddle.jit.to_static
     def scale2(inputs):
         return paddle.scale(inputs, scale=3, bias=2.1, act="gelu")
+    
+    @paddle.jit.to_static
+    def scale3(inputs):
+        return paddle.scale(inputs, scale=3, bias=2.1, act="softmax")
 
     input_data = paddle.randn(shape=[2, 3], dtype="float32")
     verify_model(
@@ -1479,6 +1530,7 @@ def test_forward_scale():
         ],
     )
     verify_model(scale2, input_data=input_data)
+    verify_model(scale3, input_data=input_data)
 
 
 @tvm.testing.uses_gpu
