@@ -526,6 +526,20 @@ Expr MakeVMAllocTensor(Expr storage, PrimValue offset, Expr shape, DataTypeImm d
 
 TVM_REGISTER_GLOBAL("relax.op.vm.alloc_tensor").set_body_typed(MakeVMAllocTensor);
 
+// vm kill_object
+
+TVM_REGISTER_OP("relax.vm.kill_object")
+    .set_num_inputs(1)
+    .add_argument("obj", "Expr", "The object to be killed.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo);
+
+Expr MakeVMKillObject(Expr obj) {
+  static const Op& op = Op::Get("relax.vm.kill_object");
+  return Call(op, {std::move(obj)}, Attrs(), {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.vm.kill_object").set_body_typed(MakeVMKillObject);
+
 // vm call_tir_dyn
 
 RELAY_REGISTER_OP("relax.vm.call_tir_dyn")

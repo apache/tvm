@@ -53,7 +53,7 @@ NDArray AllocShapeHeap(void* ctx_ptr, int64_t size) {
   VirtualMachine* vm = static_cast<VirtualMachine*>(ctx_ptr);
   // use host allocator, which is always last element.
   size_t host_device_index = vm->devices.size() - 1;
-  // specialy handle hexagon on-device RT.
+  // specially handle hexagon on-device RT.
   // TODO(relax-team): visit and consider other possible choices.
   if (vm->devices[0].device_type == kDLHexagon) {
     host_device_index = 0;
@@ -323,6 +323,11 @@ TVM_REGISTER_GLOBAL("vm.builtin.copy").set_body([](TVMArgs args, TVMRetValue* rv
 
 TVM_REGISTER_GLOBAL("vm.builtin.reshape").set_body_typed([](NDArray data, ShapeTuple new_shape) {
   return data.CreateView(new_shape, data->dtype);
+});
+
+TVM_REGISTER_GLOBAL("vm.builtin.null_value").set_body([](TVMArgs args, TVMRetValue* rv) {
+  CHECK_EQ(args.size(), 0);
+  *rv = nullptr;
 });
 
 /*!

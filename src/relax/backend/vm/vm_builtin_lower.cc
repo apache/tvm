@@ -36,15 +36,6 @@ class VMBuiltinLowerMutator : public ExprMutator {
  public:
   using ExprMutator::VisitExpr_;
 
-  // A workaround to remove the CallNodes of killing tensors and storages.
-  void VisitBinding_(const VarBindingNode* binding) final {
-    const auto* call = binding->value.as<CallNode>();
-    if (call != nullptr && (call->op == mem_kill_storage_op_ || call->op == mem_kill_tensor_op_)) {
-      return;
-    }
-    ExprMutator::VisitBinding_(binding);
-  }
-
   Expr VisitExpr_(const CallNode* call_node) final {
     // post-order mutation
     Call call = Downcast<Call>(VisitExprPostOrder_(call_node));
@@ -65,6 +56,8 @@ class VMBuiltinLowerMutator : public ExprMutator {
       return MakeMemAllocStorage(call);
     } else if (call->op == mem_alloc_tensor_op_) {
       return MakeMemAllocTensor(call);
+    } else if (call->op == mem_kill_storage_op_ || call->op == mem_kill_tensor_op_) {
+      return MakeMemKillObject(call);
     } else {
       return call;
     }
@@ -110,6 +103,11 @@ class VMBuiltinLowerMutator : public ExprMutator {
     PrimValue offset = Downcast<PrimValue>(call->args[1]);
     DataTypeImm dtype = Downcast<DataTypeImm>(call->args[3]);
     return Call(vm_alloc_tensor_op_, {call->args[0], offset, call->args[2], dtype}, Attrs());
+  }
+
+  Expr MakeMemKillObject(const Call& call) {
+    ICHECK_EQ(call->args.size(), 1);
+    return Call(vm_kill_object_op_, {call->args[0]}, Attrs());
   }
 
   Expr CallTIRDyn(const Call& call_node) {
@@ -206,6 +204,7 @@ class VMBuiltinLowerMutator : public ExprMutator {
   // functions to lower to
   const Op& vm_alloc_storage_op_ = Op::Get("relax.vm.alloc_storage");
   const Op& vm_alloc_tensor_op_ = Op::Get("relax.vm.alloc_tensor");
+  const Op& vm_kill_object_op_ = Op::Get("relax.vm.kill_object");
   // Function to compute allocated shape.
   const ExternFunc builtin_compute_alloc_shape_{"vm.builtin.compute_alloc_shape"};
   const ExternFunc builtin_call_tir_dyn_{"vm.builtin.call_tir_dyn"};

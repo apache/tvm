@@ -327,7 +327,7 @@ class VirtualMachineImpl : public VirtualMachine {
     } else {
       ICHECK_EQ(reg, Instruction::kVMRegister);
       // per convention, ctx ptr must be VirtualMachine* casted to void.
-      // this and VirtualMachine* may or maynot be the same
+      // this and VirtualMachine* may or may not be the same
       // do first cast to VirtualMachine* then to void*
       ret = static_cast<void*>(static_cast<VirtualMachine*>(this));
     }
@@ -870,7 +870,7 @@ void VirtualMachineImpl::RunLoop() {
   VMFrame* curr_frame = frames_.back().get();
 
   while (true) {
-    ICHECK_LT(static_cast<size_t>(pc_), exec_->instr_offset.size()) << "run into invalide section";
+    ICHECK_LT(static_cast<size_t>(pc_), exec_->instr_offset.size()) << "run into invalid section";
     Instruction instr = exec_->GetInstruction(pc_);
     switch (instr.op) {
       case Opcode::Call: {
@@ -1005,7 +1005,7 @@ class VirtualMachineProfiler : public VirtualMachineImpl {
       std::unordered_map<std::string, ObjectRef> metrics;
       metrics["Argument Shapes"] = profiling::ShapeString(arrs);
 
-      // If a sutiable device is found, enable profiling.
+      // If a suitable device is found, enable profiling.
       if (dev) {
         profiling = true;
         prof_->StartCall(f_name, *dev, metrics);

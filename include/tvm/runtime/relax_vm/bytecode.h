@@ -80,7 +80,7 @@ struct Instruction {
   static constexpr ExecWord kValueMaxLimit = (static_cast<ExecWord>(1) << (kValueBit - 1)) - 1;
   /*! \brief Minimum possible value, remove 1 slot to keep things symmetric. */
   static constexpr ExecWord kValueMinLimit = -kValueMaxLimit;
-  /*! \brief Begining of special register section. */
+  /*! \brief Beginning of special register section. */
   static constexpr RegName kBeginSpecialReg = static_cast<ExecWord>(1) << 54;
   /*! \brief Random magic number that represents void argument, indicate null value */
   static constexpr RegName kVoidRegister = kBeginSpecialReg + 0;
@@ -127,7 +127,7 @@ struct Instruction {
      */
     static Arg FuncIdx(Index index) { return Arg(ArgKind::kFuncIdx, index); }
     /*!
-     * \brief Get the kind of argument..
+     * \brief Get the kind of argument.
      * \return The kind of argument.
      */
     ArgKind kind() const {
