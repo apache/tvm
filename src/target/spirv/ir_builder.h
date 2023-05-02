@@ -431,6 +431,27 @@ class IRBuilder {
   Value CallKHRIntegerDotProduct(const SType& ret_type, const std::vector<Value>& args,
                                  const DataType& dtype);
 
+  SType GetCooperativeMatrixNVType(const SType& elem_ty, int rows, int cols) {
+    auto key = std::make_tuple(elem_ty.id, rows, cols);
+    auto entry = cooperative_matrix_type_tbl_.find(key);
+    if (entry != cooperative_matrix_type_tbl_.end()) {
+      return entry->second;
+    }
+
+    auto rows_spv = IntImm(t_int32_, rows);
+    auto cols_spv = IntImm(t_int32_, cols);
+
+    SType t;
+    t.id = id_counter_++;
+    t.element_type_id = elem_ty.id;
+    ib_.Begin(spv::Op::OpTypeCooperativeMatrixNV)
+        .AddSeq(t, elem_ty, spv::Scope::ScopeSubgroup, rows_spv, cols_spv)
+        .Commit(&global_);
+
+    cooperative_matrix_type_tbl_[key] = t;
+    return t;
+  }
+
   /*!
    * \brief Build vector by concatenating components
    *
@@ -745,6 +766,7 @@ class IRBuilder {
   std::vector<uint32_t> function_scope_vars_;
   /*! \brief Function segment */
   std::vector<uint32_t> function_;
+  std::map<std::tuple<uint32_t, int, int>, SType> cooperative_matrix_type_tbl_;
 };
 
 }  // namespace spirv

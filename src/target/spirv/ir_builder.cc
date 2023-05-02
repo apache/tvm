@@ -60,6 +60,9 @@ void IRBuilder::InitHeader() {
   }
 #endif
 
+  // TODO
+  capabilities_used_.insert(spv::CapabilityCooperativeMatrixNV);
+
   // memory model
   ib_.Begin(spv::OpMemoryModel)
       .AddSeq(spv::AddressingModelLogical, spv::MemoryModelGLSL450)
