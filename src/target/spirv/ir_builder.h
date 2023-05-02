@@ -462,24 +462,24 @@ class IRBuilder {
     return val;
   }
 
-  Value CallCooperativeMatrixLoadNV(const SType& mat_type, Value v) {
+  void CallCooperativeMatrixStoreNV(Value dst, Value mat, Value stride, Value column_major) {
+    ib_.Begin(spv::Op::OpCooperativeMatrixStoreNV)
+        .AddSeq(dst, mat, stride, column_major)
+        .Commit(&function_);
+  }
+
+  Value CallCooperativeMatrixFillNV(const SType& mat_type, Value v) {
     Value val = NewValue(mat_type, kNormal);
     ib_.Begin(spv::OpCompositeConstruct).AddSeq(mat_type, val, v).Commit(&function_);
     return val;
   }
 
-  Value CallJointMatrixMadIntel(const SType& mat_type, Value A, Value B, Value C) {
+  Value CallCooperativeMatrixMadNV(const SType& mat_type, Value A, Value B, Value C) {
     Value val = NewValue(mat_type, kNormal);
     ib_.Begin(spv::Op::OpCooperativeMatrixMulAddNV)
         .AddSeq(mat_type, val, A, B, C)
         .Commit(&function_);
     return val;
-  }
-
-  void CallJointMatrixStoreIntel(Value dst, Value mat, Value stride, Value column_major) {
-    ib_.Begin(spv::Op::OpCooperativeMatrixStoreNV)
-        .AddSeq(dst, mat, stride, column_major)
-        .Commit(&function_);
   }
 
   /*!

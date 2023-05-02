@@ -395,6 +395,50 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
     LOG(FATAL) << "SPIR-V shader cannot make extern calls.  Graph contains extern \""
                << Downcast<StringImm>(op->args[0]) << "\"";
     return spirv::Value();
+  } else if (op->op.same_as(builtin::address_of())) {
+    const BufferLoadNode* load = op->args[0].as<BufferLoadNode>();
+    ICHECK(op->args.size() == 1 && load);
+    ICHECK_EQ(load->indices.size(), 1) << "CodeGenSPIRV only supports flat memory allocations.";
+    auto buffer_var = Downcast<Var>(load->buffer->data);
+    ICHECK(buffer_var.defined());
+    auto it = storage_info_.find(buffer_var.get());
+    ICHECK(it != storage_info_.end());
+    StorageInfo& info = it->second;
+    spirv::SType content_type = builder_->GetSType(info.element_type);
+    auto buffer = MakeValue(buffer_var);
+    spirv::SType ptr_type = builder_->GetPointerType(content_type, buffer.stype.storage_class);
+    return builder_->StructArrayAccess(ptr_type, buffer, MakeValue(load->indices[0]));
+  } else if (op->op.same_as(builtin::cooperative_matrix_load_NV())) {
+    auto ptr = Downcast<Var>(op->args[0]);
+    ICHECK(ptr.defined());
+    auto elem_offset = op->args[1];
+    spirv::Value src_ptr = MakeValue(op->args[2]);
+    auto stride = MakeValue(op->args[3]);
+
+    auto column_major = MakeValue(op->args[4]);
+
+    // todo
+    auto mat_ty = builder_->GetCooperativeMatrixNVType(builder_->GetBufferElementType(ptr),
+						       16, 16);
+    auto mat = builder_->CallCooperativeMatrixLoadNV(mat_ty, src_ptr, stride, column_major);
+    ICHECK(elem_offset->IsInstance<IntImmNode>());
+    builder_->SetJointMatrixDef(ptr, elem_offset.as<IntImmNode>()->value, mat);
+    return mat;
+  } else if (op->op.same_as(builtin::cooperative_matrix_store_NV())) {
+    auto buffer_var_mat = Downcast<Var>(op->args[1]);
+    ICHECK(buffer_var_mat.defined());
+
+    spirv::Value dst_ptr = MakeValue(op->args[0]);
+
+    auto elem_offset = op->args[2];
+    ICHECK(elem_offset->IsInstance<IntImmNode>());
+    auto mat = builder_->GetJointMatrix(buffer_var_mat, elem_offset.as<IntImmNode>()->value);
+    spirv::Value stride = MakeValue(op->args[3]);
+    spirv::Value column_major = MakeValue(op->args[4]);
+    builder_->CallCooperativeMatrixStoreNV(dst_ptr, mat, stride, column_major);
+    return spirv::Value();
+  } else if (op->op.same_as(builtin::cooperative_matrix_fill_NV())) {
+  } else if (op->op.same_as(builtin::cooperative_matrix_mad_NV())) {
   } else {
     LOG(FATAL) << "Unresolved call  " << op->op;
   }
