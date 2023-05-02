@@ -346,6 +346,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
 
   void VisitExpr_(const CallNode* call) final {
     static const Op& alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
+    static const Op& call_tir_dyn_op = Op::Get("relax.vm.call_tir_dyn");
     if (call->op == alloc_tensor_op) {
       // Create a storage token for builtin alloc_tensor.
       this->CreateToken(call);
@@ -362,7 +363,10 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
     // from the arguments.
     // - Otherwise, discard the tokens used by the arguments, as there might be
     // potential external reference.
-    if (IsPrimFuncGlobalVar(call->op) || call->op->IsInstance<ExternFuncNode>()) {
+    if (IsPrimFuncGlobalVar(call->op) || call->op->IsInstance<ExternFuncNode>() ||
+        call->op == call_tir_dyn_op) {
+      Array<Expr> args =
+          call->op == call_tir_dyn_op ? Downcast<Tuple>(call->args[1])->fields : call->args;
       ICHECK(!block_stack_.empty());
       for (const Expr& arg : call->args) {
         Tokens tokens = GetTokensWithAllocSiteCheck(arg, block_stack_.back());
