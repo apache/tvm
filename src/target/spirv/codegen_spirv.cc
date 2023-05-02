@@ -542,6 +542,22 @@ void CodeGenSPIRV::VisitStmt_(const BufferStoreNode* op) {
   }
 }
 
+class AccumulatedJointMatrixCollector : public StmtExprVisitor {
+ public:
+  void VisitExpr_(const CallNode* op) final {
+    if (op->op.same_as(builtin::cooperative_matrix_mad_NV())) {
+      // TODO
+      LOG(FATAL) << "Not implemented";
+      auto C_elem_offset = op->args[5];
+      ICHECK(C_elem_offset->IsInstance<IntImmNode>());
+      auto buffer_var_C = Downcast<Var>(op->args[4]);
+      joint_matrices[buffer_var_C.get()].insert(C_elem_offset.as<IntImmNode>()->value);
+    }
+    ExprVisitor::VisitExpr_(op);
+  }
+  std::unordered_map<const VarNode*, std::unordered_set<int>> joint_matrices;
+};
+
 void CodeGenSPIRV::VisitStmt_(const ForNode* op) {
   ICHECK(is_zero(op->min));
   analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
@@ -561,6 +577,26 @@ void CodeGenSPIRV::VisitStmt_(const ForNode* op) {
 
   // Loop head
   builder_->StartLabel(head_label);
+
+  AccumulatedJointMatrixCollector acc_mat_collector;
+
+  if (op->kind == ForKind::kSerial) {
+    acc_mat_collector(op->body);
+  }
+
+  std::vector<spirv::PhiValue> joint_matrix_phis;
+  for (auto [var, elem_offsets] : acc_mat_collector.joint_matrices) {
+    Var buffer_var_mat = GetRef<Var>(var);
+    auto mat_ty = builder_->GetCooperativeMatrixNVType(builder_->GetBufferElementType(buffer_var_mat), 8, 8);
+    for (auto offset : elem_offsets) {
+      spirv::PhiValue mat_phi = builder_->MakePhi(mat_ty, 2);
+      auto mat_def = builder_->GetJointMatrixDef(buffer_var_mat, offset);
+      mat_phi.SetIncoming(0, mat_def.cur_value, init_label);
+      joint_matrix_phis.push_back(mat_phi);
+      builder_->SetJointMatrixDef(buffer_var_mat, offset, mat_phi);
+    }
+  }
+
   spirv::PhiValue loop_var = builder_->MakePhi(init_value.stype, 2);
   loop_var.SetIncoming(0, init_value, init_label);
   spirv::Value loop_cond = builder_->LT(loop_var, extent_value);
@@ -574,15 +610,28 @@ void CodeGenSPIRV::VisitStmt_(const ForNode* op) {
   builder_->StartLabel(body_label);
   var_map_[op->loop_var.get()] = spirv::Value(loop_var);
   this->VisitStmt(op->body);
+  spirv::Value one = op->loop_var.dtype().is_int() ? builder_->IntImm(loop_var.stype, 1)
+                                                   : builder_->UIntImm(loop_var.stype, 1);
   builder_->MakeInst(spv::OpBranch, continue_label);
 
   // loop continue
   builder_->StartLabel(continue_label);
-  spirv::Value one = op->loop_var.dtype().is_int() ? builder_->IntImm(loop_var.stype, 1)
-                                                   : builder_->UIntImm(loop_var.stype, 1);
+
   spirv::Value next_value = builder_->Add(loop_var, one);
-  loop_var.SetIncoming(1, next_value, builder_->CurrentLabel());
+  loop_var.SetIncoming(1, next_value, continue_label);
+
+
   builder_->MakeInst(spv::OpBranch, head_label);
+
+  int phi_index = 0;
+  for (auto [var, elem_offsets] : acc_mat_collector.joint_matrices) {
+    for (auto offset : elem_offsets) {
+      spirv::PhiValue mat_phi = joint_matrix_phis[phi_index++];
+      auto mat_def = builder_->GetJointMatrixDef(GetRef<Var>(var), offset);
+      mat_phi.SetIncoming(1, mat_def.cur_value, continue_label);
+      builder_->SetJointMatrixDef(GetRef<Var>(var), offset, mat_phi);
+    }
+  }
   // loop merge
   builder_->StartLabel(merge_label);
 }
@@ -672,6 +721,9 @@ void CodeGenSPIRV::VisitStmt_(const AllocateNode* op) {
 
     size_t num_bytes = op->dtype.bytes() * op->dtype.lanes() * static_cast<uint32_t>(constant_size);
     shared_memory_bytes_used_ += num_bytes;
+  } else if (storage_scope.rank == runtime::StorageRank::kCooperativeMatrixNV) {
+    this->VisitStmt(op->body);
+    return;
   } else {
     LOG(FATAL) << "Can only allocate shared or local memory inside kernel";
   }

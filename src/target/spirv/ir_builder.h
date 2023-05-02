@@ -644,6 +644,33 @@ class IRBuilder {
   Value GE(Value a, Value b);
   Value Select(Value cond, Value a, Value b);
 
+  struct JointMatrixDef {
+    Value cur_value;
+    Label defined_label; // TODO: remove it
+  };
+
+  void SetJointMatrixDef(const tir::Var& buffer_var_mat, int alloc_id, Value mat) {
+    auto key = std::make_pair(buffer_var_mat.get(), alloc_id);
+    joint_matrix_defs[key] = JointMatrixDef{mat, curr_label_};
+  }
+
+  JointMatrixDef GetJointMatrixDef(const tir::Var& buffer_var_mat, int alloc_id) {
+    auto key = std::make_pair(buffer_var_mat.get(), alloc_id);
+    auto entry = joint_matrix_defs.find(key);
+    ICHECK(entry != joint_matrix_defs.end());
+    return entry->second;
+  }
+
+  Value GetJointMatrix(const tir::Var& buffer_var_mat, int alloc_id) {
+    return GetJointMatrixDef(buffer_var_mat, alloc_id).cur_value;
+  }
+
+  SType GetBufferElementType(const tir::Var& buffer) {
+    auto* ptr = buffer->type_annotation.as<PointerTypeNode>();
+    auto* prim = ptr->element_type.as<PrimTypeNode>();
+    return GetSType(prim->dtype);
+  };
+
  private:
   /*!
    * \brief Create new value
@@ -797,6 +824,7 @@ class IRBuilder {
   /*! \brief Function segment */
   std::vector<uint32_t> function_;
   std::map<std::tuple<uint32_t, int, int>, SType> cooperative_matrix_type_tbl_;
+  std::map<std::pair<const tir::VarNode*, int>, JointMatrixDef> joint_matrix_defs;
 };
 
 }  // namespace spirv
