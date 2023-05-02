@@ -440,13 +440,14 @@ class IRBuilder {
 
     auto rows_spv = IntImm(t_int32_, rows);
     auto cols_spv = IntImm(t_int32_, cols);
+    auto scope = IntImm(t_int32_, spv::Scope::ScopeSubgroup);
 
     SType t;
     t.id = id_counter_++;
     t.element_type_id = elem_ty.id;
     ib_.Begin(spv::Op::OpTypeCooperativeMatrixNV)
-        .AddSeq(t, elem_ty, spv::Scope::ScopeSubgroup, rows_spv, cols_spv)
-        .Commit(&global_);
+      .AddSeq(t, elem_ty, scope, rows_spv, cols_spv)
+      .Commit(&global_);
 
     cooperative_matrix_type_tbl_[key] = t;
     return t;

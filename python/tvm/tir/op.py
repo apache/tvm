@@ -3049,8 +3049,8 @@ def cooperative_matrix_fill_NV(mat, offset, v):
      return call_intrin("handle", "tir.cooperative_matrix_fill_NV", mat, offset, v)
 
 
-def cooperative_matrix_mad_NV(A, B, C):
-     return call_intrin("handle", "tir.cooperative_matrix_mad_NV", A, B, C)
+def cooperative_matrix_mad_NV(A, A_off, B, B_off, C, C_off):
+     return call_intrin("handle", "tir.cooperative_matrix_mad_NV", A, A_off, B, B_off, C, C_off)
 
 
 # pylint: disable=unnecessary-lambda

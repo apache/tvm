@@ -626,8 +626,6 @@ class AccumulatedJointMatrixCollector : public StmtExprVisitor {
  public:
   void VisitExpr_(const CallNode* op) final {
     if (op->op.same_as(builtin::cooperative_matrix_mad_NV())) {
-      // TODO
-      LOG(FATAL) << "Not implemented";
       auto C_elem_offset = op->args[5];
       ICHECK(C_elem_offset->IsInstance<IntImmNode>());
       auto buffer_var_C = Downcast<Var>(op->args[4]);

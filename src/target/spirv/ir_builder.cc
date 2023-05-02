@@ -62,6 +62,7 @@ void IRBuilder::InitHeader() {
 
   // TODO
   capabilities_used_.insert(spv::CapabilityCooperativeMatrixNV);
+  extensions_used_.insert("SPV_NV_cooperative_matrix");
 
   // memory model
   ib_.Begin(spv::OpMemoryModel)
