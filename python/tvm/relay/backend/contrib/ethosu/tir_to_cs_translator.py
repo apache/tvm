@@ -582,12 +582,16 @@ def _convert_clip_bounds(npu_op: vapi.NpuBlockOperation):
     """
     clip_min_quant = npu_op.activation.min
     clip_max_quant = npu_op.activation.max
-    clip_min_actual = (
-        clip_min_quant - npu_op.ofm.quantization.zero_point
-    ) * npu_op.ofm.quantization.scale_f32
-    clip_max_actual = (
-        clip_max_quant - npu_op.ofm.quantization.zero_point
-    ) * npu_op.ofm.quantization.scale_f32
+    if npu_op.ofm.quantization.scale_f32:
+        clip_min_actual = (
+            clip_min_quant - npu_op.ofm.quantization.zero_point
+        ) * npu_op.ofm.quantization.scale_f32
+        clip_max_actual = (
+            clip_max_quant - npu_op.ofm.quantization.zero_point
+        ) * npu_op.ofm.quantization.scale_f32
+    else:
+        clip_min_actual = clip_min_quant
+        clip_max_actual = clip_max_quant
     npu_op.activation.min = clip_min_actual
     npu_op.activation.max = clip_max_actual
 

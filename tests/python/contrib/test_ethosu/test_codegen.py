@@ -315,6 +315,24 @@ def test_ethosu_pooling(
     infra.compare_tvm_with_tflite(pooling, [ifm_shape], accel_type)
 
 
+@pytest.mark.parametrize(
+    "accel_type",
+    ["ethos-u55-256", "ethos-u65-256"],
+)
+@pytest.mark.parametrize("ifm_shape", [[1, 148, 29], [4, 148, 29], [1, 12], [8, 12]])
+def test_ethosu_softmax(
+    accel_type,
+    ifm_shape,
+):
+    np.random.seed(0)
+
+    @tf.function
+    def softmax(x):
+        return tf.nn.softmax(x)
+
+    infra.compare_tvm_with_tflite(softmax, [ifm_shape], accel_type)
+
+
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
 @pytest.mark.parametrize("operator_type", ["ADD", "SUB", "MUL", "MIN", "MAX"])
 @pytest.mark.parametrize(

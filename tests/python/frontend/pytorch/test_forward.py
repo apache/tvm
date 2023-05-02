@@ -3348,6 +3348,13 @@ def test_forward_zeros_like():
     verify_model(ZerosLike3().float().eval(), input_data=input_data)
 
 
+def test_forward_new_zeros():
+    def test_func(x):
+        return x.new_zeros((2, 3))
+
+    verify_model_with_input(test_func, [torch.rand([1, 3, 10, 10]).float()])
+
+
 @tvm.testing.uses_gpu
 def test_forward_full():
     """test_forward_full"""

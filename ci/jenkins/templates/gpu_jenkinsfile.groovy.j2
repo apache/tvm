@@ -23,6 +23,7 @@
   condition='!skip_ci',
   ws='tvm/build-gpu',
   docker_image='ci_gpu',
+  platform="gpu",
 ) %}
   sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh build"
   cmake_build("${ci_gpu} --no-gpu", 'build', '-j2')

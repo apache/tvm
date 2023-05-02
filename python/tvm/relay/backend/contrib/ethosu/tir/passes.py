@@ -250,7 +250,9 @@ def DivideConstants(const_dict):
                     # Note by convention the arg after a constant read is the length of the read
                     length = int(stmt.args[i + 1])
                     # If it's anything other than a full read, create a new buffer
-                    if (offset != 0 or flattened_const_shape != length) and not is_u65_conv2d:
+                    if (
+                        offset != 0 or flattened_const_shape != length and length > 0
+                    ) and not is_u65_conv2d:
                         out_channels = const.shape[0]
                         offset_channels = int((offset * out_channels) / flattened_const_shape)
                         length_channels = int((length * out_channels) / flattened_const_shape)
