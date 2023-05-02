@@ -498,12 +498,12 @@ TVM_DLL Pass RewriteCUDAGraph();
  *  blocks within the PrimFunc and conducts loop fusion, splitting, and other transformations based
  *  on MetaSchedule schedule rules but directly samples from the search space instead of using the
  *  tuning algorithm. User can specify the number of valid counts to try and whether to use runner
- *  for evaluation.
+ *  for benchmarking.
  * \param valid_count The number of valid counts to try.
- * \param runner The runner to evaluate the generated schedules.
+ * \param benchmark Whether to use runner for benchmarking.
  * \return The Pass.
  */
-TVM_DLL Pass FewShotTuning(Integer valid_count, ObjectRef runner);
+TVM_DLL Pass FewShotTuning(int valid_count, bool benchmark);
 
 }  // namespace transform
 }  // namespace relax

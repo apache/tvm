@@ -26,13 +26,24 @@ namespace relax {
 namespace transform {
 
 tir::PrimFunc FewShotTunePrimFunc(const tir::PrimFunc& prim_func, const Target& target,
-                                  int64_t valid_count, Optional<meta_schedule::Runner> runner) {
+                                  int64_t valid_count, bool benchmark) {
   // fetch a local builder
   static const auto* f_get_local_builder =
       runtime::Registry::Get("meta_schedule.builder.get_local_builder");
   ICHECK(f_get_local_builder)
       << "ValueError: Cannot find the packed function \"meta_schedule.builder.get_local_builder\"";
   meta_schedule::Builder builder = (*f_get_local_builder)();
+  ICHECK(builder.defined()) << "ValueError: The local builder is not defined!";
+  // fetch a local runner
+  meta_schedule::Runner runner{nullptr};
+  if (benchmark) {
+    static const auto* f_get_local_runner =
+        runtime::Registry::Get("meta_schedule.runner.get_local_runner");
+    ICHECK(f_get_local_runner) << "ValueError: Cannot find the packed function "
+                                  "\"meta_schedule.builder.get_local_runner\"";
+    runner = (*f_get_local_runner)();
+    ICHECK(runner.defined()) << "ValueError: The local runner is not defined!";
+  }
   // create an IRModule
   IRModule mod = IRModule(Map<GlobalVar, BaseFunc>({{GlobalVar("main"), prim_func}}));
   // fetch the number of physical cores
@@ -82,7 +93,7 @@ tir::PrimFunc FewShotTunePrimFunc(const tir::PrimFunc& prim_func, const Target& 
       }
       idx++;
     }
-    if (runner.defined()) {
+    if (benchmark) {
       Array<meta_schedule::RunnerInput> runner_inputs;
       int idx = 0;
       for (const meta_schedule::BuilderResult& builder_result : builder_results) {
@@ -94,7 +105,7 @@ tir::PrimFunc FewShotTunePrimFunc(const tir::PrimFunc& prim_func, const Target& 
         }
         idx++;
       }
-      Array<meta_schedule::RunnerFuture> runner_futures = runner.value()->Run(runner_inputs);
+      Array<meta_schedule::RunnerFuture> runner_futures = runner->Run(runner_inputs);
       for (const meta_schedule::RunnerFuture& runner_future : runner_futures) {
         meta_schedule::RunnerResult runner_result = runner_future->Result();
         if (runner_result->error_msg.defined()) {
@@ -115,8 +126,8 @@ tir::PrimFunc FewShotTunePrimFunc(const tir::PrimFunc& prim_func, const Target& 
     return prim_func;
   }
   int best_idx = 0;
-  if (runner.defined()) {
-    for (int i = 1; i < costs.size(); ++i) {
+  if (benchmark) {
+    for (size_t i = 1; i < costs.size(); ++i) {
       if (costs[i] < costs[best_idx]) {
         best_idx = i;
       }
@@ -128,24 +139,22 @@ tir::PrimFunc FewShotTunePrimFunc(const tir::PrimFunc& prim_func, const Target& 
                   tvm::tir::attr::kIsScheduled, Bool(true));
 }
 
-Pass FewShotTuning(Integer valid_count, ObjectRef runner) {
+Pass FewShotTuning(int valid_count, bool benchmark) {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =  //
       [=](IRModule m, PassContext pc) {
-        CHECK(valid_count.defined() && valid_count->value > 0) << "Valid_count must be positive.";
+        // input check
+        CHECK(valid_count > 0) << "Valid_count must be positive.";
+        CHECK(valid_count > 1 || !benchmark) << "Benchmarking requires at least two valid trials.";
         // get the target from context.
         tvm::Target target = tvm::Target::Current();
         ICHECK(target.defined()) << "Target is not set in current context";
         // generate the few shot tuned prim funcs.
         Map<GlobalVar, BaseFunc> result;
         for (const auto& [gv, func] : m->functions) {
-          Optional<meta_schedule::Runner> runner_ = NullOpt;
-          if (runner.defined()) {
-            runner_ = Downcast<meta_schedule::Runner>(runner);
-          }
           if (func->IsInstance<tir::PrimFuncNode>() &&
               !func->HasNonzeroAttr(tir::attr::kIsScheduled)) {
             result.Set(gv, FewShotTunePrimFunc(GetRef<tir::PrimFunc>(func.as<tir::PrimFuncNode>()),
-                                               target, valid_count->value, runner_));
+                                               target, valid_count, benchmark));
           } else {
             result.Set(gv, func);
           }
