@@ -438,7 +438,43 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
     builder_->CallCooperativeMatrixStoreNV(dst_ptr, mat, stride, column_major);
     return spirv::Value();
   } else if (op->op.same_as(builtin::cooperative_matrix_fill_NV())) {
+    auto ptr = Downcast<Var>(op->args[0]);
+    ICHECK(ptr.defined());
+    auto mat_ty =
+        builder_->GetCooperativeMatrixNVType(builder_->GetBufferElementType(ptr), 16, 16);
+    auto filled = builder_->CallCooperativeMatrixFillNV(mat_ty, MakeValue(op->args[2]));
+
+    auto elem_offset = op->args[1];
+    ICHECK(elem_offset->IsInstance<IntImmNode>());
+    builder_->SetJointMatrixDef(ptr, elem_offset.as<IntImmNode>()->value, filled);
+    return filled;
   } else if (op->op.same_as(builtin::cooperative_matrix_mad_NV())) {
+    auto A_elem_offset = op->args[1];
+    ICHECK(A_elem_offset->IsInstance<IntImmNode>());
+    auto B_elem_offset = op->args[3];
+    ICHECK(B_elem_offset->IsInstance<IntImmNode>());
+    auto C_elem_offset = op->args[5];
+    ICHECK(C_elem_offset->IsInstance<IntImmNode>());
+
+    auto C_ptr = Downcast<Var>(op->args[4]);
+    ICHECK(C_ptr.defined());
+    auto mat_ty =
+      builder_->GetCooperativeMatrixNVType(builder_->GetBufferElementType(C_ptr), 16, 16);
+
+    auto get_matrix = [this](PrimExpr arg, int offset) {
+      auto buffer_var_mat = Downcast<Var>(arg);
+      ICHECK(buffer_var_mat.defined());
+      return builder_->GetJointMatrix(buffer_var_mat, offset);
+    };
+
+    auto A = get_matrix(op->args[0], A_elem_offset.as<IntImmNode>()->value);
+    auto B = get_matrix(op->args[2], B_elem_offset.as<IntImmNode>()->value);
+    auto c_offset = C_elem_offset.as<IntImmNode>()->value;
+    auto C = get_matrix(op->args[4], c_offset);
+
+    auto acc = builder_->CallCooperativeMatrixMadNV(mat_ty, A, B, C);
+    builder_->SetJointMatrixDef(C_ptr, c_offset, acc);
+    return acc;
   } else {
     LOG(FATAL) << "Unresolved call  " << op->op;
   }
