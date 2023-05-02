@@ -23,6 +23,7 @@ import tempfile
 import os
 import shutil
 import numpy as np
+from tvm import relay
 from tvm.relay import testing
 from tvm import rpc
 from tvm.contrib import utils, ndk
@@ -179,9 +180,7 @@ def compile_and_benchmark(label, model, targets, tmp_dir):
     logging.info(f"Compiling {model['name']} using {label} with {targets}...")
     mod = model["mod"]
     relay.backend.te_compiler.get().clear()
-    graph, lib, param = relay.build(
-        mod, target=targets, params=model["params"]
-    )
+    graph, lib, param = relay.build(mod, target=targets, params=model["params"])
     lib_path = os.path.join(tmp_dir, "lib.so")
     logging.info(f"Exporting library to {lib_path}...")
     lib.export_library(lib_path, cc=NDK_CROSS_COMPILER)
@@ -208,9 +207,7 @@ def opencl_cost_estimator(mod, target):
         # Build the module.
         logging.info("Compiling module to estimate")
         relay.backend.te_compiler.get().clear()
-        graph, lib, param = relay.build(
-            mod, target=target
-        )
+        graph, lib, param = relay.build(mod, target=target)
     except RuntimeError as err:
         # A build failure indicates the partition is not supported.
         # eg trying to build an nn.batch_norm on GPU, which has no schedule since we assume it
@@ -357,6 +354,7 @@ def run_inceptionv3(dtype):
     just_tvm(get_model("inception_v3", dtype))
     """Run Collage for tvm and clml compiler target."""
     collage(get_model("inception_v3", dtype))
+
 
 if __name__ == "__main__":
     run_mobilenetv1("float32")

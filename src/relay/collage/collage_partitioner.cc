@@ -319,7 +319,7 @@ transform::Pass CollagePartition(CompilationConfig config, CostEstimator cost_es
           IRModule mod, transform::PassContext ctxt) {
         VLOG(1) << "CollagePartition input:" << std::endl << PrettyPrint(mod);
 
-        // Applying span indexes to graph 
+        // Applying span indexes to graph
         mod = transform::CapturePostDfsIndexInSpans()(mod);
 
         Array<PartitionSpec> partition_specs = GatherPartitionSpecs(config);
