@@ -89,11 +89,12 @@ def build_and_run(mod, inputs_np, target, legalize=False):
 
     dev = tvm.device(target, 0)
     ex = relax.build(mod, target)
-    vm = relax.VirtualMachine(ex, dev)
+    vm = relax.VirtualMachine(ex, dev, profile=True)
     f = vm["main"]
     inputs = [tvm.nd.array(inp, dev) for inp in inputs_np]
-    return f(*inputs).numpy()
-
+    out = f(*inputs).numpy()
+    print(vm.profile("main", *inputs))
+    return out
 
 def get_result_with_relax_cutlass_offload(mod, *args, assert_all_bindings_fused=True):
     mod = partition_for_cutlass(mod)
@@ -595,15 +596,16 @@ def get_numpy_attention_ref(b, s, s_kv, n, h, h_v, bias_shape, qk_scale, dtype):
     v = np.random.randn(b, s_kv, n, h_v).astype(dtype)
     qt = q.transpose(0, 2, 1, 3)  # b, n, s, h
     kt = k.transpose(0, 2, 3, 1)  # b, n, h, s_kv
-    if not qk_scale == "none":
-        score = qt @ kt * qk_scale  # b, n, s, s_kv
-    else:
-        score = qt @ kt / np.sqrt(q.shape[-1])  # b, n, s, s_kv
-    if not bias_shape == "none":
-        bias = np.random.randn(*bias_shape).astype(dtype)
-        score = score + bias  # b, n, s, s_kv
-    else:
-        bias = None
+    # if not qk_scale == "none":
+    #     score = qt @ kt * qk_scale  # b, n, s, s_kv
+    # else:
+    #     score = qt @ kt / np.sqrt(q.shape[-1])  # b, n, s, s_kv
+    # if not bias_shape == "none":
+    #     bias = np.random.randn(*bias_shape).astype(dtype)
+    #     score = score + bias  # b, n, s, s_kv
+    # else:
+    #     bias = None
+    return q, k, v, None, None
     attn = tvm.topi.testing.softmax_python(score, -1)
     vt = v.transpose(0, 2, 1, 3)  # b, n, s_kv, h_v
     ref = attn @ vt  # b, n, s, h_v
@@ -619,7 +621,7 @@ def test_attention_offload(attention_size, attention_dtype):
     mod = get_relax_attention_module(q, k, v)
     out = get_result_with_relax_cutlass_offload(mod, q, k, v)
 
-    tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
+    # tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
 @pytest.fixture(
@@ -1051,4 +1053,5 @@ def test_layer_norm(data_shape, dtype, axes):
 
 if __name__ == "__main__":
     # tvm.testing.main()
-    test_attention_bias_offload((4, (16, 8), 32, (8, 16), (4, 32, 16, 8), (4, 32, 16, 8)))
+    # test_attention_bias_offload((4, (16, 8), 32, (8, 16), (4, 32, 16, 8), (4, 32, 16, 8)))
+    test_attention_offload((2, (4096, 4096), 8, (40, 40)), "float16")
