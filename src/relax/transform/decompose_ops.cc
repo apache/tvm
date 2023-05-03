@@ -154,8 +154,10 @@ Expr TensorToShape(const Call& call_node, const BlockBuilder& builder) {
   ICHECK(sinfo);
   // call builtin function that converts tensor to shape tuple
   // TODO(@sunggg): Register operator for "vm.builtin.tensor_to_shape"
-  Var call = builder->Emit(WrapCallPure(Call(ExternFunc("vm.builtin.tensor_to_shape"), {expr}, {},
-                                             {GetRef<ShapeStructInfo>(sinfo)})));
+  static const Op& call_pure_packed_op = Op::Get("relax.call_pure_packed");
+  Var call =
+      builder->Emit(Call(call_pure_packed_op, {ExternFunc("vm.builtin.tensor_to_shape"), expr}, {},
+                         {GetRef<ShapeStructInfo>(sinfo)}));
 
   // Operators like reshape take the output of `TensorToShape` as their output shape.
   // Because TOPI expects to have such output shape in symbolic shape at least (i.e.,

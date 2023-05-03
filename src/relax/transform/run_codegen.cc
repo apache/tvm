@@ -103,13 +103,7 @@ class CodeGenRunner : ExprMutator {
           func = (*RemoveFuncAttrFunc)(func, tvm::attr::kGlobalSymbol);
           func = (*RemoveFuncAttrFunc)(func, attr::kCodegen);
           builder_->UpdateFunction(gvar, func);
-          // preserve the purity: if the func was originally pure, wrap call_pure
-          bool purity = GetStructInfoAs<FuncStructInfoNode>(gvar)->purity;
-          auto ret = create_call_dps_packed(new_func, ret_sinfo);
-          if (purity) {
-            return WrapCallPure(ret);
-          }
-          return ret;
+          return create_call_dps_packed(new_func, ret_sinfo);
         }
       }
     }

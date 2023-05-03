@@ -118,6 +118,10 @@ def call_dps_packed(
     """
     Call a destination-passing-style packed function and return the output.
 
+    Note: The called function is assumed to be _pure_ (other than modifying the designated
+    output arguments). If the function _does_ result in other side effects, then the compiler
+    may end up removing, reordering, or repeating those effects--no guarantees can be made.
+
     Parameters
     ----------
     func : Union[str, Expr]
@@ -515,54 +519,7 @@ def call_pure_packed(
         sinfo_args = [sinfo_args]
     # note: if we need attributes, we can also take them here
 
-    inner_call = Call(op, args, sinfo_args=sinfo_args)
-    return _ffi_api.call_pure_packed(inner_call)  # type: ignore # pylint: disable=no-member
-
-
-@args_converter.auto
-def call_pure_dps_packed(
-    func: Union[str, Expr],
-    args: Expr,
-    out_sinfo: Union[TensorStructInfo, List[TensorStructInfo]],
-) -> Call:
-    """
-    Call a destination-passing-style packed function and return the output.
-    This also treats the PackedFunc as pure.
-
-    Note: This should be used for cases when the user knows that calling the packed function
-    with these arguments will _in reality_ not cause any side effects.
-    If it is used for a call that _does_ result in side effects, then the compiler
-    may end up removing, reordering, or repeating that call, with no guarantees
-    made about any side effects from the callee.
-
-    Parameters
-    ----------
-    func : Union[str, Expr]
-        The destination-passing-style function, can be ExternFunc.
-
-    args : Expr
-        The input arguments.
-
-    out_sinfo : Union[TensorStructInfo, List[TensorStructInfo]]
-        The structure info of the call_dps_packed output.
-        It should be a single or a list of TensorStructInfo. Each one denotes the
-        structure info of a returned tensor.
-
-    Returns
-    -------
-    ret: Call
-        A call node for the call_pure_dps_packed operator.
-    """
-    if isinstance(func, str):
-        func = ExternFunc(func)
-
-    if isinstance(args, Expr) and not isinstance(args, RxTuple):  # type: ignore
-        args = RxTuple((args,))
-
-    if not isinstance(out_sinfo, list):
-        out_sinfo = [out_sinfo]
-
-    return _ffi_api.call_pure_dps_packed(func, args, out_sinfo)  # type: ignore
+    return _ffi_api.call_pure_packed(op, args, None, sinfo_args)  # type: ignore # pylint: disable=no-member
 
 
 @args_converter.auto

@@ -88,9 +88,6 @@ class LambdaLifter : public ExprMutator {
           clo_arg = this->var_remap_.at(var->vid);
         }
 
-        auto ret = Call(invoke_closure_op_, {clo_arg, Tuple(call_node->args)}, {},
-                        {GetStructInfo(GetRef<Expr>(call_node))});
-
         // if the original op was pure, we should use invoke_pure_closure
         Call orig_call = Downcast<Call>(val);
         bool purity;
@@ -102,10 +99,9 @@ class LambdaLifter : public ExprMutator {
           purity = GetStructInfoAs<FuncStructInfoNode>(orig_call->op)->purity;
         }
 
-        if (purity) {
-          return WrapCallPure(ret);
-        }
-        return ret;
+        return Call(purity ? invoke_pure_closure_op_ : invoke_closure_op_,
+                    {clo_arg, Tuple(call_node->args)}, {},
+                    {GetStructInfo(GetRef<Expr>(call_node))});
       }
       auto it = lambda_map_.find(var);
       if (it != lambda_map_.end()) {
@@ -312,6 +308,7 @@ class LambdaLifter : public ExprMutator {
   /*! \brief Cache ops that would be used later to reduce lookup overhead. */
   const Op& make_closure_op_ = Op::Get("relax.make_closure");
   const Op& invoke_closure_op_ = Op::Get("relax.invoke_closure");
+  const Op& invoke_pure_closure_op_ = Op::Get("relax.invoke_pure_closure");
 };
 
 namespace transform {

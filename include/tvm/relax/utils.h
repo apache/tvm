@@ -94,39 +94,6 @@ TVM_DLL bool IsLeafOrTuple(const Expr& expr);
 TVM_DLL bool IsImpureCall(const Call& call);
 
 /*!
- * \brief Wrap the Call node with the call_pure_packed op, transferring over the attributes and
- * sinfo_args.
- *
- * Special cases:
- * 1. If the call is to `call_dps_packed`, it simply replaces the op with `call_pure_dps_packed`.
- * 2. If the call is to `invoke_closure`, it simply replaces the call with `invoke_pure_closure`. *
- *
- * \param call The input call
- *
- * \return A Call to the call_pure op that wraps the original call.
- *
- * \note Transfers over StructInfo from the input to the return value.
- */
-TVM_DLL Call WrapCallPure(const Call& call);
-
-/*!
- * \brief Turn a call to call_pure_packed into a call to the inner op.
- * Call(call_pure, [op, arg1, arg2, ..., argn], attrs, sinfo_args)
- * will become Call(op, [arg1, arg2, ..., argn], attrs, sinfo_args).
- *
- * Special cases:
- * 1. If the call is to `call_pure_dps_packed`, it simply replaces the op with `call_dps_packed`.
- * 2. If the call is to `invoke_pure_closure`, it simply replaces the call with `invoke_closure`.
- *
- * \param call The input call.
- *
- * \return A call to the inner call_pure op.
- *
- * \note Transfers over StructInfo from the input to the return value.
- */
-TVM_DLL Call UnwrapCallPure(const Call& call);
-
-/*!
  * \brief Copy the given function. All variables that are bound inside the original function
  *  would be copied to satisfy the restriction in the well-formed check: Variables in
  *  Relax must be bound exactly once. This also ensures that both the function and its copy

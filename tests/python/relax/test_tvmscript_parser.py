@@ -1423,25 +1423,5 @@ def test_call_pure_packed():
     _check(foo, bb.get()["foo"])
 
 
-def test_call_pure_dps_packed():
-    @R.function
-    def foo(x: R.Tensor((128, 128), "float32")) -> R.Tensor((128, 128), "float32"):
-        R.func_attr({"Primitive": 1})
-        gv0 = R.call_pure_dps_packed("extern_func", x, R.Tensor((128, 128), dtype="float32"))
-        gv1 = R.call_pure_dps_packed("extern_dps_func", gv0, R.Tensor((128, 128), dtype="float32"))
-        return gv1
-
-    x = relax.Var("x", R.Tensor((128, 128), "float32"))
-    bb = relax.BlockBuilder()
-    with bb.function("foo", (x,), attrs={"Primitive": 1}):
-        y = bb.emit(R.call_pure_dps_packed("extern_func", x, R.Tensor((128, 128), dtype="float32")))
-        out = bb.emit(
-            R.call_pure_dps_packed("extern_dps_func", y, R.Tensor((128, 128), dtype="float32"))
-        )
-        bb.emit_func_output(out)
-
-    _check(foo, bb.get()["foo"])
-
-
 if __name__ == "__main__":
     tvm.testing.main()

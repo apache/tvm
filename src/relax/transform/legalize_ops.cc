@@ -97,13 +97,21 @@ class LegalizeMutator : public ExprMutator {
     return false;
   }
 
+  Call WrapPureCall(const Call& ret) {
+    static const Op& call_pure_packed_op = Op::Get("relax.call_pure_packed");
+    Array<Expr> ret_args = {ret->op};
+    for (auto arg : ret->args) {
+      ret_args.push_back(arg);
+    }
+    return Call(call_pure_packed_op, ret_args, ret->attrs, ret->sinfo_args);
+  }
+
   Expr VisitExpr_(const CallNode* call) final {
     Call visited_call = Downcast<Call>(this->VisitExprPostOrder_(call));
     static const auto& legalize_map = Op::GetAttrMap<FLegalize>("FLegalize");
     static const Op& call_pure_packed_op = Op::Get("relax.call_pure_packed");
     static const Op& call_tir_op = Op::Get("relax.call_tir");
     static const Op& call_dps_packed_op = Op::Get("relax.call_dps_packed");
-    static const Op& call_pure_dps_packed_op = Op::Get("relax.call_pure_dps_packed");
     auto* op_node = visited_call->op.as<OpNode>();
 
     // Not an OpNode
@@ -129,7 +137,7 @@ class LegalizeMutator : public ExprMutator {
     if (cmap_.defined() && cmap_.value().count(op->name)) {
       auto ret = cmap_.value()[op->name](this->builder_, visited_call);
       if (ret.IsObjectRef<Expr>() && WrapPureCondition(op, ret.AsObjectRef<Expr>())) {
-        return WrapCallPure(Downcast<Call>(ret.AsObjectRef<Expr>()));
+        return WrapPureCall(Downcast<Call>(ret.AsObjectRef<Expr>()));
       }
       return ret;
     }
@@ -137,14 +145,14 @@ class LegalizeMutator : public ExprMutator {
     if (legalize_map.count(op)) {
       auto ret = legalize_map[op](this->builder_, visited_call);
       if (WrapPureCondition(op, ret)) {
-        return WrapCallPure(Downcast<Call>(ret));
+        return WrapPureCall(Downcast<Call>(ret));
       }
       return ret;
     }
 
     // No legalization.
     if (enable_warning_ && op != call_tir_op && op != call_dps_packed_op &&
-        op != call_pure_packed_op && op != call_pure_dps_packed_op) {
+        op != call_pure_packed_op) {
       LOG(WARNING) << "No legalization func for " << op->name << " is found.";
     }
     return visited_call;

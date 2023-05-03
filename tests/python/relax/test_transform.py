@@ -32,7 +32,7 @@ def test_to_non_dataflow():
         def foo(x: R.Tensor(("m", "n"), "float32")):
             m, n = T.int64(), T.int64()
             with R.dataflow():
-                lv0 = R.call_pure_dps_packed(
+                lv0 = R.call_dps_packed(
                     "test.op.identity",
                     (x,),
                     R.Tensor(
@@ -40,7 +40,7 @@ def test_to_non_dataflow():
                         dtype="float32",
                     ),
                 )
-                gv0 = R.call_pure_dps_packed(
+                gv0 = R.call_dps_packed(
                     "test.op.identity",
                     (lv0,),
                     R.Tensor(
@@ -140,11 +140,6 @@ def test_transform_remove_purity_checking():
             return z
 
         @R.function
-        def use_call_pure_dps_packed(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
-            y = R.call_pure_dps_packed("test.op.identity", (x,), R.Tensor((), dtype="float32"))
-            return y
-
-        @R.function
         def use_invoke_pure_closure(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
             closure = R.make_closure(Before.base, ())
             res = R.invoke_pure_closure(closure, (x,), sinfo_args=R.Tensor((), "int32"))
@@ -199,12 +194,6 @@ def test_transform_remove_purity_checking():
             y = R.add(x, x)
             z = R.call_packed("vm.builtin.copy", y, sinfo_args=(R.Tensor((), dtype="int32")))
             return z
-
-        @R.function
-        def use_call_pure_dps_packed(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
-            R.func_attr({"ForcePure": True})
-            y = R.call_dps_packed("test.op.identity", (x,), R.Tensor((), dtype="float32"))
-            return y
 
         @R.function
         def use_invoke_pure_closure(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):

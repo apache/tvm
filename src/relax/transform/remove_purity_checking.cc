@@ -44,9 +44,14 @@ class PurityRemover : public ExprMutator {
   }
 
   Expr VisitExpr_(const CallNode* call) override {
-    if (call->op == call_pure_packed_op_ || call->op == call_pure_dps_packed_op_ ||
-        call->op == invoke_pure_closure_op_) {
-      return VisitExpr(UnwrapCallPure(GetRef<Call>(call)));
+    if (call->op == call_pure_packed_op_) {
+      auto ret = Call(call->args[0], Array<Expr>(call->args.begin() + 1, call->args.end()),
+                      call->attrs, call->sinfo_args);
+      return VisitExpr(ret);
+    }
+    if (call->op == invoke_pure_closure_op_) {
+      auto ret = Call(invoke_closure_op_, call->args, call->attrs, call->sinfo_args);
+      return VisitExpr(ret);
     }
     return ExprMutator::VisitExpr_(call);
   }
@@ -58,8 +63,8 @@ class PurityRemover : public ExprMutator {
 
  private:
   const Op& call_pure_packed_op_ = Op::Get("relax.call_pure_packed");
-  const Op& call_pure_dps_packed_op_ = Op::Get("relax.call_pure_dps_packed");
   const Op& invoke_pure_closure_op_ = Op::Get("relax.invoke_pure_closure");
+  const Op& invoke_closure_op_ = Op::Get("relax.invoke_closure");
 };
 
 Function RemovePurityChecking(const Function& f) { return PurityRemover().RemovePurity(f); }

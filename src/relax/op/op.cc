@@ -90,9 +90,14 @@ StructInfo InferStructInfoCallPurePacked(const Call& call, const BlockBuilder& c
   ICHECK(finfo->IsOpaque()) << "call_pure_packed must be called with an opaque function, but "
                             << callee << " is not opaque";
 
-  // derives the struct info of the result as it would for a call to the inner args
-  auto hypothetical_call = UnwrapCallPure(call);
-  return DeriveCallRetStructInfo(finfo, hypothetical_call, ctx, ctx->GetAnalyzer());
+  // same logic as from DeriveCallRetStructInfo for ordinary calls
+  if (finfo->derive_func.defined()) {
+    // derive using custom derivation function.
+    return finfo->derive_func.value()(call, ctx);
+  } else {
+    // directly return the normal value.
+    return finfo->ret;
+  }
 }
 
 RELAY_REGISTER_OP("relax.call_pure_packed")
@@ -103,7 +108,15 @@ RELAY_REGISTER_OP("relax.call_pure_packed")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallPurePacked)
     .set_attr<Bool>("FPurity", Bool(true));
 
-Expr MakeCallPurePacked(const Call& inner_call) { return WrapCallPure(inner_call); }
+Expr MakeCallPurePacked(const Expr& callee, Array<Expr> args, const Attrs& attrs,
+                        Array<StructInfo> sinfo_args) {
+  static const Op& op = Op::Get("relax.call_pure_packed");
+  Array<Expr> call_args = {callee};
+  for (auto arg : args) {
+    call_args.push_back(arg);
+  }
+  return Call(op, call_args, attrs, sinfo_args);
+}
 
 TVM_REGISTER_GLOBAL("relax.op.call_pure_packed").set_body_typed(MakeCallPurePacked);
 
@@ -174,10 +187,9 @@ RELAY_REGISTER_OP("relax.call_dps_packed")
     .add_argument("func", "Expr", "The destination-passing-style function.")
     .add_argument("args", "Tuple", "The input arguments.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallDPSPacked)
-    // we could be smarter and set it to have the purity of the called PackedFunc,
-    // though we would need a more complicated interface than this to figure that out;
-    // call_pure_dps_packed is used for that case instead
-    .set_attr<Bool>("FPurity", Bool(false));
+    // technically, an impure op could be used with this, but there is
+    // little reason to use DPS with an impure op
+    .set_attr<Bool>("FPurity", Bool(true));
 
 Expr MakeCallDPSPacked(Expr func, Tuple args, Array<TensorStructInfo> out_sinfo_list) {
   for (const TensorStructInfo& sinfo : out_sinfo_list) {
@@ -200,22 +212,6 @@ Expr MakeCallDPSPacked(Expr func, Tuple args, Array<TensorStructInfo> out_sinfo_
 }
 
 TVM_REGISTER_GLOBAL("relax.op.call_dps_packed").set_body_typed(MakeCallDPSPacked);
-
-// call_pure_dps_packed
-
-RELAY_REGISTER_OP("relax.call_pure_dps_packed")
-    .set_num_inputs(2)
-    .add_argument("func", "Expr", "The destination-passing-style function.")
-    .add_argument("args", "Tuple", "The input arguments.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallDPSPacked)
-    .set_attr<Bool>("FPurity", Bool(true));
-
-Expr MakeCallPureDPSPacked(Expr func, Tuple args, Array<TensorStructInfo> out_sinfo_list) {
-  auto inner_call = MakeCallDPSPacked(func, args, out_sinfo_list);
-  return WrapCallPure(Downcast<Call>(inner_call));
-}
-
-TVM_REGISTER_GLOBAL("relax.op.call_pure_dps_packed").set_body_typed(MakeCallPureDPSPacked);
 
 // call builtin
 StructInfo InferStructInfoCallBuiltinWithCtx(const Call& call, const BlockBuilder& ctx) {

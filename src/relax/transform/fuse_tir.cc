@@ -889,15 +889,9 @@ class TIRFuseMutator : public ExprMutator {
         new_args.Set(0, new_gv);
         return Call(call->op, new_args, call->attrs, call->sinfo_args, call->span);
       }
-    } else if (call->op == call_pure_packed_op_ && call->args[0].as<GlobalVarNode>()) {
-      // Case 3. call_pure_packed: Handle the inner call.
-      // (Only matters if the callee is a GlobalVar that maps to a PrimFunc.)
-      auto inner_call = UnwrapCallPure(call);
-      auto ret = VisitExpr_(inner_call.as<CallNode>());
-      return WrapCallPure(Downcast<Call>(ret));
     }
 
-    // Case 4. CallNode in other types. Leave it as it is.
+    // Case 3. CallNode in other types. Leave it as it is.
     return call;
   }
 
