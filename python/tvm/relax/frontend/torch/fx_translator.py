@@ -1255,7 +1255,8 @@ class TorchFXImporter:
                                 output = []
                                 for ret in args[0]:
                                     output.append(self.block_builder.emit_output(ret))
-                        else:
+
+                        if output is None:
                             output = self.block_builder.emit_output(args[0])
                         break
                     elif node.op == "get_attr":
