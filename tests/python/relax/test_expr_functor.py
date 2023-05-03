@@ -43,6 +43,7 @@ from tvm.relax.expr import (
 )
 from tvm.script import relax as R
 import pytest
+import tvm.testing
 
 m, n = tir.Var("m", "int64"), tir.Var("n", "int64")
 x = relax.Var("x", R.Tensor([n], "float32"))
@@ -674,12 +675,22 @@ def test_wrong_inherit():
                 pass
 
 
+@R.function
+def dummy(x: R.Tensor((10, 10))):
+    lv = R.add(x, R.const(1))
+    return lv
+
+
 def test_call_visitor_super():
     @relax.expr_functor.visitor
     class InternalVisitor(PyExprVisitor):
         def __init__(self) -> None:
             super().__init__()
             self.log = ASTLog()
+
+        def visit_var_binding_(self, binding: relax.VarBinding) -> None:
+            self.log.add("VarBinding")
+            super().visit_var_binding_(binding)
 
         def visit_call_(self, op: Call) -> None:
             self.log.add("InternalCall")
@@ -706,6 +717,10 @@ def test_call_visitor_super():
     lv.visit_expr(call_node)
     assert str(lv.log) == "\n".join(["LeafCall", "InternalCall", "Op", "Var", "Var"])
 
+    lv = LeafVisitor()
+    lv.visit_expr(dummy)
+    assert str(lv.log) == "\n".join(["VarBinding", "LeafCall", "InternalCall", "Op", "Var", "Var"])
+
 
 def test_call_mutator_super():
     @relax.expr_functor.mutator
@@ -713,6 +728,10 @@ def test_call_mutator_super():
         def __init__(self) -> None:
             super().__init__()
             self.log = ASTLog()
+
+        def visit_var_binding_(self, binding: relax.VarBinding) -> None:
+            self.log.add("VarBinding")
+            super().visit_var_binding_(binding)
 
         def visit_call_(self, op: Call) -> None:
             self.log.add("InternalCall")
@@ -740,6 +759,10 @@ def test_call_mutator_super():
     lm = LeafMutator()
     lm.visit_expr(call_node)
     assert str(lm.log) == "\n".join(["LeafCall", "InternalCall", "Op", "Var", "Var"])
+
+    lm = LeafMutator()
+    lm.visit_expr(dummy)
+    assert str(lm.log) == "\n".join(["VarBinding", "LeafCall", "InternalCall", "Op", "Var", "Var"])
 
 
 if __name__ == "__main__":

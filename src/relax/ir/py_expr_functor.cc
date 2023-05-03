@@ -557,7 +557,13 @@ TVM_REGISTER_GLOBAL("relax.ExprVisitorVisitExpr")
 
 TVM_REGISTER_GLOBAL("relax.ExprVisitorVisitBinding")
     .set_body_typed([](PyExprVisitor visitor, const Binding& binding) {
-      visitor->ExprVisitor::VisitBinding(binding);
+      if (const auto* ptr = binding.as<VarBindingNode>()) {
+        visitor->ExprVisitor::VisitBinding_(ptr);
+      } else if (const auto* ptr = binding.as<MatchCastNode>()) {
+        visitor->ExprVisitor::VisitBinding_(ptr);
+      } else {
+        LOG(FATAL) << "unreachable";
+      }
     });
 
 TVM_REGISTER_GLOBAL("relax.ExprVisitorVisitBindingBlock")
@@ -604,7 +610,13 @@ TVM_REGISTER_GLOBAL("relax.ExprMutatorVisitExpr")
 
 TVM_REGISTER_GLOBAL("relax.ExprMutatorVisitBinding")
     .set_body_typed([](PyExprMutator mutator, const Binding& binding) {
-      return mutator->ExprMutator::VisitBinding(binding);
+      if (const auto* ptr = binding.as<VarBindingNode>()) {
+        return mutator->ExprMutator::VisitBinding_(ptr);
+      } else if (const auto* ptr = binding.as<MatchCastNode>()) {
+        return mutator->ExprMutator::VisitBinding_(ptr);
+      } else {
+        LOG(FATAL) << "unreachable";
+      }
     });
 
 TVM_REGISTER_GLOBAL("relax.ExprMutatorVisitBindingBlock")
