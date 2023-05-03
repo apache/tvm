@@ -86,6 +86,23 @@ def alloc_tensor(
     return _ffi_api.alloc_tensor(storage, offset, shape, dtype)  # type: ignore
 
 
+def kill_object(obj: Expr) -> Call:
+    """Construct a Call to set the register corresponding to the input object to
+    null at runtime, in order to kill the input object.
+
+    Parameters
+    ----------
+    obj : Expr
+        The object to be killed.
+
+    Returns
+    -------
+    result : Call
+        CallNode that kills the input object.
+    """
+    return _ffi_api.kill_object(obj)  # type: ignore
+
+
 @args_converter.auto
 def call_tir_dyn(func: Expr, args: Tuple) -> Call:
     """Construct a Call to call_tir_dyn (invoke the given TIR PrimFunc)

@@ -163,6 +163,8 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
         EmitAllocStorage(call, dst_reg);
       } else if (call_node->op == alloc_tensor_op_) {
         EmitAllocTensor(call, dst_reg);
+      } else if (call_node->op == kill_object_op_) {
+        dst_reg = EmitKillObject(call);
       } else {
         // every "normal" operator is lowered to a global var in the IRModule. The Attrs for those
         // ops are handled in a pass when lowering them to TIR.
@@ -352,6 +354,15 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     builder_->EmitCall("vm.builtin.alloc_tensor", args, dst_reg);
   }
 
+  RegName EmitKillObject(const Call& call_node) {
+    ICHECK_EQ(call_node->args.size(), 1);
+    Instruction::Arg arg = this->VisitExpr(call_node->args[0]);
+    ICHECK(arg.kind() == Instruction::ArgKind::kRegister);
+    RegName dst_reg = arg.value();
+    builder_->EmitCall("vm.builtin.null_value", {}, dst_reg);
+    return dst_reg;
+  }
+
   void EmitCallBuiltinWithCtx(const Call& call_node, RegName dst_reg) {
     std::vector<Instruction::Arg> args;
     args.push_back(Instruction::Arg::Register(Instruction::kVMRegister));
@@ -401,6 +412,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   /*! \brief Cache ops that need to be frequently used later to reduce lookup overhead. */
   const Op& alloc_storage_op_ = Op::Get("relax.vm.alloc_storage");
   const Op& alloc_tensor_op_ = Op::Get("relax.vm.alloc_tensor");
+  const Op& kill_object_op_ = Op::Get("relax.vm.kill_object");
   const Op& call_builtin_with_ctx_op_ = Op::Get("relax.call_builtin_with_ctx");
   const Op& null_value_op_ = Op::Get("relax.null_value");
 };
@@ -410,7 +422,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
  *        and add them to exec_builder.
  * \param exec_builder Builder to collect executables.
  * \param mod Input module.
- * \return Left over IRModule that may contain otehr functions.
+ * \return Left over IRModule that may contain other functions.
  */
 IRModule VMCodeGen(ExecBuilder exec_builder, IRModule mod) {
   return CodeGenVM::Run(exec_builder, mod);
@@ -419,7 +431,7 @@ IRModule VMCodeGen(ExecBuilder exec_builder, IRModule mod) {
 TVM_REGISTER_GLOBAL("relax.VMCodeGen").set_body_typed(VMCodeGen);
 
 /*!
- * \brief Link the libaries together.
+ * \brief Link the libraries together.
  */
 Module VMLink(ExecBuilder builder, Target target, Optional<Module> lib, Array<Module> ext_libs,
               Map<String, runtime::NDArray> params) {

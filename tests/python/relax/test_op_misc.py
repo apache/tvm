@@ -112,6 +112,14 @@ def test_vm_alloc_tensor_infer_struct_info():
     tvm.ir.assert_structural_equal(ret.struct_info, R.Tensor(dtype="float32", ndim=3))
 
 
+def test_vm_kill_object():
+    bb = rx.BlockBuilder()
+    storage = rx.Var("storage", rx.TensorStructInfo(dtype="float32"))
+    kill = rx.op.vm.kill_object(storage)
+    ret = bb.normalize(kill)
+    tvm.ir.assert_structural_equal(ret.struct_info, R.Tuple([]))
+
+
 def test_builtin_stop_lift_params():
     bb = rx.BlockBuilder()
     x = rx.Var("x", rx.TensorStructInfo(shape=[4, 5], dtype="float32"))
