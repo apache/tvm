@@ -413,13 +413,14 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
     ICHECK(ptr.defined());
     auto elem_offset = op->args[1];
     spirv::Value src_ptr = MakeValue(op->args[2]);
-    auto stride = MakeValue(op->args[3]);
+    int rows = op->args[3].as<IntImmNode>()->value;
+    int cols = op->args[4].as<IntImmNode>()->value;
+    auto stride = MakeValue(op->args[5]);
 
-    auto column_major = MakeValue(op->args[4]);
+    auto column_major = MakeValue(op->args[6]);
 
-    // todo
     auto mat_ty = builder_->GetCooperativeMatrixNVType(builder_->GetBufferElementType(ptr),
-						       16, 16);
+						       rows, cols);
     auto mat = builder_->CallCooperativeMatrixLoadNV(mat_ty, src_ptr, stride, column_major);
     ICHECK(elem_offset->IsInstance<IntImmNode>());
     builder_->SetJointMatrixDef(ptr, elem_offset.as<IntImmNode>()->value, mat);
@@ -440,12 +441,17 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
   } else if (op->op.same_as(builtin::cooperative_matrix_fill_NV())) {
     auto ptr = Downcast<Var>(op->args[0]);
     ICHECK(ptr.defined());
-    auto mat_ty =
-        builder_->GetCooperativeMatrixNVType(builder_->GetBufferElementType(ptr), 16, 16);
-    auto filled = builder_->CallCooperativeMatrixFillNV(mat_ty, MakeValue(op->args[2]));
-
     auto elem_offset = op->args[1];
     ICHECK(elem_offset->IsInstance<IntImmNode>());
+
+    int rows = op->args[2].as<IntImmNode>()->value;
+    int cols = op->args[3].as<IntImmNode>()->value;
+    auto v = MakeValue(op->args[4]);
+
+    auto mat_ty =
+        builder_->GetCooperativeMatrixNVType(builder_->GetBufferElementType(ptr), rows, cols);
+    auto filled = builder_->CallCooperativeMatrixFillNV(mat_ty, v);
+
     builder_->SetJointMatrixDef(ptr, elem_offset.as<IntImmNode>()->value, filled);
     return filled;
   } else if (op->op.same_as(builtin::cooperative_matrix_mad_NV())) {
@@ -665,7 +671,7 @@ void CodeGenSPIRV::VisitStmt_(const ForNode* op) {
   std::vector<spirv::PhiValue> joint_matrix_phis;
   for (auto [var, elem_offsets] : acc_mat_collector.joint_matrices) {
     Var buffer_var_mat = GetRef<Var>(var);
-    auto mat_ty = builder_->GetCooperativeMatrixNVType(builder_->GetBufferElementType(buffer_var_mat), 8, 8);
+    auto mat_ty = builder_->GetCooperativeMatrixNVType(builder_->GetBufferElementType(buffer_var_mat), 16, 16);
     for (auto offset : elem_offsets) {
       spirv::PhiValue mat_phi = builder_->MakePhi(mat_ty, 2);
       auto mat_def = builder_->GetJointMatrixDef(buffer_var_mat, offset);
