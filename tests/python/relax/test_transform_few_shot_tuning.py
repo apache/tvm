@@ -15,41 +15,419 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name,,missing-function-docstring
+from typing import List, Tuple
+import numpy as np
+
 import tvm
-from tvm.tir.tensor_intrin.cuda import *
-from tvm.tir.tensor_intrin.x86 import *
-from tvm.relax.transform import FewShotTuning
 from tvm.script import tir as T
+from tvm.tir.tensor_intrin.cuda import *  # pylint: disable=wildcard-import,unused-wildcard-import
+from tvm.tir.tensor_intrin.x86 import *  # pylint: disable=wildcard-import,unused-wildcard-import
+from tvm.meta_schedule.testing.tune_utils import generate_input_data
+from tvm.meta_schedule.arg_info import ArgInfo
+from tvm.relax.transform import FewShotTuning
 import tvm.testing
+
+# pylint: disable=no-self-argument,missing-class-docstring,line-too-long
+# fmt: off
+@tvm.script.ir_module
+class MatMul:
+    @T.prim_func
+    def matmul(
+        A: T.Buffer((32, 32), "float16"),
+        B: T.Buffer((32, 32), "float16"),
+        C: T.Buffer((32, 32), "float16"),
+    ):
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # with T.block("root"):
+        for i, j, k in T.grid(32, 32, 32):
+            with T.block("C"):
+                v_i, v_j, v_k = T.axis.remap("SSR", [i, j, k])
+                T.reads(A[v_i, v_k], B[v_k, v_j])
+                T.writes(C[v_i, v_j])
+                with T.init():
+                    C[v_i, v_j] = T.float16(0)
+                C[v_i, v_j] = C[v_i, v_j] + A[v_i, v_k] * B[v_k, v_j]
+# fmt: on
+# pylint: enable=no-self-argument,missing-class-docstring,line-too-long
+
+
+def _target():
+    return tvm.target.Target("llvm -num-cores=4")
+
+
+def _get_input_output_info(func: tvm.tir.PrimFunc):
+    args = ArgInfo.from_prim_func(func)
+    inputs = [generate_input_data(x.shape, x.dtype) for x in args[:-1]]
+    output_shape = args[-1].shape
+    output_dtype = args[-1].dtype
+    return inputs, output_shape, output_dtype
+
+
+def _expected_results(
+    mod: tvm.ir.IRModule, inputs: List[np.ndarray], output_shape: Tuple, output_dtype: str
+):
+    rt_mod = tvm.build(mod, target="llvm")
+    data = [
+        tvm.nd.array(x)
+        for x in [
+            *inputs,
+            np.zeros(output_shape, dtype=output_dtype),
+        ]
+    ]
+    rt_mod(*data)
+    return data[-1].numpy()
+
+
+def _actual_results(
+    actual: tvm.ir.IRModule, inputs: List[np.ndarray], output_shape: Tuple, output_dtype: str
+):
+    target = _target()
+    actual_rt_mod = tvm.build(actual, target=target)
+    actual_data = [
+        tvm.nd.array(x, device=tvm.cuda() if target.kind.name == "cuda" else tvm.cpu())
+        for x in [
+            *inputs,
+            np.zeros(output_shape, dtype=output_dtype),
+        ]
+    ]
+    actual_rt_mod(*actual_data)
+    return actual_data[-1].numpy()
+
+
+def _assert_allclose(mod: tvm.ir.IRModule, actual: tvm.ir.IRModule, func: tvm.tir.PrimFunc):
+    inputs, output_shape, output_dtype = _get_input_output_info(func)
+    expected_output = _expected_results(mod, inputs, output_shape, output_dtype)
+    actual_output = _actual_results(actual, inputs, output_shape, output_dtype)
+    tvm.testing.assert_allclose(expected_output, actual_output, rtol=1e-2, atol=1e-2)
 
 
 def test_matmul():
+    mod = MatMul
+    func_name = "matmul"
+    with _target(), tvm.transform.PassContext(opt_level=3):
+        actual = FewShotTuning()(mod)
+    assert actual[func_name].attrs["tir.is_scheduled"], "Schedule is not applied."
+    _assert_allclose(mod, actual, mod[func_name])  # type: ignore
+
+
+def test_matmul_with_benchmark():
+    mod = MatMul
+    func_name = "matmul"
+    with _target(), tvm.transform.PassContext(opt_level=3):
+        actual = FewShotTuning(valid_count=10, benchmark=True)(mod)
+    assert actual[func_name].attrs["tir.is_scheduled"], "Schedule is not applied."
+    _assert_allclose(mod, actual, mod[func_name])  # type: ignore
+
+
+def test_softmax():
     # pylint: disable=no-self-argument,missing-class-docstring,line-too-long
     # fmt: off
     @tvm.script.ir_module
-    class Before:
+    class Softmax:
         @T.prim_func
-        def matmul(
-            A: T.Buffer((32, 32), "float16"),
-            B: T.Buffer((32, 32), "float16"),
-            C: T.Buffer((32, 32), "float16"),
-        ):
-            T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        def softmax(rxplaceholder: T.Buffer((T.int64(8), T.int64(3456), T.int64(3456)), "float16"), T_softmax_norm: T.Buffer((T.int64(8), T.int64(3456), T.int64(3456)), "float16")):
+            T.func_attr({"global_symbol": "main", "op_pattern": 4, "tir.noalias": True})
             # with T.block("root"):
-            for i, j, k in T.grid(32, 32, 32):
-                with T.block("C"):
-                    v_i, v_j, v_k = T.axis.remap("SSR", [i, j, k])
-                    T.reads(A[v_i, v_k], B[v_k, v_j])
-                    T.writes(C[v_i, v_j])
+            T_softmax_maxelem = T.alloc_buffer((T.int64(8), T.int64(3456)), "float16")
+            T_softmax_exp = T.alloc_buffer((T.int64(8), T.int64(3456), T.int64(3456)), "float16")
+            T_softmax_expsum = T.alloc_buffer((T.int64(8), T.int64(3456)), "float16")
+            for i0, i1, k in T.grid(T.int64(8), T.int64(3456), T.int64(3456)):
+                with T.block("T_softmax_maxelem"):
+                    v_i0, v_i1, v_k = T.axis.remap("SSR", [i0, i1, k])
+                    T.reads(rxplaceholder[v_i0, v_i1, v_k])
+                    T.writes(T_softmax_maxelem[v_i0, v_i1])
                     with T.init():
-                        C[v_i, v_j] = T.float16(0)
-                    C[v_i, v_j] = C[v_i, v_j] + A[v_i, v_k] * B[v_k, v_j]
+                        T_softmax_maxelem[v_i0, v_i1] = T.float16(-65504)
+                    T_softmax_maxelem[v_i0, v_i1] = T.max(T_softmax_maxelem[v_i0, v_i1], rxplaceholder[v_i0, v_i1, v_k])
+            for i0, i1, i2 in T.grid(T.int64(8), T.int64(3456), T.int64(3456)):
+                with T.block("T_softmax_exp"):
+                    v_i0, v_i1, v_i2 = T.axis.remap("SSS", [i0, i1, i2])
+                    T.reads(rxplaceholder[v_i0, v_i1, v_i2], T_softmax_maxelem[v_i0, v_i1])
+                    T.writes(T_softmax_exp[v_i0, v_i1, v_i2])
+                    T_softmax_exp[v_i0, v_i1, v_i2] = T.exp(rxplaceholder[v_i0, v_i1, v_i2] - T_softmax_maxelem[v_i0, v_i1])
+            for i0, i1, k in T.grid(T.int64(8), T.int64(3456), T.int64(3456)):
+                with T.block("T_softmax_expsum"):
+                    v_i0, v_i1, v_k = T.axis.remap("SSR", [i0, i1, k])
+                    T.reads(T_softmax_exp[v_i0, v_i1, v_k])
+                    T.writes(T_softmax_expsum[v_i0, v_i1])
+                    with T.init():
+                        T_softmax_expsum[v_i0, v_i1] = T.float16(0)
+                    T_softmax_expsum[v_i0, v_i1] = T_softmax_expsum[v_i0, v_i1] + T_softmax_exp[v_i0, v_i1, v_k]
+            for i0, i1, i2 in T.grid(T.int64(8), T.int64(3456), T.int64(3456)):
+                with T.block("T_softmax_norm"):
+                    v_i0, v_i1, v_i2 = T.axis.remap("SSS", [i0, i1, i2])
+                    T.reads(T_softmax_exp[v_i0, v_i1, v_i2], T_softmax_expsum[v_i0, v_i1])
+                    T.writes(T_softmax_norm[v_i0, v_i1, v_i2])
+                    T.block_attr({"axis": 2})
+                    T_softmax_norm[v_i0, v_i1, v_i2] = T_softmax_exp[v_i0, v_i1, v_i2] / T_softmax_expsum[v_i0, v_i1]
     # fmt: on
     # pylint: enable=no-self-argument,missing-class-docstring,line-too-long
-    target = tvm.target.Target("nvidia/geforce-rtx-3070")
-    with target, tvm.transform.PassContext(opt_level=3):
-        After = FewShotTuning()(Before)
-        After.show()
+
+    mod = Softmax
+    func_name = "softmax"
+    with _target(), tvm.transform.PassContext(opt_level=3):
+        actual = FewShotTuning()(mod)
+    assert actual[func_name].attrs["tir.is_scheduled"], "Schedule is not applied."
+    _assert_allclose(mod, actual, mod[func_name])  # type: ignore
+
+
+def test_fused_variance_cast1():
+    # pylint: disable=no-self-argument,missing-class-docstring,line-too-long
+    # fmt: off
+    @tvm.script.ir_module
+    class Fused_Variance_Cast1:
+        @T.prim_func
+        def main(lv3: T.Buffer((T.int64(1), T.int64(32), T.int64(34560)), "float32"), compute: T.Buffer((T.int64(1), T.int64(32), T.int64(1)), "float16")):
+            T.func_attr({"tir.noalias": True, "global_symbol": "main"})
+            # with T.block("root"):
+            rxplaceholder_red = T.alloc_buffer((T.int64(1), T.int64(32), T.int64(1)))
+            T_divide = T.alloc_buffer((T.int64(1), T.int64(32), T.int64(1)))
+            T_subtract = T.alloc_buffer((T.int64(1), T.int64(32), T.int64(34560)))
+            T_multiply = T.alloc_buffer((T.int64(1), T.int64(32), T.int64(34560)))
+            T_multiply_red = T.alloc_buffer((T.int64(1), T.int64(32), T.int64(1)))
+            T_divide_1 = T.alloc_buffer((T.int64(1), T.int64(32), T.int64(1)))
+            for ax0, ax1, ax2, k2 in T.grid(T.int64(1), T.int64(32), T.int64(1), T.int64(34560)):
+                with T.block("rxplaceholder_red"):
+                    v_ax0, v_ax1, v_ax2, v_k2 = T.axis.remap("SSSR", [ax0, ax1, ax2, k2])
+                    T.reads(lv3[v_ax0, v_ax1, v_k2])
+                    T.writes(rxplaceholder_red[v_ax0, v_ax1, v_ax2])
+                    with T.init():
+                        rxplaceholder_red[v_ax0, v_ax1, v_ax2] = T.float32(0)
+                    rxplaceholder_red[v_ax0, v_ax1, v_ax2] = rxplaceholder_red[v_ax0, v_ax1, v_ax2] + lv3[v_ax0, v_ax1, v_k2]
+            for ax0, ax1, ax2 in T.grid(T.int64(1), T.int64(32), T.int64(1)):
+                with T.block("T_divide"):
+                    v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                    T.reads(rxplaceholder_red[v_ax0, v_ax1, v_ax2])
+                    T.writes(T_divide[v_ax0, v_ax1, v_ax2])
+                    T_divide[v_ax0, v_ax1, v_ax2] = rxplaceholder_red[v_ax0, v_ax1, v_ax2] * T.float32(2.8935185185185186e-05)
+            for ax0, ax1, ax2 in T.grid(T.int64(1), T.int64(32), T.int64(34560)):
+                with T.block("T_subtract"):
+                    v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                    T.reads(lv3[v_ax0, v_ax1, v_ax2], T_divide[v_ax0, v_ax1, T.int64(0)])
+                    T.writes(T_subtract[v_ax0, v_ax1, v_ax2])
+                    T_subtract[v_ax0, v_ax1, v_ax2] = lv3[v_ax0, v_ax1, v_ax2] - T_divide[v_ax0, v_ax1, T.int64(0)]
+            for ax0, ax1, ax2 in T.grid(T.int64(1), T.int64(32), T.int64(34560)):
+                with T.block("T_multiply"):
+                    v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                    T.reads(T_subtract[v_ax0, v_ax1, v_ax2])
+                    T.writes(T_multiply[v_ax0, v_ax1, v_ax2])
+                    T_multiply[v_ax0, v_ax1, v_ax2] = T_subtract[v_ax0, v_ax1, v_ax2] * T_subtract[v_ax0, v_ax1, v_ax2]
+            for ax0, ax1, ax2, k2 in T.grid(T.int64(1), T.int64(32), T.int64(1), T.int64(34560)):
+                with T.block("T_multiply_red"):
+                    v_ax0, v_ax1, v_ax2, v_k2 = T.axis.remap("SSSR", [ax0, ax1, ax2, k2])
+                    T.reads(T_multiply[v_ax0, v_ax1, v_k2])
+                    T.writes(T_multiply_red[v_ax0, v_ax1, v_ax2])
+                    with T.init():
+                        T_multiply_red[v_ax0, v_ax1, v_ax2] = T.float32(0)
+                    T_multiply_red[v_ax0, v_ax1, v_ax2] = T_multiply_red[v_ax0, v_ax1, v_ax2] + T_multiply[v_ax0, v_ax1, v_k2]
+            for ax0, ax1, ax2 in T.grid(T.int64(1), T.int64(32), T.int64(1)):
+                with T.block("T_divide_1"):
+                    v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                    T.reads(T_multiply_red[v_ax0, v_ax1, v_ax2])
+                    T.writes(T_divide_1[v_ax0, v_ax1, v_ax2])
+                    T_divide_1[v_ax0, v_ax1, v_ax2] = T_multiply_red[v_ax0, v_ax1, v_ax2] * T.float32(2.8935185185185186e-05)
+            for i0, i1, i2 in T.grid(T.int64(1), T.int64(32), T.int64(1)):
+                with T.block("compute"):
+                    v_i0, v_i1, v_i2 = T.axis.remap("SSS", [i0, i1, i2])
+                    T.reads(T_divide_1[v_i0, v_i1, v_i2])
+                    T.writes(compute[v_i0, v_i1, v_i2])
+                    compute[v_i0, v_i1, v_i2] = T.Cast("float16", T_divide_1[v_i0, v_i1, v_i2])
+    # fmt: on
+    # pylint: enable=no-self-argument,missing-class-docstring,line-too-long
+
+    mod = Fused_Variance_Cast1
+    func_name = "main"
+    with _target(), tvm.transform.PassContext(opt_level=3):
+        actual = FewShotTuning()(mod)
+    assert actual[func_name].attrs["tir.is_scheduled"], "Schedule is not applied."
+    _assert_allclose(mod, actual, mod[func_name])  # type: ignore
+
+
+def test_fused_mean_cast1():
+    # pylint: disable=no-self-argument,missing-class-docstring,line-too-long
+    # fmt: off
+    @tvm.script.ir_module
+    class Fuse_Mean_Cast1:
+        @T.prim_func
+        def main(lv: T.Buffer((T.int64(1), T.int64(32), T.int64(34560)), "float32"), compute: T.Buffer((T.int64(1), T.int64(32), T.int64(1)), "float16")):
+            T.func_attr({"tir.noalias": True, "global_symbol": "main"})
+            # with T.block("root"):
+            rxplaceholder_red = T.alloc_buffer((T.int64(1), T.int64(32), T.int64(1)))
+            T_divide = T.alloc_buffer((T.int64(1), T.int64(32), T.int64(1)))
+            for ax0, ax1, ax2, k2 in T.grid(T.int64(1), T.int64(32), T.int64(1), T.int64(34560)):
+                with T.block("rxplaceholder_red"):
+                    v_ax0, v_ax1, v_ax2, v_k2 = T.axis.remap("SSSR", [ax0, ax1, ax2, k2])
+                    T.reads(lv[v_ax0, v_ax1, v_k2])
+                    T.writes(rxplaceholder_red[v_ax0, v_ax1, v_ax2])
+                    with T.init():
+                        rxplaceholder_red[v_ax0, v_ax1, v_ax2] = T.float32(0)
+                    rxplaceholder_red[v_ax0, v_ax1, v_ax2] = rxplaceholder_red[v_ax0, v_ax1, v_ax2] + lv[v_ax0, v_ax1, v_k2]
+            for ax0, ax1, ax2 in T.grid(T.int64(1), T.int64(32), T.int64(1)):
+                with T.block("T_divide"):
+                    v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                    T.reads(rxplaceholder_red[v_ax0, v_ax1, v_ax2])
+                    T.writes(T_divide[v_ax0, v_ax1, v_ax2])
+                    T_divide[v_ax0, v_ax1, v_ax2] = rxplaceholder_red[v_ax0, v_ax1, v_ax2] * T.float32(2.8935185185185186e-05)
+            for i0, i1, i2 in T.grid(T.int64(1), T.int64(32), T.int64(1)):
+                with T.block("compute"):
+                    v_i0, v_i1, v_i2 = T.axis.remap("SSS", [i0, i1, i2])
+                    T.reads(T_divide[v_i0, v_i1, v_i2])
+                    T.writes(compute[v_i0, v_i1, v_i2])
+                    compute[v_i0, v_i1, v_i2] = T.Cast("float16", T_divide[v_i0, v_i1, v_i2])
+    # fmt: on
+    # pylint: enable=no-self-argument,missing-class-docstring,line-too-long
+
+    mod = Fuse_Mean_Cast1
+    func_name = "main"
+    with _target(), tvm.transform.PassContext(opt_level=3):
+        actual = FewShotTuning()(mod)
+    assert actual[func_name].attrs["tir.is_scheduled"], "Schedule is not applied."
+    _assert_allclose(mod, actual, mod[func_name])  # type: ignore
+
+
+def test_fused_strided_slice2_etc():
+    # pylint: disable=no-self-argument,missing-class-docstring,line-too-long
+    # fmt: off
+    @tvm.script.ir_module
+    class Module:
+        @T.prim_func
+        def main(lv26: T.Buffer((T.int64(1), T.int64(3456), T.int64(2560)), "float16"), T_multiply: T.Buffer((T.int64(1), T.int64(3456), T.int64(1280)), "float16")):
+            T.func_attr({"tir.noalias": True, "global_symbol": "main"})
+            # with T.block("root"):
+            T_strided_slice_with_axes = T.alloc_buffer((T.int64(1), T.int64(3456), T.int64(1280)), "float16")
+            T_divide = T.alloc_buffer((T.int64(1), T.int64(3456), T.int64(1280)), "float16")
+            T_multiply_1 = T.alloc_buffer((T.int64(1), T.int64(3456), T.int64(1280)), "float16")
+            T_multiply_2 = T.alloc_buffer((T.int64(1), T.int64(3456), T.int64(1280)), "float16")
+            compute = T.alloc_buffer((T.int64(1), T.int64(3456), T.int64(1280)))
+            compute_1 = T.alloc_buffer((T.int64(1), T.int64(3456), T.int64(1280)))
+            compute_2 = T.alloc_buffer((T.int64(1), T.int64(3456), T.int64(1280)), "float16")
+            T_multiply_3 = T.alloc_buffer((T.int64(1), T.int64(3456), T.int64(1280)), "float16")
+            T_add = T.alloc_buffer((T.int64(1), T.int64(3456), T.int64(1280)), "float16")
+            T_multiply_4 = T.alloc_buffer((T.int64(1), T.int64(3456), T.int64(1280)), "float16")
+            T_multiply_5 = T.alloc_buffer((T.int64(1), T.int64(3456), T.int64(1280)), "float16")
+            T_divide_1 = T.alloc_buffer((T.int64(1), T.int64(3456), T.int64(1280)), "float16")
+            T_add_1 = T.alloc_buffer((T.int64(1), T.int64(3456), T.int64(1280)), "float16")
+            T_add_2 = T.alloc_buffer((T.int64(1), T.int64(3456), T.int64(1280)), "float16")
+            T_multiply_6 = T.alloc_buffer((T.int64(1), T.int64(3456), T.int64(1280)), "float16")
+            T_strided_slice_with_axes_1 = T.alloc_buffer((T.int64(1), T.int64(3456), T.int64(1280)), "float16")
+            T_multiply_7 = T.alloc_buffer((T.int64(1), T.int64(3456), T.int64(1280)), "float16")
+            for ax0, ax1, ax2 in T.grid(T.int64(1), T.int64(3456), T.int64(1280)):
+                with T.block("T_strided_slice_with_axes"):
+                    v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                    T.reads(lv26[v_ax0, v_ax1, v_ax2 + T.int64(1280)])
+                    T.writes(T_strided_slice_with_axes[v_ax0, v_ax1, v_ax2])
+                    T_strided_slice_with_axes[v_ax0, v_ax1, v_ax2] = lv26[v_ax0, v_ax1, v_ax2 + T.int64(1280)]
+            for ax0, ax1, ax2 in T.grid(T.int64(1), T.int64(3456), T.int64(1280)):
+                with T.block("T_divide"):
+                    v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                    T.reads(T_strided_slice_with_axes[v_ax0, v_ax1, v_ax2])
+                    T.writes(T_divide[v_ax0, v_ax1, v_ax2])
+                    T_divide[v_ax0, v_ax1, v_ax2] = T_strided_slice_with_axes[v_ax0, v_ax1, v_ax2] * T.float16(0.70718232044198892)
+            for ax0, ax1, ax2 in T.grid(T.int64(1), T.int64(3456), T.int64(1280)):
+                with T.block("T_multiply"):
+                    v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                    T.reads(T_divide[v_ax0, v_ax1, v_ax2])
+                    T.writes(T_multiply_1[v_ax0, v_ax1, v_ax2])
+                    T_multiply_1[v_ax0, v_ax1, v_ax2] = T_divide[v_ax0, v_ax1, v_ax2] * T.float16(1.4140625)
+            for ax0, ax1, ax2 in T.grid(T.int64(1), T.int64(3456), T.int64(1280)):
+                with T.block("T_multiply_1"):
+                    v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                    T.reads(T_multiply_1[v_ax0, v_ax1, v_ax2])
+                    T.writes(T_multiply_2[v_ax0, v_ax1, v_ax2])
+                    T_multiply_2[v_ax0, v_ax1, v_ax2] = T_multiply_1[v_ax0, v_ax1, v_ax2] * T.float16(0.70710678118654757)
+            for i0, i1, i2 in T.grid(T.int64(1), T.int64(3456), T.int64(1280)):
+                with T.block("compute"):
+                    v_i0, v_i1, v_i2 = T.axis.remap("SSS", [i0, i1, i2])
+                    T.reads(T_multiply_2[v_i0, v_i1, v_i2])
+                    T.writes(compute[v_i0, v_i1, v_i2])
+                    compute[v_i0, v_i1, v_i2] = T.Cast("float32", T_multiply_2[v_i0, v_i1, v_i2])
+            for i0, i1, i2 in T.grid(T.int64(1), T.int64(3456), T.int64(1280)):
+                with T.block("compute_1"):
+                    v_i0, v_i1, v_i2 = T.axis.remap("SSS", [i0, i1, i2])
+                    T.reads(compute[v_i0, v_i1, v_i2])
+                    T.writes(compute_1[v_i0, v_i1, v_i2])
+                    compute_1[v_i0, v_i1, v_i2] = T.erf(compute[v_i0, v_i1, v_i2])
+            for i0, i1, i2 in T.grid(T.int64(1), T.int64(3456), T.int64(1280)):
+                with T.block("compute_2"):
+                    v_i0, v_i1, v_i2 = T.axis.remap("SSS", [i0, i1, i2])
+                    T.reads(compute_1[v_i0, v_i1, v_i2])
+                    T.writes(compute_2[v_i0, v_i1, v_i2])
+                    compute_2[v_i0, v_i1, v_i2] = T.Cast("float16", compute_1[v_i0, v_i1, v_i2])
+            for ax0, ax1, ax2 in T.grid(T.int64(1), T.int64(3456), T.int64(1280)):
+                with T.block("T_multiply_1_1"):
+                    v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                    T.reads(compute_2[v_ax0, v_ax1, v_ax2])
+                    T.writes(T_multiply_3[v_ax0, v_ax1, v_ax2])
+                    T_multiply_3[v_ax0, v_ax1, v_ax2] = compute_2[v_ax0, v_ax1, v_ax2] * T.float16(0.5)
+            for ax0, ax1, ax2 in T.grid(T.int64(1), T.int64(3456), T.int64(1280)):
+                with T.block("T_add"):
+                    v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                    T.reads(T_multiply_3[v_ax0, v_ax1, v_ax2])
+                    T.writes(T_add[v_ax0, v_ax1, v_ax2])
+                    T_add[v_ax0, v_ax1, v_ax2] = T.float16(0.5) + T_multiply_3[v_ax0, v_ax1, v_ax2]
+            for ax0, ax1, ax2 in T.grid(T.int64(1), T.int64(3456), T.int64(1280)):
+                with T.block("T_multiply_2"):
+                    v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                    T.reads(T_multiply_1[v_ax0, v_ax1, v_ax2], T_add[v_ax0, v_ax1, v_ax2])
+                    T.writes(T_multiply_4[v_ax0, v_ax1, v_ax2])
+                    T_multiply_4[v_ax0, v_ax1, v_ax2] = T_multiply_1[v_ax0, v_ax1, v_ax2] * T_add[v_ax0, v_ax1, v_ax2]
+            for ax0, ax1, ax2 in T.grid(T.int64(1), T.int64(3456), T.int64(1280)):
+                with T.block("T_multiply_3"):
+                    v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                    T.reads(T_multiply_4[v_ax0, v_ax1, v_ax2])
+                    T.writes(T_multiply_5[v_ax0, v_ax1, v_ax2])
+                    T_multiply_5[v_ax0, v_ax1, v_ax2] = T_multiply_4[v_ax0, v_ax1, v_ax2] * T.float16(1.4140625)
+            for ax0, ax1, ax2 in T.grid(T.int64(1), T.int64(3456), T.int64(1280)):
+                with T.block("T_divide_1"):
+                    v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                    T.reads(T_multiply_5[v_ax0, v_ax1, v_ax2], T_divide[v_ax0, v_ax1, v_ax2])
+                    T.writes(T_divide_1[v_ax0, v_ax1, v_ax2])
+                    T_divide_1[v_ax0, v_ax1, v_ax2] = T_multiply_5[v_ax0, v_ax1, v_ax2] / T_divide[v_ax0, v_ax1, v_ax2]
+            for ax0, ax1, ax2 in T.grid(T.int64(1), T.int64(3456), T.int64(1280)):
+                with T.block("T_add_1"):
+                    v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                    T.reads(T_divide_1[v_ax0, v_ax1, v_ax2])
+                    T.writes(T_add_1[v_ax0, v_ax1, v_ax2])
+                    T_add_1[v_ax0, v_ax1, v_ax2] = T_divide_1[v_ax0, v_ax1, v_ax2] + T.float16(-1)
+            for ax0, ax1, ax2 in T.grid(T.int64(1), T.int64(3456), T.int64(1280)):
+                with T.block("T_add_2"):
+                    v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                    T.reads(T_add_1[v_ax0, v_ax1, v_ax2])
+                    T.writes(T_add_2[v_ax0, v_ax1, v_ax2])
+                    T_add_2[v_ax0, v_ax1, v_ax2] = T_add_1[v_ax0, v_ax1, v_ax2] + T.float16(1)
+            for ax0, ax1, ax2 in T.grid(T.int64(1), T.int64(3456), T.int64(1280)):
+                with T.block("T_multiply_4"):
+                    v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                    T.reads(T_strided_slice_with_axes[v_ax0, v_ax1, v_ax2], T_add_2[v_ax0, v_ax1, v_ax2])
+                    T.writes(T_multiply_6[v_ax0, v_ax1, v_ax2])
+                    T_multiply_6[v_ax0, v_ax1, v_ax2] = T_strided_slice_with_axes[v_ax0, v_ax1, v_ax2] * T_add_2[v_ax0, v_ax1, v_ax2]
+            for ax0, ax1, ax2 in T.grid(T.int64(1), T.int64(3456), T.int64(1280)):
+                with T.block("T_strided_slice_with_axes_1"):
+                    v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                    T.reads(lv26[v_ax0, v_ax1, v_ax2])
+                    T.writes(T_strided_slice_with_axes_1[v_ax0, v_ax1, v_ax2])
+                    T_strided_slice_with_axes_1[v_ax0, v_ax1, v_ax2] = lv26[v_ax0, v_ax1, v_ax2]
+            for ax0, ax1, ax2 in T.grid(T.int64(1), T.int64(3456), T.int64(1280)):
+                with T.block("T_multiply_5"):
+                    v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                    T.reads(T_multiply_6[v_ax0, v_ax1, v_ax2])
+                    T.writes(T_multiply_7[v_ax0, v_ax1, v_ax2])
+                    T_multiply_7[v_ax0, v_ax1, v_ax2] = T_multiply_6[v_ax0, v_ax1, v_ax2] * T.float16(0.5)
+            for ax0, ax1, ax2 in T.grid(T.int64(1), T.int64(3456), T.int64(1280)):
+                with T.block("T_multiply_6"):
+                    v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                    T.reads(T_strided_slice_with_axes_1[v_ax0, v_ax1, v_ax2], T_multiply_7[v_ax0, v_ax1, v_ax2])
+                    T.writes(T_multiply[v_ax0, v_ax1, v_ax2])
+                    T_multiply[v_ax0, v_ax1, v_ax2] = T_strided_slice_with_axes_1[v_ax0, v_ax1, v_ax2] * T_multiply_7[v_ax0, v_ax1, v_ax2]
+    # fmt: on
+    # pylint: enable=no-self-argument,missing-class-docstring,line-too-long
+
+    mod = Module
+    func_name = "main"
+    with _target(), tvm.transform.PassContext(opt_level=3):
+        actual = FewShotTuning()(mod)
+    assert actual[func_name].attrs["tir.is_scheduled"], "Schedule is not applied."
+    _assert_allclose(mod, actual, mod[func_name])  # type: ignore
 
 
 if __name__ == "__main__":

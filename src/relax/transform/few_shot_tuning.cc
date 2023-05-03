@@ -73,7 +73,8 @@ tir::PrimFunc FewShotTunePrimFunc(const tir::PrimFunc& prim_func, const Target& 
       /*design_spaces=*/task->space_generator.value()->GenerateDesignSpace(mod),
       /*database=*/NullOpt,
       /*cost_model=*/NullOpt);
-  while (valid_count > 0) {
+  int fail_count = 0, max_fail_count = 100;
+  while (valid_count > 0 && fail_count < max_fail_count) {
     Optional<Array<meta_schedule::MeasureCandidate>> candidates =
         task->search_strategy.value()->GenerateMeasureCandidates();
     if (!candidates.defined()) break;
@@ -86,13 +87,16 @@ tir::PrimFunc FewShotTunePrimFunc(const tir::PrimFunc& prim_func, const Target& 
     Array<meta_schedule::BuilderResult> builder_results = builder->Build(builder_inputs);
     ICHECK_EQ(builder_results.size(), candidates.value().size());
     int idx = 0;
+    bool no_valid = true;  // whether there is no valid schedule in this iteration
     for (const meta_schedule::BuilderResult& builder_result : builder_results) {
       if (!builder_result->error_msg.defined()) {
         results.push_back(candidates.value()[idx]->sch->mod());
         valid_count--;
+        no_valid = false;
       }
       idx++;
     }
+    fail_count += no_valid;  // increase fail_count if there is no valid schedule
     if (benchmark) {
       Array<meta_schedule::RunnerInput> runner_inputs;
       int idx = 0;
@@ -124,6 +128,9 @@ tir::PrimFunc FewShotTunePrimFunc(const tir::PrimFunc& prim_func, const Target& 
   if (results.size() == 0) {
     LOG(WARNING) << "No valid schedule found";
     return prim_func;
+  }
+  if (fail_count >= max_fail_count) {
+    LOG(WARNING) << "Reached the maximum number of failed trials";
   }
   int best_idx = 0;
   if (benchmark) {
