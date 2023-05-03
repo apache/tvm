@@ -129,7 +129,7 @@ class Extractor : public ExprMutator {
 
     // Sweep backwards through the body, rewriting to account for each nested sub-graph.
     body = NestedSubGraph::ParallelRewrite(body_dataflow_graph, body, std::move(nested_sub_graphs));
-    
+
     // Invoke the compiler target preprocessing function define under "relay.ext.compiler.optimize"
     if(opt_attrs_.defined() && (opt_attrs_.find("Compiler") != opt_attrs_.end())) {
       DictAttrs opt_dict_attr = DictAttrs(opt_attrs_);
