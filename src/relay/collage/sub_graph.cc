@@ -131,7 +131,7 @@ class Extractor : public ExprMutator {
     body = NestedSubGraph::ParallelRewrite(body_dataflow_graph, body, std::move(nested_sub_graphs));
 
     // Invoke the compiler target preprocessing function define under "relay.ext.compiler.optimize"
-    if(opt_attrs_.defined() && (opt_attrs_.find("Compiler") != opt_attrs_.end())) {
+    if (opt_attrs_.defined() && (opt_attrs_.find("Compiler") != opt_attrs_.end())) {
       DictAttrs opt_dict_attr = DictAttrs(opt_attrs_);
       std::string spec_name = opt_dict_attr.GetAttr("Compiler", Optional<String>()).value();
       std::string ext_opt = "relay.ext." + spec_name + ".optimize";
@@ -259,7 +259,7 @@ class Extractor : public ExprMutator {
     } else if (CanInline(expr)) {
       // Implicitly include inlinable input sub-expressions.
       return expr;
-    } else if (opt_attrs_.defined() and (expr.as<ConstantNode>() == nullptr)) {
+    } else if (opt_attrs_.defined() && (expr.as<ConstantNode>() == nullptr)) {
       // Map to a function parameter.
       return VarFor(expr);
     } else {
