@@ -53,6 +53,8 @@ class MatMul:
 
 def _target():
     return tvm.target.Target("llvm -num-cores=4")
+    # for local testing only
+    # return tvm.target.Target("nvidia/geforce-rtx-3070")
 
 
 def _get_input_output_info(func: tvm.tir.PrimFunc):
