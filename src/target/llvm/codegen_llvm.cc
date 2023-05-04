@@ -1439,7 +1439,12 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
     return ret_dummy;
   } else if (op->op.same_as(builtin::reinterpret())) {
     llvm::Type* target = DTypeToLLVMType(op->dtype);
-    return builder_->CreateBitCast(MakeValue(op->args[0]), target);
+    llvm::Value* value = MakeValue(op->args[0]);
+    if (op->args[0].dtype().is_handle() && (op->dtype.is_int() || op->dtype.is_uint())) {
+      return builder_->CreatePtrToInt(value, target);
+    } else {
+      return builder_->CreateBitCast(value, target);
+    }
   } else if (op->op.same_as(builtin::isnan())) {
     // TODO(hgt312): set fast math flag
     llvm::Value* a = MakeValue(op->args[0]);

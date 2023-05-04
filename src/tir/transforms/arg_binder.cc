@@ -302,25 +302,47 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
   if (Bind_(buffer->data, TVMArrayGet(DataType::Handle(), handle, builtin::kArrData),
             arg_name + ".data", true)) {
     Var vptr(buffer->data);
+    def_handle_dtype_.Set(vptr, tir::TypeAnnotation(buffer->dtype));
+
+    // Mark alignment of external bufs.
+    AssertStmt satisfies_tvm_alignment = [&]() {
+      PrimExpr interpretable_as_pointer =
+          (device_type == kDLCPU) || (device_type == kDLCUDA) || (device_type == kDLCUDAHost) ||
+          (device_type == kDLCUDAManaged) || (device_type == kDLHexagon);
+      PrimExpr is_aligned =
+          tvm::floormod(tvm::reinterpret(DataType::UInt(vptr->dtype.bits()), vptr),
+                        buffer->data_alignment) == 0;
+
+      std::ostringstream alignment_err_msg;
+      alignment_err_msg << arg_name << ".data is expected to be aligned to "
+                        << buffer->data_alignment << " bytes";
+
+      return AssertStmt(!interpretable_as_pointer || is_aligned, StringImm(alignment_err_msg.str()),
+                        nop);
+    }();
+    asserts_.push_back(satisfies_tvm_alignment);
 
     // Check if the data pointer is NULL.  This check is skipped for
     // size-0 arrays, since CUDA provides a NULL pointer for size-zero
     // allocations.
-    auto alloc_size = [&]() -> PrimExpr {
-      PrimExpr product = IntImm(buffer->DefaultIndexType(), 1);
-      for (const auto& dim : buffer->shape) {
-        product *= dim;
-      }
-      return product;
+    AssertStmt valid_data_ptr_for_non_empty_array = [&]() {
+      auto alloc_size = [&]() -> PrimExpr {
+        PrimExpr product = IntImm(buffer->DefaultIndexType(), 1);
+        for (const auto& dim : buffer->shape) {
+          product *= dim;
+        }
+        return product;
+      }();
+      return AssertStmt(
+          alloc_size == 0 || !Call(DataType::Bool(), builtin::isnullptr(), {vptr}),
+          tvm::tir::StringImm(arg_name + " is expected to have non-NULL data pointer"), nop);
     }();
-    asserts_.emplace_back(AssertStmt(
-        alloc_size == 0 || !Call(DataType::Bool(), builtin::isnullptr(), {vptr}),
-        tvm::tir::StringImm(arg_name + " is expected to have non-NULL data pointer"), nop));
+    asserts_.push_back(valid_data_ptr_for_non_empty_array);
 
-    def_handle_dtype_.Set(vptr, tir::TypeAnnotation(buffer->dtype));
-    // mark alignment of external bufs
-    init_nest_.emplace_back(AttrStmt(vptr, tir::attr::storage_alignment,
-                                     IntImm(DataType::Int(32), buffer->data_alignment), nop));
+    // AttrStmt provides a @llvm.assume that can be placed in the
+    // generated LLVM kernel
+    init_nest_.push_back(AttrStmt(vptr, tir::attr::storage_alignment,
+                                  IntImm(DataType::Int(32), buffer->data_alignment), nop));
   }
 }
 
