@@ -593,7 +593,8 @@ class IRBuilder {
   Value GE(Value a, Value b);
   Value Select(Value cond, Value a, Value b);
 
-  // VK_NV_cooperative_matrix related
+  // The VK_NV_cooperative_matrix extention related, see the documentation for the
+  // SPIRV SPV_NV_cooperative_matrix extention for details.
   SType GetCooperativeMatrixNVType(const SType& elem_ty, int rows, int cols);
   Value CallCooperativeMatrixLoadNV(const SType& mat_type, Value src, Value stride,
                                     Value column_major);
@@ -601,6 +602,9 @@ class IRBuilder {
   Value CallCooperativeMatrixFillNV(const SType& mat_type, Value v);
   Value CallCooperativeMatrixMadNV(Value A, Value B, Value C);
 
+  // Helper functions for cooperative matrix support
+
+  /*! \brief Return the pointer element type for the buffer.*/
   SType GetBufferElementType(const tir::Var& buffer) {
     const auto* ptr = buffer->type_annotation.as<PointerTypeNode>();
     ICHECK(ptr) << "Expects a pointer type.";
@@ -609,11 +613,13 @@ class IRBuilder {
     return GetSType(prim->dtype);
   };
 
+  /*! \brief Associate a TIR buffer at the provided offset with the matrix. */
   void SetCooperativeMatrix(const tir::Var& buffer_var_mat, int elem_offset, Value mat) {
     auto key = std::make_pair(buffer_var_mat.get(), elem_offset);
     cooperative_matrix_defs[key] = mat;
   }
 
+  /*! \brief Retrieve the matrix corresponding to the provided offset in a TIR buffer. */
   Value GetCooperativeMatrix(const tir::Var& buffer_var_mat, int elem_offset) {
     auto key = std::make_pair(buffer_var_mat.get(), elem_offset);
     auto entry = cooperative_matrix_defs.find(key);
@@ -733,7 +739,7 @@ class IRBuilder {
   std::map<std::pair<uint32_t, uint64_t>, Value> const_tbl_;
   /*! \brief map from name of an ExtInstImport to its value */
   std::map<std::string, Value> ext_inst_tbl_;
-  /*! \brief map from (element-type code, rows, cols) to a Cooperative Matrix type */
+  /*! \brief map from (element-type code, rows, cols) to a cooperative matrix type */
   std::map<std::tuple<uint32_t, int, int>, SType> cooperative_matrix_type_tbl_;
 
   /*! \brief Header segment
@@ -775,7 +781,7 @@ class IRBuilder {
   std::vector<uint32_t> function_scope_vars_;
   /*! \brief Function segment */
   std::vector<uint32_t> function_;
-  /*! \brief map from (element-type code, rows, cols) to a Cooperative Matrix type */
+  /*! \brief map from (element-type code, rows, cols) a cooperative matrix */
   std::map<std::pair<const tir::VarNode*, int>, Value> cooperative_matrix_defs;
 };
 

@@ -3037,20 +3037,146 @@ def TVMBackendFreeWorkspace(device_type, device_id, ptr):
     return call_intrin("int32", "tir.TVMBackendFreeWorkspace", device_type, device_id, ptr)
 
 
-def cooperative_matrix_load_NV(mat, offset, src, rows, cols, stride, column_major):
-     return call_intrin("handle", "tir.cooperative_matrix_load_NV", mat, offset, src, rows, cols, stride, column_major)
+# Intrinsics for the VK_NV_cooperative_matrix Vulkan extention.
 
 
-def cooperative_matrix_store_NV(dst, mat, offset, stride, column_major):
-     return call_intrin("handle", "tir.cooperative_matrix_store_NV", dst, mat, offset, stride, column_major)
+def cooperative_matrix_load_NV(buffer_mat, offset, src, rows, cols, stride, column_major):
+    """The intrinsic corresponding to the OpCooperativeMatrixLoadNV instruction.
+
+    Parameters
+    ----------
+    buffer_mat: Var
+        The destination buffer with "cooperative_matrix_nv" scope.
+
+    offset: IntImm
+        The element offset for the matrix to be loaded in the destination buffer.
+
+    src: Expr
+        The source pointer expression.
+
+    rows: int
+        The number of rows in the matrix.
+
+    cols: int
+        The number of columns in the matrix.
+
+    stride: Expr
+        The stride of the matrix.
+
+    column_major: bool
+        Whether the matrix elements are stored in the column-major order.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin(
+        "handle",
+        "tir.cooperative_matrix_load_NV",
+        buffer_mat,
+        offset,
+        src,
+        rows,
+        cols,
+        stride,
+        column_major,
+    )
 
 
-def cooperative_matrix_fill_NV(mat, offset, rows, cols, v):
-     return call_intrin("handle", "tir.cooperative_matrix_fill_NV", mat, offset, rows, cols, v)
+def cooperative_matrix_store_NV(dst, buffer_mat, offset, stride, column_major):
+    """The intrinsic corresponding to the OpCooperativeMatrixStoreNV instruction.
+
+    Parameters
+    ----------
+    dst: Expr
+        The destination pointer expression.
+
+    buffer_mat: Var
+        The source buffer with "cooperative_matrix_nv" scope.
+
+    offset: IntImm
+        The element offset for the matrix to be stored in the destination buffer.
+
+    stride: Expr
+        The stride of the matrix.
+
+    column_major: bool
+        Whether the matrix elements are stored in the column-major order.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin(
+        "handle", "tir.cooperative_matrix_store_NV", dst, buffer_mat, offset, stride, column_major
+    )
+
+
+def cooperative_matrix_fill_NV(buffer_mat, offset, rows, cols, value):
+    """Create a new cooperative matrix filled with the provided value.
+
+    There is no such instruction in the extention, but it is added for convenience.
+
+    Parameters
+    ----------
+
+    buffer_mat: Var
+        The buffer with "cooperative_matrix_nv" scope to be filled.
+
+    offset: IntImm
+        The element offset for the matrix to be filled in `buffer_mat`.
+
+    rows: int
+        The number of rows in the matrix.
+
+    cols: int
+        The number of columns in the matrix.
+
+    value: Expr
+        The value the matrix will be filled with.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin(
+        "handle", "tir.cooperative_matrix_fill_NV", buffer_mat, offset, rows, cols, value
+    )
 
 
 def cooperative_matrix_mad_NV(A, A_off, B, B_off, C, C_off):
-     return call_intrin("handle", "tir.cooperative_matrix_mad_NV", A, A_off, B, B_off, C, C_off)
+    """The intrinsic corresponding to the OpCooperativeMatrixMulAddNV instruction.
+
+    Parameters
+    ----------
+
+    A : Var
+        The buffer with "cooperative_matrix_nv" scope corresponding to the "A" matrix.
+
+    A_off : IntImm
+        The element offset of the "A" matrix in the buffer `A`.
+
+    B : Var
+        The buffer with "cooperative_matrix_nv" scope corresponding to the "B" matrix.
+
+    B_off : IntImm
+        The element offset of the "B" matrix in the buffer `B`.
+
+    C : Var
+        The buffer with "cooperative_matrix_nv" scope corresponding to the "C" matrix.
+
+    C_off : IntImm
+        The element offset of the "C" matrix in the buffer `C`.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("handle", "tir.cooperative_matrix_mad_NV", A, A_off, B, B_off, C, C_off)
 
 
 # pylint: disable=unnecessary-lambda

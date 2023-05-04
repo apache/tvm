@@ -422,8 +422,8 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
     builder_->SetCooperativeMatrix(ptr, elem_offset->value, mat);
     return mat;
   } else if (op->op.same_as(builtin::cooperative_matrix_store_NV())) {
-    auto buffer_var_mat = Downcast<Var>(op->args[1]);
     auto dst_ptr = MakeValue(op->args[0]);
+    auto buffer_var_mat = Downcast<Var>(op->args[1]);
     auto elem_offset = op->args[2].as<IntImmNode>();
     ICHECK(elem_offset) << "Expects a constant element offset.";
     auto mat = builder_->GetCooperativeMatrix(buffer_var_mat, elem_offset->value);
@@ -630,12 +630,31 @@ void CodeGenSPIRV::VisitStmt_(const ForNode* op) {
   // Loop head
   builder_->StartLabel(head_label);
 
+  // In a normal matmul, the update semantics c += a * b is implemented by load and store to the
+  // memory location corresponding to the scalar c. But when C, A, and B are cooperative matrices,
+  // C += A * B cannot be implemented in the same way, since they cannot be load from or stored in
+  // a buffer.
+
+  // We leverage SPIRV's SSA semantics to implement multiply-add update on C matrices.
+  // The original buffer is subdivided into fixed-size matrices, and multiply-add on individual
+  // matrix is unrolled. For example, if the buffer for the C matrix is of shape 64x64, we
+  // materialze 16 16x16 matrices and generate 16 multiply-add instructions. Each matrix is
+  // represented by a phi value, and each iteration of the reduction loop reads the phi values for
+  // the C matrices and update them.
+
+  // A map from a buffer with kCooperativeMatrixNV storage scope (whose size can be arbitrary)
+  // to cooperative matrices "C" (whose sizes are fixed, e.g. 16x16).
+  // Each matrix is identified by an element offset into the buffer. This encoding lets us bridge
+  // the gap between a typical TIR matmul schedule (which uses
+  // `cache_read(..., "cooperative_matrix_nv")` from arbitrary-sized shared memory) and
+  // the fixed-size matrices as expected by the extention.
   std::unordered_map<const VarNode*, std::unordered_set<int>> accum_matrices;
 
   if (op->kind == ForKind::kSerial) {
+    // If this is a serial loop, record which C matrices are updated in this loop.
     tir::PostOrderVisit(op->body, [&accum_matrices](const ObjectRef& obj) {
-      auto call = obj.as<CallNode>();
-      if (call && call->op.same_as(builtin::cooperative_matrix_mad_NV())) {
+      if (auto call = obj.as<CallNode>();
+          call && call->op.same_as(builtin::cooperative_matrix_mad_NV())) {
         auto C_elem_offset = call->args[5].as<IntImmNode>();
         ICHECK(C_elem_offset) << "Expects a constant element offset.";
         auto buffer_var_C = Downcast<Var>(call->args[4]);
@@ -644,7 +663,10 @@ void CodeGenSPIRV::VisitStmt_(const ForNode* op) {
     });
   }
 
+  // Phi values for all cooperative matrices "C".
   std::vector<spirv::PhiValue> cooperative_matrix_phis;
+
+  // Initialize phi values and use them as the matrix "C" in this loop.
   for (const auto& [var, elem_offsets] : accum_matrices) {
     Var buffer_var_mat = GetRef<Var>(var);
     for (auto offset : elem_offsets) {
@@ -675,12 +697,12 @@ void CodeGenSPIRV::VisitStmt_(const ForNode* op) {
   builder_->StartLabel(continue_label);
   spirv::Value one = op->loop_var.dtype().is_int() ? builder_->IntImm(loop_var.stype, 1)
                                                    : builder_->UIntImm(loop_var.stype, 1);
-
   spirv::Value next_value = builder_->Add(loop_var, one);
   loop_var.SetIncoming(1, next_value, continue_label);
-
   builder_->MakeInst(spv::OpBranch, head_label);
 
+  // Update phi values to the new value of the matrix "C" accumulated in this loop.
+  // The next iteration will read these values as the "C" matrix.
   int phi_index = 0;
   for (const auto& [var, elem_offsets] : accum_matrices) {
     Var buffer_var_mat = GetRef<Var>(var);

@@ -64,6 +64,10 @@ enum class StorageRank {
   kTexture = 7,
   /*! \brief global scope amx tmm memory */
   kAMXTMM = 8,
+  /*!
+   *  \brief Scope representing the cooperative matrix in the Vulkan
+   *  VK_NV_cooperative_matrix extention.
+   */
   kCooperativeMatrixNV = 9,
 };
 
