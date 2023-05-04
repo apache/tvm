@@ -1447,6 +1447,84 @@ class PadRewriter(DFPatternCallback):
         )
 
 
+class ChannelPadRewriter(DFPatternCallback):
+    """Convert ethos-u.pad2d composite function to the Relay concatenate operation"""
+
+    def __init__(self):
+        super().__init__(require_type=True)
+        self.pattern = (
+            wildcard().has_attr({"Composite": ethosu_patterns.ChannelPadParams.composite_name})
+        )(wildcard())
+
+    def callback(
+        self, pre: tvm.relay.Expr, post: tvm.relay.Expr, node_map: tvm.ir.container.Map
+    ) -> tvm.relay.Expr:
+        params = ethosu_patterns.ChannelPadParams(post.op.body)
+        params.ifm.tensor = post.args[0]
+
+        concat_args = list()
+        # Activations requiring LUT is currently not supported, so setting it to an empty list
+        lut = relay.const([], dtype="int8")
+        # pad channels before
+        if params.ch_padding[0] > 0:
+            shape1 = list(params.ifm.shape)
+            shape1[3] = params.ch_padding[0].value
+            pad_channels = relay.Constant(
+                tvm.nd.array(
+                    np.full(
+                        shape=shape1,
+                        fill_value=int(params.ifm.q_params.zero_point),
+                        dtype=params.ifm.dtype,
+                    )
+                )
+            )
+            identity1 = ethosu_ops.ethosu_identity(
+                ifm=pad_channels,
+                lut=lut,
+                ifm_scale=float(params.ifm.q_params.scale_f32),
+                ifm_zero_point=int(params.ifm.q_params.zero_point),
+                ofm_scale=float(params.ofm.q_params.scale_f32),
+                ofm_zero_point=int(params.ofm.q_params.zero_point),
+            )
+            concat_args.append(identity1)
+
+        identity2 = ethosu_ops.ethosu_identity(
+            ifm=params.ifm.tensor,
+            lut=lut,
+            ifm_scale=float(params.ifm.q_params.scale_f32),
+            ifm_zero_point=int(params.ifm.q_params.zero_point),
+            ofm_scale=float(params.ofm.q_params.scale_f32),
+            ofm_zero_point=int(params.ofm.q_params.zero_point),
+        )
+        concat_args.append(identity2)
+
+        # pad channels after
+        if params.ch_padding[1] > 0:
+            shape3 = list(params.ifm.shape)
+            shape3[3] = params.ch_padding[1].value
+            pad_channels3 = relay.Constant(
+                tvm.nd.array(
+                    np.full(
+                        shape=shape3,
+                        fill_value=int(params.ifm.q_params.zero_point),
+                        dtype=params.ifm.dtype,
+                    )
+                )
+            )
+            identity3 = ethosu_ops.ethosu_identity(
+                ifm=pad_channels3,
+                lut=lut,
+                ifm_scale=float(params.ifm.q_params.scale_f32),
+                ifm_zero_point=int(params.ifm.q_params.zero_point),
+                ofm_scale=float(params.ofm.q_params.scale_f32),
+                ofm_zero_point=int(params.ofm.q_params.zero_point),
+            )
+            concat_args.append(identity3)
+
+        axis = 3
+        return relay.op.concatenate(relay.Tuple(concat_args), axis=axis)
+
+
 @util.create_npu_function_pass(opt_level=1)
 class LegalizeEthosU:
     """This is the pass to call graph-rewrites to perform graph transformation
@@ -1461,6 +1539,7 @@ class LegalizeEthosU:
         rewriters = [
             PartitionedSplitRewriter(),
             SplitRewriter(),
+            ChannelPadRewriter(),
             Conv2DRewriter(),
             Conv2DTransposeRewriter(),
             DepthwiseConv2DRewriter(),

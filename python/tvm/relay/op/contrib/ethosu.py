@@ -1940,15 +1940,15 @@ class PadParams:
     padding_bounds = [31, 31, 32, 32]
 
     def __init__(self, func_body: Call):
-        from tvm.relay.backend.contrib.ethosu.util import QPad2DArgs
+        from tvm.relay.backend.contrib.ethosu.util import QPadArgs
 
         # there is no 'layout' attribute in nn.pad
         layout = "NHWC"
         self.ifm = TensorParams(
-            tensor=func_body.args[QPad2DArgs.IFM.value],
+            tensor=func_body.args[QPadArgs.IFM.value],
             layout=layout,
             scale=tvm.relay.Constant(tvm.nd.array(np.array(1.0, dtype="float32"))),
-            zero_point=func_body.args[QPad2DArgs.IFM_ZERO_POINT.value],
+            zero_point=func_body.args[QPadArgs.IFM_ZERO_POINT.value],
         )
 
         self.padding = self.extract_padding(func_body)
@@ -1956,7 +1956,7 @@ class PadParams:
             tensor=func_body,
             layout=layout,
             scale=tvm.relay.Constant(tvm.nd.array(np.array(1.0, dtype="float32"))),
-            zero_point=func_body.args[QPad2DArgs.IFM_ZERO_POINT.value],
+            zero_point=func_body.args[QPadArgs.IFM_ZERO_POINT.value],
         )
 
     @staticmethod
@@ -1964,8 +1964,8 @@ class PadParams:
         padding: relay.Call,
     ) -> Optional[Tuple[int, int, int, int]]:
         """
-        Here we check whether a separate padding operation can be rewritten
-        as NPU depthwise convolution. If the padding specified by the
+        Here we check whether a separate spatial-dimension padding operation can be
+        rewritten as NPU depthwise convolution. If the padding specified by the
         separate nn.pad operation is not supported by NPU depthwise convolution,
         None will be returned. This will cause the nn.pad not to be offloaded to NPU.
         """
@@ -1994,6 +1994,79 @@ class PadParams:
         if not check_batch_size(self.ifm):
             return False
         if not self.padding or not check_padding(self.padding, self.padding_bounds):
+            return False
+        if not check_dimensions(self.ifm) or not check_dimensions(self.ofm):
+            return False
+        return True
+
+
+class ChannelPadParams:
+    """
+    This class will parse a call to a ethosu.pad2d composite function
+    and extract the parameter information.
+    """
+
+    composite_name = "ethos-u.channel-pad"
+    # The ethos-u.channel-pad composite function will be transformed
+    # to the Relay concatenate operation.
+
+    def __init__(self, func_body: Call):
+        from tvm.relay.backend.contrib.ethosu.util import QPadArgs
+
+        # there is no 'layout' attribute in nn.pad
+        layout = "NHWC"
+        self.ifm = TensorParams(
+            tensor=func_body.args[QPadArgs.IFM.value],
+            layout=layout,
+            scale=tvm.relay.Constant(tvm.nd.array(np.array(1.0, dtype="float32"))),
+            zero_point=func_body.args[QPadArgs.IFM_ZERO_POINT.value],
+        )
+
+        self.ch_padding = self.extract_ch_padding(func_body)
+        self.ofm = TensorParams(
+            tensor=func_body,
+            layout=layout,
+            scale=tvm.relay.Constant(tvm.nd.array(np.array(1.0, dtype="float32"))),
+            zero_point=func_body.args[QPadArgs.IFM_ZERO_POINT.value],
+        )
+
+    @staticmethod
+    def extract_ch_padding(
+        padding: relay.Call,
+    ) -> Optional[Tuple[int, int]]:
+        """
+        Here we check whether a separate channel-dimension padding operation can be
+        rewritten as Relay concatenate operation. If the padding specified by the
+        separate nn.pad operation is not supported by NPU, None will be returned.
+        This will cause the nn.pad not to be offloaded to NPU.
+        """
+        pad_width = padding.attrs["pad_width"]
+        if len(pad_width) != 4:
+            return None
+        if (
+            list(pad_width[0]) != [0, 0]
+            or list(pad_width[1]) != [0, 0]
+            or list(pad_width[2]) != [0, 0]
+        ):
+            return None
+        return [
+            pad_width[3][0],
+            pad_width[3][1],
+        ]
+
+    def is_valid(self):
+        """
+        This function checks whether pad has compatible attributes
+        with the Relay concatenate operation
+        """
+        tensor_params = [self.ifm, self.ofm]
+        if not check_valid_dtypes(tensor_params, supported_dtypes=[np.uint8, np.int8]):
+            return False
+        if self.ifm.dtype != self.ofm.dtype:
+            return False
+        if not check_batch_size(self.ifm):
+            return False
+        if not self.ch_padding:
             return False
         if not check_dimensions(self.ifm) or not check_dimensions(self.ofm):
             return False
@@ -2066,6 +2139,11 @@ def softmax_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
 @register_pattern_table("ethos-u")
 def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Callable]]:
     return [
+        (
+            ChannelPadParams.composite_name,
+            pad_pattern(),
+            lambda pat: ChannelPadParams(pat).is_valid(),
+        ),
         (
             QnnConv2DParams.composite_name,
             qnn_conv2d_pattern(),

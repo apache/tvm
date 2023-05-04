@@ -143,7 +143,7 @@ class QDenseArgs(Enum):
     WEIGHTS_SCALE = 5
 
 
-class QPad2DArgs(Enum):
+class QPadArgs(Enum):
     """
     This is a helper enum to obtain the correct index
     of nn.pad arguments.
