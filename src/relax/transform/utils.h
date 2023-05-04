@@ -285,6 +285,37 @@ class SymbolicVarRenewMutator : public ExprMutator, tir::ExprMutator {
 };
 
 /*!
+ * \brief Copy a function while renewing the relax Vars and the tir Vars.
+ * \details All variables that are bound inside the original function would be copied to satisfy
+ * the restriction in the well-formed check: Variables in Relax must be bound exactly once.
+ */
+class FunctionCopier : public ExprMutator {
+ public:
+  Function Copy(Function func) {
+    auto new_func = Downcast<Function>(VisitExpr(func));
+    return SymbolicVarRenewMutator::Renew(new_func);
+  }
+
+  Var VisitVarDef_(const DataflowVarNode* var) override {
+    Var new_var = ExprMutator::VisitVarDef_(var);
+    Var copied_var = DataflowVar(new_var->name_hint(), GetStructInfo(new_var), new_var->span);
+    var_remap_[var->vid] = copied_var;
+    var_map.Set(GetRef<Var>(var), copied_var);
+    return copied_var;
+  }
+
+  Var VisitVarDef_(const VarNode* var) override {
+    Var new_var = ExprMutator::VisitVarDef_(var);
+    Var copied_var = Var(new_var->name_hint(), GetStructInfo(new_var), new_var->span);
+    var_remap_[var->vid] = copied_var;
+    var_map.Set(GetRef<Var>(var), copied_var);
+    return copied_var;
+  }
+
+  Map<Var, Var> var_map;
+};
+
+/*!
  * \brief Create a Constant with a scalar
  *
  * \param dtype The data type.
