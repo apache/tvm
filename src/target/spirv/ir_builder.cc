@@ -815,6 +815,57 @@ Value IRBuilder::Select(Value cond, Value a, Value b) {
   return MakeValue(spv::OpSelect, a.stype, cond, a, b);
 }
 
+SType IRBuilder::GetCooperativeMatrixNVType(const SType& elem_ty, int rows, int cols) {
+  auto key = std::make_tuple(elem_ty.id, rows, cols);
+  auto entry = cooperative_matrix_type_tbl_.find(key);
+  if (entry != cooperative_matrix_type_tbl_.end()) {
+    return entry->second;
+  }
+
+  auto rows_spv = IntImm(t_int32_, rows);
+  auto cols_spv = IntImm(t_int32_, cols);
+  auto scope = IntImm(t_int32_, spv::Scope::ScopeSubgroup);
+
+  SType t;
+  t.id = id_counter_++;
+  t.element_type_id = elem_ty.id;
+  ib_.Begin(spv::Op::OpTypeCooperativeMatrixNV)
+      .AddSeq(t, elem_ty, scope, rows_spv, cols_spv)
+      .Commit(&global_);
+
+  cooperative_matrix_type_tbl_[key] = t;
+  return t;
+}
+
+Value IRBuilder::CallCooperativeMatrixLoadNV(const SType& mat_type, Value src, Value stride,
+                                             Value column_major) {
+  Value val = NewValue(mat_type, kNormal);
+
+  ib_.Begin(spv::Op::OpCooperativeMatrixLoadNV)
+      .AddSeq(mat_type, val, src, stride, column_major)
+      .Commit(&function_);
+  return val;
+}
+
+void IRBuilder::CallCooperativeMatrixStoreNV(Value dst, Value mat, Value stride,
+                                             Value column_major) {
+  ib_.Begin(spv::Op::OpCooperativeMatrixStoreNV)
+      .AddSeq(dst, mat, stride, column_major)
+      .Commit(&function_);
+}
+
+Value IRBuilder::CallCooperativeMatrixFillNV(const SType& mat_type, Value v) {
+  Value val = NewValue(mat_type, kNormal);
+  ib_.Begin(spv::OpCompositeConstruct).AddSeq(mat_type, val, v).Commit(&function_);
+  return val;
+}
+
+Value IRBuilder::CallCooperativeMatrixMadNV(Value A, Value B, Value C) {
+  Value val = NewValue(C.stype, kNormal);
+  ib_.Begin(spv::Op::OpCooperativeMatrixMulAddNV).AddSeq(C.stype, val, A, B, C).Commit(&function_);
+  return val;
+}
+
 }  // namespace spirv
 }  // namespace codegen
 }  // namespace tvm

@@ -400,7 +400,6 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
     ICHECK(op->args.size() == 1 && load);
     ICHECK_EQ(load->indices.size(), 1) << "CodeGenSPIRV only supports flat memory allocations.";
     auto buffer_var = Downcast<Var>(load->buffer->data);
-    ICHECK(buffer_var.defined());
     auto it = storage_info_.find(buffer_var.get());
     ICHECK(it != storage_info_.end());
     StorageInfo& info = it->second;
@@ -410,76 +409,59 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
     return builder_->StructArrayAccess(ptr_type, buffer, MakeValue(load->indices[0]));
   } else if (op->op.same_as(builtin::cooperative_matrix_load_NV())) {
     auto ptr = Downcast<Var>(op->args[0]);
-    ICHECK(ptr.defined());
-    auto elem_offset = op->args[1];
-    spirv::Value src_ptr = MakeValue(op->args[2]);
-    int rows = op->args[3].as<IntImmNode>()->value;
-    int cols = op->args[4].as<IntImmNode>()->value;
+    auto elem_offset = op->args[1].as<IntImmNode>();
+    auto src_ptr = MakeValue(op->args[2]);
+    const int rows = op->args[3].as<IntImmNode>()->value;
+    const int cols = op->args[4].as<IntImmNode>()->value;
     auto stride = MakeValue(op->args[5]);
-
     auto column_major = MakeValue(op->args[6]);
-
-    auto mat_ty =
-        builder_->GetCooperativeMatrixNVType(builder_->GetBufferElementType(ptr), rows, cols);
+    auto elem_ty = builder_->GetBufferElementType(ptr);
+    auto mat_ty = builder_->GetCooperativeMatrixNVType(elem_ty, rows, cols);
     auto mat = builder_->CallCooperativeMatrixLoadNV(mat_ty, src_ptr, stride, column_major);
-    ICHECK(elem_offset->IsInstance<IntImmNode>());
-    builder_->SetJointMatrixDef(ptr, elem_offset.as<IntImmNode>()->value, mat);
+    ICHECK(elem_offset) << "Expects a constant element offset.";
+    builder_->SetCooperativeMatrix(ptr, elem_offset->value, mat);
     return mat;
   } else if (op->op.same_as(builtin::cooperative_matrix_store_NV())) {
     auto buffer_var_mat = Downcast<Var>(op->args[1]);
-    ICHECK(buffer_var_mat.defined());
-
-    spirv::Value dst_ptr = MakeValue(op->args[0]);
-
-    auto elem_offset = op->args[2];
-    ICHECK(elem_offset->IsInstance<IntImmNode>());
-    auto mat = builder_->GetJointMatrix(buffer_var_mat, elem_offset.as<IntImmNode>()->value);
-    spirv::Value stride = MakeValue(op->args[3]);
-    spirv::Value column_major = MakeValue(op->args[4]);
+    auto dst_ptr = MakeValue(op->args[0]);
+    auto elem_offset = op->args[2].as<IntImmNode>();
+    ICHECK(elem_offset) << "Expects a constant element offset.";
+    auto mat = builder_->GetCooperativeMatrix(buffer_var_mat, elem_offset->value);
+    auto stride = MakeValue(op->args[3]);
+    auto column_major = MakeValue(op->args[4]);
     builder_->CallCooperativeMatrixStoreNV(dst_ptr, mat, stride, column_major);
     return spirv::Value();
   } else if (op->op.same_as(builtin::cooperative_matrix_fill_NV())) {
     auto ptr = Downcast<Var>(op->args[0]);
-    ICHECK(ptr.defined());
-    auto elem_offset = op->args[1];
-    ICHECK(elem_offset->IsInstance<IntImmNode>());
-
-    int rows = op->args[2].as<IntImmNode>()->value;
-    int cols = op->args[3].as<IntImmNode>()->value;
+    auto elem_offset = op->args[1].as<IntImmNode>();
+    ICHECK(elem_offset) << "Expects a constant element offset.";
+    const int rows = op->args[2].as<IntImmNode>()->value;
+    const int cols = op->args[3].as<IntImmNode>()->value;
     auto v = MakeValue(op->args[4]);
-
-    auto mat_ty =
-        builder_->GetCooperativeMatrixNVType(builder_->GetBufferElementType(ptr), rows, cols);
+    auto elem_ty = builder_->GetBufferElementType(ptr);
+    auto mat_ty = builder_->GetCooperativeMatrixNVType(elem_ty, rows, cols);
     auto filled = builder_->CallCooperativeMatrixFillNV(mat_ty, v);
-
-    builder_->SetJointMatrixDef(ptr, elem_offset.as<IntImmNode>()->value, filled);
+    builder_->SetCooperativeMatrix(ptr, elem_offset->value, filled);
     return filled;
   } else if (op->op.same_as(builtin::cooperative_matrix_mad_NV())) {
-    auto A_elem_offset = op->args[1];
-    ICHECK(A_elem_offset->IsInstance<IntImmNode>());
-    auto B_elem_offset = op->args[3];
-    ICHECK(B_elem_offset->IsInstance<IntImmNode>());
-    auto C_elem_offset = op->args[5];
-    ICHECK(C_elem_offset->IsInstance<IntImmNode>());
-
-    auto C_ptr = Downcast<Var>(op->args[4]);
-    ICHECK(C_ptr.defined());
-    auto mat_ty =
-        builder_->GetCooperativeMatrixNVType(builder_->GetBufferElementType(C_ptr), 16, 16);
+    auto A_elem_offset = op->args[1].as<IntImmNode>();
+    auto B_elem_offset = op->args[3].as<IntImmNode>();
+    auto C_elem_offset = op->args[5].as<IntImmNode>();
+    ICHECK(A_elem_offset) << "Expects a constant element offset.";
+    ICHECK(B_elem_offset) << "Expects a constant element offset.";
+    ICHECK(C_elem_offset) << "Expects a constant element offset.";
 
     auto get_matrix = [this](PrimExpr arg, int offset) {
       auto buffer_var_mat = Downcast<Var>(arg);
-      ICHECK(buffer_var_mat.defined());
-      return builder_->GetJointMatrix(buffer_var_mat, offset);
+      return builder_->GetCooperativeMatrix(buffer_var_mat, offset);
     };
 
-    auto A = get_matrix(op->args[0], A_elem_offset.as<IntImmNode>()->value);
-    auto B = get_matrix(op->args[2], B_elem_offset.as<IntImmNode>()->value);
-    auto c_offset = C_elem_offset.as<IntImmNode>()->value;
-    auto C = get_matrix(op->args[4], c_offset);
-
-    auto acc = builder_->CallCooperativeMatrixMadNV(mat_ty, A, B, C);
-    builder_->SetJointMatrixDef(C_ptr, c_offset, acc);
+    auto A = get_matrix(op->args[0], A_elem_offset->value);
+    auto B = get_matrix(op->args[2], B_elem_offset->value);
+    auto C = get_matrix(op->args[4], C_elem_offset->value);
+    auto acc = builder_->CallCooperativeMatrixMadNV(A, B, C);
+    auto C_ptr = Downcast<Var>(op->args[4]);
+    builder_->SetCooperativeMatrix(C_ptr, C_elem_offset->value, acc);
     return acc;
   } else {
     LOG(FATAL) << "Unresolved call  " << op->op;
@@ -628,20 +610,6 @@ void CodeGenSPIRV::VisitStmt_(const BufferStoreNode* op) {
   }
 }
 
-class AccumulatedJointMatrixCollector : public StmtExprVisitor {
- public:
-  void VisitExpr_(const CallNode* op) final {
-    if (op->op.same_as(builtin::cooperative_matrix_mad_NV())) {
-      auto C_elem_offset = op->args[5];
-      ICHECK(C_elem_offset->IsInstance<IntImmNode>());
-      auto buffer_var_C = Downcast<Var>(op->args[4]);
-      joint_matrices[buffer_var_C.get()].insert(C_elem_offset.as<IntImmNode>()->value);
-    }
-    ExprVisitor::VisitExpr_(op);
-  }
-  std::unordered_map<const VarNode*, std::unordered_set<int>> joint_matrices;
-};
-
 void CodeGenSPIRV::VisitStmt_(const ForNode* op) {
   ICHECK(is_zero(op->min));
   analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
@@ -662,23 +630,29 @@ void CodeGenSPIRV::VisitStmt_(const ForNode* op) {
   // Loop head
   builder_->StartLabel(head_label);
 
-  AccumulatedJointMatrixCollector acc_mat_collector;
+  std::unordered_map<const VarNode*, std::unordered_set<int>> accum_matrices;
 
   if (op->kind == ForKind::kSerial) {
-    acc_mat_collector(op->body);
+    tir::PostOrderVisit(op->body, [&accum_matrices](const ObjectRef& obj) {
+      auto call = obj.as<CallNode>();
+      if (call && call->op.same_as(builtin::cooperative_matrix_mad_NV())) {
+        auto C_elem_offset = call->args[5].as<IntImmNode>();
+        ICHECK(C_elem_offset) << "Expects a constant element offset.";
+        auto buffer_var_C = Downcast<Var>(call->args[4]);
+        accum_matrices[buffer_var_C.get()].insert(C_elem_offset->value);
+      }
+    });
   }
 
-  std::vector<spirv::PhiValue> joint_matrix_phis;
-  for (auto [var, elem_offsets] : acc_mat_collector.joint_matrices) {
+  std::vector<spirv::PhiValue> cooperative_matrix_phis;
+  for (const auto& [var, elem_offsets] : accum_matrices) {
     Var buffer_var_mat = GetRef<Var>(var);
-    auto mat_ty = builder_->GetCooperativeMatrixNVType(
-        builder_->GetBufferElementType(buffer_var_mat), 16, 16);
     for (auto offset : elem_offsets) {
-      spirv::PhiValue mat_phi = builder_->MakePhi(mat_ty, 2);
-      auto mat_def = builder_->GetJointMatrixDef(buffer_var_mat, offset);
-      mat_phi.SetIncoming(0, mat_def.cur_value, init_label);
-      joint_matrix_phis.push_back(mat_phi);
-      builder_->SetJointMatrixDef(buffer_var_mat, offset, mat_phi);
+      auto mat = builder_->GetCooperativeMatrix(buffer_var_mat, offset);
+      auto mat_phi = builder_->MakePhi(mat.stype, 2);
+      mat_phi.SetIncoming(0, mat, init_label);
+      cooperative_matrix_phis.push_back(mat_phi);
+      builder_->SetCooperativeMatrix(buffer_var_mat, offset, mat_phi);
     }
   }
 
@@ -695,12 +669,12 @@ void CodeGenSPIRV::VisitStmt_(const ForNode* op) {
   builder_->StartLabel(body_label);
   var_map_[op->loop_var.get()] = spirv::Value(loop_var);
   this->VisitStmt(op->body);
-  spirv::Value one = op->loop_var.dtype().is_int() ? builder_->IntImm(loop_var.stype, 1)
-                                                   : builder_->UIntImm(loop_var.stype, 1);
   builder_->MakeInst(spv::OpBranch, continue_label);
 
   // loop continue
   builder_->StartLabel(continue_label);
+  spirv::Value one = op->loop_var.dtype().is_int() ? builder_->IntImm(loop_var.stype, 1)
+                                                   : builder_->UIntImm(loop_var.stype, 1);
 
   spirv::Value next_value = builder_->Add(loop_var, one);
   loop_var.SetIncoming(1, next_value, continue_label);
@@ -708,14 +682,16 @@ void CodeGenSPIRV::VisitStmt_(const ForNode* op) {
   builder_->MakeInst(spv::OpBranch, head_label);
 
   int phi_index = 0;
-  for (auto [var, elem_offsets] : acc_mat_collector.joint_matrices) {
+  for (const auto& [var, elem_offsets] : accum_matrices) {
+    Var buffer_var_mat = GetRef<Var>(var);
     for (auto offset : elem_offsets) {
-      spirv::PhiValue mat_phi = joint_matrix_phis[phi_index++];
-      auto mat_def = builder_->GetJointMatrixDef(GetRef<Var>(var), offset);
-      mat_phi.SetIncoming(1, mat_def.cur_value, continue_label);
-      builder_->SetJointMatrixDef(GetRef<Var>(var), offset, mat_phi);
+      auto mat_phi = cooperative_matrix_phis[phi_index++];
+      auto mat = builder_->GetCooperativeMatrix(buffer_var_mat, offset);
+      mat_phi.SetIncoming(1, mat, continue_label);
+      builder_->SetCooperativeMatrix(buffer_var_mat, offset, mat_phi);
     }
   }
+
   // loop merge
   builder_->StartLabel(merge_label);
 }

@@ -431,58 +431,6 @@ class IRBuilder {
   Value CallKHRIntegerDotProduct(const SType& ret_type, const std::vector<Value>& args,
                                  const DataType& dtype);
 
-  SType GetCooperativeMatrixNVType(const SType& elem_ty, int rows, int cols) {
-    auto key = std::make_tuple(elem_ty.id, rows, cols);
-    auto entry = cooperative_matrix_type_tbl_.find(key);
-    if (entry != cooperative_matrix_type_tbl_.end()) {
-      return entry->second;
-    }
-
-    auto rows_spv = IntImm(t_int32_, rows);
-    auto cols_spv = IntImm(t_int32_, cols);
-    auto scope = IntImm(t_int32_, spv::Scope::ScopeSubgroup);
-
-    SType t;
-    t.id = id_counter_++;
-    t.element_type_id = elem_ty.id;
-    ib_.Begin(spv::Op::OpTypeCooperativeMatrixNV)
-        .AddSeq(t, elem_ty, scope, rows_spv, cols_spv)
-        .Commit(&global_);
-
-    cooperative_matrix_type_tbl_[key] = t;
-    return t;
-  }
-
-  Value CallCooperativeMatrixLoadNV(const SType& mat_type, Value src, Value stride,
-                                    Value column_major) {
-    Value val = NewValue(mat_type, kNormal);
-
-    ib_.Begin(spv::Op::OpCooperativeMatrixLoadNV)
-        .AddSeq(mat_type, val, src, stride, column_major)
-        .Commit(&function_);
-    return val;
-  }
-
-  void CallCooperativeMatrixStoreNV(Value dst, Value mat, Value stride, Value column_major) {
-    ib_.Begin(spv::Op::OpCooperativeMatrixStoreNV)
-        .AddSeq(dst, mat, stride, column_major)
-        .Commit(&function_);
-  }
-
-  Value CallCooperativeMatrixFillNV(const SType& mat_type, Value v) {
-    Value val = NewValue(mat_type, kNormal);
-    ib_.Begin(spv::OpCompositeConstruct).AddSeq(mat_type, val, v).Commit(&function_);
-    return val;
-  }
-
-  Value CallCooperativeMatrixMadNV(const SType& mat_type, Value A, Value B, Value C) {
-    Value val = NewValue(mat_type, kNormal);
-    ib_.Begin(spv::Op::OpCooperativeMatrixMulAddNV)
-        .AddSeq(mat_type, val, A, B, C)
-        .Commit(&function_);
-    return val;
-  }
-
   /*!
    * \brief Build vector by concatenating components
    *
@@ -645,32 +593,33 @@ class IRBuilder {
   Value GE(Value a, Value b);
   Value Select(Value cond, Value a, Value b);
 
-  struct JointMatrixDef {
-    Value cur_value;
-    Label defined_label;  // TODO: remove it
-  };
-
-  void SetJointMatrixDef(const tir::Var& buffer_var_mat, int alloc_id, Value mat) {
-    auto key = std::make_pair(buffer_var_mat.get(), alloc_id);
-    joint_matrix_defs[key] = JointMatrixDef{mat, curr_label_};
-  }
-
-  JointMatrixDef GetJointMatrixDef(const tir::Var& buffer_var_mat, int alloc_id) {
-    auto key = std::make_pair(buffer_var_mat.get(), alloc_id);
-    auto entry = joint_matrix_defs.find(key);
-    ICHECK(entry != joint_matrix_defs.end());
-    return entry->second;
-  }
-
-  Value GetJointMatrix(const tir::Var& buffer_var_mat, int alloc_id) {
-    return GetJointMatrixDef(buffer_var_mat, alloc_id).cur_value;
-  }
+  // VK_NV_cooperative_matrix related
+  SType GetCooperativeMatrixNVType(const SType& elem_ty, int rows, int cols);
+  Value CallCooperativeMatrixLoadNV(const SType& mat_type, Value src, Value stride,
+                                    Value column_major);
+  void CallCooperativeMatrixStoreNV(Value dst, Value mat, Value stride, Value column_major);
+  Value CallCooperativeMatrixFillNV(const SType& mat_type, Value v);
+  Value CallCooperativeMatrixMadNV(Value A, Value B, Value C);
 
   SType GetBufferElementType(const tir::Var& buffer) {
-    auto* ptr = buffer->type_annotation.as<PointerTypeNode>();
-    auto* prim = ptr->element_type.as<PrimTypeNode>();
+    const auto* ptr = buffer->type_annotation.as<PointerTypeNode>();
+    ICHECK(ptr) << "Expects a pointer type.";
+    const auto* prim = ptr->element_type.as<PrimTypeNode>();
+    ICHECK(prim) << "Expects a primitive type.";
     return GetSType(prim->dtype);
   };
+
+  void SetCooperativeMatrix(const tir::Var& buffer_var_mat, int elem_offset, Value mat) {
+    auto key = std::make_pair(buffer_var_mat.get(), elem_offset);
+    cooperative_matrix_defs[key] = mat;
+  }
+
+  Value GetCooperativeMatrix(const tir::Var& buffer_var_mat, int elem_offset) {
+    auto key = std::make_pair(buffer_var_mat.get(), elem_offset);
+    auto entry = cooperative_matrix_defs.find(key);
+    ICHECK(entry != cooperative_matrix_defs.end());
+    return entry->second;
+  }
 
  private:
   /*!
@@ -782,8 +731,10 @@ class IRBuilder {
   std::map<std::pair<uint32_t, spv::StorageClass>, SType> pointer_type_tbl_;
   /*! \brief map from constant int to its value */
   std::map<std::pair<uint32_t, uint64_t>, Value> const_tbl_;
-  /*! \brief map from name of a ExtInstImport to its value */
+  /*! \brief map from name of an ExtInstImport to its value */
   std::map<std::string, Value> ext_inst_tbl_;
+  /*! \brief map from (element-type code, rows, cols) to a Cooperative Matrix type */
+  std::map<std::tuple<uint32_t, int, int>, SType> cooperative_matrix_type_tbl_;
 
   /*! \brief Header segment
    *
@@ -824,8 +775,8 @@ class IRBuilder {
   std::vector<uint32_t> function_scope_vars_;
   /*! \brief Function segment */
   std::vector<uint32_t> function_;
-  std::map<std::tuple<uint32_t, int, int>, SType> cooperative_matrix_type_tbl_;
-  std::map<std::pair<const tir::VarNode*, int>, JointMatrixDef> joint_matrix_defs;
+  /*! \brief map from (element-type code, rows, cols) to a Cooperative Matrix type */
+  std::map<std::pair<const tir::VarNode*, int>, Value> cooperative_matrix_defs;
 };
 
 }  // namespace spirv

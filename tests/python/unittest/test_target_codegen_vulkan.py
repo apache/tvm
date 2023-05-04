@@ -959,21 +959,23 @@ def test_cooperative_matrix_nv(out_dtype):
     sch.tensorize(sch.get_loops(block)[2], MAD_INTRIN)
 
     target = "vulkan -from_device=0"
-    f = tvm.build(sch.mod, target=target)
 
-    dev = tvm.device(target, 0)
+    if tvm.target.Target(target).attrs["supports_cooperative_matrix_nv"]:
+        f = tvm.build(sch.mod, target=target)
 
-    A = tvm.nd.array(np.random.randn(M, K).astype("float16"), dev)
-    B = tvm.nd.array(np.random.randn(K, N).astype("float16"), dev)
-    C = tvm.nd.array(np.random.randn(M, N).astype(out_dtype), dev)
+        dev = tvm.device(target, 0)
 
-    f(A, B, C)
+        A = tvm.nd.array(np.random.randn(M, K).astype("float16"), dev)
+        B = tvm.nd.array(np.random.randn(K, N).astype("float16"), dev)
+        C = tvm.nd.array(np.random.randn(M, N).astype(out_dtype), dev)
 
-    A_np = A.numpy()
-    B_np = B.numpy()
-    ref = np.dot(A_np.astype("float32"), B_np.astype("float32"))
+        f(A, B, C)
 
-    tvm.testing.assert_allclose(C.numpy(), ref, rtol=1e-2, atol=1e-2)
+        A_np = A.numpy()
+        B_np = B.numpy()
+        ref = np.dot(A_np.astype("float32"), B_np.astype("float32"))
+
+        tvm.testing.assert_allclose(C.numpy(), ref, rtol=1e-2, atol=1e-2)
 
 
 if __name__ == "__main__":
