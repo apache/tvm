@@ -241,6 +241,10 @@ void VulkanDeviceAPI::GetTargetProperty(Device dev, const std::string& property,
     *rv = prop.supports_integer_dot_product;
   }
 
+  if (property == "supports_cooperative_matrix_nv") {
+    *rv = prop.supports_cooperative_matrix_nv;
+  }
+
   if (property == "device_name") {
     *rv = prop.device_name;
   }

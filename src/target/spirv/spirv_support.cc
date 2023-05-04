@@ -92,6 +92,10 @@ SPIRVSupport::SPIRVSupport(tvm::Target target) {
   if (target->GetAttr<Bool>("supports_integer_dot_product")) {
     supports_integer_dot_product = target->GetAttr<Bool>("supports_integer_dot_product").value();
   }
+  if (target->GetAttr<Bool>("supports_cooperative_matrix_nv")) {
+    supports_cooperative_matrix_nv =
+        target->GetAttr<Bool>("supports_cooperative_matrix_nv").value();
+  }
   // Check whether integer dot product is enabled in mattr.
   if (const Optional<Array<String>>& v = target->GetAttr<Array<String>>("mattr")) {
     for (const String& s : v.value()) {

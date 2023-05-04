@@ -276,6 +276,9 @@ struct SPIRVSupport {
    * attempting to perform integer dot product.
    */
   bool supports_integer_dot_product{false};
+
+  /*! \brief Whether the driver supports VK_NV_cooperative_matrix extention. */
+  bool supports_cooperative_matrix_nv{false};
 };
 
 }  // namespace codegen

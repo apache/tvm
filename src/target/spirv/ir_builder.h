@@ -446,8 +446,8 @@ class IRBuilder {
     t.id = id_counter_++;
     t.element_type_id = elem_ty.id;
     ib_.Begin(spv::Op::OpTypeCooperativeMatrixNV)
-      .AddSeq(t, elem_ty, scope, rows_spv, cols_spv)
-      .Commit(&global_);
+        .AddSeq(t, elem_ty, scope, rows_spv, cols_spv)
+        .Commit(&global_);
 
     cooperative_matrix_type_tbl_[key] = t;
     return t;
@@ -647,7 +647,7 @@ class IRBuilder {
 
   struct JointMatrixDef {
     Value cur_value;
-    Label defined_label; // TODO: remove it
+    Label defined_label;  // TODO: remove it
   };
 
   void SetJointMatrixDef(const tir::Var& buffer_var_mat, int alloc_id, Value mat) {
