@@ -31,7 +31,7 @@ namespace collage {
 CandidateFunctionCache::Entry& CandidateFunctionCache::GetEntry(const std::string& label,
                                                                 const Function& function) {
   std::ostringstream os;
-  os <<PrettyPrint(function);
+  os << PrettyPrint(function);
   String func_str = os.str();
   auto itr = cache_.find(func_str);
   if (itr == cache_.end()) {
