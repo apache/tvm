@@ -157,6 +157,7 @@ def test_basic():
 
         @R.function
         def main(x: R.Tensor((2, 4), dtype="float32")) -> R.Tensor((10,), dtype="float32"):
+            R.func_attr({"ForcePure": True})
             cls = ExpectedLowered
             storage: R.Object = R.vm.alloc_storage(R.shape([32]), R.prim_value(0), R.dtype("float32"))
             alloc: R.Tensor((2, 4), dtype="float32") = R.vm.alloc_tensor(storage, R.prim_value(0), R.shape([2, 4]), R.dtype("float32"))
@@ -1109,7 +1110,7 @@ def test_call_tir_dyn():
         @R.function
         def main(s: R.Shape(["n"])) -> R.Tensor(("n",), dtype="float32"):
             n = T.int64()
-            R.func_attr({"tir_var_upper_bound": {"n": 20}})
+            R.func_attr({"tir_var_upper_bound": {"n": 20}, "ForcePure": True})
             cls = Module
             alloc: R.Tensor((n,), dtype="float32") = R.builtin.alloc_tensor(R.shape([n]), R.dtype("float32"), R.prim_value(0))
             _: R.Tuple = R.vm.call_tir_dyn(cls.tir_full, (alloc, R.shape([n])))
@@ -1135,7 +1136,7 @@ def test_call_tir_dyn():
         @R.function
         def main(s: R.Shape(["n"])) -> R.Tensor(("n",), dtype="float32"):
             n = T.int64()
-            R.func_attr({"tir_var_upper_bound": {"n": 20}})
+            R.func_attr({"tir_var_upper_bound": {"n": 20}, "ForcePure": True})
             cls = Expected
             storage: R.Object = R.memory.alloc_storage(R.shape([80]), R.prim_value(0), R.str("global"), R.dtype("float32"))
             alloc: R.Tensor((n,), dtype="float32") = R.memory.alloc_tensor(storage, R.prim_value(0), R.shape([n]), R.dtype("float32"))
