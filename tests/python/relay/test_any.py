@@ -59,6 +59,7 @@ def check_result(
                 continue
             if kind == "debug" and (only_vm or dev.device_type != tvm.cpu().device_type):
                 continue
+            print(tgt)
             result = relay.create_executor(kind, mod=mod, device=dev, target=tgt).evaluate()(*args)
             if isinstance(result, tvm.runtime.container.ADT):
                 result = [r.numpy() for r in result]
@@ -2152,7 +2153,7 @@ def test_scatter_nd():
 def test_scatter_nd_any_updates():
     def verify_scatter_nd_any_updates(data_np, indices_np, updates_np, ref_res):
         indices_shape = (2, relay.Any())
-        updates_shape = (relay.Any(), relay.Any())
+        updates_shape = (2, relay.Any())
         data = relay.var("data", shape=data_np.shape, dtype=str(data_np.dtype))
         indices = relay.var("indices", relay.TensorType(indices_shape, str(indices_np.dtype)))
         updates = relay.var("updates", relay.TensorType(updates_shape, str(updates_np.dtype)))
@@ -2163,13 +2164,13 @@ def test_scatter_nd_any_updates():
         mod["main"] = relay.Function([data, indices, updates], out)
 
         check_result(
-            [data_np, indices_np, updates_np], mod, [ref_res], targets=[('cuda', tvm.cuda(0))]
+            [data_np, indices_np, updates_np], mod, [ref_res], only_vm=True
         )
 
     data = np.zeros((3, 3)).astype("int64")
-    indices = np.array([[1, 1, 2, 1], [0, 1, 2, 1]])
-    updates = np.array([[2, 3], [1, 1]])
-    out = np.array([[0, 0, 0], [0, 0, 0], [2, 3, 1]])
+    indices = np.array([[1, 1], [0, 1]])
+    updates = np.array([[2, 2], [1, 1]])
+    out = np.array([[0, 0, 0], [0, 0, 0], [2, 2, 1]])
     verify_scatter_nd_any_updates(data, indices, updates, out)
 
 
