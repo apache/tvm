@@ -598,7 +598,7 @@ def test_forward_conv_transpose():
         verify_model(Conv2DTranspose(stride=2, padding="SAME", dilation=1), input_data=input_data)
         verify_model(Conv2DTranspose(stride=2, padding=3), input_data=input_data)
         verify_model(Conv2DTranspose(stride=3, padding="SAME", groups=1), input_data=input_data)
-        verify_model(Conv2DTranspose(stride=3, padding="SAME", groups=1, data_layout='NHWC'), input_data=input_data)
+        verify_model(Conv2DTranspose1(stride=3, padding="SAME", groups=1, data_layout='NHWC'), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
