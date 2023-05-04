@@ -28,6 +28,7 @@
 #include <tvm/tir/op.h>
 
 #include <string>
+#include <unordered_set>
 
 #include "../../runtime/pack_args.h"
 #include "../../runtime/vulkan/vulkan_common.h"

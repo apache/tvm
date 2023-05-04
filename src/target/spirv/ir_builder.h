@@ -611,7 +611,7 @@ class IRBuilder {
     const auto* prim = ptr->element_type.as<PrimTypeNode>();
     ICHECK(prim) << "Expects a primitive type.";
     return GetSType(prim->dtype);
-  };
+  }
 
   /*! \brief Associate a TIR buffer at the provided offset with the matrix. */
   void SetCooperativeMatrix(const tir::Var& buffer_var_mat, int elem_offset, Value mat) {
