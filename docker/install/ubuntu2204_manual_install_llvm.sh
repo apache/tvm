@@ -20,10 +20,18 @@ set -e
 set -u
 set -o pipefail
 
-echo deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-10 main\
-     >> /etc/apt/sources.list.d/llvm.list
-echo deb-src http://apt.llvm.org/bionic/ llvm-toolchain-bionic-10 main\
-     >> /etc/apt/sources.list.d/llvm.list
-
-wget -q -O - http://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add -
-apt-get update && apt-install-and-clear -y clang-format-10
+git clone --depth 1 --branch release/15.x https://github.com/llvm/llvm-project.git
+pushd llvm-project
+mkdir build
+pushd build
+cmake \
+  -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_INSTALL_PREFIX=/usr \
+  -DLLVM_ENABLE_ASSERTIONS=ON \
+  -DLLVM_ENABLE_PROJECTS="llvm;clang" \
+  ../llvm
+ninja install
+popd
+popd
+rm -rf llvm-project

@@ -18,24 +18,26 @@
 
 set -e
 set -u
+# Used for debugging RVM build
+set -x
 set -o pipefail
 
-# We need to fix the onnx version because changing versions tends to break tests
-# TODO(mbrookhart): periodically update
-
-# onnx 1.9 removed onnx optimizer from the main repo (see
-# https://github.com/onnx/onnx/pull/2834).  When updating the CI image
-# to onnx>=1.9, onnxoptimizer should also be installed.
-pip3 install \
-    onnx==1.12.0 \
-    onnxruntime==1.12.1 \
-    onnxoptimizer==0.2.7
-
-# torch depends on a number of other packages, but unhelpfully, does
-# not expose that in the wheel!!!
-pip3 install future
-
-pip3 install \
-    torch==2.0.0 \
-    torchvision==0.15.1 \
-    --extra-index-url https://download.pytorch.org/whl/cpu
+# install libraries for building c++ core on ubuntu
+apt-get update && apt-install-and-clear -y --no-install-recommends \
+    apt-transport-https \
+    ca-certificates \
+    curl \
+    g++ \
+    gdb \
+    git \
+    graphviz \
+    libcurl4-openssl-dev \
+    libssl-dev \
+    libtinfo-dev \
+    libz-dev \
+    make \
+    ninja-build \
+    pkg-config \
+    sudo \
+    unzip \
+    wget

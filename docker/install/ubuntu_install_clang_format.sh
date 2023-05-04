@@ -20,22 +20,10 @@ set -e
 set -u
 set -o pipefail
 
-# We need to fix the onnx version because changing versions tends to break tests
-# TODO(mbrookhart): periodically update
+echo deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-15 main\
+     >> /etc/apt/sources.list.d/llvm.list
+echo deb-src http://apt.llvm.org/bionic/ llvm-toolchain-bionic-15 main\
+     >> /etc/apt/sources.list.d/llvm.list
 
-# onnx 1.9 removed onnx optimizer from the main repo (see
-# https://github.com/onnx/onnx/pull/2834).  When updating the CI image
-# to onnx>=1.9, onnxoptimizer should also be installed.
-pip3 install \
-    onnx==1.12.0 \
-    onnxruntime==1.12.1 \
-    onnxoptimizer==0.2.7
-
-# torch depends on a number of other packages, but unhelpfully, does
-# not expose that in the wheel!!!
-pip3 install future
-
-pip3 install \
-    torch==2.0.0 \
-    torchvision==0.15.1 \
-    --extra-index-url https://download.pytorch.org/whl/cpu
+wget -q -O - http://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add -
+apt-get update && apt-install-and-clear -y clang-format-15
