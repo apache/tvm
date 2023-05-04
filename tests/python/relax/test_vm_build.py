@@ -121,9 +121,7 @@ def test_vm_compile_stage3(exec_mode):
         @R.function
         def foo(x: R.Tensor((32, 16), "float32")) -> R.Tensor:
             with R.dataflow():
-                y = R.call_dps_packed(
-                    "test.vm.identity", (x), R.Tensor((32, 16), dtype="float32")
-                )
+                y = R.call_dps_packed("test.vm.identity", (x), R.Tensor((32, 16), dtype="float32"))
                 R.output(y)
             return y
 
@@ -147,9 +145,7 @@ def test_vm_compile_e2e(exec_mode):
             with R.dataflow():
                 n, m = T.int64(), T.int64()
                 _ = R.match_cast(x, R.Tensor((n, m), "float32"))
-                y = R.call_dps_packed(
-                    "test.vm.tile", (x), R.Tensor((n, m * 2), dtype="float32")
-                )
+                y = R.call_dps_packed("test.vm.tile", (x), R.Tensor((n, m * 2), dtype="float32"))
                 R.output(y)
             return y
 
