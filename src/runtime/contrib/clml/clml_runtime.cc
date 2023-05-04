@@ -408,6 +408,10 @@ class CLMLRuntime : public JSONRuntimeBase {
           auto out = CreateConvolution2DLayer(&layer_, node, CL_CONVOLUTION_MODE_DEPTHWISE_QCOM);
           this->layer_.storage_map.insert({nid, std::make_pair(out, node)});
           this->layer_.func_outs.push_back(out);
+        } else if ("nn.conv2d_transpose" == op_name) {
+          auto out = CreateConvolution2DLayer(&layer_, node, CL_CONVOLUTION_MODE_TRANSPOSE_QCOM);
+          this->layer_.storage_map.insert({nid, std::make_pair(out, node)});
+          this->layer_.func_outs.push_back(out);
         } else if ("nn.relu6" == op_name) {
           auto out = CreateReLULayer(&layer_, node, CL_ACTIVATION_RELU6);
           this->layer_.storage_map.insert({nid, std::make_pair(out, node)});
@@ -929,6 +933,13 @@ class CLMLRuntime : public JSONRuntimeBase {
     auto input = MakeCLMLTensorFromJSONEntry(node.GetInputs()[0], {}, CL_TENSOR_LAYOUT_OPTIMAL_QCOM,
                                              cl_dtype);
     int axis = std::stoi(node.GetAttr<std::vector<std::string>>("axis")[0]);
+    float epsilon = std::stof(node.GetAttr<std::vector<std::string>>("epsilon")[0]);
+
+    std::vector<cl_ml_op_properties_qcom> opProperties;
+    opProperties.push_back(CL_ML_BATCH_NORM_OP_EPSILON_QCOM);
+    opProperties.push_back(*reinterpret_cast<cl_ml_op_properties_qcom*>(&epsilon));
+    opProperties.push_back(CL_ML_OP_PROPERTY_LIST_END_QCOM);
+
     auto bn_dims = get_tensor_dims(nodes_[node.GetInputs()[1].id_]);
     std::vector<size_t> bn_shape = {1, 1, 1, 1};
     bn_shape[axis] = bn_dims.n;
@@ -950,8 +961,9 @@ class CLMLRuntime : public JSONRuntimeBase {
     cl_ml_op_batchnorm_desc_qcom bn_desc = {CL_BATCHNORM_MODE_SPATIAL_QCOM, cl_arithmetic_mode};
 
     result = h_ClmlIntf->clCreateMLOpBatchNormForwardQCOM(
-        workspace->contexts[platform_id], 0, &bn_desc, input->tensor, bn_mean->tensor,
-        bn_var->tensor, bn_scale->tensor, bn_bias->tensor, output->tensor, &op, tuning_cache);
+        workspace->contexts[platform_id], opProperties.data(), &bn_desc, input->tensor,
+        bn_mean->tensor, bn_var->tensor, bn_scale->tensor, bn_bias->tensor, output->tensor, &op,
+        tuning_cache);
     ICHECK(op && result == CL_SUCCESS) << "Batchnorm Error:" << result;
 
     layer->function.push_back(op);
