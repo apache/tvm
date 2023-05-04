@@ -163,6 +163,8 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
         EmitAllocStorage(call, dst_reg);
       } else if (call_node->op == alloc_tensor_op_) {
         EmitAllocTensor(call, dst_reg);
+      } else if (call_node->op == kill_object_op_) {
+        dst_reg = EmitKillObject(call);
       } else {
         // every "normal" operator is lowered to a global var in the IRModule. The Attrs for those
         // ops are handled in a pass when lowering them to TIR.
@@ -360,7 +362,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     builder_->EmitCall("vm.builtin.null_value", {}, dst_reg);
     return dst_reg;
   }
-  
+
   void EmitCallBuiltinWithCtx(const Call& call_node, RegName dst_reg) {
     std::vector<Instruction::Arg> args;
     args.push_back(Instruction::Arg::Register(Instruction::kVMRegister));
