@@ -251,9 +251,12 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   Integer device_type(target_device_type);
   // seq_init gives sequence of initialization
   // seq_check gives sequence of later checks after init
-  std::vector<Stmt> seq_init, seq_check;
+  std::vector<Stmt> seq_init, seq_check, arg_buffer_declarations;
   std::unordered_map<const VarNode*, PrimExpr> vmap;
   ArgBinder binder(&vmap);
+
+  seq_init.emplace_back(DeclBuffer(buf_packed_arg_type_ids, nop));
+
   // ---------------------------
   // local function definitions
   // load i-th argument as type t
@@ -331,6 +334,7 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   for (const auto& kv : buffer_def) {
     binder.BindDLTensor(kv.second, device_type, device_id, kv.first,
                         name_hint + "." + kv.first->name_hint);
+    arg_buffer_declarations.push_back(DeclBuffer(kv.second, nop));
   }
 
   func = WithAttrs(std::move(func), {{tvm::attr::kCallingConv, Integer(CallingConv::kCPackedFunc)},
@@ -360,8 +364,9 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   std::ostringstream num_args_error;
   num_args_error << name_hint << ": num_args should be " << num_args;
   std::vector<Stmt> arg_assert = {MakeAssertEQ(v_num_packed_args, num_args, num_args_error.str())};
-  body = MergeNest({arg_assert, seq_init, binder.init_nest(), seq_check, binder.asserts()}, body);
-
+  body = MergeNest({arg_assert, seq_init, binder.init_nest(), seq_check, binder.asserts(),
+                    arg_buffer_declarations},
+                   body);
   func_ptr->body = body;
   func_ptr->params = args;
 
