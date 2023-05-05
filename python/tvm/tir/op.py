@@ -3037,7 +3037,7 @@ def TVMBackendFreeWorkspace(device_type, device_id, ptr):
     return call_intrin("int32", "tir.TVMBackendFreeWorkspace", device_type, device_id, ptr)
 
 
-# Intrinsics for the VK_NV_cooperative_matrix Vulkan extention.
+# Intrinsics for the VK_NV_cooperative_matrix Vulkan extension.
 
 
 def cooperative_matrix_load_NV(buffer_mat, offset, src, rows, cols, stride, column_major):
@@ -3117,7 +3117,7 @@ def cooperative_matrix_store_NV(dst, buffer_mat, offset, stride, column_major):
 def cooperative_matrix_fill_NV(buffer_mat, offset, rows, cols, value):
     """Create a new cooperative matrix filled with the provided value.
 
-    There is no such instruction in the extention, but it is added for convenience.
+    There is no such instruction in the extension, but it is added for convenience.
 
     Parameters
     ----------

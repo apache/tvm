@@ -66,7 +66,7 @@ enum class StorageRank {
   kAMXTMM = 8,
   /*!
    *  \brief Scope representing the cooperative matrix in the Vulkan
-   *  VK_NV_cooperative_matrix extention.
+   *  VK_NV_cooperative_matrix extension.
    */
   kCooperativeMatrixNV = 9,
 };

@@ -648,7 +648,7 @@ void CodeGenSPIRV::VisitStmt_(const ForNode* op) {
   // Each matrix is identified by an element offset into the buffer. This encoding lets us bridge
   // the gap between a typical TIR matmul schedule (which uses
   // `cache_read(..., "cooperative_matrix_nv")` from arbitrary-sized shared memory) and
-  // the fixed-size matrices as expected by the extention.
+  // the fixed-size matrices as expected by the extension.
   std::unordered_map<const VarNode*, std::unordered_set<int>> accum_matrices;
 
   if (op->kind == ForKind::kSerial) {

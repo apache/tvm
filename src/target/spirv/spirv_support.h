@@ -277,7 +277,7 @@ struct SPIRVSupport {
    */
   bool supports_integer_dot_product{false};
 
-  /*! \brief Whether the driver supports VK_NV_cooperative_matrix extention. */
+  /*! \brief Whether the driver supports VK_NV_cooperative_matrix extension. */
   bool supports_cooperative_matrix_nv{false};
 };
 

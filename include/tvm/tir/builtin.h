@@ -797,7 +797,7 @@ TVM_DLL const Op& start_profile_intrinsic();
  */
 TVM_DLL const Op& end_profile_intrinsic();
 
-// Intrinsics for the VK_NV_cooperative_matrix Vulkan extention.
+// Intrinsics for the VK_NV_cooperative_matrix Vulkan extension.
 
 /*! \brief The intrinsic corresponding to the OpCooperativeMatrixLoadNV instruction. */
 TVM_DLL const Op& cooperative_matrix_load_NV();
@@ -808,7 +808,7 @@ TVM_DLL const Op& cooperative_matrix_store_NV();
 /*!
  * \brief Create a new cooperative matrix filled with the provided value.
  *
- * There is no such instruction in the extention, but it is added for convenience.
+ * There is no such instruction in the extension, but it is added for convenience.
  */
 TVM_DLL const Op& cooperative_matrix_fill_NV();
 

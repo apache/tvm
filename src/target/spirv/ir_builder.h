@@ -593,8 +593,8 @@ class IRBuilder {
   Value GE(Value a, Value b);
   Value Select(Value cond, Value a, Value b);
 
-  // The VK_NV_cooperative_matrix extention related, see the documentation for the
-  // SPIRV SPV_NV_cooperative_matrix extention for details.
+  // The VK_NV_cooperative_matrix extension related, see the documentation for the
+  // SPIRV SPV_NV_cooperative_matrix extension for details.
   SType GetCooperativeMatrixNVType(const SType& elem_ty, int rows, int cols);
   Value CallCooperativeMatrixLoadNV(const SType& mat_type, Value src, Value stride,
                                     Value column_major);
