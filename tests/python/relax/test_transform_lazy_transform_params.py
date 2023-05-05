@@ -93,7 +93,7 @@ def test_lazy_transform_params():
                     "set_item", R.prim_value(1), lv3, sinfo_args=(R.Object,)
                 )
                 lv5: R.Tuple = R.vm.kill_object(lv1_1)
-                gv: R.Tuple(R.Object, R.Object) = lv1, lv4
+                gv: R.Tuple(R.Object, R.Object) = (lv1, lv4)
                 R.output(gv)
             return gv
 
