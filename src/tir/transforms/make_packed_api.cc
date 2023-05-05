@@ -194,12 +194,17 @@ PrimFunc MakePackedAPI(PrimFunc&& func) {
 
   for (int i = 0; i < static_cast<int>(func_ptr->params.size()); ++i) {
     Var param = func_ptr->params[i];
-    std::string param_name;
-    if (param->name_hint.defined() && (!param->name_hint.empty())) {
-      param_name = "arg." + param->name_hint;
-    } else {
-      param_name = "arg" + std::to_string(i);
-    }
+    std::string param_name = [&]() {
+      std::ostringstream oss;
+      oss << name_hint << ".arg";
+      if (param->name_hint.defined() && (!param->name_hint.empty())) {
+        oss << "." << param->name_hint;
+
+      } else {
+        oss << i;
+      }
+      return oss.str();
+    }();
     Var v_arg = Var(param_name, param->dtype);
 
     // Pluck the device API context out based on name
