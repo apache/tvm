@@ -253,8 +253,8 @@ def test_letstmt_bufferload_without_type_annotation():
 def test_letstmt_bind_with_constant():
     @T.prim_func
     def constant_binds():
-        x = 1
-        y = 42.0
+        x = T.meta_var(1)
+        y = T.meta_var(42.0)
         T.evaluate(T.cast(x, "float32") + y)
 
     @T.prim_func
@@ -409,6 +409,21 @@ def test_preserve_trivial_let_binding():
     @T.prim_func
     def implicit(i: T.int32):
         j = i
+        T.evaluate(j)
+
+    assert_structural_equal(implicit, explicit)
+
+
+def test_preserve_trivial_let_binding_of_value():
+    @T.prim_func
+    def explicit(i: T.int32):
+        j = T.int32()
+        T.LetStmt(42, var=j)
+        T.evaluate(j)
+
+    @T.prim_func
+    def implicit(i: T.int32):
+        j = 42
         T.evaluate(j)
 
     assert_structural_equal(implicit, explicit)
