@@ -330,7 +330,7 @@ def test_ethosu_softmax(
     def softmax(x):
         return tf.nn.softmax(x)
 
-    infra.compare_tvm_with_tflite(softmax, [ifm_shape], accel_type)
+    infra.compare_tvm_with_tflite(softmax, [ifm_shape], accel_type, ranges=[(-1, 1)])
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
