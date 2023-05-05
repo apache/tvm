@@ -41,13 +41,29 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
   static PrimFunc Flatten(PrimFunc func) {
     arith::Analyzer ana;
     auto pass = BufferFlattener(&ana);
-    auto writer = func.CopyOnWrite();
     pass.MarkBufferMapShapes(func);
-    writer->body = pass.VisitStmt(func->body);
+    auto body = pass.VisitStmt(func->body);
+
     // The buffers in func->buffer_map are deliberately left
     // unflattened, as they are used for validation of user-provided
     // arguments.  The flattened buffers used in the updated
     // function body alias the argument buffers.
+    for (size_t i = func->params.size(); i > 0; i--) {
+      auto handle = func->params[i - 1];
+      if (auto opt = func->buffer_map.Get(handle)) {
+        auto old_buf = opt.value();
+        if (pass.buffers_used_.count(old_buf)) {
+          auto new_buf = pass.GetFlattenedBuffer(old_buf);
+          if (!old_buf.same_as(new_buf)) {
+            body = DeclBuffer(new_buf, std::move(body));
+          }
+        }
+      }
+    }
+
+    if (!body.same_as(func->body)) {
+      func.CopyOnWrite()->body = std::move(body);
+    }
     return func;
   }
 
@@ -153,11 +169,14 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
   }
 
   Stmt VisitStmt_(const DeclBufferNode* op) final {
-    // TODO(rfc-70): Update the DeclBuffer node instead of
-    // stripping it out.  Stripping it out in the current
-    // implementation as not all lowering passes support
-    // DeclBuffer.
-    return VisitStmt(op->body);
+    auto node = Downcast<DeclBuffer>(StmtExprMutator::VisitStmt_(op));
+
+    auto new_buf = GetFlattenedBuffer(node->buffer);
+    if (!node->buffer.same_as(new_buf)) {
+      node.CopyOnWrite()->buffer = new_buf;
+    }
+
+    return std::move(node);
   }
 
   Buffer GetFlattenedBuffer(Buffer buf) {
@@ -166,16 +185,23 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
       return it->second;
     }
     auto flattened = buf.GetFlattenedBuffer();
-    auto writer = flattened.CopyOnWrite();
 
     // TODO(Lunderberg): Move the handling of boolean into a
     // dedicated pass.
     if (flattened->dtype == DataType::Bool()) {
-      writer->dtype = DataType::Int(8);
+      flattened.CopyOnWrite()->dtype = DataType::Int(8);
     }
     // canonicalize shape
-    for (size_t i = 0; i < flattened->shape.size(); ++i) {
-      writer->shape.Set(i, analyzer_->canonical_simplify(flattened->shape[i]));
+    bool shape_is_changed = false;
+    Array<PrimExpr> new_shape;
+    for (const auto& dim : flattened->shape) {
+      auto new_dim = analyzer_->canonical_simplify(dim);
+      shape_is_changed = shape_is_changed || !StructuralEqual()(dim, new_dim);
+      new_shape.push_back(new_dim);
+    }
+
+    if (shape_is_changed) {
+      flattened.CopyOnWrite()->shape = std::move(new_shape);
     }
 
     buffer_remap_[buf] = flattened;
@@ -226,6 +252,7 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
   template <typename Node>
   Node VisitBufferAccess(Node node) {
     ICHECK(node->buffer.defined());
+    buffers_used_.insert(node->buffer);
     auto flattened_indices = GetSimplifiedElemOffset(node->buffer, node->indices);
     Buffer flattened_buffer = GetFlattenedBuffer(node->buffer);
 
@@ -263,6 +290,8 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
 
   /*! \brief Map of buffers being remapped. */
   std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> buffer_remap_;
+
+  std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual> buffers_used_;
 
   /*! \brief The updated external buffer map. */
   Map<Var, Buffer> updated_extern_buffer_map_;
