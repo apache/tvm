@@ -323,10 +323,8 @@ class Array : public ObjectRef {
    * \param last end of iterator
    * \tparam IterType The type of iterator
    */
-  template <typename IterType>
+  template <typename IterType, typename = std::enable_if_t<is_valid_iterator_v<T, IterType>>>
   Array(IterType first, IterType last) {
-    static_assert(is_valid_iterator_v<T, IterType>,
-                  "IterType cannot be inserted into a tvm::Array<T>");
     Assign(first, last);
   }
 
