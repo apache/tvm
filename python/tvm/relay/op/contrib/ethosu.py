@@ -2002,7 +2002,7 @@ class PadParams:
 
 class ChannelPadParams:
     """
-    This class will parse a call to a ethosu.pad2d composite function
+    This class will parse a call to a ethos-u.channel-pad composite function
     and extract the parameter information.
     """
 
