@@ -390,7 +390,7 @@ class BF16ComputeLegalizer : public StmtExprMutator {
   }
 
   /*!
-   * \brief Cast value to F32 to BF16 and keep other values unchanged.
+   * \brief Cast value from F32 to BF16 and keep other values unchanged.
    * \param value The input value
    * \return The converted value.
    */

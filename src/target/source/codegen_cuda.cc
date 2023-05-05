@@ -34,6 +34,7 @@
 #include <vector>
 
 #include "literal/cuda_half_t.h"
+#include "literal/cuda_fp8_t.h"
 #include "ptx.h"
 
 namespace tvm {
@@ -116,6 +117,15 @@ std::string CodeGenCUDA::Finish() {
     decl_stream << _cuda_bfloat16_util;
   }
 
+  if (enable_fp8_) {
+    decl_stream << "#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 890)\n";
+    decl_stream << "#include <cuda_fp8.h>\n";
+    decl_stream << "#else\n";
+    decl_stream << _cuda_fp8_t_def;
+    decl_stream << "#endif\n\n";
+    decl_stream << _cuda_fp8_util;
+  }
+
   if (enable_warp_shuffle_) {
     decl_stream << _cuda_warp_intrinsic_util;
   }
@@ -188,6 +198,18 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
   bool fail = false;
   if (t.is_float()) {
     switch (t.bits()) {
+      case 8:
+        enable_fp8_ = true;
+        if (t.is_scalar()) {
+          os << "unsigned char"; // __nv_fp8_storage_t is an alias of unsigned char
+        } else if (lanes == 2) {
+          os << "unsigned short int"; // __nv_fp8x2_storage_t is an alias of unsigned short
+        } else if (lanes == 4) {
+          os << "unsigned int"; // __nv_fp8x4_storage_t is an alias of unsigned int
+        } else {
+          fail = true;
+        }
+        break;
       case 16:
         enable_fp16_ = true;
         if (t.is_scalar()) {
@@ -459,6 +481,8 @@ void CodeGenCUDA::PrintVecElemLoad(const std::string& vec, DataType t, int i,
       std::string ac = t.lanes() == 4 ? vec : (vec + "." + access[i / 4]);
       os << "((" << type_name << ")(" << ac << " >> " << i % 4 * 8 << "))";
     }
+  } else if (t.is_float8()) {
+    // TODO(zihao)
   } else if (t.is_float16()) {
     os << "((half2*)(&(" << vec << "." << access[i / 2] << ")))->" << access[i % 2];
   } else if (t.is_bfloat16()) {
@@ -505,6 +529,8 @@ void CodeGenCUDA::PrintVecElemStore(const std::string& vec, DataType t, int i,
       }
       stream << "(" << value << " << " << i % 4 * 8 << ");\n";
     }
+  } else if (t.is_float8()) {
+    // TODO(zihao)
   } else if (t.is_float16()) {
     stream << "((half2*)(&(" << vec << "." << access[i / 2] << ")))->" << access[i % 2] << " = "
            << value << ";\n";

@@ -19,6 +19,7 @@
 import ctypes
 import json
 import numpy as np
+import ml_dtypes
 from .base import _LIB, check_call
 
 tvm_shape_index_t = ctypes.c_int64
@@ -86,6 +87,8 @@ class DataType(ctypes.Structure):
         np.dtype(np.float32): "float32",
         np.dtype(np.float64): "float64",
         np.dtype(np.float_): "float64",
+        np.dtype(ml_dtypes.bfloat16): "bfloat16",
+        np.dtype(ml_dtypes.float8_e4m3fn): "float8"  # current we only support float8_e4m3fn
     }
     STR2DTYPE = {
         "bool": {"type_code": DataTypeCode.UINT, "bits": 1, "lanes": 1},
@@ -97,6 +100,8 @@ class DataType(ctypes.Structure):
         "uint16": {"type_code": DataTypeCode.UINT, "bits": 16, "lanes": 1},
         "uint32": {"type_code": DataTypeCode.UINT, "bits": 32, "lanes": 1},
         "uint64": {"type_code": DataTypeCode.UINT, "bits": 64, "lanes": 1},
+        "float8": {"type_code": DataTypeCode.FLOAT, "bits": 8, "lanes": 1},
+        "float8_e4m3fn": {"type_code": DataTypeCode.FLOAT, "bits": 8, "lanes": 1},
         "float16": {"type_code": DataTypeCode.FLOAT, "bits": 16, "lanes": 1},
         "float32": {"type_code": DataTypeCode.FLOAT, "bits": 32, "lanes": 1},
         "float64": {"type_code": DataTypeCode.FLOAT, "bits": 64, "lanes": 1},

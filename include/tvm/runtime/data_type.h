@@ -32,6 +32,7 @@
 
 namespace tvm {
 namespace runtime {
+
 /*!
  * \brief Runtime primitive data type.
  *
@@ -54,6 +55,8 @@ class DataType {
     kFloat = kDLFloat,
     kHandle = TVMArgTypeCode::kTVMOpaqueHandle,
     kBFloat = kDLBfloat,
+    kFloat8E4M3 = 6U,
+    kFloat8E5M2 = 7U,
     kCustomBegin = 129
   };
   /*! \brief default constructor */
@@ -91,6 +94,8 @@ class DataType {
   bool is_bool() const { return code() == DataType::kUInt && bits() == 1; }
   /*! \return whether type is a float type. */
   bool is_float() const { return code() == DataType::kFloat; }
+  /*! \return whether type is a float8 type. */
+  bool is_float8() const { return code() == DataType::kFloat && bits() == 8 || (code() == DataType::kFloat8E4M3 || code() == DataType::kFloat8E5M2); }
   /*! \return whether type is a float16 type. */
   bool is_float16() const { return is_float() && bits() == 16; }
   /*! \return whether type is a bfloat16 type. */

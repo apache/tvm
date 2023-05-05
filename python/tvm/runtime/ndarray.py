@@ -19,6 +19,7 @@
 import ctypes
 import warnings
 import numpy as np
+import ml_dtypes
 import tvm._ffi
 
 from tvm._ffi.base import _LIB, check_call, c_array, string_types, _FFI_MODE
@@ -220,6 +221,8 @@ class NDArray(NDArrayBase):
             dtype = "int8"
         if dtype == "bfloat16":
             dtype = "uint16"
+        if dtype == "float8":
+            dtype = ml_dtypes.float8_e4m3fn
         np_arr = np.empty(shape, dtype=dtype)
         assert np_arr.flags["C_CONTIGUOUS"]
         data = np_arr.ctypes.data_as(ctypes.c_void_p)

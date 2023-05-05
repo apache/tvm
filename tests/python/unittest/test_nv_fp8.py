@@ -1,4 +1,3 @@
-#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,34 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import numpy as np
+import tvm
+import ml_dtypes
 
-set -e
-set -u
-set -o pipefail
 
-# install libraries for python package on ubuntu
-pip3 install --upgrade \
-    "Pygments>=2.4.0" \
-    attrs \
-    cloudpickle \
-    cython \
-    decorator \
-    mypy \
-    numpy==1.21.* \
-    orderedset \
-    packaging \
-    Pillow==9.1.0 \
-    psutil \
-    pytest \
-    git+https://github.com/tlc-pack/tlcpack-sphinx-addon.git@768ec1dce349fe4708f6ad68be1ebb3f3dabafa1 \
-    pytest-profiling \
-    pytest-xdist \
-    pytest-rerunfailures==10.2 \
-    requests \
-    scipy \
-    Jinja2 \
-    junitparser==2.4.2 \
-    six \
-    tornado \
-    pytest-lazy-fixture \
-    ml_dtypes
+# Currently only float8_e4m3 is supported.
+def test_create_nv_fp8_nd_array():
+    x = np.random.rand(128, 128).astype(ml_dtypes.float8_e4m3fn)
+    x_nd = tvm.nd.array(x)
+    assert x_nd.dtype == "float8"
+
+
+if __name__ == "__main__":
+    test_create_nv_fp8_nd_array()
