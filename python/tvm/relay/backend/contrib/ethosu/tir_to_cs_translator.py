@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=use-list-literal, invalid-name
 """This source will contain code to convert TIR, as produced by
 the Relay to TIR compilation process, to Vela API calls to
 generate command stream.

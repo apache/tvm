@@ -880,7 +880,6 @@ class ComputeInlineStepNode : public StepNode {
    * \brief Apply the current step to tvm.schedule.
    * \param stages The list of current stages
    * \param stage_to_axes A map that maps stage ot all its iterators.
-   * \return The iterator result after fuse.
    */
   void ApplyToSchedule(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 
@@ -939,7 +938,6 @@ class ComputeRootStepNode : public StepNode {
    * \brief Apply the current step to tvm.schedule.
    * \param stages The list of current stages
    * \param stage_to_axes A map that maps stage ot all its iterators.
-   * \return The iterator result after fuse.
    */
   void ApplyToSchedule(Array<te::Stage>* stages, StageToAxesMap* stage_to_axes) const;
 

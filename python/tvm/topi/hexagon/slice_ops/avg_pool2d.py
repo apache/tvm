@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-variable, unused-argument, too-many-locals
+# pylint: disable=invalid-name, unused-variable, unused-argument, too-many-locals, pointless-exception-statement
 
 """ Compute and schedule for avg_pool2d slice op
 

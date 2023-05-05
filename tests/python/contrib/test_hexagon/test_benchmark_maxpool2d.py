@@ -328,13 +328,13 @@ class TestMaxPool2D:
 
             except bu.NumericalAccuracyException as exception:
                 print()
-                print(f"FAIL: Numerical accuracy error. See log file.")
+                print("FAIL: Numerical accuracy error. See log file.")
 
                 log_file.write("\n")
                 log_file.write(f"FAIL: {exception}\n")
 
                 self.benchmark_table.record_fail(
-                    **keys_dict, comments=f"Numerical accuracy error. See log file."
+                    **keys_dict, comments="Numerical accuracy error. See log file."
                 )
 
             except bu.UnsupportedException as exception:

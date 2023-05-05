@@ -176,6 +176,7 @@ def test_rpc_large_array():
     check_remote()
 
 
+@tvm.testing.skip_if_32bit(reason="skipping test for i386.")
 @tvm.testing.requires_rpc
 def test_rpc_echo():
     def check(remote):

@@ -14,7 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-argument, import-outside-toplevel, no-value-for-parameter
+# pylint: disable=invalid-name, unused-argument, import-outside-toplevel
+# pylint: disable=no-value-for-parameter, use-list-literal
 """A set of passes to legalize some of operations for the NPU"""
 from typing import List, Type, Callable
 import math

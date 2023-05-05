@@ -14,16 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-argument, no-else-return, inconsistent-return-statements, too-many-nested-blocks
+# pylint: disable=invalid-name, unused-argument, no-else-return
+# pylint: disable=use-list-literal, inconsistent-return-statements, too-many-nested-blocks
 """The TIR passes to be run on Arm(R) Ethos(TM)-U NPU TIR Compiler."""
 from collections import namedtuple
 from typing import Optional
 import numpy as np  # type: ignore
+from ethosu.vela import api as vapi  # type: ignore
 
 import tvm
 from tvm.relay.backend.contrib.ethosu import vela_api
 from tvm.relay.backend.contrib.ethosu import tir_to_cs_translator as tirtocs
-from ethosu.vela import api as vapi
+
 from .convolution import get_conv2d_params
 from .depthwise import get_depthwise_conv2d_params
 from .pooling import get_pooling_params

@@ -1846,7 +1846,7 @@ class FullyConnectedParams:
             weights.values = weights.values - weights.q_params.zero_point
             axis = 1
             sum_weights = np.amax(np.sum(np.absolute(weights.values), axis=axis))
-            if not sum_weights <= weights_limit:
+            if sum_weights > weights_limit:
                 return False
             return True
 
