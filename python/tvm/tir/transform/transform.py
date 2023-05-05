@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Wrapping existing transformations."""
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name, unsupported-binary-operation
 
 
 import enum

@@ -229,7 +229,6 @@ class DictAttrs : public Attrs {
   /*!
    * \brief Consruct a Attrs backed by DictAttrsNode.
    * \param dict The attributes.
-   * \return The dict attributes.
    */
   TVM_DLL explicit DictAttrs(Map<String, ObjectRef> dict);
 

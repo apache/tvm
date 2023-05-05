@@ -207,7 +207,6 @@ class Target : public ObjectRef {
    * \brief Construct a Target given target and host
    * \param target The Target typed object with host field undefined for target
    * \param host The Target typed object for target host
-   * \return The Target with given target and host context information
    */
   TVM_DLL explicit Target(Target target, Target host);
   TVM_DEFINE_OBJECT_REF_METHODS(Target, ObjectRef, TargetNode);
