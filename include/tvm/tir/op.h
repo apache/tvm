@@ -865,7 +865,12 @@ inline bool is_const_number(const PrimExpr& x);
  */
 template <typename FReduce>
 inline PrimExpr foldl(FReduce freduce, PrimExpr init_value, const Array<PrimExpr>& values,
-                      Span span = Span());
+                      Span span = Span()) {
+  for (PrimExpr val : values) {
+    init_value = freduce(init_value, val, span);
+  }
+  return init_value;
+}
 
 /*!
  * \brief Check whether x is a constant power of two
@@ -964,15 +969,6 @@ inline PrimExpr make_zero(DataType t, Span span) {
     return reinterpret(t, make_const(DataType::UInt(64), 0, span));
   }
   return make_const(t, 0, span);
-}
-
-template <typename FReduce>
-inline PrimExpr foldl(FReduce freduce, PrimExpr init_value, const Array<PrimExpr>& values,
-                      Span span) {
-  for (PrimExpr val : values) {
-    init_value = freduce(init_value, val, span);
-  }
-  return init_value;
 }
 
 }  // namespace tir
