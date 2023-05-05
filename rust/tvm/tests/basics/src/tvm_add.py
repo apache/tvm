@@ -20,23 +20,34 @@ import os.path as osp
 import sys
 
 import tvm
-from tvm import te
 from tvm.contrib import cc
+from tvm.script import tir as T
 
 
 def main(target, out_dir):
-    n = te.var("n")
-    A = te.placeholder((n,), name="A")
-    B = te.placeholder((n,), name="B")
-    C = te.compute(A.shape, lambda i: A[i] + B[i], name="C")
-    s = te.create_schedule(C.op)
+    @T.prim_func
+    def func(var_A: T.handle, var_B: T.handle, var_C: T.handle):
+        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        n = T.int32()
+        A = T.match_buffer(var_A, (n,), align=1)
+        B = T.match_buffer(var_B, (n,), align=1)
+        C = T.match_buffer(var_C, (n,), align=1)
+        # with T.block("root"):
+        for i in range(n):
+            with T.block("C"):
+                v_i = T.axis.spatial(n, i)
+                T.reads(A[v_i], B[v_i])
+                T.writes(C[v_i])
+                C[v_i] = A[v_i] + B[v_i]
 
     if target == "cuda":
-        bx, tx = s[C].split(C.op.axis[0], factor=64)
-        s[C].bind(bx, te.thread_axis("blockIdx.x"))
-        s[C].bind(tx, te.thread_axis("threadIdx.x"))
+        sch = tvm.tir.Schedule(func)
+        i, j = sch.split(sch.get_loops("C")[0], [None, 64])
+        sch.bind(i, "blockIdx.x")
+        sch.bind(j, "threadIdx.x")
+        func = sch.mod["main"]
 
-    fadd = tvm.build(s, [A, B, C], tvm.target.Target(target, host="llvm"), name="myadd")
+    fadd = tvm.build(func, target=tvm.target.Target(target, host="llvm"), name="myadd")
     fadd.save(osp.join(out_dir, "test_add.o"))
     if target == "cuda":
         fadd.imported_modules[0].save(osp.join(out_dir, "test_add.ptx"))
