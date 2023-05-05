@@ -964,8 +964,9 @@ def test_cooperative_matrix_nv(out_dtype):
     sch.tensorize(sch.get_loops(block)[2], MAD_INTRIN)
 
     target = "vulkan -from_device=0"
+    tgt_attrs = tvm.target.Target(target).attrs
 
-    if tvm.target.Target(target).attrs["supports_cooperative_matrix_nv"]:
+    if tgt_attrs.get("supports_cooperative_matrix_nv"):
         f = tvm.build(sch.mod, target=target)
 
         dev = tvm.device(target, 0)
