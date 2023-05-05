@@ -257,6 +257,31 @@ def maximum_grad(
     ]
 
 
+@register_gradient("relax.minimum")
+def minimum_grad(
+    orig_var: Var,
+    orig_call: Call,
+    output_grad: Var,
+    ctx: BlockBuilder,
+) -> List[Expr]:
+    """Gradient of minimum.
+
+    Forward Form:
+        `z = relax.minimum(x, y)`
+
+    Backward:
+        Returns `[z_grad * (where(x >= y, 0, 1)), z_grad * (where(x < y, 0, 1))]`.
+    """
+    x = orig_call.args[0]
+    y = orig_call.args[1]
+    one = relax.const(1, _get_dtype(x))
+    zero = relax.const(0, _get_dtype(x))
+    return [
+        where(greater_equal(x, y), zero, one) * output_grad,
+        where(less(x, y), zero, one) * output_grad,
+    ]
+
+
 ##################### Binary Comparison #####################
 
 # For comparison operators, the gradients are no_grad

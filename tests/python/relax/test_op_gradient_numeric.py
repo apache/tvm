@@ -234,6 +234,7 @@ def test_unary(target, dev, unary_op_func, can_be_neg):
     (relax.op.divide,),
     (relax.op.power,),
     (relax.op.maximum,),
+    (relax.op.minimum,),
 )
 
 
