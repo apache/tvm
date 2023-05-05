@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2023-04-24T11:43:39.979491
+// Generated at 2023-05-05T13:24:59.605037
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -585,7 +585,7 @@ try {
 
 def shard_run_unittest_CPU_MINIMAL_CROSS_ISA_1_of_1(node_type='ARM-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true or 'ARM' in node_type) {
         node_type = 'ARM-SMALL'
     }
     node(node_type) {
