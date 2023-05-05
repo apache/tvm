@@ -233,6 +233,7 @@ def test_unary(target, dev, unary_op_func, can_be_neg):
     (relax.op.multiply,),
     (relax.op.divide,),
     (relax.op.power,),
+    (relax.op.maximum,),
 )
 
 
@@ -297,6 +298,12 @@ def test_ones_zeros(target, dev, create_op_func):
     relax_check_gradients(
         create_op_func, [], target, dev, ignore_grads=[0], shape=(3, 3), dtype="float32"
     )
+
+
+@tvm.testing.parametrize_targets("llvm")
+def test_triu(target, dev):
+    data_numpy = np.random.uniform(-1, 1, (3, 3)).astype(np.float32)
+    relax_check_gradients(relax.op.triu, [data_numpy], target, dev, k=0)
 
 
 ##################### Statistical #####################
@@ -483,6 +490,19 @@ def test_expand_dims_list(target, dev):
     relax_check_gradients(relax.op.expand_dims, [data_numpy], target, dev, axis=(0, 2, 3))
 
 
+@tvm.testing.parametrize_targets("llvm")
+def test_broadcast_to(target, dev):
+    data_numpy = np.random.randint(1, 16, (3, 4)).astype(np.float32)
+    relax_check_gradients(
+        relax.op.broadcast_to,
+        [data_numpy],
+        target,
+        dev,
+        shape=(2, 3, 4),
+        ignore_grads=[1],
+    )
+
+
 ##################### Index #####################
 
 
@@ -592,6 +612,12 @@ def test_relu(target, dev):
     sign = np.random.randint(0, 2, (3, 3)).astype(np.float32) * 2 - 1
     data1_numpy *= sign
     relax_check_gradients(relax.op.nn.relu, [data1_numpy], target, dev)
+
+
+@tvm.testing.parametrize_targets("llvm")
+def test_silu(target, dev):
+    data1_numpy = np.random.randint(0, 16, (3, 3)).astype(np.float32)
+    relax_check_gradients(relax.op.nn.silu, [data1_numpy], target, dev)
 
 
 @tvm.testing.parametrize_targets("llvm")

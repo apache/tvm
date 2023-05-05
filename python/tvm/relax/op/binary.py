@@ -250,11 +250,9 @@ def not_equal(x1: Expr, x2: Expr) -> Expr:
     return _ffi_api.not_equal(x1, x2)  # type: ignore
 
 
-###################### Comparison operators ######################
-
-
 def maximum(x1: Expr, x2: Expr) -> Expr:
     """Element-wise maximum
+
     Parameters
     ----------
     x1 : relax.Expr
@@ -272,6 +270,7 @@ def maximum(x1: Expr, x2: Expr) -> Expr:
 
 def minimum(x1: Expr, x2: Expr) -> Expr:
     """Element-wise minimum
+
     Parameters
     ----------
     x1 : relax.Expr

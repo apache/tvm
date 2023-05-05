@@ -29,7 +29,8 @@ from ..expr import Call, Var, Expr, ShapeExpr
 from ...tir import PrimExpr
 
 from .base import register_gradient
-from .binary import less
+from .binary import less, greater_equal
+from .create import triu
 from .datatype import astype
 from .grad import (
     no_grad,
@@ -54,7 +55,7 @@ from .manipulate import (
 from .nn import conv2d_transpose, conv2d
 from .search import where
 from .statistical import sum, cumsum
-from .unary import cos, exp, log, sin, sqrt
+from .unary import cos, exp, log, sin, sqrt, sigmoid
 
 
 # TODO(yixin, chaofan): handle symbolic shape for most of the gradients
@@ -231,7 +232,33 @@ def power_grad(
     ]
 
 
+@register_gradient("relax.maximum")
+def maximum_grad(
+    orig_var: Var,
+    orig_call: Call,
+    output_grad: Var,
+    ctx: BlockBuilder,
+) -> List[Expr]:
+    """Gradient of maximum.
+
+    Forward Form:
+        `z = relax.maximum(x, y)`
+
+    Backward:
+        Returns `[z_grad * (where(x < y, 0, 1)), z_grad * (where(x >= y, 0, 1))]`.
+    """
+    x = orig_call.args[0]
+    y = orig_call.args[1]
+    one = relax.const(1, _get_dtype(x))
+    zero = relax.const(0, _get_dtype(x))
+    return [
+        where(less(x, y), zero, one) * output_grad,
+        where(greater_equal(x, y), zero, one) * output_grad,
+    ]
+
+
 ##################### Binary Comparison #####################
+
 # For comparison operators, the gradients are no_grad
 
 
@@ -296,7 +323,8 @@ def not_equal_grad(
 
 
 ##################### Create #####################
-# For create operators, the gradients are no_grad.
+
+# For zeros/ones/full operators, the gradients are no_grad.
 
 
 @register_gradient("relax.zeros_like")
@@ -357,6 +385,28 @@ def full_grad(
     ctx: BlockBuilder,
 ) -> List[Expr]:
     return [no_grad(orig_call.args[0]), no_grad(orig_call.args[1])]
+
+
+# Other create gradients operators
+
+
+@register_gradient("relax.triu")
+def triu_grad(
+    orig_var: Var,
+    orig_call: Call,
+    output_grad: Var,
+    ctx: BlockBuilder,
+) -> List[Expr]:
+    """Gradient of triu.
+
+    Forward Form:
+        `y = relax.triu(x, k)`
+
+    Backward:
+        Returns `[triu(y_grad, k)]`.
+    """
+    k = orig_call.attrs.k
+    return [triu(output_grad, k)]
 
 
 ##################### Unary #####################
@@ -770,6 +820,29 @@ def cumsum_grad(
     return [grad]
 
 
+@register_gradient("relax.broadcast_to")
+def broadcast_to_grad(
+    orig_var: Var,
+    orig_call: Call,
+    output_grad: Var,
+    ctx: BlockBuilder,
+) -> List[Expr]:
+    """Gradient of broadcast_to.
+
+    Forward Form:
+        `y = relax.broadcast_to(x, new_shape)`
+
+    Backward:
+        Returns `[collapse_sum_to(y_grad, x.shape), no_grad]`.
+
+        The second parameter, the target ShapeExpr, is not differentiable.
+    """
+    return [
+        collapse_sum_to(output_grad, _get_shape(orig_call.args[0])),
+        no_grad(orig_call.args[1]),
+    ]
+
+
 ##################### Index #####################
 
 
@@ -936,6 +1009,27 @@ def relu_grad(
     one = relax.const(1, _get_dtype(x))
     zero = relax.const(0, _get_dtype(x))
     return [where(less(x, zero), zero, one) * output_grad]
+
+
+@register_gradient("relax.nn.silu")
+def silu_grad(
+    orig_var: Var,
+    orig_call: Call,
+    output_grad: Var,
+    ctx: BlockBuilder,
+) -> List[Expr]:
+    """Gradient of silu.
+
+    Forward Form:
+        `y = relax.silu(x)`
+
+    Backward:
+        Returns `[y_grad * (sigmoid(x) + y * (1 - sigmoid(x)))]`.
+    """
+    x = orig_call.args[0]
+    sig = sigmoid(x)
+    one = relax.const(1, _get_dtype(x))
+    return [output_grad * (sig + orig_var * (one - sig))]
 
 
 @register_gradient("relax.nn.softmax")
