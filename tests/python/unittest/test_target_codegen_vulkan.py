@@ -865,9 +865,6 @@ def get_mad_impl(out_dtype="float32"):
     return cooperative_matrix_mad_impl
 
 
-TensorIntrin.register("cooperative_matrix_load", cooperative_matrix_load_desc, get_load_impl(False))
-
-
 @pytest.mark.parametrize("out_dtype", ["float32", "float16"])
 def test_cooperative_matrix_nv(out_dtype):
     STORE_INTRIN = "cooperative_matrix_store_{}".format(out_dtype)
@@ -875,12 +872,20 @@ def test_cooperative_matrix_nv(out_dtype):
     MAD_INTRIN = "cooperative_matrix_mad_{}".format(out_dtype)
 
     TensorIntrin.register(
+        "cooperative_matrix_load", cooperative_matrix_load_desc, get_load_impl(False), override=True
+    )
+    TensorIntrin.register(
         STORE_INTRIN,
         get_store_desc(out_dtype),
         get_store_impl(out_dtype),
+        override=True,
     )
-    TensorIntrin.register(FILL_INTRIN, get_fill_desc(out_dtype), get_fill_impl(out_dtype))
-    TensorIntrin.register(MAD_INTRIN, get_mad_desc(out_dtype), get_mad_impl(out_dtype))
+    TensorIntrin.register(
+        FILL_INTRIN, get_fill_desc(out_dtype), get_fill_impl(out_dtype), override=True
+    )
+    TensorIntrin.register(
+        MAD_INTRIN, get_mad_desc(out_dtype), get_mad_impl(out_dtype), override=True
+    )
 
     def get_matmul(m, n, k, out_dtype="float32"):
         X = te.placeholder((m, k), name="X", dtype="float16")
