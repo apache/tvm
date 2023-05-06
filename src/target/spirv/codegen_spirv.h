@@ -220,7 +220,15 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const PrimExpr&)>,
   size_t shared_memory_bytes_used_{0};
 };
 
-std::pair<std::unordered_map<std::string, runtime::SPIRVShader>, std::string> TranslateToSPIRV(
+/*!
+ * \brief Lower an IRModule to SPIRV modules.
+ *
+ * \param mod The IRModule to lower.
+ * \param target The target information.
+ * \return The map from function names to SPIRV binaries, and the concatenated text representation
+ * of the SPIRV modules.
+ */
+std::pair<std::unordered_map<std::string, runtime::SPIRVShader>, std::string> LowerToSPIRV(
     IRModule mod, Target target);
 
 }  // namespace codegen

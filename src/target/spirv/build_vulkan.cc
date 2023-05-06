@@ -102,7 +102,7 @@ class SPIRVTools {
   spv_context ctx_;
 };
 
-std::pair<std::unordered_map<std::string, runtime::SPIRVShader>, std::string> TranslateToSPIRV(
+std::pair<std::unordered_map<std::string, runtime::SPIRVShader>, std::string> LowerToSPIRV(
     IRModule mod, Target target) {
   using tvm::runtime::Registry;
   using tvm::runtime::SPIRVShader;
@@ -168,7 +168,7 @@ std::pair<std::unordered_map<std::string, runtime::SPIRVShader>, std::string> Tr
 }
 
 runtime::Module BuildSPIRV(IRModule mod, Target target) {
-  auto [smap, spirv_text] = TranslateToSPIRV(mod, target);
+  auto [smap, spirv_text] = LowerToSPIRV(mod, target);
   return runtime::VulkanModuleCreate(smap, ExtractFuncInfo(mod), spirv_text);
 }
 

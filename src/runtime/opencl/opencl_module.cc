@@ -118,12 +118,9 @@ class OpenCLSPIRVModuleNode : public OpenCLModuleNodeBase {
 
   void SaveToFile(const std::string& file_name, const std::string& format) final;
   void SaveToBinary(dmlc::Stream* stream) final;
-
   std::string GetSource(const std::string&) final { return spirv_text_; }
 
-  // Initialize the programs
   void Init() override;
-  // install a new kernel to thread local entry
   cl_kernel InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThreadEntry* t,
                           const std::string& func_name, const KTRefEntry& e) override;
 
@@ -233,8 +230,8 @@ void OpenCLModuleNode::Init() {
   ICHECK_EQ(fmap_.size(), parsed_kernels_.size())
       << "The number of parsed kernel sources does not match the number of kernel functions";
   // zero initialize cl_program pointers for each device kernel
-  for (const auto& [func_name, _] : parsed_kernels_) {
-    programs_.insert({func_name, std::vector<cl_program>(workspace_->devices.size(), nullptr)});
+  for (auto& kv : parsed_kernels_) {
+    programs_.insert({kv.first, std::vector<cl_program>(workspace_->devices.size(), nullptr)});
   }
 }
 
@@ -382,7 +379,8 @@ Module OpenCLModuleCreate(std::string data, std::string fmt,
 }
 
 void OpenCLSPIRVModuleNode::SaveToFile(const std::string& file_name, const std::string& format) {
-  LOG(FATAL) << "Not implemented";
+  // TODO(masahi): How SPIRV binaries should be save to a file?
+  LOG(FATAL) << "Not implemented.";
 }
 
 void OpenCLSPIRVModuleNode::SaveToBinary(dmlc::Stream* stream) {
@@ -409,8 +407,8 @@ void OpenCLSPIRVModuleNode::Init() {
   }
 
   // zero initialize cl_program pointers for each device kernel
-  for (const auto& [func_name, _] : shaders_) {
-    programs_.insert({func_name, std::vector<cl_program>(workspace_->devices.size(), nullptr)});
+  for (auto& kv : shaders_) {
+    programs_.insert({kv.first, std::vector<cl_program>(workspace_->devices.size(), nullptr)});
   }
 }
 

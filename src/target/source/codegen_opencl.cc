@@ -589,7 +589,7 @@ runtime::Module BuildOpenCL(IRModule mod, Target target) {
   Optional<String> device = target->GetAttr<String>("device");
 
   if (device && device.value() == "spirv") {
-    auto [smap, spirv_text] = TranslateToSPIRV(mod, target);
+    auto [smap, spirv_text] = LowerToSPIRV(mod, target);
     return runtime::OpenCLModuleCreate(smap, spirv_text, ExtractFuncInfo(mod));
   }
 
