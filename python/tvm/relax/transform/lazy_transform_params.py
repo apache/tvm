@@ -14,18 +14,31 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name, unused-argument, missing-function-docstring, abstract-method
 """Relax LazyTransformParams pass."""
 import tvm
 from tvm import IRModule
-from tvm import relax, te, tir
-from tvm.relax.dpl.pattern import is_op, wildcard
+from tvm import relax
 from tvm.relax.expr_functor import visitor, mutator, PyExprMutator, PyExprVisitor
-from tvm.relax.analysis import remove_all_unused
 
 
 @visitor
 class ForwardCollector(PyExprVisitor):
+    """
+    Perform a forward pass to collect the following information:
+    out_tuple_map: map from var to its index in the output tuple
+    var_tuple_get_item: list of var that is bound to v = params[i]
+
+    Parameters
+    ----------
+    tuple_var: relax.Var
+        The output tuple var
+
+    input_params: relax.Var
+        The input tuple var
+
+    """
+
     def __init__(self, tuple_var: relax.Var, input_params: relax.Var) -> None:
         self.out_tuple_map = {}
         self.out_tuple_var = tuple_var
@@ -54,6 +67,18 @@ class ForwardCollector(PyExprVisitor):
 
 @visitor
 class LivenessAnalysis(PyExprVisitor):
+    """
+    Perform a backward pass to collect the following information:
+    var_liveness_end: map from var to the list of var whose liveness is killed by this var binding
+
+    Parameters
+    ----------
+    out_tuple_var: relax.Var
+        The output tuple var
+    input_params: set
+        The set of vars that are bound to v = params[i]
+    """
+
     def __init__(self, out_tuple_var: relax.Var, input_params: set) -> None:
         self.last_appear_in_var_binding = None
         self.out_tuple_var = out_tuple_var
@@ -82,6 +107,15 @@ class LivenessAnalysis(PyExprVisitor):
 
 @mutator
 class LazyTransformParamsMutator(PyExprMutator):
+    """
+    Transform transform_params functions into a lazy version.
+
+    Parameters
+    ----------
+    mod: IRModule
+        The module to be transformed
+    """
+
     def __init__(self, mod: IRModule = None) -> None:
         super().__init__(mod)
         self.mod = mod
@@ -112,9 +146,9 @@ class LazyTransformParamsMutator(PyExprMutator):
         new_body = self.visit_expr(func.body)
         return relax.Function([], new_body, relax.ObjectStructInfo(), func.attrs)
 
-    def visit_tuple_getitem_(self, tuple_get_item: relax.TupleGetItem) -> relax.Expr:
+    def visit_tuple_getitem_(self, op: relax.TupleGetItem) -> relax.Expr:
         # rewrite get item
-        tuple_get_item = super().visit_tuple_getitem_(tuple_get_item)
+        tuple_get_item = super().visit_tuple_getitem_(op)
         if tuple_get_item.tuple_value == self.input_tuple_param:
             return relax.Call(
                 relax.ExternFunc("get_item"),
@@ -154,14 +188,19 @@ class LazyTransformParamsMutator(PyExprMutator):
 
 @tvm.transform.module_pass(opt_level=0, name="LazyTransformParams")
 class LazyTransformParams:
+    """
+    Convert transform_params functions into a lazy version.
+    (Load the input to memory on demand, and immediately free it after the last use.)
+    """
+
     def transform_module(self, mod: IRModule, ctx: tvm.transform.PassContext) -> IRModule:
-        mutator = LazyTransformParamsMutator(mod)
+        lazy_mutator = LazyTransformParamsMutator(mod)
         for gv in mod.functions:
             if gv.name_hint.endswith("transform_params"):
                 func = mod[gv]
                 if not isinstance(func, relax.Function):
                     continue
-                func = mutator.transform(func)
-                mutator.builder_.update_func(gv, func)
+                func = lazy_mutator.transform(func)
+                lazy_mutator.builder_.update_func(gv, func)
 
-        return mutator.builder_.get()
+        return lazy_mutator.builder_.get()
