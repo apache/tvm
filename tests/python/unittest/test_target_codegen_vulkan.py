@@ -602,271 +602,267 @@ def test_negative_operand_divmod(target, dev):
     np.testing.assert_array_equal(a[:, 1], (np.arange(N) - offset) % divisor)
 
 
-@T.prim_func
-def cooperative_matrix_load_desc(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (16, 16), "float16", align=64, offset_factor=8, scope="shared")
-    C = T.match_buffer(
-        c, (16, 16), "float16", align=64, offset_factor=8, scope="cooperative_matrix_nv"
-    )
-
-    with T.block("root"):
-        T.reads(A[0:16, 0:16])
-        T.writes(C[0:16, 0:16])
-        for i, j in T.grid(16, 16):
-            with T.block("load"):
-                vii, vjj = T.axis.remap("SS", [i, j])
-                C[vii, vjj] = A[vii, vjj]
-
-
-def get_load_impl(column_major):
+@pytest.mark.parametrize("out_dtype", ["float32", "float16"])
+def test_cooperative_matrix_nv(out_dtype):
     @T.prim_func
-    def cooperative_matrix_load_impl(a: T.handle, c: T.handle) -> None:
-        s1 = T.var("int32")
-        s0 = T.var("int32")
-        A = T.match_buffer(
-            a,
-            (16, 16),
-            "float16",
-            align=64,
-            offset_factor=8,
-            scope="shared",
-            strides=[s1, s0],
-        )
+    def cooperative_matrix_load_desc(a: T.handle, c: T.handle) -> None:
+        A = T.match_buffer(a, (16, 16), "float16", align=64, offset_factor=8, scope="shared")
         C = T.match_buffer(
-            c,
-            (16, 16),
-            "float16",
-            align=64,
-            offset_factor=8,
-            scope="cooperative_matrix_nv",
+            c, (16, 16), "float16", align=64, offset_factor=8, scope="cooperative_matrix_nv"
         )
 
-        with T.block("root"):
-            T.reads(A[0:16, 0:16])
-            T.writes(C[0:16, 0:16])
-            tx = T.env_thread("threadIdx.x")
-            T.launch_thread(tx, 32)
-            T.evaluate(
-                T.cooperative_matrix_load_NV(
-                    C.data,
-                    C.elem_offset,
-                    A.access_ptr("r"),
-                    16,
-                    16,
-                    s1,
-                    column_major,
-                    dtype="handle",
-                )
-            )
-
-    return cooperative_matrix_load_impl
-
-
-def get_store_desc(out_dtype="float32", out_scope="global"):
-    @T.prim_func
-    def cooperative_matrix_store_desc(a: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(
-            a,
-            (16, 16),
-            out_dtype,
-            align=64,
-            offset_factor=8,
-            scope="cooperative_matrix_nv",
-        )
-        C = T.match_buffer(c, (16, 16), out_dtype, align=64, offset_factor=8, scope=out_scope)
         with T.block("root"):
             T.reads(A[0:16, 0:16])
             T.writes(C[0:16, 0:16])
             for i, j in T.grid(16, 16):
-                with T.block("store"):
+                with T.block("load"):
                     vii, vjj = T.axis.remap("SS", [i, j])
                     C[vii, vjj] = A[vii, vjj]
 
-    return cooperative_matrix_store_desc
+    def get_load_impl(column_major):
+        @T.prim_func
+        def cooperative_matrix_load_impl(a: T.handle, c: T.handle) -> None:
+            s1 = T.var("int32")
+            s0 = T.var("int32")
+            A = T.match_buffer(
+                a,
+                (16, 16),
+                "float16",
+                align=64,
+                offset_factor=8,
+                scope="shared",
+                strides=[s1, s0],
+            )
+            C = T.match_buffer(
+                c,
+                (16, 16),
+                "float16",
+                align=64,
+                offset_factor=8,
+                scope="cooperative_matrix_nv",
+            )
 
-
-def get_store_impl(out_dtype="float32", out_scope="global"):
-    @T.prim_func
-    def cooperative_matrix_store_impl(a: T.handle, c: T.handle) -> None:
-        s1 = T.var("int32")
-        s0 = T.var("int32")
-        A = T.match_buffer(
-            a,
-            (16, 16),
-            out_dtype,
-            align=64,
-            offset_factor=8,
-            scope="cooperative_matrix_nv",
-        )
-        C = T.match_buffer(
-            c,
-            (16, 16),
-            out_dtype,
-            align=64,
-            offset_factor=8,
-            scope=out_scope,
-            strides=[s1, s0],
-        )
-
-        with T.block("root"):
-            T.reads(A[0:16, 0:16])
-            T.writes(C[0:16, 0:16])
-            tx = T.env_thread("threadIdx.x")
-            T.launch_thread(tx, 32)
-            T.evaluate(
-                T.cooperative_matrix_store_NV(
-                    C.access_ptr("w"), A.data, A.elem_offset, s1, False, dtype="handle"
+            with T.block("root"):
+                T.reads(A[0:16, 0:16])
+                T.writes(C[0:16, 0:16])
+                tx = T.env_thread("threadIdx.x")
+                T.launch_thread(tx, 32)
+                T.evaluate(
+                    T.cooperative_matrix_load_NV(
+                        C.data,
+                        C.elem_offset,
+                        A.access_ptr("r"),
+                        16,
+                        16,
+                        s1,
+                        column_major,
+                        dtype="handle",
+                    )
                 )
+
+        return cooperative_matrix_load_impl
+
+    def get_store_desc(out_dtype="float32", out_scope="global"):
+        @T.prim_func
+        def cooperative_matrix_store_desc(a: T.handle, c: T.handle) -> None:
+            A = T.match_buffer(
+                a,
+                (16, 16),
+                out_dtype,
+                align=64,
+                offset_factor=8,
+                scope="cooperative_matrix_nv",
+            )
+            C = T.match_buffer(c, (16, 16), out_dtype, align=64, offset_factor=8, scope=out_scope)
+            with T.block("root"):
+                T.reads(A[0:16, 0:16])
+                T.writes(C[0:16, 0:16])
+                for i, j in T.grid(16, 16):
+                    with T.block("store"):
+                        vii, vjj = T.axis.remap("SS", [i, j])
+                        C[vii, vjj] = A[vii, vjj]
+
+        return cooperative_matrix_store_desc
+
+    def get_store_impl(out_dtype="float32", out_scope="global"):
+        @T.prim_func
+        def cooperative_matrix_store_impl(a: T.handle, c: T.handle) -> None:
+            s1 = T.var("int32")
+            s0 = T.var("int32")
+            A = T.match_buffer(
+                a,
+                (16, 16),
+                out_dtype,
+                align=64,
+                offset_factor=8,
+                scope="cooperative_matrix_nv",
+            )
+            C = T.match_buffer(
+                c,
+                (16, 16),
+                out_dtype,
+                align=64,
+                offset_factor=8,
+                scope=out_scope,
+                strides=[s1, s0],
             )
 
-    return cooperative_matrix_store_impl
-
-
-def get_fill_desc(out_dtype="float32"):
-    zero = IntImm("int32", 0).astype(out_dtype)
-
-    @T.prim_func
-    def cooperative_matrix_fill_desc(c: T.handle) -> None:
-        C = T.match_buffer(
-            c,
-            (16, 16),
-            out_dtype,
-            align=64,
-            offset_factor=8,
-            scope="cooperative_matrix_nv",
-        )
-
-        with T.block("root"):
-            T.reads()
-            T.writes(C[0:16, 0:16])
-            for i, j in T.grid(16, 16):
-                with T.block("init"):
-                    vii, vjj = T.axis.remap("SS", [i, j])
-                    C[vii, vjj] = zero
-
-    return cooperative_matrix_fill_desc
-
-
-def get_fill_impl(out_dtype="float32"):
-    zero = IntImm("int32", 0).astype(out_dtype)
-
-    @T.prim_func
-    def cooperative_matrix_fill_impl(c: T.handle) -> None:
-        C = T.match_buffer(
-            c,
-            (16, 16),
-            out_dtype,
-            align=64,
-            offset_factor=8,
-            scope="cooperative_matrix_nv",
-        )
-
-        with T.block("root"):
-            T.reads()
-            T.writes(C[0:16, 0:16])
-            tx = T.env_thread("threadIdx.x")
-            T.launch_thread(tx, 32)
-            T.evaluate(
-                T.cooperative_matrix_fill_NV(C.data, C.elem_offset, 16, 16, zero, dtype="handle")
-            )
-
-    return cooperative_matrix_fill_impl
-
-
-def get_mad_desc(out_dtype="float32"):
-    def maybe_cast(v):
-        if out_dtype in ["float32", "int32"]:
-            return Cast(out_dtype, v)
-        return v
-
-    @T.prim_func
-    def cooperative_matrix_mad_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(
-            a,
-            (16, 16),
-            "float16",
-            align=64,
-            offset_factor=8,
-            scope="cooperative_matrix_nv",
-        )
-        B = T.match_buffer(
-            b,
-            (16, 16),
-            "float16",
-            align=64,
-            offset_factor=8,
-            scope="cooperative_matrix_nv",
-        )
-        C = T.match_buffer(
-            c,
-            (16, 16),
-            out_dtype,
-            align=64,
-            offset_factor=8,
-            scope="cooperative_matrix_nv",
-        )
-
-        with T.block("root"):
-            T.reads(C[0:16, 0:16], A[0:16, 0:16], B[0:16, 0:16])
-            T.writes(C[0:16, 0:16])
-            for i, j, k in T.grid(16, 16, 16):
-                with T.block("update"):
-                    vii, vjj, vkk = T.axis.remap("SSR", [i, j, k])
-                    C[vii, vjj] = C[vii, vjj] + maybe_cast(A[vii, vkk]) * maybe_cast(B[vkk, vjj])
-
-    return cooperative_matrix_mad_desc
-
-
-def get_mad_impl(out_dtype="float32"):
-    @T.prim_func
-    def cooperative_matrix_mad_impl(a: T.handle, b: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(
-            a,
-            (16, 16),
-            "float16",
-            align=64,
-            offset_factor=8,
-            scope="cooperative_matrix_nv",
-        )
-        B = T.match_buffer(
-            b,
-            (16, 16),
-            "float16",
-            align=64,
-            offset_factor=8,
-            scope="cooperative_matrix_nv",
-        )
-        C = T.match_buffer(
-            c,
-            (16, 16),
-            out_dtype,
-            align=64,
-            offset_factor=8,
-            scope="cooperative_matrix_nv",
-        )
-
-        with T.block("root"):
-            T.reads(C[0:16, 0:16], A[0:16, 0:16], B[0:16, 0:16])
-            T.writes(C[0:16, 0:16])
-            tx = T.env_thread("threadIdx.x")
-            T.launch_thread(tx, 32)
-            T.evaluate(
-                T.cooperative_matrix_mad_NV(
-                    A.data,
-                    A.elem_offset,
-                    B.data,
-                    B.elem_offset,
-                    C.data,
-                    C.elem_offset,
-                    dtype="handle",
+            with T.block("root"):
+                T.reads(A[0:16, 0:16])
+                T.writes(C[0:16, 0:16])
+                tx = T.env_thread("threadIdx.x")
+                T.launch_thread(tx, 32)
+                T.evaluate(
+                    T.cooperative_matrix_store_NV(
+                        C.access_ptr("w"), A.data, A.elem_offset, s1, False, dtype="handle"
+                    )
                 )
+
+        return cooperative_matrix_store_impl
+
+    def get_fill_desc(out_dtype="float32"):
+        zero = IntImm("int32", 0).astype(out_dtype)
+
+        @T.prim_func
+        def cooperative_matrix_fill_desc(c: T.handle) -> None:
+            C = T.match_buffer(
+                c,
+                (16, 16),
+                out_dtype,
+                align=64,
+                offset_factor=8,
+                scope="cooperative_matrix_nv",
             )
 
-    return cooperative_matrix_mad_impl
+            with T.block("root"):
+                T.reads()
+                T.writes(C[0:16, 0:16])
+                for i, j in T.grid(16, 16):
+                    with T.block("init"):
+                        vii, vjj = T.axis.remap("SS", [i, j])
+                        C[vii, vjj] = zero
 
+        return cooperative_matrix_fill_desc
 
-@pytest.mark.parametrize("out_dtype", ["float32", "float16"])
-def test_cooperative_matrix_nv(out_dtype):
+    def get_fill_impl(out_dtype="float32"):
+        zero = IntImm("int32", 0).astype(out_dtype)
+
+        @T.prim_func
+        def cooperative_matrix_fill_impl(c: T.handle) -> None:
+            C = T.match_buffer(
+                c,
+                (16, 16),
+                out_dtype,
+                align=64,
+                offset_factor=8,
+                scope="cooperative_matrix_nv",
+            )
+
+            with T.block("root"):
+                T.reads()
+                T.writes(C[0:16, 0:16])
+                tx = T.env_thread("threadIdx.x")
+                T.launch_thread(tx, 32)
+                T.evaluate(
+                    T.cooperative_matrix_fill_NV(
+                        C.data, C.elem_offset, 16, 16, zero, dtype="handle"
+                    )
+                )
+
+        return cooperative_matrix_fill_impl
+
+    def get_mad_desc(out_dtype="float32"):
+        def maybe_cast(v):
+            if out_dtype in ["float32", "int32"]:
+                return Cast(out_dtype, v)
+            return v
+
+        @T.prim_func
+        def cooperative_matrix_mad_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
+            A = T.match_buffer(
+                a,
+                (16, 16),
+                "float16",
+                align=64,
+                offset_factor=8,
+                scope="cooperative_matrix_nv",
+            )
+            B = T.match_buffer(
+                b,
+                (16, 16),
+                "float16",
+                align=64,
+                offset_factor=8,
+                scope="cooperative_matrix_nv",
+            )
+            C = T.match_buffer(
+                c,
+                (16, 16),
+                out_dtype,
+                align=64,
+                offset_factor=8,
+                scope="cooperative_matrix_nv",
+            )
+
+            with T.block("root"):
+                T.reads(C[0:16, 0:16], A[0:16, 0:16], B[0:16, 0:16])
+                T.writes(C[0:16, 0:16])
+                for i, j, k in T.grid(16, 16, 16):
+                    with T.block("update"):
+                        vii, vjj, vkk = T.axis.remap("SSR", [i, j, k])
+                        C[vii, vjj] = C[vii, vjj] + maybe_cast(A[vii, vkk]) * maybe_cast(
+                            B[vkk, vjj]
+                        )
+
+        return cooperative_matrix_mad_desc
+
+    def get_mad_impl(out_dtype="float32"):
+        @T.prim_func
+        def cooperative_matrix_mad_impl(a: T.handle, b: T.handle, c: T.handle) -> None:
+            A = T.match_buffer(
+                a,
+                (16, 16),
+                "float16",
+                align=64,
+                offset_factor=8,
+                scope="cooperative_matrix_nv",
+            )
+            B = T.match_buffer(
+                b,
+                (16, 16),
+                "float16",
+                align=64,
+                offset_factor=8,
+                scope="cooperative_matrix_nv",
+            )
+            C = T.match_buffer(
+                c,
+                (16, 16),
+                out_dtype,
+                align=64,
+                offset_factor=8,
+                scope="cooperative_matrix_nv",
+            )
+
+            with T.block("root"):
+                T.reads(C[0:16, 0:16], A[0:16, 0:16], B[0:16, 0:16])
+                T.writes(C[0:16, 0:16])
+                tx = T.env_thread("threadIdx.x")
+                T.launch_thread(tx, 32)
+                T.evaluate(
+                    T.cooperative_matrix_mad_NV(
+                        A.data,
+                        A.elem_offset,
+                        B.data,
+                        B.elem_offset,
+                        C.data,
+                        C.elem_offset,
+                        dtype="handle",
+                    )
+                )
+
+        return cooperative_matrix_mad_impl
+
     STORE_INTRIN = "cooperative_matrix_store_{}".format(out_dtype)
     FILL_INTRIN = "cooperative_matrix_fill_{}".format(out_dtype)
     MAD_INTRIN = "cooperative_matrix_mad_{}".format(out_dtype)
