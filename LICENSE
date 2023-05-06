@@ -212,6 +212,7 @@ Apache Software Foundation License 2.0
 3rdparty/dlpack
 3rdparty/dmlc-core
 3rdparty/OpenCL-Headers
+3rdparty/mlperftiny
 3rdparty/nvbench (with LLVM exception)
 
 
