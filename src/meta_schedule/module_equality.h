@@ -34,6 +34,7 @@ class ModuleEquality {
 
   virtual size_t Hash(IRModule mod) const = 0;
   virtual bool Equal(IRModule lhs, IRModule rhs) const = 0;
+  virtual String GetName() const = 0;
 
   /*!
    * \brief Create a ModuleEquality instance
