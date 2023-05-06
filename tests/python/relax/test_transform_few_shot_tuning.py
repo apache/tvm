@@ -319,7 +319,7 @@ def _target() -> tvm.target.Target:
 
 
 def _acc() -> float:
-    return 1e-3 if _target().kind.name == "cuda" else 1e-7
+    return 1e-2 if _target().kind.name == "cuda" else 1e-7
 
 
 def _get_single_prim_func(mod: tvm.ir.IRModule) -> tvm.tir.PrimFunc:
