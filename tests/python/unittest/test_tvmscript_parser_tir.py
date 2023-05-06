@@ -16,8 +16,6 @@
 # under the License.
 """Unittests for tvm.script.parser.tir"""
 
-import pytest
-import inspect
 import tvm.testing
 from tvm.script.parser import tir as T
 from tvm import ir, tir
@@ -57,6 +55,20 @@ def test_tir_ptr_proxy():
         and ptr_1.type_annotation.element_type == ir.PrimType("float32")
         and ptr_1.type_annotation.storage_scope == "shared"
     )
+
+
+def test_tir_func_name():
+    @T.prim_func
+    def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
+        A = T.match_buffer(a, [128, 128])
+        B = T.match_buffer(b, [128, 128])
+        C = T.match_buffer(c, [128, 128])
+        for i, j, k in T.grid(128, 128, 128):
+            with T.block("update"):
+                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
+
+    assert matmul.__name__ == "matmul"
 
 
 if __name__ == "__main__":
