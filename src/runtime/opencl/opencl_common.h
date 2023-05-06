@@ -434,17 +434,7 @@ class OpenCLModuleNodeBase : public ModuleNode {
     return ModulePropertyMask::kBinarySerializable | ModulePropertyMask::kRunnable;
   }
 
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
-  void SaveToFile(const std::string& file_name, const std::string& format) final;
-  void SaveToBinary(dmlc::Stream* stream) final;
-  std::string GetSource(const std::string& format) final;
-  // Initialize the programs
-  void Init();
-  // install a new kernel to thread local entry
-  cl_kernel InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThreadEntry* t,
-                          const std::string& func_name, const KTRefEntry& e);
-  void SetPreCompiledPrograms(const std::string& bytes);
-  std::string GetPreCompiledPrograms();
+  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) override;
 
   // Initialize the programs
   virtual void Init() = 0;
@@ -476,6 +466,8 @@ class OpenCLModuleNode : public OpenCLModuleNodeBase {
 
   void SaveToFile(const std::string& file_name, const std::string& format) final;
   void SaveToBinary(dmlc::Stream* stream) final;
+  void SetPreCompiledPrograms(const std::string& bytes);
+  std::string GetPreCompiledPrograms();
 
   std::string GetSource(const std::string& format) final;
   // Initialize the programs
@@ -483,6 +475,7 @@ class OpenCLModuleNode : public OpenCLModuleNodeBase {
   // install a new kernel to thread local entry
   cl_kernel InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThreadEntry* t,
                           const std::string& func_name, const KTRefEntry& e) override;
+  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) override;
 
  private:
   // the binary data

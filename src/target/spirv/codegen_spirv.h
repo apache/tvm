@@ -221,7 +221,7 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const PrimExpr&)>,
 };
 
 std::pair<std::unordered_map<std::string, runtime::SPIRVShader>, std::string> TranslateToSPIRV(
-    IRModule mod, Target target, bool webgpu_restriction = false);
+    IRModule mod, Target target);
 
 }  // namespace codegen
 }  // namespace tvm

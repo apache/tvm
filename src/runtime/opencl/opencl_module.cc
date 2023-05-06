@@ -161,15 +161,6 @@ cl::OpenCLWorkspace* OpenCLModuleNodeBase::GetGlobalWorkspace() {
 PackedFunc OpenCLModuleNodeBase::GetFunction(const std::string& name,
                                              const ObjectPtr<Object>& sptr_to_self) {
   ICHECK_EQ(sptr_to_self.get(), this);
-  if (name == "opencl.GetPreCompiledPrograms") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      *rv = this->GetPreCompiledPrograms();
-    });
-  } else if (name == "opencl.SetPreCompiledPrograms") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      this->SetPreCompiledPrograms(args[0]);
-    });
-  }
   ICHECK_NE(name, symbol::tvm_module_main) << "Device function do not have main";
   auto it = fmap_.find(name);
   if (it == fmap_.end()) return PackedFunc();
@@ -368,6 +359,21 @@ std::string OpenCLModuleNode::GetPreCompiledPrograms() {
   return data;
 }
 
+PackedFunc OpenCLModuleNode::GetFunction(const std::string& name,
+                                         const ObjectPtr<Object>& sptr_to_self) {
+  ICHECK_EQ(sptr_to_self.get(), this);
+  if (name == "opencl.GetPreCompiledPrograms") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      *rv = this->GetPreCompiledPrograms();
+    });
+  } else if (name == "opencl.SetPreCompiledPrograms") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      this->SetPreCompiledPrograms(args[0]);
+    });
+  }
+  return OpenCLModuleNodeBase::GetFunction(name, sptr_to_self);
+}
+
 Module OpenCLModuleCreate(std::string data, std::string fmt,
                           std::unordered_map<std::string, FunctionInfo> fmap, std::string source) {
   auto n = make_object<OpenCLModuleNode>(data, fmt, fmap, source);
@@ -418,8 +424,9 @@ cl_kernel OpenCLSPIRVModuleNode::InstallKernel(cl::OpenCLWorkspace* w, cl::OpenC
     size_t len = it->second.data.size() * sizeof(uint32_t);
     cl_int err;
     cl_device_id dev = w->devices[device_id];
+    auto platform = w->device_to_platform[dev];
     programs_[func_name][device_id] =
-        clCreateProgramWithBinary(w->context, 1, &dev, &len, &s, nullptr, &err);
+        clCreateProgramWithBinary(w->contexts[platform], 1, &dev, &len, &s, nullptr, &err);
     OPENCL_CHECK_ERROR(err);
 
     // build program

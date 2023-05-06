@@ -103,7 +103,7 @@ class SPIRVTools {
 };
 
 std::pair<std::unordered_map<std::string, runtime::SPIRVShader>, std::string> TranslateToSPIRV(
-    IRModule mod, Target target, bool webgpu_restriction) {
+    IRModule mod, Target target) {
   using tvm::runtime::Registry;
   using tvm::runtime::SPIRVShader;
 
@@ -167,8 +167,8 @@ std::pair<std::unordered_map<std::string, runtime::SPIRVShader>, std::string> Tr
   return std::make_pair(smap, code_data.str());
 }
 
-runtime::Module BuildSPIRV(IRModule mod, Target target, bool webgpu_restriction) {
-  auto [smap, spirv_text] = TranslateToSPIRV(mod, target, webgpu_restriction);
+runtime::Module BuildSPIRV(IRModule mod, Target target) {
+  auto [smap, spirv_text] = TranslateToSPIRV(mod, target);
   return runtime::VulkanModuleCreate(smap, ExtractFuncInfo(mod), spirv_text);
 }
 
