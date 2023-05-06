@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2023-04-24T11:43:40.011245
+// Generated at 2023-05-05T13:39:06.475903
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -591,7 +591,7 @@ try {
 
 def shard_run_integration_CPU_1_of_4(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'CPU-SMALL'
     }
     node(node_type) {
@@ -639,7 +639,7 @@ def shard_run_integration_CPU_1_of_4(node_type='CPU-SMALL-SPOT', on_demand=false
 
 def shard_run_integration_CPU_2_of_4(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'CPU-SMALL'
     }
     node(node_type) {
@@ -687,7 +687,7 @@ def shard_run_integration_CPU_2_of_4(node_type='CPU-SMALL-SPOT', on_demand=false
 
 def shard_run_integration_CPU_3_of_4(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'CPU-SMALL'
     }
     node(node_type) {
@@ -735,7 +735,7 @@ def shard_run_integration_CPU_3_of_4(node_type='CPU-SMALL-SPOT', on_demand=false
 
 def shard_run_integration_CPU_4_of_4(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'CPU-SMALL'
     }
     node(node_type) {
@@ -785,7 +785,7 @@ def shard_run_integration_CPU_4_of_4(node_type='CPU-SMALL-SPOT', on_demand=false
 
 def shard_run_unittest_CPU_1_of_1(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'CPU-SMALL'
     }
     node(node_type) {
@@ -838,7 +838,7 @@ def shard_run_unittest_CPU_1_of_1(node_type='CPU-SMALL-SPOT', on_demand=false) {
 
 def shard_run_frontend_CPU_1_of_1(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'CPU-SMALL'
     }
     node(node_type) {

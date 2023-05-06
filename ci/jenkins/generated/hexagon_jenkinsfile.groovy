@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2023-04-24T11:43:39.811677
+// Generated at 2023-05-05T13:39:06.446423
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -590,7 +590,7 @@ try {
 
 def shard_run_test_Hexagon_1_of_8(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'CPU-SMALL'
     }
     node(node_type) {
@@ -639,7 +639,7 @@ def shard_run_test_Hexagon_1_of_8(node_type='CPU-SMALL-SPOT', on_demand=false) {
 
 def shard_run_test_Hexagon_2_of_8(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'CPU-SMALL'
     }
     node(node_type) {
@@ -687,7 +687,7 @@ def shard_run_test_Hexagon_2_of_8(node_type='CPU-SMALL-SPOT', on_demand=false) {
 
 def shard_run_test_Hexagon_3_of_8(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'CPU-SMALL'
     }
     node(node_type) {
@@ -735,7 +735,7 @@ def shard_run_test_Hexagon_3_of_8(node_type='CPU-SMALL-SPOT', on_demand=false) {
 
 def shard_run_test_Hexagon_4_of_8(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'CPU-SMALL'
     }
     node(node_type) {
@@ -783,7 +783,7 @@ def shard_run_test_Hexagon_4_of_8(node_type='CPU-SMALL-SPOT', on_demand=false) {
 
 def shard_run_test_Hexagon_5_of_8(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'CPU-SMALL'
     }
     node(node_type) {
@@ -831,7 +831,7 @@ def shard_run_test_Hexagon_5_of_8(node_type='CPU-SMALL-SPOT', on_demand=false) {
 
 def shard_run_test_Hexagon_6_of_8(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'CPU-SMALL'
     }
     node(node_type) {
@@ -879,7 +879,7 @@ def shard_run_test_Hexagon_6_of_8(node_type='CPU-SMALL-SPOT', on_demand=false) {
 
 def shard_run_test_Hexagon_7_of_8(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'CPU-SMALL'
     }
     node(node_type) {
@@ -927,7 +927,7 @@ def shard_run_test_Hexagon_7_of_8(node_type='CPU-SMALL-SPOT', on_demand=false) {
 
 def shard_run_test_Hexagon_8_of_8(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'CPU-SMALL'
     }
     node(node_type) {

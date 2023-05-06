@@ -33,7 +33,7 @@ sh(
 {% set test_dir_name = name.replace(":", "").replace(" ", "-").replace("-", "_")|string %}
 def {{ method_name }}(node_type='{{ node }}-SPOT', on_demand=false) {
   if ({{ condition }}) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = '{{ node }}'
     }
     node(node_type) {
