@@ -3061,7 +3061,7 @@ def cooperative_matrix_load_NV(buffer_mat, offset, src, rows, cols, stride, colu
         The number of columns in the matrix.
 
     stride: Expr
-        The stride of the matrix.
+        The stride of the matrix in the number of elements.
 
     column_major: bool
         Whether the matrix elements are stored in the column-major order.
@@ -3099,7 +3099,7 @@ def cooperative_matrix_store_NV(dst, buffer_mat, offset, stride, column_major):
         The element offset for the matrix to be stored in the destination buffer.
 
     stride: Expr
-        The stride of the matrix.
+        The stride of the matrix in the number of elements.
 
     column_major: bool
         Whether the matrix elements are stored in the column-major order.
