@@ -41,6 +41,7 @@ endif(USE_AOCL)
 
 if(USE_OPENCL)
   tvm_file_glob(GLOB RUNTIME_OPENCL_SRCS src/runtime/opencl/*.cc)
+    list(APPEND COMPILER_SRCS src/target/spirv/spirv_utils.cc)
 
   if(${USE_OPENCL} MATCHES ${IS_TRUE_PATTERN})
     message(STATUS "Enabled runtime search for OpenCL library location")

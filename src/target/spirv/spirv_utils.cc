@@ -22,20 +22,28 @@
  * \brief Build SPIRV block
  */
 // Use libspirv for parsing and validating code.
-#include <dmlc/memory_io.h>
+#include "spirv_utils.h"
+
+#if TVM_USE_VULKAN
 #include <libspirv.h>
+
+#include "codegen_spirv.h"
+#endif
+
 #include <tvm/tir/transform.h>
 
+#include <algorithm>
 #include <fstream>
 #include <sstream>
+#include <vector>
 
 #include "../../runtime/vulkan/spirv_shader.h"
 #include "../../support/utils.h"
-#include "codegen_spirv.h"
-#include "spirv_utils.h"
 
 namespace tvm {
 namespace codegen {
+
+#if TVM_USE_VULKAN
 
 class SPIRVTools {
  public:
@@ -165,6 +173,16 @@ std::pair<std::unordered_map<std::string, runtime::SPIRVShader>, std::string> Lo
 
   return std::make_pair(smap, code_data.str());
 }
+
+#else
+
+std::pair<std::unordered_map<std::string, runtime::SPIRVShader>, std::string> LowerToSPIRV(
+    IRModule mod, Target target) {
+  LOG(FATAL) << "LowerToSPIRV is called but Vulkan is not enabled.";
+  return {};
+}
+
+#endif
 
 }  // namespace codegen
 }  // namespace tvm
