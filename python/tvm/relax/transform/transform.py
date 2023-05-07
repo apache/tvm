@@ -1016,8 +1016,8 @@ def RewriteCUDAGraph() -> tvm.ir.transform.Pass:
     return _ffi_api.RewriteCUDAGraph()  # type: ignore
 
 
-def ProvideWorkspace() -> tvm.ir.transform.Pass:
-    return _ffi_api.ProvideWorkspace()  # type: ignore
+def AllocateWorkspace() -> tvm.ir.transform.Pass:
+    return _ffi_api.AllocateWorkspace()  # type: ignore
 
 
 def _wrap_class_function_pass(pass_cls, pass_info):

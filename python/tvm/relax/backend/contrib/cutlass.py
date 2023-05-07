@@ -438,5 +438,5 @@ def partition_for_cutlass(mod, annotate_codegen=True):
             patterns, bind_constants=False, annotate_codegen=annotate_codegen
         ),
         annotate_workspace,
-        transform.ProvideWorkspace(),
+        transform.AllocateWorkspace(),
     ])(mod)

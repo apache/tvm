@@ -165,14 +165,14 @@ class WorkspaceProvider : ExprMutator {
 
 namespace transform {
 
-Pass ProvideWorkspace() {
+Pass AllocateWorkspace() {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
       [=](IRModule m, PassContext pc) { return relax::WorkspaceProvider(m).Run(); };
 
-  return CreateModulePass(pass_func, 0, "ProvideWorkspace", {});
+  return CreateModulePass(pass_func, 0, "AllocateWorkspace", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.ProvideWorkspace").set_body_typed(ProvideWorkspace);
+TVM_REGISTER_GLOBAL("relax.transform.AllocateWorkspace").set_body_typed(AllocateWorkspace);
 
 }  // namespace transform
 }  // namespace tvm
