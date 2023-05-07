@@ -715,10 +715,10 @@ class Conv2dInt8_tensorcore_scheduled:
                                     v0, v1 = T.axis.remap("SS", [ax0, ax1])
                                     v2_o = T.axis.spatial(16, ax2_0_0_ax3_0_0_fused % 8 * 2 + ax2_0_2_ax3_0_2_fused % 2 + ax2_0)
                                     v3_o = T.axis.spatial(4, ax4_0_0 * 2 + ax3_0)
-                                    T.reads(p1_reindex_shared[v0, v1, v2_o * 16 : v2_o * 16 + 16, v3_o * 16 : v3_o * 16 + 16])
-                                    T.writes(p1_reindex_shared_wmma_matrix_b[v0, v1, v2_o * 16 : v2_o * 16 + 16, v3_o * 16 : v3_o * 16 + 16])
-                                    A_1 = T.match_buffer(p1_reindex_shared[v0, v1, v2_o * 16 : v2_o * 16 + 16, v3_o * 16 : v3_o * 16 + 16], [16, 16], dtype="int8", strides=[A_s0_1, A_s1_1], scope="shared", offset_factor=16)
-                                    C_2 = T.match_buffer(p1_reindex_shared_wmma_matrix_b[v0, v1, v2_o * 16 : v2_o * 16 + 16, v3_o * 16 : v3_o * 16 + 16], [16, 16], dtype="int8", strides=[C_s0_2, C_s1_2], scope="wmma.matrix_b", offset_factor=16)
+                                    T.reads(p1_reindex_shared[0, 0, v2_o * 16 : v2_o * 16 + 16, v3_o * 16 : v3_o * 16 + 16])
+                                    T.writes(p1_reindex_shared_wmma_matrix_b[0, 0, v2_o * 16 : v2_o * 16 + 16, v3_o * 16 : v3_o * 16 + 16])
+                                    A_1 = T.match_buffer(p1_reindex_shared[0, 0, v2_o * 16 : v2_o * 16 + 16, v3_o * 16 : v3_o * 16 + 16], [16, 16], dtype="int8", strides=[A_s0_1, A_s1_1], scope="shared", offset_factor=16)
+                                    C_2 = T.match_buffer(p1_reindex_shared_wmma_matrix_b[0, 0, v2_o * 16 : v2_o * 16 + 16, v3_o * 16 : v3_o * 16 + 16], [16, 16], dtype="int8", strides=[C_s0_2, C_s1_2], scope="wmma.matrix_b", offset_factor=16)
                                     T.tvm_load_matrix_sync(C_2.data, 16, 16, 16, C_2.elem_offset // C_s0_2 // 16 * (C_s0_2 // 16) + C_2.elem_offset % C_s0_2 // 16, T.tvm_access_ptr(T.type_annotation(dtype="int8"), A_1.data, A_1.elem_offset, A_s0_1 * 16, 1, dtype="handle"), A_s0_1, "col_major", dtype="handle")
                             for ax2_0_3, ax3_0_3, ax0_2, ax1_2, ax4_0_2, ax2_0_4, ax3_0_4 in T.grid(1, 1, 1, 1, 2, 1, 1):
                                 with T.block("conv2d_nhwc_o_update"):
@@ -727,11 +727,11 @@ class Conv2dInt8_tensorcore_scheduled:
                                     v2_o = T.axis.spatial(3136, ax2_0_0_ax3_0_0_fused // 8 * 8 + ax2_0_2_ax3_0_2_fused // 2 + ax2_0_3 + ax2_0_4)
                                     v3_o = T.axis.spatial(16, ax2_0_0_ax3_0_0_fused % 8 * 2 + ax2_0_2_ax3_0_2_fused % 2 + ax3_0_3 + ax3_0_4)
                                     v4_o = T.axis.reduce(4, ax4_0_0 * 2 + ax4_0_1 * 2 + ax4_0_2)
-                                    T.reads(conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16 : v2_o * 16 + 16, v3_o * 16 : v3_o * 16 + 16], pad_temp_reindex_shared_wmma_matrix_a[v2_o * 16 : v2_o * 16 + 16, v4_o * 16 : v4_o * 16 + 16], p1_reindex_shared_wmma_matrix_b[v0, v1, v3_o * 16 : v3_o * 16 + 16, v4_o * 16 : v4_o * 16 + 16])
+                                    T.reads(conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16 : v2_o * 16 + 16, v3_o * 16 : v3_o * 16 + 16], pad_temp_reindex_shared_wmma_matrix_a[v2_o * 16 : v2_o * 16 + 16, v4_o * 16 : v4_o * 16 + 16], p1_reindex_shared_wmma_matrix_b[0, 0, v3_o * 16 : v3_o * 16 + 16, v4_o * 16 : v4_o * 16 + 16])
                                     T.writes(conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16 : v2_o * 16 + 16, v3_o * 16 : v3_o * 16 + 16])
                                     T.block_attr({"meta_schedule.thread_extent_high_inclusive":1024, "meta_schedule.thread_extent_low_inclusive":32, "warp_execution":1})
                                     A_2 = T.match_buffer(pad_temp_reindex_shared_wmma_matrix_a[v2_o * 16 : v2_o * 16 + 16, v4_o * 16 : v4_o * 16 + 16], [16, 16], dtype="int8", strides=[A_s0_2, A_s1_2], scope="wmma.matrix_a", offset_factor=16)
-                                    B = T.match_buffer(p1_reindex_shared_wmma_matrix_b[v0, v1, v3_o * 16 : v3_o * 16 + 16, v4_o * 16 : v4_o * 16 + 16], [16, 16], dtype="int8", strides=[B_s0, B_s1], scope="wmma.matrix_b", offset_factor=16)
+                                    B = T.match_buffer(p1_reindex_shared_wmma_matrix_b[0, 0, v3_o * 16 : v3_o * 16 + 16, v4_o * 16 : v4_o * 16 + 16], [16, 16], dtype="int8", strides=[B_s0, B_s1], scope="wmma.matrix_b", offset_factor=16)
                                     C_3 = T.match_buffer(conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16 : v2_o * 16 + 16, v3_o * 16 : v3_o * 16 + 16], [16, 16], dtype="int32", strides=[C_s0_3, C_s1_3], scope="wmma.accumulator", offset_factor=16)
                                     T.tvm_mma_sync(C_3.data, C_3.elem_offset // C_s0_3 // 16 * (C_s0_3 // 16) + C_3.elem_offset % C_s0_3 // 16, A_2.data, A_2.elem_offset // A_s0_2 // 16 * (A_s0_2 // 16) + A_2.elem_offset % A_s0_2 // 16, B.data, B.elem_offset // B_s0 // 16 * (B_s0 // 16) + B.elem_offset % B_s0 // 16, C_3.data, C_3.elem_offset // C_s0_3 // 16 * (C_s0_3 // 16) + C_3.elem_offset % C_s0_3 // 16, dtype="handle")
                     for ax0_0, ax1_0 in T.grid(1, 1):
@@ -1153,13 +1153,13 @@ def get_conv2d_vnni_mod(intrin_id):
                             ow = T.axis.spatial(7, i3_1 * 7 + i3_2_init * 7 + i3_3_init)
                             oc_block_o = T.axis.spatial(1, i4_0_1 + i4_0_2_init + i4_0_3_init)
                             T.reads()
-                            T.writes(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, 0 : 16])
+                            T.writes(conv2d_NCHWc_int8[0, oc_chunk, oh, ow, 0 : 16])
                             for i4_1 in T.vectorized(16):
                                 with T.block("conv2d_NCHWc_int8_init"):
                                     oc_block_i_init = T.axis.spatial(16, i4_1)
                                     T.reads()
-                                    T.writes(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block_i_init])
-                                    conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block_i_init] = 0
+                                    T.writes(conv2d_NCHWc_int8[0, oc_chunk, oh, ow, oc_block_i_init])
+                                    conv2d_NCHWc_int8[0, oc_chunk, oh, ow, oc_block_i_init] = 0
                     for i5_0, i6_0, i7_0, i8_0, i9_0_0, i0_2, i1_2, i2_2, i3_2, i4_0_2, i5_1, i6_1, i7_1, i8_1, i9_0_1, i0_3, i1_3, i2_3, i3_3, i4_0_3 in T.grid(1, 1, 4, 4, 1, 1, 1, 1, 1, 1, 1, 1, 8, 1, 1, 1, 1, 1, 7, 1):
                         with T.block("conv2d_NCHWc_int8_o_update"):
                             n = T.axis.spatial(1, i0_2 + i0_3)
@@ -1172,11 +1172,11 @@ def get_conv2d_vnni_mod(intrin_id):
                             ic_outer = T.axis.reduce(32, i7_0 * 8 + i7_1)
                             ic_f_inner = T.axis.reduce(4, i8_0 + i8_1)
                             ic_s_inner_o = T.axis.reduce(1, i9_0_0 + i9_0_1)
-                            T.reads(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, 0 : 16], p0[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 : ic_f_inner * 4 + 4], p1[oc_chunk, ic_outer, kh, kw, ic_f_inner, 0 : 16, 0 : 4])
-                            T.writes(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, 0 : 16])
-                            A = T.match_buffer(p0[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 : ic_f_inner * 4 + 4], [4], dtype="uint8", offset_factor=1)
-                            B = T.match_buffer(p1[oc_chunk, ic_outer, kh, kw, ic_f_inner, 0 : 16, 0 : 4], [16, 4], dtype="int8", offset_factor=1)
-                            C = T.match_buffer(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, 0 : 16], [16], dtype="int32", offset_factor=1)
+                            T.reads(conv2d_NCHWc_int8[0, oc_chunk, oh, ow, 0 : 16], p0[0, ic_outer, oh, ow, ic_f_inner * 4 : ic_f_inner * 4 + 4], p1[oc_chunk, ic_outer, 0, 0, ic_f_inner, 0 : 16, 0 : 4])
+                            T.writes(conv2d_NCHWc_int8[0, oc_chunk, oh, ow, 0 : 16])
+                            A = T.match_buffer(p0[0, ic_outer, oh, ow, ic_f_inner * 4 : ic_f_inner * 4 + 4], [4], dtype="uint8", offset_factor=1)
+                            B = T.match_buffer(p1[oc_chunk, ic_outer, 0, 0, ic_f_inner, 0 : 16, 0 : 4], [16, 4], dtype="int8", offset_factor=1)
+                            C = T.match_buffer(conv2d_NCHWc_int8[0, oc_chunk, oh, ow, 0 : 16], [16], dtype="int32", offset_factor=1)
                             A_u8x4: T.uint8x4 = A[0:4]
                             A_i32: T.int32 = T.reinterpret(A_u8x4, dtype="int32")
                             B_i8x64: T.int8x64 = B[0, 0:64]
@@ -1755,15 +1755,15 @@ class Conv2dInt8_with_predicate_scheduled:
                                         v0, v1 = T.axis.remap("SS", [ax0, ax1])
                                         v2_o = T.axis.spatial(16, ax2_0_0_ax3_0_0_fused % 4 * 4 + ax2_0_2_ax3_0_2_fused % 2 * 2 + ax2_0)
                                         v3_o = T.axis.spatial(4, ax4_0_0 * 2 + ax4_0_1 + ax3_0)
-                                        T.reads(p1_reindex_shared[v0, v1, v2_o * 16 : v2_o * 16 + 16, v3_o * 16 : v3_o * 16 + 16])
-                                        T.writes(p1_reindex_shared_wmma_matrix_b[v0, v1, v2_o * 16 : v2_o * 16 + 16, v3_o * 16 : v3_o * 16 + 16])
+                                        T.reads(p1_reindex_shared[0, 0, v2_o * 16 : v2_o * 16 + 16, v3_o * 16 : v3_o * 16 + 16])
+                                        T.writes(p1_reindex_shared_wmma_matrix_b[0, 0, v2_o * 16 : v2_o * 16 + 16, v3_o * 16 : v3_o * 16 + 16])
                                         T.block_attr({"meta_schedule.auto_tensorize":"wmma_load_16x16x16_s8_b_trans_shared"})
                                         for ax2_1, ax3_1 in T.grid(16, 16):
                                             with T.block("p1_reindex_shared_wmma.matrix_b"):
                                                 v2_i, v3_i = T.axis.remap("SS", [ax2_1, ax3_1])
-                                                T.reads(p1_reindex_shared[v0, v1, v2_o * 16 + v2_i, v3_o * 16 + v3_i])
-                                                T.writes(p1_reindex_shared_wmma_matrix_b[v0, v1, v2_o * 16 + v2_i, v3_o * 16 + v3_i])
-                                                p1_reindex_shared_wmma_matrix_b[v0, v1, v2_o * 16 + v2_i, v3_o * 16 + v3_i] = p1_reindex_shared[v0, v1, v2_o * 16 + v2_i, v3_o * 16 + v3_i]
+                                                T.reads(p1_reindex_shared[0, 0, v2_o * 16 + v2_i, v3_o * 16 + v3_i])
+                                                T.writes(p1_reindex_shared_wmma_matrix_b[0, 0, v2_o * 16 + v2_i, v3_o * 16 + v3_i])
+                                                p1_reindex_shared_wmma_matrix_b[0, 0, v2_o * 16 + v2_i, v3_o * 16 + v3_i] = p1_reindex_shared[0, 0, v2_o * 16 + v2_i, v3_o * 16 + v3_i]
                                 for ax2_0_3, ax3_0_3, ax0_2, ax1_2, ax4_0_2, ax2_0_4, ax3_0_4 in T.grid(1, 1, 1, 1, 1, 1, 2):
                                     with T.block("conv2d_nhwc_o"):
                                         v0 = T.axis.reduce(1, ax0_0 + ax0_1 + ax0_2)
@@ -1771,7 +1771,7 @@ class Conv2dInt8_with_predicate_scheduled:
                                         v2_o = T.axis.spatial(3136, ax2_0_0_ax3_0_0_fused // 4 * 392 + ax2_0_1_ax3_0_1_fused * 2 + ax2_0_2_ax3_0_2_fused // 2 + ax2_0_3 + ax2_0_4)
                                         v3_o = T.axis.spatial(16, ax2_0_0_ax3_0_0_fused % 4 * 4 + ax2_0_2_ax3_0_2_fused % 2 * 2 + ax3_0_3 * 2 + ax3_0_4)
                                         v4_o = T.axis.reduce(4, ax4_0_0 * 2 + ax4_0_1 + ax4_0_2)
-                                        T.reads(pad_temp_reindex_shared_wmma_matrix_a[v2_o * 16 : v2_o * 16 + 16, v4_o * 16 : v4_o * 16 + 16], p1_reindex_shared_wmma_matrix_b[v0, v1, v3_o * 16 : v3_o * 16 + 16, v4_o * 16 : v4_o * 16 + 16])
+                                        T.reads(pad_temp_reindex_shared_wmma_matrix_a[v2_o * 16 : v2_o * 16 + 16, v4_o * 16 : v4_o * 16 + 16], p1_reindex_shared_wmma_matrix_b[0, 0, v3_o * 16 : v3_o * 16 + 16, v4_o * 16 : v4_o * 16 + 16])
                                         T.writes(conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16 : v2_o * 16 + 16, v3_o * 16 : v3_o * 16 + 16])
                                         T.block_attr({"meta_schedule.auto_tensorize":"wmma_sync_16x16x16_s8s8s32_trans", "meta_schedule.auto_tensorize_init":"wmma_fill_16x16x16_s32", "meta_schedule.thread_extent_high_inclusive":1024, "meta_schedule.thread_extent_low_inclusive":32, "warp_execution":1})
                                         with T.init():
@@ -1784,10 +1784,10 @@ class Conv2dInt8_with_predicate_scheduled:
                                         for ax2_1, ax3_1, ax4_1 in T.grid(16, 16, 16):
                                             with T.block("conv2d_nhwc"):
                                                 v2_i, v3_i, v4_i = T.axis.remap("SSR", [ax2_1, ax3_1, ax4_1])
-                                                T.reads(conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16 + v2_i, v3_o * 16 + v3_i], pad_temp_reindex_shared_wmma_matrix_a[v2_o * 16 + v2_i, v4_o * 16 + v4_i], p1_reindex_shared_wmma_matrix_b[v0, v1, v3_o * 16 + v3_i, v4_o * 16 + v4_i])
+                                                T.reads(conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16 + v2_i, v3_o * 16 + v3_i], pad_temp_reindex_shared_wmma_matrix_a[v2_o * 16 + v2_i, v4_o * 16 + v4_i], p1_reindex_shared_wmma_matrix_b[0, 0, v3_o * 16 + v3_i, v4_o * 16 + v4_i])
                                                 T.writes(conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16 + v2_i, v3_o * 16 + v3_i])
                                                 T.block_attr({"meta_schedule.tiling_structure":"SSSRRSRS"})
-                                                conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16 + v2_i, v3_o * 16 + v3_i] = conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16 + v2_i, v3_o * 16 + v3_i] + T.Cast("int32", pad_temp_reindex_shared_wmma_matrix_a[v2_o * 16 + v2_i, v4_o * 16 + v4_i]) * T.Cast("int32", p1_reindex_shared_wmma_matrix_b[v0, v1, v3_o * 16 + v3_i, v4_o * 16 + v4_i])
+                                                conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16 + v2_i, v3_o * 16 + v3_i] = conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16 + v2_i, v3_o * 16 + v3_i] + T.Cast("int32", pad_temp_reindex_shared_wmma_matrix_a[v2_o * 16 + v2_i, v4_o * 16 + v4_i]) * T.Cast("int32", p1_reindex_shared_wmma_matrix_b[0, 0, v3_o * 16 + v3_i, v4_o * 16 + v4_i])
                         for ax0_0, ax1_0 in T.grid(1, 2):
                             with T.block("conv2d_nhwc_reindex_shared_wmma.accumulator_o"):
                                 v0_o = T.axis.spatial(3136, ax2_0_0_ax3_0_0_fused // 4 * 392 + ax2_0_1_ax3_0_1_fused * 2 + ax2_0_2_ax3_0_2_fused // 2 + ax0_0)
