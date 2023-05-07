@@ -313,6 +313,18 @@ class Database(Object):
         """
         return _ffi_api.DatabaseQueryIRModule(self, mod, target, workload_name)  # type: ignore # pylint: disable=no-member
 
+    def dump_pruned(self, destination: "Database") -> None:
+        """Dump the pruned database to files of JSONDatabase format.
+
+        Parameters
+        ----------
+        destination : Database
+            The destination database to be dumped to.
+        """
+        return _ffi_api.DatabaseDumpPruned(  # type: ignore # pylint: disable=no-member
+            self, destination
+        )
+
     def query(
         self,
         mod: IRModule,
