@@ -970,7 +970,7 @@ class PyTorchOpConverter:
         alpha = _expr.const(float(inputs[1]), dtype=dtype)
         zero = _op.const(0, dtype)
         return alpha * _op.minimum(
-            zero, _op.exp(data / alpha) -_expr.const(1, dtype=dtype)
+            zero, _op.exp(data / alpha) - _expr.const(1, dtype=dtype)
         ) + _op.nn.relu(data)
 
     def gelu(self, inputs, input_types):
