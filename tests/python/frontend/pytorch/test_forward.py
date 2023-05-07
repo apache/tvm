@@ -786,7 +786,7 @@ def test_forward_celu():
     verify_model(torch.nn.CELU(alpha=0.3).eval(), input_data=input_data)
     verify_model(torch.nn.CELU(alpha=1.0).eval(), input_data=input_data)
     verify_model(torch.nn.CELU(alpha=1.3).eval(), input_data=input_data)
-    input_data=torch.tensor([-1.0, 2.0],dtype=torch.float32)
+    input_data = torch.tensor([-1.0, 2.0], dtype=torch.float32)
     verify_model(torch.nn.CELU().eval(), input_data=input_data)
 
 
