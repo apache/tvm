@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=no-else-return
+# pylint: disable=no-else-return, invalid-name
 # pylint: disable=unidiomatic-typecheck
 """
 This file contains the set of passes for Relax, which exposes an interface for

@@ -175,7 +175,6 @@ def _tune_tir(
     task_scheduler: TaskScheduler.TaskSchedulerType = "round-robin",
     space: SpaceGenerator.SpaceGeneratorType = "post-order-apply",
     strategy: SearchStrategy.SearchStrategyType = "evolutionary",
-    task_name: str = "main",
     num_tuning_cores: Union[Literal["physical", "logical"], int] = "physical",
     seed: Optional[int] = None,
 ) -> Database:
@@ -209,8 +208,6 @@ def _tune_tir(
         The space generator.
     strategy : SearchStrategy.SearchStrategyType
         The search strategy.
-    task_name : str
-        The name of the task.
     num_tuning_cores : Union[Literal["physical", "logical"], int]
         The number of CPU cores to use during tuning.
     seed : Optional[int]
@@ -237,7 +234,6 @@ def _tune_tir(
         task_scheduler=task_scheduler,
         space=space,
         strategy=strategy,
-        task_name=task_name,
         num_tuning_cores=num_tuning_cores,
         seed=seed,
     )

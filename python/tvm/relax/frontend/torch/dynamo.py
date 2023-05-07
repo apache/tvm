@@ -16,7 +16,7 @@
 # under the License.
 
 # pylint: disable=invalid-name, missing-function-docstring, not-callable
-# pylint: disable=import-outside-toplevel, unused-argument
+# pylint: disable=import-outside-toplevel, unused-argument, use-list-literal
 # mypy: ignore-errors
 """PyTorch Dynamo backend of Relax."""
 import functools

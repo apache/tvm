@@ -137,7 +137,7 @@ class _ArgsConverter:
         """
 
         if any([x in args_to_list_expr for x in args_to_expr]):
-            raise ValueError(f"`args_to_expr` and `args_to_list_expr` should be disjoint.")
+            raise ValueError("`args_to_expr` and `args_to_list_expr` should be disjoint.")
 
         def _convert(name: str, value: Any) -> Any:
             if value is None:

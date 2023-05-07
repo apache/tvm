@@ -14,7 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-argument, invalid-name, no-else-return, too-many-nested-blocks
+# pylint: disable=unused-argument, invalid-name, no-else-return,
+# pylint: disable=too-many-nested-blocks, unused-variable
 """Relay to Relax translator."""
 
 from typing import Any, Dict, List, Optional

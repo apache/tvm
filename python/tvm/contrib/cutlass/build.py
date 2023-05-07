@@ -783,7 +783,7 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
         elif _get_call_node(f.body, "relax.nn.attention_bias") is not None:
             op_attrs = _get_call_node(f.body, "relax.nn.attention_bias").attrs
         else:
-            raise ValueError(f"Cannot find call node for attention")
+            raise ValueError("Cannot find call node for attention")
         arg = {}
 
         if "stacked_attention" in op_type:

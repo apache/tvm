@@ -210,7 +210,7 @@ def dump_ndarray_cache(
     with open(nd_cache_json, "w") as outfile:
         json.dump({"metadata": meta_data, "records": records}, outfile, indent=4)
     print(
-        f"\nAll finished, %d total shards committed, record saved to %s"
+        "\nAll finished, %d total shards committed, record saved to %s"
         % (shard_manager.counter, nd_cache_json)
     )
 

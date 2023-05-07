@@ -286,7 +286,6 @@ TVM_REGISTER_GLOBAL("runtime.module.create_metal_module")
           source);
     });
 
-
 Module MetalModuleLoadBinary(void* strm) {
   dmlc::Stream* stream = static_cast<dmlc::Stream*>(strm);
   // version is reserved for future changes and

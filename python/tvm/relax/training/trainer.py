@@ -183,7 +183,7 @@ class Trainer:
                     raise ValueError(f"Parameter {key} is not found in the model")
                 self._params[self._param_name_to_pos[key]] = tvm.nd.array(val, self.device)
         else:
-            raise ValueError(f"The type of extern_params should be either list or dict")
+            raise ValueError("The type of extern_params should be either list or dict")
 
     def load_states(
         self,
@@ -217,7 +217,7 @@ class Trainer:
                     raise ValueError(f"Parameter {key} is not found in the model")
                 self._states[self._param_name_to_pos[key]] = tvm.nd.array(val, self.device)
         else:
-            raise ValueError(f"The type of extern_states should be either list or dict")
+            raise ValueError("The type of extern_states should be either list or dict")
 
     def export_params(self) -> Dict[str, NDArray]:
         """Export parameters to a dict (parameter name -> NDArray).
