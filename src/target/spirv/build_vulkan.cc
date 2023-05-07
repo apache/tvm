@@ -34,6 +34,7 @@
 #include "../../support/utils.h"
 #include "../build_common.h"
 #include "codegen_spirv.h"
+#include "spirv_utils.h"
 
 namespace tvm {
 namespace codegen {
