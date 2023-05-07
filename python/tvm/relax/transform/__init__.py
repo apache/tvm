@@ -18,6 +18,7 @@
 """Relax transformations. """
 
 from .transform import *
+from .lazy_transform_params import LazyTransformParams
 
 # Import to register the legalization functions.
 from . import legalize_ops
