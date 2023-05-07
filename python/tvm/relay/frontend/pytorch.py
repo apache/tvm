@@ -1332,7 +1332,13 @@ class PyTorchOpConverter:
 
     def threshold(self, inputs, input_types):
         data = inputs[0]
-        return _op.nn.relu(data)
+        # TODO: check the threshold_ and value is correct
+        threshold_ = inputs[1]
+        value = inputs[2]
+        if data > threshold_:
+            return data
+        else:
+            return threshold_
 
     def contiguous(self, inputs, input_types):
         return inputs[0]
