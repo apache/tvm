@@ -150,12 +150,16 @@ inline void print_interactive_table(const String& data) {
  * \param logging_func The logging function.
  */
 inline void clear_logging(const char* file, int lineno, PackedFunc logging_func) {
-  if (logging_func.defined() && using_ipython()) {
-    logging_func(static_cast<int>(PyLogMessage::Level::CLEAR), file, lineno, "");
-  } else {
-    // this would clear all logging output in the console
-    runtime::detail::LogMessage(file, lineno, TVM_LOG_LEVEL_INFO).stream()
-        << "\033c\033[3J\033[2J\033[0m\033[H";
+  if (const char* env_p = std::getenv("TVM_META_SCHEDULE_CLEAR_SCREEN")) {
+    if (std::string(env_p) == "1") {
+      if (logging_func.defined() && using_ipython()) {
+        logging_func(static_cast<int>(PyLogMessage::Level::CLEAR), file, lineno, "");
+      } else {
+        // this would clear all logging output in the console
+        runtime::detail::LogMessage(file, lineno, TVM_LOG_LEVEL_INFO).stream()
+            << "\033c\033[3J\033[2J\033[0m\033[H";
+      }
+    }
   }
 }
 

@@ -65,7 +65,7 @@ return
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2023-04-06T08:57:35.029147
+// Generated at 2023-05-05T13:39:06.475903
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -117,7 +117,7 @@ properties([
 upstream_revision = null
 
 // command to start a docker container
-docker_run = 'docker/bash.sh --env CI --env TVM_SHARD_INDEX --env TVM_NUM_SHARDS --env RUN_DISPLAY_URL --env PLATFORM --env SKIP_SLOW_TESTS --env TEST_STEP_NAME'
+docker_run = 'docker/bash.sh --env CI --env PLATFORM --env TVM_SHARD_INDEX --env TVM_NUM_SHARDS --env RUN_DISPLAY_URL --env PLATFORM --env SKIP_SLOW_TESTS --env TEST_STEP_NAME'
 docker_build = 'docker/build.sh'
 // timeout in minutes
 max_time = 180
@@ -557,7 +557,11 @@ def build(node_type) {
           init_git()
           docker_init(ci_cpu)
           timeout(time: max_time, unit: 'MINUTES') {
-            sh (
+
+            withEnv([
+              'PLATFORM=cpu',
+              ], {
+              sh (
           script: "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh build",
           label: 'Create CPU cmake config',
         )
@@ -573,6 +577,7 @@ def build(node_type) {
         // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
         // TODO(@jroesch): need to resolve CI issue will turn back on in follow up patch
         sh (script: "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh", label: 'Rust build and test')
+            })
           }
         }
       }
@@ -591,7 +596,7 @@ try {
 
 def shard_run_integration_CPU_1_of_4(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'CPU-SMALL'
     }
     node(node_type) {
@@ -639,7 +644,7 @@ def shard_run_integration_CPU_1_of_4(node_type='CPU-SMALL-SPOT', on_demand=false
 
 def shard_run_integration_CPU_2_of_4(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'CPU-SMALL'
     }
     node(node_type) {
@@ -687,7 +692,7 @@ def shard_run_integration_CPU_2_of_4(node_type='CPU-SMALL-SPOT', on_demand=false
 
 def shard_run_integration_CPU_3_of_4(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'CPU-SMALL'
     }
     node(node_type) {
@@ -735,7 +740,7 @@ def shard_run_integration_CPU_3_of_4(node_type='CPU-SMALL-SPOT', on_demand=false
 
 def shard_run_integration_CPU_4_of_4(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'CPU-SMALL'
     }
     node(node_type) {
@@ -785,7 +790,7 @@ def shard_run_integration_CPU_4_of_4(node_type='CPU-SMALL-SPOT', on_demand=false
 
 def shard_run_unittest_CPU_1_of_1(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'CPU-SMALL'
     }
     node(node_type) {
@@ -838,7 +843,7 @@ def shard_run_unittest_CPU_1_of_1(node_type='CPU-SMALL-SPOT', on_demand=false) {
 
 def shard_run_frontend_CPU_1_of_1(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'CPU-SMALL'
     }
     node(node_type) {

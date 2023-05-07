@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-argument
+# pylint: disable=invalid-name, unused-argument, use-list-literal
 """DNNL library supported operators.
 There are two ways to registering a function for an op to indicate if it is
 supported by DNNL.

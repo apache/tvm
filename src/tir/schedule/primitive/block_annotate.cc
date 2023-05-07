@@ -18,6 +18,7 @@
  */
 #include <tvm/tir/expr.h>
 
+#include "../../transforms/ir_utils.h"
 #include "../utils.h"
 
 namespace tvm {

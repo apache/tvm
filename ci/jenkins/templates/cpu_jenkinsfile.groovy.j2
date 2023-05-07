@@ -23,6 +23,7 @@
   condition='!skip_ci && is_docs_only_build != 1',
   ws='tvm/build-cpu',
   docker_image='ci_cpu',
+  platform="cpu",
 ) %}
   sh (
     script: "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh build",

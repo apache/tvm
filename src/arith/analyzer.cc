@@ -228,6 +228,13 @@ TVM_REGISTER_GLOBAL("arith.CreateAnalyzer").set_body([](TVMArgs args, TVMRetValu
     } else if (name == "rewrite_simplify") {
       return PackedFunc(
           [self](TVMArgs args, TVMRetValue* ret) { *ret = self->rewrite_simplify(args[0]); });
+    } else if (name == "get_rewrite_simplify_stats") {
+      return PackedFunc([self](TVMArgs args, TVMRetValue* ret) {
+        *ret = self->rewrite_simplify.GetStatsCounters();
+      });
+    } else if (name == "reset_rewrite_simplify_stats") {
+      return PackedFunc(
+          [self](TVMArgs args, TVMRetValue* ret) { self->rewrite_simplify.ResetStatsCounters(); });
     } else if (name == "canonical_simplify") {
       return PackedFunc(
           [self](TVMArgs args, TVMRetValue* ret) { *ret = self->canonical_simplify(args[0]); });

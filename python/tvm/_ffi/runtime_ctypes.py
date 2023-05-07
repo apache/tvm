@@ -551,6 +551,19 @@ class TVMArray(ctypes.Structure):
         ("byte_offset", ctypes.c_uint64),
     ]
 
+    def __str__(self):
+        shape = [self.shape[i] for i in range(self.ndim)]
+        if self.strides:
+            strides = [self.strides[i] for i in range(self.ndim)]
+        else:
+            strides = []
+
+        return (
+            f"TVMArray(data=0x{self.data:016x}, device={self.device}, "
+            f"dtype={self.dtype}, shape={shape}, "
+            f"strides={strides}, byte_offset={self.byte_offset})"
+        )
+
 
 class ObjectRValueRef:
     """Represent an RValue ref to an object that can be moved.

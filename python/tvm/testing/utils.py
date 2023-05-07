@@ -1664,7 +1664,7 @@ def _fixture_cache(func):
         try:
             hash((args, kwargs))
             return (args, kwargs)
-        except TypeError as e:
+        except TypeError:
             pass
 
         try:
@@ -1761,7 +1761,7 @@ def install_request_hook(depth: int) -> None:
         base = __file__
         msg += f"found file {__file__}\n"
     except NameError:
-        msg += f"no file\n"
+        msg += "no file\n"
 
     if base is None:
         hook_script_dir = Path.cwd().resolve()

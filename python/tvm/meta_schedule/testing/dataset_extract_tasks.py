@@ -20,9 +20,9 @@ import argparse
 import glob
 import json
 import os
+from tqdm import tqdm  # type: ignore
 
 import tvm
-from tqdm import tqdm  # type: ignore
 from tvm import meta_schedule as ms
 from tvm.ir import save_json
 from tvm.meta_schedule.testing.relay_workload import _load_cache

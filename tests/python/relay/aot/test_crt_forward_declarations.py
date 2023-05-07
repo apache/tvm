@@ -237,7 +237,7 @@ def test_tensorized_calls():
         interface_api="c",
         use_unpacked_api=True,
         pass_config=AOT_CORSTONE300_RUNNER.pass_config,
-        target=f"c -keys=arm_cpu -mcpu=cortex-m7",
+        target="c -keys=arm_cpu -mcpu=cortex-m7",
         schedule_name=schedule_name,
     )
 

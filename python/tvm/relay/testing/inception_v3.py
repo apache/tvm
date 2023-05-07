@@ -24,7 +24,7 @@ arXiv preprint arXiv:1512.00567 (2015).
 Adopted from https://github.com/apache/incubator-mxnet/blob/master/
              example/image-classification/symbols/inception-v3.py
 """
-# pylint: disable=invalid-name,missing-docstring,unused-argument
+# pylint: disable=invalid-name,missing-docstring,unused-argument, superfluous-parens
 from tvm import relay
 from .init import create_workload
 from . import layers

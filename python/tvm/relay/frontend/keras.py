@@ -156,8 +156,12 @@ def _convert_advanced_activation(inexpr, keras_layer, etab, data_layout, input_s
             return _op.multiply(negative_slope, _op.subtract(inexpr, threshold))
         return _op.nn.relu(inexpr)
     if act_type == "LeakyReLU":
+        if np.isnan(keras_layer.alpha).any():
+            raise tvm.error.OpAttributeInvalid("The alpha value of a LeakyReLU cannot be None.")
         return _op.nn.leaky_relu(inexpr, alpha=float(keras_layer.alpha))
     if act_type == "ELU":
+        if np.isnan(keras_layer.alpha).any():
+            raise tvm.error.OpAttributeInvalid("The alpha value of a ELU cannot be None.")
         alpha = keras_layer.alpha if hasattr(keras_layer, "alpha") else 1.0
         alpha = _expr.const(alpha, dtype="float32")
         return _get_elu(inexpr, alpha)

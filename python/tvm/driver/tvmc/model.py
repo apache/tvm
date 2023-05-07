@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=consider-using-with,broad-exception-raised,consider-using-from-import
 """
 This file contains the definition of a set of classes that wrap the outputs
 of TVMC functions to create a simpler and more intuitive API.

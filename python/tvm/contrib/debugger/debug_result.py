@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=pointless-exception-statement, unnecessary-list-index-lookup
 """Graph debug results dumping class."""
 import collections
 import json

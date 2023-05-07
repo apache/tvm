@@ -481,10 +481,7 @@ TVM_DLL StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sr
  */
 TVM_DLL StmtSRef RFactor(ScheduleState self, const StmtSRef& loop_sref, int factor_axis);
 /******** Schedule: Block annotation ********/
-/*! \brief The quad used by StorageAlign for (buffer_idx, axis, factor, offset) */
-using StorageAlignTuple = Array<Integer>;
-/*! \brief A list of StorageAlignTuple, used by StorageAlign */
-using StorageAlignAnnotation = Array<StorageAlignTuple>;
+
 /*!
  * \brief Set alignment requirement for specific dimension such that
  *        stride[axis] == k * factor + offset for some k. This is useful to set memory layout for

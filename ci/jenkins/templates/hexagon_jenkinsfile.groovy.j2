@@ -23,6 +23,7 @@
   condition='!skip_ci && is_docs_only_build != 1',
   ws='tvm/build-hexagon',
   docker_image='ci_hexagon',
+  platform="hexagon",
 ) %}
   sh (
     script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_config_build_hexagon.sh build",

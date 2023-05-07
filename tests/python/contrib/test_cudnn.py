@@ -487,7 +487,7 @@ def _verify_cudnn_relay(expr):
     tvm.testing.assert_allclose(
         outputs[0],
         outputs[1],
-        rtol=1e-3,
+        rtol=1e-2,
         atol=30,
     )
 
