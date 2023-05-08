@@ -508,7 +508,26 @@ def test_forward_conv():
         @paddle.jit.to_static
         def forward(self, inputs):
             return self.softmax(self.conv(inputs))
+    class Conv2D2(nn.Layer):
+        def __init__(self, stride=1, padding=0, dilation=1, groups=1, padding_mode="zeros", data_layout='NCHW'):
+            super(Conv2D2, self).__init__()
+            self.conv = nn.Conv2D(
+                3,
+                6,
+                3,
+                stride=stride,
+                padding=padding,
+                dilation=dilation,
+                groups=groups,
+                padding_mode=padding_mode,
+                data_layout=data_layout,
+            )
+            self.softmax = nn.Softmax()
 
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return self.softmax(self.conv(inputs))
+        
     input_shapes = [[1, 3, 10, 10], [1, 3, 12, 12]]
 
     for input_shape in input_shapes:
@@ -521,6 +540,7 @@ def test_forward_conv():
             input_data=input_data,
         )
         verify_model(Conv2D1(stride=2, padding="SAME", dilation=2, groups=3), input_data=input_data)
+        verify_model(Conv2D2(stride=2, padding="SAME", dilation=2, groups=3, data_layout='NHWC'), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -574,7 +594,25 @@ def test_forward_conv3d():
         @paddle.jit.to_static
         def forward(self, inputs):
             return self.softmax(self.conv(inputs))
+    class Conv3D2(nn.Layer):
+        def __init__(self, stride=1, padding=0, dilation=1, groups=1, padding_mode="zeros", data_layout='NCHW'):
+            super(Conv3D2, self).__init__()
+            self.conv = nn.Conv3D(
+                3,
+                6,
+                3,
+                stride=stride,
+                padding=padding,
+                dilation=dilation,
+                groups=groups,
+                padding_mode=padding_mode,
+                data_layout=data_layout,
+            )
+            self.softmax = nn.Softmax()
 
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return self.softmax(self.conv(inputs))
     input_shapes = [[1, 3, 10, 10, 10], [1, 3, 12, 12, 12]]
 
     for input_shape in input_shapes:
@@ -595,6 +633,7 @@ def test_forward_conv3d():
             input_data=input_data,
         )
         verify_model(Conv3D(stride=2, padding="SAME", dilation=2, groups=3), input_data=input_data)
+        verify_model(Conv3D2(stride=2, padding="SAME", dilation=2, groups=3, data_layout='NHWC'), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -838,7 +877,23 @@ def test_forward_group_norm():
         verify_model(GroupNorm(num_channels, 1), input_data, rtol=1e-4, atol=1e-4)
         verify_model(GroupNorm(num_channels, 2), input_data, rtol=1e-4, atol=1e-4)
 
+@tvm.testing.uses_gpu
+def test_forward_gaussian_random():
+    @paddle.jit.to_static
+    def gaussian_random1(shape):
+        return paddle.fluid.layers.gaussian_random(shape)
 
+    @paddle.jit.to_static
+    def gaussian_random2(shape):
+        return paddle.fluid.layers.gaussian_random(shape,dtype='float32')
+
+
+    shapes = [[20], [8, 8], [4, 5, 6], [3, 4, 3, 5]]
+    for shape in zip(shapes):
+
+        verify_model(gaussian_random1, shape=shape)
+        verify_model(gaussian_random2, shape=shape)
+        
 @tvm.testing.uses_gpu
 def test_forward_grid_sampler():
     class GridSampler(nn.Layer):
