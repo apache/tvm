@@ -687,3 +687,18 @@ class Parser(doc.NodeVisitor):
             The visiting result.
         """
         return _dispatch(self, "Return")(self, node)
+
+    def visit_Nonlocal(self, node: doc.Nonlocal) -> Any:  # pylint: disable=invalid-name
+        """The general nonlocal visiting method.
+
+        Parameters
+        ----------
+        node : doc.Nonlocal
+            The doc AST nonlocal node.
+
+        Returns
+        -------
+        res : Any
+            The visiting result.
+        """
+        return _dispatch(self, "Nonlocal")(self, node)
