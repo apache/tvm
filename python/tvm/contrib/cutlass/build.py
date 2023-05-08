@@ -59,6 +59,7 @@ def _get_cutlass_compile_options(sm, threads, use_fast_math=False):
         "-c",
         "-DCUTLASS_ENABLE_TENSOR_CORE_MMA=1",
         "-gencode=arch=compute_%d,code=[sm_%d,compute_%d]" % (sm, sm, sm),
+        "-DNDEBUG",
         "-Xcompiler=-fPIC",
         "-Xcompiler=-Wconversion",
         "-Xcompiler=-fno-strict-aliasing",
