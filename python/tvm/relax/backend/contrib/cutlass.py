@@ -374,6 +374,7 @@ register_patterns(
 
 _REWRITE_PATTERNS = [*attention_rewrite_patterns()]
 
+
 @expr_functor.mutator
 class WorkspaceAnnotator(PyExprMutator):
     def __init__(self, mod):
@@ -391,11 +392,12 @@ class WorkspaceAnnotator(PyExprMutator):
 
             return new_f
 
-        op_type = f.attrs["Composite"]
-
-        if "attention" in op_type:
+        if "attention" in f.attrs["Composite"]:
+            # Workspace is needed only for larger head sizes, but for simplicity we always allocate.
+            out_dtype = f.ret_struct_info.dtype
             out_size_1d = reduce(operator.mul, f.ret_struct_info.shape, 1)
-            workspace_size_bytes = out_size_1d * 2 # 2 for half
+            # This needs to be in sync with the actual value that the kernel expects.
+            workspace_size_bytes = out_size_1d * {"float16": 2, "float32": 4}[out_dtype]
             return f.with_attr("WorkspaceSize", workspace_size_bytes)
 
         return f

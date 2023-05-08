@@ -83,25 +83,25 @@ cutlass_enabled = pytest.mark.skipif(
 pytestmark = [cutlass_enabled]
 
 
-def build_and_run(mod, inputs_np, target, legalize=False):
+def build_and_run(mod, inputs_np, target, legalize=True):
+    mod = relax.transform.FoldConstant()(mod) # To const fold workspace
+
     if legalize:
-        mod = relax.transform.LegalizeOps()(mod)
+        mod = relax.transform.LegalizeOps()(mod) # For cpu reference, nop for cutlass.
 
     dev = tvm.device(target, 0)
     ex = relax.build(mod, target)
-    vm = relax.VirtualMachine(ex, dev, profile=True)
+    vm = relax.VirtualMachine(ex, dev)
     f = vm["main"]
     inputs = [tvm.nd.array(inp, dev) for inp in inputs_np]
-    out = f(*inputs).numpy()
-    print(vm.profile("main", *inputs))
-    return out
+    return f(*inputs).numpy()
+
 
 def get_result_with_relax_cutlass_offload(mod, *args, assert_all_bindings_fused=True):
     mod = partition_for_cutlass(mod)
-    mod = relax.transform.FoldConstant()(mod)
 
     if assert_all_bindings_fused:
-        assert len(mod["main"].body.blocks[0].bindings) == 1
+        assert len(mod["main"].body.blocks[0].bindings) == 2 # +1 for workspace
 
     codegen_pass = relax.transform.RunCodegen({"cutlass": {"sm": 80, "find_first_valid": True}})
     mod = codegen_pass(mod)
@@ -118,7 +118,7 @@ def test_kernel_sharing():
     out = get_result_with_relax_cutlass_offload(
         Conv2dx2, data_np, weight1_np, weight2_np, assert_all_bindings_fused=False
     )
-    ref = build_and_run(Conv2dx2, [data_np, weight1_np, weight2_np], "llvm", legalize=True)
+    ref = build_and_run(Conv2dx2, [data_np, weight1_np, weight2_np], "llvm")
 
     np.testing.assert_equal(out, ref)
 
@@ -245,7 +245,7 @@ def test_conv2d_offload(data_shape, weight_shape, dtype, epilogue, residual_bloc
     )
     out = get_result_with_relax_cutlass_offload(mod, *args)
 
-    ref = build_and_run(mod, args, "llvm", legalize=True)
+    ref = build_and_run(mod, args, "llvm")
 
     tvm.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
 
@@ -371,7 +371,7 @@ def test_matmul_offload(
         residual_activation=residual_activation,
     )
     out = get_result_with_relax_cutlass_offload(mod, *args)
-    ref = build_and_run(mod, args, "llvm", legalize=True)
+    ref = build_and_run(mod, args, "llvm")
 
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
@@ -596,16 +596,15 @@ def get_numpy_attention_ref(b, s, s_kv, n, h, h_v, bias_shape, qk_scale, dtype):
     v = np.random.randn(b, s_kv, n, h_v).astype(dtype)
     qt = q.transpose(0, 2, 1, 3)  # b, n, s, h
     kt = k.transpose(0, 2, 3, 1)  # b, n, h, s_kv
-    # if not qk_scale == "none":
-    #     score = qt @ kt * qk_scale  # b, n, s, s_kv
-    # else:
-    #     score = qt @ kt / np.sqrt(q.shape[-1])  # b, n, s, s_kv
-    # if not bias_shape == "none":
-    #     bias = np.random.randn(*bias_shape).astype(dtype)
-    #     score = score + bias  # b, n, s, s_kv
-    # else:
-    #     bias = None
-    return q, k, v, None, None
+    if not qk_scale == "none":
+        score = qt @ kt * qk_scale  # b, n, s, s_kv
+    else:
+        score = qt @ kt / np.sqrt(q.shape[-1])  # b, n, s, s_kv
+    if not bias_shape == "none":
+        bias = np.random.randn(*bias_shape).astype(dtype)
+        score = score + bias  # b, n, s, s_kv
+    else:
+        bias = None
     attn = tvm.topi.testing.softmax_python(score, -1)
     vt = v.transpose(0, 2, 1, 3)  # b, n, s_kv, h_v
     ref = attn @ vt  # b, n, s, h_v
@@ -621,7 +620,7 @@ def test_attention_offload(attention_size, attention_dtype):
     mod = get_relax_attention_module(q, k, v)
     out = get_result_with_relax_cutlass_offload(mod, q, k, v)
 
-    # tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
+    tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
 @pytest.fixture(
@@ -650,7 +649,7 @@ def test_attention_bias_offload(attention_bias_size):
     mod = get_relax_attention_module(q, k, v, bias)
     out = get_result_with_relax_cutlass_offload(mod, q, k, v, bias)
 
-    # tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
+    tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
 @pytest.fixture(
@@ -969,8 +968,8 @@ def test_attention_rewrite_offload(attention_rewrite_size):
         expected_out = build_and_run(expected_mod, [q, k, v], "cuda")
         tvm.testing.assert_allclose(original_out, expected_out, rtol=1e-5, atol=1e-5)
     else:
-        original_out = build_and_run(original_mod, [q, k, v, bias], "cuda")
-        expected_out = build_and_run(expected_mod, [q, k, v, bias], "cuda")
+        original_out = build_and_run(original_mod, [q, k, v, bias], "cuda", legalize=False)
+        expected_out = build_and_run(expected_mod, [q, k, v, bias], "cuda", legalize=False)
         tvm.testing.assert_allclose(original_out, expected_out, rtol=1e-5, atol=1e-5)
 
 
@@ -1046,12 +1045,10 @@ def test_layer_norm(data_shape, dtype, axes):
     gamma = np.random.randn(data_shape[-1]).astype(dtype)
     beta = np.random.randn(data_shape[-1]).astype(dtype)
     out = build_and_run(mod, [inp, gamma, beta], "cuda")
-    ref = build_and_run(Module, [inp, gamma, beta], "llvm", legalize=True)
+    ref = build_and_run(Module, [inp, gamma, beta], "llvm")
 
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
 if __name__ == "__main__":
-    # tvm.testing.main()
-    # test_attention_bias_offload((4, (16, 8), 32, (8, 16), (4, 32, 16, 8), (4, 32, 16, 8)))
-    test_attention_offload((2, (4096, 4096), 8, (40, 40)), "float16")
+    tvm.testing.main()

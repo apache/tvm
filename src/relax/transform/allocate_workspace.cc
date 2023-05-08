@@ -107,7 +107,10 @@ class WorkspaceProvider : ExprMutator {
     auto new_funcs = relax::ExternFunctionRewriter(mod_, max_workspace_size_).Run();
 
     for (const auto& [gvar, f] : new_funcs) {
-      gvar_map_[gvar] = builder_->AddFunction(f, gvar->name_hint);
+      auto new_gvar = builder_->AddFunction(f, gvar->name_hint);
+      builder_->UpdateFunction(new_gvar,
+                               WithAttr(f, tvm::attr::kGlobalSymbol, new_gvar->name_hint));
+      gvar_map_[gvar] = new_gvar;
       builder_->GetContextIRModule()->Remove(GetRef<GlobalVar>(gvar));
     }
 
