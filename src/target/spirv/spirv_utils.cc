@@ -178,7 +178,8 @@ std::pair<std::unordered_map<std::string, runtime::SPIRVShader>, std::string> Lo
 
 std::pair<std::unordered_map<std::string, runtime::SPIRVShader>, std::string> LowerToSPIRV(
     IRModule mod, Target target) {
-  LOG(FATAL) << "LowerToSPIRV is called but Vulkan is not enabled.";
+  LOG(FATAL)
+      << "LowerToSPIRV is called but SPIRV codegen is not enabled. Please set -DUSE_VULKAN=ON.";
   return {};
 }
 

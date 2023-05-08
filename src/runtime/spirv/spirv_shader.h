@@ -29,7 +29,7 @@
 
 namespace tvm {
 namespace runtime {
-namespace vulkan {
+namespace spirv {
 
 struct SPIRVShader {
   /*! \brief header flag */
@@ -48,13 +48,13 @@ struct SPIRVShader {
   }
 };
 
-}  // namespace vulkan
+}  // namespace spirv
 
-using vulkan::SPIRVShader;
+using spirv::SPIRVShader;
 }  // namespace runtime
 }  // namespace tvm
 
 namespace dmlc {
-DMLC_DECLARE_TRAITS(has_saveload, ::tvm::runtime::vulkan::SPIRVShader, true);
+DMLC_DECLARE_TRAITS(has_saveload, ::tvm::runtime::spirv::SPIRVShader, true);
 }  // namespace dmlc
 #endif  // TVM_RUNTIME_SPIRV_SPIRV_SHADER_H_
