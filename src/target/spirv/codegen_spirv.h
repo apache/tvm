@@ -36,8 +36,8 @@
 #include <unordered_map>
 #include <vector>
 
-#include "../../runtime/thread_storage_scope.h"
 #include "../../runtime/spirv/spirv_shader.h"
+#include "../../runtime/thread_storage_scope.h"
 #include "ir_builder.h"
 #include "spirv_support.h"
 
