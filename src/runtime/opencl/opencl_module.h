@@ -32,7 +32,7 @@
 #include <vector>
 
 #include "../meta_data.h"
-#include "../vulkan/spirv_shader.h"
+#include "../spirv/spirv_shader.h"
 
 namespace tvm {
 namespace runtime {

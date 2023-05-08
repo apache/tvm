@@ -17,8 +17,8 @@
  * under the License.
  */
 
-#ifndef TVM_RUNTIME_VULKAN_SPIRV_SHADER_H_
-#define TVM_RUNTIME_VULKAN_SPIRV_SHADER_H_
+#ifndef TVM_RUNTIME_SPIRV_SPIRV_SHADER_H_
+#define TVM_RUNTIME_SPIRV_SPIRV_SHADER_H_
 
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/device_api.h>
@@ -57,4 +57,4 @@ using vulkan::SPIRVShader;
 namespace dmlc {
 DMLC_DECLARE_TRAITS(has_saveload, ::tvm::runtime::vulkan::SPIRVShader, true);
 }  // namespace dmlc
-#endif  // TVM_RUNTIME_VULKAN_SPIRV_SHADER_H_
+#endif  // TVM_RUNTIME_SPIRV_SPIRV_SHADER_H_

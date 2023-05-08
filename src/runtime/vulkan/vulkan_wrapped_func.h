@@ -30,7 +30,7 @@
 #include "../meta_data.h"
 #include "../pack_args.h"
 #include "../thread_storage_scope.h"
-#include "spirv_shader.h"
+#include "../spirv/spirv_shader.h"
 #include "vulkan/vulkan_core.h"
 #include "vulkan_common.h"
 #include "vulkan_device.h"

@@ -30,7 +30,7 @@
 #include <vector>
 
 #include "../source_utils.h"
-#include "../vulkan/spirv_shader.h"
+#include "../spirv/spirv_shader.h"
 #include "opencl_common.h"
 
 namespace tvm {

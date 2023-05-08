@@ -37,7 +37,7 @@
 #include <vector>
 
 #include "../../runtime/thread_storage_scope.h"
-#include "../../runtime/vulkan/spirv_shader.h"
+#include "../../runtime/spirv/spirv_shader.h"
 #include "ir_builder.h"
 #include "spirv_support.h"
 

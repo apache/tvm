@@ -24,7 +24,7 @@
 #include <unordered_map>
 
 #include "../meta_data.h"
-#include "spirv_shader.h"
+#include "../spirv/spirv_shader.h"
 
 namespace tvm {
 namespace runtime {

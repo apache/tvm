@@ -37,7 +37,7 @@
 #include <sstream>
 #include <vector>
 
-#include "../../runtime/vulkan/spirv_shader.h"
+#include "../../runtime/spirv/spirv_shader.h"
 #include "../../support/utils.h"
 
 namespace tvm {

@@ -22,7 +22,7 @@
  * \brief Build SPIRV block
  */
 
-#include "../../runtime/vulkan/spirv_shader.h"
+#include "../../runtime/spirv/spirv_shader.h"
 #include "../../runtime/vulkan/vulkan_module.h"
 #include "../build_common.h"
 #include "spirv_utils.h"

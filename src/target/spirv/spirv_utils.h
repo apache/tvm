@@ -26,7 +26,7 @@
 #include <unordered_map>
 #include <utility>
 
-#include "../../runtime/vulkan/spirv_shader.h"
+#include "../../runtime/spirv/spirv_shader.h"
 
 namespace tvm {
 namespace codegen {
