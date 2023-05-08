@@ -23,10 +23,6 @@
 #include <tvm/relax/expr_functor.h>
 
 #include "../op/tensor/create.h"
-#include "tvm/ir/expr.h"
-#include "tvm/ir/module.h"
-#include "tvm/relax/struct_info.h"
-#include "utils.h"
 
 namespace tvm {
 namespace relax {
@@ -77,6 +73,7 @@ class ExternFunctionRewriter : ExprMutator {
           callee && callee->IsInstance<FunctionNode>() &&
           Downcast<Function>(callee.value())->GetAttr<String>(attr::kComposite)) {
         auto new_args = call_node->args;
+        ICHECK(workspace_var_param_.defined());
         new_args.push_back(workspace_var_param_);
         return Call(new_op, new_args, call_node->attrs, call_node->sinfo_args, call_node->span);
       }
@@ -125,7 +122,9 @@ class WorkspaceProvider : ExprMutator {
   BindingBlock VisitBindingBlock_(const DataflowBlockNode* block_node) final {
     builder_->BeginDataflowBlock();
     auto workspace = zeros(ShapeExpr({Integer(max_workspace_size_)}), DataType::UInt(8));
-    workspace_var_main_ = builder_->Emit(workspace, "workspace_main");
+    if (!workspace_var_main_.defined()) {
+      workspace_var_main_ = builder_->Emit(workspace, "workspace_main");
+    }
     for (const auto& binding : block_node->bindings) {
       this->VisitBinding(binding);
     }
@@ -146,6 +145,7 @@ class WorkspaceProvider : ExprMutator {
       auto callee = builder_->GetContextIRModule()->Lookup(gv.value());
       if (callee->HasNonzeroAttr(attr::kWorkspaceSize)) {
         auto new_args = call_node->args;
+        ICHECK(workspace_var_main_.defined());
         new_args.push_back(workspace_var_main_);
         return Call(new_op, new_args, call_node->attrs, call_node->sinfo_args, call_node->span);
       }
