@@ -24,7 +24,7 @@
 // Use libspirv for parsing and validating code.
 #include "spirv_utils.h"
 
-#if TVM_USE_VULKAN
+#if TVM_ENABLE_SPIRV
 #include <libspirv.h>
 
 #include "codegen_spirv.h"
@@ -43,7 +43,7 @@
 namespace tvm {
 namespace codegen {
 
-#if TVM_USE_VULKAN
+#if TVM_ENABLE_SPIRV
 
 class SPIRVTools {
  public:
