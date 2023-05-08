@@ -51,7 +51,12 @@ done
 
 cleanup()
 {
-  rm -rf /tmp/$$.clang-format.txt
+    if [ -f /tmp/$$.clang-format.txt ]; then
+       echo ""
+       echo "---------clang-format log----------"
+        cat /tmp/$$.clang-format.txt
+    fi
+    rm -rf /tmp/$$.clang-format.txt
 }
 trap cleanup 0
 
@@ -84,9 +89,6 @@ else
     git-${CLANG_FORMAT} --diff --extensions h,mm,c,cc --binary=${CLANG_FORMAT} "$REVISION" 1> /tmp/$$.clang-format.txt
 fi
 
-echo "---------clang-format log----------"
-cat /tmp/$$.clang-format.txt
-echo ""
 if grep --quiet -E "diff" < /tmp/$$.clang-format.txt; then
     echo "clang-format lint error found. Consider running clang-format-15 on these files to fix them."
     exit 1
