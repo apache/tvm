@@ -53,7 +53,7 @@ Module OpenCLModuleCreate(std::string data, std::string fmt,
  * \param spirv_text The concatenated text representation of SPIRV modules.
  * \param fmap The map function information map of each function.
  */
-Module OpenCLModuleCreate(const std::unordered_map<std::string, vulkan::SPIRVShader>& shaders,
+Module OpenCLModuleCreate(const std::unordered_map<std::string, spirv::SPIRVShader>& shaders,
                           const std::string& spirv_text,
                           std::unordered_map<std::string, FunctionInfo> fmap);
 }  // namespace runtime
