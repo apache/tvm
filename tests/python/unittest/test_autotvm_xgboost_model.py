@@ -32,10 +32,10 @@ def test_fit():
     task, target = get_sample_task()
     records = get_sample_records(n=500)
 
-    base_model = XGBoostCostModel(task, feature_type="itervar", loss_type="rank")
+    base_model = XGBoostCostModel(task, feature_type="itervar", loss_type="reg")
     base_model.fit_log(records, plan_size=32)
 
-    upper_model = XGBoostCostModel(task, feature_type="itervar", loss_type="rank")
+    upper_model = XGBoostCostModel(task, feature_type="itervar", loss_type="reg")
     upper_model.load_basemodel(base_model)
 
     xs = np.arange(10)

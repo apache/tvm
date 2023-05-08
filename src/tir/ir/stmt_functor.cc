@@ -66,10 +66,6 @@ void StmtVisitor::VisitStmt_(const AllocateConstNode* op) {
 
 void StmtVisitor::VisitStmt_(const DeclBufferNode* op) { this->VisitStmt(op->body); }
 
-void StmtVisitor::VisitStmt_(const StoreNode* op) {
-  LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-}
-
 void StmtVisitor::VisitStmt_(const BufferStoreNode* op) {
   this->VisitExpr(op->value);
   VisitArray(op->indices, [this](const PrimExpr& e) { this->VisitExpr(e); });
@@ -369,10 +365,6 @@ Stmt StmtMutator::VisitStmt_(const IfThenElseNode* op) {
   }
 }
 
-Stmt StmtMutator::VisitStmt_(const StoreNode* op) {
-  LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-}
-
 Stmt StmtMutator::VisitStmt_(const BufferStoreNode* op) {
   PrimExpr value = this->VisitExpr(op->value);
   Array<PrimExpr> indices = Internal::Mutate(this, op->indices);
@@ -445,11 +437,11 @@ Stmt StmtMutator::VisitStmt_(const PrefetchNode* op) {
 Stmt StmtMutator::VisitStmt_(const SeqStmtNode* op) {
   Array<Stmt> seq = Internal::Mutate(this, op->seq);
   if (seq.same_as(op->seq)) {
-    return GetRef<Stmt>(op);
+    return SeqStmt::Flatten(GetRef<Stmt>(op));
   } else {
-    auto n = CopyOnWrite(op);
-    n->seq = std::move(seq);
-    return Stmt(n);
+    auto node = CopyOnWrite(op);
+    node->seq = std::move(seq);
+    return SeqStmt::Flatten(SeqStmt(node));
   }
 }
 
@@ -673,14 +665,6 @@ class IRSubstitute : public StmtExprMutator {
     return std::move(var);
   }
 
-  PrimExpr VisitExpr_(const LoadNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-  }
-
-  Stmt VisitStmt_(const StoreNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-  }
-
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
     auto node = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
     return VisitBufferAccess(std::move(node));
@@ -724,8 +708,8 @@ class IRSubstitute : public StmtExprMutator {
     Stmt ret = StmtExprMutator::VisitStmt_(op);
     op = ret.as<AttrStmtNode>();
     // remap var node in attr
-    if (const auto* var_node = op->node.as<VarNode>()) {
-      if (auto mapped_var = vmap_(GetRef<Var>(var_node))) {
+    if (auto var_node = op->node.as<Var>()) {
+      if (auto mapped_var = vmap_(var_node.value())) {
         return AttrStmt(mapped_var, op->attr_key, op->value, op->body);
       }
     }
@@ -752,17 +736,6 @@ Stmt Substitute(Stmt stmt, std::function<Optional<PrimExpr>(const Var&)> vmap) {
 
 PrimExpr Substitute(PrimExpr expr, std::function<Optional<PrimExpr>(const Var&)> vmap) {
   return IRSubstitute(vmap)(std::move(expr));
-}
-
-Array<Range> Substitute(const Array<Range>& region, const Map<Var, PrimExpr>& vmap) {
-  Array<Range> result;
-  result.reserve(region.size());
-  for (const Range& range : region) {
-    PrimExpr min = Substitute(range->min, vmap);
-    PrimExpr extent = Substitute(range->extent, vmap);
-    result.push_back(Range::FromMinExtent(std::move(min), std::move(extent)));
-  }
-  return result;
 }
 
 void PreOrderVisit(const ObjectRef& stmt_or_expr,
@@ -797,10 +770,10 @@ void PreOrderVisit(const ObjectRef& stmt_or_expr,
   };
 
   PreOrderVisitor visitor(fvisit);
-  if (const auto* stmt = stmt_or_expr.as<StmtNode>()) {
-    visitor(GetRef<Stmt>(stmt));
-  } else if (const auto* expr = stmt_or_expr.as<PrimExprNode>()) {
-    visitor(GetRef<PrimExpr>(expr));
+  if (auto stmt = stmt_or_expr.as<Stmt>()) {
+    visitor(stmt.value());
+  } else if (auto expr = stmt_or_expr.as<PrimExpr>()) {
+    visitor(expr.value());
   } else {
     LOG(FATAL) << "InternalError: PreOrderVisit does not accept object with type: "
                << stmt_or_expr->GetTypeKey();
@@ -867,8 +840,8 @@ class IRSubstituteWithDataTypeLegalization : public DataTypeLegalizer {
     Stmt ret = StmtExprMutator::VisitStmt_(op);
     op = ret.as<AttrStmtNode>();
     // remap var node in attr
-    if (const auto* var_node = op->node.as<VarNode>()) {
-      if (auto mapped_var = vmap_(GetRef<Var>(var_node))) {
+    if (auto var_node = op->node.as<Var>()) {
+      if (auto mapped_var = vmap_(var_node.value())) {
         return AttrStmt(mapped_var, op->attr_key, op->value, op->body);
       }
     }

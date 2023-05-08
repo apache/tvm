@@ -99,29 +99,6 @@ def test_buffer_offset_of():
     tvm.ir.assert_structural_equal(offset, [n * 2 + 103])
 
 
-def test_buffer_vload_nullptr():
-    var = tvm.tir.Var("v", dtype="int32")
-    buf = tvm.tir.decl_buffer((1,), name="buf")
-    buf_load = tvm.tir.expr.BufferLoad(buffer=buf, indices=tvm.runtime.convert([0]))
-    buf_load_stmt = tvm.tir.stmt.Evaluate(buf_load)
-    for_loop = tvm.tir.stmt.For(
-        loop_var=var, kind=0, min_val=0, extent=tvm.tir.Cast("int32", buf_load), body=buf_load_stmt
-    )
-    buf_func = tvm.tir.PrimFunc(params={}, body=for_loop)
-    mod = tvm.IRModule({"main": buf_func})
-    # Trigger nullptr buffer bug by pass
-    with pytest.raises(tvm.error.TVMError) as cm:
-        mod = tvm.transform.Sequential(
-            [
-                tvm.tir.transform.PlanAndUpdateBufferAllocationLocation(),
-                tvm.tir.transform.CompactBufferAllocation(),
-                tvm.tir.transform.LowerOpaqueBlock(),
-                tvm.tir.transform.FlattenBuffer(),
-            ]
-        )(mod)
-        assert "(n != nullptr) is false" in str(cm.execption)
-
-
 def test_buffer_index_merge_mult_mod():
     m = te.size_var("m")
     n = te.size_var("n")

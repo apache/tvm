@@ -22,4 +22,4 @@ set -o pipefail
 
 #install the necessary dependancies for golang build
 apt-get update
-apt-install-and-clear -y golang-1.10-go golang-1.10-doc golint
+apt-install-and-clear -y golang-1.18-go golang-1.18-doc golint

@@ -85,7 +85,9 @@ class CodeGenHexagon final : public CodeGenCPU {
   llvm::Module* GetModulePtr() const { return module_.get(); }
 
   uint64_t GetTypeSizeInBits(llvm::Type* type) const {
-#if TVM_LLVM_VERSION >= 100
+#if TVM_LLVM_VERSION >= 160
+    return data_layout_->getTypeSizeInBits(type).getFixedValue();
+#elif TVM_LLVM_VERSION >= 100
     return data_layout_->getTypeSizeInBits(type).getFixedSize();
 #else
     return data_layout_->getTypeSizeInBits(type);

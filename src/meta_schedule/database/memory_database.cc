@@ -80,10 +80,6 @@ class MemoryDatabaseNode : public DatabaseNode {
     if (results.size() > static_cast<size_t>(top_k)) {
       return {results.begin(), results.begin() + top_k};
     } else {
-      if (results.size() < static_cast<size_t>(top_k)) {
-        LOG(WARNING) << "Returned tuning records less than requested(" << results.size() << " of "
-                     << top_k << " asked).";
-      }
       return results;
     }
   }

@@ -206,11 +206,7 @@ def pattern_table():
         return pattern
 
     def qnn_resize_pattern():
-        pattern = is_op("image.resize2d")(wildcard()).has_attr({"method": "nearest_neighbor"})
-        pattern = is_op("qnn.requantize")(
-            pattern, is_constant(), is_constant(), is_constant(), is_constant()
-        )
-        return pattern
+        return is_op("image.resize2d")(wildcard()).has_attr({"method": "nearest_neighbor"})
 
     def qnn_mul_pattern():
         """

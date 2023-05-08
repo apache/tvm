@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, import-self, len-as-condition, no-else-return, too-many-lines
+# pylint: disable=use-list-literal
 """MXNet symbol frontend."""
 import json
 import math
@@ -304,7 +305,7 @@ def _mx_conv1d_transpose(inputs, attrs):
     if data_layout != "NCW":
         raise tvm.error.OpAttributeInvalid('Only "NCW" data layout is supported for 1D Convolution')
     channel_axis = 1
-    kernel_layout = "OIW"
+    kernel_layout = "IOW"
     new_attrs = {}
     new_attrs["channels"] = attrs.get_int("num_filter")
     new_attrs["kernel_size"] = attrs.get_int_tuple("kernel")

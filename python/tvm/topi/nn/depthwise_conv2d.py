@@ -18,8 +18,8 @@
 """Depthwise convolution operators"""
 from __future__ import absolute_import as _abs
 from collections import namedtuple
-import tvm
 import numpy as np
+import tvm
 from tvm import te
 
 from .dilate import dilate

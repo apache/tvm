@@ -105,8 +105,8 @@ class SplitExprCollector {
         return;
       }
       exprs_.push_back(SplitExpr{GetRef<Var>(var), *lower_factor, *extent});
-    } else if (const auto* iter_sum_expr = expr->source->source.as<arith::IterSumExprNode>()) {
-      Visit(GetRef<arith::IterSumExpr>(iter_sum_expr));
+    } else if (auto iter_sum_expr = expr->source->source.as<arith::IterSumExpr>()) {
+      Visit(iter_sum_expr.value());
     } else {
       ICHECK(false) << "Unexpected type: " << expr->source->source->GetTypeKey();
     }

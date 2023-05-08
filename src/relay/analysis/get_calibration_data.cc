@@ -93,10 +93,10 @@ IRModule GetCalibrateModule(IRModule module) {
   // module is mutable, hence, we make a copy of it.
   module.CopyOnWrite();
   for (const auto& pair : glob_funcs) {
-    if (auto* fn = pair.second.as<FunctionNode>()) {
-      auto func = GetRef<Function>(fn);
+    if (auto opt = pair.second.as<Function>()) {
       // we only collect the outputs for main function
       if (pair.first->name_hint == "main") {
+        auto func = opt.value();
         Collector collector(module);
         PostOrderRewrite(func->body, &collector);
         auto new_outputs = collector.GetNewOutputs();
@@ -108,8 +108,8 @@ IRModule GetCalibrateModule(IRModule module) {
   }
   // reset the attribute of functions for running graph executor
   for (const auto& pair : glob_funcs) {
-    if (auto* fn = pair.second.as<FunctionNode>()) {
-      auto func = GetRef<Function>(fn);
+    if (auto opt = pair.second.as<Function>()) {
+      auto func = opt.value();
       if (func->GetAttr<String>(attr::kCompiler)) {
         // we need to inline the functions in order to run grpah runtime
         func = WithAttr(std::move(func), attr::kInline, tvm::Integer(1));
@@ -179,10 +179,9 @@ Map<GlobalVar, Array<Integer>> GetCalibrateOutputMap(const IRModule& module) {
   size_t offset = 0;
   auto glob_funcs = module->functions;
   for (const auto& pair : glob_funcs) {
-    if (auto* fn = pair.second.as<FunctionNode>()) {
+    if (const auto* func = pair.second.as<FunctionNode>()) {
       if (pair.first->name_hint == "main") {
         OutputMapper output_mapper(&output_map, module, &offset);
-        auto func = GetRef<Function>(fn);
         PostOrderRewrite(func->body, &output_mapper);
       }
     }

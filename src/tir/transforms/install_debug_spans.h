@@ -75,7 +75,6 @@
   X(Allocate)                                                  \
   X(AllocateConst)                                             \
   X(DeclBuffer)                                                \
-  X(Store)                                                     \
   X(BufferStore)                                               \
   X(BufferRealize)                                             \
   X(AssertStmt)                                                \

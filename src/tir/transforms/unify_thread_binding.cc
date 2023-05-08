@@ -64,9 +64,20 @@ class ThreadBindingUnifier : public StmtExprMutator {
     if (annotations.empty()) {
       return stmt;
     }
-    For new_loop = Downcast<For>(stmt);
-    new_loop.CopyOnWrite()->annotations = std::move(annotations);
-    return std::move(new_loop);
+    if (const auto* loop = stmt.as<ForNode>()) {
+      For new_loop = GetRef<For>(loop);
+      new_loop.CopyOnWrite()->annotations = std::move(annotations);
+      return std::move(new_loop);
+    } else {
+      // Create a new unit loop with the annotation.
+      DataType dtype = op->loop_var->dtype;
+      return For(/*loop_var=*/Var("var", dtype),   //
+                 /*min=*/IntImm(dtype, 0),         //
+                 /*extent=*/IntImm(dtype, 1),      //
+                 /*kind=*/ForKind::kSerial, stmt,  //
+                 /*thread_binding=*/NullOpt,       //
+                 /*annotation=*/std::move(annotations));
+    }
   }
 
   template <typename Node>

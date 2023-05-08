@@ -38,6 +38,7 @@ from .conv1d_transpose import *
 from .bnn import *
 from .qnn import *
 from .upsampling import *
+from .instance_norm import instance_norm
 from .layer_norm import layer_norm
 from .group_norm import group_norm
 from .local_response_norm import *

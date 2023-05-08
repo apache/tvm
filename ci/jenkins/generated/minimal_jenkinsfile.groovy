@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2023-02-02T20:12:16.540335
+// Generated at 2023-05-05T13:39:06.382368
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -112,7 +112,7 @@ properties([
 upstream_revision = null
 
 // command to start a docker container
-docker_run = 'docker/bash.sh --env CI --env TVM_SHARD_INDEX --env TVM_NUM_SHARDS --env RUN_DISPLAY_URL --env PLATFORM --env SKIP_SLOW_TESTS --env TEST_STEP_NAME'
+docker_run = 'docker/bash.sh --env CI --env PLATFORM --env TVM_SHARD_INDEX --env TVM_NUM_SHARDS --env RUN_DISPLAY_URL --env PLATFORM --env SKIP_SLOW_TESTS --env TEST_STEP_NAME'
 docker_build = 'docker/build.sh'
 // timeout in minutes
 max_time = 180
@@ -354,9 +354,9 @@ def check_pr(pr_number) {
 
 }
 
-def prepare() {
+def prepare(node_type) {
   stage('Prepare') {
-    node('CPU-SMALL') {
+    node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/prepare") {
         init_git()
 
@@ -539,16 +539,24 @@ def micro_cpp_unittest(image) {
 
 cancel_previous_build()
 
-prepare()
-def build() {
+try {
+    prepare('CPU-SMALL-SPOT')
+} catch(Exception ex) {
+  prepare('CPU-SMALL')
+}
+def build(node_type) {
   stage('Build') {
     if (!skip_ci && is_docs_only_build != 1) {
-      node('CPU-SMALL') {
+      node(node_type) {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-cpu-minimal") {
           init_git()
           docker_init(ci_minimal)
           timeout(time: max_time, unit: 'MINUTES') {
-            sh (
+
+            withEnv([
+              'PLATFORM=minimal',
+              ], {
+              sh (
           script: "${docker_run} ${ci_minimal} ./tests/scripts/task_config_build_minimal.sh build",
           label: 'Create CPU minimal cmake config',
         )
@@ -559,6 +567,7 @@ def build() {
             script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/cpu-minimal --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/libtvm_allvisible.so build/crttest build/cpptest build/build.ninja build/CMakeFiles/rules.ninja build/standalone_crt build/build.ninja build/microtvm_template_projects",
             label: 'Upload artifacts to S3',
           )
+            })
           }
         }
       }
@@ -567,14 +576,21 @@ def build() {
     }
   }
 }
-build()
+try {
+    build('CPU-SMALL-SPOT')
+} catch (Exception ex) {
+    build('CPU-SMALL')
+}
 
 
 
 
-def shard_run_unittest_CPU_MINIMAL_1_of_1() {
+def shard_run_unittest_CPU_MINIMAL_1_of_1(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    node('CPU-SMALL') {
+    if (on_demand==true || node_type.contains('ARM')) {
+        node_type = 'CPU-SMALL'
+    }
+    node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-cpu-minimal") {
         try {
           init_git()
@@ -623,7 +639,11 @@ def test() {
     }
     parallel(
     'unittest: CPU MINIMAL 1 of 1': {
+      try {
       shard_run_unittest_CPU_MINIMAL_1_of_1()
+      } catch (Exception ex) {
+        shard_run_unittest_CPU_MINIMAL_1_of_1(on_demand = true)
+      }
     },
     )
   }

@@ -135,7 +135,6 @@ def main():
                 adaptive_training=ARGS.adaptive_training,
             ),
             strategy=ms.search_strategy.EvolutionarySearch(),
-            task_name=ARGS.workload,
         )
 
     print("Tuning Time:")

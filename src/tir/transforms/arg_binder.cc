@@ -184,7 +184,7 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
                    TVMArrayGet(DataType::UInt(16), handle, builtin::kArrTypeLanes) ==
                        IntImm(DataType::UInt(16), buffer->dtype.lanes()));
   if (!(buffer->dtype == DataType::Int(1) || buffer->dtype == DataType::Int(4) ||
-        buffer->dtype == DataType::UInt(4) || buffer->dtype == DataType::UInt(16))) {
+        buffer->dtype == DataType::UInt(4))) {
     auto type_msg = tvm::tir::StringImm(type_err_msg.str());
     asserts_.emplace_back(AssertStmt(a_ndim == v_ndim, msg, nop));
     asserts_.emplace_back(AssertStmt(cond, type_msg, nop));
@@ -230,7 +230,7 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
     for (size_t i = buffer->shape.size(); i != 0; --i) {
       size_t k = i - 1;
       PrimExpr svalue = cast(stype, BufferLoad(buf_strides, {IntImm(DataType::Int(32), k)}));
-      conds.push_back(expect_stride == svalue);
+      conds.push_back(buffer->shape[k] == 1 || expect_stride == svalue);
       expect_stride = expect_stride * buffer->shape[k];
     }
     std::ostringstream stride_err_msg;

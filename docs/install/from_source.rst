@@ -335,7 +335,7 @@ like ``virtualenv``.
 
    .. code:: bash
 
-       pip3 install --user typing-extensions
+       pip3 install --user typing-extensions psutil scipy
 
    * If you want to use RPC Tracker
 

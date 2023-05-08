@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=invalid-name
 
 """Defines a basic Project API server template.
 
@@ -475,7 +476,7 @@ class ProjectAPIServer:
             _LOG.error("EOF")
             return False
 
-        except Exception as exc:  # pylint: disable=broad-except
+        except Exception:  # pylint: disable=broad-except
             _LOG.error("Caught error reading request", exc_info=1)
             return False
 

@@ -486,7 +486,7 @@ def get_conv3d_transpose(
     activation=None,
     dtype="float32",
     data_layout="NCDHW",
-    kernel_layout="OIDHW",
+    kernel_layout="IODHW",
 ):
     x = relay.var("x", shape=(x_shape), dtype=dtype)
     kernel = relay.const(np.random.randint(0, 1, k_shape).astype(dtype))

@@ -313,7 +313,6 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc VisitExpr_(const SelectNode* op) override;
   Doc VisitExpr_(const BufferLoadNode* op) override;
   Doc VisitExpr_(const ProducerLoadNode* op) override;
-  Doc VisitExpr_(const LoadNode* op) override;
   Doc VisitExpr_(const RampNode* op) override;
   Doc VisitExpr_(const BroadcastNode* op) override;
   Doc VisitExpr_(const tir::LetNode* op) override;
@@ -325,7 +324,6 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc VisitStmt_(const LetStmtNode* op) override;
   Doc VisitStmt_(const AttrStmtNode* op) override;
   Doc VisitStmt_(const AssertStmtNode* op) override;
-  Doc VisitStmt_(const StoreNode* op) override;
   Doc VisitStmt_(const BufferStoreNode* op) override;
   Doc VisitStmt_(const ProducerStoreNode* op) override;
   Doc VisitStmt_(const BufferRealizeNode* op) override;

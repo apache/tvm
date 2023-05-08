@@ -23,7 +23,7 @@ import pytest
 
 
 def nop():
-    return tvm.tir.Evaluate(0)
+    return tvm.tir.Evaluate(1)
 
 
 def test_remove_no_op():
@@ -86,12 +86,14 @@ def test_remove_no_op_with_invalid_extent():
 
 class BaseBeforeAfter(tvm.testing.CompareBeforeAfter):
     use_dataflow_analysis = False
+    max_simplification_steps = 0
 
     def transform(self):
         def inner(mod):
             config = {
                 "tir.RemoveNoOp": {
                     "use_dataflow_analysis": self.use_dataflow_analysis,
+                    "max_simplification_steps": self.max_simplification_steps,
                 }
             }
             with tvm.transform.PassContext(config=config):
@@ -319,9 +321,16 @@ class TestRemoveOverwrittenPredicatedLoopWithIdenticalCondition(BaseBeforeAfter)
     Similar to TestKeepPartiallyOverwrittenLoop, except the first loop
     has the same predicate as the second, and can therefore be
     removed.
+
+    In the past, this test has had performance regressions in which
+    the runtime increased from a few seconds to nearly ten minutes.
+    The "max_simplification_steps" parameter is set at twice the
+    current number of steps required, in order to prevent similar
+    performance regression.
     """
 
     use_dataflow_analysis = True
+    max_simplification_steps = 200000
 
     def before(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
@@ -347,9 +356,16 @@ class TestRemoveOverwrittenPredicatedLoopWithProvableCondition(BaseBeforeAfter):
     loop's predicate.  So long as the regions written in the first
     loop are a subset of those written in the second loop, they can be
     removed.
+
+    In the past, this test has had performance regressions in which
+    the runtime increased from a few seconds to nearly ten minutes.
+    The "max_simplification_steps" parameter is set at twice the
+    current number of steps required, in order to prevent similar
+    performance regression.
     """
 
     use_dataflow_analysis = True
+    max_simplification_steps = 200000
 
     def before(A: T.Buffer(16, "int32")):
         for i in T.serial(16):

@@ -114,12 +114,10 @@ def test_deduce():
     assert str(res9.max_value) == "neg_inf"
     assert str(res9.min_value) == "pos_inf"
 
-    # Unsatisfiable Mul in `EQ`
-    res10 = tvm.arith.deduce_bound(
-        a, (b * a == b), {b: b_s}, {}
-    )  # simplifier is not able to prove that (b % b == 0)
-    assert str(res10.max_value) == "neg_inf"
-    assert str(res10.min_value) == "pos_inf"
+    res10 = tvm.arith.deduce_bound(a, (b * a == b), {b: b_s}, {})
+    # simplifier is now able to prove symbolic relation (b * a % b == 0)
+    tvm.testing.assert_prim_expr_equal(res10.max_value, 1)
+    tvm.testing.assert_prim_expr_equal(res10.min_value, 1)
 
 
 def test_check():

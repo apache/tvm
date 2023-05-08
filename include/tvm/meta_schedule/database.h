@@ -178,6 +178,8 @@ class TuningRecord : public runtime::ObjectRef {
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(TuningRecord, runtime::ObjectRef, TuningRecordNode);
 };
 
+class Database;
+
 /* \brief The abstract interface of database. */
 class DatabaseNode : public runtime::Object {
  public:
@@ -258,7 +260,11 @@ class DatabaseNode : public runtime::Object {
    */
   virtual Optional<IRModule> QueryIRModule(const IRModule& mod, const Target& target,
                                            const String& workload_name);
-
+  /*!
+   * \brief Prune the database and dump it a given database.
+   * \param destination The destination database to be dumped to.
+   */
+  void DumpPruned(Database destination);
   /*! \brief Return a reference to the owned module equality method instance. */
   const ModuleEquality& GetModuleEquality() const {
     ICHECK(mod_eq_);

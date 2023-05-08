@@ -268,7 +268,6 @@ def evaluate(
     c_data,
     expected_output=None,
     use_async_copy=0,
-    merge_async_commit_queue_scope=False,
 ):
     """Evaluate function."""
     target_hexagon = tvm.target.hexagon("v68", link_params=True)
@@ -276,7 +275,6 @@ def evaluate(
         config={
             "tir.use_async_copy": use_async_copy,
             "tir.experimental_dma_bypass_cache": 1,
-            "tir.merge_async_commit_queue_scope": merge_async_commit_queue_scope,
         }
     ):
         func_tir = tvm.build(
@@ -485,7 +483,6 @@ class TestAsyncDMAPipeline:
             np.zeros(expected_output.shape, "int32"),
             expected_output,
             use_async_copy=1,
-            merge_async_commit_queue_scope=False,
         )
 
         sch = get_fake_conv_vtcm_schedule(size_a, size_w)
@@ -880,25 +877,6 @@ def test_meta(hexagon_session):
             "pipeline_runtime": pipeline_runtime,
         },
     )
-
-
-def test_non_contiguous():
-    """Test Non Contiguous memory lowering."""
-    sch = tvm.tir.Schedule(conv2d_async_non_contig)
-    target_hexagon = tvm.target.hexagon("v68", link_params=True)
-    err_rgx = r"Unable to lower async dma for non contiguous memory access with load index: "
-    # Currently we do not support non contiguous memory access being lowered to
-    # async dma so we throw an error.
-    with pytest.raises(tvm.TVMError, match=err_rgx):
-        with tvm.transform.PassContext(
-            config={
-                "tir.use_async_copy": 1,
-                "tir.merge_async_commit_queue_scope": 0,
-            }
-        ):
-            tvm.build(
-                sch.mod["main"], target=tvm.target.Target(target_hexagon, host=target_hexagon)
-            )
 
 
 if __name__ == "__main__":

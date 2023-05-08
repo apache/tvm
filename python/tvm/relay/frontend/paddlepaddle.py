@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, import-self, len-as-condition, unused-argument, too-many-lines
-# pylint: disable=import-outside-toplevel
+# pylint: disable=import-outside-toplevel, broad-exception-raised, use-list-literal, superfluous-parens
 """Paddle: PArallel Distributed Deep LEarning."""
 
 import warnings
@@ -400,6 +400,60 @@ def convert_conv2d_transpose(g, op, block):
     g.add_node(op.output("Output")[0], out)
 
 
+def convert_conv3d(g, op, block):
+    """Operator converter for conv3d."""
+
+    dilations = op.attr("dilations")
+    groups = op.attr("groups")
+    paddings = op.attr("paddings")
+    padding_algorithm = op.attr("padding_algorithm")
+    strides = op.attr("strides")
+
+    kernel = g.get_node(op.input("Filter")[0])
+    input_x = g.get_node(op.input("Input")[0])
+    out_channels, _, k_d, k_h, k_w = infer_shape(kernel)
+    if padding_algorithm == "VALID":
+        paddings = [0, 0, 0]
+    elif padding_algorithm == "SAME":
+        dilations = [1, 1, 1]
+        input_x = autopad(input_x, strides, [k_d, k_h, k_w], dilations)
+        paddings = [0, 0, 0]
+    elif padding_algorithm == "EXPLICIT":
+        if len(paddings) == 3:
+            paddings = [
+                paddings[0],
+                paddings[1],
+                paddings[2],
+                paddings[0],
+                paddings[1],
+                paddings[2],
+            ]
+        elif len(paddings) == 6:
+            paddings = [
+                paddings[0],
+                paddings[3],
+                paddings[1],
+                paddings[4],
+                paddings[2],
+                paddings[5],
+            ]
+    else:
+        msg = 'Value {} in attribute "padding" of operator Conv is not "valid."'
+        raise tvm.error.OpAttributeInvalid(msg.format(padding_algorithm))
+
+    out = _op.nn.conv3d(
+        input_x,
+        kernel,
+        strides=strides,
+        padding=paddings,
+        dilation=dilations,
+        groups=groups,
+        channels=out_channels,
+        kernel_size=[k_d, k_h, k_w],
+    )
+    g.add_node(op.output("Output")[0], out)
+
+
 def convert_dist(g, op, block):
     """Operator converter for dist."""
 
@@ -448,7 +502,13 @@ def convert_dropout(g, op, block):
     """Operator converter for dropout."""
 
     x = g.get_node(op.input("X")[0])
-    g.add_node(op.output("Out")[0], x)
+    dropout_prob = op.attr("dropout_prob")
+    dropout_implementation = op.attr("dropout_implementation")
+    if dropout_implementation == "downgrade_in_infer":
+        out = _op.nn.dropout(x, dropout_prob) * _expr.const(1 - dropout_prob, dtype="float32")
+    else:
+        out = _op.nn.dropout(x, dropout_prob)
+    g.add_node(op.output("Out")[0], out)
 
 
 def convert_dot(g, op, block):
@@ -799,7 +859,7 @@ def convert_grid_sampler(g, op, block):
         axes = [0, 4, 1, 2, 3]
         grid = _op.transform.transpose(grid, axes)
     else:
-        msg = f"only 4D and 5D are supported."
+        msg = "only 4D and 5D are supported."
         raise ValueError(msg)
 
     out = _op.image.grid_sample(x, grid, mode, layout, padding_mode, align_corners)
@@ -843,8 +903,9 @@ def convert_hard_sigmoid(g, op, block):
     """Operator converter for hard_sigmoid."""
 
     slope = op.attr("slope")
+    offset = op.attr("offset")
     x = g.get_node(op.input("X")[0])
-    out = x * _expr.const(slope) + _expr.const(0.5)
+    out = x * _expr.const(slope) + _expr.const(offset)
     out = _op.clip(out, 0, 1)
     g.add_node(op.output("Out")[0], out)
 
@@ -1371,7 +1432,8 @@ def convert_pixel_shuffle(g, op, block):
 
     x = g.get_node(op.input("X")[0])
     upscale_factor = op.attr("upscale_factor")
-    out = _op.nn.depth_to_space(x, upscale_factor, mode="CRD")
+    data_format = op.attr("data_format")
+    out = _op.nn.depth_to_space(x, block_size=upscale_factor, layout=data_format, mode="CRD")
     g.add_node(op.output("Out")[0], out)
 
 
@@ -2416,6 +2478,7 @@ _convert_map = {
     "concat": convert_concat,
     "conv2d": convert_conv2d,
     "conv2d_transpose": convert_conv2d_transpose,
+    "conv3d": convert_conv3d,
     "cos": convert_unary_op,
     "cosh": convert_unary_op,
     "cumsum": convert_cumsum,

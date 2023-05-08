@@ -36,48 +36,20 @@ class VerifyVTCMLimitNode : public PostprocNode {
   }
 
   bool Verify(const IRModule& mod) const {
-    for (const auto& kv : mod->functions) {
-      if (const auto* prim_func = kv.second.as<tir::PrimFuncNode>()) {
-        if (!tir::VerifyVTCMLimit(GetRef<tir::PrimFunc>(prim_func), vtcm_capacity)) {
-          return false;
-        }
-      }
+    if (!tir::VerifyVTCMLimit(mod, vtcm_capacity)) {
+      return false;
     }
     return true;
   }
 
   bool Apply(const tir::Schedule& sch) final {
     IRModule mod = sch->mod();
-    for (const auto& kv : mod->functions) {
-      const GlobalVar& g_var = kv.first;
-      const BaseFunc& base_func = kv.second;
-      if (const auto* prim_func = base_func.as<tir::PrimFuncNode>()) {
-        IRModule lowered{nullptr};
-        try {
-          auto pass_list = Array<tvm::transform::Pass>();
-          pass_list.push_back(tir::transform::LowerInitBlock());
-          pass_list.push_back(tir::transform::PlanAndUpdateBufferAllocationLocation());
-          pass_list.push_back(tir::transform::ConvertBlocksToOpaque());
-          pass_list.push_back(tir::transform::CompactBufferAllocation());
-          pass_list.push_back(tir::transform::LowerMatchBuffer());
-          pass_list.push_back(tir::transform::InjectSoftwarePipeline());
-          pass_list.push_back(tir::transform::LowerOpaqueBlock());
-          pass_list.push_back(tir::transform::FlattenBuffer());
-          pass_list.push_back(tir::transform::Simplify());
-          pass_list.push_back(tir::transform::VectorizeLoop(true));
-          pass_list.push_back(tir::transform::StorageRewrite());
-          transform::PassContext pass_ctx = transform::PassContext::Current();
-          tir::PrimFunc f = WithAttr(GetRef<tir::PrimFunc>(prim_func), "global_symbol",
-                                     runtime::String(g_var->name_hint));
-          IRModule mod = IRModule(Map<GlobalVar, BaseFunc>({{GlobalVar(g_var->name_hint), f}}));
-          lowered = tvm::transform::Sequential(pass_list)(std::move(mod));
-        } catch (const dmlc::Error& e) {
-          return false;
-        }
-        if (!Verify(lowered)) {
-          return false;
-        }
-      }
+    IRModule lowered{nullptr};
+    auto pass_list = tir::GetVTCMCompactionPasses();
+    transform::PassContext pass_ctx = transform::PassContext::Current();
+    lowered = tvm::transform::Sequential(pass_list)(std::move(mod));
+    if (!Verify(lowered)) {
+      return false;
     }
     return true;
   }

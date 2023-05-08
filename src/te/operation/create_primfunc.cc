@@ -126,8 +126,8 @@ class LayoutFreePlaceholdersNormalizer : public StmtMutator {
  public:
   PrimFunc Process(PrimFunc func) {
     for (int i = 0, n = func->params.size(); i < n; ++i) {
-      if (const auto* v = func->params[i].as<VarNode>()) {
-        if (Optional<Buffer> buffer = func->buffer_map.Get(GetRef<Var>(v))) {
+      if (auto v = func->params[i].as<Var>()) {
+        if (Optional<Buffer> buffer = func->buffer_map.Get(v.value())) {
           buffer2index_[buffer.value()] = i;
         }
       }
@@ -186,7 +186,7 @@ BlockRealize GenerateBlockFromTensors(const te::ComputeOp& compute_op,
                                       arith::Analyzer* analyzer) {
   // Step 1. Push_back data_par axis and reduce_axis into block_vars.
   Array<IterVar> iter_vars;
-  std::unordered_map<const VarNode*, PrimExpr> var_map;
+  std::unordered_map<const VarNode*, Var> var_map;
   iter_vars.reserve(compute_op->axis.size() + compute_op->reduce_axis.size());
   auto f_push_block_vars = [&iter_vars, &var_map, &analyzer](const Array<IterVar>& iters) {
     for (IterVar iter_var : iters) {
@@ -298,8 +298,8 @@ BlockRealize GenerateBlockFromTensors(const te::ComputeOp& compute_op,
   // Step 5. Add script_parsing_detect_access attr for auto complete the whole IR.
   Map<String, ObjectRef> annotations;
   auto mutate_attr = [&info](const ObjectRef& value) -> ObjectRef {
-    if (const auto* tensor_value = value.as<te::TensorNode>()) {
-      return info->tensor2buffers.at(GetRef<te::Tensor>(tensor_value));
+    if (auto tensor_value = value.as<te::Tensor>()) {
+      return info->tensor2buffers.at(tensor_value.value());
     } else {
       return value;
     }
@@ -499,13 +499,12 @@ void RewriteStageToBlock(const te::Operation& op, CreateFuncInfo* info, Array<St
           decl_buffer(placeholder->shape, placeholder->dtype, placeholder->name, "global");
       info->tensor2buffers[tensor] = buffer;
     }
-  } else if (const auto* compute_op = op.as<te::ComputeOpNode>()) {
+  } else if (auto compute_op = op.as<te::ComputeOp>()) {
     // Case 2. ComputeOp (te.compute)
-    root_stmts->push_back(
-        GenerateStmtFromCompute(GetRef<te::ComputeOp>(compute_op), info, analyzer));
-  } else if (const auto extern_op = op.as<te::ExternOpNode>()) {
+    root_stmts->push_back(GenerateStmtFromCompute(compute_op.value(), info, analyzer));
+  } else if (const auto extern_op = op.as<te::ExternOp>()) {
     // Case 3. ExternOp (te.extern)
-    root_stmts->push_back(GenerateStmtFromExternOp(GetRef<te::ExternOp>(extern_op), info));
+    root_stmts->push_back(GenerateStmtFromExternOp(extern_op.value(), info));
   } else {
     ICHECK(false) << "TypeError: Unsupported Operation: " << op->GetTypeKey() << ". "
                   << "Only te.placeholder and te.compute are allowed for now.";

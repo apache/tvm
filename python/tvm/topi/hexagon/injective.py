@@ -16,10 +16,8 @@
 # under the License.
 
 """Schedule for injective operators"""
-
-import tvm
-
 import numpy as np
+import tvm
 
 
 def schedule_injective(outs):

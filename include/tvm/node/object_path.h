@@ -122,7 +122,7 @@ class ObjectPathNode : public Object {
 class ObjectPath : public ObjectRef {
  public:
   /*! \brief Create a path that represents the root object itself. */
-  static ObjectPath Root();
+  static ObjectPath Root(Optional<String> name = NullOpt);
 
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(ObjectPath, ObjectRef, ObjectPathNode);
 };
@@ -135,7 +135,9 @@ class ObjectPath : public ObjectRef {
 
 class RootPathNode final : public ObjectPathNode {
  public:
-  explicit RootPathNode();
+  Optional<String> name;
+
+  explicit RootPathNode(Optional<String> name = NullOpt);
 
   static constexpr const char* _type_key = "RootPath";
   TVM_DECLARE_FINAL_OBJECT_INFO(RootPathNode, ObjectPathNode);

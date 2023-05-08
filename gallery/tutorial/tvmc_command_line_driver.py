@@ -412,6 +412,11 @@ capabilities, and set the stage for understanding how TVM works.
 # process, in terms of number of repetitions (``--repeat`` and ``--number``, for example), the tuning
 # algorithm to be used, and so on. Check ``tvmc tune --help`` for more information.
 #
+# In some situations it might be a good idea, to only tune specific tasks (i.e. the most relevant ones)
+# to waste less time tuning simpler workworloads. The flag `--task` offers versatile options to limt
+# the tasks used for tuning, e.g. `--task 20,22` or `--task 16-`. All available tasks can be printed
+# using `--task list`.
+#
 
 ################################################################################
 # Compiling an Optimized Model with Tuning Data

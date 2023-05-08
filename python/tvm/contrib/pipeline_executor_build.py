@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=f-string-without-interpolation
 """Pipeline executor that executes a series of modules in a pipeline fashion."""
 import json
 import os

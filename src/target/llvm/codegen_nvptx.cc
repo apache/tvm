@@ -45,7 +45,9 @@
 #include <llvm/Support/SourceMgr.h>
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Target/TargetMachine.h>
+#if TVM_LLVM_VERSION < 170
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
+#endif
 #include <tvm/runtime/device_api.h>
 
 #include <memory>
@@ -119,7 +121,7 @@ class CodeGenNVPTX : public CodeGenLLVM {
         ICHECK(storage_scope.rank == runtime::StorageRank::kShared)
             << "Can only allocate shared or local memory inside kernel";
         buf = AllocateSharedMemory(op->dtype, constant_size, 3, info.alignment,
-                                   llvm::GlobalValue::PrivateLinkage);
+                                   llvm::GlobalValue::ExternalLinkage);
       }
     }
 

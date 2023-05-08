@@ -24,6 +24,7 @@
 
 #include <algorithm>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "../../runtime/metal/metal_module.h"
@@ -130,12 +131,14 @@ void CodeGenMetal::AddFunction(const PrimFunc& f) {
   ICHECK_EQ(name_supply_->FreshName("threadIdx"), "threadIdx");
   ICHECK_EQ(name_supply_->FreshName("blockIdx"), "blockIdx");
   int work_dim = 0;
-  auto thread_axis = f->GetAttr<Array<tir::IterVar>>(tir::attr::kDeviceThreadAxis).value();
-
-  for (IterVar iv : thread_axis) {
-    runtime::ThreadScope scope = runtime::ThreadScope::Create(iv->thread_tag);
-    work_dim = std::max(work_dim, scope.dim_index + 1);
+  auto launch_params = f->GetAttr<Array<String>>(tir::attr::kKernelLaunchParams).value();
+  for (const auto& tag : launch_params) {
+    if (tag != runtime::launch_param::kUseDynamicSharedMemoryTag) {
+      runtime::ThreadScope scope = runtime::ThreadScope::Create(tag);
+      work_dim = std::max(work_dim, scope.dim_index + 1);
+    }
   }
+
   if (work_dim != 0) {
     // use ushort by default for now
     stream << "  ";
@@ -145,16 +148,8 @@ void CodeGenMetal::AddFunction(const PrimFunc& f) {
     PrintType(DataType::UInt(thread_index_bits_, work_dim), stream);
     stream << " threadIdx [[thread_position_in_threadgroup]]\n";
   }
-  // bind thread axis
-  for (IterVar iv : thread_axis) {
-    ICHECK(!var_idmap_.count(iv->var.get()));
-    std::string vname = iv->thread_tag;
-    if (work_dim <= 1) {
-      vname = vname.substr(0, iv->thread_tag.length() - 2);
-    }
-    var_idmap_[iv->var.get()] =
-        CastFromTo(vname, DataType::UInt(thread_index_bits_), iv->var.dtype());
-  }
+  thread_work_dim_ = work_dim;
+
   // the function scope.
   stream << ") {\n";
   int func_scope = this->BeginScope();
@@ -166,8 +161,14 @@ void CodeGenMetal::AddFunction(const PrimFunc& f) {
 
 void CodeGenMetal::BindThreadIndex(const IterVar& iv) {
   ICHECK(!var_idmap_.count(iv->var.get()));
+  // if we only have threadIdx.x
+  // metal will directly print as threadIdx
+  std::string vname = iv->thread_tag;
+  if (thread_work_dim_ <= 1) {
+    vname = vname.substr(0, iv->thread_tag.length() - 2);
+  }
   var_idmap_[iv->var.get()] =
-      CastFromTo(iv->thread_tag, DataType::UInt(thread_index_bits_), iv->var.dtype());
+      CastFromTo(vname, DataType::UInt(thread_index_bits_), iv->var.dtype());
 }
 
 void CodeGenMetal::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
@@ -336,29 +337,35 @@ runtime::Module BuildMetal(IRModule mod, Target target) {
   using tvm::runtime::Registry;
   bool output_ssa = false;
 
-  std::stringstream code;
-  std::stringstream source;
-  std::string fmt = "metal";
+  std::ostringstream source_maker;
+  std::unordered_map<std::string, std::string> smap;
+  const auto* fmetal_compile = Registry::Get("tvm_callback_metal_compile");
+  std::string fmt = fmetal_compile ? "metallib" : "metal";
+
   for (auto kv : mod->functions) {
     ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenMetal: Can only take PrimFunc";
-    code << "// Function: " << kv.first->name_hint << std::endl;
+    auto global_symbol = kv.second->GetAttr<String>(tvm::attr::kGlobalSymbol);
+    ICHECK(global_symbol.defined());
+    std::string func_name = global_symbol.value();
+
+    source_maker << "// Function: " << func_name << "\n";
     CodeGenMetal cg(target);
     cg.Init(output_ssa);
     auto f = Downcast<PrimFunc>(kv.second);
     auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
     ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
         << "CodeGenMetal: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
+
     cg.AddFunction(f);
     std::string fsource = cg.Finish();
-    if (const auto* f = Registry::Get("tvm_callback_metal_compile")) {
-      source << fsource;
-      fsource = (*f)(fsource).operator std::string();
-      fmt = "metallib";
+    source_maker << fsource << "\n";
+    if (fmetal_compile) {
+      fsource = (*fmetal_compile)(fsource).operator std::string();
     }
-    code << fsource;
+    smap[func_name] = fsource;
   }
 
-  return MetalModuleCreate(code.str(), fmt, ExtractFuncInfo(mod), source.str());
+  return MetalModuleCreate(smap, ExtractFuncInfo(mod), fmt, source_maker.str());
 }
 
 TVM_REGISTER_GLOBAL("target.build.metal").set_body_typed(BuildMetal);

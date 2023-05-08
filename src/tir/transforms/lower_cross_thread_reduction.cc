@@ -372,7 +372,7 @@ Stmt TransformReductionBlock(const BlockRealizeNode* realize,            //
     int n_iter = static_cast<int>(block->iter_vars.size());
     Array<IterVar> iter_vars;
     Array<PrimExpr> bindings;
-    Map<Var, PrimExpr> var_map;
+    Map<Var, Var> var_map;
     iter_vars.reserve(n_iter);
     bindings.reserve(n_iter);
     for (int i = 0; i < n_iter; ++i) {

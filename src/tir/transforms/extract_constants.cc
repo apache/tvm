@@ -95,9 +95,8 @@ tvm::transform::Pass ExtractPrimFuncConstants() {
   auto pass_func = [=](IRModule module, tvm::transform::PassContext pc) {
     auto m = GetRef<IRModule>(module.CopyOnWrite());
     for (const auto& kv : m->functions) {
-      BaseFunc f = kv.second;
-      if (f->IsInstance<PrimFuncNode>()) {
-        m->Update(kv.first, prim_func_pass(GetRef<PrimFunc>(f.as<PrimFuncNode>()), m, pc));
+      if (auto func = kv.second.as<PrimFunc>()) {
+        m->Update(kv.first, prim_func_pass(func.value(), m, pc));
       }
     }
     return m;

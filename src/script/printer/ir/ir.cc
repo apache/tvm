@@ -64,6 +64,11 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       std::sort(functions.begin(), functions.end());
       With<IRFrame> f(d);
       (*f)->AddDispatchToken(d, "ir");
+      if (mod->attrs.defined() && !mod->attrs->dict.empty()) {
+        (*f)->stmts.push_back(
+            ExprStmtDoc(IR(d, "module_attrs")  //
+                            ->Call({d->AsDoc<ExprDoc>(mod->attrs, p->Attr("attrs"))})));
+      }
       for (const auto& entry : functions) {
         const GlobalVar& gv = entry.gv;
         const BaseFunc& func = entry.func;
@@ -73,8 +78,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         if (const auto* stmt_block = doc.as<StmtBlockDocNode>()) {
           (*f)->stmts.push_back(stmt_block->stmts.back());
           (*f)->stmts.back()->source_paths = std::move(doc->source_paths);
-        } else if (const auto* stmt = doc.as<StmtDocNode>()) {
-          (*f)->stmts.push_back(GetRef<StmtDoc>(stmt));
+        } else if (auto stmt = doc.as<StmtDoc>()) {
+          (*f)->stmts.push_back(stmt.value());
         } else {
           (*f)->stmts.push_back(Downcast<FunctionDoc>(doc));
         }

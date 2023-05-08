@@ -23,7 +23,7 @@ set -o pipefail
 architecture_type=$(uname -i)
 # Cross-build LLVM for aarch64 when not building natively.
 if [ "$architecture_type" != "aarch64" ]; then
-  git clone --depth 1 --branch release/11.x https://github.com/llvm/llvm-project.git
+  git clone --depth 1 --branch release/15.x https://github.com/llvm/llvm-project.git
   pushd llvm-project
 
   # First build clang-tblgen and llvm-tblgen

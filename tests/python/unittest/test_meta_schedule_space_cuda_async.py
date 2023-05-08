@@ -44,7 +44,7 @@ def get_c2d_prim_func(stage: int):
         # fmt: off
         @T.prim_func
         def c2d(inputs: T.Buffer((1, 224, 224, 3), "float32"), weight: T.Buffer((7, 7, 3, 64), "float32"), conv2d_nhwc: T.Buffer((1, 112, 112, 64), "float32")):
-            T.func_attr({"global_symbol": "main", "tir.noalias": True})
+            T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
             with T.block("root"):
                 T.reads()
                 T.writes()
@@ -81,10 +81,10 @@ def get_c2d_prim_func(stage: int):
                                         v_n = T.axis.spatial(1, n_3 + n_4)
                                         v_h = T.axis.spatial(112, n_0_h_0_w_0_co_0_fused // 8 * 8 + n_1_h_1_w_1_co_1_fused // 4 * 4 + n_2_h_2_w_2_co_2_fused // 16 + h_3 + h_4)
                                         v_w = T.axis.spatial(112, n_0_h_0_w_0_co_0_fused % 8 * 14 + w_3 + w_4)
-                                        v_co = T.axis.spatial(64, co_3 + co_4 + n_1_h_1_w_1_co_1_fused % 4 * 16 + n_2_h_2_w_2_co_2_fused % 16)
+                                        v_co = T.axis.spatial(64, n_1_h_1_w_1_co_1_fused % 4 * 16 + n_2_h_2_w_2_co_2_fused % 16 + co_3 + co_4)
                                         v_rh = T.axis.reduce(7, rh_0 * 7 + rh_1 + rh_2)
                                         v_rw = T.axis.reduce(7, rw_0 * 7 + rw_1 * 7 + rw_2)
-                                        v_rc = T.axis.reduce(3, rc_1 + rc_2 + rc_0)
+                                        v_rc = T.axis.reduce(3, rc_0 + rc_1 + rc_2)
                                         T.reads(PadInput_shared[v_n, v_h * 2 + v_rh, v_w * 2 + v_rw, v_co // 64 * 3 + v_rc], weight_shared[v_rh, v_rw, v_rc, v_co])
                                         T.writes(conv2d_nhwc_local[v_n, v_h, v_w, v_co])
                                         T.block_attr({"meta_schedule.thread_extent_high_inclusive": 1024, "meta_schedule.thread_extent_low_inclusive": 32, "meta_schedule.tiling_structure": "SSSRRSRS"})
@@ -100,13 +100,12 @@ def get_c2d_prim_func(stage: int):
                                     T.reads(conv2d_nhwc_local[v0, v1, v2, v3])
                                     T.writes(conv2d_nhwc[v0, v1, v2, v3])
                                     conv2d_nhwc[v0, v1, v2, v3] = conv2d_nhwc_local[v0, v1, v2, v3]
-
         # fmt: on
     else:
         # fmt: off
         @T.prim_func
         def c2d(inputs: T.Buffer((1, 224, 224, 3), "float32"), weight: T.Buffer((7, 7, 3, 64), "float32"), conv2d_nhwc: T.Buffer((1, 112, 112, 64), "float32")):
-            T.func_attr({"global_symbol": "main", "tir.noalias": True})
+            T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
             with T.block("root"):
                 T.reads()
                 T.writes()
@@ -140,13 +139,13 @@ def get_c2d_prim_func(stage: int):
                                         weight_shared[v0, v1, v2, v3] = weight[v0, v1, v2, v3]
                                 for rh_1, rw_1, rc_1, n_3, h_3, w_3, co_3, rh_2, rw_2, rc_2, n_4, h_4, w_4, co_4 in T.grid(7, 1, 1, 1, 1, 14, 1, 1, 7, 1, 1, 1, 1, 1):
                                     with T.block("conv2d_nhwc"):
-                                        v_n = T.axis.spatial(1, n_4 + n_3)
-                                        v_h = T.axis.spatial(112, h_3 + h_4 + n_0_h_0_w_0_co_0_fused // 8 * 8 + n_1_h_1_w_1_co_1_fused // 4 * 4 + n_2_h_2_w_2_co_2_fused // 16)
-                                        v_w = T.axis.spatial(112, w_4 + n_0_h_0_w_0_co_0_fused % 8 * 14 + w_3)
-                                        v_co = T.axis.spatial(64, co_4 + n_1_h_1_w_1_co_1_fused % 4 * 16 + n_2_h_2_w_2_co_2_fused % 16 + co_3)
-                                        v_rh = T.axis.reduce(7, rh_2 + rh_1)
+                                        v_n = T.axis.spatial(1, n_3 + n_4)
+                                        v_h = T.axis.spatial(112, n_0_h_0_w_0_co_0_fused // 8 * 8 + n_1_h_1_w_1_co_1_fused // 4 * 4 + n_2_h_2_w_2_co_2_fused // 16 + h_3 + h_4)
+                                        v_w = T.axis.spatial(112, n_0_h_0_w_0_co_0_fused % 8 * 14 + w_3 + w_4)
+                                        v_co = T.axis.spatial(64, n_1_h_1_w_1_co_1_fused % 4 * 16 + n_2_h_2_w_2_co_2_fused % 16 + co_3 + co_4)
+                                        v_rh = T.axis.reduce(7, rh_1 + rh_2)
                                         v_rw = T.axis.reduce(7, rw_1 * 7 + rw_2)
-                                        v_rc = T.axis.reduce(3, rc_2 + rh_0_rw_0_rc_0_fused + rc_1)
+                                        v_rc = T.axis.reduce(3, rh_0_rw_0_rc_0_fused + rc_1 + rc_2)
                                         T.reads(PadInput_shared[v_n, v_h * 2 + v_rh, v_w * 2 + v_rw, v_co // 64 * 3 + v_rc], weight_shared[v_rh, v_rw, v_rc, v_co])
                                         T.writes(conv2d_nhwc_local[v_n, v_h, v_w, v_co])
                                         T.block_attr({"meta_schedule.thread_extent_high_inclusive": 1024, "meta_schedule.thread_extent_low_inclusive": 32, "meta_schedule.tiling_structure": "SSSRRSRS"})
@@ -198,114 +197,112 @@ def get_gmm_prim_func(stage: int):
     if stage == 0:
         # fmt: off
         @T.prim_func
-        def gmm(A: T.Buffer((1, 1024, 1024), "float32"), B: T.Buffer((1, 1024, 1024), "float32"), Y: T.Buffer((1, 1024, 1024), "float32")):
-            T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        def gmm(X: T.Buffer((1, 1024, 1024), "float32"), Y: T.Buffer((1, 1024, 1024), "float32"), Z: T.Buffer((1, 1024, 1024), "float32")):
+            T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
             with T.block("root"):
                 T.reads()
                 T.writes()
                 T.block_attr({"meta_schedule.unroll_explicit": 16})
-                Y_local = T.alloc_buffer((1, 1024, 1024), scope="local")
-                A_shared = T.alloc_buffer((1, 1024, 1024), scope="shared")
-                B_shared = T.alloc_buffer((1, 1024, 1024), scope="shared")
+                Z_local = T.alloc_buffer((1, 1024, 1024), scope="local")
+                X_shared = T.alloc_buffer((1, 1024, 1024), scope="shared")
+                Y_shared = T.alloc_buffer((1, 1024, 1024), scope="shared")
                 for b_0_i_0_j_0_fused in T.thread_binding(256, thread="blockIdx.x"):
                     for b_1_i_1_j_1_fused in T.thread_binding(32, thread="vthread.x"):
                         for b_2_i_2_j_2_fused in T.thread_binding(64, thread="threadIdx.x"):
                             for k_0 in range(64):
                                 for ax0_ax1_ax2_fused in range(1024):
-                                    with T.block("A_shared"):
+                                    with T.block("X_shared"):
                                         v0 = T.axis.spatial(1, 0)
                                         v1 = T.axis.spatial(1024, b_0_i_0_j_0_fused // 16 * 64 + ax0_ax1_ax2_fused // 16)
                                         v2 = T.axis.spatial(1024, k_0 * 16 + ax0_ax1_ax2_fused % 16)
-                                        T.reads(A[v0, v1, v2])
-                                        T.writes(A_shared[v0, v1, v2])
+                                        T.reads(X[v0, v1, v2])
+                                        T.writes(X_shared[v0, v1, v2])
                                         T.block_attr({"meta_schedule.cooperative_fetch": 4})
-                                        A_shared[v0, v1, v2] = A[v0, v1, v2]
+                                        X_shared[v0, v1, v2] = X[v0, v1, v2]
                                 for ax0_ax1_ax2_fused in range(1024):
-                                    with T.block("B_shared"):
+                                    with T.block("Y_shared"):
                                         v0 = T.axis.spatial(1, 0)
                                         v1 = T.axis.spatial(1024, k_0 * 16 + ax0_ax1_ax2_fused // 64)
                                         v2 = T.axis.spatial(1024, b_0_i_0_j_0_fused % 16 * 64 + ax0_ax1_ax2_fused % 64)
-                                        T.reads(B[v0, v1, v2])
-                                        T.writes(B_shared[v0, v1, v2])
+                                        T.reads(Y[v0, v1, v2])
+                                        T.writes(Y_shared[v0, v1, v2])
                                         T.block_attr({"meta_schedule.cooperative_fetch": 4})
-                                        B_shared[v0, v1, v2] = B[v0, v1, v2]
+                                        Y_shared[v0, v1, v2] = Y[v0, v1, v2]
                                 for k_1, b_3, i_3, j_3, k_2, b_4, i_4, j_4 in T.grid(2, 1, 1, 1, 8, 1, 1, 2):
-                                    with T.block("Y"):
-                                        v_b = T.axis.spatial(1, b_4 + b_3)
+                                    with T.block("Z"):
+                                        v_b = T.axis.spatial(1, b_3 + b_4)
                                         v_i = T.axis.spatial(1024, b_0_i_0_j_0_fused // 16 * 64 + b_1_i_1_j_1_fused // 4 * 8 + b_2_i_2_j_2_fused // 8 + i_3 + i_4)
                                         v_j = T.axis.spatial(1024, b_0_i_0_j_0_fused % 16 * 64 + b_1_i_1_j_1_fused % 4 * 16 + b_2_i_2_j_2_fused % 8 * 2 + j_3 * 2 + j_4)
                                         v_k = T.axis.reduce(1024, k_0 * 16 + k_1 * 8 + k_2)
-                                        T.reads(A_shared[v_b, v_i, v_k], B_shared[v_b, v_k, v_j])
-                                        T.writes(Y_local[v_b, v_i, v_j])
+                                        T.reads(X_shared[v_b, v_i, v_k], Y_shared[v_b, v_k, v_j])
+                                        T.writes(Z_local[v_b, v_i, v_j])
                                         T.block_attr({"meta_schedule.thread_extent_high_inclusive": 1024, "meta_schedule.thread_extent_low_inclusive": 32, "meta_schedule.tiling_structure": "SSSRRSRS"})
                                         with T.init():
-                                            Y_local[v_b, v_i, v_j] = T.float32(0)
-                                        Y_local[v_b, v_i, v_j] = Y_local[v_b, v_i, v_j] + A_shared[v_b, v_i, v_k] * B_shared[v_b, v_k, v_j]
+                                            Z_local[v_b, v_i, v_j] = T.float32(0)
+                                        Z_local[v_b, v_i, v_j] = Z_local[v_b, v_i, v_j] + X_shared[v_b, v_i, v_k] * Y_shared[v_b, v_k, v_j]
                             for ax0, ax1, ax2 in T.grid(1, 1, 2):
-                                with T.block("Y_local"):
+                                with T.block("Z_local"):
                                     v0 = T.axis.spatial(1, ax0)
                                     v1 = T.axis.spatial(1024, b_0_i_0_j_0_fused // 16 * 64 + b_1_i_1_j_1_fused // 4 * 8 + b_2_i_2_j_2_fused // 8 + ax1)
                                     v2 = T.axis.spatial(1024, b_0_i_0_j_0_fused % 16 * 64 + b_1_i_1_j_1_fused % 4 * 16 + b_2_i_2_j_2_fused % 8 * 2 + ax2)
-                                    T.reads(Y_local[v0, v1, v2])
-                                    T.writes(Y[v0, v1, v2])
-                                    Y[v0, v1, v2] = Y_local[v0, v1, v2]
-
+                                    T.reads(Z_local[v0, v1, v2])
+                                    T.writes(Z[v0, v1, v2])
+                                    Z[v0, v1, v2] = Z_local[v0, v1, v2]
         # fmt: on
     else:
         # fmt: off
         @T.prim_func
-        def gmm(A: T.Buffer((1, 1024, 1024), "float32"), B: T.Buffer((1, 1024, 1024), "float32"), Y: T.Buffer((1, 1024, 1024), "float32")):
-            T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        def gmm(X: T.Buffer((1, 1024, 1024), "float32"), Y: T.Buffer((1, 1024, 1024), "float32"), Z: T.Buffer((1, 1024, 1024), "float32")):
+            T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
             with T.block("root"):
                 T.reads()
                 T.writes()
                 T.block_attr({"meta_schedule.unroll_explicit": 16})
-                Y_local = T.alloc_buffer((1, 1024, 1024), scope="local")
-                A_shared = T.alloc_buffer((1, 1024, 1024), scope="shared")
-                B_shared = T.alloc_buffer((1, 1024, 1024), scope="shared")
+                Z_local = T.alloc_buffer((1, 1024, 1024), scope="local")
+                X_shared = T.alloc_buffer((1, 1024, 1024), scope="shared")
+                Y_shared = T.alloc_buffer((1, 1024, 1024), scope="shared")
                 for b_0_i_0_j_0_fused in T.thread_binding(256, thread="blockIdx.x"):
                     for b_1_i_1_j_1_fused in T.thread_binding(32, thread="vthread.x"):
                         for b_2_i_2_j_2_fused in T.thread_binding(64, thread="threadIdx.x"):
                             for k_0_fused in T.serial(64, annotations={"software_pipeline_async_stages": [0], "software_pipeline_order": [0, 1, 2], "software_pipeline_stage": [0, 0, stage - 2]}):
                                 for ax0_ax1_ax2_fused in range(1024):
-                                    with T.block("A_shared"):
+                                    with T.block("X_shared"):
                                         v0 = T.axis.spatial(1, 0)
                                         v1 = T.axis.spatial(1024, b_0_i_0_j_0_fused // 16 * 64 + ax0_ax1_ax2_fused // 16)
                                         v2 = T.axis.spatial(1024, k_0_fused * 16 + ax0_ax1_ax2_fused % 16)
-                                        T.reads(A[v0, v1, v2])
-                                        T.writes(A_shared[v0, v1, v2])
+                                        T.reads(X[v0, v1, v2])
+                                        T.writes(X_shared[v0, v1, v2])
                                         T.block_attr({"meta_schedule.cooperative_fetch": 4})
-                                        A_shared[v0, v1, v2] = A[v0, v1, v2]
+                                        X_shared[v0, v1, v2] = X[v0, v1, v2]
                                 for ax0_ax1_ax2_fused in range(1024):
-                                    with T.block("B_shared"):
+                                    with T.block("Y_shared"):
                                         v0 = T.axis.spatial(1, 0)
                                         v1 = T.axis.spatial(1024, k_0_fused * 16 + ax0_ax1_ax2_fused // 64)
                                         v2 = T.axis.spatial(1024, b_0_i_0_j_0_fused % 16 * 64 + ax0_ax1_ax2_fused % 64)
-                                        T.reads(B[v0, v1, v2])
-                                        T.writes(B_shared[v0, v1, v2])
+                                        T.reads(Y[v0, v1, v2])
+                                        T.writes(Y_shared[v0, v1, v2])
                                         T.block_attr({"meta_schedule.cooperative_fetch": 4})
-                                        B_shared[v0, v1, v2] = B[v0, v1, v2]
+                                        Y_shared[v0, v1, v2] = Y[v0, v1, v2]
                                 for k_1, b_3, i_3, j_3, k_2, b_4, i_4, j_4 in T.grid(2, 1, 1, 1, 8, 1, 1, 2):
-                                    with T.block("Y"):
+                                    with T.block("Z"):
                                         v_b = T.axis.spatial(1, b_3 + b_4)
-                                        v_i = T.axis.spatial(1024, i_3 + i_4 + b_0_i_0_j_0_fused // 16 * 64 + b_1_i_1_j_1_fused // 4 * 8 + b_2_i_2_j_2_fused // 8)
+                                        v_i = T.axis.spatial(1024, b_0_i_0_j_0_fused // 16 * 64 + b_1_i_1_j_1_fused // 4 * 8 + b_2_i_2_j_2_fused // 8 + i_3 + i_4)
                                         v_j = T.axis.spatial(1024, b_0_i_0_j_0_fused % 16 * 64 + b_1_i_1_j_1_fused % 4 * 16 + b_2_i_2_j_2_fused % 8 * 2 + j_3 * 2 + j_4)
                                         v_k = T.axis.reduce(1024, k_0_fused * 16 + k_1 * 8 + k_2)
-                                        T.reads(A_shared[v_b, v_i, v_k], B_shared[v_b, v_k, v_j])
-                                        T.writes(Y_local[v_b, v_i, v_j])
+                                        T.reads(X_shared[v_b, v_i, v_k], Y_shared[v_b, v_k, v_j])
+                                        T.writes(Z_local[v_b, v_i, v_j])
                                         T.block_attr({"meta_schedule.thread_extent_high_inclusive": 1024, "meta_schedule.thread_extent_low_inclusive": 32, "meta_schedule.tiling_structure": "SSSRRSRS"})
                                         with T.init():
-                                            Y_local[v_b, v_i, v_j] = T.float32(0)
-                                        Y_local[v_b, v_i, v_j] = Y_local[v_b, v_i, v_j] + A_shared[v_b, v_i, v_k] * B_shared[v_b, v_k, v_j]
+                                            Z_local[v_b, v_i, v_j] = T.float32(0)
+                                        Z_local[v_b, v_i, v_j] = Z_local[v_b, v_i, v_j] + X_shared[v_b, v_i, v_k] * Y_shared[v_b, v_k, v_j]
                             for ax0, ax1, ax2 in T.grid(1, 1, 2):
-                                with T.block("Y_local"):
+                                with T.block("Z_local"):
                                     v0 = T.axis.spatial(1, ax0)
                                     v1 = T.axis.spatial(1024, b_0_i_0_j_0_fused // 16 * 64 + b_1_i_1_j_1_fused // 4 * 8 + b_2_i_2_j_2_fused // 8 + ax1)
                                     v2 = T.axis.spatial(1024, b_0_i_0_j_0_fused % 16 * 64 + b_1_i_1_j_1_fused % 4 * 16 + b_2_i_2_j_2_fused % 8 * 2 + ax2)
-                                    T.reads(Y_local[v0, v1, v2])
-                                    T.writes(Y[v0, v1, v2])
-                                    Y[v0, v1, v2] = Y_local[v0, v1, v2]
-
+                                    T.reads(Z_local[v0, v1, v2])
+                                    T.writes(Z[v0, v1, v2])
+                                    Z[v0, v1, v2] = Z_local[v0, v1, v2]
         # fmt: on
     return gmm
 

@@ -1942,6 +1942,26 @@ def test_scatter_nd(target, dev, executor_kind):
 
     test_scatter_nd_large_shape()
 
+    def test_scatter_nd_inequal_m_k():
+        def before():
+            data = relay.const(np.zeros((1, 1, 10), dtype="float32"), dtype="float32")
+            indices = relay.const(np.zeros((2, 1, 1, 1), dtype="float32"), dtype="int64")
+            update = relay.const(np.ones((1, 1, 1, 10), dtype="float32"), dtype="float32")
+            b = relay.op.scatter_nd(data, indices, update)
+            return relay.Function(relay.analysis.free_vars(b), b)
+
+        passes = tvm.transform.Sequential(
+            [
+                relay.transform.InferType(),
+                relay.transform.FoldConstant(),
+            ]
+        )
+        before_mod = tvm.IRModule.from_expr(before())
+        with tvm.transform.PassContext(opt_level=3):
+            after_mod = passes(before_mod)
+
+    test_scatter_nd_inequal_m_k()
+
     def verify_scatter_nd(
         data_np, indices_np, updates_np, ref_res, mode="add", rtol=1e-5, atol=1e-5
     ):
