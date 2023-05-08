@@ -67,8 +67,6 @@ def run_collage(
     with pass_ctxt:
         config = make_compilation_config(pass_ctxt, targets)
         actual_mod = InferType()(input_mod)
-        # Capture indexes only to help debug failing tests
-        actual_mod = CapturePostDfsIndexInSpans()(actual_mod)
         actual_mod = CollagePartition(config, cost_estimator)(actual_mod)
 
         if not tvm.ir.structural_equal(actual_mod, expected_mod, map_free_vars=True):
@@ -126,7 +124,7 @@ def test_partition_single_op_byoc(mock_get_pattern_table):
 
     expected_txt = """
       #[version = "0.0.5"]
-      def @collage_example_target_hook_nn_relu(%FunctionVar_0: Tensor[(10, 10), float32], Primitive=1, Compiler="example_target_hook", global_symbol="collage_example_target_hook_nn_relu") -> Tensor[(10, 10), float32] {
+      def @collage_example_target_hook_nn_relu(%FunctionVar_0: Tensor[(10, 10), float32], Primitive=1, Inline=1, Compiler="example_target_hook", global_symbol="collage_example_target_hook_nn_relu") -> Tensor[(10, 10), float32] {
         %0 = fn (%FunctionVar_01: Tensor[(10, 10), float32], Composite="relu") -> Tensor[(10, 10), float32] {
           nn.relu(%FunctionVar_01)
         };
@@ -168,14 +166,14 @@ def test_partition_diamond_valid_topology(mock_get_pattern_table, byoc_max_depth
 
     expected_3_txt = """
       #[version = "0.0.5"]
-      def @collage_example_target_hook_nn_relu(%FunctionVar_0: Tensor[(10, 10), float32], Primitive=1, Compiler="example_target_hook", global_symbol="collage_example_target_hook_nn_relu") -> Tensor[(10, 10), float32] {
+      def @collage_example_target_hook_nn_relu(%FunctionVar_0: Tensor[(10, 10), float32], Primitive=1, Inline=1, Compiler="example_target_hook", global_symbol="collage_example_target_hook_nn_relu") -> Tensor[(10, 10), float32] {
         %0 = fn (%FunctionVar_01: Tensor[(10, 10), float32], Composite="relu") -> Tensor[(10, 10), float32] {
           nn.relu(%FunctionVar_01)
         };
         %0(%FunctionVar_0)
       }
 
-      def @collage_example_target_hook_nn_relu_add(%FunctionVar_02: Tensor[(10, 10), float32], Primitive=1, Compiler="example_target_hook", global_symbol="collage_example_target_hook_nn_relu_add") -> Tensor[(10, 10), float32] {
+      def @collage_example_target_hook_nn_relu_add(%FunctionVar_02: Tensor[(10, 10), float32], Primitive=1, Inline=1, Compiler="example_target_hook", global_symbol="collage_example_target_hook_nn_relu_add") -> Tensor[(10, 10), float32] {
         %1 = fn (%FunctionVar_04: Tensor[(10, 10), float32], Composite="relu") -> Tensor[(10, 10), float32] {
           nn.relu(%FunctionVar_04)
         };
@@ -194,7 +192,7 @@ def test_partition_diamond_valid_topology(mock_get_pattern_table, byoc_max_depth
     """
     expected_1_txt = """
       #[version = "0.0.5"]
-      def @collage_example_target_hook(%FunctionVar_0: Tensor[(10, 10), float32], Primitive=1, Compiler="example_target_hook", global_symbol="collage_example_target_hook") -> Tensor[(10, 10), float32] {
+      def @collage_example_target_hook(%FunctionVar_0: Tensor[(10, 10), float32], Primitive=1, Inline=1, Compiler="example_target_hook", global_symbol="collage_example_target_hook") -> Tensor[(10, 10), float32] {
         %0 = fn (%FunctionVar_02: Tensor[(10, 10), float32], Composite="relu") -> Tensor[(10, 10), float32] {
           nn.relu(%FunctionVar_02)
         };
@@ -205,7 +203,7 @@ def test_partition_diamond_valid_topology(mock_get_pattern_table, byoc_max_depth
         %2(%FunctionVar_0, %1)
       }
 
-      def @collage_example_target_hook_nn_relu(%FunctionVar_03: Tensor[(10, 10), float32], Primitive=1, Compiler="example_target_hook", global_symbol="collage_example_target_hook_nn_relu") -> Tensor[(10, 10), float32] {
+      def @collage_example_target_hook_nn_relu(%FunctionVar_03: Tensor[(10, 10), float32], Primitive=1, Inline=1, Compiler="example_target_hook", global_symbol="collage_example_target_hook_nn_relu") -> Tensor[(10, 10), float32] {
         %3 = fn (%FunctionVar_04: Tensor[(10, 10), float32], Composite="relu") -> Tensor[(10, 10), float32] {
           nn.relu(%FunctionVar_04)
         };
@@ -251,7 +249,7 @@ def test_tvm_max_depth(mock_get_pattern_table, tvm_max_depth):
     expected_txts = {
         1: """
           #[version = "0.0.5"]
-          def @collage_example_target_hook(%FunctionVar_0: Tensor[(10, 10), float32], Primitive=1, Compiler="example_target_hook", global_symbol="collage_example_target_hook") -> Tensor[(10, 10), float32] {
+          def @collage_example_target_hook(%FunctionVar_0: Tensor[(10, 10), float32], Primitive=1, Inline=1, Compiler="example_target_hook", global_symbol="collage_example_target_hook") -> Tensor[(10, 10), float32] {
             %0 = fn (%FunctionVar_03: Tensor[(10, 10), float32], Composite="relu") -> Tensor[(10, 10), float32] {
               nn.relu(%FunctionVar_03)
             };
@@ -272,7 +270,7 @@ def test_tvm_max_depth(mock_get_pattern_table, tvm_max_depth):
         """,
         2: """
           #[version = "0.0.5"]
-          def @collage_example_target_hook_nn_relu(%FunctionVar_0: Tensor[(10, 10), float32], Primitive=1, Compiler="example_target_hook", global_symbol="collage_example_target_hook_nn_relu") -> Tensor[(10, 10), float32] {
+          def @collage_example_target_hook_nn_relu(%FunctionVar_0: Tensor[(10, 10), float32], Primitive=1, Inline=1, Compiler="example_target_hook", global_symbol="collage_example_target_hook_nn_relu") -> Tensor[(10, 10), float32] {
             %0 = fn (%FunctionVar_01: Tensor[(10, 10), float32], Composite="relu") -> Tensor[(10, 10), float32] {
               nn.relu(%FunctionVar_01)
             };
@@ -335,7 +333,7 @@ def test_byoc_max_depth(mock_get_pattern_table, byoc_max_depth):
         """,
         2: """
           #[version = "0.0.5"]
-          def @collage_example_target_hook_nn_relu_nn_relu(%FunctionVar_0: Tensor[(10, 10), float32], Primitive=1, Compiler="example_target_hook", global_symbol="collage_example_target_hook_nn_relu_nn_relu") -> Tensor[(10, 10), float32] {
+          def @collage_example_target_hook_nn_relu_nn_relu_1(%FunctionVar_0: Tensor[(10, 10), float32], Primitive=1, Inline=1, Compiler="example_target_hook", global_symbol="collage_example_target_hook_nn_relu_nn_relu_1") -> Tensor[(10, 10), float32] {
             %0 = fn (%FunctionVar_02: Tensor[(10, 10), float32], Composite="relu") -> Tensor[(10, 10), float32] {
               nn.relu(%FunctionVar_02)
             };
@@ -348,12 +346,12 @@ def test_byoc_max_depth(mock_get_pattern_table, byoc_max_depth):
 
           def @main(%x: Tensor[(10, 10), float32]) -> Tensor[(10, 10), float32] {
             %3 = nn.relu(%x);
-            @collage_example_target_hook_nn_relu_nn_relu(%3)
+            @collage_example_target_hook_nn_relu_nn_relu_1(%3)
           }
         """,
         3: """
           #[version = "0.0.5"]
-          def @collage_example_target_hook_nn_relu_nn_relu_nn_relu(%FunctionVar_0: Tensor[(10, 10), float32], Primitive=1, Compiler="example_target_hook", global_symbol="collage_example_target_hook_nn_relu_nn_relu_nn_relu") -> Tensor[(10, 10), float32] {
+          def @collage_example_target_hook_nn_relu_nn_relu_nn_relu(%FunctionVar_0: Tensor[(10, 10), float32], Primitive=1, Inline=1, Compiler="example_target_hook", global_symbol="collage_example_target_hook_nn_relu_nn_relu_nn_relu") -> Tensor[(10, 10), float32] {
             %0 = fn (%FunctionVar_03: Tensor[(10, 10), float32], Composite="relu") -> Tensor[(10, 10), float32] {
               nn.relu(%FunctionVar_03)
             };
@@ -405,7 +403,7 @@ def test_partition_output_tuple(mock_get_pattern_table):
 
     expected_txt = """
       #[version = "0.0.5"]
-      def @collage_example_target_hook(%FunctionVar_0: Tensor[(10, 10), float32], Primitive=1, Compiler="example_target_hook", global_symbol="collage_example_target_hook") -> (Tensor[(10, 10), float32], Tensor[(10, 10), float32]) {
+      def @collage_example_target_hook(%FunctionVar_0: Tensor[(10, 10), float32], Primitive=1, Inline=1, Compiler="example_target_hook", global_symbol="collage_example_target_hook") -> (Tensor[(10, 10), float32], Tensor[(10, 10), float32]) {
         %0 = fn (%FunctionVar_01: Tensor[(10, 10), float32], Composite="relu") -> Tensor[(10, 10), float32] {
           nn.relu(%FunctionVar_01)
         };
@@ -455,7 +453,7 @@ def test_partition_intermediate_tuple(mock_get_pattern_table):
 
     expected_txt = """
       #[version = "0.0.5"]
-      def @collage_example_target_hook(%FunctionVar_0: Tensor[(10, 10), float32], Primitive=1, Compiler="example_target_hook", global_symbol="collage_example_target_hook") -> (Tensor[(10, 10), float32], Tensor[(10, 10), float32]) {
+      def @collage_example_target_hook(%FunctionVar_0: Tensor[(10, 10), float32], Primitive=1, Inline=1, Compiler="example_target_hook", global_symbol="collage_example_target_hook") -> (Tensor[(10, 10), float32], Tensor[(10, 10), float32]) {
         %0 = fn (%FunctionVar_01: Tensor[(10, 10), float32], Composite="relu") -> Tensor[(10, 10), float32] {
           nn.relu(%FunctionVar_01)
         };
@@ -467,7 +465,7 @@ def test_partition_intermediate_tuple(mock_get_pattern_table):
         (%1, %3)
       }
 
-      def @collage_example_target_hook_concatenate(%FunctionVar_03: (Tensor[(10, 10), float32], Tensor[(10, 10), float32]), Primitive=1, Compiler="example_target_hook", global_symbol="collage_example_target_hook_concatenate") -> Tensor[(20, 10), float32] {
+      def @collage_example_target_hook_concatenate(%FunctionVar_03: (Tensor[(10, 10), float32], Tensor[(10, 10), float32]), Primitive=1, Inline=1, Compiler="example_target_hook", global_symbol="collage_example_target_hook_concatenate") -> Tensor[(20, 10), float32] {
         %4 = fn (%FunctionVar_04: (Tensor[(10, 10), float32], Tensor[(10, 10), float32]), Composite="concatenate") -> Tensor[(20, 10), float32] {
           concatenate(%FunctionVar_04)
         };
@@ -515,7 +513,7 @@ def test_fusion_benefit(mock_get_pattern_table):
 
     expected_txt = """
       #[version = "0.0.5"]
-      def @collage_example_target_hook_nn_relu_nn_relu_nn_relu_add_nn_relu(%FunctionVar_0: Tensor[(10, 10), float32], %FunctionVar_1: Tensor[(10, 10), float32], Primitive=1, Compiler="example_target_hook", global_symbol="collage_example_target_hook_nn_relu_nn_relu_nn_relu_add_nn_relu") -> Tensor[(10, 10), float32] {
+      def @collage_example_target_hook_nn_relu_nn_relu_nn_relu_add_nn_relu(%FunctionVar_0: Tensor[(10, 10), float32], %FunctionVar_1: Tensor[(10, 10), float32], Primitive=1, Inline=1, Compiler="example_target_hook", global_symbol="collage_example_target_hook_nn_relu_nn_relu_nn_relu_add_nn_relu") -> Tensor[(10, 10), float32] {
         %0 = fn (%FunctionVar_04: Tensor[(10, 10), float32], Composite="relu") -> Tensor[(10, 10), float32] {
           nn.relu(%FunctionVar_04)
         };
@@ -574,7 +572,7 @@ def test_double_residual(mock_get_pattern_table):
 
     expected_txt = """
       #[version = "0.0.5"]
-      def @collage_example_target_hook_add_add(%FunctionVar_0: Tensor[(10, 10), float32], %FunctionVar_1: Tensor[(10, 10), float32], Primitive=1, Compiler="example_target_hook", global_symbol="collage_example_target_hook_add_add") -> Tensor[(10, 10), float32] {
+      def @collage_example_target_hook_add_add(%FunctionVar_0: Tensor[(10, 10), float32], %FunctionVar_1: Tensor[(10, 10), float32], Primitive=1, Inline=1, Compiler="example_target_hook", global_symbol="collage_example_target_hook_add_add") -> Tensor[(10, 10), float32] {
         %0 = fn (%FunctionVar_02: Tensor[(10, 10), float32], %FunctionVar_12: Tensor[(10, 10), float32], Composite="add") -> Tensor[(10, 10), float32] {
           add(%FunctionVar_02, %FunctionVar_12)
         };
@@ -585,7 +583,7 @@ def test_double_residual(mock_get_pattern_table):
         %2(%FunctionVar_0, %1)
       }
 
-      def @collage_example_target_hook_nn_relu(%FunctionVar_03: Tensor[(10, 10), float32], Primitive=1, Compiler="example_target_hook", global_symbol="collage_example_target_hook_nn_relu") -> Tensor[(10, 10), float32] {
+      def @collage_example_target_hook_nn_relu(%FunctionVar_03: Tensor[(10, 10), float32], Primitive=1, Inline=1, Compiler="example_target_hook", global_symbol="collage_example_target_hook_nn_relu") -> Tensor[(10, 10), float32] {
         %3 = fn (%FunctionVar_04: Tensor[(10, 10), float32], Composite="relu") -> Tensor[(10, 10), float32] {
           nn.relu(%FunctionVar_04)
         };
@@ -637,6 +635,7 @@ def test_pruning_heuristic(mock_get_pattern_table):
       def @collage_example_target_hook_nn_relu_nn_relu_add_add(
         %FunctionVar_0: Tensor[(10, 10), float32],
         Primitive=1,
+        Inline=1,
         Compiler="example_target_hook",
         global_symbol="collage_example_target_hook_nn_relu_nn_relu_add_add") -> Tensor[(10, 10), float32] {
         %0 = fn (%FunctionVar_03: Tensor[(10, 10), float32] , Composite="relu") -> Tensor[(10, 10), float32] {
