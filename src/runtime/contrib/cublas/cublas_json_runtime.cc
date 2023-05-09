@@ -49,6 +49,8 @@ class CublasJSONRuntime : public JSONRuntimeBase {
 
   void Init(const Array<NDArray>& consts) override {}
 
+  const char* type_key() const override { return "cublas_json"; }  // May be overridden
+
   void Run() override {
     // TODO(masahi): Reuse the same handle across different subgraphs
     cublasLtHandle_t handle;

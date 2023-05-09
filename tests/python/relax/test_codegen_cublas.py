@@ -141,7 +141,7 @@ def test_matmul_offload(
         x_shape,
         y_shape,
         dtype,
-        with_bias=with_bias,
+        bias_shape=bias.shape if with_bias else None,
         transposed_y=transpose_y,
         activation=activation,
     )
@@ -150,6 +150,15 @@ def test_matmul_offload(
     ref = build_and_run(mod, args, "llvm", legalize=True)
 
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
+
+
+def test_cublass_partition_matmul_without_bias():
+    # cuBLAS does not handle 2D bias (residual input)
+    mod = get_relax_matmul_module((16, 32), (32, 32), "float16", bias_shape=(16, 32))
+    mod = partition_for_cublas(mod)
+
+    # R.add is still in the main function
+    assert len(mod["main"].body.blocks[0].bindings) == 2
 
 
 if __name__ == "__main__":
