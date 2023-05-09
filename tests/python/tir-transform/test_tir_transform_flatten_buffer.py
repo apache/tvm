@@ -292,8 +292,7 @@ class TestFlattenDeclBufferWithAxisSeparators(BaseCompare):
             T.evaluate(A[i0, i1, i2, i3, i4, i5])
 
     def expected():
-        A_data = T.allocate([30, 1001], dtype="float32", scope="global")
-        A = T.Buffer([30, 1001], dtype="float32", scope="global", axis_separators=[1], data=A_data)
+        A = T.decl_buffer([30, 1001], axis_separators=[1], dtype="float32", scope="global")
         for i0, i1, i2, i3, i4, i5 in T.grid(2, 3, 5, 7, 11, 13):
             T.evaluate(A[i0 * 15 + i1 * 5 + i2, i3 * 143 + i4 * 13 + i5])
 
