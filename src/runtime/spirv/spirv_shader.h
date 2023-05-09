@@ -17,8 +17,8 @@
  * under the License.
  */
 
-#ifndef TVM_RUNTIME_VULKAN_VULKAN_SHADER_H_
-#define TVM_RUNTIME_VULKAN_VULKAN_SHADER_H_
+#ifndef TVM_RUNTIME_SPIRV_SPIRV_SHADER_H_
+#define TVM_RUNTIME_SPIRV_SPIRV_SHADER_H_
 
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/device_api.h>
@@ -29,9 +29,9 @@
 
 namespace tvm {
 namespace runtime {
-namespace vulkan {
+namespace spirv {
 
-struct VulkanShader {
+struct SPIRVShader {
   /*! \brief header flag */
   uint32_t flag{0};
   /*! \brief Data segment */
@@ -48,13 +48,13 @@ struct VulkanShader {
   }
 };
 
-}  // namespace vulkan
+}  // namespace spirv
 
-using vulkan::VulkanShader;
+using spirv::SPIRVShader;
 }  // namespace runtime
 }  // namespace tvm
 
 namespace dmlc {
-DMLC_DECLARE_TRAITS(has_saveload, ::tvm::runtime::vulkan::VulkanShader, true);
+DMLC_DECLARE_TRAITS(has_saveload, ::tvm::runtime::spirv::SPIRVShader, true);
 }  // namespace dmlc
-#endif  // TVM_RUNTIME_VULKAN_VULKAN_SHADER_H_
+#endif  // TVM_RUNTIME_SPIRV_SPIRV_SHADER_H_
