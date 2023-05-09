@@ -325,7 +325,7 @@ def test_legalize_invalid_attach():
     s[A].compute_at(s[B], B.op.axis[1])
     s[B].fuse(B.op.axis[0], B.op.axis[1])
     stmt = tvm.lower(s, [A, B], simple_mode=True)["main"].body
-    assert isinstance(stmt, tvm.tir.stmt.For)
+    assert isinstance(stmt.body.body, tvm.tir.stmt.For)
 
 
 def test_compute_at():
