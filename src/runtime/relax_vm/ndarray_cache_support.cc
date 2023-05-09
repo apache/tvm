@@ -102,13 +102,39 @@ class NDArrayCache {
     auto shard_records = json_info.get<picojson::object>()["records"].get<picojson::array>();
 
     Map<String, NDArray> result;
+    std::string raw_data;
+    Optional<NDArray> staging_buffer;
+
+    auto fcopy_param_from_bytes = [&](NDArray param, void* data, size_t nbytes) {
+      if (device_type != kDLOpenCL) {
+        param.CopyFromBytes(data, nbytes);
+      }
+      // special handle OpenCL
+      // OpenCL runtime can create a host side memory mirror
+      // for every cl_mem that tries to copy data from host
+      // which can cause memory issue.
+      // We use a single staging buffer here
+      // that get de-allocated later
+      if (staging_buffer.defined()) {
+        size_t curr_size = runtime::GetDataSize(*(staging_buffer.value().operator->()));
+        if (curr_size < nbytes) {
+          staging_buffer = NullOpt;
+        }
+      }
+      if (!staging_buffer.defined()) {
+        staging_buffer = NDArray::Empty(param.Shape(), param->dtype, param->device);
+      }
+      NDArray staging_view = staging_buffer.value().CreateView(param.Shape(), param->dtype);
+      staging_view.CopyFromBytes(data, nbytes);
+      param.CopyFrom(staging_view);
+      TVMSynchronize(device_type, device_id, nullptr);
+    };
 
     for (auto shard_item : shard_records) {
       auto shard_rec = shard_item.get<picojson::object>();
       ICHECK(shard_rec["dataPath"].is<std::string>());
       std::string data_path = shard_rec["dataPath"].get<std::string>();
 
-      std::string raw_data;
       LoadBinaryFromFile(cache_path + "/" + data_path, &raw_data);
       CHECK_EQ(shard_rec["format"].get<std::string>(), "raw-shard");
       int64_t raw_nbytes = shard_rec["nbytes"].get<int64_t>();
@@ -138,9 +164,9 @@ class NDArrayCache {
           for (size_t i = 0; i < buffer.size(); ++i) {
             decoded[i] = static_cast<uint32_t>(buffer[i]) << 16;
           }
-          arr.CopyFromBytes(decoded.data(), decoded.size() * sizeof(uint32_t));
+          fcopy_param_from_bytes(arr, decoded.data(), decoded.size() * sizeof(uint32_t));
         } else {
-          arr.CopyFromBytes(raw_data.data() + offset, nbytes);
+          fcopy_param_from_bytes(arr, raw_data.data() + offset, nbytes);
         }
         Update(name, arr, true);
       }
