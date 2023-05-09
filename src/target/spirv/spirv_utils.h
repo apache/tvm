@@ -16,28 +16,31 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#ifndef TVM_TARGET_SPIRV_SPIRV_UTILS_H_
+#define TVM_TARGET_SPIRV_SPIRV_UTILS_H_
 
-/*!
- * \file build_vulkan.cc
- * \brief Build SPIRV block
- */
+#include <tvm/ir/module.h>
+#include <tvm/target/target.h>
+
+#include <string>
+#include <unordered_map>
+#include <utility>
 
 #include "../../runtime/spirv/spirv_shader.h"
-#include "../../runtime/vulkan/vulkan_module.h"
-#include "../build_common.h"
-#include "spirv_utils.h"
 
 namespace tvm {
 namespace codegen {
-
-runtime::Module BuildSPIRV(IRModule mod, Target target) {
-  auto [smap, spirv_text] = LowerToSPIRV(mod, target);
-  return runtime::VulkanModuleCreate(smap, ExtractFuncInfo(mod), spirv_text);
-}
-
-TVM_REGISTER_GLOBAL("target.build.vulkan").set_body_typed([](IRModule mod, Target target) {
-  return BuildSPIRV(mod, target);
-});
+/*!
+ * \brief Lower an IRModule to SPIRV modules.
+ *
+ * \param mod The IRModule to lower.
+ * \param target The target information.
+ * \return The map from function names to SPIRV binaries, and the concatenated text representation
+ * of the SPIRV modules.
+ */
+std::pair<std::unordered_map<std::string, runtime::SPIRVShader>, std::string> LowerToSPIRV(
+    IRModule mod, Target target);
 
 }  // namespace codegen
 }  // namespace tvm
+#endif  // TVM_TARGET_SPIRV_SPIRV_UTILS_H_
