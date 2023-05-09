@@ -106,6 +106,9 @@ class RingBuffer {
     }
     head_ptr_ = (head_ptr_ + size) % ring_.size();
     bytes_available_ -= size;
+    if (bytes_available_ == 0) {
+      head_ptr_ = 0;
+    }
   }
   /*!
    * \brief Read data from buffer with and put them to non-blocking send function.
@@ -126,6 +129,9 @@ class RingBuffer {
     }
     head_ptr_ = (head_ptr_ + nsend) % ring_.size();
     bytes_available_ -= nsend;
+    if (bytes_available_ == 0) {
+      head_ptr_ = 0;
+    }
     return nsend;
   }
   /*!
