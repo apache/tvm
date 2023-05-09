@@ -374,6 +374,44 @@ def test_matmul_offload(
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
+def test_matmul_with_3d_bias_offload():
+    x_shape = (1, 4, 8)
+    y_shape = (1, 8, 16)
+    dtype = "float16"
+
+    x = np.random.randn(*x_shape).astype(dtype)
+    y = np.random.randn(*y_shape).astype(dtype)
+    bias = np.random.randn(1, x_shape[-2], y_shape[-1]).astype(dtype)
+    args = (x, y, bias)
+
+    mod = get_relax_matmul_module(
+        x_shape,
+        y_shape,
+        dtype,
+        with_bias=True,
+    )
+
+    @tvm.script.ir_module
+    class Mod:
+        @R.function
+        def main(
+            x: R.Tensor((1, 4, 8), "float16"),
+            y: R.Tensor((1, 8, 16), "float16"),
+            bias: R.Tensor((1, 4, 16), "float16"),
+        ):
+            with R.dataflow():
+                lv1 = R.matmul(x, y)
+                gv1 = lv1 + bias
+                R.output(gv1)
+
+            return gv1
+
+    out = get_result_with_relax_cutlass_offload(Mod, *args)
+    ref = build_and_run(Mod, args, "llvm", legalize=True)
+
+    tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
+
+
 @pytest.mark.parametrize(
     "x_shape, y_shape, expected",
     [
@@ -525,7 +563,8 @@ def get_relax_attention_module(q, k, v, bias=None, qk_scale=None):
     dtype = str(q.dtype)
 
     from tvm.script.ir_builder import IRBuilder
-    from tvm.script.ir_builder import relax as relax_builder, tir as T
+    from tvm.script.ir_builder import relax as relax_builder
+    from tvm.script.ir_builder import tir as T
 
     if qk_scale is not None:
         qk_scale = T.FloatImm("float32", qk_scale)
@@ -671,7 +710,8 @@ def get_relax_stacked_attention_module(
     dtype = str(qkv.dtype)
 
     from tvm.script.ir_builder import IRBuilder
-    from tvm.script.ir_builder import relax as relax_builder, tir as T
+    from tvm.script.ir_builder import relax as relax_builder
+    from tvm.script.ir_builder import tir as T
 
     if qk_scale is not None:
         qk_scale = T.FloatImm("float32", qk_scale)
@@ -778,7 +818,8 @@ def get_relax_attention_rewrite_module(
     q_shape, k_shape, v_shape, out_shape, dtype, bias_shape=None, scale=None
 ):
     from tvm.script.ir_builder import IRBuilder
-    from tvm.script.ir_builder import relax as relax_builder, tir as T
+    from tvm.script.ir_builder import relax as relax_builder
+    from tvm.script.ir_builder import tir as T
 
     with IRBuilder() as builder:
         with relax_builder.function():
