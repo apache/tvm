@@ -14,7 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-argument, too-many-lines, len-as-condition, broad-except, too-many-nested-blocks
+# pylint: disable=invalid-name, unused-argument, too-many-lines, len-as-condition
+# pylint: disable=broad-except, too-many-nested-blocks, not-context-manager, broad-exception-raised
 """Tensorflow2.x graph to relay converter.
 
 If model is constructed using tf2.x API, then use this converter:

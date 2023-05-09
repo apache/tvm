@@ -16,7 +16,7 @@
 # under the License.
 
 # pylint: disable=invalid-name, unused-argument, too-many-lines, import-outside-toplevel
-# pylint: disable=no-else-return, no-else-continue
+# pylint: disable=no-else-return, no-else-continue, use-list-literal
 """Caffe frontend."""
 import numpy as np
 import tvm
@@ -697,7 +697,7 @@ class OperatorConverter(object):
         if len(offset) == 1:
             offset = offset * num_to_crop
         elif len(offset) != num_to_crop:
-            raise Exception("No matching the number between axis and offset!")
+            raise tvm.error.OpAttributeInvalid("No matching the number between axis and offset!")
 
         slice_end = in_a_shape
         slice_start = [0] * len(in_a_shape)

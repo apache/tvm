@@ -346,6 +346,27 @@ class RewriteSimplifier {
   /*! \brief Return the currently enabled extensions */
   TVM_DLL Extension GetEnabledExtensions() const;
 
+  /*! \brief Return the statistics counters */
+  TVM_DLL ObjectRef GetStatsCounters() const;
+
+  /*! \brief Reset the statistics counters */
+  TVM_DLL void ResetStatsCounters();
+
+  /*! \brief Set the maximum allowed number of rewrite steps
+   *
+   * By default, the simplifier may perform as many steps as are
+   * required.  If a positive limit is set, then the simplifier will
+   * throw an exception when exceeding that number of rewrite steps.
+   * This allows tests to guard against performance regressions.
+   *
+   * Note: To maintain accurate usage counters, `Analyzer` instances
+   * should be re-used wherever possible.  For example, TIR
+   * transformations should declare a single `Analyzer` that is used
+   * throughout the pass, and utility functions should receive an
+   * `Analyzer*` from their calling scope.
+   */
+  TVM_DLL void SetMaximumRewriteSteps(int64_t maximum);
+
  private:
   friend class Analyzer;
   friend class ConstraintContext;

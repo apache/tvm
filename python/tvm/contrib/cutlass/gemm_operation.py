@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-wildcard-import, wildcard-import
+# pylint: disable=invalid-name, unused-wildcard-import, wildcard-import, pointless-exception-statement
 """Generator for CUTLASS GEMM kernels."""
 from .library import *
 

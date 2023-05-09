@@ -366,7 +366,6 @@ class TVM_DLL VirtualMachine : public runtime::ModuleNode {
    * \brief Creats inputs_ field, if it exists check its size.
    * \param func_name The function's name.
    * \param size inputs_ field size.
-   * \return VM function.
    */
   void CreateInputsOrCheckSize(const std::string& func_name, size_t size);
 

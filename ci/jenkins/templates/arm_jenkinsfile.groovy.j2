@@ -23,6 +23,7 @@
   condition='!skip_ci && is_docs_only_build != 1',
   ws='tvm/build-arm',
   docker_image='ci_arm',
+  platform="arm",
 ) %}
   sh (
     script: "${docker_run} ${ci_arm} ./tests/scripts/task_config_build_arm.sh build",

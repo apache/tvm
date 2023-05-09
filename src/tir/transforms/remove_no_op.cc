@@ -42,6 +42,7 @@ namespace tir {
 
 struct RemoveNoOpConfigNode : public tvm::AttrsNode<RemoveNoOpConfigNode> {
   bool use_dataflow_analysis;
+  int64_t max_simplification_steps;
 
   TVM_DECLARE_ATTRS(RemoveNoOpConfigNode, "tir.transform.RemoveNoOpConfig") {
     TVM_ATTR_FIELD(use_dataflow_analysis)
@@ -49,6 +50,12 @@ struct RemoveNoOpConfigNode : public tvm::AttrsNode<RemoveNoOpConfigNode> {
             "If true, known buffer values are propagated and used "
             "to statically prove statements as no-ops.")
         .set_default(false);
+    TVM_ATTR_FIELD(max_simplification_steps)
+        .describe(
+            "If non-zero, RewriteSimplifier will throw an error "
+            "after the number of steps specified.  "
+            "For use in debug and testing purposes.")
+        .set_default(0);
   }
 };
 
@@ -178,31 +185,6 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
     }
   }
 
-  Stmt VisitStmt_(const SeqStmtNode* op) final {
-    auto ret = Downcast<SeqStmt>(StmtMutator::VisitSeqStmt_(op, true));
-
-    bool need_compact = std::any_of(ret->seq.begin(), ret->seq.end(),
-                                    [](const auto& stmt) { return is_no_op(stmt); });
-
-    if (need_compact) {
-      Array<Stmt> filtered;
-      for (Stmt stmt : ret->seq) {
-        if (!is_no_op(stmt)) {
-          filtered.push_back(std::move(stmt));
-        }
-      }
-      ret = SeqStmt(filtered);
-    }
-
-    if (ret->size() == 0) {
-      return Evaluate(0);
-    } else if (ret->size() == 1) {
-      return ret->seq[0];
-    } else {
-      return std::move(ret);
-    }
-  }
-
   Stmt VisitStmt_(const BufferStoreNode* op) final {
     BufferStore store = GetRef<BufferStore>(op);
 
@@ -316,14 +298,19 @@ Pass RemoveNoOp() {
 
     RemoveNoOpConfig config = ctx->GetConfig<RemoveNoOpConfig>("tir.RemoveNoOp")
                                   .value_or(AttrsWithDefaultValues<RemoveNoOpConfig>());
+
     if (config->use_dataflow_analysis) {
-      touch_pattern.emplace(f->body);
+      touch_pattern.emplace(f->body, config->max_simplification_steps);
     }
 
     arith::Analyzer analyzer;
+    analyzer.rewrite_simplify.SetMaximumRewriteSteps(config->max_simplification_steps);
 
-    auto* n = f.CopyOnWrite();
-    n->body = NoOpRemover::Apply(std::move(n->body), &analyzer, std::move(touch_pattern), nullptr);
+    {
+      auto* write_ptr = f.CopyOnWrite();
+      write_ptr->body = NoOpRemover::Apply(std::move(write_ptr->body), &analyzer,
+                                           std::move(touch_pattern), nullptr);
+    }
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.RemoveNoOp", {});

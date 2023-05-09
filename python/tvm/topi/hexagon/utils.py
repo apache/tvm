@@ -21,9 +21,11 @@
 """Common hexagon specific utilities"""
 import math
 import struct
-from typing import Tuple
-from tvm import te
-from tvm.tir import IndexMap
+from typing import Dict, Tuple, Union
+
+import tvm
+from tvm import IRModule, te
+from tvm.tir import IndexMap, PrimFunc
 
 
 def n11c_1024c_2d(n, h, w, c):
@@ -354,3 +356,47 @@ def get_fixed_point_value(flp: float, dtype: str = "int16") -> Tuple[int, int]:
 def saturate(x: te.Tensor, dtype: str):
     """Saturate value for the specified data type"""
     return te.max(te.min_value(dtype), te.min(x, te.max_value(dtype)))
+
+
+def get_vtcm_allocation_sizes(
+    func_or_mod: Union[PrimFunc, IRModule], compacted=True
+) -> Dict[str, int]:
+    """Calculate and return the vtcm allocation sizes for all the functions in
+    the IRModule or just the vtcm size if a single PrimFunc is passed
+
+    Parameters
+    ----------
+    func_or_mod : Union[PrimFunc, IRModule]
+        PrimFunc or IRModule for which VTCM allocation size is to be calculated
+    compacted :
+        Whether to calculate the sizes after applying VTCM lowering passes for
+        buffer compaction. This helps return the VTCM size that would get
+        allocated after lowering
+
+    Returns
+    -------
+    result : Dict[str, int]
+        A dict with function names as keys and vtcm allocated
+        inside that function as values
+
+    """
+    if not isinstance(func_or_mod, (PrimFunc, IRModule)):
+        raise TypeError(
+            f"Expected argument to be PrimFunc or IRModule, but received {type(func_or_mod)}"
+        )
+    if isinstance(func_or_mod, tvm.tir.PrimFunc):
+        mod = tvm.IRModule.from_expr(func_or_mod)
+    else:
+        mod = func_or_mod
+    if compacted:
+        passes = tvm.tir.analysis.get_vtcm_compaction_passes()
+        mod = tvm.transform.Sequential(list(passes))(mod)
+
+    result = {}
+    all_sizes = tvm.tir.analysis.calculate_allocated_bytes(mod)
+    for func_name, sizes in all_sizes.items():
+        if "global.vtcm" in sizes:
+            result[func_name] = sizes["global.vtcm"]
+        else:
+            result[func_name] = 0
+    return result

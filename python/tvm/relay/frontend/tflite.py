@@ -14,7 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-argument, too-many-lines, import-outside-toplevel
+# pylint: disable=invalid-name, unused-argument, too-many-lines
+# pylint: disable=import-outside-toplevel, use-list-literal
 """Tensorflow lite frontend."""
 import itertools
 import math
@@ -1466,10 +1467,19 @@ class OperatorConverter(object):
     def convert_squared_difference(self, op):
         """Convert TFLite SQUARED DIFFERENCE"""
         # Check if the input tensor is quantized, call QNN op
+        # (https://github.com/tensorflow/tflite-micro/blob/bc35c3ed9c7ab93b3a13b46fce936f854bcfce2c/tensorflow/lite/micro/kernels/squared_difference.cc#L157)  # pylint: disable=line-too-long
         if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                "TFlite quantized squared difference operator is not supported yet."
-            )
+            input_tensors = self.get_input_tensors(op)
+            output_tensors = self.get_output_tensors(op)
+            lhs_expr = self.get_tensor_expr(input_tensors[0])
+            rhs_expr = self.get_tensor_expr(input_tensors[1])
+            assert len(input_tensors) == 2, "input tensors length should be 2"
+            assert len(output_tensors) == 1, "output tensors length should be 1"
+            lhs_expr_f32 = self.dequantize(lhs_expr, input_tensors[0])
+            rhs_expr_f32 = self.dequantize(rhs_expr, input_tensors[1])
+            out_f32 = _op.subtract(lhs_expr_f32, rhs_expr_f32)
+            return self.quantize(out_f32 * out_f32, output_tensors[0])
+
         difference = self._convert_elemwise(_op.subtract, op)
         # _convert_elemwise has guaranteed only have one output tensor
         exp_type = self.get_tensor_type_str(self.get_output_tensors(op)[0].tensor.Type())

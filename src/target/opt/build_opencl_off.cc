@@ -31,5 +31,12 @@ Module OpenCLModuleCreate(std::string data, std::string fmt,
   return codegen::DeviceSourceModuleCreate(data, fmt, fmap, "opencl");
 }
 
+Module OpenCLModuleCreate(const std::unordered_map<std::string, SPIRVShader>& shaders,
+                          const std::string& spirv_text,
+                          std::unordered_map<std::string, FunctionInfo> fmap) {
+  LOG(FATAL) << "OpenCLModuleCreate is called but OpenCL is not enabled.";
+  return Module();
+}
+
 }  // namespace runtime
 }  // namespace tvm

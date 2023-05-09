@@ -262,7 +262,7 @@ def test_aot_executor_usmp_const_pool():
         a_np = np.array([[2, 3]], dtype="uint8")
         b_np = np.array([[4, 7]], dtype="uint8")
 
-        a_data = aot_executor.get_input("a").copyfrom(a_np)
+        aot_executor.get_input("a").copyfrom(a_np)
         b_data = aot_executor.get_input("b").copyfrom(b_np)
         aot_executor.run()
 

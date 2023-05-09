@@ -399,7 +399,8 @@ class ControlFlowGraph {
  public:
   /* \brief Extract the touch pattern from a TIR statement
    */
-  explicit ControlFlowGraph(const Stmt& stmt, size_t max_revisits = 5);
+  explicit ControlFlowGraph(const Stmt& stmt, int64_t max_simplification_steps = 0,
+                            size_t max_revisits = 5);
 
   /* \brief Check if a write is overwritten without impacting final results
    *
@@ -655,6 +656,9 @@ class ControlFlowGraph {
 
   /*! \brief The maximum number of revisits while flowing constraints */
   size_t max_revisits_;
+
+  /*! \brief The maximum number of revisits while flowing constraints */
+  int64_t max_simplification_steps_;
 };
 
 }  // namespace tir

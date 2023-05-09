@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=invalid-name
 """This file defines ScheduleState, the core data structure of TensorIR scheduling."""
 from collections import namedtuple
 from enum import IntEnum

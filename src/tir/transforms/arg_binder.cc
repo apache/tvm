@@ -230,7 +230,7 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
     for (size_t i = buffer->shape.size(); i != 0; --i) {
       size_t k = i - 1;
       PrimExpr svalue = cast(stype, BufferLoad(buf_strides, {IntImm(DataType::Int(32), k)}));
-      conds.push_back(expect_stride == svalue);
+      conds.push_back(buffer->shape[k] == 1 || expect_stride == svalue);
       expect_stride = expect_stride * buffer->shape[k];
     }
     std::ostringstream stride_err_msg;
