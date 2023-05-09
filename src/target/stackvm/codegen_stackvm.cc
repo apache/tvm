@@ -183,6 +183,8 @@ void CodeGenStackVM::VisitStmt_(const AllocateNode* op) {
   LOG(FATAL) << "Dynamic allocation not supported";
 }
 
+void CodeGenStackVM::VisitStmt_(const DeclBufferNode* op) { VisitStmt(op->body); }
+
 void CodeGenStackVM::VisitExpr_(const CallNode* op) {
   if (op->op.same_as(builtin::address_of())) {
     const BufferLoadNode* load = op->args[0].as<BufferLoadNode>();

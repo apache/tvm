@@ -139,6 +139,7 @@ class CodeGenStackVM : public ExprFunctor<void(const PrimExpr&)>,
   void VisitStmt_(const ForNode* op) final;
   void VisitStmt_(const IfThenElseNode* op) final;
   void VisitStmt_(const AllocateNode* op) final;
+  void VisitStmt_(const DeclBufferNode* op) final;
   void VisitStmt_(const AttrStmtNode* op) final;
   void VisitStmt_(const AssertStmtNode* op) final;
   void VisitStmt_(const EvaluateNode* op) final;
