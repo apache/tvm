@@ -1017,6 +1017,17 @@ def RewriteCUDAGraph() -> tvm.ir.transform.Pass:
 
 
 def AllocateWorkspace() -> tvm.ir.transform.Pass:
+    """Allocate a workspace, represented by a constant tensor of size big enough for all external
+    functions that require a temporary storage, and append it to the arguments of external
+    functions.
+
+    An external function can specify its workspace requirement by the kWorkspaceSize attribute.
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+        The registered pass for allocating workspace.
+    """
     return _ffi_api.AllocateWorkspace()  # type: ignore
 
 

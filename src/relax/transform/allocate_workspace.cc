@@ -17,6 +17,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+/*!
+ * \file src/relax/transform/allocate_workspace.cc
+ * \brief Allocate a workspace and append it to the arguments of external functions, to
+ * satisfy their temporary storage requirement.
+ */
 
 #include <tvm/ir/name_supply.h>
 #include <tvm/relax/expr.h>
@@ -50,6 +55,7 @@ class ExternFunctionRewriter : ExprMutator {
       return ExprMutator::VisitExpr_(func_node);
     }
     if (auto workspace = func_node->GetAttr<Integer>(attr::kWorkspaceSize)) {
+      // Append the workspace parameter to this function.
       Array<Var> new_params = func_node->params;
 
       auto sinfo = TensorStructInfo(ShapeExpr({Integer(max_workspace_size_)}), DataType::UInt(8));
@@ -72,6 +78,8 @@ class ExternFunctionRewriter : ExprMutator {
       if (auto callee = builder_->LookupBinding(var.value());
           callee && callee->IsInstance<FunctionNode>() &&
           Downcast<Function>(callee.value())->GetAttr<String>(attr::kComposite)) {
+        // Append the workspace argument to this call. The callee should have been updated to accept
+        // a workspace as the last parameter.
         auto new_args = call_node->args;
         ICHECK(workspace_var_param_.defined());
         new_args.push_back(workspace_var_param_);
@@ -83,6 +91,7 @@ class ExternFunctionRewriter : ExprMutator {
 
  private:
   NameSupply name_sup_;
+  /*! \brief A variable that represents the workspace parameter passed from main. */
   Var workspace_var_param_;
   size_t max_workspace_size_ = 0;
 };
@@ -108,6 +117,8 @@ class WorkspaceProvider : ExprMutator {
 
     for (const auto& [gvar, f] : new_funcs) {
       auto new_gvar = builder_->AddFunction(f, gvar->name_hint);
+      // This is only required since the well-formed check requires kGlobalSymbol to be the same
+      // as the actual name of the global variable.
       builder_->UpdateFunction(new_gvar,
                                WithAttr(f, tvm::attr::kGlobalSymbol, new_gvar->name_hint));
       gvar_map_[gvar] = new_gvar;
@@ -159,8 +170,12 @@ class WorkspaceProvider : ExprMutator {
 
  private:
   IRModule mod_;
+  /*! \brief A variable that represents the workspace created at the beginning of main. */
   Var workspace_var_main_;
   size_t max_workspace_size_ = 0;
+  /*! \brief A map from old global variables representing a function with workspace requirement to
+   * the new ones that are transformed to take an additional workspace parameter. This is only
+   * needed since the struct info of the global variables changes between transformation. */
   std::unordered_map<const GlobalVarNode*, GlobalVar> gvar_map_;
 };
 

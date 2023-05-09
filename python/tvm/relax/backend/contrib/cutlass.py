@@ -377,6 +377,7 @@ _REWRITE_PATTERNS = [*attention_rewrite_patterns()]
 
 @expr_functor.mutator
 class WorkspaceAnnotator(PyExprMutator):
+    """Annotate a workspace requirement for each CUTLASS-offloaded function."""
     def __init__(self, mod):
         super().__init__(mod)
 
@@ -405,6 +406,7 @@ class WorkspaceAnnotator(PyExprMutator):
 
 @tvm.transform.module_pass(opt_level=0)
 def annotate_workspace(mod, _):
+    """Pass to annotate a workspace requirement for each CUTLASS-offloaded function."""
     annotator = WorkspaceAnnotator(mod)
     for name, f in mod.functions.items():
         new_f = annotator.visit_expr(f)

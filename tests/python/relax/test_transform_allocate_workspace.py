@@ -14,11 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import pytest
-
 import tvm
 import tvm.testing
-import tvm.topi.testing
 from tvm import relax
 from tvm.script import ir as I
 from tvm.script import relax as R
@@ -125,10 +122,10 @@ class Expected:
         return gv
 
 
-def test():
+def test_single_attention():
     rewritten = relax.transform.AllocateWorkspace()(Module)
     tvm.ir.assert_structural_equal(rewritten, Expected)
 
 
 if __name__ == "__main__":
-    test()
+    tvm.testing.main()
