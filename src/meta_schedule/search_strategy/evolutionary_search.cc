@@ -749,6 +749,7 @@ size_t EvolutionarySearchNode::State::ModuleHash(const IRModule& mod) const {
 }
 
 SearchStrategy SearchStrategy::EvolutionarySearch(int population_size,         //
+                                                  int num_empty_iters_before_early_stop, //
                                                   double init_measured_ratio,  //
                                                   int init_min_unmeasured,     //
                                                   int max_fail_count,          //
@@ -761,7 +762,7 @@ SearchStrategy SearchStrategy::EvolutionarySearch(int population_size,         /
   TVM_META_SCHEDULE_CHECK_PROB_RANGE(eps_greedy, "Greedy pick probability");
   ObjectPtr<EvolutionarySearchNode> n = make_object<EvolutionarySearchNode>();
   n->population_size = population_size;
-  n->num_empty_iters_before_early_stop = 5;
+  n->num_empty_iters_before_early_stop = num_empty_iters_before_early_stop;
   n->init_measured_ratio = init_measured_ratio;
   n->init_min_unmeasured = init_min_unmeasured;
   n->max_fail_count = max_fail_count;
