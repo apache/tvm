@@ -378,6 +378,7 @@ _REWRITE_PATTERNS = [*attention_rewrite_patterns()]
 @expr_functor.mutator
 class WorkspaceAnnotator(PyExprMutator):
     """Annotate a workspace requirement for each CUTLASS-offloaded function."""
+
     def __init__(self, mod):
         super().__init__(mod)
 
@@ -437,10 +438,12 @@ def partition_for_cutlass(mod, annotate_codegen=True):
     for pattern, rewriter in _REWRITE_PATTERNS:
         mod["main"] = rewrite_call(pattern, rewriter, mod["main"])
     patterns = get_patterns_with_prefix("cutlass")
-    return tvm.transform.Sequential([
-        transform.FuseOpsByPattern(
-            patterns, bind_constants=False, annotate_codegen=annotate_codegen
-        ),
-        annotate_workspace,
-        transform.AllocateWorkspace(),
-    ])(mod)
+    return tvm.transform.Sequential(
+        [
+            transform.FuseOpsByPattern(
+                patterns, bind_constants=False, annotate_codegen=annotate_codegen
+            ),
+            annotate_workspace,
+            transform.AllocateWorkspace(),
+        ]
+    )(mod)
