@@ -169,6 +169,8 @@ runtime::TypedPackedFunc<Map<Var, Expr>(Map<DFPattern, Var>)> GetRewriter(
           matmul_combined = relu(matmul_combined);
         } else if (*branch_info.activation == "relax.nn.gelu") {
           matmul_combined = gelu(matmul_combined);
+        } else if (*branch_info.activation == "relax.nn.gelu_tanh") {
+          matmul_combined = gelu_tanh(matmul_combined);
         } else if (*branch_info.activation == "relax.nn.silu") {
           matmul_combined = silu(matmul_combined);
         } else {
@@ -212,7 +214,7 @@ std::vector<BranchInfo> GetBranchInfo(Function f) {
   auto matmul_pat = IsOp("relax.matmul")(Wildcard(), Wildcard());
   auto bias_add_pat = IsOp("relax.add")(matmul_pat, bias_pat);
 
-  std::vector<std::string> activations{"relax.nn.relu", "relax.nn.gelu", "relax.nn.silu"};
+  std::vector<std::string> activations{"relax.nn.relu", "relax.nn.gelu", "relax.nn.gelu_tanh", "relax.nn.silu"};
 
   std::vector<DFPattern> activation_pat, bias_activation_pat;
   for (const auto& act : activations) {

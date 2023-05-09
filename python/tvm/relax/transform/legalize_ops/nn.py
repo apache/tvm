@@ -17,6 +17,7 @@
 # pylint: disable=invalid-name,unused-argument
 """Default legalization function for neural network operators."""
 import logging
+import math
 
 from tvm import topi, tir, te
 from ...block_builder import BlockBuilder
@@ -231,6 +232,21 @@ def _nn_gelu(bb: BlockBuilder, call: Call) -> Expr:
         return x * (tir.const(0.5, dtype) + erf * tir.const(0.5, dtype))
 
     return bb.call_te(te_gelu, call.args[0], primfunc_name_hint="gelu")
+
+
+@register_legalize("relax.nn.gelu_tanh")
+def _nn_gelu_tanh(bb: BlockBuilder, call: Call) -> Expr:
+    def te_gelu_tanh(x: te.Tensor):
+        dtype = x.dtype
+        return tir.const(0.5, dtype) * (
+            tir.const(1.0, dtype)
+            + topi.tanh(
+                tir.const(math.sqrt(2.0 / math.pi), dtype)
+                * (x + tir.const(0.044715, dtype) * topi.power(x, 3))
+            )
+        )
+
+    return bb.call_te(te_gelu_tanh, call.args[0], primfunc_name_hint="gelu_tanh")
 
 
 @register_legalize("relax.nn.silu")

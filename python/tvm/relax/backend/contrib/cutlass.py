@@ -158,6 +158,8 @@ def _check_matmul(context: PatternCheckContext) -> bool:
 def _get_activation_from_name(pattern_name):
     if "_relu" in pattern_name:
         return "relax.nn.relu"
+    elif "_gelu_tanh" in pattern_name:
+        return "relax.nn.gelu_tanh"
     elif "_gelu" in pattern_name:
         return "relax.nn.gelu"
     elif "_silu" in pattern_name:

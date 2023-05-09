@@ -575,6 +575,29 @@ def gelu(data: Expr) -> Expr:
     return _ffi_api.gelu(data)  # type: ignore
 
 
+def gelu_tanh(data: Expr) -> Expr:
+    """Gaussian Error Linear Units function with tanh approximation
+
+    .. math::
+        \text{GELU}(x) = 0.5 * x * (1 + \text{Tanh}(\sqrt(2 / \pi) * (x + 0.044715 * x^3)))
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input data
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+
+    Note
+    ----
+    The input tensor is required to have float dtype
+    """
+    return _ffi_api.gelu_tanh(data)  # type: ignore
+
+
 def silu(data: Expr) -> Expr:
     """Sigmoid Linear Unit function
 
