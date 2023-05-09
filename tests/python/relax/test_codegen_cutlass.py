@@ -84,8 +84,6 @@ pytestmark = [cutlass_enabled]
 
 
 def build_and_run(mod, inputs_np, target, legalize=True):
-    mod = relax.transform.FoldConstant()(mod)  # To const fold workspace
-
     if legalize:
         mod = relax.transform.LegalizeOps()(mod)  # For cpu reference, nop for cutlass.
 
@@ -620,7 +618,7 @@ def test_attention_offload(attention_size, attention_dtype):
     )
 
     mod = get_relax_attention_module(q, k, v)
-    out = get_result_with_relax_cutlass_offload(mod, q, k, v, num_final_bindings=2)
+    out = get_result_with_relax_cutlass_offload(mod, q, k, v, num_final_bindings=3)
 
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
@@ -649,7 +647,7 @@ def test_attention_bias_offload(attention_bias_size):
     )
 
     mod = get_relax_attention_module(q, k, v, bias)
-    out = get_result_with_relax_cutlass_offload(mod, q, k, v, bias, num_final_bindings=2)
+    out = get_result_with_relax_cutlass_offload(mod, q, k, v, bias, num_final_bindings=3)
 
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
@@ -678,9 +676,9 @@ def test_attention_scale_offload(attention_scale_size, attention_scale):
 
     mod = get_relax_attention_module(q, k, v, bias, attention_scale)
     if bias is None:
-        out = get_result_with_relax_cutlass_offload(mod, q, k, v, num_final_bindings=2)
+        out = get_result_with_relax_cutlass_offload(mod, q, k, v, num_final_bindings=3)
     else:
-        out = get_result_with_relax_cutlass_offload(mod, q, k, v, bias, num_final_bindings=2)
+        out = get_result_with_relax_cutlass_offload(mod, q, k, v, bias, num_final_bindings=3)
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
@@ -781,9 +779,9 @@ def test_stacked_attention_split_offload(stacked_attention_size):
         )
 
     if bias is None:
-        out = get_result_with_relax_cutlass_offload(mod, qkv, num_final_bindings=2)
+        out = get_result_with_relax_cutlass_offload(mod, qkv, num_final_bindings=3)
     else:
-        out = get_result_with_relax_cutlass_offload(mod, qkv, bias, num_final_bindings=2)
+        out = get_result_with_relax_cutlass_offload(mod, qkv, bias, num_final_bindings=3)
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
@@ -799,9 +797,9 @@ def test_stacked_attention_strided_slice_offload(stacked_attention_size):
             qkv, b, s, n, h, h_v, "strided_slice", bias, scale, single_shape=single_shape
         )
     if bias is None:
-        out = get_result_with_relax_cutlass_offload(mod, qkv, num_final_bindings=2)
+        out = get_result_with_relax_cutlass_offload(mod, qkv, num_final_bindings=3)
     else:
-        out = get_result_with_relax_cutlass_offload(mod, qkv, bias, num_final_bindings=2)
+        out = get_result_with_relax_cutlass_offload(mod, qkv, bias, num_final_bindings=3)
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 

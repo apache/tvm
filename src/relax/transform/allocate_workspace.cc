@@ -27,7 +27,7 @@
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 
-#include "../op/tensor/create.h"
+#include "../op/op_common.h"
 
 namespace tvm {
 namespace relax {
@@ -135,8 +135,11 @@ class WorkspaceProvider : ExprMutator {
 
   BindingBlock VisitBindingBlock_(const DataflowBlockNode* block_node) final {
     builder_->BeginDataflowBlock();
-    auto workspace = zeros(ShapeExpr({Integer(max_workspace_size_)}), DataType::UInt(8));
     if (!workspace_var_main_.defined()) {
+      auto shape = ShapeExpr({Integer(max_workspace_size_)});
+      auto ty = DataTypeImm(DataType::UInt(8));
+      auto storage = MakeVMAllocStorage(shape, PrimValue::Int64(0), ty);
+      auto workspace = MakeVMAllocTensor(storage, PrimValue::Int64(0), shape, ty);
       workspace_var_main_ = builder_->Emit(workspace, "workspace_main");
     }
     for (const auto& binding : block_node->bindings) {
