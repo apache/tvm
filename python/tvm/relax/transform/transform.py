@@ -811,6 +811,30 @@ def MetaScheduleTuneIRMod(
     )  # type: ignore
 
 
+def FewShotTuning(
+    valid_count: int = 1,
+    benchmark: bool = False,
+) -> tvm.ir.transform.Pass:
+    """The pass is designed for few shot tuning for static shape PrimFuncs. It examines all the
+    blocks within the PrimFunc and conducts loop fusion, splitting, and other transformations based
+    on MetaSchedule schedule rules but directly samples from the search space instead of using the
+    tuning algorithm. User can specify the number of valid counts to try and whether to use runner
+    for benchmarking.
+
+    Parameters
+    ----------
+    valid_count: int
+        The number of valid counts to try.
+    benchmark: bool
+        Whether to use runner for benchmarking.
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+    """
+    return _ffi_api.FewShotTuning(valid_count, benchmark)  # type: ignore
+
+
 def DecomposeOpsForInference(func_name: Optional[str] = None) -> tvm.ir.transform.Pass:
     """Decompose composite operators that are composed by other operators during inference.
     For example, the result of batch norm (a triple) will be simplified. Attention, tensor_to_shape,

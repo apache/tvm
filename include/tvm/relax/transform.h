@@ -493,6 +493,18 @@ TVM_DLL Pass ToMixedPrecision(const DataType& out_dtype,
  */
 TVM_DLL Pass RewriteCUDAGraph();
 
+/*!
+ * \brief The pass is designed for few shot tuning for static shape PrimFuncs. It examines all the
+ *  blocks within the PrimFunc and conducts loop fusion, splitting, and other transformations based
+ *  on MetaSchedule schedule rules but directly samples from the search space instead of using the
+ *  tuning algorithm. User can specify the number of valid counts to try and whether to use runner
+ *  for benchmarking.
+ * \param valid_count The number of valid counts to try.
+ * \param benchmark Whether to use runner for benchmarking.
+ * \return The Pass.
+ */
+TVM_DLL Pass FewShotTuning(int valid_count, bool benchmark);
+
 }  // namespace transform
 }  // namespace relax
 }  // namespace tvm
