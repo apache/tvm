@@ -365,8 +365,8 @@ class MobilenetStructure:
 @pytest.mark.parametrize(
     ["algorithm", "fast_memory_size", "slow_memory_size"],
     [
-        ("greedy_by_size", 200704, 1418528),
-        ("greedy_by_conflicts", 200704, 1418528),
+        ("greedy_by_size", 200704, 1418560),
+        ("greedy_by_conflicts", 200704, 1418560),
         ("hill_climb", 200704, 1117462),
     ],
 )
