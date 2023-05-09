@@ -33,6 +33,7 @@ from typing_extensions import Literal
 
 import torch
 import torch.utils.dlpack
+
 import tvm
 from tvm import meta_schedule as ms
 from tvm.target.target import Target
@@ -66,7 +67,6 @@ class OperatorModuleWrapper(torch.nn.Module):
         task_scheduler: ms.TaskScheduler.TaskSchedulerType = "round-robin",
         space: ms.SpaceGenerator.SpaceGeneratorType = "post-order-apply",
         strategy: ms.SearchStrategy.SearchStrategyType = "replay-trace",
-        task_name: str = "main",
         num_tuning_cores: Union[Literal["physical", "logical"], int] = "physical",
         seed: Optional[int] = None,
     ) -> None:
@@ -99,7 +99,6 @@ class OperatorModuleWrapper(torch.nn.Module):
                 task_scheduler=task_scheduler,
                 space=space,
                 strategy=strategy,
-                task_name=task_name,
                 num_tuning_cores=num_tuning_cores,
                 seed=seed,
             )

@@ -42,7 +42,9 @@ def prim_func(func: Callable) -> Union[PrimFunc, Callable]:
         raise TypeError(f"Expect a function, but got: {func}")
     if utils.is_defined_in_class(inspect.stack(), func):
         return func
-    return parse(func, utils.inspect_function_capture(func))
+    f = parse(func, utils.inspect_function_capture(func))
+    setattr(f, "__name__", func.__name__)
+    return f
 
 
 setattr(prim_func, "dispatch_token", "tir")

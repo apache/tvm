@@ -1336,30 +1336,46 @@ class MeanParams:
                 return axis in ([0], [1], [0, 1])
             return axis in ([1], [2], [1, 2])
 
-        tensor_params = [self.ifm, self.ofm]
-        if not check_valid_dtypes(tensor_params, supported_dtypes=[np.int8]):
+        def check_single_axis_across_height(num_dims, axis):
+            return len(axis) == 1 and (num_dims in (2, 3) and axis == [0] or axis == [1])
+
+        same_quantization = (
+            self.ifm.q_params.scale_f32 == self.ofm.q_params.scale_f32
+            and self.ifm.q_params.zero_point == self.ofm.q_params.zero_point
+        )
+
+        # IFM must be int8 or uint8
+        if not check_valid_dtypes([self.ifm], [np.int8, np.uint8]):
             return False
-        if self.ifm.dtype != self.ofm.dtype:
+        # OFM must be int8, uint8 or int16
+        if not check_valid_dtypes([self.ofm], [np.int8, np.uint8, np.int16]):
             return False
+        # Input tensor must be at least 2D
         if not len(self.ifm.shape) in [2, 3, 4]:
             return False
+        # Axis indices must correspond to height and width axes
         if not check_axis(len(self.ifm.shape), self.axis):
             return False
 
-        # MEAN has further restrictions on the input size, depending on legalization method.
         input_size = self.height * self.width
+
+        # Product of height and width must be no greater than 65536
         if input_size > 65536:
             return False
-        if (
-            self.ifm.q_params.scale_f32 != self.ofm.q_params.scale_f32
-            or self.ifm.q_params.zero_point != self.ofm.q_params.zero_point
-        ) and input_size > 4096:
+        # Product of height and width must be no greater than 4096 when:
+        #   IFM and OFM have different scale or zero point; or
+        #   'keep_dims' is True
+        if input_size > 4096 and (not same_quantization or self.keepdims):
             return False
-        if self.axis == [1, 2] and self.keepdims and self.ifm.dtype == "int8" and input_size > 256:
-            return False
-        # Large kernel height reshape only when axis is [1, 2]
-        if self.axis != [1, 2] and self.height > 64:
-            return False
+        # For single axis averages across the height dimension:
+        if check_single_axis_across_height(len(self.ifm.shape), self.axis):
+            # IFM height must be no greater than 256 if the IFM and OFM scale and zero point match
+            if self.height > 256 and same_quantization:
+                return False
+            # IFM height must be no greater than 64 if the IFM and OFM scale or zero point
+            # do not match
+            if self.height > 64 and not same_quantization:
+                return False
         return True
 
 
@@ -1830,7 +1846,7 @@ class FullyConnectedParams:
             weights.values = weights.values - weights.q_params.zero_point
             axis = 1
             sum_weights = np.amax(np.sum(np.absolute(weights.values), axis=axis))
-            if not sum_weights <= weights_limit:
+            if sum_weights > weights_limit:
                 return False
             return True
 
@@ -1990,6 +2006,63 @@ def pad_pattern():
     return pattern
 
 
+class SoftMaxParams:
+    """
+    This class will parse a call to a ethos-u.softmax composite function
+    and extract the parameter information.
+    """
+
+    composite_name = "ethos-u.softmax"
+
+    def __init__(self, func_body: Call):
+        from tvm.relay.backend.contrib.ethosu.util import QuantizeArgs
+        from tvm.relay.backend.contrib.ethosu.util import DequantizeArgs
+
+        quantize = func_body
+        softmax_op = quantize.args[0]
+        dequantize = softmax_op.args[0]
+
+        layout = "NHWC"
+
+        self.ifm = TensorParams(
+            dequantize.args[DequantizeArgs.IFM.value],
+            layout,
+            dequantize.args[DequantizeArgs.IFM_SCALE.value],
+            dequantize.args[DequantizeArgs.IFM_ZERO_POINT.value],
+        )
+        self.ofm = TensorParams(
+            quantize,
+            layout,
+            quantize.args[QuantizeArgs.OFM_SCALE.value],
+            quantize.args[QuantizeArgs.OFM_ZERO_POINT.value],
+        )
+
+        self.operator_type = "SOFTMAX"
+
+    def is_valid(self):
+        """Checks whether Softmax has compatible attributes with HW"""
+        tensor_params = [self.ifm, self.ofm]
+        if not check_valid_dtypes(tensor_params, supported_dtypes=[np.int8]):
+            return False
+        if self.ifm.dtype != self.ofm.dtype:
+            return False
+        if not check_dimensions(self.ifm):
+            return False
+        if self.ifm.shape != self.ofm.shape:
+            return False
+        return True
+
+
+def softmax_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
+    """
+    This function creates the pattern for Softmax.
+    """
+    pattern = is_op("qnn.dequantize")(wildcard(), is_constant(), is_constant())
+    pattern = is_op("nn.softmax")(pattern)
+    pattern = is_op("qnn.quantize")(pattern, is_constant(), is_constant())
+    return pattern
+
+
 @register_pattern_table("ethos-u")
 def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Callable]]:
     return [
@@ -2093,6 +2166,11 @@ def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Cal
             SumParams.composite_name,
             sum_pattern(),
             lambda pat: SumParams(pat).is_valid(),
+        ),
+        (
+            SoftMaxParams.composite_name,
+            softmax_pattern(),
+            lambda pat: SoftMaxParams(pat).is_valid(),
         ),
         (
             LeakyReLUParams.composite_name,

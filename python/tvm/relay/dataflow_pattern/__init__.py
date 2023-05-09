@@ -869,7 +869,7 @@ class DFPatternCallback:
         result : tvm.relay.Expr
             The Expression with matched subgraph rewritten by the callback
         """
-        raise "Unimplemented"
+        raise NotImplementedError()
 
 
 class _DFPatternCallback(Object):

@@ -17,9 +17,8 @@
 
 """Schedule for nn.pad operator"""
 
-import tvm
-
 import numpy as np
+import tvm
 
 
 def schedule_pad(outs):

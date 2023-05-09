@@ -1842,8 +1842,6 @@ StmtSRef ReindexCacheWrite(ScheduleState self, const StmtSRef& block_sref, int w
   // Step 2. Creating CacheStageInfo
   ReindexCacheStageInfo info;
   info.write_buffer = write_buffer;
-  LOG(INFO) << block->name_hint;
-  info.consumer_blocks.insert(block_sref);
 
   // Step 3. Check the only writer block.
   ICHECK_EQ(block_sref.get(), GetOnlyWriteBlock(self, scope_sref, write_buffer).get());

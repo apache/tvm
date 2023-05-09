@@ -19,12 +19,11 @@
 import os
 
 import numpy as np
+import oneflow as flow
 import tvm
 import tvm.testing
 import tvm.topi.testing
 from tvm import relay
-
-import oneflow as flow
 
 MODEL_HOME = "test_model"
 

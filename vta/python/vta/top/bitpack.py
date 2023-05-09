@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=ungrouped-imports
+# pylint: disable=ungrouped-imports, unsupported-binary-operation
 
 """Bit packing operators"""
 from __future__ import absolute_import as _abs

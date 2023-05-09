@@ -97,6 +97,7 @@ class TypeSolver {
   void Emit(const Diagnostic& diag) { diag_ctx_.Emit(diag); }
 
  private:
+  class AnyChecker;
   class OccursChecker;
   class Unifier;
   class Resolver;

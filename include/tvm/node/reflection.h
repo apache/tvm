@@ -134,7 +134,6 @@ class ReflectionVTable {
    * \brief Dispatch the SHashReduce function.
    * \param self The pointer to the object.
    * \param hash_reduce The hash reducer.
-   * \return the result.
    */
   void SHashReduce(const Object* self, SHashReducer hash_reduce) const;
   /*!

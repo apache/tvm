@@ -17,7 +17,7 @@
 # pylint: disable=import-self, too-many-lines, len-as-condition, no-else-return, unused-variable, too-many-nested-blocks
 # pylint: disable=consider-iterating-dictionary, invalid-name, unused-argument, unused-variable, broad-except
 # pylint: disable=import-outside-toplevel, simplifiable-if-expression, cell-var-from-loop, unnecessary-lambda
-# pylint: disable=missing-function-docstring, redefined-builtin
+# pylint: disable=missing-function-docstring, redefined-builtin, use-implicit-booleaness-not-comparison
 """PT: PyTorch frontend."""
 import functools
 import itertools
@@ -832,6 +832,22 @@ class PyTorchOpConverter:
 
         return out
 
+    def new_zeros(self, inputs, input_types):
+        data = inputs[1]
+
+        import torch
+
+        if not isinstance(data, (_expr.Expr, list, tuple, torch.Size)):
+            msg = "Data type %s could not be parsed in new_zeros op" % (type(data))
+            raise AssertionError(msg)
+
+        if inputs[2] is not None:
+            dtype = _convert_dtype_value(inputs[2])
+        else:
+            # if dtype is None, use the dtype of the input tensor
+            dtype = self.infer_type(inputs[0])
+        return self.full_impl(data, 0, dtype)
+
     def full(self, inputs, input_types):
         data = inputs[0]
         fill_value = inputs[1]
@@ -880,7 +896,7 @@ class PyTorchOpConverter:
             dtype = _convert_dtype_value(inputs[3])
         else:
             # if dtype is None, use the dtype of the input tensor
-            dtype = self.infer_type(input[0])
+            dtype = self.infer_type(inputs[0])
 
         return self.full_impl(data, fill_value, dtype)
 
@@ -952,8 +968,9 @@ class PyTorchOpConverter:
         data = inputs[0]
         dtype = input_types[0]
         alpha = _expr.const(float(inputs[1]), dtype=dtype)
-        return alpha * _op.nn.relu(
-            _expr.const(1, dtype=dtype) - _op.exp(data / alpha)
+        zero = _op.const(0, dtype)
+        return alpha * _op.minimum(
+            zero, _op.exp(data / alpha) - _expr.const(1, dtype=dtype)
         ) + _op.nn.relu(data)
 
     def gelu(self, inputs, input_types):
@@ -3626,7 +3643,8 @@ class PyTorchOpConverter:
         return out
 
     def einsum(self, inputs, input_types):
-        equation, data = inputs
+        equation = inputs[0]
+        data = inputs[1]
         return _op.einsum(data, equation)
 
     def dot(self, inputs, _):
@@ -3661,7 +3679,7 @@ class PyTorchOpConverter:
             axes = [0, 4, 1, 2, 3]
             grid = _op.transform.transpose(inputs[1], axes)
         else:
-            msg = f"only 4D and 5D are supported."
+            msg = "only 4D and 5D are supported."
             raise ValueError(msg)
 
         if interpolate_mode == 0:
@@ -3755,6 +3773,7 @@ class PyTorchOpConverter:
             "aten::zeros": self.zeros,
             "aten::zero_": self.zero_,
             "aten::zeros_like": self.zeros_like,
+            "aten::new_zeros": self.new_zeros,
             "aten::new_ones": self.new_ones,
             "aten::full": self.full,
             "aten::full_like": self.full_like,

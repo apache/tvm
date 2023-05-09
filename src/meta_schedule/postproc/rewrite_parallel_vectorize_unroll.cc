@@ -389,11 +389,15 @@ void RewriteVectorize(const Schedule& sch, size_t n, Array<LoopRV>* loop_rvs) {
   }
 }
 
-void RewriteUnroll(const Schedule& sch, int unroll_explicit, int max_step, const LoopRV& loop) {
-  if (max_step > 0) {
-    sch->Annotate(loop, attr::pragma_auto_unroll_max_step, IntImm(DataType::Int(32), max_step));
-    sch->Annotate(loop, attr::pragma_unroll_explicit, IntImm(DataType::Int(32), unroll_explicit));
+void RewriteUnroll(const Schedule& sch, int unroll_explicit, int max_step, const BlockRV& block,
+                   const LoopRV& loop) {
+  // Do not unroll for pure spatial block.
+  if (max_step <= 0 || IsSpatial(sch->GetSRef(block))) {
+    return;
   }
+
+  sch->Annotate(loop, attr::pragma_auto_unroll_max_step, IntImm(DataType::Int(32), max_step));
+  sch->Annotate(loop, attr::pragma_unroll_explicit, IntImm(DataType::Int(32), unroll_explicit));
 }
 
 }  // namespace tir
@@ -436,7 +440,7 @@ class RewriteParallelVectorizeUnrollNode : public PostprocNode {
           ICHECK(parsed.unroll_explicit == -1 || parsed.unroll_implicit == -1);
           int unroll_explicit = parsed.unroll_explicit != -1;
           int max_step = parsed.unroll_explicit + parsed.unroll_implicit + 1;
-          tir::RewriteUnroll(sch, unroll_explicit, max_step, loop_rvs[0]);
+          tir::RewriteUnroll(sch, unroll_explicit, max_step, block_rv, loop_rvs[0]);
         }
       }
     }

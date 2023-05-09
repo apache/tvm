@@ -1042,7 +1042,7 @@ def test_aot_codegen_checks_returns():
     main_func = main_ir_module["__tvm_main__"]
 
     # Check operator call is wrapped properly
-    body = main_func.body[1].seq[0].seq[0].value
+    body = main_func.body.value
     assert (
         repr(body)
         == 'T.tvm_check_return(0, -1, T.call_extern("int32", "tvmgen_default_fused_add",'

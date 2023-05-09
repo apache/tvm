@@ -33,14 +33,7 @@ import numpy as np
 
 from PIL import Image
 
-import tvm
-import tvm.relay.testing.tf as tf_testing
-from tvm.contrib.download import download_testdata
-from tvm import relay, ir
-from tvm.contrib import graph_executor
 from tflite.BuiltinOperator import BuiltinOperator
-from relay.utils.tag_span import _set_span, _create_span, _verify_structural_equal_with_span
-
 
 try:
     import tensorflow.compat.v1 as tf
@@ -67,6 +60,13 @@ try:
     from tensorflow import lite as interpreter_wrapper
 except ImportError:
     from tensorflow.contrib import lite as interpreter_wrapper
+
+import tvm
+import tvm.relay.testing.tf as tf_testing
+from tvm.contrib.download import download_testdata
+from tvm import relay, ir
+from tvm.contrib import graph_executor
+from relay.utils.tag_span import _set_span, _create_span, _verify_structural_equal_with_span
 
 
 #######################################################################
@@ -305,7 +305,7 @@ def compare_tflite_with_tvm(
     mode="graph_executor",
     experimental_new_converter=False,
     fp16_quantized=False,
-    int_quant_dtype=tf.int8,
+    int_quant_dtype=tf.uint8,
 ):
     """Generic function to generate and compare TFLite and TVM output"""
     in_data = convert_to_list(in_data)
@@ -334,6 +334,8 @@ def compare_tflite_with_tvm(
                 converter.target_spec.supported_ops = [
                     tf.lite.OpsSet.EXPERIMENTAL_TFLITE_BUILTINS_ACTIVATIONS_INT16_WEIGHTS_INT8
                 ]
+            elif int_quant_dtype == tf.int8:
+                converter.inference_type = tf.lite.constants.INT8
             else:
                 # default to int8 quantization
                 converter.inference_type = tf.lite.constants.QUANTIZED_UINT8
@@ -2327,6 +2329,16 @@ def _test_elemwise(
     def __test_elemwise(in_data):
         assert len(in_data) == 2
         if quantized:
+            int_quant_dtype = None
+            if data[0].dtype == "int8":
+                int_quant_dtype = tf.int8
+            elif data[0].dtype == "uint8":
+                int_quant_dtype = tf.uint8
+            elif data[0].dtype == "int16":
+                int_quant_dtype = tf.int16
+            else:
+                assert False, "Unsupported conversion from numpy to tflite dtype!"
+
             # set the fp32 output range with respect to the operation
             out_min, out_max = _test_elemwise_qnn_out_range(qnn_op)
             inq0_min, inq0_max = (-100, 100)
@@ -2375,6 +2387,7 @@ def _test_elemwise(
                     quantized=True,
                     input_range=input_range,
                     experimental_new_converter=same_qnn_params,
+                    int_quant_dtype=int_quant_dtype,
                 )
             else:
                 out = math_op(inq_data[0], inq_data[1])
@@ -2392,6 +2405,7 @@ def _test_elemwise(
                     quantized=True,
                     input_range=input_range,
                     experimental_new_converter=same_qnn_params,
+                    int_quant_dtype=int_quant_dtype,
                 )
         else:
             out = math_op(
@@ -2585,9 +2599,16 @@ def _test_not_equal(data):
 # ------------------
 
 
-def _test_squared_difference(data):
+def _test_squared_difference(data, fused_activation_function=None, quantized=False, qnn_op=None):
     """One iteration of squared difference"""
-    return _test_elemwise(math_ops.squared_difference, data)
+    return _test_elemwise(
+        math_ops.squared_difference,
+        data,
+        fused_activation_function,
+        quantized,
+        qnn_op,
+        same_qnn_params=True,
+    )
 
 
 #######################################################################
@@ -2632,11 +2653,13 @@ def _test_forward_elemwise(testop):
     )
 
 
-def _test_forward_elemwise_quantized(testop):
+def _test_forward_elemwise_quantized(testop, dtype=np.uint8):
+    type_info = np.iinfo(dtype)
+    _min, _max = type_info.min, type_info.max
     testop(
         [
-            np.array(np.random.uniform(0, 255, (3, 6)), dtype=np.uint8),
-            np.array(np.random.uniform(0, 255, (3, 6)), dtype=np.uint8),
+            np.array(np.random.uniform(_min, _max, (3, 6)), dtype=dtype),
+            np.array(np.random.uniform(_min, _max, (3, 6)), dtype=dtype),
         ],
         quantized=True,
         qnn_op=testop,
@@ -2653,6 +2676,7 @@ def _test_elemwise_qnn_out_range(qnn_op):
         _test_minimum: (-128, 127),
         _test_equal: (-150, 150),
         _test_greater: (-150, 150),
+        _test_squared_difference: (0, 65025),
     }
 
     return qnn_out_range[qnn_op]
@@ -2685,6 +2709,7 @@ def test_all_elemwise():
     _test_forward_elemwise(_test_greater)
     _test_forward_elemwise_quantized(_test_greater)
     _test_forward_elemwise(_test_squared_difference)
+    _test_forward_elemwise_quantized(_test_squared_difference, np.int8)
     _test_forward_elemwise(_test_greater_equal)
     _test_forward_elemwise(_test_less)
     _test_forward_elemwise(_test_less_equal)

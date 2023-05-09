@@ -23,6 +23,7 @@
   condition='!skip_ci && is_docs_only_build != 1',
   ws='tvm/build-wasm',
   docker_image='ci_wasm',
+  platform='wasm',
 ) %}
   sh (
     script: "${docker_run} ${ci_wasm} ./tests/scripts/task_config_build_wasm.sh build",

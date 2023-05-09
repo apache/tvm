@@ -71,13 +71,6 @@ bool LLVMEnabled() {
   return pf != nullptr;
 }
 
-bool ShouldAnnotateEntryFunc(const IRModule mod) {
-  Optional<tvm::relay::Executor> executor = mod->GetAttr<tvm::relay::Executor>("executor");
-  const bool aot_executor = executor.defined() && executor.value()->name == "aot";
-  const bool single_entry_func = (mod->functions.size() == 1);
-  return single_entry_func && !aot_executor;
-}
-
 /*! \return The default host target for a given device target */
 Target DefaultTargetHost(Target target) {
   if (target.defined() && target->GetTargetDeviceType() == kDLCPU) {
@@ -544,22 +537,13 @@ runtime::Module build(const IRModule& funcs, const Target& target_arg,
   return TIRToRuntime(inputs, target_host);
 }
 
-int64_t GetVTCMCapacity(Target target, const transform::PassContext& pass_ctx) {
-  if (!target.defined()) target = Target::Current(/*allow_not_defined=*/true);
-  if (target.defined() && target->kind->name == "hexagon") {
-    auto value = Downcast<Integer>(target->attrs.at("vtcm-capacity"))->value;
-    if (value > 0) return value;
-  }
-  return pass_ctx->GetConfig<Integer>("tir.vtcm_capacity", Integer(0)).value()->value;
-}
-
 transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) {
   transform::PassContext pass_ctx = transform::PassContext::Current();
 
   Array<Pass> mixed_pass_list;
 
   // VerifyVTCMLimit must occur before LowerVtcmAlloc
-  mixed_pass_list.push_back(tir::transform::VerifyVTCMLimit(GetVTCMCapacity(target, pass_ctx)));
+  mixed_pass_list.push_back(tir::transform::VerifyVTCMLimit(target));
   // LowerVtcmAlloc must occur after any transformations that modify memory allocation locations
   mixed_pass_list.push_back(tir::transform::LowerVtcmAlloc());
 
@@ -567,9 +551,7 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
 
   mixed_pass_list.push_back(tir::transform::VerifyMemory());
 
-  if (ShouldAnnotateEntryFunc(mixed_mod)) {
-    mixed_pass_list.push_back(tir::transform::AnnotateEntryFunc());
-  }
+  mixed_pass_list.push_back(tir::transform::AnnotateEntryFunc());
 
   bool detect_global_barrier =
       pass_ctx->GetConfig<Bool>("tir.detect_global_barrier", Bool(false)).value();

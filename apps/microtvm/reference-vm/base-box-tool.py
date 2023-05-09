@@ -56,7 +56,7 @@ EXTRA_SCRIPTS = [
     "docker/install/ubuntu_install_core.sh",
     "docker/install/ubuntu_install_python.sh",
     "docker/utils/apt-install-and-clear.sh",
-    "docker/install/ubuntu1804_install_llvm.sh",
+    "docker/install/ubuntu2204_install_llvm.sh",
     # Zephyr
     "docker/install/ubuntu_init_zephyr_project.sh",
     "docker/install/ubuntu_install_zephyr_sdk.sh",

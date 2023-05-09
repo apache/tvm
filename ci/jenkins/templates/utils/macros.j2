@@ -33,7 +33,7 @@ sh(
 {% set test_dir_name = name.replace(":", "").replace(" ", "-").replace("-", "_")|string %}
 def {{ method_name }}(node_type='{{ node }}-SPOT', on_demand=false) {
   if ({{ condition }}) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = '{{ node }}'
     }
     node(node_type) {
@@ -70,7 +70,7 @@ def {{ method_name }}(node_type='{{ node }}-SPOT', on_demand=false) {
 {% endfor %}
 {% endmacro %}
 
-{% macro invoke_build(name, condition, node, docker_image, ws) %}
+{% macro invoke_build(name, condition, node, docker_image, ws, platform) %}
 def build(node_type) {
   stage('Build') {
     if ({{ condition }}) {
@@ -79,7 +79,12 @@ def build(node_type) {
           init_git()
           docker_init({{ docker_image }})
           timeout(time: max_time, unit: 'MINUTES') {
-            {{ caller() | trim | indent(width=6) }}
+
+            withEnv([
+              'PLATFORM={{ platform }}',
+              ], {
+              {{ caller() | trim | indent(width=6) }}
+            })
           }
         }
       }
@@ -120,7 +125,7 @@ test()
 {% macro deploy_step(name, feature_flag, ws) %}
   '{{ name }}': {
     if ({{ feature_flag }}) {
-      node(node_type) {
+      node('CPU') {
         ws({{ per_exec_ws(ws) }}) {
           timeout(time: max_time, unit: 'MINUTES') {
             {{ caller() | indent(width=10) | trim }}

@@ -64,7 +64,9 @@ class TestPacket {
 std::vector<const TestPacket*> TestPacket::instances;
 
 #define TEST_PACKET(name, payload, wire) \
-  static const TestPacket k##name { #name, payload, wire }
+  static const TestPacket k##name {      \
+#name, payload, wire                 \
+  }
 
 // NOTE: golden packet CRCs are generated with this python:
 // import binascii

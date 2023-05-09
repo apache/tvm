@@ -1988,6 +1988,7 @@ class LpPool(OnnxOpConverter):
         data = inputs[0]
         input_shape = infer_shape(data)
         ndim = len(input_shape)
+        num_spatial_dims = ndim - 2
         if "auto_pad" in attr:
             attr["auto_pad"] = attr["auto_pad"].decode("utf-8")
             if attr["auto_pad"] in ("SAME_UPPER", "SAME_LOWER"):
@@ -1995,7 +1996,8 @@ class LpPool(OnnxOpConverter):
                 # one will need to run dynamic_to_static on this model after import
                 data = autopad(
                     data,
-                    attr["strides"],
+                    # this is meant to handle the field 'strides' being optional for opsets 11+
+                    attr.get("strides", [1] * num_spatial_dims),
                     attr["kernel_shape"],
                     [1] * ndim,
                     mode=attr["auto_pad"],
@@ -3460,7 +3462,7 @@ class Constant(OnnxOpConverter):
     @classmethod
     def _impl_v9(cls, inputs, attr, params):
         if "value" not in attr:
-            raise tvm.errors.OpAttributeRequired("no value in Constant")
+            raise tvm.error.OpAttributeRequired("no value in Constant")
         value = attr.pop("value")
         # Constants may rarely have string types. These are likely exported
         # from other frameworks and not actually used in TVM. We'll just use

@@ -766,6 +766,7 @@ class IterMapRewriter : public ExprMutator {
     // use reverse search as usually smallest is ordered on the right
     int base_index = -1;
     int64_t min_const_scale = 0;
+
     for (int i = rbegin; i >= 0; --i) {
       if (skip_flag[i]) continue;
       if (match_source.defined() && !match_source.same_as(expr->args[i]->source)) continue;
@@ -773,6 +774,12 @@ class IterMapRewriter : public ExprMutator {
         if (base_index == -1 || op->value < min_const_scale) {
           min_const_scale = op->value;
           base_index = static_cast<int>(i);
+        } else if (op->value == min_const_scale) {
+          // for ties, we want to look into 1 extent trivial iters
+          // prioritize trivial iterators
+          if (is_one(expr->args[i]->extent) && !is_one(expr->args[base_index]->extent)) {
+            base_index = static_cast<int>(i);
+          }
         }
       }
     }
@@ -795,20 +802,38 @@ class IterMapRewriter : public ExprMutator {
   }
 
   /*!
+   * \brief Find the first possible location that have extent equals 1
+   *
+   * Unit extent can be rare in simplifications and not having them can
+   * help us do early exit in scale matching.
+   *
+   * This parameter is being used in FindIterWithExactScale N times.
+   * \param expr The input expression.
+   */
+  int FindFirstPossibleUnitExtentIndex(const IterSumExpr& expr) {
+    for (size_t i = 0; i < expr->args.size(); ++i) {
+      if (is_one(expr->args[i]->extent)) return static_cast<int>(i);
+    }
+    return static_cast<int>(expr->args.size());
+  }
+
+  /*!
    * \brief Helper method to find iterator with exact the expected scale.
    * \param expr The expression.
    * \param skip_flag skip_flag the position already visited to skip.
    * \param match_source Must match the same source.
    * \param expected_scale The expected_scale.
    * \param rbegin The last index to start reverse searching, -1 means everything.
+   * \param first_possible_unit_extent_pos The last possible locatin with split->extent == 1
    * \return -1 if not no match found, otherwise return the index.
    */
   int FindIterWithExactScale(const IterSumExpr& expr, const std::vector<bool>& skip_flag,
                              const PrimExpr& expected_scale, Optional<IterMark> match_source,
-                             int rbegin = -1) {
+                             int rbegin = -1, int first_possible_unit_extent_pos = 0) {
     if (rbegin == -1) {
       rbegin = static_cast<int>(expr->args.size()) - 1;
     }
+    int matched_pos = -1;
     // use reverse search, as smallest scale usually are near the end.
     for (int j = rbegin; j >= 0; --j) {
       if (skip_flag[j]) continue;
@@ -816,10 +841,18 @@ class IterMapRewriter : public ExprMutator {
       const PrimExpr& cur_scale = expr->args[j]->scale;
       // for bijective mapping, the matched scale must equal to expected scale
       if (analyzer_->CanProveEqual(cur_scale, expected_scale)) {
-        return j;
+        if (is_one(expr->args[j]->extent)) return j;
+        // if extent is not one and there is a possible extent=1 split
+        // further out, we need to extent the search
+        // extent=1 gets higher priority since they don't change the scale
+        // if there are multiple of them, we match the first encountered
+        if (matched_pos == -1) {
+          matched_pos = j;
+        }
+        if (j <= first_possible_unit_extent_pos) return matched_pos;
       }
     }
-    return -1;
+    return matched_pos;
   }
 
   /*!
@@ -867,6 +900,7 @@ class IterMapRewriter : public ExprMutator {
     // most iter map are small n < 5
     // so we can afford N^2 complexity
     bool has_overlap = false;
+
     for (size_t i = 0; i < expr->args.size(); ++i) {
       auto it = hit_count.find(expr->args[i]->source);
       if (it != hit_count.end()) {
@@ -880,6 +914,7 @@ class IterMapRewriter : public ExprMutator {
 
     std::vector<bool> visited(expr->args.size(), false);
     std::vector<IterSplitExpr> reverse_flattened_iters;
+    int first_possible_unit_extent_pos = FindFirstPossibleUnitExtentIndex(expr);
 
     // Start eliminating the iterators
     for (int rend = static_cast<int>(expr->args.size()) - 1; rend >= 0;) {
@@ -925,7 +960,8 @@ class IterMapRewriter : public ExprMutator {
       while (true) {
         // NOTE: mul order [lower_factor, extent, scale]
         PrimExpr lhs_scale = MulAndNormalize(rhs_iter->extent, rhs_iter->scale);
-        matched_index = FindIterWithExactScale(expr, visited, lhs_scale, rhs_iter->source, rend);
+        matched_index = FindIterWithExactScale(expr, visited, lhs_scale, rhs_iter->source, rend,
+                                               first_possible_unit_extent_pos);
         if (matched_index == -1) break;
         IterSplitExpr lhs_iter = expr->args[matched_index];
         ICHECK(rhs_iter->source.same_as(lhs_iter->source));
@@ -974,14 +1010,16 @@ class IterMapRewriter : public ExprMutator {
     PrimExpr expected_extra_base = 0;
     PrimExpr tail_extent = 0;
     PrimExpr expected_scale = base_scale;
+    int first_possible_unit_extent_pos = FindFirstPossibleUnitExtentIndex(expr);
 
     for (size_t i = 0; i < expr->args.size();) {
       PrimExpr matched_scale{nullptr};
       bool is_exact_match{false};
       // find position such that expr->args[j] match expected scale
       // if it is first step, we can simply start with base index
-      int matched_pos =
-          i == 0 ? base_index : FindIterWithExactScale(expr, visited, expected_scale, NullOpt);
+      int matched_pos = i == 0 ? base_index
+                               : FindIterWithExactScale(expr, visited, expected_scale, NullOpt, -1,
+                                                        first_possible_unit_extent_pos);
       if (matched_pos != -1) {
         matched_scale = expected_scale;
         is_exact_match = true;

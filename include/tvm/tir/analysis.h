@@ -26,6 +26,7 @@
 
 #include <tvm/ir/module.h>
 #include <tvm/ir/transform.h>
+#include <tvm/target/target.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/op_attr_types.h>
@@ -183,6 +184,22 @@ TVM_DLL bool VerifyMemory(const PrimFunc& func);
  */
 TVM_DLL bool VerifyGPUCode(const PrimFunc& func, Map<String, PrimExpr> constraints);
 
+/**
+ * @brief Utility function to get the list of lowering passes to be applied to calculate the
+ * compacted VTCM allocation size
+ *
+ * @return returns list of passes
+ */
+TVM_DLL Array<tvm::transform::Pass> GetVTCMCompactionPasses();
+
+/*!
+ * \brief Verifies that the VTCM usage for all prim_funcs in the given IRModule
+ * \param mod The module to be checked
+ * \param limit The limit to check.
+ * \return true if the VTCM usage is within the provided limit.
+ */
+TVM_DLL bool VerifyVTCMLimit(const IRModule& mod, Integer limit);
+
 /*!
  * \brief Verifies that the VTCM usage of the given prim_func is within the provided limit.
  * \param func The function to be checked.
@@ -265,8 +282,18 @@ TVM_DLL size_t CalculateWorkspaceBytes(const PrimFunc& func,
 /*!
  * \brief Calculate the allocated memory per scope in bytes needed inside the TIR PrimFunc
  * \param func The TIR PrimFunc for which the the allocated memory size to be calculated
+ * \return Allocated memory size per scope in bytes inside the PrimFunc returned as a Map with
+ * key "main" and a Map of allocated sizes as values.
  */
-TVM_DLL tvm::Map<String, Integer> CalculateAllocatedBytes(const PrimFunc& func);
+TVM_DLL tvm::Map<String, tvm::Map<String, Integer>> CalculateAllocatedBytes(const PrimFunc& func);
+
+/*!
+ * \brief Calculate the allocated memory per scope in bytes for each function inside the module
+ * \param mod The IRModule for which the the allocated memory size has to be calculated
+ * \return Allocated memory size per scope in bytes for each function in the IRModule returned as a
+           Map with function names as keys and a Map of allocated sizes as values.
+ */
+TVM_DLL tvm::Map<String, tvm::Map<String, Integer>> CalculateAllocatedBytes(const IRModule& mod);
 
 /*!
  * \brief Detect the lowest common ancestor(LCA) of buffer access, including both high-level
@@ -348,12 +375,13 @@ TVM_DLL Pass VerifyGPUCode(Map<String, PrimExpr> constraints);
 /*!
  * \brief Pass to checks if the size of the allocated vtcm memory satisfies the limit
  *
- * \param limit The limit to check.
+ * \param target The target whose VTCM limit should be used for any
+ * functions not already annotated with `tvm::attr::kTarget`.
  *
  * \returns The pass.
  * \sa tvm::tir::CalculateAllocatedBytes
  */
-TVM_DLL Pass VerifyVTCMLimit(const Integer& limit);
+TVM_DLL Pass VerifyVTCMLimit(Optional<Target> target = NullOpt);
 
 /*!
  * \brief Statically check TIR code for out of bounds array access.

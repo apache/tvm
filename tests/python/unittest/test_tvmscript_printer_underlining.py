@@ -433,7 +433,7 @@ def test_underline_from_obj():
 def test_underline_from_multi_obj():
     @T.prim_func
     def func():
-        T.evaluate(0)
+        T.evaluate(-1)
         T.evaluate(1)
         T.evaluate(2)
         T.evaluate(3)
@@ -456,7 +456,7 @@ def test_underline_from_multi_obj():
 
         @T.prim_func
         def main():
-            T.evaluate(0)
+            T.evaluate(-1)
             T.evaluate(1)
             ^^^^^^^^^^^^^
             T.evaluate(2)

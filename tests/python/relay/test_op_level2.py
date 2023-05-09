@@ -1444,6 +1444,25 @@ def test_pad_run_dynamic_pad_value():
     _test_run("int32")
 
 
+def test_pad_value_in_array():
+    A = relay.var("A", shape=(32, 32), dtype="int8")
+
+    # Extract pad value from an array
+    p0 = relay.Constant(tvm.nd.array(np.array([2], dtype="int8")))
+    p1 = relay.nn.pad(A, pad_value=p0, pad_width=((1, 1), (1, 1)))
+
+    func = relay.Function(relay.analysis.free_vars(p1), p1)
+    mod = tvm.IRModule.from_expr(func)
+
+    target = "llvm"
+    lib = relay.build(
+        mod,
+        tvm.target.Target(target, host=target),
+        runtime=relay.backend.Runtime("cpp"),
+        executor=relay.backend.Executor("aot", {"unpacked-api": False, "interface-api": "packed"}),
+    )
+
+
 @tvm.testing.uses_gpu
 @pytest.mark.parametrize("dtype", ["float32", "float16"])
 def test_lrn(executor_kind, dtype):

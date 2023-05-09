@@ -160,6 +160,7 @@ We do encourage everyone to work anything they are interested in.
 - [Wei Pan](https://github.com/wpan11nv): @wpan11nv
 - [Michalis Papadimitriou](https://github.com/mikepapadim): @mikepapadim
 - [Krzysztof Parzyszek](https://github.com/kparzysz-quic): @kparzysz-quic
+- [Sunghyun Park](https://github.com/sunggg): @sunggg
 - [Ashutosh Parkhi](https://github.com/ashutosh-arm): @ashutosh-arm
 - [Alexander Peskov](https://github.com/apeskov): @apeskov
 - [Pariksheet Pinjari](https://github.com/PariksheetPinjari909): @PariksheetPinjari909
@@ -212,6 +213,8 @@ We do encourage everyone to work anything they are interested in.
 - [Min Chen](https://github.com/multiverstack-intellif): @multiverstack-intellif
 - [Xiyou Zhou](https://github.com/zxybazh): @zxybazh
 - [@blackkker](https://github.com/blackkker): @blackkker
+- [Jiajun Jiang](https://github.com/jiangjiajun): @jiangjiajun
+- [Qiang Zhang](https://github.com/Johnson9009): @Johnson9009
 
 ## List of Contributors
 - [Full List of Contributors](https://github.com/apache/tvm/graphs/contributors)

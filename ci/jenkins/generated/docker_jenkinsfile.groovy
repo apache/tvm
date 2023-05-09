@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2023-04-05T10:53:33.841974
+// Generated at 2023-04-24T11:43:39.960968
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -112,7 +112,7 @@ properties([
 upstream_revision = null
 
 // command to start a docker container
-docker_run = 'docker/bash.sh --env CI --env TVM_SHARD_INDEX --env TVM_NUM_SHARDS --env RUN_DISPLAY_URL --env PLATFORM --env SKIP_SLOW_TESTS --env TEST_STEP_NAME'
+docker_run = 'docker/bash.sh --env CI --env PLATFORM --env TVM_SHARD_INDEX --env TVM_NUM_SHARDS --env RUN_DISPLAY_URL --env PLATFORM --env SKIP_SLOW_TESTS --env TEST_STEP_NAME'
 docker_build = 'docker/build.sh'
 // timeout in minutes
 max_time = 180
@@ -630,7 +630,7 @@ def deploy() {
       parallel(
   'Upload built Docker images': {
     if (env.DEPLOY_DOCKER_IMAGES == 'yes' && rebuild_docker_images && upstream_revision != null) {
-      node(node_type) {
+      node('CPU') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/deploy-docker") {
           timeout(time: max_time, unit: 'MINUTES') {
             init_git()
@@ -675,7 +675,7 @@ def deploy() {
   },
   'Tag tlcpackstaging to tlcpack': {
     if (env.DEPLOY_DOCKER_IMAGES == 'yes') {
-      node(node_type) {
+      node('CPU') {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/tag-images") {
           timeout(time: max_time, unit: 'MINUTES') {
             init_git()
