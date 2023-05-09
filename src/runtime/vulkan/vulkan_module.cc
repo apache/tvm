@@ -29,7 +29,7 @@ namespace tvm {
 namespace runtime {
 namespace vulkan {
 
-Module VulkanModuleCreate(std::unordered_map<std::string, VulkanShader> smap,
+Module VulkanModuleCreate(std::unordered_map<std::string, SPIRVShader> smap,
                           std::unordered_map<std::string, FunctionInfo> fmap, std::string source) {
   auto n = make_object<VulkanModuleNode>(smap, fmap, source);
   return Module(n);
@@ -37,7 +37,7 @@ Module VulkanModuleCreate(std::unordered_map<std::string, VulkanShader> smap,
 
 Module VulkanModuleLoadFile(const std::string& file_name, const std::string& format) {
   std::string data;
-  std::unordered_map<std::string, VulkanShader> smap;
+  std::unordered_map<std::string, SPIRVShader> smap;
   std::unordered_map<std::string, FunctionInfo> fmap;
   std::string fmt = GetFileFormat(file_name, format);
   std::string meta_file = GetMetaFilePath(file_name);
@@ -54,7 +54,7 @@ Module VulkanModuleLoadFile(const std::string& file_name, const std::string& for
 
 Module VulkanModuleLoadBinary(void* strm) {
   dmlc::Stream* stream = static_cast<dmlc::Stream*>(strm);
-  std::unordered_map<std::string, VulkanShader> smap;
+  std::unordered_map<std::string, SPIRVShader> smap;
   std::unordered_map<std::string, FunctionInfo> fmap;
 
   std::string fmt;
