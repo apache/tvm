@@ -196,7 +196,7 @@ PrimFunc MakePackedAPI(PrimFunc&& func) {
     Var param = func_ptr->params[i];
     std::string param_name = [&]() {
       std::ostringstream oss;
-      oss << name_hint << ".arg";
+      oss << "arg";
       if (param->name_hint.defined() && (!param->name_hint.empty())) {
         oss << "." << param->name_hint;
 
@@ -257,11 +257,12 @@ PrimFunc MakePackedAPI(PrimFunc&& func) {
   // to use the args that may have no let binding yet. Therefore, hoisting let
   // binding for args before buffer declaration is needed.
   for (const auto& kv : var_def) {
-    binder.Bind(kv.second, kv.first, kv.first->name_hint, true);
+    binder.Bind(kv.second, kv.first, name_hint + "." + kv.first->name_hint, true);
   }
 
   for (const auto& kv : buffer_def) {
-    binder.BindDLTensor(kv.second, device_type, device_id, kv.first, kv.first->name_hint);
+    binder.BindDLTensor(kv.second, device_type, device_id, kv.first,
+                        name_hint + "." + kv.first->name_hint);
   }
 
   func = WithAttr(std::move(func), tvm::attr::kCallingConv, Integer(CallingConv::kCPackedFunc));
