@@ -727,15 +727,20 @@ def instantiate_template(func_name, annotations, func_args):
         attrs["arch"] = "cutlass::arch::Sm{}".format(annotations["arch"])
         attrs["kSupportsDropout"] = False
         attrs["qkv_layout"] = annotations["qkv_layout"]
+
+        for arg in func_args:
+            if "workspace" in arg:
+                attrs["workspace"] = arg
+
         if attrs["qkv_layout"] == "default":
             attrs["query"] = func_args[0]
             attrs["key"] = func_args[1]
             attrs["value"] = func_args[2]
-            if len(func_args) > 3:
+            if len(func_args) > 4:  # +1 for workspace, the last arg
                 attrs["bias"] = func_args[3]
         elif attrs["qkv_layout"] == "qkv_stacked":
             attrs["qkv"] = func_args[0]
-            if len(func_args) > 4:
+            if len(func_args) > 5:  # +1 for workspace, the last arg
                 attrs["bias"] = func_args[4]
         else:
             raise NotImplementedError()

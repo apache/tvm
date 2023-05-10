@@ -791,31 +791,38 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
             arg["arg0_dtype"] = signature["arg0_dtype"]
             arg["arg1_shape"] = q_shape = signature["arg1_shape"]
 
-            if "arg2_shape" not in signature:
+            if "arg3_shape" not in signature:
+                # arg0: qkv, arg1: shape, arg2: workspace
                 arg["arg2_shape"] = k_shape = signature["arg1_shape"]
                 arg["arg3_shape"] = v_shape = signature["arg1_shape"]
             else:
-                assert "arg3_shape" in signature
+                # arg0: qkv, arg1: shape1, arg2: shape2, arg3: shape3, arg4: workspace
                 arg["arg2_shape"] = k_shape = signature["arg2_shape"]
                 arg["arg3_shape"] = v_shape = signature["arg3_shape"]
 
-            if "arg4_dtype" in signature:
+            if "arg5_dtype" in signature:
+                # arg0: qkv, arg1: shape1, arg2: shape2, arg3: shape3, arg4: bias, arg5: workspace
                 arg["bias_dtype"] = signature["arg4_dtype"]
-            if "arg4_shape" in signature:
+            if "arg5_shape" in signature:
                 arg["bias_shape"] = signature["arg4_shape"]
+
             qkv_layout = "qkv_stacked"
         else:
+            # arg0: q, arg1: k, arg2: v,  arg3: bias, arg4: workspace
             arg["arg0_shape"] = q_shape = signature["arg0_shape"]
             arg["arg1_shape"] = k_shape = signature["arg1_shape"]
             arg["arg2_shape"] = v_shape = signature["arg2_shape"]
             arg["arg0_dtype"] = signature["arg0_dtype"]
             arg["arg1_dtype"] = signature["arg1_dtype"]
             arg["arg2_dtype"] = signature["arg2_dtype"]
-            if "arg3_dtype" in signature:
+
+            if "arg4_dtype" in signature:
                 arg["bias_dtype"] = signature["arg3_dtype"]
-            if "arg3_shape" in signature:
+            if "arg4_shape" in signature:
                 arg["bias_shape"] = signature["arg3_shape"]
+
             qkv_layout = "default"
+
         out_shape = signature["ret_shape"]
         out_dtype = signature["ret_dtype"]
         num_batches, num_queries, num_heads, head_dim = q_shape

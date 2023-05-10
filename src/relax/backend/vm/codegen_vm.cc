@@ -70,11 +70,11 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     IRModule res_mod = IRModule(Map<GlobalVar, BaseFunc>());
     CodeGenVM codegen(builder, mod);
     // Remove relax function and turn into TIR func.
-    for (auto& p : mod->functions) {
-      if (auto* func = p.second.as<FunctionNode>()) {
+    for (const auto& [gvar, f] : mod->functions) {
+      if (auto* func = f.as<FunctionNode>()) {
         codegen.Codegen(GetRef<Function>(func));
       } else {
-        res_mod->Add(p.first, p.second);
+        res_mod->Add(gvar, f);
       }
     }
     return res_mod;
