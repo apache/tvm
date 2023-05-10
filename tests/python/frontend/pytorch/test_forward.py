@@ -835,6 +835,9 @@ def test_forward_softplus():
     verify_model(torch.nn.Softplus().eval(), input_data=input_data)
     verify_model(torch.nn.Softplus(beta=1.5, threshold=20).eval(), input_data=input_data)
     verify_model(torch.nn.Softplus(beta=5, threshold=10).eval(), input_data=input_data)
+    verify_model(torch.nn.Softplus(beta=5, threshold=1).eval(), input_data=input_data)
+    verify_model(torch.nn.Softplus(beta=1, threshold=2).eval(), input_data=input_data)
+    verify_model(torch.nn.Softplus(beta=1, threshold=-1).eval(), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
