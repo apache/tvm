@@ -364,7 +364,7 @@ def test_matmul_offload(
         x_shape,
         y_shape,
         dtype,
-        with_bias=with_bias,
+        bias_shape=bias.shape if with_bias else None,
         transposed_y=transpose_y,
         activation=activation,
         residual_bin_op=residual_bin_op,
@@ -479,9 +479,7 @@ def test_cutlass_partition_matmul_blocked(x_shape, y_shape, transpose_y, dtype):
     if transpose_y:
         y_shape = (*y_shape[:-2], y_shape[-1], y_shape[-2])
 
-    mod = get_relax_matmul_module(
-        x_shape, y_shape, dtype, with_bias=False, transposed_y=transpose_y
-    )
+    mod = get_relax_matmul_module(x_shape, y_shape, dtype, transposed_y=transpose_y)
     mod = partition_for_cutlass(mod)
 
     assert len(mod.functions) == 1
