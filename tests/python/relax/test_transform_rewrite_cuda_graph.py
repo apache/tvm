@@ -29,15 +29,11 @@ def test_rewrite_cuda_graph():
         def exp(rxplaceholder: T.Buffer((T.int64(2), T.int64(4)), "float32"), compute: T.Buffer((T.int64(2), T.int64(4)), "float32")):
             # function attr dict
             T.func_attr({"tir.noalias": True, "global_symbol": "exp"})
-            # body
-            # with T.block("root")
             for i0_i1_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
                 for i0_i1_fused_1 in T.thread_binding(T.int64(8), thread="threadIdx.x"):
                     with T.block("compute"):
                         i0 = T.axis.spatial(T.int64(2), (i0_i1_fused_0 * T.int64(8) + i0_i1_fused_1) // T.int64(4))
                         i1 = T.axis.spatial(T.int64(4), (i0_i1_fused_0 * T.int64(8) + i0_i1_fused_1) % T.int64(4))
-                        T.reads(rxplaceholder[i0, i1])
-                        T.writes(compute[i0, i1])
                         compute[i0, i1] = T.exp(rxplaceholder[i0, i1], dtype="float32")
 
 
@@ -54,12 +50,17 @@ def test_rewrite_cuda_graph():
             alloc2: R.Tensor((2, 4), dtype="float32") = R.memory.alloc_tensor(storage, 0, R.shape([2, 4]), "float32")
             _4: R.Tuple = cls.exp(alloc1, alloc2)
             _5: R.Tuple = R.memory.kill_tensor(alloc1)
-            alloc3: R.Tensor((2, 4), dtype="float32") = R.builtin.alloc_tensor(R.shape([2, 4]), "float32", 0)
-            _6 = cls.exp(alloc2, alloc3)
+            storage2: R.Object = R.memory.alloc_storage(R.shape([32]), 0, "global", "float32")
+            alloc3: R.Tensor((2, 4), dtype="float32") = R.memory.alloc_tensor(storage2, 0, R.shape([2, 4]), "float32")
+            _6: R.Tuple = cls.exp(alloc2, alloc3)
             _7: R.Tuple = R.memory.kill_tensor(alloc2)
-            _8: R.Tuple = R.memory.kill_storage(storage)
-            _9: R.Tuple = R.memory.kill_storage(storage1)
-            return alloc3
+            alloc4: R.Tensor((2, 4), dtype="float32") = R.builtin.alloc_tensor(R.shape([2, 4]), "float32", 0)
+            _8 = cls.exp(alloc3, alloc4)
+            _9: R.Tuple = R.memory.kill_tensor(alloc3)
+            _10: R.Tuple = R.memory.kill_storage(storage)
+            _11: R.Tuple = R.memory.kill_storage(storage1)
+            _12: R.Tuple = R.memory.kill_storage(storage2)
+            return alloc4
 
 
     @I.ir_module
@@ -80,40 +81,46 @@ def test_rewrite_cuda_graph():
                         compute[i0, i1] = T.exp(rxplaceholder[i0, i1], dtype="float32")
 
         @R.function
-        def cuda_graph_alloc() -> R.Tuple(R.Object, R.Object):
-            gv: R.Object = R.memory.alloc_storage(R.shape([32]), R.prim_value(0), R.str("global"), R.dtype("float32"))
-            gv1: R.Object = R.memory.alloc_storage(R.shape([32]), R.prim_value(0), R.str("global"), R.dtype("float32"))
-            gv2: R.Tuple(R.Object, R.Object) = (gv, gv1)
-            return gv2
+        def cuda_graph_alloc() -> R.Tuple(R.Object, R.Object, R.Object):
+            storage: R.Object = R.memory.alloc_storage(R.shape([32]), R.prim_value(0), R.str("global"), R.dtype("float32"))
+            storage1: R.Object = R.memory.alloc_storage(R.shape([32]), R.prim_value(0), R.str("global"), R.dtype("float32"))
+            storage2: R.Object = R.memory.alloc_storage(R.shape([32]), R.prim_value(0), R.str("global"), R.dtype("float32"))
+            gv: R.Tuple(R.Object, R.Object, R.Object) = (storage, storage1, storage2)
+            return gv
 
         @R.function
-        def cuda_graph_capture(alloc: R.Tensor((2, 4), dtype="float32"), alloc1: R.Tensor((2, 4), dtype="float32"), storage: R.Object) -> R.Tuple(R.Tensor((2, 4), dtype="float32")):
+        def cuda_graph_capture(alloc: R.Tensor((2, 4), dtype="float32"), alloc1: R.Tensor((2, 4), dtype="float32"), storage: R.Object, storage2: R.Object) -> R.Tuple(R.Tensor((2, 4), dtype="float32")):
             cls = Expected
             _2: R.Tuple = cls.exp(alloc, alloc1)
             _3: R.Tuple = R.memory.kill_tensor(alloc)
             alloc2: R.Tensor((2, 4), dtype="float32") = R.memory.alloc_tensor(storage, R.prim_value(0), R.shape([2, 4]), R.dtype("float32"))
             _4: R.Tuple = cls.exp(alloc1, alloc2)
             _5: R.Tuple = R.memory.kill_tensor(alloc1)
-            gv: R.Tuple(R.Tensor((2, 4), dtype="float32")) = (alloc2,)
+            alloc3: R.Tensor((2, 4), dtype="float32") = R.memory.alloc_tensor(storage2, 0, R.shape([2, 4]), "float32")
+            _6: R.Tuple = cls.exp(alloc2, alloc3)
+            _7: R.Tuple = R.memory.kill_tensor(alloc2)
+            gv: R.Tuple(R.Tensor((2, 4), dtype="float32")) = (alloc3,)
             return gv
 
         @R.function
         def main(x: R.Tensor((2, 4), dtype="float32")) -> R.Tensor((10,), dtype="float32"):
             cls = Expected
-            gv: R.Tuple(R.Object, R.Object) = R.call_builtin_with_ctx("vm.builtin.cuda_graph.get_cached_alloc", (cls.cuda_graph_alloc, R.prim_value(0)), sinfo_args=(R.Tuple(R.Object, R.Object),))
+            gv: R.Tuple(R.Object, R.Object, R.Object) = R.call_builtin_with_ctx("vm.builtin.cuda_graph.get_cached_alloc", (cls.cuda_graph_alloc, R.prim_value(0)), sinfo_args=(R.Tuple(R.Object, R.Object, R.Object),))
             storage: R.Object = gv[0]
             alloc: R.Tensor((2, 4), dtype="float32") = R.memory.alloc_tensor(storage, R.prim_value(0), R.shape([2, 4]), R.dtype("float32"))
             _1: R.Tuple = cls.exp(x, alloc)
             storage1: R.Object = gv[1]
             alloc1: R.Tensor((2, 4), dtype="float32") = R.memory.alloc_tensor(storage1, R.prim_value(0), R.shape([2, 4]), R.dtype("float32"))
-            gv1: R.Tuple(R.Tensor((2, 4), dtype="float32")) = R.call_builtin_with_ctx("vm.builtin.cuda_graph.run_or_capture", (cls.cuda_graph_capture, (alloc, alloc1, storage), R.prim_value(0)), sinfo_args=(R.Tuple(R.Tensor((2, 4), dtype="float32")),))
-            alloc2: R.Tensor((2, 4), dtype="float32") = gv1[0]
-            alloc3: R.Tensor((2, 4), dtype="float32") = R.builtin.alloc_tensor(R.shape([2, 4]), R.dtype("float32"), R.prim_value(0))
-            _6: R.Tuple = cls.exp(alloc2, alloc3)
-            _7: R.Tuple = R.memory.kill_tensor(alloc2)
+            storage2: R.Object = gv[2]
+            gv1: R.Tuple(R.Tensor((2, 4), dtype="float32")) = R.call_builtin_with_ctx("vm.builtin.cuda_graph.run_or_capture", (cls.cuda_graph_capture, (alloc, alloc1, storage, storage2), R.prim_value(0)), sinfo_args=(R.Tuple(R.Tensor((2, 4), dtype="float32")),))
+            alloc3: R.Tensor((2, 4), dtype="float32") = gv1[0]
+            alloc4: R.Tensor((2, 4), dtype="float32") = R.builtin.alloc_tensor(R.shape([2, 4]), R.dtype("float32"), R.prim_value(0))
+            _6: R.Tuple = cls.exp(alloc3, alloc4)
+            _7: R.Tuple = R.memory.kill_tensor(alloc3)
             _8: R.Tuple = R.memory.kill_storage(storage)
             _9: R.Tuple = R.memory.kill_storage(storage1)
-            return alloc3
+            _10: R.Tuple = R.memory.kill_storage(storage2)
+            return alloc4
     # fmt: on
 
     after = relax.transform.RewriteCUDAGraph()(Before)

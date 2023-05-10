@@ -461,6 +461,9 @@ class CUDAGraphRewriter : public ExprMutator {
     }
     Expr ret_value = builder_->Emit(launch_subgraph);
     for (int i = 0; i < static_cast<int>(plan.outputs.size()); ++i) {
+      // The unpacked result is saved in the var_redef_. It will be emitted when 1) the var
+      // definition is the original IR is visited, or 2) the var is used as an input to another
+      // lifted function, whichever comes first.
       var_redef_[plan.outputs[i]] = TupleGetItem(ret_value, i);
     }
 
@@ -471,9 +474,9 @@ class CUDAGraphRewriter : public ExprMutator {
     if (subgraph_launches_.count(op->var.get())) {
       LaunchSubgraph(op, subgraph_launches_[op->var.get()]);
     }
-    if (auto it = var_redef_.find(op->var.get()); it != var_redef_.end()) {
-      auto new_var = builder_->Emit(it->second, op->var->name_hint());
-      var_remap_[op->var->vid] = new_var;
+    if (auto it = var_redef_.find(op->var.get());
+        it != var_redef_.end() && !var_remap_.count(op->var->vid)) {
+      EmitRedef(op->var.get(), it->second);
       return;
     }
     if (lifted_bindings_.count(op->var.get())) {
@@ -481,6 +484,24 @@ class CUDAGraphRewriter : public ExprMutator {
       return;
     }
     ExprMutator::VisitBinding_(op);
+  }
+
+  Expr VisitExpr_(const VarNode* op) final {
+    if (auto it = var_remap_.find(op->vid); it != var_remap_.end()) {
+      return it->second;
+    }
+    if (auto it = var_redef_.find(op); it != var_redef_.end()) {
+      // This is the case that the var is used as an input to another lifted when
+      // the original var definition is not visited yet.
+      return EmitRedef(op, it->second);
+    }
+    return GetRef<Expr>(op);
+  }
+
+  Var EmitRedef(const VarNode* var, const Expr& redef) {
+    auto new_var = builder_->Emit(redef, var->name_hint());
+    var_remap_[var->vid] = new_var;
+    return new_var;
   }
 
   std::unordered_map<const VarNode*, LiftedFunctionRewritePlan> subgraph_launches_;

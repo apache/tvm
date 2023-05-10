@@ -87,7 +87,6 @@ class CUDAGraphCache : public Object {
   ObjectRef RunOrCapture(VirtualMachine* vm, const ObjectRef& capture_func, ObjectRef args,
                          int64_t entry_index) {
     if (auto it = capture_cache_.find(entry_index); it != capture_cache_.end()) {
-      LOG(INFO) << "HIT";
       // Launch CUDA graph
       const auto& [states, cuda_graph] = it->second;
       cudaGraphExec_t cuda_graph_exec;
