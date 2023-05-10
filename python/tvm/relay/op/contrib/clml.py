@@ -320,7 +320,6 @@ def clml_pattern_table():
     def check_conv_transpose(extract):
         """Check transposed conv pattern is supported by CLML."""
         call = extract
-        clip_found = False
         if isinstance(call, tvm.relay.expr.TupleGetItem):
             call = call.tuple_value
         elif call.op.name == "nn.relu":
@@ -328,7 +327,6 @@ def clml_pattern_table():
             if isinstance(call, tvm.relay.expr.TupleGetItem):
                 call = call.tuple_value
         elif call.op.name == "clip":
-            clip_found = True
             if call.attrs["a_min"] != 0.0 or call.attrs["a_max"] != 6.0:
                 return False
             call = call.args[0]
@@ -338,7 +336,7 @@ def clml_pattern_table():
         while call.op.name != "nn.conv2d_transpose":
             call = call.args[0]
 
-        attrs, args = call.attrs, call.args
+        attrs = call.attrs
         if attrs.data_layout != "NCHW":
             return False
 
