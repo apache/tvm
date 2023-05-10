@@ -152,9 +152,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         )
         dispatch_ctx.update(target, new_workload, cfg)
         return relay.nn.conv2d(
-            inputs[0],
-            relay.Constant(tvm.nd.array(reshaped_new_kernel)),
-            **new_attrs,
+            inputs[0], relay.Constant(tvm.nd.array(reshaped_new_kernel)), **new_attrs
         )
 
     # Only microTVM does layout alteration for NHWC layout with real data types

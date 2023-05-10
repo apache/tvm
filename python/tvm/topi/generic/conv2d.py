@@ -45,8 +45,12 @@ def fallback_schedule_cpu_common_int8(cfg, wkl, int32_lanes, num_int8_elements):
     dilated_kernel_w = (wkl.kernel_w - 1) * wkl.dilation_w + 1
     out_width = (wkl.width + pl + pr - dilated_kernel_w) // WSTR + 1
 
-    assert wkl.out_filter % int32_lanes == 0, f"wkl.out_filter={wkl.out_filter}, int32_lanes={int32_lanes}"
-    assert wkl.in_filter % num_int8_elements == 0, f"wkl.in_filter={wkl.in_filter}, num_int8_elements={num_int8_elements}"
+    assert (
+        wkl.out_filter % int32_lanes == 0
+    ), f"wkl.out_filter={wkl.out_filter}, int32_lanes={int32_lanes}"
+    assert (
+        wkl.in_filter % num_int8_elements == 0
+    ), f"wkl.in_filter={wkl.in_filter}, num_int8_elements={num_int8_elements}"
 
     oc_bn = int32_lanes if int32_lanes >= num_int8_elements else num_int8_elements
     ic_bn = 1
@@ -87,8 +91,12 @@ def fallback_schedule_cpu_1x1_int8(cfg, wkl, int32_lanes, num_int8_elements):
     out_height = (wkl.height + pt + pb - wkl.kernel_h) // HSTR + 1
     out_width = (wkl.width + pl + pr - wkl.kernel_w) // WSTR + 1
 
-    assert wkl.out_filter % int32_lanes == 0, f"wkl.out_filter={wkl.out_filter}, int32_lanes={int32_lanes}"
-    assert wkl.in_filter % num_int8_elements == 0, f"wkl.in_filter={wkl.in_filter}, num_int8_elements={num_int8_elements}"
+    assert (
+        wkl.out_filter % int32_lanes == 0
+    ), f"wkl.out_filter={wkl.out_filter}, int32_lanes={int32_lanes}"
+    assert (
+        wkl.in_filter % num_int8_elements == 0
+    ), f"wkl.in_filter={wkl.in_filter}, num_int8_elements={num_int8_elements}"
 
     oc_bn = int32_lanes if int32_lanes >= num_int8_elements else num_int8_elements
     ic_bn = 1

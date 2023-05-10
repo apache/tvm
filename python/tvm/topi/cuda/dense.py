@@ -29,13 +29,7 @@ logger = logging.getLogger("topi")
 
 
 def _matmul_cublas_common(
-    cfg,
-    tensor_a,
-    tensor_b,
-    bias=None,
-    out_dtype=None,
-    transpose_a=False,
-    transpose_b=False,
+    cfg, tensor_a, tensor_b, bias=None, out_dtype=None, transpose_a=False, transpose_b=False
 ):
     assert len(tensor_a.shape) == 2 and len(tensor_b.shape) == 2, "only support 2-dim matmul"
     if bias is not None:
@@ -58,13 +52,7 @@ def _matmul_cublas_common(
 
 @autotvm.register_topi_compute("matmul_cublas.cuda")
 def matmul_cublas(
-    cfg,
-    tensor_a,
-    tensor_b,
-    bias=None,
-    out_dtype=None,
-    transpose_a=False,
-    transpose_b=False,
+    cfg, tensor_a, tensor_b, bias=None, out_dtype=None, transpose_a=False, transpose_b=False
 ):
     """Matmul operator on CUDA with CUBLAS"""
     return _matmul_cublas_common(cfg, tensor_a, tensor_b, bias, out_dtype, transpose_a, transpose_b)

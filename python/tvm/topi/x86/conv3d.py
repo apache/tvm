@@ -277,15 +277,7 @@ def _conv3d_ndhwc(cfg, data, kernel, strides, padding, dilation, groups, out_dty
         ci_tile += 1
 
     # pack kernel
-    shape = (
-        num_filter // oc_bn,
-        ci_tile,
-        kernel_depth,
-        kernel_height,
-        kernel_width,
-        ic_bn,
-        oc_bn,
-    )
+    shape = (num_filter // oc_bn, ci_tile, kernel_depth, kernel_height, kernel_width, ic_bn, oc_bn)
     kernel_vec = te.compute(
         shape,
         lambda CO, CI, d, h, w, ci, co: kernel[d, h, w, CI * ic_bn + ci, CO * oc_bn + co],
@@ -398,15 +390,7 @@ def _conv3d_ncdhw(cfg, data, kernel, strides, padding, dilation, layout, groups,
         ci_tile += 1
 
     # pack kernel
-    shape = (
-        num_filter // oc_bn,
-        ci_tile,
-        kernel_depth,
-        kernel_height,
-        kernel_width,
-        ic_bn,
-        oc_bn,
-    )
+    shape = (num_filter // oc_bn, ci_tile, kernel_depth, kernel_height, kernel_width, ic_bn, oc_bn)
     kernel_vec = te.compute(
         shape,
         lambda CO, CI, d, h, w, ci, co: kernel[CO * oc_bn + co, CI * ic_bn + ci, d, h, w],

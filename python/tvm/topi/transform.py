@@ -85,7 +85,8 @@ def expand_like(a, shape_like, axis):
             # A special case: `a` is a scalar represented as a 1-dim tensor
             return te.compute(shape_like.shape, lambda *idxs: a(0))
         raise ValueError(
-            f"shape inconsistent when expand_like ({len(axis)}, {len(a.shape)}, {len(shape_like.shape)})"
+            f"shape inconsistent when expand_like ({len(axis)}, "
+            f"{len(a.shape)}, {len(shape_like.shape)})"
         )
 
     real_axis = topi.reduction._get_real_axis(len(shape_like.shape), axis)

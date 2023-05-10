@@ -194,9 +194,10 @@ def get_pad_tuple_generic(padding, kernel):
         if len(padding) == len(kernel):
             pad_dimensions = [p * 2 for p in padding]
         elif len(padding) == len(kernel) * 2:
-            return [padding[i] for i in range(len(kernel))], [
-                padding[len(kernel) + i] for i in range(len(kernel))
-            ]
+            return (
+                [padding[i] for i in range(len(kernel))],
+                [padding[len(kernel) + i] for i in range(len(kernel))],
+            )
         else:
             raise ValueError("Size of padding can only be len(kernel) or len(kernel) * 2")
     elif isinstance(padding, int):

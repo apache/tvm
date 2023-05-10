@@ -314,14 +314,7 @@ def _resize_1d(
     if boxes is not None:
         # TODO(mbrookhart): Find an example of this
         raise NotImplementedError("resize1d with image boxes not yet implemented")
-    in_x = get_inx(
-        x,
-        image_width,
-        target_width,
-        coordinate_transformation_mode,
-        roi[0],
-        roi[1],
-    )
+    in_x = get_inx(x, image_width, target_width, coordinate_transformation_mode, roi[0], roi[1])
 
     if method == "nearest_neighbor":
         if rounding_method == "":
@@ -332,17 +325,7 @@ def _resize_1d(
 
         closest_x_index = get_closest_index(in_x, rounding_method, boxes)
 
-        value = get_1d_pixel(
-            data,
-            layout,
-            image_width,
-            box_idx,
-            c,
-            closest_x_index,
-            cc,
-            inum,
-            ic,
-        )
+        value = get_1d_pixel(data, layout, image_width, box_idx, c, closest_x_index, cc, inum, ic)
     elif method == "linear":
         x_int = te.floor(in_x).astype("int32")
 
@@ -350,17 +333,7 @@ def _resize_1d(
 
         p = [0 for i in range(2)]
         for i in range(2):
-            p[i] = get_1d_pixel(
-                data,
-                layout,
-                image_width,
-                box_idx,
-                c,
-                x_int + i,
-                cc,
-                inum,
-                ic,
-            )
+            p[i] = get_1d_pixel(data, layout, image_width, box_idx, c, x_int + i, cc, inum, ic)
 
         value = _lerp(*p, x_lerp)
 
@@ -371,17 +344,7 @@ def _resize_1d(
         # Get the surrounding values
         p = [0 for i in range(4)]
         for i in range(4):
-            p[i] = get_1d_pixel(
-                data,
-                layout,
-                image_width,
-                box_idx,
-                c,
-                xint + i - 1,
-                cc,
-                inum,
-                ic,
-            )
+            p[i] = get_1d_pixel(data, layout, image_width, box_idx, c, xint + i - 1, cc, inum, ic)
 
         wx = _cubic_spline_weights(xfract, alpha)
         if exclude_outside:

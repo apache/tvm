@@ -38,10 +38,7 @@ def _get_supported_layout(dims: int):
     return "NCDHW"
 
 
-def _convert_to_layout(
-    input_tensor: np.ndarray,
-    layout: str,
-) -> np.ndarray:
+def _convert_to_layout(input_tensor: np.ndarray, layout: str) -> np.ndarray:
     """
     Converts back to original layout after the algorithm is finished
     """
@@ -55,10 +52,7 @@ def _convert_to_layout(
     return input_tensor
 
 
-def _convert_from_layout(
-    input_tensor: np.ndarray,
-    layout: str,
-) -> np.ndarray:
+def _convert_from_layout(input_tensor: np.ndarray, layout: str) -> np.ndarray:
     """
     Converts tensor to one of suppored layouts
     """

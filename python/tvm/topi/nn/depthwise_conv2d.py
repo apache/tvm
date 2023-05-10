@@ -65,27 +65,24 @@ def _get_workload(data, kernel, stride, padding, dilation, out_dtype, data_layou
     elif data_layout == "NCHWc":
         _, in_channel_chunk, height, width, in_channel_block = get_const_tuple(data.shape)
         in_channel = in_channel_chunk * in_channel_block
-        (
-            filter_channel_chunk,
-            cm_chunk,
-            kh,
-            kw,
-            cm_block,
-            filter_channel_block,
-        ) = get_const_tuple(kernel.shape)
+        (filter_channel_chunk, cm_chunk, kh, kw, cm_block, filter_channel_block) = get_const_tuple(
+            kernel.shape
+        )
         filter_channel = filter_channel_chunk * filter_channel_block
         channel_multiplier = cm_chunk * cm_block
 
-        assert (
-            in_channel_block == filter_channel_block
-        ), f"Incorrect dimensions, data has block size {in_channel_block}, but filter has block size {filter_channel_block}"
+        assert in_channel_block == filter_channel_block, (
+            f"Incorrect dimensions, data has block size {in_channel_block}, but filter has "
+            f"block size {filter_channel_block}"
+        )
 
     else:
         raise ValueError(f"Data layout {data_layout} not supported")
 
-    assert (
-        in_channel == filter_channel
-    ), f"Incorrect dimensions, data has {in_channel} channels but filter expects {filter_channel} channels"
+    assert in_channel == filter_channel, (
+        f"Incorrect dimensions, data has {in_channel} channels but filter expects "
+        f"{filter_channel} channels"
+    )
 
     out_channel = filter_channel * channel_multiplier
     dilation_h, dilation_w = (
