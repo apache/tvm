@@ -2163,9 +2163,7 @@ def test_scatter_nd_any_updates():
         mod = tvm.IRModule()
         mod["main"] = relay.Function([data, indices, updates], out)
 
-        check_result(
-            [data_np, indices_np, updates_np], mod, [ref_res], only_vm=True
-        )
+        check_result([data_np, indices_np, updates_np], mod, [ref_res], only_vm=True)
 
     data = np.zeros((3, 3)).astype("int64")
     indices = np.array([[1, 1], [0, 1]])
