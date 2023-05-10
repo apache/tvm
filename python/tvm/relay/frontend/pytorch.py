@@ -1332,13 +1332,11 @@ class PyTorchOpConverter:
 
     def threshold(self, inputs, input_types):
         data = inputs[0]
-        # TODO: check the threshold_ and value is correct
-        threshold_ = inputs[1]
-        value = inputs[2]
-        if data > threshold_:
-            return data
-        else:
-            return threshold_
+        threshold_f = float(inputs[1])
+        threshold_ =  _op.full_like(inputs[0], fill_value=_expr.const(threshold_f))
+        value_f = float(inputs[2])
+        value = _op.full_like(inputs[0], fill_value=_expr.const(value_f))
+        return _op.where(_op.greater(data, threshold_), data, value)
 
     def contiguous(self, inputs, input_types):
         return inputs[0]
