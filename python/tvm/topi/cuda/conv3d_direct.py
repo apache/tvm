@@ -31,7 +31,7 @@ def schedule_direct_conv3d_cuda(cfg, s, conv, layout, workload_name):
     elif layout == "NDHWC":
         n, d, y, x, f = s[conv].op.axis
     else:
-        raise ValueError("not support this layout {} yet".format(layout))
+        raise ValueError(f"not support this layout {layout} yet")
     rc, rd, ry, rx = s[conv].op.reduce_axis
     cfg.define_split("tile_f", f, num_outputs=4)
     cfg.define_split("tile_d", d, num_outputs=4)

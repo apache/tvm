@@ -168,7 +168,7 @@ def get_inx(
         )
     else:
         raise ValueError(
-            "Unsupported coordinate_transformation_mode: {}".format(coordinate_transformation_mode)
+            f"Unsupported coordinate_transformation_mode: {coordinate_transformation_mode}"
         )
     return in_x
 
@@ -194,7 +194,7 @@ def get_closest_index(in_x, rounding_method, boxes, use_int_div=False):
         epsilon = 1e-5
         closest_x_index = te.ceil(in_x - epsilon).astype("int32")
     else:
-        raise ValueError("Uknown rounding method: {}".format(rounding_method))
+        raise ValueError(f"Unknown rounding method: {rounding_method}")
     return closest_x_index
 
 
@@ -499,7 +499,7 @@ def resize1d(
         if output_shape is None:
             output_shape = [in_n, in_c, size[0], in_cc]
     else:
-        raise ValueError("%s layout is not supported." % layout)
+        raise ValueError(f"{layout} layout is not supported.")
 
     if isinstance(size, tuple):
         size = list(size)
@@ -866,7 +866,7 @@ def resize2d(
         if output_shape is None:
             output_shape = [in_n, in_c, size[0], size[1], in_cc]
     else:
-        raise ValueError("%s layout is not supported." % layout)
+        raise ValueError(f"{layout} layout is not supported.")
 
     if isinstance(size, tuple):
         size = list(size)
@@ -967,7 +967,7 @@ def crop_and_resize(
         image_h = data.shape[2].astype("int32")
         image_w = data.shape[3].astype("int32")
     else:
-        raise ValueError("%s layout is not supported." % layout)
+        raise ValueError(f"{layout} layout is not supported.")
     if method == "bilinear":
         method = "linear"
 

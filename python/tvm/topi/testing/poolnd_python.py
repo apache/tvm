@@ -208,6 +208,6 @@ def poolnd_python(
             # All padded values, default to 0
             ret_np[output_slice] = np.max(pad_data[np_index], axis=reduction_axis)
         else:
-            raise ValueError("Pool type {} is not supported".format(pool_type))
+            raise ValueError(f"Pool type {pool_type} is not supported")
 
     return _convert_to_layout(ret_np, layout)

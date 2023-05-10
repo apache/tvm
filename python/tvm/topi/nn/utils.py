@@ -79,7 +79,7 @@ def infer_pad3d(data, data_pad, layout):
         _, _, ID, IH, IW = data.shape
         _, _, TD, TH, TW = data_pad.shape
     else:
-        raise ValueError("Layout {} is not supported".format(layout))
+        raise ValueError(f"Layout {layout} is not supported")
     dpad = TD - ID
     hpad = TH - IH
     wpad = TW - IW
@@ -158,7 +158,7 @@ def get_pad_tuple(padding, kernel):
         pad_h = kernel[0] - 1
         pad_w = kernel[1] - 1
     else:
-        raise ValueError("Unknown padding option %s" % padding)
+        raise ValueError(f"Unknown padding option {padding}")
     pad_top = (pad_h + 1) // 2
     pad_left = (pad_w + 1) // 2
     return pad_top, pad_left, pad_h - pad_top, pad_w - pad_left
@@ -206,7 +206,7 @@ def get_pad_tuple_generic(padding, kernel):
     elif padding == "SAME":
         pad_dimensions = [k - 1 for k in kernel]
     else:
-        raise ValueError("Unknown padding option %s" % padding)
+        raise ValueError(f"Unknown padding option {padding}")
     pad_begin = [(p + 1) // 2 for p in pad_dimensions]
     return [pad_begin, [pd - pb for pb, pd in zip(pad_begin, pad_dimensions)]]
 
@@ -263,7 +263,7 @@ def get_pad_tuple3d(padding, kernel):
         pad_h = kernel[1] - 1
         pad_w = kernel[2] - 1
     else:
-        raise ValueError("Unknown padding option %s" % padding)
+        raise ValueError(f"Unknown padding option {padding}")
     pad_top = (pad_h + 1) // 2
     pad_left = (pad_w + 1) // 2
     pad_front = (pad_d + 1) // 2
@@ -304,6 +304,6 @@ def get_pad_tuple1d(padding, kernel):
     elif padding == "SAME":
         pad_w = kernel[0] - 1
     else:
-        raise ValueError("Unknown padding option %s" % padding)
+        raise ValueError(f"Unknown padding option {padding}")
     pad_left = (pad_w + 1) // 2
     return pad_left, pad_w - pad_left

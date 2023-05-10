@@ -172,7 +172,7 @@ def _get_workload(data, kernel, stride, padding, dilation, out_dtype, data_layou
     elif data_layout == "HWCN":
         IH, IW, CI, _ = get_const_tuple(data.shape)
     else:
-        raise ValueError("not support this layout {} yet".format(data_layout))
+        raise ValueError(f"not support this layout {data_layout} yet")
 
     if data_layout == "NCHW":
         CO, CIG, KH, KW = get_const_tuple(kernel.shape)
@@ -193,10 +193,7 @@ def _get_workload(data, kernel, stride, padding, dilation, out_dtype, data_layou
         HSTR, WSTR = stride, stride
     assert (data.dtype == kernel.dtype) or (
         data.dtype == "uint8" and kernel.dtype == "int8"
-    ), "Do not support inputs with different data types now. ' \
-        '{} vs. {}".format(
-        data.dtype, kernel.dtype
-    )
+    ), f"Do not support inputs with different data types now. {data.dtype} vs. {kernel.dtype}"
     return Workload(
         data.dtype,
         out_dtype,

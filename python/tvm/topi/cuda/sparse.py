@@ -161,9 +161,7 @@ def sparse_dense_tir(data, w_data, w_indices, w_indptr):
         mi = warp_size
         assert (
             mb >= mi
-        ), "Number of block rows in dense matrix must be larger than warp size: {} vs {}.".format(
-            warp_size, mb
-        )
+        ), f"Number of block rows in dense matrix must be larger than warp size: {warp_size} vs {mb}."
         mo = ceil_div(mb, mi)
         ni = 1  # TODO(tkonolige): how do I compute the number of warps per block?
         no = ceil_div(nb, ni)

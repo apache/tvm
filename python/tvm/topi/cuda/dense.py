@@ -142,7 +142,7 @@ def _schedule_dense_int8(cfg, s, output):
     out_dim, _ = get_const_tuple(weight.shape)
 
     in_dim_factor = 4
-    assert in_dim % in_dim_factor == 0, "Input dimension must divide {}".format(in_dim_factor)
+    assert in_dim % in_dim_factor == 0, f"Input dimension must divide {in_dim_factor}"
     if in_dim % 16 == 0:
         in_dim_factor = 16
 

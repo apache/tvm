@@ -78,18 +78,14 @@ def _get_workload(data, kernel, stride, padding, dilation, out_dtype, data_layou
 
         assert (
             in_channel_block == filter_channel_block
-        ), "Incorrect dimensions, data has block size {}, but filter has block size {}".format(
-            in_channel_block, filter_channel_block
-        )
+        ), f"Incorrect dimensions, data has block size {in_channel_block}, but filter has block size {filter_channel_block}"
 
     else:
-        raise ValueError("Data layout {} not supported".format(data_layout))
+        raise ValueError(f"Data layout {data_layout} not supported")
 
     assert (
         in_channel == filter_channel
-    ), "Incorrect dimensions, data has {} channels but filter expects {} channels".format(
-        in_channel, filter_channel
-    )
+    ), f"Incorrect dimensions, data has {in_channel} channels but filter expects {filter_channel} channels"
 
     out_channel = filter_channel * channel_multiplier
     dilation_h, dilation_w = (
@@ -101,10 +97,7 @@ def _get_workload(data, kernel, stride, padding, dilation, out_dtype, data_layou
         HSTR, WSTR = stride, stride
     assert (data.dtype == kernel.dtype) or (
         data.dtype == "uint8" and kernel.dtype == "int8"
-    ), "Do not support inputs with different data types now. ' \
-        '{} vs. {}".format(
-        data.dtype, kernel.dtype
-    )
+    ), f"Do not support inputs with different data types now. {data.dtype} vs. {kernel.dtype}"
     dilated_kernel_h = (kh - 1) * dilation_h + 1
     dilated_kernel_w = (kw - 1) * dilation_w + 1
     pt, pl, pb, pr = get_pad_tuple(padding, (dilated_kernel_h, dilated_kernel_w))
