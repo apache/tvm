@@ -60,6 +60,9 @@ class DataTypeCode(object):
     FLOAT = 2
     HANDLE = 3
     BFLOAT = 4
+    E4M3Float = 6
+    E5M2Float = 7
+    
 
 
 class DataType(ctypes.Structure):
@@ -72,6 +75,8 @@ class DataType(ctypes.Structure):
         DataTypeCode.FLOAT: "float",
         DataTypeCode.HANDLE: "handle",
         DataTypeCode.BFLOAT: "bfloat",
+        DataTypeCode.E4M3Float: "e4m3_float",
+        DataTypeCode.E5M2Float: "e5m2_float",
     }
     NUMPY2STR = {
         np.dtype(np.bool_): "bool",
@@ -88,7 +93,8 @@ class DataType(ctypes.Structure):
         np.dtype(np.float64): "float64",
         np.dtype(np.float_): "float64",
         np.dtype(ml_dtypes.bfloat16): "bfloat16",
-        np.dtype(ml_dtypes.float8_e4m3fn): "float8"  # current we only support float8_e4m3fn
+        np.dtype(ml_dtypes.float8_e4m3fn): "e4m3_float8",
+        np.dtype(ml_dtypes.float8_e5m2): "e5m2_float8"
     }
     STR2DTYPE = {
         "bool": {"type_code": DataTypeCode.UINT, "bits": 1, "lanes": 1},
@@ -101,7 +107,8 @@ class DataType(ctypes.Structure):
         "uint32": {"type_code": DataTypeCode.UINT, "bits": 32, "lanes": 1},
         "uint64": {"type_code": DataTypeCode.UINT, "bits": 64, "lanes": 1},
         "float8": {"type_code": DataTypeCode.FLOAT, "bits": 8, "lanes": 1},
-        "float8_e4m3fn": {"type_code": DataTypeCode.FLOAT, "bits": 8, "lanes": 1},
+        "e4m3_float8": {"type_code": DataTypeCode.E4M3Float, "bits": 8, "lanes": 1},
+        "e5m2_float8": {"type_code": DataTypeCode.E5M2Float, "bits": 8, "lanes": 1},
         "float16": {"type_code": DataTypeCode.FLOAT, "bits": 16, "lanes": 1},
         "float32": {"type_code": DataTypeCode.FLOAT, "bits": 32, "lanes": 1},
         "float64": {"type_code": DataTypeCode.FLOAT, "bits": 64, "lanes": 1},
@@ -146,6 +153,12 @@ class DataType(ctypes.Structure):
         elif head.startswith("bfloat"):
             self.type_code = DataTypeCode.BFLOAT
             head = head[6:]
+        elif head.startswith("e4m3_float"):
+            self.type_code = DataTypeCode.E4M3Float
+            head = head[10:]
+        elif head.startswith("e5m2_float"):
+            self.type_code = DataTypeCode.E5M2Float
+            head = head[10:]
         elif head.startswith("custom"):
             # pylint: disable=import-outside-toplevel
             import tvm.runtime._ffi_api
