@@ -224,7 +224,7 @@ struct AllocatedPoolInfoNode : public Object {
     hash_reduce(pool_var_idx);
   }
 
-  static constexpr const char* _type_key = "tir.usmp.AllocatedPoolInfo";
+  static constexpr const char* _type_key = "ir.AllocatedPoolInfo";
   TVM_DECLARE_FINAL_OBJECT_INFO(AllocatedPoolInfoNode, Object);
 };
 
