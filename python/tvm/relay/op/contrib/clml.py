@@ -37,7 +37,7 @@ from ..strategy.generic import is_depthwise_conv2d
 def clml_sdk_version():
     """Utility function to get clml version version"""
 
-    return int(tvm.support.libinfo().get("CLML_VERSION_MAJOR", 2))
+    return int(tvm.support.libinfo().get("TVM_CLML_VERSION", 2))
 
 
 def is_clml_runtime_enabled():
@@ -340,9 +340,6 @@ def clml_pattern_table():
 
         attrs, args = call.attrs, call.args
         if attrs.data_layout != "NCHW":
-            return False
-
-        if attrs.kernel_layout != "OIHW":
             return False
 
         return True

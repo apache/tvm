@@ -257,11 +257,13 @@ def test_conv2d(device, dtype):
         verify_codegen(func, exp_codegen, device, params)
 
 
-def _get_conv2d_transpose_expected_codegen(dshape, kshape, channels, kernel_size, strides, padding, dilation, dtype, output_shape):
+def _get_conv2d_transpose_expected_codegen(
+    dshape, kshape, channels, kernel_size, strides, padding, dilation, dtype, output_shape
+):
     attrs = {
-        "channels": [[ str(channels) ]],
+        "channels": [[str(channels)]],
         "data_layout": [["NCHW"]],
-        "kernel_layout":[["OIHW"]],
+        "kernel_layout": [["OIHW"]],
         "groups": [["1"]],
         "dilation": [[str(p) for p in dilation]],
         "num_inputs": "2",
@@ -303,18 +305,11 @@ def _get_conv2d_transpose_expected_codegen(dshape, kshape, channels, kernel_size
 @tvm.testing.requires_openclml
 def test_conv2d_transpose(device, dtype):
     trials = [
-        [(1, 256, 100, 100), (256, 64, 4, 4), 64, (4, 4), (2, 2), (1, 1, 1, 1)], # (1, 64, 200, 200)
-        [(1, 64, 200, 200), (64, 64, 4, 4), 64, (4, 4), (2, 2), (1, 1, 1, 1)],  # (1, 64, 400, 400)
-        [(1, 64, 400, 400), (64, 16, 4, 4), 16, (4, 4), (2, 2), (1, 1, 1, 1)],  # (1, 16, 800, 800)
+        [(1, 256, 100, 100), (256, 64, 4, 4), 64, (4, 4), (2, 2), (1, 1, 1, 1)],
+        [(1, 64, 200, 200), (64, 64, 4, 4), 64, (4, 4), (2, 2), (1, 1, 1, 1)],
+        [(1, 64, 400, 400), (64, 16, 4, 4), 16, (4, 4), (2, 2), (1, 1, 1, 1)],
     ]
-    for (
-        dshape,
-        kshape,
-        channels,
-        kernel_size,
-        strides,
-        padding
-    ) in trials:
+    for (dshape, kshape, channels, kernel_size, strides, padding) in trials:
         x = relay.var("input", shape=dshape, dtype=dtype)
         input_arr = tvm.nd.array(np.random.uniform(-1, 1, dshape).astype(dtype))
         w = relay.var("wt", shape=kshape, dtype=dtype)
@@ -323,7 +318,7 @@ def test_conv2d_transpose(device, dtype):
             "input": input_arr,
         }
         params = {
-            "wt" : weight_arr,
+            "wt": weight_arr,
         }
         y = relay.nn.conv2d_transpose(
             x,
@@ -344,7 +339,17 @@ def test_conv2d_transpose(device, dtype):
             clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-3, atol=1e-3
         )
 
-        args = (dshape, kshape, channels, kernel_size, strides, padding, (1, 1), dtype, opencl_out[0].shape)
+        args = (
+            dshape,
+            kshape,
+            channels,
+            kernel_size,
+            strides,
+            padding,
+            (1, 1),
+            dtype,
+            opencl_out[0].shape,
+        )
         exp_codegen = _get_conv2d_transpose_expected_codegen(*args)
         verify_codegen(mod, exp_codegen, device, params)
 
