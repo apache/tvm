@@ -18,7 +18,6 @@
 """ Test parallelism for multiple different scalar workloads. """
 
 import numpy as np
-from numpy.random import default_rng
 
 import tvm
 from tvm.script import tir as T
@@ -91,9 +90,10 @@ def evaluate(hexagon_session, operations, expected, sch):
     func_tir = tvm.build(sch.mod["main"], target=get_hexagon_target("v68"))
     module = hexagon_session.load_module(func_tir)
 
-    rng = default_rng()
-    a = rng.random(shape, dtype=dtype)
-    b = rng.random(shape, dtype=dtype)
+    # np.random.random returns float64 by default, but make the cast explicit
+    # to make it easier to switch when necessary.
+    a = np.random.random(shape).astype(dtype)
+    b = np.random.random(shape).astype(dtype)
     c = np.zeros(shape, dtype=dtype)
 
     a_hexagon = tvm.runtime.ndarray.array(a, device=hexagon_session.device)

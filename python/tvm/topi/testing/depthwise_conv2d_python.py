@@ -64,7 +64,7 @@ def depthwise_conv2d_python_nchw(input_np, filter_np, stride, padding):
         for j in range(out_channel):
             apad = input_np[i, j // channel_multiplier, :, :]
             if pad_h or pad_w:
-                apad = np.pad(apad, [(pad_top, pad_bottom), (pad_left, pad_right)])
+                apad = np.pad(apad, [(pad_top, pad_bottom), (pad_left, pad_right)], "constant")
 
             conv = _convolve2d(
                 apad,

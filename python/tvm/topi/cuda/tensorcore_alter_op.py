@@ -48,14 +48,22 @@ def _batch_matmul_legalize(attrs, inputs, arg_types):
     x_tensor, y_tensor = arg_types[0], arg_types[1]
     dtype = x_tensor.dtype
 
+    if attrs.transpose_a:
+        B, K, M = x_tensor.shape
+    else:
+        B, M, K = x_tensor.shape
+
+    if attrs.transpose_b:
+        B, N, K = y_tensor.shape
+    else:
+        B, K, N = y_tensor.shape
+
     # Collect the output tensor.
     output_tensor = arg_types[2]
 
     # Collect the input exprs.
     x, y = inputs
 
-    B, M, K = x_tensor.shape
-    B, N, K = y_tensor.shape
     if (
         isinstance(B, tir.expr.Any)
         or isinstance(M, tir.expr.Any)
@@ -96,9 +104,23 @@ def _batch_matmul_legalize(attrs, inputs, arg_types):
         return None
 
     logger.info("batch_matmul pad_to_tensorcore, extra_flops %s", extra_flops)
-    x_ = relay.nn.pad(x, pad_width=((0, 0), (0, dm), (0, dk))) if dm or dk else x
-    y_ = relay.nn.pad(y, pad_width=((0, 0), (0, dn), (0, dk))) if dn or dk else y
-    out_ = relay.nn.batch_matmul(x_, y_, attrs.out_dtype)
+
+    if attrs.transpose_a:
+        pad_width = ((0, 0), (0, dk), (0, dm))
+    else:
+        pad_width = ((0, 0), (0, dm), (0, dk))
+
+    x_ = relay.nn.pad(x, pad_width=pad_width) if dm or dk else x
+
+    if attrs.transpose_b:
+        pad_width = ((0, 0), (0, dn), (0, dk))
+    else:
+        pad_width = ((0, 0), (0, dk), (0, dn))
+
+    y_ = relay.nn.pad(y, pad_width=pad_width) if dn or dk else y
+
+    out_ = relay.nn.batch_matmul(x_, y_, **attrs)
+
     out = (
         relay.strided_slice(out_, begin=[0, 0, 0], end=[x.value for x in output_tensor.shape])
         if dm or dn

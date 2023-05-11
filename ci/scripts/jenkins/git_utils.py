@@ -35,7 +35,7 @@ def compress_query(query: str) -> str:
 
 
 def post(url: str, body: Optional[Any] = None, auth: Optional[Tuple[str, str]] = None):
-    logging.info(f"Requesting POST to", url, "with", body)
+    logging.info(f"Requesting POST to {url} with {body}")
     headers = {}
     req = request.Request(url, headers=headers, method="POST")
     if auth is not None:

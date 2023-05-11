@@ -696,7 +696,7 @@ struct TargetStrHash {
    */
   size_t operator()(const Target& target) const {
     std::string s(target->kind->name);
-    return String::HashBytes(s.c_str(), s.size());
+    return String::StableHashBytes(s.c_str(), s.size());
   }
 };
 

@@ -23,6 +23,7 @@ from tvm import relay
 from tvm.relay.op.contrib import cmsisnn
 
 from tvm.testing.aot import (
+    get_dtype_range,
     generate_ref_data,
     AOTTestModel,
     compile_and_run,
@@ -30,7 +31,6 @@ from tvm.testing.aot import (
 from tvm.micro.testing.aot_test_utils import AOT_USMP_CORSTONE300_RUNNER
 from .utils import (
     make_module,
-    get_range_for_dtype_str,
     get_same_padding,
     make_qnn_relu,
     assert_partitioned_function,
@@ -128,7 +128,7 @@ def test_ops(
     assert_partitioned_function(orig_mod, cmsisnn_mod)
 
     # validate the output
-    in_min, in_max = get_range_for_dtype_str(dtype)
+    in_min, in_max = get_dtype_range(dtype)
     np.random.seed(0)
     inputs = {
         "input": np.random.randint(in_min, high=in_max, size=in_shape, dtype=dtype),

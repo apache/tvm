@@ -139,6 +139,28 @@ std::tuple<GraphExecutor::ShapeInfo, GraphExecutor::DtypeInfo> GraphExecutor::Ge
 }
 
 /*!
+ * \brief Get the output info of Graph by parsing the output nodes.
+ * \return The shape and dtype tuple.
+ */
+std::tuple<GraphExecutor::ShapeInfo, GraphExecutor::DtypeInfo> GraphExecutor::GetOutputInfo()
+    const {
+  GraphExecutor::ShapeInfo shape_dict;
+  GraphExecutor::DtypeInfo dtype_dict;
+  for (auto out : outputs_) {
+    uint32_t nid = out.node_id;
+    CHECK_LE(nid, nodes_.size());
+    std::string name = nodes_[nid].name;
+    CHECK_LE(nid, attrs_.shape.size());
+    auto shape = attrs_.shape[nid];
+    shape_dict.Set(name, ShapeTuple(shape));
+    CHECK_LE(nid, attrs_.dltype.size());
+    auto dtype = attrs_.dltype[nid];
+    dtype_dict.Set(name, String(dtype));
+  }
+  return std::make_tuple(shape_dict, dtype_dict);
+}
+
+/*!
  * \brief Get the output index given the name of output.
  * \param name The name of the output.
  * \return The index of output.
@@ -606,7 +628,19 @@ PackedFunc GraphExecutor::GetFunction(const std::string& name,
       if (args.num_args == 2) {
         this->CopyOutputTo(args[0], args[1]);
       } else {
-        *rv = this->GetOutput(args[0]);
+        int out_idx = -1;
+        if (String::CanConvertFrom(args[0])) {
+          for (size_t i = 0; i < outputs_.size(); i++) {
+            std::string& name = nodes_[outputs_[i].node_id].name;
+            if (args[0].operator String() == name) {
+              out_idx = i;
+            }
+          }
+          CHECK(out_idx != -1) << "Invalid output node:" << args[0].operator String();
+        } else {
+          out_idx = args[0];
+        }
+        *rv = this->GetOutput(out_idx);
       }
     });
   } else if (name == "get_input") {
@@ -677,6 +711,14 @@ PackedFunc GraphExecutor::GetFunction(const std::string& name,
   } else if (name == "get_input_info") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       auto [shape_info, dtype_info] = this->GetInputInfo();
+      Map<String, ObjectRef> input_info;
+      input_info.Set("shape", shape_info);
+      input_info.Set("dtype", dtype_info);
+      *rv = input_info;
+    });
+  } else if (name == "get_output_info") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      auto [shape_info, dtype_info] = this->GetOutputInfo();
       Map<String, ObjectRef> input_info;
       input_info.Set("shape", shape_info);
       input_info.Set("dtype", dtype_info);

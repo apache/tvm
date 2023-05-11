@@ -172,7 +172,7 @@ def elementwise_multi_reverse_loads_inlined(a: T.handle, c: T.handle) -> None:
 
 @T.prim_func
 def elementwise_reverse_affine_load(
-    A: T.Buffer[(128, 128), "float32"], C: T.Buffer[(8, 32, 8, 8), "float32"]
+    A: T.Buffer((128, 128), "float32"), C: T.Buffer((8, 32, 8, 8), "float32")
 ) -> None:
     B = T.alloc_buffer((128, 128))
     for i, j in T.grid(128, 128):
@@ -190,7 +190,7 @@ def elementwise_reverse_affine_load(
 
 @T.prim_func
 def elementwise_reverse_affine_load_inlined(
-    A: T.Buffer[(128, 128), "float32"], C: T.Buffer[(8, 32, 8, 8), "float32"]
+    A: T.Buffer((128, 128), "float32"), C: T.Buffer((8, 32, 8, 8), "float32")
 ) -> None:
     for i, j in T.grid(128, 128):
         with T.block("B"):
@@ -207,9 +207,9 @@ def elementwise_reverse_affine_load_inlined(
 
 @T.prim_func
 def elementwise_reverse_affine_load_unit_iter(
-    A: T.Buffer[(128, 128), "float32"],
-    B: T.Buffer[(8, 16, 1), "float32"],
-    D: T.Buffer[(1, 8, 16, 128), "float32"],
+    A: T.Buffer((128, 128), "float32"),
+    B: T.Buffer((8, 16, 1), "float32"),
+    D: T.Buffer((1, 8, 16, 128), "float32"),
 ) -> None:
     C = T.alloc_buffer((128, 128))
     for i, j in T.grid(128, 128):
@@ -224,9 +224,9 @@ def elementwise_reverse_affine_load_unit_iter(
 
 @T.prim_func
 def elementwise_reverse_affine_load_unit_iter_inlined(
-    A: T.Buffer[(128, 128), "float32"],
-    B: T.Buffer[(8, 16, 1), "float32"],
-    D: T.Buffer[(1, 8, 16, 128), "float32"],
+    A: T.Buffer((128, 128), "float32"),
+    B: T.Buffer((8, 16, 1), "float32"),
+    D: T.Buffer((1, 8, 16, 128), "float32"),
 ) -> None:
     for i, j in T.grid(128, 128):
         with T.block("B"):
@@ -236,9 +236,9 @@ def elementwise_reverse_affine_load_unit_iter_inlined(
 
 @T.prim_func
 def elementwise_reverse_affine_load_unit_iter_simplified(
-    A: T.Buffer[(128, 128), "float32"],
-    B: T.Buffer[(8, 16, 1), "float32"],
-    D: T.Buffer[(1, 8, 16, 128), "float32"],
+    A: T.Buffer((128, 128), "float32"),
+    B: T.Buffer((8, 16, 1), "float32"),
+    D: T.Buffer((1, 8, 16, 128), "float32"),
 ) -> None:
     C = T.alloc_buffer((128, 128))
     for i, j in T.grid(128, 128):
@@ -253,9 +253,9 @@ def elementwise_reverse_affine_load_unit_iter_simplified(
 
 @T.prim_func
 def elementwise_reverse_affine_load_unit_iter_simplified_inlined(
-    A: T.Buffer[(128, 128), "float32"],
-    B: T.Buffer[(8, 16, 1), "float32"],
-    D: T.Buffer[(1, 8, 16, 128), "float32"],
+    A: T.Buffer((128, 128), "float32"),
+    B: T.Buffer((8, 16, 1), "float32"),
+    D: T.Buffer((1, 8, 16, 128), "float32"),
 ) -> None:
     for i, j in T.grid(128, 128):
         with T.block("B"):
@@ -265,7 +265,7 @@ def elementwise_reverse_affine_load_unit_iter_simplified_inlined(
 
 @T.prim_func
 def elementwise_reverse_affine_chain(
-    A: T.Buffer[(128, 128), "float32"], D: T.Buffer[(1, 8, 16, 128), "float32"]
+    A: T.Buffer((128, 128), "float32"), D: T.Buffer((1, 8, 16, 128), "float32")
 ):
     B = T.alloc_buffer((128, 128))
     C = T.alloc_buffer((8, 16, 128))
@@ -285,7 +285,7 @@ def elementwise_reverse_affine_chain(
 
 @T.prim_func
 def elementwise_reverse_affine_chain_inlined(
-    A: T.Buffer[(128, 128), "float32"], D: T.Buffer[(1, 8, 16, 128), "float32"]
+    A: T.Buffer((128, 128), "float32"), D: T.Buffer((1, 8, 16, 128), "float32")
 ) -> None:
     for i, j in T.grid(128, 128):
         with T.block("B"):
@@ -295,8 +295,8 @@ def elementwise_reverse_affine_chain_inlined(
 
 @T.prim_func
 def elementwise_multi_reverse_affine_load(
-    A: T.Buffer[(128, 128), "float32"],
-    C: T.Buffer[(8, 16, 128), "float32"],
+    A: T.Buffer((128, 128), "float32"),
+    C: T.Buffer((8, 16, 128), "float32"),
 ) -> None:
     B = T.alloc_buffer((128, 128))
     for i, j in T.grid(128, 128):
@@ -311,8 +311,8 @@ def elementwise_multi_reverse_affine_load(
 
 @T.prim_func
 def elementwise_multi_reverse_affine_load_inlined(
-    A: T.Buffer[(128, 128), "float32"],
-    C: T.Buffer[(8, 16, 128), "float32"],
+    A: T.Buffer((128, 128), "float32"),
+    C: T.Buffer((8, 16, 128), "float32"),
 ) -> None:
     for i, j in T.grid(128, 128):
         with T.block("B"):
@@ -322,7 +322,7 @@ def elementwise_multi_reverse_affine_load_inlined(
 
 @T.prim_func
 def elementwise_reverse_non_affine_load(
-    A: T.Buffer[(128, 128), "float32"], C: T.Buffer[(8, 16, 128), "float32"]
+    A: T.Buffer((128, 128), "float32"), C: T.Buffer((8, 16, 128), "float32")
 ) -> None:
     B = T.alloc_buffer((128, 128))
     for i, j in T.grid(128, 128):
@@ -504,9 +504,24 @@ def matmul_relu(var_A: T.handle, var_B: T.handle, var_compute: T.handle) -> None
 
 
 @T.prim_func
+def elementwise_output(a: T.handle, b: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128))
+    B = T.match_buffer(b, (128, 128))
+    C = T.match_buffer(c, (128, 128))
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = B[vi, vj] + 1.0
+
+
+@T.prim_func
 def inline_block_with_init(
-    A: T.Buffer[(1, 512, 7, 7), "float32"],
-    B: T.Buffer[(1, 512, 1, 1), "float32"],
+    A: T.Buffer((1, 512, 7, 7), "float32"),
+    B: T.Buffer((1, 512, 1, 1), "float32"),
 ) -> None:
     B_rf = T.alloc_buffer([1, 512, 1, 1, 49], dtype="float32")
     for i0, i1, i2, i3, i4, i5 in T.grid(1, 512, 1, 1, 49, 1):
@@ -542,9 +557,9 @@ def inline_block_with_init(
 
 @T.prim_func
 def exp_exp_opaque_access_with_tvm_access_ptr(
-    lookup_table: T.Buffer[(1024,), "int8"],
-    x: T.Buffer[(16,), "float16"],
-    compute: T.Buffer[(16,), "float16"],
+    lookup_table: T.Buffer((1024,), "int8"),
+    x: T.Buffer((16,), "float16"),
+    compute: T.Buffer((16,), "float16"),
 ) -> None:
     compute_1 = T.alloc_buffer([16], dtype="float16")
     for i0 in T.serial(16):
@@ -567,9 +582,9 @@ def exp_exp_opaque_access_with_tvm_access_ptr(
 
 @T.prim_func
 def exp_exp_opaque_access_with_tvm_access_ptr_inlined(
-    lookup_table: T.Buffer[(1024,), "int8"],
-    x: T.Buffer[(16,), "float16"],
-    compute: T.Buffer[(16,), "float16"],
+    lookup_table: T.Buffer((1024,), "int8"),
+    x: T.Buffer((16,), "float16"),
+    compute: T.Buffer((16,), "float16"),
 ) -> None:
     for i0 in T.serial(16):
         with T.block("compute_1"):
@@ -587,7 +602,7 @@ def exp_exp_opaque_access_with_tvm_access_ptr_inlined(
 
 @T.prim_func
 def elementwise_overcomputed_producer(
-    A: T.Buffer[(128, 128), "float32"], C: T.Buffer[(127, 127), "float32"]
+    A: T.Buffer((128, 128), "float32"), C: T.Buffer((127, 127), "float32")
 ) -> None:
     B = T.alloc_buffer((128, 128))
     for i, j in T.grid(128, 128):
@@ -602,7 +617,7 @@ def elementwise_overcomputed_producer(
 
 @T.prim_func
 def elementwise_overcomputed_producer_reverse_inlined(
-    A: T.Buffer[(128, 128), "float32"], C: T.Buffer[(127, 127), "float32"]
+    A: T.Buffer((128, 128), "float32"), C: T.Buffer((127, 127), "float32")
 ) -> None:
     for i, j in T.grid(128, 128):
         with T.block("B"):
@@ -612,8 +627,62 @@ def elementwise_overcomputed_producer_reverse_inlined(
 
 
 @T.prim_func
+def elementwise_overcomputed_producer_simplify_predicate(
+    A: T.Buffer((128, 128), "float32"), C: T.Buffer((127, 127), "float32")
+) -> None:
+    B = T.alloc_buffer((128, 128))
+    for i in T.grid(16384):
+        with T.block("B"):
+            vi = T.axis.spatial(128, i // 128)
+            vj = T.axis.spatial(128, i % 128)
+            B[vi, vj] = A[vi, vj] * 2.0
+    for i, j in T.grid(127, 127):
+        with T.block("C"):
+            cvi, cvj = T.axis.remap("SS", [i, j])
+            C[cvi, cvj] = B[cvi, cvj] + 1.0
+
+
+@T.prim_func
+def elementwise_overcomputed_producer_simplify_predicate_reverse_inlined(
+    A: T.Buffer((128, 128), "float32"), C: T.Buffer((127, 127), "float32")
+) -> None:
+    for i in T.grid(16384):
+        with T.block("B"):
+            vi = T.axis.spatial(128, i // 128)
+            vj = T.axis.spatial(128, i % 128)
+            T.where(i < 16255 and i % 128 < 127)
+            C[vi, vj] = A[vi, vj] * 2.0 + 1.0
+
+
+@T.prim_func
+def elementwise_overcomputed_producer_injective_load(
+    A: T.Buffer((128, 128), "float32"), C: T.Buffer((127, 127), "float32")
+) -> None:
+    B = T.alloc_buffer((8, 8, 16, 16))
+    for i0, j0, i1, j1 in T.grid(8, 8, 16, 16):
+        with T.block("B"):
+            vi, vj, vm, vn = T.axis.remap("SSSS", [i0, j0, i1, j1])
+            B[vi, vj, vm, vn] = A[vi * 16 + vm, vj * 16 + vn] * 2.0
+    for i, j in T.grid(127, 127):
+        with T.block("C"):
+            cvi, cvj = T.axis.remap("SS", [i, j])
+            C[cvi, cvj] = B[cvi // 16, cvj // 16, cvi % 16, cvj % 16] + 1.0
+
+
+@T.prim_func
+def elementwise_overcomputed_producer_injective_load_reverse_inlined(
+    A: T.Buffer((128, 128), "float32"), C: T.Buffer((127, 127), "float32")
+) -> None:
+    for i0, j0, i1, j1 in T.grid(8, 8, 16, 16):
+        with T.block("B"):
+            vi, vj, vm, vn = T.axis.remap("SSSS", [i0, j0, i1, j1])
+            T.where(i0 * 16 + i1 < 127 and j0 * 16 + j1 < 127)
+            C[vm + vi * 16, vn + vj * 16] = A[vi * 16 + vm, vj * 16 + vn] * 2.0 + 1.0
+
+
+@T.prim_func
 def elementwise_producer_not_cover_consumer(
-    A: T.Buffer[(128, 128), "float32"], D: T.Buffer[(256, 128), "float32"]
+    A: T.Buffer((128, 128), "float32"), D: T.Buffer((256, 128), "float32")
 ) -> None:
     B = T.alloc_buffer((128, 128))
     for i, j in T.grid(128, 128):
@@ -659,7 +728,7 @@ def elementwise_predicate_producer_inlined(a: T.handle, c: T.handle) -> None:
 @tvm.script.ir_module
 class Conv2dInt8_TensorCore_with_predicate:
     @T.prim_func
-    def main(p0: T.Buffer[(16, 56, 56, 64), "int8"], p1: T.Buffer[(256, 1, 1, 64), "int8"], p2: T.Buffer[(1, 1, 1, 256), "int32"], p3: T.Buffer[(1, 1, 1, 256), "int32"], p4: T.Buffer[256, "int32"], p5: T.Buffer[256, "int32"], p6: T.Buffer[256, "int32"], p7: T.Buffer[(), "int32"], p8: T.Buffer[1, "int32"], p9: T.Buffer[(16, 56, 56, 256), "int32"], compute: T.Buffer[(16, 56, 56, 256), "int32"]):
+    def main(p0: T.Buffer((16, 56, 56, 64), "int8"), p1: T.Buffer((256, 1, 1, 64), "int8"), p2: T.Buffer((1, 1, 1, 256), "int32"), p3: T.Buffer((1, 1, 1, 256), "int32"), p4: T.Buffer(256, "int32"), p5: T.Buffer(256, "int32"), p6: T.Buffer(256, "int32"), p7: T.Buffer((), "int32"), p8: T.Buffer(1, "int32"), p9: T.Buffer((16, 56, 56, 256), "int32"), compute: T.Buffer((16, 56, 56, 256), "int32")):
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         # body
@@ -703,7 +772,7 @@ class Conv2dInt8_TensorCore_with_predicate:
                                         v1_o = T.axis.spatial(4, ax4_0_0 * 2 + ax4_0_1)
                                         T.reads(pad_temp_reindex_shared[v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16])
                                         T.writes(pad_temp_reindex_shared_wmma_matrix_a[v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16])
-                                        T.block_attr({"meta_schedule.auto_tensorize":"wmma_load_16x16x16_s8_a"})
+                                        T.block_attr({"meta_schedule.auto_tensorize":"wmma_load_16x16x16_s8_a_shared"})
                                         for ax0_1_1, ax1_1_1 in T.grid(16, 16):
                                             with T.block("pad_temp_reindex_shared_wmma.matrix_a"):
                                                 v0_i, v1_i = T.axis.remap("SS", [ax0_1_1, ax1_1_1])
@@ -718,7 +787,7 @@ class Conv2dInt8_TensorCore_with_predicate:
                                         v3_o = T.axis.spatial(4, ax4_0_0 * 2 + ax4_0_1)
                                         T.reads(p1_reindex_shared[v0, v1, v2_o * 16 : v2_o * 16 + 16, v3_o * 16 : v3_o * 16 + 16])
                                         T.writes(p1_reindex_shared_wmma_matrix_b[v0, v1, v2_o * 16 : v2_o * 16 + 16, v3_o * 16 : v3_o * 16 + 16])
-                                        T.block_attr({"meta_schedule.auto_tensorize":"wmma_load_16x16x16_s8_b_trans"})
+                                        T.block_attr({"meta_schedule.auto_tensorize":"wmma_load_16x16x16_s8_b_trans_shared"})
                                         for ax2_1, ax3_1 in T.grid(16, 16):
                                             with T.block("p1_reindex_shared_wmma.matrix_b"):
                                                 v2_i, v3_i = T.axis.remap("SS", [ax2_1, ax3_1])
@@ -973,6 +1042,15 @@ def test_output_block(use_block_name):
     with pytest.raises(tvm.tir.ScheduleError):
         sch.compute_inline(block)
 
+    sch = tir.Schedule(elementwise_output, debug_mask="all")
+    block = sch.get_block("B")
+    with pytest.raises(tvm.tir.ScheduleError):
+        sch.compute_inline(block)
+
+    block = sch.get_block("C")
+    with pytest.raises(tvm.tir.ScheduleError):
+        sch.reverse_compute_inline(block)
+
 
 def test_compute_inline_predicate(use_block_name):
     sch = tir.Schedule(elementwise_predicate, debug_mask="all")
@@ -1025,6 +1103,26 @@ def test_reverse_compute_inline_overcomputed_producer(use_block_name):
     )
 
 
+def test_reverse_compute_inline_overcomputed_producer_simplify_predicate(use_block_name):
+    """Test reverse compute inline overcomputed producer where the predicate should be simplified"""
+    sch = tir.Schedule(elementwise_overcomputed_producer_simplify_predicate, debug_mask="all")
+    compute = "C" if use_block_name else sch.get_block("C")
+    sch.reverse_compute_inline(compute)
+    tvm.ir.assert_structural_equal(
+        elementwise_overcomputed_producer_simplify_predicate_reverse_inlined, sch.mod["main"]
+    )
+
+
+def test_reverse_compute_inline_overcomputed_producer_injective_load(use_block_name):
+    """Test reverse compute inline overcomputed producer with injective buffer load"""
+    sch = tir.Schedule(elementwise_overcomputed_producer_injective_load, debug_mask="all")
+    compute = "C" if use_block_name else sch.get_block("C")
+    sch.reverse_compute_inline(compute)
+    tvm.ir.assert_structural_equal(
+        elementwise_overcomputed_producer_injective_load_reverse_inlined, sch.mod["main"]
+    )
+
+
 def test_reverse_compute_inline_error_producer_not_cover_consumer(use_block_name):
     """Test reverse compute inline failure when the inlined block iter domains are not covered by
     its producer
@@ -1056,7 +1154,7 @@ def test_reverse_compute_inline_producer_predicate_disallowed():
         sch.reverse_compute_inline(sch.get_block("compute_4"))
 
     assert (
-        "that cannot be implied by the synthesized predicate True of the new inlined block"
+        "that cannot be implied by the synthesized predicate T.bool(True) of the new inlined block"
         in str(e)
     )
 

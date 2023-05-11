@@ -59,7 +59,6 @@ Array<meta_schedule::ExtractedTask> ExtractTask(IRModule mod, Target target,
   using meta_schedule::ExtractedTask;
   using meta_schedule::ModuleEqual;
   using meta_schedule::ModuleHash;
-  backend::FTECompilerTIRConverter tir_converter = backend::GetTIRConverter();
   backend::BindParamsInModule(mod, params);
   // is_vm=true for backward compatibility
   Array<Pass> pass_seqs = relay::backend::GetPassPrefix(/*is_homogenous=*/true, /*is_vm=*/true);
@@ -84,10 +83,9 @@ Array<meta_schedule::ExtractedTask> ExtractTask(IRModule mod, Target target,
       if (!relay_func->HasNonzeroAttr(attr::kPrimitive)) {
         return;
       }
-      auto [inputs_outputs, constants, fused_name] =
-          tec::LowerTECompute(relay_func, target, constant_name_supply, /*return_inputs=*/true);
 
-      if (Optional<tir::PrimFunc> f = tir_converter(inputs_outputs, constants)) {
+      auto [f, fused_name] = tec::LowerToPrimFunc(relay_func, target, constant_name_supply);
+      if (f) {
         IRModule tir_mod = PrimFuncToIRModule(f.value());
         lower_results.push_back(std::make_tuple(fused_name, relay_func, tir_mod));
       }

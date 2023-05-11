@@ -14,8 +14,7 @@
 -->
 
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
-    package="org.apache.tvm.android.androidcamerademo">
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.CAMERA" />
@@ -26,6 +25,9 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme"
         tools:ignore="AllowBackup,MissingApplicationIcon">
+        <uses-native-library
+            android:name="libOpenCL.so"
+            android:required="false"/>
         <activity
             android:name="org.apache.tvm.android.androidcamerademo.MainActivity"
             android:exported="true"

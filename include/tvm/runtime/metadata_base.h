@@ -24,7 +24,10 @@
 #ifndef TVM_RUNTIME_METADATA_BASE_H_
 #define TVM_RUNTIME_METADATA_BASE_H_
 
-#include <tvm/ir/expr.h>
+#include <tvm/runtime/container/array.h>
+#include <tvm/runtime/container/string.h>
+#include <tvm/runtime/data_type.h>
+#include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/object.h>
 
 #include <memory>

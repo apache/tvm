@@ -177,6 +177,19 @@ TVM_DLL Pass RewriteUnsafeSelect();
 TVM_DLL Pass Simplify();
 
 /*!
+ * \brief Convert an IRModule to be SSA form.
+ *
+ * This pass handles cases where the same tir::Var appears in
+ * multiple functions within the same module.  For example, after
+ * extracting a fragment from one function into another, where the
+ * same `tir::Var` may be defined both as within the body of the
+ * original function, and as a parameter within the hoisted function.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass ConvertSSA();
+
+/*!
  * \brief Instruments bound checkers.
  *
  * \return The pass.
@@ -337,11 +350,17 @@ TVM_DLL Pass CombineContextCall();
 TVM_DLL Pass NarrowDataType(int target_bits);
 
 /*!
- * \brief Legalize bf16 typed Ops. Add a cast to fp32
+ * \brief Legalize bf16 compute Ops. Add a cast to fp32
  *   before Ops, then add a cast back to bf16.
  * \return The pass.
  */
-TVM_DLL Pass BF16Legalize();
+TVM_DLL Pass BF16ComputeLegalize();
+
+/*!
+ * \brief Legalize bf16 storage types to u16.
+ * \return The pass.
+ */
+TVM_DLL Pass BF16StorageLegalize();
 
 /*!
  * \brief Rewrite the pointer content type of arguments,
@@ -437,10 +456,11 @@ TVM_DLL Pass ConvertBlocksToOpaque();
  *
  *  \endcode
  *
- *
+ * \param is_strict ensure the compacted shape always smaller than the original shape.
+ *   otherwise it allows to grow the shape to match actual accessed buffer regions.
  * \return The pass.
  */
-TVM_DLL Pass CompactBufferAllocation();
+TVM_DLL Pass CompactBufferAllocation(bool is_strict = true);
 
 /*!
  * This pass legalizes packed calls by wrapping their arguments into TVMValues
@@ -495,6 +515,13 @@ TVM_DLL Pass LowerAsyncDMA();
  * \return The pass.
  */
 TVM_DLL Pass CommonSubexprElimTIR(bool enable_cse_tir = true, bool identify_equiv_terms = false);
+
+/*!
+ * \brief Add TIR-printer output as debug information to all ops in the module
+ * \return The pass.
+ */
+
+TVM_DLL Pass InstallDebugSpans();
 
 /*!
  * \brief Unify all the thread bindings for "blockIdx.x/y/z", "threadIdx.x/y/z", and
@@ -569,7 +596,7 @@ TVM_DLL Pass UnifiedStaticMemoryPlanner();
  *
  * \code{.py}
  * @T.prim_func
- * def before_transform(A: T.Buffer[(16, 16), "float32"], C: T.Buffer[(16, 16), "float32"]) -> None:
+ * def before_transform(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")) -> None:
  *     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
  *         for i in T.serial(0, 16,
  *                           annotations={"software_pipeline_stage": [0, 1],
@@ -594,7 +621,7 @@ TVM_DLL Pass UnifiedStaticMemoryPlanner();
  *
  * \code{.py}
  * @T.prim_func
- * def after_transform(A: T.Buffer[(16, 16), "float32"], C: T.Buffer[(16, 16), "float32"]) -> None:
+ * def after_transform(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")) -> None:
  *     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
  *         with T.block():
  *             T.reads([A[tx, 0:16]])
@@ -641,6 +668,12 @@ TVM_DLL Pass BindParams(const Array<runtime::NDArray>& constants);
 TVM_DLL Pass ExtractPrimFuncConstants();
 
 /*!
+ * \brief Automatically do memory optimizations for auto copy blocks
+ * \return The pass.
+ */
+TVM_DLL Pass LowerAutoCopy();
+
+/*!
  * \brief Renormalize the split pattern from floordiv(floormod()) to floormod(floordiv())
  * \return The pass.
  */
@@ -669,6 +702,12 @@ TVM_DLL Pass Filter(runtime::TypedPackedFunc<bool(PrimFunc)> fcond);
  * \return The pass.
  */
 TVM_DLL Pass InjectPTXAsyncCopy();
+
+/*!
+ * \brief Pass to rewrite global to local memory copy on CUDA with ldg32 instruction.
+ * \return The pass.
+ */
+TVM_DLL Pass InjectPTXLDG32(bool enable_ptx_ldg32 = true);
 
 /*!
  * \brief Remove the weight layout rewrite block

@@ -1027,11 +1027,40 @@ def _has_vnni():
     return False
 
 
+# check avx512 intrinsic groups for SkyLake X
+def _has_slavx512():
+    # Check LLVM support
+    llvm_version = tvm.target.codegen.llvm_version_major()
+    is_llvm_support = llvm_version >= 8
+    arch = platform.machine()
+    # Only linux is supported for now.
+    if arch == "x86_64" and sys.platform.startswith("linux"):
+        with open("/proc/cpuinfo", "r") as content:
+            ctx = content.read()
+            check = (
+                "avx512f" in ctx
+                and "avx512cd" in ctx
+                and "avx512bw" in ctx
+                and "avx512dq" in ctx
+                and "avx512vl" in ctx
+            )
+            return check and is_llvm_support
+
+    return False
+
+
 requires_arm_dot = Feature("arm_dot", "ARM dot product", run_time_check=_arm_dot_supported)
 
 
 requires_cascadelake = Feature(
     "cascadelake", "x86 CascadeLake", run_time_check=lambda: _has_vnni() and _is_intel()
+)
+
+
+requires_skylake_avx512 = Feature(
+    "skylake_avx512",
+    "x86 SkyLake AVX512",
+    run_time_check=lambda: _has_slavx512() and _is_intel(),
 )
 
 
@@ -1635,7 +1664,7 @@ def _fixture_cache(func):
         try:
             hash((args, kwargs))
             return (args, kwargs)
-        except TypeError as e:
+        except TypeError:
             pass
 
         try:
@@ -1732,7 +1761,7 @@ def install_request_hook(depth: int) -> None:
         base = __file__
         msg += f"found file {__file__}\n"
     except NameError:
-        msg += f"no file\n"
+        msg += "no file\n"
 
     if base is None:
         hook_script_dir = Path.cwd().resolve()
@@ -1903,13 +1932,13 @@ class CompareBeforeAfter:
         class TestRemoveIf(tvm.testing.CompareBeforeAfter):
             transform = tvm.tir.transform.Simplify()
 
-            def before(A: T.Buffer[1, "int32"]):
+            def before(A: T.Buffer(1, "int32")):
                 if True:
                     A[0] = 42
                 else:
                     A[0] = 5
 
-            def expected(A: T.Buffer[1, "int32"]):
+            def expected(A: T.Buffer(1, "int32")):
                 A[0] = 42
 
     """
@@ -2036,13 +2065,6 @@ class CompareBeforeAfter:
     def test_compare(self, before, expected, transform):
         """Unit test to compare the expected TIR PrimFunc to actual"""
 
-        def pprint(name, obj):
-            script = obj.script()
-            if isinstance(obj, tvm.IRModule):
-                return script.replace("class Module", f"class {name}")
-            else:
-                return script.replace("def func", f"def {name}")
-
         if inspect.isclass(expected) and issubclass(expected, Exception):
             with pytest.raises(expected):
                 after = transform(before)
@@ -2050,8 +2072,8 @@ class CompareBeforeAfter:
                 # This portion through pytest.fail isn't strictly
                 # necessary, but gives a better error message that
                 # includes the before/after.
-                before_str = pprint("before", before)
-                after_str = pprint("after", after)
+                before_str = before.script(name="before")
+                after_str = after.script(name="after")
 
                 pytest.fail(
                     msg=(
@@ -2066,9 +2088,9 @@ class CompareBeforeAfter:
             try:
                 tvm.ir.assert_structural_equal(after, expected)
             except ValueError as err:
-                before_str = pprint("before", before)
-                after_str = pprint("after", after)
-                expected_str = pprint("expected", expected)
+                before_str = before.script(name="before")
+                after_str = after.script(name="after")
+                expected_str = expected.script(name="expected")
                 raise ValueError(
                     f"TIR after transformation did not match expected:\n"
                     f"{before_str}\n{after_str}\n{expected_str}"
@@ -2081,3 +2103,25 @@ class CompareBeforeAfter:
                 f"or an instance of `tvm.tir.PrimFunc`.  "
                 f"Instead, received {type(expected)}."
             )
+
+
+class _control_span_filling:
+    def __init__(self, on=True):
+        self._on = on
+        self._pass_ctx = tvm.transform.PassContext(config={"relay.frontend.fill_span": self._on})
+
+    def __enter__(self):
+        self._pass_ctx.__enter__()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self._pass_ctx.__exit__(exc_type, exc_val, exc_tb)
+
+
+class enable_span_filling(_control_span_filling):
+    def __init__(self):
+        super().__init__()
+
+
+class disable_span_filling(_control_span_filling):
+    def __init__(self):
+        super().__init__(on=False)

@@ -151,11 +151,7 @@ def _get_expected_codegen(shape, weight_shape, units, dtype, has_bias=False):
 
     if has_bias:
         bias_dtype = "int32" if dtype in qnn_dtypes else "float32"
-        bias_shape = (
-            [1, weight_shape[0]]
-            if dtype == "float32" and weight_shape[0] != 1
-            else [weight_shape[0]]
-        )
+        bias_shape = [1, weight_shape[0]] if weight_shape[0] != 1 else [weight_shape[0]]
         inputs.append(
             {
                 "op": "const",
@@ -384,8 +380,51 @@ def test_codegen_qnn_dense(dtype):
         verify_codegen(func, exp_codegen)
 
 
+@pytest.mark.parametrize(
+    "param",
+    ["kernel_sc", "kernel_zp"],
+)
+def test_codegen_qnn_dense_per_channel_quantization(param):
+    if skip_codegen_test():
+        return
+
+    np.random.seed(0)
+    dtype = "int8"
+    shape = (1, 2)
+    weight_shape = (2, 2)
+    units = 2
+    composite = True
+    inputs = {"a"}
+    args = (shape, weight_shape, units, dtype)
+
+    qnn_params = {
+        "input_zp": 1,
+        "input_sc": 1,
+        "kernel_zp": 1,
+        "kernel_sc": 1,
+        "output_zp": 1,
+        "output_sc": 1,
+    }
+    qnn_params[param] = [1, 1]
+
+    func, _ = _get_qnn_model(
+        *args,
+        var_names=iter(inputs),
+        input_zp=qnn_params["input_zp"],
+        input_sc=qnn_params["input_sc"],
+        kernel_zp=qnn_params["kernel_zp"],
+        kernel_sc=qnn_params["kernel_sc"],
+        output_zp=qnn_params["output_zp"],
+        output_sc=qnn_params["output_sc"],
+        has_bias=composite,
+    )
+    exp_codegen = _get_expected_codegen(*args, has_bias=composite)
+    verify_codegen(func, exp_codegen, num_acl_modules=0, tvm_ops=3)
+
+
 if __name__ == "__main__":
     test_dense()
     test_qnn_dense()
     test_codegen_dense()
     test_codegen_qnn_dense()
+    test_codegen_qnn_dense_per_channel_quantization()

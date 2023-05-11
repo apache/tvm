@@ -131,4 +131,4 @@ def test_ethosu_unary_elementwise_matcher(ofm_shape, ifm_layout, ofm_layout, op_
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

@@ -643,7 +643,10 @@ class Proxy(object):
             self.proc = None
 
     def __del__(self):
-        self.terminate()
+        try:
+            self.terminate()
+        except ImportError:
+            pass
 
 
 def websocket_proxy_server(url, key=""):

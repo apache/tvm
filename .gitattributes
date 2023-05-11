@@ -1,1 +1,2 @@
 Jenkinsfile linguist-generated=true
+ci/jenkins/generated/* linguist-generated=true

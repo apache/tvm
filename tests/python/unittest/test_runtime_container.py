@@ -90,6 +90,11 @@ def test_shape_tuple():
     # ShapleTuple vs. ShapeTuple
     assert stuple == _container.ShapeTuple(shape)
 
+    # test pickle
+    z = pickle.loads(pickle.dumps(stuple))
+    assert isinstance(z, tvm.runtime.ShapeTuple)
+    assert stuple == z
+
 
 if __name__ == "__main__":
     test_string()

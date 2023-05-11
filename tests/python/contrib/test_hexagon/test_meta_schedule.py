@@ -73,8 +73,11 @@ def test_builder_runner(hexagon_launcher):
 
     mod = MatmulModule
 
-    builder = get_hexagon_local_builder()
-    runner = get_hexagon_rpc_runner(hexagon_launcher, number=1, repeat=1, min_repeat_ms=0)
+    max_workers = 4
+    builder = get_hexagon_local_builder(max_workers=max_workers)
+    runner = get_hexagon_rpc_runner(
+        hexagon_launcher, number=1, repeat=1, min_repeat_ms=0, max_workers=max_workers
+    )
 
     (builder_result,) = builder.build([BuilderInput(mod, get_hexagon_target("v68"))])
     assert builder_result.artifact_path is not None
@@ -238,9 +241,9 @@ class ModuleVRMPYAutoTensorize:
     # pylint: disable=no-self-argument
     @T.prim_func
     def main(  # type: ignore
-        X: T.Buffer[(128, 768), "uint8"],  # type: ignore
-        packed_width: T.Buffer[(24, 192, 32, 4), "uint8"],  # type: ignore
-        compute: T.Buffer[(128, 768), "int32"],  # type: ignore
+        X: T.Buffer((128, 768), "uint8"),  # type: ignore
+        packed_width: T.Buffer((24, 192, 32, 4), "uint8"),  # type: ignore
+        compute: T.Buffer((128, 768), "int32"),  # type: ignore
     ) -> None:
         # pylint: disable=missing-function-docstring
         T.func_attr({"global_symbol": "main", "tir.noalias": True})

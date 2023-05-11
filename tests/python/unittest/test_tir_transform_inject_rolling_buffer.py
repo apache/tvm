@@ -14,15 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import numpy as np
+import pytest
 import tvm
 import tvm.script
-from tvm.script import tir as T
-from tvm import te
-from tvm import topi
+from tvm import te, topi
 from tvm.driver.build_module import get_binds
-import numpy as np
-
-import pytest
+from tvm.script import tir as T
 
 
 def _tile_nd(s, tensor, tile):
@@ -209,7 +207,7 @@ class PreRollingBuffer:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         # buffer definition
-        tensor_2 = T.buffer_decl([1, 10, 12, 16], dtype="int8", elem_offset=0, align=64, offset_factor=1)
+        tensor_2 = T.Buffer([1, 10, 12, 16], dtype="int8", elem_offset=0, align=64, offset_factor=1)
         A_1 = T.match_buffer(A, [1, 12, 14, 16], dtype="int8", elem_offset=0, align=64, offset_factor=1)
         tensor_1 = T.match_buffer(tensor, [1, 8, 8, 16], dtype="int8", elem_offset=0, align=64, offset_factor=1)
         # body
@@ -241,7 +239,7 @@ class PostRollingBuffer:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         # buffer definition
-        tensor_2 = T.buffer_decl([1, 10, 12, 16], dtype="int8", elem_offset=0, align=64, offset_factor=1)
+        tensor_2 = T.Buffer([1, 10, 12, 16], dtype="int8", elem_offset=0, align=64, offset_factor=1)
         A_1 = T.match_buffer(A, [1, 12, 14, 16], dtype="int8", elem_offset=0, align=64, offset_factor=1)
         tensor_1 = T.match_buffer(tensor, [1, 8, 8, 16], dtype="int8", elem_offset=0, align=64, offset_factor=1)
         # body
@@ -271,10 +269,10 @@ class PostRollingBuffer:
 def test_rolling_buffer_ir_transform():
     mod = PreRollingBuffer
     mod = tvm.tir.transform.InjectRollingBuffer()(mod)
-    script = mod.script(show_meta=True)
+    script = mod.script()
     mod = tvm.script.from_source(script)
     tvm.ir.assert_structural_equal(mod["main"], PostRollingBuffer["main"], True)
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

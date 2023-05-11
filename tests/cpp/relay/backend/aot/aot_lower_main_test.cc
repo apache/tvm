@@ -20,7 +20,7 @@
 #include "../../../../../src/relay/backend/aot/aot_lower_main.h"
 
 #include <gtest/gtest.h>
-#include <tvm/parser/parser.h>
+#include <tvm/relay/parser.h>
 
 namespace tvm {
 namespace relay {
@@ -37,7 +37,7 @@ TEST(AOTLowerMain, ExprAllocatorSkipNestedFunc) {
         %0(%x)
       }
     )";
-  IRModule mod = parser::ParseModule("string", mod_text, {}, {});
+  IRModule mod = ParseModule("string", mod_text, {}, {});
   auto host_target = tvm::Target("llvm");
   auto prim_target = tvm::Target(host_target, host_target);
   auto ctxt = tvm::transform::PassContext::Current();

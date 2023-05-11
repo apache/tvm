@@ -66,6 +66,9 @@ class TVM_DLL Executable : public ModuleNode {
    */
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
 
+  /*! \brief Get the property of the runtime module .*/
+  int GetPropertyMask() const final { return ModulePropertyMask::kBinarySerializable; };
+
   /*!
    * \brief Write the Executable to the binary stream in serialized form.
    *

@@ -27,8 +27,9 @@ A quick solution is to install via pip
 
 .. code-block:: bash
 
+    %%shell
     pip install flowvision==0.1.0
-    python3 -m pip install -f https://release.oneflow.info oneflow==0.7.0+cpu
+    pip install -f https://release.oneflow.info oneflow==0.7.0+cpu
 
 or please refer to official site:
 https://github.com/Oneflow-Inc/oneflow
@@ -37,9 +38,7 @@ Currently, TVM supports OneFlow 0.7.0. Other versions may be unstable.
 """
 
 # sphinx_gallery_start_ignore
-from tvm import testing
-
-testing.utils.install_request_hook(depth=3)
+# sphinx_gallery_requires_cuda = True
 # sphinx_gallery_end_ignore
 import os, math
 from matplotlib import pyplot as plt

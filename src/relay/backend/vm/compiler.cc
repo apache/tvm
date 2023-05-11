@@ -25,13 +25,13 @@
 #include "compiler.h"
 
 #include <tvm/driver/driver_api.h>
-#include <tvm/ir/error.h>
-#include <tvm/parser/parser.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/attrs/device_copy.h>
 #include <tvm/relay/attrs/memory.h>
+#include <tvm/relay/error.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/interpreter.h>
+#include <tvm/relay/parser.h>
 #include <tvm/relay/qnn/transform.h>
 #include <tvm/relay/runtime.h>
 #include <tvm/relay/transform.h>
@@ -693,13 +693,13 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
       auto constructor = GetRef<Constructor>(constructor_node);
       Emit(Instruction::AllocADT(constructor->tag, call_node->args.size(), args_registers,
                                  NewRegister()));
-    } else if (const auto* var_node = call_node->op.as<VarNode>()) {
+    } else if (auto var = call_node->op.as<Var>()) {
       // If we are calling a variable, it must be the case that it is a closure so we
       // emit invoke closure here.
-      VisitExpr(GetRef<Var>(var_node));
+      VisitExpr(var.value());
       Emit(Instruction::InvokeClosure(last_register_, args_registers, NewRegister()));
-    } else if (auto inner_call_node = call_node->op.as<CallNode>()) {
-      VisitExpr(GetRef<Call>(inner_call_node));
+    } else if (auto inner_call = call_node->op.as<Call>()) {
+      VisitExpr(inner_call.value());
       Emit(Instruction::InvokeClosure(last_register_, args_registers, NewRegister()));
     } else {
       // Finally if there are any other cases this is a bug.
@@ -921,12 +921,13 @@ void VMCompiler::LowerImpl(IRModule mod) {
 
   for (const auto& pair : context_.module->functions) {
     auto gvar = pair.first;
-    if (auto* n = pair.second.as<FunctionNode>()) {
-      if (n->HasNonzeroAttr(attr::kExtern)) {
+    if (auto opt = pair.second.as<Function>()) {
+      auto func = opt.value();
+      if (func->HasNonzeroAttr(attr::kExtern)) {
         // Already compiled during lowering.
         continue;
       }
-      auto func = GetRef<Function>(n);
+
       VMFunctionCompiler func_compiler(&context_, config_->host_virtual_device);
       auto vm_func = func_compiler.Compile(gvar, func);
 

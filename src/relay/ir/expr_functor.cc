@@ -532,8 +532,8 @@ Function SubstituteBoundVars(const Function& func, const tvm::Map<Var, Expr>& ar
     if (!args_map.count(func->params[i])) {
       new_params.push_back(func->params[i]);
     } else {
-      if (const VarNode* var = args_map[func->params[i]].as<VarNode>()) {
-        new_params.push_back(GetRef<Var>(var));
+      if (auto var = args_map[func->params[i]].as<Var>()) {
+        new_params.push_back(var.value());
       } else {
         ICHECK(false) << "Expected all values in args_map to be vars, but found "
                       << args_map[func->params[i]]->GetTypeKey();

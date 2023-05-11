@@ -47,7 +47,6 @@ def _get_model(shape, input_zp, input_sc, output_zp, output_sc, dtype):
 @pytest.mark.parametrize("shape", [(1, 52, 52, 3)])
 def test_tanh(dtype, shape):
     """Compare Tanh output with TVM."""
-
     zp_min = np.iinfo(dtype).min
     zp_max = np.iinfo(dtype).max
 
@@ -57,7 +56,7 @@ def test_tanh(dtype, shape):
     }
     outputs = []
     for npu in [False, True]:
-        model = _get_model(shape, zp_min + 120, 0.0250629, zp_min + 128, 0.0078125, dtype)
+        model = _get_model(shape, zp_min + 128, 1 / 256, zp_min + 128, 1 / 128, dtype)
         mod = tei.make_module(model, [])
         outputs.append(
             tei.build_and_run(

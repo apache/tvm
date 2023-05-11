@@ -35,6 +35,7 @@ If the demo is not run in the ci_cpu Docker container, then you will need the fo
   - [GCC toolchain from Arm(R)](https://developer.arm.com/-/media/Files/downloads/gnu-rm/10-2020q4/gcc-arm-none-eabi-10-2020-q4-major-x86_64-linux.tar.bz2)
   - [Arm(R) Ethos(TM)-U NPU driver stack](https://review.mlplatform.org)
   - [CMSIS](https://github.com/ARM-software/CMSIS_5)
+  - [CMSIS NN](https://github.com/ARM-software/CMSIS-NN)
 - The python libraries listed in the requirements.txt of this directory
   - These can be installed by running the following from the current directory:
     ```bash

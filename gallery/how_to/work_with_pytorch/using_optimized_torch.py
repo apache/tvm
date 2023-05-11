@@ -21,16 +21,20 @@ Compile PyTorch Models
 `Yaoda Zhou <https://github.com/juda>`_
 
 This article is a tutorial to optimize PyTorch models by using decorator `optimize_torch`.
-To follow this tutorial, PyTorch, as well as TorchVision, should be installed.
+To follow this tutorial, PyTorch, as well as TorchVision, should be installed:
+
+.. code-block:: bash
+
+    %%shell
+    pip install torch
+    pip install torchvision
+
 """
 
-# sphinx_gallery_start_ignore
-from tvm import testing
-
-testing.utils.install_request_hook(depth=3)
-# sphinx_gallery_end_ignore
-
 # Import PyTorch
+# sphinx_gallery_start_ignore
+# sphinx_gallery_requires_cuda = True
+# sphinx_gallery_end_ignore
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -45,7 +49,7 @@ from tvm.meta_schedule import TuneConfig
 
 ######################################################################
 # Define a simple module written by PyTorch
-# ------------------------------
+# -----------------------------------------
 
 
 class SimpleModel(nn.Module):
@@ -61,7 +65,7 @@ class SimpleModel(nn.Module):
 
 ######################################################################
 # Optimize SimpleModel by TVM MetaSchedule
-# ------------------------------
+# ----------------------------------------
 # We provide the `optimize_torch` function, which has the similar usage as `torch.jit.trace`.
 # The PyTorch model to optimize, along with its example input, are provided by users.
 # The PyTorch module will be tuned by TVM for the target hardware.
@@ -73,7 +77,7 @@ model_optimized_by_tvm = optimize_torch(simple_model, example_input)
 
 ######################################################################
 # Save/Load module
-# ------------------------------
+# ----------------
 # We can save and load our tuned module like the standard `nn.Module`.
 
 # Let us run our tuned module.
@@ -96,7 +100,7 @@ testing.assert_allclose(ret1.detach().numpy(), ret3.detach().numpy(), atol=1e-5,
 
 ######################################################################
 # Optimize resnet18
-# ------------------------------
+# -----------------
 # In the following, we will show that our approach is able to
 # accelerate common models, such as resnet18.
 
@@ -115,8 +119,8 @@ resnet18_torch = torch.jit.optimize_for_inference(torch.jit.script(resnet18().cu
 
 
 ######################################################################
-# Compare the performance between two approaches.
-# ------------------------------
+# Compare the performance between two approaches
+# ----------------------------------------------
 
 results = []
 for i in range(5):

@@ -95,21 +95,12 @@ def _apply_desired_layout_no_simd(relay_mod):
 
 
 @tvm.testing.requires_micro
-@pytest.mark.skip_boards(["mps2_an521"])
+@pytest.mark.skip_boards(
+    ["mps2_an521", "stm32f746g_disco", "nucleo_f746zg", "nucleo_l4r5zi", "nrf5340dk_nrf5340_cpuapp"]
+)
 @pytest.mark.xfail(reason="due https://github.com/apache/tvm/issues/12619")
 def test_armv7m_intrinsic(workspace_dir, board, microtvm_debug, serial_number):
     """Testing a ARM v7m SIMD extension."""
-    if board not in [
-        "mps2_an521",
-        "stm32f746g_disco",
-        "nucleo_f746zg",
-        "nucleo_l4r5zi",
-        "nrf5340dk_nrf5340_cpuapp",
-    ]:
-        pytest.skip(msg="Platform does not support ARM v7m SIMD extension.")
-
-    model = utils.ZEPHYR_BOARDS[board]
-
     build_config = {"debug": microtvm_debug}
 
     this_dir = pathlib.Path(os.path.dirname(__file__))
@@ -123,8 +114,10 @@ def test_armv7m_intrinsic(workspace_dir, board, microtvm_debug, serial_number):
     # kernel layout "HWIO" is not supported by arm_cpu SIMD extension (see tvm\python\relay\op\strategy\arm_cpu.py)
     relay_mod_no_simd = _apply_desired_layout_no_simd(relay_mod)
 
-    target = tvm.target.target.micro(model, options=["-keys=cpu"])
-    target_simd = tvm.target.target.micro(model, options=["-keys=arm_cpu,cpu"])
+    target = tvm.target.target.micro(utils.ZEPHYR_BOARDS[board]["model"], options=["-keys=cpu"])
+    target_simd = tvm.target.target.micro(
+        utils.ZEPHYR_BOARDS[board]["model"], options=["-keys=arm_cpu,cpu"]
+    )
 
     executor = Executor("aot", {"unpacked-api": True, "interface-api": "c"})
     runtime = Runtime("crt")

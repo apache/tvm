@@ -52,6 +52,14 @@ class MockCostEstimator(Object):
         self.__init_handle_by_constructor__(_ffi_api.MockCostEstimator, target_costs, max_estimates)
 
 
+@register_object("relay.collage.CustomCostEstimator")
+class CustomCostEstimator(Object):
+    """CustomEstimator class"""
+
+    def __init__(self, py_fn_estimator="tvm.relay.collage.estimate_seconds_custom"):
+        self.__init_handle_by_constructor__(_ffi_api.CustomCostEstimator, py_fn_estimator)
+
+
 def arg_for(arg_type, device):
     """Returns a test argument of Relay arg_type on device"""
     assert isinstance(arg_type, tvm.ir.TensorType)

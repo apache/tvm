@@ -16,14 +16,16 @@
 # under the License.
 """Unified type system in the project."""
 from enum import IntEnum
+
 import tvm
 import tvm._ffi
+from tvm.runtime import Scriptable
 
-from .base import Node
 from . import _ffi_api
+from .base import Node
 
 
-class Type(Node):
+class Type(Node, Scriptable):
     """The base class of all types."""
 
     def __eq__(self, other):

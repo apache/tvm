@@ -254,7 +254,7 @@ Necessary dependencies:
 
 .. code:: bash
 
-  pip install --user pytest Cython synr
+  pip install --user pytest Cython
 
 If you want to run all tests:
 

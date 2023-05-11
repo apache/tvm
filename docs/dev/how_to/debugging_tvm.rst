@@ -53,7 +53,7 @@ optimization). To enable VLOGging, do the following:
    level assignments of the form ``<file_name>=<level>``. Here are some specializations:
 
     - The special filename ``DEFAULT`` sets the VLOG level setting for all files.
-    - ``<level>>`` can be set to ``-1`` to disable VLOG in that file.
+    - ``<level>`` can be set to ``-1`` to disable VLOG in that file.
     - ``<file_name>`` is the name of the c++ source file (e.g. ``.cc``, not ``.h``) relative to the
       ``src/`` directory in the TVM repo. You do not need to supply ``src/`` when specifying the
       file path, but if you do, VLOG will still interpret the path correctly.

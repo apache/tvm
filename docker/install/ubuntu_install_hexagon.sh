@@ -21,7 +21,7 @@ set -o pipefail
 
 # Install LLVM/clang
 CLANG_LLVM_HOME=/opt/clang-llvm
-LLVM_SHA=361a27c155ec8b222e3318488a208c0eb39624c8
+LLVM_SHA=a9871772a8b13c1240a95a84a3327f84bb67dddc
 
 mkdir llvm-hexagon
 pushd llvm-hexagon
@@ -37,8 +37,7 @@ cmake \
   -DCMAKE_INSTALL_PREFIX=${CLANG_LLVM_HOME} \
   -DLLVM_ENABLE_ASSERTIONS=ON \
   -DLLVM_TARGETS_TO_BUILD:STRING="Hexagon;X86" \
-  -DLLVM_ENABLE_PROJECTS:STRING="clang;llvm" \
-  -DTARGET_TRIPLE=x86_64-unknown-linux-gnu \
+  -DLLVM_ENABLE_PROJECTS:STRING="llvm" \
   -DLLVM_DEFAULT_TARGET_TRIPLE=x86_64-unknown-linux-gnu \
   ../llvm
 ninja install

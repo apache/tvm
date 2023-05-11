@@ -100,10 +100,6 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     StmtExprVisitor::VisitStmt_(op);
   }
 
-  void VisitStmt_(const StoreNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-  }
-
   void VisitStmt_(const BufferStoreNode* op) final {
     scope_.push_back(StmtEntry());
     // visit subexpr
@@ -127,10 +123,6 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
       e.stmt = op;
       linear_seq_.push_back(e);
     }
-  }
-
-  void VisitExpr_(const LoadNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
   }
 
   void VisitExpr_(const BufferLoadNode* op) final {
@@ -159,17 +151,6 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     if (e.touched.size() != 0) {
       e.stmt = op;
       linear_seq_.push_back(e);
-    }
-  }
-
-  void VisitExpr_(const CallNode* op) final {
-    if (op->op.same_as(builtin::address_of())) {
-      const BufferLoadNode* load = op->args[0].as<BufferLoadNode>();
-      for (const auto& index : load->indices) {
-        this->VisitExpr(index);
-      }
-    } else {
-      StmtExprVisitor::VisitExpr_(op);
     }
   }
 
@@ -280,8 +261,6 @@ class InplaceOpVerifier : public StmtExprVisitor {
       VisitStmt_(static_cast<const IfThenElseNode*>(stmt));
     } else if (stmt->IsInstance<WhileNode>()) {
       VisitStmt_(static_cast<const WhileNode*>(stmt));
-    } else if (stmt->IsInstance<StoreNode>()) {
-      VisitStmt_(static_cast<const StoreNode*>(stmt));
     } else if (stmt->IsInstance<BufferStoreNode>()) {
       VisitStmt_(static_cast<const BufferStoreNode*>(stmt));
     } else {
@@ -309,10 +288,6 @@ class InplaceOpVerifier : public StmtExprVisitor {
     }
   }
 
-  void VisitStmt_(const StoreNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-  }
-
   void VisitStmt_(const BufferStoreNode* op) final {
     ++mem_nest_;
     for (const auto& index : op->indices) {
@@ -335,10 +310,6 @@ class InplaceOpVerifier : public StmtExprVisitor {
       return;
     }
     StmtExprVisitor::VisitStmt_(op);
-  }
-
-  void VisitExpr_(const LoadNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
   }
 
   void VisitExpr_(const BufferLoadNode* op) final {
@@ -414,14 +385,6 @@ class StoragePlanRewriter : public StmtExprMutator {
       return MakeAttach(attach_map_.at(nullptr), stmt);
     }
     return stmt;
-  }
-
-  Stmt VisitStmt_(const StoreNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-  }
-
-  PrimExpr VisitExpr_(const LoadNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
   }
 
   template <typename Node>
@@ -1149,14 +1112,6 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
     }
   }
 
-  void VisitExpr_(const LoadNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-  }
-
-  void VisitStmt_(const StoreNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-  }
-
   void VisitExpr_(const BufferLoadNode* op) final {
     OnArrayAccess(op->dtype, op->buffer->data.get(), op->indices);
     StmtExprVisitor::VisitExpr_(op);
@@ -1414,14 +1369,6 @@ class VectorTypeRewriter : public StmtExprMutator {
     }
   }
 
-  PrimExpr VisitExpr_(const LoadNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-  }
-
-  Stmt VisitStmt_(const StoreNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-  }
-
   template <typename Node>
   Node VisitBufferAccess(Node node) {
     if (!rewrite_indices_) {
@@ -1597,7 +1544,7 @@ class VectorTypeRewriter : public StmtExprMutator {
     auto* n = func.CopyOnWrite();
 
     // Remap any remaining references to the old buffer variables
-    Map<Var, PrimExpr> var_remap;
+    Map<Var, Var> var_remap;
     for (const auto& pair : rewrite_map_) {
       const auto& info = pair.second;
       var_remap.Set(info.old_buffer_var, info.new_buffer_var);

@@ -202,5 +202,6 @@ TVM_REGISTER_GLOBAL("runtime.GetShapeTupleElem").set_body_typed([](ShapeTuple sh
   ICHECK_LT(idx, shape.size());
   return shape[idx];
 });
+
 }  // namespace runtime
 }  // namespace tvm

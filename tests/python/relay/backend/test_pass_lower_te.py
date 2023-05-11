@@ -50,7 +50,7 @@ def transform(mod):
 
 
 def test_lower_primitive():
-    input_mod = tvm.parser.parse(
+    input_mod = tvm.relay.parse(
         """
         #[version = "0.0.5"]
         def @main(%a: Tensor[(5, 7), float32]) -> Tensor[(5, 7), float32] {
@@ -95,7 +95,7 @@ def test_lower_compiler():
     def relay_ext_test_pass_lower_te(func):
         return None
 
-    input_mod = tvm.parser.parse(
+    input_mod = tvm.relay.parse(
         """
         #[version = "0.0.5"]
         def @main(%a: Tensor[(5, 7), float32]) -> Tensor[(5, 7), float32] {
@@ -140,7 +140,7 @@ def test_lower_compiler():
 
 
 def test_lower_extern():
-    input_mod = tvm.parser.parse(
+    input_mod = tvm.relay.parse(
         """
         #[version = "0.0.5"]
         def @main(%a: Tensor[(5, 7), float32]) -> Tensor[(5, 7), float32] {
@@ -183,7 +183,7 @@ def test_lower_extern():
 
 
 def test_lower_extern_with_dynamic_shape():
-    input_mod = tvm.parser.parse(
+    input_mod = tvm.relay.parse(
         """
         #[version = "0.0.5"]
         def @main(%a: Tensor[(5, 7), float32]) -> Tensor[(?, ?), float32] {

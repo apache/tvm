@@ -15,11 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import numpy as np
-import pytest
 import itertools
 import logging
 from typing import Tuple
+
+import numpy as np
+import pytest
 
 try:
     # See issue #9362.
@@ -28,13 +29,12 @@ except:
     pass
 
 import tvm
-import tvm.testing
 import tvm.relay.testing
-
+import tvm.testing
 from tvm import relay
+from tvm.contrib.download import download
 from tvm.relay import Any, GlobalVar
 from tvm.relay.expr_functor import ExprVisitor
-from tvm.contrib.download import download
 from tvm.relay.op.contrib import tensorrt
 
 SUPPORTED_DTYPES = ["float16", "float32"]
@@ -416,15 +416,16 @@ def test_batch_matmul(run_module):
 
 
 def test_bias_add(run_module):
-    def get_graph(x_shape=(1, 16), channels=16):
+    def get_graph(x_shape=(1, 16), channels=16, axis=1):
         x = relay.var("x", shape=(x_shape), dtype="float32")
         bias = relay.var("bias", shape=(channels,), dtype="float32")
-        out = relay.nn.bias_add(x, bias)
+        out = relay.nn.bias_add(x, bias, axis)
         f = relay.Function([x, bias], out)
         return f, {"x": x_shape, "bias": (channels,)}, ["bias"]
 
     run_and_verify_func(get_graph(), run_module=run_module)
     run_and_verify_func(get_graph((1, 6, 3, 4), 6), run_module=run_module)
+    run_and_verify_func(get_graph((1, 6, 3, 4), 4, -1), run_module=run_module)
 
 
 def test_pool2d(run_module):
@@ -615,7 +616,7 @@ class AreOpsOnGraph(ExprVisitor):
 
     def visit_call(self, call):
         if isinstance(call.op, tvm.tir.op.Op):
-            if str(call.op) in self.op_list:
+            if str(call.op.name) in self.op_list:
                 self.on_graph = True
 
         return super().visit_call(call)

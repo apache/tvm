@@ -17,11 +17,12 @@
  * under the License.
  */
 
-#include "src/model.h"
+#include "src/platform.h"
 #include "src/data/yes.c"
 #include "src/data/no.c"
 #include "src/data/unknown.c"
 #include "src/data/silence.c"
+#include "src/standalone_crt/include/tvm/runtime/crt/platform.h"
 
 void performInference(int8_t input_data[1960], char *data_name) {
   int8_t output_data[4];
@@ -41,7 +42,7 @@ void performInference(int8_t input_data[1960], char *data_name) {
 }
 
 void setup() {
-  TVMInitialize();
+  TVMPlatformInitialize();
   Serial.begin(115200);
 }
 

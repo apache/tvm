@@ -20,4 +20,5 @@
 from __future__ import absolute_import as _abs
 
 from .generic import *
+from . import arm_cpu
 from . import hexagon

@@ -95,7 +95,7 @@ def match_buffer_func(a: T.handle, b: T.handle) -> None:
 
 @T.prim_func
 def global_buffer_with_blockidx(
-    a: T.Buffer[(1, 32), "int32"], b: T.Buffer[(1, 32), "int32"]
+    a: T.Buffer((1, 32), "int32"), b: T.Buffer((1, 32), "int32")
 ) -> None:
     for i0 in T.thread_binding(0, 1, thread="blockIdx.x"):
         for i1 in T.thread_binding(0, 32, thread="threadIdx.x"):

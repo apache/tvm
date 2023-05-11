@@ -145,6 +145,8 @@ def _convert_advanced_activation(inexpr, keras_layer, etab, data_layout, input_s
                 axis = axis + 1 if axis < dims - 1 else 1
         return _op.nn.softmax(inexpr, axis=axis)
     if act_type == "ReLU":
+        if np.isnan(keras_layer.threshold).any():
+            raise tvm.error.OpAttributeInvalid("The threshold value of a ReLU cannot be None.")
         threshold = _expr.const(keras_layer.threshold, dtype="float32")
         if keras_layer.max_value and float(keras_layer.threshold) == 0:
             # f(x) = max_value, for x >= max_value
@@ -156,8 +158,12 @@ def _convert_advanced_activation(inexpr, keras_layer, etab, data_layout, input_s
             return _op.multiply(negative_slope, _op.subtract(inexpr, threshold))
         return _op.nn.relu(inexpr)
     if act_type == "LeakyReLU":
+        if np.isnan(keras_layer.alpha).any():
+            raise tvm.error.OpAttributeInvalid("The alpha value of a LeakyReLU cannot be None.")
         return _op.nn.leaky_relu(inexpr, alpha=float(keras_layer.alpha))
     if act_type == "ELU":
+        if np.isnan(keras_layer.alpha).any():
+            raise tvm.error.OpAttributeInvalid("The alpha value of a ELU cannot be None.")
         alpha = keras_layer.alpha if hasattr(keras_layer, "alpha") else 1.0
         alpha = _expr.const(alpha, dtype="float32")
         return _get_elu(inexpr, alpha)
@@ -282,6 +288,8 @@ def _convert_dense(
 
 
 def _convert_convolution1d(inexpr, keras_layer, etab, data_layout, input_shape=None):
+    is_deconv = type(keras_layer).__name__ == "Conv1DTranspose"
+
     if input_shape is None:
         input_shape = keras_layer.input_shape
     _check_data_format(keras_layer)
@@ -290,19 +298,21 @@ def _convert_convolution1d(inexpr, keras_layer, etab, data_layout, input_shape=N
 
     if data_layout == "NWC":
         kernel_layout = "WIO"
+        if is_deconv:
+            kernel_layout = "WOI"
     else:
         kernel_layout = "OIW"
+        if is_deconv:
+            kernel_layout = "IOW"
         msg = (
             "Kernel layout with {} is not supported for operator Convolution1D "
             "in frontend Keras."
         )
         raise tvm.error.OpAttributeUnImplemented(msg.format(data_layout))
 
-    is_deconv = type(keras_layer).__name__ == "Conv1DTranspose"
-
     if is_deconv:
-        if kernel_layout == "OIW":
-            weight = weight.transpose([2, 0, 1])
+        if kernel_layout == "IOW":
+            weight = weight.transpose([2, 1, 0])
         kernel_w, n_filters, _ = weight.shape
     else:
         kernel_w, _, n_filters = weight.shape
@@ -369,6 +379,8 @@ def _convert_convolution(inexpr, keras_layer, etab, data_layout, input_shape=Non
 
     if data_layout == "NHWC":
         if is_depthconv:
+            kernel_layout = "HWOI"
+        elif is_deconv:
             kernel_layout = "HWOI"
         else:
             kernel_layout = "HWIO"
@@ -448,6 +460,7 @@ def _convert_convolution(inexpr, keras_layer, etab, data_layout, input_shape=Non
 
 def _convert_convolution3d(inexpr, keras_layer, etab, data_layout, input_shape=None):
     _check_data_format(keras_layer)
+    is_deconv = type(keras_layer).__name__ == "Conv3DTranspose"
     weightList = keras_layer.get_weights()
     weight = weightList[0]
     if input_shape is None:
@@ -455,20 +468,22 @@ def _convert_convolution3d(inexpr, keras_layer, etab, data_layout, input_shape=N
 
     if data_layout == "NDHWC":
         kernel_layout = "DHWIO"
+        if is_deconv:
+            kernel_layout = "DHWOI"
     else:
         kernel_layout = "OIDHW"
+        if is_deconv:
+            kernel_layout = "IODHW"
         msg = (
             "Kernel layout with {} is not supported for operator Convolution3D "
             "in frontend Keras."
         )
         raise tvm.error.OpAttributeUnImplemented(msg.format(data_layout))
 
-    is_deconv = type(keras_layer).__name__ == "Conv3DTranspose"
-
     if is_deconv:
         kernel_d, kernel_h, kernel_w, n_filters, _ = weight.shape
-        if kernel_layout == "OIDHW":
-            weight = weight.transpose([4, 3, 2, 0, 1])
+        if kernel_layout == "IODHW":
+            weight = weight.transpose([4, 3, 0, 1, 2])
     else:
         kernel_d, kernel_h, kernel_w, _, n_filters = weight.shape
 

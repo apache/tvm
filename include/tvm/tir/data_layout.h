@@ -137,8 +137,10 @@ class Layout : public ObjectRef {
    *        the corresponding lower case with factor size
    *        indicates the split dimension.
    *        return undefined layout if "__undef__" is passed.
+   * \param dtype The dtype of generated axes vars in the returned layout.
+   *        It is required to be integer type.
    */
-  TVM_DLL Layout(const std::string& name);  // NOLINT(*)
+  TVM_DLL Layout(const std::string& name, DataType dtype = DataType::Int(32));  // NOLINT(*)
 
   /*!
    * \brief access the internal node container

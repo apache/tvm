@@ -41,7 +41,6 @@ pip3 install --upgrade \
     requests \
     scipy \
     Jinja2 \
-    synr==0.6.0 \
     junitparser==2.4.2 \
     six \
     tornado \

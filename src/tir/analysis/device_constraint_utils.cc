@@ -249,15 +249,6 @@ class ApplyDeviceConstraintsMutator : public StmtExprMutator {
  private:
   PrimExpr VisitExpr_(const VarNode* var_node) final { return Subst(var_node); }
 
-  PrimExpr VisitExpr_(const LoadNode* load_node) final {
-    Load new_load = Downcast<Load>(StmtExprMutator::VisitExpr_(load_node));
-    Var new_buffer_var = Subst(new_load->buffer_var.get());
-    if (!new_buffer_var.same_as(new_load->buffer_var)) {
-      return Load(load_node->dtype, new_buffer_var, load_node->index, load_node->predicate);
-    }
-    return std::move(new_load);
-  }
-
   PrimExpr VisitExpr_(const BufferLoadNode* buffer_load_node) final {
     BufferLoad new_buffer_load =
         Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(buffer_load_node));
@@ -294,15 +285,6 @@ class ApplyDeviceConstraintsMutator : public StmtExprMutator {
   Stmt VisitStmt_(const AllocateNode* allocate_node) final {
     // TODO(mbs): What memory scope should we assign to the new pointer?
     return StmtExprMutator::VisitStmt_(allocate_node);
-  }
-
-  Stmt VisitStmt_(const StoreNode* store_node) final {
-    Store new_store = Downcast<Store>(StmtExprMutator::VisitStmt_(store_node));
-    Var new_buffer_var = Subst(new_store->buffer_var.get());
-    if (!new_buffer_var.same_as(new_store->buffer_var)) {
-      Store(new_buffer_var, new_store->value, new_store->index, new_store->predicate);
-    }
-    return std::move(new_store);
   }
 
   Stmt VisitStmt_(const BufferStoreNode* buffer_store_node) final {

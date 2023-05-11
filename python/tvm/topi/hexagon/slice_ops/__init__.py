@@ -36,3 +36,5 @@ from .relu import relu_compute, relu_stir_schedule
 from .tanh import tanh_te_compute, tanhf16_schedule
 from .dwconv2d import *
 from .depth_to_space import d2s_compute, d2s_schedule
+from .global_avg_pool2d import *
+from .dense import *

@@ -51,15 +51,15 @@ class ScheduleFnNode : public SpaceGeneratorNode {
       return {sch};
     }
     ObjectRef obj = rv;
-    if (const auto* sch = obj.as<tir::ScheduleNode>()) {
-      return {GetRef<tir::Schedule>(sch)};
+    if (auto sch = obj.as<tir::Schedule>()) {
+      return {sch.value()};
     }
     if (const auto* arr = obj.as<runtime::ArrayNode>()) {
       Array<tir::Schedule> result;
       result.reserve(arr->size());
       for (const ObjectRef& obj : *arr) {
-        if (const auto* sch = obj.as<tir::ScheduleNode>()) {
-          result.push_back(GetRef<tir::Schedule>(sch));
+        if (auto sch = obj.as<tir::Schedule>()) {
+          result.push_back(sch.value());
         } else {
           LOG(FATAL) << "TypeError: Expect return type of ScheduleFn to be None, Schedule or "
                         "List[Schedule], but got: "

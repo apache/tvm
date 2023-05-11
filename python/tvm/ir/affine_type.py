@@ -17,8 +17,8 @@
 """Types for quantized Tensors."""
 import tvm._ffi
 
-from .base import Node
 from . import _ffi_api
+from .base import Node
 
 
 class AffineType(Node):
@@ -30,6 +30,11 @@ class AffineType(Node):
 
     def __ne__(self, other):
         return not self.__eq__(other)
+
+    def __str__(self):
+        from tvm.relay import pretty_print  # pylint: disable=import-outside-toplevel
+
+        return pretty_print(self)
 
 
 @tvm._ffi.register_object("TensorAffineType")

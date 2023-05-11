@@ -29,9 +29,10 @@ echo set\(USE_CUDA ON\) >> config.cmake
 echo set\(USE_VULKAN ON\) >> config.cmake
 echo set\(USE_OPENGL ON\) >> config.cmake
 echo set\(USE_OPENCL ON\) >> config.cmake
+echo set\(USE_OPENCL_GTEST \"/googletest\"\) >> config.cmake
 echo set\(USE_MICRO ON\) >> config.cmake
 echo set\(USE_MICRO_STANDALONE_RUNTIME ON\) >> config.cmake
-echo set\(USE_LLVM \"/usr/bin/llvm-config-9 --link-static\"\) >> config.cmake
+echo set\(USE_LLVM \"/usr/bin/llvm-config-15 --link-static\"\) >> config.cmake
 echo set\(USE_NNPACK ON\) >> config.cmake
 echo set\(NNPACK_PATH /NNPACK/build/\) >> config.cmake
 echo set\(USE_RPC ON\) >> config.cmake
@@ -51,3 +52,4 @@ echo set\(SUMMARIZE ON\) >> config.cmake
 echo set\(HIDE_PRIVATE_SYMBOLS ON\) >> config.cmake
 echo set\(USE_PIPELINE_EXECUTOR ON\) >> config.cmake
 echo set\(USE_CUTLASS ON\) >> config.cmake
+echo set\(USE_CMSISNN ON\) >> config.cmake

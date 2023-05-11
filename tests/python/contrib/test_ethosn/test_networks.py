@@ -218,6 +218,6 @@ def test_ssd_mobilenet_v1():
         input_dict={"normalized_input_image_tensor": (1, 300, 300, 3)},
         compile_hash=_compile_hash,
         output_count=4,
-        host_ops=26,
+        host_ops=14,
         npu_partitions=1,
     )

@@ -142,4 +142,9 @@ def pytest_configure(config):
 
 @pytest.fixture
 def serial_number(request):
-    return request.config.getoption("--serial-number")
+    serial_number = request.config.getoption("--serial-number")
+    if serial_number:
+        serial_number_splitted = serial_number.split(",")
+        if len(serial_number_splitted) > 1:
+            return serial_number_splitted
+    return serial_number

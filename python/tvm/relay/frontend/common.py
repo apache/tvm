@@ -24,6 +24,7 @@ import tvm
 from tvm.ir import IRModule
 from tvm.topi.utils import get_const_tuple
 
+from ..expr_functor import ExprMutator
 from .. import expr as _expr
 from .. import function as _function
 from .. import transform as _transform
@@ -304,13 +305,16 @@ class ExprTable(object):
         self.const_ctr = 1
         self.in_padding = False
 
-    def new_const(self, value, shape=None, dtype="float32"):
+    def new_const(self, value, shape=None, dtype="float32", source_name=None):
+        """Construct a new var expr and add to exprs dictionary"""
         name = "_param_%d" % (self.const_ctr)
         if hasattr(value, "shape"):
             shape = value.shape
         self.const_ctr += 1
         self.params[name] = value
         self.exprs[name] = _expr.var(name_hint=name, shape=shape, dtype=dtype)
+        if source_name:
+            self.exprs[name] = set_span(self.exprs[name], source_name)
         return self.exprs[name]
 
     def get_expr(self, name):
@@ -737,6 +741,7 @@ def gru_cell(
     n_act=_op.tanh,
     backwards=False,
     linear_before_reset=True,
+    sequence_lens=None,
 ):
     """
     Common implementation of GRU cell for all frontends of TVM
@@ -765,7 +770,12 @@ def gru_cell(
         activation function for new gate. it is tanh by default
     backwards : bool
         Flag for reverse pass of GRU
-
+    linear_before_reset : bool
+        Flag for applying the linear transformation before multiplying by the output of the reset
+        gate.
+    sequence_lens : relay.op
+        Tensor specifying lengths of the sequences in a batch.
+        Shape = (batch_size)
     Returns
     -------
     result : List[relay.Expr], relay.Expr, relay.Expr
@@ -773,7 +783,40 @@ def gru_cell(
     """
 
     outputs_list = []
-    for x_t in input_seqs if not backwards else reversed(input_seqs):
+
+    seq_len = len(input_seqs)
+    input_dtype = infer_type(input_seqs[0]).checked_type.dtype
+
+    if sequence_lens is not None:
+        shape = infer_shape(sequence_lens)
+        dtype = infer_type(sequence_lens).checked_type.dtype
+
+        arange = _op.arange(_op.const(0), _op.const(seq_len), dtype=dtype)
+        arange = _op.expand_dims(arange, 1)
+        sequence_lens = _op.broadcast_to(sequence_lens, [seq_len, shape[0]])
+
+        # cast to data dtype
+        mask = _op.less(arange, sequence_lens)
+        mask = _op.cast(mask, dtype=input_dtype)
+        mask = _op.expand_dims(mask, 2)
+        mask_seqs = unbind(mask)
+
+        res_mask = _op.greater_equal(arange, sequence_lens)
+        res_mask = _op.cast(res_mask, dtype=input_dtype)
+        res_mask = _op.expand_dims(res_mask, 2)
+        res_mask_seqs = unbind(res_mask)
+
+        if backwards:
+            # need a mask to keep intial_h_B correct
+            initial_h = hidden_state
+            initial_h_mask = _op.equal(arange, sequence_lens)
+            initial_h_mask = _op.cast(initial_h_mask, dtype=input_dtype)
+            initial_h_mask = _op.expand_dims(initial_h_mask, 2)
+            initial_h_mask_seqs = unbind(initial_h_mask)
+
+    output = _op.zeros(infer_shape(hidden_state), input_dtype)
+    for i in range(seq_len) if not backwards else reversed(range(seq_len)):
+        x_t = input_seqs[i]
         xwt = _op.nn.dense(x_t, w_inp)
         if linear_before_reset:
             hwt = _op.nn.dense(hidden_state, w_hid)
@@ -806,9 +849,21 @@ def gru_cell(
 
         hidden_state = (hidden_state - n_gate) * z_gate + n_gate
 
+        if sequence_lens is not None:
+            hidden_state = hidden_state * mask_seqs[i]
+
         outputs_list.append(hidden_state)  # [seq_num, (batch, hidden_size)]
 
-    return outputs_list, hidden_state
+        if sequence_lens is not None:
+            output = output * res_mask_seqs[i] + hidden_state
+        else:
+            output = hidden_state
+
+        # make sure initial_h_B correct
+        if backwards and sequence_lens is not None:
+            hidden_state = hidden_state + initial_h * initial_h_mask_seqs[i]
+
+    return outputs_list, output
 
 
 def lstm_cell(
@@ -997,3 +1052,166 @@ def try_resolve_var_to_const(x, graph_params):
         return _op.const(value, dtype)
 
     return x
+
+
+class _SpanFiller(ExprMutator):
+    """SpanFiller"""
+
+    def __init__(self, span):
+        ExprMutator.__init__(self)
+        if isinstance(span, tvm.relay.Span):
+            self._span = span
+        elif isinstance(span, str):
+            self._span = tvm.relay.Span(tvm.relay.SourceName(span), 0, 0, 0, 0)
+        elif isinstance(span, bytes):
+            self._span = tvm.relay.Span(tvm.relay.SourceName(span.decode("utf-8")), 0, 0, 0, 0)
+        else:
+            assert False, f"unsupported span type: {type(span)}"
+
+    def visit(self, expr):
+        if hasattr(expr, "span") and expr.span:
+            return expr
+
+        return super().visit(expr)
+
+    def visit_function(self, fn):
+        new_params = [self.visit(x) for x in fn.params]
+        new_body = self.visit(fn.body)
+        return _function.FunctionWithFields(
+            fn, list(new_params), new_body, fn.ret_type, fn.type_params, fn.attrs, None, self._span
+        )
+
+    def visit_let(self, let):
+        new_variable = self.visit(let.var)
+        new_value = self.visit(let.value)
+        new_body = self.visit(let.body)
+        return _expr.LetWithFields(let, new_variable, new_value, new_body, None, self._span)
+
+    def visit_call(self, call):
+        new_args = [self.visit(arg) for arg in call.args]
+        # call.op might be RelayExpr or Op type
+        # ExprMutator will return directly if subject belongs to Op type
+        new_op = self.visit(call.op)
+        return _expr.CallWithFields(
+            call, new_op, new_args, call.attrs, call.type_args, None, self._span
+        )
+
+    def visit_var(self, var):
+        return _expr.VarWithFields(var, var.vid, var.type_annotation, None, self._span)
+
+    def visit_if(self, ite):
+        return _expr.IfWithFields(
+            ite,
+            self.visit(ite.cond),
+            self.visit(ite.true_branch),
+            self.visit(ite.false_branch),
+            None,
+            self._span,
+        )
+
+    def visit_tuple(self, tup):
+        return _expr.TupleWithFields(
+            tup, [self.visit(field) for field in tup.fields], None, self._span
+        )
+
+    def visit_tuple_getitem(self, op):
+        return _expr.TupleGetItemWithFields(
+            op, self.visit(op.tuple_value), op.index, None, self._span
+        )
+
+    def visit_constant(self, const):
+        return _expr.ConstantWithFields(const, const.data, None, self._span)
+
+    # TODO: Frontend model translation could not use following relay expressions so far,
+    #       enable them when new models/impls leverage these kinds of relay expressions.
+    def visit_ref_create(self, _):
+        raise NotImplementedError()
+
+    def visit_ref_write(self, _):
+        raise NotImplementedError()
+
+    def visit_ref_read(self, _):
+        raise NotImplementedError()
+
+    def visit_match(self, _):
+        raise NotImplementedError()
+
+    def fill(self, sym):
+        """Fill span to sym when it is an expr, or return it without change
+
+        Parameters
+        ----------
+        sym :
+            A symbol which is generated from the conversion of a frontend operator.
+
+        Returns
+        -------
+        sym:
+            A expr with span-filled or the original sym.
+        """
+        if isinstance(sym, _expr.TupleWrapper):
+            return _expr.TupleWrapper(self.visit(sym.tuple_value), sym.size)
+        elif isinstance(sym, _expr.RelayExpr):
+            return self.visit(sym)
+        elif isinstance(sym, list):
+            assert all(
+                isinstance(expr, _expr.RelayExpr) for expr in sym
+            ), f"unexpected relay expressions in {sym}"
+            return [self.visit(expr) for expr in sym]
+        elif isinstance(sym, tuple):
+            # some op conversion may return dummy elements
+            # e.g. op in frontend/pytorch.py: min_max_common
+            assert all(
+                isinstance(expr, (_expr.RelayExpr, type(None))) for expr in sym
+            ), f"unexpected relay expressions in {sym}"
+            return tuple(self.visit(expr) if expr else None for expr in sym)
+        elif isinstance(sym, (float, int)):
+            return sym
+        elif isinstance(sym, np.ndarray):
+            return sym
+        elif not sym:
+            # some op conversion may return None
+            # e.g. op in frontend/pytorch.py: prim::device
+            return sym
+
+        raise RuntimeError(f"unsupported type {type(sym)}")
+
+
+def set_span(sym, span):
+    """
+    Recursively tag the span to the symbol. Stop when it encounters a span-tagged expr. Disabled
+    when setting the "relay.frontend.fill_span" as False to the config of PassContext
+
+    Parameters
+    ----------
+    sym :
+        A symbol is generated from the conversion of a frontend operator. Raise an error when the
+        type of the symbol is not supported.
+
+    span : String, Span, or bytes
+        The source information of the corresponding symbol.
+
+    Returns
+    -------
+    result :
+        The symbol tagged with span.
+
+    Examples
+    --------
+    .. code-block:: python
+
+      x = set_span(relay.var("x", shape=(1, 64, 56, 56)), "x_var")
+      w = relay.const(np.ones([64, 64, 3, 3]), dtype="int64")
+      y = set_span(
+          relay.nn.conv2d(x, w, channels=64, kernel_size=(3, 3), padding=(1, 1)), "conv2d"
+      )
+      print(relay.Function([x], y))
+
+      #fn (%x: Tensor[(1, 64, 56, 56), float32] /* span=x_var:0:0 */) {
+      #  nn.conv2d(%x, meta[relay.Constant][0] /* span=conv2d:0:0 */, ...) /* span=conv2d:0:0 */
+      #}
+    """
+
+    if tvm.transform.PassContext.current().config.get("relay.frontend.fill_span", True):
+        return _SpanFiller(span).fill(sym)
+    return sym

@@ -24,12 +24,12 @@ import tvm.testing
 from tvm import relay
 from tvm.contrib.download import download_testdata
 from tvm.relay.op.contrib import cmsisnn
-from tvm.testing.aot import AOTTestModel, compile_and_run, generate_ref_data
+from tvm.testing.aot import AOTTestModel, get_dtype_range, compile_and_run, generate_ref_data
 from tvm.micro.testing.aot_test_utils import (
     AOT_CORSTONE300_RUNNER,
     AOT_USMP_CORSTONE300_RUNNER,
 )
-from .utils import skip_if_no_reference_system, get_range_for_dtype_str
+from .utils import skip_if_no_reference_system
 
 # pylint: disable=import-outside-toplevel
 def _convert_to_relay(
@@ -93,7 +93,7 @@ def test_cnn_small(test_runner):
 
     input_shape = (1, 490)
     dtype = "int8"
-    in_min, in_max = get_range_for_dtype_str(dtype)
+    in_min, in_max = get_dtype_range(dtype)
     rng = np.random.default_rng(12345)
     input_data = rng.integers(in_min, high=in_max, size=input_shape, dtype=dtype)
 

@@ -19,7 +19,6 @@
 
 import numpy as np
 import tvm
-from numpy.random import default_rng
 from tvm.script import tir as T
 
 from .infrastructure import get_hexagon_target
@@ -395,11 +394,11 @@ class TestMatMulVec:
 
     @tvm.testing.fixture
     def input_a(self, operations):
-        return default_rng().integers(0, 16, (operations, 128), dtype="uint8")
+        return np.random.randint(0, 16, (operations, 128), dtype="uint8")
 
     @tvm.testing.fixture
     def input_b(self, operations):
-        return default_rng().integers(0, 16, (operations, 128), dtype="uint8")
+        return np.random.randint(0, 16, (operations, 128), dtype="uint8")
 
     @tvm.testing.fixture
     def input_c(self, operations):

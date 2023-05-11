@@ -23,3 +23,5 @@ from .post_order_apply import PostOrderApply
 from .schedule_fn import ScheduleFn
 from .space_generator import PySpaceGenerator, ScheduleFnType, SpaceGenerator, create
 from .space_generator_union import SpaceGeneratorUnion
+
+from ...target import x86

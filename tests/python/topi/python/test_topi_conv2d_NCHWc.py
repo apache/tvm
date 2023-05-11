@@ -63,6 +63,7 @@ def verify_conv2d_NCHWc(
     dilation=1,
     add_bias=False,
     add_relu=False,
+    groups=1,
     dtype="float32",
 ):
     pad_top, pad_left, pad_bottom, pad_right = get_pad_tuple(padding, (kernel, kernel))
@@ -90,7 +91,14 @@ def verify_conv2d_NCHWc(
 
     A = te.placeholder((batch, in_channel // ic_block, in_height, in_width, ic_block), name="A")
     W = te.placeholder(
-        (num_filter // oc_block, in_channel // ic_block, kernel, kernel, ic_block, oc_block),
+        (
+            num_filter // oc_block,
+            in_channel // ic_block // groups,
+            kernel,
+            kernel,
+            ic_block,
+            oc_block,
+        ),
         name="W",
     )
     bias = te.placeholder((num_filter // oc_block, 1, 1, oc_block), name="bias")
@@ -98,10 +106,12 @@ def verify_conv2d_NCHWc(
     @memoize("topi.tests.test_topi_conv2d_NCHWc.verify_conv2d_NCHWc")
     def get_ref_data():
         a_np = np.random.uniform(size=(batch, in_channel, in_height, in_width)).astype(dtype)
-        w_np = np.random.uniform(size=(num_filter, in_channel, kernel, kernel)).astype(dtype)
+        w_np = np.random.uniform(size=(num_filter, in_channel // groups, kernel, kernel)).astype(
+            dtype
+        )
         b_np = np.random.uniform(size=(num_filter, 1, 1)).astype(dtype)
         dw_np = tvm.topi.testing.dilate_python(w_np, (1, 1, dilation, dilation))
-        c_np = tvm.topi.testing.conv2d_nchw_python(a_np, dw_np, stride, padding)
+        c_np = tvm.topi.testing.conv2d_nchw_python(a_np, dw_np, stride, padding, groups)
         if add_bias:
             c_np += b_np
         if add_relu:
@@ -194,6 +204,9 @@ def test_conv2d_NCHWc():
     # batch size
     verify_conv2d_NCHWc(4, 64, 56, 64, 3, 1, 1)
     verify_conv2d_NCHWc(9, 64, 56, 64, 3, 1, 1)
+
+    # groups
+    verify_conv2d_NCHWc(1, 2048, 10, 2048, 3, 1, 1, groups=128)
 
     # weird workloads
     verify_conv2d_NCHWc(2, 2, 2, 2, 2, 2, 2)

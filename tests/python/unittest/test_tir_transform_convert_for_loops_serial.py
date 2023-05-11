@@ -59,4 +59,4 @@ def test_nn_conv2d_add_fixed_point_multiply_clip_cast_cast_2():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

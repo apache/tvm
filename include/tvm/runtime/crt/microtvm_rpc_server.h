@@ -29,6 +29,8 @@
 #include <sys/types.h>
 #include <tvm/runtime/crt/error_codes.h>
 
+#include "../../../../src/support/ssize.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -36,6 +38,7 @@ extern "C" {
 /*! \brief TVM RPC channel write function.
  *
  * Tries to write `num_bytes` from `data` to the underlying channel.
+ * \param context The context.
  * \param data Pointer to data to write.
  * \param num_bytes Number of bytes avaiable in data.
  * \return The number of bytes written.

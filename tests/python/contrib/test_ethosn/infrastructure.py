@@ -168,7 +168,6 @@ def build(
     if not additional_config_args:
         additional_config_args = {}
     npu_config = {**get_ethosn_device_options(), **additional_config_args}
-    print(npu_config)
     with tvm.transform.PassContext(opt_level=3, config={"relay.ext.ethos-n.options": npu_config}):
         with tvm.target.Target("llvm"):
             if npu:

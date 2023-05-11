@@ -52,13 +52,12 @@ inline tir::PrimFunc FindEntryFunc(const IRModule& mod) {
   }
   // Priority 3: The only PrimFunc in the IRModule
   if (num_prim_func == 0) {
-    LOG(FATAL) << "ValueError: Cannot find any PrimFunc in the given IRModule: "
-               << tir::AsTVMScript(mod);
+    LOG(FATAL) << "ValueError: Cannot find any PrimFunc in the given IRModule: " << mod;
   }
   if (num_prim_func > 1) {
     LOG(FATAL) << "ValueError: Multiple PrimFuncs exist in the IRModule, but none of them are "
                   "annotated with `kIsEntryFunc`, i.e. `tir.is_entry_func`"
-               << tir::AsTVMScript(mod);
+               << mod;
   }
   return GetRef<tir::PrimFunc>(last_func);
 }

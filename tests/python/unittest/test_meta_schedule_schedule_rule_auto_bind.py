@@ -36,9 +36,9 @@ def element_wise(var_A: T.handle, var_B: T.handle) -> None:
 
 @T.prim_func
 def reduction_loop_only(
-    A: T.Buffer[2, "float32"],
-    B: T.Buffer[2, "float32"],
-    C: T.Buffer[(), "float32"],
+    A: T.Buffer(2, "float32"),
+    B: T.Buffer(2, "float32"),
+    C: T.Buffer((), "float32"),
 ) -> None:
     for i0 in T.serial(2):
         with T.block("C"):
@@ -52,9 +52,9 @@ def reduction_loop_only(
 
 @T.prim_func
 def zero_dim_add(
-    A: T.Buffer[(), "float32"],
-    B: T.Buffer[(), "float32"],
-    C: T.Buffer[(), "float32"],
+    A: T.Buffer((), "float32"),
+    B: T.Buffer((), "float32"),
+    C: T.Buffer((), "float32"),
 ) -> None:
     with T.block("C"):
         vi = T.axis.spatial(1, 0)
@@ -64,8 +64,8 @@ def zero_dim_add(
 def test_cuda_element_wise():
     @T.prim_func
     def elementwise_0(
-        A: T.Buffer[(512, 512), "float32"],
-        B: T.Buffer[(512, 512), "float32"],
+        A: T.Buffer((512, 512), "float32"),
+        B: T.Buffer((512, 512), "float32"),
     ) -> None:
         # body
         # with T.block("root")
@@ -99,9 +99,9 @@ def test_cuda_element_wise():
 def test_cuda_reduction_loop_only():
     @T.prim_func
     def reduction_loop_only_0(
-        A: T.Buffer[2, "float32"],
-        B: T.Buffer[2, "float32"],
-        C: T.Buffer[(), "float32"],
+        A: T.Buffer(2, "float32"),
+        B: T.Buffer(2, "float32"),
+        C: T.Buffer((), "float32"),
     ) -> None:
         for u_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
             for u_fused_1 in T.thread_binding(1, thread="threadIdx.x"):
@@ -132,9 +132,9 @@ def test_cuda_reduction_loop_only():
 def test_cuda_zero_dim_add():
     @T.prim_func
     def zero_dim_add_0(
-        A: T.Buffer[(), "float32"],
-        B: T.Buffer[(), "float32"],
-        C: T.Buffer[(), "float32"],
+        A: T.Buffer((), "float32"),
+        B: T.Buffer((), "float32"),
+        C: T.Buffer((), "float32"),
     ) -> None:
         for u_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
             for u_fused_1 in T.thread_binding(1, thread="threadIdx.x"):

@@ -19,8 +19,7 @@ specific language governing permissions and limitations
 under the License.
 -->
 
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="org.apache.tvm.tvmrpc" >
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
 
@@ -30,6 +29,9 @@ under the License.
         android:supportsRtl="true"
         android:theme="@style/AppTheme"
         android:icon="@mipmap/ic_launcher">
+        <uses-native-library
+            android:name="libOpenCL.so"
+            android:required="false"/>
         <activity
             android:name=".MainActivity"
             android:theme="@style/AppTheme.NoActionBar"

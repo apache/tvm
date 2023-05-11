@@ -193,7 +193,7 @@ class SubgraphMutator : public ExprMutator {
       return Mutate(expr);
     } catch (std::exception& e) {
       if (hard_fail_) {
-        throw e;
+        LOG(FATAL) << e.what();
       } else {
         DLOG(INFO) << "Ran into an error rewriting a subgraph, skipping" << expr << std::endl;
         return expr;

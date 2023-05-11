@@ -48,7 +48,7 @@ void CodeGenCUDA::Init(bool output_ssa) {
   ICHECK_EQ(vid_global_barrier_state_, runtime::symbol::tvm_global_barrier_state);
 }
 
-void CodeGenCUDA::PrintFuncPrefix() { stream << "extern \"C\" __global__ void"; }
+void CodeGenCUDA::PrintFuncPrefix(std::ostream& os) { os << "extern \"C\" __global__ void"; }
 
 class ThreadIdxExtractor : public tir::StmtVisitor {
  private:
@@ -133,6 +133,13 @@ std::string CodeGenCUDA::Finish() {
   if (need_mma_h_) {
     decl_stream << "#include <mma.h>\n";
   }
+
+  decl_stream << "\n#if (((__CUDACC_VER_MAJOR__ == 11) && (__CUDACC_VER_MINOR__ >= 4)) || \\\n";
+  decl_stream << "     (__CUDACC_VER_MAJOR__ > 11))\n";
+  decl_stream << "#define TVM_ENABLE_L2_PREFETCH 1\n";
+  decl_stream << "#else\n";
+  decl_stream << "#define TVM_ENABLE_L2_PREFETCH 0\n";
+  decl_stream << "#endif\n";
 
   decl_stream << "\n#ifdef _WIN32\n";
   decl_stream << "  using uint = unsigned int;\n";
@@ -579,6 +586,23 @@ void CodeGenCUDA::PrintStorageScope(const std::string& scope, std::ostream& os) 
   }
 }
 
+std::string CodeGenCUDA::CastFromTo(std::string value, DataType from, DataType target) {
+  if (from == target) return value;
+  std::ostringstream os;
+  os << "((";
+  this->PrintType(target, os);
+  os << ")";
+  if (from.is_float16() && (target.is_int() || target.is_uint()) && target.bits() == 8) {
+    os << "(";
+    if (target.is_uint()) {
+      os << "u";
+    }
+    os << "int)";
+  }
+  os << value << ")";
+  return os.str();
+}
+
 void CodeGenCUDA::VisitExpr_(const CastNode* op, std::ostream& os) {
   DataType from_ty = op->value.dtype();
   DataType target_ty = op->dtype;
@@ -663,8 +687,8 @@ void CodeGenCUDA::PrintCallExtern(Type ret_type, String global_symbol, const Arr
 }
 
 void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
-  if (auto* ptr_op = op->op.as<OpNode>()) {
-    Op call_op = GetRef<Op>(ptr_op);
+  if (auto opt_call_opt = op->op.as<Op>()) {
+    Op call_op = opt_call_opt.value();
     // This is only for backward compatibility with __shfl_{up/down}.
     // A macro will be used to replace *_sync calls to legacy ones.
     if (op_need_warp_shuffle_.get(call_op, false)) {
@@ -897,12 +921,49 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     std::string src = this->PrintExpr(op->args[2]);
     std::string src_offset = this->PrintExpr(op->args[3]);
     std::string size = this->PrintExpr(op->args[4]);
-    this->stream << PrintCpAsyncAssembly(dst, dst_offset, src, src_offset, size);
+    // use size of argument list to indicate whether or not to use predicated cp.async
+    if (op->args.size() == 5) {
+      this->stream << PrintCpAsyncAssembly(dst, dst_offset, src, src_offset, size);
+    } else {
+      this->stream << PrintPredicatedCpAsyncAssembly(dst, dst_offset, src, src_offset, size,
+                                                     this->PrintExpr(op->args[5]));
+    }
   } else if (op->op.same_as(builtin::ptx_commit_group())) {
     this->stream << "__asm__ __volatile__(\"cp.async.commit_group;\");\n\n";
   } else if (op->op.same_as(builtin::ptx_wait_group())) {
-    std::string N = this->PrintExpr(op->args[0]);
-    this->stream << "__asm__ __volatile__(\"cp.async.wait_group " + N + ";\");\n\n";
+    int n = Downcast<IntImm>(op->args[0])->value;
+    this->stream << "__asm__ __volatile__(\"cp.async.wait_group " << n << ";\");\n\n";
+  } else if (op->op.same_as(builtin::ptx_ldg32())) {
+    /*
+    asm volatile (
+        "{.reg .pred p;\n"
+        " setp.ne.b32 p, %2, 0;\n"
+        // " @p ld.global.nc.f32 %0, [%1];}\n"t
+        " @p ld.global.nc.L2::128B.f32 %0, [%1];}\n"
+        : "=f"(reg)
+        : "l"(addr), "r"((int)guard)
+    );
+    */
+
+    // get local
+    std::string reg = this->PrintExpr(op->args[0]);
+    // get guard
+    std::string guard = this->PrintExpr(op->args[1]);
+    const BufferLoadNode* addr_buffer = op->args[2].as<BufferLoadNode>();
+    std::string global_addr = this->PrintExpr(addr_buffer->indices[0]);
+    std::string global_buffer = this->PrintExpr(addr_buffer->buffer->data);
+    std::string local_addr = this->PrintExpr(op->args[3]);
+    this->stream << "asm volatile (\n";
+    this->stream << "\"{.reg .pred p;\\n\"\n";
+    this->stream << "\" setp.ne.b32 p, %2, 0;\\n\"\n";
+    this->stream << "\" @!p mov.b32 %0, 0;\\n\"\n";
+    this->stream << "\" @p ld.global.nc.f32 %0, [%1];}\\n\"\n";
+    // stream << "\" @p ld.global.nc.L2::128B.f32 %0, [%1];}\\n\"\n" ;
+    stream << ": \"=f\"(" << reg << "[" << local_addr << "]"
+           << ")\n";
+    stream << ": \"l\"((void*)(" << global_buffer << "+" << global_addr << ")), \"r\"((int)"
+           << guard << ")\n";
+    stream << ");\n";
   } else {
     CodeGenC::VisitExpr_(op, os);
   }
@@ -1218,6 +1279,8 @@ void CodeGenCUDA::PrintWmmaScope(const std::string& scope, DataType t, const Var
                                  std::ostream& os) {
   std::stringstream type;
   PrintType(t, type);
+  ICHECK(fragment_shapes.count(variable))
+      << "Cannot find shape of the wmma fragment " << variable->name_hint;
   std::string shape_str = fragment_shapes.at(variable);
   if ((t.is_int() || t.is_uint()) && t.bits() < 8 && t.lanes() == 1) {
     type.str(std::string());
@@ -1267,6 +1330,8 @@ int stoi(const std::string& str) {
 
 int32_t CodeGenCUDA::GetWmmaFragmentSize(const std::string& scope, const VarNode* variable,
                                          int32_t size) {
+  ICHECK(fragment_shapes.count(variable))
+      << "Cannot find shape of the wmma fragment " << variable->name_hint;
   std::string shape_str = fragment_shapes.at(variable);
   size_t m, n, k;
   size_t last_pos = 0, pos = 0;

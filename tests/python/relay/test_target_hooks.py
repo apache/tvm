@@ -73,7 +73,7 @@ def test_tir_external_generation_outline_with_target_instance(check_result):
     extern_codegen_target = tvm.target.Target(
         "example_target_hook -example_attribute=42", host=host_target
     )
-    mod = tvm.parser.fromtext(
+    mod = tvm.relay.fromtext(
         """
             #[version = "0.0.5"]
             def @main(%x: Tensor[(8), float32], %y: Tensor[(8), float32]) -> Tensor[(8), float32] {

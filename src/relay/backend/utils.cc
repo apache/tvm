@@ -25,7 +25,7 @@
 
 #include "utils.h"
 
-#include <tvm/parser/parser.h>
+#include <tvm/relay/parser.h>
 #include <tvm/relay/qnn/transform.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/tir/stmt_functor.h>
@@ -274,6 +274,7 @@ Array<Pass> GetPassPrefix(bool is_homogeneous, bool is_vm) {
       pass_seqs.push_back(transform::InferType());
     }
     pass_seqs.push_back(transform::AlterOpLayout());
+    pass_seqs.push_back(transform::SimplifyExprPostAlterOp());
   }
 
   // Fast math optimizations.

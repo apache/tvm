@@ -316,6 +316,30 @@ def test_apply_json_to_schedule_1():
     tvm.ir.assert_structural_equal(elementwise_inlined, sch.mod["main"])
 
 
+def test_apply_json_to_schedule_sample_categorical():
+    var = tir.Var("v", "int32")
+    trace1 = Trace(
+        insts=[
+            Instruction(
+                kind=InstructionKind.get("SampleCategorical"),
+                inputs=[],
+                attrs=[[tvm.tir.IntImm("int32", 3)], [tvm.tir.FloatImm("float32", 1.0)]],
+                outputs=[var],
+            )
+        ],
+        decisions={},
+    )
+    json = trace1.as_json()
+    assert json == [[["SampleCategorical", [], [[3], [1]], ["v0"]]], []]
+
+    sch = tir.Schedule(elementwise, debug_mask="all")
+    # As long as the application does not fail, it is fine.
+    Trace.apply_json_to_schedule(json, sch)
+    python_str = sch.trace.as_python()
+    assert len(python_str) == 1
+    assert python_str[0] == "v0 = sch.sample_categorical(candidates=[3], probs=[1], decision=0)"
+
+
 def _test_apply_annotation_trace_from_json(annotation: str):
     """Test applying an annotation works without crashing.
 
@@ -367,5 +391,4 @@ def test_apply_annotation_from_json():
 
 
 if __name__ == "__main__":
-    test_trace_simplified_2()
-    # tvm.testing.main()
+    tvm.testing.main()

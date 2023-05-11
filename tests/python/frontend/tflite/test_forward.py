@@ -26,19 +26,14 @@ from distutils.version import LooseVersion
 
 import os
 import tempfile
+import typing
 from packaging import version as package_version
 import pytest
 import numpy as np
 
 from PIL import Image
 
-import tvm
-import tvm.relay.testing.tf as tf_testing
-from tvm.contrib.download import download_testdata
-from tvm import relay
-from tvm.contrib import graph_executor
 from tflite.BuiltinOperator import BuiltinOperator
-
 
 try:
     import tensorflow.compat.v1 as tf
@@ -59,11 +54,19 @@ from tensorflow.python.ops import image_ops
 from tensorflow.python.ops import gen_array_ops
 from tensorflow.python.ops import nn_impl
 from tensorflow.python.ops import variables
+from tensorflow import raw_ops
 
 try:
     from tensorflow import lite as interpreter_wrapper
 except ImportError:
     from tensorflow.contrib import lite as interpreter_wrapper
+
+import tvm
+import tvm.relay.testing.tf as tf_testing
+from tvm.contrib.download import download_testdata
+from tvm import relay, ir
+from tvm.contrib import graph_executor
+from relay.utils.tag_span import _set_span, _create_span, _verify_structural_equal_with_span
 
 
 #######################################################################
@@ -213,9 +216,15 @@ def run_tvm_graph(
         shape_dict[node] = input_data[i].shape
         dtype_dict[node] = input_data[i].dtype.name
 
-    mod, params = relay.frontend.from_tflite(
-        tflite_model, shape_dict=shape_dict, dtype_dict=dtype_dict, op_converter=op_converter
-    )
+    with tvm.testing.disable_span_filling():
+        mod, params = relay.frontend.from_tflite(
+            tflite_model, shape_dict=shape_dict, dtype_dict=dtype_dict, op_converter=op_converter
+        )
+    with tvm.testing.enable_span_filling():
+        mod_with_span, _ = relay.frontend.from_tflite(
+            tflite_model, shape_dict=shape_dict, dtype_dict=dtype_dict, op_converter=op_converter
+        )
+    assert tvm.ir.structural_equal(mod["main"], mod_with_span["main"])
 
     if mode in ["debug", "vm"]:
         inputs = []
@@ -285,18 +294,18 @@ def run_tflite_graph(tflite_model_buf, input_data):
 
 
 def compare_tflite_with_tvm(
-    in_data,
-    in_name,
-    input_tensors,
-    output_tensors,
-    init_global_variables=False,
+    in_data: typing.List[np.ndarray],
+    in_name: typing.List[str],
+    input_tensors: typing.List,
+    output_tensors: typing.List,
+    init_global_variables: bool = False,
     out_names=None,
     quantized=False,
     input_range=None,
     mode="graph_executor",
     experimental_new_converter=False,
     fp16_quantized=False,
-    int_quant_dtype=tf.int8,
+    int_quant_dtype=tf.uint8,
 ):
     """Generic function to generate and compare TFLite and TVM output"""
     in_data = convert_to_list(in_data)
@@ -311,6 +320,13 @@ def compare_tflite_with_tvm(
             sess.run(variables.global_variables_initializer())
         # convert to tflite model
         converter = tf.lite.TFLiteConverter.from_session(sess, input_tensors, output_tensors)
+
+        if len(input_tensors) > 1:
+            if len(input_tensors[0].shape) <= 4 and len(input_tensors[1].shape) <= 4:
+                converter._experimental_disable_batchmatmul_unfold = True
+            else:
+                converter._experimental_disable_batchmatmul_unfold = False
+
         converter.experimental_new_converter = experimental_new_converter
         if quantized:
             if int_quant_dtype == tf.int16:
@@ -318,6 +334,8 @@ def compare_tflite_with_tvm(
                 converter.target_spec.supported_ops = [
                     tf.lite.OpsSet.EXPERIMENTAL_TFLITE_BUILTINS_ACTIVATIONS_INT16_WEIGHTS_INT8
                 ]
+            elif int_quant_dtype == tf.int8:
+                converter.inference_type = tf.lite.constants.INT8
             else:
                 # default to int8 quantization
                 converter.inference_type = tf.lite.constants.QUANTIZED_UINT8
@@ -726,24 +744,72 @@ def test_forward_cast():
 #######################################################################
 # Batch Mat Mul
 # ----
-def _test_batch_matmul(a_shape, b_shape, dtype, adjoint_a=False, adjoint_b=False):
+def _test_batch_matmul(
+    a_shape, b_shape, dtype, out_dtype, adjoint_a=False, adjoint_b=False, quantized=False
+):
     with tf.Graph().as_default():
         a = array_ops.placeholder(shape=a_shape, dtype=dtype, name="A")
         b = array_ops.placeholder(shape=b_shape, dtype=dtype, name="B")
-        result = math_ops.matmul(a, b, adjoint_a=adjoint_a, adjoint_b=adjoint_b, name="batchmatmul")
+        print(tf.__version__)
+
+        result = raw_ops.BatchMatMulV3(
+            x=a, y=b, Tout=out_dtype, adj_x=adjoint_a, adj_y=adjoint_b, name="batchmatmul"
+        )
+        input_range = {"A": (-100, 100), "B": (-100, 100)} if quantized else None
 
         a_np = np.random.uniform(high=5.0, size=a_shape).astype(dtype)
         b_np = np.random.uniform(high=5.0, size=b_shape).astype(dtype)
-        compare_tflite_with_tvm([a_np, b_np], [a.name, b.name], [a, b], [result])
+        compare_tflite_with_tvm(
+            [a_np, b_np],
+            [a.name, b.name],
+            [a, b],
+            [result],
+            experimental_new_converter=True,
+            quantized=quantized,
+            input_range=input_range,
+        )
 
 
-def test_forward_batch_matmul():
+@pytest.mark.parametrize("config", [("int8", "int32", True), ("float32", "float32", False)])
+def test_forward_batch_matmul(config):
     """BATCH_MAT_MUL"""
-    _test_batch_matmul((3, 5, 4), (3, 4, 5), "float32")
-    _test_batch_matmul((3, 5, 4), (3, 4, 5), "float32", True, True)
-    _test_batch_matmul((3, 5, 4), (3, 5, 4), "float32", True, False)
-    _test_batch_matmul((3, 5, 4), (3, 5, 4), "float32", False, True)
-    _test_batch_matmul((2, 3, 4, 5, 6), (2, 3, 4, 6, 5), "float32")
+    _test_batch_matmul(
+        (3, 5, 4), (3, 4, 5), dtype=config[0], out_dtype=config[1], quantized=config[2]
+    )
+    _test_batch_matmul(
+        (3, 5, 4),
+        (3, 4, 5),
+        dtype=config[0],
+        out_dtype=config[1],
+        adjoint_a=True,
+        adjoint_b=True,
+        quantized=config[2],
+    )
+    _test_batch_matmul(
+        (3, 5, 4),
+        (3, 5, 4),
+        dtype=config[0],
+        out_dtype=config[1],
+        adjoint_a=True,
+        adjoint_b=False,
+        quantized=config[2],
+    )
+    _test_batch_matmul(
+        (3, 5, 4),
+        (3, 5, 4),
+        dtype=config[0],
+        out_dtype=config[1],
+        adjoint_a=False,
+        adjoint_b=True,
+        quantized=config[2],
+    )
+    _test_batch_matmul(
+        (3, 4, 5, 6), (3, 4, 6, 5), dtype=config[0], out_dtype=config[1], quantized=config[2]
+    )
+    # BatchMatMul doesn't support larger than 4D tensors
+    # _test_batch_matmul(
+    #    (2, 3, 4, 5, 6), (2, 3, 4, 6, 5), dtype=config[0], out_dtype=config[1], quantized=config[2]
+    # )
 
 
 #######################################################################
@@ -2263,6 +2329,16 @@ def _test_elemwise(
     def __test_elemwise(in_data):
         assert len(in_data) == 2
         if quantized:
+            int_quant_dtype = None
+            if data[0].dtype == "int8":
+                int_quant_dtype = tf.int8
+            elif data[0].dtype == "uint8":
+                int_quant_dtype = tf.uint8
+            elif data[0].dtype == "int16":
+                int_quant_dtype = tf.int16
+            else:
+                assert False, "Unsupported conversion from numpy to tflite dtype!"
+
             # set the fp32 output range with respect to the operation
             out_min, out_max = _test_elemwise_qnn_out_range(qnn_op)
             inq0_min, inq0_max = (-100, 100)
@@ -2311,6 +2387,7 @@ def _test_elemwise(
                     quantized=True,
                     input_range=input_range,
                     experimental_new_converter=same_qnn_params,
+                    int_quant_dtype=int_quant_dtype,
                 )
             else:
                 out = math_op(inq_data[0], inq_data[1])
@@ -2328,6 +2405,7 @@ def _test_elemwise(
                     quantized=True,
                     input_range=input_range,
                     experimental_new_converter=same_qnn_params,
+                    int_quant_dtype=int_quant_dtype,
                 )
         else:
             out = math_op(
@@ -2521,9 +2599,16 @@ def _test_not_equal(data):
 # ------------------
 
 
-def _test_squared_difference(data):
+def _test_squared_difference(data, fused_activation_function=None, quantized=False, qnn_op=None):
     """One iteration of squared difference"""
-    return _test_elemwise(math_ops.squared_difference, data)
+    return _test_elemwise(
+        math_ops.squared_difference,
+        data,
+        fused_activation_function,
+        quantized,
+        qnn_op,
+        same_qnn_params=True,
+    )
 
 
 #######################################################################
@@ -2568,11 +2653,13 @@ def _test_forward_elemwise(testop):
     )
 
 
-def _test_forward_elemwise_quantized(testop):
+def _test_forward_elemwise_quantized(testop, dtype=np.uint8):
+    type_info = np.iinfo(dtype)
+    _min, _max = type_info.min, type_info.max
     testop(
         [
-            np.array(np.random.uniform(0, 255, (3, 6)), dtype=np.uint8),
-            np.array(np.random.uniform(0, 255, (3, 6)), dtype=np.uint8),
+            np.array(np.random.uniform(_min, _max, (3, 6)), dtype=dtype),
+            np.array(np.random.uniform(_min, _max, (3, 6)), dtype=dtype),
         ],
         quantized=True,
         qnn_op=testop,
@@ -2589,6 +2676,7 @@ def _test_elemwise_qnn_out_range(qnn_op):
         _test_minimum: (-128, 127),
         _test_equal: (-150, 150),
         _test_greater: (-150, 150),
+        _test_squared_difference: (0, 65025),
     }
 
     return qnn_out_range[qnn_op]
@@ -2621,6 +2709,7 @@ def test_all_elemwise():
     _test_forward_elemwise(_test_greater)
     _test_forward_elemwise_quantized(_test_greater)
     _test_forward_elemwise(_test_squared_difference)
+    _test_forward_elemwise_quantized(_test_squared_difference, np.int8)
     _test_forward_elemwise(_test_greater_equal)
     _test_forward_elemwise(_test_less)
     _test_forward_elemwise(_test_less_equal)
@@ -5140,136 +5229,186 @@ def test_forward_nms_v5():
 
 
 #######################################################################
-# Main
-# ----
+# Test structural_equal and span of a model
+# --------------------------------------
+def test_structure_and_span():
+    """Test Structure and span of frequently-used models"""
+
+    def _verify(res_fptr, golden_fptr):
+        with tvm.testing.enable_span_filling():
+            with_span = res_fptr()
+        with tvm.testing.disable_span_filling():
+            without_span = res_fptr()
+        assert tvm.ir.structural_equal(with_span, without_span)
+        _verify_structural_equal_with_span(with_span, golden_fptr())
+
+    def _tf_to_tflite(
+        input_tensors, output_tensors, init_global_variables=False, experimental_new_converter=False
+    ):
+        with tf.Session() as sess:
+            if init_global_variables:
+                sess.run(variables.global_variables_initializer())
+            converter = tf.lite.TFLiteConverter.from_session(sess, input_tensors, output_tensors)
+            converter.experimental_new_converter = experimental_new_converter
+
+            tflite_model_buffer = converter.convert()
+
+        try:
+            import tflite.Model
+
+            tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buffer, 0)
+        except AttributeError:
+            import tflite
+
+            tflite_model = tflite.Model.GetRootAsModel(tflite_model_buffer, 0)
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+        return tflite_model
+
+    def _test_conv2d_bias_add_span():
+        def _res():
+            in_shape = (1, 5, 5, 1)
+            kernel_shpae = (2, 2, 1, 2)
+            kernel_in = np.ones(kernel_shpae)
+
+            with tf.Graph().as_default():
+                x = array_ops.placeholder(shape=in_shape, dtype="float32", name="input")
+                kernel = tf.constant(kernel_in, dtype=tf.float32, name="filter_weight")
+                tf_model = tf.nn.conv2d(
+                    x, kernel, strides=[1, 1, 1, 1], padding="VALID", name="conv2d"
+                )
+                tflite_model = _tf_to_tflite([x], [tf_model])
+
+            mod, _ = relay.frontend.from_tflite(
+                tflite_model,
+                shape_dict={"input": in_shape},
+                dtype_dict={"input": "float32"},
+                op_converter=relay.frontend.tflite.OperatorConverter,
+            )
+            return mod["main"]
+
+        def _golden():
+            in_input = relay.var(
+                "input", relay.TensorType([1, 5, 5, 1]), span=_create_span("input")
+            )
+            weight = relay.var(
+                "_param_1", relay.TensorType([2, 2, 1, 2]), span=_create_span("filter_weight")
+            )
+            bias = relay.var("_param_2", relay.TensorType([2]), span=_create_span("conv2d_bias"))
+            conv2d = _set_span(
+                relay.nn.conv2d(
+                    in_input,
+                    weight,
+                    channels=2,
+                    kernel_size=[2, 2],
+                    data_layout="NHWC",
+                    kernel_layout="HWIO",
+                ),
+                "conv2d",
+            )
+            bias_add = _set_span(relay.nn.bias_add(conv2d, bias, axis=3), "conv2d")
+            attrs = ir.make_node("DictAttrs", **{"output_tensor_names": ["conv2d"]})
+            func = relay.Function([in_input, weight, bias], bias_add, attrs=attrs)
+            mod = ir.IRModule.from_expr(func)
+            return mod["main"]
+
+        _verify(_res, _golden)
+
+    def _test_fully_connected_bias_add_span():
+        def _res():
+            in_shape = (1, 10)
+            kernel_shpae = (10, 10)
+            kernel_in = np.ones(kernel_shpae)
+
+            with tf.Graph().as_default():
+                x = array_ops.placeholder(shape=in_shape, dtype="float32", name="input")
+                weight = tf.constant(kernel_in, dtype=tf.float32, name="filter_weight")
+                tf_model = math_ops.mat_mul(x, weight, name="dense")
+                tflite_model = _tf_to_tflite([x], [tf_model])
+
+            mod, _ = relay.frontend.from_tflite(
+                tflite_model,
+                shape_dict={"input": in_shape},
+                dtype_dict={"input": "float32"},
+                op_converter=relay.frontend.tflite.OperatorConverter,
+            )
+            return mod["main"]
+
+        def _golden():
+            in_input = relay.var("input", relay.TensorType([1, 10]), span=_create_span("input"))
+            weight = relay.var(
+                "_param_1", relay.TensorType([10, 10]), span=_create_span("filter_weight/transpose")
+            )
+            bias = relay.var("_param_2", relay.TensorType([10]), span=_create_span("dense_bias"))
+            reshape = _set_span(relay.reshape(in_input, [-1, 10]), "dense")
+            dense = _set_span(relay.nn.dense(reshape, weight, units=10), "dense")
+            bias_add = _set_span(relay.nn.bias_add(dense, bias), "dense")
+            attrs = ir.make_node("DictAttrs", **{"output_tensor_names": ["dense"]})
+            func = relay.Function([in_input, weight, bias], bias_add, attrs=attrs)
+            mod = ir.IRModule.from_expr(func)
+            return mod["main"]
+
+        _verify(_res, _golden)
+
+    def _test_reshape_span():
+        def _res():
+            in_shape = (1, 10)
+            output_shape = (2, 5)
+
+            with tf.Graph().as_default():
+                x = array_ops.placeholder(shape=in_shape, dtype="float32", name="input")
+                tf_model = array_ops.reshape(x, output_shape, "reshape")
+                tflite_model = _tf_to_tflite([x], [tf_model])
+
+            mod, _ = relay.frontend.from_tflite(
+                tflite_model,
+                shape_dict={"input": in_shape},
+                dtype_dict={"input": "float32"},
+                op_converter=relay.frontend.tflite.OperatorConverter,
+            )
+            return mod["main"]
+
+        def _golden():
+            in_input = relay.var("input", relay.TensorType([1, 10]), span=_create_span("input"))
+            reshape = _set_span(relay.reshape(in_input, [2, 5]), "reshape")
+            attrs = ir.make_node("DictAttrs", **{"output_tensor_names": ["reshape"]})
+            func = relay.Function([in_input], reshape, attrs=attrs)
+            mod = ir.IRModule.from_expr(func)
+            return mod["main"]
+
+        _verify(_res, _golden)
+
+    _test_conv2d_bias_add_span()
+    _test_fully_connected_bias_add_span()
+    _test_reshape_span()
+
+
+class TestConv2d:
+    """Import Conv2d operator from TFLite, build with Relay and test."""
+
+    input_shape, kernel_shape, padding = tvm.testing.parameters(
+        ((1, 128, 256, 6), (5, 5, 6, 10), "SAME"),
+        ((1, 128, 256, 6), (5, 5, 6, 10), "VALID"),
+        # conv2d_group cases
+        ((1, 30, 40, 6), (5, 5, 1, 6), "SAME"),
+        ((1, 30, 40, 6), (5, 5, 1, 6), "VALID"),
+    )
+
+    def test_conv2d(self, input_shape: tuple, kernel_shape: tuple, padding: str):
+        dtype = tf.float32
+        kernel_in = np.ones(kernel_shape)
+        with tf.Graph().as_default():
+            x = array_ops.placeholder(shape=input_shape, dtype=dtype.name, name="input")
+            kernel = tf.constant(kernel_in, dtype=dtype, name="filter_weight")
+            out = tf.nn.conv2d(x, kernel, strides=[1, 1, 1, 1], padding=padding, name="conv2d")
+            input_data = np.random.randn(*input_shape).astype(dtype.name)
+            compare_tflite_with_tvm(
+                [input_data],
+                ["input"],
+                [x],
+                [out],
+            )
+
+
 if __name__ == "__main__":
-    # BatchToSpaceND
-    test_forward_batch_to_space_nd()
-
-    # SpaceToBatchND
-    test_forward_space_to_batch_nd()
-
-    # Split
-    test_forward_split()
-
-    # Transpose
-    test_forward_transpose()
-
-    # Cast
-    test_forward_cast()
-
-    # BatchMatMul
-    test_forward_batch_matmul()
-
-    # Tile
-    test_forward_tile()
-
-    # Query
-    test_forward_shape()
-
-    # Transforms
-    test_forward_concatenation()
-    test_forward_pad()
-    test_forward_pack()
-    test_forward_unpack()
-    test_forward_reshape()
-    test_all_resize()
-    test_forward_range()
-    test_forward_squeeze()
-    test_forward_slice()
-    test_forward_topk()
-    test_forward_gather()
-    test_forward_gather_nd()
-    test_forward_stridedslice()
-    test_forward_depthtospace()
-    test_forward_spacetodepth()
-    test_forward_reverse_sequence()
-    test_forward_sparse_to_dense()
-    test_forward_select()
-    test_forward_quantize_dequantize()
-    test_forward_arg_min_max()
-    test_forward_expand_dims()
-    test_forward_reverse_v2()
-    test_forward_matrix_set_diag()
-    test_forward_matrix_diag()
-
-    # NN
-    test_forward_convolution()
-    test_forward_transpose_conv()
-    test_forward_logistic()
-    test_forward_pooling()
-    test_forward_l2_pool2d()
-    test_forward_softmax()
-    test_forward_tanh()
-    test_forward_relu()
-    test_forward_relu6()
-    test_forward_leaky_relu()
-    test_forward_relu_n1_to_1()
-    test_forward_log_softmax()
-    test_forward_fully_connected()
-    test_forward_l2_normalization()
-    test_forward_local_response_normalization()
-    test_forward_prelu()
-    test_forward_unidirectional_sequence_lstm()
-
-    # Elemwise
-    test_all_elemwise()
-    test_forward_add_n()
-
-    # Unary elemwise
-    test_all_unary_elemwise()
-    # Zeros Like
-    test_forward_zeros_like()
-
-    # Fill
-    test_forward_fill()
-
-    # Reduce
-    test_all_reduce()
-
-    # Logical
-    test_all_logical()
-
-    # Detection_PostProcess
-    test_detection_postprocess()
-
-    # NonMaxSuppressionV5
-    test_forward_nms_v5()
-
-    # Overwrite Converter
-    test_custom_op_converter()
-
-    # End to End
-    test_forward_mobilenet_v1()
-    test_forward_mobilenet_v2()
-    test_forward_mobilenet_v3()
-    test_forward_inception_v3_net()
-    test_forward_inception_v4_net()
-    test_forward_inception_v4_net_batched()
-    test_forward_coco_ssd_mobilenet_v1()
-    test_forward_mediapipe_hand_landmark()
-
-    # End to End Sparse models
-    test_forward_sparse_mobilenet_v1()
-    test_forward_sparse_mobilenet_v2()
-
-    # End to End quantized
-    test_forward_qnn_inception_v1_net()
-    test_forward_qnn_mobilenet_v1_net()
-    test_forward_qnn_mobilenet_v2_net()
-    # This also fails with a segmentation fault in my run
-    # with Tflite 1.15.2
-    test_forward_qnn_mobilenet_v3_net()
-    test_forward_qnn_coco_ssd_mobilenet_v1()
-
-    # TFLite 2.1.0 quantized tests
-    test_forward_quantized_convolution()
-    test_forward_quantized_depthwise_convolution()
-    test_forward_tflite2_qnn_resnet50()
-    test_forward_tflite2_qnn_inception_v1()
-    test_forward_tflite2_qnn_mobilenet_v2()
-
-    test_forward_tflite_float16()
-
-    test_forward_tflite_int16()
-    test_forward_ds_cnn_int16()
+    tvm.testing.main()

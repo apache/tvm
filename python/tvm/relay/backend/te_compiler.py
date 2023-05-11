@@ -412,3 +412,26 @@ def get():
         The TE Compiler.
     """
     return _backend._TECompilerGlobal()
+
+
+def lower_to_primfunc(relay_func, target):
+    """Lower Relay Function to TIR PrimFunc.
+
+    Parameters
+    ----------
+    relay_func: relay.Function
+        The source primitive function, created by FuseOps.
+
+    target : Target
+        The compilation target.
+
+    Returns
+    -------
+    prim_func : tir.PrimFunc
+        The created prim func.
+    """
+    f = tvm._ffi.get_global_func("relay.backend.LowerToPrimFunc")
+    assert f is not None, "relay.backend.LowerToPrimFunc does not exist. "
+
+    with target:
+        return f(relay_func, target)

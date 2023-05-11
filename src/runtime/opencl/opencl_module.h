@@ -32,11 +32,12 @@
 #include <vector>
 
 #include "../meta_data.h"
+#include "../spirv/spirv_shader.h"
 
 namespace tvm {
 namespace runtime {
 /*!
- * \brief create a opencl module for GPU devices from data.
+ * \brief Create a opencl module for GPU devices from data.
  *
  * \param data The module data.
  * \param fmt The format of the data, can be "clbin", "cl"
@@ -44,6 +45,17 @@ namespace runtime {
  */
 Module OpenCLModuleCreate(std::string data, std::string fmt,
                           std::unordered_map<std::string, FunctionInfo> fmap, std::string source);
+
+/*!
+ * \brief Create a opencl module from SPIRV.
+ *
+ * \param shaders The map from function names to SPIRV binaries.
+ * \param spirv_text The concatenated text representation of SPIRV modules.
+ * \param fmap The map function information map of each function.
+ */
+Module OpenCLModuleCreate(const std::unordered_map<std::string, spirv::SPIRVShader>& shaders,
+                          const std::string& spirv_text,
+                          std::unordered_map<std::string, FunctionInfo> fmap);
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_OPENCL_OPENCL_MODULE_H_

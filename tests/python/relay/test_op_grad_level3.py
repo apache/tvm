@@ -194,4 +194,4 @@ def test_zeros_ones_grad_dynamic(executor_kind):
 
 
 if __name__ == "__main__":
-    pytest.main()
+    tvm.testing.main()

@@ -265,9 +265,15 @@ void HexagonThreadManager::WaitOnThreads() {
 }
 
 void HexagonThreadManager::CheckSemaphore(unsigned syncID) {
+  // We want the success case to be fast, so do not lock the mutex
   if (semaphores_.find(syncID) == semaphores_.end()) {
-    semaphores_[syncID] = reinterpret_cast<qurt_sem_t*>(malloc(sizeof(qurt_sem_t)));
-    qurt_sem_init_val(semaphores_[syncID], 0);
+    // If we don't find it, lock the mutex, make sure it hasn't
+    // been added by another thread before creating it.
+    std::lock_guard<std::mutex> lock(semaphores_mutex_);
+    if (semaphores_.find(syncID) == semaphores_.end()) {
+      semaphores_[syncID] = reinterpret_cast<qurt_sem_t*>(malloc(sizeof(qurt_sem_t)));
+      qurt_sem_init_val(semaphores_[syncID], 0);
+    }
   }
 }
 

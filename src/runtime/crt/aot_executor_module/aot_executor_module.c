@@ -147,6 +147,24 @@ int32_t TVMAotExecutorModule_GetInputIndex(TVMValue* args, int* tcodes, int narg
   return 0;
 }
 
+int32_t TVMAotExecutorModule_GetInputName(TVMValue* args, int* tcodes, int nargs,
+                                          TVMValue* ret_values, int* ret_tcodes,
+                                          void* resource_handle) {
+  if (nargs != 1) {
+    return kTvmErrorFunctionCallNumArguments;
+  }
+
+  char* name;
+  int ret = TVMAotExecutor_GetInputName(aot_executor.executor, args[0].v_int64, &name);
+  if (ret < 0) {
+    return kTvmErrorExecutorModuleNoSuchInput;
+  }
+
+  ret_values[0].v_str = name;
+  ret_tcodes[0] = kTVMStr;
+  return 0;
+}
+
 int32_t TVMAotExecutorModule_GetNumInputs(TVMValue* args, int* tcodes, int nargs,
                                           TVMValue* ret_values, int* ret_tcodes,
                                           void* resource_handle) {
@@ -191,10 +209,11 @@ static const TVMBackendPackedCFunc aot_executor_registry_funcs[] = {
     &TVMAotExecutorModule_Run,             // run
     &TVMAotExecutorModule_NotImplemented,  // set_input (implemented via python wrapper)
     &TVMAotExecutorModule_NotImplemented,  // share_params (do not implement)
+    &TVMAotExecutorModule_GetInputName,    // get_input_name
 };
 
 static const TVMFuncRegistry aot_executor_registry = {
-    "\x0a\0get_input\0"
+    "\x0b\0get_input\0"
     "get_input_index\0"
     "get_input_info\0"
     "get_num_inputs\0"
@@ -203,7 +222,8 @@ static const TVMFuncRegistry aot_executor_registry = {
     "load_params\0"
     "run\0"
     "set_input\0"
-    "share_params\0",
+    "share_params\0"
+    "get_input_name\0",
     aot_executor_registry_funcs};
 
 tvm_crt_error_t TVMAotExecutorModule_Register() {

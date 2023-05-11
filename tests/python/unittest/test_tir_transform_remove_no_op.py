@@ -23,7 +23,7 @@ import pytest
 
 
 def nop():
-    return tvm.tir.Evaluate(0)
+    return tvm.tir.Evaluate(1)
 
 
 def test_remove_no_op():
@@ -74,7 +74,7 @@ def test_remove_no_op():
 
 def test_remove_no_op_with_invalid_extent():
     @T.prim_func
-    def main(A: T.Buffer[(16), "int32"], B: T.Buffer[(16), "int32"]) -> None:
+    def main(A: T.Buffer((16), "int32"), B: T.Buffer((16), "int32")) -> None:
         for i in T.serial(16):
             for j in T.serial(i - 20):
                 B[i] = A[i] + j
@@ -86,12 +86,14 @@ def test_remove_no_op_with_invalid_extent():
 
 class BaseBeforeAfter(tvm.testing.CompareBeforeAfter):
     use_dataflow_analysis = False
+    max_simplification_steps = 0
 
     def transform(self):
         def inner(mod):
             config = {
                 "tir.RemoveNoOp": {
                     "use_dataflow_analysis": self.use_dataflow_analysis,
+                    "max_simplification_steps": self.max_simplification_steps,
                 }
             }
             with tvm.transform.PassContext(config=config):
@@ -115,23 +117,23 @@ class TestRemoveEmptyForLoop(BaseBeforeAfter):
 class TestRemoveZeroExtentLoop(BaseBeforeAfter):
     """A for-loop with no extent is a no-op."""
 
-    def before(A: T.Buffer[16, "int32"]):
+    def before(A: T.Buffer(16, "int32")):
         for i in T.serial(0):
             A[i] = 42
 
-    def expected(A: T.Buffer[16, "int32"]):
+    def expected(A: T.Buffer(16, "int32")):
         T.evaluate(0)
 
 
 class TestRemoveUnusedLet(BaseBeforeAfter):
     """A let statement that is never used is a no-op."""
 
-    def before(A: T.Buffer[16, "int32"]):
+    def before(A: T.Buffer(16, "int32")):
         x = 5
         for i in T.serial(16):
             A[i] = 0
 
-    def expected(A: T.Buffer[16, "int32"]):
+    def expected(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             A[i] = 0
 
@@ -143,12 +145,12 @@ class TestRemoveLetUsedOnlyInNoOp(BaseBeforeAfter):
     may have been removed by an earlier removal of another no-op.
     """
 
-    def before(A: T.Buffer[16, "int32"]):
+    def before(A: T.Buffer(16, "int32")):
         x = 5
         for i in T.serial(0):
             A[i] = x
 
-    def expected(A: T.Buffer[16, "int32"]):
+    def expected(A: T.Buffer(16, "int32")):
         T.evaluate(0)
 
 
@@ -166,14 +168,14 @@ class TestKeepSideEffectsOfLet(BaseBeforeAfter):
 class TestRemoveEmptyThenCase(BaseBeforeAfter):
     """A no-op then_case can be removed."""
 
-    def before(A: T.Buffer[16, "int32"]):
+    def before(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             if i < 8:
                 T.evaluate(0)
             else:
                 A[i] = 42
 
-    def expected(A: T.Buffer[16, "int32"]):
+    def expected(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             if not (i < 8):
                 A[i] = 42
@@ -182,14 +184,14 @@ class TestRemoveEmptyThenCase(BaseBeforeAfter):
 class TestRemoveEmptyElseCase(BaseBeforeAfter):
     """A no-op else_case can be removed."""
 
-    def before(A: T.Buffer[16, "int32"]):
+    def before(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             if i < 8:
                 A[i] = 42
             else:
                 T.evaluate(0)
 
-    def expected(A: T.Buffer[16, "int32"]):
+    def expected(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             if i < 8:
                 A[i] = 42
@@ -200,12 +202,12 @@ class TestRemoveUnusedWrite(BaseBeforeAfter):
 
     use_dataflow_analysis = True
 
-    def before(A: T.Buffer[16, "int32"]):
+    def before(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             A[i] = 100
             A[i] = 42
 
-    def expected(A: T.Buffer[16, "int32"]):
+    def expected(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             A[i] = 42
 
@@ -218,7 +220,7 @@ class TestSuppressRemovalOfUnusedWrite(BaseBeforeAfter):
 
     use_dataflow_analysis = False
 
-    def before(A: T.Buffer[16, "int32"]):
+    def before(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             A[i] = 100
             A[i] = 42
@@ -231,12 +233,12 @@ class TestKeepSideEffectsOfUnusedWrite(BaseBeforeAfter):
 
     use_dataflow_analysis = True
 
-    def before(A: T.Buffer[16, "int32"]):
+    def before(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             A[i] = T.call_extern("extern_func", dtype="int32")
             A[i] = 42
 
-    def expected(A: T.Buffer[16, "int32"]):
+    def expected(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             T.evaluate(T.call_extern("extern_func", dtype="int32"))
             A[i] = 42
@@ -245,7 +247,7 @@ class TestKeepSideEffectsOfUnusedWrite(BaseBeforeAfter):
 class TestKeepFirstWriteWhenUsed(BaseBeforeAfter):
     """For two sequential writes, keep the first if it is used"""
 
-    def before(A: T.Buffer[16, "int32"]):
+    def before(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             A[i] = 100
             A[i] = A[i] + 1
@@ -261,14 +263,14 @@ class TestRemoveOverwrittenLoop(BaseBeforeAfter):
 
     use_dataflow_analysis = True
 
-    def before(A: T.Buffer[16, "int32"]):
+    def before(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             A[i] = 100
 
         for i in T.serial(16):
             A[i] = 42
 
-    def expected(A: T.Buffer[16, "int32"]):
+    def expected(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             A[i] = 42
 
@@ -283,14 +285,14 @@ class TestRemoveOverwrittenSubloop(BaseBeforeAfter):
 
     use_dataflow_analysis = True
 
-    def before(A: T.Buffer[16, "int32"]):
+    def before(A: T.Buffer(16, "int32")):
         for i in T.serial(4, 12):
             A[i] = 100
 
         for i in T.serial(16):
             A[i] = 42
 
-    def expected(A: T.Buffer[16, "int32"]):
+    def expected(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             A[i] = 42
 
@@ -302,7 +304,7 @@ class TestKeepPartiallyOverwrittenLoop(BaseBeforeAfter):
     may not be removed be kept.
     """
 
-    def before(A: T.Buffer[16, "int32"]):
+    def before(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             A[i] = 100
 
@@ -319,11 +321,18 @@ class TestRemoveOverwrittenPredicatedLoopWithIdenticalCondition(BaseBeforeAfter)
     Similar to TestKeepPartiallyOverwrittenLoop, except the first loop
     has the same predicate as the second, and can therefore be
     removed.
+
+    In the past, this test has had performance regressions in which
+    the runtime increased from a few seconds to nearly ten minutes.
+    The "max_simplification_steps" parameter is set at twice the
+    current number of steps required, in order to prevent similar
+    performance regression.
     """
 
     use_dataflow_analysis = True
+    max_simplification_steps = 200000
 
-    def before(A: T.Buffer[16, "int32"]):
+    def before(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             if i < 12:
                 A[i] = 100
@@ -332,7 +341,7 @@ class TestRemoveOverwrittenPredicatedLoopWithIdenticalCondition(BaseBeforeAfter)
             if i < 12:
                 A[i] = 42
 
-    def expected(A: T.Buffer[16, "int32"]):
+    def expected(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             if i < 12:
                 A[i] = 42
@@ -347,11 +356,18 @@ class TestRemoveOverwrittenPredicatedLoopWithProvableCondition(BaseBeforeAfter):
     loop's predicate.  So long as the regions written in the first
     loop are a subset of those written in the second loop, they can be
     removed.
+
+    In the past, this test has had performance regressions in which
+    the runtime increased from a few seconds to nearly ten minutes.
+    The "max_simplification_steps" parameter is set at twice the
+    current number of steps required, in order to prevent similar
+    performance regression.
     """
 
     use_dataflow_analysis = True
+    max_simplification_steps = 200000
 
-    def before(A: T.Buffer[16, "int32"]):
+    def before(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             if i < 10:
                 A[i] = 100
@@ -360,7 +376,7 @@ class TestRemoveOverwrittenPredicatedLoopWithProvableCondition(BaseBeforeAfter):
             if i // 4 < 3:
                 A[i] = 42
 
-    def expected(A: T.Buffer[16, "int32"]):
+    def expected(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             if i // 4 < 3:
                 A[i] = 42
@@ -375,7 +391,7 @@ class TestRemoveSeparatedOverwrites(BaseBeforeAfter):
 
     use_dataflow_analysis = True
 
-    def before(A: T.Buffer[16, "int32"], B: T.Buffer[16, "int32"]):
+    def before(A: T.Buffer(16, "int32"), B: T.Buffer(16, "int32")):
         for i in T.serial(16):
             A[i] = 100
 
@@ -385,7 +401,7 @@ class TestRemoveSeparatedOverwrites(BaseBeforeAfter):
         for i in T.serial(16):
             A[i] = 42
 
-    def expected(A: T.Buffer[16, "int32"], B: T.Buffer[16, "int32"]):
+    def expected(A: T.Buffer(16, "int32"), B: T.Buffer(16, "int32")):
         for i in T.serial(16):
             B[i] = 0
 
@@ -404,7 +420,7 @@ class TestRemoveSeparatedOverwriteOfPredicatedLoop(BaseBeforeAfter):
 
     use_dataflow_analysis = True
 
-    def before(A: T.Buffer[16, "int32"]):
+    def before(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             if i < 12:
                 A[i] = 100
@@ -417,7 +433,7 @@ class TestRemoveSeparatedOverwriteOfPredicatedLoop(BaseBeforeAfter):
             if i < 12:
                 A[i] = 42
 
-    def expected(A: T.Buffer[16, "int32"]):
+    def expected(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             if i > 12:
                 A[i] = 15
@@ -430,17 +446,17 @@ class TestRemoveSeparatedOverwriteOfPredicatedLoop(BaseBeforeAfter):
 class TestRemoveReadWrite(BaseBeforeAfter):
     """Writing a value to the same location as was just read is a no-op."""
 
-    def before(A: T.Buffer[1, "int32"]):
+    def before(A: T.Buffer(1, "int32")):
         A[0] = A[0]
 
-    def expected(A: T.Buffer[1, "int32"]):
+    def expected(A: T.Buffer(1, "int32")):
         T.evaluate(0)
 
 
 class TestKeepReadWriteToDifferentIndices(BaseBeforeAfter):
     """Writing a value to a different index should not be removed"""
 
-    def before(A: T.Buffer[16, "int32"]):
+    def before(A: T.Buffer(16, "int32")):
         for i in T.serial(15):
             A[i] = A[i + 1]
 
@@ -455,12 +471,12 @@ class TestRemoveReadWriteSameIndexDifferentExpression(BaseBeforeAfter):
     expression.
     """
 
-    def before(A: T.Buffer[16, "int32"]):
+    def before(A: T.Buffer(16, "int32")):
         for io, ii in T.grid(4, 4):
             i = 4 * io + ii
             A[4 * io + ii] = A[i]
 
-    def expected(A: T.Buffer[16, "int32"]):
+    def expected(A: T.Buffer(16, "int32")):
         T.evaluate(0)
 
 
@@ -472,14 +488,14 @@ class TestRemoveReadWriteSameIndexUsingConstraint(BaseBeforeAfter):
     that is known from a conditional containing the read/write.
     """
 
-    def before(A: T.Buffer[16, "int32"]):
+    def before(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             if i != 0:
                 A[i] = A[i - 1]
             else:
                 A[i] = A[0]
 
-    def expected(A: T.Buffer[16, "int32"]):
+    def expected(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             if i != 0:
                 A[i] = A[i - 1]
@@ -490,13 +506,13 @@ class TestRemoveWritingOfKnownValue(BaseBeforeAfter):
 
     use_dataflow_analysis = True
 
-    def before(A: T.Buffer[16, "int32"]):
+    def before(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             A[i] = i
 
         A[4] = 4
 
-    def expected(A: T.Buffer[16, "int32"]):
+    def expected(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             A[i] = i
 
@@ -513,14 +529,14 @@ class TestKeepOneOfDuplicateLoops(BaseBeforeAfter):
 
     use_dataflow_analysis = True
 
-    def before(A: T.Buffer[16, "int32"]):
+    def before(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             A[i] = i
 
         for i in T.serial(16):
             A[i] = i
 
-    def expected(A: T.Buffer[16, "int32"]):
+    def expected(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             A[i] = i
 
@@ -540,12 +556,12 @@ class TestRemoveEmptyTemporary(BaseBeforeAfter):
 class TestRemoveUnusedTemporary(BaseBeforeAfter):
     """An unused allocation is a no-op."""
 
-    def before(A: T.Buffer[16, "int32"]):
+    def before(A: T.Buffer(16, "int32")):
         B = T.allocate([16], "int32", "local")
         for i in T.serial(16):
             A[i] = 1
 
-    def expected(A: T.Buffer[16, "int32"]):
+    def expected(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             A[i] = 1
 
@@ -566,7 +582,7 @@ class TestRemoveUnusedWriteIntoTemporary(BaseBeforeAfter):
 class TestKeepUsedWriteIntoTemporary(BaseBeforeAfter):
     """A write into a temporary that is used later must be kept."""
 
-    def before(B: T.Buffer[16, "int32"]):
+    def before(B: T.Buffer(16, "int32")):
         A = T.decl_buffer([16], "int32", scope="local")
         for i in T.serial(16):
             A[i] = 0
@@ -581,7 +597,7 @@ class TestKeepUsedWriteIntoTemporary(BaseBeforeAfter):
 class TestRemoveWriteIntoTemporary(BaseBeforeAfter):
     """A write that only impacts a temporary allocation is a no-op."""
 
-    def before(A: T.Buffer[16, "int32"], C: T.Buffer[1, "int32"]):
+    def before(A: T.Buffer(16, "int32"), C: T.Buffer(1, "int32")):
         B = T.decl_buffer([16], "int32", scope="local")
         for i in T.serial(16):
             B[i] = A[i]
@@ -593,7 +609,7 @@ class TestRemoveWriteIntoTemporary(BaseBeforeAfter):
         for i in T.serial(16):
             B[i] = 0
 
-    def expected(A: T.Buffer[16, "int32"], C: T.Buffer[1, "int32"]):
+    def expected(A: T.Buffer(16, "int32"), C: T.Buffer(1, "int32")):
         B = T.decl_buffer([16], "int32", scope="local")
         for i in T.serial(16):
             B[i] = A[i]
@@ -601,6 +617,20 @@ class TestRemoveWriteIntoTemporary(BaseBeforeAfter):
         C[0] = 0
         for i in T.serial(16):
             C[0] = C[0] + B[i]
+
+
+class TestCertainConditon(BaseBeforeAfter):
+    """The conditon of the If-Else node is certain.
+    This would cause `Segmentation fault` error before."""
+
+    def before():
+        if True:
+            T.evaluate(0)
+        else:
+            T.evaluate(0)
+
+    def expected():
+        T.evaluate(0)
 
 
 if __name__ == "__main__":

@@ -31,7 +31,7 @@ namespace tvm {
 namespace relay {
 namespace contrib {
 namespace uma {
-tvm::transform::Pass RelayToTIR(String target_name);
+transform::Pass RelayToTIR(String target_name);
 runtime::Module TIRToRuntime(IRModule mod, Target target);
 }  // namespace uma
 }  // namespace contrib
@@ -39,16 +39,15 @@ runtime::Module TIRToRuntime(IRModule mod, Target target);
 
 TVM_REGISTER_GLOBAL("relay.backend.contrib.uma.RegisterTarget")
     .set_body_typed([](String target_name, Map<String, ObjectRef> attr_options) -> bool {
-      // @todo(cgerum): We probably should get rid of target.register rather sooner than later
-      //               And use a proper registry for uma backends
-      for (const String registered_target_name : ::tvm::TargetKindRegEntry::ListTargetKinds()) {
+      // create only new target and init only once
+      for (const String registered_target_name : TargetKindRegEntry::ListTargetKinds()) {
         if (registered_target_name == target_name) {
-          return false;
+          LOG(FATAL) << "TVM UMA Error: Target is already registered: " << target_name;
         }
       }
 
       auto target_kind =
-          ::tvm::TargetKindRegEntry::RegisterOrGet(target_name)
+          TargetKindRegEntry::RegisterOrGet(target_name)
               .set_name()
               .set_default_device_type(kDLCPU)
               .add_attr_option<Array<String>>("keys")
@@ -58,20 +57,27 @@ TVM_REGISTER_GLOBAL("relay.backend.contrib.uma.RegisterTarget")
               .add_attr_option<Array<String>>("libs")
               .add_attr_option<Target>("host")
               .add_attr_option<Integer>("from_device")
-              .set_attr<FTVMRelayToTIR>(tvm::attr::kRelayToTIR,
+              .set_attr<FTVMRelayToTIR>(attr::kRelayToTIR,
                                         relay::contrib::uma::RelayToTIR(target_name))
               .set_attr<FTVMTIRToRuntime>("TIRToRuntime", relay::contrib::uma::TIRToRuntime);
+
+      // target kind attrs inventory
+      auto kind = TargetKind::Get(target_name).value();
+      auto list_attrs = TargetKindRegEntry::ListTargetKindOptions(kind);
 
       for (auto& attr_option : attr_options) {
         auto option_name = attr_option.first;
         auto default_value = attr_option.second;
+        if (list_attrs.find(option_name) != list_attrs.end()) {
+          LOG(FATAL) << "TVM UMA Error: Attribute is already registered: " << option_name;
+        }
         if (default_value->IsInstance<StringObj>()) {
           target_kind.add_attr_option<String>(option_name, Downcast<String>(default_value));
         } else if (default_value->IsInstance<IntImmNode>()) {
           target_kind.add_attr_option<Integer>(option_name, Downcast<Integer>(default_value));
         } else {
-          LOG(FATAL) << "Only String, Integer, or Bool are supported. Given attribute option type: "
-                     << attr_option.second->GetTypeKey();
+          LOG(FATAL) << "TypeError: Only String, Integer, or Bool are supported. "
+                     << "Given attribute option type: " << attr_option.second->GetTypeKey();
         }
       }
       return true;

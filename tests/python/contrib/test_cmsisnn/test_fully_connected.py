@@ -23,10 +23,9 @@ import tvm
 from tvm import relay
 from tvm.relay.op.contrib import cmsisnn
 
-from tvm.testing.aot import generate_ref_data, AOTTestModel, compile_and_run
+from tvm.testing.aot import get_dtype_range, generate_ref_data, AOTTestModel, compile_and_run
 from .utils import (
     make_module,
-    get_range_for_dtype_str,
     get_conv2d_qnn_params,
     make_qnn_relu,
     assert_partitioned_function,
@@ -55,10 +54,11 @@ def make_model(
     """Return a model and any parameters it may have"""
     input_ = relay.var("input", shape=in_shape, dtype=dtype)
     rng = np.random.default_rng(12321)
+    kmin, kmax = get_dtype_range(kernel_dtype)
     weight = tvm.nd.array(
         rng.integers(
-            np.iinfo(kernel_dtype).min,
-            high=np.iinfo(kernel_dtype).max,
+            kmin,
+            high=kmax,
             size=kernel_shape,
             dtype=kernel_dtype,
         )
@@ -123,7 +123,7 @@ def test_ops(
     kernel_zero_point = 0
     kernel_shape = [out_channels, in_shape[1]]
     conv2d_kernel_shape = (1, 1, kernel_shape[0], kernel_shape[1])
-    in_min, in_max = get_range_for_dtype_str(dtype)
+    in_min, in_max = get_dtype_range(dtype)
 
     output_scale, output_zero_point = get_conv2d_qnn_params(
         conv2d_kernel_shape,

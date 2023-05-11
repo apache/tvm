@@ -1690,4 +1690,4 @@ def test_multiple_calls_to_same_primfunc():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__] + sys.argv[1:])
+    tvm.testing.main()

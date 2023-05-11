@@ -50,7 +50,7 @@ def test_nn_pad(hexagon_session: Session):
     mod["pad"](a, b)
 
     # Reference numpy pad output
-    ref_out = np.pad(data_in, pad_width=((0, 0), (1, 1), (1, 1), (0, 0)))
+    ref_out = np.pad(data_in, pad_width=((0, 0), (1, 1), (1, 1), (0, 0)), mode="constant")
 
     tvm.testing.assert_allclose(b.numpy(), ref_out)
 

@@ -283,6 +283,9 @@ class RelayBuildModule : public runtime::ModuleNode {
    */
   const char* type_key() const final { return "RelayBuildModule"; }
 
+  /*! \brief Get the property of the runtime module .*/
+  int GetPropertyMask() const final { return runtime::ModulePropertyMask::kRunnable; }
+
   /*!
    * \brief Build relay IRModule for graph executor
    *
@@ -396,7 +399,7 @@ class RelayBuildModule : public runtime::ModuleNode {
     relay_module = transform::Inline()(relay_module);
     relay_module = transform::InferType()(relay_module);
     relay_module = transform::LabelOps()(relay_module);
-    relay_module = transform::AnnotateMemoryScope(config_)(relay_module);
+    relay_module = transform::AnnotateMemoryScope()(relay_module);
 
     ICHECK(relay_module.defined());
 

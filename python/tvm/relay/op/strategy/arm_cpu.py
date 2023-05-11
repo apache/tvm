@@ -46,11 +46,17 @@ def schedule_injective_arm_cpu(_, outs, target):
         return topi.arm_cpu.schedule_injective(outs)
 
 
-@schedule_concatenate.register("arm_cpu")
-def schedule_concatenate_arm_cpu(_, outs, target):
-    """schedule concatenate for arm cpu"""
-    with target:
-        return topi.arm_cpu.schedule_concatenate(outs)
+@concatenate_strategy.register(["arm_cpu"])
+def concatenate_strategy_arm_cpu(attrs, inputs, out_type, target):
+    """concatenate arm_cpu strategy"""
+    strategy = _op.OpStrategy()
+
+    strategy.add_implementation(
+        wrap_compute_concat(topi.concatenate),
+        wrap_topi_schedule(topi.arm_cpu.schedule_concatenate),
+        name="concatenate.arm_cpu",
+    )
+    return strategy
 
 
 @schedule_pool.register(["arm_cpu"])
@@ -318,7 +324,7 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
             else:
                 logger.warning("depthwise_conv2d with layout NHWC is not optimized for arm cpu.")
                 strategy.add_implementation(
-                    wrap_compute_conv2d(topi.nn.depthwise_conv2d_nhwc),
+                    wrap_compute_conv2d(topi.nn.depthwise_conv2d_nhwc, need_kernel_layout=True),
                     wrap_topi_schedule(conv2d_generic.schedule_depthwise_conv2d_nhwc),
                     name="depthwise_conv2d_nhwc.generic",
                 )

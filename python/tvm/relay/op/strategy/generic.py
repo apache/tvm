@@ -21,12 +21,7 @@ import re
 
 from tvm import _ffi, ir, te, topi
 from tvm.target import generic_func, override_native_generic_func
-from tvm.topi.utils import (
-    get_const_float,
-    get_const_int,
-    get_const_tuple,
-    get_float_tuple,
-)
+from tvm.topi.utils import get_const_float, get_const_int, get_const_tuple, get_float_tuple
 
 from .. import op as _op
 
@@ -1468,6 +1463,32 @@ def wrap_compute_stft(topi_compute):
     return _compute_stft
 
 
+# dft
+@override_native_generic_func("dft_strategy")
+def dft_strategy(attrs, outs, out_type, target):
+    """DFT generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_dft(topi.dft),
+        wrap_topi_schedule(topi.generic.schedule_extern),
+        name="dft.generic",
+    )
+    return strategy
+
+
+def wrap_compute_dft(topi_compute):
+    """Wrap DFT compute"""
+
+    def _compute_dft(attrs, inputs, _):
+        return topi_compute(
+            inputs[0],
+            inputs[1],
+            attrs.inverse,
+        )
+
+    return _compute_dft
+
+
 # trilu
 @override_native_generic_func("trilu_strategy")
 def trilu_strategy(attrs, outs, out_type, target):
@@ -1548,36 +1569,27 @@ def proposal_strategy(attrs, inputs, out_type, target):
     return strategy
 
 
-# scatter
-@override_native_generic_func("scatter_strategy")
-def scatter_strategy(attrs, outs, out_type, target):
+# scatter_elements
+@override_native_generic_func("scatter_elements_strategy")
+def scatter_elements_strategy(attrs, inputs, out_type, target):
+    """scatter_elements generic strategy"""
     strategy = _op.OpStrategy()
     strategy.add_implementation(
-        wrap_compute_scatter(topi.scatter),
-        wrap_topi_schedule(topi.generic.schedule_scatter),
-        name="scatter.generic",
+        wrap_compute_scatter_elements(topi.scatter_elements),
+        wrap_topi_schedule(topi.generic.schedule_extern),
+        name="scatter_elements.generic",
     )
+    # TODO(vvchernov): implement specialized case (rank=1, reduction="update"), see cuda strategy
     return strategy
 
 
-def wrap_compute_scatter(topi_compute):
-    """Wrap scatter topi compute"""
+def wrap_compute_scatter_elements(topi_compute):
+    """Wrap scatter_elements topi compute"""
 
-    def _compute_scatter(attrs, inputs, _):
-        return [topi_compute(inputs[0], inputs[1], inputs[2], attrs.axis)]
+    def _compute_scatter_elements(attrs, inputs, _):
+        return [topi_compute(inputs[0], inputs[1], inputs[2], attrs.axis, attrs.reduction)]
 
-    return _compute_scatter
-
-
-@override_native_generic_func("scatter_add_strategy")
-def scatter_add_strategy(attrs, outs, out_type, target):
-    strategy = _op.OpStrategy()
-    strategy.add_implementation(
-        wrap_compute_scatter(topi.scatter_add),
-        wrap_topi_schedule(topi.generic.schedule_scatter),
-        name="scatter_add.generic",
-    )
-    return strategy
+    return _compute_scatter_elements
 
 
 # scatter_nd
@@ -2043,3 +2055,32 @@ def conv2d_backward_weight_strategy(attrs, inputs, out_type, target):
         "conv2d_backward_weight is currently only supported with cudnn. "
         "Please run Legalize pass to decompose this op into supported ops."
     )
+
+
+@override_native_generic_func("layout_transform_strategy")
+def layout_transform_strategy(attrs, inputs, out_type, target):
+    """layout transform generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_layout_transform(topi.layout_transform),
+        # Defined earlier in the file
+        schedule_injective,
+        name="layout_transform.generic",
+    )
+    return strategy
+
+
+def wrap_compute_layout_transform(topi_compute, schedule_rule="None"):
+    """Wrap layout transform compute"""
+
+    def _compute_layout_transform(attrs, inputs, output_type):
+        return [
+            topi_compute(
+                inputs[0],
+                attrs.src_layout,
+                attrs.dst_layout,
+                schedule_rule,
+            )
+        ]
+
+    return _compute_layout_transform

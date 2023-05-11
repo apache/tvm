@@ -58,8 +58,8 @@ void JSONDumps(ObjectRef json_obj, std::ostringstream& os) {
     std::vector<std::pair<String, ObjectRef>> key_values;
     key_values.reserve(n);
     for (const auto& kv : *dict) {
-      if (const auto* k = kv.first.as<StringObj>()) {
-        key_values.emplace_back(GetRef<String>(k), kv.second);
+      if (auto key = kv.first.as<String>()) {
+        key_values.emplace_back(key.value(), kv.second);
       } else {
         LOG(FATAL) << "TypeError: Only string keys are supported in JSON dumps, but got: "
                    << kv.first->GetTypeKey();
@@ -77,6 +77,8 @@ void JSONDumps(ObjectRef json_obj, std::ostringstream& os) {
       JSONDumps(kv.second, os);
     }
     os << "}";
+  } else if (json_obj->IsInstance<tir::IndexMapNode>()) {
+    JSONDumps(String(SaveJSON(json_obj)), os);
   } else {
     LOG(FATAL) << "TypeError: Unsupported type in JSON object: " << json_obj->GetTypeKey();
   }

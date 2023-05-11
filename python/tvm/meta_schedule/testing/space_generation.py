@@ -88,7 +88,7 @@ def _find_match_sketch_id(
             decisions=new_decisions,
         ).apply_to_schedule(sch, remove_postproc=True)
         if structural_equal(sch.mod, expected_mod):
-            verify_trace_roundtrip(sch=sch, mod=mod, debug_mask=debug_mask)
+            verify_trace_roundtrip(sch=sch, mod=mod, debug_mask=debug_mask, text_format="json")
             return sketch_id
     return None
 

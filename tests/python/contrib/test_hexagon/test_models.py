@@ -28,7 +28,7 @@ from tvm.relay.backend import Executor, Runtime
 
 def get_mobilenet():
     """Download and import mobilenet model with ONNX"""
-    import onnx  # pylint: disable=import-outside-toplevel
+    onnx = pytest.importorskip("onnx")
 
     model_url = "https://github.com/onnx/models/raw/main/vision/classification/mobilenet/model/mobilenetv2-7.onnx"  # pylint: disable=line-too-long
     model_path = tvm.contrib.download.download_testdata(

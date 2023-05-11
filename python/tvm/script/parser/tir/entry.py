@@ -18,9 +18,10 @@
 import inspect
 from typing import Callable, Union
 
+from tvm.ir.base import deprecated
 from tvm.tir import Buffer, PrimFunc
 
-from ...ir_builder.tir import buffer_decl, ptr
+from ...ir_builder.tir import buffer, ptr
 from .._core import parse, utils
 
 
@@ -41,21 +42,21 @@ def prim_func(func: Callable) -> Union[PrimFunc, Callable]:
         raise TypeError(f"Expect a function, but got: {func}")
     if utils.is_defined_in_class(inspect.stack(), func):
         return func
-    return parse(func, utils.inspect_function_capture(func))
+    f = parse(func, utils.inspect_function_capture(func))
+    setattr(f, "__name__", func.__name__)
+    return f
 
 
 setattr(prim_func, "dispatch_token", "tir")
 
 
 class BufferProxy:
-    """Buffer proxy class for constructing tir buffer.
-    Overload __call__ and __getitem__ to support syntax as T.Buffer() and T.Buffer[].
-    """
+    """Buffer proxy class for constructing tir buffer."""
 
     def __call__(
         self,
         shape,
-        dtype=None,
+        dtype="float32",
         data=None,
         strides=None,
         elem_offset=None,
@@ -65,9 +66,7 @@ class BufferProxy:
         buffer_type="",
         axis_separators=None,
     ) -> Buffer:
-        if dtype is None:
-            raise ValueError("Data type must be specified when constructing buffer")
-        return buffer_decl(
+        return buffer(
             shape,
             dtype=dtype,
             data=data,
@@ -80,24 +79,25 @@ class BufferProxy:
             axis_separators=axis_separators,
         )
 
+    @deprecated("T.Buffer[...]", "T.Buffer(...)")
     def __getitem__(self, keys) -> Buffer:
         if not isinstance(keys, tuple):
             return self(keys)
         if len(keys) >= 2 and not isinstance(keys[1], str):
             return self(keys)
-        return self(*keys)  # pylint: disable=no-member # type: ignore
+        return self(*keys)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 class PtrProxy:
-    """Ptr proxy class for constructing tir pointer.
-    Overload __call__ and __getitem__ to support syntax as T.Ptr() and T.Ptr[].
-    """
+    """Ptr proxy class for constructing tir pointer."""
 
+    @deprecated("T.Ptr(...)", "T.handle(...)")
     def __call__(self, dtype, storage_scope="global"):
         if callable(dtype):
             dtype = dtype().dtype
-        return ptr(dtype, storage_scope)  # pylint: disable=no-member # type: ignore
+        return ptr(dtype, storage_scope)  # type: ignore[attr-defined] # pylint: disable=no-member
 
+    @deprecated("T.Ptr[...]", "T.handle(...)")
     def __getitem__(self, keys):
         if not isinstance(keys, tuple):
             return self(keys)

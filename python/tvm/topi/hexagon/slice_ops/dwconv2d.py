@@ -94,7 +94,7 @@ def dwconv2d_schedule(
     @tvm.script.ir_module
     class Module:
         @T.prim_func
-        def main(InputTensor: T.Buffer[(1, 16, 8, 32), "float16"], Weights: T.Buffer[(3, 3, 1, 32), "float16"], Output: T.Buffer[(1, 8, 4, 32), "float16"]) -> None:
+        def main(InputTensor: T.Buffer((1, 16, 8, 32), "float16"), Weights: T.Buffer((3, 3, 1, 32), "float16"), Output: T.Buffer((1, 8, 4, 32), "float16")) -> None:
             # function attr dict
             T.func_attr({"global_symbol": "main", "tir.noalias": True})
             # body

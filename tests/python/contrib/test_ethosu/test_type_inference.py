@@ -201,6 +201,7 @@ def test_ethosu_pooling_type_inference(
         pooling_type,
         pool_shape,
         ofm_channels,
+        dtype,
         strides,
         padding,
         ifm_layout=ifm_layout,
@@ -215,6 +216,7 @@ def test_ethosu_pooling_type_inference(
 def test_ethosu_pooling_invalid_pooling_type():
     invalid_pooling_type = "A"
     dtype = "int8"
+
     ifm = relay.var("ifm", shape=[1, 56, 72, 55], dtype=dtype)
     pool_shape = (3, 2)
     ofm_channels = 55
@@ -225,6 +227,7 @@ def test_ethosu_pooling_invalid_pooling_type():
         invalid_pooling_type,
         pool_shape,
         ofm_channels,
+        dtype,
         strides,
         padding,
     )
@@ -246,6 +249,7 @@ def test_ethosu_pooling_invalid_dtype():
         pooling_type,
         pool_shape,
         ofm_channels,
+        "int8",
         strides,
         padding,
     )
@@ -256,12 +260,15 @@ def test_ethosu_pooling_invalid_dtype():
 
 def test_ethosu_pooling_invalid_upscale_method():
     invalid_upscale_method = "FOO"
-    ifm = relay.var("ifm", shape=[1, 56, 72, 55], dtype="int8")
+    dtype = "int8"
+
+    ifm = relay.var("ifm", shape=[1, 56, 72, 55], dtype=dtype)
     pooling = make_ethosu_pooling(
         ifm,
         "MAX",
         (3, 2),
         55,
+        dtype,
         (1, 2),
         (0, 1, 2, 3),
         upscale=invalid_upscale_method,
@@ -475,4 +482,4 @@ def test_ethosu_unary_elementwise_invalid_dtype():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

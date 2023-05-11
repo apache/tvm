@@ -117,7 +117,7 @@ def partition_for_ethosn(mod, params=None, **opts):
     ret : annotated and partitioned module.
     """
     api_version = ethosn_api_version()
-    supported_api_versions = ["3.1.0"]
+    supported_api_versions = ["3.2.0"]
     if all(api_version != LooseVersion(exp_ver) for exp_ver in supported_api_versions):
         raise ValueError(
             f"Driver stack version {api_version} is unsupported. "
@@ -129,6 +129,7 @@ def partition_for_ethosn(mod, params=None, **opts):
 
     passes = [
         transform.InferType(),
+        transform.FoldConstant(fold_qnn=True),
         transform.MergeComposite(pattern_table()),
         transform.AnnotateTarget("ethos-n"),
         transform.MergeCompilerRegions(),
@@ -205,11 +206,7 @@ def pattern_table():
         return pattern
 
     def qnn_resize_pattern():
-        pattern = is_op("image.resize2d")(wildcard()).has_attr({"method": "nearest_neighbor"})
-        pattern = is_op("qnn.requantize")(
-            pattern, is_constant(), is_constant(), is_constant(), is_constant()
-        )
-        return pattern
+        return is_op("image.resize2d")(wildcard()).has_attr({"method": "nearest_neighbor"})
 
     def qnn_mul_pattern():
         """

@@ -120,7 +120,7 @@ def test_multiply_to_depthwise(dtype, shape, channels, reverse_inputs):
 @requires_ethosn
 @pytest.mark.parametrize(
     "dtype,shape,constant_shape",
-    [("int8", (1, 4, 4), (4,)), ("int16", (1, 16, 12, 4), (1, 1, 1, 4))],
+    [("int8", (1, 4, 4), (4,)), ("int32", (1, 16, 12, 4), (1, 1, 1, 4))],
 )
 def test_unsupported_multiply_to_depthwise(dtype, shape, constant_shape):
     """Check that unsupported variants of multiply to depthwise are not converted."""
@@ -339,7 +339,7 @@ def test_add_to_depthwise(reverse_inputs):
 
 @requires_ethosn
 @pytest.mark.parametrize(
-    "dtype,lhs_shape,rhs_shape", [("uint8", (1, 4, 4), (1, 1, 4)), ("int16", (1, 4, 4, 4), (4,))]
+    "dtype,lhs_shape,rhs_shape", [("uint8", (1, 4, 4), (1, 1, 4)), ("int32", (1, 4, 4, 4), (4,))]
 )
 def test_unsupported_add_to_depthwise(dtype, lhs_shape, rhs_shape):
     """Check that unsupported variants of add are not converted."""

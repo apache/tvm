@@ -198,4 +198,4 @@ def test_create_array_buffer_info():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__] + sys.argv[1:])
+    tvm.testing.main()

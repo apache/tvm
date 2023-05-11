@@ -37,6 +37,11 @@ Checkout [CMSIS_5](https://github.com/ARM-software/CMSIS_5.git) (default is `/op
 git clone "https://github.com/ARM-software/CMSIS_5.git" cmsis
 ```
 
+Checkout [CMSIS NN](https://github.com/ARM-software/CMSIS-NN.git) (default is `/opt/arm/ethosu/cmsis/CMSIS-NN` to reflect `tlcpack/ci_cortexm`):
+```
+git clone "https://github.com/ARM-software/CMSIS-NN.git" cmsis/CMSIS-NN
+```
+
 And run the demo using `west`, with the path to CMSIS:
 ```
 west build -t run -- -DCMSIS_PATH=/opt/arm/ethosu/cmsis

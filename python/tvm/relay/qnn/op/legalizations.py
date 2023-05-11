@@ -23,7 +23,7 @@ from tvm import relay
 from tvm._ffi.base import TVMError
 from tvm.relay.qnn.op.canonicalizations import create_integer_lookup_op
 
-from ....topi.x86.utils import target_has_sse42
+from ....target.x86 import target_has_sse42
 from ....topi.utils import is_target
 from .. import op as reg
 
@@ -248,7 +248,7 @@ def helper_change_dtypes_to_uint8_int8(attrs, inputs, types, relay_op):
     Replacing QA + 128 with QA' and (zp_a + 128) with zp_a'
     We get our new quantized uint8 tensor - scale * (QA' - zp_a')
 
-    Similarly we can convert from int8 to uint8.
+    Similarly we can convert from uint8 to int8.
 
     Parameters
     ----------
@@ -340,6 +340,62 @@ def helper_change_dtypes_to_int8(attrs, inputs, types, relay_op):
     )
 
 
+def helper_change_dtypes_to_uint8(attrs, inputs, types, relay_op):
+    """Helper function to change dtypes to uint8 x uint8.
+    Legalizes QNN dense op for Hexagon DSP. It supports fast u8 x u8 vrmpy instruction.
+
+    Converting from int8 to uint8 can be done in following manner:
+
+    Original equation
+      scale * (QA - zp_a)
+      scale * (QA + 128 - 128 - zp_a)
+      scale * ( (QA + 128) - (zp_a + 128))
+
+    Replacing QA + 128 with QA' and (zp_a + 128) with zp_a'
+    We get our new quantized uint8 tensor - scale * (QA' - zp_a')
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
+    # Collect the dtypes.
+    data_dtype = types[0].dtype
+    kernel_dtype = types[1].dtype
+
+    # Do nothing since it is already uint8.
+    if data_dtype == "uint8" and kernel_dtype == "uint8":
+        return None
+
+    # Collect the input exprs.
+    data, kernel, input_zero_point, kernel_zero_point, input_scale, kernel_scale = inputs
+
+    # Shift input if necessary.
+    if data_dtype == "int8":
+        # Compute (QA + 128) and (zp_a + 128)
+        data, input_zero_point = _shift(data, input_zero_point, "uint8")
+
+    # Shift kernel if necessary.
+    if kernel_dtype == "int8":
+        # Compute (QA + 128) and (zp_a + 128)
+        kernel, kernel_zero_point = _shift(kernel, kernel_zero_point, "uint8")
+
+    # Call qnn.conv2d/qnn.dense with modified inputs and zero points.
+    new_attrs = dict(attrs)
+    return relay_op(
+        data, kernel, input_zero_point, kernel_zero_point, input_scale, kernel_scale, **new_attrs
+    )
+
+
 # Helper function to change dtypes to be same. ARM dotprod instructions prefer this setting.
 def helper_change_dtypes_to_be_same(attrs, inputs, types, relay_op):
     """Sometimes MxNet + MLDNN can lead to uint8 x int8 datatypes for the conv inputs. However,
@@ -405,6 +461,11 @@ def is_fast_int8_on_intel():
     return target_has_sse42(target.mcpu)
 
 
+# Helper function to align up given value.
+def helper_align_up(value, aligner):
+    return ((value + aligner) // aligner) * aligner
+
+
 ########################
 # ARM CPU legalizations.
 ########################
@@ -444,6 +505,7 @@ def _qnn_dense_legalize_arm_cpu(attrs, inputs, types):
 
 @qnn_conv2d_legalize.register("cpu")
 def _qnn_conv2d_legalize_intel_cpu(attrs, inputs, types):
+    # TODO(vvchernov): not only VNNI
     # The VNNI transformations prefer uint8 x int8 datatypes.
     if is_fast_int8_on_intel():
         return helper_change_dtypes_to_uint8_int8(attrs, inputs, types, relay.qnn.op.conv2d)
@@ -452,6 +514,7 @@ def _qnn_conv2d_legalize_intel_cpu(attrs, inputs, types):
 
 @qnn_dense_legalize.register("cpu")
 def _qnn_dense_legalize_intel_cpu(attrs, inputs, types):
+    # TODO(vvchernov): not only VNNI
     # The VNNI transformations prefer uint8 x int8 datatypes.
     if is_fast_int8_on_intel():
         return helper_change_dtypes_to_uint8_int8(attrs, inputs, types, relay.qnn.op.dense)
@@ -482,4 +545,141 @@ def _qnn_dense_legalize_cuda(attrs, inputs, types):
     if is_target(["cuda", "rocm"]):
         # CUDA prefers both datatypes to be the int8.
         return helper_change_dtypes_to_int8(attrs, inputs, types, relay.qnn.op.dense)
+    return None
+
+
+########################
+# Hexagon legalizations.
+########################
+
+IN_CHANNEL_VECTOR_LENGTH = 4
+OUT_CHANNEL_VECTOR_LENGTH = 32
+
+
+@qnn_conv2d_legalize.register("hexagon")
+def _qnn_conv2d_legalize_hexagon(attrs, inputs, types):
+    """Legalize qnn.conv2d op for vrmpy tensorization.
+
+    If the inputs are signed or unsigned int8 and data/kernel layouts are NCHW/OIHW, then the input
+    and output channels are padded to be a multiple of 4 and 32 respectively.
+    """
+    data_layout = attrs["data_layout"]
+    kernel_layout = attrs["kernel_layout"]
+
+    if data_layout != "NCHW" or kernel_layout != "OIHW":
+        return None
+
+    data_tensor, kernel_tensor = types[0], types[1]
+
+    if "int8" in data_tensor.dtype and "int8" in kernel_tensor.dtype:
+        in_channel = data_tensor.shape[1].value
+        out_channel = kernel_tensor.shape[0].value
+        ic_modified = False
+        oc_modified = False
+        data, kernel, data_zp, kernel_zp, data_scale, kernel_scale = inputs
+
+        if in_channel % IN_CHANNEL_VECTOR_LENGTH != 0:
+            new_in_channel = helper_align_up(in_channel, IN_CHANNEL_VECTOR_LENGTH)
+            diff = new_in_channel - in_channel
+            pad_width = ((0, 0), (0, diff), (0, 0), (0, 0))
+            data = relay.nn.pad(data, pad_width=pad_width)
+            kernel = relay.nn.pad(kernel, pad_width=pad_width)
+            ic_modified = True
+
+        new_out_channel = out_channel
+        if out_channel % OUT_CHANNEL_VECTOR_LENGTH != 0:
+            new_out_channel = helper_align_up(out_channel, OUT_CHANNEL_VECTOR_LENGTH)
+            diff = new_out_channel - out_channel
+            kernel = relay.nn.pad(kernel, pad_width=((0, diff), (0, 0), (0, 0), (0, 0)))
+            oc_modified = True
+
+            # Pad kernel zero point by 'diff' elements of 0 if it is not scalar
+            kernel_zp_tensor = types[3]
+            if len(kernel_zp_tensor.shape) != 0:
+                assert isinstance(kernel_zp, relay.Constant)
+                padded_kernel_zp_np = np.append(kernel_zp.data.numpy(), [0] * diff)
+                kernel_zp = relay.const(padded_kernel_zp_np)
+
+            # Pad kernel scale by 'diff' elements of 1.0 if it is not scalar
+            kernel_scale_tensor = types[5]
+            if len(kernel_scale_tensor.shape) != 0:
+                assert isinstance(kernel_scale, relay.Constant)
+                padded_kernel_scale_np = np.append(kernel_scale.data.numpy(), [1.0] * diff)
+                kernel_scale = relay.const(padded_kernel_scale_np)
+
+        if ic_modified is True or oc_modified is True:
+            new_attrs = dict(attrs)
+            if oc_modified:
+                new_attrs["channels"] = new_out_channel
+                out = relay.qnn.op.conv2d(
+                    data, kernel, data_zp, kernel_zp, data_scale, kernel_scale, **new_attrs
+                )
+                output_tensor = types[6]
+                original_out_shape = list(output_tensor.shape)
+                out = relay.strided_slice(out, begin=[0, 0, 0, 0], end=original_out_shape)
+            else:
+                out = relay.qnn.op.conv2d(
+                    data, kernel, data_zp, kernel_zp, data_scale, kernel_scale, **new_attrs
+                )
+
+            return out
+
+    return None
+
+
+@qnn_dense_legalize.register("hexagon")
+def _qnn_dense_legalize_hexagon(attrs, inputs, types):
+    """Legalize qnn.dense op for vrmpy tensorization.
+
+    N dimension of weights should be aligned on vector length. If not, then N dimension is padded to
+    be a multiple of 32.
+    """
+    assert len(types) == 7
+    assert len(inputs) == 6
+
+    data_tensor, kernel_tensor = types[0], types[1]
+    if "int8" not in data_tensor.dtype or "int8" not in kernel_tensor.dtype:
+        return None
+
+    N, _ = kernel_tensor.shape
+
+    if N % OUT_CHANNEL_VECTOR_LENGTH != 0:
+        N_padded = helper_align_up(N, OUT_CHANNEL_VECTOR_LENGTH)
+        diff = N_padded - N
+
+        data, kernel, data_zp, kernel_zp, data_scale, kernel_scale = inputs
+
+        # Pad weights by 'diff'
+        padded_kernel = relay.nn.pad(kernel, pad_width=((0, diff), (0, 0)))
+
+        kernel_zp_tensor, kernel_scale_tensor = types[3], types[5]
+
+        # Pad kernel zero point by 'diff' elements of 0 if it is not scalar
+        if len(kernel_zp_tensor.shape) != 0:
+            assert isinstance(kernel_zp, relay.Constant)
+            assert isinstance(diff, tvm.tir.IntImm)
+            padded_kernel_zp_np = np.append(kernel_zp.data.numpy(), [0] * diff.value)
+            kernel_zp = relay.const(padded_kernel_zp_np)
+
+        # Pad kernel scale by 'diff' elements of 1.0 if it is not scalar
+        if len(kernel_scale_tensor.shape) != 0:
+            assert isinstance(kernel_scale, relay.Constant)
+            assert isinstance(diff, tvm.tir.IntImm)
+            padded_kernel_scale_np = np.append(kernel_scale.data.numpy(), [1.0] * diff.value)
+            kernel_scale = relay.const(padded_kernel_scale_np)
+
+        # If units is explicitly specified, it is used to compute the output shape.
+        # We need to update units after padding to prevent a type error.
+        new_attrs = dict(attrs)
+        if attrs["units"] is not None:
+            new_attrs["units"] = N + diff
+
+        new_inputs = (data, padded_kernel, data_zp, kernel_zp, data_scale, kernel_scale)
+
+        out = relay.qnn.op.dense(*new_inputs, **new_attrs)
+
+        output_tensor = types[6]
+        out = relay.strided_slice(out, begin=[0, 0], end=list(output_tensor.shape))
+        return out
+
     return None

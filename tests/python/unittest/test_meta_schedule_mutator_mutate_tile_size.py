@@ -95,5 +95,18 @@ def test_mutate_tile_size_matmul():
     assert len(results) > 15
 
 
+def test_mutate_sample_categorical_single_candidate():
+    mutator = _make_mutator(
+        target=Target("llvm --num-cores=16"),
+    )
+    sch = Schedule(matmul, debug_mask="all")
+    sch.sample_categorical(candidates=[1], probs=[1.0], decision=0)
+
+    # The mutator finds the SampleCategorical has only one candidate, and thus skips it.
+    trace = mutator.apply(sch.trace)
+    assert trace is None
+
+
 if __name__ == "__main__":
     test_mutate_tile_size_matmul()
+    test_mutate_sample_categorical_single_candidate()

@@ -316,4 +316,4 @@ def test_dynamic_bcast():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

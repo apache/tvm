@@ -24,7 +24,7 @@
 #ifndef TVM_IR_EXPR_H_
 #define TVM_IR_EXPR_H_
 
-#include <tvm/ir/span.h>
+#include <tvm/ir/source_map.h>
 #include <tvm/ir/type.h>
 #include <tvm/node/node.h>
 #include <tvm/runtime/container/string.h>
@@ -99,6 +99,8 @@ class PrimExprNode : public BaseExprNode {
    * a more fine-grained Type, and we can get the type by running lazy type inference.
    */
   DataType dtype;
+
+  TVM_OBJECT_ENABLE_SCRIPT_PRINTER();
 
   static constexpr const char* _type_key = "PrimExpr";
   static constexpr const uint32_t _type_child_slots = 38;

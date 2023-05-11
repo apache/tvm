@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, import-self, len-as-condition, unused-argument, too-many-lines
-# pylint: disable=import-outside-toplevel
+# pylint: disable=import-outside-toplevel, used-before-assignment, use-implicit-booleaness-not-comparison
 """OneFlow: OneFlow is a performance-centered and open-source deep learning framework."""
 
 import os
@@ -84,8 +84,8 @@ def get_node_info(node):
     shape = tuple(node.input_conf.blob_conf.shape.dim)
     # get data type
     dtype = node.input_conf.blob_conf.data_type
-    if dtype in list(FLOW_2_NP_DTYPE.keys()):
-        data_type = FLOW_2_NP_DTYPE[dtype]
+    if dtype in list(FLOW_2_STR_DTYPE.keys()):
+        data_type = FLOW_2_STR_DTYPE[dtype]
     else:
         raise IndexError("Please check the data type of your node: %s" % node.name)
 
@@ -1227,7 +1227,7 @@ class Scatter(OneFlowOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attrs, params):
         axis = attrs.get("axis", 0)
-        return _op.scatter(inputs[0], inputs[1], inputs[2], axis)
+        return _op.scatter_elements(inputs[0], inputs[1], inputs[2], axis)
 
 
 class Unsqueeze(OneFlowOpConverter):

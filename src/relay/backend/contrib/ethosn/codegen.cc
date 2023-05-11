@@ -190,6 +190,17 @@ void InferTensorsVisitor::VisitExpr_(const CallNode* cn) {
   }
 }
 
+void ConstructNetworkVisitor::VisitExpr_(const ConstantNode* cn) {
+  Constant constant = GetRef<Constant>(cn);
+  if (tensor_table_.count(constant)) {
+    sl::TensorInfo tensor_info = tensor_table_[constant][0];
+    sl::TensorAndId<sl::Constant> tensor_and_id =
+        sl::AddConstant(network_, tensor_info, constant->data->data);
+    auto operand = sl::GetOperand(tensor_and_id.tensor);
+    operand_table_[constant] = std::vector{operand};
+  }
+}
+
 void InferTensorsVisitor::VisitExpr_(const TupleNode* tn) {
   auto tuple = GetRef<Tuple>(tn);
   ICHECK(tensor_table_.find(tuple) != tensor_table_.end());
@@ -713,9 +724,17 @@ runtime::ethosn::OrderedCompiledNetwork EthosnCompiler::CompileEthosnFunc(const 
   auto network_with_ids = ConstructNetwork(mod, gvar, func);
   // Now set the required build flags
   sl::CompilationOptions options = CreateOptions();
-  // Finally compile the network
+  // Set the experimental compiler if enabled, for now this is not part of the
+  // support library compilation options.
+  bool experimental_compiler = GetCompilerAttrs()->experimental_compiler;
+  if (experimental_compiler) {
+    setenv("FORCE_EXPERIMENTAL_COMPILER", "1", 1);
+  }
   std::vector<std::unique_ptr<sl::CompiledNetwork>> compiled_networks =
       sl::Compile(*network_with_ids.network, options);
+  if (experimental_compiler) {
+    unsetenv("FORCE_EXPERIMENTAL_COMPILER");
+  }
   ICHECK_GE(compiled_networks.size(), 1) << "Ethos-N compiler failed to compile network";
   auto compiled_network = std::move(compiled_networks[0]);
   // Determine the order that the inputs/outputs are in and how that corresponds to the

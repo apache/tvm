@@ -77,6 +77,16 @@ class ConstLoaderModuleNode : public ModuleNode {
       initialized_[name] = true;
     }
 
+    if (name == "get_const_var_ndarray") {
+      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        Map<String, ObjectRef> ret_map;
+        for (const auto& kv : const_var_ndarray_) {
+          ret_map.Set(kv.first, kv.second);
+        }
+        *rv = ret_map;
+      });
+    }
+
     // Run the module.
     // Normally we would only have a limited number of submodules. The runtime
     // symobl lookup overhead should be minimal.
@@ -89,6 +99,9 @@ class ConstLoaderModuleNode : public ModuleNode {
   }
 
   const char* type_key() const final { return "const_loader"; }
+
+  /*! \brief Get the property of the runtime module .*/
+  int GetPropertyMask() const final { return ModulePropertyMask::kBinarySerializable; };
 
   /*!
    * \brief Get the list of constants that is required by the given module.

@@ -113,6 +113,21 @@ ObjectRef TuningRecordNode::AsJSON() const {
                           json_args_info};
 }
 
+bool TuningRecordNode::IsValid() const {
+  if (!GetNumValidInstructions(trace->insts, /*remove_postproc*/ true)) {
+    return false;
+  }
+  if (run_secs.defined()) {
+    for (const auto& run_sec : run_secs.value()) {
+      // kMaxMeanTime(1e10) is used as a stub for undefined measurement times.
+      if (run_sec.defined() && run_sec->value != SortTuningRecordByMeanRunSecs::kMaxMeanTime) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 TuningRecord TuningRecord::FromJSON(const ObjectRef& json_obj, const Workload& workload) {
   tir::Trace trace{nullptr};
   Optional<Array<FloatImm>> run_secs{nullptr};
@@ -192,6 +207,29 @@ Optional<IRModule> DatabaseNode::QueryIRModule(const IRModule& mod, const Target
     return opt_sch.value()->mod();
   } else {
     return NullOpt;
+  }
+}
+
+void DatabaseNode::DumpPruned(Database destination) {
+  std::unordered_map<Workload, TuningRecord, ObjectPtrHash, ObjectPtrEqual> workload2record;
+  for (const TuningRecord& record : this->GetAllTuningRecords()) {
+    if (record->IsValid()) {
+      auto it = workload2record.find(record->workload);
+      if (it == workload2record.end()) {
+        workload2record.insert({record->workload, record});
+      } else if (SortTuningRecordByMeanRunSecs()(record, it->second)) {
+        it->second = record;
+      }
+    }
+  }
+  for (auto& kv : workload2record) {
+    Workload workload = kv.first;
+    TuningRecord record = kv.second;
+    workload = destination->CommitWorkload(workload->mod);
+    destination->CommitTuningRecord(TuningRecord(/*trace=*/record->trace, /*workload=*/workload,
+                                                 /*run_secs=*/record->run_secs,
+                                                 /*target=*/record->target,
+                                                 /*args_info=*/record->args_info));
   }
 }
 
@@ -282,6 +320,8 @@ TVM_REGISTER_GLOBAL("meta_schedule.DatabaseQuerySchedule")
     .set_body_method<Database>(&DatabaseNode::QuerySchedule);
 TVM_REGISTER_GLOBAL("meta_schedule.DatabaseQueryIRModule")
     .set_body_method<Database>(&DatabaseNode::QueryIRModule);
+TVM_REGISTER_GLOBAL("meta_schedule.DatabaseDumpPruned")
+    .set_body_method<Database>(&DatabaseNode::DumpPruned);
 TVM_REGISTER_GLOBAL("meta_schedule.DatabasePyDatabase").set_body_typed(Database::PyDatabase);
 
 }  // namespace meta_schedule

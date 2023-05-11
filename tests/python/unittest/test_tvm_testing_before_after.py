@@ -70,7 +70,7 @@ class TestBeforeAfterParametrizedFixture(BaseBeforeAfter):
     @tvm.testing.fixture
     def before(self, n):
         @T.prim_func
-        def func(A: T.Buffer[n, "float32"]):
+        def func(A: T.Buffer(n, "float32")):
             for i in T.serial(n):
                 A[i] = 0.0
 
@@ -89,11 +89,11 @@ class TestBeforeAfterIRModule(BaseBeforeAfter):
     """
 
     class before:
-        def func_A(A: T.Buffer[16, "float32"]):
+        def func_A(A: T.Buffer(16, "float32")):
             for i in T.serial(16):
                 A[i] = 0.0
 
-        def func_B(A: T.Buffer[16, "int32"]):
+        def func_B(A: T.Buffer(16, "int32")):
             for i in T.serial(16):
                 A[i] = 42
 
@@ -112,12 +112,12 @@ class TestBeforeAfterIRModuleExplicitFixture(BaseBeforeAfter):
         @ir_module
         class mod:
             @T.prim_func
-            def func_A(A: T.Buffer[16, "float32"]):
+            def func_A(A: T.Buffer(16, "float32")):
                 for i in T.serial(16):
                     A[i] = 0.0
 
             @T.prim_func
-            def func_B(A: T.Buffer[16, "int32"]):
+            def func_B(A: T.Buffer(16, "int32")):
                 for i in T.serial(16):
                     A[i] = 42
 

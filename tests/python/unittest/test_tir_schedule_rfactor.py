@@ -252,7 +252,7 @@ def transformed_square_sum_square_root_factor_one_1(a: T.handle, d: T.handle) ->
 
 @T.prim_func
 def square_sum_square_root_factor_one_1_rfactor(
-    A: T.Buffer[(16, 256, 256), "float32"], D: T.Buffer[(16,), "float32"]
+    A: T.Buffer((16, 256, 256), "float32"), D: T.Buffer((16,), "float32")
 ) -> None:
     C = T.alloc_buffer([16], dtype="float32")
     C_rf = T.alloc_buffer([1, 16], dtype="float32")
@@ -299,7 +299,7 @@ def transformed_square_sum_square_root_factor_one_2(a: T.handle, d: T.handle) ->
 
 @T.prim_func
 def square_sum_square_root_factor_one_2_rfactor(
-    A: T.Buffer[(16, 256, 256), "float32"], D: T.Buffer[(16,), "float32"]
+    A: T.Buffer((16, 256, 256), "float32"), D: T.Buffer((16,), "float32")
 ) -> None:
     C = T.alloc_buffer([16], dtype="float32")
     C_rf = T.alloc_buffer([16, 1], dtype="float32")
@@ -636,8 +636,8 @@ def multiple_reduction_blocks_rfactor(a: T.handle, f: T.handle) -> None:
 
 @T.prim_func
 def rfactor_spatial_only(
-    A: T.Buffer[(1, 512, 7, 7), "float32"],
-    B: T.Buffer[(1, 512, 1, 1), "float32"],
+    A: T.Buffer((1, 512, 7, 7), "float32"),
+    B: T.Buffer((1, 512, 1, 1), "float32"),
 ) -> None:
     for _i0, i1, _i2, _i3, i4, _i5 in T.grid(1, 512, 1, 1, 49, 1):
         with T.block("acc"):
@@ -658,8 +658,8 @@ def rfactor_spatial_only(
 
 @T.prim_func
 def rfactor_spatial_only_after(
-    A: T.Buffer[(1, 512, 7, 7), "float32"],
-    B: T.Buffer[(1, 512, 1, 1), "float32"],
+    A: T.Buffer((1, 512, 7, 7), "float32"),
+    B: T.Buffer((1, 512, 1, 1), "float32"),
 ) -> None:
     # body
     # with T.block("root")
@@ -686,10 +686,10 @@ def rfactor_spatial_only_after(
 
 @T.prim_func
 def argmax_split(
-    idx: T.Buffer[(128, 128), "int32"],
-    val: T.Buffer[(128, 128), "float32"],
-    argmax_v0: T.Buffer[(128,), "int32"],
-    argmax_v1: T.Buffer[(128,), "float32"],
+    idx: T.Buffer((128, 128), "int32"),
+    val: T.Buffer((128, 128), "float32"),
+    argmax_v0: T.Buffer((128,), "int32"),
+    argmax_v1: T.Buffer((128,), "float32"),
 ) -> None:
     for i0, i1_0, i1_1 in T.grid(128, 4, 32):
         with T.block("argmax"):
@@ -708,10 +708,10 @@ def argmax_split(
 
 @T.prim_func
 def argmin_split_init_update_reordered(
-    idx: T.Buffer[(128, 128), "int32"],
-    val: T.Buffer[(128, 128), "float32"],
-    argmin_v0: T.Buffer[(128,), "int32"],
-    argmin_v1: T.Buffer[(128,), "float32"],
+    idx: T.Buffer((128, 128), "int32"),
+    val: T.Buffer((128, 128), "float32"),
+    argmin_v0: T.Buffer((128,), "int32"),
+    argmin_v1: T.Buffer((128,), "float32"),
 ) -> None:
     for i0, i1_0, i1_1 in T.grid(128, 4, 32):
         with T.block("argmin"):
@@ -730,10 +730,10 @@ def argmin_split_init_update_reordered(
 
 @T.prim_func
 def argmax_split_different_shape(
-    idx: T.Buffer[(128, 128), "int32"],
-    val: T.Buffer[(128, 128), "float32"],
-    argmax_v0: T.Buffer[(256,), "int32"],
-    argmax_v1: T.Buffer[(128,), "float32"],
+    idx: T.Buffer((128, 128), "int32"),
+    val: T.Buffer((128, 128), "float32"),
+    argmax_v0: T.Buffer((256,), "int32"),
+    argmax_v1: T.Buffer((128,), "float32"),
 ) -> None:
     for i0, i1_0, i1_1 in T.grid(128, 4, 32):
         with T.block("argmax"):
@@ -752,10 +752,10 @@ def argmax_split_different_shape(
 
 @T.prim_func
 def argmax_split_different_indices(
-    idx: T.Buffer[(128, 128), "int32"],
-    val: T.Buffer[(128, 128), "float32"],
-    argmax_v0: T.Buffer[(128,), "int32"],
-    argmax_v1: T.Buffer[(128,), "float32"],
+    idx: T.Buffer((128, 128), "int32"),
+    val: T.Buffer((128, 128), "float32"),
+    argmax_v0: T.Buffer((128,), "int32"),
+    argmax_v1: T.Buffer((128,), "float32"),
 ) -> None:
     for i0, i1_0, i1_1 in T.grid(128, 4, 32):
         with T.block("argmax"):
@@ -774,10 +774,10 @@ def argmax_split_different_indices(
 
 @T.prim_func
 def argmax_split_init_not_bufferstore(
-    idx: T.Buffer[(128, 128), "int32"],
-    val: T.Buffer[(128, 128), "float32"],
-    argmax_v0: T.Buffer[(128,), "int32"],
-    argmax_v1: T.Buffer[(128,), "float32"],
+    idx: T.Buffer((128, 128), "int32"),
+    val: T.Buffer((128, 128), "float32"),
+    argmax_v0: T.Buffer((128,), "int32"),
+    argmax_v1: T.Buffer((128,), "float32"),
 ) -> None:
     for i0, i1_0, i1_1 in T.grid(128, 4, 32):
         with T.block("argmax"):
@@ -797,10 +797,10 @@ def argmax_split_init_not_bufferstore(
 
 @T.prim_func
 def argmax_split_init_buffer_duplicate(
-    idx: T.Buffer[(128, 128), "int32"],
-    val: T.Buffer[(128, 128), "float32"],
-    argmax_v0: T.Buffer[(128,), "int32"],
-    argmax_v1: T.Buffer[(128,), "float32"],
+    idx: T.Buffer((128, 128), "int32"),
+    val: T.Buffer((128, 128), "float32"),
+    argmax_v0: T.Buffer((128,), "int32"),
+    argmax_v1: T.Buffer((128,), "float32"),
 ) -> None:
     for i0, i1_0, i1_1 in T.grid(128, 4, 32):
         with T.block("argmax"):
@@ -819,10 +819,10 @@ def argmax_split_init_buffer_duplicate(
 
 @T.prim_func
 def argmax_split_letstmt_fewer_than_init(
-    idx: T.Buffer[(128, 128), "int32"],
-    val: T.Buffer[(128, 128), "float32"],
-    argmax_v0: T.Buffer[(128,), "int32"],
-    argmax_v1: T.Buffer[(128,), "float32"],
+    idx: T.Buffer((128, 128), "int32"),
+    val: T.Buffer((128, 128), "float32"),
+    argmax_v0: T.Buffer((128,), "int32"),
+    argmax_v1: T.Buffer((128,), "float32"),
 ) -> None:
     for i0, i1_0, i1_1 in T.grid(128, 4, 32):
         with T.block("argmax"):
@@ -840,10 +840,10 @@ def argmax_split_letstmt_fewer_than_init(
 
 @T.prim_func
 def argmax_split_letstmt_more_than_init(
-    idx: T.Buffer[(128, 128), "int32"],
-    val: T.Buffer[(128, 128), "float32"],
-    argmax_v0: T.Buffer[(128,), "int32"],
-    argmax_v1: T.Buffer[(128,), "float32"],
+    idx: T.Buffer((128, 128), "int32"),
+    val: T.Buffer((128, 128), "float32"),
+    argmax_v0: T.Buffer((128,), "int32"),
+    argmax_v1: T.Buffer((128,), "float32"),
 ) -> None:
     for i0, i1_0, i1_1 in T.grid(128, 4, 32):
         with T.block("argmax"):
@@ -861,10 +861,10 @@ def argmax_split_letstmt_more_than_init(
 
 @T.prim_func
 def argmax_split_let_body_neither_seqstmt_nor_bufferstore(
-    idx: T.Buffer[(128, 128), "int32"],
-    val: T.Buffer[(128, 128), "float32"],
-    argmax_v0: T.Buffer[(128,), "int32"],
-    argmax_v1: T.Buffer[(128,), "float32"],
+    idx: T.Buffer((128, 128), "int32"),
+    val: T.Buffer((128, 128), "float32"),
+    argmax_v0: T.Buffer((128,), "int32"),
+    argmax_v1: T.Buffer((128,), "float32"),
 ) -> None:
     for i0, i1_0, i1_1 in T.grid(128, 4, 32):
         with T.block("argmax"):
@@ -882,10 +882,10 @@ def argmax_split_let_body_neither_seqstmt_nor_bufferstore(
 
 @T.prim_func
 def argmax_split_init_update_inconsistent_bufferstore_number(
-    idx: T.Buffer[(128, 128), "int32"],
-    val: T.Buffer[(128, 128), "float32"],
-    argmax_v0: T.Buffer[(128,), "int32"],
-    argmax_v1: T.Buffer[(128,), "float32"],
+    idx: T.Buffer((128, 128), "int32"),
+    val: T.Buffer((128, 128), "float32"),
+    argmax_v0: T.Buffer((128,), "int32"),
+    argmax_v1: T.Buffer((128,), "float32"),
 ) -> None:
     for i0, i1_0, i1_1 in T.grid(128, 4, 32):
         with T.block("argmax"):
@@ -905,10 +905,10 @@ def argmax_split_init_update_inconsistent_bufferstore_number(
 
 @T.prim_func
 def argmax_split_body_seq_not_bufferstore(
-    idx: T.Buffer[(128, 128), "int32"],
-    val: T.Buffer[(128, 128), "float32"],
-    argmax_v0: T.Buffer[(128,), "int32"],
-    argmax_v1: T.Buffer[(128,), "float32"],
+    idx: T.Buffer((128, 128), "int32"),
+    val: T.Buffer((128, 128), "float32"),
+    argmax_v0: T.Buffer((128,), "int32"),
+    argmax_v1: T.Buffer((128,), "float32"),
 ) -> None:
     for i0, i1_0, i1_1 in T.grid(128, 4, 32):
         with T.block("argmax"):
@@ -927,10 +927,10 @@ def argmax_split_body_seq_not_bufferstore(
 
 @T.prim_func
 def argmax_split_body_bufferstore_value_not_var(
-    idx: T.Buffer[(128, 128), "int32"],
-    val: T.Buffer[(128, 128), "float32"],
-    argmax_v0: T.Buffer[(128,), "int32"],
-    argmax_v1: T.Buffer[(128,), "float32"],
+    idx: T.Buffer((128, 128), "int32"),
+    val: T.Buffer((128, 128), "float32"),
+    argmax_v0: T.Buffer((128,), "int32"),
+    argmax_v1: T.Buffer((128,), "float32"),
 ) -> None:
     for i0, i1_0, i1_1 in T.grid(128, 4, 32):
         with T.block("argmax"):
@@ -949,12 +949,12 @@ def argmax_split_body_bufferstore_value_not_var(
 
 @T.prim_func
 def argmax_split_body_bufferstore_value_unbound_var(
-    idx: T.Buffer[(128, 128), "int32"],
-    val: T.Buffer[(128, 128), "float32"],
-    argmax_v0: T.Buffer[(128,), "int32"],
-    argmax_v1: T.Buffer[(128,), "float32"],
+    idx: T.Buffer((128, 128), "int32"),
+    val: T.Buffer((128, 128), "float32"),
+    argmax_v0: T.Buffer((128,), "int32"),
+    argmax_v1: T.Buffer((128,), "float32"),
 ) -> None:
-    v_unbound = T.var("int32")
+    v_unbound = T.int32()
     for i0, i1_0, i1_1 in T.grid(128, 4, 32):
         with T.block("argmax"):
             i = T.axis.spatial(128, i0)
@@ -972,10 +972,10 @@ def argmax_split_body_bufferstore_value_unbound_var(
 
 @T.prim_func
 def argmax_split_one_let_var_used_multi_times(
-    idx: T.Buffer[(128, 128), "int32"],
-    val: T.Buffer[(128, 128), "int32"],
-    argmax_v0: T.Buffer[(128,), "int32"],
-    argmax_v1: T.Buffer[(128,), "int32"],
+    idx: T.Buffer((128, 128), "int32"),
+    val: T.Buffer((128, 128), "int32"),
+    argmax_v0: T.Buffer((128,), "int32"),
+    argmax_v1: T.Buffer((128,), "int32"),
 ) -> None:
     for i0, i1_0, i1_1 in T.grid(128, 4, 32):
         with T.block("argmax"):
@@ -994,10 +994,10 @@ def argmax_split_one_let_var_used_multi_times(
 
 @T.prim_func
 def argmax_split_body_one_buffer_updated_multi_times(
-    idx: T.Buffer[(128, 128), "int32"],
-    val: T.Buffer[(128, 128), "int32"],
-    argmax_v0: T.Buffer[(128,), "int32"],
-    argmax_v1: T.Buffer[(128,), "int32"],
+    idx: T.Buffer((128, 128), "int32"),
+    val: T.Buffer((128, 128), "int32"),
+    argmax_v0: T.Buffer((128,), "int32"),
+    argmax_v1: T.Buffer((128,), "int32"),
 ) -> None:
     for i0, i1_0, i1_1 in T.grid(128, 4, 32):
         with T.block("argmax"):
@@ -1016,11 +1016,11 @@ def argmax_split_body_one_buffer_updated_multi_times(
 
 @T.prim_func
 def argmax_split_init_buffer_not_match(
-    idx: T.Buffer[(128, 128), "int32"],
-    val: T.Buffer[(128, 128), "float32"],
-    argmax_v0: T.Buffer[(128,), "int32"],
-    argmax_v0_1: T.Buffer[(128,), "int32"],
-    argmax_v1: T.Buffer[(128,), "float32"],
+    idx: T.Buffer((128, 128), "int32"),
+    val: T.Buffer((128, 128), "float32"),
+    argmax_v0: T.Buffer((128,), "int32"),
+    argmax_v0_1: T.Buffer((128,), "int32"),
+    argmax_v1: T.Buffer((128,), "float32"),
 ) -> None:
     for i0, i1_0, i1_1 in T.grid(128, 4, 32):
         with T.block("argmax"):
@@ -1039,10 +1039,10 @@ def argmax_split_init_buffer_not_match(
 
 @T.prim_func
 def argmax_split_rfactor(
-    idx: T.Buffer[(128, 128), "int32"],
-    val: T.Buffer[(128, 128), "float32"],
-    argmax_v0: T.Buffer[(128,), "int32"],
-    argmax_v1: T.Buffer[(128,), "float32"],
+    idx: T.Buffer((128, 128), "int32"),
+    val: T.Buffer((128, 128), "float32"),
+    argmax_v0: T.Buffer((128,), "int32"),
+    argmax_v1: T.Buffer((128,), "float32"),
 ) -> None:
     argmax_v0_rf = T.alloc_buffer([128, 32], dtype="int32")
     argmax_v1_rf = T.alloc_buffer([128, 32], dtype="float32")
@@ -1086,10 +1086,10 @@ def argmax_split_rfactor(
 
 @T.prim_func
 def argmin_split_rfactor(
-    idx: T.Buffer[(128, 128), "int32"],
-    val: T.Buffer[(128, 128), "float32"],
-    argmin_v0: T.Buffer[(128,), "int32"],
-    argmin_v1: T.Buffer[(128,), "float32"],
+    idx: T.Buffer((128, 128), "int32"),
+    val: T.Buffer((128, 128), "float32"),
+    argmin_v0: T.Buffer((128,), "int32"),
+    argmin_v1: T.Buffer((128,), "float32"),
 ) -> None:
     argmin_v0_rf = T.alloc_buffer([128, 32], dtype="int32")
     argmin_v1_rf = T.alloc_buffer([128, 32], dtype="float32")
@@ -1133,7 +1133,7 @@ def argmin_split_rfactor(
 
 @T.prim_func
 def argmax_topi_rfactor(
-    placeholder: T.Buffer[(1, 32), "int32"], placeholder_red: T.Buffer[1, "int32"]
+    placeholder: T.Buffer((1, 32), "int32"), placeholder_red: T.Buffer(1, "int32")
 ) -> None:
     T.func_attr({"global_symbol": "main", "tir.noalias": True})
     placeholder_red_temp_v0 = T.alloc_buffer([1], dtype="int32")
@@ -1194,7 +1194,7 @@ def argmax_topi_rfactor(
 
 @T.prim_func
 def argmin_topi_rfactor(
-    placeholder: T.Buffer[(1, 32), "int32"], placeholder_red: T.Buffer[1, "int32"]
+    placeholder: T.Buffer((1, 32), "int32"), placeholder_red: T.Buffer(1, "int32")
 ) -> None:
     T.func_attr({"global_symbol": "main", "tir.noalias": True})
     placeholder_red_temp_v0 = T.alloc_buffer([1], dtype="int32")

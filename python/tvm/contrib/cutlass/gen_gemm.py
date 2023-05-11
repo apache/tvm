@@ -16,16 +16,16 @@
 # under the License.
 # pylint: disable=invalid-name
 """GEMM kernel generator and profiler for CUTLASS."""
-from .gemm_operation import GemmOperation, EmitGemmInstance
+from .gemm_operation import EmitGemmInstance, GemmOperation
 from .gemm_profiler import GemmProfilerEmitter
-from .gen_tensor_op import ProfilerEngine, GENERATOR_FUNC_TABLE, EPILOGUE_MAP
+from .gen_tensor_op import EPILOGUE_MAP, GENERATOR_FUNC_TABLE, ProfilerEngine
 from .library import (
     DataType,
+    DataTypeTag,
     EpilogueFunctor,
+    LayoutType,
     SwizzlingFunctor,
     TensorDescription,
-    DataTypeTag,
-    LayoutType,
 )
 
 

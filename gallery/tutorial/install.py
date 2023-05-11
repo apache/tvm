@@ -48,9 +48,3 @@ methods for installing TVM. These include:
 # Check out  `TLCPack <https://tlcpack.ai>`_ to learn more. Note that the
 # third party binary packages could contain additional licensing terms for
 # the hardware drivers that are bundled with it.
-
-# sphinx_gallery_start_ignore
-from tvm import testing
-
-testing.utils.install_request_hook(depth=3)
-# sphinx_gallery_end_ignore

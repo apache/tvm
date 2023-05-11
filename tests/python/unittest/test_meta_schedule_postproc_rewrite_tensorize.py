@@ -25,9 +25,9 @@ from tvm.tir.tensor_intrin import arm_cpu, cuda, rocm, x86
 class Conv2dNCHWcVNNIModuleTiled:
     @T.prim_func
     def main(
-        placeholder: T.Buffer[(1, 4, 56, 56, 16), "uint8"],
-        placeholder_1: T.Buffer[(16, 4, 1, 1, 4, 16, 4), "int8"],
-        conv2d_NCHWc_int8: T.Buffer[(1, 16, 56, 56, 16), "int32"],
+        placeholder: T.Buffer((1, 4, 56, 56, 16), "uint8"),
+        placeholder_1: T.Buffer((16, 4, 1, 1, 4, 16, 4), "int8"),
+        conv2d_NCHWc_int8: T.Buffer((1, 16, 56, 56, 16), "int32"),
     ) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         for (
@@ -145,9 +145,9 @@ class Conv2dNCHWcVNNIModuleTiled:
 class Conv2dNCHWcVNNIModuleTensorized:
     @T.prim_func
     def main(
-        placeholder: T.Buffer[(1, 4, 56, 56, 16), "uint8"],
-        placeholder_1: T.Buffer[(16, 4, 1, 1, 4, 16, 4), "int8"],
-        conv2d_NCHWc_int8: T.Buffer[(1, 16, 56, 56, 16), "int32"],
+        placeholder: T.Buffer((1, 4, 56, 56, 16), "uint8"),
+        placeholder_1: T.Buffer((16, 4, 1, 1, 4, 16, 4), "int8"),
+        conv2d_NCHWc_int8: T.Buffer((1, 16, 56, 56, 16), "int32"),
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
@@ -236,7 +236,7 @@ class Conv2dNCHWcVNNIModuleTensorized:
                     C_i32x16 = C.vload([0], dtype="int32x16")
                     C[T.ramp(0, 1, 16)] = T.call_llvm_pure_intrin(
                         T.llvm_lookup_intrinsic_id("llvm.x86.avx512.vpdpbusd.512"),
-                        T.uint32(0),
+                        T.uint32(3),
                         C_i32x16,
                         T.broadcast(A_i32, 16),
                         B_i32x16,
@@ -248,9 +248,9 @@ class Conv2dNCHWcVNNIModuleTensorized:
 class DenseDP4ATiled:
     @T.prim_func
     def main(
-        X: T.Buffer[(128, 128), "int8"],
-        W: T.Buffer[(128, 128), "int8"],
-        compute: T.Buffer[(128, 128), "int32"],
+        X: T.Buffer((128, 128), "int8"),
+        W: T.Buffer((128, 128), "int8"),
+        compute: T.Buffer((128, 128), "int32"),
     ) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         compute_local = T.alloc_buffer([128, 128], dtype="int32", scope="local")
@@ -334,9 +334,9 @@ class DenseDP4ATiled:
 class DenseDP4ATensorized:
     @T.prim_func
     def main(
-        X: T.Buffer[(128, 128), "int8"],
-        W: T.Buffer[(128, 128), "int8"],
-        compute: T.Buffer[(128, 128), "int32"],
+        X: T.Buffer((128, 128), "int8"),
+        W: T.Buffer((128, 128), "int8"),
+        compute: T.Buffer((128, 128), "int32"),
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})

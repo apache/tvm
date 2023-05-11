@@ -46,15 +46,15 @@ sudo apt-install-and-clear -y --no-install-recommends \
      cmake=3.22.2-0kitware1ubuntu18.04.1 cmake-data=3.22.2-0kitware1ubuntu18.04.1 \
 
 # Python
-sudo ~/ubuntu_install_python.sh
+sudo ~/ubuntu_install_python.sh 3.8
 rm -f ~/ubuntu_install_python.sh
 
 # Poetry deps
 sudo apt-install-and-clear -y python3-venv
 
 # TVM deps
-sudo ~/ubuntu1804_install_llvm.sh
-rm -rf ~/ubuntu1804_install_llvm.sh
+sudo ~/ubuntu2204_install_llvm.sh
+rm -rf ~/ubuntu2204_install_llvm.sh
 
 # ONNX deps
 sudo apt-install-and-clear -y protobuf-compiler libprotoc-dev

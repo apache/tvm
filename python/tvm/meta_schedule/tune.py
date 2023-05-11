@@ -73,35 +73,42 @@ def tune_tasks(
     module_equality : Optional[str]
         A string to specify the module equality testing and hashing method.
         It must be one of the followings:
-          - "structural": Use StructuralEqual/Hash
-          - "ignore-ndarray": Same as "structural", but ignore ndarray raw data during
-                              equality testing and hashing.
-          - "anchor-block": Apply equality testing and hashing on the anchor block extracted from a
-                            given module. The "ignore-ndarray" varint is used for the extracted
-                            blocks or in case no anchor block is found.
-                            For the definition of the anchor block, see tir/analysis/analysis.py.
+
+            - "structural": Use StructuralEqual/Hash
+            - "ignore-ndarray": Same as "structural", but ignore ndarray raw data during equality
+                testing and hashing.
+            - "anchor-block": Apply equality testing and hashing on the anchor block extracted from
+                a given module. The "ignore-ndarray" varint is used for the extracted blocks or in
+                case no anchor block is found. For the definition of the anchor block, see
+                tir/analysis/analysis.py.
 
     Returns
     -------
     database : Database
         The database with all tuning records
     """
+    if len(tasks) == 0:
+        raise ValueError("No tasks to tune.")
+
     if len(tasks) != len(task_weights):
         raise ValueError(
             f"Length of tasks ({len(tasks)}) and task_weights ({len(task_weights)}) do not match."
         )
+
+    num_cores = tasks[0].num_threads
+
     if max_trials_per_task is None:
         max_trials_per_task = max_trials_global
     if not isinstance(builder, Builder):
-        builder = Builder.create(builder)
+        builder = Builder.create(builder, max_workers=num_cores)
     if not isinstance(runner, Runner):
-        runner = Runner.create(runner)
+        runner = Runner.create(runner, max_workers=num_cores)
     if database == "json":
         database = Database.create(database, work_dir=work_dir, module_equality=module_equality)
     elif not isinstance(database, Database):
         database = Database.create(database, module_equality=module_equality)
     if not isinstance(cost_model, CostModel):
-        cost_model = CostModel.create(cost_model)
+        cost_model = CostModel.create(cost_model, num_tuning_cores=num_cores)
     if isinstance(measure_callbacks, MeasureCallback):
         measure_callbacks = [measure_callbacks]
     elif measure_callbacks == "default":

@@ -53,7 +53,7 @@ def run(in_mod, expected_mod, max_outputs, allow_taps, compiler, map):
 
 def test_single_op():
     def input():
-        return tvm.parser.fromtext(
+        return tvm.relay.fromtext(
             """
             #[version = "0.0.5"]
             def @main(%a: Tensor[(5, 7), float32], %b: Tensor[(5, 7), float32],
@@ -66,7 +66,7 @@ def test_single_op():
         )
 
     def expected():
-        return tvm.parser.fromtext(
+        return tvm.relay.fromtext(
             """
             #[version = "0.0.5"]
             def @main(%a: Tensor[(5, 7), float32], %b: Tensor[(5, 7), float32],
@@ -83,7 +83,7 @@ def test_single_op():
 
 def test_multi_output():
     def input():
-        return tvm.parser.fromtext(
+        return tvm.relay.fromtext(
             """
             #[version = "0.0.5"]
             def @main(%a: Tensor[(5, 7), float32], %b: Tensor[(5, 7), float32],
@@ -96,7 +96,7 @@ def test_multi_output():
         )
 
     def expected():
-        return tvm.parser.fromtext(
+        return tvm.relay.fromtext(
             """
             #[version = "0.0.5"]
             def @main(%a: Tensor[(5, 7), float32], %b: Tensor[(5, 7), float32],
@@ -117,7 +117,7 @@ def test_multi_output():
 
 def test_classic_conv2d_add_relu():
     def input():
-        return tvm.parser.fromtext(
+        return tvm.relay.fromtext(
             """
             #[version = "0.0.5"]
             def @main(%a: Tensor[(5, 3, 32, 32), float32], %b: Tensor[(2, 3, 5, 5), float32],
@@ -131,7 +131,7 @@ def test_classic_conv2d_add_relu():
         )
 
     def expected():
-        return tvm.parser.fromtext(
+        return tvm.relay.fromtext(
             """
             #[version = "0.0.5"]
             def @main(%a: Tensor[(5, 3, 32, 32), float32], %b: Tensor[(2, 3, 5, 5), float32],
@@ -151,7 +151,7 @@ def test_classic_conv2d_add_relu():
 
 def test_diamond_single_output():
     def input():
-        return tvm.parser.fromtext(
+        return tvm.relay.fromtext(
             """
             #[version = "0.0.5"]
             def @main(%a: Tensor[(5, 3, 32, 32), float32], %b: Tensor[(2, 3, 5, 5), float32]) {
@@ -165,7 +165,7 @@ def test_diamond_single_output():
         )
 
     def expected():
-        return tvm.parser.fromtext(
+        return tvm.relay.fromtext(
             """
             #[version = "0.0.5"]
             def @main(%a: Tensor[(5, 3, 32, 32), float32], %b: Tensor[(2, 3, 5, 5), float32]) {
@@ -185,7 +185,7 @@ def test_diamond_single_output():
 
 def test_diamond_multi_output():
     def input():
-        return tvm.parser.fromtext(
+        return tvm.relay.fromtext(
             """
             #[version = "0.0.5"]
             def @main(%a: Tensor[(5, 3, 32, 32), float32], %b: Tensor[(2, 3, 5, 5), float32]) {
@@ -199,7 +199,7 @@ def test_diamond_multi_output():
         )
 
     def expected():
-        return tvm.parser.fromtext(
+        return tvm.relay.fromtext(
             """
             #[version = "0.0.5"]
             def @main(%a: Tensor[(5, 3, 32, 32), float32], %b: Tensor[(2, 3, 5, 5), float32]) {
@@ -222,7 +222,7 @@ def test_diamond_multi_output():
 
 def test_with_tap():
     def input():
-        return tvm.parser.fromtext(
+        return tvm.relay.fromtext(
             """
             #[version = "0.0.5"]
             def @main(%a: Tensor[(5, 3, 32, 32), float32], %b: Tensor[(2, 3, 5, 5), float32]) {
@@ -234,7 +234,7 @@ def test_with_tap():
         )
 
     def expected():
-        return tvm.parser.fromtext(
+        return tvm.relay.fromtext(
             """
             #[version = "0.0.5"]
             def @main(%a: Tensor[(5, 3, 32, 32), float32], %b: Tensor[(2, 3, 5, 5), float32]) {
@@ -258,7 +258,7 @@ def test_with_tap():
 
 def test_no_cycles():
     def input():
-        return tvm.parser.fromtext(
+        return tvm.relay.fromtext(
             """
             #[version = "0.0.5"]
             def @main(%a: Tensor[(5, 7), float32], %b: Tensor[(5, 7), float32]) {
@@ -270,7 +270,7 @@ def test_no_cycles():
         )
 
     def expected():
-        return tvm.parser.fromtext(
+        return tvm.relay.fromtext(
             """
             #[version = "0.0.5"]
             def @main(%a: Tensor[(5, 7), float32], %b: Tensor[(5, 7), float32]) {
@@ -291,7 +291,7 @@ def test_no_cycles():
 
 def test_labels_direct_connection():
     def input():
-        return tvm.parser.fromtext(
+        return tvm.relay.fromtext(
             """
             #[version = "0.0.5"]
             def @main(%a: Tensor[(5, 7), float32]) {
@@ -309,7 +309,7 @@ def test_labels_direct_connection():
         )
 
     def expected():
-        return tvm.parser.fromtext(
+        return tvm.relay.fromtext(
             """
             #[version = "0.0.5"]
             def @main(%a: Tensor[(5, 7), float32]) {
@@ -337,7 +337,7 @@ def test_labels_direct_connection():
 
 def test_labels_nested_tap():
     def input():
-        return tvm.parser.fromtext(
+        return tvm.relay.fromtext(
             """
             #[version = "0.0.5"]
             def @main(%a: Tensor[(5, 7), float32]) {
@@ -355,7 +355,7 @@ def test_labels_nested_tap():
         )
 
     def expected():
-        return tvm.parser.fromtext(
+        return tvm.relay.fromtext(
             """
             #[version = "0.0.5"]
             def @main(%a: Tensor[(5, 7), float32]) {

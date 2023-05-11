@@ -333,6 +333,7 @@ class XGBModel(PyCostModel):
         verbose_eval: int = 25,
         average_peak_n: int = 32,
         adaptive_training: bool = True,
+        num_tuning_cores: Optional[int] = None,
     ):
         super().__init__()
         if not isinstance(extractor, FeatureExtractor):
@@ -342,7 +343,11 @@ class XGBModel(PyCostModel):
         # model-related
         if config.nthread is None:
             # use physical core number
-            config = config._replace(nthread=cpu_count(logical=False))
+            if num_tuning_cores is None:
+                config = config._replace(nthread=cpu_count(logical=False))
+            else:
+                config = config._replace(nthread=num_tuning_cores)
+
         self.config = config
         # behavior of randomness
         self.num_warmup_samples = num_warmup_samples
@@ -474,7 +479,14 @@ class XGBModel(PyCostModel):
             return float(np.median([float(s) for s in x.run_secs]))
 
         new_features = [_feature(x) for x in self.extractor.extract_from(context, candidates)]
-        new_mean_costs = np.array([_mean_cost(x) for x in results]).astype("float32")
+        new_mean_costs = [_mean_cost(x) for x in results]
+
+        # Filter instances with no features
+        new_mean_costs = [c for i, c in enumerate(new_mean_costs) if len(new_features[i]) != 0]
+        new_mean_costs_np = np.array(new_mean_costs).astype("float32")
+        new_features = [f for f in new_features if len(f) != 0]
+        if not new_features:
+            return
 
         # Steps 3. Run validation
         if group is not None and self.booster is not None:
@@ -484,7 +496,7 @@ class XGBModel(PyCostModel):
                     f"{key}: {score:.6f}"
                     for key, score in self._validate(
                         xs=new_features,
-                        ys=group.min_cost / new_mean_costs,
+                        ys=group.min_cost / new_mean_costs_np,
                     )
                 ),
             )
@@ -494,10 +506,10 @@ class XGBModel(PyCostModel):
             group = FeatureGroup(
                 group_hash=new_group_hash,
                 features=new_features,
-                costs=new_mean_costs,
+                costs=new_mean_costs_np,
             )
         else:
-            group.append(new_features, new_mean_costs)
+            group.append(new_features, new_mean_costs_np)
         self.data[new_group_hash] = group
         self.data_size += len(new_features)
 

@@ -41,7 +41,7 @@ def _design_space(mod):
 def test_cpu_nhwc():
     # fmt: off
     @T.prim_func
-    def cpu_nhwc_0(X: T.Buffer[(1, 14, 14, 128), "float32"], W: T.Buffer[(6, 6, 128, 128), "float32"], conv2d_winograd: T.Buffer[(1, 12, 12, 128), "float32"]) -> None:
+    def cpu_nhwc_0(X: T.Buffer((1, 14, 14, 128), "float32"), W: T.Buffer((6, 6, 128, 128), "float32"), conv2d_winograd: T.Buffer((1, 12, 12, 128), "float32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True, "layout_free_buffers": [1]})
         # body

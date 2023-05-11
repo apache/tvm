@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """TVM Script Parser utils"""
-
 import inspect
 from types import FrameType
 from typing import Any, Callable, Dict, List
@@ -37,8 +36,8 @@ def inspect_function_capture(func: Callable) -> Dict[str, Any]:
         The function variables map with non-local or global variables.
     """
     captured = {
-        **inspect.getclosurevars(func).nonlocals,
         **func.__globals__,  # type: ignore
+        **inspect.getclosurevars(func).nonlocals,
     }
     return captured
 

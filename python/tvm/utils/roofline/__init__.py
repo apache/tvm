@@ -145,6 +145,7 @@ def roofline_from_existing(
         if isinstance(prim, tir.PrimFunc) and "hash" in prim.attrs.keys()
     }
 
+    new_configuration = dict(report.configuration.items())
     new_calls = []
     for call in report.calls:
         if "Hash" in call.keys() and call["Hash"] in all_features:
@@ -159,6 +160,10 @@ def roofline_from_existing(
                 loaded_bytes, peak_bandwidth, bandwidth_name = registry.estimate_peak_bandwidth(
                     prim, features, target, dev, remote
                 )
+            new_configuration[f"Estimated Peak FLOP/s ({flops_name})"] = profiling.Ratio(peak_flops)
+            new_configuration[
+                f"Estimated Peak Bandwidth ({bandwidth_name}, byte/second)"
+            ] = profiling.Ratio(peak_bandwidth)
             ridge_point = peak_flops / peak_bandwidth
 
             runtime = call["Duration (us)"].microseconds * 1e-6
@@ -180,11 +185,6 @@ def roofline_from_existing(
             new_calls.append(call)
         else:
             new_calls.append(call)
-    new_configuration = dict(report.configuration.items())
-    new_configuration[f"Estimated Peak FLOP/s ({flops_name})"] = profiling.Ratio(peak_flops)
-    new_configuration[
-        f"Estimated Peak Bandwidth ({bandwidth_name}, byte/second)"
-    ] = profiling.Ratio(peak_bandwidth)
     return profiling.Report(new_calls, report.device_metrics, new_configuration)
 
 

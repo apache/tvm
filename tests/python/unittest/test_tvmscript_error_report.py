@@ -459,9 +459,9 @@ def test_reorder_fail_block():
     with pytest.raises(tvm.tir.ScheduleError) as execinfo:
         sch.reorder(l, i)
     expected_sub_error_message = (
-        "            # tir.Block#0\n"
-        '            with T.block("B"):\n'
-        "            ^^^^^^^^^^^^^^^^^^\n"
+        "                            # tir.Block#0\n"
+        '                            with T.block("B"):\n'
+        "                            ^^^^^^^^^^^^^^^^^^\n"
     )
     assert expected_sub_error_message in str(execinfo.value)
 
@@ -473,10 +473,10 @@ def test_reorder_fail_nested_loop_inner():
     with pytest.raises(tvm.tir.ScheduleError) as execinfo:
         sch.reorder(k, i)
     expected_sub_error_message = (
-        "        for i in T.serial(128):\n"
-        "            # tir.For#0\n"
-        "            for j in T.serial(128):\n"
-        "            ^^^^^^^^^^^^^^^^^^^^^^^\n"
+        "            for i in range(128):\n"
+        "                # tir.For#0\n"
+        "                for j in range(128):\n"
+        "                ^^^^^^^^^^^^^^^^^^^^\n"
     )
     assert expected_sub_error_message in str(execinfo.value)
 
@@ -488,10 +488,10 @@ def test_fuse_fail_nested_loop_outer():
     with pytest.raises(tvm.tir.ScheduleError) as execinfo:
         sch.fuse(k, i)
     expected_sub_error_message = (
-        "        # tir.For#1\n"
-        "        for i in T.serial(128):\n"
-        "        ^^^^^^^^^^^^^^^^^^^^^^^\n"
-        "            for j in T.serial(128):\n"
+        "            # tir.For#1\n"
+        "            for i in range(128):\n"
+        "            ^^^^^^^^^^^^^^^^^^^^\n"
+        "                for j in range(128):\n"
     )
     assert expected_sub_error_message in str(execinfo.value)
 
@@ -511,7 +511,7 @@ def test_report_error_root_block():
 
 def test_load_var():
     def load_var_multiple() -> None:
-        d = T.var("float32")
+        d = T.float32()
         d[2] = d[2, 1]  # error cannot provide two indices to load
 
     check_error(load_var_multiple, 3)
@@ -519,7 +519,7 @@ def test_load_var():
 
 def test_store_var():
     def store_var_multiple() -> None:
-        d = T.var("float32")
+        d = T.float32()
         d[2, 1] = d[1]  # error cannot provide two indices to store
 
     check_error(store_var_multiple, 3)

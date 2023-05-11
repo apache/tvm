@@ -18,22 +18,30 @@
 """Runtime Object API"""
 import ctypes
 
-from tvm._ffi.base import _FFI_MODE, _RUNTIME_ONLY, check_call, _LIB, c_str
+from tvm._ffi.base import _FFI_MODE, _LIB, _RUNTIME_ONLY, c_str, check_call
 from tvm._ffi.runtime_ctypes import ObjectRValueRef
+
 from . import _ffi_api, _ffi_node_api
 
 try:
     # pylint: disable=wrong-import-position,unused-import
     if _FFI_MODE == "ctypes":
         raise ImportError()
-    from tvm._ffi._cy3.core import _set_class_object, _set_class_object_generic
-    from tvm._ffi._cy3.core import ObjectBase, PyNativeObject
+    from tvm._ffi._cy3.core import (
+        ObjectBase,
+        PyNativeObject,
+        _set_class_object,
+        _set_class_object_generic,
+    )
 except (RuntimeError, ImportError) as error:
     # pylint: disable=wrong-import-position,unused-import
     if _FFI_MODE == "cython":
         raise error
-    from tvm._ffi._ctypes.packed_func import _set_class_object, _set_class_object_generic
     from tvm._ffi._ctypes.object import ObjectBase, PyNativeObject
+    from tvm._ffi._ctypes.packed_func import (
+        _set_class_object,
+        _set_class_object_generic,
+    )
 
 
 def _new_object(cls):
@@ -48,6 +56,9 @@ class Object(ObjectBase):
 
     def __repr__(self):
         return _ffi_node_api.AsRepr(self)
+
+    def legacy_repr(self):
+        return _ffi_node_api.AsLegacyRepr(self)
 
     def __dir__(self):
         class_names = dir(self.__class__)

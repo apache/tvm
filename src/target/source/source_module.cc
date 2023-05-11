@@ -76,7 +76,7 @@ class SourceModuleNode : public runtime::ModuleNode {
 
   std::string GetSource(const std::string& format) final { return code_; }
 
-  std::string GetFormat() { return fmt_; }
+  std::string GetFormat() override { return fmt_; }
 
  protected:
   std::string code_;
@@ -117,7 +117,7 @@ class CSourceModuleNode : public runtime::ModuleNode {
 
   std::string GetSource(const std::string& format) final { return code_; }
 
-  std::string GetFormat() { return fmt_; }
+  std::string GetFormat() override { return fmt_; }
 
   void SaveToFile(const std::string& file_name, const std::string& format) final {
     std::string fmt = GetFileFormat(file_name, format);
@@ -130,7 +130,7 @@ class CSourceModuleNode : public runtime::ModuleNode {
     }
   }
 
-  bool IsDSOExportable() const final { return true; }
+  int GetPropertyMask() const override { return runtime::ModulePropertyMask::kDSOExportable; }
 
   bool ImplementsFunction(const String& name, bool query_imports) final {
     return std::find(func_names_.begin(), func_names_.end(), name) != func_names_.end();
@@ -183,7 +183,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
 
   std::string GetSource(const std::string& format) final { return code_.str(); }
 
-  std::string GetFormat() { return fmt_; }
+  std::string GetFormat() override { return fmt_; }
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
     return PackedFunc();
   }
@@ -200,7 +200,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
     }
   }
 
-  bool IsDSOExportable() const final { return true; }
+  int GetPropertyMask() const override { return runtime::ModulePropertyMask::kDSOExportable; }
 
   bool ImplementsFunction(const String& name, bool query_imports) final {
     return std::find(func_names_.begin(), func_names_.end(), name) != func_names_.end();
@@ -329,8 +329,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
       code_ << "};";
       code_ << "// of total size " << allocated_size << " bytes\n";
     } else {
-      LOG(FATAL) << "No constant data in constant pool found "
-                 << PrettyPrint(GetRef<ObjectRef>(pool_info));
+      LOG(FATAL) << "No constant data in constant pool found " << GetRef<ObjectRef>(pool_info);
     }
   }
 
@@ -930,11 +929,21 @@ runtime::Module CreateCSourceCrtMetadataModule(const Array<runtime::Module>& mod
                                                relay::backend::ExecutorCodegenMetadata metadata,
                                                runtime::metadata::Metadata aot_metadata) {
   Array<runtime::Module> final_modules(modules);
-  if (aot_metadata.defined()) {
-    final_modules.push_back(CreateAotMetadataModule(aot_metadata, true));
+  Array<String> func_names;
+
+  if (metadata.defined()) {
+    if (metadata->executor == "aot") {
+      if (aot_metadata.defined()) {
+        final_modules.push_back(CreateAotMetadataModule(aot_metadata, true));
+      }
+
+      // add the run function (typically "tvmgen_default_run") to function registry
+      // when using AOT executor
+      std::string run_func = runtime::get_name_mangled(metadata->mod_name, "run");
+      func_names.push_back(run_func);
+    }
   }
 
-  Array<String> func_names;
   for (runtime::Module mod : final_modules) {
     auto pf_funcs = mod.GetFunction("get_func_names");
     if (pf_funcs != nullptr) {
@@ -1000,6 +1009,8 @@ class DeviceSourceModuleNode final : public runtime::ModuleNode {
   }
 
   const char* type_key() const final { return type_key_.c_str(); }
+  /*! \brief Get the property of the runtime module .*/
+  int GetPropertyMask() const final { return runtime::ModulePropertyMask::kBinarySerializable; }
 
   void SaveToFile(const std::string& file_name, const std::string& format) final {
     std::string fmt = GetFileFormat(file_name, format);

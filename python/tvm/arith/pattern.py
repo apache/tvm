@@ -15,6 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 """Detect common patterns."""
+
+from typing import Dict
+
+from tvm.tir import PrimExpr
 from . import _ffi_api
 
 
@@ -58,3 +62,22 @@ def detect_clip_bound(expr, var_list):
         An empty list if the match failed.
     """
     return _ffi_api.DetectClipBound(expr, var_list)
+
+
+def detect_common_subexpr(expr: PrimExpr, threshold: int) -> Dict[PrimExpr, int]:
+    """Detect common sub expression which shows up more than a threshold times
+
+    Parameters
+    ----------
+    expr : PrimExpr
+        The expression to be analyzed.
+
+    threshold : int
+        The threshold of repeat times that determines a common sub expression
+
+    Returns
+    -------
+    cse_dict : Dict[PrimExpr, int]
+        The detected common sub expression dict, with sub expression and repeat times
+    """
+    return _ffi_api.DetectCommonSubExpr(expr, threshold)

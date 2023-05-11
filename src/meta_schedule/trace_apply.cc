@@ -75,7 +75,9 @@ void InlinePostBlocks(Schedule sch, Trace anchor_trace, Target target) {
     // Spatial blocks which are not referenced in the anchor trace will be inlined here.
     auto block_sref = sch->GetSRef(block);
     if (IsSpatial(block_sref) && !get_block_names.count(name)) {
-      if (IsOutputBlock(sch->state(), block_sref, GetScopeRoot(sch->state(), block_sref, false))) {
+      StmtSRef scopeRoot =
+          (name != "root") ? GetScopeRoot(sch->state(), block_sref, false) : block_sref;
+      if (IsOutputBlock(sch->state(), block_sref, scopeRoot)) {
         last_block_idx = inline_todos.size();
       }
       inline_todos.push_back(name);

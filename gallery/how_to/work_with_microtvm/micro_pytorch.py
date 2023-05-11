@@ -15,10 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-.. _tutorial-micro-Pytorch:
+.. _tutorial-micro-pytorch:
 
-microTVM PyTorch Tutorial
-===========================
+4. microTVM PyTorch Tutorial
+============================
 **Authors**:
 `Mehrdad Hessar <https://github.com/mehrdadh>`_
 
@@ -29,14 +29,13 @@ a PyTorch model. This tutorial can be executed on a x86 CPU using C runtime (CRT
 since the model would not fit on our current supported Zephyr boards.
 """
 
-# sphinx_gallery_start_ignore
-from tvm import testing
+######################################################################
+#
+#     .. include:: ../../../../gallery/how_to/work_with_microtvm/install_dependencies.rst
+#
 
-testing.utils.install_request_hook(depth=3)
-# sphinx_gallery_end_ignore
 
 import pathlib
-
 import torch
 import torchvision
 from torchvision import transforms
@@ -47,6 +46,7 @@ import tvm
 from tvm import relay
 from tvm.contrib.download import download_testdata
 from tvm.relay.backend import Executor
+import tvm.micro.testing
 
 ##################################
 # Load a pre-trained PyTorch model
@@ -92,13 +92,14 @@ relay_mod, params = relay.frontend.from_pytorch(scripted_model, shape_list)
 # and we use `host` micro target. Using this setup, TVM compiles the model
 # for C runtime which can run on a x86 CPU machine with the same flow that
 # would run on a physical microcontroller.
+# CRT Uses the main() from `src/runtime/crt/host/main.cc`
+# To use physical hardware, replace `board` with another physical micro target, e.g. `nrf5340dk_nrf5340_cpuapp`
+# or `mps2_an521` and change the platform type to Zephyr.
+# See more target examples in :ref:`Training Vision Models for microTVM on Arduino <tutorial-micro-train-arduino>`
+# and :ref:`microTVM TFLite Tutorial<tutorial_micro_tflite>`.
 #
 
-
-# Simulate a microcontroller on the host machine. Uses the main() from `src/runtime/crt/host/main.cc`
-# To use physical hardware, replace "host" with another physical micro target, e.g. `nrf52840`
-# or `mps2_an521`. See more more target examples in micro_train.py and micro_tflite.py tutorials.
-target = tvm.target.target.micro("host")
+target = tvm.micro.testing.get_target(platform="crt", board=None)
 
 # Use the C runtime (crt) and enable static linking by setting system-lib to True
 runtime = tvm.relay.backend.Runtime("crt", {"system-lib": True})
@@ -130,7 +131,7 @@ with tvm.transform.PassContext(
 #
 
 template_project_path = pathlib.Path(tvm.micro.get_microtvm_template_projects("crt"))
-project_options = {"verbose": False, "memory_size_bytes": 6 * 1024 * 1024}
+project_options = {"verbose": False, "workspace_size_bytes": 6 * 1024 * 1024}
 
 temp_dir = tvm.contrib.utils.tempdir() / "project"
 project = tvm.micro.generate_project(

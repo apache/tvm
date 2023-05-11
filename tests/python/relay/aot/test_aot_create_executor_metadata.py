@@ -53,7 +53,7 @@ def test_create_executor_metadata_single_func():
     class Module:
         @T.prim_func
         def __tvm_main__(
-            a: T.handle, output: T.handle, workspace: T.Ptr[T.uint8], constants: T.Ptr[T.uint8]
+            a: T.handle, output: T.handle, workspace: T.handle("uint8"), constants: T.handle("uint8")
         ) -> None:
             # function attr dict
             T.func_attr({"global_symbol": "test_mod___tvm_main__", "runner_function": True, "target": T.target({"kind": "llvm", "tag": "", "keys": ["cpu"]}), "input_vars": [a], "output_vars": [output], "devices": ["test_device"]})

@@ -37,7 +37,7 @@ class UMACodegen : public codegen::CodeGenCHost {
  public:
   explicit UMACodegen(String target_str) : target_str_(target_str) {}
 
-  void Init(bool output_ssa, bool emit_asserts) {
+  void Init(bool output_ssa, bool emit_asserts, bool emit_fwd_func_decl) {
     auto includes_pf =
         tvm::runtime::Registry::Get("relay.ext.uma.codegen_c_includes_" + target_str_);
     if (includes_pf) {
@@ -46,7 +46,7 @@ class UMACodegen : public codegen::CodeGenCHost {
     }
     std::unordered_set<std::string> devices;
     devices.insert(target_str_);
-    CodeGenCHost::Init(output_ssa, emit_asserts, target_str_, devices);
+    CodeGenCHost::Init(output_ssa, emit_asserts, emit_fwd_func_decl, target_str_, devices);
   }
 
   /*!
@@ -63,9 +63,10 @@ class UMACodegen : public codegen::CodeGenCHost {
 runtime::Module TIRToRuntime(IRModule mod, Target target) {
   bool output_ssa = false;
   bool emit_asserts = false;
+  bool emit_fwd_func_decl = false;
   UMACodegen codegen(target->kind->name);
   Array<String> function_names;
-  codegen.Init(output_ssa, emit_asserts);
+  codegen.Init(output_ssa, emit_asserts, emit_fwd_func_decl);
   for (auto kv : mod->functions) {
     auto prim_func = Downcast<PrimFunc>(kv.second);
     auto global_symbol = prim_func->GetAttr<String>(tvm::attr::kGlobalSymbol);

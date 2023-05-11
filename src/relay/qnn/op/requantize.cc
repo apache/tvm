@@ -76,10 +76,17 @@ InferCorrectLayoutOutput RequantizeInferCorrectLayout(const Attrs& attrs,
       if (old_dim == layout_dim) {
         new_axis = tvm::Integer(axis_index);
       }
-      // Collect only the primal axis.
+
       if (layout_axis.IsPrimal()) {
         new_layout_string += layout_dim;
         axis_index++;
+      } else {
+        // Propogate layout if input_zero_point and input_scale are scalar values.
+        ICHECK_GE(old_in_types.size(), 3);
+        if (IsScalarType(old_in_types[1]) && IsScalarType(old_in_types[2])) {
+          new_layout_string += std::to_string(new_in_layouts[0].FactorOf(layout_axis)) + layout_dim;
+          axis_index++;
+        }
       }
     }
 
@@ -117,8 +124,8 @@ bool has_current_target_sse41_support() {
   auto target = Target::Current(true);
   Optional<String> mcpu =
       target.defined() ? target->GetAttr<String>("mcpu") : Optional<String>(nullptr);
-  auto target_has_sse41_fn_ptr = tvm::runtime::Registry::Get("tvm.topi.x86.utils.target_has_sse41");
-  ICHECK(target_has_sse41_fn_ptr) << "Function tvm.topi.x86.utils.target_has_sse41 not found";
+  auto target_has_sse41_fn_ptr = tvm::runtime::Registry::Get("tvm.target.x86.target_has_sse41");
+  ICHECK(target_has_sse41_fn_ptr) << "Function tvm.target.x86.target_has_sse41 not found";
   return mcpu && (*target_has_sse41_fn_ptr)(mcpu.value());
 }
 

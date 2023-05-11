@@ -178,6 +178,7 @@ def test_binary_elementwise_single(
         ),
         rounding_mode=rounding_mode,
         block_config=spec.SerialBlockConfig(0, 0, 0),
+        rescale_config=spec.SerialRescaleConfig(False, 0, 0),
     )
 
     assert data[0] == ["ethosu_binary_elementwise"] + list(serial_binary_elementwise)
@@ -335,10 +336,11 @@ def test_shift_binary_elementwise_single(
         ),
         rounding_mode=rounding_mode,
         block_config=spec.SerialBlockConfig(0, 0, 0),
+        rescale_config=spec.SerialRescaleConfig(False, 0, 0),
     )
 
     assert data[0] == ["ethosu_binary_elementwise"] + list(serial_binary_elementwise)
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

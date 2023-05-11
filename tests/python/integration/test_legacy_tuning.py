@@ -340,7 +340,7 @@ def test_tuning_cpu():
     """Test tuning on cpu."""
 
     def runner():
-        ir_mod = tvm.parser.fromtext(
+        ir_mod = tvm.relay.fromtext(
             textwrap.dedent(
                 """
             #[version = "0.0.5"]

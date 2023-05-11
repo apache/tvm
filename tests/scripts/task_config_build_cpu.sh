@@ -29,11 +29,11 @@ echo set\(USE_MICRO_STANDALONE_RUNTIME ON\) >> config.cmake
 echo set\(USE_PROFILER ON\) >> config.cmake
 echo set\(USE_DNNL ON\) >> config.cmake
 echo set\(USE_ARM_COMPUTE_LIB ON\) >> config.cmake
-echo set\(USE_LLVM llvm-config-11\) >> config.cmake
+echo set\(USE_LLVM llvm-config-15\) >> config.cmake
 echo set\(USE_NNPACK ON\) >> config.cmake
 echo set\(NNPACK_PATH /NNPACK/build/\) >> config.cmake
 echo set\(USE_ANTLR ON\) >> config.cmake
-echo set\(CMAKE_CXX_FLAGS -Werror\) >> config.cmake
+echo set\(CMAKE_CXX_FLAGS \"-Werror -Wno-error=range-loop-construct\"\) >> config.cmake
 echo set\(HIDE_PRIVATE_SYMBOLS ON\) >> config.cmake
 echo set\(USE_VTA_TSIM ON\) >> config.cmake
 echo set\(USE_VTA_FSIM ON\) >> config.cmake
@@ -54,7 +54,7 @@ echo set\(USE_ETHOSN_HW OFF\) >> config.cmake
 echo set\(USE_CMSISNN OFF\) >> config.cmake
 echo set\(USE_VITIS_AI ON\) >> config.cmake
 echo set\(USE_VERILATOR ON\) >> config.cmake
-echo set\(USE_LIBBACKTRACE ON\) >> config.cmake
+echo set\(USE_LIBBACKTRACE COMPILE\) >> config.cmake
 echo set\(BACKTRACE_ON_SEGFAULT ON\) >> config.cmake
 echo set\(USE_CCACHE OFF\) >> config.cmake
 echo set\(USE_ETHOSU OFF\) >> config.cmake

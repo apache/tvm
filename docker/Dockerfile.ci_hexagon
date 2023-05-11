@@ -40,7 +40,7 @@ RUN bash /install/ubuntu_install_googletest.sh
 ENV TVM_VENV /venv/apache-tvm-py3.8
 COPY python/bootstrap/lockfiles /install/python/bootstrap/lockfiles
 COPY install/ubuntu_install_python.sh /install/ubuntu_install_python.sh
-RUN bash /install/ubuntu_install_python.sh
+RUN bash /install/ubuntu_install_python.sh 3.8
 ENV PATH ${TVM_VENV}/bin:$PATH
 ENV PYTHONNOUSERSITE 1  # Disable .local directory from affecting CI.
 
@@ -62,8 +62,6 @@ RUN bash /install/ubuntu_install_java.sh
 COPY install/ubuntu_install_androidsdk.sh /install/ubuntu_install_androidsdk.sh
 RUN bash /install/ubuntu_install_androidsdk.sh
 ENV ANDROID_HOME=/opt/android-sdk-linux
-ENV ANDROID_NDK_HOME=/opt/android-sdk-linux/ndk/21.3.6528147
-ENV ANDROID_NDK_MAJOR=21
 ENV PATH /opt/android-sdk-linux/platform-tools:$PATH
 
 # Hexagon

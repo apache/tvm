@@ -158,7 +158,7 @@ class Matmul_after_rewrite:
 @tvm.script.ir_module
 class Softmax_cross_thread_reduction:
     @T.prim_func
-    def main(A: T.Buffer[(256, 256), "float32"], T_softmax_norm: T.Buffer[(256, 256), "float32"]) -> None:
+    def main(A: T.Buffer((256, 256), "float32"), T_softmax_norm: T.Buffer((256, 256), "float32")) -> None:
         T_softmax_maxelem_shared = T.alloc_buffer([256], dtype="float32", scope="shared")
         T_softmax_expsum_shared = T.alloc_buffer([256], dtype="float32", scope="shared")
         for i0 in T.serial(256):

@@ -66,13 +66,13 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << ")";
     });
 
-VirtualDevice::VirtualDevice(DLDeviceType device_type, int virtual_device_id, Target target,
+VirtualDevice::VirtualDevice(int device_type_int, int virtual_device_id, Target target,
                              MemoryScope memory_scope) {
-  ICHECK(!target.defined() || device_type == target->GetTargetDeviceType())
+  ICHECK(!target.defined() || device_type_int == target->GetTargetDeviceType())
       << "target " << target->ToDebugString() << " has device type "
-      << target->GetTargetDeviceType() << " but virtual device has device type " << device_type;
+      << target->GetTargetDeviceType() << " but virtual device has device type " << device_type_int;
   auto node = make_object<VirtualDeviceNode>();
-  node->device_type_int = device_type;
+  node->device_type_int = device_type_int;
   node->virtual_device_id = virtual_device_id;
   node->target = std::move(target);
   node->memory_scope = std::move(memory_scope);
@@ -166,8 +166,8 @@ VirtualDevice VirtualDevice::Default(const VirtualDevice& lhs, const VirtualDevi
                        defaulted_memory_scope);
 }
 
-VirtualDevice VirtualDeviceCache::Make(DLDeviceType device_type, int virtual_device_id,
-                                       Target target, MemoryScope memory_scope) {
+VirtualDevice VirtualDeviceCache::Make(int device_type, int virtual_device_id, Target target,
+                                       MemoryScope memory_scope) {
   VirtualDevice prototype(device_type, virtual_device_id, std::move(target),
                           std::move(memory_scope));
   if (prototype->IsFullyUnconstrained()) {

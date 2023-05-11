@@ -236,7 +236,7 @@ def compacted_strided_buffer_func(a: T.handle, c: T.handle) -> None:
 
 @T.prim_func
 def transformed_strided_buffer_func(
-    A: T.Buffer[(16, 16), "float32"], C: T.Buffer[(16, 16), "float32"]
+    A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")
 ) -> None:
     # body
     for i0 in T.serial(4):
@@ -256,7 +256,7 @@ def annotated_loops(a: T.handle) -> None:
 
 
 @T.prim_func
-def boolean_handling_before(a: T.Buffer[10, "bool"], b: T.Buffer[10, "bool"]) -> None:
+def boolean_handling_before(a: T.Buffer(10, "bool"), b: T.Buffer(10, "bool")) -> None:
     for i0 in T.serial(10):
         with T.block("b"):
             T.reads(a[i0])
@@ -265,7 +265,7 @@ def boolean_handling_before(a: T.Buffer[10, "bool"], b: T.Buffer[10, "bool"]) ->
 
 
 @T.prim_func
-def boolean_handling_after(a: T.Buffer[10, "bool"], b: T.Buffer[10, "bool"]) -> None:
+def boolean_handling_after(a: T.Buffer(10, "bool"), b: T.Buffer(10, "bool")) -> None:
     # body
     for i0 in T.serial(10):
         b[i0] = a[i0]
@@ -342,14 +342,14 @@ def test_annotated_block():
 
 def test_preserved_annotations():
     @T.prim_func
-    def before(A: T.Buffer[8, "float32"], B: T.Buffer[8, "float32"]):
+    def before(A: T.Buffer(8, "float32"), B: T.Buffer(8, "float32")):
         for i in T.serial(8, annotations={"k_0": 1, "k_1": [2, 3], "k_2": 3.14}):
             with T.block("block"):
                 T.block_attr({"k_3": "oops"})
                 B[i] = A[i] + 1.0
 
     @T.prim_func
-    def after(A: T.Buffer[8, "float32"], B: T.Buffer[8, "float32"]):
+    def after(A: T.Buffer(8, "float32"), B: T.Buffer(8, "float32")):
         for i in T.serial(8, annotations={"k_0": 1, "k_1": [2, 3], "k_2": 3.14}):
             B[i] = A[i] + 1.0
 

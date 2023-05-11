@@ -355,7 +355,7 @@ def non_perfect_tiling_cache(a: T.handle, b: T.handle) -> None:
 
 
 @T.prim_func
-def uncovered_producer_region(A: T.Buffer[(128,), "float32"], B: T.Buffer[(128,), "float32"]):
+def uncovered_producer_region(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
     for i in range(120):
         with T.block("producer"):
             vi = T.axis.S((0, 120), i)
@@ -367,7 +367,7 @@ def uncovered_producer_region(A: T.Buffer[(128,), "float32"], B: T.Buffer[(128,)
 
 
 @T.prim_func
-def matmul_relu_padding(A: T.Buffer[(127, 127), "float16"], B: T.Buffer[(127, 127), "float16"], compute: T.Buffer[(127, 127), "float32"]) -> None:
+def matmul_relu_padding(A: T.Buffer((127, 127), "float16"), B: T.Buffer((127, 127), "float16"), compute: T.Buffer((127, 127), "float32")) -> None:
     # function attr dict
     T.func_attr({"global_symbol": "main", "tir.noalias": True})
     # body
@@ -440,7 +440,7 @@ def matmul_relu_padding(A: T.Buffer[(127, 127), "float16"], B: T.Buffer[(127, 12
 
 @T.prim_func
 def splitted_square_sum_with_predicate(
-    A: T.Buffer[(1, 7, 7, 512), "float32"], B: T.Buffer[(1, 1, 1, 512), "float32"]
+    A: T.Buffer((1, 7, 7, 512), "float32"), B: T.Buffer((1, 1, 1, 512), "float32")
 ) -> None:
     for i0_i1_i2_i3_0_fused, ax0, ax1, ax2, ax3 in T.grid(2, 1, 1, 1, 256):
         for ax4_ax5_fused_0, ax4_ax5_fused_1 in T.grid(1, 256):

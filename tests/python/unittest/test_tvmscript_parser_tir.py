@@ -16,8 +16,6 @@
 # under the License.
 """Unittests for tvm.script.parser.tir"""
 
-import pytest
-import inspect
 import tvm.testing
 from tvm.script.parser import tir as T
 from tvm import ir, tir
@@ -31,7 +29,7 @@ def test_tir_buffer_proxy():
         and buffer_0.dtype == "float32"
     )
 
-    buffer_1 = T.Buffer[(64, 64, 64), "int32"]
+    buffer_1 = T.Buffer((64, 64, 64), "int32")
     assert (
         isinstance(buffer_1, tir.Buffer)
         and list(buffer_1.shape) == [64, 64, 64]
@@ -40,7 +38,7 @@ def test_tir_buffer_proxy():
 
 
 def test_tir_ptr_proxy():
-    ptr_0 = T.Ptr("int32", "global")
+    ptr_0 = T.handle("int32", "global")
     assert (
         isinstance(ptr_0, tir.Var)
         and ptr_0.dtype == "handle"
@@ -49,7 +47,7 @@ def test_tir_ptr_proxy():
         and ptr_0.type_annotation.storage_scope == "global"
     )
 
-    ptr_1 = T.Ptr["float32", "shared"]
+    ptr_1 = T.handle("float32", "shared")
     assert (
         isinstance(ptr_1, tir.Var)
         and ptr_1.dtype == "handle"
@@ -57,6 +55,20 @@ def test_tir_ptr_proxy():
         and ptr_1.type_annotation.element_type == ir.PrimType("float32")
         and ptr_1.type_annotation.storage_scope == "shared"
     )
+
+
+def test_tir_func_name():
+    @T.prim_func
+    def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
+        A = T.match_buffer(a, [128, 128])
+        B = T.match_buffer(b, [128, 128])
+        C = T.match_buffer(c, [128, 128])
+        for i, j, k in T.grid(128, 128, 128):
+            with T.block("update"):
+                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
+
+    assert matmul.__name__ == "matmul"
 
 
 if __name__ == "__main__":

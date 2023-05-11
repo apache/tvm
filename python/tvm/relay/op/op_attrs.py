@@ -529,11 +529,6 @@ class RequantizeAttrs(Attrs):
     """Attributes used in requantize operators"""
 
 
-@tvm._ffi.register_object("relay.attrs.ScatterAttrs")
-class ScatterAttrs(Attrs):
-    """Attributes used in scatter operators"""
-
-
 @tvm._ffi.register_object("relay.attrs.SequenceMaskAttrs")
 class SequenceMaskAttrs(Attrs):
     """Attributes used in sequence_mask operators"""
@@ -634,9 +629,9 @@ class DynExpandDimsAttrs(Attrs):
     """Attributes used in dynamic expand_dims operators"""
 
 
-@tvm._ffi.register_object("relay.attrs.ScatterAddAttrs")
-class ScatterAddAttrs(Attrs):
-    """Attributes used in scatter_add operators"""
+@tvm._ffi.register_object("relay.attrs.ScatterElementsAttrs")
+class ScatterElementsAttrs(Attrs):
+    """Attributes used in scatter_elements operators"""
 
 
 @tvm._ffi.register_object("relay.attrs.ScatterNDAttrs")

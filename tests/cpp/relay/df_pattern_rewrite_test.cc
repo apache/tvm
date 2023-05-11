@@ -18,11 +18,11 @@
  */
 
 #include <gtest/gtest.h>
-#include <tvm/parser/parser.h>
 #include <tvm/relay/attrs/transform.h>
 #include <tvm/relay/dataflow_matcher.h>
 #include <tvm/relay/dataflow_pattern.h>
 #include <tvm/relay/function.h>
+#include <tvm/relay/parser.h>
 
 #include "../../../src/relay/transforms/simplify_expr.h"
 
@@ -82,7 +82,7 @@ TEST(DFPatternRewrite, DeeplyNestedWithCallAttributes) {
     }
   )";
 
-  IRModule module = parser::ParseModule("string", kModel);
+  IRModule module = ParseModule("string", kModel);
   DFPatternRewriteComposer composer;
   composer.AddRewrite<TestRewriter>();
   Function in_function = Downcast<Function>(module->Lookup("main"));

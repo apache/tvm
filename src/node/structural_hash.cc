@@ -39,7 +39,7 @@
 
 namespace tvm {
 
-// Define the dispatch functio here since primary user is in this file.
+// Define the dispatch function here since primary user is in this file.
 void ReflectionVTable::SHashReduce(const Object* self, SHashReducer reducer) const {
   uint32_t tindex = self->type_index();
   if (tindex >= fshash_reduce_.size() || fshash_reduce_[tindex] == nullptr) {
@@ -50,7 +50,7 @@ void ReflectionVTable::SHashReduce(const Object* self, SHashReducer reducer) con
 }
 
 // Hash handler that handles free vars
-// by assigning an unique counter in the order of their ocurrence.
+// by assigning an unique counter in the order of their occurrence.
 //
 // This algorithm depends on the determinism of the traversal of SHash function.
 // In particular, when we traverse unordered_map, we should first sort
@@ -69,9 +69,9 @@ class SHashHandlerDefault::Impl {
      */
     ObjectRef object;
     /*! \brief The partially reduce hash value.*/
-    size_t reduced_hash;
+    uint64_t reduced_hash;
     /*! \brief The expected location in the result stack. */
-    size_t result_stack_index = std::numeric_limits<size_t>::max();
+    uint64_t result_stack_index = std::numeric_limits<uint64_t>::max();
     /*! \brief Whether the children has been expanded via SEqualReduce */
     bool children_expanded{false};
     /*! \brief Whether the node is graph node. */
@@ -80,7 +80,7 @@ class SHashHandlerDefault::Impl {
     bool map_free_vars;
 
     Task() = default;
-    explicit Task(ObjectRef object, size_t reduced_hash, bool map_free_vars)
+    explicit Task(ObjectRef object, uint64_t reduced_hash, bool map_free_vars)
         : object(object), reduced_hash(reduced_hash), map_free_vars(map_free_vars) {}
   };
 
@@ -90,7 +90,7 @@ class SHashHandlerDefault::Impl {
     task_stack_.back().graph_node_hash = true;
   }
 
-  bool LookupHashedValue(const ObjectRef& key, size_t* hash_value) {
+  bool LookupHashedValue(const ObjectRef& key, uint64_t* hash_value) {
     auto it = hash_memo_.find(key);
     if (it != hash_memo_.end()) {
       hash_value[0] = it->second;
@@ -99,7 +99,7 @@ class SHashHandlerDefault::Impl {
     return false;
   }
 
-  void SHashReduceHashedValue(size_t hashed_value) {
+  void SHashReduceHashedValue(uint64_t hashed_value) {
     pending_tasks_.emplace_back(Task(ObjectRef(nullptr), hashed_value, false));
   }
 
@@ -107,18 +107,18 @@ class SHashHandlerDefault::Impl {
     ICHECK(!hash_memo_.count(GetRef<ObjectRef>(var)));
     if (map_free_vars) {
       // use counter value.
-      size_t value = std::hash<size_t>()(free_var_counter_++);
+      uint64_t value = std::hash<uint64_t>()(free_var_counter_++);
       pending_tasks_.emplace_back(Task(ObjectRef(nullptr), value, false));
     } else {
       // use pointer hash
-      size_t value = std::hash<const runtime::Object*>()(var);
+      uint64_t value = std::hash<const runtime::Object*>()(var);
       pending_tasks_.emplace_back(Task(ObjectRef(nullptr), value, false));
     }
   }
 
   void SHashReduce(const ObjectRef& object, bool map_free_vars) {
     // Directly push the result
-    // Note: it is still important to push the result to pendng tasks
+    // Note: it is still important to push the result to pending tasks
     // so that the reduction order of hash values stays the same.
     if (!object.defined()) {
       pending_tasks_.emplace_back(Task(ObjectRef(nullptr), 0, false));
@@ -133,7 +133,7 @@ class SHashHandlerDefault::Impl {
     }
   }
 
-  size_t Hash(const ObjectRef& object, bool map_free_vars) {
+  uint64_t Hash(const ObjectRef& object, bool map_free_vars) {
     ICHECK_EQ(task_stack_.size(), 0U);
     ICHECK_EQ(pending_tasks_.size(), 0U);
     ICHECK_EQ(result_stack_.size(), 0U);
@@ -147,7 +147,7 @@ class SHashHandlerDefault::Impl {
     this->RunTasks();
 
     ICHECK_EQ(result_stack_.size(), 1U);
-    size_t ret = result_stack_.back();
+    uint64_t ret = result_stack_.back();
     result_stack_.pop_back();
     return ret;
   }
@@ -170,13 +170,13 @@ class SHashHandlerDefault::Impl {
    * \brief Compute the reduced hash value for the task.
    * \param task The indicated task.
    */
-  size_t ReduceHash(const Task& task) {
-    size_t stack_begin = task.result_stack_index;
+  uint64_t ReduceHash(const Task& task) {
+    uint64_t stack_begin = task.result_stack_index;
     ICHECK_LE(stack_begin, result_stack_.size());
 
     // combine in the reverse order of the stack.
-    size_t reduced_hash = task.reduced_hash;
-    for (size_t i = result_stack_.size(); i != stack_begin; --i) {
+    uint64_t reduced_hash = task.reduced_hash;
+    for (uint32_t i = result_stack_.size(); i != stack_begin; --i) {
       reduced_hash = support::HashCombine(reduced_hash, result_stack_[i - 1]);
     }
     result_stack_.resize(stack_begin);
@@ -201,7 +201,7 @@ class SHashHandlerDefault::Impl {
           // so that we can distinguish DAG from trees.
           if (entry.graph_node_hash) {
             entry.reduced_hash = support::HashCombine(entry.reduced_hash,
-                                                      std::hash<size_t>()(graph_node_counter_++));
+                                                      std::hash<uint64_t>()(graph_node_counter_++));
           }
           hash_memo_[entry.object] = entry.reduced_hash;
         }
@@ -241,27 +241,27 @@ class SHashHandlerDefault::Impl {
   // The owner of this impl
   SHashHandlerDefault* parent_;
   // free var counter.
-  size_t free_var_counter_{0};
+  uint32_t free_var_counter_{0};
   // graph node counter.
-  size_t graph_node_counter_{0};
+  uint32_t graph_node_counter_{0};
   // record current stack top
   bool allow_push_to_stack_{true};
   // list of pending tasks to be pushed to the stack.
   std::vector<Task> pending_tasks_;
   // Internal task stack to executed the task
   std::vector<Task> task_stack_;
-  // Internal stack to store the result poped from the task stack.
-  std::vector<size_t> result_stack_;
+  // Internal stack to store the result popped from the task stack.
+  std::vector<uint64_t> result_stack_;
   // reflection vtable
   ReflectionVTable* vtable_ = ReflectionVTable::Global();
   // map from lhs to rhs
-  std::unordered_map<ObjectRef, size_t, ObjectPtrHash, ObjectPtrEqual> hash_memo_;
+  std::unordered_map<ObjectRef, uint64_t, ObjectPtrHash, ObjectPtrEqual> hash_memo_;
 };
 
 SHashHandlerDefault::SHashHandlerDefault() { impl = new Impl(this); }
 SHashHandlerDefault::~SHashHandlerDefault() { delete impl; }
 
-void SHashHandlerDefault::SHashReduceHashedValue(size_t hashed_value) {
+void SHashHandlerDefault::SHashReduceHashedValue(uint64_t hashed_value) {
   return impl->SHashReduceHashedValue(hashed_value);
 }
 
@@ -273,13 +273,13 @@ void SHashHandlerDefault::SHashReduceFreeVar(const runtime::Object* var, bool ma
   impl->SHashReduceFreeVar(var, map_free_vars);
 }
 
-bool SHashHandlerDefault::LookupHashedValue(const ObjectRef& key, size_t* hashed_value) {
+bool SHashHandlerDefault::LookupHashedValue(const ObjectRef& key, uint64_t* hashed_value) {
   return impl->LookupHashedValue(key, hashed_value);
 }
 
 void SHashHandlerDefault::MarkGraphNode() { impl->MarkGraphNode(); }
 
-size_t SHashHandlerDefault::Hash(const ObjectRef& object, bool map_free_vars) {
+uint64_t SHashHandlerDefault::Hash(const ObjectRef& object, bool map_free_vars) {
   return impl->Hash(object, map_free_vars);
 }
 
@@ -289,11 +289,11 @@ void SHashHandlerDefault::DispatchSHash(const ObjectRef& key, bool map_free_vars
 
 TVM_REGISTER_GLOBAL("node.StructuralHash")
     .set_body_typed([](const ObjectRef& object, bool map_free_vars) -> int64_t {
-      size_t hashed_value = SHashHandlerDefault().Hash(object, map_free_vars);
+      uint64_t hashed_value = SHashHandlerDefault().Hash(object, map_free_vars);
       return static_cast<int64_t>(hashed_value);
     });
 
-size_t StructuralHash::operator()(const ObjectRef& object) const {
+uint64_t StructuralHash::operator()(const ObjectRef& object) const {
   return SHashHandlerDefault().Hash(object, false);
 }
 
@@ -302,7 +302,7 @@ struct StringObjTrait {
   static constexpr const std::nullptr_t VisitAttrs = nullptr;
 
   static void SHashReduce(const runtime::StringObj* key, SHashReducer hash_reduce) {
-    hash_reduce->SHashReduceHashedValue(runtime::String::HashBytes(key->data, key->size));
+    hash_reduce->SHashReduceHashedValue(runtime::String::StableHashBytes(key->data, key->size));
   }
 
   static bool SEqualReduce(const runtime::StringObj* lhs, const runtime::StringObj* rhs,
@@ -371,7 +371,7 @@ void NDArrayHash(const runtime::NDArray::Container* arr, SHashReducer* hash_redu
   }
   if (hash_data) {
     (*hash_reduce)
-        ->SHashReduceHashedValue(runtime::String::HashBytes(
+        ->SHashReduceHashedValue(runtime::String::StableHashBytes(
             static_cast<const char*>(arr->dl_tensor.data), runtime::GetDataSize(arr->dl_tensor)));
   }
 }
@@ -405,7 +405,7 @@ struct ArrayNodeTrait {
 
   static void SHashReduce(const ArrayNode* key, SHashReducer hash_reduce) {
     hash_reduce(static_cast<uint64_t>(key->size()));
-    for (size_t i = 0; i < key->size(); ++i) {
+    for (uint32_t i = 0; i < key->size(); ++i) {
       hash_reduce(key->at(i));
     }
   }
@@ -416,7 +416,7 @@ struct ArrayNodeTrait {
     }
 
     if (lhs->size() != rhs->size()) return false;
-    for (size_t i = 0; i < lhs->size(); ++i) {
+    for (uint32_t i = 0; i < lhs->size(); ++i) {
       if (!equal(lhs->at(i), rhs->at(i))) return false;
     }
     return true;
@@ -425,10 +425,10 @@ struct ArrayNodeTrait {
  private:
   static bool SEqualReduceTraced(const ArrayNode* lhs, const ArrayNode* rhs,
                                  const SEqualReducer& equal) {
-    size_t min_size = std::min(lhs->size(), rhs->size());
+    uint32_t min_size = std::min(lhs->size(), rhs->size());
     const ObjectPathPair& array_paths = equal.GetCurrentObjectPaths();
 
-    for (size_t index = 0; index < min_size; ++index) {
+    for (uint32_t index = 0; index < min_size; ++index) {
       ObjectPathPair element_paths = {array_paths->lhs_path->ArrayIndex(index),
                                       array_paths->rhs_path->ArrayIndex(index)};
       if (!equal(lhs->at(index), rhs->at(index), element_paths)) {
@@ -467,21 +467,67 @@ struct ArrayNodeTrait {
     //    (2)     a b c d e g h i j k l m
     //                      ^
     //                  error here
-    if (lhs->size() > min_size) {
-      equal->DeferFail({array_paths->lhs_path->ArrayIndex(min_size),
-                        array_paths->rhs_path->MissingArrayElement(min_size)});
-    } else {
-      equal->DeferFail({array_paths->lhs_path->MissingArrayElement(min_size),
-                        array_paths->rhs_path->ArrayIndex(min_size)});
+    if (equal->IsFailDeferralEnabled()) {
+      if (lhs->size() > min_size) {
+        equal->DeferFail({array_paths->lhs_path->ArrayIndex(min_size),
+                          array_paths->rhs_path->MissingArrayElement(min_size)});
+      } else {
+        equal->DeferFail({array_paths->lhs_path->MissingArrayElement(min_size),
+                          array_paths->rhs_path->ArrayIndex(min_size)});
+      }
+      // Can return `true` pretending that everything is good since we have deferred the failure.
+      return true;
     }
-
-    // Can return `true` pretending that everything is good since we have deferred the failure.
-    return true;
+    return false;
   }
 };
 TVM_REGISTER_REFLECTION_VTABLE(ArrayNode, ArrayNodeTrait)
     .set_creator([](const std::string&) -> ObjectPtr<Object> {
       return ::tvm::runtime::make_object<ArrayNode>();
+    });
+
+struct ShapeTupleObjTrait {
+  static constexpr const std::nullptr_t VisitAttrs = nullptr;
+
+  static void SHashReduce(const ShapeTupleObj* self, SHashReducer hash_reduce) {
+    hash_reduce(self->size);
+    for (uint32_t i = 0; i < self->size; ++i) {
+      hash_reduce(self->data[i]);
+    }
+  }
+
+  static bool SEqualReduce(const ShapeTupleObj* lhs, const ShapeTupleObj* rhs,
+                           SEqualReducer equal) {
+    if (lhs->size != rhs->size) return false;
+    for (uint32_t i = 0; i < lhs->size; ++i) {
+      if (!equal(lhs->data[i], rhs->data[i])) return false;
+    }
+    return true;
+  }
+};
+
+TVM_REGISTER_REFLECTION_VTABLE(ShapeTupleObj, ShapeTupleObjTrait)
+    .set_creator([](const std::string& blob) {
+      // Store shape tuple in blob to avoid large integer overflow in JSON.
+      dmlc::MemoryStringStream mstrm(const_cast<std::string*>(&blob));
+      support::Base64InStream b64strm(&mstrm);
+      b64strm.InitPosition();
+      uint64_t size;
+      b64strm.Read<uint64_t>(&size);
+      std::vector<int64_t> data(size);
+      b64strm.ReadArray(data.data(), size);
+      ShapeTuple shape(data);
+      return RefToObjectPtr::Get(shape);
+    })
+    .set_repr_bytes([](const Object* n) -> std::string {
+      std::string blob;
+      dmlc::MemoryStringStream mstrm(&blob);
+      support::Base64OutStream b64strm(&mstrm);
+      const auto* shape = static_cast<const runtime::ShapeTupleObj*>(n);
+      b64strm.Write<uint64_t>(shape->size);
+      b64strm.WriteArray(shape->data, shape->size);
+      b64strm.Finish();
+      return blob;
     });
 
 struct MapNodeTrait {
@@ -493,10 +539,10 @@ struct MapNodeTrait {
     // This resolves common use cases where we want to store
     // Map<Var, Value> where Var is defined in the function
     // parameters.
-    using KV = std::pair<size_t, ObjectRef>;
+    using KV = std::pair<uint64_t, ObjectRef>;
     std::vector<KV> temp;
     for (const auto& kv : *key) {
-      size_t hashed_value;
+      uint64_t hashed_value;
       if (hash_reduce->LookupHashedValue(kv.first, &hashed_value)) {
         temp.emplace_back(hashed_value, kv.second);
       }
@@ -507,11 +553,11 @@ struct MapNodeTrait {
     // add size to the hash
     hash_reduce(static_cast<uint64_t>(key->size()));
     // hash the content
-    for (size_t i = 0; i < temp.size();) {
-      size_t k = i + 1;
+    for (uint32_t i = 0; i < temp.size();) {
+      uint32_t k = i + 1;
       for (; k < temp.size() && temp[k].first == temp[i].first; ++k) {
       }
-      // ties are rare, but we need to skip them to make the hash determinsitic
+      // ties are rare, but we need to skip them to make the hash deterministic
       if (k == i + 1) {
         hash_reduce->SHashReduceHashedValue(temp[i].first);
         hash_reduce(temp[i].second);
@@ -537,7 +583,7 @@ struct MapNodeTrait {
     // add size to the hash after sorting.
     hash_reduce(static_cast<uint64_t>(key->size()));
     // hash the content
-    for (size_t i = 0; i < temp.size(); ++i) {
+    for (uint32_t i = 0; i < temp.size(); ++i) {
       hash_reduce(temp[i].first);
       hash_reduce(temp[i].second);
     }

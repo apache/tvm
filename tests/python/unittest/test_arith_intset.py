@@ -182,7 +182,6 @@ def check_region_bound(expect_region, var_dom, mode, predicate=None):
                 expect_begin, expect_end = expect_desc[binding]
                 result_begin = analyzer.simplify(intset.min_value, 3)
                 result_end = analyzer.simplify(intset.max_value + 1, 3)
-                print(result_end)
                 assert analyzer.can_prove_equal(
                     result_begin - expect_begin, 0
                 ), f"{result_begin} vs {expect_begin}"
@@ -306,10 +305,7 @@ def test_region_lower_bound_for_non_perfect_tile():
             + h2: {
                 (): (
                     tvm.tir.max(h3 * 8, 1),
-                    tvm.tir.max(h3 * 8, 1)
-                    - tvm.tir.max(h3 * 8, 214)
-                    - tvm.tir.max(1 - h3 * 8, 0)
-                    + 224,
+                    tvm.tir.min(0, h3 * 8 - 214) + 224,
                 ),
                 ((h3, 0),): (1, 10),  # h3 == 0: region is [1, 10)
                 ((h3, 10),): (h3 * 8, h3 * 8 + 10),  # 0 < h3 <= 26: region is [h3 * 8, h3 * 8 + 10)
@@ -333,10 +329,7 @@ def test_region_lower_bound_for_non_perfect_tile():
             + h1: {
                 (): (
                     tvm.tir.max(h3 * 8, 1),
-                    tvm.tir.max(h3 * 8, 1)
-                    - tvm.tir.max(h3 * 8, 214)
-                    - tvm.tir.max(1 - h3 * 8, 0)
-                    + 224,
+                    tvm.tir.min(0, h3 * 8 - 214) + 224,
                 ),
                 ((h3, 0),): (1, 10),
                 ((h3, 10),): (h3 * 8, h3 * 8 + 10),
@@ -378,6 +371,10 @@ def test_union_lower_bound():
     set_0 = tvm.arith.IntervalSet(min_value=neg_inf, max_value=0)
     set_1 = tvm.arith.IntervalSet(min_value=1, max_value=pos_inf)
     result = tvm.arith.int_set.union_lower_bound([set_0, set_1])
+    assert result.min_value.same_as(neg_inf)
+    assert result.max_value.same_as(pos_inf)
+    set_2 = tvm.arith.IntervalSet(min_value=pos_inf, max_value=neg_inf)
+    result = tvm.arith.int_set.union_lower_bound([set_0, set_1, set_2])
     assert result.min_value.same_as(neg_inf)
     assert result.max_value.same_as(pos_inf)
 

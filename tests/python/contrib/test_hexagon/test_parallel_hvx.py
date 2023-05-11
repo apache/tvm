@@ -19,7 +19,6 @@
 Test parallelizing HVX workloads and compare them to single thread examples.
 """
 import numpy as np
-from numpy.random import default_rng
 
 import tvm
 from tvm.script import tir as T
@@ -148,9 +147,8 @@ def evaluate(hexagon_session, shape_dtypes, expected_output_producer, sch):
     func_tir = tvm.build(sch.mod["main"], target=get_hexagon_target("v68"))
     module = hexagon_session.load_module(func_tir)
 
-    rng = default_rng()
-    a = rng.integers(0, 16, a_shape, dtype=a_dtype)
-    b = rng.integers(0, 16, b_shape, dtype=b_dtype)
+    a = np.random.randint(0, 16, a_shape, dtype=a_dtype)
+    b = np.random.randint(0, 16, b_shape, dtype=b_dtype)
     c = np.zeros(c_shape, dtype=c_dtype)
 
     a_hexagon = tvm.runtime.ndarray.array(a, device=hexagon_session.device)

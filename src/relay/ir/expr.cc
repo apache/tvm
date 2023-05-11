@@ -72,9 +72,14 @@ Constant::Constant(runtime::NDArray data, Span span) {
 
 TVM_REGISTER_NODE_TYPE(ConstantNode);
 
-TVM_REGISTER_GLOBAL("relay.ir.Constant").set_body_typed([](runtime::NDArray data) {
-  return Constant(data);
+TVM_REGISTER_GLOBAL("relay.ir.Constant").set_body_typed([](runtime::NDArray data, Span span) {
+  return Constant(data, span);
 });
+TVM_REGISTER_GLOBAL("relay.ir.ConstantWithFields")
+    .set_body_typed([](Constant constant, Optional<runtime::NDArray> opt_data,
+                       Optional<VirtualDevice> opt_virtual_device, Optional<Span> opt_span) {
+      return WithFields(constant, opt_data, opt_virtual_device, opt_span);
+    });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<ConstantNode>([](const ObjectRef& ref, ReprPrinter* p) {
@@ -129,6 +134,11 @@ TVM_REGISTER_NODE_TYPE(TupleNode);
 TVM_REGISTER_GLOBAL("relay.ir.Tuple").set_body_typed([](tvm::Array<relay::Expr> fields, Span span) {
   return Tuple(fields, span);
 });
+TVM_REGISTER_GLOBAL("relay.ir.TupleWithFields")
+    .set_body_typed([](Tuple tuple, Optional<Array<Expr>> opt_fields,
+                       Optional<VirtualDevice> opt_virtual_device, Optional<Span> opt_span) {
+      return WithFields(tuple, opt_fields, opt_virtual_device, opt_span);
+    });
 
 Tuple WithFields(Tuple tuple, Optional<Array<Expr>> opt_fields,
                  Optional<VirtualDevice> opt_virtual_device, Optional<Span> opt_span) {
@@ -200,9 +210,14 @@ Var WithFields(Var var, Optional<Id> opt_vid, Optional<Type> opt_type_annotation
 
 TVM_REGISTER_NODE_TYPE(VarNode);
 
-TVM_REGISTER_GLOBAL("relay.ir.Var").set_body_typed([](String str, Type type_annotation) {
-  return Var(str, type_annotation);
+TVM_REGISTER_GLOBAL("relay.ir.Var").set_body_typed([](String str, Type type_annotation, Span span) {
+  return Var(str, type_annotation, span);
 });
+TVM_REGISTER_GLOBAL("relay.ir.VarWithFields")
+    .set_body_typed([](Var var, Optional<Id> opt_vid, Optional<Type> opt_type_annotation,
+                       Optional<VirtualDevice> opt_virtual_device, Optional<Span> opt_span) {
+      return WithFields(var, opt_vid, opt_type_annotation, opt_virtual_device, opt_span);
+    });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<VarNode>([](const ObjectRef& ref, ReprPrinter* p) {
@@ -278,6 +293,13 @@ TVM_REGISTER_GLOBAL("relay.ir.Call")
     .set_body_typed([](Expr op, Array<Expr> args, Attrs attrs, Array<Type> type_args, Span span) {
       return Call(op, args, attrs, type_args, span);
     });
+TVM_REGISTER_GLOBAL("relay.ir.CallWithFields")
+    .set_body_typed([](Call call, Optional<Expr> opt_op, Optional<Array<Expr>> opt_args,
+                       Optional<Attrs> opt_attrs, Optional<Array<Type>> opt_type_args,
+                       Optional<VirtualDevice> opt_virtual_device, Optional<Span> opt_span) {
+      return WithFields(call, opt_op, opt_args, opt_attrs, opt_type_args, opt_virtual_device,
+                        opt_span);
+    });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<CallNode>([](const ObjectRef& ref, ReprPrinter* p) {
@@ -320,9 +342,15 @@ Let WithFields(Let let, Optional<Var> opt_var, Optional<Expr> opt_value, Optiona
 
 TVM_REGISTER_NODE_TYPE(LetNode);
 
-TVM_REGISTER_GLOBAL("relay.ir.Let").set_body_typed([](Var var, Expr value, Expr body) {
-  return Let(var, value, body);
+TVM_REGISTER_GLOBAL("relay.ir.Let").set_body_typed([](Var var, Expr value, Expr body, Span span) {
+  return Let(var, value, body, span);
 });
+TVM_REGISTER_GLOBAL("relay.ir.LetWithFields")
+    .set_body_typed([](Let let, Optional<Var> opt_var, Optional<Expr> opt_value,
+                       Optional<Expr> opt_body, Optional<VirtualDevice> opt_virtual_device,
+                       Optional<Span> opt_span) {
+      return WithFields(let, opt_var, opt_value, opt_body, opt_virtual_device, opt_span);
+    });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<LetNode>([](const ObjectRef& ref, ReprPrinter* p) {
@@ -367,8 +395,15 @@ If WithFields(If if_expr, Optional<Expr> opt_cond, Optional<Expr> opt_true_branc
 TVM_REGISTER_NODE_TYPE(IfNode);
 
 TVM_REGISTER_GLOBAL("relay.ir.If")
-    .set_body_typed([](Expr cond, Expr true_branch, Expr false_branch) {
-      return If(cond, true_branch, false_branch);
+    .set_body_typed([](Expr cond, Expr true_branch, Expr false_branch, Span span) {
+      return If(cond, true_branch, false_branch, span);
+    });
+TVM_REGISTER_GLOBAL("relay.ir.IfWithFields")
+    .set_body_typed([](If if_expr, Optional<Expr> opt_cond, Optional<Expr> opt_true_branch,
+                       Optional<Expr> opt_false_branch, Optional<VirtualDevice> opt_virtual_device,
+                       Optional<Span> opt_span) {
+      return WithFields(if_expr, opt_cond, opt_true_branch, opt_false_branch, opt_virtual_device,
+                        opt_span);
     });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -410,9 +445,15 @@ TupleGetItem WithFields(TupleGetItem tuple_get_item, Optional<Expr> opt_tuple,
 
 TVM_REGISTER_NODE_TYPE(TupleGetItemNode);
 
-TVM_REGISTER_GLOBAL("relay.ir.TupleGetItem").set_body_typed([](Expr tuple, int index) {
-  return TupleGetItem(tuple, index);
+TVM_REGISTER_GLOBAL("relay.ir.TupleGetItem").set_body_typed([](Expr tuple, int index, Span span) {
+  return TupleGetItem(tuple, index, span);
 });
+TVM_REGISTER_GLOBAL("relay.ir.TupleGetItemWithFields")
+    .set_body_typed([](TupleGetItem tuple_get_item, Optional<Expr> opt_tuple,
+                       Optional<Integer> opt_index, Optional<VirtualDevice> opt_virtual_device,
+                       Optional<Span> opt_span) {
+      return WithFields(tuple_get_item, opt_tuple, opt_index, opt_virtual_device, opt_span);
+    });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<TupleGetItemNode>([](const ObjectRef& ref, ReprPrinter* p) {
@@ -448,9 +489,14 @@ RefCreate WithFields(RefCreate ref_create, Optional<Expr> opt_value,
 
 TVM_REGISTER_NODE_TYPE(RefCreateNode);
 
-TVM_REGISTER_GLOBAL("relay.ir.RefCreate").set_body_typed([](Expr value) {
-  return RefCreate(value);
+TVM_REGISTER_GLOBAL("relay.ir.RefCreate").set_body_typed([](Expr value, Span span) {
+  return RefCreate(value, span);
 });
+TVM_REGISTER_GLOBAL("relay.ir.RefCreateWithFields")
+    .set_body_typed([](RefCreate ref_create, Optional<Expr> opt_value,
+                       Optional<VirtualDevice> opt_virtual_device, Optional<Span> opt_span) {
+      return WithFields(ref_create, opt_value, opt_virtual_device, opt_span);
+    });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<RefCreateNode>([](const ObjectRef& ref, ReprPrinter* p) {
@@ -486,7 +532,14 @@ RefRead WithFields(RefRead ref_read, Optional<Expr> opt_ref,
 
 TVM_REGISTER_NODE_TYPE(RefReadNode);
 
-TVM_REGISTER_GLOBAL("relay.ir.RefRead").set_body_typed([](Expr ref) { return RefRead(ref); });
+TVM_REGISTER_GLOBAL("relay.ir.RefRead").set_body_typed([](Expr ref, Span span) {
+  return RefRead(ref, span);
+});
+TVM_REGISTER_GLOBAL("relay.ir.RefReadWithFields")
+    .set_body_typed([](RefRead ref_read, Optional<Expr> opt_ref,
+                       Optional<VirtualDevice> opt_virtual_device, Optional<Span> opt_span) {
+      return WithFields(ref_read, opt_ref, opt_virtual_device, opt_span);
+    });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<RefReadNode>([](const ObjectRef& ref, ReprPrinter* p) {
@@ -525,9 +578,14 @@ RefWrite WithFields(RefWrite ref_write, Optional<Expr> opt_ref, Optional<Expr> o
 
 TVM_REGISTER_NODE_TYPE(RefWriteNode);
 
-TVM_REGISTER_GLOBAL("relay.ir.RefWrite").set_body_typed([](Expr ref, Expr value) {
-  return RefWrite(ref, value);
+TVM_REGISTER_GLOBAL("relay.ir.RefWrite").set_body_typed([](Expr ref, Expr value, Span span) {
+  return RefWrite(ref, value, span);
 });
+TVM_REGISTER_GLOBAL("relay.ir.RefWriteWithFields")
+    .set_body_typed([](RefWrite ref_write, Optional<Expr> opt_ref, Optional<Expr> opt_value,
+                       Optional<VirtualDevice> opt_virtual_device, Optional<Span> opt_span) {
+      return WithFields(ref_write, opt_ref, opt_value, opt_virtual_device, opt_span);
+    });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<RefWriteNode>([](const ObjectRef& ref, ReprPrinter* p) {

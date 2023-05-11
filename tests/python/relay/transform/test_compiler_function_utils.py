@@ -43,7 +43,7 @@ metatable = {
 
 
 def original_mod():
-    return tvm.parser.parse(
+    return tvm.relay.parse(
         """
         #[version = "0.0.5"]
         def @main(%x0 : Tensor[(1600, 768), float16], %x3 : Tensor[(600, 32, 64), float16]) -> (Tensor[(1600, 2304), float16], Tensor[(600, 32, 32), float16]) {
@@ -76,7 +76,7 @@ def original_mod():
 
 
 def original_mod_let_bound():
-    return tvm.parser.parse(
+    return tvm.relay.parse(
         """
         #[version = "0.0.5"]
         def @main(%x0 : Tensor[(1600, 768), float16], %x3 : Tensor[(600, 32, 64), float16]) -> (Tensor[(1600, 2304), float16], Tensor[(600, 32, 32), float16]) {
@@ -109,7 +109,7 @@ def original_mod_let_bound():
 
 
 def expected_outlined_mod():
-    return tvm.parser.parse(
+    return tvm.relay.parse(
         """
         #[version = "0.0.5"]
         def @main(%x0 : Tensor[(1600, 768), float16], %x3 : Tensor[(600, 32, 64), float16]) -> (Tensor[(1600, 2304), float16], Tensor[(600, 32, 32), float16]) {
@@ -143,7 +143,7 @@ def expected_outlined_mod():
 
 
 def expected_extern_mod():
-    return tvm.parser.parse(
+    return tvm.relay.parse(
         """
         #[version = "0.0.5"]
         def @main(%x0 : Tensor[(1600, 768), float16], %x3 : Tensor[(600, 32, 64), float16]) -> (Tensor[(1600, 2304), float16], Tensor[(600, 32, 32), float16]) {
@@ -177,7 +177,7 @@ def expected_extern_mod():
 
 
 def expected_inlined_mod():
-    return tvm.parser.parse(
+    return tvm.relay.parse(
         """
         #[version = "0.0.5"]
         def @main(%x0 : Tensor[(1600, 768), float16], %x3 : Tensor[(600, 32, 64), float16]) -> (Tensor[(1600, 2304), float16], Tensor[(600, 32, 32), float16]) {

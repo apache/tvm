@@ -166,7 +166,7 @@ def conv2d_schedule(
 
     # from tvm.script import tir as T
     @T.prim_func
-    def func(InputTensor: T.Buffer[(1, 24, 12, 32), "float16"], Weights: T.Buffer[(3, 3, 32, 32), "float16"], compute: T.Buffer[(1, 16, 8, 32), "float16"]) -> None:
+    def func(InputTensor: T.Buffer((1, 24, 12, 32), "float16"), Weights: T.Buffer((3, 3, 32, 32), "float16"), compute: T.Buffer((1, 16, 8, 32), "float16")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         # body

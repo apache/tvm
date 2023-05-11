@@ -352,3 +352,189 @@ using ReductionStrideIndex = typename ReductionDevice::StrideIndex;
             template = substitute_template(gemm_template, {"epilogue": self.epilogue_default})
 
         return substitute_template(template, values)
+
+
+def instantiate_conv2d_template(attrs, func_args):
+    """Return CUTLASS host code for conv2d based on a template and the provided attribute map."""
+    template = """
+    ${cutlass_op_def}
+
+  using Conv2d = cutlass::conv::device::ImplicitGemmConvolution<${cutlass_op_name}>;
+  using ElementInputA = Conv2d::ElementA;
+  using ElementInputB = Conv2d::ElementB;
+  using ElementComputeEpilogue = Conv2d::ElementAccumulator;
+  int N = ${N};
+  int H = ${H};
+  int W = ${W};
+  int C = ${C};
+  int K = ${K};
+  int R = ${R};
+  int S = ${S};
+  int P = ${P};
+  int Q = ${Q};
+  int pad_h = ${pad_h};
+  int pad_w = ${pad_w};
+  int stride_h = ${stride_h};
+  int stride_w = ${stride_w};
+  int dilation_h = ${dilation_h};
+  int dilation_w = ${dilation_w};
+  int split_k_slices = ${split_k_slices};
+  cutlass::conv::Conv2dProblemSize problem_size(N, H, W, C, K, R, S, P, Q, pad_h, pad_w, stride_h, stride_w, dilation_h, dilation_w, cutlass::conv::Mode::kCrossCorrelation, split_k_slices);
+  const cutlass::conv::SplitKMode split_k_mode = cutlass::conv::SplitKMode::${split_k_mode};
+
+  void* ptr_a = (void*)(${arg0}->data);
+  void* ptr_b = (void*)(${arg1}->data);
+  ${bias_decl}
+  ${residual_decl}
+  void* ptr_out = (void*)(out0->data);
+
+  ElementComputeEpilogue alpha = ElementComputeEpilogue(1);
+  ElementComputeEpilogue beta = ElementComputeEpilogue(${beta});
+  using cutlass::layout::TensorNHWC;
+  auto activation_shape = TensorNHWC::packed(cutlass::make_Coord(N, H, W, C));
+  auto weight_shape = TensorNHWC::packed(cutlass::make_Coord(K, R, S, C));
+  auto output_shape = TensorNHWC::packed(cutlass::make_Coord(N, P, Q, K));
+
+  TensorNHWC layout_A(${A_shape});
+  TensorNHWC layout_B(${B_shape});
+  TensorNHWC layout_C(${C_shape});
+  TensorNHWC layout_D(${C_shape});
+
+  using ElementOutput = ${ElementOutput};
+  cutlass::TensorRef<ElementOutput, TensorNHWC> tensor_c{static_cast<ElementOutput*>(${tensor_c}), ${tensor_c_layout}};
+  cutlass::TensorRef<ElementOutput, TensorNHWC> tensor_d{static_cast<ElementOutput*>(ptr_out), layout_D};
+  typename Conv2d::Arguments arguments{
+   problem_size,
+   {static_cast<ElementInputA*>(ptr_a), layout_A},
+   {static_cast<ElementInputB*>(ptr_b), layout_B},
+   ${tensor_c_arg},
+   ${tensor_d_arg},
+   {${alpha_beta}},
+   split_k_mode
+   ${additional_args}
+ };
+  Conv2d conv2d_op;
+  size_t workspace_size = conv2d_op.get_workspace_size(arguments);
+  cutlass::device_memory::allocation<uint8_t> workspace(workspace_size);
+  cutlass::Status status = conv2d_op.can_implement(arguments);
+  CHECK(status == cutlass::Status::kSuccess);
+  ${split_k_reset}
+  status = conv2d_op.initialize(arguments, workspace.get());
+  CHECK(status == cutlass::Status::kSuccess);
+  ${split_k_update}
+  status = conv2d_op();
+  CHECK(status == cutlass::Status::kSuccess);
+  ${split_k_reduction}
+"""
+
+    split_k_reset = """
+    arguments.ref_D.reset(reinterpret_cast<ElementComputeEpilogue*>(workspace.get()), layout_D);
+"""
+
+    split_k_update = """
+  arguments.output_op = {ElementComputeEpilogue(1), ElementComputeEpilogue(0)};
+  status = conv2d_op.update(arguments, workspace.get());
+  CHECK(status == cutlass::Status::kSuccess);
+"""
+
+    split_k_reduction = """
+  ReductionDevice reduction_op;
+  const static cutlass::conv::Operator kConvolutionalOperator = Conv2d::kConvolutionalOperator;
+  typename ReductionDevice::Arguments reduction_args(
+     cutlass::conv::implicit_gemm_problem_size(kConvolutionalOperator, problem_size).mn(),
+     problem_size.split_k_slices,
+     cutlass::conv::implicit_gemm_tensor_c_size(kConvolutionalOperator, problem_size),
+     {
+      reinterpret_cast<Conv2d::ElementAccumulator*> (workspace.get()),
+      ReductionStrideIndex(tensor_c.stride()[Conv2d::UnderlyingKernel::kTensorCStrideIdx])
+     },
+     {
+      tensor_d.data(),
+      ReductionStrideIndex(tensor_d.stride()[Conv2d::UnderlyingKernel::kTensorCStrideIdx])
+     },
+     {
+      tensor_c.data(),
+      ReductionStrideIndex(tensor_c.stride()[Conv2d::UnderlyingKernel::kTensorCStrideIdx])
+     },
+     {alpha, beta}
+  );
+  status = reduction_op.initialize(reduction_args, nullptr);
+  status = reduction_op();
+"""
+    op_type = attrs["op_type"]
+    has_bias = "bias" in op_type
+    use_split_k = "splitk" in attrs["cutlass_op_name"]
+    is_wgrad = "backward_weight" in op_type
+    is_dgrad = "conv2d_transpose" in op_type
+    has_residual_blcok = "residual" in op_type
+    no_bias_scaling = op_type not in [
+        "cutlass.conv2d_bias_sigmoid",
+        "cutlass.conv2d_bias_silu",
+        "cutlass.conv2d_bias_hardswish",
+    ]
+
+    aux_map = {}
+
+    if (not has_bias or no_bias_scaling) and not has_residual_blcok:
+        aux_map["beta"] = "0"
+    else:
+        aux_map["beta"] = "1"
+
+    if has_residual_blcok:
+        aux_map["bias_decl"] = "void* ptr_bias = (void*)(${arg2}->data);\n"
+        aux_map["residual_decl"] = "void* ptr_residual = (void*)(${arg3}->data);"
+        aux_map["tensor_c"] = "ptr_residual"
+        aux_map["tensor_c_layout"] = "layout_C"
+    elif has_bias:
+        aux_map["bias_decl"] = "void* ptr_c_bias = (void*)(${arg2}->data);\n"
+        aux_map["residual_decl"] = ""
+        aux_map["tensor_c"] = "ptr_c_bias"
+        aux_map["tensor_c_layout"] = "cutlass::layout::TensorNHWC::Stride(0)"
+    else:
+        aux_map["bias_decl"] = ""
+        aux_map["residual_decl"] = ""
+        aux_map["tensor_c"] = "ptr_out"
+        aux_map["tensor_c_layout"] = "layout_C"
+
+    if has_bias and no_bias_scaling and not has_residual_blcok:
+        aux_map["alpha_beta"] = "alpha"
+    else:
+        aux_map["alpha_beta"] = "alpha, beta"
+
+    if has_residual_blcok:
+        aux_map["additional_args"] = ", static_cast<ElementOutput*>(ptr_bias), nullptr, 0, K"
+    else:
+        aux_map["additional_args"] = ""
+
+    if is_wgrad:
+        aux_map["A_shape"] = "output_shape"
+        aux_map["B_shape"] = "activation_shape"
+        aux_map["C_shape"] = "weight_shape"
+    elif is_dgrad:
+        aux_map["A_shape"] = "output_shape"
+        aux_map["B_shape"] = "weight_shape"
+        aux_map["C_shape"] = "activation_shape"
+    else:
+        aux_map["A_shape"] = "activation_shape"
+        aux_map["B_shape"] = "weight_shape"
+        aux_map["C_shape"] = "output_shape"
+
+    if use_split_k:
+        aux_map["ElementOutput"] = "EpilogueOutputOp::ElementOutput"
+        aux_map["tensor_c_arg"] = "{nullptr, TensorNHWC()}"
+        aux_map["tensor_d_arg"] = "{nullptr, TensorNHWC()}"
+        aux_map["split_k_reset"] = split_k_reset
+        aux_map["split_k_update"] = split_k_update
+        aux_map["split_k_reduction"] = split_k_reduction
+    else:
+        aux_map["ElementOutput"] = "Conv2d::ElementC"
+        aux_map["tensor_c_arg"] = "tensor_c"
+        aux_map["tensor_d_arg"] = "tensor_d"
+        aux_map["split_k_reset"] = aux_map["split_k_update"] = aux_map["split_k_reduction"] = ""
+
+    template = substitute_template(template, aux_map)
+
+    for i, arg in enumerate(func_args):
+        attrs["arg{}".format(i)] = arg
+
+    return substitute_template(template, attrs)

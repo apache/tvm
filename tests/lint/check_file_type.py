@@ -89,6 +89,10 @@ ALLOW_EXTENSION = {
     "ld",
     # Jinja2 templates
     "j2",
+    # Jenkinsfiles
+    "groovy",
+    # Python-parseable config files
+    "ini",
 }
 
 # List of file names allowed
@@ -108,6 +112,7 @@ ALLOW_FILE_NAME = {
     "CODEOWNERSHIP",
     ".scalafmt.conf",
     "Cargo.lock",
+    "poetry.lock",
     "with_the_same_user",
 }
 
@@ -152,7 +157,8 @@ ALLOW_SPECIFIC_FILE = {
     # microTVM Arduino runtime
     "apps/microtvm/arduino/template_project/Makefile.template",
     # microTVM CRT
-    "src/runtime/crt/host/Makefile.template",
+    "src/runtime/crt/crt_config.h.template",
+    "src/runtime/crt/host/CMakeLists.txt.template",
     # microTVM Virtual Machines
     "apps/microtvm/poetry.lock",
     "apps/microtvm/reference-vm/Vagrantfile",

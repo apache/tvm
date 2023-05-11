@@ -113,23 +113,32 @@ bool MatmulRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
         std::vector<PrimExpr> B_shape(tensor_b->shape.begin(), tensor_b->shape.end());
         auto sa = A_shape.size();
         auto sb = B_shape.size();
+        size_t index_swap_A;
+        size_t index_swap_B;
         if (transpose_a && transpose_b) {
-          auto tmp = A_shape[sa - 2];
-          A_shape[sa - 2] = B_shape[sb - 1];
-          B_shape[sb - 1] = tmp;
+          index_swap_A = sa - 2;
+          index_swap_B = sb - 1;
         } else if (transpose_a) {
-          auto tmp = A_shape[sa - 2];
-          A_shape[sa - 2] = B_shape[sb - 2];
-          B_shape[sb - 2] = tmp;
+          index_swap_A = sa - 2;
+          index_swap_B = sb - 2;
         } else if (transpose_b) {
-          auto tmp = A_shape[sa - 1];
-          A_shape[sa - 1] = B_shape[sb - 1];
-          B_shape[sb - 1] = tmp;
+          index_swap_A = sa - 1;
+          index_swap_B = sb - 1;
         } else {
-          auto tmp = A_shape[sa - 1];
-          A_shape[sa - 1] = B_shape[sb - 2];
-          B_shape[sb - 2] = tmp;
+          index_swap_A = sa - 1;
+          index_swap_B = sb - 2;
         }
+
+        // Rewrite dynamic axes to static where constraints allow.
+        auto tmp = A_shape[index_swap_A];
+        if (A_shape[index_swap_A].as<tir::AnyNode>()) {
+          A_shape[index_swap_A] = B_shape[index_swap_B];
+        }
+        if (B_shape[index_swap_B].as<tir::AnyNode>()) {
+          B_shape[index_swap_B] = tmp;
+        }
+
+        // Update input types with new constrained shapes.
         reporter->Assign(types[0], TensorType(A_shape, tensor_a->dtype));
         reporter->Assign(types[1], TensorType(B_shape, tensor_b_dtype));
       }
@@ -210,6 +219,11 @@ bool BatchMatmulRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   reporter->Assign(types[2], TensorType(Array<tvm::PrimExpr>({out_b, xi, yj}), out_dtype));
   return true;
 }
+
+InferCorrectLayoutOutput DenseInferCorrectLayout(const Attrs& attrs,
+                                                 const Array<Layout>& new_in_layouts,
+                                                 const Array<Layout>& old_in_layouts,
+                                                 const Array<tvm::relay::Type>& old_in_types);
 
 }  // namespace relay
 }  // namespace tvm

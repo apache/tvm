@@ -61,8 +61,8 @@ class RequantizeConfigNode : public Object {
     // For the x86 architecture, the float32 computation is expected to give significant speedup,
     // with little loss in the accuracy of the requantize operation.
     auto target = Target::Current(true);
-    auto target_has_sse41 = tvm::runtime::Registry::Get("tvm.topi.x86.utils.target_has_sse41");
-    ICHECK(target_has_sse41) << "Function tvm.topi.x86.utils.target_has_sse41 not found";
+    auto target_has_sse41 = tvm::runtime::Registry::Get("tvm.target.x86.target_has_sse41");
+    ICHECK(target_has_sse41) << "Function tvm.target.x86.target_has_sse41 not found";
     if (target.defined() && target->kind->name == "llvm" &&
         (target->GetAttr<String>("mcpu") &&
          (*target_has_sse41)(target->GetAttr<String>("mcpu").value()))) {

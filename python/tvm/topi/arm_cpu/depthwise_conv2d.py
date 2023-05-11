@@ -31,10 +31,6 @@ from .mprofile.dsp.depthwise_conv2d import (
     depthwise_conv2d_nhwc_dsp_compute,
     depthwise_conv2d_nhwc_dsp_schedule,
 )
-from .mprofile.dsp.tensordot_conv2ds import (
-    depthwise_conv2d_nchw_oihw_dsp_compute,
-    tensordot_conv2ds_schedule,
-)
 
 
 @autotvm.register_topi_compute("depthwise_conv2d_nchw.arm_cpu")
@@ -296,13 +292,13 @@ def schedule_depthwise_conv2d_nhwc(cfg, outs):
     out = outs[0]
 
     ##### space definition begin #####
-    n, h, w, c = s[out].op.axis
+    _, h, w, c = s[out].op.axis
     # Split the number of input/output channels
-    cfg.define_split("tile_c", c, num_outputs=2)
+    cfg.define_split("tile_c", c, num_outputs=2, filter=lambda entry: entry.size[1] <= 8)
     # Split the height of the convolution
-    _, hi = cfg.define_split("tile_h", h, num_outputs=2)
+    cfg.define_split("tile_h", h, num_outputs=2)
     # Split the width of the convolution
-    _, wi = cfg.define_split("tile_w", w, num_outputs=2)
+    cfg.define_split("tile_w", w, num_outputs=2)
     # Additional out (e.g., requantization, bias addition, etc..)
     # 0: locate the output on the second last axis of the main compuation
     # 1: locate the output closest to the main computation
@@ -398,7 +394,8 @@ def schedule_depthwise_conv2d_nhwc(cfg, outs):
             ci_outer, ci_inner = s[out].split(ci, 4)
             s[out].vectorize(ci_inner)
             s[out].unroll(ci_outer)
-
+        else:
+            s[out].vectorize(ci)
         fused_n_ho = s[out].fuse(n, ho)
         return hi, wi, fused_n_ho
 
@@ -722,19 +719,3 @@ def depthwise_conv2d_nhwc_dsp(cfg, data, kernel, strides, padding, dilation, out
 def schedule_depthwise_conv2d_nhwc_dsp(cfg, outs):
     """Create schedule for conv2d_nhwc_dsp"""
     return depthwise_conv2d_nhwc_dsp_schedule(cfg, outs)
-
-
-@autotvm.register_topi_compute("depthwise_conv2d_nchw_oihw_dsp.arm_cpu")
-def depthwise_conv2d_nchw_oihw_dsp(
-    cfg, data, kernel, strides, padding, dilation, out_layout, out_dtype
-):
-    """Compute depthwise_conv2d_nchw_oihw with v7e-m DSP instructions and the tensordot kernel."""
-    return depthwise_conv2d_nchw_oihw_dsp_compute(
-        cfg, data, kernel, strides, padding, dilation, out_layout, out_dtype
-    )
-
-
-@autotvm.register_topi_schedule("depthwise_conv2d_nchw_oihw_dsp.arm_cpu")
-def schedule_depthwise_conv2d_nchw_oihw_dsp(cfg, outs):
-    """Create schedule for depthwise_conv2d_nchw_oihw."""
-    return tensordot_conv2ds_schedule(cfg, outs)

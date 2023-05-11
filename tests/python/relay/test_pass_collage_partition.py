@@ -91,7 +91,7 @@ def test_partition_single_op_llvm(mock_get_pattern_table):
         nn.relu(%x)
       }
     """
-    mod = tvm.parser.fromtext(mod_txt)
+    mod = tvm.relay.fromtext(mod_txt)
 
     expected_txt = """
       #[version = "0.0.5"]
@@ -99,7 +99,7 @@ def test_partition_single_op_llvm(mock_get_pattern_table):
         nn.relu(%x)
       }
     """
-    expected_mod = tvm.parser.fromtext(expected_txt)
+    expected_mod = tvm.relay.fromtext(expected_txt)
 
     targets = [
         tvm.target.Target("llvm"),
@@ -122,7 +122,7 @@ def test_partition_single_op_byoc(mock_get_pattern_table):
         nn.relu(%x)
       }
     """
-    mod = tvm.parser.fromtext(mod_txt)
+    mod = tvm.relay.fromtext(mod_txt)
 
     expected_txt = """
       #[version = "0.0.5"]
@@ -137,7 +137,7 @@ def test_partition_single_op_byoc(mock_get_pattern_table):
         @collage_example_target_hook_nn_relu(%x)
       }
     """
-    expected_mod = tvm.parser.fromtext(expected_txt)
+    expected_mod = tvm.relay.fromtext(expected_txt)
 
     targets = [
         tvm.target.Target("llvm"),
@@ -164,7 +164,7 @@ def test_partition_diamond_valid_topology(mock_get_pattern_table, byoc_max_depth
         add(%1, %2)
       }
     """
-    mod = tvm.parser.fromtext(mod_txt)
+    mod = tvm.relay.fromtext(mod_txt)
 
     expected_3_txt = """
       #[version = "0.0.5"]
@@ -218,7 +218,7 @@ def test_partition_diamond_valid_topology(mock_get_pattern_table, byoc_max_depth
         @collage_example_target_hook(%5)
       }
     """
-    expected_mod = tvm.parser.fromtext(expected_1_txt if byoc_max_depth == 1 else expected_3_txt)
+    expected_mod = tvm.relay.fromtext(expected_1_txt if byoc_max_depth == 1 else expected_3_txt)
 
     targets = [
         tvm.target.Target("llvm"),
@@ -246,7 +246,7 @@ def test_tvm_max_depth(mock_get_pattern_table, tvm_max_depth):
         nn.relu(%1)
       }
     """
-    mod = tvm.parser.fromtext(mod_txt)
+    mod = tvm.relay.fromtext(mod_txt)
 
     expected_txts = {
         1: """
@@ -294,7 +294,7 @@ def test_tvm_max_depth(mock_get_pattern_table, tvm_max_depth):
           }
         """,
     }
-    expected_mod = tvm.parser.fromtext(expected_txts[tvm_max_depth])
+    expected_mod = tvm.relay.fromtext(expected_txts[tvm_max_depth])
 
     targets = [
         tvm.target.Target("llvm"),
@@ -322,7 +322,7 @@ def test_byoc_max_depth(mock_get_pattern_table, byoc_max_depth):
         nn.relu(%1)
       }
     """
-    mod = tvm.parser.fromtext(mod_txt)
+    mod = tvm.relay.fromtext(mod_txt)
 
     expected_txts = {
         1: """
@@ -373,7 +373,7 @@ def test_byoc_max_depth(mock_get_pattern_table, byoc_max_depth):
           }
         """,
     }
-    expected_mod = tvm.parser.fromtext(expected_txts[byoc_max_depth])
+    expected_mod = tvm.relay.fromtext(expected_txts[byoc_max_depth])
 
     targets = [
         tvm.target.Target("llvm"),
@@ -401,7 +401,7 @@ def test_partition_output_tuple(mock_get_pattern_table):
         (%0, %1, %2)
       }
     """
-    mod = tvm.parser.fromtext(mod_txt)
+    mod = tvm.relay.fromtext(mod_txt)
 
     expected_txt = """
       #[version = "0.0.5"]
@@ -425,7 +425,7 @@ def test_partition_output_tuple(mock_get_pattern_table):
         (%6, %5, %7)
       }
     """
-    expected_mod = tvm.parser.fromtext(expected_txt)
+    expected_mod = tvm.relay.fromtext(expected_txt)
 
     targets = [
         tvm.target.Target("llvm"),
@@ -451,7 +451,7 @@ def test_partition_intermediate_tuple(mock_get_pattern_table):
         concatenate(%2)
       }
     """
-    mod = tvm.parser.fromtext(mod_txt)
+    mod = tvm.relay.fromtext(mod_txt)
 
     expected_txt = """
       #[version = "0.0.5"]
@@ -482,7 +482,7 @@ def test_partition_intermediate_tuple(mock_get_pattern_table):
         @collage_example_target_hook_concatenate(%8)
       }
     """
-    expected_mod = tvm.parser.fromtext(expected_txt)
+    expected_mod = tvm.relay.fromtext(expected_txt)
 
     targets = [
         tvm.target.Target("llvm"),
@@ -511,7 +511,7 @@ def test_fusion_benefit(mock_get_pattern_table):
         abs(%5)
       }
     """
-    mod = tvm.parser.fromtext(mod_txt)
+    mod = tvm.relay.fromtext(mod_txt)
 
     expected_txt = """
       #[version = "0.0.5"]
@@ -544,7 +544,7 @@ def test_fusion_benefit(mock_get_pattern_table):
         abs(%10)
       }
     """
-    expected_mod = tvm.parser.fromtext(expected_txt)
+    expected_mod = tvm.relay.fromtext(expected_txt)
 
     targets = [
         tvm.target.Target("llvm"),
@@ -570,7 +570,7 @@ def test_double_residual(mock_get_pattern_table):
         add(%1, %2)
       }
     """
-    mod = tvm.parser.fromtext(mod_txt)
+    mod = tvm.relay.fromtext(mod_txt)
 
     expected_txt = """
       #[version = "0.0.5"]
@@ -598,7 +598,7 @@ def test_double_residual(mock_get_pattern_table):
         @collage_example_target_hook_add_add(%5, %4)
       }
     """
-    expected_mod = tvm.parser.fromtext(expected_txt)
+    expected_mod = tvm.relay.fromtext(expected_txt)
 
     targets = [
         tvm.target.Target("llvm"),
@@ -630,7 +630,7 @@ def test_pruning_heuristic(mock_get_pattern_table):
         add(%1, %2)
       }
     """
-    mod = tvm.parser.fromtext(mod_txt)
+    mod = tvm.relay.fromtext(mod_txt)
 
     expected_txt = """
       #[version = "0.0.5"]
@@ -661,7 +661,7 @@ def test_pruning_heuristic(mock_get_pattern_table):
         @collage_example_target_hook_nn_relu_nn_relu_add_add(%x)
       }
     """
-    expected_mod = tvm.parser.fromtext(expected_txt)
+    expected_mod = tvm.relay.fromtext(expected_txt)
 
     targets = [
         tvm.target.Target("llvm"),

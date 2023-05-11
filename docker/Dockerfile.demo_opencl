@@ -19,7 +19,7 @@
 
 # REFERENCE: https://docs.docker.com/engine/reference/builder
 
-FROM ubuntu:18.04
+FROM ubuntu:22.04
 
 COPY utils/apt-install-and-clear.sh /usr/local/bin/apt-install-and-clear
 

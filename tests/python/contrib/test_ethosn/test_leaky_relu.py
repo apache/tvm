@@ -55,9 +55,9 @@ def test_leaky_relu(dtype, shape, alpha):
     iinfo = np.iinfo(dtype)
     zp_min = iinfo.min
     zp_max = iinfo.max
-    input_zp = zp_min + 120
+    input_zp = zp_min + 128
     input_sc = 0.0068132
-    output_zp = zp_min + 128
+    output_zp = zp_min + 126  # values offset more than 126 can cause saturation
     output_sc = 0.0078125
 
     inputs = {"x": tvm.nd.array(np.random.randint(zp_min, high=zp_max, size=shape, dtype=dtype))}

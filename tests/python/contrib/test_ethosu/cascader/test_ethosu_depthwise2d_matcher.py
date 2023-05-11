@@ -100,4 +100,4 @@ def test_ethosu_depthwise2d_matcher(kernel, stride, dilation, padding, ifm_layou
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

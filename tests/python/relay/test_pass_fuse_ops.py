@@ -829,4 +829,4 @@ def test_fuse_softmax():
 
 
 if __name__ == "__main__":
-    pytest.main([__pfile__])
+    tvm.testing.main()

@@ -23,6 +23,11 @@ from os import path
 from enum import Enum
 import tempfile
 import numpy as np
+import model_zoo
+import coremltools as cm
+from coremltools.models.neural_network import NeuralNetworkBuilder
+from coremltools.models import datatypes
+from tensorflow import keras
 
 import tvm
 import tvm.topi.testing
@@ -30,12 +35,6 @@ import tvm.testing
 from tvm.contrib import graph_executor
 from tvm.topi.testing import conv2d_nchw_python
 from tvm import relay
-import model_zoo
-
-import coremltools as cm
-from coremltools.models.neural_network import NeuralNetworkBuilder
-from coremltools.models import datatypes
-from tensorflow import keras
 
 
 def get_tvm_output(

@@ -48,6 +48,7 @@ struct GenerateBodyOutput {
   std::string decl;
   std::vector<std::string> buffers;
   std::vector<Output> outputs;
+  Array<String> headers;
 };
 
 class CSourceModuleCodegenBase {

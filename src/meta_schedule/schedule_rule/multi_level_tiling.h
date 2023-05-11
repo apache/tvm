@@ -94,6 +94,8 @@ class StateNode : public Object {
   tir::BlockRV block_rv;
   /*! \brief The loop tiles */
   Array<Array<tir::LoopRV>> tiles;
+  /*! \brief The factors of the loop tiles. */
+  Array<Array<tir::ExprRV>> tile_factors;
   /*! \brief The mapping from buffer index to read cache block. */
   std::unordered_map<int, tir::BlockRV> read_reuse;
   /*! \brief The mapping from buffer index to write cache block. */
@@ -148,6 +150,8 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
   std::vector<State> TileLoopNest(State state) const;
   // SubRule 3. add read cache
   std::vector<State> AddReadReuse(State state) const;
+  // SubRule 4. add async pipeline
+  std::vector<State> AddAsyncPipeline(State state) const;
 
   // Do nothing; Inherited from ScheduleRuleNode
   void InitializeWithTuneContext(const TuneContext& context) final;
@@ -161,8 +165,10 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
  protected:
   virtual std::vector<State> ApplySubRules(std::vector<State> states);
 
-  virtual Array<tir::LoopRV> SplitLoop(const tir::Schedule& sch, tir::BlockRV block,
-                                       tir::LoopRV loop, int n_tiles) const;
+  virtual std::pair<Array<tir::ExprRV>, Array<tir::LoopRV>> SplitLoop(const tir::Schedule& sch,
+                                                                      tir::BlockRV block,
+                                                                      tir::LoopRV loop,
+                                                                      int n_tiles) const;
 
   // Annotate a block to use cooperative fetching
   void AnnotateCooperativeFetching(tir::Schedule* sch, const tir::BlockRV& block) const;
@@ -192,8 +198,12 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
   int thread_warp_size_;
   /*! \brief The maximum number of threads to be used size of a thread warp */
   int max_threads_per_block_;
+  /*! \brief All available async pipeline stages. */
+  std::vector<int> stages;
   /*! \brief The logging function */
   PackedFunc logger;
+  /*! \brief The function to overwrite the default condition for applying MultiLevelTiling. */
+  Optional<PackedFunc> filter_fn_;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("structure", &structure);

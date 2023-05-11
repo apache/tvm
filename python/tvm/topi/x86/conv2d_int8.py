@@ -19,18 +19,17 @@
 """Conv2D int8 schedule on x86"""
 
 import tvm
-from tvm import te
-from tvm import autotvm
-from ..nn.conv2d import _get_workload as _get_conv2d_workload
-from .. import tag
+from tvm import autotvm, te
+from tvm.target.x86 import target_has_sse42
+
+from .. import nn, tag
 from ..generic import conv2d as conv2d_generic
-from ..nn.utils import get_pad_tuple
+from ..nn.conv2d import _get_workload as _get_conv2d_workload
 from ..nn.conv2d import unpack_NCHWc_to_nchw
 from ..nn.depthwise_conv2d import _get_workload as _get_depthwise_conv2d_workload
+from ..nn.utils import get_pad_tuple
 from ..utils import get_const_tuple, traverse_inline
-from .. import nn
 from . import conv2d_avx_1x1, conv2d_avx_common
-from .utils import target_has_sse42
 
 
 def _get_default_config_int8(
@@ -251,11 +250,11 @@ def schedule_conv2d_nhwc_pack_int8(cfg, outs):
                 if kh == 1 and kw == 1:
                     conv2d_avx_1x1._schedule_conv_nhwc_pack_int8(*args)
                 else:
-                    raise ValueError("Only support 1x1 kernel with " "schedule_conv2d_nhwc_pack.")
+                    raise ValueError("Only support 1x1 kernel with schedule_conv2d_nhwc_pack.")
             else:
                 raise ValueError(
-                    "Not support this data type {} with "
-                    "schedule_conv2d_nhwc_pack. Only support int8".format(data.dtype)
+                    f"Not support this data type {data.dtype} with "
+                    f"schedule_conv2d_nhwc_pack. Only support int8"
                 )
 
         scheduled_ops.append(op)

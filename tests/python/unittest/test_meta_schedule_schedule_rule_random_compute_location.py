@@ -59,8 +59,8 @@ class Add:
 def test_random_compute_location():
     @T.prim_func
     def add_0(
-        A: T.Buffer[(2048, 2048, 2048), "float32"],
-        B: T.Buffer[(2048, 2048, 2048), "float32"],
+        A: T.Buffer((2048, 2048, 2048), "float32"),
+        B: T.Buffer((2048, 2048, 2048), "float32"),
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main"})

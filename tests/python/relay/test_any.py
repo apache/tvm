@@ -501,6 +501,18 @@ def verify_any_squeeze(data_shape, axis, static_data_shape):
     check_result([data_np], mod, ref_out)
 
 
+def verify_any_squeeze_sqrt(data_shape, axis, static_data_shape):
+    mod = tvm.IRModule()
+    dtype = "float32"
+    data = relay.var("data", shape=data_shape, dtype=dtype)
+    y = relay.squeeze(data, axis=axis)
+    y = relay.sqrt(y)
+    mod["main"] = relay.Function([data], y)
+    data_np = np.random.uniform(size=static_data_shape).astype(dtype)
+    ref_out = np.sqrt(np.squeeze(data_np, axis))
+    check_result([data_np], mod, ref_out)
+
+
 @tvm.testing.uses_gpu
 def test_any_squeeze():
     verify_any_squeeze((relay.Any(), relay.Any(), relay.Any()), (0,), (1, 9, 8))
@@ -508,6 +520,8 @@ def test_any_squeeze():
     verify_any_squeeze(
         (1, relay.Any(), relay.Any(), 1, relay.Any(), relay.Any()), (0, 3), (1, 12, 2, 1, 9, 17)
     )
+    verify_any_squeeze_sqrt((1, relay.Any(), 12, 32, 1), (-1,), (1, 100, 12, 32, 1))
+    verify_any_squeeze_sqrt((relay.Any(), relay.Any(), relay.Any(), 1), (-1,), (1, 9, 8, 1))
 
 
 @tvm.testing.uses_gpu
@@ -534,6 +548,8 @@ def verify_any_conv2d(
     data_layout="NCHW",
     kernel_layout="OIHW",
     use_cudnn=False,
+    targets=None,
+    disable_targets=None,
 ):
     mod = tvm.IRModule()
     dtype = "float32"
@@ -553,11 +569,17 @@ def verify_any_conv2d(
     data_np = np.random.uniform(size=static_data_shape).astype(dtype)
     kernel_np = np.random.uniform(size=kernel_shape).astype(dtype)
 
-    targets = None
     if use_cudnn and tvm.get_global_func("tvm.contrib.cudnn.conv2d.forward", True):
         targets = [("cuda -libs=cudnn", tvm.cuda(0))]
 
-    check_result([data_np, kernel_np], mod, ref_out_shape, assert_shape=True, targets=targets)
+    check_result(
+        [data_np, kernel_np],
+        mod,
+        ref_out_shape,
+        assert_shape=True,
+        targets=targets,
+        disable_targets=disable_targets,
+    )
 
 
 # TODO(@kevinthesun): Support dynamic input height and width.
@@ -612,6 +634,26 @@ def test_any_conv2d():
         (2, 222, 222, 64),
         data_layout="NHWC",
         kernel_layout="HWIO",
+    )
+    verify_any_conv2d(
+        (relay.Any(), 64, relay.Any(), relay.Any()),
+        (64, 64, 3, 3),
+        (1, 1),
+        (1, 1),
+        (1, 1),
+        (1, 64, 224, 224),
+        (1, 64, 224, 224),
+        targets=[("llvm", tvm.cpu(0))],
+    )
+    verify_any_conv2d(
+        (relay.Any(), 64, relay.Any(), relay.Any()),
+        (64, 64, 1, 1),
+        (1, 1),
+        (0, 0),
+        (1, 1),
+        (1, 64, 224, 224),
+        (1, 64, 224, 224),
+        targets=[("llvm", tvm.cpu(0))],
     )
 
 

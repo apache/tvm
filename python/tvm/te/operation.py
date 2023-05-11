@@ -467,13 +467,13 @@ def var(name="tindex", dtype="int32", span=None):
     return tvm.tir.Var(name, dtype, span)
 
 
-def const(dtype="int32", span=None):
-    """Create a new constant with specified name and dtype
+def const(value, dtype="int32", span=None):
+    """Create a new constant with specified value and dtype
 
     Parameters
     ----------
-    name : str
-        The name
+    value : Union[bool, int, float, numpy.ndarray, tvm.nd.NDArray]
+        The constant value.
 
     dtype : str
         The data type
@@ -483,10 +483,10 @@ def const(dtype="int32", span=None):
 
     Returns
     -------
-    var : Var
-        The result symbolic variable.
+    const : PrimExpr
+        The result constant expr.
     """
-    return tvm.tir.const(dtype, span)
+    return tvm.tir.const(value, dtype, span)
 
 
 def size_var(name="size", dtype="int32", span=None):

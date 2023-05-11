@@ -18,6 +18,7 @@
 """Depthwise convolution operators"""
 from __future__ import absolute_import as _abs
 from collections import namedtuple
+import numpy as np
 import tvm
 from tvm import te
 
@@ -64,30 +65,23 @@ def _get_workload(data, kernel, stride, padding, dilation, out_dtype, data_layou
     elif data_layout == "NCHWc":
         _, in_channel_chunk, height, width, in_channel_block = get_const_tuple(data.shape)
         in_channel = in_channel_chunk * in_channel_block
-        (
-            filter_channel_chunk,
-            cm_chunk,
-            kh,
-            kw,
-            cm_block,
-            filter_channel_block,
-        ) = get_const_tuple(kernel.shape)
+        (filter_channel_chunk, cm_chunk, kh, kw, cm_block, filter_channel_block) = get_const_tuple(
+            kernel.shape
+        )
         filter_channel = filter_channel_chunk * filter_channel_block
         channel_multiplier = cm_chunk * cm_block
 
-        assert (
-            in_channel_block == filter_channel_block
-        ), "Incorrect dimensions, data has block size {}, but filter has block size {}".format(
-            in_channel_block, filter_channel_block
+        assert in_channel_block == filter_channel_block, (
+            f"Incorrect dimensions, data has block size {in_channel_block}, but filter has "
+            f"block size {filter_channel_block}"
         )
 
     else:
-        raise ValueError("Data layout {} not supported".format(data_layout))
+        raise ValueError(f"Data layout {data_layout} not supported")
 
-    assert (
-        in_channel == filter_channel
-    ), "Incorrect dimensions, data has {} channels but filter expects {} channels".format(
-        in_channel, filter_channel
+    assert in_channel == filter_channel, (
+        f"Incorrect dimensions, data has {in_channel} channels but filter expects "
+        f"{filter_channel} channels"
     )
 
     out_channel = filter_channel * channel_multiplier
@@ -100,10 +94,7 @@ def _get_workload(data, kernel, stride, padding, dilation, out_dtype, data_layou
         HSTR, WSTR = stride, stride
     assert (data.dtype == kernel.dtype) or (
         data.dtype == "uint8" and kernel.dtype == "int8"
-    ), "Do not support inputs with different data types now. ' \
-        '{} vs. {}".format(
-        data.dtype, kernel.dtype
-    )
+    ), f"Do not support inputs with different data types now. {data.dtype} vs. {kernel.dtype}"
     dilated_kernel_h = (kh - 1) * dilation_h + 1
     dilated_kernel_w = (kw - 1) * dilation_w + 1
     pt, pl, pb, pr = get_pad_tuple(padding, (dilated_kernel_h, dilated_kernel_w))
@@ -211,7 +202,9 @@ def depthwise_conv2d_nchw(Input, Filter, stride, padding, dilation, out_dtype=No
     return Output
 
 
-def depthwise_conv2d_nhwc(Input, Filter, stride, padding, dilation, out_dtype=None):
+def depthwise_conv2d_nhwc(
+    Input, Filter, stride, padding, dilation, kernel_layout="HWOI", out_dtype=None
+):
     """Depthwise convolution nhwc forward operator.
 
     Parameters
@@ -252,8 +245,14 @@ def depthwise_conv2d_nhwc(Input, Filter, stride, padding, dilation, out_dtype=No
         dilation_h, dilation_w = dilation
 
     batch, in_height, in_width, in_channel = Input.shape
+
     # shape of dilated kernel
-    filter_height, filter_width, filter_channel, channel_multiplier = Filter.shape
+    if kernel_layout == "HWIO":
+        filter_height, filter_width, channel_multiplier, filter_channel = Filter.shape
+        kernel_permutation = [0, 1, 3, 2]
+    else:
+        filter_height, filter_width, filter_channel, channel_multiplier = Filter.shape
+        kernel_permutation = [0, 1, 2, 3]
 
     dilated_kernel_h = (filter_height - 1) * dilation_h + 1
     dilated_kernel_w = (filter_width - 1) * dilation_w + 1
@@ -285,7 +284,11 @@ def depthwise_conv2d_nhwc(Input, Filter, stride, padding, dilation, out_dtype=No
                     idxdiv(c, channel_multiplier),
                 ].astype(out_dtype)
                 * Filter[
-                    di, dj, idxdiv(c, channel_multiplier), idxmod(c, channel_multiplier)
+                    tuple(
+                        np.array(
+                            [di, dj, idxdiv(c, channel_multiplier), idxmod(c, channel_multiplier)]
+                        )[kernel_permutation]
+                    )
                 ].astype(out_dtype)
             ),
             axis=[di, dj],

@@ -44,7 +44,8 @@ if TYPE_CHECKING:
 def _normalize_mod(mod: Union[PrimFunc, IRModule]) -> IRModule:
     """Normalize the input to an IRModule"""
     if isinstance(mod, PrimFunc):
-        mod = mod.with_attr("global_symbol", "main")
+        if not (mod.attrs and "global_symbol" in mod.attrs):
+            mod = mod.with_attr("global_symbol", "main")
         mod = mod.with_attr("tir.noalias", True)
         mod = IRModule({"main": mod})
     if not isinstance(mod, IRModule):
@@ -153,7 +154,7 @@ class TuneContext(Object):
 
         Returns
         -------
-        design_spaces : List[Schedule]
+        design_spaces : List[tvm.tir.Schedule]
             The generated design spaces, i.e., schedules.
         """
         if self.mod is None:
@@ -183,7 +184,7 @@ class TuneContext(Object):
             The maximum number of trials to be executed.
         num_trials_per_iter : int = 64
             The number of trials to be executed per iteration.
-        design_spaces : Optional[List[Schedule]]
+        design_spaces : Optional[List[tvm.tir.Schedule]]
             The design spaces used during tuning process.
             If None, use the outcome of `self.generate_design_space()`.
         database : Optional[Database] = None

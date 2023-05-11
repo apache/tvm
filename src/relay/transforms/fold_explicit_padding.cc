@@ -228,7 +228,6 @@ class SimplifyExplicitPad {
 
     const Expr& pv = pad_node->args[1];
     const ConstantNode* pad_value = pv.as<ConstantNode>();
-    auto pad_scalar = ToScalar(pad_value->data);
 
     if (node_map.find(qconv2d_) != node_map.end()) {
       Attrs attrs = MakeConv2D3DAttrs(param, call_node->attrs.as<Conv2DAttrs>());
@@ -251,6 +250,7 @@ class SimplifyExplicitPad {
 
     if (param->pad_mode == "constant" && pad_value) {
       Attrs attrs;
+      auto pad_scalar = ToScalar(pad_value->data);
       if (pad_scalar == 0.0) {
         // Fold Padding and Conv/AvgPool only if pad_value == 0.
         if (node_map.count(conv_)) {

@@ -451,6 +451,8 @@ def schedule_conv2d_winograd(cfg, s, output, pre_computed):
         autotvm.GLOBAL_SCOPE.in_tuning
         or isinstance(kernel.op, tvm.te.ComputeOp)
         and "filter_pack" in kernel.op.tag
+        and kernel.shape[2] == 1
+        and kernel.shape[3] == 1
     ):
         BB = s.cache_read(kernel_pack, get_texture_storage(kernel_pack.shape), [OL])
         bind_data_copy(s[BB])

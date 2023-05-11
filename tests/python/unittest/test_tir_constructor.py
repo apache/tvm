@@ -16,7 +16,6 @@
 # under the License.
 
 import pytest
-
 import tvm
 from tvm import te
 
@@ -153,7 +152,7 @@ def test_stmt_constructor():
 
     buffer_var = tvm.tir.Var("buf", tvm.ir.PointerType(tvm.ir.PrimType("uint1")))
     buffer = tvm.tir.decl_buffer([16], "uint1", data=buffer_var)
-    x = tvm.tir.BufferStore(buffer, 1, [10])
+    x = tvm.tir.BufferStore(buffer, tvm.tir.IntImm("bool", 1), [10])
     assert isinstance(x, tvm.tir.BufferStore)
     assert x.buffer == buffer
     assert x.buffer.data == buffer_var

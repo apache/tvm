@@ -261,6 +261,8 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
                     )
             if (
                 target.kind.name == "cuda"
+                and not is_auto_scheduler_enabled()
+                and not is_meta_schedule_enabled()
                 and nvcc.have_tensorcore(target=target)
                 and (
                     (N % 16 == 0 and CI % 16 == 0 and CO % 16 == 0)
@@ -916,13 +918,16 @@ def dense_strategy_cuda(attrs, inputs, out_type, target):
             name="dense_int8.cuda",
         )
     else:
-        strategy.add_implementation(
-            wrap_compute_dense(topi.gpu.dense_small_batch),
-            wrap_topi_schedule(topi.gpu.schedule_dense_small_batch),
-            name="dense_small_batch.gpu",
-        )
+        # Some AMDGPU cards have accuracy issues with this schedule
+        # See https://github.com/apache/tvm/issues/13666
+        if target.kind.name != "rocm":
+            strategy.add_implementation(
+                wrap_compute_dense(topi.gpu.dense_small_batch),
+                wrap_topi_schedule(topi.gpu.schedule_dense_small_batch),
+                name="dense_small_batch.gpu",
+            )
 
-        with SpecializedCondition(b >= 32):
+        with SpecializedCondition(target.kind.name == "rocm" or b >= 32):
             strategy.add_implementation(
                 wrap_compute_dense(topi.gpu.dense_large_batch),
                 wrap_topi_schedule(topi.gpu.schedule_dense_large_batch),
@@ -1057,40 +1062,27 @@ def sparse_dense_padded_strategy_cuda(attrs, inputs, out_type, target):
     return strategy
 
 
-@scatter_strategy.register(["cuda", "gpu"])
-def scatter_cuda(attrs, inputs, out_type, target):
-    """scatter cuda strategy"""
+@scatter_elements_strategy.register(["cuda", "gpu"])
+def scatter_elements_cuda(attrs, inputs, out_type, target):
+    """scatter elements cuda strategy"""
     strategy = _op.OpStrategy()
     strategy.add_implementation(
-        wrap_compute_scatter(topi.cuda.scatter),
-        wrap_topi_schedule(topi.cuda.schedule_scatter),
-        name="scatter.cuda",
+        wrap_compute_scatter_elements(topi.cuda.scatter_elements),
+        wrap_topi_schedule(topi.cuda.schedule_extern),
+        name="scatter_elements.cuda",
         plevel=10,
     )
 
     rank = len(inputs[0].shape)
 
-    with SpecializedCondition(rank == 1):
+    with SpecializedCondition(rank == 1 and attrs.reduction == "update"):
         if can_use_thrust(target, "tvm.contrib.thrust.stable_sort_by_key"):
             strategy.add_implementation(
-                wrap_compute_scatter(topi.cuda.scatter_via_sort),
+                wrap_compute_scatter_elements(topi.cuda.scatter_via_sort),
                 wrap_topi_schedule(topi.cuda.schedule_scatter_via_sort),
                 name="scatter_via_sort.cuda",
                 plevel=9,  # use the sequential version by default
             )
-    return strategy
-
-
-@scatter_add_strategy.register(["cuda", "gpu"])
-def scatter_add_cuda(attrs, inputs, out_type, target):
-    """scatter_add cuda strategy"""
-    strategy = _op.OpStrategy()
-    strategy.add_implementation(
-        wrap_compute_scatter(topi.cuda.scatter_add),
-        wrap_topi_schedule(topi.generic.schedule_extern),
-        name="scatter_add.cuda",
-        plevel=10,
-    )
     return strategy
 
 
@@ -1391,5 +1383,27 @@ def stft_strategy_cuda(attrs, inputs, out_type, target):
         wrap_compute_stft(topi.cuda.stft),
         wrap_topi_schedule(topi.generic.schedule_extern),
         name="stft.cuda",
+    )
+    return strategy
+
+
+@dft_strategy.register(["cuda", "gpu"])
+def dft_strategy_cuda(attrs, inputs, out_type, target):
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_dft(topi.cuda.dft),
+        wrap_topi_schedule(topi.generic.schedule_extern),
+        name="dft.cuda",
+    )
+    return strategy
+
+
+@layout_transform_strategy.register(["cuda", "gpu"])
+def layout_transform_strategy_cuda(attrs, inputs, out_type, target):
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_layout_transform(topi.layout_transform, schedule_rule="layout_transform"),
+        schedule_injective,
+        name="layout_transform.cuda",
     )
     return strategy

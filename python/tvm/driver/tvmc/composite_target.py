@@ -28,6 +28,7 @@ from tvm.relay.op.contrib.cmsisnn import partition_for_cmsisnn
 from tvm.relay.op.contrib.ethosu import partition_for_ethosu
 from tvm.relay.op.contrib.bnns import partition_for_bnns
 from tvm.relay.op.contrib.vitis_ai import partition_for_vitis_ai
+from tvm.relay.op.contrib.clml import partition_for_clml
 
 
 from tvm.driver.tvmc import TVMCException
@@ -70,6 +71,10 @@ REGISTERED_CODEGEN = {
     "vitis-ai": {
         "config_key": "relay.ext.vitis_ai.options",
         "pass_pipeline": partition_for_vitis_ai,
+    },
+    "clml": {
+        "config_key": None,
+        "pass_pipeline": partition_for_clml,
     },
 }
 

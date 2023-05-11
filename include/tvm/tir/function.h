@@ -132,6 +132,8 @@ class PrimFuncNode : public BaseFuncNode {
    */
   TVM_DLL FuncType func_type_annotation() const;
 
+  TVM_OBJECT_ENABLE_SCRIPT_PRINTER();
+
   static constexpr const char* _type_key = "tir.PrimFunc";
   TVM_DECLARE_FINAL_OBJECT_INFO(PrimFuncNode, BaseFuncNode);
 };
@@ -224,14 +226,14 @@ class TensorIntrin : public ObjectRef {
   TVM_DEFINE_OBJECT_REF_METHODS(TensorIntrin, ObjectRef, TensorIntrinNode)
 };
 
-/*
+/*!
  * \brief Specialize parameters of PrimFunc.
  * \param func The PrimFunc to be specialized.
  * \param param_map The mapping from function params to the instance.
  * \return The new function with parameter specialized.
  * \note We can define a Meta TIR function with symbolic shape:
  *
- * \code
+ * \code{.py}
  *  @T.prim_func
  *  def mem_copy(a: T.handle, b: T.handle, m: T.int32, n: T.int32) -> None:
  *      A = T.match_buffer(a, (m, n), "float32")
@@ -244,14 +246,14 @@ class TensorIntrin : public ObjectRef {
  *
  * Then we can make it specialized with given shapes or buffers.
  *
- * \code
+ * \code{.py}
  *  a, _, m, n = mem_copy.params
  *  func = mem_copy.specialize({a: tir.decl_buffer((16, 16))})
  *  # or
  *  func = mem_copy.specialize({n: 16, m: 16})
  * \endcode
  *
- * \code {.language-id}
+ * \code{.py}
  *  @T.prim_func
  *  def mem_copy_16_16(a: T.handle, b: T.handle) -> None:
  *      A = T.match_buffer(a, (16, 16), "float32")
@@ -270,10 +272,11 @@ PrimFunc Specialize(PrimFunc func, const Map<Var, ObjectRef>& param_map);
  * \sa tvm::attr
  */
 namespace attr {
+
 /*!
  * \brief List of thread IterVar that a DeviceLaunch function corresponds to.
  *
- * Type: Array<tir::IterVar>
+ * Type: Array<String>
  *
  * We call a device kernel launch function f using the following convention:
  *
@@ -281,23 +284,42 @@ namespace attr {
  *      [arg1, arg2, ..., arg_n,
  *       work_size_1, work_size_2, ... work_size_m, dyn_shmem_size])
  *
- * Here n = len(arg), m = len(work_size) = len(device_thread_axis).
+ * Here n = len(arg), m = len(work_size) = len(launch_params)-1.
  *
- * When kDeviceUseDynSharedMemory is not set, dyn_shmem_size argument is omitted.
+ * The list of kernel launch params indicates which additional
+ * parameters will be provided to the PackedFunc by the calling
+ * scope.
  *
- * The list of device_thread_axis indicates how can be bind the
- * work_size arguments to the corresponding threads.
+ * - "threadIdx.x", "threadIdx.y", "threadIdx.z"
+ *
+ *   The extent of the thread count in x/y/z, to be used when
+ *   launching the compute kernel on the device.  For example, the
+ *   gridDimX/Y/Z parameters passed to cuLaunchKernel when launching a
+ *   CUDA kernel, or the groupCountX/Y/Z parameters passed to
+ *   vkCmdDispatch when dispatching a compute pipeline to Vulkan.
+ *
+ * - "blockIdx.x", "blockIdx.y", "blockIdx.z"
+ *
+ *   The extent of the block iterators, to be used when launching the
+ *   compute kernel on the device.  For example, the blockDimX/Y/Z
+ *   parameters passed to cuLaunchKernel when launching a CUDA kernel.
+ *   For runtimes that do not require the block to be provided
+ *   externally, this parameter is ignored.  For example, the
+ *   spv::ExecutionModeLocalSize for SPIR-V shaders on Vulkan, where
+ *   this parameter is defined in the shader.
+ *
+ * - tvm::runtime::launch_param::kUseDynamicSharedMemoryTag
+ *
+ *   The size of the shared memory that may be allocated internally by
+ *   the kernel.  For example, exposed as the
+ *   CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES attribute in
+ *   cuda.
+ *
+ *   Defined as "tir.use_dyn_shared_memory".
  *
  * \sa tvm::CallingConv::kDeviceKernelLaunch
  */
-constexpr const char* kDeviceThreadAxis = "tir.device_thread_axis";
-
-/*!
- * \brief Whether or not use dynamic shared memory.
- *
- * Type: Integer
- */
-constexpr const char* kDeviceUseDynSharedMemory = "tir.device_use_dyn_shared_memory";
+constexpr const char* kKernelLaunchParams = "tir.kernel_launch_params";
 
 /*!
  * \brief Whether to set noalias rule on the function arguments.
@@ -322,6 +344,13 @@ constexpr const char* kIsEntryFunc = "tir.is_entry_func";
  * Type: Integer
  */
 constexpr const char* kIsGlobalFunc = "tir.is_global_func";
+
+/*!
+ * \brief Mark the function as run on the host, mutually exclusive with kTarget.
+ *
+ * Type: Integer
+ */
+constexpr const char* kIsHostFunc = "tir.is_host_func";
 
 }  // namespace attr
 }  // namespace tir

@@ -24,6 +24,8 @@ import os
 import pathlib
 import shutil
 from typing import Union
+
+from tvm.runtime.executor.aot_executor import AotModule
 from ..error import register_error
 from .._ffi import get_global_func, register_func
 from ..contrib import graph_executor
@@ -257,6 +259,22 @@ def create_local_debug_executor(graph_json_str, mod, device, dump_root=None):
         graph_json_str,
         dump_root=dump_root,
     )
+
+
+def create_local_aot_executor(session: Session):
+    """Create a local AoT executor driving execution on the remote CPU device given.
+
+    Parameters
+    ----------
+    session : Session
+        A microTVM device session.
+
+    Returns
+    -------
+    tvm.runtime.executor.aot_executor.AotModule :
+         A local AoT executor instance that executes on the remote device.
+    """
+    return AotModule(session.create_aot_executor())
 
 
 @register_func("tvm.micro.compile_and_create_micro_session")

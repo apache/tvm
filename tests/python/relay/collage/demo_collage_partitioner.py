@@ -180,7 +180,7 @@ def tune_autotvm_tasks(tasks, log_filename):
             continue
 
         logging.info(f"Using autotvm to tune {task.name}")
-        tuner_obj = tvm.autotvm.tuner.XGBTuner(task, loss_type="rank")
+        tuner_obj = tvm.autotvm.tuner.XGBTuner(task, loss_type="reg")
         if os.path.exists(tmp_log_filename):
             tuner_obj.load_history(tvm.autotvm.record.load_from_file(tmp_log_filename))
 
@@ -264,6 +264,12 @@ def collage(model):
         config = {
             "relay.collage.tvm_max_depth": TVM_MAX_DEPTH,
             "relay.collage.byoc_max_depth": BYOC_MAX_DEPTH,
+            "relay.collage.byoc_fusion_style": [
+                "cutlass.NoFusion",
+                "cublas.NoFusion",
+                "cudnn.NoFusion",
+                "tensorrt.TVMFusion",
+            ],
         }
         logging.info(f"Using PassContext(config={config}")
         ctxt = tvm.transform.PassContext(config=config)

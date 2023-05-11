@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=unnecessary-ellipsis
 """Backend base class of the Universal Modular Accelerator Interface (UMA)"""
 
 from abc import ABC, abstractmethod
@@ -278,11 +279,12 @@ class UMABackend(ABC):
         """
         registration_func = tvm.get_global_func("relay.backend.contrib.uma.RegisterTarget")
 
-        for name, attr in self._target_attrs:
+        for _, attr in self._target_attrs.items():
             if attr is None:
                 raise ValueError("Target attribute None is not supported.")
-
-        if registration_func(self.target_name, self._target_attrs):
+        # skip if target is already registered
+        if self.target_name not in tvm.target.Target.list_kinds():
+            registration_func(self.target_name, self._target_attrs)
             self._relay_to_relay.register()
             self._relay_to_tir.register()
             self._tir_to_runtime.register()

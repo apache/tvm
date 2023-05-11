@@ -139,6 +139,11 @@ inline InlineType AutoInlineNode::CheckInline(const tir::Schedule& sch,
       }
     }
   }
+  // Cond 6. The block is disallowed for auto inline
+  if (Optional<String> ann =
+          tir::GetAnn<String>(block_sref, tir::attr::meta_schedule_inline_rule)) {
+    if (ann.value() == "disable") return InlineType::kNoInline;
+  }
   // Last cond: Check inline into the consumers or the spatial producer
   tir::StmtSRef scope_block = tir::GetScopeRoot(sch->state(), block_sref,
                                                 /*require_stage_pipeline=*/false);
@@ -204,7 +209,10 @@ class InlineConstantScalarsNode : public ScheduleRuleNode {
     auto block = sch->Get(block_rv);
     if (block->reads.size() == 0 && block->writes.size() == 1 &&
         block->writes[0]->buffer->shape.size() == 0) {
-      sch->ComputeInline(block_rv);
+      auto sref = sch->GetSRef(block_rv);
+      if (!tir::IsOutputBlock(sch->state(), sref, tir::GetScopeRoot(sch->state(), sref, true))) {
+        sch->ComputeInline(block_rv);
+      }
     }
     return {sch};
   }

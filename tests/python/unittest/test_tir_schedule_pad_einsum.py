@@ -31,9 +31,9 @@ from tvm.meta_schedule.testing import te_workload
 
 @T.prim_func
 def matmul_before(
-    A: T.Buffer[(128, 127), "float32"],
-    B: T.Buffer[(127, 127), "float32"],
-    C: T.Buffer[(128, 127), "float32"],
+    A: T.Buffer((128, 127), "float32"),
+    B: T.Buffer((127, 127), "float32"),
+    C: T.Buffer((128, 127), "float32"),
 ) -> None:
     A_shared = T.alloc_buffer((128, 127), "float32", scope="shared")
     B_shared = T.alloc_buffer((127, 127), "float32", scope="shared")
@@ -60,9 +60,9 @@ def matmul_before(
 
 @T.prim_func
 def matmul_expected(
-    A: T.Buffer[(128, 127), "float32"],
-    B: T.Buffer[(127, 127), "float32"],
-    C: T.Buffer[(128, 127), "float32"],
+    A: T.Buffer((128, 127), "float32"),
+    B: T.Buffer((127, 127), "float32"),
+    C: T.Buffer((128, 127), "float32"),
 ) -> None:
     A_shared_padded = T.alloc_buffer([128, 128], dtype="float32", scope="shared")
     B_shared_padded = T.alloc_buffer([128, 128], dtype="float32", scope="shared")

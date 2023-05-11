@@ -21,10 +21,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/printk.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/crt/stack_allocator.h>
-#include <zephyr.h>
+#include <zephyr/kernel.h>
+#include <zephyr/sys/printk.h>
 
 #include "tvmgen_default.h"
 

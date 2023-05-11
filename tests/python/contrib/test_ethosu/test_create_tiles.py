@@ -48,7 +48,7 @@ def test_create_tiles_h():
     @tvm.script.ir_module
     class Module:
         @T.prim_func
-        def main(placeholder1: T.Buffer[(100,), "int8"], placeholder2: T.Buffer[(100,), "int8"]) -> None:
+        def main(placeholder1: T.Buffer((100,), "int8"), placeholder2: T.Buffer((100,), "int8")) -> None:
             T.attr("i0", "pragma_layout", "NHCWB16")
             for i0 in T.serial(0, 1):
                 for i1 in T.serial(0, 6):
@@ -79,7 +79,7 @@ def test_create_tiles_w():
     @tvm.script.ir_module
     class Module:
         @T.prim_func
-        def main(placeholder1: T.Buffer[(100,), "int8"], placeholder2: T.Buffer[(100,), "int8"]) -> None:
+        def main(placeholder1: T.Buffer((100,), "int8"), placeholder2: T.Buffer((100,), "int8")) -> None:
             T.attr("i0", "pragma_layout", "NHCWB16")
             for i0 in T.serial(0, 1):
                 for i1 in T.serial(0, 1):
@@ -110,7 +110,7 @@ def test_create_tiles_wrong_var_stride():
     @tvm.script.ir_module
     class Module:
         @T.prim_func
-        def main(placeholder1: T.Buffer[(100,), "int8"], placeholder2: T.Buffer[(100,), "int8"]) -> None:
+        def main(placeholder1: T.Buffer((100,), "int8"), placeholder2: T.Buffer((100,), "int8")) -> None:
             T.attr("i0", "pragma_layout", "NHCWB16")
             for i0 in T.serial(0, 1):
                 for i1 in T.serial(0, 6):
@@ -141,7 +141,7 @@ def test_create_tiles_multiple_var_occurrences():
     @tvm.script.ir_module
     class Module:
         @T.prim_func
-        def main(placeholder1: T.Buffer[(100,), "int8"], placeholder2: T.Buffer[(100,), "int8"]) -> None:
+        def main(placeholder1: T.Buffer((100,), "int8"), placeholder2: T.Buffer((100,), "int8")) -> None:
             T.attr("i0", "pragma_layout", "NHWC")
             for i0 in T.serial(0, 1):
                 for i1 in T.serial(0, 5):
@@ -167,4 +167,4 @@ def test_create_tiles_multiple_var_occurrences():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

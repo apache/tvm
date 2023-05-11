@@ -131,6 +131,23 @@ class AddModule:
                 C[vi] = A[vi] + B[vi]
 
 
+# A huge matmul that must cause timeout in the timeout test below.
+@tvm.script.ir_module
+class MatmulHugeModule:
+    @T.prim_func
+    def main(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=no-self-argument
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        A = T.match_buffer(a, (4096, 4096), "float32")
+        B = T.match_buffer(b, (4096, 4096), "float32")
+        C = T.match_buffer(c, (4096, 4096), "float32")
+        for i, j, k in T.grid(4096, 4096, 4096):
+            with T.block("matmul"):
+                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                with T.init():
+                    C[vi, vj] = 0.0
+                C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+
+
 # pylint: enable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring
 
 
@@ -372,22 +389,20 @@ def test_meta_schedule_py_runner():
 
 
 def test_meta_schedule_rpc_runner_time_out():
-    """Test meta schedule RPC Runner time out"""
+    """Test meta schedule RPC Runner time out by using a super large workload"""
 
-    def initializer():
-        @register_func("meta_schedule.runner.test_time_out")
-        def timeout_session_creator(  # pylint: disable=unused-variable
-            rpc_config: RPCConfig,  # pylint: disable=unused-argument
-        ) -> RPCSession:
-            time.sleep(2)
+    builder = LocalBuilder()
+    builder_inputs = [BuilderInput(MatmulHugeModule, Target("llvm"))]
+    builder_results = builder.build(builder_inputs)
+    builder_results[0].artifact_path
 
     runner_input = RunnerInput(
-        "test",
+        builder_results[0].artifact_path,
         "llvm",
         [
-            TensorInfo("float32", (MATMUL_N, MATMUL_N)),
-            TensorInfo("float32", (MATMUL_N, MATMUL_N)),
-            TensorInfo("float32", (MATMUL_N, MATMUL_N)),
+            TensorInfo("float32", (4096, 4096)),
+            TensorInfo("float32", (4096, 4096)),
+            TensorInfo("float32", (4096, 4096)),
         ],
     )
 
@@ -408,15 +423,13 @@ def test_meta_schedule_rpc_runner_time_out():
         runner = RPCRunner(
             rpc_config,
             evaluator_config,
-            initializer=initializer,
-            f_create_session="meta_schedule.runner.test_time_out",
         )
         # Run the module
         (runner_future,) = runner.run([runner_input])
         runner_result = runner_future.result()
 
     assert runner_result.error_msg is not None and runner_result.error_msg.startswith(
-        "RPCRunner: Timeout, killed after"
+        "RPCRunner: An exception occurred"
     )
     assert runner_result.run_secs is None
 

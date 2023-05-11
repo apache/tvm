@@ -651,8 +651,8 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
         BaseFunc base_func = module_->Lookup(GetRef<GlobalVar>(global_var_node));
         return ResolveToPrimitive(base_func);
       }
-    } else if (const auto* prim_func_node = expr.as<tir::PrimFuncNode>()) {
-      return GetRef<tir::PrimFunc>(prim_func_node);
+    } else if (auto prim_func = expr.as<tir::PrimFunc>()) {
+      return prim_func.value();
     } else if (const auto* var_node = expr.as<VarNode>()) {
       auto itr = primitive_functions_.find(var_node);
       if (itr == primitive_functions_.end()) {
@@ -700,7 +700,8 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
    */
   Expr MakeLoweredCall(const BaseFunc& original_function, const GlobalVar& prim_fn_var,
                        Array<Expr> args, Span span, const Target& target,
-                       const Map<GlobalVar, BaseFunc>& lowered_functions) {
+                       const Map<GlobalVar, BaseFunc>& lowered_functions,
+                       const te::Schedule& sch = {}) {
     auto opt_compiler = original_function->GetAttr<String>(attr::kCompiler);
 
     // Add some metadata on top of the *original function* and invoke the callback so it can
@@ -725,19 +726,25 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
     }
 
     // Alas, WithAttr cannot work with base classes.
-    if (const auto* prim_func_node = original_function.as<te::PrimFuncNode>()) {
-      auto func_with_metadata = GetRef<te::PrimFunc>(prim_func_node);
+    if (auto opt = original_function.as<te::PrimFunc>()) {
+      auto func_with_metadata = opt.value();
       func_with_metadata = WithAttr(func_with_metadata, "prim_fn_var", prim_fn_var);
       func_with_metadata = WithAttr(func_with_metadata, "prim_funcs", prim_fns);
       func_with_metadata = WithAttr(func_with_metadata, tvm::attr::kTarget, target);
+      // Store generated Schedules of operator
+      if (sch.defined() && sch->keep_schedule_record) {
+        func_with_metadata = WithAttr(func_with_metadata, "schedule", sch);
+      }
       this->process_fn_(func_with_metadata);
     } else {
-      const auto* function_node = original_function.as<FunctionNode>();
-      ICHECK(function_node);
-      auto func_with_metadata = GetRef<Function>(function_node);
+      auto func_with_metadata = original_function.as<Function>().value();
       func_with_metadata = WithAttr(func_with_metadata, "prim_fn_var", prim_fn_var);
       func_with_metadata = WithAttr(func_with_metadata, "prim_funcs", prim_fns);
       func_with_metadata = WithAttr(func_with_metadata, tvm::attr::kTarget, target);
+      // Store generated Schedules of operator
+      if (sch.defined() && sch->keep_schedule_record) {
+        func_with_metadata = WithAttr(func_with_metadata, "schedule", sch);
+      }
       this->process_fn_(func_with_metadata);
     }
 
@@ -857,8 +864,8 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
     BaseFunc primitive_func = ResolveToPrimitive(call_node->op);
     if (!primitive_func.defined()) {
       // Cases 5 and 6: Leave as ordinary call.
-      if (const auto* function_node = call_node->op.as<FunctionNode>()) {
-        process_fn_(GetRef<Function>(function_node));
+      if (auto function = call_node->op.as<Function>()) {
+        process_fn_(function.value());
       }
       return WithFields(GetRef<Call>(call_node), std::move(new_op), std::move(new_args));
     }
@@ -878,15 +885,14 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
     ICHECK(call_node->type_args.empty()) << "lowered functions cannot be polymorphic";
 
     // Case 4: If the function has already been lowered we just need to update the call.
-    if (const auto* prim_func_node = primitive_func.as<tir::PrimFuncNode>()) {
+    if (auto prim_func = primitive_func.as<tir::PrimFunc>()) {
       // Function should already be Target annotated by this point
       // but the TE Compiler metadata is still needed for the callback
       // TODO(Mousius) - Robustify this to not assume we're in the GlobalVar for Target Hooks
       Optional<Target> opt_target = primitive_func->GetAttr<Target>(tvm::attr::kTarget);
       ICHECK(opt_target.defined());
       auto prim_fn_var = Downcast<GlobalVar>(call_node->op);
-      tir::PrimFunc prim_func = GetRef<tir::PrimFunc>(prim_func_node);
-      Map<GlobalVar, BaseFunc> prim_fns = {{prim_fn_var, prim_func}};
+      Map<GlobalVar, BaseFunc> prim_fns = {{prim_fn_var, prim_func.value()}};
       return MakeLoweredCall(primitive_func, prim_fn_var, std::move(new_args), call_node->span,
                              opt_target.value(), prim_fns);
     }
@@ -926,7 +932,7 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
       CachedFunc cfunc = compiler_->Lower(key);
       ICHECK(cfunc.defined());
       return MakeLoweredCall(primitive_func, cfunc->prim_fn_var, std::move(new_args),
-                             call_node->span, target, cfunc->funcs->functions);
+                             call_node->span, target, cfunc->funcs->functions, cfunc->schedule);
     }
   }
 

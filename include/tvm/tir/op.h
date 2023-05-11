@@ -40,6 +40,9 @@
 
 namespace tvm {
 
+#define TVM_TIR_REGISTER_OP(OpName) \
+  TVM_REGISTER_OP("tir." OpName).set_attr<TScriptPrinterName>("TScriptPrinterName", OpName)
+
 // Most common operators can be overloaded by argument type(PrimExpr).
 // So we put them under the root namespace.
 //
@@ -675,6 +678,15 @@ TVM_DLL PrimExpr LargeUIntImm(DataType dtype, int64_t low, int64_t high, Span sp
 TVM_DLL PrimExpr q_multiply_shift(PrimExpr x, PrimExpr y, PrimExpr q, PrimExpr s,
                                   Span span = Span());
 
+/*!
+ * \brief Fast_erf_float expression from Eigen
+ *
+ * \param arg The input expression.
+ * \param bits The number of bits in the type.
+ * \return The constructed expression.
+ */
+TVM_DLL PrimExpr fast_erf_float_expr(PrimExpr arg, int bits);
+
 // Intrinsic operators
 #define TVM_DECLARE_INTRIN_UNARY(OpName)                                \
   inline PrimExpr OpName(PrimExpr x, Span span = Span()) {              \
@@ -853,7 +865,12 @@ inline bool is_const_number(const PrimExpr& x);
  */
 template <typename FReduce>
 inline PrimExpr foldl(FReduce freduce, PrimExpr init_value, const Array<PrimExpr>& values,
-                      Span span = Span());
+                      Span span = Span()) {
+  for (PrimExpr val : values) {
+    init_value = freduce(init_value, val, span);
+  }
+  return init_value;
+}
 
 /*!
  * \brief Check whether x is a constant power of two
@@ -952,15 +969,6 @@ inline PrimExpr make_zero(DataType t, Span span) {
     return reinterpret(t, make_const(DataType::UInt(64), 0, span));
   }
   return make_const(t, 0, span);
-}
-
-template <typename FReduce>
-inline PrimExpr foldl(FReduce freduce, PrimExpr init_value, const Array<PrimExpr>& values,
-                      Span span) {
-  for (PrimExpr val : values) {
-    init_value = freduce(init_value, val, span);
-  }
-  return init_value;
 }
 
 }  // namespace tir

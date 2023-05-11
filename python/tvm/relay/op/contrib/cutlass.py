@@ -17,12 +17,14 @@
 # pylint: disable=invalid-name
 """Patterns supported CUTLASS."""
 from functools import partial
+
 from tvm import relay
-from tvm.ir.transform import Sequential, PassContext
+from tvm.ir.transform import PassContext, Sequential
 from tvm.relay import transform
 from tvm.relay.build_module import bind_params_by_name
 from tvm.relay.op.contrib.register import register_pattern_table  # type: ignore
-from ...dataflow_pattern import wildcard, is_op, is_constant
+
+from ...dataflow_pattern import is_constant, is_op, wildcard
 
 
 def make_gelu_pattern(bias_out, out_dtype="float16"):
@@ -124,7 +126,7 @@ def check_dtype(lhs, rhs):
 def get_root_call(call, root_op_name):
     if not isinstance(call, relay.Call):
         return None
-    if str(call.op) == root_op_name:
+    if str(call.op.name) == root_op_name:
         return call
     return get_root_call(call.args[0], root_op_name)
 

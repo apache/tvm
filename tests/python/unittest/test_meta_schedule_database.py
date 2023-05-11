@@ -18,16 +18,17 @@
 """Test Meta Schedule Database"""
 import os.path as osp
 import tempfile
-from typing import Callable, Optional, List
+from typing import Callable, List, Optional
 
+import pytest
 import tvm
 import tvm.testing
-from tvm.target import Target
 from tvm import meta_schedule as ms
-from tvm.meta_schedule.database import TuningRecord, Workload
-from tvm import tir
+from tvm import relay, tir
 from tvm.ir.module import IRModule
+from tvm.meta_schedule.database import TuningRecord, Workload
 from tvm.script import tir as T
+from tvm.target import Target
 from tvm.tir import Schedule
 
 
@@ -92,10 +93,10 @@ def _create_schedule(mod: IRModule, sch_fn: Callable[[Schedule], None]) -> Sched
     return sch
 
 
-def _create_tmp_database(tmpdir: str) -> ms.database.JSONDatabase:
+def _create_tmp_database(tmpdir: str, mod_eq: str = "structural") -> ms.database.JSONDatabase:
     path_workload = osp.join(tmpdir, "workloads.json")
     path_tuning_record = osp.join(tmpdir, "tuning_records.json")
-    return ms.database.JSONDatabase(path_workload, path_tuning_record)
+    return ms.database.JSONDatabase(path_workload, path_tuning_record, module_equality=mod_eq)
 
 
 def _equal_record(a: ms.database.TuningRecord, b: ms.database.TuningRecord):
@@ -534,6 +535,81 @@ def test_meta_schedule_pydatabase_current():
     db = PyMemoryDatabaseDefault()  # pylint: disable=invalid-name
     with db:  # pylint: disable=not-context-manager
         assert ms.database.Database.current() == db
+
+
+def call_get_top_k(run_secs_list, database, k):
+    mod: IRModule = Matmul
+    workload = database.commit_workload(mod)
+    for run_secs in run_secs_list:
+        record = ms.database.TuningRecord(
+            _create_schedule(mod, _schedule_matmul).trace,
+            workload,
+            run_secs,
+            tvm.target.Target("llvm"),
+            ms.arg_info.ArgInfo.from_prim_func(func=mod["main"]),
+        )
+        database.commit_tuning_record(record)
+    return [[v.value for v in record.run_secs] for record in database.get_top_k(workload, k)]
+
+
+@pytest.mark.parametrize(
+    "k,expected",
+    [
+        (0, []),
+        (1, [[0.0, 2.0]]),
+        (4, [[0.0, 2.0], [2.0], [1.5, 4.5], [3.0, 1e10]]),
+        (5, [[0.0, 2.0], [2.0], [1.5, 4.5], [3.0, 1e10]]),
+    ],
+)
+def test_memory_database_get_top_k(k, expected):
+    run_secs_list = [[1.5, 4.5], [], [0.0, 2.0], None, [2.0], [3.0, 1e10], [1e10]]
+    database = ms.database.MemoryDatabase()
+    result = call_get_top_k(run_secs_list, database, k)
+    assert result == expected
+
+
+@pytest.mark.parametrize(
+    "k,expected",
+    [
+        (0, []),
+        (4, [[0.0, 2.0], [2.0], [1.5, 4.5], [3.0, 1e10]]),
+        (5, [[0.0, 2.0], [2.0], [1.5, 4.5], [3.0, 1e10]]),
+    ],
+)
+def test_json_database_get_top_k(k, expected):
+    run_secs_list = [[1.5, 4.5], [], [0.0, 2.0], None, [2.0], [3.0, 1e10], [1e10]]
+    with tempfile.TemporaryDirectory() as tmpdir:
+        database = _create_tmp_database(tmpdir)
+        result = call_get_top_k(run_secs_list, database, k)
+    assert result == expected
+
+
+def MatmulFunc() -> IRModule:
+    a = relay.var("a", relay.TensorType((1024, 1024), "float32"))
+    b = relay.var("b", relay.TensorType((1024, 1024), "float32"))
+    func = relay.Function([a, b], relay.nn.matmul(a, b))
+    return tvm.IRModule.from_expr(func)
+
+
+def MatmulPrimFunc() -> IRModule:
+    return Matmul
+
+
+@pytest.mark.parametrize("f_mod", [MatmulPrimFunc, MatmulFunc])
+@pytest.mark.parametrize("mod_eq", ["structural", "ignore-ndarray", "anchor-block"])
+def test_json_database_commit_workload(f_mod, mod_eq):
+    mod: IRModule = f_mod()
+    with tempfile.TemporaryDirectory() as tmpdir:
+        database = _create_tmp_database(tmpdir, mod_eq)
+        database.commit_workload(mod)
+
+
+@pytest.mark.parametrize("f_mod", [MatmulPrimFunc, MatmulFunc])
+@pytest.mark.parametrize("mod_eq", ["structural", "ignore-ndarray", "anchor-block"])
+def test_memory_database_commit_workload(f_mod, mod_eq):
+    mod: IRModule = f_mod()
+    database = ms.database.MemoryDatabase(module_equality=mod_eq)
+    database.commit_workload(mod)
 
 
 if __name__ == "__main__":

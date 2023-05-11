@@ -23,7 +23,7 @@ repeated four times giving four int32 outputs - one per channel."""
 import textwrap
 
 from tvm import te, tir
-from .common import num_simd_lanes_per_word
+from .common import num_simd_lanes_per_word, common_includes
 
 
 def _get_func_name(in_dtype, tensor_w, channels, kernel_h, kernel_w, suffix):
@@ -107,10 +107,8 @@ def multi_channel_convolve_impl(in_dtype, *args) -> str:
 def _quad_int8_channel_convolve_impl(_tensor_h, tensor_w, channels, kernel_h, kernel_w, suffix):
     return textwrap.dedent(
         (
-            f"""
-        #include <stdint.h>
-        #include <arm_nnsupportfunctions.h>
-
+            common_includes
+            + f"""
         // __SXTB16(_ROR(X, Y)) is combined into one assembly instruction
 
         #define TVMGEN_QUAD_INT8_CHANNEL_REARRANGE_SUM_DSP( \
@@ -118,15 +116,15 @@ def _quad_int8_channel_convolve_impl(_tensor_h, tensor_w, channels, kernel_h, ke
             tensor_c3210, \
             sum_c0, sum_c1, sum_c2, sum_c3) {{ \
           \
-          uint32_t kernel_c3210 = *arranged_kernel++; \
+          int32_t kernel_c3210 = *arranged_kernel++; \
           \
-          uint32_t tensor_c20 = __SXTB16(tensor_c3210); \
-          uint32_t kernel_c20 = __SXTB16(kernel_c3210); \
+          int32_t tensor_c20 = __sxtb16(tensor_c3210); \
+          int32_t kernel_c20 = __sxtb16(kernel_c3210); \
           sum_c0 = __builtin_arm_smlabb(tensor_c20, kernel_c20, sum_c0); \
           sum_c2 = __builtin_arm_smlatt(tensor_c20, kernel_c20, sum_c2); \
           \
-          uint32_t tensor_c31 = __SXTB16(__ROR(tensor_c3210, 8)); \
-          uint32_t kernel_c31 = __SXTB16(__ROR(kernel_c3210, 8)); \
+          int32_t tensor_c31 = __sxtb16(__ror(tensor_c3210, 8)); \
+          int32_t kernel_c31 = __sxtb16(__ror(kernel_c3210, 8)); \
           sum_c1 = __builtin_arm_smlabb(tensor_c31, kernel_c31, sum_c1); \
           sum_c3 = __builtin_arm_smlatt(tensor_c31, kernel_c31, sum_c3); \
         }}
@@ -136,22 +134,30 @@ def _quad_int8_channel_convolve_impl(_tensor_h, tensor_w, channels, kernel_h, ke
         extern "C"
         #endif
         int32_t {_get_func_name("int8", tensor_w, channels, kernel_h, kernel_w, suffix)}(
-            uint32_t *out,
-            uint32_t *tensor,
-            uint32_t *kernel) {{
+            int32_t *out,
+            int8_t *tensor,
+            int8_t *kernel) {{
 
-          uint32_t sum_c0 = 0;
-          uint32_t sum_c1 = 0;
-          uint32_t sum_c2 = 0;
-          uint32_t sum_c3 = 0;
+          int32_t sum_c0 = 0;
+          int32_t sum_c1 = 0;
+          int32_t sum_c2 = 0;
+          int32_t sum_c3 = 0;
+
+          int32_t kernel_i32[{kernel_h} * {kernel_w}];
+          memcpy(kernel_i32, kernel, {kernel_h} * {kernel_w} * sizeof(int32_t));
+          int32_t *arranged_kernel = kernel_i32;
+
+          int32_t tensor_length = {((kernel_w - 1) * (channels // 4) + (kernel_h - 1) * tensor_w * (channels // 4)) + 1};
+          int32_t tensor_i32[tensor_length];
+          memcpy(tensor_i32, tensor, tensor_length * sizeof(int32_t));
 
           #pragma GCC unroll 3
           for (int i = 0; i < {kernel_h}; i++) {{
             #pragma GCC unroll 3
             for (int j = 0; j < {kernel_w}; j++) {{
               TVMGEN_QUAD_INT8_CHANNEL_REARRANGE_SUM_DSP(
-                kernel,
-                *(tensor + j * {channels // 4} + i * {tensor_w * (channels // 4)}),
+                arranged_kernel,
+                *(tensor_i32 + j * {channels // 4} + i * {tensor_w * (channels // 4)}),
                 sum_c0, sum_c1, sum_c2, sum_c3)
             }}
           }}
@@ -172,7 +178,8 @@ def _quad_int8_channel_convolve_impl(_tensor_h, tensor_w, channels, kernel_h, ke
 def _dual_int16_channel_convolve_impl(_tensor_h, tensor_w, channels, kernel_h, kernel_w, suffix):
     return textwrap.dedent(
         (
-            f"""
+            common_includes
+            + f"""
         #include <stdint.h>
 
         /* We do four channels at once to get this speed boost. */
@@ -180,20 +187,26 @@ def _dual_int16_channel_convolve_impl(_tensor_h, tensor_w, channels, kernel_h, k
         extern "C"
         #endif
         int32_t {_get_func_name("int16", tensor_w, channels, kernel_h, kernel_w, suffix)}(
-            uint32_t *out,
-            uint32_t *tensor,
-            uint32_t *kernel) {{
+            int32_t *out,
+            int16_t *tensor,
+            int16_t *kernel) {{
 
-          uint32_t sum_c0 = 0;
-          uint32_t sum_c1 = 0;
+          int32_t sum_c0 = 0;
+          int32_t sum_c1 = 0;
+
+          int32_t kernel_i32[{kernel_h} * {kernel_w}];
+          memcpy(kernel_i32, kernel, {kernel_h} * {kernel_w} * sizeof(int32_t));
+
+          int32_t tensor_length = {((kernel_w - 1) * (channels // 2) + (kernel_h - 1) * tensor_w * (channels // 2)) + 1};
+          int32_t tensor_i32[tensor_length];
+          memcpy(tensor_i32, tensor, tensor_length * sizeof(int32_t));
 
           #pragma GCC unroll 3
           for (int i = 0; i < {kernel_h}; i++) {{
             #pragma GCC unroll 3
             for (int j = 0; j < {kernel_w}; j++) {{
-              uint32_t tensor_c10 = *(tensor + j * {channels // 2}
-                + i * {tensor_w * (channels // 2)});
-              uint32_t kernel_c10 = *kernel++;
+              int32_t tensor_c10 = tensor_i32[j * {channels // 2} + i * {tensor_w * (channels // 2)}];
+              int32_t kernel_c10 = kernel_i32[{kernel_w} * i + j];
               sum_c0 = __builtin_arm_smlabb(tensor_c10, kernel_c10, sum_c0);
               sum_c1 = __builtin_arm_smlatt(tensor_c10, kernel_c10, sum_c1);
             }}

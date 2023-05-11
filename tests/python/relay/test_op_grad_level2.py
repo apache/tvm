@@ -154,7 +154,7 @@ def test_avg_pool2d_grad(executor_kind):
         ceil_mode=False,
         count_include_pad=False,
         executor_kind=executor_kind,
-        dtype="int32",
+        dtype="float16",
     )
 
 
@@ -353,7 +353,7 @@ def test_conv2d_backward_weight_infer_type():
     SEMVER = '#[version = "0.0.5"]\n'
 
     for code in [normal_conv_code, depthwise_conv_code]:
-        expr = tvm.parser.parse_expr(SEMVER + code)
+        expr = tvm.relay.parse_expr(SEMVER + code)
         fmod = tvm.IRModule.from_expr(expr)
 
         mod = relay.transform.InferType()(fmod)
@@ -364,4 +364,4 @@ def test_conv2d_backward_weight_infer_type():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()
