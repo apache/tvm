@@ -2302,5 +2302,112 @@ def test_forward_dist():
     verify_model(Dist(), input_data=[y, v])
 
 
+@tvm.testing.uses_gpu
+def test_forward_affine_channel():
+    class AffineChannel(nn.Layer):
+        def __init__(self):
+            super(AffineChannel, self).__init__()
+
+        @paddle.jit.to_static
+        def forward(self, inputs, scale, bias):
+            return paddle.fluid.layers.affine_channel(inputs, scale, bias)
+
+    input_shape = [2, 3, 4, 5]
+    input_data = paddle.rand(input_shape, dtype="float32")
+    scale_data = paddle.rand([input_shape[1]], dtype="float32")
+    bias_data = paddle.rand([input_shape[1]], dtype="float32")
+    verify_model(
+        AffineChannel(),
+        [
+            input_data,
+            scale_data,
+            bias_data,
+        ],
+    )
+
+
+@tvm.testing.uses_gpu
+def test_forward_p_norm():
+    class PNorm(nn.Layer):
+        def __init__(self, axis, keepdim, p=1):
+            super(PNorm, self).__init__()
+            self.p = p
+            self.axis = axis
+            self.keepdim = keepdim
+
+        @paddle.jit.to_static
+        def forward(self, input_data):
+            return paddle.norm(input_data, p=self.p, axis=self.axis, keepdim=self.keepdim)
+
+    input_data = paddle.rand((2, 2, 3), dtype="float32")
+    verify_model(PNorm(axis=0, keepdim=True), input_data=input_data)
+    verify_model(PNorm(axis=0, keepdim=False), input_data=input_data)
+    verify_model(PNorm(axis=1, keepdim=True, p=1.5), input_data=input_data)
+    verify_model(PNorm(axis=-1, keepdim=True, p=3.4), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_roi_align():
+    class RoiAlign(nn.Layer):
+        def __init__(self, spatial_scale=1.0, sampling_ratio=-1, aligned=False):
+            super(RoiAlign, self).__init__()
+            self.spatial_scale = spatial_scale
+            self.sampling_ratio = sampling_ratio
+            self.aligned = aligned
+
+        @paddle.jit.to_static
+        def forward(self, input_data, rois, rois_num):
+            return paddle.vision.ops.roi_align(
+                input_data, rois, rois_num, 3, self.spatial_scale, self.sampling_ratio, self.aligned
+            )
+
+    input_data = paddle.rand((1, 128, 32, 32), dtype="float32")
+    boxes = paddle.rand([3, 4])
+    boxes[:, 2] += boxes[:, 0] + 3
+    boxes[:, 3] += boxes[:, 1] + 4
+    boxes_num = paddle.to_tensor([3]).astype("int32")
+    verify_model(RoiAlign(), input_data=[input_data, boxes, boxes_num])
+    verify_model(RoiAlign(aligned=True), input_data=[input_data, boxes, boxes_num])
+    verify_model(
+        RoiAlign(spatial_scale=2.0, aligned=True), input_data=[input_data, boxes, boxes_num]
+    )
+
+
+@tvm.testing.uses_gpu
+def test_forward_softmax_with_cross_entropy():
+    class SoftmaxWithCrossEntropy(nn.Layer):
+        def __init__(self, soft_label=False, ignore_index=-100, return_softmax=False, axis=-1):
+            super(SoftmaxWithCrossEntropy, self).__init__()
+            self.soft_label = soft_label
+            self.ignore_index = ignore_index
+            self.return_softmax = return_softmax
+            self.axis = axis
+
+        @paddle.jit.to_static
+        def forward(self, input_data, label):
+            return paddle.nn.functional.softmax_with_cross_entropy(
+                input_data,
+                label,
+                soft_label=self.soft_label,
+                ignore_index=self.ignore_index,
+                return_softmax=self.return_softmax,
+                axis=self.axis,
+            )
+
+    input_data = paddle.rand([5, 3], dtype="float32")
+    label = paddle.randint(0, 2, [5, 1])
+    verify_model(SoftmaxWithCrossEntropy(), input_data=[input_data, label])
+    verify_model(SoftmaxWithCrossEntropy(return_softmax=True), input_data=[input_data, label])
+    verify_model(
+        SoftmaxWithCrossEntropy(return_softmax=True, ignore_index=1), input_data=[input_data, label]
+    )
+    input_data = paddle.rand([5, 4, 3], dtype="float32")
+    label = paddle.randint(0, 2, [5, 1, 3])
+    verify_model(SoftmaxWithCrossEntropy(axis=1), input_data=[input_data, label])
+    label = paddle.randint(0, 2, [5, 4, 3]).astype("float32")
+    verify_model(SoftmaxWithCrossEntropy(soft_label=True), input_data=[input_data, label])
+    verify_model(SoftmaxWithCrossEntropy(soft_label=True, axis=0), input_data=[input_data, label])
+
+
 if __name__ == "__main__":
     tvm.testing.main()

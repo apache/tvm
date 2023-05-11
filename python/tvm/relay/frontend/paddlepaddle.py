@@ -141,6 +141,26 @@ def convert_addmm(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_affine_channel(g, op, block):
+    """Operator converter for affine_channel."""
+
+    if "data_layout" in op.attr_names:
+        assert (
+            op.attr("data_layout") == "NCHW" or op.attr("data_layout") == "AnyLayout"
+        ), "Only NCHW and AnyLayout are supported for affine_channel. But received: {}".format(
+            op.attr("data_layout")
+        )
+
+    x = g.get_node(op.input("X")[0])
+    bias = g.get_node(op.input("Bias")[0])
+    scale = g.get_node(op.input("Scale")[0])
+    scale = _op.reshape(scale, [-1, 1, 1])
+    bias = _op.reshape(bias, [-1, 1, 1])
+    x = _op.multiply(x, scale)
+    out = _op.add(x, bias)
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_arg_max_min(g, op, block):
     """Operator converter for arg_max and arg_min."""
 
@@ -1394,6 +1414,22 @@ def convert_one_hot_v2(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_p_norm(g, op, blcok):
+    """Operator converter for p_norm."""
+
+    x = g.get_node(op.input("X")[0])
+    axis = op.attr("axis")
+    p = op.attr("porder")
+    keepdim = op.attr("keepdim")
+    p_node = _expr.const(p, dtype="float32")
+    abs_node = _op.abs(x)
+    pow_node = _op.power(abs_node, p_node)
+    reduce_sum = _op.sum(pow_node, axis=[axis], keepdims=keepdim)
+    p_node1 = _expr.const(1.0 / p, dtype="float32")
+    out = _op.power(reduce_sum, p_node1)
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_padding(g, op, block):
     """Operator converter for padding."""
 
@@ -1642,6 +1678,30 @@ def convert_reshape(g, op, block):
     else:
         new_shape = op.attr("shape")
     out = _op.reshape(data, new_shape)
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_roi_align(g, op, block):
+    """Operator converter for roi_align."""
+
+    rois = g.get_node(op.input("ROIs")[0])
+    spatial_scale = op.attr("spatial_scale")
+    if op.attr("aligned"):
+        offset = _expr.const(0.5, dtype="float32")
+        roi_offset = _op.divide(offset, _expr.const(spatial_scale, dtype="float32"))
+        rois = _op.subtract(rois, roi_offset)
+    num_rois = infer_shape(rois)[0]
+    zero_node = _expr.const(0, dtype="int32")
+    batch_index = _op.full(zero_node, [num_rois, 1], dtype="float32")
+    rois = _op.concatenate([batch_index, rois], axis=1)
+    out = _op.vision.roi_align(
+        g.get_node(op.input("X")[0]),
+        rois,
+        pooled_size=[op.attr("pooled_height"), op.attr("pooled_width")],
+        spatial_scale=spatial_scale,
+        sample_ratio=op.attr("sampling_ratio"),
+        mode="avg",
+    )
     g.add_node(op.output("Out")[0], out)
 
 
@@ -2166,6 +2226,45 @@ def convert_softmax(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_softmax_with_cross_entropy(g, op, block):
+    """Operator converter for softmax_with_cross_entropy."""
+
+    logits = g.get_node(op.input("Logits")[0])
+    labels = g.get_node(op.input("Label")[0])
+    ignore_index = op.attr("ignore_index")
+    axis = op.attr("axis")
+    if axis < 0:
+        axis = len(infer_shape(logits)) + axis
+
+    softmax = _op.nn.softmax(logits, axis=axis)
+
+    g.add_node(op.output("Softmax")[0], softmax)
+
+    softmax = _op.log(softmax)
+    soft_label = op.attr("soft_label")
+    if soft_label:
+        loss = _op.sum(-labels * softmax, axis=axis)
+    else:
+        labels_one = _op.one_hot(
+            labels,
+            on_value=_expr.const(1.0, dtype="float32"),
+            off_value=_expr.const(0.0, dtype="float32"),
+            depth=infer_shape(logits)[axis],
+            axis=axis + 1,
+            dtype="float32",
+        )
+        labels_one = _op.squeeze(labels_one, axis=axis)
+        loss = _op.sum(-labels_one * softmax, axis=axis)
+    loss = _op.expand_dims(loss, axis=axis)
+    if ignore_index != -100:  # noly when soft_label is False
+        assert not soft_label, "soft_label and ignore_index cannot be set at the same time."
+        ignore_mask = _op.not_equal(labels, _expr.const(ignore_index, dtype="int64"))
+        ignore_mask = _op.cast(ignore_mask, "float32")
+        loss = _op.multiply(loss, ignore_mask)
+
+    g.add_node(op.output("Loss")[0], loss)
+
+
 def convert_softplus(g, op, block):
     """Operator converter for softplus."""
 
@@ -2460,6 +2559,7 @@ _convert_map = {
     "abs": convert_unary_op,
     "acos": convert_unary_op,
     "addmm": convert_addmm,
+    "affine_channel": convert_affine_channel,
     "arg_max": convert_arg_max_min,
     "arg_min": convert_arg_max_min,
     "argsort": convert_argsort,
@@ -2556,6 +2656,7 @@ _convert_map = {
     "norm": convert_norm,
     "not_equal": convert_elementwise_op,
     "one_hot_v2": convert_one_hot_v2,
+    "p_norm": convert_p_norm,
     "pad1d": convert_padding,
     "pad2d": convert_padding,
     "pad3d": convert_padding,
@@ -2568,6 +2669,7 @@ _convert_map = {
     "relu6": convert_relu6,
     "reshape2": convert_reshape,
     "round": convert_unary_op,
+    "roi_align": convert_roi_align,
     "reciprocal": convert_reciprocal,
     "reduce_all": convert_reduce,
     "reduce_any": convert_reduce,
@@ -2591,6 +2693,7 @@ _convert_map = {
     "size": convert_size,
     "slice": convert_slice,
     "softmax": convert_softmax,
+    "softmax_with_cross_entropy": convert_softmax_with_cross_entropy,
     "softplus": convert_softplus,
     "softsign": convert_softsign,
     "softshrink": convert_softshrink,
