@@ -76,7 +76,7 @@ def test_extern_vitis_ai_resnet18(dpu_target):
         tol=1e-5,
         params=params,
         dpu_target=dpu_target,
-        tvm_ops=7,
+        tvm_ops=6,
     )
 
 

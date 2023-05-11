@@ -233,7 +233,6 @@ def test_conv_bias_pool_convert_layout():
         y = relay.nn.relu(y)
         y = relay.nn.max_pool2d(y, pool_size=(2, 2))
         y = relay.cast(y, "int32")
-        y = relay.layout_transform(y, "NCHW", "NHWC")
         y = relay.nn.batch_flatten(y)
         y = relay.Function(analysis.free_vars(y), y)
         return y
@@ -440,9 +439,6 @@ def test_deformable_conv_bias_pool_convert_layout():
         y = relay.nn.relu(y)
         y = relay.nn.max_pool2d(y, pool_size=(2, 2), layout=layout_map["dst"]["data_layout"])
         y = relay.cast(y, "int32")
-        y = relay.layout_transform(
-            y, layout_map["dst"]["data_layout"], layout_map["src"]["data_layout"]
-        )
         y = relay.nn.batch_flatten(y)
         y = relay.Function(analysis.free_vars(y), y)
         return y
@@ -639,8 +635,7 @@ def test_dual_path_convert_layout():
         y1 = relay.nn.conv2d(y, weight2, channels=32, kernel_size=(3, 3), padding=(1, 1))
         y1 = relay.nn.relu(y1)
         y1 = relay.layout_transform(y1, "NCHW", "NHWC")
-        y2 = relay.layout_transform(y, "NCHW", "NHWC")
-        y2 = relay.nn.batch_flatten(y2)
+        y2 = relay.nn.batch_flatten(y)
         ret = relay.Tuple([y1, y2])
         y = relay.Function(analysis.free_vars(ret), ret)
         return y
@@ -2621,7 +2616,6 @@ def test_conv_max_pool_uses_specified_convert_layout():
         )
         y = relay.nn.relu(y)
         y = relay.nn.max_pool2d(y, pool_size=(2, 2), layout="NHWC", out_layout="NHWC")
-        y = relay.layout_transform(y, "NHWC", "NCHW")
         y = relay.nn.batch_flatten(y)
         y = relay.Function(analysis.free_vars(y), y)
         return y

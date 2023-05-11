@@ -139,6 +139,23 @@ inline InferCorrectLayoutOutput ElemwiseArbitraryLayout(
   return InferCorrectLayoutOutput(Array<Layout>(old_in_layouts.size(), ret), {ret}, attrs);
 }
 
+inline InferCorrectLayoutOutput BatchFlattenLayout(const Attrs& attrs,
+                                                   const Array<Layout>& new_in_layouts,
+                                                   const Array<Layout>& old_in_layouts,
+                                                   const Array<tvm::relay::Type>& old_in_types) {
+  Layout ret;
+
+  if (new_in_layouts.defined()) {
+    ICHECK_GE(new_in_layouts.size(), 1);
+    ret = new_in_layouts[0];
+  } else {
+    ICHECK_GE(old_in_layouts.size(), 1);
+    ret = old_in_layouts[0];
+  }
+  Layout out_layout = Layout("NC");
+  return InferCorrectLayoutOutput({ret}, {out_layout}, attrs);
+}
+
 std::pair<Array<Layout>, Array<Layout>> BinaryBroadcastLayoutHelper(
     const Attrs& attrs, const Array<Layout>& new_in_layouts, const Array<Layout>& old_in_layouts,
     const Array<tvm::relay::Type>& old_in_types);

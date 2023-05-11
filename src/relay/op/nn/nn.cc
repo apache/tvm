@@ -574,6 +574,7 @@ Example::
     .set_support_level(2)
     .add_type_rel("BatchFlatten", BatchFlattenRel)
     .set_attr<TOpPattern>("TOpPattern", kInjective)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", BatchFlattenLayout)
     .set_attr<FTVMCompute>("FTVMCompute",
                            [](const Attrs& attrs, const Array<te::Tensor>& inputs,
                               const Type& out_type) {

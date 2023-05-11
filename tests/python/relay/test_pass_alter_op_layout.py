@@ -150,7 +150,6 @@ def test_alter_layout():
         y = relay.nn.relu(y)
         y = relay.nn.max_pool2d(y, pool_size=(2, 2), layout="NCHW16c")
         y = relay.cast(y, "int32")
-        y = relay.layout_transform(y, "NCHW16c", "NCHW")
         y = relay.nn.batch_flatten(y)
         y = relay.Function(analysis.free_vars(y), y)
         return y
@@ -300,8 +299,7 @@ def test_alter_layout_dual_path():
         )
         y1 = relay.nn.relu(y1)
         y1 = relay.layout_transform(y1, "NCHW16c", "NCHW")
-        y2 = relay.layout_transform(y, "NCHW16c", "NCHW")
-        y2 = relay.nn.batch_flatten(y2)
+        y2 = relay.nn.batch_flatten(y)
         ret = relay.Tuple([y1, y2])
         y = relay.Function(analysis.free_vars(ret), ret)
         return y
