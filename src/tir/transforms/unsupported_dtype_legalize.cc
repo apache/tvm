@@ -27,7 +27,8 @@
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
-
+#include "dtype_conversion_legalization"
+G
 #include <cmath>
 #include <tuple>
 
@@ -382,11 +383,9 @@ class BF16ComputeLegalizer : public StmtExprMutator {
     if (const CastNode* cast = value.as<CastNode>()) {
       if (cast->value.dtype() == DataType::Float(32)) return cast->value;
     }
-    DataType f32 = DataType::Float(32, value.dtype().lanes());
-    DataType u16 = DataType::UInt(16, value.dtype().lanes());
-    DataType u32 = DataType::UInt(32, value.dtype().lanes());
     // reinterpret<f32>((cast<u32>(reinterpret<u16>(bf16_value)) << 16))
-    return reinterpret(f32, cast(u32, reinterpret(u16, value)) << 16);
+    return DTypeConversion(value, DataType::Float(32));
+    // return reinterpret(f32, cast(u32, reinterpret(u16, value)) << 16);
   }
 
   /*!
@@ -397,6 +396,7 @@ class BF16ComputeLegalizer : public StmtExprMutator {
   PrimExpr CastF32ToBF16(PrimExpr value) {
     if (!value.dtype().is_float()) return value;
     ICHECK_EQ(value.dtype().bits(), 32);
+    return DTypeConversion(value, DataType::BFloat(16));
     DataType bf16 = DataType::BFloat(16, value.dtype().lanes());
     DataType u16 = DataType::UInt(16, value.dtype().lanes());
     DataType u32 = DataType::UInt(32, value.dtype().lanes());

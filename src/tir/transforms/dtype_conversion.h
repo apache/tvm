@@ -34,13 +34,13 @@ namespace tir {
 
 class FloatConfig {
  public:
-  enum InftyStyle {
+  enum class InftyStyle {
     // Exponent all ones, mantissa all zeros
     kIEEE = 0U,
     // No representation of infinity
     kNone = 1U
   };
-  enum NaNStyle {
+  enum class NaNStyle {
     // Exponent all ones, mantissa non zeros
     // - quiet NaN : 1XXXXX...
     // - signaling NaN : 0XXXXX...
