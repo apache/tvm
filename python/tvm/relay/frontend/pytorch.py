@@ -1681,7 +1681,7 @@ class PyTorchOpConverter:
         dtype = input_types[0]
         beta = _expr.const(float(inputs[1]), dtype=dtype)
         threshold = int(inputs[2]) if inputs[2] else 20
-        threshold_ =  _op.full_like(inputs[0], fill_value=_expr.const(threshold))
+        threshold_ = _op.full_like(inputs[0], fill_value=_expr.const(threshold))
         softplus_value = _op.log(_op.exp(inputs[0] * beta) + _expr.const(1.0, dtype=dtype)) / beta
         return _op.where(_op.greater(inputs[0], threshold_), inputs[0], softplus_value)
 
