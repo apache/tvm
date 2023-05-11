@@ -212,17 +212,16 @@ class OperatorConverter(object):
         raise_msg = ""
 
         if unsupported_ops_set:
-            msg = "The following operators are not supported in frontend " "TFLite: {}\n"
             ops = str(list(unsupported_ops_set)).strip("[,]")
-            raise_msg += msg.format(ops)
+            raise_msg += f"The following operators are not supported in frontend TFLite: {ops}\n"
 
         if dynamic_range_ops_set:
-            msg = (
-                "The following operators are likely to have dynamic range quantization: {}. "
-                "If you are running an optimized graph, please turn off dynamic range quantization "
-                "or use full integer quantization"
+            ops = str(list(dynamic_range_ops_set)).strip("[,]")
+            raise_msg += (
+                f"The following operators are likely to have dynamic range quantization: {ops}. "
+                f"If you are running an optimized graph, please turn off dynamic range quantization "
+                f"or use full integer quantization"
             )
-            raise_msg += msg.format(str(list(dynamic_range_ops_set)).strip("[,]"))
 
         if len(raise_msg) > 0:
             raise tvm.error.OpNotImplemented(raise_msg)
@@ -406,9 +405,8 @@ class OperatorConverter(object):
 
                     else:
                         raise NotImplementedError(
-                            "Quantized type {} (scale) and  {} (zero point) not supported".format(
-                                type(tflite_scale), type(tflite_zero_point)
-                            )
+                            f"Quantized type {type(tflite_scale)} (scale) and  "
+                            f"{type(tflite_zero_point)} (zero point) not supported"
                         )
                 elif tflite_scale == 0 and tflite_zero_point == 0:
                     # Handle corner case for ops like quantized reshape whose second operand (shape)
@@ -416,7 +414,7 @@ class OperatorConverter(object):
                     is_qnn_params_valid = False
                 else:
                     raise NotImplementedError(
-                        "Quantized type {} not supported".format(type(tflite_scale))
+                        f"Quantized type {type(tflite_scale)} not supported"
                     )
 
                 # Check that the scale and zero points are valid.
@@ -448,7 +446,7 @@ class OperatorConverter(object):
             raise ImportError("The tflite package must be installed")
         except KeyError:
             raise NotImplementedError(
-                "Tensor type '{}' currently not supported".format(tensor_wrapper.tensor.Type())
+                f"Tensor type '{tensor_wrapper.tensor.Type()}' currently not supported"
             )
 
     # pylint: disable=no-else-return
@@ -493,7 +491,7 @@ class OperatorConverter(object):
         if tensor_type == TensorType.BOOL:
             return "bool"
         raise NotImplementedError(
-            "Tensor type {} is currently not supported".format(str(tensor_type))
+            f"Tensor type {str(tensor_type)} is currently not supported"
         )
 
     def flatten_to_nd(self, x, x_shape, nd=3):
@@ -581,7 +579,7 @@ class OperatorConverter(object):
 
         fused_activation_fn_str = self.activation_fn_type[fused_activation_fn]
         raise tvm.error.OpNotImplemented(
-            "Quantized activation {} is not supported yet.".format(fused_activation_fn_str)
+            f"Quantized activation {fused_activation_fn_str} is not supported yet."
         )
 
     def convert_conv2d(self, op):
@@ -2114,7 +2112,7 @@ class OperatorConverter(object):
             return _op.tanh(in_expr)
         fused_activation_fn_str = self.activation_fn_type[fused_activation_fn]
         raise tvm.error.OpNotImplemented(
-            "Fused activation {} is not supported yet.".format(fused_activation_fn_str)
+            f"Fused activation {fused_activation_fn_str} is not supported yet."
         )
 
     def convert_conv(self, op, conv_type):
@@ -2156,7 +2154,7 @@ class OperatorConverter(object):
             depth_multiplier = conv_options.DepthMultiplier()
         else:
             raise tvm.error.OpNotImplemented(
-                "Operator {} is not supported for frontend TFLite.".format(conv_type)
+                f"Operator {conv_type} is not supported for frontend TFLite."
             )
 
         stride_h = conv_options.StrideH()
@@ -2256,7 +2254,7 @@ class OperatorConverter(object):
 
         else:
             raise tvm.error.OpAttributeUnImplemented(
-                "Padding format {} is not supported for operator Conv.".format(padding)
+                f"Padding format {padding} is not supported for operator Conv."
             )
 
         if input_tensor.qnn_params:
@@ -2588,7 +2586,7 @@ class OperatorConverter(object):
             params["padding"] = [pad_top, pad_left, pad_bottom, pad_right]
         else:
             raise tvm.error.OpAttributeUnImplemented(
-                "Padding format {} for operator Pool2D is not supported.".format(padding)
+                f"Padding format {padding} for operator Pool2D is not supported."
             )
 
         if pool_type == "average":
@@ -2621,7 +2619,7 @@ class OperatorConverter(object):
             out = _op.sqrt(avg_pool_exp)
         else:
             raise tvm.error.OpNotImplemented(
-                "Operator {} is not supported for frontend TFLite.".format(pool_type + " pool")
+                f"Operator {pool_type} pool is not supported for frontend TFLite."
             )
 
         # Handle fused activations
@@ -3279,7 +3277,7 @@ class OperatorConverter(object):
         assert padding in (
             Padding.VALID,
             Padding.SAME,
-        ), "Padding format {} is not supported for operator TRANSPOSE_CONV".format(padding)
+        ), f"Padding format {padding} is not supported for operator TRANSPOSE_CONV"
 
         # Data
         in_expr = self.get_expr(input_tensor.tensor_idx)
@@ -3465,9 +3463,8 @@ class OperatorConverter(object):
         if "use_regular_nms" in custom_options:
             if custom_options["use_regular_nms"]:
                 raise tvm.error.OpAttributeUnImplemented(
-                    "use_regular_nms=True is not yet supported for operator {}.".format(
-                        "TFLite_Detection_PostProcess"
-                    )
+                    "use_regular_nms=True is not yet supported for operator "
+                    "TFLite_Detection_PostProcess."
                 )
 
         inputs = self.get_input_tensors(op)
@@ -3930,7 +3927,7 @@ def prepare_dense_matrix_from_sparse(sparse_tensor, sparse_tensor_value, sparse_
         elif VectorType(v_type) == VectorType.Uint8:
             return N.Uint8Flags
         else:
-            raise tvm.error.OpNotImplemented("The provided type {} is not supported".format(v_type))
+            raise tvm.error.OpNotImplemented(f"The provided type {v_type} is not supported")
 
     def _get_flattened_index(indices, shape):
         index = 0

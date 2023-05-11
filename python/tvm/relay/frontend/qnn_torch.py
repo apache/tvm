@@ -381,7 +381,7 @@ def _add_output_quant_params_to_scalar_op(node, graph, input_scale, input_zero_p
             input_scale, input_zero_point, scalar
         )
     else:
-        raise NotImplementedError("unsupported scalar op: %s" % operator)
+        raise NotImplementedError(f"unsupported scalar op: {operator}")
 
     # create new constant nodes and add them to graph
     out_scale_node = graph.create("prim::Constant")
@@ -569,7 +569,7 @@ def inline_input_quant_params_for_fx(graph, params, param_debug_name_map):
 
         if "_scale" in out_name or "_zero_point" in out_name:
             full_attr = param_debug_name_map[get_full_attr_name(node)]
-            assert full_attr in params, "%s not found in param dict." % full_attr
+            assert full_attr in params, f"{full_attr} not found in param dict."
             param_np = params[full_attr].numpy()
             new_const_node = graph.create("prim::Constant")
             new_const_node.insertBefore(node)

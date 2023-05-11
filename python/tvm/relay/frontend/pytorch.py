@@ -338,7 +338,7 @@ class PyTorchOpConverter:
 
     def lerp(self, inputs, input_types):
         if len(inputs) != 3:
-            msg = "Wrong number of arguments (%d) to parse." % (len(inputs))
+            msg = f"Wrong number of arguments ({len(inputs)}) to parse."
             raise AssertionError(msg)
 
         start = inputs[0]
@@ -388,7 +388,7 @@ class PyTorchOpConverter:
             stop = _get_value(inputs[1 if len(inputs) > 5 else 0], dtype)
             step = _get_value(inputs[2], dtype) if len(inputs) > 6 else _expr.const(1, dtype)
         else:
-            msg = "Unknown number of arguments (%d) to parse." % (len(inputs))
+            msg = f"Unknown number of arguments ({len(inputs}) to parse."
             raise AssertionError(msg)
 
         return _op.transform.arange(start=start, stop=stop, step=step, dtype=dtype)
@@ -585,9 +585,8 @@ class PyTorchOpConverter:
         import torch
 
         if not isinstance(inputs[1], (int, list, tuple, torch.Tensor)):
-            msg = "indices_or_sections type %s could not be parsed in tensor_split op" % (
-                type(inputs[1])
-            )
+            msg = (f"indices_or_sections type {type(inputs[1])} could not be parsed in "
+                   f"tensor_split op")
             raise AssertionError(msg)
 
         if isinstance(inputs[1], torch.Tensor) and not (
@@ -761,7 +760,7 @@ class PyTorchOpConverter:
         import torch
 
         if not isinstance(data, (_expr.Expr, list, torch.Tensor, np.ndarray)):
-            msg = "Data type %s could not be parsed in ones op" % (type(data))
+            msg = f"Data type {type(data)} could not be parsed in ones op"
             raise AssertionError(msg)
 
         if inputs[1] is not None:
@@ -790,7 +789,7 @@ class PyTorchOpConverter:
         import torch
 
         if not isinstance(size, (_expr.Expr, list, tuple, torch.Size, np.ndarray)):
-            msg = "Data type %s could not be parsed in ones op" % (type(size))
+            msg = f"Data type {type(size)} could not be parsed in ones op"
             raise AssertionError(msg)
 
         if inputs[2] is not None:
@@ -805,7 +804,7 @@ class PyTorchOpConverter:
         import torch
 
         if not isinstance(data, (_expr.Expr, list, torch.Tensor, np.ndarray)):
-            msg = "Data type %s could not be parsed in zeros op" % (type(data))
+            msg = f"Data type {type(data)} could not be parsed in zeros op"
             raise AssertionError(msg)
 
         if inputs[1] is not None:
@@ -838,7 +837,7 @@ class PyTorchOpConverter:
         import torch
 
         if not isinstance(data, (_expr.Expr, list, tuple, torch.Size)):
-            msg = "Data type %s could not be parsed in new_zeros op" % (type(data))
+            msg = f"Data type {type(data)} could not be parsed in new_zeros op"
             raise AssertionError(msg)
 
         if inputs[2] is not None:
@@ -855,7 +854,7 @@ class PyTorchOpConverter:
         import torch
 
         if not isinstance(data, (_expr.Expr, list, torch.Tensor, np.ndarray)):
-            msg = "Data type %s could not be parsed in full op" % (type(data))
+            msg = f"Data type {type(data)} could not be parsed in full op"
             raise AssertionError(msg)
 
         if inputs[2] is not None:  # dtype given
@@ -889,7 +888,7 @@ class PyTorchOpConverter:
         import torch
 
         if not isinstance(data, (_expr.Expr, list, tuple, torch.Size)):
-            msg = "Data type %s could not be parsed in full op" % (type(data))
+            msg = f"Data type {type(data)} could not be parsed in full op"
             raise AssertionError(msg)
 
         if inputs[3] is not None:  # dtype given
@@ -1217,7 +1216,7 @@ class PyTorchOpConverter:
             for infer in inferred_shape:
                 weight_shape.append(infer)
         else:
-            msg = "Data type %s could not be parsed in conv op" % (type(weight))
+            msg = f"Data type {type(weight)} could not be parsed in conv op"
             raise AssertionError(msg)
 
         groups = int(inputs[8])
@@ -1412,7 +1411,7 @@ class PyTorchOpConverter:
         elif isinstance(data, (torch.Tensor, np.ndarray)):
             dims = data.shape
         else:
-            msg = "Data type %s could not be parsed" % type(data)
+            msg = f"Data type {type(data)} could not be parsed"
             raise AssertionError(msg)
         return dims
 
@@ -1461,7 +1460,7 @@ class PyTorchOpConverter:
         elif isinstance(data, (torch.Tensor, np.ndarray)):
             ndims = data.shape
         else:
-            msg = "Data type %s could not be parsed in transpose op" % (type(data))
+            msg = f"Data type {type(data)} could not be parsed in transpose op"
             raise AssertionError(msg)
 
         if isinstance(data, tvm.runtime.NDArray):
@@ -2596,8 +2595,8 @@ class PyTorchOpConverter:
 
     def scatter(self, inputs, input_types):
         assert len(inputs) == 4 or len(inputs) == 5, (
-            "scatter takes 4 or 5 inputs: data, dim, index, src, reduce (optional), "
-            + "but {} given".format(len(inputs))
+            f"scatter takes 4 or 5 inputs: data, dim, index, src, reduce (optional), "
+            f"but {len(inputs)} given"
         )
         data = inputs[0]
         axis = int(inputs[1])
@@ -2739,7 +2738,7 @@ class PyTorchOpConverter:
         import torch
 
         if not isinstance(size, (_expr.Expr, list, tuple, torch.Size, np.ndarray)):
-            msg = "Data type %s could not be parsed in empty op" % (type(size))
+            msg = f"Data type {type(size)} could not be parsed in empty op"
             raise AssertionError(msg)
 
         if inputs[2] is not None:
@@ -2786,7 +2785,7 @@ class PyTorchOpConverter:
     def scatter_add(self, inputs, input_types):
         assert (
             len(inputs) == 4
-        ), "scatter_add takes 4 inputs (data, dim, index, src), but {} given".format(len(inputs))
+        ), f"scatter_add takes 4 inputs (data, dim, index, src), but {len(inputs)} given"
         data = inputs[0]
         axis = inputs[1]
         index = inputs[2]
@@ -2817,8 +2816,8 @@ class PyTorchOpConverter:
 
     def scatter_reduce(self, inputs, input_types):
         assert len(inputs) == 5 or len(inputs) == 6, (
-            "scatter_reduce takes 5 or 6 inputs (data, dim, index, src, reduce, include_self), "
-            + "but {} given".format(len(inputs))
+            f"scatter_reduce takes 5 or 6 inputs (data, dim, index, src, reduce, include_self), "
+            f"but {len(inputs)} given"
         )
         data = inputs[0]
         dim = inputs[1]
@@ -2849,9 +2848,7 @@ class PyTorchOpConverter:
                 ), "Index dim size should be less than data one"
 
         red_valids = ["sum", "prod", "mean", "amax", "amin"]
-        assert reduce in red_valids, "Only {} modes are supported, but {} is gotten".format(
-            red_valids, reduce
-        )
+        assert reduce in red_valids, f"Only {red_valids} modes are supported, but {reduce} is gotten"
         if reduce == "sum":
             reduce = "add"
         elif reduce == "prod":
@@ -4046,7 +4043,7 @@ class PyTorchOpConverter:
                 missing.append(op_name)
 
         if missing:
-            msg = "The following operators are not implemented: {}".format(missing)
+            msg = f"The following operators are not implemented: {missing}"
             raise NotImplementedError(msg)
 
     def convert_block(self, block, outputs):
@@ -4373,7 +4370,7 @@ def _convert_dtype_value(val):
     if val in convert_torch_dtype_map:
         return _convert_data_type(convert_torch_dtype_map[val])
     else:
-        msg = "Torch data type value %d is not handled yet." % (val)
+        msg = f"Torch data type value {val} is not handled yet."
         raise NotImplementedError(msg)
 
 
@@ -4412,7 +4409,7 @@ def _convert_data_type(input_type, default_dtype=None):
     elif input_type in ["str"]:
         return "str"
     else:
-        raise NotImplementedError("input_type {} is not handled yet".format(input_type))
+        raise NotImplementedError(f"input_type {input_type} is not handled yet")
     return "float32"  # Never reached
 
 
@@ -4437,7 +4434,7 @@ def _create_typed_const(data, dtype):
     elif dtype == "uint8":
         typed_data = _expr.const(np.uint8(data), dtype=dtype)
     else:
-        raise NotImplementedError("input_type {} is not handled yet".format(dtype))
+        raise NotImplementedError(f"input_type {dtype} is not handled yet")
     return typed_data
 
 
@@ -4577,7 +4574,7 @@ def _get_constant(node):
         elif ty == "FunctionType":
             return None
         else:
-            raise NotImplementedError("Unsupported type: %s" % ty)
+            raise NotImplementedError(f"Unsupported type: {ty}")
     else:
         assert num_attributes == 0
         return None
@@ -4671,9 +4668,7 @@ def _get_relay_input_vars(graph, input_infos, prelude, is_module=True, default_d
         raise RuntimeError(msg)
 
     if len(graph_inputs) != len(input_infos):
-        msg = "PyTorch has {} inputs and input_infos lists {}.".format(
-            len(graph_inputs), len(input_infos)
-        )
+        msg = f"PyTorch has {len(graph_inputs)} inputs and input_infos lists {len(input_infos)}."
         raise RuntimeError(msg)
 
     def get_relay_ty(ishape, itype, pt_type):
@@ -4721,12 +4716,12 @@ def _get_relay_input_vars(graph, input_infos, prelude, is_module=True, default_d
     new_input_infos = []
     for num, inp in enumerate(input_infos):
         if not isinstance(inp, tuple):
-            msg = "Graph input {} is not a tuple".format(num)
+            msg = f"Graph input {num} is not a tuple"
             raise RuntimeError(msg)
         if len(inp) != 2 or not isinstance(inp[0], str):
             msg = (
-                "Graph input {} is not valid,"
-                " expected ('name', shape) or ('name', (shape, dtype))".format(inp)
+                f"Graph input {inp} is not valid,"
+                f" expected ('name', shape) or ('name', (shape, dtype))"
             )
             raise RuntimeError(msg)
         if not isinstance(inp[1], tuple) or len(inp[1]) == 0 or not isinstance(inp[1][-1], str):
@@ -4883,7 +4878,7 @@ def export_c_graph(location, graph):
     if not os.path.exists(location):
         os.makedirs(location)
     time_stamp = datetime.datetime.now().strftime("%m_%d_%Y_%H_%M_%S")
-    fname = os.path.join(location, "tvm_exported_c_graph_{}.txt".format(time_stamp))
+    fname = os.path.join(location, f"tvm_exported_c_graph_{time_stamp}.txt")
     with open(f"{fname}", "w") as f:
         f.write(str(graph))
 

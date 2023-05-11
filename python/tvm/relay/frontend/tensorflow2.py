@@ -488,7 +488,7 @@ class GraphProto:
             else:
                 sym = _convert_map_tf2[op_name](inputs, attrs, self._params, self._module.mod)
         else:
-            raise NotImplementedError("Operator {} not implemented.".format(op_name))
+            raise NotImplementedError(f"Operator {op_name} not implemented.")
 
         sym = set_span(sym, node_name)
         return sym
@@ -727,13 +727,11 @@ def _convert_function(
         None,
     )
     if func is None:
-        raise Exception("Function not found - {}".format(node_func_name))
+        raise Exception(f"Function not found - {node_func_name}")
     devices = set(node.device for node in func.node_def)
     if len(devices) > 1:
         raise Exception(
-            "node_def in function {} contains > 1 types of devices {}".format(
-                node_func_name, devices
-            )
+            f"node_def in function {node_func_name} contains > 1 types of devices {devices}"
         )
 
     subgraph = gdef_lib[node_func_name]
@@ -748,7 +746,7 @@ def _convert_function(
         input_expr_dict[f_arg.name] = input_
         input_types[f_arg.name] = _infer_type_with_prelude(input_, prelude)
 
-    func_name = "func_{}".format(func.signature.name)
+    func_name = f"func_{func.signature.name}"
     try:
         global_func = module.mod[func_name]
         sub_func = global_func
@@ -777,7 +775,7 @@ def _convert_function(
         elif param_name in sub_params.keys():
             param_exprs.append(param_expr)
         else:
-            raise Exception("Input parameter {} not found".format(param_name))
+            raise Exception(f"Input parameter {param_name} not found")
 
     sb = tvm.relay.scope_builder.ScopeBuilder()
     loop_ret = global_func(*param_exprs)
