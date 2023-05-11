@@ -67,12 +67,12 @@ def get_conv2d_in_channels(data_shape, data_layout):
     data_shape = get_const_tuple(data_shape)
     if len(data_shape) == 4:
         idx = data_layout.find("C")
-        assert idx >= 0, "Invalid conv2d data layout {}".format(data_layout)
+        assert idx >= 0, f"Invalid conv2d data layout {data_layout}"
         return data_shape[idx]
     if re.match(r"NCHW\d*c", data_layout):
         # NCHW[8]c
         return data_shape[1] * data_shape[4]
-    raise ValueError("Unknown conv2d data layout {}".format(data_layout))
+    raise ValueError(f"Unknown conv2d data layout {data_layout}")
 
 
 def get_conv2d_out_channels(kernel_shape, kernel_layout):
@@ -80,13 +80,13 @@ def get_conv2d_out_channels(kernel_shape, kernel_layout):
     kernel_shape = get_const_tuple(kernel_shape)
     if len(kernel_shape) == 4:
         idx = kernel_layout.find("O")
-        assert idx >= 0, "Invalid conv2d kernel layout {}".format(kernel_layout)
+        assert idx >= 0, f"Invalid conv2d kernel layout {kernel_layout}"
         return kernel_shape[idx]
     if re.match(r"OIHW\d*i\d*o", kernel_layout):
         return kernel_shape[0] * kernel_shape[5]
     if re.match(r"OIHW\d*o", kernel_layout):
         return kernel_shape[0] * kernel_shape[4]
-    raise ValueError("Unknown conv2d kernel layout {}".format(kernel_layout))
+    raise ValueError(f"Unknown conv2d kernel layout {kernel_layout}")
 
 
 def is_depthwise_conv2d(data_shape, data_layout, kernel_shape, kernel_layout, groups):
@@ -302,7 +302,7 @@ def conv2d_strategy(attrs, inputs, out_type, target):
                 name="conv2d_hwcn.generic",
             )
         else:
-            raise RuntimeError("Unsupported conv2d layout {}".format(layout))
+            raise RuntimeError(f"Unsupported conv2d layout {layout}")
     elif is_depthwise_conv2d(data.shape, layout, kernel.shape, kernel_layout, groups):
         if layout == "NCHW":
             assert kernel_layout == "OIHW"
@@ -319,7 +319,7 @@ def conv2d_strategy(attrs, inputs, out_type, target):
                 name="depthwise_conv2d_nhwc.generic",
             )
         else:
-            raise RuntimeError("Unsupported depthwise_conv2d layout {}".format(layout))
+            raise RuntimeError(f"Unsupported depthwise_conv2d layout {layout}")
     else:  # group_conv2d
         if layout == "NCHW":
             assert kernel_layout == "OIHW"
@@ -336,7 +336,7 @@ def conv2d_strategy(attrs, inputs, out_type, target):
                 name="group_conv2d_nhwc.generic",
             )
         else:
-            raise RuntimeError("Unsupported group_conv2d layout {}".format(layout))
+            raise RuntimeError(f"Unsupported group_conv2d layout {layout}")
     return strategy
 
 
@@ -465,7 +465,7 @@ def deformable_conv2d_strategy(attrs, inputs, out_type, target):
             name="deformable_conv2d_nhwc.generic",
         )
     else:
-        raise RuntimeError("Layout %s is not supported in deformable conv2d" % layout)
+        raise RuntimeError(f"Layout {layout} is not supported in deformable conv2d")
     return strategy
 
 
@@ -608,7 +608,7 @@ def conv3d_strategy(attrs, inputs, out_type, target):
             name="conv3d_ndhwc.generic",
         )
     else:
-        raise ValueError("Not support this layout {} yet".format(layout))
+        raise ValueError(f"Not support this layout {layout} yet")
     return strategy
 
 
@@ -665,7 +665,7 @@ def conv1d_strategy(attrs, inputs, out_type, target):
             name="conv1d_nwc.generic",
         )
     else:
-        raise ValueError("Unsupported conv1d layout {}".format(layout))
+        raise ValueError(f"Unsupported conv1d layout {layout}")
     return strategy
 
 
@@ -708,7 +708,7 @@ def group_conv1d_strategy(attrs, inputs, out_type, target):
             name="group_conv1d_nwc.generic",
         )
     else:
-        raise ValueError("Unsupported conv1d layout {}".format(layout))
+        raise ValueError(f"Unsupported conv1d layout {layout}")
     return strategy
 
 
@@ -796,7 +796,7 @@ def dilation2d_strategy(attrs, inputs, out_type, target):
             name="dilation2d_nhwc.generic",
         )
     else:
-        raise RuntimeError("Unsupported dilation2d layout {}".format(layout))
+        raise RuntimeError(f"Unsupported dilation2d layout {layout}")
     return strategy
 
 
@@ -1663,7 +1663,7 @@ def bitserial_conv2d_strategy(attrs, inputs, out_type, target):
             name="bitserial_conv2d_nhwc.generic",
         )
     else:
-        raise ValueError("Data layout {} not supported.".format(layout))
+        raise ValueError(f"Data layout {layout} not supported.")
     return strategy
 
 

@@ -307,7 +307,7 @@ def convert_conv2d(attrs, inputs, tinfos, desired_layouts):
             new_attrs["kernel_layout"] = desired_kernel_layout
             return relay.nn.contrib_conv2d_nchwc(data, weight, **new_attrs)
 
-    raise ValueError("Layout %s is not yet supported." % desired_data_layout)
+    raise ValueError(f"Layout {desired_data_layout} is not yet supported.")
 
 
 # conv2d_transpose
@@ -375,7 +375,7 @@ def convert_conv2d_transpose(attrs, inputs, tinfos, desired_layouts):
         new_attrs["kernel_layout"] = "HWIO"
         return relay.nn.conv2d_transpose(data, weight, **new_attrs)
 
-    raise ValueError("Layout %s is not yet supported." % desired_data_layout)
+    raise ValueError(f"Layout {desired_data_layout} is not yet supported.")
 
 
 # conv3d_transpose
@@ -424,7 +424,7 @@ def convert_conv3d_transpose(attrs, inputs, tinfos, desired_layouts):
         new_attrs["kernel_layout"] = "DHWOI"
         return relay.nn.conv3d_transpose(data, weight, **new_attrs)
 
-    raise ValueError("Layout %s is not yet supported" % desired_data_layout)
+    raise ValueError(f"Layout {desired_data_layout} is not yet supported")
 
 
 @reg.register_legalize("nn.conv3d_transpose")
@@ -498,7 +498,7 @@ def convert_conv3d(attrs, inputs, tinfos, desired_layouts):
         new_attrs["kernel_layout"] = "DHWIO"
         return relay.nn.conv3d(data, weight, **new_attrs)
 
-    raise ValueError("Layout %s is not yet supported" % desired_data_layout)
+    raise ValueError(f"Layout {desired_data_layout} is not yet supported")
 
 
 # conv3d_winograd related operators
@@ -917,7 +917,7 @@ def convert_deformable_conv2d(attrs, inputs, tinfos, desired_layouts):
     elif desired_data_layout == "NHWC":
         new_attrs["kernel_layout"] = "HWIO"
     else:
-        raise ValueError("Layout %s is not yet supported." % desired_data_layout)
+        raise ValueError(f"Layout {desired_data_layout} is not yet supported.")
 
     return relay.nn.deformable_conv2d(data, offset, weight, **new_attrs)
 

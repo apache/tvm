@@ -172,7 +172,7 @@ def make_conv_pattern(conv_name, with_bias=True, with_eltwise=None):
         Call node sequence.
     """
     if with_eltwise not in supported_post_elts:
-        raise ValueError("Unsupported eltwise post-op: %s" % with_eltwise)
+        raise ValueError(f"Unsupported eltwise post-op: {with_eltwise}")
     data = wildcard()
     weight = wildcard()
     bias = wildcard()
@@ -335,7 +335,7 @@ def make_dense_pattern(with_bias=True, with_eltwise=None):
         Call node sequence.
     """
     if with_eltwise not in supported_post_elts:
-        raise ValueError("Unsupported eltwise post-op: %s" % with_eltwise)
+        raise ValueError(f"Unsupported eltwise post-op: {with_eltwise}")
     data = wildcard()
     weight = wildcard()
     bias = wildcard()
@@ -579,7 +579,7 @@ def get_shape(tensor):
         if tensor.op.name == "multiply":
             return tensor.type_args[0].shape
         return tensor.checked_type.shape
-    raise TypeError("Unsupport data type: %s" % type(tensor))
+    raise TypeError(f"Unsupport data type: {type(tensor)}")
 
 
 def get_dtype(tensor):
@@ -596,7 +596,7 @@ def get_dtype(tensor):
         if tensor.op.name == "multiply":
             return tensor.type_args[0].dtype
         return tensor.checked_type.dtype
-    raise TypeError("Unsupport data type: %s" % type(tensor))
+    raise TypeError(f"Unsupport data type: {type(tensor)}")
 
 
 def tag2layout(input_data, is_weight=False, conv_type="Conv1D"):
@@ -627,7 +627,7 @@ def tag2layout(input_data, is_weight=False, conv_type="Conv1D"):
         elif i.isdigit():
             res += i
         else:
-            raise ValueError("Unsupport layout format: %s" % input_data)
+            raise ValueError(f"Unsupport layout format: {input_data}")
 
     return res
 

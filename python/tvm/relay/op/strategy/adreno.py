@@ -109,7 +109,7 @@ def conv2d_strategy_adreno(attrs, inputs, out_type, target):
         elif data_layout == "NHWC4c":
             ic = data.shape[3] * data.shape[4]
         else:
-            raise RuntimeError("Unsupported depthwise_conv2d data layout {}".format(data_layout))
+            raise RuntimeError(f"Unsupported depthwise_conv2d data layout {data_layout}")
         if kernel_layout == "OIHW":
             oc = kernel.shape[0]
         elif kernel_layout == "OIHW4o":
@@ -120,7 +120,7 @@ def conv2d_strategy_adreno(attrs, inputs, out_type, target):
             oc = kernel.shape[2] * kernel.shape[4]
         else:
             raise RuntimeError(
-                "Unsupported depthwise_conv2d kernel layout {}".format(kernel_layout)
+                f"Unsupported depthwise_conv2d kernel layout {kernel_layout}"
             )
 
         if ic == oc == groups:
@@ -187,7 +187,7 @@ def conv2d_winograd_without_weight_transform_strategy_adreno(attrs, inputs, out_
         )
     else:
         raise RuntimeError(
-            "Unsupported conv2d_winograd_without_weight_transform layout {}".format(layout)
+            f"Unsupported conv2d_winograd_without_weight_transform layout {layout}"
         )
     return strategy
 
