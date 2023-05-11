@@ -70,9 +70,7 @@ def conv2d_strategy_mali(attrs, inputs, out_type, target):
                     name="conv2d_nchw_spatial_pack.mali",
                 )
             else:
-                raise RuntimeError(
-                    f"Unsupported weight layout {kernel_layout} for conv2d NCHW"
-                )
+                raise RuntimeError(f"Unsupported weight layout {kernel_layout} for conv2d NCHW")
         elif layout == "NHWC":
             assert kernel_layout == "HWIO"
             need_auto_scheduler_layout = is_auto_scheduler_enabled()
@@ -207,9 +205,7 @@ def conv2d_winograd_without_weight_transform_strategy_mali(attrs, inputs, out_ty
                 "Winograd conv2d NHWC is not enabled for mali without auto_scheduler."
             )
     else:
-        raise RuntimeError(
-            f"Unsupported conv2d_winograd_without_weight_transform layout {layout}"
-        )
+        raise RuntimeError(f"Unsupported conv2d_winograd_without_weight_transform layout {layout}")
     return strategy
 
 

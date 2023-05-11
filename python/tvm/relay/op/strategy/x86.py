@@ -352,9 +352,7 @@ def conv3d_strategy_cpu(attrs, inputs, out_type, target):
         # or packed layouts.
         if layout == "NCDHW":
             strategy.add_implementation(
-                wrap_compute_conv3d(topi.nn.conv3d_ncdhw),
-                naive_schedule,
-                name="conv3d_ncdhw.x86",
+                wrap_compute_conv3d(topi.nn.conv3d_ncdhw), naive_schedule, name="conv3d_ncdhw.x86"
             )
         elif layout == "NDHWC":
             strategy.add_implementation(
@@ -367,7 +365,7 @@ def conv3d_strategy_cpu(attrs, inputs, out_type, target):
                 name="conv3d_ndhwc.x86",
             )
         else:
-            raise ValueError(f"Not support this layout {layout} yet"))
+            raise ValueError(f"Not support this layout {layout} yet")
     else:
         # Use autotvm templates
         if layout == "NCDHW":
@@ -383,7 +381,7 @@ def conv3d_strategy_cpu(attrs, inputs, out_type, target):
                 name="conv3d_ndhwc.x86",
             )
         else:
-            raise ValueError(f"Not support this layout {layout} yet"))
+            raise ValueError(f"Not support this layout {layout} yet")
     return strategy
 
 
@@ -500,9 +498,7 @@ def matmul_strategy_cpu(attrs, inputs, out_type, target):
                 "Recommend to use cblas/mkl/dnnl for better performance."
             )
         strategy.add_implementation(
-            wrap_compute_matmul(topi.nn.matmul),
-            naive_schedule,
-            name="matmul.generic",
+            wrap_compute_matmul(topi.nn.matmul), naive_schedule, name="matmul.generic"
         )
     return strategy
 
@@ -816,9 +812,7 @@ def conv2d_winograd_without_weight_transform_strategy_cpu(attrs, inputs, out_typ
         else:
             raise RuntimeError("Both AutoScheduler and MetaSchedule are not enabled")
     else:
-        raise RuntimeError(
-            f"Unsupported conv2d_winograd_without_weight_transform layout {layout}"
-        )
+        raise RuntimeError(f"Unsupported conv2d_winograd_without_weight_transform layout {layout}")
     return strategy
 
 

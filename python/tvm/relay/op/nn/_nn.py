@@ -1457,10 +1457,7 @@ def dense_shape_func(attrs, inputs, _):
     """
     ret = [
         _matmul_shape_func(
-            inputs[0],
-            inputs[1],
-            expr.IntImm("bool", False),
-            expr.IntImm("bool", True),
+            inputs[0], inputs[1], expr.IntImm("bool", False), expr.IntImm("bool", True)
         )
     ]
     return ret

@@ -45,14 +45,7 @@ from tvm.relay.expr import Call, GlobalVar, TupleGetItem, const
 from tvm.relay.expr_functor import ExprMutator, ExprVisitor
 
 from ... import _ffi_api
-from ...dataflow_pattern import (
-    DFPatternCallback,
-    is_constant,
-    is_expr,
-    is_op,
-    rewrite,
-    wildcard,
-)
+from ...dataflow_pattern import DFPatternCallback, is_constant, is_expr, is_op, rewrite, wildcard
 from .register import register_pattern_table
 
 logger = logging.getLogger("DNNL")

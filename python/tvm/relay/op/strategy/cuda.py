@@ -603,9 +603,7 @@ def conv2d_winograd_without_weight_transform_strategy_cuda(attrs, inputs, out_ty
                 plevel=15,
             )
     else:
-        raise RuntimeError(
-            f"Unsupported conv2d_winograd_without_weight_transform layout {layout}"
-        )
+        raise RuntimeError(f"Unsupported conv2d_winograd_without_weight_transform layout {layout}")
     return strategy
 
 
@@ -689,7 +687,9 @@ def conv2d_transpose_strategy_cuda(attrs, inputs, out_type, target):
         num_strategies += 1
 
     # TODO(masahi): Support conv2d_transpose NHWC for non-cudnn path.
-    assert num_strategies > 0, f"Unsupported conv2d_transpose workload, layout = {layout}, groups = {groups}"
+    assert (
+        num_strategies > 0
+    ), f"Unsupported conv2d_transpose workload, layout = {layout}, groups = {groups}"
     return strategy
 
 
@@ -793,9 +793,7 @@ def conv3d_winograd_without_weight_transform_strategy_cuda(attrs, inputs, out_ty
             name="conv3d_ncdhw_winograd_without_weight_transform.cuda",
         )
     else:
-        raise RuntimeError(
-            f"Unsupported conv3d_winograd_without_weight_transform layout {layout}"
-        )
+        raise RuntimeError(f"Unsupported conv3d_winograd_without_weight_transform layout {layout}")
     return strategy
 
 
@@ -865,15 +863,11 @@ def matmul_strategy_cuda(attrs, inputs, out_type, target):
 
     if is_auto_scheduler_enabled():
         strategy.add_implementation(
-            wrap_compute_matmul(topi.nn.matmul),
-            naive_schedule,
-            name="matmul.cuda",
+            wrap_compute_matmul(topi.nn.matmul), naive_schedule, name="matmul.cuda"
         )
     elif is_meta_schedule_enabled():
         strategy.add_implementation(
-            wrap_compute_matmul(topi.nn.matmul),
-            naive_schedule,
-            name="matmul.cuda",
+            wrap_compute_matmul(topi.nn.matmul), naive_schedule, name="matmul.cuda"
         )
     else:
         logger.warning(

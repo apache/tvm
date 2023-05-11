@@ -180,9 +180,7 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                     name="conv2d_nchw_spatial_pack.arm_cpu",
                 )
             else:
-                raise RuntimeError(
-                    f"Unsupported weight layout {kernel_layout} for conv2d NCHW"
-                )
+                raise RuntimeError(f"Unsupported weight layout {kernel_layout} for conv2d NCHW")
         elif layout == "HWCN":
             assert kernel_layout == "HWIO"
             logger.warning("conv2d_hwcn is not optimized for arm cpu.")
@@ -237,9 +235,7 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                         name="conv2d_nhwc_spatial_pack.arm_cpu",
                     )
             else:
-                raise RuntimeError(
-                    f"Unsupported kernel layout {kernel_layout} for conv2d NHWC"
-                )
+                raise RuntimeError(f"Unsupported kernel layout {kernel_layout} for conv2d NHWC")
 
         else:
             raise RuntimeError(f"Unsupported conv2d layout {layout} for arm cpu")
@@ -441,9 +437,7 @@ def conv2d_winograd_without_weight_transform_strategy_arm_cpu(attrs, inputs, out
         else:
             raise RuntimeError(f"Unsupported kernel shape: {kernel.shape}")
     else:
-        raise RuntimeError(
-            f"Unsupported conv2d_winograd_without_weight_transform layout {layout}"
-        )
+        raise RuntimeError(f"Unsupported conv2d_winograd_without_weight_transform layout {layout}")
     return strategy
 
 

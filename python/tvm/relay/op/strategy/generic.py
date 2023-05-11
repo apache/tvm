@@ -815,9 +815,7 @@ def copy_if_identical(tensor_a, tensor_b):
 
 # matmul
 def wrap_compute_matmul(
-    topi_compute,
-    need_auto_scheduler_layout=False,
-    need_meta_schedule_layout=False,
+    topi_compute, need_auto_scheduler_layout=False, need_meta_schedule_layout=False
 ):
     """wrap matmul topi compute"""
 
@@ -825,14 +823,7 @@ def wrap_compute_matmul(
         """Compute definition of matmul"""
         out_dtype = attrs.out_dtype
         out_dtype = inputs[0].dtype if out_dtype == "" else out_dtype
-        args = [
-            inputs[0],
-            inputs[1],
-            None,
-            out_dtype,
-            attrs.transpose_a,
-            attrs.transpose_b,
-        ]
+        args = [inputs[0], inputs[1], None, out_dtype, attrs.transpose_a, attrs.transpose_b]
         if need_auto_scheduler_layout:
             args.append(get_auto_scheduler_rewritten_layout(attrs))
         elif need_meta_schedule_layout:
@@ -859,9 +850,7 @@ def matmul_strategy(attrs, inputs, out_type, target):
 
 # dense
 def wrap_compute_dense(
-    topi_compute,
-    need_auto_scheduler_layout=False,
-    need_meta_schedule_layout=False,
+    topi_compute, need_auto_scheduler_layout=False, need_meta_schedule_layout=False
 ):
     """wrap dense topi compute"""
 
@@ -1309,12 +1298,7 @@ def wrap_compute_all_class_nms(topi_compute):
         score_threshold = inputs[4]
         output_format = attrs.output_format
         return topi_compute(
-            inputs[0],
-            inputs[1],
-            max_output_size,
-            iou_threshold,
-            score_threshold,
-            output_format,
+            inputs[0], inputs[1], max_output_size, iou_threshold, score_threshold, output_format
         )
 
     return _compute_nms
@@ -1480,11 +1464,7 @@ def wrap_compute_dft(topi_compute):
     """Wrap DFT compute"""
 
     def _compute_dft(attrs, inputs, _):
-        return topi_compute(
-            inputs[0],
-            inputs[1],
-            attrs.inverse,
-        )
+        return topi_compute(inputs[0], inputs[1], attrs.inverse)
 
     return _compute_dft
 
@@ -1506,13 +1486,7 @@ def wrap_compute_trilu(topi_compute):
     """Wrap trilu compute"""
 
     def _compute_trilu(attrs, inputs, output_type):
-        return [
-            topi_compute(
-                inputs[0],
-                inputs[1],
-                attrs.upper,
-            )
-        ]
+        return [topi_compute(inputs[0], inputs[1], attrs.upper)]
 
     return _compute_trilu
 
@@ -2033,15 +2007,7 @@ def wrap_compute_conv2d_backward_weight(topi_compute):
         layout = attrs.data_layout
         out_dtype = inputs[0].dtype if out_dtype in ("same", "") else out_dtype
         out = topi_compute(
-            inputs[0],
-            inputs[1],
-            kernel_size,
-            padding,
-            strides,
-            dilation,
-            groups,
-            layout,
-            out_dtype,
+            inputs[0], inputs[1], kernel_size, padding, strides, dilation, groups, layout, out_dtype
         )
         return [out]
 
@@ -2074,13 +2040,6 @@ def wrap_compute_layout_transform(topi_compute, schedule_rule="None"):
     """Wrap layout transform compute"""
 
     def _compute_layout_transform(attrs, inputs, output_type):
-        return [
-            topi_compute(
-                inputs[0],
-                attrs.src_layout,
-                attrs.dst_layout,
-                schedule_rule,
-            )
-        ]
+        return [topi_compute(inputs[0], attrs.src_layout, attrs.dst_layout, schedule_rule)]
 
     return _compute_layout_transform
