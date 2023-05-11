@@ -18,10 +18,10 @@
  */
 
 /*!
- * \file dtype_conversion_legalization.h
- * \brief Header file of data type conversion legalization routines.
+ * \file dtype_conversion.cc
+ * \brief Header file of data type conversion routines.
  */
-#include "dtype_conversion_legalization.h"
+#include "dtype_conversion.h"
 
 namespace tvm {
 namespace tir {

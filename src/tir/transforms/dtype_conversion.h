@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file dtype_conversion_legalization.h
- * \brief Header file of data type conversion legalization routines.
+ * \file dtype_conversion.h
+ * \brief Header file of data type conversion routines.
  */
-#ifndef TVM_TIR_TRANSFORMS_DTYPE_CONVERSION_LEGALIZATION_H_
-#define TVM_TIR_TRANSFORMS_DTYPE_CONVERSION_LEGALIZATION_H_
+#ifndef TVM_TIR_TRANSFORMS_DTYPE_CONVERSION_H_
+#define TVM_TIR_TRANSFORMS_DTYPE_CONVERSION_H_
 
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/op.h>
@@ -67,6 +67,8 @@ class FloatConfig {
         bias(bias),
         infty_style(infty_style),
         nan_style(nan_style) {}
+  
+  inline int bits() const { return mantissa + exponent + 1; }
 
   static FloatConfig FromDataType(DataType dtype) {
     CHECK(dtype.is_float() || dtype.is_bfloat16() || dtype.is_float8())
@@ -106,4 +108,4 @@ PrimExpr DTypeConversion(PrimExpr src_value, DataType tgt_dtype);
 
 }  // namespace tir
 }  // namespace tvm
-#endif  // TVM_TIR_TRANSFORMS_DTYPE_CONVERSION_LEGALIZATION_H_
+#endif  // TVM_TIR_TRANSFORMS_DTYPE_CONVERSION_H_

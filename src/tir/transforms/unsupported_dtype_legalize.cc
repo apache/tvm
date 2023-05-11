@@ -18,8 +18,8 @@
  */
 
 /*!
- * \file bf16_legalize.cc
- * \brief legalize bf16 type by adding cast_to_fp32
+ * \file unsupported_dtype_legalize.cc
+ * \brief legalize bf16/fp8 type by adding cast_to_fp32
  */
 
 #include <tvm/runtime/registry.h>
@@ -650,6 +650,26 @@ Pass BF16StorageLegalize() {
 }
 
 TVM_REGISTER_GLOBAL("tir.transform.BF16StorageLegalize").set_body_typed(BF16StorageLegalize);
+
+Pass FP8ComputeLegalize() {
+  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+    // TODO(tvm-team): skip if the target supports fp8
+    return f;
+  };
+  return CreatePrimFuncPass(pass_func, 0, "tir.FP8ComputeLegalize", {});
+}
+
+TVM_REGISTER_GLOBAL("tir.transform.FP8ComputeLegalize").set_body_typed(FP8ComputeLegalize);
+
+Pass FP8StorageLegalize() {
+  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+    // TODO(tvm-team): skip if the target supports fp8
+    return f;
+  };
+  return CreatePrimFuncPass(pass_func, 0, "tir.FP8StorageLegalize", {});
+}
+
+TVM_REGISTER_GLOBAL("tir.transform.FP8StorageLegalize").set_body_typed(FP8StorageLegalize);
 
 }  // namespace transform
 }  // namespace tir
