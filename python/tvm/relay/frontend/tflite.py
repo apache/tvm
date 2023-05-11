@@ -4155,8 +4155,7 @@ def _input_type(model):
             tensor = subgraph.Tensors(input_)
             input_shape = tuple(tensor.ShapeAsNumpy())
             tensor_type = tensor.Type()
-            tensor_name = get_tensor_name(subgraph, input_)
-            input_name = tensor_name if isinstance(tensor_name, str) else tensor_name.decode("utf8")
+            input_name = get_tensor_name(subgraph, input_)
             shape_dict[input_name] = input_shape
             dtype_dict[input_name] = _decode_type(tensor_type)
 
