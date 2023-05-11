@@ -392,7 +392,7 @@ def _UnaryFunctionLayerParams(op, inexpr, etab):
         return _op.maximum(inexpr, alpha)
     else:
         msg = f"Unary Op type value {op_type} is not supported in frontend CoreML."
-        raise tvm.error.OpAttributeUnImplemented(msg))
+        raise tvm.error.OpAttributeUnImplemented(msg)
 
 
 def _ReduceLayerParams(op, inexpr, etab):

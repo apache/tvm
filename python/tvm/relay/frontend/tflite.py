@@ -219,8 +219,8 @@ class OperatorConverter(object):
             ops = str(list(dynamic_range_ops_set)).strip("[,]")
             raise_msg += (
                 f"The following operators are likely to have dynamic range quantization: {ops}. "
-                f"If you are running an optimized graph, please turn off dynamic range quantization "
-                f"or use full integer quantization"
+                f"If you are running an optimized graph, please turn off dynamic range "
+                f"quantization or use full integer quantization"
             )
 
         if len(raise_msg) > 0:
@@ -413,9 +413,7 @@ class OperatorConverter(object):
                     # has zero scale and zero zero point. This is not used.
                     is_qnn_params_valid = False
                 else:
-                    raise NotImplementedError(
-                        f"Quantized type {type(tflite_scale)} not supported"
-                    )
+                    raise NotImplementedError(f"Quantized type {type(tflite_scale)} not supported")
 
                 # Check that the scale and zero points are valid.
                 if is_qnn_params_valid:
@@ -490,9 +488,7 @@ class OperatorConverter(object):
             return "int64"
         if tensor_type == TensorType.BOOL:
             return "bool"
-        raise NotImplementedError(
-            f"Tensor type {str(tensor_type)} is currently not supported"
-        )
+        raise NotImplementedError(f"Tensor type {str(tensor_type)} is currently not supported")
 
     def flatten_to_nd(self, x, x_shape, nd=3):
         """Flatten input tensor to nd rank"""
@@ -1314,13 +1310,7 @@ class OperatorConverter(object):
 
         return out
 
-    def _convert_elemwise(
-        self,
-        relay_op,
-        op,
-        ignore_qnn_params=False,
-        comparison_op=False,
-    ):
+    def _convert_elemwise(self, relay_op, op, ignore_qnn_params=False, comparison_op=False):
         """Generic method to Convert TFLite elemwise"""
         try:
             from tflite.AddOptions import AddOptions
@@ -3045,22 +3035,10 @@ class OperatorConverter(object):
             )
 
             a_broadcasted_shape = _fold_constant(
-                _op.concatenate(
-                    [
-                        out_batch,
-                        _op.strided_slice(shape_a, [rank_a - 2], [rank_a]),
-                    ],
-                    0,
-                )
+                _op.concatenate([out_batch, _op.strided_slice(shape_a, [rank_a - 2], [rank_a])], 0)
             )
             b_broadcasted_shape = _fold_constant(
-                _op.concatenate(
-                    [
-                        out_batch,
-                        _op.strided_slice(shape_b, [rank_b - 2], [rank_b]),
-                    ],
-                    0,
-                )
+                _op.concatenate([out_batch, _op.strided_slice(shape_b, [rank_b - 2], [rank_b])], 0)
             )
             if not tvm.ir.structural_equal(shape_a, a_broadcasted_shape):
                 input_a = _op.transform.broadcast_to(a, a_broadcasted_shape)

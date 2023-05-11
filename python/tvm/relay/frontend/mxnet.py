@@ -699,9 +699,7 @@ def _mx_leaky_relu(inputs, attrs):
         half = _expr.const(0.5, dtype="float32")
         half_x = _op.multiply(inputs[0], half)
         return _op.multiply(half_x, erf_plus_one)
-    raise tvm.error.OpNotImplemented(
-        f"Operator {act_type} is not supported for frontend MXNet."
-    )
+    raise tvm.error.OpNotImplemented(f"Operator {act_type} is not supported for frontend MXNet.")
 
 
 def _mx_make_power(power):
@@ -822,9 +820,7 @@ def _mx_dot(inputs, attrs):
 
     if rank_b == 1:
         if not out_shape:
-            out_shape = [
-                1,
-            ]
+            out_shape = [1]
         b = _op.expand_dims(b, axis=1)
     else:
         # Transpose matrix b if needed
@@ -1718,9 +1714,7 @@ def _qnn_conv(inputs, attrs, subgraphs, params):
             subgraph_activation_attrs = _get_subgraph_op(subgraphs, "Activation")["attrs"]
             act_type = subgraph_activation_attrs["act_type"]
             if act_type not in _supported_activations:
-                raise ValueError(
-                    f"Fused activation {act_type} is not supported at this time"
-                )
+                raise ValueError(f"Fused activation {act_type} is not supported at this time")
             has_fused_activation = True
         return has_fused_activation
 

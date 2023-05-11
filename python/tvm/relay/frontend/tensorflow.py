@@ -732,9 +732,7 @@ class GraphProto(object):
                 ]
         else:
             if key not in ("dtype", "_output_shapes", "_class"):
-                raise NotImplementedError(
-                    f"Other attributes for a Const(param) Node {key} ? ."
-                )
+                raise NotImplementedError(f"Other attributes for a Const(param) Node {key} ? .")
 
     def _get_attr(self, buf):
         """Returns the value of the attr of this buf with the given `name`.

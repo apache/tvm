@@ -417,7 +417,6 @@ class OperatorConverter(object):
         else:
             raise tvm.error.OpNotImplemented(
                 f"Operator {pool_type_dict[pool_type]} pool is not supported for frontend Caffe."
-                )
             )
 
         return out
@@ -547,9 +546,7 @@ class OperatorConverter(object):
             # weight shape is in relay's IOHW format rn, we need it to be OIHW
             weight_value = np.transpose(weight_value, [1, 0, 2, 3])
         else:
-            raise tvm.error.OpAttributeRequired(
-                f"No weight value of layer {op.name} in caffemodel"
-            )
+            raise tvm.error.OpAttributeRequired(f"No weight value of layer {op.name} in caffemodel")
 
         weight_expr = self.exp_tab.new_const(weight_value, dtype="float32")
         in_expr = self.exp_tab.get_expr(inputs[0])

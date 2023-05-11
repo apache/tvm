@@ -121,9 +121,7 @@ def _convert_activation(
         x = (_expr.const(0.2, dtype="float32") * inexpr) + _expr.const(0.5, dtype="float32")
         return _op.clip(x, a_min=0.0, a_max=1.0)
 
-    raise tvm.error.OpNotImplemented(
-        f"Operator {act_type} is not supported in frontend Keras."
-    )
+    raise tvm.error.OpNotImplemented(f"Operator {act_type} is not supported in frontend Keras.")
 
 
 def _convert_advanced_activation(inexpr, keras_layer, etab, data_layout, input_shape=None):
@@ -135,9 +133,7 @@ def _convert_advanced_activation(inexpr, keras_layer, etab, data_layout, input_s
         axis = keras_layer.axis
         dims = len(input_shape)
         if isinstance(axis, list):
-            raise tvm.error.OpAttributeUnImplemented(
-                f"Softmax with axes {axis} is not supported."
-            )
+            raise tvm.error.OpAttributeUnImplemented(f"Softmax with axes {axis} is not supported.")
         if data_layout == "NCHW":
             if axis == -1:
                 axis = 1
@@ -182,9 +178,7 @@ def _convert_advanced_activation(inexpr, keras_layer, etab, data_layout, input_s
             inexpr, _op.greater(inexpr, _expr.const(theta, dtype="float32")).astype("float32")
         )
 
-    raise tvm.error.OpNotImplemented(
-        f"Operator {act_type} is not supported in frontend Keras."
-    )
+    raise tvm.error.OpNotImplemented(f"Operator {act_type} is not supported in frontend Keras.")
 
 
 def _convert_merge(
@@ -344,8 +338,10 @@ def _convert_convolution1d(inexpr, keras_layer, etab, data_layout, input_shape=N
         pad_w = _get_pad_pair(in_w, dilated_kernel_w, stride_w)
         params["padding"] = [pad_w[0], pad_w[1]]
     else:
-        msg = (f"Padding with {keras_layer.padding} is not supported for operator Convolution3D "
-              f"in frontend Keras.")
+        msg = (
+            f"Padding with {keras_layer.padding} is not supported for operator Convolution3D "
+            f"in frontend Keras."
+        )
         raise tvm.error.OpAttributeUnImplemented(msg)
 
     if is_deconv:
@@ -435,8 +431,10 @@ def _convert_convolution(inexpr, keras_layer, etab, data_layout, input_shape=Non
         pad_l, pad_r = _get_pad_pair(in_w, dilated_kernel_w, stride_w)
         params["padding"] = (pad_t, pad_l, pad_b, pad_r)
     else:
-        msg = (f"Padding with {keras_layer.padding} is not supported for operator Convolution "
-              f"in frontend Keras.")
+        msg = (
+            f"Padding with {keras_layer.padding} is not supported for operator Convolution "
+            f"in frontend Keras."
+        )
         raise tvm.error.OpAttributeUnImplemented(msg)
     if is_deconv:
         out = _op.nn.conv2d_transpose(data=inexpr, **params)
@@ -522,8 +520,10 @@ def _convert_convolution3d(inexpr, keras_layer, etab, data_layout, input_shape=N
         pad_w = _get_pad_pair(in_w, dilated_kernel_w, stride_w)
         params["padding"] = [pad_d[0], pad_h[0], pad_w[0], pad_d[1], pad_h[1], pad_w[1]]
     else:
-        msg = (f"Padding with {keras_layer.padding} is not supported for operator Convolution3D "
-              f"in frontend Keras.")
+        msg = (
+            f"Padding with {keras_layer.padding} is not supported for operator Convolution3D "
+            f"in frontend Keras."
+        )
         raise tvm.error.OpAttributeUnImplemented(msg)
     if is_deconv:
         out = _op.nn.conv3d_transpose(data=inexpr, **params)
@@ -683,9 +683,7 @@ def _convert_pooling(
     if pool_type == "AveragePooling2D":
         params["count_include_pad"] = False
         return _op.nn.avg_pool2d(inexpr, **params)
-    raise tvm.error.OpNotImplemented(
-        f"Operator {keras_layer} is not supported for frontend Keras."
-    )
+    raise tvm.error.OpNotImplemented(f"Operator {keras_layer} is not supported for frontend Keras.")
 
 
 def _convert_pooling3d(
@@ -877,8 +875,10 @@ def _convert_padding(
                 top, bottom = padding[0]
                 left, right = padding[1]
             else:
-                msg = (f'Value {str(padding)} in attribute "padding" of operator Padding is '
-                      f'not valid.')
+                msg = (
+                    f'Value {str(padding)} in attribute "padding" of operator Padding is '
+                    f"not valid."
+                )
                 raise tvm.error.OpAttributeInvalid(msg)
         else:
             msg = f'Value {str(padding)} in attribute "padding" of operator Padding is not valid.'
@@ -1347,9 +1347,7 @@ def _check_unsupported_layers(model):
             missing_ops.add(op_name)
 
     if missing_ops:
-        raise NotImplementedError(
-            f"The following operators are not implemented: {missing_ops}"
-        )
+        raise NotImplementedError(f"The following operators are not implemented: {missing_ops}")
 
 
 def keras_op_to_relay(inexpr, keras_layer, outname, etab, data_layout):
@@ -1374,9 +1372,7 @@ def keras_op_to_relay(inexpr, keras_layer, outname, etab, data_layout):
     """
     op_name = type(keras_layer).__name__
     if op_name not in _convert_map:
-        raise tvm.error.OpNotImplemented(
-            f"Operator {op_name} is not supported for frontend Keras."
-        )
+        raise tvm.error.OpNotImplemented(f"Operator {op_name} is not supported for frontend Keras.")
     outs = _convert_map[op_name](inexpr, keras_layer, etab, data_layout)
     outs = _as_list(outs)
     for t_idx, out in enumerate(outs):
@@ -1427,9 +1423,7 @@ def from_keras(model, shape=None, layout="NCHW"):
             else None
         )
         if inbound_nodes is None:
-            raise TypeError(
-                f"Unknown layer type or unsupported Keras version : {keras_layer}"
-            )
+            raise TypeError(f"Unknown layer type or unsupported Keras version : {keras_layer}")
         outs = []
         for node_idx, node in enumerate(inbound_nodes):
             # If some nodes in imported model are not relevant to the current model,

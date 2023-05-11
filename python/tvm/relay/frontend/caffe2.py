@@ -287,9 +287,7 @@ class Concat(Caffe2OpConverter):
 
         return AttrCvt(
             op_name="concatenate",
-            transforms={
-                "order": ("axis", (1), _get_axis_from_order_str),
-            },
+            transforms={"order": ("axis", (1), _get_axis_from_order_str)},
             excludes=["add_axis"],
         )((inputs,), args, params)
 

@@ -33,15 +33,7 @@ from .. import expr as _expr
 from .. import function as _function
 from .. import op as _op
 from .. import ty as _ty
-from .common import (
-    AttrCvt,
-    Renamer,
-    fold_constant,
-    get_relay_op,
-    infer_shape,
-    infer_type,
-    new_var,
-)
+from .common import AttrCvt, Renamer, fold_constant, get_relay_op, infer_shape, infer_type, new_var
 
 __all__ = ["from_oneflow"]
 
@@ -242,7 +234,7 @@ class GlobalAveragePool(OneFlowOpConverter):
             return _op.nn.global_avg_pool3d(inputs[0])
         raise NotImplementedError(
             "Global average pooling is only implemented for 1D, 2D, and 3D kernels, got %dD."
-            % (rank - 2),
+            % (rank - 2)
         )
 
 
@@ -260,7 +252,7 @@ class GlobalMaxPool(OneFlowOpConverter):
             return _op.nn.global_max_pool3d(inputs[0])
         raise NotImplementedError(
             "Global max pooling is only implemented for 1D, 2D, and 3D kernels, got %dD."
-            % (rank - 2),
+            % (rank - 2)
         )
 
 
@@ -314,9 +306,7 @@ class Conv(OneFlowOpConverter):
 
         out = AttrCvt(
             op_name=cls.name,
-            transforms={
-                "group": ("groups", 1),
-            },
+            transforms={"group": ("groups", 1)},
             ignores=["data_format", "filters", "padding_after", "padding_before"],
             custom_check=dimension_constraint(),
         )([data, kernel], attrs, params)
@@ -364,9 +354,7 @@ class ConvTranspose(OneFlowOpConverter):
 
         out = AttrCvt(
             op_name=cls.name,
-            transforms={
-                "group": ("groups", 1),
-            },
+            transforms={"group": ("groups", 1)},
             disables=["filters", "data_format", "padding_before"],
             custom_check=dimension_constraint(),
         )([data, kernel], attrs, params)
@@ -1539,11 +1527,7 @@ def deal_with_input_convert(
             or "_input." in node_input
             or "FreeEagerTensor" in node_input
         ):
-            _nodes[node_input] = new_var(
-                node_input,
-                shape=node_input_shape,
-                dtype=node_input_dtype,
-            )
+            _nodes[node_input] = new_var(node_input, shape=node_input_shape, dtype=node_input_dtype)
         else:
             names = _input_path_2_name[node_path]
             node_replace = None

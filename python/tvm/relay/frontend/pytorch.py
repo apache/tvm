@@ -388,7 +388,7 @@ class PyTorchOpConverter:
             stop = _get_value(inputs[1 if len(inputs) > 5 else 0], dtype)
             step = _get_value(inputs[2], dtype) if len(inputs) > 6 else _expr.const(1, dtype)
         else:
-            msg = f"Unknown number of arguments ({len(inputs}) to parse."
+            msg = f"Unknown number of arguments ({len(inputs)}) to parse."
             raise AssertionError(msg)
 
         return _op.transform.arange(start=start, stop=stop, step=step, dtype=dtype)
@@ -585,8 +585,10 @@ class PyTorchOpConverter:
         import torch
 
         if not isinstance(inputs[1], (int, list, tuple, torch.Tensor)):
-            msg = (f"indices_or_sections type {type(inputs[1])} could not be parsed in "
-                   f"tensor_split op")
+            msg = (
+                f"indices_or_sections type {type(inputs[1])} could not be parsed in "
+                f"tensor_split op"
+            )
             raise AssertionError(msg)
 
         if isinstance(inputs[1], torch.Tensor) and not (
@@ -2151,13 +2153,7 @@ class PyTorchOpConverter:
         # special handling for aten::to(data, 6, _, _, _) case
         # 6 means dtype = float
         # this happens when converting upsampling with scale factor
-        cast_map = {
-            5: "float16",
-            6: "float32",
-            7: "float64",
-            3: "int32",
-            4: "int64",
-        }
+        cast_map = {5: "float16", 6: "float32", 7: "float64", 3: "int32", 4: "int64"}
 
         cast_func = {5: float, 6: float, 7: float, 3: int, 4: int}
 
@@ -2666,12 +2662,7 @@ class PyTorchOpConverter:
 
     def scalar_tensor(self, inputs, input_types):
         data = inputs[0]
-        cast_map = {
-            6: "float32",
-            7: "float64",
-            3: "int32",
-            4: "int64",
-        }
+        cast_map = {6: "float32", 7: "float64", 3: "int32", 4: "int64"}
         type_key = inputs[1]
         if isinstance(data, _expr.Constant):
             data = data.data.numpy().tolist()
@@ -2848,7 +2839,9 @@ class PyTorchOpConverter:
                 ), "Index dim size should be less than data one"
 
         red_valids = ["sum", "prod", "mean", "amax", "amin"]
-        assert reduce in red_valids, f"Only {red_valids} modes are supported, but {reduce} is gotten"
+        assert (
+            reduce in red_valids
+        ), f"Only {red_valids} modes are supported, but {reduce} is gotten"
         if reduce == "sum":
             reduce = "add"
         elif reduce == "prod":
@@ -3115,11 +3108,7 @@ class PyTorchOpConverter:
             len(layer_weights_dicts) == num_layers and k == num_layers
         ), "For stacked RNN number of weights sets should be the same as number of layers!"
         output, out_hidden_state = self.rnn_layers(
-            X,
-            layer_weights_dicts,
-            bidirectional,
-            act,
-            dropout_p=dropout_p,
+            X, layer_weights_dicts, bidirectional, act, dropout_p=dropout_p
         )
 
         # output shape = (seq_num, batch, hidden_size) or
@@ -3129,25 +3118,14 @@ class PyTorchOpConverter:
 
         return (output, out_hidden_state)
 
-    def bidir_gru_cell(
-        self,
-        input_seqs,
-        weights_dicts,
-    ):
+    def bidir_gru_cell(self, input_seqs, weights_dicts):
         """
         Bidirectional GRU cell
         """
         seq_len = len(input_seqs)
-        forward_outputs, fw_H_t = gru_cell(
-            input_seqs,
-            **weights_dicts[0],
-        )
+        forward_outputs, fw_H_t = gru_cell(input_seqs, **weights_dicts[0])
 
-        reverse_outputs, rev_H_t = gru_cell(
-            input_seqs,
-            **weights_dicts[1],
-            backwards=True,
-        )
+        reverse_outputs, rev_H_t = gru_cell(input_seqs, **weights_dicts[1], backwards=True)
 
         final_outputs = []
         for i in range(seq_len):
@@ -3302,10 +3280,7 @@ class PyTorchOpConverter:
         ), "For stacked GRU number of weights sets should be the same as number of layers!"
 
         output, out_hidden_state = self.gru_layers(
-            X,
-            layer_weights_dicts,
-            bidirectional,
-            dropout_p=dropout_p,
+            X, layer_weights_dicts, bidirectional, dropout_p=dropout_p
         )
 
         # output shape = (seq_num, batch, hidden_size) or
@@ -3315,24 +3290,15 @@ class PyTorchOpConverter:
 
         return (output, out_hidden_state)
 
-    def bidir_lstm_cell(
-        self,
-        input_seqs,
-        weights_dicts,
-    ):
+    def bidir_lstm_cell(self, input_seqs, weights_dicts):
         """
         Bidirectional LSTM cell
         """
         seq_len = len(input_seqs)
-        forward_outputs, fw_H_t, fw_C_t = lstm_cell(
-            input_seqs,
-            **weights_dicts[0],
-        )
+        forward_outputs, fw_H_t, fw_C_t = lstm_cell(input_seqs, **weights_dicts[0])
 
         reverse_outputs, rev_H_t, rev_C_t = lstm_cell(
-            input_seqs,
-            **weights_dicts[1],
-            backwards=True,
+            input_seqs, **weights_dicts[1], backwards=True
         )
 
         final_outputs = []
@@ -3549,11 +3515,7 @@ class PyTorchOpConverter:
         ), "For stacked LSTM number of weights sets should be the same as number of layers!"
 
         outputs = self.lstm_layers(
-            X,
-            layer_weights_dicts,
-            bidirectional,
-            dtype=X_dtype,
-            dropout_p=dropout_p,
+            X, layer_weights_dicts, bidirectional, dtype=X_dtype, dropout_p=dropout_p
         )
 
         # output shape = (seq_num, batch, hidden_size) or
@@ -3635,9 +3597,7 @@ class PyTorchOpConverter:
             # First fill in the last axis with roll indices, and then do transpose to
             # bring the roll indices into the desired axis.
             indices = slide_axes(
-                _op.tile(indices_1d, shape[:dim] + shape[dim + 1 :] + (1,)),
-                shape,
-                dim,
+                _op.tile(indices_1d, shape[:dim] + shape[dim + 1 :] + (1,)), shape, dim
             )
             out = _op.gather(out, dim, indices)
 
@@ -4049,10 +4009,7 @@ class PyTorchOpConverter:
     def convert_block(self, block, outputs):
         """Translate Torch "Block", used for prim::If and prim::Loop"""
         ops = _get_operator_nodes(
-            block.nodes(),
-            self.source_map,
-            self.op_type_dict,
-            self.use_parser_friendly_name,
+            block.nodes(), self.source_map, self.op_type_dict, self.use_parser_friendly_name
         )
         ret_names = _get_input_names(block.returnNode())
         return self.convert_operators(ops, outputs, ret_names)
@@ -4215,8 +4172,7 @@ class PyTorchOpConverter:
                 outputs[node_name] = _get_constant(op_node)
             elif operator == "prim::ListConstruct" and _should_construct_dynamic_list(op_node):
                 outputs[node_name] = set_span(
-                    self.convert_to_list_adt(inputs),
-                    self.source_map[op_node],
+                    self.convert_to_list_adt(inputs), self.source_map[op_node]
                 )
             elif operator == "prim::ListConstruct":
                 # This assumes that no more elements will be appended to this list
@@ -4235,8 +4191,7 @@ class PyTorchOpConverter:
                     return _expr.Tuple(inputs_list)
 
                 outputs[node_name] = set_span(
-                    _handel_nested_input(inputs),
-                    self.source_map[op_node],
+                    _handel_nested_input(inputs), self.source_map[op_node]
                 )
             elif operator in ["prim::ListUnpack", "prim::TupleUnpack"]:
                 assert len(inputs) == 1
@@ -4624,12 +4579,7 @@ def _debug_rename(graph, use_parser_friendly_name):
     return source_map
 
 
-def _get_operator_nodes(
-    nodes,
-    source_map=None,
-    op_type_dict=None,
-    use_parser_friendly_name=False,
-):
+def _get_operator_nodes(nodes, source_map=None, op_type_dict=None, use_parser_friendly_name=False):
     """Returns torch IR nodes that need conversion to Relay"""
     ops, should_rename_graph = [], all([source_map, op_type_dict]) is not None
 
@@ -4835,10 +4785,7 @@ def convert_params(graph, state_dict, source_map, use_parser_friendly_name=False
             # set variable name by concatenating first consumer's name with full attribute
             # e.g. "aten::batch_norm_5.running_mean"
             var_name = attr_name_sep.join(
-                [
-                    source_map[_get_users(getattrs[-1])[0]],
-                    full_attr.split(attr_name_sep)[-1],
-                ]
+                [source_map[_get_users(getattrs[-1])[0]], full_attr.split(attr_name_sep)[-1]]
             )
 
             if full_attr.endswith("_packed_params"):  # for quantized models
@@ -5011,10 +4958,7 @@ def from_pytorch(
         converter.update_convert_map(qnn_torch.convert_map)
 
     operator_nodes = _get_operator_nodes(
-        graph.nodes(),
-        converter.source_map,
-        converter.op_type_dict,
-        use_parser_friendly_name,
+        graph.nodes(), converter.source_map, converter.op_type_dict, use_parser_friendly_name
     )
     ret_name = _get_input_names(graph.return_node())
     outputs = converter.convert_operators(operator_nodes, outputs, ret_name)

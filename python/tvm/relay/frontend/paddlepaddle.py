@@ -91,11 +91,7 @@ def convert_unary_op(g, op, block):
     """Operator converter for all the unary operators."""
 
     # op_map stores mapping relationship between paddlepaddle and relay
-    op_map = {
-        "isinf_v2": _op.isinf,
-        "isfinite_v2": _op.isfinite,
-        "isnan_v2": _op.isnan,
-    }
+    op_map = {"isinf_v2": _op.isinf, "isfinite_v2": _op.isfinite, "isnan_v2": _op.isnan}
     if op.type in op_map:
         unary_func = op_map[op.type]
     else:
@@ -1456,10 +1452,7 @@ def convert_pool2d(g, op, block):
     input_x = g.get_node(op.input("X")[0])
     _, _, in_h, in_w = infer_shape(input_x)
 
-    op_map = {
-        "avg": "avg_pool2d",
-        "max": "max_pool2d",
-    }
+    op_map = {"avg": "avg_pool2d", "max": "max_pool2d"}
 
     strides = op.attr("strides")
     if isinstance(strides, int):
@@ -2129,10 +2122,7 @@ def convert_slice(g, op, block):
     if len(axes) < dims:
         if isinstance(strides, _expr.Expr):
             strides = _op.scatter_elements(
-                _expr.const(
-                    np.array([1] * dims),
-                    dtype=infer_type(strides).checked_type.dtype,
-                ),
+                _expr.const(np.array([1] * dims), dtype=infer_type(strides).checked_type.dtype),
                 indices,
                 strides,
                 axis=0,
@@ -2670,8 +2660,10 @@ class GraphProto:
         ipt_shape = block.var(ipt_name).shape
         for i in ipt_shape:
             if i < 0:
-                warning_msg = (f"Input {ipt_name}(shape={ipt_shape}) has unkown dimension shapes. "
-                              f"Specifying static values may improve performance")
+                warning_msg = (
+                    f"Input {ipt_name}(shape={ipt_shape}) has unkown dimension shapes. "
+                    f"Specifying static values may improve performance"
+                )
                 warnings.warn(warning_msg)
 
     def check_unsupported_ops(self, program):

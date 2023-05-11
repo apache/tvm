@@ -46,16 +46,7 @@ class ConvPackedParam(QNNParam):
     """
 
     def __init__(
-        self,
-        weight_np,
-        bias,
-        scale,
-        zero_point,
-        stride,
-        padding,
-        dilation,
-        groups,
-        output_padding,
+        self, weight_np, bias, scale, zero_point, stride, padding, dilation, groups, output_padding
     ):
         super().__init__(weight_np, bias, scale, zero_point)
         self.stride = stride
@@ -95,15 +86,7 @@ def make_conv_packed_param(qweight, bias, packed_params):
     groups = packed_params.groups()
     output_padding = packed_params.output_padding()
     return ConvPackedParam(
-        weight_np,
-        bias,
-        scale,
-        zero_point,
-        stride,
-        padding,
-        dilation,
-        groups,
-        output_padding,
+        weight_np, bias, scale, zero_point, stride, padding, dilation, groups, output_padding
     )
 
 

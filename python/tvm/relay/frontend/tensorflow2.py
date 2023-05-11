@@ -50,9 +50,7 @@ __all__ = ["from_tensorflow"]
 
 # A map to record tensor list write ops and input tl/tensor indices
 # Value is (index of tensor list, index of written node)
-_tensor_list_write_ops = {
-    "TensorListSetItem": (0, 2),
-}
+_tensor_list_write_ops = {"TensorListSetItem": (0, 2)}
 
 
 def _infer_type_with_prelude(val, prelude):
@@ -453,12 +451,7 @@ class GraphProto:
         """
         if op_name in ["PartitionedCall", "StatefulPartitionedCall"]:
             sym = _partition_call_operator(
-                self._module,
-                graph,
-                inputs,
-                attrs,
-                self._prelude,
-                gdef_lib=self._gdef_lib,
+                self._module, graph, inputs, attrs, self._prelude, gdef_lib=self._gdef_lib
             )
         elif op_name in ["StatelessIf", "If"]:
             sym = _convert_if(
@@ -649,8 +642,7 @@ def _convert_loop(module, graph, inputs, attr, node_name, nodes, prelude, gdef_l
         return new_vars
 
     while_func = next(
-        (f for f in graph.library.function if f.signature.name == attr["body"].name),
-        None,
+        (f for f in graph.library.function if f.signature.name == attr["body"].name), None
     )
     loop_inputs = convert_vars(inputs, while_func.signature.input_arg)
 
@@ -722,10 +714,7 @@ def _convert_function(
         @func___inference_add_95(%x)
 
     """
-    func = next(
-        (f for f in graph.library.function if f.signature.name == node_func_name),
-        None,
-    )
+    func = next((f for f in graph.library.function if f.signature.name == node_func_name), None)
     if func is None:
         raise Exception(f"Function not found - {node_func_name}")
     devices = set(node.device for node in func.node_def)
