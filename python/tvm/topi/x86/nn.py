@@ -43,10 +43,7 @@ def _schedule_softmax(softmax_op, s, outs):
         axis = int(softmax_op.attrs["axis"])
     else:
         raise ValueError(
-            "Tag is expected to be softmax_output or log_softmax_output. \
-                         Got {0}".format(
-                op_tag
-            )
+            f"Tag is expected to be softmax_output or log_softmax_output. Got {op_tag}"
         )
 
     output = outs[0]

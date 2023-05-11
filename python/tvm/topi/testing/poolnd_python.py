@@ -38,10 +38,7 @@ def _get_supported_layout(dims: int):
     return "NCDHW"
 
 
-def _convert_to_layout(
-    input_tensor: np.ndarray,
-    layout: str,
-) -> np.ndarray:
+def _convert_to_layout(input_tensor: np.ndarray, layout: str) -> np.ndarray:
     """
     Converts back to original layout after the algorithm is finished
     """
@@ -55,10 +52,7 @@ def _convert_to_layout(
     return input_tensor
 
 
-def _convert_from_layout(
-    input_tensor: np.ndarray,
-    layout: str,
-) -> np.ndarray:
+def _convert_from_layout(input_tensor: np.ndarray, layout: str) -> np.ndarray:
     """
     Converts tensor to one of suppored layouts
     """
@@ -208,6 +202,6 @@ def poolnd_python(
             # All padded values, default to 0
             ret_np[output_slice] = np.max(pad_data[np_index], axis=reduction_axis)
         else:
-            raise ValueError("Pool type {} is not supported".format(pool_type))
+            raise ValueError(f"Pool type {pool_type} is not supported")
 
     return _convert_to_layout(ret_np, layout)
