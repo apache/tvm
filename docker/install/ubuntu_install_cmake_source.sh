@@ -20,8 +20,9 @@ set -e
 set -u
 set -o pipefail
 
+# the minimum cmake is 3.20.0 for LLVM 16+
 if [ -z ${1+x} ]; then
-    version=3.18.4
+    version=3.20.0
 else
     version=$1
 fi

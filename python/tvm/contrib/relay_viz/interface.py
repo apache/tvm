@@ -281,7 +281,7 @@ class DefaultVizParser(VizParser):
         node_id = node_to_id[node]
 
         # Tuple -> TupleGetItemNode
-        viz_node = VizNode(node_id, f"TupleGetItem", f"idx: {node.index}")
+        viz_node = VizNode(node_id, "TupleGetItem", f"idx: {node.index}")
         viz_edges = [VizEdge(node_to_id[node.tuple_value], node_id)]
         return viz_node, viz_edges
 

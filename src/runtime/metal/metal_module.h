@@ -41,13 +41,14 @@ static constexpr const int kMetalMaxNumDevice = 32;
 /*!
  * \brief create a metal module from data.
  *
- * \param data The data content.
- * \param fmt The format of the data, can be "metal" or "metallib"
+ * \param smap The map from name to each shader kernel.
  * \param fmap The map function information map of each function.
- * \param source Optional, source file
+ * \param fmt The format of the source, can be "metal" or "metallib"
+ * \param source Optional, source file, concatenaed for debug dump
  */
-Module MetalModuleCreate(std::string data, std::string fmt,
-                         std::unordered_map<std::string, FunctionInfo> fmap, std::string source);
+Module MetalModuleCreate(std::unordered_map<std::string, std::string> smap,
+                         std::unordered_map<std::string, FunctionInfo> fmap, std::string fmt,
+                         std::string source);
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_METAL_METAL_MODULE_H_

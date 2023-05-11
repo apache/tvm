@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name,too-many-locals
+# pylint: disable=invalid-name, too-many-locals, unnecessary-list-index-lookup
 """Partitioned Boolean Quadratic Programming Tuner"""
 from ._base import INVALID_LAYOUT_TIME
 from .base_graph_tuner import BaseGraphTuner

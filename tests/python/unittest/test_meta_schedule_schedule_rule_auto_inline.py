@@ -18,11 +18,13 @@
 import pytest
 
 import tvm
-from tvm.tir import Schedule
+import tvm.testing
 from tvm import meta_schedule as ms
+from tvm.ir.base import assert_structural_equal
 from tvm.meta_schedule.testing.space_generation import generate_design_space
 from tvm.script import tir as T
 from tvm.target import Target
+from tvm.tir import Schedule
 
 # fmt: off
 # pylint: disable=no-member,invalid-name,unused-variable,no-self-argument,line-too-long,chained-comparison,not-callable,too-many-nested-blocks
@@ -512,10 +514,23 @@ def test_conv2d_int8_inline_constant_scalars():
     sch.reverse_compute_inline(sch.get_block("T_add_1"))
 
 
+def test_inline_constant_scalars_skip_output_block():
+    # If the constant scalar block is an output block, it should not be inlined
+
+    @tvm.script.ir_module
+    class Full:
+        @T.prim_func
+        def main(T_full: T.Buffer((), "float32")):
+            with T.block("T_full"):
+                vi = T.axis.spatial(1, 0)
+                T.reads()
+                T.writes(T_full[()])
+                T_full[()] = T.float32(1)
+
+    sch = Schedule(Full)
+    sch = ms.schedule_rule.InlineConstantScalars().apply(sch, sch.get_block("T_full"))[0]
+    assert_structural_equal(sch.mod, Full)
+
+
 if __name__ == "__main__":
-    test_inline_consumer_chain()
-    test_inline_into_cache()
-    test_inline_into_multiple_consumers()
-    test_inline_pure_spatial()
-    test_inline_constant_tensor()
-    test_conv2d_int8_inline_constant_scalars()
+    tvm.testing.main()

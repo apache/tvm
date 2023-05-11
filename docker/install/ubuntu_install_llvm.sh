@@ -21,30 +21,28 @@ set -euxo pipefail
 apt-get update
 apt-install-and-clear -y gnupg
 
-echo deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-4.0 main\
+echo deb http://apt.llvm.org/focal/ llvm-toolchain-focal-10 main\
      >> /etc/apt/sources.list.d/llvm.list
-echo deb-src http://apt.llvm.org/xenial/ llvm-toolchain-xenial-4.0 main\
-     >> /etc/apt/sources.list.d/llvm.list
-
-echo deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-7 main\
-     >> /etc/apt/sources.list.d/llvm.list
-echo deb-src http://apt.llvm.org/xenial/ llvm-toolchain-xenial-7 main\
+echo deb-src http://apt.llvm.org/focal/ llvm-toolchain-focal-10 main\
      >> /etc/apt/sources.list.d/llvm.list
 
-echo deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-8 main\
+echo deb http://apt.llvm.org/focal/ llvm-toolchain-focal-11 main\
      >> /etc/apt/sources.list.d/llvm.list
-echo deb-src http://apt.llvm.org/xenial/ llvm-toolchain-xenial-8 main\
-     >> /etc/apt/sources.list.d/llvm.list
-
-echo deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-9 main\
-     >> /etc/apt/sources.list.d/llvm.list
-echo deb-src http://apt.llvm.org/xenial/ llvm-toolchain-xenial-9 main\
+echo deb-src http://apt.llvm.org/focal/ llvm-toolchain-focal-11 main\
      >> /etc/apt/sources.list.d/llvm.list
 
-echo deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial main\
+echo deb http://apt.llvm.org/focal/ llvm-toolchain-focal-12 main\
      >> /etc/apt/sources.list.d/llvm.list
-echo deb-src http://apt.llvm.org/xenial/ llvm-toolchain-xenial main\
+echo deb-src http://apt.llvm.org/focal/ llvm-toolchain-focal-12 main\
+     >> /etc/apt/sources.list.d/llvm.list
+
+echo deb http://apt.llvm.org/focal/ llvm-toolchain-focal main\
+     >> /etc/apt/sources.list.d/llvm.list
+echo deb-src http://apt.llvm.org/focal/ llvm-toolchain-focal main\
      >> /etc/apt/sources.list.d/llvm.list
 
 wget -q -O - http://apt.llvm.org/llvm-snapshot.gpg.key|sudo apt-key add -
-apt-install-and-clear -y llvm-4.0 llvm-9 llvm-8 llvm-7 clang-9 libclang-9-dev clang-8 libclang-8-dev clang-7 libclang-7-dev
+apt-install-and-clear -y llvm-12 llvm-11 llvm-10 \
+    clang-12 libclang-12-dev \
+    clang-11 libclang-11-dev \
+    clang-10 libclang-10-dev

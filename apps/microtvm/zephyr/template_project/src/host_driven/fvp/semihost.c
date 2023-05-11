@@ -34,8 +34,8 @@ uint32_t semihost_cmd(uint32_t opcode, void* arg) {
       "mov r1, %[arg]\n\t"
       "bkpt #0xab\n\r"
       "mov %[ret_val], r0"
-      : [ ret_val ] "=r"(ret_val)
-      : [ opcode ] "r"(opcode), [ arg ] "r"(arg)
+      : [ret_val] "=r"(ret_val)
+      : [opcode] "r"(opcode), [arg] "r"(arg)
       : "r1", "memory");
 
   return ret_val;

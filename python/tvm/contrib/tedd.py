@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=import-outside-toplevel
+# pylint: disable=import-outside-toplevel, nested-min-max
 """Tensor Expression Debug Display (TEDD), visualizing Tensor Expression"""
 import html
 import json

@@ -105,10 +105,15 @@ class RPCConfig(NamedTuple):
     def _normalized(config: Optional["RPCConfig"]) -> "RPCConfig":
         if config is None:
             config = RPCConfig()
+        tracker_host = config.tracker_host or os.environ.get("TVM_TRACKER_HOST", None)
+        tracker_port = config.tracker_port or os.environ.get("TVM_TRACKER_PORT", None)
+        tracker_key = config.tracker_key or os.environ.get("TVM_TRACKER_KEY", None)
+        if isinstance(tracker_port, str):
+            tracker_port = int(tracker_port)
         config = RPCConfig(
-            tracker_host=config.tracker_host or os.environ.get("TVM_TRACKER_HOST", None),
-            tracker_port=config.tracker_port or os.environ.get("TVM_TRACKER_PORT", None),
-            tracker_key=config.tracker_key or os.environ.get("TVM_TRACKER_KEY", None),
+            tracker_host=tracker_host,
+            tracker_port=tracker_port,
+            tracker_key=tracker_key,
             session_priority=config.session_priority,
             session_timeout_sec=config.session_timeout_sec,
         )

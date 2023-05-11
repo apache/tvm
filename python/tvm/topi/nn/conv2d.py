@@ -172,7 +172,7 @@ def _get_workload(data, kernel, stride, padding, dilation, out_dtype, data_layou
     elif data_layout == "HWCN":
         IH, IW, CI, _ = get_const_tuple(data.shape)
     else:
-        raise ValueError("not support this layout {} yet".format(data_layout))
+        raise ValueError(f"not support this layout {data_layout} yet")
 
     if data_layout == "NCHW":
         CO, CIG, KH, KW = get_const_tuple(kernel.shape)
@@ -193,10 +193,7 @@ def _get_workload(data, kernel, stride, padding, dilation, out_dtype, data_layou
         HSTR, WSTR = stride, stride
     assert (data.dtype == kernel.dtype) or (
         data.dtype == "uint8" and kernel.dtype == "int8"
-    ), "Do not support inputs with different data types now. ' \
-        '{} vs. {}".format(
-        data.dtype, kernel.dtype
-    )
+    ), f"Do not support inputs with different data types now. {data.dtype} vs. {kernel.dtype}"
     return Workload(
         data.dtype,
         out_dtype,
@@ -1227,8 +1224,7 @@ def _conv2d_winograd_nhwc_impl(
         kernel_pack = te.compute(
             (alpha, alpha, CO, CI),
             lambda eps, nu, co, ci: te.sum(
-                weight[r_kh, r_kw, ci, co] * G[eps, r_kh] * G[nu, r_kw],
-                axis=[r_kh, r_kw],
+                weight[r_kh, r_kw, ci, co] * G[eps, r_kh] * G[nu, r_kw], axis=[r_kh, r_kw]
             ),
             name="kernel_pack",
         )
@@ -1246,10 +1242,7 @@ def _conv2d_winograd_nhwc_impl(
     input_tile = te.compute(
         (alpha, alpha, P, CI),
         lambda eps, nu, p, ci: data_pad[
-            p // (nH * nW),
-            ((p // nW) % nH) * m + eps,
-            (p % nW) * m + nu,
-            ci,
+            p // (nH * nW), ((p // nW) % nH) * m + eps, (p % nW) * m + nu, ci
         ],
         name="input_tile",
         attrs={"schedule_rule": "None"},
@@ -1261,8 +1254,7 @@ def _conv2d_winograd_nhwc_impl(
     data_pack = te.compute(
         (alpha, alpha, P, CI),
         lambda eps, nu, p, ci: te.sum(
-            input_tile[r_a, r_b, p, ci] * B[r_a, eps] * B[r_b, nu],
-            axis=[r_a, r_b],
+            input_tile[r_a, r_b, p, ci] * B[r_a, eps] * B[r_b, nu], axis=[r_a, r_b]
         ),
         name="data_pack",
         attrs={
@@ -1276,8 +1268,7 @@ def _conv2d_winograd_nhwc_impl(
     bgemm = te.compute(
         (alpha, alpha, P, CO),
         lambda eps, nu, p, co: te.sum(
-            data_pack[eps, nu, p, ci] * kernel_pack[eps, nu, co, ci],
-            axis=[ci],
+            data_pack[eps, nu, p, ci] * kernel_pack[eps, nu, co, ci], axis=[ci]
         ),
         name="bgemm",
         attrs=bgemm_attrs,
@@ -1293,8 +1284,7 @@ def _conv2d_winograd_nhwc_impl(
     inverse = te.compute(
         (m, m, P, CO),
         lambda vh, vw, p, co: te.sum(
-            bgemm[r_a, r_b, p, co] * A[r_a, vh] * A[r_b, vw],
-            axis=[r_a, r_b],
+            bgemm[r_a, r_b, p, co] * A[r_a, vh] * A[r_b, vw], axis=[r_a, r_b]
         ),
         name="inverse",
         attrs={
@@ -1306,12 +1296,7 @@ def _conv2d_winograd_nhwc_impl(
     # output
     output = te.compute(
         (N, H, W, CO),
-        lambda n, h, w, co: inverse[
-            h % m,
-            w % m,
-            n * nH * nW + (h // m) * nW + (w // m),
-            co,
-        ],
+        lambda n, h, w, co: inverse[h % m, w % m, n * nH * nW + (h // m) * nW + (w // m), co],
         name="conv2d_winograd",
     )
 
@@ -1361,12 +1346,7 @@ def _conv2d_winograd_nchw_impl(
     assert HSTR == 1 and WSTR == 1 and KH == 3 and KW == 3
 
     pt, pl, pb, pr = get_pad_tuple(padding, (KH, KW))
-    data_pad = pad(
-        data,
-        (0, 0, pt, pl),
-        (0, 0, pb, pr),
-        name="data_pad",
-    )
+    data_pad = pad(data, (0, 0, pt, pl), (0, 0, pb, pr), name="data_pad")
 
     r = KW
     m = tile_size
@@ -1385,8 +1365,7 @@ def _conv2d_winograd_nchw_impl(
         kernel_pack = te.compute(
             (alpha, alpha, CI, CO),
             lambda eps, nu, ci, co: te.sum(
-                weight[co, ci, r_kh, r_kw] * G[eps, r_kh] * G[nu, r_kw],
-                axis=[r_kh, r_kw],
+                weight[co, ci, r_kh, r_kw] * G[eps, r_kh] * G[nu, r_kw], axis=[r_kh, r_kw]
             ),
             name="kernel_pack",
         )
@@ -1404,10 +1383,7 @@ def _conv2d_winograd_nchw_impl(
     input_tile = te.compute(
         (CI, P, alpha, alpha),
         lambda ci, p, eps, nu: data_pad[
-            p // (nH * nW),
-            ci,
-            ((p // nW) % nH) * m + eps,
-            (p % nW) * m + nu,
+            p // (nH * nW), ci, ((p // nW) % nH) * m + eps, (p % nW) * m + nu
         ],
         name="input_tile",
         attrs={"schedule_rule": "None"},
@@ -1419,13 +1395,10 @@ def _conv2d_winograd_nchw_impl(
     data_pack = te.compute(
         (alpha, alpha, CI, P),
         lambda eps, nu, ci, p: te.sum(
-            input_tile[ci, p, r_a, r_b] * B[r_a, eps] * B[r_b, nu],
-            axis=[r_a, r_b],
+            input_tile[ci, p, r_a, r_b] * B[r_a, eps] * B[r_b, nu], axis=[r_a, r_b]
         ),
         name="data_pack",
-        attrs={
-            "schedule_rule": "conv2d_nchw_winograd_data_pack",
-        },
+        attrs={"schedule_rule": "conv2d_nchw_winograd_data_pack"},
     )
 
     # do batch gemm
@@ -1433,8 +1406,7 @@ def _conv2d_winograd_nchw_impl(
     bgemm = te.compute(
         (alpha, alpha, CO, P),
         lambda eps, nu, co, p: te.sum(
-            data_pack[eps, nu, ci, p] * kernel_pack[eps, nu, ci, co],
-            axis=[ci],
+            data_pack[eps, nu, ci, p] * kernel_pack[eps, nu, ci, co], axis=[ci]
         ),
         name="bgemm",
         attrs=bgemm_attrs,
@@ -1446,24 +1418,16 @@ def _conv2d_winograd_nchw_impl(
     inverse = te.compute(
         (CO, P, m, m),
         lambda co, p, vh, vw: te.sum(
-            bgemm[r_a, r_b, co, p] * A[r_a, vh] * A[r_b, vw],
-            axis=[r_a, r_b],
+            bgemm[r_a, r_b, co, p] * A[r_a, vh] * A[r_b, vw], axis=[r_a, r_b]
         ),
         name="inverse",
-        attrs={
-            "schedule_rule": "conv2d_nchw_winograd_inverse",
-        },
+        attrs={"schedule_rule": "conv2d_nchw_winograd_inverse"},
     )
 
     # output
     output = te.compute(
         (N, CO, H, W),
-        lambda n, co, h, w: inverse[
-            co,
-            n * nH * nW + (h // m) * nW + (w // m),
-            h % m,
-            w % m,
-        ],
+        lambda n, co, h, w: inverse[co, n * nH * nW + (h // m) * nW + (w // m), h % m, w % m],
         name="conv2d_winograd",
     )
 

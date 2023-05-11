@@ -18,8 +18,7 @@
 """Compute and Schedule definition for dense tensorcore with cuda backend"""
 from __future__ import absolute_import as _abs
 import tvm
-from tvm import te
-import tvm.autotvm as autotvm
+from tvm import te, autotvm
 from .. import tag
 from ..utils import traverse_inline, get_const_tuple
 from .tensor_intrin import (

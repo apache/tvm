@@ -16,20 +16,31 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -euxo pipefail
+set -e
+set -u
+set -o pipefail
 
-echo deb http://apt.llvm.org/focal/ llvm-toolchain-focal main\
-    >> /etc/apt/sources.list.d/llvm.list
-
-echo deb http://apt.llvm.org/focal/ llvm-toolchain-focal-13 main\
-    >> /etc/apt/sources.list.d/llvm.list
-
-apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 15CF4D18AF4F7421
-
-apt-get update && apt-install-and-clear -y \
-     llvm-9 llvm-10 llvm-11 llvm-12 llvm-13 \
-     clang-9 libclang-9-dev \
-     clang-10 libclang-10-dev \
-     clang-11 libclang-11-dev \
-     clang-12 libclang-12-dev \
-     clang-13 libclang-13-dev
+# install libraries for python package on ubuntu
+pip3 install --upgrade \
+    "Pygments>=2.4.0" \
+    attrs \
+    cloudpickle \
+    cython \
+    decorator \
+    mypy \
+    numpy==1.21.* \
+    orderedset \
+    packaging \
+    Pillow==9.1.0 \
+    psutil \
+    pytest \
+    git+https://github.com/tlc-pack/tlcpack-sphinx-addon.git@768ec1dce349fe4708f6ad68be1ebb3f3dabafa1 \
+    pytest-profiling \
+    pytest-xdist \
+    pytest-rerunfailures==10.2 \
+    requests \
+    Jinja2 \
+    junitparser==2.4.2 \
+    six \
+    tornado \
+    pytest-lazy-fixture

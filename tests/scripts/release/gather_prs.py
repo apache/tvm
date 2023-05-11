@@ -133,22 +133,23 @@ def fetch_pr_data(args, cache):
 
 
 def write_csv(
-    filename: str, data: List[Dict[str, Any]], filter: Callable[[Dict[str, Any]], bool]
+    filename: str, data: List[Dict[str, Any]], threshold_filter: Callable[[Dict[str, Any]], bool]
 ) -> None:
     with open(filename, "w", newline="") as csvfile:
         writer = csv.writer(csvfile, quotechar='"')
         writer.writerow(
             (
                 "category",
-                "description",
+                "subject",
                 "date",
-                "number",
+                "url",
                 "author",
-                "tags",
-                "title",
+                "pr_title_tags",
+                "pr_title",
                 "additions",
                 "deletions",
-                "changed files",
+                "additions+deletions>threshold",
+                "changed_files",
             )
         )
         for item in data:
@@ -156,8 +157,6 @@ def write_csv(
             if len(nodes) == 0:
                 continue
             pr = nodes[0]
-            if not filter(pr):
-                continue
             tags = tags_from_title(pr["title"])
             actual_tags = []
             for t in tags:
@@ -167,20 +166,23 @@ def write_csv(
             tags = [t.lower() for t in tags]
             category = tags[0] if len(tags) > 0 else ""
             author = pr["author"] if pr["author"] else "ghost"
+            author = author.get("login", "") if isinstance(author, dict) else author
             writer.writerow(
                 (
                     category,
-                    "",
+                    "n/a",
                     item["committedDate"],
                     f'https://github.com/apache/tvm/pull/{pr["number"]}',
                     author,
-                    ", ".join(tags),
-                    pr["title"],
+                    "/".join(tags),
+                    pr["title"].replace(",", " "),
                     pr["additions"],
                     pr["deletions"],
+                    1 if threshold_filter(pr) else 0,
                     pr["changedFiles"],
                 )
             )
+    print(f"{filename} generated!")
 
 
 if __name__ == "__main__":
@@ -189,7 +191,7 @@ if __name__ == "__main__":
     parser.add_argument("--from-commit", help="commit to start checking PRs from")
     parser.add_argument("--to-commit", help="commit to stop checking PRs from")
     parser.add_argument(
-        "--threshold", default=150, help="sum of additions + deletions to consider large"
+        "--threshold", default=0, help="sum of additions + deletions to consider large, such as 150"
     )
     parser.add_argument(
         "--skip-query", action="store_true", help="don't query GitHub and instead use cache file"
@@ -209,12 +211,7 @@ if __name__ == "__main__":
     print(f"Found {len(data)} PRs")
 
     write_csv(
-        filename="out-large.csv",
+        filename="out_pr_gathered.csv",
         data=data,
-        filter=lambda pr: pr["additions"] + pr["deletions"] > threshold,
-    )
-    write_csv(
-        filename="out-small.csv",
-        data=data,
-        filter=lambda pr: pr["additions"] + pr["deletions"] <= threshold,
+        threshold_filter=lambda pr: pr["additions"] + pr["deletions"] > threshold,
     )

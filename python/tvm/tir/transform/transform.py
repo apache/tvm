@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Wrapping existing transformations."""
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name, unsupported-binary-operation
 
 
 import enum
@@ -747,7 +747,7 @@ def ConvertBlocksToOpaque():
     return _ffi_api.ConvertBlocksToOpaque()  # type: ignore
 
 
-def CompactBufferAllocation():
+def CompactBufferAllocation(is_strict: bool = True):
     """Compact the buffer access region. by removing the buffer regions
     that are not accessed, i.e. narrowing the buffer shape and adjust
     the access region if necessary.
@@ -783,13 +783,19 @@ def CompactBufferAllocation():
                 for j in range(0, 16):
                     C[i, j] = B[0, j] + 1
 
+    Parameters
+    ----------
+    is_strict : bool
+        Ensure the compacted shape to be always smaller than the original shape.
+        Otherwise it allows to grow the shape to match actual accessed buffer regions.
+
     Returns
     -------
     fpass : tvm.transform.Pass
         The result pass
 
     """
-    return _ffi_api.CompactBufferAllocation()  # type: ignore
+    return _ffi_api.CompactBufferAllocation(is_strict)  # type: ignore
 
 
 def LowerMatchBuffer():
