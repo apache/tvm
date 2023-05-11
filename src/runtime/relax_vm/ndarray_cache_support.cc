@@ -138,7 +138,9 @@ class NDArrayCache {
       LoadBinaryFromFile(cache_path + "/" + data_path, &raw_data);
       CHECK_EQ(shard_rec["format"].get<std::string>(), "raw-shard");
       int64_t raw_nbytes = shard_rec["nbytes"].get<int64_t>();
-      CHECK_EQ(raw_nbytes, raw_data.length());
+      CHECK_EQ(raw_nbytes, raw_data.length())
+          << "ValueError: Parameters are not loaded properly. Please check your parameter shards "
+             "and git lfs installation";
 
       for (auto nd_item : shard_rec["records"].get<picojson::array>()) {
         auto nd_rec = nd_item.get<picojson::object>();
