@@ -59,7 +59,6 @@ def check_result(
                 continue
             if kind == "debug" and (only_vm or dev.device_type != tvm.cpu().device_type):
                 continue
-            print(tgt)
             result = relay.create_executor(kind, mod=mod, device=dev, target=tgt).evaluate()(*args)
             if isinstance(result, tvm.runtime.container.ADT):
                 result = [r.numpy() for r in result]
