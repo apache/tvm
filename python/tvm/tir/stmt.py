@@ -35,7 +35,7 @@ from tvm.runtime import Object, Scriptable, const
 
 from . import _ffi_api
 from .buffer import Buffer
-from .expr import EqualOp, ExprOp, IterVar, NotEqualOp
+from .expr import IterVar
 
 
 class Stmt(Object, Scriptable):
@@ -518,7 +518,7 @@ class Prefetch(Stmt):
 
 
 @tvm._ffi.register_object("tir.BufferRegion")
-class BufferRegion(Object, Scriptable, ExprOp):
+class BufferRegion(Object, Scriptable):
     """BufferRegion node.
 
     Parameters
@@ -535,12 +535,6 @@ class BufferRegion(Object, Scriptable, ExprOp):
 
     def __init__(self, buffer: Buffer, region: List[Range]):
         self.__init_handle_by_constructor__(_ffi_api.BufferRegion, buffer, region)  # type: ignore
-
-    def __eq__(self, other):
-        return EqualOp(self, other).asobject()
-
-    def __ne__(self, other):
-        return NotEqualOp(self, other).asobject()
 
 
 @tvm._ffi.register_object("tir.MatchBufferRegion")

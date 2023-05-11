@@ -157,6 +157,35 @@ class ExprEvaluator:
         res : Any
             The evaluation result.
         """
+        if (
+            isinstance(node, doc.Call)
+            and hasattr(node.func, "attr")
+            and node.func.attr != "reads"
+            and node.func.attr != "writes"
+        ) or isinstance(node, (doc.BinOp, doc.UnaryOp, doc.Compare, doc.BoolOp)):
+            if isinstance(node, doc.BinOp):
+                args = [node.left, node.right]
+            elif isinstance(node, doc.UnaryOp):
+                args = [node.operand]
+            elif isinstance(node, doc.Compare):
+                args = [node.left, node.comparators]
+            elif isinstance(node, doc.Call):
+                args = node.args
+            elif isinstance(node, doc.BoolOp):
+                args = node.values
+            for arg in args:
+                if isinstance(arg, doc.Subscript) and isinstance(arg.slice, doc.Slice):
+                    if not arg.slice.step and arg.slice.upper and arg.slice.lower:
+                        arg.slice.step = doc.Constant(
+                            1,
+                            None,
+                            1,
+                            1,
+                            arg.slice.upper.lineno,
+                            arg.slice.upper.end_col_offset + 1,
+                            arg.slice.upper.lineno,
+                            arg.slice.upper.end_col_offset + 2,
+                        )
         if isinstance(node, list):
             return [self._visit(n) for n in node]
         if isinstance(node, tuple):

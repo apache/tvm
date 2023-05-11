@@ -32,14 +32,14 @@ def _register_expr_op(ty: Type):  # pylint: disable=invalid-name
             a = IntImm("bool", a)
         if isinstance(b, bool):
             b = IntImm("bool", b)
-        return tir.And(a, b)
+        return a & b
 
     def _or(a, b):
         if isinstance(a, bool):
             a = IntImm("bool", a)
         if isinstance(b, bool):
             b = IntImm("bool", b)
-        return tir.Or(a, b)
+        return a | b
 
     def r(op: Type, i: int, m: OpMethod):  # pylint: disable=invalid-name
         register_op(ty, op, i)(m)
@@ -60,12 +60,12 @@ def _register_expr_op(ty: Type):  # pylint: disable=invalid-name
         # doc.MatMult <-- not implemented
         # doc.Pow <-- not implemented
         # Case 2. cmpop
-        r(doc.Eq, i, tir.EQ)
-        r(doc.NotEq, i, tir.NE)
-        r(doc.Lt, i, tir.LT)
-        r(doc.LtE, i, tir.LE)
-        r(doc.Gt, i, tir.GT)
-        r(doc.GtE, i, tir.GE)
+        r(doc.Eq, i, lambda a, b: a == b)
+        r(doc.NotEq, i, lambda a, b: a != b)
+        r(doc.Lt, i, lambda a, b: a < b)
+        r(doc.LtE, i, lambda a, b: a <= b)
+        r(doc.Gt, i, lambda a, b: a > b)
+        r(doc.GtE, i, lambda a, b: a >= b)
         # doc.Is <-- not implemented
         # doc.IsNot <-- not implemented
         # doc.In <-- not implemented

@@ -185,19 +185,28 @@ def slice_op_test(
     B[0:5] = A[0:5] - B[0:5]
     B[0:5] = A[0:5] * B[0:5]
     B[0:5] = A[0:5] / B[0:5]
-    C[0:5] = C[0:5] % 5
+    C[0:5] = C[0:5] % T.broadcast(T.uint32(5), 5)
     B[0:5] = -B[0:5]
     C[0:5] = C[0:5] >> 4
     C[0:5] = C[0:5] << 4
     C[0:5] = C[0:5] << C[0:5]
     C[0:5] = C[0:5] >> C[0:5]
     T.evaluate(A[0:5] > B[0:5])
+    T.evaluate(A[0:5] > 5)
     T.evaluate(A[0:5] >= B[0:5])
+    T.evaluate(A[0:5] >= 5)
     T.evaluate(A[0:5] < B[0:5])
+    T.evaluate(A[0:5] < 5)
     T.evaluate(A[0:5] <= B[0:5])
+    T.evaluate(A[0:5] <= 5)
+    T.evaluate(A[0:5] == B[0:5])
+    T.evaluate(A[0:5] == 5)
     T.evaluate(A[0:5] != B[0:5])
+    T.evaluate(A[0:5] != 5)
     T.evaluate((A[0:5] > 0) and (B[0:5] > 0))
     T.evaluate((A[0:5] > 0) or (B[0:5] > 0))
+    T.evaluate((A[0:5] < 0) and (1 > 0))
+    T.evaluate((A[0:5] > 0) or (1 > 0))
 
 
 @T.prim_func
@@ -215,12 +224,21 @@ def slice_op_test_ref(
     C[0:5] = T.shift_left(C[0:5], C[0:5])
     C[0:5] = T.shift_right(C[0:5], C[0:5])
     T.evaluate(A[0:5] > B[0:5])
+    T.evaluate(A[0:5] > T.Broadcast(T.float32(5), 5))
     T.evaluate(A[0:5] >= B[0:5])
+    T.evaluate(A[0:5] >= T.Broadcast(T.float32(5), 5))
     T.evaluate(A[0:5] < B[0:5])
+    T.evaluate(A[0:5] < T.Broadcast(T.float32(5), 5))
     T.evaluate(A[0:5] <= B[0:5])
+    T.evaluate(A[0:5] <= T.Broadcast(T.float32(5), 5))
+    T.evaluate(A[0:5] == B[0:5])
+    T.evaluate(A[0:5] == T.Broadcast(T.float32(5), 5))
     T.evaluate(A[0:5] != B[0:5])
-    T.evaluate(A[0:5] > T.Broadcast(T.float32(0), 5) and B[0:5] > T.Broadcast(T.float32(0), 5))
-    T.evaluate(A[0:5] > T.Broadcast(T.float32(0), 5) or B[0:5] > T.Broadcast(T.float32(0), 5))
+    T.evaluate(A[0:5] != T.Broadcast(T.float32(5), 5))
+    T.bitwise_and(A[0:5] > T.Broadcast(T.float32(0), 5), B[0:5] > T.Broadcast(T.float32(0), 5))
+    T.bitwise_or(A[0:5] > T.Broadcast(T.float32(0), 5), B[0:5] > T.Broadcast(T.float32(0), 5))
+    T.bitwise_and(A[0:5] < T.Broadcast(T.float32(0), 5), T.Broadcast(T.bool(1), 5))
+    T.bitwise_or(A[0:5] > T.Broadcast(T.float32(0), 5), T.Broadcast(T.bool(1), 5))
 
 
 def test_slice_op():
