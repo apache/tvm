@@ -80,6 +80,7 @@ bool Registry::Remove(const std::string& name) {
   std::lock_guard<std::mutex> lock(m->mutex);
   auto it = m->fmap.find(name);
   if (it == m->fmap.end()) return false;
+  delete it->second;
   m->fmap.erase(it);
   return true;
 }
