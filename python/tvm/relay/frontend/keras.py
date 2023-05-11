@@ -145,6 +145,8 @@ def _convert_advanced_activation(inexpr, keras_layer, etab, data_layout, input_s
                 axis = axis + 1 if axis < dims - 1 else 1
         return _op.nn.softmax(inexpr, axis=axis)
     if act_type == "ReLU":
+        if np.isnan(keras_layer.threshold).any():
+            raise tvm.error.OpAttributeInvalid("The threshold value of a ReLU cannot be None.")
         threshold = _expr.const(keras_layer.threshold, dtype="float32")
         if keras_layer.max_value and float(keras_layer.threshold) == 0:
             # f(x) = max_value, for x >= max_value
