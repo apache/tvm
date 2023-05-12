@@ -162,30 +162,40 @@ class ExprEvaluator:
             and hasattr(node.func, "attr")
             and node.func.attr != "reads"
             and node.func.attr != "writes"
+            and node.func.attr != "match_buffer"
+            and node.func.attr != "realize"
         ) or isinstance(node, (doc.BinOp, doc.UnaryOp, doc.Compare, doc.BoolOp)):
             if isinstance(node, doc.BinOp):
                 args = [node.left, node.right]
             elif isinstance(node, doc.UnaryOp):
                 args = [node.operand]
             elif isinstance(node, doc.Compare):
-                args = [node.left, node.comparators]
+                args = [node.left, *node.comparators]
             elif isinstance(node, doc.Call):
                 args = node.args
             elif isinstance(node, doc.BoolOp):
                 args = node.values
             for arg in args:
-                if isinstance(arg, doc.Subscript) and isinstance(arg.slice, doc.Slice):
-                    if not arg.slice.step and arg.slice.upper and arg.slice.lower:
-                        arg.slice.step = doc.Constant(
-                            1,
-                            None,
-                            1,
-                            1,
-                            arg.slice.upper.lineno,
-                            arg.slice.upper.end_col_offset + 1,
-                            arg.slice.upper.lineno,
-                            arg.slice.upper.end_col_offset + 2,
-                        )
+                if isinstance(arg, doc.Subscript) and isinstance(arg.slice, (doc.Slice, doc.Tuple)):
+                    if isinstance(arg.slice, doc.Slice):
+                        slices = [arg.slice]
+                    else:
+                        slices = []
+                        for p in arg.slice.elts:
+                            if isinstance(p, doc.Slice):
+                                slices.append(p)
+                    for slice in slices:
+                        if not slice.step and slice.upper and slice.lower:
+                            slice.step = doc.Constant(
+                                1,
+                                None,
+                                1,
+                                1,
+                                slice.upper.lineno,
+                                slice.upper.end_col_offset + 1,
+                                slice.upper.lineno,
+                                slice.upper.end_col_offset + 2,
+                            )
         if isinstance(node, list):
             return [self._visit(n) for n in node]
         if isinstance(node, tuple):
