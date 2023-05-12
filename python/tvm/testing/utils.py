@@ -1002,6 +1002,19 @@ requires_corstone300 = Feature(
 requires_vitis_ai = Feature("vitis_ai", "Vitis AI", cmake_flag="USE_VITIS_AI")
 
 
+def _riscv_spike_run_time_check():
+    if shutil.which("spike") is None:
+        return "Spike RISC-V ISA Simulator unavailable"
+    return True
+
+
+# Mark a test as requiring Spike to run
+requires_riscv_spike = Feature(
+    "spike",
+    "Spike RISC-V ISA Simulator",
+    run_time_check=_riscv_spike_run_time_check,
+)
+
 def _arm_dot_supported():
     arch = platform.machine()
 

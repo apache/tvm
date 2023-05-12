@@ -25,3 +25,5 @@ make cython3
 # NOTE: this exists to ensure some tests run on RISC-V image. Without it, Jenkins reports a configuration error.
 # This line can be removed when RISC-V tests are added.
 run_pytest ctypes riscv-platform-minimal-test-0 tests/python/all-platform-minimal-test
+
+run_pytest ctypes python-relay-strategy-riscv_cpu tests/python/relay/strategy/riscv_cpu
