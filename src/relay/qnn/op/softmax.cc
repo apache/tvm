@@ -108,14 +108,14 @@ Expr QnnSoftmaxCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   const Expr max = Max(quantized_data, {axis}, true, false);
   const Expr x = Subtract(quantized_data, max);
 
-  const int n = 8;
   const int m = 30;
   const int bits = 8;
   const Expr x_p = Subtract(Add(x, RightShift(x, const_i32(1))), RightShift(x, const_i32(4)));
-  const Expr q = Divide(x_p, Negative(x_0));
+  const Expr q = Clip(Divide(x_p, Negative(x_0)), 0, 20);
+  const Expr max_q = Max(q, {axis}, true, false);
   const Expr r = Subtract(x_p, Multiply(q, Negative(x_0)));
   const Expr x_b = Add(RightShift(r, const_i32(1)), x_0);
-  const Expr exps = LeftShift(x_b, Subtract(const_i32(n), q));
+  const Expr exps = LeftShift(x_b, Subtract(max_q, q));
   const Expr sums = Sum(exps, {axis}, true, false);
   const Expr output =
       RightShift(Multiply(Divide(const_i32(1 << m), sums), exps), const_i32(m - (bits - 1)));
