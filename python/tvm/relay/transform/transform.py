@@ -1251,7 +1251,7 @@ def AnnotateSpans():
     return _ffi_api.AnnotateSpans()
 
 
-def FakeQuantizationToInteger(hard_fail=False, use_qat=False):
+def FakeQuantizationToInteger(hard_fail=False, use_qat=False, optional_qnn_ops=[]):
     # pylint: disable=anomalous-backslash-in-string
     """
     Find regions of the graph of the form
@@ -1298,12 +1298,17 @@ def FakeQuantizationToInteger(hard_fail=False, use_qat=False):
               |
               q
 
+    optional_qnn_ops : List[str]
+        Specify a list of operator names to explicitly enable conversion for
+        specific ops disabled by default.
+        Example: ['nn.softmax']
+
     Returns
     -------
     ret : tvm.transform.Pass
         The registered FakeQuantizationToInteger pass.
     """
-    return _ffi_api.FakeQuantizationToInteger(hard_fail, use_qat)
+    return _ffi_api.FakeQuantizationToInteger(hard_fail, use_qat, optional_qnn_ops)
 
 
 def FlattenAtrousConv():

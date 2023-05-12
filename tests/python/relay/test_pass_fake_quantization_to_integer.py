@@ -1128,7 +1128,9 @@ def test_fake_quantize_softmax():
 
     mod = tvm.IRModule.from_expr(op)
     mod = tvm.relay.transform.InferType()(mod)
-    mod_int = tvm.relay.transform.FakeQuantizationToInteger(hard_fail=True)(mod)
+    mod_int = tvm.relay.transform.FakeQuantizationToInteger(
+        hard_fail=True, optional_qnn_ops=["nn.softmax"]
+    )(mod)
     assert not tvm.ir.structural_equal(mod, mod_int)
 
     result = (

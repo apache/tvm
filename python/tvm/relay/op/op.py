@@ -475,6 +475,27 @@ def register_fake_quantization_to_integer(op_name, func=None, level=10):
     return tvm.ir.register_op_attr(op_name, "FTVMFakeQuantizationToInteger", func, level)
 
 
+def register_optional_fake_quantization_to_integer(op_name, func=None, level=10):
+    """Register optional quantize function for an op
+
+    Given an op and Affine Types on it's inputs, this function should return the op
+    in affine space/integer operators and the new type of the output, where affine
+    denotes the transformation x_real = (x_affine - zero_point) * scale
+
+    Parameters
+    ----------
+    op_name : str
+        The name of the operator
+
+    func: function (expr: Expr, map: Map<Expr, AffineType>) -> new_expr: Expr
+        The function for translating the op into affine space and integer operators
+
+    level : int
+        The priority level
+    """
+    return tvm.ir.register_op_attr(op_name, "FTVMOptionalFakeQuantizationToInteger", func, level)
+
+
 def register_mixed_precision_conversion(op_name, func=None, level=10):
     """Register mixed precision conversion function for an op
 
