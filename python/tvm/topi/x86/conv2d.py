@@ -30,7 +30,7 @@ from ..nn.conv2d import conv2d_infer_layout, _get_workload as _get_conv2d_worklo
 from ..nn.conv2d import unpack_NCHWc_to_nchw
 from ..nn.depthwise_conv2d import _get_workload as _get_depthwise_conv2d_workload
 from ..nn.utils import get_pad_tuple
-from ..utils import get_const_tuple, traverse_inline
+from ..utils import get_const_tuple, traverse_inline, conv2d_infer_layout_helper
 from . import conv2d_avx_1x1, conv2d_avx_common
 
 logger = logging.getLogger("topi")
@@ -65,23 +65,7 @@ def _get_default_config(
 
 @conv2d_infer_layout.register("cpu")
 def _conv2d_infer_layout(workload, cfg):
-    _, data, kernel, strides, padding, dilation, layout, _, dtype = workload
-    batch_size, in_channel, in_height, in_width = data[1]
-    out_channel, _, k_height, k_width = kernel[1]
-    idxdiv = tvm.tir.indexdiv
-
-    pt, pl, pb, pr = get_pad_tuple(padding, (k_height, k_width))
-    hdilation, wdilation = dilation if isinstance(dilation, (tuple, list)) else (dilation, dilation)
-    dilated_kernel_h = (k_height - 1) * hdilation + 1
-    dilated_kernel_w = (k_width - 1) * wdilation + 1
-    out_height = idxdiv(in_height + pt + pb - dilated_kernel_h, strides[0]) + 1
-    out_width = idxdiv(in_width + pl + pr - dilated_kernel_w, strides[1]) + 1
-    tile_ic, tile_oc = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
-    in_shape = (batch_size, idxdiv(in_channel, tile_ic), in_height, in_width, tile_ic)
-    in_layout = f"NCHW{tile_ic}c"
-    out_shape = (batch_size, idxdiv(out_channel, tile_oc), out_height, out_width, tile_oc)
-    out_layout = f"NCHW{tile_oc}c"
-    return ((in_shape, in_layout),), ((out_shape, out_layout),)
+    return conv2d_infer_layout_helper(workload, cfg)
 
 
 def schedule_conv2d_nhwc(outs):

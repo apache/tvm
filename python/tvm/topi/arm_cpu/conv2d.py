@@ -23,10 +23,11 @@ from tvm import te
 from tvm import autotvm
 import tvm.contrib.nnpack
 
-from ..utils import traverse_inline, get_const_tuple
+from ..utils import traverse_inline, get_const_tuple, conv2d_infer_layout_helper
 from .. import nn
 from ..nn.utils import get_const_int, get_pad_tuple
 from ..nn.winograd_util import winograd_transform_matrices
+from ..nn.conv2d import conv2d_infer_layout
 from .conv2d_spatial_pack import (
     conv2d_spatial_pack_nchw,
     conv2d_spatial_pack_nhwc,
@@ -509,3 +510,8 @@ def conv2d_nhwc_dsp(cfg, data, kernel, strides, padding, dilation, out_dtype):
 def schedule_conv2d_nhwc_dsp(cfg, outs):
     """Create schedule for conv2d_nhwc_dsp"""
     return conv2d_nhwc_dsp_schedule(cfg, outs)
+
+
+@conv2d_infer_layout.register("arm_cpu")
+def _conv2d_infer_layout(workload, cfg):
+    return conv2d_infer_layout_helper(workload, cfg)

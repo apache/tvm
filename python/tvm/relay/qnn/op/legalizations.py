@@ -111,8 +111,7 @@ def qnn_conv2d_transpose_legalize(attrs, inputs, types):
     # Otherwise it needs to be broadcast.
     else:
         shift_data = relay.nn.bias_add(
-            relay.cast(data, dtype="int16"),
-            -relay.cast(input_zero_point, dtype="int16"),
+            relay.cast(data, dtype="int16"), -relay.cast(input_zero_point, dtype="int16")
         )
 
     # If kernel zero point is a scalar, we can directly subtract it.
@@ -123,8 +122,7 @@ def qnn_conv2d_transpose_legalize(attrs, inputs, types):
     # Otherwise it needs to be broadcast.
     else:
         shift_kernel = relay.nn.bias_add(
-            relay.cast(kernel, dtype="int16"),
-            -relay.cast(kernel_zero_point, dtype="int16"),
+            relay.cast(kernel, dtype="int16"), -relay.cast(kernel_zero_point, dtype="int16")
         )
 
     return relay.nn.conv2d_transpose(shift_data, shift_kernel, **attrs)
@@ -486,7 +484,10 @@ def _qnn_conv2d_legalize_arm_cpu(attrs, inputs, types):
     if target.features.has_asimd and not other_options:
         return helper_no_fast_int8_hw_legalization(attrs, inputs, types, relay.nn.conv2d)
     # ARM prefers the dtypes to be same.
-    return helper_change_dtypes_to_be_same(attrs, inputs, types, relay.qnn.op.conv2d)
+    if types[0].dtype in ["int8", "uint8"]:
+        return helper_change_dtypes_to_be_same(attrs, inputs, types, relay.qnn.op.conv2d)
+
+    return helper_no_fast_int8_hw_legalization(attrs, inputs, types, relay.nn.conv2d)
 
 
 @qnn_dense_legalize.register("arm_cpu")
@@ -495,7 +496,10 @@ def _qnn_dense_legalize_arm_cpu(attrs, inputs, types):
     if target.features.has_asimd and not target.features.has_dotprod:
         return helper_no_fast_int8_hw_legalization(attrs, inputs, types, relay.nn.dense)
     # ARM prefers the dtypes to be same.
-    return helper_change_dtypes_to_be_same(attrs, inputs, types, relay.qnn.op.dense)
+    if types[0].dtype in ["int8", "uint8"]:
+        return helper_change_dtypes_to_be_same(attrs, inputs, types, relay.qnn.op.dense)
+
+    return helper_no_fast_int8_hw_legalization(attrs, inputs, types, relay.nn.dense)
 
 
 ##########################

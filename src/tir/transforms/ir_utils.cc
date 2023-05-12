@@ -28,6 +28,7 @@
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
+#include <algorithm>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -701,7 +702,15 @@ std::optional<bool> IsHostFunc(const PrimFunc& func) {
   if (func->HasNonzeroAttr(tvm::tir::attr::kIsHostFunc)) {
     return true;
   } else if (auto target = func->GetAttr<Target>(tvm::attr::kTarget)) {
-    return target.value()->HasKey("cpu");
+    const auto keys = target.value()->keys;
+    const auto it = std::find_if(std::begin(keys), std::end(keys),
+                           [](const String key) { return key.compare("cpu"); });
+    if (std::end(keys) != it) {
+      const std::string key_string = *it;
+      return key_string == tvm::attr::kHostCPU;
+    } else {
+      return false;
+    }
   } else {
     return std::nullopt;
   }

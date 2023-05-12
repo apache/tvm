@@ -69,8 +69,10 @@ def schedule_injective(outs):
     if list(s[x].op.axis):
         # do not vectorize for broadcast
         dtype = "uint16" if x.dtype == "bfloat16" else x.dtype
-        (io, ii) = s[x].split(list(s[x].op.axis)[-1], 16 // np.dtype(dtype).itemsize)
-        s[x].vectorize(ii)
+        # do not vectorize for custom data types
+        if dtype.count("custom"):
+            (io, ii) = s[x].split(list(s[x].op.axis)[-1], 16 // np.dtype(dtype).itemsize)
+            s[x].vectorize(ii)
     tvm.te.schedule.AutoInlineInjective(s)
 
     if not is_empty_shape(x.shape):

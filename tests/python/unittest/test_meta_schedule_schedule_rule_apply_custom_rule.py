@@ -23,6 +23,7 @@ import tvm
 from tvm import meta_schedule as ms
 from tvm.meta_schedule.schedule_rule import ApplyCustomRule
 from tvm.script import tir as T
+from tvm.target import Target
 
 
 @tvm.script.ir_module
@@ -42,9 +43,14 @@ class Matmul:
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
 
-@tvm.register_func("meta_schedule.cpu.test_apply_custom_rule")
+native_target = Target("llvm -num-cores=1")
+native_device_name = native_target.keys[0]
+schedule_name = f"meta_schedule.{native_device_name}.test_apply_custom_rule"
+
+
+@tvm.register_func(schedule_name)
 def sch_fn(sch: tvm.tir.Schedule, block: tvm.tir.Block) -> List[tvm.tir.Schedule]:
-    raise ValueError("Intended for meta_schedule.cpu.test_apply_custom_rule")
+    raise ValueError(f"Intended for {schedule_name}")
 
 
 def test_custom_rule():
@@ -54,12 +60,12 @@ def test_custom_rule():
             space_gen = ms.space_generator.PostOrderApply(sch_rules=sch_rules)
             ms.tune_tir(
                 mod=Matmul,
-                target="llvm -num-cores=1",
+                target=native_target,
                 work_dir=tmpdir,
                 max_trials_global=10,
                 space=space_gen,
             )
-    assert "ValueError: Intended for meta_schedule.cpu.test_apply_custom_rule" in str(e_info.value)
+    assert f"ValueError: Intended for {schedule_name}" in str(e_info.value)
 
 
 if __name__ == "__main__":

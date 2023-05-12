@@ -35,6 +35,8 @@ _injective_schedule = {
 _reduce_schedule = {
     "generic": topi.generic.schedule_reduce,
     "cpu": topi.x86.schedule_reduce,
+    # TODO(@FranklandJack) Write arm_cpu specific reduction schedule.
+    "arm_cpu": topi.x86.schedule_reduce,
     "gpu": topi.cuda.schedule_reduce,
     "hls": topi.cuda.schedule_reduce,
 }
