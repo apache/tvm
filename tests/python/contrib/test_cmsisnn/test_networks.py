@@ -128,7 +128,7 @@ def test_keyword_scramble():
     base_url = (
         "https://github.com/tensorflow/tflite-micro/raw/"
         "de8f61a074460e1fa5227d875c95aa303be01240/"
-        "tensorflow/lite/micro/models/"
+        "tensorflow/lite/micro/models"
     )
     file_to_download = "keyword_scrambled.tflite"
     file_saved = "keyword_scrambled.tflite"
