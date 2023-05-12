@@ -49,7 +49,9 @@ class RISCVConv2dInt8:
             min_w_value = np.finfo(wtype).min
             max_w_value = np.finfo(wtype).max
 
-        weight_data = np.random.randint(low=min_w_value, high=max_w_value, size=weight_shape, dtype=wtype)
+        weight_data = np.random.randint(
+            low=min_w_value, high=max_w_value, size=weight_shape, dtype=wtype
+        )
         weight = relay.const(weight_data)
 
         func = relay.qnn.op.conv2d(
@@ -76,7 +78,11 @@ class RISCVConv2dInt8:
             min_d_value = np.finfo(dtype).min
             max_d_value = np.finfo(dtype).max
 
-        inputs = {"input": np.random.randint(low=min_d_value, high=max_d_value, size=data_shape, dtype=dtype)}
+        inputs = {
+            "input": np.random.randint(
+                low=min_d_value, high=max_d_value, size=data_shape, dtype=dtype
+            )
+        }
 
         output_list = generate_ref_data(ref_mod, inputs)
 
@@ -94,9 +100,7 @@ class RISCVConv2dInt8:
                     return f.read()
 
             default_lib1 = read_file(base_path + "/codegen/host/src/default_lib1.c")
-            regex = (
-                r"(?s)dot_uint8_int8_int32_update(.*?)"
-            )
+            regex = r"(?s)dot_uint8_int8_int32_update(.*?)"
             return re.search(regex, default_lib1) is not None
 
         assert compile_and_run(
@@ -106,16 +110,12 @@ class RISCVConv2dInt8:
             use_unpacked_api=True,
             target_opts=target_opts,
             schedule_name=schedule_name,
-            checker=checker
+            checker=checker,
         )
 
 
 class TestConv2d_NCHW(RISCVConv2dInt8):
-    (
-        data_shape,
-        kernel_size,
-        num_filter,
-    ) = tvm.testing.parameters(
+    (data_shape, kernel_size, num_filter,) = tvm.testing.parameters(
         ((1, 128, 14, 14), (3, 3), 128),
         ((1, 128, 14, 14), (1, 1), 256),
         ((1, 256, 7, 7), (1, 1), 512),

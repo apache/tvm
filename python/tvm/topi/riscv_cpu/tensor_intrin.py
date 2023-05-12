@@ -59,9 +59,7 @@ def dot_int8_int8_int32():
             ib = tvm.tir.ir_builder.create()
             ib.emit(
                 tvm.tir.call_extern(
-                    outs[0].dtype, 
-                    "dot_uint8_int8_int32_reset",
-                    outs[0].access_ptr("w")
+                    outs[0].dtype, "dot_uint8_int8_int32_reset", outs[0].access_ptr("w")
                 )
             )
             return ib.get()
@@ -88,6 +86,7 @@ def dot_int8_int8_int32():
         binds={data: a_buffer, kernel: b_buffer},
         default_buffer_params=buffer_params,
     )
+
 
 def int8_conv2d_impl():
     """Emit C or IR code for conv2d impl."""

@@ -1015,6 +1015,7 @@ requires_riscv_spike = Feature(
     run_time_check=_riscv_spike_run_time_check,
 )
 
+
 def _arm_dot_supported():
     arch = platform.machine()
 

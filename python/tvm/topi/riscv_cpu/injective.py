@@ -74,7 +74,9 @@ def schedule_injective(outs):
     for x in outs:
         # Vectorize "ADD32" operation.
         if "add" in x.name:
-            is_int32 = x.op.input_tensors[0].dtype == 'int32' and x.op.input_tensors[1].dtype == 'int32'
+            is_int32 = (
+                x.op.input_tensors[0].dtype == "int32" and x.op.input_tensors[1].dtype == "int32"
+            )
             is_even = x.shape[-1] % 2 == 0
             if is_int32 and is_even:
                 outer, inner = s[x].split(x.op.axis[-1], 2)

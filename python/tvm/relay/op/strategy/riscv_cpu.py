@@ -65,7 +65,7 @@ def conv2d_strategy_riscv_cpu(attrs, inputs, out_type, target):
                     wrap_compute_conv2d(topi.riscv_cpu.conv2d_nchw_int8),
                     wrap_topi_schedule(topi.riscv_cpu.schedule_conv2d_nchw_int8),
                     name="conv2d_nchw_int8.riscv",
-                    plevel=15
+                    plevel=15,
                 )
                 return strategy
 
@@ -81,7 +81,9 @@ def conv2d_NCHWc_strategy_riscv_cpu(attrs, inputs, out_type, target):
     # Vector instructions with int8 show more performance at a larger size.
     if is_int8 and kernel.shape[1] >= 128:
         strategy.add_implementation(
-            wrap_compute_conv2d(topi.riscv_cpu.conv2d_NCHWc_int8, need_data_layout=True, need_out_layout=True),
+            wrap_compute_conv2d(
+                topi.riscv_cpu.conv2d_NCHWc_int8, need_data_layout=True, need_out_layout=True
+            ),
             wrap_topi_schedule(topi.riscv_cpu.schedule_conv2d_NCHWc_int8),
             name="conv2d_NCHWc_int8.riscv_cpu",
         )
