@@ -18,7 +18,6 @@
 # pylint: disable=invalid-name,unused-argument,wildcard-import,unused-wildcard-import
 """Definition of RISCV CPU operator strategy."""
 
-from functools import reduce
 import logging
 
 from tvm import topi

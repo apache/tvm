@@ -15,14 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name,unused-variable,unused-argument,no-member
-"""Conv2D int8 schedule on RISCV"""
+"""Core kernel of dot product of 4 Int8 operations"""
 
 import tvm
 from tvm import te
-from tvm.contrib import clang
 
 
 def dot_int8_int8_int32():
+    """Int8 dot product by every 4 elements using RISC-V V-extension instructions."""
     int32_lanes = 4  # 4 int32 lanes = 128.
     num_int8_elements = 4  # 4 int8 elements in int32.
     data = te.placeholder((num_int8_elements,), dtype="uint8", name="data")
@@ -89,8 +89,8 @@ def dot_int8_int8_int32():
 
 
 def int8_conv2d_impl():
-    """Emit C or IR code for conv2d impl."""
-    cc_code = f"""
+    """Emit C code for dot product impl."""
+    cc_code = """
 #ifndef TVM_RISCV_CONV2D_INT8
 #define TVM_RISCV_CONV2D_INT8
 #include <riscv_vector.h>
