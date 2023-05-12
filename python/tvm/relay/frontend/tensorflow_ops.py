@@ -1946,7 +1946,7 @@ def _broadcast_args():
             else:
                 assert (
                     s1[s1_size - i] == 1
-                ), f"Incompatible broadcast type {0[s0_size - i]} and {s1[s1_size - i]}"
+                ), f"Incompatible broadcast type {s0[s0_size - i]} and {s1[s1_size - i]}"
                 out.appendleft(s0[s0_size - i])
         if s0_size < s1_size:
             for i in range(s0_size + 1, s1_size + 1):
