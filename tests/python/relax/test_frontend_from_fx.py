@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 import pytest
+import torch
+import torch.nn.functional as F
 
 import tvm
 from tvm import relax
@@ -2916,6 +2918,44 @@ def test_max():
             return gv
 
     verify_model(Max(), [([256, 256], "float32"), ([256, 256], "float32")], {}, Expected1)
+
+
+def test_attention():
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((32, 8, 128, 64), dtype="float32"),
+            inp_1: R.Tensor((32, 8, 128, 64), dtype="float32"),
+            inp_2: R.Tensor((32, 8, 128, 64), dtype="float32"),
+        ) -> R.Tensor((32, 128, 8, 64), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((32, 128, 8, 64), dtype="float32") = R.permute_dims(
+                    inp_0, axes=[0, 2, 1, 3]
+                )
+                lv1: R.Tensor((32, 128, 8, 64), dtype="float32") = R.permute_dims(
+                    inp_1, axes=[0, 2, 1, 3]
+                )
+                lv2: R.Tensor((32, 128, 8, 64), dtype="float32") = R.permute_dims(
+                    inp_2, axes=[0, 2, 1, 3]
+                )
+                lv3: R.Tensor((32, 128, 8, 64), dtype="float32") = R.nn.attention(
+                    lv, lv1, lv2, scale=None
+                )
+                gv: R.Tensor((32, 128, 8, 64), dtype="float32") = lv3
+                R.output(gv)
+            return gv
+
+    verify_model(
+        lambda q, k, v: F.scaled_dot_product_attention(q, k, v),
+        [
+            ([32, 8, 128, 64], "float32"),
+            ([32, 8, 128, 64], "float32"),
+            ([32, 8, 128, 64], "float32"),
+        ],
+        {},
+        Expected,
+    )
 
 
 if __name__ == "__main__":
