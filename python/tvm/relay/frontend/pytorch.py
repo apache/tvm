@@ -1683,7 +1683,7 @@ class PyTorchOpConverter:
         threshold = int(inputs[2]) if inputs[2] else 20
         threshold_ = _op.full_like(inputs[0], fill_value=_expr.const(threshold))
         softplus_value = _op.log(_op.exp(inputs[0] * beta) + _expr.const(1.0, dtype=dtype)) / beta
-        return _op.where(_op.greater(inputs[0], threshold_), inputs[0], softplus_value)
+        return _op.where(_op.greater(inputs[0] * beta, threshold_), inputs[0], softplus_value)
 
     def make_avg_pool(self, dim):
         def avg_pool(inputs, input_types):
