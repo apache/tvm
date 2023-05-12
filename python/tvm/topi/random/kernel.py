@@ -233,7 +233,7 @@ def threefry_generate(gen, out_shape):
     for s in out_shape:
         out_len *= s
     assert (
-        out_len.value <= 2 ** 64 - 1
+        out_len.value <= 2**64 - 1
     ), f"Can only generate up to 2^64 random numbers, but {out_len} were requested."
 
     def gen_ir(gen_ptr, out_gen_ptr, out_array_ptr):
@@ -264,7 +264,7 @@ def threefry_generate(gen, out_shape):
 
         # Max value for counter should be 2**64-2 because we need to reserve a special value to
         # indicate the counter is used up.
-        with irb.if_scope(gen[7] < tir.const(2 ** 64 - 1, dtype=gen.dtype) - out_len):
+        with irb.if_scope(gen[7] < tir.const(2**64 - 1, dtype=gen.dtype) - out_len):
             for i in range(10):
                 tmp[i] = gen[i]
         with irb.else_scope():
