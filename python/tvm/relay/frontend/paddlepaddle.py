@@ -141,26 +141,6 @@ def convert_addmm(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
-def convert_affine_channel(g, op, block):
-    """Operator converter for affine_channel."""
-
-    if "data_layout" in op.attr_names:
-        assert (
-            op.attr("data_layout") == "NCHW" or op.attr("data_layout") == "AnyLayout"
-        ), "Only NCHW and AnyLayout are supported for affine_channel. But received: {}".format(
-            op.attr("data_layout")
-        )
-
-    x = g.get_node(op.input("X")[0])
-    bias = g.get_node(op.input("Bias")[0])
-    scale = g.get_node(op.input("Scale")[0])
-    scale = _op.reshape(scale, [-1, 1, 1])
-    bias = _op.reshape(bias, [-1, 1, 1])
-    x = _op.multiply(x, scale)
-    out = _op.add(x, bias)
-    g.add_node(op.output("Out")[0], out)
-
-
 def convert_arg_max_min(g, op, block):
     """Operator converter for arg_max and arg_min."""
 
@@ -2559,7 +2539,6 @@ _convert_map = {
     "abs": convert_unary_op,
     "acos": convert_unary_op,
     "addmm": convert_addmm,
-    "affine_channel": convert_affine_channel,
     "arg_max": convert_arg_max_min,
     "arg_min": convert_arg_max_min,
     "argsort": convert_argsort,

@@ -2303,30 +2303,6 @@ def test_forward_dist():
 
 
 @tvm.testing.uses_gpu
-def test_forward_affine_channel():
-    class AffineChannel(nn.Layer):
-        def __init__(self):
-            super(AffineChannel, self).__init__()
-
-        @paddle.jit.to_static
-        def forward(self, inputs, scale, bias):
-            return paddle.fluid.layers.affine_channel(inputs, scale, bias)
-
-    input_shape = [2, 3, 4, 5]
-    input_data = paddle.rand(input_shape, dtype="float32")
-    scale_data = paddle.rand([input_shape[1]], dtype="float32")
-    bias_data = paddle.rand([input_shape[1]], dtype="float32")
-    verify_model(
-        AffineChannel(),
-        [
-            input_data,
-            scale_data,
-            bias_data,
-        ],
-    )
-
-
-@tvm.testing.uses_gpu
 def test_forward_p_norm():
     class PNorm(nn.Layer):
         def __init__(self, axis, keepdim, p=1):
