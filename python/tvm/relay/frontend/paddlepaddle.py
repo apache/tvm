@@ -82,7 +82,7 @@ def _convert_dtype_value(val):
         0: "bool",
     }
     if val not in convert_dtype_map:
-        msg = "Paddle data type value %d is not handled yet." % (val)
+        msg = f"Paddle data type value {val} is not handled yet."
         raise NotImplementedError(msg)
     return convert_dtype_map[val]
 
@@ -91,11 +91,7 @@ def convert_unary_op(g, op, block):
     """Operator converter for all the unary operators."""
 
     # op_map stores mapping relationship between paddlepaddle and relay
-    op_map = {
-        "isinf_v2": _op.isinf,
-        "isfinite_v2": _op.isfinite,
-        "isnan_v2": _op.isnan,
-    }
+    op_map = {"isinf_v2": _op.isinf, "isfinite_v2": _op.isfinite, "isnan_v2": _op.isnan}
     if op.type in op_map:
         unary_func = op_map[op.type]
     else:
@@ -324,8 +320,8 @@ def convert_conv2d(g, op, block):
         elif len(paddings) == 4:
             paddings = [paddings[0], paddings[2], paddings[1], paddings[3]]
     else:
-        msg = 'Value {} in attribute "padding" of operator Conv is not "valid."'
-        raise tvm.error.OpAttributeInvalid(msg.format(padding_algorithm))
+        msg = f'Value {padding_algorithm} in attribute "padding" of operator Conv is not "valid."'
+        raise tvm.error.OpAttributeInvalid(msg)
 
     out = _op.nn.conv2d(
         input_x,
@@ -383,8 +379,8 @@ def convert_conv2d_transpose(g, op, block):
         elif len(paddings) == 4:
             paddings = [paddings[0], paddings[2], paddings[1], paddings[3]]
     else:
-        msg = 'Value {} in attribute "padding" of operator Conv is not "valid."'
-        raise tvm.error.OpAttributeInvalid(msg.format(padding_algorithm))
+        msg = f'Value {padding_algorithm} in attribute "padding" of operator Conv is not "valid."'
+        raise tvm.error.OpAttributeInvalid(msg)
 
     out = _op.nn.conv2d_transpose(
         input_x,
@@ -438,8 +434,8 @@ def convert_conv3d(g, op, block):
                 paddings[5],
             ]
     else:
-        msg = 'Value {} in attribute "padding" of operator Conv is not "valid."'
-        raise tvm.error.OpAttributeInvalid(msg.format(padding_algorithm))
+        msg = f'Value {padding_algorithm} in attribute "padding" of operator Conv is not "valid."'
+        raise tvm.error.OpAttributeInvalid(msg)
 
     out = _op.nn.conv3d(
         input_x,
@@ -957,8 +953,8 @@ def convert_interpolate(g, op, block):
             else:
                 coordinate_transformation_mode = "half_pixel"
         else:
-            msg = "interp_method {} is not supported for PaddlePaddle's interpolate"
-            raise tvm.error.OpAttributeInvalid(msg.format(interp_method))
+            msg = f"interp_method {interp_method} is not supported for PaddlePaddle's interpolate"
+            raise tvm.error.OpAttributeInvalid(msg)
         return rounding_method, interp_method, coordinate_transformation_mode
 
     layout = op.attr("data_layout")
@@ -1456,10 +1452,7 @@ def convert_pool2d(g, op, block):
     input_x = g.get_node(op.input("X")[0])
     _, _, in_h, in_w = infer_shape(input_x)
 
-    op_map = {
-        "avg": "avg_pool2d",
-        "max": "max_pool2d",
-    }
+    op_map = {"avg": "avg_pool2d", "max": "max_pool2d"}
 
     strides = op.attr("strides")
     if isinstance(strides, int):
@@ -1480,8 +1473,8 @@ def convert_pool2d(g, op, block):
         elif len(paddings) == 4:
             paddings = [paddings[0], paddings[2], paddings[1], paddings[3]]
     else:
-        msg = 'Value {} in attribute "padding" of operator Pool2d is not "valid."'
-        raise tvm.error.OpAttributeInvalid(msg.format(padding_algorithm))
+        msg = f'Value {padding_algorithm} in attribute "padding" of operator Pool2d is not "valid."'
+        raise tvm.error.OpAttributeInvalid(msg)
 
     # handle with special case
     # while kernel size less than input size
@@ -2129,10 +2122,7 @@ def convert_slice(g, op, block):
     if len(axes) < dims:
         if isinstance(strides, _expr.Expr):
             strides = _op.scatter_elements(
-                _expr.const(
-                    np.array([1] * dims),
-                    dtype=infer_type(strides).checked_type.dtype,
-                ),
+                _expr.const(np.array([1] * dims), dtype=infer_type(strides).checked_type.dtype),
                 indices,
                 strides,
                 axis=0,
@@ -2331,8 +2321,8 @@ def convert_tile(g, op, block):
         infered = True
 
     if not infered:
-        msg = 'Value {} in attribute "repeat_times" of operator Tile is not "valid."'
-        raise tvm.error.OpAttributeInvalid(msg.format(reps))
+        msg = f'Value {reps} in attribute "repeat_times" of operator Tile is not "valid."'
+        raise tvm.error.OpAttributeInvalid(msg)
 
     op_func = get_relay_op(op.type)
     out = op_func(x, reps=reps)
@@ -2670,9 +2660,9 @@ class GraphProto:
         ipt_shape = block.var(ipt_name).shape
         for i in ipt_shape:
             if i < 0:
-                warning_msg = "Input {}(shape={}) has unkown dimension shapes. \
-                               Specifying static values may improve performance".format(
-                    ipt_name, ipt_shape
+                warning_msg = (
+                    f"Input {ipt_name}(shape={ipt_shape}) has unkown dimension shapes. "
+                    f"Specifying static values may improve performance"
                 )
                 warnings.warn(warning_msg)
 

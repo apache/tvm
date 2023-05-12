@@ -90,7 +90,7 @@ def upsampling(
             )
 
     else:
-        raise ValueError("not support this layout {} yet".format(layout))
+        raise ValueError(f"not support this layout {layout} yet")
     coord_trans = "align_corners" if align_corners else "asymmetric"
     if method[0:2] == "bi":
         method = method[2:]
@@ -190,7 +190,7 @@ def upsampling3d(
                 simplify(topi.cast(te.round(output_shape[3]), data.shape[3].dtype)),
             )
     else:
-        raise ValueError("not support this layout {} yet".format(layout))
+        raise ValueError(f"not support this layout {layout} yet")
     if method[0:3] == "tri":
         method = method[3:]
     return topi.image.resize3d(
