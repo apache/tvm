@@ -238,9 +238,10 @@ def _broadcast_shape_func(x, y, ndim):
             elif x[ndim1 - i] == 1:
                 out[ndim - i] = y[ndim2 - i]
             else:
-                assert (
-                    y[ndim2 - i] == 1
-                ), f"Incompatible broadcast type {x[ndim1 - i]} and {y[ndim2 - i]}"
+                assert y[ndim2 - i] == 1, "Incompatible broadcast type %s and %s" % (
+                    x[ndim1 - i],
+                    y[ndim2 - i],
+                )
                 out[ndim - i] = x[ndim1 - i]
         for i in const_range(min(ndim1, ndim2) + 1, ndim + 1):
             if ndim1 >= ndim2:
