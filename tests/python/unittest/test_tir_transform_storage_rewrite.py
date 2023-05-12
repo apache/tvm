@@ -414,7 +414,9 @@ def test_while_alloc():
     #   }
     # }
     assert isinstance(body.body.body, tvm.tir.Allocate)  # j
-    assert isinstance(body.body.body.body, tvm.tir.Allocate)  # A
+    assert isinstance(body.body.body.body, tvm.tir.DeclBuffer)
+    assert isinstance(body.body.body.body.body, tvm.tir.Allocate)  # A
+    assert isinstance(body.body.body.body.body.body, tvm.tir.DeclBuffer)
 
     mod = get_mod(kind="serial")
     # for (i, 0, n) {
@@ -438,7 +440,9 @@ def test_while_alloc():
     #   }
     # }
     assert isinstance(body.body, tvm.tir.Allocate)  # j
-    assert isinstance(body.body.body, tvm.tir.Allocate)  # A
+    assert isinstance(body.body.body, tvm.tir.DeclBuffer)
+    assert isinstance(body.body.body.body, tvm.tir.Allocate)  # A
+    assert isinstance(body.body.body.body.body, tvm.tir.DeclBuffer)
 
 
 def test_inplace_rule2(scope_tb="local_TB2", max_bits=1024 * 1024 * 1024):
