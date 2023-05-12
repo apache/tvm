@@ -470,7 +470,7 @@ llvm::Value* CodeGenCPU::CreateCallExtern(Type ret_type, String global_symbol,
       if (it->second == nullptr) {
         it->second = InitContextPtr(ftype->getPointerTo(), "__" + global_symbol);
       }
-      return it->second;
+      return GetContextPtr(it->second);
     } else if (llvm::Function* f = module_->getFunction(MakeStringRef(global_symbol))) {
       return f;
     } else {
