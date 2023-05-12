@@ -127,7 +127,7 @@ int32_t dot_uint8_int8_int32_body(uint8_t* data, int8_t* kernel, int32_t* output
   // Dummy vector for operations.
   vint32m1_t empty;
 
-  // Load values from kernel[i][*], 
+  // Load values from kernel[i][*],
   // then we multiply two vectors with type extension:
   // v_mul_[i] = v_kernel_[i] * v_data,
   // then we count the sum in resulting vector:
@@ -148,7 +148,7 @@ int32_t dot_uint8_int8_int32_body(uint8_t* data, int8_t* kernel, int32_t* output
   vint8mf2_t v_kernel_4 = vle8_v_i8mf2(&kernel[12], -1);
   vint16m1_t v_mul_4 = vwmulsu_vv_i16m1(v_kernel_4, v_data, -1);
   vint32m1_t v_sum_4 = vwredsum(empty, v_mul_4, empty, 4);
-  
+
   // Save new values to output.
   output[0] = vmv_x_s_i32m1_i32(v_sum_1);
   output[1] = vmv_x_s_i32m1_i32(v_sum_2);
@@ -172,17 +172,17 @@ extern "C"
 int32_t dot_uint8_int8_int32_update(uint8_t* data, int8_t* kernel, int32_t* output) {{
   // Load values from data into a vector.
   vuint8mf2_t v_data = vle8_v_u8mf2(data, -1);
-  
+
   // Dummy vector for operations.
   vint32m1_t empty;
-  
+
   // Load values from output into vectors.
   vint32m1_t v_output_1 = vle32_v_i32m1(&output[0], -1);
   vint32m1_t v_output_2 = vle32_v_i32m1(&output[1], -1);
   vint32m1_t v_output_3 = vle32_v_i32m1(&output[2], -1);
   vint32m1_t v_output_4 = vle32_v_i32m1(&output[3], -1);
 
-  // Load values from kernel[i][*], 
+  // Load values from kernel[i][*],
   // then we multiply two vectors with type extension:
   // v_mul_[i] = v_kernel_[i] * v_data,
   // then we count the sum in resulting vector and add value from output:
@@ -203,7 +203,7 @@ int32_t dot_uint8_int8_int32_update(uint8_t* data, int8_t* kernel, int32_t* outp
   vint8mf2_t v_kernel_4 = vle8_v_i8mf2(&kernel[12], -1);
   vint16m1_t v_mul_4 = vwmulsu_vv_i16m1(v_kernel_4, v_data, -1);
   vint32m1_t v_sum_4 = vwredsum(empty, v_mul_4, v_output_4, 4);
-  
+
   // Save updated values to output.
   output[0] = vmv_x_s_i32m1_i32(v_sum_1);
   output[1] = vmv_x_s_i32m1_i32(v_sum_2);
