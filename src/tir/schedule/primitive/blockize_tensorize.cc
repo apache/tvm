@@ -245,7 +245,12 @@ Map<Var, PrimExpr> DeriveBlockBinding(const Array<IterVar>& iter_vars,          
     if (is_one(inner_mark->extent)) {
       // Skip inner var when extent is 1
       // substitution
-      sub = is_one(outer_mark->extent) ? outer_mark->extent - 1 : outer_iter;
+      if (is_one(outer_mark->extent) && !preserve_unit_iters) {
+        // Simplify outer if not preserve_unit_iters
+        sub = outer_mark->extent - 1;
+      } else {
+        sub = outer_iter;
+      }
     } else {
       // create iter var for the inner block
       IterVar inner_iter(/*dom=*/RangeFromExtent(inner_mark->extent),

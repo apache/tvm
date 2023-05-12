@@ -348,7 +348,7 @@ def test_blockize_blocks():
 
     s = tir.Schedule(blocks_func, debug_mask="all")
     blocks = [s.get_block("B"), s.get_block("C")]
-    s.blockize(blocks)
+    s.blockize(blocks, preserve_unit_iters=False)
     expected = after_blocks_blockize
     tvm.ir.assert_structural_equal(s.mod["main"], expected)
     verify_trace_roundtrip(sch=s, mod=blocks_func)
