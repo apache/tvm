@@ -1008,11 +1008,7 @@ class TorchFXImporter:
         query = transpose_S_H(self.env[node.args[0]])
         key = transpose_S_H(self.env[node.args[1]])
         value = transpose_S_H(self.env[node.args[2]])
-        return self.block_builder.emit(
-            relax.op.nn.attention(
-                query, key, value
-            )
-        )
+        return self.block_builder.emit(relax.op.nn.attention(query, key, value))
 
     ########## Others ##########
 
