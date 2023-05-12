@@ -139,14 +139,19 @@ Array<Array<arith::IterMark>> TrivialSubspaceDivision(const Array<IterVar>& iter
 
 /*!
  * \brief Subspace division. The space is divided into two subspaces:
+ * If loop_sref_as_outer is false:
  *  1. The subspace represented by the outer loops above `loop_sref` (exclusive).
  *  2. The subspace represented by the inner loops below `loop_sref` (inclusive).
+ * else:
+ *  1. The subspace represented by the outer loops above `loop_sref` (inclusive).
+ *  2. The subspace represented by the inner loops below `loop_sref` (exclusive).
  * \param realize The inner block
  * \param block_sref The sref to the inner block
  * \param loop_sref The loop that is the root of the second subspace.
  * \param loops The loops that represents the second part of the subspace.
  * \param analyzer The arithmetic analyzer to use.
  * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
+ * \param loop_sref_as_outer Whether loop_sref is divided into outer or inner
  */
 Array<Array<arith::IterMark>> SubspaceDivide(const BlockRealize& realize,
                                              const StmtSRef& block_sref,  //

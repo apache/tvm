@@ -2694,7 +2694,7 @@ class Schedule(Object):
     def blockize(
         self, target: Union[LoopRV, List[BlockRV]], preserve_unit_iters: bool = True
     ) -> BlockRV:
-        """Convert the subtree rooted at a specific loop into a block.
+        """Convert multiple blocks or the subtree rooted at a specific loop into a block.
 
         Parameters
         ----------
