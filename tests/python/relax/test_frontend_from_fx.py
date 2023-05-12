@@ -36,7 +36,6 @@ def verify_model(torch_model, input_info, binding, expected):
     tvm.ir.assert_structural_equal(mod, expected)
 
 
-@tvm.testing.requires_gpu
 def test_conv1d():
     import torch
     from torch.nn import Module
@@ -122,7 +121,6 @@ def test_conv1d():
     verify_model(model, input_info, binding, expected2)
 
 
-@tvm.testing.requires_gpu
 def test_conv2d():
     import torch
     from torch.nn import Module
@@ -208,7 +206,6 @@ def test_conv2d():
     verify_model(model, input_info, binding, expected2)
 
 
-@tvm.testing.requires_gpu
 def test_linear():
     import torch
     from torch.nn import Module
@@ -311,7 +308,6 @@ def test_linear():
     )
 
 
-@tvm.testing.requires_gpu
 def test_bmm():
     import torch
     from torch.nn import Module
@@ -350,7 +346,6 @@ def test_bmm():
     )
 
 
-@tvm.testing.requires_gpu
 def test_baddbmm():
     import torch
     from torch.nn import Module
@@ -419,7 +414,6 @@ def test_baddbmm():
     )
 
 
-@tvm.testing.requires_gpu
 def test_relu():
     import torch
     from torch.nn import Module
@@ -456,7 +450,6 @@ def test_relu():
     verify_model(ReLU1(), input_info, {}, expected)
 
 
-@tvm.testing.requires_gpu
 def test_relu6():
     import torch
     from torch.nn import Module
@@ -486,7 +479,6 @@ def test_relu6():
     verify_model(ReLU6(), input_info, {}, expected)
 
 
-@tvm.testing.requires_gpu
 def test_maxpool2d():
     import torch
     from torch.nn import Module
@@ -588,7 +580,6 @@ def test_maxpool2d():
     verify_model(MaxPool2d3(), input_info, {}, expected3)
 
 
-@tvm.testing.requires_gpu
 def test_avgpool2d():
     import torch
     from torch.nn import Module
@@ -665,7 +656,6 @@ def test_avgpool2d():
     verify_model(AvgPool2d3(), input_info, {}, expected2)
 
 
-@tvm.testing.requires_gpu
 def test_adaptive_avgpool2d():
     import torch
     from torch.nn import Module
@@ -706,7 +696,6 @@ def test_adaptive_avgpool2d():
     verify_model(AdaptiveAvgPool2d1(), input_info, {}, expected1)
 
 
-@tvm.testing.requires_gpu
 def test_flatten():
     import torch
     from torch.nn import Module
@@ -743,7 +732,6 @@ def test_flatten():
     verify_model(torch.nn.Flatten(2, -1), input_info, {}, expected1)
 
 
-@tvm.testing.requires_gpu
 def test_batchnorm2d():
     import torch
     from torch.nn import Module
@@ -803,7 +791,6 @@ def test_batchnorm2d():
     verify_model(BatchNorm2d(), input_info, binding, expected1)
 
 
-@tvm.testing.requires_gpu
 def test_embedding():
     import torch
     from torch.nn import Module
@@ -840,7 +827,6 @@ def test_embedding():
     verify_model(model, input_info, binding, expected1)
 
 
-@tvm.testing.requires_gpu
 def test_dropout():
     import torch
     from torch.nn import Module
@@ -878,7 +864,6 @@ def test_dropout():
     verify_model(Dropout2(), input_info, {}, expected1)
 
 
-@tvm.testing.requires_gpu
 def test_layernorm():
     import torch
     from torch.nn import Module
@@ -927,7 +912,6 @@ def test_layernorm():
     verify_model(LayerNorm(), input_info, binding, expected1)
 
 
-@tvm.testing.requires_gpu
 def test_functional_layernorm():
     import torch
     from torch.nn import Module
@@ -979,7 +963,6 @@ def test_functional_layernorm():
     verify_model(model, input_info, binding, expected1)
 
 
-@tvm.testing.requires_gpu
 def test_cross_entropy():
     import torch
     from torch.nn import Module
@@ -1072,7 +1055,6 @@ def test_cross_entropy():
     verify_model(CrossEntropy3(), input_info, {}, expected3)
 
 
-@tvm.testing.requires_gpu
 def test_functional_cross_entropy():
     import torch
     from torch.nn import Module
@@ -1105,7 +1087,6 @@ def test_functional_cross_entropy():
     verify_model(model, input_info, {}, expected1)
 
 
-@tvm.testing.requires_gpu
 def test_silu():
     import torch
     from torch.nn import Module
@@ -1144,7 +1125,6 @@ def test_silu():
     verify_model(SiLU2(), input_info, {}, expected1)
 
 
-@tvm.testing.requires_gpu
 def test_groupnorm():
     import torch
     from torch.nn import Module
@@ -1194,7 +1174,6 @@ def test_groupnorm():
     verify_model(model, input_info, binding, expected1)
 
 
-@tvm.testing.requires_gpu
 def test_softmax():
     import torch
     from torch.nn import Module
@@ -1228,7 +1207,6 @@ def test_softmax():
     verify_model(Softmax(), input_info, {}, expected1)
 
 
-@tvm.testing.requires_gpu
 def test_binary():
     import torch
     from torch.nn import Module
@@ -1513,7 +1491,6 @@ def test_binary():
     verify_model(LT2(), input_info2, {}, expected14)
 
 
-@tvm.testing.requires_gpu
 def test_size():
     import torch
     from torch.nn import Module
@@ -1540,7 +1517,6 @@ def test_size():
     verify_model(Size(), input_info, {}, expected1)
 
 
-@tvm.testing.requires_gpu
 def test_squeeze():
     import torch
     from torch.nn import Module
@@ -1586,7 +1562,6 @@ def test_squeeze():
     verify_model(Squeeze2(), input_info, {}, Expected2)
 
 
-@tvm.testing.requires_gpu
 def test_unsqueeze():
     import torch
     from torch.nn import Module
@@ -1634,7 +1609,6 @@ def test_unsqueeze():
     verify_model(Unsqueeze2(), input_info, {}, expected2)
 
 
-@tvm.testing.requires_gpu
 def test_getattr():
     import torch
     from torch.nn import Module
@@ -1661,7 +1635,6 @@ def test_getattr():
     verify_model(GetAttr1(), input_info, {}, expected1)
 
 
-@tvm.testing.requires_gpu
 def test_getitem():
     import torch
     from torch.nn import Module
@@ -1718,7 +1691,6 @@ def test_getitem():
     verify_model(Slice2(), [([8, 16], "float32")], {}, expected2)
 
 
-@tvm.testing.requires_gpu
 def test_unary():
     import torch
     from torch.nn import Module
@@ -1849,7 +1821,6 @@ def test_unary():
     verify_model(Round(), input_info, {}, expected5)
 
 
-@tvm.testing.requires_gpu
 def test_gelu():
     import torch
     from torch.nn import Module
@@ -1879,7 +1850,6 @@ def test_gelu():
     verify_model(Gelu(), input_info, {}, expected1)
 
 
-@tvm.testing.requires_gpu
 def test_tanh():
     import torch
     from torch.nn import Module
@@ -1909,7 +1879,6 @@ def test_tanh():
     verify_model(Tanh(), input_info, {}, expected1)
 
 
-@tvm.testing.requires_gpu
 def test_clamp():
     import torch
     from torch import fx
@@ -1964,7 +1933,6 @@ def test_clamp():
         from_fx(gm, input_info)
 
 
-@tvm.testing.requires_gpu
 def test_interpolate():
     import torch
     from torch.nn import Module
@@ -2006,7 +1974,6 @@ def test_interpolate():
     verify_model(Interpolate(), input_info, {}, expected1)
 
 
-@tvm.testing.requires_gpu
 def test_addmm():
     import torch
     from torch.nn import Module
@@ -2043,7 +2010,6 @@ def test_addmm():
     verify_model(Addmm(), input_info, {}, expected1)
 
 
-@tvm.testing.requires_gpu
 def test_split():
     import torch
     from torch.nn import Module
@@ -2085,7 +2051,6 @@ def test_split():
     verify_model(Split(), input_info, {}, expected1)
 
 
-@tvm.testing.requires_gpu
 def test_cumsum():
     import torch
     from torch.nn import Module
@@ -2115,7 +2080,6 @@ def test_cumsum():
     verify_model(Cumsum(), input_info, {}, expected1)
 
 
-@tvm.testing.requires_gpu
 def test_chunk():
     import torch
     from torch.nn import Module
@@ -2157,7 +2121,6 @@ def test_chunk():
     verify_model(Chunk(), input_info, {}, Expected)
 
 
-@tvm.testing.requires_gpu
 def test_inplace_fill():
     import torch
     from torch.nn import Module
@@ -2185,7 +2148,6 @@ def test_inplace_fill():
     verify_model(InplaceFill(), [([10, 10], "float32")], {}, Expected)
 
 
-@tvm.testing.requires_gpu
 def test_arange():
     import numpy as np
     import torch
@@ -2210,7 +2172,6 @@ def test_arange():
     )
 
 
-@tvm.testing.requires_gpu
 def test_empty():
     import torch
     from torch import fx
@@ -2233,7 +2194,6 @@ def test_empty():
     assert mod["main"].body.blocks[0].bindings[0].value.data.dtype == "float32"
 
 
-@tvm.testing.requires_gpu
 def test_tensor():
     import torch
     from torch import fx
@@ -2268,7 +2228,6 @@ def test_tensor():
     assert mod2["main"].body.blocks[0].bindings[0].value.data.dtype == "int64"
 
 
-@tvm.testing.requires_gpu
 def test_tril():
     import torch
     from torch.nn import Module
@@ -2304,7 +2263,6 @@ def test_tril():
     verify_model(InplaceTril(), input_info, {}, expected1)
 
 
-@tvm.testing.requires_gpu
 def test_triu():
     import torch
     from torch.nn import Module
@@ -2340,7 +2298,6 @@ def test_triu():
     verify_model(InplaceTriu(), input_info, {}, expected1)
 
 
-@tvm.testing.requires_gpu
 def test_new_ones():
     import torch
     from torch.nn import Module
@@ -2370,7 +2327,6 @@ def test_new_ones():
     verify_model(NewOnes(), input_info, {}, expected1)
 
 
-@tvm.testing.requires_gpu
 def test_expand():
     import torch
     from torch.nn import Module
@@ -2400,7 +2356,6 @@ def test_expand():
     verify_model(Expand(), input_info, {}, expected1)
 
 
-@tvm.testing.requires_gpu
 def test_reduce():
     import torch
     from torch.nn import Module
@@ -2431,7 +2386,6 @@ def test_reduce():
     verify_model(Sum(), input_info, {}, expected1)
 
 
-@tvm.testing.requires_gpu
 def test_datatype():
     import torch
     from torch.nn import Module
@@ -2501,7 +2455,6 @@ def test_datatype():
     verify_model(AsType(), input_info, {}, expected1)
 
 
-@tvm.testing.requires_gpu
 def test_permute():
     import torch
     from torch.nn import Module
@@ -2531,7 +2484,6 @@ def test_permute():
     verify_model(Permute(), input_info, {}, expected1)
 
 
-@tvm.testing.requires_gpu
 def test_reshape():
     import torch
     from torch.nn import Module
@@ -2559,7 +2511,6 @@ def test_reshape():
     verify_model(Reshape(), input_info, {}, expected1)
 
 
-@tvm.testing.requires_gpu
 def test_transpose():
     import torch
     from torch.nn import Module
@@ -2589,7 +2540,6 @@ def test_transpose():
     verify_model(Transpose(), input_info, {}, expected1)
 
 
-@tvm.testing.requires_gpu
 def test_view():
     import torch
     from torch.nn import Module
@@ -2617,7 +2567,6 @@ def test_view():
     verify_model(View(), input_info, {}, expected1)
 
 
-@tvm.testing.requires_gpu
 def test_keep_params():
     import torch
     from torch import fx
@@ -2678,7 +2627,6 @@ def test_keep_params():
     tvm.testing.assert_allclose(params[1].numpy(), model.conv.weight.detach().numpy())
 
 
-@tvm.testing.requires_gpu
 def test_unwrap_unit_return_tuple():
     import torch.fx as fx
     from torch.nn import Module
@@ -2707,7 +2655,6 @@ def test_unwrap_unit_return_tuple():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
-@tvm.testing.requires_gpu
 def test_no_bind_return_tuple():
     import torch.fx as fx
     from torch.nn import Module
@@ -2740,7 +2687,6 @@ def test_no_bind_return_tuple():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
-@tvm.testing.requires_gpu
 def test_argmax():
     import torch
     from torch.nn import Module
@@ -2783,7 +2729,6 @@ def test_argmax():
     verify_model(Argmax2(), [([256, 256], "float32")], {}, Expected2)
 
 
-@tvm.testing.requires_gpu
 def test_argmin():
     import torch
     from torch.nn import Module
@@ -2826,7 +2771,6 @@ def test_argmin():
     verify_model(Argmin2(), [([256, 256], "float32")], {}, Expected2)
 
 
-@tvm.testing.requires_gpu
 def test_to():
     import torch
     from torch.nn import Module
@@ -2866,7 +2810,6 @@ def test_to():
     verify_model(To2(), [([256, 256], "float32")], {}, Expected2)
 
 
-@tvm.testing.requires_gpu
 def test_mean():
     import torch
     from torch.nn import Module
@@ -2905,7 +2848,6 @@ def test_mean():
     verify_model(MeanKeepDim(), [([256, 256], "float32")], {}, Expected2)
 
 
-@tvm.testing.requires_gpu
 def test_rsqrt():
     import torch
     from torch.nn import Module
@@ -2929,7 +2871,6 @@ def test_rsqrt():
     verify_model(Rsqrt(), [([256, 256], "float32")], {}, Expected1)
 
 
-@tvm.testing.requires_gpu
 def test_neg():
     import torch
     from torch.nn import Module
@@ -2953,7 +2894,6 @@ def test_neg():
     verify_model(Neg(), [([256, 256], "float32")], {}, Expected1)
 
 
-@tvm.testing.requires_gpu
 def test_max():
     import torch
     from torch.nn import Module
