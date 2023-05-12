@@ -27,7 +27,7 @@ from typing_extensions import Literal
 from ..block_builder import BlockBuilder
 from ..expr import Expr, Var, Function, StructInfo
 
-from ..op import abs, sum, mean, subtract, multiply
+from ..op import abs, sum, mean, subtract, multiply, reshape, argmax
 from ..op.nn import log_softmax, nll_loss
 
 
@@ -287,6 +287,98 @@ class CrossEntropyLoss(Loss):
                 loss = bb.emit_output(
                     nll_loss(logits, targets, weights, self._reduction, self.ignore_index)
                 )
+            bb.emit_func_output(loss)
+
+        return bb.get()[self._loss_name]
+
+
+class CategoricalCrossEntropyLoss(Loss):
+    r"""CategoricalCrossEntropyLoss.
+    It is a combination of a converting one-hot target vector to a label,
+    a log_softmax computation and a nll_loss.
+
+    Parameters
+    ----------
+    reduction : Literal["mean", "sum", "none"]
+        The reduction method to apply to output. Can be "mean", "sum" or "none".
+
+        none : no reduction will be applied,
+        mean : the sum of the output will be divided by the batch_size,
+        sum : the output will be summed.
+
+    ignore_index : int
+        Specifies a target value that is ignored and does not contribute to the input gradient.
+    """
+
+    ignore_index: int
+
+    def __init__(
+        self,
+        reduction: Literal["mean", "sum", "none"] = "mean",
+        ignore_index: int = -100,
+    ) -> None:
+        super().__init__("categorical_cross_entropy_loss", 1, reduction)
+        self.ignore_index = ignore_index
+
+    def __call__(
+        self,
+        predictions: Union[Var, StructInfo],
+        targets: Union[Var, StructInfo],
+        weights: Optional[Union[Var, StructInfo]] = None,
+    ) -> Function:
+        """Get the relax function of CategoricalCrossEntropyLoss. If the parameters are
+        struct info, it will create corresponding variables.
+
+        Parameters
+        ----------
+        predictions : Union[Var, StructInfo]
+            The predictions of the model in the calculation of loss.
+
+        targets : Union[Var, StructInfo]
+            The ground truth in the calculation of loss.
+
+        weights : Optional[Union[Var, StructInfo]]
+            a manual rescaling weight given to each class. It has to be a Tensor of size C.
+
+        Returns
+        -------
+        The relax function of CategoricalCrossEntropyLoss with the loss name as its global symbol.
+        """
+
+        if not "int" in targets.dtype:
+            raise TypeError(
+                f"Dtype of targets expected to be int/uint. \
+                  However, the dtype of targets is {targets.dtype}"
+            )
+
+        bb = BlockBuilder()
+
+        predictions = _create_param_var(predictions, "predictions")
+        targets = _create_param_var(targets, "targets")
+
+        arg_list = [predictions, targets]
+        if weights:
+            weights = _create_param_var(weights, "weights")
+            arg_list.append(weights)
+
+        # In the case of ignore_index >= 0,
+        # the nll_loss function is used to handle the ignore index.
+        # In other cases where ignore_index is not needed, just use the simpe product.
+        with bb.function(self._loss_name, arg_list):
+            with bb.dataflow():
+                logits = bb.emit(log_softmax(predictions))
+                if self.ignore_index >= 0:
+                    targets = bb.emit(
+                        reshape(argmax(targets, axis=1), shape=(targets.struct_info.shape[0],))
+                    )
+                    loss = bb.emit_output(
+                        nll_loss(logits, targets, weights, self._reduction, self.ignore_index)
+                    )
+                else:
+                    lv = bb.emit(-logits * targets.astype("float32"))
+                    if weights:
+                        lv = bb.emit(lv * weights)
+                    loss = bb.emit_output(self._with_reduction(lv))
             bb.emit_func_output(loss)
 
         return bb.get()[self._loss_name]

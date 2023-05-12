@@ -208,5 +208,81 @@ def test_cross_entropy_loss_append():
     assert_structural_equal(After["forward_loss"], expected)
 
 
+def test_categorical_cross_entropy_loss():
+    N = 3
+    C = 5
+    predictions = relax.TensorStructInfo((N, C), "float32")
+    targets = relax.TensorStructInfo((N, C), "int64")
+    weights = relax.TensorStructInfo((C,), "float32")
+    categorical_cross_entropy_loss = relax.training.loss.CategoricalCrossEntropyLoss(
+        reduction="sum"
+    )
+
+    @R.function
+    def expected(
+        predictions: R.Tensor((3, 5), "float32"),
+        targets: R.Tensor((3, 5), "int64"),
+        weights: R.Tensor((5,), "float32"),
+    ) -> R.Tensor((), "float32"):
+        with R.dataflow():
+            lv: R.Tensor((3, 5), "float32") = R.nn.log_softmax(predictions, axis=-1)
+            lv: R.Tensor((), "float32") = -lv * targets.astype("float32")
+            gv: R.Tensor((), "float32") = R.sum(lv * weights)
+            R.output(gv)
+        return gv
+
+    assert_structural_equal(categorical_cross_entropy_loss(predictions, targets, weights), expected)
+
+
+def test_categorical_cross_entropy_loss_without_weights():
+    N = 3
+    C = 5
+    predictions = relax.TensorStructInfo((N, C), "float32")
+    targets = relax.TensorStructInfo((N, C), "int64")
+    categorical_cross_entropy_loss = relax.training.loss.CategoricalCrossEntropyLoss()
+
+    @R.function
+    def expected(
+        predictions: R.Tensor((3, 5), "float32"), targets: R.Tensor((3, 5), "int64")
+    ) -> R.Tensor((), "float32"):
+        with R.dataflow():
+            lv: R.Tensor((3, 5), "float32") = R.nn.log_softmax(predictions, axis=-1)
+            gv: R.Tensor((), "float32") = R.mean(-lv * targets.astype("float32"))
+            R.output(gv)
+        return gv
+
+    assert_structural_equal(categorical_cross_entropy_loss(predictions, targets), expected)
+
+
+def test_categorical_cross_entropy_loss_with_ignore_index():
+    N = 3
+    C = 5
+    predictions = relax.TensorStructInfo((N, C), "float32")
+    targets = relax.TensorStructInfo((N, C), "int64")
+    weights = relax.TensorStructInfo((C,), "float32")
+    categorical_cross_entropy_loss = relax.training.loss.CategoricalCrossEntropyLoss(
+        reduction="sum", ignore_index=1
+    )
+
+    @R.function
+    def expected(
+        predictions: R.Tensor((3, 5), "float32"),
+        targets: R.Tensor((3, 5), "int64"),
+        weights: R.Tensor((5,), "float32"),
+    ) -> R.Tensor((), "float32"):
+        with R.dataflow():
+            lv: R.Tensor((3, 5), "float32") = R.nn.log_softmax(predictions, axis=-1)
+            targets = relax.op.reshape(
+                relax.op.argmax(targets, axis=1), shape=(targets.struct_info.shape[0],)
+            )
+            gv: R.Tensor((), "float32") = R.nn.nll_loss(
+                lv, targets, weights, reduction="sum", ignore_index=1
+            )
+            R.output(gv)
+        return gv
+
+    assert_structural_equal(categorical_cross_entropy_loss(predictions, targets, weights), expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
