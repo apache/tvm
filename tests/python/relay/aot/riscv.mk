@@ -33,8 +33,8 @@ PKG_CFLAGS = ${PKG_COMPILE_OPTS} ${TARGET_CFLAGS} -O2 \
 	-I$(CODEGEN_ROOT)/host/include \
 	-include $(CODEGEN_ROOT)/host/include/tvmgen_default.h \
 	-isystem$(STANDALONE_CRT_DIR)/include \
-    --sysroot=$(TOOLCHAIN_PATH)/sysroot \
-    --gcc-toolchain=$(TOOLCHAIN_PATH) 
+	--sysroot=$(TOOLCHAIN_PATH)/sysroot \
+	--gcc-toolchain=$(TOOLCHAIN_PATH)
 
 $(ifeq VERBOSE,1)
 QUIET ?=
