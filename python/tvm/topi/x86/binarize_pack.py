@@ -45,7 +45,7 @@ def schedule_binarize_pack(outs):
             Out = OP.output(0)
             _schedule(Out)
         else:
-            raise RuntimeError("Unsupported operator: %s" % OP.tag)
+            raise RuntimeError(f"Unsupported operator: {OP.tag}")
 
     traverse(outs[0].op)
     return s

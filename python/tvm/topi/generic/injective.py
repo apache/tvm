@@ -57,7 +57,7 @@ def schedule_injective(outs):
     """
     target = tvm.target.Target.current(allow_none=False)
     if target.kind.name != "llvm":
-        raise RuntimeError("schedule_injective not registered for '%s'" % target)
+        raise RuntimeError(f"schedule_injective not registered for '{target}'")
     outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
     x = outs[0]
     s = te.create_schedule([x.op for x in outs])
