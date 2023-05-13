@@ -1722,7 +1722,7 @@ def test_forward_sin():
 
 @run_math_api
 def test_forward_softplus():
-    x = paddle.to_tensor([-0.4, 1], dtype='float32')
+    x = paddle.to_tensor([-0.4, 1], dtype="float32")
     m = paddle.nn.Softplus(5, 1)
     verify_model(m, [x])
 
