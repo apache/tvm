@@ -20,6 +20,7 @@ import ast
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Type, Union
 
 from . import dispatch, doc
+from .error import ParserError
 
 if TYPE_CHECKING:
     from .parser import Parser
@@ -69,7 +70,7 @@ class ExprEvaluator:
         The value table for expression evaluation.
 
     new_value_count : int
-        The count for ntermediate result added during evaluation.
+        The count for intermediate result added during evaluation.
     """
 
     parser: "Parser"
@@ -106,7 +107,7 @@ class ExprEvaluator:
         result = self._visit(node)  # pylint: disable=protected-access
         if isinstance(result, doc.Name):
             if result.id not in self.value_table:
-                self.parser.report_error(result, f"Undefined variable: {result.id}")
+                raise ParserError(result, f"Undefined variable: {result.id}")
             return self.value_table[result.id]
         if isinstance(result, doc.Constant):
             return result.value
@@ -164,7 +165,7 @@ class ExprEvaluator:
         assert isinstance(node, doc.AST)
         if isinstance(node, doc.Name):
             if node.id not in self.value_table:
-                self.parser.report_error(node, f"Undefined variable: {node.id}")
+                raise ParserError(node, f"Undefined variable: {node.id}")
             return node
         if isinstance(
             node,
