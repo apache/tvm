@@ -247,7 +247,7 @@ Map<Var, PrimExpr> DeriveBlockBinding(const Array<IterVar>& iter_vars,          
       // substitution
       if (is_one(outer_mark->extent) && !preserve_unit_iters) {
         // Simplify outer if not preserve_unit_iters
-        sub = outer_mark->extent - 1;
+        sub = make_zero(outer_mark->extent.dtype());
       } else {
         sub = outer_iter;
       }
