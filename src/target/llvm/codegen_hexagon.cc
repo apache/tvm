@@ -69,8 +69,9 @@ namespace codegen {
 // Hexagon code generation
 class CodeGenHexagon final : public CodeGenCPU {
  public:
-  void Init(const std::string& module_name, LLVMTarget* llvm_target, bool system_lib,
-            bool dynamic_lookup, bool target_c_runtime) override;
+  void Init(const std::string& module_name, LLVMTarget* llvm_target,
+            Optional<String> system_lib_prefix, bool dynamic_lookup,
+            bool target_c_runtime) override;
   void InitTarget() final;
 
   using CodeGenCPU::VisitStmt_;
@@ -114,9 +115,10 @@ class CodeGenHexagon final : public CodeGenCPU {
       "tvm_vect_qhmath_hvx_ceil_ahf",    "tvm_vect_qhmath_hvx_pow_ahf"};
 };
 
-void CodeGenHexagon::Init(const std::string& module_name, LLVMTarget* llvm_target, bool system_lib,
-                          bool dynamic_lookup, bool target_c_runtime) {
-  CodeGenCPU::Init(module_name, llvm_target, system_lib, dynamic_lookup, target_c_runtime);
+void CodeGenHexagon::Init(const std::string& module_name, LLVMTarget* llvm_target,
+                          Optional<String> system_lib_prefix, bool dynamic_lookup,
+                          bool target_c_runtime) {
+  CodeGenCPU::Init(module_name, llvm_target, system_lib_prefix, dynamic_lookup, target_c_runtime);
 }
 
 void CodeGenHexagon::InitTarget() {
@@ -563,7 +565,7 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
     funcs.emplace_back(f);
   }
 
-  cg->Init("TVMHexagonModule", llvm_target.get(), false, false, false);
+  cg->Init("TVMHexagonModule", llvm_target.get(), NullOpt, false, false);
   cg->AddFunctionsOrdered(funcs.begin(), funcs.end());
   if (entry_func.length() != 0) {
     cg->AddMainFunction(entry_func);

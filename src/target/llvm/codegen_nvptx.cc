@@ -309,7 +309,7 @@ runtime::Module BuildNVPTX(IRModule mod, Target target) {
   int compute_ver = GetCUDAComputeVersion(target);
   auto cg = std::make_unique<CodeGenNVPTX>();
 
-  cg->Init("TVMPTXModule", llvm_target.get(), false, false, false);
+  cg->Init("TVMPTXModule", llvm_target.get(), NullOpt, false, false);
 
   cg->AddFunctionsOrdered(mod->functions.begin(), mod->functions.end(), [](auto& kv) {
     ICHECK(kv.second->template IsInstance<PrimFuncNode>())
