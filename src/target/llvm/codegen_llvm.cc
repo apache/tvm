@@ -136,8 +136,9 @@ std::unique_ptr<CodeGenLLVM> CodeGenLLVM::Create(LLVMTarget* llvm_target) {
   }
 }
 
-void CodeGenLLVM::Init(const std::string& module_name, LLVMTarget* llvm_target, bool system_lib,
-                       bool dynamic_lookup, bool target_c_runtime) {
+void CodeGenLLVM::Init(const std::string& module_name, LLVMTarget* llvm_target,
+                       Optional<String> system_lib_prefix, bool dynamic_lookup,
+                       bool target_c_runtime) {
   llvm_target_ = llvm_target;
   llvm::LLVMContext* ctx = llvm_target_->GetContext();
   builder_.reset(new IRBuilder(*ctx));

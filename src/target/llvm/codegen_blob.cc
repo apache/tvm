@@ -62,19 +62,22 @@ namespace tvm {
 namespace codegen {
 
 std::unique_ptr<llvm::Module> CodeGenBlob(const std::string& data, bool system_lib,
-                                          LLVMTarget* llvm_target) {
+                                          LLVMTarget* llvm_target,
+                                          const std::string& c_symbol_prefix) {
   llvm::TargetMachine* tm = llvm_target->GetOrCreateTargetMachine();
   const llvm::Triple& triple = tm->getTargetTriple();
   llvm::LLVMContext* ctx = llvm_target->GetContext();
-  std::string module_name = "devc";
+  std::string module_name = c_symbol_prefix + "devc";
   auto module = std::make_unique<llvm::Module>(module_name, *ctx);
   module->setTargetTriple(triple.str());
   llvm_target->SetTargetMetadata(module.get());
   module->setDataLayout(tm->createDataLayout());
   auto* blob_value = llvm::ConstantDataArray::getString(*ctx, data, false);
+  std::string mdev_blob_name = c_symbol_prefix + runtime::symbol::tvm_dev_mblob;
+
   auto* tvm_dev_mblob = new llvm::GlobalVariable(
       *module, blob_value->getType(), true, llvm::GlobalValue::ExternalLinkage, blob_value,
-      runtime::symbol::tvm_dev_mblob, nullptr, llvm::GlobalVariable::NotThreadLocal, 0);
+      mdev_blob_name, nullptr, llvm::GlobalVariable::NotThreadLocal, 0);
 
   // If large const data (>2GB) is saved to default .rodata section
   // then linking it to shared library will fail - relocation truncated to fit: R_X86_64_PC32.
@@ -106,9 +109,9 @@ std::unique_ptr<llvm::Module> CodeGenBlob(const std::string& data, bool system_l
     auto int8_ptr_ty = int8_ty->getPointerTo(0);
 
     llvm::Constant* constant_zero = llvm::Constant::getNullValue(int32_ty);
-    auto* tvm_dev_mblob_reg = new llvm::GlobalVariable(
-        *module, int32_ty, false, llvm::GlobalValue::InternalLinkage, constant_zero,
-        std::string(runtime::symbol::tvm_dev_mblob) + "_reg_");
+    auto* tvm_dev_mblob_reg =
+        new llvm::GlobalVariable(*module, int32_ty, false, llvm::GlobalValue::InternalLinkage,
+                                 constant_zero, mdev_blob_name + "_reg_");
     auto tvm_dev_mblob_reg_alignment =
 #if TVM_LLVM_VERSION >= 110
         module->getDataLayout().getABITypeAlign(int32_ty);
@@ -121,13 +124,12 @@ std::unique_ptr<llvm::Module> CodeGenBlob(const std::string& data, bool system_l
     tvm_dev_mblob_reg->setAlignment(tvm_dev_mblob_reg_alignment);
 #endif
 
-    auto* tvm_dev_mblob_string_ty =
-        llvm::ArrayType::get(int8_ty, std::strlen(runtime::symbol::tvm_dev_mblob) + 1);
+    auto* tvm_dev_mblob_string_ty = llvm::ArrayType::get(int8_ty, mdev_blob_name.length() + 1);
     auto* tvm_dev_mblob_string_value =
-        llvm::ConstantDataArray::getString(*ctx, runtime::symbol::tvm_dev_mblob, true);
+        llvm::ConstantDataArray::getString(*ctx, mdev_blob_name, true);
     auto* tvm_dev_mblob_string = new llvm::GlobalVariable(
         *module, tvm_dev_mblob_string_ty, true, llvm::GlobalValue::PrivateLinkage,
-        tvm_dev_mblob_string_value, std::string(runtime::symbol::tvm_dev_mblob) + ".str");
+        tvm_dev_mblob_string_value, mdev_blob_name + ".str");
 #if TVM_LLVM_VERSION >= 100
     tvm_dev_mblob_string->setAlignment(llvm::Align(1));
 #else

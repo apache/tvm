@@ -116,14 +116,15 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    * \param module_name The name of the module.
    * \param tm Target machine model
    * \param ctx The context.
-   * \param system_lib Whether to insert system library registration.
+   * \param system_lib_prefix If the value is not NullOpt, insert system lib registration.
+   *                          The value corresponds to the prefix of the system lib symbols.
    * \param dynamic_lookup Whether dynamically lookup runtime function
    *                       or use the runtime function table passed by caller.
    * \param target_c_runtime If true, generate a module to be executed by the C runtime. In practice
    *                       this option influences whether global ctors are used.
    */
-  virtual void Init(const std::string& module_name, LLVMTarget* llvm_target, bool system_lib,
-                    bool dynamic_lookup, bool target_c_runtime);
+  virtual void Init(const std::string& module_name, LLVMTarget* llvm_target,
+                    Optional<String> system_lib_prefix, bool dynamic_lookup, bool target_c_runtime);
 
   /*!
    * \brief Turn on fast math flags for floating point operations.
