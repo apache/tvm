@@ -26,6 +26,14 @@
 namespace tvm {
 namespace tir {
 
+PrimExpr ReinterpretAsUInt(PrimExpr value) {
+  return reinterpret(GetStorageUIntDataType(value.dtype()), value);
+}
+
+DataType GetStorageUIntDataType(DataType dtype) {
+  return DataType::UInt(dtype.bits(), dtype.lanes());
+}
+
 PrimExpr FpToFp(PrimExpr src_value, FloatConfig src_fp, FloatConfig tgt_fp) {
 
 }
@@ -38,7 +46,7 @@ PrimExpr FpToInt(PrimExpr src_value, FloatConfig src_fp, DataType tgt_dtype) {
 
 }
 
-PrimExpr DTypeConversion(PrimExpr src_value, DataType tgt_dtype) {
+PrimExpr DTypeConversion(PrimExpr src_value, DataType tgt_dtype, RoundingMode round_mode) {
   DataType src_dtype = src_value.dtype();
   auto is_floating_point = [](DataType dtype) {
     return dtype.is_float() || dtype.is_float8() || dtype.is_bfloat16();
@@ -47,7 +55,7 @@ PrimExpr DTypeConversion(PrimExpr src_value, DataType tgt_dtype) {
     return dtype.is_int() || dtype.is_uint();
   };
   if (is_floating_point(src_dtype) && is_floating_point(tgt_dtype)) {
-    return FpToFp(src_value, FloatConfig::FromDataType(src_dtype), FloatConfig::FromDataType(tgt_dtype));
+    return FpToFp(src_value, FloatConfig::FromDataType(src_dtype), FloatConfig::FromDataType(tgt_dtype), round_mode);
   } else {
     if (is_integer(src_dtype) && is_floating_point(tgt_dtype)) {
       return IntToFp(src_value, FloatConfig::FromDataType(tgt_dtype));

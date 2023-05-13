@@ -32,14 +32,35 @@ namespace tvm {
 
 namespace tir {
 
+/*!
+ * \brief Rounding mode: https://en.wikipedia.org/wiki/Rounding
+ */
+enum class RoundingMode {
+  // Round down
+  kDown = 0U,
+  // Round up
+  kUp = 1U,
+  // Round half to nearest even
+  kHalfToEven = 2U,
+};
+
+/*!
+ * \brief Floating point representation.
+ */
 class FloatConfig {
  public:
+  /*!
+   * \brief Style of infinite number representation.
+   */
   enum class InftyStyle {
     // Exponent all ones, mantissa all zeros
     kIEEE = 0U,
     // No representation of infinity
     kNone = 1U
   };
+  /*!
+   * \brief Style of NaN (not-a-number) representation.
+   */
   enum class NaNStyle {
     // Exponent all ones, mantissa non zeros
     // - quiet NaN : 1XXXXX...
@@ -67,7 +88,7 @@ class FloatConfig {
         bias(bias),
         infty_style(infty_style),
         nan_style(nan_style) {}
-  
+
   inline int bits() const { return mantissa + exponent + 1; }
 
   static FloatConfig FromDataType(DataType dtype) {
@@ -102,9 +123,26 @@ class FloatConfig {
 };
 
 /*!
- * \brief Conversion routine from value stored in one data type to target data type.
+ * \brief Reinterpret value as unsigned integer with equal number of bits.
+ * \param value The value to interpret.
  */
-PrimExpr DTypeConversion(PrimExpr src_value, DataType tgt_dtype);
+PrimExpr ReinterpretAsUInt(PrimExpr value);
+
+/*!
+ * \brief Get the storage data type when the specified dtype is not supported natively.
+ * \param dtype The data type.
+ */
+DataType GetStorageUIntDType(DataType dtype);
+
+/*!
+ * \brief Conversion routine from value stored in one data type to target data type without using
+ * hardware.
+ * \param src_value The value to be converted.
+ * \param tgt_dtype The target data type.
+ * \param round_mode The rounding mode to use, defaults to kHalfToEven.
+ */
+PrimExpr DTypeConversion(PrimExpr src_value, DataType tgt_dtype,
+                         RoundingMode round_mode = RoundingMode::kHalfToEven);
 
 }  // namespace tir
 }  // namespace tvm
