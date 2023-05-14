@@ -15,12 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 """The entry point of TVM parser."""
-
+import inspect
 from typing import Any, Dict, Union
 
 from ...ir_builder import IRBuilder
 from . import doc
 from .diagnostics import Source
+from .error import ParserError
 from .parser import Parser
 
 
@@ -53,8 +54,19 @@ def parse(program: Union[doc.AST, Any, str], extra_vars: Dict[str, Any] = None) 
             "tir": tir,
         }
 
+    ann = {}
+    if inspect.isfunction(program):
+        ann = {program.__name__: program.__annotations__}
+    elif inspect.isclass(program):
+        for name, func in program.__dict__.items():
+            if inspect.isfunction(func):
+                ann[name] = func.__annotations__
+
     source = Source(program)
-    parser = Parser(source)
+    parser = Parser(source, ann)
     with IRBuilder() as builder:
-        parser.parse(extra_vars=extra_vars)
+        try:
+            parser.parse(extra_vars=extra_vars)
+        except ParserError as err:
+            parser.report_error(err.node, err.args[0])
     return builder.get()
