@@ -177,6 +177,8 @@ class ConstIntBoundAnalyzer::Impl
     return Union(a, b);
   }
 
+  Entry VisitExpr_(const BroadcastNode* op) final { return VisitExpr(op->value); }
+
   Entry VisitExpr_(const CastNode* op) final {
     Entry a;
 

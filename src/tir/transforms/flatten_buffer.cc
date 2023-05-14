@@ -51,6 +51,8 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
   }
 
  private:
+  using IRMutatorWithAnalyzer::VisitExpr;
+  using IRMutatorWithAnalyzer::VisitExpr_;
   using IRMutatorWithAnalyzer::VisitStmt;
   using IRMutatorWithAnalyzer::VisitStmt_;
 
