@@ -2922,7 +2922,7 @@ def test_max():
 
 def test_attention():
     @I.ir_module
-    class Expected:
+    class Expected1:
         @R.function
         def main(
             inp_0: R.Tensor((32, 8, 128, 64), dtype="float32"),
@@ -2946,6 +2946,32 @@ def test_attention():
                 R.output(gv)
             return gv
 
+    @I.ir_module
+    class Expected2:
+        @R.function
+        def main(
+            inp_0: R.Tensor((32, 8, 128, 64), dtype="float32"),
+            inp_1: R.Tensor((32, 8, 128, 64), dtype="float32"),
+            inp_2: R.Tensor((32, 8, 128, 64), dtype="float32"),
+            inp_3: R.Tensor((32, 8, 128, 128), dtype="float32"),
+        ) -> R.Tensor((32, 128, 8, 64), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((32, 128, 8, 64), dtype="float32") = R.permute_dims(
+                    inp_0, axes=[0, 2, 1, 3]
+                )
+                lv1: R.Tensor((32, 128, 8, 64), dtype="float32") = R.permute_dims(
+                    inp_1, axes=[0, 2, 1, 3]
+                )
+                lv2: R.Tensor((32, 128, 8, 64), dtype="float32") = R.permute_dims(
+                    inp_2, axes=[0, 2, 1, 3]
+                )
+                lv3: R.Tensor((32, 128, 8, 64), dtype="float32") = R.nn.attention(
+                    lv, lv1, lv2, inp_3, scale=None
+                )
+                gv: R.Tensor((32, 128, 8, 64), dtype="float32") = lv3
+                R.output(gv)
+            return gv
+
     verify_model(
         lambda q, k, v: F.scaled_dot_product_attention(q, k, v),
         [
@@ -2954,7 +2980,19 @@ def test_attention():
             ([32, 8, 128, 64], "float32"),
         ],
         {},
-        Expected,
+        Expected1,
+    )
+
+    verify_model(
+        lambda q, k, v, mask: F.scaled_dot_product_attention(q, k, v, mask),
+        [
+            ([32, 8, 128, 64], "float32"),
+            ([32, 8, 128, 64], "float32"),
+            ([32, 8, 128, 64], "float32"),
+            ([32, 8, 128, 128], "float32"),
+        ],
+        {},
+        Expected2,
     )
 
 
