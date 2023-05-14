@@ -437,7 +437,7 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
       LOG(FATAL) << "Unsupported type: " << op->dtype
                  << ", currently only float and half are supported for image2d OpenCL codegen.";
     }
-  this->PrintExpr(op->args[0], ss);
+    this->PrintExpr(op->args[0], ss);
     ss << ", ";
     ss << "image_sampler, ";
     ss << "((int2)(";
