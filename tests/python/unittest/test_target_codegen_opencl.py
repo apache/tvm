@@ -196,7 +196,8 @@ def test_opencl_type_casting():
     dev = tvm.device(target, 0)
 
     check_type_casting(dev, 16, "float32")
-    check_type_casting(dev, 16, "float16")
+    # fp16 is not yet supported in ci
+    # check_type_casting(dev, 16, "float16")
 
 
 if __name__ == "__main__":
