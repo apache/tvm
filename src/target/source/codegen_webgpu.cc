@@ -252,6 +252,24 @@ void CodeGenWebGPU::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLIN
       this->EndScope(else_scope);
     }
     os << result;
+  } else if (op->op.same_as(builtin::shift_left()) || op->op.same_as(builtin::shift_right())) {
+    const char* opstr = op->op.same_as(builtin::shift_left()) ? " << " : " >> ";
+    ICHECK_EQ(op->args.size(), 2U);
+    os << '(';
+    this->PrintExpr(op->args[0], os);
+    os << opstr;
+
+    // the rhs cannot be i32.
+    const auto& rhs = op->args[1];
+    if (rhs.dtype().is_int()) {
+      os << "u32(";
+      this->PrintExpr(rhs, os);
+      os << "))";
+    } else {
+      ICHECK(rhs.dtype().is_uint());
+      this->PrintExpr(rhs, os);
+      os << ')';
+    }
   } else {
     CodeGenC::VisitExpr_(op, os);
   }
