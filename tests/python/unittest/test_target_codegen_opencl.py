@@ -168,7 +168,7 @@ def test_opencl_type_casting():
 
         c = tvm.nd.empty((n,), dtype, ctx)
         assembly = fun.imported_modules[0].get_source()
-        
+
         if dtype == "float32":
             false_branch = "((float4)(0.000000e+00f, 0.000000e+00f, 0.000000e+00f, 0.000000e+00f))"
             true_branch = "((float4)(1.000000e+00f, 1.000000e+00f, 1.000000e+00f, 1.000000e+00f))"
@@ -178,9 +178,8 @@ def test_opencl_type_casting():
             select = "select({}, {}, {})".format(false_branch, true_branch, cond)
             count = assembly.count(select)
             assert count == 1
-
             fun(c)
-        
+
         elif dtype == "float16":
             false_branch = "((half4)((half)0.000000e+00f, (half)0.000000e+00f, (half)0.000000e+00f, (half)0.000000e+00f))"
             true_branch = "((half4)((half)1.000000e+00f, (half)1.000000e+00f, (half)1.000000e+00f, (half)1.000000e+00f))"
@@ -190,7 +189,6 @@ def test_opencl_type_casting():
             select = "select({}, {}, {})".format(false_branch, true_branch, cond)
             count = assembly.count(select)
             assert count == 1
-
             fun(c)            
 
     dev = tvm.device(target, 0)
