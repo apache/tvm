@@ -189,7 +189,7 @@ def test_opencl_type_casting():
             select = "select({}, {}, {})".format(false_branch, true_branch, cond)
             count = assembly.count(select)
             assert count == 1
-            fun(c)            
+            fun(c)
 
     dev = tvm.device(target, 0)
 
