@@ -289,6 +289,11 @@ void CodeGenMetal::PrintStorageScope(const std::string& scope, std::ostream& os)
   }
 }
 
+void CodeGenMetal::VisitExpr_(const SelectNode* op, std::ostream& os) {  // NOLINT(*)
+  os << "select(" << PrintExpr(op->false_value) << ", " << PrintExpr(op->true_value) << ", "
+     << PrintExpr(op->condition) << ")";
+}
+
 void CodeGenMetal::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
   std::string v = PrintExpr(op->value);
   PrintType(op->dtype, os);
