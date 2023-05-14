@@ -1251,7 +1251,7 @@ def AnnotateSpans():
     return _ffi_api.AnnotateSpans()
 
 
-def FakeQuantizationToInteger(hard_fail=False, use_qat=False, optional_qnn_ops=[]):
+def FakeQuantizationToInteger(hard_fail=False, use_qat=False, optional_qnn_ops=None):
     # pylint: disable=anomalous-backslash-in-string
     """
     Find regions of the graph of the form
@@ -1308,6 +1308,8 @@ def FakeQuantizationToInteger(hard_fail=False, use_qat=False, optional_qnn_ops=[
     ret : tvm.transform.Pass
         The registered FakeQuantizationToInteger pass.
     """
+    if optional_qnn_ops is None:
+        optional_qnn_ops = []
     return _ffi_api.FakeQuantizationToInteger(hard_fail, use_qat, optional_qnn_ops)
 
 
