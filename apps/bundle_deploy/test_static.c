@@ -54,12 +54,12 @@ int main(int argc, char** argv) {
   void* handle = tvm_runtime_create(json_data, params_data, params_size, argv[0]);
   gettimeofday(&t1, 0);
 
-  float input_storage[10 * 5];
+  float* input_storage = aligned_alloc(64, 10 * 5 * sizeof(float));
   fp = fopen(argv[1], "rb");
   fread(input_storage, 10 * 5, 4, fp);
   fclose(fp);
 
-  float result_storage[10 * 5];
+  float* result_storage = aligned_alloc(64, 10 * 5 * sizeof(float));
   fp = fopen(argv[2], "rb");
   fread(result_storage, 10 * 5, 4, fp);
   fclose(fp);
@@ -82,7 +82,7 @@ int main(int argc, char** argv) {
   tvm_runtime_run(handle);
   gettimeofday(&t3, 0);
 
-  float output_storage[10 * 5];
+  float* output_storage = aligned_alloc(64, 10 * 5 * sizeof(float));
   DLTensor output;
   output.data = output_storage;
   DLDevice out_dev = {kDLCPU, 0};
@@ -117,6 +117,9 @@ int main(int argc, char** argv) {
       (t4.tv_sec - t3.tv_sec) * 1000 + (t4.tv_usec - t3.tv_usec) / 1000.f,
       (t5.tv_sec - t4.tv_sec) * 1000 + (t5.tv_usec - t4.tv_usec) / 1000.f);
 
+  free(output_storage);
+  free(result_storage);
+  free(input_storage);
   free(json_data);
   free(params_data);
 
