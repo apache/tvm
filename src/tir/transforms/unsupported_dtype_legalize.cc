@@ -31,7 +31,7 @@
 #include <cmath>
 #include <tuple>
 
-#include "dtype_conversion_legalization"
+#include "dtype_conversion.h"
 
 namespace tvm {
 namespace tir {
@@ -126,11 +126,19 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
 
 class BF16ComputeLegalizePlanner : public ComputeLegalizePlanner {
  public:
+  explicit BF16ComputeLegalizePlanner(
+      std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual>* buffer_remap,
+      std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual>* var_remap)
+      : ComputeLegalizePlanner(buffer_remap, var_remap) {}
   bool MatchDType(DataType dtype) const { return dtype.is_bfloat16(); }
 };
 
 class FP8ComputeLegalizePlanner : public ComputeLegalizePlanner {
  public:
+  explicit FP8ComputeLegalizePlanner(
+      std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual>* buffer_remap,
+      std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual>* var_remap)
+      : ComputeLegalizePlanner(buffer_remap, var_remap) {}
   bool MatchDType(DataType dtype) const { return dtype.is_float8(); }
 };
 
@@ -398,9 +406,7 @@ class ComputeLegalizer : public StmtExprMutator {
     if (const CastNode* cast = value.as<CastNode>()) {
       if (cast->value.dtype() == DataType::Float(32)) return cast->value;
     }
-    // reinterpret<f32>((cast<u32>(reinterpret<u16>(bf16_value)) << 16))
-    return DTypeConversion(value, DataType::Float(32));
-    // return reinterpret(f32, cast(u32, reinterpret(u16, value)) << 16);
+    return DTypeConversion(value, DataType::Float(32).with_lanes(value.dtype().lanes()));
   }
 
   /*!
@@ -412,17 +418,6 @@ class ComputeLegalizer : public StmtExprMutator {
     if (!value.dtype().is_float()) return value;
     ICHECK_EQ(value.dtype().bits(), 32);
     return DTypeConversion(value, dtype);
-    // DataType bf16 = DataType::BFloat(16, value.dtype().lanes());
-    // DataType u16 = DataType::UInt(16, value.dtype().lanes());
-    // DataType u32 = DataType::UInt(32, value.dtype().lanes());
-    // PrimExpr u32_val = reinterpret(u32, value);
-
-    // if (round_to_even_) {
-    //   PrimExpr rounding_bias = ((u32_val >> 16) & 1) + make_const(u32, 0x7FFF);
-    //   u32_val = u32_val + rounding_bias;
-    // }
-    // reinterpret<bf16>((cast<u16>(reinterpret<u32>(f32_value)) >> 16))
-    // return reinterpret(bf16, cast(u16, u32_val >> 16));
   }
 
   Buffer GetRemappedBuffer(Buffer buf) {
@@ -479,7 +474,7 @@ class StorageLegalizer : public StmtExprMutator {
 
   Stmt VisitStmt_(const AllocateNode* op) final {
     if (MatchDType(op->dtype)) {
-      DataType dtype = GetStorageUIntDataType(op->dtype);
+      DataType dtype = GetStorageUIntDType(op->dtype);
       Var buffer_var = Var(op->buffer_var->name_hint, PointerType(PrimType(dtype)));
       var_remap_[op->buffer_var] = buffer_var;
       return VisitStmt(Allocate(buffer_var, dtype, op->extents, op->condition, op->body));
@@ -494,7 +489,7 @@ class StorageLegalizer : public StmtExprMutator {
     // because the original var is not bfloat*
     // force remap here
     if (MatchDType(buf->dtype)) {
-      buf = Buffer(buf->data, GetStorageUIntDataType(buf->dtype), buf->shape, buf->strides,
+      buf = Buffer(buf->data, GetStorageUIntDType(buf->dtype), buf->shape, buf->strides,
                    buf->elem_offset, buf->name, buf->data_alignment, buf->offset_factor,
                    buf->buffer_type, buf->axis_separators, buf->span);
       buffer_remap_[op->buffer] = buf;
@@ -585,7 +580,7 @@ class StorageLegalizer : public StmtExprMutator {
       // sometimes the input dtype can change and we can skip.
       if (value.dtype() == op->dtype) return value;
       if (MatchDType(op->dtype)) {
-        return reinterpret(GetStorageUIntDataType(op->dtype), value);
+        return reinterpret(GetStorageUIntDType(op->dtype), value);
       }
       if (op->args[0].same_as(value)) {
         return GetRef<PrimExpr>(op);
@@ -608,7 +603,7 @@ class StorageLegalizer : public StmtExprMutator {
     if (!MatchDType(value->dtype)) return value;
     auto* call = value.as<CallNode>();
     if (call && call->op.same_as(builtin::reinterpret())) {
-      return reinterpret(GetStorageUIntDataType(value->dtype), call->args[0]);
+      return reinterpret(GetStorageUIntDType(value->dtype), call->args[0]);
     } else {
       return value;
     }
@@ -620,8 +615,8 @@ class StorageLegalizer : public StmtExprMutator {
       if (auto* ptr_type = var->type_annotation.as<PointerTypeNode>()) {
         if (auto* elem_type = ptr_type->element_type.as<PrimTypeNode>()) {
           if (MatchDType(elem_type->dtype)) {
-            Var new_var = Var(var->name_hint,
-                              PointerType(PrimType(GetStorageUIntDataType(elem_type->dtype))));
+            Var new_var =
+                Var(var->name_hint, PointerType(PrimType(GetStorageUIntDType(elem_type->dtype))));
             var_remap_[var] = new_var;
             return new_var;
           }
@@ -639,7 +634,7 @@ class StorageLegalizer : public StmtExprMutator {
     Buffer new_buf = buf;
     auto var_it = var_remap_.find(buf->data);
     if (var_it != var_remap_.end()) {
-      DataType dtype = MatchDType(buf->dtype) ? GetStorageUIntDataType(buf->dtype) : buf->dtype;
+      DataType dtype = MatchDType(buf->dtype) ? GetStorageUIntDType(buf->dtype) : buf->dtype;
       new_buf = Buffer(var_it->second, dtype, buf->shape, buf->strides, buf->elem_offset, buf->name,
                        buf->data_alignment, buf->offset_factor, buf->buffer_type,
                        buf->axis_separators, buf->span);

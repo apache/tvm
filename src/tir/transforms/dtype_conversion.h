@@ -36,12 +36,8 @@ namespace tir {
  * \brief Rounding mode: https://en.wikipedia.org/wiki/Rounding
  */
 enum class RoundingMode {
-  // Round down
-  kDown = 0U,
-  // Round up
-  kUp = 1U,
   // Round half to nearest even
-  kHalfToEven = 2U,
+  kHalfToEven = 0U,
 };
 
 /*!
@@ -83,8 +79,8 @@ class FloatConfig {
   NaNStyle nan_style;
 
   FloatConfig(int exponent, int mantissa, int bias, InftyStyle infty_style, NaNStyle nan_style)
-      : mantissa(mantissa),
-        exponent(exponent),
+      : exponent(exponent),
+        mantissa(mantissa),
         bias(bias),
         infty_style(infty_style),
         nan_style(nan_style) {}
