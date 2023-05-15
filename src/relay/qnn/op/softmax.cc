@@ -80,6 +80,12 @@ Expr MakeQuantizedSoftmax(Expr x, int axis, Expr scale, Expr zero_point, Expr ou
 
 /*
  * \brief Canonicalizes the QNN softmax op.
+ * \param attrs The Softmax attrs.
+ * \param new_args The new mutated args to the call node.
+ * \param arg_types The types of input and output.
+ * \return The sequence of Relay ops for softmax op.
+ * \note This op is highly experimental and sometimes lacks accuracy.
+ *       Be aware that the input scale must be in the range of 0 to 1.
  */
 Expr QnnSoftmaxCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
                             const Array<tvm::relay::Type>& arg_types) {
