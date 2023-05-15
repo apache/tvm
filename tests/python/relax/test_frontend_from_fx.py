@@ -17,6 +17,8 @@
 import pytest
 import torch
 import torch.nn.functional as F
+from torch import fx
+from torch.nn import Module
 
 import tvm
 from tvm import relax
@@ -24,13 +26,11 @@ import tvm.testing
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tir as T
+from tvm.relax.frontend import detach_params
+from tvm.relax.frontend.torch import from_fx
 
 
 def verify_model(torch_model, input_info, binding, expected):
-    import torch
-    from torch import fx
-    from tvm.relax.frontend.torch import from_fx
-
     graph_model = fx.symbolic_trace(torch_model)
     mod = from_fx(graph_model, input_info)
     binding = {k: tvm.nd.array(v) for k, v in binding.items()}
@@ -39,12 +39,6 @@ def verify_model(torch_model, input_info, binding, expected):
 
 
 def test_conv1d():
-    import torch
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
     class Conv1D1(Module):
         def __init__(self):
             super().__init__()
@@ -124,12 +118,6 @@ def test_conv1d():
 
 
 def test_conv2d():
-    import torch
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
     class Conv2D1(Module):
         def __init__(self):
             super().__init__()
@@ -209,12 +197,6 @@ def test_conv2d():
 
 
 def test_linear():
-    import torch
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
     # nn.Linear
     class Dense1(Module):
         def __init__(self):
@@ -311,12 +293,6 @@ def test_linear():
 
 
 def test_bmm():
-    import torch
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
     class BMM(Module):
         def __init__(self):
             super().__init__()
@@ -349,12 +325,6 @@ def test_bmm():
 
 
 def test_baddbmm():
-    import torch
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
     class BAddBMM1(Module):
         def __init__(self):
             super().__init__()
@@ -417,11 +387,6 @@ def test_baddbmm():
 
 
 def test_relu():
-    import torch
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-
     class ReLU0(Module):
         def __init__(self):
             super().__init__()
@@ -453,11 +418,6 @@ def test_relu():
 
 
 def test_relu6():
-    import torch
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-
     class ReLU6(Module):
         def __init__(self):
             super().__init__()
@@ -482,12 +442,6 @@ def test_relu6():
 
 
 def test_maxpool2d():
-    import torch
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
     input_info = [([1, 3, 10, 10], "float32")]
 
     class MaxPool2d(Module):
@@ -583,12 +537,6 @@ def test_maxpool2d():
 
 
 def test_avgpool2d():
-    import torch
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
     input_info = [([1, 3, 10, 10], "float32")]
 
     class AvgPool2d(Module):
@@ -659,12 +607,6 @@ def test_avgpool2d():
 
 
 def test_adaptive_avgpool2d():
-    import torch
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
     input_info = [([1, 3, 10, 10], "float32")]
 
     class AdaptiveAvgPool2d0(Module):
@@ -699,12 +641,6 @@ def test_adaptive_avgpool2d():
 
 
 def test_flatten():
-    import torch
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
     input_info = [([1, 3, 10, 10], "float32")]
 
     class Flatten(Module):
@@ -735,12 +671,6 @@ def test_flatten():
 
 
 def test_batchnorm2d():
-    import torch
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
     input_info = [([1, 3, 10, 10], "float32")]
 
     class BatchNorm2d(Module):
@@ -794,12 +724,6 @@ def test_batchnorm2d():
 
 
 def test_embedding():
-    import torch
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
     input_info = [([4], "int64")]
 
     class Embedding(Module):
@@ -830,12 +754,6 @@ def test_embedding():
 
 
 def test_dropout():
-    import torch
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
     input_info = [([1, 3, 10, 10], "float32")]
 
     class Dropout1(Module):
@@ -867,12 +785,6 @@ def test_dropout():
 
 
 def test_layernorm():
-    import torch
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
     input_info = [([1, 3, 10, 10], "float32")]
 
     class LayerNorm(Module):
@@ -915,12 +827,6 @@ def test_layernorm():
 
 
 def test_functional_layernorm():
-    import torch
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
     input_info = [([1, 3, 10, 10], "float32")]
 
     class LayerNorm(Module):
@@ -966,12 +872,6 @@ def test_functional_layernorm():
 
 
 def test_cross_entropy():
-    import torch
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
     input_info = [([3, 2], "float32"), ([3], "int32")]
 
     class CrossEntropy1(Module):
@@ -1058,12 +958,6 @@ def test_cross_entropy():
 
 
 def test_functional_cross_entropy():
-    import torch
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
     input_info = [([3, 10], "float32"), ([3], "int32")]
 
     class CrossEntropy(Module):
@@ -1090,12 +984,6 @@ def test_functional_cross_entropy():
 
 
 def test_silu():
-    import torch
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
     input_info = [([1, 3, 10, 10], "float32")]
 
     class SiLU(Module):
@@ -1177,12 +1065,6 @@ def test_groupnorm():
 
 
 def test_softmax():
-    import torch
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
     input_info = [([1, 3, 10, 10], "float32")]
 
     class Softmax(Module):
@@ -1210,12 +1092,6 @@ def test_softmax():
 
 
 def test_binary():
-    import torch
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
     input_info1 = [([1, 3, 10, 10], "float32"), ([1, 3, 10, 10], "float32")]
     input_info2 = [([1, 3, 10, 10], "float32")]
 
@@ -1494,12 +1370,6 @@ def test_binary():
 
 
 def test_size():
-    import torch
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
     input_info = [([1, 3, 10, 10], "float32")]
 
     class Size(Module):
@@ -1520,12 +1390,6 @@ def test_size():
 
 
 def test_squeeze():
-    import torch
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
     input_info = [([3, 1, 4, 1], "float32")]
 
     class Squeeze1(Module):
@@ -1565,12 +1429,6 @@ def test_squeeze():
 
 
 def test_unsqueeze():
-    import torch
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
     input_info = [([1, 3, 10, 10], "float32")]
 
     class Unsqueeze1(Module):
@@ -1612,12 +1470,6 @@ def test_unsqueeze():
 
 
 def test_getattr():
-    import torch
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
     input_info = [([1, 3, 10, 10], "float32")]
 
     class GetAttr1(Module):
@@ -1638,12 +1490,6 @@ def test_getattr():
 
 
 def test_getitem():
-    import torch
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
     class Slice1(Module):
         def forward(self, x):
             return x[0, 1::2, :, :3]
@@ -1694,12 +1540,6 @@ def test_getitem():
 
 
 def test_unary():
-    import torch
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
     input_info = [([1, 3, 10, 10], "float32")]
 
     # sin
@@ -1824,12 +1664,6 @@ def test_unary():
 
 
 def test_gelu():
-    import torch
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
     input_info = [([1, 3, 10, 10], "float32")]
 
     class Gelu(Module):
@@ -1853,12 +1687,6 @@ def test_gelu():
 
 
 def test_tanh():
-    import torch
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
     input_info = [([1, 3, 10, 10], "float32")]
 
     class Tanh(Module):
@@ -1882,13 +1710,6 @@ def test_tanh():
 
 
 def test_clamp():
-    import torch
-    from torch import fx
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
     input_info = [([1, 3, 10, 10], "float32")]
 
     class Clamp(Module):
@@ -1936,12 +1757,6 @@ def test_clamp():
 
 
 def test_interpolate():
-    import torch
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
     input_info = [([1, 3, 10, 10], "float32")]
 
     class Interpolate(Module):
@@ -1977,12 +1792,6 @@ def test_interpolate():
 
 
 def test_addmm():
-    import torch
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
     input_info = [
         ([10, 10], "float32"),
         ([10, 10], "float32"),
@@ -2013,12 +1822,6 @@ def test_addmm():
 
 
 def test_split():
-    import torch
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
     input_info = [([1, 3, 10, 10], "float32")]
 
     class Split(Module):
@@ -2054,12 +1857,6 @@ def test_split():
 
 
 def test_cumsum():
-    import torch
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
     input_info = [([1, 2, 3, 4], "float32")]
 
     class Cumsum(Module):
@@ -2083,12 +1880,6 @@ def test_cumsum():
 
 
 def test_chunk():
-    import torch
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
     input_info = [([1, 3, 10, 10], "float32")]
 
     class Chunk(Module):
@@ -2124,12 +1915,6 @@ def test_chunk():
 
 
 def test_inplace_fill():
-    import torch
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
     class InplaceFill(Module):
         def forward(self, input):
             input.fill_(1.5)
@@ -2152,11 +1937,6 @@ def test_inplace_fill():
 
 def test_arange():
     import numpy as np
-    import torch
-    from torch import fx
-    from torch.nn import Module
-    from tvm.relax.frontend.torch import from_fx
-
     torch.set_grad_enabled(False)
     torch.random.manual_seed(0)
 
@@ -2175,14 +1955,6 @@ def test_arange():
 
 
 def test_empty():
-    import torch
-    from torch import fx
-    from torch.nn import Module
-    from tvm.relax.frontend.torch import from_fx
-
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
     class Empty(Module):
         def forward(self, input):
             return torch.empty((10, 10), dtype=torch.float32)
@@ -2197,14 +1969,6 @@ def test_empty():
 
 
 def test_tensor():
-    import torch
-    from torch import fx
-    from torch.nn import Module
-    from tvm.relax.frontend.torch import from_fx
-
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
     class Empty1(Module):
         def forward(self, input):
             return torch.tensor(3, dtype=torch.float32)
@@ -2231,12 +1995,6 @@ def test_tensor():
 
 
 def test_tril():
-    import torch
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
     input_info = [([10, 10], "float32")]
 
     class Tril(Module):
@@ -2266,12 +2024,6 @@ def test_tril():
 
 
 def test_triu():
-    import torch
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
     input_info = [([10, 10], "float32")]
 
     class Triu(Module):
@@ -2301,12 +2053,6 @@ def test_triu():
 
 
 def test_new_ones():
-    import torch
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
     input_info = [([1, 2, 3], "float32")]
 
     class NewOnes(Module):
@@ -2330,12 +2076,6 @@ def test_new_ones():
 
 
 def test_expand():
-    import torch
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
     input_info = [([1, 2, 3, 4], "float32")]
 
     class Expand(Module):
@@ -2359,12 +2099,6 @@ def test_expand():
 
 
 def test_reduce():
-    import torch
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
     input_info = [([1, 2, 3, 4], "float32")]
 
     # sum
@@ -2389,12 +2123,6 @@ def test_reduce():
 
 
 def test_datatype():
-    import torch
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
     input_info = [([1, 2, 3, 4], "float32")]
 
     # float
@@ -2458,12 +2186,6 @@ def test_datatype():
 
 
 def test_permute():
-    import torch
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
     input_info = [([1, 2, 3, 4], "float32")]
 
     class Permute(Module):
@@ -2487,12 +2209,6 @@ def test_permute():
 
 
 def test_reshape():
-    import torch
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
     input_info = [([1, 2, 3, 4], "float32")]
 
     class Reshape(Module):
@@ -2514,12 +2230,6 @@ def test_reshape():
 
 
 def test_transpose():
-    import torch
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
     input_info = [([1, 2, 3, 4], "float32")]
 
     class Transpose(Module):
@@ -2543,12 +2253,6 @@ def test_transpose():
 
 
 def test_view():
-    import torch
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
     input_info = [([1, 2, 3, 4], "float32")]
 
     class View(Module):
@@ -2570,12 +2274,6 @@ def test_view():
 
 
 def test_keep_params():
-    import torch
-    from torch import fx
-    from torch.nn import Module
-    from tvm.relax.frontend import detach_params
-    from tvm.relax.frontend.torch import from_fx
-
     class Conv2D1(Module):
         def __init__(self):
             super().__init__()
@@ -2630,10 +2328,6 @@ def test_keep_params():
 
 
 def test_unwrap_unit_return_tuple():
-    import torch.fx as fx
-    from torch.nn import Module
-    from tvm.relax.frontend.torch import from_fx
-
     class Identity(Module):
         def __init__(self):
             super().__init__()
@@ -2658,10 +2352,6 @@ def test_unwrap_unit_return_tuple():
 
 
 def test_no_bind_return_tuple():
-    import torch.fx as fx
-    from torch.nn import Module
-    from tvm.relax.frontend.torch import from_fx
-
     class Identity(Module):
         def __init__(self):
             super().__init__()
@@ -2690,9 +2380,6 @@ def test_no_bind_return_tuple():
 
 
 def test_argmax():
-    import torch
-    from torch.nn import Module
-
     class Argmax1(Module):
         def __init__(self) -> None:
             super().__init__()
@@ -2732,9 +2419,6 @@ def test_argmax():
 
 
 def test_argmin():
-    import torch
-    from torch.nn import Module
-
     class Argmin1(Module):
         def __init__(self) -> None:
             super().__init__()
@@ -2774,9 +2458,6 @@ def test_argmin():
 
 
 def test_to():
-    import torch
-    from torch.nn import Module
-
     class To1(Module):
         def forward(self, input):
             return input.to(torch.float16)
@@ -2813,9 +2494,6 @@ def test_to():
 
 
 def test_mean():
-    import torch
-    from torch.nn import Module
-
     class Mean(Module):
         def forward(self, input):
             return input.mean(-1)
@@ -2851,9 +2529,6 @@ def test_mean():
 
 
 def test_rsqrt():
-    import torch
-    from torch.nn import Module
-
     class Rsqrt(Module):
         def forward(self, input):
             return torch.rsqrt(input)
@@ -2874,9 +2549,6 @@ def test_rsqrt():
 
 
 def test_neg():
-    import torch
-    from torch.nn import Module
-
     class Neg(Module):
         def forward(self, input):
             return -input
@@ -2897,9 +2569,6 @@ def test_neg():
 
 
 def test_max():
-    import torch
-    from torch.nn import Module
-
     class Max(Module):
         def forward(self, x, y):
             return torch.max(x, y)
