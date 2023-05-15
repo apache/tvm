@@ -71,18 +71,17 @@ PrimExpr FpToFp(PrimExpr src_value, DataType tgt_dtype, RoundingMode round_mode)
                                               : (src_uint_value << (-mantissa_delta)))) &
         make_const(tgt_uint, (int64_t(1) << (tgt_fp.mantissa)) - 1);
     PrimExpr ret_exponent =
-        cast(tgt_uint, (((src_uint_value << 1) >> (src_fp.mantissa + 1)) + bias_delta))
+        max(cast(tgt_uint, (((src_uint_value << 1) >> (src_fp.mantissa + 1)) + bias_delta)),
+            make_const(tgt_uint, 0))
         << tgt_fp.mantissa;
     PrimExpr ret_sign = make_const(tgt_uint, int64_t(1) << (tgt_fp.mantissa + tgt_fp.exponent));
     return reinterpret(tgt_dtype, ret_mantissa | ret_exponent | ret_sign);
   }
 }
 
-PrimExpr IntToFp(PrimExpr src_value, FloatConfig tgt_fp) {
-}
+PrimExpr IntToFp(PrimExpr src_value, FloatConfig tgt_fp) {}
 
-PrimExpr FpToInt(PrimExpr src_value, FloatConfig src_fp, DataType tgt_dtype) {
-}
+PrimExpr FpToInt(PrimExpr src_value, FloatConfig src_fp, DataType tgt_dtype) {}
 
 PrimExpr DTypeConversion(PrimExpr src_value, DataType tgt_dtype, RoundingMode round_mode) {
   DataType src_dtype = src_value.dtype();
