@@ -2149,6 +2149,29 @@ def test_scatter_nd():
 
 
 @tvm.testing.uses_gpu
+def test_scatter_nd_any_updates():
+    def verify_scatter_nd_any_updates(data_np, indices_np, updates_np, ref_res):
+        indices_shape = (2, relay.Any())
+        updates_shape = (2, relay.Any())
+        data = relay.var("data", shape=data_np.shape, dtype=str(data_np.dtype))
+        indices = relay.var("indices", relay.TensorType(indices_shape, str(indices_np.dtype)))
+        updates = relay.var("updates", relay.TensorType(updates_shape, str(updates_np.dtype)))
+
+        out = relay.op.scatter_nd(data, indices, updates, "add")
+
+        mod = tvm.IRModule()
+        mod["main"] = relay.Function([data, indices, updates], out)
+
+        check_result([data_np, indices_np, updates_np], mod, [ref_res], only_vm=True)
+
+    data = np.zeros((3, 3)).astype("int64")
+    indices = np.array([[1, 1], [0, 1]])
+    updates = np.array([[2, 2], [1, 1]])
+    out = np.array([[0, 0, 0], [0, 0, 0], [2, 2, 1]])
+    verify_scatter_nd_any_updates(data, indices, updates, out)
+
+
+@tvm.testing.uses_gpu
 def test_gather():
     def verify_gather(data_shape, indices_shape, data_shape_np, indices_shape_np, axis):
         x = relay.var("x", relay.TensorType(data_shape, "float32"))

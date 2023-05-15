@@ -57,8 +57,8 @@ def fifo_buffer(data, buffer, axis):
         Updated value for the buffer
     """
     assert len(data.shape) == len(buffer.shape), (
-        "buffer and data must have same number of dimensions, "
-        + "buffer.shape = {}, data.shape = {}".format(buffer.shape, data.shape)
+        f"buffer and data must have same number of dimensions, "
+        f"buffer.shape = {buffer.shape}, data.shape = {data.shape}"
     )
     assert len(buffer.shape) >= 1, "Zero-dimension tensor not supported"
     assert 0 <= axis < len(buffer.shape), "buffer axis out of range"
@@ -101,7 +101,7 @@ def fifo_buffer(data, buffer, axis):
                 ),
                 name="new_buffer",
             )
-        assert False, "Invalid value for axis; it should be at most {}".format(len(buffer.shape))
+        assert False, f"Invalid value for axis; it should be at most {len(buffer.shape)}"
     elif len(buffer.shape) == 3:
         if axis == 0:
             return te.compute(
@@ -133,7 +133,7 @@ def fifo_buffer(data, buffer, axis):
                 ),
                 name="new_buffer",
             )
-        assert False, "Invalid value for axis; it should be at most {}".format(len(buffer.shape))
+        assert False, f"Invalid value for axis; it should be at most {len(buffer.shape)}"
     elif len(buffer.shape) == 4:
         if axis == 0:
             return te.compute(
@@ -175,7 +175,7 @@ def fifo_buffer(data, buffer, axis):
                 ),
                 name="new_buffer",
             )
-        assert False, "Invalid value for axis; it should be at most {}".format(len(buffer.shape))
+        assert False, f"Invalid value for axis; it should be at most {len(buffer.shape)}"
     else:
         # Implement FIFO buffer as combination of concat and slice
         begin = [0] * len(buffer.shape)

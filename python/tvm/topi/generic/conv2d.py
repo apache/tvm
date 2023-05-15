@@ -45,14 +45,12 @@ def fallback_schedule_cpu_common_int8(cfg, wkl, int32_lanes, num_int8_elements):
     dilated_kernel_w = (wkl.kernel_w - 1) * wkl.dilation_w + 1
     out_width = (wkl.width + pl + pr - dilated_kernel_w) // WSTR + 1
 
-    assert wkl.out_filter % int32_lanes == 0, "wkl.out_filter=%d, int32_lanes=%d" % (
-        wkl.out_filter,
-        int32_lanes,
-    )
-    assert wkl.in_filter % num_int8_elements == 0, "wkl.in_filter=%d, num_int8_elements=%d" % (
-        wkl.in_filter,
-        num_int8_elements,
-    )
+    assert (
+        wkl.out_filter % int32_lanes == 0
+    ), f"wkl.out_filter={wkl.out_filter}, int32_lanes={int32_lanes}"
+    assert (
+        wkl.in_filter % num_int8_elements == 0
+    ), f"wkl.in_filter={wkl.in_filter}, num_int8_elements={num_int8_elements}"
 
     oc_bn = int32_lanes if int32_lanes >= num_int8_elements else num_int8_elements
     ic_bn = 1
@@ -93,14 +91,12 @@ def fallback_schedule_cpu_1x1_int8(cfg, wkl, int32_lanes, num_int8_elements):
     out_height = (wkl.height + pt + pb - wkl.kernel_h) // HSTR + 1
     out_width = (wkl.width + pl + pr - wkl.kernel_w) // WSTR + 1
 
-    assert wkl.out_filter % int32_lanes == 0, "wkl.out_filter=%d, int32_lanes=%d" % (
-        wkl.out_filter,
-        int32_lanes,
-    )
-    assert wkl.in_filter % num_int8_elements == 0, "wkl.in_filter=%d, num_int8_elements=%d" % (
-        wkl.in_filter,
-        num_int8_elements,
-    )
+    assert (
+        wkl.out_filter % int32_lanes == 0
+    ), f"wkl.out_filter={wkl.out_filter}, int32_lanes={int32_lanes}"
+    assert (
+        wkl.in_filter % num_int8_elements == 0
+    ), f"wkl.in_filter={wkl.in_filter}, num_int8_elements={num_int8_elements}"
 
     oc_bn = int32_lanes if int32_lanes >= num_int8_elements else num_int8_elements
     ic_bn = 1
@@ -118,7 +114,7 @@ def fallback_schedule_cpu_1x1_int8(cfg, wkl, int32_lanes, num_int8_elements):
                     cfg["tile_oh"] = OtherOptionEntity(oh_factor)
                     cfg["tile_ow"] = SplitEntity([out_width // ow_factor, ow_factor])
                     return
-    raise ValueError("cannot decide default schedule for workload: {}".format(wkl))
+    raise ValueError(f"cannot decide default schedule for workload: {wkl}")
 
 
 def schedule_conv_NCHWc_cpu_common_int8(
@@ -257,7 +253,7 @@ def schedule_conv_NCHWc_cpu_common_int8(
             oc_chunk, oc_block = s[O].split(oc, factor=oc_bn)
             s[O].reorder(oc_chunk, oh, ow_chunk, ow_block, oc_block)
         else:
-            raise ValueError("Unsupported output ndim: %s" % out_ndim)
+            raise ValueError(f"Unsupported output ndim: {out_ndim}")
         parallel_axis = s[O].fuse(batch, oc_chunk, oh)
         if inline_fused:
             s[C].compute_at(s[O], ow_block)
@@ -382,7 +378,7 @@ def schedule_conv_NCHWc_cpu_1x1_int8(
             oh_outer, oh_inner = s[O].split(oh, factor=oh_factor)
             ow_outer, ow_inner = s[O].split(ow, factor=ow_factor)
         else:
-            raise ValueError("Unsupported output ndim: %s" % out_ndim)
+            raise ValueError(f"Unsupported output ndim: {out_ndim}")
 
         s[O].reorder(oc_chunk, oh_outer, ow_outer, oh_inner, ow_inner, oc_block)
         parallel_axis = s[O].fuse(batch, oc_chunk, oh_outer)

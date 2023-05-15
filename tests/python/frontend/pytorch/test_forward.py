@@ -786,6 +786,8 @@ def test_forward_celu():
     verify_model(torch.nn.CELU(alpha=0.3).eval(), input_data=input_data)
     verify_model(torch.nn.CELU(alpha=1.0).eval(), input_data=input_data)
     verify_model(torch.nn.CELU(alpha=1.3).eval(), input_data=input_data)
+    input_data = torch.tensor([-1.0, 2.0], dtype=torch.float32)
+    verify_model(torch.nn.CELU().eval(), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -833,6 +835,9 @@ def test_forward_softplus():
     verify_model(torch.nn.Softplus().eval(), input_data=input_data)
     verify_model(torch.nn.Softplus(beta=1.5, threshold=20).eval(), input_data=input_data)
     verify_model(torch.nn.Softplus(beta=5, threshold=10).eval(), input_data=input_data)
+    verify_model(torch.nn.Softplus(beta=5, threshold=1).eval(), input_data=input_data)
+    verify_model(torch.nn.Softplus(beta=1, threshold=2).eval(), input_data=input_data)
+    verify_model(torch.nn.Softplus(beta=1, threshold=-1).eval(), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -867,6 +872,9 @@ def test_forward_adaptive_avgpool():
     input_data = torch.rand([1, 3, 10]).float()
     verify_model(torch.nn.AdaptiveAvgPool1d([1]).eval(), input_data=input_data)
     verify_model(torch.nn.AdaptiveAvgPool1d([5]).eval(), input_data=input_data)
+
+    input_data = torch.rand([1, 3, 5, 6]).float()
+    verify_model(torch.nn.AdaptiveAvgPool2d([3, None]).eval(), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -1346,6 +1354,8 @@ def test_forward_threshold():
     input_shape = [1, 3]
     input_data = torch.rand(input_shape).float()
     verify_model(torch.nn.Threshold(0, 0).float().eval(), input_data=input_data)
+    input_data = torch.tensor([[-1.0, 2.0]], dtype=torch.float32)
+    verify_model(torch.nn.Threshold(1, 1).float().eval(), input_data=input_data)
 
 
 @tvm.testing.uses_gpu

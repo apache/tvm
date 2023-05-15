@@ -24,6 +24,8 @@
 #ifndef TVM_SUPPORT_RING_BUFFER_H_
 #define TVM_SUPPORT_RING_BUFFER_H_
 
+#include <tvm/runtime/logging.h>
+
 #include <algorithm>
 #include <cstring>
 #include <vector>
@@ -104,6 +106,9 @@ class RingBuffer {
     }
     head_ptr_ = (head_ptr_ + size) % ring_.size();
     bytes_available_ -= size;
+    if (bytes_available_ == 0) {
+      head_ptr_ = 0;
+    }
   }
   /*!
    * \brief Read data from buffer with and put them to non-blocking send function.
@@ -118,11 +123,14 @@ class RingBuffer {
     ICHECK_NE(size, 0U);
     size_t ncopy = std::min(size, ring_.size() - head_ptr_);
     size_t nsend = fsend(&ring_[0] + head_ptr_, ncopy);
-    bytes_available_ -= nsend;
     if (ncopy == nsend && ncopy < size) {
       size_t nsend2 = fsend(&ring_[0], size - ncopy);
-      bytes_available_ -= nsend2;
       nsend += nsend2;
+    }
+    head_ptr_ = (head_ptr_ + nsend) % ring_.size();
+    bytes_available_ -= nsend;
+    if (bytes_available_ == 0) {
+      head_ptr_ = 0;
     }
     return nsend;
   }

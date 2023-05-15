@@ -36,7 +36,7 @@ def dimension_picker(prefix, surfix=""):
         if len(kernel) == 2:
             return prefix + "2d" + surfix
         raise tvm.error.OpAttributeUnImplemented(
-            "Non-2D kernels are not supported for operator {}2d".format(prefix)
+            f"Non-2D kernels are not supported for operator {prefix}2d"
         )
 
     return _impl
@@ -122,7 +122,7 @@ class Caffe2OpConverter(object):
         if hasattr(cls, "_impl"):
             return getattr(cls, "_impl")
         raise tvm.error.OpNotImplemented(
-            "Operator {} is not supported in frontend Caffe2.".format(cls.__name__)
+            f"Operator {cls.__name__} is not supported in frontend Caffe2."
         )
 
 
@@ -151,7 +151,7 @@ class Elemwise(Caffe2OpConverter):
 
     @classmethod
     def _impl(cls, inputs, args, params):
-        assert len(inputs) == 2, "Math op take 2 inputs, {} given".format(len(inputs))
+        assert len(inputs) == 2, f"Math op take 2 inputs, {len(inputs)} given"
         op_name = cls.name
         conv_ops = ["conv2d", "conv2d_transpose"]
         if args.get("broadcast", 0) and any(x in str(inputs[0]) for x in conv_ops):
@@ -282,14 +282,12 @@ class Concat(Caffe2OpConverter):
             if order == "NHWC":
                 return 3
             raise tvm.error.OpAttributeUnImplemented(
-                "Order {} is not supported in operator Concat.".format(order)
+                f"Order {order} is not supported in operator Concat."
             )
 
         return AttrCvt(
             op_name="concatenate",
-            transforms={
-                "order": ("axis", (1), _get_axis_from_order_str),
-            },
+            transforms={"order": ("axis", (1), _get_axis_from_order_str)},
             excludes=["add_axis"],
         )((inputs,), args, params)
 
@@ -498,9 +496,7 @@ class Caffe2NetDef(object):
         if blob in self._nodes:
             return self._nodes[blob]
 
-        assert blob not in self._visited_nodes, "Cyclic dependency in the graph (in {})".format(
-            blob
-        )
+        assert blob not in self._visited_nodes, f"Cyclic dependency in the graph (in {blob})"
         self._visited_nodes.add(blob)
 
         self._process_op(self._ops[blob])
@@ -531,12 +527,12 @@ class Caffe2NetDef(object):
                     args[a.name] = tuple(getattr(a, f))
             for f in ["n"]:
                 if a.HasField(f):
-                    raise NotImplementedError("Field {} is not supported in relay.".format(f))
+                    raise NotImplementedError(f"Field {f} is not supported in relay.")
             for f in ["nets"]:
                 if list(getattr(a, f)):
-                    raise NotImplementedError("Field {} is not supported in relay.".format(f))
+                    raise NotImplementedError(f"Field {f} is not supported in relay.")
             if a.name not in args:
-                raise ValueError("Cannot parse attribute: \n{}\n.".format(a))
+                raise ValueError(f"Cannot parse attribute: \n{a}\n.")
         return args
 
     def _convert_operator(self, op_type, inputs, args, identity_list=None, convert_map=None):
@@ -573,7 +569,7 @@ class Caffe2NetDef(object):
             func = convert_map[op_type](inputs, args, self._params)
         else:
             raise tvm.error.OpNotImplemented(
-                "Operator {} is not supported in frontend Caffe2.".format(op_type)
+                f"Operator {op_type} is not supported in frontend Caffe2."
             )
         return func
 
