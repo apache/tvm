@@ -4091,7 +4091,12 @@ def get_tensor_name(subgraph, tensor_idx):
     -------
         tensor name in UTF-8 encoding
     """
-    return subgraph.Tensors(tensor_idx).Name().decode("utf-8")
+    tensor_name = subgraph.Tensors(tensor_idx).Name()
+    if tensor_name is not None:
+        tensor_name = tensor_name.decode("utf-8")
+    else:
+        tensor_name = "tvmgen_tensor_" + str(tensor_idx)
+    return tensor_name
 
 
 def _decode_type(n):
@@ -4125,7 +4130,7 @@ def _input_type(model):
             tensor = subgraph.Tensors(input_)
             input_shape = tuple(tensor.ShapeAsNumpy())
             tensor_type = tensor.Type()
-            input_name = tensor.Name().decode("utf8")
+            input_name = get_tensor_name(subgraph, input_)
             shape_dict[input_name] = input_shape
             dtype_dict[input_name] = _decode_type(tensor_type)
 
