@@ -996,6 +996,41 @@ def floordiv_and_floormod_indices_after_reverse_compute_at(a: T.handle, b: T.han
 
 
 @T.prim_func
+def recursive_floordiv_and_floormod_indices(a: T.handle, b: T.handle) -> None:
+    X = T.match_buffer(a, [16, 16])
+    Y = T.match_buffer(b, [256])
+    temp = T.alloc_buffer([16, 4, 2, 2])
+    for i, j in T.grid(16, 16):
+        with T.block("A"):
+            v_i, v_j = T.axis.remap("SS", [i, j])
+            temp[v_i, v_j // 4, (v_j % 4) //2, v_j % 2] = X[v_j, v_i] + 1.0
+    for i, j in T.grid(16, 16):
+        with T.block("B"):
+            v_i, v_j = T.axis.remap("SS", [i, j])
+            Y[v_i*16 + v_j] = temp[v_i, v_j // 4, (v_j % 4) // 2, (v_j %2)]
+
+
+@T.prim_func
+def recursive_floordiv_and_floormod_indices_after_reverse_compute_at(a: T.handle, b: T.handle) -> None:
+    X = T.match_buffer(a, [16, 16])
+    Y = T.match_buffer(b, [256])
+    temp = T.alloc_buffer((16, 4, 2, 2))
+    for i in range(16):
+        for j in range(16):
+            with T.block("A"):
+                v_i, v_j = T.axis.remap("SS", [i, j])
+                T.reads(X[v_j, v_i])
+                T.writes(temp[v_i, v_j // 4, v_j % 4 // 2, v_j % 2])
+                temp[v_i, v_j // 4, v_j % 4 // 2, v_j % 2] = X[v_j, v_i] + T.float32(1)
+        for ax0 in range(16):
+            with T.block("B"):
+                v_i, v_j = T.axis.remap("SS", [i, ax0])
+                T.reads(temp[v_i, v_j // 4, v_j % 4 // 2, v_j % 2])
+                T.writes(Y[v_i * 16 + v_j])
+                Y[v_i * 16 + v_j] = temp[v_i, v_j // 4, v_j % 4 // 2, v_j % 2]
+
+
+@T.prim_func
 def tiled_repeat_op(x: T.Buffer((4,), "float32"), T_repeat: T.Buffer((64,), "float32")) -> None:
     T_add = T.alloc_buffer([4], dtype="float32")
     for i0 in T.serial(4):
@@ -1253,6 +1288,17 @@ def test_reverse_compute_at_floordiv_and_floormod_indices(use_block_name):
         floordiv_and_floormod_indices_after_reverse_compute_at, sch.mod["main"]
     )
     verify_trace_roundtrip(sch=sch, mod=floordiv_and_floormod_indices)
+
+
+def test_reverse_compute_at_floordiv_and_floormod_indices_recursive(use_block_name):
+    sch = tir.Schedule(recursive_floordiv_and_floormod_indices, debug_mask="all")
+    A = sch.get_block("A")
+    B = sch.get_block("B")
+    sch.reverse_compute_at(B, sch.get_loops(A)[0])
+    tvm.ir.assert_structural_equal(
+        recursive_floordiv_and_floormod_indices_after_reverse_compute_at, sch.mod["main"]
+    )
+    verify_trace_roundtrip(sch=sch, mod=recursive_floordiv_and_floormod_indices)
 
 
 def test_read_out_of_bound(use_block_name):
