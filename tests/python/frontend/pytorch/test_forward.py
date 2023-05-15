@@ -1383,9 +1383,26 @@ def test_forward_batchnorm():
     inp_2d = torch.rand((1, 16, 10, 10))
     inp_3d = torch.rand((1, 16, 10, 10, 10))
 
+    class BatchNorm(Module):
+        def __init__(self, weight, bias):
+            super().__init__()
+            self.weight = weight
+            self.bias = bias
+
+        def forward(self, *args):
+            return torch.nn.functional.batch_norm(
+                args[0],
+                running_mean=torch.zeros(args[0].shape[1]),
+                running_var=torch.ones(args[0].shape[1]),
+                weight=self.weight,
+                bias=self.bias,
+            )
+
     for bn, inp in [(torch.nn.BatchNorm2d(16), inp_2d), (torch.nn.BatchNorm3d(16), inp_3d)]:
         init_weight(bn.eval())
         verify_model(bn.eval(), input_data=inp)
+        verify_model(BatchNorm(bn.weight, None).eval(), input_data=inp)
+        verify_model(BatchNorm(bn.weight, bn.bias).eval(), input_data=inp)
 
 
 @tvm.testing.uses_gpu

@@ -1353,18 +1353,16 @@ class PyTorchOpConverter:
 
         channels = self.infer_shape(data)
 
-        if isinstance(inputs[1], _expr.Expr) and isinstance(inputs[2], _expr.Expr):
-            scale = center = True
-            weight = inputs[1]
-            beta = inputs[2]
-            gamma = weight
+        scale = isinstance(inputs[1], _expr.Expr)
+        if scale:
+            gamma = inputs[1]
         else:
-            scale = center = False
-
-        if not scale:
             gamma = _create_typed_const(np.ones([int(channels[1])]), data_type)
 
-        if not center:
+        center = isinstance(inputs[2], _expr.Expr)
+        if center:
+            beta = inputs[2]
+        else:
             beta = _create_typed_const(np.zeros([int(channels[1])]), data_type)
 
         moving_mean = inputs[3]
