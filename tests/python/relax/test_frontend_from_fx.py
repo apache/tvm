@@ -32,7 +32,8 @@ from tvm.relax.frontend.torch import from_fx
 
 def verify_model(torch_model, input_info, binding, expected):
     graph_model = fx.symbolic_trace(torch_model)
-    mod = from_fx(graph_model, input_info)
+    with torch.no_grad():
+        mod = from_fx(graph_model, input_info)
     binding = {k: tvm.nd.array(v) for k, v in binding.items()}
     expected = relax.transform.BindParams("main", binding)(expected)
     tvm.ir.assert_structural_equal(mod, expected)
@@ -109,11 +110,11 @@ def test_conv1d():
     input_info = [([1, 3, 10], "float32")]
 
     model = Conv1D1()
-    binding = {"w1": model.conv.weight.numpy(), "w2": model.conv.bias.numpy()}
+    binding = {"w1": model.conv.weight.detach().numpy(), "w2": model.conv.bias.detach().numpy()}
     verify_model(model, input_info, binding, expected1)
 
     model = Conv1D2()
-    binding = {"w1": model.conv.weight.numpy()}
+    binding = {"w1": model.conv.weight.detach().numpy()}
     verify_model(model, input_info, binding, expected2)
 
 
@@ -188,11 +189,11 @@ def test_conv2d():
     input_info = [([1, 3, 10, 10], "float32")]
 
     model = Conv2D1()
-    binding = {"w1": model.conv.weight.numpy(), "w2": model.conv.bias.numpy()}
+    binding = {"w1": model.conv.weight.detach().numpy(), "w2": model.conv.bias.detach().numpy()}
     verify_model(model, input_info, binding, expected1)
 
     model = Conv2D2()
-    binding = {"w1": model.conv.weight.numpy()}
+    binding = {"w1": model.conv.weight.detach().numpy()}
     verify_model(model, input_info, binding, expected2)
 
 
@@ -253,11 +254,11 @@ def test_linear():
     input_info = [([1, 3, 10, 10], "float32")]
 
     model = Dense1()
-    binding = {"w1": model.linear.weight.numpy(), "w2": model.linear.bias.numpy()}
+    binding = {"w1": model.linear.weight.detach().numpy(), "w2": model.linear.bias.detach().numpy()}
     verify_model(model, input_info, binding, expected1)
 
     model = Dense2()
-    binding = {"w1": model.linear.weight.numpy()}
+    binding = {"w1": model.linear.weight.detach().numpy()}
     verify_model(model, input_info, binding, expected2)
 
     # matmul
@@ -715,10 +716,10 @@ def test_batchnorm2d():
 
     model = BatchNorm2d()
     binding = {
-        "w1": model.bn.weight.numpy(),
-        "w2": model.bn.bias.numpy(),
-        "w3": model.bn.running_mean.numpy(),
-        "w4": model.bn.running_var.numpy(),
+        "w1": model.bn.weight.detach().numpy(),
+        "w2": model.bn.bias.detach().numpy(),
+        "w3": model.bn.running_mean.detach().numpy(),
+        "w4": model.bn.running_var.detach().numpy(),
     }
     verify_model(BatchNorm2d(), input_info, binding, expected1)
 
@@ -749,7 +750,7 @@ def test_embedding():
             return gv
 
     model = Embedding()
-    binding = {"w1": model.embedding.weight.numpy()}
+    binding = {"w1": model.embedding.weight.detach().numpy()}
     verify_model(model, input_info, binding, expected1)
 
 
@@ -820,8 +821,8 @@ def test_layernorm():
 
     model = LayerNorm()
     binding = {
-        "w1": model.ln.weight.numpy(),
-        "w2": model.ln.bias.numpy(),
+        "w1": model.ln.weight.detach().numpy(),
+        "w2": model.ln.bias.detach().numpy(),
     }
     verify_model(LayerNorm(), input_info, binding, expected1)
 
@@ -865,8 +866,8 @@ def test_functional_layernorm():
 
     model = LayerNorm((10, 10))
     binding = {
-        "w1": model.weight.numpy(),
-        "w2": model.bias.numpy(),
+        "w1": model.weight.detach().numpy(),
+        "w2": model.bias.detach().numpy(),
     }
     verify_model(model, input_info, binding, expected1)
 
@@ -952,7 +953,7 @@ def test_cross_entropy():
 
     verify_model(CrossEntropy1(), input_info, {}, expected1)
     model = CrossEntropy2()
-    binding = {"w1": model.loss.weight.numpy()}
+    binding = {"w1": model.loss.weight.detach().numpy()}
     verify_model(model, input_info, binding, expected2)
     verify_model(CrossEntropy3(), input_info, {}, expected3)
 
@@ -1058,8 +1059,8 @@ def test_groupnorm():
 
     model = GroupNorm()
     binding = {
-        "w1": model.gn.weight.numpy(),
-        "w2": model.gn.bias.numpy(),
+        "w1": model.gn.weight.detach().numpy(),
+        "w2": model.gn.bias.detach().numpy(),
     }
     verify_model(model, input_info, binding, expected1)
 
@@ -1937,6 +1938,7 @@ def test_inplace_fill():
 
 def test_arange():
     import numpy as np
+
     torch.set_grad_enabled(False)
     torch.random.manual_seed(0)
 
@@ -1950,7 +1952,8 @@ def test_arange():
     assert len(mod["main"].body.blocks[0].bindings) == 1
     assert isinstance(mod["main"].body.blocks[0].bindings[0].value, relax.Constant)
     tvm.testing.assert_allclose(
-        mod["main"].body.blocks[0].bindings[0].value.data.numpy(), np.arange(0, 20, dtype="int32")
+        mod["main"].body.blocks[0].bindings[0].value.data.numpy(),
+        np.arange(0, 20, dtype="int32"),
     )
 
 
@@ -2323,8 +2326,8 @@ def test_keep_params():
         assert tuple(x.value for x in param_var.struct_info.shape.values) == param_ndarray.shape
         assert param_var.struct_info.dtype == param_ndarray.dtype
 
-    tvm.testing.assert_allclose(params[0].numpy(), model.conv.bias.detach().numpy())
-    tvm.testing.assert_allclose(params[1].numpy(), model.conv.weight.detach().numpy())
+    tvm.testing.assert_allclose(params[0].numpy(), model.conv.bias.detach().detach().numpy())
+    tvm.testing.assert_allclose(params[1].numpy(), model.conv.weight.detach().detach().numpy())
 
 
 def test_unwrap_unit_return_tuple():
