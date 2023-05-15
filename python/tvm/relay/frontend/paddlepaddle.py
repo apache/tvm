@@ -2163,7 +2163,10 @@ def convert_softplus(g, op, block):
     dtype = infer_type(x).checked_type.dtype
     beta = op.attr("beta")
     beta = _expr.const(beta, dtype=dtype)
-    out = _op.log(_op.exp(x * beta) + _expr.const(1.0, dtype=dtype)) / beta
+    threshold = op.attr("threshold")
+    threshold = _expr.const(threshold, dtype=dtype)
+    out_softplus = _op.log(_op.exp(x * beta) + _expr.const(1.0, dtype=dtype)) / beta
+    out = _op.where(_op.greater(x * beta, threshold), x, out_softplus)
     g.add_node(op.output("Out")[0], out)
 
 
