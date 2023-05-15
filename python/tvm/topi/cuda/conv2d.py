@@ -59,7 +59,7 @@ def conv2d_cudnn(
         tensor_format = 1  # CUDNN_TENSOR_NHWC
         N, H, W, _ = get_const_tuple(data.shape)
     else:
-        raise ValueError("Unsupported layout %s in cudnn" % layout)
+        raise ValueError(f"Unsupported layout {layout} in cudnn")
     CO, CI, KH, KW = get_const_tuple(kernel.shape)
 
     # handle dilation

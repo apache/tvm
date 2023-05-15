@@ -1777,6 +1777,7 @@ def test_forward_sin():
 
 @tvm.testing.uses_gpu
 def test_forward_softplus():
+
     @paddle.jit.to_static
     def Softplus1(input):
         return nn.functional.Softplus(input,beta=1.0,threshold=20.0)
@@ -1801,6 +1802,7 @@ def test_forward_softplus():
         verify_model(Softplus1, input_data=input_data)
         verify_model(Softplus2, input_data=input_data)
         verify_model(Softplus3, input_data=input_data)
+
 
 
 @run_math_api

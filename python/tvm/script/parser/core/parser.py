@@ -236,11 +236,17 @@ class Parser(doc.NodeVisitor):
 
     diag: Diagnostics
     dispatch_tokens: List[str]
+    function_annotations: Optional[Dict[str, Dict[str, Any]]]
     var_table: VarTable
 
-    def __init__(self, source: Source) -> None:
+    def __init__(
+        self,
+        source: Source,
+        function_annotations: Dict[str, Dict[str, Any]],
+    ) -> None:
         self.diag = Diagnostics(source)
         self.dispatch_tokens = ["default"]
+        self.function_annotations = function_annotations
         self.var_table = VarTable()
 
     def parse(self, extra_vars: Optional[Dict[str, Any]] = None) -> Any:

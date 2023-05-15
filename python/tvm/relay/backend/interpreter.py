@@ -99,7 +99,7 @@ class Executor(object):
 
         if kwargs and not isinstance(expr, Function):
             raise Exception(
-                "can only supply keyword parameters for a " "relay.Function, found {0}".format(expr)
+                f"can only supply keyword parameters for a relay.Function, found {expr}"
             )
 
         params = expr.params
@@ -111,17 +111,16 @@ class Executor(object):
             if i < num_of_args:
                 if kwargs.get(name):
                     raise Exception(
-                        "duplicate argument supplied in "
-                        "both positional args (at position: {0}), "
-                        "and keyword argument (with name: {1})".format(i, name)
+                        f"duplicate argument supplied in "
+                        f"both positional args (at position: {i}), "
+                        f"and keyword argument (with name: {name})"
                     )
             else:
                 cargs.append(kwargs[name])
 
         if len(cargs) != len(params):
             raise Exception(
-                "insufficient arguments, expected "
-                "{0}, provided {1}".format(len(cargs), len(params))
+                f"insufficient arguments, expected " f"{len(cargs)}, provided {len(params)}"
             )
 
         return tuple(cargs)

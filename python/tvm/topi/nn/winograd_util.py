@@ -160,9 +160,9 @@ def _interpolation_points(degree):
 def winograd_transform_matrices(tile_size, kernel_size, out_dtype):
     """Compute the A, B, and G transform matrices for `tile_size` as a `tvm.Expr`."""
     if not 1 < tile_size < 9:
-        raise ValueError("Unsupported tile size for Winograd: {}".format(tile_size))
+        raise ValueError(f"Unsupported tile size for Winograd: {tile_size}")
     if not 2 < kernel_size < 8:
-        raise ValueError("Unsupported kernel size for Winograd: {}".format(kernel_size))
+        raise ValueError(f"Unsupported kernel size for Winograd: {kernel_size}")
 
     degree = tile_size + kernel_size - 2
 

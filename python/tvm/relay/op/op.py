@@ -192,15 +192,15 @@ def _wrap_default_fstrategy(compute, schedule, name):
 def _create_fstrategy_from_schedule(op_name, schedule):
     assert hasattr(schedule, "dispatch_dict")
     compute = get(op_name).get_attr("FTVMCompute")
-    assert compute is not None, "FTVMCompute is not registered for op %s" % op_name
-    fstrategy = get_native_generic_func("{}_strategy".format(op_name))
+    assert compute is not None, f"FTVMCompute is not registered for op {op_name}"
+    fstrategy = get_native_generic_func(f"{op_name}_strategy")
     name_pfx = schedule.__name__
     name_pfx = name_pfx[name_pfx.index("_") + 1 :]
     fstrategy.set_default(
-        _wrap_default_fstrategy(compute, schedule.fdefault, "%s.generic" % name_pfx)
+        _wrap_default_fstrategy(compute, schedule.fdefault, f"{name_pfx}.generic")
     )
     for key, sch in schedule.dispatch_dict.items():
-        fstrategy.register(_wrap_default_fstrategy(compute, sch, "%s.%s" % (name_pfx, key)), [key])
+        fstrategy.register(_wrap_default_fstrategy(compute, sch, f"{name_pfx}.{key}"), [key])
     return fstrategy
 
 
@@ -522,7 +522,7 @@ def debug(expr, debug_func=None):
     global __DEBUG_COUNTER__
 
     if debug_func:
-        name = "debugger_func{}".format(__DEBUG_COUNTER__)
+        name = f"debugger_func{__DEBUG_COUNTER__}"
         tvm._ffi.register_func(name, debug_func)
         __DEBUG_COUNTER__ += 1
     else:

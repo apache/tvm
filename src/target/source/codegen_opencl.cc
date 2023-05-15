@@ -30,6 +30,7 @@
 #include "../../runtime/texture.h"
 #include "../../runtime/thread_storage_scope.h"
 #include "../build_common.h"
+#include "../spirv/spirv_utils.h"
 
 namespace tvm {
 namespace codegen {
@@ -566,11 +567,7 @@ void CodeGenOpenCL::VisitExpr_(const SelectNode* op, std::ostream& os) {
   os << ", ";
   PrintExpr(op->condition, oss);
   if (op->dtype.is_float()) {
-    if (op->condition.dtype().is_uint() || op->condition.dtype().is_int()) {
-      os << oss.str();
-    } else {
-      os << CastTo(oss.str(), DataType::Int(op->dtype.bits(), op->dtype.lanes()));
-    }
+    os << CastTo(oss.str(), DataType::Int(op->dtype.bits(), op->dtype.lanes()));
   } else {
     os << CastFromTo(oss.str(), op->condition.dtype(), op->dtype);
   }
@@ -585,6 +582,14 @@ void CodeGenOpenCL::SetTextureScope(
 }
 
 runtime::Module BuildOpenCL(IRModule mod, Target target) {
+#if TVM_ENABLE_SPIRV
+  Optional<String> device = target->GetAttr<String>("device");
+  if (device && device.value() == "spirv") {
+    auto [smap, spirv_text] = LowerToSPIRV(mod, target);
+    return runtime::OpenCLModuleCreate(smap, spirv_text, ExtractFuncInfo(mod));
+  }
+#endif
+
   using tvm::runtime::Registry;
   bool output_ssa = false;
 

@@ -194,12 +194,17 @@ PrimFunc MakePackedAPI(PrimFunc&& func) {
 
   for (int i = 0; i < static_cast<int>(func_ptr->params.size()); ++i) {
     Var param = func_ptr->params[i];
-    std::string param_name;
-    if (param->name_hint.defined() && (!param->name_hint.empty())) {
-      param_name = "arg." + param->name_hint;
-    } else {
-      param_name = "arg" + std::to_string(i);
-    }
+    std::string param_name = [&]() {
+      std::ostringstream oss;
+      oss << "arg";
+      if (param->name_hint.defined() && (!param->name_hint.empty())) {
+        oss << "." << param->name_hint;
+
+      } else {
+        oss << i;
+      }
+      return oss.str();
+    }();
     Var v_arg = Var(param_name, param->dtype);
 
     // Pluck the device API context out based on name
@@ -252,11 +257,12 @@ PrimFunc MakePackedAPI(PrimFunc&& func) {
   // to use the args that may have no let binding yet. Therefore, hoisting let
   // binding for args before buffer declaration is needed.
   for (const auto& kv : var_def) {
-    binder.Bind(kv.second, kv.first, kv.first->name_hint, true);
+    binder.Bind(kv.second, kv.first, name_hint + "." + kv.first->name_hint, true);
   }
 
   for (const auto& kv : buffer_def) {
-    binder.BindDLTensor(kv.second, device_type, device_id, kv.first, kv.first->name_hint);
+    binder.BindDLTensor(kv.second, device_type, device_id, kv.first,
+                        name_hint + "." + kv.first->name_hint);
   }
 
   func = WithAttr(std::move(func), tvm::attr::kCallingConv, Integer(CallingConv::kCPackedFunc));

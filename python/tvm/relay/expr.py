@@ -97,41 +97,41 @@ class ExprWithOp(RelayExpr):
         if isinstance(other, Expr):
             return _op_make.less(self, other)
         elif isinstance(other, _Number):
-            raise TypeError('convert "%s" with `const` first' % str(other))
+            raise TypeError(f'convert "{str(other)}" with `const` first')
         else:
-            raise TypeError("type %s not supported" % str(type(other)))
+            raise TypeError(f"type {type(other)} not supported")
 
     def __gt__(self, other):
         if isinstance(other, Expr):
             return _op_make.greater(self, other)
         elif isinstance(other, _Number):
-            raise TypeError('convert "%s" with `const` first' % str(other))
+            raise TypeError(f'convert "{str(other)}" with `const` first')
         else:
-            raise TypeError("type %s not supported" % str(type(other)))
+            raise TypeError(f"type {type(other)} not supported")
 
     def __ge__(self, other):
         if isinstance(other, Expr):
             return _op_make.greater_equal(self, other)
         elif isinstance(other, _Number):
-            raise TypeError('convert "%s" with `const` first' % str(other))
+            raise TypeError(f'convert "{str(other)}" with `const` first')
         else:
-            raise TypeError("type %s not supported" % str(type(other)))
+            raise TypeError(f"type {type(other)} not supported")
 
     def __le__(self, other):
         if isinstance(other, Expr):
             return _op_make.less_equal(self, other)
         elif isinstance(other, _Number):
-            raise TypeError('convert "%s" with `const` first' % str(other))
+            raise TypeError(f'convert "{str(other)}" with `const` first')
         else:
-            raise TypeError("type %s not supported" % str(type(other)))
+            raise TypeError(f"type {type(other)} not supported")
 
     def __add__(self, other):
         if isinstance(other, Expr):
             return _op_make.add(self, other)
         elif isinstance(other, _Number):
-            raise TypeError('convert "%s" with `const` first' % str(other))
+            raise TypeError(f'convert "{str(other)}" with `const` first')
         else:
-            raise TypeError("type %s not supported" % str(type(other)))
+            raise TypeError(f"type {type(other)} not supported")
 
     def __radd__(self, other):
         return self.__add__(other)
@@ -140,22 +140,22 @@ class ExprWithOp(RelayExpr):
         if isinstance(other, Expr):
             return _op_make.subtract(self, other)
         elif isinstance(other, _Number):
-            raise TypeError('convert "%s" with `const` first' % str(other))
+            raise TypeError(f'convert "{str(other)}" with `const` first')
         else:
-            raise TypeError("type %s not supported" % str(type(other)))
+            raise TypeError(f"type {type(other)} not supported")
 
     def __rsub__(self, other):
         if isinstance(other, _Number):
-            raise TypeError('convert "%s" with `const` first' % str(other))
-        raise TypeError("type %s not supported" % str(type(other)))
+            raise TypeError(f'convert "{str(other)}" with `const` first')
+        raise TypeError(f"type {type(other)} not supported")
 
     def __mul__(self, other):
         if isinstance(other, Expr):
             return _op_make.multiply(self, other)
         elif isinstance(other, _Number):
-            raise TypeError('convert "%s" with `const` first' % str(other))
+            raise TypeError(f'convert "{str(other)}" with `const` first')
         else:
-            raise TypeError("type %s not supported" % str(type(other)))
+            raise TypeError(f"type {type(other)} not supported")
 
     def __rmul__(self, other):
         return self.__mul__(other)
@@ -164,14 +164,14 @@ class ExprWithOp(RelayExpr):
         if isinstance(other, Expr):
             return _op_make.divide(self, other)
         elif isinstance(other, _Number):
-            raise TypeError('convert "%s" with `const` first' % str(other))
+            raise TypeError(f'convert "{str(other)}" with `const` first')
         else:
-            raise TypeError("type %s not supported" % str(type(other)))
+            raise TypeError(f"type {type(other)} not supported")
 
     def __rdiv__(self, other):
         if isinstance(other, _Number):
-            raise TypeError('convert "%s" with `const` first' % str(other))
-        raise TypeError("type %s not supported" % str(type(other)))
+            raise TypeError(f'convert "{str(other)}" with `const` first')
+        raise TypeError(f"type {type(other)} not supported")
 
     def __truediv__(self, other):
         return self.__div__(other)
@@ -213,12 +213,7 @@ class Constant(ExprWithOp):
 
 
 @tvm._ffi.register_func("relay.ConstantWithFields")
-def ConstantWithFields(
-    constant,
-    data=None,
-    virtual_device=None,
-    span=None,
-):
+def ConstantWithFields(constant, data=None, virtual_device=None, span=None):
     """
     Returns constant with the given properties. A None property denotes 'no change'.
     Returns constant if all properties are unchanged. Otherwise, returns a copy with the new
@@ -467,12 +462,7 @@ class RefCreate(ExprWithOp):
 
 
 @tvm._ffi.register_func("relay.RefCreateWithFields")
-def RefCreateWithFields(
-    ref_create,
-    value=None,
-    virtual_device=None,
-    span=None,
-):
+def RefCreateWithFields(ref_create, value=None, virtual_device=None, span=None):
     """
     Returns ref_create with the given properties. A None property denotes 'no change'.
     Returns ref_create if all properties are unchanged. Otherwise, returns a copy with the new
@@ -498,12 +488,7 @@ class RefRead(ExprWithOp):
 
 
 @tvm._ffi.register_func("relay.RefReadWithFields")
-def RefReadWithFields(
-    ref_read,
-    ref=None,
-    virtual_device=None,
-    span=None,
-):
+def RefReadWithFields(ref_read, ref=None, virtual_device=None, span=None):
     """
     Returns ref_read with the given properties. A None property denotes 'no change'.
     Returns ref_read if all properties are unchanged. Otherwise, returns a copy with the new
@@ -534,13 +519,7 @@ class RefWrite(ExprWithOp):
 
 
 @tvm._ffi.register_func("relay.RefWriteWithFields")
-def RefWriteWithFields(
-    ref_write,
-    ref=None,
-    value=None,
-    virtual_device=None,
-    span=None,
-):
+def RefWriteWithFields(ref_write, ref=None, value=None, virtual_device=None, span=None):
     """
     Returns ref_write with the given properties. A None property denotes 'no change'.
     Returns ref_write if all properties are unchanged. Otherwise, returns a copy with the new

@@ -343,19 +343,6 @@ set(USE_TARGET_ONNX OFF)
 # Whether enable BNNS runtime
 set(USE_BNNS OFF)
 
-# Whether to use libbacktrace
-# Libbacktrace provides line and column information on stack traces from errors.
-# It is only supported on linux and macOS.
-# Possible values:
-# - AUTO: auto set according to system information and feasibility
-# - ON: enable libbacktrace
-# - OFF: disable libbacktrace
-set(USE_LIBBACKTRACE AUTO)
-
-# Whether to install a signal handler to print a backtrace on segfault. This
-# may replace existing signal handlers specified by other libraries.
-set(BACKTRACE_ON_SEGFAULT OFF)
-
 # Whether to build static libtvm_runtime.a, the default is to build the dynamic
 # version: libtvm_runtime.so.
 #

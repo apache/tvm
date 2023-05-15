@@ -161,7 +161,7 @@ def _schedule_conv_NCHWc(s, cfg, data_vec, kernel_vec, conv_out, last):
             s[O].vectorize(oc_block)
             s[O].parallel(parallel_axis)
         else:
-            raise ValueError("Unsupported output ndim: %s" % out_ndim)
+            raise ValueError(f"Unsupported output ndim: {out_ndim}")
 
     return s
 

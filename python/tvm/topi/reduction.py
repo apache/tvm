@@ -34,7 +34,7 @@ def _get_real_axis(ndim, axis):
                 ele += ndim
             if ele >= ndim:
                 raise ValueError(
-                    "{} exceeds the maximum dimension {}. Received axis={}".format(ele, ndim, axis)
+                    f"{ele} exceeds the maximum dimension {ndim}. Received axis={axis}"
                 )
             real_axis.append(ele)
         real_axis.sort()
