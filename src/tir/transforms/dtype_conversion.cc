@@ -43,7 +43,7 @@ PrimExpr FpToFp(PrimExpr src_value, DataType tgt_dtype, RoundingMode round_mode)
   PrimExpr src_uint_value = ReinterpretAsUInt(src_value);
   if (mantissa_delta < 0) {
     // use rounding
-    CHECK_EQ(round_mode, RoundingMode::kHalfToEven)
+    CHECK(round_mode == RoundingMode::kHalfToEven)
         << "Currently we only support HalfToEven rounding mode.";
     PrimExpr rounding_bias = ((src_uint_value >> (-mantissa_delta)) & 1) +
                              make_const(src_uint, (int64_t(1) << (-mantissa_delta - 1)) - 1);
@@ -58,7 +58,7 @@ PrimExpr FpToFp(PrimExpr src_value, DataType tgt_dtype, RoundingMode round_mode)
         ret = ret + (make_const(tgt_uint, bias_delta) << tgt_fp.mantissa);
       }
     } else {  // mantissa_delta < 0
-      ret = cast(tgt_uint, ret >> mantissa_delta);
+      ret = cast(tgt_uint, ret >> (-mantissa_delta));
       if (bias_delta != 0) {
         ret = ret + (make_const(tgt_uint, bias_delta) << tgt_fp.mantissa);
       }
@@ -79,11 +79,9 @@ PrimExpr FpToFp(PrimExpr src_value, DataType tgt_dtype, RoundingMode round_mode)
 }
 
 PrimExpr IntToFp(PrimExpr src_value, FloatConfig tgt_fp) {
-  LOG(FATAL) << "Not implemented yet";
 }
 
 PrimExpr FpToInt(PrimExpr src_value, FloatConfig src_fp, DataType tgt_dtype) {
-  LOG(FATAL) << "Not implemented yet";
 }
 
 PrimExpr DTypeConversion(PrimExpr src_value, DataType tgt_dtype, RoundingMode round_mode) {

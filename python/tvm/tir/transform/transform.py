@@ -40,6 +40,7 @@ def Apply(ftransform):
     fpass : tvm.transform.Pass
         The result pass
     """
+
     # pylint: disable=unused-argument
     def _transform(func, mod, ctx):
         return ftransform(func)
@@ -297,6 +298,22 @@ def BF16ComputeLegalize():
     return _ffi_api.BF16ComputeLegalize()  # type: ignore
 
 
+def FP8ComputeLegalize(promote_dtype_str: str = "float32"):
+    """Legalize fp8 compute Ops.
+
+    Parameters
+    ----------
+    promote_dtype : str
+        The data type we promote fp8 to, options: float16/float32.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.FP8ComputeLegalize(promote_dtype_str)  # type: ignore
+
+
 def BF16StorageLegalize():
     """Legalize bf16 storage types to u16.
 
@@ -306,6 +323,17 @@ def BF16StorageLegalize():
         The result pass
     """
     return _ffi_api.BF16StorageLegalize()  # type: ignore
+
+
+def FP8StorageLegalize():
+    """Legalize fp8 storage types to u8.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.FP8StorageLegalize()  # type: ignore
 
 
 def CommonSubexprElimTIR(enable_cse_tir: bool = True, identify_equiv_terms: bool = False):

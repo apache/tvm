@@ -21,12 +21,12 @@
  * \file unsupported_dtype_legalize.cc
  * \brief legalize bf16/fp8 type by adding cast_to_fp32
  */
-
-#include <tvm/runtime/registry.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
+#include <tvm/runtime/registry.h>
+
 
 #include <cmath>
 #include <tuple>
@@ -142,16 +142,16 @@ class FP8ComputeLegalizePlanner : public ComputeLegalizePlanner {
   bool MatchDType(DataType dtype) const { return dtype.is_float8(); }
 };
 
-#define DEFINE_BIOP_EXPR_LEGALIZE(OP, FUNC)                   \
-  PrimExpr VisitExpr_(const OP* op) final {                   \
-    PrimExpr origin_a = PromoteToF32(this->VisitExpr(op->a)); \
-    PrimExpr origin_b = PromoteToF32(this->VisitExpr(op->b)); \
-                                                              \
-    if (origin_a.same_as(op->a) && origin_b.same_as(op->b)) { \
-      return GetRef<PrimExpr>(op);                            \
-    } else {                                                  \
-      return FUNC(origin_a, origin_b);                        \
-    }                                                         \
+#define DEFINE_BIOP_EXPR_LEGALIZE(OP, FUNC)                      \
+  PrimExpr VisitExpr_(const OP* op) final {                      \
+    PrimExpr origin_a = PromoteToTarget(this->VisitExpr(op->a)); \
+    PrimExpr origin_b = PromoteToTarget(this->VisitExpr(op->b)); \
+                                                                 \
+    if (origin_a.same_as(op->a) && origin_b.same_as(op->b)) {    \
+      return GetRef<PrimExpr>(op);                               \
+    } else {                                                     \
+      return FUNC(origin_a, origin_b);                           \
+    }                                                            \
   }
 
 // NOTE: Legalize the FP8/BF16 computations
@@ -161,6 +161,8 @@ class FP8ComputeLegalizePlanner : public ComputeLegalizePlanner {
 // point in the TIR lowering phases.
 class ComputeLegalizer : public StmtExprMutator {
  public:
+  ComputeLegalizer(DataType promote_dtype) : promote_dtype_(promote_dtype) {}
+
   PrimFunc Legalize(PrimFunc func) {
     BF16ComputeLegalizePlanner planner(&buffer_remap_, &var_remap_);
     planner.Plan(func);
@@ -173,7 +175,7 @@ class ComputeLegalizer : public StmtExprMutator {
 
  protected:
   PrimExpr VisitExpr_(const CastNode* op) final {
-    auto op_val = PromoteToF32(this->VisitExpr(op->value));
+    auto op_val = PromoteToTarget(this->VisitExpr(op->value));
 
     // all casts to matched data type (fp8/bf16) becomes f32
     if (MatchDType(op->dtype)) {
@@ -189,8 +191,8 @@ class ComputeLegalizer : public StmtExprMutator {
 
   PrimExpr VisitExpr_(const SelectNode* op) final {
     PrimExpr condition = this->VisitExpr(op->condition);
-    PrimExpr true_value = PromoteToF32(this->VisitExpr(op->true_value));
-    PrimExpr false_value = PromoteToF32(this->VisitExpr(op->false_value));
+    PrimExpr true_value = PromoteToTarget(this->VisitExpr(op->true_value));
+    PrimExpr false_value = PromoteToTarget(this->VisitExpr(op->false_value));
     if (condition.same_as(op->condition) && true_value.same_as(op->true_value) &&
         false_value.same_as(op->false_value)) {
       return GetRef<PrimExpr>(op);
@@ -200,7 +202,7 @@ class ComputeLegalizer : public StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const BroadcastNode* op) final {
-    PrimExpr value = PromoteToF32(this->VisitExpr(op->value));
+    PrimExpr value = PromoteToTarget(this->VisitExpr(op->value));
     if (value.same_as(op->value)) {
       return GetRef<PrimExpr>(op);
     } else {
@@ -209,7 +211,7 @@ class ComputeLegalizer : public StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const ShuffleNode* op) final {
-    auto fexpr = [this](const PrimExpr& e) { return PromoteToF32(this->VisitExpr(e)); };
+    auto fexpr = [this](const PrimExpr& e) { return PromoteToTarget(this->VisitExpr(e)); };
     auto vectors = op->vectors.Map(fexpr);
     if (vectors.same_as(op->vectors)) {
       return GetRef<PrimExpr>(op);
@@ -224,7 +226,7 @@ class ComputeLegalizer : public StmtExprMutator {
       return StmtExprMutator::VisitExpr_(op);
     }
     // update normal computations to return f32 instead.
-    auto fmutate = [this](const PrimExpr& e) { return PromoteToF32(this->VisitExpr(e)); };
+    auto fmutate = [this](const PrimExpr& e) { return PromoteToTarget(this->VisitExpr(e)); };
     Array<PrimExpr> args = op->args.Map(fmutate);
     if (MatchDType(op->dtype)) {
       return Call(DataType::Float(32, op->dtype.lanes()), op->op, args);
@@ -255,7 +257,7 @@ class ComputeLegalizer : public StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const LetNode* op) final {
-    PrimExpr value = PromoteToF32(op->value);
+    PrimExpr value = PromoteToTarget(op->value);
     Var var = op->var;
     if (value.dtype() != op->value.dtype()) {
       var = op->var.copy_with_dtype(op->value.dtype());
@@ -285,7 +287,7 @@ class ComputeLegalizer : public StmtExprMutator {
   DEFINE_BIOP_EXPR_LEGALIZE(NENode, operator!=);
 
   Stmt VisitStmt_(const LetStmtNode* op) final {
-    PrimExpr value = PromoteToF32(op->value);
+    PrimExpr value = PromoteToTarget(op->value);
     Var var = op->var;
     if (value.dtype() != op->value.dtype()) {
       var = op->var.copy_with_dtype(op->value.dtype());
@@ -312,7 +314,7 @@ class ComputeLegalizer : public StmtExprMutator {
       return GetRef<Stmt>(op);
     } else {
       if (MatchDType(new_buf->dtype)) {
-        value = CastF32ToDType(value, new_buf->dtype);
+        value = CastTargetToDType(value, new_buf->dtype);
       }
       if (value.dtype() != new_buf->dtype) {
         // this happens when buffer get rewritten to f32
@@ -397,26 +399,28 @@ class ComputeLegalizer : public StmtExprMutator {
 
  private:
   /*!
-   * \brief promote value to F32 and keep other values unchanged.
+   * \brief promote value to target datatype F16/F32 and keep other values unchanged.
    * \param value The input value.
    * \return The converted value.
    */
-  PrimExpr PromoteToF32(PrimExpr value) {
+  PrimExpr PromoteToTarget(PrimExpr value) {
     if (!MatchDType(value.dtype())) return value;
     if (const CastNode* cast = value.as<CastNode>()) {
-      if (cast->value.dtype() == DataType::Float(32)) return cast->value;
+      if (cast->value.dtype() == promote_dtype_.with_lanes(value.dtype().lanes()))
+        return cast->value;
     }
-    return DTypeConversion(value, DataType::Float(32).with_lanes(value.dtype().lanes()));
+    return DTypeConversion(value, promote_dtype_.with_lanes(value.dtype().lanes()));
   }
 
   /*!
-   * \brief Cast value from F32 to BF16 and keep other values unchanged.
+   * \brief Cast value from promoted datatype (FP16/FP32) back to BF16/FP8 and keep other values
+   *   unchanged.
    * \param value The input value
    * \return The converted value.
    */
-  PrimExpr CastF32ToDType(PrimExpr value, DataType dtype) {
+  PrimExpr CastTargetToDType(PrimExpr value, DataType dtype) {
     if (!value.dtype().is_float()) return value;
-    ICHECK_EQ(value.dtype().bits(), 32);
+    ICHECK_EQ(value.dtype(), this->promote_dtype_.with_lanes(value.dtype().lanes()));
     return DTypeConversion(value, dtype);
   }
 
@@ -428,19 +432,20 @@ class ComputeLegalizer : public StmtExprMutator {
     return buf;
   }
 
-  bool round_to_even_{true};
-
+  DataType promote_dtype_;
   std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> buffer_remap_;
   std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual> var_remap_;
 };
 
 class BF16ComputeLegalizer : public ComputeLegalizer {
  public:
+  BF16ComputeLegalizer() : ComputeLegalizer(DataType::Float(32)) {}
   bool MatchDType(DataType dtype) const { return dtype.is_bfloat16(); }
 };
 
 class FP8ComputeLegalizer : public ComputeLegalizer {
  public:
+  FP8ComputeLegalizer(DataType promote_dtype) : ComputeLegalizer(promote_dtype) {}
   bool MatchDType(DataType dtype) const { return dtype.is_float8(); }
 };
 
@@ -683,10 +688,10 @@ Pass BF16StorageLegalize() {
 
 TVM_REGISTER_GLOBAL("tir.transform.BF16StorageLegalize").set_body_typed(BF16StorageLegalize);
 
-Pass FP8ComputeLegalize() {
-  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+Pass FP8ComputeLegalize(String promote_dtype_str) {
+  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     // TODO(tvm-team): skip if the target supports fp8
-    return FP8ComputeLegalizer().Legalize(f);
+    return FP8ComputeLegalizer(DataType(String2DLDataType(promote_dtype_str))).Legalize(f);
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.FP8ComputeLegalize", {});
 }

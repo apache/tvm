@@ -357,19 +357,20 @@ TVM_DLL Pass NarrowDataType(int target_bits);
 TVM_DLL Pass BF16ComputeLegalize();
 
 /*!
+ * \brief Legalize fp8 compute Ops. Add a cast to fp16/fp32
+ *   before Ops, then add a cast back to fp8.
+ * \return The pass.
+ */
+TVM_DLL Pass FP8ComputeLegalize(String promote_dtype_str = "float32");
+
+/*!
  * \brief Legalize bf16 storage types to u16.
  * \return The pass.
  */
 TVM_DLL Pass BF16StorageLegalize();
 
 /*!
- * \brief Legalize fp8 compute Ops. Add a cast fp32
- *   before Ops, and a cast back to fp8.
- */
-TVM_DLL Pass FP8ComputeLegalize();
-
-/*!
- * \brief Legalize fp8 storage types to uint8.
+ * \brief Legalize fp8 storage types to u8.
  * \return The pass.
  */
 TVM_DLL Pass FP8StorageLegalize();
