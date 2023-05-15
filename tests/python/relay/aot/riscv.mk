@@ -21,8 +21,8 @@ ENABLE_TVM_PLATFORM_ABORT_BACKTRACE = 0
 DMLC_CORE=$(TVM_ROOT)/3rdparty/dmlc-core
 TOOLCHAIN_PATH=$(shell dirname $(shell which riscv64-unknown-linux-gnu-gcc))/..
 
-CC = clang
-CXX = clang++
+CC = clang-16
+CXX = clang++-16
 
 TARGET_CFLAGS = --target=riscv64-unknown-linux-gnu -march=rv64gcv -static
 RUNNER = spike
