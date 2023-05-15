@@ -266,6 +266,27 @@ def test_simplify_transpose():
         y = relay.nn.relu(y)
         return relay.Function([x], y)
 
+    def before11():
+        """
+        Remove trivial no op transpose ops
+
+        Input:
+        op1 -> relay.transpose(x, axes=[0, 1, 2, 3]) -> op2
+
+        Simplified:
+        op1 -> op2
+        """
+        x = relay.var("x", shape=(1, 128, 56, 56), dtype="float32")
+        y = relay.transpose(x, axes=[0, 1, 2, 3])
+        y = relay.nn.relu(y)
+        y = relay.layout_transform(y, "NCHW", "NCHW")
+        return relay.Function([x], y)
+
+    def expected11():
+        x = relay.var("x", shape=(1, 128, 56, 56), dtype="float32")
+        y = relay.nn.relu(x)
+        return relay.Function([x], y)
+
     for before, expected in [
         [before1(), expected1()],
         [before2(), expected2()],
@@ -277,6 +298,7 @@ def test_simplify_transpose():
         [before8(), expected8()],
         [before9(), expected9()],
         [before10(), expected10()],
+        [before11(), expected11()],
     ]:
         after = run_opt_pass(before, transform.SimplifyExpr())
         expected = run_opt_pass(expected, transform.InferType())
