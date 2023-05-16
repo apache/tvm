@@ -24,12 +24,8 @@
 #ifndef TVM_TARGET_SOURCE_LITERAL_CUDA_FP8_T_H_
 #define TVM_TARGET_SOURCE_LITERAL_CUDA_FP8_T_H_
 
-static constexpr const char* _cuda_fp8_t_def = R"(
-#define TVM_XINLINE TVM_FORCE_INLINE __device__ __host__
+static constexpr const char* _cuda_fp8_t_def = R"()";
 
-)";
-
-static constexpr const char* _cuda_fp8_util = R"(
-)";
+static constexpr const char* _cuda_fp8_util = R"()";
 
 #endif  // TVM_TARGET_SOURCE_LITERAL_CUDA_FP8_T_H_
