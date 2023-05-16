@@ -23,6 +23,7 @@ import numpy as np
 from tvm._ffi.base import TVMError
 
 from tvm.error import DiagnosticError
+from tvm.ir import GlobalVar
 
 from . import dispatch, doc
 from .diagnostics import Diagnostics, Source
@@ -504,10 +505,10 @@ class Parser(doc.NodeVisitor):
         _dispatch_wrapper(func)(self, node)
         post_func(self, node)
 
-    def visit_tvm_declare_function(self, node: doc.FunctionDef) -> None:
+    def visit_tvm_declare_function(self, node: doc.FunctionDef) -> GlobalVar:
         token = self.get_dispatch_token(node)
         with self.with_dispatch_token(token):
-            _dispatch(self, "tvm_declare_function")(self, node)
+            return _dispatch(self, "tvm_declare_function")(self, node)
 
     def visit_ClassDef(self, node: doc.ClassDef) -> Any:  # pylint: disable=invalid-name
         """The general class definition visiting method.

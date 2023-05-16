@@ -43,6 +43,11 @@ class PrinterConfigNode : public Object {
   std::string ir_prefix = "I";
   /*! \brief The prefix of TIR nodes */
   std::string tir_prefix = "T";
+  /*!
+   * \brief The alias of the current module at cross-function call
+   * \note Directly use module name if it's empty.
+   */
+  std::string module_alias = "cls";
   /*! \brief Default data type of TIR buffer */
   DataType buffer_dtype = DataType::Float(32);
   /*! \brief Default data type of integer literals */
@@ -76,6 +81,8 @@ class PrinterConfigNode : public Object {
     v->Visit("binding_names", &binding_names);
     v->Visit("show_meta", &show_meta);
     v->Visit("ir_prefix", &ir_prefix);
+    v->Visit("tir_prefix", &tir_prefix);
+    v->Visit("module_alias", &module_alias);
     v->Visit("buffer_dtype", &buffer_dtype);
     v->Visit("int_dtype", &int_dtype);
     v->Visit("float_dtype", &float_dtype);
