@@ -45,19 +45,17 @@ def test_lazy_transform_params():
             R.Tensor((16, 16, 3, 3), dtype="float32"), R.Tensor((16, 3, 3, 3), dtype="float32")
         ):
             cls = Before
-            with R.dataflow():
-                lv: R.Tensor((16, 16, 3, 3), dtype="float32") = params[1]
-                lv1: R.Tensor((3, 16, 3, 3), dtype="float32") = params[0]
-                lv2 = R.call_tir(
-                    cls.transform_layout_IOHW_to_OIHW,
-                    (lv1,),
-                    out_sinfo=R.Tensor((16, 3, 3, 3), dtype="float32"),
-                )
-                gv: R.Tuple(
-                    R.Tensor((16, 16, 3, 3), dtype="float32"),
-                    R.Tensor((16, 3, 3, 3), dtype="float32"),
-                ) = (lv, lv2)
-                R.output(gv)
+            lv: R.Tensor((16, 16, 3, 3), dtype="float32") = params[1]
+            lv1: R.Tensor((3, 16, 3, 3), dtype="float32") = params[0]
+            lv2 = R.call_tir(
+                cls.transform_layout_IOHW_to_OIHW,
+                (lv1,),
+                out_sinfo=R.Tensor((16, 3, 3, 3), dtype="float32"),
+            )
+            gv: R.Tuple(
+                R.Tensor((16, 16, 3, 3), dtype="float32"),
+                R.Tensor((16, 3, 3, 3), dtype="float32"),
+            ) = (lv, lv2)
             return gv
 
     @I.ir_module
@@ -77,24 +75,18 @@ def test_lazy_transform_params():
         @R.function
         def main_transform_params() -> R.Tuple(R.Object, R.Object):
             cls = Expected
-            with R.dataflow():
-                lv: R.Object = R.call_packed("get_item", R.prim_value(1), sinfo_args=(R.Object,))
-                lv1: R.Object = R.call_packed(
-                    "set_item", R.prim_value(0), lv, sinfo_args=(R.Object,)
-                )
-                lv2: R.Tuple = R.vm.kill_object(lv)
-                lv1_1: R.Object = R.call_packed("get_item", R.prim_value(0), sinfo_args=(R.Object,))
-                lv3 = R.call_tir(
-                    cls.transform_layout_IOHW_to_OIHW,
-                    (lv1_1,),
-                    out_sinfo=R.Tensor((16, 3, 3, 3), dtype="float32"),
-                )
-                lv4: R.Object = R.call_packed(
-                    "set_item", R.prim_value(1), lv3, sinfo_args=(R.Object,)
-                )
-                lv5: R.Tuple = R.vm.kill_object(lv1_1)
-                gv: R.Tuple(R.Object, R.Object) = (lv1, lv4)
-                R.output(gv)
+            lv: R.Object = R.call_packed("get_item", R.prim_value(1), sinfo_args=(R.Object,))
+            lv1: R.Object = R.call_packed("set_item", R.prim_value(0), lv, sinfo_args=(R.Object,))
+            lv2: R.Tuple = R.vm.kill_object(lv)
+            lv1_1: R.Object = R.call_packed("get_item", R.prim_value(0), sinfo_args=(R.Object,))
+            lv3 = R.call_tir(
+                cls.transform_layout_IOHW_to_OIHW,
+                (lv1_1,),
+                out_sinfo=R.Tensor((16, 3, 3, 3), dtype="float32"),
+            )
+            lv4: R.Object = R.call_packed("set_item", R.prim_value(1), lv3, sinfo_args=(R.Object,))
+            lv5: R.Tuple = R.vm.kill_object(lv1_1)
+            gv: R.Tuple(R.Object, R.Object) = (lv1, lv4)
             return gv
 
     after = LazyTransformParams()(Before)

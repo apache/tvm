@@ -85,11 +85,11 @@ class LivenessAnalysis(PyExprVisitor):
         self.input_params = input_params
         self.var_liveness_end = {}
 
-    def visit_dataflow_block_(self, block: relax.DataflowBlock) -> None:
+    def visit_binding_block_(self, block: relax.BindingBlock) -> None:
         for binding in reversed(block.bindings):
             self.visit_binding(binding)
 
-    def visit_dataflow_var_(self, op: relax.DataflowVar) -> None:
+    def visit_var_(self, op: relax.Var) -> None:
         if op in self.input_params:
             self.last_appear_in_var_binding.append(op)
             self.input_params.remove(op)
