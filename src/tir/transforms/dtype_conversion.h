@@ -137,9 +137,10 @@ PrimExpr ReinterpretAsUInt(PrimExpr value);
 DataType GetStorageUIntDType(DataType dtype);
 
 /*!
- * \brief Conversion routine from value stored in one data type to target data type.
- * \param src_value The value to be converted.
- * \param tgt_dtype The target data type.
+ * \brief Conversion routine from value stored in one floating point data type to another floating
+ *   point data type.
+ * \param src_value The floating point value to be converted.
+ * \param tgt_dtype The target floating point data type.
  * \param round_mode The rounding mode to use, defaults to kHalfToEven.
  * \note Used when there is no native data type conversion implementation.
  */

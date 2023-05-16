@@ -32,13 +32,17 @@ PrimExpr ReinterpretAsUInt(PrimExpr value) {
 
 DataType GetStorageUIntDType(DataType dtype) { return DataType::UInt(dtype.bits(), dtype.lanes()); }
 
-/*!
- * \brief Conversion from one floating point data type to another floating point data type.
- * \param src_value The floating point value to be converted.
- * \param tgt_dtype The target floating point data type.
- * \param round_mode The rounding mode to use, defaults to kHalfToEven.
- */
-PrimExpr FpToFp(PrimExpr src_value, DataType tgt_dtype, RoundingMode round_mode) {
+PrimExpr DTypeConversion(PrimExpr src_value, DataType tgt_dtype, RoundingMode round_mode) {
+  DataType src_dtype = src_value.dtype();
+  // Step 1: check dtype
+  // The lanes of src dtype and target dtype must match.
+  CHECK_EQ(src_dtype.lanes(), tgt_dtype.lanes())
+      << "The lanes for data type for source value must matches the target datatype.";
+  auto is_floating_point = [](DataType dtype) {
+    return dtype.is_float() || dtype.is_float8() || dtype.is_bfloat16();
+  };
+  // Both source dtype and target dtype should be floating point.
+  CHECK(is_floating_point(src_dtype) && is_floating_point(tgt_dtype));
   FloatConfig src_fp = FloatConfig::FromDataType(src_value.dtype()),
               tgt_fp = FloatConfig::FromDataType(tgt_dtype);
   int exponent_delta = tgt_fp.exponent - src_fp.exponent;
@@ -60,14 +64,13 @@ PrimExpr FpToFp(PrimExpr src_value, DataType tgt_dtype, RoundingMode round_mode)
     PrimExpr ret = src_uint_value;
     if (mantissa_delta >= 0) {
       ret = cast(tgt_uint, ret) << mantissa_delta;
-      if (bias_delta != 0) {
-        ret = ret + (make_const(tgt_uint, bias_delta) << tgt_fp.mantissa);
-      }
     } else {  // mantissa_delta < 0
       ret = cast(tgt_uint, ret >> (-mantissa_delta));
-      if (bias_delta != 0) {
-        ret = ret + (make_const(tgt_uint, bias_delta) << tgt_fp.mantissa);
-      }
+    }
+    if (bias_delta > 0) {
+      ret = ret + (make_const(tgt_uint, bias_delta) << tgt_fp.mantissa);
+    } else if (bias_delta < 0) {
+      ret = ret - (make_const(tgt_uint, -bias_delta) << tgt_fp.mantissa);
     }
     return reinterpret(tgt_dtype, ret);
   } else {
@@ -77,53 +80,14 @@ PrimExpr FpToFp(PrimExpr src_value, DataType tgt_dtype, RoundingMode round_mode)
                                               : (src_uint_value << (-mantissa_delta)))) &
         make_const(tgt_uint, (int64_t(1) << (tgt_fp.mantissa)) - 1);
     PrimExpr ret_exponent =
-        max(cast(tgt_uint, (((src_uint_value << 1) >> (src_fp.mantissa + 1)) + bias_delta)),
-            make_const(tgt_uint, 0))
-        << tgt_fp.mantissa;
+        (bias_delta > 0)
+            ? (cast(tgt_uint, ((src_uint_value << 1) >> (src_fp.mantissa + 1)) + bias_delta)
+               << tgt_fp.mantissa)
+            : (cast(tgt_uint, max(((src_uint_value << 1) >> (src_fp.mantissa + 1)) - (-bias_delta),
+                                  make_const(tgt_uint, 0)))
+               << tgt_fp.mantissa);
     PrimExpr ret_sign = make_const(tgt_uint, int64_t(1) << (tgt_fp.mantissa + tgt_fp.exponent));
     return reinterpret(tgt_dtype, ret_mantissa | ret_exponent | ret_sign);
-  }
-}
-
-/*!
- * \brief Conversion from integer to floating point data type.
- * \param src_value The integer value to be converted.
- * \param tgt_dtype The target floating point data type.
- * \param round_mode The rounding mode to use, defaults to kHalfToEven.
- */
-PrimExpr IntToFp(PrimExpr src_value, DataType tgt_dtype, RoundingMode round_mode) {
-  // TODO(tvm-team): implement integer to floating point conversion with clz primitive.
-  LOG(FATAL) << "Not implemented.";
-}
-
-/*!
- * \brief Conversion from floating point data type to integer.
- * \param src_value The floating point value to be converted.
- * \param tgt_dtype The target integer data type.
- * \param round_mode The rounding mode to use, defaults to kHalfToEven.
- */
-PrimExpr FpToInt(PrimExpr src_value, DataType tgt_dtype, RoundingMode round_mode) {
-
-}
-
-PrimExpr DTypeConversion(PrimExpr src_value, DataType tgt_dtype, RoundingMode round_mode) {
-  DataType src_dtype = src_value.dtype();
-  CHECK_EQ(src_dtype.lanes(), tgt_dtype.lanes())
-      << "The lanes for data type for source value must matches the target datatype.";
-  auto is_floating_point = [](DataType dtype) {
-    return dtype.is_float() || dtype.is_float8() || dtype.is_bfloat16();
-  };
-  auto is_integer = [](DataType dtype) { return dtype.is_int() || dtype.is_uint(); };
-  if (is_floating_point(src_dtype) && is_floating_point(tgt_dtype)) {
-    return FpToFp(src_value, tgt_dtype, round_mode);
-  } else {
-    if (is_integer(src_dtype) && is_floating_point(tgt_dtype)) {
-      return IntToFp(src_value, tgt_dtype, round_mode);
-    } else if (is_floating_point(src_dtype) && is_integer(src_dtype)) {
-      return FpToInt(src_value, tgt_dtype, round_mode);
-    } else {
-      LOG(FATAL) << "Not Implemented yet";
-    }
   }
 }
 

@@ -27,10 +27,10 @@ def get_before(dtype: str):
             Aptr: T.handle(dtype), Bptr: T.handle(dtype), Dptr: T.handle(dtype)
         ):
             T.func_attr({"global_symbol": "main"})
-            A = T.decl_buffer((100,), "dtype", data=Aptr)
-            B = T.decl_buffer((100,), "dtype", data=Bptr)
-            D = T.decl_buffer((100,), "dtype", data=Dptr)
-            C = T.decl_buffer((100,), "dtype")
+            A = T.decl_buffer((100,), dtype, data=Aptr)
+            B = T.decl_buffer((100,), dtype, data=Bptr)
+            D = T.decl_buffer((100,), dtype, data=Dptr)
+            C = T.decl_buffer((100,), dtype)
             for i in T.grid(100):
                 C[i] = A[i] + B[i]
                 D[i] = T.exp(C[i])
@@ -54,7 +54,7 @@ def get_after_compute_legalize(dtype: str, promote_dtype: str):
             A = T.decl_buffer((100,), dtype, data=Aptr)
             B = T.decl_buffer((100,), dtype, data=Bptr)
             D = T.decl_buffer((100,), dtype, data=Dptr)
-            C = T.decl_buffer((100,), dtype)
+            C = T.decl_buffer((100,), promote_dtype)
             for i in T.grid(100):
                 C[i] = promote_f8(dtype, promote_dtype, A[i]) + promote_f8(dtype, promote_dtype, B[i])
                 D[i] = cast_to_f8(dtype, promote_dtype, T.exp(C[i]))

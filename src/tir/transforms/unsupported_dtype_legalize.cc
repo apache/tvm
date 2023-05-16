@@ -21,12 +21,11 @@
  * \file unsupported_dtype_legalize.cc
  * \brief legalize bf16/fp8 type by adding cast_to_fp32
  */
+#include <tvm/runtime/registry.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
-#include <tvm/runtime/registry.h>
-
 
 #include <cmath>
 #include <tuple>
@@ -46,8 +45,9 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
  public:
   ComputeLegalizePlanner(
       std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual>* buffer_remap,
-      std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual>* var_remap)
-      : buffer_remap_(buffer_remap), var_remap_(var_remap) {}
+      std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual>* var_remap,
+      DataType promote_dtype)
+      : buffer_remap_(buffer_remap), var_remap_(var_remap), promote_dtype_(promote_dtype) {}
 
   // run planning to populate buffer remap and var remap.
   void Plan(PrimFunc func) {
@@ -76,9 +76,9 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
   virtual bool MatchDType(DataType dtype) const = 0;
 
   void VisitStmt_(const AllocateNode* op) final {
-    // remap all intermediate constant buffer to fp32
+    // remap all intermediate constant buffer to promote data types (fp16/fp32)
     if (MatchDType(op->dtype) && op->ConstantAllocationSize() != 0) {
-      DataType dtype = DataType::Float(32, op->dtype.lanes());
+      DataType dtype = promote_dtype_.with_lanes(op->dtype.lanes());
       Var buffer_var = Var(op->buffer_var->name_hint, PointerType(PrimType(dtype)));
       (*var_remap_)[op->buffer_var] = buffer_var;
     }
@@ -113,7 +113,7 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
     auto var_it = var_remap_->find(buf->data);
     if (var_it == var_remap_->end()) return;
 
-    Buffer new_buffer(var_it->second, DataType::Float(32, buf->dtype.lanes()), buf->shape,
+    Buffer new_buffer(var_it->second, promote_dtype_.with_lanes(buf->dtype.lanes()), buf->shape,
                       buf->strides, buf->elem_offset, buf->name, buf->data_alignment,
                       buf->offset_factor, buf->buffer_type, buf->axis_separators, buf->span);
     (*buffer_remap_)[buf] = new_buffer;
@@ -122,14 +122,16 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
   std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual>* buffer_remap_;
   std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual>* var_remap_;
   std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> opaque_var_access_;
+  DataType promote_dtype_;
 };
 
 class BF16ComputeLegalizePlanner : public ComputeLegalizePlanner {
  public:
   explicit BF16ComputeLegalizePlanner(
       std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual>* buffer_remap,
-      std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual>* var_remap)
-      : ComputeLegalizePlanner(buffer_remap, var_remap) {}
+      std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual>* var_remap,
+      DataType promote_dtype)
+      : ComputeLegalizePlanner(buffer_remap, var_remap, promote_dtype) {}
   bool MatchDType(DataType dtype) const { return dtype.is_bfloat16(); }
 };
 
@@ -137,8 +139,9 @@ class FP8ComputeLegalizePlanner : public ComputeLegalizePlanner {
  public:
   explicit FP8ComputeLegalizePlanner(
       std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual>* buffer_remap,
-      std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual>* var_remap)
-      : ComputeLegalizePlanner(buffer_remap, var_remap) {}
+      std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual>* var_remap,
+      DataType promote_dtype)
+      : ComputeLegalizePlanner(buffer_remap, var_remap, promote_dtype) {}
   bool MatchDType(DataType dtype) const { return dtype.is_float8(); }
 };
 
@@ -163,13 +166,14 @@ class ComputeLegalizer : public StmtExprMutator {
  public:
   ComputeLegalizer(DataType promote_dtype) : promote_dtype_(promote_dtype) {}
 
-  PrimFunc Legalize(PrimFunc func) {
-    BF16ComputeLegalizePlanner planner(&buffer_remap_, &var_remap_);
-    planner.Plan(func);
+  PrimFunc LegalizeWithPlanner(PrimFunc func, ComputeLegalizePlanner* planner) {
+    planner->Plan(func);
     auto* n = func.CopyOnWrite();
     n->body = this->VisitStmt(std::move(n->body));
     return func;
   }
+
+  virtual PrimFunc Legalize(PrimFunc func) = 0;
 
   virtual bool MatchDType(DataType dtype) const = 0;
 
@@ -179,7 +183,7 @@ class ComputeLegalizer : public StmtExprMutator {
 
     // all casts to matched data type (fp8/bf16) becomes f32
     if (MatchDType(op->dtype)) {
-      return cast(DataType::Float(32, op->dtype.lanes()), op_val);
+      return cast(promote_dtype_.with_lanes(op->dtype.lanes()), op_val);
     }
 
     if (op_val.same_as(op->value)) {
@@ -229,7 +233,7 @@ class ComputeLegalizer : public StmtExprMutator {
     auto fmutate = [this](const PrimExpr& e) { return PromoteToTarget(this->VisitExpr(e)); };
     Array<PrimExpr> args = op->args.Map(fmutate);
     if (MatchDType(op->dtype)) {
-      return Call(DataType::Float(32, op->dtype.lanes()), op->op, args);
+      return Call(promote_dtype_.with_lanes(op->dtype.lanes()), op->op, args);
     }
     if (args.same_as(op->args)) {
       return GetRef<PrimExpr>(op);
@@ -240,7 +244,7 @@ class ComputeLegalizer : public StmtExprMutator {
 
   PrimExpr VisitExpr_(const FloatImmNode* op) final {
     if (MatchDType(op->dtype)) {
-      return FloatImm(DataType::Float(32), op->value);
+      return FloatImm(promote_dtype_, op->value);
     }
     return GetRef<PrimExpr>(op);
   }
@@ -432,6 +436,7 @@ class ComputeLegalizer : public StmtExprMutator {
     return buf;
   }
 
+ protected:
   DataType promote_dtype_;
   std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> buffer_remap_;
   std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual> var_remap_;
@@ -440,12 +445,20 @@ class ComputeLegalizer : public StmtExprMutator {
 class BF16ComputeLegalizer : public ComputeLegalizer {
  public:
   BF16ComputeLegalizer() : ComputeLegalizer(DataType::Float(32)) {}
+  PrimFunc Legalize(PrimFunc func) {
+    BF16ComputeLegalizePlanner planner(&buffer_remap_, &var_remap_, promote_dtype_);
+    return LegalizeWithPlanner(func, &planner);
+  }
   bool MatchDType(DataType dtype) const { return dtype.is_bfloat16(); }
 };
 
 class FP8ComputeLegalizer : public ComputeLegalizer {
  public:
   FP8ComputeLegalizer(DataType promote_dtype) : ComputeLegalizer(promote_dtype) {}
+  PrimFunc Legalize(PrimFunc func) {
+    FP8ComputeLegalizePlanner planner(&buffer_remap_, &var_remap_, promote_dtype_);
+    return LegalizeWithPlanner(func, &planner);
+  }
   bool MatchDType(DataType dtype) const { return dtype.is_float8(); }
 };
 
