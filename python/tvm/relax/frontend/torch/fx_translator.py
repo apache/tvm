@@ -1002,6 +1002,23 @@ class TorchFXImporter:
             )
         )
 
+    def _scaled_dot_product_attention(self, node: fx.node.Node) -> relax.Var:
+        assert len(node.args) <= 4, "Dropout, and causal masking are not supported."
+        transpose_S_H = lambda tensor: relax.op.permute_dims(tensor, [0, 2, 1, 3])
+        query = transpose_S_H(self.env[node.args[0]])
+        key = transpose_S_H(self.env[node.args[1]])
+        value = transpose_S_H(self.env[node.args[2]])
+
+        if len(node.args) == 4:
+            mask = self.env[node.args[3]]
+            msg = "Only a float mask is supported for the attn_mask input."
+            assert "float" in mask.struct_info.dtype, msg
+            attn = relax.op.nn.attention(query, key, value, bias=mask)
+        else:
+            attn = relax.op.nn.attention(query, key, value)
+
+        return self.block_builder.emit(attn)
+
     ########## Others ##########
 
     def _size(self, node: fx.node.Node) -> relax.Expr:
@@ -1185,6 +1202,7 @@ class TorchFXImporter:
             "neg": self._neg,
             "max": self._max,
             "cross_entropy": self._cross_entropy,
+            "scaled_dot_product_attention": self._scaled_dot_product_attention,
         }
 
     def from_fx(
