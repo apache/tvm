@@ -2691,13 +2691,15 @@ class Schedule(Object):
     ########## Schedule: Blockize & Tensorize ##########
 
     @type_checked
-    def blockize(self, loop: LoopRV, preserve_unit_iters: bool = True) -> BlockRV:
-        """Convert the subtree rooted at a specific loop into a block.
+    def blockize(
+        self, target: Union[LoopRV, List[BlockRV]], preserve_unit_iters: bool = True
+    ) -> BlockRV:
+        """Convert multiple blocks or the subtree rooted at a specific loop into a block.
 
         Parameters
         ----------
-        loop : LoopRV
-            The root of the subtree.
+        target : LoopRV or List[BlockRV]
+            The root of the subtree or the specified blocks.
         preserve_unit_iters : bool
             Whether or not to preserve unit iterators in block bindings
 
@@ -2764,7 +2766,7 @@ class Schedule(Object):
         block are divisible by the subspace represented by the loops starting at the given loop.
         """
 
-        return _ffi_api.ScheduleBlockize(self, loop, preserve_unit_iters)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.ScheduleBlockize(self, target, preserve_unit_iters)  # type: ignore # pylint: disable=no-member
 
     @type_checked
     def tensorize(
