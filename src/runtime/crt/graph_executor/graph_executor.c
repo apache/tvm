@@ -841,15 +841,10 @@ int TVMGraphExecutor_LoadParams(TVMGraphExecutor* executor, const char* param_bl
       status = -1;
     }
 
-    if (executor->data_entry[eid].dl_tensor.shape) {
-      err = TVMPlatformMemoryFree(executor->data_entry[eid].dl_tensor.shape, dev);
-      if (err != kTvmErrorNoError) {
-        status = -1;
-      }
-      executor->data_entry[eid].dl_tensor.shape = 0;
-    }
+    // The memory in the executor->data_entry[eid].dl_tensor.shape is
+    // owned by attrs->shape, and should not be freed here.
     if (executor->data_entry[eid].dl_tensor.data) {
-      err = TVMPlatformMemoryFree(executor->data_entry[eid].dl_tensor.data, dev);
+      err = TVMDeviceFreeDataSpace(dev, executor->data_entry[eid].dl_tensor.data);
       if (err != kTvmErrorNoError) {
         status = -1;
       }

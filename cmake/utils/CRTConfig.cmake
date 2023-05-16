@@ -25,6 +25,7 @@ function(generate_crt_config platform output_path)
   set(TVM_CRT_MAX_STRLEN_DLTYPE 10)
   set(TVM_CRT_MAX_STRLEN_FUNCTION_NAME 120)
   set(TVM_CRT_MAX_STRLEN_PARAM_NAME 80)
+  set(TVM_CRT_ALLOC_ALIGNMENT 64)
 
   if("${platform}" STREQUAL "zephyr")
     set(TVM_CRT_MAX_PACKET_SIZE_BYTES 512)

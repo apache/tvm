@@ -63,8 +63,8 @@ int TVMNDArray_Empty(int32_t ndim, const tvm_index_t* shape, DLDataType dtype, D
     return status;
   }
   int total_elem_bytes = TVMNDArray_DataSizeBytes(array);
-  array->dl_tensor.data =
-      TVMBackendAllocWorkspace(kDLCPU, 0, total_elem_bytes, dtype.code, dtype.bits);
+  TVMDeviceAllocDataSpace(dev, total_elem_bytes, TVM_CRT_ALLOC_ALIGNMENT, dtype,
+                          &array->dl_tensor.data);
   memset(array->dl_tensor.data, 0, total_elem_bytes);
   return 0;
 }
@@ -167,7 +167,7 @@ int TVMNDArray_Release(TVMNDArray* arr) {
     return 0;
   }
 
-  err = TVMPlatformMemoryFree(arr->dl_tensor.data, dev);
+  err = TVMDeviceFreeDataSpace(dev, arr->dl_tensor.data);
   if (err != kTvmErrorNoError) {
     return err;
   }
