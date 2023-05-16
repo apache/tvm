@@ -264,21 +264,34 @@ class PatternKindAnalyzer : public StmtExprVisitor {
     return !vars.empty();
   }
 
+  static PrimExpr RemoveCast(PrimExpr e) {
+    for (;;) {
+      if (const auto* cast = e.as<tir::CastNode>()) {
+        e = cast->value;
+      } else {
+        break;
+      }
+    }
+    return e;
+  }
+
   /*! \brief Checking if the stmt is multiply add. E.g. C[i, j] += A[i, k] * B[j, k] */
   static bool IsFMA(const Stmt& body) {
     if (const auto* store = body.as<BufferStoreNode>()) {
-      if (const auto* add = store->value.as<AddNode>()) {
-        if (const auto* l = add->a.as<BufferLoadNode>()) {
-          if (const auto* r = add->b.as<MulNode>()) {
-            bool incremental =
-                store->buffer.same_as(l->buffer) && IsSameArray(store->indices, l->indices);
-            const auto* l_load = r->a.as<BufferLoadNode>();
-            const auto* r_load = r->b.as<BufferLoadNode>();
-            if (incremental && l_load && r_load) {
-              return IsAllowReusePattern(GetRef<BufferStore>(store), GetRef<BufferLoad>(l_load)) &&
-                     IsAllowReusePattern(GetRef<BufferStore>(store), GetRef<BufferLoad>(r_load));
-            }
+      if (const auto* add = RemoveCast(store->value).as<tir::AddNode>()) {
+        if (const auto* mul = RemoveCast(add->b).as<tir::MulNode>()) {
+          const auto* store_lhs = RemoveCast(add->a).as<tir::BufferLoadNode>();
+          if (!store_lhs || !store->buffer.same_as(store_lhs->buffer) ||
+              !IsSameArray(store->indices, store_lhs->indices)) {
+            return false;
           }
+          const auto* lhs = RemoveCast(mul->a).as<tir::BufferLoadNode>();
+          const auto* rhs = RemoveCast(mul->b).as<tir::BufferLoadNode>();
+          if (!lhs || !rhs) {
+            return false;
+          }
+          return IsAllowReusePattern(GetRef<BufferStore>(store), GetRef<BufferLoad>(lhs)) &&
+                 IsAllowReusePattern(GetRef<BufferStore>(store), GetRef<BufferLoad>(rhs));
         }
       }
     }
