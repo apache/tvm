@@ -39,7 +39,7 @@ def test_simple_impure_case():
     class ImpureTest:
         @R.function
         def impure_func() -> R.Object:
-            R.func_attr({"IsPure": False})
+            R.is_impure()
             y = R.print(format="I am a message")
             return y
 
@@ -54,7 +54,7 @@ def test_nested_function():
             # unused
             @R.function
             def impure_inner() -> R.Object:
-                R.func_attr({"IsPure": False})
+                R.is_impure()
                 y = R.print(format="Another, worse, message")
                 return y
 
@@ -75,7 +75,7 @@ def test_ignoring_recursive_call():
     class RecursiveTest:
         @R.function
         def recursive_impure() -> R.Object:
-            R.func_attr({"IsPure": False})
+            R.is_impure()
             x = R.const(1, "int32")
             y = R.add(x, x)
             z = R.print(x, y, format="{} {}")

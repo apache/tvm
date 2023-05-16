@@ -572,7 +572,8 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     if (new_body.same_as(op->body)) {
       return GetRef<Function>(op);
     } else {
-      return Function(op->params, new_body, op->ret_struct_info, op->attrs);
+      return Function(op->params, new_body, op->ret_struct_info, op->is_pure, op->force_pure,
+                      op->attrs);
     }
   }
 

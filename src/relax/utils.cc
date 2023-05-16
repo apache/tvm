@@ -56,7 +56,8 @@ class ExprBinder : public ExprMutator {
       return GetRef<Expr>(op);
     } else {
       // purity won't be affected, no need to update annotation
-      return Function(params, body, VisitExprDepStructInfoField(op->ret_struct_info), op->attrs);
+      return Function(params, body, VisitExprDepStructInfoField(op->ret_struct_info), op->is_pure,
+                      op->force_pure, op->attrs);
     }
   }
 

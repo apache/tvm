@@ -59,11 +59,10 @@
  *    14. DataflowBlocks may not contain If nodes.
  *    15. DataflowBlocks may not contain calls to impure functions or operators
  *        (only checked if check_struct_info is true).
- *    16. If a function is annotated as pure (kIsPure is true)
- *        and purity is not forced (kForcePure is true),
+ *    16. If a function has is_pure set to true and force_pure is not set to true,
  *        the body may not contain any impure call
  *        (only checked if check_struct_info is true).
- *    17. If a function's purity is forced, kIsPure cannot be false
+ *    17. If force_pure is true for a function, that function's is_pure must also be true.
  */
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
@@ -229,12 +228,10 @@ class WellFormedChecker : public relax::ExprVisitor,
     });
 
     // ensure the purity attributes are valid
-    if (op->GetAttr<Bool>(relax::attr::kForcePure).value_or(Bool(false))->value &&
-        !op->GetAttr<Bool>(relax::attr::kIsPure).value_or(Bool(true))->value) {
+    if (op->force_pure && !op->is_pure) {
       Malformed(Diagnostic::Error(op->span)
-                << "Function " << op
-                << " has a ForcePure annotation but its IsPure annotation is false;"
-                << " ForcePure should be used only if IsPure is annotated as true.");
+                << "Function " << op << " has true for force_pure but false for is_pure;"
+                << " force_pure should be true only if is_pure is also true.");
     }
 
     // check all expr are well defined.
@@ -258,13 +255,10 @@ class WellFormedChecker : public relax::ExprVisitor,
 
     // if we are not forcing purity and the function is annotated as pure, it must not contain an
     // impure call
-    if (check_struct_info_ &&
-        !op->GetAttr<Bool>(relax::attr::kForcePure).value_or(Bool(false))->value &&
-        op->GetAttr<Bool>(relax::attr::kIsPure).value_or(Bool(true))->value &&
-        ContainsImpureCall(op->body)) {
+    if (check_struct_info_ && !op->force_pure && op->is_pure && ContainsImpureCall(op->body)) {
       Malformed(Diagnostic::Error(op)
                 << "Function " << op << " is annotated as pure but contains an impure call; "
-                << "please use the ForcePure attribute or a pure operator variant "
+                << "please set force_pure to true or use a pure operator variant "
                 << "(e.g., call_pure_packed) if it is necessary to override this judgment.");
     }
 

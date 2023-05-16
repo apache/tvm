@@ -52,7 +52,7 @@ def test_basic():
         @R.function
         def main(x: R.Tensor((2, 4), dtype="float32")) -> R.Tensor((10,), dtype="float32"):
             # we expected RemovePurityChecking to have been invoked first
-            R.func_attr({"ForcePure": True})
+            R.force_pure()
             cls = Module
             alloc: R.Tensor((2, 4), dtype="float32") = R.builtin.alloc_tensor(R.shape([2, 4]), dtype="float32", runtime_device_index=0)
             _: R.Tuple() = cls.exp(x, alloc)
@@ -100,7 +100,7 @@ def test_basic():
 
         @R.function
         def main(x: R.Tensor((2, 4), dtype="float32")) -> R.Tensor((10,), dtype="float32"):
-            R.func_attr({"ForcePure": True})
+            R.force_pure()
             cls = Expected
             storage: R.Object = R.memory.alloc_storage(R.shape([32]), virtual_device_index=0, storage_scope="global", dtype="float32")
             alloc: R.Tensor((2, 4), dtype="float32") = R.memory.alloc_tensor(storage, 0, R.shape([2, 4]), dtype="float32")
@@ -157,7 +157,7 @@ def test_basic():
 
         @R.function
         def main(x: R.Tensor((2, 4), dtype="float32")) -> R.Tensor((10,), dtype="float32"):
-            R.func_attr({"ForcePure": True})
+            R.force_pure()
             cls = ExpectedLowered
             storage: R.Object = R.vm.alloc_storage(R.shape([32]), R.prim_value(0), R.dtype("float32"))
             alloc: R.Tensor((2, 4), dtype="float32") = R.vm.alloc_tensor(storage, R.prim_value(0), R.shape([2, 4]), R.dtype("float32"))
@@ -217,7 +217,7 @@ def test_different_dtype():
         def main(
             x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="int32")
         ) -> R.Tensor((2, 3), dtype="float32"):
-            R.func_attr({"ForcePure": True})
+            R.force_pure()
             cls = Module
             alloc: R.Tensor((2, 3), dtype="float32") = R.builtin.alloc_tensor(
                 R.shape([2, 3]), dtype="float32", runtime_device_index=0
@@ -253,7 +253,7 @@ def test_different_dtype():
         def main(
             x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="int32")
         ) -> R.Tensor((2, 3), dtype="float32"):
-            R.func_attr({"ForcePure": True})
+            R.force_pure()
             cls = Expected
             storage: R.Object = R.memory.alloc_storage(
                 R.shape([24]), virtual_device_index=0, storage_scope="global", dtype="float32"
@@ -294,7 +294,7 @@ def test_dtype_bool():
 
         @R.function
         def main(y: R.Tensor((2, 3), dtype="bool")) -> R.Tensor((2, 3), dtype="bool"):
-            R.func_attr({"ForcePure": True})
+            R.force_pure()
             cls = Module
             alloc: R.Tensor((2, 3), dtype="bool") = R.builtin.alloc_tensor(
                 R.shape([2, 3]), dtype="bool", runtime_device_index=0
@@ -315,7 +315,7 @@ def test_dtype_bool():
 
         @R.function
         def main(y: R.Tensor((2, 3), dtype="bool")) -> R.Tensor((2, 3), dtype="bool"):
-            R.func_attr({"ForcePure": True})
+            R.force_pure()
             cls = Expected
             storage: R.Object = R.memory.alloc_storage(
                 R.shape([6]), virtual_device_index=0, storage_scope="global", dtype="bool"
@@ -348,7 +348,7 @@ def test_same_dtype():
         def main(
             x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="float32")
         ) -> R.Tensor((2, 3), dtype="float32"):
-            R.func_attr({"ForcePure": True})
+            R.force_pure()
             cls = Module
             alloc: R.Tensor((2, 3), dtype="float32") = R.builtin.alloc_tensor(
                 R.shape([2, 3]), dtype="float32", runtime_device_index=0
@@ -376,7 +376,7 @@ def test_same_dtype():
         def main(
             x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="float32")
         ) -> R.Tensor((2, 3), dtype="float32"):
-            R.func_attr({"ForcePure": True})
+            R.force_pure()
             cls = Expected
             storage: R.Object = R.memory.alloc_storage(
                 R.shape([24]), virtual_device_index=0, storage_scope="global", dtype="float32"
@@ -413,7 +413,7 @@ def test_if_cond():
 
         @R.function
         def main(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((2, 3), dtype="float32"):
-            R.func_attr({"ForcePure": True})
+            R.force_pure()
             cls = Module
             alloc: R.Tensor((), dtype="bool") = R.builtin.alloc_tensor(
                 R.shape([]), dtype="bool", runtime_device_index=0
@@ -447,7 +447,7 @@ def test_if_then_else():
         def main(
             cond: R.Tensor((), dtype="bool"), x: R.Tensor((2, 3), dtype="float32")
         ) -> R.Tensor((2, 3), dtype="float32"):
-            R.func_attr({"ForcePure": True})
+            R.force_pure()
             cls = Module
             alloc: R.Tensor((2, 3), dtype="float32") = R.builtin.alloc_tensor(
                 R.shape([2, 3]), dtype="float32", runtime_device_index=0
@@ -476,7 +476,7 @@ def test_cross_block_use():
         def main(
             cond: R.Tensor((), dtype="bool"), x: R.Tensor((2, 3), dtype="float32")
         ) -> R.Tensor((2, 3), dtype="float32"):
-            R.func_attr({"ForcePure": True})
+            R.force_pure()
             cls = Module
             alloc: R.Tensor((2, 3), dtype="float32") = R.builtin.alloc_tensor(
                 R.shape([2, 3]), dtype="float32", runtime_device_index=0
@@ -513,7 +513,7 @@ def test_nested_tuple():
 
         @R.function
         def main(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((2, 3), dtype="float32"):
-            R.func_attr({"ForcePure": True})
+            R.force_pure()
             alloc: R.Tensor((2, 3), dtype="float32") = R.builtin.alloc_tensor(
                 R.shape([2, 3]), dtype="float32", runtime_device_index=0
             )
@@ -569,7 +569,7 @@ def test_nested_tuple():
 
         @R.function
         def main(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((2, 3), dtype="float32"):
-            R.func_attr({"ForcePure": True})
+            R.force_pure()
             cls = Expected
             storage: R.Object = R.memory.alloc_storage(
                 R.shape([24]), virtual_device_index=0, storage_scope="global", dtype="float32"
@@ -648,7 +648,7 @@ def test_call_func_other_than_primfunc():
     class Module:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")):
-            R.func_attr({"ForcePure": True})
+            R.force_pure()
             alloc: R.Tensor((2, 3), dtype="float32") = R.builtin.alloc_tensor(
                 R.shape([2, 3]), dtype="float32", runtime_device_index=0
             )
@@ -667,7 +667,7 @@ def test_call_packed_external_func():
         @R.function
         def main(x: R.Tensor((2, 3), "float32")):
             # the extern func may or may not be pure, depends on what we're calling
-            R.func_attr({"IsPure": False})
+            R.is_impure()
             alloc: R.Tensor((2, 3), dtype="float32") = R.builtin.alloc_tensor(
                 R.shape([2, 3]), dtype="float32", runtime_device_index=0
             )
@@ -684,7 +684,7 @@ def test_call_packed_external_func():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((2, 3), dtype="float32"):
-            R.func_attr({"IsPure": False})
+            R.is_impure()
             storage: R.Object = R.memory.alloc_storage(
                 R.shape([24]), R.prim_value(0), R.str("global"), R.dtype("float32")
             )
@@ -719,7 +719,7 @@ def test_symbolic_shape():
 
         @R.function
         def main(x: R.Tensor(("m", "n"), "float32")):
-            R.func_attr({"ForcePure": True})
+            R.force_pure()
             m = T.int64()
             n = T.int64()
             alloc: R.Tensor((m, n), dtype="float32") = R.builtin.alloc_tensor(
@@ -739,7 +739,7 @@ def test_zero_reference():
     class Module:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")):
-            R.func_attr({"ForcePure": True})
+            R.force_pure()
             alloc: R.Tensor((2, 3), dtype="float32") = R.builtin.alloc_tensor(
                 R.shape([2, 3]), dtype="float32", runtime_device_index=0
             )
@@ -749,7 +749,7 @@ def test_zero_reference():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3), "float32")):
-            R.func_attr({"ForcePure": True})
+            R.force_pure()
             storage: R.Object = R.memory.alloc_storage(
                 R.shape([24]), virtual_device_index=0, storage_scope="global", dtype="float32"
             )
@@ -778,7 +778,7 @@ def test_reshape_param():
         def main(
             x: R.Tensor((2, 50), dtype="float32"), y: R.Tensor((100,), dtype="float32")
         ) -> R.Tensor((2, 25, 2), dtype="float32"):
-            R.func_attr({"ForcePure": True})
+            R.force_pure()
             lv: R.Tensor((2, 25, 2), dtype="float32") = R.reshape(x, (2, 25, 2))
             lv1: R.Tensor((2, 25, 2), dtype="float32") = R.reshape(y, (2, 25, 2))
             alloc: R.Tensor((2, 25, 2), dtype="float32") = R.builtin.alloc_tensor(
@@ -816,7 +816,7 @@ def test_multiple_functions():
         def func1(
             x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="int32")
         ) -> R.Tensor((2, 3), dtype="float32"):
-            R.func_attr({"ForcePure": True})
+            R.force_pure()
             cls = Module
             alloc: R.Tensor((2, 3), dtype="float32") = R.builtin.alloc_tensor(
                 R.shape([2, 3]), dtype="float32", runtime_device_index=0
@@ -834,7 +834,7 @@ def test_multiple_functions():
         def func2(
             x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="float32")
         ) -> R.Tensor((2, 3), dtype="float32"):
-            R.func_attr({"ForcePure": True})
+            R.force_pure()
             cls = Module
             alloc: R.Tensor((2, 3), dtype="float32") = R.builtin.alloc_tensor(
                 R.shape([2, 3]), dtype="float32", runtime_device_index=0
@@ -870,7 +870,7 @@ def test_multiple_functions():
         def func1(
             x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="int32")
         ) -> R.Tensor((2, 3), dtype="float32"):
-            R.func_attr({"ForcePure": True})
+            R.force_pure()
             cls = Expected
             storage: R.Object = R.memory.alloc_storage(
                 R.shape([24]), virtual_device_index=0, storage_scope="global", dtype="float32"
@@ -898,7 +898,7 @@ def test_multiple_functions():
         def func2(
             x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="float32")
         ) -> R.Tensor((2, 3), dtype="float32"):
-            R.func_attr({"ForcePure": True})
+            R.force_pure()
             cls = Expected
             storage: R.Object = R.memory.alloc_storage(
                 R.shape([24]), virtual_device_index=0, storage_scope="global", dtype="float32"
@@ -952,7 +952,8 @@ def test_tir_var_upper_bound():
 
         @R.function
         def main(x: R.Tensor((2, "n"), dtype="float32")) -> R.Tensor(("2 * n + 2",), dtype="float32"):
-            R.func_attr({"tir_var_upper_bound": {"n": 4}, "ForcePure": True})
+            R.force_pure()
+            R.func_attr({"tir_var_upper_bound": {"n": 4}})
             n = T.int64()
             cls = Module
             alloc: R.Tensor((2, n), dtype="float32") = R.builtin.alloc_tensor(R.shape([2, n]), dtype="float32", runtime_device_index=0)
@@ -1001,8 +1002,9 @@ def test_tir_var_upper_bound():
 
         @R.function
         def main(x: R.Tensor((2, "n"), dtype="float32")) -> R.Tensor(("2 * n + 2",), dtype="float32"):
+            R.force_pure()
             n = T.int64()
-            R.func_attr({"tir_var_upper_bound": {"n": 4}, "ForcePure": True})
+            R.func_attr({"tir_var_upper_bound": {"n": 4}})
             cls = Expected
             storage: R.Object = R.memory.alloc_storage(R.shape([32]), R.prim_value(0), R.str("global"), R.dtype("float32"))
             alloc: R.Tensor((2, n), dtype="float32") = R.memory.alloc_tensor(storage, R.prim_value(0), R.shape([2, n]), R.dtype("float32"))
@@ -1046,9 +1048,10 @@ def test_tir_var_decreasing_monotone():
 
         @R.function
         def main(x: R.Tensor(("n", "m", "T.max(n - m, 1)"), dtype="float32")) -> R.Tensor(("n", "m", "T.max(n - m, 1)"), dtype="float32"):
+            R.force_pure()
             n = T.int64()
             m = T.int64()
-            R.func_attr({"tir_var_upper_bound": {"m": 5, "n": 20}, "ForcePure": True})
+            R.func_attr({"tir_var_upper_bound": {"m": 5, "n": 20}})
             cls = Module
             alloc: R.Tensor((n, m, T.max(n - m, 1)), dtype="float32") = R.builtin.alloc_tensor(R.shape([n, m, T.max(n - m, 1)]), R.dtype("float32"), R.prim_value(0))
             _: R.Tuple = cls.tir_exp(x, alloc)
@@ -1069,9 +1072,10 @@ def test_tir_var_decreasing_monotone():
 
         @R.function
         def main(x: R.Tensor(("n", "m", "T.max(n - m, 1)"), dtype="float32")) -> R.Tensor(("n", "m", "T.max(n - m, 1)"), dtype="float32"):
+            R.force_pure()
             n = T.int64()
             m = T.int64()
-            R.func_attr({"tir_var_upper_bound": {"m": 5, "n": 20}, "ForcePure": True})
+            R.func_attr({"tir_var_upper_bound": {"m": 5, "n": 20}})
             cls = Expected
             storage: R.Object = R.memory.alloc_storage(R.shape([8000]), R.prim_value(0), R.str("global"), R.dtype("float32"))
             alloc: R.Tensor((n, m, T.max(n - m, 1)), dtype="float32") = R.memory.alloc_tensor(storage, R.prim_value(0), R.shape([n, m, T.max(n - m, 1)]), R.dtype("float32"))
@@ -1109,8 +1113,9 @@ def test_call_tir_dyn():
 
         @R.function
         def main(s: R.Shape(["n"])) -> R.Tensor(("n",), dtype="float32"):
+            R.force_pure()
             n = T.int64()
-            R.func_attr({"tir_var_upper_bound": {"n": 20}, "ForcePure": True})
+            R.func_attr({"tir_var_upper_bound": {"n": 20}})
             cls = Module
             alloc: R.Tensor((n,), dtype="float32") = R.builtin.alloc_tensor(R.shape([n]), R.dtype("float32"), R.prim_value(0))
             _: R.Tuple = R.vm.call_tir_dyn(cls.tir_full, (alloc, R.shape([n])))
@@ -1135,8 +1140,9 @@ def test_call_tir_dyn():
 
         @R.function
         def main(s: R.Shape(["n"])) -> R.Tensor(("n",), dtype="float32"):
+            R.force_pure()
             n = T.int64()
-            R.func_attr({"tir_var_upper_bound": {"n": 20}, "ForcePure": True})
+            R.func_attr({"tir_var_upper_bound": {"n": 20}})
             cls = Expected
             storage: R.Object = R.memory.alloc_storage(R.shape([80]), R.prim_value(0), R.str("global"), R.dtype("float32"))
             alloc: R.Tensor((n,), dtype="float32") = R.memory.alloc_tensor(storage, R.prim_value(0), R.shape([n]), R.dtype("float32"))

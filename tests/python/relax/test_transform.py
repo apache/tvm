@@ -94,7 +94,7 @@ def test_call_tir_rewrite():
         @R.function
         def foo(x: R.Tensor(("m", "n"), "float32")):
             # we expect RemovePurityChecking to have been used before this point
-            R.func_attr({"ForcePure": True})
+            R.force_pure()
             m, n = T.int64(), T.int64()
             gv0 = R.call_tir(TestCallTIRRewrite.exp, (x,), R.Tensor((m, n), dtype="float32"))
             return gv0
@@ -147,7 +147,7 @@ def test_transform_remove_purity_checking():
 
         @R.function
         def impure_func() -> R.Object:
-            R.func_attr({"IsPure": False})
+            R.is_impure()
             y = R.print(format="I am impure!")
             return y
 
@@ -167,11 +167,11 @@ def test_transform_remove_purity_checking():
 
         @R.function
         def nested_impure_func() -> R.Tensor((), "int32"):
-            R.func_attr({"IsPure": False})
+            R.is_impure()
 
             @R.function
             def nested() -> R.Object:
-                R.func_attr({"IsPure": False})
+                R.is_impure()
                 x = R.print(format="Oops!")
                 return x
 
@@ -183,38 +183,38 @@ def test_transform_remove_purity_checking():
     class Expected:
         @R.function
         def base(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
-            R.func_attr({"ForcePure": True})
+            R.force_pure()
             y = R.add(x, x)
             z = R.add(x, y)
             return z
 
         @R.function
         def use_call_pure_packed(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
-            R.func_attr({"ForcePure": True})
+            R.force_pure()
             y = R.add(x, x)
             z = R.call_packed("vm.builtin.copy", y, sinfo_args=(R.Tensor((), dtype="int32")))
             return z
 
         @R.function
         def use_invoke_pure_closure(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
-            R.func_attr({"ForcePure": True})
+            R.force_pure()
             closure = R.make_closure(Expected.base, ())
             res = R.invoke_closure(closure, (x,), sinfo_args=R.Tensor((), "int32"))
             return res
 
         @R.function
         def impure_func() -> R.Object:
-            R.func_attr({"IsPure": False})
+            R.is_impure()
             y = R.print(format="I am impure!")
             return y
 
         @R.function
         def nested_pure_func() -> R.Tensor((), "int32"):
-            R.func_attr({"ForcePure": True})
+            R.force_pure()
 
             @R.function
             def nested(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
-                R.func_attr({"ForcePure": True})
+                R.force_pure()
                 y = R.add(x, x)
                 q = R.call_packed("vm.builtin.copy", y, sinfo_args=(R.Tensor((), dtype="int32")))
                 return q
@@ -225,11 +225,11 @@ def test_transform_remove_purity_checking():
 
         @R.function
         def nested_impure_func() -> R.Tensor((), "int32"):
-            R.func_attr({"IsPure": False})
+            R.is_impure()
 
             @R.function
             def nested() -> R.Object:
-                R.func_attr({"IsPure": False})
+                R.is_impure()
                 x = R.print(format="Oops!")
                 return x
 
@@ -247,7 +247,7 @@ def test_call_dps_packed_rewrite():
         @R.function
         def foo(x: R.Tensor(("m", "n"), "float32")):
             # we expect RemovePurityChecking to have been used before this point
-            R.func_attr({"ForcePure": True})
+            R.force_pure()
             m, n = T.int64(), T.int64()
             gv0 = R.call_dps_packed("test.op.identity", (x,), R.Tensor((m, n), dtype="float32"))
             return gv0
@@ -282,7 +282,7 @@ def test_vm_builtin_lower():
         @R.function
         def foo(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor:
             # we expected RemovePurityChecking to have been called first
-            R.func_attr({"ForcePure": True})
+            R.force_pure()
             m, n = T.int64(), T.int64()
             alloc = R.builtin.alloc_tensor(R.shape([m, n]), runtime_device_index=0, dtype="float32")
             _ = R.call_packed(

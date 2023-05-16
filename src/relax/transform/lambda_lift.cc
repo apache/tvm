@@ -190,9 +190,11 @@ class LambdaLifter : public ExprMutator {
     if (all_params_unchanged && body.same_as(func_node->body)) {
       visited_func = GetRef<Expr>(func_node);
     } else if (const auto& body_sinfo = MatchStructInfo<ObjectStructInfo>(body)) {
-      visited_func = Function(params, body, body_sinfo.value(), func_node->attrs);
+      visited_func = Function(params, body, body_sinfo.value(), func_node->is_pure,
+                              func_node->force_pure, func_node->attrs);
     } else {
-      visited_func = Function(params, body, func_node->ret_struct_info, func_node->attrs);
+      visited_func = Function(params, body, func_node->ret_struct_info, func_node->is_pure,
+                              func_node->force_pure, func_node->attrs);
     }
     auto new_func = Downcast<Function>(visited_func);
 
@@ -203,6 +205,8 @@ class LambdaLifter : public ExprMutator {
           /*params=*/new_func->params,
           /*body=*/new_func->body,
           /*ret_struct_info=*/new_func->ret_struct_info,
+          /*is_pure=*/new_func->is_pure,
+          /*force_pure=*/new_func->force_pure,
           /*attrs=*/new_func->attrs,
           /*span=*/new_func->span);
     } else {
@@ -219,6 +223,8 @@ class LambdaLifter : public ExprMutator {
       lifted_func = Function(/*params=*/closure_params,
                              /*body=*/Bind(new_func->body, rebinding_map),
                              /*ret_struct_info=*/new_func->ret_struct_info,
+                             /*is_pure=*/new_func->is_pure,
+                             /*force_pure=*/new_func->force_pure,
                              /*attrs=*/new_func->attrs,
                              /*span=*/func->span);
 
@@ -293,7 +299,8 @@ class LambdaLifter : public ExprMutator {
     for (auto pair : glob_funcs) {
       if (auto* n = pair.second.as<FunctionNode>()) {
         auto func = GetRef<Function>(n);
-        func = Function(func->params, VisitExpr(func->body), func->ret_struct_info, func->attrs);
+        func = Function(func->params, VisitExpr(func->body), func->ret_struct_info, func->is_pure,
+                        func->force_pure, func->attrs);
         builder_->UpdateFunction(pair.first, func);
       }
     }

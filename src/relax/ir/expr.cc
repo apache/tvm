@@ -417,8 +417,8 @@ TVM_REGISTER_GLOBAL("relax.SeqExpr")
 
 TVM_REGISTER_NODE_TYPE(FunctionNode);
 
-Function::Function(Array<Var> params, Expr body, Optional<StructInfo> ret_struct_info,
-                   DictAttrs attrs, Span span) {
+Function::Function(Array<Var> params, Expr body, Optional<StructInfo> ret_struct_info, bool is_pure,
+                   bool force_pure, DictAttrs attrs, Span span) {
   // Set the function type.
   // For function, we take a conservative approach and require the function type
   // to be known at construction time.
@@ -449,15 +449,15 @@ Function::Function(Array<Var> params, Expr body, Optional<StructInfo> ret_struct
     ret_struct_info = body_sinfo;
   }
 
-  // if unannotated, we assume the function is pure
-  bool purity = attrs.GetAttr<Bool>(relax::attr::kIsPure).value_or(Bool(true))->value;
-  FuncStructInfo func_sinfo(param_sinfo, ret_struct_info.value(), purity);
+  FuncStructInfo func_sinfo(param_sinfo, ret_struct_info.value(), is_pure);
 
   // set the fields
   ObjectPtr<FunctionNode> n = make_object<FunctionNode>();
   n->params = std::move(params);
   n->body = std::move(body);
   n->ret_struct_info = std::move(ret_struct_info.value());
+  n->is_pure = is_pure;
+  n->force_pure = force_pure;
   n->checked_type_ = GetStaticType(func_sinfo);
   n->struct_info_ = std::move(func_sinfo);
   n->attrs = std::move(attrs);
@@ -467,25 +467,27 @@ Function::Function(Array<Var> params, Expr body, Optional<StructInfo> ret_struct
 
 TVM_REGISTER_GLOBAL("relax.Function")
     .set_body_typed([](Array<Var> params, Expr body, Optional<StructInfo> ret_struct_info,
-                       DictAttrs attrs,
-                       Span span) { return Function(params, body, ret_struct_info, attrs, span); });
+                       bool is_pure, bool force_pure, DictAttrs attrs, Span span) {
+      return Function(params, body, ret_struct_info, is_pure, force_pure, attrs, span);
+    });
 
-Function Function::CreateEmpty(Array<Var> params, StructInfo ret_struct_info, DictAttrs attrs,
-                               Span span) {
+Function Function::CreateEmpty(Array<Var> params, StructInfo ret_struct_info, bool is_pure,
+                               DictAttrs attrs, Span span) {
   Array<StructInfo> param_sinfo;
   for (const Var& param : params) {
     ICHECK(param->checked_type_.defined())
         << "relax.Function requires params to contain checked_type_.";
     param_sinfo.push_back(GetStructInfo(param));
   }
-  // if unannotated, we assume the function is pure
-  bool purity = attrs.GetAttr<Bool>(relax::attr::kIsPure).value_or(Bool(true))->value;
-  FuncStructInfo finfo(param_sinfo, ret_struct_info, purity);
+
+  FuncStructInfo finfo(param_sinfo, ret_struct_info, is_pure);
 
   // set the fields
   ObjectPtr<FunctionNode> n = make_object<FunctionNode>();
   n->params = std::move(params);
   n->body = Expr();
+  n->is_pure = is_pure;
+  n->force_pure = false;
   n->checked_type_ = GetStaticType(finfo);
   n->struct_info_ = std::move(finfo);
   n->ret_struct_info = std::move(ret_struct_info);
@@ -495,8 +497,9 @@ Function Function::CreateEmpty(Array<Var> params, StructInfo ret_struct_info, Di
 }
 
 TVM_REGISTER_GLOBAL("relax.FunctionCreateEmpty")
-    .set_body_typed([](Array<Var> params, StructInfo ret_struct_info, DictAttrs attrs, Span span) {
-      return Function::CreateEmpty(params, ret_struct_info, attrs, span);
+    .set_body_typed([](Array<Var> params, StructInfo ret_struct_info, bool is_pure, DictAttrs attrs,
+                       Span span) {
+      return Function::CreateEmpty(params, ret_struct_info, is_pure, attrs, span);
     });
 
 // Special opaque derivation function for ExternFunc

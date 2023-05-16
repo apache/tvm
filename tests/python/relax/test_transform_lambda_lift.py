@@ -310,13 +310,13 @@ def test_impure_function():
     class Expected:
         @R.function
         def lifted_func_0() -> R.Tuple:
-            R.func_attr({"IsPure": False})
+            R.is_impure()
             y = R.print(format="Wow!")
             return y
 
         @R.function
         def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
-            R.func_attr({"IsPure": False})
+            R.is_impure()
             inner = Expected.lifted_func_0
             gv1 = inner()
             return x
@@ -325,11 +325,11 @@ def test_impure_function():
     class Before:
         @R.function
         def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
-            R.func_attr({"IsPure": False})
+            R.is_impure()
 
             @R.function
             def inner() -> R.Tuple:
-                R.func_attr({"IsPure": False})
+                R.is_impure()
                 y = R.print(format="Wow!")
                 return y
 

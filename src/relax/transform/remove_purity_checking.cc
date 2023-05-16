@@ -18,7 +18,7 @@
  */
 /*!
  * \file src/relax/transform/remove_purity_checking.cc
- * \brief Change all pure functions to ForcePure and unwrap all calls to pure overrides
+ * \brief Use force_pure in all pure functions and unwrap all calls to pure overrides
  */
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info.h>
@@ -30,17 +30,17 @@ namespace relax {
 
 class PurityRemover : public ExprMutator {
  public:
-  Function RemovePurity(const Function& func) {
-    bool purity = func->GetAttr<Bool>("IsPure").value_or(Bool(true))->value;
-    auto ret = func;
+  Function RemovePurity(Function func) {
+    bool purity = func->is_pure;
+    auto ret = func.CopyOnWrite();
     if (purity) {
-      ret = std::move(WithAttr<Function>(func, "ForcePure", Bool(true)));
+      ret->force_pure = true;
     }
     auto new_body = VisitExpr(ret->body);
     if (!new_body.same_as(ret->body)) {
-      return Function(ret->params, new_body, ret->ret_struct_info, ret->attrs, ret->span);
+      ret->body = std::move(new_body);
     }
-    return ret;
+    return GetRef<Function>(ret);
   }
 
   Expr VisitExpr_(const CallNode* call) override {

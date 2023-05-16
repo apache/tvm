@@ -560,6 +560,8 @@ class Function(BaseFunc, Scriptable):
     params: List[Var]
     body: Expr
     ret_struct_info: StructInfo
+    is_pure: bool
+    force_pure: bool
     attrs: Optional[tvm.ir.DictAttrs]
 
     def __init__(
@@ -567,22 +569,32 @@ class Function(BaseFunc, Scriptable):
         params: List[Var],
         body: Expr,
         ret_struct_info: Optional[StructInfo] = None,
+        is_pure: Optional[bool] = True,
+        force_pure: Optional[bool] = False,
         attrs: Optional[tvm.ir.DictAttrs] = None,
         span: Optional[Span] = None,
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.Function, params, body, ret_struct_info, attrs, span  # type: ignore
+            _ffi_api.Function,
+            params,
+            body,
+            ret_struct_info,
+            is_pure,
+            force_pure,
+            attrs,
+            span,  # type: ignore
         )
 
     @staticmethod
     def create_empty(
         params: List[Var],
         ret_struct_info: StructInfo,
+        is_pure: Optional[bool] = True,
         attrs: Optional[tvm.ir.DictAttrs] = None,
         span: Optional[Span] = None,
     ):
         """Construct a relax.Function but without body"""
-        return _ffi_api.FunctionCreateEmpty(params, ret_struct_info, attrs, span)  # type: ignore
+        return _ffi_api.FunctionCreateEmpty(params, ret_struct_info, is_pure, attrs, span)  # type: ignore
 
     def __call__(self, *args):
         """Invoke the global function.

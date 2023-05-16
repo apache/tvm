@@ -205,6 +205,33 @@ def func_attr(attrs: Dict[py_str, tvm_Object]) -> None:
     return _ffi_api.FuncAttrs(attrs)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
+def is_pure(purity: bool = True) -> None:
+    """Specify the purity of the last function frame.
+
+    Parameters
+    ----------
+    purity: bool
+        The annotated purity.
+    """
+    return _ffi_api.FuncIsPure(purity)  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
+def is_impure() -> None:
+    """Specify that the last function frame is annotated as impure.
+    (Syntactic sugar for R.is_pure(False))"""
+    return _ffi_api.FuncIsPure(False)  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
+def force_pure(forced: bool = True) -> None:
+    """Specify whether the last function frame is forced to be pure.
+    Parameters
+    ----------
+    forced: bool
+        Whether purity is forced for the function or not
+    """
+    return _ffi_api.FuncForcePure(forced)  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
 def func_ret_struct_info(ret_sinfo: StructInfo) -> None:
     """Specify the return struct info of the last function frame.
     Parameters
@@ -592,6 +619,7 @@ __all__ = [
     "flip",
     "floor",
     "floor_divide",
+    "force_pure",
     "full",
     "full_like",
     "func_attr",
@@ -605,6 +633,8 @@ __all__ = [
     "image",
     "invoke_closure",
     "invoke_pure_closure",
+    "is_impure",
+    "is_pure",
     "isfinite",
     "isinf",
     "isnan",

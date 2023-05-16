@@ -1324,9 +1324,7 @@ def test_context_aware_parsing():
 
         @R.function
         def main(x: R.Tensor((2, 4), dtype="float32")) -> R.Tensor((10,), dtype="float32"):
-            # slight hack: normally, we would prefer to use True, but the func attrs, when printed,
-            # will have it as 1, so it would fail roundtripping otherwise
-            R.func_attr({"ForcePure": 1})
+            R.force_pure(True)
             cls = Module
             alloc = R.builtin.alloc_tensor(R.shape([2, 4]), dtype="float32", runtime_device_index=0)
             _: R.Tuple() = cls.add(x, R.const(1, "float32"), alloc)
@@ -1387,7 +1385,7 @@ def test_assert_op():
     class AssertOp:
         @R.function
         def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
-            R.func_attr({"IsPure": 0})
+            R.is_impure()
             y = R.assert_op(R.const(False, dtype="bool"), x, format="x: {}")
             return x
 
@@ -1399,7 +1397,7 @@ def test_print():
     class Print:
         @R.function
         def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
-            R.func_attr({"IsPure": 0})
+            R.is_impure()
             y = R.print(x, format="x: {}")
             return x
 

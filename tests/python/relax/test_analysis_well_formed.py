@@ -577,19 +577,9 @@ def test_labeled_impure():
     y = rx.Var("y")
     block = rx.BindingBlock([rx.VarBinding(y, rx.op.print(x, format="{}"))])
     # print is impure, but the function is not labeled as impure
-    func = rx.Function([x], rx.SeqExpr([block], x), R.Tensor((), dtype="int32")).with_attrs(
-        {"global_symbol": "foo", "IsPure": False}
-    )
-    mod = rx.transform.Normalize()(tvm.IRModule.from_expr(func))
-    assert rx.analysis.well_formed(mod)
-
-
-def test_labeled_explicitly_pure():
-    # ensure nothing breaks if IsPure is set manually
-    x = rx.Var("x", R.Tensor((), dtype="int32"))
-    func = rx.Function([x], x, R.Tensor((), dtype="int32")).with_attrs(
-        {"global_symbol": "foo", "IsPure": True}
-    )
+    func = rx.Function(
+        [x], rx.SeqExpr([block], x), R.Tensor((), dtype="int32"), is_pure=False
+    ).with_attrs({"global_symbol": "foo"})
     mod = rx.transform.Normalize()(tvm.IRModule.from_expr(func))
     assert rx.analysis.well_formed(mod)
 
@@ -598,33 +588,33 @@ def test_force_pure():
     x = rx.Var("x", R.Tensor((), dtype="int32"))
     y = rx.Var("y")
     block = rx.BindingBlock([rx.VarBinding(y, rx.op.print(x, format="{}"))])
-    # print is impure, but ForcePure overrides the judgment
-    func = rx.Function([x], rx.SeqExpr([block], x), R.Tensor((), dtype="int32")).with_attrs(
-        {"global_symbol": "foo", "ForcePure": True, "IsPure": True}
-    )
+    # print is impure, but force_pure overrides the judgment
+    func = rx.Function(
+        [x], rx.SeqExpr([block], x), R.Tensor((), dtype="int32"), force_pure=True
+    ).with_attrs({"global_symbol": "foo"})
     mod = rx.transform.Normalize()(tvm.IRModule.from_expr(func))
     assert rx.analysis.well_formed(mod)
 
 
 def test_force_pure_improper():
-    # we require both the Pure and ForcePure flags to be set together
+    # we require both the is_pure and force_pure flags to be set together
     x = rx.Var("x", R.Tensor((), dtype="int32"))
     # otherwise inoffensive, but the flags are wrong
-    func = rx.Function([x], rx.SeqExpr([], x), R.Tensor((), dtype="int32")).with_attrs(
-        {"global_symbol": "foo", "ForcePure": True, "IsPure": False}
-    )
+    func = rx.Function(
+        [x], rx.SeqExpr([], x), R.Tensor((), dtype="int32"), is_pure=False, force_pure=True
+    ).with_attrs({"global_symbol": "foo"})
     mod = rx.transform.Normalize()(tvm.IRModule.from_expr(func))
     assert not rx.analysis.well_formed(mod)
 
 
 def test_impure_in_dataflow_block():
-    # even if ForcePure is set, an impure operation cannot appear in a dataflow block
+    # even if force_pure is set, an impure operation cannot appear in a dataflow block
     x = rx.Var("x", R.Tensor((), dtype="int32"))
     y = rx.DataflowVar("y")
     block = rx.DataflowBlock([rx.VarBinding(y, rx.op.print(x, format="{}"))])
-    func = rx.Function([x], rx.SeqExpr([block], x), R.Tensor((), dtype="int32")).with_attrs(
-        {"global_symbol": "foo", "ForcePure": True, "IsPure": True}
-    )
+    func = rx.Function(
+        [x], rx.SeqExpr([block], x), R.Tensor((), dtype="int32"), force_pure=True
+    ).with_attrs({"global_symbol": "foo"})
     mod = rx.transform.Normalize()(tvm.IRModule.from_expr(func))
     assert not rx.analysis.well_formed(mod)
 

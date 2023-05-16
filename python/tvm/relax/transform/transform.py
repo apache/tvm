@@ -227,7 +227,7 @@ def ToNonDataflow() -> tvm.ir.transform.Pass:
 
 
 def RemovePurityChecking() -> tvm.ir.transform.Pass:
-    """Activate ForcePure on all pure functions in the module
+    """Activate force_pure on all pure functions in the module
     and unwrap all pure override ops into the normal versions.
 
     This effectively means that there will be no more purity tracking,

@@ -58,6 +58,18 @@ TVM_DLL void FuncName(const String& name);
 TVM_DLL void FuncAttrs(Map<String, ObjectRef> attrs);
 
 /*!
+ * \brief Specify the purity of the last function frame.
+ * \param purity Whether the function is pure.
+ */
+TVM_DLL void FuncIsPure(bool purity);
+
+/*!
+ * \brief Specify whether the last function frame is forced to be pure.
+ * \param force_pure Whether purity should be forced.
+ */
+TVM_DLL void FuncForcePure(bool force_pure);
+
+/*!
  * \brief Specify the return struct info of the last function frame.
  * \param ret_sinfo The return struct info.
  */

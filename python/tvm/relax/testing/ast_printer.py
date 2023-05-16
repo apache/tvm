@@ -147,6 +147,8 @@ class ASTPrinter(ExprFunctor):
             "params": self.build_list(map(self.visit_expr, op.params)),
             "body": self.visit_expr(op.body),
             "ret_struct_info": self.visit_struct_info_(op.ret_struct_info),
+            "is_pure": op.is_pure,
+            "force_pure": op.force_pure,
         }
         if op.attrs:
             fields["attrs"] = self.build_list(
