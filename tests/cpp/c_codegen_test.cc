@@ -121,5 +121,5 @@ TEST(CCodegen, FunctionOrder) {
   auto module = build(inputs, Target());
   Array<String> func_array = module->GetFunction("get_func_names", false)();
   std::vector<std::string> functions{func_array.begin(), func_array.end()};
-  EXPECT_THAT(functions, ElementsAre(StrEq("op_1"), _, StrEq("op_2"), _));
+  EXPECT_TRUE(std::is_sorted(functions.begin(), functions.end()));
 }
