@@ -1114,6 +1114,91 @@ def test_tflite_pool2d_legalize(
     verify(mod["tvmgen_default_ethos_u_main_0"])
 
 
+def test_tflite_pool2d_extra_strides_legalize():
+    dtype = "int8"
+    ifm_shape = [1, 25, 5, 64]
+    strides = [25, 5]
+    pool_shape = [25, 5]
+    activation_function = "RELU"
+    padding = "SAME"
+
+    def create_tflite_graph():
+        class Model(tf.Module):
+            @tf.function
+            def tf_function(self, x):
+                op = tf.nn.avg_pool(x, pool_shape, strides, padding)
+                if activation_function == "RELU":
+                    op = tf.nn.relu(op)
+                return op
+
+        model = Model()
+        concrete_func = model.tf_function.get_concrete_function(
+            tf.TensorSpec(ifm_shape, dtype=tf.float32)
+        )
+
+        # Convert the model
+        def representative_dataset():
+            for _ in range(100):
+                data = np.random.rand(*tuple(ifm_shape))
+                yield [data.astype(np.float32)]
+
+        converter = tf.lite.TFLiteConverter.from_concrete_functions([concrete_func])
+        converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        converter.representative_dataset = representative_dataset
+        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+        converter.inference_input_type = tf.int8
+        converter.inference_output_type = tf.int8
+        tflite_model = converter.convert()
+        return tflite_model
+
+    def expected_mod():
+        expected_ir_string = """
+        #[version = "0.0.5"]
+        def @main(%x: Tensor[(1, 25, 5, 64), int8], output_tensor_names=["Identity"]) \
+            -> Tensor[(1, 1, 1, 64), int8] {
+            @tvmgen_default_ethos_u_main_0(%x)
+        }
+
+        def @tvmgen_default_ethos_u_main_0(%y: Tensor[(1, 25, 5, 64), int8], \
+            Compiler="ethos-u", Primitive=1, Inline=1, \
+                global_symbol="tvmgen_default_ethos_u_main_0") -> Tensor[(1, 1, 1, 64), int8] {
+            %3 = fn (%z: Tensor[(1, 25, 5, 64), int8], \
+                PartitionedFromPattern="cast_nn.avg_pool2d_cast_clip_", \
+                    Composite="ethos-u.avgpool2d") -> Tensor[(1, 1, 1, 64), int8] {
+                %0 = cast(%z, dtype="int32") ;
+                %1 = nn.avg_pool2d(%0, pool_size=[25, 5], strides=[25, 5], padding=[0, 0, 0, 0], \
+                    layout="NHWC") ;
+                %2 = cast(%1, dtype="int8") ;
+                clip(%2, a_min=-128f, a_max=127f)
+            } ;
+            %3(%y)
+        }
+        """
+
+        return tvm.relay.fromtext(expected_ir_string)
+
+    rewriter = legalize.AvgPoolingRewriter()
+    pattern_table = [
+        (
+            ethosu.AvgPool2DParams.composite_name,
+            ethosu.qnn_avgpool2d_pattern(),
+            lambda pat: ethosu.AvgPool2DParams(pat).is_valid(),
+        ),
+    ]
+    tflite_graph = create_tflite_graph()
+    tflite_model = tflite.Model.GetRootAsModel(tflite_graph, 0)
+
+    mod, _ = relay.frontend.from_tflite(
+        tflite_model,
+        shape_dict={"x": ifm_shape},
+        dtype_dict={"x": dtype},
+    )
+    mod = partition_ethosu_by_table(mod, pattern_table)
+
+    expected = expected_mod()
+    tvm.ir.assert_structural_equal(mod, expected)
+
+
 @pytest.mark.parametrize("operator_type", ["ADD", "SUB", "MUL", "MIN", "MAX"])
 @pytest.mark.parametrize(
     "ifm_shape, ifm2_shape, reversed_operands",

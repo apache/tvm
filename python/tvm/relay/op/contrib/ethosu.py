@@ -650,12 +650,33 @@ class AvgPool2DParams:
         """
         This function checks whether AvgPool2D has compatible attributes with the NPU
         """
+
+        def check_extra_strides():
+            """
+            This function checks whether AvgPool2D could be legalized as ethosu_pooling
+            supported by the NPU.
+            We consider only specific case: when there is no AvgPool2D padding, the spatial
+            dimensions of ifm and the shape of pooling are equal, but stride size exceed 3
+            by any of dimensions, e.g:
+            ifm: (1, 8, 8, _), strides: (8, 8), pool_shape: (8, 8)
+            ifm: (1, 25, 5, _), strides: (25, 5), pool_shape: (25, 5)
+            """
+            if self.pooling_type != "AVG":
+                return False
+            if list(self.padding) != [0, 0, 0, 0]:
+                return False
+            if [self.ifm.shape[1], self.ifm.shape[2]] != list(self.pool_shape):
+                return False
+            if list(self.strides) != list(self.pool_shape):
+                return False
+            return True
+
         tensor_params = [self.ifm, self.ofm]
         if not check_valid_dtypes(tensor_params, supported_dtypes=[np.uint8, np.int8]):
             return False
         if self.ifm.dtype != self.ofm.dtype:
             return False
-        if not check_strides(self.strides):
+        if not check_strides(self.strides) and not check_extra_strides():
             return False
         if not check_batch_size(self.ifm):
             return False
@@ -665,7 +686,7 @@ class AvgPool2DParams:
             return False
         if not check_pool_shape(self.pool_shape):
             return False
-        # Averge pool with padding only supports 1 <= pool_shape <= 8
+        # Average pool with padding only supports 1 <= pool_shape <= 8
         if list(self.padding) != [0, 0, 0, 0] and (
             self.pool_shape[0] > 8 or self.pool_shape[1] > 8
         ):
