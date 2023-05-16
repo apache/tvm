@@ -214,7 +214,6 @@ dtype = tvm.testing.parameter("e4m3_float8", "e5m2_float8")
 promote_dtype = tvm.testing.parameter("float16", "float32")
 
 
-@tvm.testing.fixture
 def test_fp8_compute_legalize(dtype, promote_dtype):
     before = get_before(dtype)
     expected = get_after_compute_legalize(dtype, promote_dtype)
@@ -222,11 +221,9 @@ def test_fp8_compute_legalize(dtype, promote_dtype):
     # with this repeative optimizations
     after = tvm.tir.transform.FP8ComputeLegalize(promote_dtype)(before)
     after = tvm.tir.transform.FP8ComputeLegalize(promote_dtype)(after)
-
     tvm.ir.assert_structural_equal(after, expected)
 
 
-@tvm.testing.fixture
 def test_fp8_storage_legalize(dtype, promote_dtype):
     before = get_after_compute_legalize(dtype, promote_dtype)
     after = tvm.tir.transform.FP8StorageLegalize()(before)
@@ -236,3 +233,4 @@ def test_fp8_storage_legalize(dtype, promote_dtype):
 
 if __name__ == "__main__":
     tvm.testing.main()
+
