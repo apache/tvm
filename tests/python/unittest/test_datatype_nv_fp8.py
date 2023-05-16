@@ -46,31 +46,31 @@ def fp8_unary(dtype: str):
                 A_sub_B[vi] = A[vi] - B[vi]
                 A_mul_B[vi] = A[vi] * B[vi]
                 A_div_B[vi] = A[vi] / B[vi]
+
     return func
 
 
-# @tvm.testing.fixture
-def test_create_nv_fp8_nd_array(dtype):
-    x = np.random.rand(128, 128).astype(dtype[0])
+np_dtype, dtype_str = tvm.testing.parameters(
+    (ml_dtypes.float8_e4m3fn, "e4m3_float8"), (ml_dtypes.float8_e5m2, "e5m2_float8")
+)
+
+
+def test_create_nv_fp8_nd_array(np_dtype, dtype_str):
+    x = np.random.rand(128, 128).astype(np_dtype)
     x_nd = tvm.nd.array(x)
-    assert x_nd.dtype == dtype[1]
-    print(x_nd)
+    assert x_nd.dtype == dtype_str
 
 
-def test_fp8_unary_op(dtype):
-    f = fp8_unary(dtype[1])
-    print(f)
+def test_fp8_unary_op(np_dtype, dtype_str):
+    f = fp8_unary(dtype_str)
 
 
-def test_nv_fp8_buffer(dtype):
+def test_nv_fp8_buffer(np_dtype, dtype_str):
     m = te.size_var("m")
     n = te.size_var("n")
-    A = tvm.tir.decl_buffer((m, n), dtype[1])
-    assert A.dtype == dtype[1]
+    A = tvm.tir.decl_buffer((m, n), dtype_str)
+    assert A.dtype == dtype_str
 
 
 if __name__ == "__main__":
-    test_create_nv_fp8_nd_array((ml_dtypes.float8_e4m3fn, "e4m3_float8"))
-    test_create_nv_fp8_nd_array((ml_dtypes.float8_e5m2, "e5m2_float8"))
-    test_nv_fp8_buffer((ml_dtypes.float8_e4m3fn, "e4m3_float8"))
-    test_fp8_unary_op((ml_dtypes.float8_e4m3fn, "e4m3_float8"))
+    tvm.testing.main()
