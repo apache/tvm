@@ -32,6 +32,12 @@ PrimExpr ReinterpretAsUInt(PrimExpr value) {
 
 DataType GetStorageUIntDType(DataType dtype) { return DataType::UInt(dtype.bits(), dtype.lanes()); }
 
+/*!
+ * \brief Conversion from one floating point data type to another floating point data type.
+ * \param src_value The floating point value to be converted.
+ * \param tgt_dtype The target floating point data type.
+ * \param round_mode The rounding mode to use, defaults to kHalfToEven.
+ */
 PrimExpr FpToFp(PrimExpr src_value, DataType tgt_dtype, RoundingMode round_mode) {
   FloatConfig src_fp = FloatConfig::FromDataType(src_value.dtype()),
               tgt_fp = FloatConfig::FromDataType(tgt_dtype);
@@ -79,9 +85,26 @@ PrimExpr FpToFp(PrimExpr src_value, DataType tgt_dtype, RoundingMode round_mode)
   }
 }
 
-PrimExpr IntToFp(PrimExpr src_value, FloatConfig tgt_fp) {}
+/*!
+ * \brief Conversion from integer to floating point data type.
+ * \param src_value The integer value to be converted.
+ * \param tgt_dtype The target floating point data type.
+ * \param round_mode The rounding mode to use, defaults to kHalfToEven.
+ */
+PrimExpr IntToFp(PrimExpr src_value, DataType tgt_dtype, RoundingMode round_mode) {
+  // TODO(tvm-team): implement integer to floating point conversion with clz primitive.
+  LOG(FATAL) << "Not implemented.";
+}
 
-PrimExpr FpToInt(PrimExpr src_value, FloatConfig src_fp, DataType tgt_dtype) {}
+/*!
+ * \brief Conversion from floating point data type to integer.
+ * \param src_value The floating point value to be converted.
+ * \param tgt_dtype The target integer data type.
+ * \param round_mode The rounding mode to use, defaults to kHalfToEven.
+ */
+PrimExpr FpToInt(PrimExpr src_value, DataType tgt_dtype, RoundingMode round_mode) {
+
+}
 
 PrimExpr DTypeConversion(PrimExpr src_value, DataType tgt_dtype, RoundingMode round_mode) {
   DataType src_dtype = src_value.dtype();
@@ -95,9 +118,9 @@ PrimExpr DTypeConversion(PrimExpr src_value, DataType tgt_dtype, RoundingMode ro
     return FpToFp(src_value, tgt_dtype, round_mode);
   } else {
     if (is_integer(src_dtype) && is_floating_point(tgt_dtype)) {
-      return IntToFp(src_value, FloatConfig::FromDataType(tgt_dtype));
+      return IntToFp(src_value, tgt_dtype, round_mode);
     } else if (is_floating_point(src_dtype) && is_integer(src_dtype)) {
-      return FpToInt(src_value, FloatConfig::FromDataType(src_dtype), tgt_dtype);
+      return FpToInt(src_value, tgt_dtype, round_mode);
     } else {
       LOG(FATAL) << "Not Implemented yet";
     }

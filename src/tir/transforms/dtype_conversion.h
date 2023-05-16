@@ -38,6 +38,12 @@ namespace tir {
 enum class RoundingMode {
   // Round half to nearest even
   kHalfToEven = 0U,
+  // Round down
+  kDown = 1U,
+  // Round up
+  kUp = 2U,
+  // Round towards zero
+  kTowardsZero = 3U,
 };
 
 /*!
@@ -131,11 +137,11 @@ PrimExpr ReinterpretAsUInt(PrimExpr value);
 DataType GetStorageUIntDType(DataType dtype);
 
 /*!
- * \brief Conversion routine from value stored in one data type to target data type without using
- * hardware.
+ * \brief Conversion routine from value stored in one data type to target data type.
  * \param src_value The value to be converted.
  * \param tgt_dtype The target data type.
  * \param round_mode The rounding mode to use, defaults to kHalfToEven.
+ * \note Used when there is no native data type conversion implementation.
  */
 PrimExpr DTypeConversion(PrimExpr src_value, DataType tgt_dtype,
                          RoundingMode round_mode = RoundingMode::kHalfToEven);
