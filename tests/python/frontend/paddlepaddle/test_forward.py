@@ -1005,13 +1005,18 @@ def test_forward_ones_like():
 
 @tvm.testing.uses_gpu
 def test_forward_gelu():
-    @paddle.jit.to_static
-    def gelu(inputs):
-        return nn.functional.gelu(inputs)
+    class Gelu(nn.Layer):
+        def __init__(self, approximate=False):
+            super(Gelu, self).__init__()
+            self.approximate = approximate
+
+        def forward(self, inputs):
+            return nn.functional.gelu(inputs, approximate=self.approximate)
 
     input_shape = [1, 3, 10, 10]
     input_data = paddle.rand(input_shape, dtype="float32")
-    verify_model(gelu, input_data=input_data)
+    verify_model(Gelu(), input_data=input_data)
+    verify_model(Gelu(approximate=True), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -1768,6 +1773,21 @@ def test_forward_tan():
 @run_math_api
 def test_forward_tanh():
     pass
+
+
+@tvm.testing.uses_gpu
+def test_forward_softplusThreshold():
+    class Softplus(nn.Layer):
+        def __init__(self, threshold=20):
+            super(Softplus, self).__init__()
+            self.threshold = threshold
+
+        def forward(self, input):
+            return paddle.nn.functional.softplus(input, threshold=self.threshold)
+
+    input_data = paddle.rand([2, 3, 5], dtype="float32")
+    verify_model(Softplus(), input_data=input_data)
+    verify_model(Softplus(threshold=0.5), input_data=input_data)
 
 
 @tvm.testing.uses_gpu

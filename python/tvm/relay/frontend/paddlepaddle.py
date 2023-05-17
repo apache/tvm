@@ -833,10 +833,28 @@ def convert_gelu(g, op, block):
     """Operator converter for gelu."""
 
     x = g.get_node(op.input("X")[0])
-    out = x * (
-        _expr.const(0.5, dtype="float32")
-        + _op.erf(x * _expr.const(0.5**0.5, dtype="float32")) * _expr.const(0.5, dtype="float32")
-    )
+    approx = op.attr("approximate")
+    if approx:
+        M_2_SQRTPI = 1.12837916709551257390
+        M_SQRT1_2 = 0.70710678118654752440
+        out = x * (
+            _expr.const(0.5, dtype="float32")
+            + _op.tanh(
+                x
+                * _expr.const(M_2_SQRTPI * M_SQRT1_2, dtype="float32")
+                * (
+                    _expr.const(1.0, dtype="float32")
+                    + _expr.const((0.044715), dtype="float32") * x * x
+                )
+            )
+            * _expr.const(0.5, dtype="float32")
+        )
+    else:
+        out = x * (
+            _expr.const(0.5, dtype="float32")
+            + _op.erf(x * _expr.const(0.5**0.5, dtype="float32"))
+            * _expr.const(0.5, dtype="float32")
+        )
     g.add_node(op.output("Out")[0], out)
 
 
@@ -2172,8 +2190,11 @@ def convert_softplus(g, op, block):
     x = g.get_node(op.input("X")[0])
     dtype = infer_type(x).checked_type.dtype
     beta = op.attr("beta")
+    threshold = op.attr("threshold")
     beta = _expr.const(beta, dtype=dtype)
+    threshold = _expr.const(threshold, dtype=dtype)
     out = _op.log(_op.exp(x * beta) + _expr.const(1.0, dtype=dtype)) / beta
+    out = _op.where(x * beta > threshold, x, out)  # revert to linear if x * beta > threshold
     g.add_node(op.output("Out")[0], out)
 
 
