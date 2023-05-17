@@ -99,7 +99,11 @@ class WebGPUWorkgroupInfoCollector : public StmtExprVisitor {
 };
 
 std::string CodeGenWebGPU::Finish() {
-  return decl_stream.str() + this->fwd_decl_stream.str() + stream.str();
+  // Using f16 requires enable directive
+  if (enable_fp16_) {
+    header_stream << "enable f16;\n\n";
+  }
+  return header_stream.str() + decl_stream.str() + this->fwd_decl_stream.str() + stream.str();
 }
 
 void CodeGenWebGPU::InitFuncState(const PrimFunc& f) {
@@ -134,7 +138,7 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f, bool skip_re
   ICHECK(global_symbol.defined())
       << "CodeGenWebGPU: Expect PrimFunc to have the global_symbol attribute";
 
-  decl_stream << "//----------------------------------------\n"
+  header_stream << "//----------------------------------------\n"
               << "// Function: " << global_symbol.value() << "\n"
               << "//----------------------------------------\n";
   runtime::FunctionInfo func_info;
@@ -299,6 +303,10 @@ void CodeGenWebGPU::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
 
   if (t.is_float()) {
     ICHECK(t.bits() == 16 || t.bits() == 32) << "CodeGenWebGPU: only support f16 or f32";
+    if (t.bits() == 16) {
+      // Using f16 requires enable directive
+      enable_fp16_ = true;
+    }
     os << "f" << t.bits();
   } else if (t.is_uint()) {
     ICHECK(t.bits() != 64) << "CodeGenWebGPU: do not support u64";
@@ -434,6 +442,8 @@ void CodeGenWebGPU::VisitExpr_(const FloatImmNode* op, std::ostream& os) {  // N
   if (op->dtype.bits() == 32) {
     temp << 'f';
   } else if (op->dtype.bits() == 16) {
+    // Using f16 requires enable directive
+    enable_fp16_ = true;
     temp << 'h';
   } else {
     LOG(FATAL) << "Unsupported floating point bits " << op->dtype.bits();
@@ -668,7 +678,7 @@ class WebGPUSourceModuleNode final : public runtime::ModuleNode {
   }
 
  private:
-  // function information table.
+  // function shader code table.
   std::unordered_map<std::string, std::string> smap_;
   // function information table.
   std::unordered_map<std::string, runtime::FunctionInfo> fmap_;
