@@ -3098,7 +3098,7 @@ class Schedule(Object):
                     found = True
                     break
 
-            assert found, "Could not find buffer '{buffer.name}' in block '{block_name}'"
+            assert found, f"Could not find buffer '{buffer.name}' in block '{block_name}'"
 
         elif isinstance(buffer, tuple):
             buffer_index_type, buffer_index = buffer
