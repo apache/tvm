@@ -31,21 +31,24 @@ def fp8_unary(dtype: str):
         a_add_b: T.handle,
         a_sub_b: T.handle,
         a_mul_b: T.handle,
-        a_div_b: T.handle,
+        a_fp32: T.handle,
+        a_roundtrip: T.handle,
     ) -> None:
         A = T.match_buffer(a, [128], dtype=dtype)
         B = T.match_buffer(b, [128], dtype=dtype)
         A_add_B = T.match_buffer(a_add_b, [128], dtype=dtype)
         A_sub_B = T.match_buffer(a_sub_b, [128], dtype=dtype)
         A_mul_B = T.match_buffer(a_mul_b, [128], dtype=dtype)
-        A_div_B = T.match_buffer(a_div_b, [128], dtype=dtype)
+        A_fp32 = T.match_buffer(a_fp32, [128], dtype="float32")
+        A_roundtrip = T.match_buffer(a_roundtrip, [128], dtype=dtype)
         for i in range(128):
             with T.block("fp8_unary"):
                 vi = T.axis.spatial(128, i)
                 A_add_B[vi] = A[vi] + B[vi]
                 A_sub_B[vi] = A[vi] - B[vi]
                 A_mul_B[vi] = A[vi] * B[vi]
-                A_div_B[vi] = A[vi] / B[vi]
+                A_fp32[vi] = A[vi]
+                A_roundtrip[vi] = A_fp32[vi]
 
     return func
 
@@ -62,7 +65,23 @@ def test_create_nv_fp8_nd_array(np_dtype, dtype_str):
 
 
 def test_fp8_unary_op(np_dtype, dtype_str):
-    f = fp8_unary(dtype_str)
+    func = fp8_unary(dtype_str)
+    print()
+    if not tvm.testing.device_enabled("llvm"):
+        return
+
+    f = tvm.build(func, target="llvm")
+    a = np.random.randn(128).astype(np_dtype)
+    b = np.random.randn(128).astype(np_dtype)
+    a_add_b = np.zeros(128).astype(np_dtype)
+    a_sub_b = np.zeros(128).astype(np_dtype)
+    a_mul_b = np.zeros(128).astype(np_dtype)
+    a_fp32 = np.zeros(128).astype(np.float32)
+    a_roundtrip = np.zeros(128).astype(np_dtype)
+    args = list(
+        map(lambda _: tvm.nd.array(_), [a, b, a_add_b, a_sub_b, a_mul_b, a_fp32, a_roundtrip])
+    )
+    f(*args)
 
 
 def test_nv_fp8_buffer(np_dtype, dtype_str):

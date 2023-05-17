@@ -359,9 +359,10 @@ TVM_DLL Pass BF16ComputeLegalize();
 /*!
  * \brief Legalize fp8 compute Ops. Add a cast to fp16/fp32
  *   before Ops, then add a cast back to fp8.
+ * \param promote_dtype_str The data type used for type promotion, defaults to float16
  * \return The pass.
  */
-TVM_DLL Pass FP8ComputeLegalize(String promote_dtype_str = "float32");
+TVM_DLL Pass FP8ComputeLegalize(String promote_dtype_str = "float16");
 
 /*!
  * \brief Legalize bf16 storage types to u16.
