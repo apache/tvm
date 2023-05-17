@@ -21,6 +21,10 @@ from tvm import relay, te
 from tvm.relay import analysis, transform
 from tvm.relay.op import op as reg
 from tvm.relay.op import register_alter_op_layout
+from tvm.relay.quantize._annotate import (
+    attach_simulated_quantize,
+    QAnnotateKind,
+)
 from tvm.relay.transform.infer_layout_utils import InferCorrectLayoutOutput
 
 
@@ -2630,6 +2634,51 @@ def test_conv_max_pool_uses_specified_convert_layout():
     a = run_opt_pass(
         a, transform.ConvertLayout({"nn.conv2d": ["NHWC", "OHWI"], "nn.max_pool2d": ["NHWC"]})
     )
+    b = run_opt_pass(expected(), transform.InferType())
+
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a) + "\n\n Expected = \n" + str(b)
+
+
+def test_simulated_quantize_uses_specified_convert_layout():
+    def before():
+        x = relay.var("x", shape=(1, 64, 56, 56))
+        weight = relay.var("weight", shape=(64, 64, 3, 3))
+        y = relay.nn.conv2d(
+            x,
+            weight,
+            channels=64,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NCHW",
+            kernel_layout="OIHW",
+        )
+        y = attach_simulated_quantize(y, QAnnotateKind.INPUT)
+        y = relay.nn.relu(y)
+        y = relay.Function(analysis.free_vars(y), y)
+        return y
+
+    def expected():
+        x = relay.var("x", shape=(1, 64, 56, 56))
+        weight = relay.var("weight", shape=(64, 64, 3, 3))
+        x = relay.layout_transform(x, "NCHW", "NHWC")
+        weight = relay.layout_transform(weight, "OIHW", "OHWI")
+        y = relay.nn.conv2d(
+            x,
+            weight,
+            channels=64,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NHWC",
+            kernel_layout="OHWI",
+        )
+        y = attach_simulated_quantize(y, QAnnotateKind.INPUT)
+        y = relay.nn.relu(y)
+        y = relay.layout_transform(y, "NHWC", "NCHW")
+        y = relay.Function(analysis.free_vars(y), y)
+        return y
+
+    a = before()
+    a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NHWC", "OHWI"]}))
     b = run_opt_pass(expected(), transform.InferType())
 
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a) + "\n\n Expected = \n" + str(b)
