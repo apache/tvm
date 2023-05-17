@@ -214,7 +214,8 @@ std::vector<BranchInfo> GetBranchInfo(Function f) {
   auto matmul_pat = IsOp("relax.matmul")(Wildcard(), Wildcard());
   auto bias_add_pat = IsOp("relax.add")(matmul_pat, bias_pat);
 
-  std::vector<std::string> activations{"relax.nn.relu", "relax.nn.gelu", "relax.nn.gelu_tanh", "relax.nn.silu"};
+  std::vector<std::string> activations{"relax.nn.relu", "relax.nn.gelu", "relax.nn.gelu_tanh",
+                                       "relax.nn.silu"};
 
   std::vector<DFPattern> activation_pat, bias_activation_pat;
   for (const auto& act : activations) {
