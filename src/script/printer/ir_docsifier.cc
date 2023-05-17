@@ -160,6 +160,11 @@ IRDocsifier::FType& IRDocsifier::vtable() {
 TVM_REGISTER_NODE_TYPE(FrameNode);
 TVM_REGISTER_NODE_TYPE(IRDocsifierNode);
 
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
+    .set_fallback([](ObjectRef obj, ObjectPath p, IRDocsifier d) -> Doc {
+      return d->AddMetadata(obj);
+    });
+
 }  // namespace printer
 }  // namespace script
 }  // namespace tvm
