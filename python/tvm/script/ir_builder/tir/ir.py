@@ -1655,13 +1655,19 @@ def index_map(
     return IndexMap.from_func(mapping, inverse_index_map=inverse_index_map)
 
 
-def target(target_config: Union[Dict, str]) -> Target:
+def target(
+    target_config: Union[Dict, str],
+    host: Optional[Union[Dict, str, Target]] = None,
+) -> Target:
     """
     Create a target
 
     Parameters
     ----------
     target_config : Union[Dict, str]
+        The target configuration.
+
+    host : Optional[Union[Dict, str, Target]]
         The target configuration.
 
     Returns
@@ -1673,7 +1679,19 @@ def target(target_config: Union[Dict, str]) -> Target:
         raise ValueError(
             f"T.target expected a config dict or string, but got {type(target_config)}"
         )
-    return Target(target_config)
+    if host is not None and not isinstance(host, (str, dict, Target)):
+        raise ValueError(
+            "T.target expected the host to be "
+            "a config dict, string, or T.target, "
+            f"but got {type(host)}"
+        )
+    if isinstance(target_config, dict) and "host" in target_config and host is not None:
+        raise ValueError(
+            "T.target expects to either receive the host "
+            "as part of the target's config dictionary, "
+            "or as a separate argument, but not both."
+        )
+    return Target(target_config, host)
 
 
 def Range(begin: PrimExpr, end: PrimExpr) -> ir.Range:  # pylint: disable=invalid-name
