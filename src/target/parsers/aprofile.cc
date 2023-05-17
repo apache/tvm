@@ -106,29 +106,30 @@ static TargetFeatures GetFeatures(TargetJSON target) {
   Optional<String> mtriple = Downcast<Optional<String>>(target.Get("mtriple"));
   Optional<Array<String>> mattr = Downcast<Optional<Array<String>>>(target.Get("mattr"));
 
-  double arch_version = GetArchVersion(mattr);
+  const double arch_version = GetArchVersion(mattr);
 
-  bool is_aarch64 = IsAArch64(mtriple);
+  const bool is_aarch64 = IsAArch64(mtriple);
 
-  bool simd_flag = HasFlag(mcpu, mattr, "+neon") || HasFlag(mcpu, mattr, "+simd");
-  bool has_asimd = is_aarch64 || simd_flag;
+  const bool simd_flag = HasFlag(mcpu, mattr, "+neon") || HasFlag(mcpu, mattr, "+simd");
+  const bool has_asimd = is_aarch64 || simd_flag;
+  const bool has_sve = HasFlag(mcpu, mattr, "+sve");
 
-  bool i8mm_flag = HasFlag(mcpu, mattr, "+i8mm");
-  bool i8mm_disable = HasFlag(mcpu, mattr, "+noi8mm");
-  bool i8mm_default = arch_version >= 8.6;
-  bool i8mm_support = arch_version >= 8.2 && arch_version <= 8.5;
-  bool has_i8mm = (i8mm_default && !i8mm_disable) || (i8mm_support && i8mm_flag);
+  const bool i8mm_flag = HasFlag(mcpu, mattr, "+i8mm");
+  const bool i8mm_disable = HasFlag(mcpu, mattr, "+noi8mm");
+  const bool i8mm_default = arch_version >= 8.6;
+  const bool i8mm_support = arch_version >= 8.2 && arch_version <= 8.5;
+  const bool has_i8mm = (i8mm_default && !i8mm_disable) || (i8mm_support && i8mm_flag);
 
-  bool dotprod_flag = HasFlag(mcpu, mattr, "+dotprod");
-  bool dotprod_disable = HasFlag(mcpu, mattr, "+nodotprod");
-  bool dotprod_default = arch_version >= 8.4;
-  bool dotprod_support = arch_version >= 8.2 && arch_version <= 8.3;
-  bool has_dotprod = (dotprod_default && !dotprod_disable) || (dotprod_support && dotprod_flag);
+  const bool dotprod_flag = HasFlag(mcpu, mattr, "+dotprod");
+  const bool dotprod_disable = HasFlag(mcpu, mattr, "+nodotprod");
+  const bool dotprod_default = arch_version >= 8.4;
+  const bool dotprod_support = arch_version >= 8.2 && arch_version <= 8.3;
+  const bool has_dotprod =
+      (dotprod_default && !dotprod_disable) || (dotprod_support && dotprod_flag);
 
   return {
-      {"is_aarch64", Bool(is_aarch64)},
-      {"has_asimd", Bool(has_asimd)},
-      {"has_dotprod", Bool(has_dotprod)},
+      {"is_aarch64", Bool(is_aarch64)},  {"has_asimd", Bool(has_asimd)},
+      {"has_sve", Bool(has_sve)},        {"has_dotprod", Bool(has_dotprod)},
       {"has_matmul_i8", Bool(has_i8mm)},
   };
 }
