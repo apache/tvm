@@ -234,6 +234,18 @@ class TorchFXImporter:
             )
         return self.block_builder.emit(relax.op.clip(args[0], a_min, a_max))
 
+    def _gelu(self, node: fx.node.Node) -> relax.Expr:
+        if "approximate" not in node.kwargs:
+            approximate = "none"
+        else:
+            approximate = node.kwargs["approximate"]
+        if approximate == "none":
+            return self.block_builder.emit(relax.op.nn.gelu(self.env[node.args[0]]))
+        elif approximate == "tanh":
+            return self.block_builder.emit(relax.op.nn.gelu_tanh(self.env[node.args[0]]))
+        else:
+            raise KeyError("Unregonized approximate algorithm for gelu: {}.".format(approximate))
+
     ########## Compare ##########
 
     def _lt(self, node: fx.node.Node) -> relax.Expr:
@@ -1163,7 +1175,7 @@ class TorchFXImporter:
             "dropout": lambda node: self.env[node.args[0]],
             "clamp": self._clamp,
             "relu": lambda node: self.block_builder.emit(relax.op.nn.relu(self.env[node.args[0]])),
-            "gelu": lambda node: self.block_builder.emit(relax.op.nn.gelu(self.env[node.args[0]])),
+            "gelu": self._gelu,
             "silu": lambda node: self.block_builder.emit(relax.op.nn.silu(self.env[node.args[0]])),
             "tanh": lambda node: self.block_builder.emit(relax.op.tanh(self.env[node.args[0]])),
             "interpolate": self._interpolate,

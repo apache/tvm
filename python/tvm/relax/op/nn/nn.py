@@ -579,7 +579,7 @@ def gelu_tanh(data: Expr) -> Expr:
     """Gaussian Error Linear Units function with tanh approximation
 
     .. math::
-        \text{GELU}(x) = 0.5 * x * (1 + \text{Tanh}(\sqrt(2 / \pi) * (x + 0.044715 * x^3)))
+        text{GELU}(x) = 0.5 * x * (1 + text{Tanh}(\sqrt(2 / \pi) * (x + 0.044715 * x^3)))
 
     Parameters
     ----------
