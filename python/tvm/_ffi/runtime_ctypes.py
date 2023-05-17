@@ -105,7 +105,6 @@ class DataType(ctypes.Structure):
         "uint16": {"type_code": DataTypeCode.UINT, "bits": 16, "lanes": 1},
         "uint32": {"type_code": DataTypeCode.UINT, "bits": 32, "lanes": 1},
         "uint64": {"type_code": DataTypeCode.UINT, "bits": 64, "lanes": 1},
-        "float8": {"type_code": DataTypeCode.FLOAT, "bits": 8, "lanes": 1},
         "e4m3_float8": {"type_code": DataTypeCode.E4M3Float, "bits": 8, "lanes": 1},
         "e5m2_float8": {"type_code": DataTypeCode.E5M2Float, "bits": 8, "lanes": 1},
         "float16": {"type_code": DataTypeCode.FLOAT, "bits": 16, "lanes": 1},
