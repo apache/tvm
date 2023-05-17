@@ -21,7 +21,7 @@ import numbers
 from typing import Any, Dict, Optional
 
 from tvm import relax, tir
-from tvm.ir import make_node, DictAttrs, GlobalVar, structural_equal
+from tvm.ir import GlobalVar, structural_equal
 from tvm.relax import Expr, StructInfo
 from tvm.relax.utils import convert_to_expr
 from tvm.script.ir_builder.relax.frame import BlockFrame
