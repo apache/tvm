@@ -489,12 +489,12 @@ def test_tflite_conv2d_with_separate_channel_padding_legalize():
 
         def are_pad_on_graph(self, subgraph) -> bool:
             """
-            This function recursively visits the graph and checks if 'nn.pad' op is ongraph
+            This function recursively visits the graph and checks if 'nn.pad' op is on graph
             """
             self.visit(subgraph)
             return self.on_graph
 
-    def create_tflite_graph_single():
+    def create_tflite_graph():
         class Model(tf.Module):
             @tf.function
             def tf_function(self, x):
@@ -556,7 +556,7 @@ def test_tflite_conv2d_with_separate_channel_padding_legalize():
         ),
     ]
 
-    tflite_graph = create_tflite_graph_single()
+    tflite_graph = create_tflite_graph()
     tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
 
     mod, conv_params = relay.frontend.from_tflite(
@@ -900,9 +900,29 @@ def test_tflite_separate_padding_legalize(ifm_shape, padding, const_value):
 def test_tflite_separate_channel_padding_legalize(ifm_shape, channel_padding, const_value):
     dtype = "int8"
     padding = (0, 0, 0, 0)
-    kernel_shape = (1, 1)
-    strides = (1, 1)
-    dilation = (1, 1)
+
+    class AreConcatenateOnGraph(ExprVisitor):
+        """
+        Visits the Graph recursively and checks if it contains 'concatenate' op
+        """
+
+        def __init__(self):
+            ExprVisitor.__init__(self)
+            self.on_graph = False
+
+        def visit_call(self, call):
+            if isinstance(call.op, tvm.ir.Op):
+                if str(call.op.name) == "concatenate":
+                    self.on_graph = True
+
+            return super().visit_call(call)
+
+        def are_concatenate_on_graph(self, subgraph) -> bool:
+            """
+            This function recursively visits the graph and checks if 'concatenate' op is on graph
+            """
+            self.visit(subgraph)
+            return self.on_graph
 
     def create_tflite_graph():
         class Model(tf.Module):
@@ -940,24 +960,8 @@ def test_tflite_separate_channel_padding_legalize(ifm_shape, channel_padding, co
         return tflite_model
 
     def verify(ext_func):
-        op = ext_func.body
 
-        # check IFM
-        ifm = op.args[0].checked_type
-        assert list(ifm.shape) == list(ifm_shape)
-        assert str(ifm.dtype) == dtype
-        assert ifm.shape[3] == ifm_shape[3]
-
-        # check OFM
-        ofm = op.checked_type
-        expected_ofm_shape = infra.compute_ofm_shape(
-            ifm_shape, padding, kernel_shape, strides, dilation, channel_padding=channel_padding
-        )
-        assert list(ofm.shape) == list(expected_ofm_shape)
-        assert str(ofm.dtype) == dtype
-        assert ofm.shape[3] == channel_padding[0] + ifm_shape[3] + channel_padding[1]
-
-        assert list(op.op.body.attrs.pad_width[3]) == list(channel_padding)
+        assert AreConcatenateOnGraph().are_concatenate_on_graph(ext_func.body) == True
 
     pad_pattern_table = [
         (
@@ -980,7 +984,7 @@ def test_tflite_separate_channel_padding_legalize(ifm_shape, channel_padding, co
     mod = partition_ethosu_by_table(mod, pad_pattern_table)
 
     mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
-        legalize.PadRewriter(), mod["tvmgen_default_ethos_u_main_0"]
+        legalize.ChannelPadRewriter(), mod["tvmgen_default_ethos_u_main_0"]
     )
     verify(mod["tvmgen_default_ethos_u_main_0"])
 

@@ -1448,7 +1448,7 @@ class PadRewriter(DFPatternCallback):
 
 
 class ChannelPadRewriter(DFPatternCallback):
-    """Convert ethos-u.pad2d composite function to the Relay concatenate operation"""
+    """Convert ethos-u.channel-pad composite function to the Relay concatenate operation"""
 
     def __init__(self):
         super().__init__(require_type=True)
@@ -1463,7 +1463,6 @@ class ChannelPadRewriter(DFPatternCallback):
         params.ifm.tensor = post.args[0]
 
         concat_args = list()
-        # Activations requiring LUT is currently not supported, so setting it to an empty list
         lut = relay.const([], dtype="int8")
         # pad channels before
         if params.ch_padding[0] > 0:
@@ -1521,8 +1520,7 @@ class ChannelPadRewriter(DFPatternCallback):
             )
             concat_args.append(identity3)
 
-        axis = 3
-        return relay.op.concatenate(relay.Tuple(concat_args), axis=axis)
+        return relay.op.concatenate(relay.Tuple(concat_args), axis=3)
 
 
 @util.create_npu_function_pass(opt_level=1)
