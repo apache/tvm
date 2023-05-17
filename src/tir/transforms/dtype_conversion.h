@@ -47,7 +47,7 @@ enum class RoundingMode {
 };
 
 /*!
- * \brief Floating point representation.
+ * \brief Floating point internal representation.
  */
 class FloatConfig {
  public:
@@ -93,12 +93,18 @@ class FloatConfig {
 
   inline int bits() const { return mantissa + exponent + 1; }
 
+  /*!
+   * \brief Create float config from data type.
+   * \param dtype The data type, must be a floating point.
+   * \return The FloatConfig class containing internal floating point representation.
+   */
   static FloatConfig FromDataType(DataType dtype) {
     CHECK(dtype.is_float() || dtype.is_bfloat16() || dtype.is_float8())
         << "FloatConfig is only applicable to floating point data types, got " << dtype
         << " instead.";
     if (dtype.is_float()) {
-      // IEEE 754 encoding
+      // IEEE 754 binary formats
+      // Reference: https://en.wikipedia.org/wiki/Floating-point_arithmetic
       switch (dtype.bits()) {
         case 16:
           return FloatConfig(5, 10, 15, InftyStyle::kIEEE, NaNStyle::kIEEE);
@@ -109,15 +115,17 @@ class FloatConfig {
           return FloatConfig(11, 52, 1023, InftyStyle::kIEEE, NaNStyle::kIEEE);
       }
     } else if (dtype.is_bfloat16()) {
-      // bfloat16
+      // bfloat16,
       return FloatConfig(8, 7, 127, InftyStyle::kIEEE, NaNStyle::kIEEE);
-    } else {
-      // float8: e5m2 or e4m3
+    } else {  // float8
+      // NVIDIA/Arm/Intel's FP8 formats for Deep Learning
+      // Reference: https://arxiv.org/abs/2209.05433
       switch (dtype.code()) {
         case DataType::kE4M3Float:
+          // E4M3 format, not consistent with IEEE-754
           return FloatConfig(4, 3, 7, InftyStyle::kNone, NaNStyle::kAllOnes);
         default:
-          // E5M2
+          // E5M2 format, consistent with IEEE-754
           return FloatConfig(5, 2, 15, InftyStyle::kIEEE, NaNStyle::kIEEE);
       }
     }
