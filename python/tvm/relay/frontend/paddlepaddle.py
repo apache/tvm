@@ -2259,7 +2259,6 @@ def convert_softplus(g, op, block):
     x = g.get_node(op.input("X")[0])
     dtype = infer_type(x).checked_type.dtype
     beta = op.attr("beta")
-    threshold = op.attr("threshold")
     beta = _expr.const(beta, dtype=dtype)
     threshold = op.attr("threshold")
     threshold = _expr.const(threshold, dtype=dtype)
