@@ -16,6 +16,7 @@
 # under the License.
 import enum
 
+import pytest
 import tvm
 import tvm.script
 import tvm.testing
@@ -52,6 +53,39 @@ def test_annotate_opkind_outewisefusable():
                     with T.init():
                         C[vi, vj] = T.float32(0)
                     C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+
+    mod = InputModule
+    new_mod = relax.transform.AnnotateTIROpPattern()(mod)
+    assert new_mod["tir_matmul"].attrs["op_pattern"] == OpPatternKind.kOutEWiseFusable
+
+
+@pytest.mark.parametrize(
+    "cast_pattern",
+    [
+        lambda a, b: T.Cast("float32", a * b),
+        lambda a, b: T.Cast("float32", a) * T.Cast("float32", b),
+        lambda a, b: T.Cast("float32", T.Cast("float16", a * b)),
+    ],
+)
+def test_annotate_opkind_outewisefusable_with_cast(cast_pattern):
+    @tvm.script.ir_module
+    class InputModule:
+        @T.prim_func
+        def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
+            T.func_attr({"global_symbol": "tir_matmul"})
+            m = T.int32()
+            n = T.int32()
+            k = T.int32()
+            A = T.match_buffer(x, (m, n), "float16")
+            B = T.match_buffer(y, (n, k), "float16")
+            C = T.match_buffer(z, (m, k), "float32")
+
+            for i, j, k in T.grid(m, k, n):
+                with T.block("matmul"):
+                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                    with T.init():
+                        C[vi, vj] = T.float32(0)
+                    C[vi, vj] = C[vi, vj] + cast_pattern(A[vi, vk], B[vk, vj])
 
     mod = InputModule
     new_mod = relax.transform.AnnotateTIROpPattern()(mod)
