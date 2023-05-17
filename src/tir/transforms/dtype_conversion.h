@@ -127,12 +127,16 @@ class FloatConfig {
 /*!
  * \brief Reinterpret value as unsigned integer with equal number of bits.
  * \param value The value to interpret.
+ * \return The reinterpreted uint value.
  */
 PrimExpr ReinterpretAsUInt(PrimExpr value);
 
 /*!
- * \brief Get the storage data type when the specified dtype is not supported natively.
+ * \brief Get the unsigned integer data type used as storage when the specified dtype is not
+ *   supported natively.
  * \param dtype The data type.
+ * \return The uint data type, the number of bits is
+ *   the same as input dtype.
  */
 DataType GetStorageUIntDType(DataType dtype);
 
@@ -142,6 +146,7 @@ DataType GetStorageUIntDType(DataType dtype);
  * \param src_value The floating point value to be converted.
  * \param tgt_dtype The target floating point data type.
  * \param round_mode The rounding mode to use, defaults to kHalfToEven.
+ * \return The converted value in target floating point data type.
  * \note Used when there is no native data type conversion implementation.
  */
 PrimExpr DTypeConversion(PrimExpr src_value, DataType tgt_dtype,
