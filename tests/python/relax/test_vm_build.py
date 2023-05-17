@@ -15,19 +15,19 @@
 # specific language governing permissions and limitations
 # under the License.
 import os
+import ctypes
 from typing import Tuple, Callable
 
-import sys
-import tempfile
+
 import numpy as np
 import pytest
 import tvm
 import tvm.script
 import tvm.testing
 from tvm import relax, rpc, te, tir, topi
-from tvm.contrib import utils
+from tvm.contrib import utils, cc, popen_pool
 from tvm.relax.testing import nn
-from tvm.script import relax as R, tir as T
+from tvm.script import relax as R, tir as T, ir as I
 from tvm.relax.testing.vm import check_saved_func
 
 EXEC_MODE = ["bytecode", "compiled"]
@@ -722,6 +722,72 @@ class TestVMSetInput:
         cls = TestVMSetInput
         gv0 = R.call_tir(cls.test_vm_mul, (x, w), R.Tensor((32, 32), dtype="float32"))
         return gv0
+
+
+@pytest.mark.parametrize("exec_mode", EXEC_MODE)
+def test_multi_systemlib(exec_mode):
+    @tvm.script.ir_module
+    class ModA:
+        I.module_attrs({"system_lib_prefix": "libA_"})
+
+        @T.prim_func
+        def tir_init(x: T.Buffer((2), "float32")) -> None:
+            for i in range(2):
+                x[i] = T.float32(0)
+
+        @R.function
+        def main(s: R.Shape(["m"])) -> R.Tensor:
+            m = T.int64()
+            gv0 = R.call_tir(ModA.tir_init, (), R.Tensor((m + 1,), dtype="float32"))
+            return gv0
+
+    @tvm.script.ir_module
+    class ModB:
+        I.module_attrs({"system_lib_prefix": "libB_"})
+
+        @T.prim_func
+        def tir_init(x: T.Buffer((2), "float32")) -> None:
+            for i in range(2):
+                x[i] = T.float32(1)
+
+        @R.function
+        def main(s: R.Shape(["m"])) -> R.Tensor:
+            m = T.int64()
+            gv0 = R.call_tir(ModB.tir_init, (), R.Tensor((m,), dtype="float32"))
+            return gv0
+
+    target = tvm.target.Target("llvm", host="llvm")
+    libA = relax.build(ModA, target, exec_mode=exec_mode)
+    libB = relax.build(ModB, target, exec_mode=exec_mode)
+
+    temp = utils.tempdir()
+    pathA = temp.relpath("libA.a")
+    pathB = temp.relpath("libB.a")
+    path_dso = temp.relpath("mylib.so")
+    libA.export_library(pathA, cc.create_staticlib)
+    libB.export_library(pathB, cc.create_staticlib)
+
+    # package two static libs together
+    # check that they do not interfere with each other
+    # even though they have shared global var names
+    # intentionally craft same gvar function with different behaviors
+    cc.create_shared(path_dso, ["-Wl,--whole-archive", pathA, pathB, "-Wl,--no-whole-archive"])
+
+    def popen_check():
+        # Load dll, will trigger system library registration
+        ctypes.CDLL(path_dso)
+        # Load the system wide library
+        vmA = relax.VirtualMachine(tvm.runtime.system_lib("libA_"), tvm.cpu())
+        vmB = relax.VirtualMachine(tvm.runtime.system_lib("libB_"), tvm.cpu())
+
+        retA = vmA["main"](tvm.runtime.ShapeTuple([1]))
+        retB = vmB["main"](tvm.runtime.ShapeTuple([2]))
+        np.testing.assert_equal(retA.numpy(), np.array([0, 0]).astype("float32"))
+        np.testing.assert_equal(retB.numpy(), np.array([1, 1]).astype("float32"))
+
+    # system lib should be loaded in different process
+    worker = popen_pool.PopenWorker()
+    worker.send(popen_check)
 
 
 def set_input_trial(vm: relax.VirtualMachine, device: tvm.runtime.Device) -> None:

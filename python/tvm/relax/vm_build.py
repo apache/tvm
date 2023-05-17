@@ -339,6 +339,7 @@ def build(
 
 def _filter_tir(mod: tvm.IRModule) -> tvm.IRModule:
     tir_mod = IRModule({})
+    tir_mod = tir_mod.with_attrs(mod.attrs)
     for gv in mod.get_global_vars():
         if isinstance(mod[gv], PrimFunc):
             tir_mod[gv] = mod[gv]

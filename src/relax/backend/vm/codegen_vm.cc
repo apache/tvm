@@ -67,14 +67,14 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
       : builder_(builder), ctx_mod_(ctx_mod) {}
 
   static IRModule Run(relax::ExecBuilder builder, IRModule mod) {
-    IRModule res_mod = IRModule(Map<GlobalVar, BaseFunc>());
+    IRModule res_mod = mod;
+    res_mod.CopyOnWrite();
     CodeGenVM codegen(builder, mod);
     // Remove relax function and turn into TIR func.
     for (const auto& [gvar, f] : mod->functions) {
       if (auto* func = f.as<FunctionNode>()) {
         codegen.Codegen(GetRef<Function>(func));
-      } else {
-        res_mod->Add(gvar, f);
+        res_mod->Remove(gvar);
       }
     }
     return res_mod;
