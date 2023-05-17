@@ -382,7 +382,7 @@ def test_alignment():
     s = te.create_schedule(B.op)
     bx, tx = s[B].split(B.op.axis[0], factor=8)
     s[B].vectorize(tx)
-    f = tvm.build(s, [A, B], "llvm", name="test_alignment")
+    f = tvm.build(s, [A, B], "llvm -opt-level=0", name="test_alignment")
 
     lines = f.get_source().split("\n")
 
