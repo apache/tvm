@@ -111,6 +111,7 @@ class TracedScheduleNode : public ConcreteScheduleNode {
   void UnsafeSetDType(const BlockRV& block_rv, int buffer_index, const String& dtype) final;
   /******** Schedule: Blockize & Tensorize ********/
   BlockRV Blockize(const LoopRV& loop_rv, bool preserve_unit_iters) final;
+  BlockRV Blockize(const Array<BlockRV>& blocks, bool preserve_unit_iters) final;
   void Tensorize(const BlockRV& block_rv, const String& intrin, bool preserve_unit_iters) final;
   void Tensorize(const LoopRV& loop_rv, const String& intrin, bool preserve_unit_iters) final;
   /******** Schedule: Annotation ********/

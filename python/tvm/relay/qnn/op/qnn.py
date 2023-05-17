@@ -86,7 +86,7 @@ class RequantizeConfig(Object):
 
     def __setattr__(self, name, value):
         if name in RequantizeConfig._node_defaults:
-            raise AttributeError("'%s' object cannot set attribute '%s'" % (str(type(self)), name))
+            raise AttributeError(f"'{type(self)}' object cannot set attribute '{name}'")
         return super(RequantizeConfig, self).__setattr__(name, value)
 
 
@@ -876,13 +876,7 @@ def tanh(x, scale, zero_point, output_scale, output_zero_point):
         The computed result.
 
     """
-    return _make.tanh(
-        x,
-        scale,
-        zero_point,
-        output_scale,
-        output_zero_point,
-    )
+    return _make.tanh(x, scale, zero_point, output_scale, output_zero_point)
 
 
 def exp(x, scale, zero_point, output_scale, output_zero_point):
@@ -911,13 +905,7 @@ def exp(x, scale, zero_point, output_scale, output_zero_point):
         The computed result.
 
     """
-    return _make.exp(
-        x,
-        scale,
-        zero_point,
-        output_scale,
-        output_zero_point,
-    )
+    return _make.exp(x, scale, zero_point, output_scale, output_zero_point)
 
 
 def sqrt(x, scale, zero_point, output_scale, output_zero_point):
@@ -946,13 +934,7 @@ def sqrt(x, scale, zero_point, output_scale, output_zero_point):
         The computed result.
 
     """
-    return _make.sqrt(
-        x,
-        scale,
-        zero_point,
-        output_scale,
-        output_zero_point,
-    )
+    return _make.sqrt(x, scale, zero_point, output_scale, output_zero_point)
 
 
 def rsqrt(x, scale, zero_point, output_scale, output_zero_point):
@@ -981,13 +963,7 @@ def rsqrt(x, scale, zero_point, output_scale, output_zero_point):
         The computed result.
 
     """
-    return _make.rsqrt(
-        x,
-        scale,
-        zero_point,
-        output_scale,
-        output_zero_point,
-    )
+    return _make.rsqrt(x, scale, zero_point, output_scale, output_zero_point)
 
 
 def erf(x, scale, zero_point, output_scale, output_zero_point):
@@ -1016,13 +992,7 @@ def erf(x, scale, zero_point, output_scale, output_zero_point):
         The computed result.
 
     """
-    return _make.erf(
-        x,
-        scale,
-        zero_point,
-        output_scale,
-        output_zero_point,
-    )
+    return _make.erf(x, scale, zero_point, output_scale, output_zero_point)
 
 
 # pylint: disable=redefined-builtin
@@ -1054,13 +1024,7 @@ def abs(x, scale, zero_point, output_scale, output_zero_point):
         The computed result.
 
     """
-    return _make.abs(
-        x,
-        scale,
-        zero_point,
-        output_scale,
-        output_zero_point,
-    )
+    return _make.abs(x, scale, zero_point, output_scale, output_zero_point)
 
 
 def sigmoid(x, scale, zero_point, output_scale, output_zero_point):
@@ -1089,13 +1053,7 @@ def sigmoid(x, scale, zero_point, output_scale, output_zero_point):
         The computed result.
 
     """
-    return _make.sigmoid(
-        x,
-        scale,
-        zero_point,
-        output_scale,
-        output_zero_point,
-    )
+    return _make.sigmoid(x, scale, zero_point, output_scale, output_zero_point)
 
 
 def hardswish(x, scale, zero_point, output_scale, output_zero_point):
@@ -1124,13 +1082,7 @@ def hardswish(x, scale, zero_point, output_scale, output_zero_point):
         The computed result.
 
     """
-    return _make.hardswish(
-        x,
-        scale,
-        zero_point,
-        output_scale,
-        output_zero_point,
-    )
+    return _make.hardswish(x, scale, zero_point, output_scale, output_zero_point)
 
 
 def log(x, scale, zero_point, output_scale, output_zero_point):
@@ -1159,13 +1111,7 @@ def log(x, scale, zero_point, output_scale, output_zero_point):
         The computed result.
 
     """
-    return _make.log(
-        x,
-        scale,
-        zero_point,
-        output_scale,
-        output_zero_point,
-    )
+    return _make.log(x, scale, zero_point, output_scale, output_zero_point)
 
 
 def subtract(
@@ -1297,10 +1243,9 @@ def leaky_relu(x, alpha, input_scale, input_zero_point, output_scale, output_zer
         The computed result.
     """
     return _make.leaky_relu(
-        x,
-        alpha,
-        input_scale,
-        input_zero_point,
-        output_scale,
-        output_zero_point,
+        x, alpha, input_scale, input_zero_point, output_scale, output_zero_point
     )
+
+
+def softmax(x, scale, zero_point, output_scale, output_zero_point, axis=-1):
+    return _make.softmax(x, axis, scale, zero_point, output_scale, output_zero_point)

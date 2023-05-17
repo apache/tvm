@@ -145,3 +145,7 @@ ENV PATH /opt/sccache:$PATH
 # Libxsmm deps
 COPY install/ubuntu_install_libxsmm.sh /install
 RUN bash /install/ubuntu_install_libxsmm.sh
+
+# ONNX and PyTorch
+COPY install/ubuntu_install_onnx.sh /install/ubuntu_install_onnx.sh
+RUN bash /install/ubuntu_install_onnx.sh

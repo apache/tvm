@@ -278,8 +278,6 @@ constexpr const char* tvm_get_c_metadata = "get_c_metadata";
 constexpr const char* tvm_module_ctx = "__tvm_module_ctx";
 /*! \brief Global variable to store device module blob */
 constexpr const char* tvm_dev_mblob = "__tvm_dev_mblob";
-/*! \brief Number of bytes of device module blob. */
-constexpr const char* tvm_dev_mblob_nbytes = "__tvm_dev_mblob_nbytes";
 /*! \brief global function to set device */
 constexpr const char* tvm_set_device = "__tvm_set_device";
 /*! \brief Auxiliary counter to global barrier. */

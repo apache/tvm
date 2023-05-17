@@ -235,7 +235,7 @@ def squeeze(data, axis=None):
                 try:
                     tempaxis.append(int(tmpax))
                 except ValueError as err:
-                    raise RuntimeError("Unrecognized axis type: %s" % err)
+                    raise RuntimeError(f"Unrecognized axis type: {err}")
         axis = tempaxis
     return _make.squeeze(data, axis)
 
@@ -324,7 +324,7 @@ def reshape(data, newshape, allowzero=False):
                 try:
                     tempshape.append(int(shape))
                 except ValueError as err:
-                    raise RuntimeError("Unrecognized shape type: %s" % err)
+                    raise RuntimeError(f"Unrecognized shape type: {err}")
         newshape = tempshape
     return _make.reshape(data, list(newshape), allowzero)
 
