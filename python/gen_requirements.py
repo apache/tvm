@@ -71,6 +71,7 @@ REQUIREMENTS_BY_PIECE: RequirementsByPieceType = [
                 "psutil",
                 "scipy",
                 "tornado",
+                "ml_dtypes",
             ],
         ),
     ),

@@ -62,7 +62,6 @@ class DataTypeCode(object):
     BFLOAT = 4
     E4M3Float = 6
     E5M2Float = 7
-    
 
 
 class DataType(ctypes.Structure):
@@ -94,7 +93,7 @@ class DataType(ctypes.Structure):
         np.dtype(np.float_): "float64",
         np.dtype(ml_dtypes.bfloat16): "bfloat16",
         np.dtype(ml_dtypes.float8_e4m3fn): "e4m3_float8",
-        np.dtype(ml_dtypes.float8_e5m2): "e5m2_float8"
+        np.dtype(ml_dtypes.float8_e5m2): "e5m2_float8",
     }
     STR2DTYPE = {
         "bool": {"type_code": DataTypeCode.UINT, "bits": 1, "lanes": 1},

@@ -233,4 +233,3 @@ def test_fp8_storage_legalize(dtype, promote_dtype):
 
 if __name__ == "__main__":
     tvm.testing.main()
-
