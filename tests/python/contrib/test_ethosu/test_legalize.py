@@ -1186,7 +1186,7 @@ def test_tflite_pool2d_extra_strides_legalize():
         ),
     ]
     tflite_graph = create_tflite_graph()
-    tflite_model = tflite.Model.GetRootAsModel(tflite_graph, 0)
+    tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
 
     mod, _ = relay.frontend.from_tflite(
         tflite_model,
