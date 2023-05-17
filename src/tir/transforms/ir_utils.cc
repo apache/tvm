@@ -527,6 +527,9 @@ Optional<arith::IntConstraints> ConditionalBoundsContext::TrySolveCondition() {
   // solve constraints
   arith::IntConstraints constraint(vars, ranges, equations);
   arith::IntConstraints result = arith::SolveInequalitiesToRange(constraint);
+  if (!result->relations.empty()) {
+    return NullOpt;
+  }
   return std::move(result);
 }
 
@@ -546,10 +549,6 @@ void ConditionalBoundsContext::EnterWithScope() {
     // fail to process the condition, add to unresolved
     pending_conditions_->push_back(condition_);
     return;
-  }
-  for (const PrimExpr& unresolved : constraints.value()->relations) {
-    // add partially unresolved conditions
-    pending_conditions_->push_back(unresolved);
   }
   // update solved var ranges
   for (const auto& kv : constraints.value()->ranges) {
