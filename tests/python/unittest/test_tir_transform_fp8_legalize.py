@@ -124,19 +124,16 @@ def cast_to_uint8(f8_dtype: str, promote_dtype: str, v):
             mantissa = T.bitwise_and(
                 T.shift_right(T.Cast("uint8", uint16_v), T.uint8(7)), T.uint8(0x7)
             )
+            exponent_before_delta = T.shift_right(T.shift_left(uint16_v, T.uint16(1)), T.uint16(11))
+            round_to_zero = exponent_before_delta < T.uint16(8)
             exponent = T.shift_left(
-                T.Cast(
-                    "uint8",
-                    T.max(
-                        T.shift_right(T.shift_left(uint16_v, T.uint16(1)), T.uint16(11)),
-                        T.uint16(8),
-                    )
-                    - T.uint16(8),
-                ),
+                T.Cast("uint8", exponent_before_delta - T.uint16(8)),
                 T.uint8(3),
             )
             sign = T.uint8(0x80)
-            return T.bitwise_or(T.bitwise_or(mantissa, exponent), sign)
+            return T.if_then_else(
+                round_to_zero, T.uint8(0), T.bitwise_or(T.bitwise_or(mantissa, exponent), sign)
+            )
         else:  # promote_dtype == "float32"
             uint32_v = T.reinterpret("uint32", v)
             rounding_bias = T.bitwise_and(
@@ -146,19 +143,15 @@ def cast_to_uint8(f8_dtype: str, promote_dtype: str, v):
             mantissa = T.bitwise_and(
                 T.shift_right(T.Cast("uint8", uint32_v), T.uint8(20)), T.uint8(0x7)
             )
+            exponent_before_delta = T.shift_right(T.shift_left(uint32_v, T.uint32(1)), T.uint32(24))
+            round_to_zero = exponent_before_delta < T.uint32(120)
             exponent = T.shift_left(
-                T.Cast(
-                    "uint8",
-                    T.max(
-                        T.shift_right(T.shift_left(uint32_v, T.uint32(1)), T.uint32(24)),
-                        T.uint32(120),
-                    )
-                    - T.uint32(120),
-                ),
-                T.uint8(3),
+                T.Cast("uint8", exponent_before_delta - T.uint32(120)), T.uint8(3)
             )
             sign = T.uint8(0x80)
-            return T.bitwise_or(T.bitwise_or(mantissa, exponent), sign)
+            return T.if_then_else(
+                round_to_zero, T.uint8(0), T.bitwise_or(T.bitwise_or(mantissa, exponent), sign)
+            )
     else:  # f8_dtype == "e5m2_float8"
         if promote_dtype == "float16":
             uint16_v = T.reinterpret("uint16", v)
@@ -176,19 +169,15 @@ def cast_to_uint8(f8_dtype: str, promote_dtype: str, v):
             mantissa = T.bitwise_and(
                 T.shift_right(T.Cast("uint8", uint32_v), T.uint8(21)), T.uint8(0x3)
             )
+            exponent_before_delta = T.shift_right(T.shift_left(uint32_v, T.uint32(1)), T.uint32(24))
+            round_to_zero = exponent_before_delta < T.uint32(112)
             exponent = T.shift_left(
-                T.Cast(
-                    "uint8",
-                    T.max(
-                        T.shift_right(T.shift_left(uint32_v, T.uint32(1)), T.uint32(24)),
-                        T.uint32(112),
-                    )
-                    - T.uint32(112),
-                ),
-                T.uint8(2),
+                T.Cast("uint8", exponent_before_delta - T.uint32(112)), T.uint8(2)
             )
             sign = T.uint8(0x80)
-            return T.bitwise_or(T.bitwise_or(mantissa, exponent), sign)
+            return T.if_then_else(
+                round_to_zero, T.uint8(0), T.bitwise_or(T.bitwise_or(mantissa, exponent), sign)
+            )
 
 
 def get_after_storage_legalize(dtype: str, promote_dtype: str):

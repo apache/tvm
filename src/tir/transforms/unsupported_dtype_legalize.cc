@@ -164,7 +164,7 @@ class FP8ComputeLegalizePlanner : public ComputeLegalizePlanner {
 // point in the TIR lowering phases.
 class ComputeLegalizer : public StmtExprMutator {
  public:
-  ComputeLegalizer(DataType promote_dtype) : promote_dtype_(promote_dtype) {}
+  explicit ComputeLegalizer(DataType promote_dtype) : promote_dtype_(promote_dtype) {}
 
   PrimFunc LegalizeWithPlanner(PrimFunc func, ComputeLegalizePlanner* planner) {
     planner->Plan(func);
@@ -454,7 +454,7 @@ class BF16ComputeLegalizer : public ComputeLegalizer {
 
 class FP8ComputeLegalizer : public ComputeLegalizer {
  public:
-  FP8ComputeLegalizer(DataType promote_dtype) : ComputeLegalizer(promote_dtype) {}
+  explicit FP8ComputeLegalizer(DataType promote_dtype) : ComputeLegalizer(promote_dtype) {}
   PrimFunc Legalize(PrimFunc func) {
     FP8ComputeLegalizePlanner planner(&buffer_remap_, &var_remap_, promote_dtype_);
     return LegalizeWithPlanner(func, &planner);

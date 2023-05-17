@@ -257,11 +257,11 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
     if (!fail) return;
   } else if (t.is_float8()) {
     if (t.is_scalar()) {
-      os << "unsigned char"; // __nv_fp8_storage_t is an alias of unsigned char
+      os << "unsigned char";  // __nv_fp8_storage_t is an alias of unsigned char
     } else if (lanes == 2) {
-      os << "unsigned short int"; // __nv_fp8x2_storage_t is an alias of unsigned short
+      os << "unsigned short int";  // __nv_fp8x2_storage_t is an alias of unsigned short
     } else if (lanes == 4) {
-      os << "unsigned int"; // __nv_fp8x4_storage_t is an alias of unsigned int
+      os << "unsigned int";  // __nv_fp8x4_storage_t is an alias of unsigned int
     } else {
       fail = true;
     }

@@ -79,15 +79,20 @@ PrimExpr DTypeConversion(PrimExpr src_value, DataType tgt_dtype, RoundingMode ro
         (mantissa_delta >= 0 ? (cast(tgt_uint, src_uint_value) << mantissa_delta)
                              : (cast(tgt_uint, src_uint_value) >> (-mantissa_delta))) &
         make_const(tgt_uint, (int64_t(1) << (tgt_fp.mantissa)) - 1);
-    PrimExpr ret_exponent =
-        (bias_delta > 0)
-            ? (cast(tgt_uint, ((src_uint_value << 1) >> (src_fp.mantissa + 1)) + bias_delta)
-               << tgt_fp.mantissa)
-            : (cast(tgt_uint, max(((src_uint_value << 1) >> (src_fp.mantissa + 1)), (-bias_delta)) -
-                                  (-bias_delta)))
-                  << tgt_fp.mantissa;
+    PrimExpr exponent_before_delta = ((src_uint_value << 1) >> (src_fp.mantissa + 1));
     PrimExpr ret_sign = make_const(tgt_uint, int64_t(1) << (tgt_fp.mantissa + tgt_fp.exponent));
-    return reinterpret(tgt_dtype, ret_mantissa | ret_exponent | ret_sign);
+    if (bias_delta >= 0) {
+      PrimExpr ret_exponent =
+          (bias_delta > 0) ? (cast(tgt_uint, exponent_before_delta + bias_delta) << tgt_fp.mantissa)
+                           : (cast(tgt_uint, exponent_before_delta) << tgt_fp.mantissa);
+      return reinterpret(tgt_dtype, ret_mantissa | ret_exponent | ret_sign);
+    } else {  // bias_delta < 0
+      PrimExpr round_to_zero = exponent_before_delta < (-bias_delta);
+      PrimExpr ret_exponent = (cast(tgt_uint, exponent_before_delta - (-bias_delta)))
+                              << tgt_fp.mantissa;
+      return reinterpret(tgt_dtype, if_then_else(round_to_zero, make_const(tgt_uint, 0),
+                                                 ret_mantissa | ret_exponent | ret_sign));
+    }
   }
 }
 
