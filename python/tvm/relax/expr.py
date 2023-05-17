@@ -583,7 +583,7 @@ class Function(BaseFunc, Scriptable):
             force_pure,
             attrs,
             span,  # type: ignore
-        )
+        )  # type: ignore
 
     @staticmethod
     def create_empty(
@@ -594,7 +594,9 @@ class Function(BaseFunc, Scriptable):
         span: Optional[Span] = None,
     ):
         """Construct a relax.Function but without body"""
-        return _ffi_api.FunctionCreateEmpty(params, ret_struct_info, is_pure, attrs, span)  # type: ignore
+        return _ffi_api.FunctionCreateEmpty(
+            params, ret_struct_info, is_pure, attrs, span
+        )  # type: ignore
 
     def __call__(self, *args):
         """Invoke the global function.
