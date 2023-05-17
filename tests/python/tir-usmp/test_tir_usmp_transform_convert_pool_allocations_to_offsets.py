@@ -106,7 +106,7 @@ class LinearStructure:
     def tvmgen_default_fused_cast_subtract(placeholder_2: T.handle, placeholder_3: T.handle, T_subtract: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_fused_cast_subtract", "tir.noalias": True})
-        placeholder_4 = T.match_buffer(placeholder_2, [150528], dtype="uint8", elem_offset=0, align=64, offset_factor=1)
+        placeholder_4 = T.match_buffer(placeholder_2, [150560], dtype="uint8", elem_offset=0, align=64, offset_factor=1)
         placeholder_5 = T.match_buffer(placeholder_3, [1], dtype="int16", elem_offset=0, align=64, offset_factor=1)
         T_subtract_1 = T.match_buffer(T_subtract, [452], dtype="int16", elem_offset=0, align=64, offset_factor=1)
         # body
@@ -118,7 +118,7 @@ class LinearStructure:
     def tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast(placeholder_62: T.handle, placeholder_63: T.handle, placeholder_64: T.handle, T_cast_20: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast", "tir.noalias": True})
-        placeholder_65 = T.match_buffer(placeholder_62, [150528], dtype="int16", elem_offset=0, align=64, offset_factor=1)
+        placeholder_65 = T.match_buffer(placeholder_62, [150560], dtype="int16", elem_offset=0, align=64, offset_factor=1)
         placeholder_66 = T.match_buffer(placeholder_63, [9408], dtype="int16", elem_offset=0, align=64, offset_factor=1)
         placeholder_67 = T.match_buffer(placeholder_64, [64], dtype="int32", elem_offset=0, align=64, offset_factor=1)
         T_cast_21 = T.match_buffer(T_cast_20, [289], dtype="uint8", elem_offset=0, align=64, offset_factor=1)
@@ -178,11 +178,11 @@ class LinearStructurePlanned:
     @T.prim_func
     def __tvm_main__(input: T.handle, fast_memory_0_var: T.handle("uint8"), slow_memory_1_var: T.handle("uint8"), output: T.handle) -> None:
         fast_memory_0_buffer_var = T.match_buffer(fast_memory_0_var, [200704], dtype="uint8", strides=[1], elem_offset=0, align=16)
-        slow_memory_1_buffer_var = T.match_buffer(slow_memory_1_var, [1418528], dtype="uint8", strides=[1], elem_offset=0, align=16)
+        slow_memory_1_buffer_var = T.match_buffer(slow_memory_1_var, [1418560], dtype="uint8", strides=[1], elem_offset=0, align=16)
         # body
         T.attr("default", "device_id", 0)
         T.attr("default", "device_type", 1)
-        sid_9_let: T.handle("int8") = T.address_of(slow_memory_1_buffer_var[1117472], dtype="handle")
+        sid_9_let: T.handle("int8") = T.address_of(slow_memory_1_buffer_var[1117504], dtype="handle")
         sid_8_let: T.handle("int8") = T.address_of(slow_memory_1_buffer_var[0], dtype="handle")
         T.evaluate(T.call_extern("tvmgen_default_fused_cast_subtract", input, T.lookup_param("p0", dtype="handle"), sid_9_let, fast_memory_0_buffer_var.data, slow_memory_1_buffer_var.data, dtype="int32"))
         T.evaluate(T.call_extern("tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast", sid_9_let, T.lookup_param("p1", dtype="handle"), T.lookup_param("p2", dtype="handle"), sid_8_let, fast_memory_0_buffer_var.data, slow_memory_1_buffer_var.data, dtype="int32"))
@@ -193,7 +193,7 @@ class LinearStructurePlanned:
         placeholder_29 = T.match_buffer(placeholder_28, [802816], dtype="uint8")
         T_cast_7 = T.match_buffer(T_cast_6, [177], dtype="int16")
         fast_memory_6_buffer_var = T.match_buffer(fast_memory_6_var, [200704], dtype="uint8", strides=[1], elem_offset=0, align=16)
-        slow_memory_7_buffer_var = T.match_buffer(slow_memory_7_var, [1418528], dtype="uint8", strides=[1], elem_offset=0, align=16)
+        slow_memory_7_buffer_var = T.match_buffer(slow_memory_7_var, [1418560], dtype="uint8", strides=[1], elem_offset=0, align=16)
         # body
         tensor_2_let = T.Buffer([200704], dtype="uint8")
         with T.LetStmt(T.address_of(fast_memory_6_buffer_var[0], dtype="handle"), var=tensor_2_let.data):
@@ -207,23 +207,23 @@ class LinearStructurePlanned:
 
     @T.prim_func
     def tvmgen_default_fused_cast_subtract(placeholder_2: T.handle, placeholder_3: T.handle, T_subtract: T.handle, fast_memory_2_var: T.handle("uint8"), slow_memory_3_var: T.handle("uint8")) -> None:
-        placeholder_4 = T.match_buffer(placeholder_2, [150528], dtype="uint8")
+        placeholder_4 = T.match_buffer(placeholder_2, [150560], dtype="uint8")
         placeholder_5 = T.match_buffer(placeholder_3, [1], dtype="int16")
         T_subtract_1 = T.match_buffer(T_subtract, [452], dtype="int16")
         fast_memory_2_buffer_var = T.match_buffer(fast_memory_2_var, [200704], dtype="uint8", strides=[1], elem_offset=0, align=16)
-        slow_memory_3_buffer_var = T.match_buffer(slow_memory_3_var, [1418528], dtype="uint8", strides=[1], elem_offset=0, align=16)
+        slow_memory_3_buffer_var = T.match_buffer(slow_memory_3_var, [1418560], dtype="uint8", strides=[1], elem_offset=0, align=16)
         # body
         for ax0_ax1_fused_1, ax2_1, ax3_inner_1 in T.grid(224, 224, 3):
             T_subtract_1[ax0_ax1_fused_1 * 672 + ax2_1 * 3 + ax3_inner_1] = T.cast(placeholder_4[ax0_ax1_fused_1 * 672 + ax2_1 * 3 + ax3_inner_1], "int16") - placeholder_5[0]
 
     @T.prim_func
     def tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast(placeholder_62: T.handle, placeholder_63: T.handle, placeholder_64: T.handle, T_cast_20: T.handle, fast_memory_4_var: T.handle("uint8"), slow_memory_5_var: T.handle("uint8")) -> None:
-        placeholder_65 = T.match_buffer(placeholder_62, [150528], dtype="int16")
+        placeholder_65 = T.match_buffer(placeholder_62, [150560], dtype="int16")
         placeholder_66 = T.match_buffer(placeholder_63, [9408], dtype="int16")
         placeholder_67 = T.match_buffer(placeholder_64, [64], dtype="int32")
         T_cast_21 = T.match_buffer(T_cast_20, [289], dtype="uint8")
         fast_memory_4_buffer_var = T.match_buffer(fast_memory_4_var, [200704], dtype="uint8", strides=[1], elem_offset=0, align=16)
-        slow_memory_5_buffer_var = T.match_buffer(slow_memory_5_var, [1418528], dtype="uint8", strides=[1], elem_offset=0, align=16)
+        slow_memory_5_buffer_var = T.match_buffer(slow_memory_5_var, [1418560], dtype="uint8", strides=[1], elem_offset=0, align=16)
         # body
         PaddedInput_7_let = T.Buffer([157323], "int16")
         with T.LetStmt(T.address_of(slow_memory_5_buffer_var[802816], dtype="handle"), var=PaddedInput_7_let.data):
