@@ -222,16 +222,6 @@ def is_impure() -> None:
     return _ffi_api.FuncIsPure(False)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def force_pure(forced: bool = True) -> None:
-    """Specify whether the last function frame is forced to be pure.
-    Parameters
-    ----------
-    forced: bool
-        Whether purity is forced for the function or not
-    """
-    return _ffi_api.FuncForcePure(forced)  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
 def func_ret_struct_info(ret_sinfo: StructInfo) -> None:
     """Specify the return struct info of the last function frame.
     Parameters
@@ -619,7 +609,6 @@ __all__ = [
     "flip",
     "floor",
     "floor_divide",
-    "force_pure",
     "full",
     "full_like",
     "func_attr",

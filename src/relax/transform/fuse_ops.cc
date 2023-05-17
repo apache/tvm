@@ -474,7 +474,6 @@ class FunctionCreator : public ExprMutator {
                                    /*body=*/body,                //
                                    /*ret_struct_info=*/NullOpt,  //
                                    /*is_pure=*/true,             //
-                                   /*force_pure=*/false,         //
                                    /*attrs=*/DictAttrs(group_attrs));
       Array<PrimExpr> free_vars =
           FreeSymbolicVars(function).Map([](const tir::Var& var) -> PrimExpr { return var; });
@@ -485,7 +484,6 @@ class FunctionCreator : public ExprMutator {
                             /*body=*/body,                //
                             /*ret_struct_info=*/NullOpt,  //
                             /*is_pure=*/true,             //
-                            /*force_pure=*/false,         //
                             /*attrs=*/DictAttrs(group_attrs));
       }
       function_ = SymbolicVarRenewMutator::Renew(function);
@@ -1092,7 +1090,7 @@ class CompositeFunctionAnnotator : public ExprMutator {
         auto new_body = VisitExpr(func->body);
         if (!new_body.same_as(func->body)) {
           auto new_func = Function(func->params, VisitExpr(func->body), func->ret_struct_info,
-                                   func->is_pure, func->force_pure, func->attrs, func->span);
+                                   func->is_pure, func->attrs, func->span);
           builder_->UpdateFunction(entry.first, new_func);
         }
       }

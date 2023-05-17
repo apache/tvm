@@ -56,15 +56,9 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             ExprStmtDoc(Relax(d, "func_attr")  //
                             ->Call({d->AsDoc<ExprDoc>(n->attrs, n_p->Attr("attrs"))})));
       }
-      // Step 5. Print purity attributes
-      // (Only include if it's impure or if purity is forced)
+      // Step 5. Print purity attributes (only include if it's impure)
       if (!n->is_pure) {
         (*f)->stmts.push_back(ExprStmtDoc(Relax(d, "is_impure")->Call({})));
-      }
-      if (n->force_pure) {
-        (*f)->stmts.push_back(ExprStmtDoc(
-            Relax(d, "force_pure")
-                ->Call({d->AsDoc<LiteralDoc>(Bool(n->force_pure), n_p->Attr("force_pure"))})));
       }
       // Step 6. Print body
       Array<StmtDoc> body =

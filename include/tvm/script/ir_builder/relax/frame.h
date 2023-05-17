@@ -99,8 +99,6 @@ class FunctionFrameNode : public SeqExprFrameNode {
   Optional<tvm::relax::StructInfo> ret_struct_info;
   /*! \brief Whether the function is annotated as pure */
   Optional<Bool> is_pure;
-  /*! \brief Whether the function is forced pure*/
-  Optional<Bool> force_pure;
   /*! \brief The function attributes. */
   Map<String, ObjectRef> attrs;
   /*! \brief The block builder to create Relax function. */
@@ -112,7 +110,6 @@ class FunctionFrameNode : public SeqExprFrameNode {
     v->Visit("params", &params);
     v->Visit("ret_struct_info", &ret_struct_info);
     v->Visit("is_pure", &is_pure);
-    v->Visit("force_pure", &force_pure);
     v->Visit("attrs", &attrs);
     v->Visit("binding_blocks", &binding_blocks);
     v->Visit("output", &output);

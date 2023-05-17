@@ -507,7 +507,7 @@ def test_lower_memory_alloc_storage_tensor(exec_mode):
     class TestMemoryAllocStorageTensor:
         @R.function
         def main(x: R.Tensor((2, 3), dtype="float32")):
-            R.force_pure()
+            R.func_attr({"relax.force_pure": True})
             cls = TestMemoryAllocStorageTensor
             storage = R.memory.alloc_storage(
                 R.shape([24]), virtual_device_index=0, storage_scope="global", dtype="float32"

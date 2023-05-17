@@ -410,7 +410,7 @@ Expr ExprMutatorBase::VisitExpr_(const FunctionNode* op) {
   if (body.same_as(op->body)) {
     return GetRef<Expr>(op);
   } else {
-    return Function(op->params, body, op->ret_struct_info, op->is_pure, op->force_pure, op->attrs);
+    return Function(op->params, body, op->ret_struct_info, op->is_pure, op->attrs);
   }
 }
 
@@ -589,7 +589,7 @@ Expr ExprMutator::VisitExpr_(const FunctionNode* op) {
   if (all_params_unchanged && body.same_as(op->body)) {
     return GetRef<Expr>(op);
   } else {
-    return Function(params, body, op->ret_struct_info, op->is_pure, op->force_pure, op->attrs);
+    return Function(params, body, op->ret_struct_info, op->is_pure, op->attrs);
   }
 }
 

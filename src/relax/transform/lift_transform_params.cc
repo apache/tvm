@@ -277,8 +277,7 @@ class TransformParamsLifter : public ExprMutator {
       new_attrs = NullValue<DictAttrs>();
     }
 
-    Function new_func(new_params, new_body, func->ret_struct_info, func->is_pure, func->force_pure,
-                      new_attrs);
+    Function new_func(new_params, new_body, func->ret_struct_info, func->is_pure, new_attrs);
     return new_func;
   }
 

@@ -589,9 +589,9 @@ def test_force_pure():
     y = rx.Var("y")
     block = rx.BindingBlock([rx.VarBinding(y, rx.op.print(x, format="{}"))])
     # print is impure, but force_pure overrides the judgment
-    func = rx.Function(
-        [x], rx.SeqExpr([block], x), R.Tensor((), dtype="int32"), force_pure=True
-    ).with_attrs({"global_symbol": "foo"})
+    func = rx.Function([x], rx.SeqExpr([block], x), R.Tensor((), dtype="int32")).with_attrs(
+        {"global_symbol": "foo", "relax.force_pure": True}
+    )
     mod = rx.transform.Normalize()(tvm.IRModule.from_expr(func))
     assert rx.analysis.well_formed(mod)
 
@@ -601,8 +601,8 @@ def test_force_pure_improper():
     x = rx.Var("x", R.Tensor((), dtype="int32"))
     # otherwise inoffensive, but the flags are wrong
     func = rx.Function(
-        [x], rx.SeqExpr([], x), R.Tensor((), dtype="int32"), is_pure=False, force_pure=True
-    ).with_attrs({"global_symbol": "foo"})
+        [x], rx.SeqExpr([], x), R.Tensor((), dtype="int32"), is_pure=False
+    ).with_attrs({"global_symbol": "foo", "relax.force_pure": True})
     mod = rx.transform.Normalize()(tvm.IRModule.from_expr(func))
     assert not rx.analysis.well_formed(mod)
 
@@ -612,9 +612,9 @@ def test_impure_in_dataflow_block():
     x = rx.Var("x", R.Tensor((), dtype="int32"))
     y = rx.DataflowVar("y")
     block = rx.DataflowBlock([rx.VarBinding(y, rx.op.print(x, format="{}"))])
-    func = rx.Function(
-        [x], rx.SeqExpr([block], x), R.Tensor((), dtype="int32"), force_pure=True
-    ).with_attrs({"global_symbol": "foo"})
+    func = rx.Function([x], rx.SeqExpr([block], x), R.Tensor((), dtype="int32")).with_attrs(
+        {"global_symbol": "foo", "relax.force_pure": True}
+    )
     mod = rx.transform.Normalize()(tvm.IRModule.from_expr(func))
     assert not rx.analysis.well_formed(mod)
 

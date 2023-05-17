@@ -226,7 +226,6 @@ def test_func():
     assert "body=" in func_str
     assert "ret_struct_info=" in func_str
     assert "is_pure=" in func_str
-    assert "force_pure=" in func_str
     assert "attrs=" in func_str
     assert '"global_symbol": "func"' in func_str
     assert "SeqExpr(" in func_str

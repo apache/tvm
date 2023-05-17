@@ -289,7 +289,7 @@ class CompositeInliner : public ExprMutator {
     inlined_functions_ = Map<Function, Function>();
     auto new_body = VisitExpr(func->body);
     auto new_func = Function(func->params, new_body, func->ret_struct_info, func->is_pure,
-                             func->force_pure, func->attrs, func->span);
+                             func->attrs, func->span);
     return new_func;
   }
 

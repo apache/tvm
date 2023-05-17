@@ -922,14 +922,11 @@ class FunctionNode : public BaseFuncNode {
   StructInfo ret_struct_info;
   /*! \brief Whether the function is annotated as pure or not. */
   bool is_pure;
-  /*! \brief Override checking purity for this function (only if purity is set to true) */
-  bool force_pure;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("params", &params);
     v->Visit("body", &body);
     v->Visit("is_pure", &is_pure);
-    v->Visit("force_pure", &force_pure);
     v->Visit("ret_struct_info", &ret_struct_info);
     v->Visit("attrs", &attrs);
     v->Visit("struct_info_", &struct_info_);
@@ -941,8 +938,7 @@ class FunctionNode : public BaseFuncNode {
     equal->MarkGraphNode();
     return equal.DefEqual(params, other->params) && equal(body, other->body) &&
            equal(ret_struct_info, other->ret_struct_info) && equal(is_pure, other->is_pure) &&
-           equal(force_pure, other->force_pure) && equal(attrs, other->attrs) &&
-           equal(struct_info_, other->struct_info_);
+           equal(attrs, other->attrs) && equal(struct_info_, other->struct_info_);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -951,7 +947,6 @@ class FunctionNode : public BaseFuncNode {
     hash_reduce(body);
     hash_reduce(ret_struct_info);
     hash_reduce(is_pure);
-    hash_reduce(force_pure);
     hash_reduce(attrs);
     hash_reduce(struct_info_);
   }
@@ -965,13 +960,12 @@ class FunctionNode : public BaseFuncNode {
 class Function : public BaseFunc {
  public:
   TVM_DLL explicit Function(Array<Var> params, Expr body, Optional<StructInfo> ret_struct_info,
-                            bool is_pure = true, bool force_pure = false,
-                            DictAttrs attrs = NullValue<DictAttrs>(), Span span = Span());
+                            bool is_pure = true, DictAttrs attrs = NullValue<DictAttrs>(),
+                            Span span = Span());
 
   /*!
    * \brief Mimics the constructor but without body Expr.
    * \note ret_struct_info is required, since it can not deduced by the body.
-   *   force_pure is omitted because the purity will not be checked anyway.
    */
   TVM_DLL static Function CreateEmpty(Array<Var> params, StructInfo ret_struct_info,
                                       bool is_pure = true, DictAttrs attrs = NullValue<DictAttrs>(),
@@ -997,6 +991,12 @@ constexpr const char* kComposite = "Composite";
 constexpr const char* kPartitionedFromPattern = "PartitionedFromPattern";
 /*! \brief The required workspace for an external function. */
 constexpr const char* kWorkspaceSize = "WorkspaceSize";
+
+// Note: in the future, we prefer snake_case instead of CamelCase for attributes.
+// Past ones will be kept for backwards compatibility.
+/*! \brief Override checking purity for this function and treat as pure
+ * (is_pure must be set to true) */
+constexpr const char* kForcePure = "relax.force_pure";
 }  // namespace attr
 
 /*! \brief The extern function, which can represent packed function. */

@@ -561,7 +561,6 @@ class Function(BaseFunc, Scriptable):
     body: Expr
     ret_struct_info: StructInfo
     is_pure: bool
-    force_pure: bool
     attrs: Optional[tvm.ir.DictAttrs]
 
     def __init__(
@@ -570,7 +569,6 @@ class Function(BaseFunc, Scriptable):
         body: Expr,
         ret_struct_info: Optional[StructInfo] = None,
         is_pure: Optional[bool] = True,
-        force_pure: Optional[bool] = False,
         attrs: Optional[tvm.ir.DictAttrs] = None,
         span: Optional[Span] = None,
     ) -> None:
@@ -580,7 +578,6 @@ class Function(BaseFunc, Scriptable):
             body,
             ret_struct_info,
             is_pure,
-            force_pure,
             attrs,
             span,  # type: ignore
         )  # type: ignore
