@@ -386,13 +386,6 @@ def test_matmul_with_3d_bias_offload():
     bias = np.random.randn(1, x_shape[-2], y_shape[-1]).astype(dtype)
     args = (x, y, bias)
 
-    mod = get_relax_matmul_module(
-        x_shape,
-        y_shape,
-        dtype,
-        with_bias=True,
-    )
-
     @tvm.script.ir_module
     class Mod:
         @R.function
