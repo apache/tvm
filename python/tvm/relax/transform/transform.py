@@ -994,7 +994,7 @@ def CombineParallelMatmul():
     the fused ops are applied to the combined matmul output before slicing.
 
     Currently, only a limited set of fused ops is supported. It includes bias add,
-    relu, gelu, and silu activation.
+    relu, gelu, gelu_tanh and silu activation.
 
     Returns
     -------

@@ -40,6 +40,7 @@ def test_relax_dynamo():
             return torch.nn.functional.relu(self.lin(x))
 
     model = Input1()
+
     ### construct the database
     @tvm.script.ir_module
     class Input1_ir:
@@ -325,6 +326,58 @@ def test_full():
         [([256, 256], "float32")],
         {},
         Expected1,
+    )
+
+
+@tvm.testing.requires_gpu
+def test_gelu():
+    import torch
+    from torch.nn import Module
+
+    class GeLU(Module):
+        def forward(self, input):
+            return torch.nn.functional.gelu(input)
+
+    class GeLUTanh(Module):
+        def forward(self, input):
+            return torch.nn.functional.gelu(input, approximate="tanh")
+
+    @I.ir_module
+    class ExpectedGeLU:
+        @R.function
+        def main(
+            inp_0: R.Tensor((128, 256), dtype="float32")
+        ) -> R.Tensor((128, 256), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((128, 256), dtype="float32") = R.nn.gelu(inp_0)
+                gv: R.Tensor((128, 256), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedGeLUTanh:
+        @R.function
+        def main(
+            inp_0: R.Tensor((128, 256), dtype="float32")
+        ) -> R.Tensor((128, 256), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((128, 256), dtype="float32") = R.nn.gelu_tanh(inp_0)
+                gv: R.Tensor((128, 256), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_dynamo_model(
+        GeLU(),
+        [([128, 256], "float32")],
+        {},
+        ExpectedGeLU,
+    )
+
+    verify_dynamo_model(
+        GeLUTanh(),
+        [([128, 256], "float32")],
+        {},
+        ExpectedGeLUTanh,
     )
 
 

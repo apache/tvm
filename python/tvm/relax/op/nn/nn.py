@@ -532,10 +532,10 @@ def adaptive_avg_pool2d(
 
 
 def relu(data: Expr) -> Expr:
-    """Rectified linear unit.
+    r"""Rectified linear unit.
 
     .. math::
-        text{ReLU}(x) = max(x, 0)
+        \text{ReLU}(x) = \max(x, 0)
 
     Parameters
     ----------
@@ -551,10 +551,10 @@ def relu(data: Expr) -> Expr:
 
 
 def gelu(data: Expr) -> Expr:
-    """Gaussian Error Linear Units function
+    r"""Gaussian Error Linear Units function
 
     .. math::
-        text{GeLU}(x) = 0.5 * x * (1 + erf(x * 0.5**0.5))
+        \text{GeLU}(x) = 0.5 * x * (1 + \text{erf}(x * 0.5**0.5))
 
     where :math:`erf` is the Gauss Error function.
 
@@ -575,11 +575,34 @@ def gelu(data: Expr) -> Expr:
     return _ffi_api.gelu(data)  # type: ignore
 
 
-def silu(data: Expr) -> Expr:
-    """Sigmoid Linear Unit function
+def gelu_tanh(data: Expr) -> Expr:
+    r"""Gaussian Error Linear Units function with tanh approximation
 
     .. math::
-        text{SiLU}(x) = x * sigmoid(x)
+        \text{GELU}(x) = 0.5 * x * (1 + \text{Tanh}(\sqrt(2 / \pi) * (x + 0.044715 * x^3)))
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input data
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+
+    Note
+    ----
+    The input tensor is required to have float dtype
+    """
+    return _ffi_api.gelu_tanh(data)  # type: ignore
+
+
+def silu(data: Expr) -> Expr:
+    r"""Sigmoid Linear Unit function
+
+    .. math::
+        \text{SiLU}(x) = x * \text{sigmoid}(x)
 
     Parameters
     ----------
@@ -601,7 +624,7 @@ def silu(data: Expr) -> Expr:
 def softmax(data: Expr, axis: int = -1) -> Expr:
     r"""Computes softmax.
 
-    .. math:: text{softmax}(x)_i = frac{exp(x_i)}{\sum_j exp(x_j)}
+    .. math:: \text{softmax}(x)_i = \frac{\exp(x_i)}{\sum_j \exp(x_j)}
 
     Parameters
     ----------
