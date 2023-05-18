@@ -143,6 +143,8 @@ class RuntimeContext implements Disposable {
   arrayGetItem : PackedFunc;
   arrayGetSize : PackedFunc;
   arrayMake : PackedFunc;
+  stringMake : PackedFunc;
+  getFFIString : PackedFunc;
   getSysLib : PackedFunc;
   arrayCacheGet : PackedFunc;
   arrayCacheUpdate : PackedFunc;
@@ -160,6 +162,8 @@ class RuntimeContext implements Disposable {
     this.arrayGetItem = getGlobalFunc("runtime.ArrayGetItem");
     this.arrayGetSize = getGlobalFunc("runtime.ArraySize");
     this.arrayMake = getGlobalFunc("runtime.Array");
+    this.stringMake = getGlobalFunc("runtime.String");
+    this.getFFIString = getGlobalFunc("runtime.GetFFIString");
     this.getSysLib = getGlobalFunc("runtime.SystemLib");
     this.arrayCacheGet = getGlobalFunc("vm.builtin.ndarray_cache.get");
     this.arrayCacheRemove = getGlobalFunc("vm.builtin.ndarray_cache.remove");
@@ -178,6 +182,8 @@ class RuntimeContext implements Disposable {
     this.arrayGetItem.dispose();
     this.arrayGetSize.dispose();
     this.arrayMake.dispose();
+    this.stringMake.dispose();
+    this.getFFIString.dispose();
     this.arrayCacheGet.dispose();
     this.arrayCacheRemove.dispose();
     this.arrayCacheUpdate.dispose();
@@ -863,6 +869,24 @@ export class TVMArray extends TVMObject {
    */
   get(index : number) : TVMObjectBase {
     return this.ctx.arrayGetItem(this, new Scalar(index, "int32")) as TVMObjectBase;
+  }
+}
+
+/** Runtime string object. */
+export class TVMString extends TVMObject {
+  constructor(
+    handle: Pointer,
+    lib: FFILibrary,
+    ctx: RuntimeContext
+  ) {
+    super(handle, lib, ctx);
+  }
+
+  /**
+   * @returns the size of the array.
+   */
+  toString() : string {
+    return this.ctx.getFFIString(this) as string;
   }
 }
 
@@ -1718,6 +1742,16 @@ export class Instance implements Disposable {
   }
 
   /**
+   * Create a {@link TVMString} that can be consumed by runtime.
+   *
+   * @param input The string.
+   * @returns The result TVMString.
+   */
+  makeString(input: string): TVMString {
+    return this.ctx.stringMake(input) as TVMString;
+  }
+
+  /**
    * Create a shape tuple to pass to runtime.
    * @param shape The shape .
    * @returns The created shape tuple.
@@ -1889,6 +1923,10 @@ export class Instance implements Disposable {
     this.registerObjectConstructor("Array",
       (handle: number, lib: FFILibrary, ctx: RuntimeContext) => {
         return new TVMArray(handle, lib, ctx);
+    });
+    this.registerObjectConstructor("runtime.String",
+      (handle: number, lib: FFILibrary, ctx: RuntimeContext) => {
+        return new TVMString(handle, lib, ctx);
     });
   }
 
