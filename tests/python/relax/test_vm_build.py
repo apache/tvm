@@ -763,7 +763,7 @@ def test_multi_systemlib(exec_mode):
     temp = utils.tempdir()
     pathA = temp.relpath("libA.a")
     pathB = temp.relpath("libB.a")
-    path_dso = temp.relpath("mylib.so")
+    path_dso = temp.relpath("mylibAll.so")
     libA.export_library(pathA, cc.create_staticlib)
     libB.export_library(pathB, cc.create_staticlib)
 
@@ -845,13 +845,13 @@ def set_input_attempt_get(vm: relax.VirtualMachine, device: tvm.runtime.Device) 
     _ = vm.get_outputs("main")
 
 
-def make_vm(mod, exec_mode) -> Tuple[relax.VirtualMachine, tvm.runtime.Device]:
+def make_vm(mod, exec_mode, temp) -> Tuple[relax.VirtualMachine, tvm.runtime.Device]:
     """Returns a local VM for the given mod and the device"""
     target = tvm.target.Target("llvm", host="llvm")
     exec = relax.build(mod, target, exec_mode=exec_mode)
-    exec.export_library("exec.so")
-    exec_loaded = tvm.runtime.load_module("exec.so")
-    os.remove("exec.so")
+    libname = temp.relpath("exec.so")
+    exec.export_library(libname)
+    exec_loaded = tvm.runtime.load_module(libname)
     device = tvm.cpu()
     return relax.VirtualMachine(exec_loaded, device), device
 
@@ -893,19 +893,21 @@ def run_on_rpc(
 
 @pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_set_input(exec_mode):
-    set_input_trial(*make_vm(TestVMSetInput, exec_mode))
+    temp = utils.tempdir()
+    set_input_trial(*make_vm(TestVMSetInput, exec_mode, temp))
 
 
 @pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_set_input_tuple(exec_mode):
     @tvm.script.ir_module
-    class Module:
+    class MyMod:
         @R.function
         def main(x: R.Tuple([R.Tensor((32,), "float32"), R.Tensor((32,), "float32")])) -> R.Tensor:
             y = x[0]
             return y
 
-    vm, device = make_vm(Module, exec_mode)
+    temp = utils.tempdir()
+    vm, device = make_vm(MyMod, exec_mode, temp)
     device = tvm.cpu(0)
     a = tvm.nd.empty((32,), "float32", device=device)
     b = tvm.nd.empty((32,), "float32", device=device)
@@ -924,7 +926,8 @@ def save_function_kwargs_trial(vm: relax.VirtualMachine, device: tvm.runtime.Dev
 
 @pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_save_function_kwargs(exec_mode):
-    save_function_kwargs_trial(*make_vm(TestVMSetInput, exec_mode))
+    temp = utils.tempdir()
+    save_function_kwargs_trial(*make_vm(TestVMSetInput, exec_mode, temp))
 
 
 @pytest.mark.parametrize("exec_mode", EXEC_MODE)
@@ -944,7 +947,8 @@ def save_function_time_evaluator_trial(
 
 @pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_save_function_time_evaluator(exec_mode):
-    save_function_time_evaluator_trial(*make_vm(TestVMSetInput, exec_mode))
+    temp = utils.tempdir()
+    save_function_time_evaluator_trial(*make_vm(TestVMSetInput, exec_mode, temp))
 
 
 @pytest.mark.parametrize("exec_mode", EXEC_MODE)
@@ -956,7 +960,8 @@ def test_save_function_time_evaluator(exec_mode):
 @pytest.mark.parametrize("exec_mode", EXEC_MODE)
 @pytest.mark.xfail()
 def test_set_input_stateless_failure(exec_mode):
-    set_input_attempt_stateless(*make_vm(TestVMSetInput, exec_mode))
+    temp = utils.tempdir()
+    set_input_attempt_stateless(*make_vm(TestVMSetInput, exec_mode, temp))
 
 
 @pytest.mark.parametrize("exec_mode", EXEC_MODE)
@@ -968,19 +973,22 @@ def test_set_input_stateless_failure_rpc(exec_mode):
 @pytest.mark.parametrize("exec_mode", EXEC_MODE)
 @pytest.mark.xfail()
 def test_set_input_invoke_failure(exec_mode):
-    set_input_attempt_invoke(*make_vm(TestVMSetInput, exec_mode))
+    temp = utils.tempdir()
+    set_input_attempt_invoke(*make_vm(TestVMSetInput, exec_mode, temp))
 
 
 @pytest.mark.parametrize("exec_mode", EXEC_MODE)
 @pytest.mark.xfail()
 def test_set_input_invoke_failure_rpc(exec_mode):
-    run_on_rpc(TestVMSetInput, set_input_attempt_invoke, exec_mode)
+    temp = utils.tempdir()
+    run_on_rpc(TestVMSetInput, set_input_attempt_invoke, exec_mode, temp)
 
 
 @pytest.mark.parametrize("exec_mode", EXEC_MODE)
 @pytest.mark.xfail()
 def test_set_input_get_failure(exec_mode):
-    set_input_attempt_get(*make_vm(TestVMSetInput, exec_mode))
+    temp = utils.tempdir()
+    set_input_attempt_get(*make_vm(TestVMSetInput, exec_mode, temp))
 
 
 @pytest.mark.parametrize("exec_mode", EXEC_MODE)
@@ -990,4 +998,4 @@ def test_set_input_get_failure_rpc(exec_mode):
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    pytest.main()
