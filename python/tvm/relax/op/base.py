@@ -118,6 +118,10 @@ def call_dps_packed(
     """
     Call a destination-passing-style packed function and return the output.
 
+    Note: The called function is assumed to be _pure_ (other than modifying the designated
+    output arguments). If the function _does_ result in other side effects, then the compiler
+    may end up removing, reordering, or repeating those effects--no guarantees can be made.
+
     Parameters
     ----------
     func : Union[str, Expr]
@@ -217,7 +221,7 @@ def invoke_closure(
     closure: Expr,
     args: Expr,
     sinfo_args: Union[List[StructInfo], StructInfo],
-) -> Object:
+) -> Call:
     """
     Invoke a closure.
 
@@ -234,8 +238,8 @@ def invoke_closure(
 
     Returns
     -------
-    ret: Object
-        The result.
+    ret: Call
+        A call to `invoke_closure`.
     """
 
     if not isinstance(sinfo_args, (list, tuple)):
@@ -466,3 +470,91 @@ def shape_to_tensor(expr: Expr) -> Expr:
         A relax Call, which transforms the shape values to the tensor
     """
     return _ffi_api.shape_to_tensor(expr)  # type: ignore # pylint: disable=no-member
+
+
+@args_converter.auto
+def call_pure_packed(
+    func: Union[str, ExternFunc, GlobalVar],
+    *args: Expr,
+    sinfo_args: Union[StructInfo, List[StructInfo]],
+) -> Expr:
+    """
+    Construct a call to a packed function that should be treated as pure,
+    even though packed calls are normally not treated as pure.
+
+    The resulting call will have the same semantics as calling the packed function directly.
+
+    Note: This should be used for cases when the user knows that calling the packed function
+    with these arguments will _in reality_ not cause any side effects.
+    If it is used for a call that _does_ result in side effects, then the compiler
+    may end up removing, reordering, or repeating that call, with no guarantees
+    made about any side effects from the callee.
+
+    Parameters
+    ----------
+    func : Union[str, ExternFunc]
+      The name (global symbol) for a PackedFunc or an ExternFunc node.
+
+    args: Expr
+      The arguments for the PackedFunc.
+
+    sinfo_args: Union[StructInfo, List[StructInfo]]
+        The list of structure info arguments (giving the structural info for the returned value).
+
+    Returns
+    -------
+    result : Expr
+      A Relax call, corresponding to
+      `call_pure_packed(ExternFunc(func), args, DictAttrs(kwargs), sinfo_args)`
+    """
+    if isinstance(func, ExternFunc):
+        func = func.global_symbol
+
+    op = ExternFunc(func)
+    if sinfo_args is None:
+        raise ValueError("R.call_pure_packed is required to have type_args")
+    if isinstance(sinfo_args, tuple):  # type: ignore
+        sinfo_args = list(sinfo_args)
+    elif not isinstance(sinfo_args, list):
+        sinfo_args = [sinfo_args]
+    # note: if we need attributes, we can also take them here
+
+    return _ffi_api.call_pure_packed(op, args, None, sinfo_args)  # type: ignore # pylint: disable=no-member
+
+
+@args_converter.auto
+def invoke_pure_closure(
+    closure: Expr,
+    args: Expr,
+    sinfo_args: Union[List[StructInfo], StructInfo],
+) -> Call:
+    """
+    Invoke a closure and indicate to the compiler that it is pure.
+
+    Note: This should be used for cases when the user knows that calling the closure
+    with these arguments will _in reality_ not cause any side effects.
+    If it is used for a call that _does_ result in side effects, then the compiler
+    may end up removing, reordering, or repeating that call, with no guarantees
+    made about any side effects from the callee.
+
+    Parameters
+    ----------
+    closure : Expr
+        The VMClosure object.
+
+    args : Expr
+        The input arguments.
+
+    type_args: Union[List[StructInfo], StructInfo]
+        The structure info arguments of the CallNode
+
+    Returns
+    -------
+    ret: Call
+        A call to `invoke_pure_closure`.
+    """
+
+    if not isinstance(sinfo_args, (list, tuple)):
+        sinfo_args = [sinfo_args]
+
+    return _ffi_api.invoke_pure_closure(closure, args, sinfo_args)  # type: ignore

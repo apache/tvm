@@ -130,7 +130,10 @@ class FuncBuilder : public ExprMutator {
     auto output = builder_->Emit(Tuple(outputs));
     auto block = builder_->EndBlock();
     auto body = builder_->Normalize(SeqExpr({block}, output));
-    auto func = Function(params, body, Downcast<StructInfo>(output->struct_info_.value()));
+    Map<String, ObjectRef> attrs;
+    attrs.Set(relax::attr::kForcePure, Bool(true));
+    auto func = Function(params, body, Downcast<StructInfo>(output->struct_info_.value()),
+                         /*is_pure=*/true, /*attrs=*/DictAttrs(attrs));
     return func;
   }
 

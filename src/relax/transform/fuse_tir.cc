@@ -835,6 +835,7 @@ class TIRFuseMutator : public ExprMutator {
 
   Expr VisitExpr_(const CallNode* op) final {
     static const Op& call_tir_op_ = Op::Get("relax.call_tir");
+
     Call call = Downcast<Call>(builder_->Normalize(ExprMutator::VisitExpr_(op)));
 
     if (call->op->IsInstance<GlobalVarNode>()) {

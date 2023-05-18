@@ -347,6 +347,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
   void VisitExpr_(const CallNode* call) final {
     static const Op& alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
     static const Op& call_tir_dyn_op = Op::Get("relax.vm.call_tir_dyn");
+
     if (call->op == alloc_tensor_op) {
       // Create a storage token for builtin alloc_tensor.
       this->CreateToken(call);

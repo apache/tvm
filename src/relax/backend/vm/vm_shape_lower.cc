@@ -277,7 +277,7 @@ class VMShapeLowerMutator
 
     auto new_body = builder_->Normalize(SeqExpr(blocks, body_seq->body));
     // create a new function
-    return Function(func->params, new_body, func->ret_struct_info, func->attrs);
+    return Function(func->params, new_body, func->ret_struct_info, func->is_pure, func->attrs);
   }
 
   //-------------------------------------------------------

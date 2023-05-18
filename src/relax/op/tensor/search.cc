@@ -93,7 +93,8 @@ TVM_REGISTER_OP("relax.where")
     .add_argument("condition", "Tensor", "When True, yield `x1`; otherwise, yield `x2`.")
     .add_argument("x1", "Tensor", "The first input tensor.")
     .add_argument("x2", "Tensor", "The second input tensor.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoWhere);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoWhere)
+    .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.argmax & relax.argmin */
 TVM_REGISTER_NODE_TYPE(ArgmaxArgminAttrs);
@@ -155,19 +156,20 @@ StructInfo InferStructInfoArgmaxArgmin(const Call& call, const BlockBuilder& ctx
   return TensorStructInfo(ShapeExpr(out_shape), out_dtype);
 }
 
-#define RELAX_REGISTER_ARGMAX_ARGMIN_OP(OpName)                            \
-  Expr OpName(Expr x, Optional<Integer> axis, bool keepdims) {             \
-    ObjectPtr<ArgmaxArgminAttrs> attrs = make_object<ArgmaxArgminAttrs>(); \
-    attrs->axis = std::move(axis);                                         \
-    attrs->keepdims = std::move(keepdims);                                 \
-    static const Op& op = Op::Get("relax." #OpName);                       \
-    return Call(op, {std::move(x)}, Attrs(attrs));                         \
-  }                                                                        \
-  TVM_REGISTER_GLOBAL("relax.op." #OpName).set_body_typed(OpName);         \
-  TVM_REGISTER_OP("relax." #OpName)                                        \
-      .set_num_inputs(1)                                                   \
-      .add_argument("x", "Tensor", "The input data tensor")                \
-      .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoArgmaxArgmin);
+#define RELAX_REGISTER_ARGMAX_ARGMIN_OP(OpName)                                    \
+  Expr OpName(Expr x, Optional<Integer> axis, bool keepdims) {                     \
+    ObjectPtr<ArgmaxArgminAttrs> attrs = make_object<ArgmaxArgminAttrs>();         \
+    attrs->axis = std::move(axis);                                                 \
+    attrs->keepdims = std::move(keepdims);                                         \
+    static const Op& op = Op::Get("relax." #OpName);                               \
+    return Call(op, {std::move(x)}, Attrs(attrs));                                 \
+  }                                                                                \
+  TVM_REGISTER_GLOBAL("relax.op." #OpName).set_body_typed(OpName);                 \
+  TVM_REGISTER_OP("relax." #OpName)                                                \
+      .set_num_inputs(1)                                                           \
+      .add_argument("x", "Tensor", "The input data tensor")                        \
+      .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoArgmaxArgmin) \
+      .set_attr<Bool>("FPurity", Bool(true));
 
 RELAX_REGISTER_ARGMAX_ARGMIN_OP(argmax);
 RELAX_REGISTER_ARGMAX_ARGMIN_OP(argmin);

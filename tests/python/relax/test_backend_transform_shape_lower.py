@@ -23,6 +23,8 @@ from tvm.relax.testing.runtime_builtin import MakeShapeCode, MatchShapeCode
 from tvm.script import relax as R
 from tvm.script import tir as T
 
+# note: we expected RemovePurityChecking to be run first, so we force purity in most test cases
+
 
 def test_const_shape_arg():
     MS = MatchShapeCode
@@ -31,6 +33,7 @@ def test_const_shape_arg():
     class Before:
         @R.function
         def main(x: R.Shape([1, 2]), y: R.Shape):
+            R.func_attr({"relax.force_pure": True})
             return x
 
         @T.prim_func
@@ -42,6 +45,7 @@ def test_const_shape_arg():
     class Expected:
         @R.function
         def main(x: R.Shape([1, 2]), y: R.Shape):
+            R.func_attr({"relax.force_pure": True})
             shape_heap = R.null_value()
             _ = R.call_packed("vm.builtin.check_shape_info", x, 2, "", sinfo_args=[R.Tuple()])
             _ = R.call_packed("vm.builtin.check_shape_info", y, -1, "", sinfo_args=[R.Tuple()])
@@ -77,12 +81,14 @@ def test_static_fn_check():
     class Before:
         @R.function
         def main(f: R.Callable([R.Object], R.Object), y: R.Shape([1, 2])):
+            R.func_attr({"relax.force_pure": True})
             return y
 
     @tvm.script.ir_module
     class Expected:
         @R.function
         def main(f: R.Callable([R.Object], R.Object), y: R.Shape([1, 2])):
+            R.func_attr({"relax.force_pure": True})
             shape_heap = R.null_value()
             _ = R.call_packed("vm.builtin.check_func_info", f, "", sinfo_args=[R.Tuple()])
             _ = R.call_packed("vm.builtin.check_shape_info", y, 2, "", sinfo_args=[R.Tuple()])
@@ -113,6 +119,7 @@ def test_simple_symbolic_shape():
     class Before:
         @R.function
         def main(x: R.Tensor(["n", 2, "m"], "float32")):
+            R.func_attr({"relax.force_pure": True})
             return x
 
     sindex = {
@@ -124,13 +131,19 @@ def test_simple_symbolic_shape():
     class Expected:
         @R.function
         def main(x: R.Tensor(["n", 2, "m"], "float32")):
+            R.func_attr({"relax.force_pure": True})
             shape_heap = R.call_builtin_with_ctx(
                 "vm.builtin.alloc_shape_heap",
                 [R.prim_value(2)],
                 sinfo_args=[R.Tensor(ndim=1, dtype="int64")],
             )
             _ = R.call_packed(
-                "vm.builtin.check_tensor_info", x, 3, R.dtype("float32"), "", sinfo_args=[R.Tuple()]
+                "vm.builtin.check_tensor_info",
+                x,
+                3,
+                R.dtype("float32"),
+                "",
+                sinfo_args=[R.Tuple()],
             )
             _ = R.call_packed(
                 "vm.builtin.match_shape",
@@ -164,6 +177,7 @@ def test_symbolic_compute():
         def main(
             x: R.Tensor(["n", "m"], "float32"), y: R.Tensor(ndim=3, dtype=None)
         ) -> R.Shape(ndim=3):
+            R.func_attr({"relax.force_pure": True})
             m = T.int64()
             k = T.int64()
             z = R.match_cast(y, R.Tensor([k, m, k + 1], dtype=None))
@@ -185,6 +199,7 @@ def test_symbolic_compute():
         def main(
             x: R.Tensor(["n", "m"], "float32"), y: R.Tensor(ndim=3, dtype=None)
         ) -> R.Shape(ndim=3):
+            R.func_attr({"relax.force_pure": True})
             m = T.int64()
             k = T.int64()
             cls = Expected
@@ -194,7 +209,12 @@ def test_symbolic_compute():
                 sinfo_args=[R.Tensor(ndim=1, dtype="int64")],
             )
             _ = R.call_packed(
-                "vm.builtin.check_tensor_info", x, 2, R.dtype("float32"), "", sinfo_args=[R.Tuple()]
+                "vm.builtin.check_tensor_info",
+                x,
+                2,
+                R.dtype("float32"),
+                "",
+                sinfo_args=[R.Tuple()],
             )
             _ = R.call_packed(
                 "vm.builtin.check_tensor_info", y, 3, R.dtype(""), "", sinfo_args=[R.Tuple()]
@@ -274,6 +294,7 @@ def test_tuple_handling():
                 R.Tensor(["n", "m"], "float32"), R.Tuple(R.Shape, R.Tensor(["n", "k"], "int32"))
             )
         ):
+            R.func_attr({"relax.force_pure": True})
             return x
 
     # slot assignment:
@@ -287,6 +308,7 @@ def test_tuple_handling():
                 R.Tensor(["n", "m"], "float32"), R.Tuple(R.Shape, R.Tensor(["n", "k"], "int32"))
             )
         ):
+            R.func_attr({"relax.force_pure": True})
             shape_heap = R.call_builtin_with_ctx(
                 "vm.builtin.alloc_shape_heap",
                 [R.prim_value(3)],
@@ -359,6 +381,7 @@ def test_return_match_check():
         def main(
             x: R.Tensor(["n", "m"], "float32"), y: R.Object
         ) -> R.Tuple(R.Tensor(["n", "m"], "float32")):
+            R.func_attr({"relax.force_pure": True})
             return y
 
     # slot assignment:
@@ -373,6 +396,7 @@ def test_return_match_check():
         def main(
             x: R.Tensor(["n", "m"], "float32"), y: R.Object
         ) -> R.Tuple(R.Tensor(["n", "m"], "float32")):
+            R.func_attr({"relax.force_pure": True})
             shape_heap = R.call_builtin_with_ctx(
                 "vm.builtin.alloc_shape_heap",
                 [R.prim_value(2)],

@@ -75,9 +75,41 @@ class LegalizeMutator : public ExprMutator {
  private:
   using ExprMutator::VisitExpr_;
 
+  bool WrapPureCondition(const Op& op, const Expr& legalized) {
+    static const auto& purity_map = Op::GetAttrMap<Bool>("FPurity");
+
+    // unlikely for this condition not to be met
+    if (const CallNode* call = legalized.as<CallNode>()) {
+      // if the original op is not pure, don't wrap
+      if (!(purity_map.count(op) && purity_map[op]->value)) {
+        return false;
+      }
+      if (const OpNode* call_op = call->op.as<OpNode>()) {
+        auto res_op = GetRef<Op>(call_op);
+        if (purity_map.count(res_op)) {
+          // if the legalized op is already pure, we *don't* need a wrapper
+          return !purity_map[res_op]->value;
+        }
+      }
+      // simplest case: wrap if the original op was pure and the result is somehow not
+      return true;
+    }
+    return false;
+  }
+
+  Call WrapPureCall(const Call& ret) {
+    static const Op& call_pure_packed_op = Op::Get("relax.call_pure_packed");
+    Array<Expr> ret_args = {ret->op};
+    for (auto arg : ret->args) {
+      ret_args.push_back(arg);
+    }
+    return Call(call_pure_packed_op, ret_args, ret->attrs, ret->sinfo_args);
+  }
+
   Expr VisitExpr_(const CallNode* call) final {
     Call visited_call = Downcast<Call>(this->VisitExprPostOrder_(call));
     static const auto& legalize_map = Op::GetAttrMap<FLegalize>("FLegalize");
+    static const Op& call_pure_packed_op = Op::Get("relax.call_pure_packed");
     static const Op& call_tir_op = Op::Get("relax.call_tir");
     static const Op& call_dps_packed_op = Op::Get("relax.call_dps_packed");
     auto* op_node = visited_call->op.as<OpNode>();
@@ -103,15 +135,24 @@ class LegalizeMutator : public ExprMutator {
     // Priority: customize > default.
     // Check if it has customize legalization registered.
     if (cmap_.defined() && cmap_.value().count(op->name)) {
-      return cmap_.value()[op->name](this->builder_, visited_call);
+      auto ret = cmap_.value()[op->name](this->builder_, visited_call);
+      if (ret.IsObjectRef<Expr>() && WrapPureCondition(op, ret.AsObjectRef<Expr>())) {
+        return WrapPureCall(Downcast<Call>(ret.AsObjectRef<Expr>()));
+      }
+      return ret;
     }
     // Check if it has default legalization registered.
     if (legalize_map.count(op)) {
-      return legalize_map[op](this->builder_, visited_call);
+      auto ret = legalize_map[op](this->builder_, visited_call);
+      if (WrapPureCondition(op, ret)) {
+        return WrapPureCall(Downcast<Call>(ret));
+      }
+      return ret;
     }
 
     // No legalization.
-    if (enable_warning_ && op != call_tir_op && op != call_dps_packed_op) {
+    if (enable_warning_ && op != call_tir_op && op != call_dps_packed_op &&
+        op != call_pure_packed_op) {
       LOG(WARNING) << "No legalization func for " << op->name << " is found.";
     }
     return visited_call;

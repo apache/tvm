@@ -1343,7 +1343,7 @@ def test_shape_expr_arg():
                 lv0 = R.emit_te(topi.full, [n, n], "float32", 0)
                 lv1 = R.emit_te(topi.trilu, lv0, tvm.tir.const(1, "int32"), upper=True)
                 lv2 = R.emit_te(topi.broadcast_to, lv1, [1, 1, n, n])
-                gv = R.call_packed(
+                gv = R.call_pure_packed(
                     "vm.builtin.attention_kv_cache_view",
                     kv_cache,
                     R.shape([1 + n, 32, 128]),
@@ -1375,7 +1375,7 @@ def test_shape_expr_arg():
                 lv: R.Tensor([1, 1, n, n], "float32") = cls.fused_full_trilu_broadcast_to(
                     R.shape([n])
                 )
-                gv = R.call_packed(
+                gv = R.call_pure_packed(
                     "vm.builtin.attention_kv_cache_view",
                     kv_cache,
                     R.shape([1 + n, 32, 128]),
@@ -1393,13 +1393,13 @@ def test_skipping_primvalue():
         @R.function
         def main(inp: R.Tensor((2, 2), dtype="float32")) -> R.Tensor((2, 2), dtype="float32"):
             with R.dataflow():
-                lv = R.call_packed(
+                lv = R.call_pure_packed(
                     "my_func1", inp, R.prim_value(0), sinfo_args=[R.Tensor((2, 2), dtype="float32")]
                 )
-                lv1 = R.call_packed(
+                lv1 = R.call_pure_packed(
                     "my_func2", lv, R.str("str"), sinfo_args=[R.Tensor((2, 2), dtype="float32")]
                 )
-                gv = R.call_packed(
+                gv = R.call_pure_packed(
                     "my_func3",
                     lv1,
                     R.dtype("float32"),

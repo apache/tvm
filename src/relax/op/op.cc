@@ -73,6 +73,53 @@ StructInfo InferStructInfoShapeOf(const Call& call, const BlockBuilder& ctx) {
   return ShapeStructInfo(tensor_shape->values);
 }
 
+// call_pure_packed
+
+StructInfo InferStructInfoCallPurePacked(const Call& call, const BlockBuilder& ctx) {
+  if (call->args.size() < 1) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "call_pure_packed must be called with at least one argument");
+  }
+
+  // the callee must be an opaque function
+  auto callee = call->args[0];
+  ICHECK(!callee.as<OpNode>()) << "call_pure_packed cannot be used with an op node";
+  auto opt = MatchStructInfo<FuncStructInfo>(callee);
+  ICHECK(opt) << "Callee must have a function struct info";
+  FuncStructInfo finfo = opt.value();
+  ICHECK(finfo->IsOpaque()) << "call_pure_packed must be called with an opaque function, but "
+                            << callee << " is not opaque";
+
+  // same logic as from DeriveCallRetStructInfo for ordinary calls
+  if (finfo->derive_func.defined()) {
+    // derive using custom derivation function.
+    return finfo->derive_func.value()(call, ctx);
+  } else {
+    // directly return the normal value.
+    return finfo->ret;
+  }
+}
+
+RELAY_REGISTER_OP("relax.call_pure_packed")
+    .set_num_inputs(-1)
+    .add_argument("args", "Array<Expr>",
+                  "The first argument is the function being called. The rest are the "
+                  "arguments to that function.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallPurePacked)
+    .set_attr<Bool>("FPurity", Bool(true));
+
+Expr MakeCallPurePacked(const Expr& callee, Array<Expr> args, const Attrs& attrs,
+                        Array<StructInfo> sinfo_args) {
+  static const Op& op = Op::Get("relax.call_pure_packed");
+  Array<Expr> call_args = {callee};
+  for (auto arg : args) {
+    call_args.push_back(arg);
+  }
+  return Call(op, call_args, attrs, sinfo_args);
+}
+
+TVM_REGISTER_GLOBAL("relax.op.call_pure_packed").set_body_typed(MakeCallPurePacked);
+
 // call_tir
 
 StructInfo InferStructInfoCallTIR(const Call& call, const BlockBuilder& ctx) {
@@ -93,7 +140,8 @@ RELAY_REGISTER_OP("relax.call_tir")
     .add_argument("packed_ints", "Expr",
                   "ShapeExpr representing a tuple of ints to unpack during runtime. Omitted from "
                   "args if unused")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallTIR);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallTIR)
+    .set_attr<Bool>("FPurity", Bool(true));
 
 Expr MakeCallTIR(Expr func, Tuple args, Array<TensorStructInfo> out_sinfo_list,
                  Optional<Expr> packed_ints) {
@@ -138,7 +186,10 @@ RELAY_REGISTER_OP("relax.call_dps_packed")
     .set_num_inputs(2)
     .add_argument("func", "Expr", "The destination-passing-style function.")
     .add_argument("args", "Tuple", "The input arguments.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallDPSPacked);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallDPSPacked)
+    // technically, an impure op could be used with this, but there is
+    // little reason to use DPS with an impure op
+    .set_attr<Bool>("FPurity", Bool(true));
 
 Expr MakeCallDPSPacked(Expr func, Tuple args, Array<TensorStructInfo> out_sinfo_list) {
   for (const TensorStructInfo& sinfo : out_sinfo_list) {
@@ -177,7 +228,9 @@ TVM_REGISTER_OP("relax.call_builtin_with_ctx")
     .set_num_inputs(4)
     .add_argument("func", "Expr", "The builtin packed func.")
     .add_argument("args", "Tuple", "The input arguments.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallBuiltinWithCtx);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallBuiltinWithCtx)
+    // Most builtins are pure, but some are not, like `vm.builtin.attention_kv_cache_append`
+    .set_attr<Bool>("FPurity", Bool(false));
 
 Expr MakeCallBuiltinWithCtx(Expr func, Tuple args, Array<StructInfo> sinfo_args) {
   static const Op& op = Op::Get("relax.call_builtin_with_ctx");
@@ -188,7 +241,8 @@ TVM_REGISTER_GLOBAL("relax.op.call_builtin_with_ctx").set_body_typed(MakeCallBui
 
 TVM_REGISTER_OP("relax.null_value")
     .set_num_inputs(0)
-    .set_attr<FInferStructInfo>("FInferStructInfo", ReturnObjectStructInfo);
+    .set_attr<FInferStructInfo>("FInferStructInfo", ReturnObjectStructInfo)
+    .set_attr<Bool>("FPurity", Bool(true));
 
 Expr MakeCallNullValue() {
   static const Op& op = Op::Get("relax.null_value");
@@ -205,7 +259,8 @@ RELAY_REGISTER_OP("relax.print")
                   "The first value is Python-style format string to use to print. The others "
                   "are values to print")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo)
-    .set_attr<FCallPacked>("FCallPacked", "relax.run.print");
+    .set_attr<FCallPacked>("FCallPacked", "relax.run.print")
+    .set_attr<Bool>("FPurity", Bool(false));
 
 Expr MakePrint(Array<Expr> vals, StringImm format) {
   Array<Expr> params;
@@ -247,7 +302,8 @@ RELAY_REGISTER_OP("relax.assert_op")
                   "Python-style format string to use for displaying an error message, if the "
                   "assert fails. The others are used as format arguments if there is an error.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferAssertStructInfo)
-    .set_attr<FCallPacked>("FCallPacked", "relax.run.assert_op");
+    .set_attr<FCallPacked>("FCallPacked", "relax.run.assert_op")
+    .set_attr<Bool>("FPurity", Bool(false));
 
 Expr MakeAssertOp(Expr condition, Array<Expr> vals, StringImm format) {
   static const Op& op = Op::Get("relax.assert_op");
@@ -267,7 +323,8 @@ RELAY_REGISTER_OP("relax.make_closure")
     .set_num_inputs(2)
     .add_argument("func", "Expr", "The closure.")
     .add_argument("args", "Tuple", "The captured variables.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", ReturnObjectStructInfo);
+    .set_attr<FInferStructInfo>("FInferStructInfo", ReturnObjectStructInfo)
+    .set_attr<Bool>("FPurity", Bool(true));
 
 Expr MakeClosure(Expr func, Tuple args) {
   static const Op& op = Op::Get("relax.make_closure");
@@ -292,7 +349,9 @@ RELAY_REGISTER_OP("relax.invoke_closure")
     .set_num_inputs(2)
     .add_argument("closure", "Expr", "The VMClosure.")
     .add_argument("args", "Tuple", "The captured variables.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoInvokeClosure);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoInvokeClosure)
+    // Not all closures are pure. Use invoke_pure_closure for specifying purity
+    .set_attr<Bool>("FPurity", Bool(false));
 
 Expr InvokeClosure(Expr closure, Tuple args, Array<StructInfo> sinfo_args) {
   static const Op& op = Op::Get("relax.invoke_closure");
@@ -301,12 +360,29 @@ Expr InvokeClosure(Expr closure, Tuple args, Array<StructInfo> sinfo_args) {
 
 TVM_REGISTER_GLOBAL("relax.op.invoke_closure").set_body_typed(InvokeClosure);
 
+// invoke_pure_closure
+
+RELAY_REGISTER_OP("relax.invoke_pure_closure")
+    .set_num_inputs(2)
+    .add_argument("closure", "Expr", "The VMClosure.")
+    .add_argument("args", "Tuple", "The captured variables.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoInvokeClosure)
+    .set_attr<Bool>("FPurity", Bool(true));
+
+Expr InvokePureClosure(Expr closure, Tuple args, Array<StructInfo> sinfo_args) {
+  static const Op& op = Op::Get("relax.invoke_pure_closure");
+  return Call(op, {closure, args}, {}, sinfo_args);
+}
+
+TVM_REGISTER_GLOBAL("relax.op.invoke_pure_closure").set_body_typed(InvokePureClosure);
+
 // shape_of
 
 RELAY_REGISTER_OP("relax.shape_of")
     .set_num_inputs(1)
     .add_argument("input", "Expr", "The input expression")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoShapeOf);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoShapeOf)
+    .set_attr<Bool>("FPurity", Bool(true));
 
 Expr MakeShapeOf(Expr expr) {
   static const Op& op = Op::Get("relax.shape_of");
@@ -332,7 +408,8 @@ StructInfo ReturnTensorToShapeStructInfo(const Call& call, const BlockBuilder& c
 RELAY_REGISTER_OP("relax.tensor_to_shape")
     .set_num_inputs(1)
     .add_argument("input", "Expr", "The input expression")
-    .set_attr<FInferStructInfo>("FInferStructInfo", ReturnTensorToShapeStructInfo);
+    .set_attr<FInferStructInfo>("FInferStructInfo", ReturnTensorToShapeStructInfo)
+    .set_attr<Bool>("FPurity", Bool(true));
 
 Expr MakeTensorToShape(Expr expr) {
   static const Op& op = Op::Get("relax.tensor_to_shape");
@@ -355,7 +432,8 @@ RELAY_REGISTER_OP("relax.shape_to_tensor")
     .set_num_inputs(1)
     .add_argument("input", "Expr", "The input expression")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnShapeToTensorStructInfo)
-    .set_attr<FCallPacked>("FCallPacked", "relax.run.shape_to_tensor");
+    .set_attr<FCallPacked>("FCallPacked", "relax.run.shape_to_tensor")
+    .set_attr<Bool>("FPurity", Bool(true));
 
 Expr MakeShapeToTensor(Expr expr) {
   static const Op& op = Op::Get("relax.shape_to_tensor");
@@ -386,7 +464,9 @@ RELAY_REGISTER_OP("relax.builtin.alloc_tensor")
     .add_argument("runtime_device_index", "PrimValue",
                   "The device index indicating on which device the tensor is to be "
                   "allocated at runtime. Index -1 is reserved for the host device.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAllocateTensor);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAllocateTensor)
+    // memory allocation isn't considered a "visible effect" as far as purity is concerned
+    .set_attr<Bool>("FPurity", Bool(true));
 
 Expr MakeAllocTensor(Expr shape, DataTypeImm dtype, PrimValue runtime_device_index) {
   static const Op& op = Op::Get("relax.builtin.alloc_tensor");
@@ -407,7 +487,9 @@ RELAY_REGISTER_OP("relax.memory.alloc_storage")
     .add_argument("storage_scope", "StringImm",
                   "The storage scope of the storage to allocate. Default is global.")
     .add_argument("dtype", "DataTypeImm", "The dtype of the tensor to allocate.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", ReturnObjectStructInfo);
+    .set_attr<FInferStructInfo>("FInferStructInfo", ReturnObjectStructInfo)
+    // memory allocation isn't considered a "visible effect" as far as purity is concerned
+    .set_attr<Bool>("FPurity", Bool(true));
 
 Expr MakeAllocStorage(Expr size, PrimValue virtual_device_index, StringImm storage_scope,
                       DataTypeImm dtype) {
@@ -436,7 +518,9 @@ RELAY_REGISTER_OP("relax.memory.alloc_tensor")
     .add_argument("offset", "PrimValue", "Storage offset to allocate the tensor.")
     .add_argument("shape", "Expr", "The shape of the tensor to allocate.")
     .add_argument("dtype", "DataTypeImm", "The dtype of the tensor to allocate.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoMemAllocTensor);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoMemAllocTensor)
+    // memory allocation isn't considered a "visible effect" as far as purity is concerned
+    .set_attr<Bool>("FPurity", Bool(true));
 
 Expr MakeMemAllocTensor(Expr storage, PrimValue offset, Expr shape, DataTypeImm dtype) {
   static const Op& op = Op::Get("relax.memory.alloc_tensor");
@@ -450,7 +534,9 @@ TVM_REGISTER_GLOBAL("relax.op.memory.alloc_tensor").set_body_typed(MakeMemAllocT
 RELAY_REGISTER_OP("relax.memory.kill_storage")
     .set_num_inputs(1)
     .add_argument("storage", "Expr", "The storage to be killed.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo);
+    .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo)
+    // deallocation also isn't considered a "visible effect" as far as purity is concerned
+    .set_attr<Bool>("FPurity", Bool(true));
 
 Expr MakeMemKillStorage(Expr storage) {
   static const Op& op = Op::Get("relax.memory.kill_storage");
@@ -464,7 +550,9 @@ TVM_REGISTER_GLOBAL("relax.op.memory.kill_storage").set_body_typed(MakeMemKillSt
 RELAY_REGISTER_OP("relax.memory.kill_tensor")
     .set_num_inputs(1)
     .add_argument("tensor", "Expr", "The tensor to be killed.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo);
+    .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo)
+    // memory deallocation also isn't considered a "visible effect" as far as purity is concerned
+    .set_attr<Bool>("FPurity", Bool(true));
 
 Expr MakeMemKillTensor(Expr tensor) {
   static const Op& op = Op::Get("relax.memory.kill_tensor");
@@ -482,7 +570,9 @@ RELAY_REGISTER_OP("relax.vm.alloc_storage")
     .add_argument("runtime_device_index", "PrimValue",
                   "The device index indicating on which device the tensor is "
                   "to be allocated at runtime.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", ReturnObjectStructInfo);
+    .set_attr<FInferStructInfo>("FInferStructInfo", ReturnObjectStructInfo)
+    // memory allocation isn't considered a "visible effect" as far as purity is concerned
+    .set_attr<Bool>("FPurity", Bool(true));
 
 Expr MakeVMAllocStorage(Expr size, PrimValue runtime_device_index, DataTypeImm dtype) {
   static const Op& op = Op::Get("relax.vm.alloc_storage");
@@ -517,7 +607,9 @@ RELAY_REGISTER_OP("relax.vm.alloc_tensor")
     .add_argument("offset", "PrimValue", "Storage offset to allocate the tensor.")
     .add_argument("shape", "Expr", "The shape of the tensor to allocate.")
     .add_argument("dtype", "DataTypeImm", "The dtype of the tensor to allocate.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoVMAllocTensor);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoVMAllocTensor)
+    // memory allocation isn't considered a "visible effect" as far as purity is concerned
+    .set_attr<Bool>("FPurity", Bool(true));
 
 Expr MakeVMAllocTensor(Expr storage, PrimValue offset, Expr shape, DataTypeImm dtype) {
   static const Op& op = Op::Get("relax.vm.alloc_tensor");
@@ -531,7 +623,9 @@ TVM_REGISTER_GLOBAL("relax.op.vm.alloc_tensor").set_body_typed(MakeVMAllocTensor
 TVM_REGISTER_OP("relax.vm.kill_object")
     .set_num_inputs(1)
     .add_argument("obj", "Expr", "The object to be killed.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo);
+    .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo)
+    // deallocation also isn't considered a "visible effect" as far as purity is concerned
+    .set_attr<Bool>("FPurity", Bool(true));
 
 Expr MakeVMKillObject(Expr obj) {
   static const Op& op = Op::Get("relax.vm.kill_object");
@@ -547,7 +641,8 @@ RELAY_REGISTER_OP("relax.vm.call_tir_dyn")
     .add_argument("func", "Expr", "The destination-passing-style function.")
     .add_argument("args", "Tuple",
                   "The input arguments (list of tensors and last argument is ShapeExpr)")
-    .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo);
+    .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo)
+    .set_attr<Bool>("FPurity", Bool(true));
 
 Expr MakeCallTIRDyn(Expr func, Tuple args) {
   static const Op& op = Op::Get("relax.vm.call_tir_dyn");
@@ -564,7 +659,8 @@ StructInfo InferStructInfoStopLiftParams(const Call& call, const BlockBuilder& c
 RELAY_REGISTER_OP("relax.builtin.stop_lift_params")
     .set_num_inputs(1)
     .add_argument("x", "Expr", "The input data")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoStopLiftParams);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoStopLiftParams)
+    .set_attr<Bool>("FPurity", Bool(true));
 
 Expr MakeStopLiftParams(Expr x) {
   static const Op& op = Op::Get("relax.builtin.stop_lift_params");

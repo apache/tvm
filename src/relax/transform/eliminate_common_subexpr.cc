@@ -105,7 +105,8 @@ class CommonSubexprEliminator : public ExprMutator {
     if (new_body.same_as(func->body)) {
       return GetRef<Expr>(func);
     }
-    return Function(func->params, new_body, func->ret_struct_info, func->attrs, func->span);
+    return Function(func->params, new_body, func->ret_struct_info, func->is_pure, func->attrs,
+                    func->span);
   }
 
   // this should happen only for the inner function case

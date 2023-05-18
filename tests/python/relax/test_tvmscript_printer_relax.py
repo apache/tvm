@@ -156,10 +156,9 @@ def test_func_struct_info():
     )
     _assert_print(
         obj,
-        """
-a = T.int64()
-R.Callable((R.Prim("float32"), R.Object, R.Shape([1, a, 3])), R.Tensor((1, 2, 3), dtype="float32"))
-""",
+        "a = T.int64()\n"
+        'R.Callable((R.Prim("float32"), R.Object, R.Shape([1, a, 3])), '
+        'R.Tensor((1, 2, 3), dtype="float32"), True)',
     )
 
 
@@ -525,6 +524,58 @@ class Module:
     def foo(x: R.Tensor((128,), dtype="float32")) -> R.Tensor((128,), dtype="float32"):
         gv0 = R.call_tir(Module.tir_func, (x,), out_sinfo=R.Tensor((128,), dtype="float32"))
         return gv0
+""",
+    )
+
+
+def test_assert_op():
+    @I.ir_module
+    class AssertOpMod:
+        @R.function
+        def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+            R.is_impure()
+            y = R.assert_op(R.const(False, dtype="bool"), x, format="x: {}")
+            return x
+
+    _assert_print(
+        AssertOpMod,
+        """
+# from tvm.script import ir as I
+# from tvm.script import relax as R
+
+@I.ir_module
+class Module:
+    @R.function
+    def main(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
+        R.is_impure()
+        y: R.Tuple = R.assert_op(R.const(False, "bool"), x, format=R.str("x: {}"))
+        return x
+""",
+    )
+
+
+def test_print():
+    @I.ir_module
+    class PrintMod:
+        @R.function
+        def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+            R.is_impure()
+            y = R.print(x, format="x: {}")
+            return x
+
+    _assert_print(
+        PrintMod,
+        """
+# from tvm.script import ir as I
+# from tvm.script import relax as R
+
+@I.ir_module
+class Module:
+    @R.function
+    def main(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
+        R.is_impure()
+        y: R.Tuple = R.print(x, format=R.str("x: {}"))
+        return x
 """,
     )
 

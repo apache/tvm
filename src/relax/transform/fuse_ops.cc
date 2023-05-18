@@ -473,6 +473,7 @@ class FunctionCreator : public ExprMutator {
       Function function = Function(/*params=*/params_,           //
                                    /*body=*/body,                //
                                    /*ret_struct_info=*/NullOpt,  //
+                                   /*is_pure=*/true,             //
                                    /*attrs=*/DictAttrs(group_attrs));
       Array<PrimExpr> free_vars =
           FreeSymbolicVars(function).Map([](const tir::Var& var) -> PrimExpr { return var; });
@@ -482,6 +483,7 @@ class FunctionCreator : public ExprMutator {
         function = Function(/*params=*/params_,           //
                             /*body=*/body,                //
                             /*ret_struct_info=*/NullOpt,  //
+                            /*is_pure=*/true,             //
                             /*attrs=*/DictAttrs(group_attrs));
       }
       function_ = SymbolicVarRenewMutator::Renew(function);
@@ -1088,7 +1090,7 @@ class CompositeFunctionAnnotator : public ExprMutator {
         auto new_body = VisitExpr(func->body);
         if (!new_body.same_as(func->body)) {
           auto new_func = Function(func->params, VisitExpr(func->body), func->ret_struct_info,
-                                   func->attrs, func->span);
+                                   func->is_pure, func->attrs, func->span);
           builder_->UpdateFunction(entry.first, new_func);
         }
       }
@@ -1131,7 +1133,9 @@ class CompositeFunctionAnnotator : public ExprMutator {
       params.push_back(new_v);
     }
 
-    return Function(param_vars, Call(f_inner, params), func_node->ret_struct_info);
+    // pure if the inner func is pure (no need to force purity if it's forced for the inner func)
+    return Function(param_vars, Call(f_inner, params), func_node->ret_struct_info,
+                    Downcast<Function>(f_inner)->is_pure);
   }
 
  private:

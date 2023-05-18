@@ -141,6 +141,48 @@ tvm::Array<Var> AllVars(const Expr& expr) { return VarVisitor().All(expr); }
 
 tvm::Array<GlobalVar> AllGlobalVars(const Expr& expr) { return VarVisitor().AllGlobalVars(expr); }
 
+bool ContainsImpureCall(const Expr& expr, const Optional<Expr>& own_name) {
+  class ImpureCallChecker : public ExprVisitor {
+   public:
+    explicit ImpureCallChecker(const Optional<Expr>& own_name) : own_name_(own_name) {}
+
+    bool Check(const Expr& expr) {
+      contains_impure_ = false;
+      VisitExpr(expr);
+      return contains_impure_;
+    }
+
+    void VisitExpr_(const FunctionNode* func) override {
+      // we don't visit inner functions because an impure call in an inner function
+      // does *not* mean the outer function contains an impure call
+    }
+
+    void VisitExpr_(const CallNode* call) override {
+      // ignore recursive calls if we find one
+      if (!(own_name_ && own_name_.value().same_as(call->op))) {
+        if (IsImpureCall(GetRef<Call>(call))) {
+          contains_impure_ = true;
+        }
+      }
+      ExprVisitor::VisitExpr_(call);
+    }
+
+   private:
+    const Optional<Expr>& own_name_;
+    bool contains_impure_ = false;
+  };
+
+  if (own_name) {
+    ICHECK(own_name.value().as<VarNode>() || own_name.value().as<GlobalVarNode>())
+        << "Must pass a Var or GlobalVar for own_name";
+  }
+  ImpureCallChecker checker(own_name);
+  if (auto func = expr.as<FunctionNode>()) {
+    return checker.Check(func->body);
+  }
+  return checker.Check(expr);
+}
+
 TVM_REGISTER_GLOBAL("relax.analysis.free_vars").set_body_typed(FreeVars);
 
 TVM_REGISTER_GLOBAL("relax.analysis.bound_vars").set_body_typed(BoundVars);
@@ -148,6 +190,8 @@ TVM_REGISTER_GLOBAL("relax.analysis.bound_vars").set_body_typed(BoundVars);
 TVM_REGISTER_GLOBAL("relax.analysis.all_vars").set_body_typed(AllVars);
 
 TVM_REGISTER_GLOBAL("relax.analysis.all_global_vars").set_body_typed(AllGlobalVars);
+
+TVM_REGISTER_GLOBAL("relax.analysis.contains_impure_call").set_body_typed(ContainsImpureCall);
 
 }  // namespace relax
 }  // namespace tvm

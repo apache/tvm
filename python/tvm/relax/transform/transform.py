@@ -226,6 +226,25 @@ def ToNonDataflow() -> tvm.ir.transform.Pass:
     return _ffi_api.ToNonDataflow()  # type: ignore
 
 
+def RemovePurityChecking() -> tvm.ir.transform.Pass:
+    """Activate relax.force_pure on all pure functions in the module
+    and unwrap all pure override ops into the normal versions.
+
+    This effectively means that there will be no more purity tracking,
+    useful for low-level code generation.
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+        The Pass.
+
+    Note
+    ----
+    Should be used after ToNonDataflow()
+    """
+    return _ffi_api.RemovePurityChecking()  # type: ignore
+
+
 def LambdaLift():
     """A pass that lifts local functions into global.
 

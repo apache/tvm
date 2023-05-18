@@ -44,6 +44,8 @@ def test_lazy_transform_params():
         ) -> R.Tuple(
             R.Tensor((16, 16, 3, 3), dtype="float32"), R.Tensor((16, 3, 3, 3), dtype="float32")
         ):
+            # we expect ToNonDataflow and RemovePurityTracking to be invoked first
+            R.func_attr({"relax.force_pure": True})
             cls = Before
             lv: R.Tensor((16, 16, 3, 3), dtype="float32") = params[1]
             lv1: R.Tensor((3, 16, 3, 3), dtype="float32") = params[0]
@@ -74,6 +76,7 @@ def test_lazy_transform_params():
 
         @R.function
         def main_transform_params() -> R.Tuple(R.Object, R.Object):
+            R.func_attr({"relax.force_pure": True})
             cls = Expected
             lv: R.Object = R.call_packed("get_item", R.prim_value(1), sinfo_args=(R.Object,))
             lv1: R.Object = R.call_packed("set_item", R.prim_value(0), lv, sinfo_args=(R.Object,))

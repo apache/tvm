@@ -87,7 +87,20 @@ class LambdaLifter : public ExprMutator {
         if (this->var_remap_.find(var->vid) != this->var_remap_.end()) {
           clo_arg = this->var_remap_.at(var->vid);
         }
-        return Call(invoke_closure_op_, {clo_arg, Tuple(call_node->args)}, {},
+
+        // if the original op was pure, we should use invoke_pure_closure
+        Call orig_call = Downcast<Call>(val);
+        bool purity;
+        if (orig_call->op.as<OpNode>()) {
+          auto orig_op = Downcast<Op>(orig_call->op);
+          static const auto& purity_map = Op::GetAttrMap<Bool>("FPurity");
+          purity = purity_map.count(orig_op) && purity_map[orig_op]->value;
+        } else {
+          purity = GetStructInfoAs<FuncStructInfoNode>(orig_call->op)->purity;
+        }
+
+        return Call(purity ? invoke_pure_closure_op_ : invoke_closure_op_,
+                    {clo_arg, Tuple(call_node->args)}, {},
                     {GetStructInfo(GetRef<Expr>(call_node))});
       }
       auto it = lambda_map_.find(var);
@@ -177,9 +190,11 @@ class LambdaLifter : public ExprMutator {
     if (all_params_unchanged && body.same_as(func_node->body)) {
       visited_func = GetRef<Expr>(func_node);
     } else if (const auto& body_sinfo = MatchStructInfo<ObjectStructInfo>(body)) {
-      visited_func = Function(params, body, body_sinfo.value(), func_node->attrs);
+      visited_func =
+          Function(params, body, body_sinfo.value(), func_node->is_pure, func_node->attrs);
     } else {
-      visited_func = Function(params, body, func_node->ret_struct_info, func_node->attrs);
+      visited_func =
+          Function(params, body, func_node->ret_struct_info, func_node->is_pure, func_node->attrs);
     }
     auto new_func = Downcast<Function>(visited_func);
 
@@ -190,6 +205,7 @@ class LambdaLifter : public ExprMutator {
           /*params=*/new_func->params,
           /*body=*/new_func->body,
           /*ret_struct_info=*/new_func->ret_struct_info,
+          /*is_pure=*/new_func->is_pure,
           /*attrs=*/new_func->attrs,
           /*span=*/new_func->span);
     } else {
@@ -206,6 +222,7 @@ class LambdaLifter : public ExprMutator {
       lifted_func = Function(/*params=*/closure_params,
                              /*body=*/Bind(new_func->body, rebinding_map),
                              /*ret_struct_info=*/new_func->ret_struct_info,
+                             /*is_pure=*/new_func->is_pure,
                              /*attrs=*/new_func->attrs,
                              /*span=*/func->span);
 
@@ -280,7 +297,8 @@ class LambdaLifter : public ExprMutator {
     for (auto pair : glob_funcs) {
       if (auto* n = pair.second.as<FunctionNode>()) {
         auto func = GetRef<Function>(n);
-        func = Function(func->params, VisitExpr(func->body), func->ret_struct_info, func->attrs);
+        func = Function(func->params, VisitExpr(func->body), func->ret_struct_info, func->is_pure,
+                        func->attrs);
         builder_->UpdateFunction(pair.first, func);
       }
     }
@@ -295,6 +313,7 @@ class LambdaLifter : public ExprMutator {
   /*! \brief Cache ops that would be used later to reduce lookup overhead. */
   const Op& make_closure_op_ = Op::Get("relax.make_closure");
   const Op& invoke_closure_op_ = Op::Get("relax.invoke_closure");
+  const Op& invoke_pure_closure_op_ = Op::Get("relax.invoke_pure_closure");
 };
 
 namespace transform {

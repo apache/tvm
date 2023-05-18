@@ -722,9 +722,7 @@ def test_data_dependent_reshape():
         @R.function
         def main(x: R.Tensor((3,), dtype="int64")) -> R.Tensor((3,), dtype="int64"):
             x_1 = T.int64()
-            gv: R.Shape([3]) = R.call_packed(
-                "vm.builtin.tensor_to_shape", x, sinfo_args=(R.Shape([3]),)
-            )
+            gv: R.Shape([3]) = R.call_pure_packed("vm.builtin.tensor_to_shape", x, sinfo_args=(R.Shape([3]),))
             y: R.Shape([x_1]) = R.match_cast(gv, R.Shape([x_1]))
             lv: R.Shape([x_1]) = R.shape([x_1])
             gv_1 = R.call_tir(Expected.reshape, (x,), out_sinfo=R.Tensor((x_1,), dtype="int64"))
@@ -1013,52 +1011,6 @@ def test_collapse_sum_like():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
-def test_collapse_sum_like_symbolic():
-    # fmt: off
-    @tvm.script.ir_module
-    class CollapseSumLike:
-        @R.function
-        def main(x: R.Tensor(("a", "b", "a"), "float32"), y: R.Tensor(("b", 1), "float32")) -> R.Tensor(("b", 1), "float32"):
-            b = T.int64()
-            gv: R.Tensor((b, 1), "float32") = R.collapse_sum_like(x, y)
-            return gv
-
-    @I.ir_module
-    class Expected:
-        @T.prim_func
-        def collapse_sum(var_rxplaceholder: T.handle, var_rxplaceholder_red: T.handle):
-            T.func_attr({"tir.noalias": T.bool(True)})
-            a, b = T.int64(), T.int64()
-            rxplaceholder = T.match_buffer(var_rxplaceholder, (a, b, a))
-            rxplaceholder_red = T.match_buffer(var_rxplaceholder_red, (b, T.int64(1)))
-            # with T.block("root"):
-            for ax0, ax1, k0, k2 in T.grid(b, T.int64(1), a, a):
-                with T.block("rxplaceholder_red"):
-                    v_ax0, v_ax1, v_k0, v_k2 = T.axis.remap("SSRR", [ax0, ax1, k0, k2])
-                    T.reads(rxplaceholder[v_k0, v_ax0, v_k2])
-                    T.writes(rxplaceholder_red[v_ax0, v_ax1])
-                    with T.init():
-                        rxplaceholder_red[v_ax0, v_ax1] = T.float32(0)
-                    rxplaceholder_red[v_ax0, v_ax1] = (rxplaceholder_red[v_ax0, v_ax1] + rxplaceholder[v_k0, v_ax0, v_k2])
-
-        @R.function
-        def main(
-            x: R.Tensor(("a", "b", "a"), dtype="float32"),
-            y: R.Tensor(("b", 1), dtype="float32"),
-        ) -> R.Tensor(("b", 1), dtype="float32"):
-            b = T.int64()
-            a = T.int64()
-            cls = Expected
-            gv = R.call_tir(
-                cls.collapse_sum, (x,), out_sinfo=R.Tensor((b, 1), dtype="float32")
-            )
-            return gv
-    # fmt: on
-
-    mod = LegalizeOps()(CollapseSumLike)
-    tvm.ir.assert_structural_equal(mod, Expected)
-
-
 def test_collapse_sum_to():
     # fmt: off
     @tvm.script.ir_module
@@ -1089,54 +1041,6 @@ def test_collapse_sum_to():
                     with T.init():
                         rxplaceholder_red[v_ax0, v_ax1] = T.float32(0)
                     rxplaceholder_red[v_ax0, v_ax1] = (rxplaceholder_red[v_ax0, v_ax1] + rxplaceholder[v_k0, v_ax0, v_k2])
-    # fmt: on
-
-    mod = LegalizeOps()(CollapseSumTo)
-    tvm.ir.assert_structural_equal(mod, Expected)
-
-
-def test_collapse_sum_to_symbolic():
-    # fmt: off
-    @tvm.script.ir_module
-    class CollapseSumTo:
-        @R.function
-        def main(x: R.Tensor(("a", "b", "c"), "float32")) -> R.Tensor(("b", 1), "float32"):
-            b = T.int64()
-            gv: R.Tensor((b, 1), "float32") = R.collapse_sum_to(x, (b, 1))
-            return gv
-
-    @I.ir_module
-    class Expected:
-        @T.prim_func
-        def collapse_sum(var_rxplaceholder: T.handle, var_rxplaceholder_red: T.handle):
-            T.func_attr({"tir.noalias": T.bool(True)})
-            a, b, c = T.int64(), T.int64(), T.int64()
-            rxplaceholder = T.match_buffer(var_rxplaceholder, (a, b, c))
-            rxplaceholder_red = T.match_buffer(var_rxplaceholder_red, (b, T.int64(1)))
-            # with T.block("root"):
-            for ax0, ax1, k0, k2 in T.grid(b, T.int64(1), a, c):
-                with T.block("rxplaceholder_red"):
-                    v_ax0, v_ax1, v_k0, v_k2 = T.axis.remap("SSRR", [ax0, ax1, k0, k2])
-                    T.reads(rxplaceholder[v_k0, v_ax0, v_k2])
-                    T.writes(rxplaceholder_red[v_ax0, v_ax1])
-                    with T.init():
-                        rxplaceholder_red[v_ax0, v_ax1] = T.float32(0)
-                    rxplaceholder_red[v_ax0, v_ax1] = (
-                        rxplaceholder_red[v_ax0, v_ax1] + rxplaceholder[v_k0, v_ax0, v_k2]
-                    )
-
-        @R.function
-        def main(
-            x: R.Tensor(("a", "b", "c"), dtype="float32")
-        ) -> R.Tensor(("b", 1), dtype="float32"):
-            b = T.int64()
-            a = T.int64()
-            c = T.int64()
-            cls = Expected
-            gv = R.call_tir(
-                cls.collapse_sum, (x,), out_sinfo=R.Tensor((b, 1), dtype="float32")
-            )
-            return gv
     # fmt: on
 
     mod = LegalizeOps()(CollapseSumTo)

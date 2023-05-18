@@ -56,7 +56,11 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             ExprStmtDoc(Relax(d, "func_attr")  //
                             ->Call({d->AsDoc<ExprDoc>(n->attrs, n_p->Attr("attrs"))})));
       }
-      // Step 5. Print body
+      // Step 5. Print purity attributes (only include if it's impure)
+      if (!n->is_pure) {
+        (*f)->stmts.push_back(ExprStmtDoc(Relax(d, "is_impure")->Call({})));
+      }
+      // Step 6. Print body
       Array<StmtDoc> body =
           PrintSeqExpr(Downcast<relax::SeqExpr>(n->body), n_p->Attr("body"), d, /*use_ret=*/true);
       (*f)->stmts.insert((*f)->stmts.end(), body.begin(), body.end());

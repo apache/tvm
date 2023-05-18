@@ -145,8 +145,9 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             params_doc.push_back(d->AsDoc<ExprDoc>(params[i], params_p->ArrayIndex(i)));
           }
           return Relax(d, "Callable")
-              ->Call({TupleDoc(params_doc),  //
-                      d->AsDoc<ExprDoc>(n->ret, n_p->Attr("ret"))});
+              ->Call({TupleDoc(params_doc),                         //
+                      d->AsDoc<ExprDoc>(n->ret, n_p->Attr("ret")),  //
+                      LiteralDoc::Boolean(n->purity, n_p->Attr("purity"))});
         });
 
 TVM_SCRIPT_REPR(relax::ObjectStructInfoNode, ReprPrintRelax);

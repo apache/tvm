@@ -56,6 +56,13 @@
  *           * The op or args fields of Call nodes
  *           * Inside the fields of Tuple nodes
  *    13. Expr always has checked_type_ (with the exception of Op).
+ *    14. DataflowBlocks may not contain If nodes.
+ *    15. DataflowBlocks may not contain calls to impure functions or operators
+ *        (only checked if check_struct_info is true).
+ *    16. If a function has is_pure set to true and the kForcePure attribute is not set,
+ *        the body may not contain any impure call (only checked if check_struct_info is true).
+ *    17. If the kForcePure attribute is set for a function,
+ *        that function's is_pure field must be true.
  */
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
@@ -220,6 +227,14 @@ class WellFormedChecker : public relax::ExprVisitor,
       }
     });
 
+    // ensure the purity attributes are valid
+    if (op->GetAttr<Bool>(relax::attr::kForcePure).value_or(Bool(false))->value && !op->is_pure) {
+      Malformed(Diagnostic::Error(op->span)
+                << "Function " << op << " has true for " << relax::attr::kForcePure
+                << " but false for is_pure; " << relax::attr::kForcePure
+                << " should be true only if is_pure is also true.");
+    }
+
     // check all expr are well defined.
     for (Var param : op->params) {
       this->VisitVarDef(param);
@@ -237,6 +252,18 @@ class WellFormedChecker : public relax::ExprVisitor,
       this->VisitStructInfo(op->ret_struct_info);
     } else {
       Malformed(Diagnostic::Error(op) << "Function must have defined ret_struct_info");
+    }
+
+    // if we are not forcing purity and the function is annotated as pure, it must not contain an
+    // impure call
+    if (check_struct_info_ &&
+        !op->GetAttr<Bool>(relax::attr::kForcePure).value_or(Bool(false))->value && op->is_pure &&
+        ContainsImpureCall(op->body)) {
+      Malformed(Diagnostic::Error(op)
+                << "Function " << op << " is annotated as pure but contains an impure call; "
+                << "please set " << relax::attr::kForcePure << " to true "
+                << "or use a pure operator variant (e.g., call_pure_packed) "
+                << "if it is necessary to override this judgment.");
     }
 
     if (auto seq = op->body.as<SeqExprNode>()) {
@@ -279,9 +306,15 @@ class WellFormedChecker : public relax::ExprVisitor,
     }
 
     CheckStructInfo(op);
+    if (is_dataflow_ && check_struct_info_ && IsImpureCall(GetRef<Call>(op))) {
+      Malformed(Diagnostic::Error(op) << "There cannot be an impure call inside a dataflow block.");
+    }
   }
 
   void VisitExpr_(const IfNode* op) final {
+    if (is_dataflow_) {
+      Malformed(Diagnostic::Error(op) << "If nodes are not allowed to appear in dataflow blocks.");
+    }
     if (IsLeafOrTuple(op->cond)) {
       this->VisitExpr(op->cond);
     } else {
@@ -346,6 +379,7 @@ class WellFormedChecker : public relax::ExprVisitor,
     } else {
       this->VisitExpr(binding->value);
     }
+
     this->VisitVarDef(binding->var);
     if (is_lambda) {
       recur_vars_.erase(binding->var);

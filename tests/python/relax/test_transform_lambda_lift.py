@@ -92,7 +92,9 @@ def test_closure():
         ) -> R.Tensor((2, 3), "float32"):
             outer_func = Expected.lifted_func_0
             in_call = outer_func(x)
-            res = R.invoke_closure(in_call, (y,), sinfo_args=(R.Tensor((2, 3), dtype="float32")))
+            res = R.invoke_pure_closure(
+                in_call, (y,), sinfo_args=(R.Tensor((2, 3), dtype="float32"))
+            )
             return res
 
         @R.function
@@ -142,7 +144,7 @@ def test_recursive():
         def lifted_func_0(
             i: R.Tensor((), "int32"), s: R.Tensor((2, 3), "float32"), x: R.Tensor((2, 3), "float32")
         ) -> R.Tensor((2, 3), "float32"):
-            cond: R.Tensor((), "bool") = R.call_packed(
+            cond: R.Tensor((), "bool") = R.call_pure_packed(
                 "test.vm.less", i, R.const(10), sinfo_args=(R.Tensor((), dtype="bool"))
             )
             c: R.Tensor((), "int32") = R.const(1, dtype="int32")
@@ -158,7 +160,7 @@ def test_recursive():
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), dtype="float32"):
             while_loop = R.make_closure(Expected.lifted_func_0, (x,))
-            gv: R.Tensor((2, 3), dtype="float32") = R.invoke_closure(
+            gv: R.Tensor((2, 3), dtype="float32") = R.invoke_pure_closure(
                 while_loop,
                 (R.const(0), x),
                 sinfo_args=(R.Tensor((2, 3), dtype="float32")),
@@ -174,7 +176,7 @@ def test_recursive():
             def while_loop(
                 i: R.Tensor((), "int32"), s: R.Tensor((2, 3), "float32")
             ) -> R.Tensor((2, 3), "float32"):
-                cond: R.Tensor((), "bool") = R.call_packed(
+                cond: R.Tensor((), "bool") = R.call_pure_packed(
                     "test.vm.less", i, R.const(10), sinfo_args=(R.Tensor((), dtype="bool"))
                 )
                 c: R.Tensor((), "int32") = R.const(1, dtype="int32")
@@ -300,6 +302,45 @@ def test_no_local_func():
     after = transform.LambdaLift()(before)
     # No local functions are lifted
     assert_structural_equal(after, before, map_free_vars=True)
+    _check_save_roundtrip(after)
+
+
+def test_impure_function():
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def lifted_func_0() -> R.Tuple:
+            R.is_impure()
+            y = R.print(format="Wow!")
+            return y
+
+        @R.function
+        def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+            R.is_impure()
+            inner = Expected.lifted_func_0
+            gv1 = inner()
+            return x
+
+    @tvm.script.ir_module
+    class Before:
+        @R.function
+        def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+            R.is_impure()
+
+            @R.function
+            def inner() -> R.Tuple:
+                R.is_impure()
+                y = R.print(format="Wow!")
+                return y
+
+            gv1 = inner()
+            return x
+
+    before = Before
+    expected = Expected
+    after = transform.LambdaLift()(before)
+    assert len(after.functions) == 2
+    assert_structural_equal(after, expected, map_free_vars=True)
     _check_save_roundtrip(after)
 
 

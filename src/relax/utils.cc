@@ -19,6 +19,7 @@
 
 #include "transform/utils.h"
 
+#include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 
 namespace tvm {
@@ -54,7 +55,9 @@ class ExprBinder : public ExprMutator {
     if (all_params_unchanged && body.same_as(op->body)) {
       return GetRef<Expr>(op);
     } else {
-      return Function(params, body, VisitExprDepStructInfoField(op->ret_struct_info), op->attrs);
+      // purity won't be affected, no need to update annotation
+      return Function(params, body, VisitExprDepStructInfoField(op->ret_struct_info), op->is_pure,
+                      op->attrs);
     }
   }
 
@@ -109,6 +112,18 @@ bool IsBoolStructInfo(const StructInfo& sinfo, bool permit_unknown_rank,
 bool IsLeafOrTuple(const Expr& expr) {
   return expr.as<LeafExprNode>() || expr.as<GlobalVarNode>() || expr.as<ExternFuncNode>() ||
          expr.as<OpNode>() || expr.as<TupleNode>();
+}
+
+bool IsImpureCall(const Call& call) {
+  if (auto op_ptr = call->op.as<OpNode>()) {
+    auto op = GetRef<Op>(op_ptr);
+    static auto purity_map = Op::GetAttrMap<Bool>("FPurity");
+    ICHECK(purity_map.count(op)) << "Cannot find the registered purity of this op: " << op->name;
+    return !(purity_map[op]->value);
+  }
+  // the StructInfo must be FuncStructInfo
+  auto func_struct_info = GetStructInfoAs<FuncStructInfoNode>(call->op);
+  return !func_struct_info->purity;
 }
 
 /*!

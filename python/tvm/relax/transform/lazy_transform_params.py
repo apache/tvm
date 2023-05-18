@@ -144,7 +144,7 @@ class LazyTransformParamsMutator(PyExprMutator):
         self.memory_free_insertion = liveness.var_liveness_end
         # Step 3. rewrite get item and set item
         new_body = self.visit_expr(func.body)
-        return relax.Function([], new_body, relax.ObjectStructInfo(), func.attrs)
+        return relax.Function([], new_body, relax.ObjectStructInfo(), attrs=func.attrs)
 
     def visit_tuple_getitem_(self, op: relax.TupleGetItem) -> relax.Expr:
         # rewrite get item
@@ -191,6 +191,8 @@ class LazyTransformParams:
     """
     Convert transform_params functions into a lazy version.
     (Load the input to memory on demand, and immediately free it after the last use.)
+
+    Note: ToNonDataflow() and RemovePurityTracking() should be invoked before this pass.
     """
 
     def transform_module(self, mod: IRModule, ctx: tvm.transform.PassContext) -> IRModule:

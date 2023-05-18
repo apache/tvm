@@ -132,11 +132,57 @@ Optional<ExprDoc> PrintCallTIRDPSPacked(const relax::Call& n, const ObjectPath& 
   return Relax(d, "call_tir")->Call(args, kwargs_keys, kwargs_values);
 }
 
+Optional<ExprDoc> PrintAssertOp(const relax::Call& n, const ObjectPath& n_p, const IRDocsifier& d) {
+  static const Op& assert_op = Op::Get("relax.assert_op");
+  if (!n->op.same_as(assert_op)) {
+    return NullOpt;
+  }
+  ICHECK(n->args.size() >= 2);
+  // special handling: it is important to indicate that the format string (second argument)
+  // is the _format_ string, or else roundtripping will fail
+  // (the format string will be interpreted as an argument and there will be a new default format
+  // string given)
+  Array<ExprDoc> args;
+  args.push_back(d->AsDoc<ExprDoc>(n->args[0], n_p->Attr("args")->ArrayIndex(0)));
+  ExprDoc second_arg = d->AsDoc<ExprDoc>(n->args[1], n_p->Attr("args")->ArrayIndex(1));
+  for (size_t i = 2; i < n->args.size(); i++) {
+    args.push_back(d->AsDoc<ExprDoc>(n->args[i], n_p->Attr("args")->ArrayIndex(i)));
+  }
+  return Relax(d, "assert_op")->Call(args, {"format"}, {second_arg});
+}
+
+Optional<ExprDoc> PrintRelaxPrint(const relax::Call& n, const ObjectPath& n_p,
+                                  const IRDocsifier& d) {
+  static const Op& print_op = Op::Get("relax.print");
+  if (!n->op.same_as(print_op)) {
+    return NullOpt;
+  }
+  ICHECK(n->args.size() >= 1);
+  // special handling: it is important to indicate that the format string (first argument)
+  // is the _format_ string, or else roundtripping will fail
+  // (the format string will be interpreted as an argument and there will be a new default format
+  // string given)
+  ExprDoc first_arg = d->AsDoc<ExprDoc>(n->args[0], n_p->Attr("args")->ArrayIndex(0));
+  Array<ExprDoc> args;
+  for (size_t i = 1; i < n->args.size(); i++) {
+    args.push_back(d->AsDoc<ExprDoc>(n->args[i], n_p->Attr("args")->ArrayIndex(i)));
+  }
+  return Relax(d, "print")->Call(args, {"format"}, {first_arg});
+}
+
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::Call>(  //
         "", [](relax::Call n, ObjectPath n_p, IRDocsifier d) -> Doc {
           // Special case: call_tir, call_dps_packed
           if (Optional<ExprDoc> doc = PrintCallTIRDPSPacked(n, n_p, d)) {
+            return doc.value();
+          }
+          // Special case: assert_op
+          if (Optional<ExprDoc> doc = PrintAssertOp(n, n_p, d)) {
+            return doc.value();
+          }
+          // Special case: print
+          if (Optional<ExprDoc> doc = PrintRelaxPrint(n, n_p, d)) {
             return doc.value();
           }
           ExprDoc prefix{nullptr};

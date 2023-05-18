@@ -694,7 +694,7 @@ def test_skip_call_dps_packed():
                 R.output(y)
             return y
 
-    # FuseTIR should does no change to it.
+    # FuseTIR should do no change to it.
     _check(Module, Module)
 
 

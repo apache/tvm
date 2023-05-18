@@ -202,6 +202,25 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
                 self.visit_body(node.body)
 
 
+def find_purity_annotation(node: doc.FunctionDef) -> bool:
+    """
+    Check if is_pure is specified in the function body.
+    Returns the annotated purity if present, otherwise defaulting to True.
+    This allows for specifying the purity in the function signature.
+    """
+    for item in node.body:
+        if (
+            isinstance(item, doc.Expr)
+            and isinstance(item.value, doc.Call)
+            and isinstance(item.value.func, doc.Attribute)
+            and item.value.func.attr == "is_pure"
+            and len(item.value.args) == 1
+            and isinstance(item.value.args[0], doc.Constant)
+        ):
+            return bool(item.value.args[0].value)
+    return True
+
+
 @dispatch.register(token="relax", type_name="tvm_declare_function")
 def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> GlobalVar:
     with self.var_table.with_frame():
@@ -220,7 +239,9 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> GlobalVar
             param_sinfo = eval_struct_info(self, arg.annotation, eval_str=True)
             params.append(relax.Var(arg.arg, param_sinfo))
 
-    func_signature = relax.Function.create_empty(params, ret_sinfo)
+    is_pure = find_purity_annotation(node)
+
+    func_signature = relax.Function.create_empty(params, ret_sinfo, is_pure=is_pure)
     return I.decl_function(node.name, func_signature)
 
 

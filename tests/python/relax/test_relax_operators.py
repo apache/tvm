@@ -60,6 +60,7 @@ def test_unique():
 class PrintTest:
     @R.function
     def foo(x: R.Tensor((), "int32")):
+        R.is_impure()
         # results have to be bound, but we don't use them
         # TODO: We should allow calls whose results are not bound for side effects;
         #       it would be easy syntactic sugar to add.
@@ -91,32 +92,38 @@ def test_print():
 class AssertOpTest:
     @R.function
     def passes(x: R.Tensor((), "int32")):
+        R.is_impure()
         p1 = R.assert_op(relax.const(True))
         return x
 
     @R.function
     def pass_with_args(x: R.Tensor((), "int32")):
+        R.is_impure()
         p1 = R.assert_op(relax.const(True), x, format="You won't see me")
         return x
 
     @R.function
     def simple_fail(x: R.Tensor((), "int32")):
+        R.is_impure()
         p1 = R.assert_op(relax.const(False))
         return x
 
     @R.function
     def fail_with_message(x: R.Tensor((), "int32")):
+        R.is_impure()
         p1 = R.assert_op(relax.const(False), format="I failed...")
         return x
 
     @R.function
     def fail_with_args(x: R.Tensor((), "int32")):
+        R.is_impure()
         # no format
         p1 = R.assert_op(relax.const(False), [x, x])
         return x
 
     @R.function
     def fail_with_formatted_message(x: R.Tensor((), "int32")):
+        R.is_impure()
         p1 = R.assert_op(relax.const(False), x, format="Number: {}")
         return x
 
@@ -229,6 +236,22 @@ def test_op_shape_to_tensor():
     outs = run_cpu(ShapeToTensorTest, "symbolic_shape", tvm.runtime.ShapeTuple([3, 2]))
     assert isinstance(outs, tvm.runtime.ndarray.NDArray)
     assert np.array_equal(outs.numpy(), np.array([3, 2]))
+
+
+def test_op_call_pure_packed():
+    @tvm.script.ir_module
+    class CallPureTest:
+        @R.function
+        def pure_copy(x: R.Tensor((3, 4), "float32")):
+            z = R.call_pure_packed(
+                "vm.builtin.copy", x, sinfo_args=(R.Tensor((3, 4), dtype="float32"))
+            )
+            return z
+
+    np.random.seed(0)  # to avoid flakiness
+    arr = np.random.rand(3, 4).astype("float32")
+    copy_found = run_cpu(CallPureTest, "pure_copy", tvm.nd.array(arr))
+    assert (copy_found.numpy() == arr).all()
 
 
 if __name__ == "__main__":

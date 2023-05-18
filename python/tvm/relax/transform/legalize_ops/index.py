@@ -19,8 +19,9 @@
 import logging
 
 from tvm import topi, tir, te
+from ...op import call_pure_packed
 from ...block_builder import BlockBuilder
-from ...expr import Call, Expr, ExternFunc
+from ...expr import Call, Expr
 from ...struct_info import ShapeStructInfo
 from .common import register_legalize
 
@@ -105,10 +106,12 @@ def _dynamic_strided_slice(bb: BlockBuilder, call: Call) -> Expr:
     # Get shape length
     ndim = int(output_shape.struct_info.shape[0])
     output_shape = bb.emit(
-        Call(
-            ExternFunc("vm.builtin.tensor_to_shape"),
-            [output_shape],
-            sinfo_args=[ShapeStructInfo(ndim=ndim)],
+        # TODO(@relax-team): Ideally, we should use the tensor_to_shape op here to
+        # address the issue with purity, but that introduces a staging issue:
+        # we need to apply DecomposeOpsForInference in that case
+        # and it's unclear when in the build it should happen
+        call_pure_packed(
+            "vm.builtin.tensor_to_shape", output_shape, sinfo_args=ShapeStructInfo(ndim=ndim)
         )
     )
     output_shape_vars = [tir.Var("s", "int64") for i in range(ndim)]

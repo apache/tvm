@@ -147,6 +147,7 @@ class ASTPrinter(ExprFunctor):
             "params": self.build_list(map(self.visit_expr, op.params)),
             "body": self.visit_expr(op.body),
             "ret_struct_info": self.visit_struct_info_(op.ret_struct_info),
+            "is_pure": op.is_pure,
         }
         if op.attrs:
             fields["attrs"] = self.build_list(
@@ -295,6 +296,7 @@ class ASTPrinter(ExprFunctor):
                     map(self.visit_struct_info_, struct_info_node.params)
                 )
             fields["ret"] = self.visit_struct_info_(struct_info_node.ret)
+            fields["purity"] = bool(struct_info_node.purity)
             return self.build_ast_node("FuncStructInfo", **fields)
         else:
             raise ValueError(

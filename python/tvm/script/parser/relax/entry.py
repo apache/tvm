@@ -149,12 +149,14 @@ def Tensor(
 class CallableProxy(StructInfoProxy):
     params: List[StructInfoProxy]
     ret: StructInfoProxy
+    purity: bool
+
     """Function type.
 
     A function type consists of a list of type parameters to enable
     the definition of generic functions,
     a set of type constraints which we omit for the time being,
-    a sequence of argument types, and a return type.
+    a sequence of argument types, the purity of the function, and a return type.
 
     Parameters
     ----------
@@ -164,18 +166,23 @@ class CallableProxy(StructInfoProxy):
     ret : StructInfoProxy
         The return StructInfoProxy.
 
+    purity : bool
+        Whether the callable is pure.
+
     """
 
     def __init__(
         self,
         params: Union[StructInfoProxy, List[StructInfoProxy]],
         ret: StructInfoProxy,
+        purity: bool = True,
     ) -> None:
         if not isinstance(params, (list, tuple)):
             params = [params]
         # convert `R.Tensor` to `R.Tensor()`
         self.params = [param() if callable(param) else param for param in params]
         self.ret = ret() if callable(ret) else ret
+        self.purity = purity
 
     def get_symbolic_vars(self) -> Set[str]:
         return set().union(*[p.get_symbolic_vars() for p in self.params])
@@ -183,14 +190,15 @@ class CallableProxy(StructInfoProxy):
     def as_struct_info(self, dict_globals: Optional[Dict[str, Any]] = None) -> FuncStructInfo:
         params = [param.as_struct_info(dict_globals) for param in self.params]
         ret = self.ret.as_struct_info(dict_globals)
-        return FuncStructInfo(params, ret)
+        return FuncStructInfo(params, ret, purity=self.purity)
 
 
 def Callable(
     params: Union[StructInfoProxy, List[StructInfoProxy]],
     ret: StructInfoProxy,
+    purity: bool = True,
 ) -> CallableProxy:
-    return CallableProxy(params, ret)
+    return CallableProxy(params, ret, purity=purity)
 
 
 ############################### R.Tuple ################################

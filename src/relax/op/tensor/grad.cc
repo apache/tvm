@@ -43,7 +43,8 @@ StructInfo InferStructInfoNoGrad(const Call& call, const BlockBuilder& ctx) {
 
 TVM_REGISTER_OP("relax.grad.no_grad")
     .set_num_inputs(0)
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoNoGrad);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoNoGrad)
+    .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.grad.nll_loss_backward */
 Expr nll_loss_backward(Expr output_grad, Expr predictions, Expr targets, Optional<Expr> weights,
@@ -78,7 +79,8 @@ TVM_REGISTER_OP("relax.grad.nll_loss_backward")
     .add_argument("predictions", "Tensor", "The prediction tensor.")
     .add_argument("targets", "Tensor", "The target tensor.")
     .add_argument("weights", "Optional<Tensor>", "The weight of each target values.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoNLLLossBackward);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoNLLLossBackward)
+    .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.grad.max_pool2d_backward */
 Expr max_pool2d_backward(Expr output_grad, Expr data, Array<IntImm> pool_size,
@@ -107,7 +109,8 @@ TVM_REGISTER_OP("relax.grad.max_pool2d_backward")
     .add_argument("output_grad", "Tensor", "The output gradient.")
     .add_argument("data", "Tensor", "The input tensor")
     .set_attrs_type<Pool2DAttrs>()
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoMaxPool2DBackward);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoMaxPool2DBackward)
+    .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.grad.avg_pool2d_backward */
 Expr avg_pool2d_backward(Expr output_grad, Expr data, Array<IntImm> pool_size,
@@ -136,7 +139,8 @@ TVM_REGISTER_OP("relax.grad.avg_pool2d_backward")
     .add_argument("output_grad", "Tensor", "The output gradient.")
     .add_argument("data", "Tensor", "The input tensor")
     .set_attrs_type<Pool2DAttrs>()
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAvgPool2DBackward);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAvgPool2DBackward)
+    .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.grad.take_backward */
 TVM_REGISTER_NODE_TYPE(TakeAttrs);
@@ -161,7 +165,8 @@ TVM_REGISTER_OP("relax.grad.take_backward")
     .add_argument("output_grad", "Tensor", "The output gradient.")
     .add_argument("x", "Tensor", "The source tensor.")
     .add_argument("indices", "Tensor", "The indices of the values to extract.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTakeBackward);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTakeBackward)
+    .set_attr<Bool>("FPurity", Bool(true));
 
 }  // namespace relax
 }  // namespace tvm

@@ -182,7 +182,8 @@ TVM_REGISTER_OP("relax.nn.conv1d")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoConv1d)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv1d)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
-    .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionConv1d);
+    .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionConv1d)
+    .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.conv2d */
 TVM_REGISTER_NODE_TYPE(Conv2DAttrs);
@@ -348,7 +349,8 @@ TVM_REGISTER_OP("relax.nn.conv2d")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoConv2d)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv2d)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
-    .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionConv2d);
+    .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionConv2d)
+    .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.conv2d_transpose */
 TVM_REGISTER_NODE_TYPE(Conv2DTransposeAttrs);
@@ -492,7 +494,8 @@ TVM_REGISTER_OP("relax.nn.conv2d_transpose")
     .add_argument("data", "Tensor", "The input tensor.")
     .add_argument("weight", "Tensor", "The weight tensor.")
     .set_attrs_type<Conv2DTransposeAttrs>()
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoConv2dTranspose);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoConv2dTranspose)
+    .set_attr<Bool>("FPurity", Bool(true));
 
 }  // namespace relax
 }  // namespace tvm

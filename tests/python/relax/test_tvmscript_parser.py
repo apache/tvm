@@ -1324,6 +1324,7 @@ def test_context_aware_parsing():
 
         @R.function
         def main(x: R.Tensor((2, 4), dtype="float32")) -> R.Tensor((10,), dtype="float32"):
+            R.func_attr({"relax.force_pure": 1})
             cls = Module
             alloc = R.builtin.alloc_tensor(R.shape([2, 4]), dtype="float32", runtime_device_index=0)
             _: R.Tuple() = cls.add(x, R.const(1, "float32"), alloc)
@@ -1377,6 +1378,47 @@ def test_global_var_sinfo():
     tvm.ir.assert_structural_equal(gv.struct_info, target_sinfo)
     tvm.ir.assert_structural_equal(Module["foo"].struct_info, target_sinfo)
     _check(Module)
+
+
+def test_assert_op():
+    @I.ir_module
+    class AssertOp:
+        @R.function
+        def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+            R.is_impure()
+            y = R.assert_op(R.const(False, dtype="bool"), x, format="x: {}")
+            return x
+
+    _check(AssertOp)
+
+
+def test_print():
+    @I.ir_module
+    class Print:
+        @R.function
+        def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+            R.is_impure()
+            y = R.print(x, format="x: {}")
+            return x
+
+    _check(Print)
+
+
+def test_call_pure_packed():
+    @R.function
+    def foo(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
+        z = R.call_pure_packed("vm.builtin.copy", x, sinfo_args=R.Tensor((32, 32), "float32"))
+        return z
+
+    x = relax.Var("x", R.Tensor((32, 32), "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", (x)):
+        z = bb.emit(
+            R.call_pure_packed("vm.builtin.copy", x, sinfo_args=[R.Tensor((32, 32), "float32")])
+        )
+        bb.emit_func_output(z)
+
+    _check(foo, bb.get()["foo"])
 
 
 if __name__ == "__main__":

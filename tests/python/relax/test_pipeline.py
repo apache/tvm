@@ -57,12 +57,12 @@ def test_pipeline_with_kv_cache():
             # just allocate minimum slot since it is only used to signal dtype
             m = T.int64()
             init_data = R.ones((1, 4), "float32")
-            kv_cache = R.call_packed(
+            kv_cache = R.call_pure_packed(
                 "vm.builtin.attention_kv_cache_create",
                 init_data,
                 R.shape([m, 4]),
                 0,
-                sinfo_args=[R.Object],
+                sinfo_args=[R.Object()],
             )
             return kv_cache
 
@@ -73,6 +73,7 @@ def test_pipeline_with_kv_cache():
             shape: R.Shape(["L", 4]),
             kv_cache: R.Object,
         ):
+            R.is_impure()
             L = T.int64()
             # computation of the current value
             curr_value = R.add(x, y)

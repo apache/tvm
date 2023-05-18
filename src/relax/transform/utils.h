@@ -276,7 +276,7 @@ class SymbolicVarRenewMutator : public ExprMutator, tir::ExprMutator {
       return GetRef<Expr>(op);
     } else {
       auto new_ret_sinfo = this->VisitExprDepStructInfoField(op->ret_struct_info);
-      return Function(params, body, new_ret_sinfo, op->attrs);
+      return Function(params, body, new_ret_sinfo, op->is_pure, op->attrs);
     }
   }
 

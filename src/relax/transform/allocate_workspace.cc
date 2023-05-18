@@ -67,7 +67,7 @@ class ExternFunctionRewriter : ExprMutator {
 
       new_params.push_back(workspace_param);
       return Function(new_params, VisitExpr(func_node->body), func_node->ret_struct_info,
-                      func_node->attrs);
+                      func_node->is_pure, func_node->attrs);
     }
     return ExprMutator::VisitExpr_(func_node);
   }
@@ -127,8 +127,8 @@ class WorkspaceProvider : ExprMutator {
 
     auto gvar = mod_->GetGlobalVar("main");
     auto func = Downcast<Function>(mod_->Lookup(gvar));
-    auto new_func =
-        Function(func->params, VisitExpr(func->body), func->ret_struct_info, func->attrs);
+    auto new_func = Function(func->params, VisitExpr(func->body), func->ret_struct_info,
+                             func->is_pure, func->attrs);
     builder_->UpdateFunction(gvar, new_func);
     return builder_->GetContextIRModule();
   }
