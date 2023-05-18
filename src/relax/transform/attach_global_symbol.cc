@@ -39,8 +39,8 @@ Pass AttachGlobalSymbol() {
 
     for (auto& p : mod->functions) {
       BaseFunc func = p.second;
-      // skip function that already have global symbol
-      if (func->GetAttr<String>(tvm::attr::kGlobalSymbol)) continue;
+      // TODO(tvm-team): re-enable once fix relax integration part
+      // if (func->GetAttr<String>(tvm::attr::kGlobalSymbol)) continue;
       if (auto* prim_func = func.as<tir::PrimFuncNode>()) {
         updates.emplace_back(p.first,
                              WithAttr(GetRef<tir::PrimFunc>(prim_func), tvm::attr::kGlobalSymbol,
