@@ -466,14 +466,13 @@ llvm::Value* CodeGenCPU::CreateCallExtern(Type ret_type, String global_symbol,
   llvm::FunctionType* ftype = llvm::FunctionType::get(GetLLVMType(ret_type), arg_types, false);
   // Check if it is available in global function table as injected function.
 
-  llvm::Function* f = module_->getFunction(MakeStringRef(global_symbol));
   auto callee = [&]() -> llvm::Value* {
     if (auto it = gv_func_map_.find(global_symbol); it != gv_func_map_.end()) {
       if (it->second == nullptr) {
         it->second = InitContextPtr(ftype->getPointerTo(), "__" + global_symbol);
       }
       return GetContextPtr(it->second);
-    } else if (f) {
+    } else if (llvm::Function* f = module_->getFunction(MakeStringRef(global_symbol))) {
       return f;
     } else {
       return llvm::Function::Create(ftype, llvm::Function::ExternalLinkage,
@@ -484,13 +483,7 @@ llvm::Value* CodeGenCPU::CreateCallExtern(Type ret_type, String global_symbol,
   if (callee->getType() != ftype->getPointerTo()) {
     callee = builder_->CreatePointerCast(callee, ftype->getPointerTo());
   }
-
-#if TVM_LLVM_VERSION >= 90
-  auto ext_callee = llvm::FunctionCallee(ftype, callee);
-#else
-  auto ext_callee = f;
-#endif
-  return builder_->CreateCall(ext_callee, arg_values);
+  return builder_->CreateCall(ftype, callee, arg_values);
 }
 
 llvm::GlobalVariable* CodeGenCPU::InitContextPtr(llvm::Type* p_type, std::string name) {
