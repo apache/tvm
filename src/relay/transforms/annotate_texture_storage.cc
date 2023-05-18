@@ -534,11 +534,11 @@ class RewriteVDStorageScopes : public transform::DeviceAwareExprMutator {
             VirtualDevice(virtual_device->device_type(), virtual_device->virtual_device_id,
                           virtual_device->target, storage_scope_[arg][GetRef<Expr>(call_node)][0]);
         auto fn = call_node->op.as<FunctionNode>();
-        auto data_layout = fn->attrs.GetAttr<String>("data_layout").value();
-        if (data_layout.empty()) {
-          data_layout = fn->attrs.GetAttr<String>("layout").value();
+        auto data_layout = fn->attrs.GetAttr<String>("data_layout");
+        if (!data_layout) {
+          data_layout = fn->attrs.GetAttr<String>("layout");
         }
-        new_arg = tvm::relay::MakeLayoutTransform(new_arg, data_layout, data_layout);
+        new_arg = tvm::relay::MakeLayoutTransform(new_arg, data_layout.value(), data_layout.value());
         new_arg = OnDevice(
             new_arg,
             VirtualDevice(virtual_device->device_type(), virtual_device->virtual_device_id,
