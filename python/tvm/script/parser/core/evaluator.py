@@ -184,17 +184,17 @@ class ExprEvaluator:
                         for p in arg.slice.elts:
                             if isinstance(p, doc.Slice):
                                 check_slices.append(p)
-                    for slice in check_slices:
-                        if not slice.step and slice.upper and slice.lower:
-                            slice.step = doc.Constant(
+                    for s in check_slices:
+                        if not s.step and s.upper and s.lower:
+                            s.step = doc.Constant(
                                 1,
                                 None,
                                 1,
                                 1,
-                                slice.upper.lineno,
-                                slice.upper.end_col_offset + 1,
-                                slice.upper.lineno,
-                                slice.upper.end_col_offset + 2,
+                                s.upper.lineno,
+                                s.upper.end_col_offset + 1,
+                                s.upper.lineno,
+                                s.upper.end_col_offset + 2,
                             )
         if isinstance(node, list):
             return [self._visit(n) for n in node]
