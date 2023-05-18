@@ -689,11 +689,11 @@ Let `Γ` be the `StructInfo` context for Relax variables and let `Σ` track whic
         7. Use `erase_to_well_defined(Sf.ret, Γ, Σ)` as the resulting structural information.
 15. For `Function(params=[v1, v2, ..., vn], body, ret_struct_info, is_pure, attrs)`:
     1. Let `S1`, `S2`, ..., `Sn` be the structural information of the parameters. If `vi` has a structural annotation, then use that annotation for `Si`; if not, use `ObjectStructInfo()`. Let `Sr` be `ret_struct_info` if it is defined and `ObjectStructInfo()` if not.
-    2. If the function is bound to a `GlobalVar` `gv`, set `Γ[gv]` to `FuncStructInfo(params=[S1, S2, ..., Sn], ret=Sr)`. Still check the structural information in `body`, however.
+    2. If the function is bound to a `GlobalVar` `gv`, set `Γ[gv]` to `FuncStructInfo(params=[S1, S2, ..., Sn], ret=Sr, purity=is_pure)`. Still check the structural information in `body` per the below steps, however.
     3. For each of the `vi`, set `Γ[vi]` to `Si`. Additionally, add all new shape variables introduced in the `Si` to `Σ`.
     4. Derive the structural information for `body`, calling it `Sb`.
     5. Give an error if `Sb` is incompatible with `Sr` via `check_compatibility` (warn if only possibly compatible).
-    6. If `ret_struct_info` is defined, use `FuncStructInfo(params=[S1, S2, ..., Sn], ret_struct_info)` as the structural information for the function. If `ret_struct_info` is not defined, use `FuncStructInfo(params=[S1, S2, ..., Sn], erase_to_well_defined(Sb, Γ, Σ))`.
+    6. If `ret_struct_info` is defined, use `FuncStructInfo(params=[S1, S2, ..., Sn], ret_struct_info, purity=is_pure)` as the structural information for the function. If `ret_struct_info` is not defined, use `FuncStructInfo(params=[S1, S2, ..., Sn], erase_to_well_defined(Sb, Γ, Σ), purity=is_pure)`.
     7. Remove all variables added to `Γ` and `Σ` during the above steps of the derivation.
 
 ### Note on Proving Shapes Equivalent and Eliminating Dynamic Checks
