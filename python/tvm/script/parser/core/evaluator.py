@@ -178,13 +178,13 @@ class ExprEvaluator:
             for arg in args:
                 if isinstance(arg, doc.Subscript) and isinstance(arg.slice, (doc.Slice, doc.Tuple)):
                     if isinstance(arg.slice, doc.Slice):
-                        slices = [arg.slice]
+                        check_slices = [arg.slice]
                     else:
-                        slices = []
+                        check_slices = []
                         for p in arg.slice.elts:
                             if isinstance(p, doc.Slice):
-                                slices.append(p)
-                    for slice in slices:
+                                check_slices.append(p)
+                    for slice in check_slices:
                         if not slice.step and slice.upper and slice.lower:
                             slice.step = doc.Constant(
                                 1,
