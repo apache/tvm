@@ -160,10 +160,7 @@ class ExprEvaluator:
         if (
             isinstance(node, doc.Call)
             and hasattr(node.func, "attr")
-            and node.func.attr != "reads"
-            and node.func.attr != "writes"
-            and node.func.attr != "match_buffer"
-            and node.func.attr != "realize"
+            and node.func.attr not in ["reads", "writes", "match_buffer", "realize"]
         ) or isinstance(node, (doc.BinOp, doc.UnaryOp, doc.Compare, doc.BoolOp)):
             if isinstance(node, doc.BinOp):
                 args = [node.left, node.right]
