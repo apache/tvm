@@ -83,7 +83,7 @@ class CLMLJSONSerializer : public backend::contrib::JSONSerializer {
     ICHECK(comp.defined()) << "CLML JSON runtime only supports composite functions.";
     const std::string name = comp.value();
     std::shared_ptr<JSONGraphNode> json_node;
-    if (name == "clml.conv2d" || name == "clml.pad_conv2d") {
+    if (name == "clml.conv2d" || name == "clml.pad_conv2d" || name == "clml.conv2d_transpose") {
       json_node = CreateCompositeConvJSONNode(cn);
     } else if (name == "clml.batch_norm") {
       json_node = CreateBatchNormJSONNode(cn);
@@ -169,7 +169,10 @@ class CLMLJSONSerializer : public backend::contrib::JSONSerializer {
       current_call = current_call->args[0].as<CallNode>();
     }
     // Enforce a convolution node exists at this point during traversal
-    ICHECK(backend::IsOp(current_call, "nn.conv2d"));
+    if (!backend::IsOp(current_call, "nn.conv2d") &&
+        !backend::IsOp(current_call, "nn.conv2d_transpose")) {
+      LOG(FATAL) << "Can't find primary op in Convolution node";
+    }
     nodes.conv = current_call;
     if (!current_call->args.empty() && current_call->args[0]->IsInstance<CallNode>()) {
       current_call = current_call->args[0].as<CallNode>();
@@ -189,22 +192,27 @@ class CLMLJSONSerializer : public backend::contrib::JSONSerializer {
   std::shared_ptr<JSONGraphNode> CreateCompositeConvJSONNode(const CallNode* cn) {
     CompositeConvNode nodes = UnpackCompositeConvolution(cn);
 
-    const auto* conv_attr = nodes.conv->attrs.as<Conv2DAttrs>();
-    ICHECK(conv_attr);
-
     std::string name;
     std::string name_prefix = "nn";
-
-    // Distinguish between normal and depth-wise convolution
-    if (conv_attr->channels.defined() &&
-        tvm::tir::ExprDeepEqual()(conv_attr->channels, conv_attr->groups) &&
-        conv_attr->groups != 1) {
-      name = "depthwise_conv2d";
-      ICHECK(conv_attr->kernel_layout == "IOHW")
-          << "Kernel layout must be IHWO, has the module been pre-processed correctly?";
-    } else {
-      name = "conv2d";
-      ICHECK(conv_attr->kernel_layout == "OIHW")
+    if (backend::IsOp(nodes.conv, "nn.conv2d")) {
+      const auto* conv_attr = nodes.conv->attrs.as<Conv2DAttrs>();
+      ICHECK(conv_attr);
+      if (conv_attr->channels.defined() &&
+          tvm::tir::ExprDeepEqual()(conv_attr->channels, conv_attr->groups) &&
+          conv_attr->groups != 1) {
+        name = "depthwise_conv2d";
+        ICHECK(conv_attr->kernel_layout == "IOHW")
+            << "Kernel layout must be IHWO, has the module been pre-processed correctly?";
+      } else {
+        name = "conv2d";
+        ICHECK(conv_attr->kernel_layout == "OIHW")
+            << "Kernel layout must be OHWI, has the module been pre-processed correctly?";
+      }
+    } else if (backend::IsOp(nodes.conv, "nn.conv2d_transpose")) {
+      name = "conv2d_transpose";
+      const auto* conv_transpose_attr = nodes.conv->attrs.as<Conv2DTransposeAttrs>();
+      ICHECK(conv_transpose_attr);
+      ICHECK(conv_transpose_attr->kernel_layout == "OIHW")
           << "Kernel layout must be OHWI, has the module been pre-processed correctly?";
     }
 

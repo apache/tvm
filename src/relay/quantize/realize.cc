@@ -34,6 +34,7 @@
 #include "../op/annotation/annotation.h"
 #include "../qnn/utils.h"
 #include "../transforms/fold_constant.h"
+#include "../transforms/infer_layout_utils.h"
 #include "./quantize.h"
 
 namespace tvm {
@@ -155,8 +156,26 @@ Expr QuantizeRealize(const Call& ref_call, const Array<Expr>& new_args, const Ob
   return QRealizeIntExpr(round_data, dom_scale, DataType::Float(32));
 }
 
+InferCorrectLayoutOutput SimQuantizeLayout(const Attrs& attrs, const Array<Layout>& new_in_layouts,
+                                           const Array<Layout>& old_in_layouts,
+                                           const Array<tvm::relay::Type>& old_in_types) {
+  Layout ret;
+
+  if (new_in_layouts.defined()) {
+    ICHECK_GE(new_in_layouts.size(), 1);
+    ret = new_in_layouts[0];
+  } else {
+    ICHECK_GE(old_in_layouts.size(), 1);
+    ret = old_in_layouts[0];
+  }
+  Layout channel_layout = Layout("C");
+  Array<Layout> input_layouts = {ret, channel_layout, channel_layout, channel_layout};
+  return InferCorrectLayoutOutput(input_layouts, {ret}, attrs);
+}
+
 RELAY_REGISTER_OP("relay.op.annotation.simulated_quantize")
-    .set_attr<FForwardRewrite>("FQRealizeRewrite", QuantizeRealize);
+    .set_attr<FForwardRewrite>("FQRealizeRewrite", QuantizeRealize)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", SimQuantizeLayout);
 
 Expr Conv2dRealize(const Call& ref_call, const Array<Expr>& new_args, const ObjectRef& ctx) {
   const QConfig& cfg = QConfig::Current();

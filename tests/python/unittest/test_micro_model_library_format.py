@@ -414,7 +414,7 @@ def test_export_non_dso_exportable():
 
     temp_dir = utils.tempdir()
 
-    with pytest.raises(micro.UnsupportedInModelLibraryFormatError) as exc:
+    with pytest.raises(AssertionError) as exc:
         model_library_format._populate_codegen_dir([module], temp_dir.relpath("codegen"))
 
         assert str(exc.exception) == (

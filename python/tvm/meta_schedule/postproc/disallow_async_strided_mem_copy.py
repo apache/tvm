@@ -23,16 +23,9 @@ from .postproc import Postproc
 
 @register_object("meta_schedule.DisallowAsyncStridedMemCopy")
 class DisallowAsyncStridedMemCopy(Postproc):
-    """A postprocessor that disallows schedules that use async strided mem copies.
+    """A postprocessor that disallows schedules that use async strided mem copies."""
 
-    Parameters
-    ----------
-    merge_async_commit_queue_scope : bool
-       Whether or not to merge the async commit queue scope.
-    """
-
-    def __init__(self, merge_async_commit_queue_scope=True) -> None:
+    def __init__(self) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.PostprocDisallowAsyncStridedMemCopy,  # type: ignore # pylint: disable=no-member
-            merge_async_commit_queue_scope,
         )

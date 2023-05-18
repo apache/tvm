@@ -194,12 +194,17 @@ PrimFunc MakePackedAPI(PrimFunc&& func) {
 
   for (int i = 0; i < static_cast<int>(func_ptr->params.size()); ++i) {
     Var param = func_ptr->params[i];
-    std::string param_name;
-    if (param->name_hint.defined() && (!param->name_hint.empty())) {
-      param_name = "arg." + param->name_hint;
-    } else {
-      param_name = "arg" + std::to_string(i);
-    }
+    std::string param_name = [&]() {
+      std::ostringstream oss;
+      oss << "arg";
+      if (param->name_hint.defined() && (!param->name_hint.empty())) {
+        oss << "." << param->name_hint;
+
+      } else {
+        oss << i;
+      }
+      return oss.str();
+    }();
     Var v_arg = Var(param_name, param->dtype);
 
     // Pluck the device API context out based on name
@@ -252,11 +257,12 @@ PrimFunc MakePackedAPI(PrimFunc&& func) {
   // to use the args that may have no let binding yet. Therefore, hoisting let
   // binding for args before buffer declaration is needed.
   for (const auto& kv : var_def) {
-    binder.Bind(kv.second, kv.first, kv.first->name_hint, true);
+    binder.Bind(kv.second, kv.first, name_hint + "." + kv.first->name_hint, true);
   }
 
   for (const auto& kv : buffer_def) {
-    binder.BindDLTensor(kv.second, device_type, device_id, kv.first, kv.first->name_hint);
+    binder.BindDLTensor(kv.second, device_type, device_id, kv.first,
+                        name_hint + "." + kv.first->name_hint);
   }
 
   func = WithAttr(std::move(func), tvm::attr::kCallingConv, Integer(CallingConv::kCPackedFunc));
@@ -266,7 +272,7 @@ PrimFunc MakePackedAPI(PrimFunc&& func) {
                   StringImm(name_hint + "_compute_"), body);
   // Set device context
   if (vmap.count(device_id.get())) {
-    PrimExpr node = StringImm("default");
+    ObjectRef node = String("default");
     seq_check.push_back(AttrStmt(node, attr::device_id, device_id, nop));
     seq_check.push_back(AttrStmt(node, attr::device_type, device_type, nop));
 
@@ -286,14 +292,8 @@ PrimFunc MakePackedAPI(PrimFunc&& func) {
   func_ptr->params = args;
 
   Array<Var> undefined = UndefinedVars(func_ptr->body, func_ptr->params);
-  if (undefined.size() != 0) {
-    std::ostringstream os;
-    for (Var v : undefined) {
-      os << " \'" << v->name_hint << "\' ";
-    }
-    os << " is not bound to any variables";
-    LOG(FATAL) << "Not all Vars are passed in api_args: " << os.str();
-  }
+  ICHECK_EQ(undefined.size(), 0) << "In PrimFunc " << global_symbol << " variables " << undefined
+                                 << " are used, but are not passed in as API arguments";
 
   func_ptr->buffer_map = Map<Var, Buffer>();
   func_ptr->checked_type_ = func_ptr->func_type_annotation();
@@ -311,8 +311,8 @@ Pass MakePackedAPI() {
     std::vector<std::pair<GlobalVar, PrimFunc>> updates;
 
     for (const auto& kv : mptr->functions) {
-      if (auto* n = kv.second.as<PrimFuncNode>()) {
-        PrimFunc func = GetRef<PrimFunc>(n);
+      if (auto opt = kv.second.as<PrimFunc>()) {
+        auto func = opt.value();
         if (func->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) ==
             CallingConv::kDefault) {
           auto updated_func = MakePackedAPI(std::move(func));

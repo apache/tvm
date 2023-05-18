@@ -1535,15 +1535,10 @@ def test_tflite_tanh_legalize():
     assert tuple(func_body.args[1].checked_type.shape) == (256,)
 
 
+@pytest.mark.parametrize("dtype", ["int8", "uint8"])
 @pytest.mark.parametrize(
     "ifm_shape, axis, keep_dims, use_same_quantization",
     [
-        # mean to depthwise + multiply
-        [(1, 8, 16, 16), (1, 2), True, False],
-        [(1, 8, 16, 16), (2, 1), True, False],
-        [(1, 3, 4), (0, 1), True, False],
-        [(8, 5), (1, 0), True, False],
-        [(1, 65, 2, 1), (1, 2), True, False],  # special case when h > 64
         # mean to average pool
         [(1, 8, 16, 16), (1,), True, True],
         [(1, 8, 16, 16), (2,), False, True],
@@ -1557,11 +1552,10 @@ def test_tflite_tanh_legalize():
         [(1, 8, 16, 16), (2,), True, False],
         [(1, 8, 16, 16), (1, 2), False, False],
         [(8, 4), (0,), False, False],
+        [(1, 65, 2, 1), (1, 2), True, False],  # special case when h > 64
     ],
 )
-def test_mean(ifm_shape, axis, keep_dims, use_same_quantization):
-    dtype = "int8"
-
+def test_mean(ifm_shape, axis, keep_dims, use_same_quantization, dtype):
     def create_tflite_graph():
         class Model(tf.Module):
             @tf.function
@@ -1606,6 +1600,7 @@ def test_mean(ifm_shape, axis, keep_dims, use_same_quantization):
             input_zero_point=relay.const(0, dtype="int32"),
             output_scale=relay.const(1.0, dtype="float32"),
             output_zero_point=relay.const(0, dtype="int32"),
+            out_dtype=dtype,
         )
 
         func = relay.Function(relay.analysis.free_vars(requantize), requantize)
@@ -1616,7 +1611,6 @@ def test_mean(ifm_shape, axis, keep_dims, use_same_quantization):
         out_var = ext_func.body
 
         next_op = out_var
-        mul_op = None
         pooling_op = None
         depthwise_op = None
         if (
@@ -1624,9 +1618,6 @@ def test_mean(ifm_shape, axis, keep_dims, use_same_quantization):
             and isinstance(next_op.op, tvm.ir.op.Op)
             and next_op.op.name == "reshape"
         ):
-            next_op = next_op.args[0]
-        if util.is_named_ethosu_op(next_op, "binary_elementwise"):
-            mul_op = next_op
             next_op = next_op.args[0]
         if util.is_named_ethosu_op(next_op, "pooling"):
             pooling_op = next_op
@@ -1654,24 +1645,33 @@ def test_mean(ifm_shape, axis, keep_dims, use_same_quantization):
 
         # check IFM
         assert tuple(in_var.checked_type.shape) == ifm_shape
-        assert in_var.checked_type.dtype == dtype
+
+        if use_same_quantization:
+            assert in_var.checked_type.dtype == dtype
+        else:
+            # in_var's dtype is equal to int8 due to TFLite's requantize
+            assert in_var.checked_type.dtype == "int8"
 
         # check OFM
         assert tuple(out_var.checked_type.shape) == out_shape
-        assert out_var.checked_type.dtype == dtype
+        if use_same_quantization:
+            assert out_var.checked_type.dtype == dtype
+        else:
+            # out_var's dtype is equal to int8 due to TFLite's requantize
+            assert out_var.checked_type.dtype == "int8"
 
         # check expected legalization case
-        if axis in [(1, 2), (2, 1), (0, 1), (1, 0)] and keep_dims and dtype == "int8":
-            assert depthwise_op and mul_op
-            assert mul_op.attrs.operator_type == "MUL"
-        elif pooling_op:
+        if pooling_op:
             attrs = pooling_op.attrs
             assert (
                 attrs.ifm_scale == attrs.ofm_scale and attrs.ifm_zero_point == attrs.ofm_zero_point
             )
         else:
             assert depthwise_op
-            assert not mul_op
+            attrs = depthwise_op.attrs
+            assert (
+                attrs.ifm_scale != attrs.ofm_scale or attrs.ifm_zero_point != attrs.ofm_zero_point
+            )
 
     rewriter = legalize.MeanRewriter()
     pattern_table = [
@@ -2342,14 +2342,17 @@ def test_tflite_squeeze(ifm_shape, axis):
 
 
 @pytest.mark.parametrize(
-    "ifm_shape,size",
+    "ifm_shape,size,half_pixel",
     [
-        [(1, 2, 2, 1), (4, 4)],
-        [(1, 4, 7, 3), (8, 14)],
-        [(1, 3, 5, 3), (3, 5)],
+        [(1, 2, 2, 1), (4, 4), False],
+        [(1, 2, 2, 1), (4, 4), True],
+        [(1, 4, 7, 3), (8, 14), False],
+        [(1, 3, 5, 3), (3, 5), False],
+        [(1, 6, 6, 96), (12, 12), False],
+        [(1, 6, 6, 96), (12, 12), True],
     ],
 )
-def test_tflite_resize2d_nearest_neighbor(ifm_shape, size):
+def test_tflite_resize2d_nearest_neighbor(ifm_shape, size, half_pixel):
     align_corners = False
     dtype = "int8"
 
@@ -2357,7 +2360,10 @@ def test_tflite_resize2d_nearest_neighbor(ifm_shape, size):
         @tf.function
         def resize_model(x):
             return tf.compat.v1.image.resize_nearest_neighbor(
-                x, size, align_corners=align_corners, half_pixel_centers=False
+                x,
+                size,
+                align_corners=align_corners,
+                half_pixel_centers=half_pixel,
             )
 
         concrete_func = resize_model.get_concrete_function(
@@ -3068,6 +3074,126 @@ def test_tflite_hard_swish(ifm_shape):
     assert func_body.attrs.activation == "LUT"
     assert tuple(func_body.args[0].checked_type.shape) == (ifm_shape)
     assert tuple(func_body.args[1].checked_type.shape) == (256,)
+
+
+@pytest.mark.parametrize("ifm_shape", [(1, 12), (1, 12, 32)])
+def test_tflite_softmax(ifm_shape):
+    dtype = "int8"
+
+    def create_tflite_graph():
+        @tf.function
+        def softmax(x):
+            return tf.nn.softmax(x)
+
+        concrete_func = softmax.get_concrete_function(tf.TensorSpec(ifm_shape, dtype=tf.float32))
+        # Convert the model
+        def representative_dataset():
+            for _ in range(100):
+                data = np.random.rand(*tuple(ifm_shape))
+                yield [data.astype(np.float32)]
+
+        converter = tf.lite.TFLiteConverter.from_concrete_functions([concrete_func])
+        converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        converter.representative_dataset = representative_dataset
+        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+        converter.inference_input_type = tf.int8
+        converter.inference_output_type = tf.int8
+        tflite_model = converter.convert()
+        return tflite_model
+
+    def verify(ext_func):
+        out_op = ext_func.body
+        ops = []
+        # List of expected operations and their type if it exists
+        expected_ops = [
+            ("reshape", None),
+            ("reshape", None),
+            ("contrib.ethosu.pooling", "MAX"),
+            ("contrib.ethosu.binary_elementwise", "SUB"),
+            ("contrib.ethosu.binary_elementwise", "SHR"),
+            ("contrib.ethosu.pooling", "SUM"),
+            ("contrib.ethosu.unary_elementwise", "CLZ"),
+            ("contrib.ethosu.binary_elementwise", "SUB"),
+            ("contrib.ethosu.binary_elementwise", "SHL"),
+            ("contrib.ethosu.binary_elementwise", "SUB"),
+            ("contrib.ethosu.binary_elementwise", "SHL"),
+            ("contrib.ethosu.binary_elementwise", "ADD"),
+            ("contrib.ethosu.binary_elementwise", "MUL"),
+            ("contrib.ethosu.binary_elementwise", "ADD"),
+            ("contrib.ethosu.binary_elementwise", "MUL"),
+            ("contrib.ethosu.binary_elementwise", "SUB"),
+            ("contrib.ethosu.binary_elementwise", "MUL"),
+            ("contrib.ethosu.binary_elementwise", "MUL"),
+            ("contrib.ethosu.binary_elementwise", "ADD"),
+            ("contrib.ethosu.binary_elementwise", "MUL"),
+            ("contrib.ethosu.binary_elementwise", "SUB"),
+            ("contrib.ethosu.binary_elementwise", "MUL"),
+            ("contrib.ethosu.binary_elementwise", "MUL"),
+            ("contrib.ethosu.binary_elementwise", "ADD"),
+            ("contrib.ethosu.binary_elementwise", "MUL"),
+            ("contrib.ethosu.binary_elementwise", "SUB"),
+            ("contrib.ethosu.binary_elementwise", "MUL"),
+            ("contrib.ethosu.binary_elementwise", "MUL"),
+            ("contrib.ethosu.binary_elementwise", "ADD"),
+            ("contrib.ethosu.binary_elementwise", "MUL"),
+            ("contrib.ethosu.binary_elementwise", "MUL"),
+            ("contrib.ethosu.binary_elementwise", "SUB"),
+            ("contrib.ethosu.binary_elementwise", "SHR"),
+            ("reshape", None),
+        ]
+
+        def get_op_type(op):
+            if hasattr(op.attrs, "pooling_type"):
+                return op.attrs.pooling_type
+            elif hasattr(op.attrs, "operator_type"):
+                return op.attrs.operator_type
+            return None
+
+        def _visit(stmt):
+            if isinstance(stmt, relay.expr.Call):
+                ops.append(stmt)
+
+        relay.analysis.post_order_visit(out_op, _visit)
+
+        # check IFM
+        ifm = ops[0].args[0].checked_type
+        assert list(ifm.shape) == list(ifm_shape)
+        assert str(ifm.dtype) == dtype
+
+        # check OFM
+        ofm = out_op.checked_type
+        assert list(ofm.shape) == list(ifm_shape)
+        assert ofm.dtype == dtype
+
+        # check operations
+
+        ops = [(op.op.name, get_op_type(op)) for op in ops]
+        assert expected_ops == ops
+
+    softmax_pattern_table = [
+        (
+            ethosu.SoftMaxParams.composite_name,
+            ethosu.softmax_pattern(),
+            lambda pat: ethosu.SoftMaxParams(pat).is_valid(),
+        )
+    ]
+
+    tflite_graph = create_tflite_graph()
+    tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
+
+    mod, params = relay.frontend.from_tflite(
+        tflite_model,
+        shape_dict={"input": ifm_shape},
+        dtype_dict={"input": dtype},
+    )
+    mod["main"] = bind_params_by_name(mod["main"], params)
+    mod = partition_ethosu_by_table(mod, softmax_pattern_table)
+    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
+        legalize.SoftmaxRewriter(), mod["tvmgen_default_ethos_u_main_0"]
+    )
+    mod = relay.transform.InferType()(mod)
+
+    verify(mod["tvmgen_default_ethos_u_main_0"])
 
 
 if __name__ == "__main__":

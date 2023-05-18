@@ -46,7 +46,6 @@ runtime::Module Build(IRModule mod, Target target) {
           .value()) {
     mod = tir::transform::SkipAssert()(mod);
   }
-
   auto target_attr_map = tvm::TargetKind::GetAttrMap<FTVMTIRToRuntime>("TIRToRuntime");
   if (target_attr_map.count(target->kind)) {
     return target_attr_map[target->kind](mod, target);
@@ -241,8 +240,15 @@ std::string SerializeModule(const runtime::Module& mod) {
 }
 }  // namespace
 
-std::string PackImportsToC(const runtime::Module& mod, bool system_lib) {
+std::string PackImportsToC(const runtime::Module& mod, bool system_lib,
+                           const std::string& c_symbol_prefix) {
   std::string bin = SerializeModule(mod);
+  std::string mdev_blob_name = c_symbol_prefix + runtime::symbol::tvm_dev_mblob;
+
+  if (c_symbol_prefix.length() != 0) {
+    CHECK(system_lib)
+        << "c_symbol_prefix advanced option should be used in conjuction with system-lib";
+  }
 
   // translate to C program
   std::ostringstream os;
@@ -254,10 +260,10 @@ std::string PackImportsToC(const runtime::Module& mod, bool system_lib) {
   os << "#ifdef __cplusplus\n"
      << "extern \"C\" {\n"
      << "#endif\n";
-  os << "TVM_EXPORT extern const unsigned char " << runtime::symbol::tvm_dev_mblob << "[];\n";
+  os << "TVM_EXPORT extern const unsigned char " << mdev_blob_name << "[];\n";
   uint64_t nbytes = bin.length();
-  os << "const unsigned char " << runtime::symbol::tvm_dev_mblob << "["
-     << bin.length() + sizeof(nbytes) << "] = {\n  ";
+  os << "const unsigned char " << mdev_blob_name << "[" << bin.length() + sizeof(nbytes)
+     << "] = {\n  ";
   os << std::hex;
   size_t nunit = 80 / 4;
   for (size_t i = 0; i < sizeof(nbytes); ++i) {
@@ -280,9 +286,9 @@ std::string PackImportsToC(const runtime::Module& mod, bool system_lib) {
   os << "\n};\n";
   if (system_lib) {
     os << "extern int TVMBackendRegisterSystemLibSymbol(const char*, void*);\n";
-    os << "static int " << runtime::symbol::tvm_dev_mblob << "_reg_ = "
-       << "TVMBackendRegisterSystemLibSymbol(\"" << runtime::symbol::tvm_dev_mblob << "\", (void*)"
-       << runtime::symbol::tvm_dev_mblob << ");\n";
+    os << "static int " << mdev_blob_name << "_reg_ = "
+       << "TVMBackendRegisterSystemLibSymbol(\"" << mdev_blob_name << "\", (void*)"
+       << mdev_blob_name << ");\n";
   }
   os << "#ifdef __cplusplus\n"
      << "}\n"
@@ -291,7 +297,13 @@ std::string PackImportsToC(const runtime::Module& mod, bool system_lib) {
 }
 
 runtime::Module PackImportsToLLVM(const runtime::Module& mod, bool system_lib,
-                                  const std::string& llvm_target_string) {
+                                  const std::string& llvm_target_string,
+                                  const std::string& c_symbol_prefix) {
+  if (c_symbol_prefix.length() != 0) {
+    CHECK(system_lib)
+        << "c_symbol_prefix advanced option should be used in conjuction with system-lib";
+  }
+
   std::string bin = SerializeModule(mod);
 
   uint64_t nbytes = bin.length();
@@ -309,7 +321,7 @@ runtime::Module PackImportsToLLVM(const runtime::Module& mod, bool system_lib,
   // the codegen function.
   const PackedFunc* codegen_f = runtime::Registry::Get(codegen_f_name);
   ICHECK(codegen_f != nullptr) << "codegen.codegen_blob is not presented.";
-  return (*codegen_f)(blob_byte_array, system_lib, llvm_target_string);
+  return (*codegen_f)(blob_byte_array, system_lib, llvm_target_string, c_symbol_prefix);
 }
 
 TVM_REGISTER_GLOBAL("target.Build").set_body_typed(Build);

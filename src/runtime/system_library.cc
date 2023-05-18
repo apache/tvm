@@ -32,20 +32,8 @@
 namespace tvm {
 namespace runtime {
 
-class SystemLibrary : public Library {
+class SystemLibraryRegistry {
  public:
-  SystemLibrary() = default;
-
-  void* GetSymbol(const char* name) final {
-    std::lock_guard<std::mutex> lock(mutex_);
-    auto it = tbl_.find(name);
-    if (it != tbl_.end()) {
-      return it->second;
-    } else {
-      return nullptr;
-    }
-  }
-
   void RegisterSymbol(const std::string& name, void* ptr) {
     std::lock_guard<std::mutex> lock(mutex_);
     auto it = tbl_.find(name);
@@ -56,8 +44,18 @@ class SystemLibrary : public Library {
     tbl_[name] = ptr;
   }
 
-  static const ObjectPtr<SystemLibrary>& Global() {
-    static auto inst = make_object<SystemLibrary>();
+  void* GetSymbol(const char* name) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = tbl_.find(name);
+    if (it != tbl_.end()) {
+      return it->second;
+    } else {
+      return nullptr;
+    }
+  }
+
+  static SystemLibraryRegistry* Global() {
+    static SystemLibraryRegistry* inst = new SystemLibraryRegistry();
     return inst;
   }
 
@@ -68,14 +66,36 @@ class SystemLibrary : public Library {
   std::unordered_map<std::string, void*> tbl_;
 };
 
-TVM_REGISTER_GLOBAL("runtime.SystemLib").set_body_typed([]() {
-  static auto mod = CreateModuleFromLibrary(SystemLibrary::Global());
-  return mod;
+class SystemLibrary : public Library {
+ public:
+  explicit SystemLibrary(const std::string& symbol_prefix) : symbol_prefix_(symbol_prefix) {}
+
+  void* GetSymbol(const char* name) {
+    if (symbol_prefix_.length() != 0) {
+      std::string name_with_prefix = symbol_prefix_ + name;
+      void* symbol = reg_->GetSymbol(name_with_prefix.c_str());
+      if (symbol != nullptr) return symbol;
+    }
+    return reg_->GetSymbol(name);
+  }
+
+ private:
+  SystemLibraryRegistry* reg_ = SystemLibraryRegistry::Global();
+  std::string symbol_prefix_;
+};
+
+TVM_REGISTER_GLOBAL("runtime.SystemLib").set_body([](TVMArgs args, TVMRetValue* rv) {
+  std::string symbol_prefix = "";
+  if (args.size() != 0) {
+    symbol_prefix = args[0].operator std::string();
+  }
+  auto mod = CreateModuleFromLibrary(make_object<SystemLibrary>(symbol_prefix));
+  *rv = mod;
 });
 }  // namespace runtime
 }  // namespace tvm
 
 int TVMBackendRegisterSystemLibSymbol(const char* name, void* ptr) {
-  tvm::runtime::SystemLibrary::Global()->RegisterSymbol(name, ptr);
+  tvm::runtime::SystemLibraryRegistry::Global()->RegisterSymbol(name, ptr);
   return 0;
 }

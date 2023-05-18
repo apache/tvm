@@ -21,10 +21,12 @@
  * \file flatten_buffer.cc
  */
 
+#include <tvm/arith/iter_affine_map.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
+#include "../../arith/ir_mutator_with_analyzer.h"
 #include "ir_utils.h"
 
 namespace tvm {
@@ -34,10 +36,11 @@ namespace tir {
  * \brief Transform multi-dimension BufferLoad/BufferStore into device-supported dimension
  *        for the TIR not contains opaque block.
  */
-class BufferFlattener : public StmtExprMutator {
+class BufferFlattener : public arith::IRMutatorWithAnalyzer {
  public:
   static PrimFunc Flatten(PrimFunc func) {
-    auto pass = BufferFlattener();
+    arith::Analyzer ana;
+    auto pass = BufferFlattener(&ana);
     auto writer = func.CopyOnWrite();
     writer->body = pass.VisitStmt(func->body);
     // The buffers in func->buffer_map are deliberately left
@@ -48,7 +51,12 @@ class BufferFlattener : public StmtExprMutator {
   }
 
  private:
-  BufferFlattener() {}
+  using IRMutatorWithAnalyzer::VisitExpr;
+  using IRMutatorWithAnalyzer::VisitExpr_;
+  using IRMutatorWithAnalyzer::VisitStmt;
+  using IRMutatorWithAnalyzer::VisitStmt_;
+
+  explicit BufferFlattener(arith::Analyzer* ana) : IRMutatorWithAnalyzer(ana) {}
 
   Stmt VisitStmt_(const BlockNode* op) final {
     ICHECK_EQ(op->match_buffers.size(), 0)
@@ -158,12 +166,16 @@ class BufferFlattener : public StmtExprMutator {
       return it->second;
     }
     auto flattened = buf.GetFlattenedBuffer();
+    auto writer = flattened.CopyOnWrite();
 
     // TODO(Lunderberg): Move the handling of boolean into a
     // dedicated pass.
     if (flattened->dtype == DataType::Bool()) {
-      auto writer = flattened.CopyOnWrite();
       writer->dtype = DataType::Int(8);
+    }
+    // canonicalize shape
+    for (size_t i = 0; i < flattened->shape.size(); ++i) {
+      writer->shape.Set(i, analyzer_->canonical_simplify(flattened->shape[i]));
     }
 
     buffer_remap_[buf] = flattened;
@@ -206,10 +218,26 @@ class BufferFlattener : public StmtExprMutator {
     }
   }
 
+  Array<PrimExpr> GetSimplifiedElemOffset(const Buffer& buffer, const Array<PrimExpr>& indices) {
+    auto flattened_indices = buffer->ElemOffset(indices);
+    // Use IterMapSimplify to enable constant fold of fused indices
+    // IterMapSimplify is more powerful and time-consuming than normal
+    // simplify as it tries to deal with symbolic fusion
+    //
+    // Only use to handle indices during layout transformations
+    // So we restrict the use to here
+    PrimExpr pred = const_true();
+    for (PrimExpr val : iter_predicates_) {
+      pred = pred && val;
+    }
+    return arith::IterMapSimplify(flattened_indices, this->iter_vars_, pred,
+                                  arith::IterMapLevel::Surjective, this->analyzer_);
+  }
+
   template <typename Node>
   Node VisitBufferAccess(Node node) {
     ICHECK(node->buffer.defined());
-    auto flattened_indices = node->buffer->ElemOffset(node->indices);
+    auto flattened_indices = GetSimplifiedElemOffset(node->buffer, node->indices);
     Buffer flattened_buffer = GetFlattenedBuffer(node->buffer);
 
     auto writer = node.CopyOnWrite();
@@ -232,8 +260,8 @@ class BufferFlattener : public StmtExprMutator {
       max_values.push_back(range->min + range->extent - 1);
     }
 
-    Array<PrimExpr> flattened_min = orig_buf->ElemOffset(min_values);
-    Array<PrimExpr> flattened_max = orig_buf->ElemOffset(max_values);
+    Array<PrimExpr> flattened_min = GetSimplifiedElemOffset(orig_buf, min_values);
+    Array<PrimExpr> flattened_max = GetSimplifiedElemOffset(orig_buf, max_values);
 
     Array<Range> flattened_ranges;
     ICHECK_EQ(flattened_min.size(), flattened_max.size());

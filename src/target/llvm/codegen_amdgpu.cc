@@ -42,7 +42,9 @@
 #include <llvm/Support/SourceMgr.h>
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Target/TargetMachine.h>
+#if TVM_LLVM_VERSION < 170
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
+#endif
 #include <llvm/Transforms/Utils/Cloning.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/device_api.h>
@@ -258,7 +260,7 @@ runtime::Module BuildAMDGPU(IRModule mod, Target target) {
 #endif
   auto cg = std::make_unique<CodeGenAMDGPU>();
 
-  cg->Init("TVMAMDGPUModule", llvm_target.get(), false, false, false);
+  cg->Init("TVMAMDGPUModule", llvm_target.get(), NullOpt, false, false);
 
   cg->AddFunctionsOrdered(mod->functions.begin(), mod->functions.end(), [](auto& kv) {
     ICHECK(kv.second->template IsInstance<PrimFuncNode>())

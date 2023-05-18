@@ -24,6 +24,7 @@ import tvm
 from tvm.ir import PrimType
 from tvm.tir import Buffer, IterVar, PrimExpr, Var
 
+from ...ir_builder import ir as I
 from ...ir_builder import tir as T
 from ...ir_builder.base import IRBuilder
 from ...ir_builder.base import IRBuilderFrame as Frame
@@ -142,13 +143,14 @@ def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -
     ):
         IRBuilder.name(var_name, value)
         return value
-    elif isinstance(value, PrimExpr):
+    else:
+        value = tvm.runtime.convert(value)
         frame = T.LetStmt(value)
         var = frame.var
+        IRBuilder.name(var_name, var)
         frame.add_callback(partial(frame.__exit__, None, None, None))
         frame.__enter__()
         return var
-    return value
 
 
 @dispatch.register(token="tir", type_name="For")
@@ -336,6 +338,9 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
     node : doc.FunctionDef
         The doc AST function definition node.
     """
+    supplied_annotation = self.function_annotations
+    func_annotation = supplied_annotation.get(node.name, {})
+    self.function_annotations = None
     with self.var_table.with_frame():
         self.var_table.add("range", T.serial)
         with T.prim_func():
@@ -346,35 +351,28 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
                     ret_type = PrimType(ret_type().dtype)
                 T.func_ret(ret_type)
             with self.with_dispatch_token("tir"):
-                self.visit(node.args)
+                # TODO: handle different types of arguments:
+                # - vararg: arg | None
+                # - kwonlyargs: list[arg]
+                # - kw_defaults: list[expr | None]
+                # - kwarg: arg | None
+                # - defaults: list[expr]
+                # - posonlyargs: list[arg]
+                for arg in node.args.args:
+                    if arg.annotation is None:
+                        self.report_error(arg, "Type annotation required for function parameters.")
+                    try:
+                        ann = self.eval_expr(arg.annotation)
+                        if callable(ann):
+                            ann = ann()
+                    except Exception:  # pylint: disable=broad-except
+                        ann = func_annotation.get(arg.arg, None)
+                        if ann is None:
+                            raise
+                    param = T.arg(arg.arg, ann)
+                    self.var_table.add(arg.arg, param)
                 self.visit_body(node.body)
-
-
-@dispatch.register(token="tir", type_name="arguments")
-def visit_arguments(self: Parser, node: doc.arguments) -> None:
-    """The arguments visiting method for tir.
-
-    Parameters
-    ----------
-    self : Parser
-        The visiting parser.
-
-    node : doc.arguments
-        The doc AST arguments node.
-    """
-    # TODO: handle different types of arguments:
-    # - vararg: arg | None
-    # - kwonlyargs: list[arg]
-    # - kw_defaults: list[expr | None]
-    # - kwarg: arg | None
-    # - defaults: list[expr]
-    # - posonlyargs: list[arg]
-    arg: doc.arg
-    for arg in node.args:
-        if arg.annotation is None:
-            self.report_error(arg, "Type annotation is required for function parameters.")
-        param = T.arg(arg.arg, self.visit_tvm_annotation(arg.annotation))
-        self.var_table.add(arg.arg, param)
+    self.function_annotations = supplied_annotation
 
 
 @dispatch.register(token="tir", type_name="tvm_annotation")
@@ -432,10 +430,12 @@ def visit_if(self: Parser, node: doc.If) -> None:
     with self.var_table.with_frame():
         with T.If(self.eval_expr(node.test)):
             with T.Then():
-                self.visit_body(node.body)
+                with self.var_table.with_frame():
+                    self.visit_body(node.body)
             if node.orelse:
                 with T.Else():
-                    self.visit_body(node.orelse)
+                    with self.var_table.with_frame():
+                        self.visit_body(node.orelse)
 
 
 @dispatch.register(token="tir", type_name="Assert")
@@ -470,3 +470,28 @@ def visit_return(self: Parser, node: doc.Return) -> None:
         The doc AST return node.
     """
     self.report_error(node, "Return is not allowed.")
+
+
+@dispatch.register(token="tir", type_name="tvm_declare_function")
+def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> None:
+    """The function declaration step for tir
+
+    Parameters
+    ----------
+    self : Parser
+        The visiting parser.
+
+    node : doc.Return
+        The doc AST return node.
+    """
+
+    ret_type = None
+    if node.returns is not None:
+        ret_type = self.eval_expr(node.returns)
+        if callable(ret_type):
+            ret_type = PrimType(ret_type().dtype)
+
+    # Only ret_type is needed for func_signature.
+    func_signature = tvm.tir.PrimFunc([], None, ret_type=ret_type)
+    global_var = I.decl_function(node.name, func_signature)
+    self.var_table.add(node.name, global_var)

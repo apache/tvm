@@ -38,10 +38,7 @@ def _get_supported_layout(dims: int):
     return "NCDHW"
 
 
-def _convert_to_layout(
-    input_tensor: np.ndarray,
-    layout: str,
-) -> np.ndarray:
+def _convert_to_layout(input_tensor: np.ndarray, layout: str) -> np.ndarray:
     """
     Converts back to original layout after the algorithm is finished
     """
@@ -55,10 +52,7 @@ def _convert_to_layout(
     return input_tensor
 
 
-def _convert_from_layout(
-    input_tensor: np.ndarray,
-    layout: str,
-) -> np.ndarray:
+def _convert_from_layout(input_tensor: np.ndarray, layout: str) -> np.ndarray:
     """
     Converts tensor to one of suppored layouts
     """
@@ -79,7 +73,7 @@ def get_slice(
     kernel: Tuple[int],
     strides: Tuple[int],
     dilation: Tuple[int],
-) -> List[slice]:
+) -> Tuple[slice]:
     """
     Programmatically create a slice object of the right dimensions for pad_np.
 
@@ -100,7 +94,7 @@ def get_slice(
     # Add back batch and channel dimensions
     slices = [slice(None), slice(None)] + slices
 
-    return slices
+    return tuple(slices)
 
 
 def pad_tensor(
@@ -189,7 +183,7 @@ def poolnd_python(
             dilation=dilation,
         )
 
-        output_slice = [slice(None), slice(None)] + list(coordinate)
+        output_slice = (slice(None), slice(None)) + tuple(coordinate)
         reduction_axis = tuple(range(2, len(np_data.shape)))
         if pool_type == "avg":
             count_non_padded = (
@@ -208,6 +202,6 @@ def poolnd_python(
             # All padded values, default to 0
             ret_np[output_slice] = np.max(pad_data[np_index], axis=reduction_axis)
         else:
-            raise ValueError("Pool type {} is not supported".format(pool_type))
+            raise ValueError(f"Pool type {pool_type} is not supported")
 
     return _convert_to_layout(ret_np, layout)

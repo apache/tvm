@@ -17,7 +17,7 @@
 
 # CI docker GPU env
 # tag: v0.60
-FROM nvidia/cuda:11.0.3-cudnn8-devel-ubuntu18.04
+FROM nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04
 
 COPY utils/apt-install-and-clear.sh /usr/local/bin/apt-install-and-clear
 
@@ -41,10 +41,10 @@ RUN bash /install/ubuntu_install_cmake_source.sh
 COPY install/ubuntu_install_googletest.sh /install/ubuntu_install_googletest.sh
 RUN bash /install/ubuntu_install_googletest.sh /googletest
 
-ENV TVM_VENV /venv/apache-tvm-py3.7
+ENV TVM_VENV /venv/apache-tvm-py3.8
 COPY python/bootstrap/lockfiles /install/python/bootstrap/lockfiles
 COPY install/ubuntu_install_python.sh /install/ubuntu_install_python.sh
-RUN bash /install/ubuntu_install_python.sh 3.7
+RUN bash /install/ubuntu_install_python.sh 3.8
 ENV PATH ${TVM_VENV}/bin:$PATH
 ENV PYTHONNOUSERSITE 1  # Disable .local directory from affecting CI.
 
@@ -52,8 +52,8 @@ COPY install/ubuntu_install_cmake_source.sh /install/ubuntu_install_cmake_source
 # Globally disable pip cache
 RUN bash /install/ubuntu_install_cmake_source.sh
 
-COPY install/ubuntu1804_install_llvm.sh /install/ubuntu1804_install_llvm.sh
-RUN bash /install/ubuntu1804_install_llvm.sh
+COPY install/ubuntu2204_install_llvm.sh /install/ubuntu2204_install_llvm.sh
+RUN bash /install/ubuntu2204_install_llvm.sh
 
 COPY install/ubuntu_install_opencl.sh /install/ubuntu_install_opencl.sh
 RUN bash /install/ubuntu_install_opencl.sh
@@ -88,6 +88,9 @@ RUN bash /install/ubuntu_install_coreml.sh
 
 COPY install/ubuntu_install_tensorflow.sh /install/ubuntu_install_tensorflow.sh
 RUN bash /install/ubuntu_install_tensorflow.sh
+
+COPY install/ubuntu_install_jax.sh /install/ubuntu_install_jax.sh
+RUN bash /install/ubuntu_install_jax.sh "cuda"
 
 COPY install/ubuntu_install_darknet.sh /install/ubuntu_install_darknet.sh
 RUN bash /install/ubuntu_install_darknet.sh

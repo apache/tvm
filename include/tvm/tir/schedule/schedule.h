@@ -115,6 +115,8 @@ class ScheduleNode : public runtime::Object {
   virtual ScheduleState state() const = 0;
   /*! \return The internally maintained trace of scheduling program execution */
   virtual Optional<Trace> trace() const = 0;
+  /*! \return The GlobalVar of the func that the schedule is currently working on */
+  virtual Optional<GlobalVar> func_working_on() const = 0;
   /*!
    * \brief Instruct the schedule to work on a function in the IRModule.
    *
@@ -291,7 +293,26 @@ class ScheduleNode : public runtime::Object {
    * block
    */
   virtual Array<BlockRV> GetConsumers(const BlockRV& block_rv) = 0;
+  /*!
+   * \brief Get the list of output blocks within the given scope
+   * An output block is a block which has atleast one buffer being written
+   * to, but is not allocated within the PrimFunc
+   * \param scope_block_rv The scope block from which output blocks are collected
+   * \return A list of all blocks that write to some output buffer
+   * block
+   */
+  virtual Array<BlockRV> GetOutputBlocks(const BlockRV& scope_block_rv) = 0;
   /******** Schedule: Transform loops ********/
+  /*!
+   * \brief Merge a list of loops into one. The loops under their LCA requires:
+   * 1) Under the same scope
+   * 2) Can't have annotations or thread bindings
+   * 3) Start with 0 and have same extent and same nesting depth
+   * 4) From target loop to their LCA, the inner loop must be the only child of the outer loop
+   * \param loop_rvs The loops to be merged
+   * \return The new loop after merge
+   */
+  virtual LoopRV Merge(const Array<LoopRV>& loop_rvs) = 0;
   /*!
    * \brief Fuse a list of consecutive loops into one. It requires:
    * 1) The loops can't have annotations or thread bindings.
@@ -328,6 +349,12 @@ class ScheduleNode : public runtime::Object {
    * \param ordered_loop_rvs The loops in the new order
    */
   virtual void Reorder(const Array<LoopRV>& ordered_loop_rvs) = 0;
+  /*!
+   * \brief Reorder the itervars inside a block.
+   * \param block_rv The block to be transformed.
+   * \param new_order The new itervar order.
+   */
+  virtual void ReorderBlockIterVar(const BlockRV& block_rv, const Array<Integer> new_order) = 0;
   /*!
    * \brief Create a new unit loop on top of the specific block.
    * \param block_rv The block above which the new loop is created
@@ -466,6 +493,11 @@ class ScheduleNode : public runtime::Object {
    */
   virtual BlockRV ReIndex(const BlockRV& block_rv, int buffer_index,
                           BufferIndexType buffer_index_type) = 0;
+  /******** Schedule: Data movement ********/
+  virtual BlockRV ReadAt(const LoopRV& loop_rv, const BlockRV& block_rv, int read_buffer_index,
+                         const String& storage_scope) = 0;
+  virtual BlockRV WriteAt(const LoopRV& loop_rv, const BlockRV& block_rv, int write_buffer_index,
+                          const String& storage_scope) = 0;
   /******** Schedule: Compute location ********/
   /*!
    * \brief Move a producer block under the specific loop, and regenerate the
@@ -584,13 +616,23 @@ class ScheduleNode : public runtime::Object {
   virtual void StorageAlign(const BlockRV& block_rv, int buffer_index, int axis, int factor,
                             int offset) = 0;
   /*!
-   * \brief Set the storage scope of a buffer, where the buffer is specified by the a block and a
+   * \brief Set the storage scope of a buffer, where the buffer is specified by a block and a
    * write-index
    * \param block_rv The producer block of the buffer
    * \param buffer_index The index of the buffer in block's write region
    * \param storage_scope The storage scope to be set
    */
   virtual void SetScope(const BlockRV& block_rv, int buffer_index, const String& storage_scope) = 0;
+  /*!
+   * \brief Set the data type of a buffer, where the buffer is specified by a block and a
+   * write-index
+   * \note This schedule primitive is unsafe and may change correctness of program because of
+   *   type conversion, please use with caution.
+   * \param block_rv The producer block of the buffer
+   * \param buffer_index the index of the buffer in block's write region
+   * \param dtype The data type to be set
+   */
+  virtual void UnsafeSetDType(const BlockRV& block_rv, int buffer_index, const String& dtype) = 0;
   /******** Schedule: Blockize & Tensorize ********/
   /*!
    * \brief Convert the subtree rooted at a specific loop into a block.
@@ -599,6 +641,13 @@ class ScheduleNode : public runtime::Object {
    * \return the new block
    */
   virtual BlockRV Blockize(const LoopRV& loop_rv, bool preserve_unit_iters = true) = 0;
+  /*!
+   * \brief Convert specified blocks into a nested block.
+   * \param blocks the specified block to construct the new block
+   * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
+   * \return the new block
+   */
+  virtual BlockRV Blockize(const Array<BlockRV>& blocks, bool preserve_unit_iters = true) = 0;
   /*!
    * \brief Tensorize the computation enclosed by loop with the tensor intrin.
    * \param loop_rv The loop to be tensorized
@@ -779,14 +828,15 @@ class Schedule : public runtime::ObjectRef {
    * \param debug_mask Do extra correctness checking after the class creation
    * and each time after calling the Replace method.
    * \param error_render_level The level of error rendering
+   * \param enable_check Whether to enable some prequisite checks for schedule primitives, it's
+   *   user's duty to guarantee the schedule correctness if we disable the checks.
    * \return The concrete schedule created
    * \sa ScheduleDebugMask
-   * \note The checks performed includes:
-   * 1) VerifySRefTree
-   * 2) VerifyCachedFlags
+   * \note The checks performed includes: 1) VerifySRefTree 2) VerifyCachedFlags
    */
   TVM_DLL static Schedule Concrete(IRModule mod, support::LinearCongruentialEngine::TRandState seed,
-                                   int debug_mask, ScheduleErrorRenderLevel error_render_level);
+                                   int debug_mask, ScheduleErrorRenderLevel error_render_level,
+                                   bool enable_check = true);
   /*!
    * \brief Construct a traced concrete TensorIR schedule from an IRModule
    * \param mod The IRModule to be scheduled
@@ -794,6 +844,7 @@ class Schedule : public runtime::ObjectRef {
    * \param debug_mask Do extra correctness checking after the class creation
    * and each time after calling the Replace method.
    * \param error_render_level The level of error rendering
+   * \param enable_check Whether to enable prequisite checks for schedule primitives.
    * \return The concrete schedule created
    * \sa ScheduleDebugMask
    * \note The checks performed include:
@@ -801,7 +852,8 @@ class Schedule : public runtime::ObjectRef {
    * 2) VerifyCachedFlags
    */
   TVM_DLL static Schedule Traced(IRModule mod, support::LinearCongruentialEngine::TRandState seed,
-                                 int debug_mask, ScheduleErrorRenderLevel error_render_level);
+                                 int debug_mask, ScheduleErrorRenderLevel error_render_level,
+                                 bool enable_check = true);
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Schedule, runtime::ObjectRef, ScheduleNode);
 };
 

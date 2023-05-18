@@ -21,6 +21,7 @@ import tvm
 import tvm.testing
 from tvm import relay
 from tvm.target.target import Target
+from tvm.relay import testing
 from tvm.relay.backend import Runtime, Executor, graph_executor_codegen
 
 
@@ -60,6 +61,42 @@ def test_build_relay_graph_():
         return mod
 
     build_graph(add((1, 8), "float32"), tvm.target.Target("llvm"))
+
+
+@tvm.testing.requires_llvm
+def test_schedule_record():
+    """Test to build a nn model and get schedule_record from build_module"""
+
+    def check_schedule(executor):
+        for func_name, func_meta in executor.function_metadata.items():
+            # check converted op only
+            if "main" not in func_name:
+                primfunc = list(func_meta.relay_primfuncs.values())[0]
+                # make sure schedule is well-stored in function metadata
+                assert "schedule" in primfunc.attrs
+                sch = primfunc.attrs["schedule"]
+                assert len(sch.schedule_record) == len(sch.primitive_record)
+
+    relay_mod, params = testing.mobilenet.get_workload(batch_size=1, dtype="float32")
+    target_llvm = tvm.target.Target("llvm")
+    config = {"te.keep_schedule_record": True}
+
+    with tvm.transform.PassContext(opt_level=3, config=config):
+        aot_executor_factory = relay.build(
+            relay_mod,
+            target_llvm,
+            runtime=Runtime("cpp"),
+            executor=Executor("aot"),
+            params=params,
+        )
+        graph_executor_factory = relay.build(
+            relay_mod,
+            target_llvm,
+            params=params,
+        )
+
+    check_schedule(aot_executor_factory)
+    check_schedule(graph_executor_factory)
 
 
 if __name__ == "__main__":

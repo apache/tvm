@@ -134,6 +134,13 @@ std::string CodeGenCUDA::Finish() {
     decl_stream << "#include <mma.h>\n";
   }
 
+  decl_stream << "\n#if (((__CUDACC_VER_MAJOR__ == 11) && (__CUDACC_VER_MINOR__ >= 4)) || \\\n";
+  decl_stream << "     (__CUDACC_VER_MAJOR__ > 11))\n";
+  decl_stream << "#define TVM_ENABLE_L2_PREFETCH 1\n";
+  decl_stream << "#else\n";
+  decl_stream << "#define TVM_ENABLE_L2_PREFETCH 0\n";
+  decl_stream << "#endif\n";
+
   decl_stream << "\n#ifdef _WIN32\n";
   decl_stream << "  using uint = unsigned int;\n";
   decl_stream << "  using uchar = unsigned char;\n";
@@ -680,8 +687,8 @@ void CodeGenCUDA::PrintCallExtern(Type ret_type, String global_symbol, const Arr
 }
 
 void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
-  if (auto* ptr_op = op->op.as<OpNode>()) {
-    Op call_op = GetRef<Op>(ptr_op);
+  if (auto opt_call_opt = op->op.as<Op>()) {
+    Op call_op = opt_call_opt.value();
     // This is only for backward compatibility with __shfl_{up/down}.
     // A macro will be used to replace *_sync calls to legacy ones.
     if (op_need_warp_shuffle_.get(call_op, false)) {
@@ -924,8 +931,8 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
   } else if (op->op.same_as(builtin::ptx_commit_group())) {
     this->stream << "__asm__ __volatile__(\"cp.async.commit_group;\");\n\n";
   } else if (op->op.same_as(builtin::ptx_wait_group())) {
-    std::string N = this->PrintExpr(op->args[0]);
-    this->stream << "__asm__ __volatile__(\"cp.async.wait_group " + N + ";\");\n\n";
+    int n = Downcast<IntImm>(op->args[0])->value;
+    this->stream << "__asm__ __volatile__(\"cp.async.wait_group " << n << ";\");\n\n";
   } else if (op->op.same_as(builtin::ptx_ldg32())) {
     /*
     asm volatile (

@@ -51,19 +51,24 @@ done
 
 cleanup()
 {
-  rm -rf /tmp/$$.clang-format.txt
+    if [ -f /tmp/$$.clang-format.txt ]; then
+       echo ""
+       echo "---------clang-format log----------"
+        cat /tmp/$$.clang-format.txt
+    fi
+    rm -rf /tmp/$$.clang-format.txt
 }
 trap cleanup 0
 
-CLANG_FORMAT=clang-format-10
+CLANG_FORMAT=clang-format-15
 
-if [ -x "$(command -v clang-format-10)" ]; then
-    CLANG_FORMAT=clang-format-10
+if [ -x "$(command -v clang-format-15)" ]; then
+    CLANG_FORMAT=clang-format-15
 elif [ -x "$(command -v clang-format)" ]; then
-    echo "clang-format might be different from clang-format-10, expect potential difference."
+    echo "clang-format might be different from clang-format-15, expect potential difference."
     CLANG_FORMAT=clang-format
 else
-    echo "Cannot find clang-format-10"
+    echo "Cannot find clang-format-15"
     exit 1
 fi
 
@@ -84,10 +89,7 @@ else
     git-${CLANG_FORMAT} --diff --extensions h,mm,c,cc --binary=${CLANG_FORMAT} "$REVISION" 1> /tmp/$$.clang-format.txt
 fi
 
-echo "---------clang-format log----------"
-cat /tmp/$$.clang-format.txt
-echo ""
 if grep --quiet -E "diff" < /tmp/$$.clang-format.txt; then
-    echo "clang-format lint error found. Consider running clang-format-10 on these files to fix them."
+    echo "clang-format lint error found. Consider running clang-format-15 on these files to fix them."
     exit 1
 fi

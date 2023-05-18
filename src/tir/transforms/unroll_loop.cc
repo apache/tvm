@@ -161,10 +161,6 @@ class LoopUnroller : public StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const StoreNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-  }
-
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
     if (unroll_local_access_) {
       auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(op->buffer->data));

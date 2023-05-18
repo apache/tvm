@@ -235,8 +235,8 @@ class ConstantFolder : public MixedModeMutator {
     if (value->IsInstance<runtime::NDArray::ContainerType>()) {
       auto nd_array = Downcast<runtime::NDArray>(value);
       return Constant(nd_array);
-    } else if (const auto* val = value.as<runtime::ADTObj>()) {
-      runtime::ADT adt = GetRef<runtime::ADT>(val);
+    } else if (auto opt = value.as<runtime::ADT>()) {
+      runtime::ADT adt = opt.value();
       Array<Expr> fields;
       for (size_t i = 0; i < adt.size(); ++i) {
         fields.push_back(ObjectToExpr(adt[i]));

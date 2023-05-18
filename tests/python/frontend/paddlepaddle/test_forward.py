@@ -555,6 +555,49 @@ def test_forward_conv_transpose():
 
 
 @tvm.testing.uses_gpu
+def test_forward_conv3d():
+    class Conv3D(nn.Layer):
+        def __init__(self, stride=1, padding=0, dilation=1, groups=1, padding_mode="zeros"):
+            super(Conv3D, self).__init__()
+            self.conv = nn.Conv3D(
+                3,
+                6,
+                3,
+                stride=stride,
+                padding=padding,
+                dilation=dilation,
+                groups=groups,
+                padding_mode=padding_mode,
+            )
+            self.softmax = nn.Softmax()
+
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return self.softmax(self.conv(inputs))
+
+    input_shapes = [[1, 3, 10, 10, 10], [1, 3, 12, 12, 12]]
+
+    for input_shape in input_shapes:
+        input_data = paddle.rand(input_shape, dtype="float32")
+        verify_model(Conv3D(), input_data=input_data)
+        verify_model(Conv3D(stride=2, padding="VALID", dilation=3), input_data=input_data)
+        verify_model(Conv3D(stride=2, padding="SAME", dilation=3), input_data=input_data)
+        verify_model(
+            Conv3D(stride=2, padding=(3, 3, 4, 4, 2, 2), dilation=3),
+            input_data=input_data,
+        )
+        verify_model(
+            Conv3D(stride=2, padding=3, dilation=3, padding_mode="reflect"),
+            input_data=input_data,
+        )
+        verify_model(
+            Conv3D(stride=2, padding=3, dilation=3, padding_mode="replicate"),
+            input_data=input_data,
+        )
+        verify_model(Conv3D(stride=2, padding="SAME", dilation=2, groups=3), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
 def test_forward_dot():
     class Dot(nn.Layer):
         @paddle.jit.to_static
@@ -574,10 +617,22 @@ def test_forward_dropout():
     def dropout(inputs):
         return nn.functional.dropout(inputs)
 
+    @paddle.jit.to_static
+    def dropout1(inputs):
+        return nn.functional.dropout(inputs, 0.1)
+
+    @paddle.jit.to_static
+    def dropout2(inputs):
+        return nn.functional.dropout(inputs, 0.1, mode="downscale_in_infer")
+
     input_shape = [1, 3, 10, 10]
     input_data = paddle.rand(input_shape, dtype="float32")
     verify_model(dropout, input_data=input_data[0, 0])
     verify_model(dropout, input_data=input_data)
+    verify_model(dropout1, input_data=input_data[0, 0])
+    verify_model(dropout1, input_data=input_data)
+    verify_model(dropout2, input_data=input_data[0, 0])
+    verify_model(dropout2, input_data=input_data)
 
 
 def test_forward_elemwise():
@@ -965,9 +1020,13 @@ def test_forward_hard_sigmoid():
     def hard_sigmoid(inputs):
         return nn.functional.hardsigmoid(inputs)
 
+    def hard_sigmoid1(inputs):
+        return nn.functional.hardsigmoid(inputs, offset=0.6)
+
     input_shape = [1, 3, 10, 10]
     input_data = paddle.rand(input_shape, dtype="float32")
     verify_model(hard_sigmoid, input_data=input_data)
+    verify_model(hard_sigmoid1, input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -1663,7 +1722,9 @@ def test_forward_sin():
 
 @run_math_api
 def test_forward_softplus():
-    pass
+    x = paddle.to_tensor([-0.4, 1], dtype="float32")
+    m = paddle.nn.Softplus(5, 1)
+    verify_model(m, [x])
 
 
 @run_math_api
@@ -1738,9 +1799,9 @@ def test_forward_mv():
 @tvm.testing.uses_gpu
 def test_forward_pixel_shuffle():
     class PixelShuffle(nn.Layer):
-        def __init__(self, upscale_factor):
+        def __init__(self, upscale_factor, data_format="NCHW"):
             super(PixelShuffle, self).__init__()
-            self.pixel_shuffle = paddle.nn.PixelShuffle(upscale_factor)
+            self.pixel_shuffle = paddle.nn.PixelShuffle(upscale_factor, data_format)
 
         @paddle.jit.to_static
         def forward(self, x):
@@ -1750,6 +1811,11 @@ def test_forward_pixel_shuffle():
     for input_shape in input_shapes:
         x = paddle.rand(input_shape, dtype="float32")
         verify_model(PixelShuffle(2), x)
+
+    input_shapes = [[1, 3, 3, 4], [2, 2, 5, 8]]
+    for input_shape in input_shapes:
+        x = paddle.rand(input_shape, dtype="float32")
+        verify_model(PixelShuffle(2, data_format="NHWC"), x)
 
 
 @tvm.testing.uses_gpu
@@ -2236,6 +2302,89 @@ def test_forward_dist():
     verify_model(Dist(), input_data=[x, w])
     verify_model(Dist(), input_data=[w, v])
     verify_model(Dist(), input_data=[y, v])
+
+
+@tvm.testing.uses_gpu
+def test_forward_p_norm():
+    class PNorm(nn.Layer):
+        def __init__(self, axis, keepdim, p=1):
+            super(PNorm, self).__init__()
+            self.p = p
+            self.axis = axis
+            self.keepdim = keepdim
+
+        @paddle.jit.to_static
+        def forward(self, input_data):
+            return paddle.norm(input_data, p=self.p, axis=self.axis, keepdim=self.keepdim)
+
+    input_data = paddle.rand((2, 2, 3), dtype="float32")
+    verify_model(PNorm(axis=0, keepdim=True), input_data=input_data)
+    verify_model(PNorm(axis=0, keepdim=False), input_data=input_data)
+    verify_model(PNorm(axis=1, keepdim=True, p=1.5), input_data=input_data)
+    verify_model(PNorm(axis=-1, keepdim=True, p=3.4), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_roi_align():
+    class RoiAlign(nn.Layer):
+        def __init__(self, spatial_scale=1.0, sampling_ratio=-1, aligned=False):
+            super(RoiAlign, self).__init__()
+            self.spatial_scale = spatial_scale
+            self.sampling_ratio = sampling_ratio
+            self.aligned = aligned
+
+        @paddle.jit.to_static
+        def forward(self, input_data, rois, rois_num):
+            return paddle.vision.ops.roi_align(
+                input_data, rois, rois_num, 3, self.spatial_scale, self.sampling_ratio, self.aligned
+            )
+
+    input_data = paddle.rand((1, 128, 32, 32), dtype="float32")
+    boxes = paddle.rand([3, 4])
+    boxes[:, 2] += boxes[:, 0] + 3
+    boxes[:, 3] += boxes[:, 1] + 4
+    boxes_num = paddle.to_tensor([3]).astype("int32")
+    verify_model(RoiAlign(), input_data=[input_data, boxes, boxes_num])
+    verify_model(RoiAlign(aligned=True), input_data=[input_data, boxes, boxes_num])
+    verify_model(
+        RoiAlign(spatial_scale=2.0, aligned=True), input_data=[input_data, boxes, boxes_num]
+    )
+
+
+@tvm.testing.uses_gpu
+def test_forward_softmax_with_cross_entropy():
+    class SoftmaxWithCrossEntropy(nn.Layer):
+        def __init__(self, soft_label=False, ignore_index=-100, return_softmax=False, axis=-1):
+            super(SoftmaxWithCrossEntropy, self).__init__()
+            self.soft_label = soft_label
+            self.ignore_index = ignore_index
+            self.return_softmax = return_softmax
+            self.axis = axis
+
+        @paddle.jit.to_static
+        def forward(self, input_data, label):
+            return paddle.nn.functional.softmax_with_cross_entropy(
+                input_data,
+                label,
+                soft_label=self.soft_label,
+                ignore_index=self.ignore_index,
+                return_softmax=self.return_softmax,
+                axis=self.axis,
+            )
+
+    input_data = paddle.rand([5, 3], dtype="float32")
+    label = paddle.randint(0, 2, [5, 1])
+    verify_model(SoftmaxWithCrossEntropy(), input_data=[input_data, label])
+    verify_model(SoftmaxWithCrossEntropy(return_softmax=True), input_data=[input_data, label])
+    verify_model(
+        SoftmaxWithCrossEntropy(return_softmax=True, ignore_index=1), input_data=[input_data, label]
+    )
+    input_data = paddle.rand([5, 4, 3], dtype="float32")
+    label = paddle.randint(0, 2, [5, 1, 3])
+    verify_model(SoftmaxWithCrossEntropy(axis=1), input_data=[input_data, label])
+    label = paddle.randint(0, 2, [5, 4, 3]).astype("float32")
+    verify_model(SoftmaxWithCrossEntropy(soft_label=True), input_data=[input_data, label])
+    verify_model(SoftmaxWithCrossEntropy(soft_label=True, axis=0), input_data=[input_data, label])
 
 
 if __name__ == "__main__":

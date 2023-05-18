@@ -116,14 +116,15 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    * \param module_name The name of the module.
    * \param tm Target machine model
    * \param ctx The context.
-   * \param system_lib Whether to insert system library registration.
+   * \param system_lib_prefix If the value is not NullOpt, insert system lib registration.
+   *                          The value corresponds to the prefix of the system lib symbols.
    * \param dynamic_lookup Whether dynamically lookup runtime function
    *                       or use the runtime function table passed by caller.
    * \param target_c_runtime If true, generate a module to be executed by the C runtime. In practice
    *                       this option influences whether global ctors are used.
    */
-  virtual void Init(const std::string& module_name, LLVMTarget* llvm_target, bool system_lib,
-                    bool dynamic_lookup, bool target_c_runtime);
+  virtual void Init(const std::string& module_name, LLVMTarget* llvm_target,
+                    Optional<String> system_lib_prefix, bool dynamic_lookup, bool target_c_runtime);
 
   /*!
    * \brief Turn on fast math flags for floating point operations.
@@ -146,6 +147,12 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    * \return the created module.
    */
   virtual std::unique_ptr<llvm::Module> Finish();
+
+  /*!
+   * \brief Validate the generated module using llvm::verifyModule
+   */
+  void Verify() const;
+
   /*!
    * \brief Add functions from the (unordered) range to the current module in a deterministic order.
    *        The range consists of objects convertible to PrimFunc.
@@ -204,14 +211,12 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   llvm::Value* VisitExpr_(const NotNode* op) override;
   llvm::Value* VisitExpr_(const SelectNode* op) override;
   llvm::Value* VisitExpr_(const LetNode* op) override;
-  llvm::Value* VisitExpr_(const LoadNode* op) override;
   llvm::Value* VisitExpr_(const BufferLoadNode* op) override;
   llvm::Value* VisitExpr_(const CallNode* op) override;
   llvm::Value* VisitExpr_(const RampNode* op) override;
   llvm::Value* VisitExpr_(const ShuffleNode* op) override;
   llvm::Value* VisitExpr_(const BroadcastNode* op) override;
   // stmt
-  void VisitStmt_(const StoreNode* op) override;
   void VisitStmt_(const BufferStoreNode* op) override;
   void VisitStmt_(const ForNode* op) override;
   void VisitStmt_(const WhileNode* op) override;

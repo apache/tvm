@@ -46,11 +46,17 @@ def schedule_injective_arm_cpu(_, outs, target):
         return topi.arm_cpu.schedule_injective(outs)
 
 
-@schedule_concatenate.register("arm_cpu")
-def schedule_concatenate_arm_cpu(_, outs, target):
-    """schedule concatenate for arm cpu"""
-    with target:
-        return topi.arm_cpu.schedule_concatenate(outs)
+@concatenate_strategy.register(["arm_cpu"])
+def concatenate_strategy_arm_cpu(attrs, inputs, out_type, target):
+    """concatenate arm_cpu strategy"""
+    strategy = _op.OpStrategy()
+
+    strategy.add_implementation(
+        wrap_compute_concat(topi.concatenate),
+        wrap_topi_schedule(topi.arm_cpu.schedule_concatenate),
+        name="concatenate.arm_cpu",
+    )
+    return strategy
 
 
 @schedule_pool.register(["arm_cpu"])
@@ -174,9 +180,7 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                     name="conv2d_nchw_spatial_pack.arm_cpu",
                 )
             else:
-                raise RuntimeError(
-                    "Unsupported weight layout {} for conv2d NCHW".format(kernel_layout)
-                )
+                raise RuntimeError(f"Unsupported weight layout {kernel_layout} for conv2d NCHW")
         elif layout == "HWCN":
             assert kernel_layout == "HWIO"
             logger.warning("conv2d_hwcn is not optimized for arm cpu.")
@@ -231,12 +235,10 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                         name="conv2d_nhwc_spatial_pack.arm_cpu",
                     )
             else:
-                raise RuntimeError(
-                    "Unsupported kernel layout {} for conv2d NHWC".format(kernel_layout)
-                )
+                raise RuntimeError(f"Unsupported kernel layout {kernel_layout} for conv2d NHWC")
 
         else:
-            raise RuntimeError("Unsupported conv2d layout {} for arm cpu".format(layout))
+            raise RuntimeError(f"Unsupported conv2d layout {layout} for arm cpu")
     elif is_depthwise_conv2d(data.shape, layout, kernel.shape, kernel_layout, groups):
         if layout == "NCHW":
             assert kernel_layout == "OIHW" or re.match(r"OIHW\d*o", kernel_layout)
@@ -323,7 +325,7 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                     name="depthwise_conv2d_nhwc.generic",
                 )
         else:
-            raise RuntimeError("Unsupported depthwise_conv2d layout {} for arm cpu".format(layout))
+            raise RuntimeError(f"Unsupported depthwise_conv2d layout {layout} for arm cpu")
     else:  # group_conv2d
         if layout == "NCHW":
             assert kernel_layout == "OIHW"
@@ -341,7 +343,7 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                 name="group_conv2d_nhwc.generic",
             )
         else:
-            raise RuntimeError("Unsupported group_conv2d layout {} for arm cpu".format(layout))
+            raise RuntimeError(f"Unsupported group_conv2d layout {layout} for arm cpu")
     return strategy
 
 
@@ -433,11 +435,9 @@ def conv2d_winograd_without_weight_transform_strategy_arm_cpu(attrs, inputs, out
                 plevel=15,
             )
         else:
-            raise RuntimeError("Unsupported kernel shape: {}".format(kernel.shape))
+            raise RuntimeError(f"Unsupported kernel shape: {kernel.shape}")
     else:
-        raise RuntimeError(
-            "Unsupported conv2d_winograd_without_weight_transform layout {}".format(layout)
-        )
+        raise RuntimeError(f"Unsupported conv2d_winograd_without_weight_transform layout {layout}")
     return strategy
 
 
@@ -487,8 +487,8 @@ def conv2d_gemm_without_weight_transform_strategy_arm_cpu(attrs, inputs, out_typ
         )
     else:
         raise RuntimeError(
-            "Unsupported conv2d_NHWC_quantized_without_transform layout {0}"
-            "with datatype {1}".format(layout, data.dtype)
+            f"Unsupported conv2d_NHWC_quantized_without_transform layout {layout}"
+            f"with datatype {data.dtype}"
         )
     return strategy
 
@@ -529,7 +529,7 @@ def bitserial_conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
             name="bitserial_conv2d_nhwc.arm_cpu",
         )
     else:
-        raise ValueError("Data layout {} not supported.".format(layout))
+        raise ValueError(f"Data layout {layout} not supported.")
     return strategy
 
 
@@ -606,9 +606,7 @@ def conv1d_strategy_arm_cpu(attrs, inputs, out_type, target):
             )
         else:
             raise RuntimeError(
-                "Unsupported kernel layout {} for conv1d {} for arm cpu.".format(
-                    kernel_layout, layout
-                )
+                f"Unsupported kernel layout {kernel_layout} for conv1d {layout} for arm cpu."
             )
     elif layout == "NCW":
         logger.warning("conv1d with layout %s is not optimized for arm cpu.", layout)
@@ -626,6 +624,6 @@ def conv1d_strategy_arm_cpu(attrs, inputs, out_type, target):
         )
     else:
         raise RuntimeError(
-            "Unsupported kernel layout {} for conv1d {} for arm cpu.".format(kernel_layout, layout)
+            f"Unsupported kernel layout {kernel_layout} for conv1d {layout} for arm cpu."
         )
     return strategy

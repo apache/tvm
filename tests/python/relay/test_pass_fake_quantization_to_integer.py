@@ -1100,5 +1100,67 @@ def test_fq_qat_intermediate_infertype():
     compare_expected_fq_qat_to_int(expr, expected_expr, [x_np])
 
 
+def test_fake_quantize_take():
+    x = relay.var("x", shape=[33, 11], dtype="int8")
+    indices_np = np.random.randint(0, 33, size=[37], dtype="int32")
+    indices = relay.const(indices_np)
+
+    x = relay.qnn.op.dequantize(x, relay.const(2.0), relay.const(114))
+    op = relay.op.take(x, indices, axis=0)
+    op = relay.qnn.op.quantize(op, relay.const(2.0), relay.const(114), out_dtype="uint8")
+
+    x_np = np.random.randint(-25, 25, size=[33, 11], dtype="int8")
+
+    compare_fq_to_int(op, [x_np])
+
+
+def test_fake_quantize_softmax():
+    shape = [5, 10]
+    x_ = relay.var("x", shape=shape, dtype="int8")
+
+    is_sorted = lambda a: np.all(a[:-1] <= a[1:])
+
+    for scale in [1.0, 0.1, 0.01]:
+        x = relay.qnn.op.dequantize(x_, relay.const(scale), relay.const(0))
+        op = relay.op.nn.softmax(x, axis=1)
+        op = relay.qnn.op.quantize(
+            op, relay.const(1.0 / 256.0), relay.const(-128), out_dtype="int8"
+        )
+
+        x_np = np.random.randint(-128, 127, size=shape, dtype="int8")
+        x_np = np.sort(x_np)
+        args = [x_np]
+
+        mod = tvm.IRModule.from_expr(op)
+        mod = tvm.relay.transform.InferType()(mod)
+        mod_int = tvm.relay.transform.FakeQuantizationToInteger(
+            hard_fail=True, optional_qnn_ops=["nn.softmax"]
+        )(mod)
+        assert not tvm.ir.structural_equal(mod, mod_int)
+
+        result = (
+            relay.create_executor("vm", mod=mod, device=tvm.cpu(), target="llvm")
+            .evaluate()(*args)
+            .numpy()
+        )
+        result_int = (
+            relay.create_executor("vm", mod=mod_int, device=tvm.cpu(), target="llvm")
+            .evaluate()(*args)
+            .numpy()
+        )
+
+        # Check at least the softmax output is in ascending order,
+        # since it is difficult to use allclose due to not-so-good accuracy.
+        for qdq, qop in zip(result, result_int):
+            assert is_sorted(qdq)
+            assert is_sorted(qop)
+
+        try:
+            np.testing.assert_allclose(result_int, result, atol=1)
+        except AssertionError as e:
+            # To see the difference
+            print(e)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

@@ -132,7 +132,7 @@ class IntermediateStageRewriter {
         Downcast<Block>(local_stage));
 
     // Step 2: Add outer loops
-    Map<Var, PrimExpr> subst_map;
+    Map<Var, Var> subst_map;
     for (const ForNode* relaxed_loop : relaxed_loops) {
       ObjectPtr<ForNode> for_node = make_object<ForNode>(*relaxed_loop);
       for_node->loop_var = for_node->loop_var.copy_with_suffix("");

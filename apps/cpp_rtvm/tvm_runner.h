@@ -38,8 +38,7 @@ namespace runtime {
 /*!
  * \brief various meta information related to the compiled TVM model.
  */
-typedef struct {
- public:
+typedef struct _TVMMetaInfo {
   int n_inputs;
   int n_outputs;
   std::map<std::string, std::pair<std::vector<int>, std::string>> input_info;

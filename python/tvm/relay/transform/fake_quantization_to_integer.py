@@ -25,7 +25,10 @@ from tvm.ir import TensorAffineType, TupleAffineType
 from tvm.relay.qnn.op import canonicalizations
 from tvm.tir import bijective_layout
 
-from ..op import register_fake_quantization_to_integer
+from ..op import (
+    register_fake_quantization_to_integer,
+    register_optional_fake_quantization_to_integer,
+)
 
 
 def fold_constant(expr):
@@ -219,13 +222,7 @@ def bias_add(expr, type_map):
             and tvm.ir.structural_equal(x_t.dtype, b_t.dtype)
         ):
             b = relay.qnn.op.requantize(
-                b,
-                b_t.scale,
-                b_t.zero_point,
-                in_scale,
-                in_zero_point,
-                out_dtype=x_t.dtype,
-                axis=0,
+                b, b_t.scale, b_t.zero_point, in_scale, in_zero_point, out_dtype=x_t.dtype, axis=0
             )
     else:
         # If the bias is a constant, we need to quantize it
@@ -522,15 +519,13 @@ def register_binary_qnn(op_name, op):
             # addition is typically done in 32 bit).
             return [left + right, left_t]
 
-        assert (
-            len(out_t.scale.data.shape) == 0
-        ), "The output scale needs to be a scalar, but got a tensor of shape {}".format(
-            out_t.scale.data.shape
+        assert len(out_t.scale.data.shape) == 0, (
+            f"The output scale needs to be a scalar, but got a tensor of shape "
+            f"{out_t.scale.data.shape}"
         )
-        assert (
-            len(out_t.zero_point.data.shape) == 0
-        ), "The output zero point needs to be a scalar, but got a tensor of shape {}".format(
-            out_t.zero_point.data.shape
+        assert len(out_t.zero_point.data.shape) == 0, (
+            f"The output zero point needs to be a scalar, but got a tensor of shape "
+            f"{out_t.zero_point.data.shape}"
         )
 
         out = op(
@@ -601,13 +596,7 @@ def register_unary_qnn(op_name, op):
         arg = expr.args[0]
         x_t = type_map[arg]
         out_t = type_map[expr]
-        out = op(
-            arg,
-            x_t.scale,
-            x_t.zero_point,
-            out_t.scale,
-            out_t.zero_point,
-        )
+        out = op(arg, x_t.scale, x_t.zero_point, out_t.scale, out_t.zero_point)
         return [out, out_t]
 
     return register_fake_quantization_to_integer(op_name, unary)
@@ -622,3 +611,27 @@ register_unary_qnn("hardswish", relay.qnn.op.hardswish)
 register_unary_qnn("tanh", relay.qnn.op.tanh)
 register_unary_qnn("abs", relay.qnn.op.abs)
 register_unary_qnn("log", relay.qnn.op.log)
+
+
+@register_fake_quantization_to_integer("take")
+def take(expr, type_map):
+    """Rewrite a take op"""
+    arg = expr.args[0]
+    indices = expr.args[1]
+    t = type_map[arg]
+
+    out = relay.op.take(arg, indices, **expr.attrs)
+    return [out, t]
+
+
+@register_optional_fake_quantization_to_integer("nn.softmax")
+def softmax(expr, type_map):
+    """Rewrite a softmax op"""
+    arg = expr.args[0]
+    arg_t = type_map[arg]
+    out_t = type_map[expr]
+
+    out = relay.qnn.op.softmax(
+        arg, arg_t.scale, arg_t.zero_point, out_t.scale, out_t.zero_point, **expr.attrs
+    )
+    return [out, out_t]

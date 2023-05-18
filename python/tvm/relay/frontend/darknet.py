@@ -34,8 +34,7 @@ __all__ = ["from_darknet"]
 
 def _darknet_not_support(attr, op="relay"):
     """Raise error if any operation is not supported."""
-    err = "{} is not supported in {}.".format(attr, op)
-    raise NotImplementedError(err)
+    raise NotImplementedError(f"{attr} is not supported in {op}.")
 
 
 def _get_params_prefix(opname, layer_num):
@@ -51,7 +50,7 @@ def _get_params_name(prefix, item):
 def _get_param_var(params, prefix, item):
     name = _get_params_name(prefix, item)
     if name not in params:
-        raise AttributeError("{} not found in params dict.".format(name))
+        raise AttributeError(f"{name} not found in params dict.")
     return new_var(name, shape=params[name].shape, dtype=params[name].dtype)
 
 
@@ -688,7 +687,7 @@ class GraphProto(object):
             pass
 
         else:
-            err = "Darknet layer type {} is not supported in relay.".format(layer_type)
+            err = f"Darknet layer type {layer_type} is not supported in relay."
             raise NotImplementedError(err)
 
         return attr
@@ -743,7 +742,7 @@ class GraphProto(object):
 
     def _new_rnn_state_var(self, state=None, name="rnn"):
         """Returs a symbol for state"""
-        sym_name = name + "%d_state" % self._state_ctr[name]
+        sym_name = name + f"{self._state_ctr[name]}_state"
         self._state_ctr[name] += 1
         return new_var(sym_name, shape=state.shape, dtype=str(state.dtype))
 

@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=import-self, invalid-name, unused-argument
+# pylint: disable=import-self, invalid-name, unused-argument, ungrouped-imports, wrong-import-order
 """
 Tensorflow testcases
 ====================
@@ -31,16 +31,6 @@ import numpy as np
 import pytest
 
 from PIL import Image
-from tvm import relay, ir
-from tvm.runtime.vm import VirtualMachine
-from tvm.relay.frontend.tensorflow import from_tensorflow
-from tvm.contrib import graph_executor
-from tvm.contrib import utils
-from relay.utils.tag_span import _set_span, _create_span, _verify_structural_equal_with_span
-
-import tvm
-import tvm.relay.testing.tf as tf_testing
-import tvm.testing
 
 from tensorflow.python.framework import constant_op
 from tensorflow.python.framework import graph_util
@@ -63,6 +53,17 @@ try:
     tf.disable_v2_behavior()
 except ImportError:
     import tensorflow as tf
+
+import tvm
+from tvm import relay, ir
+from tvm.runtime.vm import VirtualMachine
+from tvm.relay.frontend.tensorflow import from_tensorflow
+from tvm.contrib import graph_executor
+from tvm.contrib import utils
+import tvm.testing
+import tvm.relay.testing.tf as tf_testing
+from relay.utils.tag_span import _set_span, _create_span, _verify_structural_equal_with_span
+
 
 # Only allow TF to run on half the GPU RAM to save the other half
 # For TVM
@@ -249,6 +250,8 @@ def compare_tf_with_tvm(
     targets=None,
     ignore_in_shape=False,
     convert_config=None,
+    atol=1e-5,
+    rtol=1e-5,
 ):
     """Generic function to generate and compare tensorflow and TVM output"""
 
@@ -303,7 +306,7 @@ def compare_tf_with_tvm(
             for i, tf_out in enumerate(tf_output):
                 if not isinstance(tf_out, np.ndarray):
                     assert len(tvm_output[i].shape) == 0  # pylint: disable=len-as-condition
-                tvm.testing.assert_allclose(tf_out, tvm_output[i], atol=1e-5, rtol=1e-5)
+                tvm.testing.assert_allclose(tf_out, tvm_output[i], atol=atol, rtol=rtol)
 
         sess.close()
 
@@ -740,7 +743,16 @@ def test_forward_convolution():
             "NCHW",
             [1, 1, 8, 8],
         )
-
+        _test_convolution(
+            "conv_transpose",
+            [4, 19, 8, 8],
+            [2, 2, 66, 19],
+            [1, 1],
+            [2, 2],
+            "VALID",
+            "NCHW",
+            [4, 66, 16, 16],
+        )
     _test_convolution("conv", [4, 8, 8, 176], [1, 1, 176, 32], [1, 1], [1, 1], "SAME", "NHWC")
     _test_convolution("conv", [4, 17, 17, 19], [3, 3, 19, 19], [1, 1], [2, 2], "VALID", "NHWC")
     _test_convolution("conv", [4, 17, 17, 124], [1, 1, 124, 19], [1, 1], [1, 1], "SAME", "NHWC")
@@ -914,6 +926,16 @@ def test_forward_convolution():
         "NHWC",
         [4, 8, 8, 176],
         add_shapes_to_graph_def=False,
+    )
+    _test_convolution(
+        "conv_transpose",
+        [4, 8, 8, 19],
+        [2, 2, 66, 19],
+        [1, 1],
+        [2, 2],
+        "VALID",
+        "NHWC",
+        [4, 16, 16, 66],
     )
     # Explicit padding
     if package_version.parse(tf.VERSION) >= package_version.parse("2.4.1"):
@@ -3401,6 +3423,8 @@ def _test_forward_crop_and_resize(
     extrapolation_value=0.0,
     method="bilinear",
     dtype="float32",
+    atol=1e-4,
+    rtol=1e-4,
 ):
     image = np.random.uniform(0, 10, size=img_shape).astype(dtype)
     tf.reset_default_graph()
@@ -3415,7 +3439,7 @@ def _test_forward_crop_and_resize(
             extrapolation_value=extrapolation_value,
             name="crop_and_resize",
         )
-        compare_tf_with_tvm([image], ["in_data:0"], "crop_and_resize:0")
+        compare_tf_with_tvm([image], ["in_data:0"], "crop_and_resize:0", atol=atol, rtol=rtol)
 
 
 def test_forward_crop_and_resize():
@@ -3444,6 +3468,8 @@ def test_forward_crop_and_resize():
         box_idx=[1, 0, 2, 3],
         crop_size=[24, 24],
         extrapolation_value=0.3,
+        atol=1e-3,
+        rtol=1e-3,
     )
     _test_forward_crop_and_resize(
         img_shape=[20, 229, 229, 3],
@@ -3452,6 +3478,8 @@ def test_forward_crop_and_resize():
         crop_size=[58, 58],
         extrapolation_value=0.2,
         method="nearest",
+        atol=1e-3,
+        rtol=1e-3,
     )
 
 

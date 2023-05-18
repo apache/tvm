@@ -39,7 +39,6 @@
 #include <llvm/IR/MDBuilder.h>
 #include <llvm/IR/Metadata.h>
 #include <llvm/IR/Module.h>
-#include <llvm/IR/Verifier.h>
 #include <llvm/IRReader/IRReader.h>
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/SourceMgr.h>
@@ -93,6 +92,12 @@ class LLVMModuleNode final : public runtime::ModuleNode {
 
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
 
+  /*! \brief Get the property of the runtime module .*/
+  // TODO(tvm-team): Make it serializable
+  int GetPropertyMask() const override {
+    return runtime::ModulePropertyMask::kRunnable | runtime::ModulePropertyMask::kDSOExportable;
+  }
+
   void SaveToFile(const std::string& file_name, const std::string& format) final;
   void SaveToBinary(dmlc::Stream* stream) final;
   std::string GetSource(const std::string& format) final;
@@ -100,7 +105,6 @@ class LLVMModuleNode final : public runtime::ModuleNode {
   void Init(const IRModule& mod, const Target& target);
   void Init(std::unique_ptr<llvm::Module> module, std::unique_ptr<LLVMInstance> llvm_instance);
   void LoadIR(const std::string& file_name);
-  bool IsDSOExportable() const final { return true; }
 
   bool ImplementsFunction(const String& name, bool query_imports) final;
 
@@ -138,6 +142,15 @@ PackedFunc LLVMModuleNode::GetFunction(const std::string& name,
   if (name == "__tvm_is_system_module") {
     bool flag = (module_->getFunction("__tvm_module_startup") != nullptr);
     return PackedFunc([flag](TVMArgs args, TVMRetValue* rv) { *rv = flag; });
+  } else if (name == "__tvm_get_system_lib_prefix") {
+    return PackedFunc([this](TVMArgs args, TVMRetValue* rv) {
+      auto* md = module_->getModuleFlag("tvm_system_lib_prefix");
+      if (md != nullptr) {
+        *rv = llvm::cast<llvm::MDString>(md)->getString().str();
+      } else {
+        *rv = nullptr;
+      }
+    });
   } else if (name == "get_func_names") {
     return PackedFunc(
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->function_names_; });
@@ -286,7 +299,12 @@ void LLVMModuleNode::Init(const IRModule& mod, const Target& target) {
   std::string entry_func;
   relay::Runtime runtime =
       mod->GetAttr<relay::Runtime>(tvm::attr::kRuntime).value_or(relay::Runtime::Create("cpp"));
-  bool system_lib = runtime->GetAttr<Bool>("system-lib").value_or(Bool(false));
+
+  Optional<String> system_lib_prefix = mod->GetAttr<String>(tvm::attr::kSystemLibPrefix);
+  if (!system_lib_prefix && runtime->GetAttr<Bool>("system-lib").value_or(Bool(false))) {
+    system_lib_prefix = "";
+  }
+
   bool target_c_runtime = runtime->name == "crt";
 
   for (auto kv : mod->functions) {
@@ -308,7 +326,8 @@ void LLVMModuleNode::Init(const IRModule& mod, const Target& target) {
   // ICHECK(funcs.size() > 0);
   // TODO(tqchen): remove the entry function behavior as it does not
   // makes sense when we start to use multiple modules.
-  cg->Init("TVMMod", llvm_target.get(), system_lib, system_lib, target_c_runtime);
+  cg->Init("TVMMod", llvm_target.get(), system_lib_prefix, system_lib_prefix.defined(),
+           target_c_runtime);
   cg->SetFastMathFlags(llvm_target->GetFastMathFlags());
 
   cg->AddFunctionsOrdered(funcs.begin(), funcs.end());
@@ -322,15 +341,15 @@ void LLVMModuleNode::Init(const IRModule& mod, const Target& target) {
   module_->addModuleFlag(llvm::Module::Override, "Debug Info Version",
                          llvm::DEBUG_METADATA_VERSION);
 
+  if (system_lib_prefix) {
+    std::string str_val = system_lib_prefix.value();
+    module_->addModuleFlag(llvm::Module::Warning, "tvm_system_lib_prefix",
+                           llvm::MDString::get(*(llvm_target->GetContext()), str_val));
+  }
+
   if (tm->getTargetTriple().isOSDarwin()) {
     module_->addModuleFlag(llvm::Module::Override, "Dwarf Version", 2);
   }
-
-  std::string verify_errors_storage;
-  llvm::raw_string_ostream verify_errors(verify_errors_storage);
-  LOG_IF(FATAL, llvm::verifyModule(*module_, &verify_errors))
-      << "LLVM module verification failed with the following errors: \n"
-      << verify_errors.str();
 }
 
 void LLVMModuleNode::Init(std::unique_ptr<llvm::Module> module,
@@ -481,12 +500,13 @@ TVM_REGISTER_GLOBAL("codegen.llvm_target_enabled")
     });
 
 TVM_REGISTER_GLOBAL("codegen.codegen_blob")
-    .set_body_typed([](std::string data, bool system_lib,
-                       std::string llvm_target_string) -> runtime::Module {
+    .set_body_typed([](std::string data, bool system_lib, std::string llvm_target_string,
+                       std::string c_symbol_prefix) -> runtime::Module {
       auto n = make_object<LLVMModuleNode>();
       auto llvm_instance = std::make_unique<LLVMInstance>();
       With<LLVMTarget> llvm_target(*llvm_instance, llvm_target_string);
-      std::unique_ptr<llvm::Module> blob = CodeGenBlob(data, system_lib, llvm_target.get());
+      std::unique_ptr<llvm::Module> blob =
+          CodeGenBlob(data, system_lib, llvm_target.get(), c_symbol_prefix);
       n->Init(std::move(blob), std::move(llvm_instance));
       return runtime::Module(n);
     });
@@ -495,10 +515,15 @@ runtime::Module CreateLLVMCppMetadataModule(runtime::metadata::Metadata metadata
                                             tvm::relay::Runtime runtime) {
   auto llvm_instance = std::make_unique<LLVMInstance>();
   With<LLVMTarget> llvm_target(*llvm_instance, target);
-  bool system_lib = runtime->GetAttr<Bool>("system-lib").value_or(Bool(false));
+
+  Optional<String> system_lib_prefix = NullOpt;
+  if (runtime->GetAttr<Bool>("system-lib").value_or(Bool(false))) {
+    system_lib_prefix = "";
+  }
+
   auto cg = std::make_unique<CodeGenCPU>();
 
-  cg->Init("TVMMetadataMod", llvm_target.get(), system_lib, system_lib,
+  cg->Init("TVMMetadataMod", llvm_target.get(), system_lib_prefix, system_lib_prefix.defined(),
            /*target_c_runtime=*/false);
 
   cg->DefineMetadata(metadata);
@@ -509,12 +534,6 @@ runtime::Module CreateLLVMCppMetadataModule(runtime::metadata::Metadata metadata
   if (llvm_target->GetOrCreateTargetMachine()->getTargetTriple().isOSDarwin()) {
     mod->addModuleFlag(llvm::Module::Override, "Dwarf Version", 2);
   }
-
-  std::string verify_errors_storage;
-  llvm::raw_string_ostream verify_errors(verify_errors_storage);
-  LOG_IF(FATAL, llvm::verifyModule(*mod, &verify_errors))
-      << "LLVM module verification failed with the following errors: \n"
-      << verify_errors.str();
 
   auto n = make_object<LLVMModuleNode>();
   n->Init(std::move(mod), std::move(llvm_instance));
@@ -539,13 +558,19 @@ runtime::Module CreateLLVMCrtMetadataModule(const Array<runtime::Module>& module
 
   auto llvm_instance = std::make_unique<LLVMInstance>();
   With<LLVMTarget> llvm_target(*llvm_instance, target);
-  bool system_lib = runtime->GetAttr<Bool>("system-lib").value_or(Bool(false));
+
+  Optional<String> system_lib_prefix = NullOpt;
+  if (runtime->GetAttr<Bool>("system-lib").value_or(Bool(false))) {
+    system_lib_prefix = "";
+  }
+
   bool target_c_runtime = runtime->name == "crt";
-  ICHECK(system_lib && target_c_runtime)
+  ICHECK(system_lib_prefix.defined() && target_c_runtime)
       << "For LLVM C-runtime metadata module, must include --system-lib and --runtime=c; "
       << "got target: " << target->str();
   auto cg = std::make_unique<CodeGenCPU>();
-  cg->Init("TVMMetadataMod", llvm_target.operator->(), system_lib, system_lib, target_c_runtime);
+  cg->Init("TVMMetadataMod", llvm_target.operator->(), system_lib_prefix,
+           system_lib_prefix.defined(), target_c_runtime);
 
   cg->DefineFunctionRegistry(func_names);
   auto mod = cg->Finish();
@@ -555,12 +580,6 @@ runtime::Module CreateLLVMCrtMetadataModule(const Array<runtime::Module>& module
   if (llvm_target->GetOrCreateTargetMachine()->getTargetTriple().isOSDarwin()) {
     mod->addModuleFlag(llvm::Module::Override, "Dwarf Version", 2);
   }
-
-  std::string verify_errors_storage;
-  llvm::raw_string_ostream verify_errors(verify_errors_storage);
-  LOG_IF(FATAL, llvm::verifyModule(*mod, &verify_errors))
-      << "LLVM module verification failed with the following errors: \n"
-      << verify_errors.str();
 
   auto n = make_object<LLVMModuleNode>();
   n->Init(std::move(mod), std::move(llvm_instance));

@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, import-self, len-as-condition, unused-argument, too-many-lines
-# pylint: disable=import-outside-toplevel
+# pylint: disable=import-outside-toplevel, broad-exception-raised, use-list-literal, superfluous-parens
 """Paddle: PArallel Distributed Deep LEarning."""
 
 import warnings
@@ -82,7 +82,7 @@ def _convert_dtype_value(val):
         0: "bool",
     }
     if val not in convert_dtype_map:
-        msg = "Paddle data type value %d is not handled yet." % (val)
+        msg = f"Paddle data type value {val} is not handled yet."
         raise NotImplementedError(msg)
     return convert_dtype_map[val]
 
@@ -91,11 +91,7 @@ def convert_unary_op(g, op, block):
     """Operator converter for all the unary operators."""
 
     # op_map stores mapping relationship between paddlepaddle and relay
-    op_map = {
-        "isinf_v2": _op.isinf,
-        "isfinite_v2": _op.isfinite,
-        "isnan_v2": _op.isnan,
-    }
+    op_map = {"isinf_v2": _op.isinf, "isfinite_v2": _op.isfinite, "isnan_v2": _op.isnan}
     if op.type in op_map:
         unary_func = op_map[op.type]
     else:
@@ -324,8 +320,8 @@ def convert_conv2d(g, op, block):
         elif len(paddings) == 4:
             paddings = [paddings[0], paddings[2], paddings[1], paddings[3]]
     else:
-        msg = 'Value {} in attribute "padding" of operator Conv is not "valid."'
-        raise tvm.error.OpAttributeInvalid(msg.format(padding_algorithm))
+        msg = f'Value {padding_algorithm} in attribute "padding" of operator Conv is not "valid."'
+        raise tvm.error.OpAttributeInvalid(msg)
 
     out = _op.nn.conv2d(
         input_x,
@@ -383,8 +379,8 @@ def convert_conv2d_transpose(g, op, block):
         elif len(paddings) == 4:
             paddings = [paddings[0], paddings[2], paddings[1], paddings[3]]
     else:
-        msg = 'Value {} in attribute "padding" of operator Conv is not "valid."'
-        raise tvm.error.OpAttributeInvalid(msg.format(padding_algorithm))
+        msg = f'Value {padding_algorithm} in attribute "padding" of operator Conv is not "valid."'
+        raise tvm.error.OpAttributeInvalid(msg)
 
     out = _op.nn.conv2d_transpose(
         input_x,
@@ -400,6 +396,60 @@ def convert_conv2d_transpose(g, op, block):
     g.add_node(op.output("Output")[0], out)
 
 
+def convert_conv3d(g, op, block):
+    """Operator converter for conv3d."""
+
+    dilations = op.attr("dilations")
+    groups = op.attr("groups")
+    paddings = op.attr("paddings")
+    padding_algorithm = op.attr("padding_algorithm")
+    strides = op.attr("strides")
+
+    kernel = g.get_node(op.input("Filter")[0])
+    input_x = g.get_node(op.input("Input")[0])
+    out_channels, _, k_d, k_h, k_w = infer_shape(kernel)
+    if padding_algorithm == "VALID":
+        paddings = [0, 0, 0]
+    elif padding_algorithm == "SAME":
+        dilations = [1, 1, 1]
+        input_x = autopad(input_x, strides, [k_d, k_h, k_w], dilations)
+        paddings = [0, 0, 0]
+    elif padding_algorithm == "EXPLICIT":
+        if len(paddings) == 3:
+            paddings = [
+                paddings[0],
+                paddings[1],
+                paddings[2],
+                paddings[0],
+                paddings[1],
+                paddings[2],
+            ]
+        elif len(paddings) == 6:
+            paddings = [
+                paddings[0],
+                paddings[3],
+                paddings[1],
+                paddings[4],
+                paddings[2],
+                paddings[5],
+            ]
+    else:
+        msg = f'Value {padding_algorithm} in attribute "padding" of operator Conv is not "valid."'
+        raise tvm.error.OpAttributeInvalid(msg)
+
+    out = _op.nn.conv3d(
+        input_x,
+        kernel,
+        strides=strides,
+        padding=paddings,
+        dilation=dilations,
+        groups=groups,
+        channels=out_channels,
+        kernel_size=[k_d, k_h, k_w],
+    )
+    g.add_node(op.output("Output")[0], out)
+
+
 def convert_dist(g, op, block):
     """Operator converter for dist."""
 
@@ -409,11 +459,11 @@ def convert_dist(g, op, block):
     dtype = infer_type(x).checked_type.dtype
     p = op.attr("p")
     if p == np.inf:
-        out = _op.reduce.max(_op.abs(z))
+        out = _op.reduce.max(z)
     elif p == np.NINF:
-        out = _op.reduce.min(_op.abs(z))
+        out = _op.reduce.min(z)
     elif p == 0.0:
-        out = _op.reduce.sum(_op.sign(_op.abs(z)))
+        out = _op.reduce.sum(_op.sign(z))
     else:
         inv_p = _expr.const(1.0 / p, dtype=dtype)
         p = _expr.const(p, dtype=dtype)
@@ -448,7 +498,13 @@ def convert_dropout(g, op, block):
     """Operator converter for dropout."""
 
     x = g.get_node(op.input("X")[0])
-    g.add_node(op.output("Out")[0], x)
+    dropout_prob = op.attr("dropout_prob")
+    dropout_implementation = op.attr("dropout_implementation")
+    if dropout_implementation == "downgrade_in_infer":
+        out = _op.nn.dropout(x, dropout_prob) * _expr.const(1 - dropout_prob, dtype="float32")
+    else:
+        out = _op.nn.dropout(x, dropout_prob)
+    g.add_node(op.output("Out")[0], out)
 
 
 def convert_dot(g, op, block):
@@ -576,6 +632,8 @@ def convert_eye(g, op, block):
 
     num_rows = op.attr("num_rows")
     num_columns = op.attr("num_columns")
+    if num_columns == -1:
+        num_columns = num_rows
     one_nums = min(num_rows, num_columns)
     dtype = op.attr("dtype")
     dtype = _convert_dtype_value(dtype)
@@ -797,7 +855,7 @@ def convert_grid_sampler(g, op, block):
         axes = [0, 4, 1, 2, 3]
         grid = _op.transform.transpose(grid, axes)
     else:
-        msg = f"only 4D and 5D are supported."
+        msg = "only 4D and 5D are supported."
         raise ValueError(msg)
 
     out = _op.image.grid_sample(x, grid, mode, layout, padding_mode, align_corners)
@@ -841,8 +899,9 @@ def convert_hard_sigmoid(g, op, block):
     """Operator converter for hard_sigmoid."""
 
     slope = op.attr("slope")
+    offset = op.attr("offset")
     x = g.get_node(op.input("X")[0])
-    out = x * _expr.const(slope) + _expr.const(0.5)
+    out = x * _expr.const(slope) + _expr.const(offset)
     out = _op.clip(out, 0, 1)
     g.add_node(op.output("Out")[0], out)
 
@@ -894,8 +953,8 @@ def convert_interpolate(g, op, block):
             else:
                 coordinate_transformation_mode = "half_pixel"
         else:
-            msg = "interp_method {} is not supported for PaddlePaddle's interpolate"
-            raise tvm.error.OpAttributeInvalid(msg.format(interp_method))
+            msg = f"interp_method {interp_method} is not supported for PaddlePaddle's interpolate"
+            raise tvm.error.OpAttributeInvalid(msg)
         return rounding_method, interp_method, coordinate_transformation_mode
 
     layout = op.attr("data_layout")
@@ -1331,6 +1390,22 @@ def convert_one_hot_v2(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_p_norm(g, op, blcok):
+    """Operator converter for p_norm."""
+
+    x = g.get_node(op.input("X")[0])
+    axis = op.attr("axis")
+    p = op.attr("porder")
+    keepdim = op.attr("keepdim")
+    p_node = _expr.const(p, dtype="float32")
+    abs_node = _op.abs(x)
+    pow_node = _op.power(abs_node, p_node)
+    reduce_sum = _op.sum(pow_node, axis=[axis], keepdims=keepdim)
+    p_node1 = _expr.const(1.0 / p, dtype="float32")
+    out = _op.power(reduce_sum, p_node1)
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_padding(g, op, block):
     """Operator converter for padding."""
 
@@ -1369,7 +1444,8 @@ def convert_pixel_shuffle(g, op, block):
 
     x = g.get_node(op.input("X")[0])
     upscale_factor = op.attr("upscale_factor")
-    out = _op.nn.depth_to_space(x, upscale_factor, mode="CRD")
+    data_format = op.attr("data_format")
+    out = _op.nn.depth_to_space(x, block_size=upscale_factor, layout=data_format, mode="CRD")
     g.add_node(op.output("Out")[0], out)
 
 
@@ -1392,10 +1468,7 @@ def convert_pool2d(g, op, block):
     input_x = g.get_node(op.input("X")[0])
     _, _, in_h, in_w = infer_shape(input_x)
 
-    op_map = {
-        "avg": "avg_pool2d",
-        "max": "max_pool2d",
-    }
+    op_map = {"avg": "avg_pool2d", "max": "max_pool2d"}
 
     strides = op.attr("strides")
     if isinstance(strides, int):
@@ -1416,8 +1489,8 @@ def convert_pool2d(g, op, block):
         elif len(paddings) == 4:
             paddings = [paddings[0], paddings[2], paddings[1], paddings[3]]
     else:
-        msg = 'Value {} in attribute "padding" of operator Pool2d is not "valid."'
-        raise tvm.error.OpAttributeInvalid(msg.format(padding_algorithm))
+        msg = f'Value {padding_algorithm} in attribute "padding" of operator Pool2d is not "valid."'
+        raise tvm.error.OpAttributeInvalid(msg)
 
     # handle with special case
     # while kernel size less than input size
@@ -1578,6 +1651,30 @@ def convert_reshape(g, op, block):
     else:
         new_shape = op.attr("shape")
     out = _op.reshape(data, new_shape)
+    g.add_node(op.output("Out")[0], out)
+
+
+def convert_roi_align(g, op, block):
+    """Operator converter for roi_align."""
+
+    rois = g.get_node(op.input("ROIs")[0])
+    spatial_scale = op.attr("spatial_scale")
+    if op.attr("aligned"):
+        offset = _expr.const(0.5, dtype="float32")
+        roi_offset = _op.divide(offset, _expr.const(spatial_scale, dtype="float32"))
+        rois = _op.subtract(rois, roi_offset)
+    num_rois = infer_shape(rois)[0]
+    zero_node = _expr.const(0, dtype="int32")
+    batch_index = _op.full(zero_node, [num_rois, 1], dtype="float32")
+    rois = _op.concatenate([batch_index, rois], axis=1)
+    out = _op.vision.roi_align(
+        g.get_node(op.input("X")[0]),
+        rois,
+        pooled_size=[op.attr("pooled_height"), op.attr("pooled_width")],
+        spatial_scale=spatial_scale,
+        sample_ratio=op.attr("sampling_ratio"),
+        mode="avg",
+    )
     g.add_node(op.output("Out")[0], out)
 
 
@@ -2065,10 +2162,7 @@ def convert_slice(g, op, block):
     if len(axes) < dims:
         if isinstance(strides, _expr.Expr):
             strides = _op.scatter_elements(
-                _expr.const(
-                    np.array([1] * dims),
-                    dtype=infer_type(strides).checked_type.dtype,
-                ),
+                _expr.const(np.array([1] * dims), dtype=infer_type(strides).checked_type.dtype),
                 indices,
                 strides,
                 axis=0,
@@ -2102,6 +2196,45 @@ def convert_softmax(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_softmax_with_cross_entropy(g, op, block):
+    """Operator converter for softmax_with_cross_entropy."""
+
+    logits = g.get_node(op.input("Logits")[0])
+    labels = g.get_node(op.input("Label")[0])
+    ignore_index = op.attr("ignore_index")
+    axis = op.attr("axis")
+    if axis < 0:
+        axis = len(infer_shape(logits)) + axis
+
+    softmax = _op.nn.softmax(logits, axis=axis)
+
+    g.add_node(op.output("Softmax")[0], softmax)
+
+    softmax = _op.log(softmax)
+    soft_label = op.attr("soft_label")
+    if soft_label:
+        loss = _op.sum(-labels * softmax, axis=axis)
+    else:
+        labels_one = _op.one_hot(
+            labels,
+            on_value=_expr.const(1.0, dtype="float32"),
+            off_value=_expr.const(0.0, dtype="float32"),
+            depth=infer_shape(logits)[axis],
+            axis=axis + 1,
+            dtype="float32",
+        )
+        labels_one = _op.squeeze(labels_one, axis=axis)
+        loss = _op.sum(-labels_one * softmax, axis=axis)
+    loss = _op.expand_dims(loss, axis=axis)
+    if ignore_index != -100:  # noly when soft_label is False
+        assert not soft_label, "soft_label and ignore_index cannot be set at the same time."
+        ignore_mask = _op.not_equal(labels, _expr.const(ignore_index, dtype="int64"))
+        ignore_mask = _op.cast(ignore_mask, "float32")
+        loss = _op.multiply(loss, ignore_mask)
+
+    g.add_node(op.output("Loss")[0], loss)
+
+
 def convert_softplus(g, op, block):
     """Operator converter for softplus."""
 
@@ -2109,7 +2242,10 @@ def convert_softplus(g, op, block):
     dtype = infer_type(x).checked_type.dtype
     beta = op.attr("beta")
     beta = _expr.const(beta, dtype=dtype)
-    out = _op.log(_op.exp(x * beta) + _expr.const(1.0, dtype=dtype)) / beta
+    threshold = op.attr("threshold")
+    threshold = _expr.const(threshold, dtype=dtype)
+    out_softplus = _op.log(_op.exp(x * beta) + _expr.const(1.0, dtype=dtype)) / beta
+    out = _op.where(_op.greater(x * beta, threshold), x, out_softplus)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -2267,8 +2403,8 @@ def convert_tile(g, op, block):
         infered = True
 
     if not infered:
-        msg = 'Value {} in attribute "repeat_times" of operator Tile is not "valid."'
-        raise tvm.error.OpAttributeInvalid(msg.format(reps))
+        msg = f'Value {reps} in attribute "repeat_times" of operator Tile is not "valid."'
+        raise tvm.error.OpAttributeInvalid(msg)
 
     op_func = get_relay_op(op.type)
     out = op_func(x, reps=reps)
@@ -2414,6 +2550,7 @@ _convert_map = {
     "concat": convert_concat,
     "conv2d": convert_conv2d,
     "conv2d_transpose": convert_conv2d_transpose,
+    "conv3d": convert_conv3d,
     "cos": convert_unary_op,
     "cosh": convert_unary_op,
     "cumsum": convert_cumsum,
@@ -2491,6 +2628,7 @@ _convert_map = {
     "norm": convert_norm,
     "not_equal": convert_elementwise_op,
     "one_hot_v2": convert_one_hot_v2,
+    "p_norm": convert_p_norm,
     "pad1d": convert_padding,
     "pad2d": convert_padding,
     "pad3d": convert_padding,
@@ -2503,6 +2641,7 @@ _convert_map = {
     "relu6": convert_relu6,
     "reshape2": convert_reshape,
     "round": convert_unary_op,
+    "roi_align": convert_roi_align,
     "reciprocal": convert_reciprocal,
     "reduce_all": convert_reduce,
     "reduce_any": convert_reduce,
@@ -2526,6 +2665,7 @@ _convert_map = {
     "size": convert_size,
     "slice": convert_slice,
     "softmax": convert_softmax,
+    "softmax_with_cross_entropy": convert_softmax_with_cross_entropy,
     "softplus": convert_softplus,
     "softsign": convert_softsign,
     "softshrink": convert_softshrink,
@@ -2605,9 +2745,9 @@ class GraphProto:
         ipt_shape = block.var(ipt_name).shape
         for i in ipt_shape:
             if i < 0:
-                warning_msg = "Input {}(shape={}) has unkown dimension shapes. \
-                               Specifying static values may improve performance".format(
-                    ipt_name, ipt_shape
+                warning_msg = (
+                    f"Input {ipt_name}(shape={ipt_shape}) has unkown dimension shapes. "
+                    f"Specifying static values may improve performance"
                 )
                 warnings.warn(warning_msg)
 

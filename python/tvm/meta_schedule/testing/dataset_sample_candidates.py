@@ -22,8 +22,8 @@ import json
 import os
 from typing import List
 
-import tvm
 from tqdm import tqdm  # type: ignore
+import tvm
 from tvm import meta_schedule as ms
 from tvm.ir import load_json
 from tvm.target import Target

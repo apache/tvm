@@ -153,16 +153,17 @@ class GenerateConstantsMutator : public MixedModeMutator {
     // Conv2D arguments: data, weight, input_zp, weight_zp, input_sc, weight_sc
     Array<Expr> conv2d_args = {conv2d_call->args[0], conv2d_kernel,        conv2d_call->args[2],
                                multiplier_const,     conv2d_call->args[4], weight_scale};
-    Call ret_call = Call(conv2d_call->op, conv2d_args, new_conv2d_attrs, {});
+    Call ret_call = Call(conv2d_call->op, conv2d_args, new_conv2d_attrs, {}, conv2d_call->span);
     if (bias_add_call) {
-      ret_call =
-          Call(bias_add_call->op, {ret_call, bias_add_call->args[1]}, bias_add_call->attrs, {});
+      ret_call = Call(bias_add_call->op, {ret_call, bias_add_call->args[1]}, bias_add_call->attrs,
+                      {}, bias_add_call->span);
     }
     Array<Expr> requantize_args = {ret_call, req_inp_scale, shift_const, requantize_call->args[3],
                                    requantize_call->args[4]};
-    ret_call = Call(requantize_call->op, requantize_args, requantize_call->attrs, {});
+    ret_call = Call(requantize_call->op, requantize_args, requantize_call->attrs, {},
+                    requantize_call->span);
     if (clip_call) {
-      ret_call = Call(clip_call->op, {ret_call}, clip_call->attrs, {});
+      ret_call = Call(clip_call->op, {ret_call}, clip_call->attrs, {}, clip_call->span);
     }
     return std::move(ret_call);
   }
@@ -198,6 +199,7 @@ class GenerateConstantsMutator : public MixedModeMutator {
       }
     }
 
+    final_call->span = call->span;
     return final_call;
   }
 

@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=too-few-public-methods,invalid-name,unused-argument,arguments-differ
-# pylint: disable=consider-using-enumerate,too-many-lines
+# pylint: disable=consider-using-enumerate,too-many-lines, invalid-sequence-index
 """
 Template configuration space.
 

@@ -18,12 +18,12 @@
 from distutils.version import LooseVersion
 import numpy as np
 import pytest
+import tflite.Model  # pylint: disable=wrong-import-position
+import tensorflow as tf  # pylint: disable=wrong-import-position
 import tvm
 
 pytest.importorskip("tflite")
 pytest.importorskip("tensorflow")
-import tflite.Model  # pylint: disable=wrong-import-position
-import tensorflow as tf  # pylint: disable=wrong-import-position
 
 
 class TFLiteModel:
@@ -56,7 +56,7 @@ class TFLiteModel:
             elif activation == "NONE":
                 pass
             else:
-                assert False, "Unsupported activation {}".format(activation)
+                assert False, f"Unsupported activation {activation}"
             return op
 
         return conv2d_single_function

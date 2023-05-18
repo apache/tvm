@@ -21,7 +21,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import tir
-from tvm.script import tir as T
+from tvm.script import tir as T, ir as I
 
 import numpy as np
 
@@ -3332,6 +3332,25 @@ def let_expression():
     return func
 
 
+def test_void_ptr_vs_handle():
+    """Distinguish between void* and handle
+
+    In the future, perhaps these should be de-duplicated by forbidding
+    one of the two C++ representations.
+    """
+    # Generates PointerType(PrimType(DataType::Void()))
+    @T.prim_func
+    def void_ptr(out_ret_value: T.handle("void")):
+        T.evaluate(out_ret_value)
+
+    # Generates PrimType(DataType::Handle())
+    @T.prim_func
+    def handle(out_ret_value: T.handle):
+        T.evaluate(out_ret_value)
+
+    assert not tvm.ir.structural_equal(void_ptr, handle)
+
+
 def void_ptr():
     @T.prim_func
     def func(out_ret_value: T.handle("void")):
@@ -3444,7 +3463,9 @@ def bool_primitive():
 def bool_cast():
     @T.prim_func
     def func() -> None:
+        a = T.bool()
         T.evaluate(T.bool(T.int32(0)))
+        T.evaluate(a == T.bool(False))
 
     return func
 
@@ -3623,6 +3644,19 @@ def merge_shape_var_def():
     return main
 
 
+def if_then_else_var():
+    @T.prim_func
+    def main(n: T.int32):
+        if n == 0:
+            x = 5
+            T.evaluate(x)
+        else:
+            x = 10
+            T.evaluate(x)
+
+    return main
+
+
 def tvm_shfl_builtins():
     @T.prim_func
     def func(
@@ -3673,6 +3707,87 @@ def tvm_shfl_builtins():
             C_1[0] = red_buf0_1[0]
         B_1 = T.Buffer((32,), data=B)
         B_1[threadIdx_x] = B_warp_1[0]
+
+    return func
+
+
+def make_packed_api_result():
+    @T.prim_func
+    def func(A: T.Buffer(64, "float32")):
+        T.func_attr({"global_symbol": "main", "target": T.target("cuda")})
+        bx = T.launch_thread("blockIdx.x", 64)
+        T.evaluate(A[bx])
+
+    mod = tvm.IRModule.from_expr(func)
+    return tvm.tir.transform.MakePackedAPI()(mod)
+
+
+def tvm_struct_set_generated_in_cpp():
+    """Ensure same dtype for tvm_struct_set in Python/C++
+
+    The TVMStructSet method in C++, used internally by
+    LowerTVMBuiltin, and the Python method `T.tvm_struct_set`, used
+    when parsing TVMScript should use the same dtype "int32".
+    """
+
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def tir_packed_call(A: T.Buffer(16)):
+            T.attr(0, "device_id", 0)
+            T.attr(0, "device_type", 0)
+            T.evaluate(
+                T.tvm_call_cpacked(
+                    "tvm_test_cpacked",
+                    T.tvm_stack_make_array(
+                        A.data,
+                        T.tvm_stack_make_shape(16, dtype="handle"),
+                        T.reinterpret(T.uint64(0), dtype="handle"),
+                        T.uint32(1),
+                        T.Cast("float32", 0),
+                        0,
+                        dtype="handle",
+                    ),
+                    dtype="int32",
+                )
+            )
+
+    return tvm.tir.transform.LowerTVMBuiltin()(Module)
+
+
+def ir_module_with_attrs():
+    @I.ir_module
+    class Module:
+        I.module_attrs({"attr": 10})
+
+        @T.prim_func
+        def tir_func(A: T.Buffer(16, "int32"), B: T.Buffer(16, "int32")):
+            for i in range(16):
+                B[i] = A[i]
+
+    return Module
+
+
+def nested_seqstmt():
+    """Nested SeqStmt should be normalized to flat SeqStmt
+
+    Nested SeqStmt are representable in the TIR structures, but are
+    flattened when converted to TVMScript.  Previously, this could
+    cause failures to round-trip through TVMScript, including
+    erroneous use of TVMScript's concise-scoping rules.  This was
+    resolved by normalizing nested SeqStmt in TIR, such that the use
+    of `tir.SeqStmt` below results in a single flat `tir.SeqStmt`
+    containing the three `tir.Evaluate` calls.
+    """
+    func = tvm.tir.PrimFunc(
+        params=[],
+        body=tvm.tir.SeqStmt(
+            [
+                tvm.tir.SeqStmt([tvm.tir.Evaluate(0), tvm.tir.Evaluate(1)]),
+                tvm.tir.Evaluate(2),
+            ]
+        ),
+    )
 
     return func
 
@@ -3740,7 +3855,12 @@ ir_generator = tvm.testing.parameter(
     let_stmt_value,
     string_stride,
     merge_shape_var_def,
+    if_then_else_var,
     tvm_shfl_builtins,
+    make_packed_api_result,
+    tvm_struct_set_generated_in_cpp,
+    ir_module_with_attrs,
+    nested_seqstmt,
 )
 
 

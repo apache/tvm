@@ -72,10 +72,6 @@ void VarUseDefAnalyzer::VisitStmt_(const AllocateConstNode* op) {
   StmtExprVisitor::VisitStmt_(op);
 }
 
-void VarUseDefAnalyzer::VisitStmt_(const StoreNode* op) {
-  LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-}
-
 void VarUseDefAnalyzer::VisitStmt_(const BufferStoreNode* op) {
   VisitBuffer(op->buffer);
   StmtExprVisitor::VisitStmt_(op);
@@ -110,10 +106,6 @@ void VarUseDefAnalyzer::VisitExpr_(const ReduceNode* op) {
     this->HandleDef(iv->var.get());
   }
   StmtExprVisitor::VisitExpr_(op);
-}
-
-void VarUseDefAnalyzer::VisitExpr_(const LoadNode* op) {
-  LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
 }
 
 void VarUseDefAnalyzer::VisitExpr_(const BufferLoadNode* op) {

@@ -51,6 +51,7 @@ MANIFEST
 .bash_history
 rat-excludes
 Cargo.lock
+poetry.lock
 
 # Template files for Jenkins
 .*\.groovy\.j2

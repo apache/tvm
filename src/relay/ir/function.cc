@@ -147,8 +147,8 @@ TVM_REGISTER_GLOBAL("relay.ir.PrintIR")
 
 TVM_REGISTER_GLOBAL("relay.ir.WarnIfMalformed")
     .set_body_typed([](const IRModule& mod, const BaseFunc& base_func) -> void {
-      if (const auto* relay_func = base_func.as<FunctionNode>()) {
-        Function func = Downcast<relay::Function>(relay::DeDup(GetRef<Function>(relay_func)));
+      if (auto relay_func = base_func.as<Function>()) {
+        Function func = Downcast<relay::Function>(relay::DeDup(relay_func.value()));
         // Type check the item before we add it to the module.
         auto fv = relay::FreeVars(func);
         auto ftv = relay::FreeTypeVars(func, mod);

@@ -14,16 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-argument, no-else-return, inconsistent-return-statements, too-many-nested-blocks
+# pylint: disable=invalid-name, unused-argument, no-else-return
+# pylint: disable=use-list-literal, inconsistent-return-statements, too-many-nested-blocks
 """The TIR passes to be run on Arm(R) Ethos(TM)-U NPU TIR Compiler."""
 from collections import namedtuple
 from typing import Optional
 import numpy as np  # type: ignore
+from ethosu.vela import api as vapi  # type: ignore
 
 import tvm
 from tvm.relay.backend.contrib.ethosu import vela_api
 from tvm.relay.backend.contrib.ethosu import tir_to_cs_translator as tirtocs
-from ethosu.vela import api as vapi
+
 from .convolution import get_conv2d_params
 from .depthwise import get_depthwise_conv2d_params
 from .pooling import get_pooling_params
@@ -49,7 +51,7 @@ def RemoveZeroStores():
 
     def _ftransform(f, mod, ctx):
         return f.with_body(
-            tvm.tir.stmt_functor.ir_transform(f.body, _remove_zero_store, None, ["tir.Store"])
+            tvm.tir.stmt_functor.ir_transform(f.body, _remove_zero_store, None, ["tir.BufferStore"])
         )
 
     return tvm.tir.transform.prim_func_pass(
@@ -250,7 +252,9 @@ def DivideConstants(const_dict):
                     # Note by convention the arg after a constant read is the length of the read
                     length = int(stmt.args[i + 1])
                     # If it's anything other than a full read, create a new buffer
-                    if (offset != 0 or flattened_const_shape != length) and not is_u65_conv2d:
+                    if (
+                        offset != 0 or flattened_const_shape != length and length > 0
+                    ) and not is_u65_conv2d:
                         out_channels = const.shape[0]
                         offset_channels = int((offset * out_channels) / flattened_const_shape)
                         length_channels = int((length * out_channels) / flattened_const_shape)

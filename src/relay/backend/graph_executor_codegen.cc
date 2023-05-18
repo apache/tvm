@@ -687,6 +687,9 @@ class GraphExecutorCodegenModule : public runtime::ModuleNode {
 
   const char* type_key() const final { return "RelayGraphExecutorCodegenModule"; }
 
+  /*! \brief Get the property of the runtime module .*/
+  int GetPropertyMask() const final { return runtime::ModulePropertyMask::kRunnable; }
+
  private:
   std::shared_ptr<GraphExecutorCodegen> codegen_;
   LoweredOutput output_;

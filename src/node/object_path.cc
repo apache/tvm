@@ -197,7 +197,9 @@ const ObjectPathNode* ObjectPathNode::ParentNode() const {
 
 // ============== ObjectPath ==============
 
-/* static */ ObjectPath ObjectPath::Root() { return ObjectPath(make_object<RootPathNode>()); }
+/* static */ ObjectPath ObjectPath::Root(Optional<String> name) {
+  return ObjectPath(make_object<RootPathNode>(name));
+}
 
 TVM_REGISTER_GLOBAL("node.ObjectPathRoot").set_body_typed(ObjectPath::Root);
 
@@ -205,11 +207,21 @@ TVM_REGISTER_GLOBAL("node.ObjectPathRoot").set_body_typed(ObjectPath::Root);
 
 // ----- Root -----
 
-RootPathNode::RootPathNode() : ObjectPathNode(nullptr) {}
+RootPathNode::RootPathNode(Optional<String> name) : ObjectPathNode(nullptr), name(name) {}
 
-bool RootPathNode::LastNodeEqual(const ObjectPathNode* other) const { return true; }
+bool RootPathNode::LastNodeEqual(const ObjectPathNode* other_path) const {
+  const auto* other = static_cast<const RootPathNode*>(other_path);
 
-std::string RootPathNode::LastNodeString() const { return "<root>"; }
+  if (other->name.defined() != name.defined()) {
+    return false;
+  } else if (name && other->name) {
+    return name.value() == other->name.value();
+  } else {
+    return true;
+  }
+}
+
+std::string RootPathNode::LastNodeString() const { return name.value_or("<root>"); }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable).set_dispatch<RootPathNode>(PrintObjectPathRepr);
 

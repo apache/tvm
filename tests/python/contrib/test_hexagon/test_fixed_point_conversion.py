@@ -27,7 +27,7 @@ raised if they happened to be outside of the expected tolerance.
 import math
 import struct
 import numpy as np
-import tvm.topi.hexagon.utils as utils
+from tvm.topi.hexagon import utils
 
 
 class TestFixedPointConversion:

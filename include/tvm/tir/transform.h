@@ -177,6 +177,19 @@ TVM_DLL Pass RewriteUnsafeSelect();
 TVM_DLL Pass Simplify();
 
 /*!
+ * \brief Convert an IRModule to be SSA form.
+ *
+ * This pass handles cases where the same tir::Var appears in
+ * multiple functions within the same module.  For example, after
+ * extracting a fragment from one function into another, where the
+ * same `tir::Var` may be defined both as within the body of the
+ * original function, and as a parameter within the hoisted function.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass ConvertSSA();
+
+/*!
  * \brief Instruments bound checkers.
  *
  * \return The pass.
@@ -337,11 +350,17 @@ TVM_DLL Pass CombineContextCall();
 TVM_DLL Pass NarrowDataType(int target_bits);
 
 /*!
- * \brief Legalize bf16 typed Ops. Add a cast to fp32
+ * \brief Legalize bf16 compute Ops. Add a cast to fp32
  *   before Ops, then add a cast back to bf16.
  * \return The pass.
  */
-TVM_DLL Pass BF16Legalize();
+TVM_DLL Pass BF16ComputeLegalize();
+
+/*!
+ * \brief Legalize bf16 storage types to u16.
+ * \return The pass.
+ */
+TVM_DLL Pass BF16StorageLegalize();
 
 /*!
  * \brief Rewrite the pointer content type of arguments,
@@ -437,10 +456,11 @@ TVM_DLL Pass ConvertBlocksToOpaque();
  *
  *  \endcode
  *
- *
+ * \param is_strict ensure the compacted shape always smaller than the original shape.
+ *   otherwise it allows to grow the shape to match actual accessed buffer regions.
  * \return The pass.
  */
-TVM_DLL Pass CompactBufferAllocation();
+TVM_DLL Pass CompactBufferAllocation(bool is_strict = true);
 
 /*!
  * This pass legalizes packed calls by wrapping their arguments into TVMValues
@@ -646,6 +666,12 @@ TVM_DLL Pass BindParams(const Array<runtime::NDArray>& constants);
  * \return The pass.
  */
 TVM_DLL Pass ExtractPrimFuncConstants();
+
+/*!
+ * \brief Automatically do memory optimizations for auto copy blocks
+ * \return The pass.
+ */
+TVM_DLL Pass LowerAutoCopy();
 
 /*!
  * \brief Renormalize the split pattern from floordiv(floormod()) to floormod(floordiv())

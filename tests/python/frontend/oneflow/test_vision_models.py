@@ -20,11 +20,6 @@
 import os
 
 import numpy as np
-import tvm
-import tvm.testing
-import tvm.topi.testing
-from tvm import relay
-
 import oneflow as flow
 from flowvision.models.alexnet import alexnet
 from flowvision.models.squeezenet import squeezenet1_0
@@ -32,6 +27,10 @@ from flowvision.models.shufflenet_v2 import shufflenet_v2_x0_5
 from flowvision.models.mobilenet import mobilenet_v2
 from flowvision.models.ghostnet import ghostnet
 from flowvision.models.vision_transformer import vit_base_patch16_224
+import tvm
+import tvm.testing
+import tvm.topi.testing
+from tvm import relay
 
 MODEL_HOME = "test_model"
 

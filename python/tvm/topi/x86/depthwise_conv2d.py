@@ -299,7 +299,7 @@ def _schedule_depthwise_conv2d_NCHWc_impl(s, cfg, data_vec, kernel_vec, conv_out
             s[O].vectorize(oc_block)
             s[O].parallel(parallel_axis)
         else:
-            raise ValueError("Unsupported output ndim: %s" % out_ndim)
+            raise ValueError(f"Unsupported output ndim: {out_ndim}")
 
     return s
 
@@ -314,7 +314,7 @@ def _depthwise_conv2d_infer_layout(workload, cfg):
     out_width = (in_width + padding[1] + padding[3] - k_width) // strides[1] + 1
     tile_ic, tile_oc = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
     in_shape = (batch_size, in_channel // tile_ic, in_height, in_width, tile_ic)
-    in_layout = "NCHW%dc" % tile_ic
+    in_layout = f"NCHW{tile_ic}c"
     out_shape = (batch_size, out_channel // tile_oc, out_height, out_width, tile_oc)
-    out_layout = "NCHW%dc" % tile_oc
+    out_layout = f"NCHW{tile_oc}c"
     return ((in_shape, in_layout),), ((out_shape, out_layout),)

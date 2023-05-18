@@ -38,7 +38,7 @@ namespace runtime {
 class OpenCLWrappedFunc {
  public:
   // initialize the OpenCL function.
-  void Init(OpenCLModuleNode* m, ObjectPtr<Object> sptr, OpenCLModuleNode::KTRefEntry entry,
+  void Init(OpenCLModuleNodeBase* m, ObjectPtr<Object> sptr, OpenCLModuleNode::KTRefEntry entry,
             std::string func_name, std::vector<size_t> arg_size,
             const std::vector<std::string>& launch_param_tags) {
     w_ = m->GetGlobalWorkspace();
@@ -103,7 +103,7 @@ class OpenCLWrappedFunc {
   // global workspace.
   cl::OpenCLWorkspace* w_;
   // The module
-  OpenCLModuleNode* m_;
+  OpenCLModuleNodeBase* m_;
   // resource handle
   ObjectPtr<Object> sptr_;
   // global kernel id in the kernel table.
@@ -116,7 +116,7 @@ class OpenCLWrappedFunc {
   LaunchParamConfig launch_param_config_;
 };
 
-OpenCLModuleNode::~OpenCLModuleNode() {
+OpenCLModuleNodeBase::~OpenCLModuleNodeBase() {
   {
     // free the kernel ids in global table.
     std::lock_guard<std::mutex> lock(workspace_->mu);
@@ -138,22 +138,13 @@ OpenCLModuleNode::~OpenCLModuleNode() {
   }
 }
 
-cl::OpenCLWorkspace* OpenCLModuleNode::GetGlobalWorkspace() {
+cl::OpenCLWorkspace* OpenCLModuleNodeBase::GetGlobalWorkspace() {
   return cl::OpenCLWorkspace::Global();
 }
 
-PackedFunc OpenCLModuleNode::GetFunction(const std::string& name,
-                                         const ObjectPtr<Object>& sptr_to_self) {
+PackedFunc OpenCLModuleNodeBase::GetFunction(const std::string& name,
+                                             const ObjectPtr<Object>& sptr_to_self) {
   ICHECK_EQ(sptr_to_self.get(), this);
-  if (name == "opencl.GetPreCompiledPrograms") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      *rv = this->GetPreCompiledPrograms();
-    });
-  } else if (name == "opencl.SetPreCompiledPrograms") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      this->SetPreCompiledPrograms(args[0]);
-    });
-  }
   ICHECK_NE(name, symbol::tvm_module_main) << "Device function do not have main";
   auto it = fmap_.find(name);
   if (it == fmap_.end()) return PackedFunc();
@@ -395,6 +386,21 @@ std::string OpenCLModuleNode::GetPreCompiledPrograms() {
     strm->Write(bin_vector);
   }
   return data;
+}
+
+PackedFunc OpenCLModuleNode::GetFunction(const std::string& name,
+                                         const ObjectPtr<Object>& sptr_to_self) {
+  ICHECK_EQ(sptr_to_self.get(), this);
+  if (name == "opencl.GetPreCompiledPrograms") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      *rv = this->GetPreCompiledPrograms();
+    });
+  } else if (name == "opencl.SetPreCompiledPrograms") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      this->SetPreCompiledPrograms(args[0]);
+    });
+  }
+  return OpenCLModuleNodeBase::GetFunction(name, sptr_to_self);
 }
 
 Module OpenCLModuleCreate(std::string data, std::string fmt,

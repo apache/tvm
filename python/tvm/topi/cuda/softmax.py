@@ -44,10 +44,7 @@ def _schedule_softmax(softmax_op, s, outs, tgt):
         expsum = softmax_op.input_tensors[2]
     else:
         raise ValueError(
-            "Tag is expected to be softmax_output or log_softmax_output. \
-                         Got {0}".format(
-                op_tag
-            )
+            f"Tag is expected to be softmax_output or log_softmax_output. Got {op_tag}"
         )
 
     # The nvptx and rocm backends only supports 32-bits warp shuffle

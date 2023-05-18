@@ -96,6 +96,14 @@ class BenchmarkResult:
         )
 
 
+class ModulePropertyMask(object):
+    """Runtime Module Property Mask."""
+
+    BINARY_SERIALIZABLE = 0b001
+    RUNNABLE = 0b010
+    DSO_EXPORTABLE = 0b100
+
+
 class Module(object):
     """Runtime Module."""
 
@@ -239,6 +247,40 @@ class Module(object):
         nmod = _ffi_api.ModuleImportsSize(self)
         return [_ffi_api.ModuleGetImport(self, i) for i in range(nmod)]
 
+    def get_property_mask(self):
+        """Get the runtime module property mask. The mapping is stated in ModulePropertyMask.
+
+        Returns
+        -------
+        mask : int
+            Bitmask of runtime module property
+        """
+        return _ffi_api.ModuleGetPropertyMask(self)
+
+    @property
+    def is_binary_serializable(self):
+        """Returns true if module is 'binary serializable', ie can be serialzed into binary
+         stream and loaded back to the runtime module.
+
+        Returns
+        -------
+        b : Bool
+            True if the module is binary serializable.
+        """
+        return (self.get_property_mask() & ModulePropertyMask.BINARY_SERIALIZABLE) != 0
+
+    @property
+    def is_runnable(self):
+        """Returns true if module is 'runnable'. ie can be executed without any extra
+        compilation/linking steps.
+
+        Returns
+        -------
+        b : Bool
+            True if the module is runnable.
+        """
+        return (self.get_property_mask() & ModulePropertyMask.RUNNABLE) != 0
+
     @property
     def is_dso_exportable(self):
         """Returns true if module is 'DSO exportable', ie can be included in result of
@@ -249,7 +291,7 @@ class Module(object):
         b : Bool
             True if the module is DSO exportable.
         """
-        return _ffi_api.ModuleIsDSOExportable(self)
+        return (self.get_property_mask() & ModulePropertyMask.DSO_EXPORTABLE) != 0
 
     def save(self, file_name, fmt=""):
         """Save the module to file.
@@ -383,6 +425,10 @@ class Module(object):
         stack.append(self)
         while stack:
             module = stack.pop()
+            assert (
+                module.is_dso_exportable or module.is_binary_serializable
+            ), f"Module {module.type_key} should be either dso exportable or binary serializable."
+
             if filter_func(module):
                 dso_modules.append(module)
             for m in module.imported_modules:
@@ -462,6 +508,7 @@ class Module(object):
         files = addons if addons else []
         is_system_lib = False
         has_c_module = False
+        system_lib_prefix = None
         llvm_target_string = None
         global_object_format = "o"
         for index, module in enumerate(modules):
@@ -503,6 +550,8 @@ class Module(object):
             if module.type_key == "llvm":
                 is_system_lib = module.get_function("__tvm_is_system_module")()
                 llvm_target_string = module.get_function("_get_target_string")()
+                system_lib_prefix = module.get_function("__tvm_get_system_lib_prefix")()
+
         if not fcompile:
             if file_name.endswith(".tar"):
                 fcompile = _tar.tar
@@ -518,15 +567,21 @@ class Module(object):
             raise ValueError("%s need --system-lib option" % str(fcompile))
 
         if self.imported_modules:
+            pack_lib_prefix = system_lib_prefix if system_lib_prefix else ""
+
             if enabled("llvm") and llvm_target_string:
-                path_obj = os.path.join(workspace_dir, f"devc.{global_object_format}")
-                m = _ffi_api.ModulePackImportsToLLVM(self, is_system_lib, llvm_target_string)
+                path_obj = os.path.join(
+                    workspace_dir, f"{pack_lib_prefix}devc.{global_object_format}"
+                )
+                m = _ffi_api.ModulePackImportsToLLVM(
+                    self, is_system_lib, llvm_target_string, pack_lib_prefix
+                )
                 m.save(path_obj)
                 files.append(path_obj)
             else:
-                path_cc = os.path.join(workspace_dir, "devc.c")
+                path_cc = os.path.join(workspace_dir, f"{pack_lib_prefix}devc.c")
                 with open(path_cc, "w") as f:
-                    f.write(_ffi_api.ModulePackImportsToC(self, is_system_lib))
+                    f.write(_ffi_api.ModulePackImportsToC(self, is_system_lib, pack_lib_prefix))
                 files.append(path_cc)
 
         # The imports could contain a c module but the object format could be tar
@@ -543,7 +598,7 @@ class Module(object):
         return fcompile(file_name, files, **kwargs)
 
 
-def system_lib():
+def system_lib(symbol_prefix=""):
     """Get system-wide library module singleton.
 
     System lib is a global module that contains self register functions in startup.
@@ -556,12 +611,18 @@ def system_lib():
     The system lib is intended to be linked and loaded during the entire life-cyle of the program.
     If you want dynamic loading features, use dso modules instead.
 
+    Parameters
+    ----------
+    symbol_prefix: Optional[str]
+        Optional symbol prefix that can be used for search. When we lookup a symbol
+        symbol_prefix + name will first be searched, then the name without symbol_prefix.
+
     Returns
     -------
     module : runtime.Module
         The system-wide library module.
     """
-    return _ffi_api.SystemLib()
+    return _ffi_api.SystemLib(symbol_prefix)
 
 
 def load_module(path, fmt=""):

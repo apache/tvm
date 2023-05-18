@@ -34,7 +34,8 @@ namespace hexagon {
 #define DMA_FAILURE -1
 #define DMA_RETRY 1
 #define MAX_DMA_DESCRIPTORS 100
-#define SYNC_DMA_QUEUE -1
+#define MAX_DMA_QUEUES 10
+#define SYNC_DMA_QUEUE MAX_DMA_QUEUES - 1
 
 class HexagonUserDMA {
  public:
@@ -47,32 +48,50 @@ class HexagonUserDMA {
 
   /*!
    * \brief Initiate DMA to copy memory from source to destination address
+   * \param queue_id The virtual DMA queue
    * \param dst Destination address
    * \param src Source address
    * \param length Length in bytes to copy
    * \returns Status: DMA_SUCCESS or DMA_FAILURE
    */
-  int Copy(int queue_id, void* dst, void* src, uint32_t length, bool bypass_cache);
+  int Copy(uint32_t queue_id, void* dst, void* src, uint32_t length, bool bypass_cache);
 
   /*!
    * \brief Wait until the number of DMAs in flight is less than or equal to some maximum
+   * \param queue_id The virtual DMA queue
    * \param max_dmas_in_flight Maximum number of DMAs allowed to be in flight
    * to satisfy the `Wait` e.g. use `Wait(0)` to wait on "all" outstanding DMAs to complete
    */
-  void Wait(int queue_id, uint32_t max_dmas_in_flight);
+  void Wait(uint32_t queue_id, uint32_t max_dmas_in_flight);
 
   /*!
    * \brief Poll the number of DMAs in flight
+   * \param queue_id The virtual DMA queue
    * \returns Number of DMAs in flight
    */
-  uint32_t Poll(int queue_id);
+  uint32_t Poll(uint32_t queue_id);
+
+  /*!
+   * \brief Start a group of DMA copies
+   * \param queue_id The virtual DMA queue
+   */
+  void StartGroup(uint32_t queue_id) { descriptors_->StartGroup(queue_id); }
+
+  /*!
+   * \brief End a group of DMA copies
+   * \param queue_id The virtual DMA queue
+   */
+  void EndGroup(uint32_t queue_id) { descriptors_->EndGroup(queue_id); }
 
  private:
   //! \brief Initializes the Hexagon User DMA engine
   unsigned int Init();
 
-  //! \brief Calculates and returns the number of DMAs in flight
-  uint32_t DMAsInFlight(int queue_id);
+  /*!
+   * \brief Calculates and returns the number of DMAs in flight
+   * \param queue_id The virtual DMA queue
+   */
+  uint32_t DMAGroupsInFlight(uint32_t queue_id);
 
   //! \brief Tracks whether the very first DMA has been executed
   bool first_dma_ = true;

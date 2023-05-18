@@ -396,14 +396,14 @@ T.prefetch(A, [T.Range(0, 64), T.Range(0, 64)])
 def test_seq_stmt():
     with IRBuilder() as ib:
         with T.serial(10):
-            T.evaluate(0)
             T.evaluate(1)
+            T.evaluate(2)
     obj = ib.get().body
     _assert_print(
         obj,
         """
-T.evaluate(0)
 T.evaluate(1)
+T.evaluate(2)
 """,
     )
 
@@ -606,7 +606,7 @@ def test_select():
     obj = tir.Select(True, 0, 2)
     _assert_print(
         obj,
-        """T.Select(True, 0, 2)
+        """T.Select(T.bool(True), 0, 2)
 """,
     )
 

@@ -16,6 +16,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=use-a-generator
 """
 TVMC - TVM driver command-line interface
 """
@@ -85,9 +86,11 @@ def _main(argv):
     parser.add_argument("-h", "--help", action="help", help="show this help message and exit.")
 
     args = parser.parse_args(argv)
-    if args.verbose > 4:
-        args.verbose = 4
+    args.verbose = min(args.verbose, 3)
 
+    # See the meaning of the logging levels at
+    # https://docs.python.org/3/library/logging.html#logging-levels
+    logging.basicConfig(stream=sys.stdout)
     logging.getLogger("TVMC").setLevel(40 - args.verbose * 10)
 
     if args.version:

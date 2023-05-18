@@ -193,7 +193,7 @@ def test_ir_builder_tir_axis():
             tir.IterVar((0, 8), tir.Var("", "int32"), iter_type=tir.IterVar.DataPar),
             tir.IterVar((0, 16), tir.Var("", "int32"), iter_type=tir.IterVar.CommReduce),
             tir.IterVar((0, 32), tir.Var("", "int32"), iter_type=tir.IterVar.Ordered),
-            tir.IterVar((0, 64), tir.Var("", "int32"), iter_type=tir.IterVar.DimInfo),
+            tir.IterVar((0, 64), tir.Var("", "int32"), iter_type=tir.IterVar.Opaque),
         ],
         reads=[],
         writes=[],
