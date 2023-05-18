@@ -46,3 +46,6 @@ exclude = '''
   )/
 )
 '''
+
+[project.torch_dynamo_backends]
+tvm = "tvm.relay.frontend.pytorch:tvm_relay_backend"
