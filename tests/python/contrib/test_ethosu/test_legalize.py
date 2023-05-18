@@ -959,8 +959,39 @@ def test_tflite_separate_channel_padding_legalize(ifm_shape, channel_padding, co
         tflite_model = converter.convert()
         return tflite_model
 
-    def verify(ext_func):
+    def verify(ext_func, channel_padding):
 
+        op = ext_func.body
+
+        pad_before = 0
+        pad_after = 0
+        if channel_padding[0] == 0 and channel_padding[1] > 0:
+            pad_after = ext_func.body.args[0][1].args[0].checked_type.shape[3]
+            ifm = ext_func.body.args[0][0].args[0].checked_type
+        if channel_padding[0] > 0 and channel_padding[1] == 0:
+            pad_before = ext_func.body.args[0][0].args[0].checked_type.shape[3]
+            ifm = ext_func.body.args[0][1].args[0].checked_type
+        if channel_padding[0] > 0 and channel_padding[1] > 0:
+            pad_before = ext_func.body.args[0][0].args[0].checked_type.shape[3]
+            ifm = ext_func.body.args[0][1].args[0].checked_type
+            pad_after = ext_func.body.args[0][2].args[0].checked_type.shape[3]
+
+        # check IFM
+        assert list(ifm.shape) == list(ifm_shape)
+        assert str(ifm.dtype) == dtype
+        assert ifm.shape[3] == ifm_shape[3]
+
+        # check OFM
+        ofm = op.checked_type
+        expected_ofm_shape = list(ifm_shape)
+        expected_ofm_shape[3] = channel_padding[0] + ifm_shape[3] + channel_padding[1]
+        assert list(ofm.shape) == expected_ofm_shape
+        assert str(ofm.dtype) == dtype
+
+        # check padding
+        assert [pad_before, pad_after] == list(channel_padding)
+
+        # check if relay contains 'concatenate' op
         assert AreConcatenateOnGraph().are_concatenate_on_graph(ext_func.body) == True
 
     pad_pattern_table = [
@@ -986,7 +1017,7 @@ def test_tflite_separate_channel_padding_legalize(ifm_shape, channel_padding, co
     mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
         legalize.ChannelPadRewriter(), mod["tvmgen_default_ethos_u_main_0"]
     )
-    verify(mod["tvmgen_default_ethos_u_main_0"])
+    verify(mod["tvmgen_default_ethos_u_main_0"], channel_padding)
 
 
 @pytest.mark.parametrize("pooling_type", ["MAX", "AVG"])
