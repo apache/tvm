@@ -2260,7 +2260,8 @@ class PyTorchOpConverter:
         tensor_list = inputs[0]
         import torch
 
-        res_shape = list(torch.broadcast_shapes(*[self.infer_shape(t) for t in tensor_list]))
+        infer_shape_value = [self.infer_shape(t) for t in tensor_list]
+        res_shape = list(torch.broadcast_tensors(*map(torch.empty, infer_shape_value))[0].shape)
         return [_op.broadcast_to(tensor, res_shape) for tensor in tensor_list]
 
     def Bool(self, inputs, input_types):
