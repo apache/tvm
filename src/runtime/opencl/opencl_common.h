@@ -474,7 +474,7 @@ class OpenCLModuleNodeBase : public ModuleNode {
   void StartRecording();
   void EndRecording();
   void RunRecording();
-  
+
  protected:
   // The workspace, need to keep reference to use it in destructor.
   // In case of static destruction order problem.
