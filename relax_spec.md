@@ -634,6 +634,39 @@ def get_shape_var_mapping(S1: StructInfo, S2: StructInfo) -> {tir::Var, PrimExpr
             return {}
 ```
 
+**Checking Compatibility**
+
+In many cases during the derivation of structural information, it is important to judge when two distinct structural information encodings are compatible with each other or when they are too different from each other to be reconciled, which can indicate an error. In the case of shape information, this could mean having two symbolic shapes that can be proven not to be equal to each other. Because shape expressions can contain arithmetic and it can be very difficult to statically prove whether two arithmetic expressions are equal, we permit the compiler implementation to make a best-effort attempt to prove equality for arithmetic expressions. (The user can insert a `MatchCast` to check definitively.) Since the checks are best-effort, the compatibility check will only report incompatibility if two values are _definitely_ different from each other.
+
+We can check if some structural information `S1` is accepted where structural information `S2` is expected by the process given below, which we refer to as `check_compability(S1, S2)` for convenience. `check_compatibility` can find that `S1` and `S2` are compatible, possibly compatible, or incompatible. "Incompatible" indicates a definite mismatch that should result in a compiler error; "possibly compatible" indicates that the structures may or may not match and should likely result in a compiler warning (indicating that a user may want to insert a dynamic check). An invariant that should should is that if `check_compatibility(S1, S2)` returns "compatible" or "possible compatible", `erase_struct_info(S1) <: erase_struct_info(S2)` should hold; that is, compatibility of structural information should be consistent with typing rules.
+
+1. If `S2` is `ObjectStructInfo`, then they are compatible.
+2. Otherwise, if `S1` and `S2` are not both `TensorStructInfo` or both `TupleStructInfo`, etc. (besides `ObjectStructInfo`), then report an incompatibility.
+3. If `S1` and `S2` are both `TupleStructInfo`:
+    1. If `S1.fields` is not the same length as `S2.fields`, they are incompatible
+    2. Call `check_compability(S1.fields[i], S2.fields[i])` for all `i`. If any pair of fields is incompatible, then `S1` and `S2` are incompatible. If no pair of fields is incompatible but at least one is possibly compatible, then `S1` and `S2` are possibly compatible. If all pairs of fields are compatible, then `S1` and `S2` are compatible.
+4. If `S1` and `S2` are both `ShapeStructInfo`:
+    1. `S2.ndim` is -1, then they are compatible.
+    2. Otherwise, give an error if `S1.ndim` does not match `S2.ndim`. 
+    3. If `values` is not defined for `S2`, then they are compatible.
+    4. If `values` is defined for `S2` but not defined for `S1`, then they are possibly compatible.
+    5. If `values` is defined for both `S1` and `S2`, then the two are incompatible if `S1.values[i]` can be proven to be _not_ equal to `S2.values[i]` for some `i`. If all members can be proven to be equal, then they are compatible. Otherwise, if at least one pair of values cannot be proven to be either equal or unequal, then they are possibly compatible.
+5. If `S1` and `S2` are both `TensorStructInfo`:
+    1. If `S2.dtype` is not `Void` and does not match `S1.dtype`, then they are incompatible.
+    2. If  `S2.ndim` is not -1 and does not match `S1.ndim`, then they are incompatible.
+    3. If `S2.shape` is not defined, then they are compatible.
+    4. If `S2.shape` is defined and `S1.shape` is not defined, then they are possibly compatible.
+    5. Otherwise, if both `shape` fields are given and either is a `Var`, then consider `S1` and `S2` compatible if the compiler can statically prove that the `Var` holds the same value as the other `shape` field, consider them possibly compatible if the compiler cannot draw a conclusion one way or the other, and consider them incompatible if the `Var` definitely has a different value from the other `shape`.
+    6. If both `shape` fields are given and they are both `ShapeExpr` nodes, then `S1` and `S2` are incompatible if the compiler can prove that some dimension of `S1.shape` is _not_ equal to the corresponding dimension of `S2.shape`. Otherwise, if the all dimensions can be proven to be equal, then consider them compatible. If at least one pair of dimensions cannot be proven to be equal or unequal, consider them possibly compatible.
+6. If `S1` and `S2` are both `FuncStructInfo`:
+    1. If `S1` and `S2` don't both have defined `params` or both have undefined `params`, consider them incompatible.
+    2. If both `S1` and `S2` have undefined `params`, consider them compatible if they have an identical `derive_func` and consider them possibly compatible if they have different `derive_func`s (as they is no further way to introspect the `derive_func` and draw static conslusions about `PackedFunc`s).
+    3. If `params` is defined for both `S1` and `S2`:
+        1. Consider them incompatible if the `params` have different lengths. 
+        2. If the `purity` of `S1` is `False` but the `purity` of `S2` is `True`, then consider them incompatible.
+        3. Next, map unbound shape variables as follows: Get a variable mapping `m` by applying `get_shape_var_mapping(S1.params[i], S2.params[i])` for all values of `i`, taking the union of all resulting mappings. Next, substitute all occurrences of the shape variables in `S1` with their values in `m`.
+        4. If `check_compatibility(S2.params[i], S1.params[i])` (note the direction of the check: see the subtyping rule for `FuncType`) is incompatible for any `i` or if `check_compatibility(S1.ret, S2.ret)` is incompatible, then they are incompatible. Otherwise, if `check_compatibility(S2.params[i], S1.params[i])` is possibly compatible for any `i` or if `check_compatibility(S1.ret, S2.ret)` is possibly compatible, consider `S1` and `S2` possibly compatible. Consider `S1` and `S2` compatible only if all checks are compatible.
+
 ### Derivation Rules
 
 Let `Γ` be the `StructInfo` context for Relax variables and let `Σ` track which shape variables are in scope.
