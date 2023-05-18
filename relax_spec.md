@@ -62,7 +62,7 @@ StructInfo ::= TensorStructInfo(shape: Expr?, dtype: DataType, ndim: int)
              | PrimStructInfo(dtype: DataType)
              | ObjectStructInfo()
              | TupleStructInfo(fields: [StructInfo])
-             | FuncStructInfo(params: [StructInfo]?, ret: StructInfo, derive_func: EnvFunc?*)
+             | FuncStructInfo(params: [StructInfo]?, ret: StructInfo, purity: bool, derive_func: EnvFunc?*)
 
 # expressions
 Expr ::=   Constant(data: NDArray)
@@ -76,7 +76,7 @@ Expr ::=   Constant(data: NDArray)
          | PrimValue(value: PrimExpr)
          | StringImm(value: string)
          | DataTypeImm(value: DataType)
-         | Function(params: [Var], body: Expr, ret_struct_info: StructInfo?, attrs: Attrs?)
+         | Function(params: [Var], body: Expr, ret_struct_info: StructInfo?, is_pure: bool?, attrs: Attrs?)
          | If(cond: Expr, true_branch: Expr, false_branch: Expr)
          | ExternFunc(global_symbol: string)
          | Call(op: Expr, args: [Expr], sinfo_args: [StructInfo], attrs: Attrs?)
@@ -150,6 +150,8 @@ This specification provides a more detailed description of what each expression 
 14. `Function` nodes represent function definitions, taking in the listed parameters and evaluating the body expression in a new scope (meaning any variables defined from within the function cannot be referenced outside it). Function definitions may be nested in any other expression and they evaluate into closure values, ensuring that functions are first-class. Closures capture any variables from the outer scope that are used in their body, both Relax variables and shape variables. Note that function definitions themselves are anonymous—a function must be registered in the `IRModule` (bound to a `GlobalVar`) or appear on the right-hand side of a binding to have a name in order to be called recursively. 
     
     The function can have structural annotations on the parameters and a structural annotation for the return value. When the function is called, the annotations on parameters are checked against the argument values in similar fashion to `MatchCast` and can introduce new shape variables that are scoped to the function. Additionally, the structural information of the return value is checked against the annotation before the call returns.
+
+    In addition to the structural annotations for the parameters and the return value, the `is_pure` field on a `Function` node serves to annotate whether the `Function` itself is pure (has no visible side effects) or not. The `StructInfo` system tracks purity in order to judge what calls are permitted inside `DataflowBlock`s. At this time, Relax makes no attempt to infer the purity of functions, so it is required for users to annotate the purity (if no annotation is provided, `is_pure` will be treated as true; since this is by far the most common case for deep learning applications, it is in practice necessarily to annotate purity if the function is _impure_).
     
     «A function mapped bound to a `GlobalVar` can have a `global_symbol` attribute defined to indicate that it should be externally linked externally (be accessible outside the `IRModule`). The absence of a `global_symbol` attribute on a function definition bound to a `GlobalVar` indicates that it is "private" and hence can be called only within the `IRModule`.»
     
@@ -177,7 +179,7 @@ Analogously to a type system in most languages, Relax tracks structural informat
 2. `TupleStructInfo` corresponds to tuple values, giving the `StructInfo` for each member of the tuple.
 3. `PrimStructInfo` corresponds to `PrimValue`s (immutable scalar values), giving their TIR datatype.
 4. `ShapeStructInfo` corresponds to shape values, optionally giving the number of dimensions in the shape and an expression that computes the shape's dimensions (either a `ShapeExpr` or a `Var`).
-5. `FunctionStructInfo` corresponds to function values (closures) and `PackedFunc`s (external functions), giving the types of the parameters, the return type, «and whether the function is pure.»
+5. `FunctionStructInfo` corresponds to function values (closures) and `PackedFunc`s (external functions), giving the types of the parameters, the return type, and whether the function is pure.
 6. `ObjectStructInfo` is a parent to all Relax `StructInfo` and corresponds to all the values above as well as any values returned by `PackedFunc` calls that do not fit in the above categories.
 
 `StructInfo` is assigned to every variable in scope and every type of expression based on the values it returns via a set of inference rules defined later in the specification, making use of subtyping to assign more general `StructInfo` when a more specific one cannot be determined. «Relax is strongly typed, meaning that if the `StructInfo` inferred is less specific than the one expected, an error will be issued and an explicit check via `MatchCast` will be required.»
@@ -198,7 +200,7 @@ Here are the classes of values that Relax operates over, meaning that they can b
 
 - *Tensors* are n-dimensional arrays of scalar values (which can be signed or unsigned integers of fixed bitwidths, floats of fixed bitwidths, or Boolean values). A tensor's *shape* is a tuple of the size of each dimension; the number of dimensions is a tensor's *rank*. For example, a vector (1, 2, 3) is a rank-1 tensor of shape `(3,)`. Note that scalars are tensor values with a rank of 0, meaning that their shape is `()`.
 - *Tuples* represent a fixed-size immutable grouping of other Relax values (tensors, closures, shapes, objects, or other tuples, to an arbitrary degree of nesting). Note that an empty tuple, i.e., `()`, also called "unit" in functional programming, is commonly used as the return value for operations not intended to return a value (as may be the case in some `PackedFunc` or operator calls that have side effects).
-- *Closures* are the values resulting from evaluating Relax function expressions; closures can be passed around like other values, ensuring that functions are first-class in Relax. Functions defined in Relax can capture variables from outer scopes. A [closure](https://en.wikipedia.org/wiki/Closure_(computer_programming)) consists of a function and a mapping of any variables "captured" (those are *free variables* in the function body, variables from an outer scope that are neither arguments nor defined within the function but are used in the function) to their values. Closures capture both Relax-level local variables and shape variables from outer scopes. A closure also stores a name for itself when the body contains recursive calls. «Closures additionally carry some *run-time structural information* (RTSI) indicating their argument and result structures, in order to facilitate dynamic structural checks (since it is not otherwise possible to introspect the function contained within a closure); the precise form of the RTSI is left up to the compiler implementation to determine so long as `MatchCast` can verify the structure of a closure. Closures can be evaluated in a call node, which results in calling the function with the call's arguments and the captured values.»
+- *Closures* are the values resulting from evaluating Relax function expressions; closures can be passed around like other values, ensuring that functions are first-class in Relax. Functions defined in Relax can capture variables from outer scopes. A [closure](https://en.wikipedia.org/wiki/Closure_(computer_programming)) consists of a function and a mapping of any variables "captured" (those are *free variables* in the function body, variables from an outer scope that are neither arguments nor defined within the function but are used in the function) to their values. Closures capture both Relax-level local variables and shape variables from outer scopes. A closure also stores a name for itself when the body contains recursive calls. «Closures additionally carry some *run-time structural information* (RTSI) indicating their argument and result structures, in order to facilitate dynamic structural checks (since it is not otherwise possible to introspect the function contained within a closure); the precise form of the RTSI is left up to the compiler implementation to determine so long as `MatchCast` can verify the structure of a closure, including whether it is pure. Closures can be evaluated in a call node, which results in calling the function with the call's arguments and the captured values.»
 - *Tensor shapes* (shape values) are immutable tuples of integers describing a tensor shape, obtained by evaluating `ShapeExpr`s.
 - *Packed functions* (`PackedFunc`s or external functions) represent arbitrary opaque functions implemented in TVM. That is, packed functions are routines that are defined outside of Relax and cannot be inspected by the compiler. They can perform side effects and return arbitrary values.
 - *Primitive values* (`PrimValue`s) represent immutable scalar values that are primarily intended for being passed to external procedures, like calls to `PackedFunc`s. As a rule of thumb, scalar values intended for arithmetical computations should be 0-rank tensors while scalar values meant to serve as metadata should be `PrimValue`s.
@@ -282,7 +284,7 @@ The following criteria apply to all programs (including before normalization):
     2. Calls to a global function that is mutually recursive with the current function
     3. `If` nodes
     
-    «Calls to Relax functions, `ExternFuncs`, or `Op`s that are not pure are also not permitted, but this must be detected during `StructInfo` checking.»
+    Calls to Relax functions, `ExternFuncs`, or `Op`s that are not pure are also not permitted, but this must be detected during `StructInfo` checking.
     
 7. «For functions that contain recursive calls to themselves or mutually recursive global functions (i.e., those where function `a` calls function `b` and function `b` calls function `a`), a return structural annotation is *required*.»
 8. `Op` nodes may appear only as the `op` argument to `Call` nodes. 
@@ -296,6 +298,7 @@ The following criteria apply to all programs (including before normalization):
 16. `PrimValue` nodes are intended only to be used with `value`s consisting of TIR `IntImm`s and `FloatImm`s (with `lanes` set to 1).
 17. `PrimStructInfo` annotations should use only the `Int`, `UInt`, or `Float` datatypes for their `dtype` fields.
 18. Per [the notes on `DataType`](#notes-on-datatype-and-related-terminology), any `DataType` annotation must have a `lanes` value of 1 for the `Int`, `UInt`, or `Float` datatypes and a `lanes` value of 0 for the `Handle` (`Void`) datatype. Additionally, `bits` must be 64 for `Void`. The supported bitwidths for `Int` and `UInt` are 1, 8, 16, 32, and 64; the supported bitwidths for `Float` are 16, 32, and 64.
+19. If a `Function` `f` has an `attrs` field that includes the attribute `relax.force_pure`, `f`'s `is_pure` field must be set to `True`.
 
 Additionally, the criteria for normal form listed in [the previous section](#normal-form) must apply to any program that has been normalized.
 
@@ -349,7 +352,7 @@ This section describes the run-time checking performed by `MatchCast(var, value,
     1. If the `i`th member of `values` consists of only an unbound shape variable, then bind that variable to the `i`th field of the the concrete shape value.
     2. Otherwise, evaluate the `i`th member of `values` and check that it is equal to teh `i`th field of the concrete shape value.
 5. If `struct_info` is `TupleStructInfo(fields)`, then check that `value` is a tuple value with `n` fields, where `n` is the length of `fields`. Also recursively check the `i`th field of the tuple value against the `i`th member of `fields`.
-6. If `struct_info` is `FuncStructInfo(params, ret, derive_func)`, then if `params` is defined, check that `value` is a closure value; if `derive_func` is defined, check that `value` is a `PackedFunc`. No further validation may be done on a `PackedFunc`. «If `value` is a closure value, then it can contain run-time structural information indicating the structural information of its intended arguments and return value that can be compared against `params` and `ret`.»
+6. If `struct_info` is `FuncStructInfo(params, ret, purity, derive_func)`, then if `params` is defined, check that `value` is a closure value; if `derive_func` is defined, check that `value` is a `PackedFunc`. No further validation may be done on a `PackedFunc`. «If `value` is a closure value, then it can contain run-time structural information indicating its purity and the structural information of its intended arguments and return value that can be compared against `purity`, `params`, and `ret`.»
 
 ### Checking Structural Information at the Start and End of a Function
 
@@ -410,7 +413,8 @@ Note that judging subtyping requires potentially reasoning about arbitrary `Shap
 8. For `FuncStructInfo`:
     1. Given an arbitrary derivation function `derive_func`, `FuncStructInfo(ret=ObjectStructInfo(), derive_func=derive_func) <: FuncStructInfo(ret=ObjectStructInfo(), derive_func=empty_derive)`.
     2. Corollary, following from reflexivity: For two `FuncStructInfo` `F1` and `F2` with undefined `params`, `F1 <: F2` only if `F1.derive_func` and `F2.derive_func` are identical.
-    3. Given two lists of `StructInfo` parameters `P1` and `P2` and two `StructInfo` annotations `R1` and `R2`, `FuncStructInfo(params=P1, ret=R1) <: FuncStructInfo(params=P2, ret=R2)` if `P1` and `P2` are the same length and for all `i`, `P2[i] <: P1[i]` and `R1 <: R2`. We consider the subtyping relationship to _possibly_ hold if any of the subtyping relationships given only possibly holds.
+    3. Given a list of `StructInfo` parameters `P` and a `StructInfo` return annotation `R`, then `FuncStructInfo(params=P, ret=R, purity=True) <: FuncStructInfo(params=P, ret=R, purity=False)`. That is, a pure function can be passed where an impure one is accepted, but not vice versa.
+    3. Given two lists of `StructInfo` parameters `P1` and `P2`, two `StructInfo` annotations `R1` and `R2`, and a Boolean `purity`, `FuncStructInfo(params=P1, ret=R1, purity=purity) <: FuncStructInfo(params=P2, ret=R2, purity=purity)` if `P1` and `P2` are the same length and for all `i`, `P2[i] <: P1[i]` and `R1 <: R2`. We consider the subtyping relationship to _possibly_ hold if any of the subtyping relationships given only possibly holds.
 
 These rules allow us to define the least upper bound (LUB) for any two `StructInfo` `S1` and `S2`, meaning that it is the most specific `StructInfo` `S` for which `S1 <: S` and `S2 <: S` ("most specific" meaning that if there exists some other `S'` for which `S1 <: S'` and `S2 <: S'`, then `S <: S'`), modulo reasoning about arithmetic (for example, the compiler may judge that two shape expressions are _possibly_ equivalent rather than _definitely_ equivalent). The LUB is guaranteed to exist for any two `StructInfo` because all `StructInfo` are subtypes of `ObjectStructInfo`.
 
@@ -475,6 +479,8 @@ def unify_struct_info(S1: StructInfo, S2: StructInfo) -> StructInfo:
         if S1.params and S2.params are both defined:
             if S1.params and S2.params do not have the same length:
                 return ObjectStructInfo()
+            # the LUB is pure if they're both pure and false if either isn't
+            purity = S1.purity and S2.purity
             unified_params = []
             for 0 <= i < length of S1.params:
                 unified_param = unify_struct_info(S1.params[i], S2.params[i])
@@ -487,12 +493,23 @@ def unify_struct_info(S1: StructInfo, S2: StructInfo) -> StructInfo:
                     unified_params[i] = unified_param
                 else:
                     return ObjectStructInfo()
-            return FuncStructInfo(params=unified_params, ret=unify_struct_info(S1.ret, S2.ret))
+            return FuncStructInfo(params=unified_params, ret=unify_struct_info(S1.ret, S2.ret), purity=purity)
 ```
 
 ## Deriving the Structural Information for Each Expression
 
 For each kind of expression, we can recursively build up the structural information associated with the expression.
+
+### Checking Purity
+
+The below derivation rules will explain in formal detail how Relax checks the correctness of purity annotations and enforces that impure calls are not made inside `DataflowBlock`s. At a high level, it operates by the following principles:
+1. Calls to `ExternFunc`s (which thus includes any expression whose `StructInfo` is `FuncStructInfo` with a `derive_func` included) are assumed to be impure by default. The `call_pure_packed` operator can be used to indicate to the compiler that a particular call to an `ExternFunc` is, in fact, pure.
+2. `Op` nodes must have an attribute called `FPurity`, which is a boolean flag that indicates whether or not the operator is pure. If the operator can have visible side effects in any case at all, it should be considered impure.
+3. For Relax `Function`s, the purity will depend on the `is_pure` annotation (which must be user-supplied).
+
+Thus, the `StructInfo` system can determine whether a call is pure based on the above principles: For operators, it refers to `FPurity` and otherwise it refers to the `FuncStructInfo` (using the `purity` field for functions with `params` defined and assuming that any function with a `derive_func` defined is impure). If any such call occurs inside a `DataflowBlock` or a `Function` whose `is_pure` field is set to `True`, that is treated as a type error.
+
+For verifying the purity of a function, however, there is one workaround permitted: If the function has the `relax.force_pure` attribute mapped to `True` in its `attrs`, then impure calls will be disregarded. This accounts for situations where individual actions may be impure (like mutating a value) but the overall effect of the function is pure (e.g., if the value that is mutated is one that is created inside the function, meaning that no externally-visible memory was ever mutated). This case is unlikely to be common for input programs, though `relax.force_pure` is used frequently in later stages of compilation.
 
 ### Auxiliary Procedures
 
@@ -657,15 +674,20 @@ Let `Γ` be the `StructInfo` context for Relax variables and let `Σ` track whic
     4. Use `fields[i]` (zero-based) as the structural information for the `TupleGetItem`.
 13. For an `ExternFunc` node, the resulting structural information is `FuncStructInfo(params=None, ret=ObjectStructInfo(), derive_func=default_derive)`.
 14. For `Call(op, [arg1, arg2, ..., argn], type_args=[aT1, aT2, ..., aTn])`:
-    1. For a call to an `Op`, we use the manually defined `FInferStructInfo` macro if it has been defined and `ObjectStructInfo()` if it has not. `FInferStructInfo` is a function that takes in the call node and returns the structural information of the result.
+    1. For a call to an `Op`:
+       1. We use the manually defined `FInferStructInfo` macro if it has been defined for `op` and `ObjectStructInfo()` as the resulting `StructInfo` if it has not. `FInferStructInfo` is a function that takes in the call node and returns the structural information of the result.
+       2. If the current function has `is_pure` set to `True` and the current function does not have `relax.force_pure` mapped to `True` in its `attrs` field _or_ if the current scope is inside a `DataflowBlock`, then consider it a type error if `op` does not have `True` as the value for its `FPurity` attribute.
     2. Otherwise, derive the structural information for `op` and call it `Sf`. Next derive the structural information for the args and call it `S1`, `S2`, ..., and `Sn`. 
         1. Give an error if `Sf` is not `FuncStructInfo`.
-        2. If the `derive_func` field of `Sf` is defined, then apply the `derive_func` macro to the call node to derive the structural information for the call node, ignoring the `ret` field of `Sf`.
-        3. Otherwise, `params` must be defined. Give an error if the length of `params` does not match the number of call arguments. Let the members of params be `P1`, `P2`, ..., `Pn`.
-        4. Next, attempt to perform [beta-reduction](https://en.wikipedia.org/wiki/Lambda_calculus#%CE%B2-reduction) by matching unbound shape variables in `params` with the `Si`. Namely, get a shape var mapping `m` by applying `get_shape_var_mapping(params[i], Si)` for all `i` and taking the union of all resulting mappings. For each shape variable `v` that occurs in `Sf`, replace it with `m[v]` if `v` is in `m`.
-        5. After the substitutions, give an error if `Pi <: Si` does not hold for some `i` (give a warning if it _possibly_ holds).
-        6. Use `erase_to_well_defined(Sf.ret, Γ, Σ)` as the resulting structural information.
-15. For `Function(params=[v1, v2, ..., vn], body, ret_struct_info)`:
+        2. If the `derive_func` field of `Sf` is defined:
+            1. If the current function has `is_pure` set to `True` and the current function does not have `relax.force_pure` mapped to `True` in its `attrs` field _or_ if the current scope is inside a `DataflowBlock`, then give a type error: External functions are assumed to be impure by default (the `call_pure_packed` operator can be used to indicate to the compiler that an external function is, in fact, pure).
+            2. Apply the `derive_func` macro to the call node to derive the structural information for the call node, ignoring the `ret` field of `Sf`. Additionally, 
+        3. If the current function has `is_pure` set to `True` and the current function does not have `relax.force_pure` mapped to `True` in its `attrs` field _or_ if the current scope is inside a `DataflowBlock`, then consider it a type error if `Sf`'s `purity` field is not `True`.
+        4. Otherwise, `params` must be defined. Give an error if the length of `params` does not match the number of call arguments. Let the members of params be `P1`, `P2`, ..., `Pn`.
+        5. Next, attempt to perform [beta-reduction](https://en.wikipedia.org/wiki/Lambda_calculus#%CE%B2-reduction) by matching unbound shape variables in `params` with the `Si`. Namely, get a shape var mapping `m` by applying `get_shape_var_mapping(params[i], Si)` for all `i` and taking the union of all resulting mappings. For each shape variable `v` that occurs in `Sf`, replace it with `m[v]` if `v` is in `m`.
+        6. After the substitutions, give an error if `Pi <: Si` does not hold for some `i` (give a warning if it _possibly_ holds).
+        7. Use `erase_to_well_defined(Sf.ret, Γ, Σ)` as the resulting structural information.
+15. For `Function(params=[v1, v2, ..., vn], body, ret_struct_info, is_pure, attrs)`:
     1. Let `S1`, `S2`, ..., `Sn` be the structural information of the parameters. If `vi` has a structural annotation, then use that annotation for `Si`; if not, use `ObjectStructInfo()`. Let `Sr` be `ret_struct_info` if it is defined and `ObjectStructInfo()` if not.
     2. If the function is bound to a `GlobalVar` `gv`, set `Γ[gv]` to `FuncStructInfo(params=[S1, S2, ..., Sn], ret=Sr)`. Still check the structural information in `body`, however.
     3. For each of the `vi`, set `Γ[vi]` to `Si`. Additionally, add all new shape variables introduced in the `Si` to `Σ`.
@@ -806,5 +828,12 @@ The above evaluation rules are general, but leave much room for implementations 
     - Evaluate `f(arg1, arg2, ..., argn, r1, r2, ..., rm)`.
     - «If the shape or data type of the actual result do not correspond to the `tsi`, an error is issued.»
     - Return `r1` if `aS1` is a single `TensorStructInfo`; otherwise, return `Tuple(fields=[r1, r2, ..., rm])`.
+    - Note that it is assumed that `packed_func` will be pure, so `call_dps_packed` is treated as a pure operator (its `FPurity` is set to `True`).
+- `call_pure_packed(func, args, sinfo_args)`: 
+    - `func` must evaluate to a `PackedFunc` object.
+    - `args` must be a tuple.
+    - `sinfo_args` must be a non-empty list of `StructInfo`.
+    - The returned value will have the semantics of `Call(func, args, sinfo_args=sinfo_args)`. However, this call will be assumed to be pure (`call_pure_packed`'s `FPurity` is set to `True`), thus allowing the call to appear inside a `DataflowBlock` or a function whose `is_pure` is set to `True`.
+    - Note: This operator is intended to be be used for cases where  the user knows that calling the packed function will _in reality_ not cause any side effects. If it is used for a call that _does_ result in side effects, then the compiler may end up removing, reordering, or repeating that call; the specification makes no guarantees about the side effects in the callee in that case.
 - `shape_of(t)`: Given a tensor argument `t`, it returns its shape. The return value is a shape object.
 - `null_value()`: Returns a null object (treated as `ObjectStructInfo`). This is used for indicating to operators that an optional argument has been omitted.
