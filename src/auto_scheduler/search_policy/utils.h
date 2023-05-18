@@ -704,7 +704,10 @@ State DoMultiLevelTiling(const State& state, int stage_id, const std::string& fo
 // Apply tiling structure: space, space, space, ..., with tile sizes from other SplitStep
 State FollowTiling(const State& state, int stage_id, const std::vector<int>& split_step_ids,
                    int n_split);
-
+// GA: Crossover two states
+State CrossOverState(const SearchTask& task, std::mt19937* random_gen, const State& p1,
+                    const State& p2, std::vector<int>* fail_counters,float proportion);
+  
 // Prune invalid states and return the results in-place.
 void PruneInvalidState(const SearchTask& task, Array<State>* states);
 

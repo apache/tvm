@@ -585,7 +585,67 @@ Array<State> SketchPolicyNode::EvolutionarySearch(const Array<State>& init_popul
     // Compute selection probability
     ComputePrefixSumProb(pop_scores, &pop_selection_probs);
 
-    // TODO(merrymercy, comaniac): add crossover.
+    // Do cross over
+    int ct = 0;
+    
+    while (cross_over_enabled_ &&
+           static_cast<int>(pnext->size()) < num_cross_over &&
+      	   ct < num_cross_over_trial_upper_bound) {
+
+      int p1 = RandomChoose(pop_selection_probs, &rand_gen_);
+      int p2 = RandomChoose(pop_selection_probs, &rand_gen_);
+
+      StdCout(verbose)<<"p1:"<<p1<<" p2:"<<p2
+      <<" size:"<<(*pnow)[p1]->stages.size()<<" "<<(*pnow)[p2]->stages.size();
+ 
+      float proportion=0.0;
+
+      float a=pop_scores[p1];
+      float b=pop_scores[p2];
+         
+      if(a<0){
+        proportion=100.0;
+      }else if(b<0){
+        proportion=0.0;
+      }else proportion=(a/(a+b))*100;
+
+      if (p1 == p2 || (*pnow)[p1].ToStr() == (*pnow)[p2].ToStr()) {
+	      StdCout(verbose)<<ct<<":equall ";
+        pnext->push_back((*pnow)[p1]);
+      } else {
+        State tmp_s = CrossOverState(cur_task, &rand_gen_, (*pnow)[p1], (*pnow)[p2], &crossover_fail_counters,proportion);
+        for(auto fail:crossover_fail_counters){
+			    StdCout(verbose)<<fail<<" ";
+		    }	
+        //StdCout(verbose)<<crossover_fail_counters<<std::endl;
+        //StdCout(verbose)<<tmp_s.ToStr()<<std::endl;
+        if (tmp_s.defined()) {
+          //std::cerr << (*pnow)[p1] << std::endl;
+          //std::cerr << "========================================" << std::endl;
+          //std::cerr << (*pnow)[p2] << std::endl;
+          //std::cerr << "========================================" << std::endl;
+          //tmp_s = cur_task->compute_dag.InferBound(tmp_s);
+          //std::cerr << tmp_s << std::endl;
+          //std::cerr << "========================================" << std::endl;
+          ////std::cerr << cur_task->compute_dag.PrintStepsAsPython(tmp_s->transform_steps);
+          //exit(0);
+          pnext->push_back(std::move(tmp_s));
+          StdCout(verbose)<<ct<<":success "<<std::endl;
+          crossover_success_ct++;
+        } else{
+          StdCout(verbose)<<ct<<":fail "<<std::endl;
+          crossover_fail_ct++;
+        }
+      }
+      ct++;
+    }
+
+    // Turn off crossover forever if we cannot perform it successfully
+    if (crossover_success_ct == 0) {
+	    StdCout(verbose)<<"crossover fail"<<std::endl;
+      cross_over_enabled_ = false;
+      crossover_success_ct = crossover_fail_ct = -1;
+    }
 
     // Do mutation
     while (pnext->size() < population) {

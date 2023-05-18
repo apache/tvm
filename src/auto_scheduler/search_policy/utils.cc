@@ -372,6 +372,222 @@ bool HasNestedParallel(const State& state) {
   return false;
 }
 
+State CrossOverState(const SearchTask& task, std::mt19937* random_gen, const State& p1,
+  const State& p2, std::vector<int>* fail_counters,float proportion){
+  // An internal class that replays a parent state to make the stage ID consist.
+  class SyncingState {
+   public:
+    int id;
+    State sync_state;
+    const std::vector<Step>& steps;
+    int stage_change_cnt;
+    size_t step_ptr;
+
+    SyncingState(const SearchTask& task, int id, const State& ref_state)
+        : steps(ref_state->transform_steps) {
+      this->id = id;
+      this->sync_state = task->compute_dag.GetInitState();
+      this->stage_change_cnt = 0;
+      this->step_ptr = 0;
+    }
+
+    // Indicate if the state is up-to-date (all steps are applied).
+    bool IsSynced() { return step_ptr == steps.size(); }
+
+    // Number of applied steps that changed stages.
+    int StageChangeCount() { return stage_change_cnt; }
+
+    // Get the target stage name of the step to be applied.
+    std::string GetCurrStageName() {
+      if (IsSynced()) {
+        return "";
+      }
+      return sync_state->stages[steps[step_ptr]->stage_id]->op->name;
+    }
+
+    // Apply one step to the syncing state. Do nothing if all steps are applied already.
+    void ApplyOneStep(const SearchTask& task) {
+      if (IsSynced()) {
+        return;
+      }
+
+      const Step& step = steps[this->step_ptr];
+      this->sync_state.CopyOnWrite()->transform_steps.push_back(step);
+      this->sync_state.DoStep(step, task->compute_dag);
+
+      if (IsStageNumberChangingStep(step)) {
+        this->stage_change_cnt++;
+      }
+      this->step_ptr++;
+    }
+  };
+
+  // Don't do crossover when the stage numbers are different
+  if (p1->stages.size() != p2->stages.size()) {
+    (*fail_counters)[0]++;
+    return State();
+  }
+
+  // Create sync states to match the stages.
+  SyncingState sync_p1(task, 1, p1);
+  SyncingState sync_p2(task, 2, p2);
+  std::vector<SyncingState*> sync_states = {&sync_p1, &sync_p2};
+
+  // Stage index to the selected state. Default to p1.
+  std::unordered_map<std::string, int> stage_out_to_states;
+  int p1_selected = 0, p2_selected = 0;
+
+  //doublex----p2+p1+p2
+  int length=static_cast<int>(p1->stages.size());
+  int one_point=rand() % length;
+  int two_point=rand() % length;
+  while(two_point==one_point){
+    two_point=rand() % length;
+  }
+  int cnt=0;
+  for (int t=length-1; t >= 0; --t) {
+
+    // Don't do crossover only when the stage names are different
+    if (p1->stages[t]->op->name != p2->stages[t]->op->name) {
+      (*fail_counters)[1]++;
+      return State();
+    }
+
+    // This stage is already been assigned
+    if (stage_out_to_states.count(p1->stages[t]->op->name)) {
+      continue;
+    }
+
+    if (p1->stages[t]->op_type == kPlaceholder) {
+      // Since CacheRead steps target to placeholder stage, we assign all placeholders to p1.
+      stage_out_to_states[p1->stages[t]->op->name] = sync_p1.id;
+      continue;
+    } 
+
+    if(t==one_point || t==two_point) ++cnt;
+
+    if(cnt==0 || cnt==2){
+      stage_out_to_states[p2->stages[t]->op->name] = sync_p2.id;
+      if (p2->stages[t]->compute_at != kInlined) {
+        p2_selected++;
+      }
+    }
+
+    if(cnt==1){
+      stage_out_to_states[p1->stages[t]->op->name] = sync_p1.id;
+      if (p1->stages[t]->compute_at != kInlined) {
+        p1_selected++;
+      }
+    }
+
+    if (IsGPUTask(task)) {
+      int id = stage_out_to_states[p1->stages[t]->op->name];
+      const State& parent = (id == 1 ? p1 : p2);
+
+      // On GPU, if we choose a root stage, all stages in this GPU kernel should also be chosen.
+      // This can fix some fatal dependency problems.
+      if (parent->stages[t]->compute_at == kRoot) {
+        std::function<void(int)> assign_attached_stages;
+        assign_attached_stages = [&assign_attached_stages, id, &parent, &stage_out_to_states](int stage_id) {
+          const Stage& stage = parent->stages[stage_id];
+          for (size_t i = 0; i < stage->iters.size(); ++i) {
+            AttachMap::IterKey iter_key(stage_id, i);
+            auto res = parent->attach_map->iter_to_attached_stages.find(iter_key);
+            if (res != parent->attach_map->iter_to_attached_stages.end()) {
+              for (const auto& attach_stage_id : res->second) {
+                stage_out_to_states[parent->stages[attach_stage_id]->op->name] = id;
+                assign_attached_stages(attach_stage_id);
+              }
+            }
+          }
+        };
+        assign_attached_stages(t);
+      }
+    } else {
+      // If a rfactor stage is chosen, all stages related to this rfactor should be chosen.
+      // This can fix some fatal dependency problems.
+      if (StrEndsWith(p1->stages[t]->op->name, ".repl")) {
+        int id = stage_out_to_states[p1->stages[t]->op->name];
+        std::string raw_name = p1->stages[t]->op->name.substr(0, p1->stages[t]->op->name.size() - 5);
+        stage_out_to_states[raw_name] = id;
+        stage_out_to_states[raw_name + ".rf"] = id;
+      }
+    }
+  }
+
+  // If all stages are coming from the same state, then no need to crossover.
+  if (p1_selected == 0 || p2_selected == 0) {
+    (*fail_counters)[2]++;
+    return State();
+  }
+
+  // Create a new state.
+  State tmp_s = task->compute_dag.GetInitState();
+
+  // Apply steps. Meanwhile we also re-apply steps to p1 and p2 to make sure
+  // the stage ID is matched.
+  while (!sync_states[0]->IsSynced() && !sync_states[1]->IsSynced()) {
+    SyncingState* sync_s = nullptr;
+
+    // Determine which state we will focus on this round.
+    // If a state has changed its stages more times than another state, we prior to another state to
+    // make their stages synced. Otherwise we simply go for the one with smaller step pointer.
+    if (sync_states[0]->StageChangeCount() < sync_states[1]->StageChangeCount()) {
+      sync_s = sync_states[0];
+    } else if (sync_states[0]->StageChangeCount() > sync_states[1]->StageChangeCount()) {
+      sync_s = sync_states[1];
+    } else {
+      sync_s = sync_states[(sync_states[0]->step_ptr <= sync_states[1]->step_ptr) ? 0 : 1];
+    }
+    const std::string& curr_stage_name = sync_s->GetCurrStageName();
+
+    // Check if we want to apply this step.
+    std::string target_stage_name = curr_stage_name;
+    if (auto ps = sync_s->steps[sync_s->step_ptr].as<ComputeAtStepNode>()) {
+      // Whether to apply Compute_at step depends on the target stage instead of self stage.
+      target_stage_name = sync_s->sync_state->stages[ps->target_stage_id]->op->name;
+    }
+
+    // If the target stage of the current state is selected, we apply this step to the new state.
+    if (stage_out_to_states[target_stage_name] == sync_s->id) {
+      tmp_s = ApplyStepToNewState(task, tmp_s, sync_s->sync_state, sync_s->steps[sync_s->step_ptr]);
+      if (!tmp_s.defined()) {
+        (*fail_counters)[3]++;
+        return tmp_s;
+      }
+    }
+
+    sync_s->ApplyOneStep(task);
+  }
+
+  // Process tails.
+  for (size_t i = 0; i < sync_states.size(); ++i) {
+    SyncingState* sync_s = sync_states[i];
+    while (!sync_s->IsSynced()) {
+      const std::string& stage_name = sync_s->GetCurrStageName();
+
+      // Check if we want to apply this step.
+      std::string target_stage_name = stage_name;
+      if (auto ps = sync_s->steps[sync_s->step_ptr].as<ComputeAtStepNode>()) {
+        // Whether to apply Compute_at step depends on the target stage instead of self stage.
+        target_stage_name = sync_s->sync_state->stages[ps->target_stage_id]->op->name;
+      }
+
+      // If the target stage of the current state is selected, we apply this step to the new state.
+      if (stage_out_to_states[target_stage_name] == sync_s->id) {
+        tmp_s = ApplyStepToNewState(task, tmp_s, sync_s->sync_state, sync_s->steps[sync_s->step_ptr]);
+        if (!tmp_s.defined()) {
+          (*fail_counters)[4]++;
+          return tmp_s;
+        }
+      }
+
+      sync_s->ApplyOneStep(task);
+    }
+  }
+  return tmp_s;  
+}
+  
 void PruneInvalidState(const SearchTask& task, Array<State>* states) {
   size_t pt = 0;
   for (size_t i = 0; i < states->size(); ++i) {
