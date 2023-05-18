@@ -5009,7 +5009,7 @@ def from_pytorch(
 
 
 def tvm_relay_backend(gm, example_inputs, *, scheduler=None, trials=20000):
-    """ Registering TVM as one of the backends available to torch.compile()
+    """Registering TVM as one of the backends available to torch.compile()
         Note that this function needs to comply with the contract from torch:
         https://pytorch.org/docs/stable/dynamo/custom-backends.html
     ----------
@@ -5033,37 +5033,40 @@ def tvm_relay_backend(gm, example_inputs, *, scheduler=None, trials=20000):
     import tempfile  # type: ignore[import]
 
     from tvm.contrib import graph_executor
-    
+
     assert isinstance(gm, torch.fx.GraphModule)
-   
+
     def device_from_inputs(example_inputs) -> torch.device:
         for x in example_inputs:
             if hasattr(x, "device"):
                 return x.device
         logger.warning("No deviced detected from inputs, using cuda or cpu if cuda not available")
+
         return torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    
+
     @functools.lru_cache(None)
     def llvm_target():
         if "avx512" in open("/proc/cpuinfo").read():
             return "llvm -mcpu=skylake-avx512"
         return "llvm -mcpu=core-avx2"
-    
+
     jit_mod = torch.jit.trace(gm, example_inputs)
     device = device_from_inputs(example_inputs)
     shape_list = [(f"inp_{idx}", i.shape) for idx, i in enumerate(example_inputs)]
     example_outputs = gm(*example_inputs)
-    
+
     if len(example_outputs) == 0:
         logger.warning("Explicitly fall back to eager due to zero output")
         return gm.forward
-    
+
     try:
         mod, params = from_pytorch(jit_mod, shape_list)
     except Exception as ex:
-        logger.error(f"Unexpected error during torch->relay conversion. Falling back to torch.eager. Details: {str(ex)}")
+        logger.error(
+            f"Unexpected error during torch->relay conversion. Falling back to torch.eager. Details: {str(ex)}"
+        )
         return gm.forward
-    
+
     if device.type == "cuda":
         dev = tvm.cuda(device.index)
         target = tvm.target.cuda()
@@ -5080,9 +5083,7 @@ def tvm_relay_backend(gm, example_inputs, *, scheduler=None, trials=20000):
         log_file = tempfile.NamedTemporaryFile()
 
         if not os.path.exists(log_file):
-            tasks, task_weights = auto_scheduler.extract_tasks(
-                mod["main"], params, target
-            )
+            tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target)
             if len(tasks) != 0:
                 tuner = auto_scheduler.TaskScheduler(tasks, task_weights)
                 if not os.path.exists(log_file):
