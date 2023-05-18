@@ -150,10 +150,11 @@ class LazyTransformParamsMutator(PyExprMutator):
         # rewrite get item
         tuple_get_item = super().visit_tuple_getitem_(op)
         if tuple_get_item.tuple_value == self.input_tuple_param:
-            return relax.call_pure_packed(
+            return relax.Call(
                 relax.ExternFunc("get_item"),
-                relax.PrimValue(tuple_get_item.index),
-                sinfo_args=(relax.ObjectStructInfo(),),
+                [relax.PrimValue(tuple_get_item.index)],
+                None,
+                [relax.ObjectStructInfo()],
             )
         else:
             return tuple_get_item
@@ -165,15 +166,11 @@ class LazyTransformParamsMutator(PyExprMutator):
             var_before_setitem = self.builder_.emit(value)
             # rewrite set item
             new_var = self.builder_.emit(
-                # TODO(@relax-team): This is wrong! This is not pure,
-                # but there is no other way to allow this inside a dataflow block.
-                # Properly speaking, this pass should require ToNonDataflow first,
-                # but the liveness analysis requires dataflow blocks. This should be refactored
-                relax.call_pure_packed(
+                relax.Call(
                     relax.ExternFunc("set_item"),
-                    index,
-                    var_before_setitem,
-                    sinfo_args=(relax.ObjectStructInfo(),),
+                    [index, var_before_setitem],
+                    None,
+                    [relax.ObjectStructInfo()],
                 )
             )
             self.set_var_remap(binding.var.vid, new_var)
@@ -194,6 +191,8 @@ class LazyTransformParams:
     """
     Convert transform_params functions into a lazy version.
     (Load the input to memory on demand, and immediately free it after the last use.)
+
+    Note: ToNonDataflow() and RemovePurityTracking() should be invoked before this pass.
     """
 
     def transform_module(self, mod: IRModule, ctx: tvm.transform.PassContext) -> IRModule:
