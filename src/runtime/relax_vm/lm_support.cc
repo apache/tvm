@@ -424,6 +424,54 @@ int SampleTopPFromProb(NDArray prob, double top_p, double uniform_sample) {
 
 TVM_REGISTER_GLOBAL("vm.builtin.sample_top_p_from_prob").set_body_typed(SampleTopPFromProb);
 
+// This is an inplace operation.
+void ApplyRepetitionPenalty(NDArray logits, NDArray token_ids, double penalty) {
+  ICHECK(logits.IsContiguous());
+  ICHECK(token_ids.IsContiguous());
+  ICHECK(logits.DataType() == DataType::Float(32)) << "Logits data type is not float32!";
+  ICHECK(token_ids.DataType() == DataType::Int(32)) << "token ids must be int32!";
+  ICHECK(logits->device.device_type == kDLCPU) << "logits device must be CPU!";
+  ICHECK(token_ids->device.device_type == kDLCPU) << "token_ids device must be CPU!";
+  float* logits_raw_data = static_cast<float*>(logits->data);
+  int* token_ids_data = static_cast<int*>(token_ids->data);
+  size_t num_token_ids = token_ids->shape[token_ids->ndim - 1];
+  for (size_t i = 0; i < num_token_ids; ++i) {
+    int token_id = token_ids_data[i];
+    if (logits_raw_data[token_id] <= 0) {
+      logits_raw_data[token_id] *= penalty;
+    } else {  // logits > 0
+      logits_raw_data[token_id] /= penalty;
+    }
+  }
+}
+
+TVM_REGISTER_GLOBAL("vm.builtin.apply_repetition_penalty").set_body_typed(ApplyRepetitionPenalty);
+
+// This is an inplace operation.
+void ApplySoftmaxWithTemperature(NDArray logits, double temperature) {
+  ICHECK(logits.IsContiguous());
+  ICHECK(logits.DataType() == DataType::Float(32)) << "Logits data type is not float32!";
+  ICHECK(logits->device.device_type == kDLCPU) << "logits device must be CPU!";
+  int vocab_size = logits->shape[logits->ndim - 1];
+  float* logits_raw_data = static_cast<float*>(logits->data);
+  float inv_temp = 1.0f / temperature;
+  float m = std::numeric_limits<float>::min();
+  double d = 0.0f;
+  for (int i = 0; i < vocab_size; ++i) {
+    float x = logits_raw_data[i] * inv_temp;
+    float m_prev = m;
+    m = std::max(m, x);
+    d = d * std::exp(m_prev - m) + std::exp(x - m);
+  }
+  for (int i = 0; i < vocab_size; ++i) {
+    float x = logits_raw_data[i] * inv_temp;
+    logits_raw_data[i] = std::exp(x - m) / d;
+  }
+}
+
+TVM_REGISTER_GLOBAL("vm.builtin.apply_softmax_with_temperature")
+    .set_body_typed(ApplySoftmaxWithTemperature);
+
 }  // namespace relax_vm
 }  // namespace runtime
 }  // namespace tvm
