@@ -410,8 +410,9 @@ def annotate_workspace(mod, _):
     """Pass to annotate a workspace requirement for each CUTLASS-offloaded function."""
     annotator = WorkspaceAnnotator(mod)
     for name, f in mod.functions.items():
-        new_f = annotator.visit_expr(f)
-        mod.update_func(name, new_f)
+        if isinstance(f, Function):
+            new_f = annotator.visit_expr(f)
+            mod.update_func(name, new_f)
     return mod
 
 
