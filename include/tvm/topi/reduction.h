@@ -57,14 +57,14 @@ using FCommReduce = std::function<Array<PrimExpr>(Array<PrimExpr> exprs, const A
  * \param ndim Number of dimensions in the target.
  * \param axis The axis parameter.
  *
- * \return A non-empty sorted array of valid dimension indices, with no duplicates.
- * If the input axis is empty, the result will be an axis including all dimensions.
+ * \return A sorted array of valid dimension indices, with no duplicates.
+ * If the input axis is None, the result will be an axis including all dimensions.
  * If any input element is negative, it will be treated as an offset from the
  * last dimension (same as python indexing rules).
  */
 inline std::vector<int> GetRealAxis(int ndim, const Array<Integer>& axis) {
   std::vector<int> real_axis;
-  if (!axis.defined() || axis.size() == 0) {
+  if (!axis.defined()) {
     for (int i = 0; i < ndim; ++i) {
       real_axis.push_back(i);
     }
@@ -75,7 +75,7 @@ inline std::vector<int> GetRealAxis(int ndim, const Array<Integer>& axis) {
       if (val < 0) {
         val += ndim;
       }
-      ICHECK_LE(val, ndim) << " exceeds the maximum dimension " << ndim;
+      ICHECK_LT(val, ndim) << " exceeds the maximum dimension " << ndim;
       ICHECK_GE(val, 0);
       real_axis.push_back(static_cast<int>(val));
     }
