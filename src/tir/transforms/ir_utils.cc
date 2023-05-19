@@ -146,6 +146,11 @@ class IRConvertSSA final : public StmtExprMutator {
       bool made_change = false;
       for (const auto& [var, buffer] : func->buffer_map) {
         auto new_var = GetRemappedVar(var);
+        if (defined_.count(buffer->data.get())) {
+          redefines.emplace_back(this, buffer->data);
+        } else {
+          defined_.insert(buffer->data.get());
+        }
         auto new_buf = GetRemappedBuffer(buffer);
 
         made_change = made_change || !var.same_as(new_var) || !buffer.same_as(new_buf);
@@ -159,6 +164,10 @@ class IRConvertSSA final : public StmtExprMutator {
     }();
 
     auto attrs = [&]() -> DictAttrs {
+      if (!func->attrs.defined()) {
+        return DictAttrs();
+      }
+
       Map<String, ObjectRef> dict;
       bool made_change = false;
 
@@ -278,9 +287,14 @@ class IRConvertSSA final : public StmtExprMutator {
     // new buffer, pushing it onto the scoped stack of existing
     // buffers.  This will be popped when the new_buffer_var
     // redefinition is popped.
-    Buffer new_buf(new_buffer_var, buf->dtype, shape, strides, elem_offset, buf->name,
-                   buf->data_alignment, buf->offset_factor, buf->buffer_type, buf->axis_separators,
-                   buf->span);
+    Buffer new_buf = buf;
+    {
+      auto write_ptr = new_buf.CopyOnWrite();
+      write_ptr->data = new_buffer_var;
+      write_ptr->shape = shape;
+      write_ptr->strides = strides;
+      write_ptr->elem_offset = elem_offset;
+    }
     buffers.push_back(new_buf);
     return new_buf;
   }
@@ -671,6 +685,8 @@ Pass ConvertSSA() {
   };
   return tvm::transform::CreateModulePass(pass_func, 0, "tir.ConvertSSA", {});
 }
+
+TVM_REGISTER_GLOBAL("tir.transform.ConvertSSA").set_body_typed(ConvertSSA);
 
 }  // namespace transform
 }  // namespace tir

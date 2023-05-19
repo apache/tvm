@@ -341,6 +341,24 @@ def Simplify():
     return _ffi_api.Simplify()  # type: ignore
 
 
+def ConvertSSA():
+    """Convert an IRModule to be SSA form.
+
+    This pass handles cases where the same `tir.Var` appears in
+    multiple functions within the same module.  For example, after
+    extracting a fragment from one function into another, where the
+    same `tir.Var` may be defined both as within the body of the
+    original function, and as a parameter within the hoisted function.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+
+    """
+    return _ffi_api.ConvertSSA()  # type: ignore
+
+
 def InstrumentBoundCheckers():
     """Instruments bound checkers.
 
