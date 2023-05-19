@@ -483,13 +483,7 @@ llvm::Value* CodeGenCPU::CreateCallExtern(Type ret_type, String global_symbol,
   if (callee->getType() != ftype->getPointerTo()) {
     callee = builder_->CreatePointerCast(callee, ftype->getPointerTo());
   }
-
-#if TVM_LLVM_VERSION >= 90
-  auto ext_callee = llvm::FunctionCallee(ftype, callee);
-#else
-  auto ext_callee = f;
-#endif
-  return builder_->CreateCall(ext_callee, arg_values);
+  return builder_->CreateCall(ftype, callee, arg_values);
 }
 
 llvm::GlobalVariable* CodeGenCPU::InitContextPtr(llvm::Type* p_type, std::string name) {
