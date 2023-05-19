@@ -97,8 +97,6 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         }
       }
       return HeaderWrapper(d, ClassDoc(module_doc, {IR(d, "ir_module")}, (*f)->stmts));
-      // return HeaderWrapper(d, ClassDoc(IdDoc(GetBindingName(d).value_or("Module")),
-      //                                  {IR(d, "ir_module")}, (*f)->stmts));
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
