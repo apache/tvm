@@ -34,6 +34,7 @@ from tvm.relay.op.contrib import ethosu
 from tvm.relay.backend.contrib.ethosu import util
 from tvm.relay.build_module import bind_params_by_name
 from tvm.relay.frontend.tflite import get_pad_value
+from tvm.relay.expr_functor import ExprVisitor
 
 from . import infra
 
@@ -462,6 +463,118 @@ def test_tflite_conv2d_with_separate_padding_legalize():
     verify(mod["tvmgen_default_ethos_u_main_0"])
 
 
+def test_tflite_conv2d_with_separate_channel_padding_legalize():
+    dtype = "int8"
+    ifm_shape = (1, 55, 34, 3)
+    kernel_shape = (3, 2)
+    strides = (1, 1)
+    dilation = (2, 1)
+    padding_ch = (1, 1)
+
+    class ArePadOnGraph(ExprVisitor):
+        """
+        Visits the Graph recursively and checks if it contains 'nn.pad' op
+        """
+
+        def __init__(self):
+            ExprVisitor.__init__(self)
+            self.on_graph = False
+
+        def visit_call(self, call):
+            if isinstance(call.op, tvm.ir.Op):
+                if str(call.op.name) == "nn.pad":
+                    self.on_graph = True
+
+            return super().visit_call(call)
+
+        def are_pad_on_graph(self, subgraph) -> bool:
+            """
+            This function recursively visits the graph and checks if 'nn.pad' op is on graph
+            """
+            self.visit(subgraph)
+            return self.on_graph
+
+    def create_tflite_graph():
+        class Model(tf.Module):
+            @tf.function
+            def tf_function(self, x):
+                tf_strides = [1, strides[0], strides[1], 1]
+                op = tf.pad(
+                    x,
+                    [[0, 0], [0, 0], [0, 0], [padding_ch[0], padding_ch[1]]],
+                    "CONSTANT",
+                )
+                # HWIO
+                weight_shape = [
+                    kernel_shape[0],
+                    kernel_shape[1],
+                    ifm_shape[3] + padding_ch[0] + padding_ch[1],
+                    3,
+                ]
+                weight = tf.constant(np.random.uniform(size=weight_shape), dtype=tf.float32)
+                return tf.nn.conv2d(
+                    op,
+                    weight,
+                    strides=tf_strides,
+                    padding="VALID",
+                    dilations=dilation,
+                )
+
+        model = Model()
+        concrete_func = model.tf_function.get_concrete_function(
+            tf.TensorSpec(ifm_shape, dtype=tf.float32)
+        )
+        # Convert the model
+        def representative_dataset():
+            for _ in range(100):
+                data = np.random.rand(*tuple(ifm_shape))
+                yield [data.astype(np.float32)]
+
+        converter = tf.lite.TFLiteConverter.from_concrete_functions([concrete_func])
+        converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        converter.representative_dataset = representative_dataset
+        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+        converter.inference_input_type = tf.int8
+        converter.inference_output_type = tf.int8
+        tflite_model = converter.convert()
+        return tflite_model
+
+    def verify(ext_func):
+
+        assert ArePadOnGraph().are_pad_on_graph(ext_func.body) == True
+
+    conv2d_pattern_table = [
+        (
+            ethosu.ChannelPadParams.composite_name,
+            ethosu.pad_pattern(),
+            lambda pat: ethosu.ChannelPadParams(pat).is_valid(),
+        ),
+        (
+            ethosu.QnnConv2DParams.composite_name,
+            ethosu.qnn_conv2d_pattern(),
+            lambda pat: ethosu.QnnConv2DParams(pat).is_valid(),
+        ),
+    ]
+
+    tflite_graph = create_tflite_graph()
+    tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
+
+    mod, conv_params = relay.frontend.from_tflite(
+        tflite_model,
+        shape_dict={"input": ifm_shape},
+        dtype_dict={"input": dtype},
+    )
+
+    mod["main"] = bind_params_by_name(mod["main"], conv_params)
+    mod = partition_ethosu_by_table(mod, conv2d_pattern_table)
+
+    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
+        legalize.Conv2DRewriter(), mod["tvmgen_default_ethos_u_main_0"]
+    )
+
+    verify(mod["tvmgen_default_ethos_u_main_0"])
+
+
 @pytest.mark.parametrize("ifm_shape", [(1, 299, 299, 3), (1, 123, 17, 7)])
 @pytest.mark.parametrize("kernel_shape", [(7, 3), (22, 5)])
 @pytest.mark.parametrize("padding", ["SAME", "VALID"])
@@ -760,7 +873,7 @@ def test_tflite_separate_padding_legalize(ifm_shape, padding, const_value):
             ethosu.PadParams.composite_name,
             ethosu.pad_pattern(),
             lambda pat: ethosu.PadParams(pat).is_valid(),
-        )
+        ),
     ]
 
     tflite_graph = create_tflite_graph()
@@ -779,6 +892,132 @@ def test_tflite_separate_padding_legalize(ifm_shape, padding, const_value):
         legalize.PadRewriter(), mod["tvmgen_default_ethos_u_main_0"]
     )
     verify(mod["tvmgen_default_ethos_u_main_0"])
+
+
+@pytest.mark.parametrize("ifm_shape", [(1, 55, 55, 3), (1, 23, 32, 7)])
+@pytest.mark.parametrize("channel_padding", [(0, 1), (1, 1), (5, 2)])
+@pytest.mark.parametrize("const_value", [0, 5, 125, -5])
+def test_tflite_separate_channel_padding_legalize(ifm_shape, channel_padding, const_value):
+    dtype = "int8"
+    padding = (0, 0, 0, 0)
+
+    class AreConcatenateOnGraph(ExprVisitor):
+        """
+        Visits the Graph recursively and checks if it contains 'concatenate' op
+        """
+
+        def __init__(self):
+            ExprVisitor.__init__(self)
+            self.on_graph = False
+
+        def visit_call(self, call):
+            if isinstance(call.op, tvm.ir.Op):
+                if str(call.op.name) == "concatenate":
+                    self.on_graph = True
+
+            return super().visit_call(call)
+
+        def are_concatenate_on_graph(self, subgraph) -> bool:
+            """
+            This function recursively visits the graph and checks if 'concatenate' op is on graph
+            """
+            self.visit(subgraph)
+            return self.on_graph
+
+    def create_tflite_graph():
+        class Model(tf.Module):
+            @tf.function
+            def tf_function(self, x):
+                return tf.pad(
+                    x,
+                    [
+                        [0, 0],
+                        [padding[0], padding[2]],
+                        [padding[1], padding[3]],
+                        [channel_padding[0], channel_padding[1]],
+                    ],
+                    "CONSTANT",
+                    const_value,
+                )
+
+        model = Model()
+        concrete_func = model.tf_function.get_concrete_function(
+            tf.TensorSpec(ifm_shape, dtype=tf.float32)
+        )
+        # Convert the model
+        def representative_dataset():
+            for _ in range(100):
+                data = np.random.rand(*tuple(ifm_shape))
+                yield [data.astype(np.float32)]
+
+        converter = tf.lite.TFLiteConverter.from_concrete_functions([concrete_func])
+        converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        converter.representative_dataset = representative_dataset
+        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+        converter.inference_input_type = tf.int8
+        converter.inference_output_type = tf.int8
+        tflite_model = converter.convert()
+        return tflite_model
+
+    def verify(ext_func, channel_padding):
+
+        op = ext_func.body
+
+        pad_before = 0
+        pad_after = 0
+        if channel_padding[0] == 0 and channel_padding[1] > 0:
+            pad_after = ext_func.body.args[0][1].args[0].checked_type.shape[3]
+            ifm = ext_func.body.args[0][0].args[0].checked_type
+        if channel_padding[0] > 0 and channel_padding[1] == 0:
+            pad_before = ext_func.body.args[0][0].args[0].checked_type.shape[3]
+            ifm = ext_func.body.args[0][1].args[0].checked_type
+        if channel_padding[0] > 0 and channel_padding[1] > 0:
+            pad_before = ext_func.body.args[0][0].args[0].checked_type.shape[3]
+            ifm = ext_func.body.args[0][1].args[0].checked_type
+            pad_after = ext_func.body.args[0][2].args[0].checked_type.shape[3]
+
+        # check IFM
+        assert list(ifm.shape) == list(ifm_shape)
+        assert str(ifm.dtype) == dtype
+        assert ifm.shape[3] == ifm_shape[3]
+
+        # check OFM
+        ofm = op.checked_type
+        expected_ofm_shape = list(ifm_shape)
+        expected_ofm_shape[3] = channel_padding[0] + ifm_shape[3] + channel_padding[1]
+        assert list(ofm.shape) == expected_ofm_shape
+        assert str(ofm.dtype) == dtype
+
+        # check padding
+        assert [pad_before, pad_after] == list(channel_padding)
+
+        # check if relay contains 'concatenate' op
+        assert AreConcatenateOnGraph().are_concatenate_on_graph(ext_func.body) == True
+
+    pad_pattern_table = [
+        (
+            ethosu.ChannelPadParams.composite_name,
+            ethosu.pad_pattern(),
+            lambda pat: ethosu.ChannelPadParams(pat).is_valid(),
+        ),
+    ]
+
+    tflite_graph = create_tflite_graph()
+    tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
+
+    mod, params = relay.frontend.from_tflite(
+        tflite_model,
+        shape_dict={"input": ifm_shape},
+        dtype_dict={"input": dtype},
+    )
+
+    mod["main"] = bind_params_by_name(mod["main"], params)
+    mod = partition_ethosu_by_table(mod, pad_pattern_table)
+
+    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
+        legalize.ChannelPadRewriter(), mod["tvmgen_default_ethos_u_main_0"]
+    )
+    verify(mod["tvmgen_default_ethos_u_main_0"], channel_padding)
 
 
 @pytest.mark.parametrize("pooling_type", ["MAX", "AVG"])
