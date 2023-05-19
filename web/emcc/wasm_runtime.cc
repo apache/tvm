@@ -98,6 +98,10 @@ TVM_REGISTER_GLOBAL("testing.echo").set_body([](TVMArgs args, TVMRetValue* ret) 
   *ret = args[0];
 });
 
+TVM_REGISTER_GLOBAL("testing.ret_string").set_body([](TVMArgs args, TVMRetValue* ret) {
+  *ret = args[0].operator String();
+});
+
 TVM_REGISTER_GLOBAL("testing.log_info_str").set_body([](TVMArgs args, TVMRetValue* ret) {
   LOG(INFO) << args[0].operator String();
 });
