@@ -122,6 +122,8 @@ def test_cuda_multi_lib():
         b_nd = tvm.nd.array(a_np, dev)
         syslibA = tvm.runtime.system_lib("modA_")
         syslibB = tvm.runtime.system_lib("modB_")
+        # reload same lib twice
+        syslibA = tvm.runtime.system_lib("modA_")
         syslibA["my_inplace_update"](a_nd)
         syslibB["my_inplace_update"](b_nd)
         np.testing.assert_equal(a_nd.numpy(), a_np + 1)
