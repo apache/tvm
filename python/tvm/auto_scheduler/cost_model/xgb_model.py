@@ -663,7 +663,7 @@ class CustomCallback(XGBoostCallback):
         maximize_score = self.state["maximize_score"]
 
         if (maximize_score and score > best_score) or (not maximize_score and score < best_score):
-            msg = f"[{epochs}] " + "\t".join([_fmt_metric(x) for x in eval_res])
+            msg = f"[{epoch}] " + "\t".join([_fmt_metric(x) for x in eval_res])
             self.state["best_msg"] = msg
             self.state["best_score"] = score
             self.state["best_iteration"] = epoch
