@@ -34,8 +34,8 @@
 namespace tvm {
 
 /*!
- * \brief SIBuilder provides helper APIs for filling spans,
- *        particularly useful for one-to-many, many-to-one and many-to-many pass transformations.
+ * \brief Source Information Builder, SIBuilder provides helper APIs for filling spans,
+ *        particularly useful for one-to-many, many-to-one and many-to-many IR transformations.
  */
 class SIBuilder {
  public:
@@ -68,11 +68,11 @@ class SIBuilder {
   SIBuilder& operator=(const SIBuilder&) = delete;
 
   /*!
-   * \brief create new source info based on the given span or subgraph.
+   * \brief build a span of source information, which is based on the given span or subgraph.
    *
-   * \return The given span, or reconstructed span from subgraph.
+   * \return the built span
    */
-  Span CreateSpan() const;
+  Span Build() const;
 
   /*!
    * \brief Recursively fill all span of exprs in subgraph from entry until inputs.

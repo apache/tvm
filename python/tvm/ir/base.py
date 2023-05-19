@@ -71,7 +71,10 @@ class Span(Object):
 
 @register_object("SequentialSpan")
 class SequentialSpan(Object):
-    """Specifies a location in a source program.
+    """A sequence of source spans
+
+    This span is specific for an expression, which is from multiple expressions
+    after an IR transform.
 
     Parameters
     ----------

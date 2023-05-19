@@ -103,7 +103,7 @@ TEST(SIBuilder, CreateSapn) {
   Span span_1 = _CreateSpan("first");
   {
     SIBuilder si_builder(span_1);
-    EXPECT_EQ(span_1, si_builder.CreateSpan());
+    EXPECT_EQ(span_1, si_builder.Build());
   }
 
   Span span_2 = _CreateSpan("second");
@@ -114,9 +114,9 @@ TEST(SIBuilder, CreateSapn) {
     SIBuilder si_builder_2({span_1, span_2});
     SIBuilder si_builder_3{span_1, span_2};
 
-    Span created_span_1 = si_builder_1.CreateSpan();
-    Span created_span_2 = si_builder_2.CreateSpan();
-    Span created_span_3 = si_builder_3.CreateSpan();
+    Span created_span_1 = si_builder_1.Build();
+    Span created_span_2 = si_builder_2.Build();
+    Span created_span_3 = si_builder_3.Build();
 
     auto created_seq_span_1 = created_span_1.as<SequentialSpanNode>();
     auto created_seq_span_2 = created_span_2.as<SequentialSpanNode>();
@@ -140,7 +140,7 @@ TEST(SIBuilder, DisableSIBuilder) {
   Span span_1 = _CreateSpan("first");
   {
     SIBuilder si_builder(span_1);
-    EXPECT_NE(span_1, si_builder.CreateSpan());
+    EXPECT_NE(span_1, si_builder.Build());
   }
 }
 
@@ -179,7 +179,7 @@ TEST(SIBuilder, RelayRecursivelyFill) {
   checker.Check(z, expected_z);
 }
 
-TEST(SIBuilder, RelayCollapse) {
+TEST(SIBuilder, RelayCollectSpans) {
   using namespace tvm;
   auto pass_ctx = transform::PassContext::Create();
   pass_ctx->config.Set("ir.enable_si_builder", Bool(true));
@@ -206,7 +206,7 @@ TEST(SIBuilder, RelayCollapse) {
   relay::Expr z = relay::Call(add_op, {y, x}, tvm::Attrs(), {}, z_node_span);
 
   SIBuilder si_builder(z, {a});
-  Span created_span = si_builder.CreateSpan();
+  Span created_span = si_builder.Build();
   auto created_seq_span = created_span.as<SequentialSpanNode>();
   EXPECT_EQ(created_seq_span->spans.size(), 4);
   for (std::size_t i = 0; i != created_seq_span->spans.size(); i++) {
@@ -214,7 +214,7 @@ TEST(SIBuilder, RelayCollapse) {
   }
 }
 
-TEST(SIBuilder, TirCollapsePrimExpr) {
+TEST(SIBuilder, TirCollectSpansPrimExpr) {
   using namespace tvm;
   auto pass_ctx = transform::PassContext::Create();
   pass_ctx->config.Set("ir.enable_si_builder", Bool(true));
@@ -241,7 +241,7 @@ TEST(SIBuilder, TirCollapsePrimExpr) {
   z->span = z_node_span;
 
   SIBuilder si_builder(z, {x});
-  Span created_span = si_builder.CreateSpan();
+  Span created_span = si_builder.Build();
   auto created_seq_span = created_span.as<SequentialSpanNode>();
 
   EXPECT_EQ(created_seq_span->spans.size(), 4);
@@ -250,7 +250,7 @@ TEST(SIBuilder, TirCollapsePrimExpr) {
   }
 }
 
-TEST(SIBuilder, TirCollapseStmtWithPrimInput) {
+TEST(SIBuilder, TirCollectSpansStmtWithPrimInput) {
   using namespace tvm;
   auto pass_ctx = transform::PassContext::Create();
   pass_ctx->config.Set("ir.enable_si_builder", Bool(true));
@@ -274,7 +274,7 @@ TEST(SIBuilder, TirCollapseStmtWithPrimInput) {
   auto stmt = fmaketest();
   stmt->span = stmt_node_span;
   SIBuilder si_builder(stmt, {x});
-  Span created_span = si_builder.CreateSpan();
+  Span created_span = si_builder.Build();
   auto created_seq_span = created_span.as<SequentialSpanNode>();
 
   EXPECT_EQ(created_seq_span->spans.size(), 3);
@@ -283,7 +283,7 @@ TEST(SIBuilder, TirCollapseStmtWithPrimInput) {
   }
 }
 
-TEST(SIBuilder, TirCollapseStmtWithStmtInput) {
+TEST(SIBuilder, TirCollectSpansStmtWithStmtInput) {
   using namespace tvm;
   auto pass_ctx = transform::PassContext::Create();
   pass_ctx->config.Set("ir.enable_si_builder", Bool(true));
@@ -300,7 +300,7 @@ TEST(SIBuilder, TirCollapseStmtWithStmtInput) {
   tir::Block block({}, {}, {}, "block", body, init, Array<tir::Buffer>(),
                    Array<tir::MatchBufferRegion>(), Map<String, ObjectRef>(), block_node_span);
   SIBuilder si_builder(block, {init});
-  Span created_span = si_builder.CreateSpan();
+  Span created_span = si_builder.Build();
   auto created_seq_span = created_span.as<SequentialSpanNode>();
 
   EXPECT_EQ(created_seq_span->spans.size(), 3);

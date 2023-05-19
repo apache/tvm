@@ -33,11 +33,12 @@ using RelayExprSet = std::unordered_set<relay::Expr, ObjectPtrHash, ObjectPtrEqu
 using PrimExprSet = std::unordered_set<PrimExpr, ObjectPtrHash, ObjectPtrEqual>;
 using StmtSet = std::unordered_set<tir::Stmt, ObjectPtrHash, ObjectPtrEqual>;
 
-class RelayCollapse : public relay::ExprVisitor {
+class RelayCollectSpans : public relay::ExprVisitor {
  public:
-  explicit RelayCollapse(const RelayExprSet& inputs = {}) : inputs_(inputs) {}
+  explicit RelayCollectSpans(const RelayExprSet& inputs = {}) : inputs_(inputs) {}
 
-  Span Collapse(const relay::Expr& entry);
+  // From entry to inputs, recursively collect spans. The spans of inputs are included.
+  Span CollectSpans(const relay::Expr& entry);
 
   void VisitExpr(const relay::Expr& expr) final;
 
@@ -46,7 +47,7 @@ class RelayCollapse : public relay::ExprVisitor {
   const RelayExprSet& inputs_;
 };
 
-void RelayCollapse::VisitExpr(const relay::Expr& expr) {
+void RelayCollectSpans::VisitExpr(const relay::Expr& expr) {
   if (visit_counter_.count(expr.get())) {
     return;
   }
@@ -61,7 +62,7 @@ void RelayCollapse::VisitExpr(const relay::Expr& expr) {
   relay::ExprVisitor::VisitExpr(expr);
 }
 
-Span RelayCollapse::Collapse(const relay::Expr& entry) {
+Span RelayCollectSpans::CollectSpans(const relay::Expr& entry) {
   VisitExpr(entry);
   return SequentialSpan(spans_);
 }
@@ -71,6 +72,7 @@ class RelayRecursivelyFill : public relay::ExprMutator {
   explicit RelayRecursivelyFill(const Span& span, const RelayExprSet& inputs = {})
       : span_(span), inputs_(inputs) {}
 
+  // From entry until inputs, recursively fill spans into expressions. Inputs are not filled.
   void Fill(const relay::Expr& entry);
 
   relay::Expr VisitExpr(const relay::Expr& expr) final;
@@ -94,9 +96,9 @@ relay::Expr RelayRecursivelyFill::VisitExpr(const relay::Expr& expr) {
 
 void RelayRecursivelyFill::Fill(const relay::Expr& entry) { Mutate(entry); }
 
-class TirCollapse : public tir::StmtExprVisitor {
+class TirCollectSpans : public tir::StmtExprVisitor {
  public:
-  explicit TirCollapse(const PrimExprSet& expr_inputs = {}, const StmtSet& stmt_inputs = {})
+  explicit TirCollectSpans(const PrimExprSet& expr_inputs = {}, const StmtSet& stmt_inputs = {})
       : expr_inputs_(expr_inputs), stmt_inputs_(stmt_inputs) {}
 
   void VisitExpr(const PrimExpr& expr) final;
@@ -105,8 +107,10 @@ class TirCollapse : public tir::StmtExprVisitor {
   bool IsInput(const PrimExpr& expr);
   bool IsInput(const tir::Stmt& stmt);
 
-  Span Collapse(const PrimExpr& expr);
-  Span Collapse(const tir::Stmt& stmt);
+  // From entry to inputs, recursively collect spans. The spans of inputs are included.
+  Span CollectSpans(const PrimExpr& expr);
+  // From entry to inputs, recursively collect spans. The spans of inputs are included.
+  Span CollectSpans(const tir::Stmt& stmt);
 
  private:
   Array<Span> spans_;
@@ -115,25 +119,25 @@ class TirCollapse : public tir::StmtExprVisitor {
   const StmtSet& stmt_inputs_;
 };
 
-Span TirCollapse::Collapse(const PrimExpr& expr) {
+Span TirCollectSpans::CollectSpans(const PrimExpr& expr) {
   operator()(expr);
   return SequentialSpan(spans_);
 }
 
-Span TirCollapse::Collapse(const tir::Stmt& stmt) {
+Span TirCollectSpans::CollectSpans(const tir::Stmt& stmt) {
   operator()(stmt);
   return SequentialSpan(spans_);
 }
 
-bool TirCollapse::IsInput(const PrimExpr& expr) {
+bool TirCollectSpans::IsInput(const PrimExpr& expr) {
   return expr_inputs_.find(expr) != expr_inputs_.end();
 }
 
-bool TirCollapse::IsInput(const tir::Stmt& stmt) {
+bool TirCollectSpans::IsInput(const tir::Stmt& stmt) {
   return stmt_inputs_.find(stmt) != stmt_inputs_.end();
 }
 
-void TirCollapse::VisitExpr(const PrimExpr& expr) {
+void TirCollectSpans::VisitExpr(const PrimExpr& expr) {
   if (visit_counter_.count(expr.get())) {
     return;
   }
@@ -148,7 +152,7 @@ void TirCollapse::VisitExpr(const PrimExpr& expr) {
   StmtExprVisitor::VisitExpr(expr);
 }
 
-void TirCollapse::VisitStmt(const tir::Stmt& stmt) {
+void TirCollectSpans::VisitStmt(const tir::Stmt& stmt) {
   if (visit_counter_.count(stmt.get())) {
     return;
   }
@@ -169,7 +173,9 @@ class TirRecursivelyFill : public tir::StmtExprMutator {
                      const StmtSet& stmt_inputs = {})
       : span_(span), expr_inputs_(expr_inputs), stmt_inputs_(stmt_inputs) {}
 
+  // From entry until inputs, recursively fill spans into expressions. Inputs are not filled.
   tir::Stmt Fill(const tir::Stmt& s) { return operator()(s); }
+  // From entry until inputs, recursively fill spans into expressions. Inputs are not filled.
   PrimExpr Fill(const PrimExpr& e) { return operator()(e); }
 
   bool IsInput(const PrimExpr& expr);
@@ -209,20 +215,20 @@ PrimExpr TirRecursivelyFill::VisitExpr(const PrimExpr& expr) {
 }
 
 struct SIBuilder::Impl {
-  virtual Span CreateSpan() const = 0;
-  virtual void RecursivelyFillSpan(const relay::Expr& entry, const RelayExprSet& inputs) const = 0;
-  virtual void RecursivelyFillSpan(const PrimExpr& entry, const PrimExprSet& inputs) const = 0;
-  virtual void RecursivelyFillSpan(const tir::Stmt& entry, const PrimExprSet& inputs) const = 0;
-  virtual void RecursivelyFillSpan(const tir::Stmt& entry, const StmtSet& inputs) const = 0;
-  virtual void CollapseSpan(const relay::Expr& entry, const RelayExprSet& inputs) = 0;
-  virtual void CollapseSpan(const PrimExpr& entry, const PrimExprSet& inputs) = 0;
-  virtual void CollapseSpan(const tir::Stmt& entry, const PrimExprSet& inputs) = 0;
-  virtual void CollapseSpan(const tir::Stmt& entry, const StmtSet& inputs) = 0;
+  virtual Span Build() const { return Span(); }
+  virtual void RecursivelyFillSpan(const relay::Expr& entry, const RelayExprSet& inputs) const {}
+  virtual void RecursivelyFillSpan(const PrimExpr& entry, const PrimExprSet& inputs) const {}
+  virtual void RecursivelyFillSpan(const tir::Stmt& entry, const PrimExprSet& inputs) const {}
+  virtual void RecursivelyFillSpan(const tir::Stmt& entry, const StmtSet& inputs) const {}
+  virtual void CollectSpansSpan(const relay::Expr& entry, const RelayExprSet& inputs) {}
+  virtual void CollectSpansSpan(const PrimExpr& entry, const PrimExprSet& inputs) {}
+  virtual void CollectSpansSpan(const tir::Stmt& entry, const PrimExprSet& inputs) {}
+  virtual void CollectSpansSpan(const tir::Stmt& entry, const StmtSet& inputs) {}
 };
 
 SIBuilder::~SIBuilder() = default;
 
-Span SIBuilder::CreateSpan() const { return impl_->CreateSpan(); }
+Span SIBuilder::Build() const { return impl_->Build(); }
 
 template <>
 void SIBuilder::RecursivelyFillSpan(const relay::Expr& entry, const RelayExprSet& inputs) const {
@@ -243,54 +249,32 @@ void SIBuilder::RecursivelyFillSpan(const tir::Stmt& entry, const StmtSet& input
 }
 
 std::unique_ptr<SIBuilder::Impl> SIBuilder::CreateImpl(const Span& span) {
-  struct NullImpl : public SIBuilder::Impl {
-    Span CreateSpan() const final { return Span(); }
-
-    void RecursivelyFillSpan(const relay::Expr& entry, const RelayExprSet& inputs) const final{};
-    void RecursivelyFillSpan(const PrimExpr& entry, const PrimExprSet& inputs) const final{};
-    void RecursivelyFillSpan(const tir::Stmt& entry, const PrimExprSet& inputs) const final{};
-    void RecursivelyFillSpan(const tir::Stmt& entry, const StmtSet& inputs) const final{};
-    void CollapseSpan(const relay::Expr& entry, const RelayExprSet& inputs) final{};
-    void CollapseSpan(const PrimExpr& entry, const PrimExprSet& inputs) final{};
-    void CollapseSpan(const tir::Stmt& entry, const PrimExprSet& inputs) final{};
-    void CollapseSpan(const tir::Stmt& entry, const StmtSet& inputs) final{};
-  };
-
   struct Impl : public SIBuilder::Impl {
     explicit Impl(const Span& span) : span_(span) {}
-
-    Span CreateSpan() const final { return span_; }
-
+    Span Build() const final { return span_; }
     void RecursivelyFillSpan(const relay::Expr& entry, const RelayExprSet& inputs) const final {
-      RelayRecursivelyFill(CreateSpan(), inputs).Fill(entry);
+      RelayRecursivelyFill(Build(), inputs).Fill(entry);
     }
-
     void RecursivelyFillSpan(const PrimExpr& entry, const PrimExprSet& inputs) const final {
-      TirRecursivelyFill(CreateSpan(), inputs).Fill(entry);
+      TirRecursivelyFill(Build(), inputs).Fill(entry);
     }
-
     void RecursivelyFillSpan(const tir::Stmt& entry, const PrimExprSet& inputs) const final {
-      TirRecursivelyFill(CreateSpan(), inputs).Fill(entry);
+      TirRecursivelyFill(Build(), inputs).Fill(entry);
     }
-
     void RecursivelyFillSpan(const tir::Stmt& entry, const StmtSet& inputs) const final {
-      TirRecursivelyFill(CreateSpan(), {}, inputs).Fill(entry);
+      TirRecursivelyFill(Build(), {}, inputs).Fill(entry);
     }
-
-    void CollapseSpan(const relay::Expr& entry, const RelayExprSet& inputs) final {
-      span_ = RelayCollapse(inputs).Collapse(entry);
+    void CollectSpansSpan(const relay::Expr& entry, const RelayExprSet& inputs) final {
+      span_ = RelayCollectSpans(inputs).CollectSpans(entry);
     }
-
-    void CollapseSpan(const PrimExpr& entry, const PrimExprSet& inputs) final {
-      span_ = TirCollapse(inputs).Collapse(entry);
+    void CollectSpansSpan(const PrimExpr& entry, const PrimExprSet& inputs) final {
+      span_ = TirCollectSpans(inputs).CollectSpans(entry);
     }
-
-    void CollapseSpan(const tir::Stmt& entry, const PrimExprSet& inputs) final {
-      span_ = TirCollapse(inputs).Collapse(entry);
+    void CollectSpansSpan(const tir::Stmt& entry, const PrimExprSet& inputs) final {
+      span_ = TirCollectSpans(inputs).CollectSpans(entry);
     }
-
-    void CollapseSpan(const tir::Stmt& entry, const StmtSet& inputs) final {
-      span_ = TirCollapse({}, inputs).Collapse(entry);
+    void CollectSpansSpan(const tir::Stmt& entry, const StmtSet& inputs) final {
+      span_ = TirCollectSpans({}, inputs).CollectSpans(entry);
     }
 
    private:
@@ -305,7 +289,7 @@ std::unique_ptr<SIBuilder::Impl> SIBuilder::CreateImpl(const Span& span) {
     return std::make_unique<Impl>(span);
   }
 
-  return std::make_unique<NullImpl>();
+  return std::make_unique<SIBuilder::Impl>();
 }
 
 SIBuilder::SIBuilder(const Span& span) : impl_(CreateImpl(span)) {}
@@ -316,23 +300,23 @@ SIBuilder::SIBuilder(const std::initializer_list<Span>& init)
 template <>
 SIBuilder::SIBuilder(const relay::Expr& expr, const Array<relay::Expr>& inputs)
     : impl_(CreateImpl(Span())) {
-  impl_->CollapseSpan(expr, RelayExprSet(inputs.begin(), inputs.end()));
+  impl_->CollectSpansSpan(expr, RelayExprSet(inputs.begin(), inputs.end()));
 }
 
 template <>
 SIBuilder::SIBuilder(const PrimExpr& expr, const Array<PrimExpr>& inputs)
     : impl_(CreateImpl(Span())) {
-  impl_->CollapseSpan(expr, PrimExprSet(inputs.begin(), inputs.end()));
+  impl_->CollectSpansSpan(expr, PrimExprSet(inputs.begin(), inputs.end()));
 }
 
 SIBuilder::SIBuilder(const tir::Stmt& s, const Array<PrimExpr>& inputs)
     : impl_(CreateImpl(Span())) {
-  impl_->CollapseSpan(s, PrimExprSet(inputs.begin(), inputs.end()));
+  impl_->CollectSpansSpan(s, PrimExprSet(inputs.begin(), inputs.end()));
 }
 
 SIBuilder::SIBuilder(const tir::Stmt& s, const Array<tir::Stmt>& inputs)
     : impl_(CreateImpl(Span())) {
-  impl_->CollapseSpan(s, StmtSet(inputs.begin(), inputs.end()));
+  impl_->CollectSpansSpan(s, StmtSet(inputs.begin(), inputs.end()));
 }
 
 // Register build pipeline related options
