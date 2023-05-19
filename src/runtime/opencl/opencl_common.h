@@ -505,7 +505,7 @@ class OpenCLModuleNode : public OpenCLModuleNodeBase {
   // install a new kernel to thread local entry
   cl_kernel InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThreadEntry* t,
                           const std::string& func_name, const KTRefEntry& e) override;
-  //functions to support recording queues
+  // Functions to support recording queues
   void StartRecording();
   void EndRecording();
   void RunRecording();
