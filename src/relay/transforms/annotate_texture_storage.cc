@@ -538,7 +538,8 @@ class RewriteVDStorageScopes : public transform::DeviceAwareExprMutator {
         if (!data_layout) {
           data_layout = fn->attrs.GetAttr<String>("layout");
         }
-        new_arg = tvm::relay::MakeLayoutTransform(new_arg, data_layout.value(), data_layout.value());
+        auto data_layout_value = data_layout.value();
+        new_arg = tvm::relay::MakeLayoutTransform(new_arg, data_layout_value, data_layout_value);
         new_arg = OnDevice(
             new_arg,
             VirtualDevice(virtual_device->device_type(), virtual_device->virtual_device_id,

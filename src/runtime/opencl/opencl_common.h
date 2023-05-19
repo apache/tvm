@@ -471,10 +471,6 @@ class OpenCLModuleNodeBase : public ModuleNode {
   virtual cl_kernel InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThreadEntry* t,
                                   const std::string& func_name, const KTRefEntry& e) = 0;
 
-  void StartRecording();
-  void EndRecording();
-  void RunRecording();
-
  protected:
   // The workspace, need to keep reference to use it in destructor.
   // In case of static destruction order problem.
@@ -509,6 +505,10 @@ class OpenCLModuleNode : public OpenCLModuleNodeBase {
   // install a new kernel to thread local entry
   cl_kernel InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThreadEntry* t,
                           const std::string& func_name, const KTRefEntry& e) override;
+  //functions to support recording queues
+  void StartRecording();
+  void EndRecording();
+  void RunRecording();
 
  private:
   // the binary data
