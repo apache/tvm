@@ -623,7 +623,7 @@ class PoolingRewriter(DFPatternCallback):
         # Since the spatial dimensions of ifm and the pooling kernel coincide and the padding
         # is [0, 0, 0, 0], the application of the pooling kernel will be done only once,
         # which will give us the desired output
-        if params.pooling_type == "AVG" and (params.strides[0] > 3 or params.strides[1] > 3):
+        if params.strides[0] > 3 or params.strides[1] > 3:
             new_strides = [1, 1]
             return ethosu_ops.ethosu_pooling(
                 ifm=post.args[0],

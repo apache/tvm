@@ -101,6 +101,23 @@ def check_strides(strides: List[int], stride_range=None) -> bool:
     return True
 
 
+def check_same_ifm_and_kernel_shape(padding, ifm_shape, pool_shape):
+    """
+    This function checks whether AvgPool2D or MaxPool2D could be legalized as ethosu_pooling
+    supported by the NPU.
+    We consider only specific case: when there is no AvgPool2D padding, the spatial
+    dimensions of ifm and the shape of pooling are equal, but stride size exceed 3
+    by any of dimensions, e.g:
+    ifm: (1, 8, 8, _), strides: (8, 8), pool_shape: (8, 8)
+    ifm: (1, 25, 5, _), strides: (25, 5), pool_shape: (25, 5)
+    """
+    if list(padding) != [0, 0, 0, 0]:
+        return False
+    if [ifm_shape[1], ifm_shape[2]] != list(pool_shape):
+        return False
+    return True
+
+
 def check_valid_dtypes(tensor_params: List[TensorParams], supported_dtypes: List[type]) -> bool:
     """This function checks whether dtypes are supported by the NPU"""
     for tep in tensor_params:
@@ -595,7 +612,8 @@ class MaxPool2DParams:
             return False
         if self.ifm.dtype != self.ofm.dtype:
             return False
-        if not check_strides(self.strides):
+        if not check_strides(self.strides) and \
+            not check_same_ifm_and_kernel_shape(self.padding, self.ifm.shape, self.pool_shape):
             return False
         if not check_batch_size(self.ifm):
             return False
@@ -650,33 +668,13 @@ class AvgPool2DParams:
         """
         This function checks whether AvgPool2D has compatible attributes with the NPU
         """
-
-        def check_extra_strides():
-            """
-            This function checks whether AvgPool2D could be legalized as ethosu_pooling
-            supported by the NPU.
-            We consider only specific case: when there is no AvgPool2D padding, the spatial
-            dimensions of ifm and the shape of pooling are equal, but stride size exceed 3
-            by any of dimensions, e.g:
-            ifm: (1, 8, 8, _), strides: (8, 8), pool_shape: (8, 8)
-            ifm: (1, 25, 5, _), strides: (25, 5), pool_shape: (25, 5)
-            """
-            if self.pooling_type != "AVG":
-                return False
-            if list(self.padding) != [0, 0, 0, 0]:
-                return False
-            if [self.ifm.shape[1], self.ifm.shape[2]] != list(self.pool_shape):
-                return False
-            if list(self.strides) != list(self.pool_shape):
-                return False
-            return True
-
         tensor_params = [self.ifm, self.ofm]
         if not check_valid_dtypes(tensor_params, supported_dtypes=[np.uint8, np.int8]):
             return False
         if self.ifm.dtype != self.ofm.dtype:
             return False
-        if not check_strides(self.strides) and not check_extra_strides():
+        if not check_strides(self.strides) and \
+            not check_same_ifm_and_kernel_shape(self.padding, self.ifm.shape, self.pool_shape):
             return False
         if not check_batch_size(self.ifm):
             return False

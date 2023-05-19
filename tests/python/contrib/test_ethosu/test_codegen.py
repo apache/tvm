@@ -342,6 +342,7 @@ def test_ethosu_pooling(
     "accel_type",
     ACCEL_TYPES,
 )
+@pytest.mark.parametrize("pooling_type", ["MAX", "AVG"])
 @pytest.mark.parametrize(
     "ifm_shape, pool_shape, strides, activation_function, padding",
     [
@@ -351,14 +352,17 @@ def test_ethosu_pooling(
         ([1, 25, 5, 64], [25, 5], [25, 5], "RELU", "SAME"),
     ],
 )
-def test_ethosu_pooling_extra_strides(
-    accel_type, ifm_shape, pool_shape, strides, activation_function, padding
+def test_ethosu_pooling_same_ifm_and_kernel_shape(
+    accel_type, pooling_type, ifm_shape, pool_shape, strides, activation_function, padding
 ):
     np.random.seed(0)
 
     @tf.function
     def pooling(x):
-        op = tf.nn.avg_pool(x, pool_shape, strides, padding)
+        if pooling_type == "MAX":
+            op = tf.nn.max_pool(x, pool_shape, strides, padding)
+        elif pooling_type == "AVG":
+            op = tf.nn.avg_pool(x, pool_shape, strides, padding)
         if activation_function == "RELU":
             op = tf.nn.relu(op)
         return op
