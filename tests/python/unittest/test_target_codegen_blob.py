@@ -19,7 +19,7 @@ import ctypes
 import numpy as np
 from tvm import relay
 import tvm.relay.testing
-from tvm.contrib import graph_executor, cc, utils, popen_pool
+from tvm.contrib import graph_executor, cc, utils, popen_pool, tar
 import tvm
 import tvm.testing
 from tvm.script import ir as I, tir as T
@@ -101,13 +101,16 @@ def test_cuda_multi_lib():
     libA = tvm.build(ModA, target=target)
     libB = tvm.build(ModB, target=target)
 
-    pathA = temp.relpath("libA.a")
-    pathB = temp.relpath("libB.a")
+    pathA = temp.relpath("libA.tar")
+    pathB = temp.relpath("libB.tar")
+    pathAll = temp.relpath("libAll.a")
+
     path_dso = temp.relpath("mylib.so")
-    libA.export_library(pathA, cc.create_staticlib)
-    libB.export_library(pathB, cc.create_staticlib)
+    libA.export_library(pathA, tar.tar)
+    libB.export_library(pathB, tar.tar)
+    cc.create_staticlib(pathAll, [pathA, pathB])
     # package two static libs together
-    cc.create_shared(path_dso, ["-Wl,--whole-archive", pathA, pathB, "-Wl,--no-whole-archive"])
+    cc.create_shared(path_dso, ["-Wl,--whole-archive", pathAll, "-Wl,--no-whole-archive"])
 
     def popen_check():
         # Load dll, will trigger system library registration
