@@ -48,8 +48,8 @@ def find_lld(required=True):
     lld_list = []
     major = tvm.target.codegen.llvm_version_major(allow_none=True)
     if major is not None:
-        lld_list += ["ld.lld-%d.0" % major]
-        lld_list += ["ld.lld-%d" % major]
+        lld_list += [f"ld.lld-{major}.0"]
+        lld_list += [f"ld.lld-{major}"]
     lld_list += ["ld.lld"]
     valid_list = [utils.which(x) for x in lld_list]
     valid_list = [x for x in valid_list if x]

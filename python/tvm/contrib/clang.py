@@ -45,8 +45,8 @@ def find_clang(required=True):
     cc_list = []
     major = tvm.target.codegen.llvm_version_major(allow_none=True)
     if major is not None:
-        cc_list += ["clang-%d.0" % major]
-        cc_list += ["clang-%d" % major]
+        cc_list += [f"clang-{major}.0"]
+        cc_list += [f"clang-{major}"]
     cc_list += ["clang"]
     cc_list += ["clang.exe"]
     valid_list = [utils.which(x) for x in cc_list]
@@ -91,7 +91,7 @@ def create_llvm(inputs, output=None, options=None, cc=None):
         if utils.is_source_path(code):
             input_files.append(code)
         else:
-            temp_path = temp.relpath("input%d.cc" % i)
+            temp_path = temp.relpath(f"input{i}.cc")
             with open(temp_path, "w") as output_file:
                 output_file.write(code)
             input_files.append(temp_path)
