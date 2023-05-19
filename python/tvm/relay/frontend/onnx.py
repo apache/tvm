@@ -1988,6 +1988,7 @@ class LpPool(OnnxOpConverter):
         data = inputs[0]
         input_shape = infer_shape(data)
         ndim = len(input_shape)
+        num_spatial_dims = ndim - 2
         if "auto_pad" in attr:
             attr["auto_pad"] = attr["auto_pad"].decode("utf-8")
             if attr["auto_pad"] in ("SAME_UPPER", "SAME_LOWER"):
@@ -1995,7 +1996,8 @@ class LpPool(OnnxOpConverter):
                 # one will need to run dynamic_to_static on this model after import
                 data = autopad(
                     data,
-                    attr["strides"],
+                    # this is meant to handle the field 'strides' being optional for opsets 11+
+                    attr.get("strides", [1] * num_spatial_dims),
                     attr["kernel_shape"],
                     [1] * ndim,
                     mode=attr["auto_pad"],
@@ -3460,7 +3462,7 @@ class Constant(OnnxOpConverter):
     @classmethod
     def _impl_v9(cls, inputs, attr, params):
         if "value" not in attr:
-            raise tvm.errors.OpAttributeRequired("no value in Constant")
+            raise tvm.error.OpAttributeRequired("no value in Constant")
         value = attr.pop("value")
         # Constants may rarely have string types. These are likely exported
         # from other frameworks and not actually used in TVM. We'll just use
@@ -5715,6 +5717,26 @@ class QLinearSigmoid(OnnxOpConverter):
         return _qnn.op.quantize(out, y_scale, y_zero_point, out_dtype=dtype)
 
 
+class QLinearSoftmax(OnnxOpConverter):
+    """Operator converter for QLinearSoftmax from Microsoft onnxruntime contrib opset."""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        axis = attr["axis"]
+
+        x = inputs[0]
+        x_scale = get_scalar(inputs[1], params)
+        x_zero_point = get_scalar(inputs[2], params, "int32")
+        y_scale = fold_constant(get_scalar(inputs[3], params))
+        y_zero_point = get_scalar(inputs[4], params, "int32")
+
+        dtype = infer_type(x).checked_type.dtype
+
+        x = _qnn.op.dequantize(x, x_scale, x_zero_point)
+        out = _op.nn.softmax(x, axis)
+        return _qnn.op.quantize(out, y_scale, y_zero_point, out_dtype=dtype)
+
+
 class QLinearConcat(OnnxOpConverter):
     """Operator converter for QLinearConcat from Microsoft onnxruntime contrib opset."""
 
@@ -6812,6 +6834,7 @@ def _get_convert_map(opset):
         "QLinearMatMul": QLinearMatMul.get_converter(opset),
         "QLinearMul": QLinearMul.get_converter(opset),
         "QLinearSigmoid": QLinearSigmoid.get_converter(opset),
+        "QLinearSoftmax": QLinearSoftmax.get_converter(opset),
         "ConvInteger": ConvInteger.get_converter(opset),
         "QLinearAveragePool": QLinearAveragePool.get_converter(opset),
         "QLinearGlobalAveragePool": QLinearGlobalAveragePool.get_converter(opset),

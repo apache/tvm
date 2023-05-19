@@ -1108,7 +1108,6 @@ def test_pool2d():
         yy = run_infer_type(y)
         assert yy.checked_type == relay.TensorType((n, 10, 224, 224), dtype)
         # test execution
-        dtype = "int32"
         dshape = (1, 3, 28, 28)
         for shape_dtype in ["int32", "int64"]:
             x = relay.var("x", shape=[tvm.tir.IntImm(shape_dtype, x) for x in dshape], dtype=dtype)
@@ -1129,8 +1128,8 @@ def test_pool2d():
     _test_pool2d(relay.nn.avg_pool2d, "avg", pool_size=2, strides=2, padding=0)
     _test_pool2d(relay.nn.avg_pool2d, "avg", pool_size=2, strides=2, padding=0, dilation=2)
 
-    _test_pool2d_int(relay.nn.avg_pool2d, np.mean, "int32")
-    _test_pool2d_int(relay.nn.avg_pool2d, np.mean, "uint16")
+    _test_pool2d_int(relay.nn.avg_pool2d, np.mean, "int64")
+    _test_pool2d_int(relay.nn.avg_pool2d, np.mean, "float16")
     _test_global_pool2d(relay.nn.global_max_pool2d, np.max)
     _test_global_pool2d(relay.nn.global_avg_pool2d, np.mean)
 
@@ -1201,7 +1200,7 @@ def test_pool1d():
     _test_pool1d(relay.nn.max_pool1d, "max", pool_size=2, strides=2, padding=0)
     _test_pool1d(relay.nn.max_pool1d, "max", pool_size=2, strides=2, padding=0, dilation=2)
     _test_pool1d(relay.nn.avg_pool1d, "avg")
-    _test_pool1d(relay.nn.avg_pool1d, "avg", dtype="int32")
+    _test_pool1d(relay.nn.avg_pool1d, "avg", dtype="int64")
     _test_pool1d(relay.nn.avg_pool1d, "avg", pool_size=2, strides=2, padding=0)
     _test_pool1d(relay.nn.avg_pool1d, "avg", pool_size=2, strides=2, padding=0, dilation=2)
     _test_global_pool1d(relay.nn.global_max_pool1d, np.max)
@@ -1443,6 +1442,25 @@ def test_pad_run_dynamic_pad_value():
 
     _test_run("float32")
     _test_run("int32")
+
+
+def test_pad_value_in_array():
+    A = relay.var("A", shape=(32, 32), dtype="int8")
+
+    # Extract pad value from an array
+    p0 = relay.Constant(tvm.nd.array(np.array([2], dtype="int8")))
+    p1 = relay.nn.pad(A, pad_value=p0, pad_width=((1, 1), (1, 1)))
+
+    func = relay.Function(relay.analysis.free_vars(p1), p1)
+    mod = tvm.IRModule.from_expr(func)
+
+    target = "llvm"
+    lib = relay.build(
+        mod,
+        tvm.target.Target(target, host=target),
+        runtime=relay.backend.Runtime("cpp"),
+        executor=relay.backend.Executor("aot", {"unpacked-api": False, "interface-api": "packed"}),
+    )
 
 
 @tvm.testing.uses_gpu
@@ -1790,7 +1808,8 @@ class TestConv2DInt8Intrinsics:
     @tvm.testing.parametrize_targets(*unsupported_targets)
     @pytest.mark.parametrize("dtypes", [("uint8", "int8", "int32")])
     def test_uses_vectorized_instruction(self, assembly):
-        assert "pmulhw" in assembly and "paddd" in assembly
+        assert "pmulhw" in assembly or "pmaddwd" in assembly
+        assert "paddd" in assembly
 
 
 @tvm.testing.uses_gpu

@@ -49,8 +49,8 @@ class UnsafeExprDetector : public ExprFunctor<bool(const PrimExpr& n)> {
         }
       }
       return false;
-    } else if (auto* ptr_op = op->op.as<OpNode>()) {
-      auto effect_kind = op_call_effect_[GetRef<Op>(ptr_op)];
+    } else if (auto opt = op->op.as<Op>()) {
+      auto effect_kind = op_call_effect_[opt.value()];
       if (effect_kind == CallEffectKind::kPure || effect_kind == CallEffectKind::kExprAnnotation) {
         for (PrimExpr e : op->args) {
           if (VisitExpr(e)) return true;
@@ -66,9 +66,6 @@ class UnsafeExprDetector : public ExprFunctor<bool(const PrimExpr& n)> {
   bool VisitExpr_(const BufferLoadNode* op) {
     // Load is considered unsafe.
     return true;
-  }
-  bool VisitExpr_(const LoadNode* op) {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
   }
   bool VisitExpr_(const AddNode* op) final { return BinaryOp(op); }
   bool VisitExpr_(const SubNode* op) final { return BinaryOp(op); }

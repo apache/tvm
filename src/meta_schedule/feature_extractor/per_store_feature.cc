@@ -217,12 +217,15 @@ int64_t GetVarStride(const std::vector<MultiIndex>& multi_indices, const IntVec&
 /*!
  * \brief Converts a 2-dimensional STL vector to a TVM NDArray
  * \param src The source 2-dimensional STL vector
+ * \param second_dim_size The length of the second dimension. When the first dim of src is 0,
+ * second_dim_size must be specified, and in such case the shape of the result NDArray is
+ * (0, second_dim_size).
  * \return The converted TVM NDArray
  */
-runtime::NDArray AsNDArray(const std::vector<std::vector<double>>& src) {
-  ICHECK(!src.empty());
+runtime::NDArray AsNDArray(const std::vector<std::vector<double>>& src, int second_dim_size = -1) {
   int n = src.size();
-  int m = src[0].size();
+  ICHECK(!src.empty() || second_dim_size != -1);
+  int m = src.empty() ? second_dim_size : src[0].size();
   runtime::NDArray tgt = runtime::NDArray::Empty(
       /*shape=*/{n, m},
       /*dtype=*/DLDataType{kDLFloat, 64, 1},
@@ -309,6 +312,7 @@ Sequential PassListForPerStoreFeature() {
       tir::transform::ConvertBlocksToOpaque(),
       tir::transform::UnifyThreadBinding(),
       tir::transform::CompactBufferAllocation(),
+      tir::transform::LowerAutoCopy(),
       tir::transform::LowerMatchBuffer(),
       tir::transform::Simplify(),
   });
@@ -1403,7 +1407,7 @@ class PerStoreFeatureNode : public FeatureExtractorNode {
           feature_group6->Export(&feature);
         }
       }
-      results[task_id] = tir::utils::AsNDArray(features);
+      results[task_id] = tir::utils::AsNDArray(features, this->feature_vector_length);
     };
     support::parallel_for_dynamic(0, candidates.size(), tune_context->num_threads, f);
     return results;

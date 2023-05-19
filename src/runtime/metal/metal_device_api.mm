@@ -196,6 +196,10 @@ void* MetalWorkspace::AllocDataSpace(Device device, size_t nbytes, size_t alignm
 
 void MetalWorkspace::FreeDataSpace(Device dev, void* ptr) {
   AUTORELEASEPOOL {
+    // need to make sure buffer is not in use in command buffer
+    // before set the purgeable state to empty
+    // otherwise can cause issues sometimes
+    this->StreamSync(dev, nullptr);
     // MTLBuffer PurgeableState should be set to empty before manual
     // release in order to prevent memory leak
     [(id<MTLBuffer>)ptr setPurgeableState:MTLPurgeableStateEmpty];
@@ -336,6 +340,10 @@ id<MTLBuffer> MetalThreadEntry::GetTempBuffer(Device dev, size_t size) {
   if (temp_buffer_[dev.device_id] == nil || temp_buffer_[dev.device_id].length < size) {
     id<MTLDevice> mtl_dev = MetalWorkspace::Global()->GetDevice(dev);
     if (temp_buffer_[dev.device_id] != nil) {
+      // need to make sure buffer is not in use in command buffer
+      // before set the purgeable state to empty
+      // otherwise can cause issues sometimes
+      MetalWorkspace::Global()->StreamSync(dev, nullptr);
       [temp_buffer_[dev.device_id] setPurgeableState:MTLPurgeableStateEmpty];
       [temp_buffer_[dev.device_id] release];
     }

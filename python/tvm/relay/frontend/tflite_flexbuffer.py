@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, unused-argument, too-many-lines, import-outside-toplevel
+# pylint: disable=broad-exception-raised, use-list-literal
 """Tensorflow lite frontend helper to parse custom options in Flexbuffer format."""
 
 import struct

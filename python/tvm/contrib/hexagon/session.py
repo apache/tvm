@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=consider-using-from-import
 
 """Defines a Session class for Hexagon devices."""
 
@@ -403,12 +404,13 @@ class Session:
             elif target_type == "llvm":
                 module.export_library(
                     str(binary_path),
+                    fcompile=hexagon.create_shared,
                     cc=hexagon.hexagon_clang_plus(),
                 )
             else:
                 raise ValueError(
-                    f"Incorrect Target kind.\n"
-                    f"Target kind should be from these options: [hexagon, llvm]."
+                    "Incorrect Target kind.\n"
+                    "Target kind should be from these options: [hexagon, llvm]."
                 )
 
             remote_file_path = self.upload(binary_path, binary_name)

@@ -1804,22 +1804,83 @@ def test_rewrite_once():
             if new_args:
                 return relay.op.concatenate(relay.expr.Tuple(new_args), axis=0)
             else:
-                return concat_args
+                return concat_args[0]
 
     x = relay.var("x")
     y = relay.var("y")
     z = relay.var("z")
     concat = relay.op.concatenate(relay.expr.Tuple([x, y, z]), axis=0)
 
-    # Let the rewriter run recursively
-    out = rewrite(ConcatRewriter(False), concat)
-    expected = relay.expr.Tuple([x])
-    assert tvm.ir.structural_equal(out, expected)
+    def test_one_callback():
+        # Let the rewriter run recursively
+        out = rewrite(ConcatRewriter(False), concat)
+        expected = x
+        assert tvm.ir.structural_equal(out, expected)
 
-    # Run the rewriter once
-    out = rewrite(ConcatRewriter(True), concat)
-    expected = relay.op.concatenate(relay.expr.Tuple([x, y]), axis=0)
-    assert tvm.ir.structural_equal(out, expected)
+        # Run the rewriter once
+        out = rewrite(ConcatRewriter(True), concat)
+        expected = relay.op.concatenate(relay.expr.Tuple([x, y]), axis=0)
+        assert tvm.ir.structural_equal(out, expected)
+
+    def test_multi_callbacks():
+        # This class recursively add a nn.relu operator after nn.softmax
+        class OneMoreReluRewriter(DFPatternCallback):
+            def __init__(self, rewrite_once):
+                super().__init__(rewrite_once=rewrite_once)
+                self.pattern = is_op("nn.softmax")(None)
+
+            def callback(self, pre, post, node_map):
+                return relay.nn.relu(post)
+
+        def before():
+            # Before:
+            #    x    y    z
+            #    |    |    |
+            #       concat
+            #         |
+            #      softmax
+            return relay.nn.softmax(concat)
+
+        def once_concat():
+            # ConcatRewrite once, OneMoreReluRewrite once
+            # Expected:
+            #   x    y
+            #   |    |
+            #   concat
+            #      |
+            #   softmax
+            #      |
+            #    relu
+            return relay.nn.relu(
+                relay.nn.softmax(relay.op.concatenate(relay.expr.Tuple([x, y]), axis=0))
+            )
+
+        def recursive_concat():
+            # ConcatRewrite recursively, OneMoreReluRewrite once
+            # Expected:
+            #      x
+            #      |
+            #   softmax
+            #      |
+            #    relu
+            return relay.nn.relu(relay.nn.softmax(x))
+
+        # Run ConcatRewriter once, OneMoreReluRewriter once
+        out = rewrite(
+            [OneMoreReluRewriter(True), ConcatRewriter(True)],
+            before(),
+        )
+        assert tvm.ir.structural_equal(out, once_concat())
+
+        # Run ConcatRewriter recursively, OneMoreReluRewriter once
+        out = rewrite(
+            [OneMoreReluRewriter(True), ConcatRewriter(False)],
+            before(),
+        )
+        assert tvm.ir.structural_equal(out, recursive_concat())
+
+    test_one_callback()
+    test_multi_callbacks()
 
 
 def test_matched_outside_but_dominated():

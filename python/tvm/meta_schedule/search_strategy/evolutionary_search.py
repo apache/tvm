@@ -31,6 +31,8 @@ class EvolutionarySearch(SearchStrategy):
     ----------
     population_size : int
         The initial population of traces from measured samples and randomly generated samples.
+    num_empty_iters_before_early_stop : int
+        The number of iterations with an empty candidate set before the search is stoped early
     init_measured_ratio : int
         The ratio of measured samples in the initial population.
     init_min_unmeasured : int
@@ -48,6 +50,7 @@ class EvolutionarySearch(SearchStrategy):
     """
 
     population_size: int
+    num_empty_iters_before_early_stop: int
     init_measured_ratio: int
     init_min_unmeasured: int
     genetic_num_iters: int
@@ -59,6 +62,7 @@ class EvolutionarySearch(SearchStrategy):
         self,
         *,
         population_size: int = 512,
+        num_empty_iters_before_early_stop: int = 5, 
         init_measured_ratio: float = 0.2,
         init_min_unmeasured: int = 50,
         max_fail_count: int = 5,
@@ -71,6 +75,7 @@ class EvolutionarySearch(SearchStrategy):
         self.__init_handle_by_constructor__(
             _ffi_api.SearchStrategyEvolutionarySearch,  # type: ignore # pylint: disable=no-member
             population_size,
+            num_empty_iters_before_early_stop,
             init_measured_ratio,
             init_min_unmeasured,
             max_fail_count,

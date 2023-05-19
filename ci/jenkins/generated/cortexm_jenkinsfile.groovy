@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2023-02-02T20:12:16.614676
+// Generated at 2023-05-05T13:39:06.363241
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -112,7 +112,7 @@ properties([
 upstream_revision = null
 
 // command to start a docker container
-docker_run = 'docker/bash.sh --env CI --env TVM_SHARD_INDEX --env TVM_NUM_SHARDS --env RUN_DISPLAY_URL --env PLATFORM --env SKIP_SLOW_TESTS --env TEST_STEP_NAME'
+docker_run = 'docker/bash.sh --env CI --env PLATFORM --env TVM_SHARD_INDEX --env TVM_NUM_SHARDS --env RUN_DISPLAY_URL --env PLATFORM --env SKIP_SLOW_TESTS --env TEST_STEP_NAME'
 docker_build = 'docker/build.sh'
 // timeout in minutes
 max_time = 180
@@ -354,9 +354,9 @@ def check_pr(pr_number) {
 
 }
 
-def prepare() {
+def prepare(node_type) {
   stage('Prepare') {
-    node('CPU-SMALL') {
+    node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/prepare") {
         init_git()
 
@@ -539,16 +539,24 @@ def micro_cpp_unittest(image) {
 
 cancel_previous_build()
 
-prepare()
-def build() {
+try {
+    prepare('CPU-SMALL-SPOT')
+} catch(Exception ex) {
+  prepare('CPU-SMALL')
+}
+def build(node_type) {
   stage('Build') {
     if (!skip_ci && is_docs_only_build != 1) {
-      node('CPU-SMALL') {
+      node(node_type) {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-cortexm") {
           init_git()
           docker_init(ci_cortexm)
           timeout(time: max_time, unit: 'MINUTES') {
-            sh (
+
+            withEnv([
+              'PLATFORM=cortexm',
+              ], {
+              sh (
           script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_config_build_cortexm.sh build",
           label: 'Create Cortex-M cmake config',
         )
@@ -559,6 +567,7 @@ def build() {
             script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/cortexm --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/libtvm_allvisible.so build/crttest build/standalone_crt build/build.ninja build/cpptest build/build.ninja build/CMakeFiles/rules.ninja build/microtvm_template_projects",
             label: 'Upload artifacts to S3',
           )
+            })
           }
         }
       }
@@ -567,13 +576,20 @@ def build() {
     }
   }
 }
-build()
+try {
+    build('CPU-SMALL-SPOT')
+} catch (Exception ex) {
+    build('CPU-SMALL')
+}
 
 
 
-def shard_run_test_Cortex_M_1_of_12() {
+def shard_run_test_Cortex_M_1_of_12(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    node('CPU-SMALL') {
+    if (on_demand==true || node_type.contains('ARM')) {
+        node_type = 'CPU-SMALL'
+    }
+    node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
         try {
           init_git()
@@ -622,9 +638,12 @@ def shard_run_test_Cortex_M_1_of_12() {
   }
 }
 
-def shard_run_test_Cortex_M_2_of_12() {
+def shard_run_test_Cortex_M_2_of_12(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    node('CPU-SMALL') {
+    if (on_demand==true || node_type.contains('ARM')) {
+        node_type = 'CPU-SMALL'
+    }
+    node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
         try {
           init_git()
@@ -667,9 +686,12 @@ def shard_run_test_Cortex_M_2_of_12() {
   }
 }
 
-def shard_run_test_Cortex_M_3_of_12() {
+def shard_run_test_Cortex_M_3_of_12(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    node('CPU-SMALL') {
+    if (on_demand==true || node_type.contains('ARM')) {
+        node_type = 'CPU-SMALL'
+    }
+    node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
         try {
           init_git()
@@ -712,9 +734,12 @@ def shard_run_test_Cortex_M_3_of_12() {
   }
 }
 
-def shard_run_test_Cortex_M_4_of_12() {
+def shard_run_test_Cortex_M_4_of_12(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    node('CPU-SMALL') {
+    if (on_demand==true || node_type.contains('ARM')) {
+        node_type = 'CPU-SMALL'
+    }
+    node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
         try {
           init_git()
@@ -757,9 +782,12 @@ def shard_run_test_Cortex_M_4_of_12() {
   }
 }
 
-def shard_run_test_Cortex_M_5_of_12() {
+def shard_run_test_Cortex_M_5_of_12(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    node('CPU-SMALL') {
+    if (on_demand==true || node_type.contains('ARM')) {
+        node_type = 'CPU-SMALL'
+    }
+    node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
         try {
           init_git()
@@ -802,9 +830,12 @@ def shard_run_test_Cortex_M_5_of_12() {
   }
 }
 
-def shard_run_test_Cortex_M_6_of_12() {
+def shard_run_test_Cortex_M_6_of_12(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    node('CPU-SMALL') {
+    if (on_demand==true || node_type.contains('ARM')) {
+        node_type = 'CPU-SMALL'
+    }
+    node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
         try {
           init_git()
@@ -847,9 +878,12 @@ def shard_run_test_Cortex_M_6_of_12() {
   }
 }
 
-def shard_run_test_Cortex_M_7_of_12() {
+def shard_run_test_Cortex_M_7_of_12(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    node('CPU-SMALL') {
+    if (on_demand==true || node_type.contains('ARM')) {
+        node_type = 'CPU-SMALL'
+    }
+    node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
         try {
           init_git()
@@ -892,9 +926,12 @@ def shard_run_test_Cortex_M_7_of_12() {
   }
 }
 
-def shard_run_test_Cortex_M_8_of_12() {
+def shard_run_test_Cortex_M_8_of_12(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    node('CPU-SMALL') {
+    if (on_demand==true || node_type.contains('ARM')) {
+        node_type = 'CPU-SMALL'
+    }
+    node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
         try {
           init_git()
@@ -937,9 +974,12 @@ def shard_run_test_Cortex_M_8_of_12() {
   }
 }
 
-def shard_run_test_Cortex_M_9_of_12() {
+def shard_run_test_Cortex_M_9_of_12(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    node('CPU-SMALL') {
+    if (on_demand==true || node_type.contains('ARM')) {
+        node_type = 'CPU-SMALL'
+    }
+    node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
         try {
           init_git()
@@ -982,9 +1022,12 @@ def shard_run_test_Cortex_M_9_of_12() {
   }
 }
 
-def shard_run_test_Cortex_M_10_of_12() {
+def shard_run_test_Cortex_M_10_of_12(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    node('CPU-SMALL') {
+    if (on_demand==true || node_type.contains('ARM')) {
+        node_type = 'CPU-SMALL'
+    }
+    node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
         try {
           init_git()
@@ -1027,9 +1070,12 @@ def shard_run_test_Cortex_M_10_of_12() {
   }
 }
 
-def shard_run_test_Cortex_M_11_of_12() {
+def shard_run_test_Cortex_M_11_of_12(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    node('CPU-SMALL') {
+    if (on_demand==true || node_type.contains('ARM')) {
+        node_type = 'CPU-SMALL'
+    }
+    node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
         try {
           init_git()
@@ -1072,9 +1118,12 @@ def shard_run_test_Cortex_M_11_of_12() {
   }
 }
 
-def shard_run_test_Cortex_M_12_of_12() {
+def shard_run_test_Cortex_M_12_of_12(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    node('CPU-SMALL') {
+    if (on_demand==true || node_type.contains('ARM')) {
+        node_type = 'CPU-SMALL'
+    }
+    node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-cortexm") {
         try {
           init_git()
@@ -1125,40 +1174,88 @@ def test() {
     }
     parallel(
     'test: Cortex-M 1 of 12': {
+      try {
       shard_run_test_Cortex_M_1_of_12()
+      } catch (Exception ex) {
+        shard_run_test_Cortex_M_1_of_12(on_demand = true)
+      }
     },
     'test: Cortex-M 2 of 12': {
+      try {
       shard_run_test_Cortex_M_2_of_12()
+      } catch (Exception ex) {
+        shard_run_test_Cortex_M_2_of_12(on_demand = true)
+      }
     },
     'test: Cortex-M 3 of 12': {
+      try {
       shard_run_test_Cortex_M_3_of_12()
+      } catch (Exception ex) {
+        shard_run_test_Cortex_M_3_of_12(on_demand = true)
+      }
     },
     'test: Cortex-M 4 of 12': {
+      try {
       shard_run_test_Cortex_M_4_of_12()
+      } catch (Exception ex) {
+        shard_run_test_Cortex_M_4_of_12(on_demand = true)
+      }
     },
     'test: Cortex-M 5 of 12': {
+      try {
       shard_run_test_Cortex_M_5_of_12()
+      } catch (Exception ex) {
+        shard_run_test_Cortex_M_5_of_12(on_demand = true)
+      }
     },
     'test: Cortex-M 6 of 12': {
+      try {
       shard_run_test_Cortex_M_6_of_12()
+      } catch (Exception ex) {
+        shard_run_test_Cortex_M_6_of_12(on_demand = true)
+      }
     },
     'test: Cortex-M 7 of 12': {
+      try {
       shard_run_test_Cortex_M_7_of_12()
+      } catch (Exception ex) {
+        shard_run_test_Cortex_M_7_of_12(on_demand = true)
+      }
     },
     'test: Cortex-M 8 of 12': {
+      try {
       shard_run_test_Cortex_M_8_of_12()
+      } catch (Exception ex) {
+        shard_run_test_Cortex_M_8_of_12(on_demand = true)
+      }
     },
     'test: Cortex-M 9 of 12': {
+      try {
       shard_run_test_Cortex_M_9_of_12()
+      } catch (Exception ex) {
+        shard_run_test_Cortex_M_9_of_12(on_demand = true)
+      }
     },
     'test: Cortex-M 10 of 12': {
+      try {
       shard_run_test_Cortex_M_10_of_12()
+      } catch (Exception ex) {
+        shard_run_test_Cortex_M_10_of_12(on_demand = true)
+      }
     },
     'test: Cortex-M 11 of 12': {
+      try {
       shard_run_test_Cortex_M_11_of_12()
+      } catch (Exception ex) {
+        shard_run_test_Cortex_M_11_of_12(on_demand = true)
+      }
     },
     'test: Cortex-M 12 of 12': {
+      try {
       shard_run_test_Cortex_M_12_of_12()
+      } catch (Exception ex) {
+        shard_run_test_Cortex_M_12_of_12(on_demand = true)
+      }
     },
     )
   }

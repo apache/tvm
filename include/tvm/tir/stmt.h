@@ -214,72 +214,6 @@ class AssertStmt : public Stmt {
 };
 
 /*!
- * \brief Store value to the buffer.
- *
- *  Equivalent to ((DType*)buffer_var)[index] = value.
- *  where DType is the type specified by type().element_of().
- *
- *  For example, if type = float32x3, then the store will corresponds to
- *
- * \code
- *
- *  auto buffer = static_cast<float*>(buffer_var);
- *  buffer[index.v0] = value.v0;
- *  buffer[index.v1] = value.v1;
- *  buffer[index.v2] = value.v2;
- *
- * \endcode
- * \sa LoadNode
- */
-class StoreNode : public StmtNode {
- public:
-  /*! \brief The buffer variable. */
-  Var buffer_var;
-  /*! \brief The value to be stored. */
-  PrimExpr value;
-  /*! \brief The index locations to be stored. */
-  PrimExpr index;
-  /*! \brief The predicate to mask which lanes would be stored. */
-  PrimExpr predicate;
-
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("buffer_var", &buffer_var);
-    v->Visit("value", &value);
-    v->Visit("index", &index);
-    v->Visit("predicate", &predicate);
-    v->Visit("span", &span);
-  }
-
-  bool SEqualReduce(const StoreNode* other, SEqualReducer equal) const {
-    return equal(buffer_var, other->buffer_var) && equal(value, other->value) &&
-           equal(index, other->index) && equal(predicate, other->predicate);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(buffer_var);
-    hash_reduce(value);
-    hash_reduce(index);
-    hash_reduce(predicate);
-  }
-
-  static constexpr const char* _type_key = "tir.Store";
-  TVM_DECLARE_FINAL_OBJECT_INFO(StoreNode, StmtNode);
-};
-
-/*!
- * \brief Managed reference to StoreNode.
- * \sa StoreNode
- */
-class Store : public Stmt {
- public:
-  TVM_DLL Store(Var buffer_var, PrimExpr value, PrimExpr index, PrimExpr predicate,
-                Span span = Span());
-
-  TVM_DEFINE_OBJECT_REF_METHODS(Store, Stmt, StoreNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(StoreNode);
-};
-
-/*!
  * \brief Store value to the high dimension buffer.
  *
  * \code
@@ -756,6 +690,46 @@ class SeqStmtNode : public StmtNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(SeqStmtNode, StmtNode);
 };
 
+/*!
+ * \brief Evaluates an expression.
+ *  This is mostly used for putting a Call node into Stmt.
+ *
+ *  If value do not have side-effect, this node can be safely removed.
+ */
+class EvaluateNode : public StmtNode {
+ public:
+  /*! \brief The expression to be evaluated. */
+  PrimExpr value;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("value", &value);
+    v->Visit("span", &span);
+  }
+
+  bool SEqualReduce(const EvaluateNode* other, SEqualReducer equal) const {
+    return equal(value, other->value);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(value); }
+
+  static constexpr const char* _type_key = "tir.Evaluate";
+  TVM_DECLARE_FINAL_OBJECT_INFO(EvaluateNode, StmtNode);
+};
+
+/*!
+ * \brief Managed reference to EvaluateNode.
+ * \sa EvaluateNode
+ */
+class Evaluate : public Stmt {
+ public:
+  TVM_DLL explicit Evaluate(PrimExpr value, Span span = Span());
+
+  explicit Evaluate(int value, Span span = Span()) : Evaluate(PrimExpr(value), span) {}
+
+  TVM_DEFINE_OBJECT_REF_METHODS(Evaluate, Stmt, EvaluateNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(EvaluateNode);
+};
+
 /*! \brief Sequence statement. */
 class SeqStmt : public Stmt {
  public:
@@ -784,6 +758,10 @@ class SeqStmt : public Stmt {
    * \note This function can directly return an element
    *       if it is the only element in the sequence.
    *
+   * \note If the only argument to this function is a SeqStmt, and if
+   *       no flattening of the SeqStmt is required, then the SeqStmt
+   *       will be returned as-is.
+   *
    * \param seq_args The list of arguments to be flattened.
    * \tparam Args arguments
    * \return The constructed statement
@@ -792,7 +770,36 @@ class SeqStmt : public Stmt {
   static Stmt Flatten(Args&&... seq_args) {
     Array<Stmt> seq;
     runtime::detail::for_each(Flattener(&seq), std::forward<Args>(seq_args)...);
-    if (seq.size() == 1) return seq[0];
+
+    if (seq.empty()) {
+      return Evaluate(0);
+    } else if (seq.size() == 1) {
+      return seq[0];
+    }
+
+    // If the argument is a single SeqStmt argument with no
+    // flattening or unwrapping required required, then we may
+    // return the SeqStmt as-is.
+    if constexpr (sizeof...(seq_args) == 1) {
+      if (auto opt = Flattener::AsSeqStmt(std::forward<Args>(seq_args)...)) {
+        SeqStmt original = opt.value();
+        bool all_same = [&]() {
+          if (original->seq.size() != seq.size()) {
+            return false;
+          }
+          for (size_t i = 0; i < seq.size(); i++) {
+            if (!original->seq[i].same_as(seq[i])) {
+              return false;
+            }
+          }
+          return true;
+        }();
+        if (all_same) {
+          return original;
+        }
+      }
+    }
+
     return SeqStmt(seq);
   }
   /*! \brief Helper class to flatten sequence of arguments into Array. */
@@ -800,19 +807,63 @@ class SeqStmt : public Stmt {
    public:
     explicit Flattener(Array<Stmt>* seq) : seq_(seq) {}
 
-    void operator()(size_t i, const Stmt& stmt) const {
-      if (!stmt.defined()) return;
-      if (auto* op = stmt.as<SeqStmtNode>()) {
-        operator()(0, op->seq);
+    template <typename T>
+    static Optional<SeqStmt> AsSeqStmt(const T& t) {
+      if constexpr (std::is_same_v<T, SeqStmt>) {
+        return t;
+      } else if constexpr (!std::is_base_of_v<T, SeqStmt>) {
+        return NullOpt;
+      } else if (auto* ptr = t.template as<SeqStmtNode>()) {
+        return GetRef<SeqStmt>(ptr);
       } else {
-        seq_->push_back(stmt);
+        return NullOpt;
       }
     }
 
     template <typename T>
-    void operator()(size_t i, const T& seq) const {
-      for (auto v : seq) {
-        this->operator()(0, v);
+    void operator()(size_t i, const T& stmt_or_seq) const {
+      if constexpr (std::is_base_of_v<ObjectRef, T>) {
+        // Early bail-out, applicable to any ObjectRef
+        if (!stmt_or_seq.defined()) {
+          return;
+        }
+      }
+
+      if constexpr (std::is_same_v<T, SeqStmt>) {
+        // Static type-checking for a SeqStmt that could be flattened.
+        (*this)(0, stmt_or_seq->seq);
+        return;
+      }
+
+      if constexpr (std::is_base_of_v<T, SeqStmt>) {
+        // Dynamic type-checking for a SeqStmt that could be
+        // flattened.
+        if (auto* op = stmt_or_seq.template as<SeqStmtNode>()) {
+          operator()(0, op->seq);
+          return;
+        }
+      }
+
+      if constexpr (std::is_base_of_v<T, Evaluate>) {
+        // Evaluate(0) is used to represent a no-op, and may be
+        // generated by previous calls to SeqStmt::Flatten().  These
+        // should be removed to ensure that Flatten(a+b) is equivalent
+        // to Flatten(Flatten(a), Flatten(b)).
+        if (auto* op = stmt_or_seq.template as<EvaluateNode>()) {
+          if (auto* as_int = op->value.template as<IntImmNode>(); as_int && as_int->value == 0) {
+            return;
+          }
+        }
+      }
+
+      if constexpr (std::is_base_of_v<Stmt, T>) {
+        // Any other Stmt type just gets appended.
+        seq_->push_back(stmt_or_seq);
+      } else {
+        // Anything else is treated as an iterable of Stmt.
+        for (auto v : stmt_or_seq) {
+          this->operator()(0, v);
+        }
       }
     }
 
@@ -869,46 +920,6 @@ class IfThenElse : public Stmt {
 
   TVM_DEFINE_OBJECT_REF_METHODS(IfThenElse, Stmt, IfThenElseNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(IfThenElseNode);
-};
-
-/*!
- * \brief Evaluates an expression.
- *  This is mostly used for putting a Call node into Stmt.
- *
- *  If value do not have side-effect, this node can be safely removed.
- */
-class EvaluateNode : public StmtNode {
- public:
-  /*! \brief The expression to be evaluated. */
-  PrimExpr value;
-
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("value", &value);
-    v->Visit("span", &span);
-  }
-
-  bool SEqualReduce(const EvaluateNode* other, SEqualReducer equal) const {
-    return equal(value, other->value);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(value); }
-
-  static constexpr const char* _type_key = "tir.Evaluate";
-  TVM_DECLARE_FINAL_OBJECT_INFO(EvaluateNode, StmtNode);
-};
-
-/*!
- * \brief Managed reference to EvaluateNode.
- * \sa EvaluateNode
- */
-class Evaluate : public Stmt {
- public:
-  TVM_DLL explicit Evaluate(PrimExpr value, Span span = Span());
-
-  explicit Evaluate(int value, Span span = Span()) : Evaluate(PrimExpr(value), span) {}
-
-  TVM_DEFINE_OBJECT_REF_METHODS(Evaluate, Stmt, EvaluateNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(EvaluateNode);
 };
 
 /*!
@@ -1608,6 +1619,37 @@ constexpr const char* meta_schedule_layout_rewrite_preproc = "meta_schedule.layo
  * \brief Mark that the init statement of a block should be further rewritten using tensorization.
  */
 constexpr const char* meta_schedule_auto_tensorize_init = "meta_schedule.auto_tensorize_init";
+
+/*!
+ * \brief Mark that the block need to add predicate for block var bounds during lowering
+ */
+constexpr const char* require_block_var_bound_predicate = "require_bound_predicate";
+
+/*! \brief Mark that tensor core is enabled in the PrimExpr */
+constexpr const char* meta_schedule_tensor_core_enabled = "meta_schedule.tensor_core_enabled";
+
+/*!
+ * \brief Mark a block as generated by cache_read or cache_write block.
+ * 0 means cache_read; 1 means cache_write.
+ * \sa meta_schedule_cache_type_read
+ * \sa meta_schedule_cache_type_write
+ */
+constexpr const char* meta_schedule_cache_type = "meta_schedule.cache_type";
+
+/*! \sa meta_schedule_cache_type */
+constexpr const int meta_schedule_cache_type_read = 0;
+
+/*! \sa meta_schedule_cache_type */
+constexpr const int meta_schedule_cache_type_write = 1;
+
+/*! \brief Mark auto copy for memhammer */
+constexpr const char* auto_copy = "auto_copy";
+
+/*! \brief Mark local stage constraint on data copy */
+constexpr const char* local_stage = "local_stage";
+
+/*! \brief Mark vectorization length constraint on block */
+constexpr const char* vector_bytes = "vector_bytes";
 
 /*!
  * \brief Mark that a block is executed by a warp. This implies the extend of threadIdx.x is

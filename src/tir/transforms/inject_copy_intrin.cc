@@ -94,7 +94,7 @@ class CopyIntrinInjector : public StmtMutator {
       load = cast->value.as<BufferLoadNode>();
     }
     if (load == nullptr) {
-      *error_info = "the 'LoadNode' of body is a nullptr.";
+      *error_info = "the 'BufferLoadNode' of body is a nullptr.";
       return false;
     }
     if (load->dtype.lanes() != 1) return false;

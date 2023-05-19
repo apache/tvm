@@ -52,10 +52,8 @@ class IOAllocateCreator : public StmtExprVisitor {
 
  private:
   void VisitExpr_(const BufferLoadNode* op) override;
-  void VisitExpr_(const LoadNode* op) override;
   void VisitExpr_(const CallNode* op) override;
   void VisitStmt_(const BufferStoreNode* op) override;
-  void VisitStmt_(const StoreNode* op) override;
 
   /*! \brief Updates aliases that buffer vars inside the primfunc refer
    * to in terms call arguments they get bound to.*/
@@ -150,8 +148,6 @@ void IOAllocateCreator::VisitExpr_(const BufferLoadNode* op) {
   StmtExprVisitor::VisitExpr_(op);
 }
 
-void IOAllocateCreator::VisitExpr_(const LoadNode* op) { LOG(FATAL) << "should not come here"; }
-
 void IOAllocateCreator::VisitStmt_(const BufferStoreNode* op) {
   if (aliases_.find(op->buffer->data) != aliases_.end()) {
     Var aliased_var = aliases_[op->buffer->data];
@@ -163,8 +159,6 @@ void IOAllocateCreator::VisitStmt_(const BufferStoreNode* op) {
   }
   StmtExprVisitor::VisitStmt_(op);
 }
-
-void IOAllocateCreator::VisitStmt_(const StoreNode* op) { LOG(FATAL) << "should not come here"; }
 
 IRModule IOAllocateCreator::operator()() {
   Array<Var> new_main_params;

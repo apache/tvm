@@ -125,10 +125,6 @@ class WarpStoreCoeffFinder : private StmtExprVisitor {
     StmtExprVisitor::VisitExpr_(op);
   }
 
-  void VisitStmt_(const StoreNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-  }
-
   void VisitStmt_(const BufferStoreNode* op) final {
     if (op->buffer->data.get() != buffer_) {
       StmtVisitor::VisitStmt_(op);
@@ -291,14 +287,6 @@ class WarpAccessRewriter : protected StmtExprMutator {
   PrimExpr VisitExpr_(const VarNode* op) override {
     ICHECK(op != buffer_) << "Cannot access address of warp memory directly";
     return StmtExprMutator::VisitExpr_(op);
-  }
-
-  Stmt VisitStmt_(const StoreNode* op) override {
-    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-  }
-
-  PrimExpr VisitExpr_(const LoadNode* op) override {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) override {

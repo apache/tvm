@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=no-else-return
+# pylint: disable=no-else-return, broad-exception-raised
 """The Python interface to the Relay reference interpreter."""
 from __future__ import absolute_import
 

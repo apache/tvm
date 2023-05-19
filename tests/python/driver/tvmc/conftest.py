@@ -242,7 +242,7 @@ def tflite_mobilenet_v1_0_25_128(tmpdir_factory):
 
 @pytest.fixture(scope="session")
 def tflite_cnn_s_quantized(tmpdir_factory):
-    base_url = "https://github.com/ARM-software/ML-zoo/raw/master/models/keyword_spotting/cnn_small/tflite_int8/"
+    base_url = "https://github.com/ARM-software/ML-zoo/raw/48a22ee22325d15d2371a6df24eb7d67e21dcc97/models/keyword_spotting/cnn_small/tflite_int8"
     file_to_download = "cnn_s_quantized.tflite"
     model_file = download_testdata(
         "{}/{}".format(base_url, file_to_download), file_to_download, module=["tvmc"]

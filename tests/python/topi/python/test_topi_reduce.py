@@ -25,7 +25,7 @@ import tvm
 import tvm.testing
 import tvm.topi.testing
 
-from tvm import te, topi
+from tvm import te, topi, tir
 
 in_shape, axis, keepdims, reduce_type, dtype = tvm.testing.parameters(
     ((32,), 0, False, "argmax", "float32"),
@@ -44,6 +44,8 @@ in_shape, axis, keepdims, reduce_type, dtype = tvm.testing.parameters(
     ((32, 128, 24), None, True, "any", "bool"),
     ((1, 4, 7), 1, True, "any", "bool"),
     ((128, 24, 128, 24), 2, False, "any", "bool"),
+    ((128, 24, 128, 24), 2, False, "sum", "bool"),
+    ((128, 24, 128, 24), 0, True, "sum", "bool"),
 )
 
 
@@ -57,7 +59,10 @@ def ref_data(in_shape, axis, keepdims, reduce_type, dtype):
         in_npy_map = np.sqrt(np.exp(in_npy)).astype(dtype)
 
     if reduce_type == "sum":
-        out_npy = in_npy_map.sum(axis=axis, keepdims=keepdims)
+        if dtype == "bool":
+            out_npy = in_npy_map.sum(axis=axis, keepdims=keepdims, dtype="bool")
+        else:
+            out_npy = in_npy_map.sum(axis=axis, keepdims=keepdims)
     elif reduce_type == "all" and dtype == "bool":
         out_npy = in_npy_map.all(axis=axis, keepdims=keepdims)
     elif reduce_type == "any" and dtype == "bool":
@@ -113,7 +118,10 @@ def test_reduce_map(target, dev, ref_data, in_shape, axis, keepdims, reduce_type
     A1 = topi.sqrt(topi.exp(A))
     out_dtype = dtype
     if reduce_type == "sum":
-        B = topi.sum(A1, axis=axis, keepdims=keepdims)
+        if dtype == "bool":
+            B = topi.sum(A, axis=axis, keepdims=keepdims)
+        else:
+            B = topi.sum(A1, axis=axis, keepdims=keepdims)
     elif reduce_type == "all":
         B = topi.all(A, axis=axis, keepdims=keepdims)
     elif reduce_type == "any":
@@ -181,6 +189,54 @@ def test_complex_reduce(target, dev):
     out_tvm = tvm.nd.empty(shape=out_npy.shape, device=dev, dtype=dtype)
     foo(data_tvm, out_tvm)
     tvm.testing.assert_allclose(out_tvm.numpy(), out_npy, 1e-3, 1e-3)
+
+
+n = tir.Var("n", "int32")
+m = tir.Var("m", "int32")
+true_value_map = {n: 3, m: 5}
+
+data_shape, target_shape = tvm.testing.parameters(
+    ((2, 3), (3,)),
+    ((2, 3, 4), (2, 1, 4)),
+    ((2, 3, 4, 5), (3, 1, 5)),
+    ((2, n, 4, m), (n, 1, m)),
+)
+
+
+def _my_npy_collapse_sum(data, target_shape):
+    reduce_axes = []
+    i = data.ndim - 1
+    j = len(target_shape) - 1
+    while i >= 0:
+        if j < 0:
+            reduce_axes.append(i)
+        elif target_shape[j] == 1 and data.shape[i] > 1:
+            reduce_axes.append(i)
+        i -= 1
+        j -= 1
+    return np.sum(data, tuple(reduce_axes)).reshape(target_shape)
+
+
+def test_collapse_sum(data_shape, target_shape):
+    A = te.placeholder(data_shape, name="A")
+    B = topi.collapse_sum(A, target_shape)
+    s = te.create_schedule([B.op])
+
+    data_shape_const = [int(s) if s not in true_value_map else true_value_map[s] for s in A.shape]
+    target_shape_const = [
+        int(s) if s not in true_value_map else true_value_map[s] for s in target_shape
+    ]
+    a_np = np.random.uniform(size=data_shape_const).astype(A.dtype)
+    b_np = _my_npy_collapse_sum(a_np, target_shape_const)
+    dev = tvm.cpu(0)
+    a = tvm.nd.array(a_np, dev)
+    B_shape_const = [int(s) if s not in true_value_map else true_value_map[s] for s in B.shape]
+    b = tvm.nd.array(np.zeros(B_shape_const, dtype=B.dtype), dev)
+    # Building with the CSE pass disabled
+    with tvm.transform.PassContext(opt_level=3, disabled_pass=["tir.CommonSubexprElimTIR"]):
+        foo = tvm.build(s, [A, B], "llvm", name="collapse_sum")
+    foo(a, b)
+    tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5)
 
 
 if __name__ == "__main__":

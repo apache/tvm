@@ -36,6 +36,7 @@ def pooling_compute(
     ofm_zero_point: int,
     pool_shape: Tuple[int, int],
     ofm_channels: int,
+    ofm_dtype: str,
     strides: Tuple[int, int],
     padding: Tuple[int, int, int, int],
     activation: str,
@@ -68,6 +69,10 @@ def pooling_compute(
         The 2 dimensional pool shape as (pool_shape_height, pool_shape_width).
     ofm_channels : int
         The number of the Output Feature Map channels
+    ofm_dtype : str
+        The Output Feature Map tensor data type.
+            "AVG" or "MAX" pooling - can be "int8", "uint8", or "int16".
+            "SUM" pooling - can be "int32".
     strides : Tuple[int, int]
         The 2 dimensional strides as (stride_height, stride_width).
     padding : Tuple[int, int, int, int]
@@ -124,7 +129,6 @@ def pooling_compute(
     rh = te.reduce_axis((0, pool_shape_h), name="ry")
     rw = te.reduce_axis((0, pool_shape_w), name="rx")
     rc = te.reduce_axis((0, 1 if pooling_type != "SUM" else ifm_channels), name="rc")
-    ofm_dtype = ifm.dtype if pooling_type != "SUM" else "int32"
 
     pooling_attrs = {
         "op": "ethosu_pooling",

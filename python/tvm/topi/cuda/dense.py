@@ -18,8 +18,7 @@
 """Schedule for dense operator"""
 import logging
 import tvm
-from tvm import te
-import tvm.autotvm as autotvm
+from tvm import te, autotvm
 from tvm.contrib import cublas
 from .tensor_intrin import dp4a
 from .. import tag

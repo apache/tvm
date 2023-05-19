@@ -31,13 +31,13 @@ if [ "$architecture_type" != "aarch64" ]; then
 
   # Add Aarch64 packages to the apt sources list
   echo >> /etc/apt/sources.list.d/arm64.list
-  echo "deb [arch=arm64] http://ports.ubuntu.com/ bionic main restricted" >> /etc/apt/sources.list.d/arm64.list
-  echo "deb [arch=arm64] http://ports.ubuntu.com/ bionic-updates main restricted" >> /etc/apt/sources.list.d/arm64.list
-  echo "deb [arch=arm64] http://ports.ubuntu.com/ bionic universe" >> /etc/apt/sources.list.d/arm64.list
-  echo "deb [arch=arm64] http://ports.ubuntu.com/ bionic-updates universe" >> /etc/apt/sources.list.d/arm64.list
-  echo "deb [arch=arm64] http://ports.ubuntu.com/ bionic multiverse" >> /etc/apt/sources.list.d/arm64.list
-  echo "deb [arch=arm64] http://ports.ubuntu.com/ bionic-updates multiverse" >> /etc/apt/sources.list.d/arm64.list
-  echo "deb [arch=arm64] http://ports.ubuntu.com/ bionic-backports main restricted universe multiverse" >> /etc/apt/sources.list.d/arm64.list
+  echo "deb [arch=arm64] http://ports.ubuntu.com/ jammy main restricted" >> /etc/apt/sources.list.d/arm64.list
+  echo "deb [arch=arm64] http://ports.ubuntu.com/ jammy-updates main restricted" >> /etc/apt/sources.list.d/arm64.list
+  echo "deb [arch=arm64] http://ports.ubuntu.com/ jammy universe" >> /etc/apt/sources.list.d/arm64.list
+  echo "deb [arch=arm64] http://ports.ubuntu.com/ jammy-updates universe" >> /etc/apt/sources.list.d/arm64.list
+  echo "deb [arch=arm64] http://ports.ubuntu.com/ jammy multiverse" >> /etc/apt/sources.list.d/arm64.list
+  echo "deb [arch=arm64] http://ports.ubuntu.com/ jammy-updates multiverse" >> /etc/apt/sources.list.d/arm64.list
+  echo "deb [arch=arm64] http://ports.ubuntu.com/ jammy-backports main restricted universe multiverse" >> /etc/apt/sources.list.d/arm64.list
 
   # Fix apt-get update by specifying the amd64 architecture in sources.list
   sed -i -e 's/deb /deb [arch=amd64] /g' /etc/apt/sources.list

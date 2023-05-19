@@ -21,6 +21,8 @@
 #define TVM_RUNTIME_HEXAGON_RING_BUFFER_H_
 
 #include <functional>
+#include <queue>
+#include <unordered_map>
 #include <vector>
 
 #include "hexagon_common.h"
@@ -94,17 +96,33 @@ class RingBuffer {
 template <class T>
 class QueuedRingBuffer : RingBuffer<T> {
  public:
-  QueuedRingBuffer(uint32_t ring_buff_size, std::function<bool(T*)> in_flight)
-      : RingBuffer<T>(ring_buff_size, in_flight) {}
+  QueuedRingBuffer(uint32_t max_queues, uint32_t ring_buff_size, std::function<bool(T*)> in_flight)
+      : RingBuffer<T>(ring_buff_size, in_flight), max_queues_(max_queues) {
+    queue_descriptors_.resize(max_queues_);
+  }
 
   //! \brief Returns pointer to next T; add the queue ID for tracking
-  T* Next(int queue_id) {
+  T* Next(uint32_t queue_id) {
+    CHECK_LT(queue_id, max_queues_);
     queue_ids_.push_back(queue_id);
+    queue_descriptor* d = &queue_descriptors_[queue_id];
+    if (d->group_started) {
+      // if we have a group started just update then pending count
+      d->pending_in_group++;
+    } else {
+      // else create group with size one
+      d->groups.push(1);
+      d->pending_total++;
+    }
     return RingBuffer<T>::Next();
   }
 
-  //! \brief Returns the number of Ts in flight for a given queue ID
-  uint32_t InFlight(int queue_id) {
+  //! \brief Returns the number of groups of Ts in flight for a given queue ID
+  uint32_t InFlight(uint32_t queue_id) {
+    CHECK_LT(queue_id, max_queues_);
+    queue_descriptor* d = &queue_descriptors_[queue_id];
+    CHECK(!d->group_started);
+
     uint32_t in_flight = 0;
     // look at the queue IDs for the RingBuffer entries in flight
     for (size_t i = queue_ids_.size() - RingBuffer<T>::InFlight(); i < queue_ids_.size(); ++i) {
@@ -113,11 +131,57 @@ class QueuedRingBuffer : RingBuffer<T> {
         in_flight++;
       }
     }
-    return in_flight;
+
+    // calculate number of groups in flight
+    while (!d->groups.empty() && d->pending_total - d->groups.front() >= in_flight) {
+      d->pending_total -= d->groups.front();
+      d->groups.pop();
+    }
+
+    // return the number of groups in flight
+    return d->groups.size();
+  }
+
+  //! \brief Start a group of Ts, if not called the deafault group size is one
+  void StartGroup(uint32_t queue_id) {
+    CHECK_LT(queue_id, max_queues_);
+    queue_descriptor* d = &queue_descriptors_[queue_id];
+    CHECK(!d->group_started);
+
+    // start group
+    d->group_started = true;
+    d->pending_in_group = 0;
+  }
+
+  //! \brief End a group of Ts
+  void EndGroup(uint32_t queue_id) {
+    CHECK_LT(queue_id, max_queues_);
+    queue_descriptor* d = &queue_descriptors_[queue_id];
+    CHECK(d->group_started);
+    CHECK(d->pending_in_group);
+
+    // create group
+    if (d->pending_in_group) {
+      d->groups.emplace(d->pending_in_group);
+    }
+    d->pending_total += d->pending_in_group;
+
+    // end group
+    d->group_started = false;
+    d->pending_in_group = 0;
   }
 
  private:
+  struct queue_descriptor {
+    uint32_t pending_total = 0;
+    uint32_t pending_in_group = 0;
+    bool group_started = false;
+    std::queue<int> groups;
+  };
+
+  const int max_queues_;
   std::vector<int> queue_ids_;
+  std::vector<queue_descriptor> queue_descriptors_;
 };
 
 }  // namespace hexagon

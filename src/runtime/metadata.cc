@@ -88,6 +88,9 @@ class MetadataModuleNode : public ::tvm::runtime::ModuleNode {
 
   const char* type_key() const final { return "metadata_module"; }
 
+  /*! \brief Get the property of the runtime module .*/
+  int GetPropertyMask() const final { return ModulePropertyMask::kBinarySerializable; }
+
   static Module LoadFromBinary() {
     return Module(make_object<MetadataModuleNode>(runtime::metadata::Metadata()));
   }

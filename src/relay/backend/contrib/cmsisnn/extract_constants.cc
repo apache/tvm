@@ -186,8 +186,8 @@ class ExtractConstantsMutator : public MixedModeMutator {
 
     // Since the constants are extracted from partitioned functions
     // a new call to global function is needed
-    if (auto* glob_var_node = post_call->op.as<GlobalVarNode>()) {
-      auto glob_var = GetRef<GlobalVar>(glob_var_node);
+    if (auto opt = post_call->op.as<GlobalVar>()) {
+      auto glob_var = opt.value();
       auto glob_func = Downcast<Function>(mod_->Lookup(glob_var));
       auto new_glob_func = VisitExpr(glob_func);
       if (!new_glob_func.same_as(glob_func)) {
@@ -199,13 +199,14 @@ class ExtractConstantsMutator : public MixedModeMutator {
 
     // Since the constants are extracted from the local partitioned functions
     // a new call to local function is needed
-    if (auto* func_node = call->op.as<FunctionNode>()) {
-      Function func = GetRef<Function>(func_node);
+    if (auto opt = call->op.as<Function>()) {
+      Function func = opt.value();
       auto new_func = VisitExpr(func);
       Array<Expr> new_args = CreateNewCallArgsFromExtractedConstants(GetRef<Call>(post_call), func);
       final_call = Call(new_func, new_args);
     }
 
+    final_call->span = call->span;
     return final_call;
   }
 

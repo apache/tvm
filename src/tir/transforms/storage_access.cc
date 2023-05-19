@@ -33,14 +33,6 @@
 namespace tvm {
 namespace tir {
 
-void StorageAccessVisitor::VisitExpr_(const LoadNode* op) {
-  LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-}
-
-void StorageAccessVisitor::VisitStmt_(const StoreNode* op) {
-  LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-}
-
 void StorageAccessVisitor::VisitExpr_(const BufferLoadNode* op) {
   Var buf = op->buffer->data;
   StorageScope scope = GetScope(buf);

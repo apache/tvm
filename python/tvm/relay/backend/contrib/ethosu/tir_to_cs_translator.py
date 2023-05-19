@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=use-list-literal, invalid-name
 """This source will contain code to convert TIR, as produced by
 the Relay to TIR compilation process, to Vela API calls to
 generate command stream.
@@ -403,7 +404,6 @@ def assign_addresses(buffer_info, npu_ops, scratch_region_map):
         The key is the buffer name to BufferInfo
     npu_ops : list
         A list of Vela NpuOps with tir.BufferLoads for addresses
-        A list of Vela NpuOps with tir.Loads for addresses
     scratch_region_map : Dict[tvm.tir.Var, RegionOffset]
         A buffer_var to region and offset map.
     Returns
@@ -583,12 +583,16 @@ def _convert_clip_bounds(npu_op: vapi.NpuBlockOperation):
     """
     clip_min_quant = npu_op.activation.min
     clip_max_quant = npu_op.activation.max
-    clip_min_actual = (
-        clip_min_quant - npu_op.ofm.quantization.zero_point
-    ) * npu_op.ofm.quantization.scale_f32
-    clip_max_actual = (
-        clip_max_quant - npu_op.ofm.quantization.zero_point
-    ) * npu_op.ofm.quantization.scale_f32
+    if npu_op.ofm.quantization.scale_f32:
+        clip_min_actual = (
+            clip_min_quant - npu_op.ofm.quantization.zero_point
+        ) * npu_op.ofm.quantization.scale_f32
+        clip_max_actual = (
+            clip_max_quant - npu_op.ofm.quantization.zero_point
+        ) * npu_op.ofm.quantization.scale_f32
+    else:
+        clip_min_actual = clip_min_quant
+        clip_max_actual = clip_max_quant
     npu_op.activation.min = clip_min_actual
     npu_op.activation.max = clip_max_actual
 

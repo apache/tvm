@@ -80,7 +80,7 @@ class SpaceGenerator(Object):
 
         Returns
         -------
-        design_spaces : List[Schedule]
+        design_spaces : List[tvm.tir.Schedule]
             The generated design spaces, i.e., schedules.
         """
         return _ffi_api.SpaceGeneratorGenerateDesignSpace(self, mod)  # type: ignore # pylint: disable=no-member
@@ -126,6 +126,8 @@ class SpaceGenerator(Object):
             return PostOrderApply(*args, **kwargs)
         if kind == "union":
             return SpaceGeneratorUnion(*args, **kwargs)
+        if isinstance(kind, str):
+            return PostOrderApply(sch_rules=kind, postprocs=kind, mutator_probs=kind)
         raise ValueError(f"Unknown SpaceGenerator: {kind}")
 
 
@@ -248,7 +250,7 @@ class PySpaceGenerator:
 
         Returns
         -------
-        design_spaces : List[Schedule]
+        design_spaces : List[tvm.tir.Schedule]
             The generated design spaces, i.e., schedules.
         """
         raise NotImplementedError

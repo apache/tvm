@@ -182,10 +182,10 @@ def test_vthread_vectorized():
     def expected_func():
         B_data = T.allocate([4], "int32x4", "shared")
         B = T.Buffer([4], "int32x4", data=B_data, scope="shared")
-        B[T.Mul(0, 4) / 4] = T.broadcast(0, 4)
-        B[T.Mul(1, 4) / 4] = T.broadcast(1, 4)
-        B[T.Mul(2, 4) / 4] = T.broadcast(2, 4)
-        B[T.Mul(3, 4) / 4] = T.broadcast(3, 4)
+        B[T.Div(T.Mul(0, 4), 4)] = T.broadcast(0, 4)
+        B[T.Div(T.Mul(1, 4), 4)] = T.broadcast(1, 4)
+        B[T.Div(T.Mul(2, 4), 4)] = T.broadcast(2, 4)
+        B[T.Div(T.Mul(3, 4), 4)] = T.broadcast(3, 4)
 
     before_mod = tvm.IRModule.from_expr(before_func)
     intermediate_mod = tvm.tir.transform.InjectVirtualThread()(before_mod)

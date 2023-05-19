@@ -42,7 +42,9 @@ def prim_func(func: Callable) -> Union[PrimFunc, Callable]:
         raise TypeError(f"Expect a function, but got: {func}")
     if utils.is_defined_in_class(inspect.stack(), func):
         return func
-    return parse(func, utils.inspect_function_capture(func))
+    f = parse(func, utils.inspect_function_capture(func))
+    setattr(f, "__name__", func.__name__)
+    return f
 
 
 setattr(prim_func, "dispatch_token", "tir")
@@ -83,7 +85,7 @@ class BufferProxy:
             return self(keys)
         if len(keys) >= 2 and not isinstance(keys[1], str):
             return self(keys)
-        return self(*keys)  # pylint: disable=no-member # type: ignore
+        return self(*keys)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 class PtrProxy:
@@ -93,7 +95,7 @@ class PtrProxy:
     def __call__(self, dtype, storage_scope="global"):
         if callable(dtype):
             dtype = dtype().dtype
-        return ptr(dtype, storage_scope)  # pylint: disable=no-member # type: ignore
+        return ptr(dtype, storage_scope)  # type: ignore[attr-defined] # pylint: disable=no-member
 
     @deprecated("T.Ptr[...]", "T.handle(...)")
     def __getitem__(self, keys):

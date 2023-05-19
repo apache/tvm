@@ -411,18 +411,16 @@ struct BufferDescriptor {
 // To make the call thread-safe, we create a thread-local kernel table
 // and lazily install new kernels into the kernel table when the kernel is called.
 // The kernels are recycled when the module get destructed.
-class OpenCLModuleNode : public ModuleNode {
+class OpenCLModuleNodeBase : public ModuleNode {
  public:
   // Kernel table reference entry.
   struct KTRefEntry {
     size_t kernel_id;
     size_t version;
   };
-  explicit OpenCLModuleNode(std::string data, std::string fmt,
-                            std::unordered_map<std::string, FunctionInfo> fmap, std::string source)
-      : data_(data), fmt_(fmt), fmap_(fmap), source_(source) {}
+  explicit OpenCLModuleNodeBase(std::unordered_map<std::string, FunctionInfo> fmap) : fmap_(fmap) {}
   // destructor
-  ~OpenCLModuleNode();
+  ~OpenCLModuleNodeBase();
 
   /*!
    * \brief Get the global workspace
@@ -431,38 +429,61 @@ class OpenCLModuleNode : public ModuleNode {
 
   const char* type_key() const final { return workspace_->type_key.c_str(); }
 
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
-  void SaveToFile(const std::string& file_name, const std::string& format) final;
-  void SaveToBinary(dmlc::Stream* stream) final;
-  std::string GetSource(const std::string& format) final;
-  // Initialize the programs
-  void Init();
-  // install a new kernel to thread local entry
-  cl_kernel InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThreadEntry* t,
-                          const std::string& func_name, const KTRefEntry& e);
-  void SetPreCompiledPrograms(const std::string& bytes);
-  std::string GetPreCompiledPrograms();
+  /*! \brief Get the property of the runtime module .*/
+  int GetPropertyMask() const final {
+    return ModulePropertyMask::kBinarySerializable | ModulePropertyMask::kRunnable;
+  }
 
- private:
+  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) override;
+
+  // Initialize the programs
+  virtual void Init() = 0;
+  // install a new kernel to thread local entry
+  virtual cl_kernel InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThreadEntry* t,
+                                  const std::string& func_name, const KTRefEntry& e) = 0;
+
+ protected:
   // The workspace, need to keep reference to use it in destructor.
   // In case of static destruction order problem.
   cl::OpenCLWorkspace* workspace_;
-  // the binary data
-  std::string data_;
-  // The format
-  std::string fmt_;
   // function information table.
   std::unordered_map<std::string, FunctionInfo> fmap_;
   // Module local mutex
   std::mutex build_lock_;
-  // The OpenCL source.
-  std::string source_;
   // Mapping from primitive name to cl program for each device.
   std::unordered_map<std::string, std::vector<cl_program>> programs_;
   // kernel id cache
   std::unordered_map<std::string, KTRefEntry> kid_map_;
-  // kernels build so far.
+  // kernels built so far.
   std::vector<cl_kernel> kernels_;
+};
+
+class OpenCLModuleNode : public OpenCLModuleNodeBase {
+ public:
+  explicit OpenCLModuleNode(std::string data, std::string fmt,
+                            std::unordered_map<std::string, FunctionInfo> fmap, std::string source)
+      : OpenCLModuleNodeBase(fmap), data_(data), fmt_(fmt), source_(source) {}
+
+  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
+  void SaveToFile(const std::string& file_name, const std::string& format) final;
+  void SaveToBinary(dmlc::Stream* stream) final;
+  void SetPreCompiledPrograms(const std::string& bytes);
+  std::string GetPreCompiledPrograms();
+  std::string GetSource(const std::string& format) final;
+
+  // Initialize the programs
+  void Init() override;
+  // install a new kernel to thread local entry
+  cl_kernel InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThreadEntry* t,
+                          const std::string& func_name, const KTRefEntry& e) override;
+
+ private:
+  // the binary data
+  std::string data_;
+  // The format
+  std::string fmt_;
+  // The OpenCL source.
+  std::string source_;
   // parsed kernel data
   std::unordered_map<std::string, std::string> parsed_kernels_;
 };

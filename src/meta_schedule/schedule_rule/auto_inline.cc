@@ -209,7 +209,10 @@ class InlineConstantScalarsNode : public ScheduleRuleNode {
     auto block = sch->Get(block_rv);
     if (block->reads.size() == 0 && block->writes.size() == 1 &&
         block->writes[0]->buffer->shape.size() == 0) {
-      sch->ComputeInline(block_rv);
+      auto sref = sch->GetSRef(block_rv);
+      if (!tir::IsOutputBlock(sch->state(), sref, tir::GetScopeRoot(sch->state(), sref, true))) {
+        sch->ComputeInline(block_rv);
+      }
     }
     return {sch};
   }

@@ -580,6 +580,36 @@ class Array : public ObjectRef {
     }
   }
 
+  template <typename... Args>
+  static size_t CalcCapacityImpl() {
+    return 0;
+  }
+
+  template <typename... Args>
+  static size_t CalcCapacityImpl(Array<T> value, Args... args) {
+    return value.size() + CalcCapacityImpl(args...);
+  }
+
+  template <typename... Args>
+  static size_t CalcCapacityImpl(T value, Args... args) {
+    return 1 + CalcCapacityImpl(args...);
+  }
+
+  template <typename... Args>
+  static void AgregateImpl(Array<T>& dest) {}  // NOLINT(*)
+
+  template <typename... Args>
+  static void AgregateImpl(Array<T>& dest, Array<T> value, Args... args) {  // NOLINT(*)
+    dest.insert(dest.end(), value.begin(), value.end());
+    AgregateImpl(dest, args...);
+  }
+
+  template <typename... Args>
+  static void AgregateImpl(Array<T>& dest, T value, Args... args) {  // NOLINT(*)
+    dest.push_back(value);
+    AgregateImpl(dest, args...);
+  }
+
  public:
   // Array's own methods
 
@@ -679,6 +709,19 @@ class Array : public ObjectRef {
 
   /*! \brief specify container node */
   using ContainerType = ArrayNode;
+
+  /*!
+   * \brief Agregate arguments into a single Array<T>
+   * \param args sequence of T or Array<T> elements
+   * \return Agregated Array<T>
+   */
+  template <typename... Args>
+  static Array<T> Agregate(Args... args) {
+    Array<T> result;
+    result.reserve(CalcCapacityImpl(args...));
+    AgregateImpl(result, args...);
+    return result;
+  }
 
  private:
   /*!
@@ -828,6 +871,12 @@ class Array : public ObjectRef {
     return output;
   }
 };
+
+template <typename T>
+inline constexpr bool is_tvm_array = false;
+
+template <typename T>
+inline constexpr bool is_tvm_array<Array<T>> = true;
 
 /*!
  * \brief Concat two Arrays.

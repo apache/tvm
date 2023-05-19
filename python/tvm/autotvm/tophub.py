@@ -14,13 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: skip-file
 """
 TopHub: Tensor Operator Hub
 To get the best performance, we typically need auto-tuning for the specific devices.
 TVM releases pre-tuned parameters in TopHub for some common networks and hardware targets.
 TVM will download these parameters for you when you call relay.build.
 """
-# pylint: disable=invalid-name
 
 import logging
 from os import getenv

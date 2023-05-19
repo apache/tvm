@@ -494,7 +494,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
       }));
     }
 
-    tir::Stmt body = tir::SeqStmt({func_call});
+    tir::Stmt body = tir::SeqStmt::Flatten(func_call);
     stmts_.push_back(body);
   }
 
@@ -570,7 +570,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
                                         {tvm::tir::StringImm(device_hook_name), context})));
       device_hooks.push_back(device_hook);
     }
-    return tir::SeqStmt(device_hooks);
+    return tir::SeqStmt::Flatten(device_hooks);
   }
 
   /**
@@ -736,7 +736,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
   // the packed function calls don't pack their arguments. The AOT
   // runner function needs to be legalized by the LegalizePackedCalls pass.
   tir::PrimFunc CreateMainFunc(String mod_name, unsigned int relay_params) {
-    tir::Stmt body = tir::SeqStmt(stmts_);
+    tir::Stmt body = tir::SeqStmt::Flatten(stmts_);
     // Allocate the sids
     std::unordered_map<int, bool> allocated;
 
@@ -1103,7 +1103,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
       lowered_mod = transform::RemoveStandaloneReshapes()(lowered_mod);
     }
     auto lowered_main = lowered_mod->Lookup("main");
-    auto lowered_main_func = GetRef<Function>(lowered_main.as<FunctionNode>());
+    auto lowered_main_func = Downcast<Function>(lowered_main);
 
     // Post-lowering storage map for writing main func
     AOTOnDemandAllocator final_aot_allocator;
@@ -1357,6 +1357,9 @@ class AOTExecutorCodegenModule : public runtime::ModuleNode {
   }
 
   const char* type_key() const final { return "RelayGraphRuntimeCodegenModule"; }
+
+  /*! \brief Get the property of the runtime module .*/
+  int GetPropertyMask() const final { return runtime::ModulePropertyMask::kRunnable; }
 
  private:
   void init(void* mod, const Array<Target>& targets) {

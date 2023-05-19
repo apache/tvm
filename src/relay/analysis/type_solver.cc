@@ -25,6 +25,7 @@
 
 #include <tvm/ir/type_functor.h>
 #include <tvm/node/structural_equal.h>
+#include <tvm/tir/expr_functor.h>
 #include <tvm/tir/op.h>
 
 #include <memory>
@@ -74,6 +75,19 @@ class TypeSolver::Reporter : public TypeReporterNode {
   mutable Span span;
 
   TypeSolver* solver_;
+};
+
+class TypeSolver::AnyChecker : public tir::ExprVisitor {
+ public:
+  void VisitExpr_(const AnyNode* op) final { found_ = true; }
+
+  bool Check(const PrimExpr& expr) {
+    tir::ExprVisitor::VisitExpr(expr);
+    return found_;
+  }
+
+ private:
+  bool found_{false};
 };
 
 class TypeSolver::OccursChecker : public TypeVisitor {
@@ -146,6 +160,11 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     }
   }
 
+  bool HasAny(const PrimExpr& expr) {
+    AnyChecker ac;
+    return ac.Check(expr);
+  }
+
   // Checks whether lhs (taken to be a type var) occurs in t, meaning
   // there is a recursive equality constraint, which should be rejected.
   // N.b.: A tautology like ?a = ?a is okay and should be checked for
@@ -160,7 +179,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
   // default: unify only if structural-equal
   Type VisitTypeDefault_(const Object* op, const Type& tn) final {
     ObjectRef nr = GetRef<ObjectRef>(op);
-    Type t1 = GetRef<Type>(nr.as<tvm::relay::TypeNode>());
+    Type t1 = Downcast<Type>(nr);
     if (!tvm::StructuralEqual()(t1, tn)) {
       return Type(nullptr);
     }
@@ -186,7 +205,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     if (ulhs.same_as(urhs)) {
       return ulhs;
     }
-    if (ulhs.as<AnyNode>() || urhs.as<AnyNode>()) {
+    if (HasAny(ulhs) || HasAny(urhs)) {
       return Any();
     }
 
@@ -405,7 +424,7 @@ class TypeSolver::Propagator : public TypeFunctor<void(const Type&)> {
 
   void VisitTypeDefault_(const Object* op) override {
     ObjectRef nr = GetRef<ObjectRef>(op);
-    Type t = GetRef<Type>(nr.as<tvm::relay::TypeNode>());
+    Type t = Downcast<Type>(nr);
     UpdateRelSet(t);
   }
 
@@ -489,7 +508,7 @@ class TypeSolver::Merger : public TypeFunctor<void(const Type&)> {
 
   void VisitTypeDefault_(const Object* op) override {
     ObjectRef nr = GetRef<ObjectRef>(op);
-    Type t = GetRef<Type>(nr.as<tvm::relay::TypeNode>());
+    Type t = Downcast<Type>(nr);
     TransferLinks(t);
   }
 

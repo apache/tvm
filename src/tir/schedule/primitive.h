@@ -148,6 +148,15 @@ Array<StmtSRef> GetProducers(const ScheduleState& self, const StmtSRef& block_sr
  * \return A list of blocks, the consumers of the given block
  */
 Array<StmtSRef> GetConsumers(const ScheduleState& self, const StmtSRef& block_sref);
+/*!
+ * \brief Get the list of output blocks within the given scope
+ * An output block is a block which has atleast one buffer being written
+ * to, but is not allocated within the PrimFunc
+ * \param scope_block_rv The scope block from which output blocks are collected
+ * \return A list of all blocks that write to some output buffer
+ * block
+ */
+Array<StmtSRef> GetOutputBlocks(const ScheduleState& self, const StmtSRef& scope_sref);
 /******** Schedule: Transform loops ********/
 /*!
  * Split a loop into a list of consecutive loops. It requires:
@@ -161,6 +170,19 @@ Array<StmtSRef> GetConsumers(const ScheduleState& self, const StmtSRef& block_sr
  */
 TVM_DLL Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
                               const Array<PrimExpr>& factors, bool preserve_unit_iters);
+
+/*!
+ * \brief Merge a list of loops into one. The loops under their LCA requires:
+ * 1) Under the same scope
+ * 2) Can't have annotations or thread bindings
+ * 3) Start with 0 and have same extent and same nesting depth
+ * 4) From target loop to their LCA, the inner loop must be the only child of the outer loop
+ * \param self The state of the schedule
+ * \param loop_srefs An array of srefs to the loops to be merged
+ * \return The new loop after merge
+ */
+TVM_DLL StmtSRef Merge(ScheduleState self, const Array<StmtSRef>& loop_srefs);
+
 /*!
  * \brief Fuse a list of consecutive loops into one. It requires:
  * 1) The loops can't have annotations or thread bindings.
@@ -188,6 +210,15 @@ TVM_DLL StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs,
  * \param ordered_loop_srefs An array of srefs which indicates the new order of loops
  */
 TVM_DLL void Reorder(ScheduleState self, const Array<StmtSRef>& ordered_loop_srefs);
+
+/*!
+ * \brief Reorder itervars inside a block.
+ * \param self The state of the schedule.
+ * \param block_sref The sref of block to be transformed.
+ * \param new_order The new itervar order.
+ */
+TVM_DLL void ReorderBlockIterVar(ScheduleState self, const StmtSRef& block_sref,
+                                 const Array<Integer>& new_order);
 
 /*!
  * \brief Create a new unit loop on top of the specific block or loop.
@@ -270,6 +301,39 @@ TVM_DLL StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int 
                             const String& storage_scope,
                             const Array<StmtSRef> consumer_blocks = {});
 /*!
+ * \brief Create a block that reads a buffer region into a read cache. It requires:
+ * 1) There is at most one block who writes the buffer in the scope.
+ * 2) The scope block have stage-pipeline property.
+ * Compared to cache read, the indices to access allocated cache buffer is customized by user.
+ * \param self The state of the schedule
+ * \param block_sref The consumer block of the target buffer.
+ * \param read_buffer_index The index of the buffer in block's read region.
+ * \param storage_scope The target storage scope.
+ * \param index_map User defined indices to access allocated cache buffer, maps from block iter
+ * vars.
+ * \return The cache stage block.
+ */
+TVM_DLL StmtSRef ReindexCacheRead(ScheduleState self, const StmtSRef& block_sref,
+                                  int read_buffer_index, const String& storage_scope,
+                                  const IndexMap& index_map);
+/*!
+ * \brief Create a block that writes a buffer region into a write cache. It requires:
+ * 1) There is only one block that writes the target buffer.
+ * 2) The scope block have stage-pipeline property.
+ * Compared to cache write, the indices to access allocated cache buffer is customized by user.
+ * \param self The state of the schedule
+ * \param block_sref The producer of the buffer
+ * \param write_buffer_index The index of the buffer in block's write region
+ * \param storage_scope The target storage scope
+ * \param index_map User defined indices to access allocated cache buffer, maps from block iter
+ * vars.
+ * \return The cache stage block.
+ */
+TVM_DLL StmtSRef ReindexCacheWrite(ScheduleState self, const StmtSRef& block_sref,
+                                   int write_buffer_index, const String& storage_scope,
+                                   const IndexMap& index_map);
+
+/*!
  *!
  * \brief Create 2 blocks that read&write a buffer region into a read/write cache.
  * It requires the the target block both read & write the target buffer.
@@ -306,6 +370,15 @@ TVM_DLL Array<StmtSRef> CacheIndex(ScheduleState self, const StmtSRef& block_sre
  */
 TVM_DLL StmtSRef ReIndex(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
                          BufferIndexType buffer_index_type);
+
+/******** Schedule: Data movement ********/
+
+TVM_DLL StmtSRef ReadAt(ScheduleState self, const StmtSRef& loop_sref, const StmtSRef& block_sref,
+                        int read_buffer_index, const String& storage_scope);
+
+TVM_DLL StmtSRef WriteAt(ScheduleState self, const StmtSRef& loop_sref, const StmtSRef& block_sref,
+                         int write_buffer_index, const String& storage_scope);
+
 /******** Schedule: Compute location ********/
 /*!
  * \brief Move a producer block under the specific loop, and regenerate the
@@ -408,10 +481,7 @@ TVM_DLL StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sr
  */
 TVM_DLL StmtSRef RFactor(ScheduleState self, const StmtSRef& loop_sref, int factor_axis);
 /******** Schedule: Block annotation ********/
-/*! \brief The quad used by StorageAlign for (buffer_idx, axis, factor, offset) */
-using StorageAlignTuple = Array<Integer>;
-/*! \brief A list of StorageAlignTuple, used by StorageAlign */
-using StorageAlignAnnotation = Array<StorageAlignTuple>;
+
 /*!
  * \brief Set alignment requirement for specific dimension such that
  *        stride[axis] == k * factor + offset for some k. This is useful to set memory layout for
@@ -437,6 +507,18 @@ TVM_DLL void StorageAlign(ScheduleState self, const StmtSRef& block_sref, int bu
  */
 TVM_DLL void SetScope(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
                       const String& storage_scope);
+/*!
+ * \brief Set the data type of a buffer, where the buffer is specified by a block and a
+ * write-index
+ * \note This schedule primitive is unsafe and may change correctness of program because of
+ *   type conversion, please use with caution.
+ * \param self The state of the schedule
+ * \param block_sref The sref of the producer block of the buffer
+ * \param buffer_index The index of the buffer in block's write region
+ * \param dtype The data type to be set
+ */
+TVM_DLL void UnsafeSetDType(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
+                            const String& dtype);
 /*!
  * \brief Set the axis separator of a buffer, where the buffer is specified by a block and a read
  * or write index

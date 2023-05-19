@@ -279,7 +279,6 @@ class VirtualDevice : public ObjectRef {
    * unconstrained.
    * \param memory_scope The memory scope w.r.t. the virtual device which holds data, or "" if
    * unconstrained.
-   * \return The virtual device.
    */
   explicit VirtualDevice(int device_type_int = kInvalidDeviceType, int virtual_device_id = -1,
                          Target target = {}, MemoryScope memory_scope = {});

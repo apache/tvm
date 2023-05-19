@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, invalid-name, too-many-locals, too-many-arguments
+# pylint: disable=invalid-name, invalid-name, too-many-locals, too-many-arguments, condition-evals-to-constant
 """Schedule for bitserial dense operator."""
 from __future__ import absolute_import as _abs
 import tvm

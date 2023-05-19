@@ -88,14 +88,6 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
     }
   }
 
-  void VisitExpr_(const LoadNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-  }
-
-  void VisitStmt_(const StoreNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-  }
-
   void VisitExpr_(const BufferLoadNode* op) final {
     HandleLoadStoreToVariable(op->buffer->data);
     return StmtExprVisitor::VisitExpr_(op);
@@ -203,9 +195,8 @@ namespace transform {
 Pass VerifyMemory() {
   auto pass_func = [=](IRModule mod, PassContext ctx) {
     for (auto kv : mod->functions) {
-      if (auto* n = kv.second.as<PrimFuncNode>()) {
-        auto func = GetRef<PrimFunc>(n);
-        auto errs = VerifyMemory_(func);
+      if (auto func = kv.second.as<PrimFunc>()) {
+        auto errs = VerifyMemory_(func.value());
         if (errs.size() > 0) {
           std::stringstream s;
           for (auto& err : errs) {

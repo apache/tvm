@@ -110,7 +110,7 @@ def depthwise_conv2d_compute(
         The OFM tensor.
 
     """
-    assert ifm.shape[0] == 1, f"Only batch size 1 is supported"
+    assert ifm.shape[0] == 1, "Only batch size 1 is supported"
     assert ifm_layout in {"NHWC", "NHCWB16"}
     assert ofm_layout in {"NHWC", "NHCWB16"}
 

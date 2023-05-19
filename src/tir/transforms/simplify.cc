@@ -207,10 +207,6 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     return Parent::VisitExpr_(op);
   }
 
-  Stmt VisitStmt_(const StoreNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-  }
-
   // eliminate useless stores
   Stmt VisitStmt_(const BufferStoreNode* op) final {
     BufferStore store = Downcast<BufferStore>(Parent::VisitStmt_(op));

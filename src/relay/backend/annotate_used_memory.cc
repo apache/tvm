@@ -185,9 +185,8 @@ class AnnotateUsedMemoryMutator : public transform::DeviceAwareExprMutator {
    * \brief Check if a call is a primitive function callsite.
    */
   bool CheckPrimitiveFunctionCall(const Call& callsite) {
-    if (const auto* var_node = callsite->op.as<VarNode>()) {
-      Var var = GetRef<Var>(var_node);
-      if (let_bound_prim_func_.find(var) != let_bound_prim_func_.end()) {
+    if (auto var = callsite->op.as<Var>()) {
+      if (let_bound_prim_func_.find(var.value()) != let_bound_prim_func_.end()) {
         return true;
       }
     }

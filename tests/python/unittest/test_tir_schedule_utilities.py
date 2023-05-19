@@ -193,6 +193,7 @@ def test_tir_schedule_work_on():
         sch.get_block(name="init")
     sch.work_on(func_name="vector_add")
     sch.get_block(name="init")
+    assert sch.func_working_on == sch.mod.get_global_var("vector_add")
 
 
 def test_tir_schedule_get_loops(use_block_name):
@@ -356,6 +357,65 @@ def test_annotate_unannotate_block():
     sch.unannotate(relu, "test3")
     sch.unannotate(matmul, "test4")
     verify_trace_roundtrip(sch=sch, mod=matmul_relu)
+
+
+def test_get_output_blocks_single_output():
+    sch = tir.Schedule(mod=matmul_relu, debug_mask="all")
+    output_blocks = sch.get_output_blocks("root")
+    assert len(output_blocks) == 1, "Unexpected number of blocks when 1 was expected"
+    block = sch.get(output_blocks[0])
+    assert block.name_hint == "relu"
+    relu_block = sch.get_block("relu")
+    assert sch.get(relu_block).same_as(block)
+
+
+def test_get_output_blocks_multiple_outputs():
+    sch = tir.Schedule(mod=matmul, debug_mask="all")
+    output_blocks = sch.get_output_blocks("root")
+    assert len(output_blocks) == 2, "Unexpected number of blocks when 2 were expected"
+    block_1 = sch.get(output_blocks[0])
+    assert block_1.name_hint == "init"
+    block_2 = sch.get(output_blocks[1])
+    assert block_2.name_hint == "update"
+    init_block = sch.get_block("init")
+    assert sch.get(init_block).same_as(block_1)
+    update_block = sch.get_block("update")
+    assert sch.get(update_block).same_as(block_2)
+
+
+def test_get_output_blocks_nested():
+    @T.prim_func
+    def blockized(
+        A: T.Buffer((128, 128), "float32"),
+        B: T.Buffer((128, 128), "float32"),
+    ) -> None:
+        with T.block("blockized_B"):
+            vio = T.axis.spatial(1, 0)
+            vjo = T.axis.spatial(1, 0)
+            for i, j in T.grid(128, 128):
+                with T.block("B"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    B[vi, vj] = A[vi, vj] * 2.0
+
+    sch = tir.Schedule(mod=blockized, debug_mask="all")
+    output_blocks = sch.get_output_blocks("root")
+    assert len(output_blocks) == 2, "Unexpected number of blocks when 2 were expected"
+    block_1 = sch.get(output_blocks[0])
+    assert block_1.name_hint == "blockized_B"
+    block_2 = sch.get(output_blocks[1])
+    assert block_2.name_hint == "B"
+    blockized_block = sch.get_block("blockized_B")
+    assert sch.get(blockized_block).same_as(block_1)
+    b_block = sch.get_block("B")
+    assert sch.get(b_block).same_as(block_2)
+
+    sch = tir.Schedule(mod=blockized, debug_mask="all")
+    output_blocks = sch.get_output_blocks("blockized_B")
+    assert len(output_blocks) == 1, "Unexpected number of blocks when 1 were expected"
+    block = sch.get(output_blocks[0])
+    assert block.name_hint == "B"
+    b_block = sch.get_block("B")
+    assert sch.get(b_block).same_as(block)
 
 
 if __name__ == "__main__":

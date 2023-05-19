@@ -60,6 +60,22 @@ enum DivMode {
 };
 
 /*!
+ * \brief The strength used in top-level condition proves
+ * \note The higher, the more time consuming it can be.
+ *
+ * Do not use level beyond kDefault in internal recursive rewriting in arith
+ * analysis and only use it at top-level simplification to avoid speed issues.
+ */
+enum class ProofStrength : int {
+  /*! \brief default strength, can be used in. */
+  kDefault = 0,
+  /*!
+   * \brief Prove using symbolic bound analysis
+   */
+  kSymbolicBound = 1,
+};
+
+/*!
  * \brief Constant integer up and lower bound(inclusive).
  *  Useful for value bound analysis.
  *
@@ -329,6 +345,27 @@ class RewriteSimplifier {
 
   /*! \brief Return the currently enabled extensions */
   TVM_DLL Extension GetEnabledExtensions() const;
+
+  /*! \brief Return the statistics counters */
+  TVM_DLL ObjectRef GetStatsCounters() const;
+
+  /*! \brief Reset the statistics counters */
+  TVM_DLL void ResetStatsCounters();
+
+  /*! \brief Set the maximum allowed number of rewrite steps
+   *
+   * By default, the simplifier may perform as many steps as are
+   * required.  If a positive limit is set, then the simplifier will
+   * throw an exception when exceeding that number of rewrite steps.
+   * This allows tests to guard against performance regressions.
+   *
+   * Note: To maintain accurate usage counters, `Analyzer` instances
+   * should be re-used wherever possible.  For example, TIR
+   * transformations should declare a single `Analyzer` that is used
+   * throughout the pass, and utility functions should receive an
+   * `Analyzer*` from their calling scope.
+   */
+  TVM_DLL void SetMaximumRewriteSteps(int64_t maximum);
 
  private:
   friend class Analyzer;
@@ -653,14 +690,36 @@ class TVM_DLL Analyzer {
    */
   bool CanProveEqual(const PrimExpr& lhs, const PrimExpr& rhs);
   /*!
+   * \brief Whether we can prove lhs is smaller than possibly symbolic shape.
+   *
+   * By calling this function, the caller gives an extra hint that shape > 0,
+   * because it appeared in buffer shape.
+   *
+   * This is useful to prove condition such as 32 <= 32 * n where the 32 * n
+   * is known to be a shape. Use this routine to reduce the symbolic comparisons
+   * in buffer compaction.
+   *
+   * The underlying analyzer will use the kSymbolicBound proof.
+   *
+   * \param lhs The input lhs.
+   * \param shape The symbolic shape.
+   * \return Whether we can prove lhs <= shape.
+   */
+  bool CanProveLessEqualThanSymbolicShapeValue(const PrimExpr& lhs, const PrimExpr& shape);
+  /*!
    * \brief Whether can we prove condition.
    *
    * \param cond The expression to be proved.
+   * \param strength the strength of the prove.
+   *
    * \return The result.
    *
    * \note Analyzer will call into sub-analyzers to get the result.
+   * Do not use strength beyond default in sub-analyzers and
+   * only use it in top-level predicate analysis.
    */
-  bool CanProve(const PrimExpr& cond);
+  bool CanProve(const PrimExpr& cond, ProofStrength strength = ProofStrength::kDefault);
+
   /*!
    * \brief Simplify expr.
    *

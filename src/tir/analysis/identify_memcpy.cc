@@ -58,8 +58,8 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
   }
 
   BufferStore store;
-  if (auto* ptr = stmt.as<BufferStoreNode>()) {
-    store = GetRef<BufferStore>(ptr);
+  if (auto opt = stmt.as<BufferStore>()) {
+    store = opt.value();
   } else {
     return static_cast<const std::stringstream&>(
                std::stringstream()
@@ -68,8 +68,8 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
   }
 
   BufferLoad load;
-  if (auto* ptr = store->value.as<BufferLoadNode>()) {
-    load = GetRef<BufferLoad>(ptr);
+  if (auto opt = store->value.as<BufferLoad>()) {
+    load = opt.value();
   } else {
     return static_cast<const std::stringstream&>(
                std::stringstream()

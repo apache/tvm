@@ -17,8 +17,8 @@
 # pylint: disable=invalid-name,unused-variable,unused-argument,no-else-return
 """util functions to be reused in different compute/schedule on Qualcomm Adreno GPU"""
 
-import tvm
 import numpy
+import tvm
 from tvm import te
 from tvm._ffi.registry import register_func
 from tvm.topi.utils import simplify

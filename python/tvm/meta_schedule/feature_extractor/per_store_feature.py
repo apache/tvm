@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=invalid-name
 """We extract one feature vector per BufferStoreNode statement in a TIR Stmt,
 so we call this feature as "per-store" feature.
 """

@@ -1185,7 +1185,7 @@ bool ScatterNDRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   const size_t kdim = indices->shape.size() - 1;
   const size_t ndim = out_shape.size();
   ICHECK_LE(size_t(mdim->value), ndim)
-      << "ScatterND: Given data with shape (Y_0, ..., Y_{K-1}, X_M, ..., X_{N-1}), and indices "
+      << "ScatterND: Given updates with shape (Y_0, ..., Y_{K-1}, X_M, ..., X_{N-1}), and indices "
          "with shape (M, Y_0, ..., Y_{K-1}), M must be less than or equal to N.";
   // Indices: (M, Y_0, .. Y_{K-1}) data: (Y_0, .. Y_{K-1}, ...), verify Y's.
   for (size_t i = 0; i < kdim; i++) {
@@ -1197,9 +1197,9 @@ bool ScatterNDRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     oshape.push_back(x);
   }
 
-  // data: (Y_0, .. Y_{K-1}, X_M, .. X_{N-1}) out: (X_0, .. X_{N-1}), verify X_M to X_{N-1}
+  // updates: (Y_0, .. Y_{K-1}, X_M, .. X_{N-1}) out: (X_0, .. X_{N-1}), verify X_M to X_{N-1}
   for (size_t i = mdim->value; i < ndim; i++) {
-    reporter->AssertEQ(data->shape[i - mdim->value + kdim], oshape[i]);
+    reporter->AssertEQ(updates->shape[i - mdim->value + kdim], oshape[i]);
   }
 
   reporter->Assign(types[3], TensorType(data->shape, data->dtype));

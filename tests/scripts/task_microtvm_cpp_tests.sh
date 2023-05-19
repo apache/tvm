@@ -38,5 +38,7 @@ export OMP_NUM_THREADS=1
 # Test MISRA-C runtime. It requires USE_MICRO to be enabled.
 pushd apps/bundle_deploy
 rm -rf build
-make test_dynamic test_static
+make test_dynamic VERBOSE=1
+make cleanall
+make test_static VERBOSE=1
 popd

@@ -44,7 +44,7 @@ class MeasureCandidate(Object):
 
     Parameters
     ----------
-    sch : Schedule
+    sch : tvm.tir.Schedule
         The schedule to be measured.
     args_info : List[ArgInfo]
         The argument information.
@@ -62,7 +62,7 @@ class MeasureCandidate(Object):
 
         Parameters
         ----------
-        sch : Schedule
+        sch : tvm.tir.Schedule
             The schedule to be measured.
         args_info : List[ArgInfo]
             The argument information.
@@ -115,7 +115,7 @@ class SearchStrategy(Object):
             The maximum number of trials.
         num_trials_per_iter : int
             The number of trials per iteration.
-        design_spaces : List[Schedule]
+        design_spaces : List[tvm.tir.Schedule]
             The design spaces used during tuning process.
         database : Optional[Database] = None
             The database used during tuning process.

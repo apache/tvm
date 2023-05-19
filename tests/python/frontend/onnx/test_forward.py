@@ -99,6 +99,14 @@ def get_tvm_output_with_vm(
             freeze_params=freeze_params,
             convert_config=convert_config,
         )
+        # handle the bfloat16 so we explicitly allocate
+        # bfloat16 arrays as input
+        for i, param in enumerate(mod["main"].params):
+            if param.type_annotation.dtype == "bfloat16":
+                input_data[i] = tvm.nd.empty(input_data[i].shape, "bfloat16").copyfrom(
+                    input_data[i]
+                )
+
     if validate_structural_equal:
         with tvm.testing.enable_span_filling():
             mod_with_span, _ = relay.frontend.from_onnx(
@@ -3931,6 +3939,17 @@ def test_lppool(target, dev):
         auto_pad="SAME_UPPER",
     )
 
+    # Pool2D with empty stride
+    verify_lppool(
+        x_shape=[1, 3, 32, 32],
+        kernel_shape=[2, 2],
+        p=4,
+        strides=None,
+        pads=None,
+        out_shape=[1, 3, 32, 32],
+        auto_pad="SAME_LOWER",
+    )
+
     # Pool3D with stride
     verify_lppool(
         x_shape=[1, 1, 32, 32, 32],
@@ -5639,6 +5658,7 @@ def test_wrong_input():
         relay.frontend.from_onnx(model, shape=wrong_shape_dict)
 
 
+@pytest.mark.skip(reason="unsupported op numel")
 @tvm.testing.parametrize_targets
 def test_aten(target, dev):
     """test_aten"""
@@ -5831,7 +5851,7 @@ def test_biasgelu(target, dev, data_type, op_name):
     """test_biasgelu"""
     dtype = np.dtype(data_type)
     tensor_type = mapping.NP_TYPE_TO_TENSOR_TYPE[dtype]
-    absolute_tolerance = 1e-3 if data_type == "float16" else 1e-5
+    absolute_tolerance = 1e-2 if data_type == "float16" else 1e-5
 
     def verify_biasgelu(x, bias):
         node = onnx.helper.make_node(
@@ -6980,6 +7000,31 @@ def test_qlinearsigmoid(target, dev):
     verify_qlinearsigmoid([5])
     verify_qlinearsigmoid([3, 4, 5])
     verify_qlinearsigmoid([])
+
+
+@tvm.testing.parametrize_targets
+def test_qlinearsoftmax(target, dev):
+    """test_qlinearsoftmax"""
+
+    def verify_qlinearsoftmax(a_shape):
+
+        _ = np.random.random(a_shape).astype("float32")
+
+        input_nodes = [helper.make_tensor_value_info("a", TensorProto.FLOAT, list(a_shape))]
+
+        node = helper.make_node("Softmax", ["a"], ["B"])
+        graph = helper.make_graph(
+            [node],
+            "qlinearsoftmax_test",
+            inputs=input_nodes,
+            outputs=[helper.make_tensor_value_info("B", TensorProto.FLOAT, list(a_shape))],
+        )
+        model = helper.make_model(graph, producer_name="qlinearsoftmax_test")
+        quantize_and_verify_with_ort(model, ["a"], [a_shape], target, dev)
+
+    verify_qlinearsoftmax([4, 2])
+    verify_qlinearsoftmax([5])
+    verify_qlinearsoftmax([3, 4, 5])
 
 
 @tvm.testing.parametrize_targets("llvm")

@@ -248,7 +248,7 @@ class Conv2dCacheRead:
                     for i0_2_init, i1_2_init, i2_2_init, i3_2_init, i0_3_init, i1_3_init, i2_3_init in T.grid(1, 1, 14, 2, 1, 4, 1):
                         for i3_3_fused_init in T.vectorized(2):
                             with T.block("conv2d_nhwc_init"):
-                                nn = T.axis.spatial(1, i0_2_init + i0_3_init + i0_1)
+                                nn = T.axis.spatial(1, i0_1 + i0_2_init + i0_3_init)
                                 yy = T.axis.spatial(56, i0_0_i1_0_i2_0_fused // 2 * 28 + i1_1 * 4 + i1_2_init * 4 + i1_3_init)
                                 xx = T.axis.spatial(56, i2_3_init + i0_0_i1_0_i2_0_fused % 2 * 28 + i2_1 * 14 + i2_2_init)
                                 ff = T.axis.spatial(64, i3_0 * 4 + i3_1 * 4 + i3_2_init * 2 + i3_3_fused_init)
@@ -259,7 +259,7 @@ class Conv2dCacheRead:
                     for i4_0, i5_0, i6_0, i0_2, i1_2, i2_2, i3_2, i4_1, i5_1, i6_1, i0_3, i1_3, i2_3 in T.grid(1, 1, 2, 1, 1, 14, 2, 3, 3, 32, 1, 4, 1):
                         for i3_3_fused in T.vectorized(2):
                             with T.block("conv2d_nhwc_update"):
-                                nn = T.axis.spatial(1, i0_2 + i0_3 + i0_1)
+                                nn = T.axis.spatial(1, i0_1 + i0_2 + i0_3)
                                 yy = T.axis.spatial(56, i0_0_i1_0_i2_0_fused // 2 * 28 + i1_1 * 4 + i1_2 * 4 + i1_3)
                                 xx = T.axis.spatial(56, i2_3 + i0_0_i1_0_i2_0_fused % 2 * 28 + i2_1 * 14 + i2_2)
                                 ff = T.axis.spatial(64, i3_0 * 4 + i3_1 * 4 + i3_2 * 2 + i3_3_fused)
@@ -333,7 +333,7 @@ class Conv2dCacheReadRewritten:
                     for i0_2_init, i1_2_init, i2_2_init, i3_2_init, i0_3_init, i1_3_init, i2_3_init in T.grid(1, 1, 14, 2, 1, 4, 1):
                         for i3_3_fused_init in T.vectorized(2):
                             with T.block("conv2d_nhwc_init"):
-                                nn = T.axis.spatial(1, i0_2_init + i0_3_init + i0_1)
+                                nn = T.axis.spatial(1, i0_1 + i0_2_init + i0_3_init)
                                 yy = T.axis.spatial(56, i0_0_i1_0_i2_0_fused // 2 * 28 + i1_1 * 4 + i1_2_init * 4 + i1_3_init)
                                 xx = T.axis.spatial(56, i2_3_init + i0_0_i1_0_i2_0_fused % 2 * 28 + i2_1 * 14 + i2_2_init)
                                 ff = T.axis.spatial(64, i3_0 * 4 + i3_1 * 4 + i3_2_init * 2 + i3_3_fused_init)
@@ -344,7 +344,7 @@ class Conv2dCacheReadRewritten:
                     for i4_0, i5_0, i6_0, i0_2, i1_2, i2_2, i3_2, i4_1, i5_1, i6_1, i0_3, i1_3, i2_3 in T.grid(1, 1, 2, 1, 1, 14, 2, 3, 3, 32, 1, 4, 1):
                         for i3_3_fused in T.vectorized(2):
                             with T.block("conv2d_nhwc_update"):
-                                nn = T.axis.spatial(1, i0_2 + i0_3 + i0_1)
+                                nn = T.axis.spatial(1, i0_1 + i0_2 + i0_3)
                                 yy = T.axis.spatial(56, i0_0_i1_0_i2_0_fused // 2 * 28 + i1_1 * 4 + i1_2 * 4 + i1_3)
                                 xx = T.axis.spatial(56, i2_3 + i0_0_i1_0_i2_0_fused % 2 * 28 + i2_1 * 14 + i2_2)
                                 ff = T.axis.spatial(64, i3_0 * 4 + i3_1 * 4 + i3_2 * 2 + i3_3_fused)
@@ -425,7 +425,7 @@ class Conv2dCacheReadMultipleRewritten:
                     for i0_2_init, i1_2_init, i2_2_init, i3_2_init, i0_3_init, i1_3_init, i2_3_init in T.grid(1, 1, 14, 2, 1, 4, 1):
                         for i3_3_fused_init in T.vectorized(2):
                             with T.block("conv2d_nhwc_init"):
-                                nn = T.axis.spatial(1, i0_2_init + i0_3_init + i0_1)
+                                nn = T.axis.spatial(1, i0_1 + i0_2_init + i0_3_init)
                                 yy = T.axis.spatial(56, i0_0_i1_0_i2_0_fused // 2 * 28 + i1_1 * 4 + i1_2_init * 4 + i1_3_init)
                                 xx = T.axis.spatial(56, i2_3_init + i0_0_i1_0_i2_0_fused % 2 * 28 + i2_1 * 14 + i2_2_init)
                                 ff = T.axis.spatial(64, i3_0 * 4 + i3_1 * 4 + i3_2_init * 2 + i3_3_fused_init)
@@ -436,7 +436,7 @@ class Conv2dCacheReadMultipleRewritten:
                     for i4_0, i5_0, i6_0, i0_2, i1_2, i2_2, i3_2, i4_1, i5_1, i6_1, i0_3, i1_3, i2_3 in T.grid(1, 1, 2, 1, 1, 14, 2, 3, 3, 32, 1, 4, 1):
                         for i3_3_fused in T.vectorized(2):
                             with T.block("conv2d_nhwc_update"):
-                                nn = T.axis.spatial(1, i0_2 + i0_3 + i0_1)
+                                nn = T.axis.spatial(1, i0_1 + i0_2 + i0_3)
                                 yy = T.axis.spatial(56, i0_0_i1_0_i2_0_fused // 2 * 28 + i1_1 * 4 + i1_2 * 4 + i1_3)
                                 xx = T.axis.spatial(56, i2_3 + i0_0_i1_0_i2_0_fused % 2 * 28 + i2_1 * 14 + i2_2)
                                 ff = T.axis.spatial(64, i3_0 * 4 + i3_1 * 4 + i3_2 * 2 + i3_3_fused)

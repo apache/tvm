@@ -54,7 +54,7 @@ class Postproc(Object):
 
         Parameters
         ----------
-        sch : Schedule
+        sch : tvm.tir.Schedule
             The schedule to be post processed.
 
         Returns

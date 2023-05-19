@@ -144,7 +144,7 @@ class HoistAllocatesMutator : public StmtExprMutator {
     for (auto it = allocates_.rbegin(); it != allocates_.rend(); it++) {
       Allocate current_alloc = *it;
       if (it != allocates_.rbegin()) {
-        new_main_func_body = SeqStmt({new_main_func_body});
+        new_main_func_body = SeqStmt::Flatten(new_main_func_body);
       }
       new_main_func_body =
           Allocate(current_alloc->buffer_var, current_alloc->dtype, current_alloc->extents,
