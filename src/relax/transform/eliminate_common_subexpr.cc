@@ -69,16 +69,20 @@ class SubexprCounter : public ExprVisitor {
 };
 
 // forward declaration
-DataflowBlock EliminateCommonSubexpr(const DataflowBlock&);
+DataflowBlock EliminateCommonSubexpr(const DataflowBlock&, bool call_only);
 
 class CommonSubexprEliminator : public ExprMutator {
  public:
   explicit CommonSubexprEliminator(
-      const std::unordered_map<Expr, int, StructuralHash, StructuralEqual>& count_map)
-      : count_map_(count_map) {}
+      const std::unordered_map<Expr, int, StructuralHash, StructuralEqual>& count_map,
+      bool call_only = false)
+      : count_map_(count_map), call_only_(call_only) {}
 
   // overriding here ensures we visit every subexpression
   Expr VisitExpr(const Expr& e) override {
+    if (call_only_ && !e->IsInstance<CallNode>()) {
+      return ExprMutator::VisitExpr(e);
+    }
     if (count_map_.count(e) && count_map_.at(e) > 1) {
       // if we already have a mapping for it, get it
       if (replacements_.count(e)) {
@@ -116,7 +120,7 @@ class CommonSubexprEliminator : public ExprMutator {
     // apply CSE within dataflow blocks only
     for (auto block : seq->blocks) {
       if (const DataflowBlockNode* df_block = block.as<DataflowBlockNode>()) {
-        auto new_df_block = EliminateCommonSubexpr(GetRef<DataflowBlock>(df_block));
+        auto new_df_block = EliminateCommonSubexpr(GetRef<DataflowBlock>(df_block), call_only_);
         if (!new_df_block.same_as(block)) {
           new_blocks.push_back(new_df_block);
           all_unchanged = false;
@@ -182,21 +186,22 @@ class CommonSubexprEliminator : public ExprMutator {
 
   const std::unordered_map<Expr, int, StructuralHash, StructuralEqual>& count_map_;
   std::unordered_map<Expr, Var, StructuralHash, StructuralEqual> replacements_;
+  bool call_only_{false};
 };
 
-DataflowBlock EliminateCommonSubexpr(const DataflowBlock& df_block) {
+DataflowBlock EliminateCommonSubexpr(const DataflowBlock& df_block, bool call_only) {
   SubexprCounter counter;
   auto count_map = counter.Count(df_block);
-  CommonSubexprEliminator eliminator(count_map);
+  CommonSubexprEliminator eliminator(count_map, call_only);
   return Downcast<DataflowBlock>(eliminator.VisitBindingBlock(df_block));
 }
 
 namespace transform {
 
-Pass EliminateCommonSubexpr() {
+Pass EliminateCommonSubexpr(bool call_only) {
   runtime::TypedPackedFunc<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func =
       [=](DataflowBlock df_block, IRModule m, PassContext pc) {
-        return Downcast<DataflowBlock>(EliminateCommonSubexpr(df_block));
+        return Downcast<DataflowBlock>(EliminateCommonSubexpr(df_block, call_only));
       };
   return CreateDataflowBlockPass(pass_func, 1, "EliminateCommonSubexpr", {});
 }
