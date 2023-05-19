@@ -835,6 +835,9 @@ def test_forward_softplus():
     verify_model(torch.nn.Softplus().eval(), input_data=input_data)
     verify_model(torch.nn.Softplus(beta=1.5, threshold=20).eval(), input_data=input_data)
     verify_model(torch.nn.Softplus(beta=5, threshold=10).eval(), input_data=input_data)
+    verify_model(torch.nn.Softplus(beta=5, threshold=1).eval(), input_data=input_data)
+    verify_model(torch.nn.Softplus(beta=1, threshold=2).eval(), input_data=input_data)
+    verify_model(torch.nn.Softplus(beta=1, threshold=-1).eval(), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -869,6 +872,9 @@ def test_forward_adaptive_avgpool():
     input_data = torch.rand([1, 3, 10]).float()
     verify_model(torch.nn.AdaptiveAvgPool1d([1]).eval(), input_data=input_data)
     verify_model(torch.nn.AdaptiveAvgPool1d([5]).eval(), input_data=input_data)
+
+    input_data = torch.rand([1, 3, 5, 6]).float()
+    verify_model(torch.nn.AdaptiveAvgPool2d([3, None]).eval(), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -1348,6 +1354,8 @@ def test_forward_threshold():
     input_shape = [1, 3]
     input_data = torch.rand(input_shape).float()
     verify_model(torch.nn.Threshold(0, 0).float().eval(), input_data=input_data)
+    input_data = torch.tensor([[-1.0, 2.0]], dtype=torch.float32)
+    verify_model(torch.nn.Threshold(1, 1).float().eval(), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -1375,9 +1383,26 @@ def test_forward_batchnorm():
     inp_2d = torch.rand((1, 16, 10, 10))
     inp_3d = torch.rand((1, 16, 10, 10, 10))
 
+    class BatchNorm(Module):
+        def __init__(self, weight, bias):
+            super().__init__()
+            self.weight = weight
+            self.bias = bias
+
+        def forward(self, *args):
+            return torch.nn.functional.batch_norm(
+                args[0],
+                running_mean=torch.zeros(args[0].shape[1]),
+                running_var=torch.ones(args[0].shape[1]),
+                weight=self.weight,
+                bias=self.bias,
+            )
+
     for bn, inp in [(torch.nn.BatchNorm2d(16), inp_2d), (torch.nn.BatchNorm3d(16), inp_3d)]:
         init_weight(bn.eval())
         verify_model(bn.eval(), input_data=inp)
+        verify_model(BatchNorm(bn.weight, None).eval(), input_data=inp)
+        verify_model(BatchNorm(bn.weight, bn.bias).eval(), input_data=inp)
 
 
 @tvm.testing.uses_gpu

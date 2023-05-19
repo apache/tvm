@@ -37,7 +37,7 @@ from ..strategy.generic import is_depthwise_conv2d
 def clml_sdk_version():
     """Utility function to get clml version version"""
 
-    return tvm.support.libinfo().get("TVM_CLML_VERSION", 2)
+    return int(tvm.support.libinfo().get("TVM_CLML_VERSION", 2))
 
 
 def is_clml_runtime_enabled():
@@ -155,6 +155,7 @@ def preprocess_module(mod):
         seq = tvm.transform.Sequential(
             [
                 transform.ConvertLayout({"nn.conv2d": ["NCHW", "OIHW"]}),
+                transform.ConvertLayout({"nn.conv2d_transpose": ["NCHW", "OIHW"]}),
                 transform.AlterOpLayout(),
                 transform.FoldConstant(),
             ]
@@ -190,6 +191,22 @@ def clml_pattern_table():
     def conv_pattern():
         """Create a convolution pattern."""
         pattern = is_op("nn.conv2d")(wildcard(), is_constant())
+        pattern = pattern.optional(lambda x: is_op("nn.bias_add")(x, is_constant()))
+        pattern = pattern.optional(lambda x: is_op("add")(x, is_constant()))
+        pattern = pattern.optional(
+            lambda x: is_tuple_get_item(
+                is_op("nn.batch_norm")(
+                    x, is_constant(), is_constant(), is_constant(), is_constant()
+                )
+            )
+        )
+        pattern = pattern.optional(is_op("nn.relu"))
+        pattern = pattern.optional(is_op("clip"))
+        return pattern
+
+    def conv_transpose_pattern():
+        """Create a transposed convolution pattern."""
+        pattern = is_op("nn.conv2d_transpose")(wildcard(), is_constant())
         pattern = pattern.optional(lambda x: is_op("nn.bias_add")(x, is_constant()))
         pattern = pattern.optional(lambda x: is_op("add")(x, is_constant()))
         pattern = pattern.optional(
@@ -300,6 +317,31 @@ def clml_pattern_table():
             return False
         return True
 
+    def check_conv_transpose(extract):
+        """Check transposed conv pattern is supported by CLML."""
+        call = extract
+        if isinstance(call, tvm.relay.expr.TupleGetItem):
+            call = call.tuple_value
+        elif call.op.name == "nn.relu":
+            call = call.args[0]
+            if isinstance(call, tvm.relay.expr.TupleGetItem):
+                call = call.tuple_value
+        elif call.op.name == "clip":
+            if call.attrs["a_min"] != 0.0 or call.attrs["a_max"] != 6.0:
+                return False
+            call = call.args[0]
+            if isinstance(call, tvm.relay.expr.TupleGetItem):
+                call = call.tuple_value
+
+        while call.op.name != "nn.conv2d_transpose":
+            call = call.args[0]
+
+        attrs = call.attrs
+        if attrs.data_layout != "NCHW":
+            return False
+
+        return True
+
     def check_binary_op(extract):
         call = extract
         if len(call.args[1].checked_type.shape) > 0:
@@ -340,6 +382,7 @@ def clml_pattern_table():
     return [
         ("clml.pad_conv2d", pad_conv_pattern(), check_conv),
         ("clml.conv2d", conv_pattern(), check_conv),
+        ("clml.conv2d_transpose", conv_transpose_pattern(), check_conv_transpose),
         ("clml.dense", dense_pattern(), check_default_op),
         ("clml.pad", pad_pattern(), check_pad_op),
         ("clml.concat", concat_pattern(), check_concat_op),

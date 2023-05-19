@@ -33,10 +33,7 @@ from .conv2d_spatial_pack import (
     schedule_conv2d_spatial_pack_nchw,
     schedule_conv2d_spatial_pack_nhwc,
 )
-from .mprofile.dsp.conv2d import (
-    conv2d_nhwc_dsp_compute,
-    conv2d_nhwc_dsp_schedule,
-)
+from .mprofile.dsp.conv2d import conv2d_nhwc_dsp_compute, conv2d_nhwc_dsp_schedule
 
 
 @autotvm.register_topi_compute("conv2d_nchw_spatial_pack.arm_cpu")
@@ -267,13 +264,7 @@ def _schedule_winograd(cfg, s, output, last):
     if isinstance(U.op, tvm.te.ComputeOp):
         kernel, G = U.op.input_tensors
         s[G].compute_inline()
-        (
-            eps,
-            nu,
-            k,
-            c,
-            kk,
-        ) = s[U].op.axis
+        (eps, nu, k, c, kk) = s[U].op.axis
         if autotvm.GLOBAL_SCOPE.in_tuning:
             # kernel transformation will be pre-computed during compilation, so we skip
             # this part to make tuning records correct
@@ -364,7 +355,7 @@ def conv2d_nchw_winograd_nnpack(cfg, data, kernel, strides, padding, dilation, o
             tvm.contrib.nnpack.ConvolutionAlgorithm.WT_8x8_FP16,
         )
     else:
-        raise ValueError("Unsupported data type {} for conv2d winograd nnpack".format(dtype))
+        raise ValueError(f"Unsupported data type {dtype} for conv2d winograd nnpack")
 
 
 @autotvm.register_topi_schedule("conv2d_nchw_winograd_nnpack.arm_cpu")

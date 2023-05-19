@@ -261,6 +261,38 @@ class SimplifyCastClip : public DFPatternRewrite {
 };
 
 /*!
+ * \brief Return the axis order for layout transform and transpose
+ * ops.
+ */
+static std::vector<int> GetTransposeAxisOrder(const Call& call, int ndim) {
+  std::vector<int> attr_axes;
+  if (auto attr = call->attrs.as<TransposeAttrs>()) {
+    if (attr->axes.defined()) {
+      for (int i = 0; i < ndim; ++i) {
+        int64_t axis = attr->axes[i].IntValue();
+        axis += (axis < 0) ? ndim : 0;
+        attr_axes.push_back(axis);
+      }
+    } else {
+      // Empty axes means reverse
+      for (int i = ndim - 1; i >= 0; --i) {
+        attr_axes.push_back(i);
+      }
+    }
+  } else if (auto attr = call->attrs.as<LayoutTransformAttrs>()) {
+    Layout src_layout(attr->src_layout);
+    Layout dst_layout(attr->dst_layout);
+    for (int i = 0; i < ndim; ++i) {
+      attr_axes.push_back(src_layout.IndexOf(dst_layout[i]));
+    }
+  } else {
+    CHECK(false) << "Expected transpose or layout_transform, but got "
+                 << Downcast<Op>(call->op)->name;
+  }
+  return std::move(attr_axes);
+}
+
+/*!
  * \brief SimplifyTranspose matches the pattern of consecutive transpose op,
  *   and merges or cancels them.
  */
@@ -316,19 +348,7 @@ class SimplifyTranspose : public DFPatternRewrite {
       it++;
     }
 
-    // Check if the transpose is still required
-    bool need_transpose = false;
-    for (int i = 0; i < ndim; ++i) {
-      if (axes[i] != i) {
-        need_transpose = true;
-        break;
-      }
-    }
-
-    if (need_transpose) {
-      return MakeTranspose(x, axes);
-    }
-    return x;
+    return MakeTranspose(x, axes);
   }
 
   String PermuteLayout(const String& layout, std::vector<int> axes_order) const {
@@ -431,32 +451,50 @@ class SimplifyTranspose : public DFPatternRewrite {
     return Downcast<Call>(output_layout_trans);
   }
 
-  std::vector<int> GetTransposeAxisOrder(const Call& call, int ndim) const {
-    std::vector<int> attr_axes;
-    if (auto attr = call->attrs.as<TransposeAttrs>()) {
-      if (attr->axes.defined()) {
-        for (int i = 0; i < ndim; ++i) {
-          int64_t axis = attr->axes[i].IntValue();
-          axis += (axis < 0) ? ndim : 0;
-          attr_axes.push_back(axis);
-        }
-      } else {
-        // Empty axes means reverse
-        for (int i = ndim - 1; i >= 0; --i) {
-          attr_axes.push_back(i);
-        }
+ private:
+  /*! \brief Pattern input */
+  DFPattern x_;
+};
+
+/*!
+ * \brief SimplifyNoOpTranspose matches the pattern of transpose or
+ *  layout transform ops which do not change the layout or rank and
+ *  removes the op.
+ */
+class SimplifyNoOpTranspose : public DFPatternRewrite {
+ public:
+  SimplifyNoOpTranspose() {
+    x_ = IsWildcard();
+    auto trans1 = IsOp("transpose") || IsOp("layout_transform");
+    pattern_ = trans1({x_});
+  }
+
+  Expr Callback(const Expr& pre, const Expr& post,
+                const Map<DFPattern, Array<Expr>>& node_map) const override {
+    auto x = node_map[x_][0];
+    Call trans_call = Downcast<Call>(post);
+
+    // Do not remove ops which change rank
+    if (auto attr = trans_call->attrs.as<LayoutTransformAttrs>()) {
+      if (attr->src_layout != attr->dst_layout) {
+        return post;
       }
-    } else if (auto attr = call->attrs.as<LayoutTransformAttrs>()) {
-      Layout src_layout(attr->src_layout);
-      Layout dst_layout(attr->dst_layout);
-      for (int i = 0; i < ndim; ++i) {
-        attr_axes.push_back(src_layout.IndexOf(dst_layout[i]));
-      }
-    } else {
-      CHECK(false) << "Expected transpose or layout_transform, but got "
-                   << Downcast<Op>(call->op)->name;
     }
-    return std::move(attr_axes);
+
+    int ndim = Downcast<TensorType>(pre->checked_type())->shape.size();
+    auto axes = GetTransposeAxisOrder(trans_call, ndim);
+
+    bool need_transpose = false;
+    for (int i = 0; i < ndim; ++i) {
+      if (axes[i] != i) {
+        need_transpose = true;
+        break;
+      }
+    }
+
+    if (!need_transpose) return x;
+
+    return post;
   }
 
  private:
@@ -1037,6 +1075,7 @@ Expr SimplifyExpr(const Expr& expr, const IRModule& mod) {
   composer.AddRewrite<EliminateIdentityRewrite>();
   composer.AddRewrite<SimplifyReshape>();
   composer.AddRewrite<SimplifyTranspose>();
+  composer.AddRewrite<SimplifyNoOpTranspose>();
   composer.AddRewrite<SimplifySameCast>();
   composer.AddRewrite<SimplifyConsecutiveCast>();
   composer.AddRewrite<FullElementwise>();

@@ -313,7 +313,7 @@ def quantize_mxnet_min_max(data, min_range, max_range, out_dtype="int8"):
     elif out_dtype == "int8":
         return _quantize_mkldnn_min_max_int8(data, min_range, max_range)
     else:
-        raise ValueError("Expected out_dtype to be int8 or uint8 but was  %s" % out_dtype)
+        raise ValueError("Expected out_dtype to be int8 or uint8 but was  {out_dtype}")
 
 
 def _dequantize_zero_centered(data, data_min, data_max, quantized_range):
@@ -442,4 +442,4 @@ def dequantize_mxnet_min_max(data, min_range, max_range, in_dtype="int8"):
     elif in_dtype == "int8":
         return _dequantize_mkldnn_min_max_int8(data, min_range, max_range)
     else:
-        raise ValueError("Expected out_dtype to be int8 or uint8 but was  %s" % in_dtype)
+        raise ValueError(f"Expected out_dtype to be int8 or uint8 but was  {in_dtype}")

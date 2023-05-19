@@ -88,7 +88,7 @@ def make_conv2d_pattern(with_bias=False, with_act=None):
             )
             return is_op("multiply")(conv2d_out, rhs)
 
-        raise ValueError("Unknown activation %s." % with_act)
+        raise ValueError(f"Unknown activation {with_act}.")
 
     return conv2d_out
 

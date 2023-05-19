@@ -64,7 +64,7 @@ def schedule_binary_dense(outs):
             weight = OP.input_tensors[1]
             _schedule(data, weight, output)
         else:
-            raise RuntimeError("Unsupported operator: %s" % OP.tag)
+            raise RuntimeError(f"Unsupported operator: {OP.tag}")
 
         scheduled_ops.append(OP)
 

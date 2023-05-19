@@ -205,7 +205,7 @@ def schedule_bitserial_dense(cfg, outs):
             unipolar = output.op.tag == "bitserial_dense_unipolar"
             _schedule(cfg, s, data_vec, weight_vec, output, unipolar)
         else:
-            raise RuntimeError("Unsupported operator: %s" % op.tag)
+            raise RuntimeError(f"Unsupported operator: {op.tag}")
 
     traverse(outs[0].op)
     return s

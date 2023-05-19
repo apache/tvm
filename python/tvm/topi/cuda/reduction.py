@@ -155,7 +155,7 @@ def schedule_reduce_impl(
                 if tensor.op not in scheduled_ops:
                     traverse_before_reduce(tensor.op)
         else:
-            raise RuntimeError("Unsupported operator: %s" % operator.tag)
+            raise RuntimeError(f"Unsupported operator: {operator.tag}")
 
         scheduled_ops.append(operator)
 
@@ -186,7 +186,7 @@ def schedule_reduce_impl(
         elif isinstance(operator, tvm.te.PlaceholderOp):
             pass
         else:
-            raise RuntimeError("Unsupported operator: %s" % operator.tag)
+            raise RuntimeError(f"Unsupported operator: {operator.tag}")
 
         scheduled_ops.append(operator)
 

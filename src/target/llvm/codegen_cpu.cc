@@ -71,9 +71,11 @@ namespace codegen {
 CodeGenCPU::CodeGenCPU() = default;
 CodeGenCPU::~CodeGenCPU() = default;
 
-void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target, bool system_lib,
-                      bool dynamic_lookup, bool target_c_runtime) {
-  CodeGenLLVM::Init(module_name, llvm_target, system_lib, dynamic_lookup, target_c_runtime);
+void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target,
+                      Optional<String> system_lib_prefix, bool dynamic_lookup,
+                      bool target_c_runtime) {
+  CodeGenLLVM::Init(module_name, llvm_target, system_lib_prefix, dynamic_lookup, target_c_runtime);
+  system_lib_prefix_ = system_lib_prefix;
   dbg_info_ = CreateDebugInfo(module_.get());
   static_assert(sizeof(TVMValue) == sizeof(double), "invariant");
   func_handle_map_.clear();
@@ -153,7 +155,7 @@ void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target, b
                                ftype_tvm_static_init_callback_->getPointerTo(), t_void_p_, t_int_},
                               false);
   // initialize TVM runtime API
-  if (system_lib && !target_c_runtime) {
+  if (system_lib_prefix_.defined() && !target_c_runtime) {
     // We will need this in environment for backward registration.
     // Defined in include/tvm/runtime/c_backend_api.h:
     // int TVMBackendRegisterSystemLibSymbol(const char* name, void* ptr);
@@ -163,7 +165,7 @@ void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target, b
   } else {
     f_tvm_register_system_symbol_ = nullptr;
   }
-  if (dynamic_lookup || system_lib) {
+  if (dynamic_lookup || system_lib_prefix_.defined()) {
     f_tvm_func_call_ = llvm::Function::Create(ftype_tvm_func_call_, llvm::Function::ExternalLinkage,
                                               "TVMFuncCall", module_.get());
     f_tvm_get_func_from_env_ =
@@ -180,7 +182,6 @@ void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target, b
                                "TVMBackendParallelBarrier", module_.get());
   }
   target_c_runtime_ = target_c_runtime;
-  is_system_lib_ = system_lib;
   InitGlobalContext(dynamic_lookup);
 }
 
@@ -464,31 +465,25 @@ llvm::Value* CodeGenCPU::CreateCallExtern(Type ret_type, String global_symbol,
   }
   llvm::FunctionType* ftype = llvm::FunctionType::get(GetLLVMType(ret_type), arg_types, false);
   // Check if it is available in global function table as injected function.
-  auto it = gv_func_map_.find(global_symbol);
-  if (it != gv_func_map_.end()) {
-    if (it->second == nullptr) {
-      gv_func_map_[global_symbol] = InitContextPtr(ftype->getPointerTo(), "__" + global_symbol);
-      it = gv_func_map_.find(global_symbol);
+
+  auto callee = [&]() -> llvm::Value* {
+    if (auto it = gv_func_map_.find(global_symbol); it != gv_func_map_.end()) {
+      if (it->second == nullptr) {
+        it->second = InitContextPtr(ftype->getPointerTo(), "__" + global_symbol);
+      }
+      return GetContextPtr(it->second);
+    } else if (llvm::Function* f = module_->getFunction(MakeStringRef(global_symbol))) {
+      return f;
+    } else {
+      return llvm::Function::Create(ftype, llvm::Function::ExternalLinkage,
+                                    MakeStringRef(global_symbol), module_.get());
     }
-#if TVM_LLVM_VERSION >= 90
-    auto ext_callee = llvm::FunctionCallee(ftype, GetContextPtr(it->second));
-#else
-    auto ext_callee = GetContextPtr(it->second);
-#endif
-    return builder_->CreateCall(ext_callee, arg_values);
-  } else {
-    llvm::Function* f = module_->getFunction(MakeStringRef(global_symbol));
-    if (f == nullptr) {
-      f = llvm::Function::Create(ftype, llvm::Function::ExternalLinkage,
-                                 MakeStringRef(global_symbol), module_.get());
-    }
-#if TVM_LLVM_VERSION >= 90
-    auto ext_callee = llvm::FunctionCallee(f);
-#else
-    auto ext_callee = f;
-#endif
-    return builder_->CreateCall(ext_callee, arg_values);
+  }();
+
+  if (callee->getType() != ftype->getPointerTo()) {
+    callee = builder_->CreatePointerCast(callee, ftype->getPointerTo());
   }
+  return builder_->CreateCall(ftype, callee, arg_values);
 }
 
 llvm::GlobalVariable* CodeGenCPU::InitContextPtr(llvm::Type* p_type, std::string name) {
@@ -527,12 +522,12 @@ llvm::Value* CodeGenCPU::GetContextPtr(llvm::GlobalVariable* gv) {
 }
 
 void CodeGenCPU::InitGlobalContext(bool dynamic_lookup) {
+  std::string ctx_symbol = system_lib_prefix_.value_or("") + tvm::runtime::symbol::tvm_module_ctx;
   // Module context
-  gv_mod_ctx_ = InitContextPtr(t_void_p_, tvm::runtime::symbol::tvm_module_ctx);
+  gv_mod_ctx_ = InitContextPtr(t_void_p_, ctx_symbol);
   // Register back the locations.
   if (f_tvm_register_system_symbol_ != nullptr && !target_c_runtime_) {
-    export_system_symbols_.emplace_back(
-        std::make_pair(tvm::runtime::symbol::tvm_module_ctx, gv_mod_ctx_));
+    export_system_symbols_.emplace_back(std::make_pair(ctx_symbol, gv_mod_ctx_));
   } else {
     if (!dynamic_lookup) {
       gv_tvm_func_call_ = InitContextPtr(ftype_tvm_func_call_->getPointerTo(), "__TVMFuncCall");
@@ -1344,7 +1339,8 @@ void CodeGenCPU::DefineMetadata(runtime::metadata::Metadata metadata) {
 }
 
 void CodeGenCPU::DefineFunctionRegistry(Array<String> func_names) {
-  ICHECK(is_system_lib_) << "Loading of --system-lib modules is yet to be defined for C runtime";
+  ICHECK(system_lib_prefix_.defined())
+      << "Loading of --system-lib modules is yet to be defined for C runtime";
   Array<String> symbols;
   std::vector<llvm::Constant*> funcs;
   for (auto sym : func_names) {

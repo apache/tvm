@@ -260,7 +260,7 @@ runtime::Module BuildAMDGPU(IRModule mod, Target target) {
 #endif
   auto cg = std::make_unique<CodeGenAMDGPU>();
 
-  cg->Init("TVMAMDGPUModule", llvm_target.get(), false, false, false);
+  cg->Init("TVMAMDGPUModule", llvm_target.get(), NullOpt, false, false);
 
   cg->AddFunctionsOrdered(mod->functions.begin(), mod->functions.end(), [](auto& kv) {
     ICHECK(kv.second->template IsInstance<PrimFuncNode>())

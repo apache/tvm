@@ -342,7 +342,7 @@ def _schedule_batch_matmul_int8(cfg, s, output):
     _, N, _ = get_const_tuple(input_y.shape)
 
     k_factor = 4
-    assert K % k_factor == 0, "Input dimension must divide {}".format(k_factor)
+    assert K % k_factor == 0, f"Input dimension must divide {k_factor}"
     if K % 16 == 0:
         k_factor = 16
 

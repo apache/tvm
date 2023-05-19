@@ -84,7 +84,7 @@ def convert_qnn_conv2d(attrs, inputs, tinfos, desired_layouts):
                 new_attrs["kernel_layout"] = "HWIO"
         return relay.qnn.op.conv2d(*inputs, **new_attrs)
 
-    raise ValueError("Layout %s is not yet supported" % desired_data_layout)
+    raise ValueError(f"Layout {desired_data_layout} is not yet supported")
 
 
 @reg.register_convert_op_layout("qnn.conv2d_transpose")
@@ -132,4 +132,4 @@ def convert_qnn_conv2d_transpose(attrs, inputs, tinfos, desired_layouts):
         new_attrs["kernel_layout"] = "HWIO"
         return relay.qnn.op.conv2d_transpose(*inputs, **new_attrs)
 
-    raise ValueError("Layout %s is not yet supported" % desired_data_layout)
+    raise ValueError(f"Layout {desired_data_layout} is not yet supported")
