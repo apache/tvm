@@ -124,7 +124,7 @@ class VirtualAxis(TransformSpace):
         self.num_output = 1
 
         if name is None:
-            name = "axis_%d" % VirtualAxis.name_ct
+            name = f"axis_{VirtualAxis.name_ct}"
             VirtualAxis.name_ct += 1
 
         self.name = name
@@ -146,7 +146,7 @@ class VirtualAxis(TransformSpace):
         return 1
 
     def __repr__(self):
-        return "vaxis(%s)" % self.name
+        return f"vaxis({self.name})"
 
 
 def get_factors(n):
@@ -224,7 +224,7 @@ class SplitSpace(TransformSpace):
                 # Include less, equal, and round-up power-of-two numbers. May generate tails.
                 factors = [x for x in get_pow2s(self.product) if x <= max_factor]
             else:
-                raise RuntimeError("Invalid policy: %s" % policy)
+                raise RuntimeError(f"Invalid policy: {policy}")
 
             # Enforce the product of all split factors equals to the axis length
             no_tail = kwargs.get("no_tail", policy == "factors")
@@ -361,7 +361,7 @@ class ReorderSpace(TransformSpace):
         return len(axes)
 
     def __repr__(self):
-        return "Reorder(policy=%s) len=%d" % (self.policy, len(self))
+        return f"Reorder(policy={self.policy}) len={len(self)}"
 
     def _merge_chain(self, chains):
         """generate all combinations of merge some chains"""
@@ -544,7 +544,7 @@ class AnnotateSpace(TransformSpace):
         return len(axes)
 
     def __repr__(self):
-        return "Annotate(policy=%s) len=%d" % (self.policy, len(self))
+        return f"Annotate(policy={self.policy}) len={len(self)}"
 
 
 class AnnotateEntity(object):
@@ -643,7 +643,7 @@ class OtherOptionSpace(TransformSpace):
         return 0
 
     def __repr__(self):
-        return "OtherOption(%s) len=%d" % (self.entities, len(self))
+        return f"OtherOption({self.entities}) len={len(self)}"
 
 
 class OtherOptionEntity(object):
@@ -1155,13 +1155,11 @@ class ConfigSpace(object):
             config corresponds to the index
         """
         if index < 0 or index >= self.range_length:
-            raise IndexError(
-                "Index out of range: size {}, got index {}".format(self.range_length, index)
-            )
+            raise IndexError(f"Index out of range: size {self.range_length}, got index {index}")
         if not self.is_index_valid(index):
             raise IndexError(
-                "Index does not correspond to the multi-filter condition, got index {}. "
-                "Use is_index_valid to pre-check".format(index)
+                f"Index does not correspond to the multi-filter condition, got index {index}. "
+                f"Use is_index_valid to pre-check"
             )
         entities = OrderedDict()
         t = index
@@ -1186,11 +1184,9 @@ class ConfigSpace(object):
         return self._entity_map[name]
 
     def __repr__(self):
-        res = "ConfigSpace (len={}, range_length={}, space_map=\n".format(
-            len(self), self.range_length
-        )
+        res = f"ConfigSpace (len={len(self)}, range_length={self.range_length}, space_map=\n"
         for i, (name, space) in enumerate(self.space_map.items()):
-            res += "  %2d %s: %s\n" % (i, name, space)
+            res += f"  {i:2d} {name}: {space}\n"
         return res + ")"
 
 
@@ -1331,7 +1327,7 @@ class ConfigEntity(ConfigSpace):
         return ConfigEntity(index, code_hash, entity_map, constraints)
 
     def __repr__(self):
-        return "%s,%s,%d" % (str(self._entity_map)[12:-1], self.code_hash, self.index)
+        return f"{str(self._entity_map)[12:-1]},{self.code_hash},{self.index}"
 
 
 class FallbackConfigEntity(ConfigSpace):
@@ -1445,4 +1441,4 @@ class FallbackConfigEntity(ConfigSpace):
         self._entity_map[name] = entity
 
     def __repr__(self):
-        return "%s,%s" % (str(self._entity_map)[12:-1], self.code_hash)
+        return f"{str(self._entity_map)[12:-1]},{self.code_hash}"

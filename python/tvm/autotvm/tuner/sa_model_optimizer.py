@@ -130,7 +130,7 @@ class SimulatedAnnealingOptimizer(ModelOptimizer):
             t -= cool
 
             if log_interval and k % log_interval == 0:
-                t_str = "%.2f" % t
+                t_str = f"{t:.2f}"
                 logger.debug(
                     "SA iter: %d\tlast_update: %d\tmax-0: %.2f\tmax-1: %.2f\ttemp: %s\t"
                     "elapsed: %.2f",
