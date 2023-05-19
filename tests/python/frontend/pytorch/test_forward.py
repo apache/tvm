@@ -4798,6 +4798,7 @@ def test_forward_l1_loss():
     verify_model(torch.nn.L1Loss().eval(), input_data=[predictions, targets])
     verify_model(torch.nn.L1Loss(reduction="sum").eval(), input_data=[predictions, targets])
     verify_model(torch.nn.L1Loss(reduction="none").eval(), input_data=[predictions, targets])
+    verify_model(torch.nn.L1Loss().eval(), input_data=[predictions, targets])
 
     # multidimension l1 loss
     d1, d2 = 2, 3
@@ -4817,6 +4818,7 @@ def test_forward_mse_loss():
     verify_model(torch.nn.MSELoss().eval(), input_data=[predictions, targets])
     verify_model(torch.nn.MSELoss(reduction="sum").eval(), input_data=[predictions, targets])
     verify_model(torch.nn.MSELoss(reduction="none").eval(), input_data=[predictions, targets])
+    verify_model(torch.nn.MSELoss().eval(), input_data=[predictions, targets])
 
     # multidimension mse loss
     d1, d2 = 2, 3
