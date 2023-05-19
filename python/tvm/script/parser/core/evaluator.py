@@ -157,6 +157,7 @@ class ExprEvaluator:
         res : Any
             The evaluation result.
         """
+        args = []
         if (
             isinstance(node, doc.Call)
             and hasattr(node.func, "attr")
@@ -173,27 +174,27 @@ class ExprEvaluator:
                     args = node.args
                 elif isinstance(node, doc.BoolOp):
                     args = node.values
-            for arg in args:
-                if isinstance(arg, doc.Subscript) and isinstance(arg.slice, (doc.Slice, doc.Tuple)):
-                    if isinstance(arg.slice, doc.Slice):
-                        check_slices = [arg.slice]
-                    else:
-                        check_slices = []
-                        for p in arg.slice.elts:
-                            if isinstance(p, doc.Slice):
-                                check_slices.append(p)
-                    for s in check_slices:
-                        if not s.step and s.upper and s.lower:
-                            s.step = doc.Constant(
-                                1,
-                                None,
-                                1,
-                                1,
-                                s.upper.lineno,
-                                s.upper.end_col_offset + 1,
-                                s.upper.lineno,
-                                s.upper.end_col_offset + 2,
-                            )
+        for arg in args:
+            if isinstance(arg, doc.Subscript) and isinstance(arg.slice, (doc.Slice, doc.Tuple)):
+                if isinstance(arg.slice, doc.Slice):
+                    check_slices = [arg.slice]
+                else:
+                    check_slices = []
+                    for p in arg.slice.elts:
+                        if isinstance(p, doc.Slice):
+                            check_slices.append(p)
+                for s in check_slices:
+                    if not s.step and s.upper and s.lower:
+                        s.step = doc.Constant(
+                            1,
+                            None,
+                            1,
+                            1,
+                            s.upper.lineno,
+                            s.upper.end_col_offset + 1,
+                            s.upper.lineno,
+                            s.upper.end_col_offset + 2,
+                        )
         if isinstance(node, list):
             return [self._visit(n) for n in node]
         if isinstance(node, tuple):
