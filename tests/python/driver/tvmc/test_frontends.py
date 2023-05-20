@@ -237,7 +237,7 @@ def test_load_model___wrong_language__to_onnx(tflite_mobilenet_v1_1_quant):
         tvmc.load(tflite_mobilenet_v1_1_quant, model_format="onnx")
 
 
-@pytest.mark.skipif(
+@pytest.mark.skip(
     reason="free(): invalid pointer error despite using llvm-config --link-static and -DHIDE_PRIVATE_SYMBOLS=ON",
 )
 def test_load_model__pth(pytorch_resnet18):
