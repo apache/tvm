@@ -862,7 +862,7 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
     def visit_function_(self, f):
         if "Composite" not in f.attrs:
             body = super().visit_expr(f.body)
-            return relax.Function(f.params, body, f.ret_struct_info, f.attrs, f.span)
+            return relax.Function(f.params, body, f.ret_struct_info, f.is_pure, f.attrs, f.span)
 
         op_type = f.attrs["Composite"]
 
