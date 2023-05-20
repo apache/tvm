@@ -88,6 +88,7 @@ struct VulkanDeviceProperties {
   bool supports_push_descriptor{false};
   bool supports_dedicated_allocation{false};
   bool supports_integer_dot_product{false};
+  bool supports_cooperative_matrix{false};
   uint32_t supported_subgroup_operations{0};
   uint32_t max_num_threads{1};
   uint32_t thread_warp_size{1};

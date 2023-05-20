@@ -342,6 +342,14 @@ using StorageAlignAnnotation = Array<StorageAlignTuple>;
  */
 std::unordered_map<Var, StorageAlignAnnotation, ObjectPtrHash, ObjectPtrEqual>
 CollectStorageAlignAnnotation(const Stmt& body);
+/*!
+ * \brief Split string separated by "," to get wmma fragment dimension size.
+ * \param  shape_str The string to split.
+ * \param  scope The scope to match.
+ * \return The result pair of fragment dimension size.
+ */
+std::pair<int32_t, int32_t> GetWmmaFragmentDimSize(const std::string& shape_str,
+                                                   const std::string& scope);
 
 }  // namespace tir
 }  // namespace tvm

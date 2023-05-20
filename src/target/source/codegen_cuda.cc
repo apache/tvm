@@ -33,6 +33,7 @@
 #include <utility>
 #include <vector>
 
+#include "../../tir/transforms/ir_utils.h"
 #include "literal/cuda_half_t.h"
 #include "ptx.h"
 
@@ -1333,23 +1334,11 @@ int32_t CodeGenCUDA::GetWmmaFragmentSize(const std::string& scope, const VarNode
   ICHECK(fragment_shapes.count(variable))
       << "Cannot find shape of the wmma fragment " << variable->name_hint;
   std::string shape_str = fragment_shapes.at(variable);
-  size_t m, n, k;
-  size_t last_pos = 0, pos = 0;
-  pos = shape_str.find(", ", last_pos);
-  m = tvm::codegen::stoi(shape_str.substr(last_pos, pos - last_pos));
-  last_pos = pos + 2;
-  pos = shape_str.find(", ", last_pos);
-  n = tvm::codegen::stoi(shape_str.substr(last_pos, pos - last_pos));
-  last_pos = pos + 2;
-  k = tvm::codegen::stoi(shape_str.substr(last_pos, shape_str.length() - last_pos));
-  if (scope == "wmma.matrix_a") {
-    return size / m / k;
-  } else if (scope == "wmma.matrix_b") {
-    return size / n / k;
-  } else if (scope == "wmma.accumulator") {
-    return size / m / n;
-  }
-  return 0;
+  std::pair<int32_t, int32_t> dim = GetWmmaFragmentDimSize(shape_str, scope);
+  if (dim.first * dim.second != 0)
+    return size / dim.first / dim.second;
+  else
+    return 0;
 }
 
 void CodeGenCUDA::HandleVolatileLoads(const std::string& value, const BufferLoadNode* op,
