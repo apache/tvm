@@ -173,7 +173,7 @@ class PassContext(tvm.runtime.Object):
 
     def pop_trace(self, return_current=True):
         """Pop a topmost trace from the stack.
-         Returns
+        Returns
         -------
         Trace : Optional[relax.tuning.Trace]
         """
