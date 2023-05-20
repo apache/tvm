@@ -3792,6 +3792,22 @@ def nested_seqstmt():
     return func
 
 
+def subroutine_call():
+    """A GlobalVar may reference other functions in the module"""
+
+    @I.ir_module
+    class mod:
+        @T.prim_func
+        def main(A: T.Buffer(16, "float32")):
+            mod.subroutine(A.data, T.int32(16))
+
+        @T.prim_func
+        def subroutine(A_data: T.handle("float32"), n: T.int32):
+            T.evaluate(0)
+
+    return mod
+
+
 ir_generator = tvm.testing.parameter(
     launch_env_thread,
     opt_gemm_normalize,
@@ -3861,6 +3877,7 @@ ir_generator = tvm.testing.parameter(
     tvm_struct_set_generated_in_cpp,
     ir_module_with_attrs,
     nested_seqstmt,
+    subroutine_call,
 )
 
 
