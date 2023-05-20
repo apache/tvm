@@ -54,15 +54,15 @@ def _get_cutlass_compile_options(sm, threads, use_fast_math=False):
     kwargs = {}
     kwargs["cc"] = "nvcc"
     kwargs["options"] = [
-        f"-c",
-        f"-DCUTLASS_ENABLE_TENSOR_CORE_MMA=1",
+        "-c",
+        "-DCUTLASS_ENABLE_TENSOR_CORE_MMA=1",
         f"-gencode=arch=compute_{sm},code=[sm_{sm},compute_{sm}]",
-        f"-DNDEBUG",
-        f"-Xcompiler=-fPIC",
-        f"-Xcompiler=-Wconversion",
-        f"-Xcompiler=-fno-strict-aliasing",
-        f"-O3",
-        f"-std=c++17",
+        "-DNDEBUG",
+        "-Xcompiler=-fPIC",
+        "-Xcompiler=-Wconversion",
+        "-Xcompiler=-fno-strict-aliasing",
+        "-O3",
+        "-std=c++17",
         f"-I{cutlass_include}",
         f"-I{cutlass_util_include}",
     ]
