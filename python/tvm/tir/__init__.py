@@ -44,7 +44,7 @@ from .stmt import BufferRegion, MatchBufferRegion, Block, BlockRealize
 
 from .function import PrimFunc, TensorIntrin, IndexMap
 
-from .op import call_packed_lowered, call_cpacked_lowered
+from .op import call_packed_lowered, call_cpacked_lowered, call_tir
 from .op import call_packed, call_cpacked, call_intrin, call_pure_extern, call_extern
 from .op import call_llvm_intrin, call_llvm_pure_intrin, ret, all, any, min_value, max_value, trace
 from .op import tvm_check_return

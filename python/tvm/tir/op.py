@@ -436,6 +436,18 @@ def undef():
     return call_intrin("int32", "tir.undef")
 
 
+def call_tir(global_var: tvm.ir.GlobalVar, *args):
+    """Performs a call into another PrimFunc in the same IRModule
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    assert isinstance(global_var, tvm.ir.GlobalVar)
+    return Call(dtype="handle", op=global_var, args=args)
+
+
 def start_profile_intrinsic(id):
     """Start profile intrinsic.
     Parameters
