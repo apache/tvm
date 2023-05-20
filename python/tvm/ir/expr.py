@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """Common expressions data structures in the IR."""
+from numbers import Number
+
 import tvm._ffi
 
 from ..runtime import Scriptable, const, convert
@@ -86,6 +88,9 @@ class GlobalVar(RelayExpr):
             from tvm import relay
 
             return relay.Call(self, args)
+        elif all(isinstance(x, (Number, PrimExpr)) for x in args):
+            return tvm.tir.call_tir(self, *args)
+
         arg_types = [type(x) for x in args]
         raise RuntimeError(
             "Do not know how to handle GlobalVar.__call__ for types {}".format(arg_types)

@@ -250,8 +250,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           dtype_print_location =
               static_cast<tir::ScriptDtypePrintLocation>(dtype_locations[op].IntValue());
         }
-      } else if (const auto* gv = call->op.as<GlobalVarNode>()) {
-        prefix = LiteralDoc::Str(gv->name_hint, call_p->Attr("op"));
+      } else if (call->op.as<GlobalVarNode>()) {
+        prefix = d->AsDoc<ExprDoc>(call->op, call_p->Attr("op"));
       } else {
         LOG(FATAL) << "call: " << call;
       }
@@ -261,6 +261,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       if (dtype_print_location == tir::ScriptDtypePrintLocation::kFirst) {
         args.push_back(LiteralDoc::DataType(call->dtype, call_p->Attr("dtype")));
       }
+
       for (int i = 0; i < n_args; ++i) {
         args.push_back(d->AsDoc<ExprDoc>(call->args[i], call_p->Attr("args")->ArrayIndex(i)));
       }
