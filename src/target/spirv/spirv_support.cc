@@ -102,6 +102,10 @@ SPIRVSupport::SPIRVSupport(tvm::Target target) {
       }
     }
   }
+  // Check whether cooperative matrix is enabled in the target string.
+  if (target->GetAttr<Bool>("supports_cooperative_matrix")) {
+    supports_cooperative_matrix = target->GetAttr<Bool>("supports_cooperative_matrix").value();
+  }
 }
 
 }  // namespace codegen
