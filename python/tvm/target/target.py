@@ -174,9 +174,23 @@ class Target(Object):
         return int(self.attrs["max_num_threads"])
 
     @property
+    def max_block_size_x(self):
+        """Returns the max block size in x-dimension from the target if it exists."""
+        return int(self.attrs["max_block_size_x"])
+
+    @property
+    def max_block_size_y(self):
+        """Returns the max block size in y-dimension from the target if it exists."""
+        return int(self.attrs["max_block_size_y"])
+
+    @property
     def thread_warp_size(self):
         """Returns the thread_warp_size from the target if it exists."""
         return int(self.attrs["thread_warp_size"])
+
+    @property
+    def max_shared_memory_per_block(self):
+        return int(self.attrs["max_shared_memory_per_block"])
 
     @property
     def max_function_args(self):
@@ -218,6 +232,13 @@ class Target(Object):
     @property
     def libs(self):
         return list(self.attrs.get("libs", []))
+
+    @property
+    def supports_cooperative_matrix(self):
+        if self.attrs.get("supports_cooperative_matrix", []):
+            return bool(self.attrs["supports_cooperative_matrix"])
+        else:
+            return False
 
     @property
     def features(self):
