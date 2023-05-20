@@ -228,7 +228,14 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleUnsafeSetDType")
     .set_body_method<Schedule>(&ScheduleNode::UnsafeSetDType);
 /******** (FFI) Blockize & Tensorize ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleBlockize")
-    .set_body_method<Schedule>(&ScheduleNode::Blockize);
+    .set_body_typed([](Schedule self, ObjectRef target, bool preserve_unit_iters) {
+      if (auto loop_rv = target.as<LoopRV>()) {
+        return self->Blockize(loop_rv.value(), preserve_unit_iters);
+      } else if (auto blocks = target.as<Array<BlockRV>>()) {
+        return self->Blockize(blocks.value(), preserve_unit_iters);
+      }
+      LOG(FATAL) << "Unsupported target type: " << target->GetTypeKey();
+    });
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleTensorize")
     .set_body_typed([](Schedule self, ObjectRef rv, String intrin, bool preserve_unit_iters) {
       if (auto block_rv = rv.as<BlockRV>()) {

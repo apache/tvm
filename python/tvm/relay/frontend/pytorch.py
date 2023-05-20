@@ -1353,18 +1353,16 @@ class PyTorchOpConverter:
 
         channels = self.infer_shape(data)
 
-        if isinstance(inputs[1], _expr.Expr) and isinstance(inputs[2], _expr.Expr):
-            scale = center = True
-            weight = inputs[1]
-            beta = inputs[2]
-            gamma = weight
+        scale = isinstance(inputs[1], _expr.Expr)
+        if scale:
+            gamma = inputs[1]
         else:
-            scale = center = False
-
-        if not scale:
             gamma = _create_typed_const(np.ones([int(channels[1])]), data_type)
 
-        if not center:
+        center = isinstance(inputs[2], _expr.Expr)
+        if center:
+            beta = inputs[2]
+        else:
             beta = _create_typed_const(np.zeros([int(channels[1])]), data_type)
 
         moving_mean = inputs[3]
@@ -2262,7 +2260,12 @@ class PyTorchOpConverter:
         tensor_list = inputs[0]
         import torch
 
-        res_shape = list(torch.broadcast_shapes(*[self.infer_shape(t) for t in tensor_list]))
+        infer_shape_value = [self.infer_shape(t) for t in tensor_list]
+        # "torch.broadcast_shapes" is available after PyTorch 1.8.0
+        if hasattr(torch, "broadcast_shapes"):
+            res_shape = list(torch.broadcast_shapes(*infer_shape_value))
+        else:
+            res_shape = list(torch.broadcast_tensors(*map(torch.empty, infer_shape_value))[0].shape)
         return [_op.broadcast_to(tensor, res_shape) for tensor in tensor_list]
 
     def Bool(self, inputs, input_types):

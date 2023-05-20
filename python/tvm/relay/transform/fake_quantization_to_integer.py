@@ -25,7 +25,10 @@ from tvm.ir import TensorAffineType, TupleAffineType
 from tvm.relay.qnn.op import canonicalizations
 from tvm.tir import bijective_layout
 
-from ..op import register_fake_quantization_to_integer
+from ..op import (
+    register_fake_quantization_to_integer,
+    register_optional_fake_quantization_to_integer,
+)
 
 
 def fold_constant(expr):
@@ -619,3 +622,16 @@ def take(expr, type_map):
 
     out = relay.op.take(arg, indices, **expr.attrs)
     return [out, t]
+
+
+@register_optional_fake_quantization_to_integer("nn.softmax")
+def softmax(expr, type_map):
+    """Rewrite a softmax op"""
+    arg = expr.args[0]
+    arg_t = type_map[arg]
+    out_t = type_map[expr]
+
+    out = relay.qnn.op.softmax(
+        arg, arg_t.scale, arg_t.zero_point, out_t.scale, out_t.zero_point, **expr.attrs
+    )
+    return [out, out_t]

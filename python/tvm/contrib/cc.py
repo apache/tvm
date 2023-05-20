@@ -17,9 +17,11 @@
 """Util to invoke C/C++ compilers in the system."""
 # pylint: disable=invalid-name
 import sys
+import shutil
 import os
 import subprocess
 
+from . import utils as _utils, tar as _tar
 from .._ffi.base import py_str
 
 
@@ -83,8 +85,20 @@ def create_shared(output, objects, options=None, cc=None):
         raise ValueError("Unsupported platform")
 
 
-def _linux_ar(output, objects):
-    cmd = ["ar", "-crs", output]
+def _linux_ar(output, inputs, ar):
+    ar = ar or "ar"
+
+    libname = os.path.basename(output)
+    if not libname.startswith("lib"):
+        libname = "lib" + libname
+    temp = _utils.tempdir()
+    temp_output = temp.relpath(libname)
+    cmd = [ar, "-crs", temp_output]
+
+    # handles the case where some input files are tar of objects
+    # unpack them and return the list of files inside
+    objects = _tar.normalize_file_list_by_unpacking_tars(temp, inputs)
+
     cmd += objects
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     (out, _) = proc.communicate()
@@ -94,21 +108,27 @@ def _linux_ar(output, objects):
         msg += "\nCommand line: " + " ".join(cmd)
         raise RuntimeError(msg)
 
+    shutil.move(temp_output, output)
 
-def create_staticlib(output, objects):
-    """Create shared library.
+
+def create_staticlib(output, inputs, ar=None):
+    """Create static library.
 
     Parameters
     ----------
     output : str
         The target shared library.
 
-    objects : List[str]
-        List of object files.
+    inputs : List[str]
+        List of inputs files. Each input file can be a tarball
+        of objects or an object file.
+
+    ar : Optional[str]
+        Path to the ar command to be used
     """
 
     if _is_linux_like():
-        return _linux_ar(output, objects)
+        return _linux_ar(output, inputs, ar)
     else:
         raise ValueError("Unsupported platform")
 

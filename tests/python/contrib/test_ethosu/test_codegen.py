@@ -281,6 +281,29 @@ def test_tflite_separate_pad(
     infra.compare_tvm_with_tflite(pad2d, [ifm_shape], "ethos-u55-256")
 
 
+@pytest.mark.parametrize("ifm_shape", [(1, 55, 55, 3), (1, 23, 32, 7)])
+@pytest.mark.parametrize("channel_padding", [(0, 1), (1, 1), (5, 2)])
+@pytest.mark.parametrize("const_value", [0, 5, 125, -5])
+def test_tflite_separate_channel_pad(
+    ifm_shape,
+    channel_padding,
+    const_value,
+):
+    np.random.seed(0)
+
+    @tf.function
+    def concat_func(x):
+        x = tf.pad(
+            x,
+            [[0, 0], [0, 0], [0, 0], [channel_padding[0], channel_padding[1]]],
+            "CONSTANT",
+            const_value,
+        )
+        return x
+
+    infra.compare_tvm_with_tflite(concat_func, [ifm_shape], "ethos-u55-256", enable_cascader=False)
+
+
 @pytest.mark.parametrize(
     "accel_type",
     ACCEL_TYPES,
@@ -330,7 +353,7 @@ def test_ethosu_softmax(
     def softmax(x):
         return tf.nn.softmax(x)
 
-    infra.compare_tvm_with_tflite(softmax, [ifm_shape], accel_type)
+    infra.compare_tvm_with_tflite(softmax, [ifm_shape], accel_type, ranges=[(-1, 1)])
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)

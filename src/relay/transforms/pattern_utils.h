@@ -770,6 +770,10 @@ inline Expr Copy(Expr data) {
   return Call(op, {data}, Attrs(), {});
 }
 
+inline Expr Max(Expr data, Array<Integer> axis, bool keepdims, bool exclude) {
+  return MakeReduce(data, axis, keepdims, exclude, "max");
+}
+
 inline Expr Mean(Expr data, Array<Integer> axis, bool keepdims, bool exclude) {
   return MakeReduce(data, axis, keepdims, exclude, "mean");
 }

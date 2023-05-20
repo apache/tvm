@@ -527,6 +527,9 @@ Optional<arith::IntConstraints> ConditionalBoundsContext::TrySolveCondition() {
   // solve constraints
   arith::IntConstraints constraint(vars, ranges, equations);
   arith::IntConstraints result = arith::SolveInequalitiesToRange(constraint);
+  if (!result->relations.empty()) {
+    return NullOpt;
+  }
   return std::move(result);
 }
 
@@ -546,10 +549,6 @@ void ConditionalBoundsContext::EnterWithScope() {
     // fail to process the condition, add to unresolved
     pending_conditions_->push_back(condition_);
     return;
-  }
-  for (const PrimExpr& unresolved : constraints.value()->relations) {
-    // add partially unresolved conditions
-    pending_conditions_->push_back(unresolved);
   }
   // update solved var ranges
   for (const auto& kv : constraints.value()->ranges) {
@@ -647,6 +646,36 @@ CollectStorageAlignAnnotation(const Stmt& body) {
   StorageAlignCollector collector;
   collector(body);
   return std::move(collector.storage_align_);
+}
+
+int Stoi(const std::string& str) {
+  try {
+    return std::stoi(str);
+  } catch (std::invalid_argument& e) {
+    LOG(FATAL) << "Cannot convert \"" << str << "\" to int";
+    throw;
+  }
+}
+
+std::pair<int32_t, int32_t> GetWmmaFragmentDimSize(const std::string& shape_str,
+                                                   const std::string& scope) {
+  size_t m, n, k;
+  size_t last_pos = 0, pos = 0;
+  pos = shape_str.find(", ", last_pos);
+  m = Stoi(shape_str.substr(last_pos, pos - last_pos));
+  last_pos = pos + 2;
+  pos = shape_str.find(", ", last_pos);
+  n = Stoi(shape_str.substr(last_pos, pos - last_pos));
+  last_pos = pos + 2;
+  k = Stoi(shape_str.substr(last_pos, shape_str.length() - last_pos));
+  if (scope == "wmma.matrix_a") {
+    return std::pair<int32_t, int32_t>(m, k);
+  } else if (scope == "wmma.matrix_b") {
+    return std::pair<int32_t, int32_t>(k, n);
+  } else if (scope == "wmma.accumulator") {
+    return std::pair<int32_t, int32_t>(m, n);
+  }
+  return std::pair<int32_t, int32_t>(0, 0);
 }
 
 namespace transform {

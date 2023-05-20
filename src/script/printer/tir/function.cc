@@ -177,6 +177,26 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_SCRIPT_REPR(tir::PrimFuncNode, ReprPrintTIR);
 
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
+    .set_dispatch<tvm::GlobalVar>(                                           //
+        "tir", [](tvm::GlobalVar n, ObjectPath n_p, IRDocsifier d) -> Doc {  //
+          if (Optional<ExprDoc> doc = d->GetVarDoc(n)) {
+            return doc.value();
+          } else {
+            IdDoc ret(n->name_hint);
+            ret->source_paths.push_back(n_p);
+            return ret;
+          }
+        });
+
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
+    .set_dispatch<tvm::IRModule>(                                             //
+        "tir", [](tvm::IRModule mod, ObjectPath n_p, IRDocsifier d) -> Doc {  //
+          Optional<ExprDoc> doc = d->GetVarDoc(mod);
+          ICHECK(doc) << "Unable to print IRModule before definition in TIR.";
+          return doc.value();
+        });
+
 }  // namespace printer
 }  // namespace script
 }  // namespace tvm
