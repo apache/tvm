@@ -31,6 +31,7 @@ from .. import expr as _expr
 from .. import function as _function
 from .. import ty as _ty
 from .. import op as _op
+from .. import qnn as _qnn
 from .common import (
     autopad,
     fold_constant,
@@ -492,6 +493,21 @@ def convert_cumsum(g, op, block):
     else:
         out = _op.cumsum(x, axis=axis, exclusive=exclusive)
     g.add_node(op.output("Out")[0], out)
+
+
+def convert_dequantize_linear(g, op, block):
+    """Operator converter for dequantize_linear."""
+
+    axis = op.attr("quant_axis")
+    x = g.get_node(op.input("X")[0])
+    scale = g.get_node(op.input("Scale")[0])
+    zp = g.get_node(op.input("ZeroPoint")[0])
+    if len(infer_shape(scale)) != len(infer_shape(zp)):
+        scale = _op.squeeze(scale, axis=0)
+    if -1 == axis:
+        axis = 0
+    out = _qnn.op.dequantize(x, scale, _op.cast(zp, "int32"), axis)
+    g.add_node(op.output("Y")[0], out)
 
 
 def convert_dropout(g, op, block):
@@ -1560,6 +1576,20 @@ def convert_prelu(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_quantize_linear(g, op, block):
+    """Operator converter for quantize_linear."""
+
+    axis = op.attr("quant_axis")
+    x = g.get_node(op.input("X")[0])
+    scale = g.get_node(op.input("Scale")[0])
+    zp = g.get_node(op.input("ZeroPoint")[0])
+    dtype = infer_type(zp).checked_type.dtype
+    if -1 == axis:
+        axis = 0
+    out = _qnn.op.quantize(x, scale, _op.cast(zp, "int32"), axis, dtype)
+    g.add_node(op.output("Y")[0], out)
+
+
 def convert_range(g, op, block):
     """Operator converter for range."""
 
@@ -2556,6 +2586,7 @@ _convert_map = {
     "cumsum": convert_cumsum,
     "depthwise_conv2d": convert_conv2d,
     "depthwise_conv2d_transpose": convert_conv2d_transpose,
+    "dequantize_linear": convert_dequantize_linear,
     "dist": convert_dist,
     "dot": convert_dot,
     "dropout": convert_dropout,
@@ -2636,6 +2667,7 @@ _convert_map = {
     "pool2d": convert_pool2d,
     "pow": convert_pow,
     "prelu": convert_prelu,
+    "quantize_linear": convert_quantize_linear,
     "range": convert_range,
     "relu": convert_unary_op,
     "relu6": convert_relu6,
