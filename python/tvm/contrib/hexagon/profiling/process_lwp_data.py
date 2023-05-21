@@ -283,7 +283,7 @@ def process_data(data, func_info, so_ld_addr):
         f"\nDone processing function [{prev_func_name}] but ordered_visited_list not empty.\n"
         f"\t Possible reasons -- \n"
         f"\t\t1) Mismatch between model .so and json file.\n"
-        f"\t\t2) LWP buffer may have overflowed resulting into missing entries!" % prev_func_name
+        f"\t\t2) LWP buffer may have overflowed resulting into missing entries!"
     )
 
     overall_cycles = adjust_per_loop_counts(overall_cycles, data)
