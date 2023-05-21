@@ -42,7 +42,7 @@ class Cache(object):
     cache_by_key = {}
 
     def __init__(self, key, save_at_exit):
-        cache_dir = ".pkl_memoize_py{0}".format(sys.version_info[0])
+        cache_dir = f".pkl_memoize_py{sys.version_info[0]}"
         try:
             os.mkdir(cache_dir)
         except FileExistsError:
@@ -62,7 +62,7 @@ class Cache(object):
 
     def save(self):
         if self.dirty:
-            print("Save memoize result to %s" % self.path)
+            print(f"Save memoize result to {self.path}")
             with open(self.path, "wb") as out_file:
                 pickle.dump(self.cache, out_file, pickle.HIGHEST_PROTOCOL)
 
