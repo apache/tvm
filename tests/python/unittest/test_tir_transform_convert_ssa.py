@@ -17,6 +17,7 @@
 
 import tvm
 import tvm.testing
+from tvm import tir
 from tvm.script import tir as T, ir as I
 
 
@@ -28,28 +29,27 @@ class TestReuseInSequentialLetStmt(BaseBeforeAfter):
     """De-dup sequential variable bindings"""
 
     def before(self):
-        @T.prim_func
-        def func():
-            i1 = T.handle("int32")
-            with T.LetStmt(i1, var=i1):
-                T.evaluate(0)
-            with T.LetStmt(i1, var=i1):
-                T.evaluate(0)
-            buffer = T.Buffer((16,), "int32", data=i1)
-            T.evaluate(buffer[0])
+        # Manually construct the PrimFunc body, as SSA violations are
+        # not valid TIR, and may not be expressible in future versions
+        # of TVMSCript.
+        var = tir.Var("var", "int32")
+        sequential_bindings = tir.SeqStmt(
+            [
+                tir.LetStmt(var, 16, tir.Evaluate(var)),
+                tir.LetStmt(var, 32, tir.Evaluate(var)),
+            ]
+        )
+        func = tir.PrimFunc([], sequential_bindings)
 
         return func
 
     def expected(self):
         @T.prim_func
         def func():
-            i1 = T.handle("int32")
-            with T.LetStmt(i1, var=i1):
-                T.evaluate(0)
-            with T.LetStmt(i1, T.handle("int32")) as i1_1:
-                T.evaluate(0)
-            buffer = T.Buffer((16,), "int32", data=i1)
-            T.evaluate(buffer[0])
+            with T.LetStmt(T.int32(16)) as var1:
+                T.evaluate(var1)
+            with T.LetStmt(T.int32(32)) as var2:
+                T.evaluate(var2)
 
         return func
 
@@ -62,27 +62,34 @@ class TestReuseInNestedLetStmt(BaseBeforeAfter):
     """
 
     def before(self):
-        @T.prim_func
-        def func():
-            i = T.int32()
-            with T.LetStmt(5, var=i):
-                T.evaluate(i)
-                with T.LetStmt(10, var=i):
-                    T.evaluate(i)
-                T.evaluate(i)
+        # Manually construct the PrimFunc body, as SSA violations are
+        # not valid TIR, and may not be expressible in future versions
+        # of TVMSCript.
+        var = tir.Var("var", "int32")
+        inner_let = tir.LetStmt(var, 16, tir.Evaluate(var))
+        outer_let = tir.LetStmt(
+            var,
+            32,
+            tir.SeqStmt(
+                [
+                    tir.Evaluate(var),
+                    inner_let,
+                    tir.Evaluate(var),
+                ]
+            ),
+        )
+        func = tir.PrimFunc([], outer_let)
 
         return func
 
     def expected(self):
         @T.prim_func
         def func():
-            i = T.int32()
-            with T.LetStmt(5, var=i):
-                T.evaluate(i)
-                j = T.int32()
-                with T.LetStmt(10, var=j):
-                    T.evaluate(j)
-                T.evaluate(i)
+            with T.LetStmt(T.int32(32)) as outer:
+                T.evaluate(outer)
+                with T.LetStmt(T.int32(16)) as inner:
+                    T.evaluate(inner)
+                T.evaluate(outer)
 
         return func
 
@@ -91,21 +98,12 @@ class TestReusedVarAcrossModule(BaseBeforeAfter):
     """De-duplicate Var bindings across entire module"""
 
     def before(self):
-        var = T.int32()
+        @T.prim_func
+        def func():
+            with T.LetStmt(10) as var:
+                T.evaluate(var)
 
-        @I.ir_module
-        class mod:
-            @T.prim_func
-            def func_a():
-                with T.LetStmt(10, var=var):
-                    T.evaluate(var)
-
-            @T.prim_func
-            def func_b():
-                with T.LetStmt(42, var=var):
-                    T.evaluate(var)
-
-        return mod
+        return tvm.IRModule({"func_a": func, "func_b": func})
 
     def expected(self):
         @I.ir_module
@@ -117,7 +115,7 @@ class TestReusedVarAcrossModule(BaseBeforeAfter):
 
             @T.prim_func
             def func_b():
-                var = T.int32(42)
+                var = T.int32(10)
                 T.evaluate(var)
 
         return mod
