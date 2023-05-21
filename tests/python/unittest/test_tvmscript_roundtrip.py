@@ -3808,6 +3808,53 @@ def subroutine_call():
     return mod
 
 
+def undefined_data_ptr_in_decl_buffer():
+    """The T.decl_buffer syntax should not introduce an Allocate
+
+    While T.decl_buffer can be used to represent an
+    Allocate/DeclBuffer pair, performing a round-trip through
+    TVMScript should not introduce an Allocate node.
+    """
+
+    @T.prim_func
+    def func():
+        data_ptr = T.handle("float32")
+        buf = T.decl_buffer(shape=[1], dtype="float32", data=data_ptr)
+        T.evaluate(buf[0])
+
+    return func
+
+
+def undefined_shape_in_decl_buffer():
+    @T.prim_func
+    def func():
+        size = T.int32()
+        buf = T.decl_buffer(shape=[size], dtype="float32")
+        T.evaluate(buf[0])
+
+    return func
+
+
+def undefined_stride_in_decl_buffer():
+    @T.prim_func
+    def func():
+        stride = T.int32()
+        buf = T.decl_buffer(shape=[1], dtype="float32", strides=[stride])
+        T.evaluate(buf[0])
+
+    return func
+
+
+def undefined_elem_offset_in_decl_buffer():
+    @T.prim_func
+    def func():
+        elem_offset = T.int32()
+        buf = T.decl_buffer(shape=[1], dtype="float32", elem_offset=elem_offset)
+        T.evaluate(buf[0])
+
+    return func
+
+
 ir_generator = tvm.testing.parameter(
     launch_env_thread,
     opt_gemm_normalize,
@@ -3878,6 +3925,10 @@ ir_generator = tvm.testing.parameter(
     ir_module_with_attrs,
     nested_seqstmt,
     subroutine_call,
+    undefined_data_ptr_in_decl_buffer,
+    undefined_shape_in_decl_buffer,
+    undefined_stride_in_decl_buffer,
+    undefined_elem_offset_in_decl_buffer,
 )
 
 
