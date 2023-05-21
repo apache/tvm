@@ -28,7 +28,7 @@ import tvm.testing
 from tvm import te
 from tvm.contrib import clang, utils
 from tvm.relay.backend import Runtime
-from tvm.script import tir as T
+from tvm.script import tir as T, ir as I
 from tvm.target.codegen import llvm_get_intrinsic_name, llvm_lookup_intrinsic_id
 
 
@@ -1020,6 +1020,33 @@ def test_debug_symbol_for_float64():
             B[i] = A[i]
 
     tvm.build(func, target="llvm")
+
+
+@tvm.testing.requires_llvm
+def test_subroutine_call():
+    @I.ir_module
+    class mod:
+        @T.prim_func
+        def main(A: T.Buffer(1, dtype="float32")):
+            T.func_attr({"global_symbol": "main"})
+            mod.subroutine(A.data)
+
+        @T.prim_func
+        def subroutine(A_data: T.handle("float32")):
+            # The calling_conv parameter is to prevent MakePackedAPI
+            # from changing the call signature of the subroutine.
+            T.func_attr({"global_symbol": "subroutine", "calling_conv": -1})
+            A = T.decl_buffer(1, dtype="float32", data=A_data)
+            A[0] = 42.0
+
+    target = "llvm"
+    dev = tvm.cpu()
+
+    built = tvm.build(mod)
+
+    arr = tvm.nd.array(np.zeros([1], "float32"), device=dev)
+    built["main"](arr)
+    assert arr.numpy()[0] == 42.0
 
 
 if __name__ == "__main__":
