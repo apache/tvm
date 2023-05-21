@@ -289,8 +289,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)  //
       if (!d->IsVarDefined(buffer)) {
         if (Optional<Frame> opt_f = FindLowestVarDef(buffer, d)) {
           ExprDoc lhs = DefineBuffer(buffer, opt_f.value(), d);
-          ExprDoc rhs =
-              BufferDecl(buffer, "Buffer", {}, p, opt_f.value(), d, BufferVarDefinition::None);
+          ExprDoc rhs = BufferDecl(buffer, "Buffer", {}, p, opt_f.value(), d,
+                                   BufferVarDefinition::DataPointer);
           opt_f.value()->stmts.push_back(AssignDoc(lhs, rhs, NullOpt));
         }
       }
