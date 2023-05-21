@@ -78,7 +78,7 @@ class EthosUModuleNode : public ModuleNode {
    * \param file_name The file to be saved to.
    * \param format The format of the file.
    */
-  void SaveToFile(const std::string& file_name, const std::string& format) final {
+  void SaveToFile(const String& file_name, const String& format) final {
     std::string fmt = GetFileFormat(file_name, format);
     ICHECK_EQ(fmt, "c") << "Can only save to format="
                         << "c";
@@ -87,9 +87,9 @@ class EthosUModuleNode : public ModuleNode {
     out.close();
   }
 
-  std::string GetSource(const std::string& format) final { return c_source; }
+  String GetSource(const String& format) final { return c_source; }
 
-  std::string GetFormat() override { return "c"; }
+  String GetFormat() override { return "c"; }
 
   Array<CompilationArtifact> GetArtifacts() { return compilation_artifacts_; }
 
@@ -101,7 +101,7 @@ class EthosUModuleNode : public ModuleNode {
    *
    * \return The function pointer when it is found, otherwise, PackedFunc(nullptr).
    */
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
     if (name == "get_func_names") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         Array<String> func_names;

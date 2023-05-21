@@ -90,7 +90,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
 
   const char* type_key() const final { return "llvm"; }
 
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final;
 
   /*! \brief Get the property of the runtime module .*/
   // TODO(tvm-team): Make it serializable
@@ -98,9 +98,9 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     return runtime::ModulePropertyMask::kRunnable | runtime::ModulePropertyMask::kDSOExportable;
   }
 
-  void SaveToFile(const std::string& file_name, const std::string& format) final;
+  void SaveToFile(const String& file_name, const String& format) final;
   void SaveToBinary(dmlc::Stream* stream) final;
-  std::string GetSource(const std::string& format) final;
+  String GetSource(const String& format) final;
 
   void Init(const IRModule& mod, const Target& target);
   void Init(std::unique_ptr<llvm::Module> module, std::unique_ptr<LLVMInstance> llvm_instance);
@@ -137,8 +137,7 @@ LLVMModuleNode::~LLVMModuleNode() {
   module_owning_ptr_.reset();
 }
 
-PackedFunc LLVMModuleNode::GetFunction(const std::string& name,
-                                       const ObjectPtr<Object>& sptr_to_self) {
+PackedFunc LLVMModuleNode::GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) {
   if (name == "__tvm_is_system_module") {
     bool flag = (module_->getFunction("__tvm_module_startup") != nullptr);
     return PackedFunc([flag](TVMArgs args, TVMRetValue* rv) { *rv = flag; });
@@ -181,7 +180,8 @@ PackedFunc LLVMModuleNode::GetFunction(const std::string& name,
   return WrapPackedFunc(faddr, sptr_to_self);
 }
 
-void LLVMModuleNode::SaveToFile(const std::string& file_name, const std::string& format) {
+void LLVMModuleNode::SaveToFile(const String& file_name_str, const String& format) {
+  std::string file_name = file_name_str;
   std::string fmt = runtime::GetFileFormat(file_name, format);
   std::error_code ecode;
 #if TVM_LLVM_VERSION <= 70
@@ -250,7 +250,7 @@ void LLVMModuleNode::SaveToBinary(dmlc::Stream* stream) {
   LOG(FATAL) << "LLVMModule: SaveToBinary not supported";
 }
 
-std::string LLVMModuleNode::GetSource(const std::string& format) {
+String LLVMModuleNode::GetSource(const String& format) {
   std::string fmt = runtime::GetFileFormat("", format);
   std::string type_str;
   llvm::SmallString<256> str;

@@ -89,7 +89,7 @@ class VMCompiler : public runtime::ModuleNode {
   VMCompiler() = default;
   virtual ~VMCompiler() = default;
 
-  virtual PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self);
+  virtual PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self);
 
   const char* type_key() const final { return "VMCompiler"; }
 

@@ -79,7 +79,7 @@ class GraphExecutorDebug : public GraphExecutor {
    * \param name The function which needs to be invoked.
    * \param sptr_to_self Packed function pointer.
    */
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self);
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self);
 
   /*!
    * \brief Get the node index given the name of node.
