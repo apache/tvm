@@ -17,6 +17,8 @@
  * under the License.
  */
 /** NodeJS and Web compact layer */
+import { LibraryProvider } from "./types";
+import EmccWASI from "./tvmjs_runtime_wasi";
 
 /**
  * Get performance measurement.
@@ -43,5 +45,13 @@ export function createWebSocket(url: string): WebSocket {
   } else {
     return new (WebSocket as any)(url);
   }
+}
 
+/**
+ * Create a WASI based on current environment.
+ *
+ * @return A wasi that can run on broswer or local.
+ */
+export function createPolyfillWASI(): LibraryProvider {
+  return new EmccWASI();
 }

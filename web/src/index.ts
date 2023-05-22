@@ -20,11 +20,13 @@
 export {
   Scalar, DLDevice, DLDataType,
   PackedFunc, Module, NDArray,
-  TVMArray,
+  TVMArray, TVMObject, VirtualMachine,
+  InitProgressCallback, InitProgressReport,
   Instance, instantiate
 } from "./runtime";
 export { Disposable, LibraryProvider } from "./types";
 export { RPCServer } from "./rpc_server";
 export { wasmPath } from "./support";
-export { detectGPUDevice } from "./webgpu";
+export { detectGPUDevice, GPUDeviceDetectOutput } from "./webgpu";
 export { assert } from "./support";
+export { createPolyfillWASI } from "./compact";
