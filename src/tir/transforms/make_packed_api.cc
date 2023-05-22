@@ -137,8 +137,8 @@ Stmt RewriteReturn(Stmt body, Var ret_var, Var ret_tcode) {
 
 class SubroutineCallRewriter : public StmtExprMutator {
  public:
-  static Optional<Stmt> Apply(const Map<GlobalVar, String>& external_methods, Stmt stmt) {
-    SubroutineCallRewriter rewriter(external_methods);
+  static Optional<Stmt> Apply(const Map<GlobalVar, String>& packed_func_methods, Stmt stmt) {
+    SubroutineCallRewriter rewriter(packed_func_methods);
     stmt = rewriter.VisitStmt(std::move(stmt));
     if (rewriter.made_change_) {
       return stmt;
@@ -148,15 +148,15 @@ class SubroutineCallRewriter : public StmtExprMutator {
   }
 
  private:
-  explicit SubroutineCallRewriter(const Map<GlobalVar, String>& external_methods)
-      : external_methods_(external_methods) {}
+  explicit SubroutineCallRewriter(const Map<GlobalVar, String>& packed_func_methods)
+      : packed_func_methods(packed_func_methods) {}
 
   PrimExpr VisitExpr_(const CallNode* op) override {
     auto node = Downcast<Call>(StmtExprMutator::VisitExpr_(op));
 
     if (auto* gvar_ptr = node->op.as<GlobalVarNode>()) {
       auto gvar = GetRef<GlobalVar>(gvar_ptr);
-      if (auto symbol = external_methods_.Get(gvar)) {
+      if (auto symbol = packed_func_methods.Get(gvar)) {
         Array<PrimExpr> cpacked_args;
         cpacked_args.push_back(tir::StringImm(symbol.value()));
         for (auto arg : node->args) {
@@ -172,7 +172,7 @@ class SubroutineCallRewriter : public StmtExprMutator {
 
     return node;
   }
-  const Map<GlobalVar, String>& external_methods_;
+  const Map<GlobalVar, String>& packed_func_methods;
   bool made_change_{false};
 };
 
@@ -180,17 +180,33 @@ inline Stmt MakeAssertEQ(PrimExpr lhs, PrimExpr rhs, std::string msg) {
   return AssertStmt(lhs == rhs, tvm::tir::StringImm(msg), Evaluate(0));
 }
 
-PrimFunc MakePackedAPI(PrimFunc func) {
+/* \brief Return the global_symbol of the function, if it should be updated
+ *
+ * \param func The function to be inspected
+ *
+ * \returns The global_symbol to be used for the function at call
+ * sites, or NullOpt if the function is to remain unchanged.
+ */
+Optional<String> RequiresPackedAPI(const PrimFunc& func) {
   // A function with an explicit calling convention has already been
   // lowered, and should not be modified.
   if (auto opt = func->GetAttr<Integer>(tvm::attr::kCallingConv)) {
     if (CallingConv(opt.value()->value) != CallingConv::kDefault) {
-      return func;
+      return NullOpt;
     }
   }
 
   // Internal function calls do not need the PackedFunc API
   auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
+  if (!global_symbol.defined()) {
+    return NullOpt;
+  }
+
+  return global_symbol;
+}
+
+PrimFunc MakePackedAPI(PrimFunc func) {
+  auto global_symbol = RequiresPackedAPI(func);
   if (!global_symbol.defined()) {
     return func;
   }
@@ -362,11 +378,12 @@ namespace transform {
 
 Pass MakePackedAPI() {
   auto pass_func = [](IRModule mod, PassContext ctx) {
-    Map<GlobalVar, String> external_methods;
+    Map<GlobalVar, String> packed_func_methods;
     for (const auto& [gvar, base_func] : mod->functions) {
-      if (auto* prim_func = base_func.as<PrimFuncNode>()) {
-        if (auto global_symbol = prim_func->GetAttr<String>(tvm::attr::kGlobalSymbol)) {
-          external_methods.Set(gvar, global_symbol.value());
+      if (auto opt = base_func.as<PrimFunc>()) {
+        auto prim_func = opt.value();
+        if (auto global_symbol = RequiresPackedAPI(prim_func)) {
+          packed_func_methods.Set(gvar, global_symbol.value());
         }
       }
     }
@@ -379,7 +396,7 @@ Pass MakePackedAPI() {
         auto func = opt.value();
         auto orig_func = func;
 
-        if (auto body = SubroutineCallRewriter::Apply(external_methods, func->body)) {
+        if (auto body = SubroutineCallRewriter::Apply(packed_func_methods, func->body)) {
           func.CopyOnWrite()->body = body.value();
         }
 
