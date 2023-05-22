@@ -28,9 +28,11 @@ namespace relax {
 /* relax.nn.attention */
 TVM_REGISTER_NODE_TYPE(AttentionAttrs);
 
-Expr attention(Expr query, Expr key, Expr value, Optional<Expr> bias, Optional<FloatImm> scale) {
+Expr attention(Expr query, Expr key, Expr value, Optional<Expr> bias, Optional<FloatImm> scale,
+               Optional<String> causal_mask) {
   ObjectPtr<AttentionAttrs> attrs = make_object<AttentionAttrs>();
   attrs->scale = scale;
+  attrs->causal_mask = causal_mask;
   if (bias.defined()) {
     return Call(Op::Get("relax.nn.attention_bias"),
                 {std::move(query), std::move(key), std::move(value), std::move(bias.value())},
@@ -110,7 +112,8 @@ StructInfo InferStructInfoAttention(const Call& call, const BlockBuilder& ctx) {
 }
 
 Call InferMixedPrecisionAttention(const Call& call, const DataType& out_dtype) {
-  return Downcast<Call>(attention(call->args[0], call->args[1], call->args[2], NullOpt, NullOpt));
+  return Downcast<Call>(
+      attention(call->args[0], call->args[1], call->args[2], NullOpt, NullOpt, NullOpt));
 }
 
 TVM_REGISTER_OP("relax.nn.attention")

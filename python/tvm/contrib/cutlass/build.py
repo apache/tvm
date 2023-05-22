@@ -831,6 +831,15 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
         _, _, _, head_dim_value = v_shape
         scale = op_attrs.scale
 
+        if op_attrs.causal_mask is None:
+            custom_mask_type = 0
+        if op_attrs.causal_mask == "TopLeft":
+            custom_mask_type = 1
+        elif op_attrs.causal_mask == "BottomRight":
+            custom_mask_type = 2
+        else:
+            raise NotImplementedError()
+
         return f.with_attrs(
             {
                 "op_type": op_type,
@@ -845,6 +854,7 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
                 "scale": scale,
                 "arch": self.options["sm"],
                 "qkv_layout": qkv_layout,
+                "custom_mask_type": custom_mask_type,
                 **arg,
             }
         )

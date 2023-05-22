@@ -552,7 +552,7 @@ def attention_size(request):
     return request.param
 
 
-def get_relax_attention_module(q, k, v, bias=None, qk_scale=None):
+def get_relax_attention_module(q, k, v, bias=None, qk_scale=None, causal=None):
     dtype = str(q.dtype)
 
     from tvm.script.ir_builder import IRBuilder
@@ -571,7 +571,7 @@ def get_relax_attention_module(q, k, v, bias=None, qk_scale=None):
             if bias is not None:
                 bias = R.arg("bias", R.Tensor(bias.shape, dtype))
             with R.dataflow() as frame:
-                result = R.emit(R.nn.attention(q, k, v, bias, qk_scale))
+                result = R.emit(R.nn.attention(q, k, v, bias, qk_scale, causal))
                 R.output(result)
 
             R.func_ret_value(frame.output_vars[0])
@@ -581,7 +581,7 @@ def get_relax_attention_module(q, k, v, bias=None, qk_scale=None):
 
 
 @memoize("topi.tests.test_codegen_cutlass.test_attention_offload")
-def get_numpy_attention_ref(b, s, s_kv, n, h, h_v, bias_shape, qk_scale, dtype):
+def get_numpy_attention_ref(b, s, s_kv, n, h, h_v, bias_shape, qk_scale, causal, dtype):
     q = np.random.randn(b, s, n, h).astype(dtype)
     k = np.random.randn(b, s_kv, n, h).astype(dtype)
     v = np.random.randn(b, s_kv, n, h_v).astype(dtype)
@@ -596,7 +596,21 @@ def get_numpy_attention_ref(b, s, s_kv, n, h, h_v, bias_shape, qk_scale, dtype):
         score = score + bias  # b, n, s, s_kv
     else:
         bias = None
-    attn = tvm.topi.testing.softmax_python(score, -1)
+    if causal == "none":
+        attn = tvm.topi.testing.softmax_python(score, -1)
+    else:
+        if causal == "TopLeft":
+            offset = 0
+        elif causal == "BottomRight":
+            offset = abs(s - s_kv)
+        else:
+            raise NotImplementedError()
+        score_masked = np.tril(score, k=offset)
+        score_masked_exp = np.tril(
+            np.exp(score_masked - np.max(score_masked, axis=-1, keepdims=True)), k=offset
+        )
+        score_masked_sum = np.sum(score_masked_exp, axis=-1, keepdims=True)
+        attn = np.divide(score_masked_exp, score_masked_sum)
     vt = v.transpose(0, 2, 1, 3)  # b, n, s_kv, h_v
     ref = attn @ vt  # b, n, s, h_v
     return q, k, v, bias, ref.transpose(0, 2, 1, 3)  # b, s, n, h_v
@@ -605,7 +619,7 @@ def get_numpy_attention_ref(b, s, s_kv, n, h, h_v, bias_shape, qk_scale, dtype):
 def test_attention_offload(attention_size, attention_dtype):
     b, (s, s_kv), n, (h, h_v) = attention_size
     q, k, v, _, ref = get_numpy_attention_ref(
-        b, s, s_kv, n, h, h_v, "none", "none", attention_dtype
+        b, s, s_kv, n, h, h_v, "none", "none", "none", attention_dtype
     )
 
     mod = get_relax_attention_module(q, k, v)
@@ -634,7 +648,7 @@ def attention_bias_size(request):
 def test_attention_bias_offload(attention_bias_size):
     b, (s, s_kv), n, (h, h_v), bias_shape = attention_bias_size
     q, k, v, bias, ref = get_numpy_attention_ref(
-        b, s, s_kv, n, h, h_v, bias_shape, "none", "float32"
+        b, s, s_kv, n, h, h_v, bias_shape, "none", "none", "float32"
     )
 
     mod = get_relax_attention_module(q, k, v, bias)
@@ -662,10 +676,41 @@ def attention_scale(request):
 def test_attention_scale_offload(attention_scale_size, attention_scale):
     b, (s, s_kv), n, (h, h_v), bias_shape = attention_scale_size
     q, k, v, bias, ref = get_numpy_attention_ref(
-        b, s, s_kv, n, h, h_v, bias_shape, attention_scale, "float32"
+        b, s, s_kv, n, h, h_v, bias_shape, attention_scale, "none", "float32"
     )
 
     mod = get_relax_attention_module(q, k, v, bias, attention_scale)
+    if bias is None:
+        out = get_result_with_relax_cutlass_offload(mod, q, k, v, num_final_bindings=3)
+    else:
+        out = get_result_with_relax_cutlass_offload(mod, q, k, v, bias, num_final_bindings=3)
+    tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
+
+
+@pytest.fixture(
+    params=[
+        # B, S, N, H, bias_shape
+        (2, (16, 8), 4, (8, 16), "none"),
+        (2, (8, 16), 4, (8, 16), "none"),
+        (2, (16, 8), 4, (8, 16), (2, 4, 16, 8)),
+    ]
+)
+def attention_causal_size(request):
+    return request.param
+
+
+@pytest.fixture(params=["TopLeft", "BottomRight"])
+def attention_causal(request):
+    return request.param
+
+
+def test_attention_causal_offload(attention_causal_size, attention_causal):
+    b, (s, s_kv), n, (h, h_v), bias_shape = attention_causal_size
+    q, k, v, bias, ref = get_numpy_attention_ref(
+        b, s, s_kv, n, h, h_v, bias_shape, "none", attention_causal, "float32"
+    )
+
+    mod = get_relax_attention_module(q, k, v, bias, None, attention_causal)
     if bias is None:
         out = get_result_with_relax_cutlass_offload(mod, q, k, v, num_final_bindings=3)
     else:
