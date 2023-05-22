@@ -5029,7 +5029,7 @@ def test_grid_sample():
     for _method in methods:
         # bicubic was introduced when pytorch > 1.7.1
         torch_version = package_version.parse(torch.__version__)
-        if _method=='bicubic' and torch_version <= package_version.parse("1.7.1"):
+        if _method == "bicubic" and torch_version <= package_version.parse("1.7.1"):
             continue
         for _padding in padding_modes:
             for _align in align_corners:
