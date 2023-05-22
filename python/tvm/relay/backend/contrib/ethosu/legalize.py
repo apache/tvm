@@ -623,28 +623,9 @@ class PoolingRewriter(DFPatternCallback):
         # Since the spatial dimensions of ifm and the pooling kernel coincide and the padding
         # is [0, 0, 0, 0], the application of the pooling kernel will be done only once,
         # which will give us the desired output
+        strides = params.strides
         if params.strides[0] > 3 or params.strides[1] > 3:
-            new_strides = [1, 1]
-            return ethosu_ops.ethosu_pooling(
-                ifm=post.args[0],
-                lut=lut,
-                pooling_type=params.pooling_type,
-                ifm_scale=params.ifm.q_params.scale_f32,
-                ifm_zero_point=params.ifm.q_params.zero_point,
-                ofm_scale=params.ofm.q_params.scale_f32,
-                ofm_zero_point=params.ofm.q_params.zero_point,
-                pool_shape=params.pool_shape,
-                ofm_channels=params.ofm.shape[channels_map[str(params.ofm.layout)]],
-                ofm_dtype=params.ofm.dtype,
-                strides=new_strides,
-                padding=params.padding,
-                activation=activation,
-                clip_min=clip_min,
-                clip_max=clip_max,
-                upscale="NONE",
-                ifm_layout=str(params.ifm.layout),
-                ofm_layout=str(params.ofm.layout),
-            )
+            strides = [1, 1]
 
         return ethosu_ops.ethosu_pooling(
             ifm=post.args[0],
@@ -657,7 +638,7 @@ class PoolingRewriter(DFPatternCallback):
             pool_shape=params.pool_shape,
             ofm_channels=params.ofm.shape[channels_map[str(params.ofm.layout)]],
             ofm_dtype=params.ofm.dtype,
-            strides=params.strides,
+            strides=strides,
             padding=params.padding,
             activation=activation,
             clip_min=clip_min,
