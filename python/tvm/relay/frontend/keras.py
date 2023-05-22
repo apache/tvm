@@ -475,7 +475,7 @@ def _convert_convolution3d(inexpr, keras_layer, etab, data_layout, input_shape=N
         if is_deconv:
             kernel_layout = "IODHW"
         msg = (
-            f"Kernel layout with {data_layout} is not supported for operator Convolution3D "
+            f"Kernel layout with {kernel_layout} is not supported for operator Convolution3D "
             f"in frontend Keras."
         )
         raise tvm.error.OpAttributeUnImplemented(msg)
