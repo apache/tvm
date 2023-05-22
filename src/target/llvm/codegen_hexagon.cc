@@ -547,7 +547,6 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
 
   auto cg = std::make_unique<CodeGenHexagon>();
 
-  std::vector<PrimFunc> funcs;
   std::string entry_func;
 
   for (auto kv : mod->functions) {
@@ -562,11 +561,10 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
       ICHECK(global_symbol.defined());
       entry_func = global_symbol.value();
     }
-    funcs.emplace_back(f);
   }
 
   cg->Init("TVMHexagonModule", llvm_target.get(), NullOpt, false, false);
-  cg->AddFunctionsOrdered(funcs.begin(), funcs.end());
+  cg->AddFunctionsOrdered(mod->functions.begin(), mod->functions.end());
   if (entry_func.length() != 0) {
     cg->AddMainFunction(entry_func);
   }
