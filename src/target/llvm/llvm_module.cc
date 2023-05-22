@@ -125,7 +125,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
   // The unique_ptr owning the module. This becomes empty once JIT has been initialized
   // (EngineBuilder takes ownership of the module).
   std::unique_ptr<llvm::Module> module_owning_ptr_;
-  /* \brief names of the functions declared in this module */
+  /* \brief names of the external functions declared in this module */
   Array<String> function_names_;
 };
 
@@ -295,7 +295,6 @@ void LLVMModuleNode::Init(const IRModule& mod, const Target& target) {
   llvm::TargetMachine* tm = llvm_target->GetOrCreateTargetMachine();
   std::unique_ptr<CodeGenLLVM> cg = CodeGenLLVM::Create(llvm_target.get());
 
-  std::vector<PrimFunc> funcs;
   std::string entry_func;
   relay::Runtime runtime =
       mod->GetAttr<relay::Runtime>(tvm::attr::kRuntime).value_or(relay::Runtime::Create("cpp"));
@@ -315,12 +314,16 @@ void LLVMModuleNode::Init(const IRModule& mod, const Target& target) {
     }
     auto f = Downcast<PrimFunc>(kv.second);
     auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
-    ICHECK(global_symbol.defined());
-    function_names_.push_back(global_symbol.value());
-    if (f->HasNonzeroAttr(tir::attr::kIsEntryFunc)) {
-      entry_func = global_symbol.value();
+    bool is_entry_func = f->HasNonzeroAttr(tir::attr::kIsEntryFunc);
+
+    ICHECK(global_symbol || !is_entry_func) << "The entry func must be exposed externally.";
+
+    if (global_symbol) {
+      function_names_.push_back(global_symbol.value());
+      if (is_entry_func) {
+        entry_func = global_symbol.value();
+      }
     }
-    funcs.push_back(f);
   }
   // TODO(@jroesch): follow up on this condition.
   // ICHECK(funcs.size() > 0);
@@ -330,7 +333,7 @@ void LLVMModuleNode::Init(const IRModule& mod, const Target& target) {
            target_c_runtime);
   cg->SetFastMathFlags(llvm_target->GetFastMathFlags());
 
-  cg->AddFunctionsOrdered(funcs.begin(), funcs.end());
+  cg->AddFunctionsOrdered(mod->functions.begin(), mod->functions.end());
   if (entry_func.length() != 0) {
     cg->AddMainFunction(entry_func);
   }

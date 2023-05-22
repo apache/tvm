@@ -67,7 +67,7 @@ class CodeGenCPU : public CodeGenLLVM {
   void Init(const std::string& module_name, LLVMTarget* llvm_target,
             Optional<String> system_lib_prefix, bool dynamic_lookup,
             bool target_c_runtime) override;
-  void AddFunction(const PrimFunc& f) override;
+  void AddFunction(const GlobalVar& gvar, const PrimFunc& f) override;
   void AddMainFunction(const std::string& entry_func_name) override;
   std::unique_ptr<llvm::Module> Finish() override;
   void VisitStmt_(const AssertStmtNode* op) override;

@@ -87,9 +87,9 @@ class CodeGenAMDGPU : public CodeGenLLVM {
   CodeGenAMDGPU() = default;
   virtual ~CodeGenAMDGPU() = default;
 
-  void AddFunction(const PrimFunc& f) final {
+  void AddFunction(const GlobalVar& gvar, const PrimFunc& f) final {
     // add function as void return value
-    CodeGenLLVM::AddFunctionInternal(f, true);
+    CodeGenLLVM::AddFunctionInternal(gvar, f, true);
     function_->setCallingConv(llvm::CallingConv::AMDGPU_KERNEL);
     std::ostringstream attr;
     attr << "1," << DetectROCMmaxThreadsPerBlock();
@@ -262,11 +262,7 @@ runtime::Module BuildAMDGPU(IRModule mod, Target target) {
 
   cg->Init("TVMAMDGPUModule", llvm_target.get(), NullOpt, false, false);
 
-  cg->AddFunctionsOrdered(mod->functions.begin(), mod->functions.end(), [](auto& kv) {
-    ICHECK(kv.second->template IsInstance<PrimFuncNode>())
-        << "Can only lower IR Module with PrimFuncs";
-    return Downcast<PrimFunc>(kv.second);
-  });
+  cg->AddFunctionsOrdered(mod->functions.begin(), mod->functions.end());
 
   llvm::TargetMachine* tm = llvm_target->GetOrCreateTargetMachine();
   const auto* find_rocm_bitcodes = tvm::runtime::Registry::Get("tvm_callback_rocm_bitcode_path");
