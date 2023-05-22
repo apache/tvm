@@ -88,5 +88,81 @@ def test_ssa_across_entire_module():
     assert not loop_var.same_as(param_var)
 
 
+class BaseCompare(tvm.testing.CompareBeforeAfter):
+    transform = tvm.tir.transform.SplitHostDevice()
+
+
+class TestSplitHostDevice(BaseCompare):
+    """SplitHostDevice divides a function at the "target" attribute"""
+
+    def before(self):
+        @I.ir_module
+        class mod:
+            @T.prim_func
+            def main(n: T.int32):
+                T.func_attr({"target": T.target("llvm")})
+                T.attr(T.target("cuda"), "target", 0)
+                T.evaluate(n)
+
+        return mod
+
+    def expected(self):
+        @I.ir_module
+        class mod:
+            @T.prim_func
+            def main(n: T.int32):
+                T.func_attr({"target": T.target("llvm"), "tir.is_host_func": True})
+                mod.main_kernel(n)
+
+            @T.prim_func
+            def main_kernel(n: T.int32):
+                T.func_attr(
+                    {
+                        "target": T.target("cuda"),
+                        "tir.kernel_launch_params": [],
+                        "tir.noalias": T.bool(True),
+                    }
+                )
+                T.evaluate(n)
+
+        return mod
+
+
+class TestSplitHostDeviceWithHost(BaseCompare):
+    """Host annotations are preserved"""
+
+    def before(self):
+        @I.ir_module
+        class mod:
+            @T.prim_func
+            def main(n: T.int32):
+                T.func_attr({"target": T.target("cuda", host="llvm")})
+                T.attr(T.target("cuda"), "target", 0)
+                T.evaluate(n)
+
+        return mod
+
+    def expected(self):
+        @I.ir_module
+        class mod:
+            @T.prim_func
+            def main(n: T.int32):
+                T.func_attr({"target": T.target("cuda", host="llvm"), "tir.is_host_func": True})
+                mod.main_kernel(n)
+
+            @T.prim_func
+            def main_kernel(n: T.int32):
+                T.func_attr(
+                    {
+                        "target": T.target("cuda"),
+                        "tir.kernel_launch_params": [],
+                        "tir.noalias": T.bool(True),
+                    }
+                )
+                T.evaluate(n)
+
+        return mod
+
+
 if __name__ == "__main__":
-    test_split_host_device_func_attr()
+    tvm.testing.main()
