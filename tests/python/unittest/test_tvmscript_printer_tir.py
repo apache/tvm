@@ -373,7 +373,8 @@ def test_decl_buffer():
     _assert_print(
         obj,
         """
-with T.decl_buffer((10, 10)) as buffer:
+v = T.handle("float32", "global")
+with T.decl_buffer((10, 10), data=v) as buffer:
     T.evaluate(0)
 """,
     )

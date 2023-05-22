@@ -180,7 +180,8 @@ Doc PrintBlock(IRDocsifier d, tir::Block block, ObjectPath block_p,  //
     tir::Buffer buffer = block->alloc_buffers[i];
     ObjectPath buffer_p = block_p->Attr("alloc_buffers")->ArrayIndex(i);
     IdDoc lhs = DefineBuffer(buffer, *frame, d);
-    ExprDoc rhs = BufferDecl(buffer, "alloc_buffer", {}, buffer_p, *frame, d);
+    ExprDoc rhs = BufferDecl(buffer, "alloc_buffer", {}, buffer_p, *frame, d,
+                             BufferVarDefinition::DataPointer);
     (*frame)->stmts.push_back(AssignDoc(lhs, rhs, NullOpt));
   }
   // Step 6. Handle `match_buffer`
