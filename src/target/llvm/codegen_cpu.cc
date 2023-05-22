@@ -220,18 +220,17 @@ llvm::DISubprogram* CodeGenCPU::CreateDebugFunction(const PrimFunc& f) {
 #endif
 }
 
-void CodeGenCPU::AddFunction(const PrimFunc& f) {
+void CodeGenCPU::AddFunction(const GlobalVar& gvar, const PrimFunc& f) {
 #if TVM_LLVM_VERSION >= 50
   di_subprogram_ = CreateDebugFunction(f);
 #endif
   EmitDebugLocation(f->span);
-  CodeGenLLVM::AddFunction(f);
+  CodeGenLLVM::AddFunction(gvar, f);
   if (f_tvm_register_system_symbol_ != nullptr) {
-    auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
-    ICHECK(global_symbol.defined())
-        << "CodeGenLLVM: Expect PrimFunc to have the global_symbol attribute";
-    export_system_symbols_.emplace_back(
-        std::make_pair(global_symbol.value().operator std::string(), function_));
+    if (auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol)) {
+      export_system_symbols_.emplace_back(
+          std::make_pair(global_symbol.value().operator std::string(), function_));
+    }
   }
   AddDebugInformation(f, function_);
 }
