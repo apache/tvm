@@ -45,13 +45,7 @@ class TestLowerDeviceKernelLaunch(BaseCompare):
 
             @T.prim_func
             def kernel(A_data: T.handle("float32")):
-                T.func_attr(
-                    {
-                        "target": T.target("cuda"),
-                        "tir.kernel_launch_params": [],
-                        "global_symbol": "kernel",
-                    }
-                )
+                T.func_attr({"target": T.target("cuda")})
                 A = T.decl_buffer(1, dtype="float32", data=A_data)
                 A[0] = 0.0
 
@@ -70,8 +64,8 @@ class TestLowerDeviceKernelLaunch(BaseCompare):
                 T.func_attr(
                     {
                         "target": T.target("cuda"),
-                        "tir.kernel_launch_params": [],
                         "calling_conv": 2,
+                        "tir.kernel_launch_params": [],
                         "global_symbol": "kernel",
                         "tir.is_global_func": True,
                     }
@@ -82,14 +76,17 @@ class TestLowerDeviceKernelLaunch(BaseCompare):
         return mod
 
 
-class TestInternalKernelLaunch(BaseCompare):
-    """Like TestLowerDeviceKernelLaunch, but the kernel has no global_symbol
+class TestExternallyVisibleKernelLaunch(BaseCompare):
+    """Like TestLowerDeviceKernelLaunch, with pre-defined global_symbol
 
     Because the host and kernel will be handled by different code
     generators, the device-side kernel must be externally exposed for
     use by the host-side wrapper, even if the host-side wrapper does
     not directly expose the kernel.  Therefore, a "global_symbol"
     attribute must be added for the kernel if not already present.
+
+    If the kernel already has a specific name, that name should be
+    preserved.
     """
 
     def before(self):
@@ -102,12 +99,7 @@ class TestInternalKernelLaunch(BaseCompare):
 
             @T.prim_func
             def kernel(A_data: T.handle("float32")):
-                T.func_attr(
-                    {
-                        "target": T.target("cuda"),
-                        "tir.kernel_launch_params": [],
-                    }
-                )
+                T.func_attr({"target": T.target("cuda"), "global_symbol": "kernel_by_another_name"})
                 A = T.decl_buffer(1, dtype="float32", data=A_data)
                 A[0] = 0.0
 
@@ -119,16 +111,16 @@ class TestInternalKernelLaunch(BaseCompare):
             @T.prim_func
             def main(A: T.Buffer(1, "float32")):
                 T.func_attr({"target": T.target("cuda", host="llvm"), "tir.is_host_func": True})
-                T.call_packed("kernel", A.data)
+                T.call_packed("kernel_by_another_name", A.data)
 
             @T.prim_func
             def kernel(A_data: T.handle("float32")):
                 T.func_attr(
                     {
                         "target": T.target("cuda"),
-                        "tir.kernel_launch_params": [],
                         "calling_conv": 2,
-                        "global_symbol": "kernel",
+                        "tir.kernel_launch_params": [],
+                        "global_symbol": "kernel_by_another_name",
                         "tir.is_global_func": True,
                     }
                 )
@@ -162,7 +154,6 @@ class TestCollectLaunchParameter(BaseCompare):
                 T.func_attr(
                     {
                         "target": T.target("cuda"),
-                        "tir.kernel_launch_params": ["threadIdx.x"],
                         "global_symbol": "kernel",
                     }
                 )
@@ -185,8 +176,8 @@ class TestCollectLaunchParameter(BaseCompare):
                 T.func_attr(
                     {
                         "target": T.target("cuda"),
-                        "tir.kernel_launch_params": ["threadIdx.x"],
                         "calling_conv": 2,
+                        "tir.kernel_launch_params": ["threadIdx.x"],
                         "global_symbol": "kernel",
                         "tir.is_global_func": True,
                     }
@@ -196,34 +187,6 @@ class TestCollectLaunchParameter(BaseCompare):
                 A[i] = 0.0
 
         return mod
-
-
-class TestErrorWhenMissingLaunchParams(BaseCompare):
-    """Kernel must have tir::attr::kKernelLaunchParams
-
-    The PrimFunc attribute `tir::attr::kKernelLaunchParams`
-    ("tir.kernel_launch_params") is used to determine the order in
-    which kernel parameters are provided by the runtime.
-    """
-
-    def before(self):
-        @I.ir_module
-        class mod:
-            @T.prim_func
-            def main(A: T.Buffer(16, "float32")):
-                T.func_attr({"target": T.target("cuda", host="llvm"), "tir.is_host_func": True})
-                mod.kernel(A.data)
-
-            @T.prim_func
-            def kernel(A_data: T.handle("float32")):
-                T.func_attr({"target": T.target("cuda")})
-                A = T.decl_buffer(16, dtype="float32", data=A_data)
-                i = T.launch_thread("threadIdx.x", 16)
-                A[i] = 0.0
-
-        return mod
-
-    expected = tvm.TVMError
 
 
 if __name__ == "__main__":

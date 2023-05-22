@@ -41,59 +41,6 @@
 namespace tvm {
 namespace tir {
 
-/*!
- * \brief Visitor class to collect device-side program information.
- */
-class LaunchParamsAnnotator : public StmtVisitor {
- public:
-  static PrimFunc Apply(PrimFunc func) {
-    LaunchParamsAnnotator collector;
-    collector(func->body);
-    return WithAttr(std::move(func), tir::attr::kKernelLaunchParams, collector.GetLaunchParams());
-  }
-
-  Array<String> GetLaunchParams() const {
-    Array<String> launch_params = threads_;
-
-    if (uses_dyn_shmem_) {
-      launch_params.push_back(tvm::runtime::launch_param::kUseDynamicSharedMemoryTag);
-    }
-    return launch_params;
-  }
-
- private:
-  void VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == attr::thread_extent) {
-      IterVar iv = Downcast<IterVar>(op->node);
-      ICHECK_NE(iv->thread_tag.length(), 0U);
-      // thread_extent can appear multiple times
-      // use the first appearance as def.
-      if (!defined_thread.count(iv.get())) {
-        defined_thread.insert(iv.get());
-        threads_.push_back(iv->thread_tag);
-      }
-    }
-
-    StmtVisitor::VisitStmt_(op);
-  }
-
-  void VisitStmt_(const AllocateNode* op) final {
-    auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(op->buffer_var));
-    if (storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn") {
-      ICHECK(!uses_dyn_shmem_) << "Only one dynamic shared memory allocation is allowed.";
-      ICHECK_GT(op->extents.size(), 0);
-
-      uses_dyn_shmem_ = true;
-    }
-    StmtVisitor::VisitStmt_(op);
-  }
-
-  Array<String> threads_;
-  bool uses_dyn_shmem_{false};
-  // recording what thread axis have been visited.
-  std::unordered_set<const IterVarNode*> defined_thread;
-};
-
 class HostDeviceSplitter : public StmtMutator {
  public:
   explicit HostDeviceSplitter(IRModule* device_mod, std::string name_prefix)
@@ -137,7 +84,6 @@ class HostDeviceSplitter : public StmtMutator {
     PrimFunc device_func(params, body);
     device_func = WithAttrs(std::move(device_func), {{tvm::attr::kTarget, device_target},
                                                      {tir::attr::kNoAlias, Bool(true)}});
-    device_func = LaunchParamsAnnotator::Apply(std::move(device_func));
 
     (*device_mod_)->Add(kernel_symbol_global, device_func);
     Array<PrimExpr> args = params.Map([](const Var& var) -> PrimExpr { return var; });

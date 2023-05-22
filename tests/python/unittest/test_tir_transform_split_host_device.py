@@ -119,7 +119,6 @@ class TestSplitHostDevice(BaseCompare):
                 T.func_attr(
                     {
                         "target": T.target("cuda"),
-                        "tir.kernel_launch_params": [],
                         "tir.noalias": T.bool(True),
                     }
                 )
@@ -155,7 +154,6 @@ class TestSplitHostDeviceWithHost(BaseCompare):
                 T.func_attr(
                     {
                         "target": T.target("cuda"),
-                        "tir.kernel_launch_params": [],
                         "tir.noalias": T.bool(True),
                     }
                 )
