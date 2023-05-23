@@ -40,7 +40,17 @@ void ThreadBind(tir::Schedule sch, const tir::BlockRV& block, int64_t max_thread
     }
   }
   Array<tir::IterVar> iters = sch->Get(block)->iter_vars;
+
+  // special check for no-loop case
+  // in te/operation/create_primfunc.cc:L321, it will create a dummy iter var
+  // which makes loops.size() == 0 and iters.size() == 1.
+  if (loops.size() == 0 && iters.size() == 1) {
+    auto loop = sch->AddUnitLoop(block);
+    loops.push_back(loop);
+  }
+
   ICHECK_EQ(loops.size(), iters.size());
+
   Array<tir::LoopRV> data_parallel_loops;
   // only fuse data parallel loops
   for (size_t i = 0; i < loops.size(); ++i) {

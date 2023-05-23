@@ -451,5 +451,40 @@ def test_add_on_metal():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_scalar_add():
+    # pylint: disable=no-self-argument,missing-class-docstring,line-too-long
+    # fmt: off
+    @tvm.script.ir_module
+    class Before:
+        @T.prim_func
+        def add(rxplaceholder: T.Buffer((), "int64"), T_add: T.Buffer((), "int64")):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            with T.block("T_add"):
+                vi = T.axis.spatial(1, T.int64(0))
+                T.reads(rxplaceholder[()])
+                T.writes(T_add[()])
+                T_add[()] = rxplaceholder[()] + T.int64(1)
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func
+        def add(rxplaceholder: T.Buffer((), "int64"), T_add: T.Buffer((), "int64")):
+            T.func_attr({"tir.is_scheduled": T.bool(True), "tir.noalias": T.bool(True)})
+            # with T.block("root"):
+            for u_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
+                for u_fused_1 in T.thread_binding(1, thread="threadIdx.x"):
+                    with T.block("T_add"):
+                        vi = T.axis.spatial(1, T.int64(0))
+                        T.reads(rxplaceholder[()])
+                        T.writes(T_add[()])
+                        T_add[()] = rxplaceholder[()] + T.int64(1)
+    # fmt: on
+    # pylint: enable=no-self-argument,missing-class-docstring,line-too-long
+    target = tvm.target.Target("nvidia/geforce-rtx-3070")
+    with target, tvm.transform.PassContext(opt_level=0):
+        mod = DefaultGPUSchedule()(Before)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
