@@ -80,7 +80,7 @@ TVM_REGISTER_NODE_TYPE(AttrStmtNode);
 // AssertStmt
 AssertStmt::AssertStmt(PrimExpr condition, PrimExpr message, Stmt body, Span span) {
   ICHECK(condition.defined());
-  ICHECK(message.dtype() == DataType::Int(32) || message.as<StringImmNode>())
+  ICHECK(message.dtype() == DataType::Int(64) || message.as<StringImmNode>())
       << "TypeError: AssertStmt message must be an int or string:" << message << "\n";
 
   ObjectPtr<AssertStmtNode> node = make_object<AssertStmtNode>();

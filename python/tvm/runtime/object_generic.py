@@ -123,10 +123,7 @@ def _scalar_type_inference(value):
             dtype = "float64"
     elif isinstance(value, int):
         # We intentionally prefer convert the python int to int32 since it's more common in DL.
-        if -2147483648 <= value <= 2147483647:
-            dtype = "int32"
-        else:
-            dtype = "int64"
+        dtype = "int64"
     else:
         raise NotImplementedError(
             "Cannot automatically inference the type." " value={}".format(value)

@@ -629,7 +629,7 @@ class Integer : public IntImm {
   /*!
    * \brief Construct integer from int value.
    */
-  Integer(int value, Span span = Span()) : IntImm(DataType::Int(32), value, span) {}  // NOLINT(*)
+  Integer(int value, Span span = Span()) : IntImm(DataType::Int(64), value, span) {}  // NOLINT(*)
   /*!
    * \brief Construct integer from int imm.
    * \param other The other value.
@@ -769,10 +769,7 @@ struct PackedFuncValueConverter<PrimExpr> {
     }
     if (val.type_code() == kDLInt) {
       int64_t value = val.operator int64_t();
-      if (value > std::numeric_limits<int>::max() || value < std::numeric_limits<int>::min()) {
-        return IntImm(runtime::DataType::Int(64), value);
-      }
-      return IntImm(runtime::DataType::Int(32), val.operator int());
+      return IntImm(runtime::DataType::Int(64), value);
     }
     if (val.type_code() == kDLFloat) {
       return FloatImm(runtime::DataType::Float(32), val.operator double());

@@ -99,16 +99,16 @@ def generate_dot_product_32x4_u8u8i32(mem_scope="global"):
             T.reads(C[0:32], A[0:4], B[0:32, 0:4])
             T.writes(C[0:32])
 
-            A_u8x4 = A.vload([0], "uint8x4")
+            A_u8x4 = A.vload([T.int32(0)], "uint8x4")
             A_i32 = T.reinterpret(A_u8x4, dtype="int32")
 
-            B_i8x128 = B.vload([0, 0], dtype="uint8x128")
+            B_i8x128 = B.vload([T.int32(0), T.int32(0)], dtype="uint8x128")
             B_i32x32 = T.reinterpret(B_i8x128, dtype="int32x32")
 
-            C[T.ramp(T.int32(0), 1, 32)] = T.call_llvm_pure_intrin(
+            C[T.ramp(T.int32(0), T.int32(1), 32)] = T.call_llvm_pure_intrin(
                 T.llvm_lookup_intrinsic_id("llvm.hexagon.V6.vrmpyub.acc.128B"),
                 T.uint32(3),
-                C[T.ramp(T.int32(0), 1, 32)],
+                C[T.ramp(T.int32(0), T.int32(1), 32)],
                 B_i32x32,
                 A_i32,
                 dtype="int32x32",
@@ -141,16 +141,16 @@ def generate_dot_product_32x4_u8i8i32(mem_scope="global"):
             T.reads(C[0:32], A[0:4], B[0:32, 0:4])
             T.writes(C[0:32])
 
-            A_u8x4 = A.vload([0], "uint8x4")
+            A_u8x4 = A.vload([T.int32(0)], "uint8x4")
             A_i32 = T.reinterpret(A_u8x4, dtype="int32")
 
-            B_i8x128 = B.vload([0, 0], dtype="int8x128")
+            B_i8x128 = B.vload([T.int32(0), T.int32(0)], dtype="int8x128")
             B_i32x32 = T.reinterpret(B_i8x128, dtype="int32x32")
 
-            C[T.ramp(T.int32(0), 1, 32)] = T.call_llvm_pure_intrin(
+            C[T.ramp(T.int32(0), T.int32(1), 32)] = T.call_llvm_pure_intrin(
                 T.llvm_lookup_intrinsic_id("llvm.hexagon.V6.vrmpybusv.acc.128B"),
                 T.uint32(3),
-                C[T.ramp(T.int32(0), 1, 32)],
+                C[T.ramp(T.int32(0), T.int32(1), 32)],
                 T.broadcast(A_i32, 32),
                 B_i32x32,
                 dtype="int32x32",
@@ -183,16 +183,16 @@ def generate_dot_product_32x2_i16i16i32(mem_scope="global"):
             T.reads(C[0:32], A[0:2], B[0:32, 0:2])
             T.writes(C[0:32])
 
-            A_i16x2 = A.vload([0], "int16x2")
+            A_i16x2 = A.vload([T.int32(0)], "int16x2")
             A_i32 = T.reinterpret(A_i16x2, dtype="int32")
 
-            B_i16x64 = B.vload([0, 0], dtype="int16x64")
+            B_i16x64 = B.vload([T.int32(0), T.int32(0)], dtype="int16x64")
             B_i32x32 = T.reinterpret(B_i16x64, dtype="int32x32")
 
-            C[T.ramp(T.int32(0), 1, 32)] = T.call_llvm_pure_intrin(
+            C[T.ramp(T.int32(0), T.int32(1), 32)] = T.call_llvm_pure_intrin(
                 T.llvm_lookup_intrinsic_id("llvm.hexagon.V6.vdmpyhvsat.acc.128B"),
                 T.uint32(3),
-                C[T.ramp(T.int32(0), 1, 32)],
+                C[T.ramp(T.int32(0), T.int32(1), 32)],
                 T.Broadcast(A_i32, 32),
                 B_i32x32,
                 dtype="int32x32",

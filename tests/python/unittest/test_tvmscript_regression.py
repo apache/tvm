@@ -48,6 +48,7 @@ def test_different_dtype_assignment_to_var():
     @T.prim_func
     def test_case():
         a = T.alloc_buffer((10, 10), dtype="int8")
+        T.evaluate(0)
 
     @T.prim_func
     def func_ref():
@@ -62,11 +63,12 @@ def test_var_capturing_order():
 
     @T.prim_func
     def test_case():
-        k: T.int32 = b
+        k: T.int64 = b
+        T.evaluate(0)
 
     @T.prim_func
     def func_ref():
-        k: T.int32 = 2
+        k: T.int64 = 2
         T.evaluate(0)
 
     tvm.ir.assert_structural_equal(test_case, func_ref)

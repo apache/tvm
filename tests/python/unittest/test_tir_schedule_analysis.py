@@ -43,7 +43,7 @@ from tvm.tir.schedule.analysis import is_output_block
 
 
 def _make_vars(*args: str) -> List[Var]:
-    return [Var(arg, dtype="int32") for arg in args]
+    return [Var(arg, dtype="int64") for arg in args]
 
 
 def _make_loops(loop_vars: List[Var], extents: List[int]) -> List[For]:

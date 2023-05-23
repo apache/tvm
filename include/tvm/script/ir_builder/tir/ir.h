@@ -180,7 +180,7 @@ namespace axis {
  * \param dtype The data type of the iteration variable.
  * \return The iteration variable.
  */
-Var Spatial(Range dom, PrimExpr binding, DataType dtype = DataType::Int(32));
+Var Spatial(Range dom, PrimExpr binding, DataType dtype = DataType::Int(64));
 
 /*!
  * \brief The reduced block axis defining function.
@@ -189,7 +189,7 @@ Var Spatial(Range dom, PrimExpr binding, DataType dtype = DataType::Int(32));
  * \param dtype The data type of the iteration variable.
  * \return The iteration variable.
  */
-Var Reduce(Range dom, PrimExpr binding, DataType dtype = DataType::Int(32));
+Var Reduce(Range dom, PrimExpr binding, DataType dtype = DataType::Int(64));
 
 /*!
  * \brief The scanning block axis defining function.
@@ -198,7 +198,7 @@ Var Reduce(Range dom, PrimExpr binding, DataType dtype = DataType::Int(32));
  * \param dtype The data type of the iteration variable.
  * \return The iteration variable.
  */
-Var Scan(Range dom, PrimExpr binding, DataType dtype = DataType::Int(32));
+Var Scan(Range dom, PrimExpr binding, DataType dtype = DataType::Int(64));
 
 /*!
  * \brief The opaque block axis defining function.
@@ -207,7 +207,7 @@ Var Scan(Range dom, PrimExpr binding, DataType dtype = DataType::Int(32));
  * \param dtype The data type of the iteration variable.
  * \return The iteration variable.
  */
-Var Opaque(Range dom, PrimExpr binding, DataType dtype = DataType::Int(32));
+Var Opaque(Range dom, PrimExpr binding, DataType dtype = DataType::Int(64));
 
 /*!
  * \brief The block axis remapping function.
@@ -216,7 +216,7 @@ Var Opaque(Range dom, PrimExpr binding, DataType dtype = DataType::Int(32));
  * \param dtype The data types of the iteration variables.
  * \return The iteration variables.
  */
-Array<Var> Remap(String kinds, Array<PrimExpr> bindings, DataType dtype = DataType::Int(32));
+Array<Var> Remap(String kinds, Array<PrimExpr> bindings, DataType dtype = DataType::Int(64));
 
 }  // namespace axis
 

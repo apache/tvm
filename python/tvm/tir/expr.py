@@ -315,7 +315,7 @@ class IntImmEnum(ObjectGeneric):
 
     def asobject(self):
         """Convert object."""
-        return IntImm("int32", self.value, self.span)  # type: ignore
+        return IntImm("int64", self.value, self.span)  # type: ignore
 
 
 class PrimExprWithOp(ExprOp, PrimExpr, Scriptable):
@@ -434,7 +434,7 @@ class IterVar(Object, ExprOp, Scriptable):
                 raise TypeError("dom need to be Range")
 
         name = var if var is not None else "iter"
-        dtype = "int32" if dom is None else dom.extent.dtype
+        dtype = "int64" if dom is None else dom.extent.dtype
         var = Var(name, dtype=dtype, span=span) if not isinstance(var, Var) else var
         if dom is not None:
             assert (

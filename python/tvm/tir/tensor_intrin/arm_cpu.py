@@ -51,12 +51,12 @@ def neon_4x4_i8i8i32_impl(
         T.reads(C[0:4], A[0:4], B[0:4, 0:4])
         T.writes(C[0:4])
 
-        A_int8 = A.vload([0], "int8x4")
+        A_int8 = A.vload([T.int32(0)], "int8x4")
         re_int32 = T.reinterpret(A_int8, dtype="int32")
         vec_ai32 = T.broadcast(re_int32, 2)
         vec_a = T.reinterpret(vec_ai32, dtype="int8x8")
 
-        vec_b = B.vload([0, 0], dtype="int8x16")
+        vec_b = B.vload([T.int32(0), T.int32(0)], dtype="int8x16")
 
         # TODO(masahi): Remove duplication when inlined function call is supported
         vec_b_low = T.vectorlow(vec_b, dtype="int8x8")
@@ -93,7 +93,7 @@ def neon_4x4_i8i8i32_impl(
             dtype="int32x4",
         )
 
-        C[T.ramp(T.int32(0), 1, 4)] += T.call_llvm_pure_intrin(
+        C[T.ramp(T.int32(0), T.int32(1), 4)] += T.call_llvm_pure_intrin(
             T.llvm_lookup_intrinsic_id("llvm.aarch64.neon.addp.v4i32"),
             T.uint32(2),
             pairwise_reduction_low,
@@ -137,16 +137,16 @@ def get_dotprod_intrin(in_dtype, out_dtype):
             T.reads(C[0:4], A[0:4], B[0:4, 0:4])
             T.writes(C[0:4])
 
-            A_i8x4 = A.vload([0], in_dtype_x4)
+            A_i8x4 = A.vload([T.int32(0)], in_dtype_x4)
             A_i32 = T.reinterpret(A_i8x4, dtype=out_dtype)
             vec_ai32 = T.broadcast(A_i32, 4)
             vec_a = T.reinterpret(vec_ai32, dtype=in_dtype_x16)
 
-            vec_b = B.vload([0, 0], dtype=in_dtype_x16)
+            vec_b = B.vload([T.int32(0), T.int32(0)], dtype=in_dtype_x16)
 
-            vec_c = C.vload([0], dtype=out_dtype_x4)
+            vec_c = C.vload([T.int32(0)], dtype=out_dtype_x4)
 
-            C[T.ramp(T.int32(0), 1, 4)] = T.call_llvm_pure_intrin(
+            C[T.ramp(T.int32(0), T.int32(1), 4)] = T.call_llvm_pure_intrin(
                 T.llvm_lookup_intrinsic_id("llvm.aarch64.neon.{INSTR}".format(INSTR=instr)),
                 T.uint32(3),
                 vec_c,

@@ -1110,10 +1110,10 @@ class AnyNode : public PrimExprNode {
   void SHashReduce(SHashReducer hash_reduce) const {}
 
   /*! \brief Convert to var. */
-  Var ToVar() const { return Var("any_dim", DataType::Int(32)); }
+  Var ToVar() const { return Var("any_dim", DataType::Int(64)); }
 
   /*! \brief Convert to SizeVar. */
-  SizeVar ToSizeVar() const { return SizeVar("any_dim", DataType::Int(32)); }
+  SizeVar ToSizeVar() const { return SizeVar("any_dim", DataType::Int(64)); }
 
   static constexpr const char* _type_key = "tir.Any";
   TVM_DECLARE_FINAL_OBJECT_INFO(AnyNode, PrimExprNode);
