@@ -407,7 +407,7 @@ def visit_expr_stmt(self: Parser, node: doc.Expr) -> None:
     """
     res = self.eval_expr(node.value)
     if res is None:
-        return res
+        pass
     elif isinstance(res, Frame):
         res.add_callback(partial(res.__exit__, None, None, None))
         res.__enter__()
@@ -419,7 +419,7 @@ def visit_expr_stmt(self: Parser, node: doc.Expr) -> None:
         # Using GlobalVar.__call__ with no arguments is ambiguous, as
         # each IR has a different function Call representation.  If
         # this occurs, convert to the TIR representation.
-        return T.evaluate(tvm.tir.call_tir(res.op))
+        T.evaluate(tvm.tir.call_tir(res.op))
     elif isinstance(res, str):
         # Ignore docstrings
         pass
