@@ -74,13 +74,20 @@ export async function detectGPUDevice(): Promise<GPUDeviceDetectOutput | undefin
       );
     }
 
+    let requiredFeatures = [] as string[];
+    // Always require f16 if available
+    if (adapter.features.has("shader-f16")) {
+      requiredFeatures.push("shader-f16");
+    }
+
     const adapterInfo = await adapter.requestAdapterInfo();
     const device = await adapter.requestDevice({
       requiredLimits: {
         maxBufferSize: requiedMaxBufferSize,
         maxStorageBufferBindingSize: requiredMaxStorageBufferBindingSize,
         maxComputeWorkgroupStorageSize: requiredMaxComputeWorkgroupStorageSize,
-      }
+      },
+      requiredFeatures
     });
     return {
       adapter: adapter,
