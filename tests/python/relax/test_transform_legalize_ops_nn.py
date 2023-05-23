@@ -2676,14 +2676,14 @@ def test_attention():
         @R.function
         def main(q: R.Tensor((4, 16, 32, 8), "float32"), k: R.Tensor((4, 8, 32, 8), "float32"), v: R.Tensor((4, 8, 32, 16), "float32"), bias: R.Tensor((4, 32, 16, 8), "float32")):
             scale = T.FloatImm("float32", 0.1)
-            gv: R.Tensor((4, 16, 32, 16), "float32") = R.nn.attention(q, k, v, bias, scale)
+            gv: R.Tensor((4, 16, 32, 16), "float32") = R.nn.attention(q, k, v, bias, scale=scale, causal_mask="TopLeft")
             return gv
 
     @tvm.script.ir_module
     class Expected:
         @T.prim_func
-        def attention_bias(rxplaceholder: T.Buffer((T.int64(4), T.int64(16), T.int64(32), T.int64(8)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(8), T.int64(32), T.int64(8)), "float32"), rxplaceholder_2: T.Buffer((T.int64(4), T.int64(8), T.int64(32), T.int64(16)), "float32"), rxplaceholder_3: T.Buffer((T.int64(4), T.int64(32), T.int64(16), T.int64(8)), "float32"), T_transpose: T.Buffer((T.int64(4), T.int64(16), T.int64(32), T.int64(16)), "float32")):
-            T.func_attr({"tir.noalias": True})
+        def attention_bias(A: T.Buffer((T.int64(4), T.int64(16), T.int64(32), T.int64(8)), "float32"), B: T.Buffer((T.int64(4), T.int64(8), T.int64(32), T.int64(8)), "float32"), C: T.Buffer((T.int64(4), T.int64(8), T.int64(32), T.int64(16)), "float32"), D: T.Buffer((T.int64(4), T.int64(32), T.int64(16), T.int64(8)), "float32"), T_transpose: T.Buffer((T.int64(4), T.int64(16), T.int64(32), T.int64(16)), "float32")):
+            T.func_attr({"tir.noalias": T.bool(True)})
             # with T.block("root"):
             T_transpose_1 = T.alloc_buffer((T.int64(4), T.int64(32), T.int64(16), T.int64(8)))
             T_reshape = T.alloc_buffer((T.int64(128), T.int64(16), T.int64(8)))
@@ -2694,10 +2694,13 @@ def test_attention():
             T_reshape_2 = T.alloc_buffer((T.int64(4), T.int64(32), T.int64(16), T.int64(8)))
             T_add = T.alloc_buffer((T.int64(4), T.int64(32), T.int64(16), T.int64(8)))
             T_reshape_3 = T.alloc_buffer((T.int64(128), T.int64(16), T.int64(8)))
-            T_softmax_maxelem = T.alloc_buffer((T.int64(128), T.int64(16)))
-            T_softmax_exp = T.alloc_buffer((T.int64(128), T.int64(16), T.int64(8)))
-            T_softmax_expsum = T.alloc_buffer((T.int64(128), T.int64(16)))
-            T_softmax_norm = T.alloc_buffer((T.int64(128), T.int64(16), T.int64(8)))
+            trilu = T.alloc_buffer((T.int64(128), T.int64(16), T.int64(8)))
+            trilu_red = T.alloc_buffer((T.int64(128), T.int64(16), T.int64(1)))
+            T_subtract = T.alloc_buffer((T.int64(128), T.int64(16), T.int64(8)))
+            compute = T.alloc_buffer((T.int64(128), T.int64(16), T.int64(8)))
+            trilu_1 = T.alloc_buffer((T.int64(128), T.int64(16), T.int64(8)))
+            trilu_red_1 = T.alloc_buffer((T.int64(128), T.int64(16), T.int64(1)))
+            T_divide = T.alloc_buffer((T.int64(128), T.int64(16), T.int64(8)))
             T_transpose_3 = T.alloc_buffer((T.int64(4), T.int64(32), T.int64(8), T.int64(16)))
             T_reshape_4 = T.alloc_buffer((T.int64(128), T.int64(8), T.int64(16)))
             T_batch_matmul_NN = T.alloc_buffer((T.int64(128), T.int64(16), T.int64(16)))
@@ -2705,9 +2708,9 @@ def test_attention():
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(4), T.int64(32), T.int64(16), T.int64(8)):
                 with T.block("T_transpose"):
                     v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
-                    T.reads(rxplaceholder[v_ax0, v_ax2, v_ax1, v_ax3])
+                    T.reads(A[v_ax0, v_ax2, v_ax1, v_ax3])
                     T.writes(T_transpose_1[v_ax0, v_ax1, v_ax2, v_ax3])
-                    T_transpose_1[v_ax0, v_ax1, v_ax2, v_ax3] = rxplaceholder[v_ax0, v_ax2, v_ax1, v_ax3]
+                    T_transpose_1[v_ax0, v_ax1, v_ax2, v_ax3] = A[v_ax0, v_ax2, v_ax1, v_ax3]
             for ax0, ax1, ax2 in T.grid(T.int64(128), T.int64(16), T.int64(8)):
                 with T.block("T_reshape"):
                     v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
@@ -2717,9 +2720,9 @@ def test_attention():
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(4), T.int64(32), T.int64(8), T.int64(8)):
                 with T.block("T_transpose_1"):
                     v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
-                    T.reads(rxplaceholder_1[v_ax0, v_ax2, v_ax1, v_ax3])
+                    T.reads(B[v_ax0, v_ax2, v_ax1, v_ax3])
                     T.writes(T_transpose_2[v_ax0, v_ax1, v_ax2, v_ax3])
-                    T_transpose_2[v_ax0, v_ax1, v_ax2, v_ax3] = rxplaceholder_1[v_ax0, v_ax2, v_ax1, v_ax3]
+                    T_transpose_2[v_ax0, v_ax1, v_ax2, v_ax3] = B[v_ax0, v_ax2, v_ax1, v_ax3]
             for ax0, ax1, ax2 in T.grid(T.int64(128), T.int64(8), T.int64(8)):
                 with T.block("T_reshape_1"):
                     v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
@@ -2750,50 +2753,67 @@ def test_attention():
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(4), T.int64(32), T.int64(16), T.int64(8)):
                 with T.block("T_add"):
                     v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
-                    T.reads(T_reshape_2[v_ax0, v_ax1, v_ax2, v_ax3], rxplaceholder_3[v_ax0, v_ax1, v_ax2, v_ax3])
+                    T.reads(T_reshape_2[v_ax0, v_ax1, v_ax2, v_ax3], D[v_ax0, v_ax1, v_ax2, v_ax3])
                     T.writes(T_add[v_ax0, v_ax1, v_ax2, v_ax3])
-                    T_add[v_ax0, v_ax1, v_ax2, v_ax3] = T_reshape_2[v_ax0, v_ax1, v_ax2, v_ax3] + rxplaceholder_3[v_ax0, v_ax1, v_ax2, v_ax3]
+                    T_add[v_ax0, v_ax1, v_ax2, v_ax3] = T_reshape_2[v_ax0, v_ax1, v_ax2, v_ax3] + D[v_ax0, v_ax1, v_ax2, v_ax3]
             for ax0, ax1, ax2 in T.grid(T.int64(128), T.int64(16), T.int64(8)):
                 with T.block("T_reshape_3"):
                     v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
                     T.reads(T_add[((v_ax2 // T.int64(8) + v_ax1) // T.int64(16) + v_ax0) % T.int64(128) // T.int64(32), ((v_ax2 // T.int64(8) + v_ax1) // T.int64(16) + v_ax0) % T.int64(32), (v_ax2 // T.int64(8) + v_ax1) % T.int64(16), v_ax2 % T.int64(8)])
                     T.writes(T_reshape_3[v_ax0, v_ax1, v_ax2])
                     T_reshape_3[v_ax0, v_ax1, v_ax2] = T_add[((v_ax2 // T.int64(8) + v_ax1) // T.int64(16) + v_ax0) % T.int64(128) // T.int64(32), ((v_ax2 // T.int64(8) + v_ax1) // T.int64(16) + v_ax0) % T.int64(32), (v_ax2 // T.int64(8) + v_ax1) % T.int64(16), v_ax2 % T.int64(8)]
-            for i0, i1, k in T.grid(T.int64(128), T.int64(16), T.int64(8)):
-                with T.block("T_softmax_maxelem"):
-                    v_i0, v_i1, v_k = T.axis.remap("SSR", [i0, i1, k])
-                    T.reads(T_reshape_3[v_i0, v_i1, v_k])
-                    T.writes(T_softmax_maxelem[v_i0, v_i1])
-                    with T.init():
-                        T_softmax_maxelem[v_i0, v_i1] = T.float32(-3.4028234663852886e+38)
-                    T_softmax_maxelem[v_i0, v_i1] = T.max(T_softmax_maxelem[v_i0, v_i1], T_reshape_3[v_i0, v_i1, v_k])
             for i0, i1, i2 in T.grid(T.int64(128), T.int64(16), T.int64(8)):
-                with T.block("T_softmax_exp"):
+                with T.block("trilu"):
                     v_i0, v_i1, v_i2 = T.axis.remap("SSS", [i0, i1, i2])
-                    T.reads(T_reshape_3[v_i0, v_i1, v_i2], T_softmax_maxelem[v_i0, v_i1])
-                    T.writes(T_softmax_exp[v_i0, v_i1, v_i2])
-                    T_softmax_exp[v_i0, v_i1, v_i2] = T.exp(T_reshape_3[v_i0, v_i1, v_i2] - T_softmax_maxelem[v_i0, v_i1])
-            for i0, i1, k in T.grid(T.int64(128), T.int64(16), T.int64(8)):
-                with T.block("T_softmax_expsum"):
-                    v_i0, v_i1, v_k = T.axis.remap("SSR", [i0, i1, k])
-                    T.reads(T_softmax_exp[v_i0, v_i1, v_k])
-                    T.writes(T_softmax_expsum[v_i0, v_i1])
+                    T.reads(T_reshape_3[v_i0, v_i1, v_i2])
+                    T.writes(trilu[v_i0, v_i1, v_i2])
+                    trilu[v_i0, v_i1, v_i2] = T.Select(v_i2 <= v_i1, T_reshape_3[v_i0, v_i1, v_i2], T.float32(0))
+            for ax0, ax1, ax2, k2 in T.grid(T.int64(128), T.int64(16), T.int64(1), T.int64(8)):
+                with T.block("trilu_red"):
+                    v_ax0, v_ax1, v_ax2, v_k2 = T.axis.remap("SSSR", [ax0, ax1, ax2, k2])
+                    T.reads(trilu[v_ax0, v_ax1, v_k2])
+                    T.writes(trilu_red[v_ax0, v_ax1, v_ax2])
                     with T.init():
-                        T_softmax_expsum[v_i0, v_i1] = T.float32(0)
-                    T_softmax_expsum[v_i0, v_i1] = T_softmax_expsum[v_i0, v_i1] + T_softmax_exp[v_i0, v_i1, v_k]
+                        trilu_red[v_ax0, v_ax1, v_ax2] = T.float32(-3.4028234663852886e+38)
+                    trilu_red[v_ax0, v_ax1, v_ax2] = T.max(trilu_red[v_ax0, v_ax1, v_ax2], trilu[v_ax0, v_ax1, v_k2])
+            for ax0, ax1, ax2 in T.grid(T.int64(128), T.int64(16), T.int64(8)):
+                with T.block("T_subtract"):
+                    v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                    T.reads(trilu[v_ax0, v_ax1, v_ax2], trilu_red[v_ax0, v_ax1, T.int64(0)])
+                    T.writes(T_subtract[v_ax0, v_ax1, v_ax2])
+                    T_subtract[v_ax0, v_ax1, v_ax2] = trilu[v_ax0, v_ax1, v_ax2] - trilu_red[v_ax0, v_ax1, T.int64(0)]
             for i0, i1, i2 in T.grid(T.int64(128), T.int64(16), T.int64(8)):
-                with T.block("T_softmax_norm"):
+                with T.block("compute"):
                     v_i0, v_i1, v_i2 = T.axis.remap("SSS", [i0, i1, i2])
-                    T.reads(T_softmax_exp[v_i0, v_i1, v_i2], T_softmax_expsum[v_i0, v_i1])
-                    T.writes(T_softmax_norm[v_i0, v_i1, v_i2])
-                    T.block_attr({"axis": 2})
-                    T_softmax_norm[v_i0, v_i1, v_i2] = T_softmax_exp[v_i0, v_i1, v_i2] / T_softmax_expsum[v_i0, v_i1]
+                    T.reads(T_subtract[v_i0, v_i1, v_i2])
+                    T.writes(compute[v_i0, v_i1, v_i2])
+                    compute[v_i0, v_i1, v_i2] = T.exp(T_subtract[v_i0, v_i1, v_i2])
+            for i0, i1, i2 in T.grid(T.int64(128), T.int64(16), T.int64(8)):
+                with T.block("trilu_1"):
+                    v_i0, v_i1, v_i2 = T.axis.remap("SSS", [i0, i1, i2])
+                    T.reads(compute[v_i0, v_i1, v_i2])
+                    T.writes(trilu_1[v_i0, v_i1, v_i2])
+                    trilu_1[v_i0, v_i1, v_i2] = T.Select(v_i2 <= v_i1, compute[v_i0, v_i1, v_i2], T.float32(0))
+            for ax0, ax1, ax2, k2 in T.grid(T.int64(128), T.int64(16), T.int64(1), T.int64(8)):
+                with T.block("trilu_red_1"):
+                    v_ax0, v_ax1, v_ax2, v_k2 = T.axis.remap("SSSR", [ax0, ax1, ax2, k2])
+                    T.reads(trilu_1[v_ax0, v_ax1, v_k2])
+                    T.writes(trilu_red_1[v_ax0, v_ax1, v_ax2])
+                    with T.init():
+                        trilu_red_1[v_ax0, v_ax1, v_ax2] = T.float32(0)
+                    trilu_red_1[v_ax0, v_ax1, v_ax2] = trilu_red_1[v_ax0, v_ax1, v_ax2] + trilu_1[v_ax0, v_ax1, v_k2]
+            for ax0, ax1, ax2 in T.grid(T.int64(128), T.int64(16), T.int64(8)):
+                with T.block("T_divide"):
+                    v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                    T.reads(trilu_1[v_ax0, v_ax1, v_ax2], trilu_red_1[v_ax0, v_ax1, T.int64(0)])
+                    T.writes(T_divide[v_ax0, v_ax1, v_ax2])
+                    T_divide[v_ax0, v_ax1, v_ax2] = trilu_1[v_ax0, v_ax1, v_ax2] / trilu_red_1[v_ax0, v_ax1, T.int64(0)]
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(4), T.int64(32), T.int64(8), T.int64(16)):
                 with T.block("T_transpose_2"):
                     v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
-                    T.reads(rxplaceholder_2[v_ax0, v_ax2, v_ax1, v_ax3])
+                    T.reads(C[v_ax0, v_ax2, v_ax1, v_ax3])
                     T.writes(T_transpose_3[v_ax0, v_ax1, v_ax2, v_ax3])
-                    T_transpose_3[v_ax0, v_ax1, v_ax2, v_ax3] = rxplaceholder_2[v_ax0, v_ax2, v_ax1, v_ax3]
+                    T_transpose_3[v_ax0, v_ax1, v_ax2, v_ax3] = C[v_ax0, v_ax2, v_ax1, v_ax3]
             for ax0, ax1, ax2 in T.grid(T.int64(128), T.int64(8), T.int64(16)):
                 with T.block("T_reshape_4"):
                     v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
@@ -2803,12 +2823,12 @@ def test_attention():
             for b, i, j, k in T.grid(T.int64(128), T.int64(16), T.int64(16), T.int64(8)):
                 with T.block("T_batch_matmul_NN"):
                     v_b, v_i, v_j, v_k = T.axis.remap("SSSR", [b, i, j, k])
-                    T.reads(T_softmax_norm[v_b, v_i, v_k], T_reshape_4[v_b, v_k, v_j])
+                    T.reads(T_divide[v_b, v_i, v_k], T_reshape_4[v_b, v_k, v_j])
                     T.writes(T_batch_matmul_NN[v_b, v_i, v_j])
                     T.block_attr({"layout_free_placeholders": [T_reshape_4]})
                     with T.init():
                         T_batch_matmul_NN[v_b, v_i, v_j] = T.float32(0)
-                    T_batch_matmul_NN[v_b, v_i, v_j] = T_batch_matmul_NN[v_b, v_i, v_j] + T_softmax_norm[v_b, v_i, v_k] * T_reshape_4[v_b, v_k, v_j]
+                    T_batch_matmul_NN[v_b, v_i, v_j] = T_batch_matmul_NN[v_b, v_i, v_j] + T_divide[v_b, v_i, v_k] * T_reshape_4[v_b, v_k, v_j]
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(4), T.int64(32), T.int64(16), T.int64(16)):
                 with T.block("T_reshape_5"):
                     v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
@@ -2824,7 +2844,8 @@ def test_attention():
 
         @R.function
         def main(q: R.Tensor((4, 16, 32, 8), dtype="float32"), k: R.Tensor((4, 8, 32, 8), dtype="float32"), v: R.Tensor((4, 8, 32, 16), dtype="float32"), bias: R.Tensor((4, 32, 16, 8), dtype="float32")) -> R.Tensor((4, 16, 32, 16), dtype="float32"):
-            gv = R.call_tir(Expected.attention_bias, (q, k, v, bias), out_sinfo=R.Tensor((4, 16, 32, 16), dtype="float32"))
+            cls = Expected
+            gv = R.call_tir(cls.attention_bias, (q, k, v, bias), out_sinfo=R.Tensor((4, 16, 32, 16), dtype="float32"))
             return gv
 
     # fmt: on

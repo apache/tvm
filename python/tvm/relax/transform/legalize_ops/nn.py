@@ -364,9 +364,9 @@ def _te_attention(
         s = topi.nn.softmax(p)
     else:
         if causal_mask == "TopLeft":
-            offset = 0
+            offset = tir.IntImm("int32", 0)
         elif causal_mask == "BottomRight":
-            offset = abs(seq_len - seq_len_kv)
+            offset = tir.IntImm("int32", abs(seq_len - seq_len_kv))
         else:
             raise NotImplementedError()
         p_masked = topi.trilu(p, k=offset, upper=False)
