@@ -23,6 +23,7 @@ from typing import List
 from tvm import relax
 from tvm._ffi.base import TVMError
 from tvm.arith import Analyzer
+from tvm.relax.struct_info import ShapeStructInfo
 
 from ..block_builder import BlockBuilder
 from ..expr import Call, Var, Expr, ShapeExpr
@@ -86,26 +87,31 @@ def _get_dtype(expr: Expr) -> str:
     return dtype
 
 
-def _fit_shape(expr: Expr, expr_shape: ShapeExpr, target: Expr) -> Expr:
+def _fit_shape(bb: BlockBuilder, expr: Expr, target: Expr) -> Expr:
     target_shape = _get_shape(target)
-    expr_sinfo = expr_shape.struct_info
+    expr_sinfo = _get_shape(bb.normalize(expr)).struct_info
     target_sinfo = target_shape.struct_info
-    assert isinstance(expr_sinfo, relax.ShapeStructInfo)
-    assert isinstance(target_sinfo, relax.ShapeStructInfo)
+    assert isinstance(expr_sinfo, ShapeStructInfo)
+    assert isinstance(target_sinfo, ShapeStructInfo)
 
-    def _check_shape_equal():
-        if len(expr_sinfo.values) != len(target_sinfo.values):
+    def _check_shape_equal(lhs: ShapeStructInfo, rhs: ShapeStructInfo):
+        if len(lhs.values) != len(rhs.values):
             return False
         analyzer = Analyzer()
-        for i, field in enumerate(expr_sinfo.values):
-            if not analyzer.can_prove_equal(field, target_sinfo.values[i]):
+        for i, field in enumerate(lhs.values):
+            if not analyzer.can_prove_equal(field, rhs.values[i]):
                 return False
         return True
 
-    return expr if _check_shape_equal() else collapse_sum_to(expr, target_shape)
+    return (
+        expr
+        if _check_shape_equal(expr_sinfo, target_sinfo)
+        else collapse_sum_to(expr, target_shape)
+    )
 
 
 def _get_shape_prod(expr, axis):
+    # Requires constant shape
     shape = _get_shape(expr)
     if axis is None:
         return functools.reduce(operator.mul, (int(i) for i in shape), 1)
@@ -131,10 +137,9 @@ def add_grad(
     Backward:
         Returns `[z_output_grad, z_grad]`.
     """
-    output_grad_shape = _get_shape(output_grad)
     return [
-        _fit_shape(output_grad, output_grad_shape, orig_call.args[0]),
-        _fit_shape(output_grad, output_grad_shape, orig_call.args[1]),
+        _fit_shape(ctx, output_grad, orig_call.args[0]),
+        _fit_shape(ctx, output_grad, orig_call.args[1]),
     ]
 
 
@@ -153,10 +158,9 @@ def subtract_grad(
     Backward:
         Returns `[z_output_grad, -z_grad]`.
     """
-    output_grad_shape = _get_shape(output_grad)
     return [
-        _fit_shape(output_grad, output_grad_shape, orig_call.args[0]),
-        _fit_shape(-output_grad, output_grad_shape, orig_call.args[1]),
+        _fit_shape(ctx, output_grad, orig_call.args[0]),
+        _fit_shape(ctx, -output_grad, orig_call.args[1]),
     ]
 
 
@@ -176,10 +180,9 @@ def multiply_grad(
         Returns `[z_grad * y, z_grad * x]`.
     """
     x, y = orig_call.args
-    output_grad_shape = _get_shape(output_grad)
     return [
-        _fit_shape(output_grad * y, output_grad_shape, x),
-        _fit_shape(output_grad * x, output_grad_shape, y),
+        _fit_shape(ctx, output_grad * y, x),
+        _fit_shape(ctx, output_grad * x, y),
     ]
 
 
@@ -199,10 +202,9 @@ def divide_grad(
         Returns `[z_grad / y,  -z_grad * z / y]`.
     """
     x, y = orig_call.args
-    output_grad_shape = _get_shape(output_grad)
     return [
-        _fit_shape(output_grad / y, output_grad_shape, x),
-        _fit_shape(-output_grad * orig_var / y, output_grad_shape, y),
+        _fit_shape(ctx, output_grad / y, x),
+        _fit_shape(ctx, -output_grad * orig_var / y, y),
     ]
 
 
@@ -224,11 +226,10 @@ def power_grad(
         The gradient w.r.t. the second parameter, y, makes sense only when x > 0.
     """
     x, y = orig_call.args
-    output_grad_shape = _get_shape(output_grad)
     one = relax.const(1, _get_dtype(y))
     return [
-        _fit_shape(output_grad * y * (x ** (y - one)), output_grad_shape, x),
-        _fit_shape(output_grad * orig_var * log(x), output_grad_shape, y),
+        _fit_shape(ctx, output_grad * y * (x ** (y - one)), x),
+        _fit_shape(ctx, output_grad * orig_var * log(x), y),
     ]
 
 
@@ -580,11 +581,11 @@ def sqrt_grad(
         `y = relax.sqrt(x)`
 
     Backward:
-        Returns `[0.5 * y_grad / sqrt(x)]`.
+        Returns `[0.5 * y_grad / y]`.
     """
     x = orig_call.args[0]
     cst = relax.const(0.5, _get_dtype(x))
-    return [cst * output_grad / sqrt(x)]
+    return [cst * output_grad / orig_var]
 
 
 @register_gradient("relax.tanh")
@@ -983,11 +984,9 @@ def matmul_grad(
         a_grad = output_grad * tensor_b
         b_grad = output_grad * tensor_a
 
-    output_grad_shape = _get_shape(output_grad)
-
     return [
-        _fit_shape(a_grad, output_grad_shape, tensor_a),
-        _fit_shape(b_grad, output_grad_shape, tensor_b),
+        _fit_shape(ctx, a_grad, tensor_a),
+        _fit_shape(ctx, b_grad, tensor_b),
     ]
 
 
