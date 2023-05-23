@@ -450,8 +450,7 @@ class FusedTIRConstructor : public ExprVisitor {
         ICHECK_GE(num_params, vars.size());
         for (size_t i = 0; i < vars.size(); ++i) {
           const tir::Var& param = prim_func->params[num_params - vars.size() + i];
-          ICHECK(!func_info_.symbolic_var_remap.count(param));
-          func_info_.symbolic_var_remap.Set(param, vars[i]);
+          func_info_.symbolic_var_matcher.Match(param, vars[i]);
         }
       } else {
         LOG(FATAL) << "TIR vars should be a shape expr, but got: " << tir_vars->GetTypeKey();
