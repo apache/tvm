@@ -1038,6 +1038,8 @@ def attention(
 
     causal_mask: Optional[str]
         The optional causal mask, i.e. 'TopLeft' and 'BottomRight'.
+        For 'TopLeft', the mask matrix is as `np.tril(*, k=0)`,
+        while for 'BottomRight', the mask matrix is as `np.tril(*, k=abs(seq_len - seq_len_kv))`
         For example, with seq_len = 4, seq_len_kv = 2,
         mask for 'TopLeft':
         [[1, 0],

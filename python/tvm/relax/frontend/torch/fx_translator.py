@@ -1022,9 +1022,7 @@ class TorchFXImporter:
         query = transpose_S_H(self.env[node.args[0]])
         key = transpose_S_H(self.env[node.args[1]])
         value = transpose_S_H(self.env[node.args[2]])
-        causal_mask = (
-            "TopLeft" if "is_causal" in node.kwargs and node.kwargs["is_causal"] is True else None
-        )
+        causal_mask = "TopLeft" if node.kwargs.get("is_causal", False) else None
 
         if len(node.args) == 4:
             mask = self.env[node.args[3]]
