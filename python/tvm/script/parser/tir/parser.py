@@ -420,6 +420,9 @@ def visit_expr_stmt(self: Parser, node: doc.Expr) -> None:
         # each IR has a different function Call representation.  If
         # this occurs, convert to the TIR representation.
         return T.evaluate(tvm.tir.call_tir(res.op))
+    elif isinstance(res, str):
+        # Ignore docstrings
+        pass
     else:
         self.report_error(node, f"Parsing resulted in unexpected type {type(res)}")
 
