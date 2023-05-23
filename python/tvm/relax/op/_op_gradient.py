@@ -88,6 +88,11 @@ def _get_dtype(expr: Expr) -> str:
 
 
 def _fit_shape(bb: BlockBuilder, expr: Expr, target: Expr) -> Expr:
+    """When expr and target has the same shape, return expr;
+    otherwise return `collapse_sum_to(expr, target.struct_info.shape)`.
+
+    Will use BlockBuilder to normalize expr first.
+    """
     target_shape = _get_shape(target)
     expr_sinfo = _get_shape(bb.normalize(expr)).struct_info
     target_sinfo = target_shape.struct_info
