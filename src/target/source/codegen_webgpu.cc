@@ -139,8 +139,8 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f, bool skip_re
       << "CodeGenWebGPU: Expect PrimFunc to have the global_symbol attribute";
 
   header_stream << "//----------------------------------------\n"
-              << "// Function: " << global_symbol.value() << "\n"
-              << "//----------------------------------------\n";
+                << "// Function: " << global_symbol.value() << "\n"
+                << "//----------------------------------------\n";
   runtime::FunctionInfo func_info;
   func_info.name = global_symbol.value();
 

@@ -87,7 +87,8 @@ class CodeGenWebGPU final : public CodeGenC {
   // whether enable fp16
   bool enable_fp16_{false};
 
-  /*! \brief the header stream for function label and enable directive if any, goes before any other declaration */
+  /*! \brief the header stream for function label and enable directive if any, goes before any other
+   * declaration */
   std::ostringstream header_stream;
 
   Target target_;
