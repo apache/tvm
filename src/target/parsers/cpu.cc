@@ -20,6 +20,7 @@
 
 #include <string>
 
+#include "aprofile.h"
 #include "mprofile.h"
 
 namespace tvm {
@@ -30,6 +31,10 @@ namespace cpu {
 TargetJSON ParseTarget(TargetJSON target) {
   if (mprofile::IsArch(target)) {
     return mprofile::ParseTarget(target);
+  }
+
+  if (aprofile::IsArch(target)) {
+    return aprofile::ParseTarget(target);
   }
 
   return target;

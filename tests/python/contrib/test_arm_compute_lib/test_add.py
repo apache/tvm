@@ -17,6 +17,7 @@
 """Arm Compute Library integration reshape tests."""
 
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
@@ -92,7 +93,8 @@ def test_runtime_add():
 
     for dtype, low, high, atol, rtol, op, op_params in [
         ("float32", -127, 128, 1e-7, 1e-7, relay.add, {}),
-        ("uint8", 0, 255, 0.0, 1.0, relay.qnn.op.add, _qnn_params),
+        ("uint8", 0, 255, 1.0, 0.0, relay.qnn.op.add, _qnn_params),
+        ("int8", -127, 128, 1.0, 0.0, relay.qnn.op.add, _qnn_params),
     ]:
         shape = (2, 2)
         for inputs in [
@@ -125,6 +127,7 @@ def test_codegen_add():
     for dtype, op_name, op, qnn_params in [
         ("float32", "add", relay.add, {}),
         ("uint8", "qnn.add", relay.qnn.op.add, _qnn_params),
+        ("int8", "qnn.add", relay.qnn.op.add, _qnn_params),
     ]:
         for shape in [(1, 1), (2, 2, 2), (3, 3, 3, 3)]:
             func = _get_model(shape, dtype, iter(inputs), op, qnn_params)
@@ -132,6 +135,34 @@ def test_codegen_add():
             verify_codegen(func, exp_codegen, 1)
 
 
+@pytest.mark.parametrize(
+    "param, param_type",
+    [
+        ("lhs_scale", "float32"),
+        ("lhs_zero_point", "int32"),
+        ("rhs_scale", "float32"),
+        ("rhs_zero_point", "int32"),
+    ],
+)
+def test_codegen_add_per_channel_quantization(param, param_type):
+    if skip_codegen_test():
+        return
+
+    qnn_params = _qnn_params
+    qnn_params[param] = relay.const([1, 2], param_type)
+
+    dtype = "int8"
+    op_name = "qnn.add"
+    op = relay.qnn.op.add
+    inputs = {"a", "b"}
+
+    for shape in [(1, 3, 3, 2)]:
+        func = _get_model(shape, dtype, iter(inputs), op, qnn_params)
+        exp_codegen = _get_expected_codegen(shape, dtype, op_name, qnn_params)
+        verify_codegen(func, exp_codegen, num_acl_modules=0, tvm_ops=1)
+
+
 if __name__ == "__main__":
-    test_codegen_add()
     test_runtime_add()
+    test_codegen_add()
+    test_codegen_add_per_channel_quantization()

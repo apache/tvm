@@ -331,7 +331,7 @@ def scatter_roi_align_result_pattern(levels, roi_align_results, num_scales):
         scatter_indices = is_op("repeat")(scatter_indices)
         scatter_indices = is_op("repeat")(scatter_indices)
 
-        scatter_res = is_op("scatter")(scatter_res, scatter_indices, roi_align_results[i])
+        scatter_res = is_op("scatter_elements")(scatter_res, scatter_indices, roi_align_results[i])
 
     return is_op("reshape")(scatter_res)
 

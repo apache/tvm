@@ -37,6 +37,7 @@
 #else
 #include <llvm/IR/Operator.h>
 #endif
+#include <llvm/IR/DebugInfoMetadata.h>
 #include <llvm/IR/GlobalValue.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Instructions.h>
@@ -62,6 +63,7 @@
 #include <algorithm>
 #include <memory>
 #include <string>
+#include <tuple>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -70,6 +72,7 @@
 #include "../../runtime/thread_storage_scope.h"
 #include "../../tir/transforms/ir_utils.h"
 #include "codegen_params.h"
+#include "llvm_instance.h"
 
 namespace llvm {
 class Argument;
@@ -91,8 +94,6 @@ class MDBuilder;
 
 namespace tvm {
 namespace codegen {
-
-class LLVMTarget;
 
 using namespace tir;
 
@@ -116,14 +117,15 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    * \param module_name The name of the module.
    * \param tm Target machine model
    * \param ctx The context.
-   * \param system_lib Whether to insert system library registration.
+   * \param system_lib_prefix If the value is not NullOpt, insert system lib registration.
+   *                          The value corresponds to the prefix of the system lib symbols.
    * \param dynamic_lookup Whether dynamically lookup runtime function
    *                       or use the runtime function table passed by caller.
    * \param target_c_runtime If true, generate a module to be executed by the C runtime. In practice
    *                       this option influences whether global ctors are used.
    */
-  virtual void Init(const std::string& module_name, LLVMTarget* llvm_target, bool system_lib,
-                    bool dynamic_lookup, bool target_c_runtime);
+  virtual void Init(const std::string& module_name, LLVMTarget* llvm_target,
+                    Optional<String> system_lib_prefix, bool dynamic_lookup, bool target_c_runtime);
 
   /*!
    * \brief Turn on fast math flags for floating point operations.
@@ -131,11 +133,17 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    */
   void SetFastMathFlags(llvm::FastMathFlags fmf);
 
+  virtual llvm::Function* DeclareFunction(const GlobalVar& gvar, const PrimFunc& f);
+
   /*!
    * \brief Compile and add function f to the current module.
+   *
+   * \param gvar The GlobalVar which may be used to may internal calls
+   * to this function from elsewhere in the module.
+   *
    * \param f The function to be added.
    */
-  virtual void AddFunction(const PrimFunc& f);
+  virtual void AddFunction(const GlobalVar& gvar, const PrimFunc& f);
   /*!
    * \brief Add main function as the entry name
    * \param entry_func_name The name of entry function to be added.
@@ -146,6 +154,12 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    * \return the created module.
    */
   virtual std::unique_ptr<llvm::Module> Finish();
+
+  /*!
+   * \brief Validate the generated module using llvm::verifyModule
+   */
+  void Verify() const;
+
   /*!
    * \brief Add functions from the (unordered) range to the current module in a deterministic order.
    *        The range consists of objects convertible to PrimFunc.
@@ -204,14 +218,12 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   llvm::Value* VisitExpr_(const NotNode* op) override;
   llvm::Value* VisitExpr_(const SelectNode* op) override;
   llvm::Value* VisitExpr_(const LetNode* op) override;
-  llvm::Value* VisitExpr_(const LoadNode* op) override;
   llvm::Value* VisitExpr_(const BufferLoadNode* op) override;
   llvm::Value* VisitExpr_(const CallNode* op) override;
   llvm::Value* VisitExpr_(const RampNode* op) override;
   llvm::Value* VisitExpr_(const ShuffleNode* op) override;
   llvm::Value* VisitExpr_(const BroadcastNode* op) override;
   // stmt
-  void VisitStmt_(const StoreNode* op) override;
   void VisitStmt_(const BufferStoreNode* op) override;
   void VisitStmt_(const ForNode* op) override;
   void VisitStmt_(const WhileNode* op) override;
@@ -223,6 +235,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   void VisitStmt_(const LetStmtNode* op) override;
   void VisitStmt_(const SeqStmtNode* op) override;
   void VisitStmt_(const EvaluateNode* op) override;
+  void VisitStmt_(const DeclBufferNode* op) override;
 
   // Get constant string
   llvm::Constant* GetConstString(const std::string& str);
@@ -302,8 +315,11 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   virtual llvm::Value* GetThreadIndex(const IterVar& iv);
   // Get the corresponding thread index
   virtual llvm::Value* CreateStorageSync(const CallNode* op);
+#if TVM_LLVM_VERSION < 160
+  // This function only works with the legacy pass manager.
   // apply optimization on the module.
   virtual void InitPassManagerBuilder(llvm::PassManagerBuilder* builder);
+#endif
   // Scalarize by iterating elements of e.
   // f is a callback that takes index and v.
   void Scalarize(const PrimExpr& e, std::function<void(int i, llvm::Value* v)> f);
@@ -347,7 +363,28 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   virtual int NativeVectorBits(const runtime::StorageScope& storage_scope) const;
   // Get correct address space depending on the backend
   virtual unsigned GetGlobalAddressSpace() const;
-  void AddFunctionInternal(const PrimFunc& f, bool ret_void);
+
+  /*! \brief Get the linkage parameters for the function
+   *
+   * Returns a tuple whose first element is the name of the function
+   * and whose second element is the linkage type to be used
+   * (e.g. llvm::Function::ExternalLinkage or
+   * llvm::Function::PrivateLinkage)
+   *
+   * \param func The PrimFunc whose symbol name and linkage type
+   * should be returned
+   *
+   * \param gvar The GlobalVar to be used when generating the symbol
+   * name.  Only used for internal functions, for which the
+   * kGlobalSymbol attribute is not defined.
+   */
+  std::tuple<std::string, llvm::Function::LinkageTypes> GetLinkage(const GlobalVar& gvar,
+                                                                   const PrimFunc& func);
+
+  llvm::Function* DeclareFunctionInternal(const GlobalVar& gvar, const PrimFunc& f, bool ret_void);
+
+  void AddFunctionInternal(const GlobalVar& gvar, const PrimFunc& f, bool ret_void);
+
   // Create extern call
   llvm::CallInst* CreateCallExtern(llvm::Type* ret, const std::string& name,
                                    const std::vector<llvm::Value*>& value);
@@ -395,6 +432,14 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    * \param func The function to set attributes on.
    */
   void SetTargetAttributes(llvm::Function* func);
+  /*!
+   * \brief Emit LLVM IR for conversion functions __extendhfsf2 and __truncsfhf2
+   *        into the current llvm::Module.
+   *
+   * \param use_float16_abi Whether to use floating-point or integer ABI.
+   */
+  void EmitFloat16ConversionBuiltins(bool use_float16_abi);
+
   /*!
    * \brief Get the number of elements in the given vector value.
    * \param vec The value, must be of a vector type.
@@ -500,6 +545,11 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   std::unordered_map<const VarNode*, llvm::Value*> var_map_;
   // global strings
   std::unordered_map<std::string, llvm::Constant*> str_map_;
+
+  // Map from TVM's GlobalVar to the llvm::Function that represents
+  // that function.
+  std::unordered_map<const GlobalVarNode*, llvm::Function*> functions_;
+
   // Whether current function is restricted
   bool is_restricted_{true};
   // The analyzer information
@@ -512,6 +562,8 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   ExprDeepEqual deep_equal_;
   // binding of let variables. Enables duplicate var defs that map to same value
   std::unordered_map<Var, const LetNode*, ObjectPtrHash, ObjectPtrEqual> let_binding_;
+  // debug info for function being compiled
+  llvm::DISubprogram* di_subprogram_;
   // Cache potential common path ops to slightly improve lookup time.
   // global symbol table.
   OpAttrMap<TGlobalSymbol> op_attr_global_symbol_ = Op::GetAttrMap<TGlobalSymbol>("TGlobalSymbol");
@@ -521,6 +573,10 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   const Op& builtin_call_llvm_pure_intrin_ = builtin::call_llvm_pure_intrin();
   const Op& builtin_lookup_param_ = builtin::lookup_param();
   const Op& builtin_tvm_call_cpacked_lowered_ = builtin::tvm_call_cpacked_lowered();
+
+  void EmitDebugLocation();
+  void EmitDebugLocation(const Span& span);
+  void EmitDebugLocation(const StmtNode* op);
 
   /*! \brief Helper struct for debug infos. */
   struct DebugInfo {
@@ -546,18 +602,26 @@ inline int CodeGenLLVM::GetVectorNumElements(llvm::Value* vec) {
 
 template <typename IterType, typename ConvType>
 void CodeGenLLVM::AddFunctionsOrdered(IterType begin, IterType end, ConvType pfunc) {
-  std::vector<PrimFunc> funcs;
+  std::vector<std::tuple<GlobalVar, PrimFunc>> funcs;
   for (auto it = begin; it != end; ++it) {
-    funcs.push_back(pfunc(*it));
+    auto [gvar, func] = *it;
+    auto converted = pfunc(func);
+    funcs.push_back({gvar, Downcast<PrimFunc>(converted)});
   }
-  std::sort(funcs.begin(), funcs.end(), [](PrimFunc func_a, PrimFunc func_b) {
-    std::string name_a = func_a->GetAttr<String>(tvm::attr::kGlobalSymbol).value();
-    std::string name_b = func_b->GetAttr<String>(tvm::attr::kGlobalSymbol).value();
+  std::sort(funcs.begin(), funcs.end(), [this](const auto& pair_a, const auto& pair_b) {
+    const auto& [gvar_a, func_a] = pair_a;
+    std::string name_a = std::get<std::string>(GetLinkage(gvar_a, func_a));
+
+    const auto& [gvar_b, func_b] = pair_b;
+    std::string name_b = std::get<std::string>(GetLinkage(gvar_b, func_b));
     return name_a < name_b;
   });
-  for (auto& f : funcs) {
-    auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
-    AddFunction(f);
+
+  for (const auto& [gvar, func] : funcs) {
+    DeclareFunction(gvar, func);
+  }
+  for (const auto& [gvar, func] : funcs) {
+    AddFunction(gvar, func);
   }
 }
 

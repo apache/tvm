@@ -17,16 +17,22 @@
 # pylint: disable=ungrouped-imports, import-outside-toplevel
 """Arm(R) Ethos(TM)-U NPU supported operators."""
 import functools
-from typing import Dict, List, Tuple, Callable, Optional
+from typing import Callable, Dict, List, Optional, Tuple
 
 import numpy as np  # type: ignore
 
 import tvm  # type: ignore
 from tvm import relay
-from tvm.relay.expr import Constant, Call  # type: ignore
-from tvm.relay.op.contrib.register import register_pattern_table  # type: ignore
-from tvm.relay.dataflow_pattern import wildcard, is_op, is_constant, is_tuple  # type: ignore
+from tvm.ir import Op
 from tvm.relay.build_module import bind_params_by_name  # type: ignore
+from tvm.relay.dataflow_pattern import (  # type: ignore
+    is_constant,
+    is_op,
+    is_tuple,
+    wildcard,
+)
+from tvm.relay.expr import Call, Constant  # type: ignore
+from tvm.relay.op.contrib.register import register_pattern_table  # type: ignore
 
 try:
     # As ethos-u-vela package is an optional TVM dependency, we want to lazy load it
@@ -197,20 +203,23 @@ class QnnConv2DParams:
     @requires_vela
     def __init__(self, func_body: tvm.relay.Function):
         from tvm.relay.backend.contrib.ethosu.util import QConv2DArgs  # type: ignore
-        from tvm.relay.backend.contrib.ethosu.util import BiasAddArgs
-        from tvm.relay.backend.contrib.ethosu.util import RequantArgs
+        from tvm.relay.backend.contrib.ethosu.util import BiasAddArgs, RequantArgs
 
         activation = None
         separate_padding = None
 
-        if str(func_body.op) in self.activation_map.keys():
+        if str(func_body.op.name) in self.activation_map.keys():
             activation = func_body
             requantize_op = activation.args[0]
         else:
             requantize_op = func_body
         bias_add = requantize_op.args[0]
         qnn_conv2d = bias_add.args[0]
-        if isinstance(qnn_conv2d.args[0], relay.Call) and str(qnn_conv2d.args[0].op) == "nn.pad":
+        if (
+            isinstance(qnn_conv2d.args[0], relay.Call)
+            and isinstance(qnn_conv2d.args[0].op, Op)
+            and str(qnn_conv2d.args[0].op.name) == "nn.pad"
+        ):
             separate_padding = qnn_conv2d.args[0]
         data_layout = qnn_conv2d.attrs.data_layout
         self.kernel_layout = qnn_conv2d.attrs.kernel_layout
@@ -330,13 +339,14 @@ class QnnConv2DTransposeParams:
 
     @requires_vela
     def __init__(self, func_body: tvm.relay.Function):
-        from tvm.relay.backend.contrib.ethosu.util import QConv2DTransposeArgs  # type: ignore
-        from tvm.relay.backend.contrib.ethosu.util import BiasAddArgs
-        from tvm.relay.backend.contrib.ethosu.util import RequantArgs
+        from tvm.relay.backend.contrib.ethosu.util import (
+            QConv2DTransposeArgs,  # type: ignore
+        )
+        from tvm.relay.backend.contrib.ethosu.util import BiasAddArgs, RequantArgs
 
         requantize = func_body
         call = func_body.args[0]
-        if str(call.op) == "nn.bias_add":
+        if str(call.op.name) == "nn.bias_add":
             bias_add = call
             call = call.args[0]
         else:
@@ -561,7 +571,7 @@ class MaxPool2DParams:
 
     def __init__(self, func_body: Call):
         clip = None
-        if str(func_body.op) == "clip":
+        if str(func_body.op.name) == "clip":
             clip = func_body
             pool_op = clip.args[0]
         else:
@@ -617,7 +627,7 @@ class AvgPool2DParams:
 
     def __init__(self, func_body: Call):
         clip = None
-        if str(func_body.op) == "clip":
+        if str(func_body.op.name) == "clip":
             clip = func_body
             cast2 = clip.args[0]
         else:
@@ -681,22 +691,22 @@ class BinaryElementwiseParams:
     """
 
     def __init__(self, func_body: Call, operator_type: str, is_quantized_operation: bool):
-        from tvm.relay.backend.contrib.ethosu.util import BinaryElementwiseArgs
-        from tvm.relay.backend.contrib.ethosu.util import RequantArgs
+        from tvm.relay.backend.contrib.ethosu.util import (
+            BinaryElementwiseArgs,
+            RequantArgs,
+        )
 
         current_call = func_body
         clip = None
         requantize = None
 
-        if is_quantized_operation:
-            if str(current_call.op) == "clip":
-                clip = current_call
-                current_call = clip.args[0]
-        else:
-            if str(current_call.op) == "qnn.requantize":
-                requantize = current_call
-                clip = current_call.args[0]
-                current_call = clip.args[0]
+        if str(current_call.op.name) == "clip":
+            clip = current_call
+            current_call = clip.args[0]
+        elif str(current_call.op.name) == "qnn.requantize":
+            requantize = current_call
+            clip = current_call.args[0]
+            current_call = clip.args[0]
         binary_op = current_call
 
         layout = "NHWC"
@@ -929,19 +939,38 @@ class MinParams(BinaryElementwiseParams):
             [self.ifm, self.ifm2, self.ofm], supported_dtypes=[np.uint8, np.int8]
         ):
             return False
+        # MIN with different scales is not supported on NPU
+        # (please look at NPU_SET_OFM_SCALE register description
+        # https://developer.arm.com/documentation/102420/0200/Programmers-model/Command-stream/cmd1-commands-).
+        if self.ifm.q_params.scale_f32 != self.ofm.q_params.scale_f32:
+            return False
         return True
 
 
+# This pattern is for case when there are different scales for requantize and
+# minimum + clip + qnn.requantize can't be offloaded to NPU by one operation
+# due to hardware constraints.
+# It's offloaded by two operations ethosu_binary_elementwise + ethosu_identity.
 def minimum_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
     """
-    This function creates the pattern for minimum with optional fused RELU activation.
+    This function creates the pattern for minimum with optional fused RELU activation without
+    requantize.
     """
     minimum = is_op("minimum")(wildcard(), wildcard())
     optional_min_clip = is_op("clip")(minimum)
-    optional_min_clip = is_op("qnn.requantize")(
-        optional_min_clip, is_constant(), is_constant(), is_constant(), is_constant()
-    )
     return minimum | optional_min_clip
+
+
+def minimum_clip_requantize_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
+    """
+    This function creates the pattern for minimum with fused RELU activation with requantize.
+    """
+    pattern = is_op("minimum")(wildcard(), wildcard())
+    pattern = is_op("clip")(pattern)
+    pattern = is_op("qnn.requantize")(
+        pattern, is_constant(), is_constant(), is_constant(), is_constant()
+    )
+    return pattern
 
 
 class MaxParams(BinaryElementwiseParams):
@@ -967,19 +996,38 @@ class MaxParams(BinaryElementwiseParams):
             [self.ifm, self.ifm2, self.ofm], supported_dtypes=[np.uint8, np.int8]
         ):
             return False
+        # MAX with different scales is not supported on NPU
+        # (please look at NPU_SET_OFM_SCALE register description
+        # https://developer.arm.com/documentation/102420/0200/Programmers-model/Command-stream/cmd1-commands-).
+        if self.ifm.q_params.scale_f32 != self.ofm.q_params.scale_f32:
+            return False
         return True
 
 
+# This pattern is for case when there are different scales for requantize and
+# maximum + clip + qnn.requantize can't be offloaded to NPU by one operation due to
+# hardware constraints.
+# It's offloaded by two operations ethosu_binary_elementwise + ethosu_identity.
 def maximum_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
     """
-    This function creates the pattern for maximum with optional fused RELU activation.
+    This function creates the pattern for maximum with optional fused RELU activation without
+    requantize.
     """
     maximum = is_op("maximum")(wildcard(), wildcard())
     optional_max_clip = is_op("clip")(maximum)
-    optional_max_clip = is_op("qnn.requantize")(
-        optional_max_clip, is_constant(), is_constant(), is_constant(), is_constant()
-    )
     return maximum | optional_max_clip
+
+
+def maximum_clip_requantize_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
+    """
+    This function creates the pattern for maximum with fused RELU activation with requantize.
+    """
+    pattern = is_op("maximum")(wildcard(), wildcard())
+    pattern = is_op("clip")(pattern)
+    pattern = is_op("qnn.requantize")(
+        pattern, is_constant(), is_constant(), is_constant(), is_constant()
+    )
+    return pattern
 
 
 class ShlParams(BinaryElementwiseParams):
@@ -1101,8 +1149,7 @@ class AbsParams:
     composite_name = "ethos-u.abs"
 
     def __init__(self, func_body: Call):
-        from tvm.relay.backend.contrib.ethosu.util import QuantizeArgs
-        from tvm.relay.backend.contrib.ethosu.util import DequantizeArgs
+        from tvm.relay.backend.contrib.ethosu.util import DequantizeArgs, QuantizeArgs
 
         quantize = func_body
         abs_op = quantize.args[0]
@@ -1157,8 +1204,7 @@ class LutActivationParams:
     """
 
     def __init__(self, func_body: Call):
-        from tvm.relay.backend.contrib.ethosu.util import QuantizeArgs
-        from tvm.relay.backend.contrib.ethosu.util import DequantizeArgs
+        from tvm.relay.backend.contrib.ethosu.util import DequantizeArgs, QuantizeArgs
 
         layout = "NHWC"
 
@@ -1290,30 +1336,46 @@ class MeanParams:
                 return axis in ([0], [1], [0, 1])
             return axis in ([1], [2], [1, 2])
 
-        tensor_params = [self.ifm, self.ofm]
-        if not check_valid_dtypes(tensor_params, supported_dtypes=[np.int8]):
+        def check_single_axis_across_height(num_dims, axis):
+            return len(axis) == 1 and (num_dims in (2, 3) and axis == [0] or axis == [1])
+
+        same_quantization = (
+            self.ifm.q_params.scale_f32 == self.ofm.q_params.scale_f32
+            and self.ifm.q_params.zero_point == self.ofm.q_params.zero_point
+        )
+
+        # IFM must be int8 or uint8
+        if not check_valid_dtypes([self.ifm], [np.int8, np.uint8]):
             return False
-        if self.ifm.dtype != self.ofm.dtype:
+        # OFM must be int8, uint8 or int16
+        if not check_valid_dtypes([self.ofm], [np.int8, np.uint8, np.int16]):
             return False
+        # Input tensor must be at least 2D
         if not len(self.ifm.shape) in [2, 3, 4]:
             return False
+        # Axis indices must correspond to height and width axes
         if not check_axis(len(self.ifm.shape), self.axis):
             return False
 
-        # MEAN has further restrictions on the input size, depending on legalization method.
         input_size = self.height * self.width
+
+        # Product of height and width must be no greater than 65536
         if input_size > 65536:
             return False
-        if (
-            self.ifm.q_params.scale_f32 != self.ofm.q_params.scale_f32
-            or self.ifm.q_params.zero_point != self.ofm.q_params.zero_point
-        ) and input_size > 4096:
+        # Product of height and width must be no greater than 4096 when:
+        #   IFM and OFM have different scale or zero point; or
+        #   'keep_dims' is True
+        if input_size > 4096 and (not same_quantization or self.keepdims):
             return False
-        if self.axis == [1, 2] and self.keepdims and self.ifm.dtype == "int8" and input_size > 256:
-            return False
-        # Large kernel height reshape only when axis is [1, 2]
-        if self.axis != [1, 2] and self.height > 64:
-            return False
+        # For single axis averages across the height dimension:
+        if check_single_axis_across_height(len(self.ifm.shape), self.axis):
+            # IFM height must be no greater than 256 if the IFM and OFM scale and zero point match
+            if self.height > 256 and same_quantization:
+                return False
+            # IFM height must be no greater than 64 if the IFM and OFM scale or zero point
+            # do not match
+            if self.height > 64 and not same_quantization:
+                return False
         return True
 
 
@@ -1326,6 +1388,91 @@ def mean_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
     pattern = is_op("qnn.requantize")(
         pattern, is_constant(), is_constant(), is_constant(), is_constant()
     )
+    return pattern
+
+
+class SumParams:
+    """
+    This class will parse a call to ethosu.sum composite function
+    and extract the parameter information.
+    """
+
+    composite_name = "ethos-u.sum"
+
+    def __init__(self, func_body: Call):
+        from tvm.relay.backend.contrib.ethosu.util import RequantArgs
+
+        clip = None
+        if str(func_body.op.name) == "clip":
+            clip = func_body
+            requantize = clip.args[0]
+        else:
+            requantize = func_body
+
+        sum_op = requantize.args[0]
+        attrs = sum_op.attrs
+        cast = sum_op.args[0]
+
+        layout = "NHWC"
+        self.ifm = TensorParams(
+            cast.args[0],
+            layout,
+            requantize.args[RequantArgs.IFM_SCALE.value],
+            requantize.args[RequantArgs.IFM_ZERO_POINT.value],
+        )
+        self.ofm = TensorParams(
+            requantize,
+            layout,
+            requantize.args[RequantArgs.OFM_SCALE.value],
+            requantize.args[RequantArgs.OFM_ZERO_POINT.value],
+        )
+
+        self.activation = clip
+
+        ifm_shape = self.ifm.shape
+        self.height = ifm_shape[0] if len(ifm_shape) in (2, 3) else ifm_shape[1]
+        self.width = ifm_shape[1] if len(ifm_shape) in (2, 3) else ifm_shape[2]
+        self.keepdims = attrs.keepdims
+
+        self.axis = list(sorted(attrs.axis))
+        if attrs.exclude:
+            self.axis = [i for i in range(len(self.ifm.shape)) if i not in self.axis]
+
+    def is_valid(self) -> bool:
+        """
+        Checks whether Sum has compatible attributes with HW.
+        """
+
+        ifm_shape_len = len(self.ifm.shape)
+
+        if not check_valid_dtypes([self.ifm], [np.uint8, np.int8, np.int16, np.int32]):
+            return False
+        if not check_valid_dtypes([self.ofm], [np.int8]):
+            return False
+        if not ifm_shape_len in (3, 4):
+            return False
+        if ifm_shape_len == 3 and self.axis not in [[2]]:
+            return False
+        if ifm_shape_len == 4 and self.axis not in [[3]]:
+            return False
+
+        return True
+
+
+def sum_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
+    """
+    This function creates the pattern for sum.
+    """
+    pattern = is_op("cast")(wildcard())
+    pattern = is_op("sum")(pattern)
+    pattern = is_op("qnn.requantize")(
+        pattern,
+        is_constant(),
+        is_constant(),
+        is_constant(),
+        is_constant(),
+    )
+    pattern = pattern.optional(is_op("clip"))
     return pattern
 
 
@@ -1540,7 +1687,18 @@ class Resize2dParams:
             return False
         if self.method not in ("nearest_neighbor", "linear"):
             return False
-        if self.coordinate_transformation_mode not in ("asymmetric", "align_corners"):
+        if self.coordinate_transformation_mode not in (
+            "asymmetric",
+            "align_corners",
+            "half_pixel",
+        ):
+            return False
+        if (
+            self.coordinate_transformation_mode == "half_pixel"
+            and self.rounding_method != "round_prefer_ceil"
+            or self.coordinate_transformation_mode != "half_pixel"
+            and self.rounding_method != ""
+        ):
             return False
         if not check_compatible_size(
             self.coordinate_transformation_mode,
@@ -1548,8 +1706,6 @@ class Resize2dParams:
             self.size,
             self.ifm.shape[1:3],
         ):
-            return False
-        if self.rounding_method != "":
             return False
         if self.out_dtype and self.out_dtype != "int8":
             return False
@@ -1631,18 +1787,17 @@ class FullyConnectedParams:
     @requires_vela
     def __init__(self, func_body):
         from tvm.relay.backend.contrib.ethosu.util import QDenseArgs  # type: ignore
-        from tvm.relay.backend.contrib.ethosu.util import BiasAddArgs
-        from tvm.relay.backend.contrib.ethosu.util import RequantArgs
+        from tvm.relay.backend.contrib.ethosu.util import BiasAddArgs, RequantArgs
 
         self.activation = None
-        if str(func_body.op) == "clip":
+        if str(func_body.op.name) == "clip":
             self.activation = func_body
             requantize_op = self.activation.args[0]
         else:
             requantize_op = func_body
 
         call = requantize_op.args[0]
-        if str(requantize_op.args[0].op) == "nn.bias_add":
+        if str(requantize_op.args[0].op.name) == "nn.bias_add":
             bias_add = call
             qnn_dense = call.args[0]
         else:
@@ -1691,7 +1846,7 @@ class FullyConnectedParams:
             weights.values = weights.values - weights.q_params.zero_point
             axis = 1
             sum_weights = np.amax(np.sum(np.absolute(weights.values), axis=axis))
-            if not sum_weights <= weights_limit:
+            if sum_weights > weights_limit:
                 return False
             return True
 
@@ -1733,8 +1888,7 @@ class HardSwishParams:
     composite_name = "ethos-u.hard_swish"
 
     def __init__(self, func_body):
-        from tvm.relay.backend.contrib.ethosu.util import QuantizeArgs
-        from tvm.relay.backend.contrib.ethosu.util import DequantizeArgs
+        from tvm.relay.backend.contrib.ethosu.util import DequantizeArgs, QuantizeArgs
 
         quantize = func_body
         divide = quantize.args[0]
@@ -1772,9 +1926,224 @@ def hard_swish_pattern():
     return quantize
 
 
+class PadParams:
+    """
+    This class will parse a call to a ethosu.pad2d composite function
+    and extract the parameter information.
+    """
+
+    composite_name = "ethos-u.pad2d"
+    # The ethos-u.pad2d composite function will be transformed to the
+    # ethosu_depthwise_conv2d operator.
+    # For the ethosu_depthwise_conv2d the hardware only supports padding
+    # upto the numbers as follows, so we define such padding limits
+    padding_bounds = [31, 31, 32, 32]
+
+    def __init__(self, func_body: Call):
+        from tvm.relay.backend.contrib.ethosu.util import QPadArgs
+
+        # there is no 'layout' attribute in nn.pad
+        layout = "NHWC"
+        self.ifm = TensorParams(
+            tensor=func_body.args[QPadArgs.IFM.value],
+            layout=layout,
+            scale=tvm.relay.Constant(tvm.nd.array(np.array(1.0, dtype="float32"))),
+            zero_point=func_body.args[QPadArgs.IFM_ZERO_POINT.value],
+        )
+
+        self.padding = self.extract_padding(func_body)
+        self.ofm = TensorParams(
+            tensor=func_body,
+            layout=layout,
+            scale=tvm.relay.Constant(tvm.nd.array(np.array(1.0, dtype="float32"))),
+            zero_point=func_body.args[QPadArgs.IFM_ZERO_POINT.value],
+        )
+
+    @staticmethod
+    def extract_padding(
+        padding: relay.Call,
+    ) -> Optional[Tuple[int, int, int, int]]:
+        """
+        Here we check whether a separate spatial-dimension padding operation can be
+        rewritten as NPU depthwise convolution. If the padding specified by the
+        separate nn.pad operation is not supported by NPU depthwise convolution,
+        None will be returned. This will cause the nn.pad not to be offloaded to NPU.
+        """
+        pad_width = padding.attrs["pad_width"]
+        if len(pad_width) != 4:
+            return None
+        if list(pad_width[0]) != [0, 0] or list(pad_width[3]) != [0, 0]:
+            return None
+        return [
+            pad_width[1][0],
+            pad_width[2][0],
+            pad_width[1][1],
+            pad_width[2][1],
+        ]
+
+    def is_valid(self):
+        """
+        This function checks whether pad has compatible attributes
+        with the NPU depthwise convolution
+        """
+        tensor_params = [self.ifm, self.ofm]
+        if not check_valid_dtypes(tensor_params, supported_dtypes=[np.uint8, np.int8]):
+            return False
+        if self.ifm.dtype != self.ofm.dtype:
+            return False
+        if not check_batch_size(self.ifm):
+            return False
+        if not self.padding or not check_padding(self.padding, self.padding_bounds):
+            return False
+        if not check_dimensions(self.ifm) or not check_dimensions(self.ofm):
+            return False
+        return True
+
+
+class ChannelPadParams:
+    """
+    This class will parse a call to a ethos-u.channel-pad composite function
+    and extract the parameter information.
+    """
+
+    composite_name = "ethos-u.channel-pad"
+    # The ethos-u.channel-pad composite function will be transformed
+    # to the Relay concatenate operation.
+
+    def __init__(self, func_body: Call):
+        from tvm.relay.backend.contrib.ethosu.util import QPadArgs
+
+        # there is no 'layout' attribute in nn.pad
+        layout = "NHWC"
+        self.ifm = TensorParams(
+            tensor=func_body.args[QPadArgs.IFM.value],
+            layout=layout,
+            scale=tvm.relay.Constant(tvm.nd.array(np.array(1.0, dtype="float32"))),
+            zero_point=func_body.args[QPadArgs.IFM_ZERO_POINT.value],
+        )
+
+        self.ch_padding = self.extract_ch_padding(func_body)
+        self.ofm = TensorParams(
+            tensor=func_body,
+            layout=layout,
+            scale=tvm.relay.Constant(tvm.nd.array(np.array(1.0, dtype="float32"))),
+            zero_point=func_body.args[QPadArgs.IFM_ZERO_POINT.value],
+        )
+
+    @staticmethod
+    def extract_ch_padding(
+        padding: relay.Call,
+    ) -> Optional[Tuple[int, int]]:
+        """
+        Here we check whether a separate channel-dimension padding operation can be
+        rewritten as Relay concatenate operation. If the padding specified by the
+        separate nn.pad operation is not supported by NPU, None will be returned.
+        This will cause the nn.pad not to be offloaded to NPU.
+        """
+        pad_width = padding.attrs["pad_width"]
+        if len(pad_width) != 4:
+            return None
+        if (
+            list(pad_width[0]) != [0, 0]
+            or list(pad_width[1]) != [0, 0]
+            or list(pad_width[2]) != [0, 0]
+        ):
+            return None
+        return [
+            pad_width[3][0],
+            pad_width[3][1],
+        ]
+
+    def is_valid(self):
+        """
+        This function checks whether pad has compatible attributes
+        with the Relay concatenate operation
+        """
+        tensor_params = [self.ifm, self.ofm]
+        if not check_valid_dtypes(tensor_params, supported_dtypes=[np.uint8, np.int8]):
+            return False
+        if self.ifm.dtype != self.ofm.dtype:
+            return False
+        if not check_batch_size(self.ifm):
+            return False
+        if not self.ch_padding:
+            return False
+        if not check_dimensions(self.ifm) or not check_dimensions(self.ofm):
+            return False
+        return True
+
+
+def pad_pattern():
+    """Create pattern for pad"""
+    pattern = is_op("nn.pad")(wildcard(), is_constant())
+    return pattern
+
+
+class SoftMaxParams:
+    """
+    This class will parse a call to a ethos-u.softmax composite function
+    and extract the parameter information.
+    """
+
+    composite_name = "ethos-u.softmax"
+
+    def __init__(self, func_body: Call):
+        from tvm.relay.backend.contrib.ethosu.util import QuantizeArgs
+        from tvm.relay.backend.contrib.ethosu.util import DequantizeArgs
+
+        quantize = func_body
+        softmax_op = quantize.args[0]
+        dequantize = softmax_op.args[0]
+
+        layout = "NHWC"
+
+        self.ifm = TensorParams(
+            dequantize.args[DequantizeArgs.IFM.value],
+            layout,
+            dequantize.args[DequantizeArgs.IFM_SCALE.value],
+            dequantize.args[DequantizeArgs.IFM_ZERO_POINT.value],
+        )
+        self.ofm = TensorParams(
+            quantize,
+            layout,
+            quantize.args[QuantizeArgs.OFM_SCALE.value],
+            quantize.args[QuantizeArgs.OFM_ZERO_POINT.value],
+        )
+
+        self.operator_type = "SOFTMAX"
+
+    def is_valid(self):
+        """Checks whether Softmax has compatible attributes with HW"""
+        tensor_params = [self.ifm, self.ofm]
+        if not check_valid_dtypes(tensor_params, supported_dtypes=[np.int8]):
+            return False
+        if self.ifm.dtype != self.ofm.dtype:
+            return False
+        if not check_dimensions(self.ifm):
+            return False
+        if self.ifm.shape != self.ofm.shape:
+            return False
+        return True
+
+
+def softmax_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
+    """
+    This function creates the pattern for Softmax.
+    """
+    pattern = is_op("qnn.dequantize")(wildcard(), is_constant(), is_constant())
+    pattern = is_op("nn.softmax")(pattern)
+    pattern = is_op("qnn.quantize")(pattern, is_constant(), is_constant())
+    return pattern
+
+
 @register_pattern_table("ethos-u")
 def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Callable]]:
     return [
+        (
+            ChannelPadParams.composite_name,
+            pad_pattern(),
+            lambda pat: ChannelPadParams(pat).is_valid(),
+        ),
         (
             QnnConv2DParams.composite_name,
             qnn_conv2d_pattern(),
@@ -1806,6 +2175,11 @@ def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Cal
             lambda pat: AvgPool2DParams(pat).is_valid(),
         ),
         (
+            PadParams.composite_name,
+            pad_pattern(),
+            lambda pat: PadParams(pat).is_valid(),
+        ),
+        (
             AddParams.composite_name,
             qnn_add_pattern(),
             lambda pat: AddParams(pat).is_valid(),
@@ -1822,8 +2196,18 @@ def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Cal
         ),
         (
             MinParams.composite_name,
+            minimum_clip_requantize_pattern(),
+            lambda pat: MinParams(pat).is_valid(),
+        ),
+        (
+            MinParams.composite_name,
             minimum_pattern(),
             lambda pat: MinParams(pat).is_valid(),
+        ),
+        (
+            MaxParams.composite_name,
+            maximum_clip_requantize_pattern(),
+            lambda pat: MaxParams(pat).is_valid(),
         ),
         (
             MaxParams.composite_name,
@@ -1855,6 +2239,16 @@ def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Cal
             MeanParams.composite_name,
             mean_pattern(),
             lambda pat: MeanParams(pat).is_valid(),
+        ),
+        (
+            SumParams.composite_name,
+            sum_pattern(),
+            lambda pat: SumParams(pat).is_valid(),
+        ),
+        (
+            SoftMaxParams.composite_name,
+            softmax_pattern(),
+            lambda pat: SoftMaxParams(pat).is_valid(),
         ),
         (
             LeakyReLUParams.composite_name,

@@ -85,6 +85,22 @@ class IntSet : public ObjectRef {
   bool IsEverything() const;
   /*! \return Whether the set is a single point */
   bool IsSinglePoint() const;
+  /*!
+   * \brief Check if we can prove it is a single point.
+   *
+   * Unlike IsSinglePoint, which only checks ptr equality
+   * this function will invoke analyzer to do stonger proofs
+   * but also takes longer time.
+   *
+   * Use this function in some of the primitives but do not
+   * use it in the inner loop of simplification.
+   *
+   * \param ana Analyzer used in the proof.
+   * \return Whether we can prove it is a single point
+   */
+  bool CanProveSinglePoint(Analyzer* ana) const;
+  // TODO(tvm-team): update all CanProve to explicitly take
+  // analyzer to encourage more analyzer reuse
   /*! \return Whether the set is proved to be bigger than 0 */
   bool CanProvePositive() const;
   /*! \return Whether the set is proved to be smaller than 0 */
@@ -169,6 +185,15 @@ Map<Var, IntSet> ConvertDomMap(const std::unordered_map<const VarNode*, IntSet>&
  * \return An integer set that can cover all the possible values of e.
  */
 IntSet EvalSet(PrimExpr e, const Map<IterVar, IntSet>& dom_map);
+/*!
+ * \brief Find an symbolic integer set that contains all possible values of
+ *  e given the domain of each variables.
+ *
+ * \param e The expression to be evaluated.
+ * \param dom_map The domain of each variable.
+ * \return An integer set that can cover all the possible values of e.
+ */
+IntSet EvalSet(PrimExpr e, const Map<Var, IntSet>& dom_map);
 /*!
  * \brief Same as EvalSet, but takes unordered_map
  *

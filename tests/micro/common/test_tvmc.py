@@ -31,8 +31,11 @@ from tvm.contrib.download import download_testdata
 
 TVMC_COMMAND = [sys.executable, "-m", "tvm.driver.tvmc"]
 
-MODEL_URL = "https://github.com/tensorflow/tflite-micro/raw/main/tensorflow/lite/micro/examples/micro_speech/micro_speech.tflite"
+MODEL_URL = "https://github.com/tensorflow/tflite-micro/raw/a56087ffa2703b4d5632f024a8a4c899815c31bb/tensorflow/lite/micro/examples/micro_speech/micro_speech.tflite"
 MODEL_FILE = "micro_speech.tflite"
+
+executor = tvm.testing.parameter("aot", "graph")
+use_local_path = tvm.testing.parameter(True, False)
 
 # TODO(mehrdadh): replace this with _main from tvm.driver.tvmc.main
 # Issue: https://github.com/apache/tvm/issues/9612
@@ -44,6 +47,77 @@ def _run_tvmc(cmd_args: list, *args, **kwargs):
     return subprocess.check_call(cmd_args_list, *args, **kwargs)
 
 
+def create_project_command(project_path: str, mlf_path: str, platform: str, board: str) -> list:
+    """Returns create project command with tvmc micro."""
+    cmd = [
+        "micro",
+        "create-project",
+        project_path,
+        mlf_path,
+        platform,
+        "--project-option",
+        "project_type=host_driven",
+        f"board={board}",
+    ]
+
+    if platform == "zephyr":
+        # TODO: 4096 is driven by experiment on nucleo_l4r5zi. We should cleanup this after we have
+        # better memory management.
+        cmd.append("config_main_stack_size=4096")
+    return cmd
+
+
+def compile_command(
+    model_path: str, target: tvm.target.Target, tar_path: pathlib.Path, executor: str
+):
+    runtime = "crt"
+
+    cmd = [
+        "compile",
+        model_path,
+        f"--target={target}",
+        f"--runtime={runtime}",
+        f"--runtime-crt-system-lib",
+        str(1),
+        f"--executor={executor}",
+    ]
+
+    if executor == "graph":
+        cmd += [
+            "--executor-graph-link-params",
+            str(0),
+        ]
+
+    cmd += [
+        "--output",
+        str(tar_path),
+        "--output-format",
+        "mlf",
+        "--pass-config",
+        "tir.disable_vectorize=1",
+    ]
+    if executor == "graph":
+        cmd += ["--disabled-pass=AlterOpLayout"]
+
+    cmd_str = ""
+    for item in cmd:
+        cmd_str += item
+        cmd_str += " "
+    return cmd
+
+
+def get_workspace_dir(use_local_path: bool) -> pathlib.Path:
+    if use_local_path:
+        out_dir_temp = pathlib.Path(os.path.abspath("./tvmc_relative_path_test"))
+        if os.path.isdir(out_dir_temp):
+            shutil.rmtree(out_dir_temp)
+        os.mkdir(out_dir_temp)
+    else:
+        out_dir_temp = tvm.contrib.utils.tempdir()
+
+    return out_dir_temp
+
+
 @tvm.testing.requires_micro
 def test_tvmc_exist(platform, board):
     cmd_result = _run_tvmc(["micro", "-h"])
@@ -51,140 +125,55 @@ def test_tvmc_exist(platform, board):
 
 
 @tvm.testing.requires_micro
-@pytest.mark.parametrize(
-    "output_dir,",
-    [pathlib.Path("./tvmc_relative_path_test"), pathlib.Path(tempfile.mkdtemp())],
-)
-def test_tvmc_model_build_only(platform, board, output_dir):
+def test_tvmc_model_build_only(platform, board, executor, use_local_path):
     target = tvm.micro.testing.get_target(platform, board)
+    output_dir = get_workspace_dir(use_local_path)
 
-    if not os.path.isabs(output_dir):
-        out_dir_temp = os.path.abspath(output_dir)
-        if os.path.isdir(out_dir_temp):
-            shutil.rmtree(out_dir_temp)
-        os.mkdir(out_dir_temp)
-
-    model_path = download_testdata(MODEL_URL, MODEL_FILE, module="data")
+    model_path = download_testdata(MODEL_URL, MODEL_FILE, module="model")
     tar_path = str(output_dir / "model.tar")
     project_dir = str(output_dir / "project")
 
-    runtime = "crt"
-    executor = "graph"
+    cmd_result = _run_tvmc(compile_command(model_path, target, tar_path, executor))
 
-    cmd_result = _run_tvmc(
-        [
-            "compile",
-            model_path,
-            f"--target={target}",
-            f"--runtime={runtime}",
-            f"--runtime-crt-system-lib",
-            str(1),
-            f"--executor={executor}",
-            "--executor-graph-link-params",
-            str(0),
-            "--output",
-            tar_path,
-            "--output-format",
-            "mlf",
-            "--pass-config",
-            "tir.disable_vectorize=1",
-            "--disabled-pass=AlterOpLayout",
-        ]
-    )
     assert cmd_result == 0, "tvmc failed in step: compile"
 
-    create_project_cmd = [
-        "micro",
-        "create-project",
-        project_dir,
-        tar_path,
-        platform,
-        "--project-option",
-        "project_type=host_driven",
-    ]
-    if platform == "zephyr":
-        create_project_cmd.append(f"{platform}_board={board}")
-
-    cmd_result = _run_tvmc(create_project_cmd)
+    cmd_result = _run_tvmc(create_project_command(project_dir, tar_path, platform, board))
     assert cmd_result == 0, "tvmc micro failed in step: create-project"
 
     build_cmd = ["micro", "build", project_dir, platform]
-    if platform == "arduino":
-        build_cmd += ["--project-option", f"{platform}_board={board}"]
     cmd_result = _run_tvmc(build_cmd)
     assert cmd_result == 0, "tvmc micro failed in step: build"
-    shutil.rmtree(output_dir)
+    if use_local_path:
+        shutil.rmtree(output_dir)
 
 
+@pytest.mark.skip("Flaky, https://github.com/apache/tvm/issues/14004")
 @pytest.mark.requires_hardware
 @tvm.testing.requires_micro
-@pytest.mark.parametrize(
-    "output_dir,",
-    [pathlib.Path("./tvmc_relative_path_test"), pathlib.Path(tempfile.mkdtemp())],
+@pytest.mark.skip_boards(
+    ["nucleo_l4r5zi", "nucleo_f746zg", "stm32f746g_disco", "nrf5340dk_nrf5340_cpuapp"]
 )
-def test_tvmc_model_run(platform, board, output_dir):
+def test_tvmc_model_run(platform, board, executor, use_local_path):
     target = tvm.micro.testing.get_target(platform, board)
 
-    if not os.path.isabs(output_dir):
-        out_dir_temp = os.path.abspath(output_dir)
-        if os.path.isdir(out_dir_temp):
-            shutil.rmtree(out_dir_temp)
-        os.mkdir(out_dir_temp)
+    output_dir = get_workspace_dir(use_local_path)
 
     model_path = model_path = download_testdata(MODEL_URL, MODEL_FILE, module="data")
     tar_path = str(output_dir / "model.tar")
     project_dir = str(output_dir / "project")
 
-    runtime = "crt"
-    executor = "graph"
-
-    cmd_result = _run_tvmc(
-        [
-            "compile",
-            model_path,
-            f"--target={target}",
-            f"--runtime={runtime}",
-            f"--runtime-crt-system-lib",
-            str(1),
-            f"--executor={executor}",
-            "--executor-graph-link-params",
-            str(0),
-            "--output",
-            tar_path,
-            "--output-format",
-            "mlf",
-            "--pass-config",
-            "tir.disable_vectorize=1",
-            "--disabled-pass=AlterOpLayout",
-        ]
-    )
+    cmd_result = _run_tvmc(compile_command(model_path, target, tar_path, executor))
     assert cmd_result == 0, "tvmc failed in step: compile"
 
-    create_project_cmd = [
-        "micro",
-        "create-project",
-        project_dir,
-        tar_path,
-        platform,
-        "--project-option",
-        "project_type=host_driven",
-    ]
-    if platform == "zephyr":
-        create_project_cmd.append(f"{platform}_board={board}")
-
-    cmd_result = _run_tvmc(create_project_cmd)
+    cmd_result = _run_tvmc(create_project_command(project_dir, tar_path, platform, board))
     assert cmd_result == 0, "tvmc micro failed in step: create-project"
 
     build_cmd = ["micro", "build", project_dir, platform]
-    if platform == "arduino":
-        build_cmd += ["--project-option", f"{platform}_board={board}"]
     cmd_result = _run_tvmc(build_cmd)
 
     assert cmd_result == 0, "tvmc micro failed in step: build"
 
     flash_cmd = ["micro", "flash", project_dir, platform]
-    if platform == "arduino":
-        flash_cmd += ["--project-option", f"{platform}_board={board}"]
     cmd_result = _run_tvmc(flash_cmd)
     assert cmd_result == 0, "tvmc micro failed in step: flash"
 
@@ -194,12 +183,11 @@ def test_tvmc_model_run(platform, board, output_dir):
         "micro",
         project_dir,
     ]
-    if platform == "arduino":
-        run_cmd += ["--project-option", f"{platform}_board={board}"]
     run_cmd += ["--fill-mode", "random"]
     cmd_result = _run_tvmc(run_cmd)
     assert cmd_result == 0, "tvmc micro failed in step: run"
-    shutil.rmtree(output_dir)
+    if use_local_path:
+        shutil.rmtree(output_dir)
 
 
 if __name__ == "__main__":

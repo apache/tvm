@@ -78,9 +78,9 @@ def _conv2d_infer_layout(workload, cfg):
     out_width = idxdiv(in_width + pl + pr - dilated_kernel_w, strides[1]) + 1
     tile_ic, tile_oc = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
     in_shape = (batch_size, idxdiv(in_channel, tile_ic), in_height, in_width, tile_ic)
-    in_layout = "NCHW%dc" % tile_ic
+    in_layout = f"NCHW{tile_ic}c"
     out_shape = (batch_size, idxdiv(out_channel, tile_oc), out_height, out_width, tile_oc)
-    out_layout = "NCHW%dc" % tile_oc
+    out_layout = f"NCHW{tile_oc}c"
     return ((in_shape, in_layout),), ((out_shape, out_layout),)
 
 
@@ -195,11 +195,13 @@ def conv2d_NCHWc(cfg, data, kernel, strides, padding, dilation, layout, out_layo
 
     cfg.define_split("tile_ic", in_channel, num_outputs=2)
     cfg.define_split("tile_oc", num_filter, num_outputs=2)
-    cfg.define_split(
-        "tile_ow", ow, num_outputs=2, filter=lambda y: y.size[-1] <= 64, policy="verbose"
-    )
+    if isinstance(ow, (tvm.tir.IntImm, int)):
+        cfg.define_split(
+            "tile_ow", ow, num_outputs=2, filter=lambda y: y.size[-1] <= 64, policy="verbose"
+        )
     if is_kernel_1x1:
-        cfg.define_knob("tile_oh", [1, 2] if oh > 1 else [1])
+        if isinstance(oh, (tvm.tir.IntImm, int)):
+            cfg.define_knob("tile_oh", [1, 2] if oh > 1 else [1])
     else:
         cfg.define_knob("unroll_kw", [True, False])
 
@@ -252,14 +254,7 @@ def schedule_conv2d_NCHWc(cfg, outs):
             data_vec = conv_out.op.input_tensors[0]
 
             args = [s, cfg, data_vec, kernel_vec, conv_out, outs[0]]
-            (
-                _,
-                _,
-                kh,
-                kw,
-                _,
-                _,
-            ) = get_const_tuple(kernel_vec.shape)
+            (_, _, kh, kw, _, _) = get_const_tuple(kernel_vec.shape)
             if kh == 1 and kw == 1:
                 conv2d_avx_1x1._schedule_conv_NCHWc(*args)
             else:

@@ -232,7 +232,7 @@ def verify_partition(mod, params):
 
 
 def test_add_partition():
-    mod = tvm.parser.parse(
+    mod = tvm.relay.parse(
         """
     #[version = "0.0.5"]
     def @main(
@@ -247,7 +247,7 @@ def test_add_partition():
 
 
 def test_conv2d_partition():
-    mod = tvm.parser.parse(
+    mod = tvm.relay.parse(
         """
     #[version = "0.0.5"]
     def @main(
@@ -266,7 +266,7 @@ def test_conv2d_partition():
 
 
 def test_multiple_arg_conversions_partition():
-    mod = tvm.parser.parse(
+    mod = tvm.relay.parse(
         """
     #[version = "0.0.5"]
     def @main(
@@ -295,7 +295,7 @@ def test_multiple_arg_conversions_partition():
 
 
 def test_unquantizable_prefix_partition():
-    mod = tvm.parser.parse(
+    mod = tvm.relay.parse(
         """
     #[version = "0.0.5"]
     def @main(
@@ -318,7 +318,7 @@ def test_unquantizable_prefix_partition():
 
 
 def test_unquantizable_core_partition():
-    mod = tvm.parser.parse(
+    mod = tvm.relay.parse(
         """
     #[version = "0.0.5"]
     def @main(
@@ -351,7 +351,7 @@ def test_unquantizable_core_partition():
 
 
 def test_unquantizable_suffix_partition():
-    mod = tvm.parser.parse(
+    mod = tvm.relay.parse(
         """
     #[version = "0.0.5"]
     def @main(

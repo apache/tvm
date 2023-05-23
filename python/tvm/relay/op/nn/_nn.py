@@ -307,7 +307,7 @@ def convert_conv2d(attrs, inputs, tinfos, desired_layouts):
             new_attrs["kernel_layout"] = desired_kernel_layout
             return relay.nn.contrib_conv2d_nchwc(data, weight, **new_attrs)
 
-    raise ValueError("Layout %s is not yet supported." % desired_data_layout)
+    raise ValueError(f"Layout {desired_data_layout} is not yet supported.")
 
 
 # conv2d_transpose
@@ -375,11 +375,56 @@ def convert_conv2d_transpose(attrs, inputs, tinfos, desired_layouts):
         new_attrs["kernel_layout"] = "HWIO"
         return relay.nn.conv2d_transpose(data, weight, **new_attrs)
 
-    raise ValueError("Layout %s is not yet supported." % desired_data_layout)
+    raise ValueError(f"Layout {desired_data_layout} is not yet supported.")
 
 
 # conv3d_transpose
 reg.register_strategy("nn.conv3d_transpose", strategy.conv3d_transpose_strategy)
+
+
+@reg.register_convert_op_layout("nn.conv3d_transpose")
+def convert_conv3d_transpose(attrs, inputs, tinfos, desired_layouts):
+    """Convert Layout pass registration for conv3d_transpose op.
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    tinfos : list of types
+        List of input and output types
+    desired_layouts : list of layout strings
+        List of layouts defining our desired
+        layout for the data and kernel inputs respectively.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The transformed expr
+    """
+    data, weight = inputs
+    new_attrs = dict(attrs)
+    assert (
+        len(desired_layouts) == 2
+    ), "A desired layout is expected for both of nn.conv3d_transpose's inputs"
+    desired_data_layout, desired_kernel_layout = map(str, desired_layouts)
+    assert desired_data_layout != "default", "Data layout cannot be default"
+    new_attrs["data_layout"] = desired_data_layout
+
+    if desired_kernel_layout != "default":
+        new_attrs["kernel_layout"] = desired_kernel_layout
+        return relay.nn.conv3d_transpose(data, weight, **new_attrs)
+
+    # Handle default kernel layouts
+    if desired_data_layout == "NCDHW":
+        new_attrs["kernel_layout"] = "IODHW"
+        return relay.nn.conv3d_transpose(data, weight, **new_attrs)
+    elif desired_data_layout == "NDHWC":
+        new_attrs["kernel_layout"] = "DHWOI"
+        return relay.nn.conv3d_transpose(data, weight, **new_attrs)
+
+    raise ValueError(f"Layout {desired_data_layout} is not yet supported")
 
 
 @reg.register_legalize("nn.conv3d_transpose")
@@ -453,13 +498,13 @@ def convert_conv3d(attrs, inputs, tinfos, desired_layouts):
         new_attrs["kernel_layout"] = "DHWIO"
         return relay.nn.conv3d(data, weight, **new_attrs)
 
-    raise ValueError("Layout %s is not yet supported" % desired_data_layout)
+    raise ValueError(f"Layout {desired_data_layout} is not yet supported")
 
 
 # conv3d_winograd related operators
 reg.register_strategy(
     "nn.contrib_conv3d_winograd_without_weight_transform",
-    strategy.conv3d_winograd_without_weight_transfrom_strategy,
+    strategy.conv3d_winograd_without_weight_transform_strategy,
 )
 
 
@@ -701,7 +746,7 @@ reg.register_injective_schedule("nn.upsampling3d")
 
 
 # pad
-reg.register_broadcast_schedule("nn.pad")
+reg.register_schedule("nn.pad", strategy.schedule_pad)
 
 
 # mirror_pad
@@ -733,7 +778,7 @@ def mirror_pad_func(attrs, inputs, _):
 # conv2d_winograd related operators
 reg.register_strategy(
     "nn.contrib_conv2d_winograd_without_weight_transform",
-    strategy.conv2d_winograd_without_weight_transfrom_strategy,
+    strategy.conv2d_winograd_without_weight_transform_strategy,
 )
 
 
@@ -872,7 +917,7 @@ def convert_deformable_conv2d(attrs, inputs, tinfos, desired_layouts):
     elif desired_data_layout == "NHWC":
         new_attrs["kernel_layout"] = "HWIO"
     else:
-        raise ValueError("Layout %s is not yet supported." % desired_data_layout)
+        raise ValueError(f"Layout {desired_data_layout} is not yet supported.")
 
     return relay.nn.deformable_conv2d(data, offset, weight, **new_attrs)
 
@@ -1412,10 +1457,7 @@ def dense_shape_func(attrs, inputs, _):
     """
     ret = [
         _matmul_shape_func(
-            inputs[0],
-            inputs[1],
-            expr.IntImm("bool", False),
-            expr.IntImm("bool", True),
+            inputs[0], inputs[1], expr.IntImm("bool", False), expr.IntImm("bool", True)
         )
     ]
     return ret

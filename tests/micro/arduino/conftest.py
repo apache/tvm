@@ -22,20 +22,7 @@ pytest_plugins = [
 import pytest
 
 
-def pytest_addoption(parser):
-    parser.addoption(
-        "--arduino-cli-cmd",
-        default="arduino-cli",
-        help="Path to `arduino-cli` command for flashing device.",
-    )
-
-
 def pytest_configure(config):
     config.addinivalue_line(
         "markers", "requires_hardware: mark test to run only when an Arduino board is connected"
     )
-
-
-@pytest.fixture(scope="session")
-def arduino_cli_cmd(request):
-    return request.config.getoption("--arduino-cli-cmd")

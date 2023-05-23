@@ -33,13 +33,13 @@ Before you build the Android application, please refer to [TVM4J Installation Gu
 ```
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
-    androidTestImplementation('com.android.support.test.espresso:espresso-core:3.4.0', {
+    androidTestImplementation('androidx.test.espresso:espresso-core:3.1.0', {
         exclude group: 'com.android.support', module: 'support-annotations'
     })
-    implementation 'androidx.appcompat:appcompat:1.4.1'
-    implementation 'com.android.support.constraint:constraint-layout:2.1.3'
-    implementation 'com.android.support:design:28.0.0'
-    implementation 'org.apache.tvm:tvm4j-core:0.0.1-SNAPSHOT'
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+    implementation 'com.google.android.material:material:1.8.0'
+    implementation files('../../../jvm/core/target/tvm4j-core-0.0.1-SNAPSHOT.jar')
     testImplementation 'junit:junit:4.13.2'
 }
 ```
@@ -74,33 +74,11 @@ $ANDROID_HOME/platform-tools/adb uninstall org.apache.tvm.tvmrpc
 
 ### Build with OpenCL
 
-This application does not link any OpenCL library unless you configure it to. In `app/src/main/jni/make` you will find JNI Makefile config `config.mk`. Copy it to `app/src/main/jni` and modify it.
-
-```bash
-cd apps/android_rpc/app/src/main/jni
-cp make/config.mk .
-```
-
-Here's a piece of example for `config.mk`.
-
-```makefile
-APP_ABI = arm64-v8a
-
-APP_PLATFORM = android-17
-
-# whether enable OpenCL during compile
-USE_OPENCL = 1
-
-# the additional include headers you want to add, e.g., SDK_PATH/adrenosdk/Development/Inc
-ADD_C_INCLUDES = /opt/adrenosdk-osx/Development/Inc
-
-# the additional link libs you want to add, e.g., ANDROID_LIB_PATH/libOpenCL.so
-ADD_LDLIBS = libOpenCL.so
-```
-
-Note that you should specify the correct GPU development headers for your android device. Run `adb shell dumpsys | grep GLES` to find out what GPU your android device uses. It is very likely the library (libOpenCL.so) is already present on the mobile device. For instance, I found it under `/system/vendor/lib64`. You can do `adb pull /system/vendor/lib64/libOpenCL.so ./` to get the file to your desktop.
-
-After you setup the `config.mk`, follow the instructions in [Build APK](#buildapk) to build the Android package.
+Application is building with OpenCL support by default.
+[OpenCL-wrapper](../../src/runtime/opencl/opencl_wrapper) is used and will dynamically load OpenCL library on the device.
+If the device doesn't have OpenCL library on it, then you'll see in the runtime that OpenCL library cannot be opened.
+If you want to build this application without OpenCL then set `USE_OPENCL = 0`
+in [config.mk](./app/src/main/jni/make/config.mk)
 
 ## Cross Compile and Run on Android Devices
 
@@ -179,3 +157,14 @@ Run GPU(Vulkan Flavor) test ...
 ```
 
 You can define your own TVM operators and test via this RPC app on your Android device to find the most optimized TVM schedule.
+
+### Troubleshooting
+
+If you build the application in Android Studio and see error similar to this one:
+```
+A problem occurred evaluating project ':app'.
+> Failed to apply plugin 'com.android.internal.version-check'.
+   > Minimum supported Gradle version is 7.5. Current version is 7.4. If using the gradle wrapper, try editing the distributionUrl in /Users/echuraev/Workspace/OctoML/tvm_android_test/apps/android_deploy/gradle/wrapper/gradle-wrapper.properties to gradle-7.5-all.zip
+```
+Run project syncing `File -> Sync Project with Gradle Files`. It should sync the
+project and create gradle-wrapper files.

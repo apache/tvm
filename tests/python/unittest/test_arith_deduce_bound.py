@@ -64,14 +64,14 @@ def test_deduce():
 
     e2 = tvm.te.max(5, a * 4) < 0
     res2 = tvm.arith.deduce_bound(a, e2, {b: b_s, c: c_s, d: d_s}, {})
-    assert str(res2.max_value) == "neg_inf: handle"
-    assert str(res2.min_value) == "pos_inf: handle"
+    assert str(res2.max_value) == "neg_inf"
+    assert str(res2.min_value) == "pos_inf"
 
     # expression containing variable a is on rhs
     e2 = zero < tvm.te.max(5, a * 4)
     res2 = tvm.arith.deduce_bound(a, e2, {b: b_s, c: c_s, d: d_s}, {})
-    assert str(res2.max_value) == "neg_inf: handle"
-    assert str(res2.min_value) == "pos_inf: handle"
+    assert str(res2.max_value) == "neg_inf"
+    assert str(res2.min_value) == "pos_inf"
 
     e3 = (-b) + a * c - d
     res3 = tvm.arith.deduce_bound(a, e3 >= 0, {b: b_s, c: c_s, d: d_s}, {b: b_s, d: d_s})
@@ -88,8 +88,8 @@ def test_deduce():
 
     # Unsatisfiable `EQ`, variable as one of the Operand
     res5 = tvm.arith.deduce_bound(a, (a == b), {b: b_s}, {b: b_s})
-    assert str(res5.max_value) == "neg_inf: handle"
-    assert str(res5.min_value) == "pos_inf: handle"
+    assert str(res5.max_value) == "neg_inf"
+    assert str(res5.min_value) == "pos_inf"
 
     # variable `a` on the RHS side
     res6 = tvm.arith.deduce_bound(a, 10 == a, {}, {})
@@ -111,15 +111,13 @@ def test_deduce():
     # Unsatisfiable Mul in `EQ`
     e5 = 4 * a == b
     res9 = tvm.arith.deduce_bound(a, e5, {b: b_s}, {})
-    assert str(res9.max_value) == "neg_inf: handle"
-    assert str(res9.min_value) == "pos_inf: handle"
+    assert str(res9.max_value) == "neg_inf"
+    assert str(res9.min_value) == "pos_inf"
 
-    # Unsatisfiable Mul in `EQ`
-    res10 = tvm.arith.deduce_bound(
-        a, (b * a == b), {b: b_s}, {}
-    )  # simplifier is not able to prove that (b % b == 0)
-    assert str(res10.max_value) == "neg_inf: handle"
-    assert str(res10.min_value) == "pos_inf: handle"
+    res10 = tvm.arith.deduce_bound(a, (b * a == b), {b: b_s}, {})
+    # simplifier is now able to prove symbolic relation (b * a % b == 0)
+    tvm.testing.assert_prim_expr_equal(res10.max_value, 1)
+    tvm.testing.assert_prim_expr_equal(res10.min_value, 1)
 
 
 def test_check():
@@ -219,7 +217,6 @@ def test_deduce_non_support():
         res = tvm.arith.deduce_bound(a, lhs < 10, {}, {})
         assert res.is_nothing()
 
-    test_non_support(tvm.tir.floordiv(a, 16))
     test_non_support(tvm.tir.floormod(a, 16))
     test_non_support(tvm.tir.Min(a, 16))
     test_non_support(tvm.tir.Max(a, 16))
@@ -233,5 +230,42 @@ def test_deduce_non_support():
     test_non_support(tvm.tir.BufferLoad(decl_buffer([16], "int32"), [a]))
 
 
+def test_deduce_floordiv():
+    def do_test(gen_expr, dom_map, expect_min, expect_max):
+        a = te.var("a")
+        expr = gen_expr(a)
+        res = tvm.arith.deduce_bound(a, expr, dom_map, dom_map)
+        if isinstance(expect_min, str):
+            assert str(res.min_value) == expect_min
+        else:
+            tvm.testing.assert_prim_expr_equal(res.min_value, expect_min)
+        if isinstance(expect_max, str):
+            assert str(res.max_value) == expect_max
+        else:
+            tvm.testing.assert_prim_expr_equal(res.max_value, expect_max)
+
+    # test basic cases
+    do_test(lambda a: a // 8 > 3, {}, 32, "pos_inf")
+    do_test(lambda a: a // 8 >= 3, {}, 24, "pos_inf")
+    do_test(lambda a: a // 8 < 3, {}, "neg_inf", 23)
+    do_test(lambda a: a // 8 <= 3, {}, "neg_inf", 31)
+    do_test(lambda a: a // 8 == 3, {}, "pos_inf", "neg_inf")
+    do_test(lambda a: a // 8 > -3, {}, -16, "pos_inf")
+    do_test(lambda a: a // 8 >= -3, {}, -24, "pos_inf")
+    do_test(lambda a: a // -8 > 3, {}, "neg_inf", -32)
+    do_test(lambda a: a // -8 >= 3, {}, "neg_inf", -24)
+    do_test(lambda a: a // -8 < 3, {}, -23, "pos_inf")
+    do_test(lambda a: a // -8 <= 3, {}, -31, "pos_inf")
+    do_test(lambda a: 8 // a >= 2, {}, "pos_inf", "neg_inf")
+
+    # test nested cases
+    b = te.var("b")
+    bs = {b: tvm.arith.IntervalSet(2, 6)}
+    do_test(lambda a: b * 3 + a // 8 < 63, bs, "neg_inf", 359)
+    do_test(lambda a: b * 3 + a // 8 <= 63, bs, "neg_inf", 367)
+    do_test(lambda a: b * 3 + a // 8 > 63, bs, 464, "pos_inf")
+    do_test(lambda a: b * 3 + a // 8 >= 63, bs, 456, "pos_inf")
+
+
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

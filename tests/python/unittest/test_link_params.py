@@ -176,7 +176,7 @@ def _make_mod_and_params(dtype):
         "}",
     ]
 
-    mod = tvm.parser.fromtext("\n".join(mod_lines))
+    mod = tvm.relay.fromtext("\n".join(mod_lines))
     return mod, param_init
 
 
@@ -345,7 +345,7 @@ def test_crt_link_params(linkable_dtype):
         assert len(factory.get_params().keys()) == 0  # NOTE: params became tir.constants
 
         temp_dir = tvm.contrib.utils.tempdir()
-        template_project_dir = os.path.join(tvm.micro.get_standalone_crt_dir(), "template", "host")
+        template_project_dir = tvm.micro.get_microtvm_template_projects("crt")
         project = tvm.micro.generate_project(
             template_project_dir, factory, temp_dir / "project", {"verbose": 1}
         )
@@ -412,17 +412,12 @@ def test_tir_link_params():
             return True
         return False
 
-    link_params = True
-
     with StringIO() as stderr_buf, redirect_stderr(stderr_buf):
         with ms.database.ScheduleFnDatabase(schedule_fn), tvm.transform.PassContext(
             opt_level=3,
-            config={
-                "relay.backend.use_meta_schedule": True,
-                "relay.FuseOps.link_params": link_params,
-            },
+            config={"relay.backend.use_meta_schedule": True},
         ):
-            executor = Executor("graph", {"link-params": link_params})
+            executor = Executor("graph", {"link-params": True})
             lib = relay.build(relay_mod, target=target, executor=executor)
 
         # Workload look up should succeed. This does not work when the test is invoked from pytest.

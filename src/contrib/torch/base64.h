@@ -36,7 +36,7 @@
 namespace tvm {
 namespace support {
 
-size_t b64strlen(const std::string b64str) {
+inline size_t b64strlen(const std::string b64str) {
   ICHECK(b64str.size() % 4 == 0) << "invalid base64 encoding";
   size_t length = b64str.size() / 4 * 3;
   if (b64str[b64str.size() - 2] == '=') {
@@ -47,7 +47,7 @@ size_t b64strlen(const std::string b64str) {
   return length;
 }
 
-void b64decode(const std::string b64str, u_char* ret) {
+inline void b64decode(const std::string b64str, u_char* ret) {
   size_t index = 0;
   const auto length = b64str.size();
   for (size_t i = 0; i < length; i += 4) {

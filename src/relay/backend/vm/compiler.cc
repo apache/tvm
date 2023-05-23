@@ -25,13 +25,13 @@
 #include "compiler.h"
 
 #include <tvm/driver/driver_api.h>
-#include <tvm/ir/error.h>
-#include <tvm/parser/parser.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/attrs/device_copy.h>
 #include <tvm/relay/attrs/memory.h>
+#include <tvm/relay/error.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/interpreter.h>
+#include <tvm/relay/parser.h>
 #include <tvm/relay/qnn/transform.h>
 #include <tvm/relay/runtime.h>
 #include <tvm/relay/transform.h>
@@ -693,13 +693,13 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
       auto constructor = GetRef<Constructor>(constructor_node);
       Emit(Instruction::AllocADT(constructor->tag, call_node->args.size(), args_registers,
                                  NewRegister()));
-    } else if (const auto* var_node = call_node->op.as<VarNode>()) {
+    } else if (auto var = call_node->op.as<Var>()) {
       // If we are calling a variable, it must be the case that it is a closure so we
       // emit invoke closure here.
-      VisitExpr(GetRef<Var>(var_node));
+      VisitExpr(var.value());
       Emit(Instruction::InvokeClosure(last_register_, args_registers, NewRegister()));
-    } else if (auto inner_call_node = call_node->op.as<CallNode>()) {
-      VisitExpr(GetRef<Call>(inner_call_node));
+    } else if (auto inner_call = call_node->op.as<Call>()) {
+      VisitExpr(inner_call.value());
       Emit(Instruction::InvokeClosure(last_register_, args_registers, NewRegister()));
     } else {
       // Finally if there are any other cases this is a bug.
@@ -865,7 +865,6 @@ PackedFunc VMCompiler::GetFunction(const std::string& name, const ObjectPtr<Obje
     });
   } else {
     LOG(FATAL) << "Unknown packed function: " << name;
-    return PackedFunc([sptr_to_self, name](TVMArgs args, TVMRetValue* rv) {});
   }
 }
 
@@ -922,12 +921,13 @@ void VMCompiler::LowerImpl(IRModule mod) {
 
   for (const auto& pair : context_.module->functions) {
     auto gvar = pair.first;
-    if (auto* n = pair.second.as<FunctionNode>()) {
-      if (n->HasNonzeroAttr(attr::kExtern)) {
+    if (auto opt = pair.second.as<Function>()) {
+      auto func = opt.value();
+      if (func->HasNonzeroAttr(attr::kExtern)) {
         // Already compiled during lowering.
         continue;
       }
-      auto func = GetRef<Function>(n);
+
       VMFunctionCompiler func_compiler(&context_, config_->host_virtual_device);
       auto vm_func = func_compiler.Compile(gvar, func);
 
@@ -1067,7 +1067,7 @@ IRModule VMCompiler::OptimizeModuleImpl(IRModule mod) {
   if (backend::IsAutoSchedulerEnabled() && config_->optional_homogeneous_target.defined()) {
     Pass major_pass = transform::AutoSchedulerLayoutRewrite();
     bool enable_layout_rewrite_targets =
-        config_->optional_homogeneous_target->kind->device_type == kDLCPU ||
+        config_->optional_homogeneous_target->GetTargetDeviceType() == kDLCPU ||
         config_->optional_homogeneous_target->GetAttr<String>("device", "") == "mali";
     if (enable_layout_rewrite_targets && pass_ctx.PassEnabled(major_pass->Info())) {
       With<Target> tctx(config_->optional_homogeneous_target);
@@ -1081,7 +1081,7 @@ IRModule VMCompiler::OptimizeModuleImpl(IRModule mod) {
   if (backend::IsMetaScheduleEnabled() && config_->optional_homogeneous_target.defined()) {
     Pass major_pass = transform::MetaScheduleLayoutRewrite();
     bool enable_layout_rewrite_targets =
-        config_->optional_homogeneous_target->kind->device_type == kDLCPU ||
+        config_->optional_homogeneous_target->GetTargetDeviceType() == kDLCPU ||
         config_->optional_homogeneous_target->GetAttr<String>("device", "") == "mali";
     if (enable_layout_rewrite_targets && pass_ctx.PassEnabled(major_pass->Info())) {
       With<Target> tctx(config_->optional_homogeneous_target);
@@ -1164,7 +1164,7 @@ void VMCompiler::Codegen() {
   // Only the PrimFuncs will appear in per_target_modules, and there may legitimately be none.
   Map<Target, IRModule> per_tvm_target_modules = tec::GetPerTargetModules(context_.module);
   for (const auto& kv : per_tvm_target_modules) {
-    ICHECK(kv.first->kind->device_type != kDLExtDev);
+    ICHECK(kv.first->GetTargetDeviceType() != kDLExtDev);
   }
 
   // Retrieve all external runtime modules accumulated by external codegen (both function-at-a-time

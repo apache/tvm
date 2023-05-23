@@ -48,8 +48,8 @@ def find_lld(required=True):
     lld_list = []
     major = tvm.target.codegen.llvm_version_major(allow_none=True)
     if major is not None:
-        lld_list += ["ld.lld-%d.0" % major]
-        lld_list += ["ld.lld-%d" % major]
+        lld_list += [f"ld.lld-{major}.0"]
+        lld_list += [f"ld.lld-{major}"]
     lld_list += ["ld.lld"]
     valid_list = [utils.which(x) for x in lld_list]
     valid_list = [x for x in valid_list if x]
@@ -141,9 +141,7 @@ def callback_rocm_bitcode_path(rocdl_dir=None):
     bitcode_names = [
         "oclc_daz_opt_on",
         "ocml",
-        "hc",
         "irif",  # this does not exist in rocm 3.9, drop eventually
-        "ockl",
         "oclc_correctly_rounded_sqrt_off",
         "oclc_correctly_rounded_sqrt_on",
         "oclc_daz_opt_off",
@@ -152,9 +150,11 @@ def callback_rocm_bitcode_path(rocdl_dir=None):
         "oclc_isa_version_803",  # todo (t-vi): an alternative might be to scan for the
         "oclc_isa_version_900",  #              isa version files (if the linker throws out
         "oclc_isa_version_906",  #              the unneeded ones or we filter for the arch we need)
+        "oclc_isa_version_1030",
         "oclc_unsafe_math_off",
         "oclc_unsafe_math_on",
         "oclc_wavefrontsize64_on",
+        "oclc_abi_version_500",
     ]
 
     bitcode_files = []

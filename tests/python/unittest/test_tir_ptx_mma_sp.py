@@ -52,10 +52,10 @@ def mma_sp_m16n8k16_f16f16f16(a: T.handle, b: T.handle, c: T.handle, _metadata: 
     T.launch_thread(brow, 1)
     T.launch_thread(bcol, 1)
     T.launch_thread(tx, 32)
-    multi_a = T.allocate([4], "float16", scope="local")
-    multi_b = T.allocate([4], "float16", scope="local")
-    accum = T.allocate([4], "float16", scope="local")
-    meta_local = T.allocate([1], "uint32", scope="local")
+    multi_a = T.decl_buffer([4], "float16", scope="local")
+    multi_b = T.decl_buffer([4], "float16", scope="local")
+    accum = T.decl_buffer([4], "float16", scope="local")
+    meta_local = T.decl_buffer([1], "uint32", scope="local")
     for i in range(4):
         accum[i] = T.float16(0)
 
@@ -106,10 +106,10 @@ def mma_sp_m16n8k16_f16f16f32(a: T.handle, b: T.handle, c: T.handle, _metadata: 
     T.launch_thread(brow, 1)
     T.launch_thread(bcol, 1)
     T.launch_thread(tx, 32)
-    multi_a = T.allocate([4], "float16", scope="local")
-    multi_b = T.allocate([4], "float16", scope="local")
-    accum = T.allocate([4], "float32", scope="local")
-    meta_local = T.allocate([1], "uint32", scope="local")
+    multi_a = T.decl_buffer([4], "float16", scope="local")
+    multi_b = T.decl_buffer([4], "float16", scope="local")
+    accum = T.decl_buffer([4], "float32", scope="local")
+    meta_local = T.decl_buffer([1], "uint32", scope="local")
     for i in range(4):
         accum[i] = T.float16(0)
 
@@ -160,10 +160,10 @@ def mma_sp_m16n8k32_f16f16f16(a: T.handle, b: T.handle, c: T.handle, _metadata: 
     T.launch_thread(brow, 1)
     T.launch_thread(bcol, 1)
     T.launch_thread(tx, 32)
-    multi_a = T.allocate([8], "float16", scope="local")
-    multi_b = T.allocate([8], "float16", scope="local")
-    accum = T.allocate([4], "float16", scope="local")
-    meta_local = T.allocate([1], "uint32", scope="local")
+    multi_a = T.decl_buffer([8], "float16", scope="local")
+    multi_b = T.decl_buffer([8], "float16", scope="local")
+    accum = T.decl_buffer([4], "float16", scope="local")
+    meta_local = T.decl_buffer([1], "uint32", scope="local")
     for i in range(4):
         accum[i] = T.float16(0)
 
@@ -214,10 +214,10 @@ def mma_sp_m16n8k32_f16f16f32(a: T.handle, b: T.handle, c: T.handle, _metadata: 
     T.launch_thread(brow, 1)
     T.launch_thread(bcol, 1)
     T.launch_thread(tx, 32)
-    multi_a = T.allocate([8], "float16", scope="local")
-    multi_b = T.allocate([8], "float16", scope="local")
-    accum = T.allocate([4], "float32", scope="local")
-    meta_local = T.allocate([1], "uint32", scope="local")
+    multi_a = T.decl_buffer([8], "float16", scope="local")
+    multi_b = T.decl_buffer([8], "float16", scope="local")
+    accum = T.decl_buffer([4], "float32", scope="local")
+    meta_local = T.decl_buffer([1], "uint32", scope="local")
     for i in range(4):
         accum[i] = T.float16(0)
 
@@ -255,7 +255,7 @@ def mma_sp_m16n8k32_f16f16f32(a: T.handle, b: T.handle, c: T.handle, _metadata: 
         C[i // 2 * 8 + tx // 4, tx % 4 * 2 + i % 2] = accum[i]
 
 
-@tvm.testing.requires_cuda
+@tvm.testing.requires_cuda_compute_version(8)
 def test_mma_sp_m16n8k16_f16():
     def get_meta_m16n8k16_half(mask):
         assert mask.shape == (16, 4, 2)
@@ -273,11 +273,6 @@ def test_mma_sp_m16n8k16_f16():
     for out_dtype in ["float16", "float32"]:
         func = mma_sp_m16n8k16_f16f16f16 if out_dtype == "float16" else mma_sp_m16n8k16_f16f16f32
         sch = tvm.tir.Schedule(func)
-        arch = tvm.contrib.nvcc.get_target_compute_version()
-        major, _ = tvm.contrib.nvcc.parse_compute_version(arch)
-        if major < 8:
-            # Requires SM80+
-            return
         cuda_mod = tvm.build(sch.mod, target="cuda")
 
         A_np = np.random.uniform(-1, 1, [16, 8]).astype("float16")
@@ -297,7 +292,7 @@ def test_mma_sp_m16n8k16_f16():
         tvm.testing.assert_allclose(C_tvm.numpy(), C_np, atol=1e-3, rtol=1e-3)
 
 
-@tvm.testing.requires_cuda
+@tvm.testing.requires_cuda_compute_version(8)
 def test_mma_sp_m16n8k32_f16():
     def get_meta_m16n8k32_half(mask):
         assert mask.shape == (16, 8, 2)
@@ -317,11 +312,6 @@ def test_mma_sp_m16n8k32_f16():
     for out_dtype in ["float16", "float32"]:
         func = mma_sp_m16n8k32_f16f16f16 if out_dtype == "float16" else mma_sp_m16n8k32_f16f16f32
         sch = tvm.tir.Schedule(func)
-        arch = tvm.contrib.nvcc.get_target_compute_version()
-        major, _ = tvm.contrib.nvcc.parse_compute_version(arch)
-        if major < 8:
-            # Requires SM80+
-            return
         cuda_mod = tvm.build(sch.mod, target="cuda")
 
         A_np = np.random.uniform(-1, 1, [16, 16]).astype("float16")

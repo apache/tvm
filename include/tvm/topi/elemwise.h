@@ -26,6 +26,7 @@
 
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
+#include <tvm/tir/op.h>
 #include <tvm/topi/tags.h>
 
 #include <algorithm>
@@ -81,7 +82,7 @@ TOPI_DECLARE_UNARY_OP(isinf);
 inline Tensor fast_tanh_float(const Tensor& in, std::string name, std::string tag) {
   // Clamp the inputs to the range [-9, 9] since anything outside
   // this range is +/-1.0f in single-precision.
-  auto x = maximum(minimum(in, make_const(in->dtype, 9.0)), make_const(in->dtype, -9.0));
+  auto x = maximum(make_const(in->dtype, -9.0), minimum(make_const(in->dtype, 9.0), in));
 
   // The monomial coefficients of the numerator polynomial (odd).
   auto alpha_1 = make_const(in->dtype, 4.89352455891786e-03);
@@ -309,11 +310,7 @@ inline Tensor cast(const Tensor& x, DataType type, std::string name = "T_cast",
 inline Tensor reinterpret(const Tensor& x, DataType type, std::string name = "tensor",
                           std::string tag = kElementWise) {
   return compute(
-      x->shape,
-      [&](const Array<Var>& i) {
-        return tvm::tir::Call(type, tvm::tir::builtin::reinterpret(), {x(i)});
-      },
-      name, tag);
+      x->shape, [&](const Array<Var>& i) { return reinterpret(type, x(i)); }, name, tag);
 }
 
 /*!
@@ -453,54 +450,6 @@ inline Tensor fast_exp(const Tensor& x, std::string name = "T_fast_exp",
     return compute(
         x->shape, [&](const Array<Var>& i) { return ::tvm::exp(x(i)); }, name, tag);
   }
-}
-
-/*!
- * \brief Fast_erf_float expression from Eigen
- * https://github.com/eigenteam/eigen-git-mirror/blob/master/unsupported/Eigen/src/SpecialFunctions/SpecialFunctionsImpl.h#L290
- * \param arg The input expression.
- * \param bits The number of bits in the type.
- */
-inline PrimExpr fast_erf_float_expr(PrimExpr arg, int bits) {
-  auto plus_4 = make_const(DataType::Float(bits), 4.f);
-  auto minus_4 = make_const(DataType::Float(bits), -4.f);
-
-  // The monomial coefficients of the numerator polynomial (odd).
-  auto alpha_1 = make_const(DataType::Float(bits), -1.60960333262415e-02f);
-  auto alpha_3 = make_const(DataType::Float(bits), -2.95459980854025e-03f);
-  auto alpha_5 = make_const(DataType::Float(bits), -7.34990630326855e-04f);
-  auto alpha_7 = make_const(DataType::Float(bits), -5.69250639462346e-05f);
-  auto alpha_9 = make_const(DataType::Float(bits), -2.10102402082508e-06f);
-  auto alpha_11 = make_const(DataType::Float(bits), 2.77068142495902e-08f);
-  auto alpha_13 = make_const(DataType::Float(bits), -2.72614225801306e-10f);
-
-  // The monomial coefficients of the denominator polynomial (even).
-  auto beta_0 = make_const(DataType::Float(bits), -1.42647390514189e-02f);
-  auto beta_2 = make_const(DataType::Float(bits), -7.37332916720468e-03f);
-  auto beta_4 = make_const(DataType::Float(bits), -1.68282697438203e-03f);
-  auto beta_6 = make_const(DataType::Float(bits), -2.13374055278905e-04f);
-  auto beta_8 = make_const(DataType::Float(bits), -1.45660718464996e-05f);
-
-  // clamp x
-  auto x = tvm::max(tvm::min(arg, plus_4), minus_4);
-  auto x2 = x * x;
-
-  // Evaluate the numerator polynomial p.
-  auto p = x2 * alpha_13 + alpha_11;
-  p = x2 * p + alpha_9;
-  p = x2 * p + alpha_7;
-  p = x2 * p + alpha_5;
-  p = x2 * p + alpha_3;
-  p = x2 * p + alpha_1;
-  p = x * p;
-
-  // Evaluate the denominator polynomial p.
-  auto q = x2 * beta_8 + beta_6;
-  q = x2 * q + beta_4;
-  q = x2 * q + beta_2;
-  q = x2 * q + beta_0;
-
-  return p / q;
 }
 
 /*!

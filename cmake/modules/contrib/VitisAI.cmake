@@ -19,7 +19,7 @@ if(USE_VITIS_AI)
   set(PYXIR_SHARED_LIB libpyxir.so)
   find_package(PythonInterp 3.7 REQUIRED)
   if(NOT PYTHON)
-    find_program(PYTHON NAMES python3 python3.7)
+    find_program(PYTHON NAMES python3 python3.8)
   endif()
   execute_process(COMMAND "${PYTHON_EXECUTABLE}" "-c"
     "import pyxir as px; print(px.get_include_dir()); print(px.get_lib_dir());"

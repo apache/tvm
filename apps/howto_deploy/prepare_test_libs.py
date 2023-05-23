@@ -44,7 +44,7 @@ def prepare_graph_lib(base_path):
     params = {"y": np.ones((2, 2), dtype="float32")}
     mod = tvm.IRModule.from_expr(relay.Function([x, y], x + y))
     # build a module
-    compiled_lib = relay.build(mod, tvm.target.create("llvm"), params=params)
+    compiled_lib = relay.build(mod, tvm.target.Target("llvm"), params=params)
     # export it as a shared library
     # If you are running cross compilation, you can also consider export
     # to tar and invoke host compiler later.

@@ -156,6 +156,49 @@ def detect_iter_map(
     )
 
 
+def iter_map_simplify(
+    indices,
+    input_iters,
+    predicate=True,
+    check_level=IterMapLevel.Surjective,
+    simplify_trivial_iterators=True,
+):
+    """Simplify the indices using iter map detection.
+
+    Parameters
+    ----------
+    indices : List[PrimExpr]
+        The input indices
+
+    input_iters : Map[Var, Range]
+        The domain of each input iterators.
+
+    predicate : PrimExpr
+        The predicate constraints on the input iterators
+
+    check_level : Union[str, IterMapLevel]
+        Checking level of iteration mapping
+
+    simplify_trivial_iterators: bool
+        If true, iterators with extent of 1 will be replaced with a
+        constant value.
+
+    Returns
+    -------
+    results : IterMapResult
+        The iter map matching result.
+        The result's .indices is empty array if no match can be found.
+
+    """
+    if isinstance(check_level, str):
+        check_level = IterMapLevel.from_str(check_level)
+    elif check_level is None:
+        check_level = IterMapLevel.NoCheck
+    return _ffi_api.IterMapSimplify(
+        indices, input_iters, predicate, check_level, simplify_trivial_iterators
+    )
+
+
 def normalize_iter_map_to_expr(expr):
     """Given an IterMapExpr, transform it to normal PrimExpr
 
@@ -173,7 +216,12 @@ def normalize_iter_map_to_expr(expr):
 
 
 def subspace_divide(
-    bindings, input_iters, sub_iters, predicate=True, check_level=IterMapLevel.Surjective
+    bindings,
+    input_iters,
+    sub_iters,
+    predicate=True,
+    check_level=IterMapLevel.Surjective,
+    simplify_trivial_iterators=True,
 ):
     """Detect if bindings can be written as
     [a_0*e_0 + b_0 + c_0, a_1*e_1 + b_1, ..., a_n*e_n + b_n]
@@ -206,6 +254,10 @@ def subspace_divide(
     check_level : Union[str, IterMapLevel]
         Checking level of iteration mapping
 
+    simplify_trivial_iterators: bool
+        If true, iterators with extent of 1 will be replaced with a
+        constant value.
+
     Returns
     -------
     results : List[List[PrimExpr]]
@@ -218,7 +270,9 @@ def subspace_divide(
     """
     if isinstance(check_level, str):
         check_level = IterMapLevel.from_str(check_level)
-    return _ffi_api.SubspaceDivide(bindings, input_iters, sub_iters, predicate, check_level)
+    return _ffi_api.SubspaceDivide(
+        bindings, input_iters, sub_iters, predicate, check_level, simplify_trivial_iterators
+    )
 
 
 def inverse_affine_iter_map(iter_map, outputs):

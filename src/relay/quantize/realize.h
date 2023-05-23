@@ -69,8 +69,6 @@ class QRealizeIntExpr : public QRealizeExpr {
   TVM_DEFINE_OBJECT_REF_METHODS(QRealizeIntExpr, QRealizeExpr, QRealizeIntExprNode);
 };
 
-Expr FoldConstantOpt(const Expr& expr);
-
 }  // namespace quantize
 }  // namespace relay
 }  // namespace tvm

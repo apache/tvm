@@ -1,0 +1,39 @@
+# This file lists packages we intentionally hold back in CI for no reason other than that
+# updates outside of these bounds require a considerable amount of work, and allowing them to float
+# freely would mean that small changes to the TVM dependency set could be held up behind large
+# migration tasks if a new version of these packages were to be released. Holding packages back
+# here allows us to decide when to tackle such migration work.
+#keras = "^2.6.0"
+#mxnet = "^1.6.0"
+
+#black = "<21.8b0"  # Breaks tensorflow-gpu. Revisit when tensorflow is upgraded.
+blocklint = "==0.2.3"
+#commonmark = ">=0.7.3"
+cpplint = "==1.6.0"
+#docutils = ">=0.11,<0.17"
+#ethos-u-vela = "==3.2.0"
+flake8 = "==3.9.2"
+flowvision = "==0.1.0"
+#h5py = "==3.1.0"
+keras = "==2.7"
+jinja2 = "==3.0.3"
+mxnet = "==1.6.0"
+mypy = "==0.902"
+oneflow = "==0.7.0"
+onnx = "==1.10.2"
+onnxruntime = "==1.9.0"
+numpy = "==1.19.3"
+paddlepaddle = "==2.4.1"
+pillow = "==9.1.0"
+pylint = "==2.4.4"
+scipy = "==1.7.3"
+sphinx = "==4.2.0"
+sphinx-gallery = "==0.4.0"
+tensorflow = "==2.7.2"
+tensorflow-aarch64 = "==2.7.2"
+tensorflow-estimator = "==2.7.0"
+tensorflow-gpu = "==2.7.2"
+tflite = "==2.4.0"
+torch = "==1.11.0"
+torchvision = "==0.12.0+cpu"
+#xgboost = "==1.4.2"

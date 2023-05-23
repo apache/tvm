@@ -27,12 +27,14 @@
 #include "launcher_core.h"
 #include "launcher_util.h"
 
-ExecutionSession* create_execution_session();
+ExecutionSession* create_execution_session(bool gen_lwp_json);
 
-int parse_command_line(int argc, char* argv[], std::string* in_path, std::string* out_path) {
+int parse_command_line(int argc, char* argv[], std::string* in_path, std::string* out_path,
+                       bool* gen_lwp_json) {
   static option long_options[] = {
       {"in_config", required_argument, nullptr, 0},
       {"out_config", required_argument, nullptr, 0},
+      {"gen_lwp_json", optional_argument, nullptr, 0},
   };
 
   bool show_usage = false;
@@ -49,6 +51,9 @@ int parse_command_line(int argc, char* argv[], std::string* in_path, std::string
       case 1:
         *out_path = std::string(optarg);
         break;
+      case 2:
+        *gen_lwp_json = true;
+        break;
     }
   }
   if (in_path->empty() || out_path->empty() || show_usage) {
@@ -61,7 +66,8 @@ int parse_command_line(int argc, char* argv[], std::string* in_path, std::string
 
 int main(int argc, char* argv[]) {
   std::string in_path, out_path;
-  if (parse_command_line(argc, argv, &in_path, &out_path) != 0) {
+  bool gen_lwp_json;
+  if (parse_command_line(argc, argv, &in_path, &out_path, &gen_lwp_json) != 0) {
     return 1;
   }
 
@@ -70,7 +76,7 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
-  ExecutionSession* session_ptr = create_execution_session();
+  ExecutionSession* session_ptr = create_execution_session(gen_lwp_json);
   if (session_ptr == nullptr) {
     return 1;
   }

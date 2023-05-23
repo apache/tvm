@@ -31,8 +31,8 @@ def primfunc_global_allocates(placeholder_144: T.handle, placeholder_145: T.hand
     placeholder_149 = T.match_buffer(placeholder_146, [512], dtype="int32", elem_offset=0, align=64, offset_factor=1)
     T_cast_49 = T.match_buffer(T_cast_48, [100352], dtype="int16", elem_offset=0, align=64, offset_factor=1)
     # body
-    PaddedInput_22 = T.allocate([131072], "int16", "global")
-    DepthwiseConv2d_9 = T.allocate([100352], "int32", "global")
+    PaddedInput_22 = T.decl_buffer([131072], "int16")
+    DepthwiseConv2d_9 = T.decl_buffer([100352], "int32")
     for i1_29, i2_39, i3_40 in T.grid(16, 16, 512):
         PaddedInput_22[(((i1_29*8192) + (i2_39*512)) + i3_40)] = T.if_then_else(((((1 <= i1_29) and (i1_29 < 15)) and (1 <= i2_39)) and (i2_39 < 15)), placeholder_147[((((i1_29*7168) + (i2_39*512)) + i3_40) - 7680)], T.int16(0), dtype="int16")
     for i_9, j_9, c_9 in T.grid(14, 14, 512):
@@ -63,25 +63,25 @@ def primfunc_local_allocates(placeholder_162: T.handle, placeholder_163: T.handl
     T_cast_77 = T.match_buffer(T_cast_76, [100352], dtype="int16", elem_offset=0, align=64, offset_factor=1)
     sid_21 = T.allocate_const([0,1,2,3,4,5,6,7], "int8", [8])
     # body
-    PaddedInput_25 = T.allocate([131072], "int16", "global")
+    PaddedInput_25 = T.decl_buffer([131072], "int16")
     for i1_35, i2_46, i3_47 in T.grid(16, 16, 512):
         PaddedInput_25[(((i1_35*8192) + (i2_46*512)) + i3_47)] = T.if_then_else(((((1 <= i1_35) and (i1_35 < 15)) and (1 <= i2_46)) and (i2_46 < 15)), placeholder_165[((((i1_35*7168) + (i2_46*512)) + i3_47) - 7680)], T.int16(0), dtype="int16")
-    T_add_11 = T.allocate([100352], "int32", "global")
-    with T.allocate([100352], "int32", "global") as DepthwiseConv2d_11:
+    T_add_11 = T.decl_buffer([100352], "int32")
+    with T.decl_buffer([100352], "int32") as DepthwiseConv2d_11:
         for i_11, j_11, c_11 in T.grid(14, 14, 512):
             DepthwiseConv2d_11[(((i_11*7168) + (j_11*512)) + c_11)] = 0
             for di_11, dj_11 in T.grid(3, 3):
                 DepthwiseConv2d_11[(((i_11*7168) + (j_11*512)) + c_11)] = (DepthwiseConv2d_11[(((i_11*7168) + (j_11*512)) + c_11)] + (PaddedInput_25[(((((i_11*8192) + (di_11*8192)) + (j_11*512)) + (dj_11*512)) + c_11)].astype("int32")*placeholder_166[(((di_11*1536) + (dj_11*512)) + c_11)].astype("int32")))
         for ax1_44, ax2_45, ax3_47 in T.grid(14, 14, 512):
             T_add_11[(((ax1_44*7168) + (ax2_45*512)) + ax3_47)] = (DepthwiseConv2d_11[(((ax1_44*7168) + (ax2_45*512)) + ax3_47)] + placeholder_167[ax3_47])
-    compute_22 = T.allocate([100352], "int32", "global")
-    with T.allocate([100352], "int32", "global") as T_cast_78:
+    compute_22 = T.decl_buffer([100352], "int32")
+    with T.decl_buffer([100352], "int32") as T_cast_78:
         for ax1_45, ax2_46, ax3_48 in T.grid(14, 14, 512):
             T_cast_78[(((ax1_45*7168) + (ax2_46*512)) + ax3_48)] = T_add_11[(((ax1_45*7168) + (ax2_46*512)) + ax3_48)]
         for i1_36, i2_47, i3_48 in T.grid(14, 14, 512):
             compute_22[(((i1_36*7168) + (i2_47*512)) + i3_48)] = T.q_multiply_shift(T_cast_78[(((i1_36*7168) + (i2_47*512)) + i3_48)], 1948805937, 31, -5, dtype="int32")
-    T_cast_79 = T.allocate([100352], "uint8", "global")
-    with T.allocate([100352], "int32", "global") as compute_23:
+    T_cast_79 = T.decl_buffer([100352], "uint8")
+    with T.decl_buffer([100352], "int32") as compute_23:
         for i1_37, i2_48, i3_49 in T.grid(14, 14, 512):
             compute_23[(((i1_37*7168) + (i2_48*512)) + i3_49)] = T.max(T.max(compute_22[(((i1_37*7168) + (i2_48*512)) + i3_49)], 255), 0)
         for ax1_46, ax2_47, ax3_49 in T.grid(14, 14, 512):

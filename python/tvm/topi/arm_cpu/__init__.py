@@ -29,3 +29,6 @@ from .injective import *
 from .group_conv2d import *
 from .pooling import *
 from .dense import *
+from .qnn import *
+from . import qnn_alter_op
+from . import qnn_legalize

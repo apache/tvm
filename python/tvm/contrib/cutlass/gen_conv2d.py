@@ -179,7 +179,7 @@ class CutlassConv2DProfiler:
     def __init__(self, sm, cutlass_path, binary_path):
         self.gemm_profiler = CutlassGemmProfiler(sm, cutlass_path, binary_path)
         self.sm = sm
-        assert sm in GENERATOR_FUNC_TABLE, "sm%d not supported yet." % sm
+        assert sm in GENERATOR_FUNC_TABLE, f"sm{sm} not supported yet."
         self.engine = ProfilerEngine(sm, cutlass_path, binary_path)
         self.cache = {}
 

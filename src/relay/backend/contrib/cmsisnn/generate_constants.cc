@@ -31,6 +31,7 @@
 #include "../../../op/make_op.h"
 #include "../../../qnn/utils.h"
 #include "../../../transforms/pattern_utils.h"
+#include "../constant_transforms.h"
 #include "convolutions.h"
 
 namespace tvm {
@@ -64,22 +65,9 @@ class GenerateConstantsMutator : public MixedModeMutator {
     attrs->out_dtype = std::move(conv2d_attrs->out_dtype);
     *new_attrs = tvm::Attrs{attrs};
 
-    std::string kernel_layout = conv2d_attrs->kernel_layout.c_str();
-    int pos_o = kernel_layout.find("O");
-    int pos_h = kernel_layout.find("H");
-    int pos_w = kernel_layout.find("W");
-    int pos_i = kernel_layout.find("I");
-
-    IRModule kernel_module;
-    auto func_body = MakeTranspose(
-        kernel_expr, {Integer(pos_o), Integer(pos_h), Integer(pos_w), Integer(pos_i)});
-    auto kernel_func =
-        Function(FreeVars(func_body), func_body, Type(), FreeTypeVars(func_body, kernel_module));
-    GlobalVar kernel_var("main");
-    kernel_module->Add(kernel_var, kernel_func);
-    kernel_module = relay::transform::FoldConstant()(kernel_module);
-    kernel_func = Downcast<Function>(kernel_module->Lookup("main"));
-    return kernel_func->body;
+    Constant conv2d_kernel = Downcast<Constant>(kernel_expr);
+    conv2d_kernel = TransposeWeights(conv2d_kernel, conv2d_attrs->kernel_layout, "OHWI");
+    return conv2d_kernel;
   }
 
   /*!  * \brief Performs weight transpose and substitutes existing constants in the composite
@@ -165,16 +153,17 @@ class GenerateConstantsMutator : public MixedModeMutator {
     // Conv2D arguments: data, weight, input_zp, weight_zp, input_sc, weight_sc
     Array<Expr> conv2d_args = {conv2d_call->args[0], conv2d_kernel,        conv2d_call->args[2],
                                multiplier_const,     conv2d_call->args[4], weight_scale};
-    Call ret_call = Call(conv2d_call->op, conv2d_args, new_conv2d_attrs, {});
+    Call ret_call = Call(conv2d_call->op, conv2d_args, new_conv2d_attrs, {}, conv2d_call->span);
     if (bias_add_call) {
-      ret_call =
-          Call(bias_add_call->op, {ret_call, bias_add_call->args[1]}, bias_add_call->attrs, {});
+      ret_call = Call(bias_add_call->op, {ret_call, bias_add_call->args[1]}, bias_add_call->attrs,
+                      {}, bias_add_call->span);
     }
     Array<Expr> requantize_args = {ret_call, req_inp_scale, shift_const, requantize_call->args[3],
                                    requantize_call->args[4]};
-    ret_call = Call(requantize_call->op, requantize_args, requantize_call->attrs, {});
+    ret_call = Call(requantize_call->op, requantize_args, requantize_call->attrs, {},
+                    requantize_call->span);
     if (clip_call) {
-      ret_call = Call(clip_call->op, {ret_call}, clip_call->attrs, {});
+      ret_call = Call(clip_call->op, {ret_call}, clip_call->attrs, {}, clip_call->span);
     }
     return std::move(ret_call);
   }
@@ -210,6 +199,7 @@ class GenerateConstantsMutator : public MixedModeMutator {
       }
     }
 
+    final_call->span = call->span;
     return final_call;
   }
 

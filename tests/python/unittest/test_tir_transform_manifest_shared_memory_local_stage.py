@@ -26,7 +26,7 @@ from tvm.script import tir as T
 @tvm.script.ir_module
 class MatmulBefore:
     @T.prim_func
-    def main(A: T.Buffer[(1024, 1024), "float32"], B: T.Buffer[(1024, 1024), "float32"], C: T.Buffer[(1024, 1024), "float32"]) -> None:
+    def main(A: T.Buffer((1024, 1024), "float32"), B: T.Buffer((1024, 1024), "float32"), C: T.Buffer((1024, 1024), "float32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "default_function", "tir.noalias": True})
         # body
@@ -67,7 +67,7 @@ class MatmulBefore:
 @tvm.script.ir_module
 class MatmulAfter:
     @T.prim_func
-    def main(A: T.Buffer[(1024, 1024), "float32"], B: T.Buffer[(1024, 1024), "float32"], C: T.Buffer[(1024, 1024), "float32"]) -> None:
+    def main(A: T.Buffer((1024, 1024), "float32"), B: T.Buffer((1024, 1024), "float32"), C: T.Buffer((1024, 1024), "float32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "default_function", "tir.noalias": True})
         # body

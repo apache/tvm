@@ -53,8 +53,8 @@ def while_loop(cond, loop_vars, loop_bodies):
     fresh_vars = []
 
     for i, loop_var in enumerate(loop_vars):
-        name = loop_var.name_hint if isinstance(loop_var, _expr.Var) else "arg{}".format(i)
-        new_var = _expr.var(name, type_annotation=sb.type_of(loop_var))
+        name = loop_var.name_hint if isinstance(loop_var, _expr.Var) else f"arg{i}"
+        new_var = _expr.var(name, type_annotation=sb.type_of(loop_var), span=loop_var.span)
         fresh_vars.append(new_var)
 
     with sb.if_scope(cond(*fresh_vars)):

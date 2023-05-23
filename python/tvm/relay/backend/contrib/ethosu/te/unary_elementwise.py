@@ -94,7 +94,8 @@ def unary_elementwise_compute(
     assert ofm_layout in {"NHWC", "NHCWB16"}
 
     # Changing the ifm and ofm scale to conform with that expected by Vela API
-    ofm_scale = ifm_scale / ofm_scale
+    if ofm_scale != 0:
+        ofm_scale = ifm_scale / ofm_scale
     ifm_scale = 1.0
 
     # Compute operation for the IFM DMA pipeline

@@ -21,7 +21,7 @@ set -u
 set -o pipefail
 
 # Verilator version
-version="4.104"
+version="5.002"
 
 # Install dependencies
 apt-get update && apt-install-and-clear -y autoconf g++ flex bison

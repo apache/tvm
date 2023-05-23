@@ -21,6 +21,7 @@ from tvm import te
 import tvm.testing
 
 from tvm.contrib import utils
+import os
 
 header_file_dir_path = utils.tempdir()
 
@@ -203,7 +204,10 @@ def test_mod_export():
         synthetic_cpu_lib.import_module(f)
         synthetic_cpu_lib.import_module(engine_module)
         kwargs = {"options": ["-O2", "-std=c++17", "-I" + header_file_dir_path.relpath("")]}
-        synthetic_cpu_lib.export_library(path_lib, fcompile=False, **kwargs)
+        work_dir = temp.relpath("work_dir")
+        os.mkdir(work_dir)
+        synthetic_cpu_lib.export_library(path_lib, fcompile=False, workspace_dir=work_dir, **kwargs)
+        assert os.path.exists(os.path.join(work_dir, "devc.o"))
         loaded_lib = tvm.runtime.load_module(path_lib)
         assert loaded_lib.type_key == "library"
         # dso modules are merged

@@ -54,7 +54,7 @@ class DFPatternRewrite {
       Map<DFPattern, Array<Expr>> node_map = args[2];
       *rv = this->Callback(pre, post, node_map);
     };
-    return DFPatternCallback(pattern_, PackedFunc(func), require_type_);
+    return DFPatternCallback(pattern_, PackedFunc(func), require_type_, rewrite_once_);
   }
 
  protected:
@@ -62,6 +62,8 @@ class DFPatternRewrite {
   DFPattern pattern_;
   /*! \brief Whether or not the rewrite requires types to be inferred. */
   bool require_type_ = true;
+  /*! \brief Whether or not run the callback only once */
+  bool rewrite_once_ = false;
 };
 
 /*! \brief Helper class for composing rewrites and getting callbacks. */

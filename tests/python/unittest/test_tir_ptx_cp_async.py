@@ -21,7 +21,7 @@ import tvm.testing
 
 
 @T.prim_func
-def ptx_cp_async(A: T.Buffer[(32, 128), "float16"], B: T.Buffer[(32, 128), "float16"]) -> None:
+def ptx_cp_async(A: T.Buffer((32, 128), "float16"), B: T.Buffer((32, 128), "float16")) -> None:
     T.func_attr({"global_symbol": "default_function", "tir.noalias": True})
     bx = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")
@@ -47,14 +47,9 @@ def ptx_cp_async(A: T.Buffer[(32, 128), "float16"], B: T.Buffer[(32, 128), "floa
             B[tx, i] = A_shared[tx, i]
 
 
-@tvm.testing.requires_cuda
+@tvm.testing.requires_cuda_compute_version(8)
 def test_ptx_cp_async():
     f = ptx_cp_async
-    arch = tvm.contrib.nvcc.get_target_compute_version()
-    major, _ = tvm.contrib.nvcc.parse_compute_version(arch)
-    if major < 8:
-        # Require at least SM80
-        return
 
     mod = tvm.build(f, target="cuda")
     A_np = np.random.rand(32, 128).astype("float16")

@@ -112,7 +112,7 @@ int TVMDeviceAllocDataSpaceWithScope(DLDevice dev, int ndim, const int64_t* shap
 
 int TVMDeviceFreeDataSpace(DLDevice dev, void* ptr) { return TVMPlatformMemoryFree(ptr, dev); }
 
-static bool IsContiguous(const DLTensor* arr) {
+TVM_ATTRIBUTE_UNUSED static bool IsContiguous(const DLTensor* arr) {
   if (arr->strides == NULL) return true;
   int64_t expected_stride = 1;
   for (int32_t i = arr->ndim; i != 0; --i) {
@@ -228,9 +228,9 @@ static int SystemLibraryCreate(TVMValue* args, int* type_codes, int num_args, TV
 
 static TVMFunctionHandle EncodeFunctionHandle(tvm_module_index_t module_index,
                                               tvm_function_index_t function_index) {
-  return (TVMFunctionHandle)(
-      (((uintptr_t)(module_index | 0x8000) << (sizeof(tvm_function_index_t) * 8)) |
-       (function_index | 0x8000)));
+  return (TVMFunctionHandle)((
+      ((uintptr_t)(module_index | 0x8000) << (sizeof(tvm_function_index_t) * 8)) |
+      (function_index | 0x8000)));
 }
 
 static int DecodeFunctionHandle(TVMFunctionHandle handle, tvm_module_index_t* module_index,
@@ -632,12 +632,12 @@ release_and_return : {
 }
 
 // Default implementation, overridden by the platform runtime.
-__attribute__((weak)) tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
+TVM_WEAK tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
   return kTvmErrorFunctionCallNotImplemented;
 }
 
 // Default implementation, overridden by the platform runtime.
-__attribute__((weak)) tvm_crt_error_t TVMPlatformBeforeMeasurement() { return kTvmErrorNoError; }
+TVM_WEAK tvm_crt_error_t TVMPlatformBeforeMeasurement() { return kTvmErrorNoError; }
 
 // Default implementation, overridden by the platform runtime.
-__attribute__((weak)) tvm_crt_error_t TVMPlatformAfterMeasurement() { return kTvmErrorNoError; }
+TVM_WEAK tvm_crt_error_t TVMPlatformAfterMeasurement() { return kTvmErrorNoError; }

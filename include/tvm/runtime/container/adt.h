@@ -81,7 +81,6 @@ class ADT : public ObjectRef {
    * \brief construct an ADT object reference.
    * \param tag The tag of the ADT object.
    * \param fields The fields of the ADT object.
-   * \return The constructed ADT object reference.
    */
   ADT(int32_t tag, std::vector<ObjectRef> fields) : ADT(tag, fields.begin(), fields.end()){};
 
@@ -90,7 +89,6 @@ class ADT : public ObjectRef {
    * \param tag The tag of the ADT object.
    * \param begin The begin iterator to the start of the fields array.
    * \param end The end iterator to the end of the fields array.
-   * \return The constructed ADT object reference.
    */
   template <typename Iterator>
   ADT(int32_t tag, Iterator begin, Iterator end) {
@@ -105,7 +103,6 @@ class ADT : public ObjectRef {
    * \brief construct an ADT object reference.
    * \param tag The tag of the ADT object.
    * \param init The initializer list of fields.
-   * \return The constructed ADT object reference.
    */
   ADT(int32_t tag, std::initializer_list<ObjectRef> init) : ADT(tag, init.begin(), init.end()){};
 

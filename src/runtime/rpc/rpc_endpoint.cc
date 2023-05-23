@@ -623,6 +623,9 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
 
 RPCCode RPCEndpoint::HandleUntilReturnEvent(bool client_mode, RPCSession::FEncodeReturn setreturn) {
   RPCCode code = RPCCode::kCallFunc;
+
+  CHECK(channel_) << "Expected connection to server " << name_
+                  << " to be active, but the connection was previously closed";
   while (code != RPCCode::kReturn && code != RPCCode::kShutdown && code != RPCCode::kCopyAck) {
     while (writer_.bytes_available() != 0) {
       writer_.ReadWithCallback(
@@ -1125,6 +1128,8 @@ class RPCClientSession : public RPCSession, public DeviceAPI {
   DeviceAPI* GetDeviceAPI(Device dev, bool allow_missing) final { return this; }
 
   bool IsLocalSession() const final { return false; }
+
+  void Shutdown() final { endpoint_->Shutdown(); }
 
  private:
   uint64_t GetRPCMaxTransferSize() {

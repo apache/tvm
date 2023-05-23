@@ -52,7 +52,7 @@ def buffer_opaque_access(b: T.handle, c: T.handle) -> None:
     with T.block():
         T.reads([])
         T.writes(B[0:16, 0:16])
-        A = T.allocate([256], "float32", "global")
+        A = T.decl_buffer([256], "float32")
         for i, j in T.grid(16, 16):
             A[i * 16 + j] = 1
         for i in range(0, 16):
@@ -91,6 +91,19 @@ def match_buffer_func(a: T.handle, b: T.handle) -> None:
                     AA[()] = 1.0
             T.evaluate(B0.data)
             T.evaluate(B1.data)
+
+
+@T.prim_func
+def global_buffer_with_blockidx(
+    a: T.Buffer((1, 32), "int32"), b: T.Buffer((1, 32), "int32")
+) -> None:
+    for i0 in T.thread_binding(0, 1, thread="blockIdx.x"):
+        for i1 in T.thread_binding(0, 32, thread="threadIdx.x"):
+            with T.block("copy"):
+                i, j = T.axis.remap("SS", [i0, i1])
+                T.reads(a[i, j])
+                T.writes(b[i, j])
+                b[i, j] = a[i, j]
 
 
 def test_buffer_load_store():
@@ -154,8 +167,21 @@ def test_match_buffer():
     assert lca[B] == block
 
 
+def test_global_buffer_with_blockidx():
+    func = global_buffer_with_blockidx
+    A, B = [func.buffer_map[x] for x in func.params]
+    lca = tir.analysis.detect_buffer_access_lca(func)
+
+    root_block = func.body.block
+    blockidx_loop = root_block.body
+    # LCA of both A and B should be the loop bound to `blockIdx`
+    assert lca[A] == blockidx_loop
+    assert lca[B] == blockidx_loop
+
+
 if __name__ == "__main__":
     test_buffer_load_store()
     test_opaque_access()
     test_lca_func_root()
     test_match_buffer()
+    test_global_buffer_with_blockidx()

@@ -919,7 +919,6 @@ Expr AddSubBackwardTransform(const Call& call, const Message& message, const Exp
     return Call(call->op, {lhs, rhs}, call->attrs, call->type_args);
   } else {
     LOG(FATAL) << "outstanding scale";
-    return Expr();
   }
 }
 
@@ -1104,7 +1103,6 @@ Expr BiasAddBackwardTransform(const Call& call, const Message& message, const Ex
     return Call(call->op, {lhs, rhs}, call->attrs, call->type_args);
   } else {
     LOG(FATAL) << "outstanding scale";
-    return Expr();
   }
 }
 

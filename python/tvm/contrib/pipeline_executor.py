@@ -198,7 +198,7 @@ class PipelineModule(object):
         config = json.loads(config)
         if "load_config" not in config or "pipeline_config" not in config:
             raise RuntimeError(
-                '"load_config" or "pipeline_config" is missing in %s' % config_file_name
+                f'"load_config" or "pipeline_config" is missing in {config_file_name}'
             )
 
         # The config file used to load library, prameters, and JSON files.
@@ -297,8 +297,8 @@ class PipelineExecutorFactoryModule(object):
         if not os.path.exists(directory_path):
             raise RuntimeError("The directory {directory_path} does not exist.")
         # Create an load configuration.
-        load_config_file_name = "{}/load_config".format(directory_path)
-        pipeline_config_file_name = "{}/pipeline_config".format(directory_path)
+        load_config_file_name = f"{directory_path}/load_config"
+        pipeline_config_file_name = f"{directory_path}/pipeline_config"
         config = {}
         config["load_config"] = load_config_file_name
         config["pipeline_config"] = pipeline_config_file_name
@@ -308,12 +308,12 @@ class PipelineExecutorFactoryModule(object):
         for lib_index in self.pipeline_mods:
             mconfig = {}
             mconfig["mod_idx"] = lib_index
-            mconfig["lib_name"] = "{}/lib{}.so".format(directory_path, lib_index)
-            mconfig["json_name"] = "{}/json{}".format(directory_path, lib_index)
-            mconfig["params_name"] = "{}/params{}".format(directory_path, lib_index)
-            mconfig["dev"] = "{},{}".format(
-                self.pipeline_mods[lib_index]["dev"].device_type,
-                self.pipeline_mods[lib_index]["dev"].device_id,
+            mconfig["lib_name"] = f"{directory_path}/lib{lib_index}.so"
+            mconfig["json_name"] = f"{directory_path}/json{lib_index}"
+            mconfig["params_name"] = f"{directory_path}/params{lib_index}"
+            mconfig["dev"] = (
+                f"{self.pipeline_mods[lib_index]['dev'].device_type},"
+                f"{self.pipeline_mods[lib_index]['dev'].device_id}"
             )
             # Get the graph, lib, and parameters from GraphExecutorFactoryModule.
             lib = self.pipeline_mods[lib_index]["lib"]
@@ -338,7 +338,7 @@ class PipelineExecutorFactoryModule(object):
         with open(pipeline_config_file_name, "w") as file_handle:
             json.dump(self.mods_config, file_handle)
 
-        config_file_name = "{}/config".format(directory_path)
+        config_file_name = f"{directory_path}/config"
         with open(config_file_name, "w") as file_handle:
             json.dump(config, file_handle)
 

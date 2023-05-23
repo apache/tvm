@@ -157,7 +157,7 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
         old_keyset = set()
         # Report resource to tracker
         if tracker_conn:
-            matchkey = base.random_key(rpc_key + ":")
+            matchkey = base.random_key(rpc_key)
             base.sendjson(tracker_conn, [TrackerCode.PUT, rpc_key, (port, matchkey), custom_addr])
             assert base.recvjson(tracker_conn) == TrackerCode.SUCCESS
         else:
@@ -182,7 +182,7 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
                     # regenerate match key if key is acquired but not used for a while
                     if unmatch_period_count * ping_period > unmatch_timeout + ping_period:
                         logger.info("no incoming connections, regenerate key ...")
-                        matchkey = base.random_key(rpc_key + ":", old_keyset)
+                        matchkey = base.random_key(rpc_key, cmap=old_keyset)
                         base.sendjson(
                             tracker_conn, [TrackerCode.PUT, rpc_key, (port, matchkey), custom_addr]
                         )
@@ -319,6 +319,8 @@ class PopenRPCServerState(object):
         load_library=None,
         custom_addr=None,
         silent=False,
+        reuse_addr=True,
+        timeout=None,
     ):
 
         # start update
@@ -332,6 +334,10 @@ class PopenRPCServerState(object):
 
         if not is_proxy:
             sock = socket.socket(base.get_addr_family((host, port)), socket.SOCK_STREAM)
+            if reuse_addr:
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            if timeout is not None:
+                sock.settimeout(timeout)
             self.port = None
             for my_port in range(port, port_end):
                 try:
@@ -371,6 +377,8 @@ def _popen_start_rpc_server(
     silent=False,
     no_fork=False,
     server_init_callback=None,
+    reuse_addr=True,
+    timeout=None,
 ):
     if no_fork:
         multiprocessing.set_start_method("spawn")
@@ -382,7 +390,17 @@ def _popen_start_rpc_server(
     # Popen worker to run on a separate process.
     # Create and start the server in a different thread
     state = PopenRPCServerState(
-        host, port, port_end, is_proxy, tracker_addr, key, load_library, custom_addr, silent
+        host,
+        port,
+        port_end,
+        is_proxy,
+        tracker_addr,
+        key,
+        load_library,
+        custom_addr,
+        silent,
+        reuse_addr,
+        timeout,
     )
     PopenRPCServerState.current = state
     # returns the port so that the main can get the port number.
@@ -434,6 +452,12 @@ class Server(object):
     server_init_callback: Callable, optional
         Additional initialization function when starting the server.
 
+    reuse_addr: bool, optional
+        Allows the kernel to reuse a local socket in TIME_WAIT state.
+
+    timeout: float, optional
+         set a timeout for all operations on the socket
+
     Note
     ----
     The RPC server only sees functions in the tvm namespace.
@@ -464,6 +488,8 @@ class Server(object):
         silent=False,
         no_fork=False,
         server_init_callback=None,
+        reuse_addr=True,
+        timeout=None,
     ):
         try:
             if _ffi_api.ServerLoop is None:
@@ -486,6 +512,8 @@ class Server(object):
                 silent,
                 no_fork,
                 server_init_callback,
+                reuse_addr,
+                timeout,
             ],
         )
         # receive the port
@@ -499,4 +527,7 @@ class Server(object):
             self.proc = None
 
     def __del__(self):
-        self.terminate()
+        try:
+            self.terminate()
+        except ImportError:
+            pass

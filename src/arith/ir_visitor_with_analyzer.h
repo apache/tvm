@@ -57,7 +57,11 @@ class IRVisitorWithAnalyzer : public tir::StmtExprVisitor {
   /*! \brief internal analyzer field. */
   arith::Analyzer analyzer_;
 
- private:
+  /*! \brief Extract a constraint from a conditional statement
+   *
+   * Intended for preparing argument for use in
+   * `With<ConstraintContext>`.
+   */
   PrimExpr ExtractRealCondition(PrimExpr condition) const;
 };
 

@@ -14,10 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
 import pytest
 
 import tvm
+import tvm.testing
+from tvm import relay
 from tvm.script import tir as T
+from tvm.script.highlight import cprint
 
 
 def test_highlight_script():
@@ -45,3 +49,28 @@ def test_highlight_script():
     Module["main"].show(style="light")
     Module["main"].show(style="dark")
     Module["main"].show(style="ansi")
+
+
+def test_cprint():
+    # Print string
+    cprint("a + 1")
+
+    # Print nodes with `script` method, e.g. PrimExpr
+    cprint(tvm.tir.Var("v", "int32") + 1)
+
+    # Cannot print non-Python-style codes if black installed
+    try:
+        import black
+
+        with pytest.raises(ValueError):
+            cprint("if (a == 1) { a +=1; }")
+    except ImportError:
+        pass
+
+    # Cannot print unsupported nodes (nodes without `script` method)
+    with pytest.raises(TypeError):
+        cprint(relay.const(1))
+
+
+if __name__ == "__main__":
+    tvm.testing.main()

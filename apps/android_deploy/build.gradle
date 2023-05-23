@@ -23,9 +23,10 @@ buildscript {
         maven {
             url 'https://maven.google.com'
         }
+        google()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:7.1.2'
+        classpath 'com.android.tools.build:gradle:7.4.1'
         classpath 'org.apache.httpcomponents:httpclient:4.5.13'
 
         // NOTE: Do not place your application dependencies here; they belong
@@ -41,6 +42,7 @@ allprojects {
         }
         mavenLocal()
         mavenCentral()
+        google()
     }
 }
 

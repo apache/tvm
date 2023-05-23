@@ -427,10 +427,10 @@ ObjectRef TargetInternal::ParseType(const ObjectRef& obj,
     return GetRef<String>(ObjTypeCheck<StringObj>(obj, "String"));
   } else if (info.type_index == Target::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
     // Parsing target
-    if (const auto* ptr = obj.as<TargetNode>()) {
-      return GetRef<Target>(ptr);
-    } else if (const auto* ptr = obj.as<StringObj>()) {
-      return Target(TargetInternal::FromString(GetRef<String>(ptr)));
+    if (auto opt = obj.as<Target>()) {
+      return opt.value();
+    } else if (auto str = obj.as<String>()) {
+      return Target(TargetInternal::FromString(str.value()));
     } else if (const auto* ptr = obj.as<MapNode>()) {
       for (const auto& kv : *ptr) {
         if (!kv.first->IsInstance<StringObj>()) {
@@ -495,8 +495,8 @@ std::string TargetInternal::StringifyAtomicType(const ObjectRef& obj) {
   if (const auto* p = obj.as<IntImmNode>()) {
     return std::to_string(p->value);
   }
-  if (const auto* p = obj.as<StringObj>()) {
-    auto s = static_cast<std::string>(GetRef<String>(p));
+  if (auto tvm_str = obj.as<String>()) {
+    std::string s = tvm_str.value();
     auto u = Uninterpret(s);
     if (u.find_first_of(' ') != std::string::npos && !IsQuoted(u)) {
       u = Quote(u);
@@ -504,7 +504,6 @@ std::string TargetInternal::StringifyAtomicType(const ObjectRef& obj) {
     return u;
   }
   LOG(FATAL) << "Cannot stringify this object";
-  return "";  // unreachable
 }
 
 std::string TargetInternal::StringifyArray(const ArrayNode& array) {
@@ -622,7 +621,7 @@ bool Target::IsExternalCodegen() const {
 }
 
 bool Target::IsExternalCodegenFor(const Target& that) const {
-  return get()->kind->device_type == that->kind->device_type && IsExternalCodegen() &&
+  return get()->GetTargetDeviceType() == that->GetTargetDeviceType() && IsExternalCodegen() &&
          !that.IsExternalCodegen();
 }
 
@@ -661,8 +660,13 @@ Map<String, ObjectRef> TargetNode::Export() const {
   return result;
 }
 
-Optional<Target> TargetNode::GetHost() const {
-  return GetRef<Optional<Target>>(this->host.as<TargetNode>());
+Optional<Target> TargetNode::GetHost() const { return this->host.as<Target>(); }
+
+int TargetNode::GetTargetDeviceType() const {
+  if (Optional<Integer> device_type = GetAttr<Integer>("target_device_type")) {
+    return Downcast<Integer>(device_type)->value;
+  }
+  return kind->default_device_type;
 }
 
 String TargetNode::ToDebugString() const {
@@ -847,8 +851,8 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ObjectRef> config) {
 
   // parse 'kind'
   if (config.count(kKind)) {
-    if (const auto* kind = config[kKind].as<StringObj>()) {
-      target->kind = GetTargetKind(GetRef<String>(kind));
+    if (auto kind = config[kKind].as<String>()) {
+      target->kind = GetTargetKind(kind.value());
       ICHECK(!(target->kind->preprocessor != nullptr && target->kind->target_parser != nullptr))
           << "Cannot use both set_attrs_preprocessor and set_target_parser";
 
@@ -872,8 +876,8 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ObjectRef> config) {
   }
   // parse "tag"
   if (config.count(kTag)) {
-    if (const auto* tag = config[kTag].as<StringObj>()) {
-      target->tag = GetRef<String>(tag);
+    if (auto tag = config[kTag].as<String>()) {
+      target->tag = tag.value();
       config.erase(kTag);
     } else {
       throw Error(": Expect type of field \"tag\" is String, but get type: " +
@@ -890,8 +894,8 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ObjectRef> config) {
       // user provided keys
       if (const auto* cfg_keys = config[kKeys].as<ArrayNode>()) {
         for (const ObjectRef& e : *cfg_keys) {
-          if (const auto* key = e.as<StringObj>()) {
-            keys.push_back(GetRef<String>(key));
+          if (auto key = e.as<String>()) {
+            keys.push_back(key.value());
           } else {
             throw Error(
                 ": Expect 'keys' to be an array of strings, but it "
@@ -906,8 +910,8 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ObjectRef> config) {
     }
     // add device name
     if (config.count(kDeviceName)) {
-      if (const auto* device = config.at(kDeviceName).as<StringObj>()) {
-        keys.push_back(GetRef<String>(device));
+      if (auto device = config.at(kDeviceName).as<String>()) {
+        keys.push_back(device.value());
       }
     }
     if (!has_user_keys) {
@@ -974,7 +978,7 @@ std::unordered_map<String, ObjectRef> TargetInternal::QueryDevice(int device_id,
                                                                   const TargetNode* target) {
   std::unordered_map<String, ObjectRef> output;
 
-  Device device{static_cast<DLDeviceType>(target->kind->device_type), device_id};
+  Device device{static_cast<DLDeviceType>(target->GetTargetDeviceType()), device_id};
 
   auto api = runtime::DeviceAPI::Get(device, true);
   if (!api) {
@@ -1042,6 +1046,9 @@ TVM_REGISTER_GLOBAL("target.TargetExitScope").set_body_typed(TargetInternal::Exi
 TVM_REGISTER_GLOBAL("target.TargetCurrent").set_body_typed(Target::Current);
 TVM_REGISTER_GLOBAL("target.TargetExport").set_body_typed(TargetInternal::Export);
 TVM_REGISTER_GLOBAL("target.WithHost").set_body_typed(TargetInternal::WithHost);
+TVM_REGISTER_GLOBAL("target.TargetGetDeviceType").set_body_typed([](const Target& target) {
+  return target->GetTargetDeviceType();
+});
 TVM_REGISTER_GLOBAL("target.TargetGetFeature")
     .set_body_typed([](const Target& target, const String& feature_key) {
       return target->GetFeature<ObjectRef>(feature_key);

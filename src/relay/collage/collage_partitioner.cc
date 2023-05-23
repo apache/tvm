@@ -55,7 +55,7 @@ namespace {
 
 TVM_REGISTER_PASS_CONFIG_OPTION("relay.collage.tvm_max_depth", Integer);
 TVM_REGISTER_PASS_CONFIG_OPTION("relay.collage.byoc_max_depth", Integer);
-
+TVM_REGISTER_PASS_CONFIG_OPTION("relay.collage.byoc_fusion_style", Array<String>);
 /*!
  * \brief Represents the overall expression after some number of non-overlapping candidate
  * partitions have been applied.

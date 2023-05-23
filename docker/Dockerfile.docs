@@ -15,13 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 
-FROM ubuntu:18.04
+FROM ubuntu:22.04
 
 # Base scripts
 
 COPY utils/apt-install-and-clear.sh /usr/local/bin/apt-install-and-clear
 
 RUN apt-get update --fix-missing
+
+COPY install/ubuntu_setup_tz.sh /install/ubuntu_setup_tz.sh
+RUN bash /install/ubuntu_setup_tz.sh
 
 COPY install/ubuntu_install_core.sh /install/ubuntu_install_core.sh
 RUN bash /install/ubuntu_install_core.sh

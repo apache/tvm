@@ -15,15 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
-
-import sys
-
 import pytest
 import tvm
 import tvm.testing
+from tvm import meta_schedule as ms
 from tvm import tir
-from tvm.meta_schedule import TuneContext
-from tvm.meta_schedule.postproc import VerifyGPUCode
 from tvm.script import tir as T
 from tvm.target import Target
 
@@ -32,16 +28,17 @@ def _target() -> Target:
     return Target("nvidia/geforce-rtx-3080")
 
 
-def _create_context(mod, target) -> TuneContext:
-    ctx = TuneContext(
+def _create_context(mod, target) -> ms.TuneContext:
+    return ms.TuneContext(
         mod=mod,
         target=target,
-        postprocs=[
-            VerifyGPUCode(),
-        ],
+        space_generator=ms.space_generator.PostOrderApply(
+            sch_rules=[],
+            postprocs=[ms.postproc.VerifyGPUCode()],
+            mutator_probs={},
+        ),
         task_name="test",
     )
-    return ctx
 
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument,not-callable,misplaced-comparison-constant
@@ -63,9 +60,9 @@ class Conv2dCuda0:
         B = T.match_buffer(b, [14*14*512*256], dtype="float32")
         # body
         T.launch_thread(blockIdx_z, 196)
-        B_local = T.allocate([64], "float32", "local")
-        Apad_shared = T.allocate([512], "float32", "shared")
-        Apad_shared_local = T.allocate([8], "float32", "local")
+        B_local = T.decl_buffer([64], "float32", scope="local")
+        Apad_shared = T.decl_buffer([512], "float32", scope="shared")
+        Apad_shared_local = T.decl_buffer([8], "float32", scope="local")
         T.launch_thread(blockIdx_y, 8)
         T.launch_thread(blockIdx_x, 4)
         T.launch_thread(threadIdx_y, 8)
@@ -105,9 +102,9 @@ class Conv2dCuda1:
         B = T.match_buffer(b, [14*14*512*256], dtype="float32")
         # body
         T.launch_thread(blockIdx_z, 196)
-        B_local = T.allocate([6400000], "float32", "local")
-        Apad_shared = T.allocate([512], "float32", "shared")
-        Apad_shared_local = T.allocate([8], "float32", "local")
+        B_local = T.decl_buffer([6400000], "float32", scope="local")
+        Apad_shared = T.decl_buffer([512], "float32", scope="shared")
+        Apad_shared_local = T.decl_buffer([8], "float32", scope="local")
         T.launch_thread(blockIdx_y, 8)
         T.launch_thread(blockIdx_x, 4)
         T.launch_thread(threadIdx_y, 8)
@@ -151,9 +148,9 @@ class Conv2dCuda2:
         B = T.match_buffer(b, [14*14*512*256], dtype="float32")
         # body
         T.launch_thread(blockIdx_z, 196)
-        B_local = T.allocate([64], "float32", "local")
-        Apad_shared = T.allocate([512000], "float32", "shared")
-        Apad_shared_local = T.allocate([8], "float32", "local")
+        B_local = T.decl_buffer([64], "float32", scope="local")
+        Apad_shared = T.decl_buffer([512000], "float32", scope="shared")
+        Apad_shared_local = T.decl_buffer([8], "float32", scope="local")
         T.launch_thread(blockIdx_y, 8)
         T.launch_thread(blockIdx_x, 4)
         T.launch_thread(threadIdx_y, 8)
@@ -197,9 +194,9 @@ class Conv2dCuda3:
         B = T.match_buffer(b, [14*14*512*256], dtype="float32")
         # body
         T.launch_thread(blockIdx_z, 196)
-        B_local = T.allocate([64], "float32", "local")
-        Apad_shared = T.allocate([512], "float32", "shared")
-        Apad_shared_local = T.allocate([8], "float32", "local")
+        B_local = T.decl_buffer([64], "float32", scope="local")
+        Apad_shared = T.decl_buffer([512], "float32", scope="shared")
+        Apad_shared_local = T.decl_buffer([8], "float32", scope="local")
         T.launch_thread(blockIdx_y, 8)
         T.launch_thread(blockIdx_x, 4)
         T.launch_thread(threadIdx_y, 8)
@@ -223,7 +220,7 @@ class Conv2dCuda3:
             B[blockIdx_z * 131072 + blockIdx_y * 16384 + threadIdx_y * 2048 + ff_inner_inner_inner * 256 + blockIdx_x * 64 + threadIdx_x * 8 + nn_inner_inner_inner] = B_local[ff_inner_inner_inner * 8 + nn_inner_inner_inner]# fmt: on
 
 @T.prim_func
-def GmmCuda0(X: T.Buffer[(1, 128, 128), "float32"], Y: T.Buffer[(1, 128, 128), "float32"], Z: T.Buffer[(1, 128, 128), "float32"]) -> None:
+def GmmCuda0(X: T.Buffer((1, 128, 128), "float32"), Y: T.Buffer((1, 128, 128), "float32"), Z: T.Buffer((1, 128, 128), "float32")) -> None:
     Z_local = T.alloc_buffer([1, 128, 128], dtype="float32", scope="local")
     X_shared = T.alloc_buffer([1, 128, 128], dtype="float32", scope="shared")
     Y_shared = T.alloc_buffer([1, 128, 128], dtype="float32", scope="shared")
@@ -277,7 +274,7 @@ def GmmCuda0(X: T.Buffer[(1, 128, 128), "float32"], Y: T.Buffer[(1, 128, 128), "
                         Z[v0, v1, v2] = Z_local[v0, v1, v2]
 
 @T.prim_func
-def GmmCuda1(X: T.Buffer[(1, 128, 128), "float32"], Y: T.Buffer[(1, 128, 128), "float32"], Z: T.Buffer[(1, 128, 128), "float32"]) -> None:
+def GmmCuda1(X: T.Buffer((1, 128, 128), "float32"), Y: T.Buffer((1, 128, 128), "float32"), Z: T.Buffer((1, 128, 128), "float32")) -> None:
     Z_local = T.alloc_buffer([1, 128, 128], dtype="float32", scope="local")
     X_shared = T.alloc_buffer([1, 128, 128], dtype="float32", scope="shared")
     Y_shared = T.alloc_buffer([1, 128, 128], dtype="float32", scope="shared")
@@ -336,7 +333,7 @@ def GmmCuda1(X: T.Buffer[(1, 128, 128), "float32"], Y: T.Buffer[(1, 128, 128), "
 
 
 @T.prim_func
-def GmmCuda2(X: T.Buffer[(1, 128, 128), "float32"], Y: T.Buffer[(1, 128, 128), "float32"], Z: T.Buffer[(1, 128, 128), "float32"]) -> None:
+def GmmCuda2(X: T.Buffer((1, 128, 128), "float32"), Y: T.Buffer((1, 128, 128), "float32"), Z: T.Buffer((1, 128, 128), "float32")) -> None:
     Z_local = T.alloc_buffer([1, 128, 128], dtype="float32", scope="local")
     X_shared = T.alloc_buffer([1, 128, 128], dtype="float32", scope="shared")
     Y_shared = T.alloc_buffer([1, 128, 128], dtype="float32", scope="shared")
@@ -396,18 +393,18 @@ def GmmCuda2(X: T.Buffer[(1, 128, 128), "float32"], Y: T.Buffer[(1, 128, 128), "
 
 @T.prim_func
 def GMMCUDATensorCore(
-    X: T.Buffer[(1024, 1024), "float16"],
-    Y: T.Buffer[(1024, 1024), "float16"],
-    Z: T.Buffer[(1024, 1024), "float32"],
+    X: T.Buffer((1024, 1024), "float16"),
+    Y: T.Buffer((1024, 1024), "float16"),
+    Z: T.Buffer((1024, 1024), "float32"),
 ) -> None:
     # function attr dict
     T.func_attr({"global_symbol": "main", "tir.noalias": True})
-    s0 = T.var("int32")
-    s0_1 = T.var("int32")
-    s0_2 = T.var("int32")
-    s1 = T.var("int32")
-    s1_1 = T.var("int32")
-    s1_2 = T.var("int32")
+    s0 = T.int32()
+    s0_1 = T.int32()
+    s0_2 = T.int32()
+    s1 = T.int32()
+    s1_1 = T.int32()
+    s1_2 = T.int32()
     # body
     # with T.block("root")
     Z_wmma_accumulator = T.alloc_buffer([1024, 1024], dtype="float32", scope="wmma.accumulator")
@@ -786,7 +783,7 @@ def GMMCUDATensorCore(
 def test_postproc_check_pass(mod):
     ctx = _create_context(mod, target=_target())
     sch = tir.Schedule(mod, debug_mask="all")
-    assert ctx.postprocs[0].apply(sch)
+    assert ctx.space_generator.postprocs[0].apply(sch)
 
 
 @pytest.mark.parametrize(
@@ -801,7 +798,7 @@ def test_postproc_check_pass(mod):
 def test_postproc_check_fail(mod):
     ctx = _create_context(mod, target=_target())
     sch = tir.Schedule(mod, debug_mask="all")
-    assert not ctx.postprocs[0].apply(sch)
+    assert not ctx.space_generator.postprocs[0].apply(sch)
 
 
 if __name__ == "__main__":

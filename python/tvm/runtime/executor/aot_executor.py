@@ -67,6 +67,7 @@ class AotModule(object):
         self._get_num_outputs = module["get_num_outputs"]
         self._get_input_index = module["get_input_index"]
         self._get_num_inputs = module["get_num_inputs"]
+        self._get_input_name = module["get_input_name"]
 
     def set_input(self, key=None, value=None, **params):
         """Set inputs to the module via kwargs
@@ -180,3 +181,21 @@ class AotModule(object):
             return out
 
         return self._get_output(index)
+
+    def get_input_name(self, index: int) -> str:
+        """Return the name of input with index `index`"""
+        return self._get_input_name(index)
+
+    def get_input_info(self):
+        """Return the 'shape' and 'dtype' dictionaries of the module."""
+        self.get_input_name(0)
+
+        shape_dict = dict()
+        dtype_dict = dict()
+        for ind in range(0, self.get_num_inputs()):
+            input_name = self.get_input_name(ind)
+            input_tensor = self.get_input(ind)
+            shape_dict[input_name] = input_tensor.shape
+            dtype_dict[input_name] = input_tensor.dtype
+
+        return shape_dict, dtype_dict

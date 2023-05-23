@@ -50,13 +50,12 @@ Getting Started with microTVM
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Before working with microTVM, we recommend you have a supported development board. Then, follow these
-tutorials to get started with microTVM:
+tutorials to get started with microTVM. Tutorials are in the order that could help developers to learn
+more as they follow through them. Here is a list of tutorials that you can start with:
 
-1. :ref:`Start the microTVM Reference VM <tutorial-micro-reference-vm>`. The microTVM tutorials
-   depend on Zephyr and on a compiler toolchain for your hardware. The reference VM is a convenient
-   way to install those dependencies.
-2. Try the :ref:`microTVM with TFLite Tutorial <microTVM-with-TFLite>`.
-3. Try running a more complex `CIFAR10-CNN model <https://github.com/areusch/microtvm-blogpost-eval>`_.
+1. Try :ref:`microTVM CLI Tool <tutorial-micro-cli-tool>`.
+2. Try the :ref:`microTVM TFLite Tutorial <tutorial_micro_tflite>`.
+3. Try running a more complex tutorial: :ref:`Creating Your MLPerfTiny Submission with microTVM <tutorial-micro-mlperftiny>`.
 
 
 How microTVM Works

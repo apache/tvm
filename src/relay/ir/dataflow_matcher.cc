@@ -128,8 +128,8 @@ bool DFPatternMatcher::VisitDFPattern_(const AttrPatternNode* attr_pattern, cons
     return matches;
   }
   auto attributes = attr_pattern->attrs.as<DictAttrsNode>()->dict;
-  if (const auto* op_node = expr.as<OpNode>()) {
-    Op op = GetRef<Op>(op_node);
+  if (auto optional = expr.as<Op>()) {
+    Op op = optional.value();
     for (auto kv : attributes) {
       auto attr_name = kv.first;
       auto attr_value = kv.second;
@@ -427,16 +427,6 @@ bool DFPatternMatcher::VisitDFPattern_(const LetPatternNode* op, const Expr& exp
   return false;
 }
 
-Expr InferType(const Expr& expr) {
-  auto mod = IRModule::FromExpr(expr);
-  mod = transform::InferType()(mod);
-  if (expr.as<FunctionNode>()) {
-    return mod->Lookup("main");
-  } else {
-    return mod->Lookup("main").as<FunctionNode>()->body;
-  }
-}
-
 Expr InferTypeWithModule(const Expr& expr, const IRModule& m) {
   IRModule mod(m->functions, m->type_definitions, m->Imports());
   GlobalVarSupply global_var_supply = GlobalVarSupply(mod);
@@ -622,12 +612,14 @@ void PatternGrouper::CreateGroup(const Expr& expr) {
     }
     // Don't treat Function params or body as input variables for partition
     if (node->ref().as<FunctionPatternNode>()) {
-      auto matches = node_map[node->ref()];
-      for (auto match : matches) {
-        auto sub_graph = CreateIndexedGraph(match.as<FunctionNode>()->body);
-        for (PostDfsIndex sub_index = 0; sub_index < sub_graph->size(); ++sub_index) {
-          auto sub_node = sub_graph->index_to_node(sub_index);
-          fuzzy_matches.insert(sub_node->ref());
+      if (node_map.count(node->ref())) {
+        auto matches = node_map[node->ref()];
+        for (auto match : matches) {
+          auto sub_graph = CreateIndexedGraph(match.as<FunctionNode>()->body);
+          for (PostDfsIndex sub_index = 0; sub_index < sub_graph->size(); ++sub_index) {
+            auto sub_node = sub_graph->index_to_node(sub_index);
+            fuzzy_matches.insert(sub_node->ref());
+          }
         }
       }
     }
@@ -646,6 +638,11 @@ void PatternGrouper::CreateGroup(const Expr& expr) {
     auto make_input = [&](const Expr& input) {
       if (fuzzy_matches.count(input) == 0 && input.as<OpNode>() == nullptr &&
           input.as<FunctionNode>() == nullptr && !EmbedConst(input, node->ref())) {
+        // Avoid adding parameters repeatedly because multiple operatorss in the partition
+        // may use the same input.
+        if (inputs.find(input) != inputs.end()) {
+          return;
+        }
         inputs[input] =
             Var("FunctionVar_" + std::to_string(graph_number_) + "_" + std::to_string(var_number),
                 NullValue<Type>());
@@ -799,24 +796,35 @@ Expr PatternRewriter::Rewrite(const Array<DFPatternCallback>& callbacks, const E
   bool equal = true;
   static auto* structural_equal = runtime::Registry::Get("node.StructuralEqual");
   ICHECK(structural_equal) << "node.StructuralEqual is not registered.";
+  // Keep track of callbacks that have finished rewriting
+  std::unordered_map<DFPatternCallback, bool, ObjectPtrHash, ObjectPtrEqual> done;
   do {
     last = post;
     for (auto callback : callbacks) {
-      callback_ = callback;
-      if (callback_->require_type) {
-        post = InferTypeWithModule(post, mod_);
+      if (!done[callback]) {
+        auto before = post;
+        callback_ = callback;
+        if (callback_->require_type) {
+          post = InferTypeWithModule(post, mod_);
+        }
+        auto grouper = PatternGrouper();
+        groups_ = grouper.GroupMatches(callback_->pattern, post);
+        gid_assignments_ = grouper.GetGIDAssignments();
+        memo_.clear();
+        VLOG(1) << "pre rewritten:" << std::endl << PrettyPrint(pre);
+        post = this->VisitExpr(post);
+        VLOG(1) << "post rewritten:" << std::endl << PrettyPrint(post);
+        count++;
+        if (callback_->rewrite_once) {
+          bool current_equal = (*structural_equal)(before, post, false, true);
+          if (!current_equal) {
+            done[callback] = true;
+          }
+        }
       }
-      auto grouper = PatternGrouper();
-      groups_ = grouper.GroupMatches(callback_->pattern, post);
-      gid_assignments_ = grouper.GetGIDAssignments();
-      memo_.clear();
-      VLOG(1) << "pre rewritten:" << std::endl << PrettyPrint(pre);
-      post = this->VisitExpr(post);
-      VLOG(1) << "post rewritten:" << std::endl << PrettyPrint(post);
-      count++;
     }
     equal = (*structural_equal)(last, post, false, true);
-  } while (!equal && count < 100 && !callback_->rewrite_once);
+  } while (!equal && count < 100);
   if (count >= 100) {
     LOG(FATAL) << "Observed 100 rewrite passes, possible conflicting passes?";
   }

@@ -31,7 +31,7 @@ def test_ir_transform():
 
     def preorder(op):
         if op.op.same_as(builtin_call_extern) and op.args[0].value == "TestC":
-            return tvm.tir.const(0, "int32")
+            return tvm.tir.const(42, "int32")
         return None
 
     def postorder(op):
@@ -43,7 +43,7 @@ def test_ir_transform():
     body = tvm.tir.stmt_functor.ir_transform(body, preorder, postorder, ["tir.Call"])
     stmt_list = tvm.tir.stmt_list(body.body.body)
     assert stmt_list[0].value.args[1].args[0].value == "TestB"
-    assert stmt_list[1].value.value == 0
+    assert stmt_list[1].value.value == 42
 
 
 if __name__ == "__main__":

@@ -69,12 +69,14 @@ namespace codegen {
 // Hexagon code generation
 class CodeGenHexagon final : public CodeGenCPU {
  public:
-  void Init(const std::string& module_name, LLVMTarget* llvm_target, bool system_lib,
-            bool dynamic_lookup, bool target_c_runtime) override;
+  void Init(const std::string& module_name, LLVMTarget* llvm_target,
+            Optional<String> system_lib_prefix, bool dynamic_lookup,
+            bool target_c_runtime) override;
   void InitTarget() final;
 
   using CodeGenCPU::VisitStmt_;
   llvm::Value* VisitExpr_(const BufferLoadNode* op) override;
+  llvm::Value* CreateIntrinsic(const CallNode* op) override;
 
   llvm::Value* CreateCallExtern(Type ret_type, String global_symbol, const Array<PrimExpr>& args,
                                 bool skip_first_arg) override;
@@ -84,7 +86,9 @@ class CodeGenHexagon final : public CodeGenCPU {
   llvm::Module* GetModulePtr() const { return module_.get(); }
 
   uint64_t GetTypeSizeInBits(llvm::Type* type) const {
-#if TVM_LLVM_VERSION >= 100
+#if TVM_LLVM_VERSION >= 160
+    return data_layout_->getTypeSizeInBits(type).getFixedValue();
+#elif TVM_LLVM_VERSION >= 100
     return data_layout_->getTypeSizeInBits(type).getFixedSize();
 #else
     return data_layout_->getTypeSizeInBits(type);
@@ -111,9 +115,10 @@ class CodeGenHexagon final : public CodeGenCPU {
       "tvm_vect_qhmath_hvx_ceil_ahf",    "tvm_vect_qhmath_hvx_pow_ahf"};
 };
 
-void CodeGenHexagon::Init(const std::string& module_name, LLVMTarget* llvm_target, bool system_lib,
-                          bool dynamic_lookup, bool target_c_runtime) {
-  CodeGenCPU::Init(module_name, llvm_target, system_lib, dynamic_lookup, target_c_runtime);
+void CodeGenHexagon::Init(const std::string& module_name, LLVMTarget* llvm_target,
+                          Optional<String> system_lib_prefix, bool dynamic_lookup,
+                          bool target_c_runtime) {
+  CodeGenCPU::Init(module_name, llvm_target, system_lib_prefix, dynamic_lookup, target_c_runtime);
 }
 
 void CodeGenHexagon::InitTarget() {
@@ -191,6 +196,28 @@ llvm::Value* CodeGenHexagon::VisitExpr_(const BufferLoadNode* op) {
     }
   }
   return CodeGenCPU::VisitExpr_(op);
+}
+
+llvm::Value* CodeGenHexagon::CreateIntrinsic(const CallNode* op) {
+#if TVM_LLVM_VERSION >= 150
+  if (op->op.same_as(builtin::start_profile_intrinsic()) ||
+      op->op.same_as(builtin::end_profile_intrinsic())) {
+    llvm::Value* id = MakeValue(op->args[0]);
+    auto instrprof_id = llvm::Intrinsic::hexagon_instrprof_custom;
+    llvm::Function* func = llvm::Intrinsic::getDeclaration(module_.get(), instrprof_id);
+    llvm::GlobalVariable* name_var = module_->getGlobalVariable("handler_name");
+    if (!name_var) {
+      llvm::StringRef init_str = "lwp_handler";
+      llvm::Constant* init = llvm::ConstantDataArray::getString(module_->getContext(), init_str);
+
+      name_var = new llvm::GlobalVariable(*module_, init->getType(), true,
+                                          llvm::GlobalValue::InternalLinkage, init, "handler_name");
+    }
+    llvm::Type* t_int8_p_ = t_int8_->getPointerTo();
+    return builder_->CreateCall(func, {llvm::ConstantExpr::getBitCast(name_var, t_int8_p_), id});
+  }
+#endif
+  return CodeGenCPU::CreateIntrinsic(op);
 }
 
 void CodeGenHexagon::CreatePrintf(const std::string& format,
@@ -520,7 +547,6 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
 
   auto cg = std::make_unique<CodeGenHexagon>();
 
-  std::vector<PrimFunc> funcs;
   std::string entry_func;
 
   for (auto kv : mod->functions) {
@@ -535,11 +561,10 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
       ICHECK(global_symbol.defined());
       entry_func = global_symbol.value();
     }
-    funcs.emplace_back(f);
   }
 
-  cg->Init("TVMHexagonModule", llvm_target.get(), false, false, false);
-  cg->AddFunctionsOrdered(funcs.begin(), funcs.end());
+  cg->Init("TVMHexagonModule", llvm_target.get(), NullOpt, false, false);
+  cg->AddFunctionsOrdered(mod->functions.begin(), mod->functions.end());
   if (entry_func.length() != 0) {
     cg->AddMainFunction(entry_func);
   }

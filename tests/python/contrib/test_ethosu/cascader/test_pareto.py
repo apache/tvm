@@ -146,4 +146,4 @@ def test_pareto_cull_plans(num_plans, max_plans, SRAM):
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

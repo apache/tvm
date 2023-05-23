@@ -123,11 +123,6 @@ class MeasureCallback : public runtime::ObjectRef {
    */
   TVM_DLL static MeasureCallback RemoveBuildArtifact();
   /*!
-   * \brief Create a measure callback that echos the statistics of the tuning process to the console
-   * \return The measure callback created.
-   */
-  TVM_DLL static MeasureCallback EchoStatistics();
-  /*!
    * \brief Create a measure callback that updates the cost model with measurement result.
    * \return The measure callback created.
    */
@@ -140,6 +135,8 @@ class MeasureCallback : public runtime::ObjectRef {
    */
   TVM_DLL static MeasureCallback PyMeasureCallback(PyMeasureCallbackNode::FApply f_apply,
                                                    PyMeasureCallbackNode::FAsString f_as_string);
+  /*! \brief The default list of measure callbacks. */
+  TVM_DLL static Array<MeasureCallback, void> Default();
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(MeasureCallback, ObjectRef, MeasureCallbackNode);
 };
 

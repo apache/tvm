@@ -91,18 +91,11 @@ def lower_ethosu(sch, args, const_dict, name="main"):
         mod, const_dict = ethosu_passes.EncodeConstants(const_dict)(mod)
         mod = ethosu_passes.HoistAllocates()(mod)
         mod = tvm.tir.transform.RemoveNoOp()(mod)
-        #  MergeConstant pass currently does not support striped schedules.
-        #  It requires further investigation.
-        if not util.is_striping_enabled():
-            mod, const_dict = ethosu_passes.MergeConstants(const_dict)(mod)
+        mod, const_dict = ethosu_passes.MergeConstants(const_dict)(mod)
         mod = ethosu_passes.CopyComputeReordering()(mod)
 
-        # When striping is enabled and if storage_rewrite is not run
-        # the striping results in incorrect code generation. This needs
-        # further investigation. Until such a time that is fixed, disable_storage_rewrite
-        # user directive will be overridden if striping is enabled.
         disable_storage_rewrite = curr_cfg.get("tir.disable_storage_rewrite", False)
-        if not disable_storage_rewrite or util.is_striping_enabled():
+        if not disable_storage_rewrite:
             mod = tvm.tir.transform.StorageRewrite()(mod)
 
         mod = tvm.tir.transform.RemoveNoOp()(mod)

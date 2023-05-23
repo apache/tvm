@@ -90,7 +90,7 @@ make -j2
 
 # Build Hexagon API
 cd ..
-./tests/scripts/task_build_hexagon_api.sh 
+./tests/scripts/task_build_hexagon_api.sh
 ```
 
 Now that you have built required tools, you can jump to [run test examples](#run-tests).

@@ -103,10 +103,6 @@ class DynSharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
     StmtExprVisitor::VisitStmt_(op);
   }
 
-  void VisitStmt_(const StoreNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-  }
-
   void VisitStmt_(const BufferStoreNode* op) final {
     scope_.push_back(StmtEntry());
     // visit subexpr
@@ -138,10 +134,6 @@ class DynSharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
       e.stmt = op;
       linear_seq_.push_back(e);
     }
-  }
-
-  void VisitExpr_(const LoadNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
   }
 
   void VisitExpr_(const BufferLoadNode* op) final {
@@ -305,16 +297,6 @@ class DynamicSharedMemoryRewriter : public StmtExprMutator {
       return StmtExprMutator::VisitStmt(op->body);
     }
     return StmtExprMutator::VisitStmt_(op);
-  }
-
-  PrimExpr VisitExpr_(const LoadNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-    return PrimExpr();
-  }
-
-  Stmt VisitStmt_(const StoreNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-    return Stmt();
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {

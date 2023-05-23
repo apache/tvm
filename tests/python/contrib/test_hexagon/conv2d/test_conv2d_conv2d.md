@@ -179,7 +179,7 @@ primfn(placeholder_3: handle, placeholder_4: handle, placeholder_5: handle, outp
           for (hi: int32, 0, 8) {
             for (wi: int32, 0, 8) {
               for (ci: int32, 0, 32) {
-                packed_input.global[(((((wo*8192) + (co*2048)) + (hi*256)) + (wi*32)) + ci)] = 
+                packed_input.global[(((((wo*8192) + (co*2048)) + (hi*256)) + (wi*32)) + ci)] =
                   (float32*)placeholder_8[((((((ho.outer*65536) + (hi*8192)) + (wo*1024)) + (wi*128)) + (co*32)) + ci)]
               }
             }
@@ -195,7 +195,7 @@ primfn(placeholder_3: handle, placeholder_4: handle, placeholder_5: handle, outp
           for (cio: int32, 0, 8) {
             for (ki: int32, 0, 32) {
               for (cii: int32, 0, 4) {
-                packed_filter.global[((((co*1024) + (cio*128)) + (ki*4)) + cii)] = 
+                packed_filter.global[((((co*1024) + (cio*128)) + (ki*4)) + cii)] =
                   (float32*)placeholder_7[(((((ko.outer_1*4096) + (co*1024)) + (cio*128)) + (ki*4)) + cii)]
               }
             }
@@ -220,9 +220,9 @@ primfn(placeholder_3: handle, placeholder_4: handle, placeholder_5: handle, outp
               for (wi: int32, 0, 8) {
                 for (ki: int32, 0, 32) {
                   for (rc.inner: int32, 0, 32) {
-                    temp_output[(((((wo*8192) + (ko.outer_1*2048)) + (hi*256)) + (wi*32)) + ki)] = 
+                    temp_output[(((((wo*8192) + (ko.outer_1*2048)) + (hi*256)) + (wi*32)) + ki)] =
                     (
-                      (float32*)temp_output[(((((wo*8192) + (ko.outer_1*2048)) + (hi*256)) + (wi*32)) + ki)] + 
+                      (float32*)temp_output[(((((wo*8192) + (ko.outer_1*2048)) + (hi*256)) + (wi*32)) + ki)] +
                       (
                         (float32*)packed_input.global[(((((wo*8192) + (rc.outer*2048)) + (hi*256)) + (wi*32)) + rc.inner)] *
                         (float32*)packed_filter.global[((((rc.outer*1024) + (floordiv(rc.inner, 4)*128)) + (ki*4)) + floormod(rc.inner, 4))]
@@ -242,7 +242,7 @@ primfn(placeholder_3: handle, placeholder_4: handle, placeholder_5: handle, outp
         for (cio: int32, 0, 8) {
           for (ki: int32, 0, 32) {
             for (cii: int32, 0, 4) {
-              packed_filter.global[((((co*1024) + (cio*128)) + (ki*4)) + cii)] = 
+              packed_filter.global[((((co*1024) + (cio*128)) + (ki*4)) + cii)] =
                 (float32*)placeholder_6[(((((ko.outer*4096) + (co*1024)) + (cio*128)) + (ki*4)) + cii)]
             }
           }
@@ -268,9 +268,9 @@ primfn(placeholder_3: handle, placeholder_4: handle, placeholder_5: handle, outp
             for (wi.c: int32, 0, 8) {
               for (ki.c: int32, 0, 32) {
                 for (rc.inner_1: int32, 0, 32) {
-                  packed_input.global[((((wo.c*2048) + (hi.c*256)) + (wi.c*32)) + ki.c)] = 
+                  packed_input.global[((((wo.c*2048) + (hi.c*256)) + (wi.c*32)) + ki.c)] =
                   (
-                    (float32*)packed_input.global[((((wo.c*2048) + (hi.c*256)) + (wi.c*32)) + ki.c)] + 
+                    (float32*)packed_input.global[((((wo.c*2048) + (hi.c*256)) + (wi.c*32)) + ki.c)] +
                     (
                       (float32*)temp_output[(((((wo.c*8192) + (rc.outer_1*2048)) + (hi.c*256)) + (wi.c*32)) + rc.inner_1)] *
                       (float32*)packed_filter.global[((((rc.outer_1*1024) + (floordiv(rc.inner_1, 4)*128)) + (ki.c*4)) + floormod(rc.inner_1, 4))]
@@ -288,7 +288,7 @@ primfn(placeholder_3: handle, placeholder_4: handle, placeholder_5: handle, outp
         for (hi_1: int32, 0, 8) {
           for (wi_1: int32, 0, 8) {
             for (ki_1: int32, 0, 32) {
-              output_2[((((((ho.outer*65536) + (wo_1*8192)) + (ko.outer*2048)) + (hi_1*256)) + (wi_1*32)) + ki_1)] = 
+              output_2[((((((ho.outer*65536) + (wo_1*8192)) + (ko.outer*2048)) + (hi_1*256)) + (wi_1*32)) + ki_1)] =
                 (float32*)packed_input.global[((((wo_1*2048) + (hi_1*256)) + (wi_1*32)) + ki_1)]
             }
           }
@@ -477,7 +477,7 @@ primfn(placeholder_3: handle, placeholder_4: handle, placeholder_5: handle, outp
             for (hi: int32, 0, 8) {
               for (wi: int32, 0, 8) {
                 for (ci: int32, 0, 32) {
-                  packed_input.global[((((((ho.inner*65536) + (wo*8192)) + (co*2048)) + (hi*256)) + (wi*32)) + ci)] = 
+                  packed_input.global[((((((ho.inner*65536) + (wo*8192)) + (co*2048)) + (hi*256)) + (wi*32)) + ci)] =
                     (float32*)placeholder_8[(((((((ho.outer*131072) + (ho.inner*65536)) + (hi*8192)) + (wo*1024)) + (wi*128)) + (co*32)) + ci)]
                 }
               }
@@ -495,7 +495,7 @@ primfn(placeholder_3: handle, placeholder_4: handle, placeholder_5: handle, outp
             for (cio: int32, 0, 8) {
               for (ki: int32, 0, 32) {
                 for (cii: int32, 0, 4) {
-                  packed_filter.global[(((((ko.inner*4096) + (co*1024)) + (cio*128)) + (ki*4)) + cii)] = 
+                  packed_filter.global[(((((ko.inner*4096) + (co*1024)) + (cio*128)) + (ki*4)) + cii)] =
                     (float32*)placeholder_7[((((((ko.outer_1*8192) + (ko.inner*4096)) + (co*1024)) + (cio*128)) + (ki*4)) + cii)]
                 }
               }
@@ -523,9 +523,9 @@ primfn(placeholder_3: handle, placeholder_4: handle, placeholder_5: handle, outp
                   for (wi: int32, 0, 8) {
                     for (ki: int32, 0, 32) {
                       for (rc.inner: int32, 0, 32) {
-                        temp_output[(((((((ho.inner*65536) + (wo*8192)) + (ko.outer_1*4096)) + (ko.inner*2048)) + (hi*256)) + (wi*32)) + ki)] = 
+                        temp_output[(((((((ho.inner*65536) + (wo*8192)) + (ko.outer_1*4096)) + (ko.inner*2048)) + (hi*256)) + (wi*32)) + ki)] =
                         (
-                          (float32*)temp_output[(((((((ho.inner*65536) + (wo*8192)) + (ko.outer_1*4096)) + (ko.inner*2048)) + (hi*256)) + (wi*32)) + ki)] + 
+                          (float32*)temp_output[(((((((ho.inner*65536) + (wo*8192)) + (ko.outer_1*4096)) + (ko.inner*2048)) + (hi*256)) + (wi*32)) + ki)] +
                           (
                             (float32*)packed_input.global[((((((ho.inner*65536) + (wo*8192)) + (rc.outer*2048)) + (hi*256)) + (wi*32)) + rc.inner)] *
                             (float32*)packed_filter.global[(((((ko.inner*4096) + (rc.outer*1024)) + (floordiv(rc.inner, 4)*128)) + (ki*4)) + floormod(rc.inner, 4))]
@@ -548,7 +548,7 @@ primfn(placeholder_3: handle, placeholder_4: handle, placeholder_5: handle, outp
           for (cio: int32, 0, 8) {
             for (ki: int32, 0, 32) {
               for (cii: int32, 0, 4) {
-                packed_filter.global[(((((ko.inner*4096) + (co*1024)) + (cio*128)) + (ki*4)) + cii)] = 
+                packed_filter.global[(((((ko.inner*4096) + (co*1024)) + (cio*128)) + (ki*4)) + cii)] =
                   (float32*)placeholder_6[((((((ko.outer*8192) + (ko.inner*4096)) + (co*1024)) + (cio*128)) + (ki*4)) + cii)]
               }
             }
@@ -577,9 +577,9 @@ primfn(placeholder_3: handle, placeholder_4: handle, placeholder_5: handle, outp
                 for (wi.c: int32, 0, 8) {
                   for (ki.c: int32, 0, 32) {
                     for (rc.inner_1: int32, 0, 32) {
-                      packed_input.global[((((((ho.c.inner*32768) + (wo.c*4096)) + (ko.c.inner*2048)) + (hi.c*256)) + (wi.c*32)) + ki.c)] = 
+                      packed_input.global[((((((ho.c.inner*32768) + (wo.c*4096)) + (ko.c.inner*2048)) + (hi.c*256)) + (wi.c*32)) + ki.c)] =
                       (
-                        (float32*)packed_input.global[((((((ho.c.inner*32768) + (wo.c*4096)) + (ko.c.inner*2048)) + (hi.c*256)) + (wi.c*32)) + ki.c)] + 
+                        (float32*)packed_input.global[((((((ho.c.inner*32768) + (wo.c*4096)) + (ko.c.inner*2048)) + (hi.c*256)) + (wi.c*32)) + ki.c)] +
                         (
                           (float32*)temp_output[((((((ho.c.inner*65536) + (wo.c*8192)) + (rc.outer_1*2048)) + (hi.c*256)) + (wi.c*32)) + rc.inner_1)] *
                           (float32*)packed_filter.global[(((((ko.c.inner*4096) + (rc.outer_1*1024)) + (floordiv(rc.inner_1, 4)*128)) + (ki.c*4)) + floormod(rc.inner_1, 4))]
@@ -601,7 +601,7 @@ primfn(placeholder_3: handle, placeholder_4: handle, placeholder_5: handle, outp
             for (hi_1: int32, 0, 8) {
               for (wi_1: int32, 0, 8) {
                 for (ki_1: int32, 0, 32) {
-                  output_2[((((((((ho.outer*131072) + (ho.inner_1*65536)) + (wo_1*8192)) + (ko.outer*4096)) + (ko.inner_1*2048)) + (hi_1*256)) + (wi_1*32)) + ki_1)] = 
+                  output_2[((((((((ho.outer*131072) + (ho.inner_1*65536)) + (wo_1*8192)) + (ko.outer*4096)) + (ko.inner_1*2048)) + (hi_1*256)) + (wi_1*32)) + ki_1)] =
                     (float32*)packed_input.global[((((((ho.inner_1*32768) + (wo_1*4096)) + (ko.inner_1*2048)) + (hi_1*256)) + (wi_1*32)) + ki_1)]
                 }
               }
@@ -827,7 +827,7 @@ primfn(placeholder_3: handle, placeholder_4: handle, placeholder_5: handle, outp
                   for (hi: int32, 0, 8) {
                     for (wi: int32, 0, 8) {
                       for (ci: int32, 0, 32) {
-                        packed_input.global[((((((ho.inner*65536) + (wo*8192)) + (co*2048)) + (hi*256)) + (wi*32)) + ci)] = 
+                        packed_input.global[((((((ho.inner*65536) + (wo*8192)) + (co*2048)) + (hi*256)) + (wi*32)) + ci)] =
                           (float32*)placeholder_8[((((((((ho.outer_1*131072) + (ho.outer*131072)) + (ho.inner*65536)) + (hi*8192)) + (wo*1024)) + (wi*128)) + (co*32)) + ci)]
                       }
                     }
@@ -845,7 +845,7 @@ primfn(placeholder_3: handle, placeholder_4: handle, placeholder_5: handle, outp
                   for (cio: int32, 0, 8) {
                     for (ki: int32, 0, 32) {
                       for (cii: int32, 0, 4) {
-                        packed_filter.global[(((((((ko.inner*36864) + (co*9216)) + (rh*3072)) + (rw*1024)) + (cio*128)) + (ki*4)) + cii)] = 
+                        packed_filter.global[(((((((ko.inner*36864) + (co*9216)) + (rh*3072)) + (rw*1024)) + (cio*128)) + (ki*4)) + cii)] =
                           (float32*)placeholder_7[((((((((ko.outer_1*73728) + (ko.inner*36864)) + (co*9216)) + (rh*3072)) + (rw*1024)) + (cio*128)) + (ki*4)) + cii)]
                       }
                     }
@@ -881,9 +881,9 @@ primfn(placeholder_3: handle, placeholder_4: handle, placeholder_5: handle, outp
                             for (rw: int32, 0, 3) {
                               for (ki: int32, 0, 32) {
                                 for (rc.inner: int32, 0, 32) {
-                                  temp_output[((((((((ho.outer_1*131072) + (ho.inner*65536)) + (wo*8192)) + (ko.outer_1*4096)) + (ko.inner*2048)) + (hi*256)) + (wi*32)) + ki)] = 
+                                  temp_output[((((((((ho.outer_1*131072) + (ho.inner*65536)) + (wo*8192)) + (ko.outer_1*4096)) + (ko.inner*2048)) + (hi*256)) + (wi*32)) + ki)] =
                                   (
-                                    (float32*)temp_output[((((((((ho.outer_1*131072) + (ho.inner*65536)) + (wo*8192)) + (ko.outer_1*4096)) + (ko.inner*2048)) + (hi*256)) + (wi*32)) + ki)] + 
+                                    (float32*)temp_output[((((((((ho.outer_1*131072) + (ho.inner*65536)) + (wo*8192)) + (ko.outer_1*4096)) + (ko.inner*2048)) + (hi*256)) + (wi*32)) + ki)] +
                                     (
                                       (float32*)packed_input.global[((((((((floordiv((hi + rh), 8)*65536) + (ho.inner*65536)) + (floordiv((wi + rw), 8)*8192)) + (wo*8192)) + (rc.outer*2048)) + (floormod((hi + rh), 8)*256)) + (floormod((wi + rw), 8)*32)) + rc.inner)] *
                                       (float32*)packed_filter.global[(((((((ko.inner*36864) + (rc.outer*9216)) + (rh*3072)) + (rw*1024)) + (floordiv(rc.inner, 4)*128)) + (ki*4)) + floormod(rc.inner, 4))]
@@ -913,7 +913,7 @@ primfn(placeholder_3: handle, placeholder_4: handle, placeholder_5: handle, outp
               for (cio: int32, 0, 8) {
                 for (ki: int32, 0, 32) {
                   for (cii: int32, 0, 4) {
-                    packed_filter.global[(((((((ko.inner*36864) + (co*9216)) + (rh*3072)) + (rw*1024)) + (cio*128)) + (ki*4)) + cii)] = 
+                    packed_filter.global[(((((((ko.inner*36864) + (co*9216)) + (rh*3072)) + (rw*1024)) + (cio*128)) + (ki*4)) + cii)] =
                       (float32*)placeholder_6[((((((((ko.outer*73728) + (ko.inner*36864)) + (co*9216)) + (rh*3072)) + (rw*1024)) + (cio*128)) + (ki*4)) + cii)]
                   }
                 }
@@ -946,9 +946,9 @@ primfn(placeholder_3: handle, placeholder_4: handle, placeholder_5: handle, outp
                     for (rw_1: int32, 0, 3) {
                       for (ki.c: int32, 0, 32) {
                         for (rc.inner_1: int32, 0, 32) {
-                          packed_input.global[((((((ho.c.inner*32768) + (wo.c*4096)) + (ko.c.inner*2048)) + (hi.c*256)) + (wi.c*32)) + ki.c)] = 
+                          packed_input.global[((((((ho.c.inner*32768) + (wo.c*4096)) + (ko.c.inner*2048)) + (hi.c*256)) + (wi.c*32)) + ki.c)] =
                           (
-                            (float32*)packed_input.global[((((((ho.c.inner*32768) + (wo.c*4096)) + (ko.c.inner*2048)) + (hi.c*256)) + (wi.c*32)) + ki.c)] + 
+                            (float32*)packed_input.global[((((((ho.c.inner*32768) + (wo.c*4096)) + (ko.c.inner*2048)) + (hi.c*256)) + (wi.c*32)) + ki.c)] +
                             (
                               (float32*)temp_output[((((((((floordiv((hi.c + rh_1), 8)*65536) + (ho.c.inner*65536)) + (floordiv((wi.c + rw_1), 8)*8192)) + (wo.c*8192)) + (rc.outer_1*2048)) + (floormod((hi.c + rh_1), 8)*256)) + (floormod((wi.c + rw_1), 8)*32)) + rc.inner_1)] *
                               (float32*)packed_filter.global[(((((((ko.c.inner*36864) + (rc.outer_1*9216)) + (rh_1*3072)) + (rw_1*1024)) + (floordiv(rc.inner_1, 4)*128)) + (ki.c*4)) + floormod(rc.inner_1, 4))]
@@ -972,7 +972,7 @@ primfn(placeholder_3: handle, placeholder_4: handle, placeholder_5: handle, outp
             for (hi_1: int32, 0, 8) {
               for (wi_1: int32, 0, 8) {
                 for (ki_1: int32, 0, 32) {
-                  output_2[((((((((ho.outer*131072) + (ho.inner_1*65536)) + (wo_1*8192)) + (ko.outer*4096)) + (ko.inner_1*2048)) + (hi_1*256)) + (wi_1*32)) + ki_1)] = 
+                  output_2[((((((((ho.outer*131072) + (ho.inner_1*65536)) + (wo_1*8192)) + (ko.outer*4096)) + (ko.inner_1*2048)) + (hi_1*256)) + (wi_1*32)) + ki_1)] =
                     (float32*)packed_input.global[((((((ho.inner_1*32768) + (wo_1*4096)) + (ko.inner_1*2048)) + (hi_1*256)) + (wi_1*32)) + ki_1)]
                 }
               }

@@ -14,13 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=dangerous-default-value
 """Testing utilities for the TensorIR schedule API"""
-from typing import Union, Sequence
+from typing import Sequence, Union
 
 import tvm
-from tvm.ir import IRModule, structural_equal
+from tvm.ir import IRModule, assert_structural_equal
 from tvm.tir import PrimFunc
-from tvm.tir.schedule import Trace, Schedule
+from tvm.tir.schedule import Schedule, Trace
 
 
 def verify_trace_roundtrip(
@@ -70,7 +71,7 @@ def verify_trace_roundtrip(
         assert text_format in ("json", "python"), f"Unknown text format: {text_format}"
 
     # Step 2. Verify that the round-trip produced the same scheduling
-    assert structural_equal(new_sch.mod, sch.mod)
+    assert_structural_equal(new_sch.mod, sch.mod)
 
     # Step 3. Check the consistency of the text format between the old and new traces
     py_repr = "\n".join(trace.as_python())

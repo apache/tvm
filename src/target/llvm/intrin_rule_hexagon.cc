@@ -182,10 +182,18 @@ TVM_REGISTER_OP("tir.sigmoid")
         useqhl = tstring.find("+hvx-qfloat") != std::string::npos;
       }
 
+      PrimExpr MinBound = tir::make_const(x.dtype(), -8);
+      PrimExpr MaxBound = tir::make_const(x.dtype(), 8);
+      const PrimExpr v1 = tir::Max(x, MinBound);
+      const PrimExpr v2 = tir::Min(v1, MaxBound);
+
+      Array<tvm::PrimExpr> new_args = {v2};
+      const tir::Call new_call = tir::Call(call->dtype, call->op, new_args);
+
       // Enable QHL library for FP16 data type
       if (x->dtype.is_float16() && x->dtype.lanes() > 1 && useqhl) {
         std::string tvm_wrapper("tvm_vect_qhmath_hvx_sigmoid_ahf");
-        return TVMExternCall(call, tvm_wrapper);
+        return TVMExternCall(new_call.get(), tvm_wrapper);
       }
 #endif
       PrimExpr one = tir::make_const(x.dtype(), 1);

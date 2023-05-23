@@ -169,8 +169,8 @@ input image belongs to the class `tiger cat`
 
 Note: this example also works without WASI support. Please modify `wasm-graph/.cargo/config` to change the target to
 `wasm32-unknown-unknown` and uncomment the raw wasm engine in `wasm-runtime/src/graph.rs` to run in pure wasm32. SIMD
-may not be supported without WASI support. You may also need to delete ` -mattr=+simd128` in the 
-[build script](apps/wasm-standalone/wasm-graph/tools/build_graph_lib.py).  
+may not be supported without WASI support. You may also need to delete ` -mattr=+simd128` in the
+[build script](apps/wasm-standalone/wasm-graph/tools/build_graph_lib.py).
 
 ## Future Work
 

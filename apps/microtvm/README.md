@@ -27,5 +27,3 @@ dependencies installed for running microTVM. To use it, run:
 $ poetry lock && poetry install
 $ poetry shell
 ```
-
-

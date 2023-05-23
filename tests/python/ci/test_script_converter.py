@@ -28,13 +28,7 @@ from tvm.contrib import utils
 from .test_utils import REPO_ROOT
 
 sys.path.insert(0, str(REPO_ROOT / "docs"))
-from script_convert import (
-    bash_to_python,
-    BASH,
-    BASH_IGNORE,
-    BASH_MULTILINE_COMMENT_START,
-    BASH_MULTILINE_COMMENT_END,
-)
+from script_convert import bash_to_python, BASH, BASH_IGNORE, BASH_MULTILINE_COMMENT
 
 # pylint: enable=wrong-import-position,wrong-import-order
 
@@ -57,7 +51,7 @@ def test_bash_cmd():
     with open(dest_path, "r") as dest_f:
         generated_cmd = dest_f.read()
 
-    expected_cmd = "# .. code-block:: bash\n" "#\n" "#\t  tvmc\n" "#\n"
+    expected_cmd = "# .. code-block:: bash\n" "#\n" "# \t  tvmc\n" "#\n"
 
     assert generated_cmd == expected_cmd
 
@@ -126,7 +120,7 @@ def test_text_and_bash_command():
     with open(dest_path, "r") as dest_f:
         generated_cmd = dest_f.read()
 
-    expected_cmd = "# start\n" "# .. code-block:: bash\n" "#\n" "#\t  tvmc\n" "#\n" "# end\n"
+    expected_cmd = "# start\n" "# .. code-block:: bash\n" "#\n" "# \t  tvmc\n" "#\n" "# end\n"
 
     assert generated_cmd == expected_cmd
 
@@ -158,10 +152,11 @@ def test_multiline_comment():
     dest_path = temp / "dest.py"
 
     with open(src_path, "w") as src_f:
-        src_f.write(BASH_MULTILINE_COMMENT_START)
+        src_f.write(BASH_MULTILINE_COMMENT)
         src_f.write("\n")
-        src_f.write("comment\n")
-        src_f.write(BASH_MULTILINE_COMMENT_END)
+        src_f.write('# """\n')
+        src_f.write("# comment\n")
+        src_f.write(BASH_MULTILINE_COMMENT)
         src_f.write("\n")
 
     bash_to_python(src_path, dest_path)
@@ -169,7 +164,7 @@ def test_multiline_comment():
     with open(dest_path, "r") as dest_f:
         generated_cmd = dest_f.read()
 
-    expected_cmd = '"""\n' "comment\n" '"""\n'
+    expected_cmd = '"""\ncomment\n'
 
     assert generated_cmd == expected_cmd
 

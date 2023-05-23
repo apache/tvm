@@ -65,7 +65,6 @@ bool SparseDenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
       return true;
     }
     LOG(FATAL) << "Unknown data ndim for nn.sparse_dense, should be 1 (CSR) or 3 (BSR)";
-    return false;
 
   } else {
     const auto* data = types[0].as<TensorTypeNode>();
@@ -89,7 +88,6 @@ bool SparseDenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
       return true;
     }
     LOG(FATAL) << "Unknown weight ndim for nn.sparse_dense, should be 1 (CSR) or 3 (BSR)";
-    return false;
   }
 }
 

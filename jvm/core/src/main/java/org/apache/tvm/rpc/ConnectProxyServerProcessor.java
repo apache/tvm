@@ -45,8 +45,8 @@ public class ConnectProxyServerProcessor implements ServerProcessor {
     this.port = port;
     this.key = "server:" + key;
   }
-  
-  /** 
+
+  /**
    * Set a callback when a connection is received e.g., to record the time for a
    * watchdog.
    * @param callback Runnable object.

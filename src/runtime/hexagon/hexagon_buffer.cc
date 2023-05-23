@@ -24,14 +24,13 @@
 #include <string>
 #include <utility>
 
-#include "HAP_compute_res.h"
 #include "hexagon_common.h"
+#include "hexagon_device_api.h"
+#include "qurt_memory.h"
 
 namespace tvm {
 namespace runtime {
 namespace hexagon {
-
-int hexagon_user_dma_1d_sync(void* dst, void* src, uint32_t length);
 
 struct Allocation {
   Allocation(size_t allocation_nbytes, size_t alignment)
@@ -51,40 +50,48 @@ struct DDRAllocation : public Allocation {
   DDRAllocation(size_t nbytes, size_t alignment) : Allocation(nbytes, alignment) {
     int ret = posix_memalign(&data_, alignment, nbytes);
     CHECK_EQ(ret, 0);
+
+    // The heap used by malloc on Hexagon is always mapped as cacheable. The heap manager may not
+    // perform cache invalidation on a prior memory free. So, a subsequent memory allocation request
+    // to the heap manager may allocate memory that resides in part or in full in the cache. Hence,
+    // we must invalidate the allocation from the cache to ensure that DMA with cache bypass enabled
+    // will function properly. DMA with cache bypass enabled assumes that HexagonBuffer objects are
+    // not cached unless explicitly modified by the primfunc. We must invalidate after malloc to
+    // uphold this assumption.
+    qurt_mem_cache_clean(reinterpret_cast<qurt_addr_t>(data_), nbytes, QURT_MEM_CACHE_INVALIDATE,
+                         QURT_MEM_DCACHE);
   }
   ~DDRAllocation() { free(data_); }
 };
 
 struct VTCMAllocation : public Allocation {
   VTCMAllocation(size_t nbytes, size_t alignment) : Allocation(nbytes, alignment) {
-    compute_res_attr_t res_info;
-    HEXAGON_SAFE_CALL(HAP_compute_res_attr_init(&res_info));
+    // For simplicity, the current VTCM dynamic pool supports the following alignments: less than
+    // or equal to 128 (0x80), and 2k (0x800)
+    CHECK((alignment <= 0x80) || (alignment == 0x800))
+        << "VTCMAllocation called for invalid alignment " << alignment;
 
-    // allocate nbytes of vtcm on a single page
-    HEXAGON_SAFE_CALL(HAP_compute_res_attr_set_vtcm_param(&res_info, /*vtcm_size = */ nbytes,
-                                                          /*b_single_page = */ 1));
-
-    // TODO(HWE): Investigate why a non-zero timeout results in
-    // hanging, both in the simulator and on hardware.
-    context_id_ = HAP_compute_res_acquire(&res_info, /*timeout = */ 0);
-
-    if (context_id_) {
-      data_ = HAP_compute_res_attr_get_vtcm_ptr(&res_info);
-      if (!data_) {
-        LOG(ERROR) << "ERROR: Allocated VTCM ptr is null.";
-        HEXAGON_SAFE_CALL(HAP_compute_res_release(context_id_));
-        return;
-      }
-    } else {
-      LOG(ERROR) << "ERROR: Unable to acquire requeisted resource.";
-      return;
+    if (alignment == 0x800) {
+      // Adjust size to be a multiple of 2k so that we will allocate from the front of the pool.
+      nbytes = (nbytes + 0x7ff) & -0x800;
+    } else if (alignment <= 0x80) {
+      // Adjust size to be a multiple of 128 so that we will allocate from the back of the pool
+      // in 128 byte increments.
+      nbytes = (nbytes + 0x7f) & -0x80;
     }
+    if (allocation_nbytes_ != nbytes) {
+      DLOG(INFO) << "VTCMAllocation size adjusted for alignment " << allocation_nbytes_ << " to "
+                 << nbytes;
+      allocation_nbytes_ = nbytes;
+    }
+    data_ = HexagonDeviceAPI::Global()->VtcmPool()->Allocate(allocation_nbytes_);
+    DLOG(INFO) << "VTCMAllocation " << data_ << " " << allocation_nbytes_ << " " << alignment;
   }
   ~VTCMAllocation() {
-    HEXAGON_SAFE_CALL(HAP_compute_res_release(context_id_));
+    DLOG(INFO) << "~VTCMAllocation " << data_ << " " << allocation_nbytes_;
+    HexagonDeviceAPI::Global()->VtcmPool()->Free(data_, allocation_nbytes_);
     data_ = nullptr;
   }
-  unsigned int context_id_{0};
 };
 
 template <HexagonBuffer::StorageScope S>
@@ -154,24 +161,22 @@ void* HexagonBuffer::GetPointer() {
     return allocations_.data();
   } else {
     LOG(FATAL) << "HexagonBuffer should be either 1-d or 2-d, not " << ndim_ << "-d";
-    return nullptr;
   }
 }
 
 HexagonBuffer::StorageScope HexagonBuffer::GetStorageScope() const { return storage_scope_; }
 
 void HexagonBuffer::SetStorageScope(Optional<String> scope) {
-  if (!scope.defined()) {
+  const std::string s = scope.value_or("global");
+
+  if (s == "global") {
     storage_scope_ = StorageScope::kDDR;
+  } else if (s == "global.ddr") {
+    storage_scope_ = StorageScope::kDDR;
+  } else if (s == "global.vtcm") {
+    storage_scope_ = StorageScope::kVTCM;
   } else {
-    if (scope.value() == "global") {
-      storage_scope_ = StorageScope::kDDR;
-    } else if (scope.value() == "global.vtcm") {
-      storage_scope_ = StorageScope::kVTCM;
-    } else {
-      CHECK(false) << "Encountered unknown HexagonBuffer storage scope: "
-                   << std::string(scope.value());
-    }
+    CHECK(false) << "Encountered unknown HexagonBuffer storage scope: " << std::string(s);
   }
 }
 
@@ -229,7 +234,8 @@ std::vector<MemoryCopy> MemoryCopy::MergeAdjacent(std::vector<MemoryCopy> micro_
 }
 
 void hexagon_buffer_copy_across_regions(const BufferSet& dest, const BufferSet& src,
-                                        size_t bytes_to_copy) {
+                                        size_t bytes_to_copy, bool src_is_hexbuff,
+                                        bool dest_is_hexbuff) {
   // First, determine all copies that do not cross boundaries in
   // either source or destination region.
   auto micro_copies = BufferSet::MemoryCopies(dest, src, bytes_to_copy);
@@ -240,8 +246,21 @@ void hexagon_buffer_copy_across_regions(const BufferSet& dest, const BufferSet& 
 
   // Finally, do the memory copies.
   for (const auto& copy : macro_copies) {
-    int error_code = hexagon_user_dma_1d_sync(copy.dest, copy.src, copy.num_bytes);
-    CHECK_EQ(error_code, 0);
+    // if src is a HexagonBuffer, invalidate it before the memcpy
+    if (src_is_hexbuff) {
+      qurt_mem_cache_clean(reinterpret_cast<qurt_addr_t>(copy.src), copy.num_bytes,
+                           QURT_MEM_CACHE_INVALIDATE, QURT_MEM_DCACHE);
+    }
+
+    // TODO(HWE): Switch to ION Buffer to avoid need for memcpy and potentially lighten or alleviate
+    // the burden of cache invalidation in this code
+    memcpy(copy.dest, copy.src, copy.num_bytes);
+
+    // if dest is a HexagonBuffer, flush it after the memcpy
+    if (dest_is_hexbuff) {
+      qurt_mem_cache_clean(reinterpret_cast<qurt_addr_t>(copy.dest), copy.num_bytes,
+                           QURT_MEM_CACHE_FLUSH, QURT_MEM_DCACHE);
+    }
   }
 }
 
@@ -249,21 +268,24 @@ void HexagonBuffer::CopyTo(void* data, size_t nbytes) const {
   BufferSet src(allocations_.data(), allocations_.size(), nbytes_per_allocation_);
   BufferSet dest(&data, 1, nbytes);
 
-  hexagon_buffer_copy_across_regions(dest, src, nbytes);
+  hexagon_buffer_copy_across_regions(dest, src, nbytes, true /* src_is_hexbuff */,
+                                     false /* dest_is_hexbuff */);
 }
 
 void HexagonBuffer::CopyFrom(void* data, size_t nbytes) {
   BufferSet src(&data, 1, nbytes);
   BufferSet dest(allocations_.data(), allocations_.size(), nbytes_per_allocation_);
 
-  hexagon_buffer_copy_across_regions(dest, src, nbytes);
+  hexagon_buffer_copy_across_regions(dest, src, nbytes, false /* src_is_hexbuff */,
+                                     true /* dest_is_hexbuff */);
 }
 
 void HexagonBuffer::CopyFrom(const HexagonBuffer& other, size_t nbytes) {
   BufferSet src(other.allocations_.data(), other.allocations_.size(), other.nbytes_per_allocation_);
   BufferSet dest(allocations_.data(), allocations_.size(), nbytes_per_allocation_);
 
-  hexagon_buffer_copy_across_regions(dest, src, nbytes);
+  hexagon_buffer_copy_across_regions(dest, src, nbytes, true /* src_is_hexbuff */,
+                                     true /* dest_is_hexbuff */);
 }
 
 }  // namespace hexagon

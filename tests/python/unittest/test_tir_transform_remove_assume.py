@@ -17,8 +17,8 @@
 
 import tvm
 import tvm.testing
-from tvm.script import tir as T
 from tvm import TVMError
+from tvm.script import tir as T
 
 
 class BaseBeforeAfter(tvm.testing.CompareBeforeAfter):
@@ -30,25 +30,25 @@ class BaseBeforeAfter(tvm.testing.CompareBeforeAfter):
 class TestRemoveAssume(BaseBeforeAfter):
     """Remove any instance of T.assume"""
 
-    def before(A: T.Buffer[1, "int32"]):
-        T.assume(A[0] == 5)
+    def before(A: T.Buffer(1, "int32")):
+        T.evaluate(T.assume(A[0] == 5))
         A[0] = 10
 
-    def expected(A: T.Buffer[1, "int32"]):
+    def expected(A: T.Buffer(1, "int32")):
         A[0] = 10
 
 
 class TestRemoveAssumeLoop(BaseBeforeAfter):
     """Loops containing only T.assume should be removed"""
 
-    def before(A: T.Buffer[16, "int32"]):
+    def before(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
-            T.assume(A[i] == 0)
+            T.evaluate(T.assume(A[i] == 0))
 
         for i in T.serial(16):
             A[i] = 10
 
-    def expected(A: T.Buffer[16, "int32"]):
+    def expected(A: T.Buffer(16, "int32")):
         for i in T.serial(16):
             A[i] = 10
 

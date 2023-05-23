@@ -53,7 +53,7 @@ def _check_block_signature_remap(lhs: Block, rhs: Block):
 def test_simple():
     @T.prim_func
     # Buffer A should be remapped
-    def elementwise(A: T.Buffer[(128, 128), "float32"]):
+    def elementwise(A: T.Buffer((128, 128), "float32")):
         # Buffer B should be remapped
         B = T.alloc_buffer((128, 128), "float32")
         # i, j should be remapped
@@ -86,10 +86,10 @@ def test_simple():
 def test_match_buffer():
     @T.prim_func
     # A and B should be remapped
-    def func_match_buffer(A: T.Buffer[(128, 128), "float32"], B: T.Buffer[(128, 128), "float32"]):
+    def func_match_buffer(A: T.Buffer((128, 128), "float32"), B: T.Buffer((128, 128), "float32")):
         with T.block("root"):
-            s = T.var("int32")
-            e = T.var("int32")
+            s = T.int32()
+            e = T.int32()
             # A0 should be remapped
             A0 = T.match_buffer(
                 A[0:128, 0:128],
@@ -135,7 +135,8 @@ def test_undefined_buffer():
     @T.prim_func
     def access_alloc():
         # Buffer A should be remapped
-        A = T.allocate([128], "float16", "global")
+        A_data = T.allocate([128], "float16", "global")
+        A = T.Buffer(shape=[128], dtype="float16", data=A_data)
         # check if buffer var also get remapped
         T.evaluate(A.data)
         for i in range(128):
@@ -156,7 +157,7 @@ def test_undefined_buffer():
 def test_symbolic_func():
     @T.prim_func
     def symbolic_func(a: T.handle, b: T.handle, n: T.int32):
-        m = T.var("int32")
+        m = T.int32()
         A = T.match_buffer(a, (n, m))
         B = T.match_buffer(b, (n, m * 2))
         for i, j in T.grid(n, m):

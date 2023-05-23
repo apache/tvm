@@ -296,5 +296,3 @@ Load and Store Modules
 The load and store modules perform 2D DMA loads with a strided access pattern from DRAM to SRAM.
 In addition, the load module can insert 2D padding on the fly, which is useful when blocking 2D convolution.
 This means that VTA can tile 2D convolution inputs without paying the overhead of re-laying data out in DRAM to insert spatial padding around input and weight tiles.
-
-

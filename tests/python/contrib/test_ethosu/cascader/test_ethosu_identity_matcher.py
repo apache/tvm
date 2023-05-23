@@ -55,4 +55,4 @@ def test_ethosu_identity_matcher():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

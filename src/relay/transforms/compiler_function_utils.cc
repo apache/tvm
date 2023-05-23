@@ -166,8 +166,8 @@ class OuterInliner : public MixedModeMutator {
 
   Expr Rewrite_(const CallNode* pre, const Expr& post) final {
     Call new_call = Downcast<Call>(post);
-    if (const auto* global_var_node = new_call->op.as<GlobalVarNode>()) {
-      auto global_var = GetRef<GlobalVar>(global_var_node);
+    if (auto global_var_node = new_call->op.as<GlobalVar>()) {
+      auto global_var = global_var_node.value();
       if (std::find(global_vars_.begin(), global_vars_.end(), global_var) != global_vars_.end()) {
         BaseFunc base_func = mod_->Lookup(global_var);
         const auto* function_node = base_func.as<FunctionNode>();

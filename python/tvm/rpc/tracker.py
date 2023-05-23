@@ -348,7 +348,7 @@ class TrackerServerHandler(object):
         if "key" in conn._info:
             for value in conn.put_values:
                 _, _, _, key = value
-                rpc_key = key.split(":")[0]
+                rpc_key, _ = base.split_random_key(key)
                 self._scheduler_map[rpc_key].remove(value)
 
     def stop(self):
@@ -387,11 +387,15 @@ class PopenTrackerServerState(object):
 
     current = None
 
-    def __init__(self, host, port=9190, port_end=9199, silent=False):
+    def __init__(self, host, port=9190, port_end=9199, silent=False, reuse_addr=True, timeout=None):
         if silent:
             logger.setLevel(logging.WARN)
 
         sock = socket.socket(base.get_addr_family((host, port)), socket.SOCK_STREAM)
+        if reuse_addr:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        if timeout is not None:
+            sock.settimeout(timeout)
         self.port = None
         self.stop_key = base.random_key("tracker")
         for my_port in range(port, port_end):
@@ -412,11 +416,13 @@ class PopenTrackerServerState(object):
         self.host = host
 
 
-def _popen_start_tracker_server(host, port=9190, port_end=9199, silent=False):
+def _popen_start_tracker_server(
+    host, port=9190, port_end=9199, silent=False, reuse_addr=True, timeout=None
+):
     # This is a function that will be sent to the
     # Popen worker to run on a separate process.
     # Create and start the server in a different thread
-    state = PopenTrackerServerState(host, port, port_end, silent)
+    state = PopenTrackerServerState(host, port, port_end, silent, reuse_addr, timeout)
     PopenTrackerServerState.current = state
     # returns the port so that the main can get the port number.
     return (state.port, state.stop_key)
@@ -440,9 +446,18 @@ class Tracker(object):
 
     silent: bool, optional
         Whether run in silent mode
+
+    reuse_addr: bool, optional
+        Allows the kernel to reuse a local socket in TIME_WAIT state.
+
+    timeout: float, optional
+         set a timeout for all operations on the socket
+
     """
 
-    def __init__(self, host="0.0.0.0", port=9190, port_end=9199, silent=False):
+    def __init__(
+        self, host="0.0.0.0", port=9190, port_end=9199, silent=False, reuse_addr=True, timeout=None
+    ):
         if silent:
             logger.setLevel(logging.WARN)
         self.proc = PopenWorker()
@@ -454,6 +469,8 @@ class Tracker(object):
                 port,
                 port_end,
                 silent,
+                reuse_addr,
+                timeout,
             ],
         )
         # receive the port

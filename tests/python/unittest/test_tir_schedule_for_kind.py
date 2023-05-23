@@ -279,9 +279,9 @@ def thread_bound_block_inside_init(a: T.handle, b: T.handle) -> None:
 
 @T.prim_func
 def decomposed_gemm(
-    A: T.Buffer[(16, 16), "float32"],
-    B: T.Buffer[(16, 16), "float32"],
-    C: T.Buffer[(16, 16), "float32"],
+    A: T.Buffer((16, 16), "float32"),
+    B: T.Buffer((16, 16), "float32"),
+    C: T.Buffer((16, 16), "float32"),
 ):
     local = T.alloc_buffer((16, 16), "float32")
     for i, j in T.grid(4, 4):
@@ -305,9 +305,9 @@ def decomposed_gemm(
 
 @T.prim_func
 def decomposed_gemm_after_vectorize(
-    A: T.Buffer[(16, 16), "float32"],
-    B: T.Buffer[(16, 16), "float32"],
-    C: T.Buffer[(16, 16), "float32"],
+    A: T.Buffer((16, 16), "float32"),
+    B: T.Buffer((16, 16), "float32"),
+    C: T.Buffer((16, 16), "float32"),
 ):
     local = T.alloc_buffer((16, 16), "float32")
     for i, j in T.grid(4, 4):
@@ -332,7 +332,7 @@ def decomposed_gemm_after_vectorize(
 
 @T.prim_func
 def nested_block_bind(
-    A: T.Buffer[(16, 16, 16, 16), "float32"], B: T.Buffer[(16, 16, 16), "float32"]
+    A: T.Buffer((16, 16, 16, 16), "float32"), B: T.Buffer((16, 16, 16), "float32")
 ):
     for i, j in T.grid(16, 16):
         with T.block("outer"):
@@ -347,7 +347,7 @@ def nested_block_bind(
 
 @T.prim_func
 def thread_bound_nested_block(
-    A: T.Buffer[(16, 16, 16, 16), "float32"], B: T.Buffer[(16, 16, 16), "float32"]
+    A: T.Buffer((16, 16, 16, 16), "float32"), B: T.Buffer((16, 16, 16), "float32")
 ) -> None:
     for i in T.serial(16):
         for j in T.thread_binding(16, thread="blockIdx.x"):
@@ -364,7 +364,7 @@ def thread_bound_nested_block(
 
 @T.prim_func
 def nested_block_bind_after_cache_read(
-    A: T.Buffer[(16, 16), "float32"], B: T.Buffer[(16,), "float32"]
+    A: T.Buffer((16, 16), "float32"), B: T.Buffer((16,), "float32")
 ) -> None:
     for i in T.serial(16):
         with T.block("outer"):
@@ -385,7 +385,7 @@ def nested_block_bind_after_cache_read(
 
 @T.prim_func
 def thread_bound_nested_block_after_cache_read(
-    A: T.Buffer[(16, 16), "float32"], B: T.Buffer[(16,), "float32"]
+    A: T.Buffer((16, 16), "float32"), B: T.Buffer((16,), "float32")
 ) -> None:
     for i in T.thread_binding(16, thread="blockIdx.x"):
         with T.block("outer"):
@@ -406,9 +406,9 @@ def thread_bound_nested_block_after_cache_read(
 
 @T.prim_func
 def decomposed_gemm_parallelize_init(
-    A: T.Buffer[(16, 16), "float32"],
-    B: T.Buffer[(16, 16), "float32"],
-    C: T.Buffer[(16, 16), "float32"],
+    A: T.Buffer((16, 16), "float32"),
+    B: T.Buffer((16, 16), "float32"),
+    C: T.Buffer((16, 16), "float32"),
 ) -> None:
     local = T.alloc_buffer([16, 16], dtype="float32")
     for i, j in T.grid(4, 4):
@@ -438,7 +438,7 @@ def decomposed_gemm_parallelize_init(
 
 
 @T.prim_func
-def scatter_compute(A: T.Buffer[(16,), "float32"], B: T.Buffer[(16,), "float32"]):
+def scatter_compute(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")):
     for i in T.grid(8):
         with T.block("first_half"):
             vi = T.axis.spatial(16, 8 + i)
@@ -452,7 +452,7 @@ def scatter_compute(A: T.Buffer[(16,), "float32"], B: T.Buffer[(16,), "float32"]
 
 @T.prim_func
 def scatter_compute_parallelize(
-    A: T.Buffer[(16,), "float32"], B: T.Buffer[(16,), "float32"]
+    A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")
 ) -> None:
     # body
     # with T.block("root")

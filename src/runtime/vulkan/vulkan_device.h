@@ -67,7 +67,7 @@ struct VulkanQueueInsertDebugUtilsLabelFunctions {
  * \brief Stores the capabilities/limits queried from the physical device.
  *
  * The member variables here have a 1-1 mapping to Target parameters,
- * if target->kind->device_type==kDLVulkan.  A separate struct is used
+ * if target->GetTargetDeviceType()==kDLVulkan.  A separate struct is used
  * to maintain the boundary between the Vulkan runtime in
  * libtvm_runtime.so, and the Target object in libtvm.so.
  */
@@ -88,6 +88,7 @@ struct VulkanDeviceProperties {
   bool supports_push_descriptor{false};
   bool supports_dedicated_allocation{false};
   bool supports_integer_dot_product{false};
+  bool supports_cooperative_matrix{false};
   uint32_t supported_subgroup_operations{0};
   uint32_t max_num_threads{1};
   uint32_t thread_warp_size{1};

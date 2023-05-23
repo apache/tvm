@@ -134,6 +134,9 @@ TEST_F(HexagonDeviceAPITest, alloc_scalar) {
 
   void* hexscalar = hexapi->AllocDataSpace(hex_dev, 0, new int64_t, int8, global_vtcm_scope);
   CHECK(hexscalar != nullptr);
+
+  hexscalar = hexapi->AllocDataSpace(hex_dev, 0, nullptr, int8, global_vtcm_scope);
+  CHECK(hexscalar != nullptr);
 }
 
 // alloc and free of the same buffer on different devices should throw
@@ -145,4 +148,48 @@ TEST_F(HexagonDeviceAPITest, DISABLED_alloc_free_diff_dev) {
   void* buf = hexapi->AllocDataSpace(hex_dev, nbytes, alignment, int8);
   CHECK(buf != nullptr);
   EXPECT_THROW(hexapi->FreeDataSpace(cpu_dev, buf), InternalError);
+}
+
+// Ensure runtime buffer manager is properly configured and destroyed
+// in Acquire/Release
+TEST_F(HexagonDeviceAPITest, runtime_buffer_manager) {
+  hexapi->ReleaseResources();
+  EXPECT_THROW(hexapi->AllocDataSpace(hex_dev, nbytes, alignment, int8), InternalError);
+  hexapi->AcquireResources();
+  void* runtime_buf = hexapi->AllocDataSpace(hex_dev, nbytes, alignment, int8);
+  CHECK(runtime_buf != nullptr);
+  hexapi->ReleaseResources();
+  hexapi->FreeDataSpace(hex_dev, runtime_buf);
+  hexapi->AcquireResources();
+  EXPECT_THROW(hexapi->FreeDataSpace(hex_dev, runtime_buf), InternalError);
+}
+
+// Ensure thread manager is properly configured and destroyed
+// in Acquire/Release
+TEST_F(HexagonDeviceAPITest, thread_manager) {
+  HexagonThreadManager* threads = hexapi->ThreadManager();
+  CHECK(threads != nullptr);
+  hexapi->ReleaseResources();
+  EXPECT_THROW(hexapi->ThreadManager(), InternalError);
+  hexapi->AcquireResources();
+}
+
+// Ensure user DMA manager is properly configured and destroyed
+// in Acquire/Release
+TEST_F(HexagonDeviceAPITest, user_dma) {
+  HexagonUserDMA* user_dma = hexapi->UserDMA();
+  CHECK(user_dma != nullptr);
+  hexapi->ReleaseResources();
+  EXPECT_THROW(hexapi->UserDMA(), InternalError);
+  hexapi->AcquireResources();
+}
+
+// Ensure VTCM pool is properly configured and destroyed
+// in Acquire/Release
+TEST_F(HexagonDeviceAPITest, vtcm_pool) {
+  HexagonVtcmPool* vtcm_pool = hexapi->VtcmPool();
+  CHECK(vtcm_pool != nullptr);
+  hexapi->ReleaseResources();
+  EXPECT_THROW(hexapi->VtcmPool(), InternalError);
+  hexapi->AcquireResources();
 }

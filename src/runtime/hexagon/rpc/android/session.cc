@@ -121,7 +121,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.hexagon.create_hexagon_session")
           new HexagonTransportChannel(hexagon_rpc_URI CDSP_DOMAIN, remote_stack_size_bytes,
                                       static_cast<uint32_t>(hexagon_rpc_receive_buf_size_bytes));
       std::unique_ptr<RPCChannel> channel(hexagon_channel);
-      auto ep = RPCEndpoint::Create(std::move(channel), session_name, "", NULL);
+      auto ep = RPCEndpoint::Create(std::move(channel), session_name, "", nullptr);
       auto sess = CreateClientSession(ep);
       *rv = CreateRPCSessionModule(sess);
     });

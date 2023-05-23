@@ -186,14 +186,6 @@ class GPUCodeVerifier : public StmtExprVisitor {
     StmtVisitor::VisitStmt_(op);
   }
 
-  void VisitExpr_(const LoadNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-  }
-
-  void VisitStmt_(const StoreNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-  }
-
   void CheckBufferIndicesVectorizable(const Array<PrimExpr> indices) {
     for (const auto index : indices) {
       if (const auto* ramp = index.as<RampNode>()) {
@@ -207,6 +199,19 @@ class GPUCodeVerifier : public StmtExprVisitor {
         }
       }
     }
+  }
+
+  void VisitExpr_(const CastNode* op) {
+    if (op->dtype.lanes() > 1) {
+      if (static_cast<size_t>(op->dtype.lanes() * op->dtype.bytes()) > max_vector_bytes_) {
+        std::stringstream s;
+        s << "Number of lanes (" << op->dtype.lanes() << ") times number of bytes ("
+          << op->dtype.bytes() << ") for dtype " << op->dtype
+          << " is greater than the maximum number of vector bytes (" << max_vector_bytes_ << ")";
+        errors_.push_back(s.str());
+      }
+    }
+    ExprVisitor::VisitExpr_(op);
   }
 
   void VisitExpr_(const BufferLoadNode* op) {
@@ -323,9 +328,8 @@ namespace transform {
 Pass VerifyGPUCode(Map<String, PrimExpr> constraints) {
   auto pass_func = [=](IRModule mod, PassContext ctx) {
     for (auto kv : mod->functions) {
-      if (auto* n = kv.second.as<PrimFuncNode>()) {
-        auto func = GetRef<PrimFunc>(n);
-        auto errs = VerifyGPUCode_(func, constraints);
+      if (auto func = kv.second.as<PrimFunc>()) {
+        auto errs = VerifyGPUCode_(func.value(), constraints);
         if (errs.size() != 0) {
           std::stringstream s;
           for (auto& err : errs) {

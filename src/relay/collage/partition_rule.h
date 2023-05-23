@@ -31,7 +31,7 @@
 #include <string>
 #include <vector>
 
-#include "../../printer/doc.h"
+#include "../printer/doc.h"
 #include "./candidate_partition.h"
 #include "./combiner_rule.h"
 #include "./sub_graph.h"

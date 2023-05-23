@@ -34,6 +34,13 @@ namespace tvm {
 namespace relay {
 namespace collage {
 
+// Clang (15.0.3, at least) validly complains about `@main`, but it invalidly
+// complains even about `\c @main`.
+#if __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdocumentation-unknown-command"
+#endif
+
 /*!
  * \brief A mock cost estimator which can determine the cost of a candidate based on both
  * the candidate's target and the number of operator calls inside it.
@@ -69,6 +76,9 @@ class MockCostEstimatorNode : public CostEstimatorNode {
 
   friend class MockCostEstimator;
 };
+#if __clang__
+#pragma clang diagnostic pop
+#endif
 
 class MockCostEstimator : public CostEstimator {
  public:

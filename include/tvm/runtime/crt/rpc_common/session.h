@@ -43,10 +43,23 @@ enum class MessageType : uint8_t {
   kNormal = 0x10,
 };
 
+#if defined(_MSC_VER)
+
+#pragma pack(push, 1)
+typedef struct SessionHeader {
+  uint16_t session_id;
+  MessageType message_type;
+} SessionHeader;
+#pragma pack(pop)
+
+#else
+
 typedef struct SessionHeader {
   uint16_t session_id;
   MessageType message_type;
 } __attribute__((packed)) SessionHeader;
+
+#endif
 
 /*!
  * \brief CRT communication session management class.

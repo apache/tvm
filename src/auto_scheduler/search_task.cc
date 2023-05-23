@@ -54,7 +54,7 @@ HardwareParams::HardwareParams(int num_cores, int vector_unit_bytes, int cache_l
 HardwareParams HardwareParamsNode::GetDefaultHardwareParams(const Target& target,
                                                             const Target& target_host) {
   // There is no use of target_host so no updates here in the function.
-  const auto device_type = target->kind->device_type;
+  const auto device_type = target->GetTargetDeviceType();
   if (device_type == kDLCPU) {
     return HardwareParams(tvm::runtime::threading::MaxConcurrency(), 64, 64, 0, 0, 0, 0, 0);
   } else if (device_type == kDLCUDA || device_type == kDLROCM) {
@@ -91,12 +91,20 @@ HardwareParams HardwareParamsNode::GetDefaultHardwareParams(const Target& target
     int max_vthread_extent = warp_size / 4;
     return HardwareParams(-1, 16, 64, max_shared_memory_per_block, max_local_memory_per_block,
                           max_threads_per_block, max_vthread_extent, warp_size);
-  } else if (target->kind->device_type == kDLOpenCL) {
+  } else if (target->GetTargetDeviceType() == kDLOpenCL) {
     if (target->GetAttr<String>("device", "") == "mali") {
       // We cannot use device API to get hardware attributes like CUDA,
       // because like Mali target is normally on the remote machine.
       int max_shared_memory_per_block = 32768;
       int max_local_memory_per_block = INT32_MAX;  // skip the check on local memory
+      int max_threads_per_block = 256;
+      int warp_size = 1;
+      int max_vthread_extent = 1;
+      return HardwareParams(-1, 16, 64, max_shared_memory_per_block, max_local_memory_per_block,
+                            max_threads_per_block, max_vthread_extent, warp_size);
+    } else if (target->GetAttr<String>("device", "") == "adreno") {
+      int max_shared_memory_per_block = 32768;
+      int max_local_memory_per_block = 32768;
       int max_threads_per_block = 256;
       int warp_size = 1;
       int max_vthread_extent = 1;

@@ -79,7 +79,7 @@ You can get value of your `team_id` in the following ways:
   select target `tvmrpc`. At the bottom of this panel go to `Signing &
   Capabilities` tab and in the field `Team` select your local developer profile
   (`Your Name (Personal Team)`).
-  
+
   On the first run of the application you may see message `Could not launch
   "tvmrpc"` in the XCode and message `Untrusted Developer` on your device. In
   this case it will be necessary to check the certificate. Open
@@ -210,7 +210,7 @@ model and execute it on the target device. For this purpose we will use
 ```shell
 python3 tests/ios_rpc_test.py --host <host_ip_address> --port 9190 --mode "tracker"
 ```
-The output will be the same as in section 
+The output will be the same as in section
 [Standalone RPC](#standalone-rpc).
 
 ## Communication without Wi-Fi and speed up in case of slow Wi-Fi

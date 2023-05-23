@@ -461,8 +461,8 @@ Buffer Buffer::MakeSlice(Array<PrimExpr> begins, Array<PrimExpr> extents) const 
   ICHECK(n != nullptr);
   arith::Analyzer ana;
   begins = SimplifyArray(&ana, begins);
-  Array<PrimExpr> elem_offset = n->ElemOffset(begins);
-  elem_offset.MutateByApply([&](const PrimExpr& expr) { return ana.Simplify(expr); });
+  Array<PrimExpr> elem_offset =
+      n->ElemOffset(begins).Map([&](const PrimExpr& expr) { return ana.Simplify(expr); });
 
   Array<PrimExpr> strides = n->strides;
   if (strides.size() == 0) {
@@ -611,12 +611,6 @@ tir::Buffer BufferWithOffsetAlignment(Array<PrimExpr> shape, DataType dtype, std
   return tir::Buffer(data, dtype, shape, Array<PrimExpr>(), elem_offset, name, data_alignment,
                      offset_factor, buffer_type);
 }
-
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<BufferNode>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* op = static_cast<const BufferNode*>(node.get());
-      p->stream << "buffer(" << op->name << ", " << op << ")";
-    });
 
 TVM_REGISTER_NODE_TYPE(BufferNode);
 

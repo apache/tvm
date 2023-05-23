@@ -16,9 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/ir/error.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/attrs/annotation.h>
+#include <tvm/relay/error.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
@@ -189,8 +189,8 @@ class ExternalFuncIOHandler : public ExprRewriter {
   Expr Rewrite_(const CallNode* call, const Expr& post) final {
     auto post_call = Downcast<Call>(post);
 
-    if (auto glb_var_node = post_call->op.as<GlobalVarNode>()) {
-      auto glb_var = GetRef<GlobalVar>(glb_var_node);
+    if (auto optional_glb_var = post_call->op.as<GlobalVar>()) {
+      auto glb_var = optional_glb_var.value();
       auto func = Downcast<Function>(module_->functions[glb_var]);
 
       // If the number of inputs and output are 1 --> no need to do anything
@@ -233,9 +233,9 @@ class ExternalFuncIOHandler : public ExprRewriter {
 
 IRModule PreprocessExternalFuncIO_(const IRModule& module) {
   ExternalFuncIOHandler ex_func_io_handle(module);
-  auto func = GetRef<Function>(module->Lookup("main").as<FunctionNode>());
+  auto func = Downcast<Function>(module->Lookup("main"));
   auto preprocessed = PostOrderRewrite(func, &ex_func_io_handle);
-  module->Update(module->GetGlobalVar("main"), GetRef<Function>(preprocessed.as<FunctionNode>()));
+  module->Update(module->GetGlobalVar("main"), Downcast<Function>(preprocessed));
   return module;
 }
 

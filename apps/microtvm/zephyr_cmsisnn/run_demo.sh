@@ -46,7 +46,7 @@ west zephyr-export
 west build
 west build -t run &> ${LOGDIR}/west.log &
 
-# Wait for "exit" keyword 
+# Wait for "exit" keyword
 until grep -m 1 "exit" ${LOGDIR}/west.log; do sleep 1 ; done
 
 # Check the log for correct output

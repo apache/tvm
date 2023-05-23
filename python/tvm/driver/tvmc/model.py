@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=consider-using-with,broad-exception-raised,consider-using-from-import
 """
 This file contains the definition of a set of classes that wrap the outputs
 of TVMC functions to create a simpler and more intuitive API.
@@ -407,6 +408,16 @@ class TVMCPackage(object):
             params = temp.relpath(f"parameters/{module_name}.params")
 
             self.type = "mlf"
+
+            # Set executor type
+            if len(metadata["modules"][module_name]["executors"]) > 1:
+                executor_types_msg = ",".join(metadata["modules"][module_name]["executors"])
+                raise TVMCException(
+                    f"Found multiple executors with these types: {executor_types_msg}. "
+                    "Currently, only one executor type (aot or graph) is supported."
+                )
+            self.executor_type = metadata["modules"][module_name]["executors"][0]
+
         else:
             # Classic format
             classic_lib_name_so = "mod.so"
@@ -434,9 +445,11 @@ class TVMCPackage(object):
             self.lib_path = temp.relpath(self.lib_name)
 
             graph, params = None, None
+            self.executor_type = "vm"
             if self.type == "classic":
                 graph = temp.relpath("mod.json")
                 params = temp.relpath("mod.params")
+                self.executor_type = "graph"
 
         if params is not None:
             with open(params, "rb") as param_file:

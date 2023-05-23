@@ -55,6 +55,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <tuple>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -70,9 +71,11 @@ namespace codegen {
 CodeGenCPU::CodeGenCPU() = default;
 CodeGenCPU::~CodeGenCPU() = default;
 
-void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target, bool system_lib,
-                      bool dynamic_lookup, bool target_c_runtime) {
-  CodeGenLLVM::Init(module_name, llvm_target, system_lib, dynamic_lookup, target_c_runtime);
+void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target,
+                      Optional<String> system_lib_prefix, bool dynamic_lookup,
+                      bool target_c_runtime) {
+  CodeGenLLVM::Init(module_name, llvm_target, system_lib_prefix, dynamic_lookup, target_c_runtime);
+  system_lib_prefix_ = system_lib_prefix;
   dbg_info_ = CreateDebugInfo(module_.get());
   static_assert(sizeof(TVMValue) == sizeof(double), "invariant");
   func_handle_map_.clear();
@@ -152,7 +155,7 @@ void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target, b
                                ftype_tvm_static_init_callback_->getPointerTo(), t_void_p_, t_int_},
                               false);
   // initialize TVM runtime API
-  if (system_lib && !target_c_runtime) {
+  if (system_lib_prefix_.defined() && !target_c_runtime) {
     // We will need this in environment for backward registration.
     // Defined in include/tvm/runtime/c_backend_api.h:
     // int TVMBackendRegisterSystemLibSymbol(const char* name, void* ptr);
@@ -162,7 +165,7 @@ void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target, b
   } else {
     f_tvm_register_system_symbol_ = nullptr;
   }
-  if (dynamic_lookup || system_lib) {
+  if (dynamic_lookup || system_lib_prefix_.defined()) {
     f_tvm_func_call_ = llvm::Function::Create(ftype_tvm_func_call_, llvm::Function::ExternalLinkage,
                                               "TVMFuncCall", module_.get());
     f_tvm_get_func_from_env_ =
@@ -178,19 +181,56 @@ void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target, b
         llvm::Function::Create(ftype_tvm_parallel_barrier_, llvm::Function::ExternalLinkage,
                                "TVMBackendParallelBarrier", module_.get());
   }
-  InitGlobalContext(dynamic_lookup);
   target_c_runtime_ = target_c_runtime;
-  is_system_lib_ = system_lib;
+  InitGlobalContext(dynamic_lookup);
 }
 
-void CodeGenCPU::AddFunction(const PrimFunc& f) {
-  CodeGenLLVM::AddFunction(f);
+llvm::DISubprogram* CodeGenCPU::CreateDebugFunction(const PrimFunc& f) {
+#if TVM_LLVM_VERSION >= 50
+  llvm::SmallVector<llvm::Metadata*, 4> paramTys;
+
+  paramTys.push_back(GetDebugType(f->ret_type));
+  for (const auto& param : f->params) {
+    paramTys.push_back(GetDebugType(GetType(param)));
+  }
+
+  auto* DIFunctionTy = dbg_info_->di_builder_->createSubroutineType(
+      dbg_info_->di_builder_->getOrCreateTypeArray(paramTys));
+
+  bool local_to_unit = llvm::GlobalVariable::isLocalLinkage(llvm::GlobalValue::InternalLinkage);
+
+  // TODO(driazati): determine the IRModule name instead of hardcoding 'main.tir'
+#if TVM_LLVM_VERSION >= 80
+  auto SPFlags = llvm::DISubprogram::toSPFlags(local_to_unit, /*IsDefinition=*/true,
+                                               /*IsOptimized=*/true);
+  auto* DIFunction = dbg_info_->di_builder_->createFunction(
+      /*Scope=*/dbg_info_->file_, /*Name=*/"main.tir", /*LinkageName=*/"",
+      /*File=*/dbg_info_->file_, /*LineNo=*/0, /*Ty=*/DIFunctionTy,
+      /*ScopeLine=*/0, /*Flags=*/llvm::DINode::FlagZero, /*SPFlags=*/SPFlags);
+#else
+  auto* DIFunction = dbg_info_->di_builder_->createFunction(
+      /*Scope=*/dbg_info_->file_, /*Name=*/"main.tir", /*LinkageName=*/"",
+      /*File=*/dbg_info_->file_, /*LineNo=*/0, /*Ty=*/DIFunctionTy,
+      /*isLocalToUnit=*/local_to_unit, /*isDefinition=*/true, /*ScopeLine=*/0,
+      /*Flags=*/llvm::DINode::FlagPrototyped, /*isOptimized=*/true);
+#endif
+  return DIFunction;
+#else
+  return nullptr;
+#endif
+}
+
+void CodeGenCPU::AddFunction(const GlobalVar& gvar, const PrimFunc& f) {
+#if TVM_LLVM_VERSION >= 50
+  di_subprogram_ = CreateDebugFunction(f);
+#endif
+  EmitDebugLocation(f->span);
+  CodeGenLLVM::AddFunction(gvar, f);
   if (f_tvm_register_system_symbol_ != nullptr) {
-    auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
-    ICHECK(global_symbol.defined())
-        << "CodeGenLLVM: Expect PrimFunc to have the global_symbol attribute";
-    export_system_symbols_.emplace_back(
-        std::make_pair(global_symbol.value().operator std::string(), function_));
+    if (auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol)) {
+      export_system_symbols_.emplace_back(
+          std::make_pair(global_symbol.value().operator std::string(), function_));
+    }
   }
   AddDebugInformation(f, function_);
 }
@@ -198,42 +238,9 @@ void CodeGenCPU::AddFunction(const PrimFunc& f) {
 // Following Glow |DebugInfo::generateFunctionDebugInfo|, https://git.io/fjadv
 void CodeGenCPU::AddDebugInformation(PrimFunc f_tir, llvm::Function* f_llvm) {
 #if TVM_LLVM_VERSION >= 50
-  ICHECK(!f_llvm->getSubprogram());
-  llvm::SmallVector<llvm::Metadata*, 4> paramTys;
-  // Functions in TIR can only return void or an int.
-  ICHECK(f_llvm->getReturnType() == t_void_ || f_llvm->getReturnType() == t_int_)
-      << "Unexpected return type";
-  auto ret_type_tir = f_llvm->getReturnType() == t_int_ ? DataType::Int(32) : DataType::Void();
-  llvm::DIType* returnTy =
-      GetDebugType(GetTypeFromRuntimeDataType(ret_type_tir), f_llvm->getReturnType());
-  paramTys.push_back(returnTy);
-  for (size_t i = 0; i < f_llvm->arg_size(); ++i) {
-    paramTys.push_back(
-        GetDebugType(GetType(f_tir->params[i]), f_llvm->getFunctionType()->getParamType(i)));
-  }
-  auto* DIFunctionTy = dbg_info_->di_builder_->createSubroutineType(
-      dbg_info_->di_builder_->getOrCreateTypeArray(paramTys));
-
-  bool local_to_unit = llvm::GlobalValue::isLocalLinkage(f_llvm->getLinkage());
-
-#if TVM_LLVM_VERSION >= 80
-  auto SPFlags =
-      llvm::DISubprogram::toSPFlags(local_to_unit, /*IsDefinition=*/true, /*IsOptimized=*/true);
-  auto* DIFunction = dbg_info_->di_builder_->createFunction(
-      /*Scope=*/dbg_info_->file_, /*Name=*/f_llvm->getName(), /*LinkageName=*/"",
-      /*File=*/dbg_info_->file_, /*LineNo=*/0, /*Ty=*/DIFunctionTy,
-      /*ScopeLine=*/0, /*Flags=*/llvm::DINode::FlagZero, /*SPFlags=*/SPFlags);
-#else
-  auto* DIFunction = dbg_info_->di_builder_->createFunction(
-      /*Scope=*/dbg_info_->file_, /*Name=*/f_llvm->getName(), /*LinkageName=*/"",
-      /*File=*/dbg_info_->file_, /*LineNo=*/0, /*Ty=*/DIFunctionTy,
-      /*isLocalToUnit=*/local_to_unit, /*isDefinition=*/true, /*ScopeLine=*/0,
-      /*Flags=*/llvm::DINode::FlagPrototyped, /*isOptimized=*/true);
-#endif
-
-  ICHECK(DIFunction);
-  f_llvm->setSubprogram(DIFunction);
-  ICHECK_EQ(f_llvm->getSubprogram(), DIFunction);
+  ICHECK(di_subprogram_);
+  f_llvm->setSubprogram(di_subprogram_);
+  ICHECK_EQ(f_llvm->getSubprogram(), di_subprogram_);
 
   IRBuilder builder(&f_llvm->getEntryBlock());
   if (!f_llvm->getEntryBlock().empty()) {
@@ -246,11 +253,11 @@ void CodeGenCPU::AddDebugInformation(PrimFunc f_tir, llvm::Function* f_llvm) {
     auto* paramAlloca = builder.CreateAlloca(f_llvm->getFunctionType()->getParamType(i));
     std::string paramName = "arg" + std::to_string(i + 1);
     auto param = dbg_info_->di_builder_->createParameterVariable(
-        DIFunction, paramName, i + 1, dbg_info_->file_, 0,
+        di_subprogram_, paramName, i + 1, dbg_info_->file_, 0,
         GetDebugType(GetType(f_tir->params[i]), f_llvm->getFunctionType()->getParamType(i)),
         /*alwaysPreserve=*/true);
     auto* store = builder.CreateStore(f_llvm->arg_begin() + i, paramAlloca);
-    auto* di_loc = llvm::DILocation::get(*ctx, 0, 0, DIFunction);
+    auto* di_loc = llvm::DILocation::get(*ctx, 0, 0, di_subprogram_);
     dbg_info_->di_builder_->insertDeclare(paramAlloca, param,
                                           dbg_info_->di_builder_->createExpression(),
                                           llvm::DebugLoc(di_loc), store);
@@ -260,6 +267,7 @@ void CodeGenCPU::AddDebugInformation(PrimFunc f_tir, llvm::Function* f_llvm) {
   if (!scope) {
     return;
   }
+
   for (auto& BB : *f_llvm) {
     for (auto& I : BB) {
       if (I.getDebugLoc()) {
@@ -272,15 +280,13 @@ void CodeGenCPU::AddDebugInformation(PrimFunc f_tir, llvm::Function* f_llvm) {
 #endif
 }
 
+llvm::DIType* CodeGenCPU::GetDebugType(const Type& ty_tir) {
+  return GetDebugType(ty_tir, GetLLVMType(ty_tir));
+}
 llvm::DIType* CodeGenCPU::GetDebugType(const Type& ty_tir, llvm::Type* ty_llvm) {
   if (ty_llvm == t_void_) {
     return nullptr;
-  } else if (ty_llvm == llvm::Type::getFloatTy(*llvm_target_->GetContext())) {
-    return dbg_info_->di_builder_->createBasicType("float", 32, llvm::dwarf::DW_ATE_float);
-  } else if (ty_llvm == t_int8_) {
-    return dbg_info_->di_builder_->createBasicType("int8", 8, llvm::dwarf::DW_ATE_signed);
-  } else if (ty_llvm == t_int32_) {
-    return dbg_info_->di_builder_->createBasicType("int32", 32, llvm::dwarf::DW_ATE_signed);
+
   } else if (ty_llvm->isPointerTy()) {
     auto* ptr_type = ty_tir.as<PointerTypeNode>();
     ICHECK(ptr_type != nullptr || GetRuntimeDataType(ty_tir).is_handle())
@@ -290,6 +296,26 @@ llvm::DIType* CodeGenCPU::GetDebugType(const Type& ty_tir, llvm::Type* ty_llvm) 
                                              : nullptr;
     return dbg_info_->di_builder_->createPointerType(pointee_type,
                                                      ty_llvm->getPrimitiveSizeInBits());
+
+  } else if (auto* prim_type = ty_tir.as<PrimTypeNode>()) {
+    DataType dtype = prim_type->dtype;
+    auto dwarf_type = [&]() -> llvm::dwarf::TypeKind {
+      if (dtype.is_bool()) {
+        return llvm::dwarf::DW_ATE_boolean;
+      } else if (dtype.is_float()) {
+        return llvm::dwarf::DW_ATE_float;
+      } else if (dtype.is_int()) {
+        return llvm::dwarf::DW_ATE_signed;
+      } else if (dtype.is_uint()) {
+        return llvm::dwarf::DW_ATE_unsigned;
+      } else {
+        LOG(FATAL) << "No DWARF representation for TIR type " << dtype;
+      }
+    }();
+
+    return dbg_info_->di_builder_->createBasicType(DLDataType2String(dtype),
+                                                   dtype.bits() * dtype.lanes(), dwarf_type);
+
   } else {
     std::string type_str;
     llvm::raw_string_ostream rso(type_str);
@@ -423,7 +449,6 @@ CodeGenLLVM::TypedPointer CodeGenCPU::CreateStructRefPtr(DataType t, llvm::Value
     }
     default:
       LOG(FATAL) << "unknown field code";
-      return TypedPointer();
   }
 }
 
@@ -439,31 +464,25 @@ llvm::Value* CodeGenCPU::CreateCallExtern(Type ret_type, String global_symbol,
   }
   llvm::FunctionType* ftype = llvm::FunctionType::get(GetLLVMType(ret_type), arg_types, false);
   // Check if it is available in global function table as injected function.
-  auto it = gv_func_map_.find(global_symbol);
-  if (it != gv_func_map_.end()) {
-    if (it->second == nullptr) {
-      gv_func_map_[global_symbol] = InitContextPtr(ftype->getPointerTo(), "__" + global_symbol);
-      it = gv_func_map_.find(global_symbol);
+
+  auto callee = [&]() -> llvm::Value* {
+    if (auto it = gv_func_map_.find(global_symbol); it != gv_func_map_.end()) {
+      if (it->second == nullptr) {
+        it->second = InitContextPtr(ftype->getPointerTo(), "__" + global_symbol);
+      }
+      return GetContextPtr(it->second);
+    } else if (llvm::Function* f = module_->getFunction(MakeStringRef(global_symbol))) {
+      return f;
+    } else {
+      return llvm::Function::Create(ftype, llvm::Function::ExternalLinkage,
+                                    MakeStringRef(global_symbol), module_.get());
     }
-#if TVM_LLVM_VERSION >= 90
-    auto ext_callee = llvm::FunctionCallee(ftype, GetContextPtr(it->second));
-#else
-    auto ext_callee = GetContextPtr(it->second);
-#endif
-    return builder_->CreateCall(ext_callee, arg_values);
-  } else {
-    llvm::Function* f = module_->getFunction(MakeStringRef(global_symbol));
-    if (f == nullptr) {
-      f = llvm::Function::Create(ftype, llvm::Function::ExternalLinkage,
-                                 MakeStringRef(global_symbol), module_.get());
-    }
-#if TVM_LLVM_VERSION >= 90
-    auto ext_callee = llvm::FunctionCallee(f);
-#else
-    auto ext_callee = f;
-#endif
-    return builder_->CreateCall(ext_callee, arg_values);
+  }();
+
+  if (callee->getType() != ftype->getPointerTo()) {
+    callee = builder_->CreatePointerCast(callee, ftype->getPointerTo());
   }
+  return builder_->CreateCall(ftype, callee, arg_values);
 }
 
 llvm::GlobalVariable* CodeGenCPU::InitContextPtr(llvm::Type* p_type, std::string name) {
@@ -502,12 +521,12 @@ llvm::Value* CodeGenCPU::GetContextPtr(llvm::GlobalVariable* gv) {
 }
 
 void CodeGenCPU::InitGlobalContext(bool dynamic_lookup) {
+  std::string ctx_symbol = system_lib_prefix_.value_or("") + tvm::runtime::symbol::tvm_module_ctx;
   // Module context
-  gv_mod_ctx_ = InitContextPtr(t_void_p_, tvm::runtime::symbol::tvm_module_ctx);
+  gv_mod_ctx_ = InitContextPtr(t_void_p_, ctx_symbol);
   // Register back the locations.
   if (f_tvm_register_system_symbol_ != nullptr && !target_c_runtime_) {
-    export_system_symbols_.emplace_back(
-        std::make_pair(tvm::runtime::symbol::tvm_module_ctx, gv_mod_ctx_));
+    export_system_symbols_.emplace_back(std::make_pair(ctx_symbol, gv_mod_ctx_));
   } else {
     if (!dynamic_lookup) {
       gv_tvm_func_call_ = InitContextPtr(ftype_tvm_func_call_->getPointerTo(), "__TVMFuncCall");
@@ -542,6 +561,7 @@ llvm::BasicBlock* CodeGenCPU::CheckCallSuccess(llvm::Value* retcode) {
 }
 
 void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
+  EmitDebugLocation(op);
   /*! \brief maintain states that should be guarded when step into compute scope */
   struct ComputeScopeStates {
     explicit ComputeScopeStates(CodeGenCPU* parent) : parent_(parent) {}
@@ -1318,7 +1338,8 @@ void CodeGenCPU::DefineMetadata(runtime::metadata::Metadata metadata) {
 }
 
 void CodeGenCPU::DefineFunctionRegistry(Array<String> func_names) {
-  ICHECK(is_system_lib_) << "Loading of --system-lib modules is yet to be defined for C runtime";
+  ICHECK(system_lib_prefix_.defined())
+      << "Loading of --system-lib modules is yet to be defined for C runtime";
   Array<String> symbols;
   std::vector<llvm::Constant*> funcs;
   for (auto sym : func_names) {
@@ -1440,7 +1461,6 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
         return builder_->CreateAlloca(t_tvm_array_, num);
       } else {
         LOG(FATAL) << "Unknown stack alloca type " << type;
-        return nullptr;
       }
     });
   } else {
@@ -1449,6 +1469,7 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
 }
 
 void CodeGenCPU::VisitStmt_(const AssertStmtNode* op) {
+  EmitDebugLocation(op);
   llvm::Value* cond = MakeValue(op->condition);
   std::ostringstream os;
   os << "Assert fail: " << op->condition;
@@ -1477,6 +1498,7 @@ void CodeGenCPU::VisitStmt_(const AssertStmtNode* op) {
 }
 
 void CodeGenCPU::VisitStmt_(const AttrStmtNode* op) {
+  EmitDebugLocation(op);
   if (op->attr_key == tir::attr::coproc_uop_scope) {
     const StringImmNode* value = op->value.as<StringImmNode>();
     ICHECK(value != nullptr);
@@ -1519,6 +1541,7 @@ void CodeGenCPU::VisitStmt_(const AttrStmtNode* op) {
 }
 
 void CodeGenCPU::VisitStmt_(const ForNode* op) {
+  EmitDebugLocation(op);
   ICHECK(is_zero(op->min));
   if (op->kind == ForKind::kSerial || op->kind == ForKind::kUnrolled) {
     CodeGenLLVM::VisitStmt_(op);

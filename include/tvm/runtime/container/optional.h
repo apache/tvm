@@ -153,6 +153,15 @@ class Optional : public ObjectRef {
   static constexpr bool _type_is_nullable = true;
 };
 
+template <typename ObjectRefType, typename>
+inline Optional<ObjectRefType> ObjectRef::as() const {
+  if (auto* ptr = this->as<typename ObjectRefType::ContainerType>()) {
+    return GetRef<ObjectRefType>(ptr);
+  } else {
+    return NullOptType{};
+  }
+}
+
 }  // namespace runtime
 
 // expose the functions to the root namespace.

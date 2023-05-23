@@ -121,19 +121,13 @@ def pattern_table():
             requantize = pattern
         requantize_input = requantize.args[0]
         bias_add = None
-        bias_dtype = "int32"
         if str(requantize_input.op.name) == "nn.bias_add":
             bias_add = requantize_input
             conv2d = bias_add.args[0]
-            bias_dtype = bias_add.args[1].checked_type.dtype
         else:
             conv2d = requantize_input
         conv2d_input = conv2d.args[0]
         conv2d_weight = conv2d.args[1]
-
-        # kernel zero_point should be 0
-        kernel_zp = conv2d.args[3].data.numpy()
-        kernel_zp = [kernel_zp] if kernel_zp.ndim == 0 else kernel_zp
 
         # check if depthwise Conv2D
         kernel_layout = conv2d.attrs.kernel_layout
@@ -145,12 +139,43 @@ def pattern_table():
         ):
             is_depthwise = True
 
+        # check if dtypes are supported for the following entities
+        # (input_dtype, weight_dtype, bias_dtype, out_dtype, pattern_dtype)
+        are_dtypes_valid = False
+        conv2d_input_dtype = conv2d_input.checked_type.dtype
+        if bias_add:
+            bias_dtype = bias_add.args[1].checked_type.dtype
+        else:
+            # this is only to enable to following check that validates all sorts of dtypes
+            bias_dtype = "int32" if conv2d_input_dtype == "int8" else "int64"
+        valid_dtypes = None
+        if conv2d_input_dtype == "int8":
+            valid_dtypes = ("int8", "int8", "int32", "int32", "int8")
+        elif conv2d_input_dtype == "int16":
+            valid_dtypes = ("int16", "int8", "int64", "int64", "int16")
+
+        if (
+            conv2d_input_dtype,
+            conv2d_weight.checked_type.dtype,
+            bias_dtype,
+            conv2d.attrs.out_dtype,
+            pattern.checked_type.dtype,
+        ) == valid_dtypes:
+            are_dtypes_valid = True
+
+        # input_zero_point should be 0 when int16
+        valid_input_zp = True
+        if conv2d_input_dtype == "int16" and conv2d.args[2].data.numpy().item(0) != 0:
+            valid_input_zp = False
+
+        # kernel zero_point should be 0
+        kernel_zp = conv2d.args[3].data.numpy()
+        kernel_zp = [kernel_zp] if kernel_zp.ndim == 0 else kernel_zp
+
+        # combination of all checks to decide if pattern is eligible for partitioning
         ret = (
-            conv2d.attrs.out_dtype == "int32"
-            and conv2d_input.checked_type.dtype == "int8"
-            and conv2d_weight.checked_type.dtype == "int8"
-            and pattern.checked_type.dtype == "int8"
-            and bias_dtype == "int32"
+            are_dtypes_valid
+            and valid_input_zp
             and all([zp == 0 for zp in kernel_zp])
             and (not is_depthwise or bias_add is not None)
         )
@@ -206,27 +231,40 @@ def pattern_table():
             requantize = pattern
         requantize_input = requantize.args[0]
         bias_add = None
-        bias_dtype = "int32"
         if str(requantize_input.op.name) == "nn.bias_add":
             bias_add = requantize_input
             fc = bias_add.args[0]
-            bias_dtype = bias_add.args[1].checked_type.dtype
         else:
             fc = requantize_input
         fc_input = fc.args[0]
         fc_weight = fc.args[1]
 
+        are_dtypes_valid = False
+        fc_input_dtype = fc_input.checked_type.dtype
+        if bias_add:
+            bias_dtype = bias_add.args[1].checked_type.dtype
+        else:
+            bias_dtype = "int32" if fc_input_dtype == "int8" else "int64"
+
+        valid_dtypes = None
+        if fc_input_dtype == "int8":
+            valid_dtypes = ("int8", "int8", "int32", "int32", "int8")
+        elif fc_input_dtype == "int16":
+            valid_dtypes = ("int16", "int8", "int64", "int64", "int16")
+
+        if (
+            fc_input_dtype,
+            fc_weight.checked_type.dtype,
+            bias_dtype,
+            fc.attrs.out_dtype,
+            pattern.checked_type.dtype,
+        ) == valid_dtypes:
+            are_dtypes_valid = True
+
         # kernel zero_point should be 0
         kernel_zp = fc.args[3].data.numpy().item(0)
 
-        return (
-            fc.attrs.out_dtype == "int32"
-            and fc_input.checked_type.dtype == "int8"
-            and fc_weight.checked_type.dtype == "int8"
-            and pattern.checked_type.dtype == "int8"
-            and bias_dtype == "int32"
-            and kernel_zp == 0
-        )
+        return are_dtypes_valid and kernel_zp == 0
 
     def qnn_avg_pool2d_pattern():
         """Matches average pooling with optional Relu"""
@@ -249,8 +287,10 @@ def pattern_table():
         return (
             pooling.attrs.layout == "NHWC"
             and int(input_op.checked_type.shape[0]) == 1
-            and input_op.checked_type.dtype == "int8"
-            and output.checked_type.dtype == "int8"
+            and (
+                (input_op.checked_type.dtype == "int8" and output.checked_type.dtype == "int8")
+                or (input_op.checked_type.dtype == "int16" and output.checked_type.dtype == "int16")
+            )
         )
 
     def qnn_max_pool2d_pattern():
@@ -272,8 +312,10 @@ def pattern_table():
         return (
             pooling.attrs.layout == "NHWC"
             and int(input_op.checked_type.shape[0]) == 1
-            and input_op.checked_type.dtype == "int8"
-            and output.checked_type.dtype == "int8"
+            and (
+                (input_op.checked_type.dtype == "int8" and output.checked_type.dtype == "int8")
+                or (input_op.checked_type.dtype == "int16" and output.checked_type.dtype == "int16")
+            )
         )
 
     def binary_op_pattern(op):
@@ -298,20 +340,37 @@ def pattern_table():
 
         arg0 = binary_op.args[0]
         arg1 = binary_op.args[1]
-        both_args_scalar = False
+
+        # Check arguments are not scalar.
         if (
             isinstance(arg0, tvm.relay.expr.Constant)
             and len(arg0.checked_type.shape) == 0
             and isinstance(arg1, tvm.relay.expr.Constant)
             and len(arg1.checked_type.shape) == 0
         ):
-            both_args_scalar = True
+            return False
 
-        return (
-            arg0.checked_type.dtype == "int8"
-            and arg1.checked_type.dtype == "int8"
-            and not both_args_scalar
-        )
+        arg0_type = arg0.checked_type.dtype
+        arg1_type = arg1.checked_type.dtype
+
+        # Check arguments are of valid type.
+        if arg0_type not in ["int8", "int16"]:
+            return False
+
+        # Check arguments are the same type.
+        if arg0_type != arg1_type:
+            return False
+
+        # Check zero points are non-zero (arm_elementwise_(add|mul)_s16 does not
+        # handle non-zero zero points).
+        if arg0_type == "int16" and str(binary_op.op.name) in ["qnn.add", "qnn.mul"]:
+            arg_0_zero_point = binary_op.args[3].data.numpy()
+            arg_1_zero_point = binary_op.args[5].data.numpy()
+            output_zero_point = binary_op.args[7].data.numpy()
+            if any([arg_0_zero_point, arg_1_zero_point, output_zero_point]):
+                return False
+
+        return True
 
     return [
         ("cmsis-nn.qnn_conv2d", qnn_conv2d_pattern(with_pad=True), check_qnn_conv2d_pad),

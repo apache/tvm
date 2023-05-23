@@ -67,7 +67,18 @@ struct ModularSetAnalyzer::Entry {
   Entry() = default;
 
   Entry(int64_t coeff, int64_t base) {
-    ICHECK_GE(coeff, 0);
+    if (coeff < 0) {
+      // `analyzer->canonical_simplify()` can generate expressions with
+      // negative coefficients (e.g. simplifying `floormod(-i, 2)`
+      // into `floormod(i, -2) * -1`).  When this happens, the
+      // ModularSet may enter a constraint based on this expression.
+      //
+      // Handling a negative coeff uses the same sign convention as
+      // canonical_simplify, requiring that
+      // `floormod(var, coeff) == -floormod(var, -coeff)`.
+      coeff *= -1;
+      base *= -1;
+    }
     this->coeff = coeff;
     if (coeff != 0) {
       base = base % coeff;

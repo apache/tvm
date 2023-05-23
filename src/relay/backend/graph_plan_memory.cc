@@ -37,6 +37,7 @@
 #include "../op/call/call.h"
 #include "../op/memory/memory.h"
 #include "../transforms/device_aware_visitors.h"
+#include "./token_allocator.h"
 #include "./utils.h"
 
 namespace tvm {
@@ -49,33 +50,6 @@ constexpr auto Is2DStorage = runtime::IsTextureStorage;
 using backend::StaticMemoryPlan;
 using backend::StorageInfo;
 using IntegerArray = Array<Integer>;
-
-/*! A representation of a block of memory required at runtime on some device. */
-struct StorageToken {
-  /*! \brief Reference counter */
-  int ref_counter{0};
-  /*! \brief number of bytes */
-  size_t max_bytes{0};
-  /*! \brief The corresponding tensor type. */
-  TensorType ttype{nullptr};
-  /*! \brief VirtualDevice on which the memory will reside. */
-  VirtualDevice virtual_device = VirtualDevice::FullyUnconstrained();
-  /*! \brief The storage id */
-  int64_t storage_id{-1};
-
-  bool is_valid() const { return !virtual_device->IsFullyUnconstrained(); }
-
-  bool is_compatible(const StorageToken& that) const {
-    return virtual_device == that.virtual_device;
-  }
-
-  std::string ToString() const {
-    std::ostringstream os;
-    os << "{storage_id: " << storage_id << ", max_bytes: " << max_bytes
-       << ", ttype: " << PrettyPrint(ttype) << ", virtual_device: " << virtual_device << "}";
-    return os.str();
-  }
-};
 
 class StorageAllocaBaseVisitor : public transform::DeviceAwareExprVisitor {
  public:
@@ -380,221 +354,6 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
     }
   }
 
-  /**
-   * @brief Memory manager for flattened 1d memory (buffers)
-   */
-  class TokenAllocator1D {
-   public:
-    /*!
-     * \brief ceil(size/word_size) to get number of words.
-     * \param size The original size.
-     * \param word_size The element size.
-     */
-    static size_t DivRoundUp(size_t size, size_t word_size) {
-      return (size + word_size - 1) / word_size;
-    }
-
-    /*!
-     * \brief Get the memory requirement.
-     * \param prototype The prototype token.
-     * \return The required memory size.
-     *
-     * TODO(mbs): Gf GetMemorySizeBytes in aot_executor_codegen.cc,
-     * CalculateRelayExprSizeBytes in utils.cc
-     */
-    size_t GetMemorySize(StorageToken* prototype) {
-      TensorType ttype = prototype->ttype;
-      ICHECK(ttype.defined());
-      size_t size = 1;
-      for (IndexExpr dim : ttype->shape) {
-        const int64_t* pval = tir::as_const_int(dim);
-        ICHECK(pval != nullptr) << "Cannot allocate memory symbolic tensor shape " << ttype->shape;
-        ICHECK_GE(*pval, 0) << "Cannot allocate memory for tensor with negative shape" << *pval;
-        size *= static_cast<size_t>(pval[0]);
-      }
-      size *= DivRoundUp(ttype->dtype.bits() * ttype->dtype.lanes(), 8);
-      return size;
-    }
-    /*!
-     * \brief Request a storage token for a given prototype.
-     * \param prototype. The prototype storage token.
-     * \return The result token.
-     */
-    StorageToken* Request(StorageToken* prototype) {
-      // calculate the size;
-      size_t size = GetMemorySize(prototype);
-      // search memory block in [size / match_range_, size * match_range_)
-      if (match_range_ == 0) {
-        return nullptr;
-      }
-      auto begin = free_.lower_bound(size / match_range_);
-      auto mid = free_.lower_bound(size);
-      auto end = free_.upper_bound(size * match_range_);
-      // search for memory blocks larger than requested
-      for (auto it = mid; it != end; ++it) {
-        StorageToken* tok = it->second;
-        if (!tok->is_compatible(*prototype)) continue;
-        ICHECK_EQ(tok->ref_counter, 0);
-        // Use exect matching strategy
-        tok->max_bytes = std::max(size, tok->max_bytes);
-        tok->ref_counter = prototype->ref_counter;
-        // find a exact match, erase from map and return
-        free_.erase(it);
-        return tok;
-      }
-      // then search for memory blocks smaller than requested space
-      for (auto it = mid; it != begin;) {
-        --it;
-        StorageToken* tok = it->second;
-        if (!tok->is_compatible(*prototype)) continue;
-        ICHECK_EQ(tok->ref_counter, 0);
-        // Use exect matching strategy
-        tok->max_bytes = std::max(size, tok->max_bytes);
-        tok->ref_counter = prototype->ref_counter;
-        // erase from map and return
-        free_.erase(it);
-        return tok;
-      }
-      return nullptr;
-    }
-    /*!
-     * \brief Alloacte a storage token by consuming prototype
-     * \param prototype The prototype token.
-     * \param size The size of memory being requested.
-     */
-    StorageToken* Alloc(StorageToken* prototype, int64_t storage_id) {
-      size_t size = GetMemorySize(prototype);
-      prototype->max_bytes = size;
-      prototype->storage_id = storage_id;
-      data_.push_back(prototype);
-      return prototype;
-    }
-    /*!
-     * \brief Check if we can release token.
-     * \param tok The token to be released.
-     */
-    void CheckForRelease(StorageToken* tok) {
-      ICHECK_GE(tok->storage_id, 0);
-      ICHECK_GE(tok->ref_counter, 0);
-      if (tok->ref_counter == 0) {
-        free_.insert({tok->max_bytes, tok});
-      }
-    }
-
-   private:
-    // scale used for rough match
-    const size_t match_range_{16};
-    // free list of storage entry
-    std::multimap<size_t, StorageToken*> free_;
-    // all the storage resources available
-    std::vector<StorageToken*> data_;
-  };
-
-  /**
-   * @brief Memory manager for 2d memory (textures)
-   */
-  class TokenAllocator2D {
-   public:
-    /*!
-     * \brief Request a storage token for a given prototype.
-     * \param prototype. The prototype storage token.
-     * \return The result token.
-     */
-    StorageToken* Request(StorageToken* prototype) {
-      auto shape = GetSize2D(prototype);
-      int64_t requested_size = shape.height * shape.width;
-      int64_t min_added_size = std::numeric_limits<int64_t>::max();
-      int64_t min_wasted_size = std::numeric_limits<int64_t>::max();
-      int64_t best_storage_id = -1;
-      MemBlock best_mem, new_mem;
-      for (int64_t free_id : free_list_) {
-        MemBlock& cached = blocks_[free_id];
-        // Can only reuse texture 2d blocks of the same type
-        if (cached.token_->ttype->dtype != prototype->ttype->dtype) {
-          continue;
-        }
-        int64_t cached_size = cached.x_ * cached.y_;
-        new_mem.x_ = std::max(cached.x_, shape.width);
-        new_mem.y_ = std::max(cached.y_, shape.height);
-        int64_t expanded_size = new_mem.x_ * new_mem.y_;
-        int64_t added_size = expanded_size - cached_size;
-        int64_t wasted_size = expanded_size - requested_size;
-        // Prioritize minimization of added size first, then minimize
-        // wasted size among blocks which would not require expansion
-        if ((min_added_size > 0 && added_size < min_added_size) ||
-            (min_added_size == 0 && wasted_size < min_wasted_size)) {
-          min_added_size = added_size;
-          min_wasted_size = wasted_size;
-          best_storage_id = free_id;
-          best_mem = new_mem;
-        }
-      }
-
-      if (min_added_size <= requested_size) {
-        best_mem.token_ = blocks_[best_storage_id].token_;
-        // Reset the reference counter of the now live token
-        best_mem.token_->ref_counter = prototype->ref_counter;
-        blocks_[best_storage_id] = best_mem;
-        free_list_.erase(best_storage_id);
-        return best_mem.token_;
-      }
-      return nullptr;
-    }
-    /*!
-     * \brief Alloacte a storage token by consuming prototype
-     * \param prototype The prototype token.
-     * \param size The size of memory being requested.
-     */
-    StorageToken* Alloc(StorageToken* prototype, int64_t storage_id) {
-      auto shape = GetSize2D(prototype);
-      MemBlock block;
-      block.x_ = shape.width;
-      block.y_ = shape.height;
-      prototype->storage_id = storage_id;
-      block.token_ = prototype;
-      blocks_[prototype->storage_id] = block;
-      return prototype;
-    }
-    /*!
-     * \brief Check if we can release token.
-     * \param tok The token to be released.
-     */
-    void CheckForRelease(StorageToken* tok) {
-      ICHECK_GE(tok->storage_id, 0);
-      ICHECK_GE(tok->ref_counter, 0);
-      if (tok->ref_counter == 0) {
-        free_list_.insert(tok->storage_id);
-      }
-    }
-    /*!
-     * \brief Get the texture 2d size requirement
-     * \param prototype The prototype token.
-     * \return The required texture 2d memory size in (width, height, channel).
-     */
-    Texture2DShape GetSize2D(StorageToken* prototype) {
-      TensorType ttype = prototype->ttype;
-      ICHECK(ttype.defined());
-      size_t axis = runtime::DefaultTextureLayoutSeparator(ttype->shape.size(),
-                                                           prototype->virtual_device->memory_scope);
-      struct Shape {
-        const Array<PrimExpr>& shape;
-        int64_t operator[](size_t i) const { return *tir::as_const_int(shape[i]); }
-      };
-      return runtime::ApplyTexture2DFlattening<int64_t>(Shape{ttype->shape}, ttype->shape.size(),
-                                                        axis);
-    }
-
-   private:
-    struct MemBlock {
-      StorageToken* token_;
-      int64_t x_;
-      int64_t y_;
-    };
-
-    std::unordered_map<int64_t, MemBlock> blocks_;
-    std::unordered_set<int64_t> free_list_;
-  };
-
   class TokenAllocator {
    public:
     StorageToken* Alloc(StorageToken* proto) {
@@ -631,7 +390,7 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
   // allocator
   support::Arena arena_;
   // scale used for rough match
-  size_t match_range_{16};
+  // size_t match_range_{16};
   // free list of storage entry
   std::multimap<size_t, StorageToken*> free_;
   // all the storage resources available

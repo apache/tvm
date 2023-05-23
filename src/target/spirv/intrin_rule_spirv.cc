@@ -68,6 +68,9 @@ TVM_REGISTER_OP("tir.ceil")
 TVM_REGISTER_OP("tir.round")
     .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Round>);
 
+TVM_REGISTER_OP("tir.nearbyint")
+    .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Round>);
+
 TVM_REGISTER_OP("tir.trunc")
     .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Trunc>);
 
@@ -97,37 +100,6 @@ TVM_REGISTER_OP("tir.pow").set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic",
 
 TVM_REGISTER_OP("tir.tanh")
     .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Tanh>);
-
-// WebGPU rules.
-TVM_REGISTER_OP("tir.floor")
-    .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Floor>);
-
-TVM_REGISTER_OP("tir.ceil")
-    .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Ceil>);
-
-TVM_REGISTER_OP("tir.round")
-    .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Round>);
-
-TVM_REGISTER_OP("tir.trunc")
-    .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Trunc>);
-
-TVM_REGISTER_OP("tir.fabs")
-    .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450FAbs>);
-
-TVM_REGISTER_OP("tir.exp").set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic",
-                                                     DispatchGLSLPureIntrin<GLSLstd450Exp>);
-
-TVM_REGISTER_OP("tir.log").set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic",
-                                                     DispatchGLSLPureIntrin<GLSLstd450Log>);
-
-TVM_REGISTER_OP("tir.sqrt")
-    .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Sqrt>);
-
-TVM_REGISTER_OP("tir.pow").set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic",
-                                                     DispatchGLSLPureIntrin<GLSLstd450Pow>);
-
-TVM_REGISTER_OP("tir.tanh")
-    .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Tanh>);
 }  // namespace intrin
 
 namespace legalize {

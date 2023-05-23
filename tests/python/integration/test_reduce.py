@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """Test scheduling of reduction operations."""
-import pytest
 import numpy as np
 
 import tvm
@@ -659,8 +658,8 @@ def test_reduce_storage_reuse():
     # ...
 
     def check_store_dst_remapped(op):
-        if isinstance(op, tvm.tir.Store):
-            assert op.buffer_var.name != "reduce_temp0"
+        if isinstance(op, tvm.tir.BufferStore):
+            assert op.buffer.data.name != "reduce_temp0"
 
     tvm.tir.stmt_functor.post_order_visit(mod["main"].body, check_store_dst_remapped)
 
@@ -675,4 +674,4 @@ def test_reduce_storage_reuse():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

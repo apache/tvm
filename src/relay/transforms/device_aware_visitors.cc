@@ -94,9 +94,6 @@ void LexicalOnDeviceMixin::ExitFunctionBody() {
 }
 
 void LexicalOnDeviceMixin::PushVirtualDevice(const VirtualDevice& virtual_device) {
-  if (virtual_device->IsFullyUnconstrained()) {
-    return;
-  }
   expr_virtual_devices_.emplace_back(virtual_device);
 }
 

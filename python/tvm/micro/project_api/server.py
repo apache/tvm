@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=invalid-name
 
 """Defines a basic Project API server template.
 
@@ -63,6 +64,11 @@ class ProjectOption(_ProjectOption):
             kw.setdefault(param, None)
 
         return super().__new__(cls, **kw)
+
+    def replace(self, attributes):
+        """Update attributes associated to the project option."""
+        updated_option = self
+        return updated_option._replace(**attributes)
 
 
 ServerInfo = collections.namedtuple(
@@ -470,7 +476,7 @@ class ProjectAPIServer:
             _LOG.error("EOF")
             return False
 
-        except Exception as exc:  # pylint: disable=broad-except
+        except Exception:  # pylint: disable=broad-except
             _LOG.error("Caught error reading request", exc_info=1)
             return False
 
@@ -757,6 +763,85 @@ def write_with_timeout(fd, data, timeout_sec):  # pylint: disable=invalid-name
         num_written += num_written_this_cycle
 
     return num_written
+
+
+def default_project_options(**kw) -> typing.List[ProjectOption]:
+    """Get default Project Options
+
+    Attributes of any default option can be updated. Here is an example
+    when attribute `optional` from `verbose` option needs to be updates:
+
+        default_project_options(verbose={"optional": ["build"]})
+
+    This will update the `optional` attribute of `verbose` ProjectOption
+    to be `["build"]`.
+
+    Returns
+    -------
+    options: List[ProjectOption]
+        A list of default ProjectOption with modifications.
+    """
+    options = [
+        ProjectOption(
+            "verbose",
+            optional=["generate_project"],
+            type="bool",
+            default=False,
+            help="Run build with verbose output.",
+        ),
+        ProjectOption(
+            "project_type",
+            required=["generate_project"],
+            type="str",
+            help="Type of project to generate.",
+        ),
+        ProjectOption(
+            "board",
+            required=["generate_project"],
+            type="str",
+            help="Name of the board to build for.",
+        ),
+        ProjectOption(
+            "cmsis_path",
+            optional=["generate_project"],
+            type="str",
+            default=None,
+            help="Path to the CMSIS directory.",
+        ),
+        ProjectOption(
+            "warning_as_error",
+            optional=["generate_project"],
+            type="bool",
+            default=False,
+            help="Treat warnings as errors and raise an Exception.",
+        ),
+        ProjectOption(
+            "compile_definitions",
+            optional=["generate_project"],
+            type="str",
+            default=None,
+            help="Extra definitions added project compile.",
+        ),
+        ProjectOption(
+            "extra_files_tar",
+            optional=["generate_project"],
+            type="str",
+            default=None,
+            help="If given, during generate_project, "
+            "uncompress the tarball at this path into the project dir.",
+        ),
+    ]
+    for name, config in kw.items():
+        option_found = False
+        for ind, option in enumerate(options):
+            if option.name == name:
+                options[ind] = option.replace(config)
+                option_found = True
+                break
+        if not option_found:
+            raise ValueError("Option {} was not found in default ProjectOptions.".format(name))
+
+    return options
 
 
 def main(handler: ProjectAPIHandler, argv: typing.List[str] = None):

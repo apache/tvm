@@ -28,7 +28,7 @@ use crate::runtime::array::Array;
 use crate::runtime::function::Result;
 use crate::runtime::map::Map;
 use crate::runtime::string::String as TVMString;
-use crate::runtime::{external, IsObjectRef, Object};
+use crate::runtime::{external, IsObjectRef, Object, ObjectRef};
 
 use super::expr::GlobalVar;
 use super::function::BaseFunc;
@@ -57,12 +57,12 @@ pub struct IRModuleNode {
 
 external! {
     // Parser functions
-    #[name("parser.ParseModule")]
+    #[name("relay.parser.ParseModule")]
     fn parse_module(file_name: TVMString, source: TVMString) -> IRModule;
-    #[name("parser.ParseExpr")]
+    #[name("relay.parser.ParseExpr")]
     fn parse_expression(file_name: TVMString, source: TVMString) -> IRModule;
     #[name("ir.IRModule")]
-    fn module_new(funcs: Map<GlobalVar, BaseFunc>, types: Map<GlobalTypeVar, TypeData>) -> IRModule;
+    fn module_new(funcs: Map<GlobalVar, BaseFunc>, types: Map<GlobalTypeVar, TypeData>, attrs: Map<TVMString, ObjectRef>) -> IRModule;
     // Module methods
     #[name("ir.Module_Add")]
     fn module_add(module: IRModule, type_name: GlobalVar, expr: BaseFunc, update: bool) -> IRModule;
@@ -99,18 +99,24 @@ external! {
 // Note: we don't expose update here as update is going to be removed.
 
 impl IRModule {
-    pub fn new<'a, F, T>(funcs: F, types: T) -> Result<IRModule>
+    pub fn new<'a, F, T, A>(funcs: F, types: T, attrs: A) -> Result<IRModule>
     where
         F: IntoIterator<Item = (&'a GlobalVar, &'a BaseFunc)>,
         T: IntoIterator<Item = (&'a GlobalTypeVar, &'a TypeData)>,
+        A: IntoIterator<Item = (&'a TVMString, &'a ObjectRef)>,
     {
-        module_new(Map::from_iter(funcs), Map::from_iter(types))
+        module_new(
+            Map::from_iter(funcs),
+            Map::from_iter(types),
+            Map::from_iter(attrs),
+        )
     }
 
     pub fn empty() -> Result<IRModule> {
         let funcs = HashMap::<GlobalVar, BaseFunc>::new();
         let types = HashMap::<GlobalTypeVar, TypeData>::new();
-        IRModule::new(funcs.iter(), types.iter())
+        let attrs = HashMap::<TVMString, ObjectRef>::new();
+        IRModule::new(funcs.iter(), types.iter(), attrs.iter())
     }
 
     pub fn parse<N, S>(file_name: N, source: S) -> Result<IRModule>

@@ -29,6 +29,7 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/runtime.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/name_transforms.h>
 #include <tvm/runtime/object.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/builtin.h>
@@ -493,7 +494,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
       }));
     }
 
-    tir::Stmt body = tir::SeqStmt({func_call});
+    tir::Stmt body = tir::SeqStmt::Flatten(func_call);
     stmts_.push_back(body);
   }
 
@@ -534,7 +535,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
         return;
       }
       if (target_attr_map[target_kind.value()]) {
-        std::string context_name = SanitizeName(device_context_name);
+        std::string context_name = tvm::runtime::SanitizeName(device_context_name);
         tir::Var device_context_var("device_context_" + context_name, DataType::Handle());
 
         auto pair = target_contexts.find(target_kind.value());
@@ -569,7 +570,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
                                         {tvm::tir::StringImm(device_hook_name), context})));
       device_hooks.push_back(device_hook);
     }
-    return tir::SeqStmt(device_hooks);
+    return tir::SeqStmt::Flatten(device_hooks);
   }
 
   /**
@@ -617,7 +618,6 @@ class AOTExecutorCodegen : public MixedModeVisitor {
       // TODO(mbs): device_copy cleaunp
       // Suspect treating as no-op is better since already built into the StorageInfo?
       LOG(FATAL) << "The AOT executor does not currently support device_copy";
-      return;
     }
 
     // At this point we should only see calls of the form call_lowered(@callee, (args...)),
@@ -736,7 +736,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
   // the packed function calls don't pack their arguments. The AOT
   // runner function needs to be legalized by the LegalizePackedCalls pass.
   tir::PrimFunc CreateMainFunc(String mod_name, unsigned int relay_params) {
-    tir::Stmt body = tir::SeqStmt(stmts_);
+    tir::Stmt body = tir::SeqStmt::Flatten(stmts_);
     // Allocate the sids
     std::unordered_map<int, bool> allocated;
 
@@ -802,7 +802,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     tir::Stmt final_body = tir::SeqStmt({device_activations, body, device_deactivations});
 
     // Make the PrimFunc
-    return tir::PrimFunc(main_signature_, final_body, VoidType(), main_buffer_map_, {},
+    return tir::PrimFunc(main_signature_, final_body, VoidType(), main_buffer_map_,
                          DictAttrs(dict_attrs));
   }
 
@@ -1103,7 +1103,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
       lowered_mod = transform::RemoveStandaloneReshapes()(lowered_mod);
     }
     auto lowered_main = lowered_mod->Lookup("main");
-    auto lowered_main_func = GetRef<Function>(lowered_main.as<FunctionNode>());
+    auto lowered_main_func = Downcast<Function>(lowered_main);
 
     // Post-lowering storage map for writing main func
     AOTOnDemandAllocator final_aot_allocator;
@@ -1209,7 +1209,15 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     // Parallel for loops are not supported in AoT codegen.
     lowered_mod = tir::transform::ConvertForLoopsToSerial()(lowered_mod);
 
-    bool enable_usmp = pass_ctx->GetConfig<Bool>(kUSMPEnableOption, Bool(false)).value();
+    // Check USMP option
+    bool enable_usmp = false;
+    if (runtime_config->name == kTvmRuntimeCrt) {
+      enable_usmp = true;
+    }
+    if (pass_ctx->GetConfig<Bool>(kUSMPEnableOption) != nullptr) {
+      enable_usmp = pass_ctx->GetConfig<Bool>(kUSMPEnableOption, Bool(false)).value();
+    }
+
     if (enable_usmp) {
       lowered_mod = PlanMemoryWithUSMP(lowered_mod);
     } else {
@@ -1349,6 +1357,9 @@ class AOTExecutorCodegenModule : public runtime::ModuleNode {
   }
 
   const char* type_key() const final { return "RelayGraphRuntimeCodegenModule"; }
+
+  /*! \brief Get the property of the runtime module .*/
+  int GetPropertyMask() const final { return runtime::ModulePropertyMask::kRunnable; }
 
  private:
   void init(void* mod, const Array<Target>& targets) {

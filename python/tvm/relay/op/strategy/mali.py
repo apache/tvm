@@ -70,9 +70,7 @@ def conv2d_strategy_mali(attrs, inputs, out_type, target):
                     name="conv2d_nchw_spatial_pack.mali",
                 )
             else:
-                raise RuntimeError(
-                    "Unsupported weight layout {} for conv2d NCHW".format(kernel_layout)
-                )
+                raise RuntimeError(f"Unsupported weight layout {kernel_layout} for conv2d NCHW")
         elif layout == "NHWC":
             assert kernel_layout == "HWIO"
             need_auto_scheduler_layout = is_auto_scheduler_enabled()
@@ -133,7 +131,7 @@ def conv2d_strategy_mali(attrs, inputs, out_type, target):
                 )
 
         else:
-            raise RuntimeError("Unsupported conv2d layout {} for mali".format(layout))
+            raise RuntimeError(f"Unsupported conv2d layout {layout} for mali")
     elif is_depthwise_conv2d(data.shape, layout, kernel.shape, kernel_layout, groups):
         if layout == "NCHW":
             assert kernel_layout == "OIHW"
@@ -163,15 +161,15 @@ def conv2d_strategy_mali(attrs, inputs, out_type, target):
                     name="depthwise_conv2d_nhwc.mali",
                 )
         else:
-            raise RuntimeError("Unsupported depthwise_conv2d layout {} for mali".format(layout))
+            raise RuntimeError(f"Unsupported depthwise_conv2d layout {layout} for mali")
     else:  # group_conv2d
         raise RuntimeError("group_conv2d is not supported for mali")
     return strategy
 
 
-@conv2d_winograd_without_weight_transfrom_strategy.register("mali")
-def conv2d_winograd_without_weight_transfrom_strategy_mali(attrs, inputs, out_type, target):
-    """conv2d_winograd_without_weight_transfrom mali strategy"""
+@conv2d_winograd_without_weight_transform_strategy.register("mali")
+def conv2d_winograd_without_weight_transform_strategy_mali(attrs, inputs, out_type, target):
+    """conv2d_winograd_without_weight_transform mali strategy"""
     dilation = attrs.get_int_tuple("dilation")
     groups = attrs.get_int("groups")
     layout = attrs.data_layout
@@ -179,7 +177,7 @@ def conv2d_winograd_without_weight_transfrom_strategy_mali(attrs, inputs, out_ty
     kernel = inputs[1]
     assert dilation == (1, 1), "Do not support dilate now"
     assert strides == (1, 1), "Do not support strides now"
-    assert groups == 1, "Do not supoort arbitrary group number"
+    assert groups == 1, "Do not support arbitrary group number"
     strategy = _op.OpStrategy()
     if layout == "NCHW":
         assert len(kernel.shape) == 5, "Kernel must be packed into 5-dim"
@@ -207,9 +205,7 @@ def conv2d_winograd_without_weight_transfrom_strategy_mali(attrs, inputs, out_ty
                 "Winograd conv2d NHWC is not enabled for mali without auto_scheduler."
             )
     else:
-        raise RuntimeError(
-            "Unsupported conv2d_winograd_without_weight_transfrom layout {}".format(layout)
-        )
+        raise RuntimeError(f"Unsupported conv2d_winograd_without_weight_transform layout {layout}")
     return strategy
 
 

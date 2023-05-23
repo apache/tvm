@@ -34,16 +34,16 @@ RANLIB = arm-none-eabi-ranlib
 PKG_CFLAGS = ${PKG_COMPILE_OPTS} \
 	-I${STANDALONE_CRT_PATH}/include \
 	-I${STANDALONE_CRT_PATH}/src/runtime/crt/include \
+	-I${PWD}/${BUILD_DIR}/crt_config \
 	-I${PWD}/include \
-	-I${CORSTONE_300_PATH} \
+	-I${ETHOSU_PLATFORM_PATH}/drivers/uart/include \
 	-I${CMSIS_PATH}/Device/ARM/${ARM_CPU}/Include/ \
 	-I${CMSIS_PATH}/CMSIS/Core/Include \
-	-I${CMSIS_PATH}/CMSIS/NN/Include \
+	-I${CMSIS_PATH}/CMSIS-NN/Include \
 	-I${CMSIS_PATH}/CMSIS/DSP/Include \
 	-I$(abspath $(BUILD_DIR))/codegen/host/include
-CMSIS_NN_CMAKE_FLAGS = -DCMAKE_TOOLCHAIN_FILE=$(abspath $(BUILD_DIR))/../arm-none-eabi-gcc.cmake \
-	-DTARGET_CPU=cortex-m55 \
-	-DBUILD_CMSIS_NN_FUNCTIONS=YES
+CMAKE_FLAGS = -DCMAKE_TOOLCHAIN_FILE=$(abspath $(BUILD_DIR))/../arm-none-eabi-gcc.cmake \
+	-DTARGET_CPU=cortex-m55
 PKG_LDFLAGS = -lm -specs=nosys.specs -static -T corstone300.ld
 
 $(ifeq VERBOSE,1)
@@ -56,8 +56,8 @@ DEMO_MAIN = src/demo_bare_metal.c
 CODEGEN_SRCS = $(wildcard $(abspath $(BUILD_DIR))/codegen/host/src/*.c)
 CODEGEN_OBJS = $(subst .c,.o,$(CODEGEN_SRCS))
 CMSIS_STARTUP_SRCS = $(wildcard ${CMSIS_PATH}/Device/ARM/${ARM_CPU}/Source/*.c)
-CMSIS_NN_SRCS = $(shell find ${CMSIS_PATH}/CMSIS/NN/Source/*/*.c)
-UART_SRCS = $(wildcard ${CORSTONE_300_PATH}/*.c)
+CMSIS_NN_SRCS = $(shell find ${CMSIS_PATH}/CMSIS-NN/Source/*/*.c)
+CORSTONE_300_SRCS = $(wildcard ${CORSTONE_300_PATH}/*.c)
 
 demo: $(BUILD_DIR)/demo
 
@@ -89,9 +89,15 @@ ${BUILD_DIR}/libcmsis_nn.a: $(CMSIS_NN_SRCS)
 	$(QUIET)$(AR) -cr $(abspath $(BUILD_DIR)/libcmsis_nn.a) $(abspath $(BUILD_DIR))/libcmsis_nn/*.o
 	$(QUIET)$(RANLIB) $(abspath $(BUILD_DIR)/libcmsis_nn.a)
 
+# Build UART driver
+${BUILD_DIR}/ethosu_core_platform/libethosu_uart_cmsdk_apb.a:
+	$(QUIET)mkdir -p $(@D)
+	$(QUIET)cd ${ETHOSU_PLATFORM_PATH}/drivers/uart && $(CMAKE) -B $(abspath $(BUILD_DIR)/ethosu_core_platform) $(CMAKE_FLAGS)
+	$(QUIET)cd $(abspath $(BUILD_DIR)/ethosu_core_platform) && $(MAKE)
+
 # Build demo application
-$(BUILD_DIR)/demo: $(DEMO_MAIN) $(UART_SRCS) $(BUILD_DIR)/stack_allocator.o $(BUILD_DIR)/crt_backend_api.o \
-	${BUILD_DIR}/libcodegen.a ${BUILD_DIR}/libcmsis_startup.a ${BUILD_DIR}/libcmsis_nn.a
+$(BUILD_DIR)/demo: $(DEMO_MAIN) $(CORSTONE_300_SRCS) $(BUILD_DIR)/stack_allocator.o $(BUILD_DIR)/crt_backend_api.o \
+	${BUILD_DIR}/libcodegen.a ${BUILD_DIR}/libcmsis_startup.a ${BUILD_DIR}/libcmsis_nn.a ${BUILD_DIR}/ethosu_core_platform/libethosu_uart_cmsdk_apb.a
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)$(CC) $(PKG_CFLAGS) $(FREERTOS_FLAGS) -o $@ -Wl,--whole-archive $^ -Wl,--no-whole-archive $(PKG_LDFLAGS)
 

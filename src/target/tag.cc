@@ -92,11 +92,12 @@ TVM_REGISTER_TARGET_TAG("nvidia/jetson-agx-xavier")
                  {"host", Map<String, ObjectRef>{{"kind", String("llvm")},
                                                  {"mtriple", String("aarch64-linux-gnu")},
                                                  {"mcpu", String("carmel")},
-                                                 {"num-cores", Integer(4)}}}});
+                                                 {"num-cores", Integer(8)}}}});
 
 #define TVM_REGISTER_CUDA_TAG(Name, Arch, SharedMem, RegPerBlock) \
   TVM_REGISTER_TARGET_TAG(Name).set_config({                      \
       {"kind", String("cuda")},                                   \
+      {"keys", Array<String>{"cuda", "gpu"}},                     \
       {"arch", String(Arch)},                                     \
       {"max_shared_memory_per_block", Integer(SharedMem)},        \
       {"max_threads_per_block", Integer(1024)},                   \
@@ -104,6 +105,12 @@ TVM_REGISTER_TARGET_TAG("nvidia/jetson-agx-xavier")
       {"registers_per_block", Integer(RegPerBlock)},              \
   });
 
+// Naming convention for CUDA tags see https://developer.nvidia.com/cuda-gpus
+// Parameters see Table 15. Technical Specifications per Compute Capability
+// https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html
+// Check `Maximum y- or z-dimension of a grid of thread blocks` for max threads per block
+// Check `Maximum amount of shared memory per thread block` for max shared memory per block
+// Note that above 48 KB requires dynamic shared memory
 TVM_REGISTER_CUDA_TAG("nvidia/tesla-k80", "sm_37", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/tesla-k40", "sm_35", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/tesla-k20", "sm_35", 49152, 65536);
@@ -111,6 +118,12 @@ TVM_REGISTER_CUDA_TAG("nvidia/tesla-c2075", "sm_20", 49152, 32768);
 TVM_REGISTER_CUDA_TAG("nvidia/tesla-c2050", "sm_20", 49152, 32768);
 TVM_REGISTER_CUDA_TAG("nvidia/tesla-c2070", "sm_20", 49152, 32768);
 TVM_REGISTER_CUDA_TAG("nvidia/nvidia-a100", "sm_80", 49152, 65536);
+TVM_REGISTER_CUDA_TAG("nvidia/nvidia-a40", "sm_86", 49152, 65536);
+TVM_REGISTER_CUDA_TAG("nvidia/nvidia-a30", "sm_80", 49152, 65536);
+TVM_REGISTER_CUDA_TAG("nvidia/nvidia-a10", "sm_86", 49152, 65536);
+TVM_REGISTER_CUDA_TAG("nvidia/nvidia-a10g", "sm_86", 49152, 65536);
+TVM_REGISTER_CUDA_TAG("nvidia/nvidia-a16", "sm_86", 49152, 65536);
+TVM_REGISTER_CUDA_TAG("nvidia/nvidia-a2", "sm_86", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/nvidia-t4", "sm_75", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/nvidia-v100", "sm_70", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/tesla-p100", "sm_60", 49152, 65536);
@@ -122,6 +135,7 @@ TVM_REGISTER_CUDA_TAG("nvidia/tesla-k80", "sm_37", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/tesla-k40", "sm_35", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/tesla-k20", "sm_35", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/tesla-k10", "sm_30", 49152, 65536);
+TVM_REGISTER_CUDA_TAG("nvidia/rtx-a6000", "sm_86", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/quadro-rtx-8000", "sm_75", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/quadro-rtx-6000", "sm_75", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/quadro-rtx-5000", "sm_75", 49152, 65536);
@@ -205,9 +219,13 @@ TVM_REGISTER_CUDA_TAG("nvidia/nvidia-nvs-310", "sm_21", 49152, 32768);
 TVM_REGISTER_CUDA_TAG("nvidia/nvs-5400m", "sm_21", 49152, 32768);
 TVM_REGISTER_CUDA_TAG("nvidia/nvs-5200m", "sm_21", 49152, 32768);
 TVM_REGISTER_CUDA_TAG("nvidia/nvs-4200m", "sm_21", 49152, 32768);
+TVM_REGISTER_CUDA_TAG("nvidia/geforce-rtx-3090-ti", "sm_86", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/geforce-rtx-3090", "sm_86", 49152, 65536);
+TVM_REGISTER_CUDA_TAG("nvidia/geforce-rtx-3080-ti", "sm_86", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/geforce-rtx-3080", "sm_86", 49152, 65536);
+TVM_REGISTER_CUDA_TAG("nvidia/geforce-rtx-3070-ti", "sm_86", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/geforce-rtx-3070", "sm_86", 49152, 65536);
+TVM_REGISTER_CUDA_TAG("nvidia/geforce-rtx-3060", "sm_86", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/nvidia-titan-rtx", "sm_75", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/geforce-rtx-2080-ti", "sm_75", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/geforce-rtx-2080", "sm_75", 49152, 65536);
@@ -349,9 +367,11 @@ TVM_REGISTER_CUDA_TAG("nvidia/tegra-x1", "sm_53", 49152, 32768);
 
 #undef TVM_REGISTER_CUDA_TAG
 
-#define TVM_REGISTER_TAG_AWS_C5(Name, Cores, Arch) \
-  TVM_REGISTER_TARGET_TAG(Name).set_config(        \
-      {{"kind", String("llvm")}, {"mcpu", String(Arch)}, {"num-cores", Integer(Cores)}});
+#define TVM_REGISTER_TAG_AWS_C5(Name, Cores, Arch)                                 \
+  TVM_REGISTER_TARGET_TAG(Name).set_config({{"kind", String("llvm")},              \
+                                            {"keys", Array<String>{"x86", "cpu"}}, \
+                                            {"mcpu", String(Arch)},                \
+                                            {"num-cores", Integer(Cores)}});
 
 TVM_REGISTER_TAG_AWS_C5("aws/cpu/c5.large", 1, "skylake-avx512");
 TVM_REGISTER_TAG_AWS_C5("aws/cpu/c5.xlarge", 2, "skylake-avx512");
@@ -363,5 +383,21 @@ TVM_REGISTER_TAG_AWS_C5("aws/cpu/c5.18xlarge", 36, "skylake-avx512");
 TVM_REGISTER_TAG_AWS_C5("aws/cpu/c5.24xlarge", 48, "cascadelake");
 
 #undef TVM_REGISTER_TAG_AWS_C5
+
+#define TVM_REGISTER_METAL_GPU_TAG(Name, ThreadsPerBlock, SharedMem, WarpSize)   \
+  TVM_REGISTER_TARGET_TAG(Name).set_config(                                      \
+      {{"kind", String("metal")},                                                \
+       {"max_threads_per_block", Integer(ThreadsPerBlock)},                      \
+       {"max_shared_memory_per_block", Integer(SharedMem)},                      \
+       {"thread_warp_size", Integer(WarpSize)},                                  \
+       {"host", Map<String, ObjectRef>{{"kind", String("llvm")},                 \
+                                       {"mtriple", String("arm64-apple-macos")}, \
+                                       {"mcpu", String("apple-latest")}}}});
+
+TVM_REGISTER_METAL_GPU_TAG("apple/m1-gpu", 1024, 32768, 32);
+TVM_REGISTER_METAL_GPU_TAG("apple/m1-gpu-restricted", 256, 32768, 32);
+TVM_REGISTER_METAL_GPU_TAG("apple/m2-gpu", 1024, 32768, 32);
+
+#undef TVM_REGISTER_METAL_TAG
 
 }  // namespace tvm

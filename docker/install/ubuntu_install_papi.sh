@@ -26,11 +26,9 @@ apt-get update --fix-missing
 apt-install-and-clear -y linux-tools-common linux-tools-generic kmod
 
 cd /
-git clone https://bitbucket.org/icl/papi.git
 # Pulling the latest version of this has broken the images before. Checkout the tagged version below for now.
-cd papi
-git checkout papi-6-0-0-1-t
-cd src
+git clone --branch papi-6-0-0-1-t https://bitbucket.org/icl/papi.git
+cd papi/src
 export PAPI_CUDA_ROOT=/usr/local/cuda
 export PAPI_ROCM_ROOT=/opt/rocm
 ./configure --with-components="$1"

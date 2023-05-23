@@ -57,18 +57,18 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
   ICHECK_EQ(stride_size.size(), 2) << "Pooling stride_size must have 2 elements";
   ICHECK_EQ(padding_size.size(), 4) << "Pooling padding_size must have 4 elements";
 
-  auto kernel_height = cast(DataType::DataType::Int(32), kernel_size[0]);
-  auto kernel_width = cast(DataType::DataType::Int(32), kernel_size[1]);
-  auto stride_height = cast(DataType::DataType::Int(32), stride_size[0]);
-  auto stride_width = cast(DataType::DataType::Int(32), stride_size[1]);
+  auto kernel_height = kernel_size[0];
+  auto kernel_width = kernel_size[1];
+  auto stride_height = stride_size[0];
+  auto stride_width = stride_size[1];
 
-  auto height = cast(DataType::DataType::Int(32), x->shape[height_axis]);
-  auto width = cast(DataType::DataType::Int(32), x->shape[width_axis]);
+  auto height = x->shape[height_axis];
+  auto width = x->shape[width_axis];
 
-  auto pad_top = cast(DataType::DataType::Int(32), padding_size[0]);
-  auto pad_left = cast(DataType::DataType::Int(32), padding_size[1]);
-  auto pad_bottom = cast(DataType::DataType::Int(32), padding_size[2]);
-  auto pad_right = cast(DataType::DataType::Int(32), padding_size[3]);
+  auto pad_top = padding_size[0];
+  auto pad_left = padding_size[1];
+  auto pad_bottom = padding_size[2];
+  auto pad_right = padding_size[3];
 
   if (ceil_mode) {
     // Additional padding to ensure we do ceil instead of floor when
@@ -94,10 +94,6 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
   auto dwidth = tvm::te::reduce_axis(Range(0, kernel_width), "dw");
 
   Array<PrimExpr> data_shape = x->shape;
-  for (size_t i = 0; i < data_shape.size(); ++i) {
-    data_shape.Set(i, cast(DataType::DataType::Int(32), data_shape[i]));
-  }
-
   Array<PrimExpr> out_shape = data_shape;
   out_shape.Set(height_axis, out_height);
   out_shape.Set(width_axis, out_width);
@@ -148,10 +144,10 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
           out_idx.Set(width_axis, (inds[width_axis] + pad_left) / stride_width - windoww);
 
           PrimExpr out_idx_lower_h = tir::Select(
-              pad_inds[height_axis] < kernel_height, make_const(DataType::DataType::Int(32), 0),
+              pad_inds[height_axis] < kernel_height, make_const(pad_inds[height_axis].dtype(), 0),
               (pad_inds[height_axis] - kernel_height) / stride_height + 1);
           PrimExpr out_idx_lower_w = tir::Select(
-              pad_inds[width_axis] < kernel_width, make_const(DataType::DataType::Int(32), 0),
+              pad_inds[width_axis] < kernel_width, make_const(pad_inds[width_axis].dtype(), 0),
               (pad_inds[width_axis] - kernel_width) / stride_width + 1);
 
           return tvm::sum(
@@ -179,10 +175,10 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
           out_idx.Set(width_axis, (pad_w_idx / stride_width - windoww));
 
           PrimExpr out_idx_lower_h =
-              tir::Select(pad_h_idx < kernel_height, make_const(DataType::Int(32), 0),
+              tir::Select(pad_h_idx < kernel_height, make_const(pad_h_idx.dtype(), 0),
                           (pad_h_idx - kernel_height) / stride_height + 1);
           PrimExpr out_idx_lower_w =
-              tir::Select(pad_w_idx < kernel_width, make_const(DataType::Int(32), 0),
+              tir::Select(pad_w_idx < kernel_width, make_const(pad_w_idx.dtype(), 0),
                           (pad_w_idx - kernel_width) / stride_width + 1);
 
           PrimExpr divide_factor;  // number of pooled elements
@@ -194,10 +190,10 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
 
             PrimExpr h_end = min(h_start + kernel_height, height);
             PrimExpr w_end = min(w_start + kernel_width, width);
-            h_start = max(h_start, make_const(DataType::Int(32), 0));
-            w_start = max(w_start, make_const(DataType::Int(32), 0));
+            h_start = max(h_start, make_const(h_start.dtype(), 0));
+            w_start = max(w_start, make_const(w_start.dtype(), 0));
             divide_factor =
-                max((h_end - h_start) * (w_end - w_start), make_const(DataType::Int(32), 1));
+                max((h_end - h_start) * (w_end - w_start), make_const(h_end.dtype(), 1));
           }
           return tvm::sum(
               tvm::if_then_else(tir::And(tir::And(out_idx[height_axis] >= out_idx_lower_h,
@@ -214,50 +210,54 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
   }
 }
 
+/*!
+ * \brief Find index of Depth, Height or Width dimension in a layout string.
+ *
+ * \param layout The layout string
+ * \param depth_axis set as the index of depth ('D') if not nullptr.
+ * \param height_axis set as the index of height ('H') if not nullptr.
+ * \param width_axis set as the index of width ('W') if not nullptr.
+ *
+ * \return true if the layout is valid (i.e., no tiling on D, H or W dimensions, no duplicates and
+ * if the requested dimensions are found), otherwise false.
+ */
 inline bool find_depth_height_width(const std::string& layout, int* depth_axis, int* height_axis,
                                     int* width_axis) {
-  *depth_axis = -1;
-  *height_axis = -1;
-  *width_axis = -1;
+  if (depth_axis) *depth_axis = -1;
+  if (height_axis) *height_axis = -1;
+  if (width_axis) *width_axis = -1;
   int curr_idx = 0;
   for (size_t i = 0; i < layout.size(); ++i) {
     if ((layout[i] >= 'A' && layout[i] <= 'Z') || (layout[i] >= 'a' && layout[i] <= 'z')) {
-      if (layout[i] == 'D') {
+      if (layout[i] == 'D' && depth_axis) {
         if (*depth_axis != -1) return false;
         *depth_axis = curr_idx;
-      } else if (layout[i] == 'H') {
+      } else if (layout[i] == 'H' && height_axis) {
         if (*height_axis != -1) return false;
         *height_axis = curr_idx;
-      } else if (layout[i] == 'W') {
+      } else if (layout[i] == 'W' && width_axis) {
         if (*width_axis != -1) return false;
         *width_axis = curr_idx;
       } else if (layout[i] == 'd' || layout[i] == 'h' || layout[i] == 'w') {
-        // do not support split on height or width, e.g., NCHW16w
+        // do not support split on height, width or depth, e.g., NCHW16w
         return false;
       }
       ++curr_idx;
     }
   }
-  if (*depth_axis == -1 || *height_axis == -1 || *width_axis == -1) return false;
+  if ((depth_axis && *depth_axis == -1) || (height_axis && *height_axis == -1) ||
+      (width_axis && *width_axis == -1))
+    return false;
   return true;
 }
 
 inline bool find_height_width(const std::string& layout, int* height_axis, int* width_axis) {
-  int dummy;
-  ICHECK_EQ(find_depth_height_width(layout, &dummy, height_axis, width_axis), false);
-  if (*height_axis != -1 && *width_axis != -1) {
-    return true;
-  }
-  return false;
+  return find_depth_height_width(layout, /*depth_axis=*/nullptr, height_axis, width_axis);
 }
 
 inline bool find_width(const std::string& layout, int* width_axis) {
-  int dummy;
-  ICHECK_EQ(find_depth_height_width(layout, &dummy, &dummy, width_axis), false);
-  if (*width_axis != -1) {
-    return true;
-  }
-  return false;
+  return find_depth_height_width(layout, /*depth_axis=*/nullptr, /*height_axis=*/nullptr,
+                                 width_axis);
 }
 
 /*!
@@ -325,14 +325,11 @@ inline Tensor adaptive_pool_impl(const Tensor& x, const Array<PrimExpr>& output_
   ICHECK_EQ(axes.size(), n_dim) << "The number of axes not equal to the in/out dimension";
 
   Array<PrimExpr> data_shape = x->shape;
-  for (size_t i = 0; i < data_shape.size(); ++i) {
-    data_shape.Set(i, cast(DataType::DataType::Int(32), data_shape[i]));
-  }
   Array<PrimExpr> out_shape = data_shape;
   Array<PrimExpr> in_size, out_size;
   for (size_t i = 0; i < n_dim; ++i) {
     in_size.push_back(data_shape[axes[i]]);
-    out_size.push_back(cast(DataType::Int(32), output_size[i]));
+    out_size.push_back(output_size[i]);
     out_shape.Set(axes[i], out_size[i]);
   }
 
@@ -353,7 +350,9 @@ inline Tensor adaptive_pool_impl(const Tensor& x, const Array<PrimExpr>& output_
     return std::make_tuple(indices, reduce_axes);
   };
 
+  Map<String, ObjectRef> attrs;
   if (pool_type == kMaxPool) {
+    attrs.Set("schedule_rule", tvm::runtime::String("meta_schedule.adaptive_pool_max"));
     return tvm::te::compute(
         out_shape,
         [&](const Array<Var>& output) {
@@ -362,8 +361,9 @@ inline Tensor adaptive_pool_impl(const Tensor& x, const Array<PrimExpr>& output_
           std::tie(indices, reduce_axes) = get_iter_vars(output, true);
           return tvm::max(x(indices), reduce_axes);  // NOLINT(*)
         },
-        "tensor", "adaptive_pool_max");
+        "adaptive_pool_max", "adaptive_pool_max", attrs);
   } else if (pool_type == kAvgPool) {
+    attrs.Set("schedule_rule", tvm::runtime::String("meta_schedule.adaptive_pool_avg"));
     auto pool_sum = tvm::te::compute(
         out_shape,
         [&](const Array<Var>& output) {
@@ -372,7 +372,7 @@ inline Tensor adaptive_pool_impl(const Tensor& x, const Array<PrimExpr>& output_
           std::tie(indices, reduce_axes) = get_iter_vars(output, true);
           return tvm::sum(x(indices), reduce_axes);
         },
-        "tensor", "adaptive_pool_sum");
+        "adaptive_pool_sum", "adaptive_pool_sum");
 
     return tvm::te::compute(
         out_shape,
@@ -388,7 +388,7 @@ inline Tensor adaptive_pool_impl(const Tensor& x, const Array<PrimExpr>& output_
 
           return div(pool_sum(indices), divide_factor);
         },
-        "tensor", kElementWise);
+        "adaptive_pool_avg", kElementWise, attrs);
   } else {
     LOG(ERROR) << "Unrecognized pool_type: " << pool_type;
     return x;
@@ -525,19 +525,16 @@ inline Tensor pool_impl_nd(const Tensor& x, const Array<PrimExpr>& kernel_size,
   Array<PrimExpr> pad_before(std::vector<PrimExpr>(x_size, 0));
   Array<PrimExpr> pad_after(std::vector<PrimExpr>(x_size, 0));
   Array<PrimExpr> data_shape = x->shape;
-  for (size_t i = 0; i < data_shape.size(); ++i) {
-    data_shape.Set(i, cast(DataType::DataType::Int(32), data_shape[i]));
-  }
   Array<PrimExpr> out_shape = data_shape;
 
   bool do_pad = false;
   for (int i = 0; i < k_size; i++) {
     int ii = axis[i];
-    kernel[i] = cast(DataType::Int(32), kernel_size[i]);
-    stride[i] = cast(DataType::Int(32), stride_size[i]);
-    dilation[i] = cast(DataType::Int(32), dilation_size[i]);
-    pad_head[i] = cast(DataType::Int(32), padding_size[i]);
-    pad_tail[i] = cast(DataType::Int(32), padding_size[i + k_size]);
+    kernel[i] = kernel_size[i];
+    stride[i] = stride_size[i];
+    dilation[i] = dilation_size[i];
+    pad_head[i] = padding_size[i];
+    pad_tail[i] = padding_size[i + k_size];
 
     if (ceil_mode) {
       // The offset[i] is an additional padding to ensure we do ceil instead of floor when
@@ -566,8 +563,10 @@ inline Tensor pool_impl_nd(const Tensor& x, const Array<PrimExpr>& kernel_size,
     out_shape.Set(ii, out_dim);
   }
 
+  Map<String, ObjectRef> attrs;
   if (pool_type == kMaxPool) {
     auto temp = do_pad ? pad(x, pad_before, pad_after, tvm::min_value(x->dtype), "pad_temp") : x;
+    attrs.Set("schedule_rule", tvm::runtime::String("meta_schedule.pool_max"));
     return tvm::te::compute(
         out_shape,
         [&](const Array<Var>& output) {
@@ -580,8 +579,9 @@ inline Tensor pool_impl_nd(const Tensor& x, const Array<PrimExpr>& kernel_size,
           }
           return tvm::max(temp(indices), daxis);
         },
-        "tensor", "pool_max");
+        "pool_max", "pool_max", attrs);
   } else if (pool_type == kAvgPool) {
+    attrs.Set("schedule_rule", tvm::runtime::String("meta_schedule.pool_avg"));
     // Pad the inputs
     auto temp = do_pad ? pad(x, pad_before, pad_after, 0, "pad_temp") : x;
 
@@ -598,7 +598,7 @@ inline Tensor pool_impl_nd(const Tensor& x, const Array<PrimExpr>& kernel_size,
           }
           return tvm::sum(temp(indices), daxis);
         },
-        "tensor", "pool_sum");
+        "pool_sum", "pool_sum");
 
     // TVM compute for dividing the reduced window sum by kernel size.
     return tvm::te::compute(
@@ -640,7 +640,7 @@ inline Tensor pool_impl_nd(const Tensor& x, const Array<PrimExpr>& kernel_size,
               // number that represents the number of steps along the dilated kernel to reach a
               // non-padded value. Otherwise this should be 0.
               PrimExpr jumps_to_non_pad = (dilation[i] - 1 - start[i]) / dilation[i];
-              jumps_to_non_pad = max(jumps_to_non_pad, make_const(DataType::Int(32), 0));
+              jumps_to_non_pad = max(jumps_to_non_pad, make_const(jumps_to_non_pad.dtype(), 0));
 
               end[i] = min(end[i], data_shape[ii] - 1);
               num_el *= (end[i] - (start[i] + dilation[i] * jumps_to_non_pad)) / dilation[i] + 1;
@@ -650,7 +650,7 @@ inline Tensor pool_impl_nd(const Tensor& x, const Array<PrimExpr>& kernel_size,
             return div(pool_sum(indices), divide_factor);
           }
         },
-        "tensor", kElementWise);
+        "pool_avg", kElementWise, attrs);
   } else {
     LOG(ERROR) << "Unrecognized pool_type: " << pool_type;
     return x;

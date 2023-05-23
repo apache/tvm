@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, import-self, len-as-condition
+# pylint: disable=invalid-name, import-self, len-as-condition, superfluous-parens
 """Utility functions common to NNVM and MxNet conversion."""
 import warnings
 from ... import error
@@ -27,7 +27,7 @@ from .common import infer_shape as _infer_shape
 
 
 def _warn_not_used(attr, op="nnvm"):
-    err = "{} is ignored in {}.".format(attr, op)
+    err = f"{attr} is ignored in {op}."
     warnings.warn(err)
 
 

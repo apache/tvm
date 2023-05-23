@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=import-outside-toplevel
+# pylint: disable=import-outside-toplevel, nested-min-max
 """Tensor Expression Debug Display (TEDD), visualizing Tensor Expression"""
 import html
 import json
@@ -78,6 +78,27 @@ def insert_dot_id(sch):
     return sch
 
 
+def itervar_equal(iv_a, iv_b):
+    """A helper method that compares the equality of two iterative variables"""
+    # Adopt the following method to assure the equality between two itervars.
+    # The plain comparison might fail (i.e. iv_a == iv_b) after the change of
+    # domain bounds from InferBound.
+    def _var_equal(v_a, v_b):
+        condtions = [
+            v_a.name == v_b.name,
+            v_a.dtype == v_b.dtype,
+            v_a.type_annotation == v_b.type_annotation,
+        ]
+        return all(c for c in condtions)
+
+    condtions = [
+        _var_equal(iv_a.var, iv_b.var),
+        iv_a.iter_type == iv_b.iter_type,
+        iv_a.thread_tag == iv_b.thread_tag,
+    ]
+    return all(c for c in condtions)
+
+
 class ObjectManager:
     """A helper class tracking schedule objects, e.g. stage, IterVar,
     relationship, and tensor, to their DOM path."""
@@ -88,6 +109,10 @@ class ObjectManager:
             self.dict[stage] = [stage_idx]
             for itervar_idx, itervar in enumerate(stage.all_iter_vars):
                 self.dict[itervar] = [stage_idx, itervar_idx]
+                # the itervars of leaf should also be mapped to the original one
+                for leaf_iv in stage.leaf_iter_vars:
+                    if itervar_equal(leaf_iv, itervar):
+                        self.dict[leaf_iv] = [stage_idx, itervar_idx]
             for rel_idx, rel in enumerate(stage.relations):
                 self.dict[rel] = [stage_idx, rel_idx]
             for tensor_idx in range(stage.op.num_outputs):
@@ -289,7 +314,7 @@ def dump_json(sch, need_range):
 
         def get_leaf_itervar_index(itervar, leaf_iv):
             for leaf_index, ivar in enumerate(leaf_iv):
-                if ivar == itervar:
+                if itervar_equal(ivar, itervar):
                     return leaf_index
             return -1
 

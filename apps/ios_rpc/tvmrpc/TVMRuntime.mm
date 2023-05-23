@@ -45,7 +45,7 @@ namespace detail {
   throw tvm::runtime::InternalError(file, lineno, message);
 }
 
-void LogMessageImpl(const std::string& file, int lineno, const std::string& message) {
+void LogMessageImpl(const std::string& file, int lineno, int level, const std::string& message) {
   NSLog(@"%s:%d: %s", file.c_str(), lineno, message.c_str());
 }
 

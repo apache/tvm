@@ -14,13 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: skip-file
 """
 TopHub: Tensor Operator Hub
 To get the best performance, we typically need auto-tuning for the specific devices.
 TVM releases pre-tuned parameters in TopHub for some common networks and hardware targets.
 TVM will download these parameters for you when you call relay.build.
 """
-# pylint: disable=invalid-name
 
 import logging
 from os import getenv
@@ -57,6 +57,7 @@ PACKAGE_VERSION = {
     "intel_graphics": "v0.02",
     "vta": "v0.10",
     "amd_apu": "v0.01",
+    "adreno": "v0.01",
 }
 
 logger = logging.getLogger("autotvm")
@@ -70,6 +71,7 @@ def _alias(name):
         "vulkan": "opencl",
         "nvptx": "cuda",
         "amd_apu": "amd_apu",
+        "adreno": "adreno",
     }
     return table.get(name, name)
 
@@ -104,10 +106,20 @@ def context(target, extra_files=None):
         if isinstance(tgt, str):
             tgt = Target(tgt)
 
+        # The TOPHUB file names rely on Target's device or kind. Both these types of
+        # information exist in Target.keys, but rules of filling this filed is not explicitly
+        # defined, we are afraid to rely only on Target.keys. At the same time Target.device
+        # is filled only if device was pointed explicitly in target string, that is not mandatory
+        # and in some cases we need to get information about device from Target.keys
+        # In priority order we verify:
+        # 1) Target.device
+        # 2) Target.keys
+        # 3) Target.kind
         possible_names = []
         device = tgt.attrs.get("device", "")
         if device != "":
             possible_names.append(_alias(device))
+        possible_names.extend(tgt.keys)
         possible_names.append(tgt.kind.name)
 
         all_packages = list(PACKAGE_VERSION.keys())
@@ -117,7 +129,7 @@ def context(target, extra_files=None):
                 if not check_backend(tophub_location, name):
                     continue
 
-                filename = "%s_%s.log" % (name, PACKAGE_VERSION[name])
+                filename = f"{name}_{PACKAGE_VERSION[name]}.log"
                 best_context.load(Path(AUTOTVM_TOPHUB_ROOT_PATH, filename))
                 break  # only load one file to avoid some fallback template mismatch problem
 
@@ -143,10 +155,10 @@ def check_backend(tophub_location, backend):
         Whether the check is successful.
     """
     backend = _alias(backend)
-    assert backend in PACKAGE_VERSION, 'Cannot find backend "%s" in TopHub' % backend
+    assert backend in PACKAGE_VERSION, f'Cannot find backend "{backend}" in TopHub'
 
     version = PACKAGE_VERSION[backend]
-    package_name = "%s_%s.log" % (backend, version)
+    package_name = f"{backend}_{version}.log"
     if Path(AUTOTVM_TOPHUB_ROOT_PATH, package_name).is_file():
         return True
 
@@ -177,7 +189,7 @@ def download_package(tophub_location, package_name):
     rootpath = Path(AUTOTVM_TOPHUB_ROOT_PATH)
     rootpath.mkdir(parents=True, exist_ok=True)
 
-    download_url = "{0}/{1}".format(tophub_location, package_name)
+    download_url = f"{tophub_location}/{package_name}"
     logger.info("Download pre-tuned parameters package from %s", download_url)
     download(download_url, Path(rootpath, package_name), overwrite=True)
 
@@ -204,7 +216,7 @@ def load_reference_log(backend, model, workload_name):
     if backend not in PACKAGE_VERSION:
         return []
     version = PACKAGE_VERSION[backend]
-    package_name = "%s_%s.log" % (backend, version)
+    package_name = f"{backend}_{version}.log"
     filename = Path(AUTOTVM_TOPHUB_ROOT_PATH, package_name)
 
     global REFERENCE_LOG_CACHE

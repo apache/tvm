@@ -27,8 +27,7 @@ source tests/scripts/setup-pytest-env.sh
 find . -type f -path "*.pyc" | xargs rm -f
 make cython3
 
-# Note: Default behaviour is to assume the test target is Ethos-N78
-# but setting ETHOSN_VARIANT_CONFIG appropriately
-# (e.g. ETHOSN_VARIANT_CONFIG=Ethos-N78_1TOPS_2PLE_RATIO)
-# switches the target to various Ethos-N78 configurations.
+# Note: Setting ETHOSN_TEST_TARGET_CONFIG appropriately
+# (e.g. ETHOSN_TEST_TARGET_CONFIG="ethos-n -variant=n78 -tops=1 -ple_ratio=2")
+# switches the target to various NPU configurations.
 run_pytest ctypes python-ethosn tests/python/contrib/test_ethosn

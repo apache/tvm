@@ -49,7 +49,7 @@
 #ifndef TVM_IR_TYPE_H_
 #define TVM_IR_TYPE_H_
 
-#include <tvm/ir/span.h>
+#include <tvm/ir/source_map.h>
 #include <tvm/node/node.h>
 #include <tvm/runtime/container/array.h>
 #include <tvm/runtime/data_type.h>
@@ -206,6 +206,25 @@ enum TypeKind : int {
   kAdtHandle = 5,
   kTypeData = 6
 };
+
+/*! \brief Converts a TypeKind to a string. */
+inline String TypeKind2String(TypeKind kind) {
+  switch (kind) {
+    case TypeKind::kType:
+      return "Type";
+    case TypeKind::kShapeVar:
+      return "ShapeVar";
+    case TypeKind::kBaseType:
+      return "BaseType";
+    case TypeKind::kConstraint:
+      return "Constraint";
+    case TypeKind::kAdtHandle:
+      return "AdtHandle";
+    case TypeKind::kTypeData:
+      return "TypeData";
+  }
+  LOG(FATAL) << "ValueError: Unknown TypeKind: " << static_cast<int>(kind);
+}
 
 /*!
  * \brief Type parameter in functions.

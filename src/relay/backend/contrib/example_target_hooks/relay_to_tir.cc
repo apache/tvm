@@ -68,7 +68,7 @@ class ConvertAddToSubtract : public MixedModeMutator {
 
   IRModule Mutate() {
     GlobalVar main_global_var = ir_module_->GetGlobalVar("main");
-    Function main = GetRef<Function>(ir_module_->Lookup(main_global_var).as<FunctionNode>());
+    Function main = Downcast<Function>(ir_module_->Lookup(main_global_var));
     Function mutated_main = WithFields(main, main->params, VisitExpr(main->body));
 
     ir_module_->Update(main_global_var, mutated_main);
@@ -152,7 +152,7 @@ class ConvertAddToSubtract : public MixedModeMutator {
       };
 
       tir::PrimFunc replacement_func = tir::PrimFunc({x_var, y_var, out_var}, math_loop, VoidType(),
-                                                     buffer_map, {}, DictAttrs(dict_attrs));
+                                                     buffer_map, DictAttrs(dict_attrs));
 
       // Switch to TIRToRuntime hook for testing
       Bool tir_to_runtime = func->GetAttr<Bool>("tir_to_runtime").value_or(Bool(false));
@@ -212,17 +212,18 @@ class ConvertAddToSubtract : public MixedModeMutator {
         return nullptr;
       }
       return function_node;
-    } else if (const auto* global_var_node = expr.as<GlobalVarNode>()) {
-      return AsLowerableFunction(ir_module_->Lookup(GetRef<GlobalVar>(global_var_node)));
+    } else if (auto global_var_node = expr.as<GlobalVar>()) {
+      return AsLowerableFunction(ir_module_->Lookup(global_var_node.value()));
     } else {
       return nullptr;
     }
   }
 
   const GlobalVarNode* AsAlreadyLoweredFunction(const Expr& expr) {
-    if (const auto* global_var_node = expr.as<GlobalVarNode>()) {
-      if (ir_module_->Lookup(GetRef<GlobalVar>(global_var_node)).as<tir::PrimFuncNode>()) {
-        return global_var_node;
+    if (auto opt = expr.as<GlobalVar>()) {
+      auto global_var = opt.value();
+      if (ir_module_->Lookup(global_var).as<tir::PrimFuncNode>()) {
+        return global_var.get();
       }
     }
     return nullptr;

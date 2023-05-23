@@ -16,15 +16,12 @@
 # under the License.
 
 import pytest
-
 import tvm
 import tvm.relay as relay
-
+from tvm.relay.backend.contrib.uma import uma_available
 from tvm.relay.backend.contrib.uma.api import UMAPartitioner
 from tvm.relay.op.contrib.register import get_pattern_table
-from tvm.relay.testing import resnet, mlp
-from tvm.relay.backend.contrib.uma import uma_available
-
+from tvm.relay.testing import mlp, resnet
 
 pytestmark = pytest.mark.skipif(not uma_available(), reason="UMA not available")
 

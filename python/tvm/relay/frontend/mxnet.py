@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, import-self, len-as-condition, no-else-return, too-many-lines
+# pylint: disable=use-list-literal
 """MXNet symbol frontend."""
 import json
 import math
@@ -104,7 +105,7 @@ def _get_channel_axis(layout, op_name):
     if layout == "NDHWC":
         return 4
     raise tvm.error.OpAttributeInvalid(
-        'Value {} in attribute "layout" of operator {} is not valid.'.format(layout, op_name)
+        f'Value {padding} in attribute "layout" of operator {op_name} is not valid.'
     )
 
 
@@ -122,7 +123,7 @@ def _mx_activations(inputs, attrs):
         return _stable_softrelu(inputs[0])
     if act_type not in _activation_map:
         raise tvm.error.OpNotImplemented(
-            "Operator {} is not supported for frontend MXNet.".format(act_type)
+            f"Operator {act_type} is not supported for frontend MXNet."
         )
     return _activation_map[act_type](inputs[0])
 
@@ -304,7 +305,7 @@ def _mx_conv1d_transpose(inputs, attrs):
     if data_layout != "NCW":
         raise tvm.error.OpAttributeInvalid('Only "NCW" data layout is supported for 1D Convolution')
     channel_axis = 1
-    kernel_layout = "OIW"
+    kernel_layout = "IOW"
     new_attrs = {}
     new_attrs["channels"] = attrs.get_int("num_filter")
     new_attrs["kernel_size"] = attrs.get_int_tuple("kernel")
@@ -438,9 +439,7 @@ def _mx_pooling(inputs, attrs):
                 return _op.nn.global_avg_pool3d(inputs[0])
             return _pool3d(_op.nn.avg_pool3d, True)
         raise tvm.error.OpNotImplemented(
-            "Operator {} Pooling is not supported for frontend MXNet.".format(
-                pool_type.capitalize()
-            )
+            f"Operator {pool_type.capitalize()} Pooling is not supported for frontend MXNet."
         )
     # 2D Pooling
     if pool_type == "max":
@@ -452,7 +451,7 @@ def _mx_pooling(inputs, attrs):
             return _op.nn.global_avg_pool2d(inputs[0])
         return _pool2d(_op.nn.avg_pool2d, True)
     raise tvm.error.OpNotImplemented(
-        "Operator {} Pooling is not supported for frontend MXNet.".format(pool_type.capitalize())
+        f"Operator {pool_type.capitalize()} Pooling is not supported for frontend MXNet."
     )
 
 
@@ -700,9 +699,7 @@ def _mx_leaky_relu(inputs, attrs):
         half = _expr.const(0.5, dtype="float32")
         half_x = _op.multiply(inputs[0], half)
         return _op.multiply(half_x, erf_plus_one)
-    raise tvm.error.OpNotImplemented(
-        "Operator {} is not supported for frontend MXNet.".format(act_type)
-    )
+    raise tvm.error.OpNotImplemented(f"Operator {act_type} is not supported for frontend MXNet.")
 
 
 def _mx_make_power(power):
@@ -795,19 +792,50 @@ def _mx_multibox_detection(inputs, attrs):
 
 def _mx_dot(inputs, attrs):
     assert len(inputs) == 2
-    a, b = inputs
+
+    a = inputs[0]
+    b = inputs[1]
+
     rank_a = len(_infer_type(a).checked_type.shape)
     rank_b = len(_infer_type(b).checked_type.shape)
-    if rank_a != 2 or rank_b != 2:
-        raise tvm.error.OpAttributeUnimplemented("Only 2-D arrays are supported.")
+
+    if rank_a < 1 or rank_b < 1:
+        raise tvm.error.OpAttributeInvalid("Unsupported shape of input tensors.")
+
     transpose_a = attrs.get_bool("transpose_a", False)
     transpose_b = attrs.get_bool("transpose_b", False)
+
     if transpose_a is True:
-        msg = 'Value {} in attribute "transpose_a" of operator dot ' "is not valid."
-        raise tvm.error.OpAttributeInvalid(msg.format(transpose_a))
-    if transpose_b is False:
-        b = _op.transpose(b, axes=[1, 0])
-    return _op.nn.dense(a, b)
+        msg = f'Value {transpose_a} in attribute "transpose_a" of operator dot is not valid.'
+        raise tvm.error.OpAttributeInvalid(msg)
+
+    # When performing dot product we need to properly handle shape of result -> out_shape
+    if rank_a == 1:
+        out_shape = list()
+        a = _op.expand_dims(a, axis=0)
+    else:
+        shape_a = list(_infer_type(a).checked_type.shape)
+        out_shape = shape_a[:-1]
+        a = _op.reshape(a, newshape=(-1, shape_a[-1]))
+
+    if rank_b == 1:
+        if not out_shape:
+            out_shape = [1]
+        b = _op.expand_dims(b, axis=1)
+    else:
+        # Transpose matrix b if needed
+        if transpose_b:
+            trans_axes = list(range(rank_b))
+            trans_axes = trans_axes[-1:] + trans_axes[:-1]
+            b = _op.transpose(b, axes=trans_axes)
+
+        shape_b = list(_infer_type(b).checked_type.shape)
+        out_shape += shape_b[1:]
+        b = _op.reshape(b, newshape=(shape_b[0], -1))
+
+    out = _op.reshape(_op.nn.matmul(a, b), newshape=out_shape)
+
+    return out
 
 
 def _mx_batch_dot(inputs, attrs):
@@ -826,8 +854,8 @@ def _mx_batch_dot(inputs, attrs):
     transpose_a = attrs.get_bool("transpose_a", False)
     transpose_b = attrs.get_bool("transpose_b", False)
     if transpose_a is True:
-        msg = 'Value {} in attribute "transpose_a" of operator batch_dot ' "is not valid."
-        raise tvm.error.OpAttributeInvalid(msg.format(transpose_a))
+        msg = f'Value {transpose_a} in attribute "transpose_a" of operator batch_dot is not valid.'
+        raise tvm.error.OpAttributeInvalid(msg)
     if transpose_b is False:
         b = _op.transpose(b, axes=[0, 2, 1])
     out = _op.nn.batch_matmul(a, b)
@@ -1124,7 +1152,7 @@ def _mx_l2_normalize(inputs, attrs):
         new_attrs["axis"] = list(range(2, ndim))
     else:
         raise tvm.error.OpAttributeInvalid(
-            'Mode "{}" is not supported for operator l2_normalize.'.format(mode)
+            f'Mode "{mode}" is not supported for operator l2_normalize.'
         )
     new_attrs["eps"] = attrs.get_float("eps", 1e-10)
     return _op.nn.l2_normalize(inputs[0], **new_attrs)
@@ -1541,7 +1569,7 @@ def _mx_cond(inputs, attrs, subgraphs):
 
     input_args = []
     for i, arg in enumerate(inputs):
-        var = _expr.var("arg%s" % i, _infer_type(arg).checked_type)
+        var = _expr.var(f"arg{i}", _infer_type(arg).checked_type)
         input_args.append(var)
     cond_args = [input_args[i] for i in cond_input_locs]
     then_args = [input_args[i] for i in then_input_locs]
@@ -1644,7 +1672,7 @@ def _qnn_quantize(inputs, attrs):
     else:
         out_dtype = out_type
     if out_dtype not in {"int8", "uint8"}:
-        raise ValueError("Unsupported out_dtype: %s" % out_dtype)
+        raise ValueError(f"Unsupported out_dtype: {out_dtype}")
     min_calib_range = attrs.get_float("min_calib_range", 0.0)
     max_calib_range = attrs.get_float("max_calib_range", 0.0)
     quantized_output, _, _ = quantize_mxnet_min_max(
@@ -1669,14 +1697,14 @@ def _qnn_contrib_quantized_fifo_buffer(inputs, attrs, params):
 
 
 def _get_subgraph_op(subgraphs, op_name):
-    assert len(subgraphs) == 1, "Subgraph should have 1 node but has {}".format(len(subgraphs))
+    assert len(subgraphs) == 1, f"Subgraph should have 1 node but has {len(subgraphs)}"
     subgraph = subgraphs[0]
     nodes = subgraph["nodes"]
     assert nodes is not None
     for node in nodes:
         if node["op"] == op_name:
             return node
-    raise ValueError("Op {} was not found in the subgraph".format(op_name))
+    raise ValueError(f"Op {op_name} was not found in the subgraph")
 
 
 def _qnn_conv(inputs, attrs, subgraphs, params):
@@ -1686,9 +1714,7 @@ def _qnn_conv(inputs, attrs, subgraphs, params):
             subgraph_activation_attrs = _get_subgraph_op(subgraphs, "Activation")["attrs"]
             act_type = subgraph_activation_attrs["act_type"]
             if act_type not in _supported_activations:
-                raise ValueError(
-                    "Fused activation {} is not supported at " "this time".format(act_type)
-                )
+                raise ValueError(f"Fused activation {act_type} is not supported at this time")
             has_fused_activation = True
         return has_fused_activation
 
@@ -2299,7 +2325,7 @@ def _mx_broadcast_like(inputs, attrs):
     for axes in ["lhs_axes", "rhs_axes"]:
         if axes in attrs.attrs:
             raise tvm.error.OpAttributeUnImplemented(
-                'Attribute "{}" is not supported for operator broadcast_like.'.format(axes)
+                f'Attribute "{axes}" is not supported for operator broadcast_like.'
             )
     return _op.broadcast_to_like(*inputs)
 
@@ -2396,9 +2422,9 @@ def _mx_npx_reshape(inputs, attrs):
         elif ele == -3:
             if old_shape[ptr] != 1:
                 raise tvm.error.OpAttributeInvalid(
-                    "Dimension of the original shape "
-                    "that corresponds to -3 must be 1. Received"
-                    " {}".format(old_shape[ptr])
+                    f"Dimension of the original shape "
+                    f"that corresponds to -3 must be 1. Received"
+                    f" {old_shape[ptr]}"
                 )
             ptr += 1
         elif ele == -4:
@@ -2434,7 +2460,7 @@ def _mx_npx_reshape(inputs, attrs):
             new_shape.append(rhs)
             ptr += 1
         else:
-            raise tvm.error.OpAttributeInvalid("Shape dimension %d is not supported" % ele)
+            raise tvm.error.OpAttributeInvalid(f"Shape dimension {ele} is not supported")
     if reverse:
         new_shape = new_shape[::-1]
     return _op.reshape(inputs[0], newshape=new_shape)
@@ -2802,9 +2828,9 @@ def _from_mxnet_impl(symbol, shape_dict, dtype_info, params=None, mod=None):
             unsupported[op_name] += 1
 
     if unsupported:
-        msg = "\n".join(["{}: {}".format(op_name, cnt) for op_name, cnt in unsupported.items()])
+        msg = "\n".join([f"{op_name}: {cnt}" for op_name, cnt in unsupported.items()])
         raise tvm.error.OpNotImplemented(
-            "One or more operators are not supported in frontend MXNet:\n{}".format(msg)
+            f"One or more operators are not supported in frontend MXNet:\n{msg}"
         )
 
     for nid, node in enumerate(jnodes):
@@ -2840,7 +2866,7 @@ def _from_mxnet_impl(symbol, shape_dict, dtype_info, params=None, mod=None):
             elif isinstance(res, _expr.Expr):
                 res = [res]
             else:
-                raise RuntimeError("unexpected type %s" % type(res))
+                raise RuntimeError(f"unexpected type {type(res)}")
             node_map[nid] = res
     outputs = [node_map[e[0]][e[1]] for e in jgraph["heads"]]
     outputs = outputs[0] if len(outputs) == 1 else _expr.Tuple(outputs)
@@ -2858,7 +2884,7 @@ def _update_shape_dtype(shape, dtype, params):
     if isinstance(dtype, str):
         for k, v in params.items():
             if v.dtype != dtype:
-                raise ValueError("%s: dtype not expected %s vs %s" % (k, dtype, v.dtype))
+                raise ValueError(f"{k}: dtype not expected {dtype} vs {v.dtype}")
     else:
         dtype = dtype.copy()
         dtype.update({k: str(v.dtype) for k, v in params.items()})
@@ -2896,7 +2922,7 @@ def from_mxnet(symbol, shape=None, dtype="float32", arg_params=None, aux_params=
     try:
         import mxnet as mx  # pylint: disable=import-outside-toplevel
     except ImportError as e:
-        raise ImportError("{}. MXNet is required to parse symbols.".format(e))
+        raise ImportError(f"{e}. MXNet is required to parse symbols.")
 
     mod = IRModule()
     if isinstance(symbol, mx.sym.Symbol):
@@ -2926,7 +2952,7 @@ def from_mxnet(symbol, shape=None, dtype="float32", arg_params=None, aux_params=
     elif isinstance(symbol, mx.gluon.Block):
         raise NotImplementedError("Only Hybrid Blocks are supported now.")
     else:
-        msg = "mxnet.Symbol or gluon.HybridBlock expected, got {}".format(type(symbol))
+        msg = f"mxnet.Symbol or gluon.HybridBlock expected, got {type(symbol)}"
         raise ValueError(msg)
     mod["main"] = func
     return mod, params

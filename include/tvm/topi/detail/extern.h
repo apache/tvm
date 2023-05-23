@@ -118,7 +118,7 @@ inline PrimExpr pack_buffer(Buffer buf) {
   PrimExpr strides;
   if (buf->strides.size() > 0) {
     strides =
-        tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_stack_make_shape(), buf->shape);
+        tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_stack_make_shape(), buf->strides);
   } else {
     strides = 0;
   }

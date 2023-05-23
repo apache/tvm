@@ -30,10 +30,12 @@ class ScheduleFnNode : public SpaceGeneratorNode {
   runtime::PackedFunc schedule_fn_;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
+    SpaceGeneratorNode::VisitAttrs(v);
     // `schedule_fn_` is not visited.
   }
 
   void InitializeWithTuneContext(const TuneContext& context) final {
+    SpaceGeneratorNode::InitializeWithTuneContext(context);
     this->rand_state_ = ForkSeed(&context->rand_state);
   }
 
@@ -49,15 +51,15 @@ class ScheduleFnNode : public SpaceGeneratorNode {
       return {sch};
     }
     ObjectRef obj = rv;
-    if (const auto* sch = obj.as<tir::ScheduleNode>()) {
-      return {GetRef<tir::Schedule>(sch)};
+    if (auto sch = obj.as<tir::Schedule>()) {
+      return {sch.value()};
     }
     if (const auto* arr = obj.as<runtime::ArrayNode>()) {
       Array<tir::Schedule> result;
       result.reserve(arr->size());
       for (const ObjectRef& obj : *arr) {
-        if (const auto* sch = obj.as<tir::ScheduleNode>()) {
-          result.push_back(GetRef<tir::Schedule>(sch));
+        if (auto sch = obj.as<tir::Schedule>()) {
+          result.push_back(sch.value());
         } else {
           LOG(FATAL) << "TypeError: Expect return type of ScheduleFn to be None, Schedule or "
                         "List[Schedule], but got: "
@@ -72,12 +74,24 @@ class ScheduleFnNode : public SpaceGeneratorNode {
     throw;
   }
 
+  SpaceGenerator Clone() const final {
+    ObjectPtr<ScheduleFnNode> n = make_object<ScheduleFnNode>(*this);
+    CloneRules(this, n.get());
+    return SpaceGenerator(n);
+  }
+
   static constexpr const char* _type_key = "meta_schedule.ScheduleFn";
   TVM_DECLARE_FINAL_OBJECT_INFO(ScheduleFnNode, SpaceGeneratorNode);
 };
 
-SpaceGenerator SpaceGenerator::ScheduleFn(PackedFunc schedule_fn) {
+SpaceGenerator SpaceGenerator::ScheduleFn(PackedFunc schedule_fn,
+                                          Optional<Array<ScheduleRule>> sch_rules,
+                                          Optional<Array<Postproc>> postprocs,
+                                          Optional<Map<Mutator, FloatImm>> mutator_probs) {
   ObjectPtr<ScheduleFnNode> n = make_object<ScheduleFnNode>();
+  n->sch_rules = std::move(sch_rules);
+  n->postprocs = std::move(postprocs);
+  n->mutator_probs = std::move(mutator_probs);
   n->schedule_fn_ = std::move(schedule_fn);
   return SpaceGenerator(n);
 }

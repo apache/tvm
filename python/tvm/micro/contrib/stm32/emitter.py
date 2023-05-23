@@ -569,12 +569,12 @@ class CodeEmitter(object):
                 f"""\
         #ifndef __{name_upper}_DATA_H_
         #define __{name_upper}_DATA_H_
-        
+
         #include \"ai_runtime_api.h\"
 
         AI_API_ENTRY
         const ai_ptr ai_{name}_data_weights_get (void);
-        
+
         #endif /* __{name_upper}_DATA_H_ */
         """
             )
@@ -658,7 +658,7 @@ class CodeEmitter(object):
                 f"""\
         #ifndef __AI_{name_upper}_H__
         #define __AI_{name_upper}_H__
-        
+
         #include \"ai_runtime_api.h\"
 
         #define _{name_upper}_INPUTS_COUNT_ ({input_size})
@@ -674,7 +674,7 @@ class CodeEmitter(object):
             textwrap.dedent(
                 f"""\
         #include <stdio.h>
-        
+
         #include \"dlpack/dlpack.h\"
         #include \"tvm/runtime/c_runtime_api.h\"
         #include \"{name}.h\"

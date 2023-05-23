@@ -42,6 +42,11 @@ class LibraryModuleNode final : public ModuleNode {
 
   const char* type_key() const final { return "library"; }
 
+  /*! \brief Get the property of the runtime module .*/
+  int GetPropertyMask() const final {
+    return ModulePropertyMask::kBinarySerializable | ModulePropertyMask::kRunnable;
+  };
+
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
     TVMBackendPackedCFunc faddr;
     if (name == runtime::symbol::tvm_module_main) {
@@ -221,10 +226,5 @@ Module CreateModuleFromLibrary(ObjectPtr<Library> lib, PackedFuncWrapper packed_
 
   return root_mod;
 }
-
-TVM_REGISTER_GLOBAL("runtime.module.loadfile_so").set_body([](TVMArgs args, TVMRetValue* rv) {
-  ObjectPtr<Library> n = CreateDSOLibraryObject(args[0]);
-  *rv = CreateModuleFromLibrary(n);
-});
 }  // namespace runtime
 }  // namespace tvm

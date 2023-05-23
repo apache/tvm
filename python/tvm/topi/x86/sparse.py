@@ -17,11 +17,12 @@
 
 """sparse_dense schedule on x86"""
 from functools import partial, reduce
-from tvm import te, tir, autotvm
+
+from tvm import autotvm, te, tir
+from tvm.target.x86 import get_simd_32bit_lanes
 
 from ..transform import reshape
-from ..utils import traverse_inline, get_const_int
-from .utils import get_simd_32bit_lanes
+from ..utils import get_const_int, traverse_inline
 
 
 def schedule_sparse_dense(outs):

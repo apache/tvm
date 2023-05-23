@@ -1,0 +1,64 @@
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+{% include "utils/base.groovy.j2" with context %}
+{% import 'utils/macros.j2' as m with context -%}
+
+{% call m.invoke_build(
+  name='BUILD: Hexagon',
+  node='CPU-SMALL',
+  condition='!skip_ci && is_docs_only_build != 1',
+  ws='tvm/build-hexagon',
+  docker_image='ci_hexagon',
+  platform="hexagon",
+) %}
+  sh (
+    script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_config_build_hexagon.sh build",
+    label: 'Create Hexagon cmake config',
+  )
+  cmake_build(ci_hexagon, 'build', '-j2')
+  make_cpp_tests(ci_hexagon, 'build')
+  sh (
+    script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_build_hexagon_api.sh",
+    label: 'Build Hexagon API',
+  )
+  {{ m.upload_artifacts(tag='hexagon', filenames=tvm_lib + cpptest + hexagon_api) }}
+{% endcall %}
+
+
+{% set test_method_names = [] %}
+
+{% call(shard_index, num_shards) m.sharded_test_step(
+  name="test: Hexagon",
+  node="CPU-SMALL",
+  ws="tvm/test-hexagon",
+  platform="hexagon",
+  docker_image="ci_hexagon",
+  test_method_names=test_method_names,
+  num_shards=8,
+) %}
+  {{ m.download_artifacts(tag='hexagon') }}
+  ci_setup(ci_hexagon)
+  {% if shard_index == 1 %}
+  cpp_unittest(ci_hexagon)
+  {% endif %}
+  sh (
+    script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon.sh",
+    label: 'Run Hexagon tests',
+  )
+{% endcall %}
+
+{{ m.invoke_tests(test_method_names) -}}

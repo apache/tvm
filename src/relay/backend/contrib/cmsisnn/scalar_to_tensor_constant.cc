@@ -72,8 +72,8 @@ class ScalarToTensorConstantMutator : public MixedModeMutator {
       final_call = ReplaceScalarWithTensorVariable(GetRef<Call>(call));
     }
 
-    if (auto* glob_var_node = call->op.as<GlobalVarNode>()) {
-      GlobalVar global_var = GetRef<GlobalVar>(glob_var_node);
+    if (auto opt = call->op.as<GlobalVar>()) {
+      GlobalVar global_var = opt.value();
       Function func = Downcast<Function>(mod_->Lookup(global_var));
       auto new_body = VisitExpr(func->body);
       if (new_body.same_as(func->body)) {
@@ -83,12 +83,12 @@ class ScalarToTensorConstantMutator : public MixedModeMutator {
                                      FreeTypeVars(new_body, mod_), func->attrs);
       mod_->Update(global_var, new_func);
       final_call = Call(global_var, call->args);
+      final_call->span = call->span;
     }
 
     // Substitute scalar constant with tensor constant in the call to composite function.
-    if (auto* func_node = call->op.as<FunctionNode>()) {
-      Function func = GetRef<Function>(func_node);
-      final_call = ReplaceScalarWithTensorConstant(GetRef<Call>(call), func);
+    if (auto func = call->op.as<Function>()) {
+      final_call = ReplaceScalarWithTensorConstant(GetRef<Call>(call), func.value());
     }
 
     return final_call;
@@ -117,7 +117,8 @@ class ScalarToTensorConstantMutator : public MixedModeMutator {
   // operand tensor in a binary op (add or multiply supported via CMSIS-NN path). This applies only
   // to 1st and 2nd arguments of the ops.
   Call ReplaceScalarWithTensorVariable(Call call) {
-    if (!WorthyOfScalarToTensorReplacement(call)) {
+    // Returns if the operands of the binary operator come from the same input.
+    if (!WorthyOfScalarToTensorReplacement(call) || call->args.size() < 2) {
       return call;
     }
     Array<Expr> new_args(call->args);
@@ -139,14 +140,15 @@ class ScalarToTensorConstantMutator : public MixedModeMutator {
       String arg_name = scalar_arg.as<VarNode>()->name_hint();
       new_args.Set(i, Var(arg_name, tensor_arg->checked_type_));
     }
-    return Call(call->op, new_args, call->attrs, {});
+    return Call(call->op, new_args, call->attrs, {}, call->span);
   }
 
   // Replaces scalar constant with a tensor constant with same shape as that of the neighbouring
   // operand tensor in a binary op (add or multiply supported via CMSIS-NN path). This applies only
   // to 1st and 2nd arguments of the ops.
   Call ReplaceScalarWithTensorConstant(Call call, Function func) {
-    if (!WorthyOfScalarToTensorReplacement(func)) {
+    // Returns if the operands of the binary operator come from the same input.
+    if (!WorthyOfScalarToTensorReplacement(func) || call->args.size() < 2) {
       return call;
     }
     Array<Expr> new_args(call->args);
@@ -185,7 +187,7 @@ class ScalarToTensorConstantMutator : public MixedModeMutator {
     if (new_args[0].same_as(new_args[1])) {
       new_args.erase(new_args.begin());
     }
-    return Call(new_func, new_args);
+    return Call(new_func, new_args, Attrs(), {}, call->span);
   }
 
  private:

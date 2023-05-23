@@ -17,6 +17,8 @@
 
 # This script configures the logging module and dependency on libbacktrace
 
+include(FindPackageHandleStandardArgs)
+
 if(USE_CUSTOM_LOGGING)
   # Set and propogate TVM_LOG_CUSTOMIZE flag is custom logging has been requested
   target_compile_definitions(tvm_objs PUBLIC TVM_LOG_CUSTOMIZE=1)
@@ -26,30 +28,89 @@ if(USE_CUSTOM_LOGGING)
   target_compile_definitions(tvm_runtime PUBLIC TVM_LOG_CUSTOMIZE=1)
 endif()
 
-if("${USE_LIBBACKTRACE}" STREQUAL "AUTO")
-  if(CMAKE_SYSTEM_NAME MATCHES "Linux")
-    set(USE_LIBBACKTRACE ON)
-  else()
-    set(USE_LIBBACKTRACE OFF)
-  endif()
-  message(STATUS "Autoset: USE_LIBBACKTRACE=" ${USE_LIBBACKTRACE} " in " ${CMAKE_SYSTEM_NAME})
-endif()
+add_library(libbacktrace STATIC IMPORTED)
 
+set(LIBBACKTRACE_INCLUDE_DIR NOTFOUND)
+set(LIBBACKTRACE_STATIC_LIBRARY NOTFOUND)
+set(LIBBACKTRACE_FOUND NO)
 
-if(USE_LIBBACKTRACE)
-  message(STATUS "Building with libbacktrace...")
+macro(__find_libbacktrace)
+  find_path(LIBBACKTRACE_INCLUDE_DIR backtrace.h)
+  find_library(LIBBACKTRACE_STATIC_LIBRARY libbacktrace.a)
+  find_package_handle_standard_args(LIBBACKTRACE REQUIRED_VARS
+    LIBBACKTRACE_STATIC_LIBRARY LIBBACKTRACE_INCLUDE_DIR)
+endmacro()
+
+macro(__find_libbacktrace_from PATH)
+  find_path(LIBBACKTRACE_INCLUDE_DIR backtrace.h
+    PATHS ${PATH}
+    PATH_SUFFIXES include
+    NO_CMAKE_SYSTEM_PATH
+    NO_SYSTEM_ENVIRONMENT_PATH
+  )
+  find_library(LIBBACKTRACE_STATIC_LIBRARY libbacktrace.a
+    PATHS ${PATH}
+    PATH_SUFFIXES lib
+    NO_CMAKE_SYSTEM_PATH
+    NO_SYSTEM_ENVIRONMENT_PATH
+  )
+  find_package_handle_standard_args(LIBBACKTRACE REQUIRED_VARS
+    LIBBACKTRACE_STATIC_LIBRARY LIBBACKTRACE_INCLUDE_DIR)
+endmacro()
+
+macro(__compile_libbacktrace)
+  message(STATUS "Building libbacktrace from 3rdparty/libbacktrace")
   include(cmake/libs/Libbacktrace.cmake)
-  target_link_libraries(tvm PRIVATE libbacktrace)
-  target_link_libraries(tvm_runtime PRIVATE libbacktrace)
+  add_dependencies(libbacktrace project_libbacktrace)
+  set(LIBBACKTRACE_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/libbacktrace/include)
+  set(LIBBACKTRACE_STATIC_LIBRARY ${CMAKE_CURRENT_BINARY_DIR}/libbacktrace/lib/libbacktrace.a)
   add_dependencies(tvm_runtime_objs libbacktrace)
-  # pre 3.12 versions of cmake cannot propagate include directories from imported targets so we set them manually
-  target_include_directories(tvm PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/libbacktrace/include")
-  target_include_directories(tvm_objs PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/libbacktrace/include")
-  target_include_directories(tvm_runtime PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/libbacktrace/include")
-  target_include_directories(tvm_runtime_objs PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/libbacktrace/include")
-  target_compile_definitions(tvm_objs PRIVATE TVM_USE_LIBBACKTRACE=1)
-  target_compile_definitions(tvm_runtime_objs PRIVATE TVM_USE_LIBBACKTRACE=1)
+  set(LIBBACKTRACE_FOUND YES)
+endmacro()
+
+if(USE_LIBBACKTRACE STREQUAL "AUTO")
+  __find_libbacktrace()
+  if(NOT LIBBACKTRACE_FOUND AND (CMAKE_SYSTEM_NAME MATCHES "Linux" OR CMAKE_SYSTEM_NAME MATCHES "Darwin"))
+    __compile_libbacktrace()
+  endif()
+elseif(USE_LIBBACKTRACE STREQUAL "COMPILE")
+  __compile_libbacktrace()
+elseif("${USE_LIBBACKTRACE}" MATCHES ${IS_TRUE_PATTERN})
+  __find_libbacktrace()
+  if(NOT LIBBACKTRACE_FOUND)
+    message(SEND_ERROR "libbacktrace not found. (Set USE_LIBBACKTRACE to COMPILE if you want to build with the submodule at 3rdparty/libbacktrace.)")
+  endif()
+elseif("${USE_LIBBACKTRACE}" MATCHES ${IS_FALSE_PATTERN})
 else()
-  target_compile_definitions(tvm_objs PRIVATE TVM_USE_LIBBACKTRACE=0)
-  target_compile_definitions(tvm_runtime_objs PRIVATE TVM_USE_LIBBACKTRACE=0)
+  # Treat USE_LIBBACKTRACE as path to libbacktrace
+  message(STATUS "Using libbacktrace from ${USE_LIBBACKTRACE}")
+  __find_libbacktrace_from(${USE_LIBBACKTRACE})
+  if(NOT LIBBACKTRACE_FOUND)
+    message(SEND_ERROR "libbacktrace not found from ${USE_LIBBACKTRACE}.")
+  endif()
 endif()
+
+set_property(TARGET libbacktrace
+  PROPERTY IMPORTED_LOCATION ${LIBBACKTRACE_STATIC_LIBRARY})
+
+function(configure_backtrace TARGET)
+  if(LIBBACKTRACE_FOUND)
+    get_target_property(target_type ${TARGET} TYPE)
+    if(target_type MATCHES "EXECUTABLE|(STATIC|SHARED|MODULE)_LIBRARY")
+      target_link_libraries(${TARGET} PRIVATE libbacktrace)
+    endif()
+    target_include_directories(${TARGET} PRIVATE ${LIBBACKTRACE_INCLUDE_DIR})
+    target_compile_definitions(${TARGET} PRIVATE TVM_USE_LIBBACKTRACE=1)
+  else()
+    target_compile_definitions(${TARGET} PRIVATE TVM_USE_LIBBACKTRACE=0)
+  endif()
+
+  if(BACKTRACE_ON_SEGFAULT)
+    target_compile_definitions(${TARGET} PRIVATE TVM_BACKTRACE_ON_SEGFAULT)
+  endif()
+endfunction()
+
+configure_backtrace(tvm)
+configure_backtrace(tvm_runtime)
+configure_backtrace(tvm_objs)
+configure_backtrace(tvm_runtime_objs)

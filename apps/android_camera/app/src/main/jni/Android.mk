@@ -41,6 +41,7 @@ LOCAL_C_INCLUDES := $(ROOT_PATH)/include \
 					$(ROOT_PATH)/src/runtime/rpc \
                     $(ROOT_PATH)/3rdparty/dlpack/include \
                     $(ROOT_PATH)/3rdparty/dmlc-core/include \
+                    $(ROOT_PATH)/3rdparty/OpenCL-Headers \
                     $(MY_PATH)
 
 LOCAL_MODULE = tvm4j_runtime_packed

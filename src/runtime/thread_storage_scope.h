@@ -62,6 +62,8 @@ enum class StorageRank {
   kWMMAAccumulator = 6,
   /*! \brief global scope texture memory */
   kTexture = 7,
+  /*! \brief global scope amx tmm memory */
+  kAMXTMM = 8,
 };
 
 /*!
@@ -78,7 +80,6 @@ inline StorageRank DefaultStorageRank(int thread_scope_rank) {
       return StorageRank::kLocal;
     default: {
       LOG(FATAL) << "unknown rank";
-      return StorageRank::kGlobal;
     }
   }
 }
@@ -115,7 +116,6 @@ struct StorageScope {
         return "texture" + tag;
       default:
         LOG(FATAL) << "unknown storage scope";
-        return "";
     }
   }
   /*!
@@ -150,6 +150,9 @@ struct StorageScope {
       r.tag = s.substr(16, std::string::npos);
     } else if (s.compare(0, 7, "texture") == 0) {
       r.rank = StorageRank::kTexture;
+      r.tag = s.substr(7, std::string::npos);
+    } else if (s.compare(0, 7, "amx.tmm") == 0) {
+      r.rank = StorageRank::kAMXTMM;
       r.tag = s.substr(7, std::string::npos);
     } else {
       LOG(FATAL) << "unknown storage scope " << s;

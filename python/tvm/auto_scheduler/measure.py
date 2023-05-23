@@ -558,7 +558,7 @@ class LocalRPCMeasureContext:
         from tvm.rpc.tracker import Tracker
 
         self.tracker = Tracker(port=9000, port_end=10000, silent=True)
-        device_key = "$local$device$%d" % self.tracker.port
+        device_key = f"$local$device${self.tracker.port}"
         self.server = Server(
             port=self.tracker.port,
             port_end=10000,
@@ -698,15 +698,7 @@ def local_builder_build(inputs, timeout, n_parallel, build_func="default", verbo
         n_parallel, timeout, reset_global_scope, (AutotvmGlobalScope.current,)
     )
     tuple_res = executor.map_with_error_catching(
-        local_build_worker,
-        [
-            (
-                i.serialize(),
-                BuildFunc.build_func,
-                verbose,
-            )
-            for i in inputs
-        ],
+        local_build_worker, [(i.serialize(), BuildFunc.build_func, verbose) for i in inputs]
     )
 
     results = []
@@ -771,7 +763,7 @@ def register_task_input_check_func(func_name, f=None, override=False):
     def register(myf):
         """internal register function"""
         if func_name in TASK_INPUT_CHECK_FUNC_REGISTRY and not override:
-            raise RuntimeError("%s has been registered already" % func_name)
+            raise RuntimeError(f"{func_name} has been registered already")
         TASK_INPUT_CHECK_FUNC_REGISTRY[func_name] = myf
         return myf
 
@@ -780,7 +772,7 @@ def register_task_input_check_func(func_name, f=None, override=False):
     return register
 
 
-def prepare_input_map(args):
+def prepare_input_map(args, workload_key=None):
     """This function deals with special task inputs. Map the input Tensor of a TVM subgraph
     to a specific buffer name in the global buffer map.
 
@@ -788,6 +780,11 @@ def prepare_input_map(args):
     ----------
     args : List[Tensor]
         Input/output Tensor of a TVM subgraph.
+
+    workload_key: Optional[str]
+        The workload for which these inputs are being prepared.  This
+        is used to identify if an input is being provided by (see
+        `register_task_input_buffer`).
 
     Returns
     -------
@@ -803,13 +800,19 @@ def prepare_input_map(args):
 
     global TASK_INPUT_CHECK_FUNC_REGISTRY
 
+    from .search_task import TASK_INPUT_BUFFER_TABLE
+
     # A dict that maps the input tensor arg to a buffer name
     tensor_input_map = {}
 
     # Case 0: Check placeholder name
     for arg in args:
         if isinstance(arg.op, tvm.te.PlaceholderOp):
-            if arg.op.name != "placeholder":
+            if (
+                workload_key
+                and workload_key in TASK_INPUT_BUFFER_TABLE
+                and arg.op.name in TASK_INPUT_BUFFER_TABLE[workload_key]
+            ):
                 tensor_input_map[arg] = arg.op.name
 
     # Case 1: Check specific tensor inputs
@@ -843,7 +846,7 @@ def prepare_runner_args(inp, build_res):
     from .search_task import get_task_input_buffer  # lazily import to avoid recursive dependency
 
     task_input_names = inp.task.task_input_names
-    tensor_input_map = prepare_input_map(build_res.args)
+    tensor_input_map = prepare_input_map(build_res.args, inp.task.workload_key)
     if not task_input_names:
         tensor_input_map = {}
     args = []
@@ -858,8 +861,8 @@ def prepare_runner_args(inp, build_res):
                 task_inputs_count += 1
             else:
                 raise ValueError(
-                    "%s not found in task_inputs, " % (tensor_name)
-                    + "should provide with `SearchTask(..., task_inputs={...})`"
+                    f"{tensor_name} not found in task_inputs, "
+                    f"should provide with `SearchTask(..., task_inputs={{...}})`"
                 )
         else:
             args.append(None)

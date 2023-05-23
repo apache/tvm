@@ -24,9 +24,9 @@
  * Codegen.
  */
 
-#include <tvm/ir/error.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/attrs/annotation.h>
+#include <tvm/relay/error.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
@@ -191,7 +191,7 @@ class RemoveRedundantIdentities : public MixedModeMutator {
       }
 
       if (const auto* parent_callnode = current_arg.as<CallNode>()) {
-        if (const auto* parent_op = parent_callnode->op.as<OpNode>()) {
+        if (auto parent_op = parent_callnode->op.as<OpNode>()) {
           Call parent_call = GetRef<Call>(parent_callnode);
           if (parent_op->name == "contrib.ethosu.identity" && IdentityDoesNothing(parent_call) &&
               CheckIdentityBetweenTransformOperations(call, parent_call)) {

@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import sys
 import pytest
 
 from tvm.micro.project_api.server import ServerError
@@ -25,8 +24,8 @@ import tvm.testing
 
 
 @pytest.fixture
-def project(board, arduino_cli_cmd, microtvm_debug, workspace_dir):
-    return test_utils.make_kws_project(board, arduino_cli_cmd, microtvm_debug, workspace_dir)
+def project(board, microtvm_debug, workspace_dir, serial_number):
+    return test_utils.make_kws_project(board, microtvm_debug, workspace_dir, serial_number)
 
 
 def test_blank_project_compiles(workspace_dir, project):

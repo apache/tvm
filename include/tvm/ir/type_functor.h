@@ -24,9 +24,9 @@
 #ifndef TVM_IR_TYPE_FUNCTOR_H_
 #define TVM_IR_TYPE_FUNCTOR_H_
 
+#include <tvm/ir/tensor_type.h>
+#include <tvm/ir/type_relation.h>
 #include <tvm/node/functor.h>
-#include <tvm/relay/adt.h>
-#include <tvm/relay/expr.h>
 
 #include <string>
 #include <utility>

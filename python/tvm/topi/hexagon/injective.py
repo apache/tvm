@@ -16,7 +16,7 @@
 # under the License.
 
 """Schedule for injective operators"""
-
+import numpy as np
 import tvm
 
 
@@ -37,12 +37,12 @@ def schedule_injective(outs):
     outs = [outs] if isinstance(outs, tvm.te.tensor.Tensor) else outs
     s = tvm.te.create_schedule([x.op for x in outs])
     tvm.te.schedule.AutoInlineInjective(s)
-
-    # Fuse axes and vectorize inner 128 elements
+    # Fuse axes and vectorize inner elements
     for x in outs:
         fused = s[x].fuse(*x.op.axis)
-        _, inner = s[x].split(fused, factor=128)
+        outer, inner = s[x].split(fused, factor=128 // np.dtype(x.dtype).itemsize)
         s[x].vectorize(inner)
+        s[x].parallel(outer)
     return s
 
 

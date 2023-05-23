@@ -44,9 +44,10 @@
 
 #include <algorithm>
 #include <string>
+#include <unordered_set>
+#include <utility>
 #include <vector>
 
-#include "../printer/text_printer.h"
 #include "../support/array.h"
 #include "../support/base64.h"
 #include "../support/nd_int_set.h"
@@ -55,10 +56,11 @@
 #include "../tir/schedule/primitive.h"
 #include "../tir/schedule/utils.h"
 
-#define TVM_PY_LOG(logging_level, logging_func)                          \
-  ::tvm::meta_schedule::PyLogMessage(__FILE__, __LINE__, logging_func,   \
+#define TVM_PY_LOG(logging_level, logger)                                \
+  ::tvm::meta_schedule::PyLogMessage(__FILE__, __LINE__, logger,         \
                                      PyLogMessage::Level::logging_level) \
       .stream()
+#define TVM_PY_LOG_CLEAR_SCREEN(logging_func) clear_logging(__FILE__, __LINE__, logging_func)
 
 namespace tvm {
 namespace meta_schedule {
@@ -66,10 +68,13 @@ namespace meta_schedule {
 /*!
  * \brief Class to accumulate an log message on the python side. Do not use directly, instead use
  * TVM_PY_LOG(DEBUG), TVM_PY_LOG(INFO), TVM_PY_LOG(WARNING), TVM_PY_ERROR(ERROR).
+ * \sa TVM_PY_LOG
+ * \sa TVM_PY_LOG_CLEAR_SCREEN
  */
 class PyLogMessage {
  public:
   enum class Level : int32_t {
+    CLEAR = -10,
     DEBUG = 10,
     INFO = 20,
     WARNING = 30,
@@ -77,34 +82,86 @@ class PyLogMessage {
     // FATAL not included
   };
 
-  PyLogMessage(const std::string& file, int lineno, PackedFunc logging_func, Level logging_level) {
-    this->logging_func = logging_func;
-    this->logging_level = logging_level;
-  }
+  explicit PyLogMessage(const char* filename, int lineno, PackedFunc logger, Level logging_level)
+      : filename_(filename), lineno_(lineno), logger_(logger), logging_level_(logging_level) {}
+
   TVM_NO_INLINE ~PyLogMessage() {
-    if (this->logging_func.defined()) {
-      logging_func(static_cast<int>(logging_level), stream_.str());
+    ICHECK(logging_level_ != Level::CLEAR)
+        << "Cannot use CLEAR as logging level in TVM_PY_LOG, please use TVM_PY_LOG_CLEAR_SCREEN.";
+    if (this->logger_ != nullptr) {
+      logger_(static_cast<int>(logging_level_), std::string(filename_), lineno_, stream_.str());
     } else {
-      if (logging_level == Level::INFO) {
-        LOG(INFO) << stream_.str();
-      } else if (logging_level == Level::WARNING) {
-        LOG(WARNING) << stream_.str();
-      } else if (logging_level == Level::ERROR) {
-        LOG(ERROR) << stream_.str();
-      } else if (logging_level == Level::DEBUG) {
-        DLOG(INFO) << stream_.str();
+      if (logging_level_ == Level::INFO) {
+        runtime::detail::LogMessage(filename_, lineno_, TVM_LOG_LEVEL_INFO).stream()
+            << stream_.str();
+      } else if (logging_level_ == Level::WARNING) {
+        runtime::detail::LogMessage(filename_, lineno_, TVM_LOG_LEVEL_WARNING).stream()
+            << stream_.str();
+      } else if (logging_level_ == Level::ERROR) {
+        runtime::detail::LogMessage(filename_, lineno_, TVM_LOG_LEVEL_ERROR).stream()
+            << stream_.str();
+      } else if (logging_level_ == Level::DEBUG) {
+        runtime::detail::LogMessage(filename_, lineno_, TVM_LOG_LEVEL_DEBUG).stream()
+            << stream_.str();
       } else {
-        LOG(FATAL) << stream_.str();
+        runtime::detail::LogFatal(filename_, lineno_).stream() << stream_.str();
       }
     }
   }
   std::ostringstream& stream() { return stream_; }
 
  private:
+  const char* filename_;
+  int lineno_;
   std::ostringstream stream_;
-  PackedFunc logging_func;
-  Level logging_level;
+  PackedFunc logger_;
+  Level logging_level_;
 };
+
+/*!
+ * \brief Whether the tuning is running on ipython kernel.
+ * \return A boolean indicating whether ipython kernel is used.
+ */
+inline bool using_ipython() {
+  bool flag = false;
+  const auto* f_using_ipython = runtime::Registry::Get("meta_schedule.using_ipython");
+  if (f_using_ipython) {
+    flag = (*f_using_ipython)();
+  }
+  return flag;
+}
+
+/*!
+ * \brief Print out the performance table interactively in jupyter notebook.
+ * \param str The serialized performance table.
+ */
+inline void print_interactive_table(const String& data) {
+  const auto* f_print_interactive_table =
+      runtime::Registry::Get("meta_schedule.print_interactive_table");
+  ICHECK(f_print_interactive_table->defined())
+      << "Cannot find print_interactive_table function in registry.";
+  (*f_print_interactive_table)(data);
+}
+
+/*!
+ * \brief A helper function to clear logging output for ipython kernel and console.
+ * \param file The file name.
+ * \param lineno The line number.
+ * \param logging_func The logging function.
+ */
+inline void clear_logging(const char* file, int lineno, PackedFunc logging_func) {
+  if (const char* env_p = std::getenv("TVM_META_SCHEDULE_CLEAR_SCREEN")) {
+    if (std::string(env_p) == "1") {
+      if (logging_func.defined() && using_ipython()) {
+        logging_func(static_cast<int>(PyLogMessage::Level::CLEAR), file, lineno, "");
+      } else {
+        // this would clear all logging output in the console
+        runtime::detail::LogMessage(file, lineno, TVM_LOG_LEVEL_INFO).stream()
+            << "\033c\033[3J\033[2J\033[0m\033[H";
+      }
+    }
+  }
+}
 
 /*! \brief The type of the random state */
 using TRandState = support::LinearCongruentialEngine::TRandState;
@@ -278,14 +335,8 @@ struct ThreadedTraceApply {
 
     for (int i = 0; i < n_; ++i) {
       Item& item = items_[i];
-      try {
-        if (!item.postproc->Apply(sch)) {
-          ++item.fail_counter;
-          return NullOpt;
-        }
-      } catch (const std::exception& e) {
-        // Used in multi-thread, only output to screen but failure summary sent to logging
-        LOG(WARNING) << "ThreadedTraceApply::Apply failed with error " << e.what();
+      if (!item.postproc->Apply(sch)) {
+        item.fail_counter++;
         return NullOpt;
       }
     }
@@ -402,6 +453,109 @@ inline Array<Integer> AsIntArray(const ObjectRef& obj) {
     }
   }
   return results;
+}
+
+/*! \brief The struct defining comparison function of sorting by mean run seconds. */
+struct SortTuningRecordByMeanRunSecs {
+  static const constexpr double kMaxMeanTime = 1e10;
+
+  static double Mean(const Array<FloatImm>& a) {
+    if (a.empty()) {
+      return kMaxMeanTime;
+    }
+    double sum = 0.0;
+    for (const FloatImm& i : a) {
+      sum += i->value;
+    }
+    return sum / a.size();
+  }
+
+  bool operator()(const TuningRecord& a, const TuningRecord& b) const {
+    double a_time = Mean(a->run_secs.value_or({}));
+    double b_time = Mean(b->run_secs.value_or({}));
+    return a_time < b_time;
+  }
+};
+
+/*!
+ * \brief The helper function to clone schedule rules, postprocessors, and mutators.
+ * \param src The source space generator.
+ * \param dst The destination space generator.
+ */
+inline void CloneRules(const SpaceGeneratorNode* src, SpaceGeneratorNode* dst) {
+  if (src->sch_rules.defined()) {
+    Array<ScheduleRule> original = src->sch_rules.value();
+    Array<ScheduleRule> sch_rules;
+    sch_rules.reserve(original.size());
+    for (const ScheduleRule& sch_rule : original) {
+      sch_rules.push_back(sch_rule->Clone());
+    }
+    dst->sch_rules = std::move(sch_rules);
+  }
+  if (src->postprocs.defined()) {
+    Array<Postproc> original = src->postprocs.value();
+    Array<Postproc> postprocs;
+    postprocs.reserve(original.size());
+    for (const Postproc& postproc : original) {
+      postprocs.push_back(postproc->Clone());
+    }
+    dst->postprocs = std::move(postprocs);
+  }
+  if (src->mutator_probs.defined()) {
+    Map<Mutator, FloatImm> original = src->mutator_probs.value();
+    Map<Mutator, FloatImm> mutator_probs;
+    for (const auto& kv : original) {
+      mutator_probs.Set(kv.first->Clone(), kv.second);
+    }
+    dst->mutator_probs = std::move(mutator_probs);
+  }
+}
+
+/*! \brief Returns true if the given target is one of the supported gpu targets. */
+inline bool IsGPUTarget(const std::string& target_name) {
+  static const std::unordered_set<std::string> gpu_targets{"cuda", "rocm", "vulkan", "metal"};
+  return gpu_targets.count(target_name);
+}
+
+/*!
+ * \brief Create an AutoInline schedule rule for the given target.
+ * \param target_name The name of the target ("llvm", "cuda", etc.)
+ * \return The AutoInline schedule rule for the given target.
+ */
+inline ScheduleRule GetDefaultAutoInline(const std::string& target_name) {
+  Array<ScheduleRule> rules{nullptr};
+  if (target_name == "llvm") {
+    rules = ScheduleRule::DefaultLLVM();
+  } else if (target_name == "hexagon") {
+    rules = ScheduleRule::DefaultHexagon();
+  } else if (target_name == "c") {
+    rules = ScheduleRule::DefaultMicro();
+  } else if (IsGPUTarget(target_name)) {
+    rules = ScheduleRule::DefaultCUDA();
+  } else {
+    LOG(FATAL) << "ValueError: Unsupported target: " << target_name;
+  }
+  for (const ScheduleRule& rule : rules) {
+    if (rule->GetTypeKey() == "meta_schedule.AutoInline") {
+      return rule;
+    }
+  }
+  LOG(FATAL) << "ValueError: AutoInline rule is not found in the default rules for target: "
+             << target_name;
+  throw;
+}
+
+/*!
+ * \brief Summarize the run time of the given FloatImm array.
+ * \param arr The array of FloatImm.
+ * \return The summary of the values in the given array.
+ */
+inline double Sum(const Array<FloatImm>& arr) {
+  double sum = 0;
+  for (const FloatImm& f : arr) {
+    sum += f->value;
+  }
+  return sum;
 }
 
 }  // namespace meta_schedule

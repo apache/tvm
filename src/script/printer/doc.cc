@@ -32,7 +32,7 @@ ExprDoc ExprDocNode::operator[](Array<Doc> indices) const {
 }
 
 ExprDoc ExprDocNode::Call(Array<ExprDoc, void> args) const {
-  return CallDoc(GetRef<ExprDoc>(this), args, {}, {});
+  return CallDoc(GetRef<ExprDoc>(this), args, Array<String>(), Array<ExprDoc>());
 }
 
 ExprDoc ExprDocNode::Call(Array<ExprDoc, void> args, Array<String, void> kwargs_keys,
@@ -48,9 +48,12 @@ StmtBlockDoc::StmtBlockDoc(Array<StmtDoc> stmts) {
   this->data_ = std::move(n);
 }
 
-LiteralDoc::LiteralDoc(ObjectRef value) {
+LiteralDoc::LiteralDoc(ObjectRef value, const Optional<ObjectPath>& object_path) {
   ObjectPtr<LiteralDocNode> n = make_object<LiteralDocNode>();
   n->value = value;
+  if (object_path.defined()) {
+    n->source_paths.push_back(object_path.value());
+  }
   this->data_ = std::move(n);
 }
 
@@ -218,6 +221,18 @@ ClassDoc::ClassDoc(IdDoc name, Array<ExprDoc> decorators, Array<StmtDoc> body) {
   this->data_ = std::move(n);
 }
 
+CommentDoc::CommentDoc(String comment) {
+  ObjectPtr<CommentDocNode> n = make_object<CommentDocNode>();
+  n->comment = comment;
+  this->data_ = std::move(n);
+}
+
+DocStringDoc::DocStringDoc(String docs) {
+  ObjectPtr<DocStringDocNode> n = make_object<DocStringDocNode>();
+  n->comment = docs;
+  this->data_ = std::move(n);
+}
+
 TVM_REGISTER_NODE_TYPE(DocNode);
 TVM_REGISTER_GLOBAL("script.printer.DocSetSourcePaths")
     .set_body_typed([](Doc doc, Array<ObjectPath> source_paths) {
@@ -225,7 +240,8 @@ TVM_REGISTER_GLOBAL("script.printer.DocSetSourcePaths")
     });
 
 TVM_REGISTER_NODE_TYPE(ExprDocNode);
-TVM_REGISTER_GLOBAL("script.printer.ExprDocAttr").set_body_method<ExprDoc>(&ExprDocNode::Attr);
+TVM_REGISTER_GLOBAL("script.printer.ExprDocAttr")
+    .set_body_method<ExprDoc, ExprDocNode, ExprDoc, String>(&ExprDocNode::Attr);
 TVM_REGISTER_GLOBAL("script.printer.ExprDocIndex")
     .set_body_method<ExprDoc>(&ExprDocNode::operator[]);
 TVM_REGISTER_GLOBAL("script.printer.ExprDocCall")
@@ -360,6 +376,16 @@ TVM_REGISTER_GLOBAL("script.printer.ClassDoc")
     .set_body_typed([](IdDoc name, Array<ExprDoc> decorators, Array<StmtDoc> body) {
       return ClassDoc(name, decorators, body);
     });
+
+TVM_REGISTER_NODE_TYPE(CommentDocNode);
+TVM_REGISTER_GLOBAL("script.printer.CommentDoc").set_body_typed([](String comment) {
+  return CommentDoc(comment);
+});
+
+TVM_REGISTER_NODE_TYPE(DocStringDocNode);
+TVM_REGISTER_GLOBAL("script.printer.DocStringDoc").set_body_typed([](String docs) {
+  return DocStringDoc(docs);
+});
 
 }  // namespace printer
 }  // namespace script

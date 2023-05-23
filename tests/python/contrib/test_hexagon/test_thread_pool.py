@@ -26,6 +26,8 @@ import tvm.testing
 from tvm.contrib.hexagon.session import Session
 from tvm.script import tir as T
 
+from .infrastructure import get_hexagon_target
+
 
 @tvm.script.ir_module
 class ElemwiseSumIRModule:
@@ -73,9 +75,9 @@ def benchmark_func(mod, name, args, hexagon_session):
 @tvm.testing.requires_hexagon
 def test_speedup(hexagon_session: Session, capsys):
     """Test speedup"""
-    target_hexagon = tvm.target.hexagon("v68", link_params=True)
     func = tvm.build(
-        ElemwiseSumIRModule, target=tvm.target.Target(target_hexagon, host=target_hexagon)
+        ElemwiseSumIRModule,
+        target=get_hexagon_target("v68"),
     )
     mod = hexagon_session.load_module(func)
     args = generate_add_test_data(hexagon_session)
@@ -89,9 +91,9 @@ def test_speedup(hexagon_session: Session, capsys):
 @tvm.testing.requires_hexagon
 def test_elemwise_sum_parallel(hexagon_session: Session):
     """Test parallel elementwise sum"""
-    target_hexagon = tvm.target.hexagon("v68", link_params=True)
     func = tvm.build(
-        ElemwiseSumIRModule, target=tvm.target.Target(target_hexagon, host=target_hexagon)
+        ElemwiseSumIRModule,
+        target=get_hexagon_target("v68"),
     )
     mod = hexagon_session.load_module(func)
 

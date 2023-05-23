@@ -28,9 +28,9 @@ core.import_from_std("core.rly")
 
 def optimize_and_check(before_program, after_program, passes):
     if isinstance(before_program, str):
-        before_program = tvm.parser.parse(before_program)
+        before_program = tvm.relay.parse(before_program)
     if isinstance(after_program, str):
-        after_program = tvm.parser.parse(after_program)
+        after_program = tvm.relay.parse(after_program)
     if not isinstance(passes, list):
         passes = [passes]
     optimize = tvm.transform.Sequential(passes)
@@ -229,7 +229,7 @@ def test_inline_into_function():
 
 def test_impure_op():
     """Don't elide calls to side-effecting operators."""
-    before_program = tvm.parser.parse(
+    before_program = tvm.relay.parse(
         """
         #[version = "0.0.5"]
         def @main() {
@@ -245,7 +245,7 @@ def test_impure_op():
         metatable,
     )
 
-    after_program = tvm.parser.parse(
+    after_program = tvm.relay.parse(
         """
         #[version = "0.0.5"]
         def @main() {
@@ -268,7 +268,7 @@ def test_impure_op():
 
 def test_impure_func():
     """Don't elide calls to side-effecting functions."""
-    before_program = tvm.parser.parse(
+    before_program = tvm.relay.parse(
         """
         #[version = "0.0.5"]
         def @f() -> int {
@@ -288,7 +288,7 @@ def test_impure_func():
         metatable,
     )
 
-    after_program = tvm.parser.parse(
+    after_program = tvm.relay.parse(
         """
         #[version = "0.0.5"]
         def @f() -> int {
@@ -321,7 +321,7 @@ def test_refs():
         let %v = ref_read(%r);
         let %u = ref_write(%r, %v + 1);
         %v
-    }    
+    }
     def @main() -> int {
         let %r = ref(0);
         let %y = @f(%r);

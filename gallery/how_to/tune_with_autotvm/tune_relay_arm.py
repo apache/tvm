@@ -41,12 +41,6 @@ get it to run, you will need to wrap the body of this tutorial in a :code:`if
 __name__ == "__main__":` block.
 """
 
-# sphinx_gallery_start_ignore
-from tvm import testing
-
-testing.utils.install_request_hook(depth=3)
-# sphinx_gallery_end_ignore
-
 ######################################################################
 # Install dependencies
 # --------------------
@@ -67,6 +61,7 @@ testing.utils.install_request_hook(depth=3)
 #   sudo make cython3
 #
 # Now return to python code. Import packages.
+
 
 import os
 
@@ -280,14 +275,30 @@ def tune_tasks(
         prefix = "[Task %2d/%2d] " % (i + 1, len(tasks))
 
         # create tuner
-        if tuner == "xgb" or tuner == "xgb-rank":
-            tuner_obj = XGBTuner(tsk, loss_type="rank")
+        if tuner == "xgb":
+            tuner_obj = XGBTuner(tsk, loss_type="reg")
         elif tuner == "xgb_knob":
-            tuner_obj = XGBTuner(tsk, loss_type="rank", feature_type="knob")
+            tuner_obj = XGBTuner(tsk, loss_type="reg", feature_type="knob")
         elif tuner == "xgb_itervar":
-            tuner_obj = XGBTuner(tsk, loss_type="rank", feature_type="itervar")
+            tuner_obj = XGBTuner(tsk, loss_type="reg", feature_type="itervar")
         elif tuner == "xgb_curve":
+            tuner_obj = XGBTuner(tsk, loss_type="reg", feature_type="curve")
+        elif tuner == "xgb_rank":
+            tuner_obj = XGBTuner(tsk, loss_type="rank")
+        elif tuner == "xgb_rank_knob":
+            tuner_obj = XGBTuner(tsk, loss_type="rank", feature_type="knob")
+        elif tuner == "xgb_rank_itervar":
+            tuner_obj = XGBTuner(tsk, loss_type="rank", feature_type="itervar")
+        elif tuner == "xgb_rank_curve":
             tuner_obj = XGBTuner(tsk, loss_type="rank", feature_type="curve")
+        elif tuner == "xgb_rank_binary":
+            tuner_obj = XGBTuner(tsk, loss_type="rank-binary")
+        elif tuner == "xgb_rank_binary_knob":
+            tuner_obj = XGBTuner(tsk, loss_type="rank-binary", feature_type="knob")
+        elif tuner == "xgb_rank_binary_itervar":
+            tuner_obj = XGBTuner(tsk, loss_type="rank-binary", feature_type="itervar")
+        elif tuner == "xgb_rank_binary_curve":
+            tuner_obj = XGBTuner(tsk, loss_type="rank-binary", feature_type="curve")
         elif tuner == "ga":
             tuner_obj = GATuner(tsk, pop_size=50)
         elif tuner == "random":

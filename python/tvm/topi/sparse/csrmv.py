@@ -50,13 +50,10 @@ def csrmv_default(data, indices, indptr, weight, bias=None):
     assert len(data.shape) == 1 and len(weight.shape) == 2, "only support 2-dim csrmv"
     assert isinstance(
         weight, te.tensor.Tensor
-    ), "weight matrix is assumed to be tvm.te.Tensor, but weight is `%s`" % (type(weight))
+    ), f"weight matrix is assumed to be tvm.te.Tensor, but weight is `{type(weight)}`"
     assert (
         data.dtype == weight.dtype
-    ), "Data and weight must have the same dtype, but they have %s and %s" % (
-        data.dtype,
-        weight.dtype,
-    )
+    ), f"Data and weight must have the same dtype, but they have {data.dtype} and {weight.dtype}"
     if bias is not None:
         assert len(bias.shape) == 1
     batch = indptr.shape[0] - 1

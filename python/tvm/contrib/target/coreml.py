@@ -145,23 +145,8 @@ class CodegenCoreML(ExprVisitor):
         # Update inputs and outputs after we visit all the nodes.
         # Set dummy values for now.
         # TODO: support multiple outputs
-        inputs = [
-            (
-                "",
-                coremltools.models.datatypes.Array(
-                    1,
-                ),
-            )
-            for _ in self.function.params
-        ]
-        outputs = [
-            (
-                "",
-                coremltools.models.datatypes.Array(
-                    1,
-                ),
-            )
-        ]
+        inputs = [("", coremltools.models.datatypes.Array(1)) for _ in self.function.params]
+        outputs = [("", coremltools.models.datatypes.Array(1))]
         self.builder = NeuralNetworkBuilder(inputs, outputs, disable_rank5_shape_mapping=True)
 
     def visit_constant(self, const):
@@ -192,7 +177,7 @@ class CodegenCoreML(ExprVisitor):
         op_name = call.op.name
         layer_name = op_name + "_" + str(self.buf_idx_)
 
-        assert op_name in _convert_map, "{} is not supported".format(op_name)
+        assert op_name in _convert_map, f"{op_name} is not supported"
         _convert_map[op_name](self.builder, layer_name, inputs, outputs, call.args, call.attrs)
 
         self.buf_idx_ = self.buf_idx_ + 1
@@ -239,7 +224,7 @@ def coreml_compiler(func):
     name = str(func.attrs.global_symbol)
     builder = CodegenCoreML(name, func)
     builder.visit(func.body)
-    mlmodelc_path = "{}/{}.mlmodelc".format(model_dir, name)
+    mlmodelc_path = f"{model_dir}/{name}.mlmodelc"
     if os.path.exists(mlmodelc_path):
         shutil.rmtree(mlmodelc_path)
     builder.compile(model_dir)

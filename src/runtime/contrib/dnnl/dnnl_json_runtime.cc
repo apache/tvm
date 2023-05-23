@@ -424,15 +424,10 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     // Minus one for DNNL representation. No dilation for DNNL is 0, for relay is 1.
     for (auto& d : dilates) d--;
 
-    // TODO(@apeskov): WA. conv3dTranspose uses wrong layout specifier. IO instead of OI.
-    auto wgh_logic_layout = TensorRequisite::DefaultLogicLayoutFor(wgh_layout);
-    if (wgh_logic_layout == "OIDHW") wgh_logic_layout = "IODHW";
-    if (wgh_logic_layout == "GOIDHW") wgh_logic_layout = "GIODHW";
-
     // Take into account provided layout strings
     src_tr = src_tr.TreatAs(src_layout);
     dst_tr = dst_tr.TreatAs(dst_layout);
-    wgh_tr = wgh_tr.TreatAs(wgh_layout, wgh_logic_layout);
+    wgh_tr = wgh_tr.TreatAs(wgh_layout);
 
     // Should support G mixed with O. Like { G*O, I, H, W }
     if (wgh_layout.find("G") == std::string::npos) {
@@ -470,6 +465,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
 
   void Dense(const size_t& nid) {
     auto node = nodes_[nid];
+    auto op_name = node.GetOpName();
 
     // Setup attributes.
     auto src_tr = GetInput(nid, 0);
@@ -500,6 +496,9 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
 
     // TODO(@apeskov): Simulation of inplace primitive. just as PoC.
     auto sum_in_tr = GetInputByName(nid, "sum_idx");
+    if (op_name.find("_sum") != std::string::npos) {
+      sum_in_tr = GetInput(nid, node.GetInputs().size() - 1);
+    }
 
     Submit(dnnl::inner_product_forward(dense_prim_desc),
            {{DNNL_ARG_SRC, src_tr},

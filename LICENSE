@@ -211,6 +211,9 @@ Apache Software Foundation License 2.0
 
 3rdparty/dlpack
 3rdparty/dmlc-core
+3rdparty/OpenCL-Headers
+3rdparty/mlperftiny
+3rdparty/nvbench (with LLVM exception)
 
 
 BSD 2-clause License
@@ -232,7 +235,7 @@ MIT License
 3rdparty/libcrc
 3rdparty/cma
 3rdparty/compiler-rt/builtin_fp16.h
-
+3rdparty/cnpy
 
 The Unlicense
 -------------

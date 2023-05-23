@@ -434,9 +434,9 @@ void ComputationsDoneBy::VisitStmt_(const IfThenElseNode* op) {
   table_of_computations_.clear();
 
   ComputationTable computations_done_by_else;
-  if (op->else_case.defined()) {
-    // And finally calls the VisitStmt() method on the `then_case` child
-    VisitStmt(op->else_case);
+  if (op->else_case) {
+    // And finally calls the VisitStmt() method on the `else_case` child
+    VisitStmt(op->else_case.value());
     computations_done_by_else = table_of_computations_;
     table_of_computations_.clear();
   }
@@ -817,8 +817,8 @@ std::vector<std::pair<PrimExpr, size_t>> SyntacticToSemanticComputations(
        [](std::pair<PrimExpr, size_t> a, std::pair<PrimExpr, size_t> b) {
          std::stringstream a_stream;
          std::stringstream b_stream;
-         a_stream << a.first;
-         b_stream << b.first;
+         a_stream << AsLegacyRepr(a.first);
+         b_stream << AsLegacyRepr(b.first);
          return a_stream.str().compare(b_stream.str()) < 0;
        });
 
@@ -902,7 +902,7 @@ void InsertElemToSortedSemanticComputations(std::vector<std::pair<PrimExpr, size
  */
 void InsertVectorToSortedSemanticComputations(std::vector<std::pair<PrimExpr, size_t>>* sorted_vec,
                                               const std::vector<PrimExpr>& vec_to_add,
-                                              bool identify_equiv_terms) {
+                                              bool identify_equiv_terms, size_t increase_count) {
   if (sorted_vec == nullptr) {
     return;
   }
@@ -918,10 +918,10 @@ void InsertVectorToSortedSemanticComputations(std::vector<std::pair<PrimExpr, si
     // If we found `elem_to_add` (or an equivalent expression) already in sorted_vec
     if (it_found != sorted_vec->end()) {
       // then we just increase its associated count
-      it_found->second++;
+      it_found->second += increase_count;
     } else {
       // Otherwise we add the pair (`elem_to_add`,1) at the right place
-      InsertElemToSortedSemanticComputations(sorted_vec, {elem_to_add, 1});
+      InsertElemToSortedSemanticComputations(sorted_vec, {elem_to_add, increase_count});
     }
   }
 }

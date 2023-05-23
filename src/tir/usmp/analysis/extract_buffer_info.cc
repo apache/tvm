@@ -429,15 +429,17 @@ void BufferInfoExtractor::VisitExpr_(const VarNode* op) {
 
 Array<Var> static GetMatchedBuffers(const PrimFunc& func) {
   Array<Var> buffer_vars;
-  for (unsigned int i = 0; i < func->params.size() - 1; i++) {
-    Var param = func->params[i];
-    buffer_vars.push_back(func->buffer_map[param]->data);
-  }
-  Var last_param = func->params.back();
-  // Checks whether last var is present in the buffer map
-  // because it could be the resource handle
-  if (func->buffer_map.find(last_param) != func->buffer_map.end()) {
-    buffer_vars.push_back(func->buffer_map[last_param]->data);
+  if (func->params.size() > 0) {
+    for (unsigned int i = 0; i < func->params.size() - 1; i++) {
+      Var param = func->params[i];
+      buffer_vars.push_back(func->buffer_map[param]->data);
+    }
+    Var last_param = func->params.back();
+    // Checks whether last var is present in the buffer map
+    // because it could be the resource handle
+    if (func->buffer_map.find(last_param) != func->buffer_map.end()) {
+      buffer_vars.push_back(func->buffer_map[last_param]->data);
+    }
   }
   return buffer_vars;
 }
@@ -452,12 +454,7 @@ void BufferInfoExtractor::UpdateAliases(const Array<PrimExpr>& args, const PrimF
     // If tir.allocates are passed in to functions
     // The function params are re-directed to point
     // to the original allocate
-    if (arg->IsInstance<LoadNode>()) {
-      auto load = Downcast<Load>(arg);
-      if (allocate_infos.count(load->buffer_var)) {
-        allocate_infos[param_buf] = allocate_infos[load->buffer_var];
-      }
-    } else if (arg->IsInstance<VarNode>()) {
+    if (arg->IsInstance<VarNode>()) {
       auto var = Downcast<Var>(arg);
       if (allocate_infos.count(var)) {
         allocate_infos[param_buf] = allocate_infos[var];

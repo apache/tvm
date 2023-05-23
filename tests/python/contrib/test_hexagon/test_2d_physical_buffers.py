@@ -31,8 +31,9 @@ import tvm.testing
 from tvm import te
 from tvm.contrib.hexagon.pytest_plugin import requires_hexagon_toolchain
 from tvm.tir.stmt_functor import post_order_visit
+from tvm.contrib.hexagon import allocate_hexagon_array
 
-from .infrastructure import allocate_hexagon_array
+from .infrastructure import get_hexagon_target
 
 # Disabling invalid name as pylint assumes global variables as constants and
 # expects them to be all upper-case. Since these are used as
@@ -40,6 +41,8 @@ from .infrastructure import allocate_hexagon_array
 # them as arguments would also need to be upper-case, and pylint would complain
 # there as well
 # pylint: disable=invalid-name
+
+schedule_type = tvm.testing.parameter("TE", "TIR")
 
 dtype = tvm.testing.parameter("int8")
 batch_size = tvm.testing.parameter(
@@ -77,19 +80,9 @@ working_layout, working_scope = tvm.testing.parameters(
 
 
 @tvm.testing.fixture
-def target_host(target):
+def target_host():
     """Return tvm target.Target with host attached"""
-    target = tvm.target.Target(target)
-
-    if target.kind.name == "hexagon":
-        # Shouldn't have to modify the target here, current
-        # workaround.  In the future, should move the parameter
-        # handling from tvm.target to target_kind.cc.
-        target = tvm.target.hexagon("v68", link_params=True)
-        host = target
-    else:
-        host = None
-    return tvm.target.Target(target, host=host)
+    return get_hexagon_target("v68")
 
 
 # Disabling redefined-outer-name for the whole file as there isn't any easy
@@ -198,6 +191,7 @@ class TestElementWise:
     @tvm.testing.fixture
     def schedule_args(
         self,
+        schedule_type,
         input_shape,
         dtype,
         input_layout,
@@ -206,12 +200,39 @@ class TestElementWise:
         working_scope,
     ):
         """Create and return the schedule and input args after applying layout transform"""
+        if schedule_type == "TE":
+
+            return self._te_schedule_args(
+                input_shape, dtype, input_layout, output_layout, working_layout, working_scope
+            )
+        elif schedule_type == "TIR":
+            return self._tir_schedule_args(
+                input_shape, dtype, input_layout, output_layout, working_layout, working_scope
+            )
+
+        else:
+            raise ValueError(f"Unknown schedule type: {schedule_type}")
+
+    def _te_tensors(self, input_shape, dtype):
         input_tensor = te.placeholder(input_shape, dtype, name="Input")
         output_tensor = te.compute(
             shape=input_tensor.shape,
             fcompute=lambda *indices: (2 * input_tensor[indices]).astype(dtype),
             name="Output",
         )
+        return input_tensor, output_tensor
+
+    def _te_schedule_args(
+        self,
+        input_shape,
+        dtype,
+        input_layout,
+        output_layout,
+        working_layout,
+        working_scope,
+    ):
+        input_tensor, output_tensor = self._te_tensors(input_shape, dtype)
+
         schedule = te.create_schedule(output_tensor.op)
 
         write_cache = schedule.cache_write(output_tensor, working_scope)
@@ -235,6 +256,33 @@ class TestElementWise:
 
         return [schedule, [input_tensor, output_tensor]]
 
+    def _tir_schedule_args(
+        self, input_shape, dtype, input_layout, output_layout, working_layout, working_scope
+    ):
+        tensors = self._te_tensors(input_shape, dtype)
+
+        sch = tvm.tir.Schedule(te.create_prim_func(tensors))
+
+        cache_read_block = sch.cache_read("Output", 0, working_scope)
+        cache_write_block = sch.cache_write("Output", 0, working_scope)
+
+        def apply_transform(block, buffer_name, layout):
+            if layout == "nhwc":
+                pass
+            elif layout == "nchw-8h8w32c-1d":
+                sch.transform_layout(block, buffer_name, layout_transform_1d)
+            elif layout == "nchw-8h8w32c-2d":
+                sch.transform_layout(block, buffer_name, layout_transform_2d)
+            else:
+                raise RuntimeError(f"Unexpected layout '{layout}'")
+
+        apply_transform(cache_read_block, ("read", 0), input_layout)
+        apply_transform(cache_read_block, ("write", 0), working_layout)
+        apply_transform(cache_write_block, ("read", 0), working_layout)
+        apply_transform(cache_write_block, ("write", 0), output_layout)
+
+        return [sch.mod]
+
     @tvm.testing.fixture
     def ir_module(self, schedule_args):
         # If the two buffers are accessed with the same indices, CSE
@@ -256,7 +304,7 @@ class TestElementWise:
     def test_param_shapes(self, ir_module, transformed_input_shape, transformed_output_shape):
         func = ir_module["main"]
         primfunc_input_shape, primfunc_output_shape = [
-            list(func.preflattened_buffer_map[param].shape) for param in func.params
+            list(func.buffer_map[param].shape) for param in func.params
         ]
         assert primfunc_input_shape == transformed_input_shape
         assert primfunc_output_shape == transformed_output_shape
@@ -272,7 +320,7 @@ class TestElementWise:
                 "Input.global.vtcm": working_layout,
                 "Output.global.vtcm": working_layout,
                 "Output": output_layout,
-            }[buffer.name]
+            }[buffer.name.replace("_", ".")]
 
             expected_physical_dimensions = {
                 "nhwc": 1,
@@ -283,7 +331,7 @@ class TestElementWise:
             assert len(buffer.shape) == expected_physical_dimensions
 
     def test_lower(self, schedule_args):
-        return tvm.lower(*schedule_args)
+        assert tvm.lower(*schedule_args)
 
     @requires_hexagon_toolchain
     def test_build(self, schedule_args, target_host, input_layout, working_layout, output_layout):

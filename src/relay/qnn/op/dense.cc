@@ -22,10 +22,8 @@
  * \brief Property def of qnn dense operator.
  */
 
-#include <tvm/relay/base.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
-#include <tvm/relay/qnn/attrs.h>
 
 #include "../../op/nn/nn.h"
 #include "../../transforms/pattern_utils.h"
@@ -47,12 +45,14 @@ bool QnnDenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   if (data == nullptr || weight == nullptr) return false;
   const auto* param = attrs.as<DenseAttrs>();
   ICHECK(param != nullptr) << "DenseAttrs cannot be nullptr.";
-  ICHECK(data->dtype == DataType::Int(8) || data->dtype == DataType::UInt(8))
-      << "Expected quantized dense type(int8, uint8) for input but was " << data->dtype;
+  ICHECK(data->dtype == DataType::Int(8) || data->dtype == DataType::UInt(8) ||
+         data->dtype == DataType::Int(16) || data->dtype == DataType::UInt(16))
+      << "Expected quantized dense type(int8, uint8, int16, uint16) for input but was "
+      << data->dtype;
   ICHECK(weight->dtype == DataType::Int(8) || weight->dtype == DataType::UInt(8))
       << "Expected quantized dense type(int8, uint8) for weight but was " << weight->dtype;
-  ICHECK(param->out_dtype == DataType::Int(32))
-      << "Expected quantized dense type(int32) for output but was " << param->out_dtype;
+  ICHECK(param->out_dtype == DataType::Int(32) || param->out_dtype == DataType::Int(64))
+      << "Expected quantized dense type(int32, int64) for output but was " << param->out_dtype;
 
   // Check the types of scale and zero points.
   for (size_t i = 2; i < 5; ++i) {
@@ -71,6 +71,27 @@ bool QnnDenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   // Dense infer type function.
   Array<Type> tensor_types = {types[0], types[1], types[6]};
   return MatmulRel<DenseAttrs>(tensor_types, 3, attrs, reporter);
+}
+
+InferCorrectLayoutOutput QnnDenseInferCorrectLayout(const Attrs& attrs,
+                                                    const Array<Layout>& new_in_layouts,
+                                                    const Array<Layout>& old_in_layouts,
+                                                    const Array<tvm::relay::Type>& old_in_types) {
+  // Use Relay Dense Infer correct layout.
+  auto dense_new_layouts =
+      DenseInferCorrectLayout(attrs, new_in_layouts, old_in_layouts, old_in_types);
+
+  // Fill the layouts of remaining input tensors - scales and zero points. The layouts of these
+  // tensors can be treated as channel layout.
+  Layout channel_layout = Layout("N");
+  Array<Layout> input_layouts = {dense_new_layouts->input_layouts[0],
+                                 dense_new_layouts->input_layouts[1],
+                                 channel_layout,
+                                 channel_layout,
+                                 channel_layout,
+                                 channel_layout};
+  Array<Layout> output_layouts = dense_new_layouts->output_layouts;
+  return InferCorrectLayoutOutput(input_layouts, output_layouts, attrs);
 }
 
 // Positional relay function to create quantized dense operator used by frontend FFI.
@@ -221,10 +242,90 @@ RELAY_REGISTER_OP("qnn.dense")
                   "The quantization zero_point of the weight tensor.")
     .set_support_level(11)
     .add_type_rel("QDense", QnnDenseRel)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", QnnDenseInferCorrectLayout)
     .set_attr<TNonComputational>("TNonComputational", true)
-    .set_attr<FTVMLegalize>("FTVMQnnCanonicalize", QnnDenseCanonicalize);
+    .set_attr<FTVMLegalize>("FTVMQnnCanonicalize", QnnDenseCanonicalize)
+    .set_attr<TOpPattern>("TOpPattern", kOutEWiseFusable);
 
 TVM_REGISTER_GLOBAL("relay.qnn.op._make.dense").set_body_typed(MakeQuantizedDense);
+
+// ------------------- relay.qnn.op.contrib_dense_pack
+
+bool QnnDensePackRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                     const TypeReporter& reporter) {
+  // Expected types: data, weight, input_zero_point, weight_zero_point, input_scale, weight_scale,
+  //                 out_type
+  ICHECK_EQ(types.size(), 7);
+  const auto* data = types[0].as<TensorTypeNode>();
+  const auto* weight = types[1].as<TensorTypeNode>();
+  if (data == nullptr || weight == nullptr) return false;
+
+  const DensePackAttrs* param = attrs.as<DensePackAttrs>();
+  ICHECK(param != nullptr);
+
+  ICHECK_EQ(data->shape.size(), 2) << "Only 2D data is supported";
+  ICHECK(weight->shape.size() == 4) << "Expect weight to be 4D tensor";
+
+  Array<tvm::PrimExpr> oshape = data->shape;
+  oshape.Set(1, weight->shape[0] * weight->shape[2]);
+
+  ICHECK(param->out_dtype.bits() > 0) << "Output dtype bits should be greater than 0.";
+  // assign output type
+  reporter->Assign(types[6], TensorType(oshape, param->out_dtype));
+  return true;
+}
+
+InferCorrectLayoutOutput QnnDensePackInferCorrectLayout(
+    const Attrs& attrs, const Array<Layout>& new_in_layouts, const Array<Layout>& old_in_layouts,
+    const Array<tvm::relay::Type>& old_in_types) {
+  auto params = attrs.as<DensePackAttrs>();
+  ICHECK(params);
+  return InferCorrectLayoutOutput({"NC", params->weight_layout, "N", "N", "N", "N"}, {"NC"}, attrs);
+}
+
+Expr QnnDensePackCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
+                              const Array<tvm::relay::Type>& arg_types) {
+  LOG(FATAL) << "Canonicalization function for qnn.contrib_dense_pack is not implemented";
+  return Expr();
+}
+
+Expr MakeQuantizedDensePack(Expr data, Expr weight, Expr input_zero_point, Expr kernel_zero_point,
+                            Expr input_scale, Expr kernel_scale, tvm::String weight_layout,
+                            IndexExpr units, DataType out_dtype) {
+  auto attrs = make_object<DensePackAttrs>();
+  attrs->units = std::move(units);
+  attrs->out_dtype = out_dtype;
+  attrs->weight_layout = weight_layout;
+  static const Op& op = Op::Get("qnn.contrib_dense_pack");
+  return Call(op, {data, weight, input_zero_point, kernel_zero_point, input_scale, kernel_scale},
+              Attrs(attrs), {});
+}
+
+RELAY_REGISTER_OP("qnn.contrib_dense_pack")
+    .describe(R"code(Applies a linear transformation: :math:`Y = XW^T`.
+- **data**: quantized(int8, uint8) `(x1, x2, ..., xn, input_dim)`
+- **weight**: quantized(int8, uint8) `(units, input_dim)`
+- **out**: quantized(int32) `(x1, x2, ..., xn, units)`.
+)code" TVM_ADD_FILELINE)
+    .set_attrs_type<DensePackAttrs>()
+    .set_num_inputs(6)
+    .add_argument("data", "quantized nD Tensor", "Input data.")
+    .add_argument("weight", "quantized 2D Tensor", "Weight matrix.")
+    .add_argument("input_scale", "Tensor", "The quantization scale of the input tensor.")
+    .add_argument("input_zero_point", "Tensor", "The quantization zero_point of the input tensor.")
+    .add_argument("weight_scale", "Tensor", "The quantization scale of the weight tensor.")
+    .add_argument("weight_zero_point", "Tensor",
+                  "The quantization zero_point of the weight tensor.")
+    .set_support_level(11)
+    .add_type_rel("QnnDensePack", QnnDensePackRel)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", QnnDensePackInferCorrectLayout)
+    .set_attr<TNonComputational>("TNonComputational", true)
+    .set_attr<FTVMLegalize>("FTVMQnnCanonicalize", QnnDensePackCanonicalize)
+    .set_attr<TOpPattern>("TOpPattern", kOutEWiseFusable);
+
+TVM_REGISTER_GLOBAL("relay.qnn.op._make.contrib_dense_pack").set_body_typed(MakeQuantizedDensePack);
+
+// ------------------- relay.qnn.op.contrib_dense_pack
 
 }  // namespace qnn
 }  // namespace relay

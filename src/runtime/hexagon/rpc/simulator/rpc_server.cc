@@ -23,12 +23,14 @@
 #include <algorithm>
 #include <cassert>
 #include <cstdlib>
+#include <fstream>
 #include <sstream>
 #include <string>
 
 #include "../../../library_module.h"
 #include "../../../minrpc/minrpc_server.h"
 #include "../../hexagon_common.h"
+#include "../../profiler/prof_utils.h"
 #include "hexagon_sim_proto.h"
 #include "tvm/runtime/packed_func.h"
 #include "tvm/runtime/registry.h"
@@ -335,4 +337,29 @@ TVM_REGISTER_GLOBAL("tvm.hexagon.load_module")
       std::string soname = args[0];
       tvm::ObjectPtr<tvm::runtime::Library> n = tvm::runtime::CreateDSOLibraryObject(soname);
       *rv = CreateModuleFromLibrary(n);
+    });
+
+TVM_REGISTER_GLOBAL("tvm.hexagon.get_profile_output")
+    .set_body([](tvm::runtime::TVMArgs args, tvm::runtime::TVMRetValue* rv) {
+      std::string profiling_mode = args[0];
+      std::string out_file = args[1];
+      if (profiling_mode.compare("lwp") == 0) {
+        *rv = WriteLWPOutput(out_file);
+      } else {
+        HEXAGON_PRINT(ERROR, "ERROR: Unsupported profiling mode: %s", profiling_mode.c_str());
+        *rv = false;
+      }
+    });
+
+void SaveBinaryToFile(const std::string& file_name, const std::string& data) {
+  std::ofstream fs(file_name, std::ios::out | std::ios::binary);
+  ICHECK(!fs.fail()) << "Cannot open " << file_name;
+  fs.write(&data[0], data.length());
+}
+
+TVM_REGISTER_GLOBAL("tvm.rpc.server.upload")
+    .set_body([](tvm::runtime::TVMArgs args, tvm::runtime::TVMRetValue* rv) {
+      std::string file_name = args[0];
+      std::string data = args[1];
+      SaveBinaryToFile(file_name, data);
     });

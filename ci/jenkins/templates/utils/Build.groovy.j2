@@ -1,0 +1,57 @@
+def ci_setup(image) {
+  sh (
+    script: "${docker_run} ${image} ./tests/scripts/task_clear_pytest.sh",
+    label: 'Clean up old workspace',
+  )
+}
+
+def python_unittest(image) {
+  sh (
+    script: "${docker_run} ${image} ./tests/scripts/task_python_unittest.sh",
+    label: 'Run Python unit tests',
+  )
+}
+
+def fsim_test(image) {
+  sh (
+    script: "${docker_run} ${image} ./tests/scripts/task_python_vta_fsim.sh",
+    label: 'Run VTA tests in FSIM',
+  )
+}
+
+def make_standalone_crt(image, build_dir) {
+  sh (
+    script: """
+      set -eux
+      ${docker_run} ${image} python3 ./tests/scripts/task_build.py \
+        --sccache-bucket tvm-sccache-prod \
+        --cmake-target standalone_crt \
+        --build-dir build
+      ${docker_run} ${image} python3 ./tests/scripts/task_build.py \
+        --sccache-bucket tvm-sccache-prod \
+        --cmake-target crttest \
+        --build-dir build
+      """,
+    label: 'Make standalone CRT',
+  )
+}
+
+def make_cpp_tests(image, build_dir) {
+  sh (
+    script: """
+      set -eux
+      ${docker_run} ${image} python3 ./tests/scripts/task_build.py \
+        --sccache-bucket tvm-sccache-prod \
+        --cmake-target cpptest \
+        --build-dir ${build_dir}
+      """,
+    label: 'Make C++ tests',
+  )
+}
+
+def cmake_build(image, path, make_flag) {
+  sh (
+    script: "${docker_run} --env CI_NUM_EXECUTORS ${image} ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod --build-dir ${path}",
+    label: 'Run cmake build',
+  )
+}

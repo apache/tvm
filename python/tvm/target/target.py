@@ -174,13 +174,31 @@ class Target(Object):
         return int(self.attrs["max_num_threads"])
 
     @property
+    def max_block_size_x(self):
+        """Returns the max block size in x-dimension from the target if it exists."""
+        return int(self.attrs["max_block_size_x"])
+
+    @property
+    def max_block_size_y(self):
+        """Returns the max block size in y-dimension from the target if it exists."""
+        return int(self.attrs["max_block_size_y"])
+
+    @property
     def thread_warp_size(self):
         """Returns the thread_warp_size from the target if it exists."""
         return int(self.attrs["thread_warp_size"])
 
     @property
+    def max_shared_memory_per_block(self):
+        return int(self.attrs["max_shared_memory_per_block"])
+
+    @property
     def max_function_args(self):
         return int(self.attrs.get("max_function_args", -1))
+
+    @property
+    def vtcm_capacity(self):
+        return int(self.attrs.get("vtcm-capacity", 0))
 
     @property
     def device_name(self):
@@ -216,6 +234,13 @@ class Target(Object):
         return list(self.attrs.get("libs", []))
 
     @property
+    def supports_cooperative_matrix(self):
+        if self.attrs.get("supports_cooperative_matrix", []):
+            return bool(self.attrs["supports_cooperative_matrix"])
+        else:
+            return False
+
+    @property
     def features(self):
         return TargetFeatures(self)
 
@@ -233,6 +258,10 @@ class Target(Object):
             The attribute value
         """
         return _ffi_api.TargetKindGetAttr(self.kind, attr_name)
+
+    def get_target_device_type(self):
+        """Returns the device_type for this target."""
+        return _ffi_api.TargetGetDeviceType(self)
 
     @staticmethod
     def list_kinds():
@@ -638,6 +667,8 @@ def hexagon(cpu_ver="v66", **kwargs):
         Whether to use IEEE HVX instructions
     num_cores : int (default: 4)
         The number of HVX threads. This attribute is required by meta scheduler.
+    vtcm_capacity: int (default: 0)
+        Hexagon VTCM capacity limitation. If the value is 0, the capacity is treated as unbounded.
 
     Note: Floating point support in HVX requires LLVM 14+.
     """
@@ -671,6 +702,7 @@ def hexagon(cpu_ver="v66", **kwargs):
         "llvm_options": None,
         "use_qfloat": arch_version >= 68,
         "use_ieee_fp": False,
+        "vtcm_capacity": 0,
     }
     config.update(kwargs)
 
@@ -744,6 +776,7 @@ def hexagon(cpu_ver="v66", **kwargs):
 
     num_cores = config["num_cores"] if "num_cores" in kwargs else 4
     args_list.append("--num-cores=%d" % num_cores)
+    args_list.append("--vtcm-capacity=%d" % config["vtcm_capacity"])
 
     return Target(" ".join(["hexagon"] + args_list))
 

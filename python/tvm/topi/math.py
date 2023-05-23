@@ -18,8 +18,11 @@
 # pylint: disable=redefined-builtin,unused-argument
 import tvm
 from tvm import te
+from tvm.tir import PrimExpr
+
 from . import tag
 from . import cpp
+from .utils import get_const_tuple
 
 
 @tvm.te.tag_scope(tag=tag.ELEMWISE)
@@ -619,9 +622,9 @@ def clip(x, a_min, a_max):
     ----------
     x : tvm.te.Tensor
         Input argument.
-    a_min : int or float
+    a_min : tvm.tir.PrimExpr
         Minimum value.
-    a_max : int or float
+    a_max : tvm.tir.PrimExpr
         Maximum value.
 
     Returns
@@ -632,8 +635,16 @@ def clip(x, a_min, a_max):
 
     def _compute(*indices):
         value = x(*indices)
-        const_min = tvm.tir.const(a_min, value.dtype)
-        const_max = tvm.tir.const(a_max, value.dtype)
+        const_min = (
+            tvm.tir.Cast(value.dtype, a_min)
+            if isinstance(a_min, PrimExpr)
+            else tvm.tir.const(a_min, value.dtype)
+        )
+        const_max = (
+            tvm.tir.Cast(value.dtype, a_max)
+            if isinstance(a_max, PrimExpr)
+            else tvm.tir.const(a_max, value.dtype)
+        )
         return tvm.te.max(tvm.te.min(value, const_max), const_min)
 
     return te.compute(x.shape, _compute)
@@ -667,6 +678,63 @@ def fixed_point_multiply(x, multiplier, shift):
             tvm.tir.const(multiplier, "int32"),
             tvm.tir.const(31, "int32"),
             tvm.tir.const(shift, "int32"),
+        )
+
+    return te.compute(x.shape, _compute)
+
+
+@tvm.te.tag_scope(tag=tag.BROADCAST)
+def fixed_point_multiply_per_axis(
+    x: te.Tensor,
+    y: te.Tensor,
+    lshift: te.Tensor,
+    rshift: te.Tensor,
+    is_lshift_required: int,
+    is_rshift_required: int,
+    axes,
+):
+    """Fixed point multiplication between data and a fixed point constant expressed as
+    multiplier * 2^(-shift), where multiplier is a Q-number with 31 fractional bits
+
+    Parameters
+    ----------
+    x : tvm.te.Tensor
+        Input argument.
+    y : tvm.te.Tensor
+        Multiplier of a fixed floating point number described as multiplier*2^(-shift).
+    lshift : tvm.te.Tensor
+        Left shifts of a fixed floating point number described as multiplier*2^(-shift).
+    rshift : tvm.te.Tensor
+        Right shifts of a fixed floating point number described as multiplier*2^(-shift).
+    is_lshift_required : int
+        Whether we need to do left shift or not.
+    is_rshift_required : int
+        Whether we need to do right shift or not.
+
+    Returns
+    -------
+    z : tvm.te.Tensor
+        The result.
+    """
+
+    def _compute(*indices):
+        elements = []
+        for element in get_const_tuple(axes):
+            elements += [indices[element]]
+        param_indices = tuple(elements)
+
+        value = x(*indices)
+        m = y(*param_indices)
+        l_shift = lshift(*param_indices)
+        r_shift = rshift(*param_indices)
+        return tvm.tir.q_multiply_shift_per_axis(
+            value,
+            m,
+            l_shift,
+            r_shift,
+            tvm.tir.const(31, "int32"),
+            tvm.tir.const(is_lshift_required, "bool"),
+            tvm.tir.const(is_rshift_required, "bool"),
         )
 
     return te.compute(x.shape, _compute)

@@ -27,8 +27,8 @@
  * code correctness, since hitting an unmatched case results in a
  * dynamic error unless exhaustiveness is checked in advance.
  */
-#include <tvm/ir/error.h>
 #include <tvm/relay/adt.h>
+#include <tvm/relay/error.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
 
@@ -169,10 +169,10 @@ Array<Pattern> ExpandWildcardsTuple(const PatternTuple& clause_tuple, const Patt
 // Returns a list of all possible expansions.
 Array<Pattern> ExpandWildcards(const Pattern& clause_pat, const Pattern& cand,
                                const IRModule& mod) {
-  if (auto clause_ctor = clause_pat.as<PatternConstructorNode>()) {
-    return ExpandWildcardsConstructor(GetRef<PatternConstructor>(clause_ctor), cand, mod);
-  } else if (auto clause_tup = clause_pat.as<PatternTupleNode>()) {
-    return ExpandWildcardsTuple(GetRef<PatternTuple>(clause_tup), cand, mod);
+  if (auto clause_ctor = clause_pat.as<PatternConstructor>()) {
+    return ExpandWildcardsConstructor(clause_ctor.value(), cand, mod);
+  } else if (auto clause_tup = clause_pat.as<PatternTuple>()) {
+    return ExpandWildcardsTuple(clause_tup.value(), cand, mod);
   } else {
     return {cand};
   }

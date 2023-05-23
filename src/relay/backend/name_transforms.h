@@ -80,6 +80,30 @@ std::string ToCVariableStyle(const std::string& original_name);
 std::string ToCConstantStyle(const std::string& original_name);
 
 /*!
+ * \brief Transform a name to the Rust struct style assuming it is
+ * appropriately constructed using the combining functions
+ * \param name Original name
+ * \return Transformed function in the Rust struct style
+ */
+std::string ToRustStructStyle(const std::string& original_name);
+
+/*!
+ * \brief Transform a name to the Rust macro style assuming it is
+ * appropriately constructed using the combining functions
+ * \param name Original name
+ * \return Transformed function in the Rust macro style
+ */
+std::string ToRustMacroStyle(const std::string& original_name);
+
+/*!
+ * \brief Transform a name to the Rust constant style assuming it is
+ * appropriately constructed using the combining functions
+ * \param name Original name
+ * \return Transformed function in the Rust constant style
+ */
+std::string ToRustConstantStyle(const std::string& original_name);
+
+/*!
  * \brief Combine names together for use as a generated name
  * \param names Vector of strings to combine
  * \return Combined together names
@@ -101,13 +125,6 @@ inline std::string PrefixName(const Array<String>& names) { return "TVM_" + Comb
 inline std::string PrefixGeneratedName(const Array<String>& names) {
   return "TVMGen_" + CombineNames(names);
 }
-
-/*!
- * \brief Sanitize name for output into compiler artifacts
- * \param name Original name
- * \return Sanitized name
- */
-std::string SanitizeName(const std::string& name);
 
 }  // namespace backend
 }  // namespace relay

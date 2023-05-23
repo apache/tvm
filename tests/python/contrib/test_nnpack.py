@@ -217,4 +217,4 @@ def test_convolution_inference_without_weight_transform():
 
 
 if __name__ == "__main__":
-    pytest.main()
+    tvm.testing.main()

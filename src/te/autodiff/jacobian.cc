@@ -75,7 +75,6 @@ class JacobianMutator : public ExprMutator {
     }
   }
 
-  PrimExpr VisitExpr_(const LoadNode* op) NOT_IMPLEMENTED;
   PrimExpr VisitExpr_(const LetNode* op) NOT_IMPLEMENTED;
 
   PrimExpr VisitExpr_(const ProducerLoadNode* op) final {
@@ -119,7 +118,6 @@ class JacobianMutator : public ExprMutator {
       return FloatImm(expr.dtype(), 0.0);
     } else {
       LOG(FATAL) << "Derivative of this intrinsic is not implemented: " << op->op;
-      return PrimExpr();
     }
   }
 

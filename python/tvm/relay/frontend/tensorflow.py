@@ -37,6 +37,7 @@ from .common import get_relay_op
 from .common import infer_type as _infer_type
 from .common import infer_shape as _infer_shape
 from .common import infer_value as _infer_value
+from .common import set_span
 
 from .tensorflow_ops import _convert_map
 from .tensorflow_ops import _need_prelude_for_shape_inference
@@ -328,7 +329,7 @@ class Loop:
         `while_loop` construct.
         """
         bind_map = {}
-        wl = tvm.relay.var("while_loop")
+        wl = set_span(tvm.relay.var("while_loop"), self._loop_name)
         sb = tvm.relay.scope_builder.ScopeBuilder()
 
         lv_list = []
@@ -343,9 +344,9 @@ class Loop:
             # This can happen when loop var node name is set accidentally
             # beginning with loop name.
             if lv not in self._lvar2expr[self._loop_name]:
-                var_name = "{}_loop_var_{}".format(self._loop_name, i)
+                var_name = f"{self._loop_name}_loop_var_{i}"
                 var_type = _infer_type(lv, self._mod).checked_type
-                loop_var = tvm.relay.var(var_name, type_annotation=var_type)
+                loop_var = set_span(tvm.relay.var(var_name, type_annotation=var_type), var_name)
                 self._lvar2expr[self._loop_name][loop_var] = lv
                 bind_map[lv] = loop_var
                 self.loop_vars[i] = loop_var
@@ -358,7 +359,7 @@ class Loop:
             self.cond = rewrite_subgraph(self.cond, bind_map)
             self.body = [rewrite_subgraph(b, bind_map) for b in self.body]
 
-        cond = tvm.relay.op.min(self.cond)
+        cond = set_span(tvm.relay.op.min(self.cond), self.cond.span)
 
         for lv, exp in self._lvar2expr[self._loop_name].items():
             if lv not in self.loop_vars:
@@ -463,7 +464,7 @@ class GraphProto(object):
         try:
             from tensorflow.python.framework import tensor_util
         except ImportError as e:
-            raise ImportError("Unable to import tensorflow which is required {}".format(e))
+            raise ImportError(f"Unable to import tensorflow which is required {e}")
 
         missing_operators = self._parse_import_prerequisites(graph)
         control_flow_nodes = []
@@ -478,12 +479,12 @@ class GraphProto(object):
             freezed_ops = [op for op in missing_operators if op in _freezed_graph_pruned_op_list]
             if freezed_ops:
                 raise Exception(
-                    "Graph is not frozen. Provide a frozen graph. "
-                    "Found operators {}".format(freezed_ops)
+                    f"Graph is not frozen. Provide a frozen graph. "
+                    f"Found operators {freezed_ops}"
                 )
 
             raise NotImplementedError(
-                "The following operators are not implemented: {}".format(missing_operators)
+                f"The following operators are not implemented: {missing_operators}"
             )
 
         for node in graph.node:
@@ -517,8 +518,11 @@ class GraphProto(object):
                 self._output_shapes[node.name] = [self._input_shapes[node.name]]
                 attr = self._parse_attr(node.attr)
                 self._nodes[node.name] = [
-                    _expr.var(
-                        node.name, shape=self._input_shapes[node.name], dtype=attr["dtype"].name
+                    set_span(
+                        _expr.var(
+                            node.name, shape=self._input_shapes[node.name], dtype=attr["dtype"].name
+                        ),
+                        node.name,
                     )
                 ]
 
@@ -531,8 +535,8 @@ class GraphProto(object):
                 self._output_shapes[node.name] = [self._input_shapes[node.name]]
                 if shape and node.name in shape:
                     warnings.warn(
-                        "Ignore the passed shape. Shape in graphdef "
-                        "will be used for operator %s." % node.name
+                        f"Ignore the passed shape. Shape in graphdef "
+                        f"will be used for operator {node.name}."
                     )
                 for key, value in node.attr.items():
                     self._parse_param(key, value, node.name, self._in_shape)
@@ -696,7 +700,7 @@ class GraphProto(object):
         try:
             from tensorflow.python.framework import tensor_util
         except ImportError as e:
-            raise ImportError("Unable to import tensorflow which is required {}".format(e))
+            raise ImportError(f"Unable to import tensorflow which is required {e}")
 
         if key == "value":
             np_array = tensor_util.MakeNdarray(value.tensor)
@@ -708,22 +712,27 @@ class GraphProto(object):
                     var_shape = shape[name]
                 else:
                     var_shape = tensor_util.TensorShapeProtoToList(value.tensor.tensor_shape)
-                self._nodes[name] = [_expr.var(name, shape=var_shape, dtype="uint8")]
+                self._nodes[name] = [
+                    set_span(_expr.var(name, shape=var_shape, dtype="uint8"), span=name)
+                ]
                 return
 
             array_ndim = len(np_array.shape)
             if array_ndim == 0:
-                self._nodes[name] = [tvm.relay.const(np_array, np_array.dtype)]
+                self._nodes[name] = [set_span(tvm.relay.const(np_array, np_array.dtype), name)]
             else:
                 self._params[name] = tvm.nd.array(np_array)
                 self._nodes[name] = [
-                    _expr.var(name, shape=self._params[name].shape, dtype=self._params[name].dtype)
+                    set_span(
+                        _expr.var(
+                            name, shape=self._params[name].shape, dtype=self._params[name].dtype
+                        ),
+                        name,
+                    )
                 ]
         else:
             if key not in ("dtype", "_output_shapes", "_class"):
-                raise NotImplementedError(
-                    "Other attributes for a Const(param) Node {} ? .".format(key)
-                )
+                raise NotImplementedError(f"Other attributes for a Const(param) Node {key} ? .")
 
     def _get_attr(self, buf):
         """Returns the value of the attr of this buf with the given `name`.
@@ -746,7 +755,7 @@ class GraphProto(object):
         try:
             from tensorflow.python.framework import dtypes
         except ImportError as e:
-            raise ImportError("Unable to import tensorflow which is required {}".format(e))
+            raise ImportError(f"Unable to import tensorflow which is required {e}")
 
         # Treat an empty oneof value as an empty list.
         if not x.WhichOneof("value"):
@@ -895,7 +904,7 @@ class GraphProto(object):
             op = self._licm_construct(plname, node.input[0])
             self._loops[node_name_prefix].body.append(op)
         else:
-            raise Exception("Cannot identify control flow operator: " + "{}".format(node.op))
+            raise Exception(f"Cannot identify control flow operator: {node.op}")
 
         return op
 
@@ -925,7 +934,7 @@ class GraphProto(object):
         try:
             from tensorflow.python.framework import function_def_to_graph
         except ImportError as e:
-            raise ImportError("Unable to import tensorflow which is required {}".format(e))
+            raise ImportError(f"Unable to import tensorflow which is required {e}")
 
         main_graph_proto = self._main_graph_proto
         outer_graph_def = main_graph_proto._graph
@@ -953,7 +962,7 @@ class GraphProto(object):
                 input_expr_dict[f_arg.name] = input
                 subgraph_shape_dict[f_arg.name] = _infer_shape(input, main_graph_proto._mod)
 
-            func_name = "func_{}".format(func.signature.name)
+            func_name = f"func_{func.signature.name}"
             try:
                 global_func = main_graph_proto._mod[func_name]
                 sub_func = global_func
@@ -977,14 +986,14 @@ class GraphProto(object):
                 elif param_name in sub_params.keys():
                     param_exprs.append(param_expr)
                 else:
-                    raise Exception("Input parameter {} not found".format(param_name))
+                    raise Exception(f"Input parameter {param_name} not found")
 
             sb = tvm.relay.scope_builder.ScopeBuilder()
             loop_ret = global_func(*param_exprs)
             sb.ret(loop_ret)
             ret = sb.get()
         else:
-            raise Exception("Function not found - {}".format(node_func_name))
+            raise Exception(f"Function not found - {node_func_name}")
         return ret
 
     def _convert_operator(
@@ -998,6 +1007,8 @@ class GraphProto(object):
         ----------
         op_name : str
             Operator name, such as Conv2D, AvgPool
+        node_name : str
+            Node name, predefined by user or default setting of TF
         inputs : list of relay.op
             List of input symbols.
         attrs : dict
@@ -1026,24 +1037,10 @@ class GraphProto(object):
         elif op_name in ["PartitionedCall", "StatefulPartitionedCall"]:
             sym = self._partition_call_operator(inputs, attrs)
         else:
-            raise NotImplementedError("Operator {} not implemented.".format(op_name))
+            raise NotImplementedError(f"Operator {op_name} not implemented.")
 
-        sym = self._set_span(sym, node_name)
+        sym = set_span(sym, node_name)
 
-        return sym
-
-    @staticmethod
-    def _set_span(sym, node_name):
-        span = tvm.relay.Span(tvm.relay.SourceName(node_name), 0, 0, 0, 0)
-        if isinstance(sym, _expr.Call) and sym.span is None:
-            sym = _expr.Call(sym.op, sym.args, sym.attrs, sym.type_args, span)
-        elif isinstance(sym, _expr.TupleWrapper):
-            tuple_value = sym.tuple_value
-            if isinstance(tuple_value, _expr.Call) and tuple_value.span is None:
-                tuple_value = _expr.Call(
-                    tuple_value.op, tuple_value.args, tuple_value.attrs, tuple_value.type_args, span
-                )
-                sym = _expr.TupleWrapper(tuple_value, sym.size)
         return sym
 
     def _licm_construct(self, loop_name, node_name):
@@ -1077,9 +1074,9 @@ class GraphProto(object):
                 self._lname_map[loop_name] = {}
 
             if node_name not in self._lname_map[loop_name]:
-                var_name = "{}_loop_var".format(node_name)
+                var_name = f"{node_name}_loop_var"
                 var_type = _infer_type(actual_expr, self._mod).checked_type
-                loop_var = tvm.relay.var(var_name, type_annotation=var_type)
+                loop_var = set_span(tvm.relay.var(var_name, type_annotation=var_type), var_name)
                 try:
                     extra_param = _infer_value(actual_expr, self._params, self._mod)
                     self._params[var_name] = extra_param
@@ -1117,7 +1114,7 @@ class GraphProto(object):
         try:
             from tensorflow.python.framework import tensor_util
         except ImportError as e:
-            raise ImportError("Unable to import tensorflow which is required {}".format(e))
+            raise ImportError(f"Unable to import tensorflow which is required {e}")
 
         input_op_name = node_name.split(":")[0].split("^")[-1]
         if input_op_name not in self._nodes:
@@ -1183,10 +1180,13 @@ class GraphProto(object):
             if isinstance(op, np.ndarray):
                 self._params[node.name] = tvm.nd.array(op)
                 op = [
-                    _expr.var(
+                    set_span(
+                        _expr.var(
+                            node.name,
+                            shape=self._params[node.name].shape,
+                            dtype=self._params[node.name].dtype,
+                        ),
                         node.name,
-                        shape=self._params[node.name].shape,
-                        dtype=self._params[node.name].dtype,
                     )
                 ]
 

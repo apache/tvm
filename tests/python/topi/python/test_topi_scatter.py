@@ -33,10 +33,6 @@ def test_scatter_nd(dev, target):
                 lambda x, y, z: topi.cuda.scatter_nd(x, y, z, mode),
                 topi.generic.schedule_extern,
             ),
-            "cpu": (
-                lambda x, y, z: topi.x86.scatter_nd(x, y, z, mode),
-                topi.generic.schedule_extern,
-            ),
         }
         fcompute, fschedule = tvm.topi.testing.dispatch(target, implementations)
         tvm.topi.testing.compare_numpy_tvm(
@@ -65,7 +61,7 @@ def test_scatter_nd(dev, target):
     out[0, :] += updates[2, :]
     check_scatter_nd(data, indices, updates, out)
 
-    for mode in ["add", "update"]:
+    for mode in ["update", "add", "mul", "min", "max"]:
         updates = np.ones((5, 3)).astype("float64")
         indices = np.stack((np.random.randint(2, size=5), np.random.randint(7, size=5))).astype(
             "int64"
@@ -75,10 +71,20 @@ def test_scatter_nd(dev, target):
         out = data.copy()
         for i in range(indices.shape[1]):
             for j in range(updates.shape[1]):
-                if mode == "add":
-                    out[indices[0, i], indices[1, i], j] += updates[i, j]
-                elif mode == "update":
+                if mode == "update":
                     out[indices[0, i], indices[1, i], j] = updates[i, j]
+                elif mode == "add":
+                    out[indices[0, i], indices[1, i], j] += updates[i, j]
+                elif mode == "mul":
+                    out[indices[0, i], indices[1, i], j] *= updates[i, j]
+                elif mode == "min":
+                    out[indices[0, i], indices[1, i], j] = min(
+                        out[indices[0, i], indices[1, i], j], updates[i, j]
+                    )
+                elif mode == "max":
+                    out[indices[0, i], indices[1, i], j] = max(
+                        out[indices[0, i], indices[1, i], j], updates[i, j]
+                    )
 
         check_scatter_nd(data, indices, updates, out, mode)
 

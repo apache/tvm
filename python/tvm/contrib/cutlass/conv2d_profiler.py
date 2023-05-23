@@ -35,15 +35,15 @@ class Conv2dProfilerEmitter(object):
         cutlass::conv::implicit_gemm_tensor_c_size(kConvolutionalOperator, problem_size),
         {
       	 reinterpret_cast<ImplicitGemm::ElementC*> (workspace.get()),
-      	   ReductionStrideIndex(tensor_c.stride()[ImplicitGemm::ImplicitGemmKernel::kTensorCStrideIdx])
+      	   ReductionStrideIndex(tensor_c.stride()[ImplicitGemm::UnderlyingKernel::kTensorCStrideIdx])
       	   },
         {
       	 tensor_d.device_data(),
-      	   ReductionStrideIndex(tensor_d.stride()[ImplicitGemm::ImplicitGemmKernel::kTensorCStrideIdx])
+      	   ReductionStrideIndex(tensor_d.stride()[ImplicitGemm::UnderlyingKernel::kTensorCStrideIdx])
       	   },
         {
       	 tensor_c.device_data(),
-      	   ReductionStrideIndex(tensor_c.stride()[ImplicitGemm::ImplicitGemmKernel::kTensorCStrideIdx])
+      	   ReductionStrideIndex(tensor_c.stride()[ImplicitGemm::UnderlyingKernel::kTensorCStrideIdx])
       	   },
         {ElementComputeEpilogue(1), ElementComputeEpilogue(0)}
         );

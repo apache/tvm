@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=invalid-name
 """Type checking functionality"""
 import collections
 import collections.abc
@@ -27,12 +28,29 @@ def _is_none_type(type_: Any) -> bool:
     return type_ is None or type_ is type(None)
 
 
+def _get_subtypes(type_: Any) -> Any:
+    # TODO(@tvm-team): This is hot fix to support subtle difference between python versions
+    #                  Would be nice to find a better way if possible
+    if hasattr(typing, "_SpecialGenericAlias"):
+        if hasattr(typing, "get_args"):
+            subtypes = typing.get_args(type_)  # type: ignore
+        else:
+            subtypes = type_.__args__
+    else:
+        subtypes = type_.__args__
+    return subtypes
+
+
 if hasattr(typing, "_GenericAlias"):
     # For python versions 3.7 onward, check the __origin__ attribute.
 
     class _Subtype:
         @staticmethod
         def _origin(type_: Any) -> Any:
+            if hasattr(typing, "_SpecialGenericAlias"):
+                if isinstance(type_, typing._SpecialGenericAlias):  # type: ignore # pylint: disable=protected-access
+                    return type_.__origin__
+
             if isinstance(type_, typing._GenericAlias):  # type: ignore # pylint: disable=protected-access
                 return type_.__origin__
             return None
@@ -40,36 +58,44 @@ if hasattr(typing, "_GenericAlias"):
         @staticmethod
         def list_(type_: Any) -> Any:
             if _Subtype._origin(type_) is list:
-                (subtype,) = type_.__args__
+                if hasattr(typing, "get_args"):
+                    (subtype,) = typing.get_args(type_)  # type: ignore
+                else:
+                    (subtype,) = type_.__args__
                 return [subtype]
             return None
 
         @staticmethod
         def dict_(type_: Any) -> Any:
             if _Subtype._origin(type_) is dict:
-                (ktype, vtype) = type_.__args__
+                if hasattr(typing, "get_args"):
+                    (ktype, vtype) = typing.get_args(type_)  # type: ignore
+                else:
+                    (ktype, vtype) = type_.__args__
                 return [ktype, vtype]
             return None
 
         @staticmethod
         def tuple_(type_: Any) -> Optional[List[type]]:
             if _Subtype._origin(type_) is tuple:
-                subtypes = type_.__args__
+                subtypes = _get_subtypes(type_)
                 return subtypes
             return None
 
         @staticmethod
-        def optional(type_: Any) -> Optional[List[type]]:
+        def optional(  # pylint: disable=missing-function-docstring
+            type_: Any,
+        ) -> Optional[List[type]]:
             if _Subtype._origin(type_) is Union:
-                subtypes = type_.__args__
+                subtypes = _get_subtypes(type_)
                 if len(subtypes) == 2 and _is_none_type(subtypes[1]):
                     return [subtypes[0]]
             return None
 
         @staticmethod
-        def union(type_: Any) -> Optional[List[type]]:
+        def union(type_: Any) -> Optional[List[type]]:  # pylint: disable=missing-function-docstring
             if _Subtype._origin(type_) is Union:
-                subtypes = type_.__args__
+                subtypes = _get_subtypes(type_)
                 if len(subtypes) != 2 or not _is_none_type(subtypes[1]):
                     return list(subtypes)
             return None
@@ -77,7 +103,7 @@ if hasattr(typing, "_GenericAlias"):
         @staticmethod
         def callable(type_: Any) -> Optional[List[type]]:
             if _Subtype._origin(type_) is collections.abc.Callable:
-                subtypes = type_.__args__
+                subtypes = _get_subtypes(type_)
                 return subtypes
             return None
 
@@ -164,7 +190,7 @@ def _dispatcher(type_: Any) -> Tuple[str, List[type]]:
     return "atomic", [type_]
 
 
-def callable_str(subtypes):
+def callable_str(*subtypes):
     if subtypes:
         *arg_types, return_type = subtypes
         arg_str = ", ".join(_type2str(arg_type) for arg_type in arg_types)

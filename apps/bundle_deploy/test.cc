@@ -124,7 +124,7 @@ int main(int argc, char** argv) {
   getFunc<void(void*, const char*, void*)>(bundle, "tvm_runtime_set_input")(handle, "x", &input);
   gettimeofday(&t2, 0);
 
-  auto* ftvm_runtime_run = (auto (*)(void*)->void)dlsym(bundle, "tvm_runtime_run");
+  auto* ftvm_runtime_run = (auto(*)(void*)->void)dlsym(bundle, "tvm_runtime_run");
   assert(!dlerror());
   ftvm_runtime_run(handle);
   gettimeofday(&t3, 0);

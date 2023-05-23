@@ -120,13 +120,16 @@ def recvjson(sock):
     return data
 
 
-def random_key(prefix, cmap=None):
+def random_key(prefix, delimiter=":", cmap=None):
     """Generate a random key
 
     Parameters
     ----------
     prefix : str
         The string prefix
+
+    delimiter : str
+        The delimiter
 
     cmap : dict
         Conflict map
@@ -136,13 +139,30 @@ def random_key(prefix, cmap=None):
     key : str
         The generated random key
     """
-    if cmap:
-        while True:
-            key = prefix + str(random.random())
-            if key not in cmap:
-                return key
-    else:
-        return prefix + str(random.random())
+    while True:
+        key = "{}{}{}".format(prefix, delimiter, random.random())
+        if not cmap or key not in cmap:
+            break
+    return key
+
+
+def split_random_key(key, delimiter=":"):
+    """Split a random key by delimiter into prefix and random part
+
+    Parameters
+    ----------
+    key : str
+        The generated random key
+
+    Returns
+    -------
+    prefix : str
+        The string prefix
+
+    random_part : str
+        The generated random
+    """
+    return key.rsplit(delimiter, 1)
 
 
 def connect_with_retry(addr, timeout=60, retry_period=5):

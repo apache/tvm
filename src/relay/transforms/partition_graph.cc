@@ -29,13 +29,14 @@
  * external functions, and they will use the provided compiler for codegen.
  */
 
-#include <tvm/ir/error.h>
 #include <tvm/ir/module.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/attrs/annotation.h>
+#include <tvm/relay/error.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
+#include <tvm/runtime/name_transforms.h>
 
 #include <unordered_map>
 #include <unordered_set>
@@ -212,8 +213,8 @@ class Partitioner : public MixedModeMutator {
   IRModule Partition() {
     auto glob_funcs = module_->functions;
     for (const auto& pair : glob_funcs) {
-      if (auto* fn = pair.second.as<FunctionNode>()) {
-        Function func = GetRef<Function>(fn);
+      if (auto opt = pair.second.as<Function>()) {
+        Function func = opt.value();
         func = WithFields(func, func->params, VisitExpr(func->body));
         module_->Update(pair.first, func);
         module_ = transform::InferType()(module_);
@@ -425,8 +426,8 @@ IRModule RemoveDefaultAnnotations(IRModule module) {
   // module is mutable, hence, we make a copy of it.
   module.CopyOnWrite();
   for (const auto& pair : glob_funcs) {
-    if (auto* fn = pair.second.as<FunctionNode>()) {
-      auto func = GetRef<Function>(fn);
+    if (auto opt = pair.second.as<Function>()) {
+      auto func = opt.value();
       DefaultRemover remover;
       auto removed = PostOrderRewrite(func->body, &remover);
       func = WithFields(func, func->params, removed);
@@ -481,8 +482,8 @@ IRModule FlattenTupleOutputs(IRModule module) {
   // module is mutable, hence, we make a copy of it.
   module.CopyOnWrite();
   for (const auto& pair : glob_funcs) {
-    if (auto* fn = pair.second.as<FunctionNode>()) {
-      Function func = GetRef<Function>(fn);
+    if (auto opt = pair.second.as<Function>()) {
+      Function func = opt.value();
       TupleOutFlattener to_flattener;
       auto removed = PostOrderRewrite(func->body, &to_flattener);
       func = WithFields(func, func->params, removed);
@@ -504,10 +505,10 @@ class NameMangleExtFuncs : public MixedModeMutator {
     // Collect function names to be mangled and create
     // global mangled variables
     for (const auto& pair : glob_funcs) {
-      if (auto* fn = pair.second.as<FunctionNode>()) {
-        auto func = GetRef<Function>(fn);
+      if (auto opt = pair.second.as<Function>()) {
+        auto func = opt.value();
         if (func->GetAttr<String>(attr::kCompiler).defined()) {
-          auto fn_name_mangled = relay::backend::SanitizeName(mangle_fn_(pair.first->name_hint));
+          auto fn_name_mangled = tvm::runtime::SanitizeName(mangle_fn_(pair.first->name_hint));
           GlobalVar gvar = GlobalVar(fn_name_mangled);
           mangled_gvars_[pair.first->name_hint] = gvar;
         }
@@ -520,13 +521,13 @@ class NameMangleExtFuncs : public MixedModeMutator {
     new_module->functions = {};
 
     for (const auto& pair : glob_funcs) {
-      if (auto* fn = pair.second.as<FunctionNode>()) {
-        auto func = GetRef<Function>(fn);
+      if (auto opt = pair.second.as<Function>()) {
+        auto func = opt.value();
 
         if (func->GetAttr<String>(attr::kCompiler).defined()) {
           auto new_dict = func->attrs->dict;
           new_dict.Set(tvm::attr::kGlobalSymbol,
-                       String(relay::backend::SanitizeName(mangle_fn_(pair.first->name_hint))));
+                       String(tvm::runtime::SanitizeName(mangle_fn_(pair.first->name_hint))));
           func = WithFields(func, func->params, VisitExpr(func->body), func->ret_type,
                             func->type_params, DictAttrs(new_dict));
 

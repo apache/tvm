@@ -38,11 +38,6 @@ how to use TEDD and how to interpret the rendered graphs.
 
 """
 
-# sphinx_gallery_start_ignore
-from tvm import testing
-
-testing.utils.install_request_hook(depth=3)
-# sphinx_gallery_end_ignore
 import tvm
 from tvm import te
 from tvm import topi

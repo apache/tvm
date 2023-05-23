@@ -69,8 +69,8 @@ struct PairHash {
 // Analogue of FlattenTupleType for runtime ADT vs NDArray values.
 // TODO(mbs): Hoist somewhere sensible, maybe op/memory.h?
 void FlattenADTAux(const ObjectRef& object_ref, std::vector<NDArray>* out) {
-  if (const NDArray::ContainerType* ndarray = object_ref.as<NDArray::ContainerType>()) {
-    out->push_back(GetRef<NDArray>(ndarray));
+  if (auto ndarray = object_ref.as<NDArray>()) {
+    out->push_back(ndarray.value());
   } else if (const ADTObj* adt = object_ref.as<ADTObj>()) {
     for (size_t i = 0; i < adt->size; ++i) {
       FlattenADTAux((*adt)[i], out);
@@ -477,7 +477,7 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
 
     // TODO(mbs): Take this from the host_virtual_device.
     Device shape_device;
-    shape_device.device_type = static_cast<DLDeviceType>(prim_shape_target->kind->device_type);
+    shape_device.device_type = static_cast<DLDeviceType>(prim_shape_target->GetTargetDeviceType());
     shape_device.device_id = 0;
 
     // 'Compile' the TIR shape function to appropriate callable form.
@@ -707,7 +707,6 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
     if (device_copy_props.body.defined()) {
       // TODO(mbs): device_copy cleanup
       LOG(FATAL) << "The interpreter does not support device_copy";
-      return {};
     } else if (call_lowered_props.lowered_func.defined()) {
       // Special case: Call a lowered TIR function.
 
@@ -786,9 +785,8 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
       // Now we just evaluate and expect to find a closure.
       // TODO(@electriclilies): How should call_lowered behave with closures?
       ObjectRef fn_val = Eval(call_node->op);
-      if (const InterpreterClosureObj* closure_node = fn_val.as<InterpreterClosureObj>()) {
-        auto closure = GetRef<InterpreterClosure>(closure_node);
-        return Invoke(closure, args);
+      if (auto closure = fn_val.as<InterpreterClosure>()) {
+        return Invoke(closure.value(), args);
       } else if (const RecClosureObj* closure_node = fn_val.as<RecClosureObj>()) {
         return Invoke(closure_node->clos, args, closure_node->bind);
       } else {
@@ -800,8 +798,8 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
   }
 
   ObjectRef VisitExpr_(const LetNode* let) final {
-    if (auto func = let->value.as<FunctionNode>()) {
-      auto clo = MakeClosure(GetRef<Function>(func), let->var);
+    if (auto func = let->value.as<Function>()) {
+      auto clo = MakeClosure(func.value(), let->var);
       this->extend(let->var, clo);
     } else {
       auto value = Eval(let->value);
@@ -837,7 +835,6 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
       }
     } else {
       LOG(FATAL) << "type error, type system should have caught this";
-      return ObjectRef();
     }
   }
 
@@ -848,7 +845,6 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
       return ADT::Tuple(std::vector<ObjectRef>());
     } else {
       LOG(FATAL) << "type error, type system should have caught this";
-      return ObjectRef();
     }
   }
 
@@ -860,7 +856,6 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
       return rv->value;
     } else {
       LOG(FATAL) << "type error, type system should have caught this";
-      return ObjectRef();
     }
   }
 
@@ -872,7 +867,6 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
       }
     }
     LOG(FATAL) << "did not find any match";
-    return ObjectRef();
   }
 
   bool VisitPattern_(const PatternConstructorNode* op, const ObjectRef& v) final {
@@ -1017,7 +1011,7 @@ TypedPackedFunc<ObjectRef(Array<Expr>)> EvalFunction(IRModule mod, Expr expr, De
           << PrettyPrint(mod) << "and expression:" << std::endl
           << PrettyPrint(expr);
 
-  ICHECK_EQ(device.device_type, target->kind->device_type);
+  ICHECK_EQ(device.device_type, target->GetTargetDeviceType());
   Array<Target> raw_targets = {target};
   CompilationConfig config(transform::PassContext::Current(), raw_targets);
 
@@ -1072,9 +1066,8 @@ TypedPackedFunc<ObjectRef(Array<Expr>)> EvalFunction(IRModule mod, Expr expr, De
   // Step 2: Evaluate target function to a closure.
   //
   ObjectRef object_ref = intrp->Eval(expr_to_eval);
-  if (const InterpreterClosureObj* closure_obj = object_ref.as<InterpreterClosureObj>()) {
-    InterpreterClosure closure = GetRef<InterpreterClosure>(closure_obj);
-    ICHECK(closure.defined());
+  if (auto opt = object_ref.as<InterpreterClosure>()) {
+    InterpreterClosure closure = opt.value();
     ICHECK(closure->func.defined());
 
     return TypedPackedFunc<ObjectRef(Array<Expr>)>([intrp, closure](Array<Expr> args) {
@@ -1099,14 +1092,13 @@ TypedPackedFunc<ObjectRef(Array<Expr>)> EvalFunction(IRModule mod, Expr expr, De
     });
   } else {
     LOG(FATAL) << "expecting expression to have function type and evaluate to a closure";
-    return nullptr;
   }
 }
 
 ObjectRef Eval(Expr expr, Map<GlobalTypeVar, TypeData> type_definitions,
                std::unordered_set<String> import_set, Device device, Target target,
                Map<String, ObjectRef> attrs) {
-  ICHECK_EQ(device.device_type, target->kind->device_type);
+  ICHECK_EQ(device.device_type, target->GetTargetDeviceType());
   Array<Target> raw_targets = {target};
   CompilationConfig config(transform::PassContext::Current(), raw_targets);
 

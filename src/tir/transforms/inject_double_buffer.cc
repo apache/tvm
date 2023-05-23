@@ -170,16 +170,6 @@ class DoubleBufferInjector : public StmtExprMutator {
     return stmt;
   }
 
-  PrimExpr VisitExpr_(const LoadNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-    return PrimExpr();
-  }
-
-  Stmt VisitStmt_(const StoreNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-    return Stmt();
-  }
-
   Stmt VisitStmt_(const BufferStoreNode* op) final {
     auto node = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
 

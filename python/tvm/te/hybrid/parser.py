@@ -20,7 +20,6 @@ import ast
 import operator
 import logging
 import sys
-import types
 import numbers
 
 from enum import Enum
@@ -142,7 +141,7 @@ class HybridParser(ast.NodeVisitor):
 
         self.symbols = {}  # Symbol table
         for k, v in symbols.items():
-            if isinstance(v, types.FunctionType):
+            if callable(v):
                 self.add_symbol(k, Symbol.Callable, v)
 
         self.closure_vars = closure_vars
@@ -374,6 +373,10 @@ class HybridParser(ast.NodeVisitor):
 
     def visit_Subscript(self, node):
         args = self.visit(node.slice)
+        if sys.version_info >= (3, 9):
+            if not isinstance(node.slice, ast.Tuple):
+                args = [args]
+
         arr = self.visit(node.value)
         if isinstance(arr, Array):
             for i in args:
