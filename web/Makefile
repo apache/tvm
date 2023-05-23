@@ -26,21 +26,20 @@ all: dist/wasm/tvmjs_runtime.wasm dist/wasm/tvmjs_runtime.wasi.js
 
 EMCC = emcc
 
-EMCC_CFLAGS = $(INCLUDE_FLAGS) -O3 -std=c++14 -Wno-ignored-attributes --no-entry \
-	-s ALLOW_MEMORY_GROWTH=1 -s STANDALONE_WASM=1 -s ERROR_ON_UNDEFINED_SYMBOLS=0 
+EMCC_CFLAGS = $(INCLUDE_FLAGS) -O3 -std=c++17 -Wno-ignored-attributes
 
-EMCC_LDFLAGS = --pre-js emcc/preload.js
+EMCC_LDFLAGS = --no-entry -s WASM_BIGINT=1 -s ALLOW_MEMORY_GROWTH=1 -s STANDALONE_WASM=1\
+ -s ERROR_ON_UNDEFINED_SYMBOLS=0 --pre-js emcc/preload.js
 
 dist/wasm/%.bc: emcc/%.cc
 	@mkdir -p $(@D)
 	$(EMCC) $(EMCC_CFLAGS) -c -MM -MT dist/wasm/$*.bc $< >dist/wasm/$*.d
-	$(EMCC) $(EMCC_CFLAGS) -c -o dist/wasm/$*.bc $<
+	$(EMCC) $(EMCC_CFLAGS) -emit-llvm -c -o dist/wasm/$*.bc $<
 
 
 dist/wasm/tvmjs_runtime.wasm: dist/wasm/wasm_runtime.bc dist/wasm/tvmjs_support.bc dist/wasm/webgpu_runtime.bc
 	@mkdir -p $(@D)
-	$(EMCC)  $(EMCC_CFLAGS) -o dist/wasm/tvmjs_runtime.js $+ $(EMCC_LDFLAGS)
-
+	$(EMCC) $(EMCC_CFLAGS) -o dist/wasm/tvmjs_runtime.js $+ $(EMCC_LDFLAGS)
 
 dist/wasm/tvmjs_runtime.wasi.js: dist/wasm/tvmjs_runtime.wasm emcc/decorate_as_wasi.py
 	python3 emcc/decorate_as_wasi.py dist/wasm/tvmjs_runtime.js $@

@@ -101,7 +101,7 @@ def sum_impl(N, uniq_id):
 #ifdef __cplusplus
 extern "C"
 #endif // __cplusplus
-__STATIC_FORCEINLINE int32_t sum16_reset_{uniq_id}(
+__attribute__((always_inline)) static inline int32_t sum16_reset_{uniq_id}(
     int16_t *res) {{
   *res = (int16_t)0;
   return 0;
@@ -110,7 +110,7 @@ __STATIC_FORCEINLINE int32_t sum16_reset_{uniq_id}(
 #ifdef __cplusplus
 extern "C"
 #endif
-__STATIC_FORCEINLINE int32_t sum16_{N}_{uniq_id}(
+__attribute__((always_inline)) static inline int32_t sum16_{N}_{uniq_id}(
     int16_t *arr,
     int16_t *res16,
     long arr_offset,
@@ -129,7 +129,7 @@ __STATIC_FORCEINLINE int32_t sum16_{N}_{uniq_id}(
   }}
 
   for ( int i = 0; i < n / 2; ++ i ) {{
-    res = __SMLAD(*p32, 0x00010001, res);
+    res = __smlad(*p32, 0x00010001, res);
     ++ p32;
   }}
 

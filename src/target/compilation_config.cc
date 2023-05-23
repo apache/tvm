@@ -42,13 +42,13 @@ Target CompilationConfigNode::FindPrimitiveTargetForDeviceOrFail(DLDeviceType de
   ICHECK_GT(device_type, 0) << "Invalid device type";
   auto itr = std::find_if(
       primitive_targets.begin(), primitive_targets.end(),
-      [device_type](const Target& target) { return target->kind->device_type == device_type; });
+      [device_type](const Target& target) { return target->GetTargetDeviceType() == device_type; });
   if (itr == primitive_targets.end()) {
     std::stringstream msg;
     msg << "No target is specified for device type " << device_type
         << ". The available device types and targets are:" << std::endl;
     for (const auto& target : primitive_targets) {
-      msg << "  " << target->kind->device_type << "-> " << target->ToDebugString() << std::endl;
+      msg << "  " << target->GetTargetDeviceType() << "-> " << target->ToDebugString() << std::endl;
     }
     LOG(FATAL) << msg.str();
   }
@@ -137,7 +137,7 @@ void CompilationConfigNode::Init(const transform::PassContext& pass_ctx,
   auto hosting_itr = std::find_if(raw_targets.begin(), raw_targets.end(), [](const Target& target) {
     // TODO(tvm-team): The kDLHexagon device can act as a host. We can remove kDLHexagon
     // here once we refactored kDLHexagon to kDLCPU.
-    return target->kind->device_type == kDLCPU || target->kind->device_type == kDLHexagon;
+    return target->GetTargetDeviceType() == kDLCPU || target->GetTargetDeviceType() == kDLHexagon;
   });
 
   // Any targets with their host field set?
@@ -149,23 +149,24 @@ void CompilationConfigNode::Init(const transform::PassContext& pass_ctx,
     // targets.
     host_target = Target((*has_host_itr)->GetHost().value(), /*host=*/Target());
     VLOG(1) << "The target " << (*has_host_itr)->ToDebugString() << " supplies a host target "
-            << host_target->ToDebugString() << " of device type " << host_target->kind->device_type;
+            << host_target->ToDebugString() << " of device type "
+            << host_target->GetTargetDeviceType();
   } else if (hosting_itr != raw_targets.end()) {
     // RULE B: If any raw target is for a device which could be a host then use the first such as
     // the host.
     host_target = Target(*hosting_itr, /*host=*/Target());
     VLOG(1) << "Using target " << host_target->ToDebugString() << " of CPU-like device type "
-            << host_target->kind->device_type << " as the host target";
+            << host_target->GetTargetDeviceType() << " as the host target";
   } else {
     // RULE C: Otherwise, create a default CPU host target.
     host_target = MakeDefaultCPUTarget();
     VLOG(1) << "Created a default target " << host_target->ToDebugString() << " of device type "
-            << host_target->kind->device_type << " for the host target";
+            << host_target->GetTargetDeviceType() << " for the host target";
   }
   ICHECK(host_target.defined());
   ICHECK(!host_target->host.defined());
 
-  if (host_target->kind->device_type != kDLCPU) {
+  if (host_target->GetTargetDeviceType() != kDLCPU) {
     // I think we're on thin ice here until we've audited the code base for assumed CPU hosts.
     VLOG(1) << "The host target is not a CPU. This is probably not going to work.";
   }
@@ -174,7 +175,7 @@ void CompilationConfigNode::Init(const transform::PassContext& pass_ctx,
   // Establish the host VirtualDevice.
   //
   host_virtual_device = virtual_device_cache_.Unique(
-      VirtualDevice(static_cast<DLDeviceType>(host_target->kind->device_type),
+      VirtualDevice(static_cast<DLDeviceType>(host_target->GetTargetDeviceType()),
                     /*virtual_device_id=*/0, host_target));
   ICHECK(host_virtual_device.defined());
   ICHECK(host_virtual_device->target.defined());
@@ -205,7 +206,7 @@ void CompilationConfigNode::Init(const transform::PassContext& pass_ctx,
   std::unordered_set<DLDeviceType> primitive_target_device_types;
   std::unordered_set<std::string> kind_names;
   for (const auto& target : primitive_targets) {
-    primitive_target_device_types.emplace(static_cast<DLDeviceType>(target->kind->device_type));
+    primitive_target_device_types.emplace(static_cast<DLDeviceType>(target->GetTargetDeviceType()));
     CHECK(kind_names.emplace(target->kind->name).second) << "Multiple targets have been given"
                                                             "for the same device kind '"
                                                          << target->kind->name << "'";
@@ -213,7 +214,7 @@ void CompilationConfigNode::Init(const transform::PassContext& pass_ctx,
   for (DLDeviceType device_type : primitive_target_device_types) {
     Target first_primitive_target;
     for (const auto& current_primitive_target : primitive_targets) {
-      if (current_primitive_target->kind->device_type != device_type) {
+      if (current_primitive_target->GetTargetDeviceType() != device_type) {
         continue;
       }
       if (!first_primitive_target.defined()) {
@@ -290,7 +291,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "Primitive targets:";
       for (const auto& target : node->primitive_targets) {
         p->stream << std::endl
-                  << "  " << target->kind->device_type << " |-> " << target->ToDebugString();
+                  << "  " << target->GetTargetDeviceType() << " |-> " << target->ToDebugString();
       }
       p->stream << std::endl
                 << "Default primitive virtual device: " << node->default_primitive_virtual_device;

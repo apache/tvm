@@ -121,6 +121,45 @@ def test_single_convolution():
     _assert_structural_equal(a, b)
 
 
+@pytest.mark.parametrize("dtype", ["int8", "int32"])
+def test_add_reduce_sum(dtype):
+    """Test add with reduce sum to make sure the layouts remain
+    unaltered for int32 and altered for other types.
+    """
+
+    def get_graph(get_expected=False):
+        in_1 = relay.var("x", shape=(1, 2, 2, 2), dtype=dtype)
+        in_2 = relay.var("y", shape=(1, 2, 2, 2), dtype=dtype)
+        layout = "NHCWB16" if get_expected and dtype != "int32" else "NHWC"
+        add = infra.make_ethosu_binary_elementwise(
+            in_1,
+            in_2,
+            ifm_channels=2,
+            ifm2_channels=2,
+            operator_type="ADD",
+            ofm_dtype=dtype,
+            ifm_layout="NHWC",
+            ifm2_layout="NHWC",
+            ofm_layout=layout,
+        )
+        x = infra.make_ethosu_pooling(
+            ifm=add,
+            pooling_type="SUM",
+            pool_shape=(1, 1),
+            ofm_channels=1,
+            ofm_dtype="int32",
+            strides=(1, 1),
+            padding=(0, 0),
+            ifm_layout=layout,
+            ofm_layout="NHWC",
+        )
+        return relay.Function(relay.analysis.free_vars(x), x)
+
+    a = _optimize(get_graph())
+    b = _optimize(get_graph(get_expected=True), optimize=False)
+    _assert_structural_equal(a, b)
+
+
 def test_multiple_convolution():
     """Test layout optimization pass on linear chain of convolutions. I.e,
 
@@ -292,13 +331,16 @@ def test_ignore_concatnate_with_layout_transform():
     """
 
     def get_graph():
-        in_1 = relay.var("x", shape=(1, 16, 16, 8), dtype="int8")
-        in_2 = relay.var("y", shape=(1, 16, 16, 8), dtype="int8")
+        dtype = "int8"
+
+        in_1 = relay.var("x", shape=(1, 16, 16, 8), dtype=dtype)
+        in_2 = relay.var("y", shape=(1, 16, 16, 8), dtype=dtype)
         pool_1 = infra.make_ethosu_pooling(
             in_1,
             "MAX",
             (1, 1),
             ofm_channels=8,
+            ofm_dtype=dtype,
             strides=(1, 1),
             padding=(0, 0),
             ifm_layout="NHWC",
@@ -309,6 +351,7 @@ def test_ignore_concatnate_with_layout_transform():
             "MAX",
             (1, 1),
             ofm_channels=8,
+            ofm_dtype=dtype,
             strides=(1, 1),
             padding=(0, 0),
             ifm_layout="NHWC",
@@ -320,6 +363,7 @@ def test_ignore_concatnate_with_layout_transform():
             "MAX",
             (1, 1),
             ofm_channels=8,
+            ofm_dtype=dtype,
             strides=(1, 1),
             padding=(0, 0),
             ifm_layout="NHWC",
@@ -347,12 +391,15 @@ def test_multiple_inputs():
     def get_graph():
         poolings = []
         for _ in range(3):
-            inp = relay.var("x", shape=(1, 3, 3, 4), dtype="int8")
+            dtype = "int8"
+
+            inp = relay.var("x", shape=(1, 3, 3, 4), dtype=dtype)
             pool = infra.make_ethosu_pooling(
                 inp,
                 "MAX",
                 (1, 1),
                 ofm_channels=4,
+                ofm_dtype=dtype,
                 strides=(1, 1),
                 padding=(0, 0),
                 ifm_layout="NHWC",
@@ -381,7 +428,7 @@ def test_multiple_inputs():
 def test_multiple_outputs():
     """Test the layout optimization pass works as expected when there
     are multiple outputs in the graph.
-    
+
           pool_1
        /    |   \
   pool_2 pool_3 pool_4
@@ -390,12 +437,15 @@ def test_multiple_outputs():
     """
 
     def get_graph(get_expected=False):
-        in_1 = relay.var("x", shape=(1, 4, 4, 8), dtype="int8")
+        dtype = "int8"
+
+        in_1 = relay.var("x", shape=(1, 4, 4, 8), dtype=dtype)
         pool_1 = infra.make_ethosu_pooling(
             in_1,
             "MAX",
             (1, 1),
             ofm_channels=4,
+            ofm_dtype=dtype,
             strides=(1, 1),
             padding=(0, 0),
             ifm_layout="NHWC",
@@ -409,6 +459,7 @@ def test_multiple_outputs():
                     "MAX",
                     (1, 1),
                     ofm_channels=4,
+                    ofm_dtype=dtype,
                     strides=(1, 1),
                     padding=(0, 0),
                     ifm_layout="NHCWB16" if get_expected else "NHWC",
@@ -489,7 +540,9 @@ def test_multiple_pooling():
     """
 
     def get_graph(get_expected=False):
-        x = relay.var("x", shape=(1, 8, 8, 4), dtype="int8")
+        dtype = "int8"
+
+        x = relay.var("x", shape=(1, 8, 8, 4), dtype=dtype)
         for i in range(3):
             ifm_layout = "NHCWB16" if get_expected and i != 0 else "NHWC"
             ofm_layout = "NHCWB16" if get_expected and i != 2 else "NHWC"
@@ -498,6 +551,7 @@ def test_multiple_pooling():
                 "MAX",
                 (1, 1),
                 ofm_channels=4,
+                ofm_dtype=dtype,
                 strides=(1, 1),
                 padding=(0, 0),
                 ifm_layout=ifm_layout,
@@ -556,8 +610,9 @@ def test_op_without_ethosu_consumer():
 
     def get_graph(get_expected=False):
         exp_layout = "NHCWB16" if get_expected else "NHWC"
+        dtype = "int8"
 
-        x = relay.var("x", shape=(1, 2, 2, 2), dtype="int8")
+        x = relay.var("x", shape=(1, 2, 2, 2), dtype=dtype)
         depthwise = infra.make_ethosu_depthwise_conv2d(
             x, 2, (1, 1), (0, 0), (1, 1), (0, 0), ofm_layout=exp_layout
         )
@@ -571,7 +626,7 @@ def test_op_without_ethosu_consumer():
             (0, 0),
             ifm_layout=exp_layout,
         )
-        pool = infra.make_ethosu_pooling(conv, "MAX", (1, 1), 2, (1, 1), (0, 0))
+        pool = infra.make_ethosu_pooling(conv, "MAX", (1, 1), 2, dtype, (1, 1), (0, 0))
         concat = relay.concatenate([conv, pool], axis=0)
         return relay.Function(relay.analysis.free_vars(concat), concat)
 
@@ -601,21 +656,31 @@ def test_diamond_graph():
 
     def get_graph(get_expected=False):
         exp_layout = "NHCWB16" if get_expected else "NHWC"
-        x = relay.var("x", shape=(1, 2, 2, 2), dtype="int8")
+        dtype = "int8"
+
+        x = relay.var("x", shape=(1, 2, 2, 2), dtype=dtype)
         pool_1 = infra.make_ethosu_pooling(
-            x, "MAX", (1, 1), 2, (1, 1), (0, 0), ofm_layout=exp_layout
+            x, "MAX", (1, 1), 2, dtype, (1, 1), (0, 0), ofm_layout=exp_layout
         )
         pool_2 = infra.make_ethosu_pooling(
-            pool_1, "MAX", (1, 1), 2, (1, 1), (0, 0), ifm_layout=exp_layout
+            pool_1, "MAX", (1, 1), 2, dtype, (1, 1), (0, 0), ifm_layout=exp_layout
         )
         pool_3 = infra.make_ethosu_pooling(
-            pool_2, "MAX", (1, 1), 2, (1, 1), (0, 0), ofm_layout=exp_layout
+            pool_2, "MAX", (1, 1), 2, dtype, (1, 1), (0, 0), ofm_layout=exp_layout
         )
         pool_4 = infra.make_ethosu_pooling(
-            pool_3, "MAX", (1, 1), 2, (1, 1), (0, 0), ifm_layout=exp_layout, ofm_layout=exp_layout
+            pool_3,
+            "MAX",
+            (1, 1),
+            2,
+            dtype,
+            (1, 1),
+            (0, 0),
+            ifm_layout=exp_layout,
+            ofm_layout=exp_layout,
         )
         pool_5 = infra.make_ethosu_pooling(
-            pool_4, "MAX", (1, 1), 2, (1, 1), (0, 0), ifm_layout=exp_layout
+            pool_4, "MAX", (1, 1), 2, dtype, (1, 1), (0, 0), ifm_layout=exp_layout
         )
         concat = relay.concatenate([pool_2, pool_5], axis=0)
         return relay.Function(relay.analysis.free_vars(concat), concat)
@@ -737,4 +802,4 @@ def test_layout_optimizer_runs_in_compilation_pipeline():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__] + sys.argv[1:])
+    tvm.testing.main()

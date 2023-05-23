@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=invalid-name
 """
 Helper utility Enums and Functions used through out code generation.
 
@@ -141,6 +142,16 @@ class QDenseArgs(Enum):
     WEIGHTS_ZERO_POINT = 3
     IFM_SCALE = 4
     WEIGHTS_SCALE = 5
+
+
+class QPadArgs(Enum):
+    """
+    This is a helper enum to obtain the correct index
+    of nn.pad arguments.
+    """
+
+    IFM = 0
+    IFM_ZERO_POINT = 1
 
 
 def is_npu_func(func: relay.Function) -> bool:

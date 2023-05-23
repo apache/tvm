@@ -42,7 +42,7 @@ metatable = {
 
 
 def input_mod():
-    return tvm.parser.parse(
+    return tvm.relay.parse(
         """
         #[version = "0.0.5"]
         def @main(%x0 : Tensor[(1600, 768), float16], %x3 : Tensor[(600, 32, 64), float16]) -> (Tensor[(1600, 2304), float16], Tensor[(600, 32, 32), float16]) {

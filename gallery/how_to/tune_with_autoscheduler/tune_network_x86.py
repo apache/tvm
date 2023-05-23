@@ -24,7 +24,7 @@ Auto-tuning for specific devices and workloads is critical for getting the
 best performance. This is a tutorial on how to tune a whole neural
 network for x86 CPU with the auto-scheduler.
 
-To auto-tune a neural network, we partition the network into small subgraphs and 
+To auto-tune a neural network, we partition the network into small subgraphs and
 tune them independently. Each subgraph is treated as one search task.
 A task scheduler slices the time and dynamically allocates time resources to
 these tasks. The task scheduler predicts the impact of each task on the end-to-end
@@ -45,11 +45,6 @@ get it to run, you will need to wrap the body of this tutorial in a :code:`if
 __name__ == "__main__":` block.
 """
 
-# sphinx_gallery_start_ignore
-from tvm import testing
-
-testing.utils.install_request_hook(depth=3)
-# sphinx_gallery_end_ignore
 
 import numpy as np
 

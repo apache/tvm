@@ -17,7 +17,7 @@
 """Customized builder and runner methods"""
 # pylint: disable=import-outside-toplevel
 
-from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Dict, List, Optional, Union, Callable
 
 if TYPE_CHECKING:
     import numpy as np  # type: ignore
@@ -143,7 +143,7 @@ def run_module_via_rpc(
     rpc_config: "RPCConfig",
     lib: Union["Module", "Executable"],
     dev_type: str,
-    args: Dict[str, "np.ndarray"],
+    args: Union[Dict[int, "np.ndarray"], Dict[str, "np.ndarray"]],
     continuation: Callable,
     backend: Optional[str] = "graph",
 ):

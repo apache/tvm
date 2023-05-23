@@ -18,7 +18,7 @@
 # CI docker i386 env
 # tag: v0.53
 
-FROM i386/ubuntu:18.04
+FROM i386/ubuntu:20.04
 
 COPY utils/apt-install-and-clear.sh /usr/local/bin/apt-install-and-clear
 
@@ -26,8 +26,14 @@ RUN apt-get update --fix-missing
 
 RUN apt-install-and-clear -y ca-certificates
 
-COPY install/ubuntu_install_core.sh /install/ubuntu_install_core.sh
-RUN bash /install/ubuntu_install_core.sh
+COPY install/ubuntu_setup_tz.sh /install/ubuntu_setup_tz.sh
+RUN bash /install/ubuntu_setup_tz.sh
+
+COPY install/ubuntu2004_install_core.sh /install/ubuntu2004_install_core.sh
+RUN bash /install/ubuntu2004_install_core.sh
+
+COPY install/ubuntu_install_cmake_source.sh /install/ubuntu_install_cmake_source.sh
+RUN bash /install/ubuntu_install_cmake_source.sh
 
 COPY install/ubuntu_install_googletest.sh /install/ubuntu_install_googletest.sh
 RUN bash /install/ubuntu_install_googletest.sh
@@ -35,28 +41,26 @@ RUN bash /install/ubuntu_install_googletest.sh
 COPY install/ubuntu_install_llvm.sh /install/ubuntu_install_llvm.sh
 RUN bash /install/ubuntu_install_llvm.sh
 
-COPY install/ubuntu1804_install_python.sh /install/ubuntu1804_install_python.sh
-RUN bash /install/ubuntu1804_install_python.sh
-
 # Rust env (build early; takes a while)
 COPY install/ubuntu_install_rust.sh /install/ubuntu_install_rust.sh
 RUN bash /install/ubuntu_install_rust.sh
 ENV RUSTUP_HOME /opt/rust
 ENV CARGO_HOME /opt/rust
 ENV PATH $PATH:$CARGO_HOME/bin
+ENV PYTHONNOUSERSITE 1  # Disable .local directory from affecting CI.
 
-# Globally disable pip cache
-RUN pip config set global.no-cache-dir false
+ENV TVM_VENV /venv/apache-tvm-py3.8
+COPY python/bootstrap/lockfiles /install/python/bootstrap/lockfiles
+COPY install/ubuntu2004_install_python.sh /install/ubuntu2004_install_python.sh
+RUN bash /install/ubuntu2004_install_python.sh
+ENV PATH ${TVM_VENV}/bin:$PATH
 
-COPY install/ubuntu_install_cmake_source.sh /install/ubuntu_install_cmake_source.sh
-RUN bash /install/ubuntu_install_cmake_source.sh
-
-COPY install/ubuntu_install_python_package.sh /install/ubuntu_install_python_package.sh
-RUN bash /install/ubuntu_install_python_package.sh
+COPY install/ubuntu2004_install_python_package.sh /install/ubuntu2004_install_python_package.sh
+RUN bash /install/ubuntu2004_install_python_package.sh
 
 # AutoTVM deps
-COPY install/ubuntu_install_redis.sh /install/ubuntu_install_redis.sh
-RUN bash /install/ubuntu_install_redis.sh
+COPY install/ubuntu2004_install_redis.sh /install/ubuntu2004_install_redis.sh
+RUN bash /install/ubuntu2004_install_redis.sh
 
 # Chisel deps for TSIM
 COPY install/ubuntu_install_sbt.sh /install/ubuntu_install_sbt.sh

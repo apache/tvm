@@ -99,7 +99,7 @@ class PoolInfoAssigner : public StmtExprMutator {
 };
 
 WorkspacePoolInfo PoolInfoAssigner::CreateDefaultWorkspaceMemoryPool(const tvm::IRModule& module) {
-  VLOG(1) << "Creating default memory pool for:" << std::endl << PrettyPrint(module);
+  VLOG(1) << "Creating default memory pool for:" << std::endl << module;
   Map<Target, String> target_access;
   tir::PrimFunc tir_main_func =
       Downcast<tir::PrimFunc>(module->Lookup(::tvm::runtime::symbol::tvm_module_main));
@@ -134,7 +134,7 @@ Stmt PoolInfoAssigner::VisitStmt_(const AllocateNode* op) {
   Map<String, ObjectRef> annotations = Map<String, ObjectRef>(op->annotations);
   if (op->annotations.find(kPoolCandidatesAllocateAttr) == op->annotations.end()) {
     ICHECK(target_pool_infos_.count(tgt.value()->str()) > 0)
-        << "Target " << PrettyPrint(tgt) << " not found among " << PrettyPrint(target_pool_infos_);
+        << "Target " << tgt << " not found among " << target_pool_infos_;
     annotations.Set(kPoolCandidatesAllocateAttr, target_pool_infos_[tgt.value()->str()]);
   }
   Stmt body = VisitStmt(op->body);
@@ -166,8 +166,8 @@ IRModule PoolInfoAssigner::operator()() {
     if (kv.second->IsInstance<PrimFuncNode>()) {
       func_ = Downcast<PrimFunc>(kv.second);
       Stmt body = this->VisitStmt(func_->body);
-      PrimFunc new_prim_func = PrimFunc(func_->params, body, func_->ret_type, func_->buffer_map,
-                                        func_->preflattened_buffer_map, func_->attrs);
+      PrimFunc new_prim_func =
+          PrimFunc(func_->params, body, func_->ret_type, func_->buffer_map, func_->attrs);
       mod_->Update(gv, new_prim_func);
     }
   }

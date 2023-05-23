@@ -30,27 +30,27 @@ class BaseBeforeAfter(tvm.testing.CompareBeforeAfter):
 class TestRemoveStoreUndef(BaseBeforeAfter):
     """Remove a store whose value is T.undef()"""
 
-    def before(A: T.Buffer[1, "int32"]):
+    def before(A: T.Buffer(1, "int32")):
         A[0] = T.undef(dtype="int32")
 
-    def expected(A: T.Buffer[1, "int32"]):
+    def expected(A: T.Buffer(1, "int32")):
         T.evaluate(0)
 
 
 class TestRemoveStoreUndefExpression(BaseBeforeAfter):
     """Expressions containing T.undef() are removed"""
 
-    def before(A: T.Buffer[1, "int32"]):
+    def before(A: T.Buffer(1, "int32")):
         A[0] = 1 + T.undef(dtype="int32")
 
-    def expected(A: T.Buffer[1, "int32"]):
+    def expected(A: T.Buffer(1, "int32")):
         T.evaluate(0)
 
 
 class TestKeepOtherCallNodes(BaseBeforeAfter):
     """Expressions containing other CallNodes are not removed"""
 
-    def before(A: T.Buffer[1, "int32"], n: T.int32):
+    def before(A: T.Buffer(1, "int32"), n: T.int32):
         A[0] = T.shift_left(n, 1, dtype="int32")
 
     expected = before
@@ -59,18 +59,18 @@ class TestKeepOtherCallNodes(BaseBeforeAfter):
 class TestRemoveLetUndef(BaseBeforeAfter):
     """Remove a store whose value is bound to T.undef()"""
 
-    def before(A: T.Buffer[1, "int32"]):
+    def before(A: T.Buffer(1, "int32")):
         val = T.undef(dtype="int32")
         A[0] = val
 
-    def expected(A: T.Buffer[1, "int32"]):
+    def expected(A: T.Buffer(1, "int32")):
         T.evaluate(0)
 
 
 class TestRaiseErrorForUndefAsStoreIndices(BaseBeforeAfter):
     """Use of T.undef() as buffer indices is an error"""
 
-    def before(A: T.Buffer[1, "int32"]):
+    def before(A: T.Buffer(1, "int32")):
         val = T.undef(dtype="int32")
         A[val] = 5
 
@@ -84,7 +84,7 @@ class TestRaiseErrorForUndefAsLoadIndices(BaseBeforeAfter):
     T.undef() may not appear in a buffer's indices.
     """
 
-    def before(A: T.Buffer[1, "int32"], B: T.Buffer[1, "int32"]):
+    def before(A: T.Buffer(1, "int32"), B: T.Buffer(1, "int32")):
         B[0] = A[T.undef(dtype="int32")]
 
     expected = TVMError

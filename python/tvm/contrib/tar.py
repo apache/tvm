@@ -43,7 +43,7 @@ def tar(output, files):
     for fname in files:
         base = os.path.basename(fname)
         if base in fset:
-            raise ValueError("duplicate file name %s" % base)
+            raise ValueError(f"duplicate file name {base}")
         fset.add(base)
         shutil.copy(fname, temp.relpath(base))
     cmd += [output]
@@ -84,3 +84,44 @@ def untar(tar_file, directory):
         msg = "Tar error:\n"
         msg += py_str(out)
         raise RuntimeError(msg)
+
+
+def normalize_file_list_by_unpacking_tars(temp, file_list):
+    """Normalize the file list by unpacking tars in list.
+
+    When a filename is a tar, it will untar it into an unique dir
+    in temp and return the list of files in the tar.
+    When a filename is a normal file, it will be simply added to the list.
+
+    This is useful to untar objects in tar and then turn
+    them into a library.
+
+    Parameters
+    ----------
+    temp: tvm.contrib.utils.TempDirectory
+        A temp dir to hold the untared files.
+
+    file_list: List[str]
+        List of path
+
+    Returns
+    -------
+    ret_list: List[str]
+        An updated list of files
+    """
+    temp_count = 0
+    ret_list = []
+    for file_path in file_list:
+        # enable extracting a tarball
+        if file_path.endswith(".tar"):
+            temp_dir = temp.relpath(f"temp{temp_count}")
+            temp_count += 1
+            os.mkdir(temp_dir)
+            untar(file_path, temp_dir)
+            # append all files inside
+            for root, _, files in os.walk(temp_dir):
+                for file in files:
+                    ret_list.append(os.path.join(root, file))
+        else:
+            ret_list.append(file_path)
+    return ret_list

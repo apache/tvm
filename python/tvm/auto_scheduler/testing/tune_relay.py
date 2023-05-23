@@ -74,6 +74,11 @@ def _parse_args():
         required=True,
     )
     args.add_argument(
+        "--layout",
+        type=str,
+        default=None,
+    )
+    args.add_argument(
         "--cache-dir",
         type=str,
         default=None,
@@ -168,6 +173,7 @@ def main():
     mod, params, (input_name, input_shape, input_dtype) = get_network(
         ARGS.workload,
         ARGS.input_shape,
+        layout=ARGS.layout,
         cache_dir=ARGS.cache_dir,
     )
     input_info = [

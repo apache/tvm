@@ -22,6 +22,7 @@ from tvm.ir.base import save_json
 from tvm.ir.module import IRModule
 from tvm.script import tir as T
 
+
 # -----------------------------------------------------
 # Basic test for the expected Behavior of the CSE pass
 # -----------------------------------------------------
@@ -349,7 +350,7 @@ def test_no_normalization_without_commoning():
 # -------------------------------------------------
 @T.prim_func
 def func_distributivity(i1: T.int32, i2: T.int32, x: T.int32, y: T.int32, z: T.int32) -> None:
-    B = T.buffer_decl((50,), "int32")
+    B = T.Buffer((50,), "int32")
     B[i1] = x * (y + z)
     B[i2] = x * y + x * z
 
@@ -358,16 +359,15 @@ def func_distributivity(i1: T.int32, i2: T.int32, x: T.int32, y: T.int32, z: T.i
 def func_distributivity_expected(
     i1: T.int32, i2: T.int32, x: T.int32, y: T.int32, z: T.int32
 ) -> None:
-    B = T.buffer_decl((50,), "int32")
-    cse_var_1 = T.var("int32")
-    with T.let(cse_var_1, x * y + x * z):
+    B = T.Buffer((50,), "int32")
+    with T.LetStmt(x * y + x * z) as cse_var_1:
         B[i1] = cse_var_1
         B[i2] = cse_var_1
 
 
 @T.prim_func
 def func_associativity(i1: T.int32, i2: T.int32, x: T.int32, y: T.int32, z: T.int32) -> None:
-    B = T.buffer_decl((50,), "int32")
+    B = T.Buffer((50,), "int32")
     B[i1] = (x + y) + z
     B[i2] = x + (y + z)
 
@@ -376,9 +376,8 @@ def func_associativity(i1: T.int32, i2: T.int32, x: T.int32, y: T.int32, z: T.in
 def func_associativity_expected(
     i1: T.int32, i2: T.int32, x: T.int32, y: T.int32, z: T.int32
 ) -> None:
-    B = T.buffer_decl((50,), "int32")
-    cse_var_1 = T.var("int32")
-    with T.let(cse_var_1, (x + y) + z):
+    B = T.Buffer((50,), "int32")
+    with T.LetStmt((x + y) + z) as cse_var_1:
         B[i1] = cse_var_1
         B[i2] = cse_var_1
 

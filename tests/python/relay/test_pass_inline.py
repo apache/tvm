@@ -827,4 +827,4 @@ def test_callee_not_inline_leaf_inline_extern_compiler():
 
 
 if __name__ == "__main__":
-    pytest.main()
+    tvm.testing.main()

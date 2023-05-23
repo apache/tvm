@@ -95,7 +95,7 @@ def test_flatten_double_buffer():
             threadIdx_x = T.env_thread("threadIdx.x")
             T.launch_thread(threadIdx_x, 1)
             for i in T.serial(0, 100):
-                B = T.allocate([4], "float32", scope="shared")
+                B = T.decl_buffer([4], "float32", scope="shared")
                 with T.attr(B.data, "double_buffer_scope", 1):
                     for j in T.serial(0, 4):
                         B[j] = A[4 * i + j]
@@ -139,10 +139,10 @@ def test_flatten_let_buffer():
             T.func_attr({"from_legacy_te_schedule": True})
 
             # If a pointer defined using a LetStmt,
-            A_data: T.Ptr[T.int32] = T.call_extern("dummy_extern_function", dtype="handle")
+            A_data: T.handle("int32") = T.call_extern("dummy_extern_function", dtype="handle")
 
             # and a buffer is backed by that pointer,
-            A = T.buffer_decl([1], dtype="float32", data=A_data)
+            A = T.decl_buffer([1], dtype="float32", data=A_data)
             T.evaluate(A[0])
 
     # then the call to StorageFlatten would result in an exception

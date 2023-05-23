@@ -25,13 +25,17 @@ except ImportError:
     import tensorflow as tf
 from tensorflow.python.ops import control_flow_ops
 import numpy as np
-from tvm import nd
-from tvm import relay
+from tvm import nd, relay, ir, testing
 from tvm.relay.frontend.tensorflow import from_tensorflow
 
 
 def check_equal(graph, tf_out, input_map=None):
-    mod, params = from_tensorflow(graph.as_graph_def(add_shapes=True))
+    with testing.disable_span_filling():
+        mod, params = from_tensorflow(graph.as_graph_def(add_shapes=True))
+    with testing.enable_span_filling():
+        mod_with_span, _ = from_tensorflow(graph.as_graph_def(add_shapes=True))
+    assert ir.structural_equal(mod["main"], mod_with_span["main"])
+
     if input_map is not None:
         params.update(input_map)
     relay_out = relay.create_executor("vm", mod=mod).evaluate()(**params)

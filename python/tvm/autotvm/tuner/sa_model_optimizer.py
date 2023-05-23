@@ -25,8 +25,7 @@ import time
 
 import numpy as np
 
-from ..utils import sample_ints
-from .model_based_tuner import ModelOptimizer, knob2point, point2knob
+from .model_based_tuner import ModelOptimizer
 
 logger = logging.getLogger("autotvm")
 
@@ -60,10 +59,7 @@ class SimulatedAnnealingOptimizer(ModelOptimizer):
         log_interval=50,
     ):
         super(SimulatedAnnealingOptimizer, self).__init__()
-
         self.task = task
-        self.dims = [len(x) for x in self.task.config_space.space_map.values()]
-
         self.n_iter = n_iter
         self.temp = temp
         self.persistent = persistent
@@ -84,7 +80,7 @@ class SimulatedAnnealingOptimizer(ModelOptimizer):
         if self.persistent and self.points is not None:
             points = self.points
         else:
-            points = np.array(sample_ints(0, len(self.task.config_space), self.parallel_size))
+            points = self.task.config_space.sample_ints(self.parallel_size)
 
         scores = model.predict(points)
 
@@ -113,7 +109,7 @@ class SimulatedAnnealingOptimizer(ModelOptimizer):
         while k < n_iter and k < k_last_modify + early_stop:
             new_points = np.empty_like(points)
             for i, p in enumerate(points):
-                new_points[i] = random_walk(p, self.dims)
+                new_points[i] = self.task.config_space.random_walk(p)
 
             new_scores = model.predict(new_points)
 
@@ -134,7 +130,7 @@ class SimulatedAnnealingOptimizer(ModelOptimizer):
             t -= cool
 
             if log_interval and k % log_interval == 0:
-                t_str = "%.2f" % t
+                t_str = f"{t:.2f}"
                 logger.debug(
                     "SA iter: %d\tlast_update: %d\tmax-0: %.2f\tmax-1: %.2f\ttemp: %s\t"
                     "elapsed: %.2f",
@@ -157,32 +153,3 @@ class SimulatedAnnealingOptimizer(ModelOptimizer):
             self.points = points
 
         return [x[1] for x in heap_items]
-
-
-def random_walk(p, dims):
-    """random walk as local transition
-
-    Parameters
-    ----------
-    p: int
-        index of the ConfigEntity
-    dims: Array of int
-        sizes of each dimension
-
-    Returns
-    -------
-    new_p: int
-        new neighborhood index
-    """
-    # transform to knob form
-    old = point2knob(p, dims)
-    new = list(old)
-
-    # mutate
-    while new == old:
-        from_i = np.random.randint(len(old))
-        to_v = np.random.randint(dims[from_i])
-        new[from_i] = to_v
-
-    # transform to index form
-    return knob2point(new, dims)

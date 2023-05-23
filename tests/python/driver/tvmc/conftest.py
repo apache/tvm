@@ -23,6 +23,8 @@ import numpy as np
 
 from PIL import Image
 
+import tvm
+from tvm import relay
 from tvm.driver import tvmc
 
 from tvm.contrib.download import download_testdata
@@ -192,6 +194,22 @@ def tflite_compile_model(tmpdir_factory):
     return model_compiler
 
 
+@pytest.fixture
+def relay_compile_model(tmpdir_factory):
+    """Support function that returns a TFLite compiled module"""
+
+    def model_compiler(model_file, shape_dict, **overrides):
+        package_path = tmpdir_factory.mktemp("data").join("mock.tar")
+        tvmc_model = tvmc.frontends.load_model(
+            model_file, model_format="relay", shape_dict=shape_dict
+        )
+        args = {"target": "llvm", **overrides}
+        return tvmc.compiler.compile_model(tvmc_model, package_path=package_path, **args)
+
+    # Returns a TVMCPackage
+    return model_compiler
+
+
 @pytest.fixture(scope="session")
 def imagenet_cat(tmpdir_factory):
     tmpdir_name = tmpdir_factory.mktemp("data")
@@ -224,7 +242,7 @@ def tflite_mobilenet_v1_0_25_128(tmpdir_factory):
 
 @pytest.fixture(scope="session")
 def tflite_cnn_s_quantized(tmpdir_factory):
-    base_url = "https://github.com/ARM-software/ML-zoo/raw/master/models/keyword_spotting/cnn_small/tflite_int8/"
+    base_url = "https://github.com/ARM-software/ML-zoo/raw/48a22ee22325d15d2371a6df24eb7d67e21dcc97/models/keyword_spotting/cnn_small/tflite_int8"
     file_to_download = "cnn_s_quantized.tflite"
     model_file = download_testdata(
         "{}/{}".format(base_url, file_to_download), file_to_download, module=["tvmc"]
@@ -268,3 +286,17 @@ def relay_text_conv2d(tmpdir_factory):
     with open(file_path, "w") as relay_text:
         relay_text.write(RELAY_MODEL)
     return file_path
+
+
+@pytest.fixture(scope="session")
+def relay_conv2d():
+    """
+    Simple conv2d Relay implementation.
+    """
+    dtype = "float32"
+
+    x = relay.var("x", shape=(1, 4, 2, 2), dtype=dtype)
+    weight = relay.const(np.random.uniform(size=(2, 4, 2, 2)), dtype=dtype)
+    x = relay.nn.conv2d(x, weight)
+    func = relay.Function(relay.analysis.free_vars(x), x)
+    return tvm.IRModule.from_expr(func)

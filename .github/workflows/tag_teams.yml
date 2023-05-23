@@ -15,16 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# GH actions.
-# We use it to cover windows and mac builds
-# Jenkins is still the primary CI
-
 name: Teams
 
 on:
-  # See https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#pull_request_target
-  pull_request_target:
-    types: [opened, reopened, edited, ready_for_review, labeled]
   issues:
     types: [opened, edited, reopened, labeled]
 
@@ -45,4 +38,4 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -eux
-          python tests/scripts/github_tag_teams.py || echo failed
+          python ci/scripts/github/github_tag_teams.py || echo failed

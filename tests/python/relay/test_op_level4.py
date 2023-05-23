@@ -370,6 +370,41 @@ class TestReduceFunctions:
 
 
 @tvm.testing.uses_gpu
+def test_sum_with_bool_input():
+    def verify(dshape, axis, keepdims, exclude):
+        x = relay.var("x", relay.TensorType(dshape, "bool"))
+
+        y = relay.sum(x, axis, keepdims, exclude)
+
+        func = relay.Function([x], y)
+        func = run_infer_type(func)
+
+        text = func.astext()
+        assert "sum" in text
+
+        data = np.random.choice([False, True], size=dshape)
+
+        if exclude and axis is not None:
+            axis = tuple(set(range(len(dshape))) - set(axis))
+
+        ref_res = np.sum(data, axis, keepdims=keepdims, dtype="bool")
+        for target, dev in tvm.testing.enabled_targets():
+            op_res = relay.create_executor("graph", device=dev, target=target).evaluate(func)(data)
+            tvm.testing.assert_allclose(op_res.numpy(), ref_res)
+
+    verify((3, 5, 7, 9), None, False, False)
+    verify((3, 5, 7, 9), None, True, False)
+    verify((3, 5, 7, 9), (0,), False, False)
+    verify((3, 5, 7, 9), (1,), True, False)
+    verify((3, 5, 7, 9), (2, 3), False, True)
+    verify((3, 5, 7, 9), (0, 2), True, True)
+    verify((3, 5, 7, 9), (0, 1, 2, 3), False, False)
+    verify((3, 5, 7, 9), (0, 1, 2, 3), False, True)
+    verify((3, 5, 7, 9), (0, 1, 2, 3), True, False)
+    verify((3, 5, 7, 9), (0, 1, 2, 3), True, True)
+
+
+@tvm.testing.uses_gpu
 def test_argmin_argmax_get_last_elements():
     def get_test_case(shape, gt_func, test_argmin=False):
         total_ele = np.product(shape)
@@ -397,24 +432,28 @@ def test_argmin_argmax_get_last_elements():
                 assert op_res.numpy().item() == ans
 
 
-def verify_mean_var_std(executor_kind, funcs, shape, axis, keepdims):
+def verify_mean_var_std(executor_kind, funcs, shape, axis, keepdims, dtype="float32"):
     test_func = funcs[0]
     ref_func = funcs[1]
-    dtype = "float32"
 
     x = relay.var("x", relay.TensorType(shape, dtype))
     z = test_func(x, axis, keepdims)
     func = relay.Function([x], z.astuple())
-    x_data = np.random.uniform(size=shape).astype(dtype)
-    ref_mean = np.mean(x_data, axis=axis, dtype=dtype, keepdims=keepdims)
-    ref_res = ref_func(x_data, axis=axis, dtype=dtype, keepdims=keepdims)
+    x_data = np.random.uniform(size=shape).astype("float32")
+    ref_mean = np.mean(x_data, axis=axis, dtype="float32", keepdims=keepdims).astype(dtype)
+    ref_res = ref_func(x_data, axis=axis, dtype="float32", keepdims=keepdims).astype(dtype)
 
     for target, dev in tvm.testing.enabled_targets():
         op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)(
-            x_data
+            x_data.astype(dtype)
         )
-        tvm.testing.assert_allclose(op_res[0].numpy(), ref_mean, rtol=1e-5)
-        tvm.testing.assert_allclose(op_res[1].numpy(), ref_res, rtol=1e-5)
+        # FP16 is always a little less accurate.
+        if dtype == "float16":
+            rtol, atol = (1e-2, 1e-2)
+        else:
+            rtol, atol = (1e-5, 1e-5)
+        tvm.testing.assert_allclose(op_res[0].numpy(), ref_mean, rtol=rtol, atol=atol)
+        tvm.testing.assert_allclose(op_res[1].numpy(), ref_res, rtol=rtol, atol=atol)
 
 
 @tvm.testing.uses_gpu
@@ -430,6 +469,9 @@ def test_mean_var_std(executor_kind):
         verify_mean_var_std(executor_kind, func, (128, 24, 128), (0, 2), False)
         verify_mean_var_std(executor_kind, func, (128, 24, 128), (0, 1), True)
         verify_mean_var_std(executor_kind, func, (128, 24, 128), (0, 2), True)
+        # Test FP16 reduction with large indices.
+        verify_mean_var_std(executor_kind, func, (128, 24, 128), (0, 2), True, "float16")
+        verify_mean_var_std(executor_kind, func, (128, 24, 128), None, False, "float16")
 
 
 @tvm.testing.uses_gpu
@@ -512,7 +554,7 @@ def test_strided_slice():
     # Test backwards slicing.
     verify((3, 4, 3), [-1, -1, -1], [-5, -5, -5], [-1, -1, -1], (3, 4, 3))
     # Test slicing with overlarge indices.
-    verify((3, 4, 3), [0, 0, 0], [np.iinfo(np.int64).max] * 3, [1, 1, 1], (3, 4, 3))
+    verify((3, 4, 3), [0, 0, 0], [np.iinfo(np.int32).max] * 3, [1, 1, 1], (3, 4, 3))
     # Test slice mode.
     verify(
         (3, 4, 3), [1, 0, 0], [3, -1, 3], [1, 1, 1], (2, 4, 3), slice_mode="size", test_ref=False
@@ -631,7 +673,6 @@ def test_strided_set():
         func = run_infer_type(func)
         text = func.astext()
         assert "strided_set" in text
-        print(text)
         assert func.body.checked_type == relay.ty.TensorType(dshape, "float32")
         if not test_ref:
             return

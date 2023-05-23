@@ -68,7 +68,7 @@ class TensorizeInfo(Object):
 
 
 def get_tensorize_loop_mapping(
-    sch: Schedule, block: BlockRV, desc_func: PrimFunc
+    sch: Schedule, block: BlockRV, desc_func: PrimFunc, allow_padding: bool = False
 ) -> Optional[TensorizeInfo]:
     """Establish a mapping between loops in a target block and an intrinsic description
 
@@ -80,13 +80,14 @@ def get_tensorize_loop_mapping(
         The target block to match against
     desc_func : PrimFunc
         The prim func describing the computation to be tensorized
-
+    allow_padding : bool
+        Whether to allow padding the block iters to match the intrinsic description
     Returns
     -------
     tensorize_info : Optional[TensorizeInfo]
         TensorizeInfo structure if a valid mapping is found, None otherwise
     """
-    return _ffi_api.GetTensorizeLoopMapping(sch, block, desc_func)  # type: ignore
+    return _ffi_api.GetTensorizeLoopMapping(sch, block, desc_func, allow_padding)  # type: ignore
 
 
 @tvm._ffi.register_object("tir.schedule.AutoTensorizeMappingInfo")
@@ -121,3 +122,40 @@ def get_auto_tensorize_mapping_info(
     intrinsics.
     """
     return _ffi_api.GetAutoTensorizeMappingInfo(sch, block, desc_func)  # type: ignore
+
+
+def has_block(sch: Schedule, block_name: str) -> bool:
+    """Query if the given block name exists in the module associated with the provided schedule.
+
+    Parameters
+    ----------
+    sch : Schedule
+        The schedule
+    block_name : str
+        The name of the block to query
+
+    Returns
+    -------
+    yes/no: bool
+        True if the given block exists in the schedule.
+    """
+    return _ffi_api.HasBlock(sch, block_name)  # type: ignore
+
+
+def is_output_block(sch: Schedule, block: BlockRV) -> bool:
+    """Check whether the given block is an output block
+
+    Parameters
+    ----------
+    sch : Schedule
+        The schedule object of the block
+    block : BlockRV
+        The blockRV to be checked
+
+    Returns
+    -------
+    yes/no : bool
+        True if the given block is an output block
+
+    """
+    return _ffi_api.IsOutputBlock(sch, block)  # type: ignore

@@ -104,18 +104,40 @@ class Pattern {
    *       and nest by reference for PVars.
    */
   using Nested = Derived;
+
   /*!
    * \brief Check if value matches the current pattern.
    *
    * This call also populates the PVars with matched value.
    * The values in PVars are valid until the next call to Match.
    *
+   * \param value The value to be matched against
+   *
    * \return whether value matches the pattern.
    */
   template <typename NodeType>
-  bool Match(const NodeType& value) const {
+  inline bool Match(const NodeType& value) const {
+    return Match(value, []() { return true; });
+  }
+
+  /*!
+   * \brief Check if value matches the current pattern.
+   *
+   * This call also populates the PVars with matched value.
+   * The values in PVars are valid until the next call to Match.
+   *
+   * \param value The value to be matched against
+   *
+   * \param cond A callable that performs additional validation,
+   * returning true if the match passes.  This will typically be a
+   * lambda function written in terms of the filled PVars.
+   *
+   * \return whether value matches the pattern.
+   */
+  template <typename NodeType, typename Condition>
+  bool Match(const NodeType& value, Condition cond) const {
     derived().InitMatch_();
-    return derived().Match_(value);
+    return derived().Match_(value) && cond();
   }
   /*! \return Derived instance of current class. */
   const Derived& derived() const { return *static_cast<const Derived*>(this); }
@@ -330,8 +352,7 @@ class PBinaryExpr : public Pattern<PBinaryExpr<OpType, TA, TB>> {
   PrimExpr Eval() const {
     PrimExpr lhs = a_.Eval();
     PrimExpr rhs = b_.Eval();
-    PrimExpr ret = TryConstFold<OpType>(lhs, rhs);
-    if (ret.defined()) return ret;
+    if (auto ret = TryConstFold<OpType>(lhs, rhs)) return ret.value();
     return OpType(lhs, rhs);
   }
 
@@ -814,6 +835,85 @@ inline PCallExpr<PIfThenElseOp, TCond, TA, TB> if_then_else(const Pattern<TCond>
                                                  false_value.derived());
 }
 
+template <typename... TPattern>
+class PMatchesOneOf {
+ public:
+  explicit PMatchesOneOf(const TPattern&... patterns) : patterns_{patterns...} {}
+
+  /*! \brief Check if value matches one of the patterns.
+   *
+   * This call also populates the PVars with matched value based on
+   * the first successful match.  The values in PVars are valid until
+   * the next call to Match.
+   *
+   * \param value The value to be matched against.
+   *
+   * \return Whether value matches the pattern.
+   */
+  template <typename NodeType>
+  inline bool Match(const NodeType& value) const {
+    return Match(value, []() { return true; });
+  }
+
+  /*! \brief Check if value matches one of the patterns.
+   *
+   * This call also populates the PVars with matched value based on
+   * the first successful match.  The values in PVars are valid until
+   * the next call to Match.
+   *
+   * \param value The value to be matched against.
+   *
+   * \param cond A callable that performs additional validation,
+   * returning true if the match passes.  This will typically be a
+   * lambda function written in terms of the filled PVars.  This will
+   * be called once for each successful pattern match.  If `cond()`
+   * returns false, the next match will be attempted.
+   *
+   * \return Whether value matches the pattern.
+   */
+  template <typename NodeType, typename Condition>
+  inline bool Match(const NodeType& value, Condition cond) const {
+    return MatchImpl(value, cond, std::make_index_sequence<sizeof...(TPattern)>());
+  }
+
+ private:
+  template <typename NodeType, typename Condition>
+  inline bool MatchImpl(const NodeType& value, Condition cond, std::index_sequence<>) const {
+    return false;
+  }
+
+  template <typename NodeType, typename Condition, size_t FirstIndex, size_t... RemainingIndices>
+  inline bool MatchImpl(const NodeType& value, Condition cond,
+                        std::index_sequence<FirstIndex, RemainingIndices...>) const {
+    return std::get<FirstIndex>(patterns_).Match(value, cond) ||
+           MatchImpl(value, cond, std::index_sequence<RemainingIndices...>());
+  }
+
+  // Hold the patterns by const&.  This follows the same usage as both
+  // the `PVar`, which occurs as `const PVar<T>&` when it appears
+  // inside other patterns.  Because the `PVar<T>::value_` field is
+  // mutable, it can still be updated through these const references.
+  // So long as the call to `Match()` occurs within the same
+  // expression as created the patterns, this avoids accidental copies
+  // without creating dangling references.  This may be improved in
+  // the future by use of `constexpr` constructors/operators, allowing
+  // more typical value semantics.
+  std::tuple<const TPattern&...> patterns_;
+};
+
+/* \brief Return a proxy object that returns true after the first match
+ *
+ * In the RewriteSimplifier, there are often several expressions that
+ * simplify to the same resulting expression.  This utility allows
+ * them to be specified as a single rule, reducing duplication of the
+ * result/condition of a rewrite.
+ */
+template <typename... TPattern>
+inline std::enable_if_t<(std::is_base_of_v<Pattern<TPattern>, TPattern> && ... && true),
+                        PMatchesOneOf<TPattern...>>
+matches_one_of(const TPattern&... patterns) {
+  return PMatchesOneOf<TPattern...>(patterns...);
+}
 }  // namespace arith
 }  // namespace tvm
 #endif  // TVM_ARITH_PATTERN_MATCH_H_

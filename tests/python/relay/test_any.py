@@ -446,6 +446,15 @@ def test_any_layout_transform():
     verify_any_layout_transform((16, 1), "CH", "C4cH", (16, 1), (4, 4, 1))
 
 
+def test_bilayout_with_any():
+    bilayout = tvm.tir.bijective_layout("NCHW", "NHWC")
+    assert isinstance(bilayout, tvm.tir.BijectiveLayout)
+    dst_shape = bilayout.forward_shape((relay.Any(), 32, 7, relay.Any()))
+    assert dst_shape[3] == 32
+    src_shape = bilayout.backward_shape(dst_shape)
+    assert src_shape[1] == 32
+
+
 def verify_any_expand_dims(data_shape, axis, num_newaxis, static_data_shape, ref_out_shape):
     mod = tvm.IRModule()
     dtype = "float32"
@@ -492,6 +501,18 @@ def verify_any_squeeze(data_shape, axis, static_data_shape):
     check_result([data_np], mod, ref_out)
 
 
+def verify_any_squeeze_sqrt(data_shape, axis, static_data_shape):
+    mod = tvm.IRModule()
+    dtype = "float32"
+    data = relay.var("data", shape=data_shape, dtype=dtype)
+    y = relay.squeeze(data, axis=axis)
+    y = relay.sqrt(y)
+    mod["main"] = relay.Function([data], y)
+    data_np = np.random.uniform(size=static_data_shape).astype(dtype)
+    ref_out = np.sqrt(np.squeeze(data_np, axis))
+    check_result([data_np], mod, ref_out)
+
+
 @tvm.testing.uses_gpu
 def test_any_squeeze():
     verify_any_squeeze((relay.Any(), relay.Any(), relay.Any()), (0,), (1, 9, 8))
@@ -499,6 +520,8 @@ def test_any_squeeze():
     verify_any_squeeze(
         (1, relay.Any(), relay.Any(), 1, relay.Any(), relay.Any()), (0, 3), (1, 12, 2, 1, 9, 17)
     )
+    verify_any_squeeze_sqrt((1, relay.Any(), 12, 32, 1), (-1,), (1, 100, 12, 32, 1))
+    verify_any_squeeze_sqrt((relay.Any(), relay.Any(), relay.Any(), 1), (-1,), (1, 9, 8, 1))
 
 
 @tvm.testing.uses_gpu
@@ -525,6 +548,8 @@ def verify_any_conv2d(
     data_layout="NCHW",
     kernel_layout="OIHW",
     use_cudnn=False,
+    targets=None,
+    disable_targets=None,
 ):
     mod = tvm.IRModule()
     dtype = "float32"
@@ -544,11 +569,17 @@ def verify_any_conv2d(
     data_np = np.random.uniform(size=static_data_shape).astype(dtype)
     kernel_np = np.random.uniform(size=kernel_shape).astype(dtype)
 
-    targets = None
     if use_cudnn and tvm.get_global_func("tvm.contrib.cudnn.conv2d.forward", True):
         targets = [("cuda -libs=cudnn", tvm.cuda(0))]
 
-    check_result([data_np, kernel_np], mod, ref_out_shape, assert_shape=True, targets=targets)
+    check_result(
+        [data_np, kernel_np],
+        mod,
+        ref_out_shape,
+        assert_shape=True,
+        targets=targets,
+        disable_targets=disable_targets,
+    )
 
 
 # TODO(@kevinthesun): Support dynamic input height and width.
@@ -603,6 +634,26 @@ def test_any_conv2d():
         (2, 222, 222, 64),
         data_layout="NHWC",
         kernel_layout="HWIO",
+    )
+    verify_any_conv2d(
+        (relay.Any(), 64, relay.Any(), relay.Any()),
+        (64, 64, 3, 3),
+        (1, 1),
+        (1, 1),
+        (1, 1),
+        (1, 64, 224, 224),
+        (1, 64, 224, 224),
+        targets=[("llvm", tvm.cpu(0))],
+    )
+    verify_any_conv2d(
+        (relay.Any(), 64, relay.Any(), relay.Any()),
+        (64, 64, 1, 1),
+        (1, 1),
+        (0, 0),
+        (1, 1),
+        (1, 64, 224, 224),
+        (1, 64, 224, 224),
+        targets=[("llvm", tvm.cpu(0))],
     )
 
 
@@ -2095,6 +2146,29 @@ def test_scatter_nd():
     updates = np.array([2, 3, 0])
     out = np.array([[0, 0], [2, 3]])
     verify_scatter_nd(data, indices, updates, out)
+
+
+@tvm.testing.uses_gpu
+def test_scatter_nd_any_updates():
+    def verify_scatter_nd_any_updates(data_np, indices_np, updates_np, ref_res):
+        indices_shape = (2, relay.Any())
+        updates_shape = (2, relay.Any())
+        data = relay.var("data", shape=data_np.shape, dtype=str(data_np.dtype))
+        indices = relay.var("indices", relay.TensorType(indices_shape, str(indices_np.dtype)))
+        updates = relay.var("updates", relay.TensorType(updates_shape, str(updates_np.dtype)))
+
+        out = relay.op.scatter_nd(data, indices, updates, "add")
+
+        mod = tvm.IRModule()
+        mod["main"] = relay.Function([data, indices, updates], out)
+
+        check_result([data_np, indices_np, updates_np], mod, [ref_res], only_vm=True)
+
+    data = np.zeros((3, 3)).astype("int64")
+    indices = np.array([[1, 1], [0, 1]])
+    updates = np.array([[2, 2], [1, 1]])
+    out = np.array([[0, 0, 0], [0, 0, 0], [2, 2, 1]])
+    verify_scatter_nd_any_updates(data, indices, updates, out)
 
 
 @tvm.testing.uses_gpu

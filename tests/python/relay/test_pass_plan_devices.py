@@ -113,7 +113,7 @@ def test_plain():
 
     # Everything defaults to GPU
     def input():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%a: Tensor[(5, 7), float32], %b: Tensor[(5, 7), float32],
@@ -129,7 +129,7 @@ def test_plain():
         )
 
     def expected():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%a {virtual_device=meta[VirtualDevice][1]}: Tensor[(5, 7), float32], %b {virtual_device=meta[VirtualDevice][1]}: Tensor[(5, 7), float32],
@@ -156,7 +156,7 @@ def test_left_add_on_cpu():
 
     # Force some args to be on CPU, rest default to GPU.
     def input():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%a: Tensor[(5, 7), float32], %b: Tensor[(5, 7), float32],
@@ -173,7 +173,7 @@ def test_left_add_on_cpu():
         )
 
     def expected():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%a {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32], %b {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32],
@@ -202,7 +202,7 @@ def test_left_add_on_cpu_via_copy():
 
     # As for test_left_add_on_cpu, but with an explicit device_copy.
     def input():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%a: Tensor[(5, 7), float32], %b: Tensor[(5, 7), float32],
@@ -219,7 +219,7 @@ def test_left_add_on_cpu_via_copy():
         )
 
     def expected():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%a {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32], %b {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32],
@@ -248,7 +248,7 @@ def test_left_add_on_cpu_via_copy_as_map():
 
     # As for test_left_add_on_cpu, but with an explicit device_copy.
     def input():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%a: Tensor[(5, 7), float32], %b: Tensor[(5, 7), float32],
@@ -272,7 +272,7 @@ def test_left_add_on_cpu_via_copy_as_map():
     # Same expected result as for test_left_add_on_cpu, but we'll include indexes to help
     # the test make sense.
     def expected():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%a {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32], // index 0
@@ -323,7 +323,7 @@ def test_both_adds_on_cpu():
     metatable = {"VirtualDevice": [CPU, GPU]}
 
     def input():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%a: Tensor[(5, 7), float32], %b: Tensor[(5, 7), float32],
@@ -341,7 +341,7 @@ def test_both_adds_on_cpu():
         )
 
     def expected():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%a {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32], %b {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32],
@@ -372,7 +372,7 @@ def test_sharing():
 
     # The same add sub-expression is annotated twice.
     def input():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%a: Tensor[(5, 7), float32], %b: Tensor[(5, 7), float32]) {
@@ -388,7 +388,7 @@ def test_sharing():
         )
 
     def expected():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%a {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32], %b {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32],
@@ -418,7 +418,7 @@ def test_let_on_cpu():
 
     # The device for a let-bound expression can flow from uses of the let-bound var.
     def input():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%a: Tensor[(5, 7), float32], %b: Tensor[(5, 7), float32],
@@ -435,7 +435,7 @@ def test_let_on_cpu():
         )
 
     def expected():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%a {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32], %b {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32],
@@ -464,7 +464,7 @@ def test_func_param_on_cpu():
 
     # Devices for function parameters flow to call sites.
     def input():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%a: Tensor[(5, 7), float32], %b: Tensor[(5, 7), float32],
@@ -484,7 +484,7 @@ def test_func_param_on_cpu():
         )
 
     def expected():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%a {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32], %b {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32],
@@ -515,7 +515,7 @@ def test_func_result_on_cpu():
 
     # Devices for call sites flow to function results.
     def input():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%a: Tensor[(5, 7), float32], %b: Tensor[(5, 7), float32],
@@ -535,7 +535,7 @@ def test_func_result_on_cpu():
         )
 
     def expected():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%a {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32], %b {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32],
@@ -568,7 +568,7 @@ def test_higher_order():
 
     # The constraint on %a flows back to %y via %f and %h
     def input():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%x: Tensor[(5, 7), float32], %y: Tensor[(5, 7), float32]) {
@@ -593,7 +593,7 @@ def test_higher_order():
         )
 
     def expected():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%x {virtual_device=meta[VirtualDevice][1]}: Tensor[(5, 7), float32], %y {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32],
@@ -635,7 +635,7 @@ def test_function_in_tuple():
 
     # Since %f ends up in a tuple its argument and result is forced to be on the CPU
     def input():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%x: Tensor[(5, 7), float32], %y: Tensor[(5, 7), float32]) {
@@ -655,7 +655,7 @@ def test_function_in_tuple():
         )
 
     def expected():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%x {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32], %y {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32],
@@ -686,7 +686,7 @@ def test_device_copy():
     metatable = {"VirtualDevice": [CPU, GPU], "relay.Constant": [relay.const(const)]}
 
     def input():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%x: Tensor[(5, 7), float32]) {
@@ -700,7 +700,7 @@ def test_device_copy():
         )
 
     def expected():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%x {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32],
@@ -727,7 +727,7 @@ def test_shape_of():
     # result defaults to the result device for @main which is the CPU, thus forcing a copy.
     # TODO(mbs): Perhaps the defaulting heuristics are being too clever?
     def input():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%x: Tensor[(?, ?), float32]) {
@@ -741,7 +741,7 @@ def test_shape_of():
         )
 
     def expected():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%x {virtual_device=meta[VirtualDevice][1]}: Tensor[(?, ?), float32],
@@ -764,7 +764,7 @@ def test_alloc_storage():
     metatable = {"VirtualDevice": [HOST, GPU]}
 
     def input():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%size: int64, %alignment: int64) {
@@ -777,7 +777,7 @@ def test_alloc_storage():
         )
 
     def expected():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%size {virtual_device=meta[VirtualDevice][0]}: int64, %alignment {virtual_device=meta[VirtualDevice][0]}: int64,
@@ -802,7 +802,7 @@ def test_alloc_tensor():
     }
 
     def input():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%sto: Storage[]) {
@@ -816,7 +816,7 @@ def test_alloc_tensor():
         )
 
     def expected():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%sto {virtual_device=meta[VirtualDevice][1]}: Storage[], virtual_device=meta[VirtualDevice][1]) {
@@ -842,7 +842,7 @@ def test_reshape_tensor():
     }
 
     def input():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%x: Tensor[(2, 8), float32]) {
@@ -855,7 +855,7 @@ def test_reshape_tensor():
         )
 
     def expected():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%x {virtual_device=meta[VirtualDevice][1]}: Tensor[(2, 8), float32],
@@ -880,7 +880,7 @@ def test_dynamic_input():
 
     # There's nothing special about inferring devices for partially unknown types.
     def input():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%x0: Tensor[(?, ?), float32], %x1: Tensor[(?, ?), float32]) {
@@ -893,7 +893,7 @@ def test_dynamic_input():
         )
 
     def expected():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%x0 {virtual_device=meta[VirtualDevice][0]}: Tensor[(?, ?), float32], %x1 {virtual_device=meta[VirtualDevice][0]}: Tensor[(?, ?), float32],
@@ -916,7 +916,7 @@ def test_redundant_annotation():
     metatable = {"VirtualDevice": [CPU, GPU]}
 
     def input():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%x: Tensor[(5, 7), float32], %y: Tensor[(5, 7), float32], %z: Tensor[(5, 7), float32]) {
@@ -933,7 +933,7 @@ def test_redundant_annotation():
         )
 
     def expected():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%x {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32], %y {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32], %z {virtual_device=meta[VirtualDevice][1]}: Tensor[(5, 7), float32],
@@ -963,7 +963,7 @@ def test_annotate_expr():
     metatable = {"VirtualDevice": [CPU, GPU]}
 
     def input():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%x: Tensor[(5, 7), float32], %y: Tensor[(5, 7), float32], %z: Tensor[(5, 7), float32]) {
@@ -979,7 +979,7 @@ def test_annotate_expr():
         )
 
     def expected():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%x {virtual_device=meta[VirtualDevice][1]}: Tensor[(5, 7), float32], %y {virtual_device=meta[VirtualDevice][1]}: Tensor[(5, 7), float32], %z {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32],
@@ -1005,7 +1005,7 @@ def test_annotate_all():
     metatable = {"VirtualDevice": [CPU, GPU]}
 
     def input():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%x: Tensor[(5, 7), float32], %y: Tensor[(5, 7), float32], %z: Tensor[(5, 7), float32]) {
@@ -1021,7 +1021,7 @@ def test_annotate_all():
         )
 
     def expected():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%x {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32], %y {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32], %z {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32],
@@ -1057,7 +1057,7 @@ def test_conv_network():
     metatable = {"VirtualDevice": [CPU, GPU]}
 
     def input():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%data1: Tensor[(1, 64, 56, 56), float32], %data2: Tensor[(1, 64, 56, 56), float32],
@@ -1078,7 +1078,7 @@ def test_conv_network():
         )
 
     def expected():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%data1 {virtual_device=meta[VirtualDevice][0]}: Tensor[(1, 64, 56, 56), float32], %data2 {virtual_device=meta[VirtualDevice][0]}: Tensor[(1, 64, 56, 56), float32],
@@ -1111,7 +1111,7 @@ def test_tuple_get_item():
     # Note that the device copy should be placed after projection rather than before. This is handled by
     # a heuristic in the pass.
     def input():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%x: Tensor[(3, 3, 4), float32]) {
@@ -1130,7 +1130,7 @@ def test_tuple_get_item():
         )
 
     def expected():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%x {virtual_device=meta[VirtualDevice][0]}: Tensor[(3, 3, 4), float32],
@@ -1175,7 +1175,7 @@ def test_propogation():
     metatable = {"VirtualDevice": [CPU, GPU]}
 
     def input():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%x: Tensor[(5, 7), float32]) {
@@ -1198,7 +1198,7 @@ def test_propogation():
         )
 
     def expected():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%x {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32],
@@ -1247,7 +1247,7 @@ def test_fusible_network():
     metatable = {"VirtualDevice": [CPU, GPU]}
 
     def input():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%x: Tensor[(5, 7), float32], %y: Tensor[(5, 7), float32]) {
@@ -1268,7 +1268,7 @@ def test_fusible_network():
         )
 
     def expected():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%x {virtual_device=meta[VirtualDevice][1]}: Tensor[(5, 7), float32], %y {virtual_device=meta[VirtualDevice][1]}: Tensor[(5, 7), float32],
@@ -1315,7 +1315,7 @@ def test_unpropagatable_graph():
     metatable = {"VirtualDevice": [CPU, GPU]}
 
     def input():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%a: Tensor[(5, 7), float32], %b: Tensor[(5, 7), float32],
@@ -1334,7 +1334,7 @@ def test_unpropagatable_graph():
         )
 
     def expected():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%a {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32], %b {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32],
@@ -1363,7 +1363,7 @@ def test_conditional():
 
     # The conditional is over a function type, thus exercising the first-order/higher-order domain handling.
     def input():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%x: bool, %y: Tensor[(5, 7), float32], %z: Tensor[(5, 7), float32]) {
@@ -1388,7 +1388,7 @@ def test_conditional():
         )
 
     def expected():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%x {virtual_device=meta[VirtualDevice][0]}: bool, %y {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32], %z {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32],
@@ -1429,7 +1429,7 @@ def test_global():
     metatable = {"VirtualDevice": [CPU, GPU]}
 
     def input():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @f(%a: Tensor[(5, 7), float32], %b: Tensor[(5, 7), float32]) -> Tensor[(5, 7), float32] {
@@ -1447,7 +1447,7 @@ def test_global():
         )
 
     def expected():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @f(%a {virtual_device=meta[VirtualDevice][1]}: Tensor[(5, 7), float32], %b {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32],
@@ -1479,7 +1479,7 @@ def test_ref():
     metatable = {"VirtualDevice": [CPU, GPU]}
 
     def input():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%x: Tensor[(5, 7), float32], %y: Tensor[(5, 7), float32]) {
@@ -1496,7 +1496,7 @@ def test_ref():
         )
 
     def expected():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%x {virtual_device=meta[VirtualDevice][1]}: Tensor[(5, 7), float32], %y {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32],
@@ -1526,7 +1526,7 @@ def test_adt():
     metatable = {"VirtualDevice": [CPU, GPU]}
 
     def input():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             type List[A] {
@@ -1549,7 +1549,7 @@ def test_adt():
         )
 
     def expected():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             type List[A] {
@@ -1592,7 +1592,7 @@ def test_free_on_device():
 
     # Everything defaults to GPU
     def input():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @on_scope_b(%x {virtual_device=meta[VirtualDevice][2]}: Tensor[(5, 7), float32],
@@ -1618,7 +1618,7 @@ def test_free_on_device():
         )
 
     def expected():
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @on_scope_b(%x {virtual_device=meta[VirtualDevice][2]}: Tensor[(5, 7), float32],
@@ -1702,7 +1702,7 @@ def test_lowered():
         # - %y on CPU "scopeB", so will flow in to second param of gem.
         # - %z on CPU "scopeA", so will clash with third param of gem and will need device_copy.
         # - result on CPU "scopeB", but result of gem on "scopeA" so will need device_copy
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%x {virtual_device=meta[VirtualDevice][0]}: Tensor[(128, 128), float32],
@@ -1724,7 +1724,7 @@ def test_lowered():
         # - %y still on CPU "scopeB", no device_copy needed.
         # - %z still on CPU "scopeA", needs device_copy to "scopeB".
         # - result still on CPU "scopeB", needs device_copy  from "scopeA".
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%x {virtual_device=meta[VirtualDevice][1]}: Tensor[(128, 128), float32],
@@ -1767,7 +1767,7 @@ def test_stack_overflow():
         mod += "\n\t" + "add(%" + str(end - 1) + ", %" + str(end - 2) + ")"
         mod += "\n\t}"
 
-        return tvm.parser.parse(
+        return tvm.relay.parse(
             mod,
             "from_string",
             None,
@@ -1792,7 +1792,7 @@ def test_primitive():
         ]
     }
 
-    mod = tvm.parser.parse(
+    mod = tvm.relay.parse(
         """
         #[version = "0.0.5"]
         def @main(%data1: Tensor[(1, 32, 40, 40), float32],
@@ -1804,13 +1804,13 @@ def test_primitive():
           %3 = %0(%data2);
           %5 = fn (%a {virtual_device=meta[VirtualDevice][0]},  // global
                    %b {virtual_device=meta[VirtualDevice][0]},  // global
-                   virtual_device=meta[VirtualDevice][1],       // texture 
+                   virtual_device=meta[VirtualDevice][1],       // texture
                    Primitive=1) {
             add(%a, %b)
           };
           %6 = %5(%1, %3);
-          %10 = fn (%a, 
-                    virtual_device=meta[VirtualDevice][0],      // global 
+          %10 = fn (%a,
+                    virtual_device=meta[VirtualDevice][0],      // global
                     Primitive=1) {
             layout_transform(%a, src_layout="NCHW4c", dst_layout="NCHW")
           };

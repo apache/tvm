@@ -553,7 +553,6 @@ class TCPSocket : public Socket {
       if (ret == -1) {
         if (LastErrorWouldBlock()) {
           LOG(FATAL) << "would block";
-          return ndone;
         }
         Socket::Error("RecvAll");
       }

@@ -204,7 +204,6 @@ class QueueData {
   DLTensor* CreateCopyFrom(const DLTensor* from) {
     if (!from) {
       LOG(FATAL) << "the 'from' pointer is a null pointer!";
-      return nullptr;
     }
     size_t fromLen = tvm::runtime::GetDataSize(*from);
     size_t toLen = data_ ? tvm::runtime::GetDataSize(*data_) : 0;
@@ -892,7 +891,6 @@ class BackendRuntime : public BasicRuntime {
   bool LoadBindingData(int input_index) {
     if (input_queue_.find(input_index) == input_queue_.end()) {
       LOG(FATAL) << "Not finding the associated input queue of the input " << input_index << " !";
-      return false;
     }
     auto queue = input_queue_[input_index];
     QueueData data;
@@ -913,7 +911,6 @@ class BackendRuntime : public BasicRuntime {
       auto output_idx = child.first;
       if (forward_queue_.find(output_idx) == forward_queue_.end()) {
         LOG(FATAL) << "Not find the forwarding queue map for output(" << output_idx << ")!";
-        return false;
       }
       NDArray output = GetOutput(output_idx);
       auto forward_queue_map = forward_queue_[output_idx];

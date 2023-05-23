@@ -38,7 +38,6 @@
 #include <string>
 
 #include "../../src/runtime/meta_data.h"
-#include "../../src/runtime/vulkan/vulkan_shader.h"
 #include "../../src/runtime/workspace_pool.h"
 
 namespace tvm {
@@ -105,27 +104,17 @@ class WebGPUDeviceAPI : public DeviceAPI {
   }
 
  public:
-  TVMStreamHandle CreateStream(Device dev) final {
-    LOG(FATAL) << "Not implemented";
-    return nullptr;
-  }
+  TVMStreamHandle CreateStream(Device dev) final { LOG(FATAL) << "Not implemented"; }
 
-  void FreeStream(Device dev, TVMStreamHandle stream) final {
-    LOG(FATAL) << "Not implemented";
-    return;
-  }
+  void FreeStream(Device dev, TVMStreamHandle stream) final { LOG(FATAL) << "Not implemented"; }
 
   void SyncStreamFromTo(Device dev, TVMStreamHandle event_src, TVMStreamHandle event_dst) {
     LOG(FATAL) << "Not implemented";
-    return;
   }
 
   void StreamSync(Device dev, TVMStreamHandle stream) final { LOG(FATAL) << "Not implemented"; }
 
-  void SetStream(Device dev, TVMStreamHandle stream) final {
-    LOG(FATAL) << "Not implemented";
-    return;
-  }
+  void SetStream(Device dev, TVMStreamHandle stream) final { LOG(FATAL) << "Not implemented"; }
 
   void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final {
     return WebGPUThreadEntry::ThreadLocal()->pool.AllocWorkspace(dev, size);
@@ -160,9 +149,9 @@ WebGPUThreadEntry* WebGPUThreadEntry::ThreadLocal() { return WebGPUThreadStore::
 
 class WebGPUModuleNode final : public runtime::ModuleNode {
  public:
-  explicit WebGPUModuleNode(std::unordered_map<std::string, VulkanShader> smap,
-                            std::unordered_map<std::string, FunctionInfo> fmap, std::string source)
-      : smap_(smap), fmap_(fmap), source_(source) {
+  explicit WebGPUModuleNode(std::unordered_map<std::string, std::string> smap,
+                            std::unordered_map<std::string, FunctionInfo> fmap)
+      : smap_(smap), fmap_(fmap) {
     auto* fp = tvm::runtime::Registry::Get("wasm.WebGPUCreateShader");
     CHECK(fp != nullptr);
     create_shader_ = *fp;
@@ -178,10 +167,7 @@ class WebGPUModuleNode final : public runtime::ModuleNode {
       std::ostringstream os;
       dmlc::JSONWriter writer(&os);
       info.Save(&writer);
-      TVMByteArray arr;
-      arr.data = reinterpret_cast<char*>(it->second.data.data());
-      arr.size = it->second.data.size() * sizeof(it->second.data[0]);
-      return create_shader_(os.str(), arr);
+      return create_shader_(os.str(), it->second);
     } else {
       return PackedFunc(nullptr);
     }
@@ -200,29 +186,27 @@ class WebGPUModuleNode final : public runtime::ModuleNode {
 
  private:
   // function information table.
-  std::unordered_map<std::string, VulkanShader> smap_;
+  std::unordered_map<std::string, std::string> smap_;
   // function information table.
   std::unordered_map<std::string, FunctionInfo> fmap_;
   // The source
   std::string source_;
   // Callback to get the GPU function.
-  TypedPackedFunc<PackedFunc(std::string finfo, TVMByteArray shader_data)> create_shader_;
+  TypedPackedFunc<PackedFunc(std::string finfo, std::string shader)> create_shader_;
 };
 
 Module WebGPUModuleLoadBinary(void* strm) {
   dmlc::Stream* stream = static_cast<dmlc::Stream*>(strm);
-  std::unordered_map<std::string, VulkanShader> smap;
+  std::unordered_map<std::string, std::string> smap;
   std::unordered_map<std::string, FunctionInfo> fmap;
 
-  std::string fmt;
-  stream->Read(&fmt);
   stream->Read(&fmap);
   stream->Read(&smap);
-  return Module(make_object<WebGPUModuleNode>(smap, fmap, ""));
+  return Module(make_object<WebGPUModuleNode>(smap, fmap));
 }
 
 // for now webgpu is hosted via a vulkan module.
-TVM_REGISTER_GLOBAL("runtime.module.loadbinary_vulkan").set_body_typed(WebGPUModuleLoadBinary);
+TVM_REGISTER_GLOBAL("runtime.module.loadbinary_webgpu").set_body_typed(WebGPUModuleLoadBinary);
 
 TVM_REGISTER_GLOBAL("device_api.webgpu").set_body([](TVMArgs args, TVMRetValue* rv) {
   DeviceAPI* ptr = WebGPUDeviceAPI::Global();

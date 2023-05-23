@@ -60,7 +60,7 @@ subprocess.Popen(
 ./tvm_rpc_android server --port=<RPC_SERVER_PORT> --tracker=<RPC_TRACKER_HOST>:<RPC_TRACKER_PORT> --key=<HEXAGON_REMOTE_DEVICE_KEY>&
 ```
 
-When we do `launcher.start_session()` , a remote RPC session between x86 and android is established via this line:
+When we do `launcher.create_session()` , a remote RPC session between x86 and android is established via this line:
 
 [https://github.com/apache/tvm/blob/0c0245ae2230fa07d3e4b8be490fc9c88965730c/python/tvm/contrib/hexagon/session.py#L57-L67](https://github.com/apache/tvm/blob/0c0245ae2230fa07d3e4b8be490fc9c88965730c/python/tvm/contrib/hexagon/session.py#L57-L67)
 

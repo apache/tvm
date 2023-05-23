@@ -68,8 +68,8 @@ class CastCanonicalizer : public ExprMutator {
   Expr VisitExpr_(const CallNode* call) {
     static auto fpattern = Op::GetAttrMap<TOpPattern>("TOpPattern");
 
-    if (const OpNode* opnode = call->op.as<OpNode>()) {
-      auto pattern = fpattern[GetRef<Op>(opnode)];
+    if (auto call_op = call->op.as<Op>()) {
+      auto pattern = fpattern[call_op.value()];
       if (pattern <= kBroadcast) {
         Array<Expr> call_args = call->args;
         bool unchanged = true;

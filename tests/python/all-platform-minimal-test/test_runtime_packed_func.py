@@ -153,6 +153,18 @@ def test_ndarray_args():
     assert tvm.testing.object_use_count(x) == 1
 
 
+def test_dict_function_value_type():
+    from tvm import tir  # pylint: disable=import-outside-toplevel
+
+    te_func_dict = {"add": lambda a, b: a + b}
+
+    converted_dict = tvm.runtime.convert(te_func_dict)
+    f = converted_dict["add"]
+    a = tir.Var("a", "float32")
+    b = tir.Var("b", "float32")
+    tvm.ir.assert_structural_equal(f(a, b), tir.Add(a, b))
+
+
 if __name__ == "__main__":
     test_ndarray_args()
     test_numpy_scalar()
@@ -164,3 +176,4 @@ if __name__ == "__main__":
     test_return_func()
     test_byte_array()
     test_device()
+    test_dict_function_value_type()

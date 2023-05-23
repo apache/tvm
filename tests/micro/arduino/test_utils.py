@@ -61,13 +61,13 @@ def make_workspace_dir(test_name, board):
     return t
 
 
-def make_kws_project(board, arduino_cli_cmd, microtvm_debug, workspace_dir):
+def make_kws_project(board, microtvm_debug, workspace_dir, serial_number: str):
     this_dir = pathlib.Path(__file__).parent
     model = ARDUINO_BOARDS[board]
     build_config = {"debug": microtvm_debug}
 
     mod, params = fetch_model_from_url(
-        url="https://github.com/tensorflow/tflite-micro/raw/main/tensorflow/lite/micro/examples/micro_speech/micro_speech.tflite",
+        url="https://github.com/tensorflow/tflite-micro/raw/a56087ffa2703b4d5632f024a8a4c899815c31bb/tensorflow/lite/micro/examples/micro_speech/micro_speech.tflite",
         model_format="tflite",
         sha256="09e5e2a9dfb2d8ed78802bf18ce297bff54281a66ca18e0c23d69ca14f822a83",
     )
@@ -84,9 +84,9 @@ def make_kws_project(board, arduino_cli_cmd, microtvm_debug, workspace_dir):
         mod,
         workspace_dir / "project",
         {
-            "arduino_board": board,
-            "arduino_cli_cmd": arduino_cli_cmd,
+            "board": board,
             "project_type": "example_project",
             "verbose": bool(build_config.get("debug")),
+            "serial_number": serial_number,
         },
     )

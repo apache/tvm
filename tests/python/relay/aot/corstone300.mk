@@ -41,8 +41,9 @@ DMLC_CORE=${TVM_ROOT}/3rdparty/dmlc-core
 ETHOSU_PATH=/opt/arm/ethosu
 DRIVER_PATH=${ETHOSU_PATH}/core_driver
 CMSIS_PATH=${ETHOSU_PATH}/cmsis
-PLATFORM_PATH=${ETHOSU_PATH}/core_platform/targets/corstone-300
-PKG_COMPILE_OPTS = -g -Wall -O2 -Wno-incompatible-pointer-types -Wno-format -mcpu=${MCPU}${MCPU_FLAGS} -mthumb -mfloat-abi=${MFLOAT_ABI} -std=gnu99
+ETHOSU_PLATFORM_PATH=/opt/arm/ethosu/core_platform
+CORSTONE_300_PATH = ${ETHOSU_PLATFORM_PATH}/targets/corstone-300
+PKG_COMPILE_OPTS = -Wall -Ofast -Wno-incompatible-pointer-types -Wno-format -Werror-implicit-function-declaration -mcpu=${MCPU}${MCPU_FLAGS} -mthumb -mfloat-abi=${MFLOAT_ABI} -std=gnu99
 CMAKE = /opt/arm/cmake/bin/cmake
 CC = arm-none-eabi-gcc
 AR = arm-none-eabi-ar
@@ -53,18 +54,18 @@ PKG_CFLAGS = ${PKG_COMPILE_OPTS} \
 	-I$(build_dir)/../include \
 	-I${TVM_ROOT}/src/runtime/contrib/ethosu/bare_metal \
 	-I$(CODEGEN_ROOT)/host/include \
-	-I${PLATFORM_PATH} \
+	-I${ETHOSU_PLATFORM_PATH}/drivers/uart/include \
 	-I${DRIVER_PATH}/include \
 	-I${CMSIS_PATH}/Device/ARM/${ARM_CPU}/Include/ \
 	-I${CMSIS_PATH}/CMSIS/Core/Include \
-	-I${CMSIS_PATH}/CMSIS/NN/Include \
+	-I${CMSIS_PATH}/CMSIS-NN/Include \
 	-I${CMSIS_PATH}/CMSIS/DSP/Include \
 	-isystem$(STANDALONE_CRT_DIR)/include
-DRIVER_CMAKE_FLAGS = -DCMAKE_TOOLCHAIN_FILE=$(ETHOSU_TEST_ROOT)/arm-none-eabi-gcc.cmake \
-	-DETHOSU_LOG_SEVERITY=debug \
-	-DCMAKE_SYSTEM_PROCESSOR=cortex-m55
+CMAKE_FLAGS = -DCMAKE_TOOLCHAIN_FILE=${TVM_ROOT}/tests/python/contrib/test_ethosu/reference_system/arm-none-eabi-gcc.cmake \
+	-DCMAKE_SYSTEM_PROCESSOR=${MCPU}
 
-PKG_LDFLAGS = -lm -specs=nosys.specs -static -T ${AOT_TEST_ROOT}/corstone300.ld
+# -fdata-sections together with --gc-section may lead to smaller statically-linked executables
+PKG_LDFLAGS = -lm -specs=nosys.specs -static -Wl,--gc-sections -T ${AOT_TEST_ROOT}/corstone300.ld
 
 $(ifeq VERBOSE,1)
 QUIET ?=
@@ -78,11 +79,12 @@ CC_CODEGEN_SRCS = $(shell find $(abspath $(CODEGEN_ROOT)/host/src/*.cc))
 C_CODEGEN_OBJS = $(subst .c,.o,$(C_CODEGEN_SRCS))
 CC_CODEGEN_OBJS = $(subst .cc,.o,$(CC_CODEGEN_SRCS))
 CMSIS_STARTUP_SRCS = $(shell find ${CMSIS_PATH}/Device/ARM/${ARM_CPU}/Source/*.c)
-CMSIS_NN_SRCS = $(shell find ${CMSIS_PATH}/CMSIS/NN/Source/*/*.c)
-UART_SRCS = $(shell find ${PLATFORM_PATH}/*.c)
+CMSIS_NN_SRCS = $(shell find ${CMSIS_PATH}/CMSIS-NN/Source/*/*.c)
+CORSTONE_300_SRCS = $(shell find ${CORSTONE_300_PATH}/*.c)
 
 ifdef ETHOSU_TEST_ROOT
-ETHOSU_DRIVER_LIBS = $(wildcard ${DRIVER_PATH}/build/*.a)
+NPU=$(shell echo "${NPU_VARIANT}" | tr '[:upper:]' '[:lower:]')
+ETHOSU_DRIVER_LIBS = ${DRIVER_PATH}/build_${NPU}/*.a
 ETHOSU_RUNTIME=$(build_dir)/tvm_ethosu_runtime.o
 ETHOSU_INCLUDE=-I$(ETHOSU_TEST_ROOT)
 endif
@@ -96,6 +98,22 @@ $(build_dir)/stack_allocator.o: $(TVM_ROOT)/src/runtime/crt/memory/stack_allocat
 $(build_dir)/crt_backend_api.o: $(TVM_ROOT)/src/runtime/crt/common/crt_backend_api.c
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)$(CC) -c $(PKG_CFLAGS) -o $@  $^
+
+ifeq ($(DEBUG_LAST_ERROR), 1)
+$(build_dir)/crt_runtime_api.o: $(TVM_ROOT)/src/runtime/crt/common/crt_runtime_api.c
+	$(QUIET)mkdir -p $(@D)
+	$(QUIET)$(CC) -c $(PKG_CFLAGS) -o $@  $^
+
+$(build_dir)/func_registry.o: $(TVM_ROOT)/src/runtime/crt/common/func_registry.c
+	$(QUIET)mkdir -p $(@D)
+	$(QUIET)$(CC) -c $(PKG_CFLAGS) -o $@  $^
+
+$(build_dir)/ndarray.o: $(TVM_ROOT)/src/runtime/crt/common/ndarray.c
+	$(QUIET)mkdir -p $(@D)
+	$(QUIET)$(CC) -c $(PKG_CFLAGS) -o $@  $^
+
+DEBUG_LAST_ERROR_SOURCES = $(build_dir)/crt_runtime_api.o $(build_dir)/func_registry.o $(build_dir)/ndarray.o
+endif
 
 $(build_dir)/tvm_ethosu_runtime.o: $(TVM_ROOT)/src/runtime/contrib/ethosu/bare_metal/tvm_ethosu_runtime.c
 	$(QUIET)mkdir -p $(@D)
@@ -112,19 +130,26 @@ ${build_dir}/libcmsis_startup.a: $(CMSIS_STARTUP_SRCS)
 	$(QUIET)$(AR) -cr $(abspath $(build_dir)/libcmsis_startup.a) $(abspath $(build_dir))/libcmsis_startup/*.o
 	$(QUIET)$(RANLIB) $(abspath $(build_dir)/libcmsis_startup.a)
 
+# -fdata-sections together with --gc-section may lead to smaller statically-linked executables
 ${build_dir}/libcmsis_nn.a: $(CMSIS_NN_SRCS)
 	$(QUIET)mkdir -p $(abspath $(build_dir)/libcmsis_nn)
-	$(QUIET)cd $(abspath $(build_dir)/libcmsis_nn) && $(CC) -c $(PKG_CFLAGS) -D${ARM_CPU} $^
+	$(QUIET)cd $(abspath $(build_dir)/libcmsis_nn) && $(CC) -c $(PKG_CFLAGS) -ffunction-sections -fdata-sections -D${ARM_CPU} $^
 	$(QUIET)$(AR) -cr $(abspath $(build_dir)/libcmsis_nn.a) $(abspath $(build_dir))/libcmsis_nn/*.o
 	$(QUIET)$(RANLIB) $(abspath $(build_dir)/libcmsis_nn.a)
 
-${build_dir}/libuart.a: $(UART_SRCS)
-	$(QUIET)mkdir -p $(abspath $(build_dir)/libuart)
-	$(QUIET)cd $(abspath $(build_dir)/libuart) && $(CC) -c $(PKG_CFLAGS) $^
-	$(QUIET)$(AR) -cr $(abspath $(build_dir)/libuart.a) $(abspath $(build_dir))/libuart/*.o
-	$(QUIET)$(RANLIB) $(abspath $(build_dir)/libuart.a)
+${build_dir}/libcorstone.a: $(CORSTONE_300_SRCS)
+	$(QUIET)mkdir -p $(abspath $(build_dir)/libcorstone)
+	$(QUIET)cd $(abspath $(build_dir)/libcorstone) && $(CC) -c $(PKG_CFLAGS) $^
+	$(QUIET)$(AR) -cr $(abspath $(build_dir)/libcorstone.a) $(abspath $(build_dir))/libcorstone/*.o
+	$(QUIET)$(RANLIB) $(abspath $(build_dir)/libcorstone.a)
 
-$(build_dir)/aot_test_runner: $(build_dir)/test.c $(build_dir)/crt_backend_api.o $(build_dir)/stack_allocator.o $(build_dir)/libcodegen.a ${build_dir}/libcmsis_startup.a ${build_dir}/libcmsis_nn.a ${build_dir}/libuart.a $(ETHOSU_DRIVER_LIBS) $(ETHOSU_RUNTIME)
+# Build UART driver
+${build_dir}/ethosu_core_platform/libethosu_uart_cmsdk_apb.a:
+	$(QUIET)mkdir -p $(@D)
+	$(QUIET)cd ${ETHOSU_PLATFORM_PATH}/drivers/uart && $(CMAKE) -B $(abspath $(build_dir)/ethosu_core_platform) $(CMAKE_FLAGS)
+	$(QUIET)cd $(abspath $(build_dir)/ethosu_core_platform) && $(MAKE)
+
+$(build_dir)/aot_test_runner: $(build_dir)/test.c $(build_dir)/crt_backend_api.o $(build_dir)/stack_allocator.o $(build_dir)/libcodegen.a ${build_dir}/libcmsis_startup.a ${build_dir}/libcmsis_nn.a ${build_dir}/libcorstone.a ${build_dir}/ethosu_core_platform/libethosu_uart_cmsdk_apb.a $(ETHOSU_DRIVER_LIBS) $(ETHOSU_RUNTIME) $(DEBUG_LAST_ERROR_SOURCES)
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)$(CC) $(PKG_CFLAGS) $(ETHOSU_INCLUDE) -o $@ -Wl,--whole-archive $^ -Wl,--no-whole-archive $(PKG_LDFLAGS)
 

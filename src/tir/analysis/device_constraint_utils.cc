@@ -210,8 +210,6 @@ class ApplyDeviceConstraintsMutator : public StmtExprMutator {
 
     // Start with a copy of the current prim_func buffer map.
     Map<Var, Buffer> new_buffer_map(prim_func->buffer_map.begin(), prim_func->buffer_map.end());
-    Map<Var, Buffer> new_preflattened_buffer_map(prim_func->preflattened_buffer_map.begin(),
-                                                 prim_func->preflattened_buffer_map.end());
     bool any_change = false;
 
     // For each constrained parameter...
@@ -225,23 +223,6 @@ class ApplyDeviceConstraintsMutator : public StmtExprMutator {
         any_change = true;
       }
       new_buffer_map.Set(param, new_buffer);
-
-      // Rewrite the pre-flattened buffers to account for constraint.
-      // This only has an impact if the IRModule being analyzed has
-      // already been run through the StorageFlatten or FlattenBuffer
-      // passes.
-      if (auto opt = prim_func->preflattened_buffer_map.Get(param)) {
-        Buffer pf_buffer = opt.value();
-        if (pf_buffer.same_as(buffer)) {
-          new_preflattened_buffer_map.Set(param, new_buffer);
-        } else {
-          const Buffer new_buffer = RewriteBuffer(pf_buffer, virtual_device);
-          if (!new_buffer.same_as(pf_buffer)) {
-            any_change = true;
-          }
-          new_preflattened_buffer_map.Set(param, new_buffer);
-        }
-      }
     }
     // Make sure we have accounted for all prim_func parameters.
     CheckNoRemainingPointerParams(prim_func, &current_primfunc_param_index);
@@ -259,8 +240,7 @@ class ApplyDeviceConstraintsMutator : public StmtExprMutator {
 
     if (any_change) {
       return PrimFunc(prim_func->params, std::move(new_body), prim_func->ret_type,
-                      std::move(new_buffer_map), std::move(new_preflattened_buffer_map),
-                      prim_func->attrs, prim_func->span);
+                      std::move(new_buffer_map), prim_func->attrs, prim_func->span);
     } else {
       return prim_func;
     }
@@ -268,15 +248,6 @@ class ApplyDeviceConstraintsMutator : public StmtExprMutator {
 
  private:
   PrimExpr VisitExpr_(const VarNode* var_node) final { return Subst(var_node); }
-
-  PrimExpr VisitExpr_(const LoadNode* load_node) final {
-    Load new_load = Downcast<Load>(StmtExprMutator::VisitExpr_(load_node));
-    Var new_buffer_var = Subst(new_load->buffer_var.get());
-    if (!new_buffer_var.same_as(new_load->buffer_var)) {
-      return Load(load_node->dtype, new_buffer_var, load_node->index, load_node->predicate);
-    }
-    return std::move(new_load);
-  }
 
   PrimExpr VisitExpr_(const BufferLoadNode* buffer_load_node) final {
     BufferLoad new_buffer_load =
@@ -314,15 +285,6 @@ class ApplyDeviceConstraintsMutator : public StmtExprMutator {
   Stmt VisitStmt_(const AllocateNode* allocate_node) final {
     // TODO(mbs): What memory scope should we assign to the new pointer?
     return StmtExprMutator::VisitStmt_(allocate_node);
-  }
-
-  Stmt VisitStmt_(const StoreNode* store_node) final {
-    Store new_store = Downcast<Store>(StmtExprMutator::VisitStmt_(store_node));
-    Var new_buffer_var = Subst(new_store->buffer_var.get());
-    if (!new_buffer_var.same_as(new_store->buffer_var)) {
-      Store(new_buffer_var, new_store->value, new_store->index, new_store->predicate);
-    }
-    return std::move(new_store);
   }
 
   Stmt VisitStmt_(const BufferStoreNode* buffer_store_node) final {
@@ -393,9 +355,8 @@ class ApplyDeviceConstraintsMutator : public StmtExprMutator {
   }
 
   template <typename T>
-  Array<T> VisitItems(Array<T> items) {
-    items.MutateByApply([this](const T& item) { return VisitItem(item.get()); });  // copy-on-write
-    return items;
+  Array<T> VisitItems(const Array<T>& items) {
+    return items.Map([this](T item) -> T { return VisitItem(item.get()); });
   }
 
   Stmt VisitStmt_(const BlockNode* block_node) final {

@@ -14,13 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import numpy as np
+import pytest
 import tvm
+import tvm.testing
 from tvm import te
 from tvm.contrib.nvcc import have_fp16
-
-import numpy as np
-import tvm.testing
-import pytest
 
 
 @tvm.testing.requires_cuda
@@ -320,7 +319,7 @@ def test_lower_warp_memory_same_thread():
     fdevice = tvm.tir.transform.SplitHostDevice()(mod)["f_kernel0"]
     mod = tvm.IRModule.from_expr(fdevice)
     fdevice = tvm.tir.transform.LowerWarpMemory()(mod)["f_kernel0"]
-    assert "tvm_warp_shuffle" not in fdevice.astext()
+    assert "tvm_warp_shuffle" not in fdevice.script()
 
 
 @tvm.testing.requires_cuda
@@ -349,4 +348,4 @@ def test_lower_warp_memory_divide_by_factor():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

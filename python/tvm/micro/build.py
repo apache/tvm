@@ -20,9 +20,10 @@
 import json
 import logging
 import os
-import pathlib
 import contextlib
 import enum
+from pathlib import Path
+import shutil
 
 from typing import Union
 from .._ffi import libinfo
@@ -95,9 +96,6 @@ def get_microtvm_template_projects(platform: str) -> str:
     if platform not in MicroTVMTemplateProject.list():
         raise ValueError(f"platform {platform} is not supported.")
 
-    if platform == MicroTVMTemplateProject.CRT.value:
-        return os.path.join(get_standalone_crt_dir(), "template", "host")
-
     microtvm_template_projects = None
     for path in libinfo.find_lib_path():
         template_path = os.path.join(os.path.dirname(path), "microtvm_template_projects")
@@ -110,32 +108,71 @@ def get_microtvm_template_projects(platform: str) -> str:
     return os.path.join(microtvm_template_projects, platform)
 
 
+def copy_crt_config_header(platform: str, output_path: Path):
+    """Copy crt_config header file for a platform to destinatin.
+
+    Parameters
+    ----------
+    platform : str
+        Platform type which should be defined in MicroTVMTemplateProject.
+
+    output_path: Path
+        Output path for crt_config header file.
+    """
+    crt_config_path = Path(get_microtvm_template_projects(platform)) / "crt_config" / "crt_config.h"
+    shutil.copy(crt_config_path, output_path)
+
+
 class AutoTvmModuleLoader:
     """MicroTVM AutoTVM Module Loader
 
     Parameters
     ----------
-    template_project_dir : Union[pathlib.Path, str]
+    template_project_dir : Union[os.PathLike, str]
         project template path
 
     project_options : dict
         project generation option
+
+    project_dir: str
+        if use_existing is False: The path to save the generated microTVM Project.
+        if use_existing is True: The path to a generated microTVM Project for debugging.
+
+    use_existing: bool
+        skips the project generation and opens transport to the project at the project_dir address.
     """
 
     def __init__(
-        self, template_project_dir: Union[pathlib.Path, str], project_options: dict = None
+        self,
+        template_project_dir: Union[os.PathLike, str],
+        project_options: dict = None,
+        project_dir: Union[os.PathLike, str] = None,
+        use_existing: bool = False,
     ):
         self._project_options = project_options
+        self._use_existing = use_existing
 
-        if isinstance(template_project_dir, (pathlib.Path, str)):
+        if isinstance(template_project_dir, (os.PathLike, str)):
             self._template_project_dir = str(template_project_dir)
         elif not isinstance(template_project_dir, str):
             raise TypeError(f"Incorrect type {type(template_project_dir)}.")
+
+        if isinstance(project_dir, (os.PathLike, str)):
+            self._project_dir = str(project_dir)
+        else:
+            self._project_dir = None
 
     @contextlib.contextmanager
     def __call__(self, remote_kw, build_result):
         with open(build_result.filename, "rb") as build_file:
             build_result_bin = build_file.read()
+
+        # In case we are tuning on multiple physical boards (with Meta-schedule), the tracker
+        # device_key is the serial_number of the board that wil be used in generating micro session.
+        # For CRT projects, and in cases that the serial number is not provided
+        # (including tuning with AutoTVM), the serial number field doesn't change.
+        if "board" in self._project_options and "$local$device" not in remote_kw["device_key"]:
+            self._project_options["serial_number"] = remote_kw["device_key"]
 
         tracker = _rpc.connect_tracker(remote_kw["host"], remote_kw["port"])
         remote = tracker.request(
@@ -147,6 +184,8 @@ class AutoTvmModuleLoader:
                 build_result_bin,
                 self._template_project_dir,
                 json.dumps(self._project_options),
+                self._project_dir,
+                self._use_existing,
             ],
         )
         system_lib = remote.get_function("runtime.SystemLib")()

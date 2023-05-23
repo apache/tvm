@@ -155,7 +155,7 @@ def schedule_conv2d_hwcn(cfg, outs):
             B = operator.output(0)
             schedule(Apad, W, B)
         else:
-            raise RuntimeError("Unsupported operator: %s" % operator.tag)
+            raise RuntimeError(f"Unsupported operator: {operator.tag}")
 
         scheduled_ops.append(operator)
 

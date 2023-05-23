@@ -14,6 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
+import pytest
 import tvm
 from tvm import te
 
@@ -150,7 +152,7 @@ def test_stmt_constructor():
 
     buffer_var = tvm.tir.Var("buf", tvm.ir.PointerType(tvm.ir.PrimType("uint1")))
     buffer = tvm.tir.decl_buffer([16], "uint1", data=buffer_var)
-    x = tvm.tir.BufferStore(buffer, 1, [10])
+    x = tvm.tir.BufferStore(buffer, tvm.tir.IntImm("bool", 1), [10])
     assert isinstance(x, tvm.tir.BufferStore)
     assert x.buffer == buffer
     assert x.buffer.data == buffer_var
@@ -189,6 +191,10 @@ def test_stmt_constructor():
     assert isinstance(x, tvm.tir.Prefetch)
 
 
+def test_float_constructor_requires_float_dtype():
+    with pytest.raises(tvm.TVMError):
+        tvm.tir.FloatImm("int32", 1.0)
+
+
 if __name__ == "__main__":
-    test_expr_constructor()
-    test_stmt_constructor()
+    tvm.testing.main()

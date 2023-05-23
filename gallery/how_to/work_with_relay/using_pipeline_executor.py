@@ -29,12 +29,7 @@ from tvm.relay.op.contrib.cutlass import partition_for_cutlass
 from tvm import relay
 from tvm.relay import testing
 import tvm.testing
-from tvm.contrib.cutlass import (
-    has_cutlass,
-    num_cutlass_partitions,
-    finalize_modules,
-    finalize_modules_vm,
-)
+from tvm.contrib.cutlass import finalize_modules
 
 img_size = 8
 #######################################################################
@@ -50,7 +45,6 @@ def get_network():
         "dweight", relay.TensorType((batch_size, 16 * img_size * img_size), "float16")
     )
     weight = relay.var("weight")
-    second_weight = relay.var("second_weight")
     bn_gamma = relay.var("bn_gamma")
     bn_beta = relay.var("bn_beta")
     bn_mmean = relay.var("bn_mean")
@@ -107,11 +101,6 @@ subgraphs = graph_split(net["main"], split_config, params)
 
 """
 
-# sphinx_gallery_start_ignore
-from tvm import testing
-
-testing.utils.install_request_hook(depth=3)
-# sphinx_gallery_end_ignore
 
 #########################################
 # Build the subgraph with cutlass target.
@@ -188,11 +177,6 @@ print(pipe_config)
   |mod0.output(0)-> mod1.data_n_0
 """
 
-# sphinx_gallery_start_ignore
-from tvm import testing
-
-# testing.utils.install_request_hook(depth=3)
-# sphinx_gallery_end_ignore
 ##############################
 # Build the pipeline executor.
 # ----------------------------

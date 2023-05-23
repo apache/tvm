@@ -399,7 +399,7 @@ def @main(%f: float32) -> float32 {
   @id(%f)
 }
 """
-    mod = tvm.parser.fromtext(code)
+    mod = tvm.relay.fromtext(code)
     mod = transform.InferType()(mod)
     tvm.ir.assert_structural_equal(mod["main"].body.type_args, [relay.TensorType((), "float32")])
 
@@ -416,6 +416,14 @@ def test_dynamic_function():
     mod["main"] = relay.Function([y], c)
     mod = transform.InferType()(mod)
     assert mod["main"].params[0].checked_type == s_tt
+
+    data = relay.var(
+        "data", shape=(relay.Any(), relay.Any(), relay.Any(), relay.Any()), dtype="float32"
+    )
+    weigth = relay.const(np.full((16, 16, 3, 3), 0.25), dtype="float32")
+    x = relay.nn.conv2d(data, weigth, kernel_size=(3, 3), channels=16, groups=2)
+    mod = tvm.IRModule.from_expr(x)
+    mod = transform.InferType()(mod)
 
 
 def test_custom_op_infer():
@@ -583,6 +591,4 @@ def test_argreduce_infer_return_type():
 
 
 if __name__ == "__main__":
-    import sys
-
-    pytest.main(sys.argv)
+    tvm.testing.main()

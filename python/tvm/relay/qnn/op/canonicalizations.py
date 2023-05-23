@@ -23,10 +23,25 @@ from tvm import relay
 
 
 def run_const_expr(expr: "relay.Expr") -> np.ndarray:
-    """Evaluate a const expression, receiving result as np array."""
-    mod = tvm.IRModule.from_expr(expr)
-    vm_exe = relay.create_executor("vm", mod=mod)
-    return vm_exe.evaluate()().asnumpy()
+    """Evaluate a const expression, receiving result as np array.
+
+    If a number of passes are disabled in the current Pass Context, then there is no need to disable
+    these passes for const expression evaluation as well. That's why we use empty list
+    "disabled_pass=[]", all other arguments are inherited from the current Pass Context.
+    """
+    curr_pass_ctx = tvm.ir.transform.PassContext.current()
+    with tvm.ir.transform.PassContext(
+        opt_level=curr_pass_ctx.opt_level,
+        required_pass=curr_pass_ctx.required_pass,
+        disabled_pass=[],
+        instruments=curr_pass_ctx.instruments,
+        config=curr_pass_ctx.config,
+    ):
+        mod = tvm.IRModule.from_expr(expr)
+        vm_exe = relay.create_executor("vm", mod=mod)
+        output = vm_exe.evaluate()().asnumpy()
+
+    return output
 
 
 def create_integer_lookup_table(

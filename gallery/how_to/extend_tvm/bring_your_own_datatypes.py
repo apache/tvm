@@ -47,16 +47,11 @@ Since we do not use any 3rdparty library, there is no setup needed.
 
 If you would like to try this with your own datatype library, first bring the library's functions into the process space with ``CDLL``:
 
-.. code-block :: python
+.. code-block:: python
 
     ctypes.CDLL('my-datatype-lib.so', ctypes.RTLD_GLOBAL)
 """
 
-# sphinx_gallery_start_ignore
-from tvm import testing
-
-testing.utils.install_request_hook(depth=3)
-# sphinx_gallery_end_ignore
 
 ######################
 # A Simple TVM Program

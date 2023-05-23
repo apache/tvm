@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ir/transform.h>
+
 #include <cmath>
 #include <fstream>
 #include <map>
@@ -26,6 +28,7 @@
 #include "../../../../runtime/file_utils.h"
 #include "../../../../target/source/codegen_c.h"
 #include "../../../../target/source/codegen_c_host.h"
+#include "compiler_attrs.h"
 
 namespace tvm {
 using namespace tir;
@@ -35,10 +38,12 @@ namespace cmsisnn {
 
 class CodeGenCMSISNN : public codegen::CodeGenCHost {
  public:
-  void Init(bool output_ssa, bool emit_asserts, std::string target_str) {
+  void Init(bool output_ssa, bool emit_asserts, bool emit_fwd_func_decl, std::string target_str,
+            bool debug_last_error) {
+    this->debug_last_error = debug_last_error;
     std::unordered_set<std::string> devices;
     devices.insert("cmsis-nn");
-    CodeGenCHost::Init(output_ssa, emit_asserts, target_str, devices);
+    CodeGenCHost::Init(output_ssa, emit_asserts, emit_fwd_func_decl, target_str, devices);
   }
 
   /*!
@@ -49,6 +54,9 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
   void AddFunction(const PrimFunc& prim_func) { CodeGenC::AddFunction(prim_func); }
 
  private:
+  /*!  * \brief Enable storing the last error */
+  bool debug_last_error;
+
   /*!  * \brief CMSIS-NN context buffer info */
   struct CMSISNNContextBuffer {
     std::string name;
@@ -108,14 +116,20 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
     }
     std::string cmsis_func_name = op->args[0].as<StringImmNode>()->value;
     if (cmsis_func_name == "arm_softmax_s8" || cmsis_func_name == "arm_elementwise_mul_s8" ||
-        cmsis_func_name == "arm_elementwise_add_s8") {
+        cmsis_func_name == "arm_elementwise_add_s8" ||
+        cmsis_func_name == "arm_elementwise_mul_s16" ||
+        cmsis_func_name == "arm_elementwise_add_s16") {
       CodeGenC::VisitExpr_(op, os);
     } else if (cmsis_func_name == "arm_convolve_wrapper_s8" ||
-               cmsis_func_name == "arm_depthwise_conv_wrapper_s8") {
+               cmsis_func_name == "arm_convolve_wrapper_s16" ||
+               cmsis_func_name == "arm_depthwise_conv_wrapper_s8" ||
+               cmsis_func_name == "arm_depthwise_conv_wrapper_s16") {
       EmitConv2D(op);
-    } else if (cmsis_func_name == "arm_fully_connected_s8") {
+    } else if (cmsis_func_name == "arm_fully_connected_s8" ||
+               cmsis_func_name == "arm_fully_connected_s16") {
       EmitFullyConnected(op);
-    } else if (cmsis_func_name == "arm_avgpool_s8" || cmsis_func_name == "arm_max_pool_s8") {
+    } else if (cmsis_func_name == "arm_avgpool_s8" || cmsis_func_name == "arm_avgpool_s16" ||
+               cmsis_func_name == "arm_max_pool_s8" || cmsis_func_name == "arm_max_pool_s16") {
       EmitPool2D(op);
     }
     return;
@@ -351,13 +365,7 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
     stream << "&" << filter_dim << ", " << filter_data << ", ";
     stream << "&" << bias_dim << ", " << bias_data << ", ";
     stream << "&" << output_dim << ", " << output_data << ");\n";
-    PrintIndent();
-    stream << "if (status != ARM_CMSIS_NN_SUCCESS) {\n";
-    PrintIndent();
-    PrintIndent();
-    stream << "return -1;\n";
-    PrintIndent();
-    stream << "}\n";
+    EmitErrorCheck();
   }
 
   /*!  * \brief Emits CMSIS-NN APIs for every call_extern comprising fully connected */
@@ -420,13 +428,7 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
     stream << "&" << filter_dim << ", " << filter_data << ", ";
     stream << "&" << bias_dim << ", " << bias_data << ", ";
     stream << "&" << output_dim << ", " << output_data << ");\n";
-    PrintIndent();
-    stream << "if (status != ARM_CMSIS_NN_SUCCESS) {\n";
-    PrintIndent();
-    PrintIndent();
-    stream << "return -1;\n";
-    PrintIndent();
-    stream << "}\n";
+    EmitErrorCheck();
   }
 
   /*!  * \brief Emits CMSIS-NN APIs for every call_extern comprising pooling ops */
@@ -474,23 +476,51 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
     stream << "&" << input_dim << ", " << input_data << ", ";
     stream << "&" << filter_dim << ", ";
     stream << "&" << output_dim << ", " << output_data << ");\n";
+    EmitErrorCheck();
+  }
+
+  void EmitErrorCheck() {
+    auto emit_error = [&](std::string error) {
+      if (this->debug_last_error) {
+        stream << "TVMAPISetLastError(\"" << error << "\"); ";
+      }
+    };
+
     PrintIndent();
-    stream << "if (status != ARM_CMSIS_NN_SUCCESS) {\n";
+    stream << "switch (!status) {\n";
     PrintIndent();
+    stream << "case ARM_CMSIS_NN_SUCCESS: break;\n";
     PrintIndent();
+    stream << "case ARM_CMSIS_NN_ARG_ERROR: ";
+    emit_error("ARM_CMSIS_NN_ARG_ERROR");
+    stream << "return -1;\n";
+    PrintIndent();
+    stream << "case ARM_CMSIS_NN_NO_IMPL_ERROR: ";
+    emit_error("ARM_CMSIS_NN_NO_IMPL_ERROR");
     stream << "return -1;\n";
     PrintIndent();
     stream << "}\n";
   }
 };
 
+static CMSISNNCompilerConfig GetCompilerAttrs() {
+  auto ctx = tvm::tir::transform::PassContext::Current();
+  Optional<CMSISNNCompilerConfig> cfg =
+      ctx->GetConfig<CMSISNNCompilerConfig>("relay.ext.cmsisnn.options");
+  if (!cfg.defined()) {
+    return AttrsWithDefaultValues<CMSISNNCompilerConfig>();
+  }
+  return cfg.value();
+}
+
 runtime::Module TIRToRuntime(IRModule mod, Target target) {
   bool output_ssa = false;
   bool emit_asserts = false;
+  bool emit_fwd_func_decl = false;
+  bool debug_last_error = GetCompilerAttrs()->debug_last_error;
   CodeGenCMSISNN codegen;
   Array<String> function_names;
-  codegen.Init(output_ssa, emit_asserts, target->str());
-
+  codegen.Init(output_ssa, emit_asserts, emit_fwd_func_decl, target->str(), debug_last_error);
   std::vector<std::pair<tvm::GlobalVar, tvm::BaseFunc>> funcs;
   for (auto kv : mod->functions) {
     funcs.push_back(kv);

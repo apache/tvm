@@ -70,7 +70,6 @@ REQUIREMENTS_BY_PIECE: RequirementsByPieceType = [
                 "numpy",
                 "psutil",
                 "scipy",
-                "synr",
                 "tornado",
             ],
         ),
@@ -247,12 +246,13 @@ CONSTRAINTS = [
         "docutils",
         "<0.17",
     ),  # Work around https://github.com/readthedocs/sphinx_rtd_theme/issues/1115
-    ("ethos-u-vela", "==3.2.0"),
+    ("ethos-u-vela", "==3.7.0"),
     ("future", None),
     ("h5py", "==2.10.0"),
     ("image", None),
     ("matplotlib", None),
-    ("numpy", None),
+    # Workaround, see https://github.com/apache/tvm/issues/13647
+    ("numpy", "<=1.23"),
     ("onnx", None),
     ("onnxoptimizer", None),
     ("onnxruntime", None),
@@ -270,14 +270,13 @@ CONSTRAINTS = [
     ("sphinx_autodoc_annotation", None),
     ("sphinx_gallery", None),
     ("sphinx_rtd_theme", None),
-    ("synr", "==0.6.0"),
     ("tensorflow", None),
     ("tensorflow-estimator", None),
     ("tflite", None),
     ("torch", None),
     ("torchvision", None),
     ("tornado", None),
-    ("xgboost", ">=1.1.0,<1.6.0"),  # From PR #4953 & Issue #12009
+    ("xgboost", ">=1.1.0"),  # From PR #4953 & Issue #12009
 ]
 
 ################################################################################

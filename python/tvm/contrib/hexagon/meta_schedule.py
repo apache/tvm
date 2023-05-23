@@ -17,7 +17,14 @@
 """Meta schedule tuning utilities for Hexagon."""
 import os
 import tempfile
-from typing import Callable, List, Optional
+from typing import Callable, Dict, List, Optional
+import tvm
+
+from tvm.ir.module import IRModule
+from tvm.runtime import Module, NDArray
+from tvm.target import Target
+from tvm.driver import build as tvm_build
+from tvm.tir.transform import RemoveWeightLayoutRewriteBlock
 from tvm.contrib.popen_pool import PopenPoolExecutor
 from tvm.meta_schedule.utils import cpu_count, derived_object
 from tvm.meta_schedule.builder import LocalBuilder
@@ -100,7 +107,7 @@ class HexagonRPCRunner(PyRunner):
 
 
 def _worker_func(hexagon_launcher, evaluator_config, alloc_repeat, artifact_path, args_info):
-    with hexagon_launcher.start_session() as session:
+    with hexagon_launcher.create_session() as session:
         device = session.device
         _, remote_path = os.path.split(artifact_path)
         uploaded = session.upload(artifact_path, remote_path)
@@ -121,18 +128,41 @@ def _worker_func(hexagon_launcher, evaluator_config, alloc_repeat, artifact_path
     return costs
 
 
-def get_hexagon_local_builder():
+def get_hexagon_local_builder(
+    pass_context: tvm.transform.PassContext = None,
+    max_workers: Optional[int] = None,
+    timeout_sec: float = 30.0,
+):
     """Return Hexagon-compatible Builder for meta schedule."""
 
     def export_func(mod):
         binary_path = export_module(mod, tempfile.mkdtemp())
         return str(binary_path)
 
-    return LocalBuilder(f_export=export_func)
+    def default_build_with_context(
+        mod: IRModule, target: Target, _params: Optional[Dict[str, NDArray]]
+    ) -> Module:
+        with pass_context:
+            mod = RemoveWeightLayoutRewriteBlock(skip_ndarray_rewrite=True)(mod)
+            return tvm_build(mod, target=target)
+
+    if pass_context is not None:
+        return LocalBuilder(
+            f_build=default_build_with_context,
+            f_export=export_func,
+            max_workers=max_workers,
+            timeout_sec=timeout_sec,
+        )
+    else:
+        return LocalBuilder(f_export=export_func, max_workers=max_workers, timeout_sec=timeout_sec)
 
 
 def get_hexagon_rpc_runner(
-    hexagon_launcher: HexagonLauncherRPC, number=3, repeat=1, min_repeat_ms=100
+    hexagon_launcher: HexagonLauncherRPC,
+    number=3,
+    repeat=1,
+    min_repeat_ms=100,
+    max_workers: Optional[int] = None,
 ):
     """Return Hexagon-compatible RPC Runner for meta schedule.
 
@@ -160,7 +190,4 @@ def get_hexagon_rpc_runner(
         enable_cpu_cache_flush=False,
     )
 
-    return HexagonRPCRunner(
-        hexagon_launcher,
-        evaluator_config,
-    )
+    return HexagonRPCRunner(hexagon_launcher, evaluator_config, max_workers=max_workers)

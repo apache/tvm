@@ -279,6 +279,19 @@ def test_tir_op_shift_right():
     assert expr.op.name == "tir.shift_right"
 
 
+def test_tir_op_bitwise():
+    x = tir.Var("x", dtype="int32")
+    y = tir.Var("y", dtype="int32")
+    expr = tir.bitwise_and(x, y)
+    assert expr.op.name == "tir.bitwise_and"
+    expr = tir.bitwise_or(x, y)
+    assert expr.op.name == "tir.bitwise_or"
+    expr = tir.bitwise_not(x)
+    assert expr.op.name == "tir.bitwise_not"
+    expr = tir.bitwise_xor(x, y)
+    assert expr.op.name == "tir.bitwise_xor"
+
+
 def test_tir_op_TVMBackendAllocWorkspace():
     expr = tir.TVMBackendAllocWorkspace(0, 1, 2, 3, 4)
     assert expr.op.name == "tir.TVMBackendAllocWorkspace"

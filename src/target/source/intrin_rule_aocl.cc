@@ -45,6 +45,9 @@ TVM_REGISTER_OP("tir.fabs")
 TVM_REGISTER_OP("tir.round")
     .set_attr<FLowerIntrinsic>("aocl.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
+TVM_REGISTER_OP("tir.nearbyint")
+    .set_attr<FLowerIntrinsic>("aocl.FLowerIntrinsic", DispatchPureExtern<Direct>);
+
 TVM_REGISTER_OP("tir.exp").set_attr<FLowerIntrinsic>("aocl.FLowerIntrinsic",
                                                      DispatchPureExtern<Direct>);
 
@@ -76,6 +79,9 @@ TVM_REGISTER_OP("tir.fabs")
     .set_attr<FLowerIntrinsic>("aocl_sw_emu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tir.round")
+    .set_attr<FLowerIntrinsic>("aocl_sw_emu.FLowerIntrinsic", DispatchPureExtern<Direct>);
+
+TVM_REGISTER_OP("tir.nearbyint")
     .set_attr<FLowerIntrinsic>("aocl_sw_emu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 TVM_REGISTER_OP("tir.exp").set_attr<FLowerIntrinsic>("aocl_sw_emu.FLowerIntrinsic",

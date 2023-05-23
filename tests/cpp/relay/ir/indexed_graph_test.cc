@@ -20,9 +20,9 @@
 #include "../../../src/relay/ir/indexed_graph.h"
 
 #include <gtest/gtest.h>
-#include <tvm/parser/parser.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/function.h>
+#include <tvm/relay/parser.h>
 
 namespace tvm {
 namespace relay {
@@ -81,7 +81,7 @@ IRModule TestRecursiveIRModule() {
       (%19, %20)                                                         // 51
     }                                                                    // 52
   )";
-  return parser::ParseModule("string", kModel, /*init_module=*/{}, metadata);
+  return ParseModule("string", kModel, /*init_module=*/{}, metadata);
 }
 
 TEST(IndexedGraph, RecursiveExprRegression) {
@@ -179,7 +179,7 @@ IRModule TestUnusedLetBoundIRModule() {
       }
     }
   )";
-  return parser::ParseModule("string", kModel);
+  return ParseModule("string", kModel);
 }
 
 TEST(IndexedGraph, UnusedLetVars) {

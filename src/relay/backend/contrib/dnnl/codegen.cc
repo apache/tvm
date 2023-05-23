@@ -50,6 +50,29 @@ namespace contrib {
 
 using namespace backend;
 
+/*!
+ * \brief Replace var expr which bind with args of call node
+ *
+ * \param args vector of expression (contains vars or constant nodes)
+ * \param cn call node which describe mapping of internal body vars with args
+ * \return updated vector of expressions
+ */
+static tvm::Array<Expr> BindToCallNodeArgs(const std::vector<Expr>& args, const CallNode* cn) {
+  tvm::Array<Expr> res;
+  for (const auto& arg : args) {
+    if (arg->IsInstance<ConstantNode>()) {
+      res.push_back(arg);
+    } else {
+      auto body_params = cn->op.as<FunctionNode>()->params;
+      auto found = std::find(body_params.begin(), body_params.end(), arg);
+      ICHECK(found != body_params.end());
+      auto idx = std::distance(body_params.begin(), found);
+      res.push_back(cn->args[idx]);
+    }
+  }
+  return res;
+}
+
 #ifndef USE_JSON_RUNTIME  // C source runtime
 inline size_t GetShape1DSize(const Type& type) {
   const auto shape = GetShape(type);
@@ -160,7 +183,6 @@ class CodegenDNNL : public MemoizedExprTranslator<std::vector<Output>>, public C
 
   std::vector<Output> VisitExprDefault_(const Object* op) final {
     LOG(FATAL) << "DNNL codegen doesn't support: " << op->GetTypeKey();
-    return {};
   }
 
   std::vector<Output> VisitExpr_(const VarNode* node) final {
@@ -204,7 +226,8 @@ class CodegenDNNL : public MemoizedExprTranslator<std::vector<Output>>, public C
 
     // Give the ndarray a unique name to ease the initialization of it at
     // runtime.
-    std::string const_var_name = CreateConstVar(ext_func_id_, const_idx_);
+    std::string const_symbol = "dnnl_" + ext_func_id_;
+    std::string const_var_name = CreateConstVar(const_symbol, const_idx_);
     const_vars_.push_back(const_var_name);
     const_idx_++;
 
@@ -262,7 +285,6 @@ class CodegenDNNL : public MemoizedExprTranslator<std::vector<Output>>, public C
     }
 
     LOG(FATAL) << "Unsupported op: " << AsText(call->op, false);
-    return {};
   }
 
   GenerateBodyOutput GenerateCompositeFunctionCall(const FunctionNode* callee,
@@ -276,13 +298,13 @@ class CodegenDNNL : public MemoizedExprTranslator<std::vector<Output>>, public C
       return GenerateBody(conv_call, "dnnl_fused_conv2d_bias_relu", GetArgumentNames(caller),
                           Conv2d(conv_call));
     } else if (pattern_name == "dnnl.conv2d_relu") {
-      const auto* conv_call = GetRootCall(callee->body.as<CallNode>(), 1, {"nn.conv2d", "nn.relu"});
+      const auto* conv_call = GetRootCall(callee->body.as<CallNode>(), 1,
+                                          (const std::vector<std::string>){"nn.conv2d", "nn.relu"});
       return GenerateBody(conv_call, "dnnl_fused_conv2d_relu", GetArgumentNames(caller),
                           Conv2d(conv_call));
     }
 
     LOG(FATAL) << "Unknown composite function:" << pattern_name;
-    return {};
   }
 
   GenerateBodyOutput GenerateBody(const CallNode* root_call, const std::string& func_name,
@@ -436,29 +458,6 @@ class DNNLModuleCodegen : public CSourceModuleCodegenBase {
 };
 
 #else  // DNNL JSON runtime
-
-/*!
- * \brief Replace var expr which bind with args of call node
- *
- * \param args vector of expression (contains vars or constant nodes)
- * \param cn call node which describe mapping of internal body vars with args
- * \return updated vector of expressions
- */
-static tvm::Array<Expr> BindToCallNodeArgs(const std::vector<Expr>& args, const CallNode* cn) {
-  tvm::Array<Expr> res;
-  for (const auto& arg : args) {
-    if (arg->IsInstance<ConstantNode>()) {
-      res.push_back(arg);
-    } else {
-      auto body_params = cn->op.as<FunctionNode>()->params;
-      auto found = std::find(body_params.begin(), body_params.end(), arg);
-      ICHECK(found != body_params.end());
-      auto idx = std::distance(body_params.begin(), found);
-      res.push_back(cn->args[idx]);
-    }
-  }
-  return res;
-}
 
 /*! \brief Serializer to DNNL JSON runtime module */
 class DNNLJSONSerializer : public backend::contrib::JSONSerializer {

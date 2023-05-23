@@ -188,3 +188,112 @@ def simulated_dequantize(data, in_dtype, input_scale=None, input_zero_point=None
         return intn_value
 
     return te.compute(data.shape, lambda *indices: _dispatch_sim_dequantize(data)[indices])
+
+
+@tvm.target.generic_func
+def qnn_conv2d_alter_layout(_attrs, _inputs, _tinfos, _out_type):
+    """Change qnn.conv2d layout.
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current convolution
+    inputs : tvm.relay.Expr
+        Grouped input symbols
+    tinfos : list
+        Input shape and dtype
+    out_type: type
+        The output type
+
+    Note
+    ----
+    Unlike other TOPI functions, this function operates on both graph level and operator level.
+    """
+    return None
+
+
+@tvm.target.generic_func
+def bias_add_legalize(_attrs, _inputs, _tinfos):
+    """Legalize bias_add layout.
+
+    Bias add is not a QNN-specific function, but this generic exists so that empty channels can
+    be excised from quantized conv2d operators and folded into bias adds.
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current convolution
+    inputs : tvm.relay.Expr
+        Grouped input symbols
+    tinfos : list
+        Input shape and dtype
+
+    """
+    return None
+
+
+@tvm.target.generic_func
+def add_alter_layout(_attrs, _inputs, _tinfos, _out_type):
+    """Change add layout.
+
+    Add is not a QNN-specific function, but this generic exists so that bias add operations can be
+    fused with input zero point add optimizations, which only happens if the previous operator is
+    quantized.
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current convolution
+    inputs : tvm.relay.Expr
+        Grouped input symbols
+    tinfos : list
+        Input shape and dtype
+    out_type: type
+        The output type
+
+    Note
+    ----
+    Unlike other TOPI functions, this function operates on both graph level and operator level.
+    """
+    return None
+
+
+@tvm.target.generic_func
+def qnn_requantize_alter_layout(_attrs, _inputs, _tinfos, _out_type):
+    """Change requantize layout.
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current convolution
+    inputs : tvm.relay.Expr
+        Grouped input symbols
+    tinfos : list
+        Input shape and dtype
+    out_type: type
+        The output type
+
+    Note
+    ----
+    Unlike other TOPI functions, this function operates on both graph level and operator level.
+    """
+    return None
+
+
+@tvm.target.generic_func
+def qnn_dense_alter_layout(_attrs, _inputs, _tinfos, _out_type):
+    """Change qnn.dense layout.
+    Not to change by default
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current dense op
+    inputs : tvm.relay.Expr
+        Grouped input symbols
+    tinfos : list
+        Input shape and dtype
+    out_type: type
+        The output type
+    """
+    return None

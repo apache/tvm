@@ -21,14 +21,13 @@ This article is an introductory tutorial to deploy tensorflow models with TVM.
 
 For us to begin with, tensorflow python module is required to be installed.
 
+.. code-block:: bash
+
+    %%shell
+    pip install tensorflow
+
 Please refer to https://www.tensorflow.org/install
 """
-
-# sphinx_gallery_start_ignore
-from tvm import testing
-
-testing.utils.install_request_hook(depth=3)
-# sphinx_gallery_end_ignore
 
 # tvm, relay
 import tvm

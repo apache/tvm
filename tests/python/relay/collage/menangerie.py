@@ -86,7 +86,7 @@ def mnist_consts(dtype):
 
 def mnist():
     metatable = {"relay.Constant": mnist_consts("float32")}
-    mod = tvm.parser.parse(
+    mod = tvm.relay.parse(
         """
         #[version = "0.0.5"]
         def @main(%x: Tensor[(1, 1, 28, 28), float32]) -> Tensor[(1, 10), float32] {
@@ -301,7 +301,7 @@ def gpt2_consts(dtype):
 
 def gpt2():
     metatable = {"relay.Constant": gpt2_consts("float32")}
-    mod = tvm.parser.parse(
+    mod = tvm.relay.parse(
         """
         #[version = "0.0.5"]
         def @main(%x: Tensor[(1, 50, 32), int64]) -> (Tensor[(1, 50, 32, 768), float32],
@@ -1252,7 +1252,7 @@ def gpt2():
 
 def gpt2_16():
     metatable = {"relay.Constant": gpt2_consts("float16")}
-    mod = tvm.parser.parse(
+    mod = tvm.relay.parse(
         """
         #[version = "0.0.5"]
         def @main(%x: Tensor[(1, 50, 32), int64]) -> (Tensor[(1, 50, 32, 768), float16],
@@ -2218,7 +2218,7 @@ def gpt2_extract_consts(dtype):
 
 def gpt2_extract():
     metatable = {"relay.Constant": gpt2_extract_consts("float32")}
-    mod = tvm.parser.parse(
+    mod = tvm.relay.parse(
         """
         #[version = "0.0.5"]
         def @main(%x: Tensor[(1600, 768), float32]) -> Tensor[(50, 32, 3072), float32] {
@@ -2265,7 +2265,7 @@ def gpt2_extract():
 
 def gpt2_extract_16():
     metatable = {"relay.Constant": gpt2_extract_consts("float16")}
-    mod = tvm.parser.parse(
+    mod = tvm.relay.parse(
         """
         #[version = "0.0.5"]
         def @main(%x: Tensor[(1600, 768), float16]) -> Tensor[(50, 32, 3072), float16] {
@@ -2325,7 +2325,7 @@ def gpt2_16_for_cutlass_extract_consts(dtype):
 
 def gpt2_16_for_cutlass_extract():
     metatable = {"relay.Constant": gpt2_16_for_cutlass_extract_consts("float16")}
-    mod = tvm.parser.parse(
+    mod = tvm.relay.parse(
         """
         #[version = "0.0.5"]
         def @main(%x0: Tensor[(1600, 768), float16],
@@ -2622,7 +2622,7 @@ def resnet50_consts(dtype):
 
 def resnet50():
     metatable = {"relay.Constant": resnet50_consts("float32")}
-    mod = tvm.parser.parse(
+    mod = tvm.relay.parse(
         """
         #[version = "0.0.5"]
         def @main(%data: Tensor[(1, 3, 224, 224), float32]) -> Tensor[(1, 1000), float32] {
@@ -2852,7 +2852,7 @@ def resnet50():
           %223 = reshape(%222, newshape=[0, -1]);
           %224 = nn.dense(%223, meta[relay.Constant][257], units=1000);
           add(%224, meta[relay.Constant][258])
-        }   
+        }
         """,
         "from_string",
         None,
@@ -2870,7 +2870,7 @@ def resnet50():
 
 def resnet50_16():
     metatable = {"relay.Constant": resnet50_consts("float16")}
-    mod = tvm.parser.parse(
+    mod = tvm.relay.parse(
         """
         #[version = "0.0.5"]
         def @main(%data: Tensor[(1, 3, 224, 224), float16]) -> Tensor[(1, 1000), float16] {
@@ -3100,7 +3100,7 @@ def resnet50_16():
           %223 = reshape(%222, newshape=[0, -1]);
           %224 = nn.dense(%223, meta[relay.Constant][257], units=1000);
           add(%224, meta[relay.Constant][258])
-        }   
+        }
         """,
         "from_string",
         None,
@@ -3392,7 +3392,7 @@ def mobilenet_consts(dtype):
 
 def mobilenet():
     metatable = {"relay.Constant": mobilenet_consts("float32")}
-    mod = tvm.parser.parse(
+    mod = tvm.relay.parse(
         """
         #[version = "0.0.5"]
         def @main(%data: Tensor[(1, 3, 224, 224), float32]) -> Tensor[(1, 1000), float32] {
@@ -3622,7 +3622,7 @@ def mobilenet():
 
 def mobilenet_16():
     metatable = {"relay.Constant": mobilenet_consts("float16")}
-    mod = tvm.parser.parse(
+    mod = tvm.relay.parse(
         """
         #[version = "0.0.5"]
         def @main(%data: Tensor[(1, 3, 224, 224), float16]) -> Tensor[(1, 1000), float16] {
@@ -3861,7 +3861,7 @@ def batch_norm_extract():
         ],
     )
     metatable = {"relay.Constant": consts}
-    mod = tvm.parser.parse(
+    mod = tvm.relay.parse(
         """
         #[version = "0.0.5"]
         def @main(%FunctionVar_0: Tensor[(1, 32, 112, 112), float32]) -> Tensor[(1, 32, 112, 112), float32] {
@@ -3945,7 +3945,7 @@ def resnext50_32x4d_consts(dtype):
 
 def resnext50_32x4d():
     metatable = {"relay.Constant": resnext50_32x4d_consts("float32")}
-    mod = tvm.parser.parse(
+    mod = tvm.relay.parse(
         """
         #[version = "0.0.5"]
         def @main(%x: Tensor[(1, 64, 56, 56), float32]) {
@@ -4083,7 +4083,7 @@ def resnext50_32x4d():
 
 def resnext50_32x4d_16():
     metatable = {"relay.Constant": resnext50_32x4d_consts("float16")}
-    mod = tvm.parser.parse(
+    mod = tvm.relay.parse(
         """
         #[version = "0.0.5"]
         def @main(%x: Tensor[(1, 64, 56, 56), float16]) {

@@ -24,8 +24,8 @@
 #ifndef TVM_RELAY_ANALYSIS_TYPE_SOLVER_H_
 #define TVM_RELAY_ANALYSIS_TYPE_SOLVER_H_
 
-#include <tvm/ir/error.h>
 #include <tvm/relay/analysis.h>
+#include <tvm/relay/error.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/type.h>
 
@@ -97,6 +97,7 @@ class TypeSolver {
   void Emit(const Diagnostic& diag) { diag_ctx_.Emit(diag); }
 
  private:
+  class AnyChecker;
   class OccursChecker;
   class Unifier;
   class Resolver;

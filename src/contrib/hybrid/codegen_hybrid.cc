@@ -250,12 +250,6 @@ void CodeGenHybrid::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLIN
   }
 }
 
-void CodeGenHybrid::VisitExpr_(const LoadNode* op, std::ostream& os) {  // NOLINT(*)
-  LOG(FATAL) << "Phase 0 has no Load(s)!";
-}
-
-void CodeGenHybrid::VisitStmt_(const StoreNode* op) { LOG(FATAL) << "Phase 0 has no Store(s)!"; }
-
 void CodeGenHybrid::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {  // NOLINT(*)
   LOG(FATAL) << "Phase 0 has no BufferLoad(s)!";
 }
@@ -381,11 +375,11 @@ void CodeGenHybrid::VisitStmt_(const IfThenElseNode* op) {
   PrintStmt(op->then_case);
   indent_ -= tab_;
 
-  if (!is_noop(op->else_case)) {
+  if (op->else_case && !is_noop(op->else_case.value())) {
     PrintIndent();
     stream << "else:\n";
     indent_ += tab_;
-    PrintStmt(op->else_case);
+    PrintStmt(op->else_case.value());
     indent_ -= tab_;
   }
 }
@@ -477,8 +471,8 @@ void CodeGenHybrid::DumpStmt(const Stmt& stmt, const Array<ObjectRef>& inputs,
   stream << "def " << name << "(";
   for (size_t i = 0; i < inputs.size(); ++i) {
     if (i) stream << ", ";
-    if (auto tensor = inputs[i].as<TensorNode>()) {
-      stream << GetTensorID(GetRef<Tensor>(tensor));
+    if (auto tensor = inputs[i].as<Tensor>()) {
+      stream << GetTensorID(tensor.value());
     } else {
       auto var = inputs[i].as<VarNode>();
       ICHECK(var) << "Input should either be a tensor or a variable!";

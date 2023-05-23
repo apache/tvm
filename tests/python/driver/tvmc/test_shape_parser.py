@@ -18,7 +18,6 @@
 import argparse
 
 import pytest
-
 from tvm.driver.tvmc.shape_parser import parse_shape_string
 
 
@@ -53,14 +52,14 @@ def test_negative_dimensions():
     shape_string = "input:[-1,3,224,224]"
     shape_dict = parse_shape_string(shape_string)
     # Convert to strings to allow comparison with Any.
-    assert str(shape_dict) == "{'input': [?, 3, 224, 224]}"
+    assert str(shape_dict) == "{'input': [T.Any(), 3, 224, 224]}"
 
 
 def test_multiple_valid_gpu_inputs():
     # Check that multiple valid gpu inputs are parsed correctly.
     shape_string = "gpu_0/data_0:[1, -1,224,224] gpu_1/data_1:[7, 7]"
     shape_dict = parse_shape_string(shape_string)
-    expected = "{'gpu_0/data_0': [1, ?, 224, 224], 'gpu_1/data_1': [7, 7]}"
+    expected = "{'gpu_0/data_0': [1, T.Any(), 224, 224], 'gpu_1/data_1': [7, 7]}"
     assert str(shape_dict) == expected
 
 

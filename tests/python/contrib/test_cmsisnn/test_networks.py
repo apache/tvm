@@ -24,12 +24,12 @@ import tvm.testing
 from tvm import relay
 from tvm.contrib.download import download_testdata
 from tvm.relay.op.contrib import cmsisnn
-from tvm.testing.aot import AOTTestModel, compile_and_run, generate_ref_data
+from tvm.testing.aot import AOTTestModel, get_dtype_range, compile_and_run, generate_ref_data
 from tvm.micro.testing.aot_test_utils import (
     AOT_CORSTONE300_RUNNER,
     AOT_USMP_CORSTONE300_RUNNER,
 )
-from .utils import skip_if_no_reference_system, get_range_for_dtype_str
+from .utils import skip_if_no_reference_system
 
 # pylint: disable=import-outside-toplevel
 def _convert_to_relay(
@@ -93,7 +93,7 @@ def test_cnn_small(test_runner):
 
     input_shape = (1, 490)
     dtype = "int8"
-    in_min, in_max = get_range_for_dtype_str(dtype)
+    in_min, in_max = get_dtype_range(dtype)
     rng = np.random.default_rng(12345)
     input_data = rng.integers(in_min, high=in_max, size=input_shape, dtype=dtype)
 
@@ -118,6 +118,33 @@ def test_cnn_small(test_runner):
         interface_api,
         use_unpacked_api,
     )
+
+
+@tvm.testing.requires_package("tflite")
+def test_keyword_scramble():
+    """Download keyword_scrambled and test for Relay conversion.
+    In future, this test can be extended for CMSIS-NN"""
+    # download the model
+    base_url = (
+        "https://github.com/tensorflow/tflite-micro/raw/"
+        "de8f61a074460e1fa5227d875c95aa303be01240/"
+        "tensorflow/lite/micro/models"
+    )
+    file_to_download = "keyword_scrambled.tflite"
+    file_saved = "keyword_scrambled.tflite"
+    model_file = download_testdata("{}/{}".format(base_url, file_to_download), file_saved)
+
+    with open(model_file, "rb") as f:
+        tflite_model_buf = f.read()
+
+    input_shape = (1, 96)
+    dtype = "int8"
+    in_min, in_max = get_dtype_range(dtype)
+    rng = np.random.default_rng(12345)
+    input_data = rng.integers(in_min, high=in_max, size=input_shape, dtype=dtype)
+
+    with pytest.raises(tvm.error.OpNotImplemented):
+        _, _ = _convert_to_relay(tflite_model_buf, input_data, "input")
 
 
 if __name__ == "__main__":

@@ -258,8 +258,6 @@ def build(
             raise ValueError("inputs must be Schedule, IRModule," "or dict of str to IRModule.")
         annotated_mods[tar] = mod.with_attr("runtime", runtime)
 
-    annotated_mods, target_host = Target.canon_target_map_and_host(annotated_mods, target_host)
-
     # TODO(mbs): Both CompilationConfig and TIRToRuntime implement the same host target
     #  defaulting logic, but there's currently no way to get back the decided host.
     if target_host is not None:
@@ -267,6 +265,8 @@ def build(
             "target_host parameter is going to be deprecated. "
             "Please pass in tvm.target.Target(target, host=target_host) instead."
         )
+
+    annotated_mods, target_host = Target.canon_target_map_and_host(annotated_mods, target_host)
     if not target_host:
         for tar, mod in annotated_mods.items():
             device_type = ndarray.device(tar.kind.name, 0).device_type

@@ -59,6 +59,10 @@ bool EinsumRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   }
 
   // Check the input tuple consists of tensors with consistent dtype.
+  if (tensor_tuple->fields[0].as<IncompleteTypeNode>()) {
+    return false;
+  }
+  ICHECK(tensor_tuple->fields[0].as<TensorTypeNode>());
   const auto& first = Downcast<TensorType>(tensor_tuple->fields[0]);
   const DataType dtype = first->dtype;
   std::vector<Array<PrimExpr>> input_shapes;
@@ -77,7 +81,7 @@ bool EinsumRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   }
 
   // Calculate output shape
-  Array<IndexExpr> oshape = topi::NumpyEinsumShape(param->equation, input_shapes);
+  Array<IndexExpr> oshape = topi::InferEinsumShape(param->equation, input_shapes);
 
   auto rtype = TensorType(oshape, dtype);
   reporter->Assign(types[1], rtype);

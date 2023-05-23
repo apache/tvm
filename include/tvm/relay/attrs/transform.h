@@ -148,19 +148,15 @@ struct ReshapeLikeAttrs : public tvm::AttrsNode<ReshapeLikeAttrs> {
   }
 };  // struct ReshapeLikeAttrs
 
-struct ScatterAttrs : public tvm::AttrsNode<ScatterAttrs> {
+struct ScatterElementsAttrs : public tvm::AttrsNode<ScatterElementsAttrs> {
   Integer axis;
+  String reduction;
 
-  TVM_DECLARE_ATTRS(ScatterAttrs, "relay.attrs.ScatterAttrs") {
+  TVM_DECLARE_ATTRS(ScatterElementsAttrs, "relay.attrs.ScatterElementsAttrs") {
     TVM_ATTR_FIELD(axis).set_default(0).describe("The axis over which to select values.");
-  }
-};
-
-struct ScatterAddAttrs : public tvm::AttrsNode<ScatterAddAttrs> {
-  Integer axis;
-
-  TVM_DECLARE_ATTRS(ScatterAddAttrs, "relay.attrs.ScatterAddAttrs") {
-    TVM_ATTR_FIELD(axis).set_default(0).describe("The axis over which to select values.");
+    TVM_ATTR_FIELD(reduction).set_default("update").describe(
+        "Reduction mode of the scatter elements, "
+        "either \"update\", \"add\", \"mul\", \"mean\", \"min\" or \"max\".");
   }
 };
 
@@ -168,8 +164,9 @@ struct ScatterNDAttrs : public tvm::AttrsNode<ScatterNDAttrs> {
   String mode;
 
   TVM_DECLARE_ATTRS(ScatterNDAttrs, "relay.attrs.ScatterNDAttrs") {
-    TVM_ATTR_FIELD(mode).describe(
-        "Accumulation mode of the scatter, either \"update\" or \"add\".");
+    TVM_ATTR_FIELD(mode).set_default("update").describe(
+        "Accumulation mode of the ScatterND, "
+        "either \"update\", \"add\", \"mul\", \"min\" or \"max\".");
   }
 };
 
@@ -405,6 +402,23 @@ struct FixedPointMultiplyAttrs : public tvm::AttrsNode<FixedPointMultiplyAttrs> 
   }
 };
 
+/*! \brief Attributes for per channel/per axes FixedPointMultiply operator */
+struct FixedPointMultiplyPerAxisAttrs : public tvm::AttrsNode<FixedPointMultiplyPerAxisAttrs> {
+  bool is_lshift_required;
+  bool is_rshift_required;
+  Array<Integer> axes;
+
+  TVM_DECLARE_ATTRS(FixedPointMultiplyPerAxisAttrs, "relay.attrs.FixedPointMultiplyPerAxisAttrs") {
+    TVM_ATTR_FIELD(is_lshift_required)
+        .describe("Whether left shift is required in fixed point multiplication.")
+        .set_default(false);
+    TVM_ATTR_FIELD(is_rshift_required)
+        .describe("Whether right shift is required in fixed point multiplication.")
+        .set_default(false);
+    TVM_ATTR_FIELD(axes).describe("List of axes on which input data was quantized.");
+  }
+};
+
 /*! \brief Attributes for LayoutTransform operator */
 struct LayoutTransformAttrs : public tvm::AttrsNode<LayoutTransformAttrs> {
   std::string src_layout;
@@ -574,6 +588,17 @@ struct StftAttrs : public tvm::AttrsNode<StftAttrs> {
         "Whether to return onesided result or fill with conjugate symmetry");
   }
 };  // struct StftAttrs
+
+/*! \brief Attributes used in DFT operator */
+struct DFTAttrs : public tvm::AttrsNode<DFTAttrs> {
+  Bool inverse = Bool(false);
+
+  TVM_DECLARE_ATTRS(DFTAttrs, "relay.attrs.DFTAttrs") {
+    TVM_ATTR_FIELD(inverse)
+        .describe("Whether to perform the inverse discrete Fourier transform")
+        .set_default(Bool(false));
+  }
+};  // struct DFTAttrs
 
 struct TriluAttrs : public tvm::AttrsNode<TriluAttrs> {
   bool upper;

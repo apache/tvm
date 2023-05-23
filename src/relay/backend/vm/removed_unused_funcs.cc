@@ -57,8 +57,8 @@ struct CallTracer : ExprVisitor {
   void VisitExpr_(const GlobalVarNode* op) final {
     called_funcs_.insert(op->name_hint);
     auto func = module_->Lookup(op->name_hint);
-    if (const auto* function_node = func.as<FunctionNode>()) {
-      VisitExpr(GetRef<Function>(function_node));
+    if (auto function_node = func.as<Function>()) {
+      VisitExpr(function_node.value());
     }
     // else: Don't visit PrimFuncs -- we don't need to collect any tir.Calls therein.
   }

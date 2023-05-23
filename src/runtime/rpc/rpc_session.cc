@@ -116,7 +116,6 @@ class RPCSessTable {
       }
     }
     LOG(FATAL) << "maximum number of RPC session reached";
-    return 0;
   }
 
  private:

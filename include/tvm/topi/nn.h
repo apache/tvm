@@ -660,6 +660,31 @@ inline tvm::te::Tensor batch_to_space_nd(const tvm::te::Tensor& data,
 inline Tensor nll_loss(const Tensor& predictions, const Tensor& targets, const Tensor& weights,
                        std::string reduction = "mean", int ignore_index = -100,
                        const std::string name = "nll_loss", const std::string tag = kBroadcast) {
+  if (predictions.ndim() == 1) {
+    // corner case: no batch in shape
+    // prediction->shape = (C,), targets->shape = (), weights->shape = (C,)
+    auto T = tvm::te::compute(
+        {},
+        [&](const tvm::Array<tvm::tir::Var>& target_indices) {
+          auto c = targets();
+          return tvm::tir::Select(c != ignore_index, -predictions(c) * weights(c),
+                                  tvm::tir::make_const(predictions->dtype, 0));
+        },
+        name, tag);
+    if (reduction == "mean") {
+      auto W = tvm::te::compute(
+          {},
+          [&](const tvm::Array<tvm::tir::Var>& target_indices) {
+            auto c = targets();
+            return tvm::tir::Select(c != ignore_index, weights(c),
+                                    tvm::tir::make_const(predictions->dtype, 0));
+          },
+          name, tag);
+      return topi::divide(T, W);
+    } else {
+      return T;
+    }
+  }
   auto T = tvm::te::compute(
       targets->shape,
       [&](const tvm::Array<tvm::tir::Var>& target_indices) {
@@ -674,6 +699,7 @@ inline Tensor nll_loss(const Tensor& predictions, const Tensor& targets, const T
                                 tvm::tir::make_const(predictions->dtype, 0));
       },
       name, tag);
+  ICHECK(T->shape.size() != 0);
   if (reduction == "mean") {
     auto W = tvm::te::compute(
         targets->shape,
@@ -683,13 +709,15 @@ inline Tensor nll_loss(const Tensor& predictions, const Tensor& targets, const T
                                   tvm::tir::make_const(predictions->dtype, 0));
         },
         name, tag);
-    return topi::divide(topi::sum(T, {}), topi::sum(W, {}));
+    return topi::divide(topi::sum(T, tvm::Array<Integer>(nullptr)),
+                        topi::sum(W, tvm::Array<Integer>(nullptr)));
   } else if (reduction == "sum") {
-    return topi::sum(T, {});
+    return topi::sum(T, tvm::Array<Integer>(nullptr));
   } else {  // reduction == "none"
     return T;
   }
 }
+
 }  // namespace topi
 }  // namespace tvm
 #endif  // TVM_TOPI_NN_H_

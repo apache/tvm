@@ -19,6 +19,7 @@ from tvm import relay, te
 from tvm.driver.build_module import schedule_to_module
 from tvm.script import tir as T
 from tvm.tir import const
+import tvm.testing
 
 
 def lower_stmt(params, stmt, target_bits):
@@ -67,8 +68,6 @@ def test_basic():
     # const shape
     # i32 -> i32
     check(2, 2, 32, "int32")
-    # i32 + i32 is not promoted to i64 even if overflow
-    check(2**16, 2**16, 32, "int32")
     # i64 -> i32
     check(const(2, dtype="int64"), const(2, dtype="int64"), 32, "int32")
     check(const(2**16, dtype="int64"), const(2**16, dtype="int64"), 32, "int64")
@@ -100,12 +99,6 @@ def test_thread_axis():
 
     # i32 -> i32
     check(2, 32, target_bits=32, target_dtype="int32")
-    check(
-        2**30,
-        32,  # i32 + i32 is not promoted to i64 even in the case of overflow
-        target_bits=32,
-        target_dtype="int32",
-    )
     # i64 -> i32
     check(const(2, dtype="int64"), const(32, dtype="int64"), target_bits=32, target_dtype="int32")
     check(
@@ -124,7 +117,7 @@ def test_thread_axis_2():
     @tvm.script.ir_module
     class Before:
         @T.prim_func
-        def main(T_reshape: T.Buffer[(1, 12, 384, 384), "float32"], placeholder_1: T.Buffer[(T.int64(1), T.int64(12), T.int64(384), 384), "bool"], T_where: T.Buffer[(T.int64(1), T.int64(12), T.int64(384), 384), "float32"]) -> None:
+        def main(T_reshape: T.Buffer((1, 12, 384, 384), "float32"), placeholder_1: T.Buffer((T.int64(1), T.int64(12), T.int64(384), 384), "bool"), T_where: T.Buffer((T.int64(1), T.int64(12), T.int64(384), 384), "float32")) -> None:
             # function attr dict
             T.func_attr({"global_symbol": "main", "tir.noalias": True})
             # body
@@ -162,7 +155,6 @@ def test_multilanes():
 
     # i32 -> i32
     check(const(2**10, dtype="int32"), 2, target_bits=32, target_dtype="int32")
-    check(const(2**32, dtype="int32"), 2, target_bits=32, target_dtype="int32")
     # i64 -> i32
     check(const(2**10, dtype="int64"), 2, target_bits=32, target_dtype="int32")
     check(const(2**32, dtype="int64"), 2, target_bits=32, target_dtype="int64")
@@ -307,7 +299,7 @@ def test_ramp_dtype_consistency():
 
 def test_condition():
     @T.prim_func
-    def before(A: T.Buffer[(128,), "float32"], B: T.Buffer[(130,), "float32"]):
+    def before(A: T.Buffer((128,), "float32"), B: T.Buffer((130,), "float32")):
         for i, j in T.grid(T.int64(2), T.int64(65)):
             if i * T.int64(65) + j >= T.int64(0) and i * T.int64(65) + j < T.int64(128):
                 A[i * T.int64(65) + j] = 0.0
@@ -320,7 +312,7 @@ def test_condition():
             )
 
     @T.prim_func
-    def expected_after(A: T.Buffer[128, "float32"], B: T.Buffer[130, "float32"]):
+    def expected_after(A: T.Buffer(128, "float32"), B: T.Buffer(130, "float32")):
         for i, j in T.grid(2, 65):
             if i * 65 + j >= 0 and i * 65 + j < 128:
                 A[i * 65 + j] = T.float32(0)
@@ -333,14 +325,87 @@ def test_condition():
     tvm.ir.assert_structural_equal(after, expected_after)
 
 
+def test_block():
+    @T.prim_func
+    def before(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
+        for i in T.serial(0, T.int64(16)):
+            for j in T.serial(0, T.int64(8)):
+                with T.block():
+                    vi = T.axis.spatial(T.int64(128), i * T.int64(8) + j)
+                    B[vi] = A[vi] + T.float32(1)
+
+    @T.prim_func
+    def expected_after(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
+        for i in T.serial(0, T.int32(16)):
+            for j in T.serial(0, T.int32(8)):
+                with T.block():
+                    vi = T.axis.spatial(T.int32(128), i * T.int32(8) + j)
+                    B[vi] = A[vi] + T.float32(1)
+
+    after = tvm.tir.transform.NarrowDataType(32)(tvm.IRModule.from_expr(before))["main"]
+    tvm.ir.assert_structural_equal(after, expected_after)
+
+
+def test_avg_pool2d():
+    @T.prim_func
+    def before(PSUM: T.Buffer((313600,), "int32"), PAVG: T.Buffer((313600,), "int32")):
+        for j in T.parallel(T.int64(0), T.int64(280)):
+            for i in T.serial(T.int64(0), T.int64(35)):
+                for vi in T.vectorized(T.int64(0), T.int64(32)):
+                    PAVG[(((j * T.int64(1120)) + (i * T.int64(32))) + vi)] = T.cast(
+                        T.Div(
+                            T.cast(PSUM[(((j * T.int64(1120)) + (i * T.int64(32))) + vi)], "int64"),
+                            T.max(
+                                (
+                                    (
+                                        (
+                                            T.min(
+                                                T.int64(1),
+                                                (T.int64(34) - T.floormod(j, T.int64(35))),
+                                            )
+                                            + T.int64(2)
+                                        )
+                                        - T.max(
+                                            (T.int64(1) - T.floormod(j, T.int64(35))), T.int64(0)
+                                        )
+                                    )
+                                    * (
+                                        (T.min(T.int64(1), (T.int64(34) - i)) + T.int64(2))
+                                        - T.max((T.int64(1) - i), T.int64(0))
+                                    )
+                                ),
+                                T.int64(1),
+                            ),
+                        ),
+                        "int32",
+                    )
+
+    @T.prim_func
+    def expected_after(PSUM: T.Buffer((313600,), "int32"), PAVG: T.Buffer((313600,), "int32")):
+        for j in T.parallel(T.int32(0), T.int32(280)):
+            for i in T.serial(T.int32(0), T.int32(35)):
+                for vi in T.vectorized(T.int32(0), T.int32(32)):
+                    PAVG[(((j * T.int32(1120)) + (i * T.int32(32))) + vi)] = T.Div(
+                        PSUM[(((j * T.int32(1120)) + (i * T.int32(32))) + vi)],
+                        (
+                            (
+                                (
+                                    T.min(T.int32(1), (T.int32(34) - T.floormod(j, T.int32(35))))
+                                    + T.int32(2)
+                                )
+                                - T.max((T.int32(1) - T.floormod(j, T.int32(35))), T.int32(0))
+                            )
+                            * (
+                                (T.min(T.int32(1), (T.int32(34) - i)) + T.int32(2))
+                                - T.max((T.int32(1) - i), T.int32(0))
+                            )
+                        ),
+                    )
+
+    after = tvm.tir.transform.NarrowDataType(32)(tvm.IRModule.from_expr(before))
+    after = tvm.tir.transform.Simplify()(after)
+    tvm.ir.assert_structural_equal(after["main"], expected_after)
+
+
 if __name__ == "__main__":
-    test_basic()
-    test_thread_axis()
-    test_thread_axis_2()
-    test_multilanes()
-    test_reduce()
-    test_slice()
-    test_relay_basic()
-    test_relay_take()
-    test_ramp_dtype_consistency()
-    test_condition()
+    tvm.testing.main()

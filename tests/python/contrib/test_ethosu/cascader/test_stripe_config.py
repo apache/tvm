@@ -212,4 +212,4 @@ def test_count_stripes_sliding_window(stripe_config, expected_stripe_counts):
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

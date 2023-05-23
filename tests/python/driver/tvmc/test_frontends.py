@@ -237,6 +237,9 @@ def test_load_model___wrong_language__to_onnx(tflite_mobilenet_v1_1_quant):
         tvmc.load(tflite_mobilenet_v1_1_quant, model_format="onnx")
 
 
+@pytest.mark.skip(
+    reason="free(): invalid pointer error despite using llvm-config --link-static and -DHIDE_PRIVATE_SYMBOLS=ON",
+)
 def test_load_model__pth(pytorch_resnet18):
     # some CI environments wont offer torch, so skip in case it is not present
     pytest.importorskip("torch")
@@ -250,9 +253,8 @@ def test_load_model__pth(pytorch_resnet18):
     assert "layer1.0.conv1.weight" in tvmc_model.params.keys()
 
 
-@pytest.mark.skipif(
-    platform.machine() == "aarch64",
-    reason="Currently failing on AArch64 - see https://github.com/apache/tvm/issues/10673",
+@pytest.mark.skip(
+    reason="free(): invalid pointer error despite using llvm-config --link-static and -DHIDE_PRIVATE_SYMBOLS=ON",
 )
 def test_load_quantized_model__pth(pytorch_mobilenetv2_quantized):
     # some CI environments wont offer torch, so skip in case it is not present
@@ -269,6 +271,10 @@ def test_load_quantized_model__pth(pytorch_mobilenetv2_quantized):
         assert p.dtype in ["int8", "uint8", "int32"]  # int32 for bias
 
 
+@pytest.mark.skipif(
+    platform.machine() == "aarch64",
+    reason="Currently failing on AArch64 - see https://github.com/apache/tvm/issues/10673",
+)
 def test_load_model___wrong_language__to_pytorch(tflite_mobilenet_v1_1_quant):
     # some CI environments wont offer pytorch, so skip in case it is not present
     pytest.importorskip("torch")
@@ -289,7 +295,8 @@ def test_compile_tflite_module_nhwc_to_nchw(tflite_mobilenet_v1_1_quant):
     before = tvmc_model.mod
 
     expected_layout = "NCHW"
-    after = tvmc.transform.convert_graph_layout(before, expected_layout)
+    with tvm.transform.PassContext(opt_level=3):
+        after = tvmc.transform.convert_graph_layout(before, expected_layout)
 
     layout_transform_calls = []
 
@@ -314,7 +321,8 @@ def test_compile_onnx_module_nchw_to_nhwc(onnx_resnet50):
     before = tvmc_model.mod
 
     expected_layout = "NHWC"
-    after = tvmc.transform.convert_graph_layout(before, expected_layout)
+    with tvm.transform.PassContext(opt_level=3):
+        after = tvmc.transform.convert_graph_layout(before, expected_layout)
 
     layout_transform_calls = []
 
@@ -339,7 +347,8 @@ def test_compile_paddle_module_nchw_to_nhwc(paddle_resnet50):
     before = tvmc_model.mod
 
     expected_layout = "NHWC"
-    after = tvmc.transform.convert_graph_layout(before, expected_layout)
+    with tvm.transform.PassContext(opt_level=3):
+        after = tvmc.transform.convert_graph_layout(before, expected_layout)
 
     layout_transform_calls = []
 
@@ -364,7 +373,9 @@ def test_compile_tflite_module__same_layout__nhwc_to_nhwc(tflite_mobilenet_v1_1_
     before = tvmc_model.mod
 
     expected_layout = "NHWC"
-    after = tvmc.transform.convert_graph_layout(before, expected_layout)
+
+    with tvm.transform.PassContext(opt_level=3):
+        after = tvmc.transform.convert_graph_layout(before, expected_layout)
 
     layout_transform_calls = []
 
@@ -389,7 +400,9 @@ def test_compile_onnx_module__same_layout__nchw_to_nchw(onnx_resnet50):
     before = tvmc_model.mod
 
     expected_layout = "NCHW"
-    after = tvmc.transform.convert_graph_layout(before, expected_layout)
+
+    with tvm.transform.PassContext(opt_level=3):
+        after = tvmc.transform.convert_graph_layout(before, expected_layout)
 
     layout_transform_calls = []
 
@@ -428,6 +441,10 @@ def test_import_tensorflow_friendly_message(pb_mobilenet_v1_1_quant, monkeypatch
         _ = tvmc.frontends.load_model(pb_mobilenet_v1_1_quant, model_format="pb")
 
 
+@pytest.mark.skipif(
+    platform.machine() == "aarch64",
+    reason="Currently failing on AArch64 - see https://github.com/apache/tvm/issues/10673",
+)
 def test_import_torch_friendly_message(pytorch_resnet18, monkeypatch):
     monkeypatch.setattr("importlib.import_module", mock_error_on_name("torch"))
 

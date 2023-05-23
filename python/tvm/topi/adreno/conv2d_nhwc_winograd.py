@@ -27,62 +27,32 @@ logger = logging.getLogger("conv2d_nhwc_winograd")
 
 @autotvm.register_topi_compute("conv2d_nhwc_winograd.image2d")
 def conv2d_nhwc_winograd(cfg, data, kernel, strides, padding, dilation, out_dtype):
-    args = {"shared": False, "accumulator": "float16"}
     return conv2d_nhwc_winograd_comp(
-        cfg, data, kernel, strides, padding, dilation, out_dtype, args=args, pre_computed=False
-    )
-
-
-@autotvm.register_topi_compute("conv2d_nhwc_winograd_acc32.image2d")
-def conv2d_nhwc_winograd_acc32(cfg, data, kernel, strides, padding, dilation, out_dtype):
-    args = {"shared": False, "accumulator": "float32"}
-    return conv2d_nhwc_winograd_comp(
-        cfg, data, kernel, strides, padding, dilation, out_dtype, args=args, pre_computed=False
+        cfg, data, kernel, strides, padding, dilation, out_dtype, pre_computed=False
     )
 
 
 @autotvm.register_topi_schedule("conv2d_nhwc_winograd.image2d")
 def schedule_conv2d_nhwc_winograd(cfg, outs):
-    return schedule_conv2d_winograd_impl(cfg, outs, tag="cast_from_acc16")
-
-
-@autotvm.register_topi_schedule("conv2d_nhwc_winograd_acc32.image2d")
-def schedule_conv2d_nhwc_winograd_acc32(cfg, outs):
-    return schedule_conv2d_winograd_impl(cfg, outs, tag="cast_from_acc32")
+    return schedule_conv2d_winograd_impl(cfg, outs, tag="dummy_compute_at")
 
 
 @autotvm.register_topi_compute("conv2d_nhwc_winograd_without_weight_transform.image2d")
 def conv2d_nhwc_winograd_without_weight_transform(
     cfg, data, kernel, strides, padding, dilation, out_dtype
 ):
-    args = {"shared": False, "accumulator": "float16"}
     return conv2d_nhwc_winograd_comp(
-        cfg, data, kernel, strides, padding, dilation, out_dtype, args=args, pre_computed=True
-    )
-
-
-@autotvm.register_topi_compute("conv2d_nhwc_winograd_without_weight_transform_acc32.image2d")
-def conv2d_nhwc_winograd_without_weight_transform_acc32(
-    cfg, data, kernel, strides, padding, dilation, out_dtype
-):
-    args = {"shared": False, "accumulator": "float32"}
-    return conv2d_nhwc_winograd_comp(
-        cfg, data, kernel, strides, padding, dilation, out_dtype, args=args, pre_computed=True
+        cfg, data, kernel, strides, padding, dilation, out_dtype, pre_computed=True
     )
 
 
 @autotvm.register_topi_schedule("conv2d_nhwc_winograd_without_weight_transform.image2d")
 def schedule_conv2d_nhwc_winograd_without_weight_transform(cfg, outs):
-    return schedule_conv2d_winograd_impl(cfg, outs, tag="cast_from_acc16", pre_computed=True)
-
-
-@autotvm.register_topi_schedule("conv2d_nhwc_winograd_without_weight_transform_acc32.image2d")
-def schedule_conv2d_nhwc_winograd_without_weight_transform_acc32(cfg, outs):
-    return schedule_conv2d_winograd_impl(cfg, outs, tag="cast_from_acc32", pre_computed=True)
+    return schedule_conv2d_winograd_impl(cfg, outs, tag="dummy_compute_at", pre_computed=True)
 
 
 def conv2d_nhwc_winograd_comp(
-    cfg, data, kernel, strides, padding, dilation, out_dtype, args, pre_computed
+    cfg, data, kernel, strides, padding, dilation, out_dtype, pre_computed
 ):
     """Compute declaration for winograd
 
@@ -111,9 +81,6 @@ def conv2d_nhwc_winograd_comp(
     out_dtype: str
         The output type. This is used for mixed precision.
 
-    args: dict
-        Dictionary with additional arguments, e.g. accumulator type
-
     pre_computed: bool
         Flag if weights were pre computed if true or the weights should be
         computed in runtime
@@ -124,5 +91,5 @@ def conv2d_nhwc_winograd_comp(
         4-D or 5-D with shape NCHW or NCHW4c
     """
     return conv2d_winograd_comp(
-        cfg, data, kernel, strides, padding, dilation, out_dtype, args, pre_computed, "NHWC"
+        cfg, data, kernel, strides, padding, dilation, out_dtype, pre_computed, "NHWC"
     )

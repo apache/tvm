@@ -28,7 +28,5 @@ from .popen_pool import initializer, after_initializer, register_ffi, call_cpp_f
 from .popen_pool import call_py_ffi, call_cpp_py_ffi, fast_summation, slow_summation
 from .popen_pool import timeout_job
 
-from .tir import check_error
-
 from . import auto_scheduler
 from . import autotvm

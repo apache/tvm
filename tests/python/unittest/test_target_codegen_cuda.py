@@ -1,4 +1,5 @@
 # Licensed to the Apache Software Foundation (ASF) under one
+
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
 # regarding copyright ownership.  The ASF licenses this file
@@ -194,13 +195,13 @@ def test_cuda_make_int8():
         fun(a)
         np.testing.assert_equal(a.numpy(), np_a)
 
-    check_cuda(64, 0xAB, 4)
+    check_cuda(64, np.int8(0xAB), 4)
     check_cuda(64, 0, 4)
     check_cuda(64, -3, 4)
-    check_cuda(64, 0xAB, 3)
+    check_cuda(64, np.int8(0xAB), 3)
     check_cuda(64, 0, 3)
     check_cuda(64, -3, 3)
-    check_cuda(64, 0xAB, 2)
+    check_cuda(64, np.int8(0xAB), 2)
     check_cuda(64, 0, 2)
     check_cuda(64, -3, 2)
 
@@ -1044,4 +1045,4 @@ def test_try_unaligned_vector_load():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

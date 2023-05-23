@@ -210,13 +210,18 @@ class TestSqueeze:
         ((1, 3, 2, 5), "float32", None),
         ((1, 3, 1), "float32", [0]),
         ((1, 2, 1, 2, 1), "float32", [0, 2]),
+        ((1, 3, 1), "float32", 2),
+        ((1, 3, 1), "float32", []),
     )
 
     def test_squeeze(self, shape, dtype, axis):
         x = relay.var("x", relay.TensorType(shape, dtype))
         squeeze = relay.squeeze(x, axis=axis)
 
-        np_axis = tuple(axis) if axis is not None else None
+        if isinstance(axis, int):
+            np_axis = (axis,)
+        else:
+            np_axis = tuple(axis) if axis is not None else None
 
         data = np.random.random_sample(shape).astype(dtype)
         op_res = create_executor().evaluate(squeeze, {x: relay.const(data)})
@@ -590,7 +595,7 @@ def test_full_infer_type():
     # change the shape and dtype
     x = relay.var("x", relay.TensorType((), "float32"))
     y = relay.full(x, (1, 2), "int8")
-    "shape=" in y.astext()
+    assert "shape=" in y.astext()
     yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((1, 2), "int8")
 
@@ -997,7 +1002,7 @@ def test_scatter(target, dev, executor_kind):
         d = relay.var("d", relay.TensorType(dshape, "float32"))
         i = relay.var("i", relay.TensorType(ishape, indices_dtype))
         u = relay.var("u", relay.TensorType(ishape, "float32"))
-        z = relay.op.scatter(d, i, u, axis)
+        z = relay.op.scatter_elements(d, i, u, axis)
 
         func = relay.Function([d, i, u], z)
 
@@ -1050,7 +1055,7 @@ class TestDynamicScatter:
         d = relay.var("d", relay.TensorType([relay.Any() for i in range(len(dshape))], "float32"))
         i = relay.var("i", relay.TensorType([relay.Any() for i in range(len(ishape))], "int64"))
         u = relay.var("u", relay.TensorType([relay.Any() for i in range(len(ishape))], "float32"))
-        z = relay.op.scatter(d, i, u, axis)
+        z = relay.op.scatter_elements(d, i, u, axis)
 
         func = relay.Function([d, i, u], z)
 
@@ -1107,7 +1112,7 @@ class TestScatterAdd:
             "i", relay.TensorType(shape=[relay.Any() for _ in ishape], dtype=indice_dtype)
         )
         u = relay.var("u", relay.TensorType(shape=[relay.Any() for _ in ishape], dtype=dtype))
-        z = relay.op.scatter_add(d, i, u, axis)
+        z = relay.op.scatter_elements(d, i, u, axis, "add")
 
         func = relay.Function([d, i, u], z)
 
@@ -1575,7 +1580,7 @@ class TestSparseReshape:
         new_shape_np: np.ndarray,
     ):
         """
-        This function calculates the expected output of sparseshape operator given the inputs.
+        This function calculates the expected output of sparse_reshape operator given the inputs.
         """
 
         new_sparse_indices = np.ones(
@@ -1937,6 +1942,26 @@ def test_scatter_nd(target, dev, executor_kind):
 
     test_scatter_nd_large_shape()
 
+    def test_scatter_nd_inequal_m_k():
+        def before():
+            data = relay.const(np.zeros((1, 1, 10), dtype="float32"), dtype="float32")
+            indices = relay.const(np.zeros((2, 1, 1, 1), dtype="float32"), dtype="int64")
+            update = relay.const(np.ones((1, 1, 1, 10), dtype="float32"), dtype="float32")
+            b = relay.op.scatter_nd(data, indices, update)
+            return relay.Function(relay.analysis.free_vars(b), b)
+
+        passes = tvm.transform.Sequential(
+            [
+                relay.transform.InferType(),
+                relay.transform.FoldConstant(),
+            ]
+        )
+        before_mod = tvm.IRModule.from_expr(before())
+        with tvm.transform.PassContext(opt_level=3):
+            after_mod = passes(before_mod)
+
+    test_scatter_nd_inequal_m_k()
+
     def verify_scatter_nd(
         data_np, indices_np, updates_np, ref_res, mode="add", rtol=1e-5, atol=1e-5
     ):
@@ -1978,6 +2003,7 @@ def test_scatter_nd(target, dev, executor_kind):
         )
         tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=rtol, atol=atol)
 
+    # TODO(vcchernov): check frameworks' int type requirements. ONNX expects int64 only
     for indice_dtype in ["uint8", "uint16", "uint32"]:
         data = np.zeros((2, 2)).astype("int64")
         indices = np.array([[1, 1, 0], [0, 1, 0]]).astype(indice_dtype)
@@ -2004,7 +2030,7 @@ def test_scatter_nd(target, dev, executor_kind):
         verify_scatter_nd(data, indices, updates, out, mode="add")
         verify_scatter_nd_with_stack(data, indices, updates, out)
 
-        for mode in ["add", "update"]:
+        for mode in ["update", "add", "mul", "min", "max"]:
             indices = np.stack((np.random.randint(2, size=5), np.random.randint(7, size=5))).astype(
                 indice_dtype
             )
@@ -2014,10 +2040,20 @@ def test_scatter_nd(target, dev, executor_kind):
             out = data.copy()
             for i in range(indices.shape[1]):
                 for j in range(updates.shape[1]):
-                    if mode == "add":
-                        out[indices[0, i], indices[1, i], j] += updates[i, j]
-                    elif mode == "update":
+                    if mode == "update":
                         out[indices[0, i], indices[1, i], j] = updates[i, j]
+                    elif mode == "add":
+                        out[indices[0, i], indices[1, i], j] += updates[i, j]
+                    elif mode == "mul":
+                        out[indices[0, i], indices[1, i], j] *= updates[i, j]
+                    elif mode == "min":
+                        out[indices[0, i], indices[1, i], j] = min(
+                            out[indices[0, i], indices[1, i], j], updates[i, j]
+                        )
+                    elif mode == "max":
+                        out[indices[0, i], indices[1, i], j] = max(
+                            out[indices[0, i], indices[1, i], j], updates[i, j]
+                        )
             verify_scatter_nd(data, indices, updates, out, mode)
             verify_scatter_nd_with_stack(data, indices, updates, out, mode)
 
@@ -2262,6 +2298,45 @@ def test_trilu(target="llvm", dev=tvm.cpu()):
     verify_trilu((6, 6), False, -2)
     # Test batch size
     verify_trilu((8, 6, 6), False, -2)
+
+
+def test_trilu_shape_i64():
+    data_x = np.ones((2, 1), dtype="int32")
+
+    x = relay.var("x", shape=[2, 1], dtype="float32")
+    v0 = relay.broadcast_to(x, shape=relay.const([2, 1], dtype="int64"))
+    v2 = relay.add(relay.const([[1.0]]), v0)
+    v3 = relay.trilu(v0, k=0)
+
+    f = relay.Function([x], relay.Tuple([v2, v3]))
+    tvm_res = relay.create_executor("graph", device=tvm.cpu(), target="llvm").evaluate(f)(data_x)
+
+    np_res = (
+        np.array([[2.0], [2.0]], dtype=np.float32),
+        np.array([[1.0], [0.0]], dtype=np.float32),
+    )
+
+    tvm.testing.assert_allclose(tvm_res[0].numpy(), np_res[0])
+    tvm.testing.assert_allclose(tvm_res[1].numpy(), np_res[1])
+
+
+def test_trilu_reduce():
+    data_i0 = np.ones((2, 2), dtype="int32")
+    k = 0
+
+    i0 = relay.var("i0", shape=[2, 2], dtype="int32")
+    i1 = relay.var("i1", shape=(), dtype="int64")
+    v0 = relay.trilu(i0, i1)
+    v1 = relay.argmin(v0, axis=[0])
+    f = relay.Function([i0, i1], v1)
+    tvm_res = (
+        relay.create_executor("graph", device=tvm.cpu(), target="llvm")
+        .evaluate(f)(data_i0, k)
+        .numpy()
+    )
+
+    np_res = np.triu(data_i0, k).argmin(axis=0)
+    tvm.testing.assert_allclose(tvm_res, np_res)
 
 
 if __name__ == "__main__":

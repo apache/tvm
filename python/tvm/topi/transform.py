@@ -17,13 +17,13 @@
 # pylint: disable=invalid-name,consider-using-enumerate,redefined-outer-name
 """Injective transformation operators"""
 from __future__ import absolute_import as _abs
+
 import tvm
-from tvm import te
-from tvm import topi
+from tvm import te, topi
 from tvm.te import hybrid
-from . import cpp
-from . import tag
-from .utils import within_index, make_idx, const_vector
+
+from . import cpp, tag
+from .utils import const_vector, make_idx, within_index
 
 
 def expand_dims(a, axis, num_newaxis=1):
@@ -85,9 +85,8 @@ def expand_like(a, shape_like, axis):
             # A special case: `a` is a scalar represented as a 1-dim tensor
             return te.compute(shape_like.shape, lambda *idxs: a(0))
         raise ValueError(
-            "shape inconsistent when expand_like ({}, {}, {})".format(
-                len(axis), len(a.shape), len(shape_like.shape)
-            )
+            f"shape inconsistent when expand_like ({len(axis)}, "
+            f"{len(a.shape)}, {len(shape_like.shape)})"
         )
 
     real_axis = topi.reduction._get_real_axis(len(shape_like.shape), axis)
@@ -636,7 +635,7 @@ def tile(a, reps):
     return cpp.tile(a, reps)
 
 
-def layout_transform(array, src_layout, dst_layout):
+def layout_transform(array, src_layout, dst_layout, schedule_rule="None"):
     """Transform the layout according to src_layout and dst_layout
 
     Parameters
@@ -649,8 +648,11 @@ def layout_transform(array, src_layout, dst_layout):
 
     dst_layout : str
         the destination layout.
+
+    schedule_rule : str
+        the schedule rule to apply if any
     """
-    return cpp.layout_transform(array, src_layout, dst_layout)
+    return cpp.layout_transform(array, src_layout, dst_layout, schedule_rule)
 
 
 def shape(array, dtype="int32"):
@@ -707,10 +709,8 @@ def sequence_mask(data, valid_length, mask_value=0, axis=0):
         depending on the value of `axis`.
     """
 
-    assert len(data.shape) >= 2, "only support data.ndim >= 2, received data.shape = {}".format(
-        data.shape
-    )
-    assert axis in (0, 1), "only support axis = 0, 1, received axis = {}".format(axis)
+    assert len(data.shape) >= 2, f"only support data.ndim >= 2, received data.shape = {data.shape}"
+    assert axis in (0, 1), f"only support axis = 0, 1, received axis = {axis}"
     return cpp.sequence_mask(data, valid_length, mask_value, axis)
 
 
@@ -1053,9 +1053,16 @@ def trilu(data, k, upper):
     def _apply_trilu(*indices):
         row_index = indices[-2]
         col_index = indices[-1]
+        # promote row & col indices
+        if row_index.dtype != col_index.dtype:
+            target_type = (col_index + row_index).dtype
+            if row_index.dtype != target_type:
+                row_index = tvm.tir.Cast(target_type, row_index)
+            else:
+                col_index = tvm.tir.Cast(target_type, col_index)
         other_indices = indices[:-2]
         check_position = check_op(row_index, col_index - k)
         value = data(*other_indices, row_index, col_index)
         return tvm.tir.Select(check_position, value, tvm.tir.const(0, data.dtype))
 
-    return te.compute(data.shape, _apply_trilu, name="trilu")
+    return te.compute(data.shape, _apply_trilu, name="trilu", tag=topi.tag.ELEMWISE)

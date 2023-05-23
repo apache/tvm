@@ -144,7 +144,6 @@ inline ArgConvertCode GetArgConvertCode(DLDataType t) {
     return HANDLE_TO_HANDLE;
   }
   LOG(FATAL) << "Cannot handle " << t << " as device function argument";
-  return HANDLE_TO_HANDLE;
 }
 
 template <int N, typename F>

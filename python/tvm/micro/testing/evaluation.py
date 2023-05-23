@@ -22,10 +22,12 @@ tests in the future.
 
 """
 
+import logging
 from io import StringIO
 from pathlib import Path
 from contextlib import ExitStack
 import tempfile
+import shutil
 
 import tvm
 from tvm.relay.op.contrib import cmsisnn
@@ -48,10 +50,11 @@ def tune_model(
     assert isinstance(params, dict)
 
     project_options = {
-        f"{platform}_board": board,
+        "board": board,
         "project_type": "host_driven",
         **(project_options or {}),
     }
+
     module_loader = tvm.micro.AutoTvmModuleLoader(
         template_project_dir=tvm.micro.get_microtvm_template_projects(platform),
         project_options=project_options,
@@ -98,6 +101,7 @@ def create_aot_session(
     timeout_override=None,
     use_cmsis_nn=False,
     project_options=None,
+    use_existing=False,
 ):
     """AOT-compiles and uploads a model to a microcontroller, and returns the RPC session"""
 
@@ -124,21 +128,31 @@ def create_aot_session(
     parameter_size = len(tvm.runtime.save_param_dict(lowered.get_params()))
     print(f"Model parameter size: {parameter_size}")
 
-    project = tvm.micro.generate_project(
-        str(tvm.micro.get_microtvm_template_projects(platform)),
-        lowered,
-        build_dir / "project",
-        {
-            f"{platform}_board": board,
-            "project_type": "host_driven",
-            # {} shouldn't be the default value for project options ({}
-            # is mutable), so we use this workaround
-            **(project_options or {}),
-        },
-    )
+    project_options = {
+        "board": board,
+        "project_type": "host_driven",
+        # {} shouldn't be the default value for project options ({}
+        # is mutable), so we use this workaround
+        **(project_options or {}),
+    }
+
+    if use_existing:
+        shutil.rmtree(build_dir / "project" / "build")
+        project = tvm.micro.GeneratedProject.from_directory(
+            build_dir / "project",
+            options=project_options,
+        )
+
+    else:
+        project = tvm.micro.generate_project(
+            str(tvm.micro.get_microtvm_template_projects(platform)),
+            lowered,
+            build_dir / "project",
+            project_options,
+        )
+
     project.build()
     project.flash()
-
     return tvm.micro.Session(project.transport(), timeout_override=timeout_override)
 
 
@@ -151,7 +165,8 @@ def predict_labels_aot(session, aot_executor, input_data, runs_per_sample=1):
     assert aot_executor.get_num_outputs() == 1
     assert runs_per_sample > 0
 
-    for sample in input_data:
+    for counter, sample in enumerate(input_data):
+        logging.info("Evaluating sample %d", counter)
         aot_executor.get_input(0).copyfrom(sample)
         result = aot_executor.module.time_evaluator("run", session.device, number=runs_per_sample)()
         predicted_label = aot_executor.get_output(0).numpy().argmax()

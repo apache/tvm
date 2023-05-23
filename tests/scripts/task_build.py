@@ -19,11 +19,15 @@ import argparse
 import shutil
 import os
 import logging
+import sys
 import multiprocessing
 
 from pathlib import Path
-from cmd_utils import Sh, init_log, REPO_ROOT
 
+# Hackery to enable importing of utils from ci/scripts/jenkins
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+sys.path.append(str(REPO_ROOT / "ci" / "scripts" / "jenkins"))
+from cmd_utils import Sh, init_log, REPO_ROOT
 
 if __name__ == "__main__":
     init_log()
@@ -65,13 +69,17 @@ if __name__ == "__main__":
         sh.run("sccache --show-stats")
 
     executors = int(os.environ.get("CI_NUM_EXECUTORS", 1))
+    build_platform = os.environ.get("PLATFORM", None)
 
     nproc = multiprocessing.cpu_count()
 
     available_cpus = nproc // executors
     num_cpus = max(available_cpus, 1)
 
-    sh.run("cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo ..", cwd=build_dir)
+    if build_platform == "i386":
+        sh.run("cmake ..", cwd=build_dir)
+    else:
+        sh.run("cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo ..", cwd=build_dir)
 
     target = ""
     if args.cmake_target:
@@ -81,7 +89,14 @@ if __name__ == "__main__":
     ninja_args = [target, f"-j{num_cpus}"]
     if verbose:
         ninja_args.append("-v")
-    sh.run(f"cmake --build . -- " + " ".join(ninja_args), cwd=build_dir)
+
+    if build_platform == "i386":
+        if args.cmake_target:
+            sh.run(f"make {args.cmake_target} -j{num_cpus}", cwd=build_dir)
+        else:
+            sh.run(f"make -j{num_cpus}", cwd=build_dir)
+    else:
+        sh.run(f"cmake --build . -- " + " ".join(ninja_args), cwd=build_dir)
 
     if use_sccache:
         logging.info("===== sccache stats =====")

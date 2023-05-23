@@ -51,6 +51,9 @@ class TVM_DLL AotExecutor : public ModuleNode {
    */
   const char* type_key() const final { return "AotExecutor"; }
 
+  /*! \brief Get the property of the runtime module .*/
+  int GetPropertyMask() const final { return ModulePropertyMask::kRunnable; }
+
   void Run();
 
   /*!
@@ -68,6 +71,13 @@ class TVM_DLL AotExecutor : public ModuleNode {
    * \return The index of input.
    */
   int GetInputIndex(const std::string& name);
+
+  /*!
+   * \brief Get the input name given the index of input.
+   * \param index The index of the input.
+   * \return The name of input.
+   */
+  std::string GetInputName(int index);
 
   /*!
    * \brief Get the output index given the name of output.

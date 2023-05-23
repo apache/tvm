@@ -168,7 +168,7 @@ def get_inx(
         )
     else:
         raise ValueError(
-            "Unsupported coordinate_transformation_mode: {}".format(coordinate_transformation_mode)
+            f"Unsupported coordinate_transformation_mode: {coordinate_transformation_mode}"
         )
     return in_x
 
@@ -194,7 +194,7 @@ def get_closest_index(in_x, rounding_method, boxes, use_int_div=False):
         epsilon = 1e-5
         closest_x_index = te.ceil(in_x - epsilon).astype("int32")
     else:
-        raise ValueError("Uknown rounding method: {}".format(rounding_method))
+        raise ValueError(f"Unknown rounding method: {rounding_method}")
     return closest_x_index
 
 
@@ -314,14 +314,7 @@ def _resize_1d(
     if boxes is not None:
         # TODO(mbrookhart): Find an example of this
         raise NotImplementedError("resize1d with image boxes not yet implemented")
-    in_x = get_inx(
-        x,
-        image_width,
-        target_width,
-        coordinate_transformation_mode,
-        roi[0],
-        roi[1],
-    )
+    in_x = get_inx(x, image_width, target_width, coordinate_transformation_mode, roi[0], roi[1])
 
     if method == "nearest_neighbor":
         if rounding_method == "":
@@ -332,17 +325,7 @@ def _resize_1d(
 
         closest_x_index = get_closest_index(in_x, rounding_method, boxes)
 
-        value = get_1d_pixel(
-            data,
-            layout,
-            image_width,
-            box_idx,
-            c,
-            closest_x_index,
-            cc,
-            inum,
-            ic,
-        )
+        value = get_1d_pixel(data, layout, image_width, box_idx, c, closest_x_index, cc, inum, ic)
     elif method == "linear":
         x_int = te.floor(in_x).astype("int32")
 
@@ -350,17 +333,7 @@ def _resize_1d(
 
         p = [0 for i in range(2)]
         for i in range(2):
-            p[i] = get_1d_pixel(
-                data,
-                layout,
-                image_width,
-                box_idx,
-                c,
-                x_int + i,
-                cc,
-                inum,
-                ic,
-            )
+            p[i] = get_1d_pixel(data, layout, image_width, box_idx, c, x_int + i, cc, inum, ic)
 
         value = _lerp(*p, x_lerp)
 
@@ -371,17 +344,7 @@ def _resize_1d(
         # Get the surrounding values
         p = [0 for i in range(4)]
         for i in range(4):
-            p[i] = get_1d_pixel(
-                data,
-                layout,
-                image_width,
-                box_idx,
-                c,
-                xint + i - 1,
-                cc,
-                inum,
-                ic,
-            )
+            p[i] = get_1d_pixel(data, layout, image_width, box_idx, c, xint + i - 1, cc, inum, ic)
 
         wx = _cubic_spline_weights(xfract, alpha)
         if exclude_outside:
@@ -499,7 +462,7 @@ def resize1d(
         if output_shape is None:
             output_shape = [in_n, in_c, size[0], in_cc]
     else:
-        raise ValueError("%s layout is not supported." % layout)
+        raise ValueError(f"{layout} layout is not supported.")
 
     if isinstance(size, tuple):
         size = list(size)
@@ -813,12 +776,6 @@ def resize2d(
     layout: string, optional
         "NCHW", "NHWC", or "NCHWc".
 
-    coordinate_transformation_mode: string, optional
-        Describes how to transform the coordinate in the resized tensor
-        to the coordinate in the original tensor.
-        Refer to the ONNX Resize operator specification for details.
-        Available options are "half_pixel", "align_corners" and "asymmetric".
-
     method: string, optional
         method of interpolation ("nearest", "linear", "bicubic")
 
@@ -872,7 +829,7 @@ def resize2d(
         if output_shape is None:
             output_shape = [in_n, in_c, size[0], size[1], in_cc]
     else:
-        raise ValueError("%s layout is not supported." % layout)
+        raise ValueError(f"{layout} layout is not supported.")
 
     if isinstance(size, tuple):
         size = list(size)
@@ -973,7 +930,7 @@ def crop_and_resize(
         image_h = data.shape[2].astype("int32")
         image_w = data.shape[3].astype("int32")
     else:
-        raise ValueError("%s layout is not supported." % layout)
+        raise ValueError(f"{layout} layout is not supported.")
     if method == "bilinear":
         method = "linear"
 

@@ -335,7 +335,10 @@ class ServerIOSLauncher:
                 print(e)
 
     def __del__(self):
-        self.terminate()
+        try:
+            self.terminate()
+        except ImportError:
+            pass
 
     @staticmethod
     def is_compatible_environment():

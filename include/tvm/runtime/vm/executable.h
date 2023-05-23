@@ -66,6 +66,9 @@ class TVM_DLL Executable : public ModuleNode {
    */
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
 
+  /*! \brief Get the property of the runtime module .*/
+  int GetPropertyMask() const final { return ModulePropertyMask::kBinarySerializable; };
+
   /*!
    * \brief Write the Executable to the binary stream in serialized form.
    *
@@ -127,12 +130,25 @@ class TVM_DLL Executable : public ModuleNode {
   void MoveLateBoundConstantsToFile(const std::string& path, size_t byte_limit);
 
   /*!
+   * \brief Get a map of all constants with larger that byte_limit in size.
+   */
+  Map<String, NDArray> GetLateBoundConstants(size_t byte_limit);
+
+  /*!
    * \brief Restores the late-bound constants for the executable (if any) from given byte-stream.
    *
    * Must be called after \p Load but before any other methods if \p MoveLateBoundConstantsToBinary
    * was used when saving. Otherwise can be ignored.
    */
   void LoadLateBoundConstantsFromStream(dmlc::Stream* stream);
+
+  /*!
+   * \brief Restores the late-bound constants for the executable (if any) from given map.
+   *
+   * Must be called after \p Load but before any other methods if \p MoveLateBoundConstantsToBinary
+   * was used when saving. Otherwise can be ignored.
+   */
+  void LoadLateBoundConstantsFromMap(Map<String, NDArray> map);
 
   /*!
    * \brief As for \p LoadLateBoundConstantsFromStream, but load from file at \p path.

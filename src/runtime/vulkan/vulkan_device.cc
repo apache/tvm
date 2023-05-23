@@ -134,6 +134,8 @@ VulkanDeviceProperties::VulkanDeviceProperties(const VulkanInstance& instance,
 
   supports_integer_dot_product = device.HasExtension("VK_KHR_shader_integer_dot_product");
 
+  supports_cooperative_matrix = device.HasExtension("VK_NV_cooperative_matrix");
+
   // The check of VK_SHADER_STAGE_COMPUTE_BIT isn't technically
   // needed, since it will be set so long at least one queue has
   // VK_QUEUE_COMPUTE_BIT.  Including it to avoid potential future
@@ -435,7 +437,8 @@ std::vector<const char*> VulkanDevice::SelectEnabledExtensions() const {
                                                "VK_KHR_get_memory_requirements2",
                                                "VK_KHR_dedicated_allocation",
                                                "VK_KHR_spirv_1_4",
-                                               "VK_KHR_shader_integer_dot_product"};
+                                               "VK_KHR_shader_integer_dot_product",
+                                               "VK_NV_cooperative_matrix"};
 
   uint32_t device_extension_prop_count;
   VULKAN_CALL(vkEnumerateDeviceExtensionProperties(physical_device_, nullptr,
@@ -590,7 +593,6 @@ uint32_t FindMemoryType(const VulkanDevice& device, VkBufferCreateInfo info,
     type_bits >>= 1;
   }
   LOG(FATAL) << "Requested memory type not found";
-  return 0;
 }
 
 VulkanHostVisibleBuffer* GetOrAllocate(

@@ -96,7 +96,8 @@ Expr QnnAddCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
 QNN_REGISTER_BINARY_OP("add")
     .describe("Elementwise add with broadcasting for quantized tensors.")
     .set_support_level(11)
-    .set_attr<FTVMLegalize>("FTVMQnnCanonicalize", QnnAddCanonicalize);
+    .set_attr<FTVMLegalize>("FTVMQnnCanonicalize", QnnAddCanonicalize)
+    .set_attr<TOpPattern>("TOpPattern", kBroadcast);
 
 }  // namespace qnn
 }  // namespace relay

@@ -50,7 +50,7 @@ If the trained model meets some conditions of using NNPACK,
 you can build TVM with NNPACK support.
 Follow these simple steps:
 
-uild NNPACK shared library with the following commands. TVM will link NNPACK dynamically.
+build NNPACK shared library with the following commands. TVM will link NNPACK dynamically.
 
 Note: The following NNPACK installation instructions have been tested on Ubuntu 16.04.
 

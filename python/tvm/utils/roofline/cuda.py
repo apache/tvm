@@ -15,25 +15,31 @@
 # specific language governing permissions and limitations
 # under the License.
 """Estimation of peak flops and memory bandwidth for cuda devices"""
-from typing import Optional
-from ...script import tir as T
-from ... import nd, build, transform
-from ...runtime import Device
-from ...target import Target
+import functools
+import re
+from typing import Dict, Optional, Tuple
+
+import numpy as np
+
+from ... import build, nd, transform
+from ...contrib import nvcc, utils
 from ...rpc.base import RPC_SESS_MASK
 from ...rpc.client import RPCSession
+from ...runtime import Device
+from ...script import tir as T
+from ...target import Target
+from ...tir import PrimFunc
 from . import registry
-from ...contrib import utils, nvcc
 
 
-@registry.estimate_peak_flops.register("cuda")
+@functools.lru_cache(maxsize=None)
 def estimate_peak_flops_tensorcore(
     target: Target,
     dev: Device,
     remote: Optional[RPCSession],
     mat_dtype: str = "float16",
     acc_dtype: str = "float32",
-) -> float:
+) -> Tuple[float, float, str]:
     """Estimate the peak FLOP/s of a cuda device with tensorcores.
 
     This estimate should only be used to compare with operators that can use
@@ -64,12 +70,11 @@ def estimate_peak_flops_tensorcore(
 
     Returns
     -------
-    float
+    peak_flops : float
         Approximate sustained FLOP/s of this target/device combo assuming
         mma instructions. Addition and multiplications are each counted as
         separate FLOPs.
     """
-    assert str(target.kind) == "cuda", "Only CUDA devices have tensorcores"
 
     @T.prim_func
     def peak_flops_tensorcore_tir(
@@ -149,10 +154,10 @@ def estimate_peak_flops_tensorcore(
         if remote is None:
             raise RuntimeError("A RPCSession must be provided when using a remote device.")
         temp = utils.tempdir()
-        path = temp.relpath("peak_fma_flops.tar")
+        path = temp.relpath("peak_mma_flops.tar")
         f.export_library(path)
         remote.upload(path)
-        f = remote.load_module("peak_fma_flops.tar")
+        f = remote.load_module("peak_mma_flops.tar")
 
     x = nd.empty((16, 16), dtype=mat_dtype, device=dev)
     y = nd.empty((16, 16), dtype=acc_dtype, device=dev)
@@ -161,10 +166,140 @@ def estimate_peak_flops_tensorcore(
     return n * 16 * 16 * 16 * 2 * sms * 8 / times.min
 
 
+@functools.lru_cache(maxsize=None)
+def estimate_peak_flops_fma(
+    target: Target,
+    dev: Device,
+    remote: Optional[RPCSession],
+    dtype: str,
+) -> Tuple[float, float, str]:
+    """Estimate the peak FLOP/s of a cuda device with fma operations (not using tensor cores).
+
+    References
+    ----------
+    https://www.nvidia.com/content/PDF/nvidia-ampere-ga-102-gpu-architecture-whitepaper-v2.1.pdf
+
+    Parameters
+    ----------
+    target : Target
+        Target to run on. This should be as specific to the actual hardware as
+        possible.
+    dev : Device
+        Device to run on.
+    remote : Optional[RPCSession]
+      Remote session used to upload artifacts for runtime evaluation. Must be
+      the same session used to create `dev`.
+    dtype : str
+        Dtype of fma operation
+
+    Returns
+    -------
+    peak_flops : float
+        Approximate sustained FLOP/s of this target/device combo assuming
+        fma instructions. Addition and multiplications are each counted as
+        separate FLOPs.
+    """
+
+    vec_width = 32
+    warps = 16  # need 16 warps to get enough in-SM parallelism
+    sms = dev.multi_processor_count
+    n = 100000
+
+    @T.prim_func
+    def peak_flops_fma_tir(
+        A: T.Buffer((sms, warps, vec_width), dtype),
+        B: T.Buffer((sms, warps, vec_width), dtype),
+    ):
+        # pylint: disable=invalid-name, missing-function-docstring
+        shared = T.alloc_buffer((sms, warps, vec_width), dtype=dtype, scope="shared")
+        for sm in T.thread_binding(sms, thread="blockIdx.x"):
+            for warp in T.thread_binding(warps, thread="threadIdx.y"):
+                for t in T.thread_binding(vec_width, thread="threadIdx.x"):
+                    shared[sm, warp, t] = A[sm, warp, t]
+                    for _ in range(n):
+                        shared[sm, warp, t] = (
+                            shared[sm, warp, t] * shared[sm, warp, t] + shared[sm, warp, t]
+                        )
+                    B[sm, warp, t] = shared[sm, warp, t]
+
+    with transform.PassContext(opt_level=3):
+        f = build(peak_flops_fma_tir, target=target)
+
+    # upload to remote if running over rpc
+    if dev.device_type >= RPC_SESS_MASK:
+        if remote is None:
+            raise RuntimeError("A RPCSession must be provided when using a remote device.")
+        temp = utils.tempdir()
+        path = temp.relpath("peak_fma_flops.tar")
+        f.export_library(path)
+        remote.upload(path)
+        f = remote.load_module("peak_fma_flops.tar")
+
+    x = nd.empty((sms, warps, vec_width), dtype=dtype, device=dev)
+    y = nd.empty((sms, warps, vec_width), dtype=dtype, device=dev)
+    times = f.time_evaluator(f.entry_name, dev, repeat=10, number=1)(x, y)
+    return n * warps * sms * vec_width * 2 / times.min
+
+
+@registry.estimate_peak_flops.register("cuda")
+def estimate_peak_flops(
+    func: PrimFunc,  # pylint: disable=unused-argument
+    features: Dict[str, np.ndarray],
+    target: Target,
+    dev: Device,
+    remote: Optional[RPCSession],
+) -> Tuple[float, float, str]:
+    """Estimate the peak FLOP/s of a cuda device.
+
+    Parameters
+    ----------
+    func : PrimFunc
+        Function to estimate peak flops for. Used to check if a specific kind
+        intrinsic or dtype could be used with this function.
+    features : Dict[str, np.ndarry]
+        Features extracted from `func`. Used to check if a specific kind
+        intrinsic or dtype could be used with this function.
+    target : Target
+        Target to run on. This should be as specific to the actual hardware as
+        possible.
+    dev : Device
+        Device to run on.
+    remote : Optional[RPCSession]
+      Remote session used to upload artifacts for runtime evaluation. Must be
+      the same session used to create `dev`.
+
+    Returns
+    -------
+    flops : float
+        Estimated number of flops used by `func`.
+    peak_flops : float
+        Approximate sustained FLOP/s of this target/device combo. Addition and
+        multiplications are each counted as separate FLOPs.
+    name : str
+        Dtype/intrinsic used by `func` to achieve peak flops.
+    """
+    has_tensorcore = nvcc.have_tensorcore(dev.compute_version)
+    # assume that the first argument dtype is the same as all the others
+    dtype = list(func.buffer_map.values())[0].dtype
+    if dtype == "float16" and has_tensorcore:
+        peak_flops = estimate_peak_flops_tensorcore(target, dev, remote)
+        name = "float16 tensorcore"
+    else:
+        peak_flops = estimate_peak_flops_fma(target, dev, remote, dtype)
+        name = f"{dtype} fma"
+    flops = np.sum(
+        features["float_addsub"]
+        + features["float_mul"]
+        + features["float_mad"] * 2
+        + features["float_divmod"]
+    )
+    return flops, peak_flops, name
+
+
 @T.prim_func
 def peak_bandwidth_tir(a: T.handle, b: T.handle, blocks: T.int32, warp_size: T.int32) -> None:
     # pylint: disable=invalid-name, missing-function-docstring
-    N = T.var("int32")
+    N = T.int32()
     A = T.match_buffer(a, [blocks, N, 4, warp_size], "float32")
     B = T.match_buffer(b, [blocks, 4, warp_size], "float32")
     for i in T.thread_binding(blocks, "blockIdx.x"):
@@ -178,37 +313,13 @@ def peak_bandwidth_tir(a: T.handle, b: T.handle, blocks: T.int32, warp_size: T.i
                     B[i, l, j] += A[i, k, l, j]
 
 
-@registry.estimate_peak_bandwidth.register("cuda")
-def estimate_peak_bandwidth(
+@functools.lru_cache(maxsize=None)
+def estimate_peak_bandwidth_global_mem(
     target: Target,
     dev: Device,
     remote: Optional[RPCSession] = None,
-) -> float:
-    """Estimate peak memory bandwidth of a target/device combo.
-
-    Peak bandwidth is estimated by running a small experiment on the underlying
-    hardware. The peak bandwidth measurement assumes that vector instructions
-    are being used to load the data.
-
-    Parameters
-    ----------
-    target : Target
-        Target to use for measurement. This target should be as specific to the
-        underlying hardware as possible.
-    dev : Device
-        Device to measure peak bandwidth on.
-    remote : Optional[RPCSession]
-      Remote session used to upload artifacts for runtime evaluation. Must be
-      the same session used to create `dev`.
-
-    Returns
-    -------
-    float
-        Peak memory bandwidth in bytes/seconds.
-    """
-    assert nvcc.have_tensorcore(
-        dev.compute_version
-    ), "CUDA roofline only works with devices that have tensorcores"
+) -> Tuple[float, float, str]:
+    """Estimate peak bandwidth of global memory. See estimate_peak_bandwidth"""
     warp_size = dev.warp_size
     # These sizes seem large enough to give the card time to hit a fixpoint on memory bandwidth
     blocks = 1024
@@ -234,3 +345,63 @@ def estimate_peak_bandwidth(
     b = nd.empty((blocks, 4, warp_size), dtype="float32", device=dev)
     times = f.time_evaluator(f.entry_name, dev, repeat=10, number=1)(a, b)
     return a.numpy().size * 4 / times.min  # 4 bytes per float32
+
+
+@registry.estimate_peak_bandwidth.register("cuda")
+def estimate_peak_bandwidth(
+    func: PrimFunc,  # pylint: disable=unused-argument
+    features: Dict[str, np.ndarray],
+    target: Target,
+    dev: Device,
+    remote: Optional[RPCSession] = None,
+) -> Tuple[float, float, str]:
+    """Estimate peak memory bandwidth of a target/device combo.
+
+    Peak bandwidth is estimated by running a small experiment on the underlying
+    hardware. The peak bandwidth measurement assumes that vector instructions
+    are being used to load the data.
+
+    Parameters
+    ----------
+    func : PrimFunc
+        Function to estimate peak bandwidth for. Used to check if a specific
+        kind of memory could be used with this function.
+    features : Dict[str, np.ndarry]
+        Features extracted from `func`. Used to check if a specific kind of
+        memory could be used with this function.
+    target : Target
+        Target to use for measurement. This target should be as specific to the
+        underlying hardware as possible.
+    dev : Device
+        Device to measure peak bandwidth on.
+    remote : Optional[RPCSession]
+      Remote session used to upload artifacts for runtime evaluation. Must be
+      the same session used to create `dev`.
+
+    Returns
+    -------
+    loaded_bytes : float
+        Estimated bytes loaded by `func`.
+    peak_bandwidth : float
+        Peak memory bandwidth in bytes/seconds.
+    name : str
+        Name of the memory being used.
+    """
+    # autoscheduler features do not take into account that 1.
+    # global and shared memory have very different performance
+    # characteristics -- both are included in the same bytes
+    # touched count 2. multiple threads accessing the same byte
+    # of memory does not use the same amount of bandwidth as
+    # multiple threads accessing different bytes of memory. We
+    # use unique bytes accessed here to avoid these two issues,
+    # but this does bias results towards being more compute
+    # bound.
+    loaded_bytes = sum(
+        [
+            np.sum(x)
+            for (k, x) in features.items()
+            if re.match(r"^B[0-9]+\.unique_bytes$", k) is not None
+        ]
+    )
+    peak_bandwidth = estimate_peak_bandwidth_global_mem(target, dev, remote)
+    return loaded_bytes, peak_bandwidth, "global"

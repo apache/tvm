@@ -456,7 +456,15 @@ def check_rnn(rnn_type, rnn_mod, target=tvm.target.Target("llvm -mcpu=core-avx2"
                         traced_script_module = torch.jit.trace(model, dummy_inputs[0]).eval()
 
                         # Import model to Relay
-                        mod, params = relay.frontend.from_pytorch(traced_script_module, shape_desc)
+                        with tvm.testing.disable_span_filling():
+                            mod, params = relay.frontend.from_pytorch(
+                                traced_script_module, shape_desc
+                            )
+                        with tvm.testing.enable_span_filling():
+                            mod_with_span, _ = relay.frontend.from_pytorch(
+                                traced_script_module, shape_desc
+                            )
+                        assert tvm.ir.structural_equal(mod, mod_with_span, map_free_vars=True)
                     elif format == "onnx":
                         try:
                             onnx_model = get_onnx_model(model)
@@ -468,7 +476,11 @@ def check_rnn(rnn_type, rnn_mod, target=tvm.target.Target("llvm -mcpu=core-avx2"
                             continue
 
                         # Import model to Relay
-                        mod, params = relay.frontend.from_onnx(onnx_model, shape_desc)
+                        with tvm.testing.disable_span_filling():
+                            mod, params = relay.frontend.from_onnx(onnx_model, shape_desc)
+                        with tvm.testing.enable_span_filling():
+                            mod_with_span, _ = relay.frontend.from_onnx(onnx_model, shape_desc)
+                        assert tvm.ir.structural_equal(mod, mod_with_span, map_free_vars=True)
 
                     # Model compilation by tvm
                     with tvm.transform.PassContext(opt_level=3):

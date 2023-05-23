@@ -14,15 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from typing import Union
+
 import numpy as np
 import pytest
-
 import tvm
-import tvm.testing
-from tvm import relay
 import tvm.relay.testing
+import tvm.testing
 from numpy import isclose
-from typing import Union
+from tvm import relay
 
 SEMVER = '#[version = "0.0.5"]\n'
 
@@ -74,19 +74,19 @@ def graph_equal(lhs, rhs):
 
 
 def roundtrip_expr(expr):
-    text = tvm.relay.Expr.astext(expr, show_meta_data=False)
-    x = tvm.parser.parse_expr(text)
+    text = expr.astext()
+    x = tvm.relay.parse_expr(text)
     assert_graph_equal(x, expr)
 
 
 # Testing Utilities for expressions.
 def roundtrip(expr):
-    x = tvm.parser.fromtext(expr.astext())
+    x = tvm.relay.fromtext(expr.astext())
     assert_graph_equal(x, expr)
 
 
 def parse_text(code):
-    expr = tvm.parser.parse_expr(code)
+    expr = tvm.relay.parse_expr(code)
     roundtrip_expr(expr)
     return expr
 
@@ -100,7 +100,7 @@ def parses_as(code, expr):
 
 # Testing Utilities for full modules.
 def parse_module(code):
-    mod = tvm.parser.parse(SEMVER + code)
+    mod = tvm.relay.parse(SEMVER + code)
     roundtrip(mod)
     return mod
 
@@ -423,7 +423,7 @@ def test_ref():
         ref_read(%0)
     }
     """
-    tvm.parser.parse(program)
+    tvm.relay.parse(program)
 
 
 def test_call():
@@ -868,7 +868,7 @@ def test_import_grad():
 def test_mlp():
     mod, _ = relay.testing.mlp.get_workload(1)
     text = mod.astext()
-    parsed_mod = tvm.parser.parse(text)
+    parsed_mod = tvm.relay.parse(text)
     tvm.ir.assert_structural_equal(mod, parsed_mod)
 
 
@@ -893,7 +893,7 @@ def test_mlp_inlined_params():
     mod = inline_params(mod, params)
     mod = relay.transform.InferType()(mod)
     text = mod.astext()
-    parsed_mod = tvm.parser.parse(text)
+    parsed_mod = tvm.relay.parse(text)
     tvm.ir.assert_structural_equal(mod, parsed_mod)
 
 
@@ -945,7 +945,7 @@ def test_op_string_attr():
 def test_load_prelude():
     mod = tvm.IRModule()
     mod.import_from_std("prelude.rly")
-    tvm.parser.parse(mod.astext())
+    tvm.relay.parse(mod.astext())
 
 
 def test_call_attrs():
@@ -1006,15 +1006,15 @@ def test_func_attrs():
 
 def test_init_module_and_metatable():
     init_metatable = {"relay.Constant": [relay.const(np.random.rand(2, 3), dtype="float32")]}
-    init_module = tvm.parser.fromtext(
+    init_module = tvm.relay.fromtext(
         SEMVER
         + """
             def @f(%y : Tensor[(2, 3), float32]) -> Tensor[(2, 3), float32] {
               negative(%y)
-            }                                       
+            }
         """,
     )
-    mod = tvm.parser.parse(
+    mod = tvm.relay.parse(
         SEMVER
         + """
             def @main(%x: Tensor[(2, 3), float32]) {

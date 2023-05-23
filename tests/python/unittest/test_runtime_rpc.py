@@ -176,9 +176,10 @@ def test_rpc_large_array():
     check_remote()
 
 
+@tvm.testing.skip_if_32bit(reason="skipping test for i386.")
 @tvm.testing.requires_rpc
 def test_rpc_echo():
-    def check(remote):
+    def check(remote, local_session):
         fecho = remote.get_function("testing.echo")
         assert fecho(1, 2, 3) == 1
         assert fecho(100, 2, 3) == 100
@@ -190,15 +191,19 @@ def test_rpc_echo():
             raise_err()
 
         remote.cpu().sync()
-        with pytest.raises(AttributeError):
-            f3 = remote.system_lib()["notexist"]
+        # tests around system lib are not threadsafe by design
+        # and do not work well with multithread pytest
+        # skip local session as they are being tested elsewhere
+        if not local_session:
+            with pytest.raises(AttributeError):
+                f3 = remote.system_lib()["notexist"]
 
     temp = rpc.server._server_env([])
     server = rpc.Server()
     client = rpc.connect("127.0.0.1", server.port)
-    check(rpc.LocalSession())
+    check(rpc.LocalSession(), True)
 
-    check(client)
+    check(client, False)
 
     def check_minrpc():
         if tvm.get_global_func("rpc.CreatePipeClient", allow_missing=True) is None:
@@ -207,7 +212,7 @@ def test_rpc_echo():
         temp = utils.tempdir()
         minrpc_exec = temp.relpath("minrpc")
         tvm.rpc.with_minrpc(cc.create_executable)(minrpc_exec, [])
-        check(rpc.PopenSession(minrpc_exec))
+        check(rpc.PopenSession(minrpc_exec), False)
         # minrpc on the remote
         server = rpc.Server()
         client = rpc.connect(
@@ -215,7 +220,7 @@ def test_rpc_echo():
             server.port,
             session_constructor_args=["rpc.PopenSession", open(minrpc_exec, "rb").read()],
         )
-        check(client)
+        check(client, False)
 
     check_minrpc()
 
@@ -448,10 +453,10 @@ def test_local_func():
 
 
 @tvm.testing.requires_rpc
-def test_rpc_tracker_register():
+@pytest.mark.parametrize("device_key", ["test_device", "127.0.0.1:5555"])
+def test_rpc_tracker_register(device_key):
     # test registration
     tracker = Tracker(port=9000, port_end=10000)
-    device_key = "test_device"
     server1 = rpc.Server(
         host="127.0.0.1",
         port=9000,
@@ -521,10 +526,10 @@ def _target(host, port, device_key, timeout):
 
 
 @tvm.testing.requires_rpc
-def test_rpc_tracker_request():
+@pytest.mark.parametrize("device_key", ["test_device", "127.0.0.1:5555"])
+def test_rpc_tracker_request(device_key):
     # test concurrent request
     tracker = Tracker(port=9000, port_end=10000)
-    device_key = "test_device"
     server = rpc.Server(
         port=9000,
         port_end=10000,
@@ -562,14 +567,13 @@ def test_rpc_tracker_request():
 
 
 @tvm.testing.requires_rpc
-def test_rpc_tracker_via_proxy():
+@pytest.mark.parametrize("device_key", ["test_device", "127.0.0.1:5555"])
+def test_rpc_tracker_via_proxy(device_key):
     """
          tracker
          /     \
     Host   --   Proxy -- RPC server
     """
-
-    device_key = "test_device"
 
     tracker_server = Tracker(port=9000, port_end=9100)
     proxy_server = Proxy(

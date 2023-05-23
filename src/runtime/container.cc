@@ -180,10 +180,6 @@ TVM_REGISTER_GLOBAL("runtime.MapItems").set_body([](TVMArgs args, TVMRetValue* r
   *ret = std::move(rkvs);
 });
 
-#if (USE_FALLBACK_STL_MAP == 0)
-TVM_DLL constexpr uint64_t DenseMapNode::kNextProbeLocation[];
-#endif
-
 // Closure
 TVM_REGISTER_OBJECT_TYPE(ClosureObj);
 
@@ -206,5 +202,6 @@ TVM_REGISTER_GLOBAL("runtime.GetShapeTupleElem").set_body_typed([](ShapeTuple sh
   ICHECK_LT(idx, shape.size());
   return shape[idx];
 });
+
 }  // namespace runtime
 }  // namespace tvm

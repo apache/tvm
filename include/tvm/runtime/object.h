@@ -507,6 +507,10 @@ class ObjectPtr {
   friend ObjectPtr<BaseType> GetObjectPtr(ObjType* ptr);
 };
 
+// Forward declaration, to prevent circular includes.
+template <typename T>
+class Optional;
+
 /*! \brief Base class of all object reference */
 class ObjectRef {
  public:
@@ -550,19 +554,42 @@ class ObjectRef {
   bool unique() const { return data_.unique(); }
   /*! \return The use count of the ptr, for debug purposes */
   int use_count() const { return data_.use_count(); }
+
   /*!
    * \brief Try to downcast the internal Object to a
    *  raw pointer of a corresponding type.
    *
    *  The function will return a nullptr if the cast failed.
    *
-   * if (const Add *add = node_ref.As<Add>()) {
-   *   // This is an add node
-   * }
-   * \tparam ObjectType the target type, must be a subtype of Object/
+   *      if (const AddNode *ptr = node_ref.as<AddNode>()) {
+   *        // This is an add node
+   *      }
+   *
+   * \tparam ObjectType the target type, must be a subtype of Object
    */
-  template <typename ObjectType>
+  template <typename ObjectType, typename = std::enable_if_t<std::is_base_of_v<Object, ObjectType>>>
   inline const ObjectType* as() const;
+
+  /*!
+   * \brief Try to downcast the ObjectRef to a
+   *    Optional<T> of the requested type.
+   *
+   *  The function will return a NullOpt if the cast failed.
+   *
+   *      if (Optional<Add> opt = node_ref.as<Add>()) {
+   *        // This is an add node
+   *      }
+   *
+   * \note While this method is declared in <tvm/runtime/object.h>,
+   * the implementation is in <tvm/runtime/container/optional.h> to
+   * prevent circular includes.  This additional include file is only
+   * required in compilation units that uses this method.
+   *
+   * \tparam ObjectRefType the target type, must be a subtype of ObjectRef
+   */
+  template <typename ObjectRefType,
+            typename = std::enable_if_t<std::is_base_of_v<ObjectRef, ObjectRefType>>>
+  inline Optional<ObjectRefType> as() const;
 
   /*! \brief type indicate the container type. */
   using ContainerType = Object;
@@ -861,7 +888,7 @@ inline bool Object::IsInstance() const {
 
 inline bool Object::unique() const { return use_count() == 1; }
 
-template <typename ObjectType>
+template <typename ObjectType, typename>
 inline const ObjectType* ObjectRef::as() const {
   if (data_ != nullptr && data_->IsInstance<ObjectType>()) {
     return static_cast<ObjectType*>(data_.get());

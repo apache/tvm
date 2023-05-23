@@ -93,12 +93,14 @@ bool QnnConv2DTransposeRel(const Array<Type>& types, int num_inputs, const Attrs
   if (data == nullptr || weight == nullptr) return false;
   const auto* param = attrs.as<Conv2DTransposeAttrs>();
   ICHECK(param != nullptr) << "Conv2DTransposeAttrs cannot be nullptr.";
-  ICHECK(data->dtype == DataType::Int(8) || data->dtype == DataType::UInt(8))
-      << "Expected qnn conv2d type(int8, uint8) for input but was " << data->dtype;
+  ICHECK(data->dtype == DataType::Int(8) || data->dtype == DataType::UInt(8) ||
+         data->dtype == DataType::Int(16) || data->dtype == DataType::UInt(16))
+      << "Expected qnn conv2d type(int8, uint8, int16) for input but was " << data->dtype;
   ICHECK(weight->dtype == DataType::Int(8) || weight->dtype == DataType::UInt(8))
       << "Expected qnn conv2d type(int8, uint8) for weight but was " << weight->dtype;
-  ICHECK(param->out_dtype == DataType::Int(16) || param->out_dtype == DataType::Int(32))
-      << "Expected qnn conv2d type(int32, int16) for output but was " << param->out_dtype;
+  ICHECK(param->out_dtype == DataType::Int(16) || param->out_dtype == DataType::Int(32) ||
+         data->dtype == DataType::Int(64))
+      << "Expected qnn conv2d type(int16, int32, int64) for output but was " << param->out_dtype;
   ICHECK(param->out_dtype.bits() > 0) << "Output dtype bits should be greater than 0.";
 
   // Check the types of scale and zero points.

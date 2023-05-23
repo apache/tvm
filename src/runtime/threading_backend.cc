@@ -25,6 +25,9 @@
 #include <tvm/runtime/threading_backend.h>
 
 #if defined(__linux__) || defined(__ANDROID__)
+#if __ANDROID_API__ >= 21
+#include <pthread.h>
+#endif
 #include <fstream>
 #include <sstream>
 #else
@@ -167,7 +170,19 @@ class ThreadGroup::Impl {
       CPU_SET(id, &cpuset);
     }
 #if defined(__ANDROID__)
-    sched_setaffinity(thread, sizeof(cpu_set_t), &cpuset);
+#if __ANDROID_API__ >= 21
+    pid_t tid = pthread_gettid_np(thread);
+#else
+    typedef struct {
+      void* next;
+      void* pred;
+      pid_t tid;
+    } pthread_internal;
+    pid_t tid = reinterpret_cast<pthread_internal*>(thread)->tid;
+#endif
+    if (sched_setaffinity(tid, sizeof(cpu_set_t), &cpuset) != 0) {
+      LOG(WARNING) << "sched_setaffinity failed";
+    }
 #else
     pthread_setaffinity_np(thread, sizeof(cpu_set_t), &cpuset);
 #endif
@@ -291,7 +306,11 @@ class ThreadGroup::Impl {
       int64_t cur_freq = 0;
 #if defined(__linux__) || defined(__ANDROID__)
       std::ostringstream filepath;
-      filepath << "/sys/devices/system/cpu/cpu" << i << "/cpufreq/scaling_max_freq";
+      // according to https://www.kernel.org/doc/Documentation/cpu-freq/user-guide.txt
+      // it's better to use cpuinfo_max_freq instead of scaling_max_freq for our
+      // purposes since scaling values can be changed dynamically according "policy limits"
+      // while we are looking for persistent definition of cores
+      filepath << "/sys/devices/system/cpu/cpu" << i << "/cpufreq/cpuinfo_max_freq";
       std::ifstream ifs(filepath.str());
       if (!ifs.fail()) {
         if (!(ifs >> cur_freq)) {
@@ -320,7 +339,8 @@ class ThreadGroup::Impl {
       }
     }
     if (big_count_ + little_count_ != static_cast<int>(sorted_order_.size())) {
-      LOG(WARNING) << "more than two frequencies detected!";
+      big_count_ = static_cast<int>(sorted_order_.size()) - little_count_;
+      LOG(WARNING) << "more than two frequencies detected! Forced big_count_ to " << big_count_;
     }
   }
 

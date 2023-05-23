@@ -104,7 +104,11 @@ def test_detection_models():
     shape_list = [(input_name, input_shape)]
 
     scripted_model = generate_jit_model(1)
-    mod, params = relay.frontend.from_pytorch(scripted_model, shape_list)
+    with tvm.testing.disable_span_filling():
+        mod, params = relay.frontend.from_pytorch(scripted_model, shape_list)
+    with tvm.testing.enable_span_filling():
+        mod_with_span, _ = relay.frontend.from_pytorch(scripted_model, shape_list)
+    assert tvm.ir.structural_equal(mod, mod_with_span, map_free_vars=True)
 
     data = process_image(img)
     data_np = data.detach().numpy()

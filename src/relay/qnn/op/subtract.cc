@@ -97,7 +97,8 @@ Expr QnnSubtractCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
 QNN_REGISTER_BINARY_OP("subtract")
     .describe("Elementwise subtract with broadcasting for quantized tensors.")
     .set_support_level(11)
-    .set_attr<FTVMLegalize>("FTVMQnnCanonicalize", QnnSubtractCanonicalize);
+    .set_attr<FTVMLegalize>("FTVMQnnCanonicalize", QnnSubtractCanonicalize)
+    .set_attr<TOpPattern>("TOpPattern", kBroadcast);
 
 }  // namespace qnn
 }  // namespace relay

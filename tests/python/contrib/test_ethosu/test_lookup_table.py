@@ -172,4 +172,4 @@ def test_random_lut(accel_type):
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

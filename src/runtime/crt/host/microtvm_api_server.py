@@ -24,6 +24,8 @@ import shutil
 import subprocess
 import tarfile
 import time
+import re
+
 from tvm.micro.project_api import server
 
 
@@ -35,9 +37,16 @@ MODEL_LIBRARY_FORMAT_RELPATH = "model.tar"
 
 IS_TEMPLATE = not os.path.exists(os.path.join(PROJECT_DIR, MODEL_LIBRARY_FORMAT_RELPATH))
 
+# Used this size to pass most CRT tests in TVM.
+WORKSPACE_SIZE_BYTES = 2 * 1024 * 1024
+
+CMAKEFILE_FILENAME = "CMakeLists.txt"
+
+# The build target given to make
+BUILD_TARGET = "build/main"
+
 
 class Handler(server.ProjectAPIHandler):
-
     BUILD_TARGET = "build/main"
 
     def __init__(self):
@@ -56,20 +65,46 @@ class Handler(server.ProjectAPIHandler):
                     "verbose",
                     optional=["build"],
                     type="bool",
+                    default=False,
                     help="Run make with verbose output",
-                )
+                ),
+                server.ProjectOption(
+                    "workspace_size_bytes",
+                    optional=["generate_project"],
+                    type="int",
+                    default=WORKSPACE_SIZE_BYTES,
+                    help="Sets the value of TVM_WORKSPACE_SIZE_BYTES.",
+                ),
             ],
         )
 
     # These files and directories will be recursively copied into generated projects from the CRT.
-    CRT_COPY_ITEMS = ("include", "Makefile", "src")
+    CRT_COPY_ITEMS = ("include", "CMakeLists.txt", "src")
 
-    # The build target given to make
-    BUILD_TARGET = "build/main"
+    def _populate_cmake(
+        self,
+        cmakefile_template_path: pathlib.Path,
+        cmakefile_path: pathlib.Path,
+        memory_size: int,
+        verbose: bool,
+    ):
+        """Generate CMakeList file from template."""
+
+        regex = re.compile(r"([A-Z_]+) := (<[A-Z_]+>)")
+        with open(cmakefile_path, "w") as cmakefile_f:
+            with open(cmakefile_template_path, "r") as cmakefile_template_f:
+                for line in cmakefile_template_f:
+                    cmakefile_f.write(line)
+                cmakefile_f.write(
+                    f"target_compile_definitions(main PUBLIC -DTVM_WORKSPACE_SIZE_BYTES={memory_size})\n"
+                )
+                if verbose:
+                    cmakefile_f.write(f"set(CMAKE_VERBOSE_MAKEFILE TRUE)\n")
 
     def generate_project(self, model_library_format_path, standalone_crt_dir, project_dir, options):
         # Make project directory.
         project_dir.mkdir(parents=True)
+        current_dir = pathlib.Path(__file__).parent.absolute()
 
         # Copy ourselves to the generated project. TVM may perform further build steps on the generated project
         # by launching the copy.
@@ -97,32 +132,39 @@ class Handler(server.ProjectAPIHandler):
             else:
                 shutil.copy2(src_path, dst_path)
 
-        # Populate Makefile.
-        shutil.copy2(pathlib.Path(__file__).parent / "Makefile", project_dir / "Makefile")
+        # Populate CMake file
+        self._populate_cmake(
+            current_dir / f"{CMAKEFILE_FILENAME}.template",
+            project_dir / CMAKEFILE_FILENAME,
+            options.get("workspace_size_bytes", WORKSPACE_SIZE_BYTES),
+            options.get("verbose"),
+        )
 
         # Populate crt-config.h
         crt_config_dir = project_dir / "crt_config"
         crt_config_dir.mkdir()
         shutil.copy2(
-            os.path.join(os.path.dirname(__file__), "..", "crt_config-template.h"),
-            os.path.join(crt_config_dir, "crt_config.h"),
+            current_dir / "crt_config" / "crt_config.h",
+            crt_config_dir / "crt_config.h",
         )
 
         # Populate src/
-        src_dir = os.path.join(project_dir, "src")
-        os.mkdir(src_dir)
+        src_dir = project_dir / "src"
+        src_dir.mkdir()
         shutil.copy2(
-            os.path.join(os.path.dirname(__file__), "main.cc"), os.path.join(src_dir, "main.cc")
+            current_dir / "src" / "main.cc",
+            src_dir / "main.cc",
+        )
+        shutil.copy2(
+            current_dir / "src" / "platform.cc",
+            src_dir / "platform.cc",
         )
 
     def build(self, options):
-        args = ["make"]
-        if options.get("verbose"):
-            args.append("VERBOSE=1")
-
-        args.append(self.BUILD_TARGET)
-
-        subprocess.check_call(args, cwd=PROJECT_DIR)
+        build_dir = PROJECT_DIR / "build"
+        build_dir.mkdir()
+        subprocess.check_call(["cmake", ".."], cwd=build_dir)
+        subprocess.check_call(["make"], cwd=build_dir)
 
     def flash(self, options):
         pass  # Flashing does nothing on host.
@@ -176,7 +218,7 @@ class Handler(server.ProjectAPIHandler):
             to_return = 0
 
         if not to_return:
-            self.disconnect_transport()
+            self.close_transport()
             raise server.TransportClosedError()
 
         return to_return
@@ -197,7 +239,7 @@ class Handler(server.ProjectAPIHandler):
                 num_written = 0
 
             if not num_written:
-                self.disconnect_transport()
+                self.close_transport()
                 raise server.TransportClosedError()
 
             data = data[num_written:]

@@ -165,9 +165,11 @@ def find_include_path(name=None, search_path=None, optional=False):
     include_path : list(string)
         List of all found paths to header files.
     """
-    ffi_dir = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-    source_dir = os.path.join(ffi_dir, "..", "..", "..")
-
+    if os.environ.get("TVM_HOME", None):
+        source_dir = os.environ["TVM_HOME"]
+    else:
+        ffi_dir = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
+        source_dir = os.path.join(ffi_dir, "..", "..", "..")
     third_party_dir = os.path.join(source_dir, "3rdparty")
 
     header_path = []
@@ -220,4 +222,4 @@ def find_include_path(name=None, search_path=None, optional=False):
 # We use the version of the incoming release for code
 # that is under development.
 # The following line is set by tvm/python/update_version.py
-__version__ = "0.10.dev0"
+__version__ = "0.13.dev0"

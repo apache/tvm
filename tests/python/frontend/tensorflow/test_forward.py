@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=import-self, invalid-name, unused-argument
+# pylint: disable=import-self, invalid-name, unused-argument, ungrouped-imports, wrong-import-order
 """
 Tensorflow testcases
 ====================
@@ -26,20 +26,11 @@ from distutils.version import LooseVersion
 import threading
 import platform
 import os.path
+from packaging import version as package_version
 import numpy as np
 import pytest
 
 from PIL import Image
-from packaging import version as package_version
-from tvm import relay
-from tvm.runtime.vm import VirtualMachine
-from tvm.relay.frontend.tensorflow import from_tensorflow
-from tvm.contrib import graph_executor
-from tvm.contrib import utils
-
-import tvm
-import tvm.relay.testing.tf as tf_testing
-import tvm.testing
 
 from tensorflow.python.framework import constant_op
 from tensorflow.python.framework import graph_util
@@ -62,6 +53,17 @@ try:
     tf.disable_v2_behavior()
 except ImportError:
     import tensorflow as tf
+
+import tvm
+from tvm import relay, ir
+from tvm.runtime.vm import VirtualMachine
+from tvm.relay.frontend.tensorflow import from_tensorflow
+from tvm.contrib import graph_executor
+from tvm.contrib import utils
+import tvm.testing
+import tvm.relay.testing.tf as tf_testing
+from relay.utils.tag_span import _set_span, _create_span, _verify_structural_equal_with_span
+
 
 # Only allow TF to run on half the GPU RAM to save the other half
 # For TVM
@@ -149,13 +151,23 @@ def run_tvm_graph(
         shape_dict = {
             e: i.shape if hasattr(i, "shape") else () for e, i in zip(input_node, input_data)
         }
-    mod, params = relay.frontend.from_tensorflow(
-        graph_def,
-        layout=layout,
-        shape=shape_dict,
-        outputs=out_names,
-        convert_config=convert_config,
-    )
+    with tvm.testing.disable_span_filling():
+        mod, params = relay.frontend.from_tensorflow(
+            graph_def,
+            layout=layout,
+            shape=shape_dict,
+            outputs=out_names,
+            convert_config=convert_config,
+        )
+    with tvm.testing.enable_span_filling():
+        mod_with_span, _ = relay.frontend.from_tensorflow(
+            graph_def,
+            layout=layout,
+            shape=shape_dict,
+            outputs=out_names,
+            convert_config=convert_config,
+        )
+    assert tvm.ir.structural_equal(mod["main"], mod_with_span["main"], map_free_vars=True)
 
     dev = tvm.device(target, 0)
     if mode == "debug":
@@ -238,6 +250,8 @@ def compare_tf_with_tvm(
     targets=None,
     ignore_in_shape=False,
     convert_config=None,
+    atol=1e-5,
+    rtol=1e-5,
 ):
     """Generic function to generate and compare tensorflow and TVM output"""
 
@@ -292,7 +306,7 @@ def compare_tf_with_tvm(
             for i, tf_out in enumerate(tf_output):
                 if not isinstance(tf_out, np.ndarray):
                     assert len(tvm_output[i].shape) == 0  # pylint: disable=len-as-condition
-                tvm.testing.assert_allclose(tf_out, tvm_output[i], atol=1e-5, rtol=1e-5)
+                tvm.testing.assert_allclose(tf_out, tvm_output[i], atol=atol, rtol=rtol)
 
         sess.close()
 
@@ -729,7 +743,16 @@ def test_forward_convolution():
             "NCHW",
             [1, 1, 8, 8],
         )
-
+        _test_convolution(
+            "conv_transpose",
+            [4, 19, 8, 8],
+            [2, 2, 66, 19],
+            [1, 1],
+            [2, 2],
+            "VALID",
+            "NCHW",
+            [4, 66, 16, 16],
+        )
     _test_convolution("conv", [4, 8, 8, 176], [1, 1, 176, 32], [1, 1], [1, 1], "SAME", "NHWC")
     _test_convolution("conv", [4, 17, 17, 19], [3, 3, 19, 19], [1, 1], [2, 2], "VALID", "NHWC")
     _test_convolution("conv", [4, 17, 17, 124], [1, 1, 124, 19], [1, 1], [1, 1], "SAME", "NHWC")
@@ -903,6 +926,16 @@ def test_forward_convolution():
         "NHWC",
         [4, 8, 8, 176],
         add_shapes_to_graph_def=False,
+    )
+    _test_convolution(
+        "conv_transpose",
+        [4, 8, 8, 19],
+        [2, 2, 66, 19],
+        [1, 1],
+        [2, 2],
+        "VALID",
+        "NHWC",
+        [4, 16, 16, 66],
     )
     # Explicit padding
     if package_version.parse(tf.VERSION) >= package_version.parse("2.4.1"):
@@ -1221,6 +1254,29 @@ def test_forward_argwhere():
     _test_forward_where((5, 5, 5))
     _test_forward_where((5, 5, 5, 5))
     _test_forward_where((5, 5, 5, 5, 5))
+
+
+def _test_forward_where_with_broadcast(in_shape, cond_shape):
+    choice_list = list(np.arange(10).astype("float32"))
+    t1 = np.random.choice(choice_list, size=cond_shape)
+    t2 = np.random.choice(choice_list, size=cond_shape)
+    x = np.random.choice(choice_list, size=in_shape)
+    y = np.random.choice(choice_list, size=in_shape)
+
+    with tf.Graph().as_default():
+        in1 = tf.placeholder(shape=cond_shape, dtype="float32", name="in1")
+        in2 = tf.placeholder(shape=cond_shape, dtype="float32", name="in2")
+        condition = math_ops.less(in1, in2, name="less")
+        lhs = tf.placeholder(shape=in_shape, dtype="float32", name="x")
+        rhs = tf.placeholder(shape=in_shape, dtype="float32", name="y")
+        out = tf.where(condition, lhs, rhs)
+        compare_tf_with_tvm([t1, t2, x, y], ["in1:0", "in2:0", "x:0", "y:0"], out.name)
+
+
+def test_forward_where_with_broadcast():
+    _test_forward_where_with_broadcast((5, 2), (5,))
+    _test_forward_where_with_broadcast((5, 7), (5,))
+    _test_forward_where_with_broadcast((3, 2, 5), (3,))
 
 
 #######################################################################
@@ -1804,9 +1860,15 @@ def test_read_variable_op(target, dev):
 
         shape_dict = {e: i.shape for e, i in zip(in_name, in_data)}
         with pytest.raises(Exception) as execinfo:
-            _, _ = relay.frontend.from_tensorflow(
-                final_graph_def, layout=None, shape=shape_dict, outputs=None
-            )
+            with tvm.testing.disable_span_filling():
+                mod, _ = relay.frontend.from_tensorflow(
+                    final_graph_def, layout=None, shape=shape_dict, outputs=None
+                )
+            with tvm.testing.enable_span_filling():
+                mod_with_span, _ = relay.frontend.from_tensorflow(
+                    final_graph_def, layout=None, shape=shape_dict, outputs=None
+                )
+            assert tvm.ir.structural_equal(mod["main"], mod_with_span["main"])
 
         assert execinfo.value.args[0].startswith("Graph is not frozen. Provide a frozen graph")
 
@@ -3361,6 +3423,8 @@ def _test_forward_crop_and_resize(
     extrapolation_value=0.0,
     method="bilinear",
     dtype="float32",
+    atol=1e-4,
+    rtol=1e-4,
 ):
     image = np.random.uniform(0, 10, size=img_shape).astype(dtype)
     tf.reset_default_graph()
@@ -3375,7 +3439,7 @@ def _test_forward_crop_and_resize(
             extrapolation_value=extrapolation_value,
             name="crop_and_resize",
         )
-        compare_tf_with_tvm([image], ["in_data:0"], "crop_and_resize:0")
+        compare_tf_with_tvm([image], ["in_data:0"], "crop_and_resize:0", atol=atol, rtol=rtol)
 
 
 def test_forward_crop_and_resize():
@@ -3404,6 +3468,8 @@ def test_forward_crop_and_resize():
         box_idx=[1, 0, 2, 3],
         crop_size=[24, 24],
         extrapolation_value=0.3,
+        atol=1e-3,
+        rtol=1e-3,
     )
     _test_forward_crop_and_resize(
         img_shape=[20, 229, 229, 3],
@@ -3412,6 +3478,8 @@ def test_forward_crop_and_resize():
         crop_size=[58, 58],
         extrapolation_value=0.2,
         method="nearest",
+        atol=1e-3,
+        rtol=1e-3,
     )
 
 
@@ -4072,17 +4140,31 @@ def test_forward_ptb():
         # Cell inputs 'c and 'h' consist of all layers values
         shape_dict = {"Model/Placeholder": (batch_size, num_steps)}
 
-        mod, params = relay.frontend.from_tensorflow(
-            graph_def,
-            shape=shape_dict,
-            outputs=[
-                "Model/Softmax:0",
-                "Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell:1",
-                "Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell:6",
-                "Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_1:1",
-                "Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_1:6",
-            ],
-        )
+        with tvm.testing.disable_span_filling():
+            mod, params = relay.frontend.from_tensorflow(
+                graph_def,
+                shape=shape_dict,
+                outputs=[
+                    "Model/Softmax:0",
+                    "Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell:1",
+                    "Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell:6",
+                    "Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_1:1",
+                    "Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_1:6",
+                ],
+            )
+        with tvm.testing.enable_span_filling():
+            mod_with_span, _ = relay.frontend.from_tensorflow(
+                graph_def,
+                shape=shape_dict,
+                outputs=[
+                    "Model/Softmax:0",
+                    "Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell:1",
+                    "Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell:6",
+                    "Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_1:1",
+                    "Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_1:6",
+                ],
+            )
+        assert tvm.ir.structural_equal(mod["main"], mod_with_span["main"])
 
         target = "llvm"
         with tvm.transform.PassContext(opt_level=0):
@@ -5723,7 +5805,12 @@ def test_moments():
         mean, variance = tf.nn.moments(A, [1], keep_dims=True)
         _ = (A - mean) / tf.sqrt(variance + 0.0005)
 
-    mod, _ = from_tensorflow(g.as_graph_def(add_shapes=True))
+    with tvm.testing.disable_span_filling():
+        mod, _ = from_tensorflow(g.as_graph_def(add_shapes=True))
+    with tvm.testing.enable_span_filling():
+        mod_with_span, _ = from_tensorflow(g.as_graph_def(add_shapes=True))
+    assert tvm.ir.structural_equal(mod["main"], mod_with_span["main"], map_free_vars=True)
+
     program = """
     def @main(%A: Tensor[(4, 176, 8, 8), float32]) {
         %527 = mean(%A, axis=[1], keepdims=True) /* moments/mean */;
@@ -5736,7 +5823,7 @@ def test_moments():
         divide(%528, %533) /* truediv */
     }
     """
-    mod_golden = tvm.parser.parse('#[version = "0.0.5"]\n' + program)
+    mod_golden = tvm.relay.parse('#[version = "0.0.5"]\n' + program)
     tvm.ir.assert_structural_equal(mod["main"].body, mod_golden["main"].body, map_free_vars=True)
 
 
@@ -5758,5 +5845,257 @@ def test_invert_permutation():
         compare_tf_with_tvm(x, "Placeholder:0", out_name, no_gpu=False)
 
 
+#######################################################################
+# Bincount
+# ----
+
+
+def _test_bincount(in_shape, size, weights):
+    with tf.Graph().as_default():
+        inputs = []
+        data = []
+        inputs.append(tf.placeholder(shape=in_shape, dtype="int32", name="input0"))
+        data.append(np.random.uniform(0, size, size=in_shape).astype("int32"))
+        inputs.append(tf.placeholder(shape=(), dtype="int32", name="size"))
+        data.append(np.array(size, "int32"))
+        if weights:
+            inputs.append(tf.placeholder(shape=in_shape, dtype="float32", name="weights"))
+            data.append(np.reshape(weights, in_shape).astype("float32"))
+        else:
+            inputs.append(tf.placeholder(shape=(0,), dtype="float32", name="weights"))
+            data.append(np.array([], "float32"))
+        result = tf.raw_ops.Bincount(arr=data[0], size=data[1], weights=data[2])
+        compare_tf_with_tvm(data, [a.name for a in inputs], result.name, mode="vm")
+
+
+def test_forward_bincount():
+    """Test Bincount Op"""
+    # 2D input
+    _test_bincount((3, 10), 20, [1.0] * 30)
+    _test_bincount((3, 10), 20, [1.5] * 30)
+    _test_bincount((3, 10), 20, None)
+    # 1D input
+    _test_bincount((10,), 20, [1.0] * 10)
+    _test_bincount((10,), 20, [1.5] * 10)
+    _test_bincount((10,), 20, None)
+
+
+#######################################################################
+# DenseBincount
+# ----
+
+
+def _test_dense_bincount(in_shape, size, weights, binary_output):
+    with tf.Graph().as_default():
+        inputs = []
+        data = []
+        inputs.append(tf.placeholder(shape=in_shape, dtype="int32", name="input0"))
+        data.append(np.random.uniform(0, size, size=in_shape).astype("int32"))
+        inputs.append(tf.placeholder(shape=(), dtype="int32", name="size"))
+        data.append(np.array(size, "int32"))
+        if weights:
+            inputs.append(tf.placeholder(shape=in_shape, dtype="float32", name="weights"))
+            data.append(np.reshape(weights, in_shape).astype("float32"))
+        else:
+            inputs.append(tf.placeholder(shape=(0,), dtype="float32", name="weights"))
+            data.append(np.array([], "float32"))
+        result = tf.raw_ops.DenseBincount(
+            input=data[0],
+            size=data[1],
+            weights=data[2],
+            binary_output=binary_output,
+        )
+        compare_tf_with_tvm(data, [a.name for a in inputs], result.name, mode="vm")
+
+
+def test_forward_dense_bincount():
+    """Test DenseBincount Op"""
+    for binary_output in [False, True]:
+        # 2D input
+        _test_dense_bincount((3, 10), 20, [1.0] * 30, binary_output)
+        _test_dense_bincount((3, 10), 20, [1.5] * 30, binary_output)
+        _test_dense_bincount((3, 10), 20, None, binary_output)
+        # 1D input
+        _test_dense_bincount((10,), 20, [1.0] * 10, binary_output)
+        _test_dense_bincount((10,), 20, [1.5] * 10, binary_output)
+        _test_dense_bincount((10,), 20, None, binary_output)
+
+
+#######################################################################
+# Test structural_equal and span of a model
+# --------------------------------------
+class TestSetSpan:
+    """Test Structure and span of frequently-used models"""
+
+    def _verify(self, res_fptr, golden_fptr):
+        with tvm.testing.enable_span_filling():
+            with_span = res_fptr()
+        with tvm.testing.disable_span_filling():
+            without_span = res_fptr()
+        assert tvm.ir.structural_equal(with_span, without_span)
+        _verify_structural_equal_with_span(with_span, golden_fptr())
+
+    def test_conv2d_bias_add_span(self):
+        """Test Structure and span of conv2d and bias add model match to the expected result"""
+
+        def _res():
+            in_shape = (1, 5, 5, 1)
+            kernel_shpae = (2, 2, 1, 2)
+            kernel_in = np.ones(kernel_shpae)
+            bias_val_shape = tuple([2])
+            bias_val_in = np.ones(bias_val_shape)
+
+            with tf.Graph().as_default() as g:
+                x = array_ops.placeholder(shape=in_shape, dtype="float32", name="input")
+                kernel = tf.constant(kernel_in, dtype=tf.float32, name="filter_weight")
+                bias_val_tensor = tf.constant(bias_val_in, dtype=tf.float32, name="conv2d_bias")
+                conv2d = tf.nn.conv2d(
+                    x, kernel, strides=[1, 1, 1, 1], padding="VALID", name="conv2d"
+                )
+                _ = tf.nn.bias_add(conv2d, bias_val_tensor, name="bias_add")
+
+                mod, _ = relay.frontend.from_tensorflow(
+                    g.as_graph_def(), shape={"input": in_shape}, outputs=["bias_add"]
+                )
+                return mod["main"]
+
+        def _golden():
+            model_in = relay.var(
+                "input", relay.TensorType([1, 5, 5, 1]), span=_create_span("input")
+            )
+            weight = relay.var(
+                "filter_weight", relay.TensorType([2, 2, 1, 2]), span=_create_span("filter_weight")
+            )
+            bias = relay.var("conv2d_bias", relay.TensorType([2]), span=_create_span("conv2d_bias"))
+            conv2d = _set_span(
+                relay.nn.conv2d(
+                    model_in,
+                    weight,
+                    channels=2,
+                    kernel_size=[2, 2],
+                    data_layout="NHWC",
+                    kernel_layout="HWIO",
+                ),
+                "conv2d",
+            )
+            add = _set_span(relay.op.add(conv2d, bias), "bias_add")
+            mod = ir.IRModule.from_expr(add)
+            return mod["main"]
+
+        self._verify(_res, _golden)
+
+    def test_fully_connected_bias_add_span(self):
+        """Test Structure and span of fully connected model match to the expected result"""
+
+        def _res():
+            in_shape = (1, 10)
+            kernel_shpae = (10, 10)
+            kernel_in = np.ones(kernel_shpae)
+            bias_val_shape = tuple([10])
+            bias_val_in = np.ones(bias_val_shape)
+
+            with tf.Graph().as_default() as g:
+                x = array_ops.placeholder(shape=in_shape, dtype="float32", name="input")
+                in_filter = tf.constant(kernel_in, dtype=tf.float32, name="filter_weight")
+                bias_val_tensor = tf.constant(bias_val_in, dtype=tf.float32, name="dense_bias")
+                mat_mul = math_ops.mat_mul(x, in_filter, name="dense")
+                _ = tf.nn.bias_add(mat_mul, bias_val_tensor, name="bias_add")
+
+                mod, _ = relay.frontend.from_tensorflow(
+                    g.as_graph_def(),
+                    shape={"input": in_shape},
+                    outputs=["bias_add"],
+                    convert_config={"use_dense": True},
+                )
+                return mod["main"]
+
+        def _golden():
+            model_in = relay.var("input", relay.TensorType([1, 10]), span=_create_span("input"))
+            weight = relay.var(
+                "filter_weight", relay.TensorType([10, 10]), span=_create_span("filter_weight")
+            )
+            bias = relay.var("dense_bias", relay.TensorType([10]), span=_create_span("dense_bias"))
+            transpose = _set_span(relay.transpose(weight, [1, 0]), "dense")
+            dense = _set_span(relay.nn.dense(model_in, transpose, units=10), "dense")
+            add = _set_span(relay.op.add(dense, bias), "bias_add")
+            mod = ir.IRModule.from_expr(add)
+            return mod["main"]
+
+        self._verify(_res, _golden)
+
+    def test_reshape_span(self):
+        """Test Structure and span of reshape model match to the expected result"""
+
+        def _res():
+            in_shape = (1, 10)
+            output_shape = (2, 5)
+
+            with tf.Graph().as_default() as g:
+                x = array_ops.placeholder(shape=in_shape, dtype="float32", name="input")
+                _ = array_ops.reshape(x, output_shape, "reshape")
+
+                mod, _ = relay.frontend.from_tensorflow(
+                    g.as_graph_def(), shape={"input": in_shape}, outputs=["reshape"]
+                )
+                return mod["main"]
+
+        def _golden():
+            model_in = relay.var("input", relay.TensorType([1, 10]), span=_create_span("input"))
+            reshape = _set_span(relay.reshape(model_in, [2, 5]), "reshape")
+            mod = ir.IRModule.from_expr(reshape)
+            return mod["main"]
+
+        self._verify(_res, _golden)
+
+    def test_batch_norm_span(self):
+        """Test Structure and span of batchnorm model match to the expected result"""
+
+        def _res():
+            in_shape = (1, 12, 12, 32)
+            with tf.Graph().as_default() as g:
+                input_tensor = tf.placeholder(tf.float32, shape=in_shape, name="input")
+                alpha = tf.constant(
+                    np.ones(
+                        in_shape[-1],
+                    ),
+                    dtype=tf.float32,
+                    name="alpha",
+                )
+                beta = tf.constant(
+                    np.ones(
+                        in_shape[-1],
+                    ),
+                    dtype=tf.float32,
+                    name="beta",
+                )
+                _ = tf.nn.fused_batch_norm(x=input_tensor, offset=beta, scale=alpha, name="bn")
+                mod, _ = relay.frontend.from_tensorflow(
+                    g.as_graph_def(), shape={"input": in_shape}, outputs=["bn"]
+                )
+                return mod["main"]
+
+        def _golden():
+            model_in = relay.var(
+                "input", relay.TensorType([1, 12, 12, 32]), span=_create_span("input")
+            )
+            alpha = relay.var("alpha", relay.TensorType([32]), span=_create_span("alpha"))
+            beta = relay.var("beta", relay.TensorType([32]), span=_create_span("beta"))
+            mean = _set_span(relay.op.mean(model_in, axis=[3], exclude=True), "bn")
+            variance_mean = _set_span(
+                relay.op.mean(model_in, axis=[3], keepdims=True, exclude=True), "bn"
+            )
+            variance = _set_span(
+                relay.op._make._variance(model_in, variance_mean, [3], False, True, False), "bn"
+            )
+            bn = _set_span(
+                relay.nn.batch_norm(model_in, alpha, beta, mean, variance, axis=3, epsilon=0.001),
+                "bn",
+            )
+            mod = ir.IRModule.from_expr(bn[0])
+            return mod["main"]
+
+        self._verify(_res, _golden)
+
+
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

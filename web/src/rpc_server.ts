@@ -22,6 +22,8 @@ import { assert, StringToUint8Array, Uint8ArrayToString } from "./support";
 import { detectGPUDevice } from "./webgpu";
 import * as compact from "./compact";
 import * as runtime from "./runtime";
+import { timeStamp } from "console";
+import { Disposable } from "./types";
 
 enum RPCServerState {
   InitHeader,
@@ -83,6 +85,7 @@ export class RPCServer {
   private pendingSend: Promise<void> = Promise.resolve();
   private name: string;
   private inst?: runtime.Instance = undefined;
+  private globalObjects: Array<Disposable> = [];
   private serverRecvData?: (header: Uint8Array, body: Uint8Array) => void;
   private currPacketHeader?: Uint8Array;
   private currPacketLength = 0;
@@ -121,6 +124,9 @@ export class RPCServer {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private onClose(_event: CloseEvent): void {
     if (this.inst !== undefined) {
+      this.globalObjects.forEach(obj => {
+        obj.dispose();
+      });
       this.inst.dispose();
     }
     if (this.state == RPCServerState.ReceivePacketHeader) {
@@ -263,6 +269,9 @@ export class RPCServer {
       }
 
       this.inst = inst;
+      // begin scope to allow handling of objects
+      // the object should stay alive during all sessions.
+      this.inst.beginScope();
       const fcreate = this.inst.getGlobalFunc("rpc.CreateEventDrivenServer");
 
       const messageHandler = fcreate(
@@ -301,8 +310,10 @@ export class RPCServer {
         this.name,
         this.key
       );
-
-      fcreate.dispose();
+      // message handler should persist across RPC runs
+      this.globalObjects.push(
+        this.inst.detachFromCurrentScope(messageHandler)
+      );
       const writeFlag = this.inst.scalar(3, "int32");
 
       this.serverRecvData = (header: Uint8Array, body: Uint8Array): void => {
@@ -320,7 +331,6 @@ export class RPCServer {
       // register the callback to redirect the session to local.
       const flocal = this.inst.getGlobalFunc("wasm.LocalSession");
       const localSession = flocal();
-      flocal.dispose();
       assert(localSession instanceof runtime.Module);
 
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -333,13 +343,14 @@ export class RPCServer {
       );
       messageHandler(header, writeFlag);
       messageHandler(body, writeFlag);
-      localSession.dispose();
 
       this.log("Finish initializing the Wasm Server..");
       this.requestBytes(SizeOf.I64);
       this.state = RPCServerState.ReceivePacketHeader;
       // call process events in case there are bufferred data.
       this.processEvents();
+      // recycle all values.
+      this.inst.endScope();
     };
 
     this.state = RPCServerState.WaitForCallback;

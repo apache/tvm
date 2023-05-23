@@ -57,7 +57,6 @@
 #define TVM_IR_TRANSFORM_H_
 
 #include <tvm/ir/diagnostic.h>
-#include <tvm/ir/error.h>
 #include <tvm/ir/instrument.h>
 #include <tvm/ir/module.h>
 #include <tvm/runtime/container/array.h>
@@ -427,8 +426,6 @@ class SequentialNode : public PassNode {
    *        a given pass and executes them.
    *
    * \param mod The module that an optimization pass runs on.
-   *
-   * \return The updated module after resolving pass dependencies.
    *
    * TODO(zhiics) Build a dependency graph among the passes using provided
    * metadata, i.e. required_passes. Likely, we can have a data structure, i.e.

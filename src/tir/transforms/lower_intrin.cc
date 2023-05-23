@@ -27,6 +27,7 @@
 #include <tvm/tir/op.h>
 #include <tvm/tir/transform.h>
 
+#include <limits>
 #include <unordered_set>
 
 #include "../../arith/ir_mutator_with_analyzer.h"
@@ -112,20 +113,63 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       // Common path, positive divisor
       if (analyzer_->CanProveGreaterEqual(op->a, 0) || analyzer_->CanProveGreaterEqual(e, 0)) {
         return truncdiv(op->a, op->b);
-      } else {
-        DLOG(INFO) << "LowerFloorDiv: Cannot decide the sign of divident";
-        PrimExpr rdiv = truncdiv(op->a, op->b);
-        PrimExpr rmod = truncmod(op->a, op->b);
-        // condition on b >= 0.
-        // truncmod(a, b) < 0 will implies ceildiv,
-        // So we need to correct these cases.
-        if ((dtype == DataType::Int(32) || dtype == DataType::Int(64)) && support_bitwise_op_) {
-          // equivalent to rdiv + (rmod >= 0 ? 0: -1);
-          return rdiv + (rmod >> make_const(dtype, dtype.bits() - 1));
-        } else {
-          return tir::Select(rmod >= 0, rdiv, rdiv - make_const(dtype, 1));
-        }
       }
+
+      // If the numerator's lower bound is known, express the floordiv
+      // in terms of truncdiv using only positive operands.
+      arith::ConstIntBound const_int_bound = analyzer_->const_int_bound(op->a);
+      if (const_int_bound->min_value < 0 &&
+          const_int_bound->min_value >
+              -(Downcast<IntImm>(tvm::max_value(op->a->dtype.element_of()))->value)) {
+        // The goal is to write floordiv(a,b) in terms of truncdiv, without using
+        // negative operands.
+        //
+        // For any integer c
+        //
+        //   floordiv(a,b) == floordiv(a + b*c - b*c, b)
+        //                 == floordiv(a + b*c, b) - c
+        //
+        // Choosing `c = ceildiv(-a_min, b)`.  This can be rewritten in terms of
+        // truncdiv as follows.
+        //
+        //   c == ceildiv(-a_min,b)
+        //     == floordiv(-a_min + (b-1), b)
+        //     == truncdiv(-a_min + (b-1), b)
+        //
+        // When substituted into `a + b*c`, this results in a positive argument.
+        //
+        //   a + b*c
+        //     == a + b*ceildiv(-a_min,b)
+        //     == a - b*floordiv(a_min,b)
+        //     >= a - b*floordiv(a,b)
+        //     == floormod(a, b)
+        //     >= 0
+        //
+        // Since the argument is positive, this allows floordiv to be written as
+        // followed.
+        //
+        //   floordiv(a,b)
+        //     == floordiv(a + b*c, b) - c
+        //     == truncdiv(a + b*c, b) - c
+        IntImm min(op->a->dtype.element_of(), const_int_bound->min_value);
+        PrimExpr ceildiv = truncdiv((op->b - 1) - min, op->b);
+        PrimExpr offset_numerator = analyzer_->Simplify(op->a + op->b * ceildiv);
+        return truncdiv(offset_numerator, op->b) - ceildiv;
+      }
+
+      DLOG(INFO) << "LowerFloorDiv: Cannot decide the sign of divident";
+      PrimExpr rdiv = truncdiv(op->a, op->b);
+      PrimExpr rmod = truncmod(op->a, op->b);
+      // condition on b >= 0.
+      // truncmod(a, b) < 0 will implies ceildiv,
+      // So we need to correct these cases.
+      if ((dtype == DataType::Int(32) || dtype == DataType::Int(64)) && support_bitwise_op_) {
+        // equivalent to rdiv + (rmod >= 0 ? 0: -1);
+        return rdiv + (rmod >> make_const(dtype, dtype.bits() - 1));
+      } else {
+        return tir::Select(rmod >= 0, rdiv, rdiv - make_const(dtype, 1));
+      }
+
     } else {
       if (dtype.is_float()) {
         // floor(a / b)
@@ -165,21 +209,63 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       // Common pass, positive divisor
       if (analyzer_->CanProveGreaterEqual(op->a, 0)) {
         return truncmod(op->a, op->b);
-      } else {
-        DLOG(INFO) << "LowerFloorMod: Cannot decide the sign of divident";
-        // NOTE:condition on b >= 0.
-        // mod(a, b) < 0 will imply we are doing ceildiv,
-        // So we need to correct these cases.
-        PrimExpr rmod = truncmod(op->a, op->b);
-        if ((dtype == DataType::Int(32) || dtype == DataType::Int(64)) && support_bitwise_op_) {
-          // (rmod >> shift) & b
-          // -> (rmod >= 0 ? 0: -1) & b
-          // -> rmod >= 0 ? 0 : b
-          return rmod + (op->b & (rmod >> make_const(dtype, dtype.bits() - 1)));
-        } else {
-          return tir::Select(rmod >= 0, rmod, rmod + op->b);
-        }
       }
+
+      // If the numerator's lower bound is known, express the floormod
+      // in terms of truncmod using only positive operands.
+      arith::ConstIntBound const_int_bound = analyzer_->const_int_bound(op->a);
+      if (const_int_bound->min_value < 0 &&
+          const_int_bound->min_value >
+              -(Downcast<IntImm>(tvm::max_value(op->a->dtype.element_of()))->value)) {
+        // The goal is to write floormod(a,b) in terms of truncdiv and truncmod,
+        // without using negative operands.
+        //
+        // For any integer c
+        //
+        //   floormod(a, b) == floormod(a + b*c, b)
+        //
+        // Choosing `c = ceildiv(-a_min, b)`.  This can be rewritten in terms of
+        // truncdiv as follows.
+        //
+        //   c == ceildiv(-a_min,b)
+        //     == floordiv(-a_min + (b-1), b)
+        //     == truncdiv(-a_min + (b-1), b)
+        //
+        // When substituted into `a + b*c`, this results in a positive argument.
+        //
+        //   a + b*c
+        //     == a + b*ceildiv(-a_min,b)
+        //     == a - b*floordiv(a_min,b)
+        //     >= a - b*floordiv(a,b)
+        //     == floormod(a, b)
+        //     >= 0
+        //
+        // Since the argument is positive, this allows floordiv to be written as
+        // followed.
+        //
+        //   floormod(a,b)
+        //     == floormod(a + b*c, b)
+        //     == truncmod(a + b*c, b)
+        IntImm min(op->a->dtype.element_of(), const_int_bound->min_value);
+        PrimExpr ceildiv = truncdiv(-min + (op->b - 1), op->b);
+        PrimExpr offset_numerator = analyzer_->Simplify(op->a + op->b * ceildiv);
+        return truncmod(offset_numerator, op->b);
+      }
+
+      DLOG(INFO) << "LowerFloorMod: Cannot decide the sign of divident";
+      // NOTE:condition on b >= 0.
+      // mod(a, b) < 0 will imply we are doing ceildiv,
+      // So we need to correct these cases.
+      PrimExpr rmod = truncmod(op->a, op->b);
+      if ((dtype == DataType::Int(32) || dtype == DataType::Int(64)) && support_bitwise_op_) {
+        // (rmod >> shift) & b
+        // -> (rmod >= 0 ? 0: -1) & b
+        // -> rmod >= 0 ? 0 : b
+        return rmod + (op->b & (rmod >> make_const(dtype, dtype.bits() - 1)));
+      } else {
+        return tir::Select(rmod >= 0, rmod, rmod + op->b);
+      }
+
     } else {
       if (dtype.is_float()) {
         // a - floor(a / b) * b

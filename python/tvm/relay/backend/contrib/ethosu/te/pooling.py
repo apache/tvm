@@ -36,6 +36,7 @@ def pooling_compute(
     ofm_zero_point: int,
     pool_shape: Tuple[int, int],
     ofm_channels: int,
+    ofm_dtype: str,
     strides: Tuple[int, int],
     padding: Tuple[int, int, int, int],
     activation: str,
@@ -68,6 +69,10 @@ def pooling_compute(
         The 2 dimensional pool shape as (pool_shape_height, pool_shape_width).
     ofm_channels : int
         The number of the Output Feature Map channels
+    ofm_dtype : str
+        The Output Feature Map tensor data type.
+            "AVG" or "MAX" pooling - can be "int8", "uint8", or "int16".
+            "SUM" pooling - can be "int32".
     strides : Tuple[int, int]
         The 2 dimensional strides as (stride_height, stride_width).
     padding : Tuple[int, int, int, int]
@@ -110,11 +115,12 @@ def pooling_compute(
     padding = [int(v) for v in padding]
     stride_h, stride_w = [int(v) for v in strides]
     pool_shape_h, pool_shape_w = [int(v) for v in pool_shape]
+    ifm_channels = ofm_channels if pooling_type != "SUM" else ifm.shape[-1]
     upscale_factor = 2 if upscale != "NONE" else 1
 
     # Compute operation for the IFM DMA pipeline
     dmaed_ifm = dma_ifm_compute(
-        ifm, ifm_layout, ifm_zero_point, ifm_scale, ofm_channels, padding, upscale_factor
+        ifm, ifm_layout, ifm_zero_point, ifm_scale, ifm_channels, padding, upscale_factor
     )
 
     # Pooling compute operation
@@ -122,6 +128,7 @@ def pooling_compute(
     ofm_width = (dmaed_ifm.shape[2] - pool_shape_w) // stride_w + 1
     rh = te.reduce_axis((0, pool_shape_h), name="ry")
     rw = te.reduce_axis((0, pool_shape_w), name="rx")
+    rc = te.reduce_axis((0, 1 if pooling_type != "SUM" else ifm_channels), name="rc")
 
     pooling_attrs = {
         "op": "ethosu_pooling",
@@ -149,10 +156,10 @@ def pooling_compute(
     pooling = te.compute(
         (1, ofm_height, ofm_width, ofm_channels),
         lambda nn, hh, ww, cc: te.max(
-            (dmaed_ifm(nn, hh * stride_h + rh, ww * stride_w + rw, cc) + lut_expr).astype(
-                ifm.dtype
+            (dmaed_ifm(nn, hh * stride_h + rh, ww * stride_w + rw, cc + rc) + lut_expr).astype(
+                ofm_dtype
             ),
-            axis=[rh, rw],
+            axis=[rh, rw, rc],
         ),
         name="ethosu_pooling",
         attrs=pooling_attrs,

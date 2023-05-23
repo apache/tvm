@@ -44,6 +44,16 @@ namespace tvm {
  */
 using MemoryScope = String;
 
+// NOTE: cannot use enum as they are out of bound of the original enum
+// and results in an undefined behavior
+// A 'null' device type, does not correspond to any DLDeviceType enum.
+// TODO(mbs): This is to help us as we transition away from representing the 'homogenous' case
+// as a singleton target map indexed by the invalid DLDeviceType '0'.
+constexpr int kNullDeviceType = 0;
+
+// An 'invalid' device type, does not correspond to any DLDeviceType enum.
+constexpr int kInvalidDeviceType = -1;
+
 /*!
  * \brief Describes at compile time the constraints on where data is to be stored at runtime
  * down to the (virtual) device and memory scope level, and how to compile code to compute that
@@ -63,7 +73,7 @@ using MemoryScope = String;
  *
  * Some or all of these fields may be unconstrained, signaling that device planning is free to
  * choose a value consistent with the whole program. However if a \p target is given then the \p
- * device_type must equal \p target->kind->device_type.
+ * device_type must equal \p target->GetTargetDeviceType().
  *
  * Note that currently we assume if a function returns its result on a particular (virtual) device
  * then the function body is also executed on that device. See the overview comment in
@@ -167,8 +177,8 @@ class VirtualDeviceNode : public AttrsNode<VirtualDeviceNode> {
  private:
   /*!
    * \brief The \p DLDeviceType (represented as an int) of the virtual device. If \p target is
-   * known then this will be equal to \p target->kind->device_type. If \p target is null then the
-   * target is to be determined later.
+   * known then this will be equal to \p target->GetTargetDeviceType(). If \p target is null then
+   * the target is to be determined later.
    *
    * This is needed to support the legacy "on_device" and "device_copy" calls which only allow
    * a \p DLDeviceTypes (as an integer) to be given.
@@ -229,7 +239,7 @@ class VirtualDeviceNode : public AttrsNode<VirtualDeviceNode> {
    * Physical Devices" above.
    */
   Device ToDevice() const {
-    ICHECK(device_type() != kInvalidDeviceType);
+    ICHECK(device_type_int != kInvalidDeviceType);
     ICHECK(virtual_device_id != -1);
     Device device;
     device.device_type = device_type();
@@ -262,16 +272,15 @@ class VirtualDevice : public ObjectRef {
  public:
   /*!
    * \brief Construct a virtual device.
-   * \param device_type The device type for the virtual device, or \p kInvalidDeviceType if
-   * unconstrained.  If \p target is defined then must match its \p target->kind->device_type.
+   * \param device_type_int The device type for the virtual device, or \p kInvalidDeviceType if
+   * unconstrained.  If \p target is defined then must match its \p target->GetTargetDeviceType().
    * \param virtual_device_id The device id for the virtual device, or -1 if unconstrained.
    * \param target The target describing how to compile for the virtual device, or null if
    * unconstrained.
    * \param memory_scope The memory scope w.r.t. the virtual device which holds data, or "" if
    * unconstrained.
-   * \return The virtual device.
    */
-  explicit VirtualDevice(DLDeviceType device_type = kInvalidDeviceType, int virtual_device_id = -1,
+  explicit VirtualDevice(int device_type_int = kInvalidDeviceType, int virtual_device_id = -1,
                          Target target = {}, MemoryScope memory_scope = {});
 
   /*! \brief Returns the unique fully unconstrained \p VirtualDevice. */
@@ -304,7 +313,7 @@ class VirtualDevice : public ObjectRef {
 
   /*! \brief Returns the \p VirtualDevice for \p target. */
   static VirtualDevice ForTarget(Target target) {
-    DLDeviceType device_type = static_cast<DLDeviceType>(target->kind->device_type);
+    DLDeviceType device_type = static_cast<DLDeviceType>(target->GetTargetDeviceType());
     return VirtualDevice(device_type, /*virtual_device_id=*/0, std::move(target));
   }
 
@@ -349,7 +358,7 @@ class VirtualDevice : public ObjectRef {
 class VirtualDeviceCache {
  public:
   /*! \brief Returns the unique \p VirtualDevice representing given fields. */
-  VirtualDevice Make(DLDeviceType device_type = kInvalidDeviceType, int virtual_device_id = -1,
+  VirtualDevice Make(int device_type = kInvalidDeviceType, int virtual_device_id = -1,
                      Target target = {}, MemoryScope memory_scope = {});
 
   /*!

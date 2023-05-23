@@ -26,3 +26,4 @@ from .conv2d_alter_op import *
 from .conv2d_nchw_winograd import *
 from .conv2d_nhwc_winograd import *
 from .injective import schedule_injective
+from .reduction import *

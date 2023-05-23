@@ -84,6 +84,7 @@ def extract_tasks(
     include_simple_tasks=False,
     dump_workload_to_dag_log=None,
     opt_level=3,
+    other_targets=None,
 ):
     """Extract tuning tasks from a relay program.
 
@@ -105,6 +106,8 @@ def extract_tasks(
         A file to dump an association between the workload keys and the actual DAG
     opt_level : Optional[int]
         The optimization level of the task extractions.
+    other_targets: Optional[List[tvm.target.Target]]
+        Other targets for call_all_topi_funcs, e.g., cutlass target.
 
     Returns
     -------
@@ -125,12 +128,15 @@ def extract_tasks(
     old_verbose = dispatch_ctx.verbose
     dispatch_ctx.verbose = 0
 
+    targets = [target]
+    if other_targets is not None:
+        targets += other_targets
     errors = []
     with env:
         # Wrap build call in a new thread to avoid the conflict
         # between python's multiprocessing and tvm's thread pool
         build_thread = threading.Thread(
-            target=call_all_topi_funcs, args=(mod, params, target, errors, opt_level)
+            target=call_all_topi_funcs, args=(mod, params, targets, errors, opt_level)
         )
         build_thread.start()
         build_thread.join()
@@ -336,7 +342,8 @@ def auto_schedule_topi(func_name, outs):
         logger.info("Failed to create a ComputeDAG for auto_scheduler: %s", str(err))
         return None
 
-    key = register_workload_tensors(dag.workload_key(), io_tensors)
+    workload_key = dag.workload_key()
+    key = register_workload_tensors(workload_key, io_tensors)
     target = tvm.target.Target.current()
 
     dispatch_ctx = DispatchContext.current
@@ -356,7 +363,7 @@ def auto_schedule_topi(func_name, outs):
         # in the task extraction mode
         if has_complex_op or env.tracing_mode == TracingMode.EXTRACT_TASK:
             env.add_workload_key(func_name, key)
-            input_map = prepare_input_map(io_tensors)
+            input_map = prepare_input_map(io_tensors, workload_key)
             if input_map:
                 env.add_workload_input_names(key, list(input_map.values()))
     elif env.tracing_mode == TracingMode.PREPARE_LAYOUT_REWRITE:

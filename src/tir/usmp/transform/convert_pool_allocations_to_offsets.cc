@@ -96,6 +96,7 @@ class PoolAllocationToOffsetConverter : public StmtExprMutator {
  private:
   PrimExpr VisitExpr_(const CallNode* op) override;
   Stmt VisitStmt_(const AllocateNode* op) override;
+  PrimExpr VisitExpr_(const VarNode* op) override;
   PrimExpr VisitExpr_(const BufferLoadNode* op) override;
   Stmt VisitStmt_(const BufferStoreNode* op) override;
 
@@ -241,8 +242,8 @@ PrimFunc PoolAllocationToOffsetConverter::CreatePrimFuncWithPoolParams(
     if (emit_tvmscript_printable_) {
       original_attrs = DictAttrs();
     }
-    PrimFunc ret = PrimFunc(si.params, new_body, original_primfunc->ret_type, si.buffer_map,
-                            si.buffer_map, original_attrs);
+    PrimFunc ret =
+        PrimFunc(si.params, new_body, original_primfunc->ret_type, si.buffer_map, original_attrs);
     if (!emit_tvmscript_printable_) {
       ret = WithAttr(ret, tvm::attr::kPoolArgs, si.allocated_pool_params);
     }
@@ -395,6 +396,15 @@ PrimExpr PoolAllocationToOffsetConverter::VisitExpr_(const BufferLoadNode* op) {
   return std::move(load);
 }
 
+PrimExpr PoolAllocationToOffsetConverter::VisitExpr_(const VarNode* op) {
+  auto it = allocate_var_to_let_var_.find(GetRef<Var>(op));
+  if (it != allocate_var_to_let_var_.end()) {
+    return (*it).second;
+  }
+
+  return StmtExprMutator::VisitExpr_(op);
+}
+
 Buffer PoolAllocationToOffsetConverter::GetRemappedBuffer(Buffer original) {
   {
     auto it = original_buf_to_let_buf_.find(original);
@@ -439,12 +449,12 @@ IRModule PoolAllocationToOffsetConverter::operator()() {
   // We dont need attrs of PrimFunc that might include non printable attrs such as target
   // for unit tests where emit_tvmscript_printable_ is to be used.
   if (!emit_tvmscript_printable_) {
-    main_func = PrimFunc(si.params, main_func_body, main_func->ret_type, si.buffer_map, {},
-                         main_func->attrs);
+    main_func =
+        PrimFunc(si.params, main_func_body, main_func->ret_type, si.buffer_map, main_func->attrs);
     main_func = WithAttr(main_func, tvm::attr::kPoolArgs, si.allocated_pool_params);
   } else {
     main_func =
-        PrimFunc(si.params, main_func_body, main_func->ret_type, si.buffer_map, {}, DictAttrs());
+        PrimFunc(si.params, main_func_body, main_func->ret_type, si.buffer_map, DictAttrs());
   }
   module_->Update(gv, main_func);
   if (!emit_tvmscript_printable_) {

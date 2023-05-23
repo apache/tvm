@@ -113,10 +113,10 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
 
             # update new attrs
             new_attrs["channels"] = out_channel
-            new_attrs["data_layout"] = "NCHW%dc" % ic_bn
+            new_attrs["data_layout"] = f"NCHW{ic_bn}c"
             # (oc, ic, h, w) -> (OC, IC, h, w, ic, oc)
-            new_attrs["kernel_layout"] = "OIHW%di%do" % (ic_bn, oc_bn)
-            new_attrs["out_layout"] = "NCHW%dc" % oc_bn
+            new_attrs["kernel_layout"] = f"OIHW{ic_bn}i{oc_bn}o"
+            new_attrs["out_layout"] = f"NCHW{oc_bn}c"
 
             # Store altered operator's config
             new_data = te.placeholder(
@@ -169,9 +169,9 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         # update new attrs
         n_elems = 4
         new_attrs["channels"] = out_channel
-        new_attrs["data_layout"] = "NCHW%dc" % ic_bn
-        new_attrs["kernel_layout"] = "OIHW{:n}i{:n}o{:n}i".format(ic_bn // n_elems, oc_bn, n_elems)
-        new_attrs["out_layout"] = "NCHW%dc" % oc_bn
+        new_attrs["data_layout"] = f"NCHW{ic_bn}c"
+        new_attrs["kernel_layout"] = f"OIHW{ic_bn // n_elems:n}i{oc_bn:n}o{n_elems:n}i"
+        new_attrs["out_layout"] = f"NCHW{oc_bn}c"
 
         # Store altered operator's config.
         new_data = te.placeholder(
@@ -220,9 +220,9 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
 
             # update new attrs
             new_attrs["channels"] = out_channel
-            new_attrs["data_layout"] = "NCHW%dc" % ic_bn
-            new_attrs["kernel_layout"] = "OIHW1i%do" % oc_bn
-            new_attrs["out_layout"] = "NCHW%dc" % oc_bn
+            new_attrs["data_layout"] = f"NCHW{ic_bn}c"
+            new_attrs["kernel_layout"] = f"OIHW1i{oc_bn}o"
+            new_attrs["out_layout"] = f"NCHW{oc_bn}c"
 
             # Store altered operator's config.
             new_data = te.placeholder(

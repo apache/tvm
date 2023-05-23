@@ -23,6 +23,7 @@ This article is a test script to test Caffe operator with Relay.
 import os
 import logging
 import numpy as np
+import pytest
 
 from google.protobuf import text_format
 import caffe
@@ -1092,6 +1093,7 @@ def _test_alexnet(data):
     _test_network(data_process, proto_file, blob_file)
 
 
+@pytest.mark.skip(reason="See https://github.com/apache/tvm/issues/13227")
 def test_forward_Alexnet():
     """Alexnet"""
     data = np.random.randint(0, 256, size=(1, 3, 227, 227)).astype(np.float32)
@@ -1153,6 +1155,7 @@ def _test_inceptionv1(data):
     _test_network(data_process, proto_file, blob_file)
 
 
+@pytest.mark.skip(reason="See issue https://github.com/apache/tvm/issues/13227")
 def test_forward_Inceptionv1():
     """Inceptionv4"""
     data = np.random.randint(0, 256, size=(1, 3, 224, 224)).astype(np.float32)

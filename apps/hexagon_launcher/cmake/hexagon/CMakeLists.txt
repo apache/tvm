@@ -16,7 +16,7 @@
 # under the License.
 
 cmake_minimum_required(VERSION 3.2)
-project(HexagonLauncherRPCSkel C CXX)
+project(HexagonLauncherRPCSkel C CXX ASM)
 
 include("${CMAKE_CURRENT_SOURCE_DIR}/../HexagonLauncher.cmake")
 # From the include above get
@@ -68,11 +68,14 @@ set(SKEL_SRCS
   "${LAUNCHER_SRC}/launcher_core.cc"
   "${LAUNCHER_SRC}/launcher_hexagon.cc"
 )
+set(PROFILER_DIR "${TVM_SOURCE_DIR}/src/runtime/hexagon/profiler")
 
 add_library(launcher_rpc_skel SHARED
   "${LAUNCHER_RPC_H}"
   "${LAUNCHER_RPC_SKEL_C}"
   "${SKEL_SRCS}"
+  "${PROFILER_DIR}/prof_utils.cc"
+  "${PROFILER_DIR}/lwp_handler.S"
 )
 
 ExternalProject_Add(static_hexagon_tvm_runtime
@@ -100,4 +103,3 @@ add_library(h_tvm_runtime STATIC IMPORTED)
 set_target_properties(h_tvm_runtime PROPERTIES IMPORTED_LOCATION "${BINARY_DIR}/libtvm_runtime.a")
 
 target_link_libraries(launcher_rpc_skel -Wl,--whole-archive h_tvm_runtime -Wl,--no-whole-archive)
-

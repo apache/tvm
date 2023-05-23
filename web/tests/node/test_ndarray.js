@@ -28,6 +28,7 @@ const wasmSource = fs.readFileSync(path.join(wasmPath, "tvmjs_runtime.wasm"));
 
 let tvm = new tvmjs.Instance(new WebAssembly.Module(wasmSource), new EmccWASI());
 
+
 // Basic fields.
 assert(tvm.listGlobalFuncNames() !== undefined);
 
@@ -42,16 +43,14 @@ function testArrayCopy(dtype, arrayType) {
   let ret = a.toArray();
   assert(ret instanceof arrayType);
   assert(ret.toString() == arrayType.from(data).toString());
-  // test multiple dispose.
-  a.dispose();
-  a.dispose();
 }
 
 test("array copy", () => {
-  testArrayCopy("float32", Float32Array);
-  testArrayCopy("int", Int32Array);
-  testArrayCopy("int8", Int8Array);
-  testArrayCopy("uint8", Uint8Array);
-  testArrayCopy("float64", Float64Array);
+  tvm.withNewScope(() => {
+    testArrayCopy("float32", Float32Array);
+    testArrayCopy("int", Int32Array);
+    testArrayCopy("int8", Int8Array);
+    testArrayCopy("uint8", Uint8Array);
+    testArrayCopy("float64", Float64Array);
+  });
 });
-

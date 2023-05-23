@@ -42,6 +42,11 @@ class MutateThreadBindingNode : public MutatorNode {
   }
   // Inherit from `MutatorNode`
   Optional<Trace> Apply(const Trace& trace, TRandState* rand_state) final;
+  // Inherit from `MutatorNode`
+  Mutator Clone() const final {
+    ObjectPtr<MutateThreadBindingNode> n = make_object<MutateThreadBindingNode>(*this);
+    return Mutator(n);
+  }
 
  private:
   struct Candidate {

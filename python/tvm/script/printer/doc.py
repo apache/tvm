@@ -155,17 +155,37 @@ class LiteralDoc(ExprDoc):
 
     value: Union[str, IntImm, FloatImm, None]
 
-    def __init__(self, value: Union[str, float, bool, int, None]):
+    def __init__(
+        self,
+        value: Union[str, float, bool, int, None],
+        path: Optional[ObjectPath] = None,
+    ):
         if value is None:
-            self.__init_handle_by_constructor__(_ffi_api.LiteralDocNone)  # type: ignore # pylint: disable=no-member
+            self.__init_handle_by_constructor__(_ffi_api.LiteralDocNone, path)  # type: ignore # pylint: disable=no-member
         elif isinstance(value, str):
-            self.__init_handle_by_constructor__(_ffi_api.LiteralDocStr, value)  # type: ignore # pylint: disable=no-member
+            self.__init_handle_by_constructor__(
+                _ffi_api.LiteralDocStr,  # type: ignore # pylint: disable=no-member
+                value,
+                path,
+            )
         elif isinstance(value, float):
-            self.__init_handle_by_constructor__(_ffi_api.LiteralDocFloat, value)  # type: ignore # pylint: disable=no-member
+            self.__init_handle_by_constructor__(
+                _ffi_api.LiteralDocFloat,  # type: ignore # pylint: disable=no-member
+                value,
+                path,
+            )
         elif isinstance(value, bool):
-            self.__init_handle_by_constructor__(_ffi_api.LiteralDocBoolean, value)  # type: ignore # pylint: disable=no-member
+            self.__init_handle_by_constructor__(
+                _ffi_api.LiteralDocBoolean,  # type: ignore # pylint: disable=no-member
+                value,
+                path,
+            )
         elif isinstance(value, int):
-            self.__init_handle_by_constructor__(_ffi_api.LiteralDocInt, value)  # type: ignore # pylint: disable=no-member
+            self.__init_handle_by_constructor__(
+                _ffi_api.LiteralDocInt,  # type: ignore # pylint: disable=no-member
+                value,
+                path,
+            )
         else:
             raise TypeError(f"Unsupported type {type(value)} for LiteralDoc")
 
@@ -500,4 +520,24 @@ class ClassDoc(StmtDoc):
             name,
             decorators,
             body,
+        )
+
+
+@register_object("script.printer.CommentDoc")
+class CommentDoc(StmtDoc):
+    """Doc that represents comment."""
+
+    def __init__(self, comment: str):
+        self.__init_handle_by_constructor__(
+            _ffi_api.CommentDoc, comment  # type: ignore # pylint: disable=no-member
+        )
+
+
+@register_object("script.printer.DocStringDoc")
+class DocStringDoc(StmtDoc):
+    """Doc that represents docstring."""
+
+    def __init__(self, docs: str):
+        self.__init_handle_by_constructor__(
+            _ffi_api.DocStringDoc, docs  # type: ignore # pylint: disable=no-member
         )

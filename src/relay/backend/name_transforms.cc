@@ -19,6 +19,7 @@
 
 #include "name_transforms.h"
 
+#include <tvm/runtime/name_transforms.h>
 #include <tvm/runtime/registry.h>
 
 #include <cctype>
@@ -28,27 +29,34 @@ namespace tvm {
 namespace relay {
 namespace backend {
 
-std::string ToCFunctionStyle(const std::string& original_name) {
-  ICHECK(!original_name.empty()) << "Function name is empty";
-  ICHECK_EQ(original_name.find("TVM"), 0) << "Function not TVM prefixed";
-
-  int tvm_prefix_length = 3;
-  std::string function_name("TVM");
+std::string ToCamel(const std::string& original_name) {
+  std::string camel_name;
+  camel_name.reserve(original_name.size());
 
   bool new_block = true;
-  for (const char& symbol : original_name.substr(tvm_prefix_length)) {
+  for (const char& symbol : original_name) {
     if (std::isalpha(symbol)) {
       if (new_block) {
-        function_name.push_back(std::toupper(symbol));
+        camel_name.push_back(std::toupper(symbol));
         new_block = false;
       } else {
-        function_name.push_back(std::tolower(symbol));
+        camel_name.push_back(std::tolower(symbol));
       }
     } else if (symbol == '_') {
       new_block = true;
     }
   }
-  return function_name;
+  return camel_name;
+}
+
+std::string ToCFunctionStyle(const std::string& original_name) {
+  ICHECK(!original_name.empty()) << "Function name is empty";
+  ICHECK_EQ(original_name.find("TVM"), 0) << "Function not TVM prefixed";
+
+  int tvm_prefix_length = 3;
+  std::string function_prefix("TVM");
+
+  return function_prefix + ToCamel(original_name.substr(tvm_prefix_length));
 }
 
 std::string ToCVariableStyle(const std::string& original_name) {
@@ -70,6 +78,30 @@ std::string ToCConstantStyle(const std::string& original_name) {
   return constant_name;
 }
 
+std::string ToRustStructStyle(const std::string& original_name) {
+  ICHECK(!original_name.empty()) << "Struct name is empty";
+  return ToCamel(original_name);
+}
+
+std::string ToRustMacroStyle(const std::string& original_name) {
+  ICHECK(!original_name.empty()) << "Macro name is empty";
+
+  std::string macro_name;
+  macro_name.resize(original_name.size());
+
+  std::transform(original_name.begin(), original_name.end(), macro_name.begin(), ::tolower);
+  return macro_name;
+}
+
+std::string ToRustConstantStyle(const std::string& original_name) {
+  ICHECK(!original_name.empty()) << "Constant name is empty";
+  std::string constant_name;
+  constant_name.resize(original_name.size());
+
+  std::transform(original_name.begin(), original_name.end(), constant_name.begin(), ::toupper);
+  return constant_name;
+}
+
 std::string CombineNames(const Array<String>& names) {
   std::stringstream combine_stream;
   ICHECK(!names.empty()) << "Name segments empty";
@@ -84,22 +116,11 @@ std::string CombineNames(const Array<String>& names) {
   return combined_name;
 }
 
-std::string SanitizeName(const std::string& name) {
-  ICHECK(!name.empty()) << "Name is empty";
-
-  auto isNotAlnum = [](char c) { return !std::isalnum(c); };
-  std::string sanitized_input = name;
-  std::replace_if(sanitized_input.begin(), sanitized_input.end(), isNotAlnum, '_');
-
-  return sanitized_input;
-}
-
 TVM_REGISTER_GLOBAL("relay.backend.ToCFunctionStyle").set_body_typed(ToCFunctionStyle);
 TVM_REGISTER_GLOBAL("relay.backend.ToCVariableStyle").set_body_typed(ToCVariableStyle);
 TVM_REGISTER_GLOBAL("relay.backend.ToCConstantStyle").set_body_typed(ToCConstantStyle);
 TVM_REGISTER_GLOBAL("relay.backend.PrefixName").set_body_typed(PrefixName);
 TVM_REGISTER_GLOBAL("relay.backend.PrefixGeneratedName").set_body_typed(PrefixGeneratedName);
-TVM_REGISTER_GLOBAL("relay.backend.SanitizeName").set_body_typed(SanitizeName);
 
 }  // namespace backend
 }  // namespace relay

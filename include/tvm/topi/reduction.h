@@ -57,14 +57,14 @@ using FCommReduce = std::function<Array<PrimExpr>(Array<PrimExpr> exprs, const A
  * \param ndim Number of dimensions in the target.
  * \param axis The axis parameter.
  *
- * \return A non-empty sorted array of valid dimension indices, with no duplicates.
- * If the input axis is empty, the result will be an axis including all dimensions.
+ * \return A sorted array of valid dimension indices, with no duplicates.
+ * If the input axis is None, the result will be an axis including all dimensions.
  * If any input element is negative, it will be treated as an offset from the
  * last dimension (same as python indexing rules).
  */
 inline std::vector<int> GetRealAxis(int ndim, const Array<Integer>& axis) {
   std::vector<int> real_axis;
-  if (!axis.defined() || axis.size() == 0) {
+  if (!axis.defined()) {
     for (int i = 0; i < ndim; ++i) {
       real_axis.push_back(i);
     }
@@ -75,7 +75,7 @@ inline std::vector<int> GetRealAxis(int ndim, const Array<Integer>& axis) {
       if (val < 0) {
         val += ndim;
       }
-      ICHECK_LE(val, ndim) << " exceeds the maximum dimension " << ndim;
+      ICHECK_LT(val, ndim) << " exceeds the maximum dimension " << ndim;
       ICHECK_GE(val, 0);
       real_axis.push_back(static_cast<int>(val));
     }
@@ -325,25 +325,36 @@ inline PrimExpr ProdOp(PrimExpr source, Array<IterVar> axis, Array<PrimExpr> ini
  */
 inline Tensor sum(const Tensor& data, const Array<Integer>& axis, bool keepdims = false,
                   bool atleast1d = false) {
-  return CommReduce(data, axis, tvm::sum, keepdims, atleast1d);
+  if (data->dtype.is_bool()) {
+    return CommReduce(data, axis, tvm::any, keepdims, atleast1d);
+  } else {
+    return CommReduce(data, axis, tvm::sum, keepdims, atleast1d);
+  }
 }
 
 inline Tensor collapse_sum(const Tensor& data, Array<PrimExpr> target_shape) {
-  ICHECK_GE(data->shape.size(), target_shape.size());
-  auto ishape = detail::GetConstIntValues(data->shape, "ishape");
-  auto oshape = detail::GetConstIntValues(target_shape, "oshape");
+  const auto& ishape = data->shape;
+  const auto& oshape = target_shape;
+  int isize = data->shape.size();
+  int osize = target_shape.size();
+
+  ICHECK_GE(isize, osize)
+      << "Invalid collapse: input dimensionality smaller than output dimensionality.\ninput shape: "
+      << data->shape << "\nvs\noutput shape: " << target_shape;
 
   std::vector<int> reduce_axes;
   std::vector<int> squeeze_axes;
-  for (int i_ax = ishape.size() - 1, o_ax = oshape.size() - 1; i_ax >= 0; --i_ax) {
-    if (o_ax >= 0 && ishape[i_ax] == oshape[o_ax]) {
+  tvm::PrimExpr one(1);
+
+  for (int i_ax = isize - 1, o_ax = osize - 1; i_ax >= 0; --i_ax) {
+    if (o_ax >= 0 && topi::detail::EqualCheck(ishape[i_ax], oshape[o_ax])) {
       --o_ax;
       continue;
     }
     reduce_axes.push_back(i_ax);
     if (o_ax < 0) {  // squeeze o_ax if was added during expansion
       squeeze_axes.push_back(i_ax);
-    } else if (oshape[o_ax] == 1) {
+    } else if (topi::detail::EqualCheck(one, oshape[o_ax])) {
       --o_ax;
     }
   }
@@ -568,6 +579,29 @@ inline Tensor argmax(const Tensor& data, const Array<Integer>& axis, bool keepdi
 inline Tensor prod(const Tensor& data, const Array<Integer>& axis, bool keepdims = false,
                    bool atleast1d = false) {
   return CommReduce(data, axis, ProdOp, keepdims, atleast1d);
+}
+
+/*!
+ * \brief Create communitive reducer summing over tuples
+ */
+inline FCommReduce MakeTupleSumReducer() {
+  auto fcombine = [](Array<Var> lhs, Array<Var> rhs) {
+    Array<PrimExpr> result;
+    ICHECK_EQ(lhs.size(), rhs.size());
+    result.reserve(lhs.size());
+    for (size_t i = 0; i < lhs.size(); ++i) {
+      result.push_back(lhs[i] + rhs[i]);
+    }
+    return result;
+  };
+  auto fidentity = [](std::vector<DataType> types) {
+    Array<PrimExpr> result;
+    for (size_t i = 0; i < types.size(); ++i) {
+      result.push_back(tvm::tir::make_const(types[i], 0));
+    }
+    return result;
+  };
+  return MakeCommReducer(fcombine, fidentity, "tuple_sum");
 }
 
 }  // namespace topi

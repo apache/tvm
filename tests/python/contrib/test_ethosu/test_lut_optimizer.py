@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Test the pass that removes unnecssary identity operation if the identity 
+"""Test the pass that removes unnecssary identity operation if the identity
 uses LUT and the preceding operator is LUT capable and doesn't already have a LUT.
 """
 import pytest
@@ -61,6 +61,48 @@ def test_merge_lut_into_conv():
         )
 
         func = relay.Function(relay.analysis.free_vars(conv2), conv2)
+        func = func.with_attr("Compiler", "ethos-u")
+        mod = tvm.IRModule.from_expr(func)
+        mod = relay.transform.InferType()(mod)
+        return mod
+
+    mod = LUTsOptimizer()(before())
+    mod = relay.transform.InferType()(mod)
+
+    assert tvm.ir.structural_equal(mod, after())
+
+
+def test_merge_lut_into_binary_elementwise():
+    """If an binary elementwise operator is followed by an identity operator
+    with LUT, we can merge the two operataors."""
+
+    shape = (1, 8, 8, 4)
+    dtype = "int8"
+    ifm = relay.var("x", shape=shape, dtype=dtype)
+    ifm2 = relay.var("x", shape=shape, dtype=dtype)
+    lut1 = relay.const([i for i in range(256)], dtype=dtype)
+    lut2 = relay.const([i for i in reversed(range(256))], dtype=dtype)
+
+    def before():
+        sub = infra.make_ethosu_binary_elementwise(ifm, ifm2, shape[-1], shape[-1], "SUB", dtype)
+        id1 = infra.make_ethosu_identity(sub, lut=lut1, activation="TANH")
+        add = infra.make_ethosu_binary_elementwise(id1, ifm2, shape[-1], shape[-1], "ADD", dtype)
+        id2 = infra.make_ethosu_identity(add, lut=lut2, activation="SIGMOID")
+
+        func = relay.Function(relay.analysis.free_vars(id2), id2)
+        func = func.with_attr("Compiler", "ethos-u")
+        mod = tvm.IRModule.from_expr(func)
+        return mod
+
+    def after():
+        sub = infra.make_ethosu_binary_elementwise(
+            ifm, ifm2, shape[-1], shape[-1], "SUB", dtype, lut=lut1, activation="TANH"
+        )
+        add = infra.make_ethosu_binary_elementwise(
+            sub, ifm2, shape[-1], shape[-1], "ADD", dtype, lut=lut2, activation="SIGMOID"
+        )
+
+        func = relay.Function(relay.analysis.free_vars(add), add)
         func = func.with_attr("Compiler", "ethos-u")
         mod = tvm.IRModule.from_expr(func)
         mod = relay.transform.InferType()(mod)

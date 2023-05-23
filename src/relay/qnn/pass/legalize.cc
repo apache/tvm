@@ -30,11 +30,29 @@ namespace qnn {
 
 namespace transform {
 
+// QnnLegalize pass is a wrapper for relay::legalize::Legalize pass.
+Pass QnnLegalize() {
+  runtime::TypedPackedFunc<Function(Function, IRModule, relay::transform::PassContext)> pass_func =
+      [=](Function f, IRModule m, relay::transform::PassContext pc) {
+        return Downcast<Function>(relay::legalize::Legalize(f, "FTVMQnnLegalize"));
+      };
+  return relay::transform::CreateFunctionPass(pass_func, 1, "QnnLegalize", {"InferType"});
+}
+
+// QnnCanonicalize pass is a wrapper for relay::legalize::Legalize pass.
+Pass QnnCanonicalize() {
+  runtime::TypedPackedFunc<Function(Function, IRModule, relay::transform::PassContext)> pass_func =
+      [=](Function f, IRModule m, relay::transform::PassContext pc) {
+        return Downcast<Function>(relay::legalize::Legalize(f, "FTVMQnnCanonicalize"));
+      };
+  return relay::transform::CreateFunctionPass(pass_func, 1, "QnnCanonicalize", {"InferType"});
+}
+
 Pass Legalize() {
   Array<Pass> pass_seqs;
-  pass_seqs.push_back(relay::transform::Legalize("FTVMQnnLegalize"));
-  pass_seqs.push_back(relay::transform::Legalize("FTVMQnnCanonicalize"));
-  relay::transform::Pass seq = relay::transform::Sequential(pass_seqs);
+  pass_seqs.push_back(QnnLegalize());
+  pass_seqs.push_back(QnnCanonicalize());
+  relay::transform::Pass seq = relay::transform::Sequential(pass_seqs, "qnn.Legalize");
   return seq;
 }
 

@@ -84,4 +84,4 @@ if __name__ == "__main__":
     if sys.platform == "win32":
         print("Skip test on Windows for now")
         sys.exit(0)
-    pytest.main([__file__])
+    tvm.testing.main()

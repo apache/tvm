@@ -47,4 +47,7 @@
 #ifdef TVM_OPENCL_RUNTIME
 #include "../src/runtime/opencl/opencl_device_api.cc"
 #include "../src/runtime/opencl/opencl_module.cc"
+#include "../src/runtime/opencl/opencl_wrapper/opencl_wrapper.cc"
+#include "../src/runtime/opencl/texture_pool.cc"
+#include "../src/runtime/source_utils.cc"
 #endif

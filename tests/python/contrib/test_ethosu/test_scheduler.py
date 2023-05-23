@@ -180,19 +180,25 @@ def test_schedule_cache_reads():
 @tvm.script.ir_module
 class DiamondGraphTir:
     @T.prim_func
-    def main(placeholder: T.Buffer[(301056,), "int8"], ethosu_write: T.Buffer[(75264,), "int8"]) -> None:
+    def main(input_placeholder: T.Buffer((1, 56, 56, 96), "int8"), input_ethosu_write: T.Buffer((1, 56, 56, 24), "int8")) -> None:
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-        buffer1 = T.buffer_decl([2848], "uint8")
-        buffer3 = T.buffer_decl([976], "uint8")
-        p1 = T.allocate([2848], "uint8", "global", annotations={"disable_lower_builtin":True})
-        p2 = T.allocate([976], "uint8", "global", annotations={"disable_lower_builtin":True})
-        p5 = T.allocate([75264], "int8", "global", annotations={"disable_lower_builtin":True})
-        p6 = T.allocate([75264], "int8", "global", annotations={"disable_lower_builtin":True})
+        placeholder = T.Buffer([301056], dtype='int8', data=input_placeholder.data)
+        ethosu_write = T.Buffer([75264], dtype='int8', data=input_ethosu_write.data)
+        buffer1 = T.Buffer([2848], "uint8")
+        buffer3 = T.Buffer([976], "uint8")
+        p1_data = T.allocate([2848], "uint8", "global", annotations={"disable_lower_builtin":True})
+        p1 = T.Buffer([2848], "uint8", data=p1_data)
+        p2_data = T.allocate([976], "uint8", "global", annotations={"disable_lower_builtin":True})
+        p2 = T.Buffer([976], "uint8", data=p2_data)
+        p5_data = T.allocate([75264], "int8", "global", annotations={"disable_lower_builtin":True})
+        p5 = T.Buffer([75264], "int8", data=p5_data)
+        p6_data = T.allocate([75264], "int8", "global", annotations={"disable_lower_builtin":True})
+        p6 = T.Buffer([75264], "int8", data=p6_data)
         T.evaluate(T.call_extern("ethosu_copy", buffer1[0], 2848, p1[0], dtype="handle"))
         T.evaluate(T.call_extern("ethosu_copy", buffer3[0], 976, p2[0], dtype="handle"))
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 56, 56, 96, 56, 0, 56, placeholder[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 5376, 96, 1, "int8", 56, 56, 24, 56, 0, 56, p5[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 1344, 24, 1, 1, 1, 1, 1, 1, 1, p1[0], 2608, T.int8(-1), T.int8(-1), 12, p1[2608], 240, T.int8(-1), T.int8(-1), 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 56, 56, 24, 56, 0, 56, p5[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 1344, 24, 1, "int8", 56, 56, 24, 56, 0, 56, p6[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 1344, 24, 1, 1, 1, 1, 1, 1, 1, p2[0], 736, T.int8(-1), T.int8(-1), 12, p2[736], 240, T.int8(-1), T.int8(-1), 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
-        T.evaluate(T.call_extern("ethosu_binary_elementwise", "int8", 56, 56, 24, 56, 0, 56, p5[0], 0, 0, 0,T.float32(1), 0, "NHWC", 1344, 24, 1, "int8", 56, 56, 24, 56, 0, 56, p6[0], 0, 0, 0, T.float32(1), 0, "NHWC", 1344, 24, 1, "int8", 56, 56, 24, 56, 0, 56, ethosu_write[0], 0, 0, 0, T.float32(1), 0, "NHWC", 1344, 24, 1, "ADD", 0, "NONE", 0, 0, "TFL", 0, 0, 0, dtype="handle"))
+        T.evaluate(T.call_extern("ethosu_binary_elementwise", "int8", 56, 56, 24, 56, 0, 56, p5[0], 0, 0, 0,T.float32(1), 0, "NHWC", 1344, 24, 1, "int8", 56, 56, 24, 56, 0, 56, p6[0], 0, 0, 0, T.float32(1), 0, "NHWC", 1344, 24, 1, "int8", 56, 56, 24, 56, 0, 56, ethosu_write[0], 0, 0, 0, T.float32(1), 0, "NHWC", 1344, 24, 1, "ADD", 0, "NONE", 0, 0, "TFL", 0, 0, 0, 0, 0, 0, dtype="handle"))
     __tvm_meta__ = None
 # fmt: on
 
@@ -211,5 +217,21 @@ def test_schedule_diamond_graph():
     tvm.ir.assert_structural_equal(test_mod["main"], reference_mod["main"], True)
 
 
+def test_copy_constants_fully_connected_weights():
+    """Check that MatMul-like conv2d ops do not copy weights to SRAM."""
+    ifm = relay.var("IFM", shape=(1, 1, 1, 32), dtype="int8")
+    conv = make_ethosu_conv2d(ifm, 32, 8, (1, 1), (0, 0), (1, 1), (1, 1))
+    func = relay.Function(relay.analysis.free_vars(conv), conv)
+    func = run_opt_pass(func, relay.transform.InferType())
+
+    func, const_dict = extract_constants(func)
+    cached_func = lower_to_te(func)
+
+    sch = te.create_schedule([cached_func.outputs[0].op])
+    planner = copy_constants()
+    planner(cached_func, const_dict, sch)
+    assert True not in [".global" in s.op.name for s in sch.stages]
+
+
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

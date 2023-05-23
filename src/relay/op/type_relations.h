@@ -25,7 +25,7 @@
 #ifndef TVM_RELAY_OP_TYPE_RELATIONS_H_
 #define TVM_RELAY_OP_TYPE_RELATIONS_H_
 
-#include <tvm/ir/error.h>
+#include <tvm/relay/error.h>
 #include <tvm/relay/type.h>
 
 #include <string>

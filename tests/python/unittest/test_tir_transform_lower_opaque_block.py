@@ -54,7 +54,7 @@ def transformed_elementwise_func(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (16, 16), "float32")
     C = T.match_buffer(c, (16, 16), "float32")
     for i in T.serial(0, 16):
-        B_new = T.allocate([1, 16], "float32", "global")
+        B_new = T.decl_buffer(shape=[1, 16], dtype="float32")
         for j in T.serial(0, 16):
             B_new[0, j] = A[i, j] + 1.0
         for j in T.serial(0, 16):
@@ -96,7 +96,7 @@ def transformed_gpu_func(a: T.handle, c: T.handle) -> None:
     T.launch_thread(i0, 4)
     T.launch_thread(i1, 2)
     T.launch_thread(i2, 2)
-    B = T.allocate([1, 16], "float32", "local")
+    B = T.decl_buffer(shape=[1, 16], dtype="float32", scope="local")
     for j in range(0, 16):
         B[0, j] = A[i0 * 4 + i1 * 2 + i2, j] + 1.0
     for j in range(0, 16):
@@ -131,7 +131,7 @@ def transformed_symbolic_func(a: T.handle, c: T.handle, n: T.int32, m: T.int32) 
     C = T.match_buffer(c, (n, m), "float32")
 
     for i in range(0, n):
-        B = T.allocate([m], "float32", "global")
+        B = T.decl_buffer(shape=[m], dtype="float32")
         for j in range(0, m):
             B[j] = A[i, j] + 1.0
         for j in range(0, m):
@@ -204,8 +204,8 @@ def transformed_multi_alloc_func(a: T.handle, d: T.handle) -> None:
     D = T.match_buffer(d, (32), "float32")
 
     for i in range(0, 32):
-        B = T.allocate((32,), "float32", "global")
-        C = T.allocate((32,), "float32", "global")
+        B = T.decl_buffer(shape=(32,), dtype="float32")
+        C = T.decl_buffer(shape=(32,), dtype="float32")
         B[i] = A[i] + 1.0
         C[i] = A[i] + B[i]
         D[i] = C[i] * 2.0
@@ -236,16 +236,16 @@ def compacted_strided_buffer_func(a: T.handle, c: T.handle) -> None:
 
 @T.prim_func
 def transformed_strided_buffer_func(
-    A: T.Buffer[(16, 16), "float32"], C: T.Buffer[(16, 16), "float32"]
+    A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")
 ) -> None:
     # body
     for i0 in T.serial(4):
-        B = T.allocate([4, 17], "float32", "global")
-        B_1 = T.buffer_decl([4, 16], dtype="float32", data=B.data, strides=[17, 1])
+        B_data = T.allocate([4, 17], "float32", "global")
+        B = T.decl_buffer(shape=[4, 16], dtype="float32", strides=[17, 1], data=B_data)
         for i1, j in T.grid(4, 16):
-            B_1[i1, j] = A[i0 * 4 + i1, j] + T.float32(1)
+            B[i1, j] = A[i0 * 4 + i1, j] + T.float32(1)
         for i1, j in T.grid(4, 16):
-            C[i0 * 4 + i1, j] = B_1[i1, j] * T.float32(2)
+            C[i0 * 4 + i1, j] = B[i1, j] * T.float32(2)
 
 
 @T.prim_func
@@ -256,7 +256,7 @@ def annotated_loops(a: T.handle) -> None:
 
 
 @T.prim_func
-def boolean_handling_before(a: T.Buffer[10, "bool"], b: T.Buffer[10, "bool"]) -> None:
+def boolean_handling_before(a: T.Buffer(10, "bool"), b: T.Buffer(10, "bool")) -> None:
     for i0 in T.serial(10):
         with T.block("b"):
             T.reads(a[i0])
@@ -265,7 +265,7 @@ def boolean_handling_before(a: T.Buffer[10, "bool"], b: T.Buffer[10, "bool"]) ->
 
 
 @T.prim_func
-def boolean_handling_after(a: T.Buffer[10, "bool"], b: T.Buffer[10, "bool"]) -> None:
+def boolean_handling_after(a: T.Buffer(10, "bool"), b: T.Buffer(10, "bool")) -> None:
     # body
     for i0 in T.serial(10):
         b[i0] = a[i0]
@@ -319,6 +319,43 @@ def test_annotated_loops():
     tvm.ir.assert_structural_equal(attr2.value, tvm.tir.IntImm("int32", 1))
     assert attr3.attr_key == "pragma_3"
     tvm.ir.assert_structural_equal(attr3.value, tvm.tir.FloatImm("float32", 0.0))
+
+
+def test_annotated_block():
+    @T.prim_func
+    def annotated_block() -> None:
+        with T.block():
+            T.block_attr({"pragma_1": "str_value", "pragma_2": 1, "pragma_3": 0.0})
+            T.evaluate(0)
+
+    mod = tvm.IRModule.from_expr(annotated_block)
+    mod = tvm.tir.transform.LowerOpaqueBlock()(mod)
+    attr1 = mod["main"].body
+    attr2 = attr1.body
+    attr3 = attr2.body
+    assert attr1.attr_key == "pragma_1" and attr1.value == "str_value"
+    assert attr2.attr_key == "pragma_2"
+    tvm.ir.assert_structural_equal(attr2.value, tvm.tir.IntImm("int32", 1))
+    assert attr3.attr_key == "pragma_3"
+    tvm.ir.assert_structural_equal(attr3.value, tvm.tir.FloatImm("float32", 0.0))
+
+
+def test_preserved_annotations():
+    @T.prim_func
+    def before(A: T.Buffer(8, "float32"), B: T.Buffer(8, "float32")):
+        for i in T.serial(8, annotations={"k_0": 1, "k_1": [2, 3], "k_2": 3.14}):
+            with T.block("block"):
+                T.block_attr({"k_3": "oops"})
+                B[i] = A[i] + 1.0
+
+    @T.prim_func
+    def after(A: T.Buffer(8, "float32"), B: T.Buffer(8, "float32")):
+        for i in T.serial(8, annotations={"k_0": 1, "k_1": [2, 3], "k_2": 3.14}):
+            B[i] = A[i] + 1.0
+
+    mod = tvm.IRModule.from_expr(before)
+    mod = tvm.tir.transform.LowerOpaqueBlock()(mod)
+    tvm.ir.assert_structural_equal(mod["main"], after)
 
 
 def test_boolean_handling():

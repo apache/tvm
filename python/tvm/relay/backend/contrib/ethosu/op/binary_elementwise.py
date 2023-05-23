@@ -50,6 +50,9 @@ def _extract_ethosu_binary_elementwise_params(attrs, args):
     ifm2_layout = attrs.ifm2_layout
     ofm_layout = attrs.ofm_layout
     ofm_dtype = attrs.ofm_dtype
+    use_rescale = attrs.use_rescale
+    rescale_scale = attrs.rescale_scale
+    rescale_shift = attrs.rescale_shift
 
     return (
         ifm,
@@ -73,6 +76,9 @@ def _extract_ethosu_binary_elementwise_params(attrs, args):
         ifm2_layout,
         ofm_layout,
         ofm_dtype,
+        use_rescale,
+        rescale_scale,
+        rescale_shift,
     )
 
 
@@ -117,6 +123,9 @@ def ethosu_binary_elementwise(
     ifm_layout: Optional[str] = "NHWC",
     ifm2_layout: Optional[str] = "NHWC",
     ofm_layout: Optional[str] = "NHWC",
+    use_rescale: Optional[bool] = False,
+    rescale_scale: Optional[int] = 0,
+    rescale_shift: Optional[int] = 0,
 ) -> tvm.relay.Call:
     """This is a quantized binary elementwise operation as supported by
     the NPU. It accepts either NHWC or NHCWB16 format
@@ -193,6 +202,12 @@ def ethosu_binary_elementwise(
         The layout of the Input Feature Map tensor 2. Can be "NHWC" or "NHCWB16".
     ofm_layout : str, optional
         The layout of the Output Feature Map tensor. Can be "NHWC" or "NHCWB16".
+    use_rescale : bool, optional
+        Use explicit scaling if True.
+    rescale_scale : int, optional
+        Scale value for rescale. For 32-bit operations scale is not applied but shift is.
+    rescale_shift : int, optional
+        Shift value for rescale.
 
     Returns
     -------
@@ -221,4 +236,7 @@ def ethosu_binary_elementwise(
         ifm2_layout,
         ofm_layout,
         ofm_dtype,
+        use_rescale,
+        rescale_scale,
+        rescale_shift,
     )

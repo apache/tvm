@@ -68,6 +68,8 @@ class TargetNode : public Object {
   TVM_DLL Map<String, ObjectRef> Export() const;
   /*! \return The Optional<Target> typed target host of the TargetNode */
   TVM_DLL Optional<Target> GetHost() const;
+  /*! \return The device type for this target */
+  TVM_DLL int GetTargetDeviceType() const;
 
   /*!
    * \brief Returns a human readable representation of \p Target which includes all fields,
@@ -205,7 +207,6 @@ class Target : public ObjectRef {
    * \brief Construct a Target given target and host
    * \param target The Target typed object with host field undefined for target
    * \param host The Target typed object for target host
-   * \return The Target with given target and host context information
    */
   TVM_DLL explicit Target(Target target, Target host);
   TVM_DEFINE_OBJECT_REF_METHODS(Target, ObjectRef, TargetNode);
@@ -230,11 +231,11 @@ class Target : public ObjectRef {
    * with \p that target. In particular:
    *  - \p this has a true ::tvm::attr::kIsExternalCodegen attribute
    *  - \p that does not have a true ::tvm::attr::kIsExternalCodegen attribute
-   *  - \p this and \p that have the same kind->device_type
+   *  - \p this and \p that have the same GetTargetDeviceType()
    *
    * After partitioning, the external codegen compilation path may use \p that to guide it's
    * compilation to a \p runtime::Module. Given \p this, an appropriate \p that can be
-   * found using \p CompilationConfig::FindPrimitiveTargetOrFail(this->kind->device_type).
+   * found using \p CompilationConfig::FindPrimitiveTargetOrFail(this->GetTargetDeviceType()).
    *
    * The \p CollagePartition pass uses this method to guide it's search over candidate partitions
    * using external codegen.

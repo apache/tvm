@@ -50,15 +50,9 @@ inline std::unordered_map<std::string, runtime::FunctionInfo> ExtractFuncInfo(co
     for (size_t i = 0; i < f->params.size(); ++i) {
       info.arg_types.push_back(f->params[i].dtype());
     }
-    if (auto opt = f->GetAttr<Array<tir::IterVar>>(tir::attr::kDeviceThreadAxis)) {
-      auto thread_axis = opt.value();
-      for (size_t i = 0; i < thread_axis.size(); ++i) {
-        info.launch_param_tags.push_back(thread_axis[i]->thread_tag);
-      }
-    }
-    if (auto opt = f->GetAttr<Integer>(tir::attr::kDeviceUseDynSharedMemory)) {
-      if (opt.value().IntValue() != 0) {
-        info.launch_param_tags.push_back(runtime::launch_param::kUseDynamicSharedMemoryTag);
+    if (auto opt = f->GetAttr<Array<String>>(tir::attr::kKernelLaunchParams)) {
+      for (const auto& tag : opt.value()) {
+        info.launch_param_tags.push_back(tag);
       }
     }
     auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);

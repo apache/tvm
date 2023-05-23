@@ -243,8 +243,20 @@ TVM_REGISTER_GLOBAL("runtime.SaveParams").set_body_typed([](const Map<String, ND
   rv = TVMByteArray{s.data(), s.size()};
   return rv;
 });
+
+TVM_REGISTER_GLOBAL("runtime.SaveParamsToFile")
+    .set_body_typed([](const Map<String, NDArray>& params, const String& path) {
+      tvm::runtime::SimpleBinaryFileStream strm(path, "wb");
+      SaveParams(&strm, params);
+    });
+
 TVM_REGISTER_GLOBAL("runtime.LoadParams").set_body_typed([](const String& s) {
   return ::tvm::runtime::LoadParams(s);
+});
+
+TVM_REGISTER_GLOBAL("runtime.LoadParamsFromFile").set_body_typed([](const String& path) {
+  tvm::runtime::SimpleBinaryFileStream strm(path, "rb");
+  return LoadParams(&strm);
 });
 
 }  // namespace runtime

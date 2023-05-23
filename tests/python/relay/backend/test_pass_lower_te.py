@@ -50,15 +50,15 @@ def transform(mod):
 
 
 def test_lower_primitive():
-    input_mod = tvm.parser.parse(
+    input_mod = tvm.relay.parse(
         """
         #[version = "0.0.5"]
         def @main(%a: Tensor[(5, 7), float32]) -> Tensor[(5, 7), float32] {
-          %0 = fn(%x : Tensor[(5, 7), float32], %y : Tensor[(5, 7), float32], Primitive=1) -> Tensor[(5, 7), float32] { 
+          %0 = fn(%x : Tensor[(5, 7), float32], %y : Tensor[(5, 7), float32], Primitive=1) -> Tensor[(5, 7), float32] {
             add(%x, %y)
           };
-          %0(%a, %a)  
-        }      
+          %0(%a, %a)
+        }
         """,
         "from_string",
         None,
@@ -95,15 +95,15 @@ def test_lower_compiler():
     def relay_ext_test_pass_lower_te(func):
         return None
 
-    input_mod = tvm.parser.parse(
+    input_mod = tvm.relay.parse(
         """
         #[version = "0.0.5"]
         def @main(%a: Tensor[(5, 7), float32]) -> Tensor[(5, 7), float32] {
-          %0 = fn(%x : Tensor[(5, 7), float32], %y : Tensor[(5, 7), float32], Primitive=1, Compiler="test_pass_lower_te", global_symbol="test_add") -> Tensor[(5, 7), float32] { 
+          %0 = fn(%x : Tensor[(5, 7), float32], %y : Tensor[(5, 7), float32], Primitive=1, Compiler="test_pass_lower_te", global_symbol="test_add") -> Tensor[(5, 7), float32] {
             add(%x, %y)
           };
-          %0(%a, %a)  
-        }      
+          %0(%a, %a)
+        }
         """,
         "from_string",
         None,
@@ -140,15 +140,15 @@ def test_lower_compiler():
 
 
 def test_lower_extern():
-    input_mod = tvm.parser.parse(
+    input_mod = tvm.relay.parse(
         """
         #[version = "0.0.5"]
         def @main(%a: Tensor[(5, 7), float32]) -> Tensor[(5, 7), float32] {
           @my_add(%a, %a)
         }
-        def @my_add(%x : Tensor[(5, 7), float32], %y : Tensor[(5, 7), float32], Extern=1) -> Tensor[(5, 7), float32] { 
+        def @my_add(%x : Tensor[(5, 7), float32], %y : Tensor[(5, 7), float32], Extern=1) -> Tensor[(5, 7), float32] {
           add(%x, %y)
-        }      
+        }
         """,
         "from_string",
         None,
@@ -183,15 +183,15 @@ def test_lower_extern():
 
 
 def test_lower_extern_with_dynamic_shape():
-    input_mod = tvm.parser.parse(
+    input_mod = tvm.relay.parse(
         """
         #[version = "0.0.5"]
         def @main(%a: Tensor[(5, 7), float32]) -> Tensor[(?, ?), float32] {
           @my_dyn(%a, %a)
         }
-        def @my_dyn(%x : Tensor[(5, 7), float32], %y : Tensor[(5, 7), float32], Extern=1) -> Tensor[(?, ?), float32] { 
+        def @my_dyn(%x : Tensor[(5, 7), float32], %y : Tensor[(5, 7), float32], Extern=1) -> Tensor[(?, ?), float32] {
           add(%x, %y)
-        }      
+        }
         """,
         "from_string",
         None,

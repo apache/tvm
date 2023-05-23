@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-argument
+# pylint: disable=invalid-name, unused-argument, use-list-literal
 """DNNL library supported operators.
 There are two ways to registering a function for an op to indicate if it is
 supported by DNNL.
@@ -36,21 +36,17 @@ import logging
 from functools import reduce
 
 import tvm.ir
-from tvm.ir import Op
 from tvm import relay
-from tvm.relay import transform
-from tvm.relay.expr import GlobalVar
-from tvm.relay.expr_functor import ExprMutator, ExprVisitor
-from tvm.relay.expr import const
-
-from tvm.relay.analysis import analysis as _analysis
+from tvm.ir import Op
 from tvm.relay import expr as _expr
+from tvm.relay import transform
+from tvm.relay.analysis import analysis as _analysis
+from tvm.relay.expr import Call, GlobalVar, TupleGetItem, const
+from tvm.relay.expr_functor import ExprMutator, ExprVisitor
 
-from tvm.relay.expr import Call, TupleGetItem
 from ... import _ffi_api
-from ...dataflow_pattern import wildcard, is_op, is_constant, is_expr, rewrite, DFPatternCallback
+from ...dataflow_pattern import DFPatternCallback, is_constant, is_expr, is_op, rewrite, wildcard
 from .register import register_pattern_table
-
 
 logger = logging.getLogger("DNNL")
 supported_post_elts = ["nn.relu", "tanh", "sigmoid", "clip", "gelu", "swish", "mish", None]
@@ -169,7 +165,7 @@ def make_conv_pattern(conv_name, with_bias=True, with_eltwise=None):
         Call node sequence.
     """
     if with_eltwise not in supported_post_elts:
-        raise ValueError("Unsupported eltwise post-op: %s" % with_eltwise)
+        raise ValueError(f"Unsupported eltwise post-op: {with_eltwise}")
     data = wildcard()
     weight = wildcard()
     bias = wildcard()
@@ -205,6 +201,28 @@ def make_conv_bias_sum_relu_pattern(conv_type, has_relu=True):
     if has_relu:
         out = is_op("nn.relu")(out)
     return out
+
+
+def make_dense_bias_sum_pattern():
+    """Create patterns with sum op.
+
+    Parameters
+    ----------
+    N/A
+
+    Returns
+    -------
+    out : CallPattern
+        Call node sequence.
+    """
+    data1 = wildcard()
+    weight = wildcard()
+    bias = wildcard()
+    data2 = wildcard()
+    out = is_op("nn.dense")(data1, weight)
+    out = is_op("add")(out, bias)
+    out = is_op("add")(out, data2)
+    return "dnnl.dense_bias_sum", out
 
 
 def get_op_name(expr):
@@ -310,7 +328,7 @@ def make_dense_pattern(with_bias=True, with_eltwise=None):
         Call node sequence.
     """
     if with_eltwise not in supported_post_elts:
-        raise ValueError("Unsupported eltwise post-op: %s" % with_eltwise)
+        raise ValueError(f"Unsupported eltwise post-op: {with_eltwise}")
     data = wildcard()
     weight = wildcard()
     bias = wildcard()
@@ -438,6 +456,7 @@ def pattern_table():
     dnnl_patterns = list()
     dnnl_patterns.append(make_qnn_conv2d_pattern())
     dnnl_patterns.append(make_qnn_dense_pattern())
+    dnnl_patterns.append(make_dense_bias_sum_pattern())
     dnnl_patterns.append(
         (
             "dnnl.conv2d_bias_sum_relu",
@@ -553,7 +572,7 @@ def get_shape(tensor):
         if tensor.op.name == "multiply":
             return tensor.type_args[0].shape
         return tensor.checked_type.shape
-    raise TypeError("Unsupport data type: %s" % type(tensor))
+    raise TypeError(f"Unsupport data type: {type(tensor)}")
 
 
 def get_dtype(tensor):
@@ -570,7 +589,7 @@ def get_dtype(tensor):
         if tensor.op.name == "multiply":
             return tensor.type_args[0].dtype
         return tensor.checked_type.dtype
-    raise TypeError("Unsupport data type: %s" % type(tensor))
+    raise TypeError(f"Unsupport data type: {type(tensor)}")
 
 
 def tag2layout(input_data, is_weight=False, conv_type="Conv1D"):
@@ -601,7 +620,7 @@ def tag2layout(input_data, is_weight=False, conv_type="Conv1D"):
         elif i.isdigit():
             res += i
         else:
-            raise ValueError("Unsupport layout format: %s" % input_data)
+            raise ValueError(f"Unsupport layout format: {input_data}")
 
     return res
 
@@ -739,7 +758,7 @@ class IsComputeIntensiveGraph(ExprVisitor):
             ]
         )
         if isinstance(call.op, tvm.tir.op.Op):
-            if str(call.op) in compute_intensive_ops:
+            if str(call.op.name) in compute_intensive_ops:
                 self.is_compute_intensive = True
 
         return super().visit_call(call)

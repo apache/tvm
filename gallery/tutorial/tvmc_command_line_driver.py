@@ -41,11 +41,6 @@ The goal of this section is to give you an overview of TVM and TVMC's
 capabilities, and set the stage for understanding how TVM works.
 """
 
-# sphinx_gallery_start_ignore
-from tvm import testing
-
-testing.utils.install_request_hook(depth=3)
-# sphinx_gallery_end_ignore
 
 ################################################################################
 # Using TVMC
@@ -57,7 +52,7 @@ testing.utils.install_request_hook(depth=3)
 # will vary depending on your platform and installation method.
 #
 # Alternatively, if you have TVM as a Python module on your
-# ``$PYTHONPATH``,you can access the command line driver functionality
+# ``$PYTHONPATH``, you can access the command line driver functionality
 # via the executable python module, ``python -m tvm.driver.tvmc``.
 #
 # For simplicity, this tutorial will mention TVMC command line using
@@ -417,6 +412,11 @@ testing.utils.install_request_hook(depth=3)
 # process, in terms of number of repetitions (``--repeat`` and ``--number``, for example), the tuning
 # algorithm to be used, and so on. Check ``tvmc tune --help`` for more information.
 #
+# In some situations it might be a good idea, to only tune specific tasks (i.e. the most relevant ones)
+# to waste less time tuning simpler workworloads. The flag `--task` offers versatile options to limt
+# the tasks used for tuning, e.g. `--task 20,22` or `--task 16-`. All available tasks can be printed
+# using `--task list`.
+#
 
 ################################################################################
 # Compiling an Optimized Model with Tuning Data
@@ -518,6 +518,8 @@ testing.utils.install_request_hook(depth=3)
 # To see what other options are available, please have a look at ``tvmc
 # --help``.
 #
-# In the next tutorial, `Compiling and Optimizing a Model with the Python
-# Interface <auto_tuning_with_pyton>`_, we will cover the same compilation
-# and optimization steps using the Python interface.
+# In the `next tutorial <tvmc_python>`, we introduce the Python interface to TVM,
+# and in the tutorial after that,
+# `Compiling and Optimizing a Model with the Python Interface <autotvm_relay_x86>`,
+# we will cover the same compilation and optimization steps using the Python
+# interface.

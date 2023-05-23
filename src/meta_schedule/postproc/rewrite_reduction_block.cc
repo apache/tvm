@@ -114,6 +114,11 @@ class RewriteReductionBlockNode : public PostprocNode {
   // Inherited from PostprocNode
   bool Apply(const tir::Schedule& sch) final;
 
+  Postproc Clone() const {
+    ObjectPtr<RewriteReductionBlockNode> n = make_object<RewriteReductionBlockNode>(*this);
+    return Postproc(n);
+  }
+
   void VisitAttrs(tvm::AttrVisitor* v) {}
 
   static constexpr const char* _type_key = "meta_schedule.RewriteReductionBlock";

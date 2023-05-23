@@ -60,6 +60,29 @@ def test_mapping_target_args():
     assert reconstruct_target_args(parsed) == {"llvm": {"mcpu": "cortex-m3"}}
 
 
+@tvm.testing.requires_vitis_ai
+def test_composite_target_cmd_line_help():
+    parser = argparse.ArgumentParser()
+    generate_target_args(parser)
+    assert parser._option_string_actions["--target-vitis-ai-dpu"].help == "Vitis AI DPU identifier"
+    assert (
+        parser._option_string_actions["--target-vitis-ai-build_dir"].help
+        == "Build directory to be used (optional, debug)"
+    )
+    assert (
+        parser._option_string_actions["--target-vitis-ai-work_dir"].help
+        == "Work directory to be used (optional, debug)"
+    )
+    assert (
+        parser._option_string_actions["--target-vitis-ai-export_runtime_module"].help
+        == "Export the Vitis AI runtime module to this file"
+    )
+    assert (
+        parser._option_string_actions["--target-vitis-ai-load_runtime_module"].help
+        == "Load the Vitis AI runtime module to this file"
+    )
+
+
 @tvm.testing.requires_cmsisnn
 def test_include_known_codegen():
     parser = argparse.ArgumentParser()

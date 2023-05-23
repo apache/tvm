@@ -296,5 +296,59 @@ def test_decompose_reduction_ref_hash_check():
     assert hash_before == hash_after
 
 
+def test_decompose_reduction_nested_block():
+    @T.prim_func
+    def nested_block(A: T.Buffer((1, 64), "float32"), B: T.Buffer((1,), "float32")):
+        for i, ko in T.grid(1, 2):
+            with T.block("outer"):
+                vi, vko = T.axis.remap("SR", [i, ko])
+                C = T.alloc_buffer((32,), dtype="float32")
+                with T.init():
+                    B[vi] = T.float32(0)
+                for ki in T.serial(32):
+                    with T.block("inner_1"):
+                        vki = T.axis.remap("S", [ki])
+                        C[vki] = A[vi, vko * 32 + vki]
+                for ki in T.serial(32):
+                    with T.block("inner_2"):
+                        vki = T.axis.remap("R", [ki])
+                        B[vi] += C[vki]
+
+    @T.prim_func
+    def decomposed_nested_block(A: T.Buffer((1, 64), "float32"), B: T.Buffer((1,), "float32")):
+        for i in range(1):
+            with T.block("outer_init"):
+                vi = T.axis.spatial(1, i)
+                T.reads()
+                T.writes(B[vi])
+                B[vi] = T.float32(0)
+            for ko in range(2):
+                with T.block("outer_update"):
+                    vi, vko = T.axis.remap("SR", [i, ko])
+                    T.reads(B[vi], A[vi, vko * 32 : vko * 32 + 32])
+                    T.writes(B[vi])
+                    C = T.alloc_buffer((32,))
+                    for ki in range(32):
+                        with T.block("inner_1"):
+                            vki = T.axis.spatial(32, ki)
+                            T.reads(A[vi, vko * 32 + vki])
+                            T.writes(C[vki])
+                            C[vki] = A[vi, vko * 32 + vki]
+                    for ki in range(32):
+                        with T.block("inner_2"):
+                            vki = T.axis.reduce(32, ki)
+                            T.reads(B[vi], C[vki])
+                            T.writes(B[vi])
+                            B[vi] = B[vi] + C[vki]
+
+    sch = tir.Schedule(nested_block, debug_mask="all")
+    outer = sch.get_block("outer")
+    i, ko = sch.get_loops(outer)
+    sch.decompose_reduction(outer, ko)
+
+    tvm.ir.assert_structural_equal(decomposed_nested_block, sch.mod["main"])
+    verify_trace_roundtrip(sch, mod=nested_block)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

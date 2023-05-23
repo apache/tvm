@@ -43,6 +43,9 @@ from .resize_python import resize1d_python, resize2d_python, resize3d_python
 from .reorg_python import reorg_python
 from .roi_align_python import roi_align_nchw_python, roi_align_nhwc_python
 from .roi_pool_python import roi_pool_nchw_python
+from .instance_norm_python import instance_norm_python
+from .layer_norm_python import layer_norm_python
+from .group_norm_python import group_norm_python
 from .lrn_python import lrn_python
 from .l2_normalize_python import l2_normalize_python
 from .gather_python import gather_python

@@ -63,22 +63,41 @@ def test_uma_target(target_name, target_attrs, target_args):
     [
         ("float_attr", 3.14),
         ("none_attr", None),
+        ("model", "my_model"),
     ],
 )
 def test_invalid_attr_option(attr_name: str, target_attr: Union[str, int, bool, float, None]):
+    registration_func = tvm.get_global_func("relay.backend.contrib.uma.RegisterTarget")
     if target_attr is None:
         # None cannot be caught as TVMError, as it causes a SIGKILL, therefore it must be prevented to be
         # entered into relay.backend.contrib.uma.RegisterTarget at Python level.
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match=r"Target attribute None is not supported."):
             uma_backend = VanillaAcceleratorBackend()
             uma_backend._target_attrs = {attr_name: target_attr}
             uma_backend.register()
-    else:
-        registration_func = tvm.get_global_func("relay.backend.contrib.uma.RegisterTarget")
+    elif "model" in attr_name:
         target_name = f"{attr_name}_{target_attr}"
         target_attr = {attr_name: target_attr}
-        with pytest.raises(tvm.TVMError, match=r"Only String, Integer, or Bool are supported. .*"):
+        with pytest.raises(tvm.TVMError, match=r"Attribute is already registered: .*"):
             registration_func(target_name, target_attr)
+    else:
+        target_name = f"{attr_name}_{target_attr}"
+        target_attr = {attr_name: target_attr}
+        with pytest.raises(TypeError, match=r"Only String, Integer, or Bool are supported. .*"):
+            registration_func(target_name, target_attr)
+
+
+@pytest.mark.parametrize(
+    "target_name",
+    [
+        "llvm",
+        "c",
+    ],
+)
+def test_target_duplication(target_name: str):
+    with pytest.raises(tvm.TVMError, match=r"TVM UMA Error: Target is already registered: .*"):
+        registration_func = tvm.get_global_func("relay.backend.contrib.uma.RegisterTarget")
+        registration_func(target_name, {})
 
 
 if __name__ == "__main__":

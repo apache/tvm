@@ -76,7 +76,6 @@ class CodegenC : public backend::MemoizedExprTranslator<std::vector<Output>>, pu
  private:
   std::vector<Output> VisitExprDefault_(const Object* op) override {
     LOG(FATAL) << "C codegen doesn't support: " << op->GetTypeKey();
-    return {};
   }
 
   std::vector<Output> VisitExpr_(const VarNode* node) override {

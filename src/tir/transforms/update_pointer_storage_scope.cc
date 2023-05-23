@@ -94,19 +94,9 @@ Buffer UpdatePointerStorageScope::GetUpdatedBuffer(Buffer buf) {
   return buf;
 }
 
-PrimExpr UpdatePointerStorageScope::VisitExpr_(const LoadNode* op) {
-  LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-  return PrimExpr();
-}
-
 PrimExpr UpdatePointerStorageScope::VisitExpr_(const BufferLoadNode* op) {
   auto node = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
   return UpdateBufferAccess(node);
-}
-
-Stmt UpdatePointerStorageScope::VisitStmt_(const StoreNode* op) {
-  LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-  return Stmt();
 }
 
 Stmt UpdatePointerStorageScope::VisitStmt_(const BufferStoreNode* op) {

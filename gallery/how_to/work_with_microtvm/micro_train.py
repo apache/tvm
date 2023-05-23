@@ -15,10 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-.. _microtvm-train-arduino:
+.. _tutorial-micro-train-arduino:
 
-Training Vision Models for microTVM on Arduino
-==============================================
+5. Training Vision Models for microTVM on Arduino
+=================================================
 **Author**: `Gavin Uberti <https://github.com/guberti>`_
 
 This tutorial shows how MobileNetV1 models can be trained
@@ -27,17 +27,6 @@ deployed to Arduino using TVM.
 """
 
 ######################################################################
-# .. note::
-#
-#   This tutorial is best viewed as a Jupyter Notebook. You can download and run it locally
-#   using the link at the bottom of this page, or open it online for free using Google Colab.
-#   Click the icon below to open in Google Colab.
-#
-# .. image:: https://raw.githubusercontent.com/tlc-pack/web-data/main/images/utilities/colab_button.png
-#      :align: center
-#      :target: https://colab.research.google.com/github/apache/tvm-site/blob/asf-site/docs/_downloads/a7c7ea4b5017ae70db1f51dd8e6dcd82/micro_train.ipynb
-#      :width: 300px
-#
 # Motivation
 # ----------
 # When building IOT devices, we often want them to **see and understand** the world around them.
@@ -71,7 +60,7 @@ deployed to Arduino using TVM.
 #
 #     .. code-block:: bash
 #
-#       %%bash
+#       %%shell
 #       pip install -q tensorflow tflite
 #       pip install -q tlcpack-nightly -f https://tlcpack.ai/wheels
 #       apt-get -qq install imagemagick curl
@@ -450,20 +439,24 @@ with open(QUANTIZED_MODEL_PATH, "wb") as f:
 # ``tvm.micro.generate_project`` and pass in the Arduino template project to finish compilation.
 
 import shutil
-import tflite
 import tvm
+import tvm.micro.testing
 
 # Method to load model is different in TFLite 1 vs 2
 try:  # TFLite 2.1 and above
+    import tflite
+
     tflite_model = tflite.Model.GetRootAsModel(quantized_model, 0)
 except AttributeError:  # Fall back to TFLite 1.14 method
+    import tflite.Model
+
     tflite_model = tflite.Model.Model.GetRootAsModel(quantized_model, 0)
 
 # Convert to the Relay intermediate representation
 mod, params = tvm.relay.frontend.from_tflite(tflite_model)
 
 # Set configuration flags to improve performance
-target = tvm.target.target.micro("nrf52840")
+target = tvm.micro.testing.get_target("zephyr", "nrf5340dk_nrf5340_cpuapp")
 runtime = tvm.relay.backend.Runtime("crt")
 executor = tvm.relay.backend.Executor("aot", {"unpacked-api": True})
 
@@ -478,7 +471,7 @@ arduino_project = tvm.micro.generate_project(
     mod,
     f"{FOLDER}/models/project",
     {
-        "arduino_board": "nano33ble",
+        "board": "nano33ble",
         "arduino_cli_cmd": "/content/bin/arduino-cli",
         "project_type": "example_project",
     },
@@ -515,7 +508,7 @@ arduino_project = tvm.micro.generate_project(
 #
 #     .. code-block:: bash
 #
-#       %%bash
+#       %%shell
 #       mkdir -p ~/tests
 #       curl "https://i.imgur.com/JBbEhxN.png" -o ~/tests/car_224.png
 #       convert ~/tests/car_224.png -resize 64 ~/tests/car_64.png

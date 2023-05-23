@@ -31,9 +31,9 @@
  * We check this by ensuring the `dtype` field of a Tensor always
  * contains a data type such as `int`, `float`, `uint`.
  */
-#include <tvm/ir/error.h>
 #include <tvm/ir/type_functor.h>
 #include <tvm/relay/analysis.h>
+#include <tvm/relay/error.h>
 
 namespace tvm {
 namespace relay {

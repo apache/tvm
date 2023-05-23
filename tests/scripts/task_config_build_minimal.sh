@@ -29,6 +29,7 @@ echo set\(USE_RELAY_DEBUG ON\) >> config.cmake
 echo set\(CMAKE_BUILD_TYPE=Debug\) >> config.cmake
 echo set\(CMAKE_CXX_FLAGS \"-Werror -Wp,-D_GLIBCXX_ASSERTIONS\"\) >> config.cmake
 echo set\(HIDE_PRIVATE_SYMBOLS ON\) >> config.cmake
-echo set\(USE_LIBBACKTRACE ON\) >> config.cmake
+echo set\(USE_LIBBACKTRACE COMPILE\) >> config.cmake
 echo set\(USE_CCACHE OFF\) >> config.cmake
 echo set\(SUMMARIZE ON\) >> config.cmake
+echo set\(USE_MICRO ON\) >> config.cmake

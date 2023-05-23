@@ -29,7 +29,9 @@ from tvm.script.printer.doc import (
     AttrAccessDoc,
     CallDoc,
     ClassDoc,
+    CommentDoc,
     DictDoc,
+    DocStringDoc,
     ExprStmtDoc,
     ForDoc,
     FunctionDoc,
@@ -503,6 +505,32 @@ def test_class_doc(decorators, body):
     assert doc.name == name
     assert list(doc.decorators) == decorators
     assert list(doc.body) == body
+
+
+@pytest.mark.parametrize(
+    "comment",
+    [
+        "",
+        "test comment 1",
+        "test comment 1\ntest comment 1",
+    ],
+)
+def test_comment_doc(comment):
+    doc = CommentDoc(comment)
+    assert doc.comment == comment
+
+
+@pytest.mark.parametrize(
+    "comment",
+    [
+        "",
+        "test comment 1",
+        "test comment 1\ntest comment 1",
+    ],
+)
+def test_doc_string_doc(comment):
+    doc = DocStringDoc(comment)
+    assert doc.comment == comment
 
 
 def test_stmt_doc_comment():

@@ -32,6 +32,8 @@
 #include <tvm/runtime/container/string.h>
 #include <tvm/runtime/packed_func.h>
 
+#include <ostream>
+
 namespace tvm {
 namespace tir {
 /*!
@@ -53,6 +55,32 @@ using FLowerIntrinsic = runtime::TypedPackedFunc<PrimExpr(PrimExpr)>;
  * \brief The legalization function for given tir op.
  */
 using FLegalize = runtime::TypedPackedFunc<PrimExpr(PrimExpr)>;
+
+/*!
+ * \brief The operator's name in TVMScript printer
+ */
+using TScriptPrinterName = String;
+
+/*!
+ * \brief Specifies that TVMScript printer prints the dtype as the first/last argument.
+          If not specified, dtype will not be printed.
+ */
+enum class ScriptDtypePrintLocation : int {
+  /*!
+   * \brief Do not print dtype as an argument.
+   */
+  kNone = 0,
+  /*!
+   * \brief Print dtype as the first argument.
+   */
+  kFirst = 1,
+  /*!
+   * \brief FPrint dtype as the last argument.
+   */
+  kLast = 2,
+};
+
+using TScriptDtypePrintLocation = Integer;
 
 /*!
  * \brief The effect type of the call.
@@ -91,6 +119,34 @@ enum class CallEffectKind : int {
    */
   kControlJump = 6,
 };
+
+inline std::ostream& operator<<(std::ostream& os, CallEffectKind side_effect) {
+  switch (side_effect) {
+    case CallEffectKind::kExprAnnotation:
+      return os << "kExprAnnotation";
+
+    case CallEffectKind::kPure:
+      return os << "kPure";
+
+    case CallEffectKind::kReadState:
+      return os << "kReadState";
+
+    case CallEffectKind::kUpdateState:
+      return os << "kUpdateState";
+
+    case CallEffectKind::kSpecialCallArg:
+      return os << "kSpecialCallArg";
+
+    case CallEffectKind::kEmbedInfo:
+      return os << "kEmbedInfo";
+
+    case CallEffectKind::kControlJump:
+      return os << "kControlJump";
+
+    default:
+      LOG(FATAL) << "Unknown CallEffectKind: " << static_cast<int>(side_effect);
+  }
+}
 
 /*! \brief Use integer to record the kind. */
 using TCallEffectKind = Integer;

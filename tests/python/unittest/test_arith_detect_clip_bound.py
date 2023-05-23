@@ -39,5 +39,18 @@ def test_basic():
     tvm.testing.assert_prim_expr_equal(m[2], 4)
 
 
+def test_trivial_eq():
+    a = te.var("a")
+    b = te.var("b")
+    m = tvm.arith.detect_clip_bound(b == 3, [a, b])
+    tvm.testing.assert_prim_expr_equal(m[2], 3)
+    tvm.testing.assert_prim_expr_equal(m[3], 3)
+    m = tvm.arith.detect_clip_bound(tvm.tir.all(a == 4, b == 3), [a, b])
+    tvm.testing.assert_prim_expr_equal(m[0], 4)
+    tvm.testing.assert_prim_expr_equal(m[1], 4)
+    tvm.testing.assert_prim_expr_equal(m[2], 3)
+    tvm.testing.assert_prim_expr_equal(m[3], 3)
+
+
 if __name__ == "__main__":
     test_basic()

@@ -69,8 +69,7 @@ namespace tir {
 bool CommonSubexpressionEliminator::ForbiddenComputation(const PrimExpr& expr) {
   // Function calls, loads and buffer loads are absolutely forbidden as introducing them into
   // variables would change the semantics of the program.
-  return (expr.as<CallNode>() != nullptr || expr.as<LoadNode>() != nullptr ||
-          expr.as<BufferLoadNode>() != nullptr);
+  return (expr.as<CallNode>() != nullptr || expr.as<BufferLoadNode>() != nullptr);
 }
 
 /*!
@@ -116,7 +115,7 @@ bool CommonSubexpressionEliminator::CanContainEligibleComputations(const PrimExp
   // not harm the indexing mode of the CPU, but as we are still far from ASM code, we
   // finally want to perform such simplifications, which tend to happen fairly frequently.
 
-  // return ( (expr.as<LoadNode>() == nullptr) && (expr.as<BufferLoadNode>() == nullptr) )
+  // return (expr.as<BufferLoadNode>() == nullptr)
   return true;
 }
 
@@ -151,8 +150,8 @@ bool CommonSubexpressionEliminator::OrderOnExprAndFrequency(std::pair<PrimExpr, 
   // as we need a deterministic order
   std::stringstream a_stream;
   std::stringstream b_stream;
-  a_stream << a.first;
-  b_stream << b.first;
+  a_stream << AsLegacyRepr(a.first);
+  b_stream << AsLegacyRepr(b.first);
   return (a_stream.str().compare(b_stream.str()) < 0);
 }
 

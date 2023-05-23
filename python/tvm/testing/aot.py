@@ -14,17 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=use-list-literal, consider-using-with, f-string-without-interpolation
 """Common functions for AOT test cases"""
 import sys
 import datetime
 import os
 import pathlib
 import re
-import shutil
 import subprocess
 import tarfile
 import logging
-from typing import Any, NamedTuple, Union, Optional, List, Dict
+from typing import Any, NamedTuple, Union, Tuple, Optional, List, Dict, Callable
 import numpy as np
 
 import tvm
@@ -201,6 +201,7 @@ def _emit_main_prologue(
     compiled_models,
     interface_api,
     use_stack_allocator=True,
+    debug_last_error=False,
 ):
     if use_stack_allocator:
         workspace_define = f"#define WORKSPACE_SIZE ({workspace_bytes}"
@@ -244,11 +245,28 @@ void TVMLogf(const char* msg, ...) {
   va_start(args, msg);
   vfprintf(stdout, msg, args);
   va_end(args);
-}\n
-TVM_DLL int TVMFuncRegisterGlobal(const char* name, TVMFunctionHandle f, int override) {}
-int main(){\n
+}
     """
     )
+    if debug_last_error:
+        main_file.write(
+            """\n
+tvm_crt_error_t TVMPlatformTimerStart() {
+  return kTvmErrorFunctionCallNotImplemented;
+}
+tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
+  return kTvmErrorFunctionCallNotImplemented;
+}
+const TVMModule* TVMSystemLibEntryPoint(void) { return NULL; }
+"""
+        )
+    else:
+        main_file.write(
+            """\n
+TVM_DLL int TVMFuncRegisterGlobal(const char* name, TVMFunctionHandle f, int override) {}
+"""
+        )
+    main_file.write("\nint main(){\n")
     main_file.write(custom_prologue)
 
 
@@ -333,10 +351,10 @@ def _emit_main_data_setup(main_file, input_map, output_map, mod_name):
 
 
 def _emit_main_c_interface_call(
-    main_file, devices, workspace_pool_names, mod_name, use_workspace_io
+    main_file, devices, workspace_pool_names, mod_name, use_workspace_io, debug_last_error
 ):
     sub_strings = list()
-    sub_strings.append(f'{_mangle_name(mod_name,"run")}(')
+    sub_strings.append(f'if ({_mangle_name(mod_name,"run")}(')
     if not use_workspace_io:
         sub_strings.append(f'&{_mangle_name(mod_name,"inputs")}, ')
         sub_strings.append(f'&{_mangle_name(mod_name,"outputs")}, ')
@@ -347,10 +365,14 @@ def _emit_main_c_interface_call(
     # Removing the last two characters that is a comma and a space
     sub_strings[-1] = sub_strings[-1][:-2]
     # Adding brackets and newline instead
-    sub_strings[-1] = sub_strings[-1] + ");\n"
-
+    sub_strings[-1] = sub_strings[-1] + ") == -1) {\n"
     main_file_string = "".join(sub_strings)
     main_file.write(main_file_string)
+    if debug_last_error:
+        main_file.write(f'\tprintf("ERROR: %s\\n", TVMGetLastError());\n')
+    main_file.write(f'\tprintf("{AOT_FAILURE_TOKEN}\\n");\n')
+    main_file.write("\treturn -1;\n")
+    main_file.write("}\n")
 
 
 def _emit_main_fake_packed_values(main_file):
@@ -448,13 +470,15 @@ def _emit_main_epilogue(main_file, custom_epilogue):
     main_file.write("}\n")
 
 
-def _emit_main_common_includes(main_file, custom_includes):
+def _emit_main_common_includes(main_file, custom_includes, debug_last_error):
     main_file.write("#include <stdio.h>\n")
     main_file.write("#include <stdarg.h>\n")
     main_file.write("#include <stdlib.h>\n")
     main_file.write("#include <math.h>\n")
     main_file.write('#include "tvm/runtime/c_runtime_api.h"\n')
     main_file.write('#include "tvm/runtime/crt/stack_allocator.h"\n')
+    if debug_last_error:
+        main_file.write('#include "tvm/runtime/crt/module.h"\n')
     for include in custom_includes:
         main_file.write(f'#include "{include}"\n')
 
@@ -475,12 +499,13 @@ def _create_main(
     workspace_bytes,
     use_stack_allocator=True,
     use_workspace_io=False,
+    debug_last_error=False,
 ):
     file_path = pathlib.Path(f"{output_path}/" + test_name).resolve()
     # create header file
     raw_path = file_path.with_suffix(".c").resolve()
     with open(raw_path, "w") as main_file:
-        _emit_main_common_includes(main_file, custom_includes)
+        _emit_main_common_includes(main_file, custom_includes, debug_last_error)
 
         if interface_api == "c":
             for compiled_model in compiled_models:
@@ -498,6 +523,7 @@ def _create_main(
             compiled_models,
             interface_api,
             use_stack_allocator,
+            debug_last_error,
         )
         if use_stack_allocator:
             _emit_main_init_memory_manager(main_file)
@@ -530,6 +556,7 @@ def _create_main(
                     list(workspace_pool_names.keys()),
                     model.name,
                     use_workspace_io,
+                    debug_last_error,
                 )
         else:
             _emit_main_fake_packed_values(main_file)
@@ -702,6 +729,8 @@ def run_and_check(
     test_dir: str = None,
     verbose: bool = False,
     use_workspace_io: bool = False,
+    debug_last_error: bool = False,
+    checker: Optional[Callable[[str], bool]] = None,
 ):
     """
     This method uses the original test data and compiled runtime.Modules
@@ -723,11 +752,7 @@ def run_and_check(
 
         include_path = os.path.join(base_path, "include")
         os.mkdir(include_path)
-        crt_root = tvm.micro.get_standalone_crt_dir()
-        shutil.copy2(
-            os.path.join(crt_root, "template", "crt_config-template.h"),
-            os.path.join(include_path, "crt_config.h"),
-        )
+        tvm.micro.copy_crt_config_header("crt", include_path)
 
         workspace_bytes = 0
         for compiled_model in models:
@@ -785,7 +810,11 @@ def run_and_check(
             workspace_bytes,
             use_stack_allocator,
             use_workspace_io,
+            debug_last_error,
         )
+
+        if checker and (not checker(base_path)):
+            return False
 
         # Verify that compiles fine
         file_dir = os.path.dirname(os.path.abspath(__file__))
@@ -834,11 +863,13 @@ def run_and_check(
         with open(run_log_path) as run_log:
             assert AOT_SUCCESS_TOKEN in run_log.read()
 
+        return True
+
     if test_dir is None:
         tmpdir = utils.tempdir()
-        run_and_check_body(os.path.join(tmpdir.path, "test"))
+        return run_and_check_body(os.path.join(tmpdir.path, "test"))
     else:
-        run_and_check_body(test_dir)
+        return run_and_check_body(test_dir)
 
 
 def compile_and_run(
@@ -857,7 +888,9 @@ def compile_and_run(
     test_dir: str = None,
     verbose: bool = False,
     schedule_name: str = None,
-):
+    debug_last_error: bool = False,
+    checker: Optional[Callable[[str], bool]] = None,
+) -> bool:
     """This is a wrapper API to compile and run models as test for AoT
 
     Parameters
@@ -888,7 +921,7 @@ def compile_and_run(
         schedule_name=schedule_name,
     )
 
-    run_and_check(
+    return run_and_check(
         models=compiled_test_mods,
         runner=runner,
         interface_api=interface_api,
@@ -898,7 +931,38 @@ def compile_and_run(
         data_linkage=data_linkage,
         test_dir=test_dir,
         verbose=verbose,
+        debug_last_error=debug_last_error,
+        checker=checker,
     )
+
+
+def get_dtype_range(dtype: str) -> Tuple[int, int]:
+    """
+    Produces the min,max for a give data type.
+
+    Parameters
+    ----------
+    dtype : str
+        a type string (e.g., int8, float64)
+
+    Returns
+    -------
+    type_info.min : int
+        the minimum of the range
+    type_info.max : int
+        the maximum of the range
+    """
+    type_info = None
+    np_dtype = np.dtype(dtype)
+    kind = np_dtype.kind
+
+    if kind == "f":
+        type_info = np.finfo(np_dtype)
+    elif kind in ["i", "u"]:
+        type_info = np.iinfo(np_dtype)
+    else:
+        raise TypeError(f"dtype ({dtype}) must indicate some floating-point or integral data type.")
+    return type_info.min, type_info.max
 
 
 def generate_ref_data(mod, input_data, params=None, target="llvm"):

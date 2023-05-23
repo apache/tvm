@@ -18,14 +18,15 @@
 """Operators used in TIR expression."""
 import warnings
 from typing import Any, Optional
-import tvm._ffi
-from tvm.ir.base import Span
-from tvm.runtime import convert, const
-from tvm.ir import Array, Op
 
-from .buffer import Buffer
-from .expr import Call, PrimExprWithOp, StringImm, Var, CommReducer
+import tvm._ffi
+from tvm.ir import Array, Op, PrimExpr
+from tvm.ir.base import Span
+from tvm.runtime import const, convert
+
 from . import _ffi_api
+from .buffer import Buffer
+from .expr import Call, CommReducer, IntImm, PrimExprWithOp, StringImm, Var
 
 
 def _pack_buffer(buf, span=None):
@@ -263,8 +264,6 @@ def call_llvm_intrin(dtype, name, *args, span=None):
     # pylint: disable=import-outside-toplevel
     from tvm.target import codegen
 
-    from .expr import IntImm
-
     if isinstance(name, str):
         llvm_id = codegen.llvm_lookup_intrinsic_id(name)
     elif isinstance(name, IntImm):
@@ -307,8 +306,6 @@ def call_llvm_pure_intrin(dtype, name, *args, span=None):
     # pylint: disable=import-outside-toplevel
     from tvm.target import codegen
 
-    from .expr import IntImm
-
     if isinstance(name, str):
         llvm_id = codegen.llvm_lookup_intrinsic_id(name)
     elif isinstance(name, IntImm):
@@ -324,6 +321,24 @@ def call_llvm_pure_intrin(dtype, name, *args, span=None):
         *args,
         span=span,
     )
+
+
+def tvm_check_return(expected, return_unexpected, nested_call):
+    """Return new on stack dtype[num]
+    Parameters
+    ----------
+    expected : int
+        The expected return code.
+    return_unexpected : int
+        The unexpected return code.
+    nested_call : PrimExpr
+        The call expression to check return.
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("int32", "tir.tvm_check_return", expected, return_unexpected, nested_call)
 
 
 def tvm_stack_alloca(dtype_str, num):
@@ -407,7 +422,7 @@ def assume(cond=None):
     call : PrimExpr
         The call expression.
     """
-    return call_intrin("int32", "tir.assume", cond)
+    return call_intrin("bool", "tir.assume", cond)
 
 
 def undef():
@@ -419,6 +434,46 @@ def undef():
         The call expression.
     """
     return call_intrin("int32", "tir.undef")
+
+
+def call_tir(global_var: tvm.ir.GlobalVar, *args):
+    """Performs a call into another PrimFunc in the same IRModule
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    assert isinstance(global_var, tvm.ir.GlobalVar)
+    return Call(dtype="handle", op=global_var, args=args)
+
+
+def start_profile_intrinsic(id):
+    """Start profile intrinsic.
+    Parameters
+    ----------
+    id : int
+        The intrinsic id.
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("handle", "tir.start_profile_intrinsic", id)
+
+
+def end_profile_intrinsic(id):
+    """End profile intrinsic.
+    Parameters
+    ----------
+    id : int
+        The intrinsic id.
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("handle", "tir.end_profile_intrinsic", id)
 
 
 def tvm_tuple(*value):
@@ -484,7 +539,7 @@ def tvm_struct_set(arr, index, field, value):
     call : PrimExpr
         The call expression.
     """
-    return call_intrin("handle", "tir.tvm_struct_set", arr, index, field, value)
+    return call_intrin("int32", "tir.tvm_struct_set", arr, index, field, value)
 
 
 def address_of(buffer_load, span=None):
@@ -526,7 +581,8 @@ def lookup_param(param_name, span=None):
 
 
 def tvm_thread_allreduce(*freduce_args):
-    """
+    """Perform allreduce inside threadblock.
+
     Parameters
     ----------
     freduce_args : Expr
@@ -538,6 +594,111 @@ def tvm_thread_allreduce(*freduce_args):
         The call expression.
     """
     return call_intrin("handle", "tir.tvm_thread_allreduce", *freduce_args)
+
+
+def tvm_storage_sync(storage_scope):
+    """Perform synchronization in specified scope.
+
+    Parameters
+    ----------
+    storage_scope : str
+        The storage scope to perform synchronization.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("handle", "tir.tvm_storage_sync", storage_scope)
+
+
+def tvm_warp_shuffle(mask, value, warp_id, width, warp_size):
+    """Exchange value between threads inside a warp.
+
+    Parameters
+    ----------
+    mask : PrimExpr
+        The warp mask indicates active threads inside warp.
+    value : PrimExpr
+        The value to exchange.
+    warp_id : PrimExpr
+        The source lane index to fetch value.
+    width : PrimExpr
+        The width of sub-sections to perform warp shuffle.
+    warp_size : PrimExpr
+        The warp size.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin(value.dtype, "tir.tvm_warp_shuffle", mask, value, warp_id, width, warp_size)
+
+
+def tvm_warp_shuffle_up(mask, value, offset, width, warp_size):
+    """Copy value from a lane with lower (by offset) index relative to caller.
+
+    Parameters
+    ----------
+    mask : PrimExpr
+        The warp mask indicates active threads inside warp.
+    value : PrimExpr
+        The value to exchange.
+    offset : PrimExpr
+        The difference between source lane index and destination lane index:
+        `offset = dst_lane_idx - src_lane_idx`
+    width : PrimExpr
+        The width of sub-sections to perform warp shuffle.
+    warp_size : PrimExpr
+        The warp size.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin(
+        value.dtype, "tir.tvm_warp_shuffle_up", mask, value, offset, width, warp_size
+    )
+
+
+def tvm_warp_shuffle_down(mask, value, offset, width, warp_size):
+    """Copy value from a lane with higher (by offset) index relative to caller.
+
+    Parameters
+    ----------
+    mask : PrimExpr
+        The warp mask indicates active threads inside warp.
+    value : PrimExpr
+        The value to exchange.
+    offset : PrimExpr
+        The difference between source lane index and destination lane index:
+        `offset = src_lane_idx - dst_lane_idx`
+    width : PrimExpr
+        The width of sub-sections to perform warp shuffle.
+    warp_size : PrimExpr
+        The warp size.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin(
+        value.dtype, "tir.tvm_warp_shuffle_down", mask, value, offset, width, warp_size
+    )
+
+
+def tvm_warp_activemask():
+    """Return a 32-bit mask indicates currently active threads in a calling warp.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("uint32", "tir.tvm_warp_activemask")
 
 
 def type_annotation(dtype):
@@ -1954,6 +2115,91 @@ def abs(x, span=None):
     return _ffi_api.abs(x, span)  # type: ignore
 
 
+def bitwise_and(x, y, span=None):
+    """Take bitwise and of two values
+
+    Parameters
+    ----------
+    x : PrimExpr
+        Left operand
+
+    y : PrimExpr
+        Right operand
+
+    span : Optional[Span]
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    res : PrimExpr
+        The result.
+    """
+    return _ffi_api.bitwise_and(x, y, span)
+
+
+def bitwise_not(x, span=None):
+    """Take bitwise not of input value
+
+    Parameters
+    ----------
+    x : PrimExpr
+        Input operand
+
+    span : Optional[Span]
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    res : PrimExpr
+        The result.
+    """
+    return _ffi_api.bitwise_not(x, span)
+
+
+def bitwise_or(x, y, span=None):
+    """Take bitwise or of two values
+
+    Parameters
+    ----------
+    x : PrimExpr
+        Left operand
+
+    y : PrimExpr
+        Right operand
+
+    span : Optional[Span]
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    res : PrimExpr
+        The result.
+    """
+    return _ffi_api.bitwise_or(x, y, span)
+
+
+def bitwise_xor(x, y, span=None):
+    """Take bitwise xor of two values
+
+    Parameters
+    ----------
+    x : PrimExpr
+        Left operand
+
+    y : PrimExpr
+        Right operand
+
+    span : Optional[Span]
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    res : PrimExpr
+        The result.
+    """
+    return _ffi_api.bitwise_xor(x, y, span)
+
+
 def round(x, span=None):
     """Round elements of the array to the nearest integer.
 
@@ -2193,6 +2439,28 @@ def power(x, y, span=None):
     return _ffi_api._OpPow(convert(x), convert(y), span)  # type: ignore
 
 
+def pow(x, y, span=None):
+    """x power y
+
+    Parameters
+    ----------
+    x : PrimExpr
+        Input argument.
+
+    y : PrimExpr
+        The exponent
+
+    span : Optional[Span]
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    z : PrimExpr
+        The result.
+    """
+    return _ffi_api._OpPow(convert(x), convert(y), span)  # type: ignore
+
+
 def popcount(x):
     """Count the number of set bits in input x.
 
@@ -2236,6 +2504,52 @@ def q_multiply_shift(x, y, q, s):
         The result.
     """
     return call_intrin("int32", "tir.q_multiply_shift", x, y, q, s)
+
+
+def q_multiply_shift_per_axis(
+    x: PrimExpr,
+    y: PrimExpr,
+    ls: PrimExpr,
+    rs: PrimExpr,
+    q: IntImm,
+    is_lshift_required: IntImm,
+    is_rshift_required: IntImm,
+):
+    """Execute a multiplication between two Q-numbers x and y
+
+    Parameters
+    ----------
+    x : PrimExpr
+        First Q-number.
+    y : PrimExpr
+        Second Q-number.
+    ls : PrimExpr
+         Integer left shift.
+    rs : PrimExpr
+         Integer right shift.
+    q : IntImm
+        Number of fractional bits in x and y. Needs to be > 0.
+    is_lshift_required : IntImm
+                         Whether we need to do left shift or not.
+    is_rshift_required : IntImm
+                         Whether we need to do right shift or not.
+
+    Returns
+    -------
+    z : PrimExpr
+        The result.
+    """
+    return call_intrin(
+        "int32",
+        "tir.q_multiply_shift_per_axis",
+        x,
+        y,
+        ls,
+        rs,
+        q,
+        is_lshift_required,
+        is_rshift_required,
+    )
 
 
 def shift_left(x, y, span=None):

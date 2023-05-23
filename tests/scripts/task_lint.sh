@@ -40,9 +40,6 @@ function shard1 {
   echo "Checking CMake <-> LibInfo options mirroring"
   python3 tests/lint/check_cmake_options.py
 
-  echo "Checking that all sphinx-gallery docs override urllib.request.Request"
-  python3 tests/lint/check_request_hook.py
-
   echo "black check..."
   tests/lint/git-black.sh
 
@@ -60,6 +57,9 @@ function shard1 {
 }
 
 function shard2 {
+  echo "check whitespace..."
+  tests/lint/whitespace.sh
+
   echo "Linting the Python code with pylint..."
   tests/lint/pylint.sh
 

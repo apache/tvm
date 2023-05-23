@@ -105,8 +105,8 @@ def pool_dsp_schedule(outs, layout):
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
-        in_dtype = op.input_tensors[0].dtype
         if "pool_max" in op.tag:
+            in_dtype = op.input_tensors[0].dtype
             if in_dtype != "int8":
                 logger.warning("Does not have micro-kernel for %s maxpool.", in_dtype)
             elif layout == "NWC":
@@ -114,6 +114,7 @@ def pool_dsp_schedule(outs, layout):
             elif layout == "NHWC":
                 schedule_maxpool_2d_nhwc(s, op)
         elif "pool_sum" in op.tag:
+            in_dtype = op.input_tensors[0].dtype
             if in_dtype != "int16":
                 logger.warning("Does not have micro-kernel for %s avgpool.", in_dtype)
             elif layout == "NCW":

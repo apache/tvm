@@ -28,15 +28,16 @@ For example, you can use addexp.a to get the left operand of an Add node.
   assert(y.a == x)
 """
 from typing import Optional, Union
-from tvm import ir
-import tvm._ffi
-from tvm.ir.base import Span
 
-from tvm.runtime import Object, ObjectGeneric, DataType, DataTypeCode, const
-from tvm.ir import PrimExpr, Op
+import tvm._ffi
 import tvm.ir._ffi_api
-from . import generic as _generic
+from tvm import ir
+from tvm.ir import Op, PrimExpr
+from tvm.ir.base import Span
+from tvm.runtime import DataType, DataTypeCode, Object, ObjectGeneric, Scriptable, const
+
 from . import _ffi_api
+from . import generic as _generic
 
 
 def div_ambiguity_error():
@@ -317,7 +318,7 @@ class IntImmEnum(ObjectGeneric):
         return IntImm("int32", self.value, self.span)  # type: ignore
 
 
-class PrimExprWithOp(ExprOp, PrimExpr):
+class PrimExprWithOp(ExprOp, PrimExpr, Scriptable):
     """Helper base class to inherit from PrimExpr."""
 
     # In Python3, We have to explicitly tell interpreter to retain __hash__ if we overide __eq__
@@ -384,7 +385,7 @@ class SizeVar(Var):
 
 
 @tvm._ffi.register_object("tir.IterVar")
-class IterVar(Object, ExprOp):
+class IterVar(Object, ExprOp, Scriptable):
     """Represent iteration variable.
 
     IterVar represents axis iterations in the computation.
@@ -416,7 +417,7 @@ class IterVar(Object, ExprOp):
     ThreadIndex = 1
     CommReduce = 2
     Ordered = 3
-    DimInfo = 4
+    Opaque = 4
     Unrolled = 5
     Vectorized = 6
     Parallelized = 7
@@ -445,7 +446,7 @@ class IterVar(Object, ExprOp):
 
 
 @tvm._ffi.register_object("tir.CommReducer")
-class CommReducer(Object):
+class CommReducer(Object, Scriptable):
     """Commutative reduce operator
 
     Parameters
@@ -1005,38 +1006,10 @@ class Select(PrimExprWithOp):
     """
 
     def __init__(self, condition, true_value, false_value, span=None):
+        if isinstance(condition, bool):
+            condition = IntImm("bool", condition)
         self.__init_handle_by_constructor__(
             _ffi_api.Select, condition, true_value, false_value, span  # type: ignore
-        )
-
-
-@tvm._ffi.register_object("tir.Load")
-class Load(PrimExprWithOp):
-    """Load node.
-
-    Parameters
-    ----------
-    dtype : str
-        The data type.
-
-    buffer_var : Var
-        The buffer variable in the load expression.
-
-    index : PrimExpr
-        The index in the load.
-
-    predicate : PrimExpr
-        The load predicate.
-
-    span : Optional[Span]
-        The location of this itervar in the source code.
-    """
-
-    def __init__(self, dtype, buffer_var, index, predicate=None, span=None):
-        if predicate is None:
-            predicate = _ffi_api.const_true(dtype, span)  # type: ignore
-        self.__init_handle_by_constructor__(
-            _ffi_api.Load, dtype, buffer_var, index, predicate, span  # type: ignore
         )
 
 

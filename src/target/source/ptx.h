@@ -92,6 +92,22 @@ std::string PrintCpAsyncAssembly(const std::string& shared_ptr,
                                  const std::string& global_ptr,
                                  const std::string& global_elem_offset, const std::string& bytes);
 
+/*!
+ * \brief Print predicated ptx cp.async assembly string given parameters.
+ * \param shared_ptr: The pointer to the destination shared memory.
+ * \param shared_elem_offset: The offset into the shared memory.
+ * \param global_ptr: The pointer to the global memory.
+ * \param global_elem_offset: The offset into the global memory.
+ * \param bytes: The number of bytes to copy, valid values are 4, 8, and 16.
+ * \param predicate_value: The value of predicate `@p`.
+ */
+std::string PrintPredicatedCpAsyncAssembly(const std::string& shared_ptr,
+                                           const std::string& shared_elem_offset,
+                                           const std::string& global_ptr,
+                                           const std::string& global_elem_offset,
+                                           const std::string& bytes,
+                                           const std::string& predicate_value);
+
 }  // namespace codegen
 }  // namespace tvm
 

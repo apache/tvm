@@ -113,25 +113,26 @@ Integer Extract(const Target& target, const char* name) {
 /*! \brief Verify the correctness of the generated GPU code. */
 class VerifyGPUCodeNode : public PostprocNode {
  public:
+  Target target_{nullptr};
   Map<String, PrimExpr> target_constraints_{nullptr};
   int thread_warp_size_ = -1;
 
   void InitializeWithTuneContext(const TuneContext& context) final {
     ICHECK(context->target.defined());
-    Target target = context->target.value();
+    this->target_ = context->target.value();
     this->target_constraints_ = Map<String, PrimExpr>{
-        {"max_shared_memory_per_block", Extract(target, "max_shared_memory_per_block")},
-        {"max_threads_per_block", Extract(target, "max_threads_per_block")},
+        {"max_shared_memory_per_block", Extract(this->target_, "max_shared_memory_per_block")},
+        {"max_threads_per_block", Extract(this->target_, "max_threads_per_block")},
         {"max_vthread", Integer(8)},
         {"max_vector_bytes", Integer(16)},
     };
-    thread_warp_size_ = Extract(target, "thread_warp_size").IntValue();
+    thread_warp_size_ = Extract(this->target_, "thread_warp_size").IntValue();
   }
 
   bool Verify(const IRModule& mod) const {
     for (const auto& kv : mod->functions) {
-      if (const auto* prim_func = kv.second.as<tir::PrimFuncNode>()) {
-        if (!tir::VerifyGPUCode(GetRef<tir::PrimFunc>(prim_func), this->target_constraints_)) {
+      if (auto prim_func = kv.second.as<tir::PrimFunc>()) {
+        if (!tir::VerifyGPUCode(prim_func.value(), this->target_constraints_)) {
           return false;
         }
       }
@@ -161,12 +162,14 @@ class VerifyGPUCodeNode : public PostprocNode {
           pass_list.push_back(tir::transform::PlanAndUpdateBufferAllocationLocation());
           pass_list.push_back(tir::transform::ConvertBlocksToOpaque());
           pass_list.push_back(tir::transform::UnifyThreadBinding());
+          pass_list.push_back(tir::transform::ManifestSharedMemoryLocalStage());
           pass_list.push_back(tir::transform::CompactBufferAllocation());
+          pass_list.push_back(tir::transform::LowerAutoCopy());
           pass_list.push_back(tir::transform::LowerMatchBuffer());
           pass_list.push_back(tir::transform::InjectSoftwarePipeline());
           pass_list.push_back(tir::transform::LowerOpaqueBlock());
           pass_list.push_back(tir::transform::FlattenBuffer());
-          pass_list.push_back(tir::transform::BF16Legalize());
+          pass_list.push_back(tir::transform::BF16ComputeLegalize());
           pass_list.push_back(tir::transform::NarrowDataType(32));
           pass_list.push_back(tir::transform::Simplify());
           // Phase 2
@@ -175,10 +178,12 @@ class VerifyGPUCodeNode : public PostprocNode {
           pass_list.push_back(tir::transform::InjectDoubleBuffer());
           pass_list.push_back(tir::transform::StorageRewrite());
           pass_list.push_back(tir::transform::MergeDynamicSharedMemoryAllocations());
+          pass_list.push_back(tir::transform::LowerIntrin());
           // Convert Function to IRModule
           transform::PassContext pass_ctx = transform::PassContext::Current();
           tir::PrimFunc f = WithAttr(GetRef<tir::PrimFunc>(prim_func), "global_symbol",
                                      runtime::String(g_var->name_hint));
+          f = WithAttr(f, tvm::attr::kTarget, this->target_);  // Required for LowerIntrin
           bool noalias = pass_ctx->GetConfig<Bool>("tir.noalias", Bool(true)).value();
           if (noalias) {
             f = WithAttr(std::move(f), "tir.noalias", Bool(true));
@@ -194,6 +199,12 @@ class VerifyGPUCodeNode : public PostprocNode {
       }
     }
     return true;
+  }
+
+  Postproc Clone() const {
+    ObjectPtr<VerifyGPUCodeNode> n = make_object<VerifyGPUCodeNode>(*this);
+    n->target_constraints_ = this->target_constraints_;
+    return Postproc(n);
   }
 
   static constexpr const char* _type_key = "meta_schedule.VerifyGPUCode";

@@ -201,4 +201,4 @@ def test_create_diamond_graph(MobileNetv2DiamondTE):
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

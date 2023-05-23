@@ -26,11 +26,8 @@ it on Jetson Nano.
 """
 
 # sphinx_gallery_start_ignore
-from tvm import testing
-
-testing.utils.install_request_hook(depth=3)
+# sphinx_gallery_requires_cuda = True
 # sphinx_gallery_end_ignore
-
 import tvm
 from tvm import te
 import tvm.relay as relay

@@ -33,33 +33,44 @@ def _get_model(shape, block, dtype, layout):
 
 @requires_ethosn
 @pytest.mark.parametrize("dtype", ["uint8", "int8"])
-def test_depth_to_space(dtype):
-    trials = [
+@pytest.mark.parametrize(
+    "shape",
+    [
         (1, 16, 16, 16),
         (1, 64, 32, 16),
-    ]
-
+    ],
+)
+def test_depth_to_space(dtype, shape):
+    """Compare Depth To Space output with TVM."""
     np.random.seed(0)
-    for shape in trials:
-        inputs = {
-            "a": tvm.nd.array(
-                np.random.randint(
-                    np.iinfo(dtype).min, np.iinfo(dtype).max + 1, size=shape, dtype=dtype
-                )
-            )
-        }
-        outputs = []
-        for npu in [False, True]:
-            model = _get_model(shape, 2, dtype, "NHWC")
-            mod = tei.make_module(model, {})
-            outputs.append(tei.build_and_run(mod, inputs, 1, {}, npu=npu))
 
-        tei.verify(outputs, dtype, 1)
+    inputs = {
+        "a": tvm.nd.array(
+            np.random.randint(np.iinfo(dtype).min, np.iinfo(dtype).max + 1, size=shape, dtype=dtype)
+        )
+    }
+    outputs = []
+    for npu in [False, True]:
+        model = _get_model(shape, 2, dtype, "NHWC")
+        mod = tei.make_module(model, {})
+        outputs.append(
+            tei.build_and_run(
+                mod,
+                inputs,
+                1,
+                {},
+                npu=npu,
+                additional_config_args={"inline_non_compute_intensive_partitions": False},
+            )
+        )
+
+    tei.verify(outputs, dtype, 1)
 
 
 @requires_ethosn
-def test_depth_to_space_failure():
-    trials = [
+@pytest.mark.parametrize(
+    "shape,block,dtype,layout,err_msg",
+    [
         ((2, 16, 16, 16), 2, "uint8", "NHWC", "batch size=2, batch size must = 1"),
         (
             (1, 16, 16, 16),
@@ -70,9 +81,10 @@ def test_depth_to_space_failure():
         ),
         ((1, 16, 16, 16), 4, "uint8", "NHWC", "Only block size of 2 is supported"),
         ((1, 16, 16, 16), 2, "uint8", "NCHW", "Input layer must be NHWC or NHWCB"),
-    ]
-
-    for shape, block, dtype, layout, err_msg in trials:
-        model = _get_model(shape, block, dtype, layout)
-        mod = tei.make_ethosn_partition(model)
-        tei.test_error(mod, {}, err_msg)
+    ],
+)
+def test_depth_to_space_failure(shape, block, dtype, layout, err_msg):
+    """Check Depth To Space error messages."""
+    model = _get_model(shape, block, dtype, layout)
+    mod = tei.make_ethosn_partition(model)
+    tei.test_error(mod, {}, err_msg)

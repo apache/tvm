@@ -25,6 +25,7 @@ from tvm.relay.testing import run_infer_type
 import tvm.topi.testing
 from tvm.contrib.nvcc import have_fp16
 import tvm.testing
+from tvm.topi.utils import get_const_tuple
 
 executor_kind = tvm.testing.parameter("graph", "vm")
 
@@ -602,6 +603,11 @@ def test_matmul_type_check():
     y = relay.nn.matmul(x, w)
     yy = run_infer_type(y)
 
+    i0 = relay.var("i0", shape=(1, 1), dtype="float32")
+    i1 = relay.var("i1", shape=(1,), dtype="float32")
+    with pytest.raises(tvm.TVMError):
+        run_infer_type(relay.nn.matmul(i0, i1))
+
 
 @tvm.testing.uses_gpu
 def test_matmul(executor_kind):
@@ -683,6 +689,16 @@ def test_dense(executor_kind):
         yy = run_infer_type(y)
         assert yy.checked_type == relay.TensorType((n, c, h, ww), dtype)
 
+        # test dynamic shape in inner
+        m, k = 4, 2
+        x = relay.var("x", relay.TensorType((m, k), dtype))
+        k, nw = relay.Any(), 6
+        w = relay.var("w", relay.TensorType((k, n), dtype))
+        y = relay.nn.dense(x, w)
+        yy = run_infer_type(y)
+        # Confirm that input shape has not been rewritten to become dynamic.
+        assert get_const_tuple(yy.type_args[0].shape) == (4, 2)
+
         n, c, h, w = te.size_var("n"), te.size_var("c"), te.size_var("h"), 2
         x = relay.var("x", relay.TensorType((n, c, h, w), dtype))
         w = relay.var("w", relay.IncompleteType())
@@ -744,10 +760,9 @@ def test_bitserial_dense():
     assert yy.checked_type == relay.TensorType((m, 32), "int16")
 
 
-@pytest.mark.skip("Requires cascadelake")
-def test_dense_vnni():
-    data_shape = (32, 96)
-    weight_shape = (128, 96)
+def dense_x86_test(m, n, k, target="llvm -mcpu=cascadelake", intrins=["vpdpbusd"]):
+    data_shape = (m, k)
+    weight_shape = (n, k)
 
     for data_dtype in ["uint8", "int8"]:
         data = relay.var("data", shape=data_shape, dtype=data_dtype)
@@ -757,12 +772,14 @@ def test_dense_vnni():
         out = relay.nn.bias_add(dense, bias)
         mod = tvm.IRModule.from_expr(out)
 
-        target = "llvm -mcpu=cascadelake"
         with tvm.transform.PassContext(opt_level=3):
             lib = relay.build(mod, target=target)
 
-        asm = lib.lib.get_source("asm")
-        assert "vpdpbusd" in asm
+        # TODO(vvchernov): needs for avx512 arch, can be extended
+        if n % 16 == 0 and k % 4 == 0:
+            asm = lib.lib.get_source("asm")
+            for intrin in intrins:
+                assert intrin in asm
 
         dev = tvm.device(target, 0)
         runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
@@ -780,6 +797,65 @@ def test_dense_vnni():
         ref = np.dot(a.astype("int32"), b.transpose().astype("int32")) + c
 
         np.testing.assert_equal(out, ref)
+
+
+@tvm.testing.requires_llvm
+@pytest.mark.skip("skip due to AMX feature not avaliable yet")
+def test_dense_amx_int8():
+    data_shape = (32, 128)
+    weight_shape = (32, 128)
+
+    amx_init = tvm.get_global_func("runtime.amx_init")
+    amx_tileconfig = tvm.get_global_func("runtime.amx_tileconfig")
+    assert amx_init()
+    assert amx_tileconfig(16, 64)  # config tile size to 16 rows by 64 columns.
+
+    for data_dtype in ["uint8", "int8"]:
+        data = relay.var("data", shape=data_shape, dtype=data_dtype)
+        weight = relay.var("weight", shape=weight_shape, dtype="int8")
+        bias = relay.var("bias", shape=(weight_shape[0],), dtype="int32")
+        dense = relay.nn.dense(data, weight, out_dtype="int32")
+        out = relay.nn.bias_add(dense, bias)
+        mod = tvm.IRModule.from_expr(out)
+
+        target = "llvm -mcpu=sapphirerapids"
+        with tvm.transform.PassContext(opt_level=3):
+            lib = relay.build(mod, target=target)
+
+        asm = lib.lib.get_source("asm")
+        assert "tilezero" in asm
+        assert "tileloaddt1" in asm
+        assert "tdpbusd" in asm
+        assert "tilestored" in asm
+
+        dev = tvm.device(target, 0)
+        runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
+
+        a = np.random.uniform(1, 10, size=data_shape).astype(data_dtype)
+        b = np.random.uniform(1, 10, size=weight_shape).astype("int8")
+        c = np.random.uniform(1, 10, size=(weight_shape[0],)).astype("int32")
+
+        runtime.set_input("data", a)
+        runtime.set_input("weight", b)
+        runtime.set_input("bias", c)
+        runtime.run()
+
+        out = runtime.get_output(0).numpy()
+        ref = np.dot(a.astype("int32"), b.transpose().astype("int32")) + c
+
+        np.testing.assert_equal(out, ref)
+
+
+@tvm.testing.requires_cascadelake
+@pytest.mark.parametrize("m,n,k", [(32, 128, 96), (32, 128, 97)])
+def test_dense_vnni(m, n, k):
+    dense_x86_test(m, n, k)
+
+
+@tvm.testing.requires_skylake_avx512
+@pytest.mark.parametrize("m,n,k", [(32, 128, 96), (32, 128, 97)])
+def test_dense_skylake_avx512(m, n, k):
+    dense_x86_test(m, n, k, "llvm -mcpu=skylake-avx512", ["pmaddubs", "pmaddw", "vpaddd"])
 
 
 @pytest.mark.skip("Requires GFX10 AMDGPU")
@@ -820,5 +896,31 @@ def test_dense_rocm_sdot4():
     np.testing.assert_equal(out, ref)
 
 
+def test_extern_concat_injective_fuse():
+    # This is a subgraph from MobileBERT, which crashes compilation if buffers created in te.extern(...)
+    # do not have their elem_offset explicitly set as a variable.
+
+    # fmt: off
+    mod = tvm.relay.fromtext(
+        """
+       #[version = "0.0.5"]
+       def @main(%p0844: Tensor[(1, 384), int64], %p1652: Tensor[(2016, 128), float16]) {
+        %1331 = cast(%p0844, dtype="int32");
+        %1332 = take(%p1652, %1331, axis=0);
+        %1333 = strided_slice(%1332, begin=[0, 1, 0], end=[1, 384, 128], strides=[1, 1, 1], axes=None);
+        %1334 = strided_slice(%1332, begin=[0, 0, 0], end=[1, -1, 128], strides=[1, 1, 1], axes=None);
+        %1335 = nn.pad(%1333, 0, pad_width=[[0, 0], [0, 1], [0, 0]]);
+        %1336 = nn.pad(%1334, 0, pad_width=[[0, 0], [1, 0], [0, 0]]);
+        %1337 = (%1335, %1332, %1336);
+        %1338 = concatenate(%1337, axis=2);
+        reshape(%1338, newshape=[-1, 384])
+      }
+    """
+    )
+    # fmt: on
+
+    relay.build(mod, params={}, target="llvm")
+
+
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

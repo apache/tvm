@@ -60,6 +60,14 @@ def pytest_addoption(parser):
             "Also, it will enable debug level logging in project generation."
         ),
     )
+    parser.addoption(
+        "--serial-number",
+        default=None,
+        help=(
+            "Board serial number. This is used to run test on a "
+            "specific board when multiple boards with the same type exist."
+        ),
+    )
 
 
 def pytest_generate_tests(metafunc):
@@ -130,3 +138,13 @@ def pytest_configure(config):
         "markers",
         "skip_boards(board): skip test for the given board",
     )
+
+
+@pytest.fixture
+def serial_number(request):
+    serial_number = request.config.getoption("--serial-number")
+    if serial_number:
+        serial_number_splitted = serial_number.split(",")
+        if len(serial_number_splitted) > 1:
+            return serial_number_splitted
+    return serial_number

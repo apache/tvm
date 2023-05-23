@@ -267,4 +267,3 @@ const uint16_t crc_tabccitt[256] = {
 	0x0ED1u,
 	0x1EF0u
 };
-

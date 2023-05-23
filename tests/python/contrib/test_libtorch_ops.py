@@ -19,6 +19,7 @@ import pytest
 
 import tvm.relay
 from tvm.relay.op.contrib import torchop
+from tvm.testing import requires_libtorch
 
 import_torch_error = None
 
@@ -30,6 +31,7 @@ except ImportError as e:
 
 
 @pytest.mark.skipif(torch is None, reason=f"PyTorch is not available: {import_torch_error}")
+@requires_libtorch
 def test_backend():
     @torch.jit.script
     def script_fn(x, y):
@@ -88,4 +90,4 @@ def test_backend():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

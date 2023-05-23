@@ -51,11 +51,7 @@ MANIFEST
 .bash_history
 rat-excludes
 Cargo.lock
+poetry.lock
 
-# Included template files
-Build.groovy.j2
-Deploy.groovy.j2
-DockerBuild.groovy.j2
-Lint.groovy.j2
-Prepare.groovy.j2
-Test.groovy.j2
+# Template files for Jenkins
+.*\.groovy\.j2

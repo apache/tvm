@@ -175,8 +175,14 @@ class RPCModuleNode final : public ModuleNode {
   }
 
   const char* type_key() const final { return "rpc"; }
+  /*! \brief Get the property of the runtime module .*/
+  int GetPropertyMask() const final { return ModulePropertyMask::kRunnable; }
 
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
+    if (name == "CloseRPCConnection") {
+      return PackedFunc([this](TVMArgs, TVMRetValue*) { sess_->Shutdown(); });
+    }
+
     if (module_handle_ == nullptr) {
       return WrapRemoteFunc(sess_->GetFunction(name));
     } else {
@@ -187,7 +193,6 @@ class RPCModuleNode final : public ModuleNode {
 
   std::string GetSource(const std::string& format) final {
     LOG(FATAL) << "GetSource for rpc Module is not supported";
-    return "";
   }
 
   PackedFunc GetTimeEvaluator(const std::string& name, Device dev, int number, int repeat,

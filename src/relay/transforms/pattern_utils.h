@@ -103,6 +103,24 @@ namespace relay {
   }
 
 /*!
+ * \brief Try to do the type inference over expr:
+ *
+ * Do the infer_type over each node in expr
+ *
+ * \param expr The IR expression
+ * \return infered expr if succeed.
+ */
+inline Expr InferType(const Expr& expr) {
+  auto mod = IRModule::FromExpr(expr);
+  mod = transform::InferType()(mod);
+  if (expr.as<FunctionNode>()) {
+    return mod->Lookup("main");
+  } else {
+    return mod->Lookup("main").as<FunctionNode>()->body;
+  }
+}
+
+/*!
  * \brief Try to match lhs and rhs via broadcasting rule, such that:
  *
  * rhs matches the dimension of lhs specified by lhs_axes
@@ -120,6 +138,17 @@ inline bool MatchBroadcastToLeftAxes(const TensorTypeNode* tlhs, const TensorTyp
   StructuralEqual equal;
   size_t base = tlhs->shape.size() - trhs->shape.size();
   size_t j = 0;
+
+  // handle case trhs is simple constant
+  if (trhs->shape.size() == 0 && rhs_value != nullptr && lhs_axes.size() > 0) {
+    *rhs_value = MakeExpandDims(*rhs_value, 0, lhs_axes.size());
+    for (size_t i = 0; i < lhs_axes.size(); i++) {
+      int repeat_value =
+          tlhs->shape[static_cast<size_t>(lhs_axes[j]->value)].as<IntImmNode>()->value;
+      *rhs_value = MakeRepeat(*rhs_value, repeat_value, i);
+    }
+    return true;
+  }
 
   ObjectPtr<SqueezeAttrs> squeeze_attrs;
   if (rhs_value != nullptr) {
@@ -661,6 +690,13 @@ inline Expr FixedPointMultiply(Expr x, int32_t multiplier, int32_t shift) {
   return Call(op, {x}, Attrs(attrs), {});
 }
 
+inline Expr FixedPointMultiplyPerAxis(Expr x, Expr m, Expr lshift, Expr rshift,
+                                      bool is_lshift_required, bool is_rshift_required,
+                                      Array<Integer> axes) {
+  return MakeFixedPointMultiplyPerAxis(x, m, lshift, rshift, is_lshift_required, is_rshift_required,
+                                       axes);
+}
+
 inline Expr Add(Expr lhs, Expr rhs) {
   static const Op& op = Op::Get("add");
   return Call(op, {lhs, rhs}, Attrs(), {});
@@ -732,6 +768,10 @@ inline Expr ReshapeLike(Expr lhs, Expr rhs, int lhs_begin, Integer lhs_end, int 
 inline Expr Copy(Expr data) {
   static const Op& op = Op::Get("copy");
   return Call(op, {data}, Attrs(), {});
+}
+
+inline Expr Max(Expr data, Array<Integer> axis, bool keepdims, bool exclude) {
+  return MakeReduce(data, axis, keepdims, exclude, "max");
 }
 
 inline Expr Mean(Expr data, Array<Integer> axis, bool keepdims, bool exclude) {

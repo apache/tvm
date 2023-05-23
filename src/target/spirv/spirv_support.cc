@@ -32,8 +32,9 @@ namespace tvm {
 namespace codegen {
 
 SPIRVSupport::SPIRVSupport(tvm::Target target) {
-  ICHECK_EQ(target->kind->device_type, kDLVulkan)
-      << "SPIRVSupport can only be checked for vulkan device type";
+  auto device_type = target->GetTargetDeviceType();
+  ICHECK(device_type == kDLVulkan || device_type == kDLOpenCL || device_type == kDLWebGPU)
+      << "Unsupported device type for SPIRV codegen:" << device_type;
 
   if (target->GetAttr<Integer>("vulkan_api_version")) {
     vulkan_api_version = target->GetAttr<Integer>("vulkan_api_version").value().IntValue();
@@ -100,6 +101,10 @@ SPIRVSupport::SPIRVSupport(tvm::Target target) {
         break;
       }
     }
+  }
+  // Check whether cooperative matrix is enabled in the target string.
+  if (target->GetAttr<Bool>("supports_cooperative_matrix")) {
+    supports_cooperative_matrix = target->GetAttr<Bool>("supports_cooperative_matrix").value();
   }
 }
 

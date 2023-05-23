@@ -32,11 +32,24 @@
 #include "hexagon_buffer.h"
 #include "hexagon_buffer_manager.h"
 #include "hexagon_common.h"
+#include "hexagon_htp.h"
+#include "hexagon_hvx.h"
 #include "qurt.h"
 
 namespace tvm {
 namespace runtime {
 namespace hexagon {
+
+typedef enum {
+  NONE = -1,
+  DMA_0 = 0,
+  HTP_0,
+  HVX_0,
+  HVX_1,
+  HVX_2,
+  HVX_3,
+  MAX,
+} HardwareResourceType;
 
 class HexagonThreadManager {
   //! \brief Void function.
@@ -62,7 +75,8 @@ class HexagonThreadManager {
    * \param thread_stack_size_bytes Stack size in bytes per thread.
    * \param thread_pipe_size_words Pipe (or command buffer) size in words (or commands).
    */
-  HexagonThreadManager(unsigned, unsigned thread_stack_size_bytes, unsigned thread_pipe_size_words);
+  HexagonThreadManager(unsigned, unsigned thread_stack_size_bytes, unsigned thread_pipe_size_words,
+                       const std::vector<HardwareResourceType> = {});
 
   //! \brief Destructor
   ~HexagonThreadManager();
@@ -72,6 +86,18 @@ class HexagonThreadManager {
    * \returns Vector of stream handles.
    */
   const std::vector<TVMStreamHandle> GetStreamHandles();
+
+  /*!
+   * \brief Get the spawned threads as stream handles for a resource type.
+   * \returns stream handle.
+   */
+  TVMStreamHandle GetStreamHandleByResourceType(HardwareResourceType type);
+
+  /*!
+   * \brief Get the resource type for a stream handle
+   * \returns stream handle.
+   */
+  HardwareResourceType GetResourceTypeForStreamHandle(TVMStreamHandle thread);
 
   /*!
    * \brief Non-blocking dispatch of a void function and args on a given thread.
@@ -123,8 +149,21 @@ class HexagonThreadManager {
   struct ThreadContext {
     qurt_pipe_t* pipe;
     unsigned index;
-    ThreadContext(qurt_pipe_t* pipe, unsigned index) : pipe(pipe), index(index) {}
+    HardwareResourceType resource_type;
+    HexagonHvx* hvx;
+    HexagonHtp* htp;
+    uint64_t status;
+    ThreadContext(qurt_pipe_t* pipe, unsigned index, HardwareResourceType resource_type,
+                  HexagonHvx* hvx, HexagonHtp* htp)
+        : pipe(pipe), index(index), resource_type(resource_type), hvx(hvx), htp(htp), status(0) {
+      CHECK(resource_type == NONE || (hvx && htp))
+          << "Missing resource manager pointer, type: " << resource_type << " hvx: " << hvx
+          << " htp: " << htp;
+    }
   };
+
+  //! \brief Helper function to ensure the set of requested resources is valid.
+  void CheckResources();
 
   //! \brief Helper function for the constructor to spawn threads.
   void SpawnThreads(unsigned thread_stack_size_bytes, unsigned thread_pipe_size_words);
@@ -143,7 +182,7 @@ class HexagonThreadManager {
   static void thread_wait_free(void* semaphore);
 
   //! \brief Void function executed by a thread to exit at time of destruction.
-  static void thread_exit(void* status);
+  static void thread_exit(void* context);
 
   //! \brief Void function executed by each thread as `main`.
   static void thread_main(void* context);
@@ -174,6 +213,9 @@ class HexagonThreadManager {
   //! \brief Semaphores used by `Signal` and `Wait` mapped by ID.
   std::unordered_map<unsigned, qurt_sem_t*> semaphores_;
 
+  //! \brief Protects updates to semaphores_
+  std::mutex semaphores_mutex_;
+
   //! \brief Start semaphore created at time of construction; signled by `Start`.
   qurt_sem_t start_semaphore_;
 
@@ -185,6 +227,20 @@ class HexagonThreadManager {
     void* args;
     Command(voidfunc f, void* args) : f(f), args(args) {}
   };
+
+  //! \brief List of hardware resources
+  std::vector<HardwareResourceType> hw_resources_;
+
+  //! \brief Whether or not resource managers should be created
+  bool create_resource_managers_{false};
+
+  //! \brief HTP hardware resource.
+  // TODO(HWE): Move binding of HTP to a specific thread
+  std::unique_ptr<HexagonHtp> htp_;
+
+  //! \brief HVX hardware resource.
+  // TODO(HWE): Move binding of individual HVX instances to a specific thread
+  std::unique_ptr<HexagonHvx> hvx_;
 };
 
 }  // namespace hexagon

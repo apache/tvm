@@ -250,8 +250,8 @@ class DynamicToStaticMutator : public MixedModeMutator {
 
   Expr PrepareInput(const Expr& expr) {
     BaseFunc func;
-    if (auto* func_node = expr.as<BaseFuncNode>()) {
-      func = GetRef<BaseFunc>(func_node);
+    if (auto func_node = expr.as<BaseFunc>()) {
+      func = func_node.value();
     } else {
       func =
           relay::Function(relay::FreeVars(expr), expr, Type(), relay::FreeTypeVars(expr, mod_), {});

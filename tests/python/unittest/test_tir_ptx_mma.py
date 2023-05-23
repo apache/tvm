@@ -36,9 +36,9 @@ def gemm_mma_m8n8k4_row_col_fp64pf64fp64(a: T.handle, b: T.handle, c: T.handle):
     T.launch_thread(brow, 1)
     T.launch_thread(bcol, 1)
     T.launch_thread(tx, 32)
-    MultiA = T.allocate([1], "float64", scope="local")
-    MultiB = T.allocate([1], "float64", scope="local")
-    Accum = T.allocate([2], "float64", scope="local")
+    MultiA = T.decl_buffer([1], "float64", scope="local")
+    MultiB = T.decl_buffer([1], "float64", scope="local")
+    Accum = T.decl_buffer([2], "float64", scope="local")
     for i in range(2):
         Accum[i] = T.float64(0)
 
@@ -66,14 +66,9 @@ def gemm_mma_m8n8k4_row_col_fp64pf64fp64(a: T.handle, b: T.handle, c: T.handle):
         C[(tx % 32) // 4, (tx % 32) % 4 * 2 + mma_accum_c_id] = Accum[mma_accum_c_id]
 
 
-@tvm.testing.requires_cuda
+@tvm.testing.requires_cuda_compute_version(8)
 def test_gemm_mma_m8n8k4_row_col_fp64pf64fp64():
     sch = tvm.tir.Schedule(gemm_mma_m8n8k4_row_col_fp64pf64fp64)
-    arch = tvm.contrib.nvcc.get_target_compute_version()
-    major, minor = tvm.contrib.nvcc.parse_compute_version(arch)
-    if major < 8:
-        # Require at least SM80
-        return
     cuda_mod = tvm.build(sch.mod, target="cuda")
 
     A_np = np.random.uniform(-1, 1, [8, 4]).astype("float64")
@@ -106,9 +101,9 @@ def gemm_mma_m8n8k4_row_row_fp16fp16fp16(a: T.handle, b: T.handle, c: T.handle):
     T.launch_thread(brow, 1)
     T.launch_thread(bcol, 1)
     T.launch_thread(tx, 32)
-    MultiA = T.allocate([4], "float16", scope="local")
-    MultiB = T.allocate([4], "float16", scope="local")
-    Accum = T.allocate([8], "float16", scope="local")
+    MultiA = T.decl_buffer([4], "float16", scope="local")
+    MultiB = T.decl_buffer([4], "float16", scope="local")
+    Accum = T.decl_buffer([8], "float16", scope="local")
     for i in range(8):
         Accum[i] = T.float32(0)
 
@@ -147,14 +142,9 @@ def gemm_mma_m8n8k4_row_row_fp16fp16fp16(a: T.handle, b: T.handle, c: T.handle):
         ] = Accum[mma_accum_c_id]
 
 
-@tvm.testing.requires_cuda
+@tvm.testing.requires_cuda_compute_version(7)
 def test_gemm_mma_m8n8k4_row_row_fp16fp16fp16():
     sch = tvm.tir.Schedule(gemm_mma_m8n8k4_row_row_fp16fp16fp16)
-    arch = tvm.contrib.nvcc.get_target_compute_version()
-    major, minor = tvm.contrib.nvcc.parse_compute_version(arch)
-    if major < 7:
-        # Require at least SM70
-        return
     cuda_mod = tvm.build(sch.mod, target="cuda")
 
     A_np = np.random.uniform(-1, 1, [16, 4]).astype("float16")
@@ -187,9 +177,10 @@ def gemm_mma_m8n8k4_row_row_fp16fp16fp32(a: T.handle, b: T.handle, c: T.handle):
     T.launch_thread(brow, 1)
     T.launch_thread(bcol, 1)
     T.launch_thread(tx, 32)
-    MultiA = T.allocate([4], "float16", scope="local")
-    MultiB = T.allocate([4], "float16", scope="local")
-    Accum = T.allocate([8], "float32", scope="local")
+    MultiA = T.decl_buffer([4], "float16", scope="local")
+    MultiB = T.decl_buffer([4], "float16", scope="local")
+    Accum = T.decl_buffer([8], "float32", scope="local")
+
     for i in range(8):
         Accum[i] = T.float32(0)
 
@@ -234,14 +225,9 @@ def gemm_mma_m8n8k4_row_row_fp16fp16fp32(a: T.handle, b: T.handle, c: T.handle):
         ] = Accum[mma_accum_c_id]
 
 
-@tvm.testing.requires_cuda
+@tvm.testing.requires_cuda_compute_version(7)
 def test_gemm_mma_m8n8k4_row_row_fp16fp16fp32():
     sch = tvm.tir.Schedule(gemm_mma_m8n8k4_row_row_fp16fp16fp32)
-    arch = tvm.contrib.nvcc.get_target_compute_version()
-    major, minor = tvm.contrib.nvcc.parse_compute_version(arch)
-    if major < 7:
-        # Require at least SM70
-        return
     cuda_mod = tvm.build(sch.mod, target="cuda")
 
     A_np = np.random.uniform(-1, 1, [16, 4]).astype("float16")
@@ -274,9 +260,9 @@ def gemm_mma_m8n8k16_row_col_s8s8s32(a: T.handle, b: T.handle, c: T.handle):
     T.launch_thread(brow, 1)
     T.launch_thread(bcol, 1)
     T.launch_thread(tx, 32)
-    MultiA = T.allocate([4], "int8", scope="local")
-    MultiB = T.allocate([4], "int8", scope="local")
-    Accum = T.allocate([2], "int32", scope="local")
+    MultiA = T.decl_buffer([4], "int8", scope="local")
+    MultiB = T.decl_buffer([4], "int8", scope="local")
+    Accum = T.decl_buffer([2], "int32", scope="local")
     for i in range(2):
         Accum[i] = T.int32(0)
 
@@ -310,14 +296,9 @@ def gemm_mma_m8n8k16_row_col_s8s8s32(a: T.handle, b: T.handle, c: T.handle):
 # Failure occurs during the external call to nvcc, when attempting to
 # generate the .fatbin file.
 @tvm.testing.requires_nvcc_version(11)
-@tvm.testing.requires_cuda
+@tvm.testing.requires_cuda_compute_version(7, 5)
 def test_gemm_mma_m8n8k16_row_col_s8s8s32():
     sch = tvm.tir.Schedule(gemm_mma_m8n8k16_row_col_s8s8s32)
-    arch = tvm.contrib.nvcc.get_target_compute_version()
-    major, minor = tvm.contrib.nvcc.parse_compute_version(arch)
-    if major * 10 + minor < 75:
-        # Require at least SM75
-        return
     cuda_mod = tvm.build(sch.mod, target="cuda")
 
     A_np = np.random.uniform(-10, 10, [8, 16]).astype("int8")
@@ -350,9 +331,9 @@ def gemm_mma_m8n8k16_row_col_s8u8s32(a: T.handle, b: T.handle, c: T.handle):
     T.launch_thread(brow, 1)
     T.launch_thread(bcol, 1)
     T.launch_thread(tx, 32)
-    MultiA = T.allocate([4], "int8", scope="local")
-    MultiB = T.allocate([4], "uint8", scope="local")
-    Accum = T.allocate([2], "int32", scope="local")
+    MultiA = T.decl_buffer([4], "int8", scope="local")
+    MultiB = T.decl_buffer([4], "uint8", scope="local")
+    Accum = T.decl_buffer([2], "int32", scope="local")
     for i in range(2):
         Accum[i] = T.int32(0)
 
@@ -386,14 +367,9 @@ def gemm_mma_m8n8k16_row_col_s8u8s32(a: T.handle, b: T.handle, c: T.handle):
 # Failure occurs during the external call to nvcc, when attempting to
 # generate the .fatbin file.
 @tvm.testing.requires_nvcc_version(11)
-@tvm.testing.requires_cuda
+@tvm.testing.requires_cuda_compute_version(7, 5)
 def test_gemm_mma_m8n8k16_row_col_s8u8s32():
     sch = tvm.tir.Schedule(gemm_mma_m8n8k16_row_col_s8u8s32)
-    arch = tvm.contrib.nvcc.get_target_compute_version()
-    major, minor = tvm.contrib.nvcc.parse_compute_version(arch)
-    if major * 10 + minor < 75:
-        # Require at least SM75
-        return
     cuda_mod = tvm.build(sch.mod, target="cuda")
 
     A_np = np.random.uniform(-10, 10, [8, 16]).astype("int8")
@@ -426,9 +402,9 @@ def gemm_mma_m8n8k32_row_col_s4s4s32(a: T.handle, b: T.handle, c: T.handle):
     T.launch_thread(brow, 1)
     T.launch_thread(bcol, 1)
     T.launch_thread(tx, 32)
-    MultiA = T.allocate([8], "int4", scope="local")
-    MultiB = T.allocate([8], "int4", scope="local")
-    Accum = T.allocate([2], "int32", scope="local")
+    MultiA = T.decl_buffer([8], "int4", scope="local")
+    MultiB = T.decl_buffer([8], "int4", scope="local")
+    Accum = T.decl_buffer([2], "int32", scope="local")
     for i in range(2):
         Accum[i] = T.int32(0)
 
@@ -462,14 +438,9 @@ def gemm_mma_m8n8k32_row_col_s4s4s32(a: T.handle, b: T.handle, c: T.handle):
 # Failure occurs during the external call to nvcc, when attempting to
 # generate the .fatbin file.
 @tvm.testing.requires_nvcc_version(11)
-@tvm.testing.requires_cuda
+@tvm.testing.requires_cuda_compute_version(7, 5)
 def test_gemm_mma_m8n8k32_row_col_s4s4s32():
     sch = tvm.tir.Schedule(gemm_mma_m8n8k32_row_col_s4s4s32)
-    arch = tvm.contrib.nvcc.get_target_compute_version()
-    major, minor = tvm.contrib.nvcc.parse_compute_version(arch)
-    if major * 10 + minor < 75:
-        # Require at least SM75
-        return
     cuda_mod = tvm.build(sch.mod, target="cuda")
 
     ctx = tvm.cuda()
@@ -494,9 +465,9 @@ def gemm_mma_m8n8k32_row_col_s4u4s32(a: T.handle, b: T.handle, c: T.handle):
     T.launch_thread(brow, 1)
     T.launch_thread(bcol, 1)
     T.launch_thread(tx, 32)
-    MultiA = T.allocate([8], "int4", scope="local")
-    MultiB = T.allocate([8], "uint4", scope="local")
-    Accum = T.allocate([2], "int32", scope="local")
+    MultiA = T.decl_buffer([8], "int4", scope="local")
+    MultiB = T.decl_buffer([8], "uint4", scope="local")
+    Accum = T.decl_buffer([2], "int32", scope="local")
     for i in range(2):
         Accum[i] = T.int32(0)
 
@@ -530,14 +501,9 @@ def gemm_mma_m8n8k32_row_col_s4u4s32(a: T.handle, b: T.handle, c: T.handle):
 # Failure occurs during the external call to nvcc, when attempting to
 # generate the .fatbin file.
 @tvm.testing.requires_nvcc_version(11)
-@tvm.testing.requires_cuda
+@tvm.testing.requires_cuda_compute_version(7, 5)
 def test_gemm_mma_m8n8k32_row_col_s4u4s32():
     sch = tvm.tir.Schedule(gemm_mma_m8n8k32_row_col_s4u4s32)
-    arch = tvm.contrib.nvcc.get_target_compute_version()
-    major, minor = tvm.contrib.nvcc.parse_compute_version(arch)
-    if major * 10 + minor < 75:
-        # Require at least SM75
-        return
     cuda_mod = tvm.build(sch.mod, target="cuda")
 
     ctx = tvm.cuda()
@@ -562,9 +528,9 @@ def gemm_mma_m16n8k8_row_col_fp16fp16fp32(a: T.handle, b: T.handle, c: T.handle)
     T.launch_thread(brow, 1)
     T.launch_thread(bcol, 1)
     T.launch_thread(tx, 32)
-    MultiA = T.allocate([4], "float16", scope="local")
-    MultiB = T.allocate([2], "float16", scope="local")
-    Accum = T.allocate([4], "float32", scope="local")
+    MultiA = T.decl_buffer([4], "float16", scope="local")
+    MultiB = T.decl_buffer([2], "float16", scope="local")
+    Accum = T.decl_buffer([4], "float32", scope="local")
     for i in range(4):
         Accum[i] = T.float32(0)
 
@@ -600,14 +566,9 @@ def gemm_mma_m16n8k8_row_col_fp16fp16fp32(a: T.handle, b: T.handle, c: T.handle)
         ]
 
 
-@tvm.testing.requires_cuda
+@tvm.testing.requires_cuda_compute_version(8)
 def test_gemm_mma_m16n8k8_row_col_fp16fp16fp32():
     sch = tvm.tir.Schedule(gemm_mma_m16n8k8_row_col_fp16fp16fp32)
-    arch = tvm.contrib.nvcc.get_target_compute_version()
-    major, minor = tvm.contrib.nvcc.parse_compute_version(arch)
-    if major < 8:
-        # Require at least SM80
-        return
     cuda_mod = tvm.build(sch.mod, target="cuda")
 
     A_np = np.random.uniform(-1, 1, [16, 8]).astype("float16")
@@ -640,9 +601,9 @@ def gemm_mma_m16n8k16_row_col_fp16fp16fp16(a: T.handle, b: T.handle, c: T.handle
     T.launch_thread(brow, 1)
     T.launch_thread(bcol, 1)
     T.launch_thread(tx, 32)
-    MultiA = T.allocate([8], "float16", scope="local")
-    MultiB = T.allocate([4], "float16", scope="local")
-    Accum = T.allocate([4], "float16", scope="local")
+    MultiA = T.decl_buffer([8], "float16", scope="local")
+    MultiB = T.decl_buffer([4], "float16", scope="local")
+    Accum = T.decl_buffer([4], "float16", scope="local")
     for i in range(4):
         Accum[i] = T.float32(0)
 
@@ -681,15 +642,9 @@ def gemm_mma_m16n8k16_row_col_fp16fp16fp16(a: T.handle, b: T.handle, c: T.handle
         ] = Accum[mma_accum_c_id]
 
 
-@tvm.testing.requires_cuda
+@tvm.testing.requires_cuda_compute_version(8)
 def test_gemm_mma_m16n8k16_row_col_fp16fp16fp16():
     sch = tvm.tir.Schedule(gemm_mma_m16n8k16_row_col_fp16fp16fp16)
-    arch = tvm.contrib.nvcc.get_target_compute_version()
-    major, minor = tvm.contrib.nvcc.parse_compute_version(arch)
-    if major < 8:
-        # Require at least SM80
-        return
-    cuda_mod = tvm.build(sch.mod, target="cuda")
     cuda_mod = tvm.build(sch.mod, target="cuda")
 
     A_np = np.random.uniform(-1, 1, [16, 16]).astype("float16")
@@ -722,9 +677,9 @@ def gemm_mma_m16n8k16_row_col_fp16fp16fp32(a: T.handle, b: T.handle, c: T.handle
     T.launch_thread(brow, 1)
     T.launch_thread(bcol, 1)
     T.launch_thread(tx, 32)
-    MultiA = T.allocate([8], "float16", scope="local")
-    MultiB = T.allocate([4], "float16", scope="local")
-    Accum = T.allocate([4], "float32", scope="local")
+    MultiA = T.decl_buffer([8], "float16", scope="local")
+    MultiB = T.decl_buffer([4], "float16", scope="local")
+    Accum = T.decl_buffer([4], "float32", scope="local")
     for i in range(4):
         Accum[i] = T.float32(0)
 
@@ -763,15 +718,9 @@ def gemm_mma_m16n8k16_row_col_fp16fp16fp32(a: T.handle, b: T.handle, c: T.handle
         ] = Accum[mma_accum_c_id]
 
 
-@tvm.testing.requires_cuda
+@tvm.testing.requires_cuda_compute_version(8)
 def test_gemm_mma_m16n8k16_row_col_fp16fp16fp32():
     sch = tvm.tir.Schedule(gemm_mma_m16n8k16_row_col_fp16fp16fp32)
-    arch = tvm.contrib.nvcc.get_target_compute_version()
-    major, minor = tvm.contrib.nvcc.parse_compute_version(arch)
-    if major < 8:
-        # Require at least SM80
-        return
-    cuda_mod = tvm.build(sch.mod, target="cuda")
     cuda_mod = tvm.build(sch.mod, target="cuda")
 
     A_np = np.random.uniform(-1, 1, [16, 16]).astype("float16")
@@ -804,9 +753,9 @@ def gemm_mma_m16n8k16_row_col_s8s8s32(a: T.handle, b: T.handle, c: T.handle):
     T.launch_thread(brow, 1)
     T.launch_thread(bcol, 1)
     T.launch_thread(tx, 32)
-    MultiA = T.allocate([8], "int8", scope="local")
-    MultiB = T.allocate([4], "int8", scope="local")
-    Accum = T.allocate([4], "int32", scope="local")
+    MultiA = T.decl_buffer([8], "int8", scope="local")
+    MultiB = T.decl_buffer([4], "int8", scope="local")
+    Accum = T.decl_buffer([4], "int32", scope="local")
     for i in range(4):
         Accum[i] = T.int32(0)
 
@@ -845,15 +794,9 @@ def gemm_mma_m16n8k16_row_col_s8s8s32(a: T.handle, b: T.handle, c: T.handle):
         ] = Accum[mma_accum_c_id]
 
 
-@tvm.testing.requires_cuda
+@tvm.testing.requires_cuda_compute_version(8)
 def test_gemm_mma_m16n8k16_row_col_s8s8s32():
     sch = tvm.tir.Schedule(gemm_mma_m16n8k16_row_col_s8s8s32)
-    arch = tvm.contrib.nvcc.get_target_compute_version()
-    major, minor = tvm.contrib.nvcc.parse_compute_version(arch)
-    if major < 8:
-        # Require at least SM80
-        return
-    cuda_mod = tvm.build(sch.mod, target="cuda")
     cuda_mod = tvm.build(sch.mod, target="cuda")
 
     A_np = np.random.uniform(-10, 10, [16, 16]).astype("int8")
@@ -886,9 +829,9 @@ def gemm_mma_m16n8k16_row_col_s8u8s32(a: T.handle, b: T.handle, c: T.handle):
     T.launch_thread(brow, 1)
     T.launch_thread(bcol, 1)
     T.launch_thread(tx, 32)
-    MultiA = T.allocate([8], "int8", scope="local")
-    MultiB = T.allocate([4], "uint8", scope="local")
-    Accum = T.allocate([4], "int32", scope="local")
+    MultiA = T.decl_buffer([8], "int8", scope="local")
+    MultiB = T.decl_buffer([4], "uint8", scope="local")
+    Accum = T.decl_buffer([4], "int32", scope="local")
     for i in range(4):
         Accum[i] = T.int32(0)
 
@@ -927,15 +870,9 @@ def gemm_mma_m16n8k16_row_col_s8u8s32(a: T.handle, b: T.handle, c: T.handle):
         ] = Accum[mma_accum_c_id]
 
 
-@tvm.testing.requires_cuda
+@tvm.testing.requires_cuda_compute_version(8)
 def test_gemm_mma_m16n8k16_row_col_s8u8s32():
     sch = tvm.tir.Schedule(gemm_mma_m16n8k16_row_col_s8u8s32)
-    arch = tvm.contrib.nvcc.get_target_compute_version()
-    major, minor = tvm.contrib.nvcc.parse_compute_version(arch)
-    if major < 8:
-        # Require at least SM80
-        return
-    cuda_mod = tvm.build(sch.mod, target="cuda")
     cuda_mod = tvm.build(sch.mod, target="cuda")
 
     A_np = np.random.uniform(-10, 10, [16, 16]).astype("int8")
@@ -968,9 +905,9 @@ def gemm_mma_m16n8k32_row_col_s8s8s32(a: T.handle, b: T.handle, c: T.handle):
     T.launch_thread(brow, 1)
     T.launch_thread(bcol, 1)
     T.launch_thread(tx, 32)
-    MultiA = T.allocate([16], "int8", scope="local")
-    MultiB = T.allocate([8], "int8", scope="local")
-    Accum = T.allocate([4], "int32", scope="local")
+    MultiA = T.decl_buffer([16], "int8", scope="local")
+    MultiB = T.decl_buffer([8], "int8", scope="local")
+    Accum = T.decl_buffer([4], "int32", scope="local")
     for i in range(4):
         Accum[i] = T.int32(0)
 
@@ -1009,15 +946,9 @@ def gemm_mma_m16n8k32_row_col_s8s8s32(a: T.handle, b: T.handle, c: T.handle):
         ] = Accum[mma_accum_c_id]
 
 
-@tvm.testing.requires_cuda
+@tvm.testing.requires_cuda_compute_version(8)
 def test_gemm_mma_m16n8k32_row_col_s8s8s32():
     sch = tvm.tir.Schedule(gemm_mma_m16n8k32_row_col_s8s8s32)
-    arch = tvm.contrib.nvcc.get_target_compute_version()
-    major, minor = tvm.contrib.nvcc.parse_compute_version(arch)
-    if major < 8:
-        # Require at least SM80
-        return
-    cuda_mod = tvm.build(sch.mod, target="cuda")
     cuda_mod = tvm.build(sch.mod, target="cuda")
 
     A_np = np.random.uniform(-10, 10, [16, 32]).astype("int8")
@@ -1050,9 +981,9 @@ def gemm_mma_m16n8k32_row_col_s8u8s32(a: T.handle, b: T.handle, c: T.handle):
     T.launch_thread(brow, 1)
     T.launch_thread(bcol, 1)
     T.launch_thread(tx, 32)
-    MultiA = T.allocate([16], "int8", scope="local")
-    MultiB = T.allocate([8], "uint8", scope="local")
-    Accum = T.allocate([4], "int32", scope="local")
+    MultiA = T.decl_buffer([16], "int8", scope="local")
+    MultiB = T.decl_buffer([8], "uint8", scope="local")
+    Accum = T.decl_buffer([4], "int32", scope="local")
     for i in range(4):
         Accum[i] = T.int32(0)
 
@@ -1091,15 +1022,9 @@ def gemm_mma_m16n8k32_row_col_s8u8s32(a: T.handle, b: T.handle, c: T.handle):
         ] = Accum[mma_accum_c_id]
 
 
-@tvm.testing.requires_cuda
+@tvm.testing.requires_cuda_compute_version(8)
 def test_gemm_mma_m16n8k32_row_col_s8u8s32():
     sch = tvm.tir.Schedule(gemm_mma_m16n8k32_row_col_s8u8s32)
-    arch = tvm.contrib.nvcc.get_target_compute_version()
-    major, minor = tvm.contrib.nvcc.parse_compute_version(arch)
-    if major < 8:
-        # Require at least SM80
-        return
-    cuda_mod = tvm.build(sch.mod, target="cuda")
     cuda_mod = tvm.build(sch.mod, target="cuda")
 
     A_np = np.random.uniform(-10, 10, [16, 32]).astype("int8")
@@ -1132,9 +1057,9 @@ def gemm_mma_m16n8k64_row_col_s4s4s32(a: T.handle, b: T.handle, c: T.handle):
     T.launch_thread(brow, 1)
     T.launch_thread(bcol, 1)
     T.launch_thread(tx, 32)
-    MultiA = T.allocate([32], "int4", scope="local")
-    MultiB = T.allocate([16], "int4", scope="local")
-    Accum = T.allocate([4], "int32", scope="local")
+    MultiA = T.decl_buffer([32], "int4", scope="local")
+    MultiB = T.decl_buffer([16], "int4", scope="local")
+    Accum = T.decl_buffer([4], "int32", scope="local")
     for i in range(4):
         Accum[i] = T.int32(0)
 
@@ -1173,15 +1098,9 @@ def gemm_mma_m16n8k64_row_col_s4s4s32(a: T.handle, b: T.handle, c: T.handle):
         ] = Accum[mma_accum_c_id]
 
 
-@tvm.testing.requires_cuda
+@tvm.testing.requires_cuda_compute_version(8)
 def test_gemm_mma_m16n8k64_row_col_s4s4s32():
     sch = tvm.tir.Schedule(gemm_mma_m16n8k64_row_col_s4s4s32)
-    arch = tvm.contrib.nvcc.get_target_compute_version()
-    major, minor = tvm.contrib.nvcc.parse_compute_version(arch)
-    if major < 8:
-        # Require at least SM80
-        return
-    cuda_mod = tvm.build(sch.mod, target="cuda")
     cuda_mod = tvm.build(sch.mod, target="cuda")
 
     ctx = tvm.cuda()
@@ -1206,9 +1125,9 @@ def gemm_mma_m16n8k64_row_col_s4u4s32(a: T.handle, b: T.handle, c: T.handle):
     T.launch_thread(brow, 1)
     T.launch_thread(bcol, 1)
     T.launch_thread(tx, 32)
-    MultiA = T.allocate([32], "int4", scope="local")
-    MultiB = T.allocate([16], "uint4", scope="local")
-    Accum = T.allocate([4], "int32", scope="local")
+    MultiA = T.decl_buffer([32], "int4", scope="local")
+    MultiB = T.decl_buffer([16], "uint4", scope="local")
+    Accum = T.decl_buffer([4], "int32", scope="local")
     for i in range(4):
         Accum[i] = T.int32(0)
 
@@ -1247,15 +1166,9 @@ def gemm_mma_m16n8k64_row_col_s4u4s32(a: T.handle, b: T.handle, c: T.handle):
         ] = Accum[mma_accum_c_id]
 
 
-@tvm.testing.requires_cuda
+@tvm.testing.requires_cuda_compute_version(8)
 def test_gemm_mma_m16n8k64_row_col_s4u4s32():
     sch = tvm.tir.Schedule(gemm_mma_m16n8k64_row_col_s4u4s32)
-    arch = tvm.contrib.nvcc.get_target_compute_version()
-    major, minor = tvm.contrib.nvcc.parse_compute_version(arch)
-    if major < 8:
-        # Require at least SM80
-        return
-    cuda_mod = tvm.build(sch.mod, target="cuda")
     cuda_mod = tvm.build(sch.mod, target="cuda")
 
     ctx = tvm.cuda()
@@ -1280,9 +1193,9 @@ def gemm_mma_m16n8k256_row_col_b1b1s32(a: T.handle, b: T.handle, c: T.handle):
     T.launch_thread(brow, 1)
     T.launch_thread(bcol, 1)
     T.launch_thread(tx, 32)
-    MultiA = T.allocate([128], "int1", scope="local")
-    MultiB = T.allocate([64], "int1", scope="local")
-    Accum = T.allocate([4], "int32", scope="local")
+    MultiA = T.decl_buffer([128], "int1", scope="local")
+    MultiB = T.decl_buffer([64], "int1", scope="local")
+    Accum = T.decl_buffer([4], "int32", scope="local")
     for i in range(4):
         Accum[i] = T.int32(0)
 
@@ -1322,15 +1235,9 @@ def gemm_mma_m16n8k256_row_col_b1b1s32(a: T.handle, b: T.handle, c: T.handle):
         ] = Accum[mma_accum_c_id]
 
 
-@tvm.testing.requires_cuda
+@tvm.testing.requires_cuda_compute_version(8)
 def test_gemm_mma_m16n8k256_row_col_b1b1s32():
     sch = tvm.tir.Schedule(gemm_mma_m16n8k256_row_col_b1b1s32)
-    arch = tvm.contrib.nvcc.get_target_compute_version()
-    major, minor = tvm.contrib.nvcc.parse_compute_version(arch)
-    if major < 8:
-        # Require at least SM80
-        return
-    cuda_mod = tvm.build(sch.mod, target="cuda")
     cuda_mod = tvm.build(sch.mod, target="cuda")
 
     ctx = tvm.cuda()
@@ -1344,20 +1251,4 @@ def test_gemm_mma_m16n8k256_row_col_b1b1s32():
 
 
 if __name__ == "__main__":
-    test_gemm_mma_m8n8k4_row_col_fp64pf64fp64()
-    test_gemm_mma_m8n8k4_row_row_fp16fp16fp16()
-    test_gemm_mma_m8n8k4_row_row_fp16fp16fp32()
-    test_gemm_mma_m8n8k16_row_col_s8s8s32()
-    test_gemm_mma_m8n8k16_row_col_s8u8s32()
-    test_gemm_mma_m8n8k32_row_col_s4s4s32()
-    test_gemm_mma_m8n8k32_row_col_s4u4s32()
-    test_gemm_mma_m16n8k8_row_col_fp16fp16fp32()
-    test_gemm_mma_m16n8k16_row_col_fp16fp16fp16()
-    test_gemm_mma_m16n8k16_row_col_fp16fp16fp32()
-    test_gemm_mma_m16n8k16_row_col_s8s8s32()
-    test_gemm_mma_m16n8k16_row_col_s8u8s32()
-    test_gemm_mma_m16n8k32_row_col_s8s8s32()
-    test_gemm_mma_m16n8k32_row_col_s8u8s32()
-    test_gemm_mma_m16n8k64_row_col_s4s4s32()
-    test_gemm_mma_m16n8k64_row_col_s4u4s32()
-    test_gemm_mma_m16n8k256_row_col_b1b1s32()
+    tvm.testing.main()
