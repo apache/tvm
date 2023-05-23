@@ -612,8 +612,9 @@ class MaxPool2DParams:
             return False
         if self.ifm.dtype != self.ofm.dtype:
             return False
-        if not check_strides(self.strides) and \
-            not check_same_ifm_and_kernel_shape(self.padding, self.ifm.shape, self.pool_shape):
+        if not check_strides(self.strides) and not check_same_ifm_and_kernel_shape(
+            self.padding, self.ifm.shape, self.pool_shape
+        ):
             return False
         if not check_batch_size(self.ifm):
             return False
@@ -673,8 +674,9 @@ class AvgPool2DParams:
             return False
         if self.ifm.dtype != self.ofm.dtype:
             return False
-        if not check_strides(self.strides) and \
-            not check_same_ifm_and_kernel_shape(self.padding, self.ifm.shape, self.pool_shape):
+        if not check_strides(self.strides) and not check_same_ifm_and_kernel_shape(
+            self.padding, self.ifm.shape, self.pool_shape
+        ):
             return False
         if not check_batch_size(self.ifm):
             return False
