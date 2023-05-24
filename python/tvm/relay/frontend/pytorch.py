@@ -4642,6 +4642,12 @@ def _get_relay_input_vars(graph, input_infos, prelude, is_module=True, default_d
             ):
                 msg = "Shapes of input list and information in the graph do not match"
                 raise RuntimeError(msg)
+            if len(ishape) > 1 and any(dim <= 0 for dim in ishape[1:]):
+                msg = (
+                    "Expected input's non-batch dimensions to have positive length, "
+                    f"but input has a shape of {pt_type.sizes()}"
+                )
+                raise RuntimeError(msg)
             pt_dtype = pt_type.scalarType()
             if not pt_dtype and itype:
                 pt_dtype = itype
