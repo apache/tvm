@@ -3123,6 +3123,15 @@ def func_with_target_spec_by_str():
     return func_with_target_spec_by_str
 
 
+def func_with_target_and_host_spec_by_str():
+    @T.prim_func
+    def func():
+        T.func_attr({"target": T.target("nvidia/nvidia-a100", host="llvm")})
+        T.evaluate(0)
+
+    return func
+
+
 def func_root_attr():
     @T.prim_func
     def func_root_attr():
@@ -3883,6 +3892,7 @@ ir_generator = tvm.testing.parameter(
     nontrivial_range_axis,
     func_with_target_spec_by_config,
     func_with_target_spec_by_str,
+    func_with_target_and_host_spec_by_str,
     func_root_attr,
     func_trivial_root_block,
     func_nested_root_block,
