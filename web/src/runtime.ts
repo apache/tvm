@@ -793,7 +793,7 @@ export class Module implements Disposable {
    * @param requireNotNull require handle is not null.
    * @returns The handle.
    */
-  getHandle(requireNotNull : boolean = true): Pointer {
+  getHandle(requireNotNull = true): Pointer {
     if (requireNotNull && this.handle == 0) {
       throw Error("Module has already been disposed");
     }
@@ -972,6 +972,29 @@ export interface InitProgressReport {
 export type InitProgressCallback = (report: InitProgressReport) => void;
 
 /**
+ * Cache to store model related data.
+ */
+export class ArtifactCache {
+  private cache?: Cache;
+
+  async fetchWithCache(url: string) {
+    const request = new Request(url);
+    if (this.cache === undefined) {
+      this.cache = await caches.open("tvmjs");
+    }
+    let result = await this.cache.match(request);
+    if (result === undefined) {
+      await this.cache.add(request);
+      result = await this.cache.match(request);
+    }
+    if (result == undefined) {
+      throw Error("Cannot fetch " + url);
+    }
+    return result;
+  }
+}
+
+/**
  * TVM runtime instance.
  *
  * All objects(NDArray, Module, PackedFunc) returned by TVM runtim function call
@@ -997,6 +1020,7 @@ export class Instance implements Disposable {
   private objFactory: Map<number, FObjectConstructor>;
   private ctx: RuntimeContext;
   private initProgressCallback: Array<InitProgressCallback> = [];
+  private artifactCache = new ArtifactCache();
 
   /**
    * Internal function(registered by the runtime)
@@ -1396,21 +1420,8 @@ export class Instance implements Disposable {
    */
   async fetchNDArrayCache(ndarrayCacheUrl: string, device: DLDevice) : Promise<any> {
     const jsonUrl = new URL("ndarray-cache.json", ndarrayCacheUrl).href;
-    const request = new Request(jsonUrl);
-    const cache = await caches.open("tvmjs");
-    let result = await cache.match(request);
-    if (result === undefined) {
-      await cache.add(request);
-      result = await cache.match(request);
-    }
-    if (result === undefined) {
-      this.env.logger("Error: Cannot cache " + jsonUrl + ", reloading will be slow");
-      try {
-        result = await fetch(request);
-      } catch(err) {
-        this.env.logger("Cannot fetch " + jsonUrl);
-      }
-    }
+    const result = await this.artifactCache.fetchWithCache(jsonUrl);
+
     let list;
     if (result instanceof Response) {
       list = await result.json();
@@ -1463,26 +1474,14 @@ export class Instance implements Disposable {
         text: "Start to fetch params",
       });
     }
-    const cache = await caches.open("tvmjs");
 
     for (let i = 0; i < list.length; ++i) {
       reportCallback(i);
       fetchedBytes += list[i].nbytes;
       const dataUrl = new URL(list[i].dataPath, ndarrayCacheUrl).href;
-      const request = new Request(dataUrl);
       let buffer;
       try {
-        // use native cache
-        let result = await cache.match(request);
-        if (result === undefined) {
-          await cache.add(request);
-          result = await cache.match(request);
-        }
-        if (result == undefined) {
-          this.env.logger("Error: Cannot cache " + dataUrl + ", reloading will be slow");
-          result = await fetch(request);
-        }
-        buffer = await result.arrayBuffer();
+        buffer = await (await this.artifactCache.fetchWithCache(dataUrl)).arrayBuffer();
       } catch (err) {
         this.env.logger("Error: Cannot fetch " + dataUrl + " err= " + err);
         throw err;
@@ -1842,8 +1841,7 @@ export class Instance implements Disposable {
 
     this.beginScope();
     const fmap_str = mod.getFunction("webgpu.get_fmap", true)() as string;
-    let fmap: Record<string, FunctionInfo> = JSON.parse(fmap_str);
-    const totalFuncs = fmap.length;
+    const fmap: Record<string, FunctionInfo> = JSON.parse(fmap_str);
     const fGetShader = this.detachFromCurrentScope(
       mod.getFunction("webgpu.get_shader")
     );

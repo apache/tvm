@@ -22,7 +22,7 @@ export {
   PackedFunc, Module, NDArray,
   TVMArray, TVMObject, VirtualMachine,
   InitProgressCallback, InitProgressReport,
-  Instance, instantiate
+  ArtifactCache, Instance, instantiate
 } from "./runtime";
 export { Disposable, LibraryProvider } from "./types";
 export { RPCServer } from "./rpc_server";
