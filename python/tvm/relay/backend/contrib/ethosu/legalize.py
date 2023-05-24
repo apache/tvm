@@ -618,6 +618,15 @@ class PoolingRewriter(DFPatternCallback):
         # Activations requiring LUT is currently not supported, so setting it to an empty list
         lut = relay.const([], dtype="int8")
 
+        # If ethosu.avgpool2d has strides which are not supported by the NPU, convert
+        # ethosu.avgpool2d composite functions to ethosu_pooling operator with stride=[1, 1].
+        # Since the spatial dimensions of ifm and the pooling kernel coincide and the padding
+        # is [0, 0, 0, 0], the application of the pooling kernel will be done only once,
+        # which will give us the desired output
+        strides = params.strides
+        if params.strides[0] > 3 or params.strides[1] > 3:
+            strides = [1, 1]
+
         return ethosu_ops.ethosu_pooling(
             ifm=post.args[0],
             lut=lut,
@@ -629,7 +638,7 @@ class PoolingRewriter(DFPatternCallback):
             pool_shape=params.pool_shape,
             ofm_channels=params.ofm.shape[channels_map[str(params.ofm.layout)]],
             ofm_dtype=params.ofm.dtype,
-            strides=params.strides,
+            strides=strides,
             padding=params.padding,
             activation=activation,
             clip_min=clip_min,
