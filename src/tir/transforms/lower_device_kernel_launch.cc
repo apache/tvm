@@ -64,18 +64,9 @@ struct KernelInfo {
  */
 class DeviceInfoCollector : public StmtVisitor {
  public:
-  static KernelInfo Collect(const GlobalVar& gvar, const PrimFuncNode* func) {
+  static KernelInfo Collect(const GlobalVar& gvar, const PrimFunc& func) {
     DeviceInfoCollector collector;
-    collector.info_.target = [&]() -> Target {
-      auto target_attr = func->GetAttr<Target>(tvm::attr::kTarget).value();
-      bool is_host_func =
-          func->GetAttr<Bool>(tvm::tir::attr::kIsHostFunc).value_or(Bool(false))->value;
-      if (is_host_func) {
-        return target_attr->GetHost().value();
-      } else {
-        return target_attr.WithoutHost();
-      }
-    }();
+    collector.info_.target = func->GetAttr<Target>(tvm::attr::kTarget).value().WithoutHost();
     collector.info_.params = func->params;
 
     collector(func->body);
@@ -261,8 +252,8 @@ Pass LowerDeviceKernelLaunch() {
     auto mutator = [&mod]() {
       std::unordered_map<const GlobalVarNode*, KernelInfo> device_info_map;
       for (const auto& [gvar, base_func] : mod->functions) {
-        if (auto* prim_func = base_func.as<PrimFuncNode>()) {
-          device_info_map[gvar.get()] = DeviceInfoCollector::Collect(gvar, prim_func);
+        if (auto prim_func = base_func.as<PrimFunc>()) {
+          device_info_map[gvar.get()] = DeviceInfoCollector::Collect(gvar, prim_func.value());
         }
       }
       return DeviceKernelMutator(std::move(device_info_map));

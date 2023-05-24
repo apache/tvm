@@ -40,7 +40,7 @@ class TestLowerDeviceKernelLaunch(BaseCompare):
         class mod:
             @T.prim_func
             def main(A: T.Buffer(1, "float32")):
-                T.func_attr({"target": T.target("cuda", host="llvm"), "tir.is_host_func": True})
+                T.func_attr({"target": T.target("llvm")})
                 mod.kernel(A.data)
 
             @T.prim_func
@@ -56,7 +56,7 @@ class TestLowerDeviceKernelLaunch(BaseCompare):
         class mod:
             @T.prim_func
             def main(A: T.Buffer(1, "float32")):
-                T.func_attr({"target": T.target("cuda", host="llvm"), "tir.is_host_func": True})
+                T.func_attr({"target": T.target("llvm")})
                 T.call_packed("kernel", A.data)
 
             @T.prim_func
@@ -94,7 +94,7 @@ class TestExternallyVisibleKernelLaunch(BaseCompare):
         class mod:
             @T.prim_func
             def main(A: T.Buffer(1, "float32")):
-                T.func_attr({"target": T.target("cuda", host="llvm"), "tir.is_host_func": True})
+                T.func_attr({"target": T.target("llvm")})
                 mod.kernel(A.data)
 
             @T.prim_func
@@ -110,7 +110,7 @@ class TestExternallyVisibleKernelLaunch(BaseCompare):
         class mod:
             @T.prim_func
             def main(A: T.Buffer(1, "float32")):
-                T.func_attr({"target": T.target("cuda", host="llvm"), "tir.is_host_func": True})
+                T.func_attr({"target": T.target("llvm")})
                 T.call_packed("kernel_by_another_name", A.data)
 
             @T.prim_func
@@ -146,7 +146,7 @@ class TestCollectLaunchParameter(BaseCompare):
         class mod:
             @T.prim_func
             def main(A: T.Buffer(16, "float32")):
-                T.func_attr({"target": T.target("cuda", host="llvm"), "tir.is_host_func": True})
+                T.func_attr({"target": T.target("llvm")})
                 mod.kernel(A.data)
 
             @T.prim_func
@@ -168,7 +168,7 @@ class TestCollectLaunchParameter(BaseCompare):
         class mod:
             @T.prim_func
             def main(A: T.Buffer(16, "float32")):
-                T.func_attr({"target": T.target("cuda", host="llvm"), "tir.is_host_func": True})
+                T.func_attr({"target": T.target("llvm")})
                 T.call_packed("kernel", A.data, 16)
 
             @T.prim_func
