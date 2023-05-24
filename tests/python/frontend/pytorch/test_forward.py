@@ -789,6 +789,11 @@ def test_forward_celu():
     input_data = torch.tensor([-1.0, 2.0], dtype=torch.float32)
     verify_model(torch.nn.CELU().eval(), input_data=input_data)
 
+    input_shape = [2, 0, 1]
+    input_data = torch.rand(input_shape).float()
+    with pytest.raises(RuntimeError):
+        verify_model(torch.nn.CELU().eval(), input_data=input_data)
+
 
 @tvm.testing.uses_gpu
 def test_forward_gelu():
