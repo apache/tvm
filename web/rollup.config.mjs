@@ -16,21 +16,29 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 import commonjs from '@rollup/plugin-commonjs';
+import ignore from "rollup-plugin-ignore";
 import resolve from '@rollup/plugin-node-resolve';
+import typescript from 'rollup-plugin-typescript2';
 
 export default {
-  input: 'dist/index.js',
+  input: 'src/index.ts',
   output: {
-    file: 'dist/tvmjs.bundle.js',
+    file: 'lib/index.js',
     format: 'umd',
     name: 'tvmjs',
     exports: 'named',
     globals: {'ws': 'ws',
-              'perf_hooks': 'perf_hooks',
-              '@webgpu/types': 'webgputypes'}
+              'perf_hooks': 'perf_hooks'}
   },
-  plugins: [commonjs(), resolve()],
-  external: ['ws', 'perf_hooks', '@webgpu/types']
+  plugins: [
+    ignore(["fs", "path", "crypto"]),
+    resolve({ browser: true }),
+    commonjs(),
+    typescript({
+      rollupCommonJSResolveHack: false,
+      clean: true
+    })
+  ],
+  external: ['ws', 'perf_hooks']
 };

@@ -32,6 +32,8 @@ ALLOW_EXTENSION = {
     "g4",
     "gradle",
     "js",
+    "cjs",
+    "mjs",
     "tcl",
     "scala",
     "java",

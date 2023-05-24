@@ -23,7 +23,7 @@ INCLUDE_FLAGS = -I$(TVM_ROOT) -I$(TVM_ROOT)/include\
 
 .PHONY: clean all rmtypedep preparetest
 
-all: dist/wasm/tvmjs_runtime.wasm dist/wasm/tvmjs_runtime.wasi.js
+all: dist/wasm/tvmjs_runtime.wasm dist/wasm/tvmjs_runtime.wasi.js src/tvmjs_runtime_wasi.js
 
 EMCC = emcc
 
@@ -43,14 +43,12 @@ dist/wasm/tvmjs_runtime.wasm: dist/wasm/wasm_runtime.bc dist/wasm/tvmjs_support.
 	$(EMCC) $(EMCC_CFLAGS) -o dist/wasm/tvmjs_runtime.js $+ $(EMCC_LDFLAGS)
 
 dist/wasm/tvmjs_runtime.wasi.js: dist/wasm/tvmjs_runtime.wasm emcc/decorate_as_wasi.py
-	python3 emcc/decorate_as_wasi.py dist/wasm/tvmjs_runtime.js $@
+	python3 emcc/decorate_as_wasi.py dist/wasm/tvmjs_runtime.js $@ cjs
+
+src/tvmjs_runtime_wasi.js: dist/wasm/tvmjs_runtime.wasm emcc/decorate_as_wasi.py
+	python3 emcc/decorate_as_wasi.py dist/wasm/tvmjs_runtime.js $@ es
 
 clean:
 	@rm -rf dist/wasm
-
-# Patch to remove require("@webgpu/types")
-rmtypedep:
-	grep -v webgpu/types dist/webgpu.js > dist/webgpu.temp.js
-	mv dist/webgpu.temp.js dist/webgpu.js
 
 -include dist/wasm/*.d

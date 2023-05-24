@@ -24,14 +24,12 @@ const assert = require("assert");
 const tvmjs = require("../../dist");
 
 const wasmPath = tvmjs.wasmPath();
-const EmccWASI = require(path.join(wasmPath, "tvmjs_runtime.wasi.js"));
 const wasmSource = fs.readFileSync(path.join(wasmPath, "test_relax.wasm"));
 
 const tvm = new tvmjs.Instance(
   new WebAssembly.Module(wasmSource),
-  new EmccWASI()
+  tvmjs.createPolyfillWASI()
 );
-
 
 function randomArray(length, max) {
   return Array.apply(null, Array(length)).map(function () {

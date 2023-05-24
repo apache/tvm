@@ -5,3 +5,4 @@ node_modules
 build
 debug
 .ndarray_cache
+src/tvmjs_runtime_wasi.js

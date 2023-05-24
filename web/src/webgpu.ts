@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-import "@webgpu/types";
 import { assert } from "./support";
 import { Pointer } from "./ctypes";
 import { Memory } from "./memory";
