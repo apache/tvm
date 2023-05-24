@@ -332,8 +332,8 @@ def convert_conv2d(g, op, block):
         dilation=dilations,
         groups=groups,
         channels=out_channels,
-        kernel_size=[k_d, k_h, k_w],
-        data_layout=data_layout
+        kernel_size=[k_h, k_w],
+        data_layout=data_layout,
     )
     g.add_node(op.output("Output")[0], out)
 
@@ -449,7 +449,7 @@ def convert_conv3d(g, op, block):
         groups=groups,
         channels=out_channels,
         kernel_size=[k_d, k_h, k_w],
-        data_layout=data_layout
+        data_layout=data_layout,
     )
     g.add_node(op.output("Output")[0], out)
 
@@ -826,7 +826,7 @@ def convert_gaussian_random(g, op, block):
     shape = op.attr("shape")
     seed = op.attr("seed")
     dtype = op.attr("dtype")
-    out = _op.random.normal(key=seed, shape=shape,dtype=dtype,mean=mean, scale=std)
+    out = _op.random.normal(key=seed, shape=shape, dtype=dtype, mean=mean, scale=std)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -2171,12 +2171,12 @@ def convert_softplus(g, op, block):
     threshold = op.attr("threshold")
 
     if threshold is None:
-        threshold=_expr.const(20.0, dtype=dtype)
+        threshold = _expr.const(20.0, dtype=dtype)
     threshold = _expr.const(threshold, dtype=dtype)
-    if x*beta <= threshold:
+    if x * beta <= threshold:
        out = _op.log(_op.exp(x * beta) + _expr.const(1.0, dtype=dtype)) / beta
     else:
-       out=x
+       out = x
 
     g.add_node(op.output("Out")[0], out)
 
