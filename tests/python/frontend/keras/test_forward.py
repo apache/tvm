@@ -379,7 +379,7 @@ class TestKeras:
         for batch_norm_func in batch_norm_funcs:
             x = batch_norm_func(data)
             keras_model = keras_mod.models.Model(data, x)
-        verify_keras_frontend(keras_model)
+            verify_keras_frontend(keras_model)
 
     def test_forward_upsample(self, keras_mod, interpolation="nearest"):
         data = keras_mod.layers.Input(shape=(32, 32, 3))
