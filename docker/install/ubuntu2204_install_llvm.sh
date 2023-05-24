@@ -51,4 +51,4 @@ apt-get update && apt-install-and-clear -y \
      clang-13 libclang-13-dev \
      clang-14 libclang-14-dev \
      clang-15 libclang-15-dev \
-     clang-16 libclang-16-dev
+     clang-16 libclang-16-dev libpolly-16-dev
