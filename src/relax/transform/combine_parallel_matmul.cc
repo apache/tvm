@@ -106,7 +106,7 @@ Patterns CreatePatterns(const BranchInfo& branch_info) {
 }
 
 /*! \brief Create a rewriter for the given parallel matmul branches. */
-runtime::TypedPackedFunc<Map<Var, Expr>(Map<DFPattern, Var>)> GetRewriter(
+runtime::TypedPackedFunc<Map<Var, Expr>(Map<DFPattern, Var>, Map<Var, Expr>)> GetRewriter(
     const Patterns& patterns, const BranchInfo& branch_info) {
   auto batch_dims_compatible = [](size_t rhs_dim, const std::vector<size_t>& indices,
                                   const std::vector<Array<PrimExpr>>& rhs_shapes) {
@@ -123,7 +123,7 @@ runtime::TypedPackedFunc<Map<Var, Expr>(Map<DFPattern, Var>)> GetRewriter(
     return true;
   };
 
-  return [=](Map<DFPattern, Var> matchings) {
+  return [=](Map<DFPattern, Var> matchings, Map<Var, Expr>) {
     std::vector<Array<PrimExpr>> rhs_shapes;
     for (const auto& rhs_pat : patterns.rhs) {
       auto rhs_shape_opt = GetTensorSInfo(matchings[rhs_pat])->GetShape();

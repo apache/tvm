@@ -863,9 +863,12 @@ class PatternRewriter : ExprMutator {
 
   // Repeat until all matchable subsets of bindings are rewritten.
   BindingBlock RewriteDataflowBlockFixedPoint(BindingBlock block) {
-    if (auto matches = MatchGraph(ctx_.value(), Downcast<DataflowBlock>(block))) {
+    auto df_block = Downcast<DataflowBlock>(block);
+    if (auto matches = MatchGraph(ctx_.value(), df_block)) {
+      Map<Var, Expr> bindings = AnalyzeVar2Value(df_block);
+
       builder_->BeginDataflowBlock();
-      Map<Var, Expr> replacements = rewriter_func_(matches.value());
+      Map<Var, Expr> replacements = rewriter_func_(matches.value(), bindings);
 
       std::unordered_set<const VarNode*> emitted_vars;
 
