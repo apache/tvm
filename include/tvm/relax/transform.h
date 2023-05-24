@@ -169,8 +169,9 @@ TVM_DLL Pass CanonicalizeBindings();
  *
  * \note For functions local to dataflow blocks, this pass performs
  * CSE *within* those functions.
+ * \param call_only If true, enable eliminating only call nodes.
  */
-TVM_DLL Pass EliminateCommonSubexpr();
+TVM_DLL Pass EliminateCommonSubexpr(bool call_only = false);
 
 /*!
  * \brief Bind params of function of the module to constant tensors.

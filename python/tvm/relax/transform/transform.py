@@ -290,18 +290,23 @@ def CanonicalizeBindings() -> tvm.ir.transform.Pass:
     return _ffi_api.CanonicalizeBindings()  # type: ignore
 
 
-def EliminateCommonSubexpr() -> DataflowBlockPass:
+def EliminateCommonSubexpr(call_only=False) -> DataflowBlockPass:
     """Eliminate common subexpressions within dataflow blocks.
 
     Note: For functions local to dataflow blocks, this pass performs
     CSE *within* those functions
+
+    Parameters
+    ----------
+    call_only : bool
+        If True, enable eliminating only call nodes.
 
     Returns
     -------
     ret : tvm.transform.Pass
         The registered pass that eliminates common subexpressions.
     """
-    return _ffi_api.EliminateCommonSubexpr()  # type: ignore
+    return _ffi_api.EliminateCommonSubexpr(call_only)  # type: ignore
 
 
 def RewriteDataflowReshape() -> tvm.ir.transform.Pass:

@@ -23,8 +23,8 @@ from tvm.script.parser import ir as I, relax as R, tir as T
 import numpy as np
 
 
-def verify(input, expected):
-    tvm.ir.assert_structural_equal(EliminateCommonSubexpr()(input), expected)
+def verify(input, expected, call_only=False):
+    tvm.ir.assert_structural_equal(EliminateCommonSubexpr(call_only)(input), expected)
 
 
 def test_simple():
@@ -180,6 +180,34 @@ def test_inner_function():
             return gv
 
     verify(Before, Expected)
+
+
+def test_call_only():
+    @I.ir_module
+    class Before:
+        @R.function
+        def foo(x: R.Tensor((160,), dtype="float32")):
+            with R.dataflow():
+                lv1 = R.arange(R.prim_value(0), R.prim_value(160), R.prim_value(1), dtype="float32")
+                lv2 = R.arange(R.prim_value(0), R.prim_value(160), R.prim_value(1), dtype="float32")
+                lv3 = R.add(x, lv1)
+                out = R.add(lv3, lv2)
+                R.output(out)
+            return out
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def foo(x: R.Tensor((160,), dtype="float32")) -> R.Tensor((160,), dtype="float32"):
+            with R.dataflow():
+                lv1 = R.arange(R.prim_value(0), R.prim_value(160), R.prim_value(1), dtype="float32")
+                lv2 = lv1
+                lv3 = R.add(x, lv1)
+                out = R.add(lv3, lv2)
+                R.output(out)
+            return out
+
+    verify(Before, Expected, call_only=True)
 
 
 if __name__ == "__main__":
