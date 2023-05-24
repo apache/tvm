@@ -38,6 +38,8 @@ test("GetGlobal", () => {
   let fecho = tvm.getGlobalFunc("testing.echo");
 
   assert(faddOne(tvm.scalar(1, "int")) == 2);
+  assert(faddOne(tvm.scalar(-1, "int")) == 0);
+
   // check function argument with different types.
   assert(fecho(1123) == 1123);
   assert(fecho("xyz") == "xyz");
