@@ -721,6 +721,8 @@ def instantiate_template(func_name, annotations, func_args):
         attrs["scale"] = (
             float(1 / math.sqrt(h.value)) if annotations["scale"] is None else annotations["scale"]
         )
+        attrs["custom_mask_type"] = annotations["custom_mask_type"]
+
         assert (
             attrs["scale"] > 0 or attrs["scale"] < 0
         ), "Cutlass may generate nan occasionally when scale == 0.0"

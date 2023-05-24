@@ -1005,6 +1005,7 @@ def attention(
     value: Expr,
     bias: Optional[Expr] = None,
     scale: Optional[FloatImm] = None,
+    causal_mask: Optional[str] = None,
 ) -> Expr:
     r"""Computes fused multi head attention.
 
@@ -1035,8 +1036,29 @@ def attention(
         a 4-D tensor ending with seq_len_kv, and broadcastable to
         (batch_size, num_head, seq_len, seq_len_kv).
 
-    scale: Optional[FloatImm]
-        The custom scale applied before the softmax. The default value is 1 / sqrt(head_dim).
+    causal_mask: Optional[str]
+        The optional causal mask, i.e. 'TopLeft' and 'BottomRight'.
+        For 'TopLeft', the mask matrix is as `np.tril(*, k=0)`,
+        while for 'BottomRight', the mask matrix is as `np.tril(*, k=abs(seq_len - seq_len_kv))`
+        For example, with seq_len = 4, seq_len_kv = 2,
+        mask for 'TopLeft':
+        [[1, 0],
+         [1, 1],
+         [1, 1],
+         [1, 1]]
+        mask for 'BottomRight':
+        [[1, 1],
+         [1, 1],
+         [1, 1],
+         [1, 1]]
+        with seq_len = 2, seq_len_kv = 4,
+        mask for 'TopLeft':
+        [[1, 0, 0, 0],
+         [1, 1, 0, 0]]
+        mask for 'BottomRight':
+        [[1, 1, 1, 0],
+         [1, 1, 1, 1]]
+
 
     Returns
     -------
@@ -1044,4 +1066,4 @@ def attention(
         The computed result. The layout of the output should be
         (batch_size, seq_len, num_head, head_dim_v).
     """
-    return _ffi_api.attention(query, key, value, bias, scale)  # type: ignore
+    return _ffi_api.attention(query, key, value, bias, scale, causal_mask)  # type: ignore

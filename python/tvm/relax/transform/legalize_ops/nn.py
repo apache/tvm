@@ -18,6 +18,7 @@
 """Default legalization function for neural network operators."""
 import logging
 import math
+from typing import Optional
 
 from tvm import topi, tir, te
 from ...block_builder import BlockBuilder
@@ -335,7 +336,12 @@ def _nn_dropout(bb: BlockBuilder, call: Call) -> Expr:
 
 
 def _te_attention(
-    q: te.Tensor, k: te.Tensor, v: te.Tensor, bias: te.Tensor, scale: tir.FloatImm
+    q: te.Tensor,
+    k: te.Tensor,
+    v: te.Tensor,
+    bias: te.Tensor,
+    scale: tir.FloatImm,
+    causal_mask: Optional[str],
 ) -> te.Tensor:
     batch_size, seq_len, num_head, head_dim = q.shape
     _, seq_len_kv, _, head_dim_v = v.shape
@@ -354,7 +360,21 @@ def _te_attention(
         p = topi.reshape(p, [batch_size, num_head, seq_len, seq_len_kv])
         p = topi.add(p, bias)
         p = topi.reshape(p, [batch_size * num_head, seq_len, seq_len_kv])
-    s = topi.nn.softmax(p)
+    if causal_mask is None:
+        s = topi.nn.softmax(p)
+    else:
+        if causal_mask == "TopLeft":
+            offset = tir.IntImm("int32", 0)
+        elif causal_mask == "BottomRight":
+            offset = tir.IntImm("int32", abs(seq_len - seq_len_kv))
+        else:
+            raise NotImplementedError()
+        p_masked = topi.trilu(p, k=offset, upper=False)
+        p_masked_exp = topi.trilu(
+            topi.exp(p_masked - topi.max(p_masked, axis=-1, keepdims=True)), k=offset, upper=False
+        )
+        p_masked_sum = topi.sum(p_masked_exp, axis=-1, keepdims=True)
+        s = topi.divide(p_masked_exp, p_masked_sum)
     o = topi.nn.batch_matmul(s, v, transpose_b=False)
     o = topi.reshape(o, [batch_size, num_head, seq_len, head_dim_v])
     return topi.transpose(o, [0, 2, 1, 3])
@@ -369,6 +389,7 @@ def _nn_attention(bb: BlockBuilder, call: Call) -> Expr:
         call.args[2],
         None,
         call.attrs.scale,
+        call.attrs.causal_mask,
         primfunc_name_hint="attention",
     )
 
@@ -382,6 +403,7 @@ def _nn_attention_bias(bb: BlockBuilder, call: Call) -> Expr:
         call.args[2],
         call.args[3],
         call.attrs.scale,
+        call.attrs.causal_mask,
         primfunc_name_hint="attention_bias",
     )
 

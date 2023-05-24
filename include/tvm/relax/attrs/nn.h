@@ -313,10 +313,13 @@ struct DropoutAttrs : public tvm::AttrsNode<DropoutAttrs> {
 /*! \brief Attributes used in dropout operator */
 struct AttentionAttrs : public tvm::AttrsNode<AttentionAttrs> {
   Optional<FloatImm> scale;
+  Optional<String> causal_mask;
 
   TVM_DECLARE_ATTRS(AttentionAttrs, "relax.attrs.AttentionAttrs") {
     TVM_ATTR_FIELD(scale).describe(
         "The custom scale applied before the softmax. The default value is 1 / sqrt(head_dim).");
+    TVM_ATTR_FIELD(causal_mask)
+        .describe("The type of the causal mask, i.e. 'TopLeft' and 'BottomRight'.");
   }
 };  // struct AttentionAttrs
 

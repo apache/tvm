@@ -108,6 +108,7 @@ def instantiate_attention_template(attrs):
   p.num_queries = ${num_queries}; // S
   p.num_keys = ${num_keys}; // S'
   p.scale = ${scale};
+  p.custom_mask_type = ${custom_mask_type};
 
 
   p.o_strideM = p.head_dim_value * p.num_heads; // H' * N
