@@ -183,33 +183,17 @@ inline Stmt MakeAssertEQ(PrimExpr lhs, PrimExpr rhs, std::string msg) {
   return AssertStmt(lhs == rhs, tvm::tir::StringImm(msg), Evaluate(0));
 }
 
-/* \brief Return the global_symbol of the function, if it should be updated
- *
- * \param func The function to be inspected
- *
- * \returns The global_symbol to be used for the function at call
- * sites, or NullOpt if the function is to remain unchanged.
- */
-Optional<String> RequiresPackedAPI(const PrimFunc& func) {
+PrimFunc MakePackedAPI(PrimFunc func) {
   // A function with an explicit calling convention has already been
   // lowered, and should not be modified.
   if (auto opt = func->GetAttr<Integer>(tvm::attr::kCallingConv)) {
     if (CallingConv(opt.value()->value) != CallingConv::kDefault) {
-      return NullOpt;
+      return func;
     }
   }
 
   // Internal function calls do not need the PackedFunc API
   auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
-  if (!global_symbol.defined()) {
-    return NullOpt;
-  }
-
-  return global_symbol;
-}
-
-PrimFunc MakePackedAPI(PrimFunc func) {
-  auto global_symbol = RequiresPackedAPI(func);
   if (!global_symbol.defined()) {
     return func;
   }
@@ -218,7 +202,8 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   Target target = [&]() {
     auto opt = func->GetAttr<Target>(tvm::attr::kTarget);
     ICHECK(opt) << "MakePackedAPI required the function to be annotated with tvm::attr::kTarget ("
-                << tvm::attr::kTarget << "), but the function only has attributes " << func->attrs;
+                << tvm::attr::kTarget << "), but the function " << name_hint
+                << " only has attributes" << func->attrs;
     return opt.value();
   }();
   int target_device_type = target->GetTargetDeviceType();
@@ -368,38 +353,43 @@ namespace transform {
 Pass MakePackedAPI() {
   auto pass_func = [](IRModule mod, PassContext ctx) {
     Map<GlobalVar, String> packed_func_methods;
+
+    IRModule updates;
     for (const auto& [gvar, base_func] : mod->functions) {
       if (auto opt = base_func.as<PrimFunc>()) {
-        auto prim_func = opt.value();
-        if (auto global_symbol = RequiresPackedAPI(prim_func)) {
-          packed_func_methods.Set(gvar, global_symbol.value());
-        }
-      }
-    }
-
-    IRModuleNode* mptr = mod.CopyOnWrite();
-    IRModule updates;
-
-    for (const auto& [gvar, base_func] : mptr->functions) {
-      if (auto opt = base_func.as<PrimFunc>()) {
-        auto func = opt.value();
-        auto orig_func = func;
-
-        if (auto body = SubroutineCallRewriter::Apply(packed_func_methods, func->body)) {
-          func.CopyOnWrite()->body = body.value();
-        }
-
-        func = MakePackedAPI(std::move(func));
+        auto orig_func = opt.value();
+        auto func = MakePackedAPI(orig_func);
 
         if (!func.same_as(orig_func)) {
           updates->Add(gvar, func);
+          auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol).value();
+          packed_func_methods.Set(gvar, global_symbol);
         }
       }
     }
-
     if (updates->functions.size()) {
       mod.CopyOnWrite()->Update(updates);
     }
+
+    if (packed_func_methods.size()) {
+      IRModule updates;
+      for (const auto& [gvar, base_func] : mod->functions) {
+        if (auto opt = base_func.as<PrimFunc>()) {
+          auto func = opt.value();
+          auto orig_func = func;
+
+          if (auto body = SubroutineCallRewriter::Apply(packed_func_methods, func->body)) {
+            func.CopyOnWrite()->body = body.value();
+            updates->Add(gvar, func);
+          }
+        }
+      }
+
+      if (updates->functions.size()) {
+        mod.CopyOnWrite()->Update(updates);
+      }
+    }
+
     return mod;
   };
 
