@@ -143,14 +143,14 @@ runtime::Module BuildCUDA(IRModule mod, Target target) {
   std::string code = cg.Finish();
 
   if (const auto* f = Registry::Get("tvm_callback_cuda_postproc")) {
-    code = (*f)(code).operator std::string();
+    code = (*f)(code, target).operator std::string();
   }
   std::string fmt = "ptx";
   std::string ptx;
   const auto* f_enter = Registry::Get("target.TargetEnterScope");
   (*f_enter)(target);
   if (const auto* f = Registry::Get("tvm_callback_cuda_compile")) {
-    ptx = (*f)(code).operator std::string();
+    ptx = (*f)(code, target).operator std::string();
     // Dirty matching to check PTX vs cubin.
     // TODO(tqchen) more reliable checks
     if (ptx[0] != '/') fmt = "cubin";
