@@ -1031,6 +1031,7 @@ def test_tir_expression_in_shape():
                 R.output(lv)
             return lv
 
+    @I.ir_module
     class Expected:
         @T.prim_func
         def fused_transpose_matmul(
@@ -1069,7 +1070,7 @@ def test_tir_expression_in_shape():
             tir_vars: R.Shape(["n"]),
         ) -> R.Tensor(("n - 1", 3), dtype="float32"):
             n = T.int64()
-            cls = Module
+            cls = Expected
             with R.dataflow():
                 lv = R.call_tir(
                     cls.fused_transpose_matmul,
