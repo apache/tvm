@@ -325,7 +325,7 @@ def try_warp_memory():
     schedule[cache_read_aa].bind(axis_xi, thread_axis_tx)
 
     @tvm.register_func("tvm_callback_cuda_compile", override=True)
-    def tvm_callback_cuda_compile(code, target):  # pylint: disable=unused-variable
+    def tvm_callback_cuda_compile(code, _):  # pylint: disable=unused-variable
         ptx = nvcc.compile_cuda(code)
         return ptx
 
