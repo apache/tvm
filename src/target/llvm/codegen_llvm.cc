@@ -74,8 +74,10 @@
 #include <llvm/IR/Verifier.h>  // For VerifierPass
 #include <llvm/Passes/PassBuilder.h>
 #include <llvm/Passes/StandardInstrumentations.h>
+#include <llvm/TargetParser/Host.h>
 #else
 #include <llvm/IR/LegacyPassManager.h>
+#include <llvm/Support/Host.h>
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 #endif
 #if TVM_LLVM_VERSION >= 100
@@ -2081,6 +2083,34 @@ void CodeGenLLVM::EmitDebugLocation(const Span& span) {
 
 void CodeGenLLVM::EmitDebugLocation() { builder_->SetCurrentDebugLocation(nullptr); }
 void CodeGenLLVM::EmitDebugLocation(const StmtNode* op) { EmitDebugLocation(op->span); }
+
+TVM_REGISTER_GLOBAL("tvm.codegen.llvm.GetDefaultTargetTriple").set_body_typed([]() -> std::string {
+  return llvm::sys::getDefaultTargetTriple();
+});
+
+TVM_REGISTER_GLOBAL("tvm.codegen.llvm.GetProcessTriple").set_body_typed([]() -> std::string {
+  return llvm::sys::getProcessTriple();
+});
+
+TVM_REGISTER_GLOBAL("tvm.codegen.llvm.GetHostCPUName").set_body_typed([]() -> std::string {
+  return llvm::sys::getHostCPUName().str();
+});
+
+TVM_REGISTER_GLOBAL("tvm.codegen.llvm.GetHostCPUFeatures")
+    .set_body_typed([]() -> Map<String, IntImm> {
+      llvm::StringMap<bool> features;
+      if (llvm::sys::getHostCPUFeatures(features)) {
+        Map<String, IntImm> ret;
+        for (auto it = features.begin(); it != features.end(); ++it) {
+          std::string name = it->getKey().str();
+          bool value = it->getValue();
+          ret.Set(name, IntImm(DataType::Bool(), value));
+        }
+        return ret;
+      }
+      LOG(WARNING) << "Current version of LLVM does not support feature detection on your CPU";
+      return {};
+    });
 
 }  // namespace codegen
 }  // namespace tvm
