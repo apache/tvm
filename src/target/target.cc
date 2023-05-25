@@ -669,6 +669,11 @@ int TargetNode::GetTargetDeviceType() const {
   return kind->default_device_type;
 }
 
+bool TargetNode::HasKey(const std::string& query_key) const {
+  return std::any_of(keys.begin(), keys.end(),
+                     [&query_key](const auto& key) { return key == query_key; });
+}
+
 String TargetNode::ToDebugString() const {
   std::ostringstream os;
   os << "Target(";

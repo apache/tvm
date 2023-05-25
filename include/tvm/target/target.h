@@ -72,6 +72,16 @@ class TargetNode : public Object {
   TVM_DLL int GetTargetDeviceType() const;
 
   /*!
+   * \brief Check if the target contains a key
+   *
+   * \param query_key The string name of the key to be checked
+   *
+   * \return True if the target's `TargetNode::keys` contains the
+   * specified key, False otherwise.
+   */
+  TVM_DLL bool HasKey(const std::string& query_key) const;
+
+  /*!
    * \brief Returns a human readable representation of \p Target which includes all fields,
    * especially the host. Useful for diagnostic messages and debugging.
    *
