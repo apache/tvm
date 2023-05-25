@@ -399,7 +399,8 @@ class PyTorchOpConverter:
             axis = None
         else:
             # TODO (t-vi): why is the cast to int needed? similarly elsewhere
-            axis = [int(inputs[1])]
+            inputs = [inputs[1]] if not isinstance(inputs[1], list) else inputs[1]
+            axis = [int(v) for v in inputs]
 
         return _op.transform.squeeze(data, axis)
 
