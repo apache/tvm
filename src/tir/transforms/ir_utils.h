@@ -151,6 +151,7 @@ inline Stmt TVMStructSet(Var handle, int index, builtin::TVMStructFieldKind kind
  * \return The corresponding API type.
  */
 inline DataType APIType(DataType t) {
+  ICHECK(!t.is_void()) << "Cannot pass void type through packed API.";
   if (t.is_handle()) return t;
   ICHECK_EQ(t.lanes(), 1) << "Cannot pass vector type through packed API.";
   if (t.is_uint() || t.is_int()) return DataType::Int(64);

@@ -879,8 +879,13 @@ CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const Array<PrimExpr>& 
                                                          const DataType& r_type,
                                                          const int64_t begin, const int64_t end,
                                                          bool use_string_lookup) {
-  PackedCall pc;
-  std::string func_name = args[0].as<StringImmNode>()->value;
+  std::string func_name = [&]() {
+    auto ptr = args[0].as<StringImmNode>();
+    ICHECK(ptr) << "Expected first argument of tir::Call to be "
+                << "a string containing the callee's name, "
+                << "but instead contained " << args[0];
+    return ptr->value;
+  }();
   // call the function
   int64_t nargs = end - begin;
   ICHECK_GE(nargs, 0);
@@ -936,27 +941,32 @@ CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const Array<PrimExpr>& 
 
   llvm::BasicBlock* end_block = CheckCallSuccess(call);
 
-  // Load the return value and cast it to the designated type (r_type).
-  DataType r_api_type = tir::APIType(r_type);
-  llvm::Type* llvm_r_api_type = DTypeToLLVMType(r_api_type);
-  llvm::Value* load_ptr = builder_->CreatePointerCast(ret_value, llvm_r_api_type->getPointerTo());
-#if TVM_LLVM_VERSION >= 110
-  llvm::Value* rvalue = builder_->CreateAlignedLoad(llvm_r_api_type, load_ptr, llvm::Align(8));
-#elif TVM_LLVM_VERSION >= 80
-  llvm::Value* rvalue = builder_->CreateAlignedLoad(llvm_r_api_type, load_ptr, 8);
-#else
-  llvm::Value* rvalue = builder_->CreateAlignedLoad(load_ptr, 8);
-#endif
-  pc.ret_value = CreateCast(r_api_type, r_type, rvalue);
+  PackedCall pc = {0};
 
-  // Load the return type code.
+  if (!r_type.is_void()) {
+    // Load the return value and cast it to the designated type (r_type).
+    DataType r_api_type = tir::APIType(r_type);
+    llvm::Type* llvm_r_api_type = DTypeToLLVMType(r_api_type);
+    llvm::Value* load_ptr = builder_->CreatePointerCast(ret_value, llvm_r_api_type->getPointerTo());
 #if TVM_LLVM_VERSION >= 110
-  pc.ret_tcode = builder_->CreateAlignedLoad(ret_tcode.type, ret_tcode.addr, llvm::Align(8));
+    llvm::Value* rvalue = builder_->CreateAlignedLoad(llvm_r_api_type, load_ptr, llvm::Align(8));
 #elif TVM_LLVM_VERSION >= 80
-  pc.ret_tcode = builder_->CreateAlignedLoad(ret_tcode.type, ret_tcode.addr, 8);
+    llvm::Value* rvalue = builder_->CreateAlignedLoad(llvm_r_api_type, load_ptr, 8);
 #else
-  pc.ret_tcode = builder_->CreateAlignedLoad(ret_tcode.addr, 8);
+    llvm::Value* rvalue = builder_->CreateAlignedLoad(load_ptr, 8);
 #endif
+
+    pc.ret_value = CreateCast(r_api_type, r_type, rvalue);
+
+    // Load the return type code.
+#if TVM_LLVM_VERSION >= 110
+    pc.ret_tcode = builder_->CreateAlignedLoad(ret_tcode.type, ret_tcode.addr, llvm::Align(8));
+#elif TVM_LLVM_VERSION >= 80
+    pc.ret_tcode = builder_->CreateAlignedLoad(ret_tcode.type, ret_tcode.addr, 8);
+#else
+    pc.ret_tcode = builder_->CreateAlignedLoad(ret_tcode.addr, 8);
+#endif
+  }
 
   pc.end_block = end_block;
   return pc;
