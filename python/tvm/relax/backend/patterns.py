@@ -281,7 +281,8 @@ def make_attention_rewrite_pattern(
         Whether or not to include bias addition.
 
     with_cast: bool
-        Whether or not rewriting is intended to be applied to a module after the FP16 conversion pass.
+        Whether or not rewriting is intended to be applied to a module after the FP16 conversion
+        pass.
 
     Returns
     -------
