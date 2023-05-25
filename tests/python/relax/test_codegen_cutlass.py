@@ -994,8 +994,6 @@ def test_attention_rewrite_offload(attention_rewrite_size):
     original_mod, expected_mod = get_relax_attention_rewrite_module(
         q_shape, k_shape, v_shape, out_shape, "float32", bias_shape, scale
     )
-    print(original_mod)
-    return
     original_mod = partition_for_cutlass(original_mod, True)
     expected_mod = partition_for_cutlass(expected_mod, True)
     tvm.ir.assert_structural_equal(original_mod, expected_mod, True)
