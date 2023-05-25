@@ -263,7 +263,7 @@ def make_layer_norm_pattern():
     return is_op("relax.nn.layer_norm")(inp, gamma, beta), {}
 
 
-def make_attention_rewrite_pattern(qkv_layout: str, out_layout: str, with_bias: bool):
+def make_attention_rewrite_pattern(qkv_layout: str, out_layout: str, with_bias: bool, with_cast: bool):
     """
     Create pattern for implicit fused multi head attention rewriting.
 
@@ -276,7 +276,10 @@ def make_attention_rewrite_pattern(qkv_layout: str, out_layout: str, with_bias: 
         The layout of the output tensor, i.e. BSNH or BSH.
 
     with_bias: bool
-        Whether or not to include bias addition
+        Whether or not to include bias addition.
+
+    with_cast: bool
+        Whether or not rewriting is intended to be applied to a module after the FP16 conversion pass.
 
     Returns
     -------
@@ -378,14 +381,31 @@ def make_attention_rewrite_pattern(qkv_layout: str, out_layout: str, with_bias: 
     v, v_rewriter = handle_input(v_raw, qkv_layout, False)
     matmul_1 = is_op("relax.matmul")(q, k)
     scale = is_const()
-    multiply = is_op("relax.multiply")(matmul_1, scale)
+
+    if with_cast:
+        multiply = is_op("relax.multiply")(matmul_1, is_op("relax.astype")(scale))
+    else:
+        multiply = is_op("relax.multiply")(matmul_1, scale)
+
     if with_bias:
         bias_raw = wildcard()
         add = is_op("relax.add")(multiply, bias_raw)
-        softmax = is_op("relax.nn.softmax")(add)
+        softmax_input = add
     else:
-        softmax = is_op("relax.nn.softmax")(multiply)
-    matmul_2 = is_op("relax.matmul")(softmax, v)
+        softmax_input = multiply
+
+    if with_cast:
+        softmax_input = is_op("relax.astype")(softmax_input)
+
+    softmax = is_op("relax.nn.softmax")(softmax_input)
+
+    if with_cast:
+        softmax_output = is_op("relax.astype")(softmax)
+    else:
+        softmax_output = softmax
+
+    matmul_2 = is_op("relax.matmul")(softmax_output, v)
+
     out, out_rewriter = handle_output(matmul_2, out_layout)
 
     def rewriter(original, matchings):
@@ -394,7 +414,11 @@ def make_attention_rewrite_pattern(qkv_layout: str, out_layout: str, with_bias: 
         value, _ = v_rewriter(matchings, matchings[v_raw])
         if query is None or key is None or value is None:
             return original
-        if matchings[softmax].attrs.axis != -1:
+        softmax_axis = matchings[softmax].attrs.axis
+        softmax_input_rank = len(matchings[softmax].struct_info.shape)
+        if softmax_axis == -1:
+            softmax_axis += softmax_input_rank
+        if softmax_axis != softmax_input_rank - 1:
             return original
         b, s, n, _ = query_shape
         _, s_kv, _, _ = key_shape

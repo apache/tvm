@@ -360,7 +360,8 @@ def attention_rewrite_patterns():
     for qkv_layout in ["BSNH", "BSH"]:
         for out_layout in ["BSNH", "BSH"]:
             for with_bias in [True, False]:
-                patterns.append(make_attention_rewrite_pattern(qkv_layout, out_layout, with_bias))
+                for with_cast in [True, False]:
+                    patterns.append(make_attention_rewrite_pattern(qkv_layout, out_layout, with_bias, with_cast))
     return patterns
 
 
