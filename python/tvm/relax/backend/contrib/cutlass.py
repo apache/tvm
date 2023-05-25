@@ -441,7 +441,9 @@ def partition_for_cutlass(mod, annotate_codegen=True):
     for func_name, func in mod.functions.items():
         if isinstance(func, Function):
             for pattern, rewriter in _REWRITE_PATTERNS:
-                mod[func_name] = rewrite_call(pattern, rewriter, func)
+                func = rewrite_call(pattern, rewriter, func)
+        mod[func_name] = func
+
     patterns = get_patterns_with_prefix("cutlass")
     return tvm.transform.Sequential(
         [
