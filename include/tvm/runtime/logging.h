@@ -367,7 +367,11 @@ class LogFatal {
       this->lineno_ = lineno;
     }
     [[noreturn]] TVM_NO_INLINE dmlc::Error Finalize() {
-      throw InternalError(file_, lineno_, stream_.str());
+      InternalError error(file_, lineno_, stream_.str());
+#if DMLC_LOG_BEFORE_THROW
+      std::cerr << error.what() << std::endl;
+#endif
+      throw error;
     }
     std::ostringstream stream_;
     std::string file_;
