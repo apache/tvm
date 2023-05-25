@@ -424,7 +424,8 @@ TVM_REGISTER_TARGET_KIND("hexagon", kDLHexagon)
     .add_attr_option<Integer>("vtcm-capacity")
     .set_default_keys({"hexagon"});
 
-TVM_REGISTER_TARGET_KIND("stackvm", kDLCPU);
+TVM_REGISTER_TARGET_KIND("stackvm", kDLCPU)  // line break
+    .set_default_keys({"cpu"});
 
 TVM_REGISTER_TARGET_KIND("ext_dev", kDLExtDev);
 
