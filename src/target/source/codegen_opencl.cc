@@ -607,7 +607,7 @@ runtime::Module BuildOpenCL(IRModule mod, Target target) {
     cg.AddFunction(f);
     std::string fsource = cg.Finish();
     if (fpostproc) {
-      fsource = (*fpostproc)(fsource).operator std::string();
+      fsource = (*fpostproc)(fsource, target).operator std::string();
     }
     code << fsource;
   }
