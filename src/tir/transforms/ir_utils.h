@@ -34,6 +34,7 @@
 #include <tvm/tir/op.h>
 
 #include <limits>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -350,6 +351,17 @@ CollectStorageAlignAnnotation(const Stmt& body);
  */
 std::pair<int32_t, int32_t> GetWmmaFragmentDimSize(const std::string& shape_str,
                                                    const std::string& scope);
+
+/*! \brief Check if a PrimFunc is a host function
+ *
+ * \param func The function to be inspected
+ *
+ * \return True if the function is known to run on the host, false if
+ * the function is known to run on the device.  If it cannot be
+ * determined (e.g. a function without a tvm::attr::kTarget
+ * attribute), returns std::nullopt.
+ */
+std::optional<bool> IsHostFunc(const PrimFunc& func);
 
 }  // namespace tir
 }  // namespace tvm

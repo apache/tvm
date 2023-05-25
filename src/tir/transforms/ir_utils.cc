@@ -692,6 +692,16 @@ std::pair<int32_t, int32_t> GetWmmaFragmentDimSize(const std::string& shape_str,
   return std::pair<int32_t, int32_t>(0, 0);
 }
 
+std::optional<bool> IsHostFunc(const PrimFunc& func) {
+  if (func->HasNonzeroAttr(tvm::tir::attr::kIsHostFunc)) {
+    return true;
+  } else if (auto target = func->GetAttr<Target>(tvm::attr::kTarget)) {
+    return target.value()->HasKey("cpu");
+  } else {
+    return std::nullopt;
+  }
+}
+
 namespace transform {
 Pass ConvertSSA() {
   auto pass_func = [](IRModule mod, PassContext ctx) {
