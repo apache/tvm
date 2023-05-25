@@ -15,20 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 import os
-import tvm
-from tvm import te
-from tvm.contrib import nvcc
+
 import numpy as np
-
-from tvm import topi
-
+import tvm
+from tvm import te, topi
+from tvm.contrib import nvcc
 
 TASK = "reduce_map"
 USE_MANUAL_CODE = False
 
 
 @tvm.register_func("tvm_callback_cuda_compile", override=True)
-def tvm_callback_cuda_compile(code):
+def tvm_callback_cuda_compile(code, target):
     ptx = nvcc.compile_cuda(code, target_format="ptx")
     return ptx
 
@@ -39,7 +37,7 @@ def write_code(code, fname):
 
 
 @tvm.register_func
-def tvm_callback_cuda_postproc(code):
+def tvm_callback_cuda_postproc(code, target):
     if not os.path.exists("perf"):
         os.mkdir("perf")
     write_code(code, "perf/%s_generated.cu" % TASK)
