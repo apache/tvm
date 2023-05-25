@@ -100,6 +100,46 @@ class TestSplitHostDevice(BaseCompare):
         class mod:
             @T.prim_func
             def main(n: T.int32):
+                T.func_attr({"target": T.target("cuda", host="llvm -opt-level=0")})
+                T.attr(T.target("cuda"), "target", 0)
+                T.evaluate(n)
+
+        return mod
+
+    def expected(self):
+        @I.ir_module
+        class mod:
+            @T.prim_func
+            def main(n: T.int32):
+                T.func_attr({"target": T.target("llvm -opt-level=0")})
+                mod.main_kernel(n)
+
+            @T.prim_func
+            def main_kernel(n: T.int32):
+                T.func_attr(
+                    {
+                        "target": T.target("cuda"),
+                        "tir.noalias": T.bool(True),
+                        "tir.is_global_func": True,
+                    }
+                )
+                T.evaluate(n)
+
+        return mod
+
+
+class TestSplitHostDeviceWithoutFuncHostAttribute(BaseCompare):
+    """Like TestSplitHostDevice, but no host specified in the host's target
+
+    The `T.attr` specifying the device still requires splitting out
+    the kernel.
+    """
+
+    def before(self):
+        @I.ir_module
+        class mod:
+            @T.prim_func
+            def main(n: T.int32):
                 T.func_attr({"target": T.target("llvm")})
                 T.attr(T.target("cuda"), "target", 0)
                 T.evaluate(n)
@@ -111,7 +151,7 @@ class TestSplitHostDevice(BaseCompare):
         class mod:
             @T.prim_func
             def main(n: T.int32):
-                T.func_attr({"target": T.target("llvm"), "tir.is_host_func": True})
+                T.func_attr({"target": T.target("llvm")})
                 mod.main_kernel(n)
 
             @T.prim_func
@@ -120,41 +160,7 @@ class TestSplitHostDevice(BaseCompare):
                     {
                         "target": T.target("cuda"),
                         "tir.noalias": T.bool(True),
-                    }
-                )
-                T.evaluate(n)
-
-        return mod
-
-
-class TestSplitHostDeviceWithHost(BaseCompare):
-    """Host annotations are preserved"""
-
-    def before(self):
-        @I.ir_module
-        class mod:
-            @T.prim_func
-            def main(n: T.int32):
-                T.func_attr({"target": T.target("cuda", host="llvm")})
-                T.attr(T.target("cuda"), "target", 0)
-                T.evaluate(n)
-
-        return mod
-
-    def expected(self):
-        @I.ir_module
-        class mod:
-            @T.prim_func
-            def main(n: T.int32):
-                T.func_attr({"target": T.target("cuda", host="llvm"), "tir.is_host_func": True})
-                mod.main_kernel(n)
-
-            @T.prim_func
-            def main_kernel(n: T.int32):
-                T.func_attr(
-                    {
-                        "target": T.target("cuda"),
-                        "tir.noalias": T.bool(True),
+                        "tir.is_global_func": True,
                     }
                 )
                 T.evaluate(n)
