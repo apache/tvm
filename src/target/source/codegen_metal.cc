@@ -365,7 +365,7 @@ runtime::Module BuildMetal(IRModule mod, Target target) {
     std::string fsource = cg.Finish();
     source_maker << fsource << "\n";
     if (fmetal_compile) {
-      fsource = (*fmetal_compile)(fsource).operator std::string();
+      fsource = (*fmetal_compile)(fsource, target).operator std::string();
     }
     smap[func_name] = fsource;
   }

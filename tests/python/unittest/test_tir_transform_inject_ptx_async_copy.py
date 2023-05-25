@@ -356,7 +356,7 @@ support_async = True
 
 
 @tvm.register_func
-def tvm_callback_cuda_postproc(code):
+def tvm_callback_cuda_postproc(code, _):
     global generated_code
     global support_async
     generated_code = code

@@ -18,15 +18,15 @@
 """Utility to invoke nvcc compiler in the system"""
 from __future__ import absolute_import as _abs
 
-import subprocess
 import os
+import subprocess
 import warnings
 
 import tvm._ffi
 from tvm.target import Target
 
-from . import utils
 from .._ffi.base import py_str
+from . import utils
 
 
 def compile_cuda(code, target_format="ptx", arch=None, options=None, path_target=None):
@@ -184,7 +184,7 @@ def get_cuda_version(cuda_path=None):
 
 
 @tvm._ffi.register_func
-def tvm_callback_cuda_compile(code):
+def tvm_callback_cuda_compile(code, target):  # pylint: disable=unused-argument
     """use nvcc to generate fatbin code for better optimization"""
     ptx = compile_cuda(code, target_format="fatbin")
     return ptx
