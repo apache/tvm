@@ -42,6 +42,7 @@ namespace tir {
 
 static constexpr const char* kDeviceContextVar = "device_api_context";
 
+namespace {
 class ReturnRewriter : public StmtMutator {
  public:
   explicit ReturnRewriter(Var ret_var, Var ret_tcode) : ret_var_(ret_var), ret_tcode_(ret_tcode) {}
@@ -135,19 +136,92 @@ Stmt RewriteReturn(Stmt body, Var ret_var, Var ret_tcode) {
   return rewriter(body);
 }
 
+class SubroutineCallRewriter : public StmtExprMutator {
+ public:
+  static Optional<Stmt> Apply(const Map<GlobalVar, String>& packed_func_methods, Stmt stmt) {
+    SubroutineCallRewriter rewriter(packed_func_methods);
+    stmt = rewriter.VisitStmt(std::move(stmt));
+    if (rewriter.made_change_) {
+      return stmt;
+    } else {
+      return NullOpt;
+    }
+  }
+
+ private:
+  explicit SubroutineCallRewriter(const Map<GlobalVar, String>& packed_func_methods)
+      : packed_func_methods(packed_func_methods) {}
+
+  PrimExpr VisitExpr_(const CallNode* op) override {
+    auto node = Downcast<Call>(StmtExprMutator::VisitExpr_(op));
+
+    if (auto* gvar_ptr = node->op.as<GlobalVarNode>()) {
+      auto gvar = GetRef<GlobalVar>(gvar_ptr);
+      if (auto symbol = packed_func_methods.Get(gvar)) {
+        Array<PrimExpr> cpacked_args;
+        cpacked_args.push_back(tir::StringImm(symbol.value()));
+        for (auto arg : node->args) {
+          cpacked_args.push_back(arg);
+        }
+
+        // push an empty handle to be compatible with current cpacked convention
+        cpacked_args.push_back(tir::make_zero(DataType::Handle()));
+        made_change_ = true;
+        return tir::Call(node->dtype, tir::builtin::tvm_call_cpacked(), cpacked_args);
+      }
+    }
+
+    return node;
+  }
+  const Map<GlobalVar, String>& packed_func_methods;
+  bool made_change_{false};
+};
+
+}  // namespace
+
 inline Stmt MakeAssertEQ(PrimExpr lhs, PrimExpr rhs, std::string msg) {
   return AssertStmt(lhs == rhs, tvm::tir::StringImm(msg), Evaluate(0));
 }
 
-PrimFunc MakePackedAPI(PrimFunc&& func) {
+/* \brief Return the global_symbol of the function, if it should be updated
+ *
+ * \param func The function to be inspected
+ *
+ * \returns The global_symbol to be used for the function at call
+ * sites, or NullOpt if the function is to remain unchanged.
+ */
+Optional<String> RequiresPackedAPI(const PrimFunc& func) {
+  // A function with an explicit calling convention has already been
+  // lowered, and should not be modified.
+  if (auto opt = func->GetAttr<Integer>(tvm::attr::kCallingConv)) {
+    if (CallingConv(opt.value()->value) != CallingConv::kDefault) {
+      return NullOpt;
+    }
+  }
+
+  // Internal function calls do not need the PackedFunc API
   auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
-  ICHECK(global_symbol) << "MakePackedAPI: Expect PrimFunc to have the global_symbol attribute";
+  if (!global_symbol.defined()) {
+    return NullOpt;
+  }
 
-  auto target = func->GetAttr<Target>(tvm::attr::kTarget);
-  ICHECK(target.defined()) << "MakePackedAPI: Require the target attribute";
-  int target_device_type = target.value()->GetTargetDeviceType();
+  return global_symbol;
+}
 
+PrimFunc MakePackedAPI(PrimFunc func) {
+  auto global_symbol = RequiresPackedAPI(func);
+  if (!global_symbol.defined()) {
+    return func;
+  }
   std::string name_hint = global_symbol.value();
+
+  Target target = [&]() {
+    auto opt = func->GetAttr<Target>(tvm::attr::kTarget);
+    ICHECK(opt) << "MakePackedAPI required the function to be annotated with tvm::attr::kTarget ("
+                << tvm::attr::kTarget << "), but the function only has attributes " << func->attrs;
+    return opt.value();
+  }();
+  int target_device_type = target->GetTargetDeviceType();
 
   auto* func_ptr = func.CopyOnWrite();
   const Stmt nop = Evaluate(0);
@@ -292,7 +366,7 @@ PrimFunc MakePackedAPI(PrimFunc&& func) {
   func_ptr->params = args;
 
   Array<Var> undefined = UndefinedVars(func_ptr->body, func_ptr->params);
-  ICHECK_EQ(undefined.size(), 0) << "In PrimFunc " << global_symbol << " variables " << undefined
+  ICHECK_EQ(undefined.size(), 0) << "In PrimFunc " << name_hint << " variables " << undefined
                                  << " are used, but are not passed in as API arguments";
 
   func_ptr->buffer_map = Map<Var, Buffer>();
@@ -300,31 +374,47 @@ PrimFunc MakePackedAPI(PrimFunc&& func) {
   func_ptr->ret_type = PrimType(DataType::Int(32));
 
   // return the function.
-  return std::move(func);
+  return func;
 }
 
 namespace transform {
 
 Pass MakePackedAPI() {
-  auto pass_func = [](IRModule m, PassContext ctx) {
-    IRModuleNode* mptr = m.CopyOnWrite();
-    std::vector<std::pair<GlobalVar, PrimFunc>> updates;
-
-    for (const auto& kv : mptr->functions) {
-      if (auto opt = kv.second.as<PrimFunc>()) {
-        auto func = opt.value();
-        if (func->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) ==
-            CallingConv::kDefault) {
-          auto updated_func = MakePackedAPI(std::move(func));
-          updates.push_back({kv.first, updated_func});
+  auto pass_func = [](IRModule mod, PassContext ctx) {
+    Map<GlobalVar, String> packed_func_methods;
+    for (const auto& [gvar, base_func] : mod->functions) {
+      if (auto opt = base_func.as<PrimFunc>()) {
+        auto prim_func = opt.value();
+        if (auto global_symbol = RequiresPackedAPI(prim_func)) {
+          packed_func_methods.Set(gvar, global_symbol.value());
         }
       }
     }
 
-    for (const auto& pair : updates) {
-      mptr->AddUnchecked(pair.first, pair.second);
+    IRModuleNode* mptr = mod.CopyOnWrite();
+    IRModule updates;
+
+    for (const auto& [gvar, base_func] : mptr->functions) {
+      if (auto opt = base_func.as<PrimFunc>()) {
+        auto func = opt.value();
+        auto orig_func = func;
+
+        if (auto body = SubroutineCallRewriter::Apply(packed_func_methods, func->body)) {
+          func.CopyOnWrite()->body = body.value();
+        }
+
+        func = MakePackedAPI(std::move(func));
+
+        if (!func.same_as(orig_func)) {
+          updates->Add(gvar, func);
+        }
+      }
     }
-    return m;
+
+    if (updates->functions.size()) {
+      mod.CopyOnWrite()->Update(updates);
+    }
+    return mod;
   };
 
   return tvm::transform::CreateModulePass(pass_func, 0, "tir.MakePackedAPI", {});

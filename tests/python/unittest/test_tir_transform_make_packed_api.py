@@ -15,8 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import pytest
+
 import tvm
-from tvm import te
+import tvm.testing
+from tvm import te, tir
+from tvm.script import tir as T, ir as I
 from tvm.driver.build_module import schedule_to_module
 
 
@@ -39,7 +43,9 @@ def test_makeapi():
         )
     )(mod)
 
-    f = tvm.tir.transform.MakePackedAPI()(mod)["main"]
+    before = mod
+    after = tvm.tir.transform.MakePackedAPI()(mod)
+    f = after["main"]
     assert len(f.params) == 6
 
 
@@ -57,6 +63,19 @@ def _find_next(stmt, type):
     while not isinstance(stmt, type):
         stmt = stmt.body
     return stmt
+
+
+def _find_compute_scope(func):
+    result = None
+
+    def _visitor(stmt):
+        if isinstance(stmt, tir.AttrStmt) and stmt.attr_key == "compute_scope":
+            nonlocal result
+            result = stmt
+
+    tir.stmt_functor.post_order_visit(func.body, _visitor)
+
+    return result
 
 
 def test_variable_passed_from_args():
@@ -141,6 +160,94 @@ def test_device_api_context_implicit_resource_handle():
 
     assert call_extern.args[1] == unpacked_input_buffer
     assert call_extern.args[2] == device_context_in_resource_handle
+
+
+@pytest.mark.parametrize("use_global_symbol", [True, False])
+def test_no_op_when_global_symbol_is_absent(use_global_symbol):
+    func_attr = {"target": tvm.target.Target("llvm")}
+    if use_global_symbol:
+        func_attr["global_symbol"] = "main"
+
+    @T.prim_func
+    def before():
+        T.func_attr(func_attr)
+        T.evaluate(0)
+
+    after = tvm.tir.transform.MakePackedAPI()(tvm.IRModule.from_expr(before))["main"]
+    if use_global_symbol:
+        assert len(after.params) == 6
+    else:
+        tvm.ir.assert_structural_equal(before, after)
+
+
+def test_internal_subroutine_call():
+    """Internal subroutines should not use the PackedFunc API
+
+    A subroutine without the "global_symbol" attribute is an internal
+    subroutine, and is not directly exposed to a user of the generated
+    `runtime.Module`.  Therefore, it doesn't need to follow the
+    PackedFunc API.
+    """
+
+    @I.ir_module
+    class before:
+        @T.prim_func
+        def main(A: T.Buffer(1, "float32")):
+            T.func_attr({"global_symbol": "main", "target": T.target("llvm")})
+            before.subroutine(A.data)
+
+        @T.prim_func
+        def subroutine(A_data: T.handle("float32")):
+            T.func_attr({"target": T.target("llvm")})
+            T.evaluate(A_data)
+
+    after = tvm.tir.transform.MakePackedAPI()(before)
+    tvm.ir.assert_structural_equal(before["subroutine"], after["subroutine"])
+
+    compute_scope = _find_compute_scope(after["main"])
+    subroutine_call_op = compute_scope.body.value.op
+    assert isinstance(subroutine_call_op, tvm.ir.GlobalVar), (
+        f"The main function's CallNode should use the subroutine's GLobalVar as the operation, "
+        f"but instead has an operation of type {subroutine_call_op}"
+    )
+
+
+def test_subroutine_call_to_externally_visible_subroutine():
+    """Externally-visible subroutines should use the PackedFunc API
+
+    Because the subroutine may be called directly by a user, it must
+    use the PackedFunc API.  Its signature should be updated to the
+    PackedFunc signature, and call sites should be updated to use
+    `T.tvm_call_cpacked`.
+    """
+
+    @I.ir_module
+    class before:
+        @T.prim_func
+        def main(A: T.Buffer(1, "float32")):
+            T.func_attr({"global_symbol": "main", "target": T.target("llvm")})
+            before.subroutine(A.data)
+
+        @T.prim_func
+        def subroutine(A_data: T.handle("float32")):
+            T.func_attr({"global_symbol": "subroutine", "target": T.target("llvm")})
+            T.evaluate(A_data)
+
+    after = tvm.tir.transform.MakePackedAPI()(before)
+
+    main_compute_scope = _find_compute_scope(after["main"])
+    assert main_compute_scope is not None
+    subroutine_compute_scope = _find_compute_scope(after["subroutine"])
+    assert subroutine_compute_scope is not None
+
+    subroutine_call_op = main_compute_scope.body.value.op
+    assert (
+        isinstance(subroutine_call_op, tvm.ir.Op)
+        and subroutine_call_op.name == "tir.tvm_call_cpacked"
+    ), (
+        f"The main function's CallNode should be lowered to the builtin 'tir.tvm_call_cpacked', "
+        f"but instead has an operation of type {subroutine_call_op}"
+    )
 
 
 if __name__ == "__main__":

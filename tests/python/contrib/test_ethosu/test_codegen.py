@@ -340,6 +340,38 @@ def test_ethosu_pooling(
 
 @pytest.mark.parametrize(
     "accel_type",
+    ACCEL_TYPES,
+)
+@pytest.mark.parametrize("pooling_type", ["MAX", "AVG"])
+@pytest.mark.parametrize(
+    "ifm_shape, pool_shape, strides, activation_function, padding",
+    [
+        ([1, 4, 4, 3], [4, 4], [4, 4], "NONE", "SAME"),
+        ([1, 4, 4, 3], [4, 4], [4, 4], "RELU", "VALID"),
+        ([1, 25, 5, 64], [25, 5], [25, 5], "NONE", "VALID"),
+        ([1, 25, 5, 64], [25, 5], [25, 5], "RELU", "SAME"),
+    ],
+)
+def test_ethosu_pooling_same_ifm_and_kernel_shape(
+    accel_type, pooling_type, ifm_shape, pool_shape, strides, activation_function, padding
+):
+    np.random.seed(0)
+
+    @tf.function
+    def pooling(x):
+        if pooling_type == "MAX":
+            op = tf.nn.max_pool(x, pool_shape, strides, padding)
+        elif pooling_type == "AVG":
+            op = tf.nn.avg_pool(x, pool_shape, strides, padding)
+        if activation_function == "RELU":
+            op = tf.nn.relu(op)
+        return op
+
+    infra.compare_tvm_with_tflite(pooling, [ifm_shape], accel_type)
+
+
+@pytest.mark.parametrize(
+    "accel_type",
     ["ethos-u55-256", "ethos-u65-256"],
 )
 @pytest.mark.parametrize("ifm_shape", [[1, 148, 29], [4, 148, 29], [1, 12], [8, 12]])
