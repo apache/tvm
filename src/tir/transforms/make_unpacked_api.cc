@@ -40,6 +40,8 @@
 namespace tvm {
 namespace tir {
 
+namespace {
+
 class SubroutineCallRewriter : public StmtExprMutator {
  public:
   static Optional<Stmt> Apply(const std::unordered_set<const GlobalVarNode*>& external_methods,
@@ -83,6 +85,8 @@ class SubroutineCallRewriter : public StmtExprMutator {
   const std::unordered_set<const GlobalVarNode*>& external_methods_;
   bool made_change_{false};
 };
+
+}  // namespace
 
 PrimFunc MakeUnpackedAPI(PrimFunc func) {
   // A function with an explicit calling convention has already been
