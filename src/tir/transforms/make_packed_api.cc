@@ -42,6 +42,7 @@ namespace tir {
 
 static constexpr const char* kDeviceContextVar = "device_api_context";
 
+namespace {
 class ReturnRewriter : public StmtMutator {
  public:
   explicit ReturnRewriter(Var ret_var, Var ret_tcode) : ret_var_(ret_var), ret_tcode_(ret_tcode) {}
@@ -175,6 +176,8 @@ class SubroutineCallRewriter : public StmtExprMutator {
   const Map<GlobalVar, String>& packed_func_methods;
   bool made_change_{false};
 };
+
+}  // namespace
 
 inline Stmt MakeAssertEQ(PrimExpr lhs, PrimExpr rhs, std::string msg) {
   return AssertStmt(lhs == rhs, tvm::tir::StringImm(msg), Evaluate(0));
