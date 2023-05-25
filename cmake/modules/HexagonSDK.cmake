@@ -166,6 +166,7 @@ function(_get_hexagon_sdk_property_impl
         "${_hexagon_sdk_root}/rtos/qurt/${_hexarch_dir}/include/posix"
         "${_hexagon_sdk_root}/rtos/qurt/${_hexarch_dir}/include/qurt"
         "${_hexagon_sdk_root}/ipc/fastrpc/rtld/ship/${_rtld_dir}"
+        "${_hexagon_sdk_root}/ipc/fastrpc/rtld/ship/inc"
       )
     elseif(_property STREQUAL "QURT_LIB")
       set(_dirs "${_hexagon_sdk_root}/rtos/qurt/${_hexarch_dir}/lib/pic")
