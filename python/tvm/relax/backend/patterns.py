@@ -263,7 +263,9 @@ def make_layer_norm_pattern():
     return is_op("relax.nn.layer_norm")(inp, gamma, beta), {}
 
 
-def make_attention_rewrite_pattern(qkv_layout: str, out_layout: str, with_bias: bool, with_cast: bool):
+def make_attention_rewrite_pattern(
+    qkv_layout: str, out_layout: str, with_bias: bool, with_cast: bool
+):
     """
     Create pattern for implicit fused multi head attention rewriting.
 
