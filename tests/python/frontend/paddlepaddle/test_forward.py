@@ -508,6 +508,7 @@ def test_forward_conv():
         @paddle.jit.to_static
         def forward(self, inputs):
             return self.softmax(self.conv(inputs))
+        
     class Conv2D2(nn.Layer):
         def __init__(
             self, 
@@ -516,7 +517,7 @@ def test_forward_conv():
             dilation=1, 
             groups=1, 
             padding_mode="zeros", 
-            data_layout='NCHW'
+            data_layout="NCHW",
         ):
             super(Conv2D2, self).__init__()
             self.conv = nn.Conv2D(
@@ -549,7 +550,7 @@ def test_forward_conv():
         )
         verify_model(Conv2D1(stride=2, padding="SAME", dilation=2, groups=3), input_data=input_data)
         verify_model(
-            Conv2D2(stride=2, padding="SAME", dilation=2, groups=3, data_layout='NHWC'), 
+            Conv2D2(stride=2, padding="SAME", dilation=2, groups=3, data_layout="NHWC"), 
             input_data=input_data,
         )
 
@@ -614,7 +615,7 @@ def test_forward_conv3d():
             dilation=1, 
             groups=1, 
             padding_mode="zeros", 
-            data_layout='NCHW'
+            data_layout="NCHW",
         ):
             super(Conv3D2, self).__init__()
             self.conv = nn.Conv3D(
@@ -655,7 +656,7 @@ def test_forward_conv3d():
         )
         verify_model(Conv3D(stride=2, padding="SAME", dilation=2, groups=3), input_data=input_data)
         verify_model(
-            Conv3D2(stride=2, padding="SAME", dilation=2, groups=3, data_layout='NCDHW'), 
+            Conv3D2(stride=2, padding="SAME", dilation=2, groups=3, data_layout="NCDHW"), 
             input_data=input_data,
         )
 
