@@ -1049,5 +1049,65 @@ def test_subroutine_call():
     assert arr.numpy()[0] == 42.0
 
 
+@tvm.testing.requires_llvm
+def test_call_packed_returning_void():
+    """Allow codegen of PackedFunc calls returning void
+
+    The LLVM codegen uses the CallNode's dtype to cast the return type
+    of the PackedFunc into the appropriate LLVM output type.  However,
+    there is no API type for `DataType::Void()`.  When the return type
+    of a PackedFunc is void, the generated code should not attempt to
+    read the return value.
+
+    While `T.call_packed()` will produce a CallNode with an output
+    dtype of "int32", the use of other return types is valid in TIR.
+    This test case uses `T.Call` directly to allow an explicit dtype
+    for the packed function call.
+    """
+
+    @T.prim_func
+    def func():
+        T.Call(
+            "void",
+            tvm.ir.Op.get("tir.tvm_call_packed"),
+            ["dummy_function_name"],
+        )
+
+    # Error occurred during build, as part of
+    # CodeGenCPU::MakeCallPackedLowered.
+    built = tvm.build(func, target="llvm")
+
+
+@tvm.testing.requires_llvm
+def test_call_packed_without_string_arg():
+    """The first argument to tvm_call_packed must be a string
+
+    Even if the invalid TIR is constructed, this should throw an
+    exception to exit cleanly.  Previously, use of
+    `args[0].as<StringImmNode>()` without a null check resulted in
+    a segfault during codegen.
+    """
+
+    @T.prim_func
+    def func(A: T.Buffer(1, "float32")):
+        T.func_attr({"global_symbol": "func"})
+        T.Call("int32", tvm.ir.Op.get("tir.tvm_call_packed"), [A.data])
+
+    with pytest.raises(tvm.TVMError):
+        built = tvm.build(func, target="llvm")
+
+
+@tvm.testing.requires_llvm
+def test_call_extern_returning_void():
+    """Like test_call_packed_returning_void, but for call_extern"""
+
+    @T.prim_func
+    def func():
+        T.func_attr({"global_symbol": "func"})
+        T.Call("void", tvm.ir.Op.get("tir.call_extern"), ["dummy_function_name"])
+
+    built = tvm.build(func, target="llvm")
+
+
 if __name__ == "__main__":
     tvm.testing.main()
