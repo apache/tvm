@@ -445,7 +445,7 @@ def call_tir(global_var: tvm.ir.GlobalVar, *args):
         The call expression.
     """
     assert isinstance(global_var, tvm.ir.GlobalVar)
-    return Call(dtype="handle", op=global_var, args=args)
+    return Call(dtype="void", op=global_var, args=args)
 
 
 def start_profile_intrinsic(id):

@@ -435,6 +435,22 @@ def MakeUnpackedAPI():
     return _ffi_api.MakeUnpackedAPI()  # type: ignore
 
 
+def AnnotateDeviceRegions():
+    """Annotate locations that should be run on the device
+
+    Insert `AttrStmt` nodes specifying a target on which regions
+    within the PrimFunc should be executed.  Only modifies functions
+    that have a `tvm::attr::kTarget` attribute, and where that target
+    defines a host.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.AnnotateDeviceRegions()  # type: ignore
+
+
 def SplitHostDevice():
     """Split the function into a host function and device functions.
 
@@ -444,6 +460,28 @@ def SplitHostDevice():
         The result pass
     """
     return _ffi_api.SplitHostDevice()  # type: ignore
+
+
+def LowerDeviceKernelLaunch():
+    """Lower cross-device function calls.
+
+    Prior to this pass, host to device calls are represented as
+    subroutine calls, with environment parameters (e.g. env_thread)
+    specified internally.  The device function is an internal
+    function, without a `tvm::attr::kGlobalSymbol` attribute.
+
+    After this pass, host to device calls are represented as
+    tvm_call_packed built-in.  The device function is an
+    externally-exposed function, with a non-empty
+    `tvm::attr::kGlobalSymbol` attribute.
+
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.LowerDeviceKernelLaunch()  # type: ignore
 
 
 def DecorateDeviceScope():
