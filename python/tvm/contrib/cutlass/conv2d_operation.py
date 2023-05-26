@@ -524,21 +524,14 @@ def instantiate_conv2d_template(attrs):
         aux_map["B_shape"] = "weight_shape"
 
         if has_residual_block:
-            residual_shape = attrs["residual_shape"]
-            attrs.pop("residual_shape")
+            res_shape = list(attrs.pop("residual_shape"))
+            res_shape = f"cutlass::make_Coord({res_shape[0]}, {res_shape[1]}, {res_shape[2]}, K)"
             aux_map[
                 "residual_shape_decl"
-            ] = "auto residual_shape = TensorNHWC::packed(cutlass::make_Coord({}, {}, {}, K));".format(
-                residual_shape[0], residual_shape[1], residual_shape[2]
-            )
+            ] = f"auto residual_shape = TensorNHWC::packed({res_shape});"
             aux_map["C_shape"] = "residual_shape"
 
-            if list(residual_shape) == [
-                int(attrs["N"]),
-                int(attrs["H"]),
-                int(attrs["W"]),
-                int(attrs["K"]),
-            ]:
+            if res_shape == [int(attrs[c]) for c in ["N", "H", "W", "K"]]:
                 aux_map["tensor_c_layout"] = "layout_C"
             else:
                 aux_map["tensor_c_layout"] = "cutlass::layout::TensorNHWC::Stride(0)"
