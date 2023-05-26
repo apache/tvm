@@ -275,7 +275,7 @@ TVM_REGISTER_TARGET_KIND("llvm", kDLCPU)
     .add_attr_option<Integer>("opt-level")
     // LLVM command line flags, see below
     .add_attr_option<Array<String>>("cl-opt")
-    .set_default_keys({"cpu"})
+    .set_default_keys({"cpu", "host"})
     // Force the external codegen kind attribute to be registered, even if no external
     // codegen targets are enabled by the TVM build.
     .set_attr<Bool>(tvm::attr::kIsExternalCodegen, Bool(false))
@@ -308,7 +308,7 @@ TVM_REGISTER_TARGET_KIND("c", kDLCPU)
     .add_attr_option<String>("march")
     .add_attr_option<Integer>("workspace-byte-alignment")
     .add_attr_option<Integer>("constants-byte-alignment")
-    .set_default_keys({"cpu"})
+    .set_default_keys({"cpu", "host"})
     .set_target_parser(tvm::target::parsers::cpu::ParseTarget);
 
 TVM_REGISTER_TARGET_KIND("cuda", kDLCUDA)
@@ -422,10 +422,10 @@ TVM_REGISTER_TARGET_KIND("hexagon", kDLHexagon)
     .add_attr_option<Array<String>>("llvm-options")
     .add_attr_option<Integer>("num-cores")
     .add_attr_option<Integer>("vtcm-capacity")
-    .set_default_keys({"hexagon"});
+    .set_default_keys({"hexagon", "host"});
 
 TVM_REGISTER_TARGET_KIND("stackvm", kDLCPU)  // line break
-    .set_default_keys({"cpu"});
+    .set_default_keys({"host"});
 
 TVM_REGISTER_TARGET_KIND("ext_dev", kDLExtDev);
 
