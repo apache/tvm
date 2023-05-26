@@ -35,17 +35,26 @@ def test_split_host_device_func_attr():
     s[A1].compute_at(s[A2], xo)
     s[A1].set_scope("shared")
 
-    mod = tvm.lower(s, [A, A2], name="f")
+    mod = tvm.lower(s, [A, A2])
 
-    cuda_target = tvm.target.Target("cuda")
+    cuda_target = tvm.target.Target("cuda", host="llvm")
     mod = tvm.tir.transform.Apply(
         lambda f: f.with_attr({"global_symbol": "test", "target": cuda_target})
     )(mod)
-    fdevice = tvm.tir.transform.SplitHostDevice()(mod)["test_kernel0"]
 
-    assert fdevice.attrs["global_symbol"] == "test_kernel0"
+    mod = tvm.ir.transform.Sequential(
+        [
+            tvm.tir.transform.AnnotateDeviceRegions(),
+            tvm.tir.transform.SplitHostDevice(),
+            tvm.tir.transform.LowerDeviceKernelLaunch(),
+        ]
+    )(mod)
+
+    fdevice = mod["test_kernel"]
+
+    assert fdevice.attrs["global_symbol"] == "test_kernel"
     assert fdevice.attrs["calling_conv"].value == 2
-    assert fdevice.attrs["target"] == cuda_target
+    assert str(fdevice.attrs["target"]) == str(tvm.target.Target("cuda"))
     assert fdevice.attrs["tir.is_global_func"].value
 
 
@@ -60,18 +69,104 @@ def test_ssa_across_entire_module():
     class before:
         @T.prim_func
         def main():
-            T.func_attr({"global_symbol": "main", "target": T.target("cuda")})
+            T.func_attr({"global_symbol": "main", "target": T.target("cuda", host="llvm")})
             for i in range(16):
                 T.attr(0, "device_scope", 0)
                 for j in range(16):
                     T.evaluate(i)
 
-    after = tvm.tir.transform.SplitHostDevice()(before)
+    after = tvm.ir.transform.Sequential(
+        [
+            tvm.tir.transform.AnnotateDeviceRegions(),
+            tvm.tir.transform.SplitHostDevice(),
+            tvm.tir.transform.LowerDeviceKernelLaunch(),
+        ]
+    )(before)
     loop_var = after["main"].body.loop_var
-    param_var = after["main_kernel0"].params[0]
+    param_var = after["main_kernel"].params[0]
 
     assert not loop_var.same_as(param_var)
 
 
+class BaseCompare(tvm.testing.CompareBeforeAfter):
+    transform = tvm.tir.transform.SplitHostDevice()
+
+
+class TestSplitHostDevice(BaseCompare):
+    """SplitHostDevice divides a function at the "target" attribute"""
+
+    def before(self):
+        @I.ir_module
+        class mod:
+            @T.prim_func
+            def main(n: T.int32):
+                T.func_attr({"target": T.target("cuda", host="llvm -opt-level=0")})
+                T.attr(T.target("cuda"), "target", 0)
+                T.evaluate(n)
+
+        return mod
+
+    def expected(self):
+        @I.ir_module
+        class mod:
+            @T.prim_func
+            def main(n: T.int32):
+                T.func_attr({"target": T.target("llvm -opt-level=0")})
+                mod.main_kernel(n)
+
+            @T.prim_func
+            def main_kernel(n: T.int32):
+                T.func_attr(
+                    {
+                        "target": T.target("cuda"),
+                        "tir.noalias": T.bool(True),
+                        "tir.is_global_func": True,
+                    }
+                )
+                T.evaluate(n)
+
+        return mod
+
+
+class TestSplitHostDeviceWithoutFuncHostAttribute(BaseCompare):
+    """Like TestSplitHostDevice, but no host specified in the host's target
+
+    The `T.attr` specifying the device still requires splitting out
+    the kernel.
+    """
+
+    def before(self):
+        @I.ir_module
+        class mod:
+            @T.prim_func
+            def main(n: T.int32):
+                T.func_attr({"target": T.target("llvm")})
+                T.attr(T.target("cuda"), "target", 0)
+                T.evaluate(n)
+
+        return mod
+
+    def expected(self):
+        @I.ir_module
+        class mod:
+            @T.prim_func
+            def main(n: T.int32):
+                T.func_attr({"target": T.target("llvm")})
+                mod.main_kernel(n)
+
+            @T.prim_func
+            def main_kernel(n: T.int32):
+                T.func_attr(
+                    {
+                        "target": T.target("cuda"),
+                        "tir.noalias": T.bool(True),
+                        "tir.is_global_func": True,
+                    }
+                )
+                T.evaluate(n)
+
+        return mod
+
+
 if __name__ == "__main__":
-    test_split_host_device_func_attr()
+    tvm.testing.main()
