@@ -47,7 +47,7 @@ PackedFunc HexagonModuleNode::GetFunction(const String& name,
   LOG(FATAL) << "HexagonModuleNode::GetFunction is not implemented.";
 }
 
-std::string HexagonModuleNode::GetSource(const String& format) {
+String HexagonModuleNode::GetSource(const String& format) {
   if (format == "s" || format == "asm") {
     return asm_;
   }
