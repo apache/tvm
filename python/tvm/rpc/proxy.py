@@ -254,7 +254,7 @@ class ProxyServerHandler(object):
             resource_files = resource_files if resource_files else []
             for fname in resource_files:
                 basename = os.path.basename(fname)
-                pair = (fr"/{basename}", RequestHandler, {"file_path": fname})
+                pair = (rf"/{basename}", RequestHandler, {"file_path": fname})
                 handlers.append(pair)
                 logging.info(pair)
             self.app = tornado.web.Application(handlers)
