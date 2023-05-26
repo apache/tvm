@@ -19,6 +19,7 @@ import pytest
 import tvm
 from tvm import relax
 from tvm.script import relax as R
+from tvm.script import ir as I
 
 
 @tvm.script.ir_module
@@ -1064,6 +1065,115 @@ def test_merge_compiler_regions_example():
 
 def test_mixed_non_composite():
     check(ModuleWithNonComposite, ModuleWithNonComposite_ref)
+
+
+def test_reshape():
+    # Verify that the non-CallNode input (shape in reshape) can be handled properly.
+    @I.ir_module
+    class Module:
+        @R.function
+        def fused_relax_matmul(
+            lv: R.Tensor((1, 784), dtype="float32"), lv1: R.Tensor((784, 512), dtype="float32")
+        ) -> R.Tensor((1, 512), dtype="float32"):
+            R.func_attr({"Composite": "tensorrt.matmul", "Primitive": 1})
+            with R.dataflow():
+                gv: R.Tensor((1, 512), dtype="float32") = R.matmul(lv, lv1, out_dtype="float32")
+                R.output(gv)
+            return gv
+
+        @R.function
+        def fused_relax_reshape(
+            inp_0: R.Tensor((1, 1, 28, 28), dtype="float32"), param_0: R.Shape([1, 784])
+        ) -> R.Tensor((1, 784), dtype="float32"):
+            R.func_attr({"Composite": "tensorrt.reshape", "Primitive": 1})
+            with R.dataflow():
+                gv: R.Tensor((1, 784), dtype="float32") = R.reshape(inp_0, param_0)
+                R.output(gv)
+            return gv
+
+        @R.function
+        def main(
+            inp_0: R.Tensor((1, 1, 28, 28), dtype="float32"),
+            linear_relu_stack_0_weight: R.Tensor((512, 784), dtype="float32"),
+        ) -> R.Tensor((1, 512), dtype="float32"):
+            cls = Module
+            with R.dataflow():
+                lv: R.Tensor((1, 784), dtype="float32") = cls.fused_relax_reshape(
+                    inp_0, R.shape([1, 784])
+                )
+                lv1: R.Tensor((784, 512), dtype="float32") = R.permute_dims(
+                    linear_relu_stack_0_weight, axes=None
+                )
+                lv_1: R.Tensor((1, 512), dtype="float32") = cls.fused_relax_matmul(lv, lv1)
+                gv: R.Tensor((1, 512), dtype="float32") = lv_1
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def fused_relax_reshape_relax_matmul(
+            inp_0: R.Tensor((1, 1, 28, 28), dtype="float32"),
+            param_0: R.Shape([1, 784]),
+            lv1: R.Tensor((784, 512), dtype="float32"),
+        ) -> R.Tensor((1, 512), dtype="float32"):
+            R.func_attr(
+                {
+                    "Codegen": "tensorrt",
+                    "Primitive": 1,
+                    "global_symbol": "fused_relax_reshape_relax_matmul",
+                }
+            )
+            with R.dataflow():
+                # from tvm.script import relax as R
+
+                @R.function
+                def lv_1(
+                    inp_0_1: R.Tensor((1, 1, 28, 28), dtype="float32"), param_0_1: R.Shape([1, 784])
+                ) -> R.Tensor((1, 784), dtype="float32"):
+                    R.func_attr({"Composite": "tensorrt.reshape", "Primitive": 1})
+                    with R.dataflow():
+                        gv: R.Tensor((1, 784), dtype="float32") = R.reshape(inp_0_1, param_0_1)
+                        R.output(gv)
+                    return gv
+
+                lv_1: R.Tensor((1, 784), dtype="float32") = lv_1(inp_0, param_0)
+
+                @R.function
+                def lv1_1_1(
+                    lv_2: R.Tensor((1, 784), dtype="float32"),
+                    lv1_2: R.Tensor((784, 512), dtype="float32"),
+                ) -> R.Tensor((1, 512), dtype="float32"):
+                    R.func_attr({"Composite": "tensorrt.matmul", "Primitive": 1})
+                    with R.dataflow():
+                        gv: R.Tensor((1, 512), dtype="float32") = R.matmul(
+                            lv_2, lv1_2, out_dtype="float32"
+                        )
+                        R.output(gv)
+                    return gv
+
+                lv_2: R.Tensor((1, 512), dtype="float32") = lv1_1_1(lv_1, lv1)
+                gv: R.Tensor((1, 512), dtype="float32") = lv_2
+                R.output(gv)
+            return gv
+
+        @R.function
+        def main(
+            inp_0: R.Tensor((1, 1, 28, 28), dtype="float32"),
+            linear_relu_stack_0_weight: R.Tensor((512, 784), dtype="float32"),
+        ) -> R.Tensor((1, 512), dtype="float32"):
+            cls = Expected
+            with R.dataflow():
+                lv1: R.Tensor((784, 512), dtype="float32") = R.permute_dims(
+                    linear_relu_stack_0_weight, axes=None
+                )
+                gv: R.Tensor((1, 512), dtype="float32") = cls.fused_relax_reshape_relax_matmul(
+                    inp_0, R.shape([1, 784]), lv1
+                )
+                R.output(gv)
+            return gv
+
+    check(Module, Expected)
 
 
 if __name__ == "__main__":
