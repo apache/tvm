@@ -36,6 +36,8 @@ sys.path.insert(0, str(GITHUB_SCRIPT_ROOT))
 import scripts.github
 import scripts.jenkins
 
+from scripts.github.update_branch import EXPECTED_CI_JOBS
+
 # pylint: enable=wrong-import-position,wrong-import-order
 
 
@@ -434,8 +436,12 @@ def test_cc_reviewers(
     assert f"After filtering existing reviewers, adding: {expected_reviewers}" in proc.stdout
 
 
+def generate_good_commit_status():
+    return list([{"context": context, "state": "SUCCESS"} for context in EXPECTED_CI_JOBS])
+
+
 @parameterize_named(
-    # Missing expected tvm-ci/branch test
+    # Missing expected gpu/branch test
     missing_tvm_ci_branch=dict(
         statuses=[
             {
@@ -448,48 +454,25 @@ def test_cc_reviewers(
     ),
     # Only has the right passing test
     has_expected_test=dict(
-        statuses=[
-            {
-                "context": "tvm-ci/branch",
-                "state": "SUCCESS",
-            }
-        ],
+        statuses=generate_good_commit_status(),
         expected_rc=0,
         expected_output="Found last good commit: 123: hello",
     ),
     # Check with many statuses
     many_statuses=dict(
-        statuses=[
-            {
-                "context": "tvm-ci/branch",
-                "state": "SUCCESS",
-            },
-            {
-                "context": "tvm-ci/branch2",
-                "state": "SUCCESS",
-            },
-            {
-                "context": "tvm-ci/branch3",
-                "state": "FAILED",
-            },
+        statuses=generate_good_commit_status()
+        + [
+            {"context": "gpu/branch2", "state": "SUCCESS"},
+            {"context": "gpu/branch3", "state": "FAILED"},
         ],
         expected_rc=1,
         expected_output="No good commits found in the last 1 commits",
     ),
     many_success_statuses=dict(
-        statuses=[
-            {
-                "context": "tvm-ci/branch",
-                "state": "SUCCESS",
-            },
-            {
-                "context": "tvm-ci/branch2",
-                "state": "SUCCESS",
-            },
-            {
-                "context": "tvm-ci/branch3",
-                "state": "SUCCESS",
-            },
+        statuses=generate_good_commit_status()
+        + [
+            {"context": "gpu/branch2", "state": "SUCCESS"},
+            {"context": "gpu/branch3", "state": "SUCCESS"},
         ],
         expected_rc=0,
         expected_output="Found last good commit: 123: hello",
