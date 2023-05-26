@@ -402,7 +402,7 @@ class FunctionCreator : public ExprMutator {
             CheckDefAndUpdateParam(arg);
           }
         }
-      } else if (var_binding->value.as<TupleGetItemNode>()){
+      } else if (var_binding->value.as<TupleGetItemNode>()) {
         const auto* tuple_item = var_binding->value.as<TupleGetItemNode>();
         CheckDefAndUpdateParam(tuple_item->tuple);
       }
