@@ -452,5 +452,40 @@ def test_preserve_variable_name():
     assert var_name == "j"
 
 
+def test_boolean_constant():
+    """Python booleans should become T.Bool objects"""
+
+    @T.prim_func
+    def explicit():
+        T.evaluate(T.bool(True))
+
+    @T.prim_func
+    def implicit():
+        T.evaluate(True)
+
+    assert_structural_equal(implicit, explicit)
+
+
+def test_foldable_boolean_in_assert():
+    """Foldable booleans T.Bool objects
+
+    The condition of an assert statement should be a boolean
+    expression.  Previously, this test failed because the FFI does not
+    distinguish between integer primitives and boolean primitives.
+    """
+
+    @T.prim_func
+    def explicit():
+        assert T.bool(False), "Message"
+        T.evaluate(0)
+
+    @T.prim_func
+    def implicit():
+        assert 0 == 1, "Message"
+        T.evaluate(0)
+
+    assert_structural_equal(implicit, explicit)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

@@ -277,13 +277,13 @@ with T.attr("pragma", "unroll", 1):
 
 def test_assert_stmt():
     with IRBuilder() as ib:
-        with T.Assert(1, "assertion"):
+        with T.Assert(True, "assertion"):
             T.evaluate(0)
     obj = ib.get()
     _assert_print(
         obj,
         """
-with T.Assert(1, "assertion"):
+with T.Assert(T.bool(True), "assertion"):
     T.evaluate(0)
 """,
     )

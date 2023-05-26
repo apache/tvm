@@ -862,6 +862,8 @@ def Assert(condition: PrimExpr, message: str) -> frame.AssertFrame:  # pylint: d
     res : frame.AssertFrame
         The result AssertFrame.
     """
+    if isinstance(condition, bool):
+        condition = IntImm("bool", condition)
     return _ffi_api.Assert(condition, message)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
