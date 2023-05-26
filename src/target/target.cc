@@ -662,6 +662,16 @@ Map<String, ObjectRef> TargetNode::Export() const {
 
 Optional<Target> TargetNode::GetHost() const { return this->host.as<Target>(); }
 
+Target Target::WithoutHost() const {
+  if ((*this)->GetHost()) {
+    auto output = make_object<TargetNode>(*get());
+    output->host = NullOpt;
+    return Target(output);
+  } else {
+    return *this;
+  }
+}
+
 int TargetNode::GetTargetDeviceType() const {
   if (Optional<Integer> device_type = GetAttr<Integer>("target_device_type")) {
     return Downcast<Integer>(device_type)->value;
