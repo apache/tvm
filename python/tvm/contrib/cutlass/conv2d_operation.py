@@ -522,6 +522,7 @@ def instantiate_conv2d_template(attrs):
     else:
         aux_map["A_shape"] = "activation_shape"
         aux_map["B_shape"] = "weight_shape"
+        aux_map["D_shape"] = "output_shape"
 
         if has_residual_block:
             res_shape = list(attrs.pop("residual_shape"))
@@ -534,10 +535,10 @@ def instantiate_conv2d_template(attrs):
             if res_shape == [int(attrs[c]) for c in ["N", "H", "W", "K"]]:
                 aux_map["tensor_c_layout"] = "layout_C"
             else:
+                # bias-like residual input
                 aux_map["tensor_c_layout"] = "cutlass::layout::TensorNHWC::Stride(0)"
         else:
             aux_map["C_shape"] = "output_shape"
-        aux_map["D_shape"] = "output_shape"
 
     if use_split_k:
         aux_map["ElementOutput"] = "EpilogueOutputOp::ElementOutput"
