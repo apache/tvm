@@ -220,11 +220,6 @@ void CodeGenMetal::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
     if (t.is_uint()) {
       os << 'u';
     }
-    if (t.bits() == 8 && t.lanes() == 4) {
-      // directly 4 8 bit int in integer.
-      os << "int";
-      return;
-    }
     switch (t.bits()) {
       case 8:
         os << "char";
