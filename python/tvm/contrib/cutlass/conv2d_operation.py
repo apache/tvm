@@ -528,7 +528,7 @@ def instantiate_conv2d_template(attrs):
             attrs.pop("residual_shape")
             aux_map[
                 "residual_shape_decl"
-            ] = "auto residual_shape = TensorNHWC::packed(cutlass::make_Coord((int){}, (int){}, (int){}, K));".format(
+            ] = "auto residual_shape = TensorNHWC::packed(cutlass::make_Coord({}, {}, {}, K));".format(
                 residual_shape[0], residual_shape[1], residual_shape[2]
             )
             aux_map["C_shape"] = "residual_shape"
