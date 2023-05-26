@@ -111,7 +111,7 @@ def _check_residual(root_call: Call, context: PatternCheckContext) -> bool:
         out_channel = shape1[-1]
         is_bias_like = lambda shape: (shape[-1] == out_channel and _shape_1d(shape) == out_channel)
 
-        if shape1 != shape2 or is_bias_like(shape2):
+        if shape1 != shape2 and not is_bias_like(shape2):
             return False
 
     return True
