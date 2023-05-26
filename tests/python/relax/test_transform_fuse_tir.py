@@ -1043,19 +1043,14 @@ def test_tir_expression_in_shape():
             T.func_attr({"tir.noalias": T.bool(True)})
             y = T.match_buffer(p_y, (n - T.int64(1), T.int64(4)))
             var_T_matmul_intermediate = T.match_buffer(p_output0, (n - T.int64(1), T.int64(3)))
-            # with T.block("root"):
             var_T_transpose_intermediate = T.alloc_buffer((T.int64(4), T.int64(3)))
             for ax0, ax1 in T.grid(T.int64(4), T.int64(3)):
                 with T.block("T_transpose"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(x[v_ax1, v_ax0])
-                    T.writes(var_T_transpose_intermediate[v_ax0, v_ax1])
                     var_T_transpose_intermediate[v_ax0, v_ax1] = x[v_ax1, v_ax0]
             for ax0, ax1, k in T.grid(n - T.int64(1), T.int64(3), T.int64(4)):
                 with T.block("T_matmul"):
                     v_ax0, v_ax1, v_k = T.axis.remap("SSR", [ax0, ax1, k])
-                    T.reads(y[v_ax0, v_k], var_T_transpose_intermediate[v_k, v_ax1])
-                    T.writes(var_T_matmul_intermediate[v_ax0, v_ax1])
                     with T.init():
                         var_T_matmul_intermediate[v_ax0, v_ax1] = T.float32(0)
                     var_T_matmul_intermediate[v_ax0, v_ax1] = (

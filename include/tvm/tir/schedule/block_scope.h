@@ -41,6 +41,7 @@ namespace tir {
  * - Parent sref: The parent reference of an sref is the block or loop reference to the closest
  schedulable statement. We define closest to be the nearest schedulable statement of an ancestor in
  the AST.
+ * schedulable statement of its ancestors on the TensorIR AST.
  * - Root sref: Sref to the root block. Every sref has exactly one parent sref except for root sref.
  * - Sref tree: The parent-children-relationship of srefs that forms a tree, uniquely determined by
  * the TensorIR AST.
