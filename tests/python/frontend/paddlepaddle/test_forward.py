@@ -101,9 +101,9 @@ def verify_model(func, input_data, use_vm=False, rtol=1e-5, atol=1e-5):
             else:
                 tvm_vm_input.append(data.numpy())
         for target, dev in tvm.testing.enabled_targets():
-            result = relay.create_executor("vm", mod=mod, device=dev, target=target).evaluate()(
-                *tvm_vm_input, **params
-            )
+            result = relay.create_executor(
+                "vm", mod=mod, device=dev, target=target
+            ).evaluate()(*tvm_vm_input, **params)
             tvm_vm_output = []
             if isinstance(result, tvm.runtime.NDArray):
                 tvm_vm_output = result.numpy()
@@ -114,7 +114,9 @@ def verify_model(func, input_data, use_vm=False, rtol=1e-5, atol=1e-5):
 
             for i, baseline_output in enumerate(baseline_outputs):
                 assert_shapes_match(baseline_output, tvm_vm_output[i])
-                tvm.testing.assert_allclose(baseline_output, tvm_vm_output[i], rtol=rtol, atol=atol)
+                tvm.testing.assert_allclose(
+                    baseline_output, tvm_vm_output[i], rtol=rtol, atol=atol
+                )
     else:
         with tvm.transform.PassContext(opt_level=3):
             for target, dev in tvm.testing.enabled_targets():
@@ -265,7 +267,9 @@ def test_forward_argsort():
         # Avoid duplicate elements in the array which will bring
         # different results with different sort algorithms
         np.random.seed(13)
-        np_data = np.random.choice(range(-5000, 5000), np.prod(input_shape), replace=False)
+        np_data = np.random.choice(
+            range(-5000, 5000), np.prod(input_shape), replace=False
+        )
         input_data = paddle.to_tensor(np_data.reshape(input_shape).astype("int64"))
         verify_model(ArgSort1(), [input_data])
         verify_model(ArgSort2(), [input_data])
@@ -442,7 +446,9 @@ def test_forward_clip():
 def test_forward_concat_unsqueeze():
     @paddle.jit.to_static
     def concat_unsqueeze1(inputs):
-        return paddle.concat([inputs[:, 0].unsqueeze(1), inputs[:, 1].unsqueeze(1)], axis=1)
+        return paddle.concat(
+            [inputs[:, 0].unsqueeze(1), inputs[:, 1].unsqueeze(1)], axis=1
+        )
 
     @paddle.jit.to_static
     def concat_unsqueeze2(inputs):
@@ -491,7 +497,9 @@ def test_forward_cumsum():
 @tvm.testing.uses_gpu
 def test_forward_conv():
     class Conv2D1(nn.Layer):
-        def __init__(self, stride=1, padding=0, dilation=1, groups=1, padding_mode="zeros"):
+        def __init__(
+            self, stride=1, padding=0, dilation=1, groups=1, padding_mode="zeros"
+        ):
             super(Conv2D1, self).__init__()
             self.conv = nn.Conv2D(
                 3,
@@ -511,12 +519,12 @@ def test_forward_conv():
 
     class Conv2D2(nn.Layer):
         def __init__(
-            self, 
-            stride=1, 
-            padding=0, 
-            dilation=1, 
-            groups=1, 
-            padding_mode="zeros", 
+            self,
+            stride=1,
+            padding=0,
+            dilation=1,
+            groups=1,
+            padding_mode="zeros",
             data_layout="NCHW",
         ):
             super(Conv2D2, self).__init__()
@@ -536,21 +544,28 @@ def test_forward_conv():
         @paddle.jit.to_static
         def forward(self, inputs):
             return self.softmax(self.conv(inputs))
-        
+
     input_shapes = [[1, 3, 10, 10], [1, 3, 12, 12]]
 
     for input_shape in input_shapes:
         input_data = paddle.rand(input_shape, dtype="float32")
         verify_model(Conv2D1(), input_data=input_data)
-        verify_model(Conv2D1(stride=2, padding="VALID", dilation=3), input_data=input_data)
-        verify_model(Conv2D1(stride=2, padding="SAME", dilation=3), input_data=input_data)
+        verify_model(
+            Conv2D1(stride=2, padding="VALID", dilation=3), input_data=input_data
+        )
+        verify_model(
+            Conv2D1(stride=2, padding="SAME", dilation=3), input_data=input_data
+        )
         verify_model(
             Conv2D1(stride=2, padding=3, dilation=3, padding_mode="replicate"),
             input_data=input_data,
         )
-        verify_model(Conv2D1(stride=2, padding="SAME", dilation=2, groups=3), input_data=input_data)
         verify_model(
-            Conv2D2(stride=2, padding="SAME", dilation=2, groups=3, data_layout="NHWC"), 
+            Conv2D1(stride=2, padding="SAME", dilation=2, groups=3),
+            input_data=input_data,
+        )
+        verify_model(
+            Conv2D2(stride=2, padding="SAME", dilation=2, groups=3, data_layout="NHWC"),
             input_data=input_data,
         )
 
@@ -558,7 +573,9 @@ def test_forward_conv():
 @tvm.testing.uses_gpu
 def test_forward_conv_transpose():
     class Conv2DTranspose(nn.Layer):
-        def __init__(self, stride=1, padding=0, dilation=1, groups=1, padding_mode="zeros"):
+        def __init__(
+            self, stride=1, padding=0, dilation=1, groups=1, padding_mode="zeros"
+        ):
             super(Conv2DTranspose, self).__init__()
             self.conv = nn.Conv2DTranspose(
                 6,
@@ -581,15 +598,21 @@ def test_forward_conv_transpose():
         input_data = paddle.rand(input_shape, dtype="float32")
         verify_model(Conv2DTranspose(), input_data=input_data)
         verify_model(Conv2DTranspose(stride=2, padding="VALID"), input_data=input_data)
-        verify_model(Conv2DTranspose(stride=2, padding="SAME", dilation=1), input_data=input_data)
+        verify_model(
+            Conv2DTranspose(stride=2, padding="SAME", dilation=1), input_data=input_data
+        )
         verify_model(Conv2DTranspose(stride=2, padding=3), input_data=input_data)
-        verify_model(Conv2DTranspose(stride=3, padding="SAME", groups=1), input_data=input_data)
+        verify_model(
+            Conv2DTranspose(stride=3, padding="SAME", groups=1), input_data=input_data
+        )
 
 
 @tvm.testing.uses_gpu
 def test_forward_conv3d():
     class Conv3D(nn.Layer):
-        def __init__(self, stride=1, padding=0, dilation=1, groups=1, padding_mode="zeros"):
+        def __init__(
+            self, stride=1, padding=0, dilation=1, groups=1, padding_mode="zeros"
+        ):
             super(Conv3D, self).__init__()
             self.conv = nn.Conv3D(
                 3,
@@ -606,15 +629,15 @@ def test_forward_conv3d():
         @paddle.jit.to_static
         def forward(self, inputs):
             return self.softmax(self.conv(inputs))
-        
+
     class Conv3D2(nn.Layer):
         def __init__(
-            self, 
-            stride=1, 
-            padding=0, 
-            dilation=1, 
-            groups=1, 
-            padding_mode="zeros", 
+            self,
+            stride=1,
+            padding=0,
+            dilation=1,
+            groups=1,
+            padding_mode="zeros",
             data_layout="NCHW",
         ):
             super(Conv3D2, self).__init__()
@@ -634,14 +657,18 @@ def test_forward_conv3d():
         @paddle.jit.to_static
         def forward(self, inputs):
             return self.softmax(self.conv(inputs))
-        
+
     input_shapes = [[1, 3, 10, 10, 10], [1, 3, 12, 12, 12]]
 
     for input_shape in input_shapes:
         input_data = paddle.rand(input_shape, dtype="float32")
         verify_model(Conv3D(), input_data=input_data)
-        verify_model(Conv3D(stride=2, padding="VALID", dilation=3), input_data=input_data)
-        verify_model(Conv3D(stride=2, padding="SAME", dilation=3), input_data=input_data)
+        verify_model(
+            Conv3D(stride=2, padding="VALID", dilation=3), input_data=input_data
+        )
+        verify_model(
+            Conv3D(stride=2, padding="SAME", dilation=3), input_data=input_data
+        )
         verify_model(
             Conv3D(stride=2, padding=(3, 3, 4, 4, 2, 2), dilation=3),
             input_data=input_data,
@@ -654,9 +681,14 @@ def test_forward_conv3d():
             Conv3D(stride=2, padding=3, dilation=3, padding_mode="replicate"),
             input_data=input_data,
         )
-        verify_model(Conv3D(stride=2, padding="SAME", dilation=2, groups=3), input_data=input_data)
         verify_model(
-            Conv3D2(stride=2, padding="SAME", dilation=2, groups=3, data_layout="NCDHW"), 
+            Conv3D(stride=2, padding="SAME", dilation=2, groups=3),
+            input_data=input_data,
+        )
+        verify_model(
+            Conv3D2(
+                stride=2, padding="SAME", dilation=2, groups=3, data_layout="NCDHW"
+            ),
             input_data=input_data,
         )
 
@@ -825,7 +857,9 @@ def test_forward_flatten():
 
         @paddle.jit.to_static
         def forward(self, x):
-            return paddle.flatten(x, start_axis=self.start_axis, stop_axis=self.stop_axis)
+            return paddle.flatten(
+                x, start_axis=self.start_axis, stop_axis=self.stop_axis
+            )
 
     input_data = paddle.rand([2, 3, 4, 5, 2], dtype="float32")
     verify_model(Flatten(), input_data=input_data)
@@ -890,7 +924,9 @@ def test_forward_group_norm():
     class GroupNorm(nn.Layer):
         def __init__(self, channels, groups):
             super(GroupNorm, self).__init__()
-            self.group_norm = paddle.nn.GroupNorm(num_channels=channels, num_groups=groups)
+            self.group_norm = paddle.nn.GroupNorm(
+                num_channels=channels, num_groups=groups
+            )
 
         def forward(self, inputs):
             return self.group_norm(inputs)
@@ -902,7 +938,7 @@ def test_forward_group_norm():
         verify_model(GroupNorm(num_channels, 1), input_data, rtol=1e-4, atol=1e-4)
         verify_model(GroupNorm(num_channels, 2), input_data, rtol=1e-4, atol=1e-4)
 
-        
+
 @tvm.testing.uses_gpu
 def test_forward_gaussian_random():
     @paddle.jit.to_static
@@ -915,11 +951,10 @@ def test_forward_gaussian_random():
 
     shapes = [[20], [8, 8], [4, 5, 6], [3, 4, 3, 5]]
     for shape in zip(shapes):
-
         verify_model(gaussian_random1, shape=shape)
         verify_model(gaussian_random2, shape=shape)
 
-        
+
 @tvm.testing.uses_gpu
 def test_forward_grid_sampler():
     class GridSampler(nn.Layer):
@@ -1014,7 +1049,11 @@ def test_forward_shape_full():
 def test_forward_split():
     class Split(nn.Layer):
         def __init__(
-            self, axis=None, num_or_sections=None, axis_is_tensor=False, num_is_tensor=False
+            self,
+            axis=None,
+            num_or_sections=None,
+            axis_is_tensor=False,
+            num_is_tensor=False,
         ):
             super(Split, self).__init__()
             self.axis = axis
@@ -1041,10 +1080,12 @@ def test_forward_split():
     input_data = paddle.rand(input_shape, dtype="float32")
     verify_model(Split(axis=1, num_or_sections=3), input_data=input_data)
     verify_model(
-        Split(axis=[1], num_or_sections=[2, 3, 1], axis_is_tensor=True), input_data=input_data
+        Split(axis=[1], num_or_sections=[2, 3, 1], axis_is_tensor=True),
+        input_data=input_data,
     )
     verify_model(
-        Split(axis=1, num_or_sections=[2, -1, [3]], num_is_tensor=True), input_data=input_data
+        Split(axis=1, num_or_sections=[2, -1, [3]], num_is_tensor=True),
+        input_data=input_data,
     )
 
 
@@ -1205,7 +1246,9 @@ def test_forward_interpolate():
     verify_model(Interpolate(use_scale=True, use_const=True), input_data)
     verify_model(Interpolate(use_const=True, use_scaler=True), input_data)
     verify_model(Interpolate("bilinear", use_scale=True), input_data)
-    verify_model(Interpolate("bilinear", use_scale=True, align_corners=True), input_data)
+    verify_model(
+        Interpolate("bilinear", use_scale=True, align_corners=True), input_data
+    )
     verify_model(
         Interpolate(
             "bilinear",
@@ -1218,7 +1261,8 @@ def test_forward_interpolate():
         input_data,
     )
     verify_model(
-        Interpolate("bicubic", use_scale=True, align_corners=True, align_mode=1), input_data
+        Interpolate("bicubic", use_scale=True, align_corners=True, align_mode=1),
+        input_data,
     )
 
 
@@ -1226,7 +1270,9 @@ def test_forward_interpolate():
 def test_forward_layer_norm():
     @paddle.jit.to_static
     def layer_norm(inputs, weight, bias):
-        return nn.functional.layer_norm(inputs, inputs.shape[-1], weight=weight, bias=bias)
+        return nn.functional.layer_norm(
+            inputs, inputs.shape[-1], weight=weight, bias=bias
+        )
 
     class LayerNorm(nn.Layer):
         def __init__(self):
@@ -1407,7 +1453,9 @@ def test_forward_pad1d():
     class Pad1D(nn.Layer):
         def __init__(self, padding=0, mode="constant", value=0.0, data_format="NCL"):
             super(Pad1D, self).__init__()
-            self.pad1d = paddle.nn.Pad1D(padding, mode=mode, value=value, data_format=data_format)
+            self.pad1d = paddle.nn.Pad1D(
+                padding, mode=mode, value=value, data_format=data_format
+            )
 
         @paddle.jit.to_static
         def forward(self, inputs):
@@ -1428,7 +1476,9 @@ def test_forward_pad2d():
     class Pad2D(nn.Layer):
         def __init__(self, padding=0, mode="constant", value=0.0, data_format="NCHW"):
             super(Pad2D, self).__init__()
-            self.pad2d = paddle.nn.Pad2D(padding, mode=mode, value=value, data_format=data_format)
+            self.pad2d = paddle.nn.Pad2D(
+                padding, mode=mode, value=value, data_format=data_format
+            )
 
         @paddle.jit.to_static
         def forward(self, inputs):
@@ -1438,7 +1488,9 @@ def test_forward_pad2d():
     for input_shape in input_shapes:
         input_data = paddle.rand(input_shape, dtype="float32")
         verify_model(Pad2D(padding=2), input_data=input_data)
-        verify_model(Pad2D(padding=[1, 2, 0, 2], data_format="NHWC"), input_data=input_data)
+        verify_model(
+            Pad2D(padding=[1, 2, 0, 2], data_format="NHWC"), input_data=input_data
+        )
         verify_model(Pad2D(padding=[1, 2, 0, 2], value=0.3), input_data=input_data)
         verify_model(Pad2D(padding=[1, 2, 0, 2], mode="reflect"), input_data=input_data)
         verify_model(Pad2D(padding=3, mode="replicate"), input_data=input_data)
@@ -1449,7 +1501,9 @@ def test_forward_pad3d():
     class Pad3D(nn.Layer):
         def __init__(self, padding=0, mode="constant", value=0.0, data_format="NCDHW"):
             super(Pad3D, self).__init__()
-            self.pad3d = paddle.nn.Pad3D(padding, mode=mode, value=value, data_format=data_format)
+            self.pad3d = paddle.nn.Pad3D(
+                padding, mode=mode, value=value, data_format=data_format
+            )
 
         @paddle.jit.to_static
         def forward(self, inputs):
@@ -1459,9 +1513,16 @@ def test_forward_pad3d():
     for input_shape in input_shapes:
         input_data = paddle.rand(input_shape, dtype="float32")
         verify_model(Pad3D(padding=2), input_data=input_data)
-        verify_model(Pad3D(padding=[1, 2, 0, 2, 1, 1], data_format="NDHWC"), input_data=input_data)
-        verify_model(Pad3D(padding=[1, 2, 0, 2, 1, 1], value=0.3), input_data=input_data)
-        verify_model(Pad3D(padding=[1, 2, 0, 2, 1, 1], mode="reflect"), input_data=input_data)
+        verify_model(
+            Pad3D(padding=[1, 2, 0, 2, 1, 1], data_format="NDHWC"),
+            input_data=input_data,
+        )
+        verify_model(
+            Pad3D(padding=[1, 2, 0, 2, 1, 1], value=0.3), input_data=input_data
+        )
+        verify_model(
+            Pad3D(padding=[1, 2, 0, 2, 1, 1], mode="reflect"), input_data=input_data
+        )
         verify_model(Pad3D(padding=3, mode="replicate"), input_data=input_data)
 
 
@@ -1493,7 +1554,9 @@ def test_forward_reduce():
 
         @paddle.jit.to_static
         def forward(self, inputs):
-            result = getattr(paddle, self.op_name)(inputs, axis=self.axis, keepdim=self.keepdim)
+            result = getattr(paddle, self.op_name)(
+                inputs, axis=self.axis, keepdim=self.keepdim
+            )
             result = result.astype("float32")
             return result
 
@@ -1636,7 +1699,8 @@ def test_forward_unique():
     verify_model(Unique(return_index=True), input_data=input_data)
     verify_model(Unique(return_index=True, return_inverse=True), input_data=input_data)
     verify_model(
-        Unique(return_index=True, return_inverse=True, return_counts=True), input_data=input_data
+        Unique(return_index=True, return_inverse=True, return_counts=True),
+        input_data=input_data,
     )
 
 
@@ -1958,10 +2022,14 @@ def test_forward_arange():
 @tvm.testing.uses_gpu
 def test_forward_rnn():
     class RNN(nn.Layer):
-        def __init__(self, api_name, input_size, hidden_size, num_layers, direction="forward"):
+        def __init__(
+            self, api_name, input_size, hidden_size, num_layers, direction="forward"
+        ):
             super(RNN, self).__init__()
             rnn_func = getattr(paddle.nn, api_name, None)
-            self.rnn = rnn_func(input_size, hidden_size, num_layers, direction=direction)
+            self.rnn = rnn_func(
+                input_size, hidden_size, num_layers, direction=direction
+            )
 
         @paddle.jit.to_static
         def forward(self, inputs, prev_h):
@@ -1975,12 +2043,15 @@ def test_forward_rnn():
     for api_name in ("SimpleRNN", "GRU"):
         prev_h = paddle.rand([4, 4, 16], dtype="float32")
         verify_model(
-            RNN(api_name, input_size, hidden_size, num_layers, direction="bidirectional"),
+            RNN(
+                api_name, input_size, hidden_size, num_layers, direction="bidirectional"
+            ),
             input_data=[input_data, prev_h],
         )
         prev_h = paddle.rand([2, 4, 16], dtype="float32")
         verify_model(
-            RNN(api_name, input_size, hidden_size, num_layers), input_data=[input_data, prev_h]
+            RNN(api_name, input_size, hidden_size, num_layers),
+            input_data=[input_data, prev_h],
         )
 
 
@@ -2021,7 +2092,9 @@ def test_forward_topk():
         return paddle.fluid.layers.topk(inputs, k=2)
 
     input_data = paddle.to_tensor([[1, 4, 5, 7], [3, 6, 2, 5]], dtype=paddle.int32)
-    input_data_fp32 = paddle.to_tensor([[1, 4, 5, 7], [3, 6, 2, 5]], dtype=paddle.float32)
+    input_data_fp32 = paddle.to_tensor(
+        [[1, 4, 5, 7], [3, 6, 2, 5]], dtype=paddle.float32
+    )
     verify_model(topk1, input_data=input_data)
     # verify_model(topk2, input_data=input_data)
     verify_model(topk3, input_data=input_data)
@@ -2309,22 +2382,38 @@ def test_forward_eye():
     class Eye1(nn.Layer):
         @paddle.jit.to_static
         def forward(self, inputs):
-            return paddle.eye(3, 5, dtype="int32"), paddle.eye(3, 5, dtype="float32"), inputs
+            return (
+                paddle.eye(3, 5, dtype="int32"),
+                paddle.eye(3, 5, dtype="float32"),
+                inputs,
+            )
 
     class Eye2(nn.Layer):
         @paddle.jit.to_static
         def forward(self, inputs):
-            return paddle.eye(5, 3, dtype="int64"), paddle.eye(5, 3, dtype="float64"), inputs
+            return (
+                paddle.eye(5, 3, dtype="int64"),
+                paddle.eye(5, 3, dtype="float64"),
+                inputs,
+            )
 
     class Eye3(nn.Layer):
         @paddle.jit.to_static
         def forward(self, inputs):
-            return paddle.eye(0, 3, dtype="int64"), paddle.eye(0, 0, dtype="float64"), inputs
+            return (
+                paddle.eye(0, 3, dtype="int64"),
+                paddle.eye(0, 0, dtype="float64"),
+                inputs,
+            )
 
     class Eye4(nn.Layer):
         @paddle.jit.to_static
         def forward(self, inputs):
-            return paddle.eye(4, None, dtype="int64"), paddle.eye(4, None, dtype="float64"), inputs
+            return (
+                paddle.eye(4, None, dtype="int64"),
+                paddle.eye(4, None, dtype="float64"),
+                inputs,
+            )
 
     x = paddle.to_tensor([1], dtype="float32")
     verify_model(Eye1(), input_data=[x])
