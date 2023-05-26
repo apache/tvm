@@ -525,10 +525,10 @@ def instantiate_conv2d_template(attrs):
 
         if has_residual_block:
             res_shape = list(attrs.pop("residual_shape"))
-            res_shape = f"cutlass::make_Coord({res_shape[0]}, {res_shape[1]}, {res_shape[2]}, K)"
+            shape_str = f"cutlass::make_Coord({res_shape[0]}, {res_shape[1]}, {res_shape[2]}, K)"
             aux_map[
                 "residual_shape_decl"
-            ] = f"auto residual_shape = TensorNHWC::packed({res_shape});"
+            ] = f"auto residual_shape = TensorNHWC::packed({shape_str});"
             aux_map["C_shape"] = "residual_shape"
 
             if res_shape == [int(attrs[c]) for c in ["N", "H", "W", "K"]]:
