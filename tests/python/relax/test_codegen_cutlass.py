@@ -1011,46 +1011,57 @@ def test_attention_rewrite_offload(attention_rewrite_size):
         tvm.testing.assert_allclose(original_out, expected_out, rtol=1e-5, atol=1e-5)
 
 
-def test_invalid_residual():
-    @tvm.script.ir_module
-    class Module:
-        @R.function
-        def main(
-            x: R.Tensor((2, 64, 64, 8), dtype="float16"),
-            w: R.Tensor((8, 3, 3, 8), dtype="float16"),
-            bias: R.Tensor((1, 1, 8), dtype="float16"),
-            residual: R.Tensor((1, 1, 1, 8), dtype="float16"),
-        ):
-            with R.dataflow():
-                conv = R.nn.conv2d(
-                    x,
-                    w,
-                    padding=[1, 1, 1, 1],
-                    out_dtype="float16",
-                    data_layout="NHWC",
-                    kernel_layout="OHWI",
-                )
-                bias_out = R.add(conv, bias)
-                out = R.add(bias_out, residual)
-                R.output(out)
-            return out
-
-    dtype = "float16"
-    low = -1
-    high = 1
+def test_conv2d_residual_broadcast():
     data_shape = (2, 64, 64, 8)
     weight_shape = (8, 3, 3, 8)
+    dtype = "float16"
+
+    def get_mod(residual_batch):
+        with IRBuilder() as builder:
+            with relax_builder.function():
+                R.func_name("main")
+                data = R.arg("data", R.Tensor(data_shape, dtype))
+                weight = R.arg("weight", R.Tensor(weight_shape, dtype))
+                bias = R.arg("bias", R.Tensor((1, 1, weight_shape[0]), dtype))
+                residual = R.arg(
+                    "residual", R.Tensor((residual_batch, 1, 1, weight_shape[0]), dtype)
+                )
+
+                with R.dataflow() as frame:
+                    output = R.emit(
+                        R.nn.conv2d(
+                            data,
+                            weight,
+                            out_dtype=dtype,
+                            padding=(1, 1),
+                            data_layout="NHWC",
+                            kernel_layout="OHWI",
+                        )
+                    )
+                    output = R.emit(output + bias)
+                    output = R.emit(R.nn.relu(output))
+                    output = R.emit(R.add(output, residual))
+                    R.output(output)
+
+                R.func_ret_value(frame.output_vars[0])
+
+        func = builder.get()
+        return tvm.IRModule({"main": func})
+
+    low = -1
+    high = 1
+
+    residual_batch = 1
+    mod = get_mod(residual_batch)
     data = np.random.randint(low, high, size=data_shape).astype(dtype)
     weight = np.random.randint(low, high, size=weight_shape).astype(dtype)
     bias = np.random.randint(low, high, size=(1, 1, weight_shape[0])).astype(dtype)
-    bias2 = np.random.randint(low, high, size=(1, 1, 1, weight_shape[0])).astype(dtype)
+    bias2 = np.random.randint(low, high, size=(residual_batch, 1, 1, weight_shape[0])).astype(dtype)
 
     args = [data, weight, bias, bias2]
-    out = get_result_with_relax_cutlass_offload(Module, *args)
-    ref = build_and_run(Module, args, "llvm")
+    out = get_result_with_relax_cutlass_offload(mod, *args)
+    ref = build_and_run(mod, args, "llvm")
     tvm.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
-
-    print("ok")
 
 
 @pytest.mark.parametrize(
@@ -1200,6 +1211,4 @@ def test_attention_rewrite_fp16():
 
 
 if __name__ == "__main__":
-    # tvm.testing.main()
-    # test_invalid_residual()
-    test_conv2d_offload((3, 64, 64, 16), (16, 3, 3, 16), "float16", "relu", "add")
+    tvm.testing.main()
