@@ -508,7 +508,7 @@ def test_forward_conv():
         @paddle.jit.to_static
         def forward(self, inputs):
             return self.softmax(self.conv(inputs))
-        
+
     class Conv2D2(nn.Layer):
         def __init__(
             self, 
