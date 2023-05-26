@@ -86,8 +86,12 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
     }
 
     PostOrderVisit(func, [this](Expr e) {
-      if (e->IsInstance<ConstantNode>() || e->IsInstance<ShapeExprNode>()) {
-	memo_[e] = arena_->make<Group>();
+      // Make default groups for dataflow nodes other than CallNode.
+      // Groups for CallNode are created in its visitor.
+      if (e->IsInstance<ConstantNode>() || e->IsInstance<ShapeExprNode>() ||
+          e->IsInstance<TupleNode>() || e->IsInstance<TupleGetItemNode>() ||
+          e->IsInstance<PrimValueNode>()) {
+        memo_[e] = arena_->make<Group>();
       }
     });
 
