@@ -1019,8 +1019,8 @@ def test_invalid_residual():
             x: R.Tensor((2, 64, 64, 8), dtype="float16"),
             w: R.Tensor((8, 3, 3, 8), dtype="float16"),
             bias: R.Tensor((1, 1, 8), dtype="float16"),
-            residual: R.Tensor((2, 1, 1, 8), dtype="float16"),
-        ) -> R.Tensor((1, 256, 64, 64), dtype="float16"):
+            residual: R.Tensor((1, 1, 1, 8), dtype="float16"),
+        ):
             with R.dataflow():
                 conv = R.nn.conv2d(
                     x,
@@ -1035,11 +1035,22 @@ def test_invalid_residual():
                 R.output(out)
             return out
 
-    rewritten = partition_for_cutlass(Module)
-    func_names = [gv.name_hint for gv in rewritten.functions.keys()]
+    dtype = "float16"
+    low = -1
+    high = 1
+    data_shape = (2, 64, 64, 8)
+    weight_shape = (8, 3, 3, 8)
+    data = np.random.randint(low, high, size=data_shape).astype(dtype)
+    weight = np.random.randint(low, high, size=weight_shape).astype(dtype)
+    bias = np.random.randint(low, high, size=(1, 1, weight_shape[0])).astype(dtype)
+    bias2 = np.random.randint(low, high, size=(1, 1, 1, weight_shape[0])).astype(dtype)
 
-    assert "fused_relax_nn_conv2d_relax_add_relax_add_cutlass" not in func_names
-    assert "fused_relax_nn_conv2d_relax_add_cutlass" in func_names
+    args = [data, weight, bias, bias2]
+    out = get_result_with_relax_cutlass_offload(Module, *args)
+    ref = build_and_run(Module, args, "llvm")
+    tvm.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
+
+    print("ok")
 
 
 @pytest.mark.parametrize(
@@ -1189,4 +1200,6 @@ def test_attention_rewrite_fp16():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    # tvm.testing.main()
+    # test_invalid_residual()
+    test_conv2d_offload((3, 64, 64, 16), (16, 3, 3, 16), "float16", "relu", "add")

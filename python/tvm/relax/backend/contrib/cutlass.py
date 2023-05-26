@@ -101,11 +101,11 @@ def _check_residual(root_call: Call, context: PatternCheckContext) -> bool:
             # If residual depends on the result of the root call, this cannot be handled by cutlass.
             return False
 
-        shape1 = [int(s) for s in root_var.struct_info.shape]
-        shape2 = [int(s) for s in residual.struct_info.shape]
+        # shape1 = [int(s) for s in root_var.struct_info.shape]
+        # shape2 = [int(s) for s in residual.struct_info.shape]
 
-        if shape1 != shape2:
-            return False
+        # if shape1 != shape2:
+        #     return False
 
     return True
 

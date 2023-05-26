@@ -394,11 +394,12 @@ def instantiate_conv2d_template(attrs):
   auto activation_shape = TensorNHWC::packed(cutlass::make_Coord(N, H, W, C));
   auto weight_shape = TensorNHWC::packed(cutlass::make_Coord(K, R, S, C));
   auto output_shape = TensorNHWC::packed(cutlass::make_Coord(N, P, Q, K));
+  ${residual_shape_decl}
 
   TensorNHWC layout_A(${A_shape});
   TensorNHWC layout_B(${B_shape});
   TensorNHWC layout_C(${C_shape});
-  TensorNHWC layout_D(${C_shape});
+  TensorNHWC layout_D(${D_shape});
 
   using ElementOutput = ${ElementOutput};
   cutlass::TensorRef<ElementOutput, TensorNHWC> tensor_c{static_cast<ElementOutput*>(${tensor_c}), ${tensor_c_layout}};
@@ -506,18 +507,44 @@ def instantiate_conv2d_template(attrs):
     else:
         aux_map["additional_args"] = ""
 
+    aux_map["residual_shape_decl"] = ""
+
     if is_wgrad:
         aux_map["A_shape"] = "output_shape"
         aux_map["B_shape"] = "activation_shape"
         aux_map["C_shape"] = "weight_shape"
+        aux_map["D_shape"] = "weight_shape"
     elif is_dgrad:
         aux_map["A_shape"] = "output_shape"
         aux_map["B_shape"] = "weight_shape"
         aux_map["C_shape"] = "activation_shape"
+        aux_map["D_shape"] = "activation_shape"
     else:
         aux_map["A_shape"] = "activation_shape"
         aux_map["B_shape"] = "weight_shape"
-        aux_map["C_shape"] = "output_shape"
+
+        if has_residual_block:
+            residual_shape = attrs["residual_shape"]
+            attrs.pop("residual_shape")
+            aux_map[
+                "residual_shape_decl"
+            ] = "auto residual_shape = TensorNHWC::packed(cutlass::make_Coord((int){}, (int){}, (int){}, K));".format(
+                residual_shape[0], residual_shape[1], residual_shape[2]
+            )
+            aux_map["C_shape"] = "residual_shape"
+
+            if list(residual_shape) == [
+                int(attrs["N"]),
+                int(attrs["H"]),
+                int(attrs["W"]),
+                int(attrs["K"]),
+            ]:
+                aux_map["tensor_c_layout"] = "layout_C"
+            else:
+                aux_map["tensor_c_layout"] = "cutlass::layout::TensorNHWC::Stride(0)"
+        else:
+            aux_map["C_shape"] = "output_shape"
+        aux_map["D_shape"] = "output_shape"
 
     if use_split_k:
         aux_map["ElementOutput"] = "EpilogueOutputOp::ElementOutput"
