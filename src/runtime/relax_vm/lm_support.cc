@@ -85,6 +85,19 @@ class AttentionKVCacheObj : public Object {
   /** Clear the cache */
   void Clear() { this->fill_count = 0; }
 
+  void Update(NDArray value) {
+    CHECK(data.DataType() == value.DataType()) << "dtype mismatch";
+    CHECK_EQ(value->shape[0], fill_count) << "Requested shape do not match the filled count";
+    ICHECK(data.IsContiguous());
+    ICHECK(value.IsContiguous());
+
+    DLTensor copy_dst = *(data.operator->());
+    copy_dst.byte_offset = 0;
+    copy_dst.shape = value->shape;
+    NDArray::CopyFromTo(value.operator->(), &copy_dst);
+    this->fill_count = value->shape[0];
+  }
+
   /*!
    * \brief Append value to the cache.
    * \param value The value to be appended.
@@ -153,6 +166,13 @@ TVM_REGISTER_OBJECT_TYPE(AttentionKVCacheObj);
 //-------------------------------------------------
 TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_create")
     .set_body_typed(AttentionKVCache::Create);
+
+AttentionKVCache AttentionKVCacheUpdate(AttentionKVCache cache, NDArray value) {
+  cache->Update(value);
+  return cache;
+}
+
+TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_update").set_body_typed(AttentionKVCacheUpdate);
 
 AttentionKVCache AttentionKVCacheAppend(AttentionKVCache cache, NDArray value) {
   cache->Append(value);
