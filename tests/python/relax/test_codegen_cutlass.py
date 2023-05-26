@@ -25,6 +25,8 @@ from tvm.contrib.cutlass.build import is_shape_valid_for_cutlass_matmul
 from tvm.contrib.pickle_memoize import memoize
 from tvm.relax.backend.contrib.cutlass import partition_for_cutlass
 from tvm.relax.testing import get_relax_matmul_module
+from tvm.script import tir as T
+from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import relax as relax_builder
@@ -1084,6 +1086,106 @@ def test_layer_norm(data_shape, dtype, axes):
     ref = build_and_run(Module, [inp, gamma, beta], "llvm")
 
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
+
+
+def test_attention_rewrite_fp16():
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(
+            q: R.Tensor((4, 16, 32, 8), dtype="float16"),
+            k: R.Tensor((4, 8, 32, 8), dtype="float16"),
+            v: R.Tensor((4, 8, 32, 16), dtype="float16"),
+            bias: R.Tensor((4, 32, 16, 8), dtype="float16"),
+        ) -> R.Tensor((4, 16, 32, 16), dtype="float16"):
+            with R.dataflow():
+                lv = R.permute_dims(q, axes=[0, 2, 1, 3])
+                lv1 = R.reshape(lv, R.shape([128, 16, 8]))
+                lv2 = R.permute_dims(k, axes=[0, 2, 1, 3])
+                lv3 = R.reshape(lv2, R.shape([128, 8, 8]))
+                lv4 = R.permute_dims(v, axes=[0, 2, 1, 3])
+                lv5 = R.reshape(lv4, R.shape([128, 8, 16]))
+                lv6 = R.permute_dims(lv3, axes=[0, 2, 1])
+                lv7 = R.matmul(lv1, lv6, out_dtype="float16")
+                lv3_1 = R.astype(R.const(0.5, "float32"), dtype="float16")
+                lv8 = R.multiply(lv7, lv3_1)
+                lv9 = R.reshape(bias, R.shape([128, 16, 8]))
+                lv10 = R.add(lv8, lv9)
+                lv10_fp16 = R.astype(lv10, dtype="float16")
+                lv11 = R.nn.softmax(lv10_fp16, axis=2)
+                lv5_1 = R.astype(lv11, dtype="float16")
+                lv12 = R.matmul(lv5_1, lv5, out_dtype="float16")
+                lv13 = R.reshape(lv12, R.shape([4, 32, 16, 16]))
+                lv6_1 = R.permute_dims(lv13, axes=[0, 2, 1, 3])
+                lv14 = R.astype(lv6_1, dtype="float32")
+                R.output(lv14)
+            return lv14
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def fused_relax_nn_attention_bias_cutlass1(
+            q: R.Tensor((4, 16, 32, 8), dtype="float16"),
+            k: R.Tensor((4, 8, 32, 8), dtype="float16"),
+            v: R.Tensor((4, 8, 32, 16), dtype="float16"),
+            lv1: R.Tensor((4, 32, 16, 8), dtype="float16"),
+            workspace: R.Tensor((65536,), dtype="uint8"),
+        ) -> R.Tensor((4, 16, 32, 16), dtype="float16"):
+            R.func_attr(
+                {
+                    "Codegen": "cutlass",
+                    "WorkspaceSize": T.int64(65536),
+                    "global_symbol": "fused_relax_nn_attention_bias_cutlass1",
+                }
+            )
+
+            @R.function
+            def gv_1(
+                q_1: R.Tensor((4, 16, 32, 8), dtype="float16"),
+                k_1: R.Tensor((4, 8, 32, 8), dtype="float16"),
+                v_1: R.Tensor((4, 8, 32, 16), dtype="float16"),
+                lv1_1: R.Tensor((4, 32, 16, 8), dtype="float16"),
+                workspace_1: R.Tensor((65536,), dtype="uint8"),
+            ) -> R.Tensor((4, 16, 32, 16), dtype="float16"):
+                R.func_attr(
+                    {
+                        "Composite": "cutlass.attention_bias",
+                        "Primitive": 1,
+                        "WorkspaceSize": T.int64(65536),
+                    }
+                )
+                with R.dataflow():
+                    gv_2 = R.nn.attention(
+                        q_1, k_1, v_1, lv1_1, scale=T.float32(0.5), causal_mask=None
+                    )
+                    R.output(gv_2)
+                return gv_2
+
+            gv1: R.Tensor((4, 16, 32, 16), dtype="float16") = gv_1(q, k, v, lv1, workspace)
+            return gv1
+
+        @R.function
+        def main(
+            q: R.Tensor((4, 16, 32, 8), dtype="float16"),
+            k: R.Tensor((4, 8, 32, 8), dtype="float16"),
+            v: R.Tensor((4, 8, 32, 16), dtype="float16"),
+            bias: R.Tensor((4, 32, 16, 8), dtype="float16"),
+        ) -> R.Tensor((4, 16, 32, 16), dtype="float16"):
+            cls = Expected
+            with R.dataflow():
+                lv = R.vm.alloc_storage(R.shape([65536]), R.prim_value(0), R.dtype("uint8"))
+                workspace_main = R.vm.alloc_tensor(
+                    lv, R.prim_value(0), R.shape([65536]), R.dtype("uint8")
+                )
+                lv_1 = R.reshape(bias, R.shape([128, 16, 8]))
+                lv1 = R.reshape(lv_1, R.shape([4, 32, 16, 8]))
+                lv_2 = cls.fused_relax_nn_attention_bias_cutlass1(q, k, v, lv1, workspace_main)
+                lv14 = R.astype(lv_2, dtype="float32")
+                R.output(lv14)
+            return lv14
+
+    mod = partition_for_cutlass(Module)
+    tvm.ir.assert_structural_equal(mod, Expected)
 
 
 if __name__ == "__main__":

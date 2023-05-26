@@ -1036,6 +1036,9 @@ def attention(
         a 4-D tensor ending with seq_len_kv, and broadcastable to
         (batch_size, num_head, seq_len, seq_len_kv).
 
+    scale: Optional[float]
+        The scale value to be applied to the attention score, by default 1 / sqrt(head_dim).
+
     causal_mask: Optional[str]
         The optional causal mask, i.e. 'TopLeft' and 'BottomRight'.
         For 'TopLeft', the mask matrix is as `np.tril(*, k=0)`,

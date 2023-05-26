@@ -360,7 +360,10 @@ def attention_rewrite_patterns():
     for qkv_layout in ["BSNH", "BSH"]:
         for out_layout in ["BSNH", "BSH"]:
             for with_bias in [True, False]:
-                patterns.append(make_attention_rewrite_pattern(qkv_layout, out_layout, with_bias))
+                for with_cast in [True, False]:
+                    patterns.append(
+                        make_attention_rewrite_pattern(qkv_layout, out_layout, with_bias, with_cast)
+                    )
     return patterns
 
 
@@ -441,7 +444,9 @@ def partition_for_cutlass(mod, annotate_codegen=True):
     for func_name, func in mod.functions.items():
         if isinstance(func, Function):
             for pattern, rewriter in _REWRITE_PATTERNS:
-                mod[func_name] = rewrite_call(pattern, rewriter, func)
+                func = rewrite_call(pattern, rewriter, func)
+        mod[func_name] = func
+
     patterns = get_patterns_with_prefix("cutlass")
     return tvm.transform.Sequential(
         [
