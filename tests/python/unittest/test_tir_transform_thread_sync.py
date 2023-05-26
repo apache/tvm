@@ -24,12 +24,13 @@ def run_passes(func: tvm.tir.PrimFunc):
     mod = tvm.IRModule.from_expr(func)
     mod = tvm.tir.transform.StorageFlatten(64)(mod)
 
-    cuda_target = tvm.target.Target("cuda")
+    cuda_target = tvm.target.Target("cuda", host="llvm")
 
     mod = tvm.tir.transform.Apply(
         lambda f: f.with_attr({"global_symbol": "test", "target": cuda_target})
     )(mod)
 
+    mod = tvm.tir.transform.AnnotateDeviceRegions()(mod)
     mod = tvm.tir.transform.SplitHostDevice()(mod)
     return tvm.tir.transform.ThreadSync("shared")(mod)
 
@@ -55,7 +56,7 @@ def test_thread_storage_sync():
 
     func = tvm.te.schedule.SchedulePostProcToPrimFunc([A, A2], stmt, None)
     mod = run_passes(func)
-    f = mod["test_kernel0"]
+    f = mod["test_kernel"]
     body_list = tvm.tir.stmt_list(f.body.body.body)
     assert body_list[1].value.op.same_as(tvm.ir.Op.get("tir.tvm_storage_sync"))
 
