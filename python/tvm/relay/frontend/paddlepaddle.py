@@ -2174,9 +2174,9 @@ def convert_softplus(g, op, block):
         threshold = _expr.const(20.0, dtype=dtype)
     threshold = _expr.const(threshold, dtype=dtype)
     if x * beta <= threshold:
-       out = _op.log(_op.exp(x * beta) + _expr.const(1.0, dtype=dtype)) / beta
+        out = _op.log(_op.exp(x * beta) + _expr.const(1.0, dtype=dtype)) / beta
     else:
-       out = x
+        out = x
 
     g.add_node(op.output("Out")[0], out)
 
