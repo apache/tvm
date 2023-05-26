@@ -61,7 +61,7 @@ def _convert(arg, cargs):
     elif isinstance(arg, str):
         cargs.append(arg)
     else:
-        raise TypeError("Unsupported type: %s" % (type(arg)))
+        raise TypeError(f"Unsupported type: {type(arg)}")
 
 
 def convert(args):
@@ -179,14 +179,13 @@ class Executable(object):
             bytecode = bytearray(bytecode)
         elif not isinstance(bytecode, (bytearray, TVMByteArray)):
             raise TypeError(
-                "bytecode is expected to be the type of bytearray "
-                + "or TVMByteArray, but received {}".format(type(bytecode))
+                "bytecode is expected to be the type of bytearray or TVMByteArray, but received "
+                f"{type(bytecode)}"
             )
 
         if lib is not None and not isinstance(lib, tvm.runtime.Module):
             raise TypeError(
-                "lib is expected to be the type of tvm.runtime.Module"
-                + ", but received {}".format(type(lib))
+                f"lib is expected to be the type of tvm.runtime.Module, but received {type(lib)}"
             )
 
         return Executable(_ffi_api.Load_Executable(bytecode, lib))
@@ -384,8 +383,7 @@ class VirtualMachine(object):
         """
         if not isinstance(exe, Executable) and not isinstance(exe, Module):
             raise TypeError(
-                "exe is expected to be the type of Executable, "
-                + "but received {}".format(type(exe))
+                f"exe is expected to be the type of Executable, but received {type(exe)}"
             )
 
         if not isinstance(exe, Executable):
@@ -426,8 +424,7 @@ class VirtualMachine(object):
             memory_cfg = {}
         elif not isinstance(memory_cfg, dict):
             raise TypeError(
-                "memory_cfg is expected be string or dictionary, "
-                + "but received {}".format(type(memory_cfg))
+                f"memory_cfg is expected be string or dictionary, but received {type(memory_cfg)}"
             )
         init_args = []
         for device in devs:
