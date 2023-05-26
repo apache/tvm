@@ -833,7 +833,7 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
 
         if op_attrs.causal_mask is None:
             custom_mask_type = 0
-        if op_attrs.causal_mask == "TopLeft":
+        elif op_attrs.causal_mask == "TopLeft":
             custom_mask_type = 1
         elif op_attrs.causal_mask == "BottomRight":
             custom_mask_type = 2
