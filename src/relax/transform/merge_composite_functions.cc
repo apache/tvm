@@ -84,6 +84,13 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
     for (const auto& param : func->params) {
       memo_[param] = arena_->make<Group>();
     }
+
+    PostOrderVisit(func, [this](Expr e) {
+      if (e->IsInstance<ConstantNode>() || e->IsInstance<ShapeExprNode>()) {
+	memo_[e] = arena_->make<Group>();
+      }
+    });
+
     VisitExpr(func->body);
 
     GroupMap group_map;
