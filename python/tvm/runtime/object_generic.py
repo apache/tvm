@@ -84,7 +84,7 @@ def convert_to_object(value, span=None):
     if value is None:
         return None
 
-    raise ValueError("don't know how to convert type %s to object" % type(value))
+    raise ValueError(f"don't know how to convert type {type(value)} to object")
 
 
 def convert(value, span=None):
@@ -128,9 +128,7 @@ def _scalar_type_inference(value):
         else:
             dtype = "int64"
     else:
-        raise NotImplementedError(
-            "Cannot automatically inference the type." " value={}".format(value)
-        )
+        raise NotImplementedError(f"Cannot automatically inference the type. value={value}")
     return dtype
 
 
