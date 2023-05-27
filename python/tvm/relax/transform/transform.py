@@ -1012,7 +1012,7 @@ def SplitCallTIRByPattern(patterns, fcodegen) -> tvm.ir.transform.Pass:
     return _ffi_api.SplitCallTIRByPattern(patterns, fcodegen)  # type: ignore
 
 
-def CombineParallelMatmul():
+def CombineParallelMatmul(check=None):
     """Combine multiple matmul operators sharing the same LHS matrix into one,
     followed by slicing. When all matmul branches in a tree have the same set of fused ops,
     the fused ops are applied to the combined matmul output before slicing.
@@ -1020,12 +1020,20 @@ def CombineParallelMatmul():
     Currently, only a limited set of fused ops is supported. It includes bias add,
     relu, gelu, gelu_tanh and silu activation.
 
+    Parameters
+    ----------
+    check : Callable[[Var, List[Var], List[Var], Dict[Var, Expr]], bool]
+        A function to filter out unwanted branches, with the signature
+        (input, [rhs], [bias], binding) -> bool.
+
     Returns
     -------
     ret : tvm.transform.Pass
         The corresponding pass.
     """
-    return _ffi_api.CombineParallelMatmul()  # type: ignore
+    if check is None:
+        check = lambda _: True
+    return _ffi_api.CombineParallelMatmul(check)  # type: ignore
 
 
 def RewriteCUDAGraph() -> tvm.ir.transform.Pass:
