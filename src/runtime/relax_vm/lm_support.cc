@@ -85,6 +85,12 @@ class AttentionKVCacheObj : public Object {
   /** Clear the cache */
   void Clear() { this->fill_count = 0; }
 
+  /** pop n entries */
+  void PopN(size_t n) {
+    ICHECK_LE(n, fill_count);
+    this->fill_count -= n;
+  }
+
   void Update(NDArray value) {
     CHECK(data.DataType() == value.DataType()) << "dtype mismatch";
     CHECK_EQ(value->shape[0], fill_count) << "Requested shape do not match the filled count";
@@ -203,6 +209,15 @@ TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_view")
         *rv = cache->View(ShapeTuple(shape));
       }
     });
+
+void AttentionKVCacheArrayPopN(Array<AttentionKVCache> caches, int64_t n) {
+  for (AttentionKVCache cache : caches) {
+    cache->PopN(static_cast<size_t>(n));
+  }
+}
+
+TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_array_popn")
+    .set_body_typed(AttentionKVCacheArrayPopN);
 
 void AttentionKVCacheArrayClear(Array<AttentionKVCache> caches) {
   for (AttentionKVCache cache : caches) {
