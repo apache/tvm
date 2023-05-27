@@ -707,12 +707,11 @@ static std::optional<MatchState> MatchTree(
   return std::nullopt;
 }
 
-Optional<Map<DFPattern, Var>> MatchGraph(const PatternContext& ctx, const DataflowBlock& dfb) {
+Optional<Map<DFPattern, Var>> MatchGraph(const PatternContext& ctx, const DataflowBlock& dfb,
+                                         const Map<Var, Expr>& bindings) {
   // TODO(@ganler): Handle non-may external use.
   ICHECK(ctx->allow_extern_use == PatternContextNode::kMay) << "Only kMay is supported yet.";
-
-  const auto var2val = AnalyzeVar2Value(dfb);
-  DFPatternMatcher matcher(var2val);
+  DFPatternMatcher matcher(bindings);
 
   MatcherUseDefAnalysis ud_analysis;
   ud_analysis.VisitBindingBlock_(dfb.get());
@@ -772,7 +771,14 @@ Optional<Map<DFPattern, Var>> MatchGraph(const PatternContext& ctx, const Datafl
   return NullOpt;
 }
 
-TVM_REGISTER_GLOBAL("relax.dpl.match_dfb").set_body_typed(MatchGraph);
+Optional<Map<DFPattern, Var>> MatchGraph(const PatternContext& ctx, const DataflowBlock& dfb) {
+  return MatchGraph(ctx, dfb, AnalyzeVar2Value(dfb));
+}
+
+TVM_REGISTER_GLOBAL("relax.dpl.match_dfb")
+    .set_body_typed([](const PatternContext& ctx, const DataflowBlock& dfb) {
+      return MatchGraph(ctx, dfb);
+    });
 
 /*!
  * \brief Apply pattern matching to each call node and dataflow block, and replace matching ones
@@ -864,9 +870,8 @@ class PatternRewriter : ExprMutator {
   // Repeat until all matchable subsets of bindings are rewritten.
   BindingBlock RewriteDataflowBlockFixedPoint(BindingBlock block) {
     auto df_block = Downcast<DataflowBlock>(block);
-    if (auto matches = MatchGraph(ctx_.value(), df_block)) {
-      Map<Var, Expr> bindings = AnalyzeVar2Value(df_block);
-
+    Map<Var, Expr> bindings = AnalyzeVar2Value(df_block);
+    if (auto matches = MatchGraph(ctx_.value(), df_block, bindings)) {
       builder_->BeginDataflowBlock();
       Map<Var, Expr> replacements = rewriter_func_(matches.value(), bindings);
 
