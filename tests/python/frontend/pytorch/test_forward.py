@@ -1427,6 +1427,8 @@ def test_forward_instancenorm():
     for ins_norm, inp in [
         (torch.nn.InstanceNorm2d(16), inp_2d),
         (torch.nn.InstanceNorm3d(16), inp_3d),
+        (torch.nn.InstanceNorm2d(16, track_running_stats=True), inp_2d),
+        (torch.nn.InstanceNorm3d(16, track_running_stats=True), inp_3d),
     ]:
         verify_model(ins_norm.eval(), input_data=inp)
 

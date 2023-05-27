@@ -1386,6 +1386,9 @@ class PyTorchOpConverter:
         data = inputs[0]
         data_type = input_types[0]
         channels = self.infer_shape(data)
+        running_mean = inputs[3]
+        running_var = inputs[4]
+        use_input_stats = inputs[5]
 
         if isinstance(inputs[1], _expr.Expr) and isinstance(inputs[2], _expr.Expr):
             scale = center = True
@@ -1402,6 +1405,20 @@ class PyTorchOpConverter:
             beta = _create_typed_const(np.zeros([int(channels[1])]), data_type)
 
         epsilon = float(inputs[7])
+
+        if not use_input_stats:
+            return _op.nn.batch_norm(
+                data,
+                gamma,
+                beta,
+                running_mean,
+                running_var,
+                axis=1,
+                epsilon=epsilon,
+                center=center,
+                scale=scale,
+            )[0]
+
         return _op.nn.instance_norm(
             data, gamma, beta, axis=1, epsilon=epsilon, center=center, scale=scale
         )
