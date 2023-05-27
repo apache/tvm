@@ -305,9 +305,8 @@ class Schedule(Object):
         """
         if isinstance(rand_var_or_sref, StmtSRef):
             return rand_var_or_sref.stmt
-        result = _ffi_api.ScheduleGet(
-            self, rand_var_or_sref
-        )  # type: ignore # pylint: disable=no-member
+        # pylint: disable-next=no-member
+        result = _ffi_api.ScheduleGet(self, rand_var_or_sref)  # type: ignore
         if isinstance(result, IntImm):
             result = result.value
         return result
@@ -468,9 +467,8 @@ class Schedule(Object):
             A list of loops above the given block in its scope, from outer to inner
         """
         block = self._normalize_block_arg(block)
-        return list(
-            _ffi_api.ScheduleGetLoops(self, block)
-        )  # type: ignore # pylint: disable=no-member
+        # pylint: disable-next=no-member
+        return list(_ffi_api.ScheduleGetLoops(self, block))  # type: ignore
 
     @type_checked
     def get_child_blocks(self, block_or_loop: Union[BlockRV, LoopRV]) -> List[BlockRV]:
@@ -486,9 +484,8 @@ class Schedule(Object):
         blocks : List[LoopRV]
             A list of leaf blocks inside a specific block/loop
         """
-        return list(
-            _ffi_api.ScheduleGetChildBlocks(self, block_or_loop)
-        )  # type: ignore # pylint: disable=no-member
+        # pylint: disable-next=no-member
+        return list(_ffi_api.ScheduleGetChildBlocks(self, block_or_loop))  # type: ignore
 
     @type_checked
     def get_producers(self, block: Union[BlockRV, str]) -> List[BlockRV]:
@@ -505,9 +502,8 @@ class Schedule(Object):
             A list of producers of the given block
         """
         block = self._normalize_block_arg(block)
-        return list(
-            _ffi_api.ScheduleGetProducers(self, block)
-        )  # type: ignore # pylint: disable=no-member
+        # pylint: disable-next=no-member
+        return list(_ffi_api.ScheduleGetProducers(self, block))  # type: ignore
 
     @type_checked
     def get_consumers(self, block: Union[BlockRV, str]) -> List[BlockRV]:
@@ -524,9 +520,8 @@ class Schedule(Object):
             A list of consumers of the given block
         """
         block = self._normalize_block_arg(block)
-        return list(
-            _ffi_api.ScheduleGetConsumers(self, block)
-        )  # type: ignore # pylint: disable=no-member
+        # pylint: disable-next=no-member
+        return list(_ffi_api.ScheduleGetConsumers(self, block))  # type: ignore
 
     @type_checked
     def get_output_blocks(self, scope_block: Union[BlockRV, str]) -> List[BlockRV]:
@@ -546,9 +541,8 @@ class Schedule(Object):
 
         """
         scope_block = self._normalize_block_arg(scope_block)
-        return list(
-            _ffi_api.ScheduleGetOutputBlocks(self, scope_block)
-        )  # type: ignore # pylint: disable=no-member
+        # pylint: disable-next=no-member
+        return list(_ffi_api.ScheduleGetOutputBlocks(self, scope_block))  # type: ignore
 
     ########## Schedule: Transform loops ##########
     @type_checked
@@ -685,9 +679,8 @@ class Schedule(Object):
                         B[vi, vj] = A[vi, vj] * 2.0
 
         """
-        return _ffi_api.ScheduleFuse(
-            self, loops, preserve_unit_iters
-        )  # type: ignore # pylint: disable=no-member
+        # pylint: disable-next=no-member
+        return _ffi_api.ScheduleFuse(self, loops, preserve_unit_iters)  # type: ignore
 
     @type_checked
     def split(
@@ -894,9 +887,8 @@ class Schedule(Object):
         --------
         reorder
         """
-        _ffi_api.ScheduleReorderBlockIterVar(
-            self, block, new_order
-        )  # type: ignore # pylint: disable=no-member
+        # pylint: disable-next=no-member
+        _ffi_api.ScheduleReorderBlockIterVar(self, block, new_order)  # type: ignore
 
     @type_checked
     def add_unit_loop(self, block_or_loop: Union[LoopRV, BlockRV]) -> LoopRV:
@@ -952,9 +944,8 @@ class Schedule(Object):
                         vi = T.axis.spatial(1, 0)
                         C[()] = A[()] + B[()]
         """
-        return _ffi_api.ScheduleAddUnitLoop(
-            self, block_or_loop
-        )  # type: ignore # pylint: disable=no-member
+        # pylint: disable-next=no-member
+        return _ffi_api.ScheduleAddUnitLoop(self, block_or_loop)  # type: ignore
 
     ########## Schedule: Manipulate ForKind ##########
 
@@ -2172,9 +2163,8 @@ class Schedule(Object):
 
         """
         block = self._normalize_block_arg(block)
-        _ffi_api.ScheduleReverseComputeInline(
-            self, block
-        )  # type: ignore # pylint: disable=no-member
+        # pylint: disable-next=no-member
+        _ffi_api.ScheduleReverseComputeInline(self, block)  # type: ignore
 
     ########## Schedule: Reduction ##########
 
@@ -2254,9 +2244,8 @@ class Schedule(Object):
 
         """
         block = self._normalize_block_arg(block)
-        return _ffi_api.ScheduleDecomposeReduction(
-            self, block, loop
-        )  # type: ignore # pylint: disable=no-member
+        # pylint: disable-next=no-member
+        return _ffi_api.ScheduleDecomposeReduction(self, block, loop)  # type: ignore
 
     @type_checked
     def rfactor(self, loop: LoopRV, factor_axis: int) -> BlockRV:
@@ -2405,9 +2394,8 @@ class Schedule(Object):
         where `B` is the buffer that the reduction block writes to.
         Negative indexing is normalized according to numpy convention.
         """
-        return _ffi_api.ScheduleRFactor(
-            self, loop, factor_axis
-        )  # type: ignore # pylint: disable=no-member
+        # pylint: disable-next=no-member
+        return _ffi_api.ScheduleRFactor(self, loop, factor_axis)  # type: ignore
 
     ######## Schedule: Block annotation ########
 
@@ -2724,9 +2712,8 @@ class Schedule(Object):
         block are divisible by the subspace represented by the loops starting at the given loop.
         """
 
-        return _ffi_api.ScheduleBlockize(
-            self, target, preserve_unit_iters
-        )  # type: ignore # pylint: disable=no-member
+        # pylint: disable-next=no-member
+        return _ffi_api.ScheduleBlockize(self, target, preserve_unit_iters)  # type: ignore
 
     @type_checked
     def tensorize(
@@ -3489,9 +3476,8 @@ class Schedule(Object):
     @type_checked
     def can_decompose_padding(self, block: Union[BlockRV, str], loop: LoopRV) -> bool:
         """Check whether the block match padding pattern and can be decomposed."""
-        return _ffi_api.CanDecomposePadding(
-            self, block, loop
-        )  # type: ignore # pylint: disable=no-member
+        # pylint: disable-next=no-member
+        return _ffi_api.CanDecomposePadding(self, block, loop)  # type: ignore
 
     @type_checked
     def pad_einsum(self, block: Union[BlockRV, str], padding: List[int]) -> None:
@@ -3717,9 +3703,8 @@ class Schedule(Object):
         The region_cover property of the consumer block of the target buffer will become false.
         """
         block = self._normalize_block_arg(block)
-        return _ffi_api.ScheduleRollingBuffer(
-            self, block, write_buffer_index
-        )  # type: ignore # pylint: disable=no-member
+        # pylint: disable-next=no-member
+        return _ffi_api.ScheduleRollingBuffer(self, block, write_buffer_index)  # type: ignore
 
     ########## Schedule: Misc ##########
 
