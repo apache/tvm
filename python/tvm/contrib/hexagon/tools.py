@@ -90,7 +90,7 @@ def link_shared(so_name, objs, extra_args=None):
     objs : list[str,StringImm]
     extra_args : dict (str->str) or Map<String,String>
         Additional arguments:
-            'hex_arch' - Hexagon architecture, e.g. v66
+            'hex_arch' - Hexagon architecture, e.g. v68
             'verbose'  - Print additional information if the key is present
 
     Returns
@@ -110,7 +110,7 @@ def link_shared(so_name, objs, extra_args=None):
 
     if not extra_args:
         extra_args = {}
-    hex_arch = extra_args.get("hex_arch") or "v66"
+    hex_arch = extra_args.get("hex_arch") or "v68"
     linker = tvm.get_global_func("tvm.contrib.hexagon.hexagon_link")()
     if extra_args.get("verbose"):
         print("tvm.contrib.hexagon.link_shared:")
@@ -161,7 +161,7 @@ def link_shared_macos(so_name, objs, extra_args=None):
     objs : list[str,StringImm]
     extra_args : dict (str->str) or Map<String,String>
         Additional arguments:
-            'hex_arch' - Hexagon architecture, e.g. v66
+            'hex_arch' - Hexagon architecture, e.g. v68
 
     Returns
     -------
@@ -180,7 +180,7 @@ def link_shared_macos(so_name, objs, extra_args=None):
 
     if not extra_args:
         extra_args = {}
-    hex_arch = extra_args.get("hex_arch") or "v66"
+    hex_arch = extra_args.get("hex_arch") or "v68"
 
     ses = ContainerSession(HEXAGON_SDK_DOCKER_IMAGE)
 
