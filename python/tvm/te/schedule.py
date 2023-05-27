@@ -74,7 +74,7 @@ class Schedule(Object):
         if not isinstance(k, _tensor.Operation):
             raise ValueError("Expect schedule key to be Tensor or Operation")
         if k not in self.stage_map:
-            raise ValueError("Cannot find the operation %s in schedule" % (str(k)))
+            raise ValueError(f"Cannot find the operation {k} in schedule")
         return self.stage_map[k]
 
     def normalize(self):
