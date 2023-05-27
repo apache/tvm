@@ -257,7 +257,7 @@ void AdjustParallelVectorize(const Schedule& sch, const BlockRV& block_rv,
   // Calculate how many loops are rewritable, i.e. valid for vectorization and parallelization.
   int max_rw_loops = CalculateNumRewritableLoops(loop_srefs, loop_types);
 
-  // Calculate the parallelize extent
+  // Calculate the parallelize extent.
   if (parsed->max_parallel_extent != -1) {
     int max_extent = parsed->max_parallel_extent;
     int& num_fusible = parsed->num_parallel_loops = 0;

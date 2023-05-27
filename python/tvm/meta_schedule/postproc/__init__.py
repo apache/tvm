@@ -17,12 +17,12 @@
 """The tvm.meta_schedule.postproc package."""
 from .disallow_dynamic_loop import DisallowDynamicLoop
 from .disallow_async_strided_mem_copy import DisallowAsyncStridedMemCopy
+from .filter_loop_splits import FilterLoopSplits
 from .postproc import Postproc, PyPostproc
 from .rewrite_cooperative_fetch import RewriteCooperativeFetch
 from .rewrite_layout import RewriteLayout
 from .rewrite_parallel_vectorize_unroll import RewriteParallelVectorizeUnroll
 from .rewrite_reduction_block import RewriteReductionBlock
-from .filter_loop_splits import FilterLoopSplits
 from .rewrite_tensorize import RewriteTensorize
 from .rewrite_unbound_block import RewriteUnboundBlock
 from .verify_gpu_code import VerifyGPUCode

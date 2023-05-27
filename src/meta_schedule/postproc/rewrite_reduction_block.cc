@@ -141,7 +141,7 @@ bool RewriteReductionBlockNode::Apply(const tir::Schedule& sch, const tir::Sched
       Array<tir::LoopRV> loop_rvs = sch->GetLoops(block_rv);
       tir::BlockRV init_block_rv = sch->DecomposeReduction(block_rv, loop_rvs[decompose_point]);
 
-      // Rewrite auto tensorization related annotations
+      // Rewrite auto tensorization related annotations.
       if (tir::GetAnn<String>(block_sref, tir::attr::meta_schedule_auto_tensorize).defined()) {
         // Remove tensorization annotation as it shouldn't be propagated to the init block.
         sch->Unannotate(init_block_rv, tir::attr::meta_schedule_auto_tensorize);

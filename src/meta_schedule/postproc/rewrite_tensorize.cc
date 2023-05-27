@@ -80,7 +80,7 @@ class RewriteTensorizeNode : public PostprocNode {
 };
 
 bool RewriteTensorizeNode::Apply(const tir::Schedule& sch, const tir::Schedule& orig) {
-  // The rewriting jobs, 3-tuple (block_name, func_name, job_func)
+  // The rewriting jobs, 3-tuple (block_name, func_name, job_func).
   std::vector<std::tuple<String, String, std::function<void(tir::BlockRV)>>> jobs;
   for (const auto& kv : sch->mod()->functions) {
     GlobalVar g_var = kv.first;

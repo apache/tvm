@@ -24,9 +24,9 @@
 #include <utility>
 #include <vector>
 
-#include "../utils.h"
-#include "../../tir/schedule/utils.h"
 #include "../../tir/schedule/concrete_schedule.h"
+#include "../../tir/schedule/utils.h"
+#include "../utils.h"
 
 namespace tvm {
 namespace tir {
@@ -114,14 +114,15 @@ Array<Schedule> MultiLevelTilingNode::Apply(const Schedule& sch, const BlockRV& 
   Schedule orig = sch->Copy();
   if ((filter_fn_ && filter_fn_.value()(sch, sch->GetSRef(block_rv))) ||
       NeedsMultiLevelTiling(sch->state(), sch->GetSRef(block_rv))) {
-    // std::cout << "MultiLevelTilingNode::Apply before sch->Annotate: " <<  sch->trace() << std::endl;
+    // std::cout << "MultiLevelTilingNode::Apply before sch->Annotate: " <<  sch->trace() <<
+    // std::endl;
     sch->Annotate(block_rv, tir::attr::meta_schedule_tiling_structure, structure);
 
     Array<Schedule> results;
     for (auto&& state : ApplySubRules({State(sch, block_rv)})) {
       results.push_back(std::move(state->sch));
     }
-    if(!results.empty()) {
+    if (!results.empty()) {
       // std::cout << "Return applied" << std::endl << std::flush;
       return results;
     } else {
@@ -223,13 +224,14 @@ std::vector<State> MultiLevelTilingNode::TileLoopNest(State state) const {
   tile_factors.resize(tiles.size());
   std::vector<std::pair<LoopRV, std::vector<int>>> data;
   auto block = state->sch->Get(state->block_rv);
-  const BlockRV& block_rv_orig = orig->GetBlock(block->name_hint); // TODO consider the func
+  const BlockRV& block_rv_orig = orig->GetBlock(block->name_hint);  // TODO consider the func
   Array<LoopRV> loops_orig = orig->GetLoops(block_rv_orig);
   for (int i = 0, n = loops_orig.size(); i < n; ++i) {
     data.push_back({loops_orig[i], {}});
   }
   for (int i = 0, n = loops.size(); i < n; ++i) {
-    // std::cout << "TileLoopNest loop: " << loops[i]  << " sref " << sch->GetSRef(loops[i]) << std::endl;
+    // std::cout << "TileLoopNest loop: " << loops[i]  << " sref " << sch->GetSRef(loops[i]) <<
+    // std::endl;
     LoopRV loop = loops[i];
     const std::vector<int>* idx = nullptr;
 
@@ -254,7 +256,7 @@ std::vector<State> MultiLevelTilingNode::TileLoopNest(State state) const {
       tiles[idx->at(0)].push_back(loop);
     } else {
       auto [factors, splits] = SplitLoop(sch, block_rv, loop, n_tiles);
-      for(auto f: factors) {
+      for (auto f : factors) {
         data[i].second.push_back(*tir::as_const_int(sch->Get(f)));
       }
       // Put every tile to its slot
@@ -287,14 +289,15 @@ std::vector<State> MultiLevelTilingNode::TileLoopNest(State state) const {
                   Integer(high_inclusive));
   }
   Map<LoopRV, Array<Integer>> loop_factors;
-  for (auto it: data) {
-     Array<Integer> factors;
-    for(auto i: it.second) {
+  for (auto it : data) {
+    Array<Integer> factors;
+    for (auto i : it.second) {
       factors.push_back(i);
     }
     loop_factors.Set(it.first, factors);
   }
-  if( !filter_out_fn_.defined() || (filter_out_fn_ && (filter_out_fn_.value()(orig, block_rv, loop_factors)))) {
+  if (!filter_out_fn_.defined() ||
+      (filter_out_fn_ && (filter_out_fn_.value()(orig, block_rv, loop_factors)))) {
     return {state};
   } else {
     return {};

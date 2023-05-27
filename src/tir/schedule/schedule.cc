@@ -84,11 +84,10 @@ TVM_REGISTER_GLOBAL("tir.schedule.TracedSchedule")
 
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSplitFactors")
     .set_body_typed([](Schedule self, ObjectRef obj) -> ObjectRef {
-      if (auto loop_rv = obj.as<LoopRV>()) { // TODO
+      if (auto loop_rv = obj.as<LoopRV>()) {  // TODO
         return self->GetSplitFactors(loop_rv.value());
       }
-      LOG(FATAL) << "TypeError: TODO: " << obj->GetTypeKey()
-                 << ". Its value is: " << obj;
+      LOG(FATAL) << "TypeError: TODO: " << obj->GetTypeKey() << ". Its value is: " << obj;
       throw;
     });
 

@@ -126,7 +126,8 @@ inline Optional<Array<MeasureCandidate>> ReplayFuncNode::State::GenerateMeasureC
   for (int i = st; i < ed; i++) {
     for (;;) {
       Array<tir::Schedule> schs = self->space_generator_.value()->GenerateDesignSpace(mod);
-      // std::cout << "ReplayFuncNode::State::GenerateMeasureCandidates size" << schs.size() << std::endl << std::flush;
+      // std::cout << "ReplayFuncNode::State::GenerateMeasureCandidates size" << schs.size() <<
+      // std::endl << std::flush;
       int design_space_index = tir::SampleInt(&self->rand_state_, 0, schs.size());
       tir::Schedule sch = schs[design_space_index];
       sch->EnterPostproc();
@@ -144,7 +145,8 @@ inline Optional<Array<MeasureCandidate>> ReplayFuncNode::State::GenerateMeasureC
       }
     }
   }
-  // std::cout << "ReplayFuncNode::State::GenerateMeasureCandidates result size " << result.size() << std::endl << std::flush;
+  // std::cout << "ReplayFuncNode::State::GenerateMeasureCandidates result size " << result.size()
+  // << std::endl << std::flush;
   return result;
 }
 

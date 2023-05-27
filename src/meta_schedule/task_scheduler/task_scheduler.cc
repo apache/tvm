@@ -162,7 +162,8 @@ void TaskSchedulerNode::Tune(Array<TuneContext> ctxs, Array<FloatImm> task_weigh
     // std::cout << "TaskSchedulerNode::Tune" << std::endl << std::flush;
     Array<tir::Schedule> design_spaces =
         ctx->space_generator.value()->GenerateDesignSpace(ctx->mod.value());
-    // std::cout << "TaskSchedulerNode::Tune design_spaces size " <<  design_spaces.size() << std::endl << std::flush;
+    // std::cout << "TaskSchedulerNode::Tune design_spaces size " <<  design_spaces.size() <<
+    // std::endl << std::flush;
     TVM_PY_LOG(INFO, ctx->logger) << "Total " << design_spaces.size()
                                   << " design space(s) generated";
     for (int i = 0, n = design_spaces.size(); i < n; ++i) {
@@ -181,16 +182,23 @@ void TaskSchedulerNode::Tune(Array<TuneContext> ctxs, Array<FloatImm> task_weigh
   for (int task_id; num_trials_already < max_trials_global && (task_id = NextTaskId()) != -1;) {
     TVM_PY_LOG(INFO, this->logger)
         << "TaskScheduler picks Task #" << task_id << ": " << tasks_[task_id]->ctx->task_name;
+    std::cout << "tasks_[task_id].get() " << tasks_[task_id].get() << std::endl;
     TaskRecordNode* task = tasks_[task_id].get();
     ICHECK(!task->is_terminated);
     ICHECK(!task->runner_futures.defined());
+    std::cout << "Checks passed"
+              << " !task->is_terminated " << !task->is_terminated
+              << " !task->runner_futures.defined()" << !task->runner_futures.defined() << std::endl;
     if (static_cast<int>(task->latency_ms.size()) >= max_trials_per_task) {
       TerminateTask(task_id);
+      std::cout << "Task" << task_id << " terminated" << std::endl;
       continue;
     }
     if (Optional<Array<MeasureCandidate>> candidates = task->measure_candidates =
             task->ctx->search_strategy.value()->GenerateMeasureCandidates()) {
+      std::cout << "if (Optional<Array<MeasureCandidate>> candidates " << std::endl;
       int num_candidates = candidates.value().size();
+      std::cout << "int num_candidates= " << candidates.value().size() << std::endl;
       num_trials_already += num_candidates;
       TVM_PY_LOG(INFO, this->logger) << "Sending " << num_candidates << " sample(s) to builder";
       SendToBuilder(task, builder);

@@ -471,7 +471,7 @@ class EvolutionarySearchNode : public SearchStrategyNode {
   }
 };
 
-std::vector<Schedule> EvolutionarySearchNode::State::PickBestFromDatabase(int num/*, filter*/) {
+std::vector<Schedule> EvolutionarySearchNode::State::PickBestFromDatabase(int num /*, filter*/) {
   auto _ = Profiler::TimedScope("EvoSearch/PickBestFromDatabase");
   std::vector<tir::Trace> measured_traces;
   measured_traces.reserve(num);
@@ -490,18 +490,18 @@ std::vector<Schedule> EvolutionarySearchNode::State::PickBestFromDatabase(int nu
     tir::Trace trace = measured_traces.at(trace_id);
     Schedule& result = results.at(trace_id);
     ICHECK(!result.defined());
-    if (Optional<Schedule> sch = pp.Apply(mod, trace, rand_state/*, filter*/)) {
+    if (Optional<Schedule> sch = pp.Apply(mod, trace, rand_state /*, filter*/)) {
       result = sch.value();
     } else {
       LOG(FATAL) << "ValueError: Cannot postprocess the trace:\n" << trace;
-      throw; // TODO
+      throw;  // TODO
     }
   };
   support::parallel_for_dynamic(0, actual_num, self->ctx_->num_threads, f_proc_measured);
   return results;
 }
 
-std::vector<Schedule> EvolutionarySearchNode::State::SampleInitPopulation(int num/*, filter*/) {
+std::vector<Schedule> EvolutionarySearchNode::State::SampleInitPopulation(int num /*, filter*/) {
   auto _ = Profiler::TimedScope("EvoSearch/SampleInitPopulation");
   ThreadedTraceApply pp(self->postprocs_);
   std::vector<Schedule> out_schs;
@@ -517,7 +517,7 @@ std::vector<Schedule> EvolutionarySearchNode::State::SampleInitPopulation(int nu
       ICHECK(!result.defined());
       int design_space_index = tir::SampleInt(rand_state, 0, design_spaces.size());
       tir::Trace trace(design_spaces[design_space_index]->insts, {});
-      if (Optional<Schedule> sch = pp.Apply(mod, trace, rand_state/*, filter*/)) {
+      if (Optional<Schedule> sch = pp.Apply(mod, trace, rand_state /*, filter*/)) {
         result = sch.value();
       }
     };
@@ -537,7 +537,7 @@ std::vector<Schedule> EvolutionarySearchNode::State::SampleInitPopulation(int nu
 }
 
 std::vector<Schedule> EvolutionarySearchNode::State::EvolveWithCostModel(
-    std::vector<Schedule> population, int num/*, filter*/) {
+    std::vector<Schedule> population, int num /*, filter*/) {
   IRModuleSet exists(database_->GetModuleEquality());
   {
     auto _ = Profiler::TimedScope("EvoSearch/Evolve/Misc/CopyMeasuredWorkloads");
@@ -597,7 +597,8 @@ std::vector<Schedule> EvolutionarySearchNode::State::EvolveWithCostModel(
             // Decision: mutate
             Mutator mutator = opt_mutator.value();
             if (Optional<tir::Trace> new_trace = mutator->Apply(trace, rand_state)) {
-              if (Optional<Schedule> sch = pp.Apply(mod, new_trace.value(), rand_state/*, filter*/)) {
+              if (Optional<Schedule> sch =
+                      pp.Apply(mod, new_trace.value(), rand_state /*, filter*/)) {
                 // note that sch's trace is different from new_trace
                 // because it contains post-processing information
                 result = sch.value();

@@ -253,63 +253,28 @@ inline PrimExpr ConcreteScheduleNode::Get(const ExprRV& expr_rv) const {
 }
 
 inline Array<Integer> ConcreteScheduleNode::GetSplitFactors(const LoopRV& loop_rv) const {
-  // std::cout << "GetSplitFactors: " << this->trace() << std::endl << std::flush;
-
   static auto kind_split = tir::InstructionKind::Get("Split");
 
   tir::Trace trace = this->trace().value();
   std::vector<std::pair<LoopRV, Array<Integer>>> data;
-  for(const tir::Instruction& inst : trace->insts){
-    // std::cout << "inst " << inst << std::endl;  
+  for (const tir::Instruction& inst : trace->insts) {
     if (inst->kind->IsPostproc()) {
       break;
     }
     if (inst->kind.same_as(kind_split)) {
-      // std::cout << "inst " << inst << std::endl; 
       tir::LoopRV flooprv = Downcast<tir::LoopRV>(inst->inputs[0]);
-      // std::cout << "inst loop " << this->GetSRef(inst->inputs[0]) << std::endl; 
       data.push_back({flooprv, {}});
-      // auto find = std::find(inst->inputs.begin(), inst->inputs.end(), loop_rv); // TODO
-      for(auto i: inst->inputs) {
-        // std::cout << "input: " << i << " expected " << loop_rv <<  std::endl << std::flush; 
+      for (auto i : inst->inputs) {
       }
-      // if (find != inst->inputs.end()) {
-        // std::cout << "loop found " << loop_rv << std::endl; 
-        // stream << "Split inputs " << inst->inputs << std::endl;  
-        // stream << "Split inputs size " << inst->inputs.size() << std::endl;
-        for(size_t i = 1; i < inst->inputs.size(); ++i) {
-          // if (inst->inputs[i].get()->IsInstance<tir::ExprRV>()) {
-            CHECK(inst->inputs[i].defined()) << "ValueError: ICE";
-            tir::ExprRV exprrv = Downcast<tir::ExprRV>(inst->inputs[i]);
-            // std::cout << "loop: " << loop_rv << " inst->inputs " << inst->inputs << std::endl << std::flush; 
-            auto newf = this->Get(exprrv);
-            // std::cout << "exprrv is_const_int: " << std::boolalpha <<  tir::is_const_int(newf) << std::endl << std::flush; 
-            // std::cout << "exprrv as_const_int: " << std::boolalpha <<  *tir::as_const_int(newf) << std::endl << std::flush; 
-            data.back().second.push_back(*tir::as_const_int(newf));
-          // }
-        }
-      // }
+      for (size_t i = 1; i < inst->inputs.size(); ++i) {
+        CHECK(inst->inputs[i].defined()) << "ValueError: ICE";
+        tir::ExprRV exprrv = Downcast<tir::ExprRV>(inst->inputs[i]);
+        auto newf = this->Get(exprrv);
+        data.back().second.push_back(*tir::as_const_int(newf));
+      }
     }
   }
-  std::ostringstream stream;
-  // stream << "cc loops: ";
-  for(auto it: data){
-    // stream << it.first << " ";
-  }
-  // stream << std::endl;
-  // std::cout << stream.str() << std::endl << std::flush;
-  // stream.clear();
-
-  // stream << "cc loops sref: ";
-  for(auto it: data){
-    // stream << this->GetSRef(it.first) << " ";
-  }
-  // stream << std::endl;
-  // std::cout << stream.str() << std::endl << std::flush;
-  for(auto it: data){
-    // std::cout << "loop: " << it.first << " dis: " << it.second << std::endl << std::flush; 
-  }
-  return {1,1,1,1}; // TODO
+  return {1, 1, 1, 1};
 }
 
 inline bool ConcreteScheduleNode::HasBlock(const BlockRV& block_rv) const {
@@ -363,7 +328,7 @@ inline StmtSRef ConcreteScheduleNode::GetSRef(const LoopRV& loop_rv) const {
   }
   if (sref->stmt == nullptr) {
     LOG(FATAL) << "ValueError: The loop no longer exists in the IRModule";
-    // return StmtSRef{nullptr}; // Sometimes you want to print nullptr 
+    // return StmtSRef{nullptr}; // Sometimes you want to print nullptr
   }
   return GetRef<StmtSRef>(sref);
 }

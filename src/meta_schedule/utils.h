@@ -43,6 +43,7 @@
 #include <tvm/tir/transform.h>
 
 #include <algorithm>
+#include <queue>
 #include <string>
 #include <unordered_set>
 #include <utility>
@@ -319,63 +320,58 @@ struct ThreadedTraceApply {
    * \return The schedule created, or NullOpt if any postprocessor fails
    */
   Optional<tir::Schedule> Apply(const IRModule& mod, const tir::Trace& trace,
-                                TRandState* rand_state/*, filter*/) {
+                                TRandState* rand_state /*, filter*/) {
     tir::Schedule sch =
         tir::Schedule::Traced(mod,
                               /*rand_state=*/ForkSeed(rand_state),
                               /*debug_mode=*/0,
                               /*error_render_level=*/tir::ScheduleErrorRenderLevel::kNone);
+    tir::Schedule orig = sch->Copy();
+    auto get_loops = [](const tir::Schedule& sch) {
+      Array<tir::LoopRV> loops;
+      std::queue<tir::BlockRV> blocks;
+      blocks.push(sch->GetBlock("root"));
+      while (!blocks.empty()) {
+        tir::BlockRV block = blocks.front();
+        auto block_loops = sch->GetLoops(block);
+        loops.insert(loops.end(), block_loops.begin(), block_loops.end());
+        for (auto& b : sch->GetChildBlocks(block)) {
+          blocks.emplace(std::move(b));
+        }
+        blocks.pop();
+      }
+      return loops;
+    };
+    Array<tir::LoopRV> orig_loops = get_loops(orig);
+    Array<tir::LoopRV> traced_loops = get_loops(sch);
 
-
-  auto block_c = sch->GetBlock("DepthwiseConv2d");
-  auto loops_c = sch->GetLoops(block_c);
-
-  tir::Schedule orig = sch->Copy();
-  auto block = orig->GetBlock("DepthwiseConv2d");
-  auto loops = orig->GetLoops(block);
-  for(auto& l: loops) {
-    // std::cout << "orig loop " << l << " sref " << orig->GetSRef(l) << std::endl << std::flush;
-  }
-
-  // std::unordered_map<tir::StmtSRef, tir::StmtSRef> sch_to_orig; 
-  Map<tir::StmtSRef, tir::StmtSRef> sch_to_orig; 
-  for(size_t i = 0; i < loops_c.size(); ++i) {
-    sch_to_orig.Set(sch->GetSRef(loops_c[i]), orig->GetSRef(loops[i]));
-    // sch_to_orig[sch->Get(loops_c[i])] = sch->Get(loops[i]);
-  }
-
-
-
-    Map<tir::StmtSRef, Array<Integer>> data = trace->ApplyToSchedule(sch, /*remove_postproc=*/true);
-    // Map<ObjectRef, Array<Integer>> data = trace->ApplyToSchedule(sch, /*remove_postproc=*/true);
-    // Map<tir::LoopRV, Array<Integer>> ldata;
-    // for (auto& o : data){
-    //   ldata.Set(Downcast<tir::LoopRV>(o.first), o.second);
-    // }
-
-    Map<tir::StmtSRef, Array<Integer>> ldata;
-    for (auto& o : data) {
-      ldata.Set(sch_to_orig[o.first], o.second);
+    Map<tir::StmtSRef, tir::StmtSRef> traced_to_origin;
+    for (size_t i = 0; i < traced_loops.size(); ++i) {
+      traced_to_origin.Set(sch->GetSRef(traced_loops[i]), orig->GetSRef(orig_loops[i]));
     }
 
-    // using FFilter = runtime::TypedPackedFunc<Bool(const tir::Schedule&, const Map<tir::StmtSRef, Array<Integer>>&)>;
-    // using FFilter = runtime::TypedPackedFunc<Bool(const tir::Schedule&, const Map<tir::StmtSRef, Array<Integer>>&)>;
+    Map<tir::StmtSRef, Array<Integer>> traced_loops_splits =
+        trace->ApplyToSchedule(sch, /*remove_postproc=*/true);
 
-    auto filter = items_[0].postproc->GetFilter();
-      
-    if(!filter(orig, ldata)) {
-    // if(!filter(orig, data)) {
-      std::cout << "ICE FILTERED" << std::endl << std::flush;
-      return NullOpt;
+    Map<tir::StmtSRef, Array<Integer>> origin_loops_splits;
+    for (auto& v : traced_loops_splits) {
+      origin_loops_splits.Set(traced_to_origin[v.first], v.second);
+    }
+
+    for (int i = 0; i < n_; ++i) {
+      Item& item = items_[i];
+      auto filter = item.postproc->GetFilter();
+      if (filter != nullptr && filter.packed().defined()) {
+        if (!filter(orig, origin_loops_splits)) {
+          return NullOpt;
+        }
+      }
     }
 
     sch->EnterPostproc();
-  
+
     for (int i = 0; i < n_; ++i) {
       Item& item = items_[i];
-      // if (item.postproc->IsInstance<FilterLoopSplitsNode>()) {
-      //   // ldata;
-      // }
       if (!item.postproc->Apply(sch, orig)) {
         item.fail_counter++;
         return NullOpt;

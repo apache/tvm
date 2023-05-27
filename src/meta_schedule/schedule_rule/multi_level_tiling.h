@@ -204,8 +204,7 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
   PackedFunc logger;
   /*! \brief The function to overwrite the default condition for applying MultiLevelTiling. */
   Optional<PackedFunc> filter_fn_;
-  // TODO
-  Optional<PackedFunc> filter_out_fn_;
+  Optional<PackedFunc> filter_out_fn_;  // TODO
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("structure", &structure);

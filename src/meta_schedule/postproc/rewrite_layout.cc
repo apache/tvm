@@ -249,7 +249,9 @@ class RewriteLayoutNode : public PostprocNode {
   void InitializeWithTuneContext(const TuneContext& context) final {}
 
   // Inherited from PostprocNode
-  bool Apply(const tir::Schedule& sch, const tir::Schedule& orig) final { return tir::RewriteLayout(sch); }
+  bool Apply(const tir::Schedule& sch, const tir::Schedule& orig) final {
+    return tir::RewriteLayout(sch);
+  }
 
   Postproc Clone() const {
     ObjectPtr<RewriteLayoutNode> n = make_object<RewriteLayoutNode>(*this);

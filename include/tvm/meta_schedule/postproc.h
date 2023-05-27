@@ -54,19 +54,10 @@ class PostprocNode : public runtime::Object {
    * \return Whether the postprocessor was successfully applied.
    */
   virtual bool Apply(const tir::Schedule& sch, const tir::Schedule& orig) = 0;
-  using FFilter = runtime::TypedPackedFunc<Bool(const tir::Schedule&, const Map<tir::StmtSRef, Array<Integer>>&)>;
+  using FFilter = runtime::TypedPackedFunc<Bool(const tir::Schedule&,
+                                                const Map<tir::StmtSRef, Array<Integer>>&)>;
 
-  virtual FFilter GetFilter() { 
-     FFilter pass_func;
-
-    //  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-      // [=](Function f, IRModule m, PassContext pc) {
-      //   return Downcast<Function>(relay::fold_scale_axis::BackwardFoldScaleAxis(f));
-      // };
-    
-    return pass_func; 
-  };
-
+  virtual FFilter GetFilter() { return {nullptr}; };
 
   /*!
    * \brief Clone the postprocessor.
@@ -109,7 +100,8 @@ class Postproc : public runtime::ObjectRef {
    * \brief Get the postprocessor function as TODO.
    * \return The string of the postprocessor function.
    */
-  using FFilter = runtime::TypedPackedFunc<Bool(const tir::Schedule&, const Map<tir::StmtSRef, Array<Integer>>&)>;
+  using FFilter = runtime::TypedPackedFunc<Bool(const tir::Schedule&,
+                                                const Map<tir::StmtSRef, Array<Integer>>&)>;
   /*!
    * \brief Create a postprocessor with customized methods on the python-side.
    * \param f_initialize_with_tune_context The packed function of `InitializeWithTuneContext`.
@@ -153,7 +145,8 @@ class Postproc : public runtime::ObjectRef {
    * \brief Create a postprocessor that filters splitting loops according to filter conditions.
    * \return The postprocessor created.
    */
-  TVM_DLL static Postproc FilterLoopSplits(FFilter filter); // TODO Alternative DisallowFilteredSplits
+  TVM_DLL static Postproc FilterLoopSplits(
+      FFilter filter);  // TODO Alternative DisallowFilteredSplits
   /*!
    * \brief Create a postprocessor that adds thread binding to unbound blocks
    * \param max_threadblocks The max number of threadblocks in the cuda device.

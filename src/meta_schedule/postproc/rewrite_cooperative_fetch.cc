@@ -179,8 +179,6 @@ bool RewriteCooperativeFetchNode::Apply(const tir::Schedule& sch, const tir::Sch
       }
       // If the block involves 64 bit values, disable vectorization for now since
       // vectorization of 64 bit values does not work well on CUDA.
-      // TODO(masahi, vinx13): Decouple epilogue fusion computation and shared to global store, so
-      // that we can always vectorize the latter.
       if (tir::GetMaxUsedDtypeBytes(sch->Get(block)) > 4) {
         vector_lane = 1;
       }

@@ -323,7 +323,7 @@ class Schedule(Object):
         loop: LoopRV,
     ) -> [List[int]]:
         """Returns:
-        - the corresponding factors that a loop has;
+        - the splitting factors corresponding to the specific LoopRV;
 
         Parameters
         ----------

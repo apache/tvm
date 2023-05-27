@@ -154,14 +154,15 @@ class ScheduleRule : public runtime::ObjectRef {
    * ignored  by default. This function should return True for a block that should be tiled.
    * \return The schedule rule created
    */
-  TVM_DLL static ScheduleRule MultiLevelTiling(String structure,                             //
-                                               Optional<Array<String>> tile_binds,           //
-                                               Optional<Integer> max_innermost_factor,       //
-                                               Optional<Array<Integer>> vector_load_lens,    //
-                                               Optional<Map<String, ObjectRef>> reuse_read,  //
-                                               Optional<Map<String, ObjectRef>> reuse_write,
-                                               Optional<runtime::PackedFunc> filter_fn = NullOpt,
-                                               Optional<runtime::PackedFunc> filter_out_fn = NullOpt);
+  TVM_DLL static ScheduleRule MultiLevelTiling(
+      String structure,                             //
+      Optional<Array<String>> tile_binds,           //
+      Optional<Integer> max_innermost_factor,       //
+      Optional<Array<Integer>> vector_load_lens,    //
+      Optional<Map<String, ObjectRef>> reuse_read,  //
+      Optional<Map<String, ObjectRef>> reuse_write,
+      Optional<runtime::PackedFunc> filter_fn = NullOpt,
+      Optional<runtime::PackedFunc> filter_out_fn = NullOpt);
 
   /*!
    * \brief Extension of MultiLevelTiling for auto-tensorization with a single intrinsic.

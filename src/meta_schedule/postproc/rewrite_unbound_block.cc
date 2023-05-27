@@ -110,8 +110,8 @@ class RewriteUnboundBlockNode : public PostprocNode {
   int max_threadblocks_ = -1;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
-    // `max_threads_per_block_` is not visited
-    // `max_threadblocks_` is not visited
+    // `max_threads_per_block_` is not visited.
+    // `max_threadblocks_` is not visited.
   }
 
   static constexpr const char* _type_key = "meta_schedule.RewriteUnboundBlock";

@@ -286,16 +286,15 @@ Map<StmtSRef, Array<Integer>> TraceNode::ApplyToSchedule(
                                        const Array<ObjectRef>& attrs,                            //
                                        const Optional<ObjectRef>& decision)>
         decision_provider) const {
-
   static auto kind_split = tir::InstructionKind::Get("Split");
 
   std::vector<std::pair<StmtSRef, Array<Integer>>> data;
   // std::vector<std::pair<tir::LoopRV, Array<Integer>>> data;
-  auto block = sch->GetBlock("DepthwiseConv2d");
-  auto loops = sch->GetLoops(block);
-  for(auto& l: loops) {
-    // std::cout << "loop " << l << " sref " << sch->GetSRef(l) << std::endl << std::flush;
-  }
+  // auto block = sch->GetBlock("depthwise_conv2d_nhwc_output");
+  // auto loops = sch->GetLoops(block);
+  // for(auto& l: loops) {
+  //   // std::cout << "loop " << l << " sref " << sch->GetSRef(l) << std::endl << std::flush;
+  // }
   std::unordered_map<const Object*, const Object*> rv_map;
   for (const Instruction& inst : this->insts) {
     if (remove_postproc && inst->kind->IsPostproc()) {
@@ -309,27 +308,28 @@ Map<StmtSRef, Array<Integer>> TraceNode::ApplyToSchedule(
     }
     if (inst->kind.same_as(kind_split)) {
       tir::LoopRV flooprv = Downcast<tir::LoopRV>(inputs[0]);
-      // std::cout << "loop trans " << flooprv << " sref " << sch->GetSRef(flooprv) << std::endl << std::flush;
-      data.push_back({sch->GetSRef(flooprv), {}}); 
-      // data.push_back({flooprv, {}}); 
+      // std::cout << "loop trans " << flooprv << " sref " << sch->GetSRef(flooprv) << std::endl <<
+      // std::flush;
+      data.push_back({sch->GetSRef(flooprv), {}});
+      // data.push_back({flooprv, {}});
       // std::cout << "sref first: " << sch->GetSRef(data[0].first) << std::endl << std::flush;
-      for(size_t i = 1; i < inputs.size(); ++i) {
-          CHECK(inputs[i].defined()) << "ValueError: ICE";
-          tir::ExprRV exprrv = Downcast<tir::ExprRV>(inputs[i]);
-          auto newf = sch->Get(exprrv);
-          // std::cout << "exprrv: " << exprrv << " inst->inputs " << inputs << std::endl << std::flush; 
-          data.back().second.push_back(*tir::as_const_int(newf));
+      for (size_t i = 1; i < inputs.size(); ++i) {
+        CHECK(inputs[i].defined()) << "ValueError: ICE";
+        tir::ExprRV exprrv = Downcast<tir::ExprRV>(inputs[i]);
+        auto newf = sch->Get(exprrv);
+        // std::cout << "exprrv: " << exprrv << " inst->inputs " << inputs << std::endl <<
+        // std::flush;
+        data.back().second.push_back(*tir::as_const_int(newf));
       }
-
     }
     Array<ObjectRef> outputs = inst->kind->f_apply_to_schedule(sch, inputs, attrs, decision);
     TranslateAddOutputRVs(inst->outputs, outputs, &rv_map);
   }
-// sch->GetSRef(flooprv)
+  // sch->GetSRef(flooprv)
   Map<StmtSRef, Array<Integer>> loop_factors;
-  for(auto& it: data) {
+  for (auto& it : data) {
     Array<Integer> factors;
-    for (auto i: it.second) {
+    for (auto i : it.second) {
       factors.push_back(i);
     }
     loop_factors.Set(it.first, factors);

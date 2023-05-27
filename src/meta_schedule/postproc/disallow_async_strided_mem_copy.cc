@@ -120,7 +120,6 @@ class DisallowAsyncStridedMemCopyNode : public PostprocNode {
  public:
   // Inherited from PostprocNode
   void InitializeWithTuneContext(const TuneContext& context) final {}
-  // Inherited from PostprocNode
   bool Apply(const tir::Schedule& sch, const tir::Schedule& orig) final {
     IRModule mod = sch->mod();
     for (const auto& kv : mod->functions) {

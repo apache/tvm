@@ -66,7 +66,9 @@ class DisallowDynamicLoopNode : public PostprocNode {
   // Inherited from PostprocNode
   void InitializeWithTuneContext(const TuneContext& context) final {}
   // Inherited from PostprocNode
-  bool Apply(const tir::Schedule& sch, const tir::Schedule& orig) final { return !tir::DynamicExtentFinder::Find(sch->mod()); }
+  bool Apply(const tir::Schedule& sch, const tir::Schedule& orig) final {
+    return !tir::DynamicExtentFinder::Find(sch->mod());
+  }
   // Inherited from PostprocNode
   Postproc Clone() const {
     ObjectPtr<DisallowDynamicLoopNode> n = make_object<DisallowDynamicLoopNode>(*this);

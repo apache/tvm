@@ -38,9 +38,8 @@ Postproc PyPostprocNode::Clone() const {
 }
 
 Postproc Postproc::PyPostproc(
-    PyPostprocNode::FInitializeWithTuneContext f_initialize_with_tune_context,  //
-    PyPostprocNode::FApply f_apply,                                             //
-    PyPostprocNode::FClone f_clone,                                             //
+    PyPostprocNode::FInitializeWithTuneContext f_initialize_with_tune_context,
+    PyPostprocNode::FApply f_apply, PyPostprocNode::FClone f_clone,
     PyPostprocNode::FAsString f_as_string) {
   ObjectPtr<PyPostprocNode> n = make_object<PyPostprocNode>();
   n->f_initialize_with_tune_context = std::move(f_initialize_with_tune_context);

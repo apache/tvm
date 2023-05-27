@@ -164,7 +164,7 @@ class ScheduleNode : public runtime::Object {
    */
   virtual For Get(const LoopRV& loop_rv) const = 0;
   /*!
-   * \brief Get the splitting factors for loop corresponding to the specific LoopRV
+   * \brief Get the splitting factors corresponding to the specific LoopRV
    * \param loop_rv The LoopRV to be looked up
    * \return The splitting factors
    */

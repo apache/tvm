@@ -105,9 +105,10 @@ class TraceNode : public runtime::Object {
    * when applying instructions.
    * \sa FTraceDecisionProvider
    */
-  Map<StmtSRef, Array<Integer>> ApplyToSchedule(Schedule sch, bool remove_postproc,
-  // Map<ObjectRef, Array<Integer>> ApplyToSchedule(Schedule sch, bool remove_postproc,
-                       FTraceDecisionProvider decision_provider = nullptr) const;
+  Map<StmtSRef, Array<Integer>> ApplyToSchedule(
+      Schedule sch, bool remove_postproc,
+      // Map<ObjectRef, Array<Integer>> ApplyToSchedule(Schedule sch, bool remove_postproc,
+      FTraceDecisionProvider decision_provider = nullptr) const;
   /*!
    * \brief Serialize the trace as a JSON-style object
    * \param remove_postproc If postprocessing instructions are removed

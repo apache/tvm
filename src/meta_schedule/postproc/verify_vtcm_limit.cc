@@ -31,7 +31,7 @@ class VerifyVTCMLimitNode : public PostprocNode {
     ICHECK(context->target.defined());
     Target target = context->target.value();
     ICHECK(target->kind->name == "hexagon");
-    // The value of 0 will disable VTCM verification.
+    // The value of 0 will disable VTCM verification
     vtcm_capacity = target->GetAttr<Integer>("vtcm-capacity").value_or(0);
   }
 
