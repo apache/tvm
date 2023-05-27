@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-argument, redefined-builtin
+# pylint: disable=unused-argument, redefined-builtin, invalid-name
 """Gradient definitions for Relax operators."""
 import functools
 import operator
@@ -56,7 +56,7 @@ from .manipulate import (
 from .nn import conv2d_transpose, conv2d
 from .search import where
 from .statistical import sum, cumsum
-from .unary import cos, exp, log, sin, sqrt, sigmoid
+from .unary import cos, exp, log, sin, sigmoid
 
 
 # TODO(yixin, chaofan): handle symbolic shape for most of the gradients
@@ -116,12 +116,11 @@ def _fit_shape(bb: BlockBuilder, expr: Expr, target: Expr) -> Expr:
 
 
 def _get_shape_prod(expr, axis):
-    # Requires constant shape
+    # Requires static shape
     shape = _get_shape(expr)
     if axis is None:
         return functools.reduce(operator.mul, (int(i) for i in shape), 1)
-    else:
-        return functools.reduce(operator.mul, (int(shape[int(i)]) for i in axis), 1)
+    return functools.reduce(operator.mul, (int(shape[int(i)]) for i in axis), 1)
 
 
 ##################### Binary #####################
@@ -720,8 +719,7 @@ def permute_dims_grad(
         for i in range(dims):
             new_axes[int(axes[i])] = i
         return [permute_dims(output_grad, axes=new_axes)]
-    else:
-        return [permute_dims(output_grad)]
+    return [permute_dims(output_grad)]
 
 
 @register_gradient("relax.concat")
