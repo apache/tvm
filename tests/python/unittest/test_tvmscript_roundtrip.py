@@ -3864,6 +3864,24 @@ def undefined_elem_offset_in_decl_buffer():
     return func
 
 
+def subroutine_call_without_arguments():
+    @I.ir_module
+    class mod:
+        @T.prim_func
+        def main():
+            # Should be equivalent to the bare "mod.subroutine()", but
+            # that relies on `GlobalVar.__call__` returning the
+            # correct IR type.  Previously, this instead returned a
+            # `relay.Call` object.
+            tir.call_tir(mod.subroutine)
+
+        @T.prim_func
+        def subroutine():
+            T.evaluate(0)
+
+    return mod
+
+
 ir_generator = tvm.testing.parameter(
     launch_env_thread,
     opt_gemm_normalize,
@@ -3939,6 +3957,7 @@ ir_generator = tvm.testing.parameter(
     undefined_shape_in_decl_buffer,
     undefined_stride_in_decl_buffer,
     undefined_elem_offset_in_decl_buffer,
+    subroutine_call_without_arguments,
 )
 
 
