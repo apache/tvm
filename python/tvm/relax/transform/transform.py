@@ -1032,7 +1032,7 @@ def CombineParallelMatmul(check=None):
         The corresponding pass.
     """
     if check is None:
-        check = lambda _: True
+        check = lambda *_: True
     return _ffi_api.CombineParallelMatmul(check)  # type: ignore
 
 
