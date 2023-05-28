@@ -262,24 +262,13 @@ PrimFunc MakePackedAPI(PrimFunc func) {
     return res;
   };
 
-  // Need to re-declare vars, in case some arguments also appears in the buffer.
-  std::vector<std::pair<Var, Var>> var_def;
+  // Need to delay binding of the buffers, in case some arguments also
+  // appear in the buffer.
+  std::vector<std::pair<PrimExpr, Var>> var_def;
   std::vector<std::pair<Var, Buffer>> buffer_def;
 
   for (int i = 0; i < static_cast<int>(func_ptr->params.size()); ++i) {
     Var param = func_ptr->params[i];
-    std::string param_name = [&]() {
-      std::ostringstream oss;
-      oss << "arg";
-      if (param->name_hint.defined() && (!param->name_hint.empty())) {
-        oss << "." << param->name_hint;
-
-      } else {
-        oss << i;
-      }
-      return oss.str();
-    }();
-    Var v_arg = Var(param_name, param->dtype);
 
     // Pluck the device API context out based on name
     if (param->name_hint == kDeviceContextVar) {
@@ -288,19 +277,16 @@ PrimFunc MakePackedAPI(PrimFunc func) {
       continue;
     }
 
+    var_def.emplace_back(f_arg_value(param.dtype(), i), param);
     if (func_ptr->buffer_map.count(param)) {
-      buffer_def.emplace_back(v_arg, func_ptr->buffer_map[param]);
-    } else {
-      var_def.emplace_back(v_arg, param);
+      buffer_def.emplace_back(param, func_ptr->buffer_map[param]);
     }
 
-    // Value loads
-    seq_init.emplace_back(LetStmt(v_arg, f_arg_value(v_arg.dtype(), i), nop));
     // type code checks
-    Var tcode(v_arg->name_hint + ".code", DataType::Int(32));
+    Var tcode(param->name_hint + ".code", DataType::Int(32));
     seq_init.emplace_back(
         LetStmt(tcode, BufferLoad(buf_packed_arg_type_ids, {IntImm(DataType::Int(32), i)}), nop));
-    DataType t = v_arg.dtype();
+    DataType t = param.dtype();
     if (t.is_handle()) {
       std::ostringstream msg;
       msg << name_hint << ": Expect arg[" << i << "] to be pointer";
@@ -330,8 +316,8 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   // either 0 or the original stride will be correctly used. Checks here have
   // to use the args that may have no let binding yet. Therefore, hoisting let
   // binding for args before buffer declaration is needed.
-  for (const auto& kv : var_def) {
-    binder.Bind(kv.second, kv.first, name_hint + "." + kv.first->name_hint, true);
+  for (const auto& [expr, param] : var_def) {
+    binder.Bind(param, expr, name_hint + "." + param->name_hint, true);
   }
 
   for (const auto& kv : buffer_def) {
