@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
 from typing import Callable, Union, Tuple, List
 
 import numpy as np
@@ -623,18 +624,21 @@ def test_silu(target, dev):
 
 @tvm.testing.parametrize_targets("llvm")
 def test_softmax(target, dev):
+    # TODO(mlc-team) Update to normal uniform
     data1_numpy = np.random.randint(0, 16, (3, 3)).astype(np.float32)
     relax_check_gradients(relax.op.nn.softmax, [data1_numpy], target, dev)
 
 
 @tvm.testing.parametrize_targets("llvm")
 def test_softmax_with_axis(target, dev):
+    # TODO(mlc-team) Update to normal uniform
     data1_numpy = np.random.randint(0, 16, (3, 3)).astype(np.float32)
     relax_check_gradients(relax.op.nn.softmax, [data1_numpy], target, dev, axis=1)
 
 
 @tvm.testing.parametrize_targets("llvm")
 def test_log_softmax(target, dev):
+    # TODO(mlc-team) Update to normal uniform
     data1_numpy = np.random.randint(0, 16, (3, 3)).astype(np.float32)
     relax_check_gradients(relax.op.nn.log_softmax, [data1_numpy], target, dev)
 
@@ -647,6 +651,7 @@ def test_log_softmax_with_axis(target, dev):
 
 @tvm.testing.parametrize_targets("llvm")
 def test_cross_entropy_with_logits(target, dev):
+    # TODO(mlc-team) Update to normal uniform
     data_numpy1 = np.random.randint(1, 16, (3,)).astype(np.float32)
     data_numpy2 = np.random.randint(1, 16, (3,)).astype(np.float32)
     relax_check_gradients(
@@ -659,6 +664,7 @@ def test_cross_entropy_with_logits(target, dev):
 
 @tvm.testing.parametrize_targets("llvm")
 def test_cross_entropy_with_logits_batch(target, dev):
+    # TODO(mlc-team) Update to normal uniform
     data_numpy1 = np.random.randint(1, 16, (2, 3)).astype(np.float32)
     data_numpy2 = np.random.randint(1, 16, (2, 3)).astype(np.float32)
     relax_check_gradients(
@@ -679,8 +685,10 @@ def test_cross_entropy_with_logits_batch(target, dev):
 )
 
 
+@pytest.mark.skip("need to update samples to use correct input")
 @tvm.testing.parametrize_targets("llvm")
 def test_nll_loss(target, dev, nll_reduction, nll_weighted, nll_ignore_index):
+    # TODO(mlc-team) Update to correct input prob
     data1_numpy = np.random.randint(0, 16, (2, 3, 4)).astype(np.float32)
     data2_numpy = np.random.randint(0, 3, (2, 4)).astype(np.int64)
     data3_numpy = np.random.randint(0, 16, (3,)).astype(np.float32)
@@ -706,8 +714,10 @@ def test_nll_loss(target, dev, nll_reduction, nll_weighted, nll_ignore_index):
 )
 
 
+@pytest.mark.skip("need to update samples to use correct input")
 @tvm.testing.parametrize_targets("llvm")
 def test_nll_loss_no_batch(target, dev, nll_reduction1, nll_weighted1, nll_ignore_index1):
+    # TODO(mlc-team) Update to correct input prob
     data1_numpy = np.random.randint(0, 16, (3,)).astype(np.float32)
     data2_numpy = np.random.randint(0, 3, ()).astype(np.int64)
     data3_numpy = np.random.randint(1, 16, (3,)).astype(np.float32)
@@ -762,6 +772,7 @@ def test_nll_loss_no_batch(target, dev, nll_reduction1, nll_weighted1, nll_ignor
 
 @tvm.testing.parametrize_targets("llvm")
 def test_conv2d(target, dev, c2d_shape1, c2d_shape2, c2d_kwargs):
+    # TODO(mlc-team) Update to uniform
     # We should use float32 to check the correctness of conv2d
     # to avoid possible precision problems
     data1_numpy = np.random.randint(0, 16, c2d_shape1).astype(np.float64)
