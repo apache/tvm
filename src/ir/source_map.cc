@@ -88,9 +88,56 @@ Span Span::Merge(const Span& other) const {
 
 TVM_REGISTER_NODE_TYPE(SpanNode);
 
+SequentialSpan::SequentialSpan(tvm::Array<Span> spans) {
+  auto n = make_object<SequentialSpanNode>();
+  tvm::Array<Span> tmp_spans;
+  for (const Span& s : spans) {
+    if (const SequentialSpanNode* seq_s = s.as<SequentialSpanNode>()) {
+      tmp_spans.insert(tmp_spans.end(), seq_s->spans.begin(), seq_s->spans.end());
+    } else {
+      tmp_spans.push_back(s);
+    }
+  }
+  n->spans = std::move(tmp_spans);
+
+  n->line = 0;
+  n->end_line = 0;
+  n->column = 0;
+  n->end_column = 0;
+
+  data_ = std::move(n);
+}
+
+SequentialSpan::SequentialSpan(std::initializer_list<Span> init) {
+  auto n = make_object<SequentialSpanNode>();
+  tvm::Array<Span> spans = tvm::Array<Span>(init);
+  tvm::Array<Span> tmp_spans;
+  for (const Span& s : spans) {
+    if (const SequentialSpanNode* seq_s = s.as<SequentialSpanNode>()) {
+      tmp_spans.insert(tmp_spans.end(), seq_s->spans.begin(), seq_s->spans.end());
+    } else {
+      tmp_spans.push_back(s);
+    }
+  }
+  n->spans = std::move(tmp_spans);
+
+  n->line = 0;
+  n->end_line = 0;
+  n->column = 0;
+  n->end_column = 0;
+
+  data_ = std::move(n);
+}
+
+TVM_REGISTER_NODE_TYPE(SequentialSpanNode);
+
 TVM_REGISTER_GLOBAL("ir.Span").set_body_typed([](SourceName source_name, int line, int end_line,
                                                  int column, int end_column) {
   return Span(source_name, line, end_line, column, end_column);
+});
+
+TVM_REGISTER_GLOBAL("ir.SequentialSpan").set_body_typed([](tvm::Array<Span> spans) {
+  return SequentialSpan(spans);
 });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -98,6 +145,19 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       auto* node = static_cast<const SpanNode*>(ref.get());
       p->stream << "Span(" << node->source_name << ", " << node->line << ", " << node->end_line
                 << ", " << node->column << ", " << node->end_column << ")";
+    });
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<SequentialSpanNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const SequentialSpanNode*>(ref.get());
+
+      p->stream << "SequentailSpan([ ";
+      int index = 0;
+      const int last = node->spans.size() - 1;
+      while (index < last) {
+        p->stream << node->spans[index++] << ", ";
+      }
+      p->stream << node->spans[last] << " ])";
     });
 
 TVM_REGISTER_NODE_TYPE(SourceNode);
