@@ -60,7 +60,9 @@ def rewrite_call(
 
 
 def rewrite_bindings(
-    ctx: PatternContext, rewriter: Callable[[Dict[DFPattern, Var], Dict[Var, Expr]], Dict[Var, Expr]], func: Function
+    ctx: PatternContext,
+    rewriter: Callable[[Dict[DFPattern, Var], Dict[Var, Expr]], Dict[Var, Expr]],
+    func: Function,
 ) -> Function:
     """
     Rewrite a function with the given pattern and the rewriter function.
