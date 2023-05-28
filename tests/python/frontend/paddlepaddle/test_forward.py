@@ -511,12 +511,12 @@ def test_forward_conv():
 
     class Conv2D2(nn.Layer):
         def __init__(
-            self, 
-            stride=1, 
-            padding=0, 
-            dilation=1, 
-            groups=1, 
-            padding_mode="zeros", 
+            self,
+            stride=1,
+            padding=0,
+            dilation=1,
+            groups=1,
+            padding_mode="zeros",
             data_layout="NCHW",
         ):
             super(Conv2D2, self).__init__()
@@ -536,7 +536,7 @@ def test_forward_conv():
         @paddle.jit.to_static
         def forward(self, inputs):
             return self.softmax(self.conv(inputs))
-        
+
     input_shapes = [[1, 3, 10, 10], [1, 3, 12, 12]]
 
     for input_shape in input_shapes:
@@ -550,7 +550,7 @@ def test_forward_conv():
         )
         verify_model(Conv2D1(stride=2, padding="SAME", dilation=2, groups=3), input_data=input_data)
         verify_model(
-            Conv2D2(stride=2, padding="SAME", dilation=2, groups=3, data_layout="NHWC"), 
+            Conv2D2(stride=2, padding="SAME", dilation=2, groups=3, data_layout="NHWC"),
             input_data=input_data,
         )
 
@@ -606,15 +606,15 @@ def test_forward_conv3d():
         @paddle.jit.to_static
         def forward(self, inputs):
             return self.softmax(self.conv(inputs))
-        
+
     class Conv3D2(nn.Layer):
         def __init__(
-            self, 
-            stride=1, 
-            padding=0, 
-            dilation=1, 
-            groups=1, 
-            padding_mode="zeros", 
+            self,
+            stride=1,
+            padding=0,
+            dilation=1,
+            groups=1,
+            padding_mode="zeros",
             data_layout="NCHW",
         ):
             super(Conv3D2, self).__init__()
@@ -634,7 +634,7 @@ def test_forward_conv3d():
         @paddle.jit.to_static
         def forward(self, inputs):
             return self.softmax(self.conv(inputs))
-        
+
     input_shapes = [[1, 3, 10, 10, 10], [1, 3, 12, 12, 12]]
 
     for input_shape in input_shapes:
@@ -656,7 +656,9 @@ def test_forward_conv3d():
         )
         verify_model(Conv3D(stride=2, padding="SAME", dilation=2, groups=3), input_data=input_data)
         verify_model(
-            Conv3D2(stride=2, padding="SAME", dilation=2, groups=3, data_layout="NCDHW"), 
+            Conv3D2(
+                stride=2, padding="SAME", dilation=2, groups=3, data_layout="NCDHW"
+            ),
             input_data=input_data,
         )
 
@@ -902,7 +904,7 @@ def test_forward_group_norm():
         verify_model(GroupNorm(num_channels, 1), input_data, rtol=1e-4, atol=1e-4)
         verify_model(GroupNorm(num_channels, 2), input_data, rtol=1e-4, atol=1e-4)
 
-        
+
 @tvm.testing.uses_gpu
 def test_forward_gaussian_random():
     @paddle.jit.to_static
@@ -915,11 +917,10 @@ def test_forward_gaussian_random():
 
     shapes = [[20], [8, 8], [4, 5, 6], [3, 4, 3, 5]]
     for shape in zip(shapes):
-
         verify_model(gaussian_random1, shape=shape)
         verify_model(gaussian_random2, shape=shape)
 
-        
+
 @tvm.testing.uses_gpu
 def test_forward_grid_sampler():
     class GridSampler(nn.Layer):
