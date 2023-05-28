@@ -689,6 +689,9 @@ def instantiate_template(func_name, annotations, func_args):
             attrs["split_k_mode"] = "kSerial"
             attrs["split_k_slices"] = 1
 
+        if "residual_shape" in annotations:
+            attrs["residual_shape"] = annotations["residual_shape"]
+
         code = instantiate_conv2d_template(attrs)
         return CodegenResult(code, headers)
 

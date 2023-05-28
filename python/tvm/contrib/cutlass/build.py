@@ -668,26 +668,34 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
             use_multiprocessing=use_multiprocessing,
         )
 
-        return f.with_attrs(
-            {
-                "op_type": op_type,
-                "data_arg_idx": arg_idx["lhs"],
-                "weight_arg_idx": arg_idx["rhs"],
-                "bias_arg_idx": arg_idx.get("bias"),
-                "residual_arg_idx": arg_idx.get("residual"),
-                "arg0_dtype": data_dtype,
-                "arg1_dtype": weight_dtype,
-                "ret_dtype": out_dtype,
-                "arg0_shape": d_shape,
-                "arg1_shape": w_shape,
-                "ret_shape": out_shape,
-                "strides": strides,
-                "padding": padding,
-                "dilation": dilation,
-                "cutlass_op_name": op_name,
-                "cutlass_op_def": op_def,
-            }
-        )
+        attrs = {
+            "op_type": op_type,
+            "data_arg_idx": arg_idx["lhs"],
+            "weight_arg_idx": arg_idx["rhs"],
+            "bias_arg_idx": arg_idx.get("bias"),
+            "residual_arg_idx": arg_idx.get("residual"),
+            "arg0_dtype": data_dtype,
+            "arg1_dtype": weight_dtype,
+            "ret_dtype": out_dtype,
+            "arg0_shape": d_shape,
+            "arg1_shape": w_shape,
+            "ret_shape": out_shape,
+            "strides": strides,
+            "padding": padding,
+            "dilation": dilation,
+            "cutlass_op_name": op_name,
+            "cutlass_op_def": op_def,
+        }
+
+        residual_arg = arg_idx.get("residual")
+
+        if residual_arg:
+            residual_shape = signature[f"arg{residual_arg}_shape"]
+            attrs["residual_shape"] = residual_shape
+        elif "residual" in op_type:
+            attrs["residual_shape"] = d_shape
+
+        return f.with_attrs(attrs)
 
     def handle_matmul(self, f, op_type):
         """Tune and annotate a dense op."""

@@ -47,6 +47,10 @@ def _is_supported_dtype(lhs_dtype, rhs_dtype):
     )
 
 
+def _shape_1d(shape):
+    return reduce(operator.mul, shape, 1)
+
+
 def _has_leaking_intermediate_variables(context: PatternCheckContext) -> bool:
     """
     Check whether intermediate variables in the region to be fused are used outside
@@ -104,7 +108,10 @@ def _check_residual(root_call: Call, context: PatternCheckContext) -> bool:
         shape1 = [int(s) for s in root_var.struct_info.shape]
         shape2 = [int(s) for s in residual.struct_info.shape]
 
-        if shape1 != shape2:
+        out_channel = shape1[-1]
+        is_bias_like = lambda shape: (shape[-1] == out_channel and _shape_1d(shape) == out_channel)
+
+        if shape1 != shape2 and not is_bias_like(shape2):
             return False
 
     return True
@@ -402,7 +409,7 @@ class WorkspaceAnnotator(PyExprMutator):
         if "attention" in f.attrs["Composite"]:
             # Workspace is needed only for larger head sizes, but for simplicity we always allocate.
             out_dtype = f.ret_struct_info.dtype
-            out_size_1d = reduce(operator.mul, f.ret_struct_info.shape, 1)
+            out_size_1d = _shape_1d(f.ret_struct_info.shape)
             # This needs to be in sync with the actual value that the kernel expects.
             workspace_size_bytes = out_size_1d * {"float16": 2, "float32": 4}[out_dtype]
             return f.with_attr("WorkspaceSize", workspace_size_bytes)
