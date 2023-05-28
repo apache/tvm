@@ -1033,7 +1033,7 @@ def test_attention_fake_qkv():
 def get_qkv_proj_rewriter(
     inp_pat, Q_weight_pat, K_weight_pat, V_weight_pat, matmul1, matmul2, matmul3
 ):
-    def qkv_proj_rewriter(matchings):
+    def qkv_proj_rewriter(matchings, _):
         inp = matchings[inp_pat]
         Q_weight = matchings[Q_weight_pat]
         K_weight = matchings[K_weight_pat]

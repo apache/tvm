@@ -60,7 +60,7 @@ def rewrite_call(
 
 
 def rewrite_bindings(
-    ctx: PatternContext, rewriter: Callable[[Dict[DFPattern, Var]], Dict[Var, Expr]], func: Function
+    ctx: PatternContext, rewriter: Callable[[Dict[DFPattern, Var], Dict[Var, Expr]], Dict[Var, Expr]], func: Function
 ) -> Function:
     """
     Rewrite a function with the given pattern and the rewriter function.
@@ -70,10 +70,11 @@ def rewrite_bindings(
     ctx: PatternContext
         The pattern constraint context under which rewriting takes place.
 
-    rewriter: Callable[[Dict[DFPattern, Var]], Dict[Var, Expr]]
+    rewriter: Callable[[Dict[DFPattern, Var], Dict[Var, Expr]], Dict[Var, Expr]]
         The function to be called on a successful matching for rewriting. Given the map of patterns
         and corresponding variables (bound variables or parameters), it should return a map that
-        specifies new values for matched bound variables.
+        specifies new values for matched bound variables. It can refer to the passed bindings to
+        create the replacement expressions.
 
         For example, to rewrite three matmuls for QKV projection in transformer models into one
         matmul followed by slicing, one can use the follwoing rewriter:
