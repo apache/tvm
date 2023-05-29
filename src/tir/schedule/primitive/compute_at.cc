@@ -436,13 +436,16 @@ std::pair<Var, BlockVarDomainInfo> SolveBlockVarDomain(const arith::IntSet& prov
         // generally domain of (x % fac) enforce no constraints to domain of x
         return {p_v.Eval(), BlockVarDomainInfo()};
       } else if ((floordiv(p_f1, p_f2).Match(provided_min))) {
-        auto* div_f = provided_min.as<FloorDivNode>();
-        const arith::IntSet new_provided = arith::IntSet::SinglePoint(div_f->a);
-        return SolveBlockVarDomain(new_provided, required, dim_max, analyzer);
+        const arith::IntSet new_provided = arith::IntSet::SinglePoint(p_f1.Eval());
+        const arith::IntSet new_required = arith::IntSet::SinglePoint(p_f2.Eval());
+        return SolveBlockVarDomain(new_provided, new_required, dim_max, analyzer);
       } else if ((floormod(p_f1, p_f2).Match(provided_min))) {
-        auto* div_f = provided_min.as<FloorModNode>();
-        const arith::IntSet new_provided = arith::IntSet::SinglePoint(div_f->a);
-        return SolveBlockVarDomain(new_provided, required, dim_max, analyzer);
+        PrimExpr mod_1 = p_f1.Eval();
+        PrimExpr mod_2 = p_f2.Eval();
+        if (analyzer->CanProveGreaterEqual(mod_1, 1) && analyzer->CanProveGreaterEqual(mod_2, 1)) {
+          const arith::IntSet new_provided = arith::IntSet::SinglePoint(p_f1.Eval());
+          return SolveBlockVarDomain(new_provided, required, dim_max, analyzer);
+        }
       }
     }
   }
