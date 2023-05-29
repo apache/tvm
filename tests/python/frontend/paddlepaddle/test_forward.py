@@ -656,9 +656,7 @@ def test_forward_conv3d():
         )
         verify_model(Conv3D(stride=2, padding="SAME", dilation=2, groups=3), input_data=input_data)
         verify_model(
-            Conv3D2(
-                stride=2, padding="SAME", dilation=2, groups=3, data_layout="NCDHW"
-            ),
+            Conv3D2(stride=2, padding="SAME", dilation=2, groups=3, data_layout="NCDHW"),
             input_data=input_data,
         )
 
