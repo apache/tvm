@@ -158,6 +158,7 @@ def test_opencl_type_casting():
                 tvm.tir.all(
                     *[
                         i // block_size == tvm.tir.const(3, "int32"),
+                        i % 3 == tvm.tir.const(1, "int32"),
                     ]
                 ),
                 tvm.tir.const(1, dtype),
@@ -176,16 +177,11 @@ def test_opencl_type_casting():
         fun = tvm.build(sch.mod, target=target)
         c = tvm.nd.empty((n,), dtype, ctx)
         assembly = fun.imported_modules[0].get_source()
-
-        if dtype == "float32":
-            pattern_cond = "(convert_int(((convert_int(get_local_id(0))) == 3))))"
-            assert assembly.count(pattern_cond) != 0
-            fun(c)
-
-        elif dtype == "float16":
-            pattern_cond = "(convert_int(((convert_int(get_local_id(0))) == 3))))"
-            assert assembly.count(pattern_cond) != 0
-            fun(c)
+        lcond = "convert_int4(((convert_uint4(((uint4)(((convert_int(get_local_id(0))) == 3), ((convert_int(get_local_id(0))) == 3), ((convert_int(get_local_id(0))) == 3), ((convert_int(get_local_id(0))) == 3)))))"
+        rcond = "(convert_uint4(((((int4)(((convert_int(get_local_id(0))))+(1*0), ((convert_int(get_local_id(0))))+(1*1), ((convert_int(get_local_id(0))))+(1*2), ((convert_int(get_local_id(0))))+(1*3))) % ((int4)(3, 3, 3, 3))) == ((int4)(1, 1, 1, 1))))))))"
+        pattern_cond = "({} && {})".format(lcond, rcond)
+        assert assembly.count(pattern_cond) != 0
+        fun(c)
 
     dev = tvm.device(target, 0)
 
