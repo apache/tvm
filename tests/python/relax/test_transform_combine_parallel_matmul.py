@@ -479,5 +479,57 @@ def test_multiple_combine():
     tvm.ir.assert_structural_equal(mod["main"], expected1)
 
 
+def test_check():
+    @tvm.script.ir_module
+    class multiple_combine:
+        @R.function
+        def main(
+            x1: R.Tensor((2, 1024, 640), "float32"),
+            x2: R.Tensor((2, 1024, 640), "float32"),
+            w0: R.Tensor((640, 640), "float32"),
+            w1: R.Tensor((640, 640), "float32"),
+            w2: R.Tensor((640, 640), "float32"),
+            w3: R.Tensor((640, 640), "float32"),
+            w4: R.Tensor((640, 640), "float32"),
+        ) -> R.Tensor:
+            with R.dataflow():
+                lv0 = R.matmul(x1, w0)
+                lv1 = R.matmul(x1, w1)
+                lv2 = R.matmul(x1, w2)
+                lv3 = R.matmul(x2, w3)
+                lv4 = R.matmul(x2, w4)
+                out = (lv0, lv1, lv2, lv3, lv4)
+                R.output(out)
+            return out
+
+    check = lambda *inp: len(inp[1]) > 2  # Ignore branches with two matmuls
+    mod = CombineParallelMatmul(check)(multiple_combine)
+
+    @R.function
+    def expected(
+        x1: R.Tensor((2, 1024, 640), dtype="float32"),
+        x2: R.Tensor((2, 1024, 640), dtype="float32"),
+        w0: R.Tensor((640, 640), dtype="float32"),
+        w1: R.Tensor((640, 640), dtype="float32"),
+        w2: R.Tensor((640, 640), dtype="float32"),
+        w3: R.Tensor((640, 640), dtype="float32"),
+        w4: R.Tensor((640, 640), dtype="float32"),
+    ) -> R.Tensor:
+        with R.dataflow():
+            lv = R.concat((w0, w1, w2), axis=1)
+            lv1 = R.matmul(x1, lv, out_dtype="float32")
+            lv2 = R.split(lv1, indices_or_sections=[640, 1280], axis=2)
+            lv0 = lv2[0]
+            lv1_1 = lv2[1]
+            lv2_1 = lv2[2]
+            lv3 = R.matmul(x2, w3, out_dtype="void")
+            lv4 = R.matmul(x2, w4, out_dtype="void")
+            out = (lv0, lv1_1, lv2_1, lv3, lv4)
+            R.output(out)
+        return out
+
+    tvm.ir.assert_structural_equal(mod["main"], expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

@@ -707,12 +707,11 @@ static std::optional<MatchState> MatchTree(
   return std::nullopt;
 }
 
-Optional<Map<DFPattern, Var>> MatchGraph(const PatternContext& ctx, const DataflowBlock& dfb) {
+Optional<Map<DFPattern, Var>> MatchGraph(const PatternContext& ctx, const DataflowBlock& dfb,
+                                         const Map<Var, Expr>& bindings) {
   // TODO(@ganler): Handle non-may external use.
   ICHECK(ctx->allow_extern_use == PatternContextNode::kMay) << "Only kMay is supported yet.";
-
-  const auto var2val = AnalyzeVar2Value(dfb);
-  DFPatternMatcher matcher(var2val);
+  DFPatternMatcher matcher(bindings);
 
   MatcherUseDefAnalysis ud_analysis;
   ud_analysis.VisitBindingBlock_(dfb.get());
@@ -772,7 +771,14 @@ Optional<Map<DFPattern, Var>> MatchGraph(const PatternContext& ctx, const Datafl
   return NullOpt;
 }
 
-TVM_REGISTER_GLOBAL("relax.dpl.match_dfb").set_body_typed(MatchGraph);
+Optional<Map<DFPattern, Var>> MatchGraph(const PatternContext& ctx, const DataflowBlock& dfb) {
+  return MatchGraph(ctx, dfb, AnalyzeVar2Value(dfb));
+}
+
+TVM_REGISTER_GLOBAL("relax.dpl.match_dfb")
+    .set_body_typed([](const PatternContext& ctx, const DataflowBlock& dfb) {
+      return MatchGraph(ctx, dfb);
+    });
 
 /*!
  * \brief Apply pattern matching to each call node and dataflow block, and replace matching ones
@@ -863,9 +869,11 @@ class PatternRewriter : ExprMutator {
 
   // Repeat until all matchable subsets of bindings are rewritten.
   BindingBlock RewriteDataflowBlockFixedPoint(BindingBlock block) {
-    if (auto matches = MatchGraph(ctx_.value(), Downcast<DataflowBlock>(block))) {
+    auto df_block = Downcast<DataflowBlock>(block);
+    Map<Var, Expr> bindings = AnalyzeVar2Value(df_block);
+    if (auto matches = MatchGraph(ctx_.value(), df_block, bindings)) {
       builder_->BeginDataflowBlock();
-      Map<Var, Expr> replacements = rewriter_func_(matches.value());
+      Map<Var, Expr> replacements = rewriter_func_(matches.value(), bindings);
 
       std::unordered_set<const VarNode*> emitted_vars;
 
@@ -906,9 +914,10 @@ class PatternRewriter : ExprMutator {
    * - (Call, Map<DFPattern, Expr>) -> Call for call node rewriting. Given the matched
    *    call node and the map of patterns and matched expressions, it should return a new call node
    *    to replace the original one or the original matched call node as is.
-   * - Map<DFPattern, Var> -> Map<Var, Expr> for dataflow block rewriting. Given the map of patterns
-   *   and corresponding variables (bound variables or parameters), it should return a map that
-   *   specifies new values for matched bound variables.
+   * - (Map<DFPattern, Var>, Map<Var, Expr>) -> Map<Var, Expr> for dataflow block rewriting.
+   *    Given the map of patterns and corresponding variables (bound variables or parameters),
+   *    it should return a map that specifies new values for matched bound variables. It can refer
+   *    to the passed bindings to create the replacement expressions.
    */
   PackedFunc rewriter_func_;
   std::unordered_set<const VarNode*> params_;
