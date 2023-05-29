@@ -66,7 +66,7 @@ struct TVMOpParam {
  */
 class TVM_DLL GraphExecutor : public ModuleNode {
   struct OpArgs {
-    std::vector<DLTensor> args;
+    std::vector<DLTensor*> args;
     std::vector<TVMValue> arg_values;
     std::vector<int> arg_tcodes;
     std::vector<int64_t> shape_data;
@@ -437,7 +437,7 @@ class TVM_DLL GraphExecutor : public ModuleNode {
    * \return The created executor.
    */
   std::pair<std::function<void()>, std::shared_ptr<OpArgs>> CreateTVMOp(
-      const TVMOpParam& attrs, const std::vector<DLTensor>& args);
+      const TVMOpParam& attrs, const std::vector<DLTensor*>& args);
   // Get node entry index.
   uint32_t entry_id(uint32_t nid, uint32_t index) const { return node_row_ptr_[nid] + index; }
   // Get node entry index.
@@ -460,6 +460,8 @@ class TVM_DLL GraphExecutor : public ModuleNode {
   std::vector<std::vector<DLTensor*>> output_dltensors_;
   /*! \brief Used for quick node(both model output and op input) DLTensor* lookup given an eid. */
   std::vector<std::vector<DLTensor*>> both_output_opinput_dltensors_;
+  /*! \brief Used for quick entry_id lookup given an storage_id. */
+  std::vector<std::vector<uint32_t>> sid_to_eid_;
   /*! \brief Used for quick entry indexing. */
   std::vector<uint32_t> node_row_ptr_;
   /*! \brief Output entries. */
