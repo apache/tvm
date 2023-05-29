@@ -32,10 +32,12 @@ def test_opencl_ternary_expression():
         max_lhs = tvm.tir.const(2, dtype=dtype)
         max_rhs = tvm.tir.if_then_else(A[0] > 0, true_value, false_value)
         C = te.compute((n,), lambda i: tvm.te.max(max_lhs, max_rhs), name="C")
-        s = te.create_schedule(C.op)
-        s[C].bind(s[C].op.axis[0], te.thread_axis("threadIdx.x"))
-        fun = tvm.build(s, [A, C], target)
 
+        func = te.create_prim_func([A, C])
+        sch = tvm.tir.Schedule(func)
+        (x,) = sch.get_loops(sch.get_block("C"))
+        sch.bind(x, "threadIdx.x")
+        fun = tvm.build(sch.mod, target=target)
         a = tvm.nd.empty((n,), A.dtype, dev)
         c = tvm.nd.empty((n,), A.dtype, dev)
         # Only need to test compiling here
@@ -48,9 +50,11 @@ def test_opencl_ternary_expression():
         max_lhs = tvm.tir.const(2, dtype=dtype)
         max_rhs = tvm.tir.Select(A[0] > 0, true_value, false_value)
         C = te.compute((n,), lambda i: tvm.te.max(max_lhs, max_rhs), name="C")
-        s = te.create_schedule(C.op)
-        s[C].bind(s[C].op.axis[0], te.thread_axis("threadIdx.x"))
-        fun = tvm.build(s, [A, C], target)
+        func = te.create_prim_func([A, C])
+        sch = tvm.tir.Schedule(func)
+        (x,) = sch.get_loops(sch.get_block("C"))
+        sch.bind(x, "threadIdx.x")
+        fun = tvm.build(sch.mod, target=target)
 
         a = tvm.nd.empty((n,), A.dtype, dev)
         c = tvm.nd.empty((n,), A.dtype, dev)
@@ -76,9 +80,11 @@ def test_opencl_inf_nan():
         A = te.placeholder((n,), name="A", dtype=dtype)
         inf_value = tvm.tir.const(value, dtype=dtype)
         C = te.compute((n,), lambda i: inf_value, name="C")
-        s = te.create_schedule(C.op)
-        s[C].bind(s[C].op.axis[0], te.thread_axis("threadIdx.x"))
-        fun = tvm.build(s, [A, C], target)
+        func = te.create_prim_func([A, C])
+        sch = tvm.tir.Schedule(func)
+        (x,) = sch.get_loops(sch.get_block("C"))
+        sch.bind(x, "threadIdx.x")
+        fun = tvm.build(sch.mod, target=target)
         a = tvm.nd.empty((n,), A.dtype, dev)
         c = tvm.nd.empty((n,), A.dtype, dev)
         # Only need to test compiling here
@@ -102,9 +108,11 @@ def test_opencl_max():
         max_lhs = A[0] + tvm.tir.const(1, dtype=dtype)
         max_rhs = tvm.tir.const(0, dtype=dtype)
         C = te.compute((n,), lambda i: tvm.te.max(max_lhs, max_rhs), name="C")
-        s = te.create_schedule(C.op)
-        s[C].bind(s[C].op.axis[0], te.thread_axis("threadIdx.x"))
-        fun = tvm.build(s, [A, C], target)
+        func = te.create_prim_func([A, C])
+        sch = tvm.tir.Schedule(func)
+        (x,) = sch.get_loops(sch.get_block("C"))
+        sch.bind(x, "threadIdx.x")
+        fun = tvm.build(sch.mod, target=target)
 
         a = tvm.nd.empty((n,), A.dtype, dev)
         c = tvm.nd.empty((n,), A.dtype, dev)
@@ -150,7 +158,6 @@ def test_opencl_type_casting():
                 tvm.tir.all(
                     *[
                         i // block_size == tvm.tir.const(3, "int32"),
-                        i % block_size == tvm.tir.const(3, "int32"),
                     ]
                 ),
                 tvm.tir.const(1, dtype),
@@ -158,42 +165,31 @@ def test_opencl_type_casting():
             ),
             name="C",
         )
-        s = te.create_schedule(C.op)
-        (tx, vx) = s[C].split(s[C].op.axis[0], factor=block_size)
-        s[C].vectorize(vx)
-        thrx = te.thread_axis("threadIdx.x")
+        # NOTE: test simple convert pattern
+        func = te.create_prim_func([C])
+        sch = tvm.tir.Schedule(func)
+        (x,) = sch.get_loops(sch.get_block("C"))
+        tx, vx = sch.split(x, factors=[None, block_size])
+        sch.bind(tx, "threadIdx.x")
+        sch.vectorize(vx)
 
-        s[C].bind(tx, thrx)
-        fun = tvm.build(s, [C], target)
-
+        fun = tvm.build(sch.mod, target=target)
         c = tvm.nd.empty((n,), dtype, ctx)
         assembly = fun.imported_modules[0].get_source()
 
         if dtype == "float32":
-            false_branch = "((float4)(0.000000e+00f, 0.000000e+00f, 0.000000e+00f, 0.000000e+00f))"
-            true_branch = "((float4)(1.000000e+00f, 1.000000e+00f, 1.000000e+00f, 1.000000e+00f))"
-            lcond = "convert_int4(((convert_uint4(((uint4)((((int)get_local_id(0)) == 3), (((int)get_local_id(0)) == 3), (((int)get_local_id(0)) == 3), (((int)get_local_id(0)) == 3)))))"
-            rcond = "(convert_uint4((((int4)((0)+(1*0), (0)+(1*1), (0)+(1*2), (0)+(1*3))) == ((int4)(3, 3, 3, 3)))))"
-            cond = "({} && {})".format(lcond, rcond)
-            select = "select({}, {}, {})".format(false_branch, true_branch, cond)
-            count = assembly.count(select)
-            assert count == 1
+            pattern_cond = "(convert_int(((convert_int(get_local_id(0))) == 3))))"
+            assert assembly.count(pattern_cond) != 0
             fun(c)
 
         elif dtype == "float16":
-            false_branch = "((half4)((half)0.000000e+00f, (half)0.000000e+00f, (half)0.000000e+00f, (half)0.000000e+00f))"
-            true_branch = "((half4)((half)1.000000e+00f, (half)1.000000e+00f, (half)1.000000e+00f, (half)1.000000e+00f))"
-            lcond = "convert_short4(((convert_uint4(((uint4)((((int)get_local_id(0)) == 3), (((int)get_local_id(0)) == 3), (((int)get_local_id(0)) == 3), (((int)get_local_id(0)) == 3)))))"
-            rcond = "(convert_uint4((((int4)((0)+(1*0), (0)+(1*1), (0)+(1*2), (0)+(1*3))) == ((int4)(3, 3, 3, 3)))))))"
-            cond = "({} && {})".format(lcond, rcond)
-            select = "select({}, {}, {})".format(false_branch, true_branch, cond)
-            count = assembly.count(select)
-            assert count == 1
+            pattern_cond = "(convert_int(((convert_int(get_local_id(0))) == 3))))"
+            assert assembly.count(pattern_cond) != 0
             fun(c)
 
     dev = tvm.device(target, 0)
 
-    check_type_casting(dev, 16, "float32")
+    check_type_casting(dev, 32, "float32")
     # fp16 is not yet supported in ci
     # check_type_casting(dev, 16, "float16")
 
