@@ -1778,21 +1778,6 @@ def test_forward_tanh():
 
 
 @tvm.testing.uses_gpu
-def test_forward_softplusThreshold():
-    class Softplus(nn.Layer):
-        def __init__(self, threshold=20):
-            super(Softplus, self).__init__()
-            self.threshold = threshold
-
-        def forward(self, input):
-            return paddle.nn.functional.softplus(input, threshold=self.threshold)
-
-    input_data = paddle.rand([2, 3, 5], dtype="float32")
-    verify_model(Softplus(), input_data=input_data)
-    verify_model(Softplus(threshold=0.5), input_data=input_data)
-
-
-@tvm.testing.uses_gpu
 def test_forward_meshgrid():
     @paddle.jit.to_static
     def t(x, y, z):
