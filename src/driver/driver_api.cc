@@ -587,7 +587,10 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
     mixed_pass_list.push_back(tir::transform::MakePackedAPI());
   }
   mixed_pass_list.push_back(tir::transform::BF16StorageLegalize());
+
+  mixed_pass_list.push_back(tir::transform::AnnotateDeviceRegions());
   mixed_pass_list.push_back(tir::transform::SplitHostDevice());
+  mixed_pass_list.push_back(tir::transform::LowerDeviceKernelLaunch());
 
   return transform::Sequential(mixed_pass_list);
 }

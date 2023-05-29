@@ -94,7 +94,7 @@ def unpack_feature(byte_arr: bytearray) -> Tuple[np.ndarray, np.ndarray, np.ndar
     n = struct.unpack_from("1i", byte_arr, offset=offset)[0]
     offset += SIZE_OF_INT32
 
-    sizes = struct.unpack_from("%di" % (n + 2), byte_arr, offset=offset)
+    sizes = struct.unpack_from(f"{n + 2}i", byte_arr, offset=offset)
     offset += SIZE_OF_INT32 * (n + 2)
 
     # unpack features
@@ -121,13 +121,10 @@ def unpack_feature(byte_arr: bytearray) -> Tuple[np.ndarray, np.ndarray, np.ndar
             tmp_vec_len = (size - 1) // n_stmts
             assert (
                 tmp_vec_len == vec_len
-            ), "The length of feature vector is wrong. Expected %d but got %d." % (
-                vec_len,
-                tmp_vec_len,
-            )
+            ), f"The length of feature vector is wrong. Expected {vec_len} but got {tmp_vec_len}."
             assert tmp_vec_len * n_stmts == size - 1
             for _ in range(n_stmts):
-                x = struct.unpack_from("%df" % vec_len, byte_arr, offset=offset)
+                x = struct.unpack_from(f"{vec_len}f", byte_arr, offset=offset)
                 offset += vec_len * SIZE_OF_FLOAT32
                 row.append(x)
 
@@ -135,15 +132,15 @@ def unpack_feature(byte_arr: bytearray) -> Tuple[np.ndarray, np.ndarray, np.ndar
 
     # unpack normalized_throughputs
     m = sizes[-2]
-    normalized_throughputs = struct.unpack_from("%df" % m, byte_arr, offset=offset)
+    normalized_throughputs = struct.unpack_from(f"{m}f", byte_arr, offset=offset)
     offset += m * SIZE_OF_FLOAT32
 
     # unpack task_ids
     m = sizes[-1]
-    task_ids = struct.unpack_from("%di" % m, byte_arr, offset=offset)
+    task_ids = struct.unpack_from(f"{m}i", byte_arr, offset=offset)
     offset += m * SIZE_OF_INT32
 
-    assert offset == len(byte_arr), "%d vs %d" % (offset, len(byte_arr))
+    assert offset == len(byte_arr), f"{offset} vs {len(byte_arr)}"
     return np.array(features, dtype=object), np.array(normalized_throughputs), np.array(task_ids)
 
 

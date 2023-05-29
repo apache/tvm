@@ -662,11 +662,26 @@ Map<String, ObjectRef> TargetNode::Export() const {
 
 Optional<Target> TargetNode::GetHost() const { return this->host.as<Target>(); }
 
+Target Target::WithoutHost() const {
+  if ((*this)->GetHost()) {
+    auto output = make_object<TargetNode>(*get());
+    output->host = NullOpt;
+    return Target(output);
+  } else {
+    return *this;
+  }
+}
+
 int TargetNode::GetTargetDeviceType() const {
   if (Optional<Integer> device_type = GetAttr<Integer>("target_device_type")) {
     return Downcast<Integer>(device_type)->value;
   }
   return kind->default_device_type;
+}
+
+bool TargetNode::HasKey(const std::string& query_key) const {
+  return std::any_of(keys.begin(), keys.end(),
+                     [&query_key](const auto& key) { return key == query_key; });
 }
 
 String TargetNode::ToDebugString() const {

@@ -114,7 +114,7 @@ class SpanNode : public Object {
   }
 
   static constexpr const char* _type_key = "Span";
-  TVM_DECLARE_FINAL_OBJECT_INFO(SpanNode, Object);
+  TVM_DECLARE_BASE_OBJECT_INFO(SpanNode, Object);
 };
 
 class Span : public ObjectRef {
@@ -125,6 +125,50 @@ class Span : public ObjectRef {
   TVM_DLL Span Merge(const Span& other) const;
 
   TVM_DEFINE_OBJECT_REF_METHODS(Span, ObjectRef, SpanNode);
+};
+
+/*!
+ * \brief Store a list of spans for an expr generated from mulitple source exprs
+ */
+class SequentialSpanNode : public SpanNode {
+ public:
+  /*! \brief The original source list of spans to construct a sequential span. */
+  Array<Span> spans;
+
+  // override attr visitor
+  void VisitAttrs(AttrVisitor* v) {
+    SpanNode::VisitAttrs(v);
+    v->Visit("spans", &spans);
+  }
+
+  static constexpr const char* _type_key = "SequentialSpan";
+  TVM_DECLARE_FINAL_OBJECT_INFO(SequentialSpanNode, SpanNode);
+
+  bool SEqualReduce(const SequentialSpanNode* other, SEqualReducer equal) const {
+    if (spans.size() != other->spans.size()) {
+      return false;
+    }
+
+    for (size_t i = 0, e = spans.size(); i != e; ++i) {
+      if (!StructuralEqual()(spans[i], other->spans[i])) {
+        return false;
+      }
+    }
+    return true;
+  }
+};
+
+/*!
+ * \brief Reference class of SequentialSpanNode.
+ * \sa SequentialSpanNode
+ */
+class SequentialSpan : public Span {
+ public:
+  TVM_DLL SequentialSpan(Array<Span> spans);
+
+  TVM_DLL SequentialSpan(std::initializer_list<Span> init);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(SequentialSpan, Span, SequentialSpanNode);
 };
 
 /*! \brief A program source in any language.

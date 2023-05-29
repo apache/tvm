@@ -16,12 +16,11 @@
 # under the License.
 """Example code to do convolution."""
 import os
+
 import numpy as np
-import scipy.signal
 import tvm
-from tvm import te
+from tvm import te, topi
 from tvm.contrib import nvcc
-from tvm import topi
 from tvm.topi.utils import get_const_tuple
 
 TASK = "conv2d_hwcn_map"
@@ -29,7 +28,7 @@ USE_MANUAL_CODE = False
 
 
 @tvm.register_func("tvm_callback_cuda_compile", override=True)
-def tvm_callback_cuda_compile(code):
+def tvm_callback_cuda_compile(code, target):
     ptx = nvcc.compile_cuda(code, target_format="ptx")
     return ptx
 
@@ -40,7 +39,7 @@ def write_code(code, fname):
 
 
 @tvm.register_func
-def tvm_callback_cuda_postproc(code):
+def tvm_callback_cuda_postproc(code, target):
     if not os.path.exists("perf"):
         os.mkdir("perf")
     write_code(code, "perf/%s_generated.cu" % TASK)

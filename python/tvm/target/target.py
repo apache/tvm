@@ -174,9 +174,23 @@ class Target(Object):
         return int(self.attrs["max_num_threads"])
 
     @property
+    def max_block_size_x(self):
+        """Returns the max block size in x-dimension from the target if it exists."""
+        return int(self.attrs["max_block_size_x"])
+
+    @property
+    def max_block_size_y(self):
+        """Returns the max block size in y-dimension from the target if it exists."""
+        return int(self.attrs["max_block_size_y"])
+
+    @property
     def thread_warp_size(self):
         """Returns the thread_warp_size from the target if it exists."""
         return int(self.attrs["thread_warp_size"])
+
+    @property
+    def max_shared_memory_per_block(self):
+        return int(self.attrs["max_shared_memory_per_block"])
 
     @property
     def max_function_args(self):
@@ -218,6 +232,13 @@ class Target(Object):
     @property
     def libs(self):
         return list(self.attrs.get("libs", []))
+
+    @property
+    def supports_cooperative_matrix(self):
+        if self.attrs.get("supports_cooperative_matrix", []):
+            return bool(self.attrs["supports_cooperative_matrix"])
+        else:
+            return False
 
     @property
     def features(self):
@@ -625,12 +646,12 @@ def riscv_cpu(model="sifive-u54", options=None):
     return Target(" ".join(["llvm"] + opts))
 
 
-def hexagon(cpu_ver="v66", **kwargs):
+def hexagon(cpu_ver="v68", **kwargs):
     """Returns a Hexagon target.
 
     Parameters
     ----------
-    cpu_ver : str (default: "v66")
+    cpu_ver : str (default: "v68")
         CPU version used for code generation. Not all allowed cpu str
         will be valid, LLVM will throw an error.
 
@@ -658,7 +679,7 @@ def hexagon(cpu_ver="v66", **kwargs):
     # in place of '-'.
 
     # Example compiler arguments
-    # llvm -mtriple=hexagon -mcpu=hexagonv66 -mattr=+hvxv66,+hvx-length128b
+    # llvm -mtriple=hexagon -mcpu=hexagonv68 -mattr=+hvxv68,+hvx-length128b
 
     def get_arch_version(cpu_ver):
         m = re.match(r"v([0-9]+).*", cpu_ver)
@@ -666,7 +687,7 @@ def hexagon(cpu_ver="v66", **kwargs):
         return int(m.group(1))
 
     # Check for valid codegen cpu
-    valid_hex = ["v65", "v66", "v67", "v67t", "v68", "v69"]
+    valid_hex = ["v65", "v66", "v67", "v67t", "v68", "v69", "v71", "v73"]
     try:
         cpu_ver = cpu_ver[cpu_ver.index("v") :].lower()
         assert cpu_ver in valid_hex

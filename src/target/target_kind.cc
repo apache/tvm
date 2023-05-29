@@ -378,6 +378,7 @@ TVM_REGISTER_TARGET_KIND("vulkan", kDLVulkan)
     .add_attr_option<Bool>("supports_push_descriptor")
     .add_attr_option<Bool>("supports_dedicated_allocation")
     .add_attr_option<Bool>("supports_integer_dot_product")
+    .add_attr_option<Bool>("supports_cooperative_matrix")
     .add_attr_option<Integer>("supported_subgroup_operations")
     // Physical device limits
     .add_attr_option<Integer>("max_num_threads", Integer(256))
