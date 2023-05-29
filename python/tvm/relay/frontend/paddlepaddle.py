@@ -2386,6 +2386,14 @@ def convert_take_along_axis(g, op, block):
     g.add_node(op.output("Result")[0], out)
 
 
+def convert_tanhshrink(g, op, block):
+    """Operator converter for tanhshrink."""
+
+    x = g.get_node(op.input("X")[0])
+    out = x - _op.tanh(x)
+    g.add_node(op.output("Out")[0], out)
+
+
 def convert_thresholded_relu(g, op, block):
     """Operator converter for thresholded_relu."""
 
@@ -2697,6 +2705,7 @@ _convert_map = {
     "take_along_axis": convert_take_along_axis,
     "tan": convert_unary_op,
     "tanh": convert_unary_op,
+    "tanh_shrink": convert_tanhshrink,
     "top_k": convert_topk,
     "thresholded_relu": convert_thresholded_relu,
     "tile": convert_tile,

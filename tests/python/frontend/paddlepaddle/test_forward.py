@@ -1937,6 +1937,16 @@ def test_forward_topk():
 
 
 @tvm.testing.uses_gpu
+def test_forward_tanhshrink():
+    @paddle.jit.to_static
+    def tanhshrink(inputs):
+        return paddle.nn.functional.tanhshrink(inputs)
+
+    input_data = paddle.randn(shape=[2, 3], dtype="float32")
+    verify_model(tanhshrink, input_data=input_data)
+
+
+@tvm.testing.uses_gpu
 def test_forward_one_hot_v2():
     @paddle.jit.to_static
     def one_hot_v2_1(inputs):
