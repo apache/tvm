@@ -1114,6 +1114,217 @@ def test_tflite_pool2d_legalize(
     verify(mod["tvmgen_default_ethos_u_main_0"])
 
 
+@pytest.mark.parametrize("pooling_type", ["MAX", "AVG"])
+@pytest.mark.parametrize(
+    "ifm_shape, pool_shape, strides, activation_function, padding",
+    [
+        ([1, 4, 4, 3], [4, 4], [4, 4], "NONE", "SAME"),
+        ([1, 4, 4, 3], [4, 4], [4, 4], "RELU", "VALID"),
+        ([1, 25, 5, 64], [25, 5], [25, 5], "NONE", "VALID"),
+        ([1, 25, 5, 64], [25, 5], [25, 5], "RELU", "SAME"),
+    ],
+)
+def test_tflite_pool2d_same_ifm_and_kernel_shape_legalize(
+    pooling_type, ifm_shape, pool_shape, strides, activation_function, padding
+):
+    dtype = "int8"
+    strides_legalized = [1, 1]
+
+    def create_tflite_graph():
+        class Model(tf.Module):
+            @tf.function
+            def tf_function(self, x):
+                if pooling_type == "MAX":
+                    op = tf.nn.max_pool(x, pool_shape, strides, padding)
+                elif pooling_type == "AVG":
+                    op = tf.nn.avg_pool(x, pool_shape, strides, padding)
+                if activation_function == "RELU":
+                    op = tf.nn.relu(op)
+                return op
+
+        model = Model()
+        concrete_func = model.tf_function.get_concrete_function(
+            tf.TensorSpec(ifm_shape, dtype=tf.float32)
+        )
+
+        # Convert the model
+        def representative_dataset():
+            for _ in range(100):
+                data = np.random.rand(*tuple(ifm_shape))
+                yield [data.astype(np.float32)]
+
+        converter = tf.lite.TFLiteConverter.from_concrete_functions([concrete_func])
+        converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        converter.representative_dataset = representative_dataset
+        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+        converter.inference_input_type = tf.int8
+        converter.inference_output_type = tf.int8
+        tflite_model = converter.convert()
+        return tflite_model
+
+    def expected_mod():
+
+        expected_ir_string = ""
+
+        if activation_function == "NONE" and pooling_type == "AVG":
+            expected_ir_string = f"""
+            #[version = "0.0.5"]
+            def @main(%x: Tensor[{str(tuple(ifm_shape))}, {dtype}], output_tensor_names=\
+                ["Identity"]) -> Tensor[(1, 1, 1, {str(ifm_shape[3])}), {dtype}] {{
+                @tvmgen_default_ethos_u_main_0(%x)
+            }}
+
+            def @tvmgen_default_ethos_u_main_0(%y: Tensor[{str(tuple(ifm_shape))}, {dtype}], \
+                Compiler="ethos-u", Primitive=1, Inline=1, \
+                    global_symbol="tvmgen_default_ethos_u_main_0") -> Tensor[(1, 1, 1, \
+                        {str(ifm_shape[3])}), {dtype}] {{
+                %2 = fn (%z: Tensor[{str(tuple(ifm_shape))}, {dtype}], \
+                    PartitionedFromPattern="cast_nn.avg_pool2d_cast_", \
+                        Composite="ethos-u.avgpool2d") -> Tensor[(1, 1, 1, {str(ifm_shape[3])}), \
+                            {dtype}] {{
+                    %0 = cast(%z, dtype="int32") ;
+                    %1 = nn.avg_pool2d(%0, pool_size={str(pool_shape)}, strides={str(strides)}, \
+                        padding=[0, 0, 0, 0], layout="NHWC") ;
+                    cast(%1, dtype="{dtype}")
+                }} ;
+                %2(%y)
+            }}
+            """
+
+        if activation_function == "RELU" and pooling_type == "AVG":
+            expected_ir_string = f"""
+            #[version = "0.0.5"]
+            def @main(%x: Tensor[{str(tuple(ifm_shape))}, {dtype}], output_tensor_names=\
+                ["Identity"]) -> Tensor[(1, 1, 1, {str(ifm_shape[3])}), {dtype}] {{
+                @tvmgen_default_ethos_u_main_0(%x)
+            }}
+
+            def @tvmgen_default_ethos_u_main_0(%y: Tensor[{str(tuple(ifm_shape))}, {dtype}], \
+                Compiler="ethos-u", Primitive=1, Inline=1, \
+                    global_symbol="tvmgen_default_ethos_u_main_0") -> Tensor[(1, 1, 1, \
+                        {str(ifm_shape[3])}), {dtype}] {{
+                %3 = fn (%z: Tensor[{str(tuple(ifm_shape))}, {dtype}], \
+                    PartitionedFromPattern="cast_nn.avg_pool2d_cast_clip_", \
+                        Composite="ethos-u.avgpool2d") -> Tensor[(1, 1, 1, {str(ifm_shape[3])}), \
+                            {dtype}] {{
+                    %0 = cast(%z, dtype="int32") ;
+                    %1 = nn.avg_pool2d(%0, pool_size={str(pool_shape)}, strides={str(strides)}, \
+                        padding=[0, 0, 0, 0], layout="NHWC") ;
+                    %2 = cast(%1, dtype="{dtype}") ;
+                    clip(%2, a_min=-128f, a_max=127f)
+                }} ;
+                %3(%y)
+            }}
+            """
+
+        if activation_function == "NONE" and pooling_type == "MAX":
+            expected_ir_string = f"""
+            #[version = "0.0.5"]
+            def @main(%x: Tensor[{str(tuple(ifm_shape))}, {dtype}], output_tensor_names=\
+                ["Identity"]) -> Tensor[(1, 1, 1, {str(ifm_shape[3])}), {dtype}] {{
+                @tvmgen_default_ethos_u_main_0(%x)
+            }}
+
+            def @tvmgen_default_ethos_u_main_0(%y: Tensor[{str(tuple(ifm_shape))}, {dtype}], \
+                Compiler="ethos-u", Primitive=1, Inline=1, \
+                    global_symbol="tvmgen_default_ethos_u_main_0") -> Tensor[(1, 1, 1, \
+                        {str(ifm_shape[3])}), {dtype}] {{
+                %0 = fn (%z: Tensor[{str(tuple(ifm_shape))}, {dtype}], \
+                    PartitionedFromPattern="nn.max_pool2d_", \
+                        Composite="ethos-u.maxpool2d") -> Tensor[(1, 1, 1, {str(ifm_shape[3])}), \
+                            {dtype}] {{
+                    nn.max_pool2d(%z, pool_size={str(pool_shape)}, strides={str(strides)}, \
+                        padding=[0, 0, 0, 0], layout="NHWC")
+                }} ;
+                %0(%y)
+            }}
+            """
+
+        if activation_function == "RELU" and pooling_type == "MAX":
+            expected_ir_string = f"""
+            #[version = "0.0.5"]
+            def @main(%x: Tensor[{str(tuple(ifm_shape))}, {dtype}] , output_tensor_names=\
+                ["Identity"]) -> Tensor[(1, 1, 1, {str(ifm_shape[3])}), {dtype}] {{
+                @tvmgen_default_ethos_u_main_0(%x)
+            }}
+
+            def @tvmgen_default_ethos_u_main_0(%y: Tensor[{str(tuple(ifm_shape))}, {dtype}] , \
+                Compiler="ethos-u", Primitive=1, Inline=1, \
+                    global_symbol="tvmgen_default_ethos_u_main_0") -> Tensor[(1, 1, 1, \
+                        {str(ifm_shape[3])}), {dtype}] {{
+                %1 = fn (%z: Tensor[{str(tuple(ifm_shape))}, {dtype}] , \
+                    PartitionedFromPattern="nn.max_pool2d_clip_", \
+                        Composite="ethos-u.maxpool2d") -> Tensor[(1, 1, 1, {str(ifm_shape[3])}), \
+                            {dtype}] {{
+                    %0 = nn.max_pool2d(%z, pool_size={str(pool_shape)}, strides={str(strides)}, \
+                        padding=[0, 0, 0, 0], layout="NHWC");
+                    clip(%0, a_min=-128f, a_max=127f)
+                }};
+                %1(%y)
+            }}
+            """
+
+        return tvm.relay.fromtext(expected_ir_string)
+
+    def verify(ext_func):
+        ofm_shape = infra.compute_ofm_shape(ifm_shape, padding, pool_shape, strides)
+        op = ext_func.body
+        assert list(op.args[0].checked_type.shape) == ifm_shape
+        assert op.args[0].checked_type.dtype == dtype
+        assert list(op.checked_type.shape) == ofm_shape
+        assert op.checked_type.dtype == dtype
+        assert op.attrs.pooling_type == pooling_type
+        assert list(op.attrs.strides) == strides_legalized
+        assert list(op.attrs.padding) == infra.compute_padding_shape(
+            ifm_shape, ofm_shape, padding, pool_shape, strides
+        )
+        assert list(op.attrs.padding) == infra.compute_padding_shape(
+            ifm_shape, ofm_shape, padding, pool_shape, strides_legalized
+        )
+        assert list(op.attrs.pool_shape) == pool_shape
+        assert op.attrs.ofm_channels == ifm_shape[3]
+        if activation_function == "RELU":
+            assert str(op.attrs.activation) == "CLIP"
+
+    if pooling_type == "MAX":
+        rewriter = legalize.MaxPoolingRewriter()
+        pattern_table = [
+            (
+                ethosu.MaxPool2DParams.composite_name,
+                ethosu.qnn_maxpool2d_pattern(),
+                lambda pat: ethosu.MaxPool2DParams(pat).is_valid(),
+            ),
+        ]
+
+    if pooling_type == "AVG":
+        rewriter = legalize.AvgPoolingRewriter()
+        pattern_table = [
+            (
+                ethosu.AvgPool2DParams.composite_name,
+                ethosu.qnn_avgpool2d_pattern(),
+                lambda pat: ethosu.AvgPool2DParams(pat).is_valid(),
+            ),
+        ]
+
+    tflite_graph = create_tflite_graph()
+    tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
+
+    mod, _ = relay.frontend.from_tflite(
+        tflite_model,
+        shape_dict={"x": ifm_shape},
+        dtype_dict={"x": dtype},
+    )
+    mod = partition_ethosu_by_table(mod, pattern_table)
+
+    expected = expected_mod()
+    tvm.ir.assert_structural_equal(mod, expected)
+
+    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
+        rewriter, mod["tvmgen_default_ethos_u_main_0"]
+    )
+    verify(mod["tvmgen_default_ethos_u_main_0"])
+
+
 @pytest.mark.parametrize("operator_type", ["ADD", "SUB", "MUL", "MIN", "MAX"])
 @pytest.mark.parametrize(
     "ifm_shape, ifm2_shape, reversed_operands",

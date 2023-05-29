@@ -124,7 +124,7 @@ class NDArray(NDArrayBase):
         elif isinstance(value, (np.ndarray, np.generic)):
             self.copyfrom(value)
         else:
-            raise TypeError("type %s not supported" % str(type(value)))
+            raise TypeError(f"type {type(value)} not supported")
 
     def copyfrom(self, source_array):
         """Perform a synchronous copy from the array.
@@ -148,8 +148,7 @@ class NDArray(NDArrayBase):
                 source_array = np.array(source_array, dtype=self.dtype)
             except:
                 raise TypeError(
-                    "array must be an array_like data,"
-                    + "type %s is not supported" % str(type(source_array))
+                    f"array must be an array_like data, type {type(source_array)} is not supported"
                 )
 
         t = DataType(self.dtype)
@@ -161,9 +160,7 @@ class NDArray(NDArrayBase):
 
         if source_array.shape != shape:
             raise ValueError(
-                "array shape do not match the shape of NDArray {0} vs {1}".format(
-                    source_array.shape, shape
-                )
+                f"array shape do not match the shape of NDArray {source_array.shape} vs {shape}"
             )
         numpy_str_map = DataType.NUMPY2STR
         np_dtype_str = (
@@ -184,7 +181,7 @@ class NDArray(NDArrayBase):
         return self
 
     def __repr__(self):
-        res = "<tvm.nd.NDArray shape={0}, {1}>\n".format(self.shape, self.device)
+        res = f"<tvm.nd.NDArray shape={self.shape}, {self.device}>\n"
         res += self.numpy().__repr__()
         return res
 
@@ -252,7 +249,7 @@ class NDArray(NDArrayBase):
         if isinstance(target, Device):
             res = empty(self.shape, self.dtype, target, mem_scope)
             return self._copyto(res)
-        raise ValueError("Unsupported target type %s" % str(type(target)))
+        raise ValueError(f"Unsupported target type {type(target)}")
 
     def _create_view(self, shape):
         """Create a view into an existing array.
@@ -311,7 +308,7 @@ def device(dev_type, dev_id=0):
     if isinstance(dev_type, string_types):
         dev_type = dev_type.split()[0]
         if dev_type not in Device.STR2MASK:
-            raise ValueError("Unknown device type %s" % dev_type)
+            raise ValueError(f"Unknown device type {dev_type}")
         dev_type = Device.STR2MASK[dev_type]
     return Device(dev_type, dev_id)
 
@@ -435,7 +432,7 @@ def gpu(dev_id=0):
         The created device
     """
     warnings.warn(
-        "Please use tvm.cuda() instead of tvm.gpu(). tvm.gpu() is going to be deprecated in 0.9.0",
+        "Please use tvm.cuda() instead of tvm.gpu(). tvm.gpu() is going to be deprecated in 0.9.0"
     )
     return Device(Device.kDLCUDA, dev_id)
 

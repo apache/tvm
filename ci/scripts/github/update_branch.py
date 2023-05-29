@@ -87,6 +87,22 @@ def commits_query(user: str, repo: str, cursor: str = None):
     """
 
 
+EXPECTED_CI_JOBS = [
+    "cross-isa-minimal/branch",
+    "gpu/branch",
+    "hexagon/branch",
+    "arm/branch",
+    "cortexm/branch",
+    "cpu/branch",
+    "docker/branch",
+    "i386/branch",
+    "lint/branch",
+    "minimal/branch",
+    "riscv/branch",
+    "wasm/branch",
+]
+
+
 def commit_passed_ci(commit: Dict[str, Any]) -> bool:
     """
     Returns true if all of a commit's statuses are SUCCESS
@@ -111,9 +127,8 @@ def commit_passed_ci(commit: Dict[str, Any]) -> bool:
 
     # Assert that specific jobs are present in the commit statuses (i.e. don't
     # approve if CI was broken and didn't schedule a job)
-    expected_jobs = {"tvm-ci/branch"}
     job_names = {name for name, status in unified_statuses}
-    for job in expected_jobs:
+    for job in EXPECTED_CI_JOBS:
         if job not in job_names:
             # Did not find expected job name
             return False

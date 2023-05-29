@@ -399,7 +399,8 @@ class PyTorchOpConverter:
             axis = None
         else:
             # TODO (t-vi): why is the cast to int needed? similarly elsewhere
-            axis = [int(inputs[1])]
+            inputs = [inputs[1]] if not isinstance(inputs[1], list) else inputs[1]
+            axis = [int(v) for v in inputs]
 
         return _op.transform.squeeze(data, axis)
 
@@ -1385,6 +1386,9 @@ class PyTorchOpConverter:
         data = inputs[0]
         data_type = input_types[0]
         channels = self.infer_shape(data)
+        running_mean = inputs[3]
+        running_var = inputs[4]
+        use_input_stats = inputs[5]
 
         if isinstance(inputs[1], _expr.Expr) and isinstance(inputs[2], _expr.Expr):
             scale = center = True
@@ -1401,6 +1405,20 @@ class PyTorchOpConverter:
             beta = _create_typed_const(np.zeros([int(channels[1])]), data_type)
 
         epsilon = float(inputs[7])
+
+        if not use_input_stats:
+            return _op.nn.batch_norm(
+                data,
+                gamma,
+                beta,
+                running_mean,
+                running_var,
+                axis=1,
+                epsilon=epsilon,
+                center=center,
+                scale=scale,
+            )[0]
+
         return _op.nn.instance_norm(
             data, gamma, beta, axis=1, epsilon=epsilon, center=center, scale=scale
         )
@@ -4641,6 +4659,12 @@ def _get_relay_input_vars(graph, input_infos, prelude, is_module=True, default_d
                 and any([s1 != s2 for s1, s2 in zip(pt_type.sizes(), ishape)])
             ):
                 msg = "Shapes of input list and information in the graph do not match"
+                raise RuntimeError(msg)
+            if len(ishape) > 1 and any(dim <= 0 for dim in ishape[1:]):
+                msg = (
+                    "Expected input's non-batch dimensions to have positive length, "
+                    f"but input has a shape of {pt_type.sizes()}"
+                )
                 raise RuntimeError(msg)
             pt_dtype = pt_type.scalarType()
             if not pt_dtype and itype:

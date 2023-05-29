@@ -578,9 +578,15 @@ def test_forward_squeeze():
         def forward(self, *args):
             return args[0].squeeze(1)
 
+    class Squeeze3(Module):
+        def forward(self, *args):
+            return args[0].squeeze((1, 3))
+
     input_data = torch.rand(input_shape).float()
     verify_model(Squeeze1().float().eval(), input_data=input_data)
     verify_model(Squeeze2().float().eval(), input_data=input_data)
+    if package_version.parse(torch.__version__) >= package_version.parse("2.0.0"):
+        verify_model(Squeeze3().float().eval(), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -788,6 +794,11 @@ def test_forward_celu():
     verify_model(torch.nn.CELU(alpha=1.3).eval(), input_data=input_data)
     input_data = torch.tensor([-1.0, 2.0], dtype=torch.float32)
     verify_model(torch.nn.CELU().eval(), input_data=input_data)
+
+    input_shape = [2, 0, 1]
+    input_data = torch.rand(input_shape).float()
+    with pytest.raises(RuntimeError):
+        verify_model(torch.nn.CELU().eval(), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -1012,11 +1023,13 @@ def test_forward_tensor_split():
         def forward(self, *args):
             return torch.tensor_split(args[0], self.split_size_or_sections, self.dim)
 
-    input_data = torch.rand(input_shape).float()
-    verify_model(Tensor_Split(2, 0).float().eval(), input_data=input_data)
-    verify_model(Tensor_Split(torch.tensor(3), 1).float().eval(), input_data=input_data)
-    verify_model(Tensor_Split([2, 3, 5], 1).float().eval(), input_data=input_data)
-    verify_model(Tensor_Split((2, 3, 5), 1).float().eval(), input_data=input_data)
+    # tensor_split was introduced when torch > 1.7.1
+    if package_version.parse(torch.__version__) > package_version.parse("1.7.1"):
+        input_data = torch.rand(input_shape).float()
+        verify_model(Tensor_Split(2, 0).float().eval(), input_data=input_data)
+        verify_model(Tensor_Split(torch.tensor(3), 1).float().eval(), input_data=input_data)
+        verify_model(Tensor_Split([2, 3, 5], 1).float().eval(), input_data=input_data)
+        verify_model(Tensor_Split((2, 3, 5), 1).float().eval(), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -1414,6 +1427,8 @@ def test_forward_instancenorm():
     for ins_norm, inp in [
         (torch.nn.InstanceNorm2d(16), inp_2d),
         (torch.nn.InstanceNorm3d(16), inp_3d),
+        (torch.nn.InstanceNorm2d(16, track_running_stats=True), inp_2d),
+        (torch.nn.InstanceNorm3d(16, track_running_stats=True), inp_3d),
     ]:
         verify_model(ins_norm.eval(), input_data=inp)
 
@@ -5025,6 +5040,10 @@ def test_grid_sample():
     grid_3D = torch.rand([4, 8, 8, 8, 3]).float()
 
     for _method in methods:
+        # bicubic was introduced when pytorch > 1.7.1
+        torch_version = package_version.parse(torch.__version__)
+        if _method == "bicubic" and torch_version <= package_version.parse("1.7.1"):
+            continue
         for _padding in padding_modes:
             for _align in align_corners:
                 # ATTENTION:

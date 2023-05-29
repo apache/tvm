@@ -14,12 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm
-from tvm import te
 import numpy as np
 
-import tvm.testing
+import tvm
 import tvm.script
+import tvm.testing
+from tvm import te
 from tvm.script import tir as T
 
 
@@ -149,7 +149,25 @@ def test_select_vectorize():
     np.testing.assert_allclose(b_nd.numpy(), a, atol=1e-5, rtol=1e-5)
 
 
+@tvm.testing.requires_gpu
+@tvm.testing.requires_metal
+def test_vectorized_uint8():
+    @T.prim_func
+    def func(A: T.Buffer((16), "uint8"), B: T.Buffer((16), "float32")):
+        for i in T.thread_binding(4, thread="threadIdx.x"):
+            for j in T.vectorized(4):
+                with T.block("block"):
+                    vi = T.axis.spatial(16, i * 4 + j)
+                    B[vi] = T.Cast("float32", A[vi])
+
+    dev = tvm.metal()
+    a = np.arange(16).astype("uint8")
+    a_nd = tvm.nd.array(a, dev)
+    b_nd = tvm.nd.empty((16,), "float32", dev)
+    f = tvm.build(func, target="metal")
+    f(a_nd, b_nd)
+    np.testing.assert_allclose(b_nd.numpy(), a.astype("float32"), atol=1e-5, rtol=1e-5)
+
+
 if __name__ == "__main__":
-    test_ramp()
-    test_metal_inf_nan()
-    test_metal_erf()
+    tvm.testing.main()
