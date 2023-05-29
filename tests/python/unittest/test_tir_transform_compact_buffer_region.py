@@ -1356,5 +1356,67 @@ class TestCompactSymbolicBound1:
                         Y[i, k_0 * T.int64(32) + x1] = X_global[T.int64(0), x1]
 
 
+class TestSymbolicDiagMaskCase:
+    """Test symbolic allocation not too complex"""
+
+    @T.prim_func
+    def before(p_output0: T.handle, n: T.int32):
+        A = T.match_buffer(p_output0, (1, 1, n, n))
+        B = T.alloc_buffer((n, n))
+        for i in T.thread_binding(256, thread="blockIdx.x"):
+            for j in T.thread_binding(256, thread="threadIdx.x"):
+                for k in range((n * n + 65535) // 65536):
+                    with T.block("make_diag_mask_te"):
+                        T.where((k * 256 + i) * 256 + j < n * n)
+                        T.reads()
+                        T.writes(B[(k * 65536 + i * 256 + j) // n, (k * 65536 + i * 256 + j) % n])
+                        B[(k * 65536 + i * 256 + j) // n, (k * 65536 + i * 256 + j) % n] = T.Select(
+                            (k * 65536 + i * 256 + j) // n < (k * 65536 + i * 256 + j) % n,
+                            T.float32(-3.4028234663852886e38),
+                            T.float32(3.4028234663852886e38),
+                        )
+        for i in T.thread_binding(256, thread="blockIdx.x"):
+            for j in T.thread_binding(256, thread="threadIdx.x"):
+                for k in range((n * n + 65535) // 65536):
+                    with T.block("T_broadcast_to"):
+                        T.where((k * 256 + i) * 256 + j < n * n)
+                        T.reads(B[(k * 65536 + i * 256 + j) // n, (k * 65536 + i * 256 + j) % n])
+                        T.writes(
+                            A[0, 0, (k * 65536 + i * 256 + j) // n, (k * 65536 + i * 256 + j) % n]
+                        )
+                        A[0, 0, (k * 65536 + i * 256 + j) // n, (k * 65536 + i * 256 + j) % n] = B[
+                            (k * 65536 + i * 256 + j) // n, (k * 65536 + i * 256 + j) % n
+                        ]
+
+    @T.prim_func
+    def expected(p_output0: T.handle, n: T.int32):
+        A = T.match_buffer(p_output0, (1, 1, n, n))
+        B = T.alloc_buffer((n, n))
+        for i in T.thread_binding(256, thread="blockIdx.x"):
+            for j in T.thread_binding(256, thread="threadIdx.x"):
+                for k in range((n * n + 65535) // 65536):
+                    with T.block("make_diag_mask_te"):
+                        T.where(k * 65536 + i * 256 + j < n * n)
+                        T.reads()
+                        T.writes(B[(k * 65536 + i * 256 + j) // n, (k * 65536 + i * 256 + j) % n])
+                        B[(k * 65536 + i * 256 + j) // n, (k * 65536 + i * 256 + j) % n] = T.Select(
+                            (k * 65536 + i * 256 + j) // n < (k * 65536 + i * 256 + j) % n,
+                            T.float32(-3.4028234663852886e38),
+                            T.float32(3.4028234663852886e38),
+                        )
+        for i in T.thread_binding(256, thread="blockIdx.x"):
+            for k in T.thread_binding(256, thread="threadIdx.x"):
+                for k in range((n * n + 65535) // 65536):
+                    with T.block("T_broadcast_to"):
+                        T.where(k * 65536 + i * 256 + k < n * n)
+                        T.reads(B[(k * 65536 + i * 256 + k) // n, (k * 65536 + i * 256 + k) % n])
+                        T.writes(
+                            A[0, 0, (k * 65536 + i * 256 + k) // n, (k * 65536 + i * 256 + k) % n]
+                        )
+                        A[0, 0, (k * 65536 + i * 256 + k) // n, (k * 65536 + i * 256 + k) % n] = B[
+                            (k * 65536 + i * 256 + k) // n, (k * 65536 + i * 256 + k) % n
+                        ]
+
+
 if __name__ == "__main__":
     tvm.testing.main()

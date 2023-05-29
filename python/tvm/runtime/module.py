@@ -74,25 +74,19 @@ class BenchmarkResult:
         self.max = np.max(self.results)
 
     def __repr__(self):
-        return "BenchmarkResult(min={}, mean={}, median={}, max={}, std={}, results={})".format(
-            self.min, self.mean, self.median, self.max, self.std, self.results
+        return (
+            f"BenchmarkResult(min={self.min}, mean={self.mean}, median={self.median}, "
+            f"max={self.max}, std={self.std}, results={self.results})"
         )
 
     def __str__(self):
-        return """Execution time summary:
-{:^12} {:^12} {:^12} {:^12} {:^12}
-{:^12.4f} {:^12.4f} {:^12.4f} {:^12.4f} {:^12.4f}
-               """.format(
-            "mean (ms)",
-            "median (ms)",
-            "max (ms)",
-            "min (ms)",
-            "std (ms)",
-            self.mean * 1000,
-            self.median * 1000,
-            self.max * 1000,
-            self.min * 1000,
-            self.std * 1000,
+        return (
+            f"Execution time summary:\n"
+            f"{'mean (ms)':^12} {'median (ms)':^12} {'max (ms)':^12} "
+            f"{'min (ms)':^12} {'std (ms)':^12}\n"
+            f"{self.mean * 1000:^12.4f} {self.median * 1000:^12.4f} {self.max * 1000:^12.4f} "
+            f"{self.min * 1000:^12.4f} {self.std * 1000:^12.4f}"
+            "               "
         )
 
 
@@ -180,7 +174,7 @@ class Module(object):
             )
         )
         if not ret_handle.value:
-            raise AttributeError("Module has no function '%s'" % name)
+            raise AttributeError(f"Module has no function '{name}'")
         return PackedFunc(ret_handle, False)
 
     def import_module(self, module):
@@ -208,7 +202,7 @@ class Module(object):
         return self.entry_func(*args)
 
     def __repr__(self):
-        return "Module(%s, %x)" % (self.type_key, self.handle.value)
+        return f"Module({self.type_key}, {self.handle.value:x})"
 
     @property
     def type_key(self):
@@ -495,8 +489,8 @@ class Module(object):
         if self.type_key == "stackvm":
             if not file_name.endswith(".stackvm"):
                 raise ValueError(
-                    "Module[%s]: can only be saved as stackvm format."
-                    "did you build with LLVM enabled?" % self.type_key
+                    f"Module[{self.type_key}]: can only be saved as stackvm format."
+                    "did you build with LLVM enabled?"
                 )
             self.save(file_name)
             return
@@ -564,7 +558,7 @@ class Module(object):
             llvm_target_string = "llvm -mtriple " + triple
 
         if getattr(fcompile, "need_system_lib", False) and not is_system_lib:
-            raise ValueError("%s need --system-lib option" % str(fcompile))
+            raise ValueError(f"{str(fcompile)} need --system-lib option")
 
         if self.imported_modules:
             pack_lib_prefix = system_lib_prefix if system_lib_prefix else ""
@@ -650,7 +644,7 @@ def load_module(path, fmt=""):
     if os.path.isfile(path):
         path = os.path.realpath(path)
     else:
-        raise ValueError("cannot find file %s" % path)
+        raise ValueError(f"cannot find file {path}")
 
     # High level handling for .o and .tar file.
     # We support this to be consistent with RPC module load.

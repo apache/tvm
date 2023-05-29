@@ -30,12 +30,7 @@ from .library import (
 
 
 def create_gemm_operator_with_epilogue(
-    op_type,
-    tile_description,
-    data_type,
-    alignment,
-    swizzling_functor,
-    batched=False,
+    op_type, tile_description, data_type, alignment, swizzling_functor, batched=False
 ):
     """
     Instantiate a cutlass kernel from the given configuration,
@@ -154,7 +149,7 @@ class CutlassGemmProfiler:
     """Profile all candidate kernels and select the best one."""
 
     def __init__(self, sm, cutlass_path, binary_path):
-        assert sm in GENERATOR_FUNC_TABLE and sm in DEFAULT_KERNELS, "sm%d not supported yet." % sm
+        assert sm in GENERATOR_FUNC_TABLE and sm in DEFAULT_KERNELS, f"sm{sm} not supported yet."
         self.engine = ProfilerEngine(sm, cutlass_path, binary_path)
         self.sm = sm
         self.cache = {}

@@ -172,7 +172,7 @@ class PBQPTuner(BaseGraphTuner):
 
         if record_idx < 0:
             raise RuntimeError(
-                "Can't find a soltuion for node %d when " "applying RN reduction" % node_idx
+                f"Can't find a soltuion for node {node_idx} when applying RN reduction"
             )
         self._optimal_record_dict[node_idx] = record_idx
         self._is_optimal = False
@@ -284,5 +284,5 @@ class PBQPTuner(BaseGraphTuner):
         self._forward()
         self._backward()
         is_optimal = "optimal" if self._is_optimal else "sub-optimal"
-        msg = "Finished PBQPExecutor run. Got %s solution." % is_optimal
+        msg = f"Finished PBQPExecutor run. Got {is_optimal} solution."
         self._logger.info(msg)

@@ -129,7 +129,7 @@ def context(target, extra_files=None):
                 if not check_backend(tophub_location, name):
                     continue
 
-                filename = "%s_%s.log" % (name, PACKAGE_VERSION[name])
+                filename = f"{name}_{PACKAGE_VERSION[name]}.log"
                 best_context.load(Path(AUTOTVM_TOPHUB_ROOT_PATH, filename))
                 break  # only load one file to avoid some fallback template mismatch problem
 
@@ -155,10 +155,10 @@ def check_backend(tophub_location, backend):
         Whether the check is successful.
     """
     backend = _alias(backend)
-    assert backend in PACKAGE_VERSION, 'Cannot find backend "%s" in TopHub' % backend
+    assert backend in PACKAGE_VERSION, f'Cannot find backend "{backend}" in TopHub'
 
     version = PACKAGE_VERSION[backend]
-    package_name = "%s_%s.log" % (backend, version)
+    package_name = f"{backend}_{version}.log"
     if Path(AUTOTVM_TOPHUB_ROOT_PATH, package_name).is_file():
         return True
 
@@ -189,7 +189,7 @@ def download_package(tophub_location, package_name):
     rootpath = Path(AUTOTVM_TOPHUB_ROOT_PATH)
     rootpath.mkdir(parents=True, exist_ok=True)
 
-    download_url = "{0}/{1}".format(tophub_location, package_name)
+    download_url = f"{tophub_location}/{package_name}"
     logger.info("Download pre-tuned parameters package from %s", download_url)
     download(download_url, Path(rootpath, package_name), overwrite=True)
 
@@ -216,7 +216,7 @@ def load_reference_log(backend, model, workload_name):
     if backend not in PACKAGE_VERSION:
         return []
     version = PACKAGE_VERSION[backend]
-    package_name = "%s_%s.log" % (backend, version)
+    package_name = f"{backend}_{version}.log"
     filename = Path(AUTOTVM_TOPHUB_ROOT_PATH, package_name)
 
     global REFERENCE_LOG_CACHE

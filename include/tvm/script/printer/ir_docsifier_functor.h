@@ -23,6 +23,7 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/packed_func.h>
 
+#include <optional>
 #include <string>
 #include <type_traits>
 #include <unordered_map>
@@ -69,6 +70,10 @@ class IRDocsifierFunctor {
     if ((pf = LookupDispatchTable("", type_index)) != nullptr) {
       return (*pf)(obj, args...);
     }
+    if ((pf = LookupFallback()) != nullptr) {
+      return (*pf)(obj, args...);
+    }
+
     LOG(WARNING) << "ObjectFunctor calls un-registered function on type: "
                  << runtime::Object::TypeIndex2Key(type_index) << " (token: " << token << ")"
                  << ". ObjectType: " << obj->GetTypeKey() << ". Object: " << obj;
@@ -100,6 +105,14 @@ class IRDocsifierFunctor {
     return *this;
   }
 
+  TSelf& set_fallback(runtime::PackedFunc f) {
+    ICHECK(!dispatch_fallback_.has_value()) << "Fallback is already defined";
+    dispatch_fallback_ = f;
+    return *this;
+  }
+
+  void remove_fallback() { dispatch_fallback_ = std::nullopt; }
+
   /*!
    * \brief Set the dispatch function
    * \param token The dispatch token.
@@ -110,6 +123,13 @@ class IRDocsifierFunctor {
   TSelf& set_dispatch(String token, TCallable f) {
     return set_dispatch(token, TObjectRef::ContainerType::RuntimeTypeIndex(),
                         runtime::TypedPackedFunc<R(TObjectRef, Args...)>(f));
+  }
+
+  template <typename TCallable,
+            typename = std::enable_if_t<IsDispatchFunction<ObjectRef, TCallable>::value>>
+  TSelf& set_fallback(TCallable f) {
+    runtime::PackedFunc func = runtime::TypedPackedFunc<R(ObjectRef, Args...)>(f);
+    return set_fallback(func);
   }
 
   /*!
@@ -151,6 +171,18 @@ class IRDocsifierFunctor {
       return nullptr;
     }
   }
+
+  /*!
+   * \brief Look up the fallback to be used if no handler is registered
+   */
+  const runtime::PackedFunc* LookupFallback() const {
+    if (dispatch_fallback_.has_value()) {
+      return &*dispatch_fallback_;
+    } else {
+      return nullptr;
+    }
+  }
+
   /*
    * This type alias and the following free functions are created to reduce the binary bloat
    * from template and also hide implementation details from this header
@@ -158,6 +190,7 @@ class IRDocsifierFunctor {
   using DispatchTable = std::unordered_map<std::string, std::vector<runtime::PackedFunc>>;
   /*! \brief The dispatch table. */
   DispatchTable dispatch_table_;
+  std::optional<runtime::PackedFunc> dispatch_fallback_;
 };
 
 }  // namespace printer

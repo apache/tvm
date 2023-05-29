@@ -32,30 +32,30 @@
 namespace tvm {
 namespace runtime {
 
-class SystemLibraryRegistry {
+class SystemLibSymbolRegistry {
  public:
   void RegisterSymbol(const std::string& name, void* ptr) {
     std::lock_guard<std::mutex> lock(mutex_);
-    auto it = tbl_.find(name);
-    if (it != tbl_.end() && ptr != it->second) {
+    auto it = symbol_table_.find(name);
+    if (it != symbol_table_.end() && ptr != it->second) {
       LOG(WARNING) << "SystemLib symbol " << name << " get overriden to a different address " << ptr
                    << "->" << it->second;
     }
-    tbl_[name] = ptr;
+    symbol_table_[name] = ptr;
   }
 
   void* GetSymbol(const char* name) {
     std::lock_guard<std::mutex> lock(mutex_);
-    auto it = tbl_.find(name);
-    if (it != tbl_.end()) {
+    auto it = symbol_table_.find(name);
+    if (it != symbol_table_.end()) {
       return it->second;
     } else {
       return nullptr;
     }
   }
 
-  static SystemLibraryRegistry* Global() {
-    static SystemLibraryRegistry* inst = new SystemLibraryRegistry();
+  static SystemLibSymbolRegistry* Global() {
+    static SystemLibSymbolRegistry* inst = new SystemLibSymbolRegistry();
     return inst;
   }
 
@@ -63,7 +63,7 @@ class SystemLibraryRegistry {
   // Internal mutex
   std::mutex mutex_;
   // Internal symbol table
-  std::unordered_map<std::string, void*> tbl_;
+  std::unordered_map<std::string, void*> symbol_table_;
 };
 
 class SystemLibrary : public Library {
@@ -80,8 +80,36 @@ class SystemLibrary : public Library {
   }
 
  private:
-  SystemLibraryRegistry* reg_ = SystemLibraryRegistry::Global();
+  SystemLibSymbolRegistry* reg_ = SystemLibSymbolRegistry::Global();
   std::string symbol_prefix_;
+};
+
+class SystemLibModuleRegistry {
+ public:
+  runtime::Module GetOrCreateModule(std::string symbol_prefix) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = lib_map_.find(symbol_prefix);
+    if (it != lib_map_.end()) {
+      return it->second;
+    } else {
+      auto mod = CreateModuleFromLibrary(make_object<SystemLibrary>(symbol_prefix));
+      lib_map_[symbol_prefix] = mod;
+      return mod;
+    }
+  }
+
+  static SystemLibModuleRegistry* Global() {
+    static SystemLibModuleRegistry* inst = new SystemLibModuleRegistry();
+    return inst;
+  }
+
+ private:
+  // Internal mutex
+  std::mutex mutex_;
+  // we need to make sure each lib map have an unique
+  // copy through out the entire lifetime of the process
+  // so the cached PackedFunc in the system do not get out dated.
+  std::unordered_map<std::string, runtime::Module> lib_map_;
 };
 
 TVM_REGISTER_GLOBAL("runtime.SystemLib").set_body([](TVMArgs args, TVMRetValue* rv) {
@@ -89,13 +117,12 @@ TVM_REGISTER_GLOBAL("runtime.SystemLib").set_body([](TVMArgs args, TVMRetValue* 
   if (args.size() != 0) {
     symbol_prefix = args[0].operator std::string();
   }
-  auto mod = CreateModuleFromLibrary(make_object<SystemLibrary>(symbol_prefix));
-  *rv = mod;
+  *rv = SystemLibModuleRegistry::Global()->GetOrCreateModule(symbol_prefix);
 });
 }  // namespace runtime
 }  // namespace tvm
 
 int TVMBackendRegisterSystemLibSymbol(const char* name, void* ptr) {
-  tvm::runtime::SystemLibraryRegistry::Global()->RegisterSymbol(name, ptr);
+  tvm::runtime::SystemLibSymbolRegistry::Global()->RegisterSymbol(name, ptr);
   return 0;
 }

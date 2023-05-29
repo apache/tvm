@@ -220,11 +220,6 @@ void CodeGenMetal::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
     if (t.is_uint()) {
       os << 'u';
     }
-    if (t.bits() == 8 && t.lanes() == 4) {
-      // directly 4 8 bit int in integer.
-      os << "int";
-      return;
-    }
     switch (t.bits()) {
       case 8:
         os << "char";
@@ -365,7 +360,7 @@ runtime::Module BuildMetal(IRModule mod, Target target) {
     std::string fsource = cg.Finish();
     source_maker << fsource << "\n";
     if (fmetal_compile) {
-      fsource = (*fmetal_compile)(fsource).operator std::string();
+      fsource = (*fmetal_compile)(fsource, target).operator std::string();
     }
     smap[func_name] = fsource;
   }

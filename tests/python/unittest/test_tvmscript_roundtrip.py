@@ -3123,6 +3123,15 @@ def func_with_target_spec_by_str():
     return func_with_target_spec_by_str
 
 
+def func_with_target_and_host_spec_by_str():
+    @T.prim_func
+    def func():
+        T.func_attr({"target": T.target("nvidia/nvidia-a100", host="llvm")})
+        T.evaluate(0)
+
+    return func
+
+
 def func_root_attr():
     @T.prim_func
     def func_root_attr():
@@ -3792,6 +3801,87 @@ def nested_seqstmt():
     return func
 
 
+def subroutine_call():
+    """A GlobalVar may reference other functions in the module"""
+
+    @I.ir_module
+    class mod:
+        @T.prim_func
+        def main(A: T.Buffer(16, "float32")):
+            mod.subroutine(A.data, T.int32(16))
+
+        @T.prim_func
+        def subroutine(A_data: T.handle("float32"), n: T.int32):
+            T.evaluate(0)
+
+    return mod
+
+
+def undefined_data_ptr_in_decl_buffer():
+    """The T.decl_buffer syntax should not introduce an Allocate
+
+    While T.decl_buffer can be used to represent an
+    Allocate/DeclBuffer pair, performing a round-trip through
+    TVMScript should not introduce an Allocate node.
+    """
+
+    @T.prim_func
+    def func():
+        data_ptr = T.handle("float32")
+        buf = T.decl_buffer(shape=[1], dtype="float32", data=data_ptr)
+        T.evaluate(buf[0])
+
+    return func
+
+
+def undefined_shape_in_decl_buffer():
+    @T.prim_func
+    def func():
+        size = T.int32()
+        buf = T.decl_buffer(shape=[size], dtype="float32")
+        T.evaluate(buf[0])
+
+    return func
+
+
+def undefined_stride_in_decl_buffer():
+    @T.prim_func
+    def func():
+        stride = T.int32()
+        buf = T.decl_buffer(shape=[1], dtype="float32", strides=[stride])
+        T.evaluate(buf[0])
+
+    return func
+
+
+def undefined_elem_offset_in_decl_buffer():
+    @T.prim_func
+    def func():
+        elem_offset = T.int32()
+        buf = T.decl_buffer(shape=[1], dtype="float32", elem_offset=elem_offset)
+        T.evaluate(buf[0])
+
+    return func
+
+
+def subroutine_call_without_arguments():
+    @I.ir_module
+    class mod:
+        @T.prim_func
+        def main():
+            # Should be equivalent to the bare "mod.subroutine()", but
+            # that relies on `GlobalVar.__call__` returning the
+            # correct IR type.  Previously, this instead returned a
+            # `relay.Call` object.
+            tir.call_tir(mod.subroutine)
+
+        @T.prim_func
+        def subroutine():
+            T.evaluate(0)
+
+    return mod
+
+
 ir_generator = tvm.testing.parameter(
     launch_env_thread,
     opt_gemm_normalize,
@@ -3820,6 +3910,7 @@ ir_generator = tvm.testing.parameter(
     nontrivial_range_axis,
     func_with_target_spec_by_config,
     func_with_target_spec_by_str,
+    func_with_target_and_host_spec_by_str,
     func_root_attr,
     func_trivial_root_block,
     func_nested_root_block,
@@ -3861,6 +3952,12 @@ ir_generator = tvm.testing.parameter(
     tvm_struct_set_generated_in_cpp,
     ir_module_with_attrs,
     nested_seqstmt,
+    subroutine_call,
+    undefined_data_ptr_in_decl_buffer,
+    undefined_shape_in_decl_buffer,
+    undefined_stride_in_decl_buffer,
+    undefined_elem_offset_in_decl_buffer,
+    subroutine_call_without_arguments,
 )
 
 
