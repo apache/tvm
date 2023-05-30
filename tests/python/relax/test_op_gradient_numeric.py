@@ -680,7 +680,6 @@ def test_cross_entropy_with_logits_batch(target, dev):
 )
 
 
-@pytest.mark.skip("need to update samples to use correct input")
 @tvm.testing.parametrize_targets("llvm")
 def test_nll_loss(target, dev, nll_reduction, nll_weighted, nll_ignore_index):
     data1_numpy = np.random.uniform(0, 16, (2, 3, 4)).astype(np.float32)
@@ -711,7 +710,6 @@ def test_nll_loss(target, dev, nll_reduction, nll_weighted, nll_ignore_index):
 )
 
 
-@pytest.mark.skip("need to update samples to use correct input")
 @tvm.testing.parametrize_targets("llvm")
 def test_nll_loss_no_batch(target, dev, nll_reduction1, nll_weighted1, nll_ignore_index1):
     data1_numpy = np.random.uniform(0, 16, (3,)).astype(np.float32)
