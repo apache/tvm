@@ -211,6 +211,28 @@ def visit_assign(self: Parser, node: doc.Assign) -> None:
     if len(node.targets) != 1:
         self.report_error(node, "Consequential assignments like 'a = b = c' are not supported.")
     lhs = node.targets[0]
+
+    if isinstance(node.value, doc.Subscript):
+        check_slices = []
+        if isinstance(node.value.slice, doc.Slice):
+            check_slices = [node.value.slice]
+        elif isinstance(node.value.slice, doc.Tuple):
+            for p in node.value.slice.elts:
+                if isinstance(p, doc.Slice):
+                    check_slices.append(p)
+        for s in check_slices:
+            if not s.step and s.upper and s.lower:
+                s.step = doc.Constant(
+                    1,
+                    None,
+                    1,
+                    1,
+                    s.upper.lineno,
+                    s.upper.end_col_offset + 1,
+                    s.upper.lineno,
+                    s.upper.end_col_offset + 2,
+                )
+
     rhs = self.eval_expr(node.value)
     if isinstance(lhs, doc.Subscript):
         if isinstance(lhs.slice, doc.Tuple):
