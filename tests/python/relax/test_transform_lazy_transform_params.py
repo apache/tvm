@@ -16,7 +16,6 @@
 # under the License.
 import tvm
 import tvm.testing
-from tvm import relax
 from tvm.script import relax as R, tir as T
 from tvm.script import ir as I
 from tvm.relax.transform import LazyTransformParams
@@ -75,24 +74,71 @@ def test_lazy_transform_params():
                     out[o, i, h, w] = w1[i, o, h, w]
 
         @R.function
-        def main_transform_params() -> R.Tuple(R.Object, R.Object):
+        def main_transform_params() -> R.Tuple:
             R.func_attr({"relax.force_pure": True})
             cls = Expected
             lv: R.Object = R.call_packed("get_item", R.prim_value(1), sinfo_args=(R.Object,))
-            lv1: R.Object = R.call_packed("set_item", R.prim_value(0), lv, sinfo_args=(R.Object,))
-            lv2: R.Tuple = R.vm.kill_object(lv)
-            lv1_1: R.Object = R.call_packed("get_item", R.prim_value(0), sinfo_args=(R.Object,))
-            lv3 = R.call_tir(
+            _: R.Object = R.call_packed("set_item", R.prim_value(0), lv, sinfo_args=(R.Object,))
+            _1: R.Tuple = R.vm.kill_object(lv)
+            lv1: R.Object = R.call_packed("get_item", R.prim_value(0), sinfo_args=(R.Object,))
+            lv2 = R.call_tir(
                 cls.transform_layout_IOHW_to_OIHW,
-                (lv1_1,),
+                (lv1,),
                 out_sinfo=R.Tensor((16, 3, 3, 3), dtype="float32"),
             )
-            lv4: R.Object = R.call_packed("set_item", R.prim_value(1), lv3, sinfo_args=(R.Object,))
-            lv5: R.Tuple = R.vm.kill_object(lv1_1)
-            gv: R.Tuple(R.Object, R.Object) = (lv1, lv4)
+            _2: R.Tuple = R.vm.kill_object(lv1)
+            _3: R.Object = R.call_packed("set_item", R.prim_value(1), lv2, sinfo_args=(R.Object,))
+            gv: R.Tuple = R.tuple()
             return gv
 
     after = LazyTransformParams()(Before)
+    tvm.ir.assert_structural_equal(after, Expected, map_free_vars=True)
+
+
+def test_output_with_use_site():
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def copy(x: T.Buffer((), "float32"), y: T.Buffer((), "float32")):
+            with T.block("block"):
+                y[()] = x[()]
+
+        @R.function
+        def main_transform_params(
+            params: R.Tuple(R.Tensor((), dtype="float32"))
+        ) -> R.Tuple(R.Tensor((), dtype="float32"), R.Tensor((), dtype="float32")):
+            # we expect ToNonDataflow and RemovePurityTracking to be invoked first
+            R.func_attr({"relax.force_pure": True})
+            cls = Module
+            x: R.Tensor((), dtype="float32") = params[0]
+            y = R.call_tir(cls.copy, (x,), out_sinfo=R.Tensor((), dtype="float32"))
+            z = R.call_tir(cls.copy, (y,), out_sinfo=R.Tensor((), dtype="float32"))
+            gv: R.Tuple(R.Tensor((), dtype="float32"), R.Tensor((), dtype="float32")) = (y, z)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def copy(x: T.Buffer((), "float32"), y: T.Buffer((), "float32")):
+            with T.block("block"):
+                T.reads(x[()])
+                T.writes(y[()])
+                y[()] = x[()]
+
+        @R.function
+        def main_transform_params() -> R.Tuple:
+            R.func_attr({"relax.force_pure": True})
+            cls = Expected
+            x: R.Object = R.call_packed("get_item", R.prim_value(0), sinfo_args=(R.Object,))
+            y = R.call_tir(cls.copy, (x,), out_sinfo=R.Tensor((), dtype="float32"))
+            _: R.Tuple = R.vm.kill_object(x)
+            z = R.call_tir(cls.copy, (y,), out_sinfo=R.Tensor((), dtype="float32"))
+            _1: R.Object = R.call_packed("set_item", R.prim_value(0), y, sinfo_args=(R.Object,))
+            _2: R.Object = R.call_packed("set_item", R.prim_value(1), z, sinfo_args=(R.Object,))
+            gv: R.Tuple = R.tuple()
+            return gv
+
+    after = LazyTransformParams()(Module)
     tvm.ir.assert_structural_equal(after, Expected, map_free_vars=True)
 
 

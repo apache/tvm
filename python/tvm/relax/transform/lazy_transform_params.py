@@ -79,20 +79,20 @@ class LivenessAnalysis(PyExprVisitor):
         The set of vars that are bound to v = params[i]
     """
 
-    def __init__(self, out_tuple_var: relax.Var, input_params: set) -> None:
+    def __init__(self, out_tuple_var: relax.Var) -> None:
         self.last_appear_in_var_binding = None
         self.out_tuple_var = out_tuple_var
-        self.input_params = input_params
         self.var_liveness_end = {}
+        self.ended_vars = set()
 
     def visit_binding_block_(self, block: relax.BindingBlock) -> None:
         for binding in reversed(block.bindings):
             self.visit_binding(binding)
 
     def visit_var_(self, op: relax.Var) -> None:
-        if op in self.input_params:
+        if op not in self.ended_vars:
             self.last_appear_in_var_binding.append(op)
-            self.input_params.remove(op)
+            self.ended_vars.add(op)
 
     def visit_var_binding_(self, binding: relax.VarBinding) -> None:
         if self.out_tuple_var == binding.var:
@@ -100,8 +100,9 @@ class LivenessAnalysis(PyExprVisitor):
         self.last_appear_in_var_binding = []
         super().visit_var_binding_(binding)
         # param[i] is in output
-        if binding.var in self.input_params:
+        if binding.var not in self.ended_vars:
             self.last_appear_in_var_binding.append(binding.var)
+            self.ended_vars.add(binding.var)
         self.var_liveness_end[binding.var] = self.last_appear_in_var_binding
 
 
@@ -119,14 +120,13 @@ class LazyTransformParamsMutator(PyExprMutator):
     def __init__(self, mod: IRModule = None) -> None:
         super().__init__(mod)
         self.mod = mod
-        self.get_item = None
-        self.set_item = None
         # the only input param, which should be a Tuple
         self.input_tuple_param = None
-        # map from out var to index
+        self.input_params_set = None
         self.out_tuple_map = None
         self.out_tuple_var = None
         self.memory_free_insertion = None
+        self.killed_vars = set()
 
     def transform(self, func: relax.Function) -> relax.Function:
         self.input_tuple_param = func.params[0]
@@ -137,9 +137,9 @@ class LazyTransformParamsMutator(PyExprMutator):
         forward_collector.visit_expr(func)
         self.out_tuple_map = forward_collector.out_tuple_map
         # input_params_set is the set of binding var for var = params[i]
-        input_params_set = set(forward_collector.var_tuple_get_item)
+        self.input_params_set = set(forward_collector.var_tuple_get_item)
         # Step 2. liveness analysis and get where to insert kill_object instruction
-        liveness = LivenessAnalysis(self.out_tuple_var, input_params_set)
+        liveness = LivenessAnalysis(self.out_tuple_var)
         liveness.visit_expr(func)
         self.memory_free_insertion = liveness.var_liveness_end
         # Step 3. rewrite get item and set item
@@ -159,31 +159,39 @@ class LazyTransformParamsMutator(PyExprMutator):
         else:
             return tuple_get_item
 
+    def visit_var_(self, var: relax.Var) -> None:
+        assert var not in self.killed_vars
+        return super().visit_var_(var)
+
     def visit_var_binding_(self, binding: relax.VarBinding) -> None:
-        if binding.var in self.out_tuple_map:
-            index = self.out_tuple_map[binding.var]
-            value = self.visit_expr(binding.value)
-            var_before_setitem = self.builder_.emit(value)
-            # rewrite set item
-            new_var = self.builder_.emit(
-                relax.Call(
-                    relax.ExternFunc("set_item"),
-                    [index, var_before_setitem],
-                    None,
-                    [relax.ObjectStructInfo()],
-                )
-            )
-            self.set_var_remap(binding.var.vid, new_var)
-        else:
-            super().visit_var_binding_(binding)
+        if binding.var == self.out_tuple_var:
+            # The function after rewriting returns a empty tuple.
+            func_output = self.builder_.emit(relax.Tuple([]))
+            self.set_var_remap(binding.var.vid, func_output)
+            return
+
+        super().visit_var_binding_(binding)
+
         if binding.var in self.memory_free_insertion:
             for var in self.memory_free_insertion[binding.var]:
-                # handle param[i] in output
-                if var == binding.var:
-                    assert binding.var in self.out_tuple_map
-                    self.builder_.emit(relax.op.vm.kill_object(var_before_setitem))
-                else:
-                    self.builder_.emit(relax.op.vm.kill_object(self.get_var_remap(var.vid)))
+                if var in self.out_tuple_map:
+                    self.killed_vars.add(var)
+                    index = self.out_tuple_map[var]
+                    # rewrite set item
+                    self.builder_.emit(
+                        relax.Call(
+                            relax.ExternFunc("set_item"),
+                            [index, super().visit_var_(var)],
+                            None,
+                            [relax.ObjectStructInfo()],
+                        ),
+                        name_hint="_",
+                    )
+
+                if var in self.input_params_set:
+                    self.builder_.emit(
+                        relax.op.vm.kill_object(super().visit_var_(var)), name_hint="_"
+                    )
 
 
 @tvm.transform.module_pass(opt_level=0, name="LazyTransformParams")
