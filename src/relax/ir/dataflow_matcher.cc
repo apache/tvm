@@ -700,6 +700,7 @@ static std::optional<MatchState> MatchTree(
         return new_match;
       }
       // Recursive matching has failed, backtrack.
+      new_match = current_match;
       continue;
     }
   }
