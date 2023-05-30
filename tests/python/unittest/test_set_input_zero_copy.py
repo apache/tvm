@@ -110,6 +110,6 @@ def test_reshape_after_input():
 
 
 if __name__ == "__main__":
-    #test_simple_graph()
+    test_simple_graph()
     test_input_in_output()
     test_reshape_after_input()
