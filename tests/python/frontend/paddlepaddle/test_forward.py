@@ -1814,7 +1814,7 @@ def test_forward_softplus():
     def Softplus3(input):
         return nn.functional.Softplus(input, beta=1.0, threshold=10.0)
 
-    x = paddle.to_tensor([-9.0, -12.0, 1.0, 18.0, 25.0])
+    x = paddle.to_tensor([-8.0, -12.0, 1.0, 18.0, 25.0])
     verify_model(Softplus1, x)
     verify_model(Softplus2, x)
     verify_model(Softplus3, x)
