@@ -108,12 +108,12 @@ PrimFunc SplitHostDevice(PrimFunc func, IRModule* device_mod, const GlobalVar& g
 
   HostDeviceSplitter splitter(device_mod, name_prefix);
 
-  auto body = splitter(func->body);
-
-  if (!body.same_as(func->body)) {
+  if (auto body = splitter(func->body); !body.same_as(func->body)) {
     func.CopyOnWrite()->body = body;
-    auto target_host = target->GetHost().value_or(Target("llvm"));
-    func = WithAttr(std::move(func), tvm::attr::kTarget, target_host);
+  }
+
+  if (auto target_host = target->GetHost()) {
+    func = WithAttr(std::move(func), tvm::attr::kTarget, target_host.value());
   }
 
   return func;
