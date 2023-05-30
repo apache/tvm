@@ -696,7 +696,7 @@ std::optional<bool> IsHostFunc(const PrimFunc& func) {
   if (func->HasNonzeroAttr(tvm::tir::attr::kIsHostFunc)) {
     return true;
   } else if (auto target = func->GetAttr<Target>(tvm::attr::kTarget)) {
-    return target.value()->HasKey("host");
+    return target.value()->HasKey("cpu");
   } else {
     return std::nullopt;
   }
