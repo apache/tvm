@@ -529,7 +529,7 @@ def test_forward_conv():
                 dilation=dilation,
                 groups=groups,
                 padding_mode=padding_mode,
-                data_layout=data_format,
+                data_format=data_format,
             )
             self.softmax = nn.Softmax()
 
@@ -627,7 +627,7 @@ def test_forward_conv3d():
                 dilation=dilation,
                 groups=groups,
                 padding_mode=padding_mode,
-                data_layout=data_format,
+                data_format=data_format,
             )
             self.softmax = nn.Softmax()
 
@@ -915,8 +915,8 @@ def test_forward_gaussian_random():
 
     shapes = [[20], [8, 8], [4, 5, 6], [3, 4, 3, 5]]
     for shape in zip(shapes):
-        verify_model(gaussian_random1, input_data=shape)
-        verify_model(gaussian_random2, input_data=shape)
+        verify_model(gaussian_random1, input_data=paddle.to_tensor(shape))
+        verify_model(gaussian_random2, input_data=paddle.to_tensor(shape))
 
 
 @tvm.testing.uses_gpu
