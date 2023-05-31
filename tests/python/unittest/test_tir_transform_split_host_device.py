@@ -168,5 +168,21 @@ class TestSplitHostDeviceWithoutFuncHostAttribute(BaseCompare):
         return mod
 
 
+class TestSplitHostDevice(BaseCompare):
+    """Like TestSplitHostDevice, but no device regions to extract
+
+    Even if there are no device regions, the host-side function should
+    still have its "target" attribute updated.
+    """
+
+    def before():
+        T.func_attr({"target": T.target("ext_dev", host="llvm")})
+        T.evaluate(0)
+
+    def expected():
+        T.func_attr({"target": T.target("llvm")})
+        T.evaluate(0)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
