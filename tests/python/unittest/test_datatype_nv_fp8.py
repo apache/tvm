@@ -17,10 +17,14 @@
 import numpy as np
 import tvm
 import tvm.testing
-import ml_dtypes
 import tvm.tir as tir
 from tvm import te
 from tvm.script import tir as T
+
+try:
+    from ml_dtypes import float8_e4m3fn as e4m3_float8, float8_e5m2 as e5m2_float8
+except ImportError:
+    e4m3_float8, e5m2_float8 = None, None
 
 
 def fp8_unary(dtype: str):
@@ -66,8 +70,10 @@ def test_create_nv_fp8_nd_array(np_dtype, dtype_str):
 
 def test_fp8_unary_op(np_dtype, dtype_str):
     func = fp8_unary(dtype_str)
-    print()
     if not tvm.testing.device_enabled("llvm"):
+        return
+    if np_dtype is None:
+        """Skip test if ml_dtypes is not installed"""
         return
 
     f = tvm.build(func, target="llvm")

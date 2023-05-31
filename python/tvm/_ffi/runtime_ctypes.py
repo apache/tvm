@@ -19,7 +19,11 @@
 import ctypes
 import json
 import numpy as np
-import ml_dtypes
+
+try:
+    import ml_dtypes
+except ImportError:
+    ml_dtypes = None
 from .base import _LIB, check_call
 
 tvm_shape_index_t = ctypes.c_int64
@@ -91,9 +95,6 @@ class DataType(ctypes.Structure):
         np.dtype(np.float32): "float32",
         np.dtype(np.float64): "float64",
         np.dtype(np.float_): "float64",
-        np.dtype(ml_dtypes.bfloat16): "bfloat16",
-        np.dtype(ml_dtypes.float8_e4m3fn): "e4m3_float8",
-        np.dtype(ml_dtypes.float8_e5m2): "e5m2_float8",
     }
     STR2DTYPE = {
         "bool": {"type_code": DataTypeCode.UINT, "bits": 1, "lanes": 1},
@@ -197,6 +198,11 @@ class DataType(ctypes.Structure):
     def __ne__(self, other):
         return not self.__eq__(other)
 
+
+if ml_dtypes is not None:
+    DataType.STR2DTYPE[np.dtype(ml_dtypes.bfloat16)] = "bfloat16"
+    DataType.STR2DTYPE[np.dtype(ml_dtypes.float8_e4m3fn)] = "e4m3_float8"
+    DataType.STR2DTYPE[np.dtype(ml_dtypes.float8_e5m2)] = "e5m2_float8"
 
 RPC_SESS_MASK = 128
 
