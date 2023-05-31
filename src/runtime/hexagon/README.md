@@ -65,6 +65,8 @@ CMAKE_CXX_COMPILER=hexagon-clang++
 USE_HEXAGON=ON
 USE_HEXAGON_ARCH=v65|v66|v68|v69|v73
 USE_HEXAGON_SDK=/path/to/sdk
+USE_RPC=OFF
+USE_LIBBACKTRACE=OFF
 ```
 
 As mentioned before, only build the `runtime` component (e.g. `make runtime`).
