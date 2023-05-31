@@ -355,7 +355,8 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       {
         PrimExpr mask = Call(mask_dtype, builtin::tvm_warp_activemask(), {});
         if (group_extent > 1) {
-          mask = mask & (((1 << reduce_extent) - 1) << (reduce_extent * group_index));
+          mask = mask &
+                 (((1 << reduce_extent) - 1) << (reduce_extent * cast(mask_dtype, group_index)));
         }
         seq.emplace_back(BufferStore(mask_buffer, mask, zero_indices));
         // Push the buffer description.  Later this will have an
