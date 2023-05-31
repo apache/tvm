@@ -318,7 +318,10 @@ class ComputeLegalizer : public StmtExprMutator {
       return GetRef<Stmt>(op);
     } else {
       if (MatchDType(new_buf->dtype)) {
-        value = CastTargetToDType(value, new_buf->dtype);
+        int index_lanes = indices.size() ? indices.back().dtype().lanes() : 1;
+        int buffer_lanes = new_buf->dtype.lanes();
+        DataType legalized_dtype = new_buf->dtype.with_lanes(index_lanes * buffer_lanes);
+        value = CastTargetToDType(value, legalized_dtype);
       }
       if (value.dtype() != new_buf->dtype) {
         // this happens when buffer get rewritten to f32
@@ -713,6 +716,7 @@ TVM_REGISTER_GLOBAL("tir.transform.FP8ComputeLegalize").set_body_typed(FP8Comput
 
 Pass FP8StorageLegalize() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+    LOG(INFO) << f;
     // TODO(tvm-team): skip if the target supports fp8
     return FP8StorageLegalizer().Legalize(f);
   };
