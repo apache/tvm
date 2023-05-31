@@ -1883,7 +1883,7 @@ class ONNXGraphImporter:
 
     def _construct_nodes(self, graph: onnx.onnx_ml_pb2.GraphProto):
         """Nodes are stored as directed acyclic graph."""
-        for node_index, node in enumerate(graph.node):
+        for node in enumerate(graph.node):
             op_name = node.op_type
             attr = self._parse_attr(node.attribute)
             # Create and populate input list.
