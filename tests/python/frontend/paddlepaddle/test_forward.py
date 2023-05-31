@@ -1005,18 +1005,13 @@ def test_forward_ones_like():
 
 @tvm.testing.uses_gpu
 def test_forward_gelu():
-    class Gelu(nn.Layer):
-        def __init__(self, approximate=False):
-            super(Gelu, self).__init__()
-            self.approximate = approximate
-
-        def forward(self, inputs):
-            return nn.functional.gelu(inputs, approximate=self.approximate)
+    @paddle.jit.to_static
+    def gelu(inputs):
+        return nn.functional.gelu(inputs)
 
     input_shape = [1, 3, 10, 10]
     input_data = paddle.rand(input_shape, dtype="float32")
-    verify_model(Gelu(), input_data=input_data)
-    verify_model(Gelu(approximate=True), input_data=input_data)
+    verify_model(gelu, input_data=input_data)
 
 
 @tvm.testing.uses_gpu

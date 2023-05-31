@@ -829,28 +829,10 @@ def convert_gelu(g, op, block):
     """Operator converter for gelu."""
 
     x = g.get_node(op.input("X")[0])
-    approx = op.attr("approximate")
-    if approx:
-        M_2_SQRTPI = 1.12837916709551257390
-        M_SQRT1_2 = 0.70710678118654752440
-        out = x * (
-            _expr.const(0.5, dtype="float32")
-            + _op.tanh(
-                x
-                * _expr.const(M_2_SQRTPI * M_SQRT1_2, dtype="float32")
-                * (
-                    _expr.const(1.0, dtype="float32")
-                    + _expr.const((0.044715), dtype="float32") * x * x
-                )
-            )
-            * _expr.const(0.5, dtype="float32")
-        )
-    else:
-        out = x * (
-            _expr.const(0.5, dtype="float32")
-            + _op.erf(x * _expr.const(0.5**0.5, dtype="float32"))
-            * _expr.const(0.5, dtype="float32")
-        )
+    out = x * (
+        _expr.const(0.5, dtype="float32")
+        + _op.erf(x * _expr.const(0.5**0.5, dtype="float32")) * _expr.const(0.5, dtype="float32")
+    )
     g.add_node(op.output("Out")[0], out)
 
 
