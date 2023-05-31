@@ -229,7 +229,6 @@ class CLMLRuntime : public JSONRuntimeBase {
         if (header != kTVMCLMLTuningCacheMagic) break;
         if (!strm->Read(&reserve)) break;
         if (!strm->Read(&tune_symbol)) break;
-        // LOG(INFO) << "Tuning Cache Symbol:" << tune_symbol;
         if (tune_symbol == clml_symbol) {
           strm->Read(&tune_buffer);
           break;
@@ -565,81 +564,62 @@ class CLMLRuntime : public JSONRuntimeBase {
         if ("nn.conv2d" == op_name) {
           auto out = CreateConvolution2DLayer(&layer_, node, CL_CONVOLUTION_MODE_CONVOLUTION_QCOM);
           this->layer_.storage_map.insert({nid, std::make_pair(out, node)});
-          this->layer_.func_outs.push_back(out);
         } else if ("nn.depthwise_conv2d" == op_name) {
           auto out = CreateConvolution2DLayer(&layer_, node, CL_CONVOLUTION_MODE_DEPTHWISE_QCOM);
           this->layer_.storage_map.insert({nid, std::make_pair(out, node)});
-          this->layer_.func_outs.push_back(out);
         } else if ("nn.conv2d_transpose" == op_name) {
           auto out = CreateConvolution2DLayer(&layer_, node, CL_CONVOLUTION_MODE_TRANSPOSE_QCOM);
           this->layer_.storage_map.insert({nid, std::make_pair(out, node)});
-          this->layer_.func_outs.push_back(out);
         } else if ("nn.relu6" == op_name) {
           auto out = CreateReLULayer(&layer_, node, CL_ACTIVATION_RELU6);
           this->layer_.storage_map.insert({nid, std::make_pair(out, node)});
-          this->layer_.func_outs.push_back(out);
         } else if ("nn.relu" == op_name) {
           auto out = CreateReLULayer(&layer_, node, CL_ACTIVATION_RELU);
           this->layer_.storage_map.insert({nid, std::make_pair(out, node)});
-          this->layer_.func_outs.push_back(out);
         } else if ("nn.batch_norm" == op_name) {
           auto out = CreateBatchNormLayer(&layer_, node);
           this->layer_.storage_map.insert({nid, std::make_pair(out, node)});
-          this->layer_.func_outs.push_back(out);
         } else if ("nn.max_pool2d" == op_name || "nn.avg_pool2d" == op_name ||
                    "nn.l2_pool2d" == op_name) {
           auto out = CreatePoolingLayer(&layer_, node);
           this->layer_.storage_map.insert({nid, std::make_pair(out, node)});
-          this->layer_.func_outs.push_back(out);
         } else if ("nn.global_max_pool2d" == op_name || "nn.global_avg_pool2d" == op_name) {
           auto out = CreateGlobalPoolingLayer(&layer_, node);
           this->layer_.storage_map.insert({nid, std::make_pair(out, node)});
-          this->layer_.func_outs.push_back(out);
         } else if ("reshape" == op_name) {
           auto out = CreateReshapeLayer(&layer_, node);
           this->layer_.storage_map.insert({nid, std::make_pair(out, node)});
-          this->layer_.func_outs.push_back(out);
         } else if ("concatenate" == op_name) {
           auto out = CreateConcatLayer(&layer_, node);
           this->layer_.storage_map.insert({nid, std::make_pair(out, node)});
-          this->layer_.func_outs.push_back(out);
         } else if ("nn.dense" == op_name) {
           auto out = CreateDenseLayer(&layer_, node);
           this->layer_.storage_map.insert({nid, std::make_pair(out, node)});
-          this->layer_.func_outs.push_back(out);
         } else if ("nn.softmax" == op_name) {
           auto out = CreateSoftMaxLayer(&layer_, node);
           this->layer_.storage_map.insert({nid, std::make_pair(out, node)});
-          this->layer_.func_outs.push_back(out);
         } else if ("nn.pad" == op_name) {
           auto out = CreatePadLayer(&layer_, node);
           this->layer_.storage_map.insert({nid, std::make_pair(out, node)});
-          this->layer_.func_outs.push_back(out);
         } else if ("nn.batch_flatten" == op_name) {
           auto out = CreateBatchFlattenLayer(&layer_, node);
           this->layer_.storage_map.insert({nid, std::make_pair(out, node)});
-          this->layer_.func_outs.push_back(out);
         } else if ("clip" == op_name) {
           auto out = CreateClipLayer(&layer_, node);
           this->layer_.storage_map.insert({nid, std::make_pair(out, node)});
-          this->layer_.func_outs.push_back(out);
         } else if ("add" == op_name || "subtract" == op_name || "multiply" == op_name ||
                    "minimum" == op_name || "maximum" == op_name || "divide" == op_name) {
           auto out = CreateBinaryLayer(&layer_, node);
           this->layer_.storage_map.insert({nid, std::make_pair(out, node)});
-          this->layer_.func_outs.push_back(out);
         } else if ("nn.depth_to_space" == op_name) {
           auto out = CreateDepthToSpaceLayer(&layer_, node);
           this->layer_.storage_map.insert({nid, std::make_pair(out, node)});
-          this->layer_.func_outs.push_back(out);
         } else if ("nn.upsampling" == op_name) {
           auto out = CreateResizeLayer(&layer_, node);
           this->layer_.storage_map.insert({nid, std::make_pair(out, node)});
-          this->layer_.func_outs.push_back(out);
         } else if ("nn.batch_matmul" == op_name) {
           auto out = CreateBatchMatmulLayer(&layer_, node, nid);
           this->layer_.storage_map.insert({nid, std::make_pair(out, node)});
-          this->layer_.func_outs.push_back(out);
         } else {
           LOG(FATAL) << "Unsupported op: " << op_name;
         }
@@ -895,7 +875,6 @@ class CLMLRuntime : public JSONRuntimeBase {
             nullptr, output->tensor, &op, layer_.tuning_cache);
         ICHECK(op && result == CL_SUCCESS) << "Convolution Error:" << result;
       }
-      layer_.func_ins.push_back(input);
       layer->function.push_back(op);
     } else {
       int bn_index = has_bias ? 3 : 2;
@@ -931,7 +910,6 @@ class CLMLRuntime : public JSONRuntimeBase {
 
         ICHECK(op && result == CL_SUCCESS) << "Convolution Error:" << result;
       }
-      layer_.func_ins.push_back(input);
       layer->function.push_back(op);
     }
     return output;
@@ -968,7 +946,6 @@ class CLMLRuntime : public JSONRuntimeBase {
                                                           output->tensor, &op, layer_.tuning_cache);
     ICHECK(op && result == CL_SUCCESS) << "Activation Error:" << result;
 
-    layer_.func_ins.push_back(input);
     layer->function.push_back(op);
     return output;
   }
@@ -1023,7 +1000,6 @@ class CLMLRuntime : public JSONRuntimeBase {
     ICHECK(op && result == CL_SUCCESS) << "Batchnorm Error:" << result;
 
     layer->function.push_back(op);
-    layer_.func_ins.push_back(input);
     return output;
   }
 
@@ -1076,7 +1052,6 @@ class CLMLRuntime : public JSONRuntimeBase {
                                                        layer_.tuning_cache);
     ICHECK(op && result == CL_SUCCESS) << "Pooling Error:" << result;
 
-    layer_.func_ins.push_back(input);
     layer->function.push_back(op);
     return output;
   }
@@ -1122,7 +1097,6 @@ class CLMLRuntime : public JSONRuntimeBase {
                                                        layer_.tuning_cache);
     ICHECK(op && result == CL_SUCCESS) << "Pooling Error:" << result;
 
-    layer_.func_ins.push_back(input);
     layer->function.push_back(op);
     return output;
   }
@@ -1153,7 +1127,6 @@ class CLMLRuntime : public JSONRuntimeBase {
                                                 output->tensor, &op, layer_.tuning_cache);
     ICHECK(op && result == CL_SUCCESS) << "SoftMax Error:" << result;
 
-    layer_.func_ins.push_back(input);
     layer->function.push_back(op);
     return output;
   }
@@ -1199,7 +1172,6 @@ class CLMLRuntime : public JSONRuntimeBase {
                                             output->tensor, &op, layer_.tuning_cache);
     ICHECK(op && result == CL_SUCCESS) << "Pad Error:" << result;
 
-    layer_.func_ins.push_back(input);
     layer->function.push_back(op);
     return output;
   }
@@ -1224,7 +1196,6 @@ class CLMLRuntime : public JSONRuntimeBase {
                                                 &op, layer_.tuning_cache);
     ICHECK(op && result == CL_SUCCESS) << "Reshape Error:" << result;
 
-    layer_.func_ins.push_back(input);
     layer->function.push_back(op);
     return output;
   }
@@ -1249,7 +1220,6 @@ class CLMLRuntime : public JSONRuntimeBase {
                                                 &op, layer_.tuning_cache);
     ICHECK(op && result == CL_SUCCESS) << "Reshape Error:" << result;
 
-    layer_.func_ins.push_back(input);
     layer->function.push_back(op);
     return output;
   }
@@ -1329,7 +1299,6 @@ class CLMLRuntime : public JSONRuntimeBase {
     ICHECK(op && result == CL_SUCCESS) << "Dense Error:" << result;
 
     layer->function.push_back(op);
-    layer_.func_ins.push_back(input);
     return output;
   }
 
@@ -1384,7 +1353,6 @@ class CLMLRuntime : public JSONRuntimeBase {
     ICHECK(op && result == CL_SUCCESS) << "BatchMatmul Error:" << result;
 
     layer->function.push_back(op);
-    layer_.func_ins.push_back(input);
     return output;
   }
 
@@ -1414,7 +1382,6 @@ class CLMLRuntime : public JSONRuntimeBase {
                                              output->tensor, &op, layer_.tuning_cache);
     ICHECK(op && result == CL_SUCCESS) << "Clip Error:" << result;
 
-    layer_.func_ins.push_back(input);
     layer->function.push_back(op);
     return output;
   }
@@ -1457,8 +1424,6 @@ class CLMLRuntime : public JSONRuntimeBase {
                                                layer_.tuning_cache);
     ICHECK(op && result == CL_SUCCESS) << op_name << " Node Error:" << result;
 
-    layer_.func_ins.push_back(input_a);
-    layer_.func_ins.push_back(input_b);
     layer->function.push_back(op);
     return output;
   }
@@ -1486,7 +1451,6 @@ class CLMLRuntime : public JSONRuntimeBase {
                                                      output->tensor, &op, layer_.tuning_cache);
     ICHECK(op && result == CL_SUCCESS) << "DepthToSpace Layer Error:" << result;
 
-    layer_.func_ins.push_back(input);
     layer->function.push_back(op);
     return output;
   }
@@ -1514,7 +1478,6 @@ class CLMLRuntime : public JSONRuntimeBase {
         CLML_CTX, nullptr, &resize_desc, input->tensor, output->tensor, &op, layer_.tuning_cache);
     ICHECK(op && result == CL_SUCCESS) << "Resize Layer Error:" << result;
 
-    layer_.func_ins.push_back(input);
     layer->function.push_back(op);
     return output;
   }

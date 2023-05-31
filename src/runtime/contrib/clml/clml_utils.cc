@@ -91,7 +91,6 @@ cl_ml_tensor_qcom DeviceMakeCLMLTensor(cl_context context, tensor_dims_t dims,
       dtype, layout, dims.n, dims.c, dims.h, dims.w, 0, CL_TENSOR_DIMENSIONS_4D_QCOM, {0}};
   result = CLML_INTF->clCreateMLTensorQCOM(CLML_CTX, nullptr, &desc, &tensor);
   ICHECK(tensor && result == CL_SUCCESS) << "clCreateMLTensorQCOM:" << result;
-  (void)result;
   return tensor;
 }
 

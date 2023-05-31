@@ -373,7 +373,7 @@ def clml_pattern_table():
 
     def check_binary_op(extract):
         call = extract
-        # Scalers are not supported
+        # Scalars are not supported
         if len(call.args[1].checked_type.shape) == 0:
             return False
 
@@ -417,6 +417,10 @@ def clml_pattern_table():
 
     def check_default_op(extract):
         call = extract
+
+        if isinstance(call, tvm.relay.expr.TupleGetItem):
+            call = call.tuple_value
+
         # Avoid any operators with dtype Int64
         for arg in call.args:
             if arg.checked_type.dtype == "int64":

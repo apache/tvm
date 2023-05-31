@@ -73,46 +73,46 @@ class CLMLThreadEntry;
  */
 class CLMLWorkspace {
  public:
-  // Constructor
+  /* Constructor */
   CLMLWorkspace();
   /*!
    * \brief Get the thread local ThreadEntry
    */
   virtual CLMLThreadEntry* GetThreadEntry();
 
-  // CLML Context
+  /* CLML Context */
   GET_ML_API_INTERFACE* h_ClmlIntf = nullptr;
   cl::OpenCLWorkspace* workspace = nullptr;
   cl::OpenCLThreadEntry* tentry = nullptr;
   cl_device_id device_id;
   cl_platform_id platform_id;
 
-  // Tuning Support
+  /* Tuning Support */
   bool is_tuning_run;
   char* tuning_file;
 
-  // Recordable Queues
+  /* Recordable Queues */
   bool is_recordable_queue = false;
 
-  // On chip memory support
+  /* On chip memory support */
   bool is_on_chip_memory = false;
 
-  // On chip memory size
+  /* On chip memory size */
   size_t onchip_mem_size = 0;
 
-  // get the global workspace
+  /* get the global workspace */
   static CLMLWorkspace* Global();
 
   bool ExtensionStringPresent(std::string extn);
 
-  // DDR memory management
+  /* DDR memory management */
   std::map<cl_mem, std::pair<int, int>> ddr_global_pool;  // buf, size and ref count
 };
 
 /*! \brief Thread local workspace */
 class CLMLThreadEntry {
  public:
-  // get the global workspace
+  /* get the global workspace */
   static CLMLThreadEntry* ThreadLocal();
 };
 
@@ -121,26 +121,35 @@ class CLMLThreadEntry {
  * a new layer each time.
  */
 struct CachedLayer {
+  /* List of all created CLML operation handles in graph */
   std::vector<cl_ml_op_qcom> function;
+  /* The input tensor map  */
   std::map<int, std::shared_ptr<cl_ml_tensor_memory_desc_qcom>> inputs;
+  /* A place holder Tensor representing TVM NDArray as CLML Tensor */
   std::map<int, std::shared_ptr<cl_ml_tensor_memory_desc_qcom>> in_placeholder;
+  /* The Output tensor map */
   std::vector<std::shared_ptr<cl_ml_tensor_memory_desc_qcom>> outputs;
+  /* A place holder Tensor representing TVM NDArray as CLML Tensor */
   std::vector<std::shared_ptr<cl_ml_tensor_memory_desc_qcom>> out_placeholder;
+  /* Tensor shape exception list while returning from CLML Subgraph */
   std::map<int, std::vector<size_t>> out_shapes;
-  std::vector<std::shared_ptr<cl_ml_tensor_memory_desc_qcom>> func_outs;
-  std::vector<std::shared_ptr<cl_ml_tensor_memory_desc_qcom>> func_ins;
+  /* Map of all tensors which need backing memory allocation */
   std::map<int, std::pair<std::shared_ptr<cl_ml_tensor_memory_desc_qcom>, JSONGraphNode>>
       storage_map;
+  /* Tensor memory descriptors list to set after backing memory allocation */
   std::vector<cl_ml_tensor_memory_desc_qcom> tensorMemDescs;
-  std::vector<cl_ml_tensor_memory_desc_qcom> in_tensorMemDescs;
-  std::vector<cl_ml_tensor_memory_desc_qcom> out_tensorMemDescs;
   cl_ml_tensor_mem_desc_set_qcom descriptorSet;
+  /* List of layer names in subgraph */
   std::vector<std::string> layer_names;
+  /* A dummy CLML tensor used across various ops */
   cl_ml_tensor_qcom unusedTensor = nullptr;
+
+  /* Graph level tuning cache */
   cl_ml_tuningcache_qcom tuning_cache = nullptr;
-  // Memory management
+
+  /* Memory management */
   std::map<int, int> storage_ref_map;  // NodeId & ref. count
-  // Activation node id & life span (the layer after which we can free).
+  /* Activation node id & life span (the layer after which we can free) */
   std::map<int, int> life_span;
   std::map<size_t, size_t> on_chip_pool_size;                   // Mem start & size
   std::map<size_t, int> on_chip_pool_alloc_info;                // Mem start & node_id
@@ -151,7 +160,7 @@ struct CachedLayer {
   int in_chip_total_alloc;                                      // Free memory
   int on_chip_alert_fail;                                       // Faliure due to fragmentation
 
-  // DDR memory planner
+  /* DDR memory planner */
   std::map<cl_mem, std::pair<int, bool>> ddr_storage_ref_map;  // local pool reference count
   std::map<int, cl_mem> ddr_alloc_plan;                        // allocation map <nid, cl_mem>
 

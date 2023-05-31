@@ -216,16 +216,15 @@ cl_mem RequestDDRMemory(CachedLayer* layer, size_t size) {
     LOG_MEM << "Reuse from local pool";
     layer->ddr_storage_ref_map[memptr].second = true;
     return memptr;
-  } else {
-    // No available buffer in local pool, look for global pool
-    for (auto it = cws->ddr_global_pool.begin(); it != cws->ddr_global_pool.end(); it++) {
-      if ((it->second.first >= size) &&
-          (layer->ddr_storage_ref_map.find(it->first) == layer->ddr_storage_ref_map.end())) {
-        // Found a buffer in global pool. Insert in local pool and then use.
-        if (best_fit > it->second.first) {
-          memptr = it->first;
-          best_fit = it->second.first;
-        }
+  }
+  // No available buffer in local pool, look for global pool
+  for (auto it = cws->ddr_global_pool.begin(); it != cws->ddr_global_pool.end(); it++) {
+    if ((it->second.first >= size) &&
+        (layer->ddr_storage_ref_map.find(it->first) == layer->ddr_storage_ref_map.end())) {
+      // Found a buffer in global pool. Insert in local pool and then use.
+      if (best_fit > it->second.first) {
+        memptr = it->first;
+        best_fit = it->second.first;
       }
     }
   }
@@ -236,13 +235,13 @@ cl_mem RequestDDRMemory(CachedLayer* layer, size_t size) {
     layer->ddr_storage_ref_map.insert(
         {memptr, std::make_pair(cws->ddr_global_pool[memptr].first, true)});
     return memptr;
-  } else {
-    // Allocate a fresh buffer in global then use in local pool.
-    LOG_MEM << "Allocating fresh buffer in global pool";
-    memptr = AllocateDDRTensorMemory(size);
-    cws->ddr_global_pool.insert({memptr, std::make_pair(size, 1)});
-    layer->ddr_storage_ref_map.insert({memptr, std::make_pair(size, true)});
   }
+
+  // Allocate a fresh buffer in global then use in local pool.
+  LOG_MEM << "Allocating fresh buffer in global pool";
+  memptr = AllocateDDRTensorMemory(size);
+  cws->ddr_global_pool.insert({memptr, std::make_pair(size, 1)});
+  layer->ddr_storage_ref_map.insert({memptr, std::make_pair(size, true)});
 
   return memptr;
 }
