@@ -192,7 +192,7 @@ Timer GraphExecutorDebug::RunOpHost(int index) {
  * \param name The function which needs to be invoked.
  * \param sptr_to_self Packed function pointer.
  */
-PackedFunc GraphExecutorDebug::GetFunction(const std::string& name,
+PackedFunc GraphExecutorDebug::GetFunction(const String& name,
                                            const ObjectPtr<Object>& sptr_to_self) {
   // return member functions during query.
   if (name == "debug_get_output") {

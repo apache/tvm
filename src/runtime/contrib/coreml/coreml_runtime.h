@@ -103,7 +103,7 @@ class CoreMLRuntime : public ModuleNode {
    * \param sptr_to_self The pointer to the module node.
    * \return The corresponding member function.
    */
-  virtual PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self);
+  virtual PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self);
 
   /*! \brief Get the property of the runtime module .*/
   int GetPropertyMask() const final {
