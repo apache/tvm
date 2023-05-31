@@ -43,9 +43,9 @@
 #ifndef TVM_RUNTIME_REGISTRY_H_
 #define TVM_RUNTIME_REGISTRY_H_
 
+#include <tvm/runtime/container/string.h>
 #include <tvm/runtime/packed_func.h>
 
-#include <string>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -295,32 +295,32 @@ class Registry {
    * \param override Whether allow override existing function.
    * \return Reference to the registry.
    */
-  TVM_DLL static Registry& Register(const std::string& name, bool override = false);  // NOLINT(*)
+  TVM_DLL static Registry& Register(const String& name, bool override = false);  // NOLINT(*)
   /*!
    * \brief Erase global function from registry, if exist.
    * \param name The name of the function.
    * \return Whether function exist.
    */
-  TVM_DLL static bool Remove(const std::string& name);
+  TVM_DLL static bool Remove(const String& name);
   /*!
    * \brief Get the global function by name.
    * \param name The name of the function.
    * \return pointer to the registered function,
    *   nullptr if it does not exist.
    */
-  TVM_DLL static const PackedFunc* Get(const std::string& name);  // NOLINT(*)
+  TVM_DLL static const PackedFunc* Get(const String& name);  // NOLINT(*)
   /*!
    * \brief Get the names of currently registered global function.
    * \return The names
    */
-  TVM_DLL static std::vector<std::string> ListNames();
+  TVM_DLL static std::vector<String> ListNames();
 
   // Internal class.
   struct Manager;
 
  protected:
   /*! \brief name of the function */
-  std::string name_;
+  String name_;
   /*! \brief internal packed function */
   PackedFunc func_;
   friend struct Manager;

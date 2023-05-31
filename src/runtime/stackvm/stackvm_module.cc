@@ -39,7 +39,7 @@ class StackVMModuleNode : public runtime::ModuleNode {
  public:
   const char* type_key() const final { return "stackvm"; }
 
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
     if (name == runtime::symbol::tvm_module_main) {
       return GetFunction(entry_func_, sptr_to_self);
     }
@@ -51,7 +51,7 @@ class StackVMModuleNode : public runtime::ModuleNode {
         [vm, sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { vm.Run(args, this); });
   }
 
-  std::string GetSource(const std::string& format) final {
+  String GetSource(const String& format) final {
     std::ostringstream os;
     for (const auto& kv : fmap_) {
       os << "Function: " << kv.first << '\n';
@@ -60,7 +60,7 @@ class StackVMModuleNode : public runtime::ModuleNode {
     return os.str();
   }
 
-  void SaveToFile(const std::string& file_name, const std::string& format) final {
+  void SaveToFile(const String& file_name, const String& format) final {
     std::string data, mblob;
     dmlc::MemoryStringStream writer(&data);
     dmlc::Stream* strm = &writer;
@@ -104,7 +104,8 @@ class StackVMModuleNode : public runtime::ModuleNode {
       const PackedFunc* f = Registry::Get(fkey);
       if (f == nullptr) {
         std::string loaders = "";
-        for (auto name : Registry::ListNames()) {
+        for (auto reg_name : Registry::ListNames()) {
+          std::string name = reg_name;
           if (name.rfind(loadkey, 0) == 0) {
             if (loaders.size() > 0) {
               loaders += ", ";
