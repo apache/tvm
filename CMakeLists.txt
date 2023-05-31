@@ -560,14 +560,25 @@ else()
   add_library(tvm_runtime SHARED $<TARGET_OBJECTS:tvm_runtime_objs> $<TARGET_OBJECTS:tvm_libinfo_objs>)
   set_property(TARGET tvm_runtime APPEND PROPERTY LINK_OPTIONS "${TVM_NO_UNDEFINED_SYMBOLS}")
 endif()
+
+# dummy target is not compiled by default
+# it can be used by downstream project to create a "link" to libtvm without compiling libtvm
+# This is useful in platforms such as windows
+# The created dll still need the real libtvm to be available in runtime.
+add_library(tvm_dummy SHARED EXCLUDE_FROM_ALL $<TARGET_OBJECTS:tvm_runtime_objs> $<TARGET_OBJECTS:tvm_libinfo_objs>)
+set_target_properties(tvm_dummy PROPERTIES OUTPUT_NAME "tvm")
+set_target_properties(tvm_dummy PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/dummy/)
+
 target_include_directories(tvm_runtime PUBLIC "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
 set_property(TARGET tvm_runtime APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAG}")
+set_property(TARGET tvm_dummy APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAG}")
 
 target_compile_definitions(tvm_objs PUBLIC DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
 target_compile_definitions(tvm_runtime_objs PUBLIC DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
 target_compile_definitions(tvm_libinfo_objs PUBLIC DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
 target_compile_definitions(tvm PUBLIC DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
 target_compile_definitions(tvm_runtime PUBLIC DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
+target_compile_definitions(tvm_dummy PUBLIC DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
 
 # logging option for libbacktrace
 include(cmake/modules/Logging.cmake)
@@ -632,6 +643,7 @@ endif()
 
 target_link_libraries(tvm PRIVATE ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
 target_link_libraries(tvm_runtime PRIVATE ${TVM_RUNTIME_LINKER_LIBS})
+target_link_libraries(tvm_dummy PRIVATE ${TVM_RUNTIME_LINKER_LIBS})
 
 if(BUILD_FOR_HEXAGON AND DEFINED USE_HEXAGON_GTEST AND EXISTS ${USE_HEXAGON_GTEST})
   include(FetchContent)
@@ -668,6 +680,7 @@ if (HIDE_PRIVATE_SYMBOLS AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   # once minimum CMake version is bumped up to 3.13 or above.
   target_link_libraries(tvm PRIVATE ${HIDE_SYMBOLS_LINKER_FLAGS})
   target_link_libraries(tvm_runtime PRIVATE ${HIDE_SYMBOLS_LINKER_FLAGS})
+  target_link_libraries(tvm_dummy PRIVATE ${HIDE_SYMBOLS_LINKER_FLAGS})
   target_compile_definitions(tvm_allvisible PUBLIC $<TARGET_PROPERTY:tvm,INTERFACE_COMPILE_DEFINITONS>)
   target_compile_definitions(tvm_allvisible PRIVATE $<TARGET_PROPERTY:tvm,COMPILE_DEFINITONS>)
 endif()
