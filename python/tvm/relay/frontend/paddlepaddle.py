@@ -2173,10 +2173,11 @@ def convert_softplus(g, op, block):
     if threshold is None:
         threshold = _expr.const(20.0, dtype=dtype)
     threshold = _expr.const(threshold, dtype=dtype)
-    if x * beta <= threshold:
-        out = _op.log(_op.exp(x * beta) + _expr.const(1.0, dtype=dtype)) / beta
-    else:
-        out = x
+    boundary = x * beta
+    condition = tvm.relay.greater(boundary, tvm.relay.const(threshold, dtype))
+    softplus_0 = x
+    softplus_1 = _op.log(_op.exp(x * beta) + _expr.const(1.0, dtype=dtype)) / beta
+    out = _op.where(condition, softplus_0, softplus_1)
 
     g.add_node(op.output("Out")[0], out)
 
