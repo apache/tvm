@@ -904,6 +904,16 @@ requires_opencl = Feature(
     parent_features="gpu" if "RPC_TARGET" not in os.environ else None,
 )
 
+# Mark a test as requiring the OpenCL runtime
+requires_adrenorecording = Feature(
+    "adrenorecording",
+    "Adreno recording queue",
+    cmake_flag="USE_ADRENO_RECORDING",
+    target_kind_enabled="opencl",
+    target_kind_hardware="opencl" if "RPC_TARGET" not in os.environ else None,
+    parent_features="opencl",
+)
+
 # Mark a test as requiring the rocm runtime
 requires_rocm = Feature(
     "rocm",
@@ -1055,7 +1065,6 @@ requires_arm_dot = Feature("arm_dot", "ARM dot product", run_time_check=_arm_dot
 requires_cascadelake = Feature(
     "cascadelake", "x86 CascadeLake", run_time_check=lambda: _has_vnni() and _is_intel()
 )
-
 
 requires_skylake_avx512 = Feature(
     "skylake_avx512",

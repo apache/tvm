@@ -25,6 +25,7 @@
 
 #include "../../cuda/cuda_common.h"
 #include "../graph_executor.h"
+#include "./stream_graph_executor.h"
 
 namespace tvm {
 namespace runtime {
@@ -39,7 +40,7 @@ namespace runtime {
  *  CUDA stream, and automatically generates a graph (2) Building a graph
  *  using CUDA graph API manually. This implementation uses stream capture.
  */
-class GraphExecutorCudaGraph : public GraphExecutor {
+class GraphExecutorCudaGraph : public StreamGraphExecutor {
  public:
   /*!
    * \brief Begin CUDA graph capture on stream, the stream enters capture mode.

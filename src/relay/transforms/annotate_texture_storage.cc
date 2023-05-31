@@ -46,6 +46,7 @@
 #include "../op/memory/device_copy.h"
 #include "../op/memory/memory.h"
 #include "../transforms/device_aware_visitors.h"
+#include "transform_layout.h"
 
 namespace tvm {
 namespace relay {
@@ -532,7 +533,13 @@ class RewriteVDStorageScopes : public transform::DeviceAwareExprMutator {
         VirtualDevice virtual_device_to =
             VirtualDevice(virtual_device->device_type(), virtual_device->virtual_device_id,
                           virtual_device->target, storage_scope_[arg][GetRef<Expr>(call_node)][0]);
-        new_arg = DeviceCopy(new_arg, virtual_device_from, virtual_device_to);
+        auto fn = call_node->op.as<FunctionNode>();
+        auto data_layout = fn->attrs.GetAttr<String>("data_layout");
+        if (!data_layout) {
+          data_layout = fn->attrs.GetAttr<String>("layout");
+        }
+        auto data_layout_value = data_layout.value();
+        new_arg = tvm::relay::MakeLayoutTransform(new_arg, data_layout_value, data_layout_value);
         new_arg = OnDevice(
             new_arg,
             VirtualDevice(virtual_device->device_type(), virtual_device->virtual_device_id,
