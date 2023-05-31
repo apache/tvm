@@ -58,7 +58,7 @@ def fp8_unary(dtype: str):
 
 
 np_dtype, dtype_str = tvm.testing.parameters(
-    (ml_dtypes.float8_e4m3fn, "e4m3_float8"), (ml_dtypes.float8_e5m2, "e5m2_float8")
+    (e4m3_float8, "e4m3_float8"), (e5m2_float8, "e5m2_float8")
 )
 
 
