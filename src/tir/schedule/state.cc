@@ -187,7 +187,7 @@ class BlockInfoCollector : private StmtVisitor {
  private:
   explicit BlockInfoCollector(ScheduleStateNode* self)
       : self_(self), srefs_{}, block2realize_{}, block_frames_{} {
-    block_frames_.emplace({});
+    block_frames_.emplace_back();
   }
 
   /*!
