@@ -517,7 +517,7 @@ def test_forward_conv():
             dilation=1,
             groups=1,
             padding_mode="zeros",
-            data_layout="NCHW",
+            data_format="NCHW",
         ):
             super(Conv2D2, self).__init__()
             self.conv = nn.Conv2D(
@@ -529,7 +529,7 @@ def test_forward_conv():
                 dilation=dilation,
                 groups=groups,
                 padding_mode=padding_mode,
-                data_layout=data_layout,
+                data_layout=data_format,
             )
             self.softmax = nn.Softmax()
 
@@ -550,7 +550,7 @@ def test_forward_conv():
         )
         verify_model(Conv2D1(stride=2, padding="SAME", dilation=2, groups=3), input_data=input_data)
         verify_model(
-            Conv2D2(stride=2, padding="SAME", dilation=2, groups=3, data_layout="NHWC"),
+            Conv2D2(stride=2, padding="SAME", dilation=2, groups=3, data_format="NHWC"),
             input_data=input_data,
         )
 
@@ -615,7 +615,7 @@ def test_forward_conv3d():
             dilation=1,
             groups=1,
             padding_mode="zeros",
-            data_layout="NCHW",
+            data_format="NCDHW",
         ):
             super(Conv3D2, self).__init__()
             self.conv = nn.Conv3D(
@@ -627,7 +627,7 @@ def test_forward_conv3d():
                 dilation=dilation,
                 groups=groups,
                 padding_mode=padding_mode,
-                data_layout=data_layout,
+                data_layout=data_format,
             )
             self.softmax = nn.Softmax()
 
@@ -656,7 +656,7 @@ def test_forward_conv3d():
         )
         verify_model(Conv3D(stride=2, padding="SAME", dilation=2, groups=3), input_data=input_data)
         verify_model(
-            Conv3D2(stride=2, padding="SAME", dilation=2, groups=3, data_layout="NCDHW"),
+            Conv3D2(stride=2, padding="SAME", dilation=2, groups=3, data_format="NCDHW"),
             input_data=input_data,
         )
 
@@ -906,17 +906,17 @@ def test_forward_group_norm():
 @tvm.testing.uses_gpu
 def test_forward_gaussian_random():
     @paddle.jit.to_static
-    def gaussian_random1(shape):
-        return paddle.fluid.layers.gaussian_random(shape)
+    def gaussian_random1(inputs):
+        return paddle.fluid.layers.gaussian_random(inputs)
 
     @paddle.jit.to_static
-    def gaussian_random2(shape):
-        return paddle.fluid.layers.gaussian_random(shape, dtype="float32")
+    def gaussian_random2(inputs):
+        return paddle.fluid.layers.gaussian_random(inputs, dtype="float32")
 
     shapes = [[20], [8, 8], [4, 5, 6], [3, 4, 3, 5]]
     for shape in zip(shapes):
-        verify_model(gaussian_random1, shape=shape)
-        verify_model(gaussian_random2, shape=shape)
+        verify_model(gaussian_random1, input_data=shape)
+        verify_model(gaussian_random2, input_data=shape)
 
 
 @tvm.testing.uses_gpu
@@ -1804,15 +1804,15 @@ def test_forward_sin():
 def test_forward_softplus():
     @paddle.jit.to_static
     def Softplus1(input):
-        return nn.functional.Softplus(input, beta=1.0, threshold=20.0)
+        return paddle.nn.functional.softplus(input, beta=1.0, threshold=20.0)
 
     @paddle.jit.to_static
     def Softplus2(input):
-        return nn.functional.Softplus(input, beta=6.0, threshold=20.0)
+        return paddle.nn.functional.softplus(input, beta=6.0, threshold=20.0)
 
     @paddle.jit.to_static
     def Softplus3(input):
-        return nn.functional.Softplus(input, beta=1.0, threshold=10.0)
+        return paddle.nn.functional.softplus(input, beta=1.0, threshold=10.0)
 
     x = paddle.to_tensor([-8.0, -12.0, 1.0, 18.0, 25.0])
     verify_model(Softplus1, x)
