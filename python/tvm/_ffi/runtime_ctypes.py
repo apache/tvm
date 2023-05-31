@@ -200,9 +200,9 @@ class DataType(ctypes.Structure):
 
 
 if ml_dtypes is not None:
-    DataType.STR2DTYPE[np.dtype(ml_dtypes.bfloat16)] = "bfloat16"
-    DataType.STR2DTYPE[np.dtype(ml_dtypes.float8_e4m3fn)] = "e4m3_float8"
-    DataType.STR2DTYPE[np.dtype(ml_dtypes.float8_e5m2)] = "e5m2_float8"
+    DataType.NUMPY2STR[np.dtype(ml_dtypes.bfloat16)] = "bfloat16"
+    DataType.NUMPY2STR[np.dtype(ml_dtypes.float8_e4m3fn)] = "e4m3_float8"
+    DataType.NUMPY2STR[np.dtype(ml_dtypes.float8_e5m2)] = "e5m2_float8"
 
 RPC_SESS_MASK = 128
 
