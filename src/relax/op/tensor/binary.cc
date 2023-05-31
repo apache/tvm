@@ -92,10 +92,19 @@ InferLayoutOutput InferLayoutBinaryEwise(const Call& call,
       << "Unknown dim tensors should not be handled by this function";
 
   if (x1_sinfo->ndim <= x2_sinfo->ndim) {
+    if (x1_sinfo->ndim == 0) {
+      LayoutDecision out_layout = layout2;
+      return InferLayoutOutput({LayoutDecision(""), layout2}, {out_layout}, Attrs(call->attrs));
+    }
     LayoutDecision out_layout = FollowDecision(layout1, x2_sinfo->ndim);
     return InferLayoutOutput({layout1, out_layout}, {out_layout}, Attrs(call->attrs));
   } else {
+    if (x2_sinfo->ndim == 0) {
+      LayoutDecision out_layout = layout1;
+      return InferLayoutOutput({layout1, LayoutDecision("")}, {out_layout}, Attrs(call->attrs));
+    }
     LayoutDecision out_layout = FollowDecision(layout2, x1_sinfo->ndim);
+
     return InferLayoutOutput({out_layout, layout2}, {out_layout}, Attrs(call->attrs));
   }
 }

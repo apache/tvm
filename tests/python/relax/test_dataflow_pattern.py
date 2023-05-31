@@ -16,13 +16,14 @@
 # under the License.
 
 import pytest
-import tvm.testing
 
-from tvm import relay
-from tvm.relax.dpl import *
+import tvm.testing
+from tvm import relax as rx
+from tvm import relay, tir
 from tvm.relax.analysis import get_var2val
-from tvm import relax as rx, tir
-from tvm.script import relax as R, tir as T
+from tvm.relax.dpl import *
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 @tvm.script.ir_module
@@ -1172,6 +1173,105 @@ def test_combine_matmul_emit_order():
             inp_pat, Q_weight_pat, K_weight_pat, V_weight_pat, matmul1, matmul2, matmul3
         )
         rewritten = rewrite_bindings(ctx, rewriter, main)
+        tvm.ir.assert_structural_equal(rewritten, expected)
+
+        # make sure it builds
+        mod = tvm.IRModule()
+        mod["main"] = rewritten
+        mod = rx.transform.LegalizeOps()(mod)
+
+        rx.build(mod, target="llvm")
+
+
+def test_combine_transposed_matmul_twice():
+    @R.function
+    def main(
+        x1: R.Tensor((2, 1024, 640), "float32"),
+        x2: R.Tensor((2, 1024, 640), "float32"),
+        w0: R.Tensor((640, 640), "float32"),
+        w1: R.Tensor((640, 640), "float32"),
+        w2: R.Tensor((640, 640), "float32"),
+        w3: R.Tensor((640, 640), "float32"),
+    ) -> R.Tensor:
+        with R.dataflow():
+            w0_t = R.permute_dims(w0, axes=None)
+            lv0 = R.matmul(x1, w0_t)
+            w1_t = R.permute_dims(w1, axes=None)
+            lv1 = R.matmul(x1, w1_t)
+            w2_t = R.permute_dims(w2, axes=None)
+            lv2 = R.matmul(x2, w2_t)
+            w3_t = R.permute_dims(w3, axes=None)
+            lv3 = R.matmul(x2, w3_t)
+            out = (lv0, lv1, lv2, lv3)
+            R.output(out)
+        return out
+
+    @R.function
+    def expected(
+        x1: R.Tensor((2, 1024, 640), dtype="float32"),
+        x2: R.Tensor((2, 1024, 640), dtype="float32"),
+        w0: R.Tensor((640, 640), dtype="float32"),
+        w1: R.Tensor((640, 640), dtype="float32"),
+        w2: R.Tensor((640, 640), dtype="float32"),
+        w3: R.Tensor((640, 640), dtype="float32"),
+    ) -> R.Tensor:
+        with R.dataflow():
+            lv: R.Tensor((1280, 640), dtype="float32") = R.concat((w0, w1), axis=0)
+            lv1: R.Tensor((640, 1280), dtype="float32") = R.permute_dims(lv, axes=None)
+            lv2: R.Tensor((2, 1024, 1280), dtype="float32") = R.matmul(x1, lv1, out_dtype="void")
+            lv3: R.Tuple(
+                R.Tensor((2, 640, 1280), dtype="float32"),
+                R.Tensor((2, 384, 1280), dtype="float32"),
+                R.Tensor((2, 0, 1280), dtype="float32"),
+            ) = R.split(lv2, indices_or_sections=[640, 1280], axis=1)
+            lv0: R.Tensor((2, 640, 1280), dtype="float32") = lv3[0]
+            lv1_1: R.Tensor((2, 384, 1280), dtype="float32") = lv3[1]
+            lv_1: R.Tensor((1280, 640), dtype="float32") = R.concat((w2, w3), axis=0)
+            lv1_2: R.Tensor((640, 1280), dtype="float32") = R.permute_dims(lv_1, axes=None)
+            lv2_1: R.Tensor((2, 1024, 1280), dtype="float32") = R.matmul(
+                x2, lv1_2, out_dtype="void"
+            )
+            lv3_1: R.Tuple(
+                R.Tensor((2, 640, 1280), dtype="float32"),
+                R.Tensor((2, 384, 1280), dtype="float32"),
+                R.Tensor((2, 0, 1280), dtype="float32"),
+            ) = R.split(lv2_1, indices_or_sections=[640, 1280], axis=1)
+            lv2_1_1: R.Tensor((2, 640, 1280), dtype="float32") = lv3_1[0]
+            lv3_1_1: R.Tensor((2, 384, 1280), dtype="float32") = lv3_1[1]
+            out: R.Tuple(
+                R.Tensor((2, 640, 1280), dtype="float32"),
+                R.Tensor((2, 384, 1280), dtype="float32"),
+                R.Tensor((2, 640, 1280), dtype="float32"),
+                R.Tensor((2, 384, 1280), dtype="float32"),
+            ) = (lv0, lv1_1, lv2_1_1, lv3_1_1)
+            R.output(out)
+        return out
+
+    with PatternContext() as ctx:
+        inp_pat = wildcard()
+        w1_pat = wildcard()
+        w2_pat = wildcard()
+        matmul1 = is_op("relax.matmul")(inp_pat, is_op("relax.permute_dims")(w1_pat))
+        matmul2 = is_op("relax.matmul")(inp_pat, is_op("relax.permute_dims")(w2_pat))
+
+        def rewriter(matchings, _):
+            inp = matchings[inp_pat]
+            w1 = matchings[w1_pat]
+            w2 = matchings[w2_pat]
+
+            concat = R.concat([w1, w2], axis=0)
+            matmul = R.matmul(inp, R.permute_dims(concat))
+            sections = [w1.struct_info.shape[0], w1.struct_info.shape[0] + w2.struct_info.shape[0]]
+
+            chunks = R.split(matmul, sections, 1)
+
+            return {
+                matchings[matmul1]: chunks[0],
+                matchings[matmul2]: chunks[1],
+            }
+
+        rewritten = rewrite_bindings(ctx, rewriter, main)
+        print(rewritten.script())
         tvm.ir.assert_structural_equal(rewritten, expected)
 
         # make sure it builds
