@@ -9,12 +9,14 @@ import numpy as np
 dev = tvm.cpu(0)
 target = tvm.target.Target("llvm")
 
+
 def build_relay_module(func):
     mod = tvm.IRModule()
     mod["main"] = func
     lib = relay.build(mod, target=target)
 
     return graph_executor.GraphModule(lib["default"](dev))
+
 
 @testing.requires_llvm
 def test_simple_graph():
@@ -45,6 +47,7 @@ def test_simple_graph():
     # Expect get same output "x".
     testing.assert_allclose(mod.get_output(0).numpy(), mod_zero_copy.get_output(0).numpy())
 
+
 @testing.requires_llvm
 def test_input_in_output():
     # Relay func that input is also in output:
@@ -74,6 +77,7 @@ def test_input_in_output():
 
     # Expect get same output "x".
     testing.assert_allclose(mod.get_output(0).numpy(), mod_zero_copy.get_output(0).numpy())
+
 
 @testing.requires_llvm
 def test_reshape_after_input():
