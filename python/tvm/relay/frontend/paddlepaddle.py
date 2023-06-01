@@ -826,6 +826,7 @@ def convert_gaussian_random(g, op, block):
     shape = op.attr("shape")
     seed = op.attr("seed")
     dtype = op.attr("dtype")
+    dtype = _convert_dtype_value(dtype)
     out = _op.random.normal(key=seed, shape=shape, dtype=dtype, mean=mean, scale=std)
     g.add_node(op.output("Out")[0], out)
 
