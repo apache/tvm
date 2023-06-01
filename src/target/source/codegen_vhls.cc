@@ -167,7 +167,7 @@ runtime::Module BuildSDAccel(IRModule mod, Target target) {
     cg.AddFunction(f);
     std::string code = cg.Finish();
     if (const auto* f = runtime::Registry::Get("tvm_callback_vhls_postproc")) {
-      code = (*f)(code).operator std::string();
+      code = (*f)(code, target).operator std::string();
     }
 
     auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
@@ -178,8 +178,7 @@ runtime::Module BuildSDAccel(IRModule mod, Target target) {
 
   std::string xclbin;
   if (const auto* f = Registry::Get("tvm_callback_sdaccel_compile")) {
-    String device = target->GetAttr<String>("device", "").value();
-    xclbin = (*f)(kernel_info, device).operator std::string();
+    xclbin = (*f)(kernel_info, target).operator std::string();
   } else {
     LOG(FATAL) << "Cannot compile Vivado HLS code.";
   }

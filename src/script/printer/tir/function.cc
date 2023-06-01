@@ -120,7 +120,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           ExprDoc param_doc = args[i]->lhs;
           ObjectPath buffer_p = p->Attr("buffer_map")->MapValue(param);
           ExprDoc lhs = DefineBuffer(buffer, *f, d);
-          ExprDoc rhs = BufferDecl(buffer, "match_buffer", {param_doc}, buffer_p, *f, d);
+          ExprDoc rhs = BufferDecl(buffer, "match_buffer", {param_doc}, buffer_p, *f, d,
+                                   BufferVarDefinition::MatchBuffer);
           (*f)->stmts.push_back(AssignDoc(lhs, rhs, NullOpt));
         }
       }
@@ -153,7 +154,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           tir::Buffer buffer = root_block->alloc_buffers[i];
           ObjectPath buffer_p = root_block_p->Attr("alloc_buffers")->ArrayIndex(i);
           IdDoc lhs = DefineBuffer(buffer, *f, d);
-          ExprDoc rhs = BufferDecl(buffer, "alloc_buffer", {}, buffer_p, *f, d);
+          ExprDoc rhs = BufferDecl(buffer, "alloc_buffer", {}, buffer_p, *f, d,
+                                   BufferVarDefinition::DataPointer);
           (*f)->stmts.push_back(AssignDoc(lhs, rhs, NullOpt));
         }
         AsDocBody(root_block->body, root_block_p->Attr("body"), f->get(), d);

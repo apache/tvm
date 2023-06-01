@@ -191,7 +191,7 @@ class ParamModuleNode : public runtime::ModuleNode {
  public:
   const char* type_key() const final { return "param_module"; }
 
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
     if (name == "get_params") {
       auto params = params_;
       return PackedFunc([params](TVMArgs args, TVMRetValue* rv) { *rv = params; });
@@ -200,7 +200,7 @@ class ParamModuleNode : public runtime::ModuleNode {
     }
   }
 
-  static Array<NDArray> GetParams(const std::string& prefix, int num_params) {
+  static Array<NDArray> GetParams(const String& prefix, int num_params) {
     Array<NDArray> params;
     for (int i = 0; i < num_params || num_params == -1; ++i) {
       std::string name = prefix + "_" + std::to_string(i);

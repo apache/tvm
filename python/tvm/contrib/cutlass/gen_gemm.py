@@ -194,7 +194,7 @@ class CutlassGemmProfiler:
     """Profile all candidate kernels and select the best one."""
 
     def __init__(self, sm, cutlass_path, binary_path):
-        assert sm in GENERATOR_FUNC_TABLE and sm in DEFAULT_KERNELS, "sm%d not supported yet." % sm
+        assert sm in GENERATOR_FUNC_TABLE and sm in DEFAULT_KERNELS, f"sm{sm} not supported yet."
         self.engine = ProfilerEngine(sm, cutlass_path, binary_path)
         self.sm = sm
         self.cache_path = os.path.join(binary_path, "cutlass_gemm_cache.pickle")

@@ -20,7 +20,7 @@ import os
 
 import tvm._ffi
 from tvm.ir import Node as RelayNode
-from tvm.ir import SourceName, Span
+from tvm.ir import SourceName, Span, SequentialSpan
 from tvm.runtime import Object
 
 from . import _ffi_api

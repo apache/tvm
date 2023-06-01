@@ -38,15 +38,20 @@ sleep 5   # Wait for tracker to bind
 
 export ANDROID_SERIAL=$1
 
-adb shell "mkdir -p /data/local/tmp/tvm_ci"
-adb push build-adreno-target/tvm_rpc /data/local/tmp/tvm_ci/tvm_rpc_ci
-adb push build-adreno-target/libtvm_runtime.so /data/local/tmp/tvm_ci
+TARGET_FOLDER=/data/local/tmp/tvm_ci-${USER}
+adb shell "mkdir -p ${TARGET_FOLDER}"
+adb push build-adreno-target/tvm_rpc ${TARGET_FOLDER}/tvm_rpc-${USER}
+adb push build-adreno-target/libtvm_runtime.so ${TARGET_FOLDER}
+CPP_LIB=`find ${ANDROID_NDK_HOME} -name libc++_shared.so | grep aarch64`
+if [ -f ${CPP_LIB} ] ; then
+    adb push ${CPP_LIB} ${TARGET_FOLDER}
+fi
 
 adb reverse tcp:${TVM_TRACKER_PORT} tcp:${TVM_TRACKER_PORT}
 adb forward tcp:5000 tcp:5000
 adb forward tcp:5001 tcp:5001
 adb forward tcp:5002 tcp:5002
-env adb shell "cd /data/local/tmp/tvm_ci; killall -9 tvm_rpc_ci; sleep 2; LD_LIBRARY_PATH=/data/local/tmp/tvm_ci/ ./tvm_rpc_ci server --host=0.0.0.0 --port=5000 --port-end=5010 --tracker=127.0.0.1:${TVM_TRACKER_PORT} --key=${RPC_DEVICE_KEY}" &
+env adb shell "cd ${TARGET_FOLDER}; killall -9 tvm_rpc-${USER}; sleep 2; LD_LIBRARY_PATH=${TARGET_FOLDER}/ ./tvm_rpc-${USER} server --host=0.0.0.0 --port=5000 --port-end=5010 --tracker=127.0.0.1:${TVM_TRACKER_PORT} --key=${RPC_DEVICE_KEY}" &
 DEVICE_PID=$!
 sleep 5 # Wait for the device connections
 trap "{ kill ${TRACKER_PID}; kill ${DEVICE_PID}; }" 0

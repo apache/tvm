@@ -649,13 +649,9 @@ class WebGPUSourceModuleNode final : public runtime::ModuleNode {
   /*! \brief Get the property of the runtime module .*/
   int GetPropertyMask() const final { return runtime::ModulePropertyMask::kBinarySerializable; }
 
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
     LOG(FATAL) << "WebGPUSourceModule is not directly runnable, export and run through tvmjs";
     return PackedFunc(nullptr);
-  }
-
-  void SaveToFile(const std::string& file_name, const std::string& format) final {
-    LOG(FATAL) << "Not implemented";
   }
 
   void SaveToBinary(dmlc::Stream* stream) final {
@@ -663,7 +659,7 @@ class WebGPUSourceModuleNode final : public runtime::ModuleNode {
     stream->Write(smap_);
   }
 
-  std::string GetSource(const std::string& format) final {
+  String GetSource(const String& format) final {
     if (format == "func_info") {
       std::ostringstream stream;
       dmlc::JSONWriter(&stream).Write(fmap_);

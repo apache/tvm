@@ -593,8 +593,7 @@ std::pair<std::function<void()>, std::shared_ptr<GraphExecutor::OpArgs>> GraphEx
   return {fexec, arg_ptr};
 }
 
-PackedFunc GraphExecutor::GetFunction(const std::string& name,
-                                      const ObjectPtr<Object>& sptr_to_self) {
+PackedFunc GraphExecutor::GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) {
   // Return member functions during query.
   if (name == "set_input") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {

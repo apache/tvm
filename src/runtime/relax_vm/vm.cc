@@ -186,7 +186,7 @@ class VirtualMachineImpl : public VirtualMachine {
   void Init(const std::vector<Device>& devices,
             const std::vector<AllocatorType>& alloc_types) final;
 
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) override;
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) override;
 
   VMClosure GetClosure(const String& func_name) final {
     return this->GetClosureInternal(func_name, false).value();
@@ -445,7 +445,7 @@ RegType VirtualMachineImpl::LookupVMOutput(const std::string& func_name) {
   return outputs_[func_name];
 }
 
-PackedFunc VirtualMachineImpl::GetFunction(const std::string& name,
+PackedFunc VirtualMachineImpl::GetFunction(const String& name,
                                            const ObjectPtr<Object>& sptr_to_self) {
   if (name == "vm_initialization") {
     // initialize the VirtualMachine, takes variable-length arguments
@@ -925,7 +925,7 @@ ObjectPtr<VirtualMachine> VirtualMachine::Create() { return make_object<VirtualM
  */
 class VirtualMachineProfiler : public VirtualMachineImpl {
  public:
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) override {
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) override {
     if (name == "profile") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         std::string f_name = args[0];

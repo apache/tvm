@@ -40,20 +40,83 @@
 namespace tvm {
 namespace tir {
 
-PrimFunc MakeUnpackedAPI(PrimFunc&& func) {
-  auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
-  ICHECK(global_symbol) << "MakeUnpackedAPI: Expect PrimFunc to have the global_symbol attribute";
+namespace {
 
-  auto target = func->GetAttr<Target>(tvm::attr::kTarget);
-  ICHECK(target.defined()) << "MakeUnpackedAPI: Require the target attribute";
+class SubroutineCallRewriter : public StmtExprMutator {
+ public:
+  static Optional<Stmt> Apply(const std::unordered_set<const GlobalVarNode*>& external_methods,
+                              Stmt stmt) {
+    SubroutineCallRewriter rewriter(external_methods);
+    stmt = rewriter.VisitStmt(std::move(stmt));
+    if (rewriter.made_change_) {
+      return stmt;
+    } else {
+      return NullOpt;
+    }
+  }
+
+ private:
+  explicit SubroutineCallRewriter(const std::unordered_set<const GlobalVarNode*>& external_methods)
+      : external_methods_(external_methods) {}
+
+  PrimExpr VisitExpr_(const CallNode* op) override {
+    auto node = Downcast<Call>(StmtExprMutator::VisitExpr_(op));
+
+    if (auto gvar = node->op.as<GlobalVarNode>()) {
+      if (external_methods_.count(gvar)) {
+        Array<PrimExpr> args = node->args.Map([this](const PrimExpr& arg) -> PrimExpr {
+          if (auto* as_call = arg.as<CallNode>()) {
+            if (as_call->op.same_as(builtin::tvm_stack_make_array())) {
+              PrimExpr data_ptr = as_call->args[0];
+              made_change_ = true;
+              return data_ptr;
+            }
+          }
+          return arg;
+        });
+        if (!args.same_as(node->args)) {
+          node.CopyOnWrite()->args = args;
+        }
+      }
+    }
+
+    return std::move(node);
+  }
+  const std::unordered_set<const GlobalVarNode*>& external_methods_;
+  bool made_change_{false};
+};
+
+}  // namespace
+
+PrimFunc MakeUnpackedAPI(PrimFunc func) {
+  // A function with an explicit calling convention has already been
+  // lowered, and should not be modified.
+  if (auto opt = func->GetAttr<Integer>(tvm::attr::kCallingConv)) {
+    if (CallingConv(opt.value()->value) != CallingConv::kDefault) {
+      return func;
+    }
+  }
+
+  // Internal function calls do not need API updates
+  auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
+  if (!global_symbol.defined()) {
+    return func;
+  }
+
+  Target target = [&]() {
+    auto opt = func->GetAttr<Target>(tvm::attr::kTarget);
+    ICHECK(opt) << "MakeUnpackedAPI required the function to be annotated with tvm::attr::kTarget ("
+                << tvm::attr::kTarget << "), but the function only has attributes " << func->attrs;
+    return opt.value();
+  }();
+  int target_device_type = target->GetTargetDeviceType();
 
   auto* func_ptr = func.CopyOnWrite();
 
   // Setup device context
-  int target_device_type = target.value()->GetTargetDeviceType();
   Integer device_type(target_device_type);
   Integer device_id(0);
-  PrimExpr node = StringImm("default");
+  ObjectRef node = String("default");
   const Stmt nop = Evaluate(0);
   std::vector<Stmt> device_init;
 
@@ -82,31 +145,43 @@ PrimFunc MakeUnpackedAPI(PrimFunc&& func) {
   func_ptr->buffer_map = Map<Var, Buffer>();
 
   // return the function.
-  return std::move(func);
+  return func;
 }
 
 namespace transform {
 
 Pass MakeUnpackedAPI() {
-  auto pass_func = [](IRModule m, PassContext ctx) {
-    IRModuleNode* mptr = m.CopyOnWrite();
-    std::vector<std::pair<GlobalVar, PrimFunc>> updates;
-
-    for (const auto& kv : mptr->functions) {
-      if (auto opt = kv.second.as<PrimFunc>()) {
-        auto func = opt.value();
-        if (func->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(CallingConv::kDefault)) ==
-            CallingConv::kDefault) {
-          auto updated_func = MakeUnpackedAPI(std::move(func));
-          updates.push_back({kv.first, updated_func});
+  auto pass_func = [](IRModule mod, PassContext ctx) {
+    std::unordered_set<const GlobalVarNode*> external_methods;
+    for (const auto& [gvar, base_func] : mod->functions) {
+      if (auto* prim_func = base_func.as<PrimFuncNode>()) {
+        if (prim_func->GetAttr<String>(tvm::attr::kGlobalSymbol)) {
+          external_methods.insert(gvar.get());
         }
       }
     }
 
-    for (const auto& pair : updates) {
-      mptr->AddUnchecked(pair.first, pair.second);
+    IRModule updates;
+
+    for (const auto& [gvar, base_func] : mod->functions) {
+      if (auto opt = base_func.as<PrimFunc>()) {
+        auto func = opt.value();
+
+        if (auto body = SubroutineCallRewriter::Apply(external_methods, func->body)) {
+          func.CopyOnWrite()->body = body.value();
+        }
+
+        func = MakeUnpackedAPI(std::move(func));
+        if (!func.same_as(base_func)) {
+          updates->Add(gvar, func);
+        }
+      }
     }
-    return m;
+
+    if (updates->functions.size()) {
+      mod.CopyOnWrite()->Update(updates);
+    }
+    return mod;
   };
 
   return tvm::transform::CreateModulePass(pass_func, 0, "tir.MakeUnpackedAPI", {});

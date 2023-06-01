@@ -77,13 +77,7 @@ def generate_tensor_op_common(
     return ops
 
 
-def generate_sm50_simt(
-    out_dtype,
-    arg0_dtype,
-    arg1_dtype,
-    op_creator,
-    accumulator_dtype="float32",
-):
+def generate_sm50_simt(out_dtype, arg0_dtype, arg1_dtype, op_creator, accumulator_dtype="float32"):
     """Gemerate GEMM or Conv2D SIMT kernels"""
     # pylint: disable=unused-argument
     min_cc = 50
@@ -99,11 +93,9 @@ def generate_sm50_simt(
                 DataType.f32,
                 OpcodeClass.Simt,
                 MathOperation.multiply_add,
-            ),
+            )
         ]
-        alignment_constraints = [
-            1,
-        ]
+        alignment_constraints = [1]
         tile_descriptions = [
             ([128, 128, 8], 2, [4, 2, 1], min_cc, max_cc),
             ([128, 64, 8], 2, [2, 2, 1], min_cc, max_cc),
@@ -175,7 +167,7 @@ def generate_sm75_tensor_op_1688(
                 DataType.s32,
                 OpcodeClass.TensorOp,
                 MathOperation.multiply_add_saturate,
-            ),
+            )
         ]
         alignment_constraints = [16, 8, 4, 2, 1]
         tile_descriptions = [
@@ -189,13 +181,7 @@ def generate_sm75_tensor_op_1688(
             ([64, 64, 64], 2, [2, 2, 1], min_cc, max_cc),
         ]
     elif arg0_dtype == "float32" and arg1_dtype == "float32" and out_dtype == "float32":
-        return generate_sm50_simt(
-            out_dtype,
-            arg0_dtype,
-            arg1_dtype,
-            op_creator,
-            accumlator_dtype,
-        )
+        return generate_sm50_simt(out_dtype, arg0_dtype, arg1_dtype, op_creator, accumlator_dtype)
     else:
         raise NotImplementedError()
 
@@ -281,7 +267,7 @@ def generate_sm80_tensor_op_16816(
                 DataType.f32,
                 OpcodeClass.TensorOp,
                 MathOperation.multiply_add_fast_f32 if use_3xtf32 else MathOperation.multiply_add,
-            ),
+            )
         ]
         alignment_constraints = [4, 2, 1]
 
@@ -315,7 +301,7 @@ def generate_sm80_tensor_op_16816(
                 DataType.s32,
                 OpcodeClass.TensorOp,
                 MathOperation.multiply_add_saturate,
-            ),
+            )
         ]
         alignment_constraints = [16, 8, 4]
         tile_descriptions = get_default_tile_descriptions(2)
@@ -364,10 +350,7 @@ def generate_sm80_tensor_op_16816(
     return sm75_kernels + sm80_kernels
 
 
-GENERATOR_FUNC_TABLE = {
-    75: generate_sm75_tensor_op_1688,
-    80: generate_sm80_tensor_op_16816,
-}
+GENERATOR_FUNC_TABLE = {75: generate_sm75_tensor_op_1688, 80: generate_sm80_tensor_op_16816}
 
 
 # (Epilogue functor name, no_beta_scaling)
@@ -404,12 +387,10 @@ class ProfilerEngine:
         self.cuda_arch = cuda_arch
         self.binary_prefix = binary_prefix
         self.cutlass = cutlass_path
-        self.cflags = "-I{cutlass}/include -I{cutlass}/tools/util/include -O3 -std=c++17".format(
-            cutlass=cutlass_path
-        )
+        self.cflags = f"-I{cutlass_path}/include -I{cutlass_path}/tools/util/include -O3 -std=c++17"
         self.cflags += " -DCUTLASS_ENABLE_TENSOR_CORE_MMA=1"
-        self.cflags += " -gencode=arch=compute_{arch},code=[sm_{arch},compute_{arch}]".format(
-            arch=cuda_arch
+        self.cflags += (
+            f" -gencode=arch=compute_{cuda_arch},code=[sm_{cuda_arch},compute_{cuda_arch}]"
         )
         self.cflags += " -Xcompiler=-Wconversion -Xcompiler=-fno-strict-aliasing"
         self.cmd = "nvcc {cflags} {src} -o {output}"
@@ -522,13 +503,13 @@ def instantiate_template(func_name, annotations, func_args):
     def get_dim(shape_annot, var_name, axis_idx, batched_offset=0):
         if isinstance(shape_annot, IntImm):
             return str(int(shape_annot))
-        return "{}->shape[{}]".format(var_name, batched_offset + axis_idx)
+        return f"{var_name}->shape[{batched_offset + axis_idx}]"
 
     def get_batch_stride(stride_annot, arg0_idx, arg1_idx, arg0_axis_idx, arg1_axis_idx):
         if isinstance(stride_annot, IntImm):
             return str(int(stride_annot))
-        dim1 = func_args[arg0_idx] + "->shape[{}]".format(arg0_axis_idx)
-        dim2 = func_args[arg1_idx] + "->shape[{}]".format(arg1_axis_idx)
+        dim1 = func_args[arg0_idx] + f"->shape[{arg0_axis_idx}]"
+        dim2 = func_args[arg1_idx] + f"->shape[{arg1_axis_idx}]"
         return dim1 + " * " + dim2
 
     if "dense" in func_name or "matmul" in func_name:
@@ -783,4 +764,4 @@ def instantiate_template(func_name, annotations, func_args):
         code = instantiate_layer_norm_template(attrs)
         return CodegenResult(code, headers)
 
-    raise ValueError("Do not have a template for {}".format(func_name))
+    raise ValueError(f"Do not have a template for {func_name}")

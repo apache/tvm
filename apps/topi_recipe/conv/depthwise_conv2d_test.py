@@ -15,25 +15,24 @@
 # specific language governing permissions and limitations
 # under the License.
 import os
-import tvm
-from tvm import te
-import numpy as np
-from scipy import signal
-from tvm.contrib import nvcc
 
-from tvm import topi
-from tvm.topi.utils import get_const_tuple
+import numpy as np
+import tvm
+from scipy import signal
+from tvm import te, topi
+from tvm.contrib import nvcc
 from tvm.topi.cuda.depthwise_conv2d import (
     schedule_depthwise_conv2d_nchw,
     schedule_depthwise_conv2d_nhwc,
 )
+from tvm.topi.utils import get_const_tuple
 
 TASK = "depthwise_conv2d"
 USE_MANUAL_CODE = False
 
 
 @tvm.register_func("tvm_callback_cuda_compile", override=True)
-def tvm_callback_cuda_compile(code):
+def tvm_callback_cuda_compile(code, target):
     ptx = nvcc.compile_cuda(code, target_format="ptx")
     return ptx
 
@@ -44,7 +43,7 @@ def write_code(code, fname):
 
 
 @tvm.register_func
-def tvm_callback_cuda_postproc(code):
+def tvm_callback_cuda_postproc(code, target):
     if not os.path.exists("perf"):
         os.mkdir("perf")
     write_code(code, "perf/%s_generated.cu" % TASK)

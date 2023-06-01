@@ -201,7 +201,7 @@ expected_cuda_script = r"""
   #define int64_t long long
   #define uint64_t unsigned long long
 #endif
-extern "C" __global__ void __launch_bounds__(16) main_kernel0(float* __restrict__ A, float* __restrict__ B, float* __restrict__ C) {
+extern "C" __global__ void __launch_bounds__(16) main_kernel(float* __restrict__ A, float* __restrict__ B, float* __restrict__ C) {
   __shared__ float A_shared[64];
   __shared__ float B_shared[64];
   A_shared[((int)threadIdx.x)] = 0.000000e+00f;
@@ -356,7 +356,7 @@ support_async = True
 
 
 @tvm.register_func
-def tvm_callback_cuda_postproc(code):
+def tvm_callback_cuda_postproc(code, _):
     global generated_code
     global support_async
     generated_code = code
