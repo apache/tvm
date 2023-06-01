@@ -117,6 +117,12 @@ std::string CodeGenCUDA::Finish() {
     decl_stream << _cuda_bfloat16_util;
   }
 
+  if (enable_fp8_) {
+    decl_stream << "#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 890)\n";
+    decl_stream << "#include <cuda_fp8.h>\n";
+    decl_stream << "#endif\n\n";
+  }
+
   if (enable_warp_shuffle_) {
     decl_stream << _cuda_warp_intrinsic_util;
   }
@@ -246,6 +252,17 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
     } else if (lanes <= 8) {
       ICHECK_EQ(lanes % 2, 0) << "only support even lane for half type";
       os << "uint" << lanes / 2;
+    } else {
+      fail = true;
+    }
+    if (!fail) return;
+  } else if (t.is_float8()) {
+    if (t.is_scalar()) {
+      os << "unsigned char";  // __nv_fp8_storage_t is an alias of unsigned char
+    } else if (lanes == 2) {
+      os << "unsigned short int";  // __nv_fp8x2_storage_t is an alias of unsigned short
+    } else if (lanes == 4) {
+      os << "unsigned int";  // __nv_fp8x4_storage_t is an alias of unsigned int
     } else {
       fail = true;
     }
