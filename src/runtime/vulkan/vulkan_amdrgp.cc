@@ -38,8 +38,10 @@ void AmdRgpProfiler::capture() {
     device_->queue_insert_debug_utils_label_functions->vkQueueInsertDebugUtilsLabelEXT(
         device_->Queue(), &frame_end_label);
 
-    VkDebugUtilsLabelEXT frame_begin_label = {
-        VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT, nullptr, "AmdFrameBegin", {0.0f, 0.0f, 0.0f, 0.0f}};
+    VkDebugUtilsLabelEXT frame_begin_label = {VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT,
+                                              nullptr,
+                                              "AmdFrameBegin",
+                                              {0.0f, 0.0f, 0.0f, 0.0f}};
     device_->queue_insert_debug_utils_label_functions->vkQueueInsertDebugUtilsLabelEXT(
         device_->Queue(), &frame_begin_label);
 
