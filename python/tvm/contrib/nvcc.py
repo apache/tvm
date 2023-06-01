@@ -404,3 +404,20 @@ def have_bf16(compute_version):
         return True
 
     return False
+
+
+def have_fp8(compute_version):
+    """Whether fp8 support is provided in the specified compute capability or not
+
+    Parameters
+    ----------
+    compute_version : str
+        GPU capability
+    """
+    major, minor = parse_compute_version(compute_version)
+    # fp8 is suppored in Ada Lovelace (8.9) or later architectures.
+    if major == 8 and minor == 9:
+        return True
+    if major >= 9:
+        return True
+    return False

@@ -19,6 +19,11 @@
 import ctypes
 import warnings
 import numpy as np
+
+try:
+    import ml_dtypes
+except ImportError:
+    ml_dtypes = None
 import tvm._ffi
 
 from tvm._ffi.base import _LIB, check_call, c_array, string_types, _FFI_MODE
@@ -217,6 +222,20 @@ class NDArray(NDArrayBase):
             dtype = "int8"
         if dtype == "bfloat16":
             dtype = "uint16"
+        if dtype == "e4m3_float8":
+            if ml_dtypes is not None:
+                dtype = ml_dtypes.float8_e4m3fn
+            else:
+                raise RuntimeError(
+                    "ml_dtypes is not installed, cannot convert e4m3_float8 array to numpy."
+                )
+        if dtype == "e5m2_float8":
+            if ml_dtypes is not None:
+                dtype = ml_dtypes.float8_e5m2
+            else:
+                raise RuntimeError(
+                    "ml_dtypes is not installed, cannot convert e5m2_float8 array to numpy."
+                )
         np_arr = np.empty(shape, dtype=dtype)
         assert np_arr.flags["C_CONTIGUOUS"]
         data = np_arr.ctypes.data_as(ctypes.c_void_p)
