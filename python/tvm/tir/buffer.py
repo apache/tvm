@@ -210,7 +210,7 @@ class Buffer(Object, Scriptable):
             for index in indices:
                 if isinstance(index, slice):
                     start = 0 if index.start is None else index.start
-                    stop = self.shape[i] if index.stop is None else index.stop
+                    stop = self.shape[index] if index.stop is None else index.stop
                     step = 1 if index.step is None else index.step
                     # We should ensure the dtype of start is the same with that of step.
                     if isinstance(start, tvm.tir.expr.PrimExpr) and isinstance(step, int):
