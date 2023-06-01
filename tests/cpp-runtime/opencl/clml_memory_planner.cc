@@ -20,108 +20,119 @@
 #include <gtest/gtest.h>
 #include <tvm/runtime/container/optional.h>
 
+#include <iostream>
+
 #if defined(TVM_GRAPH_EXECUTOR_CLML)
 #include "../src/runtime/contrib/clml/clml_memory_planner.h"
 #include "../src/runtime/contrib/clml/clml_runtime.h"
 #include "../src/runtime/opencl/opencl_common.h"
-#include "../src/runtime/texture.h"
 
 using namespace tvm::runtime;
 using namespace tvm::runtime::cl;
 
-void InitMemoryPlan(tvm::runtime::contrib::CachedLayer& layer) {
-  tvm::runtime::contrib::CLMLWorkspace* cws = tvm::runtime::contrib::CLMLWorkspace::Global();
+class CLMLMemoryPlannerBin : public ::testing::Test {
+ protected:
+  virtual void SetUp() override {
+    layer.on_chip_pool_size.clear();
+    layer.on_chip_pool_size.insert({0, cws->onchip_mem_size});
+    layer.on_chip_pool_alloc_info.clear();
+    layer.alloc_ping_pong = true;
+    layer.in_chip_total_free = cws->onchip_mem_size;
+    layer.in_chip_total_alloc = 0;
+    layer.on_chip_alert_fail = 0;
 
-  layer.on_chip_pool_size.clear();
-  layer.on_chip_pool_size.insert({0, cws->onchip_mem_size});
-  layer.on_chip_pool_alloc_info.clear();
-  layer.alloc_ping_pong = true;
-  layer.in_chip_total_free = cws->onchip_mem_size;
-  layer.in_chip_total_alloc = 0;
-  layer.on_chip_alert_fail = 0;
-
-  for (auto it = cws->ddr_global_pool.begin(); it != cws->ddr_global_pool.end(); it++) {
-    clReleaseMemObject(it->first);
-  }
-  cws->ddr_global_pool.clear();
-}
-
-void PlanMemory(tvm::runtime::contrib::CachedLayer& layer, int total_nodes,
-                std::map<int, uint32_t>& tensor_sizes,
-                std::map<int, std::vector<int>>& input_tensors) {
-  tvm::runtime::contrib::CLMLWorkspace* cws = tvm::runtime::contrib::CLMLWorkspace::Global();
-
-  for (int nid = 0; nid < total_nodes; ++nid) {
-    uint32_t size = tensor_sizes[nid];
-    size_t offset = -1;
-    if (cws->is_on_chip_memory) {
-      LOG(WARNING) << "Requesting On-chip:" << nid;
-      offset = RequestOnChipMemory(&layer, size);
+    /* clear global pool before each test */
+    for (auto it = cws->ddr_global_pool.begin(); it != cws->ddr_global_pool.end(); it++) {
+      clReleaseMemObject(it->first);
     }
-    if (-1 != offset) {
-      LOG(WARNING) << "On Chip not found:" << nid;
-      layer.on_chip_pool_alloc_info.insert({offset, nid});
-      layer.on_chip_alloc_plan.insert({nid, std::make_pair(size, offset)});
-    } else {
-      LOG(WARNING) << "Requesting DDR memory:" << nid;
-      layer.on_chip_reject.insert({nid, size});
-      // DDR Allocation
-      auto ddr_mem = RequestDDRMemory(&layer, size);
-      layer.ddr_alloc_plan.insert({nid, ddr_mem});
+    cws->ddr_global_pool.clear();
+  }
+
+  void PlanMemory(int total_nodes, const std::map<int, uint32_t>& tensor_sizes,
+                  const std::map<int, std::vector<int>>& input_tensors) {
+    for (int nid = 0; nid < total_nodes; ++nid) {
+      uint32_t size = tensor_sizes.at(nid);
+      size_t offset = -1;
+      if (cws->is_on_chip_memory) {
+        os << "Requesting On-chip:" << nid << std::endl;
+        offset = RequestOnChipMemory(&layer, size);
+      }
+      if (-1 != offset) {
+        os << "On Chip not found:" << nid << std::endl;
+        layer.on_chip_pool_alloc_info.insert({offset, nid});
+        layer.on_chip_alloc_plan.insert({nid, std::make_pair(size, offset)});
+      } else {
+        os << "Requesting DDR memory:" << nid << std::endl;
+        layer.on_chip_reject.insert({nid, size});
+        // DDR Allocation
+        auto ddr_mem = RequestDDRMemory(&layer, size);
+        layer.ddr_alloc_plan.insert({nid, ddr_mem});
+      }
+
+      // Now free up the input tensors on-chip memory for reuse.
+      for (auto& input_node : input_tensors.at(nid)) {
+        FreeMemory(&layer, input_node);
+      }
     }
 
-    // Now free up the input tensors on-chip memory for reuse.
-    for (auto& input_node : input_tensors[nid]) {
-      FreeMemory(&layer, input_node);
+    // Stats dump
+    size_t in_chip_total_alloc = 0;
+    size_t total_reject = 0;
+    for (auto it = layer.on_chip_alloc_plan.begin(); it != layer.on_chip_alloc_plan.end(); it++) {
+      os << " On-chip Alloc:" << it->first << " Size:" << it->second.first
+         << " Offset:" << it->second.second << std::endl;
+      in_chip_total_alloc += it->second.first;
+    }
+
+    for (auto it = layer.on_chip_reject.begin(); it != layer.on_chip_reject.end(); it++) {
+      os << "Reject:" << it->first << " Size:" << it->second << std::endl;
+      total_reject += it->second;
+    }
+    os << "Total On-chip Alloc:" << in_chip_total_alloc + total_reject
+       << " On-Chip:" << in_chip_total_alloc << " Reject:" << total_reject << std::endl;
+
+    for (auto it = cws->ddr_global_pool.begin(); it != cws->ddr_global_pool.end(); it++) {
+      os << "DDR Global pool - size:" << it->second.first << " Ref:" << it->second.second
+         << std::endl;
+    }
+    for (auto it = layer.ddr_storage_ref_map.begin(); it != layer.ddr_storage_ref_map.end(); it++) {
+      os << "DDR Local pool - size:" << it->second.first << " Ref cnt:" << it->second.second
+         << std::endl;
     }
   }
 
-#if 0
-  // Stats dump
-  size_t in_chip_total_alloc = 0;
-  size_t total_reject = 0;
-  for (auto it = layer.on_chip_alloc_plan.begin(); it != layer.on_chip_alloc_plan.end(); it++) {
-    LOG(WARNING) << " On-chip Alloc:" << it->first << " Size:" << it->second.first
-              << " Offset:" << it->second.second;
-    in_chip_total_alloc += it->second.first;
+  void CompareOnChipPlan(const std::vector<int>& on_chip_plan) {
+    for (auto& nid : on_chip_plan) {
+      EXPECT_EQ(layer.on_chip_alloc_plan.find(nid) == layer.on_chip_alloc_plan.end(), false)
+          << os.str();
+    }
   }
 
-  for (auto it = layer.on_chip_reject.begin(); it != layer.on_chip_reject.end(); it++) {
-    LOG(WARNING) << "Reject:" << it->first << " Size:" << it->second;
-    total_reject += it->second;
+  void CompareDDRPlan(const std::vector<int>& ddr_plan) {
+    for (auto& nid : ddr_plan) {
+      EXPECT_EQ(layer.ddr_alloc_plan.find(nid) == layer.ddr_alloc_plan.end(), false) << os.str();
+    }
   }
-  LOG(WARNING) << "Total On-chip Alloc:" << in_chip_total_alloc + total_reject
-            << " On-Chip:" << in_chip_total_alloc << " Reject:" << total_reject;
 
-  for (auto it = cws->ddr_global_pool.begin(); it != cws->ddr_global_pool.end(); it++) {
-    LOG(WARNING) << "DDR Global pool - size:" << it->second.first << " Ref:" << it->second.second;
+  void RunTest(const std::map<int, std::vector<int>>& input_tensors,
+               const std::map<int, uint32_t>& tensor_sizes,
+               const std::vector<int>& on_chip_expected, const std::vector<int>& ddr_expected,
+               const int ddr_global_pool_size) {
+    PlanMemory(input_tensors.size(), tensor_sizes, input_tensors);
+    CompareOnChipPlan(on_chip_expected);
+    CompareDDRPlan(ddr_expected);
+    EXPECT_EQ(cws->ddr_global_pool.size(), ddr_global_pool_size) << os.str();
   }
-  for (auto it = layer.ddr_storage_ref_map.begin();
-       it != layer.ddr_storage_ref_map.end(); it++) {
-    LOG(WARNING) << "DDR Local pool - size:" << it->second.first << " Ref cnt:" << it->second.second;
-  }
-#endif
-}
 
-void CompareOnChipPlan(tvm::runtime::contrib::CachedLayer& layer,
-                       const std::vector<int>& on_chip_plan) {
-  for (auto& nid : on_chip_plan) {
-    EXPECT_EQ(layer.on_chip_alloc_plan.find(nid) == layer.on_chip_alloc_plan.end(), false);
-  }
-}
-
-void CompareDDRPlan(tvm::runtime::contrib::CachedLayer& layer, const std::vector<int>& ddr_plan) {
-  for (auto& nid : ddr_plan) {
-    EXPECT_EQ(layer.ddr_alloc_plan.find(nid) == layer.ddr_alloc_plan.end(), false);
-  }
-}
-
-TEST(CLMLMemoryPlanner, sequential_all_on_chip) {
+ protected:
   tvm::runtime::contrib::CLMLWorkspace* cws = tvm::runtime::contrib::CLMLWorkspace::Global();
+  std::stringstream os;
 
+ public:
   tvm::runtime::contrib::CachedLayer layer;
-  InitMemoryPlan(layer);
+};
 
+TEST_F(CLMLMemoryPlannerBin, sequential_all_on_chip) {
   layer.storage_ref_map.insert({0, 1});
   layer.storage_ref_map.insert({1, 1});
   layer.storage_ref_map.insert({2, 1});
@@ -161,19 +172,11 @@ TEST(CLMLMemoryPlanner, sequential_all_on_chip) {
       {5, {4}}, {6, {5}}, {7, {6}}, {8, {7}}, {9, {8}},
   };
 
-  PlanMemory(layer, input_tensors.size(), tensor_sizes, input_tensors);
-
-  CompareOnChipPlan(layer, std::vector<int>({0, 1, 2, 3, 4, 5, 6, 7, 8, 9}));
-  CompareDDRPlan(layer, std::vector<int>({}));
-  EXPECT_EQ(cws->ddr_global_pool.size(), 0);
+  RunTest(input_tensors, tensor_sizes, std::vector<int>({0, 1, 2, 3, 4, 5, 6, 7, 8, 9}),
+          std::vector<int>({}), 0);
 }
 
-TEST(CLMLMemoryPlanner, sequential_mixed) {
-  tvm::runtime::contrib::CLMLWorkspace* cws = tvm::runtime::contrib::CLMLWorkspace::Global();
-
-  tvm::runtime::contrib::CachedLayer layer;
-  InitMemoryPlan(layer);
-
+TEST_F(CLMLMemoryPlannerBin, sequential_mixed) {
   layer.storage_ref_map.insert({0, 1});
   layer.storage_ref_map.insert({1, 1});
   layer.storage_ref_map.insert({2, 1});
@@ -200,19 +203,10 @@ TEST(CLMLMemoryPlanner, sequential_mixed) {
       {0, {}}, {1, {0}}, {2, {1}}, {3, {2}}, {4, {3}}, {5, {4}},
   };
 
-  PlanMemory(layer, input_tensors.size(), tensor_sizes, input_tensors);
-
-  CompareOnChipPlan(layer, std::vector<int>({0, 1, 3, 5}));
-  CompareDDRPlan(layer, std::vector<int>({2, 4}));
-  EXPECT_EQ(cws->ddr_global_pool.size(), 1);
+  RunTest(input_tensors, tensor_sizes, std::vector<int>({0, 1, 3, 5}), std::vector<int>({2, 4}), 1);
 }
 
-TEST(CLMLMemoryPlanner, sequential_all_ddr) {
-  tvm::runtime::contrib::CLMLWorkspace* cws = tvm::runtime::contrib::CLMLWorkspace::Global();
-
-  tvm::runtime::contrib::CachedLayer layer;
-  InitMemoryPlan(layer);
-
+TEST_F(CLMLMemoryPlannerBin, sequential_all_ddr) {
   layer.storage_ref_map.insert({0, 1});
   layer.storage_ref_map.insert({1, 1});
   layer.storage_ref_map.insert({2, 1});
@@ -239,19 +233,11 @@ TEST(CLMLMemoryPlanner, sequential_all_ddr) {
       {0, {}}, {1, {0}}, {2, {1}}, {3, {2}}, {4, {3}}, {5, {4}},
   };
 
-  PlanMemory(layer, input_tensors.size(), tensor_sizes, input_tensors);
-
-  CompareOnChipPlan(layer, std::vector<int>({}));
-  CompareDDRPlan(layer, std::vector<int>({0, 1, 2, 3, 4, 5}));
-  EXPECT_EQ(cws->ddr_global_pool.size(), 2);
+  RunTest(input_tensors, tensor_sizes, std::vector<int>({}), std::vector<int>({0, 1, 2, 3, 4, 5}),
+          2);
 }
 
-TEST(CLMLMemoryPlanner, branched_all_on_alive_on_chip) {
-  tvm::runtime::contrib::CLMLWorkspace* cws = tvm::runtime::contrib::CLMLWorkspace::Global();
-
-  tvm::runtime::contrib::CachedLayer layer;
-  InitMemoryPlan(layer);
-
+TEST_F(CLMLMemoryPlannerBin, branched_all_on_alive_on_chip) {
   layer.storage_ref_map.insert({0, 9});
   layer.storage_ref_map.insert({1, 8});
   layer.storage_ref_map.insert({2, 7});
@@ -299,19 +285,11 @@ TEST(CLMLMemoryPlanner, branched_all_on_alive_on_chip) {
       {9, {0, 1, 2, 3, 4, 5, 6, 7, 8}},
   };
 
-  PlanMemory(layer, input_tensors.size(), tensor_sizes, input_tensors);
-
-  CompareOnChipPlan(layer, std::vector<int>({0, 1, 2, 3, 4, 5, 6, 7, 8, 9}));
-  CompareDDRPlan(layer, std::vector<int>({}));
-  EXPECT_EQ(cws->ddr_global_pool.size(), 0);
+  RunTest(input_tensors, tensor_sizes, std::vector<int>({0, 1, 2, 3, 4, 5, 6, 7, 8, 9}),
+          std::vector<int>({}), 0);
 }
 
-TEST(CLMLMemoryPlanner, branched_all_on_alive_mixed) {
-  tvm::runtime::contrib::CLMLWorkspace* cws = tvm::runtime::contrib::CLMLWorkspace::Global();
-
-  tvm::runtime::contrib::CachedLayer layer;
-  InitMemoryPlan(layer);
-
+TEST_F(CLMLMemoryPlannerBin, branched_all_on_alive_mixed) {
   layer.storage_ref_map.insert({0, 9});
   layer.storage_ref_map.insert({1, 8});
   layer.storage_ref_map.insert({2, 7});
@@ -359,19 +337,11 @@ TEST(CLMLMemoryPlanner, branched_all_on_alive_mixed) {
       {9, {0, 1, 2, 3, 4, 5, 6, 7, 8}},
   };
 
-  PlanMemory(layer, input_tensors.size(), tensor_sizes, input_tensors);
-
-  CompareOnChipPlan(layer, std::vector<int>({0, 1, 3, 5, 7, 8, 9}));
-  CompareDDRPlan(layer, std::vector<int>({2, 4, 6}));
-  EXPECT_EQ(cws->ddr_global_pool.size(), 3);
+  RunTest(input_tensors, tensor_sizes, std::vector<int>({0, 1, 3, 5, 7, 8, 9}),
+          std::vector<int>({2, 4, 6}), 3);
 }
 
-TEST(CLMLMemoryPlanner, branched_all_on_alive_all_ddr) {
-  tvm::runtime::contrib::CLMLWorkspace* cws = tvm::runtime::contrib::CLMLWorkspace::Global();
-
-  tvm::runtime::contrib::CachedLayer layer;
-  InitMemoryPlan(layer);
-
+TEST_F(CLMLMemoryPlannerBin, branched_all_on_alive_all_ddr) {
   layer.storage_ref_map.insert({0, 9});
   layer.storage_ref_map.insert({1, 8});
   layer.storage_ref_map.insert({2, 7});
@@ -418,20 +388,11 @@ TEST(CLMLMemoryPlanner, branched_all_on_alive_all_ddr) {
       {8, {0, 1, 2, 3, 4, 5, 6, 7}},
       {9, {0, 1, 2, 3, 4, 5, 6, 7, 8}},
   };
-
-  PlanMemory(layer, input_tensors.size(), tensor_sizes, input_tensors);
-
-  CompareOnChipPlan(layer, std::vector<int>({}));
-  CompareDDRPlan(layer, std::vector<int>({0, 1, 2, 3, 4, 5, 6, 7, 8, 9}));
-  EXPECT_EQ(cws->ddr_global_pool.size(), 10);
+  RunTest(input_tensors, tensor_sizes, std::vector<int>({}),
+          std::vector<int>({0, 1, 2, 3, 4, 5, 6, 7, 8, 9}), 10);
 }
 
-TEST(CLMLMemoryPlanner, skip_connections_mixed) {
-  tvm::runtime::contrib::CLMLWorkspace* cws = tvm::runtime::contrib::CLMLWorkspace::Global();
-
-  tvm::runtime::contrib::CachedLayer layer;
-  InitMemoryPlan(layer);
-
+TEST_F(CLMLMemoryPlannerBin, skip_connections_mixed) {
   layer.storage_ref_map.insert({0, 2});
   layer.storage_ref_map.insert({1, 1});
   layer.storage_ref_map.insert({2, 2});
@@ -471,11 +432,8 @@ TEST(CLMLMemoryPlanner, skip_connections_mixed) {
       {5, {4}}, {6, {4, 5}}, {7, {6}},    {8, {6, 7}}, {9, {8}},
   };
 
-  PlanMemory(layer, input_tensors.size(), tensor_sizes, input_tensors);
-
-  CompareOnChipPlan(layer, std::vector<int>({0, 1, 4, 5, 8}));
-  CompareDDRPlan(layer, std::vector<int>({2, 3, 6, 7, 9}));
-  EXPECT_EQ(cws->ddr_global_pool.size(), 2);
+  RunTest(input_tensors, tensor_sizes, std::vector<int>({0, 1, 4, 5, 8}),
+          std::vector<int>({2, 3, 6, 7, 9}), 2);
 }
 
 #endif  // TVM_GRAPH_EXECUTOR_CLML
