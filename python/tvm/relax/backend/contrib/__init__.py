@@ -17,4 +17,3 @@
 
 """External backend codegen modules for Relax."""
 
-from .cutlass import partition_for_cutlass
