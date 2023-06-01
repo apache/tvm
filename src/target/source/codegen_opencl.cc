@@ -370,17 +370,19 @@ std::string CodeGenOpenCL::CastFromTo(std::string value, DataType from, DataType
 
 std::string CodeGenOpenCL::CastTo(std::string value, DataType target) {
   std::ostringstream os;
-  if (target.lanes() == 1) {
-    os << "((";
+  if (target == DataType::Bool()) {
+    os << "(";
+    os << "(";
     this->PrintType(target, os);
     os << ")" << value << ")";
-  } else {  // convert vector type
+    return os.str();
+  } else {
     os << "(";
     os << "convert_";
     this->PrintType(target, os);
     os << "(" << value << "))";
+    return os.str();
   }
-  return os.str();
 }
 
 void CodeGenOpenCL::VisitStmt_(const AllocateNode* op) {
