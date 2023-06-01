@@ -59,6 +59,8 @@ class ReplayFuncNode : public SearchStrategyNode {
   Optional<SpaceGenerator> space_generator_ = NullOpt;
   /*! \brief The state of the search strategy. */
   std::unique_ptr<State> state_ = nullptr;
+  /*! \brief The tuning context of the search strategy. */
+  const TuneContextNode* context_{nullptr};
 
   void VisitAttrs(tvm::AttrVisitor* v) {}
 
@@ -79,6 +81,7 @@ class ReplayFuncNode : public SearchStrategyNode {
     this->mod_ = ctx->mod;
     this->space_generator_ = ctx->space_generator;
     this->state_.reset();
+    this->context_ = ctx.get();
   }
 
   void PreTuning(int max_trials, int num_trials_per_iter, const Array<tir::Schedule>& design_spaces,
@@ -123,6 +126,11 @@ inline Optional<Array<MeasureCandidate>> ReplayFuncNode::State::GenerateMeasureC
   Array<MeasureCandidate> result;
   IRModule mod = self->mod_.value();
   Array<Postproc> postprocs = self->space_generator_.value()->postprocs.value_or({});
+  using tvm::runtime::Registry;
+  const TuneContextNode* ctx = self->context_;
+  const auto* f_enter = Registry::Get("target.TargetEnterScope");
+  (*f_enter)(ctx->target);
+
   for (int i = st; i < ed; i++) {
     for (;;) {
       Array<tir::Schedule> schs = self->space_generator_.value()->GenerateDesignSpace(mod);
@@ -143,6 +151,8 @@ inline Optional<Array<MeasureCandidate>> ReplayFuncNode::State::GenerateMeasureC
       }
     }
   }
+  const auto* f_exit = Registry::Get("target.TargetExitScope");
+  (*f_exit)(ctx->target);
   return result;
 }
 

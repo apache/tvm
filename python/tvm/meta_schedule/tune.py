@@ -41,6 +41,7 @@ def tune_tasks(
     measure_callbacks: MeasureCallback.CallbackListType = "default",
     task_scheduler: TaskScheduler.TaskSchedulerType = "gradient",
     module_equality: str = "structural",
+    min_design_space: int = 1,
 ) -> Database:
     """Tune a list of tasks. Using a task scheduler.
 
@@ -81,6 +82,8 @@ def tune_tasks(
                 a given module. The "ignore-ndarray" varint is used for the extracted blocks or in
                 case no anchor block is found. For the definition of the anchor block, see
                 tir/analysis/analysis.py.
+    min_design_space : int
+        Minimum design space.
 
     Returns
     -------
@@ -126,5 +129,6 @@ def tune_tasks(
         measure_callbacks=measure_callbacks,
         database=database,
         cost_model=cost_model,
+        min_design_space=min_design_space,
     )
     return database

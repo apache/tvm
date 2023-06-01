@@ -368,6 +368,8 @@ def _conv2d_legalize(attrs, inputs, arg_types):
     dilation = attrs.get_int_tuple("dilation")
     if not (dilation[0] == 1 and dilation[1] == 1):
         return None
+    padding = attrs.get_int_tuple("padding")
+    stride = attrs.get_int_tuple("strides")
 
     # No legalization for depthwise convolutions yet.
     groups = attrs.get_int("groups")
@@ -470,11 +472,11 @@ def _conv2d_legalize(attrs, inputs, arg_types):
             return _pad_conv2d_HWNC(db, di, do, data, kernel, out_channel, new_attrs, output_tensor)
 
     elif data_dtype in ["float16"]:
-        if data_layout == "NHWC" and kernel_layout == "HWIO":
-            if isinstance(data_tensor.shape[0], tvm.tir.expr.Any):
-                # Skip legalize when the batch size is dynamic
-                return None
+        if isinstance(data_tensor.shape[0], tvm.tir.expr.Any):
+            # Skip legalize when the batch size is dynamic
+            return None
 
+        if data_layout == "NHWC" and kernel_layout == "HWIO":
             batch = data_tensor.shape[0].value
             in_channel = data_tensor.shape[3].value
             out_channel = kernel_tensor.shape[3].value
@@ -499,6 +501,45 @@ def _conv2d_legalize(attrs, inputs, arg_types):
             logger.info("conv2d pad_to_tensorcore, extra_flops %s", extra_flops)
 
             return _pad_conv2d_NHWC(db, di, do, data, kernel, out_channel, new_attrs, output_tensor)
+        elif data_layout == "NCHW" and kernel_layout == "OIHW":
+            if not nn.use_im2col(
+                data_tensor,
+                kernel_tensor,
+                stride[0],
+                stride[1],
+                dilation[0],
+                dilation[1],
+                padding,
+            ):
+                return None
+            oc_modified = False
+            in_channel = data_tensor.shape[1].value
+            out_channel = kernel_tensor.shape[0].value
+
+            # Pad input channel
+            if in_channel % 16 != 0:
+                new_in_channel = ((in_channel + 16) // 16) * 16
+                diff = new_in_channel - in_channel
+                pad_width = ((0, 0), (0, diff), (0, 0), (0, 0))
+                data = relay.nn.pad(data, pad_width=pad_width)
+                kernel = relay.nn.pad(kernel, pad_width=pad_width)
+
+            # Pad output channel
+            new_out_channel = out_channel
+            if out_channel % 16 != 0:
+                new_out_channel = ((out_channel + 16) // 16) * 16
+                diff = new_out_channel - out_channel
+                kernel = relay.nn.pad(kernel, pad_width=((0, diff), (0, 0), (0, 0), (0, 0)))
+                oc_modified = True
+
+            if oc_modified:
+                new_attrs["channels"] = new_out_channel
+                out = tvm.relay.nn.conv2d(data, kernel, **new_attrs)
+                original_out_shape = [x.value for x in output_tensor.shape]
+                out = relay.strided_slice(out, begin=[0, 0, 0, 0], end=original_out_shape)
+            else:
+                out = relay.nn.conv2d(data, kernel, **new_attrs)
+            return out
 
     elif data_dtype in ["int4", "uint4"]:
         if data_layout == "NHWC" and kernel_layout == "HWIO":

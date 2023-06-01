@@ -552,6 +552,7 @@ TVM_REGISTER_PASS_CONFIG_OPTION("relay.backend.use_auto_scheduler", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("relay.backend.use_meta_schedule", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("relay.backend.use_meta_schedule_dispatch", Integer);
 TVM_REGISTER_PASS_CONFIG_OPTION("relay.backend.tir_converter", String);
+TVM_REGISTER_PASS_CONFIG_OPTION("relay.backend.use_int32_const", Bool);
 
 TVM_REGISTER_GLOBAL("relay.backend._TECompilerGlobal").set_body_typed([]() {
   return TECompiler::Global();

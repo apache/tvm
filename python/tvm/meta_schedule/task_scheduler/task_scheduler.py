@@ -102,6 +102,7 @@ class TaskScheduler(Object):
         measure_callbacks: List[MeasureCallback],
         database: Optional[Database],
         cost_model: Optional[CostModel],
+        min_design_space: int = 1,
     ) -> None:
         """Auto-tuning.
 
@@ -127,6 +128,8 @@ class TaskScheduler(Object):
             The database.
         cost_model : Optional[CostModel]
             The cost model.
+        min_design_space : int
+            THe minimum size of design space.
         """
         task_weights = [float(w) for w in task_weights]
         _ffi_api.TaskSchedulerTune(  # type: ignore # pylint: disable=no-member
@@ -141,6 +144,7 @@ class TaskScheduler(Object):
             measure_callbacks,
             database,
             cost_model,
+            min_design_space,
         )
 
     def terminate_task(self, task_id: int) -> None:
@@ -243,6 +247,7 @@ class PyTaskScheduler:
         measure_callbacks: List[MeasureCallback],
         database: Optional[Database],
         cost_model: Optional[CostModel],
+        min_design_space: int = 1,
     ) -> None:
         """Auto-tuning."""
         # Using self._outer to replace the self pointer
@@ -257,6 +262,7 @@ class PyTaskScheduler:
             measure_callbacks,
             database,
             cost_model,
+            min_design_space,
         )
 
     def next_task_id(self) -> int:

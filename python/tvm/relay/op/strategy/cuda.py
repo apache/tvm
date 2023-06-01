@@ -145,9 +145,13 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
     kernel_layout = attrs.kernel_layout
     if dilation_h < 1 or dilation_w < 1:
         raise ValueError("dilation should be positive value")
+
     if groups == 1:
         if layout == "NCHW":
             assert kernel_layout == "OIHW"
+            do_im2col = topi.nn.use_im2col(
+                data, kernel, stride_h, stride_w, dilation_h, dilation_w, padding
+            )
             if (
                 (target.kind.name in ["cuda", "vulkan", "rocm"])
                 and data.dtype in ("int8", "uint8")
@@ -158,6 +162,14 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
                     wrap_compute_conv2d(topi.cuda.conv2d_nchw_int8),
                     wrap_topi_schedule(topi.cuda.schedule_conv2d_nchw_int8),
                     name="conv2d_nchw_int8.cuda",
+                )
+            elif do_im2col:
+                assert data.dtype == kernel.dtype
+                strategy.add_implementation(
+                    wrap_compute_conv2d(topi.cuda.conv2d_nchw_mma),
+                    naive_schedule,
+                    name="conv2d_nchw_mma.cuda",
+                    plevel=15,
                 )
             else:
                 strategy.add_implementation(

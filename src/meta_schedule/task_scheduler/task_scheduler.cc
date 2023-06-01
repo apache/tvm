@@ -34,6 +34,10 @@ TaskRecord::TaskRecord(TuneContext ctx, double task_weight) {
       << "ValueError: Require `context.search_strategy`, but it is not defined";
   TVM_PY_LOG(INFO, ctx->logger) << "\n" << ctx->mod;
   ctx->Initialize();
+  using tvm::runtime::Registry;
+  const auto* f_enter = Registry::Get("target.TargetEnterScope");
+  (*f_enter)(ctx->target);
+
   n->flop = std::max(1.0, tir::EstimateTIRFlops(ctx->mod.value()));
   this->data_ = std::move(n);
 }
@@ -144,7 +148,7 @@ void TaskSchedulerNode::Tune(Array<TuneContext> ctxs, Array<FloatImm> task_weigh
                              int max_trials_global, int max_trials_per_task,
                              int num_trials_per_iter, Builder builder, Runner runner,
                              Array<MeasureCallback> measure_callbacks, Optional<Database> database,
-                             Optional<CostModel> cost_model) {
+                             Optional<CostModel> cost_model, int min_design_space) {
   CHECK_EQ(ctxs.size(), task_weights.size()) << "ValueError: `task_weights` must have the same "
                                                 "length as `ctxs`";
   int n_tasks = this->remaining_tasks_ = ctxs.size();
@@ -159,8 +163,20 @@ void TaskSchedulerNode::Tune(Array<TuneContext> ctxs, Array<FloatImm> task_weigh
     TVM_PY_LOG(INFO, this->logger) << "Initializing Task #" << i << ": " << ctx->task_name;
     TVM_PY_LOG(INFO, ctx->logger) << "Initializing Task #" << i << ": " << ctx->task_name;
     this->tasks_.push_back(TaskRecord(ctx, weight));
-    Array<tir::Schedule> design_spaces =
-        ctx->space_generator.value()->GenerateDesignSpace(ctx->mod.value());
+    Array<tir::Schedule> design_spaces;
+    int sample = 0;
+    while (sample < min_design_space) {
+      Array<tir::Schedule> cur_design_spaces =
+          ctx->space_generator.value()->GenerateDesignSpace(ctx->mod.value());
+      unsigned int size = cur_design_spaces.size();
+      CHECK(size > 0) << "ValueError: Empty design spaces";
+      for (unsigned int i = 0; i < size; ++i) design_spaces.push_back(cur_design_spaces[i]);
+      sample += size;
+    }
+
+    using tvm::runtime::Registry;
+    const auto* f_exit = Registry::Get("target.TargetExitScope");
+    (*f_exit)(ctx->target);
     TVM_PY_LOG(INFO, ctx->logger) << "Total " << design_spaces.size()
                                   << " design space(s) generated";
     for (int i = 0, n = design_spaces.size(); i < n; ++i) {
@@ -350,14 +366,15 @@ void PyTaskSchedulerNode::Tune(Array<TuneContext> tasks, Array<FloatImm> task_we
                                int max_trials_global, int max_trials_per_task,
                                int num_trials_per_iter, Builder builder, Runner runner,
                                Array<MeasureCallback> measure_callbacks,
-                               Optional<Database> database, Optional<CostModel> cost_model) {
+                               Optional<Database> database, Optional<CostModel> cost_model,
+                               int min_design_space) {
   if (f_tune == nullptr) {
     TaskSchedulerNode::Tune(tasks, task_weights, max_trials_global, max_trials_per_task,
                             num_trials_per_iter, builder, runner, measure_callbacks, database,
-                            cost_model);
+                            cost_model, min_design_space);
   } else {
     f_tune(tasks, task_weights, max_trials_global, max_trials_per_task, num_trials_per_iter,
-           builder, runner, measure_callbacks, database, cost_model);
+           builder, runner, measure_callbacks, database, cost_model, min_design_space);
   }
 }
 

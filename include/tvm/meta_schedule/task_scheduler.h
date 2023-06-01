@@ -175,6 +175,7 @@ class TaskSchedulerNode : public runtime::Object {
    * \param measure_callbacks The callbacks to be called after each measurement
    * \param database The database used in tuning
    * \param cost_model The cost model used in tuning
+   * \param min_design_space The minimum design space used in tuning
    */
   virtual void Tune(Array<TuneContext> tasks,                  //
                     Array<FloatImm> task_weights,              //
@@ -185,7 +186,8 @@ class TaskSchedulerNode : public runtime::Object {
                     Runner runner,                             //
                     Array<MeasureCallback> measure_callbacks,  //
                     Optional<Database> database,               //
-                    Optional<CostModel> cost_model);
+                    Optional<CostModel> cost_model,            //
+                    int min_design_space);
   /*!
    * \brief Terminate a task
    * \param task_id The id of the task to be terminated
@@ -228,7 +230,9 @@ class PyTaskSchedulerNode : public TaskSchedulerNode {
                                               Runner runner,                             //
                                               Array<MeasureCallback> measure_callbacks,  //
                                               Optional<Database> database,               //
-                                              Optional<CostModel> cost_model)>;
+                                              Optional<CostModel> cost_model,
+
+                                              int min_design_space)>;
 
   /*! \brief The packed function to the `NextTaskId` function. */
   FNextTaskId f_next_task_id;
@@ -249,7 +253,7 @@ class PyTaskSchedulerNode : public TaskSchedulerNode {
   void Tune(Array<TuneContext> tasks, Array<FloatImm> task_weights, int max_trials_global,
             int max_trials_per_task, int num_trials_per_iter, Builder builder, Runner runner,
             Array<MeasureCallback> measure_callbacks, Optional<Database> database,
-            Optional<CostModel> cost_model) final;
+            Optional<CostModel> cost_model, int min_design_space) final;
 
   static constexpr const char* _type_key = "meta_schedule.PyTaskScheduler";
   TVM_DECLARE_FINAL_OBJECT_INFO(PyTaskSchedulerNode, TaskSchedulerNode);

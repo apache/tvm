@@ -641,6 +641,16 @@ inline int UseMetaScheduleDispatch() {
       .value()
       ->value;
 }
+
+/*
+ * \brief  Return whether int32 type is used for constants.
+ */
+inline bool UseInt32Const() {
+  return transform::PassContext::Current()
+      ->GetConfig<Bool>("relay.backend.use_int32_const", Bool(false))
+      .value();
+}
+
 /*!
  * \brief Method in TECompiler to convert TE compute to scheduleable TIR
  * \param args The arguments of the TE compute

@@ -325,6 +325,7 @@ class IterMapRewriter : public ExprMutator {
   PrimExpr VisitExpr_(const MulNode* op) final;
   PrimExpr VisitExpr_(const FloorDivNode* op) final;
   PrimExpr VisitExpr_(const FloorModNode* op) final;
+  PrimExpr VisitExpr_(const CastNode* op) final;
 
  private:
   /* \brief Preprocessing common to both FloorDiv and FloorMod
@@ -1541,6 +1542,15 @@ PrimExpr IterMapRewriter::VisitExpr_(const MulNode* op) {
     ret.CopyOnWrite()->scale *= b;
     return std::move(ret);
   }
+}
+
+PrimExpr IterMapRewriter::VisitExpr_(const CastNode* op) {
+  PrimExpr value = this->DirectMutate(op->value);
+  ICHECK(value->IsInstance<IterSplitExprNode>());
+  const auto* node = value.as<IterSplitExprNode>();
+  IterSplitExpr new_expr = GetRef<IterSplitExpr>(node);
+  new_expr.CopyOnWrite()->dtype = op->dtype;
+  return new_expr;
 }
 
 IterSumExpr IterMapRewriter::PreprocessDividend(IterMapExpr dividend, PrimExpr original_dividend) {

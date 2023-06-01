@@ -19,6 +19,7 @@
 from __future__ import absolute_import
 
 import tvm
+from tvm.meta_schedule import is_meta_schedule_enabled
 from ..utils import get_const_int
 
 
@@ -308,3 +309,129 @@ def get_pad_tuple1d(padding, kernel):
         raise ValueError(f"Unknown padding option {padding}")
     pad_left = (pad_w + 1) // 2
     return pad_left, pad_w - pad_left
+
+
+def use_im2col(
+    data,
+    kernel,
+    stride_h,
+    stride_w,
+    dilation_h,
+    dilation_w,
+    padding,
+    M=16,
+    K=16,
+    N=16,
+):
+    """Whether to use im2col wmma implementation for conv2d with NCHW layout
+
+    Parameters
+    ----------
+    data : Tensor
+        data
+
+    kernel: Tensor
+        kernel
+
+    stride_h : int
+        stride in height dimension
+
+    stride_w : int
+        stride in width dimension
+
+    dilation_h : int
+        dilation in height dimension
+
+    dilation_w : int
+        dilation in width dimension
+
+    padding : int or str
+        padding size, or ['VALID', 'SAME']
+
+    M : int
+        row dimension of matrix A fragment
+
+    K : int
+        reduction dimension of matrix A or B fragment
+
+    N : int
+        column dimension of matrix B fragment
+
+    Returns
+    -------
+    True or False
+
+    """
+    if not is_meta_schedule_enabled() or data.dtype != "float16":
+        return False
+
+    target = tvm.target.Target.current(allow_none=False)
+    if not target.kind.name in ["vulkan"] or not target.supports_cooperative_matrix:
+        return False
+
+    out_channels, in_channels, kernel_h, kernel_w = kernel.shape
+    batch_size, output_channels, output_height, output_weight = get_output_shape(
+        data, kernel, stride_h, stride_w, dilation_h, dilation_w, padding
+    )
+
+    if isinstance(batch_size, tvm.tir.expr.Any):
+        return False
+
+    # TODO(Mei Ye): Allow paddings for output_channels and in_channels to enable
+    # more use cases of wmma.  A whole model analysis will be needed to avoid adding
+    # redundant paddings and strided_slice surrounding each conv2d layer.
+    if output_channels % M != 0:
+        return False
+    if (in_channels * kernel_h * kernel_w) % K != 0:
+        return False
+
+    if (
+        (batch_size == 1)
+        and (dilation_h * dilation_w == 1)
+        and ((batch_size * output_height * output_weight) % N == 0)
+    ):
+        return True
+
+    return False
+
+
+def get_output_shape(data, kernel, stride_h, stride_w, dilation_h, dilation_w, padding):
+    """Get output shape of conv2d with NCHW layout
+
+    Parameters
+    ----------
+    data : Tensor
+        data
+
+    kernel : Tensor
+        kernel
+
+    stride_h : int
+        stride in height dimension
+
+    stride_w : int
+        stride in width dimension
+
+    dilation_h : int
+        dilation in height dimension
+
+    dilation_w : int
+        dilation in width dimension
+
+    padding : int or str
+        padding size, or ['VALID', 'SAME']
+
+    Returns
+    -------
+    Shape of output
+
+    """
+    batch_size, in_channels, height, width = data.shape
+    out_channels, in_channels, kernel_h, kernel_w = kernel.shape
+    pad_top, pad_left, pad_down, pad_right = get_pad_tuple(padding, (kernel_h, kernel_w))
+    pad_top, pad_left, pad_down, pad_right = get_pad_tuple(padding, (kernel_h, kernel_w))
+    dilated_kernel_h = (kernel_h - 1) * dilation_h + 1
+    dilated_kernel_w = (kernel_w - 1) * dilation_w + 1
+    output_height = (height - dilated_kernel_h + pad_top + pad_down) // stride_h + 1
+    output_width = (width - dilated_kernel_w + pad_left + pad_right) // stride_w + 1
+    return [batch_size, out_channels, output_height, output_width]

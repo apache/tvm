@@ -58,6 +58,7 @@ def tune_tir(  # pylint: disable=too-many-locals
     seed: Optional[int] = None,
     module_equality: str = "structural",
     special_space: Optional[Mapping[str, SpaceGenerator.SpaceGeneratorType]] = None,
+    min_design_space: int = 1,
 ) -> Database:
     """Tune a TIR function or an IRModule of TIR functions.
 
@@ -99,6 +100,8 @@ def tune_tir(  # pylint: disable=too-many-locals
         A string to specify the module equality testing and hashing method.
     special_space : Optional[Mapping[str, SpaceGenerator.SpaceGeneratorType]]
         A mapping from task name to a special space generator for that task.
+    min_design_space : int
+        The minimum design space.
 
     Returns
     -------
@@ -154,6 +157,7 @@ def tune_tir(  # pylint: disable=too-many-locals
         measure_callbacks=measure_callbacks,
         task_scheduler=task_scheduler,
         module_equality=module_equality,
+        min_design_space=min_design_space,
     )
 
 

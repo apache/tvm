@@ -275,6 +275,7 @@ def tune_relay(
     num_tuning_cores: Union[Literal["physical", "logical"], int] = "physical",
     disabled_pass: Optional[Union[List[str], Set[str], Tuple[str]]] = None,
     instruments: Optional[Sequence[PassInstrument]] = None,
+    min_design_space: int = 1,
 ) -> Database:
     """Tune a Relay program.
 
@@ -328,6 +329,8 @@ def tune_relay(
         The list of disabled passes during tasks extraction
     instruments : Optional[Sequence[PassInstrument]]
         The list of pass instrument implementations.
+    min_design_space : int
+        The minimum design space.
 
     Returns
     -------
@@ -363,6 +366,7 @@ def tune_relay(
         measure_callbacks=measure_callbacks,
         task_scheduler=task_scheduler,
         module_equality=module_equality,
+        min_design_space=min_design_space,
     )
 
 
