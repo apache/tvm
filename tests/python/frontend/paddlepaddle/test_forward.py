@@ -915,8 +915,8 @@ def test_forward_gaussian_random():
 
     shapes = [20, 8, 8]
     for shape in zip(shapes):
-        verify_model(gaussian_random1, input_data=shape)
-        verify_model(gaussian_random2, input_data=shape)
+        verify_model(gaussian_random1, input_data=paddle.to_tensor(shape))
+        verify_model(gaussian_random2, input_data=paddle.to_tensor(shape))
 
 
 @tvm.testing.uses_gpu
