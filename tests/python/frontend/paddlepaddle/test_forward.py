@@ -907,16 +907,17 @@ def test_forward_group_norm():
 def test_forward_gaussian_random():
     @paddle.jit.to_static
     def gaussian_random1(inputs):
-        return paddle.fluid.layers.gaussian_random(inputs)
+        return paddle.fluid.layers.gaussian_random(paddle.shape(inputs))
 
     @paddle.jit.to_static
     def gaussian_random2(inputs):
-        return paddle.fluid.layers.gaussian_random(inputs, dtype="float32")
+        return paddle.fluid.layers.gaussian_random(paddle.shape(inputs), dtype="float32")
 
-    shapes = [20, 8, 8]
-    for shape in zip(shapes):
-        verify_model(gaussian_random1, input_data=paddle.to_tensor(shape))
-        verify_model(gaussian_random2, input_data=paddle.to_tensor(shape))
+    shapes = [[20], [8, 8], [4, 5, 6], [3, 4, 3, 5]]
+    for shape in shapes:
+        input_data = paddle.randn(shape=shape, dtype="float32")
+        verify_model(gaussian_random1, input_data=input_data)
+        verify_model(gaussian_random2, input_data=input_data)
 
 
 @tvm.testing.uses_gpu
