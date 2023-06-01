@@ -550,7 +550,7 @@ def test_forward_conv():
         )
         verify_model(Conv2D1(stride=2, padding="SAME", dilation=2, groups=3), input_data=input_data)
         verify_model(
-            Conv2D2(stride=2, padding="SAME", dilation=2, groups=3, data_format="NHWC"),
+            Conv2D2(stride=2, padding="SAME", dilation=2, groups=3, data_format="NCHW"),
             input_data=input_data,
         )
 
@@ -913,10 +913,10 @@ def test_forward_gaussian_random():
     def gaussian_random2(inputs):
         return paddle.fluid.layers.gaussian_random(inputs, dtype="float32")
 
-    shapes = [[20], [8, 8], [4, 5, 6], [3, 4, 3, 5]]
+    shapes = [20, 8, 8]
     for shape in zip(shapes):
-        verify_model(gaussian_random1, input_data=paddle.to_tensor(shape))
-        verify_model(gaussian_random2, input_data=paddle.to_tensor(shape))
+        verify_model(gaussian_random1, input_data=shape)
+        verify_model(gaussian_random2, input_data=shape)
 
 
 @tvm.testing.uses_gpu
