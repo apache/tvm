@@ -63,6 +63,9 @@ np_dtype, dtype_str = tvm.testing.parameters(
 
 
 def test_create_nv_fp8_nd_array(np_dtype, dtype_str):
+    if np_dtype is None:
+        """Skip test if ml_dtypes is not installed"""
+        return
     x = np.random.rand(128, 128).astype(np_dtype)
     x_nd = tvm.nd.array(x)
     assert x_nd.dtype == dtype_str
