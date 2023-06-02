@@ -404,7 +404,4 @@ def instantiate_gemm_template(attrs):
 
     template = substitute_template(template, aux_map)
 
-    for i, arg in enumerate(func_args):
-        attrs[f"arg{i}"] = arg
-
     return substitute_template(template, attrs)
