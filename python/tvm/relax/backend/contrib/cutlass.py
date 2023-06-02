@@ -144,6 +144,8 @@ def _check_conv2d(context: PatternCheckContext) -> bool:
 
 def _check_matmul(context: PatternCheckContext) -> bool:
     """Check if the given matmul workload can be offloaded to CUTLASS."""
+    from tvm.contrib.cutlass.build import is_shape_valid_for_cutlass_matmul
+
     if _has_leaking_intermediate_variables(context):
         return False
 
@@ -160,7 +162,7 @@ def _check_matmul(context: PatternCheckContext) -> bool:
 
     lhs_shape = lhs.struct_info.shape.values
     rhs_shape = rhs.struct_info.shape.values
-    return tvm.contrib.cutlass.build.is_shape_valid_for_cutlass_matmul(lhs_shape, rhs_shape)
+    return is_shape_valid_for_cutlass_matmul(lhs_shape, rhs_shape)
 
 
 def _get_activation_from_name(pattern_name):
