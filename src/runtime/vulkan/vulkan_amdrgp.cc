@@ -34,12 +34,14 @@ void AmdRgpProfiler::capture() {
   // Trigger RGP capture by using dummy present and switch state from READY to RUNNING
   if (curr_state_ == READY) {
     VkDebugUtilsLabelEXT frame_end_label = {
-        VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT, NULL, "AmdFrameEnd", {0.0f, 0.0f, 0.0f, 0.0f}};
+        VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT, nullptr, "AmdFrameEnd", {0.0f, 0.0f, 0.0f, 0.0f}};
     device_->queue_insert_debug_utils_label_functions->vkQueueInsertDebugUtilsLabelEXT(
         device_->Queue(), &frame_end_label);
 
-    VkDebugUtilsLabelEXT frame_begin_label = {
-        VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT, NULL, "AmdFrameBegin", {0.0f, 0.0f, 0.0f, 0.0f}};
+    VkDebugUtilsLabelEXT frame_begin_label = {VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT,
+                                              nullptr,
+                                              "AmdFrameBegin",
+                                              {0.0f, 0.0f, 0.0f, 0.0f}};
     device_->queue_insert_debug_utils_label_functions->vkQueueInsertDebugUtilsLabelEXT(
         device_->Queue(), &frame_begin_label);
 

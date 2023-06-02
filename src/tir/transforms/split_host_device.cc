@@ -99,21 +99,13 @@ class HostDeviceSplitter : public StmtMutator {
 };
 
 PrimFunc SplitHostDevice(PrimFunc func, IRModule* device_mod, const GlobalVar& gvar) {
-  auto opt_target = func->GetAttr<Target>(tvm::attr::kTarget);
-  ICHECK(opt_target) << "SplitHostDevice: Require the target attribute";
-  Target target = opt_target.value();
-
   auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
   auto name_prefix = global_symbol.value_or(gvar->name_hint);
 
   HostDeviceSplitter splitter(device_mod, name_prefix);
 
-  auto body = splitter(func->body);
-
-  if (!body.same_as(func->body)) {
+  if (auto body = splitter(func->body); !body.same_as(func->body)) {
     func.CopyOnWrite()->body = body;
-    auto target_host = target->GetHost().value_or(Target("llvm"));
-    func = WithAttr(std::move(func), tvm::attr::kTarget, target_host);
   }
 
   return func;

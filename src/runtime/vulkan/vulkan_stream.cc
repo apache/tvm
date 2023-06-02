@@ -54,7 +54,7 @@ VulkanStream::VulkanStream(const VulkanDevice* device)
   cb_begin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
   cb_begin.pNext = nullptr;
   cb_begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-  cb_begin.pInheritanceInfo = 0;
+  cb_begin.pInheritanceInfo = nullptr;
   VULKAN_CALL(vkBeginCommandBuffer(state_->cmd_buffer_, &cb_begin));
 
   if (support::BoolEnvironmentVar("TVM_USE_AMD_RGP")) {
@@ -135,7 +135,7 @@ void VulkanStream::Synchronize() {
   cb_submit.pNext = nullptr;
   cb_submit.waitSemaphoreCount = 0;
   cb_submit.pWaitSemaphores = nullptr;
-  cb_submit.pWaitDstStageMask = 0;
+  cb_submit.pWaitDstStageMask = nullptr;
   cb_submit.commandBufferCount = 1;
   cb_submit.pCommandBuffers = &(state_->cmd_buffer_);
   cb_submit.signalSemaphoreCount = 0;
@@ -161,7 +161,7 @@ void VulkanStream::Synchronize() {
   cb_begin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
   cb_begin.pNext = nullptr;
   cb_begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-  cb_begin.pInheritanceInfo = 0;
+  cb_begin.pInheritanceInfo = nullptr;
   VULKAN_CALL(vkBeginCommandBuffer(state_->cmd_buffer_, &cb_begin));
 }
 

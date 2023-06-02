@@ -64,7 +64,7 @@ class TVM_DLL Executable : public ModuleNode {
    *
    * \return PackedFunc or nullptr when it is not available.
    */
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final;
 
   /*! \brief Get the property of the runtime module .*/
   int GetPropertyMask() const final { return ModulePropertyMask::kBinarySerializable; };
@@ -88,7 +88,7 @@ class TVM_DLL Executable : public ModuleNode {
    * \param path The path to write the serialized data to.
    * \param format The format of the serialized blob.
    */
-  void SaveToFile(const std::string& path, const std::string& format) final;
+  void SaveToFile(const String& path, const String& format) final;
 
   /*!
    * \brief Serialize the executable into global section, constant section, and

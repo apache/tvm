@@ -42,7 +42,7 @@ class VirtualMachineDebug : public VirtualMachine {
  public:
   VirtualMachineDebug() : VirtualMachine(), prof_({}) {}
 
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final;
 
   void LoadExecutable(const ObjectPtr<Executable>& exec) final;
 
