@@ -21,6 +21,7 @@ from functools import reduce
 from typing import Mapping, Sequence
 
 import tvm
+from tvm.contrib.cutlass.build import is_shape_valid_for_cutlass_matmul
 from tvm.relax import Call, DataflowVar, Function, PyExprMutator, Var, expr_functor, transform
 from tvm.relax.dpl import rewrite_call
 from tvm.relax.transform import PatternCheckContext
@@ -160,7 +161,7 @@ def _check_matmul(context: PatternCheckContext) -> bool:
 
     lhs_shape = lhs.struct_info.shape.values
     rhs_shape = rhs.struct_info.shape.values
-    return tvm.contrib.cutlass.build.is_shape_valid_for_cutlass_matmul(lhs_shape, rhs_shape)
+    return is_shape_valid_for_cutlass_matmul(lhs_shape, rhs_shape)
 
 
 def _get_activation_from_name(pattern_name):
