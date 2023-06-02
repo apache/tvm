@@ -98,7 +98,7 @@ bool VulkanBuffer::UseDedicatedAllocation(const VulkanDevice& device, VkBuffer b
     // What information to request
     VkMemoryDedicatedRequirementsKHR dedicated_req;
     dedicated_req.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_REQUIREMENTS_KHR;
-    dedicated_req.pNext = 0;
+    dedicated_req.pNext = nullptr;
 
     VkMemoryRequirements2KHR req2 = {VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2_KHR};
     req2.pNext = &dedicated_req;
