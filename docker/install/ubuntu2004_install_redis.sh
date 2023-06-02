@@ -20,18 +20,7 @@ set -e
 set -u
 set -o pipefail
 
-git clone --depth 1 --branch release/11.x https://github.com/llvm/llvm-project.git
-pushd llvm-project
-mkdir build
-pushd build
-cmake \
-  -G Ninja \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_INSTALL_PREFIX=/usr \
-  -DLLVM_ENABLE_ASSERTIONS=ON \
-  -DLLVM_ENABLE_PROJECTS="llvm;clang" \
-  ../llvm
-ninja install
-popd
-popd
-rm -rf llvm-project
+pip3 install \
+    redis-server==6.0.9 \
+    scipy==1.9.0 \
+    xgboost==1.4.2

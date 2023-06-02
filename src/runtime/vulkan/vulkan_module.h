@@ -24,12 +24,12 @@
 #include <unordered_map>
 
 #include "../meta_data.h"
-#include "vulkan_shader.h"
+#include "../spirv/spirv_shader.h"
 
 namespace tvm {
 namespace runtime {
 namespace vulkan {
-Module VulkanModuleCreate(std::unordered_map<std::string, VulkanShader> smap,
+Module VulkanModuleCreate(std::unordered_map<std::string, SPIRVShader> smap,
                           std::unordered_map<std::string, FunctionInfo> fmap, std::string source);
 
 }  // namespace vulkan

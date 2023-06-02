@@ -23,6 +23,7 @@
   condition='!skip_ci && is_docs_only_build != 1',
   ws='tvm/build-riscv',
   docker_image='ci_riscv',
+  platform="riscv",
 ) %}
   sh (
     script: "${docker_run} ${ci_riscv} ./tests/scripts/task_config_build_riscv.sh build",
@@ -50,8 +51,8 @@
   {{ m.download_artifacts(tag='riscv') }}
   ci_setup(ci_riscv)
   {% if shard_index == 1%}
-  cpp_unittest(ci_cortexm)
-  micro_cpp_unittest(ci_cortexm)
+  cpp_unittest(ci_riscv)
+  micro_cpp_unittest(ci_riscv)
   {% endif %}
   sh (
     script: "${docker_run} ${ci_riscv} ./tests/scripts/task_riscv_microtvm.sh",

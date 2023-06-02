@@ -292,13 +292,13 @@ def schedule_depthwise_conv2d_nhwc(cfg, outs):
     out = outs[0]
 
     ##### space definition begin #####
-    n, h, w, c = s[out].op.axis
+    _, h, w, c = s[out].op.axis
     # Split the number of input/output channels
-    cfg.define_split("tile_c", c, num_outputs=2)
+    cfg.define_split("tile_c", c, num_outputs=2, filter=lambda entry: entry.size[1] <= 8)
     # Split the height of the convolution
-    _, hi = cfg.define_split("tile_h", h, num_outputs=2)
+    cfg.define_split("tile_h", h, num_outputs=2)
     # Split the width of the convolution
-    _, wi = cfg.define_split("tile_w", w, num_outputs=2)
+    cfg.define_split("tile_w", w, num_outputs=2)
     # Additional out (e.g., requantization, bias addition, etc..)
     # 0: locate the output on the second last axis of the main compuation
     # 1: locate the output closest to the main computation
@@ -394,7 +394,8 @@ def schedule_depthwise_conv2d_nhwc(cfg, outs):
             ci_outer, ci_inner = s[out].split(ci, 4)
             s[out].vectorize(ci_inner)
             s[out].unroll(ci_outer)
-
+        else:
+            s[out].vectorize(ci)
         fused_n_ho = s[out].fuse(n, ho)
         return hi, wi, fused_n_ho
 

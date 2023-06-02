@@ -40,7 +40,9 @@ def ir_module(mod: Type) -> IRModule:
     if not inspect.isclass(mod):
         raise TypeError(f"Expect a class, but got: {mod}")
 
-    return parse(mod, utils.inspect_class_capture(mod))
+    m = parse(mod, utils.inspect_class_capture(mod))
+    setattr(m, "__name__", mod.__name__)
+    return m
 
 
 setattr(ir_module, "dispatch_token", "ir")

@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=invalid-name
 """This file defines ScheduleState, the core data structure of TensorIR scheduling."""
 from collections import namedtuple
 from enum import IntEnum
@@ -72,9 +73,7 @@ def _parse_debug_mask(debug_mask: Union[str, int]) -> int:
 
 def _parse_enable_checks(enable_checks: bool) -> bool:
     if not isinstance(enable_checks, bool):
-        raise TypeError(
-            "enable_checks only accepts bool value, got {} instead".format(type(enable_checks))
-        )
+        raise TypeError(f"enable_checks only accepts bool value, got {type(enable_checks)} instead")
     return enable_checks
 
 
@@ -234,8 +233,5 @@ class ScheduleState(Object):
         if block_sref_reuse is None:
             block_sref_reuse = {}
         _ffi_api.ScheduleStateReplace(  # type: ignore # pylint: disable=no-member
-            self,
-            src_sref,
-            tgt_stmt,
-            block_sref_reuse,
+            self, src_sref, tgt_stmt, block_sref_reuse
         )

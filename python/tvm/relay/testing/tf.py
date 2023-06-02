@@ -109,9 +109,9 @@ def vmobj_to_list(o):
         elif "tensor" in o.constructor.name_hint:
             result = [o.fields[0].numpy()]
         else:
-            raise RuntimeError("Unknown object type: %s" % o.constructor.name_hint)
+            raise RuntimeError(f"Unknown object type: {o.constructor.name_hint}")
     else:
-        raise RuntimeError("Unknown object type: %s" % type(o))
+        raise RuntimeError(f"Unknown object type: {type(o)}")
     return result
 
 
@@ -134,9 +134,7 @@ def AddShapesToGraphDef(session, out_node):
     """
 
     graph_def = tf_compat_v1.graph_util.convert_variables_to_constants(
-        session,
-        session.graph.as_graph_def(add_shapes=True),
-        convert_to_list(out_node),
+        session, session.graph.as_graph_def(add_shapes=True), convert_to_list(out_node)
     )
     return graph_def
 

@@ -15,24 +15,24 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import tvm
-from tvm import rpc, relay
-from tvm.contrib.download import download_testdata
-from tvm.relay.expr_functor import ExprMutator
-from tvm.relay import transform
-from tvm.relay.op.annotation import compiler_begin, compiler_end
-from tvm.relay.quantize.quantize import prerequisite_optimize
-from tvm.contrib import utils, xcode, graph_executor, coreml_runtime
-from tvm.contrib.target import coreml as _coreml
-
+import argparse
 import os
 import re
 import sys
+
+import coremltools
 import numpy as np
+import tvm
 from mxnet import gluon
 from PIL import Image
-import coremltools
-import argparse
+from tvm import relay, rpc
+from tvm.contrib import coreml_runtime, graph_executor, utils, xcode
+from tvm.contrib.download import download_testdata
+from tvm.contrib.target import coreml as _coreml
+from tvm.relay import transform
+from tvm.relay.expr_functor import ExprMutator
+from tvm.relay.op.annotation import compiler_begin, compiler_end
+from tvm.relay.quantize.quantize import prerequisite_optimize
 
 # Change target configuration, this is setting for iphone6s
 # arch = "x86_64"
@@ -43,9 +43,10 @@ target_host = "llvm -mtriple=%s-apple-darwin" % arch
 
 MODES = {"proxy": rpc.connect, "tracker": rpc.connect_tracker, "standalone": rpc.connect}
 
+
 # override metal compiler to compile to iphone
 @tvm.register_func("tvm_callback_metal_compile")
-def compile_metal(src):
+def compile_metal(src, target):
     return xcode.compile_metal(src, sdk=sdk)
 
 

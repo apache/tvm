@@ -205,7 +205,7 @@ VulkanModuleNode::~VulkanModuleNode() {
   }
 }
 
-PackedFunc VulkanModuleNode::GetFunction(const std::string& name,
+PackedFunc VulkanModuleNode::GetFunction(const String& name,
                                          const ObjectPtr<Object>& sptr_to_self) {
   ICHECK_EQ(sptr_to_self.get(), this);
   ICHECK_NE(name, symbol::tvm_module_main) << "Device function do not have main";
@@ -404,7 +404,7 @@ std::shared_ptr<VulkanPipeline> VulkanModuleNode::GetPipeline(size_t device_id,
   return pe;
 }
 
-void VulkanModuleNode::SaveToFile(const std::string& file_name, const std::string& format) {
+void VulkanModuleNode::SaveToFile(const String& file_name, const String& format) {
   std::string fmt = GetFileFormat(file_name, format);
   ICHECK_EQ(fmt, fmt_) << "Can only save to customized format vulkan";
   std::string meta_file = GetMetaFilePath(file_name);
@@ -424,7 +424,7 @@ void VulkanModuleNode::SaveToBinary(dmlc::Stream* stream) {
   stream->Write(smap_);
 }
 
-std::string VulkanModuleNode::GetSource(const std::string& format) {
+String VulkanModuleNode::GetSource(const String& format) {
   // can only return disassembly code.
   return source_;
 }

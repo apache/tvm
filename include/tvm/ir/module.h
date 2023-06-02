@@ -504,6 +504,35 @@ constexpr const char* kConstants = "constants";
 constexpr const char* kExternalMods = "external_mods";
 
 /*!
+ * \brief A prefix for generating C symbols  system lib creation.
+ *
+ * This prefix guides passes that creates global_symbol for internal functions
+ * that may have c linkage (e.g. TIR functions and some BYOC functions). It also affects
+ * the symbol of the fat bin blob during module export.
+ *
+ * This attribute is used to avoid symbol conflict when we
+ * generate and combine multiple system libs that get linked into one.
+ *
+ * Rationale: mechanisms like BYOC rely on the common global symbol
+ * and each external compiler also has its own mechanism of mangling.
+ * As a result, we cannot rely on other mechanisms on setting a global_symbol and then renaming,
+ * because the external compiler already agreed on the name.
+ *
+ * system_lib_prefix provides a way to hint at the passes to allow names to
+ * avoid name conflict at the beginning.
+ *
+ * Note that users can still directly specify global symbols that may conflict.
+ * It is up to the downstream toolchain to manage those external-facing functions.
+ *
+ * This does not affect non-C linkage functions it is less of an issue because
+ * they will be embedded into fatbin that in different symbols,
+ * The system lib loader can pick the right prefix for a given prefix.
+ *
+ * Having this attribute implies system lib generation linkage.
+ */
+constexpr const char* kSystemLibPrefix = "system_lib_prefix";
+
+/*!
  * \brief All the named runtime::NDArrays accumulated during compilation by external codegen.
  * Generally the associated runtime::Module will indicate it requires bindings for these names,
  * and during module initialization these bindings will be recovered from a ConstLoaderModule.

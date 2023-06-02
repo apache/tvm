@@ -14,33 +14,95 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
 import tvm
-from tvm import te
+import tvm.testing
+
+from tvm.script import tir as T, ir as I
 
 
-def test_for():
-    dev_type = te.var("dev_type")
+def _device_context(dev_type, dev_id):
+    ctx = tvm.tir.call_extern("handle", "device_context", dev_type, dev_id)
+    return tvm.tir.Call("handle", "tir.tvm_thread_context", [ctx])
 
-    def device_context(dev_id):
-        ctx = tvm.tir.call_extern("handle", "device_context", dev_type, dev_id)
-        return tvm.tir.Call("handle", "tir.tvm_thread_context", [ctx])
 
-    ib = tvm.tir.ir_builder.create()
-    n = te.var("n")
-    A = ib.allocate("float32", n, name="A", scope="global")
-    with ib.for_range(0, n, name="i") as i:
-        ib.emit(tvm.tir.call_extern("int32", "fadd", device_context(0), A.asobject().data))
-        with ib.for_range(0, 10, name="j") as j:
-            ib.emit(tvm.tir.call_extern("int32", "fadd", device_context(1), A.asobject().data))
-            ib.emit(tvm.tir.call_extern("int32", "fadd", device_context(0), A.asobject().data))
-    body = ib.get()
-    mod = tvm.IRModule({"func": tvm.tir.PrimFunc([dev_type, n], body)})
+class TestCombineContextsInLoop(tvm.testing.CompareBeforeAfter):
+    """Device contexts should be hoisted and merged"""
 
-    mod = tvm.tir.transform.CombineContextCall()(mod)
+    transform = tvm.tir.transform.CombineContextCall()
 
-    assert mod["func"].body.value.dtype == "handle"
-    assert mod["func"].body.body.value.dtype == "handle"
+    def before(self):
+        @T.prim_func
+        def func(dev_type: T.int32, n: T.int32):
+            T.func_attr({"target": T.target("llvm")})
+            A = T.allocate([n], "float32", "global")
+            for i in range(n):
+                T.call_extern(
+                    "int32",
+                    "fadd",
+                    _device_context(dev_type, 0),
+                    A,
+                )
+                for j in range(10):
+                    T.call_extern(
+                        "int32",
+                        "fadd",
+                        _device_context(dev_type, 1),
+                        A,
+                    )
+                    T.call_extern(
+                        "int32",
+                        "fadd",
+                        _device_context(dev_type, 0),
+                        A,
+                    )
+
+        return func
+
+    def expected(dev_type: T.int32, n: T.int32):
+        T.func_attr({"target": T.target("llvm")})
+        ctx_cache_: T.handle = T.call_extern("handle", "device_context", dev_type, 0)
+        ctx_cache__1: T.handle = T.call_extern("handle", "device_context", dev_type, 1)
+        A = T.allocate([n], "float32", "global")
+        for i in range(n):
+            T.call_extern("int32", "fadd", ctx_cache_, A)
+            for j in range(10):
+                T.call_extern("int32", "fadd", ctx_cache__1, A)
+                T.call_extern("int32", "fadd", ctx_cache_, A)
+
+
+class TestCombineContextsInLoopWithoutTarget(TestCombineContextsInLoop):
+    """CombineContextCall only updates host-side functions"""
+
+    def before(self):
+        @T.prim_func
+        def func(dev_type: T.int32, n: T.int32):
+            A = T.allocate([n], "float32", "global")
+            for i in range(n):
+                T.call_extern(
+                    "int32",
+                    "fadd",
+                    _device_context(dev_type, 0),
+                    A,
+                )
+                for j in range(10):
+                    T.call_extern(
+                        "int32",
+                        "fadd",
+                        _device_context(dev_type, 1),
+                        A,
+                    )
+                    T.call_extern(
+                        "int32",
+                        "fadd",
+                        _device_context(dev_type, 0),
+                        A,
+                    )
+
+        return func
+
+    expected = before
 
 
 if __name__ == "__main__":
-    test_for()
+    tvm.testing.main()

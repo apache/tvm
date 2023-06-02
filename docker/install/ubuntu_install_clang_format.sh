@@ -20,10 +20,10 @@ set -e
 set -u
 set -o pipefail
 
-echo deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-10 main\
+echo deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-15 main\
      >> /etc/apt/sources.list.d/llvm.list
-echo deb-src http://apt.llvm.org/bionic/ llvm-toolchain-bionic-10 main\
+echo deb-src http://apt.llvm.org/bionic/ llvm-toolchain-bionic-15 main\
      >> /etc/apt/sources.list.d/llvm.list
 
 wget -q -O - http://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add -
-apt-get update && apt-install-and-clear -y clang-format-10
+apt-get update && apt-install-and-clear -y clang-format-15

@@ -1942,7 +1942,7 @@ inline TVMRetValue::operator T() const {
   return PackedFuncValueConverter<T>::From(*this);
 }
 
-inline PackedFunc Module::GetFunction(const std::string& name, bool query_imports) {
+inline PackedFunc Module::GetFunction(const String& name, bool query_imports) {
   return (*this)->GetFunction(name, query_imports);
 }
 

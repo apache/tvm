@@ -104,7 +104,7 @@ def _server_env(load_library, work_path=None):
         elif path.endswith(".dylib") or path.endswith(".so"):
             pass
         else:
-            raise RuntimeError("Do not know how to link %s" % file_name)
+            raise RuntimeError(f"Do not know how to link {file_name}")
         logger.info("Send linked module %s to client", path)
         return bytearray(open(path, "rb").read())
 
@@ -219,7 +219,7 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
                 tracker_conn.sendall(struct.pack("<i", base.RPC_TRACKER_MAGIC))
                 magic = struct.unpack("<i", base.recvall(tracker_conn, 4))[0]
                 if magic != base.RPC_TRACKER_MAGIC:
-                    raise RuntimeError("%s is not RPC Tracker" % str(tracker_addr))
+                    raise RuntimeError(f"{str(tracker_addr)} is not RPC Tracker")
                 # report status of current queue
                 cinfo = {"key": "server:" + rpc_key, "addr": (custom_addr, port)}
                 base.sendjson(tracker_conn, [TrackerCode.UPDATE_INFO, cinfo])
@@ -277,12 +277,12 @@ def _connect_proxy_loop(addr, key, load_library):
             sock.sendall(key.encode("utf-8"))
             magic = struct.unpack("<i", base.recvall(sock, 4))[0]
             if magic == base.RPC_CODE_DUPLICATE:
-                raise RuntimeError("key: %s has already been used in proxy" % key)
+                raise RuntimeError(f"key: {key} has already been used in proxy")
 
             if magic == base.RPC_CODE_MISMATCH:
                 logger.warning("RPCProxy do not have matching client key %s", key)
             elif magic != base.RPC_CODE_SUCCESS:
-                raise RuntimeError("%s is not RPC Proxy" % str(addr))
+                raise RuntimeError(f"{str(addr)} is not RPC Proxy")
             keylen = struct.unpack("<i", base.recvall(sock, 4))[0]
             remote_key = py_str(base.recvall(sock, keylen))
             opts = _parse_server_opt(remote_key.split()[1:])
@@ -299,7 +299,7 @@ def _connect_proxy_loop(addr, key, load_library):
             retry_count += 1
             logger.warning("Error encountered %s, retry in %g sec", str(err), retry_period)
             if retry_count > max_retry:
-                raise RuntimeError("Maximum retry error: last error: %s" % str(err))
+                raise RuntimeError(f"Maximum retry error: last error: {str(err)}")
             time.sleep(retry_period)
 
 
@@ -349,7 +349,7 @@ class PopenRPCServerState(object):
                         continue
                     raise sock_err
             if not self.port:
-                raise ValueError("cannot bind to any port in [%d, %d)" % (port, port_end))
+                raise ValueError(f"cannot bind to any port in [{port}, {port_end})")
             logger.info("bind to %s:%d", host, self.port)
             sock.listen(1)
             self.sock = sock

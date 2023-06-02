@@ -16,7 +16,6 @@
 # under the License.
 """Test elementwise integration."""
 import numpy as np
-
 import tvm
 import tvm.testing
 from tvm import te
@@ -62,6 +61,7 @@ def test_exp():
 @tvm.testing.requires_gpu
 def test_fmod():
     """Test scheduling and running fmod."""
+
     # graph
     def run(dtype):
         size_var_n = te.size_var("n")
@@ -139,6 +139,7 @@ def test_multiple_cache_write():
     schedule[cache_b0].compute_at(schedule[result_c], axis0)
     schedule[result_c].bind(axis0, te.thread_axis("blockIdx.x"))
     schedule[result_c].bind(axis1, te.thread_axis("threadIdx.x"))
+
     # one line to build the function.
     def check_device(device, host="stackvm"):
         if not tvm.testing.device_enabled(host):
@@ -324,7 +325,7 @@ def try_warp_memory():
     schedule[cache_read_aa].bind(axis_xi, thread_axis_tx)
 
     @tvm.register_func("tvm_callback_cuda_compile", override=True)
-    def tvm_callback_cuda_compile(code):  # pylint: disable=unused-variable
+    def tvm_callback_cuda_compile(code, _):  # pylint: disable=unused-variable
         ptx = nvcc.compile_cuda(code)
         return ptx
 

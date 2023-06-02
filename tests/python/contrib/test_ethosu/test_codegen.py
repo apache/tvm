@@ -281,6 +281,29 @@ def test_tflite_separate_pad(
     infra.compare_tvm_with_tflite(pad2d, [ifm_shape], "ethos-u55-256")
 
 
+@pytest.mark.parametrize("ifm_shape", [(1, 55, 55, 3), (1, 23, 32, 7)])
+@pytest.mark.parametrize("channel_padding", [(0, 1), (1, 1), (5, 2)])
+@pytest.mark.parametrize("const_value", [0, 5, 125, -5])
+def test_tflite_separate_channel_pad(
+    ifm_shape,
+    channel_padding,
+    const_value,
+):
+    np.random.seed(0)
+
+    @tf.function
+    def concat_func(x):
+        x = tf.pad(
+            x,
+            [[0, 0], [0, 0], [0, 0], [channel_padding[0], channel_padding[1]]],
+            "CONSTANT",
+            const_value,
+        )
+        return x
+
+    infra.compare_tvm_with_tflite(concat_func, [ifm_shape], "ethos-u55-256", enable_cascader=False)
+
+
 @pytest.mark.parametrize(
     "accel_type",
     ACCEL_TYPES,
@@ -313,6 +336,56 @@ def test_ethosu_pooling(
         return op
 
     infra.compare_tvm_with_tflite(pooling, [ifm_shape], accel_type)
+
+
+@pytest.mark.parametrize(
+    "accel_type",
+    ACCEL_TYPES,
+)
+@pytest.mark.parametrize("pooling_type", ["MAX", "AVG"])
+@pytest.mark.parametrize(
+    "ifm_shape, pool_shape, strides, activation_function, padding",
+    [
+        ([1, 4, 4, 3], [4, 4], [4, 4], "NONE", "SAME"),
+        ([1, 4, 4, 3], [4, 4], [4, 4], "RELU", "VALID"),
+        ([1, 25, 5, 64], [25, 5], [25, 5], "NONE", "VALID"),
+        ([1, 25, 5, 64], [25, 5], [25, 5], "RELU", "SAME"),
+    ],
+)
+def test_ethosu_pooling_same_ifm_and_kernel_shape(
+    accel_type, pooling_type, ifm_shape, pool_shape, strides, activation_function, padding
+):
+    np.random.seed(0)
+
+    @tf.function
+    def pooling(x):
+        if pooling_type == "MAX":
+            op = tf.nn.max_pool(x, pool_shape, strides, padding)
+        elif pooling_type == "AVG":
+            op = tf.nn.avg_pool(x, pool_shape, strides, padding)
+        if activation_function == "RELU":
+            op = tf.nn.relu(op)
+        return op
+
+    infra.compare_tvm_with_tflite(pooling, [ifm_shape], accel_type)
+
+
+@pytest.mark.parametrize(
+    "accel_type",
+    ["ethos-u55-256", "ethos-u65-256"],
+)
+@pytest.mark.parametrize("ifm_shape", [[1, 148, 29], [4, 148, 29], [1, 12], [8, 12]])
+def test_ethosu_softmax(
+    accel_type,
+    ifm_shape,
+):
+    np.random.seed(0)
+
+    @tf.function
+    def softmax(x):
+        return tf.nn.softmax(x)
+
+    infra.compare_tvm_with_tflite(softmax, [ifm_shape], accel_type, ranges=[(-1, 1)])
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)

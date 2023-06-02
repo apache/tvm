@@ -683,4 +683,4 @@ def create_executor(kind="debug", mod=None, device=None, target="llvm", params=N
         return VMExecutor(mod, device, raw_targets)
     if kind == "aot":
         return AotExecutor(mod, device, raw_targets)
-    raise RuntimeError("unknown execution strategy: {0}".format(kind))
+    raise RuntimeError(f"unknown execution strategy: {kind}")

@@ -90,7 +90,7 @@ def conv2d_NCHWc_int8(cfg, data, kernel, stride, padding, dilation, layout, out_
         batch, channels, height, width = get_const_tuple(data.shape)
         assert (
             channels % ic_block_factor == 0
-        ), "Number of input channels should be multiple of {}".format(ic_block_factor)
+        ), f"Number of input channels should be multiple of {ic_block_factor}"
         packed_data = te.compute(
             (batch, channels // ic_block_factor, height, width, ic_block_factor),
             lambda n, c, h, w, vc: data[n, c * ic_block_factor + vc, h, w],
@@ -100,7 +100,7 @@ def conv2d_NCHWc_int8(cfg, data, kernel, stride, padding, dilation, layout, out_
         out_channels, in_channels, kernel_h, kernel_w = get_const_tuple(kernel.shape)
         assert (
             out_channels % oc_block_factor == 0
-        ), "Number of output channels should be multiple of {}".format(oc_block_factor)
+        ), f"Number of output channels should be multiple of {oc_block_factor}"
         packed_kernel = te.compute(
             (
                 out_channels // oc_block_factor,

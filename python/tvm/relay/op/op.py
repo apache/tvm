@@ -192,15 +192,15 @@ def _wrap_default_fstrategy(compute, schedule, name):
 def _create_fstrategy_from_schedule(op_name, schedule):
     assert hasattr(schedule, "dispatch_dict")
     compute = get(op_name).get_attr("FTVMCompute")
-    assert compute is not None, "FTVMCompute is not registered for op %s" % op_name
-    fstrategy = get_native_generic_func("{}_strategy".format(op_name))
+    assert compute is not None, f"FTVMCompute is not registered for op {op_name}"
+    fstrategy = get_native_generic_func(f"{op_name}_strategy")
     name_pfx = schedule.__name__
     name_pfx = name_pfx[name_pfx.index("_") + 1 :]
     fstrategy.set_default(
-        _wrap_default_fstrategy(compute, schedule.fdefault, "%s.generic" % name_pfx)
+        _wrap_default_fstrategy(compute, schedule.fdefault, f"{name_pfx}.generic")
     )
     for key, sch in schedule.dispatch_dict.items():
-        fstrategy.register(_wrap_default_fstrategy(compute, sch, "%s.%s" % (name_pfx, key)), [key])
+        fstrategy.register(_wrap_default_fstrategy(compute, sch, f"{name_pfx}.{key}"), [key])
     return fstrategy
 
 
@@ -475,6 +475,27 @@ def register_fake_quantization_to_integer(op_name, func=None, level=10):
     return tvm.ir.register_op_attr(op_name, "FTVMFakeQuantizationToInteger", func, level)
 
 
+def register_optional_fake_quantization_to_integer(op_name, func=None, level=10):
+    """Register optional quantize function for an op
+
+    Given an op and Affine Types on it's inputs, this function should return the op
+    in affine space/integer operators and the new type of the output, where affine
+    denotes the transformation x_real = (x_affine - zero_point) * scale
+
+    Parameters
+    ----------
+    op_name : str
+        The name of the operator
+
+    func: function (expr: Expr, map: Map<Expr, AffineType>) -> new_expr: Expr
+        The function for translating the op into affine space and integer operators
+
+    level : int
+        The priority level
+    """
+    return tvm.ir.register_op_attr(op_name, "FTVMOptionalFakeQuantizationToInteger", func, level)
+
+
 def register_mixed_precision_conversion(op_name, func=None, level=10):
     """Register mixed precision conversion function for an op
 
@@ -522,7 +543,7 @@ def debug(expr, debug_func=None):
     global __DEBUG_COUNTER__
 
     if debug_func:
-        name = "debugger_func{}".format(__DEBUG_COUNTER__)
+        name = f"debugger_func{__DEBUG_COUNTER__}"
         tvm._ffi.register_func(name, debug_func)
         __DEBUG_COUNTER__ += 1
     else:

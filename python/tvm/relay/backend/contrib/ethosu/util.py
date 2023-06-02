@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=invalid-name
 """
 Helper utility Enums and Functions used through out code generation.
 
@@ -143,7 +144,7 @@ class QDenseArgs(Enum):
     WEIGHTS_SCALE = 5
 
 
-class QPad2DArgs(Enum):
+class QPadArgs(Enum):
     """
     This is a helper enum to obtain the correct index
     of nn.pad arguments.

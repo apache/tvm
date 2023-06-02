@@ -38,7 +38,7 @@ namespace runtime {
 class OpenCLWrappedFunc {
  public:
   // initialize the OpenCL function.
-  void Init(OpenCLModuleNode* m, ObjectPtr<Object> sptr, OpenCLModuleNode::KTRefEntry entry,
+  void Init(OpenCLModuleNodeBase* m, ObjectPtr<Object> sptr, OpenCLModuleNode::KTRefEntry entry,
             std::string func_name, std::vector<size_t> arg_size,
             const std::vector<std::string>& launch_param_tags) {
     w_ = m->GetGlobalWorkspace();
@@ -95,7 +95,7 @@ class OpenCLWrappedFunc {
   // global workspace.
   cl::OpenCLWorkspace* w_;
   // The module
-  OpenCLModuleNode* m_;
+  OpenCLModuleNodeBase* m_;
   // resource handle
   ObjectPtr<Object> sptr_;
   // global kernel id in the kernel table.
@@ -108,7 +108,7 @@ class OpenCLWrappedFunc {
   LaunchParamConfig launch_param_config_;
 };
 
-OpenCLModuleNode::~OpenCLModuleNode() {
+OpenCLModuleNodeBase::~OpenCLModuleNodeBase() {
   {
     // free the kernel ids in global table.
     std::lock_guard<std::mutex> lock(workspace_->mu);
@@ -130,22 +130,13 @@ OpenCLModuleNode::~OpenCLModuleNode() {
   }
 }
 
-cl::OpenCLWorkspace* OpenCLModuleNode::GetGlobalWorkspace() {
+cl::OpenCLWorkspace* OpenCLModuleNodeBase::GetGlobalWorkspace() {
   return cl::OpenCLWorkspace::Global();
 }
 
-PackedFunc OpenCLModuleNode::GetFunction(const std::string& name,
-                                         const ObjectPtr<Object>& sptr_to_self) {
+PackedFunc OpenCLModuleNodeBase::GetFunction(const String& name,
+                                             const ObjectPtr<Object>& sptr_to_self) {
   ICHECK_EQ(sptr_to_self.get(), this);
-  if (name == "opencl.GetPreCompiledPrograms") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      *rv = this->GetPreCompiledPrograms();
-    });
-  } else if (name == "opencl.SetPreCompiledPrograms") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      this->SetPreCompiledPrograms(args[0]);
-    });
-  }
   ICHECK_NE(name, symbol::tvm_module_main) << "Device function do not have main";
   auto it = fmap_.find(name);
   if (it == fmap_.end()) return PackedFunc();
@@ -169,7 +160,7 @@ PackedFunc OpenCLModuleNode::GetFunction(const std::string& name,
   return PackFuncVoidAddr(f, info.arg_types);
 }
 
-void OpenCLModuleNode::SaveToFile(const std::string& file_name, const std::string& format) {
+void OpenCLModuleNode::SaveToFile(const String& file_name, const String& format) {
   std::string fmt = GetFileFormat(file_name, format);
   ICHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
   std::string meta_file = GetMetaFilePath(file_name);
@@ -183,7 +174,7 @@ void OpenCLModuleNode::SaveToBinary(dmlc::Stream* stream) {
   stream->Write(data_);
 }
 
-std::string OpenCLModuleNode::GetSource(const std::string& format) {
+String OpenCLModuleNode::GetSource(const String& format) {
   if (format == fmt_) return data_;
   if (fmt_ == "cl") {
     return data_;
@@ -261,7 +252,9 @@ cl_kernel OpenCLModuleNode::InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThre
       log.resize(len);
       clGetProgramBuildInfo(programs_[func_name][device_id], dev, CL_PROGRAM_BUILD_LOG, len,
                             &log[0], nullptr);
-      LOG(FATAL) << "OpenCL build error for device=" << dev << "\n" << log;
+      LOG(FATAL) << "OpenCL build error for device=" << dev
+                 << "\nError: " << cl::CLGetErrorString(err) << "\n"
+                 << log;
     }
   }
   // build kernel
@@ -344,6 +337,21 @@ std::string OpenCLModuleNode::GetPreCompiledPrograms() {
   return data;
 }
 
+PackedFunc OpenCLModuleNode::GetFunction(const String& name,
+                                         const ObjectPtr<Object>& sptr_to_self) {
+  ICHECK_EQ(sptr_to_self.get(), this);
+  if (name == "opencl.GetPreCompiledPrograms") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      *rv = this->GetPreCompiledPrograms();
+    });
+  } else if (name == "opencl.SetPreCompiledPrograms") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      this->SetPreCompiledPrograms(args[0]);
+    });
+  }
+  return OpenCLModuleNodeBase::GetFunction(name, sptr_to_self);
+}
+
 Module OpenCLModuleCreate(std::string data, std::string fmt,
                           std::unordered_map<std::string, FunctionInfo> fmap, std::string source) {
   auto n = make_object<OpenCLModuleNode>(data, fmt, fmap, source);
@@ -352,7 +360,7 @@ Module OpenCLModuleCreate(std::string data, std::string fmt,
 }
 
 // Load module from module.
-Module OpenCLModuleLoadFile(const std::string& file_name, const std::string& format) {
+Module OpenCLModuleLoadFile(const std::string& file_name, const String& format) {
   std::string data;
   std::unordered_map<std::string, FunctionInfo> fmap;
   std::string fmt = GetFileFormat(file_name, format);

@@ -56,7 +56,7 @@ try:
     from . import tornado_util
 except ImportError as error_msg:
     raise ImportError(
-        "RPCTracker module requires tornado package %s. Try 'pip install tornado'." % error_msg
+        f"RPCTracker module requires tornado package {error_msg}. Try 'pip install tornado'."
     )
 
 from .._ffi.base import py_str
@@ -184,7 +184,7 @@ class TCPEventHandler(tornado_util.TCPHandler):
 
     def name(self):
         """name of connection"""
-        return "TCPSocket: %s" % str(self._addr)
+        return f"TCPSocket: {str(self._addr)}"
 
     def summary(self):
         """Summary of this connection"""
@@ -408,7 +408,7 @@ class PopenTrackerServerState(object):
                     continue
                 raise sock_err
         if not self.port:
-            raise ValueError("cannot bind to any port in [%d, %d)" % (port, port_end))
+            raise ValueError(f"cannot bind to any port in [{port}, {port_end})")
         logger.info("bind to %s:%d", host, self.port)
         sock.listen(1)
         self.thread = threading.Thread(target=_tracker_server, args=(sock, self.stop_key))
@@ -463,15 +463,7 @@ class Tracker(object):
         self.proc = PopenWorker()
         # send the function
         self.proc.send(
-            _popen_start_tracker_server,
-            [
-                host,
-                port,
-                port_end,
-                silent,
-                reuse_addr,
-                timeout,
-            ],
+            _popen_start_tracker_server, [host, port, port_end, silent, reuse_addr, timeout]
         )
         # receive the port
         self.port, self.stop_key = self.proc.recv()

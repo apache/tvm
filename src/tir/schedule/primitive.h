@@ -481,10 +481,7 @@ TVM_DLL StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sr
  */
 TVM_DLL StmtSRef RFactor(ScheduleState self, const StmtSRef& loop_sref, int factor_axis);
 /******** Schedule: Block annotation ********/
-/*! \brief The quad used by StorageAlign for (buffer_idx, axis, factor, offset) */
-using StorageAlignTuple = Array<Integer>;
-/*! \brief A list of StorageAlignTuple, used by StorageAlign */
-using StorageAlignAnnotation = Array<StorageAlignTuple>;
+
 /*!
  * \brief Set alignment requirement for specific dimension such that
  *        stride[axis] == k * factor + offset for some k. This is useful to set memory layout for
@@ -544,6 +541,16 @@ TVM_DLL void SetAxisSeparator(ScheduleState self, const StmtSRef& block_sref, in
  * \return The new block
  */
 TVM_DLL StmtSRef Blockize(ScheduleState self, const StmtSRef& loop_sref, bool preserve_unit_iters);
+
+/*!
+ * \brief Convert specific blocks into a nested block.
+ * \param self The state of the schedule
+ * \param blocks The target blocks to construct the new block
+ * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
+ * \return The new block
+ */
+TVM_DLL StmtSRef Blockize(ScheduleState self, const Array<StmtSRef>& blocks,
+                          bool preserve_unit_iters);
 
 /*!
  * \brief Tensorize the computation enclosed by loop with the tensor intrinsic.

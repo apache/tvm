@@ -20,6 +20,15 @@ from ...ir_builder import ir as I
 from .._core import Parser, dispatch, doc
 
 
+class ModuleWithGlobalVars:
+    """A Module that can add global vars during parsing, to support `Module.function` syntax."""
+
+    def __getattr__(self, attr):
+        # Customize the error message.
+        # NOTE: `__getattr__` is only called when the attribute access fails with an AttributeError
+        raise AttributeError(f"Cannot find the function `{attr}` in the current IRModule")
+
+
 @dispatch.register(token="ir", type_name="ClassDef")
 def _visit_class_def(self: Parser, node: doc.ClassDef) -> None:
     """The class definition visiting method for ir module.
@@ -35,13 +44,25 @@ def _visit_class_def(self: Parser, node: doc.ClassDef) -> None:
 
     with self.var_table.with_frame():
         with I.ir_module():
+            # Step 0. Add the class name to the var table
+            fake_module = ModuleWithGlobalVars()
+            self.var_table.add(node.name, fake_module)
+
+            # Step 1. Visit non-function stmts, including but not limited to
+            # 1. `I.module_attrs`
+            # 2. `I.module_global_infos`
             with self.with_dispatch_token("ir"):
                 for stmt in node.body:
                     if not isinstance(stmt, doc.FunctionDef):
                         self.visit(stmt)
+
+            # Step 2. Visit function stmts to declare the global vars
             for stmt in node.body:
                 if isinstance(stmt, doc.FunctionDef):
-                    self.visit_tvm_declare_function(stmt)
+                    global_var = self.visit_tvm_declare_function(stmt)
+                    fake_module.__setattr__(stmt.name, global_var)
+
+            # Step 3. Visit and parse the functions
             with self.with_dispatch_token("ir"):
                 for stmt in node.body:
                     if isinstance(stmt, doc.FunctionDef):

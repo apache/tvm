@@ -1,3 +1,4 @@
+#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -14,27 +15,23 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import pytest
-import tvm
-from tvm import tir, ir
 
+set -e
+set -u
+set -o pipefail
 
-def test_convert_ssa():
-    dtype = "int32"
-    zero = tir.const(0)
-    nop = tir.Evaluate(zero)
-    var_type = ir.PointerType(ir.PrimType(dtype))
-    v = tir.Var("i1", var_type)
-    buf = tir.decl_buffer([16], dtype=dtype, data=v)
-    let = tir.LetStmt(v, v, nop)
-    load = tir.Evaluate(tir.BufferLoad(buf, [zero]))
-    seq = tir.SeqStmt([let, let, load])
-    func = tir.PrimFunc([], seq)
-    mod = tvm.IRModule({"main": func})
-    mod = tir.transform.InjectVirtualThread()(
-        mod
-    )  # Use pass InjectVirtualThread to invoke ConvertSSA
-
-
-if __name__ == "__main__":
-    tvm.testing.main()
+git clone --depth 1 --branch release/15.x https://github.com/llvm/llvm-project.git
+pushd llvm-project
+mkdir build
+pushd build
+cmake \
+  -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_INSTALL_PREFIX=/usr \
+  -DLLVM_ENABLE_ASSERTIONS=ON \
+  -DLLVM_ENABLE_PROJECTS="llvm;clang" \
+  ../llvm
+ninja install
+popd
+popd
+rm -rf llvm-project
