@@ -673,7 +673,6 @@ class BlockizeRewriter : public StmtMutator {
     const SeqStmtNode* seq = stmt.as<SeqStmtNode>();
     ICHECK(seq) << "Target blocks must not be nested with each other!";
     int idx_start = -1;
-    int found_cnt = 0;
     int last_found_idx = -1;
     size_t cur_idx = 0;
     Array<Stmt> new_seq;
@@ -688,7 +687,6 @@ class BlockizeRewriter : public StmtMutator {
           ICHECK_EQ(last_found_idx, cur_idx - 1) << "Target blocks must be consecutive!";
         }
         last_found_idx = cur_idx;
-        ++found_cnt;
       } else {
         new_seq.push_back(it);
       }

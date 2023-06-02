@@ -47,7 +47,7 @@ class TagScope(object):
     def __exit__(self, ptype, value, trace):
         assert self._old_scope is None
         if not self.accessed:
-            warnings.warn("Tag '%s' declared via TagScope was not used." % (self.tag,))
+            warnings.warn(f"Tag '{self.tag}' declared via TagScope was not used.")
         TagScope._current = self._old_scope
 
     def __call__(self, fdecl):

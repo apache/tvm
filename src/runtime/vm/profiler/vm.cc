@@ -42,7 +42,7 @@ namespace tvm {
 namespace runtime {
 namespace vm {
 
-PackedFunc VirtualMachineDebug::GetFunction(const std::string& name,
+PackedFunc VirtualMachineDebug::GetFunction(const String& name,
                                             const ObjectPtr<Object>& sptr_to_self) {
   if (name == "profile") {
     return TypedPackedFunc<profiling::Report(String, Array<profiling::MetricCollector>)>(
