@@ -56,7 +56,7 @@ def check_packed_func(target="llvm"):
     # Construct a valid IRModule to be lowered:
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([a_buffer, b_buffer, c_buffer], stmt))
 
-    target = tvm.target.Target(target)
+    target = tvm.target.Target(target, host="llvm")
     mod = tvm.tir.transform.Apply(lambda f: f.with_attr("target", target))(mod)
     mod = tvm.tir.transform.Apply(lambda f: f.with_attr("global_symbol", "main"))(mod)
     mod = tvm.tir.transform.MakePackedAPI()(mod)
