@@ -40,7 +40,7 @@ ADB_SERVER_SOCKET = "ADB_SERVER_SOCKET"
 RNG_SEEDED = False
 
 HEXAGON_AOT_LLVM_TARGET = (
-    "llvm -keys=hexagon "
+    "llvm -keys=hexagon,cpu "
     "-mattr=+hvxv68,+hvx-length128b,+hvx-qfloat,-hvx-ieee-fp "
     "-mcpu=hexagonv68 -mtriple=hexagon"
 )
