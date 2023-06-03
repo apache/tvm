@@ -97,12 +97,12 @@ def test_cuda_bf16_vectorize_add():
         xo, xi = s[B].split(B.op.axis[0], factor=num_thread)
         s[B].bind(xo, bx)
         s[B].bind(xi, tx)
-        with tvm.transform.PassContext(
-            disabled_pass=["tir.BF16Promote", "tir.BF16CastElimination", "tir.BF16TypeLowering"]
-        ):
-            fun = tvm.build(s, [A, B], "cuda")
-            print(fun.imported_modules[0].get_source())
-            assert False
+        # with tvm.transform.PassContext(
+        #     disabled_pass=["tir.BF16ComputeLegalize", "tir.BF16StorageLegalize"]
+        # ):
+        fun = tvm.build(s, [A, B], "cuda")
+        print(fun.imported_modules[0].get_source())
+        assert False
         dev = tvm.cuda(0)
         np_a = np.random.uniform(size=(n, lanes)).astype("float32")
         np_a = np_bf162np_float(np_float2np_bf16(np_a))

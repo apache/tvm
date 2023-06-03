@@ -55,6 +55,8 @@ TVM_REGISTER_PASS_CONFIG_OPTION("tir.use_async_copy", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.instrument_lwp", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.vtcm_capacity", Integer);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.ptx_ldg32", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.hardware_support_bf16", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.hardware_support_fp8", Bool);
 
 // WARNING: May cause coherency issues resulting data miscompares
 // Experimental feature that, when enabled by the runtime, bypasses the cache when using DMA. When
@@ -151,7 +153,6 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
   bool disable_cse_tir = pass_ctx->GetConfig<Bool>("tir.disable_cse_tir", Bool(false)).value();
   bool enable_equiv_terms_in_cse_tir =
       pass_ctx->GetConfig<Bool>("tir.enable_equiv_terms_in_cse_tir", Bool(false)).value();
-
   bool ptx_ldg32 = pass_ctx->GetConfig<Bool>("tir.ptx_ldg32", Bool(false)).value();
 
   // Get any user-added passes

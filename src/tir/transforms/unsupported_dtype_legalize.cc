@@ -686,8 +686,13 @@ namespace transform {
 
 Pass BF16ComputeLegalize() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
-    // TODO(tvm-team): skip if the target supports bf16
-    return BF16ComputeLegalizer().Legalize(f);
+    bool target_support_bf16 =
+        ctx->GetConfig<Bool>("tir.hardware_support_bf16", Bool(false)).value();
+    if (target_support_bf16) {
+      return f;
+    } else {
+      return BF16ComputeLegalizer().Legalize(f);
+    }
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.BF16ComputeLegalize", {});
 }
@@ -696,8 +701,13 @@ TVM_REGISTER_GLOBAL("tir.transform.BF16ComputeLegalize").set_body_typed(BF16Comp
 
 Pass BF16StorageLegalize() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
-    // TODO(tvm-team): skip if the target supports bf16
-    return BF16StorageLegalizer().Legalize(f);
+    bool target_support_bf16 =
+        ctx->GetConfig<Bool>("tir.hardware_support_bf16", Bool(false)).value();
+    if (target_support_bf16) {
+      return f;
+    } else {
+      return BF16StorageLegalizer().Legalize(f);
+    }
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.BF16StorageLegalize", {});
 }
@@ -706,8 +716,12 @@ TVM_REGISTER_GLOBAL("tir.transform.BF16StorageLegalize").set_body_typed(BF16Stor
 
 Pass FP8ComputeLegalize(String promote_dtype_str) {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
-    // TODO(tvm-team): skip if the target supports fp8
-    return FP8ComputeLegalizer(DataType(String2DLDataType(promote_dtype_str))).Legalize(f);
+    bool target_support_fp8 = ctx->GetConfig<Bool>("tir.hardware_support_fp8", Bool(false)).value();
+    if (target_support_fp8) {
+      return f;
+    } else {
+      return FP8ComputeLegalizer(DataType(String2DLDataType(promote_dtype_str))).Legalize(f);
+    }
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.FP8ComputeLegalize", {});
 }
@@ -716,8 +730,12 @@ TVM_REGISTER_GLOBAL("tir.transform.FP8ComputeLegalize").set_body_typed(FP8Comput
 
 Pass FP8StorageLegalize() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
-    // TODO(tvm-team): skip if the target supports fp8
-    return FP8StorageLegalizer().Legalize(f);
+    bool target_support_fp8 = ctx->GetConfig<Bool>("tir.hardware_support_fp8", Bool(false)).value();
+    if (target_support_fp8) {
+      return f;
+    } else {
+      return FP8StorageLegalizer().Legalize(f);
+    }
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.FP8StorageLegalize", {});
 }
