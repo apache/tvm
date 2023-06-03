@@ -101,6 +101,8 @@ def test_cuda_bf16_vectorize_add():
             disabled_pass=["tir.BF16Promote", "tir.BF16CastElimination", "tir.BF16TypeLowering"]
         ):
             fun = tvm.build(s, [A, B], "cuda")
+            print(fun.imported_modules[0].get_source())
+            assert False
         dev = tvm.cuda(0)
         np_a = np.random.uniform(size=(n, lanes)).astype("float32")
         np_a = np_bf162np_float(np_float2np_bf16(np_a))
