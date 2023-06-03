@@ -716,7 +716,6 @@ TVM_REGISTER_GLOBAL("tir.transform.FP8ComputeLegalize").set_body_typed(FP8Comput
 
 Pass FP8StorageLegalize() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
-    LOG(INFO) << f;
     // TODO(tvm-team): skip if the target supports fp8
     return FP8StorageLegalizer().Legalize(f);
   };
