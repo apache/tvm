@@ -171,7 +171,7 @@ class DeviceKernelMutator : public StmtExprMutator {
 
   PrimFunc UpdateKernelAttributes(const GlobalVar& gvar, PrimFunc func) const {
     bool is_kernel_launch = device_kernel_launch_.count(gvar.get());
-    bool is_call_extern = extern_method_call_.count(gvar.get());
+    bool is_call_extern = extern_function_call_.count(gvar.get());
     CHECK(!is_kernel_launch || !is_call_extern)
         << "Function " << gvar << " has multiple callees, "
         << "and would need to be lowered into a call_extern at some call sites, "
@@ -225,7 +225,7 @@ class DeviceKernelMutator : public StmtExprMutator {
       // Calls to another target using the same device (e.g. LLVM
       // calling a custom TIRToRuntime target) do not require a kernel
       // launch, but need to be replaced with call_extern.
-      extern_method_call_.insert(gvar);
+      extern_function_call_.insert(gvar);
       Array<PrimExpr> args;
       args.push_back(StringImm(gvar->name_hint));
       for (const auto& arg : node->args) {
@@ -275,7 +275,7 @@ class DeviceKernelMutator : public StmtExprMutator {
   Optional<Target> current_target_;
   std::unordered_map<const GlobalVarNode*, KernelInfo> device_info_map_;
   std::unordered_set<const GlobalVarNode*> device_kernel_launch_;
-  std::unordered_set<const GlobalVarNode*> extern_method_call_;
+  std::unordered_set<const GlobalVarNode*> extern_function_call_;
 };
 
 namespace transform {
