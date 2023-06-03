@@ -629,9 +629,11 @@ namespace transform {
 
 Pass LowerTVMBuiltin() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
-    auto* n = f.CopyOnWrite();
-    n->body = BuiltinLower().Build(n->body);
-    VLOG(2) << "LowerTVMBuiltin: " << f;
+    if (IsHostFunc(f).value_or(false)) {
+      auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
+      f.CopyOnWrite()->body = BuiltinLower().Build(f->body);
+      VLOG(2) << "LowerTVMBuiltin: " << f;
+    }
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerTVMBuiltin", {});
