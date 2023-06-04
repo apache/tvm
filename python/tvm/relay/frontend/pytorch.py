@@ -1124,6 +1124,10 @@ class PyTorchOpConverter:
     def adaptive_max_pool(self, op, inputs, input_types):
         data = inputs[0]
         output_size = inputs[1]
+        for i, item in enumerate(output_size):
+            if isinstance(item, tvm.relay.expr.Constant):
+                # convert Constant to int
+                output_size[i] = item.data.numpy()[()]
         # returns dummy indices too
         return op(data, output_size=output_size), None
 
