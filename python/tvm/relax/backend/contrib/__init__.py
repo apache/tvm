@@ -15,5 +15,3 @@
 # specific language governing permissions and limitations
 # under the License.
 """Relax backends contrib"""
-from . import cublas
-from . import cutlass
