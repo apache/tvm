@@ -61,11 +61,11 @@ def _try_unique_name(name: str):
 
 
     """
-    bb = relax.BlockBuilder.current()
-    if bb is None:
+    block_builder = relax.BlockBuilder.current()
+    if block_builder is None:
         return name
     else:
-        return bb.get_unique_name(name)
+        return block_builder.get_unique_name(name)
 
 
 class Placeholder(relax.Var):
