@@ -437,7 +437,8 @@ class BlockBuilder(Object):
                     gv = relax.call_tir(te_func, (y,), R.Tensor((n + 1,), "float32"), (n,))
                     return gv
         """
-        return self.emit(self.call_te(func, *args, **kwargs))
+        name_hint = kwargs.pop("name_hint", "")
+        return self.emit(self.call_te(func, *args, **kwargs), name_hint=name_hint)
 
     def match_cast(self, value: Expr, struct_info: StructInfo) -> Var:
         """Emit a MatchCast.
