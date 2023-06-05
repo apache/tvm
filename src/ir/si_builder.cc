@@ -215,6 +215,7 @@ PrimExpr TirRecursivelyFill::VisitExpr(const PrimExpr& expr) {
 }
 
 struct SIBuilder::Impl {
+  virtual ~Impl() {}
   virtual Span Build() const { return Span(); }
   virtual void RecursivelyFillSpan(const relay::Expr& entry, const RelayExprSet& inputs) const {}
   virtual void RecursivelyFillSpan(const PrimExpr& entry, const PrimExprSet& inputs) const {}
