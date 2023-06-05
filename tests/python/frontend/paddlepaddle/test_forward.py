@@ -509,6 +509,34 @@ def test_forward_conv():
         def forward(self, inputs):
             return self.softmax(self.conv(inputs))
 
+    class Conv2D2(nn.Layer):
+        def __init__(
+            self,
+            stride=1,
+            padding=0,
+            dilation=1,
+            groups=1,
+            padding_mode="zeros",
+            data_format="NCHW",
+        ):
+            super(Conv2D2, self).__init__()
+            self.conv = nn.Conv2D(
+                3,
+                6,
+                3,
+                stride=stride,
+                padding=padding,
+                dilation=dilation,
+                groups=groups,
+                padding_mode=padding_mode,
+                data_format=data_format,
+            )
+            self.softmax = nn.Softmax()
+
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return self.softmax(self.conv(inputs))
+
     input_shapes = [[1, 3, 10, 10], [1, 3, 12, 12]]
 
     for input_shape in input_shapes:
@@ -521,6 +549,10 @@ def test_forward_conv():
             input_data=input_data,
         )
         verify_model(Conv2D1(stride=2, padding="SAME", dilation=2, groups=3), input_data=input_data)
+        verify_model(
+            Conv2D2(stride=2, padding="SAME", dilation=2, groups=3, data_format="NCHW"),
+            input_data=input_data,
+        )
 
 
 @tvm.testing.uses_gpu
@@ -575,6 +607,34 @@ def test_forward_conv3d():
         def forward(self, inputs):
             return self.softmax(self.conv(inputs))
 
+    class Conv3D2(nn.Layer):
+        def __init__(
+            self,
+            stride=1,
+            padding=0,
+            dilation=1,
+            groups=1,
+            padding_mode="zeros",
+            data_format="NCDHW",
+        ):
+            super(Conv3D2, self).__init__()
+            self.conv = nn.Conv3D(
+                3,
+                6,
+                3,
+                stride=stride,
+                padding=padding,
+                dilation=dilation,
+                groups=groups,
+                padding_mode=padding_mode,
+                data_format=data_format,
+            )
+            self.softmax = nn.Softmax()
+
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return self.softmax(self.conv(inputs))
+
     input_shapes = [[1, 3, 10, 10, 10], [1, 3, 12, 12, 12]]
 
     for input_shape in input_shapes:
@@ -595,6 +655,10 @@ def test_forward_conv3d():
             input_data=input_data,
         )
         verify_model(Conv3D(stride=2, padding="SAME", dilation=2, groups=3), input_data=input_data)
+        verify_model(
+            Conv3D2(stride=2, padding="SAME", dilation=2, groups=3, data_format="NCDHW"),
+            input_data=input_data,
+        )
 
 
 @tvm.testing.uses_gpu
@@ -1720,11 +1784,31 @@ def test_forward_sin():
     pass
 
 
-@run_math_api
+@tvm.testing.uses_gpu
 def test_forward_softplus():
-    x = paddle.to_tensor([-0.4, 1], dtype="float32")
-    m = paddle.nn.Softplus(5, 1)
-    verify_model(m, [x])
+    @paddle.jit.to_static
+    def Softplus1(input):
+        return paddle.nn.functional.softplus(input, beta=1.0, threshold=20.0)
+
+    @paddle.jit.to_static
+    def Softplus2(input):
+        return paddle.nn.functional.softplus(input, beta=6.0, threshold=20.0)
+
+    @paddle.jit.to_static
+    def Softplus3(input):
+        return paddle.nn.functional.softplus(input, beta=1.0, threshold=10.0)
+
+    x = paddle.to_tensor([-8.0, -12.0, 1.0, 18.0, 25.0])
+    verify_model(Softplus1, x)
+    verify_model(Softplus2, x)
+    verify_model(Softplus3, x)
+
+    input_shapes = [[10], [2, 3], [5, 10, 11], [3, 4, 5, 6]]
+    for input_shape in input_shapes:
+        input_data = paddle.randn(shape=input_shape, dtype="float32")
+        verify_model(Softplus1, input_data=input_data)
+        verify_model(Softplus2, input_data=input_data)
+        verify_model(Softplus3, input_data=input_data)
 
 
 @run_math_api

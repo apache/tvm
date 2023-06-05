@@ -304,6 +304,7 @@ def convert_conv2d(g, op, block):
 
     kernel = g.get_node(op.input("Filter")[0])
     input_x = g.get_node(op.input("Input")[0])
+    data_layout = op.attr("data_format")
     out_channels, _, k_h, k_w = infer_shape(kernel)
     if padding_algorithm == "VALID":
         paddings = [0, 0]
@@ -332,6 +333,7 @@ def convert_conv2d(g, op, block):
         groups=groups,
         channels=out_channels,
         kernel_size=[k_h, k_w],
+        data_layout=data_layout,
     )
     g.add_node(op.output("Output")[0], out)
 
@@ -407,6 +409,7 @@ def convert_conv3d(g, op, block):
 
     kernel = g.get_node(op.input("Filter")[0])
     input_x = g.get_node(op.input("Input")[0])
+    data_layout = op.attr("data_format")
     out_channels, _, k_d, k_h, k_w = infer_shape(kernel)
     if padding_algorithm == "VALID":
         paddings = [0, 0, 0]
@@ -446,6 +449,7 @@ def convert_conv3d(g, op, block):
         groups=groups,
         channels=out_channels,
         kernel_size=[k_d, k_h, k_w],
+        data_layout=data_layout,
     )
     g.add_node(op.output("Output")[0], out)
 
@@ -821,7 +825,9 @@ def convert_gaussian_random(g, op, block):
     std = op.attr("std")
     shape = op.attr("shape")
     seed = op.attr("seed")
-    out = _op.random.normal(key=seed, shape=shape, mean=mean, scale=std)
+    dtype = op.attr("dtype")
+    dtype = _convert_dtype_value(dtype)
+    out = _op.random.normal(key=seed, shape=shape, dtype=dtype, mean=mean, scale=std)
     g.add_node(op.output("Out")[0], out)
 
 
@@ -2409,9 +2415,13 @@ def convert_softplus(g, op, block):
     beta = op.attr("beta")
     beta = _expr.const(beta, dtype=dtype)
     threshold = op.attr("threshold")
+
+    if threshold is None:
+        threshold = _expr.const(20.0, dtype=dtype)
     threshold = _expr.const(threshold, dtype=dtype)
     out_softplus = _op.log(_op.exp(x * beta) + _expr.const(1.0, dtype=dtype)) / beta
     out = _op.where(_op.greater(x * beta, threshold), x, out_softplus)
+
     g.add_node(op.output("Out")[0], out)
 
 
