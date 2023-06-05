@@ -27,9 +27,10 @@ from ..runtime import String, convert_to_object
 from . import _ffi_api
 from .expr import Tuple as rx_Tuple
 from .expr import Expr, ShapeExpr, Function, PrimValue, StringImm, te_tensor
+from .expr import _update_struct_info
 from ..te import Tensor as te_Tensor, create_relax_prim_func
 from ..ir import Array, Attrs, Type, Map
-from .struct_info import PrimStructInfo, ShapeStructInfo, TensorStructInfo
+from .struct_info import PrimStructInfo, ShapeStructInfo, TensorStructInfo, FuncStructInfo
 
 
 def metadata_partitioner(rx_txt: str) -> List[str]:
@@ -455,10 +456,19 @@ def gen_call_tir_inputs(
     # with old set of variables.
     tir_var_inverse_map = {v: k for k, v in tir_var_map.items()}
 
-    output_sinfo = [
-        TensorStructInfo(_shape_with_old_tir_var(out.shape, tir_var_inverse_map), out.dtype)
-        for out in outs
-    ]
+    def te_to_sinfo(te_tensor):
+        return TensorStructInfo(
+            _shape_with_old_tir_var(te_tensor.shape, tir_var_inverse_map), te_tensor.dtype
+        )
+
+    input_sinfo = [te_to_sinfo(arg) for arg in te_args]
+    if len(outs) == 1:
+        output_sinfo = te_to_sinfo(outs[0])
+    else:
+        output_sinfo = TupleStructInfo(output_sinfo=[te_to_sinfo(out) for out in outs])
+
+    primfunc_sinfo = FuncStructInfo(input_sinfo, output_sinfo)
+    _update_struct_info(tir_func, primfunc_sinfo)
 
     tir_vars = None
     if len(unbound_tir_vars) > 0:
