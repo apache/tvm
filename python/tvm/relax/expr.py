@@ -239,8 +239,7 @@ class ExprWithOp(Expr, Scriptable):
             # compatibility.
             if "Index out of bounds" in err.args[0]:
                 raise IndexError from err
-            else:
-                raise
+            raise
 
 
 @tvm._ffi.register_object("relax.expr.Call")
