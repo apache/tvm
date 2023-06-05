@@ -456,10 +456,8 @@ def gen_call_tir_inputs(
     # with old set of variables.
     tir_var_inverse_map = {v: k for k, v in tir_var_map.items()}
 
-    def te_to_sinfo(te_tensor):
-        return TensorStructInfo(
-            _shape_with_old_tir_var(te_tensor.shape, tir_var_inverse_map), te_tensor.dtype
-        )
+    def te_to_sinfo(arg):
+        return TensorStructInfo(_shape_with_old_tir_var(arg.shape, tir_var_inverse_map), arg.dtype)
 
     input_sinfo = [te_to_sinfo(arg) for arg in te_args]
     if len(outs) == 1:
