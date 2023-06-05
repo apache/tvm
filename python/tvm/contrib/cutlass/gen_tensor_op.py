@@ -679,10 +679,27 @@ def instantiate_template(func_name, annotations, func_args):
     elif "attention" in func_name:
         headers.append("kernel_forward.h")
         data_type = dtype_map[annotations["arg0_dtype"]]
+
+        attrs["qkv_layout"] = annotations["qkv_layout"]
+        if attrs["qkv_layout"] == "default":
+            attrs["query"] = func_args[0]
+            attrs["key"] = func_args[1]
+            attrs["value"] = func_args[2]
+            attrs["num_queries"] = s = get_dim(annotations["num_queries"], func_args[0], 1)
+            attrs["num_keys"] = get_dim(annotations["num_keys"], func_args[1], 1)
+            if len(func_args) > 4:  # +1 for workspace, the last arg
+                attrs["bias"] = func_args[3]
+        elif attrs["qkv_layout"] == "qkv_stacked":
+            attrs["qkv"] = func_args[0]
+            attrs["num_queries"] = s = annotations["num_queries"]
+            attrs["num_keys"] = annotations["num_keys"]
+            if len(func_args) > 5:  # +1 for workspace, the last arg
+                attrs["bias"] = func_args[4]
+        else:
+            raise NotImplementedError()
+
         attrs["data_type"] = DataTypeTag[data_type]
         attrs["num_batches"] = b = annotations["num_batches"]
-        attrs["num_queries"] = s = annotations["num_queries"]
-        attrs["num_keys"] = annotations["num_keys"]
         attrs["num_heads"] = n = annotations["num_heads"]
         attrs["head_dim"] = h = annotations["head_dim"]
         attrs["head_dim_value"] = h_v = annotations["head_dim_value"]
@@ -701,7 +718,7 @@ def instantiate_template(func_name, annotations, func_args):
             attrs["kQueriesPerBlock"] = 64
             attrs["kKeysPerBlock"] = 64
             attrs["kSingleValueIteration"] = True
-        attrs["output_size"] = b * s * n * h_v
+        attrs["output_size"] = f"{b} * {s} * {n} * {h_v}"
         attrs["scale"] = (
             float(1 / math.sqrt(h.value)) if annotations["scale"] is None else annotations["scale"]
         )
@@ -712,24 +729,10 @@ def instantiate_template(func_name, annotations, func_args):
         ), "Cutlass may generate nan occasionally when scale == 0.0"
         attrs["arch"] = "cutlass::arch::Sm{}".format(annotations["arch"])
         attrs["kSupportsDropout"] = False
-        attrs["qkv_layout"] = annotations["qkv_layout"]
 
         for arg in func_args:
             if "workspace" in arg:
                 attrs["workspace"] = arg
-
-        if attrs["qkv_layout"] == "default":
-            attrs["query"] = func_args[0]
-            attrs["key"] = func_args[1]
-            attrs["value"] = func_args[2]
-            if len(func_args) > 4:  # +1 for workspace, the last arg
-                attrs["bias"] = func_args[3]
-        elif attrs["qkv_layout"] == "qkv_stacked":
-            attrs["qkv"] = func_args[0]
-            if len(func_args) > 5:  # +1 for workspace, the last arg
-                attrs["bias"] = func_args[4]
-        else:
-            raise NotImplementedError()
         if "bias" in attrs:
             attrs["kSupportsBias"] = True
             if len(annotations["bias_shape"]) == 4:
