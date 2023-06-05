@@ -303,6 +303,37 @@ def test_normalize():
     assert isinstance(tuple_2.struct_info.fields[1].fields[1], rx.TensorStructInfo)
 
 
+def test_tuple_indexing():
+    m = tir.Var("m", "int64")
+    n = tir.Var("n", "int64")
+
+    shape_x = rx.TensorStructInfo([m, n], "float16")
+    shape_y = rx.TensorStructInfo([n], "float16")
+    relax_tuple = rx.Var("relax_tuple", rx.TupleStructInfo([shape_x, shape_y]))
+
+    assert isinstance(relax_tuple.struct_info, rx.TupleStructInfo)
+    assert isinstance(relax_tuple.struct_info.fields[0], rx.TensorStructInfo)
+    assert isinstance(relax_tuple.struct_info.fields[1], rx.TensorStructInfo)
+
+    # TupleGetItem will initialize struct info from the
+    # TupleStructInfo, if present.
+    x = relax_tuple[0]
+    tvm.ir.assert_structural_equal(x.struct_info, shape_x)
+
+    y = relax_tuple[1]
+    tvm.ir.assert_structural_equal(y.struct_info, shape_y)
+
+    # Tuple unpacking produces TupleGetItem structs
+    x_unpack, y_unpack = relax_tuple
+    tvm.ir.assert_structural_equal(x, x_unpack)
+    tvm.ir.assert_structural_equal(y, y_unpack)
+
+    # When TupleStructInfo is available, tuple unpacking fails immediately
+    # for incorrect number of arguments.
+    with pytest.raises(ValueError):
+        x_unpack, y_unpack, z_unpack = relax_tuple
+
+
 def test_call_te():
     bb = rx.BlockBuilder()
     n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
