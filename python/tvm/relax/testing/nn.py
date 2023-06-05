@@ -34,6 +34,40 @@ def emit_te(func: Callable, *args: Any, **kwargs: Any) -> relax.Var:
     return relax.BlockBuilder.current().emit_te(func, *args, **kwargs)
 
 
+def _try_unique_name(name: str):
+    """Attempt to uniquify the name
+
+    If a `relax.BlockBuilder` is active, use it to return a unique
+    name.  Otherwise, return the name itself.
+
+    Two distinct variables in Relax may have identical names.
+    However, for user readability, it is convenient to have all names
+    be unique within a Relax function.  If a Placeholder or Parameter
+    is defined within an active `relax.BlockBuilder`, that context may
+    be used to provide a unique name.  Otherwise, allow the duplicate
+    names.
+
+    Parameters
+    ----------
+    name: str
+
+        The variable name
+
+    Returns
+    -------
+    updated_name: str
+
+        The updated variable name
+
+
+    """
+    bb = relax.BlockBuilder.current()
+    if bb is None:
+        return name
+    else:
+        return bb.get_unique_name(name)
+
+
 class Placeholder(relax.Var):
     """A placeholder variable that can represent model input."""
 
@@ -42,9 +76,7 @@ class Placeholder(relax.Var):
     ):
         if not isinstance(shape, (list, tuple)):
             raise TypeError("the shape of Placeholder is expected to be a list or a tuple")
-        super().__init__(
-            relax.BlockBuilder.current().get_unique_name(name), relax.TensorStructInfo(shape, dtype)
-        )
+        super().__init__(_try_unique_name(name), relax.TensorStructInfo(shape, dtype))
 
 
 class Parameter(relax.Var):
@@ -55,9 +87,8 @@ class Parameter(relax.Var):
     ):
         if not isinstance(shape, (list, tuple)):
             raise TypeError("the shape of Parameter is expected to be a list or a tuple")
-        super().__init__(
-            relax.BlockBuilder.current().get_unique_name(name), relax.TensorStructInfo(shape, dtype)
-        )
+
+        super().__init__(_try_unique_name(name), relax.TensorStructInfo(shape, dtype))
 
 
 class Module:
