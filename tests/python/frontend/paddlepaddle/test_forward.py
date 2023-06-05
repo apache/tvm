@@ -1932,6 +1932,16 @@ def test_forward_topk():
 
 
 @tvm.testing.uses_gpu
+def test_forward_tanhshrink():
+    @paddle.jit.to_static
+    def tanhshrink(inputs):
+        return paddle.nn.functional.tanhshrink(inputs)
+
+    input_data = paddle.randn(shape=[2, 3], dtype="float32")
+    verify_model(tanhshrink, input_data=input_data)
+
+
+@tvm.testing.uses_gpu
 def test_forward_one_hot_v2():
     @paddle.jit.to_static
     def one_hot_v2_1(inputs):
@@ -2385,6 +2395,87 @@ def test_forward_softmax_with_cross_entropy():
     label = paddle.randint(0, 2, [5, 4, 3]).astype("float32")
     verify_model(SoftmaxWithCrossEntropy(soft_label=True), input_data=[input_data, label])
     verify_model(SoftmaxWithCrossEntropy(soft_label=True, axis=0), input_data=[input_data, label])
+
+
+@tvm.testing.uses_gpu
+def test_forward_pool3d():
+    class Pool3D1(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return nn.functional.avg_pool3d(inputs, kernel_size=2, stride=2, padding=0)
+
+    class Pool3D2(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return nn.functional.adaptive_avg_pool3d(inputs, output_size=[3, 3, 3])
+
+    class Pool3D3(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return nn.functional.avg_pool3d(
+                inputs,
+                kernel_size=3,
+                stride=1,
+                padding=[1, 1, 1],
+                exclusive=False,
+                divisor_override=2.5,
+            )
+
+    class Pool3D4(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return nn.functional.avg_pool3d(
+                inputs,
+                kernel_size=2,
+                stride=1,
+                padding=[[0, 0], [0, 0], [1, 1], [1, 1], [1, 1]],
+                ceil_mode=True,
+                data_format="NCDHW",
+            )
+
+    class Pool3D5(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs):
+            return nn.functional.avg_pool3d(
+                inputs,
+                kernel_size=2,
+                stride=1,
+                padding=[[0, 0], [1, 1], [1, 1], [1, 1], [0, 0]],
+                ceil_mode=True,
+                data_format="NDHWC",
+            )
+
+    input_shapes = [[1, 2, 2, 8, 8], [1, 2, 3, 10, 10]]  # [N, C, D, H, W]
+    for input_shape in input_shapes:
+        input_data = paddle.uniform(shape=input_shape, dtype="float32", min=-1, max=1)
+        verify_model(Pool3D1(), input_data=input_data)
+        verify_model(Pool3D2(), input_data=input_data)
+        verify_model(Pool3D3(), input_data=input_data)
+        verify_model(Pool3D4(), input_data=input_data)
+        verify_model(Pool3D5(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_set_value():
+    class SetValue(nn.Layer):
+        @paddle.jit.to_static
+        def forward(self, inputs, update_input):
+            x = inputs + 1
+            x[3:] = 3
+            x[1:] = 3.0
+            x[2:] = update_input
+            x[0] = 1
+            x[-3:-2] = 1
+            x[0][0] = 5
+            return x
+
+    input_shapes = [[5, 2], [10, 3], [10, 3, 3]]
+    for input_shape in input_shapes:
+        input_data = paddle.uniform(shape=input_shape, dtype="float32", min=-1, max=1)
+        update_shape = input_shape.copy()
+        update_shape[0] = input_shape[0] - 2
+        update_input = paddle.uniform(shape=update_shape, dtype="float32", min=-1, max=1)
+        verify_model(SetValue(), input_data=[input_data, update_input])
 
 
 if __name__ == "__main__":
