@@ -50,8 +50,8 @@ CLMLRunner::CLMLRunner(std::string name, ToolArgs& args, cl_platform_id arg_plat
       context(arg_context),
       device_id(arg_device_id),
       queue(arg_queue) {
-  LOG(INFO) << "CLMLRunner Constructor: Input:" << r_args.input << " Output:" << r_args.output
-            << " Params:" << r_args.params;
+  LOG(INFO) << "CLMLRunner Constructor:" << name << " Input:" << r_args.input
+            << " Output:" << r_args.output << " Params:" << r_args.params;
   cl_int result;
 
   // Query and Get CLML Interface
@@ -648,25 +648,29 @@ void CLMLRunner::MakeConcatenate(
 void CLMLRunner::MakeDense(std::shared_ptr<cl_ml_tensor_memory_desc_qcom> input_desc,
                            std::shared_ptr<cl_ml_tensor_memory_desc_qcom> weight_desc,
                            std::shared_ptr<cl_ml_tensor_memory_desc_qcom> output_desc,
-                           std::shared_ptr<cl_ml_tensor_memory_desc_qcom> bias_desc,
+                           std::vector<cl_uint> in_shape, std::vector<cl_uint> wt_shape,
                            std::string dtype) {
   cl_arithmetic_mode_qcom cl_arithmetic_mode = MakeCLArithMode(MakeCLDataType(dtype));
   cl_ml_op_qcom op = nullptr;
   cl_int result;
+  cl_gemm_transform_qcom b_transform = CL_GEMM_TRANSFORM_NONE_QCOM;
 
-  cl_ml_op_convolution_desc_qcom conv_desc = {CL_CONVOLUTION_MODE_CONVOLUTION_QCOM,
-                                              1,
-                                              4,
-                                              {0, 0},
-                                              {0, 0},
-                                              {1, 1},
-                                              {1, 1},
-                                              0,
-                                              cl_arithmetic_mode};
+  if (in_shape[1] == wt_shape[1]) {
+    b_transform = CL_GEMM_TRANSFORM_TRANSPOSE_QCOM;
+  }
 
-  result = h_ClmlIntf->clCreateMLOpConvolutionForwardQCOM(
-      this->context, 0, &conv_desc, input_desc->tensor, weight_desc->tensor, bias_desc->tensor,
-      output_desc->tensor, &op, tuning_cache);
+  cl_ml_op_gemm_desc_qcom gemmDesc = {in_shape[0],                  // m
+                                      wt_shape[0],                  // n
+                                      wt_shape[1],                  // k
+                                      CL_GEMM_TRANSFORM_NONE_QCOM,  // A transform
+                                      b_transform,                  // B transform
+                                      {{1.0}, CL_FLOAT},            // alpha
+                                      {{0.0}, CL_FLOAT},            // beta
+                                      cl_arithmetic_mode};
+
+  result =
+      h_ClmlIntf->clCreateMLOpGemmQCOM(this->context, 0, &gemmDesc, input_desc->tensor,
+                                       weight_desc->tensor, output_desc->tensor, &op, tuning_cache);
 
   CLML_SDK_TEST_AND_EXIT(op && result == CL_SUCCESS);
   this->function.push_back(op);

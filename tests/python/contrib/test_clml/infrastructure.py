@@ -120,6 +120,25 @@ def get_cpu_op_count(mod):
     return c.count
 
 
+def get_non_cpu_op_count(mod):
+    """Traverse graph counting ops not offloaded to TVM."""
+
+    class Counter(tvm.relay.ExprVisitor):
+        def __init__(self):
+            super().__init__()
+            self.count = 0
+
+        def visit_call(self, call):
+            if not isinstance(call.op, tvm.ir.Op):
+                self.count += 1
+
+            super().visit_call(call)
+
+    c = Counter()
+    c.visit(mod["main"])
+    return c.count
+
+
 def skip_codegen_test():
     """Skip test if it requires the CLML codegen and it's not present."""
     if not tvm.get_global_func("relay.ext.clml", True):
