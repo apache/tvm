@@ -26,8 +26,8 @@ import tvm
 from tvm import relax, topi, tir
 
 
-def emit(expr: relax.Expr) -> relax.Var:
-    return relax.BlockBuilder.current().emit(expr)
+def emit(expr: relax.Expr, name_hint: str = "") -> relax.Var:
+    return relax.BlockBuilder.current().emit(expr, name_hint=name_hint)
 
 
 def emit_te(func: Callable, *args: Any, **kwargs: Any) -> relax.Var:
