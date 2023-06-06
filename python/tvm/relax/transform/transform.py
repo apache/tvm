@@ -291,10 +291,9 @@ def CanonicalizeBindings() -> tvm.ir.transform.Pass:
 
 
 def EliminateCommonSubexpr(call_only=False) -> DataflowBlockPass:
-    """Eliminate common subexpressions within dataflow blocks.
+    """Eliminate common subexpressions within functions.
 
-    Note: For functions local to dataflow blocks, this pass performs
-    CSE *within* those functions
+    Note: For nested functions, this pass performs CSE *within* those functions
 
     Parameters
     ----------
