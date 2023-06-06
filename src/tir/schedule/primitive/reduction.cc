@@ -1272,7 +1272,7 @@ StmtSRef RFactor(ScheduleState self, const StmtSRef& rf_loop_sref, int factor_ax
     BlockInfo& info = self->block_info[new_block_sref];
     info.affine_binding = true;
     info.region_cover = true;
-    info.scope->stage_pipeline = true;
+    info.stage_pipeline = true;
   }
   return new_block_srefs[0];
 }

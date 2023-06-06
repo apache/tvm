@@ -496,7 +496,7 @@ StmtSRef DecomposePaddingImpl(ScheduleState self, const StmtSRef& block_sref,
   BlockInfo& block_info = self->block_info[new_block_sref];
   block_info.affine_binding = true;
   block_info.region_cover = true;
-  block_info.scope->stage_pipeline = true;
+  block_info.stage_pipeline = true;
 
   // If the const pad value filling block is lifted out of the original subtree,
   // set the region_cover flag as false since region_cover is the property under the subtree.
@@ -518,7 +518,7 @@ StmtSRef DecomposePaddingImpl(ScheduleState self, const StmtSRef& block_sref,
     }
   }
   if (!preserve_stage_pipeline) {
-    self->block_info[scope_root_sref].scope->stage_pipeline = false;
+    self->block_info[scope_root_sref].stage_pipeline = false;
   }
   return new_block_sref;
 }

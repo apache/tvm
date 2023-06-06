@@ -26,7 +26,7 @@ from tvm.runtime import Object
 from tvm.tir import Block, BlockRealize, For, PrimFunc
 
 from . import _ffi_api
-from .block_scope import BlockScope, StmtSRef
+from ..block_scope import BlockScope, StmtSRef
 
 CachedFlags = namedtuple("CachedFlags", ["affine_binding", "region_cover", "stage_pipeline"])
 
