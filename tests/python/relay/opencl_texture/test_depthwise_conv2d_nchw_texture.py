@@ -192,5 +192,36 @@ def test_depthwise_conv2d_repack_bias_nchw(remote, target, dtype):
     build_run_compare(remote, mod, params1, {"data": input_shape}, {"data": dtype}, target)
 
 
+@tvm.testing.requires_opencl
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+def test_conv2d_to_3_channels(remote, target, dtype):
+    input_shape = (1, 3, 200, 200)
+    filter_shape = (3, 1, 1, 1)
+    A = relay.var("data", shape=input_shape, dtype=dtype)
+    B = relay.var("weight", shape=filter_shape, dtype=dtype)
+
+    D = relay.nn.conv2d(
+        A,
+        B,
+        data_layout="NCHW",
+        kernel_layout="OIHW",
+        padding=[0, 0, 0, 0],
+        out_dtype=dtype,
+        channels=3,
+        groups=3,
+        kernel_size=(1, 1),
+    )
+    mod = relay.Function([A, B], D)
+    np.random.seed(0)
+    initializer = relay.testing.init.Xavier()
+    filter_data = np.zeros(filter_shape).astype(dtype)
+    initializer("weight", filter_data)
+    params1 = {
+        "weight": tvm.nd.array(filter_data),
+    }
+
+    build_run_compare(remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, [])
+
+
 if __name__ == "__main__":
     tvm.testing.main()

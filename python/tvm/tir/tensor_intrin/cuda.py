@@ -566,7 +566,7 @@ def get_wmma_load_intrin(
     is_col_major: bool,
 ) -> Tuple[PrimFunc, PrimFunc]:
     """Generator of wmma_load intrins"""
-    wmma_fragment_scope = "wmma.matrix_{}".format("b" if is_b else "a")
+    wmma_fragment_scope = f"wmma.matrix_{'b' if is_b else 'a'}"
     layout = "col_major" if is_col_major else "row_major"
     offset_factor = get_tensor_core_load_offset_factor(dtype)
 
@@ -906,8 +906,7 @@ TensorIntrin.register(
 
 WMMA_SYNC_16x16x16_s8s8s32_INTRIN = "wmma_sync_16x16x16_s8s8s32"
 TensorIntrin.register(
-    WMMA_SYNC_16x16x16_s8s8s32_INTRIN,
-    *get_wmma_sync_intrin(16, 16, 16, "int8", "int32", False),
+    WMMA_SYNC_16x16x16_s8s8s32_INTRIN, *get_wmma_sync_intrin(16, 16, 16, "int8", "int32", False)
 )
 
 WMMA_SYNC_16x16x16_s8s8s32_TRANS_INTRIN = "wmma_sync_16x16x16_s8s8s32_trans"
@@ -918,8 +917,7 @@ TensorIntrin.register(
 
 WMMA_SYNC_8x8x32_s4s4s32_TRANS_INTRIN = "wmma_sync_8x8x32_s4s4s32_trans"
 TensorIntrin.register(
-    WMMA_SYNC_8x8x32_s4s4s32_TRANS_INTRIN,
-    *get_wmma_sync_intrin(8, 8, 32, "int4", "int32", True),
+    WMMA_SYNC_8x8x32_s4s4s32_TRANS_INTRIN, *get_wmma_sync_intrin(8, 8, 32, "int4", "int32", True)
 )
 
 WMMA_LOAD_16x16x16_F16_A_INTRIN = "wmma_load_16x16x16_f16_a_shared"
@@ -984,8 +982,7 @@ TensorIntrin.register(
 
 WMMA_LOAD_16x16x16_S8_B_INTRIN = "wmma_load_16x16x16_s8_b_shared"
 TensorIntrin.register(
-    WMMA_LOAD_16x16x16_S8_B_INTRIN,
-    *get_wmma_load_intrin(16, 16, 16, "int8", "shared", True, False),
+    WMMA_LOAD_16x16x16_S8_B_INTRIN, *get_wmma_load_intrin(16, 16, 16, "int8", "shared", True, False)
 )
 
 WMMA_LOAD_16x16x16_S8_B_DYN_INTRIN = "wmma_load_16x16x16_s8_b_shared_dyn"
@@ -1020,8 +1017,7 @@ TensorIntrin.register(
 
 WMMA_LOAD_8x8x32_S4_A_INTRIN = "wmma_load_8x8x32_s4_a_shared"
 TensorIntrin.register(
-    WMMA_LOAD_8x8x32_S4_A_INTRIN,
-    *get_wmma_load_intrin(8, 8, 32, "int4", "shared", False, False),
+    WMMA_LOAD_8x8x32_S4_A_INTRIN, *get_wmma_load_intrin(8, 8, 32, "int4", "shared", False, False)
 )
 
 WMMA_LOAD_8x8x32_S4_A_DYN_INTRIN = "wmma_load_8x8x32_s4_a_shared_dyn"
@@ -1094,8 +1090,7 @@ TensorIntrin.register(
 
 WMMA_STORE_8x8x32_S32_SHARED_DYN_INTRIN = "wmma_store_8x8x32_s32_shared_dyn"
 TensorIntrin.register(
-    WMMA_STORE_8x8x32_S32_SHARED_DYN_INTRIN,
-    *get_wmma_store_intrin(8, 8, 32, "int32", "shared.dyn"),
+    WMMA_STORE_8x8x32_S32_SHARED_DYN_INTRIN, *get_wmma_store_intrin(8, 8, 32, "int32", "shared.dyn")
 )
 
 WMMA_STORE_16x16x16_F32_GLOBAL_INTRIN = "wmma_store_16x16x16_f32_global"

@@ -941,7 +941,7 @@ CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const Array<PrimExpr>& 
 
   llvm::BasicBlock* end_block = CheckCallSuccess(call);
 
-  PackedCall pc = {0};
+  PackedCall pc = {nullptr};
 
   if (!r_type.is_void()) {
     // Load the return value and cast it to the designated type (r_type).

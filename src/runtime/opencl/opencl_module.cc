@@ -134,7 +134,7 @@ cl::OpenCLWorkspace* OpenCLModuleNodeBase::GetGlobalWorkspace() {
   return cl::OpenCLWorkspace::Global();
 }
 
-PackedFunc OpenCLModuleNodeBase::GetFunction(const std::string& name,
+PackedFunc OpenCLModuleNodeBase::GetFunction(const String& name,
                                              const ObjectPtr<Object>& sptr_to_self) {
   ICHECK_EQ(sptr_to_self.get(), this);
   ICHECK_NE(name, symbol::tvm_module_main) << "Device function do not have main";
@@ -160,7 +160,7 @@ PackedFunc OpenCLModuleNodeBase::GetFunction(const std::string& name,
   return PackFuncVoidAddr(f, info.arg_types);
 }
 
-void OpenCLModuleNode::SaveToFile(const std::string& file_name, const std::string& format) {
+void OpenCLModuleNode::SaveToFile(const String& file_name, const String& format) {
   std::string fmt = GetFileFormat(file_name, format);
   ICHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
   std::string meta_file = GetMetaFilePath(file_name);
@@ -174,7 +174,7 @@ void OpenCLModuleNode::SaveToBinary(dmlc::Stream* stream) {
   stream->Write(data_);
 }
 
-std::string OpenCLModuleNode::GetSource(const std::string& format) {
+String OpenCLModuleNode::GetSource(const String& format) {
   if (format == fmt_) return data_;
   if (fmt_ == "cl") {
     return data_;
@@ -252,7 +252,9 @@ cl_kernel OpenCLModuleNode::InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThre
       log.resize(len);
       clGetProgramBuildInfo(programs_[func_name][device_id], dev, CL_PROGRAM_BUILD_LOG, len,
                             &log[0], nullptr);
-      LOG(FATAL) << "OpenCL build error for device=" << dev << "\n" << log;
+      LOG(FATAL) << "OpenCL build error for device=" << dev
+                 << "\nError: " << cl::CLGetErrorString(err) << "\n"
+                 << log;
     }
   }
   // build kernel
@@ -335,7 +337,7 @@ std::string OpenCLModuleNode::GetPreCompiledPrograms() {
   return data;
 }
 
-PackedFunc OpenCLModuleNode::GetFunction(const std::string& name,
+PackedFunc OpenCLModuleNode::GetFunction(const String& name,
                                          const ObjectPtr<Object>& sptr_to_self) {
   ICHECK_EQ(sptr_to_self.get(), this);
   if (name == "opencl.GetPreCompiledPrograms") {
@@ -358,7 +360,7 @@ Module OpenCLModuleCreate(std::string data, std::string fmt,
 }
 
 // Load module from module.
-Module OpenCLModuleLoadFile(const std::string& file_name, const std::string& format) {
+Module OpenCLModuleLoadFile(const std::string& file_name, const String& format) {
   std::string data;
   std::unordered_map<std::string, FunctionInfo> fmap;
   std::string fmt = GetFileFormat(file_name, format);

@@ -60,7 +60,7 @@ class InterfaceCNode : public runtime::ModuleNode {
         output_sizes_(output_sizes) {}
   const char* type_key() const final { return "h"; }
 
-  std::string GetSource(const std::string& format) final {
+  String GetSource(const String& format) final {
     std::stringstream code;
 
     EmitUpperHeaderGuard(code);
@@ -128,7 +128,7 @@ class InterfaceCNode : public runtime::ModuleNode {
     return code.str();
   }
 
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
     return PackedFunc();
   }
 

@@ -127,8 +127,7 @@ std::vector<int64_t> ToShape(NDArray shape_tensor) {
 void VirtualMachine::OpStartHook(Instruction instr) {}
 void VirtualMachine::OpStopHook() {}
 
-PackedFunc VirtualMachine::GetFunction(const std::string& name,
-                                       const ObjectPtr<Object>& sptr_to_self) {
+PackedFunc VirtualMachine::GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) {
   if (name == "invoke") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       ICHECK(exec_) << "The executable is not created yet.";
