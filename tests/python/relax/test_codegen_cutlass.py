@@ -25,9 +25,9 @@ from tvm.contrib.cutlass.build import is_shape_valid_for_cutlass_matmul
 from tvm.contrib.pickle_memoize import memoize
 from tvm.relax.backend.contrib.cutlass import partition_for_cutlass
 from tvm.relax.testing import get_relax_matmul_module
-from tvm.script import tir as T
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import tir as T
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import relax as relax_builder
 
@@ -169,9 +169,16 @@ def get_relax_conv2d_module(
     return tvm.IRModule({"main": func})
 
 
-def _to_concrete_shape(symbolic_shape, var_table):
+def _to_concrete_shape(symbolic_shape, var_table=None):
+    if var_table is None:
+        var_table = {}
+
     result = []
     for dim in symbolic_shape:
+        if isinstance(dim, tuple):
+            result.append(_to_concrete_shape(dim, var_table))
+            continue
+
         if not isinstance(dim, tvm.tir.expr.Var):
             result.append(dim)
             continue
@@ -543,6 +550,7 @@ def attention_dtype(request):
 @pytest.fixture(
     params=[
         # B, S, N, H
+        (32, (_vars["a"], 8), 16, (8, 8)),
         (32, (8, 8), 16, (8, 8)),
         (4, (16, 8), 32, (8, 8)),  # s != s_kv
         (4, (16, 8), 32, (8, 16)),  # h != h_v
@@ -554,9 +562,9 @@ def attention_size(request):
     return request.param
 
 
-def get_relax_attention_module(q, k, v, bias=None, qk_scale=None, causal=None):
-    dtype = str(q.dtype)
-
+def get_relax_attention_module(
+    q_shape, k_shape, v_shape, *, dtype, bias_shape=None, qk_scale=None, causal_mask=None
+):
     from tvm.script.ir_builder import IRBuilder
     from tvm.script.ir_builder import relax as relax_builder
     from tvm.script.ir_builder import tir as T
@@ -567,13 +575,15 @@ def get_relax_attention_module(q, k, v, bias=None, qk_scale=None, causal=None):
     with IRBuilder() as builder:
         with relax_builder.function():
             R.func_name("main")
-            q = R.arg("q", R.Tensor(q.shape, dtype))
-            k = R.arg("k", R.Tensor(k.shape, dtype))
-            v = R.arg("v", R.Tensor(v.shape, dtype))
-            if bias is not None:
-                bias = R.arg("bias", R.Tensor(bias.shape, dtype))
+            q = R.arg("q", R.Tensor(q_shape, dtype))
+            k = R.arg("k", R.Tensor(k_shape, dtype))
+            v = R.arg("v", R.Tensor(v_shape, dtype))
+            bias = None
+            if bias_shape is not None and bias_shape != "none":
+                bias = R.arg("bias", R.Tensor(bias_shape, dtype))
+
             with R.dataflow() as frame:
-                result = R.emit(R.nn.attention(q, k, v, bias, qk_scale, causal))
+                result = R.emit(R.nn.attention(q, k, v, bias, qk_scale, causal_mask))
                 R.output(result)
 
             R.func_ret_value(frame.output_vars[0])
@@ -620,11 +630,16 @@ def get_numpy_attention_ref(b, s, s_kv, n, h, h_v, bias_shape, qk_scale, causal,
 
 def test_attention_offload(attention_size, attention_dtype):
     b, (s, s_kv), n, (h, h_v) = attention_size
+    concrete_s, concrete_s_kv = _to_concrete_shape((s, s_kv))
     q, k, v, _, ref = get_numpy_attention_ref(
-        b, s, s_kv, n, h, h_v, "none", "none", "none", attention_dtype
+        b, concrete_s, concrete_s_kv, n, h, h_v, "none", "none", "none", attention_dtype
     )
 
-    mod = get_relax_attention_module(q, k, v)
+    q_shape = (b, s, n, h)
+    k_shape = (b, s_kv, n, h)
+    v_shape = (b, s_kv, n, h_v)
+
+    mod = get_relax_attention_module(q_shape, k_shape, v_shape, dtype=attention_dtype)
     out = get_result_with_relax_cutlass_offload(mod, q, k, v, num_final_bindings=3)
 
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
@@ -649,11 +664,19 @@ def attention_bias_size(request):
 
 def test_attention_bias_offload(attention_bias_size):
     b, (s, s_kv), n, (h, h_v), bias_shape = attention_bias_size
+    concrete_s, concrete_s_kv, concrete_bias_shape = _to_concrete_shape((s, s_kv, bias_shape))
+
     q, k, v, bias, ref = get_numpy_attention_ref(
-        b, s, s_kv, n, h, h_v, bias_shape, "none", "none", "float32"
+        b, concrete_s, concrete_s_kv, n, h, h_v, concrete_bias_shape, "none", "none", "float32"
     )
 
-    mod = get_relax_attention_module(q, k, v, bias)
+    q_shape = (b, s, n, h)
+    k_shape = (b, s_kv, n, h)
+    v_shape = (b, s_kv, n, h_v)
+
+    mod = get_relax_attention_module(
+        q_shape, k_shape, v_shape, bias_shape=bias_shape, dtype="float32"
+    )
     out = get_result_with_relax_cutlass_offload(mod, q, k, v, bias, num_final_bindings=3)
 
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
@@ -681,7 +704,13 @@ def test_attention_scale_offload(attention_scale_size, attention_scale):
         b, s, s_kv, n, h, h_v, bias_shape, attention_scale, "none", "float32"
     )
 
-    mod = get_relax_attention_module(q, k, v, bias, attention_scale)
+    q_shape = (b, s, n, h)
+    k_shape = (b, s_kv, n, h)
+    v_shape = (b, s_kv, n, h_v)
+
+    mod = get_relax_attention_module(
+        q_shape, k_shape, v_shape, dtype="float32", bias_shape=bias_shape, qk_scale=attention_scale
+    )
     if bias is None:
         out = get_result_with_relax_cutlass_offload(mod, q, k, v, num_final_bindings=3)
     else:
@@ -712,7 +741,18 @@ def test_attention_causal_offload(attention_causal_size, attention_causal):
         b, s, s_kv, n, h, h_v, bias_shape, "none", attention_causal, "float32"
     )
 
-    mod = get_relax_attention_module(q, k, v, bias, None, attention_causal)
+    q_shape = (b, s, n, h)
+    k_shape = (b, s_kv, n, h)
+    v_shape = (b, s_kv, n, h_v)
+
+    mod = get_relax_attention_module(
+        q_shape,
+        k_shape,
+        v_shape,
+        dtype="float32",
+        bias_shape=bias_shape,
+        causal_mask=attention_causal,
+    )
     if bias is None:
         out = get_result_with_relax_cutlass_offload(mod, q, k, v, num_final_bindings=3)
     else:
