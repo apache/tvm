@@ -728,6 +728,7 @@ def test_cooperative_matrix(out_dtype):
         tvm.testing.assert_allclose(C.numpy(), ref, rtol=1e-2, atol=1e-2)
 
 
+@tvm.testing.requires_vulkan(support_required="compile-only")
 def test_codegen_decl_buffer():
     """The codegen should accept DeclBuffer nodes in its input"""
 
