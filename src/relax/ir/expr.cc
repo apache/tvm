@@ -174,7 +174,9 @@ TupleGetItem::TupleGetItem(Expr tuple, int index, Span span) {
     CHECK_LT(index, tuple_info->fields.size())
         << "Index out of bounds: Tuple " << tuple << " is of size " << tuple_info->fields.size()
         << ", and cannot be accessed with index " << index;
-    n->struct_info_ = tuple_info->fields[index];
+    auto sinfo = tuple_info->fields[index];
+    n->struct_info_ = sinfo;
+    n->checked_type_ = GetStaticType(sinfo);
   }
   n->tuple = std::move(tuple);
   n->index = index;
