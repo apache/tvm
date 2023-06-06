@@ -547,16 +547,17 @@ class TestMyfloatLowering(tvm.testing.CompareBeforeAfter):
     setup_myfloat()
 
     transform = tvm.tir.transform.LowerCustomDatatypes()
+    dtype = "custom[myfloat]32"
 
-    def before(A_data: T.handle("custom[myfloat]32")):
+    def before(A_data: T.handle(dtype)):
         T.func_attr({"target": T.target("llvm")})
-        A = T.Buffer(16, dtype="custom[myfloat]32", data=A_data)
-        B_data = T.allocate([16], dtype="custom[myfloat]32")
-        B = T.Buffer(16, dtype="custom[myfloat]32", data=B_data)
+        A = T.Buffer(16, dtype=dtype, data=A_data)
+        B_data = T.allocate([16], dtype=dtype)
+        B = T.Buffer(16, dtype=dtype, data=B_data)
         for i in range(16):
             B[i] = A[i] + 1.0
 
-    def expected(A_data: T.handle("custom[myfloat]32")):
+    def expected(A_data: T.handle(dtype)):
         T.func_attr({"target": T.target("llvm")})
         A_uint32 = T.Buffer(16, "uint32", data=A_data)
         B_data = T.allocate([16], dtype="uint32")
@@ -576,14 +577,16 @@ class TestMyfloatLoweringDeclBuffer(tvm.testing.CompareBeforeAfter):
 
     transform = tvm.tir.transform.LowerCustomDatatypes()
 
-    def before(A_data: T.handle("custom[myfloat]32")):
+    dtype = "custom[myfloat]32"
+
+    def before(A_data: T.handle(dtype)):
         T.func_attr({"target": T.target("llvm")})
-        A = T.decl_buffer(16, dtype="custom[myfloat]32", data=A_data)
-        B = T.decl_buffer(16, dtype="custom[myfloat]32")
+        A = T.decl_buffer(16, dtype=dtype, data=A_data)
+        B = T.decl_buffer(16, dtype=dtype)
         for i in range(16):
             B[i] = A[i] + 1.0
 
-    def expected(A_data: T.handle("custom[myfloat]32")):
+    def expected(A_data: T.handle(dtype)):
         T.func_attr({"target": T.target("llvm")})
         A_uint32 = T.decl_buffer(16, "uint32", data=A_data)
         B_uint32 = T.decl_buffer(16, dtype="uint32")
