@@ -468,9 +468,7 @@ def gen_call_tir_inputs(
     input_sinfo = [te_to_sinfo(arg) for arg in te_args]
     output_sinfo = [te_to_sinfo(out) for out in outs]
 
-    primfunc_sinfo = FuncStructInfo(
-        input_sinfo, output_sinfo[0] if len(output_sinfo) == 1 else TupleStructInfo(output_sinfo)
-    )
+    primfunc_sinfo = FuncStructInfo([*input_sinfo, *output_sinfo], PrimStructInfo("void"))
     _update_struct_info(tir_func, primfunc_sinfo)
 
     tir_vars = None
