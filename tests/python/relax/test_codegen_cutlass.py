@@ -25,9 +25,9 @@ from tvm.contrib.cutlass.build import is_shape_valid_for_cutlass_matmul
 from tvm.contrib.pickle_memoize import memoize
 from tvm.relax.backend.contrib.cutlass import partition_for_cutlass
 from tvm.relax.testing import get_relax_matmul_module
-from tvm.script import tir as T
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import tir as T
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import relax as relax_builder
 
@@ -562,7 +562,9 @@ def attention_size(request):
     return request.param
 
 
-def get_relax_attention_module(q_shape, k_shape, v_shape, *, dtype, bias_shape=None, qk_scale=None, causal_mask=None):
+def get_relax_attention_module(
+    q_shape, k_shape, v_shape, *, dtype, bias_shape=None, qk_scale=None, causal_mask=None
+):
     from tvm.script.ir_builder import IRBuilder
     from tvm.script.ir_builder import relax as relax_builder
     from tvm.script.ir_builder import tir as T
@@ -743,7 +745,14 @@ def test_attention_causal_offload(attention_causal_size, attention_causal):
     k_shape = (b, s_kv, n, h)
     v_shape = (b, s_kv, n, h_v)
 
-    mod = get_relax_attention_module(q_shape, k_shape, v_shape, dtype="float32", bias_shape=bias_shape, causal_mask=attention_causal)
+    mod = get_relax_attention_module(
+        q_shape,
+        k_shape,
+        v_shape,
+        dtype="float32",
+        bias_shape=bias_shape,
+        causal_mask=attention_causal,
+    )
     if bias is None:
         out = get_result_with_relax_cutlass_offload(mod, q, k, v, num_final_bindings=3)
     else:
