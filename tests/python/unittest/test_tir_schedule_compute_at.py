@@ -996,38 +996,45 @@ def floordiv_and_floormod_indices_after_reverse_compute_at(a: T.handle, b: T.han
 
 
 @T.prim_func
-def recursive_floordiv_and_floormod_indices(a: T.handle, b: T.handle) -> None:
-    X = T.match_buffer(a, [16, 16])
-    Y = T.match_buffer(b, [256])
-    temp = T.alloc_buffer([16, 4, 2, 2])
-    for i, j in T.grid(16, 16):
-        with T.block("A"):
-            v_i, v_j = T.axis.remap("SS", [i, j])
-            temp[v_i, v_j // 4, (v_j % 4) //2, v_j % 2] = X[v_j, v_i] + 1.0
-    for i, j in T.grid(16, 16):
-        with T.block("B"):
-            v_i, v_j = T.axis.remap("SS", [i, j])
-            Y[v_i*16 + v_j] = temp[v_i, v_j // 4, (v_j % 4) // 2, (v_j %2)]
+def recursive_floordiv_floormod(A: T.Buffer((16, 64, 1, 8, 8, 32), "float32"),
+                                C: T.Buffer((3, 512, 512), "float32")) -> None:
+    T.func_attr({"tir.noalias": True})
+    # with T.block("root"):
+    B = T.alloc_buffer((1, 128, 16, 8, 2, 32, 2), "float32")
+    for axis1, axis2, axis3, axis4, axis5, axis6, axis7 in T.grid(1, 128, 16, 8, 2, 32, 2):
+        with T.block("In"):
+            v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6, v_axis7 = T.axis.remap("SSSSSSS", [axis1, axis2, axis3, axis4, axis5, axis6, axis7])
+            T.reads(A[(v_axis2 * 4 + v_axis5 * 2 + v_axis7) // 32, (v_axis3 * 32 + v_axis6) // 8, (v_axis1 * 8 + v_axis4) // 8, (v_axis3 * 32 + v_axis6) % 8, v_axis1 * 8 + v_axis4, (v_axis2 * 4 + v_axis5 * 2 + v_axis7) % 32])
+            T.writes(B[v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6, v_axis7])
+            B[v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6, v_axis7] = A[(v_axis2 * 4 + v_axis5 * 2 + v_axis7) // 32, (v_axis3 * 32 + v_axis6) // 8, (v_axis1 * 8 + v_axis4) // 8, (v_axis3 * 32 + v_axis6) % 8, v_axis1 * 8 + v_axis4, (v_axis2 * 4 + v_axis5 * 2 + v_axis7) % 32] + 3
+    for ax1, ax2, ax3 in T.grid(3, 512, 512):
+        with T.block("Out"):
+            v1, v2, v3 = T.axis.remap("SSS", [ax1, ax2, ax3])
+            T.reads(B[v1 // 8, v2 // 4, v3 // 32, v1, v2 % 4 // 2, v3 % 32, v2 % 2])
+            T.writes(C[v1, v2, v3])
+            C[v1, v2, v3] = B[v1 // 8, v2 // 4, v3 // 32, v1, v2 % 4 // 2, v3 % 32, v2 % 2] * 2
 
 
 @T.prim_func
-def recursive_floordiv_and_floormod_indices_after_reverse_compute_at(a: T.handle, b: T.handle) -> None:
-    X = T.match_buffer(a, [16, 16])
-    Y = T.match_buffer(b, [256])
-    temp = T.alloc_buffer((16, 4, 2, 2))
-    for i in range(16):
-        for j in range(16):
-            with T.block("A"):
-                v_i, v_j = T.axis.remap("SS", [i, j])
-                T.reads(X[v_j, v_i])
-                T.writes(temp[v_i, v_j // 4, v_j % 4 // 2, v_j % 2])
-                temp[v_i, v_j // 4, v_j % 4 // 2, v_j % 2] = X[v_j, v_i] + T.float32(1)
-        for ax0 in range(16):
-            with T.block("B"):
-                v_i, v_j = T.axis.remap("SS", [i, ax0])
-                T.reads(temp[v_i, v_j // 4, v_j % 4 // 2, v_j % 2])
-                T.writes(Y[v_i * 16 + v_j])
-                Y[v_i * 16 + v_j] = temp[v_i, v_j // 4, v_j % 4 // 2, v_j % 2]
+def recursive_floordiv_floormod_after_reverse_compute_at(A: T.Buffer((16, 64, 1, 8, 8, 32), "float32"), C: T.Buffer((3, 512, 512), "float32")) -> None:
+    T.func_attr({"tir.noalias": T.bool(True)})
+    # with T.block("root"):
+    B = T.alloc_buffer((1, 128, 16, 8, 2, 32, 2))
+    for axis1, axis2, axis3 in T.grid(1, 128, 16):
+        for axis4, axis5, axis6, axis7 in T.grid(8, 2, 32, 2):
+            with T.block("In"):
+                v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6, v_axis7 = T.axis.remap("SSSSSSS", [axis1, axis2, axis3, axis4, axis5, axis6, axis7])
+                T.reads(A[(v_axis2 * 4 + v_axis5 * 2 + v_axis7) // 32, (v_axis3 * 32 + v_axis6) // 8, (v_axis1 * 8 + v_axis4) // 8, (v_axis3 * 32 + v_axis6) % 8, v_axis1 * 8 + v_axis4, (v_axis2 * 4 + v_axis5 * 2 + v_axis7) % 32])
+                T.writes(B[v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6, v_axis7])
+                B[v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6, v_axis7] = A[(v_axis2 * 4 + v_axis5 * 2 + v_axis7) // 32, (v_axis3 * 32 + v_axis6) // 8, (v_axis1 * 8 + v_axis4) // 8, (v_axis3 * 32 + v_axis6) % 8, v_axis1 * 8 + v_axis4, (v_axis2 * 4 + v_axis5 * 2 + v_axis7) % 32] + T.float32(3)
+        for ax0, ax1, ax2 in T.grid(3, 4, 32):
+            with T.block("Out"):
+                v1 = T.axis.spatial(3, ax0)
+                v2 = T.axis.spatial(512, axis2 * 4 + ax1)
+                v3 = T.axis.spatial(512, axis3 * 32 + ax2)
+                T.reads(B[v1 // 8, v2 // 4, v3 // 32, v1, v2 % 4 // 2, v3 % 32, v2 % 2])
+                T.writes(C[v1, v2, v3])
+                C[v1, v2, v3] = B[v1 // 8, v2 // 4, v3 // 32, v1, v2 % 4 // 2, v3 % 32, v2 % 2] * T.float32(2)
 
 
 @T.prim_func
@@ -1290,15 +1297,14 @@ def test_reverse_compute_at_floordiv_and_floormod_indices(use_block_name):
     verify_trace_roundtrip(sch=sch, mod=floordiv_and_floormod_indices)
 
 
-def test_reverse_compute_at_floordiv_and_floormod_indices_recursive(use_block_name):
-    sch = tir.Schedule(recursive_floordiv_and_floormod_indices, debug_mask="all")
-    A = sch.get_block("A")
-    B = sch.get_block("B")
-    sch.reverse_compute_at(B, sch.get_loops(A)[0])
+def test_reverse_compute_at_floordiv_and_floormod_recursive(use_block_name):
+    sch = tir.Schedule(recursive_floordiv_floormod, debug_mask="all")
+    write_block = sch.get_block("Out")
+    sch.reverse_compute_at(write_block, sch.get_loops("In")[2])
     tvm.ir.assert_structural_equal(
-        recursive_floordiv_and_floormod_indices_after_reverse_compute_at, sch.mod["main"]
+        recursive_floordiv_floormod_after_reverse_compute_at, sch.mod["main"]
     )
-    verify_trace_roundtrip(sch=sch, mod=recursive_floordiv_and_floormod_indices)
+    verify_trace_roundtrip(sch=sch, mod=recursive_floordiv_floormod)
 
 
 def test_read_out_of_bound(use_block_name):
