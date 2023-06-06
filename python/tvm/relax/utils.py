@@ -30,7 +30,13 @@ from .expr import Expr, ShapeExpr, Function, PrimValue, StringImm, te_tensor
 from .expr import _update_struct_info
 from ..te import Tensor as te_Tensor, create_relax_prim_func
 from ..ir import Array, Attrs, Type, Map
-from .struct_info import PrimStructInfo, ShapeStructInfo, TensorStructInfo, FuncStructInfo
+from .struct_info import (
+    PrimStructInfo,
+    ShapeStructInfo,
+    TensorStructInfo,
+    FuncStructInfo,
+    TupleStructInfo,
+)
 
 
 def metadata_partitioner(rx_txt: str) -> List[str]:
@@ -460,12 +466,11 @@ def gen_call_tir_inputs(
         return TensorStructInfo(_shape_with_old_tir_var(arg.shape, tir_var_inverse_map), arg.dtype)
 
     input_sinfo = [te_to_sinfo(arg) for arg in te_args]
-    if len(outs) == 1:
-        output_sinfo = te_to_sinfo(outs[0])
-    else:
-        output_sinfo = TupleStructInfo(output_sinfo=[te_to_sinfo(out) for out in outs])
+    output_sinfo = [te_to_sinfo(out) for out in outs]
 
-    primfunc_sinfo = FuncStructInfo(input_sinfo, output_sinfo)
+    primfunc_sinfo = FuncStructInfo(
+        input_sinfo, output_sinfo[0] if len(output_sinfo) == 1 else TupleStructInfo(output_sinfo)
+    )
     _update_struct_info(tir_func, primfunc_sinfo)
 
     tir_vars = None
