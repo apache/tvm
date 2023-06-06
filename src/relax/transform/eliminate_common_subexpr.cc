@@ -38,10 +38,11 @@ class SubexprCounter : public ExprVisitor {
     // 1. Vars of all kinds
     // 2. Op nodes (nothing we can do)
     // 3. PrimValue nodes (not much benefit from binding to a var)
-    // 4. Scalar constants (not much benefit from binding to a var)
+    // 4. StringImm nodes (not much benefit from binding to a var)
+    // 5. Scalar constants (not much benefit from binding to a var)
     if (!(e->IsInstance<VarNode>() || e->IsInstance<DataflowVarNode>() ||
           e->IsInstance<GlobalVarNode>() || e->IsInstance<tvm::OpNode>() ||
-          e->IsInstance<PrimValueNode>() ||
+          e->IsInstance<PrimValueNode>() || e->IsInstance<StringImmNode>() ||
           (e.as<ConstantNode>() && (e.as<ConstantNode>()->is_scalar())))) {
       int count = 0;
       if (count_map_.count(e)) {
