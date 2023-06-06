@@ -121,6 +121,23 @@ class onnx_input(list):  # pylint: disable=invalid-name
         raise TypeError("list indices must be integers or slices, not %s" % type(item).__name__)
 
 
+class OnnxParams(object):
+    """A wrapper class that allows converters to access parameters
+    and easily convert them constants when needed. This is useful
+    because in many cases onnx treats attributes as tensors. In
+    TVM, we'd rather get those as a constant rather than treat them
+    as true parameters.
+    """
+    def __init__(self, param_dict, input_dict):
+        """Prepare param and input dictionaries.
+
+        Arguments:
+        ----------
+        param_dict: Dict[str, ndarray]
+            A dictionary mapping parameter names to their
+        """
+
+
 # pylint: disable=invalid-name, len-as-condition, unused-argument, too-many-lines, redefined-builtin
 class OnnxOpConverter(object):
     """A helper class for holding the common logic for ONNX op converters.
@@ -1741,6 +1758,9 @@ class ONNXGraphImporter:
         The input shape to the graph
     dtype_dict : str or dict of str to str
         The input types to the graph
+    keep_params_in_input : bool
+        If True, parameters will be treated as input variables. If false,
+        parameters are treated as constant and folded directly into the graph.
     sanitize : bool
         Whether to sanitize the input names to be valid Relax identifiers.
     """
@@ -1751,6 +1771,7 @@ class ONNXGraphImporter:
         self,
         shape_dict: Dict[str, List],
         dtype_dict: Union[str, Dict[str, str]],
+        keep_params_in_input: bool = False,
         sanitize: bool = True,
     ):
         self._nodes: Dict[str, relax.Expr] = {}
@@ -1761,8 +1782,10 @@ class ONNXGraphImporter:
         self._dtype = dtype_dict
         self.opset: int = None
         self._name_supply = NameSupply()
+        self._keep_params_in_input = keep_params_in_input
         self._sanitize: bool = sanitize
         self.bb: relax.BlockBuilder = relax.BlockBuilder()  # pylint: disable=invalid-name
+        self._params = {}
 
     def from_onnx(self, graph: onnx.onnx_ml_pb2.ModelProto, opset: int) -> IRModule:
         """Construct Relax expressions from the ONNX graph.
@@ -1781,8 +1804,8 @@ class ONNXGraphImporter:
         with self.bb.function("main"):
             with self.bb.dataflow() as df:  # pylint: disable=invalid-name, unused-variable
                 self.opset = opset
-                self._parse_graph_initializers(graph)
                 self._parse_graph_input(graph)
+                self._parse_graph_initializers(graph)
                 self._check_for_unsupported_ops(graph)
                 self._construct_nodes(graph)
 
@@ -1790,20 +1813,37 @@ class ONNXGraphImporter:
                 outputs = [self._nodes[self._parse_value_proto(i)] for i in graph.output]
                 outputs = outputs[0] if len(outputs) == 1 else relax.Tuple(outputs)
 
-                # Create a function from our output expression and all input variables.
-                param_list = [v for k, v in self._inputs.items() if isinstance(v, relax.Var)]
                 output_var = self.bb.emit_output(outputs)
-            self.bb.emit_func_output(output_var, params=param_list)
+
+            # Create a function from our output expression and all input variables.
+            input_list = [value for name, value in self._inputs.items() if isinstance(value, relax.Var)]
+            # Attach params if they are available.
+            param_var_list, param_value_list = map(list, zip(*self._params.values()))
+
+            self.bb.emit_func_output(output_var, params=input_list + param_var_list)
+
         relax_mod = self.bb.get()
+        # Attach attributes.
+        relax_mod["main"] = relax_mod["main"].with_attrs({"num_input": self._num_input, "params": param_value_list})
         return relax_mod
 
     def _parse_graph_initializers(self, graph: onnx.onnx_ml_pb2.GraphProto):
         """Parse network inputs to relax, aka parameters."""
         for init_tensor in graph.initializer:
+            # There are two cases for handling parameters, they are either
+            # treated as variables or constants.
             if not init_tensor.name.strip():
                 raise ValueError("Tensor's name is required.")
             array = self._parse_array(init_tensor)
-            self._nodes[init_tensor.name] = relax.const(array)
+            # Create variables for constants.
+            if self._keep_params_in_input:
+                init_var = self._new_var(init_tensor.name, shape=array.shape, dtype=array.dtype)
+                self._nodes[init_tensor.name] = init_var
+                # We need to keep track of both the real value and variable for this variable.
+                self._params[init_tensor.name] = (init_var, array)
+            # Otherwise we can use the weight as a constant.
+            else:
+                self._nodes[init_tensor.name] = relax.const(array)
 
     def _sanitize_name(self, name: str) -> str:
         """Sanitize a name to make it a valid identifier.
@@ -1836,7 +1876,7 @@ class ONNXGraphImporter:
 
     def _new_var(self, var_name: str, shape: List, dtype: str = "float32"):
         """Creates a new Relax variable."""
-        return testing.nn.Parameter(shape=shape, dtype=dtype, name=var_name)
+        return relax.Var(name_hint=var_name, struct_info=relax.TensorStructInfo(shape=shape, dtype=dtype))
 
     def _parse_graph_input(self, graph: onnx.onnx_ml_pb2.GraphProto):
         """Parse model inputs to Relax parameters."""
@@ -1883,7 +1923,7 @@ class ONNXGraphImporter:
 
     def _construct_nodes(self, graph: onnx.onnx_ml_pb2.GraphProto):
         """Nodes are stored as directed acyclic graph."""
-        for node in enumerate(graph.node):
+        for node in graph.node:
             op_name = node.op_type
             attr = self._parse_attr(node.attribute)
             # Create and populate input list.
@@ -2018,6 +2058,7 @@ def from_onnx(
     shape_dict: Optional[Dict[str, List]] = None,
     dtype_dict: Optional[Union[str, Dict[str, str]]] = "float32",
     opset: int = None,
+    keep_params_in_input: bool = False,
     sanitize_input_names: bool = True,
 ) -> Tuple[IRModule, Dict]:
     """Convert a ONNX model into an equivalent Relax Function.
@@ -2036,6 +2077,9 @@ def from_onnx(
     opset : int, optional
         Override to autodetected opset.
         This can be helpful for some testing.
+    keep_params_in_input : bool
+        If True, parameters will be treated as input variables. If false,
+        parameters are treated as constant and folded directly into the graph.
     sanitize_input_names : bool, optional
         Whether to sanitize the input names to ensure they are valid Relax identifiers.
 
@@ -2067,7 +2111,7 @@ def from_onnx(
     except ImportError as error:
         raise ImportError("Unable to import onnx which is required {}".format(error))
 
-    g = ONNXGraphImporter(shape_dict, dtype_dict, sanitize_input_names)
+    g = ONNXGraphImporter(shape_dict, dtype_dict, keep_params_in_input=keep_params_in_input, sanitize=sanitize_input_names)
     graph = model.graph
 
     try:

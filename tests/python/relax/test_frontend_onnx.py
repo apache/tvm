@@ -99,16 +99,23 @@ def check_correctness(
     ort_output = ort_session.run([], inputs)
 
     # Convert the onnx model into relax through the onnx importer.
-    tvm_model = from_onnx(model, opset=opset)
+    tvm_model = from_onnx(model, opset=opset, keep_params_in_input=True)
     # Convert operators for inference mode.
     tvm_model = relax.transform.DecomposeOpsForInference()(tvm_model)
     # Legalize any relax ops into tensorir.
     tvm_model = relax.transform.LegalizeOps()(tvm_model)
+
+    tvm_model, params = relax.frontend.detach_params(tvm_model)
     # Compile the relax graph into a VM then run.
     with tvm.transform.PassContext(opt_level=3):
         ex = relax.build(tvm_model, target="llvm")
         vm = relax.VirtualMachine(ex, tvm.cpu())
-    vm.set_input("main", **inputs)
+    # Prepare inputs.
+    input_list = [inputs[key.name_hint] for key in tvm_model["main"].params if key.name_hint in inputs]
+    input_list += params["main"]
+
+    # Run model and check outputs.
+    vm.set_input("main", *input_list)
     vm.invoke_stateful("main")
     tvm_output = vm.get_outputs("main")
     # Wrap as a list if there is only one output.
@@ -231,26 +238,30 @@ def verify_ternary(op_name, shape_a, shape_b, shape_c, shape_d, attrs={}, domain
 def test_matmul(dynamic):
     matmul_node = helper.make_node("MatMul", ["a", "b"], ["c"])
 
-    tensor_size = [32, 32]
+    a_shape = [32, 48]
+    b_shape = [48, 64]
+    output_shape = [32, 64]
+
     if dynamic:
-        tensor_size = ["?", "?"]
+        a_shape = ["?", "?"]
 
     graph = helper.make_graph(
         [matmul_node],
         "matmul_test",
         inputs=[
-            helper.make_tensor_value_info("a", TensorProto.FLOAT, tensor_size),
-            helper.make_tensor_value_info("b", TensorProto.FLOAT, tensor_size),
+            helper.make_tensor_value_info("a", TensorProto.FLOAT, a_shape),
         ],
-        outputs=[helper.make_tensor_value_info("c", TensorProto.FLOAT, tensor_size)],
+        initializer=[
+            helper.make_tensor("b", TensorProto.FLOAT, b_shape, np.random.normal(size=b_shape).astype("float32"))
+        ],
+        outputs=[helper.make_tensor_value_info("c", TensorProto.FLOAT, output_shape)],
     )
 
     model = helper.make_model(graph, producer_name="matmul_test")
     inputs = None
     if dynamic:
         inputs = {
-            "a": np.random.normal(size=(32, 48)).astype("float32"),
-            "b": np.random.normal(size=(48, 64)).astype("float32"),
+            "a": np.random.normal(size=[32, 48]).astype("float32"),
         }
     check_correctness(model, inputs)
 
