@@ -636,9 +636,7 @@ class VMShapeLowerMutator
       return tuple_expr->fields[index];
     } else if (auto* tuple_sinfo = GetStructInfoAs<TupleStructInfoNode>(value)) {
       // value is tuple type, it is OK to run tuple get item.
-      auto ret = TupleGetItem(value, index);
-      UpdateStructInfo(ret, tuple_sinfo->fields[index]);
-      return ret;
+      return TupleGetItem(value, index);
     } else {
       // call runtime tuple get item, and return a object.
       Call call(builtin_tuple_getitem_, {value, PrimValue::Int64(index)}, Attrs(), {object_sinfo_});
