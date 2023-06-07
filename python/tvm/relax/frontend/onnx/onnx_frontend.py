@@ -64,10 +64,25 @@ def get_type(elem_type: Union[str, int]) -> str:
 
 def get_constant(
     var: Union[relax.Constant, relax.Var],
-    params: List[Dict[str, relax.Var], Dict[str, List[relax.Var, tvm.nd.array]]],
+    params: List[Dict[str, relax.Var]],
 ) -> Union[relax.Constant, relax.Var]:
     """Attempt to convert a variable to a constant if possible.
     This is the primary function meant to interact with params.
+
+    Parameters
+    ----------
+    var: Union[relax.Constant, relax.Var]
+        The input value to try to convert to a constant.
+    params: List[Dict[str, relax.Var]]
+        The parameters for the graph. Contains both the global registry of nodes
+        for the graph and the parameter dictionary. The global registry is updated
+        with a constant value if possible.
+
+    Returns
+    -------
+    var : Union[relax.Constant, relax.Var]
+        The input value converted to a constant if possible. If the value
+        isn't found in params, the input variable is returned unmodified.
     """
     # Params is actually both the graph nodes and param dictionary, unpack them.
     graph_nodes, params = params
