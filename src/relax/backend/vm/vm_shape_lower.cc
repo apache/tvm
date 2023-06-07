@@ -634,7 +634,7 @@ class VMShapeLowerMutator
   Expr MakeTupleGetItem(Expr value, int64_t index) {
     if (auto* tuple_expr = value.as<TupleNode>()) {
       return tuple_expr->fields[index];
-    } else if (auto* tuple_sinfo = GetStructInfoAs<TupleStructInfoNode>(value)) {
+    } else if (GetStructInfoAs<TupleStructInfoNode>(value)) {
       // value is tuple type, it is OK to run tuple get item.
       return TupleGetItem(value, index);
     } else {
