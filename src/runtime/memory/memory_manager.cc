@@ -171,16 +171,12 @@ NDArray Allocator::Empty(ShapeTuple shape, DLDataType dtype, DLDevice dev,
   VerifyDataType(dtype);
   NDArray::Container* container = new NDArray::Container(nullptr, shape, dtype, dev);
   container->SetDeleter(BufferDeleter);
-  size_t size = DeviceAPI::Get(dev)->GetDataSize(container->dl_tensor);
+  size_t size = DeviceAPI::Get(dev)->GetDataSize(container->dl_tensor, mem_scope);
   size_t alignment = GetDataAlignment(container->dl_tensor);
   Buffer* buffer = new Buffer;
-  if (!mem_scope.defined() || mem_scope.value().empty() || mem_scope.value() == "global") {
-    *buffer = this->Alloc(size, alignment, dtype);
-  } else {
-    *buffer = this->Alloc(shape, dtype, mem_scope.value());
-  }
-  container->manager_ctx = reinterpret_cast<void*>(buffer);
+  *buffer = this->Alloc(size, alignment, dtype);
   container->dl_tensor.data = buffer->data;
+  container->manager_ctx = reinterpret_cast<void*>(buffer);
   return NDArray(GetObjectPtr<Object>(container));
 }
 

@@ -370,6 +370,7 @@ TVM_REGISTER_TARGET_KIND("opencl", kDLOpenCL)
     // specify any limitations on the number of kernel arguments. max_function_args
     // equals to 128 looks like a reasonable number of kernel arguments.
     .add_attr_option<Integer>("max_function_args", Integer(128))
+    .add_attr_option<Integer>("image_base_address_alignment", Integer(64))
     .set_default_keys({"opencl", "gpu"});
 
 // The metal has some limitations on the number of input parameters. This is why attribute

@@ -160,8 +160,9 @@ void VulkanDeviceAPI::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) 
       *rv = os.str();
       break;
     }
-
     case kL2CacheSizeBytes:
+      break;
+    case kImagePitchAlignment:
       break;
   }
 }

@@ -129,9 +129,11 @@ class NDArray : public ObjectRef {
    * \brief Create a NDArray that shares the data memory with the current one.
    * \param shape The shape of the new array.
    * \param dtype The data type of the new array.
+   * \param mem_scope The memory scope of the array.
    * \note The memory size of new array must be smaller than the current one.
    */
-  TVM_DLL NDArray CreateView(ShapeTuple shape, DLDataType dtype);
+  TVM_DLL NDArray CreateView(ShapeTuple shape, DLDataType dtype,
+                             Optional<String> mem_scope = NullOpt);
   /*!
    * \brief Create a reference view of NDArray that
    *  represents as DLManagedTensor.

@@ -160,6 +160,12 @@ class Storage : public ObjectRef {
 };
 
 }  // namespace memory
+
+using memory::Allocator;
+using memory::AllocatorType;
+using memory::MemoryManager;
+using memory::StorageObj;
+
 }  // namespace runtime
 }  // namespace tvm
 
