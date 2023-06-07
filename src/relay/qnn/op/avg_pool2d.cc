@@ -171,12 +171,15 @@ Expr QnnAvgPoolCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   const auto* avgpool_attrs = attrs.as<AvgPool2DAttrs>();
   auto requantized_input = RequantizeOrUpcast(input_data, input_scale, input_zero_point,
                                               output_scale, output_zero_point, in_shape);
-  Expr nnAvg = AvgPool2D(requantized_input, avgpool_attrs->pool_size, avgpool_attrs->strides,
-                         avgpool_attrs->dilation, avgpool_attrs->padding, avgpool_attrs->layout,
-                         avgpool_attrs->out_layout, avgpool_attrs->ceil_mode,
-                         avgpool_attrs->count_include_pad);
+  Expr nn_avg = AvgPool2D(requantized_input, avgpool_attrs->pool_size, avgpool_attrs->strides,
+                          avgpool_attrs->dilation, avgpool_attrs->padding, avgpool_attrs->layout,
+                          avgpool_attrs->out_layout, avgpool_attrs->ceil_mode,
+                          avgpool_attrs->count_include_pad);
+
   const auto* data = arg_types[5].as<TensorTypeNode>();
-  return Cast(nnAvg, data->dtype);
+  const int32_t min_val = GetQmin(data->dtype);
+  const int32_t max_val = GetQmax(data->dtype);
+  return Cast(Clip(nn_avg, min_val, max_val), data->dtype);
 }
 
 // Positional relay function to create quantized avg_pool2d operator used by frontend FFI.
