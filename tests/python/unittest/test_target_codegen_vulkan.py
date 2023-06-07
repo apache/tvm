@@ -28,7 +28,7 @@ import tvm
 import tvm.testing
 from tvm import relay, te
 from tvm.topi.math import cast
-from tvm.script import tir as T
+from tvm.script import tir as T, ir as I
 from tvm.tir import TensorIntrin, IntImm, Cast, Schedule
 from tvm.tir.tensor_intrin.cuda import (
     WMMA_LOAD_16x16x16_F16_A_INTRIN,
@@ -726,6 +726,23 @@ def test_cooperative_matrix(out_dtype):
         ref = np.dot(A_np.astype("float32"), B_np.astype("float32"))
 
         tvm.testing.assert_allclose(C.numpy(), ref, rtol=1e-2, atol=1e-2)
+
+
+@tvm.testing.requires_vulkan(support_required="compile-only")
+def test_codegen_decl_buffer():
+    """The codegen should accept DeclBuffer nodes in its input"""
+
+    @I.ir_module
+    class mod:
+        @T.prim_func
+        def kernel():
+            T.func_attr({"calling_conv": 2, "global_symbol": "kernel", "tir.noalias": True})
+            A_data = T.allocate([256], dtype="float32", scope="local")
+            A_buf = T.decl_buffer([256], dtype="float32", scope="local", data=A_data)
+
+    target = tvm.target.Target("vulkan")
+    vulkan_codegen = tvm.get_global_func("target.build.vulkan")
+    vulkan_codegen(mod, target)
 
 
 if __name__ == "__main__":
