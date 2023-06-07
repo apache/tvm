@@ -43,7 +43,6 @@ import tvm
 from tvm import relax, topi
 from tvm.ir import IRModule
 from tvm.ir.supply import NameSupply
-from tvm.relax import testing
 
 import onnx.onnx_ml_pb2
 
