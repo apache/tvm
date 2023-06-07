@@ -230,7 +230,6 @@ def test_cse_outside_dataflow():
     verify(Before, Expected)
 
 
-
 def test_do_not_eliminate_impure():
     @I.ir_module
     class Before:
@@ -262,6 +261,7 @@ def test_do_not_eliminate_impure():
             return gv
 
     verify(Before, Expected)
+
 
 if __name__ == "__main__":
     tvm.testing.main()
