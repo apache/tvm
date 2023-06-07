@@ -105,14 +105,18 @@ def check_correctness(
     # Legalize any relax ops into tensorir.
     tvm_model = relax.transform.LegalizeOps()(tvm_model)
 
+    # Separate model from parameters.
     tvm_model, params = relax.frontend.detach_params(tvm_model)
     # Compile the relax graph into a VM then run.
     with tvm.transform.PassContext(opt_level=3):
         ex = relax.build(tvm_model, target="llvm")
         vm = relax.VirtualMachine(ex, tvm.cpu())
     # Prepare inputs.
-    input_list = [inputs[key.name_hint] for key in tvm_model["main"].params if key.name_hint in inputs]
-    input_list += params["main"]
+    input_list = [
+        inputs[key.name_hint] for key in tvm_model["main"].params if key.name_hint in inputs
+    ]
+    if params:
+        input_list += params["main"]
 
     # Run model and check outputs.
     vm.set_input("main", *input_list)
@@ -252,7 +256,9 @@ def test_matmul(dynamic):
             helper.make_tensor_value_info("a", TensorProto.FLOAT, a_shape),
         ],
         initializer=[
-            helper.make_tensor("b", TensorProto.FLOAT, b_shape, np.random.normal(size=b_shape).astype("float32"))
+            helper.make_tensor(
+                "b", TensorProto.FLOAT, b_shape, np.random.normal(size=b_shape).astype("float32")
+            )
         ],
         outputs=[helper.make_tensor_value_info("c", TensorProto.FLOAT, output_shape)],
     )
