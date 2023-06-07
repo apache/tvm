@@ -52,9 +52,7 @@ class CublasJSONRuntime : public JSONRuntimeBase {
   const char* type_key() const override { return "cublas_json"; }  // May be overridden
 
   void Run() override {
-    // TODO(masahi): Reuse the same handle across different subgraphs
-    cublasLtHandle_t handle;
-    cublasLtCreate(&handle);
+    auto* entry_ptr = tvm::contrib::CuBlasLtThreadEntry::ThreadLocal();
 
     for (size_t i = 0; i < nodes_.size(); ++i) {
       const auto& node = nodes_[i];
@@ -88,11 +86,10 @@ class CublasJSONRuntime : public JSONRuntimeBase {
 
         auto [a_ptr, b_ptr, bias_ptr] = get_inputs(node, epilogue != CUBLASLT_EPILOGUE_DEFAULT);
 
-        tvm::contrib::CallCublasLt(handle, a_ptr, b_ptr, bias_ptr, out_ptr, transa, transb,
-                                   epilogue);
+        tvm::contrib::CallCublasLt(entry_ptr->handle, a_ptr, b_ptr, bias_ptr, out_ptr, transa,
+                                   transb, epilogue);
       }
     }
-    cublasLtDestroy(handle);
   }
 
  private:
