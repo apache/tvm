@@ -439,8 +439,12 @@ class TestKeras:
         x = keras_mod.layers.Cropping2D(cropping=((0, 1), (1, 0)))(x)
         x = keras_mod.layers.Cropping2D(cropping=(1, 0))(x)
         x = keras_mod.layers.Cropping2D(cropping=0)(x)
-        x = keras_mod.layers.Cropping2D(cropping=(2, 1))(x)
         x = keras_mod.layers.Add()([x, x])
+        keras_model = keras_mod.models.Model(data, x)
+        verify_keras_frontend(keras_model)
+
+        x = keras_mod.layers.Cropping2D(cropping=(2, 1))
+        x = keras_mod.layers.Cropping2D(cropping=(1, 2))(x)
         keras_model = keras_mod.models.Model(data, x)
         verify_keras_frontend(keras_model)
 
