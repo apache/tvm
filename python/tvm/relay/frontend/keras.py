@@ -421,7 +421,7 @@ def _convert_convolution(inexpr, keras_layer, etab, data_layout, input_shape=Non
         params["groups"] = in_channels
     else:
         params["channels"] = n_filters
-    if is_deconv:
+    if is_deconv and keras_layer.output_padding:
         params["output_padding"] = keras_layer.output_padding
     if keras_layer.padding == "valid":
         pass
@@ -509,7 +509,7 @@ def _convert_convolution3d(inexpr, keras_layer, etab, data_layout, input_shape=N
         "kernel_layout": kernel_layout,
     }
     params["channels"] = n_filters
-    if is_deconv:
+    if is_deconv and keras_layer.output_padding:
         params["output_padding"] = keras_layer.output_padding
 
     if keras_layer.padding == "valid":
