@@ -167,11 +167,58 @@ class AttentionKVCache : public ObjectRef {
 
 TVM_REGISTER_OBJECT_TYPE(AttentionKVCacheObj);
 
+/*!
+ * \brief Create multiple kv caches with same shape, from single memory allocation.
+ * \param init_data The initial data to put into the cache. Ignored if init_fill_count is
+ *        less than 0.
+ * \param reserve_shape The shape of cache.
+ * \param init_fill_count The initial row to fill into
+ *        the cache.
+ * \param num_caches Number of caches to create.
+ */
+Array<AttentionKVCache> CreateMultipleKVCaches(NDArray init_data, ShapeTuple reserve_shape,
+                                               int init_fill_count, int num_caches) {
+  DLDataType dtype = init_data->dtype;
+
+  int64_t cache_size = (dtype.bits * dtype.lanes + 7) / 8;
+  for (const auto dim : reserve_shape) {
+    cache_size *= dim;
+  }
+
+  // Add padding to make each cache align to kAllocAlignment
+  using tvm::runtime::kAllocAlignment;
+  int64_t padding = (kAllocAlignment - cache_size % kAllocAlignment) % kAllocAlignment;
+  int64_t cache_offset = cache_size + padding;
+
+  auto block = NDArray::Empty(ShapeTuple({cache_offset * num_caches}), dtype, init_data->device);
+  auto block_view = block.CreateView(reserve_shape, dtype);
+
+  Array<AttentionKVCache> result;
+  for (int i = 0; i < num_caches; ++i) {
+    // Use DLManagedTensor to prevent underlying memory from being freed
+    DLManagedTensor* data_view = block_view.ToDLPack();
+    data_view->dl_tensor.data = (void*)((char*)(data_view->dl_tensor.data) + i * cache_offset);
+
+    auto c = make_object<AttentionKVCacheObj>();
+    c->data = NDArray::FromDLPack(data_view);
+    c->fill_count = 0;
+    if (init_fill_count > 0) {
+      c->Append(init_data);
+      c->fill_count = init_fill_count;
+    }
+    result.push_back(AttentionKVCache(c));
+  }
+  return result;
+}
+
 //-------------------------------------------------
 //  Register runtime functions
 //-------------------------------------------------
 TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_create")
     .set_body_typed(AttentionKVCache::Create);
+
+TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_create_multiple")
+    .set_body_typed(CreateMultipleKVCaches);
 
 AttentionKVCache AttentionKVCacheUpdate(AttentionKVCache cache, NDArray value) {
   cache->Update(value);

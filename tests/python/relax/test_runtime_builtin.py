@@ -158,14 +158,38 @@ def test_attention_kv_cache():
     fview = tvm.get_global_func("vm.builtin.attention_kv_cache_view")
 
     cache = fcreate(tvm.nd.empty((1, 2), dtype="int32"), tvm.runtime.ShapeTuple([2, 2]), 0)
-    num_steps = 0
+    num_steps = 2
     for i in range(num_steps):
-        cache = fappend(cache, tvm.nd.array(i * np.ones((1, 2).astype("int32"))))
+        cache = fappend(cache, tvm.nd.array(i * np.ones((1, 2)).astype("int32")))
 
     res = fview(cache, tvm.runtime.ShapeTuple((num_steps, 2))).numpy()
     for i in range(num_steps):
         assert res[i][0] == i
         assert res[i][1] == i
+
+
+def test_attention_kv_cache_create_multiple():
+    fcreate = tvm.get_global_func("vm.builtin.attention_kv_cache_create_multiple")
+    fappend = tvm.get_global_func("vm.builtin.attention_kv_cache_append")
+    fview = tvm.get_global_func("vm.builtin.attention_kv_cache_view")
+
+    num_caches = 4
+    cache_group = fcreate(
+        tvm.nd.empty((1, 2), dtype="int32"), tvm.runtime.ShapeTuple([7, 2]), 0, num_caches
+    )
+
+    num_steps = 7
+    for i in range(num_steps):
+        for cache_index in range(num_caches):
+            fappend(
+                cache_group[cache_index],
+                tvm.nd.array(i * cache_index * np.ones((1, 2)).astype("int32")),
+            )
+            res = fview(cache_group[cache_index], tvm.runtime.ShapeTuple((i + 1, 2))).numpy()
+            # Also verify that the old values aren't corrupted
+            for j in range(i):
+                assert res[j][0] == j * cache_index
+                assert res[j][1] == j * cache_index
 
 
 def test_ndarray_cache():
