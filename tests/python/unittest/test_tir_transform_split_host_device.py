@@ -46,6 +46,7 @@ def test_split_host_device_func_attr():
         [
             tvm.tir.transform.AnnotateDeviceRegions(),
             tvm.tir.transform.SplitHostDevice(),
+            tvm.tir.transform.MakePackedAPI(),
             tvm.tir.transform.LowerDeviceKernelLaunch(),
         ]
     )(mod)
@@ -111,7 +112,7 @@ class TestSplitHostDevice(BaseCompare):
         class mod:
             @T.prim_func
             def main(n: T.int32):
-                T.func_attr({"target": T.target("llvm -opt-level=0")})
+                T.func_attr({"target": T.target("cuda", host="llvm -opt-level=0")})
                 mod.main_kernel(n)
 
             @T.prim_func
@@ -168,20 +169,19 @@ class TestSplitHostDeviceWithoutFuncHostAttribute(BaseCompare):
         return mod
 
 
-class TestSplitHostDevice(BaseCompare):
+class TestSplitHostDeviceWithoutDeviceRegion(BaseCompare):
     """Like TestSplitHostDevice, but no device regions to extract
 
-    Even if there are no device regions, the host-side function should
-    still have its "target" attribute updated.
+    Because MakePackedAPI/MakeUnpackedAPI still require both the
+    device and host, SplitHostDevice does not modify the "target"
+    attribute.
     """
 
     def before():
         T.func_attr({"target": T.target("ext_dev", host="llvm")})
         T.evaluate(0)
 
-    def expected():
-        T.func_attr({"target": T.target("llvm")})
-        T.evaluate(0)
+    expected = before
 
 
 if __name__ == "__main__":
