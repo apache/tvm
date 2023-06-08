@@ -168,7 +168,7 @@ class PaddingInfoAnalyzer {
     }
     for (const arith::IterSumExpr& sum : res->indices) {
       if (sum->args.empty()) {
-        region.push_back(Range::FromMinExtent(sum->base, 1));
+        region.push_back(Range::FromMinExtent(sum->base, IntImm(sum->base.dtype(), /* value */ 1)));
       } else {
         ICHECK_EQ(sum->args.size(), 1U);
         if (!analyzer_->CanProveEqual(sum->args[0]->scale, 1)) {
