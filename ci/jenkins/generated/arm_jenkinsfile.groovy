@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2023-06-02T10:54:19.255872
+// Generated at 2023-05-05T13:39:06.460410
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -577,17 +577,17 @@ def build(node_type) {
   }
 }
 try {
-    build('ARM-GRAVITON3-SPOT')
+    build('ARM-SMALL-SPOT')
 } catch (Exception ex) {
-    build('ARM-GRAVITON3')
+    build('ARM-SMALL')
 }
 
 
 
-def shard_run_integration_aarch64_1_of_4(node_type='ARM-GRAVITON3-SPOT', on_demand=false) {
+def shard_run_integration_aarch64_1_of_4(node_type='ARM-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
     if (on_demand==true || node_type.contains('ARM')) {
-        node_type = 'ARM-GRAVITON3'
+        node_type = 'ARM-SMALL'
     }
     node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
@@ -633,10 +633,10 @@ def shard_run_integration_aarch64_1_of_4(node_type='ARM-GRAVITON3-SPOT', on_dema
   }
 }
 
-def shard_run_integration_aarch64_2_of_4(node_type='ARM-GRAVITON3-SPOT', on_demand=false) {
+def shard_run_integration_aarch64_2_of_4(node_type='ARM-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
     if (on_demand==true || node_type.contains('ARM')) {
-        node_type = 'ARM-GRAVITON3'
+        node_type = 'ARM-SMALL'
     }
     node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
@@ -682,10 +682,10 @@ def shard_run_integration_aarch64_2_of_4(node_type='ARM-GRAVITON3-SPOT', on_dema
   }
 }
 
-def shard_run_integration_aarch64_3_of_4(node_type='ARM-GRAVITON3-SPOT', on_demand=false) {
+def shard_run_integration_aarch64_3_of_4(node_type='ARM-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
     if (on_demand==true || node_type.contains('ARM')) {
-        node_type = 'ARM-GRAVITON3'
+        node_type = 'ARM-SMALL'
     }
     node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
@@ -731,10 +731,10 @@ def shard_run_integration_aarch64_3_of_4(node_type='ARM-GRAVITON3-SPOT', on_dema
   }
 }
 
-def shard_run_integration_aarch64_4_of_4(node_type='ARM-GRAVITON3-SPOT', on_demand=false) {
+def shard_run_integration_aarch64_4_of_4(node_type='ARM-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
     if (on_demand==true || node_type.contains('ARM')) {
-        node_type = 'ARM-GRAVITON3'
+        node_type = 'ARM-SMALL'
     }
     node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
@@ -782,10 +782,10 @@ def shard_run_integration_aarch64_4_of_4(node_type='ARM-GRAVITON3-SPOT', on_dema
 
 
 
-def shard_run_topi_aarch64_1_of_2(node_type='ARM-GRAVITON3-SPOT', on_demand=false) {
+def shard_run_topi_aarch64_1_of_2(node_type='ARM-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
     if (on_demand==true || node_type.contains('ARM')) {
-        node_type = 'ARM-GRAVITON3'
+        node_type = 'ARM-SMALL'
     }
     node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
@@ -836,10 +836,10 @@ def shard_run_topi_aarch64_1_of_2(node_type='ARM-GRAVITON3-SPOT', on_demand=fals
   }
 }
 
-def shard_run_topi_aarch64_2_of_2(node_type='ARM-GRAVITON3-SPOT', on_demand=false) {
+def shard_run_topi_aarch64_2_of_2(node_type='ARM-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
     if (on_demand==true || node_type.contains('ARM')) {
-        node_type = 'ARM-GRAVITON3'
+        node_type = 'ARM-SMALL'
     }
     node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
@@ -890,10 +890,10 @@ def shard_run_topi_aarch64_2_of_2(node_type='ARM-GRAVITON3-SPOT', on_demand=fals
 
 
 
-def shard_run_frontend_aarch64_1_of_2(node_type='ARM-GRAVITON3-SPOT', on_demand=false) {
+def shard_run_frontend_aarch64_1_of_2(node_type='ARM-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
     if (on_demand==true || node_type.contains('ARM')) {
-        node_type = 'ARM-GRAVITON3'
+        node_type = 'ARM-SMALL'
     }
     node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/frontend-python-arm") {
@@ -938,10 +938,10 @@ def shard_run_frontend_aarch64_1_of_2(node_type='ARM-GRAVITON3-SPOT', on_demand=
   }
 }
 
-def shard_run_frontend_aarch64_2_of_2(node_type='ARM-GRAVITON3-SPOT', on_demand=false) {
+def shard_run_frontend_aarch64_2_of_2(node_type='ARM-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
     if (on_demand==true || node_type.contains('ARM')) {
-        node_type = 'ARM-GRAVITON3'
+        node_type = 'ARM-SMALL'
     }
     node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/frontend-python-arm") {
