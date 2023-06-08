@@ -321,6 +321,9 @@ class TestKeras:
         data = keras_mod.layers.Input(shape=(32, 32, 128))
         conv_funcs = [
             keras_mod.layers.Conv2DTranspose(filters=64, kernel_size=(2, 2), padding="valid"),
+            keras_mod.layers.Conv2DTranspose(
+                filters=2, kernel_size=(3, 3), strides=(2, 2), output_padding=(1, 1)
+            ),
         ]
         for conv_func in conv_funcs:
             x = conv_func(data)
@@ -619,6 +622,9 @@ class TestKeras:
                 filters=1, kernel_size=(3, 3, 3), padding="valid", use_bias=False
             ),
             keras_mod.layers.Conv3DTranspose(filters=10, kernel_size=(2, 2, 2), padding="valid"),
+            keras_mod.layers.Conv3DTranspose(
+                filters=2, kernel_size=(3, 3, 3), strides=(2, 2, 2), output_padding=(1, 1, 1)
+            ),
         ]
         for conv_func in conv_funcs:
             x = conv_func(data)
