@@ -40,6 +40,7 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/memory.h>
 #include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/relax_vm/memory_manager.h>
 #include <tvm/runtime/relax_vm/vm.h>
 
 #include <cmath>
@@ -190,17 +191,14 @@ Array<AttentionKVCache> CreateMultipleKVCaches(NDArray init_data, ShapeTuple res
   int64_t padding = (kAllocAlignment - cache_size % kAllocAlignment) % kAllocAlignment;
   int64_t cache_offset = cache_size + padding;
 
-  auto block = NDArray::Empty(ShapeTuple({cache_offset * num_caches}), dtype, init_data->device);
-  auto block_view = block.CreateView(reserve_shape, dtype);
+  Storage storage =
+      Storage(MemoryManager::GetOrCreateAllocator(init_data->device, AllocatorType::kNaive)
+                  ->Alloc(cache_offset * num_caches, kAllocAlignment, dtype));
 
   Array<AttentionKVCache> result;
   for (int i = 0; i < num_caches; ++i) {
-    // Use DLManagedTensor to prevent underlying memory from being freed
-    DLManagedTensor* data_view = block_view.ToDLPack();
-    data_view->dl_tensor.data = (void*)((char*)(data_view->dl_tensor.data) + i * cache_offset);
-
     auto c = make_object<AttentionKVCacheObj>();
-    c->data = NDArray::FromDLPack(data_view);
+    c->data = storage->AllocNDArray(i * cache_offset, reserve_shape, dtype);
     c->fill_count = 0;
     if (init_fill_count > 0) {
       c->Append(init_data);
