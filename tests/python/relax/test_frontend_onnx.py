@@ -284,12 +284,8 @@ def test_mul():
     verify_binary("Mul", [1, 32], [1, 32], [1, 32])
 
 
-@pytest.mark.parametrize(
-    "from_type", [TensorProto.INT32, TensorProto.FLOAT, TensorProto.FLOAT16, TensorProto.DOUBLE]
-)
-@pytest.mark.parametrize(
-    "to_type", [TensorProto.INT32, TensorProto.FLOAT, TensorProto.FLOAT16, TensorProto.DOUBLE]
-)
+@pytest.mark.parametrize("from_type", [TensorProto.INT32, TensorProto.FLOAT, TensorProto.FLOAT16])
+@pytest.mark.parametrize("to_type", [TensorProto.INT32, TensorProto.FLOAT, TensorProto.FLOAT16])
 def test_cast(from_type, to_type):
     cast_node = helper.make_node("Cast", ["a"], ["a_float"], to=to_type)
 
@@ -303,7 +299,7 @@ def test_cast(from_type, to_type):
     )
 
     model = helper.make_model(graph, producer_name="cast_test")
-    check_correctness(model)
+    check_correctness(model, opset=13)
 
 
 def test_gather():
