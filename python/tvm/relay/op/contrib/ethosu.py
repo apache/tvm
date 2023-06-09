@@ -2348,6 +2348,8 @@ def partition_for_ethosu(
 
     pattern = relay.op.contrib.get_pattern_table("ethos-u")
     mod = relay.transform.InferType()(mod)
+    mod = relay.transform.replicate_pads(mod)
+    mod = relay.transform.InferType()(mod)
     mod = relay.transform.MergeComposite(pattern)(mod)
     mod = relay.transform.AnnotateTarget("ethos-u")(mod)
     mod = relay.transform.MergeCompilerRegions()(mod)

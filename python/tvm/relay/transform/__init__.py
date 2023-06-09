@@ -18,6 +18,7 @@
 """The Relay IR namespace containing transformations."""
 # transformation passes
 from .transform import *
+from .replicate_pads_with_multiple_consumers import *
 from .recast import recast
 from . import fake_quantization_to_integer, mixed_precision
 from .flexible_shape import FlexibleShapeDispatch
