@@ -223,6 +223,14 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   }();
   int target_device_type = target->GetTargetDeviceType();
 
+  // A function without a host target has already been lowered.
+  Target target_host;
+  if (auto opt = target->GetHost()) {
+    target_host = opt.value();
+  } else {
+    return func;
+  }
+
   auto* func_ptr = func.CopyOnWrite();
   const Stmt nop = Evaluate(0);
   int num_args = static_cast<int>(func_ptr->params.size());
@@ -325,7 +333,8 @@ PrimFunc MakePackedAPI(PrimFunc func) {
                         name_hint + "." + kv.first->name_hint);
   }
 
-  func = WithAttr(std::move(func), tvm::attr::kCallingConv, Integer(CallingConv::kCPackedFunc));
+  func = WithAttrs(std::move(func), {{tvm::attr::kCallingConv, Integer(CallingConv::kCPackedFunc)},
+                                     {tvm::attr::kTarget, target_host}});
 
   Stmt body = RewriteReturn(func_ptr->body, v_out_ret_value, v_out_ret_tcode);
   body = AttrStmt(make_zero(DataType::Int(32)), attr::compute_scope,
