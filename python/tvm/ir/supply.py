@@ -32,7 +32,7 @@ class NameSupply(Object):
     def __init__(self, prefix=""):
         self.__init_handle_by_constructor__(_ffi_api.NameSupply, prefix)
 
-    def fresh_name(self, name, add_prefix=True):
+    def fresh_name(self, name, add_prefix=True, add_underscore=True):
         """Generates a unique name from this NameSupply.
 
         Parameters
@@ -42,8 +42,11 @@ class NameSupply(Object):
 
         add_prefix: bool
             If set to true, then the prefix of this NameSupply will be prepended to the name.
+
+        add_underscore: bool
+            If set to True, adds '_' between prefix and digit.
         """
-        return _ffi_api.NameSupply_FreshName(self, name, add_prefix)
+        return _ffi_api.NameSupply_FreshName(self, name, add_prefix, add_underscore)
 
     def reserve_name(self, name, add_prefix=True):
         """Reserves an existing name with this NameSupply.
