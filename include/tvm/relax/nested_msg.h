@@ -330,7 +330,6 @@ NestedMsg<T> MapToNestedMsgBySInfo(Expr expr, FType fmapleaf) {
         field = expr_tuple->fields[i];
       } else {
         field = TupleGetItem(expr, i);
-        UpdateStructInfo(field, tuple->fields[i]);
       }
       res.push_back(MapToNestedMsgBySInfo<T, FType>(field, fmapleaf));
     }
@@ -513,7 +512,6 @@ Expr TransformTupleLeaf(Expr expr, std::array<NestedMsg<T>, N> msgs, FType ftran
         field = expr_tuple->fields[i];
       } else {
         field = TupleGetItem(expr, i);
-        UpdateStructInfo(field, tuple->fields[i]);
       }
       std::array<NestedMsg<T>, N> sub_msgs;
       for (size_t j = 0; j < N; ++j) {
