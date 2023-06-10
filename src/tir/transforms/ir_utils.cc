@@ -75,6 +75,11 @@ Stmt MergeNest(const std::vector<Stmt>& nest, Stmt body) {
       ICHECK(is_no_op(n->body));
       n->body = body;
       body = Stmt(n);
+    } else if (const auto* alloc = s.as<AllocateConstNode>()) {
+      auto n = make_object<AllocateConstNode>(*alloc);
+      ICHECK(is_no_op(n->body));
+      n->body = body;
+      body = Stmt(n);
     } else if (const auto* decl_buffer = s.as<DeclBufferNode>()) {
       auto n = make_object<DeclBufferNode>(*decl_buffer);
       ICHECK(is_no_op(n->body));

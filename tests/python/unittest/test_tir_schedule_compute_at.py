@@ -1672,5 +1672,104 @@ def test_reverse_compute_at_layout_trans():
     verify_trace_roundtrip(sch=sch, mod=before)
 
 
+@pytest.mark.parametrize("use_decl_buffer", [True, False])
+@pytest.mark.parametrize("use_reverse_compute_at", [True, False])
+def test_compute_at_allocate_const(use_decl_buffer, use_reverse_compute_at):
+    def apply_decl_buffer(*args, **kwargs):
+        if use_decl_buffer:
+            return T.decl_buffer(*args, **kwargs)
+        else:
+            return T.Buffer(*args, **kwargs)
+
+    @T.prim_func
+    def before(A: T.Buffer([4, 256], "float32"), C: T.Buffer([4, 256], "float32")):
+        B = T.alloc_buffer([4])
+
+        offset_ptr = T.allocate_const([1.0, 2.0, 3.0, 4.0], dtype="float32", extents=[4])
+        offset = apply_decl_buffer([4], data=offset_ptr)
+        for i in range(4):
+            with T.block("compute_B"):
+                vi = T.axis.remap("S", [i])
+                B[vi] = 10.0 * vi + offset[vi]
+
+        for i, j in T.grid(4, 256):
+            with T.block("compute_C"):
+                vi, vj = T.axis.remap("SS", [i, j])
+                C[vi, vj] = B[vi] + 100.0 * vj
+
+    @T.prim_func
+    def expected(A: T.Buffer([4, 256], "float32"), C: T.Buffer([4, 256], "float32")):
+        B = T.alloc_buffer([4])
+
+        offset_ptr = T.allocate_const([1.0, 2.0, 3.0, 4.0], dtype="float32", extents=[4])
+        offset = apply_decl_buffer([4], data=offset_ptr)
+        for i in range(4):
+            with T.block("compute_B"):
+                vi = T.axis.remap("S", [i])
+                B[vi] = 10.0 * vi + offset[vi]
+
+            for j in range(256):
+                with T.block("compute_C"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    C[vi, vj] = B[vi] + 100.0 * vj
+
+    sch = tir.Schedule(before, debug_mask="all")
+    if use_reverse_compute_at:
+        block = sch.get_block("compute_C")
+        axis = sch.get_loops("compute_B")[0]
+        sch.reverse_compute_at(block, axis)
+    else:
+        block = sch.get_block("compute_B")
+        axis = sch.get_loops("compute_C")[0]
+        sch.compute_at(block, axis)
+
+    after = sch.mod["main"]
+
+    tvm.ir.assert_structural_equal(expected, after)
+    verify_trace_roundtrip(sch=sch, mod=before)
+
+
+@pytest.mark.parametrize("use_decl_buffer", [True, False])
+def test_compute_inline_allocate_const(use_decl_buffer):
+    def apply_decl_buffer(*args, **kwargs):
+        if use_decl_buffer:
+            return T.decl_buffer(*args, **kwargs)
+        else:
+            return T.Buffer(*args, **kwargs)
+
+    @T.prim_func
+    def before(A: T.Buffer([4, 256], "float32"), C: T.Buffer([4, 256], "float32")):
+        B = T.alloc_buffer([4])
+
+        offset_ptr = T.allocate_const([1.0, 2.0, 3.0, 4.0], dtype="float32", extents=[4])
+        offset = apply_decl_buffer([4], data=offset_ptr)
+        for i in range(4):
+            with T.block("compute_B"):
+                vi = T.axis.remap("S", [i])
+                B[vi] = 10.0 * vi + offset[vi]
+
+        for i, j in T.grid(4, 256):
+            with T.block("compute_C"):
+                vi, vj = T.axis.remap("SS", [i, j])
+                C[vi, vj] = B[vi] + 100.0 * vj
+
+    @T.prim_func
+    def expected(A: T.Buffer([4, 256], "float32"), C: T.Buffer([4, 256], "float32")):
+        offset_ptr = T.allocate_const([1.0, 2.0, 3.0, 4.0], dtype="float32", extents=[4])
+        offset = apply_decl_buffer([4], data=offset_ptr)
+        for i, j in T.grid(4, 256):
+            with T.block("compute_C"):
+                vi, vj = T.axis.remap("SS", [i, j])
+                C[vi, vj] = (10.0 * vi + offset[vi]) + 100.0 * vj
+
+    sch = tir.Schedule(before, debug_mask="all")
+    block = sch.get_block("compute_B")
+    sch.compute_inline(block)
+    after = sch.mod["main"]
+
+    tvm.ir.assert_structural_equal(expected, after)
+    verify_trace_roundtrip(sch=sch, mod=before)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
