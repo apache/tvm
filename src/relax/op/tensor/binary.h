@@ -107,6 +107,28 @@ Expr minimum(Expr x1, Expr x2);
 /*! \brief Element-wise maximum */
 Expr maximum(Expr x1, Expr x2);
 
+/***************** Logical operators *****************/
+
+/*! \brief Broadcasted element-wise logical and */
+Expr logical_and(Expr x1, Expr x2);
+
+/*! \brief Broadcasted element-wise logical or */
+Expr logical_or(Expr x1, Expr x2);
+
+/*! \brief Broadcasted element-wise logical xor */
+Expr logical_xor(Expr x1, Expr x2);
+
+/***************** Bitwise operators *****************/
+
+/*! \brief Broadcasted element-wise bitwise and */
+Expr bitwise_and(Expr x1, Expr x2);
+
+/*! \brief Broadcasted element-wise bitwise or */
+Expr bitwise_or(Expr x1, Expr x2);
+
+/*! \brief Broadcasted element-wise bitwise xor */
+Expr bitwise_xor(Expr x1, Expr x2);
+
 }  // namespace relax
 }  // namespace tvm
 
