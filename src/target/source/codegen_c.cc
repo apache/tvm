@@ -534,6 +534,9 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       PrintExpr(op->args[0], os);
       os << " ) return ";
       PrintExpr(op->args[1], os);
+    } else if (op->op.same_as(builtin::ret())) {
+      os << "return ";
+      PrintExpr(op->args[0], os);
     } else if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {
       ICHECK_GE(op->args.size(), 1U);
       auto func = Downcast<StringImm>(op->args[0]);
