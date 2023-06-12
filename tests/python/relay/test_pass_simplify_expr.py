@@ -778,9 +778,22 @@ def test_simplify_cast_clip():
         x = relay.var("x", shape=(4, 8), dtype="uint8")
         return relay.Function([x], x)
 
+    def before3():
+        x = relay.var("x", shape=(4, 8), dtype="float32")
+        cast = relay.cast(x, "bfloat16")
+        clip = relay.clip(cast, a_min=-0.2, a_max=0.4)
+        return relay.Function([x], clip)
+
+    def expected3():
+        x = relay.var("x", shape=(4, 8), dtype="float32")
+        cast = relay.cast(x, "bfloat16")
+        clip = relay.clip(cast, a_min=-0.2, a_max=0.4)
+        return relay.Function([x], clip)
+
     for before, expected in [
         [before1(), expected1()],
         [before2(), expected2()],
+        [before3(), expected3()],
     ]:
         after = run_opt_pass(before, transform.SimplifyExpr())
         expected = run_opt_pass(expected, transform.InferType())

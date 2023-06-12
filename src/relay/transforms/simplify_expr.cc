@@ -165,7 +165,7 @@ bool CheckDataTypeMaxMinValue(DataType dtype, double min_value, double max_value
   if (dtype.is_int() || dtype.is_uint()) {
     ubound = static_cast<double>(Downcast<IntImm>(tvm::max_value(dtype))->value);
     lbound = static_cast<double>(Downcast<IntImm>(tvm::min_value(dtype))->value);
-  } else if (dtype.is_float()) {
+  } else if (dtype.is_float() || dtype.is_bfloat16()) {
     ubound = Downcast<FloatImm>(tvm::max_value(dtype))->value;
     lbound = Downcast<FloatImm>(tvm::min_value(dtype))->value;
   }
