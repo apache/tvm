@@ -3756,8 +3756,7 @@ def test_tflite_shared_pad_legalize(
     ]
 
     tflite_graph = create_tflite_graph()
-    # tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
-    tflite_model = tflite.Model.GetRootAsModel(tflite_graph, 0)
+    tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
 
     mod, params = relay.frontend.from_tflite(
         tflite_model,
