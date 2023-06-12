@@ -304,6 +304,7 @@ def logical_and(x1: Expr, x2: Expr) -> Expr:
     """
     return _ffi_api.logical_and(x1, x2)
 
+
 def logical_or(x1: Expr, x2: Expr) -> Expr:
     """Logical OR
     Parameters
@@ -318,6 +319,7 @@ def logical_or(x1: Expr, x2: Expr) -> Expr:
         The computed result.
     """
     return _ffi_api.logical_or(x1, x2)
+
 
 def logical_xor(x1: Expr, x2: Expr) -> Expr:
     """Logical XOR
@@ -353,6 +355,7 @@ def bitwise_and(x1: Expr, x2: Expr) -> Expr:
     """
     return _ffi_api.bitwise_and(x1, x2)
 
+
 def bitwise_or(x1: Expr, x2: Expr) -> Expr:
     """Bitwise OR
     Parameters
@@ -367,6 +370,7 @@ def bitwise_or(x1: Expr, x2: Expr) -> Expr:
         The computed result.
     """
     return _ffi_api.bitwise_or(x1, x2)
+
 
 def bitwise_xor(x1: Expr, x2: Expr) -> Expr:
     """Bitwise XOR
