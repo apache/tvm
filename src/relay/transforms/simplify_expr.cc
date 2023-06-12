@@ -246,12 +246,12 @@ class SimplifyClip : public DFPatternRewrite {
     const CallNode* clip_node = post.as<CallNode>();
     const ClipAttrs* clip_attrs = clip_node->attrs.as<ClipAttrs>();
 
-    // TODO(kfeng123): For now, the arg of "clip" is forced to not be "qnn.requantize" and "ann.add". This is to avoid
-    // destroying the structure required by LegalizeQnnOpForDnnl
-    auto child {post.as<CallNode>()->args[0].as<CallNode>()};
+    // TODO(kfeng123): For now, the arg of "clip" is forced to not be "qnn.requantize" and
+    // "ann.add". This is to avoid destroying the structure required by LegalizeQnnOpForDnnl
+    auto child{post.as<CallNode>()->args[0].as<CallNode>()};
     if (child && child->op.as<OpNode>()) {
-      String op_name {child->op.as<OpNode>()->name};
-      if ( op_name == "qnn.requantize" || op_name == "qnn.add") {
+      String op_name{child->op.as<OpNode>()->name};
+      if (op_name == "qnn.requantize" || op_name == "qnn.add") {
         return post;
       }
     }
