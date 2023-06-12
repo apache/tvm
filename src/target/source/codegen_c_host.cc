@@ -125,11 +125,6 @@ void CodeGenCHost::PrintFuncPrefix(std::ostream& os) {  // NOLINT(*)
      << "TVM_DLL int32_t";
 }
 
-void CodeGenCHost::PrintFinalReturn() {  // NOLINT(*)
-  this->PrintIndent();
-  stream << "return 0;\n";
-}
-
 std::string CodeGenCHost::Finish() {  // NOLINT(*)
   std::string ret = decl_stream.str();
   if (emit_fwd_func_decl_) {

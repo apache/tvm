@@ -111,10 +111,6 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
    */
   virtual void PrintExtraAttrs(const PrimFunc& f);
   /*!
-   * \brief Print the final return at the end the function.
-   */
-  virtual void PrintFinalReturn();  // NOLINT(*)
-  /*!
    * \brief Insert statement before function body.
    * \param f The function to be compiled.
    */

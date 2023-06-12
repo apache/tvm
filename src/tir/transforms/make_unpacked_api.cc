@@ -147,7 +147,11 @@ PrimFunc MakeUnpackedAPI(PrimFunc func) {
     device_init.push_back(AttrStmt(node, attr::device_type, device_type, nop));
   }
 
-  func_ptr->body = MergeNest(device_init, func_ptr->body);
+  Stmt body = func_ptr->body;
+  body = MergeNest(device_init, body);
+  body = SeqStmt({body, Evaluate(ret(Integer(0)))});
+
+  func_ptr->body = body;
   func_ptr->params = args;
   func_ptr->ret_type = PrimType(DataType::Int(32));
   func_ptr->buffer_map = Map<Var, Buffer>();

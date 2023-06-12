@@ -57,7 +57,6 @@ class CodeGenCHost : public CodeGenC {
 
   void PrintType(DataType t, std::ostream& os) final;  // NOLINT(*)
   void PrintFuncPrefix(std::ostream& os) final;        // NOLINT(*)
-  void PrintFinalReturn() final;                       // NOLINT(*)
 
   // overload visitor functions
   void VisitExpr_(const BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)
