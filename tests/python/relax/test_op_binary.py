@@ -41,6 +41,18 @@ def test_op_correctness():
     assert relax.op.less_equal(x, y).op == Op.get("relax.less_equal")
     assert relax.op.not_equal(x, y).op == Op.get("relax.not_equal")
 
+    x = relax.Var("x", R.Tensor((2, 3), "int32"))
+    y = relax.Var("y", R.Tensor((2, 3), "int32"))
+    assert relax.op.bitwise_and(x, y).op == Op.get("relax.bitwise_and")
+    assert relax.op.bitwise_or(x, y).op == Op.get("relax.bitwise_or")
+    assert relax.op.bitwise_xor(x, y).op == Op.get("relax.bitwise_xor")
+
+    x = relax.Var("x", R.Tensor((2, 3), "bool"))
+    y = relax.Var("y", R.Tensor((2, 3), "bool"))
+    assert relax.op.logical_and(x, y).op == Op.get("relax.logical_and")
+    assert relax.op.logical_or(x, y).op == Op.get("relax.logical_or")
+    assert relax.op.logical_xor(x, y).op == Op.get("relax.logical_xor")
+
 
 def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_sinfo: relax.StructInfo):
     ret = bb.normalize(call)
