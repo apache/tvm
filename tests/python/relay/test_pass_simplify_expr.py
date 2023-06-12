@@ -722,7 +722,6 @@ def test_simplify_dq_argsort():
 
 
 def test_simplify_clip_cast():
-
     def before1():
         x = relay.var("x", shape=(4, 8), dtype="int32")
         clip = relay.clip(x, a_min=0.0, a_max=255.0)
@@ -759,7 +758,6 @@ def test_simplify_clip_cast():
 
 
 def test_simplify_cast_clip():
-
     def before1():
         x = relay.var("x", shape=(4, 8), dtype="int32")
         cast = relay.cast(x, "uint8")
@@ -789,6 +787,7 @@ def test_simplify_cast_clip():
         assert tvm.ir.structural_equal(after, expected), "\nafter: {} \nexpected: {}".format(
             after, expected
         )
+
 
 def test_simplify_add():
     x = relay.var("x", shape=(1, 3, 100, 100), dtype="float32")

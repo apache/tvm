@@ -161,7 +161,7 @@ class SimplifyConsecutiveCast : public DFPatternRewrite {
 };
 
 bool CheckDataTypeMaxMinValue(DataType dtype, double min_value, double max_value) {
-  double lbound {}, ubound {};
+  double lbound{}, ubound{};
   if (dtype.is_int() || dtype.is_uint()) {
     ubound = static_cast<double>(Downcast<IntImm>(tvm::max_value(dtype))->value);
     lbound = static_cast<double>(Downcast<IntImm>(tvm::min_value(dtype))->value);
@@ -222,7 +222,8 @@ class SimplifyClipAndConsecutiveCast : public DFPatternRewrite {
 };
 
 /*!
- * \brief SimplifyClip removes redundant Clip based on its a_min/a_max values and the min/max values of the data type.
+ * \brief SimplifyClip removes redundant Clip based on its a_min/a_max values and the min/max values
+ * of the data type.
  *
  * Example:
  *   %1 = cast(%0, dtype="uint8") [type=uint8]
@@ -244,6 +245,16 @@ class SimplifyClip : public DFPatternRewrite {
 
     const CallNode* clip_node = post.as<CallNode>();
     const ClipAttrs* clip_attrs = clip_node->attrs.as<ClipAttrs>();
+
+    // TODO(kfeng123): For now, the arg of "clip" is forced to not be "qnn.requantize" and "ann.add". This is to avoid
+    // destroying the structure required by LegalizeQnnOpForDnnl
+    auto child {post.as<CallNode>()->args[0].as<CallNode>()};
+    if (child && child->op.as<OpNode>()) {
+      String op_name {child->op.as<OpNode>()->name};
+      if ( op_name == "qnn.requantize" || op_name == "qnn.add") {
+        return post;
+      }
+    }
 
     if (CheckDataTypeMaxMinValue(cast_dtype, clip_attrs->a_min, clip_attrs->a_max)) {
       return node_map[x_][0];
