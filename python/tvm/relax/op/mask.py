@@ -14,40 +14,25 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=wildcard-import, redefined-builtin
-"""Relax core operators."""
-
-# Operators
-from .base import *
-from .binary import *
-from .create import *
-from .datatype import *
-from .index import *
-from .linear_algebra import *
-from .manipulate import *
-from .mask import *
-from .op_attrs import *
-from .statistical import *
-from .search import *
-from .set import *
-from .ternary import *
-from .unary import *
-from . import builtin
-from . import grad
-from . import image
-from . import memory
-from . import nn
-
-# Operator gradient functions
-from . import _op_gradient
+"""Operators with mask."""
+from . import _ffi_api
+from ..expr import Expr
 
 
-def _register_op_make():
-    # pylint: disable=import-outside-toplevel
-    from . import _ffi_api
-    from .. import expr
-
-    expr._op_ffi_api = _ffi_api  # type: ignore
-
-
-_register_op_make()
+def masked_fill(x: Expr, mask: Expr, value: Expr):
+    """Fill a tensor by a specified value in places defined by a mask.
+    Parameters
+    ----------
+    x : relax.Expr
+        The input data to the operator.
+    mask : relax.Expr
+        The mask.
+    value : relax.Expr
+        The value to set in the input tensor.
+    Returns
+    -------
+    result : relax.Expr
+        The filled tensor.
+    """
+    values = _ffi_api.full_like(x, value)  # type: ignore
+    return _ffi_api.where(mask, values, x)  # type: ignore
