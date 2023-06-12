@@ -101,7 +101,7 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
 
       if (device.UseDebugUtilsLabel()) {
         VkDebugUtilsLabelEXT dispatch_label = {VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT,
-                                               NULL,
+                                               nullptr,
                                                func_name_.c_str(),
                                                {0.0f, 0.0f, 0.0f, 0.0f}};
         device.queue_insert_debug_utils_label_functions->vkQueueInsertDebugUtilsLabelEXT(
@@ -118,14 +118,14 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
     write_descriptor_sets.resize(descriptor_buffers.size());
     for (size_t i = 0; i < write_descriptor_sets.size(); i++) {
       write_descriptor_sets[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-      write_descriptor_sets[i].pNext = 0;
+      write_descriptor_sets[i].pNext = nullptr;
       write_descriptor_sets[i].dstSet = pipeline->descriptor_set;
       write_descriptor_sets[i].dstBinding = i;
       write_descriptor_sets[i].dstArrayElement = 0;
       write_descriptor_sets[i].descriptorCount = 1;
-      write_descriptor_sets[i].pImageInfo = 0;
+      write_descriptor_sets[i].pImageInfo = nullptr;
       write_descriptor_sets[i].pBufferInfo = &(descriptor_buffers[i]);
-      write_descriptor_sets[i].pTexelBufferView = 0;
+      write_descriptor_sets[i].pTexelBufferView = nullptr;
 
       if (pipeline->use_ubo && i == write_descriptor_sets.size() - 1) {
         // The last binding is for UBO
@@ -135,7 +135,7 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
       }
     }
     vkUpdateDescriptorSets(device, write_descriptor_sets.size(), write_descriptor_sets.data(), 0,
-                           0);
+                           nullptr);
   };
   const auto& deferred_kernel = [this, pipeline, wl, pack_args_storage, nbytes_scalars,
                                  device_id](VulkanStreamState* state) {
@@ -176,7 +176,7 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
 
   if (device.UseDebugUtilsLabel()) {
     VkDebugUtilsLabelEXT dispatch_label = {VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT,
-                                           NULL,
+                                           nullptr,
                                            func_name_.c_str(),
                                            {0.0f, 0.0f, 0.0f, 0.0f}};
     device.queue_insert_debug_utils_label_functions->vkQueueInsertDebugUtilsLabelEXT(
@@ -205,7 +205,7 @@ VulkanModuleNode::~VulkanModuleNode() {
   }
 }
 
-PackedFunc VulkanModuleNode::GetFunction(const std::string& name,
+PackedFunc VulkanModuleNode::GetFunction(const String& name,
                                          const ObjectPtr<Object>& sptr_to_self) {
   ICHECK_EQ(sptr_to_self.get(), this);
   ICHECK_NE(name, symbol::tvm_module_main) << "Device function do not have main";
@@ -388,7 +388,7 @@ std::shared_ptr<VulkanPipeline> VulkanModuleNode::GetPipeline(size_t device_id,
   if (device.UseImmediate()) {
     VkDescriptorUpdateTemplateCreateInfoKHR descrip_template_cinfo;
     descrip_template_cinfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_UPDATE_TEMPLATE_CREATE_INFO_KHR;
-    descrip_template_cinfo.pNext = 0;
+    descrip_template_cinfo.pNext = nullptr;
     descrip_template_cinfo.flags = 0;
     descrip_template_cinfo.descriptorUpdateEntryCount = arg_template.size();
     descrip_template_cinfo.pDescriptorUpdateEntries = arg_template.data();
@@ -398,13 +398,13 @@ std::shared_ptr<VulkanPipeline> VulkanModuleNode::GetPipeline(size_t device_id,
     descrip_template_cinfo.pipelineLayout = pe->pipeline_layout;
     descrip_template_cinfo.set = 0;
     VULKAN_CALL(device.descriptor_template_khr_functions->vkCreateDescriptorUpdateTemplateKHR(
-        device, &descrip_template_cinfo, 0, &(pe->descriptor_update_template)));
+        device, &descrip_template_cinfo, nullptr, &(pe->descriptor_update_template)));
   }
   ecache_[device_id][func_name] = pe;
   return pe;
 }
 
-void VulkanModuleNode::SaveToFile(const std::string& file_name, const std::string& format) {
+void VulkanModuleNode::SaveToFile(const String& file_name, const String& format) {
   std::string fmt = GetFileFormat(file_name, format);
   ICHECK_EQ(fmt, fmt_) << "Can only save to customized format vulkan";
   std::string meta_file = GetMetaFilePath(file_name);
@@ -424,7 +424,7 @@ void VulkanModuleNode::SaveToBinary(dmlc::Stream* stream) {
   stream->Write(smap_);
 }
 
-std::string VulkanModuleNode::GetSource(const std::string& format) {
+String VulkanModuleNode::GetSource(const String& format) {
   // can only return disassembly code.
   return source_;
 }

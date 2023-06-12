@@ -45,10 +45,7 @@ def dilate_python(input_np, strides, dilation_value=0.0, out_dtype=None):
     """
     assert len(input_np.shape) == len(
         strides
-    ), "Input dimension and strides size dismatch : %d vs %d" % (
-        len(input_np.shape),
-        len(strides),
-    )
+    ), f"Input dimension and strides size dismatch : {len(input_np.shape)} vs {len(strides)}"
 
     if out_dtype is None:
         out_dtype = input_np.dtype

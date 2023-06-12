@@ -250,11 +250,11 @@ def schedule_conv2d_nhwc_pack_int8(cfg, outs):
                 if kh == 1 and kw == 1:
                     conv2d_avx_1x1._schedule_conv_nhwc_pack_int8(*args)
                 else:
-                    raise ValueError("Only support 1x1 kernel with " "schedule_conv2d_nhwc_pack.")
+                    raise ValueError("Only support 1x1 kernel with schedule_conv2d_nhwc_pack.")
             else:
                 raise ValueError(
-                    "Not support this data type {} with "
-                    "schedule_conv2d_nhwc_pack. Only support int8".format(data.dtype)
+                    f"Not support this data type {data.dtype} with "
+                    f"schedule_conv2d_nhwc_pack. Only support int8"
                 )
 
         scheduled_ops.append(op)

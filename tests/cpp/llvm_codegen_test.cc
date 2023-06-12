@@ -33,12 +33,14 @@
 #define ALL_TARGETS CPU_TARGETS, OPTIONAL_TARGETS
 
 TEST(LLVMCodeGen, CodeGenFactoryPresent) {
-  for (const std::string& s : {CPU_TARGETS}) {
+  std::initializer_list<std::string> cpu_targets = {CPU_TARGETS};
+  for (const std::string& s : cpu_targets) {
     auto* pf = tvm::runtime::Registry::Get("tvm.codegen.llvm.target_" + s);
     EXPECT_NE(pf, nullptr);
   }
 
-  for (const std::string& s : {OPTIONAL_TARGETS}) {
+  std::initializer_list<std::string> optional_targets = {OPTIONAL_TARGETS};
+  for (const std::string& s : optional_targets) {
     if (tvm::runtime::Registry::Get("device_api." + s)) {
       auto* pf = tvm::runtime::Registry::Get("tvm.codegen.llvm.target_" + s);
       EXPECT_NE(pf, nullptr);
@@ -50,7 +52,8 @@ TEST(LLVMCodeGen, CodeGenFactoryPresent) {
 }
 
 TEST(LLVMCodeGen, CodeGenFactoryWorks) {
-  for (const std::string& s : {ALL_TARGETS}) {
+  std::initializer_list<std::string> all_targets = {ALL_TARGETS};
+  for (const std::string& s : all_targets) {
     if (auto* pf = tvm::runtime::Registry::Get("tvm.codegen.llvm.target_" + s)) {
       auto* cg = static_cast<void*>((*pf)());
       EXPECT_NE(cg, nullptr);

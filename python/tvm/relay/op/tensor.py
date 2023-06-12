@@ -32,7 +32,7 @@ def _make_virtual_device(device):
         return target.VirtualDevice(device)
     if isinstance(device, str):
         return target.VirtualDevice(_nd.device(device))
-    raise ValueError("expecting a Device or device name, but received a %s" % (type(device)))
+    raise ValueError(f"expecting a Device or device name, but received a {type(device)}")
 
 
 # We create a wrapper function for each operator in the

@@ -378,6 +378,7 @@ TVM_REGISTER_TARGET_KIND("vulkan", kDLVulkan)
     .add_attr_option<Bool>("supports_push_descriptor")
     .add_attr_option<Bool>("supports_dedicated_allocation")
     .add_attr_option<Bool>("supports_integer_dot_product")
+    .add_attr_option<Bool>("supports_cooperative_matrix")
     .add_attr_option<Integer>("supported_subgroup_operations")
     // Physical device limits
     .add_attr_option<Integer>("max_num_threads", Integer(256))
@@ -421,9 +422,10 @@ TVM_REGISTER_TARGET_KIND("hexagon", kDLHexagon)
     .add_attr_option<Array<String>>("llvm-options")
     .add_attr_option<Integer>("num-cores")
     .add_attr_option<Integer>("vtcm-capacity")
-    .set_default_keys({"hexagon"});
+    .set_default_keys({"hexagon", "cpu"});
 
-TVM_REGISTER_TARGET_KIND("stackvm", kDLCPU);
+TVM_REGISTER_TARGET_KIND("stackvm", kDLCPU)  // line break
+    .set_default_keys({"cpu"});
 
 TVM_REGISTER_TARGET_KIND("ext_dev", kDLExtDev);
 

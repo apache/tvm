@@ -92,6 +92,7 @@ We do encourage everyone to work anything they are interested in.
 - [Lianmin Zheng](https://github.com/merrymercy) (PMC): @merrymercy - autotvm, auto_scheduler, topi, relay
 - [Xiyou Zhou](https://github.com/zxybazh): @zxybazh - relay
 - [wrongtest](https://github.com/wrongtest-intellif) (PMC): @wrongtest-intellif - tir, tvm-script, arith
+- [Anirudh Sundar Subramaniam](https://github.com/quic-sanirudh): @quic-sanirudh
 
 ## Reviewers
 
@@ -213,6 +214,8 @@ We do encourage everyone to work anything they are interested in.
 - [Min Chen](https://github.com/multiverstack-intellif): @multiverstack-intellif
 - [Xiyou Zhou](https://github.com/zxybazh): @zxybazh
 - [@blackkker](https://github.com/blackkker): @blackkker
+- [Jiajun Jiang](https://github.com/jiangjiajun): @jiangjiajun
+- [Qiang Zhang](https://github.com/Johnson9009): @Johnson9009
 
 ## List of Contributors
 - [Full List of Contributors](https://github.com/apache/tvm/graphs/contributors)

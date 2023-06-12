@@ -51,14 +51,7 @@ inline void AddToParent(tvm::tir::Stmt stmt) {
  * \return The SeqStmt.
  */
 inline tvm::tir::Stmt AsStmt(const Array<tvm::tir::Stmt>& stmt) {
-  using namespace tvm::tir;
-  if (stmt.empty()) {
-    return tvm::tir::Evaluate(0);
-  } else if (stmt.size() == 1) {
-    return stmt[0];
-  } else {
-    return SeqStmt(stmt);
-  }
+  return tvm::tir::SeqStmt::Flatten(stmt);
 }
 
 /*!

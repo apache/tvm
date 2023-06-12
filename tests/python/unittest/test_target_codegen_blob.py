@@ -15,14 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import ctypes
 import numpy as np
 from tvm import relay
-from tvm.relay import testing
-from tvm.contrib import graph_executor
+import tvm.relay.testing
+from tvm.contrib import graph_executor, cc, utils, popen_pool, tar
 import tvm
-from tvm import te
-import ctypes
 import tvm.testing
+from tvm.script import ir as I, tir as T
 
 
 @tvm.testing.uses_gpu
@@ -49,8 +49,6 @@ def test_synthetic():
     with tvm.transform.PassContext(opt_level=3):
         synthetic_gpu_lib = relay.build_module.build(synthetic_mod, "cuda", params=synthetic_params)
 
-    from tvm.contrib import utils
-
     temp = utils.tempdir()
     path_lib = temp.relpath("deploy_lib.so")
     synthetic_gpu_lib.export_library(path_lib)
@@ -67,34 +65,76 @@ def test_synthetic():
 
 
 @tvm.testing.uses_gpu
-def test_cuda_lib():
+def test_cuda_multi_lib():
+    # test combining two system lib together
+    # each contains a fatbin component in cuda
     dev = tvm.cuda(0)
     for device in ["llvm", "cuda"]:
         if not tvm.testing.device_enabled(device):
             print("skip because %s is not enabled..." % device)
             return
-    nn = 12
-    n = tvm.runtime.convert(nn)
-    A = te.placeholder((n,), name="A")
-    B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
-    s = te.create_schedule(B.op)
-    bx, tx = s[B].split(B.op.axis[0], factor=4)
-    s[B].bind(bx, te.thread_axis("blockIdx.x"))
-    s[B].bind(tx, te.thread_axis("threadIdx.x"))
 
-    from tvm.contrib import utils
+    @tvm.script.ir_module
+    class ModA:
+        I.module_attrs({"system_lib_prefix": "modA_"})
+
+        @T.prim_func
+        def my_inplace_update(x: T.Buffer((12), "float32")) -> None:
+            T.func_attr({"global_symbol": "modA_my_inplace_update"})
+            for bx in T.thread_binding(T.int64(1), thread="blockIdx.x"):
+                for tx in T.thread_binding(T.int64(12), thread="threadIdx.x"):
+                    x[tx] = x[tx] + 1
+
+    @tvm.script.ir_module
+    class ModB:
+        I.module_attrs({"system_lib_prefix": "modB_"})
+
+        @T.prim_func
+        def my_inplace_update(x: T.Buffer((12), "float32")) -> None:
+            T.func_attr({"global_symbol": "modB_my_inplace_update"})
+            for bx in T.thread_binding(T.int64(1), thread="blockIdx.x"):
+                for tx in T.thread_binding(T.int64(12), thread="threadIdx.x"):
+                    x[tx] = x[tx] + 2
 
     temp = utils.tempdir()
-    fn_add = tvm.build(s, [A, B], target="cuda --host=llvm", name="add")
-    path_lib = temp.relpath("deploy_lib.so")
-    fn_add.export_library(path_lib)
-    m = tvm.runtime.load_module(path_lib)
-    a = tvm.nd.array(np.random.uniform(size=nn).astype(A.dtype), dev)
-    b = tvm.nd.array(np.zeros(nn, dtype=A.dtype), dev)
-    m["add"](a, b)
-    np.testing.assert_equal(b.numpy(), a.numpy() + 1)
+    target = tvm.target.Target("cuda", host="llvm")
+    libA = tvm.build(ModA, target=target)
+    libB = tvm.build(ModB, target=target)
+
+    pathA = temp.relpath("libA.tar")
+    pathB = temp.relpath("libB.tar")
+    pathAll = temp.relpath("libAll.a")
+
+    path_dso = temp.relpath("mylib.so")
+    libA.export_library(pathA, tar.tar)
+    libB.export_library(pathB, tar.tar)
+    cc.create_staticlib(pathAll, [pathA, pathB])
+    # package two static libs together
+    cc.create_shared(path_dso, ["-Wl,--whole-archive", pathAll, "-Wl,--no-whole-archive"])
+
+    def popen_check():
+        # Load dll, will trigger system library registration
+        ctypes.CDLL(path_dso)
+        # Load the system wide library
+        dev = tvm.cuda()
+        a_np = np.random.uniform(size=12).astype("float32")
+        a_nd = tvm.nd.array(a_np, dev)
+        b_nd = tvm.nd.array(a_np, dev)
+        syslibA = tvm.runtime.system_lib("modA_")
+        syslibB = tvm.runtime.system_lib("modB_")
+        # reload same lib twice
+        syslibA = tvm.runtime.system_lib("modA_")
+        syslibA["my_inplace_update"](a_nd)
+        syslibB["my_inplace_update"](b_nd)
+        np.testing.assert_equal(a_nd.numpy(), a_np + 1)
+        np.testing.assert_equal(b_nd.numpy(), a_np + 2)
+
+    # system lib should be loaded in different process
+    worker = popen_pool.PopenWorker()
+    worker.send(popen_check)
+    worker.recv()
 
 
 if __name__ == "__main__":
     test_synthetic()
-    test_cuda_lib()
+    test_cuda_multilib()

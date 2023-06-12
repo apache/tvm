@@ -250,11 +250,15 @@ def register_topi_schedule(task_name, func=None):
 
 def get_workload(outs, task_name=None):
     """Retrieve the workload from outputs"""
+    visited = set()
 
     def traverse(tensors):
         """traverse all ops to find attached workload"""
         for t in tensors:
             op = t.op
+            if op in visited:
+                continue
+            visited.add(op)
             wkl = traverse(op.input_tensors)
             if wkl is not None:
                 return wkl

@@ -166,7 +166,7 @@ def test_tvmc_get_configs_json_dir(tmpdir_factory, monkeypatch):
     monkeypatch.setattr(tvm.driver.tvmc.config_options, "CONFIGS_JSON_DIR", None)
     monkeypatch.setenv("TVM_CONFIGS_JSON_DIR", "not_a_directory")
     result = get_configs_json_dir()
-    assert_msg = "Non-existant directory passed via TVM_CONFIGS_JSON_DIR should be ignored."
+    assert_msg = "Non-existent directory passed via TVM_CONFIGS_JSON_DIR should be ignored."
     assert result == default_dir, assert_msg
 
     # Set custom dir which does exist

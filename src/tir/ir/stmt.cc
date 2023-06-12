@@ -81,6 +81,9 @@ TVM_REGISTER_NODE_TYPE(AttrStmtNode);
 // AssertStmt
 AssertStmt::AssertStmt(PrimExpr condition, PrimExpr message, Stmt body, Span span) {
   ICHECK(condition.defined());
+  CHECK(condition.dtype().is_bool())
+      << "AssertStmt should have boolean condition, "
+      << "but received " << condition << " with dtype " << condition.dtype();
   ICHECK(message.dtype() == DataType::Int(32) || message.as<StringImmNode>())
       << "TypeError: AssertStmt message must be an int or string:" << message << "\n";
 
@@ -388,6 +391,25 @@ TVM_REGISTER_NODE_TYPE(PrefetchNode);
 
 // SeqStmt
 SeqStmt::SeqStmt(Array<Stmt> seq, Span span) {
+  bool requires_flattening = std::any_of(
+      seq.begin(), seq.end(), [](const Stmt& stmt) { return stmt->IsInstance<SeqStmtNode>(); });
+
+  if (requires_flattening) {
+    auto flattened = SeqStmt::Flatten(seq);
+    if (auto* ptr = flattened.as<SeqStmtNode>()) {
+      seq = ptr->seq;
+    } else {
+      seq = {flattened};
+    }
+  }
+
+  ICHECK_NE(seq.size(), 0) << "An empty SeqStmt is prohibited.  "
+                           << "To write a no-op, use Evaluate(0), "
+                           << "or the result of SeqStmt::Flatten()";
+  ICHECK_NE(seq.size(), 1) << "A SeqStmt of length 1 is prohibited.  "
+                           << "Use the node " << seq[0] << "directly, "
+                           << "or for dynamic usage, normalize using SeqStmt::Flatten()";
+
   auto node = make_object<SeqStmtNode>();
   node->seq = std::move(seq);
   node->span = std::move(span);

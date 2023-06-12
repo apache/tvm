@@ -126,7 +126,7 @@ class FrontendTestModuleNode : public runtime::ModuleNode {
 
   static constexpr const char* kAddFunctionName = "__add_function";
 
-  virtual PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self);
+  virtual PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self);
 
  private:
   std::unordered_map<std::string, PackedFunc> functions_;
@@ -134,7 +134,7 @@ class FrontendTestModuleNode : public runtime::ModuleNode {
 
 constexpr const char* FrontendTestModuleNode::kAddFunctionName;
 
-PackedFunc FrontendTestModuleNode::GetFunction(const std::string& name,
+PackedFunc FrontendTestModuleNode::GetFunction(const String& name,
                                                const ObjectPtr<Object>& sptr_to_self) {
   if (name == kAddFunctionName) {
     return TypedPackedFunc<void(std::string, PackedFunc)>(

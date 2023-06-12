@@ -17,8 +17,8 @@
 # pylint: disable=invalid-name, unused-argument
 """Extract parameters from the convolution operators in TIR."""
 import math
-import tvm
 from ethosu.vela import api as vapi
+import tvm
 from ..vela_api import SCALE_BIAS_LENGTH, get_accelerator_config
 from .utils import get_outer_loops, get_op_attrs, get_base_address, get_loads, get_stores
 from .dma import get_ifm_params, get_ofm_params

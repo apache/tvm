@@ -15,11 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """Unit tests for various models and operators"""
+from packaging import version as package_version
 import numpy as np
-import tvm
-from tvm import relay
-from tvm.contrib import graph_executor
-import tvm.testing
 
 try:
     import tensorflow.compat.v1 as tf
@@ -30,6 +27,11 @@ from tensorflow import keras as tf_keras
 
 # prevent Keras from using up all gpu memory
 import keras
+
+import tvm
+from tvm import relay
+from tvm.contrib import graph_executor
+import tvm.testing
 
 if tf.executing_eagerly():
     GPUS = tf.config.experimental.list_physical_devices("GPU")
@@ -210,6 +212,30 @@ class TestKeras:
             verify_keras_frontend(keras_model)
             verify_keras_frontend(keras_model, need_transpose=False, layout="NHWC")
 
+    def test_forward_activations_except(self, keras_mod):
+        """
+        test invalid attribute alpha=None for LeakyReLU and ELU.
+        after version 2.3.1 in keras, checking was added to reject the invalid api call:
+        LeakyReLU(alpha=None) and ELU(alpha=None),
+        (see issue: https://github.com/tensorflow/tensorflow/pull/47017)
+        Thus, it's necessary to check the keras version to avoid crash at LeakyReLU(alpha=None)
+        and ELU(alpha=None)
+        """
+        if package_version.parse(keras_mod.__version__.split("-tf")[0]) <= package_version.parse(
+            "2.3.1"
+        ):
+            act_funcs = [
+                keras_mod.layers.LeakyReLU(alpha=None),
+                keras_mod.layers.LEU(2, 3, 4),
+                keras_mod.layers.ReLU(threshold=None),
+            ]
+            data = keras_mod.layers.Input(shape=(2, 3, 4))
+            for act_func in act_funcs:
+                layer = act_func(data)
+                keras_model = keras_mod.models.Model(data, layer)
+                with pytest.raises(tvm.error.OpAttributeInvalid):
+                    verify_keras_frontend(keras_model)
+
     def test_forward_dense(self, keras_mod):
         """test_forward_dense"""
         data = keras_mod.layers.Input(shape=(32, 32, 1))
@@ -295,6 +321,9 @@ class TestKeras:
         data = keras_mod.layers.Input(shape=(32, 32, 128))
         conv_funcs = [
             keras_mod.layers.Conv2DTranspose(filters=64, kernel_size=(2, 2), padding="valid"),
+            keras_mod.layers.Conv2DTranspose(
+                filters=2, kernel_size=(3, 3), strides=(2, 2), output_padding=(1, 1)
+            ),
         ]
         for conv_func in conv_funcs:
             x = conv_func(data)
@@ -353,7 +382,7 @@ class TestKeras:
         for batch_norm_func in batch_norm_funcs:
             x = batch_norm_func(data)
             keras_model = keras_mod.models.Model(data, x)
-        verify_keras_frontend(keras_model)
+            verify_keras_frontend(keras_model)
 
     def test_forward_upsample(self, keras_mod, interpolation="nearest"):
         data = keras_mod.layers.Input(shape=(32, 32, 3))
@@ -593,6 +622,9 @@ class TestKeras:
                 filters=1, kernel_size=(3, 3, 3), padding="valid", use_bias=False
             ),
             keras_mod.layers.Conv3DTranspose(filters=10, kernel_size=(2, 2, 2), padding="valid"),
+            keras_mod.layers.Conv3DTranspose(
+                filters=2, kernel_size=(3, 3, 3), strides=(2, 2, 2), output_padding=(1, 1, 1)
+            ),
         ]
         for conv_func in conv_funcs:
             x = conv_func(data)
@@ -749,6 +781,7 @@ if __name__ == "__main__":
         sut.test_forward_merge_dot(keras_mod=k)
         sut.test_forward_merge(keras_mod=k)
         sut.test_forward_activations(keras_mod=k)
+        sut.test_forward_activations_except(keras_mod=k)
         sut.test_forward_dense(keras_mod=k)
         sut.test_forward_permute(keras_mod=k)
         sut.test_forward_sequential(keras_mod=k)

@@ -1431,6 +1431,15 @@ class StorageFlattener : public StmtExprMutator {
     return body;
   }
 
+  Stmt VisitStmt_(const DeclBufferNode* op) final {
+    auto node = Downcast<DeclBuffer>(StmtExprMutator::VisitStmt_(op));
+    const BufferEntry& entry = GetBufferEntry(node->buffer);
+    if (!entry.flattened_buffer.same_as(node->buffer)) {
+      node.CopyOnWrite()->buffer = entry.flattened_buffer;
+    }
+    return std::move(node);
+  }
+
   // AllocateNodes may be present from tvm.tir.ir_builder.  This can
   // be simplified in the future by having AllocateNode hold a buffer,
   // rather than a buffer_var.

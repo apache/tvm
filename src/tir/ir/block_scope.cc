@@ -16,7 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "./utils.h"
+#include <tvm/tir/block_scope.h>
+#include <tvm/tir/utils.h>
 
 namespace tvm {
 namespace tir {
@@ -141,21 +142,19 @@ TVM_REGISTER_NODE_TYPE(StmtSRefNode);
 TVM_REGISTER_NODE_TYPE(DependencyNode);
 TVM_REGISTER_NODE_TYPE(BlockScopeNode);
 
-TVM_REGISTER_GLOBAL("tir.schedule.StmtSRefStmt")
-    .set_body_typed([](StmtSRef sref) -> Optional<Stmt> {
-      return GetRef<Optional<Stmt>>(sref->stmt);
-    });
-TVM_REGISTER_GLOBAL("tir.schedule.StmtSRefParent")
-    .set_body_typed([](StmtSRef sref) -> Optional<StmtSRef> {
-      return GetRef<Optional<StmtSRef>>(sref->parent);
-    });
-TVM_REGISTER_GLOBAL("tir.schedule.StmtSRefRootMark")  //
+TVM_REGISTER_GLOBAL("tir.StmtSRefStmt").set_body_typed([](StmtSRef sref) -> Optional<Stmt> {
+  return GetRef<Optional<Stmt>>(sref->stmt);
+});
+TVM_REGISTER_GLOBAL("tir.StmtSRefParent").set_body_typed([](StmtSRef sref) -> Optional<StmtSRef> {
+  return GetRef<Optional<StmtSRef>>(sref->parent);
+});
+TVM_REGISTER_GLOBAL("tir.StmtSRefRootMark")  //
     .set_body_typed(StmtSRef::RootMark);
-TVM_REGISTER_GLOBAL("tir.schedule.StmtSRefInlineMark")  //
+TVM_REGISTER_GLOBAL("tir.StmtSRefInlineMark")  //
     .set_body_typed(StmtSRef::InlineMark);
-TVM_REGISTER_GLOBAL("tir.schedule.BlockScopeGetDepsBySrc")
+TVM_REGISTER_GLOBAL("tir.BlockScopeGetDepsBySrc")
     .set_body_method<BlockScope>(&BlockScopeNode::GetDepsBySrc);
-TVM_REGISTER_GLOBAL("tir.schedule.BlockScopeGetDepsByDst")
+TVM_REGISTER_GLOBAL("tir.BlockScopeGetDepsByDst")
     .set_body_method<BlockScope>(&BlockScopeNode::GetDepsByDst);
 
 }  // namespace tir

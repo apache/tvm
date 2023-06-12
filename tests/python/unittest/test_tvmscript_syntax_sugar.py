@@ -253,8 +253,8 @@ def test_letstmt_bufferload_without_type_annotation():
 def test_letstmt_bind_with_constant():
     @T.prim_func
     def constant_binds():
-        x = 1
-        y = 42.0
+        x = T.meta_var(1)
+        y = T.meta_var(42.0)
         T.evaluate(T.cast(x, "float32") + y)
 
     @T.prim_func
@@ -414,6 +414,21 @@ def test_preserve_trivial_let_binding():
     assert_structural_equal(implicit, explicit)
 
 
+def test_preserve_trivial_let_binding_of_value():
+    @T.prim_func
+    def explicit(i: T.int32):
+        j = T.int32()
+        T.LetStmt(42, var=j)
+        T.evaluate(j)
+
+    @T.prim_func
+    def implicit(i: T.int32):
+        j = 42
+        T.evaluate(j)
+
+    assert_structural_equal(implicit, explicit)
+
+
 def test_preserve_parameter_name():
     @T.prim_func
     def func(i: T.int32):
@@ -435,6 +450,41 @@ def test_preserve_variable_name():
 
     var_name = func.body.body.var.name
     assert var_name == "j"
+
+
+def test_boolean_constant():
+    """Python booleans should become T.Bool objects"""
+
+    @T.prim_func
+    def explicit():
+        T.evaluate(T.bool(True))
+
+    @T.prim_func
+    def implicit():
+        T.evaluate(True)
+
+    assert_structural_equal(implicit, explicit)
+
+
+def test_foldable_boolean_in_assert():
+    """Foldable booleans T.Bool objects
+
+    The condition of an assert statement should be a boolean
+    expression.  Previously, this test failed because the FFI does not
+    distinguish between integer primitives and boolean primitives.
+    """
+
+    @T.prim_func
+    def explicit():
+        assert T.bool(False), "Message"
+        T.evaluate(0)
+
+    @T.prim_func
+    def implicit():
+        assert 0 == 1, "Message"
+        T.evaluate(0)
+
+    assert_structural_equal(implicit, explicit)
 
 
 if __name__ == "__main__":

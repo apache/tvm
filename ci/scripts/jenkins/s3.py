@@ -118,7 +118,7 @@ if __name__ == "__main__":
 
     if args.items is None:
         if args.action == "upload":
-            logging.error(f"Cannot upload without --items")
+            logging.error("Cannot upload without --items")
             exit(1)
         else:
             # Download the whole prefix
@@ -141,6 +141,9 @@ if __name__ == "__main__":
                 # Show md5 after downloading
                 show_md5(file)
         elif action == Action.UPLOAD:
+            if not Path(item).exists():
+                logging.warning(f"The path doesn't exist: {item}")
+                continue
             show_md5(item)
             if Path(item).is_dir():
                 if len(list(Path(item).glob("**/*"))) == 0:

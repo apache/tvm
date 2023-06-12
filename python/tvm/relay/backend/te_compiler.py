@@ -111,8 +111,8 @@ def get_valid_implementations(op, attrs, inputs, out_type, target):
     """
     fstrategy = op.get_attr("FTVMStrategy")
     assert fstrategy is not None, (
-        "%s doesn't have an FTVMStrategy registered. You can register "
-        "one in python with `tvm.relay.op.register_strategy`." % op.name
+        f"{op.name} doesn't have an FTVMStrategy registered. You can register "
+        f"one in python with `tvm.relay.op.register_strategy`."
     )
     with target:
         strategy = fstrategy(attrs, inputs, out_type, target)

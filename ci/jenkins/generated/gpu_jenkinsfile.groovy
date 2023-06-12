@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2023-04-12T10:38:06.835649
+// Generated at 2023-06-09T15:32:58.400867
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -112,7 +112,7 @@ properties([
 upstream_revision = null
 
 // command to start a docker container
-docker_run = 'docker/bash.sh --env CI --env TVM_SHARD_INDEX --env TVM_NUM_SHARDS --env RUN_DISPLAY_URL --env PLATFORM --env SKIP_SLOW_TESTS --env TEST_STEP_NAME'
+docker_run = 'docker/bash.sh --env CI --env PLATFORM --env TVM_SHARD_INDEX --env TVM_NUM_SHARDS --env RUN_DISPLAY_URL --env PLATFORM --env SKIP_SLOW_TESTS --env TEST_STEP_NAME'
 docker_build = 'docker/build.sh'
 // timeout in minutes
 max_time = 180
@@ -157,7 +157,7 @@ def init_git() {
     script: """
       set -eux
       . ${jenkins_scripts_root}/retry.sh
-      retry 3 timeout 5m git submodule update --init -f --jobs 0
+      retry 3 timeout 5m git submodule update --init --recursive -f --jobs 0
     """,
     label: 'Update git submodules',
   )
@@ -552,7 +552,11 @@ def build(node_type) {
           init_git()
           docker_init(ci_gpu)
           timeout(time: max_time, unit: 'MINUTES') {
-            sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh build"
+
+            withEnv([
+              'PLATFORM=gpu',
+              ], {
+              sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh build"
         cmake_build("${ci_gpu} --no-gpu", 'build', '-j2')
         make_standalone_crt("${ci_gpu} --no-gpu", 'build')
         sh(
@@ -570,6 +574,7 @@ def build(node_type) {
             script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu2 --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/crttest build/standalone_crt build/build.ninja",
             label: 'Upload artifacts to S3',
           )
+            })
           }
         }
       }
@@ -588,7 +593,7 @@ try {
 
 def shard_run_unittest_GPU_1_of_3(node_type='GPU-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'GPU'
     }
     node(node_type) {
@@ -665,7 +670,7 @@ def shard_run_unittest_GPU_1_of_3(node_type='GPU-SPOT', on_demand=false) {
 
 def shard_run_unittest_GPU_2_of_3(node_type='GPU-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'GPU'
     }
     node(node_type) {
@@ -721,7 +726,7 @@ def shard_run_unittest_GPU_2_of_3(node_type='GPU-SPOT', on_demand=false) {
 
 def shard_run_unittest_GPU_3_of_3(node_type='GPU-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'GPU'
     }
     node(node_type) {
@@ -775,7 +780,7 @@ def shard_run_unittest_GPU_3_of_3(node_type='GPU-SPOT', on_demand=false) {
 
 def shard_run_topi_GPU_1_of_3(node_type='GPU-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'GPU'
     }
     node(node_type) {
@@ -823,7 +828,7 @@ def shard_run_topi_GPU_1_of_3(node_type='GPU-SPOT', on_demand=false) {
 
 def shard_run_topi_GPU_2_of_3(node_type='GPU-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'GPU'
     }
     node(node_type) {
@@ -871,7 +876,7 @@ def shard_run_topi_GPU_2_of_3(node_type='GPU-SPOT', on_demand=false) {
 
 def shard_run_topi_GPU_3_of_3(node_type='GPU-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'GPU'
     }
     node(node_type) {
@@ -921,7 +926,7 @@ def shard_run_topi_GPU_3_of_3(node_type='GPU-SPOT', on_demand=false) {
 
 def shard_run_frontend_GPU_1_of_6(node_type='GPU-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'GPU'
     }
     node(node_type) {
@@ -969,7 +974,7 @@ def shard_run_frontend_GPU_1_of_6(node_type='GPU-SPOT', on_demand=false) {
 
 def shard_run_frontend_GPU_2_of_6(node_type='GPU-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'GPU'
     }
     node(node_type) {
@@ -1017,7 +1022,7 @@ def shard_run_frontend_GPU_2_of_6(node_type='GPU-SPOT', on_demand=false) {
 
 def shard_run_frontend_GPU_3_of_6(node_type='GPU-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'GPU'
     }
     node(node_type) {
@@ -1065,7 +1070,7 @@ def shard_run_frontend_GPU_3_of_6(node_type='GPU-SPOT', on_demand=false) {
 
 def shard_run_frontend_GPU_4_of_6(node_type='GPU-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'GPU'
     }
     node(node_type) {
@@ -1113,7 +1118,7 @@ def shard_run_frontend_GPU_4_of_6(node_type='GPU-SPOT', on_demand=false) {
 
 def shard_run_frontend_GPU_5_of_6(node_type='GPU-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'GPU'
     }
     node(node_type) {
@@ -1161,7 +1166,7 @@ def shard_run_frontend_GPU_5_of_6(node_type='GPU-SPOT', on_demand=false) {
 
 def shard_run_frontend_GPU_6_of_6(node_type='GPU-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'GPU'
     }
     node(node_type) {
@@ -1211,7 +1216,7 @@ def shard_run_frontend_GPU_6_of_6(node_type='GPU-SPOT', on_demand=false) {
 
 def shard_run_docs_GPU_1_of_1(node_type='GPU-SPOT', on_demand=false) {
   if (!skip_ci) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'GPU'
     }
     node(node_type) {

@@ -90,7 +90,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
 
   const char* type_key() const final { return "llvm"; }
 
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final;
 
   /*! \brief Get the property of the runtime module .*/
   // TODO(tvm-team): Make it serializable
@@ -98,9 +98,9 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     return runtime::ModulePropertyMask::kRunnable | runtime::ModulePropertyMask::kDSOExportable;
   }
 
-  void SaveToFile(const std::string& file_name, const std::string& format) final;
+  void SaveToFile(const String& file_name, const String& format) final;
   void SaveToBinary(dmlc::Stream* stream) final;
-  std::string GetSource(const std::string& format) final;
+  String GetSource(const String& format) final;
 
   void Init(const IRModule& mod, const Target& target);
   void Init(std::unique_ptr<llvm::Module> module, std::unique_ptr<LLVMInstance> llvm_instance);
@@ -125,7 +125,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
   // The unique_ptr owning the module. This becomes empty once JIT has been initialized
   // (EngineBuilder takes ownership of the module).
   std::unique_ptr<llvm::Module> module_owning_ptr_;
-  /* \brief names of the functions declared in this module */
+  /* \brief names of the external functions declared in this module */
   Array<String> function_names_;
 };
 
@@ -137,11 +137,19 @@ LLVMModuleNode::~LLVMModuleNode() {
   module_owning_ptr_.reset();
 }
 
-PackedFunc LLVMModuleNode::GetFunction(const std::string& name,
-                                       const ObjectPtr<Object>& sptr_to_self) {
+PackedFunc LLVMModuleNode::GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) {
   if (name == "__tvm_is_system_module") {
     bool flag = (module_->getFunction("__tvm_module_startup") != nullptr);
     return PackedFunc([flag](TVMArgs args, TVMRetValue* rv) { *rv = flag; });
+  } else if (name == "__tvm_get_system_lib_prefix") {
+    return PackedFunc([this](TVMArgs args, TVMRetValue* rv) {
+      auto* md = module_->getModuleFlag("tvm_system_lib_prefix");
+      if (md != nullptr) {
+        *rv = llvm::cast<llvm::MDString>(md)->getString().str();
+      } else {
+        *rv = nullptr;
+      }
+    });
   } else if (name == "get_func_names") {
     return PackedFunc(
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->function_names_; });
@@ -172,7 +180,8 @@ PackedFunc LLVMModuleNode::GetFunction(const std::string& name,
   return WrapPackedFunc(faddr, sptr_to_self);
 }
 
-void LLVMModuleNode::SaveToFile(const std::string& file_name, const std::string& format) {
+void LLVMModuleNode::SaveToFile(const String& file_name_str, const String& format) {
+  std::string file_name = file_name_str;
   std::string fmt = runtime::GetFileFormat(file_name, format);
   std::error_code ecode;
 #if TVM_LLVM_VERSION <= 70
@@ -241,7 +250,7 @@ void LLVMModuleNode::SaveToBinary(dmlc::Stream* stream) {
   LOG(FATAL) << "LLVMModule: SaveToBinary not supported";
 }
 
-std::string LLVMModuleNode::GetSource(const std::string& format) {
+String LLVMModuleNode::GetSource(const String& format) {
   std::string fmt = runtime::GetFileFormat("", format);
   std::string type_str;
   llvm::SmallString<256> str;
@@ -286,11 +295,15 @@ void LLVMModuleNode::Init(const IRModule& mod, const Target& target) {
   llvm::TargetMachine* tm = llvm_target->GetOrCreateTargetMachine();
   std::unique_ptr<CodeGenLLVM> cg = CodeGenLLVM::Create(llvm_target.get());
 
-  std::vector<PrimFunc> funcs;
   std::string entry_func;
   relay::Runtime runtime =
       mod->GetAttr<relay::Runtime>(tvm::attr::kRuntime).value_or(relay::Runtime::Create("cpp"));
-  bool system_lib = runtime->GetAttr<Bool>("system-lib").value_or(Bool(false));
+
+  Optional<String> system_lib_prefix = mod->GetAttr<String>(tvm::attr::kSystemLibPrefix);
+  if (!system_lib_prefix && runtime->GetAttr<Bool>("system-lib").value_or(Bool(false))) {
+    system_lib_prefix = "";
+  }
+
   bool target_c_runtime = runtime->name == "crt";
 
   for (auto kv : mod->functions) {
@@ -301,21 +314,26 @@ void LLVMModuleNode::Init(const IRModule& mod, const Target& target) {
     }
     auto f = Downcast<PrimFunc>(kv.second);
     auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
-    ICHECK(global_symbol.defined());
-    function_names_.push_back(global_symbol.value());
-    if (f->HasNonzeroAttr(tir::attr::kIsEntryFunc)) {
-      entry_func = global_symbol.value();
+    bool is_entry_func = f->HasNonzeroAttr(tir::attr::kIsEntryFunc);
+
+    ICHECK(global_symbol || !is_entry_func) << "The entry func must be exposed externally.";
+
+    if (global_symbol) {
+      function_names_.push_back(global_symbol.value());
+      if (is_entry_func) {
+        entry_func = global_symbol.value();
+      }
     }
-    funcs.push_back(f);
   }
   // TODO(@jroesch): follow up on this condition.
   // ICHECK(funcs.size() > 0);
   // TODO(tqchen): remove the entry function behavior as it does not
   // makes sense when we start to use multiple modules.
-  cg->Init("TVMMod", llvm_target.get(), system_lib, system_lib, target_c_runtime);
+  cg->Init("TVMMod", llvm_target.get(), system_lib_prefix, system_lib_prefix.defined(),
+           target_c_runtime);
   cg->SetFastMathFlags(llvm_target->GetFastMathFlags());
 
-  cg->AddFunctionsOrdered(funcs.begin(), funcs.end());
+  cg->AddFunctionsOrdered(mod->functions.begin(), mod->functions.end());
   if (entry_func.length() != 0) {
     cg->AddMainFunction(entry_func);
   }
@@ -325,6 +343,12 @@ void LLVMModuleNode::Init(const IRModule& mod, const Target& target) {
   llvm_target->SetTargetMetadata(module_);
   module_->addModuleFlag(llvm::Module::Override, "Debug Info Version",
                          llvm::DEBUG_METADATA_VERSION);
+
+  if (system_lib_prefix) {
+    std::string str_val = system_lib_prefix.value();
+    module_->addModuleFlag(llvm::Module::Warning, "tvm_system_lib_prefix",
+                           llvm::MDString::get(*(llvm_target->GetContext()), str_val));
+  }
 
   if (tm->getTargetTriple().isOSDarwin()) {
     module_->addModuleFlag(llvm::Module::Override, "Dwarf Version", 2);
@@ -479,12 +503,13 @@ TVM_REGISTER_GLOBAL("codegen.llvm_target_enabled")
     });
 
 TVM_REGISTER_GLOBAL("codegen.codegen_blob")
-    .set_body_typed([](std::string data, bool system_lib,
-                       std::string llvm_target_string) -> runtime::Module {
+    .set_body_typed([](std::string data, bool system_lib, std::string llvm_target_string,
+                       std::string c_symbol_prefix) -> runtime::Module {
       auto n = make_object<LLVMModuleNode>();
       auto llvm_instance = std::make_unique<LLVMInstance>();
       With<LLVMTarget> llvm_target(*llvm_instance, llvm_target_string);
-      std::unique_ptr<llvm::Module> blob = CodeGenBlob(data, system_lib, llvm_target.get());
+      std::unique_ptr<llvm::Module> blob =
+          CodeGenBlob(data, system_lib, llvm_target.get(), c_symbol_prefix);
       n->Init(std::move(blob), std::move(llvm_instance));
       return runtime::Module(n);
     });
@@ -493,10 +518,15 @@ runtime::Module CreateLLVMCppMetadataModule(runtime::metadata::Metadata metadata
                                             tvm::relay::Runtime runtime) {
   auto llvm_instance = std::make_unique<LLVMInstance>();
   With<LLVMTarget> llvm_target(*llvm_instance, target);
-  bool system_lib = runtime->GetAttr<Bool>("system-lib").value_or(Bool(false));
+
+  Optional<String> system_lib_prefix = NullOpt;
+  if (runtime->GetAttr<Bool>("system-lib").value_or(Bool(false))) {
+    system_lib_prefix = "";
+  }
+
   auto cg = std::make_unique<CodeGenCPU>();
 
-  cg->Init("TVMMetadataMod", llvm_target.get(), system_lib, system_lib,
+  cg->Init("TVMMetadataMod", llvm_target.get(), system_lib_prefix, system_lib_prefix.defined(),
            /*target_c_runtime=*/false);
 
   cg->DefineMetadata(metadata);
@@ -531,13 +561,19 @@ runtime::Module CreateLLVMCrtMetadataModule(const Array<runtime::Module>& module
 
   auto llvm_instance = std::make_unique<LLVMInstance>();
   With<LLVMTarget> llvm_target(*llvm_instance, target);
-  bool system_lib = runtime->GetAttr<Bool>("system-lib").value_or(Bool(false));
+
+  Optional<String> system_lib_prefix = NullOpt;
+  if (runtime->GetAttr<Bool>("system-lib").value_or(Bool(false))) {
+    system_lib_prefix = "";
+  }
+
   bool target_c_runtime = runtime->name == "crt";
-  ICHECK(system_lib && target_c_runtime)
+  ICHECK(system_lib_prefix.defined() && target_c_runtime)
       << "For LLVM C-runtime metadata module, must include --system-lib and --runtime=c; "
       << "got target: " << target->str();
   auto cg = std::make_unique<CodeGenCPU>();
-  cg->Init("TVMMetadataMod", llvm_target.operator->(), system_lib, system_lib, target_c_runtime);
+  cg->Init("TVMMetadataMod", llvm_target.operator->(), system_lib_prefix,
+           system_lib_prefix.defined(), target_c_runtime);
 
   cg->DefineFunctionRegistry(func_names);
   auto mod = cg->Finish();

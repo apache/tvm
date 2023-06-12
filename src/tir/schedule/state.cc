@@ -187,7 +187,7 @@ class BlockInfoCollector : private StmtVisitor {
  private:
   explicit BlockInfoCollector(ScheduleStateNode* self)
       : self_(self), srefs_{}, block2realize_{}, block_frames_{} {
-    block_frames_.emplace({});
+    block_frames_.emplace_back();
   }
 
   /*!
@@ -224,8 +224,7 @@ class BlockInfoCollector : private StmtVisitor {
     // Set `region_cover` to true, will be updated on its scope block
     info.region_cover = true;
     // Set `stage_pipeline` and `region_cover` for its intermediate children
-    info.scope->stage_pipeline =
-        CheckRegionCoverAndStagePipeline(info, scope_root, child_block_srefs);
+    info.stage_pipeline = CheckRegionCoverAndStagePipeline(info, scope_root, child_block_srefs);
   }
 
   bool CheckRegionCoverAndStagePipeline(const BlockInfo& info, const StmtSRef& scope_root,
@@ -796,11 +795,11 @@ class SRefUpdater : public StmtVisitor {
       BlockInfo& info = insert_result.first->second;
       info.affine_binding = false;
       info.region_cover = false;
-      info.scope->stage_pipeline = false;
+      info.stage_pipeline = false;
     } else {
       // Insertion didn't take place, because the entry has been there before.
       // In this case, we assume that flags are still valid so intentionally keep them unchanged
-      new_info.scope->stage_pipeline = info.scope->stage_pipeline;
+      new_info.stage_pipeline = info.stage_pipeline;
       info.scope = std::move(new_info.scope);
     }
   }
@@ -1111,7 +1110,7 @@ TVM_DLL Array<Bool> GetCachedFlags(const ScheduleState& self, const StmtSRef& bl
   const BlockInfo& info = self->GetBlockInfo(block_sref);
   return {Bool(info.affine_binding),  //
           Bool(info.region_cover),    //
-          Bool(info.scope->stage_pipeline)};
+          Bool(info.stage_pipeline)};
 }
 
 /**************** FFI ****************/

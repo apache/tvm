@@ -47,7 +47,7 @@ class LibraryModuleNode final : public ModuleNode {
     return ModulePropertyMask::kBinarySerializable | ModulePropertyMask::kRunnable;
   };
 
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
     TVMBackendPackedCFunc faddr;
     if (name == runtime::symbol::tvm_module_main) {
       const char* entry_name =
@@ -112,7 +112,8 @@ Module LoadModuleFromBinary(const std::string& type_key, dmlc::Stream* stream) {
   const PackedFunc* f = Registry::Get(fkey);
   if (f == nullptr) {
     std::string loaders = "";
-    for (auto name : Registry::ListNames()) {
+    for (auto reg_name : Registry::ListNames()) {
+      std::string name = reg_name;
       if (name.find(loadkey, 0) == 0) {
         if (loaders.size() > 0) {
           loaders += ", ";

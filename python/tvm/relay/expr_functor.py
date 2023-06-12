@@ -73,7 +73,7 @@ class ExprFunctor:
         elif isinstance(expr, Match):
             res = self.visit_match(expr)
         else:
-            raise Exception("warning unhandled case: {0}".format(type(expr)))
+            raise Exception(f"warning unhandled case: {type(expr)}")
 
         self.memo_map[expr] = res
 
@@ -204,11 +204,7 @@ class ExprMutator(ExprFunctor):
     def visit_function(self, fn):
         new_params = [self.visit(x) for x in fn.params]
         new_body = self.visit(fn.body)
-        return FunctionWithFields(
-            fn,
-            list(new_params),
-            new_body,
-        )
+        return FunctionWithFields(fn, list(new_params), new_body)
 
     def visit_let(self, let):
         new_var = self.visit(let.var)

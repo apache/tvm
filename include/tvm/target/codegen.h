@@ -55,9 +55,11 @@ runtime::Module Build(IRModule mod, Target target);
  *
  * \param m The host module with the imports.
  * \param system_lib Whether expose as system library.
+ * \param c_symbol_prefix Optional symbol prefix of the blob symbol.
  * \return cstr The C string representation of the file.
  */
-std::string PackImportsToC(const runtime::Module& m, bool system_lib);
+std::string PackImportsToC(const runtime::Module& m, bool system_lib,
+                           const std::string& c_symbol_prefix = "");
 
 /*!
  * \brief Pack imported device library to a LLVM module.
@@ -68,10 +70,13 @@ std::string PackImportsToC(const runtime::Module& m, bool system_lib);
  * \param m The host module with the imports.
  * \param system_lib Whether expose as system library.
  * \param target_triple LLVM target triple
+ * \param c_symbol_prefix Optional symbol prefix of the blob symbol.
+ *
  * \return runtime::Module The generated LLVM module.
  */
 runtime::Module PackImportsToLLVM(const runtime::Module& m, bool system_lib,
-                                  const std::string& target_triple);
+                                  const std::string& target_triple,
+                                  const std::string& c_symbol_prefix = "");
 }  // namespace codegen
 }  // namespace tvm
 #endif  // TVM_TARGET_CODEGEN_H_

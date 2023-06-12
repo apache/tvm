@@ -120,6 +120,25 @@ def get_cpu_op_count(mod):
     return c.count
 
 
+def get_non_cpu_op_count(mod):
+    """Traverse graph counting ops not offloaded to TVM."""
+
+    class Counter(tvm.relay.ExprVisitor):
+        def __init__(self):
+            super().__init__()
+            self.count = 0
+
+        def visit_call(self, call):
+            if not isinstance(call.op, tvm.ir.Op):
+                self.count += 1
+
+            super().visit_call(call)
+
+    c = Counter()
+    c.visit(mod["main"])
+    return c.count
+
+
 def skip_codegen_test():
     """Skip test if it requires the CLML codegen and it's not present."""
     if not tvm.get_global_func("relay.ext.clml", True):
@@ -135,6 +154,7 @@ def build_module(mod, target, target_host, params=None, enable_clml=True, tune_l
     with autotvm.apply_history_best(tune_log):
         with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
             if enable_clml:
+                mod = clml.preprocess_module(mod)
                 mod = clml.partition_for_clml(mod, params)
             relay.backend.te_compiler.get().clear()
             return relay.build(mod, target=target, target_host=target_host, params=params)
@@ -210,6 +230,7 @@ def verify_codegen(
     if isinstance(mod, tvm.relay.expr.Call):
         mod = tvm.IRModule.from_expr(mod)
     with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
+        mod = clml.preprocess_module(mod)
         mod = clml.partition_for_clml(mod, params)
         tvm_op_count = get_cpu_op_count(mod)
         assert tvm_op_count == tvm_ops, "Got {} TVM operators, expected {}".format(
