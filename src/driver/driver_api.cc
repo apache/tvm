@@ -478,17 +478,29 @@ runtime::Module TIRToRuntime(const Map<Target, IRModule>& inputs_arg,
   }
 
   auto host_target = [&]() -> Target {
+    // All targets that contain a kIsEntryFunc=True function
     Array<Target> targets_with_entry_func;
+
+    // All targets that can run on the CPU and contain at least one
+    // function without kIsEntryFunc=False.
     Array<Target> cpu_targets;
     for (const auto& [target, mod] : split) {
-      bool contains_entry_func = std::any_of(
-          mod->functions.begin(), mod->functions.end(),
-          [](const auto& kv) { return kv.second->HasNonzeroAttr(tvm::tir::attr::kIsEntryFunc); });
+      bool contains_entry_func = false;
+      bool may_contain_entry_func = false;
+      for (const auto& [gvar, func] : mod->functions) {
+        Optional<Bool> is_entry_func = func->attrs.GetAttr<Bool>(tvm::tir::attr::kIsEntryFunc);
+        if (is_entry_func.defined() && is_entry_func.value()->value) {
+          contains_entry_func = true;
+        } else if (!is_entry_func.defined()) {
+          may_contain_entry_func = true;
+        }
+      }
+
       if (contains_entry_func) {
         targets_with_entry_func.push_back(target);
       }
 
-      if (target->HasKey("cpu")) {
+      if (may_contain_entry_func && target->HasKey("cpu")) {
         cpu_targets.push_back(target);
       }
     }

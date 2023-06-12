@@ -95,7 +95,8 @@ class HostDeviceSplitter : public StmtMutator {
     PrimFunc device_func(params, body, kernel_ret_type);
     device_func = WithAttrs(std::move(device_func), {{tvm::attr::kTarget, device_target},
                                                      {tir::attr::kNoAlias, Bool(true)},
-                                                     {tir::attr::kIsGlobalFunc, Bool(true)}});
+                                                     {tir::attr::kIsGlobalFunc, Bool(true)},
+                                                     {tir::attr::kIsEntryFunc, Bool(false)}});
 
     (*device_mod_)->Add(kernel_symbol_global, device_func);
     Array<PrimExpr> args = params.Map([](const Var& var) -> PrimExpr { return var; });
