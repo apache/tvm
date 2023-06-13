@@ -389,6 +389,11 @@ class TestKeras:
         x = keras_mod.layers.UpSampling2D(size=(3, 3), interpolation=interpolation)(data)
         keras_model = keras_mod.models.Model(data, x)
         verify_keras_frontend(keras_model)
+        # Height and width are not equal for the attribute size
+        data = keras_mod.layers.Input(shape=(2, 2, 1, 3))
+        x = keras_mod.layers.UpSampling2D(size=(1, 2), interpolation=interpolation)(data)
+        keras_model = keras_mod.models.Model(data, x)
+        verify_keras_frontend(keras_model)
 
     def test_forward_reshape(self, keras_mod):
         """test_forward_reshape"""
