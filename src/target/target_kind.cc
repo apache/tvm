@@ -261,7 +261,7 @@ TargetJSON UpdateROCmAttrs(TargetJSON target) {
   }
   return target;
 }
-    
+
 /*!
  * \brief Test Target Parser
  * \param target The Target to update
@@ -272,7 +272,7 @@ TargetJSON TestTargetParser(TargetJSON target) {
   target.Set("features", features);
   return target;
 }
-    
+
 /**********  Register Target kinds and attributes  **********/
 
 TVM_REGISTER_TARGET_KIND("llvm", kDLCPU)
