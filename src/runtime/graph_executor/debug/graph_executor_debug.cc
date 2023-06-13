@@ -132,6 +132,11 @@ std::vector<double> GraphExecutorDebug::RunOpRPC(int index, int number, int repe
     return results;
   }
 
+  if(nodes_[index].param.func_name == "__nop") {
+    LOG(INFO) << "Skip __nop Op";
+    return results;
+  }
+
   const Device& dev = data_entry_[entry_id(index, 0)]->device;
   TVMOpParam param = nodes_[index].param;
   std::string name = param.func_name;
