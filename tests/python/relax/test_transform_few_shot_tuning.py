@@ -39,7 +39,7 @@ class MatMul:
         B: T.Buffer((32, 32), "float16"),
         C: T.Buffer((32, 32), "float16"),
     ):
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"tir.noalias": True})
         # with T.block("root"):
         for i, j, k in T.grid(32, 32, 32):
             with T.block("C"):
@@ -54,7 +54,7 @@ class MatMul:
 class Softmax:
     @T.prim_func
     def softmax(rxplaceholder: T.Buffer((T.int64(8), T.int64(3456), T.int64(3456)), "float32"), T_softmax_norm: T.Buffer((T.int64(8), T.int64(3456), T.int64(3456)), "float32")):
-        T.func_attr({"global_symbol": "main", "op_pattern": 4, "tir.noalias": True})
+        T.func_attr({"op_pattern": 4, "tir.noalias": True})
         # with T.block("root"):
         T_softmax_maxelem = T.alloc_buffer((T.int64(8), T.int64(3456)), "float32")
         T_softmax_exp = T.alloc_buffer((T.int64(8), T.int64(3456), T.int64(3456)), "float32")
@@ -93,7 +93,7 @@ class Softmax:
 class Fused_Variance_Cast1:
     @T.prim_func
     def main(lv3: T.Buffer((T.int64(1), T.int64(32), T.int64(34560)), "float32"), compute: T.Buffer((T.int64(1), T.int64(32), T.int64(1)), "float16")):
-        T.func_attr({"tir.noalias": True, "global_symbol": "main"})
+        T.func_attr({"tir.noalias": True})
         # with T.block("root"):
         rxplaceholder_red = T.alloc_buffer((T.int64(1), T.int64(32), T.int64(1)))
         T_divide = T.alloc_buffer((T.int64(1), T.int64(32), T.int64(1)))
@@ -152,7 +152,7 @@ class Fused_Variance_Cast1:
 class Fuse_Mean_Cast1:
     @T.prim_func
     def main(lv: T.Buffer((T.int64(1), T.int64(32), T.int64(34560)), "float32"), compute: T.Buffer((T.int64(1), T.int64(32), T.int64(1)), "float16")):
-        T.func_attr({"tir.noalias": True, "global_symbol": "main"})
+        T.func_attr({"tir.noalias": True})
         # with T.block("root"):
         rxplaceholder_red = T.alloc_buffer((T.int64(1), T.int64(32), T.int64(1)))
         T_divide = T.alloc_buffer((T.int64(1), T.int64(32), T.int64(1)))
@@ -181,7 +181,7 @@ class Fuse_Mean_Cast1:
 class Module:
     @T.prim_func
     def main(lv26: T.Buffer((T.int64(1), T.int64(3456), T.int64(2560)), "float16"), T_multiply: T.Buffer((T.int64(1), T.int64(3456), T.int64(1280)), "float16")):
-        T.func_attr({"tir.noalias": True, "global_symbol": "main"})
+        T.func_attr({"tir.noalias": True})
         # with T.block("root"):
         T_strided_slice_with_axes = T.alloc_buffer((T.int64(1), T.int64(3456), T.int64(1280)), "float16")
         T_divide = T.alloc_buffer((T.int64(1), T.int64(3456), T.int64(1280)), "float16")
@@ -339,7 +339,9 @@ def _get_input_output_info(func: tvm.tir.PrimFunc) -> Tuple[List[np.ndarray], Tu
 def _expected_results(
     mod: tvm.ir.IRModule, inputs: List[np.ndarray], output_shape: Tuple, output_dtype: str
 ) -> np.ndarray:
-    rt_mod = tvm.build(mod, target="llvm")
+    func = _get_single_prim_func(mod)
+    func = func.with_attr("global_symbol", "main")
+    rt_mod = tvm.build(func, target="llvm")
     data = [
         tvm.nd.array(x)
         for x in [
