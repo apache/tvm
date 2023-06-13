@@ -45,7 +45,8 @@ tir::PrimFunc FewShotTunePrimFunc(const tir::PrimFunc& prim_func, const Target& 
     ICHECK(runner.defined()) << "ValueError: The local runner is not defined!";
   }
   // create an IRModule
-  IRModule mod = IRModule(Map<GlobalVar, BaseFunc>({{GlobalVar("main"), prim_func}}));
+  IRModule mod = IRModule(Map<GlobalVar, BaseFunc>(
+      {{GlobalVar("main"), WithAttr(prim_func, tvm::attr::kGlobalSymbol, String("main"))}}));
   // fetch the number of physical cores
   static const auto* f_cpu_count = runtime::Registry::Get("meta_schedule.cpu_count");
   ICHECK(f_cpu_count) << "ValueError: Cannot find the packed function \"meta_schedule._cpu_count\"";
