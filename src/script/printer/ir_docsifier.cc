@@ -96,6 +96,9 @@ void IRDocsifierNode::SetCommonPrefix(const ObjectRef& root,
         return;
       }
       if (std::find(visited_.begin(), visited_.end(), obj) != visited_.end()) {
+        if (is_var(GetRef<ObjectRef>(obj))) {
+          HandleVar(obj);
+        }
         return;
       }
       visited_.push_back(obj);
