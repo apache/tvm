@@ -19,7 +19,7 @@
 
 /*!
  * \file src/relay/op/nn/pooling_common.h
- * \brief Properties def of pooling operator for sharing.
+ * \brief Common functions for pooling operator definition.
  */
 #ifndef TVM_RELAY_OP_NN_POOLING_COMMON_H_
 #define TVM_RELAY_OP_NN_POOLING_COMMON_H_

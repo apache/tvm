@@ -18,8 +18,8 @@
  */
 
 /*!
- * \file src/relay/qnn/op/Avg_pool2d.cc
- * \brief Property def of qnn Avg_pool2d operator.
+ * \file src/relay/qnn/op/avg_pool2d.cc
+ * \brief Quantized avg_pool2d operator
  */
 
 #include <tvm/relay/analysis.h>
@@ -132,24 +132,22 @@ InferCorrectLayoutOutput QnnAvgPoolInferCorrectLayout(const Attrs& attrs,
   auto avgpool_new_layouts =
       PoolInferCorrectLayout<AvgPool2DAttrs>(attrs, new_in_layouts, old_in_layouts, old_in_types);
 
-  // Fill the layouts of remaining input tensors - scales and zero points. The layouts of these
-  // tensors can be treated as channel layout.
-  Layout channel_layout = Layout("C");
-  Array<Layout> input_layouts = {avgpool_new_layouts->input_layouts[0], channel_layout,
-                                 channel_layout, channel_layout, channel_layout};
+  // Scales and zero points are scalars, use the "undef" layout for them.
+  Array<Layout> input_layouts = {avgpool_new_layouts->input_layouts[0], Layout::Undef(),
+                                 Layout::Undef(), Layout::Undef(), Layout::Undef()};
   Array<Layout> output_layouts = avgpool_new_layouts->output_layouts;
   return InferCorrectLayoutOutput(input_layouts, output_layouts, attrs);
 }
 
 /*
- * \brief Forward rewrite the qnn Avg_pool2d op.
- * \param attrs The QNN Avg_pool2d attrs.
+ * \brief Forward rewrite the qnn avg_pool2d op.
+ * \param attrs The QNN avg_pool2d attrs.
  * \param new_args The new mutated args to the call node.
  * \param arg_types The types of input and output.
- * \return The sequence of Relay ops for qnn Avg_pool2d op.
- * \note Lowering of the qnn.Avg_pool2d operator
+ * \return The sequence of Relay ops for qnn avg_pool2d op.
+ * \note Lowering of the qnn.avg_pool2d operator
 
- *  Quantized Avg_pool2d will take one quantized input tensor and returns another
+ *  Quantized avg_pool2d will take one quantized input tensor and returns another
  *  quantized tensor. Since the input qnn params can be different from the output
  *  qnn params, first, we requantize the input tensors with output qnn params and
  *  cast the results into Int32. Then we call relay.nn.avg_pool2d on that requantized

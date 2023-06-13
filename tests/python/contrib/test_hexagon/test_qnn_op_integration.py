@@ -14,17 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name,missing-function-docstring,redefined-outer-name
+# pylint: disable=invalid-name
 
-""" Test Relay integrated qnn ops
-There are two types of tests for qnn ops in this file. One to verify the
-correctness of the relay integration and the other one to verify
-the fake quantization to integer implemented for picking up the qnn op.
-The former is only executed when qnn canonicalization is disabled.
-The latter is executed both with and without canonicalization.
-"""
-# TODO: We might want to distribute these test cases into other test cases such as
-# test_wo_qnn_canonicalization and test_pass_fake_quantization_to_integer in the future.
+"""Tests for QNN operations on Hexagon"""
 
 import numpy as np
 
@@ -32,161 +24,203 @@ import tvm.testing
 import tvm.topi.testing
 from tvm import relay
 from tvm.contrib.hexagon.session import Session
-from tvm.relay.backend import Executor, Runtime
-from tvm.contrib.hexagon import allocate_hexagon_array
+from tvm.contrib.hexagon.pytest_plugin import HEXAGON_AOT_LLVM_TARGET
+from tvm.relay.backend import Executor
+from tvm.relay.testing import run_opt_pass, run_infer_type
+
 from .infrastructure import quantize_np
 
-from .pytest_util import get_multitest_ids, create_populated_numpy_ndarray, TensorContentRandom
+
+@tvm.testing.requires_hexagon
+def test_disable_qnn_legalize_pass():
+    """No QNN pass test."""
+    x = relay.var("x", shape=(4, 8), dtype="float32")
+    op0 = relay.qnn.op.quantize(x, relay.const(2.0), relay.const(10), out_dtype="uint8")
+    op1 = relay.qnn.op.dequantize(op0, relay.const(0.5), relay.const(5))
+    relay_mod = tvm.IRModule.from_expr(op1)
+
+    target_hexagon = tvm.target.hexagon("v68")
+    # Default compilation flow
+    with tvm.transform.PassContext(opt_level=3):
+        opt_with_legalize, _ = relay.optimize(
+            relay_mod, tvm.target.Target(target_hexagon, host=target_hexagon)
+        )
+
+    # Disable QNN legalization and canonicalization passes
+    with tvm.transform.PassContext(opt_level=3, disabled_pass=["qnn.Legalize"]):
+        opt_without_legalize, _ = relay.optimize(
+            relay_mod, tvm.target.Target(target_hexagon, host=target_hexagon)
+        )
+
+    # Check that QNN ops are absent with default compilation flow.
+    text_with_legalize = opt_with_legalize.astext(show_meta_data=False)
+    assert "qnn.quantize" not in text_with_legalize and "qnn.dequantize" not in text_with_legalize
+
+    # Check that QNN ops are present without "qnn.Legalize" passes.
+    text_without_legalize = opt_without_legalize.astext(show_meta_data=False)
+    assert "qnn.quantize" in text_without_legalize and "qnn.dequantize" in text_without_legalize
 
 
-def compile_for_target(mod, target="hexagon", disable_canonicalization=False):
-    runtime = Runtime("cpp")
-    executor = Executor("graph", {"link-params": True})
-    if target == "hexagon":
-        target_hexagon = tvm.target.hexagon("v68")
-        target = tvm.target.Target(target_hexagon, host=target_hexagon)
-        print("Trying relay.build for ...", target)
-        dis_passes = []
-        if disable_canonicalization:
-            dis_passes = ["QnnCanonicalize"]
-        with tvm.transform.PassContext(opt_level=3, disabled_pass=dis_passes):
-            lib = relay.build(mod, target=target, runtime=runtime, executor=executor)
-            print(lib.function_metadata)
-        print("Finished relay.build for...", target)
-    elif target == "llvm":
-        target = tvm.target.Target("llvm")
-        print("Trying relay.build for ...", target)
-        with tvm.transform.PassContext(opt_level=3):
-            lib = relay.build(mod, target=target, runtime=runtime, executor=executor)
-            print(lib.function_metadata)
-        print("Finished relay.build for...", target)
-    return lib
+def build_hexagon_module(relay_mod):
+    with tvm.transform.PassContext(opt_level=3, disabled_pass=["QnnCanonicalize"]):
+        exe_mod = tvm.relay.build(
+            relay_mod,
+            tvm.target.Target(HEXAGON_AOT_LLVM_TARGET, host=HEXAGON_AOT_LLVM_TARGET),
+            executor=Executor("aot"),
+        )
+
+    return exe_mod
 
 
-def run_model_on_hexagon(hexagon_session, mod, inputs, params=None, disable_canonicalization=True):
-    hexagon_lowered = compile_for_target(mod, "hexagon", disable_canonicalization)
-    graph_mod = hexagon_session.get_executor_from_factory(hexagon_lowered)
-    if params is None:
-        params = {}
-    graph_mod.set_input(**params)
-    graph_mod.run(**inputs)
-    return graph_mod.get_output(0).numpy()
+def build_ref_module(relay_mod):
+    target_llvm = tvm.target.Target("llvm")
+    with tvm.transform.PassContext(opt_level=3):
+        exe_mod = tvm.relay.build(
+            relay_mod, tvm.target.Target(target_llvm, host=target_llvm), executor=Executor("aot")
+        )
+    return exe_mod
 
 
-def run_model_on_llvm(mod, inputs, params=None):
-    llvm_lowered = compile_for_target(mod, "llvm")
-    llvm_graph_mod = tvm.contrib.graph_executor.GraphModule(llvm_lowered["default"](tvm.cpu(0)))
-    if params is None:
-        params = {}
-    llvm_graph_mod.set_input(**params)
-    llvm_graph_mod.run(**inputs)
-    return llvm_graph_mod.get_output(0).numpy()
+def execute(mod_executor, inputs: dict):
+    for input_name, input_data in inputs.items():
+        mod_executor.set_input(input_name, input_data)
+    mod_executor.run()
+    return [mod_executor.get_output(i).numpy() for i in range(mod_executor.get_num_outputs())]
 
 
-def compare_fq_to_int(hexagon_session, expr, input_np_quant, params=None):
-    working_scope = "global"
-    inputs_llvm = {"data": input_np_quant}
-    input_arr = allocate_hexagon_array(
-        hexagon_session.device, data=input_np_quant, mem_scope=working_scope
+def execute_on_hexagon(hexagon_session, exe_mod, inputs: dict):
+    return execute(hexagon_session.get_executor_from_factory(exe_mod), inputs)
+
+
+def execute_on_cpu(exe_mod, inputs: dict):
+    return execute(tvm.runtime.executor.AotModule(exe_mod["default"](tvm.cpu(0))), inputs)
+
+
+def assert_allclose(actuals, desireds, rtol=1e-07, atol=0.01):
+    return [tvm.testing.assert_allclose(a, d, rtol, atol) for a, d in zip(actuals, desireds)]
+
+
+def run_and_compare(hexagon_session, relay_mod, inputs, rtol=None, atol=None):
+    """Compile and execute given relay module on CPU and Hexagon, and compare
+    results"""
+    hexagon_mod = build_hexagon_module(relay_mod)
+    cpu_mod = build_ref_module(relay_mod)
+
+    hexagon_outs = execute_on_hexagon(hexagon_session, hexagon_mod, inputs)
+    cpu_outs = execute_on_cpu(cpu_mod, inputs)
+
+    # Do not pass rtol/atol if not present to use default values from assert_allclose
+    tolerances = dict()
+    if rtol is not None:
+        tolerances["rtol"] = rtol
+    if atol is not None:
+        tolerances["atol"] = atol
+
+    assert_allclose(hexagon_outs, cpu_outs, **tolerances)
+
+
+# First test basic QNN ops: quantize, dequantize, requantize
+#
+class TestQnnQuantize:
+    """QNN Quantize test class."""
+
+    input_shape = tvm.testing.parameter([1, 8, 8, 32], [1, 10, 10, 32], [1, 12, 12, 128])
+    odtype = tvm.testing.parameters("int8", "uint8")
+
+    @tvm.testing.requires_hexagon
+    def test_qnn_quantize(self, hexagon_session: Session, odtype, input_shape):
+        """Test qnn.quantize"""
+
+        def gen_relay_expr_qnn(output_scale, output_zero_point):
+            data = relay.var("data", shape=input_shape, dtype="float32")
+            qnn_quantize = relay.qnn.op.quantize(
+                data,
+                output_scale=relay.const(output_scale),
+                output_zero_point=relay.const(output_zero_point),
+                axis=-1,
+                out_dtype=odtype,
+            )
+            return qnn_quantize
+
+        inputs = {"data": np.random.random(input_shape)}
+        # Use quantize_np to obtain reasonable quantization parameters.
+        ref_out, scale, zero_point = quantize_np(inputs["data"], odtype)
+
+        relay_mod = tvm.IRModule.from_expr(gen_relay_expr_qnn(scale, zero_point))
+
+        hexagon_mod = build_hexagon_module(relay_mod)
+        hexagon_outs = execute_on_hexagon(hexagon_session, hexagon_mod, inputs)
+        assert_allclose(hexagon_outs, [ref_out], atol=1)
+
+
+class TestQnnDequantize:
+    """QNN Dequantize test class."""
+
+    input_shape = tvm.testing.parameter(
+        [1, 12, 32, 128], [1, 10, 10, 32], [1, 6, 6, 2048], [1, 1000]
     )
-    inputs_hex = {"data": input_arr}
-    mod = tvm.IRModule.from_expr(expr)
-    mod = tvm.relay.transform.InferType()(mod)
-    mod_int = tvm.relay.transform.FakeQuantizationToInteger()(mod)
-    assert not tvm.ir.structural_equal(mod, mod_int)
+    idtype = tvm.testing.parameter("int8", "uint8")
 
-    ref_out_llvm = run_model_on_llvm(mod, inputs_llvm, params)
+    @tvm.testing.requires_hexagon
+    def test_qnn_dequantize(self, hexagon_session: Session, idtype, input_shape):
+        """Test qnn.dequantize"""
 
-    # Compare the Hexagon and LLVM results with and without the qnn canonicalization
-    print("Comparing Hexagon and LLVM reusults (canonicalization disabled)...")
-    hexagon_output_fq_wo_qnn_can = run_model_on_hexagon(
-        hexagon_session, mod_int, inputs_hex, params, True
-    )
-    tvm.testing.assert_allclose(ref_out_llvm, hexagon_output_fq_wo_qnn_can, rtol=0, atol=2)
-    print("Comparing Hexagon and LLVM reusults (canonicalization enabled)...")
-    hexagon_output_fq_w_qnn_can = run_model_on_hexagon(
-        hexagon_session, mod_int, inputs_hex, params, False
-    )
-    assert np.all(
-        np.abs(ref_out_llvm.astype("int32") - hexagon_output_fq_w_qnn_can.astype("int32")) <= 1
-    )
+        def gen_relay_expr_qnn(dtype, input_scale, input_zero_point):
+            data = relay.var("data", shape=input_shape, dtype=dtype)
+            qnn_dequantize = relay.qnn.op.dequantize(
+                data,
+                input_scale=relay.const(input_scale),
+                input_zero_point=relay.const(input_zero_point),
+            )
+            return qnn_dequantize
 
+        # Generate float data, then quantize it to produce input.
+        ref_out = np.random.random(input_shape)
+        data, scale, zero_point = quantize_np(ref_out, idtype)
+        inputs = {"data": data}
 
-@tvm.testing.fixture
-def input_np(input_shape, idtype, input_tensor_populator):
-    if idtype in ("int8", "uint8"):
-        idtype = "float32"  # Use "float32" input which will be quantized later
-    return create_populated_numpy_ndarray(input_shape, idtype, input_tensor_populator)
+        relay_mod = tvm.IRModule.from_expr(gen_relay_expr_qnn(idtype, scale, zero_point))
 
-
-@tvm.testing.fixture
-def transformed_expected_output_np(expected_output_np, odtype):
-    scale = None
-    zero_point = None
-    if odtype in ("int8", "uint8"):
-        quant_arr, scale, zero_point = quantize_np(expected_output_np, odtype)
-    else:
-        quant_arr = expected_output_np
-    return quant_arr, scale, zero_point
+        hexagon_mod = build_hexagon_module(relay_mod)
+        hexagon_outs = execute_on_hexagon(hexagon_session, hexagon_mod, inputs)
+        # We do
+        #   original -[quantize]-> input -[dequantize]-> output
+        # then compare "original" with "output". Use rtol=1 because of the quantized
+        # format in the middle.
+        assert_allclose(hexagon_outs, [ref_out], rtol=1, atol=1e-2)  # rtol = 1
 
 
-@tvm.testing.fixture
-def transformed_input_np(input_np, idtype):
-    scale = None
-    zero_point = None
-    if idtype in ("int8", "uint8"):
-        quant_arr, scale, zero_point = quantize_np(input_np, idtype)
-    else:
-        quant_arr = input_np
-    return quant_arr, scale, zero_point
+class TestQnnRequantize:
+    """QNN requantize test class"""
 
+    @tvm.testing.requires_hexagon
+    def test_qnn_requantize(self, hexagon_session: Session):
+        """Test qnn.requantize"""
+        data_shape = [256]
+        data = relay.var("data", shape=data_shape, dtype="int32")
 
-input_layout = tvm.testing.parameter("nhwc")
-output_layout = tvm.testing.parameter("nhwc")
+        op = relay.qnn.op.requantize(
+            data,
+            input_scale=relay.const(0.156),
+            input_zero_point=relay.const(2),
+            output_scale=relay.const(0.212),
+            output_zero_point=relay.const(1),
+            out_dtype="int8",
+        )
+        relay_mod = tvm.IRModule.from_expr(op)
+
+        inputs = {"data": np.arange(-256, 256, 2, dtype="int32")}
+
+        run_and_compare(hexagon_session, relay_mod, inputs, rtol=0, atol=0)  # equal
 
 
 class TestQnnAvgPool2d:
     """QNN AvgPool2d test class."""
 
-    _param_descs = [
-        "in_shape",  # input_shape
-        "layout",  # NHWC or NCHW
-        "kernel",  # kernel
-        "stride",  # stride
-        "dil",  # dilation
-        "pad",  # padding
-        "ceil",  # ceil_mode
-        "cnt_padded",  # count_include_pad
-        None,  # input_tensor_populator
-    ]
-
     _multitest_params = [
-        (
-            [1, 12, 12, 32],
-            "NHWC",
-            [3, 3],
-            [1, 1],
-            [2, 3],
-            [1, 2, 3, 4],
-            False,
-            False,
-            TensorContentRandom(),
-        ),
-        (
-            [1, 18, 18, 32],  # output shape: [1, 16, 16, 32]
-            "NCHW",
-            [3, 3],
-            [2, 2],
-            [2, 1],
-            [1, 2, 3, 4],
-            False,
-            True,
-            TensorContentRandom(),
-        ),
+        ([1, 12, 12, 32], "NHWC", [3, 3], [1, 1], [2, 3], [1, 2, 3, 4], False, False),
+        ([1, 18, 18, 32], "NCHW", [3, 3], [2, 2], [2, 1], [1, 2, 3, 4], False, True),
     ]
-
-    _param_ids = get_multitest_ids(_multitest_params, _param_descs)
-    idtype, odtype = tvm.testing.parameters(("uint8", "uint8"))
 
     (
         input_shape,
@@ -197,34 +231,16 @@ class TestQnnAvgPool2d:
         padding,
         ceil_mode,
         count_include_pad,
-        input_tensor_populator,
-    ) = tvm.testing.parameters(*_multitest_params, ids=_param_ids)
+    ) = tvm.testing.parameters(*_multitest_params)
 
-    @tvm.testing.fixture
-    def expected_output_np(
-        self, input_np, kernel, stride, dilation, padding, ceil_mode, count_include_pad, layout
-    ):
-        pad_before = padding[:2]
-        pad_after = padding[2:]
-        ref_np = tvm.topi.testing.poolnd_python(
-            input_np,
-            kernel,
-            stride,
-            dilation,
-            pad_before,
-            pad_after,
-            "avg",  # pool_type
-            count_include_pad,
-            ceil_mode,
-            layout=layout,
-        )
-
-        return ref_np
+    idtype, odtype = tvm.testing.parameters(("uint8", "uint8"))
 
     @tvm.testing.requires_hexagon
-    def test_integrated_qnn_avg_pool2d(
+    def test_qnn_avg_pool2d(
         self,
+        hexagon_session: Session,
         idtype,
+        odtype,
         input_shape,
         kernel,
         stride,
@@ -233,24 +249,12 @@ class TestQnnAvgPool2d:
         ceil_mode,
         count_include_pad,
         layout,
-        transformed_input_np,
-        transformed_expected_output_np,
-        hexagon_session: Session,
     ):
-        working_scope = "global"
+        """Test qnn.avg_pool2d"""
 
-        if idtype in ("uint8"):
-            input_np_quant, input_scale, input_zero_point = transformed_input_np
-            golden_out_np, output_scale, output_zero_point = transformed_expected_output_np
-        else:
-            raise RuntimeError(f"Unsupport input dtype '{idtype}'")
-
-        input_arr = allocate_hexagon_array(
-            hexagon_session.device, data=input_np_quant, mem_scope=working_scope
-        )
-        inputs_hex = {"data": input_arr}
-
-        def gen_relay_expr_qnn(dtype):
+        def gen_relay_expr_qnn(
+            dtype, input_scale, input_zero_point, output_scale, output_zero_point
+        ):
             data = relay.var("data", shape=input_shape, dtype=dtype)
             qnn_avg_pool = relay.qnn.op.avg_pool2d(
                 data,
@@ -269,186 +273,303 @@ class TestQnnAvgPool2d:
 
             return qnn_avg_pool
 
-        op_hex = gen_relay_expr_qnn(idtype)
-        mod = tvm.IRModule.from_expr(op_hex)
-        mod = relay.transform.InferType()(mod)
-        hexagon_out = run_model_on_hexagon(hexagon_session, mod, inputs_hex)
-        np.testing.assert_allclose(hexagon_out, golden_out_np, rtol=0, atol=2)
-
-    @tvm.testing.requires_hexagon
-    def test_fake_quantize_avg_pool2d(
-        self,
-        idtype,
-        input_shape,
-        kernel,
-        stride,
-        dilation,
-        padding,
-        layout,
-        ceil_mode,
-        count_include_pad,
-        transformed_input_np,
-        transformed_expected_output_np,
-        hexagon_session: Session,
-    ):
-        if idtype in ("uint8"):
-            input_np_quant, input_scale, input_zero_point = transformed_input_np
-            _, output_scale, output_zero_point = transformed_expected_output_np
-        else:
-            raise RuntimeError(f"Unsupport input dtype '{idtype}'")
-
-        def gen_relay_expr(dtype):
-            data = relay.var("data", shape=input_shape, dtype=dtype)
-            data_deq = relay.qnn.op.dequantize(
-                data, relay.const(input_scale), relay.const(input_zero_point)
-            )
-            op = relay.op.nn.avg_pool2d(
-                data=data_deq,
-                pool_size=kernel,
-                strides=stride,
-                dilation=dilation,
-                padding=padding,
-                layout=layout,
-                ceil_mode=ceil_mode,
-                count_include_pad=count_include_pad,
-            )
-            out_quant = relay.qnn.op.quantize(
-                op, relay.const(output_scale), relay.const(output_zero_point), out_dtype=dtype
-            )
-            return out_quant
-
-        op_llvm = gen_relay_expr(idtype)
-        compare_fq_to_int(hexagon_session, op_llvm, input_np_quant)
-
-
-class TestQnnQuantize:
-    """QNN Quantize test class."""
-
-    _param_descs = ["in_shape", None]  # input_shape  # input_tensor_populator
-
-    _multitest_params = [
-        ([1, 8, 8, 32], TensorContentRandom()),
-        ([1, 10, 10, 32], TensorContentRandom()),
-        ([1, 12, 12, 128], TensorContentRandom()),
-    ]
-
-    _param_ids = get_multitest_ids(_multitest_params, _param_descs)
-
-    (input_shape, input_tensor_populator) = tvm.testing.parameters(
-        *_multitest_params, ids=_param_ids
-    )
-
-    idtype, odtype = tvm.testing.parameters(("float32", "int8"), ("float32", "uint8"))
-
-    @tvm.testing.fixture
-    def expected_output_np(self, input_np):
-        # The expected output is of the same shape as input.
-        # The only computation applied on the input is quanization.
-        # Since transform_expected_output quantizes the data,
-        # here, we return the orignal input array in float
-        return input_np
-
-    @tvm.testing.requires_hexagon
-    def test_integrated_qnn_quantize(
-        self,
-        idtype,
-        odtype,
-        input_shape,
-        input_np,
-        transformed_expected_output_np,
-        hexagon_session: Session,
-    ):
-        working_scope = "global"
-        if odtype in ("int8", "uint8"):
-            golden_out_np, output_scale, output_zero_point = transformed_expected_output_np
-        else:
-            raise RuntimeError(f"Unsupport output dtype '{odtype}'")
-
-        input_arr = allocate_hexagon_array(
-            hexagon_session.device, data=input_np, mem_scope=working_scope
+        # Generate inputs and reference data first.
+        fp_input = np.random.random(input_shape)
+        fp_output = tvm.topi.testing.poolnd_python(
+            fp_input,
+            kernel,
+            stride,
+            dilation,
+            padding_before=padding[:2],
+            padding_after=padding[2:],
+            pool_type="avg",
+            count_include_pad=count_include_pad,
+            ceil_mode=ceil_mode,
+            layout=layout,
         )
-        inputs_hex = {"data": input_arr}
+        input_data, input_scale, input_zero_point = quantize_np(fp_input, idtype)
+        ref_out, output_scale, output_zero_point = quantize_np(fp_output, odtype)
+        inputs = {"data": input_data}
 
-        def gen_relay_expr_qnn(dtype):
-            data = relay.var("data", shape=input_shape, dtype=dtype)
-            qnn_quantize = relay.qnn.op.quantize(
-                data,
-                output_scale=relay.const(output_scale),
-                output_zero_point=relay.const(output_zero_point),
-                axis=-1,
-                out_dtype=odtype,
+        relay_mod = tvm.IRModule.from_expr(
+            gen_relay_expr_qnn(
+                idtype, input_scale, input_zero_point, output_scale, output_zero_point
             )
-            return qnn_quantize
+        )
 
-        op_hex = gen_relay_expr_qnn(idtype)
-        mod = tvm.IRModule.from_expr(op_hex)
-        mod = relay.transform.InferType()(mod)
-        hexagon_out = run_model_on_hexagon(hexagon_session, mod, inputs_hex)
-        np.testing.assert_allclose(hexagon_out, golden_out_np, rtol=0, atol=1)
+        hexagon_mod = build_hexagon_module(relay_mod)
+        hexagon_outs = execute_on_hexagon(hexagon_session, hexagon_mod, inputs)
+        assert_allclose(hexagon_outs, [ref_out], rtol=0, atol=2)
 
 
-class TestQnnDequantize:
-    """QNN Dequantize test class."""
+class TestQnnBinaryOp:
+    """QNN binary op test class"""
 
-    _param_descs = ["in_shape", None]  # input_shape  # input_tensor_populator
-
-    _multitest_params = [
-        ([1, 12, 32, 128], TensorContentRandom()),
-        ([1, 10, 10, 32], TensorContentRandom()),
-        ([1, 6, 6, 2048], TensorContentRandom()),
-        ([1, 1000], TensorContentRandom()),
-    ]
-
-    _param_ids = get_multitest_ids(_multitest_params, _param_descs)
-
-    (input_shape, input_tensor_populator) = tvm.testing.parameters(
-        *_multitest_params, ids=_param_ids
-    )
-
-    idtype, odtype = tvm.testing.parameters(("int8", "float32"), ("uint8", "float32"))
-
-    @tvm.testing.fixture
-    def expected_output_np(self, input_np, idtype):
-        quant_np, scale, zero_point = quantize_np(input_np, idtype)
-        ref_np = (scale * (quant_np.astype("int32") - zero_point)).astype("float32")
-        return ref_np
+    operation = tvm.testing.parameter(relay.qnn.op.add, relay.qnn.op.subtract, relay.qnn.op.mul)
+    dtype = tvm.testing.parameter("uint8", "int8")
+    input_shape = tvm.testing.parameter([256], [4, 256])
 
     @tvm.testing.requires_hexagon
-    def test_integrated_qnn_dequantize(
-        self,
-        idtype,
-        odtype,
-        input_shape,
-        transformed_input_np,
-        transformed_expected_output_np,
-        hexagon_session: Session,
-    ):
-        working_scope = "global"
-        if odtype in ("float32"):
-            input_np_quant, input_scale, input_zero_point = transformed_input_np
-            golden_out_np, _, _ = transformed_expected_output_np
-        else:
-            raise RuntimeError(f"Unsupport odtype '{odtype}'")
+    def test_qnn_binary_op(self, hexagon_session: Session, operation, dtype, input_shape):
+        """Test binary qnn ops"""
+        lhs_shape = [4, 256]
+        rhs_shape = input_shape
+        lhs = relay.var("lhs", shape=lhs_shape, dtype=dtype)
+        rhs = relay.var("rhs", shape=rhs_shape, dtype=dtype)
+        lhs_zp = 1
+        rhs_zp = 3
 
-        input_arr = allocate_hexagon_array(
-            hexagon_session.device, data=input_np_quant, mem_scope=working_scope
+        op = operation(
+            lhs,
+            rhs,
+            lhs_scale=relay.const(0.041, "float32"),
+            lhs_zero_point=relay.const(lhs_zp, "int32"),
+            rhs_scale=relay.const(0.017, "float32"),
+            rhs_zero_point=relay.const(rhs_zp, "int32"),
+            output_scale=relay.const(0.039, "float32"),
+            output_zero_point=relay.const(2, "int32"),
         )
-        inputs_hex = {"data": input_arr}
+        relay_mod = tvm.IRModule.from_expr(op)
 
-        def gen_relay_expr_qnn(dtype):
-            data = relay.var("data", shape=input_shape, dtype=dtype)
-            qnn_quantize = relay.qnn.op.dequantize(
-                data,
-                input_scale=relay.const(input_scale),
-                input_zero_point=relay.const(input_zero_point),
-            )
-            return qnn_quantize
+        inputs = {
+            "lhs": np.random.randint(np.iinfo(dtype).min + lhs_zp, np.iinfo(dtype).max, lhs_shape),
+            "rhs": np.random.randint(np.iinfo(dtype).min + rhs_zp, np.iinfo(dtype).max, rhs_shape),
+        }
 
-        op_hex = gen_relay_expr_qnn(idtype)
-        mod = tvm.IRModule.from_expr(op_hex)
-        mod = relay.transform.InferType()(mod)
-        hexagon_out = run_model_on_hexagon(hexagon_session, mod, inputs_hex)
-        np.testing.assert_allclose(hexagon_out, golden_out_np, rtol=1e-3, atol=1e-3)
+        run_and_compare(hexagon_session, relay_mod, inputs, atol=1)  # diff by 1 is ok
+
+    @tvm.testing.requires_hexagon
+    def test_qnn_binary_op_broadcasting(self, hexagon_session: Session, operation):
+        """Test binary qnn ops (with argument broadcast)"""
+        lhs_shape = [4, 256]
+        lhs = relay.var("lhs", shape=lhs_shape, dtype="uint8")
+        rhs = relay.const(11, dtype="uint8")
+
+        op = operation(
+            lhs,
+            rhs,
+            lhs_scale=relay.const(0.049, "float32"),
+            lhs_zero_point=relay.const(1, "int32"),
+            rhs_scale=relay.const(0.067, "float32"),
+            rhs_zero_point=relay.const(3, "int32"),
+            output_scale=relay.const(0.041, "float32"),
+            output_zero_point=relay.const(2, "int32"),
+        )
+        relay_mod = tvm.IRModule.from_expr(op)
+
+        inputs = {"lhs": np.random.randint(1, 255, size=lhs_shape)}
+
+        run_and_compare(hexagon_session, relay_mod, inputs, atol=1)  # diff by 1 is ok
+
+
+class TestQnnConcatenate:
+    """QNN concatenate test class"""
+
+    @tvm.testing.requires_hexagon
+    def test_qnn_concatenate(self, hexagon_session: Session):
+        """Test qnn.concatenate"""
+        x_shape = [1, 64]
+        y_shape = [2, 64]
+        z_shape = [3, 64]
+        input_x = relay.var("x", shape=x_shape, dtype="uint8")
+        input_y = relay.var("y", shape=y_shape, dtype="uint8")
+        input_z = relay.var("z", shape=z_shape, dtype="uint8")
+
+        op = relay.qnn.op.concatenate(
+            (input_x, input_y, input_z),
+            input_scales=(relay.const(0.3), relay.const(0.7), relay.const(1.3)),
+            input_zero_points=(relay.const(0), relay.const(1), relay.const(2)),
+            output_scale=relay.const(0.8),
+            output_zero_point=relay.const(5),
+            axis=0,
+        )
+        relay_mod = tvm.IRModule.from_expr(op)
+
+        inputs = {
+            "x": np.arange(0, 64, 1, dtype="uint8").reshape(x_shape),
+            "y": np.arange(0, 128, 1, dtype="uint8").reshape(y_shape),
+            "z": np.arange(0, 192, 1, dtype="uint8").reshape(z_shape),
+        }
+
+        run_and_compare(hexagon_session, relay_mod, inputs, atol=1)  # diff by 1 is ok
+
+
+class TestQnnConv2D:
+    """QNN conv2d op test class."""
+
+    @tvm.testing.requires_hexagon
+    def test_qnn_quantize_conv2d_requantize(self, hexagon_session: Session):
+        """Tast qnn.conv2d"""
+        data_shape = [1, 8, 32, 32]
+        weight_shape = [16, 8, 3, 3]
+        data = relay.var("data", shape=data_shape, dtype="float32")
+        weight = relay.var("weight", shape=weight_shape, dtype="float32")
+        op0 = relay.qnn.op.quantize(data, relay.const(0.078), relay.const(0), out_dtype="uint8")
+        op1 = relay.qnn.op.quantize(weight, relay.const(0.07), relay.const(0), out_dtype="int8")
+        op2 = relay.qnn.op.conv2d(
+            op0,
+            op1,
+            input_zero_point=relay.const(0),
+            kernel_zero_point=relay.const(0),
+            input_scale=relay.const(0.078),
+            kernel_scale=relay.const(0.07),
+            padding=[0, 0, 0, 0],
+            channels=16,
+            kernel_size=[3, 3],
+        )
+        op5 = relay.qnn.op.requantize(
+            op2,
+            input_scale=relay.const(0.05),
+            input_zero_point=relay.const(0),
+            output_scale=relay.const(0.21),
+            output_zero_point=relay.const(61),
+            out_dtype="int8",
+        )
+        relay_mod = tvm.IRModule.from_expr(op5)
+
+        inputs = {
+            "data": np.random.rand(*data_shape),
+            "weight": np.random.rand(*weight_shape) - 0.5,
+        }
+
+        run_and_compare(hexagon_session, relay_mod, inputs, rtol=0, atol=0)  # equal
+
+
+class TestQnnDense:
+    """QNN dense op test class."""
+
+    @tvm.testing.requires_hexagon
+    def test_alter_layout_qnn_dense(self):
+        """Test weights layout transformation of qnn.dense with int8 weights"""
+        data = relay.var("data", shape=(128, 16), dtype="uint8")
+        weight = relay.var("weight", shape=(64, 16), dtype="int8")
+        zero = relay.const(0)
+        iscale = relay.const(0.15)
+        wscale = relay.const(0.37)
+
+        def before():
+            return relay.qnn.op.dense(data, weight, zero, zero, iscale, wscale, units=None)
+
+        def expected():
+            op0 = relay.layout_transform(weight, src_layout="NC", dst_layout="NC32n4c")
+            return relay.qnn.op.contrib_dense_pack(data, op0, zero, zero, iscale, wscale, "NC32n4c")
+
+        target = tvm.target.hexagon("v68")
+        with tvm.target.Target(target):
+            a = run_opt_pass(before(), tvm.relay.transform.AlterOpLayout())
+            b = run_infer_type(expected())
+            tvm.ir.assert_structural_equal(a, b)
+
+    # Dense + bias_add + requantize
+    #
+    dtype = tvm.testing.parameter("uint8", "int8")
+    n_dim = tvm.testing.parameter(64, 60)
+
+    @tvm.testing.requires_hexagon
+    def test_qnn_dense_biasadd_requantize(self, hexagon_session: Session, dtype, n_dim):
+        """Check lowering of qnn.dense + bias_add + qnn.requantize
+        dtype: type of weights
+        n_dim: N dimension of weights, need to check cases when it is multiple of 32 and not.
+        """
+        data_shape = [128, 32]
+        weight_shape = [n_dim, 32]
+        bias_shape = [n_dim]
+        data = relay.var("data", shape=data_shape, dtype="uint8")
+        weight = relay.var("weight", shape=weight_shape, dtype=dtype)
+        bias = relay.var("bias", shape=bias_shape, dtype="int32")
+
+        op0 = relay.qnn.op.dense(
+            data,
+            weight,
+            input_zero_point=relay.const(2),
+            kernel_zero_point=relay.const(0),
+            input_scale=relay.const(0.08),
+            kernel_scale=relay.const(0.07),
+            units=None,
+        )
+        op1 = relay.nn.bias_add(op0, bias)
+        op2 = relay.qnn.op.requantize(
+            op1,
+            input_scale=relay.const(1.3),
+            input_zero_point=relay.const(4),
+            output_scale=relay.const(3.7),
+            output_zero_point=relay.const(1),
+            out_dtype="uint8",
+        )
+        relay_mod = tvm.IRModule.from_expr(op2)
+
+        np.random.seed(0)
+
+        inputs = {
+            "data": np.random.randint(2, 8, size=data_shape, dtype="uint8"),
+            "weight": np.random.randint(0, 8, size=weight_shape, dtype=dtype),
+            "bias": np.random.randint(-10, 10, size=bias_shape, dtype="int32"),
+        }
+
+        run_and_compare(hexagon_session, relay_mod, inputs, atol=1)  # diff by 1 is ok
+
+    # Dense + requantize
+    #
+    @tvm.testing.requires_hexagon
+    def test_qnn_dense_requantize(self, hexagon_session: Session):
+        """Check lowering of qnn.dense + qnn.requantize
+        Checkint the case: data type = "uint8", weight type = "int8", input zp = 0 and kernel zp = 0
+        """
+        data_shape = [128, 32]
+        weight_shape = [64, 32]
+        data = relay.var("data", shape=data_shape, dtype="uint8")
+        weight = relay.var("weight", shape=weight_shape, dtype="int8")
+
+        op0 = relay.qnn.op.dense(
+            data,
+            weight,
+            input_zero_point=relay.const(0),
+            kernel_zero_point=relay.const(0),
+            input_scale=relay.const(0.06),
+            kernel_scale=relay.const(0.19),
+            units=64,
+        )
+        op1 = relay.qnn.op.requantize(
+            op0,
+            input_scale=relay.const(0.1),
+            input_zero_point=relay.const(0),
+            output_scale=relay.const(0.24),
+            output_zero_point=relay.const(64),
+            out_dtype="uint8",
+        )
+        relay_mod = tvm.IRModule.from_expr(op1)
+
+        np.random.seed(0)
+
+        inputs = {
+            "data": np.random.randint(0, 8, size=data_shape, dtype="uint8"),
+            "weight": np.random.randint(-4, 4, size=weight_shape, dtype="int8"),
+        }
+
+        run_and_compare(hexagon_session, relay_mod, inputs, atol=1)  # diff by 1 is ok
+
+
+class TestQnnTanh:
+    """QNN tanh test class"""
+
+    @tvm.testing.requires_hexagon
+    def test_qnn_tanh(self, hexagon_session: Session):
+        """Test qnn.tanh"""
+        data_shape = [256]
+        data = relay.var("data", shape=data_shape, dtype="uint8")
+
+        op = relay.qnn.op.tanh(
+            data,
+            scale=relay.const(0.518),
+            zero_point=relay.const(137),
+            output_scale=relay.const(0.207),
+            output_zero_point=relay.const(128),
+        )
+        relay_mod = tvm.IRModule.from_expr(op)
+
+        inputs = {"data": np.arange(0, 256, 1, dtype="uint8")}
+
+        run_and_compare(hexagon_session, relay_mod, inputs, rtol=0, atol=0)  # equal
 
 
 if __name__ == "__main__":

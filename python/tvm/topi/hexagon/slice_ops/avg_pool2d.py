@@ -215,10 +215,8 @@ def schedule_1024c(outs, ins, output_layout: str, input_layout: str):
     s.vectorize(cii)
 
     # Schedule 'Sum'
-    # s.compute_at(Sum, cio)
     Sum_axis = s.get_loops(Sum)
     s.reorder(Sum_axis[-2], Sum_axis[-1], Sum_axis[-3])
-    # s.vectorize(Sum_axis[-3]) # Doesn't work
     return s
 
 

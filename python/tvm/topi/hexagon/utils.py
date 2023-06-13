@@ -38,14 +38,14 @@ def get_const_int_value(expr):
     if isinstance(expr, te.Tensor):
         assert isinstance(expr.op.body[0], tir.IntImm)
         return expr.op.body[0].value
-    return get_const_int(expr)
+    return tvm.topi.utils.get_const_int(expr)
 
 
 def get_const_float_value(expr):
     if isinstance(expr, te.Tensor):
         assert isinstance(expr.op.body[0], tir.FloatImm)
         return expr.op.body[0].value
-    return get_const_float(expr)
+    return tvm.topi.utils.get_const_float(expr)
 
 
 def n11c_1024c_2d(n, h, w, c):
