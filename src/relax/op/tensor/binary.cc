@@ -132,5 +132,17 @@ RELAX_REGISTER_CMP_OP_AND_IMPL(not_equal);
 RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(minimum);
 RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(maximum);
 
+/***************** Logical operators *****************/
+
+RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(logical_and);
+RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(logical_or);
+RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(logical_xor);
+
+/***************** Bitwise operators *****************/
+
+RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(bitwise_and);
+RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(bitwise_or);
+RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(bitwise_xor);
+
 }  // namespace relax
 }  // namespace tvm

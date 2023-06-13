@@ -159,6 +159,22 @@ def atanh(x: Expr) -> Expr:
     return _ffi_api.atanh(x)  # type: ignore
 
 
+def bitwise_not(x: Expr) -> Expr:
+    """Compute bitwise NOT of the input data.
+
+    Parameters
+    ----------
+    x : relax.Expr
+        The input data
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.bitwise_not(x)  # type: ignore
+
+
 def ceil(x: Expr) -> Expr:
     """Take ceil of input data.
 
@@ -269,6 +285,22 @@ def log(x: Expr) -> Expr:
     The input tensor is required to have float dtype
     """
     return _ffi_api.log(x)  # type: ignore
+
+
+def logical_not(x: Expr) -> Expr:
+    """Compute logical NOT of the input data.
+
+    Parameters
+    ----------
+    x : relax.Expr
+        The input data
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.logical_not(x)  # type: ignore
 
 
 def negative(x: Expr) -> Expr:
