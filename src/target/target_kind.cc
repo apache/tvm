@@ -104,7 +104,7 @@ static int ExtractIntWithPrefix(const std::string& str, const std::string& prefi
   }
   return result;
 }
-    
+
 /*!
  * \brief Extract a string from the string with the given prefix.
  * For example, when `str` is "sm_20" and `prefix` is "sm_".
@@ -122,7 +122,7 @@ std::string ExtractStringWithPrefix(const std::string& str, const std::string& p
   }
   return str.substr(prefix.length(), pos - prefix.length());
 }
-    
+
 /*!
  * \brief Using TVM DeviceAPI to detect the device flag
  * \param device The device to be detected
