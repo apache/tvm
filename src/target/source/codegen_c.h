@@ -232,11 +232,14 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   /*!
    * \brief Generate forward function declarations.
    * \param global_symbol The symbolc of the target function.
-   * \param args The arguments to the function.
+   * \param arg_types The argument types to the function.
+   * \param ret_type The return type of the function
    * \param os The output stream.
    */
   virtual void GenerateForwardFunctionDeclarations(String global_symbol,
-                                                   const Array<PrimExpr>& args) {}
+                                                   const Array<Type>& arg_types,
+                                                   const Type& ret_type) {}
+
   /*!
    * \brief Print external function call.
    * \param ret_type The return type.
