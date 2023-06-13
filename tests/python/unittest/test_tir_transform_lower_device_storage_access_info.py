@@ -53,8 +53,6 @@ class TestLowerCPUAccessibleScope(BaseCompare):
     to replace the AllocateNode.
     """
 
-    transform = tvm.tir.transform.LowerDeviceStorageAccessInfo()
-
     def before():
         ptr = T.allocate([16], "float32", scope="global.test_with_head_address")
         T.evaluate(ptr)
@@ -72,8 +70,6 @@ class TestLowerCPUAccessibleScopeWithDeclBuffer(BaseCompare):
     When the Allocate is updated, the DeclBuffer should not contain a
     dangling reference.
     """
-
-    transform = tvm.tir.transform.LowerDeviceStorageAccessInfo()
 
     def before():
         buf = T.decl_buffer(16, "float32", scope="global.test_with_head_address")
@@ -95,8 +91,6 @@ class TestLowerCPUInaccessibleScope(BaseCompare):
     buffer should have been lowered by this point.
     """
 
-    transform = tvm.tir.transform.LowerDeviceStorageAccessInfo()
-
     def before():
         ptr = T.allocate([16], "float32", scope="global.test_without_head_address")
         T.evaluate(0)
@@ -111,8 +105,6 @@ class TestLowerCPUInaccessibleScopeWithDeclBuffer(BaseCompare):
     When the Allocate is removed, the DeclBuffer should not contain a
     dangling reference.
     """
-
-    transform = tvm.tir.transform.LowerDeviceStorageAccessInfo()
 
     def before():
         buf = T.decl_buffer(16, "float32", scope="global.test_without_head_address")
