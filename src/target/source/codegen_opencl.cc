@@ -88,7 +88,7 @@ void CodeGenOpenCL::InitFuncState(const PrimFunc& f) {
   }
 }
 
-void CodeGenOpenCL::PrintFuncPrefix(std::ostream& os) { os << "__kernel void"; }
+void CodeGenOpenCL::PrintFuncPrefix(std::ostream& os) { os << "__kernel "; }
 
 void CodeGenOpenCL::PreFunctionBody(const PrimFunc& f) {
   for (Var arg : f->params) {
