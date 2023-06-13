@@ -443,6 +443,7 @@ class TestKeras:
         keras_model = keras_mod.models.Model(data, x)
         verify_keras_frontend(keras_model)
 
+        data = keras_mod.layers.Input(shape=(32, 32, 3))
         x = keras_mod.layers.Cropping2D(cropping=(2, 1))(data)
         x = keras_mod.layers.Cropping2D(cropping=(1, 2))(x)
         keras_model = keras_mod.models.Model(data, x)
