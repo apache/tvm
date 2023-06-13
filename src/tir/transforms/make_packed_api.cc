@@ -353,14 +353,14 @@ PrimFunc MakePackedAPI(PrimFunc func) {
     }
   }
 
+  // Return error code of zero on success
+  body = SeqStmt({body, Evaluate(ret(Integer(0)))});
+
   // Apply all argument assertions
   std::ostringstream num_args_error;
   num_args_error << name_hint << ": num_args should be " << num_args;
   std::vector<Stmt> arg_assert = {MakeAssertEQ(v_num_packed_args, num_args, num_args_error.str())};
   body = MergeNest({arg_assert, seq_init, binder.init_nest(), seq_check, binder.asserts()}, body);
-
-  // Return error code of zero on success
-  body = SeqStmt({body, Evaluate(ret(Integer(0)))});
 
   func_ptr->body = body;
   func_ptr->params = args;
