@@ -58,7 +58,7 @@ class TestLowerCPUAccessibleScope(BaseCompare):
         T.evaluate(ptr)
 
     def expected():
-        ptr: T.handle("float32", "global.test_with_head_address") = T.call_extern(
+        ptr: T.handle("float32", "global.test_with_head_address") = T.call_extern(  # noqa: F722
             "handle", "dummy_head_address"
         )
         T.evaluate(ptr)
@@ -76,7 +76,7 @@ class TestLowerCPUAccessibleScopeWithDeclBuffer(BaseCompare):
         T.evaluate(buf.data)
 
     def expected():
-        ptr: T.handle("float32", "global.test_with_head_address") = T.call_extern(
+        ptr: T.handle("float32", "global.test_with_head_address") = T.call_extern(  # noqa: F722
             "handle", "dummy_head_address"
         )
         buf = T.decl_buffer(16, "float32", scope="global.test_with_head_address", data=ptr)
