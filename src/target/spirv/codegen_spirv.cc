@@ -765,8 +765,6 @@ void CodeGenSPIRV::VisitStmt_(const IfThenElseNode* op) {
   builder_->StartLabel(merge_label);
 }
 
-void CodeGenSPIRV::VisitStmt_(const DeclBufferNode* op) { VisitStmt(op->body); }
-
 void CodeGenSPIRV::VisitStmt_(const AllocateNode* op) {
   ICHECK(!is_zero(op->condition));
   ICHECK(!op->dtype.is_handle());

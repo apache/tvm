@@ -86,7 +86,7 @@ def init_git() {
   )
   retry(5) {
     timeout(time: 2, unit: 'MINUTES') {
-      sh (script: 'git submodule update --init -f', label: 'Update git submodules')
+      sh (script: 'git submodule update --init --recursive -f', label: 'Update git submodules')
     }
   }
 }
