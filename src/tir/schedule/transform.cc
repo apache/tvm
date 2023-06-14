@@ -17,6 +17,7 @@
  * under the License.
  */
 
+#include "../transforms/ir_utils.h"
 #include "./utils.h"
 
 namespace tvm {
@@ -261,21 +262,28 @@ void LeafBlockRemovalPlan(const ScheduleState& self, const StmtSRef& leaf_block_
   if (const auto* block = sref->StmtAs<BlockNode>()) {
     auto body = block->body;
     // Peel off AllocateConst nodes at the beginning of the block body.
-    std::vector<const AllocateConstNode*> allocs;
-    while (const auto* alloc = body.as<AllocateConstNode>()) {
-      allocs.push_back(alloc);
-      body = alloc->body;
+    std::vector<Stmt> allocs;
+    while (true) {
+      if (auto opt = body.as<AllocateConst>()) {
+        auto alloc = opt.value();
+        body = alloc->body;
+        alloc.CopyOnWrite()->body = Evaluate(0);
+        allocs.push_back(alloc);
+      } else if (auto opt = body.as<DeclBuffer>()) {
+        auto decl_buffer = opt.value();
+        body = decl_buffer->body;
+        decl_buffer.CopyOnWrite()->body = Evaluate(0);
+        allocs.push_back(decl_buffer);
+      } else {
+        break;
+      }
     }
+
     if (const auto* seq = body.as<SeqStmtNode>()) {
       ObjectPtr<BlockNode> n = make_object<BlockNode>(*block);
       auto new_seq = RemoveFromSeqStmt(GetRef<SeqStmt>(seq), GetRef<Stmt>(last_stmt));
       // Re-attach AllocateConst nodes
-      auto new_body = new_seq;
-      for (int i = 0; i < static_cast<int>(allocs.size()); ++i) {
-        auto alloc = allocs[allocs.size() - 1 - i];
-        new_body = AllocateConst(alloc->buffer_var, alloc->dtype, alloc->extents, alloc->data,
-                                 new_body, alloc->annotations, alloc->span);
-      }
+      auto new_body = MergeNest(allocs, new_seq);
       n->body = new_body;
       *src_stmt = GetRef<Stmt>(block);
       *tgt_stmt = Stmt(std::move(n));

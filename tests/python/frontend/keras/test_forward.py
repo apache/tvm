@@ -321,6 +321,9 @@ class TestKeras:
         data = keras_mod.layers.Input(shape=(32, 32, 128))
         conv_funcs = [
             keras_mod.layers.Conv2DTranspose(filters=64, kernel_size=(2, 2), padding="valid"),
+            keras_mod.layers.Conv2DTranspose(
+                filters=2, kernel_size=(3, 3), strides=(2, 2), output_padding=(1, 1)
+            ),
         ]
         for conv_func in conv_funcs:
             x = conv_func(data)
@@ -384,6 +387,11 @@ class TestKeras:
     def test_forward_upsample(self, keras_mod, interpolation="nearest"):
         data = keras_mod.layers.Input(shape=(32, 32, 3))
         x = keras_mod.layers.UpSampling2D(size=(3, 3), interpolation=interpolation)(data)
+        keras_model = keras_mod.models.Model(data, x)
+        verify_keras_frontend(keras_model)
+        # Height and width are not equal for the attribute size
+        data = keras_mod.layers.Input(shape=(2, 1, 3))
+        x = keras_mod.layers.UpSampling2D(size=(1, 2), interpolation=interpolation)(data)
         keras_model = keras_mod.models.Model(data, x)
         verify_keras_frontend(keras_model)
 
@@ -627,6 +635,9 @@ class TestKeras:
                 filters=1, kernel_size=(3, 3, 3), padding="valid", use_bias=False
             ),
             keras_mod.layers.Conv3DTranspose(filters=10, kernel_size=(2, 2, 2), padding="valid"),
+            keras_mod.layers.Conv3DTranspose(
+                filters=2, kernel_size=(3, 3, 3), strides=(2, 2, 2), output_padding=(1, 1, 1)
+            ),
         ]
         for conv_func in conv_funcs:
             x = conv_func(data)
