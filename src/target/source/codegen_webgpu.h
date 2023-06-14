@@ -48,7 +48,9 @@ class CodeGenWebGPU final : public CodeGenC {
   explicit CodeGenWebGPU(Target target);
   // overrides
   std::string Finish() final;
-  void AddFunction(const PrimFunc& f);  // NOLINT(*)
+  void PrintFunctionSignature(const String& function_name, const PrimFunc& func,
+                              std::ostream& os) final;
+  void AddFunction(const GlobalVar& gvar, const PrimFunc& f) final;
   void InitFuncState(const PrimFunc& f) final;
   void PrintStorageSync(const CallNode* op) final;     // NOLINT(*)
   void PrintType(DataType t, std::ostream& os) final;  // NOLINT(*)
