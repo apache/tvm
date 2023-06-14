@@ -17,13 +17,13 @@
  * under the License.
  */
 /*!
- * \file tvm/tir/schedule/block_scope.h
+ * \file tvm/tir/block_scope.h
  * \brief Definition of two pillar data structure for TensorIR scheduling: StmtSRef, BlockScope.
  * \sa StmtSRefNode
  * \sa BlockScopeNode
  */
-#ifndef TVM_TIR_SCHEDULE_BLOCK_SCOPE_H_
-#define TVM_TIR_SCHEDULE_BLOCK_SCOPE_H_
+#ifndef TVM_TIR_BLOCK_SCOPE_H_
+#define TVM_TIR_BLOCK_SCOPE_H_
 
 #include <tvm/tir/stmt.h>
 
@@ -216,16 +216,6 @@ class BlockScopeNode : public Object {
   std::unordered_map<StmtSRef, Array<Dependency>, ObjectPtrHash, ObjectPtrEqual> dst2deps;
   /*! \brief The mapping from the buffer to the blocks who write it */
   std::unordered_map<Buffer, Array<StmtSRef>, ObjectPtrHash, ObjectPtrEqual> buffer_writers;
-  /*!
-   * \brief This property indicates that the block scope (rooted at its corresponding block) is
-   * equivalent to of a stage pipeline. Under the following conditions:
-   *
-   * 1) The region cover property holds for every of its child blocks
-   * 2) No write-after-read dependency or opaque dependency, only read-after-write and
-   * write-after-write are allowed
-   * 3) All the statements in the scope are schedulable statements, i.e. Block and For
-   */
-  bool stage_pipeline{false};
 
   void VisitAttrs(AttrVisitor* v) {}
 
@@ -270,4 +260,4 @@ class BlockScope : public ObjectRef {
 }  // namespace tir
 }  // namespace tvm
 
-#endif  // TVM_TIR_SCHEDULE_BLOCK_SCOPE_H_
+#endif  // TVM_TIR_BLOCK_SCOPE_H_

@@ -886,6 +886,8 @@ def test_forward_adaptive_avgpool():
 
     input_data = torch.rand([1, 3, 5, 6]).float()
     verify_model(torch.nn.AdaptiveAvgPool2d([3, None]).eval(), input_data=input_data)
+    input_data = torch.rand([1, 1, 3, 5, 6]).float()
+    verify_model(torch.nn.AdaptiveAvgPool3d([3, None, None]).eval(), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -900,6 +902,11 @@ def test_forward_adaptive_maxpool():
     input_data = torch.rand([1, 3, 10]).float()
     verify_model(torch.nn.AdaptiveMaxPool1d([1]).eval(), input_data=input_data)
     verify_model(torch.nn.AdaptiveMaxPool1d([5]).eval(), input_data=input_data)
+
+    input_data = torch.rand([1, 3, 5, 6]).float()
+    verify_model(torch.nn.AdaptiveMaxPool2d([3, None]).eval(), input_data=input_data)
+    input_data = torch.rand([1, 1, 3, 5, 6]).float()
+    verify_model(torch.nn.AdaptiveMaxPool3d([3, None, None]).eval(), input_data=input_data)
 
 
 @tvm.testing.uses_gpu

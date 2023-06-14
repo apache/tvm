@@ -463,7 +463,7 @@ Array<StmtSRef> CacheIndex(ScheduleState self, const StmtSRef& block_sref,
   Array<Block> cache_stages = MakeIndexCacheStage(&info, storage_scope);
   Stmt new_scope = CacheIndexRewriter::Rewrite(/*scope_sref=*/scope_sref, /*info=*/&info);
 
-  bool old_stage_pipeline = self->block_info[block_sref].scope->stage_pipeline;
+  bool old_stage_pipeline = self->block_info[block_sref].stage_pipeline;
 
   // Step 3. Replacing and updating flags.
   self->Replace(scope_sref, new_scope, info.block_reuse);
@@ -486,7 +486,7 @@ Array<StmtSRef> CacheIndex(ScheduleState self, const StmtSRef& block_sref,
 
     block_info.affine_binding = affine_binding;
     block_info.region_cover = true;
-    block_info.scope->stage_pipeline = old_stage_pipeline;
+    block_info.stage_pipeline = old_stage_pipeline;
   }
 
   return result_block_srefs;

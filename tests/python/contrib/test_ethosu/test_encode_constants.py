@@ -525,7 +525,9 @@ def test_constant_as_input():
     # nothing else was overrwritten.
     # With Target Hooks the TIR module needs a target attached
     # and lowered via make unpacked API.
-    tir_mod["main"] = tir_mod["main"].with_attr("target", tvm.target.Target("ethos-u"))
+    tir_mod["main"] = tir_mod["main"].with_attr(
+        "target", tvm.target.Target("ethos-u", host="ethos-u")
+    )
     tir_mod = tvm.tir.transform.MakeUnpackedAPI()(tir_mod)
     tir_to_cs_translator.translate(tir_mod, params)
 

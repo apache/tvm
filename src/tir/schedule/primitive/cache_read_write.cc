@@ -1526,7 +1526,7 @@ StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_buff
   BlockInfo& block_info = self->block_info[result_block_sref];
   block_info.affine_binding = CalculateAffineFlag(self, result_block_sref);
   block_info.region_cover = true;
-  block_info.scope->stage_pipeline = true;
+  block_info.stage_pipeline = true;
   return result_block_sref;
 }
 
@@ -1591,7 +1591,7 @@ StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int write_bu
   BlockInfo& block_info = self->block_info[result_block_sref];
   block_info.affine_binding = CalculateAffineFlag(self, result_block_sref);
   block_info.region_cover = true;
-  block_info.scope->stage_pipeline = true;
+  block_info.stage_pipeline = true;
   return result_block_sref;
 }
 
@@ -1812,7 +1812,7 @@ StmtSRef ReindexCacheRead(ScheduleState self, const StmtSRef& block_sref, int re
   BlockInfo& block_info = self->block_info[result_block_sref];
   block_info.affine_binding = CalculateAffineFlag(self, result_block_sref);
   block_info.region_cover = true;
-  block_info.scope->stage_pipeline = true;
+  block_info.stage_pipeline = true;
   return result_block_sref;
 }
 
@@ -1876,7 +1876,7 @@ StmtSRef ReindexCacheWrite(ScheduleState self, const StmtSRef& block_sref, int w
   BlockInfo& block_info = self->block_info[result_block_sref];
   block_info.affine_binding = CalculateAffineFlag(self, result_block_sref);
   block_info.region_cover = true;
-  block_info.scope->stage_pipeline = true;
+  block_info.stage_pipeline = true;
   return result_block_sref;
 }
 
@@ -1954,7 +1954,7 @@ Array<StmtSRef> CacheInplace(ScheduleState self, const StmtSRef& block_sref, int
   BlockInfo& block_info_read = self->block_info[result_block_sref];
   block_info_read.affine_binding = CalculateAffineFlag(self, result_block_sref);
   block_info_read.region_cover = true;
-  block_info_read.scope->stage_pipeline = false;
+  block_info_read.stage_pipeline = false;
   results_block_sref.push_back(result_block_sref);
 
   // Do cache write
@@ -1983,7 +1983,7 @@ Array<StmtSRef> CacheInplace(ScheduleState self, const StmtSRef& block_sref, int
   BlockInfo& block_info_write = self->block_info[result_block_sref];
   block_info_write.affine_binding = CalculateAffineFlag(self, result_block_sref);
   block_info_write.region_cover = true;
-  block_info_write.scope->stage_pipeline = false;
+  block_info_write.stage_pipeline = false;
   results_block_sref.push_back(result_block_sref);
 
   return results_block_sref;
@@ -2058,7 +2058,7 @@ StmtSRef ReIndex(ScheduleState self, const StmtSRef& block_sref, int buffer_inde
   BlockInfo& block_info = self->block_info[result_block_sref];
   block_info.affine_binding = CalculateAffineFlag(self, result_block_sref);
   block_info.region_cover = true;
-  block_info.scope->stage_pipeline = true;
+  block_info.stage_pipeline = true;
   return result_block_sref;
 }
 

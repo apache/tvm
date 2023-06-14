@@ -111,6 +111,14 @@ PrimFunc MakeUnpackedAPI(PrimFunc func) {
   }();
   int target_device_type = target->GetTargetDeviceType();
 
+  // A function without a host target has already been lowered.
+  Target target_host;
+  if (auto opt = target->GetHost()) {
+    target_host = opt.value();
+  } else {
+    return func;
+  }
+
   auto* func_ptr = func.CopyOnWrite();
 
   // Setup device context
@@ -145,7 +153,7 @@ PrimFunc MakeUnpackedAPI(PrimFunc func) {
   func_ptr->buffer_map = Map<Var, Buffer>();
 
   // return the function.
-  return func;
+  return WithAttrs(std::move(func), {{tvm::attr::kTarget, target_host}});
 }
 
 namespace transform {

@@ -55,6 +55,7 @@ class CodeGenCHost : public CodeGenC {
   void AddFunctionsOrdered(std::vector<std::pair<tvm::GlobalVar, tvm::BaseFunc>> functions);
   void DefineModuleName();
 
+  using CodeGenC::PrintType;
   void PrintType(DataType t, std::ostream& os) final;  // NOLINT(*)
   void PrintFuncPrefix(std::ostream& os) final;        // NOLINT(*)
   void PrintFinalReturn() final;                       // NOLINT(*)
@@ -69,8 +70,8 @@ class CodeGenCHost : public CodeGenC {
 
   void VisitStmt_(const AssertStmtNode* op) final;  // NOLINT(*)
 
-  virtual void GenerateForwardFunctionDeclarations(String global_symbol,
-                                                   const Array<PrimExpr>& args);  // NOLINT(*)
+  void GenerateForwardFunctionDeclarations(String global_symbol, const Array<Type>& arg_types,
+                                           const Type& ret_type) override;
   Array<String> GetFunctionNames() { return function_names_; }
 
  private:

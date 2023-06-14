@@ -170,14 +170,27 @@ class DeviceKernelMutator : public StmtExprMutator {
   }
 
   PrimFunc UpdateKernelAttributes(const GlobalVar& gvar, PrimFunc func) const {
-    if (device_kernel_launch_.count(gvar.get())) {
+    bool is_kernel_launch = device_kernel_launch_.count(gvar.get());
+    bool is_call_extern = extern_function_call_.count(gvar.get());
+    CHECK(!is_kernel_launch || !is_call_extern)
+        << "Function " << gvar << " has multiple callees, "
+        << "and would need to be lowered into a call_extern at some call sites, "
+        << "and a device kernel launch at others.  "
+        << "This case is not yet supported.";
+
+    if (is_kernel_launch || is_call_extern) {
+      func = WithAttr(std::move(func), tvm::tir::attr::kIsGlobalFunc, Bool(true));
+    }
+
+    if (is_kernel_launch) {
       const auto& info = device_info_map_.at(gvar.get());
 
       func = WithAttrs(std::move(func),
                        {{tvm::attr::kCallingConv, Integer(tvm::CallingConv::kDeviceKernelLaunch)},
                         {tvm::tir::attr::kKernelLaunchParams, info.launch_params},
-                        {tvm::attr::kGlobalSymbol, info.global_symbol},
-                        {tvm::tir::attr::kIsGlobalFunc, Bool(true)}});
+                        {tvm::attr::kGlobalSymbol, info.global_symbol}});
+    } else if (is_call_extern && !func->GetAttr<String>(tvm::attr::kGlobalSymbol)) {
+      func = WithAttr(func, tvm::attr::kGlobalSymbol, gvar->name_hint);
     }
 
     return func;
@@ -196,10 +209,29 @@ class DeviceKernelMutator : public StmtExprMutator {
         << gvar->name_hint << " did not appear within the IRModule";
     const KernelInfo& dev_info = it->second;
 
-    auto caller_device_type = current_target_.value()->GetTargetDeviceType();
-    auto callee_device_type = dev_info.target->GetTargetDeviceType();
-    if (caller_device_type == callee_device_type) {
+    auto caller_target = current_target_.value();
+    auto callee_target = dev_info.target;
+
+    bool same_target = caller_target->str() == callee_target->str();
+    if (same_target) {
+      // Calls within the same target may be handled at codegen time
+      // as internal subroutine calls.
       return std::move(node);
+    }
+
+    bool same_device_type =
+        caller_target->GetTargetDeviceType() == callee_target->GetTargetDeviceType();
+    if (same_device_type) {
+      // Calls to another target using the same device (e.g. LLVM
+      // calling a custom TIRToRuntime target) do not require a kernel
+      // launch, but need to be replaced with call_extern.
+      extern_function_call_.insert(gvar);
+      Array<PrimExpr> args;
+      args.push_back(StringImm(gvar->name_hint));
+      for (const auto& arg : node->args) {
+        args.push_back(arg);
+      }
+      return Call(node->dtype, builtin::call_extern(), args);
     }
 
     ICHECK(dev_info.launch_params.defined())
@@ -243,6 +275,7 @@ class DeviceKernelMutator : public StmtExprMutator {
   Optional<Target> current_target_;
   std::unordered_map<const GlobalVarNode*, KernelInfo> device_info_map_;
   std::unordered_set<const GlobalVarNode*> device_kernel_launch_;
+  std::unordered_set<const GlobalVarNode*> extern_function_call_;
 };
 
 namespace transform {
