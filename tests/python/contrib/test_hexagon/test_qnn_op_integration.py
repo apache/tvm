@@ -125,7 +125,7 @@ class TestQnnQuantize:
     """QNN Quantize test class."""
 
     input_shape = tvm.testing.parameter([1, 8, 8, 32], [1, 10, 10, 32], [1, 12, 12, 128])
-    odtype = tvm.testing.parameters("int8", "uint8")
+    odtype = tvm.testing.parameter("int8", "uint8")
 
     @tvm.testing.requires_hexagon
     def test_qnn_quantize(self, hexagon_session: Session, odtype, input_shape):
