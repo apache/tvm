@@ -105,15 +105,14 @@ def _check_residual(root_call: Call, context: PatternCheckContext) -> bool:
             # If residual depends on the result of the root call, this cannot be handled by cutlass.
             return False
 
-        # TODO
-        # shape1 = [int(s) for s in root_var.struct_info.shape]
-        # shape2 = [int(s) for s in residual.struct_info.shape]
+        shape1 = [int(s) for s in root_var.struct_info.shape]
+        shape2 = [int(s) for s in residual.struct_info.shape]
 
-        # out_channel = shape1[-1]
-        # is_bias_like = lambda shape: (shape[-1] == out_channel and _shape_1d(shape) == out_channel)
+        out_channel = shape1[-1]
+        is_bias_like = lambda shape: (shape[-1] == out_channel and _shape_1d(shape) == out_channel)
 
-        # if shape1 != shape2 and not is_bias_like(shape2):
-        #     return False
+        if shape1 != shape2 and not is_bias_like(shape2):
+            return False
 
     return True
 
@@ -260,16 +259,12 @@ def decode_matmul_patterns():
         if "silu" in name:
             out = is_op("relax.nn.silu")(out)
 
-        if "cast" in name:
-            out = is_op("relax.astype")(out)
-
         return name, out, annotations, check_decode_matmul
 
     return [
         _decode_matmul_pattern("cutlass.decode_matmul"),
         _decode_matmul_pattern("cutlass.decode_matmul_bias"),
         _decode_matmul_pattern("cutlass.decode_matmul_silu"),
-        _decode_matmul_pattern("cutlass.decode_matmul_bias_cast"),
     ]
 
 
@@ -316,8 +311,8 @@ def residual_block_patterns():
                 # Append residual patterns only to those base patterns with bias add,
                 # since conv2d or matmul + residual add without bias is already supported
                 # via conv2d or matmul + bias patterns (the residual input is treated as "bias").
-                for bin_op in ["relax.add", "relax.multiply"]:
-                    if bin_op == "relax.multiply" or (bin_op == "relax.add" and "bias" in name):
+                if "bias" in name:
+                    for bin_op in ["relax.add", "relax.multiply"]:
                         patterns.append(
                             (
                                 name + "_residual_" + bin_op.split(".")[-1] + name_postfix,
@@ -395,8 +390,7 @@ def attention_patterns():
 
 
 def _check_layer_norm(context: PatternCheckContext) -> bool:
-    norm = context.annotated_expr["layer_norm"]
-    attrs = norm.attrs
+    attrs = context.matched_expr.attrs
 
     if not attrs.center or not attrs.scale:
         return False
@@ -422,11 +416,6 @@ def layer_norm_pattern():
             *make_layer_norm_pattern(),
             _check_layer_norm,
         ),
-        # (
-        #     "cutlass.cast_layer_norm_cast",
-        #     *make_layer_norm_pattern(with_cast=True),
-        #     _check_layer_norm,
-        # ),
     ]
 
 
@@ -449,7 +438,6 @@ register_patterns(
     [
         *conv2d_patterns(),
         *matmul_patterns(),
-        *decode_matmul_patterns(),
         *residual_block_patterns(),
         *attention_patterns(),
         *layer_norm_pattern(),
@@ -536,7 +524,7 @@ def partition_for_cutlass(mod, annotate_codegen=True):
             transform.FuseOpsByPattern(
                 patterns, bind_constants=False, annotate_codegen=annotate_codegen
             ),
-            # annotate_workspace,
-            # transform.AllocateWorkspace(),
+            annotate_workspace,
+            transform.AllocateWorkspace(),
         ]
     )(mod)
