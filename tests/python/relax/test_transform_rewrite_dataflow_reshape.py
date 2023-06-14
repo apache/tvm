@@ -35,13 +35,13 @@ def test_reshape_expand_dims():
                     T.reads(
                         rxplaceholder[
                             (v_ax0 * 12 + v_ax1 * 3 + v_ax2) // T.int64(3),
-                            (v_ax1 * 12 + v_ax2 * 3 + v_ax2) % T.int64(3),
+                            (v_ax0 * 12 + v_ax1 * 3 + v_ax2) % T.int64(3),
                         ]
                     )
                     T.writes(T_reshape[v_ax0, v_ax1, v_ax2])
                     T_reshape[v_ax0, v_ax1, v_ax2] = rxplaceholder[
                         (v_ax0 * 12 + v_ax1 * 3 + v_ax2) // T.int64(3),
-                        (v_ax1 * 12 + v_ax2 * 3 + v_ax2) % T.int64(3),
+                        (v_ax0 * 12 + v_ax1 * 3 + v_ax2) % T.int64(3),
                     ]
 
         @T.prim_func
@@ -87,13 +87,13 @@ def test_reshape_expand_dims():
                     T.reads(
                         rxplaceholder[
                             (v_ax0 * T.int64(12) + v_ax1 * T.int64(3) + v_ax2) // T.int64(3),
-                            (v_ax1 * T.int64(12) + v_ax2 * T.int64(3) + v_ax2) % T.int64(3),
+                            (v_ax0 * T.int64(12) + v_ax1 * T.int64(3) + v_ax2) % T.int64(3),
                         ]
                     )
                     T.writes(T_reshape[v_ax0, v_ax1, v_ax2])
                     T_reshape[v_ax0, v_ax1, v_ax2] = rxplaceholder[
                         (v_ax0 * T.int64(12) + v_ax1 * T.int64(3) + v_ax2) // T.int64(3),
-                        (v_ax1 * T.int64(12) + v_ax2 * T.int64(3) + v_ax2) % T.int64(3),
+                        (v_ax0 * T.int64(12) + v_ax1 * T.int64(3) + v_ax2) % T.int64(3),
                     ]
 
         @T.prim_func
@@ -236,13 +236,13 @@ def test_reshape_non_dataflow():
                     T.reads(
                         rxplaceholder[
                             (v_ax0 * 12 + v_ax1 * 3 + v_ax2) // T.int64(3),
-                            (v_ax1 * 12 + v_ax2 * 3 + v_ax2) % T.int64(3),
+                            (v_ax0 * 12 + v_ax1 * 3 + v_ax2) % T.int64(3),
                         ]
                     )
                     T.writes(T_reshape[v_ax0, v_ax1, v_ax2])
                     T_reshape[v_ax0, v_ax1, v_ax2] = rxplaceholder[
                         (v_ax0 * 12 + v_ax1 * 3 + v_ax2) // T.int64(3),
-                        (v_ax1 * 12 + v_ax2 * 3 + v_ax2) % T.int64(3),
+                        (v_ax0 * 12 + v_ax1 * 3 + v_ax2) % T.int64(3),
                     ]
 
         @R.function
