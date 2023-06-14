@@ -31,7 +31,7 @@ from tvm.tir import IntImm
 from . import _ffi_api as ffi
 from .attention_operation import instantiate_attention_template
 from .conv2d_operation import instantiate_conv2d_template
-from .gemm_operation import instantiate_gemm_template
+from .gemm_operation import instantiate_gemm_template, emit_fp16A_int4B_matmul
 from .layer_norm_operation import instantiate_layer_norm_template
 from .library import (
     DataType,
@@ -482,7 +482,7 @@ def instantiate_template(func_name, annotations, func_args):
         if k in annotations:
             attrs[k] = annotations[k]
 
-    headers = []
+    headers = ["tvm/runtime/registry.h"]
 
     if "relu" in func_name:
         headers.append("cutlass/epilogue/thread/linear_combination_bias_relu.h")
@@ -512,7 +512,24 @@ def instantiate_template(func_name, annotations, func_args):
         dim2 = func_args[arg1_idx] + f"->shape[{arg1_axis_idx}]"
         return dim1 + " * " + dim2
 
-    if "dense" in func_name or "matmul" in func_name:
+    if "decode_matmul" in func_name:
+        headers.append("cutlass_kernels/fpA_intB_gemm.h")
+        lhs_arg_idx = _get_optional_int_annotation(annotations, "lhs_arg_idx", 0)
+        rhs_arg_idx = _get_optional_int_annotation(annotations, "rhs_arg_idx", 1)
+        scales_arg_idx = _get_optional_int_annotation(annotations, "scales_arg_idx", 2)
+        bias_arg_idx = _get_optional_int_annotation(annotations, "bias_arg_idx", None)
+        residual_arg_idx = _get_optional_int_annotation(annotations, "residual_arg_idx", None)
+
+        attrs["A_arg"] = func_args[lhs_arg_idx]
+        attrs["B_arg"] = func_args[rhs_arg_idx]
+        attrs["scales_arg"] = func_args[scales_arg_idx]
+        if bias_arg_idx is not None:
+            attrs["bias_arg"] = func_args[bias_arg_idx]
+        if residual_arg_idx is not None:
+            attrs["residual_arg"] = func_args[residual_arg_idx]
+        code = emit_fp16A_int4B_matmul(attrs)
+        return CodegenResult(code, headers)
+    elif "dense" in func_name or "matmul" in func_name:
         batched = "batch" in annotations
         transposed = "transposed" in func_name
         lhs_arg_idx = _get_optional_int_annotation(annotations, "lhs_arg_idx", 0)
