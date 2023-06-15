@@ -298,7 +298,7 @@ def instantiate_gemm_template(attrs):
     static_cast<ElementInputB*>(ptr_b),
     static_cast<ElementOutput*>(ptr_residual),
     static_cast<ElementOutput*>(ptr_out),
-    static_cast<ElementOutput*>(${ptr_bias}),
+    static_cast<ElementOutput*>(ptr_bias),
     nullptr, // ptr_Tensor
     ${batch_stride_A}
     ${batch_stride_B}
@@ -344,7 +344,6 @@ def instantiate_gemm_template(attrs):
   CHECK(status == cutlass::Status::kSuccess);
   status = gemm_op.initialize(arguments, workspace.get());
   CHECK(status == cutlass::Status::kSuccess);
-
   status = gemm_op();
   CHECK(status == cutlass::Status::kSuccess);
 """
@@ -396,13 +395,7 @@ def instantiate_gemm_template(attrs):
         attrs["split_k_slices_or_batch"] = 1
 
     if has_residual_block:
-        if has_bias:
-            argument_template_residual = substitute_template(argument_template_residual, {"ptr_bias": "ptr_bias"})
-        else:
-            argument_template_residual = substitute_template(argument_template_residual, {"ptr_bias": "nullptr"})
-
         template = substitute_template(template, {"argument": argument_template_residual})
-
         aux_map["residual_decl"] = "void* ptr_residual = (void*)(${residual_arg}->data);\n"
         aux_map["gemm_universal_mode"] = "kBatched" if batched else "kGemm"
     else:
@@ -415,11 +408,15 @@ def instantiate_gemm_template(attrs):
 
 
 def emit_fp16A_int4B_matmul(attrs):
-    template = """
+    template_common = """
   using namespace fastertransformer;
   int m = ${A_arg}->shape[1]; // [0] is batch
   int n = ${B_arg}->shape[1] * 2;
   int k = ${B_arg}->shape[0];
+    """
+
+    template = f"""
+  {template_common}
   gemm_fp16_int4(static_cast<cutlass::half_t*>(${A_arg}->data),
                  static_cast<cutlass::uint4b_t*>(${B_arg}->data),
                  static_cast<cutlass::half_t*>(${scales_arg}->data),
@@ -427,12 +424,8 @@ def emit_fp16A_int4B_matmul(attrs):
                  m, n, k, nullptr, 0, nullptr);
 """
 
-    template_bias = """
-  using namespace fastertransformer;
-  int m = ${A_arg}->shape[1]; // [0] is batch
-  int n = ${B_arg}->shape[1] * 2;
-  int k = ${B_arg}->shape[0];
-
+    template_bias = f"""
+  {template_common}
   gemm_fp16_int4_bias(static_cast<cutlass::half_t*>(${A_arg}->data),
                  static_cast<cutlass::uint4b_t*>(${B_arg}->data),
                  static_cast<cutlass::half_t*>(${scales_arg}->data),
@@ -441,40 +434,23 @@ def emit_fp16A_int4B_matmul(attrs):
                  m, n, k, nullptr, 0, nullptr);
 """
 
-    template_residual = """
-  using namespace fastertransformer;
-  int m = ${A_arg}->shape[1]; // [0] is batch
-  int n = ${B_arg}->shape[1] * 2;
-  int k = ${B_arg}->shape[0];
-
+    template_residual = f"""
+  {template_common}
   gemm_fp16_int4_bias_act_residual(static_cast<cutlass::half_t*>(${A_arg}->data),
                  static_cast<cutlass::uint4b_t*>(${B_arg}->data),
                  static_cast<cutlass::half_t*>(${scales_arg}->data),
-                 static_cast<cutlass::half_t*>(${bias_arg}->data),
+                 ${bias},
                  static_cast<cutlass::half_t*>(${residual_arg}->data),
                  static_cast<cutlass::half_t*>(out0->data), "identity", "plus", "identity", // todo
                  m, n, k, nullptr, 0, nullptr);
 """
 
-    template_residual_no_bias = """
-  using namespace fastertransformer;
-  int m = ${A_arg}->shape[1]; // [0] is batch
-  int n = ${B_arg}->shape[1] * 2;
-  int k = ${B_arg}->shape[0];
-
-  gemm_fp16_int4_bias_act_residual(static_cast<cutlass::half_t*>(${A_arg}->data),
-                 static_cast<cutlass::uint4b_t*>(${B_arg}->data),
-                 static_cast<cutlass::half_t*>(${scales_arg}->data),
-                 nullptr,
-                 static_cast<cutlass::half_t*>(${residual_arg}->data),
-                 static_cast<cutlass::half_t*>(out0->data), "silu", "multiply", "identity", // todo
-                 m, n, k, nullptr, 0, nullptr);
-"""
-
     if "residual_arg" in attrs and "bias_arg" in attrs:
+        template_residual = substitute_template(template_residual, {"bias": "static_cast<cutlass::half_t*>(${bias_arg}->data)"})
         return substitute_template(template_residual, attrs)
     if "residual_arg" in attrs:
-        return substitute_template(template_residual_no_bias, attrs)
+        template_residual = substitute_template(template_residual, {"bias": "nullptr"})
+        return substitute_template(template_residual, attrs)
     if "bias_arg" in attrs:
         return substitute_template(template_bias, attrs)
 
