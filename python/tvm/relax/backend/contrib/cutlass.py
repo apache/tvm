@@ -22,7 +22,16 @@ from typing import Mapping, Sequence
 
 import tvm
 from tvm.contrib.cutlass.build import is_shape_valid_for_cutlass_matmul
-from tvm.relax import Call, DataflowVar, Function, PyExprMutator, Var, expr_functor, transform
+from tvm.relax import (
+    Call,
+    DataflowVar,
+    Function,
+    PyExprMutator,
+    Var,
+    expr_functor,
+    transform,
+    ExternFunc,
+)
 from tvm.relax.dpl import rewrite_call
 from tvm.relax.transform import PatternCheckContext
 from tvm.relax.dpl.pattern import GlobalVarPattern, TuplePattern, is_op, wildcard
@@ -240,9 +249,10 @@ def _check_decode_matmul(ctx):
     if packed_weight.struct_info.dtype != "int8":
         return False
 
-    # # The kernel expects the weight to be preprocessed by this packed function.
+    # The kernel expects the weight to be preprocessed by this packed function.
     if (
         isinstance(packed_weight, Call)
+        and isinstance(packed_weight.args[0], ExternFunc)
         and packed_weight.args[0].global_symbol != "cutlass.ft_preprocess_weight_int4"
     ):
         return False
