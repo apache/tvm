@@ -1263,6 +1263,54 @@ def split_transform_deploy_mod(mod):
     return mod_transform, mod_deploy
 
 
+def _test_fp16A_int4B_gemm(mod, with_residual=False):
+    x_shape = (64, 64)
+    y_shape = (128, 64)
+
+    mod = partition_for_cutlass(mod)
+    mod = relax.transform.RunCodegen(
+        {"cutlass": {"sm": 80, "find_first_valid": False}},
+    )(mod)
+
+    x = np.random.randn(*x_shape).astype("float16")
+    y = np.random.normal(0, 0.002, size=y_shape).astype("float16")
+    residual = np.random.randn(x_shape[0], y_shape[0]).astype("float16")
+
+    bias = np.random.randn(1, y_shape[0]).astype("float16")
+
+    mod = relax.pipeline.get_pipeline()(mod)
+    mod = relax.transform.LiftTransformParams()(mod)
+
+    mod_transform, mod_deploy = split_transform_deploy_mod(mod)
+
+    ex = relax.build(mod_transform, target="llvm")
+    vm = relax.vm.VirtualMachine(ex, tvm.cpu(0))
+
+    packed_weight, scales, bias_trans = vm["main_transform_params"](
+        (tvm.nd.array(y), tvm.nd.array(bias))
+    )
+
+    dev = tvm.device("cuda", 0)
+    ex = relax.build(mod_deploy, target="cuda")
+    vm = relax.vm.VirtualMachine(ex, dev)
+
+    params = (packed_weight.copyto(dev), scales.copyto(dev), bias_trans.copyto(dev))
+
+    if with_residual:
+        inp = [tvm.nd.array(x, dev), tvm.nd.array(residual, dev), params]
+    else:
+        inp = [tvm.nd.array(x, dev), params]
+
+    out = vm["main"](*inp).numpy()
+
+    ref = np.dot(x, y.transpose()) + bias
+
+    if with_residual:
+        ref += residual
+
+    tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
+
+
 def test_fp16A_int4B_gemm():
     @I.ir_module
     class Module:
@@ -1384,7 +1432,7 @@ def test_fp16A_int4B_gemm():
                 lv1 = lv[0]
                 lv2 = R.call_pure_packed(
                     "cutlass.ft_preprocess_weight_int4",
-                    lv1,
+                    lv1, 80,
                     sinfo_args=(R.Tensor((64, 64), dtype="int8"),),
                 )
                 lv3: R.Tensor((128,), dtype="float16") = lv[1]
@@ -1560,7 +1608,7 @@ def test_fp16A_int4B_gemm_residual():
                 lv1 = lv[0]
                 lv2 = R.call_pure_packed(
                     "cutlass.ft_preprocess_weight_int4",
-                    lv1,
+                    lv1, 80,
                     sinfo_args=(R.Tensor((64, 64), dtype="int8"),),
                 )
                 lv3: R.Tensor((128,), dtype="float16") = lv[1]
@@ -1573,46 +1621,8 @@ def test_fp16A_int4B_gemm_residual():
                 R.output(lv3_1)
             return lv3_1
 
-    x_shape = (64, 64)
-    y_shape = (128, 64)
-
-    mod = partition_for_cutlass(Module)
-    print(mod)
-    # mod = relax.transform.RunCodegen(
-    #     {"cutlass": {"sm": 80, "find_first_valid": False}},
-    # )(mod)
-
-    # x = np.random.randn(*x_shape).astype("float16")
-    # y = np.random.normal(0, 0.002, size=y_shape).astype("float16")
-    # bias = np.random.randn(1, y_shape[0]).astype("float16")
-
-    # mod = relax.pipeline.get_pipeline()(mod)
-    # mod = relax.transform.LiftTransformParams()(mod)
-
-    # mod_transform, mod_deploy = split_transform_deploy_mod(mod)
-
-    # ex = relax.build(mod_transform, target="llvm")
-    # vm = relax.vm.VirtualMachine(ex, tvm.cpu(0))
-
-    # packed_weight, scales, bias_trans = vm["main_transform_params"](
-    #     (tvm.nd.array(y), tvm.nd.array(bias))
-    # )
-
-    # dev = tvm.device("cuda", 0)
-    # ex = relax.build(mod_deploy, target="cuda")
-    # vm = relax.vm.VirtualMachine(ex, dev)
-
-    # inp = [
-    #     tvm.nd.array(x, dev),
-    #     (packed_weight.copyto(dev), scales.copyto(dev), bias_trans.copyto(dev)),
-    # ]
-
-    # out = vm["main"](*inp).numpy()
-
-    # ref = np.dot(x, y.transpose()) + bias
-
-    # tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
     # print("ok")
+    print(partition_for_cutlass(Module))
 
 
 if __name__ == "__main__":
