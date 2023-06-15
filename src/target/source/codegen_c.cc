@@ -123,7 +123,6 @@ void CodeGenC::AddFunction(const PrimFunc& f) {
   this->PreFunctionBody(f);
   int func_scope = this->BeginScope();
   this->PrintStmt(f->body);
-  this->PrintFinalReturn();
   this->EndScope(func_scope);
   this->PrintIndent();
   this->stream << "}\n\n";
@@ -132,8 +131,6 @@ void CodeGenC::AddFunction(const PrimFunc& f) {
 void CodeGenC::PrintFuncPrefix(std::ostream& os) {}
 
 void CodeGenC::PrintExtraAttrs(const PrimFunc& f) {}
-
-void CodeGenC::PrintFinalReturn() {}
 
 std::string CodeGenC::Finish() { return decl_stream.str() + stream.str(); }
 
@@ -538,6 +535,9 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       PrintExpr(op->args[0], os);
       os << " ) return ";
       PrintExpr(op->args[1], os);
+    } else if (op->op.same_as(builtin::ret())) {
+      os << "return ";
+      PrintExpr(op->args[0], os);
     } else if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {
       ICHECK_GE(op->args.size(), 1U);
       auto func = Downcast<StringImm>(op->args[0]);
