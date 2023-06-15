@@ -524,11 +524,14 @@ def instantiate_template(func_name, annotations, func_args):
         attrs["B_arg"] = func_args[rhs_arg_idx]
         attrs["scales_arg"] = func_args[scales_arg_idx]
         attrs["batch_offset"] = _get_optional_int_annotation(annotations, "batch_offset", 0)
+        attrs["activation"] = annotations.get("activation", "identity")
 
         if bias_arg_idx is not None:
             attrs["bias_arg"] = func_args[bias_arg_idx]
         if residual_arg_idx is not None:
             attrs["residual_arg"] = func_args[residual_arg_idx]
+            attrs["binary_op"] = annotations["binary_op"]
+            attrs["unary_op"] = annotations["unary_op"]
 
         code = emit_fp16A_int4B_matmul(attrs)
         return CodegenResult(code, headers)

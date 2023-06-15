@@ -441,7 +441,7 @@ def emit_fp16A_int4B_matmul(attrs):
                  static_cast<cutlass::half_t*>(${scales_arg}->data),
                  ${bias},
                  static_cast<cutlass::half_t*>(${residual_arg}->data),
-                 static_cast<cutlass::half_t*>(out0->data), "identity", "plus", "identity", // todo
+                 static_cast<cutlass::half_t*>(out0->data), "${activation}", "${binary_op}", "${unary_op}",
                  m, n, k, nullptr, 0, nullptr);
 """
 

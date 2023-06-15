@@ -700,17 +700,44 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
         signature = _extract_relax_function_signature(f)
         lhs_arg = f"arg{arg_idx['lhs']}"
         lhs_shape = signature[f"{lhs_arg}_shape"]
-        return f.with_attrs(
-            {
-                "op_type": op_type,
-                "lhs_arg_idx": arg_idx["lhs"],
-                "rhs_arg_idx": arg_idx["w_encoded"],
-                "scales_arg_idx": arg_idx["scales"],
-                "bias_arg_idx": arg_idx.get("bias"),
-                "residual_arg_idx": arg_idx.get("residual"),
-                "batch_offset": len(lhs_shape) - 2,
-            }
-        )
+        attrs = {
+                    "op_type": op_type,
+                    "lhs_arg_idx": arg_idx["lhs"],
+                    "rhs_arg_idx": arg_idx["w_encoded"],
+                    "scales_arg_idx": arg_idx["scales"],
+                    "bias_arg_idx": arg_idx.get("bias"),
+                    "batch_offset": len(lhs_shape) - 2,
+                }
+
+        if "residual" in op_type:
+            residual_pos = op_type.find("residual_")
+            postfix = op_type[residual_pos + len("residual_"):]
+
+            if postfix.startswith("multiply"):
+                binary_op = "multiply"
+            else:
+                binary_op = "plus"
+
+            if "relu" in postfix:
+                unary_op = "relu"
+            else:
+                unary_op = "identity"
+
+            activation = "identity"
+
+            for act in ["relu", "silu", "gelu"]:
+                if act in op_type[op_type.find("matmul_") + len("matmul_"): residual_pos]:
+                    activation = act
+                    break
+
+            attrs.update({
+                    "unary_op": unary_op,
+                    "binary_op": binary_op,
+                    "activation": activation,
+                    "residual_arg_idx": arg_idx["residual"],
+            })
+
+        return f.with_attrs(attrs)
 
     def handle_matmul(self, f, op_type):
         """Tune and annotate a dense op."""
