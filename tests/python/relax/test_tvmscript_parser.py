@@ -1388,9 +1388,6 @@ def test_assert_op():
             y = R.assert_op(R.const(False, dtype="bool"), x, format="x: {}")
             return x
 
-    print(AssertOp["main"].is_pure)
-    print(AssertOp.script())
-
     _check(AssertOp)
 
 
