@@ -178,7 +178,7 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
         local_func_var = relax.Var(node.name, relax.FuncStructInfo(params_sinfo, ret_sinfo))
         self.var_table.add(node.name, local_func_var)
 
-    purity = find_purity_annotation(self, node)
+    purity = find_purity_annotation(node)
 
     with self.var_table.with_frame():
         with self.with_dispatch_token("relax"):
@@ -204,7 +204,7 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
                 self.visit_body(node.body)
 
 
-def find_purity_annotation(parser: Parser, node: doc.FunctionDef) -> bool:
+def find_purity_annotation(node: doc.FunctionDef) -> bool:
     """
     Check the value of `pure` in the function decorator.
     Returns the annotated purity if present, otherwise defaulting to True.
@@ -238,7 +238,7 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> GlobalVar
             param_sinfo = eval_struct_info(self, arg.annotation, eval_str=True)
             params.append(relax.Var(arg.arg, param_sinfo))
 
-    is_pure = find_purity_annotation(self, node)
+    is_pure = find_purity_annotation(node)
     func_signature = relax.Function.create_empty(params, ret_sinfo, is_pure=is_pure)
     return I.decl_function(node.name, func_signature)
 
