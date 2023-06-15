@@ -767,10 +767,8 @@ def _convert_upsample(
         params["scale_h"] = h
     elif upsample_type == "UpSampling2D":
         h, w = keras_layer.size
-        if h != w:
-            raise tvm.error.OpAttributeInvalid("Height must equal width for operator Upsample.")
         params["scale_h"] = h
-        params["scale_w"] = h
+        params["scale_w"] = w
 
         if hasattr(keras_layer, "interpolation"):
             interpolation = keras_layer.interpolation
