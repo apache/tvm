@@ -1383,7 +1383,7 @@ def test_fp16A_int4B_gemm():
                 )
                 lv1 = lv[0]
                 lv2 = R.call_pure_packed(
-                    "cutlass.ft_preprocess_weight",
+                    "cutlass.ft_preprocess_weight_int4",
                     lv1,
                     sinfo_args=(R.Tensor((64, 64), dtype="int8"),),
                 )

@@ -217,17 +217,35 @@ def _check_decode_matmul(ctx):
 
     root = ctx.annotated_expr["root"]
 
+    if not _check_residual(root, ctx):
+        return False
+
     # out_dtype = "float32" not supported.
     if root.struct_info.dtype == "float32":
         return False
 
+    call_tir_decode = ctx.annotated_expr["w_decoded"]
+    if "decode" not in call_tir_decode.args[0].name_hint:
+        return False
+
     N = root.struct_info.shape[-1]
+    K = call_tir_decode.struct_info.shape[0]
 
     if ctx.annotated_expr["lhs"].struct_info.dtype != "float16":
         return False
 
-    # weight needs to be packed to int8
-    if ctx.annotated_expr["rhs"].struct_info.dtype != "int8":
+    # weight needs to be packed to int8.
+    packed_weight = ctx.annotated_expr["w_encoded"]
+
+    if packed_weight.struct_info.dtype != "int8":
+        return False
+
+    # The kernel expects the weight to be preprocessed by this packed function.
+    if isinstance(packed_weight, Call) and packed_weight.args[0] != "cutlass.ft_preprocess_weight_int4":
+        return False
+
+    # packed weight needs to be of shape (K, N // 2)
+    if packed_weight.shape[0] != K or packed_weight.shape[1] != N // 2:
         return False
 
     scales = ctx.annotated_expr["scales"]
@@ -235,9 +253,8 @@ def _check_decode_matmul(ctx):
     if scales.struct_info.dtype != "float16":
         return False
 
-    analyzer = tvm.arith.Analyzer()
-
-    if len(scales.struct_info.shape) != 1 or analyzer.can_prove_equal(scales.struct_info.shape[0], N):
+    # scale shape needs to be (N,)
+    if len(scales.struct_info.shape) != 1 or scales.struct_info.shape[0] != N:
         return False
 
     # bias shape needs to be (N,), possibly with additional axes on the front.
@@ -247,18 +264,16 @@ def _check_decode_matmul(ctx):
         if bias_shape_1d != bias_shape[-1]:
             return False
 
-    if not _check_residual(root, ctx):
-        return False
-
     return True
 
 
 def decode_matmul_patterns():
     """Returns a list of supported decode -> matmul patterns."""
     def _decode_matmul_pattern(name):
-        w_packed = wildcard()
         scales = wildcard()
         x = wildcard()
+        w_packed = wildcard()
+
         w = is_op("relax.call_tir")(
             GlobalVarPattern(),
             TuplePattern([w_packed, scales]),
@@ -268,8 +283,9 @@ def decode_matmul_patterns():
         annotations = {
             "root": matmul,
             "lhs": x,
-            "rhs": w_packed,
-            "scales": scales
+            "w_encoded": w_packed,
+            "w_decoded": w,
+            "scales": scales,
         }
 
         if "bias" in name:
@@ -278,6 +294,7 @@ def decode_matmul_patterns():
         else:
             out = matmul
 
+        # TODO(masahi): Support more activations
         if "silu" in name:
             out = is_op("relax.nn.silu")(out)
 
