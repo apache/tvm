@@ -696,6 +696,7 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
         return f.with_attrs(attrs)
 
     def handle_decode_matmul(self, f, op_type):
+        """Annotate a decode -> matmul op."""
         arg_idx = _extract_arg_idx(op_type, f)
         signature = _extract_relax_function_signature(f)
         lhs_arg = f"arg{arg_idx['lhs']}"
@@ -742,7 +743,7 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
         return f.with_attrs(attrs)
 
     def handle_matmul(self, f, op_type):
-        """Tune and annotate a dense op."""
+        """Tune and annotate a matmul op."""
         signature = _extract_relax_function_signature(f)
         arg_idx = _extract_arg_idx(op_type, f)
 
