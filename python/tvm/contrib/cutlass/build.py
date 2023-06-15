@@ -697,14 +697,18 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
 
     def handle_decode_matmul(self, f, op_type):
         arg_idx = _extract_arg_idx(op_type, f)
+        signature = _extract_relax_function_signature(f)
+        lhs_arg = f"arg{arg_idx['lhs']}"
+        lhs_shape = signature[f"{lhs_arg}_shape"]
         return f.with_attrs(
             {
                 "op_type": op_type,
                 "lhs_arg_idx": arg_idx["lhs"],
-                "rhs_arg_idx": arg_idx["rhs"],
+                "rhs_arg_idx": arg_idx["w_encoded"],
                 "scales_arg_idx": arg_idx["scales"],
                 "bias_arg_idx": arg_idx.get("bias"),
                 "residual_arg_idx": arg_idx.get("residual"),
+                "batch_offset": len(lhs_shape) - 2,
             }
         )
 

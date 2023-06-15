@@ -523,6 +523,7 @@ def instantiate_template(func_name, annotations, func_args):
         attrs["A_arg"] = func_args[lhs_arg_idx]
         attrs["B_arg"] = func_args[rhs_arg_idx]
         attrs["scales_arg"] = func_args[scales_arg_idx]
+        attrs["batch_offset"] = _get_optional_int_annotation(annotations, "batch_offset", 0)
 
         if bias_arg_idx is not None:
             attrs["bias_arg"] = func_args[bias_arg_idx]

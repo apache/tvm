@@ -240,12 +240,12 @@ def _check_decode_matmul(ctx):
     if packed_weight.struct_info.dtype != "int8":
         return False
 
-    # The kernel expects the weight to be preprocessed by this packed function.
-    if isinstance(packed_weight, Call) and packed_weight.args[0] != "cutlass.ft_preprocess_weight_int4":
+    # # The kernel expects the weight to be preprocessed by this packed function.
+    if isinstance(packed_weight, Call) and packed_weight.args[0].global_symbol != "cutlass.ft_preprocess_weight_int4":
         return False
 
     # packed weight needs to be of shape (K, N // 2)
-    if packed_weight.shape[0] != K or packed_weight.shape[1] != N // 2:
+    if packed_weight.struct_info.shape[0] != K or packed_weight.struct_info.shape[1] != N // 2:
         return False
 
     scales = ctx.annotated_expr["scales"]

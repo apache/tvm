@@ -408,15 +408,15 @@ def instantiate_gemm_template(attrs):
 
 
 def emit_fp16A_int4B_matmul(attrs):
-    template_common = """
+    attrs["template_common"] = substitute_template("""
   using namespace fastertransformer;
-  int m = ${A_arg}->shape[1]; // [0] is batch
+  int m = ${A_arg}->shape[${batch_offset}];
   int n = ${B_arg}->shape[1] * 2;
   int k = ${B_arg}->shape[0];
-    """
+    """, attrs)
 
-    template = f"""
-  {template_common}
+    template = """
+  ${template_common}
   gemm_fp16_int4(static_cast<cutlass::half_t*>(${A_arg}->data),
                  static_cast<cutlass::uint4b_t*>(${B_arg}->data),
                  static_cast<cutlass::half_t*>(${scales_arg}->data),
@@ -424,8 +424,8 @@ def emit_fp16A_int4B_matmul(attrs):
                  m, n, k, nullptr, 0, nullptr);
 """
 
-    template_bias = f"""
-  {template_common}
+    template_bias = """
+  ${template_common}
   gemm_fp16_int4_bias(static_cast<cutlass::half_t*>(${A_arg}->data),
                  static_cast<cutlass::uint4b_t*>(${B_arg}->data),
                  static_cast<cutlass::half_t*>(${scales_arg}->data),
@@ -434,8 +434,8 @@ def emit_fp16A_int4B_matmul(attrs):
                  m, n, k, nullptr, 0, nullptr);
 """
 
-    template_residual = f"""
-  {template_common}
+    template_residual = """
+  ${template_common}
   gemm_fp16_int4_bias_act_residual(static_cast<cutlass::half_t*>(${A_arg}->data),
                  static_cast<cutlass::uint4b_t*>(${B_arg}->data),
                  static_cast<cutlass::half_t*>(${scales_arg}->data),
