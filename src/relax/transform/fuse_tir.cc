@@ -21,6 +21,8 @@
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
 #include <tvm/tir/stmt_functor.h>
+#include <unordered_map>
+#include <unordered_set>
 
 #include "../../relay/analysis/graph_partitioner.h"
 #include "../../support/arena.h"
@@ -321,7 +323,6 @@ std::vector<size_t> GetTupleAccessedIndices(const FunctionNode* func, const Var&
   PostOrderVisit(func->body, [&indices, tuple_var](Expr e) {
     if (auto tup_get = e.as<TupleGetItemNode>(); tup_get && tup_get->tuple.same_as(tuple_var)) {
       indices.push_back(tup_get->index);
-      LOG(INFO) << "Accessed " << tup_get->index;
     }
   });
   return indices;
@@ -368,9 +369,9 @@ class FusedTIRConstructor : public ExprVisitor {
           Array<tir::Var> params;
           Array<tir::Buffer> buffers;
           for (auto i : tup_get_indices) {
+	    func_info_.used_tuple_field_indices[relax_param.get()].insert(i);
             auto [ret_params, ret_buffers] =
                 CreateParamsAndBuffers(tuple->fields[i], relax_param->name_hint(), index);
-	    LOG(INFO) << params;
             ICHECK_EQ(ret_params.size(), ret_buffers.size());
             // Adding tuple field results to the end of params and buffers.
             params.insert(params.end(), ret_params.begin(), ret_params.end());
@@ -379,7 +380,7 @@ class FusedTIRConstructor : public ExprVisitor {
           }
           return std::make_pair(params, buffers);
         } else {
-          return CreateParamsAndBuffers(sinfo,  //
+          return CreateParamsAndBuffers(sinfo,
                                         relax_param->name_hint());
         }
       }();
@@ -423,6 +424,7 @@ class FusedTIRConstructor : public ExprVisitor {
 
     // Step 5. Create PrimFunc
     fused_tir_ = ConstructFunc();
+    LOG(INFO) << fused_tir_;
   }
 
   void VisitBinding_(const VarBindingNode* binding) final {
@@ -505,7 +507,9 @@ class FusedTIRConstructor : public ExprVisitor {
       int end_buf_idx = 0;
       const TupleType& tuple_type = Downcast<TupleType>(tuple_get_item->tuple->checked_type());
       for (int i = 0; i < tuple_get_item->index; ++i) {
-        begin_buf_idx += GetTotalTensorSize(tuple_type->fields[i]);
+	if (func_info_.used_tuple_field_indices[tuple_get_item->tuple.get()].count(i)) {
+	  begin_buf_idx += GetTotalTensorSize(tuple_type->fields[i]);
+	}
       }
       end_buf_idx = begin_buf_idx + GetTotalTensorSize(tuple_type->fields[tuple_get_item->index]);
       func_info_.expr2buffers.Set(
@@ -806,6 +810,7 @@ class FusedTIRConstructor : public ExprVisitor {
     std::string global_name = "fused";
     /*! \brief The map from symbolic var to its corresponding var in the fused function */
     tir::SymbolicMatcher symbolic_var_matcher = tir::SymbolicMatcher(&symbolic_var_remap);
+    std::unordered_map<const Object*, std::unordered_set<size_t>> used_tuple_field_indices;
   };
 
   /*! \brief The IRModule */
