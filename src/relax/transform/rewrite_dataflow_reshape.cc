@@ -20,11 +20,15 @@
  * \file src/relax/transform/rewrite_dataflow_reshape.cc
  * \brief Transform all reshape within dataflow block to a relax.reshape operator
  */
+#include <tvm/arith/analyzer.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/function.h>
+
+#include <numeric>
+#include <vector>
 
 #include "../op/tensor/manipulate.h"
 
@@ -69,8 +73,10 @@ class DataflowReshapeRewriter : public ExprMutator {
   }
 
   Expr VisitExpr_(const CallNode* call) final {
+    auto Unchanged = GetRef<Call>(call);
+
     if (!IsCallingTIRReshape(call)) {
-      return GetRef<Call>(call);
+      return Unchanged;
     }
 
     // We bring the calls of reshape PrimFunc back to calls of high-level
@@ -89,8 +95,32 @@ class DataflowReshapeRewriter : public ExprMutator {
 
     auto arg = arg_tuple[used_arg_indices[0]];
 
-    TensorStructInfo res_sinfo = Downcast<TensorStructInfo>(call->struct_info_);
-    ICHECK(res_sinfo->shape.defined());
+    // The reshape operator expects that the number of elements in the source is the same
+    // as the number of elements in the result. There are operators that could have a reshape
+    // pattern that don't meet this requirement (e.g. strided_slice), and they should not be
+    // converted to reshape.
+    ICHECK(arg->struct_info_.defined() && call->struct_info_.defined());
+    TensorStructInfo arg_sinfo = Downcast<TensorStructInfo>(arg->struct_info_.value());
+    TensorStructInfo res_sinfo = Downcast<TensorStructInfo>(call->struct_info_.value());
+
+    if (arg_sinfo->IsUnknownDtype() || arg_sinfo->dtype != res_sinfo->dtype) {
+      return Unchanged;
+    }
+    ICHECK(arg_sinfo->shape.defined() && res_sinfo->shape.defined());
+    if (arg_sinfo->IsUnknownNdim() || res_sinfo->IsUnknownNdim()) {
+      return Unchanged;
+    }
+    auto product = [](Array<PrimExpr> args) -> PrimExpr {
+      ICHECK(!args.empty());
+      return std::reduce(args.begin(), args.end(), PrimExpr(1),
+                         [](auto a, auto b) { return a * b; });
+    };
+    auto arg_count = product(arg_sinfo->GetShape().value());
+    auto res_count = product(res_sinfo->GetShape().value());
+    if (!arith::Analyzer().CanProveEqual(arg_count, res_count)) {
+      return Unchanged;
+    }
+
     return reshape(arg, res_sinfo->shape.value());
   }
 
