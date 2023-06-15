@@ -701,17 +701,17 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
         lhs_arg = f"arg{arg_idx['lhs']}"
         lhs_shape = signature[f"{lhs_arg}_shape"]
         attrs = {
-                    "op_type": op_type,
-                    "lhs_arg_idx": arg_idx["lhs"],
-                    "rhs_arg_idx": arg_idx["w_encoded"],
-                    "scales_arg_idx": arg_idx["scales"],
-                    "bias_arg_idx": arg_idx.get("bias"),
-                    "batch_offset": len(lhs_shape) - 2,
-                }
+            "op_type": op_type,
+            "lhs_arg_idx": arg_idx["lhs"],
+            "rhs_arg_idx": arg_idx["w_encoded"],
+            "scales_arg_idx": arg_idx["scales"],
+            "bias_arg_idx": arg_idx.get("bias"),
+            "batch_offset": len(lhs_shape) - 2,
+        }
 
         if "residual" in op_type:
             residual_pos = op_type.find("residual_")
-            postfix = op_type[residual_pos + len("residual_"):]
+            postfix = op_type[residual_pos + len("residual_") :]
 
             if postfix.startswith("multiply"):
                 binary_op = "multiply"
@@ -726,16 +726,18 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
             activation = "identity"
 
             for act in ["relu", "silu", "gelu"]:
-                if act in op_type[op_type.find("matmul_") + len("matmul_"): residual_pos]:
+                if act in op_type[op_type.find("matmul_") + len("matmul_") : residual_pos]:
                     activation = act
                     break
 
-            attrs.update({
+            attrs.update(
+                {
                     "unary_op": unary_op,
                     "binary_op": binary_op,
                     "activation": activation,
                     "residual_arg_idx": arg_idx["residual"],
-            })
+                }
+            )
 
         return f.with_attrs(attrs)
 

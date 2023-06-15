@@ -241,7 +241,10 @@ def _check_decode_matmul(ctx):
         return False
 
     # # The kernel expects the weight to be preprocessed by this packed function.
-    if isinstance(packed_weight, Call) and packed_weight.args[0].global_symbol != "cutlass.ft_preprocess_weight_int4":
+    if (
+        isinstance(packed_weight, Call)
+        and packed_weight.args[0].global_symbol != "cutlass.ft_preprocess_weight_int4"
+    ):
         return False
 
     # packed weight needs to be of shape (K, N // 2)
@@ -269,6 +272,7 @@ def _check_decode_matmul(ctx):
 
 def decode_matmul_patterns():
     """Returns a list of supported decode -> matmul patterns."""
+
     def _decode_matmul_pattern(name):
         scales = wildcard()
         x = wildcard()

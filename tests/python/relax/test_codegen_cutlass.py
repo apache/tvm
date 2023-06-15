@@ -1489,5 +1489,4 @@ def test_fp16A_int4B_gemm():
 
 
 if __name__ == "__main__":
-    # tvm.testing.main()
-    test_fp16A_int4B_gemm()
+    tvm.testing.main()

@@ -528,6 +528,7 @@ def instantiate_template(func_name, annotations, func_args):
 
         if bias_arg_idx is not None:
             attrs["bias_arg"] = func_args[bias_arg_idx]
+
         if residual_arg_idx is not None:
             attrs["residual_arg"] = func_args[residual_arg_idx]
             attrs["binary_op"] = annotations["binary_op"]

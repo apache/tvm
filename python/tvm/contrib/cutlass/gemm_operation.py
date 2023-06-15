@@ -408,12 +408,15 @@ def instantiate_gemm_template(attrs):
 
 
 def emit_fp16A_int4B_matmul(attrs):
-    attrs["template_common"] = substitute_template("""
+    attrs["template_common"] = substitute_template(
+        """
   using namespace fastertransformer;
   int m = ${A_arg}->shape[${batch_offset}];
   int n = ${B_arg}->shape[1] * 2;
   int k = ${B_arg}->shape[0];
-    """, attrs)
+    """,
+        attrs,
+    )
 
     template = """
   ${template_common}
@@ -446,11 +449,15 @@ def emit_fp16A_int4B_matmul(attrs):
 """
 
     if "residual_arg" in attrs and "bias_arg" in attrs:
-        template_residual = substitute_template(template_residual, {"bias": "static_cast<cutlass::half_t*>(${bias_arg}->data)"})
+        template_residual = substitute_template(
+            template_residual, {"bias": "static_cast<cutlass::half_t*>(${bias_arg}->data)"}
+        )
         return substitute_template(template_residual, attrs)
+
     if "residual_arg" in attrs:
         template_residual = substitute_template(template_residual, {"bias": "nullptr"})
         return substitute_template(template_residual, attrs)
+
     if "bias_arg" in attrs:
         return substitute_template(template_bias, attrs)
 
