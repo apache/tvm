@@ -449,7 +449,15 @@ class TestKeras:
         x = keras_mod.layers.Cropping2D(cropping=0)(x)
         x = keras_mod.layers.Add()([x, x])
         keras_model = keras_mod.models.Model(data, x)
-        verify_keras_frontend(keras_model)
+        verify_keras_frontend(keras_model, layout="NHWC")
+        verify_keras_frontend(keras_model, layout="NHWC")
+
+        data = keras_mod.layers.Input(shape=(32, 32, 3))
+        x = keras_mod.layers.Cropping2D(cropping=(2, 1))(data)
+        x = keras_mod.layers.Cropping2D(cropping=(1, 2))(x)
+        keras_model = keras_mod.models.Model(data, x)
+        verify_keras_frontend(keras_model, layout="NHWC")
+        verify_keras_frontend(keras_model, layout="NCHW")
 
     def test_forward_multi_inputs(self, keras_mod):
         data1 = keras_mod.layers.Input(shape=(32, 32, 3))

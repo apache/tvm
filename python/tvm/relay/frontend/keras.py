@@ -816,10 +816,16 @@ def _convert_cropping(
             f"Operator {crop_type} is not supported for frontend Keras."
         )
     int32_max = np.iinfo(np.int32).max
+    if data_layout == "NHWC":
+        begin = [0, crop_t, crop_l, 0]
+        end = [int32_max, in_h - crop_b, in_w - crop_r, int32_max]
+    else:
+        begin = [0, 0, crop_t, crop_l]
+        end = [int32_max, int32_max, in_h - crop_b, in_w - crop_r]
     return _op.strided_slice(
         inexpr,
-        begin=[0, 0, crop_t, crop_l],
-        end=[int32_max, int32_max, in_h - crop_b, in_w - crop_r],
+        begin=begin,
+        end=end,
     )
 
 
