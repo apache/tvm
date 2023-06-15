@@ -25,6 +25,7 @@
 #include "../../relay/analysis/graph_partitioner.h"
 #include "../../support/arena.h"
 #include "../../tir/ir/functor_common.h"
+#include "tvm/relax/expr.h"
 
 namespace tvm {
 namespace tir {
@@ -315,6 +316,17 @@ class BlockNameDeduplicator : public tir::StmtMutator {
 
 namespace relax {
 
+std::vector<size_t> GetTupleAccessedIndices(const FunctionNode* func, const Var& tuple_var) {
+  std::vector<size_t> indices;
+  PostOrderVisit(func->body, [&indices, tuple_var](Expr e) {
+    if (auto tup_get = e.as<TupleGetItemNode>(); tup_get && tup_get->tuple.same_as(tuple_var)) {
+      indices.push_back(tup_get->index);
+      LOG(INFO) << "Accessed " << tup_get->index;
+    }
+  });
+  return indices;
+}
+
 class FusedTIRConstructor : public ExprVisitor {
  public:
   /*!
@@ -340,13 +352,38 @@ class FusedTIRConstructor : public ExprVisitor {
 
   void VisitExpr_(const FunctionNode* func) final {
     // Step 1. Create buffers for function params
+    LOG(INFO) << GetRef<Function>(func);
     for (const Var& relax_param : func->params) {
-      if (GetStructInfo(relax_param)->IsInstance<ShapeStructInfoNode>()) {
+      auto sinfo = GetStructInfo(relax_param);
+      if (sinfo->IsInstance<ShapeStructInfoNode>()) {
         // It's a symbolic shape var, no need to alloc Buffers.
         continue;
       }
-      auto [params, buffers] = CreateParamsAndBuffers(GetStructInfo(relax_param),  //
-                                                      relax_param->name_hint());
+
+      auto [params, buffers] = [=]() {
+        if (const auto* tuple = sinfo.as<TupleStructInfoNode>()) {
+          auto tup_get_indices = GetTupleAccessedIndices(func, relax_param);
+
+          int index = 0;
+          Array<tir::Var> params;
+          Array<tir::Buffer> buffers;
+          for (auto i : tup_get_indices) {
+            auto [ret_params, ret_buffers] =
+                CreateParamsAndBuffers(tuple->fields[i], relax_param->name_hint(), index);
+	    LOG(INFO) << params;
+            ICHECK_EQ(ret_params.size(), ret_buffers.size());
+            // Adding tuple field results to the end of params and buffers.
+            params.insert(params.end(), ret_params.begin(), ret_params.end());
+            buffers.insert(buffers.end(), ret_buffers.begin(), ret_buffers.end());
+            index += ret_params.size();
+          }
+          return std::make_pair(params, buffers);
+        } else {
+          return CreateParamsAndBuffers(sinfo,  //
+                                        relax_param->name_hint());
+        }
+      }();
+
       ICHECK_EQ(params.size(), buffers.size());
       for (size_t i = 0; i < params.size(); ++i) {
         func_info_.buffer_map.Set(params[i], buffers[i]);
@@ -840,16 +877,30 @@ class TIRFuseMutator : public ExprMutator {
     if (call->op->IsInstance<GlobalVarNode>()) {
       // Case 1. It is a relax cross function call
       GlobalVar old_gv = Downcast<GlobalVar>(call->op);
+      auto relax_func =  Downcast<Function>(mod_->Lookup(old_gv));
+      // GetTupleAccessedIndices
       auto it = fused_tir_funcs_.find(old_gv);
       if (it != fused_tir_funcs_.end()) {
         const tir::PrimFunc& fused_tir = (*it).second;
+	std::string f_name = old_gv->name_hint;
         // Case 1.1. It calls a primitive relax function, update the call into a call_tir
         GlobalVar fused_tir_gv = this->builder_->AddFunction(fused_tir, old_gv->name_hint);
         // Step a. Flatten all args since call_tir does not support Tuple value.
         Array<Expr> arg_list;
         Array<PrimExpr> tir_vars;
-        for (const Expr& arg : call->args) {
-          Array<Expr> flattened = FlattenArg(arg);
+	for (size_t i = 0; i < call->args.size(); ++i) {
+	  auto arg = call->args[i];
+	  Array<Expr> flattened;
+	  if (GetStructInfo(relax_func->params[i])->IsInstance<TupleStructInfoNode>()) {
+	    auto tup_get_indices = GetTupleAccessedIndices(relax_func.get(), relax_func->params[i]);
+	    for (size_t tup_get_ind: tup_get_indices) {
+	      auto flattened_inner = FlattenArg(call.as<TupleNode>()->fields[tup_get_ind]);
+	      flattened.insert(flattened.end(), flattened_inner.begin(), flattened_inner.end());
+	    }
+	  } else {
+	    flattened.push_back(arg);
+	  }
+
           for (const Expr& e : flattened) {
             StructInfo sinfo = GetStructInfo(e);
             if (sinfo->IsInstance<TensorStructInfoNode>()) {
