@@ -65,7 +65,8 @@ class AnalyzeOperationsDistribution(ExprVisitor):
         if isinstance(call.op, tvm.ir.Op):
             if call.span:
                 src = call.span.source_name.name
-                result = re.search(r"(.*)(_PART_)(.*)", src)
+                suffix = tvm.relay.transform.suffixes.SUFFIX_STRING
+                result = re.search(r"(.*)(" + suffix + r")(.*)", src)
                 res = result.group(1)
                 self.unique_op_ids[res] = [self.compiler_name, self.func_name]
         if isinstance(call.op, relay.Function):

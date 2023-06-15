@@ -80,7 +80,6 @@ def test_operations_distribution_ethos():
         )
         return op
 
-
     _, tflite_graph = get_tflite_graph(simple_net, [input_shape])
 
     # Get TFLite model from buffer

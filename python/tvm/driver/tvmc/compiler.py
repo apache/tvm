@@ -572,7 +572,8 @@ def dump_operation_offloads(mod: tvm.ir.IRModule, initial_mod: tvm.ir.IRModule, 
                 # to the Relay, in which case we can not associate the initial Relay string
                 # with the resulting Relay call
                 source_name = x.span.source_name.name
-                result = re.search(r"(.*)(_PART_)(.*)", source_name)
+                suffix = tvm.relay.transform.suffixes.SUFFIX_STRING
+                result = re.search(r"(.*)(" + suffix + r")(.*)", source_name)
                 func_id = result.group(1)
                 if func_id in operations_distribution:
                     compiler_name, op_name = operations_distribution[func_id]
@@ -602,7 +603,7 @@ def dump_operation_offloads(mod: tvm.ir.IRModule, initial_mod: tvm.ir.IRModule, 
         # funcs_dict is a mapping of the generated analyze_operations_distribution
         # internal composite/function IDs to a list, where:
         # 1st element is
-        #   (1a): "generic"|"unknown"|"none" or
+        #   (1a): "generic"|"unknown"|"none"* or
         #   (1b): specific target name, like "ethos-u" or "cmsis-nn"
         # 2nd element is
         #   (2a): corresponding initial Relay line for the case (1a) or
@@ -610,6 +611,12 @@ def dump_operation_offloads(mod: tvm.ir.IRModule, initial_mod: tvm.ir.IRModule, 
         # 3rd element or subsequent ones are presented only for the case (2b)
         # and are the initial Relay's lines included in the corresponding
         # target composite functon
+        #
+        # *Description of what is meant by "generic"|"unknown"|"none":
+        # "generic" means that operation will be run on a host
+        # "unknown" means that unique identifier of this Relay line not found in the partitioned
+        #           Relay and therefore not present in the operations_distribution dictionary
+        # "none" means that this Relay line is not relay.Call
         funcs_dict = {}
 
         # Here we group together initial Relay lines from the one composite
