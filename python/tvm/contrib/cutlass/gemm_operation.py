@@ -408,6 +408,8 @@ def instantiate_gemm_template(attrs):
 
 
 def emit_fp16A_int4B_matmul(attrs):
+    """Return CUTLASS host code for fp16 A and int4 B GEMM."""
+
     attrs["template_common"] = substitute_template(
         """
   using namespace fastertransformer;
