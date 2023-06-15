@@ -24,8 +24,28 @@ import struct
 from typing import Dict, Tuple, Union
 
 import tvm
-from tvm import IRModule, te
+from tvm import IRModule, te, tir
 from tvm.tir import IndexMap, PrimFunc
+
+
+def is_scalar(expr):
+    if isinstance(expr, te.Tensor):
+        return expr.ndim == 0 and (isinstance(expr.op.body[0], (tir.FloatImm, tir.IntImm)))
+    return isinstance(expr, (tir.FloatImm, tir.IntImm))
+
+
+def get_const_int_value(expr):
+    if isinstance(expr, te.Tensor):
+        assert isinstance(expr.op.body[0], tir.IntImm)
+        return expr.op.body[0].value
+    return tvm.topi.utils.get_const_int(expr)
+
+
+def get_const_float_value(expr):
+    if isinstance(expr, te.Tensor):
+        assert isinstance(expr.op.body[0], tir.FloatImm)
+        return expr.op.body[0].value
+    return tvm.topi.utils.get_const_float(expr)
 
 
 def n11c_1024c_2d(n, h, w, c):
@@ -38,6 +58,11 @@ def n11c_1024c_1d(n, h, w, c):
     return [n, h, w, c // 1024, c % 1024]
 
 
+def nc11_1024c_2d(n, c, h, w):
+    """Return index map for nc11_1024 2d layout"""
+    return [n, c // 1024, IndexMap.AXIS_SEPARATOR, c % 1024, h, w]
+
+
 def nhwc_8h2w32c2w_2d(n, h, w, c):
     """Return index map for nhwc_8h2w32c2w 2d layout"""
     return [n, h // 8, w // 4, c // 32, IndexMap.AXIS_SEPARATOR, h % 8, (w % 4) // 2, c % 32, w % 2]
@@ -46,6 +71,11 @@ def nhwc_8h2w32c2w_2d(n, h, w, c):
 def nhwc_8h2w32c2w_1d(n, h, w, c):
     """Return index map for nhwc_8h2w32c2w 1d layout"""
     return [n, h // 8, w // 4, c // 32, h % 8, (w % 4) // 2, c % 32, w % 2]
+
+
+def nchw_8h2w32c2w_2d(n, c, h, w):
+    """Return index map for nchw_8h2w32c2w 2d layout"""
+    return [n, c // 32, h // 8, w // 4, IndexMap.AXIS_SEPARATOR, h % 8, (w % 4) // 2, c % 32, w % 2]
 
 
 def nhw_32h16w_2d(n, h, w):
@@ -88,6 +118,11 @@ def nc_2048c_2d(n, c):
     return [n, c // 2048, IndexMap.AXIS_SEPARATOR, c % 2048]
 
 
+def nc11_2048c_2d(n, c, h, w):
+    """Return index map for nc11_2048c 2d layout"""
+    return [n, c // 2048, IndexMap.AXIS_SEPARATOR, h, w, c % 2048]
+
+
 def nc_1024c_1d(n, c):
     """Return index map for nc_1024c 1d layout"""
     return [n, c // 1024, c % 1024]
@@ -123,9 +158,23 @@ def nhwc_8h8w32c_2d(n, h, w, c):
     return [n, h // 8, w // 8, c // 32, IndexMap.AXIS_SEPARATOR, h % 8, w % 8, c % 32]
 
 
+def nhwc_8h8w32c_1d(n, h, w, c):
+    """Return index map for nhwc_8h8w32c 1d layout"""
+    return [n, h // 8, w // 8, c // 32, h % 8, w % 8, c % 32]
+
+
+def nchw_8h8w32c_2d(n, c, h, w):
+    return [n, c // 32, h // 8, w // 8, IndexMap.AXIS_SEPARATOR, h % 8, w % 8, c % 32]
+
+
 def n11c_2048c_2d(n, h, w, c):
     """Return index map for n11c_2048c 2d layout"""
     return [n, h, w, c // 2048, IndexMap.AXIS_SEPARATOR, c % 2048]
+
+
+def n11c_2048c_1d(n, h, w, c):
+    """Return index map for n11c_2048c 1 layout"""
+    return [n, h, w, c // 2048, c % 2048]
 
 
 def iohw_16i32o2i_1d(height, width, in_channel, out_channel):
@@ -163,12 +212,16 @@ def get_layout_transform_fn(layout):
         return nhwc_8h2w32c2w_2d
     if layout == "nhwc-8h2w32c2w-1d":
         return nhwc_8h2w32c2w_1d
+    if layout == "nchw-8h2w32c2w-2d":
+        return nchw_8h2w32c2w_2d
     if layout == "n11c-1024c-2d":
         return n11c_1024c_2d
     if layout == "n11c-1024c-1d":
         return n11c_1024c_1d
     if layout == "nhwc-1024c-2d":
         return nhwc_1024c_2d
+    if layout == "nc11-1024c-2d":
+        return nc11_1024c_2d
     if layout == "nc-1024-2d":
         return nc_1024_2d
     if layout == "nhw-32h16w-2d":
@@ -201,16 +254,26 @@ def get_layout_transform_fn(layout):
         return nc_2048c_2d
     if layout == "nhwc-8h8w32c-2d":
         return nhwc_8h8w32c_2d
+    if layout == "nhwc-8h8w32c-1d":
+        return nhwc_8h8w32c_1d
+    if layout == "nchw-8h8w32c-2d":
+        return nchw_8h8w32c_2d
     if layout == "n11c-2048c-2d":
         return n11c_2048c_2d
+    if layout == "n11c-2048c-1d":
+        return n11c_2048c_1d
     if layout == "ohwi32o-1d":
         return ohwi32o_1d
+    if layout == "nc11-2048c-2d":
+        return nc11_2048c_2d
     if layout == "ncw-32c64w-2d":
         return ncw_32c64w_2d
     if layout == "nchw-32c8h8w-2d":
         return nchw_32c8h8w_2d
     if layout == "nchw-32c8h4w-2d":
         return nchw_32c8h4w_2d
+    if layout == "nchw-8h8w32c-2d":
+        return nchw_8h8w32c_2d
     raise RuntimeError(f"Unexpected layout '{layout}'")
 
 
