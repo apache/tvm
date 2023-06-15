@@ -25,6 +25,7 @@ from tvm.contrib.cutlass.build import is_shape_valid_for_cutlass_matmul
 from tvm.relax import Call, DataflowVar, Function, PyExprMutator, Var, expr_functor, transform
 from tvm.relax.dpl import rewrite_call
 from tvm.relax.transform import PatternCheckContext
+from tvm.relax.dpl.pattern import GlobalVarPattern, TuplePattern, is_op, wildcard
 
 from ..pattern_registry import get_patterns_with_prefix, register_patterns
 from ..patterns import (
@@ -209,31 +210,52 @@ def matmul_patterns():
     ]
 
 
-def check_decode_matmul(ctx):
+def _check_decode_matmul(ctx):
+    """Check if the given decode -> matmul workload can be offloaded to CUTLASS."""
     if _has_leaking_intermediate_variables(ctx):
         return False
 
     root = ctx.annotated_expr["root"]
 
+    # out_dtype = "float32" not supported.
     if root.struct_info.dtype == "float32":
-        # TODO: Support fp32 accum
         return False
 
+    N = root.struct_info.shape[-1]
+
+    if ctx.annotated_expr["lhs"].struct_info.dtype != "float16":
+        return False
+
+    # weight needs to be packed to int8
+    if ctx.annotated_expr["rhs"].struct_info.dtype != "int8":
+        return False
+
+    scales = ctx.annotated_expr["scales"]
+
+    if scales.struct_info.dtype != "float16":
+        return False
+
+    analyzer = tvm.arith.Analyzer()
+
+    if len(scales.struct_info.shape) != 1 or analyzer.can_prove_equal(scales.struct_info.shape[0], N):
+        return False
+
+    # bias shape needs to be (N,), possibly with additional axes on the front.
     if "bias" in ctx.annotated_expr:
         bias_shape = ctx.annotated_expr["bias"].struct_info.shape
         bias_shape_1d = reduce(operator.mul, bias_shape, 1)
         if bias_shape_1d != bias_shape[-1]:
             return False
 
-    if not _check_residual(ctx.annotated_expr["root"], ctx):
+    if not _check_residual(root, ctx):
         return False
 
     return True
 
 
 def decode_matmul_patterns():
+    """Returns a list of supported decode -> matmul patterns."""
     def _decode_matmul_pattern(name):
-        from tvm.relax.dpl.pattern import GlobalVarPattern, TuplePattern, is_op, wildcard
         w_packed = wildcard()
         scales = wildcard()
         x = wildcard()
@@ -259,7 +281,7 @@ def decode_matmul_patterns():
         if "silu" in name:
             out = is_op("relax.nn.silu")(out)
 
-        return name, out, annotations, check_decode_matmul
+        return name, out, annotations, _check_decode_matmul
 
     return [
         _decode_matmul_pattern("cutlass.decode_matmul"),
@@ -305,7 +327,7 @@ def residual_block_patterns():
         for check, base_patterns in [
             (_check_conv2d, conv2d_patterns()),
             (_check_matmul, matmul_patterns()),
-            (check_decode_matmul, decode_matmul_patterns()),
+            (_check_decode_matmul, decode_matmul_patterns()),
         ]:
             for name, pat, arg_pat, _ in base_patterns:
                 # Append residual patterns only to those base patterns with bias add,
@@ -438,6 +460,7 @@ register_patterns(
     [
         *conv2d_patterns(),
         *matmul_patterns(),
+        *decode_matmul_patterns(),
         *residual_block_patterns(),
         *attention_patterns(),
         *layer_norm_pattern(),

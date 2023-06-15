@@ -482,7 +482,7 @@ def instantiate_template(func_name, annotations, func_args):
         if k in annotations:
             attrs[k] = annotations[k]
 
-    headers = ["tvm/runtime/registry.h"]
+    headers = []
 
     if "relu" in func_name:
         headers.append("cutlass/epilogue/thread/linear_combination_bias_relu.h")
@@ -523,12 +523,15 @@ def instantiate_template(func_name, annotations, func_args):
         attrs["A_arg"] = func_args[lhs_arg_idx]
         attrs["B_arg"] = func_args[rhs_arg_idx]
         attrs["scales_arg"] = func_args[scales_arg_idx]
+
         if bias_arg_idx is not None:
             attrs["bias_arg"] = func_args[bias_arg_idx]
         if residual_arg_idx is not None:
             attrs["residual_arg"] = func_args[residual_arg_idx]
+
         code = emit_fp16A_int4B_matmul(attrs)
         return CodegenResult(code, headers)
+
     elif "dense" in func_name or "matmul" in func_name:
         batched = "batch" in annotations
         transposed = "transposed" in func_name
