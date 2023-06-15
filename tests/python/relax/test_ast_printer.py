@@ -357,13 +357,12 @@ def test_struct_info():
 
 def test_call_packed():
     # test case from test_parser
-    @R.function
+    @R.function(pure=False)
     def f(
         x: R.Tensor((32, "m"), "float32"),
         y: R.Tensor(("m",), "float32"),
         r: R.Tensor(dtype="int64"),
     ) -> R.Object:
-        R.is_impure()
         m = T.int64()
         z: R.Tensor((32, m), "float32") = R.multiply(x, y)
         w: R.Tensor = R.multiply(z, z)

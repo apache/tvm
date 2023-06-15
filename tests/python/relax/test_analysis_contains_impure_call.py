@@ -37,9 +37,8 @@ def test_simple_pure_case():
 def test_simple_impure_case():
     @tvm.script.ir_module
     class ImpureTest:
-        @R.function
+        @R.function(pure=False)
         def impure_func() -> R.Object:
-            R.is_impure()
             y = R.print(format="I am a message")
             return y
 
@@ -52,9 +51,8 @@ def test_nested_function():
         @R.function
         def pure_with_impure_nested() -> R.Tensor((), "int32"):
             # unused
-            @R.function
+            @R.function(pure=False)
             def impure_inner() -> R.Object:
-                R.is_impure()
                 y = R.print(format="Another, worse, message")
                 return y
 
@@ -73,9 +71,8 @@ def test_ignoring_recursive_call():
     # function has become pure
     @tvm.script.ir_module
     class RecursiveTest:
-        @R.function
+        @R.function(pure=False)
         def recursive_impure() -> R.Object:
-            R.is_impure()
             x = R.const(1, "int32")
             y = R.add(x, x)
             z = R.print(x, y, format="{} {}")

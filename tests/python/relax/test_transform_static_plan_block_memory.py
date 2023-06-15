@@ -664,10 +664,9 @@ def test_call_func_other_than_primfunc():
 def test_call_packed_external_func():
     @I.ir_module
     class Module:
-        @R.function
+        @R.function(pure=False)
         def main(x: R.Tensor((2, 3), "float32")):
             # the extern func may or may not be pure, depends on what we're calling
-            R.is_impure()
             alloc: R.Tensor((2, 3), dtype="float32") = R.builtin.alloc_tensor(
                 R.shape([2, 3]), dtype="float32", runtime_device_index=0
             )
@@ -682,9 +681,8 @@ def test_call_packed_external_func():
 
     @I.ir_module
     class Expected:
-        @R.function
+        @R.function(pure=False)
         def main(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((2, 3), dtype="float32"):
-            R.is_impure()
             storage: R.Object = R.memory.alloc_storage(
                 R.shape([24]), R.prim_value(0), R.str("global"), R.dtype("float32")
             )

@@ -531,9 +531,8 @@ class Module:
 def test_assert_op():
     @I.ir_module
     class AssertOpMod:
-        @R.function
+        @R.function(pure=False)
         def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
-            R.is_impure()
             y = R.assert_op(R.const(False, dtype="bool"), x, format="x: {}")
             return x
 
@@ -545,9 +544,8 @@ def test_assert_op():
 
 @I.ir_module
 class Module:
-    @R.function
+    @R.function(pure=False)
     def main(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
-        R.is_impure()
         y: R.Tuple = R.assert_op(R.const(False, "bool"), x, format=R.str("x: {}"))
         return x
 """,
@@ -557,9 +555,8 @@ class Module:
 def test_print():
     @I.ir_module
     class PrintMod:
-        @R.function
+        @R.function(pure=False)
         def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
-            R.is_impure()
             y = R.print(x, format="x: {}")
             return x
 
@@ -571,9 +568,8 @@ def test_print():
 
 @I.ir_module
 class Module:
-    @R.function
+    @R.function(pure=False)
     def main(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
-        R.is_impure()
         y: R.Tuple = R.print(x, format=R.str("x: {}"))
         return x
 """,

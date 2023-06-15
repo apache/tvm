@@ -52,7 +52,7 @@ TVM_STATIC_IR_FUNCTOR(Namer, vtable)
 
 /////////////////////////////// Function ////////////////////////////////
 
-FunctionFrame Function() {
+FunctionFrame Function(const Bool& is_pure) {
   ObjectPtr<FunctionFrameNode> n = make_object<FunctionFrameNode>();
   const IRBuilder& ir_builder = IRBuilder::Current();
   Optional<tvm::IRModule> mod = NullOpt;
@@ -60,6 +60,7 @@ FunctionFrame Function() {
     mod = tvm::IRModule(mod_frame.value()->functions);
   }
   n->block_builder = tvm::relax::BlockBuilder::Create(/*mod=*/mod);
+  n->is_pure = is_pure;
   return FunctionFrame(n);
 }
 
@@ -85,15 +86,6 @@ void FuncAttrs(Map<String, ObjectRef> attrs) {
     LOG(FATAL) << "ValueError: Duplicate function attrs, previous one is:\n" << frame->attrs;
   }
   frame->attrs = attrs;
-}
-
-void FuncIsPure(bool purity) {
-  FunctionFrame frame = FindFunctionFrame("R.is_pure");
-  if (frame->is_pure.defined()) {
-    LOG(FATAL) << "ValueError: Duplicate function purity annotations, previous one is:\n"
-               << frame->is_pure.value();
-  }
-  frame->is_pure = Bool(purity);
 }
 
 void FuncRetStructInfo(const tvm::relax::StructInfo& ret_sinfo) {
@@ -132,7 +124,6 @@ TVM_REGISTER_GLOBAL("script.ir_builder.relax.Function").set_body_typed(Function)
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.Arg").set_body_typed(Arg);
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.FuncName").set_body_typed(FuncName);
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.FuncAttrs").set_body_typed(FuncAttrs);
-TVM_REGISTER_GLOBAL("script.ir_builder.relax.FuncIsPure").set_body_typed(FuncIsPure);
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.FuncRetStructInfo").set_body_typed(FuncRetStructInfo);
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.FuncRetValue").set_body_typed(FuncRetValue);
 

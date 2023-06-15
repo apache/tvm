@@ -308,28 +308,23 @@ def test_no_local_func():
 def test_impure_function():
     @tvm.script.ir_module
     class Expected:
-        @R.function
+        @R.function(pure=False)
         def lifted_func_0() -> R.Tuple:
-            R.is_impure()
             y = R.print(format="Wow!")
             return y
 
-        @R.function
+        @R.function(pure=False)
         def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
-            R.is_impure()
             inner = Expected.lifted_func_0
             gv1 = inner()
             return x
 
     @tvm.script.ir_module
     class Before:
-        @R.function
+        @R.function(pure=False)
         def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
-            R.is_impure()
-
-            @R.function
+            @R.function(pure=False)
             def inner() -> R.Tuple:
-                R.is_impure()
                 y = R.print(format="Wow!")
                 return y
 
