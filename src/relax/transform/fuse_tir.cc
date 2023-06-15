@@ -318,16 +318,6 @@ class BlockNameDeduplicator : public tir::StmtMutator {
 
 namespace relax {
 
-std::vector<size_t> GetTupleAccessedIndices(const FunctionNode* func, const Var& tuple_var) {
-  std::vector<size_t> indices;
-  PostOrderVisit(func->body, [&indices, tuple_var](Expr e) {
-    if (auto tup_get = e.as<TupleGetItemNode>(); tup_get && tup_get->tuple.same_as(tuple_var)) {
-      indices.push_back(tup_get->index);
-    }
-  });
-  return indices;
-}
-
 class FusedTIRConstructor : public ExprVisitor {
  public:
   /*!
@@ -353,6 +343,12 @@ class FusedTIRConstructor : public ExprVisitor {
 
   void VisitExpr_(const FunctionNode* func) final {
     // Step 1. Create buffers for function params
+    PostOrderVisit(func->body, [=](Expr e) {
+      if (auto tup_get = e.as<TupleGetItemNode>()) {
+	func_info_.used_tuple_field_indices[tup_get->tuple.get()].insert(tup_get->index);
+      }
+    });
+
     for (const Var& relax_param : func->params) {
       auto sinfo = GetStructInfo(relax_param);
       if (sinfo->IsInstance<ShapeStructInfoNode>()) {
@@ -362,13 +358,12 @@ class FusedTIRConstructor : public ExprVisitor {
 
       auto [params, buffers] = [=]() {
         if (const auto* tuple = sinfo.as<TupleStructInfoNode>()) {
-          auto tup_get_indices = GetTupleAccessedIndices(func, relax_param);
+          auto tup_get_indices = func_info_.used_tuple_field_indices[relax_param.get()];
 
           int index = 0;
           Array<tir::Var> params;
           Array<tir::Buffer> buffers;
           for (auto i : tup_get_indices) {
-            func_info_.used_tuple_field_indices[relax_param.get()].insert(i);
             auto [ret_params, ret_buffers] =
                 CreateParamsAndBuffers(tuple->fields[i], relax_param->name_hint(), index);
             ICHECK_EQ(ret_params.size(), ret_buffers.size());
@@ -820,6 +815,19 @@ class FusedTIRConstructor : public ExprVisitor {
   tir::PrimFunc fused_tir_;
 };
 
+std::vector<size_t> GetTupleAccessedIndices(const FunctionNode* func, const Var& tuple_var) {
+  // Need to be ordered
+  std::vector<size_t> indices;
+  PostOrderVisit(func->body, [&indices, tuple_var](Expr e) {
+    if (auto tup_get = e.as<TupleGetItemNode>(); tup_get && tup_get->tuple.same_as(tuple_var)) {
+      if (std::find(indices.begin(), indices.end(), tup_get->index) == indices.end()) {
+        indices.push_back(tup_get->index);
+      }
+    }
+  });
+  return indices;
+}
+
 /*!
  * \brief The helper class to fuse TIR functions and build a new module which calls the fused TIR.
  */
@@ -841,6 +849,7 @@ class TIRFuseMutator : public ExprMutator {
     // into the new IRModule
     for (const auto& [gv, func] : mod->functions) {
       if (func->IsInstance<relax::FunctionNode>() && !func->HasNonzeroAttr(attr::kPrimitive)) {
+	LOG(INFO) << func;
         relax::Function update_func = Downcast<Function>(mutator.VisitExpr(func));
         mutator.builder_->AddFunction(update_func, gv->name_hint);
       }
