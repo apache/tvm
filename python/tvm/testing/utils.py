@@ -91,7 +91,7 @@ import tvm.tir
 import tvm.te
 import tvm._ffi
 
-from tvm.contrib import nvcc, cudnn
+from tvm.contrib import nvcc, cudnn, rocm
 import tvm.contrib.hexagon._ci_env_check as hexagon
 from tvm.driver.tvmc.frontends import load_model
 from tvm.error import TVMError
@@ -912,6 +912,15 @@ requires_rocm = Feature(
     target_kind_enabled="rocm",
     target_kind_hardware="rocm",
     parent_features="gpu",
+)
+
+# Mark a test as requiring a tensorcore to run
+requires_matrixcore = Feature(
+    "matrixcore",
+    "AMD Matrix Core",
+    run_time_check=lambda: tvm.rocm().exist and rocm.have_matrixcore(
+        tvm.rocm().compute_version),
+    parent_features="rocm",
 )
 
 # Mark a test as requiring the metal runtime

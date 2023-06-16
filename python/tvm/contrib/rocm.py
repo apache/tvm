@@ -168,3 +168,53 @@ def callback_rocm_bitcode_path(rocdl_dir=None):
             raise RuntimeError("could not find bitcode " + n)
 
     return tvm.runtime.convert(bitcode_files)
+
+
+def parse_compute_version(compute_version):
+    """Parse compute capability string to divide major and minor version
+
+    Parameters
+    ----------
+    compute_version : str
+        compute capability of a GPU (e.g. "6.0")
+
+    Returns
+    -------
+    major : int
+        major version number
+    minor : int
+        minor version number
+    """
+    split_ver = compute_version.split(".")
+    try:
+        major = int(split_ver[0])
+        minor = int(split_ver[1])
+        return major, minor
+    except (IndexError, ValueError) as err:
+        # pylint: disable=raise-missing-from
+        raise RuntimeError("Compute version parsing error: " + str(err))
+
+
+def have_matrixcore(compute_version=None, target=None):
+    """Either MatrixCore support is provided in the compute capability or not
+
+    Parameters
+    ----------
+    compute_version : str, optional
+        compute capability of a GPU (e.g. "7.0").
+
+    target : tvm.target.Target, optional
+        The compilation target, will be used to determine arch if compute_version
+        isn't specified.
+    """
+    if compute_version is None:
+        if tvm.rocm(0).exist:
+            compute_version = tvm.rocm(0).compute_version
+        else:
+            raise RuntimeError("No ROCm runtime found")
+    major, _ = parse_compute_version(compute_version)
+    # matrix core first introduced in 8.0
+    if major >= 8:
+        return True
+
+    return False
