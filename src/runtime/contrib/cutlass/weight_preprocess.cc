@@ -26,6 +26,15 @@
 namespace tvm {
 namespace runtime {
 
+// This packed function applies the set of preprocessings on the weight, which are required by
+// the FT kernel. They consist of permuting / transposing / interleaving the weight elements,
+// and changing the weight dtype to be unsigned by adding a bias. The output has the same size
+// as the input.
+//
+// These processes are not well documented, so we wrap them into a packed function and use it as a
+// black box.
+//
+// The preprocessing functions are defined in C++, so we need to copy the input weight to CPU.
 TVM_REGISTER_GLOBAL("cutlass.ft_preprocess_weight_int4")
     .set_body_typed([](NDArray packed_weight, int sm) {
       int rows = packed_weight->shape[0];
