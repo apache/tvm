@@ -343,9 +343,17 @@ class FusedTIRConstructor : public ExprVisitor {
 
   void VisitExpr_(const FunctionNode* func) final {
     // Step 1. Create buffers for function params
-    PostOrderVisit(func->body, [=](Expr e) {
-      if (auto tup_get = e.as<TupleGetItemNode>()) {
-	func_info_.used_tuple_field_indices[tup_get->tuple.get()].insert(tup_get->index);
+    std::unordered_set<const Object*> tuple_param;
+    for (auto param : func->params) {
+      if (GetStructInfo(param)->IsInstance<TupleStructInfoNode>()) {
+        tuple_param.insert(param.get());
+      }
+    }
+
+    PostOrderVisit(func->body, [=, &tuple_param](Expr e) {
+      if (auto tup_get = e.as<TupleGetItemNode>();
+          tup_get && tuple_param.count(tup_get->tuple.get())) {
+        func_info_.used_tuple_field_indices[tup_get->tuple.get()].insert(tup_get->index);
       }
     });
 
@@ -499,7 +507,8 @@ class FusedTIRConstructor : public ExprVisitor {
       int end_buf_idx = 0;
       const TupleType& tuple_type = Downcast<TupleType>(tuple_get_item->tuple->checked_type());
       for (int i = 0; i < tuple_get_item->index; ++i) {
-        if (func_info_.used_tuple_field_indices[tuple_get_item->tuple.get()].count(i)) {
+        auto it = func_info_.used_tuple_field_indices.find(tuple_get_item->tuple.get());
+        if (it == func_info_.used_tuple_field_indices.end() || it->second.count(i)) {
           begin_buf_idx += GetTotalTensorSize(tuple_type->fields[i]);
         }
       }
@@ -849,7 +858,6 @@ class TIRFuseMutator : public ExprMutator {
     // into the new IRModule
     for (const auto& [gv, func] : mod->functions) {
       if (func->IsInstance<relax::FunctionNode>() && !func->HasNonzeroAttr(attr::kPrimitive)) {
-	LOG(INFO) << func;
         relax::Function update_func = Downcast<Function>(mutator.VisitExpr(func));
         mutator.builder_->AddFunction(update_func, gv->name_hint);
       }
