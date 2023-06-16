@@ -172,6 +172,7 @@ class TestTargetHostRemoved(tvm.testing.CompareBeforeAfter):
                 T.attr("default", "device_id", 0)
                 T.attr("default", "device_type", 2)
                 mod.subroutine(A_data)
+                T.ret(T.int32(0))
 
             @T.prim_func
             def subroutine(A_data: T.handle("float32")):
@@ -215,6 +216,7 @@ class TestInternalSubroutineCall(tvm.testing.CompareBeforeAfter):
                 T.attr("default", "device_id", 0)
                 T.attr("default", "device_type", 1)
                 mod.subroutine(A_data)
+                T.ret(T.int32(0))
 
             @T.prim_func
             def subroutine(A_data: T.handle("float32")):
@@ -259,11 +261,13 @@ class TestSubroutineCallToExternallyVisibleSubroutine(tvm.testing.CompareBeforeA
                 T.attr("default", "device_id", 0)
                 T.attr("default", "device_type", 1)
                 mod.subroutine(A_data)
+                T.ret(T.int32(0))
 
             @T.prim_func
             def subroutine(A_data: T.handle("float32")) -> T.int32:
                 T.func_attr({"global_symbol": "subroutine", "target": T.target("llvm")})
                 T.evaluate(A_data)
+                T.ret(T.int32(0))
 
         return mod
 
@@ -316,6 +320,7 @@ class TestCallExternallyVisibleSubroutineWithDLTensor(tvm.testing.CompareBeforeA
                 T.attr("default", "device_id", 0)
                 T.attr("default", "device_type", 1)
                 mod.subroutine(A_data)
+                T.ret(T.int32(0))
 
             @T.prim_func
             def subroutine(A_data: T.handle("float32")) -> T.int32:
@@ -323,6 +328,7 @@ class TestCallExternallyVisibleSubroutineWithDLTensor(tvm.testing.CompareBeforeA
                 T.attr("default", "device_id", 0)
                 T.attr("default", "device_type", 1)
                 T.evaluate(A_data)
+                T.ret(T.int32(0))
 
         return mod
 
