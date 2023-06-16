@@ -552,6 +552,22 @@ class TestRemoveEmptyTemporary(BaseBeforeAfter):
         T.evaluate(0)
 
 
+class TestRemoveEmptyTemporaryWithDeclBuffer(BaseBeforeAfter):
+    """Remove DeclBuffer alongside Allocate
+
+    If an unused allocation is removed, any DeclBuffer instances that
+    refer to it should also be removed.
+    """
+
+    def before():
+        A = T.decl_buffer([4, 4], "int32", scope="local")
+        A_flat = T.decl_buffer(16, "int32", scope="local", data=A.data)
+        T.evaluate(0)
+
+    def expected():
+        T.evaluate(0)
+
+
 @pytest.mark.xfail(reason="Not implemented yet")
 class TestRemoveUnusedTemporary(BaseBeforeAfter):
     """An unused allocation is a no-op."""
