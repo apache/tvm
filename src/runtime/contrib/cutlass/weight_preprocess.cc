@@ -36,7 +36,7 @@ TVM_REGISTER_GLOBAL("cutlass.ft_preprocess_weight_int4")
       // multiply cols by 2 since the "col" params in preprocess_weights refers to the column of
       // the unpacked weight.
       fastertransformer::preprocess_weights(output_cpu.data(), input_cpu.data(), rows, cols * 2,
-                                            true /*is_int4*/ , sm);
+                                            true /*is_int4*/, sm);
       auto out = NDArray::Empty(packed_weight.Shape(), packed_weight->dtype, packed_weight->device);
       out.CopyFromBytes(output_cpu.data(), output_cpu.size());
       return out;
