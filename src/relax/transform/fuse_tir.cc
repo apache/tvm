@@ -343,6 +343,8 @@ class FusedTIRConstructor : public ExprVisitor {
 
   void VisitExpr_(const FunctionNode* func) final {
     // Step 1. Create buffers for function params
+
+    // Record which fields in a tuple passed as a parameter are actually accessed by the function.
     std::unordered_set<const Object*> tuple_param;
     for (auto param : func->params) {
       if (GetStructInfo(param)->IsInstance<TupleStructInfoNode>()) {
@@ -366,12 +368,12 @@ class FusedTIRConstructor : public ExprVisitor {
 
       auto [params, buffers] = [=]() {
         if (const auto* tuple = sinfo.as<TupleStructInfoNode>()) {
-          auto tup_get_indices = func_info_.used_tuple_field_indices[relax_param.get()];
-
+          // Add only those tuple fields which are actually used by the function body into the
+          // function parameters.
           int index = 0;
           Array<tir::Var> params;
           Array<tir::Buffer> buffers;
-          for (auto i : tup_get_indices) {
+          for (auto i : func_info_.used_tuple_field_indices[relax_param.get()]) {
             auto [ret_params, ret_buffers] =
                 CreateParamsAndBuffers(tuple->fields[i], relax_param->name_hint(), index);
             ICHECK_EQ(ret_params.size(), ret_buffers.size());
@@ -900,7 +902,6 @@ class TIRFuseMutator : public ExprMutator {
       auto it = fused_tir_funcs_.find(old_gv);
       if (it != fused_tir_funcs_.end()) {
         const tir::PrimFunc& fused_tir = (*it).second;
-        std::string f_name = old_gv->name_hint;
         // Case 1.1. It calls a primitive relax function, update the call into a call_tir
         GlobalVar fused_tir_gv = this->builder_->AddFunction(fused_tir, old_gv->name_hint);
         // Step a. Flatten all args since call_tir does not support Tuple value.
@@ -909,13 +910,11 @@ class TIRFuseMutator : public ExprMutator {
         for (size_t i = 0; i < call->args.size(); ++i) {
           auto arg = call->args[i];
           Array<Expr> flattened;
-          ICHECK(i < relax_func->params.size());
-          if (auto tup_sinfo =
-                  GetStructInfo(relax_func->params[i])->IsInstance<TupleStructInfoNode>()) {
+          if (GetStructInfo(relax_func->params[i])->IsInstance<TupleStructInfoNode>()) {
+            // Add only those tuple fields which are actually used by the function body
             auto tup_get_indices = GetTupleAccessedIndices(relax_func.get(), relax_func->params[i]);
             for (size_t tup_get_ind : tup_get_indices) {
-              Expr new_arg = builder_->Emit(TupleGetItem(arg, tup_get_ind));
-              auto flattened_inner = FlattenArg(new_arg);
+              auto flattened_inner = FlattenArg(builder_->Emit(TupleGetItem(arg, tup_get_ind)));
               flattened.insert(flattened.end(), flattened_inner.begin(), flattened_inner.end());
             }
           } else {
@@ -960,6 +959,7 @@ class TIRFuseMutator : public ExprMutator {
         return Call(call->op, new_args, call->attrs, call->sinfo_args, call->span);
       }
     }
+
     // Case 3. CallNode in other types. Leave it as it is.
     return call;
   }
