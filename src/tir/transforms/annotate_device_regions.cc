@@ -40,13 +40,14 @@ class DeviceRegionAnnotater : public StmtExprMutator {
   using Parent = StmtExprMutator;
 
  public:
-  static Stmt Apply(Target host_target, Target device_target, Stmt body) {
+  static Stmt Apply(Target host_target, Target device_target,
+                    const std::unordered_set<const GlobalVarNode*>& externally_exposed, Stmt body) {
     bool same_host_and_device = host_target->str() == device_target->str();
     if (same_host_and_device) {
       return body;
     }
 
-    DeviceRegionAnnotater mutator(device_target);
+    DeviceRegionAnnotater mutator(device_target, externally_exposed);
     body = mutator(body);
 
     // If no region was found that must be on the device, but the
@@ -62,7 +63,9 @@ class DeviceRegionAnnotater : public StmtExprMutator {
   }
 
  private:
-  explicit DeviceRegionAnnotater(Target device_target) : device_target_(device_target) {}
+  explicit DeviceRegionAnnotater(Target device_target,
+                                 const std::unordered_set<const GlobalVarNode*>& externally_exposed)
+      : device_target_(device_target), externally_exposed_(externally_exposed) {}
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == tvm::attr::kTarget) {
@@ -135,7 +138,8 @@ class DeviceRegionAnnotater : public StmtExprMutator {
         op->op.same_as(builtin::tvm_throw_last_error()) ||
         op->op.same_as(builtin::tvm_stack_alloca()) ||
         op->op.same_as(builtin::tvm_stack_make_shape()) ||
-        op->op.same_as(builtin::tvm_stack_make_array());
+        op->op.same_as(builtin::tvm_stack_make_array()) ||
+        externally_exposed_.count(op->op.as<GlobalVarNode>());
     if (is_host_only_op) {
       current_region_ = Region::Host;
     }
@@ -143,6 +147,7 @@ class DeviceRegionAnnotater : public StmtExprMutator {
   }
 
   Target device_target_;
+  const std::unordered_set<const GlobalVarNode*>& externally_exposed_;
 
   enum class Region {
     Either,
@@ -155,22 +160,40 @@ class DeviceRegionAnnotater : public StmtExprMutator {
 namespace transform {
 
 Pass AnnotateDeviceRegions() {
-  auto pass_func = [](PrimFunc func, IRModule mod, PassContext ctx) -> PrimFunc {
-    auto opt_target = func->GetAttr<Target>(tvm::attr::kTarget);
-    ICHECK(opt_target) << "AnnotateDeviceRegions: Require the target attribute";
-    Target target = opt_target.value();
-
-    if (auto opt_host = target->GetHost()) {
-      auto new_body =
-          DeviceRegionAnnotater::Apply(opt_host.value(), target.WithoutHost(), func->body);
-      if (!new_body.same_as(func->body)) {
-        func.CopyOnWrite()->body = new_body;
+  auto pass_func = [](IRModule mod, PassContext ctx) -> IRModule {
+    std::unordered_set<const GlobalVarNode*> externally_exposed;
+    for (const auto& [gvar, base_func] : mod->functions) {
+      if (base_func->GetAttr<String>(tvm::attr::kGlobalSymbol)) {
+        externally_exposed.insert(gvar.get());
       }
     }
-    return func;
+
+    IRModule updates;
+
+    for (const auto& [gvar, base_func] : mod->functions) {
+      auto func = Downcast<PrimFunc>(base_func);
+      auto opt_target = func->GetAttr<Target>(tvm::attr::kTarget);
+      ICHECK(opt_target) << "AnnotateDeviceRegions: Require the target attribute";
+      Target target = opt_target.value();
+
+      if (auto opt_host = target->GetHost()) {
+        auto new_body = DeviceRegionAnnotater::Apply(opt_host.value(), target.WithoutHost(),
+                                                     externally_exposed, func->body);
+        if (!new_body.same_as(func->body)) {
+          func.CopyOnWrite()->body = new_body;
+          updates->Add(gvar, func);
+        }
+      }
+    }
+
+    if (updates->functions.size()) {
+      mod.CopyOnWrite()->Update(updates);
+    }
+
+    return mod;
   };
 
-  return CreatePrimFuncPass(pass_func, 0, "tir.AnnotateDeviceRegions", {});
+  return tvm::transform::CreateModulePass(pass_func, 0, "tir.AnnotateDeviceRegions", {});
 }
 
 TVM_REGISTER_GLOBAL("tir.transform.AnnotateDeviceRegions").set_body_typed(AnnotateDeviceRegions);
