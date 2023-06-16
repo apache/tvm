@@ -262,7 +262,7 @@ def _convert_dense(
         input_shape = tuple(dim if dim else 1 for dim in _as_list(input_shape)[0])
         if input_dim != 3 or input_shape[0] != 1 or input_shape[1] != 1:
             raise tvm.error.OpAttributeInvalid(
-                f"Input shape {nput_shape} is not valid for operator Dense."
+                f"Input shape {input_shape} is not valid for operator Dense."
             )
         inexpr = _op.squeeze(inexpr, axis=[0])
     out = _op.nn.dense(data=inexpr, **params)
