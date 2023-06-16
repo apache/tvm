@@ -88,7 +88,9 @@ class DataflowReshapeRewriter : public ExprMutator {
     // can generate a fused TupleGetItem + reshape function whose input is a tuple. FuseTIR
     // then flattens the tuple input so that the fused TIR reshape function ends up having
     // multiple input buffers. But only one of them should be accessed and reshaped.
-    ICHECK_EQ(used_arg_indices.size(), 1);
+    if (used_arg_indices.size() != 1) {
+      return GetRef<Call>(call);
+    }
 
     auto arg = arg_tuple[used_arg_indices[0]];
 
