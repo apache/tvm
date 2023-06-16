@@ -239,9 +239,6 @@ def test_call_to_device_subroutine(target, dev, is_external_subroutine):
     """
     is_gpu = "gpu" in tvm.target.Target(target).keys
 
-    if is_gpu and not is_external_subroutine:
-        pytest.xfail(reason="Not yet implemented.")
-
     if is_external_subroutine:
         func_attr = {"global_symbol": "subroutine"}
     else:
