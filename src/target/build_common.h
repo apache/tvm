@@ -55,8 +55,14 @@ inline std::unordered_map<std::string, runtime::FunctionInfo> ExtractFuncInfo(co
         info.launch_param_tags.push_back(tag);
       }
     }
-    auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
-    fmap[static_cast<std::string>(global_symbol.value())] = info;
+
+    if (auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol)) {
+      info.name = global_symbol.value();
+    } else {
+      info.name = kv.first->name_hint;
+    }
+
+    fmap[info.name] = info;
   }
   return fmap;
 }
