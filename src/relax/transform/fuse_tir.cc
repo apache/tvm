@@ -510,6 +510,8 @@ class FusedTIRConstructor : public ExprVisitor {
       const TupleType& tuple_type = Downcast<TupleType>(tuple_get_item->tuple->checked_type());
       for (int i = 0; i < tuple_get_item->index; ++i) {
         auto it = func_info_.used_tuple_field_indices.find(tuple_get_item->tuple.get());
+        // If this tuple is not passed as a parameter, or if the field at the index i is actually
+        // used, the corresponding buffer needs to be taken into account by this function.
         if (it == func_info_.used_tuple_field_indices.end() || it->second.count(i)) {
           begin_buf_idx += GetTotalTensorSize(tuple_type->fields[i]);
         }
@@ -813,6 +815,7 @@ class FusedTIRConstructor : public ExprVisitor {
     std::string global_name = "fused";
     /*! \brief The map from symbolic var to its corresponding var in the fused function */
     tir::SymbolicMatcher symbolic_var_matcher = tir::SymbolicMatcher(&symbolic_var_remap);
+    /*! \brief Record indices of tuple fields that are actually accessed. */
     std::unordered_map<const Object*, std::unordered_set<size_t>> used_tuple_field_indices;
   };
 
