@@ -111,7 +111,7 @@ inline ExprDoc TIR(const IRDocsifier& d, const String& attr) {
   return IdDoc(d->cfg->tir_prefix)->Attr(attr);
 }
 
-/*! \brief Creates the TIR common prefix, which is by default `T` */
+/*! \brief Creates the Relax common prefix, which is by default `R` */
 inline ExprDoc Relax(const IRDocsifier& d, const String& attr) {
   d->ir_usage.insert("relax");
   return IdDoc(d->cfg->relax_prefix)->Attr(attr);
