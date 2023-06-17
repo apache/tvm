@@ -160,7 +160,7 @@ def mfma_schedule(
     i, j, k = sch.get_loops(block)
     i, i_tc = sch.split(i, factors=[None, wmma_m])
     j, j_tc = sch.split(j, factors=[None, wmma_n])
-    k, k_tc = sch.split(k, factors=[None, k_inner])
+    k, k_tc = sch.split(k, factors=[None, wmma_k])
 
     sch.reorder(i, j, k, i_tc, j_tc, k_tc)
 
@@ -230,7 +230,6 @@ def mfma_schedule(
     sch.transform_layout(A_warp, ("write", 0), index_map_A)
     sch.transform_layout(B_warp, ("write", 0), index_map_B)
     sch.transform_layout(C_warp, ("read", 0), index_map_C)
-    print(sch.mod["main"].script())
 
     sch.tensorize(loop_a, ldmatrix_a_intrin)
     sch.tensorize(loop_b, ldmatrix_b_intrin)
