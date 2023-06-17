@@ -42,13 +42,32 @@ FType = TypeVar("FType", bound=_Callable)
 
 ############################## R.function ##############################
 
+# this formulation allows us to support having @R.function
+# appear as a decorator by itself or to have optional arguments
+# like @R.function(pure=False)
+def function(f: Optional[FType] = None, pure: bool = True) -> Union[Function, FType]:
+    # pylint: disable=unused-argument
+    # (pure isn't used here, but is used later in parsing)
 
-def function(f: FType) -> Union[Function, FType]:
-    if not inspect.isfunction(f):
-        raise TypeError(f"Expect a function, but got: {f}")
-    if utils.is_defined_in_class(inspect.stack(), f):
-        return f
-    return parse(f, utils.inspect_function_capture(f))
+    # need to inspect the stack first because is_defined_in_class expects the outer class
+    # to be in a particular position in the stack
+    orig_stack = inspect.stack()
+
+    def decorator_wrapper(f):
+        if not inspect.isfunction(f):
+            raise TypeError(f"Expect a function, but got: {f}")
+        if utils.is_defined_in_class(orig_stack, f):
+            return f
+        return parse(f, utils.inspect_function_capture(f))
+
+    if f is not None:
+        # if there are no optional args given, this will directly invoke the wrapper
+        return decorator_wrapper(f)
+    else:
+        # if there is a optional arg given, it returns the wrapper function
+        # as a new decorator and applies it
+        setattr(decorator_wrapper, "dispatch_token", "relax")
+        return decorator_wrapper
 
 
 setattr(function, "dispatch_token", "relax")

@@ -145,9 +145,8 @@ def test_transform_remove_purity_checking():
             res = R.invoke_pure_closure(closure, (x,), sinfo_args=R.Tensor((), "int32"))
             return res
 
-        @R.function
+        @R.function(pure=False)
         def impure_func() -> R.Object:
-            R.is_impure()
             y = R.print(format="I am impure!")
             return y
 
@@ -165,13 +164,10 @@ def test_transform_remove_purity_checking():
             w = nested(z)
             return w
 
-        @R.function
+        @R.function(pure=False)
         def nested_impure_func() -> R.Tensor((), "int32"):
-            R.is_impure()
-
-            @R.function
+            @R.function(pure=False)
             def nested() -> R.Object:
-                R.is_impure()
                 x = R.print(format="Oops!")
                 return x
 
@@ -202,9 +198,8 @@ def test_transform_remove_purity_checking():
             res = R.invoke_closure(closure, (x,), sinfo_args=R.Tensor((), "int32"))
             return res
 
-        @R.function
+        @R.function(pure=False)
         def impure_func() -> R.Object:
-            R.is_impure()
             y = R.print(format="I am impure!")
             return y
 
@@ -223,13 +218,10 @@ def test_transform_remove_purity_checking():
             w = nested(z)
             return w
 
-        @R.function
+        @R.function(pure=False)
         def nested_impure_func() -> R.Tensor((), "int32"):
-            R.is_impure()
-
-            @R.function
+            @R.function(pure=False)
             def nested() -> R.Object:
-                R.is_impure()
                 x = R.print(format="Oops!")
                 return x
 

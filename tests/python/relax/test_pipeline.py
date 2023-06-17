@@ -66,14 +66,13 @@ def test_pipeline_with_kv_cache():
             )
             return kv_cache
 
-        @R.function
+        @R.function(pure=False)
         def main(
             x: R.Tensor((1, 4), "float32"),
             y: R.Tensor((1, 4), "float32"),
             shape: R.Shape(["L", 4]),
             kv_cache: R.Object,
         ):
-            R.is_impure()
             L = T.int64()
             # computation of the current value
             curr_value = R.add(x, y)

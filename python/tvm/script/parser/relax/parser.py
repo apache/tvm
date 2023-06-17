@@ -178,9 +178,11 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
         local_func_var = relax.Var(node.name, relax.FuncStructInfo(params_sinfo, ret_sinfo))
         self.var_table.add(node.name, local_func_var)
 
+    purity = find_purity_annotation(node)
+
     with self.var_table.with_frame():
         with self.with_dispatch_token("relax"):
-            with R.function():
+            with R.function(is_pure=purity):
                 R.func_name(node.name)
                 collect_symbolic_var_from_params(self, node)
 
@@ -204,20 +206,17 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
 
 def find_purity_annotation(node: doc.FunctionDef) -> bool:
     """
-    Check if is_pure is specified in the function body.
+    Check the value of `pure` in the function decorator.
     Returns the annotated purity if present, otherwise defaulting to True.
     This allows for specifying the purity in the function signature.
     """
-    for item in node.body:
-        if (
-            isinstance(item, doc.Expr)
-            and isinstance(item.value, doc.Call)
-            and isinstance(item.value.func, doc.Attribute)
-            and item.value.func.attr == "is_pure"
-            and len(item.value.args) == 1
-            and isinstance(item.value.args[0], doc.Constant)
-        ):
-            return bool(item.value.args[0].value)
+    # look for the pure argument in the function decorator
+    for dec in node.decorator_list:
+        if not isinstance(dec, doc.Call) or dec.func.attr != "function":
+            continue
+        for keyword in dec.keywords:
+            if keyword.arg == "pure":
+                return keyword.value.value
     return True
 
 
@@ -240,7 +239,6 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> GlobalVar
             params.append(relax.Var(arg.arg, param_sinfo))
 
     is_pure = find_purity_annotation(node)
-
     func_signature = relax.Function.create_empty(params, ret_sinfo, is_pure=is_pure)
     return I.decl_function(node.name, func_signature)
 

@@ -33,9 +33,10 @@ namespace relax {
 
 /*!
  * \brief Start a function frame.
+ * \param is_pure Whether the function is annotated as pure.
  * \return The created ir_builder Function frame.
  */
-TVM_DLL FunctionFrame Function();
+TVM_DLL FunctionFrame Function(const Bool& is_pure);
 
 /*!
  * \brief Add a parameter to the last function frame.
@@ -56,12 +57,6 @@ TVM_DLL void FuncName(const String& name);
  * \param attrs The function attrs.
  */
 TVM_DLL void FuncAttrs(Map<String, ObjectRef> attrs);
-
-/*!
- * \brief Specify the purity of the last function frame.
- * \param purity Whether the function is pure.
- */
-TVM_DLL void FuncIsPure(bool purity);
 
 /*!
  * \brief Specify the return struct info of the last function frame.

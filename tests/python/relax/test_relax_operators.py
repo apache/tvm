@@ -58,9 +58,8 @@ def test_unique():
 
 @tvm.script.ir_module
 class PrintTest:
-    @R.function
+    @R.function(pure=False)
     def foo(x: R.Tensor((), "int32")):
-        R.is_impure()
         # results have to be bound, but we don't use them
         # TODO: We should allow calls whose results are not bound for side effects;
         #       it would be easy syntactic sugar to add.
@@ -90,40 +89,34 @@ def test_print():
 
 @tvm.script.ir_module
 class AssertOpTest:
-    @R.function
+    @R.function(pure=False)
     def passes(x: R.Tensor((), "int32")):
-        R.is_impure()
         p1 = R.assert_op(relax.const(True))
         return x
 
-    @R.function
+    @R.function(pure=False)
     def pass_with_args(x: R.Tensor((), "int32")):
-        R.is_impure()
         p1 = R.assert_op(relax.const(True), x, format="You won't see me")
         return x
 
-    @R.function
+    @R.function(pure=False)
     def simple_fail(x: R.Tensor((), "int32")):
-        R.is_impure()
         p1 = R.assert_op(relax.const(False))
         return x
 
-    @R.function
+    @R.function(pure=False)
     def fail_with_message(x: R.Tensor((), "int32")):
-        R.is_impure()
         p1 = R.assert_op(relax.const(False), format="I failed...")
         return x
 
-    @R.function
+    @R.function(pure=False)
     def fail_with_args(x: R.Tensor((), "int32")):
-        R.is_impure()
         # no format
         p1 = R.assert_op(relax.const(False), [x, x])
         return x
 
-    @R.function
+    @R.function(pure=False)
     def fail_with_formatted_message(x: R.Tensor((), "int32")):
-        R.is_impure()
         p1 = R.assert_op(relax.const(False), x, format="Number: {}")
         return x
 

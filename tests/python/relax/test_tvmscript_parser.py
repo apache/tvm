@@ -1383,25 +1383,97 @@ def test_global_var_sinfo():
 def test_assert_op():
     @I.ir_module
     class AssertOp:
-        @R.function
+        @R.function(pure=False)
         def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
-            R.is_impure()
             y = R.assert_op(R.const(False, dtype="bool"), x, format="x: {}")
             return x
 
     _check(AssertOp)
 
 
+def test_assert_outside_of_class():
+    @R.function(pure=False)
+    def func(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+        y = R.assert_op(R.const(False, dtype="bool"), x, format="x: {}")
+        return x
+
+    # this just makes sure that the machinery regarding the pure attribute parses
+    # in the case where the function is outside of a class too
+    _check(func)
+
+
+def test_impure_inner_function():
+    @R.function
+    def f(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+        # we will not actually call it
+        @R.function(pure=False)
+        def g(y: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+            z = R.assert_op(R.const(False, dtype="bool"), y, format="y: {}")
+            return y
+
+        return x
+
+    assert f.is_pure
+    # definition of g
+    assert not f.body.blocks[0].bindings[0].value.is_pure
+
+    # make sure we are not incorrectly passing state for inner functions
+    _check(f)
+
+
+def test_impure_inner_function_in_class():
+    @I.ir_module
+    class ImpureInner:
+        @R.function
+        def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+            # we will not actually call it
+            @R.function(pure=False)
+            def g(y: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+                z = R.assert_op(R.const(False, dtype="bool"), y, format="y: {}")
+                return y
+
+            return x
+
+    assert ImpureInner["main"].is_pure
+    # definition of g
+    assert not ImpureInner["main"].body.blocks[0].bindings[0].value.is_pure
+
+    # make sure we are not incorrectly passing state for inner functions
+    _check(ImpureInner)
+
+
 def test_print():
     @I.ir_module
     class Print:
-        @R.function
+        @R.function(pure=False)
         def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
-            R.is_impure()
             y = R.print(x, format="x: {}")
             return x
 
     _check(Print)
+
+
+def test_parse_multiple_pure_and_impure_funcs():
+    @I.ir_module
+    class Mixture:
+        @R.function(pure=False)
+        def print(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+            y = R.print(x, format="x: {}")
+            return x
+
+        @R.function(pure=False)
+        def assert_func(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+            y = R.assert_op(R.const(False, dtype="bool"), x, format="x: {}")
+            return x
+
+        @R.function
+        def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+            return x
+
+    assert not Mixture["print"].is_pure
+    assert not Mixture["assert_func"].is_pure
+    assert Mixture["main"].is_pure
+    _check(Mixture)
 
 
 def test_call_pure_packed():

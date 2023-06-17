@@ -165,14 +165,19 @@ py_str = str
 ############################### Function ################################
 
 
-def function() -> frame.FunctionFrame:
+def function(is_pure: bool = True) -> frame.FunctionFrame:
     """Start a function frame.
+    Parameters
+    ----------
+    is_pure: bool
+        Whether the function is annotated as pure.
+
     Returns
     -------
     frame: FunctionFrame
         The constructed function frame.
     """
-    return _ffi_api.Function()  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.Function(is_pure)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def arg(name: py_str, struct_info: StructInfo) -> Var:
@@ -211,23 +216,6 @@ def func_attr(attrs: Dict[py_str, tvm_Object]) -> None:
         The function attrs.
     """
     return _ffi_api.FuncAttrs(attrs)  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-def is_pure(purity: bool = True) -> None:
-    """Specify the purity of the last function frame.
-
-    Parameters
-    ----------
-    purity: bool
-        The annotated purity.
-    """
-    return _ffi_api.FuncIsPure(purity)  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-def is_impure() -> None:
-    """Specify that the last function frame is annotated as impure.
-    (Syntactic sugar for R.is_pure(False))"""
-    return _ffi_api.FuncIsPure(False)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def func_ret_struct_info(ret_sinfo: StructInfo) -> None:
@@ -634,8 +622,6 @@ __all__ = [
     "image",
     "invoke_closure",
     "invoke_pure_closure",
-    "is_impure",
-    "is_pure",
     "isfinite",
     "isinf",
     "isnan",

@@ -56,16 +56,18 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             ExprStmtDoc(Relax(d, "func_attr")  //
                             ->Call({d->AsDoc<ExprDoc>(n->attrs, n_p->Attr("attrs"))})));
       }
-      // Step 5. Print purity attributes (only include if it's impure)
+      // Step 5. Prepare the decorator (include purity if it's impure)
+      ExprDoc decorator = Relax(d, "function");
       if (!n->is_pure) {
-        (*f)->stmts.push_back(ExprStmtDoc(Relax(d, "is_impure")->Call({})));
+        Array<ExprDoc> pos_args = {};
+        decorator = std::move(decorator->Call(
+            pos_args, {"pure"}, {LiteralDoc::Boolean(false, Optional<ObjectPath>())}));
       }
       // Step 6. Print body
       Array<StmtDoc> body =
           PrintSeqExpr(Downcast<relax::SeqExpr>(n->body), n_p->Attr("body"), d, /*use_ret=*/true);
       (*f)->stmts.insert((*f)->stmts.end(), body.begin(), body.end());
-      return HeaderWrapper(
-          d, FunctionDoc(func_name, params, {Relax(d, "function")}, ret_type, (*f)->stmts));
+      return HeaderWrapper(d, FunctionDoc(func_name, params, {decorator}, ret_type, (*f)->stmts));
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
