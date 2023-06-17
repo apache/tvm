@@ -54,14 +54,7 @@ inline void UnpackReduction(const PrimExpr& value, FLeaf fleaf) {
  *
  * NOTE on multiplication order: when have have shape (s[0], s[1], s[2]),
  * we prefer to multiple in order of s[0] * s[1] * s[2]
- *
- * That means when we are looking at the pattern of split iterator:
- *
- * - result = (source // lower_factor) % extent * scale
- *
- * We should take the order of lower_factor, extent, scale.
- * Please do best keeping this order to make future simplifcation easy.
- *
+
  * \param lhs The lhs iterator
  * \param rhs The rhs iterator
  * \return the result.
