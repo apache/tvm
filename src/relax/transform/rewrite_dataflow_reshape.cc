@@ -20,11 +20,14 @@
  * \file src/relax/transform/rewrite_dataflow_reshape.cc
  * \brief Transform all reshape within dataflow block to a relax.reshape operator
  */
+#include <tvm/arith/analyzer.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/function.h>
+
+#include <vector>
 
 #include "../op/tensor/manipulate.h"
 
@@ -69,7 +72,7 @@ class DataflowReshapeRewriter : public ExprMutator {
   }
 
   Expr VisitExpr_(const CallNode* call) final {
-    if (!IsCallingTIRReshape(call)) {
+    if (call->args.size() < 2) {
       return GetRef<Call>(call);
     }
 
@@ -85,16 +88,21 @@ class DataflowReshapeRewriter : public ExprMutator {
     // can generate a fused TupleGetItem + reshape function whose input is a tuple. FuseTIR
     // then flattens the tuple input so that the fused TIR reshape function ends up having
     // multiple input buffers. But only one of them should be accessed and reshaped.
-    ICHECK_EQ(used_arg_indices.size(), 1);
+    if (used_arg_indices.size() != 1) {
+      return GetRef<Call>(call);
+    }
 
     auto arg = arg_tuple[used_arg_indices[0]];
 
-    TensorStructInfo res_sinfo = Downcast<TensorStructInfo>(call->struct_info_);
-    ICHECK(res_sinfo->shape.defined());
+    if (!IsCallingTIRReshape(call, arg)) {
+      return GetRef<Call>(call);
+    }
+
+    TensorStructInfo res_sinfo = Downcast<TensorStructInfo>(call->struct_info_.value());
     return reshape(arg, res_sinfo->shape.value());
   }
 
-  bool IsCallingTIRReshape(const CallNode* call) {
+  bool IsCallingTIRReshape(const CallNode* call, Expr inp) {
     static const Op& call_tir_op = Op::Get("relax.call_tir");
     if (call->op != call_tir_op) {
       return false;
@@ -102,7 +110,38 @@ class DataflowReshapeRewriter : public ExprMutator {
     const GlobalVar& global_var = Downcast<GlobalVar>(call->args[0]);
     const auto* func = mod_->functions.Get(global_var).as<tir::PrimFuncNode>();
     ICHECK_NOTNULL(func);
-    return HasReshapePattern(GetRef<tir::PrimFunc>(func));
+    if (!HasReshapePattern(GetRef<tir::PrimFunc>(func))) {
+      return false;
+    }
+
+    // The reshape operator expects that the number of elements in the source is the same
+    // as the number of elements in the result. There are operators that could have a reshape
+    // pattern that don't meet this requirement (e.g. strided_slice), and they should not be
+    // converted to reshape.
+    ICHECK(inp->struct_info_.defined() && call->struct_info_.defined());
+    TensorStructInfo inp_sinfo = Downcast<TensorStructInfo>(inp->struct_info_.value());
+    TensorStructInfo res_sinfo = Downcast<TensorStructInfo>(call->struct_info_.value());
+
+    if (inp_sinfo->IsUnknownDtype() || inp_sinfo->dtype != res_sinfo->dtype) {
+      return false;
+    }
+    ICHECK(inp_sinfo->shape.defined() && res_sinfo->shape.defined());
+    if (inp_sinfo->IsUnknownNdim() || res_sinfo->IsUnknownNdim()) {
+      return false;
+    }
+    auto product = [](Array<PrimExpr> args) -> PrimExpr {
+      ICHECK(!args.empty());
+      PrimExpr p = args[0];
+      for (int i = 1, e = args.size(); i < e; ++i) p *= args[i];
+      return p;
+    };
+    auto inp_count = product(inp_sinfo->GetShape().value());
+    auto res_count = product(res_sinfo->GetShape().value());
+    if (!arith::Analyzer().CanProveEqual(inp_count, res_count)) {
+      return false;
+    }
+
+    return true;
   }
 
   const IRModule& mod_;

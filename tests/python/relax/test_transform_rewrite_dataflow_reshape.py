@@ -48,8 +48,7 @@ def test_reshape_expand_dims():
         def expand_dims(
             rxplaceholder: T.Buffer((T.int64(2), T.int64(4), T.int64(3)), "float32"),
             expand_dims: T.Buffer(
-                (T.int64(2), T.int64(1), T.int64(4), T.int64(1), T.int64(3)),
-                "float32",
+                (T.int64(2), T.int64(1), T.int64(4), T.int64(1), T.int64(3)), "float32"
             ),
         ):
             for i0, i1, i2, i3, i4 in T.grid(
@@ -379,6 +378,53 @@ def test_tuple_get_reshape():
 
     rewritten = relax.transform.RewriteDataflowReshape()(Module)
     tvm.ir.assert_structural_equal(rewritten, Expected)
+
+
+def test_invalid_reshape():
+    @tvm.script.ir_module
+    class Module:
+        # The strided_slice op has the reshape pattern, but it can take only a part of the input.
+        # It can't be replaced with the reshape op because reshape expects to preserve the "volume"
+        # of the input.
+        @T.prim_func
+        def strided_slice(
+            A: T.Buffer((T.int64(1), T.int64(1024)), "int32"),
+            T_strided_slice: T.Buffer((T.int64(1), T.int64(1000)), "int32"),
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            for ax0, ax1 in T.grid(T.int64(1), T.int64(1000)):
+                with T.block("T_strided_slice"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T.reads(A[v_ax0, v_ax1])
+                    T.writes(T_strided_slice[v_ax0, v_ax1])
+                    T_strided_slice[v_ax0, v_ax1] = A[v_ax0, v_ax1]
+
+        @T.prim_func
+        def add_one(
+            A: T.Buffer((T.int64(1), T.int64(1000)), "int32"),
+            T_add_one: T.buffer((T.int64(1), T.int64(1000)), "int32"),
+        ):
+            for ax0, ax1 in T.grid(T.int64(1), T.int64(1000)):
+                with T.block("T_add_one"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T.reads(A[v_ax0, v_ax1])
+                    T.writes(T_add_one[v_ax0, v_ax1])
+                    T_add_one[v_ax0, v_ax1] = A[v_ax0, v_ax1] + 1
+
+        @R.function
+        def main(A: R.Tensor((1, 1024), dtype="int32")) -> R.Tensor((1, 1000), dtype="int32"):
+            with R.dataflow():
+                cls = Module
+                S = R.call_tir(
+                    cls.strided_slice, (A,), out_sinfo=R.Tensor((1, 1000), dtype="int32")
+                )
+                A = R.call_tir(cls.add_one, (S,), out_sinfo=R.Tensor((1, 1000), dtype="int32"))
+                R.output(A)
+            return A
+
+    assert relax.analysis.has_reshape_pattern(Module["strided_slice"])
+    rewritten = relax.transform.RewriteDataflowReshape()(Module)
+    tvm.ir.assert_structural_equal(rewritten, Module)
 
 
 if __name__ == "__main__":
