@@ -146,12 +146,9 @@ struct RegularNonMaximumSuppressionAttrs
                     "relay.attrs.RegularNonMaximumSuppressionAttrs") {
     TVM_ATTR_FIELD(max_detections_per_class)
         .describe("The maxinum number of output selected boxes per class.");
-    TVM_ATTR_FIELD(max_detections)
-        .describe("The maxinum number of output selected boxes.");
-    TVM_ATTR_FIELD(num_classes)
-        .describe("The number of classes without background.");
-    TVM_ATTR_FIELD(iou_threshold)
-        .describe("The IoU threshold for box the overlap test.");
+    TVM_ATTR_FIELD(max_detections).describe("The maxinum number of output selected boxes.");
+    TVM_ATTR_FIELD(num_classes).describe("The number of classes without background.");
+    TVM_ATTR_FIELD(iou_threshold).describe("The IoU threshold for box the overlap test.");
     TVM_ATTR_FIELD(score_threshold)
         .describe("Score threshold to filter out low score boxes early.");
   }

@@ -245,8 +245,8 @@ bool RegularNMSRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 }
 
 Expr MakeRegularNMS(Expr boxes, Expr scores, int32_t max_detections_per_class,
-                    int32_t max_detections, int32_t num_classes,
-                    double iou_threshold, double score_threshold) {
+                    int32_t max_detections, int32_t num_classes, double iou_threshold,
+                    double score_threshold) {
   auto attrs = make_object<RegularNonMaximumSuppressionAttrs>();
   attrs->max_detections_per_class = max_detections_per_class;
   attrs->max_detections = max_detections;
@@ -264,10 +264,10 @@ RELAY_REGISTER_OP("vision.regular_non_max_suppression")
     .describe(R"doc(TBD)doc" TVM_ADD_FILELINE)
     .set_num_inputs(2)
     .add_argument("boxes", "Tensor",
-      "3-D tensor with shape (batch_size, num_boxes, 4). The four values in boxes "
-      "encode (ymin, xmin, ymax, xmax) coordinates of a box.")
+                  "3-D tensor with shape (batch_size, num_boxes, 4). The four values in boxes "
+                  "encode (ymin, xmin, ymax, xmax) coordinates of a box.")
     .add_argument("scores", "Tensor",
-      "3-D tensor with shape (batch_size, num_boxes, num_classes_with_background).")
+                  "3-D tensor with shape (batch_size, num_boxes, num_classes_with_background).")
     .set_support_level(5)
     .add_type_rel("RegularNMS", RegularNMSRel);
 
