@@ -58,7 +58,7 @@ N_DIM = 16
 
 
 def shared_16x4_to_local_64x1_layout_A(i, j):
-    thread_id = (j * 16 + i)
+    thread_id = j * 16 + i
     return thread_id, convert(0)
 
 
@@ -69,7 +69,7 @@ def thread_id_shared_access_64x1_to_16x4_layout_A(thread_id, local_id):
 
 
 def shared_4x16_to_local_64x1_layout_B(i, j):
-    thread_id = (i * 16 + j)
+    thread_id = i * 16 + j
     return thread_id, convert(0)
 
 
@@ -81,7 +81,7 @@ def thread_id_shared_access_64x1_to_4x16_layout_B(thread_id, local_id):
 
 def shared_16x16_to_local_64x4_layout_C(i, j):
     thread_id = j + (i // 4) * 16
-    local = (i % 4)
+    local = i % 4
     return thread_id, local
 
 
@@ -93,7 +93,7 @@ def thread_id_shared_access_64x4_to_16x16_layout_A(thread_id, local_id):
 
 def shared_16x16_to_local_64x4_layout_A(i, j):
     thread_id = i + 16 * (j // 4)
-    local = (j % 4)
+    local = j % 4
     return thread_id, local
 
 
@@ -105,7 +105,7 @@ def thread_id_shared_access_64x4_to_16x16_layout_B(thread_id, local_id):
 
 def shared_16x16_to_local_64x4_layout_B(i, j):
     thread_id = j + (i // 4) * 16
-    local = (i % 4)
+    local = i % 4
     return thread_id, local
 
 
@@ -117,7 +117,7 @@ def thread_id_shared_access_64x4_to_16x16_layout_C(thread_id, local_id):
 
 def shared_16x16_to_local_64x4_layout_C(i, j):
     thread_id = j + (i // 4) * 16
-    local = (i % 4)
+    local = i % 4
     return thread_id, local
 
 
@@ -129,8 +129,7 @@ def get_mma_fill_intrin(dtype, local_size):
 
     @T.prim_func
     def mma_fill_desc(a: T.handle) -> None:
-        C_warp = T.match_buffer(
-            a, [WARP_SIZE, local_size], dtype=dtype, scope="warp")
+        C_warp = T.match_buffer(a, [WARP_SIZE, local_size], dtype=dtype, scope="warp")
 
         with T.block("root"):
             T.reads()
@@ -160,10 +159,14 @@ def get_mma_fill_intrin(dtype, local_size):
     return mma_fill_desc, mma_fill_impl
 
 
-def get_mfma_load_intrin(k_dim=4, dtype="float32", scope="shared", is_b=False, transposed=False,):
-
-    local_size = (
-        M_DIM * k_dim) // WARP_SIZE if not is_b else (N_DIM * k_dim) // WARP_SIZE
+def get_mfma_load_intrin(
+    k_dim=4,
+    dtype="float32",
+    scope="shared",
+    is_b=False,
+    transposed=False,
+):
+    local_size = (M_DIM * k_dim) // WARP_SIZE if not is_b else (N_DIM * k_dim) // WARP_SIZE
     memory_shape = (M_DIM, k_dim)
     if is_b:
         memory_shape = (N_DIM, k_dim) if transposed else (k_dim, N_DIM)
@@ -174,15 +177,31 @@ def get_mfma_load_intrin(k_dim=4, dtype="float32", scope="shared", is_b=False, t
         index_map = shared_16x4_to_local_64x1_layout_A
         reverse_index_map = thread_id_shared_access_64x1_to_16x4_layout_A
         if is_b:
-            index_map = shared_16x4_to_local_64x1_layout_A if transposed else shared_4x16_to_local_64x1_layout_B
-            reverse_index_map = thread_id_shared_access_64x1_to_16x4_layout_A if transposed else thread_id_shared_access_64x1_to_4x16_layout_B
+            index_map = (
+                shared_16x4_to_local_64x1_layout_A
+                if transposed
+                else shared_4x16_to_local_64x1_layout_B
+            )
+            reverse_index_map = (
+                thread_id_shared_access_64x1_to_16x4_layout_A
+                if transposed
+                else thread_id_shared_access_64x1_to_4x16_layout_B
+            )
     elif k_dim == 16:
         index_map = shared_16x16_to_local_64x4_layout_A
         reverse_index_map = thread_id_shared_access_64x4_to_16x16_layout_A
 
         if is_b:
-            index_map = shared_16x16_to_local_64x4_layout_A if transposed else shared_16x16_to_local_64x4_layout_B
-            reverse_index_map = thread_id_shared_access_64x4_to_16x16_layout_A if transposed else thread_id_shared_access_64x4_to_16x16_layout_B
+            index_map = (
+                shared_16x16_to_local_64x4_layout_A
+                if transposed
+                else shared_16x16_to_local_64x4_layout_B
+            )
+            reverse_index_map = (
+                thread_id_shared_access_64x4_to_16x16_layout_A
+                if transposed
+                else thread_id_shared_access_64x4_to_16x16_layout_B
+            )
     else:
         raise ValueError("k_dim must be 4 or 16 currently")
 
@@ -196,7 +215,7 @@ def get_mfma_load_intrin(k_dim=4, dtype="float32", scope="shared", is_b=False, t
             scope=scope,
         )
         reg = T.match_buffer(
-            reg_handle, (WARP_SIZE, local_size), dtype,  offset_factor=1, scope="warp"
+            reg_handle, (WARP_SIZE, local_size), dtype, offset_factor=1, scope="warp"
         )
 
         with T.block("root"):
@@ -243,7 +262,6 @@ def get_mfma_load_intrin(k_dim=4, dtype="float32", scope="shared", is_b=False, t
 
 
 def get_mfma_intrin(k_dim, in_dtype="float32", out_dtype="float32", b_transposed=False):
-
     local_size = (M_DIM * k_dim) // WARP_SIZE
     local_size_out = (M_DIM * N_DIM) // WARP_SIZE
     if k_dim == 4:
@@ -257,11 +275,9 @@ def get_mfma_intrin(k_dim, in_dtype="float32", out_dtype="float32", b_transposed
     else:
         raise ValueError("k_dim must be 4 or 16 currently")
 
-    out_dtype_abbrv = {"float16": "f16",
-                       "float32": "f32", "int8": "i8", "int32": "i32"}[out_dtype]
+    out_dtype_abbrv = {"float16": "f16", "float32": "f32", "int8": "i8", "int32": "i32"}[out_dtype]
 
-    in_dtype_abbrv = {"float16": "f16",
-                      "float32": "f32", "int8": "i8", "int32": "i32"}[in_dtype]
+    in_dtype_abbrv = {"float16": "f16", "float32": "f32", "int8": "i8", "int32": "i32"}[in_dtype]
 
     mfma_intrin = f"llvm.amdgcn.mfma.{out_dtype_abbrv}.{M_DIM}x{N_DIM}x{k_dim}{in_dtype_abbrv}"
 
@@ -277,15 +293,9 @@ def get_mfma_intrin(k_dim, in_dtype="float32", out_dtype="float32", b_transposed
 
     @T.prim_func
     def mfma_sync_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(
-            a, (WARP_SIZE, local_size), in_dtype, offset_factor=1, scope="warp"
-        )
-        B = T.match_buffer(
-            b, (WARP_SIZE, local_size), in_dtype, offset_factor=1, scope="warp"
-        )
-        C = T.match_buffer(
-            c, (WARP_SIZE, local_size_out), out_dtype, offset_factor=1, scope="warp"
-        )
+        A = T.match_buffer(a, (WARP_SIZE, local_size), in_dtype, offset_factor=1, scope="warp")
+        B = T.match_buffer(b, (WARP_SIZE, local_size), in_dtype, offset_factor=1, scope="warp")
+        C = T.match_buffer(c, (WARP_SIZE, local_size_out), out_dtype, offset_factor=1, scope="warp")
 
         with T.block("root"):
             T.reads(
@@ -302,8 +312,7 @@ def get_mfma_intrin(k_dim, in_dtype="float32", out_dtype="float32", b_transposed
 
                     thread_id_C, local_id_C = T.meta_var(index_map_C(i, j))
                     thread_id_A, local_id_A = T.meta_var(index_map_A(i, k))
-                    thread_id_B, local_id_B = T.meta_var(
-                        index_map_B(b_row_ind, b_col_ind))
+                    thread_id_B, local_id_B = T.meta_var(index_map_B(b_row_ind, b_col_ind))
 
                     T.reads(
                         C[thread_id_C, local_id_C],
@@ -318,15 +327,9 @@ def get_mfma_intrin(k_dim, in_dtype="float32", out_dtype="float32", b_transposed
 
     @T.prim_func
     def mfma_sync_impl_float(a: T.handle, b: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(
-            a, (WARP_SIZE, local_size), in_dtype, offset_factor=1, scope="warp"
-        )
-        B = T.match_buffer(
-            b, (WARP_SIZE, local_size), in_dtype, offset_factor=1, scope="warp"
-        )
-        C = T.match_buffer(
-            c, (WARP_SIZE, local_size_out), out_dtype, offset_factor=1, scope="warp"
-        )
+        A = T.match_buffer(a, (WARP_SIZE, local_size), in_dtype, offset_factor=1, scope="warp")
+        B = T.match_buffer(b, (WARP_SIZE, local_size), in_dtype, offset_factor=1, scope="warp")
+        C = T.match_buffer(c, (WARP_SIZE, local_size_out), out_dtype, offset_factor=1, scope="warp")
 
         with T.block("root"):
             T.reads(
@@ -351,15 +354,9 @@ def get_mfma_intrin(k_dim, in_dtype="float32", out_dtype="float32", b_transposed
 
     @T.prim_func
     def mfma_sync_impl_integer(a: T.handle, b: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(
-            a, (WARP_SIZE, local_size), in_dtype, offset_factor=1, scope="warp"
-        )
-        B = T.match_buffer(
-            b, (WARP_SIZE, local_size), in_dtype, offset_factor=1, scope="warp"
-        )
-        C = T.match_buffer(
-            c, (WARP_SIZE, local_size_out), out_dtype, offset_factor=1, scope="warp"
-        )
+        A = T.match_buffer(a, (WARP_SIZE, local_size), in_dtype, offset_factor=1, scope="warp")
+        B = T.match_buffer(b, (WARP_SIZE, local_size), in_dtype, offset_factor=1, scope="warp")
+        C = T.match_buffer(c, (WARP_SIZE, local_size_out), out_dtype, offset_factor=1, scope="warp")
 
         with T.block("root"):
             T.reads(
@@ -386,17 +383,19 @@ def get_mfma_intrin(k_dim, in_dtype="float32", out_dtype="float32", b_transposed
                 dtype=f"{out_dtype}x4",
             )
 
-    return (mfma_sync_desc, mfma_sync_impl_integer) if in_dtype == "int8" else (mfma_sync_desc, mfma_sync_impl_float)
+    return (
+        (mfma_sync_desc, mfma_sync_impl_integer)
+        if in_dtype == "int8"
+        else (mfma_sync_desc, mfma_sync_impl_float)
+    )
 
 
 def get_mfma_store_intrin(local_size=4, dtype="float32", scope="global"):
-
     index_map = shared_16x16_to_local_64x4_layout_C
 
     @T.prim_func
     def mfma_store_desc(a: T.handle, c: T.handle) -> None:
-        C_warp = T.match_buffer(
-            a, [WARP_SIZE, local_size], dtype=dtype, scope="warp")
+        C_warp = T.match_buffer(a, [WARP_SIZE, local_size], dtype=dtype, scope="warp")
         C = T.match_buffer(c, [M_DIM, N_DIM], dtype=dtype, scope=scope)
 
         with T.block("root"):
@@ -434,51 +433,56 @@ def get_mfma_store_intrin(local_size=4, dtype="float32", scope="global"):
 
 
 ROCM_MFMA_fill_16x16_f32_INTRIN = "ROCM_mfma_fill_16x16_f32"
-TensorIntrin.register(ROCM_MFMA_fill_16x16_f32_INTRIN, *
-                      get_mma_fill_intrin("float32", 4))
+TensorIntrin.register(ROCM_MFMA_fill_16x16_f32_INTRIN, *get_mma_fill_intrin("float32", 4))
 
 ROCM_MFMA_fill_16x16_i32_INTRIN = "ROCM_mfma_fill_16x16_i32"
-TensorIntrin.register(ROCM_MFMA_fill_16x16_i32_INTRIN, *
-                      get_mma_fill_intrin("int", 4))
+TensorIntrin.register(ROCM_MFMA_fill_16x16_i32_INTRIN, *get_mma_fill_intrin("int", 4))
 
 ROCM_MFMA_LOAD_16x16_A_SHARED_s8_INTRIN = "rocm_mfma_load_16x16_a_shared_s8"
-TensorIntrin.register(ROCM_MFMA_LOAD_16x16_A_SHARED_s8_INTRIN, *
-                      get_mfma_load_intrin(16, "int8", "shared"))
+TensorIntrin.register(
+    ROCM_MFMA_LOAD_16x16_A_SHARED_s8_INTRIN, *get_mfma_load_intrin(16, "int8", "shared")
+)
 ROCM_MFMA_LOAD_16x16_B_SHARED_s8_INTRIN = "rocm_mfma_load_b_16x16_shared_s8"
-TensorIntrin.register(ROCM_MFMA_LOAD_16x16_B_SHARED_s8_INTRIN, *
-                      get_mfma_load_intrin(16, "int8", "shared", is_b=True))
+TensorIntrin.register(
+    ROCM_MFMA_LOAD_16x16_B_SHARED_s8_INTRIN, *get_mfma_load_intrin(16, "int8", "shared", is_b=True)
+)
 
 ROCM_MFMA_LOAD_16x16_A_SHARED_f16_INTRIN = "rocm_mfma_load_16x16_a_shared_f16"
-TensorIntrin.register(ROCM_MFMA_LOAD_16x16_A_SHARED_f16_INTRIN, *
-                      get_mfma_load_intrin(16, "float16", "shared"))
+TensorIntrin.register(
+    ROCM_MFMA_LOAD_16x16_A_SHARED_f16_INTRIN, *get_mfma_load_intrin(16, "float16", "shared")
+)
 ROCM_MFMA_LOAD_16x16_B_SHARED_f16_INTRIN = "rocm_mfma_load_b_16x16_shared_f16"
-TensorIntrin.register(ROCM_MFMA_LOAD_16x16_B_SHARED_f16_INTRIN, *
-                      get_mfma_load_intrin(16, "float16", "shared", is_b=True))
+TensorIntrin.register(
+    ROCM_MFMA_LOAD_16x16_B_SHARED_f16_INTRIN,
+    *get_mfma_load_intrin(16, "float16", "shared", is_b=True),
+)
 
 ROCM_MFMA_LOAD_16x4_A_SHARED_f32_INTRIN = "rocm_mfma_load_16x4_a_shared_f32"
-TensorIntrin.register(ROCM_MFMA_LOAD_16x4_A_SHARED_f32_INTRIN, *
-                      get_mfma_load_intrin(4, "float32", "shared"))
+TensorIntrin.register(
+    ROCM_MFMA_LOAD_16x4_A_SHARED_f32_INTRIN, *get_mfma_load_intrin(4, "float32", "shared")
+)
 ROCM_MFMA_LOAD_16x4_B_SHARED_f32_INTRIN = "rocm_mfma_load_b_16x4_shared_f32"
-TensorIntrin.register(ROCM_MFMA_LOAD_16x4_B_SHARED_f32_INTRIN, *
-                      get_mfma_load_intrin(4, "float32", "shared", is_b=True))
+TensorIntrin.register(
+    ROCM_MFMA_LOAD_16x4_B_SHARED_f32_INTRIN,
+    *get_mfma_load_intrin(4, "float32", "shared", is_b=True),
+)
 
 
 ROCM_MFMA_f32f32f32_INTRIN = "rocm_mfma_f32f32f32"
-TensorIntrin.register(ROCM_MFMA_f32f32f32_INTRIN, *
-                      get_mfma_intrin(4, "float32", "float32"))
+TensorIntrin.register(ROCM_MFMA_f32f32f32_INTRIN, *get_mfma_intrin(4, "float32", "float32"))
 
 ROCM_MFMA_f16f16f32_INTRIN = "rocm_mfma_f16f16f32"
-TensorIntrin.register(ROCM_MFMA_f16f16f32_INTRIN, *
-                      get_mfma_intrin(16, "float16", "float32"))
+TensorIntrin.register(ROCM_MFMA_f16f16f32_INTRIN, *get_mfma_intrin(16, "float16", "float32"))
 
 ROCM_MFMA_s8s8s32_INTRIN = "rocm_mfma_s8s8s32"
-TensorIntrin.register(ROCM_MFMA_s8s8s32_INTRIN, *
-                      get_mfma_intrin(16, "int8", "int32"))
+TensorIntrin.register(ROCM_MFMA_s8s8s32_INTRIN, *get_mfma_intrin(16, "int8", "int32"))
 
 ROCM_MFMA_STORE_16x16_s32_INTRIN = "rocm_mfma_store_16x16_s32"
-TensorIntrin.register(ROCM_MFMA_STORE_16x16_s32_INTRIN, *
-                      get_mfma_store_intrin(4, "int32", "global"))
+TensorIntrin.register(
+    ROCM_MFMA_STORE_16x16_s32_INTRIN, *get_mfma_store_intrin(4, "int32", "global")
+)
 
 ROCM_MFMA_STORE_16x16_f32_INTRIN = "rocm_mfma_store_16x16_f32"
-TensorIntrin.register(ROCM_MFMA_STORE_16x16_f32_INTRIN, *
-                      get_mfma_store_intrin(4, "float32", "global"))
+TensorIntrin.register(
+    ROCM_MFMA_STORE_16x16_f32_INTRIN, *get_mfma_store_intrin(4, "float32", "global")
+)
