@@ -197,12 +197,12 @@ def mfma_schedule(
     fetch_to_shared(block_outer, 0, 2)
     fetch_to_shared(block_outer, 1, 2)
 
-    A_warp = sch.cache_read(block_outer, 0, "local")
-    B_warp = sch.cache_read(block_outer, 1, "local")
+    A_warp = sch.cache_read(block_outer, 0, "warp")
+    B_warp = sch.cache_read(block_outer, 1, "warp")
 
     sch.compute_at(A_warp, k1)
     sch.compute_at(B_warp, k1)
-    C_warp = sch.cache_write(block_outer, 0, "local")
+    C_warp = sch.cache_write(block_outer, 0, "warp")
     sch.reverse_compute_at(C_warp, thread_idy)
 
     ii, jj = sch.get_loops(C_warp)[-2:]

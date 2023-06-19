@@ -68,8 +68,7 @@ def matmul(m, n, k, in_dtype, out_dtype, b_transposed):
 
     c = te.compute(
         (m, n),
-        lambda i, j: te.sum(maybe_cast(
-            a[i, k]) * maybe_cast(b[maybe_swap(k, j)]), axis=[k]),
+        lambda i, j: te.sum(maybe_cast(a[i, k]) * maybe_cast(b[maybe_swap(k, j)]), axis=[k]),
         name="C",
     )
     return (a, b, c)
@@ -93,8 +92,7 @@ def run_test(
     mma_store_intrin,
 ):
     sch = mfma_schedule(
-        te.create_prim_func(
-            matmul(M, N, K, in_dtype, out_dtype, b_transposed)),
+        te.create_prim_func(matmul(M, N, K, in_dtype, out_dtype, b_transposed)),
         k_inner,
         in_dtype,
         b_transposed,
@@ -124,8 +122,7 @@ def run_test(
             )
         else:
             b_np = np.random.uniform(size=(K, N)).astype("float32")
-            c_np = np.dot(a_np.astype("float32"), b_np.astype(
-                "float32")).astype(out_dtype)
+            c_np = np.dot(a_np.astype("float32"), b_np.astype("float32")).astype(out_dtype)
     elif in_dtype == "float16":
         a_np = np.random.uniform(size=(M, K)).astype("float16")
 
@@ -136,8 +133,7 @@ def run_test(
             )
         else:
             b_np = np.random.uniform(size=(K, N)).astype("float16")
-            c_np = np.dot(a_np.astype("float32"), b_np.astype(
-                "float32")).astype(out_dtype)
+            c_np = np.dot(a_np.astype("float32"), b_np.astype("float32")).astype(out_dtype)
     else:
         a_np = np.random.randint(-128, 128, (M, K)).astype("int8")
 
@@ -148,8 +144,7 @@ def run_test(
             )
         else:
             b_np = np.random.randint(-128, 128, (K, N)).astype("int8")
-            c_np = np.dot(a_np.astype("float32"),
-                          b_np.astype("float32")).astype("int32")
+            c_np = np.dot(a_np.astype("float32"), b_np.astype("float32")).astype("int32")
 
     a = tvm.nd.array(a_np, dev)
     b = tvm.nd.array(b_np, dev)
@@ -191,8 +186,7 @@ def test_i8i8i32_m16n16k16():
     k_inner = 16
     in_dtype = "int8"
     out_dtype = "int32"
-    i_factors, j_factors, k_factors = [
-        1, 8, 2, 4, 1], [1, 16, 2, 1, 2], [32, 2, 1]
+    i_factors, j_factors, k_factors = [1, 8, 2, 4, 1], [1, 16, 2, 1, 2], [32, 2, 1]
 
     timer = run_test(
         k_inner,
@@ -242,8 +236,7 @@ def test_f16f16f32_m16n16k16():
     k_inner = 16
     in_dtype = "float16"
     out_dtype = "float32"
-    i_factors, j_factors, k_factors = [
-        1, 8, 2, 4, 1], [1, 16, 2, 1, 2], [32, 2, 1]
+    i_factors, j_factors, k_factors = [1, 8, 2, 4, 1], [1, 16, 2, 1, 2], [32, 2, 1]
 
     timer = run_test(
         k_inner,
@@ -293,8 +286,7 @@ def test_f32f32f32_m16n16k4():
     k_inner = 4
     in_dtype = "float32"
     out_dtype = "float32"
-    i_factors, j_factors, k_factors = [
-        4, 2, 1, 4, 2], [4, 2, 2, 1, 4], [128, 2, 1]
+    i_factors, j_factors, k_factors = [4, 2, 1, 4, 2], [4, 2, 2, 1, 4], [128, 2, 1]
 
     timer = run_test(
         k_inner,
