@@ -235,7 +235,7 @@ TargetJSON UpdateROCmAttrs(TargetJSON target) {
     if (const auto* f_get_rocm_arch = Registry::Get("tvm_callback_rocm_get_arch")) {
       arch = (*f_get_rocm_arch)().operator std::string();
     }
-    target.Set("mcpu", String("gfx") + arch);
+    target.Set("mcpu", String(arch));
   }
   // Update -mattr before ROCm 3.5:
   //   Before ROCm 3.5 we needed code object v2, starting
