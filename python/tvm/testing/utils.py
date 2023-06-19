@@ -914,12 +914,11 @@ requires_rocm = Feature(
     parent_features="gpu",
 )
 
-# Mark a test as requiring a tensorcore to run
+# Mark a test as requiring a matrixcore to run
 requires_matrixcore = Feature(
     "matrixcore",
     "AMD Matrix Core",
-    run_time_check=lambda: tvm.rocm().exist and rocm.have_matrixcore(
-        tvm.rocm().compute_version),
+    run_time_check=lambda: tvm.rocm().exist and rocm.have_matrixcore(tvm.rocm().compute_version),
     parent_features="rocm",
 )
 
@@ -1248,7 +1247,6 @@ def requires_package(*packages):
 
 
 def parametrize_targets(*args):
-
     """Parametrize a test over a specific set of targets.
 
     Use this decorator when you want your test to be run over a
@@ -1512,7 +1510,6 @@ def parameters(*value_sets, ids=None):
 
     outputs = []
     for param_values in zip(*value_sets):
-
         # Optional cls parameter in case a parameter is defined inside a
         # class scope.
         def fixture_func(*_cls, request):
@@ -2038,7 +2035,6 @@ class CompareBeforeAfter:
             return inner
 
         if hasattr(transform, "_pytestfixturefunction"):
-
             if not hasattr(cls, "_transform_orig"):
                 cls._transform_orig = transform
 
@@ -2059,7 +2055,6 @@ class CompareBeforeAfter:
                 return apply(transform(self))
 
         else:
-
             raise TypeError(
                 "Expected transform to be a tvm.ir.transform.Pass, or a method returning a Pass"
             )
