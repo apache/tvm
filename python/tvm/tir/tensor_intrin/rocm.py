@@ -130,7 +130,7 @@ def get_mma_fill_intrin(dtype, local_size):
     @T.prim_func
     def mma_fill_desc(a: T.handle) -> None:
         C_warp = T.match_buffer(
-            a, [WARP_SIZE, local_size], dtype=dtype, scope="local")
+            a, [WARP_SIZE, local_size], dtype=dtype, scope="warp")
 
         with T.block("root"):
             T.reads()
@@ -146,7 +146,7 @@ def get_mma_fill_intrin(dtype, local_size):
     @T.prim_func
     def mma_fill_impl(a: T.handle) -> None:
         C_warp = T.match_buffer(
-            a, [WARP_SIZE, local_size], dtype=dtype, scope="local", offset_factor=1
+            a, [WARP_SIZE, local_size], dtype=dtype, scope="warp", offset_factor=1
         )
 
         with T.block("root"):
@@ -196,7 +196,7 @@ def get_mfma_load_intrin(k_dim=4, dtype="float32", scope="shared", is_b=False, t
             scope=scope,
         )
         reg = T.match_buffer(
-            reg_handle, (WARP_SIZE, local_size), dtype,  offset_factor=1, scope="local"
+            reg_handle, (WARP_SIZE, local_size), dtype,  offset_factor=1, scope="warp"
         )
 
         with T.block("root"):
@@ -227,7 +227,7 @@ def get_mfma_load_intrin(k_dim=4, dtype="float32", scope="shared", is_b=False, t
             strides=[s0, s1],
         )
         reg = T.match_buffer(
-            reg_handle, (WARP_SIZE, local_size), dtype, align=64, offset_factor=1, scope="local"
+            reg_handle, (WARP_SIZE, local_size), dtype, align=64, offset_factor=1, scope="warp"
         )
 
         with T.block("root"):
@@ -278,13 +278,13 @@ def get_mfma_intrin(k_dim, in_dtype="float32", out_dtype="float32", b_transposed
     @T.prim_func
     def mfma_sync_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
         A = T.match_buffer(
-            a, (WARP_SIZE, local_size), in_dtype, offset_factor=1, scope="local"
+            a, (WARP_SIZE, local_size), in_dtype, offset_factor=1, scope="warp"
         )
         B = T.match_buffer(
-            b, (WARP_SIZE, local_size), in_dtype, offset_factor=1, scope="local"
+            b, (WARP_SIZE, local_size), in_dtype, offset_factor=1, scope="warp"
         )
         C = T.match_buffer(
-            c, (WARP_SIZE, local_size_out), out_dtype, offset_factor=1, scope="local"
+            c, (WARP_SIZE, local_size_out), out_dtype, offset_factor=1, scope="warp"
         )
 
         with T.block("root"):
@@ -319,13 +319,13 @@ def get_mfma_intrin(k_dim, in_dtype="float32", out_dtype="float32", b_transposed
     @T.prim_func
     def mfma_sync_impl_float(a: T.handle, b: T.handle, c: T.handle) -> None:
         A = T.match_buffer(
-            a, (WARP_SIZE, local_size), in_dtype, offset_factor=1, scope="local"
+            a, (WARP_SIZE, local_size), in_dtype, offset_factor=1, scope="warp"
         )
         B = T.match_buffer(
-            b, (WARP_SIZE, local_size), in_dtype, offset_factor=1, scope="local"
+            b, (WARP_SIZE, local_size), in_dtype, offset_factor=1, scope="warp"
         )
         C = T.match_buffer(
-            c, (WARP_SIZE, local_size_out), out_dtype, offset_factor=1, scope="local"
+            c, (WARP_SIZE, local_size_out), out_dtype, offset_factor=1, scope="warp"
         )
 
         with T.block("root"):
@@ -352,13 +352,13 @@ def get_mfma_intrin(k_dim, in_dtype="float32", out_dtype="float32", b_transposed
     @T.prim_func
     def mfma_sync_impl_integer(a: T.handle, b: T.handle, c: T.handle) -> None:
         A = T.match_buffer(
-            a, (WARP_SIZE, local_size), in_dtype, offset_factor=1, scope="local"
+            a, (WARP_SIZE, local_size), in_dtype, offset_factor=1, scope="warp"
         )
         B = T.match_buffer(
-            b, (WARP_SIZE, local_size), in_dtype, offset_factor=1, scope="local"
+            b, (WARP_SIZE, local_size), in_dtype, offset_factor=1, scope="warp"
         )
         C = T.match_buffer(
-            c, (WARP_SIZE, local_size_out), out_dtype, offset_factor=1, scope="local"
+            c, (WARP_SIZE, local_size_out), out_dtype, offset_factor=1, scope="warp"
         )
 
         with T.block("root"):
@@ -396,7 +396,7 @@ def get_mfma_store_intrin(local_size=4, dtype="float32", scope="global"):
     @T.prim_func
     def mfma_store_desc(a: T.handle, c: T.handle) -> None:
         C_warp = T.match_buffer(
-            a, [WARP_SIZE, local_size], dtype=dtype, scope="local")
+            a, [WARP_SIZE, local_size], dtype=dtype, scope="warp")
         C = T.match_buffer(c, [M_DIM, N_DIM], dtype=dtype, scope=scope)
 
         with T.block("root"):
@@ -416,7 +416,7 @@ def get_mfma_store_intrin(local_size=4, dtype="float32", scope="global"):
         s1 = T.int32()
 
         C_warp = T.match_buffer(
-            a, [WARP_SIZE, local_size], dtype=dtype, scope="local", offset_factor=1
+            a, [WARP_SIZE, local_size], dtype=dtype, scope="warp", offset_factor=1
         )
         C = T.match_buffer(
             c, [M_DIM, N_DIM], dtype=dtype, scope=scope, offset_factor=1, strides=[s0, s1]

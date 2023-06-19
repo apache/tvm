@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Utility for ROCm backend"""
+import re
 import subprocess
 from os.path import join, exists
 
@@ -147,9 +148,10 @@ def callback_rocm_bitcode_path(rocdl_dir=None):
         "oclc_daz_opt_off",
         "oclc_finite_only_off",
         "oclc_finite_only_on",
-        "oclc_isa_version_803",  # todo (t-vi): an alternative might be to scan for the
-        "oclc_isa_version_900",  #              isa version files (if the linker throws out
-        "oclc_isa_version_906",  #              the unneeded ones or we filter for the arch we need)
+        # todo (t-vi): an alternative might be to scan for the
+        "oclc_isa_version_803",
+        "oclc_isa_version_900",  # isa version files (if the linker throws out
+        "oclc_isa_version_906",  # the unneeded ones or we filter for the arch we need)
         "oclc_isa_version_1030",
         "oclc_unsafe_math_off",
         "oclc_unsafe_math_on",
@@ -218,3 +220,45 @@ def have_matrixcore(compute_version=None, target=None):
         return True
 
     return False
+
+
+@tvm._ffi.register_func("tvm_callback_rocm_get_arch")
+def get_rocm_arch(rocm_path="/opt/rocm"):
+    try:
+        # Execute rocminfo command
+        rocminfo_output = subprocess.check_output([f"{rocm_path}/bin/rocminfo"]).decode("utf-8")
+
+        # Use regex to match the "Name" field
+        match = re.search(r"Name:\s+(gfx\d+[a-zA-Z]*)", rocminfo_output)
+        if match:
+            gpu_arch = match.group(1)
+            return gpu_arch
+        else:
+            raise ValueError("No matching GPU architecture found")
+
+    except subprocess.CalledProcessError:
+        raise RuntimeError(
+            "Unable to execute rocminfo command, please ensure ROCm is installed and you have an AMD GPU on your system"
+        )
+
+
+def find_rocm_path():
+    """Utility function to find ROCm path
+
+    Returns
+    -------
+    path : str
+        Path to ROCm root.
+    """
+    if "ROCM_PATH" in os.environ:
+        return os.environ["ROCM_PATH"]
+    cmd = ["which", "hipcc"]
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    (out, _) = proc.communicate()
+    out = out.decode("utf-8").strip()
+    if proc.returncode == 0:
+        return os.path.realpath(os.path.join(out, "../.."))
+    rocm_path = "/opt/rocm"
+    if os.path.exists(os.path.join(rocm_path, "bin/hipcc")):
+        return rocm_path
+    raise RuntimeError("Cannot find ROCm path")

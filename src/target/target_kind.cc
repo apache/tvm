@@ -104,25 +104,7 @@ static int ExtractIntWithPrefix(const std::string& str, const std::string& prefi
   }
   return result;
 }
-    
-/*!
- * \brief Extract a string from the string with the given prefix.
- * For example, when `str` is "sm_20" and `prefix` is "sm_".
- * This function first checks if `str` starts with `prefix`,
- * then return the integer 20 after the `prefix`
- * \param str The string to be extracted
- * \param prefix The prefix to be checked
- * \return A string, the extracted string. "" if the check fails
- */
-std::string ExtractStringWithPrefix(const std::string& str, const std::string& prefix) {
-  if (str.find(prefix) != 0) return "";
-  std::size_t pos = prefix.length();
-  while (pos < str.length() && (std::isdigit(str[pos]) || std::isalpha(str[pos]))) {
-    ++pos;
-  }
-  return str.substr(prefix.length(), pos - prefix.length());
-}
-    
+
 /*!
  * \brief Extract a string from the string with the given prefix.
  * For example, when `str` is "sm_20" and `prefix` is "sm_".
@@ -274,6 +256,17 @@ TargetJSON UpdateROCmAttrs(TargetJSON target) {
     mattr.push_back("-code-object-v3");
     target.Set("mattr", mattr);
   }
+  return target;
+}
+
+/*!
+ * \brief Test Target Parser
+ * \param target The Target to update
+ * \return The updated attributes
+ */
+TargetJSON TestTargetParser(TargetJSON target) {
+  Map<String, ObjectRef> features = {{"is_test", Bool(true)}};
+  target.Set("features", features);
   return target;
 }
 
