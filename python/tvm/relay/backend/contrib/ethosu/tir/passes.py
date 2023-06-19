@@ -193,13 +193,23 @@ def ReplaceOperators():
                 )
         return None
 
+    def _remove_buffer_decl(stmt):
+        if isinstance(stmt, tvm.tir.DeclBuffer):
+            if stmt.buffer.data in replace_output_pointer:
+                return stmt.body
+
     def _post_transform(stmt):
         # Replace operators with call_externs
         result = _replace_operator(stmt)
         # Remove operators that don't need compiling
         result = result or _remove_no_compile(stmt)
         # Replace necessary pointers that were removed in the previous step
-        return result or _replace_pointers(stmt)
+        result = result or _replace_pointers(stmt)
+        # Replace BufferDecl, since only the tir.Var data pointer is
+        # still used, and not the tir.Buffer
+        result = result or _remove_buffer_decl(stmt)
+
+        return result
 
     def _ftransform(f, mod, ctx):
         tvm.tir.stmt_functor.post_order_visit(f.body, _find_pointer_to_extent)

@@ -3882,6 +3882,62 @@ def subroutine_call_without_arguments():
     return mod
 
 
+def return_zero():
+    @T.prim_func
+    def func() -> T.int32:
+        T.ret(0)
+
+    return func
+
+
+def op_of_literal():
+    op_list = [
+        (T.exp, 0),
+        (T.exp2, 0),
+        (T.exp10, 0),
+        (T.erf, 0.0),
+        (T.tanh, 0.0),
+        (T.sigmoid, 0.0),
+        (T.log, 0.0),
+        (T.log2, 0.0),
+        (T.log1p, 0.0),
+        (T.tan, 0.0),
+        (T.cos, 0.0),
+        (T.acos, 0.0),
+        (T.acosh, 0.0),
+        (T.sin, 0.0),
+        (T.sinh, 0.0),
+        (T.asin, 0.0),
+        (T.asinh, 0.0),
+        (T.atan, 0.0),
+        (T.atanh, 0.0),
+        (T.atan2, (1.0, 0.0)),
+        (T.sqrt, 0.0),
+        (T.rsqrt, 1.0),
+        (T.nextafter, (0.0, 1.0)),
+        (T.hypot, (1.0, 1.0)),
+        (T.copysign, (1.0, 1.0)),
+        (T.popcount, 0),
+        (T.fmod, (1.0, 1.0)),
+    ]
+
+    def make_ir_generator(op, arg):
+        def inner():
+            call_expr = op(*arg) if isinstance(arg, tuple) else op(arg)
+
+            @T.prim_func
+            def func():
+                T.evaluate(call_expr)
+
+            return func
+
+        inner.__name__ = f"{op.__name__}_of_literal"
+        return inner
+
+    for op, arg in op_list:
+        yield make_ir_generator(op, arg)
+
+
 ir_generator = tvm.testing.parameter(
     launch_env_thread,
     opt_gemm_normalize,
@@ -3958,6 +4014,8 @@ ir_generator = tvm.testing.parameter(
     undefined_stride_in_decl_buffer,
     undefined_elem_offset_in_decl_buffer,
     subroutine_call_without_arguments,
+    return_zero,
+    *op_of_literal(),
 )
 
 

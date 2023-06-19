@@ -21,6 +21,7 @@ import tvm.testing
 from tvm import te
 from tvm.driver.build_module import schedule_to_module
 from tvm.topi.math import cast
+from tvm.script import tir as T
 
 
 def run_passes(sch, args):
@@ -326,8 +327,132 @@ def test_dyn_shared_more_dtype():
         check_target(target)
 
 
+class TestMatmul(tvm.testing.CompareBeforeAfter):
+    """Shared allocations should be merged, preserving DeclBuffer if present
+
+    This test uses a matmul PrimFunc adapted from from
+    test_matmul_dyn_shared, using either `T.Buffer` (Allocate without
+    DeclBuffer) or `T.decl_buffer` (Allocate followed by DeclBuffer)
+    for the replaced allocations.
+    """
+
+    transform = tvm.tir.transform.MergeDynamicSharedMemoryAllocations()
+
+    use_decl_buffer = tvm.testing.parameter(by_dict={"t_buffer": False, "decl_buffer": True})
+
+    @tvm.testing.fixture
+    def buffer_func(self, use_decl_buffer):
+        if use_decl_buffer:
+            return T.decl_buffer
+        else:
+            return T.Buffer
+
+    @tvm.testing.fixture
+    def before(self, buffer_func):
+        @T.prim_func
+        def func(
+            A: T.Buffer((1024, 1024), "float16"),
+            B: T.Buffer((1024, 1024), "float16"),
+            matmul: T.Buffer((1024, 1024), "float32"),
+        ):
+            A_flat = T.Buffer(1048576, "float16", data=A.data)
+            B_flat = T.Buffer(1048576, "float16", data=B.data)
+            matmul_flat = T.Buffer(1048576, data=matmul.data)
+
+            threadIdx_x = T.launch_thread("threadIdx.x", 16)
+            C_local_data = T.allocate([1], "float32", "local")
+            C_local = T.Buffer(1, data=C_local_data, scope="local")
+
+            A_sh_data = T.allocate([256], "float16", "shared.dyn")
+            A_sh = buffer_func(256, "float16", data=A_sh_data, scope="shared.dyn")
+            B_sh_data = T.allocate([256], "float16", "shared.dyn")
+            B_sh = buffer_func(256, "float16", data=B_sh_data, scope="shared.dyn")
+            C_sh_data = T.allocate([256], "float32", "shared.dyn")
+            C_sh = buffer_func(256, "float32", data=C_sh_data, scope="shared.dyn")
+
+            threadIdx_y = T.launch_thread("threadIdx.y", 16)
+            blockIdx_x = T.launch_thread("blockIdx.x", 64)
+            blockIdx_y = T.launch_thread("blockIdx.y", 64)
+
+            C_local[0] = T.float32(0)
+            for i in range(64):
+
+                A_sh[threadIdx_y * 16 + threadIdx_x] = A_flat[
+                    blockIdx_y * 16384 + threadIdx_y * 1024 + i * 16 + threadIdx_x
+                ]
+
+                B_sh[threadIdx_y * 16 + threadIdx_x] = B_flat[
+                    i * 16384 + threadIdx_y * 1024 + blockIdx_x * 16 + threadIdx_x
+                ]
+                T.tvm_storage_sync("shared")
+                for k in range(16):
+                    C_local[0] = C_local[0] + T.Cast(
+                        "float32",
+                        A_sh[threadIdx_y * 16 + k] * B_sh[k * 16 + threadIdx_x],
+                    )
+                T.tvm_storage_sync("shared")
+
+            C_sh[threadIdx_y * 16 + threadIdx_x] = C_local[0]
+            T.tvm_storage_sync("shared.dyn")
+
+            matmul_flat[
+                blockIdx_y * 16384 + threadIdx_y * 1024 + blockIdx_x * 16 + threadIdx_x
+            ] = C_sh[threadIdx_y * 16 + threadIdx_x]
+
+        return func
+
+    @tvm.testing.fixture
+    def expected(self, buffer_func):
+        @T.prim_func
+        def func(
+            A: T.Buffer((1024, 1024), "float16"),
+            B: T.Buffer((1024, 1024), "float16"),
+            matmul: T.Buffer((1024, 1024), "float32"),
+        ):
+            A_flat = T.Buffer(1048576, "float16", data=A.data)
+            B_flat = T.Buffer(1048576, "float16", data=B.data)
+            matmul_flat = T.Buffer(1048576, data=matmul.data)
+
+            threadIdx_x = T.launch_thread("threadIdx.x", 16)
+
+            buf_dyn_shmem = T.allocate([1024], "uint8", "shared.dyn")
+
+            C_local_data = T.allocate([1], "float32", "local")
+            C_local = T.Buffer(1, data=C_local_data, scope="local")
+
+            A_sh = buffer_func(256, "float16", data=buf_dyn_shmem, scope="shared.dyn")
+            B_sh = buffer_func(256, "float16", data=buf_dyn_shmem, scope="shared.dyn")
+            C_sh = buffer_func(256, "float32", data=buf_dyn_shmem, scope="shared.dyn")
+
+            threadIdx_y = T.launch_thread("threadIdx.y", 16)
+            blockIdx_x = T.launch_thread("blockIdx.x", 64)
+            blockIdx_y = T.launch_thread("blockIdx.y", 64)
+
+            C_local[0] = T.float32(0)
+            for i in range(64):
+                A_sh[threadIdx_y * 16 + threadIdx_x + 256] = A_flat[
+                    blockIdx_y * 16384 + threadIdx_y * 1024 + i * 16 + threadIdx_x
+                ]
+                B_sh[threadIdx_y * 16 + threadIdx_x] = B_flat[
+                    i * 16384 + threadIdx_y * 1024 + blockIdx_x * 16 + threadIdx_x
+                ]
+                T.tvm_storage_sync("shared")
+                for k in range(16):
+                    C_local[0] = C_local[0] + T.Cast(
+                        "float32",
+                        A_sh[threadIdx_y * 16 + k + 256] * B_sh[k * 16 + threadIdx_x],
+                    )
+                T.tvm_storage_sync("shared")
+
+            C_sh[threadIdx_y * 16 + threadIdx_x] = C_local[0]
+            T.tvm_storage_sync("shared.dyn")
+
+            matmul_flat[
+                blockIdx_y * 16384 + threadIdx_y * 1024 + blockIdx_x * 16 + threadIdx_x
+            ] = C_sh[threadIdx_y * 16 + threadIdx_x]
+
+        return func
+
+
 if __name__ == "__main__":
-    test_matmul_dyn_shared()
-    test_dyn_shared_vectorized_store()
-    test_dyn_shared_reuse_and_merge()
-    test_dyn_shared_more_dtype()
+    tvm.testing.main()

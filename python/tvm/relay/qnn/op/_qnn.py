@@ -167,3 +167,6 @@ register_strategy("qnn.contrib_dense_pack", strategy.qnn_dense_pack_strategy)
 # qnn.batch_matmul
 register_strategy("qnn.batch_matmul", strategy.qnn_batch_matmul_strategy)
 register_pattern("qnn.batch_matmul", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+# qnn.avg_pool2d
+register_strategy("qnn.avg_pool2d", strategy.qnn_avg_pool2d_strategy)
