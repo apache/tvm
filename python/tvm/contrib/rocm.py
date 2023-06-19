@@ -17,6 +17,7 @@
 """Utility for ROCm backend"""
 import re
 import subprocess
+import os
 from os.path import join, exists
 
 import tvm._ffi
@@ -224,6 +225,11 @@ def have_matrixcore(compute_version=None, target=None):
 
 @tvm._ffi.register_func("tvm_callback_rocm_get_arch")
 def get_rocm_arch(rocm_path="/opt/rocm"):
+    gpu_arch = "gfx900"
+    # check if rocm is installed
+    if not os.path.exists(rocm_path):
+        print("ROCm not detected, using default gfx900")
+        return gpu_arch
     try:
         # Execute rocminfo command
         rocminfo_output = subprocess.check_output([f"{rocm_path}/bin/rocminfo"]).decode("utf-8")
@@ -232,10 +238,7 @@ def get_rocm_arch(rocm_path="/opt/rocm"):
         match = re.search(r"Name:\s+(gfx\d+[a-zA-Z]*)", rocminfo_output)
         if match:
             gpu_arch = match.group(1)
-            return gpu_arch
-        else:
-            raise ValueError("No matching GPU architecture found")
-
+        return gpu_arch
     except subprocess.CalledProcessError:
         raise RuntimeError(
             "Unable to execute rocminfo command, please ensure ROCm is installed and you have an AMD GPU on your system"
