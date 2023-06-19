@@ -55,7 +55,7 @@ class Module:
         return gv1
 
     @R.function
-    def main(
+    def entry_a(
         q: R.Tensor((32, 8, 16, 8), dtype="float16"),
         k: R.Tensor((32, 8, 16, 8), dtype="float16"),
         v: R.Tensor((32, 8, 16, 8), dtype="float16"),
@@ -65,6 +65,20 @@ class Module:
             gv: R.Tensor((32, 8, 16, 8), dtype="float16") = cls.fused_relax_nn_attention_cutlass(
                 q, k, v
             )
+            R.output(gv)
+        return gv
+
+    @R.function
+    def entry_b(
+        q: R.Tensor((32, 8, 16, 8), dtype="float16"),
+        k: R.Tensor((32, 8, 16, 8), dtype="float16"),
+        v: R.Tensor((32, 8, 16, 8), dtype="float16"),
+    ) -> R.Tensor((32, 8, 16, 8), dtype="float16"):
+        cls = Module
+        with R.dataflow():
+            gv: R.Tensor((32, 8, 16, 8), dtype="float16") = cls.fused_relax_nn_attention_cutlass(
+                q, k, v
+            ) + R.const(1, dtype="float16")
             R.output(gv)
         return gv
 
@@ -105,7 +119,7 @@ class Expected:
         return gv1
 
     @R.function
-    def main(
+    def entry_a(
         q: R.Tensor((32, 8, 16, 8), dtype="float16"),
         k: R.Tensor((32, 8, 16, 8), dtype="float16"),
         v: R.Tensor((32, 8, 16, 8), dtype="float16"),
@@ -119,6 +133,24 @@ class Expected:
             gv: R.Tensor((32, 8, 16, 8), dtype="float16") = cls.fused_relax_nn_attention_cutlass1(
                 q, k, v, workspace_main
             )
+            R.output(gv)
+        return gv
+
+    @R.function
+    def entry_b(
+        q: R.Tensor((32, 8, 16, 8), dtype="float16"),
+        k: R.Tensor((32, 8, 16, 8), dtype="float16"),
+        v: R.Tensor((32, 8, 16, 8), dtype="float16"),
+    ) -> R.Tensor((32, 8, 16, 8), dtype="float16"):
+        cls = Expected
+        with R.dataflow():
+            lv: R.Object = R.vm.alloc_storage(R.shape([65536]), R.prim_value(0), R.dtype("uint8"))
+            workspace_main: R.Tensor((65536,), dtype="uint8") = R.vm.alloc_tensor(
+                lv, R.prim_value(0), R.shape([65536]), R.dtype("uint8")
+            )
+            gv: R.Tensor((32, 8, 16, 8), dtype="float16") = cls.fused_relax_nn_attention_cutlass1(
+                q, k, v, workspace_main
+            ) + R.const(1, dtype="float16")
             R.output(gv)
         return gv
 

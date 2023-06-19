@@ -125,11 +125,17 @@ class WorkspaceProvider : ExprMutator {
       builder_->GetContextIRModule()->Remove(GetRef<GlobalVar>(gvar));
     }
 
-    auto gvar = mod_->GetGlobalVar("main");
-    auto func = Downcast<Function>(mod_->Lookup(gvar));
-    auto new_func = Function(func->params, VisitExpr(func->body), func->ret_struct_info,
-                             func->is_pure, func->attrs);
-    builder_->UpdateFunction(gvar, new_func);
+    for (const auto& [gvar, f] : mod_->functions) {
+      workspace_var_main_ = Var();
+      if (!f->IsInstance<relax::FunctionNode>() || f->GetAttr<String>(attr::kCodegen) ||
+          f->GetAttr<String>(attr::kComposite)) {
+        continue;
+      }
+      auto func = Downcast<Function>(mod_->Lookup(gvar));
+      auto new_func = Function(func->params, VisitExpr(func->body), func->ret_struct_info,
+                               func->is_pure, func->attrs);
+      builder_->UpdateFunction(gvar, new_func);
+    }
     return builder_->GetContextIRModule();
   }
 
