@@ -222,6 +222,7 @@ TargetJSON UpdateNVPTXAttrs(TargetJSON target) {
  * \return The updated attributes
  */
 TargetJSON UpdateROCmAttrs(TargetJSON target) {
+  using tvm::runtime::Registry;
   CheckOrSetAttr(&target, "mtriple", "amdgcn-amd-amdhsa-hcc");
   // Update -mcpu=gfx
   std::string arch;
@@ -231,12 +232,8 @@ TargetJSON UpdateROCmAttrs(TargetJSON target) {
     ICHECK(!arch.empty()) << "ValueError: ROCm target gets an invalid GFX version: -mcpu=" << mcpu;
   } else {
     TVMRetValue val;
-    if (!DetectDeviceFlag({kDLROCM, 0}, runtime::kGcnArch, &val)) {
-      LOG(WARNING) << "Unable to detect ROCm compute arch, default to \"-mcpu=gfx900\" instead";
-      arch = "900";
-    } else {
-      arch = val.operator std::string();
-    }
+    const auto* f_get_rocm_arch = Registry::Get("tvm_callback_rocm_get_arch");
+    arch = (*f_get_rocm_arch)().operator std::string();
     target.Set("mcpu", String("gfx") + arch);
   }
   // Update -mattr before ROCm 3.5:
