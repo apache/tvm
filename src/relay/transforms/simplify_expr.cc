@@ -161,17 +161,15 @@ class SimplifyConsecutiveCast : public DFPatternRewrite {
 };
 
 bool CheckDataTypeMaxMinValue(DataType dtype, double min_value, double max_value) {
+  double lbound{}, ubound{};
   if (dtype.is_int() || dtype.is_uint()) {
-    double ubound = static_cast<double>(Downcast<IntImm>(tvm::max_value(dtype))->value);
-    double lbound = static_cast<double>(Downcast<IntImm>(tvm::min_value(dtype))->value);
-    return ubound == max_value && lbound == min_value;
-  } else if (dtype.is_float()) {
-    double ubound = Downcast<FloatImm>(tvm::max_value(dtype))->value;
-    double lbound = Downcast<FloatImm>(tvm::min_value(dtype))->value;
-    return ubound == max_value && lbound == min_value;
+    ubound = static_cast<double>(Downcast<IntImm>(tvm::max_value(dtype))->value);
+    lbound = static_cast<double>(Downcast<IntImm>(tvm::min_value(dtype))->value);
+  } else if (dtype.is_float() || dtype.is_bfloat16()) {
+    ubound = Downcast<FloatImm>(tvm::max_value(dtype))->value;
+    lbound = Downcast<FloatImm>(tvm::min_value(dtype))->value;
   }
-
-  return false;
+  return max_value >= ubound && min_value <= lbound;
 }
 
 /*!
@@ -224,8 +222,8 @@ class SimplifyClipAndConsecutiveCast : public DFPatternRewrite {
 };
 
 /*!
- * \brief SimplifyCastClip matches the pattern cast->clip and remove redundant Cast based on Clip
- *    min/max values and min/max values of Cast target data type.
+ * \brief SimplifyClip removes redundant Clip based on its a_min/a_max values and the min/max values
+ * of the data type.
  *
  * Example:
  *   %1 = cast(%0, dtype="uint8") [type=uint8]
@@ -234,30 +232,38 @@ class SimplifyClipAndConsecutiveCast : public DFPatternRewrite {
  * Optimized to (remove Clip):
  *   %1 = cast(%0, dtype="uint8") [type=uint8]
  */
-class SimplifyCastClip : public DFPatternRewrite {
+class SimplifyClip : public DFPatternRewrite {
  public:
-  SimplifyCastClip() {
-    cast_ = IsOp("cast")({IsWildcard()});
-    pattern_ = IsOp("clip")({cast_});
+  SimplifyClip() {
+    x_ = IsWildcard();
+    pattern_ = IsOp("clip")({x_});
   }
 
   Expr Callback(const Expr& pre, const Expr& post,
                 const Map<DFPattern, Array<Expr>>& node_map) const override {
-    auto cast = Downcast<Call>(node_map[cast_][0]);
-    DataType cast_dtype = Downcast<TensorType>(cast->checked_type())->dtype;
+    DataType cast_dtype = Downcast<TensorType>(pre->checked_type())->dtype;
 
-    auto clip = Downcast<Call>(post);
-    const CallNode* clip_node = clip.as<CallNode>();
+    const CallNode* clip_node = post.as<CallNode>();
     const ClipAttrs* clip_attrs = clip_node->attrs.as<ClipAttrs>();
 
+    // TODO(kfeng123): For now, the arg of "clip" is forced to not be "qnn.requantize" and
+    // "qnn.add". This is to avoid destroying the structure required by LegalizeQnnOpForDnnl
+    auto child{post.as<CallNode>()->args[0].as<CallNode>()};
+    if (child && child->op.as<OpNode>()) {
+      String op_name{child->op.as<OpNode>()->name};
+      if (op_name == "qnn.requantize" || op_name == "qnn.add") {
+        return post;
+      }
+    }
+
     if (CheckDataTypeMaxMinValue(cast_dtype, clip_attrs->a_min, clip_attrs->a_max)) {
-      return node_map[cast_][0];
+      return node_map[x_][0];
     }
     return post;
   }
 
  protected:
-  DFPattern clip_, cast_;
+  DFPattern x_;
 };
 
 /*!
@@ -992,7 +998,7 @@ class SimplifyBinomial : public DFPatternRewrite {
   DFPattern y_;
 };
 
-/*! \brief Simplifying x/sqrt to x*sqrt */
+/*! \brief Simplifying x/sqrt to x*rsqrt */
 class SimplifyRSqrt : public DFPatternRewrite {
  public:
   SimplifyRSqrt() {
@@ -1085,7 +1091,7 @@ Expr SimplifyExpr(const Expr& expr, const IRModule& mod) {
   composer.AddRewrite<SimplifyDQArgMin>();
   composer.AddRewrite<SimplifyDQArgSort>();
   composer.AddRewrite<SimplifyClipAndConsecutiveCast>();
-  composer.AddRewrite<SimplifyCastClip>();
+  composer.AddRewrite<SimplifyClip>();
   composer.AddRewrite<SimplifyBinomial>();
   return RewritePatterns(composer.MakeCallbacks(), expr, mod);
 }
@@ -1099,7 +1105,7 @@ Expr SimplifyExprPostAlterOp(const Expr& expr, const IRModule& mod) {
   composer.AddRewrite<SimplifySameCast>();
   composer.AddRewrite<SimplifyConsecutiveCast>();
   composer.AddRewrite<SimplifyClipAndConsecutiveCast>();
-  composer.AddRewrite<SimplifyCastClip>();
+  composer.AddRewrite<SimplifyClip>();
   return RewritePatterns(composer.MakeCallbacks(), expr, mod);
 }
 

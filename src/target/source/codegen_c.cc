@@ -87,6 +87,7 @@ void CodeGenC::AddFunction(const PrimFunc& f) {
   bool no_alias = f->HasNonzeroAttr(tir::attr::kNoAlias);
 
   this->PrintFuncPrefix(stream);
+  PrintType(f->ret_type, stream);
   this->PrintExtraAttrs(f);
   this->stream << " " << static_cast<std::string>(global_symbol.value()) << "(";
 
@@ -122,17 +123,14 @@ void CodeGenC::AddFunction(const PrimFunc& f) {
   this->PreFunctionBody(f);
   int func_scope = this->BeginScope();
   this->PrintStmt(f->body);
-  this->PrintFinalReturn();
   this->EndScope(func_scope);
   this->PrintIndent();
   this->stream << "}\n\n";
 }
 
-void CodeGenC::PrintFuncPrefix(std::ostream& os) { os << "void"; }
+void CodeGenC::PrintFuncPrefix(std::ostream& os) {}
 
 void CodeGenC::PrintExtraAttrs(const PrimFunc& f) {}
-
-void CodeGenC::PrintFinalReturn() {}
 
 std::string CodeGenC::Finish() { return decl_stream.str() + stream.str(); }
 
@@ -537,11 +535,19 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       PrintExpr(op->args[0], os);
       os << " ) return ";
       PrintExpr(op->args[1], os);
+    } else if (op->op.same_as(builtin::ret())) {
+      os << "return ";
+      PrintExpr(op->args[0], os);
     } else if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {
       ICHECK_GE(op->args.size(), 1U);
       auto func = Downcast<StringImm>(op->args[0]);
       this->PrintCallExtern(GetType(GetRef<PrimExpr>(op)), func->value, op->args, true, os);
-      this->GenerateForwardFunctionDeclarations(func->value, op->args);
+      Array<Type> arg_types;
+      for (size_t i = 1; i < op->args.size(); i++) {
+        arg_types.push_back(GetType(op->args[i]));
+      }
+      Type ret_type = GetTypeFromRuntimeDataType(op->dtype);
+      this->GenerateForwardFunctionDeclarations(func->value, arg_types, ret_type);
     } else if (op_attr_global_symbol_.count(call_op)) {
       // call extern if the op itself have a global symbol.
       this->PrintCallExtern(GetType(GetRef<PrimExpr>(op)), op_attr_global_symbol_[call_op],

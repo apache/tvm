@@ -262,7 +262,7 @@ def _convert_dense(
         input_shape = tuple(dim if dim else 1 for dim in _as_list(input_shape)[0])
         if input_dim != 3 or input_shape[0] != 1 or input_shape[1] != 1:
             raise tvm.error.OpAttributeInvalid(
-                f"Input shape {nput_shape} is not valid for operator Dense."
+                f"Input shape {input_shape} is not valid for operator Dense."
             )
         inexpr = _op.squeeze(inexpr, axis=[0])
     out = _op.nn.dense(data=inexpr, **params)
@@ -767,10 +767,8 @@ def _convert_upsample(
         params["scale_h"] = h
     elif upsample_type == "UpSampling2D":
         h, w = keras_layer.size
-        if h != w:
-            raise tvm.error.OpAttributeInvalid("Height must equal width for operator Upsample.")
         params["scale_h"] = h
-        params["scale_w"] = h
+        params["scale_w"] = w
 
         if hasattr(keras_layer, "interpolation"):
             interpolation = keras_layer.interpolation
@@ -818,10 +816,16 @@ def _convert_cropping(
             f"Operator {crop_type} is not supported for frontend Keras."
         )
     int32_max = np.iinfo(np.int32).max
+    if data_layout == "NHWC":
+        begin = [0, crop_t, crop_l, 0]
+        end = [int32_max, in_h - crop_b, in_w - crop_r, int32_max]
+    else:
+        begin = [0, 0, crop_t, crop_l]
+        end = [int32_max, int32_max, in_h - crop_b, in_w - crop_r]
     return _op.strided_slice(
         inexpr,
-        begin=[0, 0, crop_t, crop_l],
-        end=[int32_max, int32_max, in_h - crop_b, in_w - crop_r],
+        begin=begin,
+        end=end,
     )
 
 

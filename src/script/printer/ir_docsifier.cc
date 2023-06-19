@@ -95,6 +95,13 @@ void IRDocsifierNode::SetCommonPrefix(const ObjectRef& root,
       if (obj == nullptr) {
         return;
       }
+      if (visited_.count(obj)) {
+        if (is_var(GetRef<ObjectRef>(obj))) {
+          HandleVar(obj);
+        }
+        return;
+      }
+      visited_.insert(obj);
       stack_.push_back(obj);
       if (obj->IsInstance<ArrayNode>()) {
         const ArrayNode* array = static_cast<const ArrayNode*>(obj);
@@ -134,6 +141,7 @@ void IRDocsifierNode::SetCommonPrefix(const ObjectRef& root,
 
     ReflectionVTable* vtable_ = ReflectionVTable::Global();
     std::vector<const Object*> stack_;
+    std::unordered_set<const Object*> visited_;
 
    public:
     runtime::TypedPackedFunc<bool(ObjectRef)> is_var;

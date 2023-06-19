@@ -826,3 +826,9 @@ if(${SUMMARIZE})
 endif()
 
 dump_options_to_file("${TVM_ALL_OPTIONS}")
+
+if(USE_CUDA AND USE_CUTLASS)
+  install(TARGETS fpA_intB_gemm EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
+  target_link_libraries(tvm PRIVATE fpA_intB_gemm)
+  target_link_libraries(tvm_runtime PRIVATE fpA_intB_gemm)
+endif()
