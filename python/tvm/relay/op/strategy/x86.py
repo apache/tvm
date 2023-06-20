@@ -139,7 +139,7 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
             assert _OIHWio_matcher.match(kernel_layout)  # check if kernel is OIHWio
             return conv2d_NCHWc_strategy_cpu(attrs, inputs, out_type, target)
         elif layout == "NHWC":
-            assert kernel_layout == "HWIO"
+            assert kernel_layout == "HWOI"
             if (not need_auto_scheduler_layout) and (not need_meta_schedule_layout):
                 logger.warning("conv2d NHWC layout is not optimized for x86 with autotvm.")
             if "dnnl" in target.libs:
