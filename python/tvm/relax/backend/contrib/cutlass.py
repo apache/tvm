@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+# pylint: disable=invalid-name
 """Pattern table for CUTLASS backend"""
 import operator
 from functools import reduce
@@ -22,9 +22,19 @@ from typing import Mapping, Sequence
 
 import tvm
 from tvm.contrib.cutlass.build import is_shape_valid_for_cutlass_matmul
-from tvm.relax import Call, DataflowVar, Function, PyExprMutator, Var, expr_functor, transform
+from tvm.relax import (
+    Call,
+    DataflowVar,
+    Function,
+    PyExprMutator,
+    Var,
+    expr_functor,
+    transform,
+    ExternFunc,
+)
 from tvm.relax.dpl import rewrite_call
 from tvm.relax.transform import PatternCheckContext
+from tvm.relax.dpl.pattern import GlobalVarPattern, TuplePattern, is_op, wildcard
 
 from ..pattern_registry import get_patterns_with_prefix, register_patterns
 from ..patterns import (
@@ -209,6 +219,108 @@ def matmul_patterns():
     ]
 
 
+def _check_decode_matmul(ctx):
+    """Check if the given decode -> matmul workload can be offloaded to CUTLASS."""
+    if _has_leaking_intermediate_variables(ctx):
+        return False
+
+    root = ctx.annotated_expr["root"]
+
+    if not _check_residual(root, ctx):
+        return False
+
+    # out_dtype = "float32" not supported.
+    if root.struct_info.dtype == "float32":
+        return False
+
+    call_tir_decode = ctx.annotated_expr["w_decoded"]
+    if "decode" not in call_tir_decode.args[0].name_hint:
+        return False
+
+    N = root.struct_info.shape[-1]
+    K = call_tir_decode.struct_info.shape[0]
+
+    if ctx.annotated_expr["lhs"].struct_info.dtype != "float16":
+        return False
+
+    # weight needs to be packed to int8.
+    packed_weight = ctx.annotated_expr["w_encoded"]
+
+    if packed_weight.struct_info.dtype != "int8":
+        return False
+
+    # The kernel expects the weight to be preprocessed by this packed function.
+    if (
+        isinstance(packed_weight, Call)
+        and isinstance(packed_weight.args[0], ExternFunc)
+        and packed_weight.args[0].global_symbol != "cutlass.ft_preprocess_weight_int4"
+    ):
+        return False
+
+    # packed weight needs to be of shape (K, N // 2)
+    if packed_weight.struct_info.shape[0] != K or packed_weight.struct_info.shape[1] != N // 2:
+        return False
+
+    scales = ctx.annotated_expr["scales"]
+
+    if scales.struct_info.dtype != "float16":
+        return False
+
+    # scale shape needs to be (N,)
+    if len(scales.struct_info.shape) != 1 or scales.struct_info.shape[0] != N:
+        return False
+
+    # bias shape needs to be (N,), possibly with additional axes on the front.
+    if "bias" in ctx.annotated_expr:
+        bias_shape = ctx.annotated_expr["bias"].struct_info.shape
+        bias_shape_1d = reduce(operator.mul, bias_shape, 1)
+        if bias_shape_1d != bias_shape[-1]:
+            return False
+
+    return True
+
+
+def decode_matmul_patterns():
+    """Returns a list of supported decode -> matmul patterns."""
+
+    def _decode_matmul_pattern(name):
+        scales = wildcard()
+        x = wildcard()
+        w_packed = wildcard()
+
+        w = is_op("relax.call_tir")(
+            GlobalVarPattern(),
+            TuplePattern([w_packed, scales]),
+        )
+        matmul = is_op("relax.matmul")(x, w)
+
+        annotations = {
+            "root": matmul,
+            "lhs": x,
+            "w_encoded": w_packed,
+            "w_decoded": w,
+            "scales": scales,
+        }
+
+        if "bias" in name:
+            annotations["bias"] = bias = wildcard()
+            out = is_op("relax.add")(matmul, bias)
+        else:
+            out = matmul
+
+        # TODO(masahi): Support more activations
+        if "silu" in name:
+            out = is_op("relax.nn.silu")(out)
+
+        return name, out, annotations, _check_decode_matmul
+
+    return [
+        _decode_matmul_pattern("cutlass.decode_matmul"),
+        _decode_matmul_pattern("cutlass.decode_matmul_bias"),
+        _decode_matmul_pattern("cutlass.decode_matmul_silu"),
+    ]
+
+
 def conv2d_patterns():
     """
     Returns a list of all conv2d patterns in cutlass BYOC backend.
@@ -246,6 +358,7 @@ def residual_block_patterns():
         for check, base_patterns in [
             (_check_conv2d, conv2d_patterns()),
             (_check_matmul, matmul_patterns()),
+            (_check_decode_matmul, decode_matmul_patterns()),
         ]:
             for name, pat, arg_pat, _ in base_patterns:
                 # Append residual patterns only to those base patterns with bias add,
@@ -378,6 +491,7 @@ register_patterns(
     [
         *conv2d_patterns(),
         *matmul_patterns(),
+        *decode_matmul_patterns(),
         *residual_block_patterns(),
         *attention_patterns(),
         *layer_norm_pattern(),

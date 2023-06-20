@@ -405,3 +405,62 @@ def instantiate_gemm_template(attrs):
     template = substitute_template(template, aux_map)
 
     return substitute_template(template, attrs)
+
+
+def emit_fp16A_int4B_matmul(attrs):
+    """Return CUTLASS host code for fp16 A and int4 B GEMM."""
+
+    attrs["template_common"] = substitute_template(
+        """
+  using namespace fastertransformer;
+  int m = ${A_arg}->shape[${batch_offset}];
+  int n = ${B_arg}->shape[1] * 2;
+  int k = ${B_arg}->shape[0];
+    """,
+        attrs,
+    )
+
+    template = """
+  ${template_common}
+  gemm_fp16_int4(static_cast<cutlass::half_t*>(${A_arg}->data),
+                 static_cast<cutlass::uint4b_t*>(${B_arg}->data),
+                 static_cast<cutlass::half_t*>(${scales_arg}->data),
+                 static_cast<cutlass::half_t*>(out0->data),
+                 m, n, k, nullptr, 0, nullptr);
+"""
+
+    template_bias = """
+  ${template_common}
+  gemm_fp16_int4_bias(static_cast<cutlass::half_t*>(${A_arg}->data),
+                 static_cast<cutlass::uint4b_t*>(${B_arg}->data),
+                 static_cast<cutlass::half_t*>(${scales_arg}->data),
+                 static_cast<cutlass::half_t*>(${bias_arg}->data),
+                 static_cast<cutlass::half_t*>(out0->data),
+                 m, n, k, nullptr, 0, nullptr);
+"""
+
+    template_residual = """
+  ${template_common}
+  gemm_fp16_int4_bias_act_residual(static_cast<cutlass::half_t*>(${A_arg}->data),
+                 static_cast<cutlass::uint4b_t*>(${B_arg}->data),
+                 static_cast<cutlass::half_t*>(${scales_arg}->data),
+                 ${bias},
+                 static_cast<cutlass::half_t*>(${residual_arg}->data),
+                 static_cast<cutlass::half_t*>(out0->data), "${activation}", "${binary_op}", "${unary_op}",
+                 m, n, k, nullptr, 0, nullptr);
+"""
+
+    if "residual_arg" in attrs and "bias_arg" in attrs:
+        template_residual = substitute_template(
+            template_residual, {"bias": "static_cast<cutlass::half_t*>(${bias_arg}->data)"}
+        )
+        return substitute_template(template_residual, attrs)
+
+    if "residual_arg" in attrs:
+        template_residual = substitute_template(template_residual, {"bias": "nullptr"})
+        return substitute_template(template_residual, attrs)
+
+    if "bias_arg" in attrs:
+        return substitute_template(template_bias, attrs)
+
+    return substitute_template(template, attrs)
