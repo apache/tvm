@@ -56,7 +56,7 @@ class UMACodegen : public codegen::CodeGenCHost {
 runtime::Module TIRToRuntime(IRModule mod, Target target) {
   bool output_ssa = false;
   bool emit_asserts = false;
-  bool emit_fwd_func_decl = false;
+  bool emit_fwd_func_decl = true;
   UMACodegen codegen(target->kind->name);
   codegen.Init(output_ssa, emit_asserts, emit_fwd_func_decl);
 
@@ -70,7 +70,7 @@ runtime::Module TIRToRuntime(IRModule mod, Target target) {
     codegen.DeclareFunction(gvar, prim_func);
   }
   for (auto [gvar, prim_func] : functions) {
-    codegen.AddFunction(gvar, prim_func);
+    codegen.AddFunction(gvar, prim_func, emit_fwd_func_decl);
   }
 
   std::string code = codegen.Finish();

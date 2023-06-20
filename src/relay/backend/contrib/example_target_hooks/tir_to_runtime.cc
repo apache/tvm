@@ -63,7 +63,7 @@ runtime::Module TIRToRuntime(IRModule mod, Target target) {
     codegen.DeclareFunction(gvar, prim_func);
   }
   for (auto [gvar, prim_func] : functions) {
-    codegen.AddFunction(gvar, prim_func);
+    codegen.AddFunction(gvar, prim_func, emit_fwd_func_decl);
   }
 
   std::string code = codegen.Finish();

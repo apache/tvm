@@ -459,8 +459,12 @@ runtime::Module BuildCHost(IRModule mod, Target target) {
   for (const auto& [gvar, prim_func] : funcs) {
     cg.DeclareFunction(gvar, prim_func);
   }
+
+  // Codegen all functions.  Passing emit_fwd_func_decl=true adds a
+  // forward declaration for any `builtin::call_extern`, based on the
+  // arguments provided to it.
   for (const auto& [gvar, prim_func] : funcs) {
-    cg.AddFunction(gvar, prim_func);
+    cg.AddFunction(gvar, prim_func, emit_fwd_func_decl);
   }
 
   // NOTE: it's possible that kRuntime attr is not attached when the mod was built with tvm.build().
