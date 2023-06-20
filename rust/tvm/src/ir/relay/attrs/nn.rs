@@ -152,6 +152,7 @@ pub struct DenseAttrsNode {
 pub struct GlobalPool2DAttrsNode {
     pub base: BaseAttrsNode,
     pub layout: TString,
+    pub out_layout: TString,
 }
 
 #[repr(C)]
