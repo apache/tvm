@@ -129,8 +129,8 @@ class SoftmaxRewriter(DFPatternCallback):
             reversed_operands=False,
             ofm_dtype="int32",
             activation="LUT",
-            clip_min=quant_min - int(params.ifm.q_params.zero_point),
-            clip_max=quant_max - int(params.ifm.q_params.zero_point),
+            clip_min=-255,
+            clip_max=0,
         )
 
         # PASS 2 - SHR
@@ -245,7 +245,7 @@ class SoftmaxRewriter(DFPatternCallback):
             ifm2_zero_point=0,
             ofm_scale=0.0,
             ofm_zero_point=int(params.ifm.q_params.zero_point),
-            ifm_channels=depth,
+            ifm_channels=1,
             ifm2_channels=1,
             reversed_operands=False,
             ofm_dtype="int32",
@@ -335,7 +335,7 @@ class SoftmaxRewriter(DFPatternCallback):
             ifm2_zero_point=0,
             ofm_scale=2.0,
             ofm_zero_point=0,
-            ifm_channels=depth,
+            ifm_channels=1,
             ifm2_channels=1,
             reversed_operands=False,
             ofm_dtype="int32",
