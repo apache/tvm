@@ -590,12 +590,17 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       ICHECK_GE(op->args.size(), 1U);
       auto func = Downcast<StringImm>(op->args[0]);
       this->PrintCallExtern(GetType(GetRef<PrimExpr>(op)), func->value, op->args, true, os);
-      Array<Type> arg_types;
-      for (size_t i = 1; i < op->args.size(); i++) {
-        arg_types.push_back(GetType(op->args[i]));
+
+      // If the call_extern refers to an function within the IRModule, then
+      // the forward declaration is already provided from DeclareFunction.
+      if (!func_name_supply_->ContainsName(func->value)) {
+        Array<Type> arg_types;
+        for (size_t i = 1; i < op->args.size(); i++) {
+          arg_types.push_back(GetType(op->args[i]));
+        }
+        Type ret_type = GetTypeFromRuntimeDataType(op->dtype);
+        this->GenerateForwardFunctionDeclarations(func->value, arg_types, ret_type);
       }
-      Type ret_type = GetTypeFromRuntimeDataType(op->dtype);
-      this->GenerateForwardFunctionDeclarations(func->value, arg_types, ret_type);
     } else if (op_attr_global_symbol_.count(call_op)) {
       // call extern if the op itself have a global symbol.
       this->PrintCallExtern(GetType(GetRef<PrimExpr>(op)), op_attr_global_symbol_[call_op],
