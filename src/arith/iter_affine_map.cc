@@ -723,8 +723,10 @@ class IterMapRewriter : public ExprMutator {
     // We are normalizing a regular iter
     if (expr->args.size() < 1) return expr;
     if (auto opt = TryCombineSplitFromSameSource(expr)) {
-      expr = opt.value();
-      if (expr->args.size() < 1) return expr;
+      auto combined = opt.value();
+      if (combined->args.size() < 1) {
+        return combined;
+      }
     }
     Optional<IterSumExpr> opt = TryFuseIters(expr, check_level_);
     if (opt.defined()) {
