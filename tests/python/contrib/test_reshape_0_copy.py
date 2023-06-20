@@ -26,8 +26,12 @@ def test_reshape_0_copy():
         lib = relay.build(mod, target="llvm")
     m = graph_executor.GraphModule(lib["default"](tvm.cpu(0)))
 
-    data_ndarray0 = tvm.nd.array(np.random.random(shape0).astype(np.float32), device=tvm.device("llvm", 0))
-    data_ndarray1 = tvm.nd.array(np.random.random(shape1).astype(np.float32), device=tvm.device("llvm", 0))
+    data_ndarray0 = tvm.nd.array(
+        np.random.random(shape0).astype(np.float32), device=tvm.device("llvm", 0)
+    )
+    data_ndarray1 = tvm.nd.array(
+        np.random.random(shape1).astype(np.float32), device=tvm.device("llvm", 0)
+    )
 
     def expected():
         m.set_input(in_name0, data_ndarray0)
@@ -51,4 +55,3 @@ def test_reshape_0_copy():
 
 if __name__ == "__main__":
     test_reshape_0_copy()
-
