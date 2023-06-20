@@ -311,5 +311,4 @@ def test_f32f32f32_m16n16k4():
 
 
 if __name__ == "__main__":
-    # tvm.testing.main()
-    test_f16f16f32_m16n16k16()
+    tvm.testing.main()
