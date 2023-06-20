@@ -72,7 +72,8 @@ class DataflowReshapeRewriter : public ExprMutator {
   }
 
   Expr VisitExpr_(const CallNode* call) final {
-    if (call->args.size() < 2) {
+    static const Op& call_tir_op = Op::Get("relax.call_tir");
+    if (call->op != call_tir_op || call->args.size() < 2) {
       return GetRef<Call>(call);
     }
 
@@ -103,10 +104,6 @@ class DataflowReshapeRewriter : public ExprMutator {
   }
 
   bool IsCallingTIRReshape(const CallNode* call, Expr inp) {
-    static const Op& call_tir_op = Op::Get("relax.call_tir");
-    if (call->op != call_tir_op) {
-      return false;
-    }
     const GlobalVar& global_var = Downcast<GlobalVar>(call->args[0]);
     const auto* func = mod_->functions.Get(global_var).as<tir::PrimFuncNode>();
     ICHECK_NOTNULL(func);
