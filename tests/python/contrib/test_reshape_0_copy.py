@@ -1,11 +1,13 @@
-import torch
 import numpy as np
 
 import tvm
 from tvm import relay
 from tvm.contrib import graph_executor
 from tvm.relay.frontend.common import infer_shape
+import tvm.testing
 
+
+@tvm.testing.requires_llvm
 def test_reshape_0_copy():
     shape0 = (56, 224)
     shape1 = (112, 112)
@@ -18,36 +20,35 @@ def test_reshape_0_copy():
     mat = relay.nn.matmul(x0, x1)
     _y = relay.reshape(mat, (-1))
     func = relay.Function(relay.analysis.free_vars(_y), _y)
+    mod = tvm.IRModule.from_expr(func)
 
     with tvm.transform.PassContext(opt_level=3):
-        lib = relay.build(func, target="llvm")
-    m = graph_executor.GraphModule(lib['default'](tvm.cpu(0)))
+        lib = relay.build(mod, target="llvm")
+    m = graph_executor.GraphModule(lib["default"](tvm.cpu(0)))
 
-    data0 = torch.rand(shape0, dtype=torch.float32, device=torch.device("cpu:0"))
-    data1 = torch.rand(shape1, dtype=torch.float32, device=torch.device("cpu:0"))
-
-    data_ndarray0 = tvm.nd.from_dlpack(torch.to_dlpack(data0))
-    data_ndarray1 = tvm.nd.from_dlpack(torch.to_dlpack(data1))
+    data_ndarray0 = tvm.nd.array(np.random.random(shape0).astype(np.float32), device=tvm.device("llvm", 0))
+    data_ndarray1 = tvm.nd.array(np.random.random(shape1).astype(np.float32), device=tvm.device("llvm", 0))
 
     def expected():
         m.set_input(in_name0, data_ndarray0)
         m.set_input(in_name1, data_ndarray1)
         m.run()
-        return torch.from_dlpack(m.get_output(0)).cpu().detach().numpy()
+        return m.get_output(0).numpy()
 
     def zero_copy():
         outshape = infer_shape(_y)
-        output = torch.empty(outshape, device=torch.device("cpu:0"))
-        output_view = tvm.nd.from_dlpack(torch.to_dlpack(output))
+        output_view = tvm.nd.empty(outshape, device=tvm.device("llvm", 0))
         m.set_input_zero_copy(in_name0, data_ndarray0)
         m.set_input_zero_copy(in_name1, data_ndarray1)
         m.set_output_zero_copy(0, output_view)
         m.run()
-        return output.cpu().detach().numpy()
+        return output_view.numpy()
 
     golden_out = expected()
     out = zero_copy()
     np.testing.assert_equal(golden_out, out)
 
+
 if __name__ == "__main__":
     test_reshape_0_copy()
+
