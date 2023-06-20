@@ -72,6 +72,16 @@ class TargetNode : public Object {
   TVM_DLL int GetTargetDeviceType() const;
 
   /*!
+   * \brief Check if the target contains a key
+   *
+   * \param query_key The string name of the key to be checked
+   *
+   * \return True if the target's `TargetNode::keys` contains the
+   * specified key, False otherwise.
+   */
+  TVM_DLL bool HasKey(const std::string& query_key) const;
+
+  /*!
    * \brief Returns a human readable representation of \p Target which includes all fields,
    * especially the host. Useful for diagnostic messages and debugging.
    *
@@ -217,6 +227,9 @@ class Target : public ObjectRef {
    * \return The new Target object with the given target and host field of given host.
    */
   static Target WithHost(const Target& target, const Target& host);
+
+  /*! \return The target with the host stripped out */
+  Target WithoutHost() const;
 
   /*!
    * \brief Returns true if \p this target represents an external codegen. If so,

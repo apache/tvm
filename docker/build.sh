@@ -22,6 +22,7 @@
 #
 # Usage: build.sh <CONTAINER_TYPE> [--tag <DOCKER_IMAGE_TAG>]
 #                [--dockerfile <DOCKERFILE_PATH>] [-it]
+#                [--env <ENVIRONMENT_VARIABLE>]
 #                [--net=host] [--cache-from <IMAGE_NAME>] [--cache]
 #                [--name CONTAINER_NAME] [--context-path <CONTEXT_PATH>]
 #                [--spec DOCKER_IMAGE_SPEC]
@@ -43,6 +44,8 @@
 #
 # DOCKER_IMAGE_SPEC: Override the default logic to determine the image name and
 #                    tag
+#
+# ENVIRONMENT_VARIABLE: Pass any environment variables through to the container.
 #
 # IMAGE_NAME: An image to be as a source for cached layers when building the
 #             Docker image requested.
@@ -73,6 +76,12 @@ fi
 if [[ "$1" == "--dockerfile" ]]; then
     DOCKERFILE_PATH="$2"
     echo "Using custom Dockerfile path: ${DOCKERFILE_PATH}"
+    shift 2
+fi
+
+if [[ "$1" == "--env" ]]; then
+    ENVIRONMENT_VARIABLE="$2"
+    echo "Setting environment variable: $ENVIRONMENT_VARIABLE"
     shift 2
 fi
 

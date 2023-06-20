@@ -21,7 +21,7 @@ from functools import partial
 from typing import Any
 
 import tvm
-from tvm.ir import PrimType
+from tvm.ir import GlobalVar, PrimType
 from tvm.tir import Buffer, IterVar, PrimExpr, Var
 
 from ...ir_builder import ir as I
@@ -211,6 +211,28 @@ def visit_assign(self: Parser, node: doc.Assign) -> None:
     if len(node.targets) != 1:
         self.report_error(node, "Consequential assignments like 'a = b = c' are not supported.")
     lhs = node.targets[0]
+
+    if isinstance(node.value, doc.Subscript):
+        check_slices = []
+        if isinstance(node.value.slice, doc.Slice):
+            check_slices = [node.value.slice]
+        elif isinstance(node.value.slice, doc.Tuple):
+            for p in node.value.slice.elts:
+                if isinstance(p, doc.Slice):
+                    check_slices.append(p)
+        for s in check_slices:
+            if not s.step and s.upper and s.lower:
+                s.step = doc.Constant(
+                    1,
+                    None,
+                    1,
+                    1,
+                    s.upper.lineno,
+                    s.upper.end_col_offset + 1,
+                    s.upper.lineno,
+                    s.upper.end_col_offset + 2,
+                )
+
     rhs = self.eval_expr(node.value)
     if isinstance(lhs, doc.Subscript):
         if isinstance(lhs.slice, doc.Tuple):
@@ -406,13 +428,25 @@ def visit_expr_stmt(self: Parser, node: doc.Expr) -> None:
         The doc AST Expr node.
     """
     res = self.eval_expr(node.value)
-    if isinstance(res, Frame):
+    if res is None:
+        pass
+    elif isinstance(res, Frame):
         res.add_callback(partial(res.__exit__, None, None, None))
         res.__enter__()
     elif isinstance(res, PrimExpr):
         T.evaluate(res)
     elif isinstance(res, (int, bool)):
         T.evaluate(tvm.tir.const(res))
+    elif isinstance(res, tvm.relay.Call) and not res.args:
+        # Using GlobalVar.__call__ with no arguments is ambiguous, as
+        # each IR has a different function Call representation.  If
+        # this occurs, convert to the TIR representation.
+        T.evaluate(tvm.tir.call_tir(res.op))
+    elif isinstance(res, str):
+        # Ignore docstrings
+        pass
+    else:
+        self.report_error(node, f"Parsing resulted in unexpected type {type(res)}")
 
 
 @dispatch.register(token="tir", type_name="If")
@@ -473,7 +507,7 @@ def visit_return(self: Parser, node: doc.Return) -> None:
 
 
 @dispatch.register(token="tir", type_name="tvm_declare_function")
-def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> None:
+def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> GlobalVar:
     """The function declaration step for tir
 
     Parameters
@@ -493,5 +527,4 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> None:
 
     # Only ret_type is needed for func_signature.
     func_signature = tvm.tir.PrimFunc([], None, ret_type=ret_type)
-    global_var = I.decl_function(node.name, func_signature)
-    self.var_table.add(node.name, global_var)
+    return I.decl_function(node.name, func_signature)

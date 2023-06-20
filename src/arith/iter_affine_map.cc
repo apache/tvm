@@ -722,6 +722,10 @@ class IterMapRewriter : public ExprMutator {
   IterSumExpr NormalizeToIterWithOffset(IterSumExpr expr) {
     // We are normalizing a regular iter
     if (expr->args.size() < 1) return expr;
+    if (auto opt = TryCombineSplitFromSameSource(expr)) {
+      expr = opt.value();
+      if (expr->args.size() < 1) return expr;
+    }
     Optional<IterSumExpr> opt = TryFuseIters(expr, check_level_);
     if (opt.defined()) {
       return opt.value();
@@ -995,9 +999,6 @@ class IterMapRewriter : public ExprMutator {
    * \return The sum with the fused IterMark and extra offset if succeed.
    */
   Optional<IterSumExpr> TryFuseIters(IterSumExpr expr, IterMapLevel check_level) {
-    if (auto opt = TryCombineSplitFromSameSource(expr)) {
-      expr = opt.value();
-    }
     // select the iterators in order
     std::vector<bool> visited(expr->args.size(), false);
     int base_index = FindBaseIter(expr, visited, NullOpt);
@@ -1553,6 +1554,10 @@ IterSumExpr IterMapRewriter::PreprocessDividend(IterMapExpr dividend, PrimExpr o
       return IterSumExpr();
     } else if (sum->args.size() == 1) {
       return sum;
+    } else if (auto opt = TryCombineSplitFromSameSource(sum)) {
+      if (opt.value()->args.size() == 1) {
+        return opt.value();
+      }
     }
     auto opt_fused = TryFuseIters(sum, check_level_);
     if (!opt_fused) {

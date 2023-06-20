@@ -255,7 +255,9 @@ def test_buffer_info_extraction():
         # With Target Hooks the TIR module needs a target attached
         # and lowered via make unpacked API.
         tir_mod = test_case["tir_module"]
-        tir_mod["main"] = tir_mod["main"].with_attr("target", tvm.target.Target("ethos-u"))
+        tir_mod["main"] = tir_mod["main"].with_attr(
+            "target", tvm.target.Target("ethos-u", host="ethos-u")
+        )
         tir_mod = tvm.tir.transform.MakeUnpackedAPI()(tir_mod)
         buffer_info = tir_to_cs_translator.extract_buffer_info(tir_mod, test_case["param_dict"])
         for buffer_var, info in buffer_info.items():
@@ -959,7 +961,9 @@ def test_assign_addresses():
 
     for test_case in test_cases:
         tir_mod = test_case["tir_module"]
-        tir_mod["main"] = tir_mod["main"].with_attr("target", tvm.target.Target("ethos-u"))
+        tir_mod["main"] = tir_mod["main"].with_attr(
+            "target", tvm.target.Target("ethos-u", host="ethos-u")
+        )
         tir_mod = tvm.tir.transform.MakeUnpackedAPI()(tir_mod)
         candidate_regions_for_scratch = [5, 2, 1]
         (

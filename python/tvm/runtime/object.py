@@ -38,10 +38,7 @@ except (RuntimeError, ImportError) as error:
     if _FFI_MODE == "cython":
         raise error
     from tvm._ffi._ctypes.object import ObjectBase, PyNativeObject
-    from tvm._ffi._ctypes.packed_func import (
-        _set_class_object,
-        _set_class_object_generic,
-    )
+    from tvm._ffi._ctypes.packed_func import _set_class_object, _set_class_object_generic
 
 
 def _new_object(cls):
@@ -75,7 +72,7 @@ class Object(ObjectBase):
         try:
             return _ffi_node_api.NodeGetAttr(self, name)
         except AttributeError:
-            raise AttributeError("%s has no attribute %s" % (str(type(self)), name)) from None
+            raise AttributeError(f"{type(self)} has no attribute {name}") from None
 
     def __hash__(self):
         return _ffi_api.ObjectPtrHash(self)

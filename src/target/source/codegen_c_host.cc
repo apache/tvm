@@ -87,6 +87,7 @@ void CodeGenCHost::AddFunction(const PrimFunc& f, bool emit_fwd_func_decl) {
     function_names_.push_back(runtime::symbol::tvm_module_main);
     stream << "// CodegenC: NOTE: Auto-generated entry function\n";
     PrintFuncPrefix(stream);
+    PrintType(f->ret_type, stream);
     stream << " " << tvm::runtime::symbol::tvm_module_main
            << "(void* args, int* arg_type_ids, int num_args, void* out_ret_value, "
            << "int* out_ret_tcode, void* resource_handle) {\n";
@@ -97,7 +98,9 @@ void CodeGenCHost::AddFunction(const PrimFunc& f, bool emit_fwd_func_decl) {
 }
 
 void CodeGenCHost::GenerateForwardFunctionDeclarations(String global_symbol,
-                                                       const Array<PrimExpr>& args) {
+
+                                                       const Array<Type>& arg_types,
+                                                       const Type& ret_type) {
   if (!emit_fwd_func_decl_) {
     return;
   }
@@ -107,13 +110,13 @@ void CodeGenCHost::GenerateForwardFunctionDeclarations(String global_symbol,
     }
   }
   this->PrintFuncPrefix(fwd_decl_stream);
+  this->PrintType(ret_type, fwd_decl_stream);
   fwd_decl_stream << " " << global_symbol << "(";
-  for (size_t i = 1; i < args.size(); ++i) {
-    CodeGenSourceBase::PrintType(GetType(args[i]), fwd_decl_stream);
-    fwd_decl_stream << " ", this->PrintExpr(args[i], fwd_decl_stream);
-    if (i < args.size() - 1) {
+  for (size_t i = 0; i < arg_types.size(); ++i) {
+    if (i > 0) {
       fwd_decl_stream << ", ";
     }
+    CodeGenSourceBase::PrintType(arg_types[i], fwd_decl_stream);
   }
   fwd_decl_stream << ");\n";
 }
@@ -122,12 +125,7 @@ void CodeGenCHost::PrintFuncPrefix(std::ostream& os) {  // NOLINT(*)
   os << "#ifdef __cplusplus\n"
      << "extern \"C\"\n"
      << "#endif\n"
-     << "TVM_DLL int32_t";
-}
-
-void CodeGenCHost::PrintFinalReturn() {  // NOLINT(*)
-  this->PrintIndent();
-  stream << "return 0;\n";
+     << "TVM_DLL ";
 }
 
 std::string CodeGenCHost::Finish() {  // NOLINT(*)

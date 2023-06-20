@@ -140,7 +140,7 @@ def random_key(prefix, delimiter=":", cmap=None):
         The generated random key
     """
     while True:
-        key = "{}{}{}".format(prefix, delimiter, random.random())
+        key = f"{prefix}{delimiter}{random.random()}"
         if not cmap or key not in cmap:
             break
     return key
@@ -192,8 +192,8 @@ def connect_with_retry(addr, timeout=60, retry_period=5):
                 raise sock_err
             period = time.time() - tstart
             if period > timeout:
-                raise RuntimeError("Failed to connect to server %s" % str(addr))
+                raise RuntimeError(f"Failed to connect to server {str(addr)}")
             logger.warning(
-                "Cannot connect to tracker %s, retry in %g secs...", str(addr), retry_period
+                f"Cannot connect to tracker {str(addr)}, retry in {retry_period:g} secs..."
             )
             time.sleep(retry_period)

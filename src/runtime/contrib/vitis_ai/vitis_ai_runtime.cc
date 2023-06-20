@@ -147,8 +147,7 @@ void VitisAIRuntime::SaveToBinary(dmlc::Stream* stream) {
   }
 }
 
-PackedFunc VitisAIRuntime::GetFunction(const std::string& name,
-                                       const ObjectPtr<Object>& sptr_to_self) {
+PackedFunc VitisAIRuntime::GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) {
   if (name == "get_symbol") {
     return PackedFunc(
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->symbol_name_; });

@@ -253,5 +253,28 @@ def test_buffer_broadcast_expr():
     check_auto_bind()
 
 
+def test_buffer_flatten():
+    """A buffer should flatten to a 1-d shape"""
+    buf = tvm.tir.decl_buffer([16, 32])
+    flat = buf.get_flattened_buffer()
+    assert buf.data.same_as(flat.data)
+    tvm.ir.assert_structural_equal(flat.shape, [16 * 32])
+
+
+def test_buffer_flatten_preserves_identity():
+    """Flattening a 1-d buffer should return the original"""
+    buf = tvm.tir.decl_buffer([16])
+    flat = buf.get_flattened_buffer()
+    assert buf.same_as(flat)
+
+
+def test_buffer_flatten_uses_axis_separators():
+    """Flattening to N-d physical buffers uses the axis separators"""
+    buf = tvm.tir.decl_buffer([4, 16, 32], axis_separators=[2])
+    flat = buf.get_flattened_buffer()
+    tvm.ir.assert_structural_equal(flat.axis_separators, [1])
+    tvm.ir.assert_structural_equal(flat.shape, [4 * 16, 32])
+
+
 if __name__ == "__main__":
     tvm.testing.main()

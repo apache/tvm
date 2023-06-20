@@ -33,6 +33,7 @@
 #include <utility>
 #include <vector>
 
+#include "../../tir/transforms/ir_utils.h"
 #include "literal/cuda_half_t.h"
 #include "ptx.h"
 
@@ -48,7 +49,7 @@ void CodeGenCUDA::Init(bool output_ssa) {
   ICHECK_EQ(vid_global_barrier_state_, runtime::symbol::tvm_global_barrier_state);
 }
 
-void CodeGenCUDA::PrintFuncPrefix(std::ostream& os) { os << "extern \"C\" __global__ void"; }
+void CodeGenCUDA::PrintFuncPrefix(std::ostream& os) { os << "extern \"C\" __global__ "; }
 
 class ThreadIdxExtractor : public tir::StmtVisitor {
  private:
@@ -114,6 +115,12 @@ std::string CodeGenCUDA::Finish() {
                 << "{\n  return __hlt(a, b) ? a : b;\n}\n";
     decl_stream << "#endif\n\n";
     decl_stream << _cuda_bfloat16_util;
+  }
+
+  if (enable_fp8_) {
+    decl_stream << "#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 890)\n";
+    decl_stream << "#include <cuda_fp8.h>\n";
+    decl_stream << "#endif\n\n";
   }
 
   if (enable_warp_shuffle_) {
@@ -245,6 +252,17 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
     } else if (lanes <= 8) {
       ICHECK_EQ(lanes % 2, 0) << "only support even lane for half type";
       os << "uint" << lanes / 2;
+    } else {
+      fail = true;
+    }
+    if (!fail) return;
+  } else if (t.is_float8()) {
+    if (t.is_scalar()) {
+      os << "unsigned char";  // __nv_fp8_storage_t is an alias of unsigned char
+    } else if (lanes == 2) {
+      os << "unsigned short int";  // __nv_fp8x2_storage_t is an alias of unsigned short
+    } else if (lanes == 4) {
+      os << "unsigned int";  // __nv_fp8x4_storage_t is an alias of unsigned int
     } else {
       fail = true;
     }
@@ -1333,23 +1351,11 @@ int32_t CodeGenCUDA::GetWmmaFragmentSize(const std::string& scope, const VarNode
   ICHECK(fragment_shapes.count(variable))
       << "Cannot find shape of the wmma fragment " << variable->name_hint;
   std::string shape_str = fragment_shapes.at(variable);
-  size_t m, n, k;
-  size_t last_pos = 0, pos = 0;
-  pos = shape_str.find(", ", last_pos);
-  m = tvm::codegen::stoi(shape_str.substr(last_pos, pos - last_pos));
-  last_pos = pos + 2;
-  pos = shape_str.find(", ", last_pos);
-  n = tvm::codegen::stoi(shape_str.substr(last_pos, pos - last_pos));
-  last_pos = pos + 2;
-  k = tvm::codegen::stoi(shape_str.substr(last_pos, shape_str.length() - last_pos));
-  if (scope == "wmma.matrix_a") {
-    return size / m / k;
-  } else if (scope == "wmma.matrix_b") {
-    return size / n / k;
-  } else if (scope == "wmma.accumulator") {
-    return size / m / n;
-  }
-  return 0;
+  std::pair<int32_t, int32_t> dim = GetWmmaFragmentDimSize(shape_str, scope);
+  if (dim.first * dim.second != 0)
+    return size / dim.first / dim.second;
+  else
+    return 0;
 }
 
 void CodeGenCUDA::HandleVolatileLoads(const std::string& value, const BufferLoadNode* op,

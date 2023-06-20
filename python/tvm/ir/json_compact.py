@@ -153,7 +153,7 @@ def create_updater_06_to_07():
             val = jdata["nodes"][root_idx]
             sidx = len(nodes)
             nodes.append(val)
-            item["attrs"][key] = "%d" % sidx
+            item["attrs"][key] = f"{sidx}"
             return item
 
         return _convert
@@ -260,5 +260,5 @@ def upgrade_json(json_str):
     elif from_version.startswith("0.8"):
         data = create_updater_08_to_09()(data)
     else:
-        raise ValueError("Cannot update from version %s" % from_version)
+        raise ValueError(f"Cannot update from version {from_version}")
     return json.dumps(data, indent=2)

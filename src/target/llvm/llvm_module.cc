@@ -90,7 +90,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
 
   const char* type_key() const final { return "llvm"; }
 
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final;
 
   /*! \brief Get the property of the runtime module .*/
   // TODO(tvm-team): Make it serializable
@@ -98,9 +98,9 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     return runtime::ModulePropertyMask::kRunnable | runtime::ModulePropertyMask::kDSOExportable;
   }
 
-  void SaveToFile(const std::string& file_name, const std::string& format) final;
+  void SaveToFile(const String& file_name, const String& format) final;
   void SaveToBinary(dmlc::Stream* stream) final;
-  std::string GetSource(const std::string& format) final;
+  String GetSource(const String& format) final;
 
   void Init(const IRModule& mod, const Target& target);
   void Init(std::unique_ptr<llvm::Module> module, std::unique_ptr<LLVMInstance> llvm_instance);
@@ -125,7 +125,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
   // The unique_ptr owning the module. This becomes empty once JIT has been initialized
   // (EngineBuilder takes ownership of the module).
   std::unique_ptr<llvm::Module> module_owning_ptr_;
-  /* \brief names of the functions declared in this module */
+  /* \brief names of the external functions declared in this module */
   Array<String> function_names_;
 };
 
@@ -137,8 +137,7 @@ LLVMModuleNode::~LLVMModuleNode() {
   module_owning_ptr_.reset();
 }
 
-PackedFunc LLVMModuleNode::GetFunction(const std::string& name,
-                                       const ObjectPtr<Object>& sptr_to_self) {
+PackedFunc LLVMModuleNode::GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) {
   if (name == "__tvm_is_system_module") {
     bool flag = (module_->getFunction("__tvm_module_startup") != nullptr);
     return PackedFunc([flag](TVMArgs args, TVMRetValue* rv) { *rv = flag; });
@@ -181,7 +180,8 @@ PackedFunc LLVMModuleNode::GetFunction(const std::string& name,
   return WrapPackedFunc(faddr, sptr_to_self);
 }
 
-void LLVMModuleNode::SaveToFile(const std::string& file_name, const std::string& format) {
+void LLVMModuleNode::SaveToFile(const String& file_name_str, const String& format) {
+  std::string file_name = file_name_str;
   std::string fmt = runtime::GetFileFormat(file_name, format);
   std::error_code ecode;
 #if TVM_LLVM_VERSION <= 70
@@ -250,7 +250,7 @@ void LLVMModuleNode::SaveToBinary(dmlc::Stream* stream) {
   LOG(FATAL) << "LLVMModule: SaveToBinary not supported";
 }
 
-std::string LLVMModuleNode::GetSource(const std::string& format) {
+String LLVMModuleNode::GetSource(const String& format) {
   std::string fmt = runtime::GetFileFormat("", format);
   std::string type_str;
   llvm::SmallString<256> str;
@@ -295,7 +295,6 @@ void LLVMModuleNode::Init(const IRModule& mod, const Target& target) {
   llvm::TargetMachine* tm = llvm_target->GetOrCreateTargetMachine();
   std::unique_ptr<CodeGenLLVM> cg = CodeGenLLVM::Create(llvm_target.get());
 
-  std::vector<PrimFunc> funcs;
   std::string entry_func;
   relay::Runtime runtime =
       mod->GetAttr<relay::Runtime>(tvm::attr::kRuntime).value_or(relay::Runtime::Create("cpp"));
@@ -315,12 +314,16 @@ void LLVMModuleNode::Init(const IRModule& mod, const Target& target) {
     }
     auto f = Downcast<PrimFunc>(kv.second);
     auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
-    ICHECK(global_symbol.defined());
-    function_names_.push_back(global_symbol.value());
-    if (f->HasNonzeroAttr(tir::attr::kIsEntryFunc)) {
-      entry_func = global_symbol.value();
+    bool is_entry_func = f->HasNonzeroAttr(tir::attr::kIsEntryFunc);
+
+    ICHECK(global_symbol || !is_entry_func) << "The entry func must be exposed externally.";
+
+    if (global_symbol) {
+      function_names_.push_back(global_symbol.value());
+      if (is_entry_func) {
+        entry_func = global_symbol.value();
+      }
     }
-    funcs.push_back(f);
   }
   // TODO(@jroesch): follow up on this condition.
   // ICHECK(funcs.size() > 0);
@@ -330,7 +333,7 @@ void LLVMModuleNode::Init(const IRModule& mod, const Target& target) {
            target_c_runtime);
   cg->SetFastMathFlags(llvm_target->GetFastMathFlags());
 
-  cg->AddFunctionsOrdered(funcs.begin(), funcs.end());
+  cg->AddFunctionsOrdered(mod->functions.begin(), mod->functions.end());
   if (entry_func.length() != 0) {
     cg->AddMainFunction(entry_func);
   }

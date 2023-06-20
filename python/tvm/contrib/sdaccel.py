@@ -15,15 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 """Utility for Interacting with SDAccel Tools"""
-import subprocess
 import os
+import subprocess
 
 import tvm._ffi
+
 from . import utils
 
 
 @tvm._ffi.register_func("tvm_callback_sdaccel_compile")
-def compile_vhls(kernel_info, device_name):
+def compile_vhls(kernel_info, target):
     """Compile Vivado HLS code for SDAccel.
 
     Parameters
@@ -32,14 +33,15 @@ def compile_vhls(kernel_info, device_name):
         List of kernel information.  The kernel information is a tuple of
         function name and source code.
 
-    device_name : str
-        The name of the target device
+    target : tvm.target.Target
+        The compilation target
 
     Return
     ------
     xclbin : bytearray
         The bytearray of the xclbin
     """
+    device_name = target.attrs.get("device", "")
     tmp_dir = utils.tempdir()
 
     sdk = os.environ.get("XILINX_SDX", None)

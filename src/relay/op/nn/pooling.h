@@ -18,8 +18,8 @@
  */
 
 /*!
- * \file src/relay/op/nn/convolution.h
- * \brief Properties def of convlution operator for sharing.
+ * \file src/relay/op/nn/pooling.h
+ * \brief utilities for creating pool ops
  */
 #ifndef TVM_RELAY_OP_NN_POOLING_H_
 #define TVM_RELAY_OP_NN_POOLING_H_

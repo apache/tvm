@@ -45,7 +45,7 @@ def main():
         clml_mod = clml.partition_for_clml(mod, params)
         libm = relay.build(
             clml_mod,
-            target="opencl -device=adreno",
+            target="opencl",
             target_host="llvm -mtriple=aarch64-linux-gnu",
             params=params,
         )

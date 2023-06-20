@@ -24,8 +24,8 @@
 #define TVM_TIR_SCHEDULE_STATE_H_
 
 #include <tvm/ir/module.h>
+#include <tvm/tir/block_scope.h>
 #include <tvm/tir/function.h>
-#include <tvm/tir/schedule/block_scope.h>
 
 #include <unordered_map>
 #include <utility>
@@ -51,13 +51,25 @@ struct BlockInfo {
    * produced by its producers
    */
   bool region_cover{false};
+  /*!
+   * \brief This property indicates that the block scope (rooted at its corresponding block) is
+   * equivalent to of a stage pipeline. Under the following conditions:
+   *
+   * 1) The region cover property holds for every of its child blocks
+   * 2) No write-after-read dependency or opaque dependency, only read-after-write and
+   * write-after-write are allowed
+   * 3) All the statements in the scope are schedulable statements, i.e. Block and For
+   */
+  bool stage_pipeline{false};
 
   BlockInfo() = default;
 
-  explicit BlockInfo(BlockScope scope, bool affine_binding = false, bool region_cover = false)
+  explicit BlockInfo(BlockScope scope, bool affine_binding = false, bool region_cover = false,
+                     bool stage_pipeline = false)
       : scope(std::move(scope)),         //
         affine_binding(affine_binding),  //
-        region_cover(region_cover) {}
+        region_cover(region_cover),
+        stage_pipeline(stage_pipeline) {}
 };
 
 /*!
@@ -185,7 +197,7 @@ class ScheduleStateNode : public Object {
    * \return The corresponding BlockScope
    */
   bool IsStagePipeline(const StmtSRef& scope_root) const {
-    return GetBlockScope(scope_root)->stage_pipeline;
+    return GetBlockInfo(scope_root).stage_pipeline;
   }
 };
 

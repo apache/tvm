@@ -43,7 +43,7 @@ def tar(output, files):
     for fname in files:
         base = os.path.basename(fname)
         if base in fset:
-            raise ValueError("duplicate file name %s" % base)
+            raise ValueError(f"duplicate file name {base}")
         fset.add(base)
         shutil.copy(fname, temp.relpath(base))
     cmd += [output]

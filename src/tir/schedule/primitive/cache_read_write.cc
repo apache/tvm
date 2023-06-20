@@ -20,6 +20,7 @@
 #include <unordered_set>
 
 #include "../../analysis/var_use_def_analysis.h"
+#include "../../transforms/ir_utils.h"
 #include "../utils.h"
 
 namespace tvm {
@@ -425,21 +426,43 @@ bool CalculateAffineFlag(const ScheduleState& self, const StmtSRef& block_sref) 
  * \return A SeqStmt, the result after insertion
  */
 Stmt InsertCacheStage(const Stmt& stmt, int pos, const Stmt& stage) {
-  if (const auto* alloc = stmt.as<AllocateConstNode>()) {
-    auto seq_stmt = InsertCacheStage(alloc->body, pos, stage);
-    return AllocateConst(alloc->buffer_var, alloc->dtype, alloc->extents, alloc->data, seq_stmt,
-                         alloc->annotations, alloc->span);
+  std::vector<Stmt> nest;
+  Stmt body = stmt;
+  while (true) {
+    if (auto opt = body.as<AllocateConst>()) {
+      auto alloc = opt.value();
+      body = alloc->body;
+      alloc.CopyOnWrite()->body = Evaluate(0);
+      nest.push_back(alloc);
+    } else if (auto opt = body.as<DeclBuffer>()) {
+      auto decl_buffer = opt.value();
+      body = decl_buffer->body;
+      decl_buffer.CopyOnWrite()->body = Evaluate(0);
+      nest.push_back(decl_buffer);
+    } else {
+      break;
+    }
   }
-  if (const auto* seq_stmt = stmt.as<SeqStmtNode>()) {
-    ObjectPtr<SeqStmtNode> result = make_object<SeqStmtNode>(*seq_stmt);
-    result->seq.insert(result->seq.begin() + pos, stage);
-    return SeqStmt(result);
+
+  if (const auto* seq_stmt = body.as<SeqStmtNode>()) {
+    Array<Stmt> seq = seq_stmt->seq;
+    ICHECK_LE(pos, seq.size()) << "Cannot insert at position " << pos << " into sequence of length "
+                               << seq.size();
+    seq.insert(seq.begin() + pos, stage);
+    body = SeqStmt(seq);
+  } else if (pos == 0) {
+    body = SeqStmt({stage, stmt});
+  } else if (pos == 1) {
+    body = SeqStmt({stmt, stage});
+  } else {
+    LOG(FATAL) << "Cannot insert at position " << pos
+               << ".  When inserting adjacent to non-SeqStmt, "
+               << "only positions 0 and 1 are valid.";
   }
-  if (pos == 0) {
-    return SeqStmt({stage, stmt});
-  }
-  ICHECK_EQ(pos, 1);
-  return SeqStmt({stmt, stage});
+
+  body = MergeNest(nest, body);
+
+  return body;
 }
 
 /*!
@@ -550,8 +573,14 @@ class CacheLocDetector : public StmtVisitor {
 
       auto block_body = scope_sref->StmtAs<BlockNode>()->body;
       // Find the SeqStmtNode within (potentially nested) AllocateConstNodes
-      while (block_body->IsInstance<AllocateConstNode>()) {
-        block_body = block_body.as<AllocateConstNode>()->body;
+      while (true) {
+        if (auto* ptr = block_body.as<AllocateConstNode>()) {
+          block_body = ptr->body;
+        } else if (auto* ptr = block_body.as<DeclBufferNode>()) {
+          block_body = ptr->body;
+        } else {
+          break;
+        }
       }
       const auto* body = block_body.as<SeqStmtNode>();
       info->loc_pos = body == nullptr ? 1 : body->size();
@@ -1526,7 +1555,7 @@ StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_buff
   BlockInfo& block_info = self->block_info[result_block_sref];
   block_info.affine_binding = CalculateAffineFlag(self, result_block_sref);
   block_info.region_cover = true;
-  block_info.scope->stage_pipeline = true;
+  block_info.stage_pipeline = true;
   return result_block_sref;
 }
 
@@ -1591,7 +1620,7 @@ StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int write_bu
   BlockInfo& block_info = self->block_info[result_block_sref];
   block_info.affine_binding = CalculateAffineFlag(self, result_block_sref);
   block_info.region_cover = true;
-  block_info.scope->stage_pipeline = true;
+  block_info.stage_pipeline = true;
   return result_block_sref;
 }
 
@@ -1812,7 +1841,7 @@ StmtSRef ReindexCacheRead(ScheduleState self, const StmtSRef& block_sref, int re
   BlockInfo& block_info = self->block_info[result_block_sref];
   block_info.affine_binding = CalculateAffineFlag(self, result_block_sref);
   block_info.region_cover = true;
-  block_info.scope->stage_pipeline = true;
+  block_info.stage_pipeline = true;
   return result_block_sref;
 }
 
@@ -1876,7 +1905,7 @@ StmtSRef ReindexCacheWrite(ScheduleState self, const StmtSRef& block_sref, int w
   BlockInfo& block_info = self->block_info[result_block_sref];
   block_info.affine_binding = CalculateAffineFlag(self, result_block_sref);
   block_info.region_cover = true;
-  block_info.scope->stage_pipeline = true;
+  block_info.stage_pipeline = true;
   return result_block_sref;
 }
 
@@ -1954,7 +1983,7 @@ Array<StmtSRef> CacheInplace(ScheduleState self, const StmtSRef& block_sref, int
   BlockInfo& block_info_read = self->block_info[result_block_sref];
   block_info_read.affine_binding = CalculateAffineFlag(self, result_block_sref);
   block_info_read.region_cover = true;
-  block_info_read.scope->stage_pipeline = false;
+  block_info_read.stage_pipeline = false;
   results_block_sref.push_back(result_block_sref);
 
   // Do cache write
@@ -1983,7 +2012,7 @@ Array<StmtSRef> CacheInplace(ScheduleState self, const StmtSRef& block_sref, int
   BlockInfo& block_info_write = self->block_info[result_block_sref];
   block_info_write.affine_binding = CalculateAffineFlag(self, result_block_sref);
   block_info_write.region_cover = true;
-  block_info_write.scope->stage_pipeline = false;
+  block_info_write.stage_pipeline = false;
   results_block_sref.push_back(result_block_sref);
 
   return results_block_sref;
@@ -2058,7 +2087,7 @@ StmtSRef ReIndex(ScheduleState self, const StmtSRef& block_sref, int buffer_inde
   BlockInfo& block_info = self->block_info[result_block_sref];
   block_info.affine_binding = CalculateAffineFlag(self, result_block_sref);
   block_info.region_cover = true;
-  block_info.scope->stage_pipeline = true;
+  block_info.stage_pipeline = true;
   return result_block_sref;
 }
 

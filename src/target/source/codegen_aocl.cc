@@ -51,7 +51,7 @@ runtime::Module BuildAOCL(IRModule mod, Target target, bool emulation) {
 
   std::string code = cg.Finish();
   if (const auto* f = Registry::Get("tvm_callback_opencl_postproc")) {
-    code = (*f)(code).operator std::string();
+    code = (*f)(code, target).operator std::string();
   }
 
   // Write a .cl file.
