@@ -223,7 +223,6 @@ class TestSplitHostDeviceNameCollision(BaseCompare):
                         "target": T.target("cuda"),
                         "tir.noalias": T.bool(True),
                         "tir.is_global_func": True,
-                        "tir.is_entry_func": False,
                     }
                 )
                 T.evaluate(n)
