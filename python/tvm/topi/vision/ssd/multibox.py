@@ -243,7 +243,7 @@ def hybrid_multibox_transform_loc(
             # [id, prob, xmin, ymin, xmax, ymax]
             # Remove background, restore original id
             if keep_background or cls_id > 0:
-                out_loc[i, valid_count[i], 0] = cls_id - 1.0
+                out_loc[i, valid_count[i], 0] = cls_id - 0.0 if keep_background else cls_id - 1.0
                 out_loc[i, valid_count[i], 1] = score
                 for l in range(4):
                     pred_coord[i, l] = loc_pred[i, j * 4 + l]
