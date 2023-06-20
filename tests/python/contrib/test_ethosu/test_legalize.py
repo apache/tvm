@@ -269,6 +269,7 @@ def test_tflite_conv2d_legalize(ifm_shape, kernel_shape, padding, strides, dilat
         concrete_func = model.tf_function.get_concrete_function(
             tf.TensorSpec(ifm_shape, dtype=tf.float32)
         )
+
         # Convert the model
         def representative_dataset():
             for _ in range(100):
@@ -387,6 +388,7 @@ def test_tflite_conv2d_with_separate_padding_legalize():
         concrete_func = model.tf_function.get_concrete_function(
             tf.TensorSpec(ifm_shape, dtype=tf.float32)
         )
+
         # Convert the model
         def representative_dataset():
             for _ in range(100):
@@ -524,6 +526,7 @@ def test_tflite_conv2d_with_separate_channel_padding_legalize():
         concrete_func = model.tf_function.get_concrete_function(
             tf.TensorSpec(ifm_shape, dtype=tf.float32)
         )
+
         # Convert the model
         def representative_dataset():
             for _ in range(100):
@@ -540,7 +543,6 @@ def test_tflite_conv2d_with_separate_channel_padding_legalize():
         return tflite_model
 
     def verify(ext_func):
-
         assert ArePadOnGraph().are_pad_on_graph(ext_func.body) == True
 
     conv2d_pattern_table = [
@@ -718,6 +720,7 @@ def test_tflite_depthwise_conv2d_with_separate_padding_legalize():
         concrete_func = model.tf_function.get_concrete_function(
             tf.TensorSpec(ifm_shape, dtype=tf.float32)
         )
+
         # Convert the model
         def representative_dataset():
             for _ in range(100):
@@ -818,6 +821,7 @@ def test_tflite_separate_padding_legalize(ifm_shape, padding, const_value):
         concrete_func = model.tf_function.get_concrete_function(
             tf.TensorSpec(ifm_shape, dtype=tf.float32)
         )
+
         # Convert the model
         def representative_dataset():
             for _ in range(100):
@@ -944,6 +948,7 @@ def test_tflite_separate_channel_padding_legalize(ifm_shape, channel_padding, co
         concrete_func = model.tf_function.get_concrete_function(
             tf.TensorSpec(ifm_shape, dtype=tf.float32)
         )
+
         # Convert the model
         def representative_dataset():
             for _ in range(100):
@@ -960,7 +965,6 @@ def test_tflite_separate_channel_padding_legalize(ifm_shape, channel_padding, co
         return tflite_model
 
     def verify(ext_func, channel_padding):
-
         op = ext_func.body
 
         pad_before = 0
@@ -1163,7 +1167,6 @@ def test_tflite_pool2d_same_ifm_and_kernel_shape_legalize(
         return tflite_model
 
     def expected_mod():
-
         expected_ir_string = ""
 
         if activation_function == "NONE" and pooling_type == "AVG":
@@ -1638,7 +1641,6 @@ def test_ethosu_left_shift_binary_elemwise_legalize(ifm_shape, ifm2_shape, rever
     ],
 )
 def test_relay_reshape_legalize(ifm_shape, new_shape):
-
     ifm = relay.var("ifm", shape=ifm_shape, dtype="int8")
     reshape = relay.op.reshape(ifm, new_shape)
     func = relay.Function([ifm], reshape)
@@ -3302,7 +3304,6 @@ def test_tflite_unpack(ifm_shape, axis):
         legalize.NoOpRewriter(),
     ]
     for legalizer in seq:
-
         mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
             legalizer, mod["tvmgen_default_ethos_u_main_0"]
         )
@@ -3401,6 +3402,7 @@ def test_tflite_fully_connected(
         concrete_func = model.fully_connected.get_concrete_function(
             tf.TensorSpec(ifm_shape, dtype=tf.float32)
         )
+
         # Convert the model
         def representative_dataset():
             for _ in range(100):
@@ -3526,9 +3528,60 @@ def test_tflite_hard_swish(ifm_shape):
     assert tuple(func_body.args[1].checked_type.shape) == (256,)
 
 
-@pytest.mark.parametrize("ifm_shape", [(1, 12), (1, 12, 32)])
-def test_tflite_softmax(ifm_shape):
+def test_tflite_softmax():
+    np.random.seed(0)
     dtype = "int8"
+    ifm_shape = (1, 12)
+
+    def get_expected_mod():
+        # fmt: off
+        mod_str = """
+        #[version = "0.0.5"]
+        def @main(%x: Tensor[(1, 12), int8] /* ty=Tensor[(1, 12), int8] span=x:0:0 */, output_tensor_names=["Identity"]) -> Tensor[(1, 12), int8] {
+            @tvmgen_default_ethos_u_main_0(%x) /* ty=Tensor[(1, 12), int8] */
+        }
+
+        def @tvmgen_default_ethos_u_main_0(%y: Tensor[(1, 12), int8] /* ty=Tensor[(1, 12), int8] */, Compiler="ethos-u", Primitive=1, Inline=1, global_symbol="tvmgen_default_ethos_u_main_0") -> Tensor[(1, 12), int8] {
+            %0 = reshape(%y, newshape=[1, 1, 12, 1]);
+            %1 = reshape(%0, newshape=[1, 1, 1, 12]);
+            %2 = contrib.ethosu.pooling(%0, meta[relay.Constant][0], pooling_type="MAX", ifm_scale=0.011756030842661858f, ifm_zero_point=-43, ofm_scale=0f, ofm_zero_point=-43, pool_shape=[1, 12], ofm_channels=1, ofm_dtype="int8");
+            %3 = contrib.ethosu.binary_elementwise(%1, %2, meta[relay.Constant][1], operator_type="SUB", ifm_scale=0.011756030842661858f, ifm_zero_point=-43, ifm2_scale=0f, ifm2_zero_point=-43, ofm_scale=1f, ofm_zero_point=127, ifm_channels=12, ifm2_channels=1, activation="LUT", clip_min=-255, clip_max=0, ofm_dtype="int32");
+            %4 = contrib.ethosu.binary_elementwise(%3, meta[relay.Constant][2], meta[relay.Constant][0], operator_type="SHR", ifm_scale=1f, ifm_zero_point=0, ifm2_scale=0f, ifm2_zero_point=0, ofm_scale=0f, ofm_zero_point=-43, ifm_channels=12, ifm2_channels=1, activation="CLIP", clip_min=-128, clip_max=127, rounding_mode="NATURAL", ofm_dtype="int32");
+            %5 = contrib.ethosu.pooling(%4, meta[relay.Constant][0], pooling_type="SUM", ifm_scale=0f, ifm_zero_point=0, ofm_scale=0f, ofm_zero_point=-43, pool_shape=[1, 1], ofm_channels=1, ofm_dtype="int32", activation="CLIP", clip_min=-128, clip_max=127);
+            %6 = contrib.ethosu.unary_elementwise(%5, meta[relay.Constant][0], operator_type="CLZ", ifm_scale=0f, ifm_zero_point=0, ofm_scale=0f, ofm_zero_point=-43, ofm_channels=1, activation="CLIP", clip_min=-128, clip_max=127);
+            %7 = contrib.ethosu.binary_elementwise(%6, meta[relay.Constant][3], meta[relay.Constant][0], operator_type="SUB", ifm_scale=0f, ifm_zero_point=0, ifm2_scale=0f, ifm2_zero_point=0, ofm_scale=0f, ofm_zero_point=-43, ifm_channels=1, ifm2_channels=1, activation="CLIP", clip_min=-128, clip_max=127, ofm_dtype="int32");
+            %8 = contrib.ethosu.binary_elementwise(%5, %7, meta[relay.Constant][0], operator_type="SHL", ifm_scale=0f, ifm_zero_point=0, ifm2_scale=0f, ifm2_zero_point=0, ofm_scale=0f, ofm_zero_point=-43, ifm_channels=1, ifm2_channels=1, activation="CLIP", clip_min=-128, clip_max=127, ofm_dtype="int32");
+            %9 = contrib.ethosu.binary_elementwise(%8, meta[relay.Constant][4], meta[relay.Constant][0], operator_type="SUB", ifm_scale=0f, ifm_zero_point=0, ifm2_scale=0f, ifm2_zero_point=0, ofm_scale=0f, ofm_zero_point=-43, ifm_channels=1, ifm2_channels=1, activation="CLIP", clip_min=-128, clip_max=127, ofm_dtype="int32");
+            %10 = contrib.ethosu.binary_elementwise(%9, meta[relay.Constant][3], meta[relay.Constant][0], operator_type="SHL", ifm_scale=0f, ifm_zero_point=0, ifm2_scale=0f, ifm2_zero_point=0, ofm_scale=0f, ofm_zero_point=-43, ifm_channels=1, ifm2_channels=1, activation="CLIP", clip_min=-128, clip_max=127, ofm_dtype="int32");
+            %11 = contrib.ethosu.binary_elementwise(%10, meta[relay.Constant][5], meta[relay.Constant][0], operator_type="ADD", ifm_scale=0f, ifm_zero_point=0, ifm2_scale=0f, ifm2_zero_point=0, ofm_scale=1f, ofm_zero_point=0, ifm_channels=1, ifm2_channels=1, activation="CLIP", clip_min=-128, clip_max=127, ofm_dtype="int32", use_rescale=True, rescale_scale=1, rescale_shift=1);
+            %12 = contrib.ethosu.binary_elementwise(%11, meta[relay.Constant][6], meta[relay.Constant][0], operator_type="MUL", ifm_scale=1f, ifm_zero_point=0, ifm2_scale=1f, ifm2_zero_point=0, ofm_scale=2f, ofm_zero_point=0, ifm_channels=1, ifm2_channels=1, activation="CLIP", clip_min=-128, clip_max=127, ofm_dtype="int32");
+            %13 = contrib.ethosu.binary_elementwise(%12, meta[relay.Constant][7], meta[relay.Constant][0], operator_type="ADD", ifm_scale=2f, ifm_zero_point=0, ifm2_scale=0f, ifm2_zero_point=0, ofm_scale=1f, ofm_zero_point=0, ifm_channels=1, ifm2_channels=1, activation="CLIP", clip_min=-128, clip_max=127, ofm_dtype="int32");
+            %14 = contrib.ethosu.binary_elementwise(%13, %11, meta[relay.Constant][0], operator_type="MUL", ifm_scale=1f, ifm_zero_point=0, ifm2_scale=1f, ifm2_zero_point=0, ofm_scale=2f, ofm_zero_point=0, ifm_channels=1, ifm2_channels=1, activation="CLIP", clip_min=-128, clip_max=127, ofm_dtype="int32");
+            %15 = contrib.ethosu.binary_elementwise(meta[relay.Constant][8], %14, meta[relay.Constant][0], operator_type="SUB", ifm_scale=2f, ifm_zero_point=0, ifm2_scale=0f, ifm2_zero_point=0, ofm_scale=1f, ofm_zero_point=0, ifm_channels=1, ifm2_channels=1, activation="CLIP", clip_min=-128, clip_max=127, ofm_dtype="int32");
+            %16 = contrib.ethosu.binary_elementwise(%13, %15, meta[relay.Constant][0], operator_type="MUL", ifm_scale=1f, ifm_zero_point=0, ifm2_scale=1f, ifm2_zero_point=0, ofm_scale=2f, ofm_zero_point=0, ifm_channels=1, ifm2_channels=1, activation="CLIP", clip_min=-128, clip_max=127, ofm_dtype="int32");
+            %17 = contrib.ethosu.binary_elementwise(%16, meta[relay.Constant][9], meta[relay.Constant][0], operator_type="MUL", ifm_scale=2f, ifm_zero_point=0, ifm2_scale=0f, ifm2_zero_point=0, ofm_scale=0f, ofm_zero_point=-43, ifm_channels=1, ifm2_channels=1, activation="CLIP", clip_min=-128, clip_max=127, ofm_dtype="int32");
+            %18 = contrib.ethosu.binary_elementwise(%13, %17, meta[relay.Constant][0], operator_type="ADD", ifm_scale=1f, ifm_zero_point=0, ifm2_scale=0f, ifm2_zero_point=0, ofm_scale=1f, ofm_zero_point=0, ifm_channels=1, ifm2_channels=1, activation="CLIP", clip_min=-128, clip_max=127, ofm_dtype="int32");
+            %19 = contrib.ethosu.binary_elementwise(%18, %11, meta[relay.Constant][0], operator_type="MUL", ifm_scale=1f, ifm_zero_point=0, ifm2_scale=1f, ifm2_zero_point=0, ofm_scale=2f, ofm_zero_point=0, ifm_channels=1, ifm2_channels=1, activation="CLIP", clip_min=-128, clip_max=127, ofm_dtype="int32");
+            %20 = contrib.ethosu.binary_elementwise(meta[relay.Constant][8], %19, meta[relay.Constant][0], operator_type="SUB", ifm_scale=2f, ifm_zero_point=0, ifm2_scale=0f, ifm2_zero_point=0, ofm_scale=1f, ofm_zero_point=0, ifm_channels=1, ifm2_channels=1, activation="CLIP", clip_min=-128, clip_max=127, ofm_dtype="int32");
+            %21 = contrib.ethosu.binary_elementwise(%18, %20, meta[relay.Constant][0], operator_type="MUL", ifm_scale=1f, ifm_zero_point=0, ifm2_scale=1f, ifm2_zero_point=0, ofm_scale=2f, ofm_zero_point=0, ifm_channels=1, ifm2_channels=1, activation="CLIP", clip_min=-128, clip_max=127, ofm_dtype="int32");
+            %22 = contrib.ethosu.binary_elementwise(%21, meta[relay.Constant][9], meta[relay.Constant][0], operator_type="MUL", ifm_scale=2f, ifm_zero_point=0, ifm2_scale=0f, ifm2_zero_point=0, ofm_scale=0f, ofm_zero_point=-43, ifm_channels=1, ifm2_channels=1, activation="CLIP", clip_min=-128, clip_max=127, ofm_dtype="int32");
+            %23 = contrib.ethosu.binary_elementwise(%18, %22, meta[relay.Constant][0], operator_type="ADD", ifm_scale=1f, ifm_zero_point=0, ifm2_scale=0f, ifm2_zero_point=0, ofm_scale=1f, ofm_zero_point=0, ifm_channels=1, ifm2_channels=1, activation="CLIP", clip_min=-128, clip_max=127, ofm_dtype="int32");
+            %24 = contrib.ethosu.binary_elementwise(%23, %11, meta[relay.Constant][0], operator_type="MUL", ifm_scale=1f, ifm_zero_point=0, ifm2_scale=1f, ifm2_zero_point=0, ofm_scale=2f, ofm_zero_point=0, ifm_channels=1, ifm2_channels=1, activation="CLIP", clip_min=-128, clip_max=127, ofm_dtype="int32");
+            %25 = contrib.ethosu.binary_elementwise(meta[relay.Constant][8], %24, meta[relay.Constant][0], operator_type="SUB", ifm_scale=2f, ifm_zero_point=0, ifm2_scale=0f, ifm2_zero_point=0, ofm_scale=1f, ofm_zero_point=0, ifm_channels=1, ifm2_channels=1, activation="CLIP", clip_min=-128, clip_max=127, ofm_dtype="int32");
+            %26 = contrib.ethosu.binary_elementwise(%23, %25, meta[relay.Constant][0], operator_type="MUL", ifm_scale=1f, ifm_zero_point=0, ifm2_scale=1f, ifm2_zero_point=0, ofm_scale=2f, ofm_zero_point=0, ifm_channels=1, ifm2_channels=1, activation="CLIP", clip_min=-128, clip_max=127, ofm_dtype="int32");
+            %27 = contrib.ethosu.binary_elementwise(%26, meta[relay.Constant][9], meta[relay.Constant][0], operator_type="MUL", ifm_scale=2f, ifm_zero_point=0, ifm2_scale=0f, ifm2_zero_point=0, ofm_scale=0f, ofm_zero_point=-43, ifm_channels=1, ifm2_channels=1, activation="CLIP", clip_min=-128, clip_max=127, ofm_dtype="int32");
+            %28 = contrib.ethosu.binary_elementwise(%23, %27, meta[relay.Constant][0], operator_type="ADD", ifm_scale=1f, ifm_zero_point=0, ifm2_scale=0f, ifm2_zero_point=0, ofm_scale=1f, ofm_zero_point=0, ifm_channels=1, ifm2_channels=1, activation="CLIP", clip_min=-128, clip_max=127, ofm_dtype="int32");
+            %29 = contrib.ethosu.binary_elementwise(%28, meta[relay.Constant][10], meta[relay.Constant][0], operator_type="MUL", ifm_scale=1f, ifm_zero_point=0, ifm2_scale=0f, ifm2_zero_point=0, ofm_scale=1f, ofm_zero_point=0, ifm_channels=1, ifm2_channels=1, activation="CLIP", clip_min=-128, clip_max=127, ofm_dtype="int32");
+            %30 = contrib.ethosu.binary_elementwise(%3, %29, meta[relay.Constant][0], operator_type="MUL", ifm_scale=1f, ifm_zero_point=0, ifm2_scale=1f, ifm2_zero_point=0, ofm_scale=2f, ofm_zero_point=0, ifm_channels=12, ifm2_channels=1, activation="CLIP", clip_min=-128, clip_max=127, ofm_dtype="int32");
+            %31 = contrib.ethosu.binary_elementwise(meta[relay.Constant][11], %6, meta[relay.Constant][0], operator_type="SUB", ifm_scale=0f, ifm_zero_point=0, ifm2_scale=0f, ifm2_zero_point=0, ofm_scale=0f, ofm_zero_point=-43, ifm_channels=1, ifm2_channels=1, activation="CLIP", clip_min=-128, clip_max=127, ofm_dtype="int32");
+            %32 = contrib.ethosu.binary_elementwise(%30, %31, meta[relay.Constant][0], operator_type="SHR", ifm_scale=2f, ifm_zero_point=0, ifm2_scale=0f, ifm2_zero_point=0, ofm_scale=0.00390625f, ofm_zero_point=-128, ifm_channels=12, ifm2_channels=1, rounding_mode="NATURAL", ofm_dtype="int8");
+            reshape(%32, newshape=[1, 12])
+        }
+
+        #[metadata]{  "root": 1,   "nodes": [    {      "type_key": ""    },     {      "type_key": "Map",       "keys": [        "relay.Constant"      ],       "data": [2]    },     {      "type_key": "Array",       "data": [        3,         6,         7,         8,         9,         10,         11,         12,         13,         14,         15,         16      ]    },     {      "type_key": "relay.Constant",       "attrs": {        "_checked_type_": "0",         "data": "0",         "span": "0",         "virtual_device_": "4"      }    },     {      "type_key": "VirtualDevice",       "attrs": {        "device_type_int": "-1",         "memory_scope": "5",         "target": "0",         "virtual_device_id": "-1"      }    },     {      "type_key": "runtime.String"    },     {      "type_key": "relay.Constant",       "attrs": {        "_checked_type_": "0",         "data": "1",         "span": "0",         "virtual_device_": "4"      }    },     {      "type_key": "relay.Constant",       "attrs": {        "_checked_type_": "0",         "data": "2",         "span": "0",         "virtual_device_": "4"      }    },     {      "type_key": "relay.Constant",       "attrs": {        "_checked_type_": "0",         "data": "3",         "span": "0",         "virtual_device_": "4"      }    },     {      "type_key": "relay.Constant",       "attrs": {        "_checked_type_": "0",         "data": "4",         "span": "0",         "virtual_device_": "4"      }    },     {      "type_key": "relay.Constant",       "attrs": {        "_checked_type_": "0",         "data": "5",         "span": "0",         "virtual_device_": "4"      }    },     {      "type_key": "relay.Constant",       "attrs": {        "_checked_type_": "0",         "data": "6",         "span": "0",         "virtual_device_": "4"      }    },     {      "type_key": "relay.Constant",       "attrs": {        "_checked_type_": "0",         "data": "7",         "span": "0",         "virtual_device_": "4"      }    },     {      "type_key": "relay.Constant",       "attrs": {        "_checked_type_": "0",         "data": "8",         "span": "0",         "virtual_device_": "4"      }    },     {      "type_key": "relay.Constant",       "attrs": {        "_checked_type_": "0",         "data": "9",         "span": "0",         "virtual_device_": "4"      }    },     {      "type_key": "relay.Constant",       "attrs": {        "_checked_type_": "0",         "data": "10",         "span": "0",         "virtual_device_": "4"      }    },     {      "type_key": "relay.Constant",       "attrs": {        "_checked_type_": "0",         "data": "11",         "span": "0",         "virtual_device_": "4"      }    }  ],   "b64ndarrays": [    "P6G0lvBAXt0AAAAAAAAAAAEAAAAAAAAAAQAAAAAgAQAAAAAAAAAAAAAAAAAAAAAA",     "P6G0lvBAXt0AAAAAAAAAAAEAAAAAAAAAAQAAAAAgAQAAAQAAAAAAAAAEAAAAAAAAOAljBu1edgYu74kGq7qdBhbCsQYmBsYGkIfaBg5H7wZcRQQHOIMZB2IBLwecwEQHq8FaB1gFcQdrjIcHsVeeB/hntQcRvswHzVrkBwI//AeHaxQIN+EsCDehRQjiq14IYAJ4CJWlkQhplqsIxtXFCJZk4AjPQ/sIYnQWCUX3MQlxzU0J4vdpCZZ3hgmSTaMJ1XrACW8A3gln3/sJyxgaCq2tOAofn1cKOe52CnCclgo2qrYKDhnXChnq9wp+HhkLa7c6Cw+2XAucG38LS+mhC1IgxQv5wegLfc8MDCZKMQw9M1YMEox7DPZVoQw+kscMQkLuDGVnFQ0FAz0NhxZlDcijjQ1Zq7YNKC/gDaowCg5WsTQOs7JfDkM2iw6OPbcOI8rjDpXdEA98eT4Pd59sDyFRmw8rkMoPPF76DwW9KhA8rlsQmjONEN9OvxDQAfIQMU4lEW02WRE0u40RBN/CEbqj+BE8Cy8ScxdmElLKnRLMJdYS5ysPE6PeSBMLQIMTL1K+EyYX+hMPkTYUC8JzFECssRTpUfAUNrUvFWbYbxW5vbAVemfyFfrXNBZQEngWcRe8Fo7qABcNjkYXYwSNFwtQ1BeJcxwYbHFlGEdMrxiwBvoYWqNFGekkkhkUjt8ZmOEtGjkifRrFUs0aEHYeG/KOcBtdoMMbOK0XHHi4bBwSxsIcQtcZHRbwcR2mE8sdEEUlHpGHgB5a3twerkw6H9vVmB84ffgfKEZZIBc0uyB0Sh4h0YyCIbL+5yGro04iX3+2IneVHyOp6YkjtX/1I1tbYiS6gdAkVvQ/JWq4sCXt0SIm5kSWJmQVCyeJR4Endt/4J3rhcSjTUewo0zRoKeCO5SlnZGQq5LnkKuKTZivu9ukrweduLARr9Sx0hX0t3zsHLh6Tki6tkR8vbTmuLxyRPjDjndAw3WRkMT7r+TFNNpEyY0sqM+cvxTNV6WE0KH0ANRnxoDXISkM28o/nNmfGjTcI9DU4xh7gOKVMjDmpgzo6FMrqOg8mnTvgnVE88DkIPeb8wD1O73s+vRc5P858+D9gJbpAOxh+QUtcREKR+AxDKPTXQztWpUQQJnVF8GpHRm4sHEf9cfNHO0PNSNinqUmep4hKakpqSzCYTkzmmDVNbVcfTg3XC0/KIvtPEkPtUGtA4lF5I9pS+/TUU7y90lTahtNVWVnXVmY+3ldQP+hYgWX1WX26BVvlRxlcYRcwXfoySl6NpGdfLnaIYAuyrGFvYtRiEpX/YyFOLmW/m2Bm6IiWZ2sg0GhWbQ1q33pOa1lUk2xBBdxtN5kob+IbeXBgmc1xpB0mc9y0gnRca+N1nk1Idz5osXj9xx56oXmQe3KKBn19B4F+////fw==",     "P6G0lvBAXt0AAAAAAAAAAAEAAAAAAAAABAAAAAAgAQABAAAAAAAAAAEAAAAAAAAAAQAAAAAAAAABAAAAAAAAAAQAAAAAAAAADAAAAA==",     "P6G0lvBAXt0AAAAAAAAAAAEAAAAAAAAABAAAAAAgAQABAAAAAAAAAAEAAAAAAAAAAQAAAAAAAAABAAAAAAAAAAQAAAAAAAAAAQAAAA==",     "P6G0lvBAXt0AAAAAAAAAAAEAAAAAAAAABAAAAAAgAQABAAAAAAAAAAEAAAAAAAAAAQAAAAAAAAABAAAAAAAAAAQAAAAAAAAAAAAAQA==",     "P6G0lvBAXt0AAAAAAAAAAAEAAAAAAAAABAAAAAAgAQABAAAAAAAAAAEAAAAAAAAAAQAAAAAAAAABAAAAAAAAAAQAAAAAAAAA////fw==",     "P6G0lvBAXt0AAAAAAAAAAAEAAAAAAAAABAAAAAAgAQABAAAAAAAAAAEAAAAAAAAAAQAAAAAAAAABAAAAAAAAAAQAAAAAAAAAxMPDww==",     "P6G0lvBAXt0AAAAAAAAAAAEAAAAAAAAABAAAAAAgAQABAAAAAAAAAAEAAAAAAAAAAQAAAAAAAAABAAAAAAAAAAQAAAAAAAAAWlpaWg==",     "P6G0lvBAXt0AAAAAAAAAAAEAAAAAAAAABAAAAAAgAQABAAAAAAAAAAEAAAAAAAAAAQAAAAAAAAABAAAAAAAAAAQAAAAAAAAAAAAAIA==",     "P6G0lvBAXt0AAAAAAAAAAAEAAAAAAAAABAAAAAAgAQABAAAAAAAAAAEAAAAAAAAAAQAAAAAAAAABAAAAAAAAAAQAAAAAAAAABAAAAA==",     "P6G0lvBAXt0AAAAAAAAAAAEAAAAAAAAABAAAAAAgAQABAAAAAAAAAAEAAAAAAAAAAQAAAAAAAAABAAAAAAAAAAQAAAAAAAAAAgAAAA==",     "P6G0lvBAXt0AAAAAAAAAAAEAAAAAAAAABAAAAAAgAQABAAAAAAAAAAEAAAAAAAAAAQAAAAAAAAABAAAAAAAAAAQAAAAAAAAAIwAAAA=="  ]}
+        """
+        # fmt: on
+        return tvm.relay.fromtext(mod_str)
 
     def create_tflite_graph():
         @tf.function
@@ -3536,10 +3589,11 @@ def test_tflite_softmax(ifm_shape):
             return tf.nn.softmax(x)
 
         concrete_func = softmax.get_concrete_function(tf.TensorSpec(ifm_shape, dtype=tf.float32))
+
         # Convert the model
         def representative_dataset():
             for _ in range(100):
-                data = np.random.rand(*tuple(ifm_shape))
+                data = np.random.uniform(low=-1, high=2, size=tuple(ifm_shape))
                 yield [data.astype(np.float32)]
 
         converter = tf.lite.TFLiteConverter.from_concrete_functions([concrete_func])
@@ -3550,75 +3604,6 @@ def test_tflite_softmax(ifm_shape):
         converter.inference_output_type = tf.int8
         tflite_model = converter.convert()
         return tflite_model
-
-    def verify(ext_func):
-        out_op = ext_func.body
-        ops = []
-        # List of expected operations and their type if it exists
-        expected_ops = [
-            ("reshape", None),
-            ("reshape", None),
-            ("contrib.ethosu.pooling", "MAX"),
-            ("contrib.ethosu.binary_elementwise", "SUB"),
-            ("contrib.ethosu.binary_elementwise", "SHR"),
-            ("contrib.ethosu.pooling", "SUM"),
-            ("contrib.ethosu.unary_elementwise", "CLZ"),
-            ("contrib.ethosu.binary_elementwise", "SUB"),
-            ("contrib.ethosu.binary_elementwise", "SHL"),
-            ("contrib.ethosu.binary_elementwise", "SUB"),
-            ("contrib.ethosu.binary_elementwise", "SHL"),
-            ("contrib.ethosu.binary_elementwise", "ADD"),
-            ("contrib.ethosu.binary_elementwise", "MUL"),
-            ("contrib.ethosu.binary_elementwise", "ADD"),
-            ("contrib.ethosu.binary_elementwise", "MUL"),
-            ("contrib.ethosu.binary_elementwise", "SUB"),
-            ("contrib.ethosu.binary_elementwise", "MUL"),
-            ("contrib.ethosu.binary_elementwise", "MUL"),
-            ("contrib.ethosu.binary_elementwise", "ADD"),
-            ("contrib.ethosu.binary_elementwise", "MUL"),
-            ("contrib.ethosu.binary_elementwise", "SUB"),
-            ("contrib.ethosu.binary_elementwise", "MUL"),
-            ("contrib.ethosu.binary_elementwise", "MUL"),
-            ("contrib.ethosu.binary_elementwise", "ADD"),
-            ("contrib.ethosu.binary_elementwise", "MUL"),
-            ("contrib.ethosu.binary_elementwise", "SUB"),
-            ("contrib.ethosu.binary_elementwise", "MUL"),
-            ("contrib.ethosu.binary_elementwise", "MUL"),
-            ("contrib.ethosu.binary_elementwise", "ADD"),
-            ("contrib.ethosu.binary_elementwise", "MUL"),
-            ("contrib.ethosu.binary_elementwise", "MUL"),
-            ("contrib.ethosu.binary_elementwise", "SUB"),
-            ("contrib.ethosu.binary_elementwise", "SHR"),
-            ("reshape", None),
-        ]
-
-        def get_op_type(op):
-            if hasattr(op.attrs, "pooling_type"):
-                return op.attrs.pooling_type
-            elif hasattr(op.attrs, "operator_type"):
-                return op.attrs.operator_type
-            return None
-
-        def _visit(stmt):
-            if isinstance(stmt, relay.expr.Call):
-                ops.append(stmt)
-
-        relay.analysis.post_order_visit(out_op, _visit)
-
-        # check IFM
-        ifm = ops[0].args[0].checked_type
-        assert list(ifm.shape) == list(ifm_shape)
-        assert str(ifm.dtype) == dtype
-
-        # check OFM
-        ofm = out_op.checked_type
-        assert list(ofm.shape) == list(ifm_shape)
-        assert ofm.dtype == dtype
-
-        # check operations
-
-        ops = [(op.op.name, get_op_type(op)) for op in ops]
-        assert expected_ops == ops
 
     softmax_pattern_table = [
         (
@@ -3643,7 +3628,7 @@ def test_tflite_softmax(ifm_shape):
     )
     mod = relay.transform.InferType()(mod)
 
-    verify(mod["tvmgen_default_ethos_u_main_0"])
+    tvm.ir.assert_structural_equal(mod, get_expected_mod())
 
 
 if __name__ == "__main__":
