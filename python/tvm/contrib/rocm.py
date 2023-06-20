@@ -198,7 +198,7 @@ def parse_compute_version(compute_version):
         raise RuntimeError("Compute version parsing error: " + str(err))
 
 
-def have_matrixcore(compute_version=None, target=None):
+def have_matrixcore(compute_version=None):
     """Either MatrixCore support is provided in the compute capability or not
 
     Parameters
@@ -206,9 +206,10 @@ def have_matrixcore(compute_version=None, target=None):
     compute_version : str, optional
         compute capability of a GPU (e.g. "7.0").
 
-    target : tvm.target.Target, optional
-        The compilation target, will be used to determine arch if compute_version
-        isn't specified.
+    Returns
+    -------
+    have_matrixcore : bool
+        True if MatrixCore support is provided, False otherwise
     """
     if compute_version is None:
         if tvm.rocm(0).exist:
@@ -225,6 +226,18 @@ def have_matrixcore(compute_version=None, target=None):
 
 @tvm._ffi.register_func("tvm_callback_rocm_get_arch")
 def get_rocm_arch(rocm_path="/opt/rocm"):
+    """Utility function to get the AMD GPU architecture
+
+    Parameters
+    ----------
+    rocm_path : str
+        The path to rocm installation directory
+
+    Returns
+    -------
+    gpu_arch : str
+        The AMD GPU architecture
+    """
     gpu_arch = "gfx900"
     # check if rocm is installed
     if not os.path.exists(rocm_path):
@@ -241,7 +254,8 @@ def get_rocm_arch(rocm_path="/opt/rocm"):
         return gpu_arch
     except subprocess.CalledProcessError:
         raise RuntimeError(
-            "Unable to execute rocminfo command, please ensure ROCm is installed and you have an AMD GPU on your system"
+            "Unable to execute rocminfo command, \
+                please ensure ROCm is installed and you have an AMD GPU on your system"
         )
 
 

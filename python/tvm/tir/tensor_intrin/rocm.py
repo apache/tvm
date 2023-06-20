@@ -18,11 +18,11 @@
 """Intrinsics for AMDGPU tensorization."""
 from tvm.script import tir as T
 
-from .. import TensorIntrin
-from .dot_product_common import dp4a_desc
 from tvm.runtime import convert
 from tvm.tir.expr import Cast, IntImm
-from tvm.tir.function import TensorIntrin
+from .dot_product_common import dp4a_desc
+from .. import TensorIntrin
+
 
 lift = convert
 
@@ -64,7 +64,7 @@ def shared_16x4_to_local_64x1_layout_A(i, j):
 
 def thread_id_shared_access_64x1_to_16x4_layout_A(thread_id, local_id):
     i = thread_id % 16
-    j = thread_id // 16
+    j = thread_id // 16 + local_id
     return i, j
 
 
@@ -75,7 +75,7 @@ def shared_4x16_to_local_64x1_layout_B(i, j):
 
 def thread_id_shared_access_64x1_to_4x16_layout_B(thread_id, local_id):
     i = thread_id // 16
-    j = thread_id % 16
+    j = thread_id % 16 + local_id
     return i, j
 
 
@@ -113,12 +113,6 @@ def thread_id_shared_access_64x4_to_16x16_layout_C(thread_id, local_id):
     i = local_id + (thread_id // 16) * 4
     j = thread_id % 16
     return i, j
-
-
-def shared_16x16_to_local_64x4_layout_C(i, j):
-    thread_id = j + (i // 4) * 16
-    local = i % 4
-    return thread_id, local
 
 
 def get_mma_fill_intrin(dtype, local_size):
