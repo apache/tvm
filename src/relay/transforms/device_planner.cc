@@ -77,9 +77,10 @@
  *
  * Phase 1
  * -------
- *  We iterate process the programs to find those nodes with conflicting virtual devices. If the
- *  virtual devices (d1 and d2) are joinable, they're replaced with a joined device (d). If
- *  unjoinable, a "device_copy" CallNode is inserted to copy the node output to the second device.
+ * We iterately process the programs and find nodes with conflicting virtual devices. If the
+ * virtual devices (d1 and d2) are joinable, they are replaced with a joined device (d). If
+ * they are unjoinable, a "device_copy" CallNode is inserted to copy the node output to the second
+ * device.
  *
  * Phase 2
  * -------
@@ -475,9 +476,9 @@ struct DeviceContext {
 };
 
 /*!
- * \brief Flows the device constraints over the module and find all the conflicted nodes. The
- * conficted note only contains nodes that has no explicit constraints. Eg "on_device" nodes are not
- * considerred as conflicted.
+ * \brief Flow the device constraints over the module and find all the conflicted nodes. The
+ * conflicted nodes only contain nodes that have no explicit constraints. For example, "on_device"
+ * nodes are not considered as conflicted.
  */
 class ConflictedNodeFinder : ExprVisitor {
  public:
