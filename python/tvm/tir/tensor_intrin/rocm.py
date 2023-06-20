@@ -362,14 +362,11 @@ def get_mfma_intrin(k_dim, in_dtype="float32", out_dtype="float32", b_transposed
             tx = T.env_thread("threadIdx.x")
             T.launch_thread(tx, WARP_SIZE)
 
-            vec_a = A.vload((tx, 0), dtype=f"{in_dtype}x{local_size}")
-            vec_b = B.vload((tx, 0), dtype=f"{in_dtype}x{local_size}")
-
             C[tx, 0:local_size_out] = T.call_llvm_pure_intrin(
                 T.llvm_lookup_intrinsic_id(mfma_intrin),
                 T.uint32(6),
-                T.call_intrin("int32", "tir.reinterpret", vec_a),
-                T.call_intrin("int32", "tir.reinterpret", vec_b),
+                T.call_intrin("int32", "tir.reinterpret", A[tx, 0:local_size]),
+                T.call_intrin("int32", "tir.reinterpret", A[tx, 0:local_size]),
                 C[tx, 0:local_size_out],
                 T.int32(0),
                 T.int32(0),
