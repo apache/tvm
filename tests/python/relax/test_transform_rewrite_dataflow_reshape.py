@@ -427,5 +427,24 @@ def test_invalid_reshape():
     tvm.ir.assert_structural_equal(rewritten, Module)
 
 
+def test_reshape_detect_nop():
+    @tvm.script.ir_module
+    class Module:
+        @R.function
+        def main(x: R.Tensor((8, 8), dtype="float16")) -> R.Tensor((8, 8), dtype="float16"):
+            with R.dataflow():
+                gv = R.call_pure_packed(
+                    "foo", x, x, sinfo_args=(R.Tensor((8, 8), dtype="float16"),)
+                )
+                out = R.call_pure_packed(
+                    "foo", gv, gv, sinfo_args=(R.Tensor((8, 8), dtype="float16"),)
+                )
+                R.output(out)
+            return out
+
+    rewritten = relax.transform.RewriteDataflowReshape()(Module)
+    tvm.ir.assert_structural_equal(rewritten, Module)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
