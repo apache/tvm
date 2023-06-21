@@ -988,9 +988,6 @@ class ModuleWithNonComposite_ref:
 
 def check(mod, expected):
     partitioned = relax.transform.MergeCompositeFunctions()(mod)
-    print(partitioned.script())
-    print()
-    print(expected.script())
     tvm.ir.assert_structural_equal(partitioned, expected)
 
 
