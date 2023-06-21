@@ -184,5 +184,56 @@ class TestSplitHostDeviceWithoutDeviceRegion(BaseCompare):
     expected = before
 
 
+class TestSplitHostDeviceNameCollision(BaseCompare):
+    """Like TestSplitHostDevice, but with the default name already taken
+
+    The default name is generated as `func.name + "_kernel"`.  If this
+    name is already taken by another function in the IRModule, then
+    SplitHostDevice should select a different name.
+    """
+
+    def before(self):
+        @I.ir_module
+        class mod:
+            @T.prim_func
+            def main(n: T.int32):
+                T.func_attr({"target": T.target("cuda", host="llvm -opt-level=0")})
+                T.attr(T.target("cuda"), "target", 0)
+                T.evaluate(n)
+
+            @T.prim_func
+            def main_kernel():
+                T.func_attr({"target": T.target("llvm")})
+                T.evaluate(0)
+
+        return mod
+
+    def expected(self):
+        @I.ir_module
+        class mod:
+            @T.prim_func
+            def main(n: T.int32):
+                T.func_attr({"target": T.target("cuda", host="llvm -opt-level=0")})
+                mod.main_kernel_1(n)
+
+            @T.prim_func
+            def main_kernel_1(n: T.int32):
+                T.func_attr(
+                    {
+                        "target": T.target("cuda"),
+                        "tir.noalias": T.bool(True),
+                        "tir.is_global_func": True,
+                    }
+                )
+                T.evaluate(n)
+
+            @T.prim_func
+            def main_kernel():
+                T.func_attr({"target": T.target("llvm")})
+                T.evaluate(0)
+
+        return mod
+
+
 if __name__ == "__main__":
     tvm.testing.main()

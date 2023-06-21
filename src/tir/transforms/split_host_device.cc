@@ -43,8 +43,8 @@ namespace tir {
 
 class HostDeviceSplitter : public StmtMutator {
  public:
-  explicit HostDeviceSplitter(IRModule* device_mod, std::string name_prefix)
-      : device_mod_(device_mod), name_prefix_(name_prefix) {}
+  explicit HostDeviceSplitter(IRModule* device_mod, std::function<GlobalVar()> var_supply)
+      : device_mod_(device_mod), var_supply_(var_supply) {}
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == tvm::attr::kTarget) {
@@ -74,13 +74,7 @@ class HostDeviceSplitter : public StmtMutator {
       return params;
     }();
 
-    GlobalVar kernel_symbol_global = [&]() {
-      std::stringstream name;
-      name << name_prefix_ << "_kernel";
-      GlobalVarSupply global_var_supply = GlobalVarSupply(*device_mod_);
-      return global_var_supply->FreshGlobal(name.str(), false);
-    }();
-
+    GlobalVar kernel_symbol_global = var_supply_();
     PrimFunc device_func(params, body);
     device_func = WithAttrs(std::move(device_func), {{tvm::attr::kTarget, device_target},
                                                      {tir::attr::kNoAlias, Bool(true)},
@@ -94,15 +88,13 @@ class HostDeviceSplitter : public StmtMutator {
 
   // target ir module
   IRModule* device_mod_;
-  // function name hint
-  std::string name_prefix_;
+  // Generate new GlobalVar for the kernel
+  std::function<GlobalVar()> var_supply_;
 };
 
-PrimFunc SplitHostDevice(PrimFunc func, IRModule* device_mod, const GlobalVar& gvar) {
-  auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
-  auto name_prefix = global_symbol.value_or(gvar->name_hint);
-
-  HostDeviceSplitter splitter(device_mod, name_prefix);
+PrimFunc SplitHostDevice(PrimFunc func, IRModule* device_mod,
+                         std::function<GlobalVar()> var_supply) {
+  HostDeviceSplitter splitter(device_mod, var_supply);
 
   if (auto body = splitter(func->body); !body.same_as(func->body)) {
     func.CopyOnWrite()->body = body;
@@ -115,13 +107,23 @@ namespace transform {
 
 Pass SplitHostDevice() {
   auto pass_func = [](IRModule mod, PassContext ctx) {
+    GlobalVarSupply global_var_supply(mod);
+
     IRModule device_mod = IRModule(Map<GlobalVar, BaseFunc>({}));
     IRModule updates = IRModule(Map<GlobalVar, BaseFunc>({}));
 
     for (const auto& [gvar, base_func] : mod->functions) {
       if (auto opt = base_func.as<PrimFunc>()) {
         PrimFunc func = opt.value();
-        func = SplitHostDevice(std::move(func), &device_mod, gvar);
+
+        auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
+        auto name_prefix = global_symbol.value_or(gvar->name_hint);
+        auto kernel_name = name_prefix + "_kernel";
+        auto var_supply = [&global_var_supply, &kernel_name]() -> GlobalVar {
+          return global_var_supply->FreshGlobal(kernel_name, false);
+        };
+
+        func = SplitHostDevice(std::move(func), &device_mod, var_supply);
         if (!func.same_as(base_func)) {
           updates->Add(gvar, func);
         }
