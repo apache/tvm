@@ -82,13 +82,7 @@ void FunctionFrameNode::ExitWithScope() {
       if (decl->attrs.defined()) {
         auto attr_dict = decl->attrs.get()->dict;
         if (attr_dict.count("global_symbol") && !attrs.count("global_symbol")) {
-          Map<String, ObjectRef> new_attrs;
-          for (auto kv : attrs) {
-            new_attrs.Set(kv.first, kv.second);
-          }
-          new_attrs.Set("global_symbol", attr_dict.at("global_symbol"));
-          auto mut_f = func.CopyOnWrite();
-          mut_f->attrs = DictAttrs(new_attrs);
+          func = std::move(WithAttr(func, tvm::attr::kGlobalSymbol, attr_dict.at("global_symbol")));
         }
       }
     }
