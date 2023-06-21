@@ -77,8 +77,8 @@
  *
  * Phase 1
  * -------
- * We iterately process the programs and find nodes with conflicting virtual devices. If the
- * virtual devices (d1 and d2) are joinable, they are replaced with a joined device (d). If
+ * We iteratively process the programs and find nodes with conflicting virtual devices. If the
+ * virtual devices ( \p d1 and \p d2 ) are joinable, they are replaced with a joined device \p d. If
  * they are unjoinable, a "device_copy" CallNode is inserted to copy the node output to the second
  * device.
  *
@@ -412,7 +412,7 @@ class RewriteOnDevices : public ExprMutator {
 /* =============== Phase 1 =============== */
 
 /*!
- * \brief Add "device_copy" calls for these nodes that have conflicted virtual_devices.
+ * \brief Add "device_copy" calls for nodes that have conflicting virtual devices.
  *
  * Eg Suppose an IRModule contains the following expr:
  * \code
@@ -421,7 +421,7 @@ class RewriteOnDevices : public ExprMutator {
  *   %2 = add(%b, %c);
  *   %3 = on_device(%2, virtual_device=d2);
  * \endcode
- * Then \p %b has two possbile virtual_devices \p d1 and \p d2 from the above expr:
+ * In the above example, node %b has two possible virtual devices: \p d1 and \p d2.
  *
  * - If \p d1 and \p d2 are joinable, replace \p d1 and \p d2 with the joined device \p d:
  * \code
@@ -435,7 +435,7 @@ class RewriteOnDevices : public ExprMutator {
  * \code
  *   %0 = add(%a, %b);
  *   %1 = on_device(%0, virtual_device=d);
- *   %2 = device_copy(%b, src_dev_type=d1, dst_dev_type=d2)
+ *   %2 = device_copy(%b, src_dev_type=d1, dst_dev_type=d2);
  *   %3 = add(%2, %c);
  *   %4 = on_device(%3, virtual_device=d);
  * \endcode
@@ -496,7 +496,7 @@ class ConflictedNodeFinder : ExprVisitor {
       if (node->IsInstance<CallNode>()) {
         auto call = Downcast<Call>(GetRef<Expr>(node));
         // "DeviceCapturer" will insert "device_copy" for "on_device" calls.
-        // Therefore, "on_device" should not be considerred as conflicted.
+        // Therefore, "on_device" should not be considered as conflicted.
         if (call->op == OnDeviceOp()) {
           dev_ctx_->conflicted_nodes.erase(node);
         }
@@ -553,7 +553,7 @@ class ConflictedNodeFinder : ExprVisitor {
 };
 
 /*!
- * \brief Inserts "device_copy" CallNode for all the conflicted nodes found by \p
+ * \brief Insert "device_copy" CallNode for all the conflicted nodes found by \p
  * ConflictedNodeFinder.
  */
 class ConflictedNodeRewriter : ExprMutator {
@@ -1478,7 +1478,7 @@ tvm::transform::Pass Rewrite() {
   return tvm::relay::transform::CreateFunctionPass(pass_func, 0, "PlanDevicesRewrite", {});
 }
 
-/*! \brief Check the conflicted nodes and add "device_copy" calls */
+/*! \brief Check the conflicted nodes and add "device_copy" calls. */
 tvm::transform::Pass Check(CompilationConfig config) {
   return tvm::transform::CreateModulePass(
       [config = std::move(config)](IRModule mod,
