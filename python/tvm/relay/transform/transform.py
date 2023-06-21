@@ -1376,10 +1376,16 @@ def ToMixedPrecision(mixed_precision_type="float16", missing_op_mode=1):
 def SplitArgs(max_function_args):
     """Split function with huge number of arguments to smaller pieces.
 
+    Parameters
+    ----------
+    max_function_args: int
+      Maximum number of function arguments. If it is 0 then SplitArgs won't split function.
+
+
     Returns
     -------
     ret : tvm.transform.Pass
-        The registered pass for constant folding.
+        The registered pass.
     """
     return _ffi_api.SplitArgs(max_function_args)
 
