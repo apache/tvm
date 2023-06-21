@@ -227,21 +227,22 @@ def hybrid_multibox_transform_loc(
     out_loc = output_tensor((batch_size, num_anchors, 6), loc_pred.dtype)
     valid_count = output_tensor((batch_size,), "int32")
 
+    start_cls_idx = 0 if keep_background else 1
+
     for i in parallel(batch_size):
         valid_count[i] = 0
         for j in range(num_anchors):
             # Find the predicted class id and probability
             score = -1.0
             cls_id = 0
-            for k in range(num_classes):
-                if keep_background or k > 0:
-                    temp = cls_prob[i, k, j]
-                    cls_id = k if temp > score else cls_id
-                    score = max(temp, score)
+            for k in range(start_cls_idx, num_classes):
+                temp = cls_prob[i, k, j]
+                cls_id = k if temp > score else cls_id
+                score = max(temp, score)
             if cls_id > 0 and score < threshold:
                 cls_id = 0
             # [id, prob, xmin, ymin, xmax, ymax]
-            # Remove background, restore original id
+            # Remove background if 'keep_background=False', restore original id
             if keep_background or cls_id > 0:
                 out_loc[i, valid_count[i], 0] = cls_id - 0.0 if keep_background else cls_id - 1.0
                 out_loc[i, valid_count[i], 1] = score

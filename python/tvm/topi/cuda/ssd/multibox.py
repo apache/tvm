@@ -223,19 +223,17 @@ def transform_loc_pre(
     idxd = tvm.tir.indexdiv
     idxm = tvm.tir.indexmod
 
+    start_cls_idx = 0 if keep_background == 1 else 1
+
     with ib.if_scope(tid < batch_size * num_anchors):
         i = idxd(tid, num_anchors)
         j = idxm(tid, num_anchors)
         valid_count[i] = 0
         score[tid] = -1.0
         cls_id[tid] = 0
-        with ib.for_range(0, num_classes - 1) as k:
-            with ib.if_scope(keep_background == 1):
-                temp = cls_prob[i * num_classes * num_anchors + k * num_anchors + j]
-                cls_id[tid] = if_then_else(temp > score[tid], k, cls_id[tid])
-            with ib.else_scope():
-                temp = cls_prob[i * num_classes * num_anchors + (k + 1) * num_anchors + j]
-                cls_id[tid] = if_then_else(temp > score[tid], k + 1, cls_id[tid])
+        with ib.for_range(start_cls_idx, num_classes) as k:
+            temp = cls_prob[i * num_classes * num_anchors + k * num_anchors + j]
+            cls_id[tid] = if_then_else(temp > score[tid], k, cls_id[tid])
             score[tid] = tvm.te.max(temp, score[tid])
         with ib.if_scope(tvm.tir.all(cls_id[tid] > 0, score[tid] < threshold)):
             cls_id[tid] = 0
@@ -366,7 +364,9 @@ def transform_loc_ir(
         with ib.if_scope(tvm.tir.any(keep_background == 1, cls_id[tid] > 0)):
             with ib.if_scope(j == 0):
                 out_base_idx = i * num_anchors * 6
-                out_loc[out_base_idx] = cls_id[tid] - 1.0
+                out_loc[out_base_idx] = (
+                    cls_id[tid] - 0.0 if keep_background == 1 else cls_id[tid] - 1.0
+                )
                 out_loc[out_base_idx + 1] = score[tid]
                 (
                     out_loc[out_base_idx + 2],
@@ -386,7 +386,9 @@ def transform_loc_ir(
                 )
             with ib.else_scope():
                 out_base_idx = i * num_anchors * 6 + temp_valid_count[tid - 1] * 6
-                out_loc[out_base_idx] = cls_id[tid] - 1.0
+                out_loc[out_base_idx] = (
+                    cls_id[tid] - 0.0 if keep_background == 1 else cls_id[tid] - 1.0
+                )
                 out_loc[out_base_idx + 1] = score[tid]
                 (
                     out_loc[out_base_idx + 2],
