@@ -41,6 +41,7 @@ def tune_tasks(
     measure_callbacks: MeasureCallback.CallbackListType = "default",
     task_scheduler: TaskScheduler.TaskSchedulerType = "gradient",
     module_equality: str = "structural",
+    **kwargs,
 ) -> Database:
     """Tune a list of tasks. Using a task scheduler.
 
@@ -108,7 +109,7 @@ def tune_tasks(
     elif not isinstance(database, Database):
         database = Database.create(database, module_equality=module_equality)
     if not isinstance(cost_model, CostModel):
-        cost_model = CostModel.create(cost_model, num_tuning_cores=num_cores)
+        cost_model = CostModel.create(cost_model, num_tuning_cores=num_cores, **kwargs)
     if isinstance(measure_callbacks, MeasureCallback):
         measure_callbacks = [measure_callbacks]
     elif measure_callbacks == "default":
