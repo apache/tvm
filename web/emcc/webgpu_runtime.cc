@@ -203,10 +203,6 @@ class WebGPUModuleNode final : public runtime::ModuleNode {
 
   int GetPropertyMask() const final { return ModulePropertyMask::kBinarySerializable; };
 
-  void SaveToFile(const String& file_name, const std::string& format) final {
-    LOG(FATAL) << "Not implemented";
-  }
-
   void SaveToBinary(dmlc::Stream* stream) final { LOG(FATAL) << "Not implemented"; }
 
   String GetSource(const String& format) final {
