@@ -374,9 +374,9 @@ with vta.build_config(disabled_pass={"tir.CommonSubexprElimTIR"}):
         s, [data, kernel, res], tvm.target.Target("ext_dev", host=env.target_host), name="my_conv"
     )
 temp = utils.tempdir()
-my_conv.save(temp.relpath("conv2d.o"))
-remote.upload(temp.relpath("conv2d.o"))
-f = remote.load_module("conv2d.o")
+my_conv.export_library(temp.relpath("conv2d.so"))
+remote.upload(temp.relpath("conv2d.so"))
+f = remote.load_module("conv2d.so")
 
 # Get the remote device context
 ctx = remote.ext_dev(0)

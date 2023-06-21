@@ -344,9 +344,9 @@ if __name__ == "__main__":
 
         # Export library
         temp = utils.tempdir()
-        lib.save(temp.relpath("graphlib.o"))
-        remote.upload(temp.relpath("graphlib.o"))
-        lib = remote.load_module("graphlib.o")
+        lib.export_library(temp.relpath("graphlib.so"))
+        remote.upload(temp.relpath("graphlib.so"))
+        lib = remote.load_module("graphlib.so")
 
         # If detailed runtime info is needed build with debug runtime
         if opt.debug_profile:
