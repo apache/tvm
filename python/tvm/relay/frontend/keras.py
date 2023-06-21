@@ -375,9 +375,7 @@ def _convert_convolution(inexpr, keras_layer, etab, data_layout, input_shape=Non
         input_shape = keras_layer.input_shape
 
     if data_layout == "NHWC":
-        if is_depthconv:
-            kernel_layout = "HWOI"
-        elif is_deconv:
+        if is_deconv:
             kernel_layout = "HWOI"
         else:
             kernel_layout = "HWIO"
