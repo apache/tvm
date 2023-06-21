@@ -44,7 +44,7 @@ def test_simple():
                 R.output(gv)
             return gv
 
-        @R.function
+        @R.function(private=True)
         def main_adjoint(x: R.Tensor((3, 3), "float32")) -> R.Tuple(R.Tensor(None, "float32", ndim=0),R.Tuple(R.Tensor(None, "float32", ndim=2)),):
             with R.dataflow():
                 gv: R.Tensor((), "float32") = R.sum(x, axis=None, keepdims=False)
@@ -83,7 +83,7 @@ def test_assign_binding():
                 R.output(gv)
             return gv
 
-        @R.function
+        @R.function(private=True)
         def main_adjoint(x: R.Tensor((3, 3), "float32")) -> R.Tuple(R.Tensor((), "float32"), R.Tuple(R.Tensor((3, 3), "float32"))):
             with R.dataflow():
                 lv1: R.Tensor((3, 3), "float32") = x
@@ -125,7 +125,7 @@ def test_multiple_uses():
                 R.output(gv)
             return gv
 
-        @R.function
+        @R.function(private=True)
         def main_adjoint(x: R.Tensor((3, 3), "float32")) -> R.Tuple(R.Tensor((), "float32"), R.Tuple(R.Tensor((3, 3), "float32"))):
             with R.dataflow():
                 lv1: R.Tensor((3, 3), "float32") = R.add(x, x)
@@ -168,7 +168,7 @@ def test_unused():
                 R.output(gv)
             return gv
 
-        @R.function
+        @R.function(private=True)
         def main_adjoint(x: R.Tensor((3, 3), "float32")) -> R.Tuple(R.Tensor((), "float32"), R.Tuple(R.Tensor((3, 3), "float32"))):
             with R.dataflow():
                 lv1: R.Tensor((3, 3), "float32") = R.add(x, x)
@@ -217,7 +217,7 @@ def test_default_require_grads():
                 R.output(gv)
             return gv
 
-        @R.function
+        @R.function(private=True)
         def main_adjoint(x: R.Tensor((3, 3), "float32"), y: R.Tensor((3, 3), "float32"), z: R.Tensor((3, 3), "float32")) -> R.Tuple(R.Tensor((), "float32"), R.Tuple(R.Tensor((3, 3), "float32"), R.Tensor((3, 3), "float32"), R.Tensor((3, 3), "float32"))):
             with R.dataflow():
                 lv1: R.Tensor((3, 3), "float32") = R.add(x, y)
@@ -249,7 +249,7 @@ def test_default_require_grads():
                 R.output(gv)
             return gv
 
-        @R.function
+        @R.function(private=True)
         def main_adjoint(x: R.Tensor((3, 3), "float32"), y: R.Tensor((3, 3), "float32"), z: R.Tensor((3, 3), "float32")) -> R.Tuple(R.Tensor((), "float32"), R.Tuple(R.Tensor((3, 3), "float32"))):
             # block 0
             with R.dataflow():
@@ -292,7 +292,7 @@ def test_target_index():
                 R.output(lv1, lv2, lv3)
             return (lv1, lv2, lv3)
 
-        @R.function
+        @R.function(private=True)
         def main_adjoint(x: R.Tensor((3, 3), "float32"), y: R.Tensor((3, 3), "float32")) -> R.Tuple(R.Tuple(R.Tensor((3, 3), "float32"), R.Tensor((), "float32"), R.Tensor((), "float32")), R.Tuple(R.Tensor((3, 3), "float32"), R.Tensor((3, 3), "float32"))):
             with R.dataflow():
                 lv1: R.Tensor((3, 3), "float32") = x
@@ -341,7 +341,7 @@ def test_tuple():
                 R.output(gv)
             return gv
 
-        @R.function
+        @R.function(private=True)
         def main_adjoint(x: R.Tuple(R.Tensor((3, 3), "float32"), R.Tensor((3, 3), "float32")), y: R.Tensor((3, 3), "float32"), z: R.Tensor((3, 3), "float32")) -> R.Tuple(R.Tensor((), "float32"), R.Tuple(R.Tuple(R.Tensor((3, 3), "float32"), R.Tensor((3, 3), "float32")), R.Tensor((3, 3), "float32"), R.Tensor((3, 3), "float32"))):
             with R.dataflow():
                 lv1: R.Tuple(R.Tensor((3, 3), "float32"), R.Tensor((3, 3), "float32")) = (y, z)
@@ -399,7 +399,7 @@ def test_tuple_assignment():
                 R.output(gv)
             return gv
 
-        @R.function
+        @R.function(private=True)
         def main_adjoint(x: R.Tensor((3, 3), "float32"), y: R.Tensor((3, 3), "float32")) -> R.Tuple(R.Tensor((), "float32"), R.Tuple(R.Tensor((3, 3), "float32"), R.Tensor((3, 3), "float32"))):
             # block 0
             with R.dataflow():
@@ -473,7 +473,7 @@ def test_tuple_nested():
                 R.output(gv)
             return gv
 
-        @R.function
+        @R.function(private=True)
         def main_adjoint(x: R.Tuple(R.Tuple(R.Tensor((3, 3), "float32"), R.Tensor((3, 3), "float32")), R.Tensor((3, 3), "float32")), y: R.Tensor((3, 3), "float32"), z: R.Tensor((3, 3), "float32"), u: R.Tensor((3, 3), "float32")) -> R.Tuple(R.Tensor((), "float32"), R.Tuple(R.Tuple(R.Tuple(R.Tensor((3, 3), "float32"), R.Tensor((3, 3), "float32")), R.Tensor((3, 3), "float32")), R.Tensor((3, 3), "float32"), R.Tensor((3, 3), "float32"), R.Tensor((3, 3), "float32"))):
             with R.dataflow():
                 lv1: R.Tuple(R.Tuple(R.Tensor((3, 3), "float32"), R.Tensor((3, 3), "float32")), R.Tensor((3, 3), "float32")) = ((y, z), u)
@@ -552,7 +552,7 @@ def test_tuple_update():
                 R.output(gv)
             return gv
 
-        @R.function
+        @R.function(private=True)
         def main_adjoint(x: R.Tensor((3, 3), "float32"), y: R.Tensor((3, 3), "float32")) -> R.Tuple(R.Tensor((), "float32"), R.Tuple(R.Tensor((3, 3), "float32"), R.Tensor((3, 3), "float32"))):
             with R.dataflow():
                 lv0: R.Tuple(R.Tensor((3, 3), "float32"), R.Tensor((3, 3), "float32")) = (x, y)
@@ -621,7 +621,7 @@ def test_tuple_op_simple():
                 R.output(gv)
             return gv
 
-        @R.function
+        @R.function(private=True)
         def main_adjoint(x: R.Tensor((6,), "float32")) -> R.Tuple(R.Tensor((), "float32"), R.Tuple(R.Tensor((6,), "float32"))):
             with R.dataflow():
                 lv1: R.Tuple(R.Tensor((3,), "float32"), R.Tensor((3,), "float32")) = R.split(x, indices_or_sections=2, axis=0)
@@ -671,7 +671,7 @@ def test_tuple_op_construct():
                 R.output(gv)
             return gv
 
-        @R.function
+        @R.function(private=True)
         def main_adjoint(x: R.Tensor((3,), "float32"), y: R.Tuple(R.Tensor((3,), "float32"), R.Tensor((3,), "float32"))) -> R.Tuple(R.Tensor((), "float32"), R.Tuple(R.Tensor((3,), "float32"), R.Tuple(R.Tensor((3,), "float32"), R.Tensor((3,), "float32")))):
             with R.dataflow():
                 lv1: R.Tuple(R.Tensor((3,), "float32"), R.Tensor((3,), "float32")) = (x, x)
@@ -740,7 +740,7 @@ def test_tuple_op_const():
                 R.output(gv)
             return gv
 
-        @R.function
+        @R.function(private=True)
         def main_adjoint(x: R.Tensor((3,), "float32")) -> R.Tuple(R.Tensor((), "float32"), R.Tuple(R.Tensor((3,), "float32"))):
             # block 0
             with R.dataflow():
@@ -806,7 +806,7 @@ def test_const():
                 R.output(gv)
             return gv
 
-        @R.function
+        @R.function(private=True)
         def main_adjoint(x: R.Tensor((3, 3), "float32"), y: R.Tensor((3, 3), "float32")) -> R.Tuple(R.Tensor((), "float32"), R.Tuple(R.Tensor((3, 3), "float32"), R.Tensor((3, 3), "float32"))):
             with R.dataflow():
                 lv1: R.Tensor((3, 3), "float32") = R.add(x, cst)
@@ -1070,7 +1070,7 @@ def test_shape_expr():
 
     @I.ir_module
     class Expected:
-        @R.function
+        @R.function(private=True)
         def main_adjoint(x: R.Tensor((3, 4), dtype="float32")) -> R.Tuple(R.Tensor((), dtype="float32"), R.Tuple(R.Tensor((3, 4), dtype="float32"))):
             with R.dataflow():
                 s: R.Shape([3, 2, 2]) = R.shape([3, 2, 2])
@@ -1122,7 +1122,7 @@ def test_mlp_script():
 
     @I.ir_module
     class Expected:
-        @R.function
+        @R.function(private=True)
         def main_adjoint(x: R.Tensor((3, 10), dtype="float32"), w0: R.Tensor((10, 5), dtype="float32"), b0: R.Tensor((5,), dtype="float32"), label: R.Tensor((3, 5), dtype="float32")) -> R.Tuple(R.Tensor((), dtype="float32"), R.Tuple(R.Tensor((10, 5), dtype="float32"), R.Tensor((5,), dtype="float32"))):
             with R.dataflow():
                 lv0: R.Tensor((3, 5), dtype="float32") = R.matmul(x, w0, out_dtype="void")

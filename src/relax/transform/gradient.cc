@@ -333,7 +333,9 @@ class GradientMutator : private ExprMutator {
     }
 
     GradientMutator mutator(mod, require_grads_value, target_index);
-    Function new_func_transformed = Downcast<Function>(mutator.VisitExpr(new_func));
+    // remove the global symbol if the original had one (the adjoint does not need a global symbol)
+    Function new_func_transformed =
+        WithoutAttr(Downcast<Function>(mutator.VisitExpr(new_func)), tvm::attr::kGlobalSymbol);
 
     IRModule new_module = GetRef<IRModule>(mod.CopyOnWrite());
     new_module->Add(GlobalVar(func_name + "_adjoint"), new_func_transformed);

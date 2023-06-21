@@ -45,9 +45,11 @@ FType = TypeVar("FType", bound=_Callable)
 # this formulation allows us to support having @R.function
 # appear as a decorator by itself or to have optional arguments
 # like @R.function(pure=False)
-def function(f: Optional[FType] = None, pure: bool = True) -> Union[Function, FType]:
+def function(
+    f: Optional[FType] = None, pure: bool = True, private: bool = False
+) -> Union[Function, FType]:
     # pylint: disable=unused-argument
-    # (pure isn't used here, but is used later in parsing)
+    # (pure and private aren't used here, but are used later in parsing)
 
     # need to inspect the stack first because is_defined_in_class expects the outer class
     # to be in a particular position in the stack

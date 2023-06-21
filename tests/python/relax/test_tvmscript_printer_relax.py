@@ -47,8 +47,10 @@ def main(a: R.Tensor((10, 10))) -> R.Tensor((10, 10)):
 
 
 def test_extern_func():
+    # note: this function will be treated as private unless a global symbol is added
     @R.function
     def relax_func(a: R.Tensor((10, 10))) -> R.Tensor((10, 10)):  # type: ignore
+        R.func_attr({"global_symbol": "func"})
         return a
 
     obj = IRModule(
@@ -572,6 +574,103 @@ class Module:
     def main(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
         y: R.Tuple = R.print(x, format=R.str("x: {}"))
         return x
+""",
+    )
+
+
+def test_private_function():
+    @I.ir_module
+    class AddMod:
+        @R.function(private=True)
+        def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+            y: R.Tensor((), dtype="int32") = R.add(x, x)
+            return y
+
+    _assert_print(
+        AddMod,
+        """
+# from tvm.script import ir as I
+# from tvm.script import relax as R
+
+@I.ir_module
+class Module:
+    @R.function(private=True)
+    def main(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
+        y: R.Tensor((), dtype="int32") = R.add(x, x)
+        return y
+""",
+    )
+
+
+def test_directly_construct_private_funcs():
+    # public
+    @R.function
+    def func1(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+        R.func_attr({"global_symbol": "foo"})
+        y: R.Tensor((), dtype="int32") = R.add(x, x)
+        return y
+
+    # private
+    @R.function
+    def func2(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+        y: R.Tensor((), dtype="int32") = R.multiply(x, x)
+        return y
+
+    # public but there's another attribute
+    @R.function
+    def func3(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+        R.func_attr({"global_symbol": "baz", "relax.force_pure": True})
+        y: R.Tuple = R.print(format="Hi there!")
+        z: R.Tensor((), dtype="int32") = R.add(x, x)
+        return z
+
+    # private with an attribute
+    @R.function
+    def func4(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+        R.func_attr({"relax.force_pure": True})
+        y: R.Tuple = R.print(format="Lol")
+        z: R.Tensor((), dtype="int32") = R.multiply(x, x)
+        return z
+
+    obj = IRModule(
+        {
+            "foo": func1,
+            "bar": func2,
+            "baz": func3,
+            "quux": func4,
+        }
+    )
+    _assert_print(
+        obj,
+        """
+# from tvm.script import ir as I
+# from tvm.script import relax as R
+
+@I.ir_module
+class Module:
+    @R.function(private=True)
+    def bar(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
+        y: R.Tensor((), dtype="int32") = R.multiply(x, x)
+        return y
+
+    @R.function
+    def baz(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
+        R.func_attr({"relax.force_pure": 1})
+        y: R.Tuple = R.print(format=R.str("Hi there!"))
+        z: R.Tensor((), dtype="int32") = R.add(x, x)
+        return z
+
+    @R.function
+    def foo(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
+        y: R.Tensor((), dtype="int32") = R.add(x, x)
+        return y
+
+    @R.function(private=True)
+    def quux(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
+        R.func_attr({"relax.force_pure": 1})
+        y: R.Tuple = R.print(format=R.str("Lol"))
+        z: R.Tensor((), dtype="int32") = R.multiply(x, x)
+        return z
 """,
     )
 

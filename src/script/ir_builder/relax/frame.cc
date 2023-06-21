@@ -74,6 +74,24 @@ void FunctionFrameNode::ExitWithScope() {
                              "function scope, if it's defined in a Module";
     const IRModuleFrame& frame = opt_frame.value();
     const String& func_name = name.value_or("");
+    // If the function has already been declared (i.e., it is global), see if there is
+    // already a global symbol defined for it (i.e., it is not private).
+    // If yes, add it to the current function's attributes (unless one was manually defined)
+    if (frame->global_var_map.count(func_name)) {
+      auto decl = frame->functions.at(frame->global_var_map.at(func_name));
+      if (decl->attrs.defined()) {
+        auto attr_dict = decl->attrs.get()->dict;
+        if (attr_dict.count("global_symbol") && !attrs.count("global_symbol")) {
+          Map<String, ObjectRef> new_attrs;
+          for (auto kv : attrs) {
+            new_attrs.Set(kv.first, kv.second);
+          }
+          new_attrs.Set("global_symbol", attr_dict.at("global_symbol"));
+          auto mut_f = func.CopyOnWrite();
+          mut_f->attrs = DictAttrs(new_attrs);
+        }
+      }
+    }
     if (!frame->global_var_map.count(func_name)) {
       // First time visiting the function.
       ir::DeclFunction(func_name, func);

@@ -27,6 +27,8 @@ from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
 from tvm.script.parser import tir as T
 
+from tvm.relax.testing import dump_ast
+
 
 def _check(
     parsed: Union[relax.Function, IRModule],
@@ -203,7 +205,7 @@ def test_simple_module():
 
     x = relax.Var("x", R.Tensor((128, 128), "float32"))
     bb = relax.BlockBuilder()
-    with bb.function("foo", (x,)):
+    with bb.function("foo", (x,), {"global_symbol": "foo"}):
         out = bb.emit_te(lambda x: x + 1, x, primfunc_name_hint="tir_func")
         bb.emit_func_output(out)
 
@@ -232,7 +234,7 @@ def test_emit_te_primfunc_attrs():
 
     x = relax.Var("x", R.Tensor((128, 128), "float32"))
     bb = relax.BlockBuilder()
-    with bb.function("foo", (x,)):
+    with bb.function("foo", (x,), {"global_symbol": "foo"}):
         out = bb.emit_te(
             lambda x: x + 1,
             x,
@@ -254,7 +256,7 @@ def test_emit_te():
 
     bb = relax.BlockBuilder()
     x = relax.Var("x", relax.TensorStructInfo([10, 20], "float32"))
-    with bb.function("main", [x]):
+    with bb.function("main", [x], {"global_symbol": "main"}):
         lv1 = bb.emit_te(topi.add, x, x)
         out = bb.emit_te(topi.multiply, lv1, lv1)
         bb.emit_func_output(out)
@@ -294,7 +296,7 @@ def test_module_with_attr_and_global_info():
 
     x = relax.Var("x", R.Tensor((128, 128), "float32"))
     bb = relax.BlockBuilder()
-    with bb.function("foo", (x,)):
+    with bb.function("foo", (x,), {"global_symbol": "foo"}):
         out = bb.emit_te(lambda x: x + 1, x, primfunc_name_hint="tir_func")
         bb.emit_func_output(out)
     mod = bb.get()
@@ -834,7 +836,7 @@ def test_call_dps_packed_empty_shape():
 def test_call_tir_empty_tuple_arg():
     bb = relax.BlockBuilder()
     dummy_param = relax.Var("dummy_param", R.Tensor(()))
-    with bb.function("foo", [dummy_param]):
+    with bb.function("foo", [dummy_param], {"global_symbol": "foo"}):
         output = bb.emit_te(topi.full, shape=(16, 32), dtype="float32", fill_value=1.0)
         bb.emit_func_output(output)
 
@@ -1491,6 +1493,23 @@ def test_call_pure_packed():
         bb.emit_func_output(z)
 
     _check(foo, bb.get()["foo"])
+
+
+def test_private_function():
+    @I.ir_module
+    class Addition:
+        @R.function(private=True)
+        def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+            y = R.add(x, x)
+            return y
+
+    x = relax.Var("x", R.Tensor((), "int32"))
+    bb = relax.BlockBuilder()
+    with bb.function("main", (x)):
+        y = bb.emit(R.add(x, x))
+        bb.emit_func_output(y)
+
+    _check(Addition, bb.get())
 
 
 if __name__ == "__main__":

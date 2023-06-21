@@ -21,7 +21,7 @@ import numbers
 from typing import Any, Dict, Optional
 
 from tvm import relax, tir
-from tvm.ir import GlobalVar, structural_equal
+from tvm.ir import GlobalVar, make_node, structural_equal
 from tvm.relax import Expr, StructInfo
 from tvm.relax.utils import convert_to_expr
 from tvm.script.ir_builder.relax.frame import BlockFrame
@@ -178,7 +178,8 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
         local_func_var = relax.Var(node.name, relax.FuncStructInfo(params_sinfo, ret_sinfo))
         self.var_table.add(node.name, local_func_var)
 
-    purity = find_purity_annotation(node)
+    purity = find_decorator_annotation(node, "pure")
+    # don't handle the privacy annotation here because it's only relevant for global funcs
 
     with self.var_table.with_frame():
         with self.with_dispatch_token("relax"):
@@ -204,20 +205,19 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
                 self.visit_body(node.body)
 
 
-def find_purity_annotation(node: doc.FunctionDef) -> bool:
+def find_decorator_annotation(node: doc.FunctionDef, annotation: str, default: bool = True) -> bool:
     """
-    Check the value of `pure` in the function decorator.
-    Returns the annotated purity if present, otherwise defaulting to True.
-    This allows for specifying the purity in the function signature.
+    Check the value of given annotation (argument name) in the function decorator.
+    Returns the value of the annotation if present, otherwise giving the default value.
     """
-    # look for the pure argument in the function decorator
+    # look for the named argument in the function decorator
     for dec in node.decorator_list:
         if not isinstance(dec, doc.Call) or dec.func.attr != "function":
             continue
         for keyword in dec.keywords:
-            if keyword.arg == "pure":
+            if keyword.arg == annotation:
                 return keyword.value.value
-    return True
+    return default
 
 
 @dispatch.register(token="relax", type_name="tvm_declare_function")
@@ -238,8 +238,15 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> GlobalVar
             param_sinfo = eval_struct_info(self, arg.annotation, eval_str=True)
             params.append(relax.Var(arg.arg, param_sinfo))
 
-    is_pure = find_purity_annotation(node)
-    func_signature = relax.Function.create_empty(params, ret_sinfo, is_pure=is_pure)
+    is_pure = find_decorator_annotation(node, "pure")
+
+    # if the global function is not private, then use its name as the global symbol
+    is_private = find_decorator_annotation(node, "private", default=False)
+    attrs = None
+    if not is_private:
+        attrs = make_node("DictAttrs", global_symbol=node.name)
+
+    func_signature = relax.Function.create_empty(params, ret_sinfo, is_pure=is_pure, attrs=attrs)
     return I.decl_function(node.name, func_signature)
 
 

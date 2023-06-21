@@ -378,6 +378,7 @@ def test_rhs_batched():
         w2: R.Tensor((2, 640, 640), dtype="float32"),
         w3: R.Tensor((3, 4, 640, 640), dtype="float32"),
     ) -> R.Tensor:
+        R.func_attr({"global_symbol": "main"})
         with R.dataflow():
             lv = R.concat((w0, w2), axis=2)
             lv1 = R.matmul(x, lv, out_dtype="float32")
@@ -458,6 +459,7 @@ def test_multiple_combine():
         b0: R.Tensor((640,), dtype="float32"),
         b1: R.Tensor((640,), dtype="float32"),
     ) -> R.Tensor:
+        R.func_attr({"global_symbol": "main"})
         with R.dataflow():
             lv = R.concat((w0, w1, w2), axis=1)
             lv1 = R.matmul(x1, lv, out_dtype="float32")
@@ -515,6 +517,7 @@ def test_check():
         w3: R.Tensor((640, 640), dtype="float32"),
         w4: R.Tensor((640, 640), dtype="float32"),
     ) -> R.Tensor:
+        R.func_attr({"global_symbol": "main"})
         with R.dataflow():
             lv = R.concat((w0, w1, w2), axis=1)
             lv1 = R.matmul(x1, lv, out_dtype="float32")

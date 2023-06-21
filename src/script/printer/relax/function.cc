@@ -52,17 +52,45 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       (*f)->func_vars = nullptr;
       // Step 4. Print attributes
       if (n->attrs.defined() && !n->attrs->dict.empty()) {
-        (*f)->stmts.push_back(
-            ExprStmtDoc(Relax(d, "func_attr")  //
-                            ->Call({d->AsDoc<ExprDoc>(n->attrs, n_p->Attr("attrs"))})));
+        // if the function is a global function and has a global symbol,
+        // then don't print the global symbol (it will be implicit from not being private)
+        if (d->frames.size() == 3 && n->attrs->dict.count("global_symbol")) {
+          Map<String, ObjectRef> new_attrs;
+          for (auto kv : n->attrs->dict) {
+            if (kv.first != "global_symbol") {
+              new_attrs.Set(kv.first, kv.second);
+            }
+          }
+          if (!new_attrs.empty()) {
+            (*f)->stmts.push_back(ExprStmtDoc(
+                Relax(d, "func_attr")  //
+                    ->Call({d->AsDoc<ExprDoc>(DictAttrs(new_attrs), n_p->Attr("attrs"))})));
+          }
+        } else {
+          (*f)->stmts.push_back(
+              ExprStmtDoc(Relax(d, "func_attr")  //
+                              ->Call({d->AsDoc<ExprDoc>(n->attrs, n_p->Attr("attrs"))})));
+        }
       }
       // Step 5. Prepare the decorator (include purity if it's impure)
       ExprDoc decorator = Relax(d, "function");
+      Array<ExprDoc, void> pos_args = {};
+      Array<String, void> dec_keys;
+      Array<ExprDoc, void> dec_values;
       if (!n->is_pure) {
-        Array<ExprDoc> pos_args = {};
-        decorator = std::move(decorator->Call(
-            pos_args, {"pure"}, {LiteralDoc::Boolean(false, Optional<ObjectPath>())}));
+        dec_keys.push_back("pure");
+        dec_values.push_back(LiteralDoc::Boolean(false, Optional<ObjectPath>()));
       }
+      // if the function is global and does not have a global symbol, indicate that it's private
+      if (d->frames.size() == 3 &&
+          (!n->attrs.defined() || !n->attrs->dict.count("global_symbol"))) {
+        dec_keys.push_back("private");
+        dec_values.push_back(LiteralDoc::Boolean(true, Optional<ObjectPath>()));
+      }
+      if (dec_keys.size()) {
+        decorator = std::move(decorator->Call(pos_args, dec_keys, dec_values));
+      }
+
       // Step 6. Print body
       Array<StmtDoc> body =
           PrintSeqExpr(Downcast<relax::SeqExpr>(n->body), n_p->Attr("body"), d, /*use_ret=*/true);

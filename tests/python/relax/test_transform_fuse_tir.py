@@ -603,7 +603,7 @@ def test_multiple_relax_functions():
 
     @I.ir_module
     class Expected:
-        @R.function
+        @R.function(private=True)
         def func1(x: R.Tensor((10, 20), dtype="float32")) -> R.Tensor((10, 20), dtype="float32"):
             with R.dataflow():
                 gv2 = R.call_tir(
@@ -614,7 +614,7 @@ def test_multiple_relax_functions():
                 R.output(gv2)
             return gv2
 
-        @R.function
+        @R.function(private=True)
         def func2(x: R.Tensor((20, 10), dtype="float32")) -> R.Tensor((20, 10), dtype="float32"):
             with R.dataflow():
                 gv3 = R.call_tir(

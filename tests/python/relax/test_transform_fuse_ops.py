@@ -938,7 +938,7 @@ def test_layer_norm_silu():
                     T.writes(B[v_i0, v_i1, v_i2, v_i3])
                     B[v_i0, v_i1, v_i2, v_i3] = T.max(A[v_i0, v_i1, v_i2, v_i3], T.float32(0))
 
-        @R.function
+        @R.function(private=True)
         def fused_layer_norm_relu(x: R.Tensor((1, 512, 64, 64), dtype="float32"), mean: R.Tensor((64, 64), dtype="float32"), var: R.Tensor((64, 64), dtype="float32")) -> R.Tensor((1, 512, 64, 64), dtype="float32"):
             R.func_attr({"Primitive": 1})
             cls = Expected
@@ -1080,7 +1080,7 @@ def test_multiple_paths():
                     T.writes(T_transpose[v_ax0, v_ax1])
                     T_transpose[v_ax0, v_ax1] = rxplaceholder[v_ax1, v_ax0]
 
-        @R.function
+        @R.function(private=True)
         def fused_conv2d_add_add2(inp_0: R.Tensor((2, 320, 64, 64), dtype="float32"), w1: R.Tensor((320, 320, 3, 3), dtype="float32"), lv28: R.Tensor((1, 320, 1, 1), dtype="float32"), lv35: R.Tensor((2, 320, 1, 1), dtype="float32")) -> R.Tensor((2, 320, 64, 64), dtype="float32"):
             R.func_attr({"Primitive": 1})
             cls = Expected
@@ -1091,7 +1091,7 @@ def test_multiple_paths():
                 R.output(gv)
             return gv
 
-        @R.function
+        @R.function(private=True)
         def fused_matmul_add1(inp_1: R.Tensor((2, 1280), dtype="float32"), lv31: R.Tensor((1280, 320), dtype="float32"), b2: R.Tensor((320,), dtype="float32")) -> R.Tensor((2, 320), dtype="float32"):
             cls = Expected
             R.func_attr({"Primitive": 1})
@@ -1226,7 +1226,7 @@ def test_dead_group():
                     T.writes(T_transpose[v_ax0, v_ax1])
                     T_transpose[v_ax0, v_ax1] = rxplaceholder[v_ax1, v_ax0]
 
-        @R.function
+        @R.function(private=True)
         def fused_matmul1_add1(inp_1: R.Tensor((1, 128), dtype="float32"), lv4: R.Tensor((128, 10), dtype="float32"), linear2_bias: R.Tensor((10,), dtype="float32")) -> R.Tensor((1, 10), dtype="float32"):
             R.func_attr({"Primitive": 1})
             cls = Expected
@@ -1268,7 +1268,7 @@ def test_symbolic_shape_aware_fuse():
 
     @I.ir_module
     class Expected:
-        @R.function
+        @R.function(private=True)
         def fused_add_exp_squeeze(
             x: R.Tensor(["n", "m"], "float32"), p0: R.Tensor([], "float32")
         ) -> R.Tensor(["n", "m"], dtype="float32"):
@@ -1306,7 +1306,7 @@ def test_symbolic_shape_aware_fuse_2():
 
     @I.ir_module
     class Expected:
-        @R.function
+        @R.function(private=True)
         def fused_full_trilu_broadcast_to(
             s: R.Shape(["n"]),
         ) -> R.Tensor([1, 1, "n", "n"], "float32"):
@@ -1354,7 +1354,7 @@ def test_shape_expr_arg():
 
     @I.ir_module
     class Expected:
-        @R.function
+        @R.function(private=True)
         def fused_full_trilu_broadcast_to(
             s: R.Shape(["n"]),
         ) -> R.Tensor([1, 1, "n", "n"], "float32"):
