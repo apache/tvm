@@ -183,25 +183,8 @@ NDArray NDArray::CreateView(ShapeTuple shape, DLDataType dtype) {
   ICHECK(data_ != nullptr);
 
   const DLTensor& orig = get_mutable()->dl_tensor;
-  bool is_compact = [&orig]() {
-    if (orig.strides == nullptr) {
-      return true;
-    }
-
-    int compact_stride = 1;
-    for (int i = orig.ndim; i > 0; i--) {
-      int shape_i = orig.shape[i - 1];
-      int stride_i = orig.strides[i - 1];
-      if (compact_stride != stride_i && shape_i != 1) {
-        return false;
-      }
-      compact_stride *= shape_i;
-    }
-    return true;
-  }();
-
-  ICHECK(is_compact) << "Can only create view for compact tensor, but found strides " <<
-      [&]() {
+  ICHECK(IsContiguous()) << "Can only create view for compact tensor, but found strides " <<
+      [&orig]() {
         std::stringstream ss;
         ss << "[";
         for (int i = 0; i < orig.ndim; i++) {
@@ -211,16 +194,16 @@ NDArray NDArray::CreateView(ShapeTuple shape, DLDataType dtype) {
         ss << "]";
         return ss.str();
       }() << ", for shape "
-                     << [&]() {
-                          std::stringstream ss;
-                          ss << "[";
-                          for (int i = 0; i < orig.ndim; i++) {
-                            if (i) ss << ", ";
-                            ss << orig.shape[i];
-                          }
-                          ss << "]";
-                          return ss.str();
-                        }();
+                         << [&]() {
+                              std::stringstream ss;
+                              ss << "[";
+                              for (int i = 0; i < orig.ndim; i++) {
+                                if (i) ss << ", ";
+                                ss << orig.shape[i];
+                              }
+                              ss << "]";
+                              return ss.str();
+                            }();
 
   NDArray ret = Internal::Create(shape, dtype, get_mutable()->dl_tensor.device);
   ret.get_mutable()->dl_tensor.byte_offset = this->get_mutable()->dl_tensor.byte_offset;
