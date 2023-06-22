@@ -719,5 +719,16 @@ void TracedScheduleNode::EnterPostproc() {
                                       /*outputs=*/{}));
 }
 
+void TracedScheduleNode::HideBufferAccess(const BlockRV& block_rv, const String& buf_type,
+                                          const Array<IntImm>& buf_index_array) {
+  ConcreteScheduleNode::HideBufferAccess(block_rv, buf_type, buf_index_array);
+  static const InstructionKind& kind = InstructionKind::Get("HideBufferAccess");
+  trace_->Append(/*inst=*/Instruction(
+      /*kind=*/kind,
+      /*inputs=*/{block_rv, buf_type, buf_index_array},
+      /*attrs=*/{},
+      /*outputs=*/{}));
+}
+
 }  // namespace tir
 }  // namespace tvm
