@@ -99,6 +99,9 @@ bool ProducerCoversConsumer(const Array<PrimExpr>& buffer_shape,
     if (produced_region[i].IsNothing()) {
       return false;
     }
+    if (consumed_region[i].IsNothing()) {
+      continue;
+    }
     arith::IntSet produced =
         arith::IntSet::Interval(analyzer->canonical_simplify(produced_region[i].min()),
                                 analyzer->canonical_simplify(produced_region[i].max()));

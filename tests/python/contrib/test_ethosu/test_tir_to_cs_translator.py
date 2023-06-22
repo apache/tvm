@@ -85,6 +85,26 @@ class MultiEthosUCopy:
 
 
 # fmt: off
+"""A tir test case with copy operation having a buffer size less than the minimum for a DMA operation"""
+@tvm.script.ir_module
+class CopyLessMinimal:
+    @T.prim_func
+    def main(ethos_u_0_i0: T.Buffer((1, 4), "int8"), ethosu_write: T.Buffer((1, 4), "int8")):
+        T.func_attr({"from_legacy_te_schedule": T.bool(True), "global_symbol": "main", "tir.noalias": T.bool(True)})
+        p1_global = T.allocate([4], "int8", "global", annotations={"disable_lower_builtin": T.bool(True)})
+        ethosu_write_1 = T.allocate([4], "int8", "global", annotations={"disable_lower_builtin": T.bool(True)})
+        p1 = T.Buffer((4,), "int8")
+        p1_global_1 = T.Buffer((4,), "int8", data=p1_global)
+        T.call_extern("handle", "ethosu_copy", p1[0], 4, p1_global_1[0])
+        ethos_u_0_i0_1 = T.Buffer((4,), "int8", data=ethos_u_0_i0.data)
+        ethosu_write_2 = T.Buffer((4,), "int8", data=ethosu_write_1, align=4)
+        T.call_extern("handle", "ethosu_binary_elementwise", "int8", 1, 1, 4, 1, 0, 1, ethos_u_0_i0_1[0], 0, 0, 0, T.float32(0.0039170472882688046), -128, "NHWC", 1, 1, 1, "int8", 1, 1, 4, 1, 0, 1, p1_global_1[0], 0, 0, 0, T.float32(0.0028046639636158943), -128, "NHWC", 1, 1, 1, "int8", 1, 1, 4, 1, 0, 1, ethosu_write_2[0], 0, 0, 0, T.float32(0.0067217112518846989), -128, "NHWC", 1, 1, 1, "ADD", 0, "NONE", 0, 0, "TFL", 0, 0, 0, 0, 0, 0)
+        ethosu_write_3 = T.Buffer((4,), "int8", data=ethosu_write.data)
+        T.call_extern("handle", "ethosu_identity", "int8", 1, 4, 1, 1, 0, 4, ethosu_write_2[0], 0, 0, 0, T.float32(1), 0, "NHWC", 1, 1, 1, "int8", 1, 4, 1, 1, 0, 4, ethosu_write_3[0], 0, 0, 0, T.float32(1), 0, "NHWC", 1, 1, 1, "AVG", 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0)
+# fmt: on
+
+
+# fmt: off
 """A TIR test module of weight streaming"""
 @tvm.script.ir_module
 class WeightStreamOnly:
@@ -655,6 +675,21 @@ def test_translate_ethosu_copy():
                     "src": "placeholder_5",
                     "dest": "placeholder_d_global",
                     "length": 32,
+                },
+            ],
+        },
+        {
+            # Mod contains a copy operation with a buffer size of 4 bytes and it should be replaced by 16
+            "tir_module": CopyLessMinimal,
+            "param_dict": {
+                1: np.random.randint(np.iinfo("int8").min, np.iinfo("int8").max, [1, 4], "int8"),
+            },
+            # Reference outputs
+            "ref": [
+                {
+                    "src": "p1",
+                    "dest": "p1_global_1",
+                    "length": 16,
                 },
             ],
         },

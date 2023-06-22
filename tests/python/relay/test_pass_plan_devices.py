@@ -1830,5 +1830,52 @@ def test_primitive():
     print(mod)
 
 
+def test_conflicated_inputs():
+    metatable = {"VirtualDevice": [CPU, GPU]}
+
+    def input():
+        return tvm.relay.parse(
+            """
+            #[version = "0.0.5"]
+            def @main(%a: Tensor[(5, 7), float32], %b: Tensor[(5, 7), float32],
+                        %c: Tensor[(5, 7), float32]) {
+                %0 = add(%a, %b);
+                %1 = on_device(%0, virtual_device=meta[VirtualDevice][0]);
+                %2 = add(%b, %c);
+                %3 = on_device(%2, virtual_device=meta[VirtualDevice][1]);
+                subtract(%1, %3)
+            }
+            """,
+            "from_string",
+            None,
+            metatable,
+        )
+
+    def expected():
+        return tvm.relay.parse(
+            """
+            #[version = "0.0.5"]
+            def @main(%a {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32],
+                        %b {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32],
+                        %c {virtual_device=meta[VirtualDevice][1]}: Tensor[(5, 7), float32]) {
+                %0 = add(%a, %b);
+                %1 = on_device(%0, virtual_device=meta[VirtualDevice][0], constrain_result=True);
+                %2 = device_copy(%b, src_virtual_device=meta[VirtualDevice][0], dst_virtual_device=meta[VirtualDevice][1]);
+                %3 = device_copy(%1, src_virtual_device=meta[VirtualDevice][0], dst_virtual_device=meta[VirtualDevice][1]);
+                %4 = add(%2, %c);
+                subtract(%3, %4)
+            }
+            """,
+            "from_string",
+            None,
+            metatable,
+        )
+
+    def ref(a, b, c):
+        return np.subtract(np.add(a, b), np.add(b, c))
+
+    exercise(input(), expected(), ref, rands((5, 7), 3))
+
+
 if __name__ == "__main__":
     tvm.testing.main()
