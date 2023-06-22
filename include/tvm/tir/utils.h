@@ -19,6 +19,11 @@
 #ifndef TVM_TIR_UTILS_H_
 #define TVM_TIR_UTILS_H_
 
+#include <tvm/tir/block_scope.h>
+#include <tvm/tir/stmt.h>
+
+#include <unordered_map>
+
 namespace tvm {
 namespace tir {
 
@@ -89,6 +94,46 @@ namespace tir {
                   << "`, but gets: " << ((From).defined() ? (From)->GetTypeKey() : "None");   \
     return result;                                                                            \
   }()
+
+/*!
+ * \brief Set the `StmtSRefNode::seq_index` field for stmt
+ * \param stmt2ref The stmt2ref map to be updated with seq_index
+ * \param stmt The statement, or the realize node of the statement whose sref to be set
+ * \param seq_index The seq_index to be set
+ * \param include_loops Ignore ForNodes if this value is false
+ * \note The method is NOP for statements that are not schedulable, i.e. not For or Block
+ */
+inline void SetSeqIndex(std::unordered_map<const StmtNode*, StmtSRef>& stmt2ref,  // NOLINT(*)
+                        const Stmt& stmt, int seq_index, bool include_loops = true) {
+  if (const auto* realize = stmt.as<BlockRealizeNode>()) {
+    const BlockNode* block = realize->block.get();
+    ICHECK(stmt2ref.count(block));
+    stmt2ref.at(block)->seq_index = seq_index;
+  } else if (const auto* block = stmt.as<BlockNode>()) {
+    ICHECK(stmt2ref.count(block));
+    stmt2ref.at(block)->seq_index = seq_index;
+  } else if (const auto* loop = stmt.as<ForNode>()) {
+    if (!include_loops) return;
+    ICHECK(stmt2ref.count(loop));
+    stmt2ref.at(loop)->seq_index = seq_index;
+  }
+}
+
+/*!
+ * \brief Update seq_index of the children of a SeqStmt
+ * \param stmt2ref The stmt2ref map to be updated with indices
+ * \param seq_stmt The SeqStmt whose children need updating
+ * \param include_loops Ignore ForNodes if this value is false
+ */
+inline void SetSeqIndexInChildren(
+    std::unordered_map<const StmtNode*, StmtSRef>& stmt2ref,  // NOLINT(*)
+    const SeqStmtNode* seq_stmt, bool include_loops = true) {
+  int i = 0;
+  for (const Stmt& stmt : seq_stmt->seq) {
+    SetSeqIndex(stmt2ref, stmt, i, include_loops);
+    ++i;
+  }
+}
 
 }  // namespace tir
 }  // namespace tvm
