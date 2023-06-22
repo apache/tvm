@@ -67,6 +67,7 @@ def test_sgd_simple():
         R.Tuple(R.Tensor((3, 3), "float32"), R.Tensor((3,), "float32")),
         R.Tuple(R.Tensor((), "int64")),
     ):
+        R.func_attr({"global_symbol": "SGD"})
         # block 0
         with R.dataflow():
             num_steps: R.Tensor((), "int64") = optim_states[0]
@@ -104,6 +105,7 @@ def test_sgd_complex():
         R.Tuple(R.Tensor((3, 3), "float32"), R.Tensor((3,), "float32")),
         R.Tuple(R.Tensor((), "int64")),
     ):
+        R.func_attr({"global_symbol": "SGD"})
         with R.dataflow():
             num_steps: R.Tensor((), "int64") = optim_states[0]
             num_steps_new: R.Tensor((), "int64") = R.add(num_steps, R.const(1, "int64"))
@@ -146,6 +148,7 @@ def test_momentum_sgd_simple():
         R.Tuple(R.Tensor((3, 3), "float32"), R.Tensor((3,), "float32")),
         R.Tuple(R.Tensor((), "int64"), R.Tensor((3, 3), "float32"), R.Tensor((3,), "float32")),
     ):
+        R.func_attr({"global_symbol": "MomentumSGD"})
         # block 0
         with R.dataflow():
             num_steps: R.Tensor((), "int64") = optim_states[0]
@@ -195,6 +198,7 @@ def test_momentum_sgd_complex():
         R.Tuple(R.Tensor((3, 3), "float32"), R.Tensor((3,), "float32")),
         R.Tuple(R.Tensor((), "int64"), R.Tensor((3, 3), "float32"), R.Tensor((3,), "float32")),
     ):
+        R.func_attr({"global_symbol": "MomentumSGD"})
         # block 0
         with R.dataflow():
             num_steps: R.Tensor((), "int64") = optim_states[0]
@@ -250,6 +254,7 @@ def test_momentum_sgd_nesterov():
         R.Tuple(R.Tensor((3, 3), "float32"), R.Tensor((3,), "float32")),
         R.Tuple(R.Tensor((), "int64"), R.Tensor((3, 3), "float32"), R.Tensor((3,), "float32")),
     ):
+        R.func_attr({"global_symbol": "MomentumSGD"})
         # block 0
         with R.dataflow():
             num_steps: R.Tensor((), "int64") = optim_states[0]
@@ -321,6 +326,7 @@ def test_adam_simple():
             R.Tensor((3,), "float32"),
         ),
     ):
+        R.func_attr({"global_symbol": "Adam"})
         # block 0
         with R.dataflow():
             num_steps: R.Tensor((), "int64") = optim_states[0]
@@ -418,6 +424,7 @@ def test_adam_complex():
             R.Tensor((3,), "float32"),
         ),
     ):
+        R.func_attr({"global_symbol": "Adam"})
         # block 0
         with R.dataflow():
             num_steps: R.Tensor((), "int64") = optim_states[0]
@@ -519,6 +526,7 @@ def test_adam_float64():
             R.Tensor((3,), "float64"),
         ),
     ):
+        R.func_attr({"global_symbol": "Adam"})
         # block 0
         with R.dataflow():
             num_steps: R.Tensor((), "int64") = optim_states[0]

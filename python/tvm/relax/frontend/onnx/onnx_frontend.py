@@ -1836,7 +1836,7 @@ class ONNXGraphImporter:
                 output_var = self.bb.emit_output(outputs)
 
             # Create function attributes for this module
-            func_attrs = {"num_input": self._num_input, "global_symbol": "main"}
+            func_attrs = {"num_input": self._num_input}
             # Create a function from our output expression and all input variables.
             input_list = [value for value in self._inputs.values() if isinstance(value, relax.Var)]
             # Attach params if they are available.

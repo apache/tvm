@@ -1245,17 +1245,18 @@ class TorchFXImporter:
 
         # Initialize the block builder with a function and a dataflow block.
         func_name = "main"
-        func_attrs = {"global_symbol": func_name}
         self.block_builder = relax.BlockBuilder()
         params = []
         if keep_params_as_input:
-            func_attrs["num_input"] = len(inputs)
+            func_attrs = {"num_input": len(inputs)}
             for name, param in sorted(model.named_parameters(), key=lambda x: x[0]):
                 shape = param.data.shape
                 dtype = self._convert_data_type(str(param.data.dtype))
                 inputs.append(relax.Var(name, relax.TensorStructInfo(shape, dtype)))
                 self.params[param] = inputs[-1]
                 params.append(tvm.nd.array(param.data.cpu().numpy()))
+        else:
+            func_attrs = None
 
         with self.block_builder.function(name=func_name, params=inputs.copy(), attrs=func_attrs):
             output = None

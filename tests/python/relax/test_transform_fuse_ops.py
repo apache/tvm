@@ -48,7 +48,7 @@ def test_fuse_simple():
         x = relax.Var("x", R.Tensor([10, 20], "float32"))
         p0 = relax.Var("p0", R.Tensor((), "float32"))
 
-        with bb.function("fused_add_exp_squeeze", [x, p0], attrs={"Primitive": 1}):
+        with bb.function("fused_add_exp_squeeze", [x, p0], attrs={"Primitive": 1}, private=True):
             with bb.dataflow():
                 lv0 = bb.emit_te(topi.add, x, p0)
                 lv1 = bb.emit_te(topi.exp, lv0)
@@ -100,7 +100,9 @@ def test_conv2d_fuse():
         x = relax.Var("x", R.Tensor((1, 16, 64, 64), dtype))
         w = relax.Var("w", R.Tensor((16, 16, 3, 3), dtype))
         p0 = relax.Var("p0", R.Tensor((), dtype))
-        with bb.function("fused_conv2d_add1_add2", [x, w, p0], attrs={"Primitive": 1}):
+        with bb.function(
+            "fused_conv2d_add1_add2", [x, w, p0], attrs={"Primitive": 1}, private=True
+        ):
             with bb.dataflow():
                 lv0 = bb.emit_te(
                     topi.nn.conv2d,
@@ -119,7 +121,7 @@ def test_conv2d_fuse():
         x = relax.Var("x", R.Tensor((1, 16, 64, 64), dtype))
         w = relax.Var("w", R.Tensor((16, 16, 1, 1), dtype))
         y = relax.Var("y", R.Tensor((1, 16, 64, 64), dtype))
-        with bb.function("fused_conv2d1_add2", [x, w, y], attrs={"Primitive": 1}):
+        with bb.function("fused_conv2d1_add2", [x, w, y], attrs={"Primitive": 1}, private=True):
             with bb.dataflow():
                 lv0 = bb.emit_te(
                     topi.nn.conv2d,
@@ -196,7 +198,9 @@ def test_concatenate():
         x = relax.Var("x", R.Tensor((1, 16, 64, 64), "float32"))
         w = relax.Var("w", R.Tensor((1, 16, 32, 32), "float32"))
         p0 = relax.Var("p0", R.Tensor((), "float32"))
-        with bb.function("fused_upsampling_concatenate_add", [w, x, p0], attrs={"Primitive": 1}):
+        with bb.function(
+            "fused_upsampling_concatenate_add", [w, x, p0], attrs={"Primitive": 1}, private=True
+        ):
             with bb.dataflow():
                 lv0 = bb.emit_te(topi.nn.upsampling, w, scale_h=2.0, scale_w=2.0)
                 lv1 = bb.emit_te(topi.concatenate, (lv0, x), axis=1)
@@ -287,7 +291,10 @@ def test_fuse_tuple_get_elemwise():
         # Grouped function
         dense = relax.Var("dense", R.Tensor((1, 3 * dim), "float32"))
         with bb.function(
-            "fused_split_sigmoid_tanh_exp_multiply_add", [dense], attrs={"Primitive": 1}
+            "fused_split_sigmoid_tanh_exp_multiply_add",
+            [dense],
+            attrs={"Primitive": 1},
+            private=True,
         ):
             with bb.dataflow():
                 lv0 = bb.emit_te(topi.split, dense, indices_or_sections=3, axis=1)
@@ -340,7 +347,7 @@ def test_tuple_get_root():
 
         # Grouped function
         x = relax.Var("x", R.Tensor((1, 3 * dim), "float32"))
-        with bb.function("fused_split", [x], attrs={"Primitive": 1}):
+        with bb.function("fused_split", [x], attrs={"Primitive": 1}, private=True):
             with bb.dataflow():
                 lv0 = bb.emit_te(topi.split, x, indices_or_sections=3, axis=1)
                 gv = bb.emit_output(relax.TupleGetItem(lv0, 0))
@@ -398,6 +405,7 @@ def test_tuple_intermediate():
             "fused_squeeze_add_squeeze1_add_add_add_concatenate_squeeze2_add1",
             [x, p0, p1, p2, p3, p4],
             attrs={"Primitive": 1},
+            private=True,
         ):
             with bb.dataflow():
                 lv0 = bb.emit_te(topi.squeeze, x)
@@ -500,6 +508,7 @@ def test_tuple_consecutive():
             "fused_add_add_add_concatenate_add1_add_add_add_concatenate_add1_add_add_add_concatenate_add1_concatenate1",
             [x, p0, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11],
             attrs={"Primitive": 1},
+            private=True,
         ):
             with bb.dataflow():
                 lv0 = bb.emit_te(topi.add, x, p0)
@@ -523,7 +532,7 @@ def test_tuple_consecutive():
         # Grouped function 2
         concat = relax.Var("concat", R.Tensor((1, 144, 64, 64), "float32"))
         p0 = relax.Var("p0", R.Tensor((), "float32"))
-        with bb.function("fused_pool2d_add2", [concat, p0], attrs={"Primitive": 1}):
+        with bb.function("fused_pool2d_add2", [concat, p0], attrs={"Primitive": 1}, private=True):
             with bb.dataflow():
                 lv0 = bb.emit_te(
                     topi.nn.pool2d,
@@ -609,7 +618,7 @@ def test_inception_like():
         # Grouped function 1
         x = relax.Var("x", R.Tensor((1, 16, 64, 64), "float32"))
         w = relax.Var("w", R.Tensor((16, 16, 3, 3), "float32"))
-        with bb.function("fused_conv2d_relu", [x, w], attrs={"Primitive": 1}):
+        with bb.function("fused_conv2d_relu", [x, w], attrs={"Primitive": 1}, private=True):
             with bb.dataflow():
                 lv0 = bb.emit_te(
                     topi.nn.conv2d,
@@ -626,7 +635,7 @@ def test_inception_like():
         # Grouped function 2
         x = relax.Var("x", R.Tensor((1, 32, 64, 64), "float32"))
         w = relax.Var("w", R.Tensor((16, 32, 3, 3), "float32"))
-        with bb.function("fused_conv2d1_relu", [x, w], attrs={"Primitive": 1}):
+        with bb.function("fused_conv2d1_relu", [x, w], attrs={"Primitive": 1}, private=True):
             with bb.dataflow():
                 lv0 = bb.emit_te(
                     topi.nn.conv2d,
@@ -689,7 +698,10 @@ def test_fuse_parallel_injective():
         x = relax.Var("x", R.Tensor((10, 20), "int32"))
         p0 = relax.Var("p0", R.Tensor((), "int32"))
         with bb.function(
-            "fused_add_squeeze_transpose_transpose1_left_shift", [x, p0], attrs={"Primitive": 1}
+            "fused_add_squeeze_transpose_transpose1_left_shift",
+            [x, p0],
+            attrs={"Primitive": 1},
+            private=True,
         ):
             with bb.dataflow():
                 lv0 = bb.emit_te(topi.add, x, p0)
@@ -734,7 +746,7 @@ def test_softmax():
 
         # Grouped function
         x = relax.Var("x", R.Tensor((16, 16), "float32"))
-        with bb.function("fused_softmax_cast", [x], attrs={"Primitive": 1}):
+        with bb.function("fused_softmax_cast", [x], attrs={"Primitive": 1}, private=True):
             with bb.dataflow():
                 lv0 = bb.emit_te(topi.nn.softmax, x)
                 gv = bb.emit_output(bb.call_te(topi.cast, lv0, dtype="float16"))
@@ -781,7 +793,7 @@ def test_multiple_relax_functions():
 
         x = relax.Var("x", R.Tensor([10, 20], "float32"))
         p0 = relax.Var("p0", R.Tensor((), "float32"))
-        with bb.function("fused_add_exp_squeeze", [x, p0], attrs={"Primitive": 1}):
+        with bb.function("fused_add_exp_squeeze", [x, p0], attrs={"Primitive": 1}, private=True):
             with bb.dataflow():
                 lv0 = bb.emit_te(topi.add, x, p0)
                 lv1 = bb.emit_te(topi.exp, lv0)
@@ -791,7 +803,7 @@ def test_multiple_relax_functions():
 
         x = relax.Var("x", R.Tensor([20, 10], "float32"))
         p0 = relax.Var("p0", R.Tensor((), "float32"))
-        with bb.function("fused_add1_exp1_squeeze1", [x, p0], attrs={"Primitive": 1}):
+        with bb.function("fused_add1_exp1_squeeze1", [x, p0], attrs={"Primitive": 1}, private=True):
             with bb.dataflow():
                 lv0 = bb.emit_te(topi.add, x, p0)
                 lv1 = bb.emit_te(topi.exp, lv0)

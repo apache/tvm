@@ -48,7 +48,9 @@ class AppendLossMutator : private ExprMutator {
     Function new_loss_func = CopyWithNewVars(loss_function);
 
     AppendLossMutator mutator(mod, new_loss_func, num_backbone_outputs);
-    auto new_func_transformed = Downcast<Function>(mutator.VisitExpr(new_func));
+    auto new_func_transformed =
+        WithAttr(Downcast<Function>(mutator.VisitExpr(new_func)), tvm::attr::kGlobalSymbol,
+                 new_func_name.value_or(func_name + "_loss"));
 
     auto new_module = GetRef<IRModule>(mod.CopyOnWrite());
     auto new_var = GlobalVar(new_func_name.value_or(func_name + "_loss"));
