@@ -1,4 +1,3 @@
-#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,24 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-set -euxo pipefail
-
-source tests/scripts/setup-pytest-env.sh
-export PYTHONPATH=${PYTHONPATH}:${TVM_PATH}/apps/extension/python
-export LD_LIBRARY_PATH="build:${LD_LIBRARY_PATH:-}"
-
-# to avoid CI CPU thread throttling.
-export TVM_BIND_THREADS=0
-export TVM_NUM_THREADS=2
-
-make cython3
-
-# Run Relax tests
-TVM_TEST_TARGETS="${TVM_RELAY_TEST_TARGETS:-llvm}" pytest tests/python/relax
-TVM_TEST_TARGETS="${TVM_RELAY_TEST_TARGETS:-llvm}" pytest tests/python/dlight
-
-# Run Relax examples
-# python3 ./apps/relax_examples/mlp.py
-# python3 ./apps/relax_examples/nn_module.py
-# python3 ./apps/relax_examples/resnet.py
+"""Base infra"""
+from .schedule_rule import ScheduleRule
+from .transform import ApplyDefaultSchedule
