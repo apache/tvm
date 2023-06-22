@@ -223,15 +223,13 @@ def transform_loc_pre(
     idxd = tvm.tir.indexdiv
     idxm = tvm.tir.indexmod
 
-    start_cls_idx = 0 if keep_background == 1 else 1
-
     with ib.if_scope(tid < batch_size * num_anchors):
         i = idxd(tid, num_anchors)
         j = idxm(tid, num_anchors)
         valid_count[i] = 0
         score[tid] = -1.0
         cls_id[tid] = 0
-        with ib.for_range(start_cls_idx, num_classes) as k:
+        with ib.for_range(0, num_classes) as k:
             temp = cls_prob[i * num_classes * num_anchors + k * num_anchors + j]
             cls_id[tid] = if_then_else(temp > score[tid], k, cls_id[tid])
             score[tid] = tvm.te.max(temp, score[tid])
