@@ -22,13 +22,55 @@
  * \file tvm/relax/transform/eliminate_common_subexpr.cc
  * \brief Eliminrate common subexpression pass.
  *
- * Currently it removes common subexpressions within a DataflowBlock.
+ * Currently it removes common subexpressions within a Function.
  */
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
+#include <tvm/relax/utils.h>
 
 namespace tvm {
 namespace relax {
+
+// Checks if a given expression contains an impure subexpression
+// Caches the results of checks to avoid revisiting subexpressions
+class ImpurityDetector : public ExprVisitor {
+ public:
+  bool Detect(const Expr& expr) {
+    impure_found_ = false;
+    VisitExpr(expr);
+    return impure_found_;
+  }
+
+  void VisitExpr(const Expr& expr) {
+    // already checked: do not revisit
+    if (purity_map_.count(expr)) {
+      impure_found_ = impure_found_ || !purity_map_.at(expr);
+      return;
+    }
+
+    // in principle, we could stop checking once we find an impurity,
+    // but not doing so lets us fully populate the cache
+
+    // store the previous state so we could assess the purity of this subexpression alone
+    bool prev_state = impure_found_;
+    impure_found_ = false;
+    ExprVisitor::VisitExpr(expr);
+    // if impure_found_ remains false, then the expression is pure
+    purity_map_[expr] = !impure_found_;
+    impure_found_ = prev_state || impure_found_;
+  }
+
+  void VisitExpr_(const CallNode* call) {
+    // the only possible impurities can come from call nodes
+    bool is_impure = IsImpureCall(GetRef<Call>(call));
+    impure_found_ = impure_found_ || is_impure;
+    ExprVisitor::VisitExpr_(call);
+  }
+
+ private:
+  bool impure_found_ = false;
+  std::unordered_map<Expr, bool, StructuralHash, StructuralEqual> purity_map_;
+};
 
 class SubexprCounter : public ExprVisitor {
  public:
@@ -37,15 +79,21 @@ class SubexprCounter : public ExprVisitor {
     // Cases we ignore because we will not substitute them:
     // 1. Vars of all kinds
     // 2. Op nodes (nothing we can do)
-    // 3. Scalar constants (not much benefit from binding to a var)
+    // 3. PrimValue nodes (not much benefit from binding to a var)
+    // 4. StringImm nodes (not much benefit from binding to a var)
+    // 5. Scalar constants (not much benefit from binding to a var)
     if (!(e->IsInstance<VarNode>() || e->IsInstance<DataflowVarNode>() ||
           e->IsInstance<GlobalVarNode>() || e->IsInstance<tvm::OpNode>() ||
+          e->IsInstance<PrimValueNode>() || e->IsInstance<StringImmNode>() ||
           (e.as<ConstantNode>() && (e.as<ConstantNode>()->is_scalar())))) {
-      int count = 0;
-      if (count_map_.count(e)) {
-        count = count_map_.at(e);
+      // also if e has an impure subexpression, we will not deduplicate it
+      if (!impurity_detector_.Detect(e)) {
+        int count = 0;
+        if (count_map_.count(e)) {
+          count = count_map_.at(e);
+        }
+        count_map_[e] = count + 1;
       }
-      count_map_[e] = count + 1;
     }
     ExprVisitor::VisitExpr(e);
   }
@@ -56,20 +104,18 @@ class SubexprCounter : public ExprVisitor {
   // we are not going to do replacements inside struct info to avoid binding lots of reused shapes
   void VisitExprDepStructInfoField(const StructInfo& struct_info) override {}
 
-  std::unordered_map<Expr, int, StructuralHash, StructuralEqual> Count(
-      const DataflowBlock& df_block) {
-    for (auto binding : df_block->bindings) {
-      VisitBinding(binding);
-    }
+  std::unordered_map<Expr, int, StructuralHash, StructuralEqual> Count(const Function& func) {
+    VisitExpr(func->body);
     return count_map_;
   }
 
  private:
   std::unordered_map<Expr, int, StructuralHash, StructuralEqual> count_map_;
+  ImpurityDetector impurity_detector_;
 };
 
 // forward declaration
-DataflowBlock EliminateCommonSubexpr(const DataflowBlock&, bool call_only);
+Function EliminateCommonSubexpr(const Function&, bool call_only);
 
 class CommonSubexprEliminator : public ExprMutator {
  public:
@@ -104,37 +150,8 @@ class CommonSubexprEliminator : public ExprMutator {
   }
 
   Expr VisitExpr_(const FunctionNode* func) override {
-    // for an inner function, we will do CSE on its body
-    Expr new_body = ExprMutator::VisitExpr(func->body);
-    if (new_body.same_as(func->body)) {
-      return GetRef<Expr>(func);
-    }
-    return Function(func->params, new_body, func->ret_struct_info, func->is_pure, func->attrs,
-                    func->span);
-  }
-
-  // this should happen only for the inner function case
-  Expr VisitExpr_(const SeqExprNode* seq) override {
-    bool all_unchanged = true;
-    Array<BindingBlock> new_blocks;
-    // apply CSE within dataflow blocks only
-    for (auto block : seq->blocks) {
-      if (const DataflowBlockNode* df_block = block.as<DataflowBlockNode>()) {
-        auto new_df_block = EliminateCommonSubexpr(GetRef<DataflowBlock>(df_block), call_only_);
-        if (!new_df_block.same_as(block)) {
-          new_blocks.push_back(new_df_block);
-          all_unchanged = false;
-          continue;
-        }
-      }
-      new_blocks.push_back(block);
-    }
-
-    if (all_unchanged) {
-      return GetRef<Expr>(seq);
-    }
-    // do not visit the body
-    return SeqExpr(new_blocks, seq->body, seq->span);
+    // do full CSE within the function
+    return EliminateCommonSubexpr(GetRef<Function>(func), call_only_);
   }
 
   void VisitBinding_(const VarBindingNode* binding) override {
@@ -189,21 +206,22 @@ class CommonSubexprEliminator : public ExprMutator {
   bool call_only_{false};
 };
 
-DataflowBlock EliminateCommonSubexpr(const DataflowBlock& df_block, bool call_only) {
+Function EliminateCommonSubexpr(const Function& func, bool call_only) {
   SubexprCounter counter;
-  auto count_map = counter.Count(df_block);
+  auto count_map = counter.Count(func);
   CommonSubexprEliminator eliminator(count_map, call_only);
-  return Downcast<DataflowBlock>(eliminator.VisitBindingBlock(df_block));
+  return Function(func->params, eliminator.VisitExpr(func->body), func->ret_struct_info,
+                  func->is_pure, func->attrs, func->span);
 }
 
 namespace transform {
 
 Pass EliminateCommonSubexpr(bool call_only) {
-  runtime::TypedPackedFunc<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func =
-      [=](DataflowBlock df_block, IRModule m, PassContext pc) {
-        return Downcast<DataflowBlock>(EliminateCommonSubexpr(df_block, call_only));
+  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
+      [=](Function func, IRModule m, PassContext pc) {
+        return Downcast<Function>(EliminateCommonSubexpr(func, call_only));
       };
-  return CreateDataflowBlockPass(pass_func, 1, "EliminateCommonSubexpr", {});
+  return CreateFunctionPass(pass_func, 1, "EliminateCommonSubexpr", {});
 }
 
 TVM_REGISTER_GLOBAL("relax.transform.EliminateCommonSubexpr")

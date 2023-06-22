@@ -124,8 +124,6 @@ def test_inner_function():
                 # we are going to do CSE inside the local function
                 @R.function
                 def bar(y: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
-                    # not in dataflow: should not be touched
-                    z = R.add(R.add(y, y), R.add(y, y))
                     with R.dataflow():
                         # writing this out in ANF to illustrate why CSE behaves as it does
                         # result of ANF transforming R.add(R.add(y, y), R.add(y, y))
@@ -134,7 +132,7 @@ def test_inner_function():
                         lv2 = R.add(lv0, lv1)
                         gv = lv2
                         R.output(gv)
-                    return R.add(z, gv)
+                    return R.add(gv, gv)
 
                 # also making the ANF explicit to better illustrate the result of CSE
                 # result of ANF transforming R.add(R.add(bar(x), bar(x)), R.add(bar(x), bar(x)))
@@ -157,14 +155,13 @@ def test_inner_function():
 
                 @R.function
                 def bar(y: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
-                    z = R.add(R.add(y, y), R.add(y, y))
                     with R.dataflow():
                         lv0 = R.add(y, y)
                         lv1 = lv0
                         lv2 = R.add(lv0, lv1)
                         gv = lv2
                         R.output(gv)
-                    return R.add(z, gv)
+                    return R.add(gv, gv)
 
                 # can further clean this up
                 # using canonicalize bindings, eliminate unused bindings, and CSE again
@@ -208,6 +205,62 @@ def test_call_only():
             return out
 
     verify(Before, Expected, call_only=True)
+
+
+def test_cse_outside_dataflow():
+    # same example as previously but it will work without a dataflow wrapper
+    @I.ir_module
+    class Before:
+        @R.function
+        def foo(x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="float32")):
+            lv0 = R.add(x, y)
+            lv1 = R.add(x, y)
+            gv = R.multiply(lv0, lv1)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def foo(x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="float32")):
+            lv0 = R.add(x, y)
+            lv1 = lv0
+            gv = R.multiply(lv0, lv1)
+            return gv
+
+    verify(Before, Expected)
+
+
+def test_do_not_eliminate_impure():
+    @I.ir_module
+    class Before:
+        @R.function
+        def foo(x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="float32")):
+            R.is_impure()
+            # it's a repeated subexpression but it would be wrong to deduplicate it
+            p1 = R.print(format="Message")
+            p2 = R.print(format="Message")
+            a1 = R.assert_op(R.const(False), format="Always fails")
+            lv0 = R.add(x, y)
+            lv1 = R.add(x, y)
+            gv = R.multiply(lv0, lv1)
+            a2 = R.assert_op(R.const(False), format="Always fails")
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def foo(x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="float32")):
+            R.is_impure()
+            p1 = R.print(format="Message")
+            p2 = R.print(format="Message")
+            a1 = R.assert_op(R.const(False), format="Always fails")
+            lv0 = R.add(x, y)
+            lv1 = lv0
+            gv = R.multiply(lv0, lv1)
+            a2 = R.assert_op(R.const(False), format="Always fails")
+            return gv
+
+    verify(Before, Expected)
 
 
 if __name__ == "__main__":
