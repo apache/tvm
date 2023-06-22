@@ -390,7 +390,9 @@ class StableHLOImporter:
         func_attrs = {"global_symbol": func_name}
         self.block_builder = relax.BlockBuilder()
 
-        with self.block_builder.function(name=func_name, params=inputs.copy(), func_attrs=func_attrs):
+        with self.block_builder.function(
+            name=func_name, params=inputs.copy(), func_attrs=func_attrs
+        ):
             output = None
             with self.block_builder.dataflow():
                 block = model.body.operations[0].regions[0].blocks[0]
