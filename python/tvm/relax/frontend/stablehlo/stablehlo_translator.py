@@ -387,9 +387,10 @@ class StableHLOImporter:
         # Initialize the block builder with a function and a dataflow block.
         # Raise error if the input stablehlo op is impure
         func_name = "main"
+        func_attrs = {"global_symbol": func_name}
         self.block_builder = relax.BlockBuilder()
 
-        with self.block_builder.function(name=func_name, params=inputs.copy()):
+        with self.block_builder.function(name=func_name, params=inputs.copy(), func_attrs=func_attrs):
             output = None
             with self.block_builder.dataflow():
                 block = model.body.operations[0].regions[0].blocks[0]
