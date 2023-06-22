@@ -229,28 +229,40 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
     const auto* call_gv = call->op.as<GlobalVarNode>();
     bool call_prim_func =
         call_gv ? mod_->Lookup(GetRef<GlobalVar>(call_gv))->IsInstance<tir::PrimFuncNode>() : false;
-    bool is_kernel_launch = [&]() {
-      if (call_prim_func) {
-        return true;
+
+    // Check whether the call can be lifted to the capture function. It requires all the arguments
+    // to be static and the call to be a kernel launch or a pure operation (e.g. memory view).
+    std::vector<const VarNode*> args;
+    bool is_all_static = [&]() {
+      if (!IsStatic(call->args, &args)) {
+        return false;
       }
-      if (call->op.as<ExternFuncNode>()) {
-        return true;
+      if (call_gv != nullptr && !call_prim_func) {
+        // calls to other Relax functions are not allowed
+        return false;
       }
-      if (const auto* op = call->op.as<OpNode>()) {
-        return !support::StartsWith(op->name, "relax.memory") &&
-               !support::StartsWith(op->name, "relax.builtin") &&
-               !GetRef<Op>(op).same_as(call_builtin_with_ctx_op);
+      if (const auto* extern_func = call->op.as<ExternFuncNode>();
+          extern_func != nullptr && support::StartsWith(extern_func->global_symbol, "vm.builtin")) {
+        return false;
       }
-      return false;
+      return true;
     }();
 
-    std::vector<const VarNode*> args;
-    bool is_all_static = IsStatic(call->args, &args);
-    if (call_gv != nullptr && !call_prim_func) {
-      // calls to other Relax functions are not allowed
-      is_all_static = false;
-    }
     if (is_all_static) {
+      bool is_kernel_launch = [&]() {
+        if (call_prim_func) {
+          return true;
+        }
+        if (call->op.as<ExternFuncNode>()) {
+          return true;
+        }
+        if (const auto* op = call->op.as<OpNode>()) {
+          return !support::StartsWith(op->name, "relax.memory") &&
+                 !support::StartsWith(op->name, "relax.builtin") && op->name != "relax.reshape" &&
+                 !GetRef<Op>(op).same_as(call_builtin_with_ctx_op);
+        }
+        return false;
+      }();
       if (current_.capture_builder == nullptr && is_kernel_launch) {
         StartRegion();
       }
@@ -351,8 +363,16 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
 
   template <typename T>
   bool IsStatic(const Array<T>& exprs, std::vector<const VarNode*>* vars_collector = nullptr) {
-    return std::all_of(exprs.begin(), exprs.end(),
-                       [&](const T& expr) { return IsStatic(expr, vars_collector); });
+    bool result = true;
+    for (const auto& expr : exprs) {
+      // If vars_collector is provided, we will collect all the vars in the exprs and we should
+      // not perform short-circuiting.
+      result &= IsStatic(expr, vars_collector);
+      if (!vars_collector && !result) {
+        return false;
+      }
+    }
+    return result;
   }
 
  private:
