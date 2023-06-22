@@ -27,6 +27,7 @@ from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
 from tvm.script.parser import tir as T
 
+
 def _check(
     parsed: Union[relax.Function, IRModule],
     expect: Optional[Union[relax.Function, IRModule]] = None,
