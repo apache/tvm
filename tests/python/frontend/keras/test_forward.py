@@ -318,7 +318,7 @@ class TestKeras:
         # check the DepthwiseConv2D with single-channel
         data = keras_mod.layers.Input(shape=(32, 32, 1))
         conv_func = keras_mod.layers.DepthwiseConv2D(
-            kernel_size=(2, 2), strides= (2, 2), data_format="channels_last"
+            kernel_size=(2, 2), strides=(2, 2), data_format="channels_last"
         )
         x = conv_func(data)
         keras_model = keras_mod.models.Model(data, x)
