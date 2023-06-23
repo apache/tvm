@@ -180,10 +180,10 @@ def function(is_pure: bool = True, is_private: bool = False) -> frame.FunctionFr
     frame: FunctionFrame
         The constructed function frame.
     """
-    return _ffi_api.Function(
+    return _ffi_api.Function(  # pylint: disable=no-member
         is_pure,
         is_private,
-    )  # type: ignore[attr-defined] # pylint: disable=no-member
+    )  # type: ignore[attr-defined]
 
 
 def arg(name: py_str, struct_info: StructInfo) -> Var:
