@@ -75,9 +75,12 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       (*f)->func_vars = nullptr;
       // Step 4. Print attributes
       if (n->attrs.defined() && !n->attrs->dict.empty()) {
-        // if the function is a global function and has a global symbol,
-        // then don't print the global symbol (it will be implicit from not being private)
-        if (AtTopLevelFunction(d) && n->attrs->dict.count("global_symbol")) {
+        // If the function is a global function and has a global symbol,
+        // then don't print the global symbol (it will be implicit from not being private).
+        // For a function without an IR module whose global symbol
+        // doesn't match the function name, we should still print the global symbol attribute.
+        if (AtTopLevelFunction(d) && n->attrs->dict.count(tvm::attr::kGlobalSymbol) &&
+            n->attrs->dict.at(tvm::attr::kGlobalSymbol) == func_name->name) {
           Map<String, ObjectRef> new_attrs;
           for (auto kv : n->attrs->dict) {
             if (kv.first != "global_symbol") {
