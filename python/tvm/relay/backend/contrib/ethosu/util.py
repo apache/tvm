@@ -258,6 +258,12 @@ def is_cascader_enabled():
     return compiler_attrs.enable_cascader
 
 
+def is_copying_constants_disabled():
+    """Determine whether copying constants is disabled for case without cascader"""
+    compiler_attrs = tvm.get_global_func("relay.ext.ethos-u.get_compiler_attrs")()
+    return compiler_attrs.disable_copying_constants
+
+
 def is_striping_enabled():
     """Determine whether the cascader is enabled"""
     compiler_attrs = tvm.get_global_func("relay.ext.ethos-u.get_compiler_attrs")()
