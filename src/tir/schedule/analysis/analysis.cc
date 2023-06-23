@@ -2104,5 +2104,17 @@ TVM_REGISTER_GLOBAL("tir.schedule.IsOutputBlock").set_body_typed([](Schedule sch
   return IsOutputBlock(state, block_sref, GetScopeRoot(state, block_sref, false));
 });
 
+TVM_REGISTER_GLOBAL("tir.schedule.GetLoopIterType")
+    .set_body_typed([](Schedule sch, LoopRV loop) -> String {
+      IterVarType kind = GetLoopIterType(sch->GetSRef(loop));
+      if (kind == kDataPar) {
+        return "S";
+      } else if (kind == kCommReduce) {
+        return "R";
+      } else {
+        return "O";
+      }
+    });
+
 }  // namespace tir
 }  // namespace tvm
