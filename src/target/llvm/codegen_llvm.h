@@ -381,9 +381,9 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   std::tuple<std::string, llvm::Function::LinkageTypes> GetLinkage(const GlobalVar& gvar,
                                                                    const PrimFunc& func);
 
-  llvm::Function* DeclareFunctionInternal(const GlobalVar& gvar, const PrimFunc& f, bool ret_void);
+  llvm::Function* DeclareFunctionInternal(const GlobalVar& gvar, const PrimFunc& f);
 
-  void AddFunctionInternal(const GlobalVar& gvar, const PrimFunc& f, bool ret_void);
+  void AddFunctionInternal(const GlobalVar& gvar, const PrimFunc& f);
 
   // Create extern call
   llvm::CallInst* CreateCallExtern(llvm::Type* ret, const std::string& name,
