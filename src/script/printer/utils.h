@@ -161,25 +161,13 @@ inline Optional<String> FindFunctionName(const IRDocsifier& d, const BaseFunc& f
 }
 
 inline String GenerateUniqueName(std::string name_hint,
-                                 const std::unordered_set<String>& defined_names,
-                                 const Array<String>& binding_names) {
+                                 const std::unordered_set<String>& defined_names) {
   for (char& c : name_hint) {
     if (c != '_' && !std::isalnum(c)) {
       c = '_';
     }
   }
   std::string name = name_hint;
-  // if the name matches the name currently being bound, then do not add a suffix
-  // (this comes up in the case of defining a local function: the local function
-  // is the RHS of a binding. The var name on the LHS will have been looked at first;
-  // without this check, we would print a suffix on the function name even though it
-  // is actually the first definition)
-  for (const auto& bound_name : binding_names) {
-    if (name == bound_name) {
-      return name;
-    }
-  }
-
   for (int i = 1; defined_names.count(name) > 0; ++i) {
     name = name_hint + "_" + std::to_string(i);
   }

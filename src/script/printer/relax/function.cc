@@ -43,7 +43,15 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::Function>("", [](relax::Function n, ObjectPath n_p, IRDocsifier d) -> Doc {
       std::unordered_set<const tir::VarNode*> func_vars;
       With<RelaxFrame> f(d);
-      IdDoc func_name = d->Define(n, f(), FindFunctionName(d, n).value_or("main"));
+
+      IdDoc func_name("");
+      // if we are binding a local definition, then calling d->Define
+      // will result in a repeated definition and an incorrect displayed name
+      if (Optional<String> name = GetBindingName(d)) {
+        func_name = std::move(IdDoc(name.value()));
+      } else {
+        func_name = std::move(d->Define(n, f(), FindFunctionName(d, n).value_or("main")));
+      }
       (*f)->AddDispatchToken(d, "relax");
       (*f)->is_func = true;
       (*f)->func_vars = &func_vars;
