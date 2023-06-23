@@ -58,6 +58,8 @@
 #
 # COMMAND (optional): Command to be executed in the docker container
 #
+
+DOCKER_ENV=()
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Get the command line arguments.
@@ -80,8 +82,8 @@ if [[ "$1" == "--dockerfile" ]]; then
 fi
 
 if [[ "$1" == "--env" ]]; then
-    ENVIRONMENT_VARIABLE="$2"
-    echo "Setting environment variable: $ENVIRONMENT_VARIABLE"
+    DOCKER_ENV+=( --env "$2" )
+    echo "Setting environment variable: $2"
     shift 2
 fi
 
@@ -249,6 +251,7 @@ if [[ -n ${COMMAND} ]]; then
         -e "CI_PYTEST_ADD_OPTIONS=$CI_PYTEST_ADD_OPTIONS" \
         -e "CI_IMAGE_NAME=${DOCKER_IMAGE_NAME}" \
         -e "PLATFORM=${PLATFORM}" \
+        ${DOCKER_ENV[@]+"${DOCKER_ENV[@]}"} \
         ${CUDA_ENV}\
         ${CI_DOCKER_EXTRA_PARAMS[@]} \
         ${DOCKER_IMG_SPEC} \
