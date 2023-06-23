@@ -21,7 +21,7 @@ import numbers
 from typing import Any, Dict, Optional
 
 from tvm import relax, tir
-from tvm.ir import GlobalVar, make_node, structural_equal
+from tvm.ir import GlobalVar, structural_equal
 from tvm.relax import Expr, StructInfo
 from tvm.relax.utils import convert_to_expr
 from tvm.script.ir_builder.relax.frame import BlockFrame
@@ -160,6 +160,9 @@ def collect_symbolic_var_from_params(self: Parser, node: doc.FunctionDef) -> Non
 
 @dispatch.register(token="relax", type_name="FunctionDef")
 def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
+    is_inner_function = self.inside_function
+    self.inside_function = True
+
     # reserve a var for local function
     func_val = self.var_table.get().get(node.name)
     if not func_val and is_recursive(node):
@@ -179,11 +182,12 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
         self.var_table.add(node.name, local_func_var)
 
     purity = find_decorator_annotation(node, "pure")
-    # don't handle the privacy annotation here because it's only relevant for global funcs
+    # treat the function as private if we are inside another function or if it has a privacy annotation
+    privacy = is_inner_function or find_decorator_annotation(node, "private", default=False)
 
     with self.var_table.with_frame():
         with self.with_dispatch_token("relax"):
-            with R.function(is_pure=purity):
+            with R.function(is_pure=purity, is_private=privacy):
                 R.func_name(node.name)
                 collect_symbolic_var_from_params(self, node)
 
@@ -203,6 +207,7 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
                             self.report_error(stmt, "inline prim_func is disallowed in Relax IR")
 
                 self.visit_body(node.body)
+    self.inside_function = is_inner_function
 
 
 def find_decorator_annotation(node: doc.FunctionDef, annotation: str, default: bool = True) -> bool:
@@ -240,13 +245,7 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> GlobalVar
 
     is_pure = find_decorator_annotation(node, "pure")
 
-    # if the global function is not private, then use its name as the global symbol
-    is_private = find_decorator_annotation(node, "private", default=False)
-    attrs = None
-    if not is_private:
-        attrs = make_node("DictAttrs", global_symbol=node.name)
-
-    func_signature = relax.Function.create_empty(params, ret_sinfo, is_pure=is_pure, attrs=attrs)
+    func_signature = relax.Function.create_empty(params, ret_sinfo, is_pure=is_pure)
     return I.decl_function(node.name, func_signature)
 
 

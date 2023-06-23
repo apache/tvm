@@ -56,6 +56,11 @@ void FunctionFrameNode::ExitWithScope() {
                              "`return` to return an Expr";
   this->block_builder->BeginScope(params);
   Expr body = this->block_builder->Normalize(tvm::relax::SeqExpr(binding_blocks, output.value()));
+  // if the function is not private, add a global symbol to its attributes
+  if (!is_private.value_or(Bool(false))->value && name.defined() &&
+      !attrs.count(tvm::attr::kGlobalSymbol)) {
+    attrs.Set(tvm::attr::kGlobalSymbol, name.value());
+  }
   auto dict_attrs = attrs.empty() ? NullValue<DictAttrs>() : DictAttrs(attrs);
   this->block_builder->EndScope();
   tvm::relax::Function func(/*params=*/params,
@@ -74,18 +79,6 @@ void FunctionFrameNode::ExitWithScope() {
                              "function scope, if it's defined in a Module";
     const IRModuleFrame& frame = opt_frame.value();
     const String& func_name = name.value_or("");
-    // If the function has already been declared (i.e., it is global), see if there is
-    // already a global symbol defined for it (i.e., it is not private).
-    // If yes, add it to the current function's attributes (unless one was manually defined)
-    if (frame->global_var_map.count(func_name)) {
-      auto decl = frame->functions.at(frame->global_var_map.at(func_name));
-      if (decl->attrs.defined()) {
-        auto attr_dict = decl->attrs.get()->dict;
-        if (attr_dict.count("global_symbol") && !attrs.count("global_symbol")) {
-          func = std::move(WithAttr(func, tvm::attr::kGlobalSymbol, attr_dict.at("global_symbol")));
-        }
-      }
-    }
     if (!frame->global_var_map.count(func_name)) {
       // First time visiting the function.
       ir::DeclFunction(func_name, func);

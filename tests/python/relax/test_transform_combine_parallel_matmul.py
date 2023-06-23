@@ -97,7 +97,7 @@ def test_simple():
             R.output(lv3)
         return lv3
 
-    tvm.ir.assert_structural_equal(mod["main"], expected1)
+    tvm.ir.assert_structural_equal(mod["main"], expected1.with_attr("global_symbol", "main"))
 
     # Test a batched LHS case, slicing is done on the axis 2
     mod = get_parallel_matmul(3, lhs_shape=(2, 1024, 640))
@@ -121,7 +121,7 @@ def test_simple():
             R.output(lv3)
         return lv3
 
-    tvm.ir.assert_structural_equal(mod["main"], expected2)
+    tvm.ir.assert_structural_equal(mod["main"], expected2.with_attr("global_symbol", "main"))
 
 
 def test_bias():
@@ -151,7 +151,7 @@ def test_bias():
             R.output(lv6)
         return lv6
 
-    tvm.ir.assert_structural_equal(mod["main"], expected1)
+    tvm.ir.assert_structural_equal(mod["main"], expected1.with_attr("global_symbol", "main"))
 
     mod = get_parallel_matmul(3, with_bias=[True, False, True])
     mod = CombineParallelMatmul()(mod)
@@ -178,7 +178,7 @@ def test_bias():
             R.output(lv5)
         return lv5
 
-    tvm.ir.assert_structural_equal(mod["main"], expected2)
+    tvm.ir.assert_structural_equal(mod["main"], expected2.with_attr("global_symbol", "main"))
 
 
 def test_activation():
@@ -204,7 +204,7 @@ def test_activation():
             R.output(lv6)
         return lv6
 
-    tvm.ir.assert_structural_equal(mod["main"], expected1)
+    tvm.ir.assert_structural_equal(mod["main"], expected1.with_attr("global_symbol", "main"))
 
     mod = get_parallel_matmul(3, activation=["gelu", "relu", "relu"])
     mod = CombineParallelMatmul()(mod)
@@ -230,7 +230,7 @@ def test_activation():
             R.output(lv6)
         return lv6
 
-    tvm.ir.assert_structural_equal(mod["main"], expected2)
+    tvm.ir.assert_structural_equal(mod["main"], expected2.with_attr("global_symbol", "main"))
 
     mod = get_parallel_matmul(3, activation=["relu", None, None])
     mod = CombineParallelMatmul()(mod)
@@ -255,7 +255,7 @@ def test_activation():
             R.output(lv4)
         return lv4
 
-    tvm.ir.assert_structural_equal(mod["main"], expected3)
+    tvm.ir.assert_structural_equal(mod["main"], expected3.with_attr("global_symbol", "main"))
 
 
 def test_bias_activation():
@@ -286,7 +286,7 @@ def test_bias_activation():
             R.output(lv9)
         return lv9
 
-    tvm.ir.assert_structural_equal(mod["main"], expected1)
+    tvm.ir.assert_structural_equal(mod["main"], expected1.with_attr("global_symbol", "main"))
 
     mod = get_parallel_matmul(3, with_bias=[True, True, True], activation=["relu", None, "relu"])
     mod = CombineParallelMatmul()(mod)
@@ -316,7 +316,7 @@ def test_bias_activation():
             R.output(lv8)
         return lv8
 
-    tvm.ir.assert_structural_equal(mod["main"], expected2)
+    tvm.ir.assert_structural_equal(mod["main"], expected2.with_attr("global_symbol", "main"))
 
     mod = get_parallel_matmul(3, with_bias=[True, False, True], activation=["relu", None, "relu"])
     mod = CombineParallelMatmul()(mod)
@@ -345,7 +345,7 @@ def test_bias_activation():
             R.output(lv7)
         return lv7
 
-    tvm.ir.assert_structural_equal(mod["main"], expected3)
+    tvm.ir.assert_structural_equal(mod["main"], expected3.with_attr("global_symbol", "main"))
 
 
 def test_rhs_batched():

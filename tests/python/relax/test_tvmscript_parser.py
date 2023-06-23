@@ -1503,7 +1503,7 @@ def test_private_function():
 
     x = relax.Var("x", R.Tensor((), "int32"))
     bb = relax.BlockBuilder()
-    with bb.function("main", (x)):
+    with bb.function("main", (x), private=True):
         y = bb.emit(R.add(x, x))
         bb.emit_func_output(y)
 

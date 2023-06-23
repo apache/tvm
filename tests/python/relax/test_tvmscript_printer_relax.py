@@ -41,16 +41,15 @@ def test_function():
 # from tvm.script import relax as R
 
 @R.function
-def main(a: R.Tensor((10, 10))) -> R.Tensor((10, 10)):
+def func(a: R.Tensor((10, 10))) -> R.Tensor((10, 10)):
+    R.func_attr({"global_symbol": "func"})
     return a""",
     )
 
 
 def test_extern_func():
-    # note: this function will be treated as private unless a global symbol is added
     @R.function
     def relax_func(a: R.Tensor((10, 10))) -> R.Tensor((10, 10)):  # type: ignore
-        R.func_attr({"global_symbol": "func"})
         return a
 
     obj = IRModule(
@@ -606,12 +605,11 @@ def test_directly_construct_private_funcs():
     # public
     @R.function
     def func1(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
-        R.func_attr({"global_symbol": "foo"})
         y: R.Tensor((), dtype="int32") = R.add(x, x)
         return y
 
     # private
-    @R.function
+    @R.function(private=True)
     def func2(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
         y: R.Tensor((), dtype="int32") = R.multiply(x, x)
         return y
@@ -619,13 +617,13 @@ def test_directly_construct_private_funcs():
     # public but there's another attribute
     @R.function
     def func3(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
-        R.func_attr({"global_symbol": "baz", "relax.force_pure": True})
+        R.func_attr({"relax.force_pure": True})
         y: R.Tuple = R.print(format="Hi there!")
         z: R.Tensor((), dtype="int32") = R.add(x, x)
         return z
 
     # private with an attribute
-    @R.function
+    @R.function(private=True)
     def func4(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
         R.func_attr({"relax.force_pure": True})
         y: R.Tuple = R.print(format="Lol")
