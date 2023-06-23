@@ -310,6 +310,8 @@ class TestKeras:
             keras_mod.layers.DepthwiseConv2D(kernel_size=(3, 3), padding="same"),
             keras_mod.layers.Conv2DTranspose(filters=10, kernel_size=(3, 3), padding="valid"),
             keras_mod.layers.SeparableConv2D(filters=10, kernel_size=(3, 3), padding="same"),
+            keras_mod.layers.SeparableConv2D(filters=10, kernel_size=(3, 3), dilation_rate=(2, 2)),
+            keras_mod.layers.SeparableConv2D(filters=2, kernel_size=(3, 3), dilation_rate=2),
         ]
         for conv_func in conv_funcs:
             x = conv_func(data)

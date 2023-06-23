@@ -48,5 +48,18 @@ def test_from_dlpack_shape_one():
     tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
 
 
+@tvm.testing.requires_package("torch")
+def test_from_dlpack_strided():
+    import torch
+    from torch.utils.dlpack import to_dlpack
+
+    rows = 1
+    inp = torch.randn(rows, 16)
+    a = tvm.runtime.ndarray.from_dlpack(to_dlpack(inp))
+    view = a._create_view((2, 8))
+
+    np.testing.assert_equal(inp.numpy().reshape(2, 8), view.numpy())
+
+
 if __name__ == "__main__":
     tvm.testing.main()

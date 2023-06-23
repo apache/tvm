@@ -569,13 +569,17 @@ def _convert_separable_convolution(inexpr, keras_layer, etab, data_layout, input
         weight0 = weightList[0].transpose([2, 3, 0, 1])
     else:
         weight0 = weightList[0]
+    if isinstance(keras_layer.dilation_rate, (list, tuple)):
+        dilation = [keras_layer.dilation_rate[0], keras_layer.dilation_rate[1]]
+    else:
+        dilation = [keras_layer.dilation_rate, keras_layer.dilation_rate]
     params0 = {
         "weight": etab.new_const(weight0),
         "channels": in_channels * depth_mult,
         "groups": in_channels,
         "kernel_size": [kernel_h, kernel_w],
         "strides": [stride_h, stride_w],
-        "dilation": [1, 1],
+        "dilation": dilation,
         "padding": [0, 0],
         "data_layout": data_layout,
         "kernel_layout": kernel_layout,
