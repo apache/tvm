@@ -173,7 +173,6 @@ class SRefTreeCreator : private StmtVisitor {
   /*!
    * \brief Add a new statement to the stack, which becomes the current scope
    * \param stmt A for-loop statement or a block statement
-   * \return A sref to the stmt
    */
   void PushSRef(const StmtNode* stmt);
 

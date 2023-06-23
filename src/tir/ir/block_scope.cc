@@ -139,7 +139,6 @@ Array<Dependency> BlockScopeNode::GetDepsByDst(const StmtSRef& block_sref) const
 /*!
  * \brief Add a new statement to the stack, which becomes the current scope
  * \param stmt A for-loop statement or a block statement
- * \return A sref to the stmt
  */
 void SRefTreeCreator::PushSRef(const StmtNode* stmt) {
   if (srefs_.empty()) {
