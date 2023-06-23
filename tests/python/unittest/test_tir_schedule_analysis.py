@@ -417,5 +417,33 @@ def test_is_output_block():
     assert is_output_block(sch, block_rv)
 
 
+def test_empty_grid():
+    @T.prim_func
+    def foo(out: T.Buffer((T.int64(1), T.int64(8), T.int64(8)), "int32")):
+        act = T.alloc_buffer((1, 8, 8), "int32")
+        for z2, y2, x2 in T.grid(1, 8, 8):
+            with T.block("b0"):
+                az, ay, ax = T.axis.remap("SSS", [z2, y2, x2])
+                T.writes(act[az, ay, ax])
+                act[az, ay, az] = T.int32(0)
+        # Empty grid:
+        for z1, y1, x1 in T.grid(0, 8, 8):
+            with T.block("b1"):
+                az, ay, ax = T.axis.remap("SSS", [z1, y1, x1])
+                T.reads(act[az + 1, ay, ax])
+                T.writes(out[az, ay, ax])
+                out[az, ay, ax] = act[az + 1, ay, ax]
+        # The block below is not needed to show the bug, but the 'out'
+        # buffer would be undefined without it.
+        for z2, y2, x2 in T.grid(1, 8, 8):
+            with T.block("b2"):
+                az, ay, ax = T.axis.remap("SSS", [z2, y2, x2])
+                T.writes(out[az, ay, ax])
+                out[az, ay, az] = T.int32(0)
+
+    # This caused a crash before.
+    sch = tvm.tir.Schedule(foo)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

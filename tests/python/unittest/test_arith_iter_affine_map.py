@@ -1217,5 +1217,73 @@ def test_iter_map_simplify_unit_loop_order():
     )
 
 
+def assert_normalize_to_iter_sum(index, input_iters, args, base):
+    res = tvm.arith.normalize_to_iter_sum(index, input_iters)
+
+    assert isinstance(res, tvm.arith.IterSumExpr)
+    assert len(res.args) == len(args)
+    for split, item in zip(res.args, args):
+        tvm.testing.assert_prim_expr_equal(split.scale, item[1])
+        tvm.testing.assert_prim_expr_equal(
+            tvm.arith.normalize_iter_map_to_expr(split), item[0] * item[1]
+        )
+    tvm.testing.assert_prim_expr_equal(res.base, base)
+
+
+def test_normalize_to_iter_sum():
+    x = tvm.tir.Var("x", "int64")
+    y = tvm.tir.Var("y", "int64")
+    z = tvm.tir.Var("z", "int64")
+    a = tvm.tir.Var("a", "int64")
+    n = tvm.tir.Var("n", "int64")
+
+    assert_normalize_to_iter_sum(
+        z + ((y + x * 4 + 2) * n) + 3,
+        var_dom([(x, 9), (y, 4), (z, 3)]),
+        [(x, n * 4), (y, n), (z, 1)],
+        2 * n + 3,
+    )
+
+    # max cannot detected so it goes into base
+    assert_normalize_to_iter_sum(
+        tvm.tir.max(z, a) + ((y + x * 4 + 2) * n) + 3,
+        var_dom([(x, 9), (y, 4), (z, 3)]),
+        [(x, n * 4), (y, n)],
+        tvm.tir.max(z, a) + 2 * n + 3,
+    )
+
+    # order by symbolc prod
+    assert_normalize_to_iter_sum(
+        z + ((y * 4 * a + x * 4 + 2) * n) + 3,
+        var_dom([(y, a * n * 4), (x, n * 4), (z, a)]),
+        [(y, a * n * 4), (x, n * 4), (z, 1)],
+        2 * n + 3,
+    )
+
+    # order by cscale
+    assert_normalize_to_iter_sum(
+        z + 2 * y * 3 + 4 * x,
+        var_dom([(y, a * n * 4), (x, n * 4), (z, a)]),
+        [(y, 6), (x, 4), (z, 1)],
+        0,
+    )
+
+    # split pattern
+    assert_normalize_to_iter_sum(
+        z + 2 * y * 3 + 4 * (x // 2),
+        var_dom([(y, a * n * 4), (x, n * 4), (z, a)]),
+        [(y, 6), (x // 2, 4), (z, 1)],
+        0,
+    )
+
+    # iter simplify
+    assert_normalize_to_iter_sum(
+        z * 2 + 2 * y * 3 + 4 * (x // 4) + (x % 4),
+        var_dom([(y, a * n * 4), (x, n * 4), (z, a)]),
+        [(y, 6), (z, 2), (x, 1)],
+        0,
+    )
+
+
 if __name__ == "__main__":
     tvm.testing.main()
