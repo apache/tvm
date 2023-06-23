@@ -658,19 +658,19 @@ class Module:
 def test_directly_construct_private_funcs():
     # public
     @R.function
-    def func1(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+    def foo(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
         y: R.Tensor((), dtype="int32") = R.add(x, x)
         return y
 
     # private
     @R.function(private=True)
-    def func2(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+    def bar(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
         y: R.Tensor((), dtype="int32") = R.multiply(x, x)
         return y
 
     # public but there's another attribute
     @R.function
-    def func3(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+    def baz(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
         R.func_attr({"relax.force_pure": True})
         y: R.Tuple = R.print(format="Hi there!")
         z: R.Tensor((), dtype="int32") = R.add(x, x)
@@ -678,7 +678,7 @@ def test_directly_construct_private_funcs():
 
     # private with an attribute
     @R.function(private=True)
-    def func4(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+    def quux(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
         R.func_attr({"relax.force_pure": True})
         y: R.Tuple = R.print(format="Lol")
         z: R.Tensor((), dtype="int32") = R.multiply(x, x)
@@ -686,10 +686,10 @@ def test_directly_construct_private_funcs():
 
     obj = IRModule(
         {
-            "foo": func1,
-            "bar": func2,
-            "baz": func3,
-            "quux": func4,
+            "foo": foo,
+            "bar": bar,
+            "baz": baz,
+            "quux": quux,
         }
     )
     _assert_print(
