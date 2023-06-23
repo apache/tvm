@@ -240,7 +240,7 @@ class Parser(doc.NodeVisitor):
     dispatch_tokens: List[str]
     function_annotations: Optional[Dict[str, Dict[str, Any]]]
     var_table: VarTable
-    inside_function: bool # whether we are within a function
+    inside_function: bool  # whether we are within a function
 
     def __init__(
         self,
