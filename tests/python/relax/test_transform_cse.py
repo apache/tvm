@@ -233,9 +233,8 @@ def test_cse_outside_dataflow():
 def test_do_not_eliminate_impure():
     @I.ir_module
     class Before:
-        @R.function
+        @R.function(pure=False)
         def foo(x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="float32")):
-            R.is_impure()
             # it's a repeated subexpression but it would be wrong to deduplicate it
             p1 = R.print(format="Message")
             p2 = R.print(format="Message")
@@ -248,9 +247,8 @@ def test_do_not_eliminate_impure():
 
     @I.ir_module
     class Expected:
-        @R.function
+        @R.function(pure=False)
         def foo(x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="float32")):
-            R.is_impure()
             p1 = R.print(format="Message")
             p2 = R.print(format="Message")
             a1 = R.assert_op(R.const(False), format="Always fails")
