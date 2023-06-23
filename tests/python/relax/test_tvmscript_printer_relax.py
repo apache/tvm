@@ -33,6 +33,7 @@ def _assert_print(obj, expected):
 def test_function():
     @R.function
     def func(a: R.Tensor((10, 10))) -> R.Tensor((10, 10)):  # type: ignore
+        R.func_attr({"some_attr": 1})
         return a
 
     _assert_print(
@@ -42,19 +43,38 @@ def test_function():
 
 @R.function
 def func(a: R.Tensor((10, 10))) -> R.Tensor((10, 10)):
-    R.func_attr({"global_symbol": "func"})
+    R.func_attr({"some_attr": 1})
+    return a""",
+    )
+
+
+def test_lone_private_function():
+    @R.function(private=True)
+    def func(a: R.Tensor((10, 10))) -> R.Tensor((10, 10)):  # type: ignore
+        R.func_attr({"some_attr": 1})
+        return a
+
+    # name prints as main because without a global symbol, the printer cannot assume a name
+    _assert_print(
+        func,
+        """
+# from tvm.script import relax as R
+
+@R.function(private=True)
+def main(a: R.Tensor((10, 10))) -> R.Tensor((10, 10)):
+    R.func_attr({"some_attr": 1})
     return a""",
     )
 
 
 def test_extern_func():
     @R.function
-    def relax_func(a: R.Tensor((10, 10))) -> R.Tensor((10, 10)):  # type: ignore
+    def func(a: R.Tensor((10, 10))) -> R.Tensor((10, 10)):  # type: ignore
         return a
 
     obj = IRModule(
         {
-            "func": relax_func,
+            "func": func,
             "my_ext": relax.ExternFunc("my_ext"),
         }
     )
@@ -70,6 +90,40 @@ class Module:
     @R.function
     def func(a: R.Tensor((10, 10))) -> R.Tensor((10, 10)):
         return a
+""",
+    )
+
+
+def test_nested_function():
+    @I.ir_module
+    class NestedFunction:
+        @R.function
+        def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+            @R.function
+            def nested(y: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+                return y
+
+            z = nested(x)
+            return z
+
+    _assert_print(
+        NestedFunction,
+        """
+# from tvm.script import ir as I
+# from tvm.script import relax as R
+
+@I.ir_module
+class Module:
+    @R.function
+    def main(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
+        # from tvm.script import relax as R
+        
+        @R.function
+        def nested(y: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
+            return y
+
+        z: R.Tensor((), dtype="int32") = nested(x)
+        return z
 """,
     )
 

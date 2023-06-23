@@ -22,6 +22,21 @@ namespace tvm {
 namespace script {
 namespace printer {
 
+bool AtTopLevelFunction(const IRDocsifier& d) {
+  // fewer than 2 frames: not in a function at all
+  if (d->frames.size() < 2) {
+    return false;
+  }
+  // if the first frame is a RelaxFrame, then this is not inside a module.
+  // 2 frames => we are at a function (more than 2 => nested function)
+  if (d->frames[0]->IsInstance<RelaxFrameNode>()) {
+    return d->frames.size() == 2;
+  }
+  // otherwise the first two frames pertain to an IR module,
+  // so 3 frames => we are at a top-level function (more than 3 => nested function)
+  return d->frames.size() == 3;
+}
+
 TVM_REGISTER_NODE_TYPE(RelaxFrameNode);
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
@@ -54,7 +69,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       if (n->attrs.defined() && !n->attrs->dict.empty()) {
         // if the function is a global function and has a global symbol,
         // then don't print the global symbol (it will be implicit from not being private)
-        if (d->frames.size() == 3 && n->attrs->dict.count("global_symbol")) {
+        if (AtTopLevelFunction(d) && n->attrs->dict.count("global_symbol")) {
           Map<String, ObjectRef> new_attrs;
           for (auto kv : n->attrs->dict) {
             if (kv.first != "global_symbol") {
@@ -81,8 +96,9 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         dec_keys.push_back("pure");
         dec_values.push_back(LiteralDoc::Boolean(false, Optional<ObjectPath>()));
       }
-      // if the function is global and does not have a global symbol, indicate that it's private
-      if (d->frames.size() == 3 &&
+      // if the function is global or is not in a module and does not have a global symbol,
+      // indicate that it's private
+      if (AtTopLevelFunction(d) &&
           (!n->attrs.defined() || !n->attrs->dict.count("global_symbol"))) {
         dec_keys.push_back("private");
         dec_values.push_back(LiteralDoc::Boolean(true, Optional<ObjectPath>()));

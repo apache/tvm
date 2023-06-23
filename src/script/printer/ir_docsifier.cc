@@ -29,7 +29,7 @@ namespace printer {
 
 IdDoc IRDocsifierNode::Define(const ObjectRef& obj, const Frame& frame, const String& name_hint) {
   ICHECK(obj2info.find(obj) == obj2info.end()) << "Duplicated object: " << obj;
-  String name = GenerateUniqueName(name_hint, this->defined_names);
+  String name = GenerateUniqueName(name_hint, this->defined_names, this->cfg->binding_names);
   this->defined_names.insert(name);
   DocCreator doc_factory = [name]() { return IdDoc(name); };
   obj2info.insert({obj, VariableInfo{std::move(doc_factory), name}});
