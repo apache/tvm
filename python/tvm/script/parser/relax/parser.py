@@ -182,7 +182,8 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
         self.var_table.add(node.name, local_func_var)
 
     purity = find_decorator_annotation(node, "pure")
-    # treat the function as private if we are inside another function or if it has a privacy annotation
+    # treat the function as private if we are inside another function
+    # or if it has a privacy annotation
     privacy = is_inner_function or find_decorator_annotation(node, "private", default=False)
 
     with self.var_table.with_frame():
