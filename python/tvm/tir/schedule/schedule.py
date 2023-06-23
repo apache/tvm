@@ -3713,7 +3713,6 @@ class Schedule(Object):
         """A no-op that marks the start of postprocessing phase of scheduling"""
         _ffi_api.ScheduleEnterPostproc(self)  # type: ignore # pylint: disable=no-member
 
-
     @type_checked
     def hide_buffer_access(self, block: BlockRV, buf_type: str, buf_index_array: List[int]) -> None:
         """Hide some buffer access in a given block.
