@@ -167,7 +167,7 @@ impl Call {
     ) -> Call {
         let node = CallNode {
             base: ExprNode::base::<CallNode>(span),
-            deleter: todo!("Don't know how to construct this"),
+            deleter: ObjectRef::null(), //FIXME (cgerum) - look at what should be the actual value
             op: op,
             args: args,
             attrs: attrs,

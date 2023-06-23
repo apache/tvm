@@ -17,7 +17,7 @@
  * under the License.
  */
 
-use crate::runtime::Object;
+use crate::runtime::{Object, ObjectPtr, IsObject};
 use tvm_macros::Object;
 
 #[repr(C)]
@@ -26,4 +26,20 @@ use tvm_macros::Object;
 #[type_key = "Attrs"]
 pub struct BaseAttrsNode {
     pub base: Object,
+}
+
+impl BaseAttrsNode {
+    pub fn base<T: IsObject>() -> BaseAttrsNode {
+        BaseAttrsNode {
+            base: Object::base::<T>(),
+        }
+    }
+}
+
+impl Attrs {
+    pub fn new() -> Attrs {
+        Attrs(Some(ObjectPtr::new(BaseAttrsNode {
+            base: Object::base::<BaseAttrsNode>(),
+        })))
+    }
 }
