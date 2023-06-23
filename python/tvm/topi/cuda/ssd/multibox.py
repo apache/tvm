@@ -230,9 +230,10 @@ def transform_loc_pre(
         score[tid] = -1.0
         cls_id[tid] = 0
         with ib.for_range(0, num_classes) as k:
-            temp = cls_prob[i * num_classes * num_anchors + k * num_anchors + j]
-            cls_id[tid] = if_then_else(temp > score[tid], k, cls_id[tid])
-            score[tid] = tvm.te.max(temp, score[tid])
+            with ib.if_scope(tvm.tir.any(keep_background == 1, k > 0)):
+                temp = cls_prob[i * num_classes * num_anchors + k * num_anchors + j]
+                cls_id[tid] = if_then_else(temp > score[tid], k, cls_id[tid])
+                score[tid] = tvm.te.max(temp, score[tid])
         with ib.if_scope(tvm.tir.all(cls_id[tid] > 0, score[tid] < threshold)):
             cls_id[tid] = 0
         with ib.if_scope(tvm.tir.any(keep_background == 1, cls_id[tid] > 0)):

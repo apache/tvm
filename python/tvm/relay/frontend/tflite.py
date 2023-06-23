@@ -3476,15 +3476,14 @@ class OperatorConverter(object):
                 input_zero_point=inputs[2].qnn_params["zero_point"],
             )
 
-        # reshape the cls_pred and loc_prob tensors so
-        # they can be consumed by multibox_transform_loc
-        cls_pred = _op.transpose(cls_pred, [0, 2, 1])
         # loc_prob coords are in yxhw format
         # need to convert to xywh
         loc_coords = _op.split(loc_prob, 4, axis=2)
         loc_prob = _op.concatenate(
             [loc_coords[1], loc_coords[0], loc_coords[3], loc_coords[2]], axis=2
         )
+        # reshape loc_prob tensor so is can be consumed by
+        # multibox_transform_loc
         loc_prob = _op.reshape(loc_prob, [batch_size, anchor_boxes * 4])
 
         # anchor coords are in yxhw format
@@ -3518,7 +3517,12 @@ class OperatorConverter(object):
         multibox_transform_loc_attrs["keep_background"] = use_regular_nms
 
         ret = _op.vision.multibox_transform_loc(
-            cls_pred, loc_prob, anchor_expr, **multibox_transform_loc_attrs
+            # reshape cls_pred so it can be consumed by
+            # multibox_transform_loc
+            _op.transpose(cls_pred, [0, 2, 1]),
+            loc_prob,
+            anchor_expr,
+            **multibox_transform_loc_attrs,
         )
 
         if use_regular_nms:
@@ -3526,9 +3530,6 @@ class OperatorConverter(object):
             _, transformed_boxes = _op.split(ret[0], (2,), axis=2)
             box_l, box_t, box_r, box_b = _op.split(transformed_boxes, 4, axis=2)
             transformed_boxes = _op.concatenate([box_t, box_l, box_b, box_r], axis=2)
-
-            # reshape cls_pred tensor so it can be consumed by regular nms
-            cls_pred = _op.transpose(cls_pred, [0, 2, 1])
 
             return _op.vision.regular_non_max_suppression(
                 boxes=transformed_boxes,
