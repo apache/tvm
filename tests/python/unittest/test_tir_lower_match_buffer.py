@@ -493,7 +493,7 @@ def match_buffer_with_offset(a: T.handle, idx: T.handle, offset: T.int32) -> Non
     I = T.match_buffer(idx, (4), dtype="int32")
     for i, j in T.grid(4, 2):
         with T.block():
-            sub_A = T.match_buffer(A[I[i], offset, j * 4:j * 4 + 4], (4))
+            sub_A = T.match_buffer(A[0, 0, j * 4:j * 4 + 4], (4), offset_factor=1)
             for ji in range(0, 4):
                 sub_A[j * 4 + ji] = 1
 

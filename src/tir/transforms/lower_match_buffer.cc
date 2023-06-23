@@ -161,6 +161,7 @@ class MatchBufferLower : public StmtExprMutator {
     match_buffers_.Set(buffer, source);
     // Step.2.1. Update buffer data
     Bind(buffer->data, source_buffer->data, buffer->name + ".data");
+    LOG(INFO) << buffer->elem_offset;
 
     // Step.2.2. Update element offset
     // We use the ElemOffset method to avoid duplicating the index calculation.
@@ -172,6 +173,7 @@ class MatchBufferLower : public StmtExprMutator {
       }
 
       Array<PrimExpr> buffer_start_indices = source_buffer->ElemOffset(indices);
+      LOG(INFO) << buffer_start_indices;
       if (buffer_start_indices.size() == 1) {
         Bind(buffer->elem_offset, buffer_start_indices[0], buffer->name + ".elem_offset");
         CHECK(analyzer_.CanProve(truncmod(buffer->elem_offset, buffer->offset_factor) == 0))
@@ -219,6 +221,8 @@ class MatchBufferLower : public StmtExprMutator {
         << "The data type mismatched: " << arg->dtype << " vs. " << value->dtype;
     // Handle recursive case
     value = Substitute(std::move(value), var_map_);
+    LOG(INFO) << arg;
+    LOG(INFO) << value;
     if (arg->IsInstance<VarNode>()) {
       Var v = Downcast<Var>(arg);
       auto it = var_map_.find(v);
