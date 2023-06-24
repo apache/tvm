@@ -304,6 +304,8 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleRollingBuffer")
 /******** (FFI) Misc ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleEnterPostproc")
     .set_body_method<Schedule>(&ScheduleNode::EnterPostproc);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleUnsafeHideBufferAccess")
+    .set_body_method<Schedule>(&ScheduleNode::UnsafeHideBufferAccess);
 
 }  // namespace tir
 }  // namespace tvm

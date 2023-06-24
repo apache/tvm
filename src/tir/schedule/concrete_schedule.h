@@ -175,6 +175,8 @@ class ConcreteScheduleNode : public ScheduleNode {
   void RollingBuffer(const BlockRV& block_rv, int write_buffer_index) override;
   /******** Schedule: Misc ********/
   void EnterPostproc() override {}
+  void UnsafeHideBufferAccess(const BlockRV& block_rv, const String& buf_type,
+                              const Array<IntImm>& buf_index_array) override;
 
  protected:
   /******** Utility functions ********/
