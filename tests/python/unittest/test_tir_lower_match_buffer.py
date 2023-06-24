@@ -487,16 +487,6 @@ def fail_match_func_param(a: T.handle, m: T.handle, n: T.handle) -> None:
             for jj in range(0, 4):
                 sub_A[i, j * 4 + jj] = 1
 
-@T.prim_func
-def match_buffer_with_offset(a: T.handle, idx: T.handle, offset: T.int32) -> None:
-    A = T.match_buffer(a, (8, 10, 8))
-    I = T.match_buffer(idx, (4), dtype="int32")
-    for i, j in T.grid(4, 2):
-        with T.block():
-            sub_A = T.match_buffer(A[0, 0, j * 4:j * 4 + 4], (4), offset_factor=1)
-            for ji in range(0, 4):
-                sub_A[j * 4 + ji] = 1
-
 
 def test_buffer_load_store():
     _check(buffer_load_store, transformed_buffer_load_store)
@@ -538,11 +528,14 @@ def test_fail_buffer_bind():
 def test_fail_match_func_param():
     _check_fail(fail_match_func_param)
 
+
 def test_elem_offset():
     mod = tvm.IRModule.from_expr(match_buffer_with_offset)
-    mod = tvm.tir.transform.LowerMatchBuffer()(mod)
-    mod = tvm.tir.transform.Simplify()(mod)
+    mod = tvm.tir.transform.UnifyThreadBinding()(mod)
+    # mod = tvm.tir.transform.LowerMatchBuffer()(mod)
+    # mod = tvm.tir.transform.Simplify()(mod)
     print(mod["main"])
+
 
 if __name__ == "__main__":
     # test_buffer_load_store()
