@@ -71,7 +71,7 @@ def indirect_mem_access_hide_ib(a: T.handle, idx_a: T.handle, b: T.handle, idx_b
 def test_hide_buffer_access_read():
     sch = tir.Schedule(indirect_mem_access, debug_mask="all")
     block_b = sch.get_block("B")
-    sch.hide_buffer_access(block_b, "read", [1])
+    sch.unsafe_hide_buffer_access(block_b, "read", [1])
     tvm.ir.assert_structural_equal(indirect_mem_access_hide_ia, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=indirect_mem_access)
 
@@ -79,7 +79,7 @@ def test_hide_buffer_access_read():
 def test_hide_buffer_access_write():
     sch = tir.Schedule(indirect_mem_access, debug_mask="all")
     block_b = sch.get_block("B")
-    sch.hide_buffer_access(block_b, "write", [1])
+    sch.unsafe_hide_buffer_access(block_b, "write", [1])
     tvm.ir.assert_structural_equal(indirect_mem_access_hide_ib, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=indirect_mem_access)
 
@@ -88,14 +88,14 @@ def test_hide_buffer_access_fail_buffer_type():
     sch = tir.Schedule(indirect_mem_access, debug_mask="all")
     block_b = sch.get_block("B")
     with pytest.raises(tvm.error.TVMError):
-        sch.hide_buffer_access(block_b, "opaque", [0])
+        sch.unsafe_hide_buffer_access(block_b, "opaque", [0])
 
 
 def test_hide_buffer_access_fail_buffer_index():
     sch = tir.Schedule(indirect_mem_access, debug_mask="all")
     block_b = sch.get_block("B")
     with pytest.raises(tvm.error.TVMError):
-        sch.hide_buffer_access(block_b, "read", [2])
+        sch.unsafe_hide_buffer_access(block_b, "read", [2])
 
 
 if __name__ == "__main__":

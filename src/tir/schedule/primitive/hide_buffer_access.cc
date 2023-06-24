@@ -78,8 +78,8 @@ class InvalidIndexError : public ScheduleError {
 
 /******** Implementation ********/
 
-void HideBufferAccess(ScheduleState self, const StmtSRef& block_sref, const String& buf_type,
-                      const Array<IntImm>& buf_index_array) {
+void UnsafeHideBufferAccess(ScheduleState self, const StmtSRef& block_sref, const String& buf_type,
+                            const Array<IntImm>& buf_index_array) {
   /*!
    * Check:
    *   - validity of buf_index_array
@@ -138,8 +138,8 @@ void HideBufferAccess(ScheduleState self, const StmtSRef& block_sref, const Stri
   self->Replace(block_sref, new_block, blk_map);
 }
 
-struct HideBufferAccessTraits : public UnpackedInstTraits<HideBufferAccessTraits> {
-  static constexpr const char* kName = "HideBufferAccess";
+struct UnsafeHideBufferAccessTraits : public UnpackedInstTraits<UnsafeHideBufferAccessTraits> {
+  static constexpr const char* kName = "UnsafeHideBufferAccess";
   static constexpr bool kIsPure = false;
 
  private:
@@ -149,12 +149,12 @@ struct HideBufferAccessTraits : public UnpackedInstTraits<HideBufferAccessTraits
 
   static void UnpackedApplyToSchedule(Schedule sch, BlockRV block, String buf_type,
                                       Array<IntImm> buf_index_array) {
-    sch->HideBufferAccess(block, buf_type, buf_index_array);
+    sch->UnsafeHideBufferAccess(block, buf_type, buf_index_array);
   }
 
   static String UnpackedAsPython(Array<String> outputs, String block, String buf_type,
                                  Array<IntImm> buf_index_array) {
-    PythonAPICall py("hide_buffer_access");
+    PythonAPICall py("unsafe_hide_buffer_access");
     py.Input("block", block);
     py.Input("buf_type", buf_type);
     py.Input("buf_index_array", buf_index_array);
@@ -165,7 +165,7 @@ struct HideBufferAccessTraits : public UnpackedInstTraits<HideBufferAccessTraits
   friend struct ::tvm::tir::UnpackedInstTraits;
 };
 
-TVM_REGISTER_INST_KIND_TRAITS(HideBufferAccessTraits);
+TVM_REGISTER_INST_KIND_TRAITS(UnsafeHideBufferAccessTraits);
 
 }  // namespace tir
 }  // namespace tvm

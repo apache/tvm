@@ -656,12 +656,12 @@ TVM_DLL void RollingBuffer(ScheduleState self, const StmtSRef& block_sref, int w
 /*!
  * \brief Hide some buffer access in the given block.
  * \param self The state of the schedule.
- * \param block_rv The sref of the block we hide access.
+ * \param block_sref The sref of the block we hide access.
  * \param buf_type The buffer type: read/write
  * \param buf_index_array The array of buffer indices we hide access.
  */
-TVM_DLL void HideBufferAccess(ScheduleState self, const StmtSRef& block_sref,
-                              const String& buf_type, const Array<IntImm>& buf_index_array);
+TVM_DLL void UnsafeHideBufferAccess(ScheduleState self, const StmtSRef& block_sref,
+                                    const String& buf_type, const Array<IntImm>& buf_index_array);
 
 }  // namespace tir
 }  // namespace tvm

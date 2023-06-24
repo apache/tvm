@@ -952,10 +952,10 @@ void ConcreteScheduleNode::RollingBuffer(const BlockRV& block_rv, int write_buff
 
 /******** Schedule: Misc ********/
 
-void ConcreteScheduleNode::HideBufferAccess(const BlockRV& block_rv, const String& buf_type,
-                                            const Array<IntImm>& buf_index_array) {
+void ConcreteScheduleNode::UnsafeHideBufferAccess(const BlockRV& block_rv, const String& buf_type,
+                                                  const Array<IntImm>& buf_index_array) {
   TVM_TIR_SCHEDULE_BEGIN();
-  tir::HideBufferAccess(state_, this->GetSRef(block_rv), buf_type, buf_index_array);
+  tir::UnsafeHideBufferAccess(state_, this->GetSRef(block_rv), buf_type, buf_index_array);
   TVM_TIR_SCHEDULE_END("hide-buffer-access", this->error_render_level_);
   this->state_->DebugVerify();
 }

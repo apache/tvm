@@ -809,8 +809,8 @@ class ScheduleNode : public runtime::Object {
    * \param buf_type The buffer type: read/write
    * \param buf_index_array The array of buffer indices we hide access.
    */
-  virtual void HideBufferAccess(const BlockRV& block, const String& buf_type,
-                                const Array<IntImm>& buf_index_array) = 0;
+  virtual void UnsafeHideBufferAccess(const BlockRV& block_rv, const String& buf_type,
+                                      const Array<IntImm>& buf_index_array) = 0;
 };
 
 /*!
