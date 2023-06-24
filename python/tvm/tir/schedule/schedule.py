@@ -3728,8 +3728,8 @@ class Schedule(Object):
         buf_index_array : List[int]
             The array of buffer indices we hide access.
 
-        Notes
-        -----
+        Note
+        ----
         This schedule primitive is unsafe, and may fail dependency analysis.
         One use case of `unsafe_hide_buffer_access` is to hide the buffer access
         to indices buffers (e.g. in sparse computation) so that we can further tensorize
