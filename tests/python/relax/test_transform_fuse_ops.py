@@ -1123,7 +1123,6 @@ def test_multiple_paths():
 
 
 def test_dead_group():
-
     # fmt: off
 
     @I.ir_module
@@ -1409,6 +1408,67 @@ def test_skipping_primvalue():
             return gv
 
     _check(Module, Module)
+
+
+def test_partially_used_tuple_param():
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(
+            x: R.Tuple(
+                R.Tensor((2,), "float32"),
+                R.Tensor((2,), "float32"),
+                R.Tensor((2,), "float32"),
+                R.Tensor((2,), "float32"),
+                R.Tensor((2,), "float32"),
+                R.Tensor((2,), "float32"),
+            )
+        ):
+            with R.dataflow():
+                x0 = x[0]
+                y0 = R.emit_te(topi.add, x0, R.const(1, "float32"))
+                y1 = R.emit_te(topi.divide, y0, R.const(1, "float32"))
+                gv = y1
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def fused_add_divide(
+            x_0: R.Tensor((2,), dtype="float32"),
+            param_0: R.Tensor((), dtype="float32"),
+            param_1: R.Tensor((), dtype="float32"),
+        ) -> R.Tensor((2,), dtype="float32"):
+            R.func_attr({"Primitive": 1})
+            with R.dataflow():
+                y0 = R.emit_te(topi.add, x_0, param_0)
+                gv = R.emit_te(topi.divide, y0, param_1)
+                R.output(gv)
+            return gv
+
+        @R.function
+        def main(
+            x: R.Tuple(
+                R.Tensor((2,), dtype="float32"),
+                R.Tensor((2,), dtype="float32"),
+                R.Tensor((2,), dtype="float32"),
+                R.Tensor((2,), dtype="float32"),
+                R.Tensor((2,), dtype="float32"),
+                R.Tensor((2,), dtype="float32"),
+            )
+        ) -> R.Tensor((2,), dtype="float32"):
+            cls = Expected
+            with R.dataflow():
+                lv: R.Tensor((2,), dtype="float32") = x[0]
+                lv1: R.Tensor((2,), dtype="float32") = cls.fused_add_divide(
+                    lv, R.const(1, "float32"), R.const(1, "float32")
+                )
+                gv: R.Tensor((2,), dtype="float32") = lv1
+                R.output(gv)
+            return gv
+
+    _check(Module, Expected)
 
 
 if __name__ == "__main__":
