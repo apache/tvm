@@ -18,6 +18,7 @@
 import pytest
 
 import tvm
+import tvm.testing
 from tvm.script import tir as T
 
 
@@ -529,22 +530,6 @@ def test_fail_match_func_param():
     _check_fail(fail_match_func_param)
 
 
-def test_elem_offset():
-    mod = tvm.IRModule.from_expr(match_buffer_with_offset)
-    mod = tvm.tir.transform.UnifyThreadBinding()(mod)
-    # mod = tvm.tir.transform.LowerMatchBuffer()(mod)
-    # mod = tvm.tir.transform.Simplify()(mod)
-    print(mod["main"])
-
-
 if __name__ == "__main__":
-    # test_buffer_load_store()
-    # test_opaque_access()
-    # test_high_dim_opaque_access()
-    # test_recursive_match()
-    # test_symbolic_match()
-    # test_rank0_buffer()
-    # test_fail_load_store()
-    # test_fail_buffer_bind()
-    # test_fail_match_func_param()
-    test_elem_offset()
+    tvm.testing.main()
+    
