@@ -532,4 +532,3 @@ def test_fail_match_func_param():
 
 if __name__ == "__main__":
     tvm.testing.main()
-    
