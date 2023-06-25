@@ -1173,6 +1173,10 @@ def test_rewrite_wmma_to_global_fusion():
     _check(WmmaToGlobalWithFusion, TransformedWmmaToGlobalWithFusion)
 
 
+def test_rewrite_mma_to_global():
+    _check(MmaToGlobal, TransformedMmaToGlobal)
+
+
 if __name__ == "__main__":
     test_coalesce_vectorize()
     test_inverse()
@@ -1182,3 +1186,4 @@ if __name__ == "__main__":
     test_rewrite_wmma_to_global()
     test_auto_padding()
     test_rewrite_wmma_to_global_fusion()
+    test_rewrite_mma_to_global()
