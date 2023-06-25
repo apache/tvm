@@ -48,46 +48,9 @@ def is_relax_constant(expr):
     return hasattr(expr.op, "value") and isinstance(expr.op.value, tvm.relax.expr.Constant)
 
 
-# Return True if given expression is scalar constant value.
-def is_scalar(expr):
-    """
-    Return True if given expression is scalar constant value.
-    """
-    if isinstance(expr, te.Tensor):
-        if is_relax_constant(expr):
-            shape = expr.op.value.data.shape
-            dtype = expr.op.value.data.dtype
-            return len(shape) == 0 and ("float" in dtype or "int" in dtype)
-        else:
-            return expr.ndim == 0 and (
-                isinstance(expr.op.body[0], (tvm.tir.FloatImm, tvm.tir.IntImm))
-            )
-    return isinstance(expr, (tvm.tir.FloatImm, tvm.tir.IntImm))
-
-
 def get_relax_scalar_const_value(expr):
     assert len(expr.op.value.data.shape) == 0
     return expr.op.value.data.numpy()[()]
-
-
-def get_const_int_value(expr):
-    if isinstance(expr, te.Tensor):
-        if is_relax_constant(expr):
-            return get_relax_scalar_const_value(expr)
-        else:
-            assert isinstance(expr.op.body[0], tvm.tir.IntImm)
-            return expr.op.body[0].value
-    return get_const_int(expr)
-
-
-def get_const_float_value(expr):
-    if isinstance(expr, te.Tensor):
-        if is_relax_constant(expr):
-            return get_relax_scalar_const_value(expr)
-        else:
-            assert isinstance(expr.op.body[0], tvm.tir.FloatImm)
-            return expr.op.body[0].value
-    return get_const_float(expr)
 
 
 def get_qnn_param(param, indices, axis):
