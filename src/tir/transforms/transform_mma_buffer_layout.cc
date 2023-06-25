@@ -28,15 +28,31 @@
 namespace tvm {
 namespace tir {
 
+/*!
+ * \brief Rewriter for all m16n8k8.matrix[A/B/C] buffer. This pass mainly do two things:
+ *     1. Lower m16n8k8.matrix[A/B/C] buffer to local registers, where each thread holds their
+ *        own part of the matrix;
+ *     2. Rewrite access of m16n8k8.matrixC so it can access the correct part of the matrix.
+ *   The reason why access of m16n8k8.matrix[A/B] buffer doesn't need this kind of rewrite is
+ *   that their access is through opaque access inside ldmatrix and mma_sync. Please refer to
+ *   get_index_[A/B] in python/tvm/tir/tensor_intrin/cuda.py.
+ *   We cannot use this kind of opaque access in matrixC too since the ptx stmatrix is only
+ *   supported for sm90 or higher. Therefore, writeback of matrixC is limited to the
+ *   transparent way.
+ */
 class MmaBufferLayoutTransformer : public StmtExprMutator {
  public:
   Stmt VisitStmt_(const BlockNode* op) {
     Block block = GetRef<Block>(op);
     auto* n = block.CopyOnWrite();
     auto fmutate = [this](const Buffer& buffer) {
+      // m16n8k8.matrix[A/B/C] buffers are composed ofseveral small blocks. Assume the block's
+      // shape is [bi, bj]. Inside each small block, we have 8 threads in stride dimension and 4
+      // threads in contiguous dimension, so we change the buffer's shape from [i, j]
+      // to [i // bi, j // bj, bi // 8, bj // 4].
       if (buffer.scope() == "m16n8k8.matrixC") {
         // m16n8k8.matrixC
-        // Shape
+        // bi = 16, bj = 8
         size_t size = buffer->shape.size();
         ICHECK_GE(size, 2);
         const IntImmNode* dim0 = buffer->shape[size - 2].as<IntImmNode>();
@@ -58,6 +74,7 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
         return std::move(new_buffer);
       } else if (buffer.scope() == "m16n8k8.matrixA") {
         // m16n8k8.matrixA
+        // bi = 32, bj = 8
         size_t size = buffer->shape.size();
         ICHECK_GE(size, 2);
         const IntImmNode* dim0 = buffer->shape[size - 2].as<IntImmNode>();
@@ -78,6 +95,7 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
         return std::move(new_buffer);
       } else if (buffer.scope() == "m16n8k8.matrixB") {
         // m16n8k8.matrixB
+        // bj = 8, bj = 32
         size_t size = buffer->shape.size();
         ICHECK_GE(size, 2);
         const IntImmNode* dim0 = buffer->shape[size - 2].as<IntImmNode>();
@@ -89,7 +107,7 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
           new_shape.push_back(buffer->shape[i]);
         }
         new_shape.insert(new_shape.end(),
-                         {Integer(dim0->value / 8), Integer(dim1->value / 32), 4, 2});
+                         {Integer(dim0->value / 8), Integer(dim1->value / 32), 1, 8});
 
         Buffer new_buffer = decl_buffer(std::move(new_shape), buffer->dtype, buffer->name, "local",
                                         buffer->axis_separators);

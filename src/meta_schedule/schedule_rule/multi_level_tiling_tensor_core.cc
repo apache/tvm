@@ -136,6 +136,8 @@ class MultiLevelTilingTensorCoreNode : public MultiLevelTilingNode {
   // output in the shared memory.
   std::vector<State> TransformIntermediateOutputLayout(TensorCoreState state);
   // Subrule: Add read cache for mma
+  // Basically same with MultiLevelTilingNode::AddReadReuse, but change CacheRead + ComputeAt to
+  // ReadAt
   inline std::vector<State> MMAAddReadReuse(TensorCoreState state) const;
   // Subrule: Add tensorized load
   inline std::vector<State> AddReadReuseTensorCore(TensorCoreState state) const;
@@ -150,6 +152,8 @@ class MultiLevelTilingTensorCoreNode : public MultiLevelTilingNode {
                                                                         int partition_pos,
                                                                         int innerpart_factor) const;
   // Subrule: tile loop nest for mma
+  // Basically same with MultiLevelTilingNode::TileLoopNest, but change SamplePerfectTile to
+  // SamplePartitionedTile
   inline std::vector<State> MMATileLoopNest(TensorCoreState state) const;
 
   // Override ApplySubRules to apply tensorization-specific sub-rules
