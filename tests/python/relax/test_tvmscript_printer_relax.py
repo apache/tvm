@@ -106,6 +106,9 @@ def test_nested_function():
             z = nested(x)
             return z
 
+    # The pretty-printer inserts the trailing whitespace itself;
+    # removing it would cause the test to fail
+    # pylint: disable=trailing-whitespace
     _assert_print(
         NestedFunction,
         """
@@ -126,6 +129,8 @@ class Module:
         return z
 """,
     )
+    # pylint: enable=trailing-whitespace
+
 
 
 def test_object_struct_info():
