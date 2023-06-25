@@ -105,7 +105,7 @@ After executing commands like something below under the root directory of TVM re
   $ cd cross_build
   $ cp ../cmake/config.cmake ./
 
-  # You maybe need to enable other options, e.g., USE_OPENCL, USE_xPU. 
+  # You maybe need to enable other options, e.g., USE_OPENCL, USE_xPU.
   $ sed -i "s|USE_LLVM.*)|USE_LLVM OFF)|" config.cmake
   $ sed -i "s|USE_LIBBACKTRACE.*)|USE_LIBBACKTRACE OFF)|" config.cmake
   $ sed -i "s|USE_MICRO.*)|USE_MICRO OFF)|" config.cmake
@@ -154,7 +154,7 @@ Validate RPC System
 
 .. code-block:: shell
 
-  $ python3 -m tvm.exec.query_rpc_tracker --host RPC_TRACKER_IP --port RPC_TRACKER_PORT 
+  $ python3 -m tvm.exec.query_rpc_tracker --host RPC_TRACKER_IP --port RPC_TRACKER_PORT
 
 Through the above command, we can query all available RPC servers and the queue status, if you have 3 RPC servers that connected to the RPC tracker through RPC proxy, the output should be something like below.
 
