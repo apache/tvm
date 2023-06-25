@@ -134,6 +134,8 @@ class TracedScheduleNode : public ConcreteScheduleNode {
   void RollingBuffer(const BlockRV& block_rv, int write_buffer_index) final;
   /******** Schedule: Misc ********/
   void EnterPostproc() final;
+  void UnsafeHideBufferAccess(const BlockRV& block_rv, const String& buf_type,
+                              const Array<IntImm>& buf_index_array) final;
 };
 
 }  // namespace tir

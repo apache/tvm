@@ -99,6 +99,9 @@ bool ProducerCoversConsumer(const Array<PrimExpr>& buffer_shape,
     if (produced_region[i].IsNothing()) {
       return false;
     }
+    if (consumed_region[i].IsNothing()) {
+      continue;
+    }
     arith::IntSet produced =
         arith::IntSet::Interval(analyzer->canonical_simplify(produced_region[i].min()),
                                 analyzer->canonical_simplify(produced_region[i].max()));
@@ -119,42 +122,6 @@ bool ProducerCoversConsumer(const Array<PrimExpr>& buffer_shape,
     }
   }
   return true;
-}
-
-/*!
- * \brief Set the `StmtSRefNode::seq_index` field for stmt
- * \param self The schedule class
- * \param stmt The statement, or the realize node of the statement whose sref to be set
- * \param seq_index The seq_index to be set
- * \note The method is NOP for statements that are not schedulable, i.e. not For or Block
- */
-void SetSeqIndex(ScheduleStateNode* self, const Stmt& stmt, int seq_index) {
-  if (const auto* realize = stmt.as<BlockRealizeNode>()) {
-    const BlockNode* block = realize->block.get();
-    ICHECK(self->stmt2ref.count(block));
-    self->stmt2ref.at(block)->seq_index = seq_index;
-  } else if (const auto* block = stmt.as<BlockNode>()) {
-    ICHECK(self->stmt2ref.count(block));
-    self->stmt2ref.at(block)->seq_index = seq_index;
-  } else if (const auto* loop = stmt.as<ForNode>()) {
-    ICHECK(self->stmt2ref.count(loop));
-    self->stmt2ref.at(loop)->seq_index = seq_index;
-  } else {
-    // do nothing
-  }
-}
-
-/*!
- * \brief Update seq_index of the children of a SeqStmt
- * \param self The schedule class
- * \param seq_stmt The SeqStmt whose children need updating
- */
-void SetSeqIndexInChildren(ScheduleStateNode* self, const SeqStmtNode* seq_stmt) {
-  int i = 0;
-  for (const Stmt& stmt : seq_stmt->seq) {
-    SetSeqIndex(self, stmt, i);
-    ++i;
-  }
 }
 
 /*!
@@ -382,7 +349,7 @@ class BlockInfoCollector : private StmtVisitor {
   void VisitStmt_(const SeqStmtNode* seq_stmt) final {
     // Set `seq_index` information for SeqStmtNode
     StmtVisitor::VisitStmt_(seq_stmt);
-    SetSeqIndexInChildren(self_, seq_stmt);
+    SetSeqIndexInChildren(self_->stmt2ref, seq_stmt);
   }
 
   /*! \brief The ScheduleStateNode we are operating on */
@@ -397,102 +364,31 @@ class BlockInfoCollector : private StmtVisitor {
   arith::Analyzer analyzer_;
 };
 
-/*! \brief A helper class to create a new ScheduleStateNode from an IRModule */
-class StateCreator : private StmtVisitor {
- public:
-  /*!
-   * \brief ScheduleState Creator
-   * \param mod The module being scheduled.
-   * \param debug_mask Do extra correctness checking after the class creation
-   * and each time after calling the Replace method.
-   * \param enable_check Whether to enable prequisite checks for schedule primitives.
-   */
-  static ObjectPtr<ScheduleStateNode> Create(IRModule mod, int debug_mask, bool enable_check) {
-    ObjectPtr<ScheduleStateNode> n = make_object<ScheduleStateNode>();
-    ScheduleStateNode* self = n.get();
-    // Set `n->mod`
-    n->mod = std::move(mod);
-    // Set `n->debug_mask`
-    n->debug_mask = debug_mask;
-    // Set `n->enable_check`
-    n->enable_check = enable_check;
-    // Set `n->stmt2ref` and `n->block_info`
-    StateCreator creator(self);
-    for (const auto& kv : n->mod->functions) {
-      const BaseFunc& base_func = kv.second;
-      if (auto opt = base_func.as<PrimFunc>()) {
-        auto func = opt.value();
-        VerifyWellFormed(func);
-        creator.VisitStmt(func->body);
-        BlockInfoCollector::Collect(self, func->body);
-      }
-    }
-    return n;
-  }
-
- private:
-  /*!
-   * \brief The entry function
-   * \param self The schedule state to be completed
-   */
-  explicit StateCreator(ScheduleStateNode* self) : self_(self) {}
-
-  /*!
-   * \brief Add a new statement to the stack, which becomes the current scope
-   * \param stmt A for-loop statement or a block statement
-   * \return A sref to the stmt
-   */
-  void PushSRef(const StmtNode* stmt) {
-    if (srefs_.empty()) {
-      srefs_.push_back(
-          StmtSRef(stmt,
-                   /*parent=*/nullptr,
-                   /*seq_index=*/-1));  // `seq_index` will be set properly in SetSeqIndex
-    } else {
-      StmtSRefNode* parent = srefs_.back().get();
-      srefs_.push_back(
-          StmtSRef(stmt, parent,
-                   /*seq_index=*/-1));  // `seq_index` will be set properly in SetSeqIndex
-    }
-  }
-
-  /*! \brief Pop the top of the scope and record it in stmt2ref map */
-  void PopAndRecordSRef() {
-    StmtSRef sref = std::move(srefs_.back());
-    self_->stmt2ref[sref->stmt] = sref;
-    srefs_.pop_back();
-  }
-
-  void VisitStmt_(const ForNode* loop) final {
-    PushSRef(loop);
-    VisitStmt(loop->body);
-    PopAndRecordSRef();
-  }
-
-  void VisitStmt_(const BlockRealizeNode* realize) final {
-    const BlockNode* block = realize->block.get();
-    PushSRef(block);
-    VisitStmt(block->body);  // `block->init` is not visited
-    PopAndRecordSRef();
-  }
-
-  void VisitStmt_(const SeqStmtNode* seq_stmt) final {
-    // Set `seq_index` information for SeqStmtNode
-    StmtVisitor::VisitStmt_(seq_stmt);
-    SetSeqIndexInChildren(self_, seq_stmt);
-  }
-
-  /*! \brief The result ScheduleStateNode */
-  ScheduleStateNode* self_;
-  /*! \brief The stack frame used to indicate the current scope */
-  std::vector<StmtSRef> srefs_;
-};
-
 /**************** Constructor ****************/
 
 ScheduleState::ScheduleState(IRModule mod, int debug_mask, bool enable_check) {
   CHECK_GE(debug_mask, -1) << "ValueError: negative `debug_mask` other than -1 is not supported";
-  data_ = StateCreator::Create(mod, debug_mask, enable_check);
+  ObjectPtr<ScheduleStateNode> n = make_object<ScheduleStateNode>();
+  ScheduleStateNode* self = n.get();
+  // Set `n->mod`
+  n->mod = std::move(mod);
+  // Set `n->debug_mask`
+  n->debug_mask = debug_mask;
+  // Set `n->enable_check`
+  n->enable_check = enable_check;
+  std::unordered_map<const StmtNode*, StmtSRef> stmt2ref;
+  // Set `n->stmt2ref`
+  self->stmt2ref = SRefTreeCreator::Create(self->mod);
+  // Set `n->block_info`
+  for (const auto& kv : n->mod->functions) {
+    const BaseFunc& base_func = kv.second;
+    if (auto opt = base_func.as<PrimFunc>()) {
+      auto func = opt.value();
+      VerifyWellFormed(func);
+      BlockInfoCollector::Collect(self, func->body);
+    }
+  }
+  data_ = std::move(n);
 }
 
 /**************** Replace ****************/
@@ -780,7 +676,7 @@ class SRefUpdater : public StmtVisitor {
 
   void VisitStmt_(const SeqStmtNode* seq_stmt) final {
     StmtVisitor::VisitStmt_(seq_stmt);
-    SetSeqIndexInChildren(self_.get(), seq_stmt);
+    SetSeqIndexInChildren(self_->stmt2ref, seq_stmt);
   }
 
   void UpdateBlockInfo(const StmtSRef& block_sref) {
@@ -1020,7 +916,7 @@ void ScheduleStateNode::Replace(const tir::StmtSRef& _src_sref, const Stmt& tgt_
       // As the invariance of SRefUpdater,
       // the `seq_index` of the root of `tgt_stmt` is set as -1,
       // which might be incorrect
-      SetSeqIndex(this, child_tgt_stmt, child_sref->seq_index);
+      SetSeqIndex(this->stmt2ref, child_tgt_stmt, child_sref->seq_index);
     } else {
       // Point `child_sref` to `child_tgt_stmt`
       UpdateSRef(this, child_sref, child_tgt_stmt.get());

@@ -60,9 +60,18 @@ def _find_assignment(stmt, var_name):
 
 
 def _find_next(stmt, type):
-    while not isinstance(stmt, type):
-        stmt = stmt.body
-    return stmt
+    search_stack = [stmt]
+
+    while search_stack:
+        stmt = search_stack.pop()
+        if isinstance(stmt, type):
+            return stmt
+        elif isinstance(stmt, tvm.tir.SeqStmt):
+            search_stack.extend(reversed(stmt))
+        else:
+            search_stack.append(stmt.body)
+
+    return None
 
 
 def _find_compute_scope(func):

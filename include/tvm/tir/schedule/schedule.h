@@ -802,6 +802,15 @@ class ScheduleNode : public runtime::Object {
   /******** Schedule: Misc ********/
   /*! \brief A no-op that marks the start of postprocessing phase of scheduling */
   virtual void EnterPostproc() = 0;
+
+  /*!
+   * \brief Hide some buffer access in the given block.
+   * \param block_rv The block where we hide buffer access.
+   * \param buf_type The buffer type: read/write
+   * \param buf_index_array The array of buffer indices we hide access.
+   */
+  virtual void UnsafeHideBufferAccess(const BlockRV& block_rv, const String& buf_type,
+                                      const Array<IntImm>& buf_index_array) = 0;
 };
 
 /*!

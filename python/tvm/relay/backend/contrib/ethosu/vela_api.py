@@ -23,13 +23,15 @@ The following conversion APIs are added :
 """
 import logging
 import math
-from typing import Tuple, Optional, List
+from typing import List, Optional, Tuple
+
 import numpy as np  # type: ignore
 from ethosu.vela import api as vapi  # type: ignore
+from ethosu.vela.architecture_features import Accelerator, create_default_arch
 
 import tvm
-from tvm.relay.backend.contrib.ethosu import util  # type: ignore
 from tvm.relay.backend.contrib.ethosu import tir_to_cs_translator as tirtocs
+from tvm.relay.backend.contrib.ethosu import util  # type: ignore
 
 # pylint: disable=invalid-name
 logger = logging.getLogger("Ethos-U")
@@ -400,3 +402,12 @@ def get_accelerator_config() -> vapi.NpuAccelerator:
     accel_config_str = compiler_attrs.accelerator_config
     assert accel_config_str in npu_accel_str_map.keys(), f"{accel_config_str} is not supported"
     return npu_accel_str_map[accel_config_str]
+
+
+def get_max_copy_movements() -> int:
+    """Get maximum copy movements for CopyComputeReordering pass.
+    max_outstanding_dma from architecture features indicates how many
+    DMA operations can be in-progress.
+    """
+    arch = create_default_arch(Accelerator.from_npu_accelerator(get_accelerator_config()))
+    return arch.max_outstanding_dma

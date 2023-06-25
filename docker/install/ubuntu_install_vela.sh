@@ -20,4 +20,4 @@ set -e
 set -u
 set -o pipefail
 
-pip3 install ethos-u-vela==3.7.0 numpy==1.23.*
+pip3 install ethos-u-vela==3.8.0 numpy==1.23.*

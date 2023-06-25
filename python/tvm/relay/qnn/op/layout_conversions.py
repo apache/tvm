@@ -126,3 +126,38 @@ def convert_qnn_conv2d_transpose(attrs, inputs, tinfos, desired_layouts):
         return relay.qnn.op.conv2d_transpose(*inputs, **new_attrs)
 
     raise ValueError(f"Layout {desired_data_layout} is not yet supported")
+
+
+@reg.register_convert_op_layout("qnn.avg_pool2d")
+def convert_qnn_avg_pool2d(attrs, inputs, tinfos, desired_layouts):
+    """Convert Layout pass registration for QNN avg_pool2d op.
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current avg_pool2d
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    tinfos : list of types
+        List of input and output types
+    desired_layouts : list of layout strings
+        List of layouts defining our desired
+        layout for the data input.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The transformed expr
+    """
+    # pylint: disable=import-outside-toplevel
+    from tvm import relay
+
+    assert len(desired_layouts) == 1, "A desired layout is expected for qnn.avg_pool2d's input"
+    desired_data_layout = desired_layouts[0]
+    if desired_data_layout == "NCHW" or desired_data_layout == "NHWC":
+        new_attrs = dict(attrs)
+        new_attrs["layout"] = str(desired_data_layout)
+        new_attrs["out_layout"] = str(desired_data_layout)
+        return relay.qnn.op.avg_pool2d(*inputs, **new_attrs)
+
+    raise ValueError(f"Layout {desired_data_layout} is not yet supported")

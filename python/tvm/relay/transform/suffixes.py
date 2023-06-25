@@ -22,6 +22,8 @@ import tvm
 from ..expr_functor import ExprMutator
 from .. import expr as _expr
 
+SUFFIX_STRING = r"_PART_"
+
 
 class _SuffixTagger(ExprMutator):
     """A pass to traverse the Relay graph to add suffix to the call's span fields.
@@ -34,7 +36,7 @@ class _SuffixTagger(ExprMutator):
         ExprMutator.__init__(self)
         # key: span or source name, value: counter, indexed from 0
         self.lookup = defaultdict(int)
-        self.suffix = "_PART_"
+        self.suffix = SUFFIX_STRING
         # a set to record hashes of an expressions which spans have been already rewritten
         self.hashes = set()
 

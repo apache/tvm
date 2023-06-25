@@ -70,8 +70,13 @@ def check_packed_func(target="llvm"):
     node = prim_func.body
 
     # Recursively visit PrimFunc until we meet the for-loop:
-    while isinstance(node, (tvm.tir.AssertStmt, tvm.tir.LetStmt, tvm.tir.AttrStmt)):
-        node = node.body
+    while True:
+        if isinstance(node, (tvm.tir.AssertStmt, tvm.tir.LetStmt, tvm.tir.AttrStmt)):
+            node = node.body
+        elif isinstance(node, tvm.tir.SeqStmt):
+            node = node[0]
+        else:
+            break
 
     # For-loop:
     assert isinstance(node, tvm.tir.stmt.For)

@@ -136,6 +136,54 @@ Array<Dependency> BlockScopeNode::GetDepsByDst(const StmtSRef& block_sref) const
   }
 }
 
+/*!
+ * \brief Add a new statement to the stack, which becomes the current scope
+ * \param stmt A for-loop statement or a block statement
+ */
+void SRefTreeCreator::PushSRef(const StmtNode* stmt) {
+  if (srefs_.empty()) {
+    srefs_.push_back(
+        StmtSRef(stmt,
+                 /*parent=*/nullptr,
+                 /*seq_index=*/-1));  // `seq_index` will be set properly in SetSeqIndex
+  } else {
+    StmtSRefNode* parent = srefs_.back().get();
+    srefs_.push_back(
+        StmtSRef(stmt, parent,
+                 /*seq_index=*/-1));  // `seq_index` will be set properly in SetSeqIndex
+  }
+}
+
+/*! \brief Pop the top of the scope and record it in stmt2ref map */
+void SRefTreeCreator::PopAndRecordSRef() {
+  StmtSRef sref = std::move(srefs_.back());
+  stmt2ref_[sref->stmt] = sref;
+  srefs_.pop_back();
+}
+
+void SRefTreeCreator::VisitStmt_(const ForNode* loop) {
+  if (!include_loops_) {
+    VisitStmt(loop->body);
+  } else {
+    PushSRef(loop);
+    VisitStmt(loop->body);
+    PopAndRecordSRef();
+  }
+}
+
+void SRefTreeCreator::VisitStmt_(const BlockRealizeNode* realize) {
+  const BlockNode* block = realize->block.get();
+  PushSRef(block);
+  VisitStmt(block->body);  // `block->init` is not visited
+  PopAndRecordSRef();
+}
+
+void SRefTreeCreator::VisitStmt_(const SeqStmtNode* seq_stmt) {
+  // Set `seq_index` information for SeqStmtNode
+  StmtVisitor::VisitStmt_(seq_stmt);
+  SetSeqIndexInChildren(stmt2ref_, seq_stmt, include_loops_);
+}
+
 /******** FFI ********/
 
 TVM_REGISTER_NODE_TYPE(StmtSRefNode);

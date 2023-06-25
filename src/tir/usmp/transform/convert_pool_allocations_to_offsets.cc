@@ -99,6 +99,7 @@ class PoolAllocationToOffsetConverter : public StmtExprMutator {
   PrimExpr VisitExpr_(const VarNode* op) override;
   PrimExpr VisitExpr_(const BufferLoadNode* op) override;
   Stmt VisitStmt_(const BufferStoreNode* op) override;
+  Stmt VisitStmt_(const DeclBufferNode* op) override;
 
   Stmt VisitStmt_(const AllocateConstNode* op) override;
   LetStmt ToLetStmt(const PoolAllocation& pool_allocation, const Var& buffer_var, const Stmt& body);
@@ -384,6 +385,16 @@ Stmt PoolAllocationToOffsetConverter::VisitStmt_(const BufferStoreNode* op) {
     store.CopyOnWrite()->buffer = remapped;
   }
   return std::move(store);
+}
+
+Stmt PoolAllocationToOffsetConverter::VisitStmt_(const DeclBufferNode* op) {
+  auto decl = Downcast<DeclBuffer>(StmtExprMutator::VisitStmt_(op));
+
+  Buffer remapped = GetRemappedBuffer(decl->buffer);
+  if (!op->buffer.same_as(remapped)) {
+    decl.CopyOnWrite()->buffer = remapped;
+  }
+  return std::move(decl);
 }
 
 PrimExpr PoolAllocationToOffsetConverter::VisitExpr_(const BufferLoadNode* op) {

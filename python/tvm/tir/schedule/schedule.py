@@ -3712,3 +3712,34 @@ class Schedule(Object):
     def enter_postproc(self) -> None:
         """A no-op that marks the start of postprocessing phase of scheduling"""
         _ffi_api.ScheduleEnterPostproc(self)  # type: ignore # pylint: disable=no-member
+
+    @type_checked
+    def unsafe_hide_buffer_access(
+        self, block: BlockRV, buf_type: str, buf_index_array: List[int]
+    ) -> None:
+        """Hide some buffer access in a given block. This is an unsafe schedule primitive.
+
+        Parameters
+        ----------
+        block : BlockRV
+            The block where we hide read access.
+        buf_type : str
+            The buffer type: "read"/"write".
+        buf_index_array : List[int]
+            The array of buffer indices we hide access.
+
+        Note
+        ----
+        This schedule primitive is unsafe, and may fail dependency analysis.
+        One use case of `unsafe_hide_buffer_access` is to hide the buffer access
+        to indices buffers (e.g. in sparse computation) so that we can further tensorize
+        the block (the indices buffers appeared in read/write regions may fail the pattern
+        matching in `tensorize` primitive, and hide the access to these buffers could address
+        the issue).
+        """
+        _ffi_api.ScheduleUnsafeHideBufferAccess(  # type: ignore # pylint: disable=no-member
+            self,
+            block,
+            buf_type,
+            buf_index_array,
+        )
