@@ -71,7 +71,9 @@ def test_copy_with_new_vars_on_ir_module():
             gv = R.add(x, y)
             return gv
 
-    Actual["func_copied"] = relax.utils.copy_with_new_vars(Actual["func"])
+    Actual["func_copied"] = relax.utils.copy_with_new_vars(Actual["func"]).with_attr(
+        "global_symbol", "func_copied"
+    )
 
     # Assertion will fail if the f_copied contains the same VarNode that's used in
     # the original function, due to var mapping during structural equal.
@@ -113,7 +115,9 @@ def test_copy_with_new_vars_on_ir_module_nested_function():
             gv = R.add(x, y)
             return gv
 
-    Actual["func_copied"] = relax.utils.copy_with_new_vars(Actual["func"])
+    Actual["func_copied"] = relax.utils.copy_with_new_vars(Actual["func"]).with_attr(
+        "global_symbol", "func_copied"
+    )
 
     assert_structural_equal(Actual, Expected)
 
