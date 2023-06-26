@@ -132,7 +132,6 @@ class Module:
     # pylint: enable=trailing-whitespace
 
 
-
 def test_object_struct_info():
     obj = relax.ObjectStructInfo()
     _assert_print(
