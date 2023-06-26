@@ -148,7 +148,7 @@ class PermutedLayoutInjector : public StmtExprMutator {
       }
       if (smem_width % 64 == 32) {
         if (store->buffer->shape[0].as<IntImmNode>()->value % 2 != 0) {
-          LOG(INFO) << "Permuted Layout for " << op->block->name_hint
+          LOG(WARNING) << "Permuted Layout for " << op->block->name_hint
                     << " is not supported since its first dimension is not divisible by 2"
                     << " and second dimension is not divisible by 64";
           return br;
