@@ -28,6 +28,16 @@ from tvm.target import Target
 from .schedule_rule import ScheduleRule
 
 
+def _is_scheduled(func: tir.PrimFunc) -> bool:
+    if not isinstance(func, tir.PrimFunc):
+        return False
+    if not func.attrs:
+        return False
+    if "tir.is_scheduled" not in func.attrs:
+        return False
+    return func.attrs["tir.is_scheduled"] == 1
+
+
 @module_pass(opt_level=0, name="ApplyDefaultSchedule")
 class ApplyDefaultSchedule:  # pylint: disable=too-few-public-methods
     """A IRModule pass that applies a list of ScheduleRules to all PrimFuncs in the module."""
@@ -50,9 +60,7 @@ class ApplyDefaultSchedule:  # pylint: disable=too-few-public-methods
         target = Target.current(allow_none=False)
         updated_functions = {}
         for g_var, func in mod.functions.items():
-            if isinstance(func, tir.PrimFunc) and (
-                not func.attrs or not func.attrs.get("tir.is_scheduled", 0)
-            ):
+            if not _is_scheduled(func):
                 sch = _apply_rules(func, target, self.rules, tunable=False)
                 if sch is not None:
                     assert len(sch) == 1
