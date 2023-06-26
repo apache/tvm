@@ -41,7 +41,7 @@ struct EthosUCompilerConfigNode : public tvm::AttrsNode<EthosUCompilerConfigNode
   String accelerator_config;
   bool enable_cascader;
   bool enable_striping;
-  bool disable_copying_constants;
+  Bool disable_copying_constants = Bool(false);
   String dev_force_block_config;
   String dev_max_open_plans;
   String dev_max_closed_plans;
@@ -62,7 +62,7 @@ struct EthosUCompilerConfigNode : public tvm::AttrsNode<EthosUCompilerConfigNode
         .set_default(false);
     TVM_ATTR_FIELD(disable_copying_constants)
         .describe("Whether copying constants is disabled for case without cascader")
-        .set_default(false);
+        .set_default(Bool(false));
     TVM_ATTR_FIELD(enable_striping)
         .describe("Whether the cascader should be striping")
         .set_default(false);
