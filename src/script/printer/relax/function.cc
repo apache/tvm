@@ -110,7 +110,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       // if the function is global or is not in a module and does not have a global symbol,
       // indicate that it's private
       if (AtTopLevelFunction(d) &&
-          (!n->attrs.defined() || !n->attrs->dict.count("global_symbol"))) {
+          (!n->attrs.defined() || !n->attrs->dict.count(tvm::attr::kGlobalSymbol))) {
         dec_keys.push_back("private");
         dec_values.push_back(LiteralDoc::Boolean(true, Optional<ObjectPath>()));
       }
