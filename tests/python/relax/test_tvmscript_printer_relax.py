@@ -27,7 +27,9 @@ def _assert_print(obj, expected):
     if not isinstance(obj, str):
         obj = obj.script(verbose_expr=True)
     obj = obj.strip()
-    assert obj == expected.strip(), "\n" + obj
+    # compare line by line in case there is trailing whitespace in the _middle_
+    for obj_line, expected_line in zip(obj.splitlines(), expected.strip().splitlines()):
+        assert obj_line.strip() == expected_line.strip(), "\n" + obj
 
 
 def test_function():
@@ -106,9 +108,6 @@ def test_nested_function():
             z = nested(x)
             return z
 
-    # The pretty-printer inserts the trailing whitespace itself;
-    # removing it would cause the test to fail
-    # pylint: disable=trailing-whitespace
     _assert_print(
         NestedFunction,
         """
@@ -120,7 +119,7 @@ class Module:
     @R.function
     def main(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
         # from tvm.script import relax as R
-        
+
         @R.function
         def nested(y: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
             return y
@@ -129,7 +128,6 @@ class Module:
         return z
 """,
     )
-    # pylint: enable=trailing-whitespace
 
 
 def test_object_struct_info():
