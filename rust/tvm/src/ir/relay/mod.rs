@@ -32,6 +32,7 @@ pub use super::expr::{GlobalVar, GlobalVarNode};
 pub use crate::runtime::DataType;
 
 pub mod attrs;
+pub mod nn;
 
 #[repr(C)]
 #[derive(Object, Debug)]
