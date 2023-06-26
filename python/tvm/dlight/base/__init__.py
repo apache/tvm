@@ -15,5 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Base infra"""
+from .analysis import BlockInfo
+from .common_schedules import try_inline
 from .schedule_rule import ScheduleRule
 from .transform import ApplyDefaultSchedule
