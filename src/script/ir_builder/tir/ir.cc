@@ -54,9 +54,10 @@ Buffer BufferDecl(Array<PrimExpr> shape, DataType dtype, String buffer_name, Opt
                 axis_separators.value_or(Array<IntImm>()));
 }
 
-PrimFuncFrame PrimFunc() {
+PrimFuncFrame PrimFunc(const Bool& is_private) {
   ObjectPtr<PrimFuncFrameNode> n = make_object<PrimFuncFrameNode>();
   n->name = NullOpt;
+  n->is_private = is_private;
   n->args.clear();
   n->ret_type = NullOpt;
   n->buffer_map.clear();
