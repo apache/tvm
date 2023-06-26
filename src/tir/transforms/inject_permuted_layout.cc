@@ -142,7 +142,7 @@ class PermutedLayoutInjector : public StmtExprMutator {
       // Step 1.3. Get smem width and refuse to make any difference if invalid
       auto smem_width = store->buffer->shape[1].as<IntImmNode>()->value;
       if (smem_width % 32 != 0) {
-        LOG(INFO) << "Permuted Layout for " << op->block->name_hint
+        LOG(WARNING) << "Permuted Layout for " << op->block->name_hint
                   << " is not supported since its second dimension is not divisible by 32";
         return br;
       }
