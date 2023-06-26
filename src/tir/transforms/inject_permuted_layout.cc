@@ -143,14 +143,14 @@ class PermutedLayoutInjector : public StmtExprMutator {
       auto smem_width = store->buffer->shape[1].as<IntImmNode>()->value;
       if (smem_width % 32 != 0) {
         LOG(WARNING) << "Permuted Layout for " << op->block->name_hint
-                  << " is not supported since its second dimension is not divisible by 32";
+                     << " is not supported since its second dimension is not divisible by 32";
         return br;
       }
       if (smem_width % 64 == 32) {
         if (store->buffer->shape[0].as<IntImmNode>()->value % 2 != 0) {
           LOG(WARNING) << "Permuted Layout for " << op->block->name_hint
-                    << " is not supported since its first dimension is not divisible by 2"
-                    << " and second dimension is not divisible by 64";
+                       << " is not supported since its first dimension is not divisible by 2"
+                       << " and second dimension is not divisible by 64";
           return br;
         }
       }

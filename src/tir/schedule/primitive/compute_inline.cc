@@ -679,16 +679,16 @@ class ReverseComputeInliner : public BaseInliner {
       analyzer_.Bind(iter->var, Range::FromMinExtent(iter->dom->min, iter->dom->extent));
     }
     if (producer_block->annotations.count(tir::attr::auto_copy) != 0) {
-        auto bind = [&](const ForNode* loop) {
-          analyzer_.Bind(
-              loop->loop_var, Range::FromMinExtent(make_zero(loop->extent->dtype), loop->extent));
-        };
-        const ForNode* producer_inner_loop = producer_block->body.as<ForNode>();
-        while (producer_inner_loop->body.as<ForNode>()) {
-          bind(producer_inner_loop);
-          producer_inner_loop = producer_inner_loop->body.as<ForNode>();
-        }
+      auto bind = [&](const ForNode* loop) {
+        analyzer_.Bind(loop->loop_var,
+                       Range::FromMinExtent(make_zero(loop->extent->dtype), loop->extent));
+      };
+      const ForNode* producer_inner_loop = producer_block->body.as<ForNode>();
+      while (producer_inner_loop->body.as<ForNode>()) {
         bind(producer_inner_loop);
+        producer_inner_loop = producer_inner_loop->body.as<ForNode>();
+      }
+      bind(producer_inner_loop);
     }
     // Substitute the consumer block iters with the corresponding iters in the producer blocks
     PrimExpr predicate = Substituter(this)(consumer_iter_in_bound_);
