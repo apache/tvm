@@ -875,7 +875,7 @@ def test_rewrite_simple():
         return R.multiply(matchings[x], R.const(2, "float32"))
 
     rewritten = rewrite_call(pattern, rewriter, main)
-    tvm.ir.assert_structural_equal(rewritten, expected1)
+    tvm.ir.assert_structural_equal(rewritten, expected1.with_attr("global_symbol", "main"))
 
     add1 = is_op("relax.add")(x, x)
     pattern = is_op("relax.add")(add1, add1)
@@ -884,7 +884,7 @@ def test_rewrite_simple():
         return R.multiply(matchings[x], R.const(4, "float32"))
 
     rewritten = rewrite_call(pattern, rewriter, main)
-    tvm.ir.assert_structural_equal(rewritten, expected2)
+    tvm.ir.assert_structural_equal(rewritten, expected2.with_attr("global_symbol", "main"))
 
     # No rewriting, return the original call node as is
     def rewriter(orig, _):
@@ -959,7 +959,7 @@ def test_rewrite_attention():
         return R.nn.attention(matchings[Q], matchings[K], matchings[V])
 
     rewritten = rewrite_call(pattern, rewriter, main)
-    tvm.ir.assert_structural_equal(rewritten, expected)
+    tvm.ir.assert_structural_equal(rewritten, expected.with_attr("global_symbol", "main"))
 
 
 def test_attention_qkv():
@@ -1115,7 +1115,7 @@ def test_combine_matmul_twice():
             inp_pat, Q_weight_pat, K_weight_pat, V_weight_pat, matmul1, matmul2, matmul3
         )
         rewritten = rewrite_bindings(ctx, rewriter, qkv_x2)
-        tvm.ir.assert_structural_equal(rewritten, expected)
+        tvm.ir.assert_structural_equal(rewritten, expected.with_attr("global_symbol", "qkv_x2"))
 
 
 def test_combine_matmul_emit_order():
@@ -1173,7 +1173,7 @@ def test_combine_matmul_emit_order():
             inp_pat, Q_weight_pat, K_weight_pat, V_weight_pat, matmul1, matmul2, matmul3
         )
         rewritten = rewrite_bindings(ctx, rewriter, main)
-        tvm.ir.assert_structural_equal(rewritten, expected)
+        tvm.ir.assert_structural_equal(rewritten, expected.with_attr("global_symbol", "main"))
 
         # make sure it builds
         mod = tvm.IRModule()
@@ -1272,7 +1272,7 @@ def test_combine_transposed_matmul_twice():
 
         rewritten = rewrite_bindings(ctx, rewriter, main)
         print(rewritten.script())
-        tvm.ir.assert_structural_equal(rewritten, expected)
+        tvm.ir.assert_structural_equal(rewritten, expected.with_attr("global_symbol", "main"))
 
         # make sure it builds
         mod = tvm.IRModule()
