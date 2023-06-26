@@ -14,11 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
+import re
+
+import pytest
+
 import tvm
 from tvm import te
 from tvm.script import tir as T
-import re
-import pytest
+from tvm.topi.arm_cpu.pstate_attributes import SMEAttributes
 
 from tvm.target.codegen import llvm_version_major
 
@@ -531,6 +535,114 @@ def test_scalable_broadcast():
         r"shufflevector \(<vscale x 4 x float> insertelement \(<vscale x 4 x float>", llvm
     ), "No scalable broadcast in generated LLVM."
     assert re.findall(r" store <vscale x 4 x float>", llvm), "No scalable store in generated LLVM."
+
+
+@pytest.mark.skipif(
+    llvm_version_major() < 16, reason="Test requires an LLVM version of at least 16 to target SME"
+)
+@pytest.mark.parametrize(
+    "attr_key,attr_value,expected",
+    [
+        (
+            SMEAttributes.STREAMING_MODE,
+            SMEAttributes.StreamingModeValues.ENABLED,
+            "aarch64_pstate_sm_enabled",
+        ),
+        (
+            SMEAttributes.STREAMING_MODE,
+            SMEAttributes.StreamingModeValues.COMPATIBLE,
+            "aarch64_pstate_sm_compatible",
+        ),
+        (SMEAttributes.ZA_STORAGE, SMEAttributes.ZAStorageValues.NEW, "aarch64_pstate_za_new"),
+        (
+            SMEAttributes.ZA_STORAGE,
+            SMEAttributes.ZAStorageValues.SHARED,
+            "aarch64_pstate_za_shared",
+        ),
+    ],
+)
+def test_function_attributes(attr_key, attr_value, expected):
+    target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sme"
+
+    @T.prim_func
+    def prim_func(a: T.handle, c: T.handle):
+        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        A = T.match_buffer(a, (16,), "float32")
+        C = T.match_buffer(c, (1,), "float32")
+
+        with T.block("extern"):
+            T.block_attr({attr_key: attr_value})
+            for i in range(16):
+                C[0] += A[i]
+
+    func = tvm.build(prim_func, target=target)
+    ll = func.get_source("ll")
+
+    # Check that the attribute exists
+    attr = re.findall(rf".*{expected}*.", ll)
+    assert attr, f"Function attribute {expected} was not found in generated LLVM IR"
+
+    # Check this attribute is used on the "compute" function
+    func_attr_label = attr[0].split(" ")[1]
+    found_compute_func = False
+    for match in re.findall(rf".*{func_attr_label}*.", ll):
+        if "_compute_" in match:
+            found_compute_func = True
+
+    assert found_compute_func, (
+        f"The attribute {expected} was found to be under the label {func_attr_label}, "
+        "but it was not used by the 'compute' scope function."
+    )
+
+
+def test_unsupported_function_attribute_type():
+    target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sme"
+
+    @T.prim_func
+    def prim_func(a: T.handle, c: T.handle):
+        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        A = T.match_buffer(a, (16,), "float32")
+        C = T.match_buffer(c, (1,), "float32")
+
+        with T.block("extern"):
+            T.block_attr({SMEAttributes.STREAMING_MODE: True})
+            with T.block("root"):
+                for i in range(16):
+                    C[0] += A[i]
+
+    err_msg = f"Expect {SMEAttributes.STREAMING_MODE} to have a String value but was IntImm"
+    with pytest.raises(tvm.error.TVMError, match=err_msg):
+        tvm.build(prim_func, target=target)
+
+
+@pytest.mark.parametrize(
+    "attr_key,attr_value",
+    [
+        (SMEAttributes.STREAMING_MODE, SMEAttributes.StreamingModeValues.ENABLED),
+        (SMEAttributes.ZA_STORAGE, SMEAttributes.ZAStorageValues.NEW),
+    ],
+)
+def test_unsupported_multiple_function_attributes(attr_key, attr_value):
+    target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sme"
+
+    @T.prim_func
+    def prim_func(a: T.handle, c: T.handle):
+        A = T.match_buffer(a, (16,), "float32")
+        C = T.match_buffer(c, (1,), "float32")
+
+        with T.block("root"):
+            with T.block("extern"):
+                T.block_attr({attr_key: attr_value})
+                for i in range(16):
+                    C[0] += A[i] * 2
+            with T.block("extern2"):
+                T.block_attr({attr_key: attr_value})
+                for i in range(16):
+                    C[0] += A[i] * 3
+
+    err_msg = f"Multiple definitions of {attr_key} attribute found in the function default_function_compute_"
+    with pytest.raises(tvm.error.TVMError, match=err_msg):
+        tvm.build(prim_func, target=target)
 
 
 if __name__ == "__main__":
