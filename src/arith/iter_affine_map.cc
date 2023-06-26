@@ -226,7 +226,7 @@ class IterMapRewriter : public ExprMutator {
 
   /**
    * Rewrite expr to iter sum pattern
-   * \parma expr The input expression
+   * \param expr The input expression
    * \return The rewritten iter sum pattern
    * \note The result base may contain items that is not
    */
