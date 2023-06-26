@@ -1483,8 +1483,12 @@ TensorIntrin.register(
     "mma_sync_m16n8k8_f16f16f32", *get_mma_sync_intrin(16, 8, 8, "float16", "float32", False)
 )
 
-TensorIntrin.register("mma_store_m16n8k8_f16_global", *get_mma_store_dummy_intrin(16, 8, 8, "float16"))
-TensorIntrin.register("mma_store_m16n8k8_f32_global", *get_mma_store_dummy_intrin(16, 8, 8, "float32"))
+TensorIntrin.register(
+    "mma_store_m16n8k8_f16_global", *get_mma_store_dummy_intrin(16, 8, 8, "float16")
+)
+TensorIntrin.register(
+    "mma_store_m16n8k8_f32_global", *get_mma_store_dummy_intrin(16, 8, 8, "float32")
+)
 
 
 @register_func("tir.index_map_m16n8k8.matrixC")

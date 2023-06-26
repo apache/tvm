@@ -408,8 +408,7 @@ def test_mma_auto_tensorization():
     )
 
 
-expected_cuda_script = r"""
-#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 530)
+expected_cuda_script = r"""#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 530)
 #include <cuda_fp16.h>
 __device__ half max(half a, half b)
 {
@@ -1180,37 +1179,10 @@ __asm__ __volatile__("cp.async.wait_group 0;");
 
 """
 
-generated_code = ""
-support_async = True
-
-
-@tvm.register_func
-def tvm_callback_cuda_postproc(code, _):
-    global generated_code
-    global support_async
-    generated_code = code
-    # return a dummy code so that device < sm80 could build correctly
-    if not support_async:
-        ret = ""
-        for line in code.split("\n"):
-            ret += line + "\n"
-            if line.startswith('extern "C" __global__'):
-                break
-        ret += "}"
-        return ret
-    return code
-
 
 @tvm.testing.requires_cuda
 @tvm.testing.requires_tensorcore
 def test_mma_script_after_build():
-    global support_async
-    arch = tvm.contrib.nvcc.get_target_compute_version()
-    major, _ = tvm.contrib.nvcc.parse_compute_version(arch)
-    if major < 8:
-        # At least sm80 is required
-        support_async = False
-
     mod = te.create_prim_func(matmul_fp16(M=4096, N=4096, K=4096))
     actual = _design_space(mod)
     assert len(actual) == 1
@@ -1246,7 +1218,7 @@ def test_mma_script_after_build():
     with tvm.transform.PassContext(config={"tir.use_async_copy": 1}):
         rt_mod = tvm.build(sch.mod, target="cuda")
 
-    assert rt_mod.imported_modules[0].get_source() == generated_code
+    assert rt_mod.imported_modules[0].get_source() == expected_cuda_script
 
 
 if __name__ == "__main__":
