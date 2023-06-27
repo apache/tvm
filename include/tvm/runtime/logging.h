@@ -539,13 +539,6 @@ class VLogContextEntry {
   std::stringstream sstream_;
 };
 
-constexpr const char* kTVM_INTERNAL_ERROR_MESSAGE =
-    "\n"
-    "---------------------------------------------------------------\n"
-    "An error occurred during the execution of TVM.\n"
-    "For more information, please see: https://tvm.apache.org/docs/errors.html\n"
-    "---------------------------------------------------------------\n";
-
 template <typename X, typename Y>
 std::unique_ptr<std::string> LogCheckFormat(const X& x, const Y& y) {
   std::ostringstream os;
@@ -694,14 +687,12 @@ TVM_CHECK_FUNC(_NE, !=)
 #define ICHECK_BINARY_OP(name, op, x, y)                                   \
   if (auto __tvm__log__err = ::tvm::runtime::detail::LogCheck##name(x, y)) \
   ::tvm::runtime::detail::LogFatal(__FILE__, __LINE__).stream()            \
-      << ::tvm::runtime::detail::kTVM_INTERNAL_ERROR_MESSAGE << std::endl  \
-      << TVM_ICHECK_INDENT << "Check failed: " << #x " " #op " " #y << *__tvm__log__err << ": "
+      << "InternalError: Check failed: " << #x " " #op " " #y << *__tvm__log__err << ": "
 
-#define ICHECK(x)                                                                 \
-  if (!(x))                                                                       \
-  ::tvm::runtime::detail::LogFatal(__FILE__, __LINE__).stream()                   \
-      << ::tvm::runtime::detail::kTVM_INTERNAL_ERROR_MESSAGE << TVM_ICHECK_INDENT \
-      << "Check failed: (" #x << ") is false: "
+#define ICHECK(x)                                               \
+  if (!(x))                                                     \
+  ::tvm::runtime::detail::LogFatal(__FILE__, __LINE__).stream() \
+      << "InternalError: Check failed: (" #x << ") is false: "
 
 #define ICHECK_LT(x, y) ICHECK_BINARY_OP(_LT, <, x, y)
 #define ICHECK_GT(x, y) ICHECK_BINARY_OP(_GT, >, x, y)
@@ -711,8 +702,7 @@ TVM_CHECK_FUNC(_NE, !=)
 #define ICHECK_NE(x, y) ICHECK_BINARY_OP(_NE, !=, x, y)
 #define ICHECK_NOTNULL(x)                                                         \
   ((x) == nullptr ? ::tvm::runtime::detail::LogFatal(__FILE__, __LINE__).stream() \
-                        << ::tvm::runtime::detail::kTVM_INTERNAL_ERROR_MESSAGE    \
-                        << TVM_ICHECK_INDENT << "Check not null: " #x << ' ',     \
+                        << "InternalError: Check not null: " #x << ' ',           \
    (x) : (x))  // NOLINT(*)
 
 }  // namespace runtime
