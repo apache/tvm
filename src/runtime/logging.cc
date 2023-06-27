@@ -18,6 +18,8 @@
  */
 #include <tvm/runtime/logging.h>
 
+#include <cstdio>
+#include <cstring>
 #include <stdexcept>
 #include <string>
 
@@ -92,6 +94,31 @@ void BacktraceSyminfoCallback(void* data, uintptr_t pc, const char* symname, uin
 
 int BacktraceFullCallback(void* data, uintptr_t pc, const char* filename, int lineno,
                           const char* symbol) {
+  if (filename != nullptr) {
+    if (strstr(filename, "include/tvm/runtime/packed_func.h") != nullptr ||
+        strstr(filename, "include/tvm/runtime/registry.h") != nullptr ||
+        strstr(filename, "include/tvm/node/functor.h") != nullptr ||
+        strstr(filename, "include/tvm/relax/expr_functor.h") != nullptr ||
+        strstr(filename, "include/tvm/tir/stmt_functor.h") != nullptr ||
+        strstr(filename, "include/tvm/tir/expr_functor.h") != nullptr ||
+        strstr(filename, "include/tvm/node/reflection.h") != nullptr ||
+        strstr(filename, "src/node/structural_equal.cc") != nullptr ||
+        strstr(filename, "src/ir/transform.cc") != nullptr ||
+        strstr(filename, "src/tir/ir/stmt_functor.cc") != nullptr ||
+        strstr(filename, "src/tir/ir/expr_functor.cc") != nullptr ||
+        strstr(filename, "src/relax/ir/expr_functor.cc") != nullptr ||
+        strstr(filename, "src/relax/ir/py_expr_functor.cc") != nullptr ||
+        strstr(filename, "src/runtime/c_runtime_api.cc") != nullptr ||
+        strstr(filename, "/python-") != nullptr ||  //
+        strstr(filename, "include/c++/") != nullptr) {
+      return 0;
+    }
+  }
+  if (symbol != nullptr) {
+    if (strstr(symbol, "__libc_") != nullptr) {
+      return 0;
+    }
+  }
   auto stack_trace = reinterpret_cast<BacktraceInfo*>(data);
   std::stringstream s;
 
@@ -170,9 +197,11 @@ std::string Backtrace() {
     return "";
   }
   // libbacktrace eats memory if run on multiple threads at the same time, so we guard against it
-  static std::mutex m;
-  std::lock_guard<std::mutex> lock(m);
-  backtrace_full(_bt_state, 0, BacktraceFullCallback, BacktraceErrorCallback, &bt);
+  {
+    static std::mutex m;
+    std::lock_guard<std::mutex> lock(m);
+    backtrace_full(_bt_state, 0, BacktraceFullCallback, BacktraceErrorCallback, &bt);
+  }
 
   std::ostringstream s;
   s << "Stack trace:\n";

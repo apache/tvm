@@ -25,7 +25,7 @@ copy the examples and raise errors with the same message convention.
 
     Please also refer to :ref:`error-handling-guide`.
 """
-from tvm._ffi.base import register_error, TVMError
+from tvm._ffi.base import TVMError, register_error
 
 
 @register_error
@@ -46,12 +46,6 @@ class InternalError(TVMError):
     """
 
     def __init__(self, msg):
-        # Patch up additional hint message.
-        if "TVM hint:" not in msg:
-            msg += (
-                "\nTVM hint: You hit an internal error. "
-                + "Please open a thread on https://discuss.tvm.apache.org/ to report it."
-            )
         super(InternalError, self).__init__(msg)
 
 
