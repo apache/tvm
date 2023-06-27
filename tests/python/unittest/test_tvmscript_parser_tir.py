@@ -90,6 +90,7 @@ def test_tir_func_private_attrs():
 
 def test_tir_func_private_manual_global_symbol_fail():
     with pytest.raises(tvm.error.DiagnosticError):
+
         @T.prim_func(private=True)
         def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
             T.func_attr({"global_symbol": "matmul"})

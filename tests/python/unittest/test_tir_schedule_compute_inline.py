@@ -1082,9 +1082,7 @@ def test_reverse_compute_inline_affine_load_unit_iter(use_block_name):
     sch = tir.Schedule(elementwise_reverse_affine_load_unit_iter, debug_mask="all")
     block_c = "C" if use_block_name else sch.get_block("C")
     sch.reverse_compute_inline(block_c)
-    assert_structural_equal_gs(
-        elementwise_reverse_affine_load_unit_iter_inlined, sch.mod["main"]
-    )
+    assert_structural_equal_gs(elementwise_reverse_affine_load_unit_iter_inlined, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=elementwise_reverse_affine_load_unit_iter)
 
 
@@ -1200,9 +1198,7 @@ def test_compute_inline_opaque_access_with_tvm_access_ptr(use_block_name):
     sch = tir.Schedule(exp_exp_opaque_access_with_tvm_access_ptr, debug_mask="all")
     compute = "compute" if use_block_name else sch.get_block("compute")
     sch.compute_inline(compute)
-    assert_structural_equal_gs(
-        exp_exp_opaque_access_with_tvm_access_ptr_inlined, sch.mod["main"]
-    )
+    assert_structural_equal_gs(exp_exp_opaque_access_with_tvm_access_ptr_inlined, sch.mod["main"])
 
 
 def test_reverse_compute_inline_overcomputed_producer(use_block_name):
@@ -1210,9 +1206,7 @@ def test_reverse_compute_inline_overcomputed_producer(use_block_name):
     sch = tir.Schedule(elementwise_overcomputed_producer, debug_mask="all")
     compute = "C" if use_block_name else sch.get_block("C")
     sch.reverse_compute_inline(compute)
-    assert_structural_equal_gs(
-        elementwise_overcomputed_producer_reverse_inlined, sch.mod["main"]
-    )
+    assert_structural_equal_gs(elementwise_overcomputed_producer_reverse_inlined, sch.mod["main"])
 
 
 def test_reverse_compute_inline_overcomputed_producer_simplify_predicate(use_block_name):
@@ -1262,9 +1256,7 @@ def test_reverse_compute_inline_producer_predicate_disallowed():
 
     sch = tir.Schedule(Conv2dInt8_TensorCore_with_predicate_before, debug_mask="all")
     sch.reverse_compute_inline(sch.get_block("compute_4"))
-    assert_structural_equal_gs(
-        Conv2dInt8_TensorCore_with_predicate_after["main"], sch.mod["main"]
-    )
+    assert_structural_equal_gs(Conv2dInt8_TensorCore_with_predicate_after["main"], sch.mod["main"])
 
 
 def test_compute_inline_softmax():
