@@ -41,6 +41,7 @@ struct EthosUCompilerConfigNode : public tvm::AttrsNode<EthosUCompilerConfigNode
   String accelerator_config;
   bool enable_cascader;
   bool enable_striping;
+  Bool disable_copying_constants = Bool(false);
   String dev_force_block_config;
   String dev_max_open_plans;
   String dev_max_closed_plans;
@@ -59,6 +60,14 @@ struct EthosUCompilerConfigNode : public tvm::AttrsNode<EthosUCompilerConfigNode
     TVM_ATTR_FIELD(enable_cascader)
         .describe("Whether the cascader should be enabled")
         .set_default(false);
+    TVM_ATTR_FIELD(disable_copying_constants)
+        .describe(
+            "Whether copying constants is disabled for case without the cascader. When this option "
+            "is "
+            "enabled, it is assumed that the constants should be located in SRAM (user determines "
+            "in "
+            "the linker script for section \".rodata.tvm\" that the constants are located in SRAM)")
+        .set_default(Bool(false));
     TVM_ATTR_FIELD(enable_striping)
         .describe("Whether the cascader should be striping")
         .set_default(false);
