@@ -15,9 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import pytest
 import sys
 
+import pytest
 import tvm
 import tvm.testing
 from tvm.script import tir as T
@@ -76,6 +76,7 @@ def test_simple():
     assert f1.body.block.body.loop_var != f2.body.block.body.loop_var
     # check remap of j
     assert f1.body.block.body.body.loop_var != f2.body.block.body.body.loop_var
+
     # check inner block
     def _get_block(f):
         return f.body.block.body.body.body.block
@@ -167,6 +168,23 @@ def test_symbolic_func():
     f1 = symbolic_func
     f2 = tvm.tir.stmt_functor.renew_defs(f1)
     tvm.ir.assert_structural_equal(f1, f2)
+
+
+def test_buffer_map():
+    @T.prim_func
+    def main(a: T.handle, b: T.handle):
+        m = T.int64()
+        A = T.match_buffer(a, (m * 2,))
+        B = T.match_buffer(b, (m, 2))
+        for i, j in T.grid(m, 2):
+            with T.block("B"):
+                vi, vj = T.axis.remap("SS", [i, j])
+                B[vi, vj] = A[vi * 2 + vj]
+
+    f1 = main
+    f2 = tvm.tir.stmt_functor.renew_defs(main)
+    tvm.ir.assert_structural_equal(f1, f2)
+    assert f1.buffer_map[f1.params[1]].shape[0] != f2.buffer_map[f2.params[1]].shape[0]
 
 
 if __name__ == "__main__":
