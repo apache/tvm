@@ -199,5 +199,14 @@ Array<Var> UndefinedVars(const PrimExpr& expr, const Array<Var>& args) {
   return m.undefined_;
 }
 
+TVM_REGISTER_GLOBAL("tir.analysis.UndefinedVars").set_body([](TVMArgs args, TVMRetValue* rv) {
+  if (args.size() == 2 && args[0].IsObjectRef<Stmt>()) {
+    *rv = UndefinedVars(args[0].AsObjectRef<Stmt>(), args[1]);
+  } else if (args.size() == 2 && args[0].IsObjectRef<PrimExpr>()) {
+    *rv = UndefinedVars(args[0].AsObjectRef<PrimExpr>(), args[1]);
+  } else {
+    LOG(FATAL) << "either UndefinedVars(stmt, args) or UndefinedVars(expr, args) is expected";
+  }
+});
 }  // namespace tir
 }  // namespace tvm
