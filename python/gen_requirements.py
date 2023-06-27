@@ -47,10 +47,9 @@ import argparse
 import collections
 import os
 import re
-import textwrap
 import sys
+import textwrap
 import typing
-
 
 RequirementsByPieceType = typing.List[typing.Tuple[str, typing.Tuple[str, typing.List[str]]]]
 
@@ -253,8 +252,7 @@ CONSTRAINTS = [
     ("h5py", "==2.10.0"),
     ("image", None),
     ("matplotlib", None),
-    # Workaround, see https://github.com/apache/tvm/issues/13647
-    ("numpy", "<=1.23"),
+    ("numpy", "None"),
     ("onnx", None),
     ("onnxoptimizer", None),
     ("onnxruntime", None),
