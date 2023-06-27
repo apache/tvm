@@ -177,14 +177,18 @@ class NonSingleProducerError : public ScheduleError {
         self, GetRef<Block>(consumer_block), scope_root_sref);
     class ProducerFinder : public StmtVisitor {
      public:
-      static std::vector<Block> GetProducer(const Buffer& buffer, const Block& scope_block) {
-        ProducerFinder finder(buffer);
+      static std::vector<Block> GetProducer(const ScheduleState& self,
+                                            const StmtSRef& scope_root_sref, const Buffer& buffer,
+                                            const Block& scope_block) {
+        ProducerFinder finder(self, scope_root_sref, buffer);
         finder(scope_block);
         return finder.producer_across_scope_.back();
       }
 
      private:
-      explicit ProducerFinder(const Buffer& buffer) : buffer_(buffer) {
+      explicit ProducerFinder(const ScheduleState& self, const StmtSRef& scope_root_sref,
+                              const Buffer& buffer)
+          : self_(self), scope_root_sref_(scope_root_sref), buffer_(buffer) {
         producer_across_scope_.push_back({});
       }
 
@@ -204,16 +208,23 @@ class NonSingleProducerError : public ScheduleError {
         producer_across_scope_.pop_back();
         for (const auto& write : node->writes) {
           if (write->buffer.same_as(buffer_)) {
+            // Check if the producer block is a complete block
+            StmtSRef producer_block_sref = self_->stmt2ref.at(node);
+            if (!IsCompleteBlock(self_, producer_block_sref, scope_root_sref_)) {
+              throw NonSingleProducerError(self_->mod, GetRef<Block>(node));
+            }
             producer_across_scope_.back().push_back(GetRef<Block>(node));
             break;
           }
         }
       }
+      ScheduleState self_;
+      StmtSRef scope_root_sref_;
       Buffer buffer_;
       std::vector<std::vector<Block>> producer_across_scope_;
     };
-    std::vector<Block> producer_across_scope =
-        ProducerFinder::GetProducer(consumer_buffer, GetRef<Block>(scope_block));
+    std::vector<Block> producer_across_scope = ProducerFinder::GetProducer(
+        self, scope_root_sref, consumer_buffer, GetRef<Block>(scope_block));
     if (producer_across_scope.size() != 1) {
       throw NonSingleProducerError(self->mod, GetRef<Block>(consumer_block));
     }
