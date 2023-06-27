@@ -20,7 +20,7 @@ import tvm
 import tvm.testing
 from tvm import tir
 from tvm.script import tir as T
-from tvm.tir.schedule.testing import verify_trace_roundtrip
+from tvm.tir.schedule.testing import verify_trace_roundtrip, assert_structural_equal_gs
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
@@ -118,7 +118,7 @@ def test_merge():
     i = sch.get_loops(block_c)[0]
     j = sch.get_loops(block_d)[0]
     sch.merge(i, j)
-    tvm.ir.assert_structural_equal(elementwise_merged, sch.mod["main"])
+    assert_structural_equal_gs(elementwise_merged, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=elementwise)
 
 
@@ -129,7 +129,7 @@ def test_merge2():
     i = sch.get_loops(block_c)[1]
     j = sch.get_loops(block_d)[1]
     sch.merge(i, j)
-    tvm.ir.assert_structural_equal(elementwise_merged2, sch.mod["main"])
+    assert_structural_equal_gs(elementwise_merged2, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=elementwise)
 
 

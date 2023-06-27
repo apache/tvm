@@ -24,7 +24,7 @@ import tvm.testing
 def test_annotate_entry_func_single_primfunc():
     @tvm.script.ir_module
     class MockModule:
-        @T.prim_func
+        @T.prim_func(private=True)
         def func1(A: T.Buffer((16,), "float32")):
             for i in T.serial(16):
                 if i == 5:
@@ -45,14 +45,14 @@ def test_annotate_entry_func_single_primfunc():
 # Test module
 @tvm.script.ir_module
 class MockModule:
-    @T.prim_func
+    @T.prim_func(private=True)
     def func1(A: T.Buffer((16,), "float32")):
         for i in T.serial(16):
             if i == 5:
                 if i == 5:
                     A[i] = 0.0
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def func2(A: T.Buffer((32,), "float32")):
         for i in T.serial(32):
             if i == 15:

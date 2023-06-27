@@ -27,7 +27,7 @@ class BaseBeforeAfter:
 
     def test_hoist(self, hoisted_conditionals, hoisted_let_bindings):
         before = self.before
-        before_mod = tvm.IRModule.from_expr(before)
+        before_mod = tvm.IRModule.from_expr(before.with_attr("global_symbol", "main"))
 
         config = {
             "tir.HoistExpression": {
@@ -40,7 +40,7 @@ class BaseBeforeAfter:
             after_mod = tvm.tir.transform.HoistExpression()(before_mod)
 
         after = after_mod["main"]
-        expected = self.expected
+        expected = self.expected.with_attr("global_symbol", "main")
 
         try:
             tvm.ir.assert_structural_equal(after, expected)

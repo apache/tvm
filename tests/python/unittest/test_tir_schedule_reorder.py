@@ -22,7 +22,7 @@ import tvm
 import tvm.testing
 from tvm import tir
 from tvm.script import tir as T
-from tvm.tir.schedule.testing import verify_trace_roundtrip
+from tvm.tir.schedule.testing import assert_structural_equal_gs, verify_trace_roundtrip
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
@@ -189,7 +189,7 @@ def test_reorder():
     block_b = sch.get_block("B")
     i, j, k, l = sch.get_loops(block_b)
     sch.reorder(l, i)
-    tvm.ir.assert_structural_equal(elementwise_reordered, sch.mod["main"])
+    assert_structural_equal_gs(elementwise_reordered, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=elementwise)
 
 
@@ -198,7 +198,7 @@ def test_reorder2():
     block_b = sch.get_block("B")
     i, j, k, l = sch.get_loops(block_b)
     sch.reorder(k, i, l)
-    tvm.ir.assert_structural_equal(elementwise_reordered2, sch.mod["main"])
+    assert_structural_equal_gs(elementwise_reordered2, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=elementwise)
 
 
@@ -210,7 +210,7 @@ def test_reorder_with_opaque_access():
     block_b = sch.get_block("B")
     i, j = sch.get_loops(block_b)
     sch.reorder(j, i)
-    tvm.ir.assert_structural_equal(opaque_access_reorder, sch.mod["main"])
+    assert_structural_equal_gs(opaque_access_reorder, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=opaque_access)
 
 
@@ -236,7 +236,7 @@ def test_reorder_overlapped_access():
     sch = tir.Schedule(overlapped_access, debug_mask="all")
     v0, v1, v2 = sch.get_loops(sch.get_block("block"))
     sch.reorder(v0, v2, v1)
-    tvm.ir.assert_structural_equal(overlapped_access_reorder, sch.mod["main"])
+    assert_structural_equal_gs(overlapped_access_reorder, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=overlapped_access)
 
 
@@ -263,7 +263,7 @@ def test_reorder_with_partial_affineness():
         sch.reorder(v0, v2, v1)
 
     sch.reorder(v2, v1)
-    tvm.ir.assert_structural_equal(non_affine_func_reorder, sch.mod["main"])
+    assert_structural_equal_gs(non_affine_func_reorder, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=non_affine_func)
 
 
@@ -323,7 +323,7 @@ def test_reorder_with_cascade_tiled_ops():
     sch.compute_at(pool_0, ho)
     _, _, _, h_i, w, _, _ = sch.get_loops(pool_0)
     sch.reorder(w, h_i)
-    tvm.ir.assert_structural_equal(cascade_pool_ops_tile_reordered, sch.mod["main"], True)
+    assert_structural_equal_gs(cascade_pool_ops_tile_reordered, sch.mod["main"], True)
     verify_trace_roundtrip(sch=sch, mod=cascade_pool_ops)
 
 

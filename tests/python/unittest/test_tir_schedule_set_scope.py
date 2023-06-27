@@ -20,7 +20,7 @@ import tvm
 import tvm.testing
 from tvm import tir
 from tvm.script import tir as T
-from tvm.tir.schedule.testing import verify_trace_roundtrip
+from tvm.tir.schedule.testing import assert_structural_equal_gs, verify_trace_roundtrip
 
 # fmt: off
 # pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
@@ -94,7 +94,7 @@ def test_set_scope(use_block_name, use_buffer_name):
     func = element_wise
     s = tir.Schedule(func, debug_mask='all')
     s.set_scope('B' if use_block_name else s.get_block("B"), 'B' if use_buffer_name else 0, "shared")
-    tvm.ir.assert_structural_equal(element_wise_set_scope, s.mod["main"])
+    assert_structural_equal_gs(element_wise_set_scope, s.mod["main"])
     verify_trace_roundtrip(sch=s, mod=func)
 
 
@@ -125,7 +125,7 @@ def test_set_scope_subregion():
     func = element_wise_subregion_match
     s = tir.Schedule(func, debug_mask='all')
     s.set_scope(s.get_block("B"), 0, "shared")
-    tvm.ir.assert_structural_equal(element_wise_subregion_match_set_scope, s.mod["main"])
+    assert_structural_equal_gs(element_wise_subregion_match_set_scope, s.mod["main"])
     verify_trace_roundtrip(sch=s, mod=func)
 
 

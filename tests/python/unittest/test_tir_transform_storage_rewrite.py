@@ -299,7 +299,7 @@ def test_address_of():
             total_alloc[0] += n.extents[0].value
 
     total_alloc = [0]
-    mod = tvm.IRModule.from_expr(before)
+    mod = tvm.IRModule.from_expr(before.with_attr("global_symbol", "main"))
     mod.show()
     tvm.tir.stmt_functor.post_order_visit(mod["main"].body, verify)
     assert total_alloc[0] == 24
@@ -722,8 +722,10 @@ def test_access_in_let_value():
             x: T.float32 = T.exp(B[0], dtype="float32")
             A[i] = (x + 1.0) / (x - 1.0)
 
-    mod = tvm.tir.transform.StorageRewrite()(tvm.IRModule.from_expr(func))
-    tvm.ir.assert_structural_equal(mod["main"], func_rewritten)
+    mod = tvm.tir.transform.StorageRewrite()(
+        tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
+    )
+    tvm.ir.assert_structural_equal(mod["main"], func_rewritten.with_attr("global_symbol", "main"))
 
 
 class BaseCompare(tvm.testing.CompareBeforeAfter):
