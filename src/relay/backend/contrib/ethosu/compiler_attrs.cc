@@ -61,7 +61,12 @@ struct EthosUCompilerConfigNode : public tvm::AttrsNode<EthosUCompilerConfigNode
         .describe("Whether the cascader should be enabled")
         .set_default(false);
     TVM_ATTR_FIELD(disable_copying_constants)
-        .describe("Whether copying constants is disabled for case without cascader")
+        .describe(
+            "Whether copying constants is disabled for case without the cascader. When this option "
+            "is "
+            "enabled, it is assumed that the constants should be located in SRAM (user determines "
+            "in "
+            "the linker script for section \".rodata.tvm\" that the constants are located in SRAM)")
         .set_default(Bool(false));
     TVM_ATTR_FIELD(enable_striping)
         .describe("Whether the cascader should be striping")
