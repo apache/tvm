@@ -20,7 +20,7 @@ import tvm
 import tvm.testing
 from tvm import tir
 from tvm.script import tir as T
-from tvm.tir.schedule.testing import verify_trace_roundtrip
+from tvm.tir.schedule.testing import assert_structural_equal_gs, verify_trace_roundtrip
 import pytest
 
 
@@ -28,7 +28,7 @@ def check_rolling_buffer(
     sch: tir.Schedule, origin: tir.PrimFunc, expected: tir.PrimFunc, check_run=False
 ):
     scheduled = sch.mod["main"]
-    tvm.ir.assert_structural_equal(scheduled, expected)
+    assert_structural_equal_gs(scheduled, expected)
     verify_trace_roundtrip(sch, origin)
     if check_run:
         in_buffer = origin.buffer_map[origin.params[0]]

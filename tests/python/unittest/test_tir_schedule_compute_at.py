@@ -20,7 +20,7 @@ import tvm
 import tvm.testing
 from tvm import te, tir
 from tvm.script import tir as T
-from tvm.tir.schedule.testing import verify_trace_roundtrip
+from tvm.tir.schedule.testing import verify_trace_roundtrip, assert_structural_equal_gs
 
 # fmt: off
 # pylint: disable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks
@@ -1102,7 +1102,7 @@ def test_compute_at_two_elementwise(use_block_name):
     block = "B" if use_block_name else sch.get_block("B")
     loop, _ = sch.get_loops("C" if use_block_name else sch.get_block("C"))
     sch.compute_at(block, loop, preserve_unit_loops=True)
-    tvm.ir.assert_structural_equal(two_elementwise_after_compute_at, sch.mod["main"])
+    assert_structural_equal_gs(two_elementwise_after_compute_at, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=two_elementwise)
 
 
@@ -1111,7 +1111,7 @@ def test_compute_at_blockized_1(use_block_name):
     block = sch.get_block("B")
     _, loop = sch.get_loops(sch.get_block("C_outer"))
     sch.compute_at(block, loop, preserve_unit_loops=True)
-    tvm.ir.assert_structural_equal(blockized_after_compute_at, sch.mod["main"])
+    assert_structural_equal_gs(blockized_after_compute_at, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=blockized_1)
 
 
@@ -1120,7 +1120,7 @@ def test_compute_at_blockized_2(use_block_name):
     block = sch.get_block("B_outer")
     _, loop, _, _ = sch.get_loops(sch.get_block("C"))
     sch.compute_at(block, loop, preserve_unit_loops=True)
-    tvm.ir.assert_structural_equal(blockized_2_after_compute_at, sch.mod["main"])
+    assert_structural_equal_gs(blockized_2_after_compute_at, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=blockized_2)
 
 
@@ -1129,7 +1129,7 @@ def test_compute_at_cuda_matmul_0(use_block_name):
     block = sch.get_block("C")
     _, _, _, _, _, loop, _, _ = sch.get_loops(sch.get_block("C_local"))
     sch.compute_at(block, loop, preserve_unit_loops=True)
-    tvm.ir.assert_structural_equal(cuda_matmul_0_after_compute_at, sch.mod["main"])
+    assert_structural_equal_gs(cuda_matmul_0_after_compute_at, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=cuda_matmul_0)
 
 
@@ -1138,7 +1138,7 @@ def test_compute_at_cuda_matmul_1(use_block_name):
     block = sch.get_block("A_shared_local")
     _, _, _, _, _, _, _, loop, _, _, _ = sch.get_loops(sch.get_block("C"))
     sch.compute_at(block, loop, preserve_unit_loops=True)
-    tvm.ir.assert_structural_equal(cuda_matmul_2, sch.mod["main"])
+    assert_structural_equal_gs(cuda_matmul_2, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=cuda_matmul_1)
 
 
@@ -1147,7 +1147,7 @@ def test_compute_at_cuda_matmul_2(use_block_name):
     block = sch.get_block("B_shared_local")
     _, _, _, _, _, _, _, loop, _, _, _ = sch.get_loops(sch.get_block("C"))
     sch.compute_at(block, loop, preserve_unit_loops=True)
-    tvm.ir.assert_structural_equal(cuda_matmul_3, sch.mod["main"])
+    assert_structural_equal_gs(cuda_matmul_3, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=cuda_matmul_2)
 
 
@@ -1156,7 +1156,7 @@ def test_compute_at_cuda_matmul_3(use_block_name):
     block = sch.get_block("A_shared")
     _, _, _, _, _, _, loop, _, _, _, _ = sch.get_loops(sch.get_block("C"))
     sch.compute_at(block, loop, preserve_unit_loops=True)
-    tvm.ir.assert_structural_equal(cuda_matmul_4, sch.mod["main"])
+    assert_structural_equal_gs(cuda_matmul_4, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=cuda_matmul_3)
 
 
@@ -1165,7 +1165,7 @@ def test_compute_at_cuda_matmul_4(use_block_name):
     block = sch.get_block("B_shared")
     _, _, _, _, _, _, loop, _, _, _, _ = sch.get_loops(sch.get_block("C"))
     sch.compute_at(block, loop, preserve_unit_loops=True)
-    tvm.ir.assert_structural_equal(cuda_matmul_5, sch.mod["main"])
+    assert_structural_equal_gs(cuda_matmul_5, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=cuda_matmul_4)
 
 
@@ -1174,7 +1174,7 @@ def test_compute_at_reduction_block(use_block_name):
     block = sch.get_block("B")
     (loop,) = sch.get_loops(sch.get_block("C"))
     sch.compute_at(block, loop, preserve_unit_loops=False)
-    tvm.ir.assert_structural_equal(multi_reduction_after_compute_at, sch.mod["main"])
+    assert_structural_equal_gs(multi_reduction_after_compute_at, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=multi_reduction)
 
 
@@ -1184,7 +1184,7 @@ def test_compute_at_tiled_pooling_read_cache(use_block_name):
     _, w_o, _, _, _, _ = sch.get_loops(compute)
     cache = sch.get_block("cache")
     sch.compute_at(cache, w_o)
-    tvm.ir.assert_structural_equal(tiled_pooling_read_cache_after_compute_at, sch.mod["main"])
+    assert_structural_equal_gs(tiled_pooling_read_cache_after_compute_at, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=tiled_pooling_read_cache)
 
 
@@ -1192,7 +1192,7 @@ def test_compute_at_non_uniform_tiled_conv(use_block_name):
     sch = tir.Schedule(non_uniform_tiled_conv, debug_mask="all")
     compute = sch.get_block("compute")
     sch.compute_at(sch.get_block("cache"), sch.get_loops(compute)[1])
-    tvm.ir.assert_structural_equal(non_uniform_tiled_conv_after_compute_at, sch.mod["main"])
+    assert_structural_equal_gs(non_uniform_tiled_conv_after_compute_at, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=non_uniform_tiled_conv)
 
 
@@ -1204,7 +1204,7 @@ def test_compute_at_concat(use_block_name):
     axis = sch.get_loops(concat)[0]
     sch.compute_at(add1, axis)
     sch.compute_at(add2, axis)
-    tvm.ir.assert_structural_equal(concat_two_elemwise_after_compute_at, sch.mod["main"])
+    assert_structural_equal_gs(concat_two_elemwise_after_compute_at, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=concat_two_elemwise)
 
 
@@ -1212,7 +1212,7 @@ def test_compute_at_tiled_repeat_op(use_block_name):
     sch = tir.Schedule(tiled_repeat_op, debug_mask="all")
     outer_ax, _ = sch.get_loops(sch.get_block("T_repeat"))
     sch.compute_at(sch.get_block("T_add"), outer_ax)
-    tvm.ir.assert_structural_equal(tiled_repeat_op_after_compute_at, sch.mod["main"])
+    assert_structural_equal_gs(tiled_repeat_op_after_compute_at, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=tiled_repeat_op)
 
 
@@ -1246,7 +1246,7 @@ def test_compute_at_rev_iter():
     sch = tir.Schedule(before, debug_mask="all")
     axis = sch.get_loops(sch.get_block("b1"))[0]
     sch.compute_at(sch.get_block("b0"), axis)
-    tvm.ir.assert_structural_equal(after, sch.mod["main"])
+    assert_structural_equal_gs(after, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=before)
 
 
@@ -1255,7 +1255,7 @@ def test_reverse_compute_at_tiled(use_block_name):
     block = sch.get_block("C")
     _, _, loop, _ = sch.get_loops(sch.get_block("B"))
     sch.reverse_compute_at(block, loop, preserve_unit_loops=False)
-    tvm.ir.assert_structural_equal(tiled_after_reverse_compute_at, sch.mod["main"])
+    assert_structural_equal_gs(tiled_after_reverse_compute_at, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=tiled)
 
 
@@ -1264,7 +1264,7 @@ def test_reverse_compute_at_tiled_trivial_binding(use_block_name):
     block = sch.get_block("C")
     _, _, loop, _ = sch.get_loops(sch.get_block("B"))
     sch.reverse_compute_at(block, loop, preserve_unit_loops=False)
-    tvm.ir.assert_structural_equal(tiled_trivial_binding_after_reverse_compute_at, sch.mod["main"])
+    assert_structural_equal_gs(tiled_trivial_binding_after_reverse_compute_at, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=tiled_trivial_binding)
 
 
@@ -1273,7 +1273,7 @@ def test_reverse_compute_at_blockized_2(use_block_name):
     block = sch.get_block("C")
     _, loop = sch.get_loops(sch.get_block("B_outer"))
     sch.reverse_compute_at(block, loop, preserve_unit_loops=True)
-    tvm.ir.assert_structural_equal(blockized_2_after_reverse_compute_at, sch.mod["main"])
+    assert_structural_equal_gs(blockized_2_after_reverse_compute_at, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=blockized_2)
 
 
@@ -1282,7 +1282,7 @@ def test_reverse_compute_at_factorized(use_block_name):
     block = sch.get_block("B")
     _, loop, _, _ = sch.get_loops(sch.get_block("B_rf"))
     sch.reverse_compute_at(block, loop, preserve_unit_loops=False)
-    tvm.ir.assert_structural_equal(factorized_after_reverse_compute_at, sch.mod["main"])
+    assert_structural_equal_gs(factorized_after_reverse_compute_at, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=factorized)
 
 
@@ -1291,7 +1291,7 @@ def test_reverse_compute_at_floordiv_and_floormod_indices(use_block_name):
     A = sch.get_block("A")
     B = sch.get_block("B")
     sch.reverse_compute_at(B, sch.get_loops(A)[0])
-    tvm.ir.assert_structural_equal(
+    assert_structural_equal_gs(
         floordiv_and_floormod_indices_after_reverse_compute_at, sch.mod["main"]
     )
     verify_trace_roundtrip(sch=sch, mod=floordiv_and_floormod_indices)
@@ -1301,7 +1301,7 @@ def test_reverse_compute_at_floordiv_and_floormod_recursive(use_block_name):
     sch = tir.Schedule(recursive_floordiv_floormod, debug_mask="all")
     write_block = sch.get_block("Out")
     sch.reverse_compute_at(write_block, sch.get_loops("In")[2])
-    tvm.ir.assert_structural_equal(
+    assert_structural_equal_gs(
         recursive_floordiv_floormod_after_reverse_compute_at, sch.mod["main"]
     )
     verify_trace_roundtrip(sch=sch, mod=recursive_floordiv_floormod)
@@ -1312,7 +1312,7 @@ def test_read_out_of_bound(use_block_name):
     block = sch.get_block("B")
     (loop,) = sch.get_loops(sch.get_block("C"))
     sch.compute_at(block, loop)
-    tvm.ir.assert_structural_equal(read_out_of_bound_after_compute_at, sch.mod["main"])
+    assert_structural_equal_gs(read_out_of_bound_after_compute_at, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=read_out_of_bound)
 
 
@@ -1321,7 +1321,7 @@ def test_compact_dataflow(use_block_name):
     block = sch.get_block("B")
     _, loop = sch.get_loops(sch.get_block("C_1"))
     sch.compute_at(block, loop)
-    tvm.ir.assert_structural_equal(not_all_compact_data_flow_after_compute_at, sch.mod["main"])
+    assert_structural_equal_gs(not_all_compact_data_flow_after_compute_at, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=not_all_compact_data_flow)
 
 
@@ -1330,7 +1330,7 @@ def test_compute_at_simplify_static_bound(use_block_name):
     block = sch.get_block("B")
     loop, _ = sch.get_loops(sch.get_block("C"))
     sch.compute_at(block, loop, preserve_unit_loops=True)
-    tvm.ir.assert_structural_equal(static_bound_after_compute_at, sch.mod["main"])
+    assert_structural_equal_gs(static_bound_after_compute_at, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=static_bound)
 
 
@@ -1410,7 +1410,7 @@ def test_compute_at_non_perfect_channel_group(use_block_name):
     sch = tir.Schedule(grouped_channel_bias, debug_mask="all")
     loop = sch.get_loops(sch.get_block("compute"))[0]
     sch.compute_at(sch.get_block("init"), loop)
-    tvm.ir.assert_structural_equal(sch.mod["main"], grouped_channel_bias_non_perfect_tiled)
+    assert_structural_equal_gs(sch.mod["main"], grouped_channel_bias_non_perfect_tiled)
 
 
 def test_fail_subtree_complete_block(use_block_name):
@@ -1566,7 +1566,7 @@ def test_compute_at_to_index():
     block_c = sch.get_block("pad")
     axis = sch.get_loops("conv")[0]
     sch.compute_at(block_c, axis, index=-2)
-    tvm.ir.assert_structural_equal(multi_producers_after_compute_at, sch.mod["main"])
+    assert_structural_equal_gs(multi_producers_after_compute_at, sch.mod["main"])
 
 
 def test_reverse_compute_at_to_index():
@@ -1629,7 +1629,7 @@ def test_reverse_compute_at_to_index():
     block_c = sch.get_block("D")
     axis = sch.get_loops("B")[2]
     sch.reverse_compute_at(block_c, axis, index=1)
-    tvm.ir.assert_structural_equal(main_reverse_compute_at, sch.mod["main"])
+    assert_structural_equal_gs(main_reverse_compute_at, sch.mod["main"])
 
 
 def test_reverse_compute_at_with_unit_loop():
@@ -1681,7 +1681,7 @@ def test_reverse_compute_at_with_unit_loop():
     block_d = sch.get_block("D")
     axis = sch.get_loops("B")[2]
     sch.reverse_compute_at(block_d, axis, preserve_unit_loops=True, index=1)
-    tvm.ir.assert_structural_equal(main_reverse_compute_at, sch.mod["main"])
+    assert_structural_equal_gs(main_reverse_compute_at, sch.mod["main"])
 
 
 def test_reverse_compute_at_layout_trans():
@@ -1720,7 +1720,7 @@ def test_reverse_compute_at_layout_trans():
     trans = sch.get_block("T_layout_trans")
     axis = sch.get_loops("compute")[1]
     sch.reverse_compute_at(trans, axis)
-    tvm.ir.assert_structural_equal(after, sch.mod["main"])
+    assert_structural_equal_gs(after, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=before)
 
 
@@ -1777,7 +1777,7 @@ def test_compute_at_allocate_const(use_decl_buffer, use_reverse_compute_at):
 
     after = sch.mod["main"]
 
-    tvm.ir.assert_structural_equal(expected, after)
+    assert_structural_equal_gs(expected, after)
     verify_trace_roundtrip(sch=sch, mod=before)
 
 
@@ -1819,7 +1819,7 @@ def test_compute_inline_allocate_const(use_decl_buffer):
     sch.compute_inline(block)
     after = sch.mod["main"]
 
-    tvm.ir.assert_structural_equal(expected, after)
+    assert_structural_equal_gs(expected, after)
     verify_trace_roundtrip(sch=sch, mod=before)
 
 

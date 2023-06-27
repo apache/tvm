@@ -21,6 +21,12 @@ from tvm.script import tir as T
 import tvm.testing
 
 
+def _check(before, expected):
+    mod = tvm.IRModule.from_expr(before.with_attr("global_symbol", "main"))
+    func = tvm.tir.transform.ForceNarrowIndexToInt32()(mod)["main"]
+    tvm.ir.assert_structural_equal(func, expected.with_attr("global_symbol", "main"))
+
+
 def test_thread_axis1():
     @T.prim_func
     def before(A: T.Buffer((T.int64(64),), "float32"), B: T.Buffer((T.int64(64),), "float32")):
@@ -40,9 +46,7 @@ def test_thread_axis1():
         T.launch_thread(threadIdx_x, 32)
         B[blockIdx_x * 32 + threadIdx_x] = A[blockIdx_x * 32 + threadIdx_x] + T.float32(1)
 
-    mod = tvm.IRModule.from_expr(before)
-    func = tvm.tir.transform.ForceNarrowIndexToInt32()(mod)["main"]
-    tvm.ir.assert_structural_equal(func, expected)
+    _check(before, expected)
 
 
 def test_thread_axis2():
@@ -155,9 +159,7 @@ def test_thread_axis2():
                             T_reshape[ax0, ax1, ax2, ax3],
                         )
 
-    mod = tvm.IRModule.from_expr(before)
-    func = tvm.tir.transform.ForceNarrowIndexToInt32()(mod)["main"]
-    tvm.ir.assert_structural_equal(func, expected)
+    _check(before, expected)
 
 
 def test_block():
@@ -177,9 +179,7 @@ def test_block():
                     vi = T.axis.spatial(T.int32(128), i * T.int32(8) + j)
                     B[vi] = A[vi] + T.float32(1)
 
-    mod = tvm.IRModule.from_expr(before)
-    func = tvm.tir.transform.ForceNarrowIndexToInt32()(mod)["main"]
-    tvm.ir.assert_structural_equal(func, expected)
+    _check(before, expected)
 
 
 def test_i16_buffer():
@@ -199,9 +199,7 @@ def test_i16_buffer():
                     vi = T.axis.spatial(128, i * 8 + j)
                     B[vi] = A[vi] + T.int16(1)
 
-    mod = tvm.IRModule.from_expr(before)
-    after = tvm.tir.transform.ForceNarrowIndexToInt32()(mod)["main"]
-    tvm.ir.assert_structural_equal(after, expected)
+    _check(before, expected)
 
 
 def test_fail_on_buffer_map():

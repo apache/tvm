@@ -21,7 +21,7 @@ import tvm.testing
 from tvm import tir
 from tvm.script import tir as T
 from tvm.tir.schedule.schedule import ScheduleError
-from tvm.tir.schedule.testing import verify_trace_roundtrip
+from tvm.tir.schedule.testing import assert_structural_equal_gs, verify_trace_roundtrip
 
 
 @T.prim_func
@@ -287,7 +287,7 @@ def test_reindex_read_basic(use_block_name, use_buffer_name):
     block = "B" if use_block_name else sch.get_block("B")
     buf = "A" if use_buffer_name else ("read", 0)
     sch.reindex(block, buf)
-    tvm.ir.assert_structural_equal(transpose_elementwise_reindex_read, sch.mod["main"])
+    assert_structural_equal_gs(transpose_elementwise_reindex_read, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=transpose_elementwise)
 
 
@@ -296,7 +296,7 @@ def test_conv2d_reindex_weight(use_block_name, use_buffer_name):
     block = "conv2d_nhwc" if use_block_name else sch.get_block("conv2d_nhwc")
     buf = "Weight" if use_buffer_name else ("read", 1)
     sch.reindex(block, buf)
-    tvm.ir.assert_structural_equal(conv2d_nhwc_reindex_weight, sch.mod["main"])
+    assert_structural_equal_gs(conv2d_nhwc_reindex_weight, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=conv2d_nhwc)
 
 
@@ -305,7 +305,7 @@ def test_conv2d_reindex_data(use_block_name, use_buffer_name):
     block = "conv2d_nhwc" if use_block_name else sch.get_block("conv2d_nhwc")
     buf = "PadInput" if use_buffer_name else ("read", 0)
     sch.reindex(block, buf)
-    tvm.ir.assert_structural_equal(conv2d_nhwc_reindex_data, sch.mod["main"])
+    assert_structural_equal_gs(conv2d_nhwc_reindex_data, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=conv2d_nhwc)
 
 
@@ -314,7 +314,7 @@ def test_matmul_reindex_write(use_block_name, use_buffer_name):
     block = "matmul" if use_block_name else sch.get_block("matmul")
     buf = "C" if use_buffer_name else ("write", 0)
     sch.reindex(block, buf)
-    tvm.ir.assert_structural_equal(matmul_reindex_write, sch.mod["main"])
+    assert_structural_equal_gs(matmul_reindex_write, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=matmul)
 
 
@@ -331,7 +331,7 @@ def test_reindex_mixed_dtype(use_block_name, use_buffer_name):
     block = "T_matmul_NT" if use_block_name else sch.get_block("T_matmul_NT")
     buf = "T_matmul_NT" if use_buffer_name else ("write", 0)
     sch.reindex(block, buf)
-    tvm.ir.assert_structural_equal(mixed_dtype_reindex_write, sch.mod["main"])
+    assert_structural_equal_gs(mixed_dtype_reindex_write, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=mixed_dtype)
 
 
@@ -340,7 +340,7 @@ def test_matmul_unit_dim_reindex_write(use_block_name, use_buffer_name):
     block = "matmul" if use_block_name else sch.get_block("matmul")
     buf = "C" if use_buffer_name else ("write", 0)
     sch.reindex(block, buf)
-    tvm.ir.assert_structural_equal(matmul_unit_dim_reindex_write, sch.mod["main"])
+    assert_structural_equal_gs(matmul_unit_dim_reindex_write, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=matmul_unit_dim)
 
 

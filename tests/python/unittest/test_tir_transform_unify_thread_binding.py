@@ -24,10 +24,12 @@ from tvm.script import tir as T
 
 
 def _check(original, transformed):
-    mod = tvm.IRModule.from_expr(original)
+    mod = tvm.IRModule.from_expr(original.with_attr("global_symbol", "main"))
     mod = tvm.tir.transform.UnifyThreadBinding()(mod)
     mod = tvm.tir.transform.Simplify()(mod)
-    tvm.ir.assert_structural_equal(mod["main"], transformed, True)
+    tvm.ir.assert_structural_equal(
+        mod["main"], transformed.with_attr("global_symbol", "main"), True
+    )
 
 
 def _check_fail(original):

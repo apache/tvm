@@ -22,10 +22,12 @@ from tvm.script import tir as T
 
 def _check(original, transformed):
     func = original
-    mod = tvm.IRModule.from_expr(func)
+    mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
     mod = tvm.tir.transform.LowerOpaqueBlock()(mod)
     mod = tvm.tir.transform.Simplify()(mod)
-    tvm.ir.assert_structural_equal(mod["main"], transformed, True)
+    tvm.ir.assert_structural_equal(
+        mod["main"], transformed.with_attr("global_symbol", "main"), True
+    )
 
 
 @T.prim_func
@@ -309,7 +311,7 @@ def test_lower_te():
 
 
 def test_annotated_loops():
-    mod = tvm.IRModule.from_expr(annotated_loops)
+    mod = tvm.IRModule.from_expr(annotated_loops.with_attr("global_symbol", "main"))
     mod = tvm.tir.transform.LowerOpaqueBlock()(mod)
     attr1 = mod["main"].body
     attr2 = attr1.body
@@ -328,7 +330,7 @@ def test_annotated_block():
             T.block_attr({"pragma_1": "str_value", "pragma_2": 1, "pragma_3": 0.0})
             T.evaluate(0)
 
-    mod = tvm.IRModule.from_expr(annotated_block)
+    mod = tvm.IRModule.from_expr(annotated_block.with_attr("global_symbol", "main"))
     mod = tvm.tir.transform.LowerOpaqueBlock()(mod)
     attr1 = mod["main"].body
     attr2 = attr1.body
@@ -353,9 +355,9 @@ def test_preserved_annotations():
         for i in T.serial(8, annotations={"k_0": 1, "k_1": [2, 3], "k_2": 3.14}):
             B[i] = A[i] + 1.0
 
-    mod = tvm.IRModule.from_expr(before)
+    mod = tvm.IRModule.from_expr(before.with_attr("global_symbol", "main"))
     mod = tvm.tir.transform.LowerOpaqueBlock()(mod)
-    tvm.ir.assert_structural_equal(mod["main"], after)
+    tvm.ir.assert_structural_equal(mod["main"], after.with_attr("global_symbol", "main"))
 
 
 def test_boolean_handling():
