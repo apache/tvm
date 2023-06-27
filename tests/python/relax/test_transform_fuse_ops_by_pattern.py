@@ -60,7 +60,7 @@ class Conv2dReLU_composite_annotated:
             R.output(gv)
         return gv
 
-    @R.function(private=True)
+    @R.function
     def fused_relax_nn_conv2d_relax_nn_relu_dnnl(
         data1: R.Tensor((1, 64, 56, 56), dtype="float32"),
         weight11: R.Tensor((64, 64, 3, 3), dtype="float32"),
@@ -377,7 +377,7 @@ class Conv2dx2:
 
 @tvm.script.ir_module
 class Conv2dx2_partitioned:
-    @R.function(private=True)
+    @R.function
     def fused_relax_nn_conv2d_cutlass(
         data: R.Tensor((16, 32, 32, 16), dtype="float16"),
         weight1: R.Tensor((16, 3, 3, 16), dtype="float16"),
