@@ -97,6 +97,10 @@ void FuncAttrs(Map<String, ObjectRef> attrs) {
   if (frame->attrs.defined()) {
     LOG(FATAL) << "ValueError: Duplicate prim func annotations, previous one is " << frame->attrs;
   }
+  if (attrs.count(tvm::attr::kGlobalSymbol) && frame->is_private.value_or(Bool(false))->value) {
+    LOG(FATAL) << "ValueError: Specifying the global symbol even though the PrimFunc is annotated "
+                  "as private";
+  }
   frame->attrs = attrs;
 }
 
