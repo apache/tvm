@@ -93,9 +93,11 @@ class HostDeviceSplitter : public StmtMutator {
 
     GlobalVar kernel_symbol_global = var_supply_();
     PrimFunc device_func(params, body, kernel_ret_type);
-    device_func = WithAttrs(std::move(device_func), {{tvm::attr::kTarget, device_target},
-                                                     {tir::attr::kNoAlias, Bool(true)},
-                                                     {tir::attr::kIsGlobalFunc, Bool(true)}});
+    device_func = WithAttrs(std::move(device_func),
+                            {{tvm::attr::kGlobalSymbol, kernel_symbol_global->name_hint},
+                             {tvm::attr::kTarget, device_target},
+                             {tir::attr::kNoAlias, Bool(true)},
+                             {tir::attr::kIsGlobalFunc, Bool(true)}});
 
     (*device_mod_)->Add(kernel_symbol_global, device_func);
     Array<PrimExpr> args = params.Map([](const Var& var) -> PrimExpr { return var; });
@@ -152,7 +154,7 @@ Pass SplitHostDevice() {
 
         func = SplitHostDevice(std::move(func), &device_mod, var_supply);
         if (!func.same_as(base_func)) {
-          updates->Add(gvar, func);
+          updates->Add(gvar, WithAttr(func, tvm::attr::kGlobalSymbol, gvar->name_hint));
         }
       }
     }
