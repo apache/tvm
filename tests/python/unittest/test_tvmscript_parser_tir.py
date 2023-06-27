@@ -16,6 +16,7 @@
 # under the License.
 """Unittests for tvm.script.parser.tir"""
 
+import pytest
 import tvm.testing
 from tvm.script.parser import tir as T
 from tvm import ir, tir
@@ -69,6 +70,39 @@ def test_tir_func_name():
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
     assert matmul.__name__ == "matmul"
+    assert matmul.attrs["global_symbol"] == "matmul"
+
+
+def test_tir_func_private_attrs():
+    @T.prim_func(private=True)
+    def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
+        T.func_attr({"attr": "value"})
+        A = T.match_buffer(a, [128, 128])
+        B = T.match_buffer(b, [128, 128])
+        C = T.match_buffer(c, [128, 128])
+        for i, j, k in T.grid(128, 128, 128):
+            with T.block("update"):
+                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
+
+    assert "global_symbol" not in matmul.attrs
+
+
+def test_tir_func_private_manual_global_symbol_fail():
+    with pytest.raises(tvm.error.DiagnosticError):
+        @T.prim_func(private=True)
+        def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
+            T.func_attr({"global_symbol": "matmul"})
+            A = T.match_buffer(a, [128, 128])
+            B = T.match_buffer(b, [128, 128])
+            C = T.match_buffer(c, [128, 128])
+            for i, j, k in T.grid(128, 128, 128):
+                with T.block("update"):
+                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                    C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
+
+        # should not execute
+        assert matmul.__name__ == "matmul"
 
 
 if __name__ == "__main__":
