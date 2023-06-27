@@ -4590,7 +4590,10 @@ def test_detection_postprocess():
     box_encodings_size = (1, 1917, 4)
     class_predictions_size = (1, 1917, 91)
     tf_model_file = download_testdata(
-        "https://github.com/Grovety/ModelZoo/raw/main/models/object_detection/ssd_mobilenet_v1/tflite_int8/tflite_graph_with_regular_nms.pb",
+        (
+            "https://github.com/Grovety/ModelZoo/raw/main/models/object_detection/ssd_mobilenet_v1/"
+            "tflite_int8/tflite_graph_with_regular_nms.pb"
+        ),
         "tflite_graph_with_regular_nms.pb",
     )
     _test_detection_postprocess(tf_model_file, box_encodings_size, class_predictions_size)
