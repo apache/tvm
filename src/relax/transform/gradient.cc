@@ -333,10 +333,14 @@ class GradientMutator : private ExprMutator {
     }
 
     GradientMutator mutator(mod, require_grads_value, target_index);
-    Function new_func_transformed = Downcast<Function>(mutator.VisitExpr(new_func));
+
+    // make the adjoint public
+    auto new_name = func_name + "_adjoint";
+    Function new_func_transformed = WithAttr(Downcast<Function>(mutator.VisitExpr(new_func)),
+                                             tvm::attr::kGlobalSymbol, new_name);
 
     IRModule new_module = GetRef<IRModule>(mod.CopyOnWrite());
-    new_module->Add(GlobalVar(func_name + "_adjoint"), new_func_transformed);
+    new_module->Add(GlobalVar(new_name), new_func_transformed);
     return new_module;
   }
 

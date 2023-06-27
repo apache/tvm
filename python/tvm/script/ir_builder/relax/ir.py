@@ -165,19 +165,24 @@ py_str = str
 ############################### Function ################################
 
 
-def function(is_pure: bool = True) -> frame.FunctionFrame:
+def function(is_pure: bool = True, is_private: bool = False) -> frame.FunctionFrame:
     """Start a function frame.
     Parameters
     ----------
     is_pure: bool
         Whether the function is annotated as pure.
 
+    is_private : bool
+        Whether the function is annotated as private.
+
     Returns
     -------
     frame: FunctionFrame
         The constructed function frame.
     """
-    return _ffi_api.Function(is_pure)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.Function(  # type: ignore[attr-defined]  # pylint: disable=no-member
+        is_pure, is_private
+    )
 
 
 def arg(name: py_str, struct_info: StructInfo) -> Var:

@@ -168,7 +168,7 @@ def test_unused_relax_func():
                     vi, vj = T.axis.remap("SS", [i, j])
                     z[vi, vj] = x[vi, vj] + y[vi, vj]
 
-        @R.function
+        @R.function(private=True)
         def unused_func(x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")):
             gv0 = R.add(x, w)
             return gv0
@@ -202,7 +202,7 @@ def test_unused_relax_func_custom_entry_func():
                     vi, vj = T.axis.remap("SS", [i, j])
                     z[vi, vj] = x[vi, vj] + y[vi, vj]
 
-        @R.function
+        @R.function(private=True)
         def unused_func(x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")):
             gv0 = R.add(x, w)
             return gv0
@@ -239,7 +239,7 @@ def test_unused_relax_func_symbolic_shape():
                     vi, vj = T.axis.remap("SS", [i, j])
                     z[vi, vj] = x[vi, vj] + y[vi, vj]
 
-        @R.function
+        @R.function(private=True)
         def unused_func(x: R.Tensor(("m", "n"), "float32"), w: R.Tensor(("n", "k"), "float32")):
             gv0 = R.add(x, w)
             return gv0
@@ -310,7 +310,7 @@ def test_multiple_unused_funcs():
                     vi, vj = T.axis.remap("SS", [i, j])
                     z[vi, vj] = x[vi, vj] + y[vi, vj]
 
-        @R.function
+        @R.function(private=True)
         def unused_func2(x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")):
             gv0 = R.add(x, w)
             return gv0

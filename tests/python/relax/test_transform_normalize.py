@@ -44,7 +44,7 @@ def test_normalize_function():
 
     after_mod = relax.transform.Normalize()(before_mod)
 
-    @R.function
+    @R.function(private=True)
     def expected(x: R.Tensor(("m", "n"), "float16")) -> R.Tensor(dtype="float16", ndim=2):
         gv = R.add(x, x)
         gv1 = R.add(x, x)
@@ -86,7 +86,7 @@ def test_normalize_if():
     before_mod = tvm.IRModule.from_expr(f)
     after_mod = relax.transform.Normalize()(before_mod)
 
-    @R.function
+    @R.function(private=True)
     def expected(
         cond: R.Tensor((), "bool"), x: R.Tensor((1,), "float32")
     ) -> R.Tensor(dtype="float32", ndim=1):
@@ -151,7 +151,7 @@ def test_normalize_seq_body():
     before_mod = tvm.IRModule.from_expr(f)
     after_mod = relax.transform.Normalize()(before_mod)
 
-    @R.function
+    @R.function(private=True)
     def expected(
         x: R.Tensor((), dtype="int32"), y: R.Tensor((), dtype="int32")
     ) -> R.Tensor(ndim=0, dtype="int32"):
@@ -175,7 +175,7 @@ def test_normalize_func_body():
     before_mod = tvm.IRModule.from_expr(f)
     after_mod = relax.transform.Normalize()(before_mod)
 
-    @R.function
+    @R.function(private=True)
     def expected(
         x: R.Tensor((), dtype="int32"), y: R.Tensor((), dtype="int32")
     ) -> R.Tensor(ndim=0, dtype="int32"):
@@ -207,7 +207,7 @@ def test_normalize_if_branches():
     before_mod = tvm.IRModule.from_expr(f)
     after_mod = relax.transform.Normalize()(before_mod)
 
-    @R.function
+    @R.function(private=True)
     def expected(
         cond: R.Tensor((), dtype="bool"),
         x: R.Tensor((), dtype="int32"),
@@ -257,7 +257,7 @@ def test_normalize_if_condition():
     before_mod = tvm.IRModule.from_expr(f)
     after_mod = relax.transform.Normalize()(before_mod)
 
-    @R.function
+    @R.function(private=True)
     def expected(
         cond: R.Tensor((), "bool"), x: R.Tensor((1,), "float32")
     ) -> R.Tensor(dtype="float32", ndim=1):
@@ -341,7 +341,7 @@ def test_normalize_combine_nearby_blocks():
 
     after_mod = relax.transform.Normalize()(tvm.IRModule.from_expr(f))
 
-    @R.function
+    @R.function(private=True)
     def expected(x: R.Tensor((), "int32")):
         with R.dataflow():
             v0 = x
@@ -383,7 +383,7 @@ def test_normalize_nested_seq():
     )
     after_mod = relax.transform.Normalize()(tvm.IRModule.from_expr(f))
 
-    @R.function
+    @R.function(private=True)
     def expected():
         x = relax.const(1)
         z = relax.const(2)
@@ -434,7 +434,7 @@ def test_normalize_nested_seq_dataflow():
     )
     after_mod = relax.transform.Normalize()(tvm.IRModule.from_expr(f))
 
-    @R.function
+    @R.function(private=True)
     def expected():
         x = relax.const(1)
         q = relax.const(2)
@@ -507,7 +507,7 @@ def test_normalize_deeply_nested_seq():
     )
     after_mod = relax.transform.Normalize()(tvm.IRModule.from_expr(f))
 
-    @R.function
+    @R.function(private=True)
     def expected():
         x = relax.const(1)
         u = relax.const(2)

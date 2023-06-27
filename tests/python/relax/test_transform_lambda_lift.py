@@ -42,7 +42,7 @@ def test_basic():
     # the target IRModule
     @tvm.script.ir_module
     class Expected:
-        @R.function
+        @R.function(private=True)
         def lifted_func_0(
             x2: R.Tensor((10, 5), "float32"), y2: R.Tensor((10, 5), "float32")
         ) -> R.Tensor((10, 5), "float32"):
@@ -97,12 +97,12 @@ def test_closure():
             )
             return res
 
-        @R.function
+        @R.function(private=True)
         def lifted_func_1(x1: R.Tensor((2, 3), "float32"), c1: R.Tensor((2, 3), "float32")):
             r_1: R.Tensor((2, 3), "float32") = R.add(x1, c1)
             return r_1
 
-        @R.function
+        @R.function(private=True)
         def lifted_func_0(y: R.Tensor((2, 3), "float32")) -> R.Object:
             inner_func = R.make_closure(Expected.lifted_func_1, (y,))
             return inner_func
@@ -140,7 +140,7 @@ def test_recursive():
     # the expected IRModule
     @tvm.script.ir_module
     class Expected:
-        @R.function
+        @R.function(private=True)
         def lifted_func_0(
             i: R.Tensor((), "int32"), s: R.Tensor((2, 3), "float32"), x: R.Tensor((2, 3), "float32")
         ) -> R.Tensor((2, 3), "float32"):
@@ -224,14 +224,14 @@ def test_multi_func():
             gv11: R.Tensor((10, 5), "float32") = inner(x11, y11)
             return gv11
 
-        @R.function
+        @R.function(private=True)
         def lifted_func_0(
             x2: R.Tensor((10, 5), "float32"), y2: R.Tensor((10, 5), "float32")
         ) -> R.Tensor((10, 5), "float32"):
             s: R.Tensor((10, 5), "float32") = R.add(x2, y2)
             return s
 
-        @R.function
+        @R.function(private=True)
         def lifted_func_1(
             x21: R.Tensor((10, 5), "float32"), y21: R.Tensor((10, 5), "float32")
         ) -> R.Tensor((10, 5), "float32"):
@@ -308,7 +308,7 @@ def test_no_local_func():
 def test_impure_function():
     @tvm.script.ir_module
     class Expected:
-        @R.function(pure=False)
+        @R.function(pure=False, private=True)
         def lifted_func_0() -> R.Tuple:
             y = R.print(format="Wow!")
             return y

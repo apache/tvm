@@ -46,6 +46,7 @@ def test_l1_loss():
     def expected(
         predictions: R.Tensor((3, 5), "float32"), targets: R.Tensor((3, 5), "float32")
     ) -> R.Tensor((), "float32"):
+        R.func_attr({"global_symbol": "l1_loss"})
         with R.dataflow():
             lv: R.Tensor((3, 5), "float32") = R.subtract(predictions, targets)
             lv1: R.Tensor((3, 5), "float32") = R.abs(lv)
@@ -70,6 +71,7 @@ def test_l1_loss_append():
         b: R.Tensor((2, 4), "float32"),
         targets: R.Tensor((2, 4), "float32"),
     ) -> R.Tensor((), "float32"):
+        R.func_attr({"global_symbol": "forward_loss"})
         with R.dataflow():
             lv: R.Tensor((2, 4), "float32") = R.matmul(x, w, out_dtype="")
             out: R.Tensor((2, 4), "float32") = R.add(lv, b)
@@ -93,6 +95,7 @@ def test_mse_loss():
     def expected(
         predictions: R.Tensor((3, 5), "float32"), targets: R.Tensor((3, 5), "float32")
     ) -> R.Tensor((), "float32"):
+        R.func_attr({"global_symbol": "mse_loss"})
         with R.dataflow():
             lv: R.Tensor((3, 5), "float32") = R.subtract(predictions, targets)
             lv1: R.Tensor((3, 5), "float32") = R.multiply(lv, lv)
@@ -117,6 +120,7 @@ def test_mse_loss_append():
         b: R.Tensor((2, 4), "float32"),
         targets: R.Tensor((2, 4), "float32"),
     ) -> R.Tensor((), "float32"):
+        R.func_attr({"global_symbol": "forward_loss"})
         with R.dataflow():
             lv: R.Tensor((2, 4), "float32") = R.matmul(x, w, out_dtype="")
             out: R.Tensor((2, 4), "float32") = R.add(lv, b)
@@ -143,6 +147,7 @@ def test_cross_entropy_loss():
         targets: R.Tensor((3,), "int64"),
         weights: R.Tensor((5,), "float32"),
     ) -> R.Tensor((), "float32"):
+        R.func_attr({"global_symbol": "cross_entropy_loss"})
         with R.dataflow():
             lv: R.Tensor((3, 5), "float32") = R.nn.log_softmax(predictions, axis=-1)
             gv: R.Tensor((), "float32") = R.nn.nll_loss(
@@ -165,6 +170,7 @@ def test_cross_entropy_loss_without_weights():
     def expected(
         predictions: R.Tensor((3, 5), "float32"), targets: R.Tensor((3,), "int64")
     ) -> R.Tensor((), "float32"):
+        R.func_attr({"global_symbol": "cross_entropy_loss"})
         with R.dataflow():
             lv: R.Tensor((3, 5), "float32") = R.nn.log_softmax(predictions, axis=-1)
             gv: R.Tensor((), "float32") = R.nn.nll_loss(
@@ -195,6 +201,7 @@ def test_cross_entropy_loss_append():
         targets: R.Tensor((2,), "int64"),
         weights: R.Tensor((4,), "float32"),
     ) -> R.Tensor((), "float32"):
+        R.func_attr({"global_symbol": "forward_loss"})
         with R.dataflow():
             lv: R.Tensor((2, 4), "float32") = R.matmul(x, w, out_dtype="")
             out: R.Tensor((2, 4), "float32") = R.add(lv, b)
@@ -224,6 +231,7 @@ def test_categorical_cross_entropy_loss():
         targets: R.Tensor((3, 5), "int64"),
         weights: R.Tensor((5,), "float32"),
     ) -> R.Tensor((), "float32"):
+        R.func_attr({"global_symbol": "categorical_cross_entropy_loss"})
         with R.dataflow():
             lv: R.Tensor((3, 5), "float32") = R.nn.log_softmax(predictions, axis=-1)
             lv: R.Tensor((), "float32") = -lv * targets.astype("float32")
@@ -245,6 +253,7 @@ def test_categorical_cross_entropy_loss_without_weights():
     def expected(
         predictions: R.Tensor((3, 5), "float32"), targets: R.Tensor((3, 5), "int64")
     ) -> R.Tensor((), "float32"):
+        R.func_attr({"global_symbol": "categorical_cross_entropy_loss"})
         with R.dataflow():
             lv: R.Tensor((3, 5), "float32") = R.nn.log_softmax(predictions, axis=-1)
             gv: R.Tensor((), "float32") = R.mean(-lv * targets.astype("float32"))
@@ -270,6 +279,7 @@ def test_categorical_cross_entropy_loss_with_ignore_index():
         targets: R.Tensor((3, 5), "int64"),
         weights: R.Tensor((5,), "float32"),
     ) -> R.Tensor((), "float32"):
+        R.func_attr({"global_symbol": "categorical_cross_entropy_loss"})
         with R.dataflow():
             lv: R.Tensor((3, 5), "float32") = R.nn.log_softmax(predictions, axis=-1)
             targets = relax.op.reshape(

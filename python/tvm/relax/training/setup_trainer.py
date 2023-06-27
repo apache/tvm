@@ -198,7 +198,10 @@ class SetupTrainer:
 
         # Add optimizer function.
         self._optimizer.init(params)
-        mod[self.OPTIMIZER_FUNC] = self._optimizer.get_function()
+        # Need the global symbol to match the function's name
+        mod[self.OPTIMIZER_FUNC] = self._optimizer.get_function().with_attr(
+            "global_symbol", self.OPTIMIZER_FUNC
+        )
 
         # Module attrs
         mod = mod.with_attrs(

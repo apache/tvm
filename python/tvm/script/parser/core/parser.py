@@ -240,6 +240,7 @@ class Parser(doc.NodeVisitor):
     dispatch_tokens: List[str]
     function_annotations: Optional[Dict[str, Dict[str, Any]]]
     var_table: VarTable
+    inside_function: bool  # whether we are within a function
 
     def __init__(
         self,
@@ -250,6 +251,7 @@ class Parser(doc.NodeVisitor):
         self.dispatch_tokens = ["default"]
         self.function_annotations = function_annotations
         self.var_table = VarTable()
+        self.inside_function = False
 
     def parse(self, extra_vars: Optional[Dict[str, Any]] = None) -> Any:
         """The main parse method for parser.

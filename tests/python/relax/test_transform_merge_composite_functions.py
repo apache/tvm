@@ -41,7 +41,7 @@ class Conv2dReLUx2:
             R.output(gv)
         return gv
 
-    @R.function
+    @R.function(private=True)
     def fused_relax_nn_conv2d_relax_nn_relu(
         data1: R.Tensor((1, 64, 56, 56), dtype="float32"),
         weight11: R.Tensor((64, 64, 3, 3), dtype="float32"),
@@ -57,7 +57,7 @@ class Conv2dReLUx2:
             R.output(gv1)
         return gv1
 
-    @R.function
+    @R.function(private=True)
     def fused_relax_nn_conv2d_relax_nn_relu1(
         conv1: R.Tensor((1, 64, 56, 56), dtype="float32"),
         weight21: R.Tensor((64, 64, 3, 3), dtype="float32"),
@@ -164,7 +164,7 @@ class Diamond:
             R.output(gv2)
         return gv2
 
-    @R.function
+    @R.function(private=True)
     def fused_relax_nn_gelu(
         lv: R.Tensor((1, 64, 54, 54), dtype="float32")
     ) -> R.Tensor((1, 64, 54, 54), dtype="float32"):
@@ -174,7 +174,7 @@ class Diamond:
             R.output(gv)
         return gv
 
-    @R.function
+    @R.function(private=True)
     def fused_relax_nn_relu(
         lv1: R.Tensor((1, 64, 54, 54), dtype="float32")
     ) -> R.Tensor((1, 64, 54, 54), dtype="float32"):
@@ -184,7 +184,7 @@ class Diamond:
             R.output(gv1)
         return gv1
 
-    @R.function
+    @R.function(private=True)
     def fused_relax_add(
         lv5: R.Tensor((1, 64, 54, 54), dtype="float32"),
         gelu1: R.Tensor((1, 64, 54, 54), dtype="float32"),
@@ -195,7 +195,7 @@ class Diamond:
             R.output(gv3)
         return gv3
 
-    @R.function
+    @R.function(private=True)
     def fused_relax_nn_conv2d(
         data1: R.Tensor((1, 64, 56, 56), dtype="float32"),
         weight1: R.Tensor((64, 64, 3, 3), dtype="float32"),
@@ -332,7 +332,7 @@ class Diamond_cyclic_dep:
             R.output(gv2)
         return gv2
 
-    @R.function
+    @R.function(private=True)
     def fused_relax_nn_gelu(
         lv: R.Tensor((1, 64, 54, 54), dtype="float32")
     ) -> R.Tensor((1, 64, 54, 54), dtype="float32"):
@@ -342,7 +342,7 @@ class Diamond_cyclic_dep:
             R.output(gv)
         return gv
 
-    @R.function
+    @R.function(private=True)
     def fused_relax_nn_relu(
         lv1: R.Tensor((1, 64, 54, 54), dtype="float32")
     ) -> R.Tensor((1, 64, 54, 54), dtype="float32"):
@@ -352,7 +352,7 @@ class Diamond_cyclic_dep:
             R.output(gv1)
         return gv1
 
-    @R.function
+    @R.function(private=True)
     def fused_relax_add(
         lv5: R.Tensor((1, 64, 54, 54), dtype="float32"),
         gelu1: R.Tensor((1, 64, 54, 54), dtype="float32"),
@@ -363,7 +363,7 @@ class Diamond_cyclic_dep:
             R.output(gv3)
         return gv3
 
-    @R.function
+    @R.function(private=True)
     def fused_relax_nn_conv2d(
         data1: R.Tensor((1, 64, 56, 56), dtype="float32"),
         weight1: R.Tensor((64, 64, 3, 3), dtype="float32"),
@@ -509,7 +509,7 @@ class MultipleProducers:
             R.output(gv1)
         return gv1
 
-    @R.function
+    @R.function(private=True)
     def fused_relax_nn_relu(
         x11: R.Tensor((10,), dtype="float32")
     ) -> R.Tensor((10,), dtype="float32"):
@@ -519,7 +519,7 @@ class MultipleProducers:
             R.output(gv2)
         return gv2
 
-    @R.function
+    @R.function(private=True)
     def fused_relax_nn_gelu(
         x21: R.Tensor((10,), dtype="float32")
     ) -> R.Tensor((10,), dtype="float32"):
@@ -529,7 +529,7 @@ class MultipleProducers:
             R.output(gv3)
         return gv3
 
-    @R.function
+    @R.function(private=True)
     def fused_relax_add(
         lv: R.Tensor((10,), dtype="float32"), gelu1: R.Tensor((10,), dtype="float32")
     ) -> R.Tensor((10,), dtype="float32"):
@@ -627,7 +627,7 @@ class MultipleProducersCyclic:
             R.output(gv1)
         return gv1
 
-    @R.function
+    @R.function(private=True)
     def fused_relax_nn_relu(
         x11: R.Tensor((10,), dtype="float32")
     ) -> R.Tensor((10,), dtype="float32"):
@@ -637,7 +637,7 @@ class MultipleProducersCyclic:
             R.output(gv2)
         return gv2
 
-    @R.function
+    @R.function(private=True)
     def fused_relax_nn_gelu(
         x21: R.Tensor((10,), dtype="float32")
     ) -> R.Tensor((10,), dtype="float32"):
@@ -647,7 +647,7 @@ class MultipleProducersCyclic:
             R.output(gv3)
         return gv3
 
-    @R.function
+    @R.function(private=True)
     def fused_relax_add(
         lv: R.Tensor((10,), dtype="float32"), gelu1: R.Tensor((10,), dtype="float32")
     ) -> R.Tensor((10,), dtype="float32"):
@@ -759,7 +759,7 @@ class MergeCompilerRegionsExample:
             R.output(gv1)
         return gv1
 
-    @R.function
+    @R.function(private=True)
     def fused_relax_nn_relu(
         add2: R.Tensor((10,), dtype="float32")
     ) -> R.Tensor((10,), dtype="float32"):
@@ -769,7 +769,7 @@ class MergeCompilerRegionsExample:
             R.output(gv)
         return gv
 
-    @R.function
+    @R.function(private=True)
     def fused_relax_add(
         x11: R.Tensor((10,), dtype="float32"), x21: R.Tensor((10,), dtype="float32")
     ) -> R.Tensor((10,), dtype="float32"):
@@ -779,7 +779,7 @@ class MergeCompilerRegionsExample:
             R.output(gv2)
         return gv2
 
-    @R.function
+    @R.function(private=True)
     def fused_relax_nn_gelu(
         x31: R.Tensor((10,), dtype="float32")
     ) -> R.Tensor((10,), dtype="float32"):
@@ -924,7 +924,7 @@ class ModuleWithNonComposite:
             R.output(conv)
         return conv
 
-    @R.function
+    @R.function(private=True)
     def fused_relax_nn_conv2d(
         data1: R.Tensor((1, 64, 56, 56), dtype="float32"),
         weight1: R.Tensor((64, 64, 3, 3), dtype="float32"),
@@ -1071,7 +1071,7 @@ def test_reshape():
     # Verify that the non-CallNode input (shape in reshape) can be handled properly.
     @I.ir_module
     class Module:
-        @R.function
+        @R.function(private=True)
         def fused_relax_matmul(
             lv: R.Tensor((1, 784), dtype="float32"), lv1: R.Tensor((784, 512), dtype="float32")
         ) -> R.Tensor((1, 512), dtype="float32"):
@@ -1081,7 +1081,7 @@ def test_reshape():
                 R.output(gv)
             return gv
 
-        @R.function
+        @R.function(private=True)
         def fused_relax_reshape(
             inp_0: R.Tensor((1, 1, 28, 28), dtype="float32"), param_0: R.Shape([1, 784])
         ) -> R.Tensor((1, 784), dtype="float32"):

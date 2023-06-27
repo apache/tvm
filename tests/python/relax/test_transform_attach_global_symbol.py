@@ -43,7 +43,7 @@ def test_basic():
                         C[vi, vj] = T.float32(0)
                     C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
-        @R.function
+        @R.function(private=True)
         def main(
             x: R.Tensor(("m", "n"), "float32"), w: R.Tensor(("n", "k"), "float32")
         ) -> R.Tensor:
@@ -74,7 +74,6 @@ def test_basic():
         def main(
             x: R.Tensor(("m", "n"), "float32"), w: R.Tensor(("n", "k"), "float32")
         ) -> R.Tensor:
-            R.func_attr({"global_symbol": "main"})
             m, n, k = T.int64(), T.int64(), T.int64()
             gv0 = R.call_tir(Expected.tir_matmul, (x, w), R.Tensor((m, k), dtype="float32"))
             return gv0
@@ -94,7 +93,7 @@ def test_system_lib_prefix():
         def tir_zeros(x: T.Buffer((2), "float32")) -> None:
             x[0] = T.float32(0)
 
-        @R.function
+        @R.function(private=True)
         def main() -> R.Tensor:
             gv0 = R.call_tir(Before.tir_zeros, (), R.Tensor((2,), dtype="float32"))
             return gv0
@@ -110,7 +109,6 @@ def test_system_lib_prefix():
 
         @R.function
         def main() -> R.Tensor:
-            R.func_attr({"global_symbol": "main"})
             gv0 = R.call_tir(Expected.tir_zeros, (), R.Tensor((2,), dtype="float32"))
             return gv0
 

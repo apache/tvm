@@ -251,7 +251,10 @@ class TransformParamsLifter : public ExprMutator {
     lift_plan_ = planner.Plan(func, num_input);
 
     // Step 2: Add the lifted function to the module
-    builder_->AddFunction(lift_plan_.f_transform_params, new_func_name);
+    // (The lifted function should be public so we add a global symbol to it)
+    auto lift_func =
+        WithAttr(lift_plan_.f_transform_params, tvm::attr::kGlobalSymbol, new_func_name);
+    builder_->AddFunction(lift_func, new_func_name);
 
     // Step 3: Update the current function.
 

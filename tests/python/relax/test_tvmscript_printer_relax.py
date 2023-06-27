@@ -27,12 +27,15 @@ def _assert_print(obj, expected):
     if not isinstance(obj, str):
         obj = obj.script(verbose_expr=True)
     obj = obj.strip()
-    assert obj == expected.strip(), "\n" + obj
+    # compare line by line in case there is trailing whitespace in the _middle_
+    for obj_line, expected_line in zip(obj.splitlines(), expected.strip().splitlines()):
+        assert obj_line.strip() == expected_line.strip(), "\n" + obj
 
 
 def test_function():
     @R.function
     def func(a: R.Tensor((10, 10))) -> R.Tensor((10, 10)):  # type: ignore
+        R.func_attr({"some_attr": 1})
         return a
 
     _assert_print(
@@ -41,19 +44,39 @@ def test_function():
 # from tvm.script import relax as R
 
 @R.function
+def func(a: R.Tensor((10, 10))) -> R.Tensor((10, 10)):
+    R.func_attr({"some_attr": 1})
+    return a""",
+    )
+
+
+def test_lone_private_function():
+    @R.function(private=True)
+    def func(a: R.Tensor((10, 10))) -> R.Tensor((10, 10)):  # type: ignore
+        R.func_attr({"some_attr": 1})
+        return a
+
+    # name prints as main because without a global symbol, the printer cannot assume a name
+    _assert_print(
+        func,
+        """
+# from tvm.script import relax as R
+
+@R.function(private=True)
 def main(a: R.Tensor((10, 10))) -> R.Tensor((10, 10)):
+    R.func_attr({"some_attr": 1})
     return a""",
     )
 
 
 def test_extern_func():
     @R.function
-    def relax_func(a: R.Tensor((10, 10))) -> R.Tensor((10, 10)):  # type: ignore
+    def func(a: R.Tensor((10, 10))) -> R.Tensor((10, 10)):  # type: ignore
         return a
 
     obj = IRModule(
         {
-            "func": relax_func,
+            "func": func,
             "my_ext": relax.ExternFunc("my_ext"),
         }
     )
@@ -69,6 +92,40 @@ class Module:
     @R.function
     def func(a: R.Tensor((10, 10))) -> R.Tensor((10, 10)):
         return a
+""",
+    )
+
+
+def test_nested_function():
+    @I.ir_module
+    class NestedFunction:
+        @R.function
+        def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+            @R.function
+            def nested(y: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+                return y
+
+            z = nested(x)
+            return z
+
+    _assert_print(
+        NestedFunction,
+        """
+# from tvm.script import ir as I
+# from tvm.script import relax as R
+
+@I.ir_module
+class Module:
+    @R.function
+    def main(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
+        # from tvm.script import relax as R
+
+        @R.function
+        def nested(y: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
+            return y
+
+        z: R.Tensor((), dtype="int32") = nested(x)
+        return z
 """,
     )
 
@@ -572,6 +629,102 @@ class Module:
     def main(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
         y: R.Tuple = R.print(x, format=R.str("x: {}"))
         return x
+""",
+    )
+
+
+def test_private_function():
+    @I.ir_module
+    class AddMod:
+        @R.function(private=True)
+        def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+            y: R.Tensor((), dtype="int32") = R.add(x, x)
+            return y
+
+    _assert_print(
+        AddMod,
+        """
+# from tvm.script import ir as I
+# from tvm.script import relax as R
+
+@I.ir_module
+class Module:
+    @R.function(private=True)
+    def main(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
+        y: R.Tensor((), dtype="int32") = R.add(x, x)
+        return y
+""",
+    )
+
+
+def test_directly_construct_private_funcs():
+    # public
+    @R.function
+    def foo(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+        y: R.Tensor((), dtype="int32") = R.add(x, x)
+        return y
+
+    # private
+    @R.function(private=True)
+    def bar(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+        y: R.Tensor((), dtype="int32") = R.multiply(x, x)
+        return y
+
+    # public but there's another attribute
+    @R.function
+    def baz(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+        R.func_attr({"relax.force_pure": True})
+        y: R.Tuple = R.print(format="Hi there!")
+        z: R.Tensor((), dtype="int32") = R.add(x, x)
+        return z
+
+    # private with an attribute
+    @R.function(private=True)
+    def quux(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+        R.func_attr({"relax.force_pure": True})
+        y: R.Tuple = R.print(format="Lol")
+        z: R.Tensor((), dtype="int32") = R.multiply(x, x)
+        return z
+
+    obj = IRModule(
+        {
+            "foo": foo,
+            "bar": bar,
+            "baz": baz,
+            "quux": quux,
+        }
+    )
+    _assert_print(
+        obj,
+        """
+# from tvm.script import ir as I
+# from tvm.script import relax as R
+
+@I.ir_module
+class Module:
+    @R.function(private=True)
+    def bar(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
+        y: R.Tensor((), dtype="int32") = R.multiply(x, x)
+        return y
+
+    @R.function
+    def baz(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
+        R.func_attr({"relax.force_pure": 1})
+        y: R.Tuple = R.print(format=R.str("Hi there!"))
+        z: R.Tensor((), dtype="int32") = R.add(x, x)
+        return z
+
+    @R.function
+    def foo(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
+        y: R.Tensor((), dtype="int32") = R.add(x, x)
+        return y
+
+    @R.function(private=True)
+    def quux(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
+        R.func_attr({"relax.force_pure": 1})
+        y: R.Tuple = R.print(format=R.str("Lol"))
+        z: R.Tensor((), dtype="int32") = R.multiply(x, x)
+        return z
 """,
     )
 

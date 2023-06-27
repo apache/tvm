@@ -160,6 +160,9 @@ def collect_symbolic_var_from_params(self: Parser, node: doc.FunctionDef) -> Non
 
 @dispatch.register(token="relax", type_name="FunctionDef")
 def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
+    is_inner_function = self.inside_function
+    self.inside_function = True
+
     # reserve a var for local function
     func_val = self.var_table.get().get(node.name)
     if not func_val and is_recursive(node):
@@ -178,11 +181,14 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
         local_func_var = relax.Var(node.name, relax.FuncStructInfo(params_sinfo, ret_sinfo))
         self.var_table.add(node.name, local_func_var)
 
-    purity = find_purity_annotation(node)
+    purity = find_decorator_annotation(node, "pure")
+    # treat the function as private if we are inside another function
+    # or if it has a privacy annotation
+    privacy = is_inner_function or find_decorator_annotation(node, "private", default=False)
 
     with self.var_table.with_frame():
         with self.with_dispatch_token("relax"):
-            with R.function(is_pure=purity):
+            with R.function(is_pure=purity, is_private=privacy):
                 R.func_name(node.name)
                 collect_symbolic_var_from_params(self, node)
 
@@ -202,22 +208,22 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
                             self.report_error(stmt, "inline prim_func is disallowed in Relax IR")
 
                 self.visit_body(node.body)
+    self.inside_function = is_inner_function
 
 
-def find_purity_annotation(node: doc.FunctionDef) -> bool:
+def find_decorator_annotation(node: doc.FunctionDef, annotation: str, default: bool = True) -> bool:
     """
-    Check the value of `pure` in the function decorator.
-    Returns the annotated purity if present, otherwise defaulting to True.
-    This allows for specifying the purity in the function signature.
+    Check the value of given annotation (argument name) in the function decorator.
+    Returns the value of the annotation if present, otherwise giving the default value.
     """
-    # look for the pure argument in the function decorator
+    # look for the named argument in the function decorator
     for dec in node.decorator_list:
         if not isinstance(dec, doc.Call) or dec.func.attr != "function":
             continue
         for keyword in dec.keywords:
-            if keyword.arg == "pure":
+            if keyword.arg == annotation:
                 return keyword.value.value
-    return True
+    return default
 
 
 @dispatch.register(token="relax", type_name="tvm_declare_function")
@@ -238,7 +244,8 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> GlobalVar
             param_sinfo = eval_struct_info(self, arg.annotation, eval_str=True)
             params.append(relax.Var(arg.arg, param_sinfo))
 
-    is_pure = find_purity_annotation(node)
+    is_pure = find_decorator_annotation(node, "pure")
+
     func_signature = relax.Function.create_empty(params, ret_sinfo, is_pure=is_pure)
     return I.decl_function(node.name, func_signature)
 

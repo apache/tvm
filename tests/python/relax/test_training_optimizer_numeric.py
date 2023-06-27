@@ -69,7 +69,7 @@ def _test_optimizer(target, dev, np_func, opt_type, *args, **kwargs):
     x = relax.Var("x", R.Tensor((3, 3), "float32"))
     y = relax.Var("y", R.Tensor((3,), "float32"))
     opt = opt_type(*args, **kwargs).init([x, y])
-    mod = IRModule.from_expr(opt.get_function())
+    mod = IRModule.from_expr(opt.get_function().with_attr("global_symbol", "main"))
     tvm_func = _legalize_and_build(mod, target, dev)["main"]
 
     param_arr = [np.random.rand(3, 3).astype(np.float32), np.random.rand(3).astype(np.float32)]

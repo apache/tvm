@@ -47,7 +47,7 @@ def test_astype():
         gv = bb.emit(relax.op.astype(x, "float16"))
         bb.emit_func_output(gv)
 
-    _check(expected, bb.get()["main"])
+    _check(expected.with_attr("global_symbol", "main"), bb.get()["main"])
 
 
 if __name__ == "__main__":
