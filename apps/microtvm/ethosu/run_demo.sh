@@ -24,11 +24,13 @@ set -x
 # Show usage
 function show_usage() {
     cat <<EOF
-Usage: run_demo.sh [--ethosu_driver_path ETHOSU_DRIVER_PATH]
+Usage: run_demo.sh [--ethosu_driver_path ETHOSU_DRIVER_PATH] [--alif_toolkit_path ALIF_TOOLKIT_PATH]
 -h, --help
     Display this help message.
 --ethosu_driver_path ETHOSU_DRIVER_PATH
     Set path to Arm(R) Ethos(TM)-U core driver.
+--alif_toolkit_path
+   Set path to Alif's toolkit.
 --cmsis_path CMSIS_PATH
     Set path to CMSIS.
 --ethosu_platform_path ETHOSU_PLATFORM_PATH
@@ -55,6 +57,18 @@ while (( $# )); do
                 shift 2
             else
                 echo 'ERROR: --ethosu_driver_path requires a non-empty argument' >&2
+                show_usage >&2
+                exit 1
+            fi
+            ;;
+
+        --alif_toolkit_path)
+            if [ $# -gt 1 ]
+            then
+                export ALIF_TOOLKIT_PATH="$2"
+                shift 2
+            else
+                echo 'ERROR: --alif_toolkit_path requires a non-empty argument' >&2
                 show_usage >&2
                 exit 1
             fi
@@ -132,10 +146,29 @@ done
 # Directories
 script_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
-# Make build directory
 make cleanall
-mkdir -p build
-cd build
+
+if [ -n "${ALIF_TOOLKIT_PATH+x}" ]; then
+    mkdir -p ${script_dir}/build/dependencies
+    cd ${script_dir}/build/dependencies
+
+    # Clone Alif's evaluation kit
+    ALIF_ML_KIT_VERSION="07b186198f148994683d970d57983bfe0eb996bb"
+    wget -q https://github.com/alifsemi/alif_ml-embedded-evaluation-kit/archive/${ALIF_ML_KIT_VERSION}.zip -O ALIF_Ml_KIT.zip
+    unzip -q ALIF_Ml_KIT.zip -d .
+    mv alif_ml-embedded-evaluation-kit-${ALIF_ML_KIT_VERSION} alif_ml-embedded-evaluation-kit
+    rm ALIF_Ml_KIT.zip
+
+    ALIF_CMSIS_VERSION="833ffaba7ddeb3b59e2786a7acab215a62a0b617"
+    wget -q https://github.com/alifsemi/alif_ensemble-cmsis-dfp/archive/${ALIF_CMSIS_VERSION}.zip -O ALIF_CMSIS.zip
+    unzip -q ALIF_CMSIS.zip -d .
+    mv alif_ensemble-cmsis-dfp-${ALIF_CMSIS_VERSION} alif_ensemble-cmsis-dfp
+    rm ALIF_CMSIS.zip
+fi
+
+# Make build directory
+mkdir -p ${script_dir}/build
+cd ${script_dir}/build
 
 # Get mobilenet_v2 tflite model
 mobilenet_url='https://github.com/ARM-software/ML-zoo/raw/b9e26e662c00e0c0b23587888e75ac1205a99b6e/models/image_classification/mobilenet_v2_1.0_224/tflite_int8/mobilenet_v2_1.0_224_INT8.tflite'
@@ -166,18 +199,24 @@ curl -sS  https://raw.githubusercontent.com/tensorflow/tensorflow/master/tensorf
 curl -sS https://s3.amazonaws.com/model-server/inputs/kitten.jpg -o kitten.jpg
 
 # Create C header files
-cd ..
+cd ${script_dir}
 python3 ./convert_image.py ./build/kitten.jpg
 python3 ./convert_labels.py ./build/labels_mobilenet_quant_v1_224.txt
 
-# Build demo executable
-cd ${script_dir}
-make
+if [ -n "${ALIF_TOOLKIT_PATH+x}" ]; then
+    # Build alif demo executable
+    make -f Makefile_alif.mk demo_alif
+    echo 
 
-# Run demo executable on the FVP
-FVP_Corstone_SSE-300_Ethos-U55 -C cpu0.CFGDTCMSZ=15 \
--C cpu0.CFGITCMSZ=15 -C mps3_board.uart0.out_file=\"-\" -C mps3_board.uart0.shutdown_tag=\"EXITTHESIM\" \
--C mps3_board.visualisation.disable-visualisation=1 -C mps3_board.telnetterminal0.start_telnet=0 \
--C mps3_board.telnetterminal1.start_telnet=0 -C mps3_board.telnetterminal2.start_telnet=0 -C mps3_board.telnetterminal5.start_telnet=0 \
--C ethosu.extra_args="--fast" \
--C ethosu.num_macs=256 ./build/demo
+else
+    # Build demo executable
+    make
+
+    # Run demo executable on the FVP
+    FVP_Corstone_SSE-300_Ethos-U55 -C cpu0.CFGDTCMSZ=15 \
+    -C cpu0.CFGITCMSZ=15 -C mps3_board.uart0.out_file=\"-\" -C mps3_board.uart0.shutdown_tag=\"EXITTHESIM\" \
+    -C mps3_board.visualisation.disable-visualisation=1 -C mps3_board.telnetterminal0.start_telnet=0 \
+    -C mps3_board.telnetterminal1.start_telnet=0 -C mps3_board.telnetterminal2.start_telnet=0 -C mps3_board.telnetterminal5.start_telnet=0 \
+    -C ethosu.extra_args="--fast" \
+    -C ethosu.num_macs=256 ./build/demo
+fi
