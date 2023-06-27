@@ -314,6 +314,19 @@ Optional<LoopRV> TileWithTensorIntrin(const tir::Schedule& sch, const tir::Block
   const tir::TensorizeInfoNode* info = opt_tensorize_info.value().get();
   if (info->block_iter_paddings.defined()) {
     sch->PadEinsum(block_rv, info->block_iter_paddings.value());
+    // Inline the producer and consumer padding blocks
+    auto producers = sch->GetProducers(block_rv);
+    for (const auto& producer : producers) {
+      auto original_producers = sch->GetProducers(producer);
+      ICHECK_EQ(original_producers.size(), 1u);
+      // Inline the original producer into the padding block. This ensures that the new producer
+      // has the padded shape.
+      sch->ComputeInline(original_producers[0]);
+    }
+    auto consumers = sch->GetConsumers(block_rv);
+    for (const auto& consumer : consumers) {
+      sch->ComputeInline(consumer);
+    }
   }
   // Construct a mapping from tir loops back to LoopRVs
   Map<tir::StmtSRef, LoopRV> loop2rv;

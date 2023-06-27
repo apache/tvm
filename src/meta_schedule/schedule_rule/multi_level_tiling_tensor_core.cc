@@ -590,16 +590,15 @@ std::vector<State> MultiLevelTilingTensorCoreNode::AddReadReuseTensorCore(
         state->is_mma ? std::string("s2l_") + std::string(read_index == 0 ? "A" : "B") : "";
     TileAndAnnotateTensorize(&sch, cache_read, intrin_name, permuted_layout_annotate_value);
   };
-
   f_tensorize_load(0, state->is_mma ? "m16n8k8.matrixA" : "wmma.matrix_a",
                    state->intrin_group.load_a_intrin);
   f_tensorize_load(1, state->is_mma ? "m16n8k8.matrixB" : "wmma.matrix_b",
                    state->intrin_group.load_b_intrin);
-  sch->ComputeInline(state->tensor_core_reindex_A);
-  sch->ComputeInline(state->tensor_core_reindex_B);
 
   for (int i = 0; i < 2; ++i) {
     const tir::BlockRV cache_read = state->read_reuse.at(i);
+    // Inline the reindex / padding block
+    sch->ComputeInline(sch->GetProducers(cache_read)[0]);
     const tir::BlockNode* cache_read_block = sch->GetSRef(cache_read)->StmtAs<tir::BlockNode>();
     tir::Buffer cache_read_buffer = tir::GetNthAccessBuffer(
         sch->state(), GetRef<tir::Block>(cache_read_block), 0, tir::BufferIndexType::kWrite);
