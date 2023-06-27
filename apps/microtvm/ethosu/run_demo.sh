@@ -74,6 +74,18 @@ while (( $# )); do
             fi
             ;;
 
+        --alif_console_port)
+            if [ $# -gt 1 ]
+            then
+                export ALIF_CONSOLE_PORT="$2"
+                shift 2
+            else
+                echo 'ERROR: --alif_console_port requires a non-empty argument' >&2
+                show_usage >&2
+                exit 1
+            fi
+            ;;
+
         --cmsis_path)
             if [ $# -gt 1 ]
             then
@@ -206,8 +218,21 @@ python3 ./convert_labels.py ./build/labels_mobilenet_quant_v1_224.txt
 if [ -n "${ALIF_TOOLKIT_PATH+x}" ]; then
     # Build alif demo executable
     make -f Makefile_alif.mk demo_alif
-    echo 
 
+    # copy demo artifacts to the Alis Toolkit folder
+    cp ${script_dir}/alif_flash_config.json ${ALIF_TOOLKIT_PATH}/build/config
+    cp ${script_dir}/build/demo_alif.bin ${ALIF_TOOLKIT_PATH}/build/images
+
+    # upload binary to the MCU
+    cd ${ALIF_TOOLKIT_PATH}
+    ./app-gen-toc -f ./build/config/alif_flash_config.json
+    ./app-write-mram
+
+    # Read the board's console output
+    if [ -n "${ALIF_CONSOLE_PORT+x}" ]; then
+        stty -F ${ALIF_CONSOLE_PORT} 115200
+        cat ${ALIF_CONSOLE_PORT}
+    fi
 else
     # Build demo executable
     make
