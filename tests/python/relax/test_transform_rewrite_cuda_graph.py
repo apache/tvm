@@ -294,7 +294,7 @@ def test_vm_builtin():
                         T.writes(compute[i0, i1])
                         compute[i0, i1] = T.exp(rxplaceholder[i0, i1])
 
-        @R.function
+        @R.function(private=True)
         def cuda_graph_alloc() -> R.Tuple(R.Object, R.Object):
             R.func_attr({"relax.force_pure": True})
             storage: R.Object = R.memory.alloc_storage(R.shape([32]), R.prim_value(0), R.str("global"), R.dtype("float32"))
@@ -302,7 +302,7 @@ def test_vm_builtin():
             gv: R.Tuple(R.Object, R.Object) = (storage, storage1)
             return gv
 
-        @R.function
+        @R.function(private=True)
         def cuda_graph_capture(alloc: R.Tensor((2, 4), dtype="float32"), alloc1: R.Tensor((2, 4), dtype="float32"), storage: R.Object) -> R.Tuple(R.Tensor((2, 4), dtype="float32"), R.Tensor((2, 4), dtype="float32")):
             R.func_attr({"relax.force_pure": True})
             cls = Expected

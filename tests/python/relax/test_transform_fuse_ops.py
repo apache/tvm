@@ -1446,7 +1446,7 @@ def test_partially_used_tuple_param():
 
     @I.ir_module
     class Expected:
-        @R.function
+        @R.function(private=True)
         def fused_add_divide(
             x_0: R.Tensor((2,), dtype="float32"),
             param_0: R.Tensor((), dtype="float32"),

@@ -86,6 +86,10 @@ void FuncAttrs(Map<String, ObjectRef> attrs) {
   if (!frame->attrs.empty()) {
     LOG(FATAL) << "ValueError: Duplicate function attrs, previous one is:\n" << frame->attrs;
   }
+  if (attrs.count(tvm::attr::kGlobalSymbol) && frame->is_private.value_or(Bool(false))->value) {
+    LOG(FATAL) << "ValueError: Specifying a global symbol attribute even though the function is "
+                  "annotated as private";
+  }
   frame->attrs = attrs;
 }
 

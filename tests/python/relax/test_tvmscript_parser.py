@@ -1510,5 +1510,35 @@ def test_private_function():
     _check(Addition, bb.get())
 
 
+def test_private_function_with_global_symbol_fail():
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @I.ir_module
+        class Addition:
+            @R.function(private=True)
+            def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+                # it is an error to simultaneously mark a function private
+                # and give it a global symbol manually
+                R.func_attr({"global_symbol": "main"})
+                y = R.add(x, x)
+                return y
+
+        # should not execute
+        _check(Addition)
+
+
+def test_private_function_with_global_symbol_no_module_fail():
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @R.function(private=True)
+        def func(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+            R.func_attr({"global_symbol": "main"})
+            y = R.add(x, x)
+            return y
+
+        # should not execute
+        _check(func)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
