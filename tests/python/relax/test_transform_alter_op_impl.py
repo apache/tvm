@@ -36,7 +36,7 @@ def test_single_output():
     # fmt: off
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.prim_func(private=True)
         def add(arg0: T.Buffer((16,), "float32"), arg1: T.Buffer((16,), "float32"), output: T.Buffer((16,), "float32")):
             T.func_attr({"operator_name": "relax.add"})
             for ax0 in range(16):
@@ -55,7 +55,7 @@ def test_single_output():
             return gv
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(private=True)
         def relax_add_replacement(arg0: T.Buffer((4, 4), "float32"), arg1: T.Buffer((4, 4), "float32"), output: T.Buffer((4, 4), "float32")):
             T.func_attr({"operator_name": "relax.add"})
             for ax0, ax1 in T.grid(4, 4):
@@ -76,7 +76,7 @@ def test_single_output():
                 R.output(gv)
             return gv
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def add_2d(arg0: T.Buffer((4, 4), "float32"), arg1: T.Buffer((4, 4), "float32"), output: T.Buffer((4, 4), "float32")):
         for ax0, ax1 in T.grid(4, 4):
             with T.block("T_add"):
@@ -99,7 +99,7 @@ def test_empty_layout_changes():
     # fmt: off
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.prim_func(private=True)
         def mul_by_2(arg0: T.Buffer((16,), "float32"), output: T.Buffer((16,), "float32")):
             T.func_attr({"operator_name": "relax.mul_by_2"})
             for ax0 in range(16):
@@ -118,7 +118,7 @@ def test_empty_layout_changes():
             return gv
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(private=True)
         def relax_mul_by_2_replacement(arg0: T.Buffer((16,), "float32"), output: T.Buffer((16,), "float32")):
             T.func_attr({"operator_name": "relax.mul_by_2"})
             for ax0 in range(16):
@@ -136,7 +136,7 @@ def test_empty_layout_changes():
                 R.output(gv)
             return gv
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def add_x_x(arg0: T.Buffer((16,), "float32"), output: T.Buffer((16,), "float32")):
         T.func_attr({"operator_name": "relax.mul_by_2"})
         for ax0 in range(16):
@@ -159,7 +159,7 @@ def test_multiple_outputs():
     # fmt: off
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.prim_func(private=True)
         def some_op(arg0: T.Buffer((16,), "float32"), arg1: T.Buffer((16,), "float32"), output0: T.Buffer((16,), "float32"), output1: T.Buffer((16,), "float32")):
             T.func_attr({"operator_name": "relax.some_op"})
             for ax0 in range(16):
@@ -179,7 +179,7 @@ def test_multiple_outputs():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(private=True)
         def relax_some_op_replacement(arg0: T.Buffer((4, 4), "float32"), arg1: T.Buffer((4, 4), "float32"), output0: T.Buffer((4, 4), "float32"), output1: T.Buffer((4, 4), "float32")):
             T.func_attr({"operator_name": "relax.some_op"})
             for ax0, ax1 in T.grid(4, 4):
@@ -204,7 +204,7 @@ def test_multiple_outputs():
                 R.output(gv)
             return gv
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def some_op_2d(arg0: T.Buffer((4, 4), "float32"), arg1: T.Buffer((4, 4), "float32"), output0: T.Buffer((4, 4), "float32"), output1: T.Buffer((4, 4), "float32")):
         for ax0, ax1 in T.grid(4, 4):
             with T.block("T_add"):
@@ -236,7 +236,7 @@ def test_unsupported_implicit_padding():
                 R.output(gv)
             return gv
 
-        @T.prim_func
+        @T.prim_func(private=True)
         def relu(arg0: T.Buffer((14,), "float32"), output: T.Buffer((14,), "float32")):
             T.func_attr({"operator_name": "relax.relu"})
             for ax0 in T.grid(14):
@@ -248,7 +248,7 @@ def test_unsupported_implicit_padding():
 
     before = InputModule
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def relu_pad(arg0: T.Buffer((16,), "float32"), output: T.Buffer((16,), "float32")):
         for ax0 in T.grid(16):
             with T.block("T_add"):
@@ -272,7 +272,7 @@ def test_multiple_call_sites():
     # fmt: off
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.prim_func(private=True)
         def add(arg0: T.Buffer((16,), "float32"), arg1: T.Buffer((16,), "float32"), output: T.Buffer((16,), "float32")):
             T.func_attr({"operator_name": "relax.add"})
             for ax0 in range(16):
@@ -293,7 +293,7 @@ def test_multiple_call_sites():
             return gv
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(private=True)
         def relax_add_replacement(arg0: T.Buffer((4, 4), "float32"), arg1: T.Buffer((4, 4), "float32"), output: T.Buffer((4, 4), "float32")):
             T.func_attr({"operator_name": "relax.add"})
             # with T.block("root"):
@@ -319,7 +319,7 @@ def test_multiple_call_sites():
                 gv: R.Tensor((16,), dtype="float32") = lv2_1
                 R.output(gv)
             return gv
-    @T.prim_func
+    @T.prim_func(private=True)
     def add_2d(arg0: T.Buffer((4, 4), "float32"), arg1: T.Buffer((4, 4), "float32"), output: T.Buffer((4, 4), "float32")):
         for ax0, ax1 in T.grid(4, 4):
             with T.block("T_add"):
