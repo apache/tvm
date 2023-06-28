@@ -64,6 +64,13 @@ SECTIONS
   .copy.table : ALIGN(4)
   {
     __copy_table_start__ = .;
+    LONG ( LOADADDR(.ARM.extab) )
+    LONG ( ADDR(.ARM.extab) )
+    LONG ( SIZEOF(.ARM.extab)/4 )
+    LONG ( LOADADDR(.ARM.exidx) )
+    LONG ( ADDR(.ARM.exidx) )
+    LONG ( SIZEOF(.ARM.exidx)/4 )
+
     LONG ( LOADADDR(.code.at_itcm) )
     LONG ( ADDR(.code.at_itcm) )
     LONG ( SIZEOF(.code.at_itcm)/4 )
@@ -89,13 +96,13 @@ SECTIONS
   .ARM.extab :
   {
     *(.ARM.extab* .gnu.linkonce.armextab.*)
-  } > ITCM
+  } > ITCM AT> MRAM
 
   __exidx_start = .;
   .ARM.exidx :
   {
     *(.ARM.exidx* .gnu.linkonce.armexidx.*)
-  } > ITCM
+  } > ITCM AT> MRAM
   __exidx_end = .;
 
   .vectors.at_itcm (NOLOAD) : ALIGN(2048)
