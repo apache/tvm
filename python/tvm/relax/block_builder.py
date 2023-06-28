@@ -459,9 +459,7 @@ class BlockBuilder(Object):
                     return gv
         """
         name_hint = kwargs.pop("name_hint", "")
-        return self.emit(
-            self.call_te(func, *args, **kwargs), name_hint=name_hint
-        )
+        return self.emit(self.call_te(func, *args, **kwargs), name_hint=name_hint)
 
     def match_cast(self, value: Expr, struct_info: StructInfo) -> Var:
         """Emit a MatchCast.
