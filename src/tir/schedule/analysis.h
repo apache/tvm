@@ -708,24 +708,6 @@ Array<arith::IntSet> AnalyzeRegionLowerBound(const BufferRegion& region, const P
                                              arith::Analyzer* analyzer);
 
 /*!
- * \brief Check if buffer indices are all Vars and extr
- * \param buffer_access The BufferLoad or BufferStore
- * \return The indices if the indices are all Vars, otherwise NullOpt
- */
-template <typename T>
-Optional<Array<Var>> CheckTrivialBufferIndices(const T& buffer_access) {
-  Array<Var> indices;
-  for (const PrimExpr& index : buffer_access->indices) {
-    const VarNode* var = index.as<VarNode>();
-    if (var == nullptr) {
-      return NullOpt;
-    }
-    indices.push_back(GetRef<Var>(var));
-  }
-  return indices;
-}
-
-/*!
  * \brief Simplify non-trivial expressions
  * \param expr The expression to be simplified
  * \param analyzer The analyzer
