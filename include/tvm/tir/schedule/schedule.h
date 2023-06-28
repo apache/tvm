@@ -237,6 +237,24 @@ class ScheduleNode : public runtime::Object {
   virtual Array<ExprRV> SamplePerfectTile(const LoopRV& loop_rv, int n, int max_innermost_factor,
                                           Optional<Array<Integer>> decision = NullOpt) = 0;
   /*!
+   * \brief Sample the factors to a partitioned tile for a specific loop
+   *
+   *  The sampled tile size will be partitioned into two parts. The second part has a guarantee
+   *  that their extent's product have a factor of `innerpart_factor`. The first part is loops at
+   *  [0, partition_pos); the second part is loops at [partition_pos, n) and we will have
+   *  `innerpart_factor` | (l[partition_pos].extent * ... * l[n-1].extent)
+   *
+   * \param loop_rv The loop to be tiled
+   * \param n The number of tiles to be sampled
+   * \param partition_pos The position to partition tiles to two parts
+   * \param innerpart_factor The factor of the second part
+   * \param decision The sampling decision
+   * \return A list of length `n`, the random partitioned tile sizes sampled
+   */
+  virtual Array<ExprRV> SamplePartitionedTile(const LoopRV& loop_rv, int n, int partition_pos,
+                                              int innerpart_factor,
+                                              Optional<Array<Integer>> decision = NullOpt) = 0;
+  /*!
    * \brief Sample a compute-at location of the given block
    * \param block_rv The block whose compute-at location is to be sampled
    * \param decision The sampling decision

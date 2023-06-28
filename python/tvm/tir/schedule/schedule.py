@@ -403,6 +403,46 @@ class Schedule(Object):
         )
 
     @type_checked
+    def sample_partitioned_tile(
+        self,
+        loop: LoopRV,
+        n: int,
+        partition_pos: int = 0,
+        innerpart_factor: int = 1,
+        decision: Optional[List[int]] = None,
+    ) -> List[ExprRV]:
+        """Sample the factors to a partitioned tile for a specific loop
+
+        Parameters
+        ----------
+        loop : LoopRV
+            The loop to be tiled
+        n : int
+            The number of tiles to be sampled
+        partition_pos : int
+            The position to partition tiles to two parts
+        innerpart_factor : int
+            The factor of the second part
+        decision: Optional[List[int]]
+            The sampling decision, if any
+
+        Returns
+        -------
+        result : List[ExprRV]
+            A list of length `n`, the random partitioned tile sizes sampled
+        """
+        return list(
+            _ffi_api.ScheduleSamplePartitionedTile(  # type: ignore  # pylint: disable=no-member
+                self,
+                loop,
+                n,
+                partition_pos,
+                innerpart_factor,
+                decision,
+            )
+        )
+
+    @type_checked
     def sample_compute_location(
         self, block: Union[BlockRV, str], decision: Optional[int] = None
     ) -> LoopRV:

@@ -645,6 +645,13 @@ class ReverseComputeInliner : public BaseInliner {
       producer_store = producer_if->then_case.as<BufferStoreNode>();
     } else {
       producer_store = producer_block_->body.as<BufferStoreNode>();
+      if (producer_block_->annotations.count(tir::attr::auto_copy) != 0) {
+        const ForNode* producer_inner_loop = producer_block_->body.as<ForNode>();
+        while (producer_inner_loop->body.as<ForNode>()) {
+          producer_inner_loop = producer_inner_loop->body.as<ForNode>();
+        }
+        producer_store = producer_inner_loop->body.as<BufferStoreNode>();
+      }
     }
     if (producer_store == nullptr) {
       // Failure: producer block body is not BufferStore
@@ -670,6 +677,18 @@ class ReverseComputeInliner : public BaseInliner {
     for (int i = 0, n = producer_block->iter_vars.size(); i < n; ++i) {
       const IterVar& iter = producer_block->iter_vars[i];
       analyzer_.Bind(iter->var, Range::FromMinExtent(iter->dom->min, iter->dom->extent));
+    }
+    if (producer_block->annotations.count(tir::attr::auto_copy) != 0) {
+      auto bind = [&](const ForNode* loop) {
+        analyzer_.Bind(loop->loop_var,
+                       Range::FromMinExtent(make_zero(loop->extent->dtype), loop->extent));
+      };
+      const ForNode* producer_inner_loop = producer_block->body.as<ForNode>();
+      while (producer_inner_loop->body.as<ForNode>()) {
+        bind(producer_inner_loop);
+        producer_inner_loop = producer_inner_loop->body.as<ForNode>();
+      }
+      bind(producer_inner_loop);
     }
     // Substitute the consumer block iters with the corresponding iters in the producer blocks
     PrimExpr predicate = Substituter(this)(consumer_iter_in_bound_);
