@@ -955,7 +955,10 @@ def _convert_concat(
     if input_shape is None:
         input_shape = keras_layer.input_shape
 
-    axis = keras_layer.axis
+    if data_layout == "NHWC" or len(input_shape[0]) < 4:
+        axis = -1
+    else:
+        axis = keras_layer.axis
     return _op.concatenate(_as_list(inexpr), axis=axis)
 
 
