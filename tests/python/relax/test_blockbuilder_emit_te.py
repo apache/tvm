@@ -100,9 +100,7 @@ def test_emit_te_public():
                     B[v_i] = A[v_i]
 
         @R.function
-        def main(
-            x: R.Tensor((10,), dtype="float32")
-        ) -> R.Tensor((10,), dtype="float32"):
+        def main(x: R.Tensor((10,), dtype="float32")) -> R.Tensor((10,), dtype="float32"):
             cls = Expected
             gv = R.call_tir(
                 cls.te_func,
