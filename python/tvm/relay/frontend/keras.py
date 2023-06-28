@@ -957,10 +957,10 @@ def _convert_concat(
 
     axis = keras_layer.axis
     if data_layout == "NCHW":
-            if axis == -1:
-                axis = 1
-            else:
-                axis = axis + 1 if axis < dims - 1 else 1
+        if axis == -1:
+            axis = 1
+        else:
+            axis = axis + 1 if axis < dims - 1 else 1
     return _op.concatenate(_as_list(inexpr), axis=axis)
 
 
