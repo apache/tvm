@@ -41,7 +41,7 @@ def test_emit_te_with_symbolic_arg():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(private=True)
         def te_func(
             A: T.Buffer((T.int64(10),), "float32"),
             B: T.Buffer((T.int64(10),), "float32"),
@@ -65,6 +65,49 @@ def test_emit_te_with_symbolic_arg():
                 (x,),
                 out_sinfo=R.Tensor((10,), dtype="float32"),
                 tir_vars=R.shape([m]),
+            )
+            return gv
+
+    assert_structural_equal(after, Expected)
+
+
+def test_emit_te_public():
+    bb = rx.BlockBuilder()
+    x = rx.Var("x", R.Tensor([10], "float32"))
+
+    # just a copy
+    def te_func(A):
+        return te.compute(A.shape, lambda i: A[i], name="B")
+
+    with bb.function("main", [x]):
+        out = bb.emit_te(te_func, x, primfunc_public=True)
+        bb.emit_func_output(out)
+
+    after = bb.get()
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def te_func(
+            A: T.Buffer((T.int64(10),), "float32"),
+            B: T.Buffer((T.int64(10),), "float32"),
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            for i in range(T.int64(10)):
+                with T.block("B"):
+                    v_i = T.axis.spatial(T.int64(10), i)
+                    T.writes(B[v_i])
+                    B[v_i] = A[v_i]
+
+        @R.function
+        def main(
+            x: R.Tensor((10,), dtype="float32")
+        ) -> R.Tensor((10,), dtype="float32"):
+            cls = Expected
+            gv = R.call_tir(
+                cls.te_func,
+                (x,),
+                out_sinfo=R.Tensor((10,), dtype="float32"),
             )
             return gv
 

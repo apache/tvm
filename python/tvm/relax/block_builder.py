@@ -312,6 +312,8 @@ class BlockBuilder(Object):
 
                 - 'primfunc_name_hint' for passing name hint to the PrimFunc
                   that gets generated.
+                - 'primfunc_public' for indicating whether the PrimFunc should be public
+                  (have a global symbol matching its name). False by default.
                 - 'primfunc_attrs' is reserved for passing func attributes to
                   be added to the PrimFunc that gets created.
 
@@ -323,10 +325,13 @@ class BlockBuilder(Object):
         """
 
         primfunc_name = kwargs.pop("primfunc_name_hint", None)
+        is_public = kwargs.pop("primfunc_public", False)
         tir_func, call_args, output_sinfo, tir_vars = gen_call_tir_inputs(func, *args, **kwargs)
 
         if not primfunc_name:
             primfunc_name = func.__name__
+        if is_public:
+            tir_func = tir_func.with_attr("global_symbol", primfunc_name)
         gvar = self.add_func(tir_func, primfunc_name)
 
         return call_tir(gvar, call_args, output_sinfo, tir_vars)
@@ -346,8 +351,12 @@ class BlockBuilder(Object):
 
         kwargs : Any, optional
             The keyword arguments passed to the function.
-            Note that the key "primfunc_name_hint" is reserved for passing name hint
-            to the PrimFunc that gets generated.
+            Note that the below keys are reserved:
+            * "primfunc_name_hint" is reserved for passing a name hint
+              to the PrimFunc that gets generated.
+            * "primfunc_public" is reserved for indicating whether the
+              generated PrimFunc should be public (have a global symbol
+              matching its name). False by default.
 
         Returns
         -------
@@ -450,7 +459,9 @@ class BlockBuilder(Object):
                     return gv
         """
         name_hint = kwargs.pop("name_hint", "")
-        return self.emit(self.call_te(func, *args, **kwargs), name_hint=name_hint)
+        return self.emit(
+            self.call_te(func, *args, **kwargs), name_hint=name_hint
+        )
 
     def match_cast(self, value: Expr, struct_info: StructInfo) -> Var:
         """Emit a MatchCast.

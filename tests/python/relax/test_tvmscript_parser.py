@@ -204,7 +204,7 @@ def test_simple_module():
     x = relax.Var("x", R.Tensor((128, 128), "float32"))
     bb = relax.BlockBuilder()
     with bb.function("foo", (x,), {"global_symbol": "foo"}):
-        out = bb.emit_te(lambda x: x + 1, x, primfunc_name_hint="tir_func")
+        out = bb.emit_te(lambda x: x + 1, x, primfunc_name_hint="tir_func", primfunc_public=True)
         bb.emit_func_output(out)
 
     _check(TestModule, bb.get())
@@ -237,6 +237,7 @@ def test_emit_te_primfunc_attrs():
             lambda x: x + 1,
             x,
             primfunc_name_hint="plus_one",
+            primfunc_public=True,
             primfunc_attrs={"some_attr": "foo", "another_attr": True},
         )
         bb.emit_func_output(out)
@@ -275,7 +276,7 @@ def test_module_with_attr_and_global_info():
             }
         )
 
-        @T.prim_func
+        @T.prim_func(private=True)
         def tir_func(
             x: T.Buffer((T.int64(128), T.int64(128)), "float32"),
             y: T.Buffer((T.int64(128), T.int64(128)), "float32"),
