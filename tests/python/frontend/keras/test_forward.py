@@ -159,6 +159,21 @@ class TestKeras:
             keras_model = keras_mod.models.Model(data, out)
             verify_keras_frontend(keras_model)
 
+    def test_forward_concatenate(self, keras_mod):
+        """test_forward_concatenate"""
+        data1 = keras_mod.layers.Input(shape=(1, 2, 2))
+        data2 = keras_mod.layers.Input(shape=(1, 1, 2))
+        merge_func = keras_mod.layers.Concatenate(axes=1)
+        out = merge_func([data1, data2])
+        keras_model = keras_mod.models.Model([data1, data2], out)
+        # test default axis (e.g., -1)
+        verify_keras_frontend(keras_model)
+        data1 = keras_mod.layers.Input(shape=(1, 2, 2))
+        data2 = keras_mod.layers.Input(shape=(1, 2, 4))
+        merge_func = keras_mod.layers.Concatenate()
+        out = merge_func([data1, data2])
+        keras_model = keras_mod.models.Model([data1, data2], out)
+
     def test_forward_merge_dot(self, keras_mod):
         """test_forward_merge_dot"""
         data1 = keras_mod.layers.Input(shape=(2, 2))
