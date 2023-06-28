@@ -24,14 +24,20 @@ from tvm.tir import PrimFunc
 from tvm.tir.schedule import Schedule, Trace
 
 
-def assert_structural_equal_gs(f1: PrimFunc, f2: PrimFunc, *args: Any, **kwargs: Any) -> None:
+def assert_structural_equal_gs(
+    func1: PrimFunc,
+    func2: PrimFunc,
+    *args: Any,
+    **kwargs: Any,
+) -> None:
     """
-    Asserts that PrimFuncs f1 and f2 are structurally equal, setting both their global symbol attributes
-    to main so that the global symbol will not be a point of comparison.
+    Asserts that PrimFuncs func1 and func2 are structurally equal, setting both
+    their global symbol attributes to main so that the global symbol
+    will not be a point of comparison.
     """
     assert_structural_equal(
-        f1.with_attr("global_symbol", "main"),
-        f2.with_attr("global_symbol", "main"),
+        func1.with_attr("global_symbol", "main"),
+        func2.with_attr("global_symbol", "main"),
         *args,
         **kwargs,
     )
