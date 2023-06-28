@@ -347,7 +347,8 @@ inline Optional<ShapeExpr> CheckNdimPerLayoutAndGetShape(const Call& call, const
   return NullOpt;
 }
 
-Expr MakeVMAllocStorage(Expr size, PrimValue runtime_device_index, DataTypeImm dtype);
+Expr MakeVMAllocStorage(Expr size, PrimValue runtime_device_index, DataTypeImm dtype,
+                        StringImm storage_scope = StringImm("global"));
 Expr MakeVMAllocTensor(Expr storage, PrimValue offset, Expr shape, DataTypeImm dtype);
 
 }  // namespace relax

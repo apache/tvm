@@ -47,6 +47,27 @@ class NaiveAllocator final : public Allocator {
     return buf;
   }
 
+  Buffer Alloc(ShapeTuple shape, DLDataType dtype, String mem_scope) override {
+    DLTensor temp;
+    temp.data = nullptr;
+    temp.device = device_;
+    temp.ndim = shape.size();
+    temp.dtype = dtype;
+    temp.shape = const_cast<int64_t*>(shape.data());
+    temp.strides = nullptr;
+    temp.byte_offset = 0;
+    size_t nbytes = GetDataSize(temp);
+
+    Buffer buf;
+    buf.device = device_;
+    buf.size = nbytes;
+    buf.data = runtime::DeviceAPI::Get(device_)->AllocDataSpace(device_, shape.size(), shape.data(),
+                                                                dtype, mem_scope);
+    used_memory_.fetch_add(nbytes, std::memory_order_relaxed);
+    DLOG(INFO) << "allocate " << nbytes << " B, used memory " << used_memory_ << " B";
+    return buf;
+  }
+
   void Free(const Buffer& buffer) override {
     runtime::DeviceAPI::Get(device_)->FreeDataSpace(buffer.device, buffer.data);
     used_memory_.fetch_sub(buffer.size, std::memory_order_relaxed);

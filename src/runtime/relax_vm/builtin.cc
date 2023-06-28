@@ -243,12 +243,10 @@ TVM_REGISTER_GLOBAL("vm.builtin.check_func_info").set_body_typed(CheckFuncInfo);
 //-------------------------------------------------
 //  Storage management.
 //-------------------------------------------------
-Storage VMAllocStorage(void* ctx_ptr, ShapeTuple buffer_size, Index device_index,
-                       DLDataType dtype_hint) {
+Storage VMAllocStorage(void* ctx_ptr, ShapeTuple buffer_shape, Index device_index,
+                       DLDataType dtype_hint, String mem_scope) {
   VirtualMachine* vm = static_cast<VirtualMachine*>(ctx_ptr);
 
-  ICHECK_EQ(buffer_size.size(), 1);
-  int alignment = runtime::kAllocAlignment;
   ICHECK_LT(device_index, vm->devices.size())
       << "The device index is out of VM physical devices list";
 
@@ -257,12 +255,11 @@ Storage VMAllocStorage(void* ctx_ptr, ShapeTuple buffer_size, Index device_index
     device_index = vm->devices.size() - 1;
   }
 
-  int64_t size_imm = buffer_size[0];
-
   auto storage_obj = runtime::SimpleObjAllocator().make_object<StorageObj>();
   auto* alloc = vm->allocators[device_index];
   ICHECK(alloc) << "Did you forget to init the VirtualMachine with devices?";
-  storage_obj->buffer = alloc->Alloc(size_imm, alignment, dtype_hint);
+
+  storage_obj->buffer = alloc->Alloc(buffer_shape, dtype_hint, mem_scope);
   Storage storage(storage_obj);
   return storage;
 }

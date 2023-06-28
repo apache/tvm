@@ -159,12 +159,12 @@ def test_basic():
         def main(x: R.Tensor((2, 4), dtype="float32")) -> R.Tensor((10,), dtype="float32"):
             R.func_attr({"relax.force_pure": True})
             cls = ExpectedLowered
-            storage: R.Object = R.vm.alloc_storage(R.shape([32]), R.prim_value(0), R.dtype("float32"))
+            storage: R.Object = R.vm.alloc_storage(R.shape([32]), R.prim_value(0), R.dtype("uint8"))
             alloc: R.Tensor((2, 4), dtype="float32") = R.vm.alloc_tensor(storage, R.prim_value(0), R.shape([2, 4]), R.dtype("float32"))
             _: R.Tuple = cls.exp(x, alloc)
             lv: R.Tensor((2, 4), dtype="float32") = alloc
             lv1: R.Tensor((8,), dtype="float32") = R.call_packed("vm.builtin.reshape", lv, R.shape([8]), sinfo_args=(R.Tensor((8,), dtype="float32"),))
-            storage1: R.Object = R.vm.alloc_storage(R.shape([40]), R.prim_value(0), R.dtype("float32"))
+            storage1: R.Object = R.vm.alloc_storage(R.shape([40]), R.prim_value(0), R.dtype("uint8"))
             alloc1: R.Tensor((8,), dtype="float32") = R.vm.alloc_tensor(storage1, R.prim_value(0), R.shape([8]), R.dtype("float32"))
             _1: R.Tuple = cls.relu(lv1, alloc1)
             __1: R.Tuple = R.vm.kill_object(alloc)
@@ -178,7 +178,7 @@ def test_basic():
             _3: R.Tuple = cls.pad(lv3, alloc3)
             _3_1: R.Tuple = R.vm.kill_object(alloc2)
             lv4: R.Tensor((10,), dtype="float32") = alloc3
-            storage_1: R.Object = R.vm.alloc_storage(R.shape([40]), R.prim_value(0), R.dtype("float32"))
+            storage_1: R.Object = R.vm.alloc_storage(R.shape([40]), R.prim_value(0), R.dtype("uint8"))
             alloc4: R.Tensor((10,), dtype="float32") = R.vm.alloc_tensor(storage_1, R.prim_value(0), R.shape([10]), R.dtype("float32"))
             _4: R.Tuple = cls.log(lv4, alloc4)
             _4_1: R.Tuple = R.vm.kill_object(alloc3)

@@ -176,6 +176,25 @@ void MemoryManager::Clear() {
   m->allocators_.clear();
 }
 
+Buffer Allocator::Alloc(ShapeTuple shape, DLDataType dtype, String mem_scope) {
+  ICHECK_EQ(shape.size(), 1) << "Allocator of type (" << type_
+                             << ") does not support nD allocation. Please use allocator type ("
+                             << AllocatorType::kNaive << ")";
+  CHECK_EQ(mem_scope, "global") << "Allocator of type (" << type_
+                                << ") does not support memory scope " << mem_scope
+                                << ". Please use allocator type (" << AllocatorType::kNaive << ")";
+
+  DLTensor temp;
+  temp.ndim = shape.size();
+  temp.dtype = dtype;
+  temp.shape = const_cast<int64_t*>(shape.data());
+  temp.strides = nullptr;
+  temp.byte_offset = 0;
+  size_t nbytes = GetDataSize(temp);
+
+  return Alloc(nbytes, runtime::kAllocAlignment, dtype);
+}
+
 runtime::NDArray Allocator::Empty(ShapeTuple shape, DLDataType dtype, DLDevice dev) {
   VerifyDataType(dtype);
   runtime::NDArray::Container* container =
