@@ -163,7 +163,7 @@ class TestKeras:
         """test_forward_concatenate"""
         data1 = keras_mod.layers.Input(shape=(1, 2, 2))
         data2 = keras_mod.layers.Input(shape=(1, 1, 2))
-        merge_func = keras_mod.layers.Concatenate(axis=1)
+        merge_func = keras_mod.layers.Concatenate(axis=2)
         out = merge_func([data1, data2])
         keras_model = keras_mod.models.Model([data1, data2], out)
         # test default axis (e.g., -1)
