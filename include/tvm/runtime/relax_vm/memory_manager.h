@@ -97,6 +97,9 @@ class MemoryManager {
    */
   static Allocator* GetAllocator(Device dev);
 
+  /*! \brief Clear the allocators. */
+  static void Clear();
+
  private:
   MemoryManager() {}
 

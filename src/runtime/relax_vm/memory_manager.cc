@@ -21,6 +21,7 @@
  * \file tvm/runtime/relax_vm/memory_manager.cc
  * \brief Allocate and manage memory for the Relay VM.
  */
+#include <tvm/runtime/registry.h>
 #include <tvm/runtime/relax_vm/memory_manager.h>
 
 #include <memory>
@@ -169,6 +170,12 @@ Allocator* MemoryManager::GetAllocator(Device dev) {
   return it->second.get();
 }
 
+void MemoryManager::Clear() {
+  MemoryManager* m = MemoryManager::Global();
+  std::lock_guard<std::mutex> lock(m->mutex_);
+  m->allocators_.clear();
+}
+
 runtime::NDArray Allocator::Empty(ShapeTuple shape, DLDataType dtype, DLDevice dev) {
   VerifyDataType(dtype);
   runtime::NDArray::Container* container =
@@ -182,6 +189,8 @@ runtime::NDArray Allocator::Empty(ShapeTuple shape, DLDataType dtype, DLDevice d
   container->dl_tensor.data = buffer->data;
   return runtime::NDArray(runtime::GetObjectPtr<Object>(container));
 }
+
+TVM_REGISTER_GLOBAL("vm.builtin.memory_manager.clear").set_body_typed(MemoryManager::Clear);
 
 }  // namespace relax_vm
 }  // namespace runtime
