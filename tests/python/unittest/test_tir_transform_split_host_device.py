@@ -115,7 +115,7 @@ class TestSplitHostDevice(BaseCompare):
                 T.func_attr({"target": T.target("cuda", host="llvm -opt-level=0")})
                 mod.main_kernel(n)
 
-            @T.prim_func
+            @T.prim_func(private=True)
             def main_kernel(n: T.int32):
                 T.func_attr(
                     {
@@ -155,7 +155,7 @@ class TestSplitHostDeviceWithoutFuncHostAttribute(BaseCompare):
                 T.func_attr({"target": T.target("llvm")})
                 mod.main_kernel(n)
 
-            @T.prim_func
+            @T.prim_func(private=True)
             def main_kernel(n: T.int32):
                 T.func_attr(
                     {
@@ -216,7 +216,7 @@ class TestSplitHostDeviceNameCollision(BaseCompare):
                 T.func_attr({"target": T.target("cuda", host="llvm -opt-level=0")})
                 mod.main_kernel_1(n)
 
-            @T.prim_func
+            @T.prim_func(private=True)
             def main_kernel_1(n: T.int32):
                 T.func_attr(
                     {
