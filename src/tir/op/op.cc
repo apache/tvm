@@ -32,9 +32,8 @@
 #include <cmath>
 // Centralized header for constant folders.
 #include "../../arith/const_fold.h"
-#include "../../target/datatype/registry.h"
 #include "../../support/scalars.h"
-
+#include "../../target/datatype/registry.h"
 
 namespace tvm {
 
@@ -215,7 +214,7 @@ PrimExpr max_value(const DataType& dtype, Span span) {
   } else if (dtype.is_float8()) {
     if (dtype.code() == DataType::kE4M3Float) {
       return FloatImm(dtype, support::kMaxE4M3, span);
-    } else { // E5M2
+    } else {  // E5M2
       return FloatImm(dtype, support::kMaxE5M2, span);
     }
   }
@@ -249,13 +248,13 @@ PrimExpr min_value(const DataType& dtype, Span span) {
       return FloatImm(dtype, std::numeric_limits<float>::lowest(), span);
     } else if (dtype.bits() == 16) {
       return FloatImm(dtype, -support::kMaxFloat16, span);
-    } 
+    }
   } else if (dtype.is_bfloat16()) {
     return FloatImm(dtype, -support::kMaxBFloat16, span);
   } else if (dtype.is_float8()) {
     if (dtype.code() == DataType::kE4M3Float) {
       return FloatImm(dtype, -support::kMaxE4M3, span);
-    } else { // E5M2
+    } else {  // E5M2
       return FloatImm(dtype, -support::kMaxE5M2, span);
     }
   }

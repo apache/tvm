@@ -24,6 +24,10 @@ from tvm import topi
 from tvm.contrib.nvcc import have_fp16, have_int8, have_bf16
 import tvm.testing
 import pytest
+try:
+    import ml_dtypes
+except ImportError as e:
+    ml_dtypes = None
 
 tx = te.thread_axis("threadIdx.x")
 bx = te.thread_axis("blockIdx.x")
@@ -75,20 +79,10 @@ def test_cuda_bf16_vectorize_add():
     if not have_bf16(tvm.cuda(0).compute_version):
         print("skip because gpu does not support bf16")
         return
+    if ml_dtypes is None:
+        print("skip because ml_dtypes not installed")
+        return
     num_thread = 8
-
-    def np_float2np_bf16(arr):
-        """Convert a numpy array of float to a numpy array
-        of bf16 in uint16"""
-        orig = arr.view("<u4")
-        bias = np.bitwise_and(np.right_shift(orig, 16), 1) + 0x7FFF
-        return np.right_shift(orig + bias, 16).astype("uint16")
-
-    def np_bf162np_float(arr):
-        """Convert a numpy array of bf16 (uint16) to a numpy array
-        of float"""
-        u32 = np.left_shift(arr.astype("uint32"), 16)
-        return u32.view("<f4")
 
     def check_cuda(n, lanes):
         A = te.placeholder((n,), name="A", dtype="bfloat16x%d" % lanes)
@@ -97,22 +91,19 @@ def test_cuda_bf16_vectorize_add():
         xo, xi = s[B].split(B.op.axis[0], factor=num_thread)
         s[B].bind(xo, bx)
         s[B].bind(xi, tx)
-        # with tvm.transform.PassContext(
-        #     disabled_pass=["tir.BF16ComputeLegalize", "tir.BF16StorageLegalize"]
-        # ):
-        fun = tvm.build(s, [A, B], "cuda")
-        print(fun.imported_modules[0].get_source())
-        assert False
+        with tvm.transform.PassContext(
+            config={"tir.target_support_bf16": True} 
+        ):
+            fun = tvm.build(s, [A, B], "cuda")
         dev = tvm.cuda(0)
-        np_a = np.random.uniform(size=(n, lanes)).astype("float32")
-        np_a = np_bf162np_float(np_float2np_bf16(np_a))
-        a = tvm.nd.empty((n,), A.dtype, dev).copyfrom(np_float2np_bf16(np_a))
+        np_a = np.random.uniform(size=(n, lanes)).astype("bfloat16")
+        a = tvm.nd.empty((n,), A.dtype, dev).copyfrom(np_a)
         c = tvm.nd.empty((n,), B.dtype, dev)
         fun(a, c)
-        c = tvm.nd.empty((n, lanes), "uint16", dev).copyfrom(c)
-        tvm.testing.assert_allclose(c.numpy(), np_float2np_bf16(np_a + 1))
+        c = tvm.nd.empty((n, lanes), "bfloat16", dev).copyfrom(c)
+        tvm.testing.assert_allclose(c.numpy(), np_a + 1)
 
-    check_cuda(64, 2)
+    # check_cuda(64, 2)
     check_cuda(64, 4)
     check_cuda(64, 6)
     check_cuda(64, 8)

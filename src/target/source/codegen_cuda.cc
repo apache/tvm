@@ -199,6 +199,8 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
         enable_fp16_ = true;
         if (t.is_scalar()) {
           os << "half";
+        } else if (lanes == 2) {
+          os << "half2";
         } else if (lanes <= 8) {
           // Emit CUDA code to access fp16 vector elements.
           //
@@ -210,11 +212,7 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
           // h4.w is emitted as *(half2*)(&(u2.y)).y
           //
           ICHECK_EQ(lanes % 2, 0) << "only support even lane for half type";
-          if (lanes == 2) {
-            os << "half2";
-          } else {
-            os << "uint" << lanes / 2;
-          }
+          os << "uint" << lanes / 2;
         } else {
           fail = true;
         }
@@ -253,13 +251,11 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
     enable_bf16_ = true;
     if (t.is_scalar()) {
       os << "nv_bfloat16";
+    } else if (lanes == 2) {
+      os << "nv_bfloat162";
     } else if (lanes <= 8) {
       ICHECK_EQ(lanes % 2, 0) << "only support even lane for half type";
-      if (lanes == 2) {
-        os << "nv_bfloat162";
-      } else {
-        os << "uint" << lanes / 2;
-      }
+      os << "uint" << lanes / 2;
     } else {
       fail = true;
     }
@@ -432,8 +428,6 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
   }
   LOG(FATAL) << "Cannot convert type " << t << " to CUDA type";
 }
-
-
 
 void CodeGenCUDA::PrintVecBinaryOp(const std::string& op, DataType t, PrimExpr lhs, PrimExpr rhs,
                                    std::ostream& os) {  // NOLINT(*)
@@ -1122,27 +1116,35 @@ void CodeGenCUDA::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NO
 
   if (op->dtype.is_float16()) {
     std::string v = PrintExpr(op->value);
-    os << "make_";
-    PrintType(op->dtype, os);
-    os << '(';
-    for (int i = 0; i < op->lanes / 2; ++i) {
-      if (i != 0) os << ", ";
-      os << "__pack_half2(" << v << ", " << v << ")";
+    if (op->lanes == 2) {
+      os << "make_half2(" << v << ", " << v << ")";
+    } else {
+      os << "make_";
+      PrintType(op->dtype, os);
+      os << '(';
+      for (int i = 0; i < op->lanes / 2; ++i) {
+        if (i != 0) os << ", ";
+        os << "__pack_half2(" << v << ", " << v << ")";
+      }
+      os << ')';
     }
-    os << ')';
     return;
   }
 
   if (op->dtype.is_bfloat16()) {
     std::string v = PrintExpr(op->value);
-    os << "make_";
-    PrintType(op->dtype, os);
-    os << '(';
-    for (int i = 0; i < op->lanes / 2; ++i) {
-      if (i != 0) os << ", ";
-      os << "__pack_nv_bfloat162(" << v << ", " << v << ")";
+    if (op->lanes == 2) {
+      os << "__halves2bfloat162(" << v << ", " << v << ")";
+    } else {
+      os << "make_";
+      PrintType(op->dtype, os);
+      os << "(";
+      for (int i = 0; i < op->lanes / 2; ++i) {
+        if (i != 0) os << ", ";
+        os << "__pack_nv_bfloat162(" << v << ", " << v << ")";
+      }
+      os << ')';
     }
-    os << ')';
     return;
   }
 
@@ -1402,7 +1404,7 @@ void CodeGenCUDA::PrintVecElemLoadExpr(DataType t, int i, const std::string& val
       os << '(';
     }
     if (i % 2 == 0) {
-      os << "__pack_half2(" << value;
+      os << "make_half2(" << value;
     } else {
       os << "," << value << ")";
       if (i != t.lanes() - 1) {
@@ -1421,7 +1423,7 @@ void CodeGenCUDA::PrintVecElemLoadExpr(DataType t, int i, const std::string& val
       os << '(';
     }
     if (i % 2 == 0) {
-      os << "__pack_bfloat162(" << value;
+      os << "	__halves2bfloat162(" << value;
     } else {
       os << "," << value << ")";
       if (i != t.lanes() - 1) {

@@ -114,6 +114,11 @@ def assert_allclose(actual, desired, rtol=1e-7, atol=1e-7):
     compares the `abs(actual-desired)` with `atol+rtol*abs(desired)`.  Since we
     often allow `desired` to be close to zero, we generally want non-zero `atol`.
     """
+    # The ml_dtypes v0.2 is not compatible with allclose function, convert to float32.
+    if actual.dtype == "bfloat16":
+        actual = actual.astype("float32")
+    if desired.dtype == "bfloat16":
+        desired = desired.astype("float32")
     actual = np.asanyarray(actual)
     desired = np.asanyarray(desired)
     np.testing.assert_allclose(actual.shape, desired.shape)
