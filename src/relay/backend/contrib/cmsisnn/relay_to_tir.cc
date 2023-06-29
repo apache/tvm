@@ -30,6 +30,7 @@
 #include "../../../transforms/pattern_utils.h"
 #include "buffer_size.h"
 #include "compiler_attrs.h"
+#include "compute_luts.h"
 #include "convolutions.h"
 
 namespace tvm {
@@ -89,11 +90,20 @@ class RelayToTIRVisitor : public MixedModeMutator {
  private:
   inline IntImm ToArg(int32_t value) { return IntImm(DataType::Int(32), value); }
 
+  //  struct used to allocated const NDArray
+  struct user_const {
+    tir::Var buffer_var;
+    int num_bits;
+    Array<PrimExpr> extents;
+    tvm::runtime::NDArray ndarray;
+  };
+
   void CreatePrimFuncForExtern(const GlobalVar& global_var, Array<tir::Var> func_signature,
                                const Map<tir::Var, tir::Buffer>& buffer_map,
                                tvm::Array<PrimExpr> call_extern_args,
                                PrimExpr context_buffer_var = PrimExpr(),
-                               int context_buffer_size = 0, int num_bits = 8) {
+                               int context_buffer_size = 0, int num_bits = 8,
+                               std::vector<user_const> context_const_buffer_vars = {}) {
     Map<String, ObjectRef> dict_attrs;
     dict_attrs.Set(tvm::attr::kGlobalSymbol, global_var->name_hint);
     dict_attrs.Set(tvm::attr::kTarget, target_);
@@ -107,8 +117,16 @@ class RelayToTIRVisitor : public MixedModeMutator {
                            {context_buffer_size}, tir::const_true(), body);
     }
 
+    for (int i = 0; i < static_cast<int>(context_const_buffer_vars.size()); i++) {
+      body = tir::AllocateConst(Downcast<tir::Var>(context_const_buffer_vars[i].buffer_var),
+                                DataType::Int(context_const_buffer_vars[i].num_bits),
+                                context_const_buffer_vars[i].extents,
+                                context_const_buffer_vars[i].ndarray, body);
+    }
+
     tir::PrimFunc replacement_func(func_signature, body, VoidType(), buffer_map,
                                    DictAttrs(dict_attrs));
+
     ir_module_->Add(global_var, replacement_func);
   }
 
@@ -505,6 +523,7 @@ class RelayToTIRVisitor : public MixedModeMutator {
     const CallNode* softmax_call = quantize_call->args[0].as<CallNode>();
     const CallNode* dequant_call = softmax_call->args[0].as<CallNode>();
     const float quant_scale = GetScalarFromConstant<float>(dequant_call->args[1]);
+    const auto bit_width = quantize_call->type_as<TensorTypeNode>()->dtype.bits();
 
     // assuming layout as NHWC
     auto shape = quantize_call->type_as<TensorTypeNode>()->shape;
@@ -517,36 +536,111 @@ class RelayToTIRVisitor : public MixedModeMutator {
 
     // calculate multiplier and shift for CMSIS-NN softmax API
     // Note: TensorFlow Lite Micro assumptions
-    // Output zero point and scale are fixed to -128 and 1 / 256
+    // Output zero point and scale are fixed to -128 and 1 / 256 in the case of an int8 operator
+    // or to 0 and 1 / 32768.
     // kScaledDiffIntegerBits, kInputBits, kBeta are described on the following github page
-    // https://github.com/tensorflow/tflite-micro/blob/d97cd0908d8cf5021e9d86f05a49888bee28c2a4/tensorflow/lite/micro/kernels/softmax_common.cc#L47
-    double beta_multiplier = (kBeta * quant_scale * (1 << (31 - kInputBits)));
-    beta_multiplier = std::min<double>(beta_multiplier, (1ll << 31) - 1.0);
-    auto mult_shift_pair = tvm::relay::qnn::GetFixedPointMultiplierShift(beta_multiplier);
-    int32_t mult = std::get<0>(mult_shift_pair);
-    int32_t shift = std::get<1>(mult_shift_pair);
-    int32_t diff_min = (1 << kScaledDiffIntegerBits) - 1;
-    diff_min <<= (31 - kScaledDiffIntegerBits);
-    diff_min >>= shift;
-    diff_min *= -1;
+    // https://github.com/tensorflow/tflite-micro/blob/d97cd0908d8cf5021e9d86f05a49888bee28c2a4/tensorflow/lite/exp_zero_pointmicro/kernels/softmax_common.cc#L47
+
+    int32_t mult;
+    int32_t shift;
+    int32_t diff_min = 0;
+
+    std::vector<user_const> softmax_params(2);
+    Device dev{DLDeviceType::kDLCPU, 0};
+
+    if (bit_width == 8) {
+      double beta_multiplier = (kBeta * quant_scale * (1 << (31 - kInputBits)));
+      beta_multiplier = std::min<double>(beta_multiplier, (1ll << 31) - 1.0);
+      auto mult_shift_pair = tvm::relay::qnn::GetFixedPointMultiplierShift(beta_multiplier);
+      mult = std::get<0>(mult_shift_pair);
+      shift = std::get<1>(mult_shift_pair);
+      diff_min = (1 << kScaledDiffIntegerBits) - 1;
+      diff_min <<= (31 - kScaledDiffIntegerBits);
+      diff_min >>= shift;
+      diff_min *= -1;
+    } else {  // bit_width == 16
+      double scale_beta_rescale = quant_scale * kBeta / (10.0 / 65535.0);
+      auto mult_shift_pair = tvm::relay::qnn::GetFixedPointMultiplierShift(scale_beta_rescale);
+      mult = std::get<0>(mult_shift_pair);
+      shift = std::get<1>(mult_shift_pair);
+
+      const int kLUTEntries = 513;
+      int16_t softmax_s16_exp_lut[kLUTEntries];
+      int16_t softmax_s16_one_by_one_lut[kLUTEntries];
+
+      const int range_int16 =
+          std::numeric_limits<int16_t>::max() - std::numeric_limits<int16_t>::min();
+      int exp_zero_point = std::numeric_limits<int16_t>::max();
+      float exp_scale = 10.0f / range_int16;
+
+      int one_by_one_zero_point = std::numeric_limits<int16_t>::min();
+      float one_by_one_scale = 1.0f / range_int16;
+
+      int lut_value_zero_point = 0;
+      float lut_value_scale = 2.0f / range_int16;
+
+      CalculateLUTInt16(
+          exp_zero_point, exp_scale, lut_value_zero_point, lut_value_scale,
+          [](float key) { return std::exp(key); }, kLUTEntries, softmax_s16_exp_lut);
+      CalculateLUTInt16(
+          one_by_one_zero_point, one_by_one_scale, lut_value_zero_point, lut_value_scale,
+          [](float key) { return 1.0f / (1.0f + key); }, kLUTEntries, softmax_s16_one_by_one_lut);
+
+      // first LUT
+      softmax_params[0].buffer_var =
+          tir::Var("exp_lut", PointerType(PrimType(DataType::Int(bit_width)), "global.workspace"));
+      softmax_params[0].ndarray =
+          runtime::NDArray::Empty({kLUTEntries}, DataType::Int(bit_width), dev);
+      softmax_params[0].ndarray.CopyFromBytes(softmax_s16_exp_lut, sizeof(int16_t) * kLUTEntries);
+      softmax_params[0].extents = {kLUTEntries};
+      softmax_params[0].num_bits = bit_width;
+
+      // second LUT
+      softmax_params[1].buffer_var = tir::Var(
+          "one_by_one_lut", PointerType(PrimType(DataType::Int(bit_width)), "global.workspace"));
+      softmax_params[1].ndarray =
+          runtime::NDArray::Empty({kLUTEntries}, DataType::Int(bit_width), dev);
+      softmax_params[1].ndarray.CopyFromBytes(softmax_s16_one_by_one_lut,
+                                              sizeof(int16_t) * kLUTEntries);
+      softmax_params[1].extents = {kLUTEntries};
+      softmax_params[1].num_bits = bit_width;
+    }
 
     BufferCreator buffer_creator;
-    tir::Var in_var = buffer_creator.CreateBufferVar("input", DataType::Handle(8));
-    tir::Var out_var = buffer_creator.CreateBufferVar("output", DataType::Handle(8));
+    tir::Var in_var = buffer_creator.CreateBufferVar("input", DataType::Handle(bit_width));
+    tir::Var out_var = buffer_creator.CreateBufferVar("output", DataType::Handle(bit_width));
 
-    tvm::Array<PrimExpr> args = {
-        tir::StringImm("arm_softmax_s8"),
-        in_var,
-        ToArg(num_rows),
-        ToArg(row_size),
-        ToArg(mult),
-        ToArg(shift),
-        ToArg(diff_min),
-        out_var,
-    };
+    if (bit_width == 8) {
+      tvm::Array<PrimExpr> args = {
+          tir::StringImm("arm_softmax_s" + std::to_string(bit_width)),
+          in_var,
+          ToArg(num_rows),
+          ToArg(row_size),
+          ToArg(mult),
+          ToArg(shift),
+          ToArg(diff_min),
+          out_var,
+      };
 
-    CreatePrimFuncForExtern(global_var, buffer_creator.GetPrimFuncParams(),
-                            buffer_creator.GetBufferMap(), args);
+      CreatePrimFuncForExtern(global_var, buffer_creator.GetPrimFuncParams(),
+                              buffer_creator.GetBufferMap(), args);
+    } else {  // bit_width == 16
+      tvm::Array<PrimExpr> args = {
+          tir::StringImm("arm_softmax_s" + std::to_string(bit_width)),
+          in_var,
+          ToArg(num_rows),
+          ToArg(row_size),
+          ToArg(mult),
+          ToArg(shift),
+          softmax_params[0].buffer_var,
+          softmax_params[1].buffer_var,
+          out_var,
+      };
+
+      CreatePrimFuncForExtern(global_var, buffer_creator.GetPrimFuncParams(),
+                              buffer_creator.GetBufferMap(), args, PrimExpr(), 0, 8,
+                              softmax_params);
+    }
   }
 
   struct BinaryElementwiseClipPattern {
