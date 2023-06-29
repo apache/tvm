@@ -100,7 +100,7 @@ def compile_cuda(code, target_format="ptx", arch=None, options=None, path_target
     # Because it is hard to do runtime compiler detection, we require nvcc is configured
     # correctly by default.
     # if cxx_compiler_path != "":
-    #     cmd += ["-ccbin", cxx_compiler_path]
+    #    cmd += ["-ccbin", cxx_compiler_path]
 
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 

@@ -1404,7 +1404,7 @@ void CodeGenCUDA::PrintVecElemLoadExpr(DataType t, int i, const std::string& val
       os << '(';
     }
     if (i % 2 == 0) {
-      os << "make_half2(" << value;
+      os << "__pack_half2(" << value;
     } else {
       os << "," << value << ")";
       if (i != t.lanes() - 1) {
@@ -1423,7 +1423,7 @@ void CodeGenCUDA::PrintVecElemLoadExpr(DataType t, int i, const std::string& val
       os << '(';
     }
     if (i % 2 == 0) {
-      os << "	__halves2bfloat162(" << value;
+      os << "__pack_nv_bfloat162(" << value;
     } else {
       os << "," << value << ")";
       if (i != t.lanes() - 1) {
