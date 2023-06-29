@@ -60,7 +60,7 @@ sys.path.insert(0, str(tvm_path.resolve() / "docs"))
 # General information about the project.
 project = "tvm"
 author = "Apache Software Foundation"
-copyright = "2020 - 2022, %s" % author
+copyright = "2020 - 2023, %s" % author
 github_doc_root = "https://github.com/apache/tvm/tree/main/docs/"
 
 os.environ["TVM_BUILD_DOC"] = "1"
@@ -589,10 +589,10 @@ tvm_alias_check_map = {
 ## Setup header and other configs
 import tlcpack_sphinx_addon
 
-footer_copyright = "© 2022 Apache Software Foundation | All rights reserved"
+footer_copyright = "© 2023 Apache Software Foundation | All rights reserved"
 footer_note = " ".join(
     """
-Copyright © 2022 The Apache Software Foundation. Apache TVM, Apache, the Apache feather,
+Copyright © 2023 The Apache Software Foundation. Apache TVM, Apache, the Apache feather,
 and the Apache TVM project logo are either trademarks or registered trademarks of
 the Apache Software Foundation.""".split(
         "\n"

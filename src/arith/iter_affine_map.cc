@@ -224,6 +224,16 @@ class IterMapRewriter : public ExprMutator {
                                       predicate_induced_max);
   }
 
+  /**
+   * Rewrite expr to iter sum pattern
+   * \param expr The input expression
+   * \return The rewritten iter sum pattern
+   * \note The result base may contain items that is not
+   */
+  IterSumExpr RewriteToNormalizedIterSum(const PrimExpr& expr) {
+    return NormalizeToIterSum(ToIterSumExpr(DirectMutate(expr)));
+  }
+
   /*!
    * \brief If require bijective mapping, this function checks two conditions:
    *   - C0: Each iter mark should be fully covered by non-overlapping splits.
@@ -658,7 +668,7 @@ class IterMapRewriter : public ExprMutator {
       if (predicate_induced_max.defined())
         predicate_induced_max = predicate_induced_max.value() - base;
     }
-    Optional<IterSumExpr> opt = TryFuseIters(expr, check_level_);
+    Optional<IterSumExpr> opt = TryFuseIters(expr, check_level_, false);
     ICHECK(!opt.defined() || opt.value()->args.size() == 1);
     // scale should be 1
     if (opt.defined() && is_one(opt.value()->args[0]->scale)) {
@@ -722,13 +732,79 @@ class IterMapRewriter : public ExprMutator {
   IterSumExpr NormalizeToIterWithOffset(IterSumExpr expr) {
     // We are normalizing a regular iter
     if (expr->args.size() < 1) return expr;
-    Optional<IterSumExpr> opt = TryFuseIters(expr, check_level_);
+    Optional<IterSumExpr> opt = TryFuseIters(expr, check_level_, true);
     if (opt.defined()) {
       return opt.value();
     } else {
       ErrorLogger(this) << "Could not normalize iterators";
       return expr;
     }
+  }
+
+  /*!
+   * \brief Normalize expr to iter sum.
+   *
+   * The normalized result ensures that
+   * each scale is in the form of (symbol_prod) * cscale
+   *
+   * It will also sort entries in desc order by cscale then len(symbol_prod).
+   *
+   * This is a best effort sorting since some scale can be symbolic.
+   * We first order them by the constant factors, then the number of symbols
+   * involved in a multiply
+   *
+   * \param expr The input expression.
+   * \return The Normalized expression.
+   */
+  IterSumExpr NormalizeToIterSum(IterSumExpr expr) {
+    // We are normalizing a regular iter
+    if (expr->args.size() < 1) return expr;
+    if (auto opt = TryCombineSplitFromSameSource(expr)) {
+      expr = opt.value();
+      if (expr->args.size() < 1) return expr;
+    }
+    struct Item {
+      int64_t cscale;
+      int64_t symbol_prod_count;
+      IterSplitExpr split;
+    };
+
+    std::vector<Item> items;
+
+    for (IterSplitExpr split : expr->args) {
+      int64_t symbol_prod_count = 0;
+      int64_t cscale = 1;
+      PrimExpr res = tir::make_const(split.dtype(), 1);
+      auto fcollect = [&](PrimExpr val) {
+        if (const auto* intimm = val.as<IntImmNode>()) {
+          cscale *= intimm->value;
+        } else {
+          res = res * val;
+          ++symbol_prod_count;
+        }
+      };
+      UnpackReduction<tir::MulNode>(split->scale, fcollect);
+      if (cscale != 1) {
+        res = res * tir::make_const(res.dtype(), cscale);
+      }
+      split.CopyOnWrite()->scale = res;
+      items.emplace_back(Item{cscale, symbol_prod_count, split});
+    }
+
+    std::stable_sort(items.begin(), items.end(), [](const Item& lhs, const Item& rhs) {
+      if (lhs.cscale > rhs.cscale) return true;
+      if (lhs.cscale < rhs.cscale) return false;
+      return lhs.symbol_prod_count > rhs.symbol_prod_count;
+    });
+
+    Array<IterSplitExpr> args;
+    for (const Item& item : items) {
+      args.push_back(item.split);
+    }
+
+    expr.CopyOnWrite()->args = args;
+    expr.CopyOnWrite()->base = NormalizeIterMapToExpr(expr->base);
+    return expr;
   }
 
   /*!
@@ -992,11 +1068,17 @@ class IterMapRewriter : public ExprMutator {
    *    Try to normalize IterSum into a fused IterMark
    * \param expr The input sum.
    * \param check_level The check level if iter mapping.
-   * \return The sum with the fused IterMark and extra offset if succeed.
+   * \param allow_early_skip Whether do we allow early skip if expr is simple
+   *        (this may cause us to return parameters that are not canonically wrapped as
+   * IterSum(IterMark)) \return The sum with the fused IterMark and extra offset if succeed.
    */
-  Optional<IterSumExpr> TryFuseIters(IterSumExpr expr, IterMapLevel check_level) {
+  Optional<IterSumExpr> TryFuseIters(IterSumExpr expr, IterMapLevel check_level,
+                                     bool allow_early_skip) {
     if (auto opt = TryCombineSplitFromSameSource(expr)) {
       expr = opt.value();
+      if (expr->args.size() <= 1 && allow_early_skip) {
+        return expr;
+      }
     }
     // select the iterators in order
     std::vector<bool> visited(expr->args.size(), false);
@@ -1425,6 +1507,28 @@ TVM_REGISTER_GLOBAL("arith.DetectIterMap")
                            simplify_trivial_iterators);
     });
 
+IterSumExpr NormalizeToIterSum(PrimExpr index, const Map<Var, Range>& input_iters,
+                               arith::Analyzer* analyzer) {
+  IterMapResult result;
+  ICHECK(IterRangeSanityCheck(input_iters))
+      << "Invalid iterators.  Iterators may not be expressions of each other.";
+
+  // we skip constraint check as the most important thing here is only the pattern
+  std::vector<IterConstraint> constraints;
+  IterMapLevel check_level = IterMapLevel::NoCheck;
+  bool simplify_trivial_iterators = true;
+  IterMapRewriter rewriter(analyzer, input_iters, check_level, simplify_trivial_iterators,
+                           &result->errors);
+
+  return rewriter.RewriteToNormalizedIterSum(index);
+}
+
+TVM_REGISTER_GLOBAL("arith.NormalizeToIterSum")
+    .set_body_typed([](PrimExpr index, const Map<Var, Range>& input_iters) {
+      arith::Analyzer ana;
+      return NormalizeToIterSum(index, input_iters, &ana);
+    });
+
 PrimExpr IterMapRewriter::VisitExpr_(const VarNode* op) {
   auto var = GetRef<Var>(op);
   auto it = var_map_.find(var);
@@ -1554,7 +1658,7 @@ IterSumExpr IterMapRewriter::PreprocessDividend(IterMapExpr dividend, PrimExpr o
     } else if (sum->args.size() == 1) {
       return sum;
     }
-    auto opt_fused = TryFuseIters(sum, check_level_);
+    auto opt_fused = TryFuseIters(sum, check_level_, true);
     if (!opt_fused) {
       ErrorLogger(this) << "Dividend  " << original_dividend
                         << ", can't be written as a single fused IterSum";

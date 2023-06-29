@@ -227,11 +227,11 @@ void CodeGenLLVM::InitTarget() {
 }
 
 llvm::Function* CodeGenLLVM::DeclareFunction(const GlobalVar& gvar, const PrimFunc& f) {
-  return this->DeclareFunctionInternal(gvar, f, false);
+  return this->DeclareFunctionInternal(gvar, f);
 }
 
 void CodeGenLLVM::AddFunction(const GlobalVar& gvar, const PrimFunc& f) {
-  this->AddFunctionInternal(gvar, f, false);
+  this->AddFunctionInternal(gvar, f);
 }
 
 void CodeGenLLVM::InitFuncState() {
@@ -258,8 +258,7 @@ std::tuple<std::string, llvm::Function::LinkageTypes> CodeGenLLVM::GetLinkage(
   return {symbol_name, llvm::Function::PrivateLinkage};
 }
 
-llvm::Function* CodeGenLLVM::DeclareFunctionInternal(const GlobalVar& gvar, const PrimFunc& func,
-                                                     bool ret_void) {
+llvm::Function* CodeGenLLVM::DeclareFunctionInternal(const GlobalVar& gvar, const PrimFunc& func) {
   if (auto it = functions_.find(gvar.get()); it != functions_.end()) {
     return it->second;
   }
@@ -275,11 +274,9 @@ llvm::Function* CodeGenLLVM::DeclareFunctionInternal(const GlobalVar& gvar, cons
       alias_var_set_.insert(param.get());
     }
   }
-  // TODO(tvm-team):
-  // Update the function type to respect the ret_type field of f.
-  // Once we allow more flexibility in the PrimFunc.
+
   llvm::FunctionType* ftype =
-      llvm::FunctionType::get(ret_void ? t_void_ : t_int_, param_types, false);
+      llvm::FunctionType::get(GetLLVMType(func->ret_type), param_types, false);
 
   auto [symbol_name, linkage_type] = GetLinkage(gvar, func);
 
@@ -297,10 +294,10 @@ llvm::Function* CodeGenLLVM::DeclareFunctionInternal(const GlobalVar& gvar, cons
   return function;
 }
 
-void CodeGenLLVM::AddFunctionInternal(const GlobalVar& gvar, const PrimFunc& f, bool ret_void) {
+void CodeGenLLVM::AddFunctionInternal(const GlobalVar& gvar, const PrimFunc& f) {
   this->InitFuncState();
 
-  function_ = DeclareFunctionInternal(gvar, f, ret_void);
+  function_ = DeclareFunctionInternal(gvar, f);
 
   // set var map and align information
   auto arg_it = function_->arg_begin();
@@ -341,7 +338,10 @@ void CodeGenLLVM::AddFunctionInternal(const GlobalVar& gvar, const PrimFunc& f, 
 #endif
 
   EmitDebugLocation(f->span);
-  if (ret_void) {
+
+  if (IsVoidType(f->ret_type)) {
+    // All other return types are handled when encountering
+    // builtin::ret().
     builder_->CreateRetVoid();
   } else {
     builder_->CreateRet(ConstInt32(0));

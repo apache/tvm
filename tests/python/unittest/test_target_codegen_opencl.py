@@ -190,5 +190,32 @@ def test_opencl_type_casting():
     # check_type_casting(dev, 16, "float16")
 
 
+@tvm.testing.requires_gpu
+@tvm.testing.requires_opencl
+@tvm.testing.parametrize_targets("opencl", "opencl -device=adreno")
+def test_opencl_ceil_log2(target):
+    def _check(target, n, dtype):
+        with tvm.target.Target(target):
+            C = te.compute(
+                (n,),
+                lambda i: tvm.topi.ceil_log2(i),
+                name="C",
+            )
+            func = te.create_prim_func([C])
+            sch = tvm.tir.Schedule(func)
+            (x,) = sch.get_loops(sch.get_block("C"))
+            sch.bind(x, "threadIdx.x")
+
+            fun = tvm.build(sch.mod, target=target)
+            assembly = fun.imported_modules[0].get_source()
+            if "adreno" in target:
+                pattern = "convert_float"
+            else:
+                pattern = "convert_double"
+            assert assembly.count(pattern) != 0
+
+    _check(target, 32, "float32")
+
+
 if __name__ == "__main__":
     tvm.testing.main()

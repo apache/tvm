@@ -37,7 +37,7 @@ def test_makeapi():
     mod = tvm.tir.transform.Apply(
         lambda f: f.with_attr(
             {
-                "target": tvm.target.Target("llvm"),
+                "target": tvm.target.Target("llvm", host="llvm"),
                 "global_symbol": "main",
             }
         )
@@ -60,9 +60,18 @@ def _find_assignment(stmt, var_name):
 
 
 def _find_next(stmt, type):
-    while not isinstance(stmt, type):
-        stmt = stmt.body
-    return stmt
+    search_stack = [stmt]
+
+    while search_stack:
+        stmt = search_stack.pop()
+        if isinstance(stmt, type):
+            return stmt
+        elif isinstance(stmt, tvm.tir.SeqStmt):
+            search_stack.extend(reversed(stmt))
+        else:
+            search_stack.append(stmt.body)
+
+    return None
 
 
 def _find_compute_scope(func):
@@ -90,7 +99,9 @@ def test_variable_passed_from_args():
     stmt = ib.get()
 
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([input_buffer, not_device_context], stmt))
-    mod = tvm.tir.transform.Apply(lambda f: f.with_attr("target", tvm.target.Target("llvm")))(mod)
+    mod = tvm.tir.transform.Apply(
+        lambda f: f.with_attr("target", tvm.target.Target("llvm", host="llvm"))
+    )(mod)
     mod = tvm.tir.transform.Apply(lambda f: f.with_attr("global_symbol", "main"))(mod)
     func = tvm.tir.transform.MakePackedAPI()(mod)["main"]
 
@@ -132,7 +143,9 @@ def test_device_api_context_implicit_resource_handle():
     stmt = ib.get()
 
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([input_buffer, device_context], stmt))
-    mod = tvm.tir.transform.Apply(lambda f: f.with_attr("target", tvm.target.Target("llvm")))(mod)
+    mod = tvm.tir.transform.Apply(
+        lambda f: f.with_attr("target", tvm.target.Target("llvm", host="llvm"))
+    )(mod)
     mod = tvm.tir.transform.Apply(lambda f: f.with_attr("global_symbol", "main"))(mod)
     func = tvm.tir.transform.MakePackedAPI()(mod)["main"]
 
@@ -161,7 +174,7 @@ def test_device_api_context_implicit_resource_handle():
 
 @pytest.mark.parametrize("use_global_symbol", [True, False])
 def test_no_op_when_global_symbol_is_absent(use_global_symbol):
-    func_attr = {"target": tvm.target.Target("llvm")}
+    func_attr = {"target": tvm.target.Target("llvm", host="llvm")}
     if use_global_symbol:
         func_attr["global_symbol"] = "main"
 
@@ -177,6 +190,28 @@ def test_no_op_when_global_symbol_is_absent(use_global_symbol):
         tvm.ir.assert_structural_equal(before, after)
 
 
+def test_target_host_removed():
+    """After MakePackedAPI, host-side target should be the host
+
+    MakePackedAPI is the last transform that requires both the device
+    and the host.  After MakePackedAPI, the target attribute should
+    only contain the host-side target.
+    """
+
+    host = tvm.target.Target("llvm")
+
+    @I.ir_module
+    class before:
+        @T.prim_func
+        def main(A: T.Buffer(1, "float32")):
+            T.func_attr({"global_symbol": "main", "target": T.target("cuda", host=host)})
+            T.evaluate(0)
+
+    after = tvm.tir.transform.MakePackedAPI()(before)
+    target_attr = after["main"].attrs["target"]
+    assert str(host) == str(target_attr)
+
+
 def test_internal_subroutine_call():
     """Internal subroutines should not use the PackedFunc API
 
@@ -190,7 +225,7 @@ def test_internal_subroutine_call():
     class before:
         @T.prim_func
         def main(A: T.Buffer(1, "float32")):
-            T.func_attr({"global_symbol": "main", "target": T.target("llvm")})
+            T.func_attr({"global_symbol": "main", "target": T.target("llvm", host="llvm")})
             before.subroutine(A.data)
 
         @T.prim_func
@@ -222,12 +257,12 @@ def test_subroutine_call_to_externally_visible_subroutine():
     class before:
         @T.prim_func
         def main(A: T.Buffer(1, "float32")):
-            T.func_attr({"global_symbol": "main", "target": T.target("llvm")})
+            T.func_attr({"global_symbol": "main", "target": T.target("llvm", host="llvm")})
             before.subroutine(A.data)
 
         @T.prim_func
         def subroutine(A_data: T.handle("float32")):
-            T.func_attr({"global_symbol": "subroutine", "target": T.target("llvm")})
+            T.func_attr({"global_symbol": "subroutine", "target": T.target("llvm", host="llvm")})
             T.evaluate(A_data)
 
     after = tvm.tir.transform.MakePackedAPI()(before)

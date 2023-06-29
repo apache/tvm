@@ -162,7 +162,7 @@ struct ReadWriteAtImpl {
     BlockInfo& block_info = self_->block_info[new_block_sref];
     block_info.affine_binding = affine_binding;
     block_info.region_cover = true;
-    block_info.scope->stage_pipeline = true;
+    block_info.stage_pipeline = true;
   }
 
   template <bool is_read>

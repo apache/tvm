@@ -205,12 +205,16 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
   pass_list.push_back(tir::transform::LowerInitBlock());
   pass_list.push_back(tir::transform::PlanAndUpdateBufferAllocationLocation());
   pass_list.push_back(tir::transform::ConvertBlocksToOpaque());
-  pass_list.push_back(tir::transform::UnifyThreadBinding());
   pass_list.push_back(tir::transform::ManifestSharedMemoryLocalStage());
   pass_list.push_back(tir::transform::CompactBufferAllocation());
   pass_list.push_back(tir::transform::LowerAutoCopy());
+  pass_list.push_back(tir::transform::UnifyThreadBinding());
   pass_list.push_back(tir::transform::LowerMatchBuffer());
+  pass_list.push_back(tir::transform::Simplify());
+  pass_list.push_back(tir::transform::InjectPermutedLayout());
+  pass_list.push_back(tir::transform::Simplify());
   pass_list.push_back(tir::transform::InjectSoftwarePipeline());
+  pass_list.push_back(tir::transform::TransformMmaBufferLayout());
   pass_list.push_back(tir::transform::LowerOpaqueBlock());
   pass_list.push_back(tir::transform::FlattenBuffer());
   if (!target_support_fp8) {
@@ -587,6 +591,9 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
     mixed_pass_list.push_back(tir::transform::InjectPTXLDG32());
   }
 
+  mixed_pass_list.push_back(tir::transform::AnnotateDeviceRegions());
+  mixed_pass_list.push_back(tir::transform::SplitHostDevice());
+
   bool unpacked_api = mixed_mod->GetAttr<relay::Executor>(tvm::attr::kExecutor)
                           .value_or(relay::Executor::Create("graph", {}))
                           ->GetAttr<Bool>("unpacked-api")
@@ -603,8 +610,6 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
     mixed_pass_list.push_back(tir::transform::BF16StorageLegalize());
   }
 
-  mixed_pass_list.push_back(tir::transform::AnnotateDeviceRegions());
-  mixed_pass_list.push_back(tir::transform::SplitHostDevice());
   mixed_pass_list.push_back(tir::transform::LowerDeviceKernelLaunch());
 
   return transform::Sequential(mixed_pass_list);

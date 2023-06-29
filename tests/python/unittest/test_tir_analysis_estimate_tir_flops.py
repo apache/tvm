@@ -107,5 +107,22 @@ def test_exception():
         flops = estimate_tir_flops(IRModule({"main": flops_with_forloop_as_expression}))
 
 
+def test_estimate_flops_with_decl_buffer():
+    def make_func(use_decl_buffer):
+        buffer_func = T.decl_buffer if use_decl_buffer else T.Buffer
+
+        @T.prim_func
+        def func(A_data: T.handle("float32")):
+            A = buffer_func(16, "float32", data=A_data)
+            for i in range(16):
+                A[0] = A[0] + 1
+
+        return func
+
+    flops_with_decl_buffer = estimate_tir_flops(IRModule.from_expr(make_func(True)))
+    flops_without_decl_buffer = estimate_tir_flops(IRModule.from_expr(make_func(True)))
+    assert flops_with_decl_buffer == flops_without_decl_buffer
+
+
 if __name__ == "__main__":
     tvm.testing.main()

@@ -111,6 +111,32 @@ register_unary_identity("min")
 register_unary_identity("image.resize2d")
 
 
+@register_fake_quantization_to_integer("nn.avg_pool2d")
+def avgpool2d(expr, type_map):
+    """Rewrite an avgpool op"""
+    attrs = {**expr.attrs}
+    arg = expr.args[0]
+    t = type_map[arg]
+    out_t = type_map[expr]
+
+    out = relay.qnn.op.avg_pool2d(
+        arg,
+        t.scale,
+        t.zero_point,
+        out_t.scale,
+        out_t.zero_point,
+        attrs["pool_size"],
+        attrs["strides"],
+        attrs["padding"],
+        attrs["dilation"],
+        attrs["ceil_mode"],
+        attrs["count_include_pad"],
+        attrs["layout"],
+    )
+
+    return [out, TensorAffineType(out_t.scale, out_t.zero_point, out_t.dtype, out_t.axis)]
+
+
 @register_fake_quantization_to_integer("nn.adaptive_avg_pool1d")
 def adaptive_avgpool1d(expr, type_map):
     """Rewrite an adaptive avgpool op"""
@@ -136,37 +162,6 @@ def adaptive_avgpool1d(expr, type_map):
     output_size = expr.attrs.output_size
     out = relay.op.nn.adaptive_avg_pool1d(arg, output_size)
     return [out, TensorAffineType(out_t.scale, out_t.zero_point, "int32", out_t.axis)]
-
-
-@register_fake_quantization_to_integer("nn.avg_pool2d")
-def avgpool2d(expr, type_map):
-    """Rewrite a avgpool op"""
-    arg = expr.args[0]
-    t = type_map[arg]
-    out_t = type_map[expr]
-    # Cast (or requantize) to int32.
-    if not (
-        approx_equal(t.scale, out_t.scale)
-        and approx_equal(t.zero_point, out_t.zero_point)
-        and tvm.ir.structural_equal(t.dtype, out_t.dtype)
-    ):
-        arg = relay.qnn.op.requantize(
-            arg,
-            t.scale,
-            t.zero_point,
-            out_t.scale,
-            out_t.zero_point,
-            out_dtype="int32",
-            axis=t.axis,
-        )
-    else:
-        arg = relay.op.cast(arg, "int32")
-    out = relay.op.nn.avg_pool2d(arg, **expr.attrs)
-    if out_t.dtype != "int32":
-        # Cast back to output dtype to preserve input dtype == output dtype for AvgPool2d.
-        out = relay.op.clip(out, a_min=np.iinfo(out_t.dtype).min, a_max=np.iinfo(out_t.dtype).max)
-        out = relay.op.cast(out, out_t.dtype)
-    return [out, TensorAffineType(out_t.scale, out_t.zero_point, out_t.dtype, out_t.axis)]
 
 
 @register_fake_quantization_to_integer("nn.global_avg_pool2d")

@@ -41,9 +41,8 @@ def mod(mod_without_attrs):
 
 
 def test_noop_if_not_global_symbol(mod_without_attrs):
-    before = tvm.tir.transform.Apply(lambda f: f.with_attr("target", tvm.target.Target("llvm")))(
-        mod_without_attrs
-    )
+    target = tvm.target.Target("llvm", host="llvm")
+    before = tvm.tir.transform.Apply(lambda f: f.with_attr("target", target))(mod_without_attrs)
     after = tvm.tir.transform.MakeUnpackedAPI()(before)
     tvm.ir.assert_structural_equal(before, after)
 
@@ -59,7 +58,8 @@ def test_fails_if_no_target(mod_without_attrs):
 
 @tvm.testing.parametrize_targets("c", "llvm", "cuda")
 def test_device_setup(mod, target, dev):
-    mod = tvm.tir.transform.Apply(lambda f: f.with_attr("target", tvm.target.Target(target)))(mod)
+    target = tvm.target.Target(target, host="llvm")
+    mod = tvm.tir.transform.Apply(lambda f: f.with_attr("target", target))(mod)
     f = tvm.tir.transform.MakeUnpackedAPI()(mod)["main"]
     assert len(f.params) == 1
     assert f.params[0].name == "A"
@@ -138,6 +138,50 @@ def test_body():
     assert f.params[2].name == "A"
 
 
+class TestTargetHostRemoved(tvm.testing.CompareBeforeAfter):
+    """After MakeUnpackedAPI, host-side target should be the host
+
+    MakeUnpackedAPI is the last transform that requires both the device
+    and the host.  After MakeUnpackedAPI, the target attribute should
+    only contain the host-side target.
+    """
+
+    transform = tvm.tir.transform.MakeUnpackedAPI()
+
+    def before(self):
+        @I.ir_module
+        class mod:
+            @T.prim_func
+            def main(A: T.Buffer(1, "float32")):
+                T.func_attr({"global_symbol": "main", "target": T.target("cuda", host="llvm")})
+                mod.subroutine(A.data)
+
+            @T.prim_func
+            def subroutine(A_data: T.handle("float32")):
+                T.func_attr({"target": T.target("cuda")})
+                T.evaluate(A_data)
+
+        return mod
+
+    def expected(self):
+        @I.ir_module
+        class mod:
+            @T.prim_func
+            def main(A_data: T.handle("float32")) -> T.int32:
+                T.func_attr({"global_symbol": "main", "target": T.target("llvm")})
+                T.attr("default", "device_id", 0)
+                T.attr("default", "device_type", 2)
+                mod.subroutine(A_data)
+                T.ret(T.int32(0))
+
+            @T.prim_func
+            def subroutine(A_data: T.handle("float32")):
+                T.func_attr({"target": T.target("cuda")})
+                T.evaluate(A_data)
+
+        return mod
+
+
 class TestInternalSubroutineCall(tvm.testing.CompareBeforeAfter):
     """Internal subroutines do not require modification
 
@@ -153,7 +197,7 @@ class TestInternalSubroutineCall(tvm.testing.CompareBeforeAfter):
         class mod:
             @T.prim_func
             def main(A: T.Buffer(1, "float32")):
-                T.func_attr({"global_symbol": "main", "target": T.target("llvm")})
+                T.func_attr({"global_symbol": "main", "target": T.target("llvm", host="llvm")})
                 mod.subroutine(A.data)
 
             @T.prim_func
@@ -172,6 +216,7 @@ class TestInternalSubroutineCall(tvm.testing.CompareBeforeAfter):
                 T.attr("default", "device_id", 0)
                 T.attr("default", "device_type", 1)
                 mod.subroutine(A_data)
+                T.ret(T.int32(0))
 
             @T.prim_func
             def subroutine(A_data: T.handle("float32")):
@@ -195,12 +240,14 @@ class TestSubroutineCallToExternallyVisibleSubroutine(tvm.testing.CompareBeforeA
         class mod:
             @T.prim_func
             def main(A: T.Buffer(1, "float32")):
-                T.func_attr({"global_symbol": "main", "target": T.target("llvm")})
+                T.func_attr({"global_symbol": "main", "target": T.target("llvm", host="llvm")})
                 mod.subroutine(A.data)
 
             @T.prim_func
             def subroutine(A_data: T.handle("float32")):
-                T.func_attr({"global_symbol": "subroutine", "target": T.target("llvm")})
+                T.func_attr(
+                    {"global_symbol": "subroutine", "target": T.target("llvm", host="llvm")}
+                )
                 T.evaluate(A_data)
 
         return mod
@@ -214,11 +261,13 @@ class TestSubroutineCallToExternallyVisibleSubroutine(tvm.testing.CompareBeforeA
                 T.attr("default", "device_id", 0)
                 T.attr("default", "device_type", 1)
                 mod.subroutine(A_data)
+                T.ret(T.int32(0))
 
             @T.prim_func
             def subroutine(A_data: T.handle("float32")) -> T.int32:
                 T.func_attr({"global_symbol": "subroutine", "target": T.target("llvm")})
                 T.evaluate(A_data)
+                T.ret(T.int32(0))
 
         return mod
 
@@ -240,7 +289,7 @@ class TestCallExternallyVisibleSubroutineWithDLTensor(tvm.testing.CompareBeforeA
         class mod:
             @T.prim_func
             def main(A: T.Buffer(1, "float32")):
-                T.func_attr({"global_symbol": "main", "target": T.target("llvm")})
+                T.func_attr({"global_symbol": "main", "target": T.target("llvm", host="llvm")})
                 mod.subroutine(
                     T.tvm_stack_make_array(
                         A.data,
@@ -255,7 +304,9 @@ class TestCallExternallyVisibleSubroutineWithDLTensor(tvm.testing.CompareBeforeA
 
             @T.prim_func
             def subroutine(A: T.Buffer(1, "float32")):
-                T.func_attr({"global_symbol": "subroutine", "target": T.target("llvm")})
+                T.func_attr(
+                    {"global_symbol": "subroutine", "target": T.target("llvm", host="llvm")}
+                )
                 T.evaluate(A.data)
 
         return mod
@@ -269,6 +320,7 @@ class TestCallExternallyVisibleSubroutineWithDLTensor(tvm.testing.CompareBeforeA
                 T.attr("default", "device_id", 0)
                 T.attr("default", "device_type", 1)
                 mod.subroutine(A_data)
+                T.ret(T.int32(0))
 
             @T.prim_func
             def subroutine(A_data: T.handle("float32")) -> T.int32:
@@ -276,6 +328,7 @@ class TestCallExternallyVisibleSubroutineWithDLTensor(tvm.testing.CompareBeforeA
                 T.attr("default", "device_id", 0)
                 T.attr("default", "device_type", 1)
                 T.evaluate(A_data)
+                T.ret(T.int32(0))
 
         return mod
 

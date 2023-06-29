@@ -111,6 +111,14 @@ PrimFunc MakeUnpackedAPI(PrimFunc func) {
   }();
   int target_device_type = target->GetTargetDeviceType();
 
+  // A function without a host target has already been lowered.
+  Target target_host;
+  if (auto opt = target->GetHost()) {
+    target_host = opt.value();
+  } else {
+    return func;
+  }
+
   auto* func_ptr = func.CopyOnWrite();
 
   // Setup device context
@@ -139,13 +147,15 @@ PrimFunc MakeUnpackedAPI(PrimFunc func) {
     device_init.push_back(AttrStmt(node, attr::device_type, device_type, nop));
   }
 
-  func_ptr->body = MergeNest(device_init, func_ptr->body);
+  Stmt body = MergeNest(device_init, SeqStmt({func_ptr->body, Evaluate(ret(Integer(0)))}));
+
+  func_ptr->body = body;
   func_ptr->params = args;
   func_ptr->ret_type = PrimType(DataType::Int(32));
   func_ptr->buffer_map = Map<Var, Buffer>();
 
   // return the function.
-  return func;
+  return WithAttrs(std::move(func), {{tvm::attr::kTarget, target_host}});
 }
 
 namespace transform {

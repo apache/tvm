@@ -189,5 +189,54 @@ class TestCollectLaunchParameter(BaseCompare):
         return mod
 
 
+class TestSameDeviceDifferentTarget(BaseCompare):
+    """Handle subroutine calls to same device, different codegen
+
+    The device kernel launch is only required when the caller and
+    callee are on different devices.  However, if the caller and
+    callee use different codegen, then the call cannot be handled as
+    an internal call by a single codegen.  Instead, it should be
+    lowered to a `T.call_extern`.
+    """
+
+    def before(self):
+        @I.ir_module
+        class mod:
+            @T.prim_func
+            def main(A: T.Buffer(1, "float32")):
+                T.func_attr({"target": T.target("llvm")})
+                mod.kernel(A.data)
+
+            @T.prim_func
+            def kernel(A_data: T.handle("float32")):
+                T.func_attr({"target": T.target("c")})
+                A = T.decl_buffer(16, dtype="float32", data=A_data)
+                A[0] = 0.0
+
+        return mod
+
+    def expected(self):
+        @I.ir_module
+        class mod:
+            @T.prim_func
+            def main(A: T.Buffer(1, "float32")):
+                T.func_attr({"target": T.target("llvm")})
+                T.call_extern("kernel", A.data, dtype="void")
+
+            @T.prim_func
+            def kernel(A_data: T.handle("float32")):
+                T.func_attr(
+                    {
+                        "target": T.target("c"),
+                        "global_symbol": "kernel",
+                        "tir.is_global_func": True,
+                    }
+                )
+                A = T.decl_buffer(16, dtype="float32", data=A_data)
+                A[0] = 0.0
+
+        return mod
+
+
 if __name__ == "__main__":
     tvm.testing.main()

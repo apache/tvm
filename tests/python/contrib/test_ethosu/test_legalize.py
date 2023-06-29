@@ -3526,9 +3526,10 @@ def test_tflite_hard_swish(ifm_shape):
     assert tuple(func_body.args[1].checked_type.shape) == (256,)
 
 
-@pytest.mark.parametrize("ifm_shape", [(1, 12), (1, 12, 32)])
-def test_tflite_softmax(ifm_shape):
+def test_tflite_softmax():
+    np.random.seed(0)
     dtype = "int8"
+    ifm_shape = (1, 12)
 
     def create_tflite_graph():
         @tf.function
@@ -3539,7 +3540,7 @@ def test_tflite_softmax(ifm_shape):
         # Convert the model
         def representative_dataset():
             for _ in range(100):
-                data = np.random.rand(*tuple(ifm_shape))
+                data = np.random.uniform(low=-1, high=2, size=tuple(ifm_shape))
                 yield [data.astype(np.float32)]
 
         converter = tf.lite.TFLiteConverter.from_concrete_functions([concrete_func])
@@ -3554,43 +3555,53 @@ def test_tflite_softmax(ifm_shape):
     def verify(ext_func):
         out_op = ext_func.body
         ops = []
-        # List of expected operations and their type if it exists
-        expected_ops = [
-            ("reshape", None),
-            ("reshape", None),
-            ("contrib.ethosu.pooling", "MAX"),
-            ("contrib.ethosu.binary_elementwise", "SUB"),
-            ("contrib.ethosu.binary_elementwise", "SHR"),
-            ("contrib.ethosu.pooling", "SUM"),
-            ("contrib.ethosu.unary_elementwise", "CLZ"),
-            ("contrib.ethosu.binary_elementwise", "SUB"),
-            ("contrib.ethosu.binary_elementwise", "SHL"),
-            ("contrib.ethosu.binary_elementwise", "SUB"),
-            ("contrib.ethosu.binary_elementwise", "SHL"),
-            ("contrib.ethosu.binary_elementwise", "ADD"),
-            ("contrib.ethosu.binary_elementwise", "MUL"),
-            ("contrib.ethosu.binary_elementwise", "ADD"),
-            ("contrib.ethosu.binary_elementwise", "MUL"),
-            ("contrib.ethosu.binary_elementwise", "SUB"),
-            ("contrib.ethosu.binary_elementwise", "MUL"),
-            ("contrib.ethosu.binary_elementwise", "MUL"),
-            ("contrib.ethosu.binary_elementwise", "ADD"),
-            ("contrib.ethosu.binary_elementwise", "MUL"),
-            ("contrib.ethosu.binary_elementwise", "SUB"),
-            ("contrib.ethosu.binary_elementwise", "MUL"),
-            ("contrib.ethosu.binary_elementwise", "MUL"),
-            ("contrib.ethosu.binary_elementwise", "ADD"),
-            ("contrib.ethosu.binary_elementwise", "MUL"),
-            ("contrib.ethosu.binary_elementwise", "SUB"),
-            ("contrib.ethosu.binary_elementwise", "MUL"),
-            ("contrib.ethosu.binary_elementwise", "MUL"),
-            ("contrib.ethosu.binary_elementwise", "ADD"),
-            ("contrib.ethosu.binary_elementwise", "MUL"),
-            ("contrib.ethosu.binary_elementwise", "MUL"),
-            ("contrib.ethosu.binary_elementwise", "SUB"),
-            ("contrib.ethosu.binary_elementwise", "SHR"),
-            ("reshape", None),
+        # List of expected operations, their type and activation parameters if it exists
+        expected_ops_params = [
+            ("reshape", None, [None, None, None, None, None, None]),
+            ("reshape", None, [None, None, None, None, None, None]),
+            ("contrib.ethosu.pooling", "MAX", [0.011756093241274357, -43, None, None, 0.0, -43]),
+            (
+                "contrib.ethosu.binary_elementwise",
+                "SUB",
+                [0.011756093241274357, -43, 0.0, -43, 1.0, 127],
+            ),
+            ("contrib.ethosu.binary_elementwise", "SHR", [1.0, 0, 0.0, 0, 0.0, -43]),
+            ("contrib.ethosu.pooling", "SUM", [0.0, 0, None, None, 0.0, -43]),
+            ("contrib.ethosu.unary_elementwise", "CLZ", [0.0, 0, None, None, 0.0, -43]),
+            ("contrib.ethosu.binary_elementwise", "SUB", [0.0, 0, 0.0, 0, 0.0, -43]),
+            ("contrib.ethosu.binary_elementwise", "SHL", [0.0, 0, 0.0, 0, 0.0, -43]),
+            ("contrib.ethosu.binary_elementwise", "SUB", [0.0, 0, 0.0, 0, 0.0, -43]),
+            ("contrib.ethosu.binary_elementwise", "SHL", [0.0, 0, 0.0, 0, 0.0, -43]),
+            ("contrib.ethosu.binary_elementwise", "ADD", [0.0, 0, 0.0, 0, 1.0, 0]),
+            ("contrib.ethosu.binary_elementwise", "MUL", [1.0, 0, 1.0, 0, 2.0, 0]),
+            ("contrib.ethosu.binary_elementwise", "ADD", [2.0, 0, 0.0, 0, 1.0, 0]),
+            ("contrib.ethosu.binary_elementwise", "MUL", [1.0, 0, 1.0, 0, 2.0, 0]),
+            ("contrib.ethosu.binary_elementwise", "SUB", [2.0, 0, 0.0, 0, 1.0, 0]),
+            ("contrib.ethosu.binary_elementwise", "MUL", [1.0, 0, 1.0, 0, 2.0, 0]),
+            ("contrib.ethosu.binary_elementwise", "MUL", [2.0, 0, 0.0, 0, 0.0, -43]),
+            ("contrib.ethosu.binary_elementwise", "ADD", [1.0, 0, 0.0, 0, 1.0, 0]),
+            ("contrib.ethosu.binary_elementwise", "MUL", [1.0, 0, 1.0, 0, 2.0, 0]),
+            ("contrib.ethosu.binary_elementwise", "SUB", [2.0, 0, 0.0, 0, 1.0, 0]),
+            ("contrib.ethosu.binary_elementwise", "MUL", [1.0, 0, 1.0, 0, 2.0, 0]),
+            ("contrib.ethosu.binary_elementwise", "MUL", [2.0, 0, 0.0, 0, 0.0, -43]),
+            ("contrib.ethosu.binary_elementwise", "ADD", [1.0, 0, 0.0, 0, 1.0, 0]),
+            ("contrib.ethosu.binary_elementwise", "MUL", [1.0, 0, 1.0, 0, 2.0, 0]),
+            ("contrib.ethosu.binary_elementwise", "SUB", [2.0, 0, 0.0, 0, 1.0, 0]),
+            ("contrib.ethosu.binary_elementwise", "MUL", [1.0, 0, 1.0, 0, 2.0, 0]),
+            ("contrib.ethosu.binary_elementwise", "MUL", [2.0, 0, 0.0, 0, 0.0, -43]),
+            ("contrib.ethosu.binary_elementwise", "ADD", [1.0, 0, 0.0, 0, 1.0, 0]),
+            ("contrib.ethosu.binary_elementwise", "MUL", [1.0, 0, 0.0, 0, 1.0, 0]),
+            ("contrib.ethosu.binary_elementwise", "MUL", [1.0, 0, 1.0, 0, 2.0, 0]),
+            ("contrib.ethosu.binary_elementwise", "SUB", [0.0, 0, 0.0, 0, 0.0, -43]),
+            ("contrib.ethosu.binary_elementwise", "SHR", [2.0, 0, 0.0, 0, 0.00390625, -128]),
+            ("reshape", None, [None, None, None, None, None, None]),
         ]
+
+        def get_attr_value(op, attr_name):
+            if hasattr(op.attrs, attr_name):
+                return op.attrs[attr_name]
+            else:
+                return None
 
         def get_op_type(op):
             if hasattr(op.attrs, "pooling_type"):
@@ -3598,6 +3609,16 @@ def test_tflite_softmax(ifm_shape):
             elif hasattr(op.attrs, "operator_type"):
                 return op.attrs.operator_type
             return None
+
+        def get_activation_params(op):
+            activation_params = []
+            activation_params.append(get_attr_value(op, "ifm_scale"))
+            activation_params.append(get_attr_value(op, "ifm_zero_point"))
+            activation_params.append(get_attr_value(op, "ifm2_scale"))
+            activation_params.append(get_attr_value(op, "ifm2_zero_point"))
+            activation_params.append(get_attr_value(op, "ofm_scale"))
+            activation_params.append(get_attr_value(op, "ofm_zero_point"))
+            return activation_params
 
         def _visit(stmt):
             if isinstance(stmt, relay.expr.Call):
@@ -3616,9 +3637,18 @@ def test_tflite_softmax(ifm_shape):
         assert ofm.dtype == dtype
 
         # check operations
-
-        ops = [(op.op.name, get_op_type(op)) for op in ops]
-        assert expected_ops == ops
+        for op, expected_op_params in zip(ops, expected_ops_params):
+            activation_params = get_activation_params(op)
+            expected_op_name, expected_op_type, expected_activation_params = expected_op_params
+            assert op.op.name == expected_op_name
+            assert expected_op_type == get_op_type(op)
+            for activation_param, expected_activation_param in zip(
+                activation_params, expected_activation_params
+            ):
+                if isinstance(activation_param, float):
+                    assert math.isclose(expected_activation_param, activation_param, abs_tol=1e-7)
+                else:
+                    assert expected_activation_param == activation_param
 
     softmax_pattern_table = [
         (

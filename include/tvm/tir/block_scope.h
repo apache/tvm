@@ -17,17 +17,22 @@
  * under the License.
  */
 /*!
- * \file tvm/tir/schedule/block_scope.h
+ * \file tvm/tir/block_scope.h
  * \brief Definition of two pillar data structure for TensorIR scheduling: StmtSRef, BlockScope.
  * \sa StmtSRefNode
  * \sa BlockScopeNode
  */
-#ifndef TVM_TIR_SCHEDULE_BLOCK_SCOPE_H_
-#define TVM_TIR_SCHEDULE_BLOCK_SCOPE_H_
+#ifndef TVM_TIR_BLOCK_SCOPE_H_
+#define TVM_TIR_BLOCK_SCOPE_H_
 
+#include <tvm/ir/module.h>
+#include <tvm/tir/function.h>
 #include <tvm/tir/stmt.h>
+#include <tvm/tir/stmt_functor.h>
 
 #include <unordered_map>
+#include <utility>
+#include <vector>
 
 namespace tvm {
 namespace tir {
@@ -142,6 +147,51 @@ class StmtSRef : public ObjectRef {
   TVM_DLL static StmtSRef RootMark();
 };
 
+class SRefTreeCreator : private StmtVisitor {
+ public:
+  /*!
+   * \brief StmtSRef Tree Creator
+   * \param mod The module being scheduled.
+   * \param include_loops Ignore ForNodes if this value is false
+   */
+  static std::unordered_map<const StmtNode*, StmtSRef> Create(IRModule mod,
+                                                              bool include_loops = true) {
+    SRefTreeCreator creator(include_loops);
+    for (const auto& kv : mod->functions) {
+      const BaseFunc& base_func = kv.second;
+      if (auto opt = base_func.as<PrimFunc>()) {
+        auto func = opt.value();
+        creator.VisitStmt(func->body);
+      }
+    }
+    return std::move(creator.stmt2ref_);
+  }
+
+ private:
+  explicit SRefTreeCreator(bool include_loops) : include_loops_(include_loops) {}
+
+  /*!
+   * \brief Add a new statement to the stack, which becomes the current scope
+   * \param stmt A for-loop statement or a block statement
+   */
+  void PushSRef(const StmtNode* stmt);
+
+  /*! \brief Pop the top of the scope and record it in stmt2ref map */
+  void PopAndRecordSRef();
+
+  void VisitStmt_(const ForNode* loop) final;
+
+  void VisitStmt_(const BlockRealizeNode* realize) final;
+
+  void VisitStmt_(const SeqStmtNode* seq_stmt) final;
+
+  bool include_loops_;
+  /*! \brief The result ScheduleStateNode */
+  std::unordered_map<const StmtNode*, StmtSRef> stmt2ref_;
+  /*! \brief The stack frame used to indicate the current scope */
+  std::vector<StmtSRef> srefs_;
+};
+
 /*!
  * \brief Type of dependency. Right now we have 4 types of dependencies
  * 1) Read-after-write (kRAW)
@@ -216,16 +266,6 @@ class BlockScopeNode : public Object {
   std::unordered_map<StmtSRef, Array<Dependency>, ObjectPtrHash, ObjectPtrEqual> dst2deps;
   /*! \brief The mapping from the buffer to the blocks who write it */
   std::unordered_map<Buffer, Array<StmtSRef>, ObjectPtrHash, ObjectPtrEqual> buffer_writers;
-  /*!
-   * \brief This property indicates that the block scope (rooted at its corresponding block) is
-   * equivalent to of a stage pipeline. Under the following conditions:
-   *
-   * 1) The region cover property holds for every of its child blocks
-   * 2) No write-after-read dependency or opaque dependency, only read-after-write and
-   * write-after-write are allowed
-   * 3) All the statements in the scope are schedulable statements, i.e. Block and For
-   */
-  bool stage_pipeline{false};
 
   void VisitAttrs(AttrVisitor* v) {}
 
@@ -270,4 +310,4 @@ class BlockScope : public ObjectRef {
 }  // namespace tir
 }  // namespace tvm
 
-#endif  // TVM_TIR_SCHEDULE_BLOCK_SCOPE_H_
+#endif  // TVM_TIR_BLOCK_SCOPE_H_

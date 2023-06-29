@@ -72,6 +72,7 @@ REQUIREMENTS_BY_PIECE: RequirementsByPieceType = [
                 "psutil",
                 "scipy",
                 "tornado",
+                "typing_extensions",
             ],
         ),
     ),
@@ -247,7 +248,7 @@ CONSTRAINTS = [
         "docutils",
         "<0.17",
     ),  # Work around https://github.com/readthedocs/sphinx_rtd_theme/issues/1115
-    ("ethos-u-vela", "==3.7.0"),
+    ("ethos-u-vela", "==3.8.0"),
     ("future", None),
     ("h5py", "==2.10.0"),
     ("image", None),
@@ -277,6 +278,7 @@ CONSTRAINTS = [
     ("torch", None),
     ("torchvision", None),
     ("tornado", None),
+    ("typing_extensions", None),
     ("xgboost", ">=1.1.0"),  # From PR #4953 & Issue #12009
 ]
 

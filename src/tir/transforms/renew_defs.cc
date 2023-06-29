@@ -50,6 +50,18 @@ class RenewDefMutator : public StmtExprMutator {
     for (const auto& param : func->params) {
       params.push_back(generator.ReDefineVar(param));
     }
+    for (const auto& param : func->params) {
+      if (param->dtype.is_handle()) {
+        const Buffer& buffer = func->buffer_map.at(param);
+        for (const PrimExpr& e : buffer->shape) {
+          if (const auto* v = e.as<VarNode>()) {
+            if (generator.remap_.count(GetRef<Var>(v)) == 0) {
+              generator.ReDefineVar(GetRef<Var>(v));
+            }
+          }
+        }
+      }
+    }
     // Redefine buffers in order
     // TODO(Siyuan Feng): checking var is used after define
     Map<tir::Var, Buffer> buffer_map;

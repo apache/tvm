@@ -203,11 +203,14 @@ class Buffer(Object, Scriptable):
             return BufferRegion(self, region)
         else:
             expr_indices = []
-            for index in indices:
+            for i, index in enumerate(indices):
                 if isinstance(index, slice):
                     start = 0 if index.start is None else index.start
                     stop = self.shape[i] if index.stop is None else index.stop
                     step = 1 if index.step is None else index.step
+                    # We should ensure the dtype of start is the same with that of step.
+                    if isinstance(start, tvm.tir.expr.PrimExpr) and isinstance(step, int):
+                        step = tvm.tir.expr.IntImm(start.dtype, step)
                     lanes = analyzer.simplify((stop - start + step - 1) // step)
                     if lanes == 1:
                         expr_indices.append(start)
