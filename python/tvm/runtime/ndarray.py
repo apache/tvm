@@ -167,18 +167,19 @@ class NDArray(NDArrayBase):
             raise ValueError(
                 f"array shape do not match the shape of NDArray {source_array.shape} vs {shape}"
             )
+
         numpy_str_map = DataType.NUMPY2STR
         np_dtype_str = (
             numpy_str_map[source_array.dtype]
             if source_array.dtype in numpy_str_map
             else str(source_array.dtype)
         )
-        if (not source_array.flags["C_CONTIGUOUS"]) or (
-            dtype == "bfloat16" or dtype != np_dtype_str
-        ):
-            source_array = np.ascontiguousarray(
-                source_array, dtype="uint16" if dtype == "bfloat16" else dtype
-            )
+        if (not source_array.flags["C_CONTIGUOUS"]) or dtype != np_dtype_str:
+            if dtype == "e4m3_float8":
+                dtype = "float8_e4m3fn"
+            elif dtype == "e5m2_float8":
+                dtype = "float8_e5m2"
+            source_array = np.ascontiguousarray(source_array, dtype)
         assert source_array.flags["C_CONTIGUOUS"]
         data = source_array.ctypes.data_as(ctypes.c_void_p)
         nbytes = ctypes.c_size_t(source_array.size * source_array.dtype.itemsize)
@@ -221,7 +222,12 @@ class NDArray(NDArrayBase):
         if dtype == "int4":
             dtype = "int8"
         if dtype == "bfloat16":
-            dtype = "uint16"
+            if ml_dtypes is not None:
+                dtype = ml_dtypes.bfloat16
+            else:
+                raise RuntimeError(
+                    "ml_dtypes is not installed, cannot convert bfloat16 array to numpy."
+                )
         if dtype == "e4m3_float8":
             if ml_dtypes is not None:
                 dtype = ml_dtypes.float8_e4m3fn
