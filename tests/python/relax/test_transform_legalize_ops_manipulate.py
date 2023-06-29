@@ -1522,5 +1522,45 @@ def test_scatter_elements_symbolic():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_layout_transform():
+    transformation = lambda a, b, c: (a, c, b // 3, b % 3)
+    pad_value = 2
+    # fmt: off
+    @I.ir_module
+    class LayoutTransform:
+        @R.function
+        def main(x: R.Tensor((10, 20, 30), "float32")):
+            gv = R.layout_transform(
+                x, index_map=transformation, pad_value=pad_value
+            )
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def te_layout_transform(A: T.Buffer((T.int64(10), T.int64(20), T.int64(30)), "float32"), te_layout_transform_1: T.Buffer((T.int64(10), T.int64(30), T.int64(7), T.int64(3)), "float32")):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            # with T.block("root"):
+            for i0, i1, i2, i3 in T.grid(T.int64(10), T.int64(30), T.int64(7), T.int64(3)):
+                with T.block("te_layout_transform"):
+                    v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                    T.reads(A[v_i0, v_i2 * T.int64(3) + v_i3, v_i1])
+                    T.writes(te_layout_transform_1[v_i0, v_i1, v_i2, v_i3])
+                    axis2 = T.int64()
+                    axis3 = T.int64()
+                    te_layout_transform_1[v_i0, v_i1, v_i2, v_i3] = T.if_then_else(axis2 == T.int64(6) and axis3 == T.int64(2), T.float32(2), A[v_i0, v_i2 * T.int64(3) + v_i3, v_i1])
+
+        @R.function
+        def main(x: R.Tensor((10, 20, 30), dtype="float32")) -> R.Tensor((10, 30, 7, 3), dtype="float32"):
+            cls = Expected
+            gv = R.call_tir(cls.te_layout_transform, (x,), out_sinfo=R.Tensor((10, 30, 7, 3), dtype="float32"))
+            return gv
+
+    # fmt: on
+
+    mod = LegalizeOps()(LayoutTransform)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
