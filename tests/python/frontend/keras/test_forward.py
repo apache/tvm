@@ -808,6 +808,7 @@ class TestKeras:
 if __name__ == "__main__":
     for k in [keras, tf_keras]:
         sut = TestKeras()
+        sut.test_forward_concatenate(keras_mod=k)
         sut.test_forward_merge_dot(keras_mod=k)
         sut.test_forward_merge(keras_mod=k)
         sut.test_forward_activations(keras_mod=k)
