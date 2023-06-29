@@ -190,13 +190,13 @@ def test_tflite_shared_pad(
             if op_pairs[pair_idx] == "depthwise":
                 weight_shape = [kernel_shape[0], kernel_shape[1], ifm_shape[3], 1]
                 weight = tf.constant(np.random.uniform(size=weight_shape), dtype=tf.float32)
-                op =  tf.nn.depthwise_conv2d(
+                op = tf.nn.depthwise_conv2d(
                     x, weight, strides=tf_strides, padding=op_padding, dilations=dilation
                 )
             else:
                 weight_shape = [kernel_shape[0], kernel_shape[1], ifm_shape[3], 3]
                 weight = tf.constant(np.random.uniform(size=weight_shape), dtype=tf.float32)
-                op =  tf.nn.conv2d(
+                op = tf.nn.conv2d(
                     x,
                     weight,
                     strides=tf_strides,
