@@ -167,13 +167,12 @@ def _scatter_elements(bb: BlockBuilder, call: Call) -> Expr:
 
 @register_legalize("relax.layout_transform")
 def _layout_transform(bb: BlockBuilder, call: Call) -> Expr:
-    data = call.args[0]
     index_map: tvm.tir.IndexMap = call.attrs.index_map
     pad_value = call.attrs.pad_value.value
-    inverse, padding_predicate = index_map.non_surjective_inverse(data.struct_info.shape.values)
-    output_shape = index_map.map_shape(data.struct_info.shape.values)
 
     def te_layout_transform(data):
+        inverse, padding_predicate = index_map.non_surjective_inverse(data.shape)
+        output_shape = index_map.map_shape(data.shape)
         return te.compute(
             output_shape,
             lambda *idx: tvm.te.if_then_else(

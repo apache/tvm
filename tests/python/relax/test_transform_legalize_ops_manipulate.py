@@ -1553,7 +1553,6 @@ def test_layout_transform():
             cls = Expected
             gv = R.call_tir(cls.te_layout_transform, (x,), out_sinfo=R.Tensor((10, 30, 7, 3), dtype="float32"))
             return gv
-
     # fmt: on
 
     mod = LegalizeOps()(LayoutTransform)
@@ -1576,14 +1575,13 @@ def test_layout_transform_symbolic():
     @I.ir_module
     class Expected:
         @T.prim_func
-        def te_layout_transform(var_A: T.handle, var_te_layout_transform: T.handle, b: T.int64):
+        def te_layout_transform(var_A: T.handle, var_te_layout_transform: T.handle):
             T.func_attr({"tir.noalias": T.bool(True)})
-            a, b_1, c = T.int64(), T.int64(), T.int64()
-            A = T.match_buffer(var_A, (a, b_1, c))
-            a_1, c_1 = T.int64(), T.int64()
-            te_layout_transform_1 = T.match_buffer(var_te_layout_transform, (a_1, c_1, (b - b % T.int64(-3)) // T.int64(3), T.int64(3)))
+            a, b, c = T.int64(), T.int64(), T.int64()
+            A = T.match_buffer(var_A, (a, b, c))
+            te_layout_transform_1 = T.match_buffer(var_te_layout_transform, (a, c, (b - b % T.int64(-3)) // T.int64(3), T.int64(3)))
             # with T.block("root"):
-            for i0, i1, i2, i3 in T.grid(a_1, c_1, (b - b % T.int64(-3)) // T.int64(3), T.int64(3)):
+            for i0, i1, i2, i3 in T.grid(a, c, (b - b % T.int64(-3)) // T.int64(3), T.int64(3)):
                 with T.block("te_layout_transform"):
                     v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                     T.reads(A[v_i0, v_i2 * T.int64(3) + v_i3, v_i1])
@@ -1596,7 +1594,7 @@ def test_layout_transform_symbolic():
             c = T.int64()
             b = T.int64()
             cls = Expected
-            gv = R.call_tir(cls.te_layout_transform, (x,), out_sinfo=R.Tensor((a, c, (b - b % -3) // 3, 3), dtype="float32"), tir_vars=R.shape([b]))
+            gv = R.call_tir(cls.te_layout_transform, (x,), out_sinfo=R.Tensor((a, c, (b - b % -3) // 3, 3), dtype="float32"))
             return gv
     # fmt: on
 
