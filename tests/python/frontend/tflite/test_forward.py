@@ -1648,6 +1648,86 @@ def test_forward_transpose_conv():
             )
 
 
+def _test_tflite2_quantized_transpose_conv(
+    input_shape,
+    kernel_shape,
+    filters,
+    padding="valid",
+    strides=(1, 1),
+    data_format=None,
+    int_quant_dtype=tf.int8,
+):
+    """One iteration of TFLite2 quantized tranpose conv with given shapes and attributes"""
+    data_format = "channels_last" if data_format == "NHWC" else "channels_first"
+    data = np.random.uniform(0, 1, input_shape).astype("float32")
+    _ = np.random.uniform(0, 1, kernel_shape).astype("float32")
+
+    data_in = tf.keras.layers.Input(shape=data.shape[1:], batch_size=1)
+    transpose_conv = tf.keras.layers.Conv2DTranspose(
+        filters=filters,
+        kernel_size=(kernel_shape[0], kernel_shape[1]),
+        padding=padding,
+        strides=strides,
+        use_bias=True,
+    )(data_in)
+    keras_model = tf.keras.models.Model(data_in, transpose_conv)
+
+    # To create quantized values with dynamic range of activations, needs representative dataset
+    def representative_data_gen():
+        for _ in range(1):
+            yield [data]
+
+    tflite_model_quant = _quantize_keras_model(
+        keras_model,
+        representative_data_gen,
+        is_float_input=True,
+        is_float_output=True,
+        int_quant_dtype=int_quant_dtype,
+    )
+
+    # TFLite.Model.Model has changed to TFLite.Model from 1.14 to 2.1
+    try:
+        import tflite.Model
+
+        tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_quant, 0)
+    except AttributeError:
+        import tflite
+
+        tflite_model = tflite.Model.GetRootAsModel(tflite_model_quant, 0)
+    except ImportError as exc:
+        raise ImportError("The tflite package must be installed") from exc
+
+    subgraph = tflite_model.Subgraphs(0)
+    model_input = subgraph.InputsAsNumpy()
+    input_node = subgraph.Tensors(model_input).Name().decode("utf-8")
+
+    tflite_output = run_tflite_graph(tflite_model_quant, data)
+
+    if tf.__version__ < LooseVersion("2.9"):
+        input_node = data_in.name.replace(":0", "")
+    else:
+        input_node = "serving_default_" + data_in.name + ":0"
+
+    tvm_output = run_tvm_graph(tflite_model_quant, data, input_node)
+    tvm.testing.assert_allclose(
+        np.squeeze(tvm_output[0]), np.squeeze(tflite_output[0]), rtol=1e-2, atol=1e-2
+    )
+
+
+def test_forward_quantized_transpose_conv():
+    """Quantized convolution"""
+    for int_quant_dtype in [tf.int8, tf.int16]:
+        _test_tflite2_quantized_transpose_conv(
+            (1, 1, 5, 64),
+            (3, 3),
+            64,
+            padding="same",
+            strides=(1, 2),
+            data_format="NHWC",
+            int_quant_dtype=int_quant_dtype,
+        )
+
+
 #######################################################################
 # Reshape
 # -------
