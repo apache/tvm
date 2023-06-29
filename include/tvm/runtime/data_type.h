@@ -95,7 +95,7 @@ class DataType {
   bool is_scalar() const { return lanes() == 1; }
   /*! \return whether type is a scalar type. */
   bool is_bool() const { return code() == DataType::kUInt && bits() == 1; }
-  /*! \return whether type is a float type. */
+  /*! \return whether type is a IEEE 754 standard float type. */
   bool is_float() const { return code() == DataType::kFloat; }
   /*! \return whether type is a float8 type. */
   bool is_float8() const {
@@ -107,6 +107,10 @@ class DataType {
   bool is_float16() const { return is_float() && bits() == 16; }
   /*! \return whether type is a bfloat16 type. */
   bool is_bfloat16() const { return code() == DataType::kBFloat && bits() == 16; }
+  /*! \return whether type is a general floating point data type. */
+  bool is_floating_point() const {
+    return is_float() || is_float8() || is_bfloat16();
+  }
   /*! \return whether type is an int type. */
   bool is_int() const { return code() == DataType::kInt; }
   /*! \return whether type is an uint type. */

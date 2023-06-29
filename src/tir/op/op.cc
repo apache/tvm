@@ -33,6 +33,8 @@
 // Centralized header for constant folders.
 #include "../../arith/const_fold.h"
 #include "../../target/datatype/registry.h"
+#include "../../support/scalars.h"
+
 
 namespace tvm {
 
@@ -206,10 +208,16 @@ PrimExpr max_value(const DataType& dtype, Span span) {
     } else if (dtype.bits() == 32) {
       return FloatImm(dtype, std::numeric_limits<float>::max(), span);
     } else if (dtype.bits() == 16) {
-      return FloatImm(dtype, 65504.0, span);
+      return FloatImm(dtype, support::kMaxFloat16, span);
     }
   } else if (dtype.is_bfloat16()) {
-    return FloatImm(dtype, std::numeric_limits<float>::max(), span);
+    return FloatImm(dtype, support::kMaxBFloat16, span);
+  } else if (dtype.is_float8()) {
+    if (dtype.code() == DataType::kE4M3Float) {
+      return FloatImm(dtype, support::kMaxE4M3, span);
+    } else { // E5M2
+      return FloatImm(dtype, support::kMaxE5M2, span);
+    }
   }
   LOG(FATAL) << "Cannot decide max_value for type" << dtype;
 }
@@ -240,10 +248,16 @@ PrimExpr min_value(const DataType& dtype, Span span) {
     } else if (dtype.bits() == 32) {
       return FloatImm(dtype, std::numeric_limits<float>::lowest(), span);
     } else if (dtype.bits() == 16) {
-      return FloatImm(dtype, -65504.0, span);
-    }
+      return FloatImm(dtype, -support::kMaxFloat16, span);
+    } 
   } else if (dtype.is_bfloat16()) {
-    return FloatImm(dtype, std::numeric_limits<float>::lowest(), span);
+    return FloatImm(dtype, -support::kMaxBFloat16, span);
+  } else if (dtype.is_float8()) {
+    if (dtype.code() == DataType::kE4M3Float) {
+      return FloatImm(dtype, -support::kMaxE4M3, span);
+    } else { // E5M2
+      return FloatImm(dtype, -support::kMaxE5M2, span);
+    }
   }
   LOG(FATAL) << "Cannot decide min_value for type" << dtype;
 }
@@ -257,6 +271,12 @@ PrimExpr infinity(const DataType& dtype, Span span) {
       return FloatImm(dtype, std::numeric_limits<double>::infinity(), span);
     } else if (dtype.bits() == 32 || dtype.bits() == 16) {
       return FloatImm(dtype, std::numeric_limits<float>::infinity(), span);
+    }
+  } else if (dtype.is_bfloat16()) {
+    return FloatImm(dtype, std::numeric_limits<double>::infinity(), span);
+  } else if (dtype.is_float8()) {
+    if (dtype.code() == DataType::kE5M2Float) {
+      return FloatImm(dtype, std::numeric_limits<double>::infinity(), span);
     }
   }
   LOG(FATAL) << "Cannot decide infinity for type " << dtype;
@@ -661,7 +681,7 @@ TVM_REGISTER_GLOBAL("tir.bitwise_not").set_body_typed([](PrimExpr a, Span span) 
 // pow
 PrimExpr pow(PrimExpr x, PrimExpr y, Span span) {
   BinaryOpMatchTypes(x, y, span);
-  ICHECK(x.dtype().is_float()) << "power only applies to float";
+  ICHECK(x.dtype().is_floating_point()) << "power only applies to float";
   static auto op = Op::Get("tir.pow");
   return tir::Call(x.dtype(), op, {x, y}, span);
 }
@@ -677,7 +697,7 @@ PrimExpr abs(PrimExpr x, Span span) {
       return IntImm(x.dtype(), std::abs(px->value), px->span);
     }
     return tir::Select(x >= make_zero(x.dtype()), x, -x, span);
-  } else if (x.dtype().is_float()) {
+  } else if (x.dtype().is_floating_point()) {
     using tir::FloatImmNode;
     const FloatImmNode* fx = x.as<FloatImmNode>();
     if (fx) {
@@ -701,7 +721,7 @@ PrimExpr isnan(PrimExpr x, Span span) {
   DataType t = DataType::Bool(x.dtype().lanes());
   if (x.dtype().is_int() || x.dtype().is_uint()) {
     return make_const(t, false);
-  } else if (x.dtype().is_float()) {
+  } else if (x.dtype().is_floating_point()) {
     using tir::FloatImmNode;
     const FloatImmNode* fx = x.as<FloatImmNode>();
     if (fx) {
@@ -723,7 +743,7 @@ PrimExpr isinf(PrimExpr x, Span span) {
   DataType t = DataType::Bool(x.dtype().lanes());
   if (x.dtype().is_int() || x.dtype().is_uint()) {
     return make_const(t, false, span);
-  } else if (x.dtype().is_float()) {
+  } else if (x.dtype().is_floating_point()) {
     PrimExpr infX = infinity(x.dtype(), span);
     return abs(x, span) == infX && !isnan(x, span);
   } else {
@@ -787,7 +807,7 @@ PrimExpr prod(PrimExpr source, Array<IterVar> rdom, Array<PrimExpr> init, Span s
 // fmod
 PrimExpr fmod(PrimExpr x, PrimExpr y, Span span) {
   BinaryOpMatchTypes(x, y, span);
-  ICHECK(x.dtype().is_float()) << "fmod only applies to float";
+  ICHECK(x.dtype().is_floating_point()) << "fmod only applies to float";
   static auto op = Op::Get("tir.fmod");
   return tir::Call(x.dtype(), op, {x, y}, span);
 }
