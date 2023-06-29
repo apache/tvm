@@ -55,8 +55,8 @@ TVM_REGISTER_PASS_CONFIG_OPTION("tir.use_async_copy", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.instrument_lwp", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.vtcm_capacity", Integer);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.ptx_ldg32", Bool);
-TVM_REGISTER_PASS_CONFIG_OPTION("tir.hardware_support_bf16", Bool);
-TVM_REGISTER_PASS_CONFIG_OPTION("tir.hardware_support_fp8", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.target_support_bf16", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.target_support_fp8", Bool);
 
 // WARNING: May cause coherency issues resulting data miscompares
 // Experimental feature that, when enabled by the runtime, bypasses the cache when using DMA. When
@@ -154,6 +154,8 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
   bool enable_equiv_terms_in_cse_tir =
       pass_ctx->GetConfig<Bool>("tir.enable_equiv_terms_in_cse_tir", Bool(false)).value();
   bool ptx_ldg32 = pass_ctx->GetConfig<Bool>("tir.ptx_ldg32", Bool(false)).value();
+  bool target_support_bf16 = pass_ctx->GetConfig<Bool>("tir.target_support_bf16", Bool(false)).value();
+  bool target_support_fp8 = pass_ctx->GetConfig<Bool>("tir.target_support_fp8", Bool(false)).value();
 
   // Get any user-added passes
   Array<Array<ObjectRef>> add_lower_pass =
@@ -211,8 +213,12 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
   pass_list.push_back(tir::transform::InjectSoftwarePipeline());
   pass_list.push_back(tir::transform::LowerOpaqueBlock());
   pass_list.push_back(tir::transform::FlattenBuffer());
-  pass_list.push_back(tir::transform::FP8ComputeLegalize());
-  pass_list.push_back(tir::transform::BF16ComputeLegalize());
+  if (!target_support_fp8) {
+    pass_list.push_back(tir::transform::FP8ComputeLegalize());
+  }
+  if (!target_support_bf16) {
+    pass_list.push_back(tir::transform::BF16ComputeLegalize());
+  }
   pass_list.push_back(tir::transform::NarrowDataType(32));
   pass_list.push_back(tir::transform::Simplify());
 
@@ -541,6 +547,8 @@ runtime::Module build(const IRModule& funcs, const Target& target_arg,
 
 transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) {
   transform::PassContext pass_ctx = transform::PassContext::Current();
+  bool target_support_bf16 = pass_ctx->GetConfig<Bool>("tir.target_support_bf16", Bool(false)).value();
+  bool target_support_fp8 = pass_ctx->GetConfig<Bool>("tir.target_support_fp8", Bool(false)).value();
 
   Array<Pass> mixed_pass_list;
 
@@ -588,8 +596,12 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
   } else {
     mixed_pass_list.push_back(tir::transform::MakePackedAPI());
   }
-  mixed_pass_list.push_back(tir::transform::FP8StorageLegalize());
-  mixed_pass_list.push_back(tir::transform::BF16StorageLegalize());
+  if (!target_support_fp8) {
+    mixed_pass_list.push_back(tir::transform::FP8StorageLegalize());
+  }
+  if (!target_support_bf16) {
+    mixed_pass_list.push_back(tir::transform::BF16StorageLegalize());
+  }
 
   mixed_pass_list.push_back(tir::transform::AnnotateDeviceRegions());
   mixed_pass_list.push_back(tir::transform::SplitHostDevice());

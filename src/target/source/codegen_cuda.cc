@@ -36,6 +36,7 @@
 #include "../../tir/transforms/ir_utils.h"
 #include "literal/cuda_half_t.h"
 #include "ptx.h"
+#include "cuda_vector_intrin.h"
 
 namespace tvm {
 namespace codegen {
@@ -210,7 +211,11 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
           // h4.w is emitted as *(half2*)(&(u2.y)).y
           //
           ICHECK_EQ(lanes % 2, 0) << "only support even lane for half type";
-          os << "uint" << lanes / 2;
+          if (lanes == 2) {
+            os << "half2";
+          } else {
+            os << "uint" << lanes / 2;
+          }
         } else {
           fail = true;
         }
@@ -251,7 +256,11 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
       os << "nv_bfloat16";
     } else if (lanes <= 8) {
       ICHECK_EQ(lanes % 2, 0) << "only support even lane for half type";
-      os << "uint" << lanes / 2;
+      if (lanes == 2) {
+        os << "nv_bfloat162";
+      } else {
+        os << "uint" << lanes / 2;
+      }
     } else {
       fail = true;
     }
@@ -424,6 +433,8 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
   }
   LOG(FATAL) << "Cannot convert type " << t << " to CUDA type";
 }
+
+
 
 void CodeGenCUDA::PrintVecBinaryOp(const std::string& op, DataType t, PrimExpr lhs, PrimExpr rhs,
                                    std::ostream& os) {  // NOLINT(*)
