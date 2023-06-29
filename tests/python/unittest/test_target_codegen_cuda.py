@@ -24,6 +24,7 @@ from tvm import topi
 from tvm.contrib.nvcc import have_fp16, have_int8, have_bf16
 import tvm.testing
 import pytest
+
 try:
     import ml_dtypes
 except ImportError as e:
@@ -91,9 +92,7 @@ def test_cuda_bf16_vectorize_add():
         xo, xi = s[B].split(B.op.axis[0], factor=num_thread)
         s[B].bind(xo, bx)
         s[B].bind(xi, tx)
-        with tvm.transform.PassContext(
-            config={"tir.target_support_bf16": True} 
-        ):
+        with tvm.transform.PassContext(config={"tir.target_support_bf16": True}):
             fun = tvm.build(s, [A, B], "cuda")
         dev = tvm.cuda(0)
         np_a = np.random.uniform(size=(n, lanes)).astype("bfloat16")
