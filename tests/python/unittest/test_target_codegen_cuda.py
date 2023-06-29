@@ -103,7 +103,7 @@ def test_cuda_bf16_vectorize_add():
         c = tvm.nd.empty((n, lanes), "bfloat16", dev).copyfrom(c)
         tvm.testing.assert_allclose(c.numpy(), np_a + 1)
 
-    # check_cuda(64, 2)
+    check_cuda(64, 2)
     check_cuda(64, 4)
     check_cuda(64, 6)
     check_cuda(64, 8)
