@@ -157,6 +157,76 @@ def test_ethosu_conv2d_double(
     infra.compare_tvm_with_tflite(conv2d_double, [ifm_shape], accel_type)
 
 
+@pytest.mark.parametrize("accel_type", ACCEL_TYPES)
+@pytest.mark.parametrize("ifm_shape", [(1, 55, 32, 3)])
+@pytest.mark.parametrize(
+    "kernel_shape, activation_function",
+    [((3, 3), "RELU"), ((1, 2), "NONE")],
+)
+@pytest.mark.parametrize("strides, dilation", [((3, 2), (1, 1))])
+@pytest.mark.parametrize("op_padding", ["SAME", "VALID"])
+@pytest.mark.parametrize("sep_padding", [(0, 0, 1, 1), (7, 5, 4, 5)])
+@pytest.mark.parametrize(
+    "op_pairs", [("conv2d", "conv2d"), ("depthwise", "depthwise"), ("conv2d", "depthwise")]
+)
+def test_tflite_shared_pad(
+    accel_type,
+    ifm_shape,
+    kernel_shape,
+    activation_function,
+    strides,
+    dilation,
+    op_padding,
+    sep_padding,
+    op_pairs,
+):
+    np.random.seed(0)
+
+    @tf.function
+    def tf_function(x):
+        def make_depthwise_or_conv2d(pair_idx, x):
+            # The input strides to the TensorFlow API needs to be of shape 1x4
+            tf_strides = [1, strides[0], strides[1], 1]
+            if op_pairs[pair_idx] == "depthwise":
+                weight_shape = [kernel_shape[0], kernel_shape[1], ifm_shape[3], 1]
+                weight = tf.constant(np.random.uniform(size=weight_shape), dtype=tf.float32)
+                op =  tf.nn.depthwise_conv2d(
+                    x, weight, strides=tf_strides, padding=op_padding, dilations=dilation
+                )
+            else:
+                weight_shape = [kernel_shape[0], kernel_shape[1], ifm_shape[3], 3]
+                weight = tf.constant(np.random.uniform(size=weight_shape), dtype=tf.float32)
+                op =  tf.nn.conv2d(
+                    x,
+                    weight,
+                    strides=tf_strides,
+                    padding=op_padding,
+                    dilations=dilation,
+                )
+            if activation_function == "RELU":
+                op = tf.nn.relu(op)
+            return op
+
+        x = tf.pad(
+            x,
+            [
+                [0, 0],
+                [sep_padding[0], sep_padding[2]],
+                [sep_padding[1], sep_padding[3]],
+                [0, 0],
+            ],
+            "CONSTANT",
+        )
+
+        x1 = make_depthwise_or_conv2d(0, x)
+        x2 = make_depthwise_or_conv2d(1, x)
+
+        x3 = tf.math.add(x1, x2)
+        return x3
+
+    infra.compare_tvm_with_tflite(tf_function, [ifm_shape], accel_type)
+
+
 @pytest.mark.parametrize("weight_min, weight_max", [(0.0, 1e-11), (-1e10, 1e10)])
 def test_out_of_range_scaling(weight_min, weight_max):
     np.random.seed(0)

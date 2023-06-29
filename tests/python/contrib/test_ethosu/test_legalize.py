@@ -31,7 +31,7 @@ from tvm import relay
 from tvm.relay.backend.contrib.ethosu import legalize, preprocess
 from tvm.relay import dataflow_pattern
 from tvm.relay.op.contrib import ethosu
-from tvm.relay.backend.contrib.ethosu import util
+from tvm.relay.backend.contrib.ethosu import util, codegen
 from tvm.relay.build_module import bind_params_by_name
 from tvm.relay.frontend.tflite import get_pad_value
 from tvm.relay.expr_functor import ExprVisitor
@@ -44,7 +44,7 @@ def partition_ethosu_by_table(mod, pattern_table):
     want to add the operator's pattern to the pattern table so that the compiler
     wouldn't attempt to offload an operator without full stack support."""
     mod = relay.transform.InferType()(mod)
-    mod = relay.transform.replicate_pads(mod)
+    mod = mod = codegen.replicate_pads(mod)
     mod = relay.transform.InferType()(mod)
     mod = relay.transform.MergeComposite(pattern_table)(mod)
     mod = relay.transform.AnnotateTarget("ethos-u")(mod)
@@ -3671,6 +3671,22 @@ def test_tflite_shared_pad_legalize(
         class Model(tf.Module):
             @tf.function
             def tf_function(self, x):
+                def make_depthwise_or_conv2d(pair_idx):
+                    if op_pairs[pair_idx] == "depthwise":
+                        weight_shape = [kernel_shape[0], kernel_shape[1], ifm_shape[3], 1]
+                        weight = tf.constant(np.random.uniform(size=weight_shape), dtype=tf.float32)
+                        return tf.nn.depthwise_conv2d(
+                            x, weight, strides=tf_strides, padding=op_padding, dilations=dilation
+                        )
+                    weight_shape = [kernel_shape[0], kernel_shape[1], ifm_shape[3], 3]
+                    weight = tf.constant(np.random.uniform(size=weight_shape), dtype=tf.float32)
+                    return tf.nn.conv2d(
+                        x,
+                        weight,
+                        strides=tf_strides,
+                        padding=op_padding,
+                        dilations=dilation,
+                    )
 
                 x = tf.pad(
                     x,
@@ -3686,39 +3702,8 @@ def test_tflite_shared_pad_legalize(
                 # The input strides to the TensorFlow API needs to be of shape 1x4
                 tf_strides = [1, strides[0], strides[1], 1]
 
-                if op_pairs[0] == "depthwise":
-                    weight_shape = [kernel_shape[0], kernel_shape[1], ifm_shape[3], 1]
-                    weight = tf.constant(np.random.uniform(size=weight_shape), dtype=tf.float32)
-                    x1 = tf.nn.depthwise_conv2d(
-                        x, weight, strides=tf_strides, padding=op_padding, dilations=dilation
-                    )
-                else:
-                    weight_shape = [kernel_shape[0], kernel_shape[1], ifm_shape[3], 3]
-                    weight = tf.constant(np.random.uniform(size=weight_shape), dtype=tf.float32)
-                    x1 = tf.nn.conv2d(
-                        x,
-                        weight,
-                        strides=tf_strides,
-                        padding=op_padding,
-                        dilations=dilation,
-                    )
-
-                if op_pairs[1] == "depthwise":
-                    weight_shape = [kernel_shape[0], kernel_shape[1], ifm_shape[3], 1]
-                    weight = tf.constant(np.random.uniform(size=weight_shape), dtype=tf.float32)
-                    x2 = tf.nn.depthwise_conv2d(
-                        x, weight, strides=tf_strides, padding=op_padding, dilations=dilation
-                    )
-                else:
-                    weight_shape = [kernel_shape[0], kernel_shape[1], ifm_shape[3], 3]
-                    weight = tf.constant(np.random.uniform(size=weight_shape), dtype=tf.float32)
-                    x2 = tf.nn.conv2d(
-                        x,
-                        weight,
-                        strides=tf_strides,
-                        padding=op_padding,
-                        dilations=dilation,
-                    )
+                x1 = make_depthwise_or_conv2d(0)
+                x2 = make_depthwise_or_conv2d(1)
 
                 x3 = tf.math.add(x1, x2)
                 return x3
