@@ -252,10 +252,10 @@ def get_accelerator_config():
     return compiler_attrs.accelerator_config
 
 
-def is_cascader_enabled():
+def is_cascader_enabled() -> bool:
     """Determine whether the cascader is enabled"""
     compiler_attrs = tvm.get_global_func("relay.ext.ethos-u.get_compiler_attrs")()
-    return compiler_attrs.enable_cascader
+    return bool(compiler_attrs.enable_cascader)
 
 
 def is_copying_constants_disabled() -> bool:
@@ -264,10 +264,10 @@ def is_copying_constants_disabled() -> bool:
     return bool(compiler_attrs.disable_copying_constants)
 
 
-def is_striping_enabled():
+def is_striping_enabled() -> bool:
     """Determine whether the cascader is enabled"""
     compiler_attrs = tvm.get_global_func("relay.ext.ethos-u.get_compiler_attrs")()
-    return compiler_attrs.enable_striping
+    return bool(compiler_attrs.enable_striping)
 
 
 def get_arg_count(func):
