@@ -36,7 +36,6 @@
 #include "../../tir/transforms/ir_utils.h"
 #include "literal/cuda_half_t.h"
 #include "ptx.h"
-#include "cuda_vector_intrin.h"
 
 namespace tvm {
 namespace codegen {
