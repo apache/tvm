@@ -101,7 +101,6 @@ def compile_cuda(code, target_format="ptx", arch=None, options=None, path_target
     # correctly by default.
     # if cxx_compiler_path != "":
     #     cmd += ["-ccbin", cxx_compiler_path]
-    
 
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
