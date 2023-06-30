@@ -621,6 +621,13 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
   }
 }
 
+void CodeGenC::PrintVecUnaryOp(const std::string& op, DataType t, PrimExpr operand,
+                               std::ostream& os) {  // NOLINT(*)
+  os << op << "(";
+  this->PrintExpr(operand, os);
+  os << ")";
+}
+
 void CodeGenC::PrintVecBinaryOp(const std::string& op, DataType t, PrimExpr lhs, PrimExpr rhs,
                                 std::ostream& os) {  // NOLINT(*)
   if (isalpha(op[0])) {

@@ -103,6 +103,7 @@ std::string CodeGenCUDA::Finish() {
     decl_stream << _cuda_half_t_def;
     decl_stream << "#endif\n\n";
     decl_stream << _cuda_half_util;
+    decl_stream << _cuda_half2_util;
   }
 
   if (enable_bf16_) {
@@ -115,6 +116,7 @@ std::string CodeGenCUDA::Finish() {
                 << "{\n  return __hlt(a, b) ? a : b;\n}\n";
     decl_stream << "#endif\n\n";
     decl_stream << _cuda_bfloat16_util;
+    decl_stream << _cuda_bfloat162_util;
   }
 
   if (enable_fp8_) {
@@ -429,39 +431,52 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
   LOG(FATAL) << "Cannot convert type " << t << " to CUDA type";
 }
 
+void CodeGenCUDA::PrintVecUnaryOp(const std::string& op, DataType t, PrimExpr operand, std::ostream& os) { // NOLINT(*)
+  // TODO(Zihao)
+}
+
 void CodeGenCUDA::PrintVecBinaryOp(const std::string& op, DataType t, PrimExpr lhs, PrimExpr rhs,
                                    std::ostream& os) {  // NOLINT(*)
   // Delcare the result.
-  std::string sret = name_supply_->FreshName("_");
-  this->PrintIndent();
-  this->PrintType(t, stream);
-  stream << ' ' << sret << ";\n";
-  int ssa_scope = BeginScope();
-  {
-    // Unpack into individual ops.
-    std::string vlhs = SSAGetID(PrintExpr(lhs), lhs.dtype());
-    std::string vrhs = SSAGetID(PrintExpr(rhs), rhs.dtype());
-
-    for (int i = 0, lanes = t.lanes(); i < lanes; ++i) {
-      std::ostringstream value_temp;
-      if (isalpha(op[0])) {
-        value_temp << op << "(";
-        PrintVecElemLoad(vlhs, lhs.dtype(), i, value_temp);
-        value_temp << ", ";
-        PrintVecElemLoad(vrhs, rhs.dtype(), i, value_temp);
-        value_temp << ")";
-      } else {
-        value_temp << "(";
-        PrintVecElemLoad(vlhs, lhs.dtype(), i, value_temp);
-        value_temp << op;
-        PrintVecElemLoad(vrhs, rhs.dtype(), i, value_temp);
-        value_temp << ")";
-      }
-      PrintVecElemStore(sret, t, i, value_temp.str());
+  if (t.bits() == 16 && t.is_floating_point() && t.lanes() == 2) {
+    // native half2 and nv_bfloat162 support.
+    if (isalpha(op[0])) {
+      os << op << "(" << lhs << ", " << rhs << ")";
+    } else {
+      os << "(" << lhs << " " << op << " " << rhs << ")";
     }
+  } else {
+    std::string sret = name_supply_->FreshName("_");
+    this->PrintIndent();
+    this->PrintType(t, stream);
+    stream << ' ' << sret << ";\n";
+    int ssa_scope = BeginScope();
+    {
+      // Unpack into individual ops.
+      std::string vlhs = SSAGetID(PrintExpr(lhs), lhs.dtype());
+      std::string vrhs = SSAGetID(PrintExpr(rhs), rhs.dtype());
+
+      for (int i = 0, lanes = t.lanes(); i < lanes; ++i) {
+        std::ostringstream value_temp;
+        if (isalpha(op[0])) {
+          value_temp << op << "(";
+          PrintVecElemLoad(vlhs, lhs.dtype(), i, value_temp);
+          value_temp << ", ";
+          PrintVecElemLoad(vrhs, rhs.dtype(), i, value_temp);
+          value_temp << ")";
+        } else {
+          value_temp << "(";
+          PrintVecElemLoad(vlhs, lhs.dtype(), i, value_temp);
+          value_temp << op;
+          PrintVecElemLoad(vrhs, rhs.dtype(), i, value_temp);
+          value_temp << ")";
+        }
+        PrintVecElemStore(sret, t, i, value_temp.str());
+      }
+    }
+    EndScope(ssa_scope);
+    os << sret;
   }
-  EndScope(ssa_scope);
-  os << sret;
 }
 
 void CodeGenCUDA::PrintVecElemLoad(const std::string& vec, DataType t, int i,

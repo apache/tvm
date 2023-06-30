@@ -125,6 +125,22 @@ struct CUDAWarpIntrinsic {
   }
 };
 
+struct CUDAVectorIntrinsic {
+  std::string operator()(DataType t, std::string name) const {
+    if (t.bits() == 16 && t.is_floating_point()) {
+      // half2 and nv_bfloat16 arithmetics
+      // https://docs.nvidia.com/cuda/cuda-math-api/group__CUDA__MATH____HALF2__ARITHMETIC.html#group__CUDA__MATH____HALF2__ARITHMETIC
+      // https://docs.nvidia.com/cuda/cuda-math-api/group__CUDA__MATH____BFLOAT162__ARITHMETIC.html#group__CUDA__MATH____BFLOAT162__ARITHMETIC
+      if (name == "div") {
+        return "__h2div";
+      } else {
+        return "__h" + name + "2";
+      }
+    }   
+    return "";
+  }
+};
+
 static PrimExpr DispatchCUDAWarpActiveMask(const PrimExpr& e) {
   const CallNode* call = e.as<CallNode>();
   return Call(call->dtype, Op::Get("tir.cuda.__activemask"), call->args);

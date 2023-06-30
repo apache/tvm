@@ -171,6 +171,8 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   virtual void PrintStorageScope(const std::string& scope, std::ostream& os);  // NOLINT(*)
   virtual void PrintStorageSync(const CallNode* op);                           // NOLINT(*)
   // Binary vector op.
+  virtual void PrintVecUnaryOp(const std::string& op, DataType t, PrimExpr operand,
+                               std::ostream& os);  // NOLINT(*)
   virtual void PrintVecBinaryOp(const std::string& op, DataType op_type, PrimExpr lhs, PrimExpr rhs,
                                 std::ostream& os);  // NOLINT(*)
   // print vector load

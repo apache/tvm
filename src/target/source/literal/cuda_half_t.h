@@ -325,6 +325,41 @@ CUDA_UNSUPPORTED_HALF_MATH_UNARY(herf, erf)
 #endif
 )";
 
+static constexpr const char* _cuda_half2_util = R"(
+#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 530)
+
+static inline __device__ __host__ unsigned
+__half2_as_uint(const half2 v) {
+  return *((unsigned *)(&v));
+}
+
+static inline __device__ __host__ half2
+__uint_as_half2(const unsigned int v) {
+  return *((half2 *)(&v));
+}
+
+#define CUDA_UNSUPPORTED_HALF2_MATH_BINARY(HALF2_MATH_NAME, HALF_MATH_NAME)   \
+static inline __device__ __host__ half2 HALF2_MATH_NAME(half2 x, half2 y) {   \
+  return __halves2half2(HALF_MATH_NAME(x.x, y.x), HALF_MATH_NAME(x.y, y.y));  \
+}
+
+#define CUDA_UNSUPPORTED_HALF2_MATH_UNARY(HALF2_MATH_NAME, HALF_MATH_NAME)    \
+static inline __device__ __host__ half2 HALF2_MATH_NAME(half2 x) {            \
+  return __halves2half2(HALF_MATH_NAME(x.x), HALF_MATH_NAME(x.y));            \
+}
+
+CUDA_UNSUPPORTED_HALF2_MATH_BINARY(hpow2, hpow)
+CUDA_UNSUPPORTED_HALF2_MATH_BINARY(htanh2, htanh)
+CUDA_UNSUPPORTED_HALF2_MATH_BINARY(htan2, htan)
+CUDA_UNSUPPORTED_HALF2_MATH_BINARY(hatan2, hatan)
+CUDA_UNSUPPORTED_HALF2_MATH_BINARY(herf2, herf)
+
+#undef CUDA_UNSUPPORTED_HALF2_MATH_BINARY
+#undef CUDA_UNSUPPORTED_HALF2_MATH_UNARY
+
+#endif
+)";
+
 static constexpr const char* _cuda_bfloat16_util = R"(
 // Pack two bfloat16 values.
 static inline __device__ __host__ unsigned
@@ -357,10 +392,44 @@ CUDA_UNSUPPORTED_HALF_MATH_UNARY(htanh, tanhf)
 CUDA_UNSUPPORTED_HALF_MATH_UNARY(htan, tanf)
 CUDA_UNSUPPORTED_HALF_MATH_UNARY(hatan, atanf)
 CUDA_UNSUPPORTED_HALF_MATH_UNARY(herf, erf)
-CUDA_UNSUPPORTED_HALF_MATH_UNARY(habs, abs)
 
 #undef CUDA_UNSUPPORTED_HALF_MATH_BINARY
 #undef CUDA_UNSUPPORTED_HALF_MATH_UNARY
+)";
+
+static constexpr const char* _cuda_bfloat162_util = R"(
+#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 800)
+
+static inline __device__ __host__ unsigned
+__nv_bfloat162_as_uint(const nv_bfloat162 v) {
+  return *((unsigned *)(&v));
+}
+
+static inline __device__ __host__ nv_bfloat162
+__uint_as_nv_bfloat162(const unsigned int v) {
+  return *((nv_bfloat162 *)(&v));
+}
+
+#define CUDA_UNSUPPORTED_BFLOAT2_MATH_BINARY(BFLOAT2_MATH_NAME, BFLOAT_MATH_NAME)                   \
+static inline __device__ __host__ nv_bfloat162 BFLOAT2_MATH_NAME(nv_bfloat162 x, nv_bfloat162 y) {  \
+  return __halves2half2(BFLOAT_MATH_NAME(x.x, y.x), BFLOAT_MATH_NAME(x.y, y.y));                    \
+}
+
+#define CUDA_UNSUPPORTED_BFLOAT2_MATH_UNARY(BFLOAT2_MATH_NAME, BFLOAT_MATH_NAME)                      \
+static inline __device__ __host__ nv_bfloat162 BFLOAT2_MATH_NAME(nv_bfloat162 x) {                    \
+  return __halves2half2(BFLOAT_MATH_NAME(x.x), BFLOAT_MATH_NAME(x.y));                              \
+}
+
+CUDA_UNSUPPORTED_BFLOAT2_MATH_BINARY(hpow2, hpow)
+CUDA_UNSUPPORTED_BFLOAT2_MATH_BINARY(htanh2, htanh)
+CUDA_UNSUPPORTED_BFLOAT2_MATH_BINARY(htan2, htan)
+CUDA_UNSUPPORTED_BFLOAT2_MATH_BINARY(hatan2, hatan)
+CUDA_UNSUPPORTED_BFLOAT2_MATH_BINARY(herf2, herf)
+
+#undef CUDA_UNSUPPORTED_BFLOAT2_MATH_BINARY
+#undef CUDA_UNSUPPORTED_BFLOAT2_MATH_UNARY
+
+#endif
 )";
 
 static constexpr const char* _cuda_warp_intrinsic_util = R"(
