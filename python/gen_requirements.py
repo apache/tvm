@@ -252,7 +252,7 @@ CONSTRAINTS = [
     ("h5py", "==2.10.0"),
     ("image", None),
     ("matplotlib", None),
-    ("numpy", "None"),
+    ("numpy", None),
     ("onnx", None),
     ("onnxoptimizer", None),
     ("onnxruntime", None),
