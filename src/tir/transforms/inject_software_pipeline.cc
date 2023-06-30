@@ -176,6 +176,13 @@ class PipelineOpaqueAccessRewriter {
         } else {
           offset = new_buffer->strides[0];
         }
+        if (buffer.scope() == "m16n8k8.matrixA" || buffer.scope() == "m16n8k8.matrixB") {
+          // mma scope size will shrink by warp size
+          // @see transform_mma_buffer_layout
+          ICHECK_EQ(Downcast<IntImm>(floormod(offset, 32))->value, 0)
+              << "mma scope size should be multiple of warp size";
+          offset = floordiv(offset, 32);
+        }
         PrimExpr new_index =
             old_index + floormod(pipeline_loop_->loop_var, new_buffer->shape[0]) * offset;
         new_args.Set(i + 1, new_index);

@@ -3300,6 +3300,7 @@ class OperatorConverter(object):
             kernel_zero_point = weights_tensor.qnn_params["zero_point"]
             input_scale = input_tensor.qnn_params["scale"]
             kernel_scale = weights_tensor.qnn_params["scale"]
+            out_dtype = "int64" if output_tensor_type_str == "int16" else "int32"
             out = _qnn.op.conv2d_transpose(
                 in_expr,
                 weight_expr_iohw,
@@ -3313,7 +3314,7 @@ class OperatorConverter(object):
                 kernel_size=(int(kernel_h), int(kernel_w)),
                 data_layout="NHWC",
                 kernel_layout="IOHW",
-                out_dtype="int32",
+                out_dtype=out_dtype,
             )
         else:
             out = _op.nn.conv2d_transpose(

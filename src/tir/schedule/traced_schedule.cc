@@ -82,6 +82,22 @@ Array<ExprRV> TracedScheduleNode::SamplePerfectTile(const LoopRV& loop_rv, int n
   return results;
 }
 
+Array<ExprRV> TracedScheduleNode::SamplePartitionedTile(const LoopRV& loop_rv, int n,
+                                                        int partition_pos, int innerpart_factor,
+                                                        Optional<Array<Integer>> decision) {
+  Array<ExprRV> results = CreateRV(tir::SamplePartitionedTile(
+      &this->rand_state_, this->GetSRef(loop_rv), n, partition_pos, innerpart_factor, &decision));
+
+  static const InstructionKind& kind = InstructionKind::Get("SamplePartitionedTile");
+  trace_->Append(/*inst=*/Instruction(
+                     /*kind=*/kind,  //
+                     /*inputs=*/{loop_rv},
+                     /*attrs=*/{Integer(n), Integer(partition_pos), Integer(innerpart_factor)},
+                     /*outputs=*/{results.begin(), results.end()}),
+                 /*decision=*/decision);
+  return results;
+}
+
 LoopRV TracedScheduleNode::SampleComputeLocation(const BlockRV& block_rv,
                                                  Optional<Integer> decision) {
   LoopRV result = CreateRV<LoopRV>(tir::SampleComputeLocation(this->state_, &this->rand_state_,

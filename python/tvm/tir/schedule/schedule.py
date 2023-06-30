@@ -403,6 +403,46 @@ class Schedule(Object):
         )
 
     @type_checked
+    def sample_partitioned_tile(
+        self,
+        loop: LoopRV,
+        n: int,
+        partition_pos: int = 0,
+        innerpart_factor: int = 1,
+        decision: Optional[List[int]] = None,
+    ) -> List[ExprRV]:
+        """Sample the factors to a partitioned tile for a specific loop
+
+        Parameters
+        ----------
+        loop : LoopRV
+            The loop to be tiled
+        n : int
+            The number of tiles to be sampled
+        partition_pos : int
+            The position to partition tiles to two parts
+        innerpart_factor : int
+            The factor of the second part
+        decision: Optional[List[int]]
+            The sampling decision, if any
+
+        Returns
+        -------
+        result : List[ExprRV]
+            A list of length `n`, the random partitioned tile sizes sampled
+        """
+        return list(
+            _ffi_api.ScheduleSamplePartitionedTile(  # type: ignore  # pylint: disable=no-member
+                self,
+                loop,
+                n,
+                partition_pos,
+                innerpart_factor,
+                decision,
+            )
+        )
+
+    @type_checked
     def sample_compute_location(
         self, block: Union[BlockRV, str], decision: Optional[int] = None
     ) -> LoopRV:
@@ -3483,19 +3523,13 @@ class Schedule(Object):
     def pad_einsum(self, block: Union[BlockRV, str], padding: List[int]) -> None:
         """Pad the computation of Einsum.
 
-        This schedule primitives identifies the Einsum pattern in the block body, and find its
-        producer blocks. It then pads the computation of the Einsum pattern and its producer blocks.
-        The output buffer and the producer buffer is resized according to the padding size. It
-        requires the output buffer and the producer buffer to be allocated inside the PrimFunc.
+        On a block with trivial binding, this primitive pads the iteration domain of the block by
+        the given padding factors, for example, 127 -> 128, 132 -> 144 when padding factor is 16.
+        Extra producer and consumer padding blocks will be generated to avoid out-of-bound buffer
+        access.
 
-        The padding is a list of non-negative integers, each element corresponds to the padding for
-        each block iter in the order of block iters. The block and it's producer blocks should have
-        trivial bindings, i.e. each block iter is bound to a single loop variable. After padding,
-        thblock iter extent and the corresponding outer loop is extended by the padding size.
-
-        The size of the producer buffers are infered from the padding size of the Einsum
-        computation. The producer buffers are padded by the initial value of the corresponding
-        reduction.
+        Einsum pattern means all the indices on the buffer access are either by constants
+        (e.g. B[0]) or by variables (e.g. B[i]), but not by composite expressions (e.g. B[i + 1]).
 
         Parameters
         ----------
@@ -3514,31 +3548,16 @@ class Schedule(Object):
 
             @T.prim_func
             def before_pad_einsum(
-                A: T.Buffer((128, 127), "float32"),
+                A: T.Buffer((127, 127), "float32"),
                 B: T.Buffer((127, 127), "float32"),
-                C: T.Buffer((128, 127), "float32"),
+                C: T.Buffer((127, 127), "float32"),
             ) -> None:
-                A_shared = T.alloc_buffer((128, 127), "float32", scope="shared")
-                B_shared = T.alloc_buffer((127, 127), "float32", scope="shared")
-                C_shared = T.alloc_buffer((128, 127), "float32", scope="shared")
-                for i0, i1 in T.grid(128, 127):
-                    with T.block("A"):
-                        i, j = T.axis.remap("SS", [i0, i1])
-                        A_shared[i, j] = A[i, j]
-                for i0, i1 in T.grid(127, 127):
-                    with T.block("B"):
-                        i, j = T.axis.remap("SS", [i0, i1])
-                        B_shared[i, j] = B[i, j]
-                for i0, i1, i2 in T.grid(128, 127, 127):
+                for i0, i1, i2 in T.grid(127, 127, 127):
                     with T.block("C_shared"):
                         i, j, k = T.axis.remap("SSR", [i0, i1, i2])
                         with T.init():
-                            C_shared[i, j] = T.float32(0)
-                        C_shared[i, j] = C_shared[i, j] + A_shared[i, k] * B_shared[k, j]
-                for i0, i1 in T.grid(128, 127):
-                    with T.block("C"):
-                        i, j = T.axis.remap("SS", [i0, i1])
-                        C[i, j] = C_shared[i, j]
+                            C[i, j] = T.float32(0)
+                        C[i, j] = C[i, j] + A[i, k] * B[k, j]
 
         Create the schedule and do pad-einsum with specified block:
 
@@ -3554,46 +3573,41 @@ class Schedule(Object):
         .. code-block:: python
 
             @T.prim_func
-            def after_pad_einsum(
-                A: T.Buffer((128, 127), "float32"),
+            def main(
+                A: T.Buffer((127, 127), "float32"),
                 B: T.Buffer((127, 127), "float32"),
-                C: T.Buffer((128, 127), "float32"),
-            ) -> None:
-                A_shared_padded = T.alloc_buffer([128, 128], dtype="float32", scope="shared")
-                B_shared_padded = T.alloc_buffer([128, 128], dtype="float32", scope="shared")
-                C_shared_padded = T.alloc_buffer([128, 128], dtype="float32", scope="shared")
+                C: T.Buffer((127, 127), "float32"),
+            ):
+                # with T.block("root"):
+                A_pad = T.alloc_buffer((128, 128))
+                B_pad = T.alloc_buffer((128, 128))
+                C_pad = T.alloc_buffer((128, 128))
                 for i0, i1 in T.grid(128, 128):
-                    with T.block("A"):
-                        i, j = T.axis.remap("SS", [i0, i1])
-                        T.reads(A[i, j])
-                        T.writes(A_shared_padded[i, j])
-                        A_shared_padded[i, j] = T.if_then_else(
-                            j < 127, A[i, j], T.float32(0), dtype="float32"
+                    with T.block("A_pad"):
+                        v0, v1 = T.axis.remap("SS", [i0, i1])
+                        A_pad[v0, v1] = T.if_then_else(
+                            v0 < 127 and v1 < 127,
+                            A[v0, v1],
+                            T.float32(0),
                         )
                 for i0, i1 in T.grid(128, 128):
-                    with T.block("B"):
-                        i, j = T.axis.remap("SS", [i0, i1])
-                        T.reads(B[i, j])
-                        T.writes(B_shared_padded[i, j])
-                        B_shared_padded[i, j] = T.if_then_else(
-                            i < 127 and j < 127, B[i, j], T.float32(0), dtype="float32"
+                    with T.block("B_pad"):
+                        v0, v1 = T.axis.remap("SS", [i0, i1])
+                        B_pad[v0, v1] = T.if_then_else(
+                            v0 < 127 and v1 < 127,
+                            B[v0, v1],
+                            T.float32(0),
                         )
                 for i0, i1, i2 in T.grid(128, 128, 128):
                     with T.block("C_shared"):
                         i, j, k = T.axis.remap("SSR", [i0, i1, i2])
-                        T.reads(A_shared_padded[i, k], B_shared_padded[k, j])
-                        T.writes(C_shared_padded[i, j])
                         with T.init():
-                            C_shared_padded[i, j] = T.float32(0)
-                        C_shared_padded[i, j] = (
-                            C_shared_padded[i, j] + A_shared_padded[i, k] * B_shared_padded[k, j]
-                        )
-                for i0, i1 in T.grid(128, 127):
-                    with T.block("C"):
-                        i, j = T.axis.remap("SS", [i0, i1])
-                        T.reads(C_shared_padded[i, j])
-                        T.writes(C[i, j])
-                        C[i, j] = C_shared_padded[i, j]
+                            C_pad[i, j] = T.float32(0)
+                        C_pad[i, j] = C_pad[i, j] + A_pad[i, k] * B_pad[k, j]
+                for i0, i1 in T.grid(127, 127):
+                    with T.block("C_pad"):
+                        v0, v1 = T.axis.remap("SS", [i0, i1])
+                        C[v0, v1] = C_pad[v0, v1]
 
         """
         block = self._normalize_block_arg(block)
