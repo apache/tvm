@@ -246,25 +246,36 @@ class StmtMutator::Internal {
   static Array<MatchBufferRegion> Mutate(StmtMutator* self, const Array<MatchBufferRegion>& arr) {
     auto fmutate = [self](const MatchBufferRegion& match_buffer_region) {
       Array<Range> region = Mutate(self, match_buffer_region->source->region);
-      Buffer buffer = match_buffer_region->buffer;
-      PrimExpr elem_offset = self->VisitExpr(buffer->elem_offset);
-      Array<PrimExpr> strides = Mutate(self, buffer->strides);
-      Array<PrimExpr> shape = Mutate(self, buffer->shape);
+      PrimExpr elem_offset = self->VisitExpr(match_buffer_region->buffer->elem_offset);
+      Array<PrimExpr> strides = Mutate(self, match_buffer_region->buffer->strides);
+      Array<PrimExpr> shape = Mutate(self, match_buffer_region->buffer->shape);
       Array<IntImm> axis_separators =
-          MutateArray(self, buffer->axis_separators,
+          MutateArray(self, match_buffer_region->buffer->axis_separators,
                       [self](const IntImm& e) { return Downcast<IntImm>(self->VisitExpr(e)); });
 
       if (region.same_as(match_buffer_region->source->region) &&
-          elem_offset.same_as(buffer->elem_offset) && strides.same_as(buffer->strides) &&
-          shape.same_as(buffer->shape) && axis_separators.same_as(buffer->axis_separators)) {
+          elem_offset.same_as(match_buffer_region->buffer->elem_offset) &&
+          strides.same_as(match_buffer_region->buffer->strides) &&
+          shape.same_as(match_buffer_region->buffer->shape) &&
+          axis_separators.same_as(match_buffer_region->buffer->axis_separators)) {
         return match_buffer_region;
       } else {
-        auto n = buffer.CopyOnWrite();
-        n->elem_offset = elem_offset;
-        n->strides = strides;
-        n->shape = shape;
-        n->axis_separators = axis_separators;
-        return MatchBufferRegion(buffer, BufferRegion(match_buffer_region->source->buffer, region));
+        if (elem_offset.same_as(match_buffer_region->buffer->elem_offset) &&
+            strides.same_as(match_buffer_region->buffer->strides) &&
+            shape.same_as(match_buffer_region->buffer->shape) &&
+            axis_separators.same_as(match_buffer_region->buffer->axis_separators)) {
+          return MatchBufferRegion(match_buffer_region->buffer,
+                                   BufferRegion(match_buffer_region->source->buffer, region));
+        } else {
+          Buffer buffer(match_buffer_region->buffer->data, match_buffer_region->buffer->dtype,
+                        shape, strides, elem_offset, match_buffer_region->buffer->name,
+                        match_buffer_region->buffer->data_alignment,
+                        match_buffer_region->buffer->offset_factor,
+                        match_buffer_region->buffer->buffer_type, axis_separators,
+                        match_buffer_region->buffer->span);
+          return MatchBufferRegion(buffer,
+                                   BufferRegion(match_buffer_region->source->buffer, region));
+        }
       }
     };
     return MutateArray(self, arr, fmutate);
