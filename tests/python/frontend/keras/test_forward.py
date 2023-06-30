@@ -167,13 +167,15 @@ class TestKeras:
         out = merge_func([data1, data2])
         keras_model = keras_mod.models.Model([data1, data2], out)
         verify_keras_frontend(keras_model, layout="NHWC")
+        verify_keras_frontend(keras_model, layout="NCHW")
         # test default axis (e.g., -1)
         data1 = keras_mod.layers.Input(shape=(1, 2, 2))
-        data2 = keras_mod.layers.Input(shape=(1, 2, 2))
+        data2 = keras_mod.layers.Input(shape=(1, 2, 3))
         merge_func = keras_mod.layers.Concatenate()
         out = merge_func([data1, data2])
         keras_model = keras_mod.models.Model([data1, data2], out)
-        verify_keras_frontend(keras_model)
+        verify_keras_frontend(keras_model, layout="NHWC")
+        verify_keras_frontend(keras_model, layout="NCHW")
 
     def test_forward_merge_dot(self, keras_mod):
         """test_forward_merge_dot"""
