@@ -254,10 +254,8 @@ class StmtMutator::Internal {
           MutateArray(self, buffer->axis_separators,
                       [self](const IntImm& e) { return Downcast<IntImm>(self->VisitExpr(e)); });
 
-      if (elem_offset.same_as(buffer->elem_offset) &&
-          strides.same_as(buffer->strides) &&
-          shape.same_as(buffer->shape) &&
-          axis_separators.same_as(buffer->axis_separators)) {
+      if (elem_offset.same_as(buffer->elem_offset) && strides.same_as(buffer->strides) &&
+          shape.same_as(buffer->shape) && axis_separators.same_as(buffer->axis_separators)) {
         if (region.same_as(match_buffer_region->source->region)) {
           return match_buffer_region;
         } else {
@@ -265,12 +263,9 @@ class StmtMutator::Internal {
                                    BufferRegion(match_buffer_region->source->buffer, region));
         }
       } else {
-        Buffer new_buffer(buffer->data, buffer->dtype,
-                          shape, strides, elem_offset, buffer->name,
-                          buffer->data_alignment,
-                          buffer->offset_factor,
-                          buffer->buffer_type, axis_separators,
-                          buffer->span);
+        Buffer new_buffer(buffer->data, buffer->dtype, shape, strides, elem_offset, buffer->name,
+                          buffer->data_alignment, buffer->offset_factor, buffer->buffer_type,
+                          axis_separators, buffer->span);
         return MatchBufferRegion(new_buffer,
                                  BufferRegion(match_buffer_region->source->buffer, region));
       }
