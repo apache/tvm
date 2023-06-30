@@ -173,20 +173,27 @@ def _layout_transform(bb: BlockBuilder, call: Call) -> Expr:
     def te_layout_transform(data):
         inverse, padding_predicate = index_map.non_surjective_inverse(data.shape)
         output_shape = index_map.map_shape(data.shape)
-        return te.compute(
-            output_shape,
-            lambda *idx: tvm.te.if_then_else(
-                tir.stmt_functor.substitute(
-                    padding_predicate,
-                    {
-                        old_idx: tvm.tir.Cast("int32", idx[i])
-                        for i, old_idx in enumerate(inverse.initial_indices)
-                    },
+        if isinstance(padding_predicate, tvm.tir.expr.IntImm) and bool(padding_predicate) == False:
+            return te.compute(
+                output_shape,
+                lambda *idx: data(*inverse.map_indices(idx)),
+                name="te_layout_transform",
+            )
+        else:
+            return te.compute(
+                output_shape,
+                lambda *idx: tvm.te.if_then_else(
+                    tir.stmt_functor.substitute(
+                        padding_predicate,
+                        {
+                            old_idx: tvm.tir.Cast("int32", idx[i])
+                            for i, old_idx in enumerate(inverse.initial_indices)
+                        },
+                    ),
+                    pad_value,
+                    data(*inverse.map_indices(idx)),
                 ),
-                pad_value,
-                data(*inverse.map_indices(idx)),
-            ),
-            name="te_layout_transform",
-        )
+                name="te_layout_transform_with_pad",
+            )
 
     return bb.call_te(te_layout_transform, call.args[0])
