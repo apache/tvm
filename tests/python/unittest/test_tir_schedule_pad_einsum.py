@@ -20,12 +20,7 @@ import tvm
 import tvm.testing
 from tvm import tir
 from tvm.script import tir as T
-<<<<<<< HEAD
-from tvm.tir.schedule.testing import verify_trace_roundtrip
-=======
-from tvm.tir.schedule.schedule import ScheduleError
 from tvm.tir.schedule.testing import verify_trace_roundtrip, assert_structural_equal_gs
-from tvm.meta_schedule.testing import te_workload
 
 # pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
@@ -101,7 +96,6 @@ def matmul_expected(
 
 
 # pylint: enable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
->>>>>>> b5bed9aea (Use global symbol in numerous tests)
 
 
 def test_pad_matmul():
@@ -154,15 +148,9 @@ def test_pad_matmul():
                 C[v0, v1] = C_pad[v0, v1]
 
     sch = tir.Schedule(matmul_before, debug_mask="all")
-<<<<<<< HEAD
     C = sch.get_block("C")
     sch.pad_einsum(C, [32, 32, 32])
-    tvm.ir.assert_structural_equal(matmul_after, sch.mod["main"])
-=======
-    C = sch.get_block("C_shared")
-    sch.pad_einsum(C, [0, 1, 1])
-    assert_structural_equal_gs(matmul_expected, sch.mod["main"])
->>>>>>> b5bed9aea (Use global symbol in numerous tests)
+    assert_structural_equal_gs(matmul_after, sch.mod["main"])
     verify_trace_roundtrip(sch, mod=matmul_before)
 
 
@@ -232,7 +220,7 @@ def test_pad_matmul_2():
     sch = tir.Schedule(before, debug_mask="all")
     C = sch.get_block("C")
     sch.pad_einsum(C, [1, 32, 32, 32])
-    tvm.ir.assert_structural_equal(after, sch.mod["main"])
+    assert_structural_equal_gs(after, sch.mod["main"])
     verify_trace_roundtrip(sch, mod=before)
 
 
@@ -304,7 +292,7 @@ def test_pad_rms():
     sch = tir.Schedule(before, debug_mask="all")
     C = sch.get_block("S")
     sch.pad_einsum(C, [1, 32, 1])
-    tvm.ir.assert_structural_equal(after, sch.mod["main"])
+    assert_structural_equal_gs(after, sch.mod["main"])
     verify_trace_roundtrip(sch, mod=before)
 
 
