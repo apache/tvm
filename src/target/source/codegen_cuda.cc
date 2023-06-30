@@ -441,9 +441,9 @@ void CodeGenCUDA::PrintVecBinaryOp(const std::string& op, DataType t, PrimExpr l
   if (t.bits() == 16 && t.is_floating_point() && t.lanes() == 2) {
     // native half2 and nv_bfloat162 support.
     if (isalpha(op[0])) {
-      os << op << "(" << lhs << ", " << rhs << ")";
+      os << op << "(" << PrintExpr(lhs) << ", " << PrintExpr(rhs) << ")";
     } else {
-      os << "(" << lhs << " " << op << " " << rhs << ")";
+      os << "(" << PrintExpr(lhs) << " " << op << " " << PrintExpr(rhs) << ")";
     }
   } else {
     std::string sret = name_supply_->FreshName("_");
