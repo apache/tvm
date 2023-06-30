@@ -173,7 +173,7 @@ def _layout_transform(bb: BlockBuilder, call: Call) -> Expr:
     def te_layout_transform(data):
         inverse, padding_predicate = index_map.non_surjective_inverse(data.shape)
         output_shape = index_map.map_shape(data.shape)
-        if isinstance(padding_predicate, tvm.tir.expr.IntImm) and bool(padding_predicate) == False:
+        if isinstance(padding_predicate, tvm.tir.expr.IntImm) and bool(padding_predicate) is False:
             return te.compute(
                 output_shape,
                 lambda *idx: data(*inverse.map_indices(idx)),
