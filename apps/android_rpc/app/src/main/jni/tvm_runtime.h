@@ -78,6 +78,7 @@
 #include "../src/runtime/vulkan/vulkan_module.cc"
 #include "../src/runtime/vulkan/vulkan_stream.cc"
 #include "../src/runtime/vulkan/vulkan_wrapped_func.cc"
+#include "../src/runtime/vulkan/vulkan_amdrgp.cc"
 #endif
 
 #ifdef USE_SORT
