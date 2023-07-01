@@ -333,7 +333,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   }
 
   void EmitAllocStorage(const Call& call_node, RegName dst_reg) {
-    ICHECK_EQ(call_node->args.size(), 3);
+    ICHECK_EQ(call_node->args.size(), 4);
     // Handle args of the call
     std::vector<Instruction::Arg> args;
     args.push_back(Instruction::Arg::Register(Instruction::kVMRegister));

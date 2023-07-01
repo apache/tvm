@@ -17,23 +17,24 @@
 
 from typing import Union
 from . import _ffi_api
-from ...expr import Expr, Call, PrimValue, DataTypeImm, Tuple
+from ...expr import Expr, Call, PrimValue, DataTypeImm, Tuple, StringImm
 from ...utils import args_converter
 
 
 @args_converter.auto
 def alloc_storage(
-    size: Expr,
+    shape: Expr,
     runtime_device_index: Union[int, Expr],
     dtype: Union[str, Expr],
+    storage_scope: Union[str, StringImm] = "global",
 ) -> Call:
     """Construct a Call to allocate a storage with specific size,
     runtime_device_index, and dtype.
 
     Parameters
     ----------
-    size : Expr
-        The size of the storage to be allocated.
+    shape : Expr
+        The shape of the storage to be allocated.
 
     runtime_device_index : Union[int, Expr]
         The device index indicating on which device the tensor is to
@@ -42,6 +43,9 @@ def alloc_storage(
     dtype : Union[str, Expr]
         The datatype of the storage to be allocated.
 
+    storage_scope : Union[str, StringImm]
+        The storage scope of the storage to allocate. Default is global.
+
     Returns
     -------
     result : Call
@@ -49,9 +53,11 @@ def alloc_storage(
     """
     if isinstance(dtype, str):
         dtype = DataTypeImm(dtype)
+    if isinstance(storage_scope, str):
+        storage_scope = StringImm(storage_scope)
     if isinstance(runtime_device_index, int):
         runtime_device_index = PrimValue(runtime_device_index)
-    return _ffi_api.alloc_storage(size, runtime_device_index, dtype)  # type: ignore
+    return _ffi_api.alloc_storage(shape, runtime_device_index, dtype, storage_scope)  # type: ignore
 
 
 @args_converter.auto

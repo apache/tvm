@@ -71,6 +71,13 @@ class Allocator {
    *  \return A sized allocation in the form of a buffer.
    */
   virtual Buffer Alloc(size_t nbytes, size_t alignment, DLDataType type_hint) = 0;
+  /*! \brief Allocate a buffer given a size, alignment and type.
+   *  \param shape The shape of allocated tensor.
+   *  \param dtype A type hint to the allocator.
+   *  \param mem_scope The memory scope of allocated tensor.
+   *  \return A sized allocation in the form of a buffer.
+   */
+  virtual Buffer Alloc(ShapeTuple shape, DLDataType dtype, String mem_scope);
   /*! \brief Free a buffer allocated by the allocator.
    *  \param buffer The buffer to free.
    */

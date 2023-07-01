@@ -564,19 +564,22 @@ TVM_REGISTER_GLOBAL("relax.op.memory.kill_tensor").set_body_typed(MakeMemKillTen
 // vm alloc_storage
 
 RELAY_REGISTER_OP("relax.vm.alloc_storage")
-    .set_num_inputs(3)
+    .set_num_inputs(4)
     .add_argument("size", "Expr", "The size of the storage to allocate.")
     .add_argument("dtype", "DataTypeImm", "The dtype of the tensor to allocate.")
     .add_argument("runtime_device_index", "PrimValue",
                   "The device index indicating on which device the tensor is "
                   "to be allocated at runtime.")
+    .add_argument("storage_scope", "StringImm",
+                  "The storage scope of the storage to allocate. Default is global.")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnObjectStructInfo)
     // memory allocation isn't considered a "visible effect" as far as purity is concerned
     .set_attr<Bool>("FPurity", Bool(true));
 
-Expr MakeVMAllocStorage(Expr size, PrimValue runtime_device_index, DataTypeImm dtype) {
+Expr MakeVMAllocStorage(Expr size, PrimValue runtime_device_index, DataTypeImm dtype,
+                        StringImm storage_scope) {
   static const Op& op = Op::Get("relax.vm.alloc_storage");
-  return Call(op, {size, runtime_device_index, dtype}, Attrs(), {});
+  return Call(op, {size, runtime_device_index, dtype, storage_scope}, Attrs(), {});
 }
 
 TVM_REGISTER_GLOBAL("relax.op.vm.alloc_storage").set_body_typed(MakeVMAllocStorage);

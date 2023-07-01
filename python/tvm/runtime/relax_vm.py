@@ -326,6 +326,7 @@ class VirtualMachine(object):
             If the result is a tuple, it returns a list of the fields.
             The fields are potentially also tuples, so these can be arbitrily nested.
         """
+
         # to deal with potentially nested tuples, we need to query for arity recursively
         def get_output_rec(func_name, *idx):
             arity = self._get_output_arity(func_name, *idx)
