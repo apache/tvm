@@ -48,16 +48,13 @@ def test_fallback():
             C: T.Buffer((1, 1, 4096), "float16"),
         ):
             T.func_attr({"tir.is_scheduled": 1})
-            # with T.block("root"):
-            for i_j_k_fused_0 in T.thread_binding(4, thread="blockIdx.x"):
-                for i_j_k_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
+            for ax0_fused_0 in T.thread_binding(4, thread="blockIdx.x"):
+                for ax0_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
                     with T.block("T_reshape"):
-                        vi = T.axis.spatial(1, 0)
-                        vj = T.axis.spatial(1, 0)
-                        vk = T.axis.spatial(4096, i_j_k_fused_0 * 1024 + i_j_k_fused_1)
-                        T.reads(A[0, vk % 4096 // 128, 0, vk % 128])
-                        T.writes(C[vi, vj, vk])
-                        C[vi, vj, vk] = A[0, vk % 4096 // 128, 0, vk % 128]
+                        v0 = T.axis.spatial(4096, ax0_fused_0 * 1024 + ax0_fused_1)
+                        T.reads(A[0, v0 // 128, 0, v0 % 128])
+                        T.writes(C[0, 0, v0])
+                        C[0, 0, v0] = A[0, v0 // 128, 0, v0 % 128]
 
     target = Target("nvidia/geforce-rtx-3090-ti")
     with target:

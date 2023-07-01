@@ -18,119 +18,59 @@
 """A fallback schedule rule for GPU operators."""
 # pylint: disable=invalid-name
 
-from typing import List, Union
-from functools import reduce
-import tvm
-from tvm import tir
-from tvm.tir import Schedule
-from tvm._ffi import get_global_func
-from tvm.target import Target
-from tvm.tir.schedule import BlockRV
+from typing import List, Optional, Union
 
-from ..base import BlockInfo, ScheduleRule, try_inline
+from tvm import tir
+from tvm._ffi import get_global_func
+from tvm.arith import normalize_to_iter_sum
+from tvm.ir import structural_equal
+from tvm.target import Target
+
+from ..base import ScheduleRule, normalize_prim_func, try_inline_contiguous_spatial
+
+
+def _get_reduction_expr(block: tir.Block) -> Optional[tir.PrimExpr]:
+    # Detect and return `Y` in `X[...] = X[...] + Y`
+    buffer_store = block.body
+    if not isinstance(buffer_store, tir.BufferStore):
+        return None
+    if not isinstance(buffer_store.value, tir.Add):
+        return None
+    if not structural_equal(
+        buffer_store.value.a,
+        tir.BufferLoad(buffer_store.buffer, block.body.indices),
+        map_free_vars=True,
+    ):
+        return None
+    return buffer_store.value.b
+
+
+def _detect_dominant_read(block: tir.Block) -> tir.PrimExpr:
+    dominant_read, read_iters = None, None
+    tir_vars = set()
+    for buffer_region in block.reads:
+        tir_vars.clear()
+
+        def _collect_tir_var(e):
+            if isinstance(e, tir.Var):
+                tir_vars.add(e)
+
+        for expr in buffer_region.region:
+            assert expr.extent == 1
+            tir.stmt_functor.post_order_visit(expr.min, _collect_tir_var)
+
+        if read_iters is None or read_iters < len(tir_vars):
+            read_iters = len(tir_vars)
+            dominant_read = buffer_region
+    assert dominant_read is not None
+    (result,) = dominant_read.buffer.offset_of([e.min for e in dominant_read.region])
+    return result
 
 
 class DecodeGEMV(ScheduleRule):
     def __init__(self) -> None:
         super().__init__()
-        self.is_trivial_binding = get_global_func("tir.schedule.IsTrivialBinding")
-        self.is_reduction = get_global_func("tir.schedule.IsReductionBlock")
-        self.get_block_realize = get_global_func("tir.schedule.GetBlockRealize")
         self.get_loop_iter_type = get_global_func("tir.schedule.GetLoopIterType")
-
-    def detect_gemv(self, sch: Schedule, scope_block_rv: BlockRV, block_rv: BlockRV):
-        if not self.is_trivial_binding(sch, block_rv):
-            return None
-        if not self.is_reduction(sch, block_rv, scope_block_rv):
-            return None
-
-        block: tir.Block = sch.get(block_rv)
-        block_realize: tir.BlockRealize = self.get_block_realize(sch, block_rv)
-        block_iters = block.iter_vars
-        loops = sch.get_loops(block_rv)
-        var_loop_map = {sch.get(loop).loop_var: loop for loop in loops}
-        var_range_map = {iter.var: iter.dom for iter in block_iters}
-        bv_loop_map, loop_iter_type_map = dict(), dict()
-        for bv, binding in zip(block_iters, block_realize.iter_values):
-            bv_loop_map[bv.var] = var_loop_map[binding]
-            loop_iter_type_map[var_loop_map[binding]] = bv.iter_type
-
-        # C[S0] = C[S0] + f(A_i[S_i, R]), S_i >= S_{i+1}
-        # reduce to (appromximately if we ignore smaller buffer accesses)
-        # C[S0] = C[S0] + A_0[S_0, R], which is just a reduction
-        # further simplification: The order of S0 in C and A_0 are the same
-        if not isinstance(block.body, tir.BufferStore) or not isinstance(block.body.value, tir.Add):
-            return None
-
-        lhs = block.body.value.a
-        rhs = block.body.value.b
-        if not isinstance(lhs, tir.BufferLoad):
-            lhs, rhs = rhs, lhs
-        if not isinstance(lhs, tir.BufferLoad):
-            return None
-
-        # TODO: consider visit the body to collect buffer access
-        reads = sorted(
-            block.reads,
-            key=lambda read: reduce(lambda x, y: x * y, read.buffer.shape),
-            reverse=True,
-        )
-
-        # reads[0] is the buffer that decides the iteration space
-        access = list()
-        for r_range in reads[0].region:
-            if r_range.extent != 1:
-                return None
-            access.append(r_range.min)
-        index = reads[0].buffer.offset_of(access)
-        assert len(index) == 1
-        index = index[0]
-        res = tvm.arith.normalize_to_iter_sum(index, var_range_map)
-        assert isinstance(res, tvm.arith.IterSumExpr)
-        if res.base != 0:
-            return None
-
-        # lhs and rhs use the same set of spatial variables
-        lhs_vars = set()
-        for value in lhs.indices:
-            if not (var_range_map[value].extent == 1 and var_range_map[value].min == 0):
-                lhs_vars.add(value)
-
-        # allow at most 1 iter to have lower factor > 1
-        S_order, R_order = list(), list()
-        loop_c = None
-        for split in res.args:
-            bv = split.source.source
-            if bv in lhs_vars:
-                S_order.append(bv_loop_map[bv])
-            else:
-                R_order.append(bv_loop_map[bv])
-            if split.lower_factor > 1:
-                if loop_c is not None:
-                    return None
-                loop_c = bv_loop_map[bv], split.lower_factor
-
-        if len(lhs_vars) != len(S_order):
-            return None
-
-        # handle unit loops
-        for loop_rv in loops:
-            loop: tir.For = sch.get(loop_rv)
-            if loop_rv not in S_order and loop_rv not in R_order:
-                assert loop.min == 0 and loop.extent == 1
-                if loop_iter_type_map[loop_rv] == tir.IterVar.DataPar:
-                    S_order.append(loop_rv)
-                elif loop_iter_type_map[loop_rv] == tir.IterVar.CommReduce:
-                    R_order.append(loop_rv)
-                else:
-                    raise RuntimeError("Unknown loop type")
-
-        return (
-            S_order,
-            R_order,
-            "S" if res.args[-1].source.source in lhs_vars else "R",
-            loop_c,
-        )
 
     def apply(  # pylint: disable=too-many-locals
         self,
@@ -143,100 +83,106 @@ class DecodeGEMV(ScheduleRule):
         else:
             len_tx, len_ty = 8, 8
 
-        def _inline_all_spatial():
-            blocks = []
-            spatial_blocks = []
-            for block in sch.get_child_blocks(sch.get_block("root")):
-                block = BlockInfo(sch, block)
-                if block.is_spatial():
-                    spatial_blocks.append(block)
-                elif spatial_blocks:
-                    blocks.extend(try_inline(sch, spatial_blocks))
-                    blocks.append(block)
-                    spatial_blocks = []
-                else:
-                    blocks.append(block)
-            if spatial_blocks:
-                blocks.extend(try_inline(sch, spatial_blocks))
-            return blocks
-
         sch = tir.Schedule(func)
-        blocks = _inline_all_spatial()
-        assert len(blocks) <= 2
+        block_infos = try_inline_contiguous_spatial(sch, normalize_prim_func(sch))
 
-        pattern = self.detect_gemv(sch, sch.get_block("root"), blocks[0].block)
-        if pattern is None:
-            print("Mismatch")
+        if len(block_infos) > 2:
             return None
 
-        S_order, R_order, inner_most, loop_c = pattern
+        block_info = block_infos[0]
+        block = block_info.block_rv
+        block_stmt = sch.get(block)
 
-        # split the compressed dim out, and reorder the loops according to the pattern
-        loop_c_in_S = False
-        if loop_c is not None:
-            loop_c, factor = loop_c
-            outer, inner = sch.split(loop_c, factors=[None, factor])
-            if loop_c in S_order:
-                loop_c_in_S = True
-                S_order[S_order.index(loop_c)] = outer
+        # Step 1. Check reduction block
+        if not block_info.is_reduction():
+            return None
+        if len(block_stmt.writes) != 1:
+            return None
+        if _get_reduction_expr(block_stmt) is None:
+            return None
+
+        # Step 2. Sort out the spatial and reduction loops
+        sorted_iter_access = normalize_to_iter_sum(
+            _detect_dominant_read(block_stmt),
+            input_iters={i.var: i.dom for i in block_stmt.iter_vars},
+        )
+        if sorted_iter_access.base != 0:
+            return None
+        iter_to_info = {i.var: i for i in block_info.iters}
+        s_loops, r_loops, c_loops = [], [], []
+        for split in sorted_iter_access.args:
+            block_var = split.source.source
+            block_var_info = iter_to_info[block_var]
+            loop_rv = block_var_info.loop_rv
+            is_inner_reduction = block_var_info.kind == "R"
+            if split.lower_factor > 1:
+                c_loop_factor = split.lower_factor
+                loop_rv, c_loop = sch.split(loop_rv, factors=[None, c_loop_factor])
+                c_loops.append(c_loop)
+                is_loop_c_reduction = is_inner_reduction
+            if is_inner_reduction:
+                r_loops.append(loop_rv)
             else:
-                R_order[R_order.index(loop_c)] = outer
-            sch.reorder(*(S_order + R_order + [inner]))
-        else:
-            sch.reorder(*(S_order + R_order))
-        # fuse the loops, the loop structure afterwards is [S, R, [inner]]
-        S = sch.fuse(*S_order)
-        R = sch.fuse(*R_order)
-        if inner_most == "S":
-            bx, tx = sch.split(S, factors=[None, len_tx], preserve_unit_iters=True)
-            R, ty = sch.split(R, factors=[None, len_ty], preserve_unit_iters=True)
-            rf = sch.rfactor(ty, 0)
+                s_loops.append(loop_rv)
 
-            bx, tx, R, ty = sch.get_loops(rf)[:4]
-            sch.reorder(bx, tx, ty, R)
-            sch.reverse_compute_at(blocks[0].block, bx, preserve_unit_loops=True)
+        if len(c_loops) > 1:
+            return None
+        if len(s_loops) != len([_ for i in block_info.iters if i.kind == "S"]):
+            return None
+        assert s_loops
+        assert r_loops
+
+        sch.reorder(*s_loops, *r_loops, *c_loops)
+        s = sch.fuse(*s_loops)
+        r = sch.fuse(*r_loops)
+
+        if is_inner_reduction:
+            _, tx = sch.split(r, factors=[None, len_tx * len_ty])
+            rf = sch.rfactor(tx, 0)
+            s, r, tx = sch.get_loops(rf)[:3]
+            sch.reorder(s, tx, r)
+            sch.reverse_compute_at(block, s, preserve_unit_loops=True)
+            sch.bind(tx, "threadIdx.x")
+            sch.bind(s, "blockIdx.x")
+        else:
+            sch.split(s, factors=[None, len_tx])
+            _, ty = sch.split(r, factors=[None, len_ty])
+            rf = sch.rfactor(ty, 0)
+            bx, tx, r, ty = sch.get_loops(rf)[:4]
+            sch.reorder(bx, tx, ty, r)
+            sch.reverse_compute_at(block, bx, preserve_unit_loops=True)
             sch.bind(tx, "threadIdx.x")
             sch.bind(ty, "threadIdx.y")
             sch.bind(bx, "blockIdx.x")
-        else:
-            R, tx = sch.split(R, factors=[None, len_tx * len_ty], preserve_unit_iters=True)
-            rf = sch.rfactor(tx, 0)
 
-            S, R, tx = sch.get_loops(rf)[:3]
-            sch.reorder(S, tx, R)
-            sch.reverse_compute_at(blocks[0].block, S, preserve_unit_loops=True)
-            sch.bind(tx, "threadIdx.x")
-            sch.bind(S, "blockIdx.x")
-
-        # bind the cross thread reduce block
-        S_ctr_order, R_ctr_order = list(), list()
-        for loop_rv in sch.get_loops(blocks[0].block)[1:]:
+        s_loops, r_loops = [], []
+        for loop_rv in sch.get_loops(block)[1:]:
             iter_type = self.get_loop_iter_type(sch, loop_rv)
             if iter_type == "S":
-                S_ctr_order.append(loop_rv)
+                s_loops.append(loop_rv)
             elif iter_type == "R":
-                R_ctr_order.append(loop_rv)
+                r_loops.append(loop_rv)
             else:
                 raise RuntimeError("Unknown loop type " + str(iter_type))
-        sch.reorder(*(S_ctr_order + R_ctr_order))
-        S_ctr = sch.fuse(*S_ctr_order)
-        R_ctr = sch.fuse(*R_ctr_order)
+        sch.reorder(*s_loops, *r_loops)
+        s_ctr = sch.fuse(*s_loops)
+        r_ctr = sch.fuse(*r_loops)
 
-        if loop_c_in_S:
-            S_ctr, inner = sch.split(S_ctr, factors=[None, factor], preserve_unit_iters=True)
-            sch.reorder(S_ctr, R_ctr, inner)
+        if c_loops and not is_loop_c_reduction:
+            s_ctr, inner = sch.split(s_ctr, factors=[None, c_loop_factor])
+            sch.reorder(s_ctr, r_ctr, inner)
 
-        if inner_most == "S":
-            sch.bind(S_ctr, "threadIdx.x")
-            sch.bind(R_ctr, "threadIdx.y")
+        if is_inner_reduction:
+            sch.bind(r_ctr, "threadIdx.x")
+            sch.set_scope(rf, 0, "local")
+            sch.decompose_reduction(rf, sch.get_loops(rf)[2])
         else:
-            sch.bind(R_ctr, "threadIdx.x")
+            sch.bind(s_ctr, "threadIdx.x")
+            sch.bind(r_ctr, "threadIdx.y")
+            sch.set_scope(rf, 0, "local")
+            sch.decompose_reduction(rf, sch.get_loops(rf)[3])
 
-        sch.set_scope(rf, 0, "local")
-        sch.decompose_reduction(rf, sch.get_loops(rf)[2 if inner_most == "R" else 3])
-
-        if len(blocks) == 2:
-            sch.set_scope(blocks[0].block, 0, "local")
-            sch.reverse_compute_at(blocks[1].block, sch.get_loops(blocks[0].block)[0])
-
+        if len(block_infos) == 2:
+            sch.set_scope(block, 0, "local")
+            sch.reverse_compute_at(block_infos[1].block_rv, sch.get_loops(block)[0])
         return sch

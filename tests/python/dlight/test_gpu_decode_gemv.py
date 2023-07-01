@@ -60,33 +60,21 @@ def test_decode_gemv_1():
                 for k_0_fused_1 in T.thread_binding(256, thread="threadIdx.x"):
                     with T.block("matmul_rf_init"):
                         vk_0_fused_1 = T.axis.spatial(256, k_0_fused_1)
-                        v_i0 = T.axis.spatial(1, 0)
-                        v_i1 = T.axis.spatial(1, 0)
                         v_i2 = T.axis.spatial(4096, i2_i0_i1_fused)
-                        T.reads()
-                        T.writes(C_rf_local[vk_0_fused_1, v_i0, v_i1, v_i2])
-                        C_rf_local[vk_0_fused_1, v_i0, v_i1, v_i2] = T.float16(0)
+                        C_rf_local[vk_0_fused_1, 0, 0, v_i2] = T.float16(0)
                     for k_0_fused_0, k_1 in T.grid(2, 8):
                         with T.block("matmul_rf_update"):
                             vk_0_fused_1 = T.axis.spatial(256, k_0_fused_1)
-                            v_i0 = T.axis.spatial(1, 0)
-                            v_i1 = T.axis.spatial(1, 0)
                             v_i2, vk_0_fused_0, vk_1 = T.axis.remap("SRR", [i2_i0_i1_fused, k_0_fused_0, k_1])
-                            T.reads(C_rf_local[vk_0_fused_1, v_i0, v_i1, v_i2], V[v_i0, v_i1, vk_0_fused_0 * 2048 + vk_0_fused_1 * 8 + vk_1], W[v_i2, (vk_0_fused_0 * 2048 + vk_0_fused_1 * 8 + vk_1) // 8], S[v_i2, (vk_0_fused_0 * 2048 + vk_0_fused_1 * 8 + vk_1) // 32])
-                            T.writes(C_rf_local[vk_0_fused_1, v_i0, v_i1, v_i2])
-                            C_rf_local[vk_0_fused_1, v_i0, v_i1, v_i2] = C_rf_local[vk_0_fused_1, v_i0, v_i1, v_i2] + V[v_i0, v_i1, vk_0_fused_0 * 2048 + vk_0_fused_1 * 8 + vk_1] * ((T.Cast("float16", T.bitwise_and(T.shift_right(W[v_i2, (vk_0_fused_0 * 2048 + vk_0_fused_1 * 8 + vk_1) // 8], T.Cast("uint32", (vk_0_fused_0 * 2048 + vk_0_fused_1 * 8 + vk_1) % 8) * T.uint32(4)), T.uint32(15))) - T.float16(7)) * S[v_i2, (vk_0_fused_0 * 2048 + vk_0_fused_1 * 8 + vk_1) // 32])
+                            C_rf_local[vk_0_fused_1, 0, 0, v_i2] = C_rf_local[vk_0_fused_1, 0, 0, v_i2] + V[0, 0, vk_0_fused_0 * 2048 + vk_0_fused_1 * 8 + vk_1] * ((T.Cast("float16", T.bitwise_and(T.shift_right(W[v_i2, (vk_0_fused_0 * 2048 + vk_0_fused_1 * 8 + vk_1) // 8], T.Cast("uint32", (vk_0_fused_0 * 2048 + vk_0_fused_1 * 8 + vk_1) % 8) * T.uint32(4)), T.uint32(15))) - T.float16(7)) * S[v_i2, (vk_0_fused_0 * 2048 + vk_0_fused_1 * 8 + vk_1) // 32])
                 for ax1_ax2_ax3_fused in range(1):
                     for ax0_fused in T.thread_binding(256, thread="threadIdx.x"):
                         with T.block("matmul"):
                             vk_0_fused_1 = T.axis.reduce(256, ax0_fused)
-                            v_i0 = T.axis.spatial(1, 0)
-                            v_i1 = T.axis.spatial(1, 0)
                             v_i2 = T.axis.spatial(4096, i2_i0_i1_fused)
-                            T.reads(C_rf_local[vk_0_fused_1, v_i0, v_i1, v_i2])
-                            T.writes(C[v_i0, v_i1, v_i2])
                             with T.init():
-                                C[v_i0, v_i1, v_i2] = T.float16(0)
-                            C[v_i0, v_i1, v_i2] = C[v_i0, v_i1, v_i2] + C_rf_local[vk_0_fused_1, v_i0, v_i1, v_i2]
+                                C[0, 0, v_i2] = T.float16(0)
+                            C[0, 0, v_i2] = C[0, 0, v_i2] + C_rf_local[vk_0_fused_1, 0, 0, v_i2]
     # fmt: on
 
     target = Target("nvidia/geforce-rtx-3090-ti")
@@ -133,34 +121,22 @@ def test_decode_gemv_2():
                     for k_0_fused_1 in T.thread_binding(16, thread="threadIdx.y"):
                         with T.block("matmul_rf_init"):
                             vk_0_fused_1 = T.axis.spatial(16, k_0_fused_1)
-                            v_i0 = T.axis.spatial(1, 0)
-                            v_i1 = T.axis.spatial(1, 0)
                             v_i2 = T.axis.spatial(4096, i2_i0_i1_fused_0 * 16 + i2_i0_i1_fused_1)
-                            T.reads()
-                            T.writes(C_rf_local[vk_0_fused_1, v_i0, v_i1, v_i2])
-                            C_rf_local[vk_0_fused_1, v_i0, v_i1, v_i2] = T.float16(0)
+                            C_rf_local[vk_0_fused_1, 0, 0, v_i2] = T.float16(0)
                         for k_0_fused_0, k_1 in T.grid(32, 8):
                             with T.block("matmul_rf_update"):
                                 vk_0_fused_1 = T.axis.spatial(16, k_0_fused_1)
-                                v_i0 = T.axis.spatial(1, 0)
-                                v_i1 = T.axis.spatial(1, 0)
                                 v_i2 = T.axis.spatial(4096, i2_i0_i1_fused_0 * 16 + i2_i0_i1_fused_1)
                                 vk_0_fused_0, vk_1 = T.axis.remap("RR", [k_0_fused_0, k_1])
-                                T.reads(C_rf_local[vk_0_fused_1, v_i0, v_i1, v_i2], V[v_i0, v_i1, vk_0_fused_0 * 128 + vk_0_fused_1 * 8 + vk_1], W[(vk_0_fused_0 * 128 + vk_0_fused_1 * 8 + vk_1) // 8, v_i2], S[(vk_0_fused_0 * 128 + vk_0_fused_1 * 8 + vk_1) // 32, v_i2])
-                                T.writes(C_rf_local[vk_0_fused_1, v_i0, v_i1, v_i2])
-                                C_rf_local[vk_0_fused_1, v_i0, v_i1, v_i2] = C_rf_local[vk_0_fused_1, v_i0, v_i1, v_i2] + V[v_i0, v_i1, vk_0_fused_0 * 128 + vk_0_fused_1 * 8 + vk_1] * ((T.Cast("float16", T.bitwise_and(T.shift_right(W[(vk_0_fused_0 * 128 + vk_0_fused_1 * 8 + vk_1) // 8, v_i2], T.Cast("uint32", (vk_0_fused_0 * 128 + vk_0_fused_1 * 8 + vk_1) % 8) * T.uint32(4)), T.uint32(15))) - T.float16(7)) * S[(vk_0_fused_0 * 128 + vk_0_fused_1 * 8 + vk_1) // 32, v_i2])
+                                C_rf_local[vk_0_fused_1, 0, 0, v_i2] = C_rf_local[vk_0_fused_1, 0, 0, v_i2] + V[0, 0, vk_0_fused_0 * 128 + vk_0_fused_1 * 8 + vk_1] * ((T.Cast("float16", T.bitwise_and(T.shift_right(W[(vk_0_fused_0 * 128 + vk_0_fused_1 * 8 + vk_1) // 8, v_i2], T.Cast("uint32", (vk_0_fused_0 * 128 + vk_0_fused_1 * 8 + vk_1) % 8) * T.uint32(4)), T.uint32(15))) - T.float16(7)) * S[(vk_0_fused_0 * 128 + vk_0_fused_1 * 8 + vk_1) // 32, v_i2])
                 for ax1_ax2_ax3_fused in T.thread_binding(16, thread="threadIdx.x"):
                     for ax0_fused in T.thread_binding(16, thread="threadIdx.y"):
                         with T.block("matmul"):
                             vk_0_fused_1 = T.axis.reduce(16, ax0_fused)
-                            v_i0 = T.axis.spatial(1, 0)
-                            v_i1 = T.axis.spatial(1, 0)
                             v_i2 = T.axis.spatial(4096, i2_i0_i1_fused_0 * 16 + ax1_ax2_ax3_fused)
-                            T.reads(C_rf_local[vk_0_fused_1, v_i0, v_i1, v_i2])
-                            T.writes(C[v_i0, v_i1, v_i2])
                             with T.init():
-                                C[v_i0, v_i1, v_i2] = T.float16(0)
-                            C[v_i0, v_i1, v_i2] = C[v_i0, v_i1, v_i2] + C_rf_local[vk_0_fused_1, v_i0, v_i1, v_i2]
+                                C[0, 0, v_i2] = T.float16(0)
+                            C[0, 0, v_i2] = C[0, 0, v_i2] + C_rf_local[vk_0_fused_1, 0, 0, v_i2]
 
     # fmt: on
 
@@ -208,35 +184,23 @@ def test_decode_gemv_3():
                     for i2_1_init in range(8):
                         with T.block("matmul_rf_init"):
                             vk_fused_1 = T.axis.spatial(256, k_fused_1)
-                            v_i0 = T.axis.spatial(1, 0)
-                            v_i1 = T.axis.spatial(1, 0)
                             v_i2 = T.axis.spatial(4096, i2_0_i0_i1_fused * 8 + i2_1_init)
-                            T.reads()
-                            T.writes(C_rf_local[vk_fused_1, v_i0, v_i1, v_i2])
-                            C_rf_local[vk_fused_1, v_i0, v_i1, v_i2] = T.float16(0)
+                            C_rf_local[vk_fused_1, 0, 0, v_i2] = T.float16(0)
                     for k_fused_0, i2_1 in T.grid(16, 8):
                         with T.block("matmul_rf_update"):
                             vk_fused_1 = T.axis.spatial(256, k_fused_1)
-                            v_i0 = T.axis.spatial(1, 0)
-                            v_i1 = T.axis.spatial(1, 0)
                             v_i2 = T.axis.spatial(4096, i2_0_i0_i1_fused * 8 + i2_1)
                             vk_fused_0 = T.axis.reduce(16, k_fused_0)
-                            T.reads(C_rf_local[vk_fused_1, v_i0, v_i1, v_i2], V[v_i0, v_i1, vk_fused_0 * 256 + vk_fused_1], W[v_i2 // 8, vk_fused_0 * 256 + vk_fused_1], S[v_i2 // 32, vk_fused_0 * 256 + vk_fused_1])
-                            T.writes(C_rf_local[vk_fused_1, v_i0, v_i1, v_i2])
-                            C_rf_local[vk_fused_1, v_i0, v_i1, v_i2] = C_rf_local[vk_fused_1, v_i0, v_i1, v_i2] + V[v_i0, v_i1, vk_fused_0 * 256 + vk_fused_1] * ((T.Cast("float16", T.bitwise_and(T.shift_right(W[v_i2 // 8, vk_fused_0 * 256 + vk_fused_1], T.Cast("uint32", v_i2 % 8) * T.uint32(4)), T.uint32(15))) - T.float16(7)) * S[v_i2 // 32, vk_fused_0 * 256 + vk_fused_1])
+                            C_rf_local[vk_fused_1, 0, 0, v_i2] = C_rf_local[vk_fused_1, 0, 0, v_i2] + V[0, 0, vk_fused_0 * 256 + vk_fused_1] * ((T.Cast("float16", T.bitwise_and(T.shift_right(W[v_i2 // 8, vk_fused_0 * 256 + vk_fused_1], T.Cast("uint32", v_i2 % 8) * T.uint32(4)), T.uint32(15))) - T.float16(7)) * S[v_i2 // 32, vk_fused_0 * 256 + vk_fused_1])
                 for ax1_ax2_ax3_fused_0 in range(1):
                     for ax0_fused in T.thread_binding(256, thread="threadIdx.x"):
                         for ax1_ax2_ax3_fused_1 in range(8):
                             with T.block("matmul"):
                                 vk_fused_1 = T.axis.reduce(256, ax0_fused)
-                                v_i0 = T.axis.spatial(1, 0)
-                                v_i1 = T.axis.spatial(1, 0)
                                 v_i2 = T.axis.spatial(4096, i2_0_i0_i1_fused * 8 + ax1_ax2_ax3_fused_0 * 8 + ax1_ax2_ax3_fused_1)
-                                T.reads(C_rf_local[vk_fused_1, v_i0, v_i1, v_i2])
-                                T.writes(C[v_i0, v_i1, v_i2])
                                 with T.init():
-                                    C[v_i0, v_i1, v_i2] = T.float16(0)
-                                C[v_i0, v_i1, v_i2] = C[v_i0, v_i1, v_i2] + C_rf_local[vk_fused_1, v_i0, v_i1, v_i2]
+                                    C[0, 0, v_i2] = T.float16(0)
+                                C[0, 0, v_i2] = C[0, 0, v_i2] + C_rf_local[vk_fused_1, 0, 0, v_i2]
 
     # fmt: on
 
@@ -285,35 +249,23 @@ def test_decode_gemv_4():
                         for i2_1_init in range(8):
                             with T.block("matmul_rf_init"):
                                 vk_fused_1 = T.axis.spatial(16, k_fused_1)
-                                v_i0 = T.axis.spatial(1, 0)
-                                v_i1 = T.axis.spatial(1, 0)
                                 v_i2 = T.axis.spatial(4096, i2_0_i0_i1_fused_0 * 128 + i2_0_i0_i1_fused_1 * 8 + i2_1_init)
-                                T.reads()
-                                T.writes(C_rf_local[vk_fused_1, v_i0, v_i1, v_i2])
-                                C_rf_local[vk_fused_1, v_i0, v_i1, v_i2] = T.float16(0)
+                                C_rf_local[vk_fused_1, 0, 0, v_i2] = T.float16(0)
                         for k_fused_0, i2_1 in T.grid(256, 8):
                             with T.block("matmul_rf_update"):
                                 vk_fused_1 = T.axis.spatial(16, k_fused_1)
-                                v_i0 = T.axis.spatial(1, 0)
-                                v_i1 = T.axis.spatial(1, 0)
                                 v_i2 = T.axis.spatial(4096, i2_0_i0_i1_fused_0 * 128 + i2_0_i0_i1_fused_1 * 8 + i2_1)
                                 vk_fused_0 = T.axis.reduce(256, k_fused_0)
-                                T.reads(C_rf_local[vk_fused_1, v_i0, v_i1, v_i2], V[v_i0, v_i1, vk_fused_0 * 16 + vk_fused_1], W[vk_fused_0 * 16 + vk_fused_1, v_i2 // 8], S[vk_fused_0 * 16 + vk_fused_1, v_i2 // 32])
-                                T.writes(C_rf_local[vk_fused_1, v_i0, v_i1, v_i2])
-                                C_rf_local[vk_fused_1, v_i0, v_i1, v_i2] = C_rf_local[vk_fused_1, v_i0, v_i1, v_i2] + V[v_i0, v_i1, vk_fused_0 * 16 + vk_fused_1] * ((T.Cast("float16", T.bitwise_and(T.shift_right(W[vk_fused_0 * 16 + vk_fused_1, v_i2 // 8], T.Cast("uint32", v_i2 % 8) * T.uint32(4)), T.uint32(15))) - T.float16(7)) * S[vk_fused_0 * 16 + vk_fused_1, v_i2 // 32])
+                                C_rf_local[vk_fused_1, 0, 0, v_i2] = C_rf_local[vk_fused_1, 0, 0, v_i2] + V[0, 0, vk_fused_0 * 16 + vk_fused_1] * ((T.Cast("float16", T.bitwise_and(T.shift_right(W[vk_fused_0 * 16 + vk_fused_1, v_i2 // 8], T.Cast("uint32", v_i2 % 8) * T.uint32(4)), T.uint32(15))) - T.float16(7)) * S[vk_fused_0 * 16 + vk_fused_1, v_i2 // 32])
                 for ax1_ax2_ax3_fused_0 in T.thread_binding(16, thread="threadIdx.x"):
                     for ax0_fused in T.thread_binding(16, thread="threadIdx.y"):
                         for ax1_ax2_ax3_fused_1 in range(8):
                             with T.block("matmul"):
                                 vk_fused_1 = T.axis.reduce(16, ax0_fused)
-                                v_i0 = T.axis.spatial(1, 0)
-                                v_i1 = T.axis.spatial(1, 0)
                                 v_i2 = T.axis.spatial(4096, i2_0_i0_i1_fused_0 * 128 + ax1_ax2_ax3_fused_0 * 8 + ax1_ax2_ax3_fused_1)
-                                T.reads(C_rf_local[vk_fused_1, v_i0, v_i1, v_i2])
-                                T.writes(C[v_i0, v_i1, v_i2])
                                 with T.init():
-                                    C[v_i0, v_i1, v_i2] = T.float16(0)
-                                C[v_i0, v_i1, v_i2] = C[v_i0, v_i1, v_i2] + C_rf_local[vk_fused_1, v_i0, v_i1, v_i2]
+                                    C[0, 0, v_i2] = T.float16(0)
+                                C[0, 0, v_i2] = C[0, 0, v_i2] + C_rf_local[vk_fused_1, 0, 0, v_i2]
 
     # fmt: on
 
@@ -367,40 +319,24 @@ def test_decode_gemv_sigmoid():
                 for k_0_fused_1 in T.thread_binding(256, thread="threadIdx.x"):
                     with T.block("matmul_rf_init"):
                         vk_0_fused_1 = T.axis.spatial(256, k_0_fused_1)
-                        v_i0 = T.axis.spatial(1, 0)
-                        v_i1 = T.axis.spatial(1, 0)
                         v_i2 = T.axis.spatial(4096, i2_i0_i1_fused)
-                        T.reads()
-                        T.writes(C_rf_local[vk_0_fused_1, v_i0, v_i1, v_i2])
-                        C_rf_local[vk_0_fused_1, v_i0, v_i1, v_i2] = T.float16(0)
+                        C_rf_local[vk_0_fused_1, 0, 0, v_i2] = T.float16(0)
                     for k_0_fused_0, k_1 in T.grid(2, 8):
                         with T.block("matmul_rf_update"):
                             vk_0_fused_1 = T.axis.spatial(256, k_0_fused_1)
-                            v_i0 = T.axis.spatial(1, 0)
-                            v_i1 = T.axis.spatial(1, 0)
                             v_i2, vk_0_fused_0, vk_1 = T.axis.remap("SRR", [i2_i0_i1_fused, k_0_fused_0, k_1])
-                            T.reads(C_rf_local[vk_0_fused_1, v_i0, v_i1, v_i2], V[v_i0, v_i1, vk_0_fused_0 * 2048 + vk_0_fused_1 * 8 + vk_1], W[v_i2, (vk_0_fused_0 * 2048 + vk_0_fused_1 * 8 + vk_1) // 8], S[v_i2, (vk_0_fused_0 * 2048 + vk_0_fused_1 * 8 + vk_1) // 32])
-                            T.writes(C_rf_local[vk_0_fused_1, v_i0, v_i1, v_i2])
-                            C_rf_local[vk_0_fused_1, v_i0, v_i1, v_i2] = C_rf_local[vk_0_fused_1, v_i0, v_i1, v_i2] + V[v_i0, v_i1, vk_0_fused_0 * 2048 + vk_0_fused_1 * 8 + vk_1] * ((T.Cast("float16", T.bitwise_and(T.shift_right(W[v_i2, (vk_0_fused_0 * 2048 + vk_0_fused_1 * 8 + vk_1) // 8], T.Cast("uint32", (vk_0_fused_0 * 2048 + vk_0_fused_1 * 8 + vk_1) % 8) * T.uint32(4)), T.uint32(15))) - T.float16(7)) * S[v_i2, (vk_0_fused_0 * 2048 + vk_0_fused_1 * 8 + vk_1) // 32])
+                            C_rf_local[vk_0_fused_1, 0, 0, v_i2] = C_rf_local[vk_0_fused_1, 0, 0, v_i2] + V[0, 0, vk_0_fused_0 * 2048 + vk_0_fused_1 * 8 + vk_1] * ((T.Cast("float16", T.bitwise_and(T.shift_right(W[v_i2, (vk_0_fused_0 * 2048 + vk_0_fused_1 * 8 + vk_1) // 8], T.Cast("uint32", (vk_0_fused_0 * 2048 + vk_0_fused_1 * 8 + vk_1) % 8) * T.uint32(4)), T.uint32(15))) - T.float16(7)) * S[v_i2, (vk_0_fused_0 * 2048 + vk_0_fused_1 * 8 + vk_1) // 32])
                 for ax1_ax2_ax3_fused in range(1):
                     for ax0_fused in T.thread_binding(256, thread="threadIdx.x"):
                         with T.block("matmul"):
                             vk_0_fused_1 = T.axis.reduce(256, ax0_fused)
-                            v_i0 = T.axis.spatial(1, 0)
-                            v_i1 = T.axis.spatial(1, 0)
                             v_i2 = T.axis.spatial(4096, i2_i0_i1_fused)
-                            T.reads(C_rf_local[vk_0_fused_1, v_i0, v_i1, v_i2])
-                            T.writes(C_local[v_i0, v_i1, v_i2])
                             with T.init():
-                                C_local[v_i0, v_i1, v_i2] = T.float16(0)
-                            C_local[v_i0, v_i1, v_i2] = C_local[v_i0, v_i1, v_i2] + C_rf_local[vk_0_fused_1, v_i0, v_i1, v_i2]
+                                C_local[0, 0, v_i2] = T.float16(0)
+                            C_local[0, 0, v_i2] = C_local[0, 0, v_i2] + C_rf_local[vk_0_fused_1, 0, 0, v_i2]
                 with T.block("sigmoid"):
-                    v_i0 = T.axis.spatial(1, 0)
-                    v_i1 = T.axis.spatial(1, 0)
                     v_i2 = T.axis.spatial(4096, i2_i0_i1_fused)
-                    T.reads(C_local[v_i0, v_i1, v_i2])
-                    T.writes(D[v_i0, v_i1, v_i2])
-                    D[v_i0, v_i1, v_i2] = T.sigmoid(C_local[v_i0, v_i1, v_i2])
+                    D[0, 0, v_i2] = T.sigmoid(C_local[0, 0, v_i2])
 
     # fmt: on
 

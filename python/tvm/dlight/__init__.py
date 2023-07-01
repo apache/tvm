@@ -16,4 +16,12 @@
 # under the License.
 """DLight package provides efficient schedules out-of-box for deep learning workloads."""
 from . import gpu
-from .base import ApplyDefaultSchedule, ScheduleRule
+from .base import (
+    ApplyDefaultSchedule,
+    BlockInfo,
+    IterInfo,
+    ScheduleRule,
+    normalize_prim_func,
+    try_inline,
+    try_inline_contiguous_spatial,
+)
