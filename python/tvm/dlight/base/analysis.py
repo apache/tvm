@@ -114,8 +114,11 @@ _normalize_prim_func = get_global_func("tir.schedule.NormalizePrimFunc")
 
 def normalize_prim_func(sch: tir.Schedule) -> Optional[List[BlockInfo]]:
     """Normalize the primfunc to normal form"""
-    result = _normalize_prim_func(sch)
-    if result is None:
+    try:
+        result = _normalize_prim_func(sch)
+        if result is None:
+            return None
+    except Exception:  # pylint: disable=broad-except
         return None
 
     def _iter_kind(i: tir.IterVar) -> str:

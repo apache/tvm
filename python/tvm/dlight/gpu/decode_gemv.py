@@ -78,6 +78,9 @@ class DecodeGEMV(ScheduleRule):
         target: Target,
         _: bool,
     ) -> Union[None, tir.Schedule, List[tir.Schedule]]:
+        if not isinstance(func, tir.PrimFunc):
+            return None
+
         if target.kind.name == "cuda":
             len_tx, len_ty = 16, 16
         else:
@@ -86,7 +89,7 @@ class DecodeGEMV(ScheduleRule):
         sch = tir.Schedule(func)
         block_infos = try_inline_contiguous_spatial(sch, normalize_prim_func(sch))
 
-        if len(block_infos) > 2:
+        if block_infos is None or len(block_infos) > 2:
             return None
 
         block_info = block_infos[0]
@@ -129,8 +132,8 @@ class DecodeGEMV(ScheduleRule):
             return None
         if len(s_loops) != len([_ for i in block_info.iters if i.kind == "S"]):
             return None
-        assert s_loops
-        assert r_loops
+        if len(s_loops) == 0 or len(r_loops) == 0:
+            return None
 
         sch.reorder(*s_loops, *r_loops, *c_loops)
         s = sch.fuse(*s_loops)
@@ -185,4 +188,5 @@ class DecodeGEMV(ScheduleRule):
         if len(block_infos) == 2:
             sch.set_scope(block, 0, "local")
             sch.reverse_compute_at(block_infos[1].block_rv, sch.get_loops(block)[0])
+
         return sch

@@ -75,6 +75,9 @@ def try_inline_contiguous_spatial(sch: tir.Schedule, block_infos: List[BlockInfo
     remaining : List[BlockInfo]
         The remaining blocks that cannot be inlined.
     """
+
+    if block_infos is None:
+        return None
     results = []
     spatial_blocks = []
     block: BlockInfo
