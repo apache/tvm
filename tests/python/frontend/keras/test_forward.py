@@ -159,6 +159,24 @@ class TestKeras:
             keras_model = keras_mod.models.Model(data, out)
             verify_keras_frontend(keras_model)
 
+    def test_forward_concatenate(self, keras_mod):
+        """test_forward_concatenate"""
+        data1 = keras_mod.layers.Input(shape=(1, 2, 2))
+        data2 = keras_mod.layers.Input(shape=(1, 1, 2))
+        merge_func = keras_mod.layers.Concatenate(axis=2)
+        out = merge_func([data1, data2])
+        keras_model = keras_mod.models.Model([data1, data2], out)
+        verify_keras_frontend(keras_model, layout="NHWC")
+        verify_keras_frontend(keras_model, layout="NCHW")
+        # test default axis (e.g., -1)
+        data1 = keras_mod.layers.Input(shape=(1, 2, 2))
+        data2 = keras_mod.layers.Input(shape=(1, 2, 3))
+        merge_func = keras_mod.layers.Concatenate()
+        out = merge_func([data1, data2])
+        keras_model = keras_mod.models.Model([data1, data2], out)
+        verify_keras_frontend(keras_model, layout="NHWC")
+        verify_keras_frontend(keras_model, layout="NCHW")
+
     def test_forward_merge_dot(self, keras_mod):
         """test_forward_merge_dot"""
         data1 = keras_mod.layers.Input(shape=(2, 2))
@@ -793,6 +811,7 @@ class TestKeras:
 if __name__ == "__main__":
     for k in [keras, tf_keras]:
         sut = TestKeras()
+        sut.test_forward_concatenate(keras_mod=k)
         sut.test_forward_merge_dot(keras_mod=k)
         sut.test_forward_merge(keras_mod=k)
         sut.test_forward_activations(keras_mod=k)
