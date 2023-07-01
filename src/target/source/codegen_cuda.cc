@@ -495,7 +495,34 @@ void CodeGenCUDA::PrintVecUnaryOp(const std::string& op, DataType t, PrimExpr op
     // use native half2 and nv_bfloat162 intrinsics.
     os << op << "(" << PrintExpr(operand) << ")";
   } else {
-    // TODO(Zihao)
+    std::string sret = name_supply_->FreshName("_");
+    this->PrintIndent();
+    this->PrintType(t, stream);
+    stream << ' ' << sret << ";\n";
+    int ssa_scope = BeginScope();
+    {  // begin of ssa_scope
+      std::string voperand = SSAGetID(PrintExpr(operand), operand.dtype());
+      if (t.bits() == 16 && t.is_floating_point() && t.lanes() % 2 == 0) {
+        // load & store at the granularity of 2 elements.
+        for (int i = 0, lanes = t.lanes(); i < lanes / 2; ++i) {
+          std::ostringstream value_temp;
+          value_temp << op << "(";
+          PrintVec2xFloat16ElemLoad(voperand, operand.dtype(), i, value_temp);
+          value_temp << ")";
+          PrintVec2xFloat16ElemStore(sret, t, i, value_temp.str(), stream);
+        }
+      } else {
+        for (int i = 0, lanes = t.lanes(); i < lanes; ++i) {
+          std::ostringstream value_temp;
+          value_temp << op << "(";
+          PrintVecElemLoad(voperand, operand.dtype(), i, value_temp);
+          value_temp << ")";
+          PrintVecElemStore(sret, t, i, value_temp.str());
+        }
+      }
+    }  // end of ssa_scope
+    EndScope(ssa_scope);
+    os << sret;
   }
 }
 
@@ -515,22 +542,29 @@ void CodeGenCUDA::PrintVecBinaryOp(const std::string& op, DataType t, PrimExpr l
     this->PrintType(t, stream);
     stream << ' ' << sret << ";\n";
     int ssa_scope = BeginScope();
-    {
+    {  // begin of ssa_scope
       // Unpack into individual ops.
       std::string vlhs = SSAGetID(PrintExpr(lhs), lhs.dtype());
       std::string vrhs = SSAGetID(PrintExpr(rhs), rhs.dtype());
 
       if (t.bits() == 16 && t.is_floating_point() && t.lanes() % 2 == 0) {
-        std::string ptr_str = t.is_float16() ? "(half2*)" : "(nv_bfloat162*)";
+        // load & store at the granularity of 2 elements.
         for (int i = 0, lanes = t.lanes(); i < lanes / 2; ++i) {
           std::ostringstream value_temp;
           if (isalpha(op[0])) {
-            value_temp << op << "("
-                       << ")";
+            value_temp << op << "(";
+            PrintVec2xFloat16ElemLoad(vlhs, lhs.dtype(), i, value_temp);
+            value_temp << ", ";
+            PrintVec2xFloat16ElemLoad(vrhs, rhs.dtype(), i, value_temp);
+            value_temp << ")";
           } else {
-            value_temp << op << "("
-                       << ")";
+            value_temp << "(";
+            PrintVec2xFloat16ElemLoad(vlhs, lhs.dtype(), i, value_temp);
+            value_temp << op;
+            PrintVec2xFloat16ElemLoad(vrhs, rhs.dtype(), i, value_temp);
+            value_temp << ")";
           }
+          PrintVec2xFloat16ElemStore(sret, t, i, value_temp.str(), stream);
         }
       } else {
         for (int i = 0, lanes = t.lanes(); i < lanes; ++i) {
@@ -551,7 +585,7 @@ void CodeGenCUDA::PrintVecBinaryOp(const std::string& op, DataType t, PrimExpr l
           PrintVecElemStore(sret, t, i, value_temp.str());
         }
       }
-    }
+    }  // end of ssa_scope
     EndScope(ssa_scope);
     os << sret;
   }
