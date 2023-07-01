@@ -40,6 +40,33 @@
 namespace tvm {
 namespace codegen {
 
+
+void PrintVec2xFloat16ElemLoad(const std::string& vec, DataType t, int i,
+                           std::ostream& os) {  // NOLINT(*)
+  ICHECK(!t.is_scalar()) << "Cannot load half2/nv_bfloat162 from scalar.";
+  ICHECK(t.is_floating_point() && t.bits() == 16) << "Data type not much, PrintVec2xFloat16ElemLoad only supports floating point type with 16 bits, got " << t << " instead.";
+
+  static const char access[] = {'x', 'y', 'z', 'w'};
+  if (t.is_float16()) {
+    if (t.lanes() == 2) {
+      // 2 * float16 is stored as half2, return itself
+      os << vec;
+    } else {
+      // 4/8 * float16 is stored as uint2/4, use (*(half2*)(&(v.x)))
+      os << "((half2*)(&(" << vec << "." << access[i / 2] << ")))->" << access[i % 2];
+    }
+  } else {
+    ICHECK(t.is_bfloat16());
+    if (t.lanes() == 2) {
+      // 2 * bfloat16 is stored as nv_bfloat162, return itself
+      os << vec;
+    } else {
+      // 4/8 * bfloat16 is stored as uint2/4, use (*(nv_bfloat162*)(&(v.x)))
+      os << "((nv_bfloat162*)(&(" << vec << "." << access[i / 2] << ")))->" << access[i % 2];
+    }
+  }
+}
+
 CodeGenCUDA::CodeGenCUDA() { restrict_keyword_ = "__restrict__"; }
 
 void CodeGenCUDA::Init(bool output_ssa) {
