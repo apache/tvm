@@ -24,11 +24,7 @@ from tvm import topi
 from tvm.contrib.nvcc import have_fp16, have_int8, have_bf16
 import tvm.testing
 import pytest
-
-try:
-    import ml_dtypes
-except ImportError as e:
-    ml_dtypes = None
+import ml_dtypes
 
 tx = te.thread_axis("threadIdx.x")
 bx = te.thread_axis("blockIdx.x")
@@ -42,6 +38,9 @@ def test_cuda_vectorize_add():
     def check_cuda(dtype, n, lanes):
         if dtype == "float16" and not have_fp16(tvm.cuda(0).compute_version):
             print("Skip because gpu does not have fp16 support")
+            return
+        if dtype == "bfloat16" and not have_bf16(tvm.cuda(0).compute_version):
+            print("skip because gpu does not support bf16")
             return
         if dtype == "int8" and not have_int8(tvm.cuda(0).compute_version):
             print("skip because gpu does not support int8")
@@ -72,40 +71,10 @@ def test_cuda_vectorize_add():
     check_cuda("float16", 64, 4)
     check_cuda("float16", 64, 6)
     check_cuda("float16", 64, 8)
-
-
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
-def test_cuda_bf16_vectorize_add():
-    if not have_bf16(tvm.cuda(0).compute_version):
-        print("skip because gpu does not support bf16")
-        return
-    if ml_dtypes is None:
-        print("skip because ml_dtypes not installed")
-        return
-    num_thread = 8
-
-    def check_cuda(n, lanes):
-        A = te.placeholder((n,), name="A", dtype="bfloat16x%d" % lanes)
-        B = te.compute((n,), lambda i: A[i] + tvm.tir.const(1, A.dtype), name="B")
-        s = te.create_schedule(B.op)
-        xo, xi = s[B].split(B.op.axis[0], factor=num_thread)
-        s[B].bind(xo, bx)
-        s[B].bind(xi, tx)
-        with tvm.transform.PassContext(config={"tir.target_support_bf16": True}):
-            fun = tvm.build(s, [A, B], "cuda")
-        dev = tvm.cuda(0)
-        np_a = np.random.uniform(size=(n, lanes)).astype("bfloat16")
-        a = tvm.nd.empty((n,), A.dtype, dev).copyfrom(np_a)
-        c = tvm.nd.empty((n,), B.dtype, dev)
-        fun(a, c)
-        c = tvm.nd.empty((n, lanes), "bfloat16", dev).copyfrom(c)
-        tvm.testing.assert_allclose(c.numpy(), np_a + 1)
-
-    check_cuda(64, 2)
-    check_cuda(64, 4)
-    check_cuda(64, 6)
-    check_cuda(64, 8)
+    check_cuda("bfloat16", 64, 2)
+    check_cuda("bfloat16", 64, 4)
+    check_cuda("bfloat16", 64, 6)
+    check_cuda("bfloat16", 64, 8)
 
 
 @tvm.testing.requires_gpu
@@ -468,11 +437,13 @@ def test_cuda_reduction():
             b_nd = tvm.nd.array(b_np, dev)
             g_nd = tvm.nd.array(np.zeros(g_np.shape, dtype=g_np.dtype), dev)
             func(a_nd, b_nd, g_nd)
+            print(g_nd, g_np)
             tvm.testing.assert_allclose(g_nd.numpy(), g_np, rtol=1e-3)
 
     check("cuda", "float32")
     check("rocm", "float32")
     check("cuda", "float16")
+    # check("cuda", "bfloat16")  ignored because of rounding errors
 
 
 @tvm.testing.requires_gpu
@@ -485,6 +456,9 @@ def test_cuda_mix_threaded_and_normal_reduction():
         dev = tvm.device(device, 0)
         if dtype == "float16" and not have_fp16(dev.compute_version):
             print("Skip because gpu does not have fp16 support")
+            return
+        if dtype == "bfloat16" and not have_bf16(dev.compute_version):
+            print("skip because gpu does not support bf16")
             return
 
         a = tvm.te.placeholder((m, n), name="a", dtype=dtype)
@@ -504,6 +478,7 @@ def test_cuda_mix_threaded_and_normal_reduction():
     check("cuda", "float32")
     check("rocm", "float32")
     check("cuda", "float16")
+    # check("cuda", "bfloat16")  ignored because of rounding errors
 
 
 @tvm.testing.requires_gpu
@@ -565,6 +540,9 @@ def test_vectorized_casts():
         if (t0 == "float16" or t1 == "float16") and not have_fp16(tvm.cuda(0).compute_version):
             print("Skip because gpu does not have fp16 support")
             return
+        if (t0 == "bfloat16" or t1 == "bfloat16") and not have_bf16(tvm.cuda(0).compute_version):
+            print("skip because gpu does not support bf16")
+            return
 
         # compute
         n = 128
@@ -577,6 +555,7 @@ def test_vectorized_casts():
         ob, ib = s[C].split(s[C].op.axis[0], factor=factor)
         s[C].vectorize(ib)
         s[C].bind(ob, tx)
+
         func = tvm.build(s, [A, B, C], "cuda")
 
         # correctness
@@ -603,6 +582,7 @@ def test_vectorized_casts():
     types_4 = [
         "float16",
         "float32",
+        "bfloat16",
         "int8",
         "uint8",
         "int16",
@@ -613,7 +593,17 @@ def test_vectorized_casts():
         "int64",
         "uint64",
     ]
-    types_8 = ["float16", "float32", "int8", "uint8", "int16", "uint16", "int32", "uint32"]
+    types_8 = [
+        "float16",
+        "float32",
+        "bfloat16",
+        "int8",
+        "uint8",
+        "int16",
+        "uint16",
+        "int32",
+        "uint32",
+    ]
     for t0, t1 in [(x, y) for x in types_4 for y in types_4 if not skip(x, y)]:
         check(t0, t1, 4)
     for t0, t1 in [(x, y) for x in types_8 for y in types_8 if not skip(x, y)]:
@@ -662,6 +652,9 @@ def test_vectorized_intrin1():
         if dtype == "float16" and not have_fp16(tvm.cuda(0).compute_version):
             print("Skip because gpu does not have fp16 support")
             return
+        if dtype == "bfloat16" and not have_bf16(tvm.cuda(0).compute_version):
+            print("skip because gpu does not support bf16")
+            return
         # set of intrinsics does not support fp16 yet.
         skip_set = {
             tvm.tir.abs,
@@ -675,6 +668,9 @@ def test_vectorized_intrin1():
         if dtype == "float16" and tvm_intrin in skip_set:
             print("Skip because '{0}' does not support fp16 yet".format(tvm_intrin.__name__))
             return
+        if dtype == "bfloat16" and tvm_intrin in skip_set:
+            print("Skip because '{0}' does not support bf16 yet".format(tvm_intrin.__name__))
+            return
 
         n = 128
         A = te.placeholder((n,), dtype=dtype, name="A")
@@ -684,12 +680,14 @@ def test_vectorized_intrin1():
         dev = tvm.cuda(0)
         a = tvm.nd.array(np.random.uniform(0, 1, size=n).astype(A.dtype), dev)
         b = tvm.nd.array(np.zeros(shape=(n,)).astype(A.dtype), dev)
+
         f(a, b)
         tvm.testing.assert_allclose(b.numpy(), np_func(a.numpy()), atol=1e-3, rtol=1e-3)
 
     for func in test_funcs:
         run_test(*func, "float32")
         run_test(*func, "float16")
+        run_test(*func, "bfloat16")
 
 
 @tvm.testing.requires_gpu
@@ -751,6 +749,9 @@ def test_cuda_vectorize_load_permute_pad():
         if dtype == "float16" and not have_fp16(tvm.cuda(0).compute_version):
             print("Skip because gpu does not have fp16 support")
             return
+        if dtype == "bfloat16" and not have_bf16(tvm.cuda(0).compute_version):
+            print("skip because gpu does not support bf16")
+            return
 
         dev = tvm.cuda(0)
         A = tvm.te.placeholder((n, l), name="A", dtype=dtype)
@@ -786,6 +787,7 @@ def test_cuda_vectorize_load_permute_pad():
     check_cuda("int32", 64, 16, 3, 4)
     check_cuda("float16", 64, 16, 3, 4)
     check_cuda("float32", 64, 16, 3, 4)
+    check_cuda("bfloat16", 64, 16, 3, 4)
 
 
 def vcf_check_common(s, args):

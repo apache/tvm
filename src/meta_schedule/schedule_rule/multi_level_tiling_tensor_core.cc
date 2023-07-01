@@ -605,6 +605,8 @@ std::vector<State> MultiLevelTilingTensorCoreNode::AddReadReuseTensorCore(
     const DataType& dtype = cache_read_buffer->dtype;
     if (dtype.is_float16()) {
       sch->StorageAlign(cache_read, 0, -2, 32, 8);
+    } else if (dtype.is_bfloat16()) {
+      sch->StorageAlign(cache_read, 0, -2, 32, 8);
     } else if (dtype.is_int() && dtype.bits() == 8) {
       sch->StorageAlign(cache_read, 0, -2, 32, 16);
     } else {

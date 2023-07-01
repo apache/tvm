@@ -626,12 +626,18 @@ std::string CodeGenCUDA::CastFromTo(std::string value, DataType from, DataType t
   os << "((";
   this->PrintType(target, os);
   os << ")";
-  if (from.is_float16() && (target.is_int() || target.is_uint()) && target.bits() == 8) {
+  if ((from.is_float16() || from.is_bfloat16()) && (target.is_int() || target.is_uint()) &&
+      target.bits() == 8) {
+    // use int/uint as intermediate data type
     os << "(";
     if (target.is_uint()) {
       os << "u";
     }
     os << "int)";
+  } else if ((from.is_bfloat16() && target.is_float16()) ||
+             (from.is_float16() && target.is_bfloat16())) {
+    // use float as intermediate data type
+    os << "(float)";
   }
   os << value << ")";
   return os.str();
@@ -655,12 +661,9 @@ void CodeGenCUDA::VisitExpr_(const CastNode* op, std::ostream& os) {
     std::string src = SSAGetID(PrintExpr(op->value), from_ty);
     for (int i = 0, lanes = from_ty.lanes(); i < lanes; ++i) {
       std::ostringstream val;
-      val << "(";
-      PrintType(target_ty.element_of(), val);
-      val << ")(";
       PrintVecElemLoad(src, from_ty, i, val);
-      val << ")";
-      PrintVecElemStore(sret, target_ty, i, val.str());
+      std::string casted_val = CastFromTo(val.str(), from_ty.element_of(), target_ty.element_of());
+      PrintVecElemStore(sret, target_ty, i, casted_val);
     }
   }
   os << sret;
@@ -1146,7 +1149,7 @@ void CodeGenCUDA::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NO
   if (op->dtype.is_bfloat16()) {
     std::string v = PrintExpr(op->value);
     if (op->lanes == 2) {
-      os << "__halves2bfloat162(" << v << ", " << v << ")";
+      os << "make_bfloat162" << v << ", " << v << ")";
     } else {
       os << "make_";
       PrintType(op->dtype, os);
@@ -1387,6 +1390,7 @@ void CodeGenCUDA::HandleVolatileLoads(const std::string& value, const BufferLoad
   // Cast away volatile qualifier for fp16 types. That is, only loads and
   // stores are volatile. The loaded objects are not marked as volatile.
   //
+  // TODO(Zihao): figure out what it is
   if ((op->dtype.is_float16() || op->dtype.is_bfloat16()) && IsVolatile(op->buffer->data.get())) {
     os << "(";
     PrintType(op->dtype, os);
@@ -1410,38 +1414,58 @@ void CodeGenCUDA::PrintVecElemLoadExpr(DataType t, int i, const std::string& val
   }
 
   if (t.is_float16()) {
-    if (i == 0) {
-      os << "make_";
-      PrintType(t, os);
-      os << '(';
-    }
-    if (i % 2 == 0) {
-      os << "__pack_half2(" << value;
-    } else {
-      os << "," << value << ")";
-      if (i != t.lanes() - 1) {
-        os << ",";
+    if (t.lanes() == 2) {
+      // result data type is half2
+      if (i == 0) {
+        os << "make_half2(" << value;
       } else {
-        os << ")";
+        os << ", " << value << ")";
+      }
+    } else {
+      // result data type is uint2/4
+      if (i == 0) {
+        os << "make_";
+        PrintType(t, os);
+        os << '(';
+      }
+      if (i % 2 == 0) {
+        os << "__pack_half2(" << value;
+      } else {
+        os << "," << value << ")";
+        if (i != t.lanes() - 1) {
+          os << ",";
+        } else {
+          os << ")";
+        }
       }
     }
     return;
   }
 
   if (t.is_bfloat16()) {
-    if (i == 0) {
-      os << "make_";
-      PrintType(t, os);
-      os << '(';
-    }
-    if (i % 2 == 0) {
-      os << "__pack_nv_bfloat162(" << value;
-    } else {
-      os << "," << value << ")";
-      if (i != t.lanes() - 1) {
-        os << ",";
+    if (t.lanes() == 2) {
+      // result data type is nv_bfloat162
+      if (i == 0) {
+        os << "make_bfloat162" << value;
       } else {
-        os << ")";
+        os << ", " << value << ")";
+      }
+    } else {
+      // result data type is uint2/4
+      if (i == 0) {
+        os << "make_";
+        PrintType(t, os);
+        os << '(';
+      }
+      if (i % 2 == 0) {
+        os << "__pack_nv_bfloat162(" << value;
+      } else {
+        os << "," << value << ")";
+        if (i != t.lanes() - 1) {
+          os << ",";
+        } else {
+          os << ")";
+        }
       }
     }
     return;

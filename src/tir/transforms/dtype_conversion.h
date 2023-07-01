@@ -99,7 +99,7 @@ class FloatConfig {
    * \return The FloatConfig class containing internal floating point representation.
    */
   static FloatConfig FromDataType(DataType dtype) {
-    CHECK(dtype.is_float() || dtype.is_bfloat16() || dtype.is_float8())
+    CHECK(dtype.is_floating_point())
         << "FloatConfig is only applicable to floating point data types, got " << dtype
         << " instead.";
     if (dtype.is_float()) {

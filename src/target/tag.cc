@@ -108,8 +108,8 @@ TVM_REGISTER_TARGET_TAG("nvidia/jetson-agx-xavier")
 // Naming convention for CUDA tags see https://developer.nvidia.com/cuda-gpus
 // Parameters see Table 15. Technical Specifications per Compute Capability
 // https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html
-// Check `Maximum y- or z-dimension of a grid of thread blocks` for max threads per block
 // Check `Maximum amount of shared memory per thread block` for max shared memory per block
+// Check `Maximum number of 32-bit registers per thread block` for max registers per block
 // Note that above 48 KB requires dynamic shared memory
 TVM_REGISTER_CUDA_TAG("nvidia/tesla-k80", "sm_37", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/tesla-k40", "sm_35", 49152, 65536);
@@ -219,6 +219,12 @@ TVM_REGISTER_CUDA_TAG("nvidia/nvidia-nvs-310", "sm_21", 49152, 32768);
 TVM_REGISTER_CUDA_TAG("nvidia/nvs-5400m", "sm_21", 49152, 32768);
 TVM_REGISTER_CUDA_TAG("nvidia/nvs-5200m", "sm_21", 49152, 32768);
 TVM_REGISTER_CUDA_TAG("nvidia/nvs-4200m", "sm_21", 49152, 32768);
+TVM_REGISTER_CUDA_TAG("nvidia/geforce-rtx-4090", "sm_89", 49152, 65536);
+TVM_REGISTER_CUDA_TAG("nvidia/geforce-rtx-4080", "sm_89", 49152, 65536);
+TVM_REGISTER_CUDA_TAG("nvidia/geforce-rtx-4070-ti", "sm_89", 49152, 65536);
+TVM_REGISTER_CUDA_TAG("nvidia/geforce-rtx-4070", "sm_89", 49152, 65536);
+TVM_REGISTER_CUDA_TAG("nvidia/geforce-rtx-4060-ti", "sm_89", 49152, 65536);
+TVM_REGISTER_CUDA_TAG("nvidia/geforce-rtx-4060", "sm_89", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/geforce-rtx-3090-ti", "sm_86", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/geforce-rtx-3090", "sm_86", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/geforce-rtx-3080-ti", "sm_86", 49152, 65536);

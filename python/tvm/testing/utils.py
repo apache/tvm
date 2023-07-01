@@ -106,6 +106,17 @@ skip_if_wheel_test = pytest.mark.skipif(
 )
 
 
+def promote_bf16_to_fp32(x):
+    r"""Promote the data type of an array-like structure from bfloat16 to float32."""
+    if isinstance(x, list):
+        return [promote_bf16_to_fp32(y) for y in x]
+    else:
+        if isinstance(x, np.ndarray) and x.dtype == "bfloat16":
+            return x.astype("float32")
+        else:
+            return x
+
+
 def assert_allclose(actual, desired, rtol=1e-7, atol=1e-7):
     """Version of np.testing.assert_allclose with `atol` and `rtol` fields set
     in reasonable defaults.
@@ -114,11 +125,10 @@ def assert_allclose(actual, desired, rtol=1e-7, atol=1e-7):
     compares the `abs(actual-desired)` with `atol+rtol*abs(desired)`.  Since we
     often allow `desired` to be close to zero, we generally want non-zero `atol`.
     """
-    # The ml_dtypes v0.2 is not compatible with allclose function, convert to float32.
-    if actual.dtype == "bfloat16":
-        actual = actual.astype("float32")
-    if desired.dtype == "bfloat16":
-        desired = desired.astype("float32")
+    # The ml_dtypes v0.2 is not compatible with numpy's asanyarray function, promote to float32 first.
+    actual = promote_bf16_to_fp32(actual)
+    desired = promote_bf16_to_fp32(desired)
+
     actual = np.asanyarray(actual)
     desired = np.asanyarray(desired)
     np.testing.assert_allclose(actual.shape, desired.shape)
