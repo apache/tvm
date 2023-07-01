@@ -483,18 +483,18 @@ void CodeGenCUDA::PrintVecElemLoad(const std::string& vec, DataType t, int i,
     }
   } else if (t.is_float16()) {
     if (t.lanes() == 2) {
-      // 2 * float16 is stored as half2, return v.x/y directly
+      // vec (2 * float16) is stored as half2, return vec.x/y directly
       os << vec << "." << access[i];
     } else {
-      // 4/8 * float16 is stored as uint2/4, return ((half2*)(&(v.x/y/z/w)))->x/y
+      // vec (4/8 * float16) is stored as uint2/4, return ((half2*)(&(vec.x/y/z/w)))->x/y
       os << "((half2*)(&(" << vec << "." << access[i / 2] << ")))->" << access[i % 2];
     }
   } else if (t.is_bfloat16()) {
     if (t.lanes() == 2) {
-      // 2 * bfloat16 is stored as nv_bfloat162, return v.x/y directly
+      // vec (2 * bfloat16) is stored as nv_bfloat162, return vec.x/y directly
       os << vec << "." << access[i];
     } else {
-      // 4/8 * bfloat16 is stored as uint2/4, return ((nv_bfloat162*)(&(v.x/y/z/w)))->x/y
+      // vec (4/8 * bfloat16) is stored as uint2/4, return ((nv_bfloat162*)(&(vec.x/y/z/w)))->x/y
       os << "((nv_bfloat162*)(&(" << vec << "." << access[i / 2] << ")))->" << access[i % 2];
     }
   } else if (t.lanes() > 4 && t.lanes() <= 8) {
