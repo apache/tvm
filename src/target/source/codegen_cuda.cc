@@ -432,14 +432,19 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
 }
 
 void CodeGenCUDA::PrintVecUnaryOp(const std::string& op, DataType t, PrimExpr operand, std::ostream& os) { // NOLINT(*)
-  // TODO(Zihao)
+  if (t.bits() == 16 && t.is_floating_point() && t.lanes() == 2) {
+    // use native half2 and nv_bfloat162 intrinsics.
+    os << op << "(" << PrintExpr(operand) << ")";
+  } else {
+    // TODO(Zihao)
+  }
 }
 
 void CodeGenCUDA::PrintVecBinaryOp(const std::string& op, DataType t, PrimExpr lhs, PrimExpr rhs,
                                    std::ostream& os) {  // NOLINT(*)
   // Delcare the result.
   if (t.bits() == 16 && t.is_floating_point() && t.lanes() == 2) {
-    // native half2 and nv_bfloat162 support.
+    // native half2 and nv_bfloat162 intrinsics.
     if (isalpha(op[0])) {
       os << op << "(" << PrintExpr(lhs) << ", " << PrintExpr(rhs) << ")";
     } else {
@@ -456,22 +461,34 @@ void CodeGenCUDA::PrintVecBinaryOp(const std::string& op, DataType t, PrimExpr l
       std::string vlhs = SSAGetID(PrintExpr(lhs), lhs.dtype());
       std::string vrhs = SSAGetID(PrintExpr(rhs), rhs.dtype());
 
-      for (int i = 0, lanes = t.lanes(); i < lanes; ++i) {
-        std::ostringstream value_temp;
-        if (isalpha(op[0])) {
-          value_temp << op << "(";
-          PrintVecElemLoad(vlhs, lhs.dtype(), i, value_temp);
-          value_temp << ", ";
-          PrintVecElemLoad(vrhs, rhs.dtype(), i, value_temp);
-          value_temp << ")";
-        } else {
-          value_temp << "(";
-          PrintVecElemLoad(vlhs, lhs.dtype(), i, value_temp);
-          value_temp << op;
-          PrintVecElemLoad(vrhs, rhs.dtype(), i, value_temp);
-          value_temp << ")";
+      if (t.bits() == 16 && t.is_floating_point() && t.lanes() % 2 == 0) {
+        std::string ptr_str = t.is_float16() ? "(half2*)" : "(nv_bfloat162*)";
+        for (int i = 0, lanes = t.lanes(); i < lanes / 2; ++i) {
+          std::ostringstream value_temp;
+          if (isalpha(op[0])) {
+            value_temp << op << "(" <<  ")";
+          } else {
+            value_temp << op << "(" << ")";
+          }
         }
-        PrintVecElemStore(sret, t, i, value_temp.str());
+      } else {
+        for (int i = 0, lanes = t.lanes(); i < lanes; ++i) {
+          std::ostringstream value_temp;
+          if (isalpha(op[0])) {
+            value_temp << op << "(";
+            PrintVecElemLoad(vlhs, lhs.dtype(), i, value_temp);
+            value_temp << ", ";
+            PrintVecElemLoad(vrhs, rhs.dtype(), i, value_temp);
+            value_temp << ")";
+          } else {
+            value_temp << "(";
+            PrintVecElemLoad(vlhs, lhs.dtype(), i, value_temp);
+            value_temp << op;
+            PrintVecElemLoad(vrhs, rhs.dtype(), i, value_temp);
+            value_temp << ")";
+          }
+          PrintVecElemStore(sret, t, i, value_temp.str());
+        }
       }
     }
     EndScope(ssa_scope);
