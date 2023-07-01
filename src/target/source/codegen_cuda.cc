@@ -40,29 +40,60 @@
 namespace tvm {
 namespace codegen {
 
-
 void PrintVec2xFloat16ElemLoad(const std::string& vec, DataType t, int i,
-                           std::ostream& os) {  // NOLINT(*)
+                               std::ostream& os) {  // NOLINT(*)
   ICHECK(!t.is_scalar()) << "Cannot load half2/nv_bfloat162 from scalar.";
-  ICHECK(t.is_floating_point() && t.bits() == 16) << "Data type not much, PrintVec2xFloat16ElemLoad only supports floating point type with 16 bits, got " << t << " instead.";
+  ICHECK(t.is_floating_point() && t.bits() == 16)
+      << "Data type not much, PrintVec2xFloat16ElemLoad only supports floating point type with 16 "
+         "bits, got "
+      << t << " instead.";
 
   static const char access[] = {'x', 'y', 'z', 'w'};
   if (t.is_float16()) {
     if (t.lanes() == 2) {
-      // 2 * float16 is stored as half2, return itself
+      // vec (2 * float16) is stored as half2, return itself
       os << vec;
     } else {
-      // 4/8 * float16 is stored as uint2/4, use (*(half2*)(&(v.x)))
-      os << "((half2*)(&(" << vec << "." << access[i / 2] << ")))->" << access[i % 2];
+      // vec (4/8 * float16) is stored as uint2/4, return (*((half2*)(&(vec.x/y/z/w))))
+      os << "(*((half2*)(&(" << vec << "." << access[i] << "))))";
     }
   } else {
     ICHECK(t.is_bfloat16());
     if (t.lanes() == 2) {
-      // 2 * bfloat16 is stored as nv_bfloat162, return itself
+      // vec (2 * bfloat16) is stored as nv_bfloat162, return itself
       os << vec;
     } else {
-      // 4/8 * bfloat16 is stored as uint2/4, use (*(nv_bfloat162*)(&(v.x)))
-      os << "((nv_bfloat162*)(&(" << vec << "." << access[i / 2] << ")))->" << access[i % 2];
+      // vec (4/8 * bfloat16) is stored as uint2/4, return (*((nv_bfloat162*)(&(vec.x))))
+      os << "(*((nv_bfloat162*)(&(" << vec << "." << access[i] << "))))";
+    }
+  }
+}
+
+void PrintVec2xFloat16ElemStore(const std::string& vec, DataType t, int i, const std::string& value,
+                                std::ostream& os) {
+  ICHECK(!t.is_scalar()) << "Cannot store half2/nv_bfloat162 to scalar.";
+  ICHECK(t.is_floating_point() && t.bits() == 16)
+      << "Data type not much, PrintVec2xFloat16ElemStore only supports floating point type with 16 "
+         "bits, got "
+      << t << " instead.";
+
+  static const char access[] = {'x', 'y', 'z', 'w'};
+  if (t.is_float16()) {
+    if (t.lanes() == 2) {
+      // vec (2 * float16) has type half2, return vec = value;
+      os << vec << " = " << value << ";\n";
+    } else {
+      // vec (4/8 * float16) is stored as uint2/4, return ((half2*)(&(vec.x/y/z/w))) = value
+      os << "((half2*)(&(" << vec << "." << access[i] << "))) = " << value << ";\n";
+    }
+  } else {
+    ICHECK(t.is_bfloat16());
+    if (t.lanes() == 2) {
+      // vec (2 * bfloat16) has type nv_bfloat162, return vec = value;
+      os << vec << " = " << value << ";\n";
+    } else {
+      // vec (4/8 * bfloat16) is stored as uint2/4, return ((nv_bfloat162*)(&(vec.x/y/z/w))) = value
+      os << "((nv_bfloat162*)(&(" << vec << "." << access[i] << "))) = " << value << ";\n";
     }
   }
 }
@@ -458,7 +489,8 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
   LOG(FATAL) << "Cannot convert type " << t << " to CUDA type";
 }
 
-void CodeGenCUDA::PrintVecUnaryOp(const std::string& op, DataType t, PrimExpr operand, std::ostream& os) { // NOLINT(*)
+void CodeGenCUDA::PrintVecUnaryOp(const std::string& op, DataType t, PrimExpr operand,
+                                  std::ostream& os) {  // NOLINT(*)
   if (t.bits() == 16 && t.is_floating_point() && t.lanes() == 2) {
     // use native half2 and nv_bfloat162 intrinsics.
     os << op << "(" << PrintExpr(operand) << ")";
@@ -493,9 +525,11 @@ void CodeGenCUDA::PrintVecBinaryOp(const std::string& op, DataType t, PrimExpr l
         for (int i = 0, lanes = t.lanes(); i < lanes / 2; ++i) {
           std::ostringstream value_temp;
           if (isalpha(op[0])) {
-            value_temp << op << "(" <<  ")";
+            value_temp << op << "("
+                       << ")";
           } else {
-            value_temp << op << "(" << ")";
+            value_temp << op << "("
+                       << ")";
           }
         }
       } else {
