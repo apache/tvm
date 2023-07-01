@@ -1149,7 +1149,7 @@ void CodeGenCUDA::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NO
   if (op->dtype.is_bfloat16()) {
     std::string v = PrintExpr(op->value);
     if (op->lanes == 2) {
-      os << "make_bfloat162" << v << ", " << v << ")";
+      os << "make_bfloat162(" << v << ", " << v << ")";
     } else {
       os << "make_";
       PrintType(op->dtype, os);
@@ -1446,7 +1446,7 @@ void CodeGenCUDA::PrintVecElemLoadExpr(DataType t, int i, const std::string& val
     if (t.lanes() == 2) {
       // result data type is nv_bfloat162
       if (i == 0) {
-        os << "make_bfloat162" << value;
+        os << "make_bfloat162(" << value;
       } else {
         os << ", " << value << ")";
       }
