@@ -108,9 +108,7 @@ class DataType {
   /*! \return whether type is a bfloat16 type. */
   bool is_bfloat16() const { return code() == DataType::kBFloat && bits() == 16; }
   /*! \return whether type is a general floating point data type. */
-  bool is_floating_point() const {
-    return is_float() || is_float8() || is_bfloat16();
-  }
+  bool is_floating_point() const { return is_float() || is_float8() || is_bfloat16(); }
   /*! \return whether type is an int type. */
   bool is_int() const { return code() == DataType::kInt; }
   /*! \return whether type is an uint type. */
