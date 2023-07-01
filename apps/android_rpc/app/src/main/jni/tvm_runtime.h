@@ -70,6 +70,7 @@
 #endif
 
 #ifdef TVM_VULKAN_RUNTIME
+#include "../src/runtime/vulkan/vulkan_amdrgp.cc"
 #include "../src/runtime/vulkan/vulkan_buffer.cc"
 #include "../src/runtime/vulkan/vulkan_common.cc"
 #include "../src/runtime/vulkan/vulkan_device.cc"
@@ -78,7 +79,6 @@
 #include "../src/runtime/vulkan/vulkan_module.cc"
 #include "../src/runtime/vulkan/vulkan_stream.cc"
 #include "../src/runtime/vulkan/vulkan_wrapped_func.cc"
-#include "../src/runtime/vulkan/vulkan_amdrgp.cc"
 #endif
 
 #ifdef USE_SORT
