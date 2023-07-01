@@ -21,7 +21,7 @@ from typing import List
 from tvm import tir
 from tvm.target import Target
 
-from ..base import BlockInfo, ScheduleRule, normalize_prim_func, try_inline
+from ..base import ScheduleRule, normalize_prim_func, try_inline
 
 
 def _max_threads_per_block(target: Target) -> int:
