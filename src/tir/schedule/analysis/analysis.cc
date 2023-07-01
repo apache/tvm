@@ -328,11 +328,10 @@ bool IsReductionBlock(const ScheduleState& self, const StmtSRef& block_sref,
   return CheckReductionBlockErrorCode(self, block_sref, scope_root_sref) == 0;
 }
 
-TVM_REGISTER_GLOBAL("tir.schedule.IsReductionBlock").set_body_typed(
-  [](Schedule sch, BlockRV block_rv, BlockRV scope_block_rv) {
-    return IsReductionBlock(sch->state(), sch->GetSRef(block_rv), sch->GetSRef(scope_block_rv));
-  }
-);
+TVM_REGISTER_GLOBAL("tir.schedule.IsReductionBlock")
+    .set_body_typed([](Schedule sch, BlockRV block_rv, BlockRV scope_block_rv) {
+      return IsReductionBlock(sch->state(), sch->GetSRef(block_rv), sch->GetSRef(scope_block_rv));
+    });
 
 void CheckReductionBlock(const ScheduleState& self, const StmtSRef& block_sref,
                          const StmtSRef& scope_root_sref) {
@@ -1470,11 +1469,10 @@ bool IsTrivialBinding(const ScheduleState& self, const StmtSRef& block_sref) {
   return true;
 }
 
-TVM_REGISTER_GLOBAL("tir.schedule.IsTrivialBinding").set_body_typed(
-  [](Schedule sch, BlockRV block_rv) {
-    return IsTrivialBinding(sch->state(), sch->GetSRef(block_rv));
-  }
-);
+TVM_REGISTER_GLOBAL("tir.schedule.IsTrivialBinding")
+    .set_body_typed([](Schedule sch, BlockRV block_rv) {
+      return IsTrivialBinding(sch->state(), sch->GetSRef(block_rv));
+    });
 
 bool NeedsMultiLevelTiling(const ScheduleState& self, const StmtSRef& block_sref) {
   if (HasBeenMultiLevelTiled(block_sref)) {
