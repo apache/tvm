@@ -412,12 +412,12 @@ __uint_as_nv_bfloat162(const unsigned int v) {
 
 #define CUDA_UNSUPPORTED_BFLOAT2_MATH_BINARY(BFLOAT2_MATH_NAME, BFLOAT_MATH_NAME)                   \
 static inline __device__ __host__ nv_bfloat162 BFLOAT2_MATH_NAME(nv_bfloat162 x, nv_bfloat162 y) {  \
-  return __halves2half2(BFLOAT_MATH_NAME(x.x, y.x), BFLOAT_MATH_NAME(x.y, y.y));                    \
+  return __halves2bfloat162(BFLOAT_MATH_NAME(x.x, y.x), BFLOAT_MATH_NAME(x.y, y.y));                    \
 }
 
 #define CUDA_UNSUPPORTED_BFLOAT2_MATH_UNARY(BFLOAT2_MATH_NAME, BFLOAT_MATH_NAME)                      \
 static inline __device__ __host__ nv_bfloat162 BFLOAT2_MATH_NAME(nv_bfloat162 x) {                    \
-  return __halves2half2(BFLOAT_MATH_NAME(x.x), BFLOAT_MATH_NAME(x.y));                              \
+  return __halves2bfloat162(BFLOAT_MATH_NAME(x.x), BFLOAT_MATH_NAME(x.y));                              \
 }
 
 CUDA_UNSUPPORTED_BFLOAT2_MATH_BINARY(hpow2, hpow)

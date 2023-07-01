@@ -83,8 +83,8 @@ void PrintVec2xFloat16ElemStore(const std::string& vec, DataType t, int i, const
       // vec (2 * float16) has type half2, return vec = value;
       os << vec << " = " << value << ";\n";
     } else {
-      // vec (4/8 * float16) is stored as uint2/4, return ((half2*)(&(vec.x/y/z/w))) = value
-      os << "((half2*)(&(" << vec << "." << access[i] << "))) = " << value << ";\n";
+      // vec (4/8 * float16) is stored as uint2/4, return *((half2*)(&(vec.x/y/z/w))) = value
+      os << "*((half2*)(&(" << vec << "." << access[i] << "))) = " << value << ";\n";
     }
   } else {
     ICHECK(t.is_bfloat16());
@@ -92,8 +92,8 @@ void PrintVec2xFloat16ElemStore(const std::string& vec, DataType t, int i, const
       // vec (2 * bfloat16) has type nv_bfloat162, return vec = value;
       os << vec << " = " << value << ";\n";
     } else {
-      // vec (4/8 * bfloat16) is stored as uint2/4, return ((nv_bfloat162*)(&(vec.x/y/z/w))) = value
-      os << "((nv_bfloat162*)(&(" << vec << "." << access[i] << "))) = " << value << ";\n";
+      // vec (4/8 * bfloat16) is stored as uint2/4, return *((nv_bfloat162*)(&(vec.x/y/z/w))) = value
+      os << "*((nv_bfloat162*)(&(" << vec << "." << access[i] << "))) = " << value << ";\n";
     }
   }
 }
