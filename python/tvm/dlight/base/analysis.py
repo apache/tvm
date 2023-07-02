@@ -21,6 +21,9 @@ from typing_extensions import Literal
 
 from tvm import tir
 from tvm._ffi import get_global_func
+from tvm.target.target import Target
+from tvm.tir import Schedule
+from tvm.tir.schedule import BlockRV
 
 
 class IterInfo:
@@ -146,3 +149,40 @@ def normalize_prim_func(sch: tir.Schedule) -> Optional[List[BlockInfo]]:
             )
         )
     return blocks
+
+
+def _assert_gpu_target(target: Target):
+    if "gpu" not in target.keys:
+        raise ValueError(f"Expect a GPU target, but got {target}")
+
+
+def get_max_threads_per_block(target: Target) -> int:
+    _assert_gpu_target(target)
+    max_threads_per_block = None
+    for name in ["max_threads_per_block", "max_num_threads"]:
+        if max_threads_per_block is None:
+            max_threads_per_block = target.attrs.get(name, None)
+    if max_threads_per_block is None:
+        max_threads_per_block = 64
+    return int(max_threads_per_block)
+
+
+def get_max_shared_memory_per_block(target: Target) -> int:
+    _assert_gpu_target(target)
+    max_shared_memory_per_block = target.attrs.get("max_shared_memory_per_block", None)
+    if max_shared_memory_per_block is None:
+        raise ValueError(
+            f"Cannot find `max_shared_memory_per_block` in {target}, please specify it manually"
+        )
+    return int(max_shared_memory_per_block)
+
+
+def get_root_block(sch: Schedule, func_name: str = "main") -> BlockRV:
+    try:
+        block = sch.mod[func_name].body.block
+    except:
+        raise ValueError(
+            f"The function body is expected to be the root block, but got:\n"
+            f"{sch.mod[func_name].body}"
+        )
+    return sch.get_block(block.name_hint)

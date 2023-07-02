@@ -21,3 +21,4 @@ For CUDA/ROCm/Vulkan/Metal-specific rules, use `tvm.dlight.cuda/rocm/vulkan/meta
 from .fallback import Fallback
 from .decode_gemv import DecodeGEMV
 from .reduction import Reduction
+from .matmul import Matmul
