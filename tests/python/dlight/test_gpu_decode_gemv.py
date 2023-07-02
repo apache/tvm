@@ -346,9 +346,87 @@ def test_decode_gemv_sigmoid():
     assert_structural_equal(mod, After)
 
 
+def test_decode_gemv_1_fp32():
+    # NK layout + K as decode dim
+    # fmt: off
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def func(W: T.Buffer((4096, 512), "uint32"), S: T.Buffer((4096, 128), "float16"), V: T.Buffer((1, 1, 4096), "float16"), C: T.Buffer((1, 1, 4096), "float16")):
+            T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+            # with T.block("root"):
+            B = T.alloc_buffer((4096, 4096), "float16")
+            C_fp32 = T.alloc_buffer((1, 1, 4096), "float32")
+            for i, j in T.grid(4096, 4096):
+                with T.block("decode"):
+                    v_i, v_j = T.axis.remap("SS", [i, j])
+                    T.reads(W[v_i, v_j // 8], S[v_i, v_j // 32])
+                    T.writes(B[v_i, v_j])
+                    B[v_i, v_j] = (T.Cast("float16", T.bitwise_and(T.shift_right(W[v_i, v_j // 8], T.Cast("uint32", v_j % 8) * T.uint32(4)), T.uint32(15))) - T.float16(7)) * S[v_i, v_j // 32]
+            for i0, i1, i2, k in T.grid(1, 1, 4096, 4096):
+                with T.block("matmul"):
+                    v_i0, v_i1, v_i2, v_k = T.axis.remap("SSSR", [i0, i1, i2, k])
+                    T.reads(V[v_i0, v_i1, v_k], B[v_i2, v_k])
+                    T.writes(C_fp32[v_i0, v_i1, v_i2])
+                    with T.init():
+                        C_fp32[v_i0, v_i1, v_i2] = T.float16(0)
+                    C_fp32[v_i0, v_i1, v_i2] = C_fp32[v_i0, v_i1, v_i2] + T.Cast("float32", V[v_i0, v_i1, v_k]) * T.Cast("float32", B[v_i2, v_k])
+            for i0, i1, i2 in T.grid(1, 1, 4096):
+                with T.block("cast"):
+                    v_i0, v_i1, v_i2 = T.axis.remap("SSS", [i0, i1, i2])
+                    T.reads(C_fp32[v_i0, v_i1, v_i2])
+                    T.writes(C[v_i0, v_i1, v_i2])
+                    C[v_i0, v_i1, v_i2] = T.Cast("float16", C_fp32[v_i0, v_i1, v_i2])
+
+
+    @I.ir_module
+    class After:
+        @T.prim_func
+        def func(W: T.Buffer((4096, 512), "uint32"), S: T.Buffer((4096, 128), "float16"), V: T.Buffer((1, 1, 4096), "float16"), C: T.Buffer((1, 1, 4096), "float16")):
+            T.func_attr({"global_symbol": "main", "tir.is_scheduled": 1, "tir.noalias": T.bool(True)})
+            # with T.block("root"):
+            C_fp32_local = T.alloc_buffer((1, 1, 4096), scope="local")
+            C_fp32_rf_local = T.alloc_buffer((256, 1, 1, 4096), scope="local")
+            for ax0_fused in T.thread_binding(4096, thread="blockIdx.x"):
+                for ax1_0_fused_1 in T.thread_binding(256, thread="threadIdx.x"):
+                    with T.block("matmul_rf_init"):
+                        vax1_0_fused_1, v0 = T.axis.remap("SS", [ax1_0_fused_1, ax0_fused])
+                        T.reads()
+                        T.writes(C_fp32_rf_local[vax1_0_fused_1, 0, 0, v0])
+                        C_fp32_rf_local[vax1_0_fused_1, 0, 0, v0] = T.float32(0)
+                    for ax1_0_fused_0, ax1_1 in T.grid(2, 8):
+                        with T.block("matmul_rf_update"):
+                            vax1_0_fused_1, v0, vax1_0_fused_0, vax1_1 = T.axis.remap("SSRR", [ax1_0_fused_1, ax0_fused, ax1_0_fused_0, ax1_1])
+                            T.reads(C_fp32_rf_local[vax1_0_fused_1, 0, 0, v0], V[0, 0, vax1_0_fused_0 * 2048 + vax1_0_fused_1 * 8 + vax1_1], W[v0, (vax1_0_fused_0 * 2048 + vax1_0_fused_1 * 8 + vax1_1) // 8], S[v0, (vax1_0_fused_0 * 2048 + vax1_0_fused_1 * 8 + vax1_1) // 32])
+                            T.writes(C_fp32_rf_local[vax1_0_fused_1, 0, 0, v0])
+                            C_fp32_rf_local[vax1_0_fused_1, 0, 0, v0] = C_fp32_rf_local[vax1_0_fused_1, 0, 0, v0] + T.Cast("float32", V[0, 0, vax1_0_fused_0 * 2048 + vax1_0_fused_1 * 8 + vax1_1]) * T.Cast("float32", (T.Cast("float16", T.bitwise_and(T.shift_right(W[v0, (vax1_0_fused_0 * 2048 + vax1_0_fused_1 * 8 + vax1_1) // 8], T.Cast("uint32", (vax1_0_fused_0 * 2048 + vax1_0_fused_1 * 8 + vax1_1) % 8) * T.uint32(4)), T.uint32(15))) - T.float16(7)) * S[v0, (vax1_0_fused_0 * 2048 + vax1_0_fused_1 * 8 + vax1_1) // 32])
+                for ax1_fused in range(1):
+                    for ax0_fused_1 in T.thread_binding(256, thread="threadIdx.x"):
+                        with T.block("matmul"):
+                            vax1_0_fused_1, v0 = T.axis.remap("RS", [ax0_fused_1, ax0_fused])
+                            T.reads(C_fp32_rf_local[vax1_0_fused_1, 0, 0, v0])
+                            T.writes(C_fp32_local[0, 0, v0])
+                            with T.init():
+                                C_fp32_local[0, 0, v0] = T.float32(0)
+                            C_fp32_local[0, 0, v0] = C_fp32_local[0, 0, v0] + C_fp32_rf_local[vax1_0_fused_1, 0, 0, v0]
+                with T.block("cast"):
+                    v0 = T.axis.spatial(4096, ax0_fused)
+                    T.reads(C_fp32_local[0, 0, v0])
+                    T.writes(C[0, 0, v0])
+                    C[0, 0, v0] = T.Cast("float16", C_fp32_local[0, 0, v0])
+
+    # fmt: on
+
+    target = Target("nvidia/geforce-rtx-3090-ti")
+    with target:
+        mod = dl.ApplyDefaultSchedule(dl.gpu.DecodeGEMV())(Before)  # pylint: disable=not-callable
+    assert_structural_equal(mod, After)
+
+
 if __name__ == "__main__":
     test_decode_gemv_1()
     test_decode_gemv_2()
     test_decode_gemv_3()
     test_decode_gemv_4()
     test_decode_gemv_sigmoid()
+    test_decode_gemv_1_fp32()
