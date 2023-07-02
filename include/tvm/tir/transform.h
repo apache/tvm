@@ -475,6 +475,12 @@ TVM_DLL Pass PlanAndUpdateBufferAllocationLocation();
 TVM_DLL Pass ConvertBlocksToOpaque();
 
 /*!
+ * \brief Lift the same thread bindings to their LCA loops
+ * \return The pass.
+ */
+TVM_DLL Pass LiftThreadBinding();
+
+/*!
  * \brief Compact the buffer access region by removing the buffer regions that are not accessed,
  *        i.e. narrowing the buffer shape and adjust the access region if necessary.
  *
