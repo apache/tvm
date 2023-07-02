@@ -62,6 +62,11 @@ class RPCError(TVMError):
 
 
 @register_error
+class RPCSessionTimeoutError(RPCError, TimeoutError):
+    """Error thrown by the remote server when the RPC session has expired."""
+
+
+@register_error
 class OpError(TVMError):
     """Base class of all operator errors in frontends."""
 
