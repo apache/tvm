@@ -21,7 +21,7 @@ from typing import List
 from tvm import tir
 from tvm.target import Target
 
-from ..base import BlockInfo, ScheduleRule, try_inline
+from ..base import ScheduleRule, normalize_prim_func, try_inline
 
 
 def _max_threads_per_block(target: Target) -> int:
@@ -49,21 +49,13 @@ class Fallback(ScheduleRule):
         max_threads_per_block = _max_threads_per_block(target)
 
         sch = tir.Schedule(func)
-        for block in try_inline(
-            sch,
-            [
-                BlockInfo(
-                    sch,
-                    block,
-                )
-                for block in sch.get_child_blocks(sch.get_block("root"))
-            ],
-        ):
+        block_infos = try_inline(sch, normalize_prim_func(sch))
+        for block in block_infos:
             s_loops: List[tir.schedule.LoopRV] = []
             r_loops: List[tir.schedule.LoopRV] = []
             o_loops: List[tir.schedule.LoopRV] = []
             dom_kind = block.dom_kind()
-            block = block.block
+            block = block.block_rv
             for loop, iter_type in zip(sch.get_loops(block), dom_kind):
                 {"S": s_loops, "R": r_loops, "O": o_loops}[iter_type].append(loop)
 

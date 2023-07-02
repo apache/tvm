@@ -44,7 +44,7 @@ def try_inline(
     def _trial(func: Callable):
         for i, block in enumerate(blocks):
             try:
-                func(block.block)
+                func(block.block_rv)
             except:  # pylint: disable=bare-except
                 continue
             return i
@@ -58,3 +58,38 @@ def try_inline(
             break
         blocks.pop(i)
     return blocks
+
+
+def try_inline_contiguous_spatial(sch: tir.Schedule, block_infos: List[BlockInfo]):
+    """Try to spatial blocks in a schedule
+
+    Parameters
+    ----------
+    sch : tir.Schedule
+        The TIR schedule used to inline blocks.
+    block_infos : List[BlockInfo]
+        The blocks to be try.
+
+    Returns
+    -------
+    remaining : List[BlockInfo]
+        The remaining blocks that cannot be inlined.
+    """
+
+    if block_infos is None:
+        return None
+    results = []
+    spatial_blocks = []
+    block: BlockInfo
+    for block in block_infos:
+        if block.is_injective():
+            spatial_blocks.append(block)
+        elif spatial_blocks:
+            results.extend(try_inline(sch, spatial_blocks))
+            results.append(block)
+            spatial_blocks = []
+        else:
+            results.append(block)
+    if spatial_blocks:
+        results.extend(try_inline(sch, spatial_blocks))
+    return results

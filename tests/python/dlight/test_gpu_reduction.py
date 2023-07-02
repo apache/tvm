@@ -93,44 +93,41 @@ def test_softmax():
             # with T.block("root"):
             T_softmax_maxelem_shared = T.alloc_buffer((T.int64(1), T.int64(32), n), scope="shared")
             T_softmax_expsum_shared = T.alloc_buffer((T.int64(1), T.int64(32), n), scope="shared")
-            for i0_i1_i2_fused in T.thread_binding(n * T.int64(32), thread="blockIdx.x", annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
-                for ax0, ax1, ax2, ax3_fused_0 in T.grid(T.int64(1), T.int64(1), T.int64(1), (m + T.int64(255)) // T.int64(256)):
-                    for ax3_fused_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
+            for ax0_ax1_fused in T.thread_binding(n * T.int64(32), thread="blockIdx.x", annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
+                for ax0, ax1, ax2_fused_0 in T.grid(T.int64(1), T.int64(1), (m + T.int64(255)) // T.int64(256)):
+                    for ax2_fused_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
                         with T.block("T_softmax_maxelem"):
-                            v_i0 = T.axis.spatial(T.int64(1), ax0)
-                            v_i1 = T.axis.spatial(T.int64(32), i0_i1_i2_fused // n + ax1)
-                            v_i2 = T.axis.spatial(n, i0_i1_i2_fused % n + ax2)
-                            v_k = T.axis.reduce(m, ax3_fused_0 * T.int64(256) + ax3_fused_1)
-                            T.where(T.int64(0) <= i0_i1_i2_fused // n and i0_i1_i2_fused // n < T.int64(32) and T.int64(0) <= i0_i1_i2_fused % n and i0_i1_i2_fused % n < n and ax3_fused_0 * T.int64(256) + ax3_fused_1 < m)
-                            T.reads(lv44[v_i0, v_i1, v_i2, v_k])
-                            T.writes(T_softmax_maxelem_shared[v_i0, v_i1, v_i2])
+                            v0 = T.axis.spatial(T.int64(32), ax0_ax1_fused // n + ax0)
+                            v1 = T.axis.spatial(n, ax0_ax1_fused % n + ax1)
+                            v2 = T.axis.reduce(m, ax2_fused_0 * T.int64(256) + ax2_fused_1)
+                            T.where(T.int64(0) <= ax0_ax1_fused // n and ax0_ax1_fused // n < T.int64(32) and T.int64(0) <= ax0_ax1_fused % n and ax0_ax1_fused % n < n and ax2_fused_0 * T.int64(256) + ax2_fused_1 < m)
+                            T.reads(lv44[T.int64(0), v0, v1, v2])
+                            T.writes(T_softmax_maxelem_shared[T.int64(0), v0, v1])
                             with T.init():
-                                T_softmax_maxelem_shared[v_i0, v_i1, v_i2] = T.float32(-3.4028234663852886e+38)
-                            T_softmax_maxelem_shared[v_i0, v_i1, v_i2] = T.max(T_softmax_maxelem_shared[v_i0, v_i1, v_i2], lv44[v_i0, v_i1, v_i2, v_k])
-                for ax0, ax1, ax2, ax3_fused_0 in T.grid(T.int64(1), T.int64(1), T.int64(1), (m + T.int64(255)) // T.int64(256)):
-                    for ax3_fused_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
+                                T_softmax_maxelem_shared[T.int64(0), v0, v1] = T.float32(-3.4028234663852886e+38)
+                            T_softmax_maxelem_shared[T.int64(0), v0, v1] = T.max(T_softmax_maxelem_shared[T.int64(0), v0, v1], lv44[T.int64(0), v0, v1, v2])
+                for ax0, ax1, ax2_fused_0 in T.grid(T.int64(1), T.int64(1), (m + T.int64(255)) // T.int64(256)):
+                    for ax2_fused_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
                         with T.block("T_softmax_expsum"):
-                            v_i0 = T.axis.spatial(T.int64(1), ax0)
-                            v_i1 = T.axis.spatial(T.int64(32), i0_i1_i2_fused // n + ax1)
-                            v_i2 = T.axis.spatial(n, i0_i1_i2_fused % n + ax2)
-                            v_k = T.axis.reduce(m, ax3_fused_0 * T.int64(256) + ax3_fused_1)
-                            T.where(T.int64(0) <= i0_i1_i2_fused // n and i0_i1_i2_fused // n < T.int64(32) and T.int64(0) <= i0_i1_i2_fused % n and i0_i1_i2_fused % n < n and ax3_fused_0 * T.int64(256) + ax3_fused_1 < m)
-                            T.reads(lv44[v_i0, v_i1, v_i2, v_k], T_softmax_maxelem_shared[v_i0, v_i1, v_i2])
-                            T.writes(T_softmax_expsum_shared[v_i0, v_i1, v_i2])
+                            v0 = T.axis.spatial(T.int64(32), ax0_ax1_fused // n + ax0)
+                            v1 = T.axis.spatial(n, ax0_ax1_fused % n + ax1)
+                            v2 = T.axis.reduce(m, ax2_fused_0 * T.int64(256) + ax2_fused_1)
+                            T.where(T.int64(0) <= ax0_ax1_fused // n and ax0_ax1_fused // n < T.int64(32) and T.int64(0) <= ax0_ax1_fused % n and ax0_ax1_fused % n < n and ax2_fused_0 * T.int64(256) + ax2_fused_1 < m)
+                            T.reads(lv44[T.int64(0), v0, v1, v2], T_softmax_maxelem_shared[T.int64(0), v0, v1])
+                            T.writes(T_softmax_expsum_shared[T.int64(0), v0, v1])
                             with T.init():
-                                T_softmax_expsum_shared[v_i0, v_i1, v_i2] = T.float32(0)
-                            T_softmax_expsum_shared[v_i0, v_i1, v_i2] = T_softmax_expsum_shared[v_i0, v_i1, v_i2] + T.exp(lv44[v_i0, v_i1, v_i2, v_k] - T_softmax_maxelem_shared[v_i0, v_i1, v_i2])
-                for i3_0 in range((m + T.int64(255)) // T.int64(256)):
-                    for i3_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
+                                T_softmax_expsum_shared[T.int64(0), v0, v1] = T.float32(0)
+                            T_softmax_expsum_shared[T.int64(0), v0, v1] = T_softmax_expsum_shared[T.int64(0), v0, v1] + T.exp(lv44[T.int64(0), v0, v1, v2] - T_softmax_maxelem_shared[T.int64(0), v0, v1])
+                for ax2_0 in range((m + T.int64(255)) // T.int64(256)):
+                    for ax2_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
                         with T.block("compute"):
-                            v_i0 = T.axis.spatial(T.int64(1), T.int64(0))
-                            v_i1 = T.axis.spatial(T.int64(32), i0_i1_i2_fused // n)
-                            v_i2 = T.axis.spatial(n, i0_i1_i2_fused % n)
-                            v_i3 = T.axis.spatial(m, i3_0 * T.int64(256) + i3_1)
-                            T.where(i3_0 * T.int64(256) + i3_1 < m)
-                            T.reads(lv44[v_i0, v_i1, v_i2, v_i3], T_softmax_maxelem_shared[v_i0, v_i1, v_i2], T_softmax_expsum_shared[v_i0, v_i1, v_i2])
-                            T.writes(var_compute_intermediate[v_i0, v_i1, v_i2, v_i3])
-                            var_compute_intermediate[v_i0, v_i1, v_i2, v_i3] = T.Cast("float16", T.exp(lv44[v_i0, v_i1, v_i2, v_i3] - T_softmax_maxelem_shared[v_i0, v_i1, v_i2]) / T_softmax_expsum_shared[v_i0, v_i1, v_i2])
+                            v0 = T.axis.spatial(T.int64(32), ax0_ax1_fused // n)
+                            v1 = T.axis.spatial(n, ax0_ax1_fused % n)
+                            v2 = T.axis.spatial(m, ax2_0 * T.int64(256) + ax2_1)
+                            T.where(ax2_0 * T.int64(256) + ax2_1 < m)
+                            T.reads(lv44[T.int64(0), v0, v1, v2], T_softmax_maxelem_shared[T.int64(0), v0, v1], T_softmax_expsum_shared[T.int64(0), v0, v1])
+                            T.writes(var_compute_intermediate[T.int64(0), v0, v1, v2])
+                            var_compute_intermediate[T.int64(0), v0, v1, v2] = T.Cast("float16", T.exp(lv44[T.int64(0), v0, v1, v2] - T_softmax_maxelem_shared[T.int64(0), v0, v1]) / T_softmax_expsum_shared[T.int64(0), v0, v1])
     # fmt: on
     _check(Before, After)
 
@@ -185,31 +182,29 @@ def test_layer_norm():
             # with T.block("root"):
             A_red_temp_v0_shared = T.alloc_buffer((T.int64(1), n), scope="shared")
             A_red_temp_v1_shared = T.alloc_buffer((T.int64(1), n), scope="shared")
-            for i0_i1_fused in T.thread_binding(n, thread="blockIdx.x", annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
-                for ax0, ax1, ax2_fused_0 in T.grid(T.int64(1), T.int64(1), T.int64(10)):
-                    for ax2_fused_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
+            for ax0_fused in T.thread_binding(n, thread="blockIdx.x", annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
+                for ax0, ax1_fused_0 in T.grid(T.int64(1), T.int64(10)):
+                    for ax1_fused_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
                         with T.block("A_red_temp"):
-                            v_ax0 = T.axis.spatial(T.int64(1), ax0)
-                            v_ax1 = T.axis.spatial(n, i0_i1_fused + ax1)
-                            v_k2 = T.axis.reduce(T.int64(2560), ax2_fused_0 * T.int64(256) + ax2_fused_1)
-                            T.reads(lv6[v_ax0, v_ax1, v_k2])
-                            T.writes(A_red_temp_v0_shared[v_ax0, v_ax1], A_red_temp_v1_shared[v_ax0, v_ax1])
+                            v0 = T.axis.spatial(n, ax0_fused + ax0)
+                            v1 = T.axis.reduce(T.int64(2560), ax1_fused_0 * T.int64(256) + ax1_fused_1)
+                            T.reads(lv6[T.int64(0), v0, v1])
+                            T.writes(A_red_temp_v0_shared[T.int64(0), v0], A_red_temp_v1_shared[T.int64(0), v0])
                             with T.init():
-                                A_red_temp_v0_shared[v_ax0, v_ax1] = T.float32(0)
-                                A_red_temp_v1_shared[v_ax0, v_ax1] = T.float32(0)
-                            v_A_red_temp_v0: T.float32 = A_red_temp_v0_shared[v_ax0, v_ax1] + lv6[v_ax0, v_ax1, v_k2]
-                            v_A_red_temp_v1: T.float32 = A_red_temp_v1_shared[v_ax0, v_ax1] + lv6[v_ax0, v_ax1, v_k2] * lv6[v_ax0, v_ax1, v_k2]
-                            A_red_temp_v0_shared[v_ax0, v_ax1] = v_A_red_temp_v0
-                            A_red_temp_v1_shared[v_ax0, v_ax1] = v_A_red_temp_v1
-                for i2_0 in range(T.int64(10)):
-                    for i2_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
+                                A_red_temp_v0_shared[T.int64(0), v0] = T.float32(0)
+                                A_red_temp_v1_shared[T.int64(0), v0] = T.float32(0)
+                            v_A_red_temp_v0: T.float32 = A_red_temp_v0_shared[T.int64(0), v0] + lv6[T.int64(0), v0, v1]
+                            v_A_red_temp_v1: T.float32 = A_red_temp_v1_shared[T.int64(0), v0] + lv6[T.int64(0), v0, v1] * lv6[T.int64(0), v0, v1]
+                            A_red_temp_v0_shared[T.int64(0), v0] = v_A_red_temp_v0
+                            A_red_temp_v1_shared[T.int64(0), v0] = v_A_red_temp_v1
+                for ax1_0 in range(T.int64(10)):
+                    for ax1_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
                         with T.block("compute"):
-                            v_i0 = T.axis.spatial(T.int64(1), T.int64(0))
-                            v_i1 = T.axis.spatial(n, i0_i1_fused)
-                            v_i2 = T.axis.spatial(T.int64(2560), i2_0 * T.int64(256) + i2_1)
-                            T.reads(lv6[v_i0, v_i1, v_i2], A_red_temp_v0_shared[v_i0, v_i1], A_red_temp_v1_shared[v_i0, v_i1], weight1[v_i2], bias[v_i2])
-                            T.writes(var_compute_intermediate[v_i0, v_i1, v_i2])
-                            var_compute_intermediate[v_i0, v_i1, v_i2] = T.Cast("float16", (lv6[v_i0, v_i1, v_i2] - A_red_temp_v0_shared[v_i0, v_i1] * T.float32(0.00039062500000000002)) * T.rsqrt(A_red_temp_v1_shared[v_i0, v_i1] * T.float32(0.00039062500000000002) - A_red_temp_v0_shared[v_i0, v_i1] * T.float32(0.00039062500000000002) * (A_red_temp_v0_shared[v_i0, v_i1] * T.float32(0.00039062500000000002)) + T.float32(1.0000000000000001e-05)) * weight1[v_i2] + bias[v_i2])
+                            v0 = T.axis.spatial(n, ax0_fused)
+                            v1 = T.axis.spatial(T.int64(2560), ax1_0 * T.int64(256) + ax1_1)
+                            T.reads(lv6[T.int64(0), v0, v1], A_red_temp_v0_shared[T.int64(0), v0], A_red_temp_v1_shared[T.int64(0), v0], weight1[v1], bias[v1])
+                            T.writes(var_compute_intermediate[T.int64(0), v0, v1])
+                            var_compute_intermediate[T.int64(0), v0, v1] = T.Cast("float16", (lv6[T.int64(0), v0, v1] - A_red_temp_v0_shared[T.int64(0), v0] * T.float32(0.00039062500000000002)) * T.rsqrt(A_red_temp_v1_shared[T.int64(0), v0] * T.float32(0.00039062500000000002) - A_red_temp_v0_shared[T.int64(0), v0] * T.float32(0.00039062500000000002) * (A_red_temp_v0_shared[T.int64(0), v0] * T.float32(0.00039062500000000002)) + T.float32(1.0000000000000001e-05)) * weight1[v1] + bias[v1])
     # fmt: on
     _check(Before, After)
 
@@ -251,27 +246,25 @@ def test_rms_norm():
             rms_norm_1 = T.match_buffer(var_rms_norm, (T.int64(1), n, T.int64(4096)), "float16")
             # with T.block("root"):
             Ared_temp_shared = T.alloc_buffer((T.int64(1), n), scope="shared")
-            for bsz_i_fused in T.thread_binding(n, thread="blockIdx.x", annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
-                for ax0, ax1, ax2_fused_0 in T.grid(T.int64(1), T.int64(1), T.int64(16)):
-                    for ax2_fused_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
+            for ax0_fused in T.thread_binding(n, thread="blockIdx.x", annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
+                for ax0, ax1_fused_0 in T.grid(T.int64(1), T.int64(16)):
+                    for ax1_fused_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
                         with T.block("Ared_temp"):
-                            v_bsz = T.axis.spatial(T.int64(1), ax0)
-                            v_i = T.axis.spatial(n, bsz_i_fused + ax1)
-                            v_k = T.axis.reduce(T.int64(4096), ax2_fused_0 * T.int64(256) + ax2_fused_1)
-                            T.reads(A[v_bsz, v_i, v_k])
-                            T.writes(Ared_temp_shared[v_bsz, v_i])
+                            v0 = T.axis.spatial(n, ax0_fused + ax0)
+                            v1 = T.axis.reduce(T.int64(4096), ax1_fused_0 * T.int64(256) + ax1_fused_1)
+                            T.reads(A[T.int64(0), v0, v1])
+                            T.writes(Ared_temp_shared[T.int64(0), v0])
                             with T.init():
-                                Ared_temp_shared[v_bsz, v_i] = T.float32(0)
-                            Ared_temp_shared[v_bsz, v_i] = Ared_temp_shared[v_bsz, v_i] + T.Cast("float32", A[v_bsz, v_i, v_k]) * T.Cast("float32", A[v_bsz, v_i, v_k])
-                for k_0 in range(T.int64(16)):
-                    for k_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
+                                Ared_temp_shared[T.int64(0), v0] = T.float32(0)
+                            Ared_temp_shared[T.int64(0), v0] = Ared_temp_shared[T.int64(0), v0] + T.Cast("float32", A[T.int64(0), v0, v1]) * T.Cast("float32", A[T.int64(0), v0, v1])
+                for ax1_0 in range(T.int64(16)):
+                    for ax1_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
                         with T.block("rms_norm"):
-                            v_bsz = T.axis.spatial(T.int64(1), T.int64(0))
-                            v_i = T.axis.spatial(n, bsz_i_fused)
-                            v_k = T.axis.spatial(T.int64(4096), k_0 * T.int64(256) + k_1)
-                            T.reads(B[v_k], A[v_bsz, v_i, v_k], Ared_temp_shared[v_bsz, v_i])
-                            T.writes(rms_norm_1[v_bsz, v_i, v_k])
-                            rms_norm_1[v_bsz, v_i, v_k] = T.Cast("float16", T.Cast("float32", B[v_k]) * (T.Cast("float32", A[v_bsz, v_i, v_k]) / T.sqrt(Ared_temp_shared[v_bsz, v_i] * T.float32(0.000244140625) + T.float32(9.9999999999999995e-07))))
+                            v0 = T.axis.spatial(n, ax0_fused)
+                            v1 = T.axis.spatial(T.int64(4096), ax1_0 * T.int64(256) + ax1_1)
+                            T.reads(B[v1], A[T.int64(0), v0, v1], Ared_temp_shared[T.int64(0), v0])
+                            T.writes(rms_norm_1[T.int64(0), v0, v1])
+                            rms_norm_1[T.int64(0), v0, v1] = T.Cast("float16", T.Cast("float32", B[v1]) * (T.Cast("float32", A[T.int64(0), v0, v1]) / T.sqrt(Ared_temp_shared[T.int64(0), v0] * T.float32(0.000244140625) + T.float32(9.9999999999999995e-07))))
     # fmt: on
     _check(Before, After)
 

@@ -20,7 +20,7 @@ from typing import List, Union
 from tvm import tir
 from tvm.target import Target
 
-from ..base import BlockInfo, ScheduleRule, try_inline
+from ..base import ScheduleRule, normalize_prim_func, try_inline_contiguous_spatial
 
 
 class Reduction(ScheduleRule):
@@ -39,47 +39,31 @@ class Reduction(ScheduleRule):
             len_tx = 64
             unroll_depth = 64
 
-        def _inline_all_spatial():
-            blocks = []
-            spatial_blocks = []
-            for block in sch.get_child_blocks(sch.get_block("root")):
-                block = BlockInfo(sch, block)
-                if block.is_spatial():
-                    spatial_blocks.append(block)
-                elif spatial_blocks:
-                    blocks.extend(try_inline(sch, spatial_blocks))
-                    blocks.append(block)
-                    spatial_blocks = []
-                else:
-                    blocks.append(block)
-            if spatial_blocks:
-                blocks.extend(try_inline(sch, spatial_blocks))
-            return blocks
-
         sch = tir.Schedule(func)
-        blocks = _inline_all_spatial()
-        assert len(blocks) > 0
+        block_infos = normalize_prim_func(sch)
+        block_infos = try_inline_contiguous_spatial(sch, block_infos)
+        assert len(block_infos) > 0
 
-        dom_kind = blocks[0].dom_kind()
+        dom_kind = block_infos[0].dom_kind()
         num_leading_s = len(dom_kind) - len(dom_kind.lstrip("S"))
         num_trailing_r = len(dom_kind) - len(dom_kind.rstrip("R"))
         try:
-            for block in blocks[1:-1]:
+            for block in block_infos[1:-1]:
                 assert block.dom_kind() == dom_kind
-            assert blocks[-1].is_spatial()
-            assert len(blocks[-1].dom_kind()) == len(dom_kind)
+            assert block_infos[-1].is_injective()
+            assert len(block_infos[-1].dom_kind()) == len(dom_kind)
         except AssertionError:
             print("Mismatch")
             return None
 
-        loops = sch.get_loops(blocks[-1].block)
+        loops = sch.get_loops(block_infos[-1].block_rv)
         bx = sch.fuse(*loops[:num_leading_s])  # pylint: disable=invalid-name
         _, tx = sch.split(loops[-1], [None, len_tx])  # pylint: disable=invalid-name
         sch.bind(bx, "blockIdx.x")
         sch.bind(tx, "threadIdx.x")
 
-        for block in reversed(blocks[:-1]):
-            block = block.block
+        for block in reversed(block_infos[:-1]):
+            block = block.block_rv
             for i, _ in enumerate(sch.get(block).writes):
                 sch.set_scope(block, buffer_index=i, storage_scope="shared")
             sch.compute_at(block, bx, preserve_unit_loops=True)

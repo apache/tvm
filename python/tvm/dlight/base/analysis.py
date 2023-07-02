@@ -15,61 +15,134 @@
 # specific language governing permissions and limitations
 # under the License.
 """Analysis on TIR blocks, loops and functions."""
-from typing import List, Union
+from typing import List, Optional, Union
+
+from typing_extensions import Literal
 
 from tvm import tir
+from tvm._ffi import get_global_func
+
+
+class IterInfo:
+    """Information about a loop/iter var."""
+
+    kind: Literal["S", "R", "O"]
+    var: tir.Var
+    _dom: tir.PrimExpr
+    loop_rv: tir.schedule.LoopRV
+
+    def __init__(
+        self,
+        kind: Literal["S", "R", "O"],
+        var: tir.Var,
+        dom: tir.PrimExpr,
+        loop_rv: tir.schedule.LoopRV,
+    ):
+        """Construct an IterInfo object."""
+        self.kind = kind
+        self.var = var
+        self._dom = dom
+        self.loop_rv = loop_rv
+
+    @property
+    def dom(self) -> Union[int, tir.PrimExpr]:
+        """The iteration domain of the loop."""
+        return int(self._dom) if isinstance(self._dom, tir.IntImm) else self._dom
+
+    def __str__(self) -> str:
+        return f'Iter("{self.kind}", {self.dom})'
+
+    def __repr__(self) -> str:
+        return str(self)
 
 
 class BlockInfo:
     """Information about a TIR block."""
 
-    block: tir.schedule.BlockRV
-    """The TIR block the current schedule refers to"""
     name: str
-    """The name of the block"""
-    iters: List[tir.IterVar]
-    """The iteration domains of the current block"""
+    iters: List[IterInfo]
+    block_rv: tir.schedule.BlockRV
+    _reduction_block: bool
 
     def __init__(
         self,
-        sch: tir.Schedule,
-        block: tir.schedule.BlockRV,
+        name: str,
+        iters: List[IterInfo],
+        block_rv: tir.schedule.BlockRV,
+        reduction_block: bool = False,
     ):
-        """Construct a BlockInfo object via TIR schedule."""
-        tir_block = sch.get(block)
-        self.block = block
-        self.name = tir_block.name_hint
-        self.iters = list(tir_block.iter_vars)
+        """Construct a BlockInfo object."""
+        self.name = name
+        self.block_rv = block_rv
+        self.iters = iters
+        self._reduction_block = reduction_block
 
     def dom(self) -> List[Union[int, tir.PrimExpr]]:
         """The iteration domain of the block."""
-
-        def _iter_dom(i: tir.IterVar) -> Union[int, tir.PrimExpr]:
-            result = i.dom.extent
-            if isinstance(result, tir.IntImm):
-                result = int(result)
-            return result
-
-        result = [_iter_dom(i) for i in self.iters]
-        return result
+        return [i.dom for i in self.iters]
 
     def dom_kind(self) -> str:
         """The iteration domain kind of the block, for example, SSSS, SSSR."""
+        return "".join(i.kind for i in self.iters)
 
-        def _iter_kind(i: tir.IterVar) -> str:
-            return {
-                tir.IterVar.DataPar: "S",
-                tir.IterVar.CommReduce: "R",
-            }.get(i.iter_type, "O")
-
-        return "".join(_iter_kind(i) for i in self.iters)
-
-    def is_spatial(self) -> bool:
-        """Whether the block is spatial, i.e. all its iteration domains are spatial."""
+    def is_injective(self) -> bool:
+        """Whether the block is injective, i.e. all its iteration domains are injective."""
         return all(k == "S" for k in self.dom_kind())
+
+    def is_reduction(self) -> bool:
+        """Whether the block is a reduction workload."""
+        # TODO(@junrushao): distinguish GEMV and reduction
+        return self._reduction_block
+
+    def is_gemv(self) -> bool:
+        """Whether the block is a GEMV workload."""
+        raise NotImplementedError
+
+    def is_gemm(self) -> bool:
+        """Whether the block is a GEMM workload."""
+        raise NotImplementedError
 
     def __str__(self) -> str:
         return f'BlockInfo("{self.name}", "{self.dom_kind()}", {self.dom()})'
 
     def __repr__(self) -> str:
         return str(self)
+
+
+_normalize_prim_func = get_global_func("tir.schedule.NormalizePrimFunc")
+
+
+def normalize_prim_func(sch: tir.Schedule) -> Optional[List[BlockInfo]]:
+    """Normalize the primfunc to normal form"""
+    try:
+        result = _normalize_prim_func(sch)
+        if result is None:
+            return None
+    except Exception:  # pylint: disable=broad-except
+        return None
+
+    def _iter_kind(i: tir.IterVar) -> str:
+        return {
+            tir.IterVar.DataPar: "S",
+            tir.IterVar.CommReduce: "R",
+        }.get(i.iter_type, "O")
+
+    blocks: List[BlockInfo] = []
+    for block, loops, iters, is_reduction in zip(*result):
+        blocks.append(
+            BlockInfo(
+                name=sch.get(block).name_hint,
+                iters=[
+                    IterInfo(
+                        kind=_iter_kind(iter),  # type: ignore
+                        var=iter.var,
+                        dom=iter.dom.extent,
+                        loop_rv=loop,
+                    )
+                    for loop, iter in zip(loops, iters)
+                ],
+                block_rv=block,
+                reduction_block=is_reduction,
+            )
+        )
+    return blocks
