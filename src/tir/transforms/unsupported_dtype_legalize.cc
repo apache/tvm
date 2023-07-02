@@ -366,7 +366,8 @@ class ComputeLegalizer : public StmtExprMutator {
         DataType legalized_dtype = new_buf->dtype.with_lanes(index_lanes * buffer_lanes);
         value = CastTargetToDType(value, legalized_dtype);
       }
-      if (value.dtype() != new_buf->dtype) {
+
+      if (value.dtype().element_of() != new_buf->dtype.element_of()) {
         // this happens when buffer get rewritten to f32
         // but values remain as fp8/bf16
         ICHECK(MatchDType(value->dtype));
