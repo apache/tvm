@@ -125,7 +125,8 @@ def assert_allclose(actual, desired, rtol=1e-7, atol=1e-7):
     compares the `abs(actual-desired)` with `atol+rtol*abs(desired)`.  Since we
     often allow `desired` to be close to zero, we generally want non-zero `atol`.
     """
-    # The ml_dtypes v0.2 is not compatible with numpy's asanyarray function, promote to float32 first.
+    # The ml_dtypes v0.2 is not compatible with numpy's asanyarray function, promote to
+    # float32 first.
     actual = promote_bf16_to_fp32(actual)
     desired = promote_bf16_to_fp32(desired)
 
