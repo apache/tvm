@@ -144,11 +144,6 @@ IRModule ScheduleToModule(te::Schedule sch, const Array<ObjectRef>& args, const 
                           const std::unordered_map<te::Tensor, tir::Buffer>& binds,
                           GlobalVarSupply global_var_supply);
 
-TVM_DLL runtime::Module IRModuleToRuntimeModule(const Map<Target, IRModule>& inputs_arg,
-                                        const Target& target_host_arg, bool apply_lower_passes) {
-
-}
-
 /*!
  * \brief Build a device and host module for a specific target from an IRModule.
  * \param funcs The functions to be built.
