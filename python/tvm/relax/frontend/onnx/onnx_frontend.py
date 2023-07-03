@@ -2219,3 +2219,16 @@ def register_custom_op(op_name: str, cls: Type[OnnxOpConverter]):
     """
 
     _custom_ops[op_name] = cls
+
+
+def remove_custom_op(op_name: str):
+    """Remove a custom operator.
+
+    Parameters
+    ----------
+    op_name : str
+        The name of the custom operator to be removed.
+    """
+
+    if op_name in _custom_ops:
+        _custom_ops.pop(op_name)
