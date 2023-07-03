@@ -141,7 +141,8 @@ def lower(
 ) -> IRModule:
     """Lowering step before build into target.
 
-    Warning(legacy): This function is maintained for backward compatibility, please use :func:`build` directly.
+    (Warning) This function is obsolete and maintained for backward compatibility with
+    legacy TE Schedule, please use :func:`build` directly.
 
     Parameters
     ----------
