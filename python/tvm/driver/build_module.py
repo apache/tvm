@@ -71,8 +71,8 @@ def schedule_to_module(
     """According to the given schedule, form a function.
 
     This is a low-level function intended for testing purposes, and
-    does not apply any optimization passes.  In general, `tvm.lower`
-    and `tvm.build` should be used instead.
+    does not apply any optimization passes.  In general, `tvm.build`
+    should be used instead.
 
     Parameters
     ----------
@@ -91,6 +91,47 @@ def schedule_to_module(
     return ffi.schedule_to_module(sch, args, name, binds)
 
 
+def as_ir_module(
+    inp: Union[te.Schedule, PrimFunc, IRModule],
+    args: Optional[List[Union[Buffer, tensor.Tensor, Var]]] = None,
+    name: str = "main",
+    binds: Optional[Mapping[tensor.Tensor, Buffer]] = None,
+) -> IRModule:
+    """Convert input to IRModule.
+
+    Parameters
+    ----------
+    inp : Union[tvm.te.schedule.Schedule, tvm.tir.PrimFunc, IRModule]
+        The input TE schedule or TensorIR PrimFunc/IRModule.
+
+    args : Optional[List[Union[tvm.tir.Buffer, tensor.Tensor, Var]]]
+        The argument lists to the function for TE schedule.
+        It should be None if :attr:`inp` is a TensorIR PrimFunc/IRModule.
+
+    name : str
+        The name of the result function.
+
+    binds : Optional[Mapping[tensor.Tensor, tvm.tir.Buffer]]
+        Dictionary that maps the Tensor to Buffer which specified the data layout
+        requirement of the function. By default, a new compact buffer is created
+        for each tensor in the argument.
+
+    Returns
+    -------
+    m : IRModule
+        The result IRModule.
+    """
+    if isinstance(inp, IRModule):
+        return inp
+    if isinstance(inp, PrimFunc):
+        return IRModule({name: inp.with_attr("global_symbol", name)})
+    if isinstance(inp, te.Schedule):
+        return schedule_to_module(inp, args, name, binds)
+    raise ValueError(
+        f"Expected input to be an IRModule, PrimFunc or te.Schedule, but got {type(inp)}"
+    )
+
+
 def lower(
     inp: Union[te.Schedule, PrimFunc, IRModule],
     args: Optional[List[Union[Buffer, tensor.Tensor, Var]]] = None,
@@ -99,6 +140,8 @@ def lower(
     simple_mode: bool = False,
 ) -> IRModule:
     """Lowering step before build into target.
+
+    Warning(legacy): This function is maintained for backward compatibility, please use :func:`build` directly.
 
     Parameters
     ----------
@@ -199,8 +242,7 @@ def build(
         B = te.placeholder((n,), name='B')
         C = te.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
         s = tvm.te.create_schedule(C.op)
-        m = tvm.lower(s, [A, B, C], name="test_add")
-        rt_mod = tvm.build(m, target="llvm")
+        rt_mod = tvm.build(s, target="llvm")
 
     2. it is a dict of compilation target to IRModule.
 
@@ -213,9 +255,7 @@ def build(
         s1 = tvm.te.create_schedule(C.op)
         with tvm.target.cuda() as cuda_tgt:
           s2 = topi.cuda.schedule_injective(cuda_tgt, [C])
-          m1 = tvm.lower(s1, [A, B, C], name="test_add1")
-          m2 = tvm.lower(s2, [A, B, C], name="test_add2")
-          rt_mod = tvm.build({"llvm": m1, "cuda": m2})
+          rt_mod = tvm.build({"llvm": s1, "cuda": s2})
 
     Note
     ----
@@ -224,16 +264,16 @@ def build(
     if isinstance(inputs, te.Schedule):
         if args is None:
             raise ValueError("args must be given for build from schedule")
-        input_mod = lower(inputs, args, name=name, binds=binds)
+        input_mod = as_ir_module(inputs, args, name=name, binds=binds)
     elif isinstance(inputs, (list, tuple, container.Array)):
         merged_mod = tvm.IRModule({})
         for x in inputs:
-            merged_mod.update(lower(x))
+            merged_mod.update(as_ir_module(x))
         input_mod = merged_mod
     elif isinstance(inputs, PrimFunc):
-        input_mod = lower(inputs, name=name)
+        input_mod = as_ir_module(inputs, name=name)
     elif isinstance(inputs, tvm.IRModule):
-        input_mod = lower(inputs)
+        input_mod = as_ir_module(inputs)
     elif not isinstance(inputs, (dict, container.Map)):
         raise ValueError(
             f"Inputs must be te.Schedule, IRModule, PrimFunc, "
@@ -278,7 +318,7 @@ def build(
 
     annotated_mods, target_host = Target.canon_target_map_and_host(annotated_mods, target_host)
 
-    rt_mod_host = _driver_ffi.tir_to_runtime(annotated_mods, target_host)
+    rt_mod_host = _driver_ffi.ir_module_to_runtime_module(annotated_mods, target_host, True)
 
     annotated_mods, target_host = Target.canon_target_map_and_host(annotated_mods, target_host)
 

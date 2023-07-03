@@ -50,11 +50,14 @@ using tvm::transform::Pass;
 /*!
  * \brief Configures and returns the composite Pass for the fused module (pre split) that contains
  * device and host code.
+ *
  * \param mixed_mod The original mixed module.
  * \param target The device Target.
+ * \param apply_lower_passes Whether to apply lowering passes.
  * \return The composite Pass for the fused module.
 //  */
-TVM_DLL transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target);
+TVM_DLL transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target,
+                                                     bool apply_lower_passes);
 
 /*!
  * \brief Configures and returns the composite Pass for the device Target after device/host from
@@ -140,6 +143,12 @@ TVM_DLL IRModule LowerSchedule(te::Schedule sch, const Array<ObjectRef>& args,
 IRModule ScheduleToModule(te::Schedule sch, const Array<ObjectRef>& args, const std::string& name,
                           const std::unordered_map<te::Tensor, tir::Buffer>& binds,
                           GlobalVarSupply global_var_supply);
+
+TVM_DLL runtime::Module IRModuleToRuntimeModule(const Map<Target, IRModule>& inputs_arg,
+                                        const Target& target_host_arg, bool apply_lower_passes) {
+
+}
+
 /*!
  * \brief Build a device and host module for a specific target from an IRModule.
  * \param funcs The functions to be built.

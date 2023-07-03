@@ -213,6 +213,8 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
   pass_list.push_back(tir::transform::TransformMmaBufferLayout());
   pass_list.push_back(tir::transform::LowerOpaqueBlock());
   pass_list.push_back(tir::transform::FlattenBuffer());
+  pass_list.push_back(tir::transform::FP8ComputeLegalize());
+  pass_list.push_back(tir::transform::BF16ComputeLegalize());
   pass_list.push_back(tir::transform::NarrowDataType(32));
   pass_list.push_back(tir::transform::Simplify());
 
@@ -402,13 +404,14 @@ TVM_REGISTER_GLOBAL("driver.lower_schedule")
  * device and host. Then it also applies transformations on the new splitted modules.
  */
 std::pair<IRModule, IRModule> SplitMixedModule(IRModule mod_mixed, const Target& target_arg,
-                                               const Target& target_host_arg) {
+                                               const Target& target_host_arg,
+                                               bool apply_lower_passes) {
   Target target = target_arg, target_host = target_host_arg;
   CheckAndUpdateHostConsistency(&target, &target_host);
 
   ICHECK(mod_mixed.defined()) << "This module must be defined";
 
-  mod_mixed = ApplyPasses(mod_mixed, MixedModulePassManager(mod_mixed, target));
+  mod_mixed = ApplyPasses(mod_mixed, MixedModulePassManager(mod_mixed, target, apply_lower_passes));
 
   IRModule host_mod = ApplyPasses(mod_mixed, HostModulePassManager(mod_mixed, target_host));
 
@@ -427,8 +430,8 @@ std::pair<IRModule, IRModule> SplitMixedModule(IRModule mod_mixed, const Target&
   return {host_mod, device_mod};
 }
 
-runtime::Module TIRToRuntime(const Map<Target, IRModule>& inputs_arg,
-                             const Target& target_host_arg) {
+runtime::Module IRModuleToRuntimeModule(const Map<Target, IRModule>& inputs_arg,
+                                        const Target& target_host_arg, bool apply_lower_passes) {
   std::vector<runtime::Module> device_modules;
   Map<Target, IRModule> inputs = inputs_arg;
   Target target_host = target_host_arg;
@@ -464,7 +467,7 @@ runtime::Module TIRToRuntime(const Map<Target, IRModule>& inputs_arg,
     if (it.second.defined()) {
       const Target& target = it.first;
       const IRModule& ir_module = it.second;
-      auto pair = SplitMixedModule(ir_module, target, target_host);
+      auto pair = SplitMixedModule(ir_module, target, target_host, apply_lower_passes);
       auto& host_mod = pair.first;
       auto& device_mod = pair.second;
 
@@ -499,6 +502,17 @@ runtime::Module TIRToRuntime(const Map<Target, IRModule>& inputs_arg,
   }
 
   return mhost;
+}
+
+TVM_REGISTER_GLOBAL("driver.ir_module_to_runtime_module")
+    .set_body_typed([](const Map<Target, IRModule>& inputs_arg, Target host_target,
+                       bool apply_lower_passes) {
+      return IRModuleToRuntimeModule(inputs_arg, host_target, apply_lower_passes);
+    });
+
+runtime::Module TIRToRuntime(const Map<Target, IRModule>& inputs_arg,
+                             const Target& target_host_arg) {
+  return IRModuleToRuntimeModule(inputs_arg, target_host_arg, false);
 }
 
 TVM_REGISTER_GLOBAL("driver.tir_to_runtime")
@@ -539,21 +553,23 @@ runtime::Module build(const IRModule& funcs, const Target& target_arg,
   return TIRToRuntime(inputs, target_host);
 }
 
-transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) {
+transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target,
+                                             bool apply_te_passes = false) {
   transform::PassContext pass_ctx = transform::PassContext::Current();
 
   Array<Pass> mixed_pass_list;
+
+  mixed_pass_list.push_back(tir::transform::BindTarget(target));
+  if (apply_te_passes) {
+    for (auto&& pass : CreatePassList(false)) {
+      mixed_pass_list.push_back(pass);
+    }
+  }
 
   // VerifyVTCMLimit must occur before LowerVtcmAlloc
   mixed_pass_list.push_back(tir::transform::VerifyVTCMLimit(target));
   // LowerVtcmAlloc must occur after any transformations that modify memory allocation locations
   mixed_pass_list.push_back(tir::transform::LowerVtcmAlloc());
-
-  mixed_pass_list.push_back(tir::transform::BindTarget(target));
-
-  // FP8/BF16 ComputeLegalize passes (after bind target)
-  mixed_pass_list.push_back(tir::transform::FP8ComputeLegalize());
-  mixed_pass_list.push_back(tir::transform::BF16ComputeLegalize());
 
   mixed_pass_list.push_back(tir::transform::VerifyMemory());
 
@@ -603,8 +619,8 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
 }
 
 TVM_REGISTER_GLOBAL("driver.mixed_mod_passes")
-    .set_body_typed([](IRModule mixed_mod, Target target) {
-      return MixedModulePassManager(mixed_mod, target);
+    .set_body_typed([](IRModule mixed_mod, Target target, bool apply_lower_passes) {
+      return MixedModulePassManager(mixed_mod, target, apply_lower_passes);
     });
 
 transform::Sequential HostModulePassManager(IRModule mixed_mod, Target target_host) {
