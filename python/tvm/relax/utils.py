@@ -463,9 +463,14 @@ def gen_call_tir_inputs(
     tir_var_inverse_map = {v: k for k, v in tir_var_map.items()}
 
     def te_to_sinfo(arg):
-        return TensorStructInfo(_shape_with_old_tir_var(arg.shape, tir_var_inverse_map), arg.dtype)
+        if isinstance(arg, tir.Var):
+            return PrimStructInfo(arg.dtype)
+        else:
+            return TensorStructInfo(
+                _shape_with_old_tir_var(arg.shape, tir_var_inverse_map), arg.dtype
+            )
 
-    input_sinfo = [te_to_sinfo(arg) for arg in te_args]
+    input_sinfo = [te_to_sinfo(arg) for arg in [*te_args, *unbound_tir_vars]]
     output_sinfo = [te_to_sinfo(out) for out in outs]
 
     primfunc_sinfo = FuncStructInfo([*input_sinfo, *output_sinfo], PrimStructInfo("void"))
