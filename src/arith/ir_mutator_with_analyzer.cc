@@ -30,6 +30,15 @@ namespace arith {
 
 using namespace tir;
 
+void IRMutatorWithAnalyzer::MarkBufferMapShapes(const tir::PrimFunc& func) {
+  // Mark the all the symbolic buffer shape values in the buffer map as positive value.
+  for (auto kv : func->buffer_map) {
+    for (PrimExpr shape : kv.second->shape) {
+      analyzer_->MarkGlobalNonNegValue(shape);
+    }
+  }
+}
+
 Stmt IRMutatorWithAnalyzer::VisitStmt_(const ForNode* op) {
   // record the loop variable as iterators
   Range dom = Range::FromMinExtent(op->min, op->extent);
