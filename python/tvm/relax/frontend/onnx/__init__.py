@@ -18,3 +18,5 @@
 Tools for converting ONNX graphs into Relax graphs.
 """
 from .onnx_frontend import from_onnx
+from .onnx_frontend import OnnxOpConverter
+from .onnx_frontend import register_custom_op

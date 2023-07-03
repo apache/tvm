@@ -23,9 +23,9 @@ this functionality is the function from_onnx.
 In order to extend the functionality of the importer, you can add new
 operators to the operator registry. The operator registry is a dictionary
 that maps operator names to operator converters. The registry is defined
-in the _get_converter_map function. To add a new operator, you can define
+in the _get_convert_map function. To add a new operator, you can define
 a new class that inherits from the OnnxOpConverter class and implement
-the _impl method.
+the _impl method, then use function register_custom_op to register it.
 
 By default, ONNX defines models in terms of dynamic shapes. The ONNX importer
 retains dynamic shapes upon import, and when possible, the compiler attempts to
@@ -1934,6 +1934,8 @@ class ONNXGraphImporter:
 
     def _check_for_unsupported_ops(self, graph: onnx.onnx_ml_pb2.GraphProto):
         convert_map = _get_convert_map()
+        convert_map.update(_custom_ops)
+
         unsupported_ops = set()
         for node in graph.node:
             op_name = node.op_type
@@ -2071,6 +2073,8 @@ class ONNXGraphImporter:
             Converted relax function
         """
         convert_map = _get_convert_map()
+        convert_map.update(_custom_ops)
+
         if op_name in convert_map:
             convert_class = convert_map[op_name]
             op_function = convert_class.get_converter(opset)
@@ -2171,3 +2175,44 @@ def from_onnx(
 
     # Use the graph proto as a scope so that ops can access other nodes if needed.
     return g.from_onnx(graph, opset)
+
+_custom_ops = {}
+def register_custom_op(op_name: str, cls: OnnxOpConverter):
+    """Register a custom operator for conversion.
+
+    This function registers a custom operator named 'op_name' to the conversion map.
+    The 'op_name' should be the name of the operator.
+
+    Parameters
+    ----------
+    op_name : str
+        The name of the custom operator to be registered.
+    cls : OnnxOpConverter
+        A subclass of OnnxOpConverter representing the converter for the custom operator.
+        The implementation function should be a classmethod named `_impl_vX`, where 'X'
+        represents the version of the operator. This method should accept the following
+        parameters in addition to 'cls':
+        - bb: The block builder of relax.
+        - inputs: A list of tvm.relax.function.Function.
+        - attr: A dictionary of operator attributes.
+        - params: Other params.
+
+    Notes
+    -----
+    The registered custom operators can be used during the conversion process from ONNX to
+    the Relax IR Module representation.
+
+    Example
+    -------
+    Here's an example of how to register a custom operator 'my_custom_op' with version 13:
+
+    class MyCustomOpConverter(OnnxOpConverter):
+        @classmethod
+        def _impl_v13(cls, bb, inputs, attr, params):
+            # Implementation logic for version 13 of 'my_custom_op'
+            ...
+
+    register_custom_op('my_custom_op', MyCustomOpConverter)
+    """
+
+    _custom_ops[op_name] = cls
