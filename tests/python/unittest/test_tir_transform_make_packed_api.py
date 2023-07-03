@@ -188,7 +188,7 @@ def test_no_op_when_global_symbol_is_absent(use_global_symbol):
     if use_global_symbol:
         assert len(after.params) == 6
     else:
-        tvm.ir.assert_structural_equal(before, after.without_attr("global_symbol"))
+        tvm.ir.assert_structural_equal(before, after)
 
 
 def test_target_host_removed():

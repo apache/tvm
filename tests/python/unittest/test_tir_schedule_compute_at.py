@@ -1885,11 +1885,13 @@ def test_shape_var_as_bound():
                         C[v0, 0, v1] = T.float32(0)
                     C[v0, 0, v1] = C[v0, 0, v1] + C_rf[vax2_fused_1, v0, 0, v1]
     # fmt: on
-    sch = tir.Schedule(before, debug_mask="all")
+    sch = tir.Schedule(before.with_attr("global_symbol", "main"), debug_mask="all")
     block = sch.get_block("NT_matmul")
     loop, _, _ = sch.get_loops(sch.get_block("NT_matmul_rf"))
     sch.reverse_compute_at(block, loop, preserve_unit_loops=True)
-    tvm.ir.assert_structural_equal(sch.mod["main"], expected, True)
+    tvm.ir.assert_structural_equal(
+        sch.mod["main"], expected.with_attr("global_symbol", "main"), True
+    )
 
 
 if __name__ == "__main__":
