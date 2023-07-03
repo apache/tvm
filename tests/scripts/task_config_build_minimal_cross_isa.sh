@@ -44,6 +44,7 @@ if [ "$architecture_type" != "aarch64" ]; then
   echo set\(CMAKE_FIND_ROOT_PATH /usr/aarch64-linux-gnu\) >> config.cmake
   echo set\(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER\) >> config.cmake
   echo set\(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY\) >> config.cmake
+  echo set\(ZLIB_LIBRARY /lib/aarch64-linux-gnu/libz.a\) >> config.cmake
 else
   # This usually runs in the ci_arm docker image.
   echo -e 'find_program(LLVM_CONFIG "llvm-config")\nif (LLVM_CONFIG) \n\tset(USE_LLVM llvm-config) \nelse() \n\tset(USE_LLVM llvm-config-15)\nendif()' >> config.cmake

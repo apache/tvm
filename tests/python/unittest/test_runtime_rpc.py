@@ -606,3 +606,34 @@ def test_rpc_tracker_via_proxy(device_key):
     server1.terminate()
     proxy_server.terminate()
     tracker_server.terminate()
+
+
+@tvm.testing.requires_rpc
+@pytest.mark.parametrize("with_proxy", (True, False))
+def test_rpc_session_timeout_error(with_proxy):
+    port = 9000
+    port_end = 10000
+
+    tracker = Tracker(port=port, port_end=port_end)
+    time.sleep(0.5)
+    tracker_addr = (tracker.host, tracker.port)
+
+    if with_proxy:
+        proxy = Proxy(host="0.0.0.0", port=port, port_end=port_end, tracker_addr=tracker_addr)
+        time.sleep(0.5)
+        server = rpc.Server(host=proxy.host, port=proxy.port, is_proxy=True, key="x1")
+    else:
+        server = rpc.Server(port=port, port_end=port_end, tracker_addr=tracker_addr, key="x1")
+    time.sleep(0.5)
+
+    rpc_sess = rpc.connect_tracker(*tracker_addr).request(key="x1", session_timeout=1)
+
+    with pytest.raises(tvm.error.RPCSessionTimeoutError):
+        f1 = rpc_sess.get_function("rpc.test.addone")
+        time.sleep(2)
+        f1(10)
+
+    server.terminate()
+    if with_proxy:
+        proxy.terminate()
+    tracker.terminate()

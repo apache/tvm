@@ -70,6 +70,7 @@
 #endif
 
 #ifdef TVM_VULKAN_RUNTIME
+#include "../src/runtime/vulkan/vulkan_amdrgp.cc"
 #include "../src/runtime/vulkan/vulkan_buffer.cc"
 #include "../src/runtime/vulkan/vulkan_common.cc"
 #include "../src/runtime/vulkan/vulkan_device.cc"
