@@ -33,6 +33,7 @@ from .set import *
 from .ternary import *
 from .unary import *
 from . import builtin
+from . import distributed
 from . import grad
 from . import image
 from . import memory

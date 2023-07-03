@@ -242,6 +242,20 @@ inline int NormalizeAxis(const Call& call, const BlockBuilder& ctx, int ndim, in
 }
 
 /*!
+ * \brief Compute the product of all the given shape values.
+ * \param shape_values The given shape values.
+ * \return The product of all the given shape values.
+ */
+PrimExpr ComputeShapeProduct(const Array<PrimExpr>& shape_values);
+
+/*!
+ * \brief Check if the given permutation is identity permutation.
+ * \param permutation The given permutation.
+ * \return Whether the given permutation is identity permutation.
+ */
+bool IsIdentityPermutation(const std::vector<int>& permutation);
+
+/*!
  * \brief Convert an array of integers to int64 dtype.
  * \param int_imms The input IntImms to be converted.
  * \return The conversion result, where every IntImm has dtype int64
@@ -350,6 +364,15 @@ inline Optional<ShapeExpr> CheckNdimPerLayoutAndGetShape(const Call& call, const
 Expr MakeVMAllocStorage(Expr size, PrimValue runtime_device_index, DataTypeImm dtype,
                         StringImm storage_scope = StringImm("global"));
 Expr MakeVMAllocTensor(Expr storage, PrimValue offset, Expr shape, DataTypeImm dtype);
+
+/**
+ * \brief Return the argument of the call.
+ *        Note: If this is a call_tir, return the arguments passed to the TIR func
+ *
+ * \param call The call node
+ * \return The arguments of the call
+ */
+Array<Expr> GetCallArgs(const Call& call);
 
 }  // namespace relax
 }  // namespace tvm

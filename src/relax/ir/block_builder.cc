@@ -736,6 +736,22 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     if (auto* op_ptr = call->op.as<OpNode>()) {
       // Case 1: the op field is a primitive op, look up FInferStructInfo attribute
       Op op = GetRef<Op>(op_ptr);
+      bool is_dist_op = false;
+      for (const auto& arg : call->args) {
+        if (arg->struct_info_.as<distributed::DTensorStructInfoNode>()) {
+          is_dist_op = true;
+          break;
+        }
+      }
+      if (is_dist_op) {
+        for (const auto& arg : call->args) {
+          ICHECK(!arg->struct_info_.as<TensorStructInfoNode>())
+              << "Distributed operator must take DTensor instead of Tensor as input";
+        }
+        ICHECK(op_map_dist_infer_struct_info_.count(op))
+            << " Cannot find the dist.FInferStructInfo attribute registered to op: " << op->name;
+        return op_map_dist_infer_struct_info_[op](call, GetRef<BlockBuilder>(this));
+      }
       ICHECK(op_map_infer_struct_info_.count(op))
           << " Cannot find the FInferStructInfo attribute registered to op: " << op->name;
       return op_map_infer_struct_info_[op](call, GetRef<BlockBuilder>(this));
@@ -889,6 +905,8 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
   /*! \brief Operator struct info inference map. */
   tvm::OpAttrMap<FInferStructInfo> op_map_infer_struct_info_ =
       Op::GetAttrMap<FInferStructInfo>("FInferStructInfo");
+  tvm::OpAttrMap<FInferStructInfo> op_map_dist_infer_struct_info_ =
+      Op::GetAttrMap<FInferStructInfo>("dist.FInferStructInfo");
 };
 
 BlockBuilder BlockBuilder::Create(Optional<IRModule> mod) {

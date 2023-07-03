@@ -182,7 +182,7 @@ class DTensorStructInfo : public StructInfo {
   TVM_DLL DTensorStructInfo(TensorStructInfo tensor_sinfo, DeviceMesh device_mesh,
                             Placement placement, Span span = Span());
 
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(DTensorStructInfo, StructInfo, DTensorStructInfoNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(DTensorStructInfo, StructInfo, DTensorStructInfoNode);
 };
 
 }  // namespace distributed

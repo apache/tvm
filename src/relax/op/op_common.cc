@@ -24,6 +24,17 @@
 namespace tvm {
 namespace relax {
 
+Array<Expr> GetCallArgs(const Call& call) {
+  static const Op& call_tir_op = Op::Get("relax.call_tir");
+  Array<Expr> args;
+  if (call->op.same_as(call_tir_op)) {
+    args = Downcast<Tuple>(call->args[1])->fields;
+  } else {
+    args = call->args;
+  }
+  return args;
+}
+
 Array<TensorStructInfo> GetInputTensorStructInfo(const Call& call, const BlockBuilder& ctx) {
   Op op = Downcast<Op>(call->op);
   int n_input = op->arguments.size();

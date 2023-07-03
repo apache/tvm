@@ -14,10 +14,19 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=invalid-name
+"""Relax distributed-related transformation passes."""
 
-"""The infrastructure for distributed inference on Relax."""
+import tvm.ir
+from . import _ffi_api
 
-from .global_info import DeviceMesh, device_mesh
-from .struct_info import Placement, DTensorStructInfo, PlacementSpec
 
-from . import transform
+def PropagateSharding() -> tvm.ir.transform.Pass:
+    """Propagate sharding information.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered pass
+    """
+    return _ffi_api.PropagateSharding()  # type: ignore

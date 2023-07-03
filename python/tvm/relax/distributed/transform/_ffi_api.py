@@ -13,11 +13,7 @@
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
-# under the License.
+"""FFI APIs for tvm.relax.distributed.transform"""
+import tvm._ffi
 
-"""The infrastructure for distributed inference on Relax."""
-
-from .global_info import DeviceMesh, device_mesh
-from .struct_info import Placement, DTensorStructInfo, PlacementSpec
-
-from . import transform
+tvm._ffi._init_api("relax.distributed.transform", __name__)
