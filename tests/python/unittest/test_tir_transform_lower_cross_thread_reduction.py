@@ -1274,6 +1274,172 @@ def lowered_layer_norm_tuple_sum(
                 ]
 
 
+@T.prim_func
+def thread_broadcast_1(A: T.Buffer((256, 256), "float32"), B: T.Buffer((256,), "float32")):
+    temp_local = T.alloc_buffer((256,), scope="local")
+    for i in T.thread_binding(256, thread="blockIdx.x"):
+        for k in T.thread_binding(256, thread="threadIdx.x"):
+            with T.block("sum"):
+                vi, vk = T.axis.remap("SR", [i, k])
+                T.reads(A[vi, vk])
+                T.writes(temp_local[vi])
+                with T.init():
+                    temp_local[vi] = T.float32(0)
+                temp_local[vi] = temp_local[vi] + A[vi, vk]
+        with T.block("add"):
+            vi = T.axis.spatial(256, i)
+            T.reads(temp_local[vi])
+            T.writes(B[vi])
+            B[vi] = temp_local[vi] + T.float32(1)
+
+
+@T.prim_func
+def lowered_thread_broadcast_1(A: T.Buffer((256, 256), "float32"), B: T.Buffer((256,), "float32")):
+    temp_local = T.alloc_buffer((256,), scope="local")
+    cross_thread_temp_local = T.alloc_buffer((1,), strides=(1,), scope="local")
+    for i in T.thread_binding(256, thread="blockIdx.x"):
+        for k in T.thread_binding(256, thread="threadIdx.x"):
+            with T.block("sum_cross_thread"):
+                vi, vk = T.axis.remap("SR", [i, k])
+                T.reads(A[vi, vk])
+                T.writes(cross_thread_temp_local[0])
+                T.attr(
+                    T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
+                    "reduce_scope",
+                    T.reinterpret("handle", T.uint64(0)),
+                )
+                T.tvm_thread_allreduce(
+                    T.uint32(1), A[vi, vk], T.bool(True), cross_thread_temp_local[0], k
+                )
+            with T.block("sum_write_back"):
+                vi = T.axis.spatial(256, i)
+                T.where(k == 0)
+                T.reads(cross_thread_temp_local[0])
+                T.writes(temp_local[vi])
+                temp_local[vi] = cross_thread_temp_local[0]
+        for tx in T.thread_binding(256, thread="threadIdx.x"):
+            with T.block("add"):
+                vi = T.axis.spatial(256, i)
+                T.where(tx == 0)
+                T.reads(temp_local[vi])
+                T.writes(B[vi])
+                B[vi] = temp_local[vi] + T.float32(1)
+
+
+# fmt: off
+@T.prim_func
+def thread_broadcast_2(lv1605: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16"), p_lv1606: T.handle, p_lv1582: T.handle, p_output0: T.handle):
+    n = T.int64()
+    lv1606 = T.match_buffer(p_lv1606, (T.int64(1), T.int64(32), n, T.int64(128)), "float16")
+    lv1582 = T.match_buffer(p_lv1582, (T.int64(1), T.int64(1), T.int64(1), n), "float16")
+    var_compute_intermediate = T.match_buffer(p_output0, (T.int64(1), T.int64(32), T.int64(1), n))
+    var_NT_matmul_intermediate_local = T.alloc_buffer((T.int64(1), T.int64(32), T.int64(1), n), "float16", scope="local")
+    var_NT_matmul_intermediate_rf_local = T.alloc_buffer((T.int64(256), T.int64(1), T.int64(32), T.int64(1), n), "float16", scope="local")
+    for ax0_ax1_fused in T.thread_binding(n * T.int64(32), thread="blockIdx.x"):
+        for ax2_fused_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
+            with T.block("NT_matmul_rf_init"):
+                vax2_fused_1 = T.axis.spatial(T.int64(256), ax2_fused_1)
+                v0 = T.axis.spatial(T.int64(32), ax0_ax1_fused // n)
+                v1 = T.axis.spatial(n, ax0_ax1_fused % n)
+                T.reads()
+                T.writes(var_NT_matmul_intermediate_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1])
+                var_NT_matmul_intermediate_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1] = T.float16(0)
+            for ax2_fused_0 in range(T.int64(1)):
+                with T.block("NT_matmul_rf_update"):
+                    vax2_fused_1 = T.axis.spatial(T.int64(256), ax2_fused_1)
+                    v0 = T.axis.spatial(T.int64(32), ax0_ax1_fused // n)
+                    v1 = T.axis.spatial(n, ax0_ax1_fused % n)
+                    vax2_fused_0 = T.axis.reduce(T.int64(1), ax2_fused_0)
+                    T.where(ax2_fused_0 * T.int64(256) + ax2_fused_1 < T.int64(128))
+                    T.reads(var_NT_matmul_intermediate_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1], lv1605[T.int64(0), v0, T.int64(0), vax2_fused_0 * T.int64(256) + vax2_fused_1], lv1606[T.int64(0), v0, v1, vax2_fused_0 * T.int64(256) + vax2_fused_1])
+                    T.writes(var_NT_matmul_intermediate_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1])
+                    var_NT_matmul_intermediate_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1] = var_NT_matmul_intermediate_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1] + lv1605[T.int64(0), v0, T.int64(0), vax2_fused_0 * T.int64(256) + vax2_fused_1] * lv1606[T.int64(0), v0, v1, vax2_fused_0 * T.int64(256) + vax2_fused_1]
+        for ax1_ax2_fused in range(T.int64(1)):
+            for ax0_fused in T.thread_binding(T.int64(256), thread="threadIdx.x"):
+                with T.block("NT_matmul"):
+                    vax2_fused_1 = T.axis.reduce(T.int64(256), ax0_fused)
+                    v0 = T.axis.spatial(T.int64(32), ax0_ax1_fused // n)
+                    v1 = T.axis.spatial(n, ax0_ax1_fused % n)
+                    T.where(T.int64(0) <= ax0_ax1_fused // n and ax0_ax1_fused // n < T.int64(32) and T.int64(0) <= ax0_ax1_fused % n and ax0_ax1_fused % n < n)
+                    T.reads(var_NT_matmul_intermediate_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1])
+                    T.writes(var_NT_matmul_intermediate_local[T.int64(0), v0, T.int64(0), v1])
+                    with T.init():
+                        var_NT_matmul_intermediate_local[T.int64(0), v0, T.int64(0), v1] = T.float16(0)
+                    var_NT_matmul_intermediate_local[T.int64(0), v0, T.int64(0), v1] = var_NT_matmul_intermediate_local[T.int64(0), v0, T.int64(0), v1] + var_NT_matmul_intermediate_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1]
+        with T.block("compute"):
+            v0 = T.axis.spatial(T.int64(32), ax0_ax1_fused // n)
+            v1 = T.axis.spatial(n, ax0_ax1_fused % n)
+            T.where(T.int64(0) <= ax0_ax1_fused // n and ax0_ax1_fused // n < T.int64(32) and T.int64(0) <= ax0_ax1_fused % n and ax0_ax1_fused % n < n)
+            T.reads(var_NT_matmul_intermediate_local[T.int64(0), v0, T.int64(0), v1], lv1582[T.int64(0), T.int64(0), T.int64(0), v1])
+            T.writes(var_compute_intermediate[T.int64(0), v0, T.int64(0), v1])
+            var_compute_intermediate[T.int64(0), v0, T.int64(0), v1] = T.Cast("float32", T.min(T.max(var_NT_matmul_intermediate_local[T.int64(0), v0, T.int64(0), v1] * T.float16(0.088397790055248615), T.float16(-65504)), lv1582[T.int64(0), T.int64(0), T.int64(0), v1]))
+
+
+@T.prim_func
+def lowered_thread_broadcast_2(lv1605: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16"), p_lv1606: T.handle, p_lv1582: T.handle, p_output0: T.handle):
+    n = T.int64()
+    lv1606 = T.match_buffer(p_lv1606, (T.int64(1), T.int64(32), n, T.int64(128)), "float16")
+    lv1582 = T.match_buffer(p_lv1582, (T.int64(1), T.int64(1), T.int64(1), n), "float16")
+    var_compute_intermediate = T.match_buffer(p_output0, (T.int64(1), T.int64(32), T.int64(1), n))
+    var_NT_matmul_intermediate_local = T.alloc_buffer((T.int64(1), T.int64(32), T.int64(1), n), "float16", scope="local")
+    var_NT_matmul_intermediate_rf_local = T.alloc_buffer((T.int64(256), T.int64(1), T.int64(32), T.int64(1), n), "float16", scope="local")
+    cross_thread_var_NT_matmul_intermediate_local = T.alloc_buffer((1,), "float16", strides=(1,), scope="local")
+    in_thread_var_NT_matmul_intermediate_local = T.alloc_buffer((1,), "float16", strides=(1,), scope="local")
+    for ax0_ax1_fused in T.thread_binding(n * T.int64(32), thread="blockIdx.x"):
+        for ax2_fused_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
+            with T.block("NT_matmul_rf_init"):
+                vax2_fused_1 = T.axis.spatial(T.int64(256), ax2_fused_1)
+                v0 = T.axis.spatial(T.int64(32), ax0_ax1_fused // n)
+                v1 = T.axis.spatial(n, ax0_ax1_fused % n)
+                T.reads()
+                T.writes(var_NT_matmul_intermediate_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1])
+                var_NT_matmul_intermediate_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1] = T.float16(0)
+            for ax2_fused_0 in range(T.int64(1)):
+                with T.block("NT_matmul_rf_update"):
+                    vax2_fused_1 = T.axis.spatial(T.int64(256), ax2_fused_1)
+                    v0 = T.axis.spatial(T.int64(32), ax0_ax1_fused // n)
+                    v1 = T.axis.spatial(n, ax0_ax1_fused % n)
+                    vax2_fused_0 = T.axis.reduce(T.int64(1), ax2_fused_0)
+                    T.where(ax2_fused_0 * T.int64(256) + ax2_fused_1 < T.int64(128))
+                    T.reads(var_NT_matmul_intermediate_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1], lv1605[T.int64(0), v0, T.int64(0), vax2_fused_0 * T.int64(256) + vax2_fused_1], lv1606[T.int64(0), v0, v1, vax2_fused_0 * T.int64(256) + vax2_fused_1])
+                    T.writes(var_NT_matmul_intermediate_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1])
+                    var_NT_matmul_intermediate_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1] = var_NT_matmul_intermediate_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1] + lv1605[T.int64(0), v0, T.int64(0), vax2_fused_0 * T.int64(256) + vax2_fused_1] * lv1606[T.int64(0), v0, v1, vax2_fused_0 * T.int64(256) + vax2_fused_1]
+        for ax1_ax2_fused in range(T.int64(1)):
+            for ax0_fused in T.thread_binding(T.int64(256), thread="threadIdx.x"):
+                with T.block("NT_matmul_in_thread_init"):
+                    T.reads()
+                    T.writes(in_thread_var_NT_matmul_intermediate_local[0])
+                    in_thread_var_NT_matmul_intermediate_local[0] = T.float16(0)
+                with T.block("NT_matmul_in_thread"):
+                    vax2_fused_1 = T.axis.reduce(T.int64(256), ax0_fused)
+                    v0 = T.axis.spatial(T.int64(32), ax0_ax1_fused // n)
+                    v1 = T.axis.spatial(n, ax0_ax1_fused % n)
+                    T.where(T.int64(0) <= ax0_ax1_fused // n and ax0_ax1_fused // n < T.int64(32) and T.int64(0) <= ax0_ax1_fused % n and ax0_ax1_fused % n < n)
+                    T.reads(var_NT_matmul_intermediate_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1])
+                    T.writes(in_thread_var_NT_matmul_intermediate_local[0])
+                    in_thread_var_NT_matmul_intermediate_local[0] = in_thread_var_NT_matmul_intermediate_local[0] + var_NT_matmul_intermediate_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1]
+                with T.block("NT_matmul_cross_thread"):
+                    T.reads(in_thread_var_NT_matmul_intermediate_local[0])
+                    T.writes(cross_thread_var_NT_matmul_intermediate_local[0])
+                    T.attr(T.comm_reducer(lambda x0, y0: x0 + y0, [T.float16(0)]), "reduce_scope", T.reinterpret("handle", T.uint64(0)))
+                    T.tvm_thread_allreduce(T.uint32(1), in_thread_var_NT_matmul_intermediate_local[0], T.bool(True), cross_thread_var_NT_matmul_intermediate_local[0], ax0_fused)
+                with T.block("NT_matmul_write_back"):
+                    v0 = T.axis.spatial(T.int64(32), ax0_ax1_fused // n)
+                    v1 = T.axis.spatial(n, ax0_ax1_fused % n)
+                    T.where(ax0_fused == T.int64(0))
+                    T.reads(cross_thread_var_NT_matmul_intermediate_local[0])
+                    T.writes(var_NT_matmul_intermediate_local[T.int64(0), v0, T.int64(0), v1])
+                    var_NT_matmul_intermediate_local[T.int64(0), v0, T.int64(0), v1] = cross_thread_var_NT_matmul_intermediate_local[0]
+        for tx in T.thread_binding(T.int64(256), thread="threadIdx.x"):
+            with T.block("compute"):
+                v0 = T.axis.spatial(T.int64(32), ax0_ax1_fused // n)
+                v1 = T.axis.spatial(n, ax0_ax1_fused % n)
+                T.where(tx == T.int64(0) and (T.int64(0) <= ax0_ax1_fused // n and ax0_ax1_fused // n < T.int64(32) and T.int64(0) <= ax0_ax1_fused % n and ax0_ax1_fused % n < n))
+                T.reads(var_NT_matmul_intermediate_local[T.int64(0), v0, T.int64(0), v1], lv1582[T.int64(0), T.int64(0), T.int64(0), v1])
+                T.writes(var_compute_intermediate[T.int64(0), v0, T.int64(0), v1])
+                var_compute_intermediate[T.int64(0), v0, T.int64(0), v1] = T.Cast("float32", T.min(T.max(var_NT_matmul_intermediate_local[T.int64(0), v0, T.int64(0), v1] * T.float16(0.088397790055248615), T.float16(-65504)), lv1582[T.int64(0), T.int64(0), T.int64(0), v1]))
+# fmt: on
+
 # pylint: enable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
 
@@ -1356,6 +1522,14 @@ def test_argmax_split():
 
 def test_argmin_split_init_update_reordered():
     _check(argmin_split_init_update_reordered, lowered_argmin_split_init_update_reordered)
+
+
+def test_thread_broadcast_rewrite_1():
+    _check(thread_broadcast_1, lowered_thread_broadcast_1)
+
+
+def test_thread_broadcast_rewrite_2():
+    _check(thread_broadcast_2, lowered_thread_broadcast_2)
 
 
 def test_lower_te():
