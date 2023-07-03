@@ -142,20 +142,24 @@ TVM_REGISTER_PASS_CONFIG_OPTION("tir.Simplify", SimplifyConfig);
 
 class StmtSimplifier : public IRMutatorWithAnalyzer {
  public:
-  static Stmt Apply(Stmt stmt, Analyzer* analyzer, Optional<SimplifyConfig> config_opt = NullOpt) {
+  static PrimFunc Apply(PrimFunc func, Analyzer* analyzer,
+                        Optional<SimplifyConfig> config_opt = NullOpt) {
     auto config = config_opt.value_or(AttrsWithDefaultValues<arith::SimplifyConfig>());
     analyzer->rewrite_simplify.SetEnabledExtensions(config->GetEnabledExtensions());
 
     std::optional<ControlFlowGraph> touch_pattern = std::nullopt;
     if (config->propagate_knowns_to_prove_conditional ||
         config->propagate_knowns_to_simplify_expressions) {
-      touch_pattern = ControlFlowGraph(stmt);
+      touch_pattern = ControlFlowGraph(func->body);
     }
 
-    std::unordered_set<const VarNode*> used_in_buffer_def = CollectVarsUsedInBufferDefinition(stmt);
+    std::unordered_set<const VarNode*> used_in_buffer_def =
+        CollectVarsUsedInBufferDefinition(func->body);
     StmtSimplifier simplifier(analyzer, config, std::move(touch_pattern),
                               std::move(used_in_buffer_def));
-    return simplifier(std::move(stmt));
+    simplifier.MarkBufferMapShapes(func);
+    func.CopyOnWrite()->body = simplifier(func->body);
+    return func;
   }
 
  private:
@@ -335,11 +339,6 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
 }  // namespace arith
 
 namespace tir {
-
-Stmt Simplify(Stmt stmt, arith::Analyzer* analyzer) {
-  return arith::StmtSimplifier::Apply(stmt, analyzer);
-}
-
 namespace transform {
 
 Pass Simplify() {
@@ -347,9 +346,7 @@ Pass Simplify() {
     arith::Analyzer analyzer;
     auto cfg = ctx->GetConfig<arith::SimplifyConfig>("tir.Simplify");
 
-    auto* n = f.CopyOnWrite();
-    n->body = arith::StmtSimplifier::Apply(std::move(n->body), &analyzer, cfg);
-    return f;
+    return arith::StmtSimplifier::Apply(f, &analyzer, cfg);
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.Simplify", {});
 }
