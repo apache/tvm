@@ -2176,7 +2176,10 @@ def from_onnx(
     # Use the graph proto as a scope so that ops can access other nodes if needed.
     return g.from_onnx(graph, opset)
 
+
 _custom_ops = {}
+
+
 def register_custom_op(op_name: str, cls: Type[OnnxOpConverter]):
     """Register a custom operator for conversion.
 
