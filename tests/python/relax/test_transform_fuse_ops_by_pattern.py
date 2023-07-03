@@ -791,5 +791,76 @@ def test_split():
     check(mod, [("x.split", add)], Expected2)
 
 
+def test_clip():
+    @R.function
+    def func1(x: R.Tensor((10, 10), "float32")):
+        R.func_attr({"global_symbol": "main"})
+        with R.dataflow():
+            gv = R.clip(x, 0, 4)
+            R.output(gv)
+        return gv
+    
+    @I.ir_module
+    class Expected1:
+        @R.function(private=True)
+        def fused_relax_clip(x: R.Tensor((10, 10), dtype="float32")) -> R.Tensor((10, 10), dtype="float32"):
+            R.func_attr({"Composite": "x.clip", "Primitive": 1})
+            with R.dataflow():
+                gv: R.Tensor((10, 10), dtype="float32") = R.clip(x, R.prim_value(0), R.prim_value(4))
+                R.output(gv)
+            return gv
+
+        @R.function
+        def main(x: R.Tensor((10, 10), dtype="float32")) -> R.Tensor((10, 10), dtype="float32"):
+            cls = Expected1
+            with R.dataflow():
+                gv: R.Tensor((10, 10), dtype="float32") = cls.fused_relax_clip(x)
+                R.output(gv)
+            return gv
+
+    mod1 = tvm.IRModule({"main": func1})
+    pat_clip = is_op("relax.clip")(wildcard(), wildcard(), wildcard())
+
+    check(mod1, [("x.clip", pat_clip)], Expected1)
+
+    @R.function
+    def func2(x: R.Tensor((10, 10), "float32")):
+        R.func_attr({"global_symbol": "main"})
+        with R.dataflow():
+            gv0 = R.clip(x, 0, 4)
+            gv1 = R.clip(x, 1, 3)
+            R.output(gv0, gv1)
+        return gv0, gv1
+
+    @I.ir_module
+    class Expected2:
+        @R.function(private=True)
+        def fused_relax_clip(x: R.Tensor((10, 10), dtype="float32")) -> R.Tensor((10, 10), dtype="float32"):
+            R.func_attr({"Composite": "x.clip", "Primitive": 1})
+            with R.dataflow():
+                gv: R.Tensor((10, 10), dtype="float32") = R.clip(x, R.prim_value(0), R.prim_value(4))
+                R.output(gv)
+            return gv
+
+        @R.function(private=True)
+        def fused_relax_clip1(x: R.Tensor((10, 10), dtype="float32")) -> R.Tensor((10, 10), dtype="float32"):
+            R.func_attr({"Composite": "x.clip", "Primitive": 1})
+            with R.dataflow():
+                gv: R.Tensor((10, 10), dtype="float32") = R.clip(x, R.prim_value(1), R.prim_value(3))
+                R.output(gv)
+            return gv
+
+        @R.function
+        def main(x: R.Tensor((10, 10), dtype="float32")) -> R.Tuple(R.Tensor((10, 10), dtype="float32"), R.Tensor((10, 10), dtype="float32")):
+            cls = Expected2
+            with R.dataflow():
+                gv: R.Tensor((10, 10), dtype="float32") = cls.fused_relax_clip(x)
+                gv1: R.Tensor((10, 10), dtype="float32") = cls.fused_relax_clip1(x)
+                R.output(gv, gv1)
+            return (gv, gv1)
+    
+    mod = tvm.IRModule({"main": func2})
+    check(mod, [("x.clip", pat_clip)], Expected2)
+
 if __name__ == "__main__":
     pytest.main([__file__])

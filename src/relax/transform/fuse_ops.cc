@@ -586,9 +586,12 @@ class FunctionCreator : public ExprMutator {
       }
 
       StructInfo param_sinfo = GetStructInfo(expr);
-      Var param(std::move(name), param_sinfo);
-      arguments_.push_back(expr);
-      params_.push_back(param);
+      // Exclude PrimValues from arg/params to make composite functions contain PrimValues.  
+      if(!expr->IsInstance<PrimValueNode>()){
+        Var param(std::move(name), GetStructInfo(expr));
+        arguments_.push_back(expr);
+        params_.push_back(param);
+      }
 
       // Mark the tuple parameter is partially referenced in the beginning.
       // We will remove it from the mapping once we find it is fully referenced.
