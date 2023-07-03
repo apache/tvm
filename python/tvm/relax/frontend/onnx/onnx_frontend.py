@@ -35,7 +35,7 @@ Not all TVM kernels currently support dynamic shapes, please file an issue on
 github.com/apache/tvm/issues if you hit an error with dynamic kernels.
 """
 import warnings
-from typing import Union, Tuple, Optional, List, Dict, Any
+from typing import Union, Tuple, Optional, List, Dict, Any, Type
 
 import numpy as _np
 
@@ -2177,7 +2177,7 @@ def from_onnx(
     return g.from_onnx(graph, opset)
 
 _custom_ops = {}
-def register_custom_op(op_name: str, cls: OnnxOpConverter):
+def register_custom_op(op_name: str, cls: Type[OnnxOpConverter]):
     """Register a custom operator for conversion.
 
     This function registers a custom operator named 'op_name' to the conversion map.

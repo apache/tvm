@@ -30,6 +30,8 @@ import tvm
 import tvm.testing
 from tvm import relax
 from tvm.relax.frontend.onnx import from_onnx
+from tvm.relax.frontend.onnx import register_custom_op
+from tvm.relax.frontend.onnx import OnnxOpConverter
 
 import onnx
 from onnx import helper, TensorProto, ModelProto, mapping
@@ -1613,6 +1615,42 @@ def test_onehot():
 
 def test_reciprocal():
     verify_unary("Reciprocal", [3, 32, 32])
+
+
+def test_register_op():
+    class MyCustomOpConverter(OnnxOpConverter):
+        @classmethod
+        def _impl_v13(cls, bb, inputs, attr, params):
+            return relax.op.abs(inputs[0])
+
+    op_name = "my_custom_op"
+    op_domain = "ai.onnx.contrib"
+
+    opset = helper.make_opsetid(op_domain, 2)
+
+    shape = [32, 32]
+    node = helper.make_node(op_name, ["x"], ["y"], domain=op_domain)
+    graph = helper.make_graph(
+        [node],
+        "custom_op_graph",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, shape)],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, shape)],
+    )
+
+    model = helper.make_model(graph, producer_name="custom_op_model")
+
+    model.opset_import.append(opset)
+
+    # try to check it using onnx.check, it should success
+    try:
+        onnx.checker.check_model(model)
+        # register new operator
+        register_custom_op(op_name, MyCustomOpConverter)
+
+        ir_mod = from_onnx(model, keep_params_in_input=True)
+        assert True
+    except Exception as exception:
+        assert False, "the model is invalid"
 
 
 if __name__ == "__main__":
