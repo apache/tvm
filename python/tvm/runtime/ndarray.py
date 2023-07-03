@@ -19,11 +19,8 @@
 import ctypes
 import warnings
 import numpy as np
+import ml_dtypes
 
-try:
-    import ml_dtypes
-except ImportError:
-    ml_dtypes = None
 import tvm._ffi
 
 from tvm._ffi.base import _LIB, check_call, c_array, string_types, _FFI_MODE

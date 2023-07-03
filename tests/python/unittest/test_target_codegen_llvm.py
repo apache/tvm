@@ -22,6 +22,7 @@ import numpy as np
 import pytest
 import re
 import sys
+import ml_dtypes
 
 import tvm
 import tvm.testing
