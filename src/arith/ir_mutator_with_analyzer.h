@@ -62,6 +62,14 @@ class IRMutatorWithAnalyzer : public tir::StmtExprMutator {
   PrimExpr VisitExpr_(const tir::ReduceNode* op) override;
 
  protected:
+  /*!
+   * \brief Mark the all the buffer shape values in the buffer map as positive value.
+   *
+   * \note call this function before Visit function's body to maximize
+   *       simplification efficiency
+   */
+  void MarkBufferMapShapes(const tir::PrimFunc& func);
+
   /*! \brief internal analyzer field. */
   Analyzer* analyzer_;
   // the following two fields are useful in case we want
