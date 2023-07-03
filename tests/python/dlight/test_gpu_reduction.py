@@ -100,7 +100,7 @@ def test_softmax():
                             v0 = T.axis.spatial(T.int64(32), ax0_ax1_fused // n + ax0)
                             v1 = T.axis.spatial(n, ax0_ax1_fused % n + ax1)
                             v2 = T.axis.reduce(m, ax2_fused_0 * T.int64(256) + ax2_fused_1)
-                            T.where(T.int64(0) <= ax0_ax1_fused // n and ax0_ax1_fused // n < T.int64(32) and T.int64(0) <= ax0_ax1_fused % n and ax0_ax1_fused % n < n and ax2_fused_0 * T.int64(256) + ax2_fused_1 < m)
+                            T.where(ax2_fused_0 * T.int64(256) + ax2_fused_1 < m)
                             T.reads(lv44[T.int64(0), v0, v1, v2])
                             T.writes(T_softmax_maxelem_shared[T.int64(0), v0, v1])
                             with T.init():
@@ -112,7 +112,7 @@ def test_softmax():
                             v0 = T.axis.spatial(T.int64(32), ax0_ax1_fused // n + ax0)
                             v1 = T.axis.spatial(n, ax0_ax1_fused % n + ax1)
                             v2 = T.axis.reduce(m, ax2_fused_0 * T.int64(256) + ax2_fused_1)
-                            T.where(T.int64(0) <= ax0_ax1_fused // n and ax0_ax1_fused // n < T.int64(32) and T.int64(0) <= ax0_ax1_fused % n and ax0_ax1_fused % n < n and ax2_fused_0 * T.int64(256) + ax2_fused_1 < m)
+                            T.where(ax2_fused_0 * T.int64(256) + ax2_fused_1 < m)
                             T.reads(lv44[T.int64(0), v0, v1, v2], T_softmax_maxelem_shared[T.int64(0), v0, v1])
                             T.writes(T_softmax_expsum_shared[T.int64(0), v0, v1])
                             with T.init():
