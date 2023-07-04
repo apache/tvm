@@ -21,7 +21,6 @@ import logging
 import numpy as np
 
 import tvm
-import ml_dtypes
 from tvm.ir import IRModule
 from tvm.topi.utils import get_const_tuple
 

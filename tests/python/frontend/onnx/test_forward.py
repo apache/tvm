@@ -29,7 +29,6 @@ import tempfile
 import pytest
 import scipy
 import numpy as np
-import ml_dtypes
 
 import tvm
 import tvm.testing

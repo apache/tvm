@@ -24,7 +24,7 @@ from tvm import topi
 from tvm.contrib.nvcc import have_fp16, have_int8, have_bf16
 import tvm.testing
 import pytest
-import ml_dtypes
+
 
 tx = te.thread_axis("threadIdx.x")
 bx = te.thread_axis("blockIdx.x")

@@ -24,7 +24,6 @@ from packaging import version as package_version
 
 import pytest
 import numpy as np
-import ml_dtypes
 
 import torch
 from torch.nn import Module
