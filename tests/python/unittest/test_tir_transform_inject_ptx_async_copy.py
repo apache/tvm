@@ -361,13 +361,27 @@ def postproc_if_missing_async_support():
     support_async = major >= 8
 
     func_name = "tvm_callback_cuda_postproc"
-    prev_postproc = None
+    prev_postproc = tvm.get_global_func(func_name, allow_missing=True)
 
-    if not support_async:
-        prev_postproc = tvm.get_global_func(func_name, allow_missing=True)
+    # Store the generated code prior to the post-processing.  This
+    # way, even though the generated code doesn't compile on platforms
+    # that do not support async, the comparison against an expected
+    # output can still be performed.  We cannot use
+    # `mod.get_source()`, as that contains the source after all
+    # post-processing.
+    original_code = None
 
-        @tvm.register_func(func_name, override=True)
-        def tvm_callback_cuda_postproc(code, _):
+    def get_original_code():
+        nonlocal original_code
+        return original_code
+
+    @tvm.register_func(func_name, override=True)
+    def tvm_callback_cuda_postproc(code, _):
+        nonlocal original_code
+        original_code = code
+        if support_async:
+            return code
+        else:
             ret = []
             for line in code.split("\n"):
                 ret.append(line)
@@ -377,10 +391,12 @@ def postproc_if_missing_async_support():
             ret.append("}")
             return "".join(ret)
 
-    yield
+    yield get_original_code
 
     # Restore previous postproc func to avoid impacting other tests
-    if prev_postproc is not None:
+    if prev_postproc is None:
+        tvm._ffi.registry.remove_global_func(func_name)
+    else:
         tvm.register_func(func_name, prev_postproc, override=True)
 
 
@@ -426,8 +442,8 @@ def test_cp_async_in_if_then_else(postproc_if_missing_async_support):
 
     mod = tvm.IRModule.from_expr(simple_compute)
     with tvm.transform.PassContext(config={"tir.use_async_copy": 1}):
-        built = tvm.build(mod, target="cuda")
-    generated_code = built.imported_modules[0].get_source()
+        tvm.build(mod, target="cuda")
+    generated_code = postproc_if_missing_async_support()
     assert generated_code == expected_cuda_script
 
 
@@ -881,8 +897,8 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
 
     mod = tvm.IRModule.from_expr(complex_compute)
     with tvm.transform.PassContext(config={"tir.use_async_copy": 1}):
-        built = tvm.build(mod, target="cuda")
-    generated_code = built.imported_modules[0].get_source()
+        tvm.build(mod, target="cuda")
+    generated_code = postproc_if_missing_async_support()
     # generated_code must contain "  setp.ne.b32 p, %0, 0;"
     assert "setp.ne.b32" in generated_code
 
