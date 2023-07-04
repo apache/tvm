@@ -277,7 +277,7 @@ TVM_REGISTER_GLOBAL("relax.DataflowVarFromId")
       return DataflowVar(vid, struct_info_annotation, span);
     });
 
-Constant::Constant(runtime::NDArray data, Span span) {
+Constant::Constant(runtime::NDArray data, Optional<StructInfo> struct_info_annotation, Span span) {
   ObjectPtr<ConstantNode> n = make_object<ConstantNode>();
   n->data = std::move(data);
   n->span = std::move(span);
@@ -288,18 +288,25 @@ Constant::Constant(runtime::NDArray data, Span span) {
   for (size_t dim = 0; dim < shape_tuple.size(); ++dim) {
     values.push_back(IntImm(DataType::Int(64), shape_tuple[dim]));
   }
-  TensorStructInfo tinfo(ShapeExpr(values), n->data.DataType(), span);
+  if (struct_info_annotation.defined()) {
+    n->struct_info_ = struct_info_annotation.value();
+    n->checked_type_ = GetStaticType(struct_info_annotation.value());
+  } else {
+    TensorStructInfo tinfo(ShapeExpr(values), n->data.DataType(), span);
+    n->struct_info_ = tinfo;
+    n->checked_type_ = DynTensorType(tinfo->ndim, tinfo->dtype);
+  }
 
-  n->struct_info_ = tinfo;
-  n->checked_type_ = DynTensorType(tinfo->ndim, tinfo->dtype);
   data_ = std::move(n);
 }
 
 TVM_REGISTER_NODE_TYPE(ConstantNode);
 
-TVM_REGISTER_GLOBAL("relax.Constant").set_body_typed([](runtime::NDArray data, Span span = Span()) {
-  return Constant(data, span);
-});
+TVM_REGISTER_GLOBAL("relax.Constant")
+    .set_body_typed([](runtime::NDArray data, Optional<StructInfo> struct_info_annotation = NullOpt,
+                       Span span = Span()) {
+      return Constant(data, struct_info_annotation, span);
+    });
 
 PrimValue::PrimValue(PrimExpr value, Span span) {
   ObjectPtr<PrimValueNode> n = make_object<PrimValueNode>();
