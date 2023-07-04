@@ -550,10 +550,13 @@ class ConstantNode : public LeafExprNode {
 
   bool SEqualReduce(const ConstantNode* other, SEqualReducer equal) const {
     // struct info can be deterministically derived from data.
-    return equal(data, other->data);
+    return equal(data, other->data) && equal(struct_info_, other->struct_info_);
   }
 
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(data); }
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(data);
+    hash_reduce(struct_info_);
+  }
 
   static constexpr const char* _type_key = "relax.expr.Constant";
   TVM_DECLARE_FINAL_OBJECT_INFO(ConstantNode, LeafExprNode);
@@ -564,9 +567,12 @@ class Constant : public LeafExpr {
   /*!
    * \brief The constructor
    * \param data The data of the constant tensor.
-   * \param span The source span of the expression.
+   * \param struct_info_annotation The struct info of the constant tensor. If not specified, infer
+   * it from data. \param span The source span of the expression.
    */
-  TVM_DLL explicit Constant(runtime::NDArray data, Span span = Span());
+  TVM_DLL explicit Constant(runtime::NDArray data,
+                            Optional<StructInfo> struct_info_annotation = NullOpt,
+                            Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Constant, LeafExpr, ConstantNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ConstantNode);

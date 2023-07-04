@@ -381,8 +381,12 @@ def make_shape(shape: Union[List[Any], typing.Tuple[Any, ...]]) -> ShapeExpr:
 
 @tvm._ffi.register_object("relax.expr.Constant")
 class Constant(ExprWithOp):
-    def __init__(self, data: tvm.nd.NDArray, span: Span = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.Constant, data, span)  # type: ignore
+    def __init__(
+        self, data: tvm.nd.NDArray, struct_info: Optional[StructInfo] = None, span: Span = None
+    ) -> None:
+        self.__init_handle_by_constructor__(
+            _ffi_api.Constant, data, struct_info, span
+        )  # type: ignore
 
 
 @tvm._ffi.register_object("relax.expr.Var")
