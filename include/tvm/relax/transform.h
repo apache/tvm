@@ -183,6 +183,16 @@ TVM_DLL Pass EliminateCommonSubexpr(bool call_only = false);
 TVM_DLL Pass BindParams(String func_name, Map<String, runtime::NDArray> params);
 
 /*!
+ * \brief Bind symvars of function of the module to constant shape values.
+ *
+ * \param func_name The name of the function to bind shape values.
+ * \param binding_map The dictionary of symbolic variables and their constant shape values.
+ *
+ * \return The Pass.
+ */
+TVM_DLL Pass BindSymVars(String func_name, Map<String, Integer> binding_map);
+
+/*!
  * \brief Fold constant expressions.
  *
  * \return The Pass.

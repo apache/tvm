@@ -416,6 +416,24 @@ def BindParams(
     return _ffi_api.BindParams(func_name, tvm_params)  # type: ignore
 
 
+def BindSymVars(
+    func_name: str,
+    binding_map: Dict[str, int],
+) -> tvm.ir.transform.Pass:
+    """Bind params of function of the module to constant tensors.
+    Parameters
+    ----------
+    func_name: str
+        The function name to be bound
+    binidng_map : Dict[str, int]
+        The map from symbolic varname to integer.
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+    """
+    return _ffi_api.BindSymVars(func_name, binding_map)  # type: ignore
+
+
 def RunCodegen(
     target_options: Optional[dict] = None,
     entry_functions: Optional[List[str]] = None,
