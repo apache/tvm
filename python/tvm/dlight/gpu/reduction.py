@@ -32,6 +32,9 @@ class Reduction(ScheduleRule):
         target: Target,
         _: bool,
     ) -> Union[None, tir.Schedule, List[tir.Schedule]]:
+        if not isinstance(func, tir.PrimFunc):
+            return None
+
         if target.kind.name == "cuda":
             len_tx = 256
             unroll_depth = 256
@@ -42,18 +45,20 @@ class Reduction(ScheduleRule):
         sch = tir.Schedule(func)
         block_infos = normalize_prim_func(sch)
         block_infos = try_inline_contiguous_spatial(sch, block_infos)
-        assert len(block_infos) > 0
+        if block_infos is None or len(block_infos) == 0:
+            return None
 
         dom_kind = block_infos[0].dom_kind()
         num_leading_s = len(dom_kind) - len(dom_kind.lstrip("S"))
         num_trailing_r = len(dom_kind) - len(dom_kind.rstrip("R"))
         try:
+            # TODO: fix num_leading_s = 0 case
+            assert num_trailing_r > 0
             for block in block_infos[1:-1]:
                 assert block.dom_kind() == dom_kind
             assert block_infos[-1].is_injective()
             assert len(block_infos[-1].dom_kind()) == len(dom_kind)
         except AssertionError:
-            print("Mismatch")
             return None
 
         loops = sch.get_loops(block_infos[-1].block_rv)
