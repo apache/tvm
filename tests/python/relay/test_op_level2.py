@@ -2022,22 +2022,6 @@ def test_conv2d_rocm_sdot4():
     np.testing.assert_equal(out, ref)
 
 
-def np_float2tvm_bf16(arr):
-    """Convert a numpy array of float to a TVM array
-    of bf16"""
-    orig = arr.view("<u4")
-    bias = np.bitwise_and(np.right_shift(orig, 16), 1) + 0x7FFF
-    nparr = np.right_shift(orig + bias, 16).astype("uint16")
-    return tvm.nd.empty(nparr.shape, "bfloat16").copyfrom(nparr)
-
-
-def np_bf162np_float(arr):
-    """Convert a numpy array of bf16 (uint16) to a numpy array
-    of float"""
-    u32 = np.left_shift(arr.astype("uint32"), 16)
-    return u32.view("<f4")
-
-
 @tvm.testing.requires_x86
 def test_conv2d_nchw_dnnl():
     if not tvm.get_global_func("tvm.contrib.dnnl.conv2d", allow_missing=True):
@@ -2073,10 +2057,6 @@ def test_conv2d_nchw_dnnl():
         weight_np = np.random.uniform(1, 10, size=w_shape).astype("float32")
         ref = tvm.topi.testing.conv2d_nchw_python(data_np, weight_np, strides, padding)
 
-        if t == "bfloat16":
-            data_np = np_float2tvm_bf16(data_np)
-            weight_np = np_float2tvm_bf16(weight_np)
-
         target = "llvm -mcpu=skylake-avx512 -libs=dnnl"
         with tvm.transform.PassContext(opt_level=3):
             lib = relay.build(mod, target=target, params={"weight": weight_np})
@@ -2090,7 +2070,6 @@ def test_conv2d_nchw_dnnl():
         out = runtime.get_output(0).numpy()
 
         if t == "bfloat16":
-            out = np_bf162np_float(out)
             np.testing.assert_allclose(out, ref, rtol=1e-2)
         else:
             np.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
@@ -2133,10 +2112,6 @@ def test_conv2d_nhwc_dnnl():
         weight_np = np.random.uniform(1, 10, size=w_shape).astype("float32")
         ref = tvm.topi.testing.conv2d_nhwc_python(data_np, weight_np, strides, padding)
 
-        if t == "bfloat16":
-            data_np = np_float2tvm_bf16(data_np)
-            weight_np = np_float2tvm_bf16(weight_np)
-
         target = "llvm -mcpu=skylake-avx512 -libs=dnnl"
         with tvm.transform.PassContext(opt_level=3):
             lib = relay.build(mod, target=target, params={"weight": weight_np})
@@ -2150,7 +2125,6 @@ def test_conv2d_nhwc_dnnl():
         out = runtime.get_output(0).numpy()
 
         if t == "bfloat16":
-            out = np_bf162np_float(out)
             np.testing.assert_allclose(out, ref, rtol=1e-2)
         else:
             np.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)

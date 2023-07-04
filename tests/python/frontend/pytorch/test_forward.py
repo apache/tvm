@@ -24,6 +24,7 @@ from packaging import version as package_version
 
 import pytest
 import numpy as np
+import ml_dtypes
 
 import torch
 from torch.nn import Module
@@ -2694,7 +2695,10 @@ def verify_model_vm(input_model, ishapes, idtype=None, idata=None, targets=None)
 
         # Inference
         for name, inp in zip(input_names, input_data):
-            params[name] = inp.numpy()
+            if inp.dtype == torch.bfloat16:
+                params[name] = inp.float().numpy().astype("bfloat16")
+            else:
+                params[name] = inp.numpy()
         vm_res = evaluator(**params)
 
         # Baseline result
@@ -3992,8 +3996,7 @@ def test_forward_is_floating_point():
     verify_script_model(IsFloatingPoint(), [(1, 1)], targets, idtype=torch.float64)
     verify_script_model(IsFloatingPoint(), [(1, 1)], targets, idtype=torch.float32)
     verify_script_model(IsFloatingPoint(), [(1, 1)], targets, idtype=torch.float16)
-    # todo(dvisnty): Run the test for bfloat16 when full bfloat16 support is implemented
-    # verify_script_model(IsFloatingPoint(), [(1,1)], targets, idtype=torch.bfloat16)
+    verify_script_model(IsFloatingPoint(), [(1, 1)], targets, idtype=torch.bfloat16)
     verify_script_model(IsFloatingPoint(), [(1, 1)], targets, idtype=torch.int64)
     verify_script_model(IsFloatingPoint(), [(1, 1)], targets, idtype=torch.int32)
     verify_script_model(IsFloatingPoint(), [(1, 1)], targets, idtype=torch.int16)

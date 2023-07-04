@@ -29,6 +29,7 @@ import tempfile
 import pytest
 import scipy
 import numpy as np
+import ml_dtypes
 
 import tvm
 import tvm.testing
@@ -99,13 +100,6 @@ def get_tvm_output_with_vm(
             freeze_params=freeze_params,
             convert_config=convert_config,
         )
-        # handle the bfloat16 so we explicitly allocate
-        # bfloat16 arrays as input
-        for i, param in enumerate(mod["main"].params):
-            if param.type_annotation.dtype == "bfloat16":
-                input_data[i] = tvm.nd.empty(input_data[i].shape, "bfloat16").copyfrom(
-                    input_data[i]
-                )
 
     if validate_structural_equal:
         with tvm.testing.enable_span_filling():
@@ -5594,9 +5588,7 @@ def test_onnx_nodes(target, dev, onnx_test):
         atol = 1e-4
 
     if "to_BFLOAT16" in test_dir:
-        # the tolerance here is for the comparison in uint16 space, but is not as significant
-        # of a delta in bfloat16 space because it's representing the mantissa being off by 1
-        atol = 1
+        atol = 1e-2
 
     if "_sce_" in test_dir:
         # complicated loss functions like SoftmaxCrossEntropy can have minor variations
