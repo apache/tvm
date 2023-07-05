@@ -97,7 +97,7 @@ class CustomDatatypesLowerer : public StmtExprMutator {
       allocate = stmt.as<AllocateNode>();
 
       return Allocate(new_buffer_var, new_allocate_type, allocate->extents, allocate->condition,
-                      allocate->body);
+                      allocate->body, allocate->annotations);
     } else {
       return StmtExprMutator::VisitStmt_(allocate);
     }
