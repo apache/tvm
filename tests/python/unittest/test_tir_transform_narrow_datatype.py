@@ -170,6 +170,8 @@ def test_reduce():
         B = te.compute((), lambda *idx: te.sum(A[k], axis=k), name="B")
         s = te.create_schedule(B.op)
         stmt = lower_sch(s, [A, B], target_bits)
+        while isinstance(stmt, tvm.tir.DeclBuffer):
+            stmt = stmt.body
         assert stmt[1].loop_var.dtype == target_dtype
 
     # i32 -> i32
@@ -221,6 +223,8 @@ def test_relay_basic():
         func = mod["main"]
         z = engine.lower(func, "llvm")
         stmt = lower_sch(z.schedule, tuple(z.inputs) + tuple(z.outputs), 32)
+        while isinstance(stmt, tvm.tir.DeclBuffer):
+            stmt = stmt.body
         # outer loop
         assert stmt.loop_var.dtype == target_dtype
         # inner loop
@@ -262,7 +266,7 @@ def test_relay_take():
         func = mod["main"]
         z = engine.lower(func, "llvm")
         stmt = lower_sch(z.schedule, tuple(z.inputs) + tuple(z.outputs), 32)
-        assert stmt.value.indices[0].dtype == target_dtype
+        assert stmt.body.body.value.indices[0].dtype == target_dtype
 
     check(
         (const(2**16, "int64"), const(2**15 + 1, "int64")),
