@@ -80,7 +80,8 @@ class DecodeGEMV(ScheduleRule):
         if not isinstance(func, tir.PrimFunc):
             return None
         sch = tir.Schedule(func)
-        block_infos = try_inline_contiguous_spatial(sch, normalize_prim_func(sch))
+        block_infos = normalize_prim_func(sch)
+        block_infos = try_inline_contiguous_spatial(sch, block_infos)
         if block_infos is None or len(block_infos) > 2:
             return None
 
@@ -117,53 +118,48 @@ class DecodeGEMV(ScheduleRule):
             sch.reverse_compute_at(block_infos[1].block_rv, sch.get_loops(block)[0])
         return sch
 
-    def _normalize(
+    def _normalize(  # pylint: disable=too-many-branches
         self,
         sch: tir.Schedule,
         block_info: BlockInfo,
-        iter_sum: arith.IterSumExpr,
+        access: arith.IterSumExpr,
     ) -> Tuple[Optional[bool], Optional[int]]:
-        if iter_sum.base != 0:
+        if access.base != 0:
             return None, None
         iter_to_info = {i.var: i for i in block_info.iters}
-        s_dom, r_dom, c_dom, c_factor = None, None, None, None
-        for split in iter_sum.args:
-            var = split.source.source
-            info = iter_to_info[var]
-            dom = info.dom
+        s_loops, r_loops, c_loops, c_factor = [], [], [], None
+        for split_expr in access.args:
+            var = split_expr.source.source
+            info = iter_to_info.pop(var)
+            loop = info.loop_rv
             is_inner_reduction = info.kind == "R"
-            if split.lower_factor > 1:
-                if c_dom is not None:
+            if split_expr.lower_factor > 1:
+                if c_loops:
                     return None, None
-                c_dom = tir.floormod(var, split.lower_factor)
-                var = tir.floordiv(var, split.lower_factor)
-                dom = tir.floordiv(dom, split.lower_factor)
+                loop, c_loop = sch.split(loop, factors=[None, split_expr.lower_factor])
+                c_loops.append(c_loop)
                 if not is_inner_reduction:
-                    c_factor = split.lower_factor
+                    c_factor = split_expr.lower_factor
             if is_inner_reduction:
-                if r_dom is None:
-                    r_dom = var
-                else:
-                    r_dom = r_dom * dom + var
+                r_loops.append(loop)
             else:
-                if s_dom is None:
-                    s_dom = var
-                else:
-                    s_dom = s_dom * dom + var
+                s_loops.append(loop)
 
-        assert r_dom is not None
-        if s_dom is None:
-            s_dom = tir.const(1, r_dom.dtype)
-        if c_dom is None:
-            c_dom = tir.const(1, r_dom.dtype)
-        sch.transform_block_layout(
-            block_info.block_rv,
-            tir.IndexMap(
-                [i.var for i in block_info.iters],
-                [s_dom, r_dom, c_dom],
-                None,
-            ),
-        )
+        if iter_to_info:
+            for var, info in iter_to_info.items():
+                if info.kind == "S" and info.dom == 1:
+                    s_loops.append(info.loop_rv)
+                else:
+                    return None, None
+        assert s_loops
+        assert r_loops
+        if len(s_loops) != len([i for i in block_info.iters if i.kind == "S"]):
+            return None, None
+        if not c_loops:
+            c_loops = [sch.add_unit_loop(block_info.block_rv)]
+        sch.reorder(*s_loops, *r_loops, *c_loops)
+        sch.fuse(*s_loops)
+        sch.fuse(*r_loops)
         return is_inner_reduction, c_factor
 
     def _sch_inner_reduction(
