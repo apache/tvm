@@ -157,7 +157,11 @@ if __name__ == "__main__":
     help = "List out commits with attached PRs since a certain commit"
     parser = argparse.ArgumentParser(description=help)
     parser.add_argument("--notes-csv", required=True, help="csv file of categorized PRs in order")
-    parser.add_argument("--is-pr-with-link", required=False, help="exported pr number with hyper-link for forum format")
+    parser.add_argument(
+        "--is-pr-with-link",
+        required=False,
+        help="exported pr number with hyper-link for forum format",
+    )
     args = parser.parse_args()
     user = "apache"
     repo = "tvm"
