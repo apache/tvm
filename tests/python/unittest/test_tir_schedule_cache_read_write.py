@@ -523,7 +523,7 @@ def cache_read_under_scope(b: T.handle, c: T.handle) -> None:
     for i0, j0 in T.grid(8, 8):
         with T.block("scope"):
             i, j = T.axis.remap("SS", [i0, j0])
-            A_local = T.alloc_buffer((128, 128), scope="local")
+            A_local = T.alloc_buffer((16, 16), scope="local")
             for x, y in T.grid(16, 16):
                 with T.block("A"):
                     vi = T.axis.S(128, i * 16 + x)
@@ -531,14 +531,14 @@ def cache_read_under_scope(b: T.handle, c: T.handle) -> None:
                     A[vi, vj] = 1.0
             for x, y in T.grid(16, 16):
                 with T.block("A_local"):
-                    vi = T.axis.S(128, i * 16 + x)
-                    vj = T.axis.S(128, j * 16 + y)
-                    A_local[vi, vj] = A[vi, vj]
+                    vi = T.axis.S(16, x)
+                    vj = T.axis.S(16, y)
+                    A_local[vi, vj] = A[i * 16 + vi, j * 16 + vj]
             for x, y in T.grid(16, 16):
                 with T.block("B"):
                     vi = T.axis.S(128, i * 16 + x)
                     vj = T.axis.S(128, j * 16 + y)
-                    B[vi, vj] = A_local[vi, vj] + 1.0
+                    B[vi, vj] = A_local[vi - i * 16, vj - j * 16] + 1.0
     for i, j in T.grid(128, 128):
         with T.block("A_global"):
             vi, vj = T.axis.remap("SS", [i, j])
@@ -866,28 +866,28 @@ def cache_write_under_scope(b: T.handle, c: T.handle) -> None:
     for i0, j0 in T.grid(8, 8):
         with T.block("scope"):
             i, j = T.axis.remap("SS", [i0, j0])
-            A_local = T.alloc_buffer((128, 128), scope="local")
-            B_global = T.alloc_buffer((128, 128))
+            A_local = T.alloc_buffer((16, 16), scope="local")
+            B_global = T.alloc_buffer((16, 16))
             for x, y in T.grid(16, 16):
                 with T.block("A_local"):
                     vi = T.axis.S(128, i * 16 + x)
                     vj = T.axis.S(128, j * 16 + y)
-                    A_local[vi, vj] = 1.0
+                    A_local[vi - i * 16, vj - j * 16] = 1.0
             for x, y in T.grid(16, 16):
                 with T.block("A"):
+                    vi = T.axis.S(16, x)
+                    vj = T.axis.S(16, y)
+                    A_global[i * 16 + vi, j * 16 + vj] = A_local[vi, vj]
+            for x, y in T.grid(16, 16):
+                with T.block("B"):
                     vi = T.axis.S(128, i * 16 + x)
                     vj = T.axis.S(128, j * 16 + y)
-                    A_global[vi, vj] = A_local[vi, vj]
+                    B_global[vi - i * 16, vj - j * 16] = A_global[vi, vj] + 1.0
             for x, y in T.grid(16, 16):
                 with T.block("B_global"):
-                    vi = T.axis.S(128, i * 16 + x)
-                    vj = T.axis.S(128, j * 16 + y)
-                    B_global[vi, vj] = A_global[vi, vj] + 1.0
-            for x, y in T.grid(16, 16):
-                with T.block("B_global"):
-                    vi = T.axis.S(128, i * 16 + x)
-                    vj = T.axis.S(128, j * 16 + y)
-                    B[vi, vj] = B_global[vi, vj]
+                    vi = T.axis.S(16, x)
+                    vj = T.axis.S(16, y)
+                    B[i * 16 + vi, j * 16 + vj] = B_global[vi, vj]
     for i, j in T.grid(128, 128):
         with T.block("A_global"):
             vi, vj = T.axis.remap("SS", [i, j])
@@ -1167,6 +1167,104 @@ def block_predicate_cache_write_output_buf() -> None:
             B[v0] = B_shared[v0]
 
 
+@T.prim_func
+def symbolic_matmul_blocked(var_A: T.handle, var_B: T.handle, var_C: T.handle, n: T.int32):
+    A = T.match_buffer(var_A, ((n + 31) // 32 * 32, 4))
+    B = T.match_buffer(var_B, (4, (n + 31) // 32 * 32))
+    C = T.match_buffer(var_C, ((n + 31) // 32 * 32, (n + 31) // 32 * 32))
+    for i0_0, i1_0 in T.grid((n + 31) // 32, (n + 31) // 32):
+        with T.block("matmul_o"):
+            v_i0_o, v_i1_o = T.axis.remap("SS", [i0_0, i1_0])
+            T.reads(
+                A[v_i0_o * 32 : v_i0_o * 32 + 32, 0:4],
+                B[0:4, v_i1_o * 32 : v_i1_o * 32 + 32],
+            )
+            T.writes(C[v_i0_o * 32 : v_i0_o * 32 + 32, v_i1_o * 32 : v_i1_o * 32 + 32])
+            for i0_1, i1_1, k in T.grid(32, 32, 4):
+                with T.block("matmul"):
+                    v_i0_i, v_i1_i, v_k_i = T.axis.remap("SSR", [i0_1, i1_1, k])
+                    T.reads(A[v_i0_o * 32 + v_i0_i, v_k_i], B[v_k_i, v_i1_o * 32 + v_i1_i])
+                    T.writes(C[v_i0_o * 32 + v_i0_i, v_i1_o * 32 + v_i1_i])
+                    with T.init():
+                        C[v_i0_o * 32 + v_i0_i, v_i1_o * 32 + v_i1_i] = T.float32(0)
+                    C[v_i0_o * 32 + v_i0_i, v_i1_o * 32 + v_i1_i] = (
+                        C[v_i0_o * 32 + v_i0_i, v_i1_o * 32 + v_i1_i]
+                        + A[v_i0_o * 32 + v_i0_i, v_k_i] * B[v_k_i, v_i1_o * 32 + v_i1_i]
+                    )
+
+
+@T.prim_func
+def symbolic_matmul_blocked_cache_read(
+    var_A: T.handle, var_B: T.handle, var_C: T.handle, n: T.int32
+):
+    A = T.match_buffer(var_A, ((n + 31) // 32 * 32, 4))
+    B = T.match_buffer(var_B, (4, (n + 31) // 32 * 32))
+    C = T.match_buffer(var_C, ((n + 31) // 32 * 32, (n + 31) // 32 * 32))
+    for i0_0, i1_0 in T.grid((n + 31) // 32, (n + 31) // 32):
+        with T.block("matmul_o"):
+            v_i0_o, v_i1_o = T.axis.remap("SS", [i0_0, i1_0])
+            T.reads(
+                A[v_i0_o * 32 : v_i0_o * 32 + 32, 0:4],
+                B[0:4, v_i1_o * 32 : v_i1_o * 32 + 32],
+            )
+            T.writes(C[v_i0_o * 32 : v_i0_o * 32 + 32, v_i1_o * 32 : v_i1_o * 32 + 32])
+            A_shared = T.alloc_buffer((32, 4), scope="shared")
+            for ax0, ax1 in T.grid(32, 4):
+                with T.block("A_shared"):
+                    v0 = T.axis.spatial(32, ax0)
+                    v1 = T.axis.spatial(4, ax1)
+                    T.reads(A[v_i0_o * 32 + v0, v1])
+                    T.writes(A_shared[v0, v1])
+                    A_shared[v0, v1] = A[v_i0_o * 32 + v0, v1]
+            for i0_1, i1_1, k in T.grid(32, 32, 4):
+                with T.block("matmul"):
+                    v_i0_i, v_i1_i, v_k_i = T.axis.remap("SSR", [i0_1, i1_1, k])
+                    T.reads(A_shared[v_i0_i, v_k_i], B[v_k_i, v_i1_o * 32 + v_i1_i])
+                    T.writes(C[v_i0_o * 32 + v_i0_i, v_i1_o * 32 + v_i1_i])
+                    with T.init():
+                        C[v_i0_o * 32 + v_i0_i, v_i1_o * 32 + v_i1_i] = T.float32(0)
+                    C[v_i0_o * 32 + v_i0_i, v_i1_o * 32 + v_i1_i] = (
+                        C[v_i0_o * 32 + v_i0_i, v_i1_o * 32 + v_i1_i]
+                        + A_shared[v_i0_i, v_k_i] * B[v_k_i, v_i1_o * 32 + v_i1_i]
+                    )
+
+
+@T.prim_func
+def symbolic_matmul_blocked_cache_write(
+    var_A: T.handle, var_B: T.handle, var_C: T.handle, n: T.int32
+):
+    A = T.match_buffer(var_A, ((n + 31) // 32 * 32, 4))
+    B = T.match_buffer(var_B, (4, (n + 31) // 32 * 32))
+    C = T.match_buffer(var_C, ((n + 31) // 32 * 32, (n + 31) // 32 * 32))
+    for i0_0, i1_0 in T.grid((n + 31) // 32, (n + 31) // 32):
+        with T.block("matmul_o"):
+            v_i0_o, v_i1_o = T.axis.remap("SS", [i0_0, i1_0])
+            T.reads(
+                A[v_i0_o * 32 : v_i0_o * 32 + 32, 0:4],
+                B[0:4, v_i1_o * 32 : v_i1_o * 32 + 32],
+            )
+            T.writes(C[v_i0_o * 32 : v_i0_o * 32 + 32, v_i1_o * 32 : v_i1_o * 32 + 32])
+            C_pad_local = T.alloc_buffer((32, 32), scope="local")
+            for i0_1, i1_1, k in T.grid(32, 32, 4):
+                with T.block("matmul"):
+                    v_i0_i, v_i1_i, v_k_i = T.axis.remap("SSR", [i0_1, i1_1, k])
+                    T.reads(A[v_i0_o * 32 + v_i0_i, v_k_i], B[v_k_i, v_i1_o * 32 + v_i1_i])
+                    T.writes(C_pad_local[v_i0_i, v_i1_i])
+                    with T.init():
+                        C_pad_local[v_i0_i, v_i1_i] = T.float32(0)
+                    C_pad_local[v_i0_i, v_i1_i] = (
+                        C_pad_local[v_i0_i, v_i1_i]
+                        + A[v_i0_o * 32 + v_i0_i, v_k_i] * B[v_k_i, v_i1_o * 32 + v_i1_i]
+                    )
+            for ax0, ax1 in T.grid(32, 32):
+                with T.block("C_pad_local"):
+                    v0 = T.axis.spatial(32, ax0)
+                    v1 = T.axis.spatial(32, ax1)
+                    T.reads(C_pad_local[v0, v1])
+                    T.writes(C[v_i0_o * 32 + v0, v_i1_o * 32 + v1])
+                    C[v_i0_o * 32 + v0, v_i1_o * 32 + v1] = C_pad_local[v0, v1]
+
+
 ########## Testcases for cache_read ##########
 
 use_block_name = tvm.testing.parameter(by_dict={"block_obj": False, "block_name": True})
@@ -1215,7 +1313,7 @@ def test_cache_read_location(use_block_name):
     tvm.ir.assert_structural_equal(cache_read_multi_consumer, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=func_multi_consumer)
 
-    # Test that specific consumer block targetting works.
+    # Test that specific consumer block targeting works.
     sch = tir.Schedule(func_multi_consumer, debug_mask="all")
     block_b = "B" if use_block_name else sch.get_block("B")
     block_c = "C" if use_block_name else sch.get_block("C")
@@ -1355,7 +1453,7 @@ def test_cache_write_location(use_block_name):
     tvm.ir.assert_structural_equal(cache_write_multi_consumer, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=func_multi_consumer)
 
-    # Test that specific consumer block targetting works.
+    # Test that specific consumer block targeting works.
     # B read cache buffer and C read original output buffer
     sch = tir.Schedule(func_multi_consumer, debug_mask="all")
     block_a = "A" if use_block_name else sch.get_block("A")
@@ -1364,7 +1462,7 @@ def test_cache_write_location(use_block_name):
     tvm.ir.assert_structural_equal(cache_write_multi_consumer_B_consume_cache, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=func_multi_consumer)
 
-    # Test that specific consumer block targetting works.
+    # Test that specific consumer block targeting works.
     # B read original output buffer and C read cache buffer
     sch = tir.Schedule(func_multi_consumer, debug_mask="all")
     block_a = "A" if use_block_name else sch.get_block("A")
@@ -1373,7 +1471,7 @@ def test_cache_write_location(use_block_name):
     tvm.ir.assert_structural_equal(cache_write_multi_consumer_C_consume_cache, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=func_multi_consumer)
 
-    # Test that specific consumer block targetting works.
+    # Test that specific consumer block targeting works.
     # B and C read cache buffer
     sch = tir.Schedule(func_multi_consumer, debug_mask="all")
     block_a = "A" if use_block_name else sch.get_block("A")
@@ -1532,7 +1630,7 @@ def test_reindex_cache_read_fail_not_match():
         )
 
 
-def test_reindex_cache_read_faile_not_single_point():
+def test_reindex_cache_read_failed_not_single_point():
     sch = tir.Schedule(access_under_scope, debug_mask="all")
     with pytest.raises(tvm.tir.ScheduleError):
         sch.reindex_cache_read("scope", 0, "shared", lambda i, j: (i, j))
@@ -1569,6 +1667,22 @@ def test_reindex_cache_write_fail_not_single_point():
     sch = tir.Schedule(access_under_scope, debug_mask="all")
     with pytest.raises(tvm.tir.ScheduleError):
         sch.reindex_cache_write("scope", 0, "shared", lambda i, j: (i, j))
+
+
+def test_symbolic_matmul_blocked_cache_read(use_block_name):
+    sch = tir.Schedule(symbolic_matmul_blocked, debug_mask="all")
+    block = "matmul" if use_block_name else sch.get_block("matmul")
+    sch.cache_read(block=block, read_buffer_index=0, storage_scope="shared")
+    tvm.ir.assert_structural_equal(sch.mod["main"], symbolic_matmul_blocked_cache_read)
+    verify_trace_roundtrip(sch=sch, mod=symbolic_matmul_blocked)
+
+
+def test_symbolic_matmul_blocked_cache_write(use_block_name):
+    sch = tir.Schedule(symbolic_matmul_blocked, debug_mask="all")
+    block = "matmul" if use_block_name else sch.get_block("matmul")
+    sch.cache_write(block=block, write_buffer_index=0, storage_scope="local")
+    tvm.ir.assert_structural_equal(sch.mod["main"], symbolic_matmul_blocked_cache_write)
+    verify_trace_roundtrip(sch=sch, mod=symbolic_matmul_blocked)
 
 
 if __name__ == "__main__":
