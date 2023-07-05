@@ -360,6 +360,46 @@ struct ADTObjTrait {
 
 TVM_REGISTER_REFLECTION_VTABLE(runtime::ADTObj, ADTObjTrait);
 
+struct ModuleNodeTrait {
+  static constexpr const std::nullptr_t VisitAttrs = nullptr;
+  static constexpr std::nullptr_t SHashReduce = nullptr;
+  static constexpr std::nullptr_t SEqualReduce = nullptr;
+};
+
+TVM_REGISTER_REFLECTION_VTABLE(runtime::ModuleNode, ModuleNodeTrait)
+    .set_creator([](const std::string& blob) {
+      dmlc::MemoryStringStream mstrm(const_cast<std::string*>(&blob));
+      support::Base64InStream b64strm(&mstrm);
+      b64strm.InitPosition();
+      // retrieve derived type key 
+      dmlc::Stream* stream = static_cast<dmlc::Stream*>(&b64strm);
+      std::string derived_type;
+      stream->Read(&derived_type);
+      // pick up the deserializer
+      std::string load_func_key = "runtime.module.loadbinary_"+derived_type;
+      const auto* load_func = runtime::Registry::Get(load_func_key);
+      ICHECK(load_func) << load_func_key << " is not registered.";
+      // deserialize
+      runtime::Module rtmod = (*load_func)(&b64strm);
+      return RefToObjectPtr::Get(rtmod);
+    })
+    .set_repr_bytes([](const Object* n) -> std::string {
+      const auto* rtmod = static_cast<const runtime::ModuleNode*>(n);
+      std::string blob;
+      dmlc::MemoryStringStream mstrm(&blob);
+      support::Base64OutStream b64strm(&mstrm);
+      // JSON serializer prints the type key as runtime.Module, which is too high-level.
+      // Thus, we explicitly print the type key of derived runtime.Module (e.g., cublas_json)
+      // so that we can pick up the right deserializer in set_creator method. 
+      dmlc::Stream* stream = static_cast<dmlc::Stream*>(&b64strm);
+      std::string derived_type(rtmod->type_key());
+      stream->Write(derived_type);
+      GetRef<runtime::Module>(rtmod)->SaveToBinary(&b64strm);
+      b64strm.Finish();
+      return blob;
+    });
+
+
 void NDArrayHash(const runtime::NDArray::Container* arr, SHashReducer* hash_reduce,
                  bool hash_data) {
   ICHECK_EQ(arr->dl_tensor.device.device_type, kDLCPU) << "can only compare CPU tensor";
