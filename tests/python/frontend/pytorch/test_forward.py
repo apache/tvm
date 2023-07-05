@@ -1708,6 +1708,22 @@ def test_forward_clone():
 
 
 @tvm.testing.uses_gpu
+def test_forward_copy_():
+    """test_forward_copy_"""
+    torch.set_grad_enabled(False)
+    input_shape = [10]
+
+    class Copy_(Module):
+        def forward(self, input_data):
+            r = torch.zeros(input_data.shape).float()
+            r.copy_(input_data)
+            return r
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(Copy_().float().eval(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
 def test_forward_gather():
     """test_forward_gather"""
     torch.set_grad_enabled(False)

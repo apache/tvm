@@ -1689,6 +1689,10 @@ class PyTorchOpConverter:
         data = inputs[0]
         return _op.tensor.copy(data)
 
+    def copy_(self, inputs, input_types):
+        data = inputs[1]
+        return _op.tensor.copy(data)
+
     def log_softmax(self, inputs, input_types):
         data = inputs[0]
         axis = int(inputs[1])
@@ -3841,6 +3845,7 @@ class PyTorchOpConverter:
             "aten::reshape": self.reshape,
             "aten::reshape_as": self.reshape_as,
             "aten::clone": self.clone,
+            "aten::copy_": self.copy_,
             "aten::log_softmax": self.log_softmax,
             "aten::sigmoid": self.sigmoid,
             "aten::softplus": self.softplus,
