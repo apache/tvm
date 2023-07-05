@@ -16,13 +16,13 @@
 # under the License.
 """The entry point of TVM parser for tir."""
 import inspect
-from typing import Callable, Union
+from typing import Any, Callable, Union
 
 from tvm.ir.base import deprecated
 from tvm.tir import Buffer, PrimFunc
 
 from ...ir_builder.tir import buffer, ptr
-from .._core import parse, utils
+from .._core import doc, parse, parse_macro, utils
 
 
 def prim_func(func: Callable) -> Union[PrimFunc, Callable]:
@@ -48,6 +48,47 @@ def prim_func(func: Callable) -> Union[PrimFunc, Callable]:
 
 
 setattr(prim_func, "dispatch_token", "tir")
+
+
+# Semantics of TIR macros:
+# - Function that is decorated with @T.macro can have any parameters that
+#   follow Python syntax, i.e. positional, keyword, etc. Type annotations
+#   are not required, but are allowed.
+# - The arguments to `T.insert` are: macro name (either as value, or as
+#   a string with the name), followed by the argument list.
+#   For `T.insert(arg1, arg2, arg3, ...)`, the values are substituted into
+#   the body of the macro as in the call `arg1(arg2, arg3, ...)`.
+#   The body with the substituted values is then inserted at the point
+#   where the `T.insert` is located.
+
+
+class TIRMacro:
+    """Representation of T.macro: consists of the doc.AST and the text of the source."""
+
+    def __init__(self, node, source):
+        self.doc = node
+        self.source = source
+
+    def __repr__(self):
+        return self.source
+
+
+def macro(func: Callable) -> doc.AST:
+    obj = TIRMacro(*parse_macro(func))
+    setattr(obj, "__name__", func.__name__)
+    # We don't need to explicitly store the return value anywhere.
+    # This function is a decorator, so the return value will replace
+    # the function definition (to which the decorator it is applied)
+    # in that function's name space.
+    return obj
+
+
+# There is no dispatch_token for macro, because macro doesn't invoke parser.
+
+
+def insert(name: Union[str, doc.Name], *args, **kwargs) -> Any:  # pylint: disable=unused-argument
+    """Placeholder function, so that T.insert (i.e. macro insertion) can be parsed without errors.
+    """
 
 
 class BufferProxy:

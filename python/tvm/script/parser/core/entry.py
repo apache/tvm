@@ -25,6 +25,14 @@ from .error import ParserError
 from .parser import Parser
 
 
+def parse_macro(program: Union[Any, str]) -> Any:
+    """Generate the AST, and the source code for __repr__."""
+    # The AST will be converted into TIR at the time of insertion.
+    source = Source(program)
+    node = source.as_ast()
+    return node, source.source
+
+
 def parse(program: Union[doc.AST, Any, str], extra_vars: Dict[str, Any] = None) -> Any:
     """Register a method for a operand type, AST operator node and operand index.
 

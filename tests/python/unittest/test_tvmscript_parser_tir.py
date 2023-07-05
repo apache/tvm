@@ -71,5 +71,33 @@ def test_tir_func_name():
     assert matmul.__name__ == "matmul"
 
 
+def test_tir_macro():
+    @T.macro
+    def assign(i, *args, t1, **kwargs):
+        vi, vj, vk = T.axis.remap("SSR", [i, args[0], args[1]])
+        kwargs["t3"][vi, vj] = kwargs["t3"][vi, vj] + t1[vi, vk] * kwargs["t2"][vj, vk]
+
+    @T.prim_func
+    def matmul_w_macro(a: T.handle, b: T.handle, c: T.handle) -> None:
+        A = T.match_buffer(a, [128, 128])
+        B = T.match_buffer(b, [128, 128])
+        C = T.match_buffer(c, [128, 128])
+        for i, j, k in T.grid(128, 128, 128):
+            with T.block("update"):
+                T.insert(assign, i, j, k, t1=A, t2=B, t3=C)
+
+    @T.prim_func
+    def matmul_no_macro(a: T.handle, b: T.handle, c: T.handle) -> None:
+        A = T.match_buffer(a, [128, 128])
+        B = T.match_buffer(b, [128, 128])
+        C = T.match_buffer(c, [128, 128])
+        for i, j, k in T.grid(128, 128, 128):
+            with T.block("update"):
+                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
+
+    tvm.ir.assert_structural_equal(matmul_no_macro, matmul_w_macro)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
