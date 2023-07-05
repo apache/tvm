@@ -113,10 +113,11 @@ class TestSplitHostDevice(BaseCompare):
             @T.prim_func
             def main(n: T.int32):
                 T.func_attr({"target": T.target("cuda", host="llvm -opt-level=0")})
-                mod.main_kernel(n)
+                err = mod.main_kernel(n)
+                assert err == 0, "Error executing compute kernel"
 
             @T.prim_func
-            def main_kernel(n: T.int32):
+            def main_kernel(n: T.int32) -> T.int32:
                 T.func_attr(
                     {
                         "target": T.target("cuda"),
@@ -125,6 +126,7 @@ class TestSplitHostDevice(BaseCompare):
                     }
                 )
                 T.evaluate(n)
+                T.ret(0)
 
         return mod
 
@@ -153,10 +155,11 @@ class TestSplitHostDeviceWithoutFuncHostAttribute(BaseCompare):
             @T.prim_func
             def main(n: T.int32):
                 T.func_attr({"target": T.target("llvm")})
-                mod.main_kernel(n)
+                err = mod.main_kernel(n)
+                assert err == 0, "Error executing compute kernel"
 
             @T.prim_func
-            def main_kernel(n: T.int32):
+            def main_kernel(n: T.int32) -> T.int32:
                 T.func_attr(
                     {
                         "target": T.target("cuda"),
@@ -165,6 +168,7 @@ class TestSplitHostDeviceWithoutFuncHostAttribute(BaseCompare):
                     }
                 )
                 T.evaluate(n)
+                T.ret(0)
 
         return mod
 
@@ -214,10 +218,11 @@ class TestSplitHostDeviceNameCollision(BaseCompare):
             @T.prim_func
             def main(n: T.int32):
                 T.func_attr({"target": T.target("cuda", host="llvm -opt-level=0")})
-                mod.main_kernel_1(n)
+                err = mod.main_kernel_1(n)
+                assert err == 0, "Error executing compute kernel"
 
             @T.prim_func
-            def main_kernel_1(n: T.int32):
+            def main_kernel_1(n: T.int32) -> T.int32:
                 T.func_attr(
                     {
                         "target": T.target("cuda"),
@@ -226,6 +231,7 @@ class TestSplitHostDeviceNameCollision(BaseCompare):
                     }
                 )
                 T.evaluate(n)
+                T.ret(0)
 
             @T.prim_func
             def main_kernel():

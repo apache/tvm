@@ -74,8 +74,15 @@ class HostDeviceSplitter : public StmtMutator {
       return params;
     }();
 
+    // CodeGenCPU is used for some device-side targets, such as
+    // "ext_dev", and expects to be able to return a int32_t status
+    // code.
+    auto error_code_dtype = DataType::Int(32);
+    IntImm success(error_code_dtype, 0);
+    body = SeqStmt::Flatten(body, Evaluate(ret(success)));
+
     GlobalVar kernel_symbol_global = var_supply_();
-    PrimFunc device_func(params, body);
+    PrimFunc device_func(params, body, PrimType(error_code_dtype));
     device_func = WithAttrs(std::move(device_func), {{tvm::attr::kTarget, device_target},
                                                      {tir::attr::kNoAlias, Bool(true)},
                                                      {tir::attr::kIsGlobalFunc, Bool(true)}});
@@ -83,7 +90,14 @@ class HostDeviceSplitter : public StmtMutator {
     (*device_mod_)->Add(kernel_symbol_global, device_func);
     Array<PrimExpr> args = params.Map([](const Var& var) -> PrimExpr { return var; });
 
-    return Evaluate(Call(DataType::Void(), kernel_symbol_global, args));
+    Var kernel_error_code("kernel_error_code", error_code_dtype);
+
+    AssertStmt assert_success(kernel_error_code == success,
+                              StringImm("Error executing compute kernel"), Evaluate(0));
+    LetStmt kernel_call(kernel_error_code, Call(error_code_dtype, kernel_symbol_global, args),
+                        assert_success);
+
+    return std::move(kernel_call);
   }
 
   // target ir module
