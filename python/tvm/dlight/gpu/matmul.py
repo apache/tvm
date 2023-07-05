@@ -16,14 +16,14 @@
 # under the License.
 # pylint: disable=missing-docstring, invalid-name
 """A GEMM schedule rule for GPU operators."""
-from enum import Enum
 from dataclasses import dataclass
+from enum import Enum
 from typing import Dict, List, Optional, Set, Tuple
 
 from tvm import tir
 from tvm.ir import Range
 from tvm.target import Target
-from tvm.tir import PrimExpr, Var, IterVar
+from tvm.tir import IterVar, PrimExpr, Var
 from tvm.tir.analysis import undefined_vars
 from tvm.tir.schedule.schedule import BlockRV
 

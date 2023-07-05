@@ -21,7 +21,8 @@ from typing import List
 from tvm import tir
 from tvm.target import Target
 
-from ..base import ScheduleRule, analysis, normalize_prim_func, try_inline
+from ..base import ScheduleRule, normalize_prim_func, try_inline
+from . import utils
 
 
 class Fallback(ScheduleRule):
@@ -36,7 +37,7 @@ class Fallback(ScheduleRule):
         target: Target,
         _: bool,
     ) -> tir.Schedule:
-        max_threads_per_block = analysis.get_max_threads_per_block(target)
+        max_threads_per_block = utils.max_threads_per_block(target)
 
         sch = tir.Schedule(func)
         block_infos = try_inline(sch, normalize_prim_func(sch))

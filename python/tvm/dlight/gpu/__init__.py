@@ -18,7 +18,7 @@
 GPU-generic schedule rules.
 For CUDA/ROCm/Vulkan/Metal-specific rules, use `tvm.dlight.cuda/rocm/vulkan/metal` instead
 """
-from .fallback import Fallback
 from .decode_gemv import DecodeGEMV
-from .reduction import Reduction
+from .fallback import Fallback
 from .matmul import Matmul
+from .reduction import Reduction
