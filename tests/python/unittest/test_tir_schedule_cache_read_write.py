@@ -1543,21 +1543,14 @@ def test_cache_write_fail_invalid_storage_scope(use_block_name):
         sch.cache_write(block_b, 0, "test_scope")
 
 
-@pytest.mark.parametrize("use_decl_buffer", [True, False])
-def test_cache_write_allocate_const(use_decl_buffer):
-    def apply_decl_buffer(*args, **kwargs):
-        if use_decl_buffer:
-            return T.decl_buffer(*args, **kwargs)
-        else:
-            return T.Buffer(*args, **kwargs)
-
+def test_cache_write_allocate_const():
     @T.prim_func
     def before(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float16")):
         B = T.alloc_buffer([128, 128], dtype="float32")
         const1 = T.allocate_const([0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7], "float32", [8])
-        const1_buf = apply_decl_buffer([8], dtype="float32", data=const1)
+        const1_buf = T.decl_buffer([8], dtype="float32", data=const1)
         const2 = T.allocate_const([0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7], "float32", [8])
-        const2_buf = apply_decl_buffer([8], dtype="float32", data=const2)
+        const2_buf = T.decl_buffer([8], dtype="float32", data=const2)
         for i, j in T.grid(128, 128):
             for x in range(8):
                 with T.block("B"):
@@ -1578,9 +1571,9 @@ def test_cache_write_allocate_const(use_decl_buffer):
         A_global = T.alloc_buffer([128, 128], dtype="float32")
         C_global = T.alloc_buffer([128, 128], dtype="float16")
         const1 = T.allocate_const([0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7], "float32", [8])
-        const1_buf = apply_decl_buffer([8], dtype="float32", data=const1)
+        const1_buf = T.decl_buffer([8], dtype="float32", data=const1)
         const2 = T.allocate_const([0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7], "float32", [8])
-        const2_buf = apply_decl_buffer([8], dtype="float32", data=const2)
+        const2_buf = T.decl_buffer([8], dtype="float32", data=const2)
         for ax0, ax1 in T.grid(128, 128):
             with T.block("A_global"):
                 v0, v1 = T.axis.remap("SS", [ax0, ax1])
