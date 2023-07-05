@@ -126,21 +126,26 @@ def estimate_memory_usage(mod: Union[IRModule, Function]) -> str:
             for dim_len in shape.values:
                 if not isinstance(dim_len, tvm.tir.IntImm):
                     self.total_dyn_size_tensor_num += 1
-                    return
+                    return -1
                 size *= dim_len.value
             dtype = tvm.DataType(dtype_str)
             return size * ((dtype.bits + 7) // 8) * dtype.lanes
 
         def accumulate_builtin_tensor_alloc(self, shape: Expr, dtype_str: str) -> None:
             size = self.calculate_size(shape, dtype_str)
+            if size == -1:
+                return
             self.total_const_size_tensor_num += 1
             self.total_alloc_tensor_mem += size
             self.planned_mem_num += 1
             self.planned_alloc_mem += size
 
         def accumulate_tensor_alloc(self, shape: Expr, dtype_str: str) -> None:
+            size = self.calculate_size(shape, dtype_str)
+            if size == -1:
+                return
             self.total_const_size_tensor_num += 1
-            self.total_alloc_tensor_mem += self.calculate_size(shape, dtype_str)
+            self.total_alloc_tensor_mem += size
 
         def accumulate_storage_alloc(self, size: Expr) -> None:
             if not isinstance(size, ShapeExpr):
