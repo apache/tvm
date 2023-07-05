@@ -93,7 +93,7 @@ def estimate_memory_usage(mod: Union[IRModule, Function]) -> str:
 
                 self.cleanup()
                 self.visit_expr(func)
-                estimation += self.generate_est_string(global_var.name_hint)
+                estimation += self.generate_est_string(global_var.name_hint) + "\n"
 
             if estimation != "":
                 estimation = "Memory usage estimation:\n" + estimation
@@ -108,13 +108,15 @@ def estimate_memory_usage(mod: Union[IRModule, Function]) -> str:
 
         def visit_call_(self, call: Call) -> None:  # pylint: disable=arguments-differ
             if call.op == self.builtin_alloc_tensor_op:
-                self.accumulate_tensor_alloc(shape=call.args[0], dtype_str=call.args[1].value)
+                self.accumulate_builtin_tensor_alloc(
+                    shape=call.args[0], dtype_str=call.args[1].value
+                )
             elif call.op == self.memory_alloc_tensor_op:
                 self.accumulate_tensor_alloc(shape=call.args[2], dtype_str=call.args[3].value)
             elif call.op == self.memory_alloc_storage_op:
                 self.accumulate_storage_alloc(size=call.args[0])
 
-        def accumulate_tensor_alloc(self, shape: Expr, dtype_str: str) -> None:
+        def calculate_size(self, shape: Expr, dtype_str: str) -> int:
             if not isinstance(shape, ShapeExpr):
                 raise TypeError(
                     "The shape of relax.builtin.alloc_tensor and "
@@ -124,12 +126,26 @@ def estimate_memory_usage(mod: Union[IRModule, Function]) -> str:
             for dim_len in shape.values:
                 if not isinstance(dim_len, tvm.tir.IntImm):
                     self.total_dyn_size_tensor_num += 1
-                    return
+                    return -1
                 size *= dim_len.value
-
             dtype = tvm.DataType(dtype_str)
+            return size * ((dtype.bits + 7) // 8) * dtype.lanes
+
+        def accumulate_builtin_tensor_alloc(self, shape: Expr, dtype_str: str) -> None:
+            size = self.calculate_size(shape, dtype_str)
+            if size == -1:
+                return
             self.total_const_size_tensor_num += 1
-            self.total_alloc_tensor_mem += (size * dtype.bits * dtype.lanes + 7) // 8
+            self.total_alloc_tensor_mem += size
+            self.planned_mem_num += 1
+            self.planned_alloc_mem += size
+
+        def accumulate_tensor_alloc(self, shape: Expr, dtype_str: str) -> None:
+            size = self.calculate_size(shape, dtype_str)
+            if size == -1:
+                return
+            self.total_const_size_tensor_num += 1
+            self.total_alloc_tensor_mem += size
 
         def accumulate_storage_alloc(self, size: Expr) -> None:
             if not isinstance(size, ShapeExpr):
