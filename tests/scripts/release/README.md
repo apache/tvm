@@ -30,6 +30,8 @@ Once done, you can download the csv file assuming with name `out_pr_gathered_cor
 
 ```bash
 # example: use a csv of tags-corrected PRs to create a markdown file
+# If you want to export monthly report on forum, you need append arg
+# `--is-pr-with-link true`.
 python make_notes.py --notes-csv out_pr_gathered_corrected.csv > out.md
 ```
 
