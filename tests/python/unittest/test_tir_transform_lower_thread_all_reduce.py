@@ -70,10 +70,10 @@ class TestBasic(BaseCompare):
                 T.reinterpret("handle", T.uint64(0)),
             ):
                 mask_data = T.allocate([1], "uint32", "local")
-                mask = T.Buffer(1, "uint32", data=mask_data, scope="local")
+                mask = T.decl_buffer(1, "uint32", data=mask_data, scope="local")
 
                 t0_data = T.allocate([1], "float32", "local")
-                t0 = T.Buffer(1, data=t0_data, scope="local")
+                t0 = T.decl_buffer(1, data=t0_data, scope="local")
 
                 reduce[0] = A_flat[0]
                 mask[0] = T.tvm_warp_activemask()
@@ -96,7 +96,7 @@ class TestBasic(BaseCompare):
 class TestBasicWithDeclBuffer(BaseCompare):
     def before(A: T.Buffer((128, 32), "float32"), B: T.Buffer(128, "float32")):
         T.func_attr({"target": T.target("cuda", host="llvm")})
-        A_flat = T.Buffer(4096, data=A.data)
+        A_flat = T.decl_buffer(4096, data=A.data)
 
         for i in range(128):
             threadIdx_x = T.launch_thread("threadIdx.x", 32)
@@ -120,7 +120,7 @@ class TestBasicWithDeclBuffer(BaseCompare):
 
     def expected(A: T.Buffer((128, 32), "float32"), B: T.Buffer(128, "float32")):
         T.func_attr({"target": T.target("cuda", host="llvm")})
-        A_flat = T.Buffer(4096, data=A.data)
+        A_flat = T.decl_buffer(4096, data=A.data)
 
         for i in range(128):
             threadIdx_x = T.launch_thread("threadIdx.x", 32)
@@ -133,10 +133,10 @@ class TestBasicWithDeclBuffer(BaseCompare):
                 T.reinterpret("handle", T.uint64(0)),
             ):
                 mask_data = T.allocate([1], "uint32", "local")
-                mask = T.Buffer(1, "uint32", data=mask_data, scope="local")
+                mask = T.decl_buffer(1, "uint32", data=mask_data, scope="local")
 
                 t0_data = T.allocate([1], "float32", "local")
-                t0 = T.Buffer(1, data=t0_data, scope="local")
+                t0 = T.decl_buffer(1, data=t0_data, scope="local")
 
                 reduce[0] = A_flat[0]
                 mask[0] = T.tvm_warp_activemask()
@@ -159,16 +159,16 @@ class TestBasicWithDeclBuffer(BaseCompare):
 class TestReduceSummation(BaseCompare):
     def before(A: T.Buffer((128, 128), "float32"), B: T.Buffer(128, "float32")):
         T.func_attr({"target": T.target("cuda", host="llvm")})
-        A_flat = T.Buffer((16384,), data=A.data)
+        A_flat = T.decl_buffer(16384, data=A.data)
 
         for i in range(128):
             threadIdx_x = T.launch_thread("threadIdx.x", 32)
 
             normal_reduce_data = T.allocate([1], "float32", "local")
-            normal_reduce = T.Buffer(1, data=normal_reduce_data, scope="local")
+            normal_reduce = T.decl_buffer(1, data=normal_reduce_data, scope="local")
 
             reduce_data = T.allocate([1], "float32", "local")
-            reduce = T.Buffer(1, data=reduce_data, scope="local")
+            reduce = T.decl_buffer(1, data=reduce_data, scope="local")
 
             normal_reduce[0] = T.float32(0)
 
@@ -192,16 +192,16 @@ class TestReduceSummation(BaseCompare):
 
     def expected(A: T.Buffer((128, 128), "float32"), B: T.Buffer(128, "float32")):
         T.func_attr({"target": T.target("cuda", host="llvm")})
-        A_flat = T.Buffer(16384, data=A.data)
+        A_flat = T.decl_buffer(16384, data=A.data)
 
         for i in range(128):
             threadIdx_x = T.launch_thread("threadIdx.x", 32)
 
             normal_reduce_data = T.allocate([1], "float32", "local")
-            normal_reduce = T.Buffer(1, data=normal_reduce_data, scope="local")
+            normal_reduce = T.decl_buffer(1, data=normal_reduce_data, scope="local")
 
             reduce_data = T.allocate([1], "float32", "local")
-            reduce = T.Buffer(1, data=reduce_data, scope="local")
+            reduce = T.decl_buffer(1, data=reduce_data, scope="local")
 
             normal_reduce[0] = T.float32(0)
             for ko in range(4):
@@ -212,10 +212,10 @@ class TestReduceSummation(BaseCompare):
                 T.reinterpret("handle", T.uint64(0)),
             ):
                 mask_data = T.allocate([1], "uint32", "local")
-                mask = T.Buffer(1, "uint32", data=mask_data, scope="local")
+                mask = T.decl_buffer(1, "uint32", data=mask_data, scope="local")
 
                 t0_data = T.allocate([1], "float32", "local")
-                t0 = T.Buffer(1, data=t0_data, scope="local")
+                t0 = T.decl_buffer(1, data=t0_data, scope="local")
 
                 reduce[0] = normal_reduce[0]
                 mask[0] = T.tvm_warp_activemask()
