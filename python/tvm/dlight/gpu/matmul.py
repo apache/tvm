@@ -297,7 +297,7 @@ class Matmul(ScheduleRule):
         block_size_y = 16
         vthread_x = 1
         vthread_y = 1
-        micro_size_x = 2
+        micro_size_x = 4
         micro_size_y = 4
         micro_size_k = 16
         vector_size = 2
@@ -340,20 +340,23 @@ class Matmul(ScheduleRule):
 
         l2g = sch.cache_write(main_block, 0, "local")
         sch.reverse_compute_at(l2g, tx, preserve_unit_loops=True)
+        if micro_size_y % vector_size == 0:
+            _, v = sch.split(sch.get_loops(l2g)[-1], [None, vector_size])
+            sch.vectorize(v)
 
         def _cooperative_fetch(index, vec_len):
             block = sch.cache_read(main_block, index, "shared")
             num_loops = len(sch.get_loops(block))
             sch.compute_at(block, ko, preserve_unit_loops=True)
             loops = sch.get_loops(block)[-num_loops:]
-            _, ty, tx, vec = sch.split(
+            ty, tx, _, vec = sch.split(
                 sch.fuse(*loops),
-                factors=[None, block_size_y, block_size_x, vec_len],
+                factors=[block_size_y, block_size_x, None, vec_len],
             )
             sch.vectorize(vec)
             sch.bind(ty, "threadIdx.y")
             sch.bind(tx, "threadIdx.x")
-            sch.storage_align(block, 0, axis=1, factor=32, offset=vec_len)
+            sch.storage_align(block, 0, axis=1, factor=8, offset=vec_len)
             return block
 
         a_g2s = _cooperative_fetch(0, vec_len=vector_size)

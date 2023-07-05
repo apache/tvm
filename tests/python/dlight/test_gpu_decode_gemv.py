@@ -56,7 +56,7 @@ def test_decode_gemv_1():
             # with T.block("root"):
             C_rf_local = T.alloc_buffer((256, 1, 1, 4096), "float16", scope="local")
             for i2_i0_i1_fused in T.thread_binding(4096, thread="blockIdx.x"):
-                for k_0_fused_1 in T.thread_binding(256, thread="threadIdx.x"):
+                for k_0_fused_1 in T.thread_binding(256, thread="threadIdx.x", annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
                     with T.block("matmul_rf_init"):
                         vk_0_fused_1 = T.axis.spatial(256, k_0_fused_1)
                         v_i2 = T.axis.spatial(4096, i2_i0_i1_fused)
@@ -179,7 +179,7 @@ def test_decode_gemv_3():
             # with T.block("root"):
             C_rf_local = T.alloc_buffer((256, 1, 1, 4096), "float16", scope="local")
             for i2_0_i0_i1_fused in T.thread_binding(512, thread="blockIdx.x"):
-                for k_fused_1 in T.thread_binding(256, thread="threadIdx.x"):
+                for k_fused_1 in T.thread_binding(256, thread="threadIdx.x", annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
                     for i2_1_init in range(8):
                         with T.block("matmul_rf_init"):
                             vk_fused_1 = T.axis.spatial(256, k_fused_1)
@@ -315,7 +315,7 @@ def test_decode_gemv_sigmoid():
             C_local = T.alloc_buffer((1, 1, 4096), "float16", scope="local")
             C_rf_local = T.alloc_buffer((256, 1, 1, 4096), "float16", scope="local")
             for i2_i0_i1_fused in T.thread_binding(4096, thread="blockIdx.x"):
-                for k_0_fused_1 in T.thread_binding(256, thread="threadIdx.x"):
+                for k_0_fused_1 in T.thread_binding(256, thread="threadIdx.x", annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
                     with T.block("matmul_rf_init"):
                         vk_0_fused_1 = T.axis.spatial(256, k_0_fused_1)
                         v_i2 = T.axis.spatial(4096, i2_i0_i1_fused)
@@ -387,7 +387,7 @@ def test_decode_gemv_1_fp32():
             C_fp32_local = T.alloc_buffer((1, 1, 4096), scope="local")
             C_fp32_rf_local = T.alloc_buffer((256, 1, 1, 4096), scope="local")
             for ax0_fused in T.thread_binding(4096, thread="blockIdx.x"):
-                for ax1_0_fused_1 in T.thread_binding(256, thread="threadIdx.x"):
+                for ax1_0_fused_1 in T.thread_binding(256, thread="threadIdx.x", annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
                     with T.block("matmul_rf_init"):
                         vax1_0_fused_1, v0 = T.axis.remap("SS", [ax1_0_fused_1, ax0_fused])
                         T.reads()
@@ -450,7 +450,7 @@ def test_reduction_no_spatial():
             Ared_temp_shared = T.alloc_buffer((1, 1), scope="shared")
             Ared_temp_rf_local = T.alloc_buffer((256, 1, 1), scope="local")
             for ax0_fused in T.thread_binding(T.int64(1), thread="blockIdx.x"): # pylint: disable=unused-variable
-                for ax1_fused_1 in T.thread_binding(256, thread="threadIdx.x"):
+                for ax1_fused_1 in T.thread_binding(256, thread="threadIdx.x", annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
                     with T.block("Ared_temp_rf_init"):
                         vax1_fused_1 = T.axis.spatial(256, ax1_fused_1)
                         v0 = T.axis.spatial(T.int64(1), T.int64(0))
