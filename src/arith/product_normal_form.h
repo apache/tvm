@@ -47,6 +47,24 @@ inline void UnpackReduction(const PrimExpr& value, FLeaf fleaf) {
   }
 }
 
+/**
+ * \brief Unpack chain of add sub by calling each leaf via fleaf
+ * \param value The expression value.
+ * \tparam FLeaf The callback function at leaf.
+ */
+template <typename FLeaf>
+inline void UnpackSum(const PrimExpr& value, FLeaf fleaf, int sign = 1) {
+  if (const tir::AddNode* node = value.as<tir::AddNode>()) {
+    UnpackSum(node->a, fleaf, sign);
+    UnpackSum(node->b, fleaf, sign);
+  } else if (const tir::SubNode* node = value.as<tir::SubNode>()) {
+    UnpackSum(node->a, fleaf, sign);
+    UnpackSum(node->b, fleaf, -sign);
+  } else {
+    fleaf(value, sign);
+  }
+}
+
 /*!
  * \brief Helper function to multiply extent and and re-normalize.
  *
