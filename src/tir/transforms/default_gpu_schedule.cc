@@ -123,7 +123,6 @@ Pass DefaultGPUSchedule() {
               if (!childs.empty()) {
                 continue;
               }
-              VLOG(0) << sch->Get(block);
               ThreadBind(sch, block, max_thread_per_block);
             }
           }
