@@ -16,13 +16,13 @@
 # under the License.
 """The entry point of TVM parser for tir."""
 import inspect
-from typing import Callable, Union
+from typing import Any, Callable, Union
 
 from tvm.ir.base import deprecated
 from tvm.tir import Buffer, PrimFunc
 
 from ...ir_builder.tir import buffer, ptr
-from .._core import parse, utils
+from .._core import doc, gen_ast, parse, utils
 
 
 def prim_func(func: Callable) -> Union[PrimFunc, Callable]:
@@ -48,6 +48,24 @@ def prim_func(func: Callable) -> Union[PrimFunc, Callable]:
 
 
 setattr(prim_func, "dispatch_token", "tir")
+
+
+def macro(func: Callable) -> doc.AST:
+    f = gen_ast(func, utils.inspect_function_capture(func))
+    setattr(f, "__name__", func.__name__)
+    # We don't need to explicitly store the return value anywhere.
+    # This function is a decorator, so the return value will replace
+    # the function definition (to which the decorator it is applied)
+    # in that function's name space.
+    return f
+
+
+# There is no dispatch_token for macro, because macro doesn't invoke parser.
+
+
+def include(name: Union[str, doc.Name], *args, **kwargs) -> Any:
+    """Placeholder function, so that T.include can be parsed without errors."""
+    pass
 
 
 class BufferProxy:

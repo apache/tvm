@@ -16,9 +16,10 @@
 # under the License.
 """The base parser for tir"""
 
+import ast
 import contextlib
 from functools import partial
-from typing import Any
+from typing import Any, Union
 
 import tvm
 from tvm.ir import GlobalVar, PrimType
@@ -427,6 +428,19 @@ def visit_expr_stmt(self: Parser, node: doc.Expr) -> None:
     node : doc.Expr
         The doc AST Expr node.
     """
+    def is_include_macro(node: doc.Call) -> bool:
+        if not isinstance(node.func, doc.Attribute):
+            return False
+        attr = node.func
+        if not isinstance(attr.value, doc.Name):
+            return False
+        if attr.value.id != "T" or attr.attr != "include":
+            return False
+        return True
+
+    if isinstance(node.value, doc.Call) and is_include_macro(node.value):
+        return process_include_macro(self, node.value)
+
     res = self.eval_expr(node.value)
     if res is None:
         pass
@@ -528,3 +542,73 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> GlobalVar
     # Only ret_type is needed for func_signature.
     func_signature = tvm.tir.PrimFunc([], None, ret_type=ret_type)
     return I.decl_function(node.name, func_signature)
+
+
+def process_include_macro(self: Parser, call: doc.Call) -> None:
+    def find_macro_def(name: str, decl_list: doc.AST) -> Union[doc.FunctionDef, Any]:
+        for decl in decl_list:
+            if isinstance(decl, doc.FunctionDef) and decl.name == name:
+                return decl
+        return None
+
+    macro_name = call.args[0]
+
+    if not isinstance(macro_name, str):
+        if not isinstance(macro_name, doc.Name):
+            self.report_error(node, "Invalid macro name in T.include")
+        macro_name = macro_name.id
+
+    macro = self.var_table.get().get(macro_name)
+    if macro is None:
+        self.report_error(node, f"Undefined macro '{macro_name}'")
+
+    if isinstance(macro, doc.Module):
+        macro_def = find_macro_def(macro_name, macro.body)
+    elif not isinstance(macro, doc.FunctionDef) or macro.name != macro_name:
+        macro_def = None
+
+    if macro_def is None:
+        self.report_error(macro, f"Undefined macro {macro_name}")
+
+    # `macro_def` is a FunctionDef of the macro.
+
+    # We have the AST for the macro definition, and the AST for the call. We need to
+    # substitute the actual arguments from the call for the parameters from the
+    # definition. To allow full flexibility of python, i.e. positional, unnamed, and
+    # keyword parameters, get the python interpreter to do the work: create and execute
+    # the following:
+    # ```
+    # def macro_name(...macro parameters...)
+    #     return locals()
+    # tmp = macro_name(...arguments from the call...)
+    # ```
+    # Obtain the dictionary `tmp` resulting from the execution, and update the var_table
+    # with it.
+
+    # Construct the function with the macro's parameters, and returning locals().
+    macro_ast = doc.from_doc(macro_def)
+    macro_ast.body = [
+        ast.Return(value=ast.Call(func=ast.Name("locals", ctx=ast.Load()), args=[], keywords=[]))
+    ]
+    macro_ast.decorator_list = []
+
+    # Construct the assignment with the call.
+    call_ast = doc.from_doc(call)
+    call_ast.func = ast.Name(macro_name, ctx=ast.Load())
+    call_ast.args = call_ast.args[1:]
+    tmp_name = "__tmp_param_eval_64e98b523301204b"
+    assign_ast = ast.Assign(targets=[ast.Name(tmp_name, ctx=ast.Store())], value=call_ast)
+
+    # Finalize and execute the module:
+    module_ast = ast.Module(body=[macro_ast, assign_ast], type_ignores=[])
+    module_ast = ast.fix_missing_locations(module_ast)
+    cmacro = compile(module_ast, filename="<tmp-string>", mode="exec")
+    local_vars = {}
+    exec(cmacro, self.var_table.get(), local_vars)
+    local_vars = local_vars[tmp_name]
+
+    with self.var_table.with_frame():
+        for k, v in local_vars.items():
+            self.var_table.add(k, v)
+
+        self.visit_body(macro_def.body)
