@@ -17,7 +17,6 @@
 # pylint: disable=use-list-literal, consider-using-with, f-string-without-interpolation
 """Common functions for AOT test cases"""
 import contextlib
-import sys
 import datetime
 import os
 import pathlib
@@ -830,14 +829,7 @@ def run_and_check(
         if verbose:
             print("Run command:\n", run_command)
 
-        # TODO(lhutton1) This is a quick and dirty work around to help temporarily reduce
-        # the flakyness of the tests. Will remove once #10300 and #10314 are resolved.
-        try:
-            _subprocess_check_log_output(run_command, build_path, run_log_path)
-        except RuntimeError as err:
-            print("Failed to run the module, having a second attempt...", file=sys.stderr)
-            print(err, file=sys.stderr)
-            _subprocess_check_log_output(run_command, build_path, run_log_path)
+        _subprocess_check_log_output(run_command, build_path, run_log_path)
 
         with open(run_log_path) as run_log:
             assert AOT_SUCCESS_TOKEN in run_log.read()

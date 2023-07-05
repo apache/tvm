@@ -619,6 +619,22 @@ class TVM_DLL Analyzer {
   /*! \brief constructor */
   Analyzer();
   /*!
+   * \brief Mark the value as non-negative value globally in analyzer.
+   *
+   * Only call this function if the non-neg condition is global and
+   * not context-dependent.
+   *
+   * This function does best-effort propagations to the sub-analyzers
+   *
+   * \note We expose this function because non-negative global values,
+   * such as symbolic buffer shapes in function arguments are really
+   * important to ensure the best simplification, and usually they
+   * can be handled in a simpler way than the generic constraints.
+   *
+   * This function may call into the Update function of the sub-analyzers.
+   */
+  void MarkGlobalNonNegValue(const PrimExpr& value);
+  /*!
    * \brief Notify all the sub-analyzers that var
    *        is created and binded to expr.
    *

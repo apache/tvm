@@ -1733,5 +1733,29 @@ class TestSimplifyTrivialLetStride(BaseBeforeAfter):
     expected = before
 
 
+class TestBufferShapeConstraint(BaseBeforeAfter):
+    def before(a: T.handle):
+        n = T.int64()
+        A = T.match_buffer(a, (n * 32,), "float32")
+        A[T.min(T.int64(0), n)] = T.float32(0)
+
+    def expected(a: T.handle):
+        n = T.int64()
+        A = T.match_buffer(a, (n * 32,), "float32")
+        A[T.int64(0)] = T.float32(0)
+
+
+class TestBufferShapeConstraintWithOffset(BaseBeforeAfter):
+    def before(a: T.handle):
+        n = T.int64()
+        A = T.match_buffer(a, (n * 32 + 1 - 2,), "float32")
+        A[T.min(T.int64(1), n)] = T.float32(0)
+
+    def expected(a: T.handle):
+        n = T.int64()
+        A = T.match_buffer(a, (n * 32 + 1 - 2,), "float32")
+        A[T.int64(1)] = T.float32(0)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

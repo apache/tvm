@@ -44,9 +44,9 @@ MOBILENET_V2_URL = (
 @pytest.mark.parametrize(
     "accel_type, model_url, workspace_size",
     [
-        ("ethos-u65-256", MOBILENET_V1_URL, 2338848),
+        ("ethos-u65-256", MOBILENET_V1_URL, 2338864),
         ("ethos-u65-256", MOBILENET_V2_URL, 2264320),
-        ("ethos-u55-256", MOBILENET_V1_URL, 1793376),
+        ("ethos-u55-256", MOBILENET_V1_URL, 1793392),
         ("ethos-u55-256", MOBILENET_V2_URL, 2217152),
         ("ethos-u55-128", MOBILENET_V2_URL, 2217152),
         ("ethos-u55-64", MOBILENET_V2_URL, 2217152),
