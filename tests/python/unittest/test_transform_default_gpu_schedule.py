@@ -46,49 +46,17 @@ def test_broadcast_to_symbolic():
     @tvm.script.ir_module
     class Expected:
         @T.prim_func
-        def broadcast_to(
-            rxplaceholder: T.Buffer((T.int64(3), T.int64(1)), "float32"),
-            var_T_broadcast_to: T.handle,
-        ):
-            T.func_attr({"tir.noalias": True, "tir.is_scheduled": True})
-            x_0 = T.int64()
-            x_1 = T.int64()
+        def broadcast_to(rxplaceholder: T.Buffer((T.int64(3), T.int64(1)), "float32"), var_T_broadcast_to: T.handle):
+            T.func_attr({"tir.is_scheduled": T.bool(True), "tir.noalias": T.bool(True)})
+            x_0, x_1 = T.int64(), T.int64()
             T_broadcast_to = T.match_buffer(var_T_broadcast_to, (x_0, x_1))
-            # with T.block("root"):
             for ax0_ax1_fused_1 in T.thread_binding(T.int64(256), thread="blockIdx.x"):
-                for ax0_ax1_fused_2 in T.thread_binding(
-                    T.int64(1024), thread="threadIdx.x"
-                ):
-                    for ax0_ax1_fused_0 in range(
-                        (x_0 * x_1 + T.int64(262143)) // T.int64(262144)
-                    ):
+                for ax0_ax1_fused_2 in T.thread_binding(T.int64(1024), thread="threadIdx.x"):
+                    for ax0_ax1_fused_0 in range((x_0 * x_1 + T.int64(262143)) // T.int64(262144)):
                         with T.block("T_broadcast_to"):
-                            v_ax0 = T.axis.spatial(
-                                x_0,
-                                (
-                                    (ax0_ax1_fused_0 * T.int64(256) + ax0_ax1_fused_1)
-                                    * T.int64(1024)
-                                    + ax0_ax1_fused_2
-                                )
-                                // x_1,
-                            )
-                            v_ax1 = T.axis.spatial(
-                                x_1,
-                                (
-                                    (ax0_ax1_fused_0 * T.int64(256) + ax0_ax1_fused_1)
-                                    * T.int64(1024)
-                                    + ax0_ax1_fused_2
-                                )
-                                % x_1,
-                            )
-                            T.where(
-                                (ax0_ax1_fused_0 * T.int64(256) + ax0_ax1_fused_1)
-                                * T.int64(1024)
-                                + ax0_ax1_fused_2
-                                < x_0 * x_1
-                            )
-                            T.reads(rxplaceholder[v_ax0, T.int64(0)])
-                            T.writes(T_broadcast_to[v_ax0, v_ax1])
+                            v_ax0 = T.axis.spatial(x_0, (ax0_ax1_fused_0 * T.int64(262144) + ax0_ax1_fused_1 * T.int64(1024) + ax0_ax1_fused_2) % (x_1 * x_0) // x_1)
+                            v_ax1 = T.axis.spatial(x_1, (ax0_ax1_fused_0 * T.int64(262144) + ax0_ax1_fused_1 * T.int64(1024) + ax0_ax1_fused_2) % x_1)
+                            T.where((ax0_ax1_fused_0 * T.int64(256) + ax0_ax1_fused_1) * T.int64(1024) + ax0_ax1_fused_2 < x_0 * x_1)
                             T_broadcast_to[v_ax0, v_ax1] = rxplaceholder[v_ax0, T.int64(0)]
     # fmt: on
     # pylint: enable=no-self-argument,missing-class-docstring,line-too-long
@@ -432,7 +400,7 @@ def test_add_on_metal():
     class Expected:
         @T.prim_func
         def add(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_add: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.is_scheduled": T.bool(True), "tir.noalias": T.bool(True)})
             for i0_i1_i2_i3_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
                 for i0_i1_i2_i3_fused_1 in T.thread_binding(T.int64(72), thread="threadIdx.x"):
                     with T.block("T_add"):
@@ -478,6 +446,45 @@ def test_scalar_add():
                         T.reads(rxplaceholder[()])
                         T.writes(T_add[()])
                         T_add[()] = rxplaceholder[()] + T.int64(1)
+    # fmt: on
+    # pylint: enable=no-self-argument,missing-class-docstring,line-too-long
+    target = tvm.target.Target("nvidia/geforce-rtx-3070")
+    with target, tvm.transform.PassContext(opt_level=0):
+        mod = DefaultGPUSchedule()(Before)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_sum():
+    # sum has two reduction axes and no spatial axis
+    # pylint: disable=no-self-argument,missing-class-docstring,line-too-long
+    # fmt: off
+    @tvm.script.ir_module
+    class Before:
+        @T.prim_func
+        def sum(A: T.Buffer((T.int64(2), T.int64(2)), "float64"), A_red: T.Buffer((), "float64")):
+            for k0, k1 in T.grid(T.int64(2), T.int64(2)):
+                with T.block("A_red"):
+                    v_k0, v_k1 = T.axis.remap("RR", [k0, k1])
+                    with T.init():
+                        A_red[()] = T.float64(0)
+                    A_red[()] = A_red[()] + A[v_k0, v_k1]
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func
+        def sum(A: T.Buffer((T.int64(2), T.int64(2)), "float64"), A_red: T.Buffer((), "float64")):
+            T.func_attr({"tir.is_scheduled": T.bool(True)})
+            # with T.block("root"):
+            for u_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
+                for u_fused_1 in T.thread_binding(1, thread="threadIdx.x"):
+                    for k0, k1 in T.grid(T.int64(2), T.int64(2)):
+                        with T.block("A_red"):
+                            v_k0, v_k1 = T.axis.remap("RR", [k0, k1])
+                            T.reads(A[v_k0, v_k1])
+                            T.writes(A_red[()])
+                            with T.init():
+                                A_red[()] = T.float64(0)
+                            A_red[()] = A_red[()] + A[v_k0, v_k1]
     # fmt: on
     # pylint: enable=no-self-argument,missing-class-docstring,line-too-long
     target = tvm.target.Target("nvidia/geforce-rtx-3070")
