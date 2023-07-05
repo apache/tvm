@@ -20,3 +20,4 @@
 import tvm._ffi
 
 tvm._ffi._init_api("relay.ethos-n.support", __name__)
+tvm._ffi._init_api("relay.backend.contrib.ethos-n", __name__)

@@ -254,7 +254,7 @@ void NodeListAttrNames(TVMArgs args, TVMRetValue* ret) {
   Object* self = static_cast<Object*>(args[0].value().v_handle);
 
   auto names =
-      std::make_shared<std::vector<std::string> >(ReflectionVTable::Global()->ListAttrNames(self));
+      std::make_shared<std::vector<std::string>>(ReflectionVTable::Global()->ListAttrNames(self));
 
   *ret = PackedFunc([names](TVMArgs args, TVMRetValue* rv) {
     int64_t i = args[0];
@@ -281,4 +281,48 @@ TVM_REGISTER_GLOBAL("node.NodeGetAttr").set_body(NodeGetAttr);
 TVM_REGISTER_GLOBAL("node.NodeListAttrNames").set_body(NodeListAttrNames);
 
 TVM_REGISTER_GLOBAL("node.MakeNode").set_body(MakeNode);
+
+namespace {
+// Attribute visitor class for finding the attribute key by its address
+class GetAttrKeyByAddressVisitor : public AttrVisitor {
+ public:
+  explicit GetAttrKeyByAddressVisitor(const void* attr_address)
+      : attr_address_(attr_address), key_(nullptr) {}
+
+  void Visit(const char* key, double* value) final { DoVisit(key, value); }
+  void Visit(const char* key, int64_t* value) final { DoVisit(key, value); }
+  void Visit(const char* key, uint64_t* value) final { DoVisit(key, value); }
+  void Visit(const char* key, int* value) final { DoVisit(key, value); }
+  void Visit(const char* key, bool* value) final { DoVisit(key, value); }
+  void Visit(const char* key, std::string* value) final { DoVisit(key, value); }
+  void Visit(const char* key, void** value) final { DoVisit(key, value); }
+  void Visit(const char* key, DataType* value) final { DoVisit(key, value); }
+  void Visit(const char* key, runtime::NDArray* value) final { DoVisit(key, value); }
+  void Visit(const char* key, runtime::ObjectRef* value) final { DoVisit(key, value); }
+
+  const char* GetKey() const { return key_; }
+
+ private:
+  const void* attr_address_;
+  const char* key_;
+
+  void DoVisit(const char* key, const void* candidate) {
+    if (attr_address_ == candidate) {
+      key_ = key;
+    }
+  }
+};
+}  // anonymous namespace
+
+Optional<String> GetAttrKeyByAddress(const Object* object, const void* attr_address) {
+  GetAttrKeyByAddressVisitor visitor(attr_address);
+  ReflectionVTable::Global()->VisitAttrs(const_cast<Object*>(object), &visitor);
+  const char* key = visitor.GetKey();
+  if (key == nullptr) {
+    return NullOpt;
+  } else {
+    return String(key);
+  }
+}
+
 }  // namespace tvm

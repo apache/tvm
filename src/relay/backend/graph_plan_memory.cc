@@ -31,46 +31,25 @@
 #include <tvm/runtime/container/array.h>
 #include <tvm/tir/op.h>
 
+#include "../../runtime/texture.h"
 #include "../../support/arena.h"
 #include "../op/annotation/annotation.h"
 #include "../op/call/call.h"
 #include "../op/memory/memory.h"
 #include "../transforms/device_aware_visitors.h"
+#include "./token_allocator.h"
 #include "./utils.h"
 
 namespace tvm {
 namespace relay {
 
+using TargetsMap = Map<Integer, Target>;
+using Texture2DShape = runtime::Texture2DShape<int64_t>;
+constexpr auto Is2DStorage = runtime::IsTextureStorage;
+
 using backend::StaticMemoryPlan;
 using backend::StorageInfo;
 using IntegerArray = Array<Integer>;
-
-/*! A representation of a block of memory required at runtime on some device. */
-struct StorageToken {
-  /*! \brief Reference counter */
-  int ref_counter{0};
-  /*! \brief number of bytes */
-  size_t max_bytes{0};
-  /*! \brief The corresponding tensor type. */
-  TensorType ttype{nullptr};
-  /*! \brief VirtualDevice on which the memory will reside. */
-  VirtualDevice virtual_device = VirtualDevice::FullyUnconstrained();
-  /*! \brief The storage id */
-  int64_t storage_id{-1};
-
-  bool is_valid() const { return !virtual_device->IsFullyUnconstrained(); }
-
-  bool is_compatible(const StorageToken& that) const {
-    return virtual_device == that.virtual_device;
-  }
-
-  std::string ToString() const {
-    std::ostringstream os;
-    os << "{storage_id: " << storage_id << ", max_bytes: " << max_bytes
-       << ", ttype: " << PrettyPrint(ttype) << ", virtual_device: " << virtual_device << "}";
-    return os.str();
-  }
-};
 
 class StorageAllocaBaseVisitor : public transform::DeviceAwareExprVisitor {
  public:
@@ -151,12 +130,13 @@ class StorageAllocaBaseVisitor : public transform::DeviceAwareExprVisitor {
    */
   const std::vector<StorageToken*>& GetToken(const Expr& expr) {
     this->VisitExpr(expr);
-    // Functions don't require data storage, represented by the empty token
-    if (expr->checked_type().as<FuncTypeNode>()) {
-      return no_tokens_;
-    }
     // See through on_device calls.
     Expr real_expr = IgnoreOnDevice(expr);
+
+    // Functions don't require data storage, represented by the empty token
+    if (real_expr->checked_type().as<FuncTypeNode>()) {
+      return no_tokens_;
+    }
     this->VisitExpr(real_expr);
     auto it = token_map_.find(real_expr.get());
     ICHECK(it != token_map_.end()) << "Expression not found in storage map:" << std::endl
@@ -225,6 +205,7 @@ class StorageAllocaInit : protected StorageAllocaBaseVisitor {
  private:
   // allocator
   support::Arena* arena_;
+  Map<Expr, Array<String>> node_storage_map_;
 };
 
 /*! \brief Associate storage with every expression, reusing storage where possible. */
@@ -272,7 +253,7 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
         num_nodes++;
         storage_ids.push_back(tok->storage_id);
         virtual_devices.push_back(tok->virtual_device);
-        sid_sizes_byte.push_back(GetMemorySize(tok));
+        sid_sizes_byte.push_back(allocator_.GetMemorySize(tok));
       }
       auto storage_info = backend::StorageInfo(std::move(storage_ids), std::move(virtual_devices),
                                                std::move(sid_sizes_byte));
@@ -301,10 +282,10 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
     for (StorageToken* tok : it->second) {
       ICHECK(tok->virtual_device == virtual_device);
       if (can_realloc) {
-        tokens.push_back(Request(tok));
+        tokens.push_back(allocator_.Request(tok));
       } else {
         // Allocate a new token,
-        StorageToken* allocated_tok = Alloc(tok, GetMemorySize(tok));
+        StorageToken* allocated_tok = allocator_.Alloc(tok);
         allocated_tok->virtual_device = tok->virtual_device;
         // ensure it never get de-allocated.
         allocated_tok->ref_counter += 1;
@@ -365,120 +346,59 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
 
     // check if there is orphaned output that can be released immediately.
     for (StorageToken* tok : token_map_.at(call_node)) {
-      CheckForRelease(tok);
+      allocator_.CheckForRelease(tok);
     }
     for (StorageToken* tok : args) {
       tok->ref_counter -= 1;
-      CheckForRelease(tok);
+      allocator_.CheckForRelease(tok);
     }
-  }
-  /*!
-   * \brief ceil(size/word_size) to get number of words.
-   * \param size The original size.
-   * \param word_size The element size.
-   */
-  static int64_t DivRoundUp(int64_t size, int64_t word_size) {
-    return (size + word_size - 1) / word_size;
   }
 
-  /*!
-   * \brief Get the memory requirement.
-   * \param prototype The prototype token.
-   * \return The required memory size.
-   *
-   * TODO(mbs): Gf GetMemorySizeBytes in aot_executor_codegen.cc,
-   * CalculateRelayExprSizeBytes in utils.cc
-   */
-  static int64_t GetMemorySize(StorageToken* prototype) {
-    TensorType ttype = prototype->ttype;
-    ICHECK(ttype.defined());
-    int64_t size = 1;
-    for (IndexExpr dim : ttype->shape) {
-      const int64_t* pval = tir::as_const_int(dim);
-      ICHECK(pval != nullptr) << "Cannot allocate memory symbolic tensor shape " << ttype->shape;
-      ICHECK_GE(*pval, 0) << "Cannot allocate memory for tensor with negative shape" << *pval;
-      size *= pval[0];
+  class TokenAllocator {
+   public:
+    StorageToken* Alloc(StorageToken* proto) {
+      return Is2DStorage(proto) ? token_2d_.Alloc(proto, storage_ids_++)
+                                : token_1d_.Alloc(proto, storage_ids_++);
     }
-    size *= DivRoundUp(ttype->dtype.bits() * ttype->dtype.lanes(), 8);
-    return size;
-  }
-  /*!
-   * \brief Request a storage token for a given prototype.
-   * \param prototype. The prototype storage token.
-   * \return The result token.
-   */
-  StorageToken* Request(StorageToken* prototype) {
-    // calculate the size;
-    size_t size = GetMemorySize(prototype);
-    // search memory block in [size / match_range_, size * match_range_)
-    if (match_range_ == 0) {
-      return this->Alloc(prototype, size);
+    StorageToken* Request(StorageToken* proto) {
+      StorageToken* token =
+          Is2DStorage(proto) ? token_2d_.Request(proto) : token_1d_.Request(proto);
+      return token ? token : this->Alloc(proto);
     }
-    auto begin = free_.lower_bound(size / match_range_);
-    auto mid = free_.lower_bound(size);
-    auto end = free_.upper_bound(size * match_range_);
-    // search for memory blocks larger than requested
-    for (auto it = mid; it != end; ++it) {
-      StorageToken* tok = it->second;
-      if (!tok->is_compatible(*prototype)) continue;
-      ICHECK_EQ(tok->ref_counter, 0);
-      // Use exect matching strategy
-      tok->max_bytes = std::max(size, tok->max_bytes);
-      tok->ref_counter = prototype->ref_counter;
-      // find a exact match, erase from map and return
-      free_.erase(it);
-      return tok;
+    void CheckForRelease(StorageToken* tok) {
+      return Is2DStorage(tok) ? token_2d_.CheckForRelease(tok) : token_1d_.CheckForRelease(tok);
     }
-    // then search for memory blocks smaller than requested space
-    for (auto it = mid; it != begin;) {
-      --it;
-      StorageToken* tok = it->second;
-      if (!tok->is_compatible(*prototype)) continue;
-      ICHECK_EQ(tok->ref_counter, 0);
-      // Use exect matching strategy
-      tok->max_bytes = std::max(size, tok->max_bytes);
-      tok->ref_counter = prototype->ref_counter;
-      // erase from map and return
-      free_.erase(it);
-      return tok;
+
+    size_t GetMemorySize(StorageToken* tok) {
+      // TODO(amalyshe): figure out who requries sizes and for what
+      // size in case of texture is not enough - we can return any value if it
+      // assumed to be used for memory allocatoion or we can return real size
+      // if it is just for information
+      return Is2DStorage(tok) ? 0 : token_1d_.GetMemorySize(tok);
     }
-    // cannot find anything return a new one.
-    return this->Alloc(prototype, size);
-  }
-  /*!
-   * \brief Allocate a storage token by consuming prototype
-   * \param prototype The prototype token.
-   * \param size The size of memory being requested.
-   */
-  StorageToken* Alloc(StorageToken* prototype, size_t size) {
-    prototype->max_bytes = size;
-    prototype->storage_id = static_cast<int64_t>(data_.size());
-    data_.push_back(prototype);
-    return prototype;
-  }
-  /*!
-   * \brief Check if we can release token.
-   * \param tok The token to be released.
-   */
-  void CheckForRelease(StorageToken* tok) {
-    ICHECK_GE(tok->storage_id, 0);
-    ICHECK_GE(tok->ref_counter, 0);
-    if (tok->ref_counter == 0) {
-      free_.insert({tok->max_bytes, tok});
+    static bool Is2DStorage(StorageToken* tok) {
+      return relay::Is2DStorage(tok->virtual_device->memory_scope);
     }
-  }
+
+   private:
+    int64_t storage_ids_{0};
+    TokenAllocator1D token_1d_;
+    TokenAllocator2D token_2d_;
+  };
 
  private:
   // allocator
   support::Arena arena_;
   // scale used for rough match
-  size_t match_range_{16};
+  // size_t match_range_{16};
   // free list of storage entry
   std::multimap<size_t, StorageToken*> free_;
   // all the storage resources available
   std::vector<StorageToken*> data_;
   /*! \brief internal prototype token map */
   std::unordered_map<const ExprNode*, std::vector<StorageToken*>> prototype_;
+  /*! \brief token allocator for optimizing 1d and 2d token alloc requests */
+  TokenAllocator allocator_;
 };
 
 StaticMemoryPlan GraphPlanMemory(const Function& func) { return StorageAllocator().Plan(func); }

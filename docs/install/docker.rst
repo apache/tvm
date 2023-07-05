@@ -37,37 +37,37 @@ We can then use the following command to launch a docker image.
 
     /path/to/tvm/docker/bash.sh <image-name>
 
-Here the image-name can be a local docker image name, e.g. `tvm.ci_cpu` after you have done the local build.
+Here the image-name can be a local docker image name, e.g. ``tvm.ci_cpu`` after you have done the local build.
 
 This auxiliary script does the following things:
 
-- Mount current directory to /workspace
-- Switch user to be the same user that calls the bash.sh (so you can read/write host system)
+- Mount current directory to ``/workspace``
+- Switch user to be the same user that calls the ``bash.sh`` (so you can read/write host system)
 - Use the host-side network on Linux. Use the bridge network and expose port 8888 on macOS,
-  because host networking driver isn't supported. (so you can use jupyter notebook)
+  because host networking driver isn't supported. (so you can use ``jupyter notebook``)
 
 
-Then you can start a jupyter notebook by typing
+Then you can start a Jupyter notebook by typing
 
 .. code:: bash
 
    jupyter notebook
 
 You might see an error ``OSError: [Errno 99] Cannot assign requested address`` when starting
-a jupyter notebook on macOS. You can change the binding IP address by
+a Jupyter notebook on macOS. You can change the binding IP address by
 
 .. code:: bash
 
    jupyter notebook --ip=0.0.0.0
 
-Note that on macOS, because we use bridge network, jupyter notebook will be reportedly running
+Note that on macOS, because ``bash.sh`` uses the Docker bridge network, Jupyter will be reportedly running
 at an URL like ``http://{container_hostname}:8888/?token=...``. You should replace the ``container_hostname``
 with ``localhost`` when pasting it into browser.
 
 
 Docker Source
 -------------
-Check out `The docker source <https://github.com/apache/tvm/tree/main/docker>`_ if you are interested in
+Check out `the docker source <https://github.com/apache/tvm/tree/main/docker>`_ if you are interested in
 building your own docker images.
 
 
@@ -78,8 +78,5 @@ Run the following command to build the docker image.
     /path/to/tvm/docker/build.sh <image-name>
 
 
-You can find some un-official thirdparty prebuilt images.
+You can find some un-official third party pre-built images at `<https://hub.docker.com/r/tlcpack/>`_.
 These images are used for test purposes and are NOT of the ASF release.
-
-
-`<https://hub.docker.com/r/tlcpack/>`_.

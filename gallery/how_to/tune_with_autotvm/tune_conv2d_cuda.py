@@ -48,6 +48,9 @@ __name__ == "__main__":` block.
 #
 # Now return to python code. Import packages.
 
+# sphinx_gallery_start_ignore
+# sphinx_gallery_requires_cuda = True
+# sphinx_gallery_end_ignore
 import logging
 import sys
 import numpy as np
@@ -199,28 +202,34 @@ measure_option = autotvm.measure_option(
     runner=autotvm.LocalRunner(repeat=3, min_repeat_ms=100, timeout=4),
 )
 
+record_file = None
 # Begin tuning, log records to file `conv2d.log`
 # During tuning we will also try many invalid configs, so you are expected to
 # see many error reports. As long as you can see non-zero GFLOPS, it is okay.
-tuner = autotvm.tuner.XGBTuner(task)
-tuner.tune(
-    n_trial=20,
-    measure_option=measure_option,
-    callbacks=[autotvm.callback.log_to_file("conv2d.log")],
-)
+
+# We do not run the tuning in our webpage server since it takes too long.
+# Uncomment the following lines to run it by yourself.
+
+# tuner = autotvm.tuner.XGBTuner(task)
+# record_file = "conv2d.log"
+# tuner.tune(
+#     n_trial=5,
+#     measure_option=measure_option,
+#     callbacks=[autotvm.callback.log_to_file(record_file)],
+# )
 
 #########################################################################
 # Finally we can inspect the best config from log file, check correctness,
 # and measure running time.
 
 # inspect the best config
-dispatch_context = autotvm.apply_history_best("conv2d.log")
+dispatch_context = autotvm.apply_history_best(record_file)
 best_config = dispatch_context.query(task.target, task.workload)
 print("\nBest config:")
 print(best_config)
 
 # apply history best from log file
-with autotvm.apply_history_best("conv2d.log"):
+with autotvm.apply_history_best(record_file):
     with tvm.target.Target("cuda"):
         s, arg_bufs = conv2d_no_batching(N, H, W, CO, CI, KH, KW, strides, padding)
         func = tvm.build(s, arg_bufs)

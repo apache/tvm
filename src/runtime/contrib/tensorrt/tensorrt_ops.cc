@@ -67,7 +67,7 @@ nvinfer1::ITensor* TensorRTOpConverter::Transpose(TensorRTOpConverterParams* par
     // Batch dimension cannot be modified.
     ICHECK_EQ(input->getDimensions().nbDims, order.size() - 1);
     ICHECK_EQ(order[0], 0);
-    for (size_t i = 0; i < order.size(); ++i) {
+    for (size_t i = 0; i + 1 < order.size(); ++i) {
       perm.order[i] = order[i + 1] - 1;
     }
   } else {
@@ -880,7 +880,7 @@ class ConcatOpConverter : public TensorRTOpConverter {
     const int input_rank = params->inputs[0].tensor->getDimensions().nbDims;
     std::vector<nvinfer1::ITensor*> input_tensors;
     for (auto input : params->inputs) {
-      ICHECK(input.type == kTensor);
+      ICHECK_EQ(input.type, kTensor);
       ICHECK_EQ(input_rank, input.tensor->getDimensions().nbDims);
       input_tensors.push_back(input.tensor);
     }
@@ -956,7 +956,16 @@ class BiasAddOpConverter : public TensorRTOpConverter {
   void Convert(TensorRTOpConverterParams* params) const {
     auto input_tensor = params->inputs.at(0).tensor;
     auto input_dims = TrtDimsToVector(input_tensor->getDimensions());
-    const size_t required_rank = TRT_HAS_IMPLICIT_BATCH(params) ? 3 : 4;
+    size_t required_rank = TRT_HAS_IMPLICIT_BATCH(params) ? 3 : 4;
+    const size_t input_nbDims = input_tensor->getDimensions().nbDims;
+    int axis = std::stoi(params->node.GetAttr<std::vector<std::string>>("axis")[0]);
+    if (axis == -1) {
+      // Make sure there are 2 dimensions after channel dimension,
+      if (input_nbDims + 2 > required_rank) required_rank = input_nbDims + 2;
+      axis = input_nbDims - 1;
+    } else if (TRT_HAS_IMPLICIT_BATCH(params)) {
+      axis -= 1;
+    }
     ICHECK(input_dims.size() > 0 && input_dims.size() <= required_rank);
     const bool need_reshape_on_input = input_dims.size() != required_rank;
     if (need_reshape_on_input) {
@@ -968,10 +977,11 @@ class BiasAddOpConverter : public TensorRTOpConverter {
 
     const nvinfer1::DataType weight_type = params->inputs.at(1).weight.type;
 
-    nvinfer1::Weights shift{weight_type, nullptr, 0};
+    nvinfer1::Weights scale{weight_type, nullptr, 0};
     nvinfer1::Weights power{weight_type, nullptr, 0};
-    nvinfer1::IScaleLayer* scale_layer = params->network->addScale(
-        *input_tensor, nvinfer1::ScaleMode::kCHANNEL, params->inputs.at(1).weight, shift, power);
+    nvinfer1::IScaleLayer* scale_layer =
+        params->network->addScaleNd(*input_tensor, nvinfer1::ScaleMode::kCHANNEL,
+                                    params->inputs.at(1).weight, scale, power, axis);
     ICHECK(scale_layer != nullptr);
     auto output_tensor = scale_layer->getOutput(0);
     if (need_reshape_on_input) {

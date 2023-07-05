@@ -20,7 +20,12 @@
 import json
 import logging
 import sys
+import os
+import pathlib
+import shutil
+from typing import Union
 
+from tvm.runtime.executor.aot_executor import AotModule
 from ..error import register_error
 from .._ffi import get_global_func, register_func
 from ..contrib import graph_executor
@@ -154,6 +159,8 @@ class Session:
         if not self._exit_called:
             self._exit_called = True
             self.transport.__exit__(exc_type, exc_value, exc_traceback)
+            shutdown_func = self._rpc._sess.get_function("CloseRPCConnection")
+            shutdown_func()
 
     def _cleanup(self):
         self.__exit__(None, None, None)
@@ -254,11 +261,29 @@ def create_local_debug_executor(graph_json_str, mod, device, dump_root=None):
     )
 
 
+def create_local_aot_executor(session: Session):
+    """Create a local AoT executor driving execution on the remote CPU device given.
+
+    Parameters
+    ----------
+    session : Session
+        A microTVM device session.
+
+    Returns
+    -------
+    tvm.runtime.executor.aot_executor.AotModule :
+         A local AoT executor instance that executes on the remote device.
+    """
+    return AotModule(session.create_aot_executor())
+
+
 @register_func("tvm.micro.compile_and_create_micro_session")
 def compile_and_create_micro_session(
     mod_src_bytes: bytes,
     template_project_dir: str,
     project_options: dict = None,
+    project_dir: Union[os.PathLike, str] = None,
+    use_existing: bool = False,
 ):
     """Compile the given libraries and sources into a MicroBinary, then invoke create_micro_session.
 
@@ -275,25 +300,44 @@ def compile_and_create_micro_session(
 
     project_options: dict
         Options for the microTVM API Server contained in template_project_dir.
+
+    project_dir: Union[os.PathLike, str]
+        if use_existing is False: The path to save the generated microTVM Project.
+        if use_existing is True: The path to a generated microTVM Project for debugging.
+
+    use_existing: bool
+        skips the project generation and opens transport to the project at the project_dir address.
     """
 
-    temp_dir = utils.tempdir()
-    # Keep temp directory for generate project
-    temp_dir.set_keep_for_debug(True)
-    model_library_format_path = temp_dir / "model.tar.gz"
-    with open(model_library_format_path, "wb") as mlf_f:
-        mlf_f.write(mod_src_bytes)
-
-    try:
-        template_project = project.TemplateProject.from_directory(template_project_dir)
-        generated_project = template_project.generate_project_from_mlf(
-            model_library_format_path,
-            str(temp_dir / "generated-project"),
+    if use_existing:
+        project_dir = pathlib.Path(project_dir)
+        assert project_dir.is_dir(), f"{project_dir} does not exist."
+        build_dir = project_dir / "generated-project" / "build"
+        shutil.rmtree(build_dir)
+        generated_project = project.GeneratedProject.from_directory(
+            project_dir / "generated-project",
             options=json.loads(project_options),
         )
-    except Exception as exception:
-        logging.error("Project Generate Error: %s", str(exception))
-        raise exception
+    else:
+        if project_dir:
+            temp_dir = utils.tempdir(custom_path=project_dir, keep_for_debug=True)
+        else:
+            temp_dir = utils.tempdir()
+
+        model_library_format_path = temp_dir / "model.tar.gz"
+        with open(model_library_format_path, "wb") as mlf_f:
+            mlf_f.write(mod_src_bytes)
+
+        try:
+            template_project = project.TemplateProject.from_directory(template_project_dir)
+            generated_project = template_project.generate_project_from_mlf(
+                model_library_format_path,
+                str(temp_dir / "generated-project"),
+                options=json.loads(project_options),
+            )
+        except Exception as exception:
+            logging.error("Project Generate Error: %s", str(exception))
+            raise exception
 
     generated_project.build()
     generated_project.flash()

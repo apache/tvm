@@ -681,7 +681,7 @@ class TypeInferencer::Resolver : public MixedModeMutator, PatternMutator {
 
   Var VisitVar(const Var& v) final {
     if (vmap_.count(v) == 0) {
-      vmap_[v] = GetRef<Var>(AttachCheckedType(v.as<VarNode>()).as<VarNode>());
+      vmap_[v] = Downcast<Var>(AttachCheckedType(v.as<VarNode>()));
     }
     return vmap_.at(v);
   }
@@ -829,7 +829,7 @@ void EnsureCheckedType(const Expr& e) { AllCheckTypePopulated().VisitExpr(e); }
 
 // TODO(@jroesch): Can we optimize this?
 void AddGlobalTypes(IRModule mod) {
-  std::vector<std::pair<GlobalVar, Function> > updates;
+  std::vector<std::pair<GlobalVar, Function>> updates;
   for (const auto& it : mod->functions) {
     // Currently we don't type check TIR.
     // The inferencer will only check Relay functions
@@ -961,7 +961,7 @@ Pass InferType() {
         // Add all the type annotations to the functions in the model.
         AddGlobalTypes(mod);
 
-        std::vector<std::pair<GlobalVar, Function> > updates;
+        std::vector<std::pair<GlobalVar, Function>> updates;
         for (const auto& it : updated_mod->functions) {
           // Currently we don't type check TIR.
           //
@@ -969,9 +969,7 @@ Pass InferType() {
 
           // In the future we plan a unified type checker
           // that works on TIR and Relay at the same time.
-          if (auto* func_node = it.second.as<FunctionNode>()) {
-            auto func = GetRef<Function>(func_node);
-
+          if (auto func = it.second.as<Function>()) {
             // // If a function already has type information we can skip checking it.
             // if (func->checked_type_.defined()) {
             //   continue;
@@ -980,7 +978,7 @@ Pass InferType() {
             // TODO(@jroesch): we should be able to move the type inferencer outside
             // of this function but it seems to be more stateful then I expect.
             auto inferencer = TypeInferencer(mod, pass_ctx->diag_ctx.value());
-            auto updated_func = inferencer.Infer(it.first, func);
+            auto updated_func = inferencer.Infer(it.first, func.value());
 
             pass_ctx->diag_ctx.value().Render();
 

@@ -37,6 +37,10 @@ TVM_DLL TVM_WEAK float __gnu_h2f_ieee(uint16_t a) {
   return __extendXfYf2__<uint16_t, uint16_t, 10, float, uint32_t, 23>(a);
 }
 
+TVM_DLL TVM_WEAK uint16_t __truncdfhf2(double a) {
+  return __truncXfYf2__<double, uint64_t, 52, uint16_t, uint16_t, 10>(a);
+}
+
 #else
 
 TVM_DLL uint16_t __gnu_f2h_ieee(float a) {
@@ -45,6 +49,10 @@ TVM_DLL uint16_t __gnu_f2h_ieee(float a) {
 
 TVM_DLL float __gnu_h2f_ieee(uint16_t a) {
   return __extendXfYf2__<uint16_t, uint16_t, 10, float, uint32_t, 23>(a);
+}
+
+TVM_DLL uint16_t __truncdfhf2(double a) {
+  return __truncXfYf2__<double, uint64_t, 52, uint16_t, uint16_t, 10>(a);
 }
 
 #endif

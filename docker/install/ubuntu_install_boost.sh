@@ -24,15 +24,18 @@ cleanup() {
 
 trap cleanup 0
 
+# NOTE: by default, tvm-venv python is used. Install boost on the system.
+PATH=${PATH/${TVM_VENV}\/bin:/}
+
 curl -LO https://boostorg.jfrog.io/artifactory/main/release/1.67.0/source/boost_1_67_0.tar.gz
 BOOST_HASH=8c247e040303a97895cee9c9407ef205e2c3ab09f0b8320997835ad6221dff23a87231629498ccfd0acca473f74e9ec27b8bd774707b062228df1e5f72d44c92
 echo "$BOOST_HASH" boost_1_67_0.tar.gz | sha512sum -c
 tar -xf boost_1_67_0.tar.gz
 
 pushd boost_1_67_0
-./bootstrap.sh --with-python="$(which python3.7)"
+./bootstrap.sh --with-python="$(which python3.8)"
 ./b2 install --with-python --with-system --with-filesystem --with-thread --with-regex
 popd
 
-ln -s /usr/local/lib/libboost_python37.so.1.67.0 /usr/local/lib/libboost_python.so
-ln -s /usr/local/lib/libboost_python37.a /usr/local/lib/libboost_python.a
+ln -s /usr/local/lib/libboost_python38.so.1.67.0 /usr/local/lib/libboost_python.so
+ln -s /usr/local/lib/libboost_python38.a /usr/local/lib/libboost_python.a

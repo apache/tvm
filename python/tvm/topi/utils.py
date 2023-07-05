@@ -23,7 +23,7 @@ from numbers import Integral
 import numpy as np
 import tvm
 from tvm import te
-from tvm.tir import bijective_layout, layout
+from tvm.tir import Any, SizeVar, bijective_layout, layout
 
 from . import cpp, tag
 
@@ -226,9 +226,7 @@ def const_vector(vector, name="const_vector"):
         now = tvm.tir.const(0.0, dtype)
         for ii in range(row):
             now = tvm.tir.Select(
-                tvm.tir.all(idxm(i, row) == ii),
-                tvm.tir.const(vector[ii], dtype),
-                now,
+                tvm.tir.all(idxm(i, row) == ii), tvm.tir.const(vector[ii], dtype), now
             )
         return now
 
@@ -326,7 +324,7 @@ def unravel_index(idx, shape):
     return indices
 
 
-def const_matrix(matrix, name="const_matrix"):
+def const_matrix(matrix, name="const_matrix", attrs=None):
     """convert a const numpy 2-dimensional matrix to tvm tensor
 
     Parameters
@@ -356,15 +354,10 @@ def const_matrix(matrix, name="const_matrix"):
                 )
         return now
 
-    return te.compute(
-        matrix.shape,
-        select_array,
-        name=name,
-        attrs={
-            "const_matrix": True,
-            "schedule_rule": "meta_schedule.compute_inline",
-        },
-    )
+    if attrs is None:
+        attrs = {"const_matrix": True, "schedule_rule": "None"}
+
+    return te.compute(matrix.shape, select_array, name=name, attrs=attrs)
 
 
 def get_max_power2_factor(n, max_value=None):
@@ -421,10 +414,7 @@ def get_shape(src_shape, src_layout, dst_layout):
     if isinstance(dst_layout, str):
         dst_layout = layout(dst_layout)
 
-    assert len(src_layout) == len(dst_layout), "Incompatible layout %s vs %s" % (
-        src_layout,
-        dst_layout,
-    )
+    assert len(src_layout) == len(dst_layout), f"Incompatible layout {src_layout} vs {dst_layout}"
 
     layout_mapping = bijective_layout(src_layout, dst_layout)
     dst_indices = layout_mapping.forward_index(tvm.runtime.convert(list(range(len(src_layout)))))
@@ -531,3 +521,8 @@ def is_target(names):
     names = [names] if isinstance(names, str) else names
     target = tvm.target.Target.current(allow_none=False)
     return any(name in target.keys for name in names)
+
+
+def is_dynamic_shape(shape):
+    """Checks if any part of a shape is dynamic"""
+    return any([isinstance(x, (Any, SizeVar)) for x in shape])

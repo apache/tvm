@@ -38,7 +38,6 @@ We use matrix multiplication as an example in this tutorial.
   __name__ == "__main__":` block.
 """
 
-import os
 
 import numpy as np
 import tvm

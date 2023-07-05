@@ -41,9 +41,9 @@ def elementwise(a: T.handle, b: T.handle) -> None:
 
 @T.prim_func
 def tiled_conv2d_with_padding(
-    inputs: T.Buffer[(1, 224, 224, 3), "float32"],
-    weight: T.Buffer[(7, 7, 3, 64), "float32"],
-    conv2d_nhwc: T.Buffer[(1, 112, 112, 64), "float32"],
+    inputs: T.Buffer((1, 224, 224, 3), "float32"),
+    weight: T.Buffer((7, 7, 3, 64), "float32"),
+    conv2d_nhwc: T.Buffer((1, 112, 112, 64), "float32"),
 ) -> None:
     PadInput = T.alloc_buffer([1, 230, 230, 3], dtype="float32")
     for i0, i1, i2, i3 in T.grid(1, 230, 230, 3):

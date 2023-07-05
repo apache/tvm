@@ -130,7 +130,7 @@ if __name__ == "__main__":
         raise RuntimeError("Require environment variable TVM_NDK_CC")
     models_path = Path().absolute().parent.joinpath("app/src/main/assets/models/")
     if not models_path.exists():
-        models_path.mkdir()
+        models_path.mkdir(parents=True)
     models = {
         "mobilenet_v2": models_path.joinpath("mobilenet_v2"),
         "resnet18_v1": models_path.joinpath("resnet18_v1"),

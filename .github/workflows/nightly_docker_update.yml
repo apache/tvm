@@ -1,0 +1,31 @@
+
+name: Nightly Docker Update
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: nightly-docker-update
+  cancel-in-progress: true
+
+jobs:
+  open_update_pr:
+    permissions:
+      actions: write
+      checks: write
+      contents: write
+      id-token: write
+      issues: write
+      pull-requests: write
+      statuses: write
+    if: github.repository == 'apache/tvm'
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v2
+      - name: Open PR to update Docker images
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eux
+          python ci/scripts/jenkins/open_docker_update_pr.py

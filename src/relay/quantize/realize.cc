@@ -33,6 +33,8 @@
 
 #include "../op/annotation/annotation.h"
 #include "../qnn/utils.h"
+#include "../transforms/fold_constant.h"
+#include "../transforms/infer_layout_utils.h"
 #include "./quantize.h"
 
 namespace tvm {
@@ -77,8 +79,7 @@ inline Expr MulAndDiv(Expr data, float s1, float s2, DataType dtype,
     return Multiply(data, MakeConstantScalar(dtype, factor));
   } else {
     if (cfg->rounding == "UPWARD") {
-      int32_t fixed_point_multiplier, shift;
-      std::tie(fixed_point_multiplier, shift) = qnn::GetFixedPointMultiplierShift(factor);
+      auto [fixed_point_multiplier, shift] = qnn::GetFixedPointMultiplierShift(factor);
       data = relay::FixedPointMultiply(data, fixed_point_multiplier, shift);
     } else {
       data = qnn::FixedPointMultiplyToNearest(data, factor, data_shape);
@@ -135,8 +136,7 @@ Expr QuantizeRealize(const Call& ref_call, const Array<Expr>& new_args, const Ob
     } else {
       data = Cast(data, DataType::Int(64));
       if (cfg->rounding == "UPWARD") {
-        int32_t fixed_point_multiplier, shift;
-        std::tie(fixed_point_multiplier, shift) =
+        auto [fixed_point_multiplier, shift] =
             qnn::GetFixedPointMultiplierShift(idom_scale_imm / odom_scale_imm);
         data = relay::FixedPointMultiply(data, fixed_point_multiplier, shift);
       } else {
@@ -156,15 +156,26 @@ Expr QuantizeRealize(const Call& ref_call, const Array<Expr>& new_args, const Ob
   return QRealizeIntExpr(round_data, dom_scale, DataType::Float(32));
 }
 
-Expr FoldConstantOpt(const Expr& expr) {
-  auto mod = IRModule::FromExpr(expr);
-  mod = transform::FoldConstant()(mod);
-  auto entry_func = Downcast<Function>(mod->Lookup("main"));
-  return expr.as<FunctionNode>() == nullptr ? entry_func->body : entry_func;
+InferCorrectLayoutOutput SimQuantizeLayout(const Attrs& attrs, const Array<Layout>& new_in_layouts,
+                                           const Array<Layout>& old_in_layouts,
+                                           const Array<tvm::relay::Type>& old_in_types) {
+  Layout ret;
+
+  if (new_in_layouts.defined()) {
+    ICHECK_GE(new_in_layouts.size(), 1);
+    ret = new_in_layouts[0];
+  } else {
+    ICHECK_GE(old_in_layouts.size(), 1);
+    ret = old_in_layouts[0];
+  }
+  Layout channel_layout = Layout("C");
+  Array<Layout> input_layouts = {ret, channel_layout, channel_layout, channel_layout};
+  return InferCorrectLayoutOutput(input_layouts, {ret}, attrs);
 }
 
 RELAY_REGISTER_OP("relay.op.annotation.simulated_quantize")
-    .set_attr<FForwardRewrite>("FQRealizeRewrite", QuantizeRealize);
+    .set_attr<FForwardRewrite>("FQRealizeRewrite", QuantizeRealize)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", SimQuantizeLayout);
 
 Expr Conv2dRealize(const Call& ref_call, const Array<Expr>& new_args, const ObjectRef& ctx) {
   const QConfig& cfg = QConfig::Current();
@@ -186,7 +197,7 @@ Expr Conv2dRealize(const Call& ref_call, const Array<Expr>& new_args, const Obje
 
     Expr ret = Call(ref_call->op, {ldata, rdata}, Attrs(attrs), ref_call->type_args);
     Expr mul = Multiply(lhs->dom_scale, rhs->dom_scale);
-    Expr dom_scale = FoldConstantOpt(mul);
+    Expr dom_scale = FoldConstantExpr(mul);
     return QRealizeIntExpr(ret, dom_scale, out_dtype);
   }
   ICHECK(!new_args[0]->IsInstance<TempExprNode>() || !new_args[1]->IsInstance<TempExprNode>());
@@ -220,7 +231,7 @@ Expr Conv1dRealize(const Call& ref_call, const Array<Expr>& new_args, const Obje
 
   Expr ret = Call(ref_call->op, {ldata, rdata}, Attrs(attrs), ref_call->type_args);
   Expr mul = Multiply(lhs->dom_scale, rhs->dom_scale);
-  Expr dom_scale = FoldConstantOpt(mul);
+  Expr dom_scale = FoldConstantExpr(mul);
   return QRealizeIntExpr(ret, dom_scale, out_dtype);
 }
 
@@ -249,7 +260,7 @@ Expr DenseRealize(const Call& ref_call, const Array<Expr>& new_args, const Objec
 
   Expr ret = Call(ref_call->op, {ldata, rdata}, Attrs(attrs), ref_call->type_args);
   Expr mul = Multiply(lhs->dom_scale, rhs->dom_scale);
-  Expr dom_scale = FoldConstantOpt(mul);
+  Expr dom_scale = FoldConstantExpr(mul);
   return QRealizeIntExpr(ret, dom_scale, out_dtype);
 }
 
@@ -275,7 +286,7 @@ Expr MulRealize(const Call& ref_call, const Array<Expr>& new_args, const ObjectR
 
     Expr ret = ForwardOp(ref_call, {ldata, rdata});
     Expr mul = Multiply(lhs->dom_scale, rhs->dom_scale);
-    Expr dom_scale = FoldConstantOpt(mul);
+    Expr dom_scale = FoldConstantExpr(mul);
     return QRealizeIntExpr(ret, dom_scale, dtype);
   }
   ICHECK(!new_args[0]->IsInstance<TempExprNode>() || !new_args[1]->IsInstance<TempExprNode>());
@@ -529,7 +540,7 @@ Expr BatchMatmulRealize(const Call& ref_call, const Array<Expr>& new_args, const
 
   Expr ret = Call(ref_call->op, {ldata, rdata}, Attrs(attrs), ref_call->type_args);
   Expr mul = Multiply(lhs->dom_scale, rhs->dom_scale);
-  Expr dom_scale = FoldConstantOpt(mul);
+  Expr dom_scale = FoldConstantExpr(mul);
   return QRealizeIntExpr(ret, dom_scale, out_dtype);
 }
 

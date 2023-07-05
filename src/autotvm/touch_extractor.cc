@@ -220,7 +220,7 @@ void TouchExtractor::ExitMem_() {}
  * \note If you want to flatten these features as the input of your model,
  * You can use the faster one GetItervarFeatureFlatten below.
  */
-void GetItervarFeature(Stmt stmt, bool take_log, Array<Array<Array<PrimExpr> > >* ret_feature) {
+void GetItervarFeature(Stmt stmt, bool take_log, Array<Array<Array<PrimExpr>>>* ret_feature) {
   // extract
   TouchExtractor touch_analyzer;
   touch_analyzer.Analyze(stmt);
@@ -248,7 +248,7 @@ void GetItervarFeature(Stmt stmt, bool take_log, Array<Array<Array<PrimExpr> > >
 
   // serialize for front end
   for (auto var : vars) {
-    Array<Array<PrimExpr> > feature_row;
+    Array<Array<PrimExpr>> feature_row;
     ItervarFeature& fea = touch_analyzer.itervar_map[var];
     feature_row.push_back(Array<PrimExpr>{tvm::tir::StringImm("_itervar_"), var});
 
@@ -389,10 +389,10 @@ void GetCurveSampleFeatureFlatten(Stmt stmt, int sample_n, std::vector<float>* r
   });
 
   int max_depth = 0;
-  std::map<TouchedBuffer, std::vector<double> > reuse_curve;
-  std::map<TouchedBuffer, std::vector<double> > count_curve;
-  std::map<TouchedBuffer, std::vector<double> > topdown_curve;
-  std::map<TouchedBuffer, std::vector<double> > bottomup_curve;
+  std::map<TouchedBuffer, std::vector<double>> reuse_curve;
+  std::map<TouchedBuffer, std::vector<double>> count_curve;
+  std::map<TouchedBuffer, std::vector<double>> topdown_curve;
+  std::map<TouchedBuffer, std::vector<double>> bottomup_curve;
   std::set<TouchedBuffer> innermost_buffers;
   std::set<std::string> added;
 
@@ -485,7 +485,7 @@ TVM_REGISTER_GLOBAL("autotvm.feature.GetItervarFeature")
     .set_body([](TVMArgs args, TVMRetValue* ret) {
       Stmt stmt = args[0];
       bool take_log = args[1];
-      Array<Array<Array<PrimExpr> > > ret_feature;
+      Array<Array<Array<PrimExpr>>> ret_feature;
 
       GetItervarFeature(stmt, take_log, &ret_feature);
 

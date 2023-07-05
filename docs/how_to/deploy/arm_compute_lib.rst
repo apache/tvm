@@ -34,7 +34,7 @@ Before installing Arm Compute Library, it is important to know what architecture
 to determine this is to use `lscpu` and look for the "Model name" of the CPU. You can then use this to
 determine the architecture by looking online.
 
-TVM only supports a single version of ACL, currently this is v21.08, there are two recommended ways to build and install 
+TVM only supports a single version of ACL, currently this is v21.08, there are two recommended ways to build and install
 the required libraries:
 
 * Use the script located at `docker/install/ubuntu_download_arm_compute_lib_binaries.sh`. You can use this

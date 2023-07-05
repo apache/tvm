@@ -86,7 +86,6 @@ DataType TfLiteDType2TVMDType(TfLiteType dtype) {
       return DataType::Float(16);
     default:
       LOG(FATAL) << "tflite data type not support yet: " << dtype;
-      return DataType::Float(32);
   }
 }
 
@@ -95,7 +94,7 @@ void TFLiteRuntime::Init(const std::string& tflite_model_bytes, Device dev) {
   size_t buffer_size = tflite_model_bytes.size();
   // The buffer used to construct the model must be kept alive for
   // dependent interpreters to be used.
-  flatBuffersBuffer_ = std::unique_ptr<char[]>(new char[buffer_size]);
+  flatBuffersBuffer_ = std::make_unique<char[]>(buffer_size);
   std::memcpy(flatBuffersBuffer_.get(), buffer, buffer_size);
   std::unique_ptr<tflite::FlatBufferModel> model =
       tflite::FlatBufferModel::BuildFromBuffer(flatBuffersBuffer_.get(), buffer_size);
@@ -151,8 +150,7 @@ NDArray TFLiteRuntime::GetOutput(int index) const {
   return ret;
 }
 
-PackedFunc TFLiteRuntime::GetFunction(const std::string& name,
-                                      const ObjectPtr<Object>& sptr_to_self) {
+PackedFunc TFLiteRuntime::GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) {
   // Return member functions during query.
   if (name == "set_input") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {

@@ -57,7 +57,6 @@ using BaseFunc = tvm::BaseFunc;
 using BaseFuncNode = tvm::BaseFuncNode;
 using GlobalVar = tvm::GlobalVar;
 using GlobalVarNode = tvm::GlobalVarNode;
-using tvm::PrettyPrint;
 
 /*!
  * \brief Constant tensor, backed by an NDArray on the cpu(0) device.
@@ -218,7 +217,8 @@ class VarNode : public ExprNode {
 
   bool SEqualReduce(const VarNode* other, SEqualReducer equal) const {
     equal->MarkGraphNode();
-    return equal(type_annotation, other->type_annotation) && equal(vid, other->vid);
+    return equal(type_annotation, other->type_annotation) && equal(vid, other->vid) &&
+           equal(virtual_device_, other->virtual_device_);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -264,7 +264,7 @@ class Var : public Expr {
 };
 
 /*!
- * \brief Returns \p vor with the given properties. A null property denotes 'no change'.
+ * \brief Returns \p var with the given properties. A null property denotes 'no change'.
  * Returns \p var if all properties are unchanged. Otherwise, returns a copy with the new
  * fields.
  */

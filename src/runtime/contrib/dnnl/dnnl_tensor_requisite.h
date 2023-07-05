@@ -115,6 +115,23 @@ class TensorRequisite {
   /*! \brief return tensor desc */
   dnnl::memory::desc desc() const { return t_desc_; }
 
+  Tid eid() const {
+    auto res = kUndefinedTid;
+
+    if (!defined()) {
+      res = kUndefinedTid;
+    } else if (eid_ == kUndefinedTid) {
+      if (orig_) {
+        res = orig_->eid();
+      } else {
+        res = kUndefinedTid;
+      }
+    } else {
+      res = eid_;
+    }
+    return res;
+  }
+
   /*! \brief Make TR with backward dataflow */
   TensorRequisite Backward() const {
     if (!defined()) return *this;
@@ -257,7 +274,6 @@ class TensorRequisite {
     if (layout.find("O") != std::string::npos) return "OI" + sparse_dims[rank - 3];
 
     LOG(FATAL) << "Unknown layout " << layout << "There is no default scheme to handle it";
-    return {};
   }
 
   /*!
@@ -585,6 +601,14 @@ class TensorRegistry {
   MemSolver MakeSolver(const DLTensorProvider& ext_provider) const {
     return MemSolverImpl(eng_, ext_provider, const_mem_collection_, ext_mem_collection_,
                          tmp_mem_collection_, tmp_mem_mapping_);
+  }
+
+  void MarkInplace(const TensorRequisite& tr, const TensorRequisite& shared) {
+    const auto tr_id = tr.eid();
+    ICHECK(tr_id != TensorRequisite::kUndefinedTid);
+    const auto shared_id = shared.eid();
+    ICHECK(shared_id != TensorRequisite::kUndefinedTid);
+    eid2idx_tmp_[tr_id] = eid2idx_tmp_[shared_id];
   }
 
  private:

@@ -24,7 +24,7 @@
 #ifndef TVM_RELAY_BASE_H_
 #define TVM_RELAY_BASE_H_
 
-#include <tvm/ir/span.h>
+#include <tvm/ir/source_map.h>
 #include <tvm/node/node.h>
 #include <tvm/tir/expr.h>
 
@@ -119,6 +119,34 @@ class Id : public ObjectRef {
 
   TVM_DEFINE_OBJECT_REF_METHODS(Id, ObjectRef, IdNode);
 };
+
+/*!
+ * \brief Pretty print a node for debug purposes.
+ *
+ * \param node The node to be printed.
+ * \return The text reperesentation.
+ * \note This function does not show version or meta-data.
+ *       Use AsText if you want to store the text.
+ * \sa AsText.
+ */
+TVM_DLL String PrettyPrint(const ObjectRef& node);
+
+/*!
+ * \brief Render the node as a string in the text format.
+ *
+ * \param node The node to be rendered.
+ * \param show_meta_data Whether to print meta data section.
+ * \param annotate An optional callback function for attaching
+ *        additional comment block to an expr.
+ *
+ * \note We support a limited set of IR nodes that are part of
+ *       relay IR and
+ *
+ * \sa PrettyPrint.
+ * \return The text representation.
+ */
+TVM_DLL String AsText(const ObjectRef& node, bool show_meta_data = true,
+                      runtime::TypedPackedFunc<String(ObjectRef)> annotate = nullptr);
 
 }  // namespace relay
 }  // namespace tvm

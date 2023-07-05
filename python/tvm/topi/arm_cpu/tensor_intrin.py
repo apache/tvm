@@ -466,42 +466,36 @@ def dot_int8_int8_int32_neon_82(int32_lanes, dtype="uint"):
     """
     num_int8_elements = 4  # 4 int8 elements in int32
 
-    data = te.placeholder((num_int8_elements,), dtype="%s8" % dtype, name="data")
-    kernel = te.placeholder((int32_lanes, num_int8_elements), dtype="%s8" % dtype, name="kernel")
+    data = te.placeholder((num_int8_elements,), dtype=f"{dtype}8", name="data")
+    kernel = te.placeholder((int32_lanes, num_int8_elements), dtype=f"{dtype}8", name="kernel")
 
     k = te.reduce_axis((0, num_int8_elements), name="k")
     C = te.compute(
         (int32_lanes,),
-        lambda i: te.sum(
-            data[k].astype("%s32" % dtype) * kernel[i, k].astype("%s32" % dtype), axis=k
-        ),
+        lambda i: te.sum(data[k].astype(f"{dtype}32") * kernel[i, k].astype(f"{dtype}32"), axis=k),
         name="C",
     )
 
     a_buffer = tvm.tir.decl_buffer(
-        data.shape, dtype="%s8" % dtype, name="a_buffer", offset_factor=1, strides=[1]
+        data.shape, dtype=f"{dtype}8", name="a_buffer", offset_factor=1, strides=[1]
     )
     b_buffer = tvm.tir.decl_buffer(
-        kernel.shape,
-        dtype="%s8" % dtype,
-        name="b_buffer",
-        offset_factor=1,
-        strides=[te.var("s"), 1],
+        kernel.shape, dtype=f"{dtype}8", name="b_buffer", offset_factor=1, strides=[te.var("s"), 1]
     )
 
     def _intrin_func(ins, outs):
         def _instr(index):
             ib = tvm.tir.ir_builder.create()
             if index == 1:
-                ib.emit(outs[0].vstore(0, tvm.tir.const(0, "%s32x%d" % (dtype, int32_lanes))))
+                ib.emit(outs[0].vstore(0, tvm.tir.const(0, f"{dtype}32x{int32_lanes}")))
                 return ib.get()
 
-            dtype_a = "%s8x%d" % (dtype, num_int8_elements)
-            dtype_b = "%s8x%d" % (dtype, int32_lanes * num_int8_elements)
-            dtype_c = "%s32x%d" % (dtype, int32_lanes)
+            dtype_a = f"{dtype}8x{num_int8_elements}"
+            dtype_b = f"{dtype}8x{int32_lanes * num_int8_elements}"
+            dtype_c = f"{dtype}32x{int32_lanes}"
 
             a_int8 = ins[0].vload([0], dtype_a)
-            re_int32 = tvm.tir.call_intrin("%s32" % dtype, "tir.reinterpret", a_int8)
+            re_int32 = tvm.tir.call_intrin(f"{dtype}32", "tir.reinterpret", a_int8)
             # broadcast a
             vec_ai32 = re_int32.astype(dtype_c)
 
@@ -805,12 +799,7 @@ def gemm_acc_4x4_int8_int8_int32(dtype):
                 #                           a*2+b*6+c*10+d*14,
                 #                           a*3+b*7+c*11+d*15]
                 vdot = tvm.tir.call_llvm_intrin(
-                    "int32x4",
-                    llvm_intrin,
-                    tvm.tir.const(3, "uint32"),
-                    vec_c,
-                    vec_b,
-                    vec_aa[i],
+                    "int32x4", llvm_intrin, tvm.tir.const(3, "uint32"), vec_c, vec_b, vec_aa[i]
                 )
 
                 # Store the result
@@ -860,7 +849,7 @@ def gemm_acc_nx16_int8_int8_int32(dtype, rows):
     dtype : str, {"uint8", "int8"}
         Whether it works on unsigned int or signed int
     rows : int
-        Number of of the output rows "n"
+        Number of the output rows "n"
 
     Returns
     -------
@@ -885,11 +874,7 @@ def gemm_acc_nx16_int8_int8_int32(dtype, rows):
         A.shape, dtype, name="aa_buffer", offset_factor=1, strides=[te.var("sa"), 1]
     )
     bb_buffer = tvm.tir.decl_buffer(
-        B.shape,
-        dtype,
-        name="bb_buffer",
-        offset_factor=1,
-        strides=[te.var("sb0"), te.var("sb1"), 1],
+        B.shape, dtype, name="bb_buffer", offset_factor=1, strides=[te.var("sb0"), te.var("sb1"), 1]
     )
     cc_buffer = tvm.tir.decl_buffer(
         C.shape, dtype="int32", name="cc_buffer", offset_factor=1, strides=[te.var("sc"), 1]
@@ -936,12 +921,7 @@ def gemm_acc_nx16_int8_int8_int32(dtype, rows):
                         #                           a*2+b*18+c*34+d*50,
                         #                           a*3+b*19+c*35+d*51]
                         vdot = tvm.tir.call_llvm_intrin(
-                            "int32x4",
-                            llvm_intrin,
-                            tvm.tir.const(3, "uint32"),
-                            vec_c,
-                            vec_b,
-                            vec_aa,
+                            "int32x4", llvm_intrin, tvm.tir.const(3, "uint32"), vec_c, vec_b, vec_aa
                         )
                         ib.emit(outs[0].vstore([k, 4 * j], vdot))
             return ib.get()
@@ -977,27 +957,17 @@ def smlal_int16_int32():
     A = te.placeholder((int16_lanes,), dtype="int16", name="A")
     B = te.placeholder((int16_lanes, 1), dtype="int16", name="B")
     C = te.compute(
-        (int16_lanes,),
-        lambda i: A[i].astype("int32") * B[i, 0].astype("int32"),
-        name="C",
+        (int16_lanes,), lambda i: A[i].astype("int32") * B[i, 0].astype("int32"), name="C"
     )
 
     a_buffer = tvm.tir.decl_buffer(
         A.shape, dtype="int16", name="a_buffer", offset_factor=1, strides=[1]
     )
     b_buffer = tvm.tir.decl_buffer(
-        B.shape,
-        dtype="int16",
-        name="b_buffer",
-        offset_factor=1,
-        strides=[te.var("sb"), 1],
+        B.shape, dtype="int16", name="b_buffer", offset_factor=1, strides=[te.var("sb"), 1]
     )
     c_buffer = tvm.tir.decl_buffer(
-        C.shape,
-        dtype="int32",
-        name="c_buffer",
-        offset_factor=1,
-        strides=[1],
+        C.shape, dtype="int32", name="c_buffer", offset_factor=1, strides=[1]
     )
 
     def _intrin_func(ins, outs):
@@ -1122,12 +1092,7 @@ def gemm_acc_2x2_int8_int8_int32(dtype):
             #          i*1 + j*3 + k*5 + l*7 +m*9 + n*11 + o*13 + p*15]
             vec_c = outs[0].vload([0, 0], "int32x4")
             vmmla = tvm.tir.call_llvm_intrin(
-                "int32x4",
-                llvm_intrin,
-                tvm.tir.const(3, "uint32"),
-                vec_c,
-                vec_a,
-                vec_b,
+                "int32x4", llvm_intrin, tvm.tir.const(3, "uint32"), vec_c, vec_a, vec_b
             )
             # Store the result
             ib.emit(outs[0].vstore([0, 0], vmmla))

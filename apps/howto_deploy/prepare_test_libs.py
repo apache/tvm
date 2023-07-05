@@ -33,7 +33,7 @@ def prepare_test_libs(base_path):
     fadd_dylib.export_library(dylib_path)
 
     # Compile library in system library mode
-    fadd_syslib = tvm.build(s, [A, B], "llvm --system-lib", name="addonesys")
+    fadd_syslib = tvm.build(s, [A, B], "llvm", name="addonesys")
     syslib_path = os.path.join(base_path, "test_addone_sys.o")
     fadd_syslib.save(syslib_path)
 
@@ -44,7 +44,7 @@ def prepare_graph_lib(base_path):
     params = {"y": np.ones((2, 2), dtype="float32")}
     mod = tvm.IRModule.from_expr(relay.Function([x, y], x + y))
     # build a module
-    compiled_lib = relay.build(mod, tvm.target.create("llvm"), params=params)
+    compiled_lib = relay.build(mod, tvm.target.Target("llvm"), params=params)
     # export it as a shared library
     # If you are running cross compilation, you can also consider export
     # to tar and invoke host compiler later.

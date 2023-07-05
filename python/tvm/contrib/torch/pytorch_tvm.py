@@ -19,6 +19,7 @@
 # pylint: disable=redefined-builtin
 """`compile` api that convert torch module to torch tvm module"""
 import os
+import warnings
 import tvm
 import tvm.testing
 from tvm import relay, autotvm
@@ -48,8 +49,30 @@ def tune_tasks(
         prefix = f"[Task {i + 1:2d}/{len(tasks):2d}] "
 
         # create tuner
-        if tuner in ("xgb", "sgb-rank"):
+        if tuner == "xgb":
+            tuner_obj = XGBTuner(tsk, loss_type="reg")
+        elif tuner == "xgb_knob":
+            tuner_obj = XGBTuner(tsk, loss_type="reg", feature_type="knob")
+        elif tuner == "xgb_itervar":
+            tuner_obj = XGBTuner(tsk, loss_type="reg", feature_type="itervar")
+        elif tuner == "xgb_curve":
+            tuner_obj = XGBTuner(tsk, loss_type="reg", feature_type="curve")
+        elif tuner == "xgb_rank":
             tuner_obj = XGBTuner(tsk, loss_type="rank")
+        elif tuner == "xgb_rank_knob":
+            tuner_obj = XGBTuner(tsk, loss_type="rank", feature_type="knob")
+        elif tuner == "xgb_rank_itervar":
+            tuner_obj = XGBTuner(tsk, loss_type="rank", feature_type="itervar")
+        elif tuner == "xgb_rank_curve":
+            tuner_obj = XGBTuner(tsk, loss_type="rank", feature_type="curve")
+        elif tuner == "xgb_rank_binary":
+            tuner_obj = XGBTuner(tsk, loss_type="rank-binary")
+        elif tuner == "xgb_rank_binary_knob":
+            tuner_obj = XGBTuner(tsk, loss_type="rank-binary", feature_type="knob")
+        elif tuner == "xgb_rank_binary_itervar":
+            tuner_obj = XGBTuner(tsk, loss_type="rank-binary", feature_type="itervar")
+        elif tuner == "xgb_rank_binary_curve":
+            tuner_obj = XGBTuner(tsk, loss_type="rank-binary", feature_type="curve")
         elif tuner == "ga":
             tuner_obj = GATuner(tsk, pop_size=100)
         elif tuner == "random":
@@ -183,6 +206,16 @@ class PyTorchTVMModule:
 
     def build_pytorch_module(self, num_inputs, num_outputs, input_infos=None):
         """Build pytorch module containing TVM Graph Module"""
+        warnings.warn(
+            " ".join(
+                (
+                    "This function will be removed at TVM version 0.11,",
+                    "we suggest users to use `optimized_torch` for tuning Torch modules instead.",
+                )
+            ),
+            DeprecationWarning,
+            stacklevel=2,
+        )
         assert self.export_dir, "you must build_tvm or load_tvm before"
         input_infos = input_infos or self.input_infos
         assert input_infos
@@ -224,6 +257,16 @@ def compile(script_module, option):
     pytorch_tvm_module = compile(script_module, option)
     pytorch_tvm_module("model_tvm.pt")
     """
+    warnings.warn(
+        " ".join(
+            (
+                "This function will be removed at TVM version 0.11,",
+                "we suggest users to use `optimized_torch` for tuning Torch modules instead.",
+            )
+        ),
+        DeprecationWarning,
+        stacklevel=2,
+    )
     input_infos = option["input_infos"]
     default_dtype = option.get("default_dtype", "float32")
     export_dir = option.get("export_dir", "pytorch_compiled")

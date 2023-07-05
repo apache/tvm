@@ -49,7 +49,7 @@ cd build
 cmake -DANDROID_ABI=arm64-v8a \
         -DANDROID_PLATFORM=android-28 \
         -DUSE_ANDROID_TOOLCHAIN="path to `android-ndk/build/cmake/android.toolchain.cmake` file" \
-        -DUSE_HEXAGON_ARCH=v65|v66|v68|v69 \
+        -DUSE_HEXAGON_ARCH=v65|v66|v68|v69|v73 \
         -DUSE_HEXAGON_SDK="path to Hexagon SDK" \
         -DUSE_HEXAGON_TOOLCHAIN="path to Hexagon toolchain `Tools` sub-directory which explained above" \
         -DUSE_OUTPUT_BINARY_DIR="path to `build/hexagon_api_output` which is a sub-directory of `tvm`" ..
@@ -90,7 +90,7 @@ make -j2
 
 # Build Hexagon API
 cd ..
-./tests/scripts/task_build_hexagon_api.sh 
+./tests/scripts/task_build_hexagon_api.sh
 ```
 
 Now that you have built required tools, you can jump to [run test examples](#run-tests).

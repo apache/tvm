@@ -145,7 +145,7 @@ class LetList {
   }
 
  private:
-  std::vector<std::pair<Var, Expr> > lets_;
+  std::vector<std::pair<Var, Expr>> lets_;
   bool used_ = false;
 };
 

@@ -21,6 +21,7 @@
  * \file tir/analysis/deep_equal.cc
  * \brief Deep equality checking.
  */
+#include <tvm/node/object_path.h>
 #include <tvm/node/reflection.h>
 #include <tvm/node/structural_equal.h>
 #include <tvm/runtime/registry.h>
@@ -32,21 +33,26 @@ namespace tir {
 class DeepCmpSEqualHandler : public SEqualReducer::Handler {
  public:
   // use direct recursion.
-  bool SEqualReduce(const ObjectRef& lhs, const ObjectRef& rhs, bool map_free_vars) final {
+  bool SEqualReduce(const ObjectRef& lhs, const ObjectRef& rhs, bool map_free_vars,
+                    const Optional<ObjectPathPair>&) final {
     if (lhs.same_as(rhs)) return true;
     if (!lhs.defined() && rhs.defined()) return false;
     if (!rhs.defined() && lhs.defined()) return false;
     if (lhs->type_index() != rhs->type_index()) return false;
-    return vtable_->SEqualReduce(lhs.get(), rhs.get(), SEqualReducer(this, false));
+    return vtable_->SEqualReduce(lhs.get(), rhs.get(), SEqualReducer(this, nullptr, false)) &&
+           !fail_;
   }
 
-  ObjectRef MapLhsToRhs(const ObjectRef& lhs) final { return ObjectRef(nullptr); }
+  void DeferFail(const ObjectPathPair&) final { fail_ = true; }
+  bool IsFailDeferralEnabled() final { return false; }
 
+  ObjectRef MapLhsToRhs(const ObjectRef& lhs) final { return ObjectRef(nullptr); }
   void MarkGraphNode() final {}
 
  private:
   // reflection vtable
   ReflectionVTable* vtable_ = ReflectionVTable::Global();
+  bool fail_ = false;
 };
 
 bool ExprDeepEqual::operator()(const PrimExpr& lhs, const PrimExpr& rhs) const {
@@ -62,7 +68,7 @@ bool ExprDeepEqual::operator()(const PrimExpr& lhs, const PrimExpr& rhs) const {
   if (lhs.as<AnyNode>()) {
     return false;
   }
-  return DeepCmpSEqualHandler().SEqualReduce(lhs, rhs, false);
+  return DeepCmpSEqualHandler().SEqualReduce(lhs, rhs, false, NullOpt);
 }
 
 TVM_REGISTER_GLOBAL("tir.analysis.expr_deep_equal")

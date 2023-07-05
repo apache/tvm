@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name, pointless-exception-statement
 """TVM operator for softmax and log_softmax compute."""
 from __future__ import absolute_import
 import tvm
@@ -129,19 +129,45 @@ def log_softmax(x, axis=-1):
     Parameters
     ----------
     data : tvm.te.Tensor
-        2-D input data
+        N-D input data
 
     Returns
     -------
     output : tvm.te.Tensor
-        2-D output with same shape
+        N-D output with same shape
     """
-    assert len(x.shape) == 2, "only support 2-dim log softmax"
-    # pylint: disable=R1714
-    assert axis == -1 or axis == len(x.shape) - 1, "only support last axis log softmax"
-    m, n = x.shape
-    k = te.reduce_axis((0, n), name="k")
-    max_elem = te.compute((m,), lambda i: tvm.te.max(x[i, k], axis=k))
-    k = te.reduce_axis((0, n), name="k")
-    expsum = te.compute((m,), lambda i: te.sum(te.exp(x[i, k] - max_elem[i]), axis=k))
-    return te.compute(x.shape, lambda i, j: x[i, j] - max_elem[i] - te.log(expsum[i]))
+    shape = x.shape
+    if axis < 0:
+        axis = len(shape) + axis
+    if axis >= len(shape):
+        ValueError("axis parameter should be less than input dim")
+
+    k1 = te.reduce_axis((0, shape[axis]), name="k")
+    k2 = te.reduce_axis((0, shape[axis]), name="k")
+
+    def insert_reduce_index(indices, reduce_index):
+        return indices[:axis] + (reduce_index,) + indices[axis:]
+
+    def get_non_reduce_indices(indices):
+        return tuple([var for (i, var) in enumerate(indices) if i != axis])
+
+    def _compute_max(*indices):
+        eval_range = insert_reduce_index(indices, k1)
+        return tvm.te.max(x[eval_range], axis=k1)
+
+    def _compute_expsum(max_elem, *indices):
+        eval_range = insert_reduce_index(indices, k2)
+        return te.sum(te.exp(x[eval_range] - max_elem[indices]), axis=k2)
+
+    def _normalize(max_elem, expsum, *indices):
+        non_reduce_indices = get_non_reduce_indices(indices)
+        return x[indices] - max_elem[non_reduce_indices] - te.log(expsum[non_reduce_indices])
+
+    reduced_shape = tuple([dim for (i, dim) in enumerate(shape) if i != axis])
+    max_elem = te.compute(reduced_shape, _compute_max, name="T_softmax_maxelem")
+    expsum = te.compute(reduced_shape, lambda *indices: _compute_expsum(max_elem, *indices))
+    return te.compute(
+        shape,
+        lambda *indices: _normalize(max_elem, expsum, *indices),
+        attrs={"axis": axis},
+    )

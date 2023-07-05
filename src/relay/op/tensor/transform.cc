@@ -23,8 +23,8 @@
  */
 #include "transform.h"
 
-#include <tvm/ir/error.h>
 #include <tvm/relay/attrs/transform.h>
+#include <tvm/relay/error.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>
 #include <tvm/runtime/packed_func.h>
@@ -370,7 +370,7 @@ bool StackRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   const int ndim = static_cast<int>(first->shape.size());
 
   // Sanity check: axis
-  int axis = param->axis;
+  int axis = param->axis.IntValue();
   ICHECK(-(ndim + 1) <= axis && axis < ndim + 1)
       << "stack only accepts `axis` in [-(ndim+1), ndim+1)"
       << ", but got axis = " << axis << ", and ndim = " << ndim;
@@ -414,7 +414,7 @@ Array<te::Tensor> StackCompute(const Attrs& attrs, const Array<te::Tensor>& inpu
                                const Type& out_type) {
   const StackAttrs* param = attrs.as<StackAttrs>();
   ICHECK(param != nullptr);
-  return {topi::stack(inputs, param->axis)};
+  return {topi::stack(inputs, param->axis.IntValue())};
 }
 
 Expr MakeStack(Expr data, int axis) {
@@ -473,7 +473,7 @@ bool TransposeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   } else {
     std::vector<int> axis_used(ndim, 0);
     for (const Integer& e : axes) {
-      int64_t axis = e;
+      int64_t axis = e.IntValue();
       // sanity check for axis and ndim
       ICHECK(-ndim <= axis && axis < ndim)
           << "transpose only allows each `axis` in `axes` in range [-data.ndim, data.ndim)"
@@ -792,8 +792,8 @@ bool ReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       data_shape_str << (iter != data_shape.begin() ? "," : "") << *iter;
     }
     ICHECK_EQ(oshape_sum, data_shape_sum)
-        << "Input tensor shape(" << oshape_str.str() << ") and reshaped shape("
-        << data_shape_str.str() << ") are not compatible!";
+        << "Input tensor shape(" << data_shape_str.str() << ") and reshaped shape("
+        << oshape_str.str() << ") are not compatible!";
   }
 
   reporter->Assign(types[1], TensorType(oshape, data->dtype));
@@ -1095,101 +1095,60 @@ non-zero)doc" TVM_ADD_FILELINE)
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
     .set_support_level(10);
 
-// Scatter
-TVM_REGISTER_NODE_TYPE(ScatterAttrs);
+// scatter_elements operator
+TVM_REGISTER_NODE_TYPE(ScatterElementsAttrs);
 
-// Scatter
-bool ScatterRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
-                const TypeReporter& reporter) {
-  ICHECK_EQ(num_inputs, 3);
+bool ScatterElementsRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                        const TypeReporter& reporter) {
+  // `types` contains: [data, indices, updates, output]
   ICHECK_EQ(types.size(), 4);
-  auto data = types[0].as<TensorTypeNode>();
+  const auto* data = types[0].as<TensorTypeNode>();
+  const auto* indices = types[1].as<TensorTypeNode>();
+  const auto* updates = types[2].as<TensorTypeNode>();
   if (data == nullptr) {
+    ICHECK(types[0].as<IncompleteTypeNode>())
+        << "ScatterElements: expect input data type to be TensorType but got " << types[0];
     return false;
   }
-  auto indices = types[1].as<TensorTypeNode>();
   if (indices == nullptr) {
+    ICHECK(types[1].as<IncompleteTypeNode>())
+        << "ScatterElements: expect indices type to be TensorType but got " << types[1];
     return false;
   }
-  auto updates = types[2].as<TensorTypeNode>();
   if (updates == nullptr) {
+    ICHECK(types[2].as<IncompleteTypeNode>())
+        << "ScatterElements: expect updates type to be TensorType but got " << types[2];
     return false;
   }
   ICHECK(indices->dtype.is_int() || indices->dtype.is_uint())
-      << "indices of scatter must be tensor of integer";
-  const auto param = attrs.as<ScatterAttrs>();
-  ICHECK(param != nullptr);
+      << "ScatterElements: indices must be a tensor of integers.";
+
+  // Assign output
   reporter->Assign(types[3], TensorType(data->shape, data->dtype));
   return true;
 }
 
-TVM_REGISTER_GLOBAL("relay.op._make.scatter")
-    .set_body_typed([](Expr data, Expr indices, Expr updates, int axis) {
-      auto attrs = make_object<ScatterAttrs>();
-      attrs->axis = std::move(axis);
-      static const Op& op = Op::Get("scatter");
-      return Call(op, {data, indices, updates}, Attrs(attrs), {});
-    });
-
-RELAY_REGISTER_OP("scatter")
-    .describe(
-        R"doc(Update data at positions defined by indices with values in updates)doc" TVM_ADD_FILELINE)
-    .set_num_inputs(3)
-    .add_argument("data", "Tensor", "The input data tensor.")
-    .add_argument("indices", "Tensor", "The indices location tensor.")
-    .add_argument("updates", "Tensor", "The values to update the input with.")
-    .add_type_rel("Scatter", ScatterRel)
-    .set_attr<TOpIsStateful>("TOpIsStateful", false)
-    .set_attr<TOpPattern>("TOpPattern", kOpaque)
-    .set_support_level(10);
-
-// Scatter_add
-TVM_REGISTER_NODE_TYPE(ScatterAddAttrs);
-
-// Scatter Add
-bool ScatterAddRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
-                   const TypeReporter& reporter) {
-  ICHECK_EQ(num_inputs, 3);
-  ICHECK_EQ(types.size(), 4);
-  auto data = types[0].as<TensorTypeNode>();
-  if (data == nullptr) {
-    return false;
-  }
-  auto indices = types[1].as<TensorTypeNode>();
-  if (indices == nullptr) {
-    return false;
-  }
-  auto updates = types[2].as<TensorTypeNode>();
-  if (updates == nullptr) {
-    return false;
-  }
-  ICHECK(indices->dtype.is_int() || indices->dtype.is_uint())
-      << "indices of scatter_add must be tensor of integer";
-  const auto param = attrs.as<ScatterAddAttrs>();
-  ICHECK(param != nullptr);
-  reporter->Assign(types[3], TensorType(data->shape, data->dtype));
-  return true;
+Expr MakeScatterElements(Expr data, Expr indices, Expr updates, int axis, String reduction) {
+  auto attrs = make_object<ScatterElementsAttrs>();
+  attrs->axis = std::move(axis);
+  attrs->reduction = std::move(reduction);
+  static const Op& op = Op::Get("scatter_elements");
+  return Call(op, {data, indices, updates}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relay.op._make.scatter_add")
-    .set_body_typed([](Expr data, Expr indices, Expr updates, int axis) {
-      auto attrs = make_object<ScatterAddAttrs>();
-      attrs->axis = std::move(axis);
-      static const Op& op = Op::Get("scatter_add");
-      return Call(op, {data, indices, updates}, Attrs(attrs), {});
-    });
+TVM_REGISTER_GLOBAL("relay.op._make.scatter_elements").set_body_typed(MakeScatterElements);
 
-RELAY_REGISTER_OP("scatter_add")
-    .describe(
-        R"doc(Update data by adding values in updates at positions defined by indices)doc" TVM_ADD_FILELINE)
+// scatter_elements op has extern schedules: convert to Opaque to prevent compilation failures
+RELAY_REGISTER_OP("scatter_elements")
+    .describe(R"code(Scatter elements with updating data by reduction of values in updates
+at positions defined by indices.)code" TVM_ADD_FILELINE)
     .set_num_inputs(3)
-    .add_argument("data", "Tensor", "The input data tensor.")
-    .add_argument("indices", "Tensor", "The indices location tensor.")
-    .add_argument("updates", "Tensor", "The values to update the input with.")
-    .add_type_rel("ScatterAdd", ScatterAddRel)
-    .set_attr<TOpIsStateful>("TOpIsStateful", false)
-    .set_attr<TOpPattern>("TOpPattern", kOpaque)
-    .set_support_level(10);
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("indices", "Tensor", "The indices tensor.")
+    .add_argument("updates", "Tensor", "The input tensor of updates.")
+    .set_support_level(3)
+    .add_type_rel("ScatterElements", ScatterElementsRel)
+    .set_attr<TOpPattern>("TOpPattern", kOpaque);
 
 // scatter_nd operator
 TVM_REGISTER_NODE_TYPE(ScatterNDAttrs);
@@ -1226,7 +1185,7 @@ bool ScatterNDRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   const size_t kdim = indices->shape.size() - 1;
   const size_t ndim = out_shape.size();
   ICHECK_LE(size_t(mdim->value), ndim)
-      << "ScatterND: Given data with shape (Y_0, ..., Y_{K-1}, X_M, ..., X_{N-1}), and indices "
+      << "ScatterND: Given updates with shape (Y_0, ..., Y_{K-1}, X_M, ..., X_{N-1}), and indices "
          "with shape (M, Y_0, ..., Y_{K-1}), M must be less than or equal to N.";
   // Indices: (M, Y_0, .. Y_{K-1}) data: (Y_0, .. Y_{K-1}, ...), verify Y's.
   for (size_t i = 0; i < kdim; i++) {
@@ -1238,9 +1197,9 @@ bool ScatterNDRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     oshape.push_back(x);
   }
 
-  // data: (Y_0, .. Y_{K-1}, X_M, .. X_{N-1}) out: (X_0, .. X_{N-1}), verify X_M to X_{N-1}
+  // updates: (Y_0, .. Y_{K-1}, X_M, .. X_{N-1}) out: (X_0, .. X_{N-1}), verify X_M to X_{N-1}
   for (size_t i = mdim->value; i < ndim; i++) {
-    reporter->AssertEQ(data->shape[i - mdim->value + kdim], oshape[i]);
+    reporter->AssertEQ(updates->shape[i - mdim->value + kdim], oshape[i]);
   }
 
   reporter->Assign(types[3], TensorType(data->shape, data->dtype));
@@ -1337,10 +1296,11 @@ Array<te::Tensor> TakeCompute(const Attrs& attrs, const Array<te::Tensor>& input
   const auto* param = attrs.as<TakeAttrs>();
   ICHECK(param != nullptr);
   if (!param->axis.defined()) {
-    return Array<te::Tensor>{topi::take(inputs[0], inputs[1], param->batch_dims, param->mode)};
-  } else {
     return Array<te::Tensor>{
-        topi::take(inputs[0], inputs[1], param->batch_dims, param->axis, param->mode)};
+        topi::take(inputs[0], inputs[1], param->batch_dims.IntValue(), param->mode)};
+  } else {
+    return Array<te::Tensor>{topi::take(inputs[0], inputs[1], param->batch_dims.IntValue(),
+                                        param->axis.IntValue(), param->mode)};
   }
 }
 
@@ -1658,8 +1618,8 @@ bool RepeatRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   }
   const auto* param = attrs.as<RepeatAttrs>();
   const int ndim = static_cast<int>(data->shape.size());
-  const int repeats = param->repeats;
-  const int axis = param->axis;
+  const int repeats = param->repeats.IntValue();
+  const int axis = param->axis.IntValue();
   ICHECK(repeats >= 1) << "repeat only accepts `repeats >= 1`"
                        << ", but got repeats = " << repeats;
   ICHECK(-ndim - 1 <= axis && axis <= ndim)
@@ -1687,7 +1647,7 @@ Array<te::Tensor> RepeatCompute(const Attrs& attrs, const Array<te::Tensor>& inp
                                 const Type& out_type) {
   const RepeatAttrs* param = attrs.as<RepeatAttrs>();
   ICHECK(param != nullptr);
-  return {topi::repeat(inputs[0], param->repeats, param->axis)};
+  return {topi::repeat(inputs[0], param->repeats.IntValue(), param->axis.IntValue())};
 }
 
 Expr MakeRepeat(Expr data, int repeats, int axis) {
@@ -1864,6 +1824,55 @@ RELAY_REGISTER_OP("stft")
     .add_type_rel("stft", STFTRel)
     .set_support_level(3)
     .set_attr<TOpPattern>("TOpPattern", kOpaque);
+
+// DFT
+TVM_REGISTER_NODE_TYPE(DFTAttrs);
+bool DFTRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+            const TypeReporter& reporter) {
+  // types: [re_data, im_data, output]
+  ICHECK_EQ(types.size(), 3)
+      << "DFT: expects three types, two for the input and one for the output";
+  ICHECK_EQ(num_inputs, 2) << "DFT: expect 2 inputs but " << num_inputs << " provided";
+  const auto* re_data = types[0].as<TensorTypeNode>();
+  const auto* im_data = types[1].as<TensorTypeNode>();
+
+  if (re_data == nullptr) {
+    ICHECK(types[0].as<IncompleteTypeNode>())
+        << "DFT: expect re_data type to be TensorType but get " << types[0];
+    return false;
+  }
+  if (im_data == nullptr) {
+    ICHECK(types[1].as<IncompleteTypeNode>())
+        << "DFT: expect im_data type to be TensorType but get " << types[1];
+    return false;
+  }
+
+  std::vector<Type> shapes;
+  shapes.push_back(TensorType(re_data->shape, re_data->dtype));
+  shapes.push_back(TensorType(im_data->shape, im_data->dtype));
+
+  reporter->Assign(types[2], TupleType(Array<Type>(shapes)));
+
+  return true;
+}
+
+Expr MakeDFT(Expr re_data, Expr im_data, Bool inverse) {
+  auto attrs = make_object<DFTAttrs>();
+  attrs->inverse = inverse;
+  static const Op& op = Op::Get("dft");
+  return Call(op, {re_data, im_data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.dft").set_body_typed(MakeDFT);
+
+RELAY_REGISTER_OP("dft")
+    .describe(R"doc(Computes the discrete Fourier transform of input.)doc" TVM_ADD_FILELINE)
+    .set_num_inputs(2)
+    .add_argument("re_data", "Tensor", "Real part of input tensor.")
+    .add_argument("im_data", "Tensor", "Imaginary part of input tensor.")
+    .set_support_level(3)
+    .set_attr<TOpPattern>("TOpPattern", kOpaque)
+    .add_type_rel("DFT", DFTRel);
 
 // meshgrid operator
 TVM_REGISTER_NODE_TYPE(MeshgridAttrs);
@@ -2068,7 +2077,7 @@ bool ReverseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   }
   const auto* param = attrs.as<ReverseAttrs>();
   const int ndim = static_cast<int>(data->shape.size());
-  const int axis = param->axis;
+  const int axis = param->axis.IntValue();
   ICHECK(-ndim <= axis && axis < ndim)
       << "reverse only accepts `axis` in [-data.ndim, data.ndim - 1]"
       << ", but got axis = " << axis << ", and data.ndim = " << ndim;
@@ -2081,7 +2090,7 @@ Array<te::Tensor> ReverseCompute(const Attrs& attrs, const Array<te::Tensor>& in
   const ReverseAttrs* param = attrs.as<ReverseAttrs>();
   ICHECK(param != nullptr);
   // pass empty seq_length tensor to reverse_sequence
-  return {topi::reverse_sequence(inputs[0], te::Tensor(), param->axis)};
+  return {topi::reverse_sequence(inputs[0], te::Tensor(), param->axis.IntValue())};
 }
 
 Expr MakeReverse(Expr data, int axis) {
@@ -2136,7 +2145,7 @@ bool ReverseSequenceRel(const Array<Type>& types, int num_inputs, const Attrs& a
 
   const auto* param = attrs.as<ReverseSequenceAttrs>();
   const int ndim = static_cast<int>(data->shape.size());
-  int batch_axis = param->batch_axis;
+  int batch_axis = param->batch_axis.IntValue();
   ICHECK(-ndim <= batch_axis && batch_axis < ndim)
       << "reverse_sequence only accepts `batch_axis` in [-data.ndim, data.ndim - 1]"
       << ", but got batch_axis = " << batch_axis << ", and data.ndim = " << ndim;
@@ -2149,7 +2158,7 @@ bool ReverseSequenceRel(const Array<Type>& types, int num_inputs, const Attrs& a
       << ", but got dimension of batch_axis = " << data->shape[batch_axis]
       << ", and seq_length size = " << seq_lengths->shape[0];
 
-  const int seq_axis = param->seq_axis;
+  const int seq_axis = param->seq_axis.IntValue();
   ICHECK(-ndim <= seq_axis && seq_axis < ndim)
       << "reverse_sequnece only accepts `seq_axis` in [-data.ndim, data.ndim - 1]"
       << ", but got seq_axis = " << seq_axis << ", and data.ndim = " << ndim;
@@ -2162,7 +2171,8 @@ Array<te::Tensor> ReverseSequenceCompute(const Attrs& attrs, const Array<te::Ten
                                          const Type& out_type) {
   const ReverseSequenceAttrs* param = attrs.as<ReverseSequenceAttrs>();
   ICHECK(param != nullptr);
-  return {topi::reverse_sequence(inputs[0], inputs[1], param->seq_axis, param->batch_axis)};
+  return {topi::reverse_sequence(inputs[0], inputs[1], param->seq_axis.IntValue(),
+                                 param->batch_axis.IntValue())};
 }
 
 Expr MakeReverseSequence(Expr data, Expr seq_lengths, int seq_axis, int batch_axis) {
@@ -2374,7 +2384,7 @@ InferCorrectLayoutOutput SqueezeInferCorrectLayout(const Attrs& attrs,
   if (new_in_layouts.defined() && old_in_layouts.defined()) {
     Array<Integer> new_axis;
     for (const auto& e : axis) {
-      const auto& dim = old_in_layouts[0][e];
+      const auto& dim = old_in_layouts[0][e.IntValue()];
       new_axis.push_back((new_in_layouts[0]).IndexOf(dim));
     }
     params->axis = new_axis;
@@ -2555,6 +2565,7 @@ RELAY_REGISTER_OP("broadcast_to")
     .add_argument("data", "Tensor", "The input tensor.")
     .set_support_level(4)
     .add_type_rel("BroadCastTo", BroadCastToRel)
+    .set_attrs_type<InitOpAttrs>()
     .set_attr<FTVMCompute>("FTVMCompute", BroadCastToCompute)
     .set_attr<TOpPattern>("TOpPattern", kBroadcast);
 
@@ -2615,9 +2626,9 @@ bool StridedSliceRel(const Array<Type>& types, int num_inputs, const Attrs& attr
     return false;
   }
 
-  ICHECK(param->begin) << "strided_slice recieved invalid begin " << param->begin;
-  ICHECK(param->end) << "strided_slice recieved invalid end " << param->end;
-  ICHECK(param->strides) << "strided_slice recieved invalid strides " << param->strides;
+  ICHECK(param->begin) << "strided_slice received invalid begin " << param->begin;
+  ICHECK(param->end) << "strided_slice received invalid end " << param->end;
+  ICHECK(param->strides) << "strided_slice received invalid strides " << param->strides;
 
   auto begin = param->begin.value();
   auto end = param->end.value();
@@ -2714,7 +2725,7 @@ InferCorrectLayoutOutput StridedSliceInferCorrectLayout(
           Array<Integer> new_axes;
 
           for (size_t i = 0; i < axes.size(); ++i) {
-            auto old_idx = axes[i];
+            auto old_idx = axes[i].IntValue();
             auto new_idx = new_layout.IndexOf(layout[old_idx]);
             new_begin.push_back(begin[i]);
             new_end.push_back(end[i]);
@@ -2765,7 +2776,7 @@ InferCorrectLayoutOutput StridedSliceInferCorrectLayout(
         auto axes = params->axes.value();
         Array<Integer> new_axes;
         for (size_t i = 0; i < axes.size(); ++i) {
-          auto old_idx = axes[i];
+          auto old_idx = axes[i].IntValue();
           auto new_idx = new_layout.IndexOf(layout[old_idx]);
           new_axes.push_back(new_idx);
 
@@ -2783,8 +2794,8 @@ InferCorrectLayoutOutput StridedSliceInferCorrectLayout(
                 return out_default;
               }
             }
-            int64_t bg = begin[i];
-            int64_t ed = end[i];
+            int64_t bg = begin[i].IntValue();
+            int64_t ed = end[i].IntValue();
             if (bg % factor || ed % factor) {
               // transform to original layout
               return out_default;
@@ -2801,8 +2812,8 @@ InferCorrectLayoutOutput StridedSliceInferCorrectLayout(
           ICHECK(axis.IsPrimal());
           auto factor = new_layout.FactorOf(axis);
           if (factor == -1) {
-            new_begin.push_back(IntImm(begin[i]->dtype, begin[i]));
-            new_end.push_back(IntImm(end[i]->dtype, end[i]));
+            new_begin.push_back(IntImm(begin[i]->dtype, begin[i].IntValue()));
+            new_end.push_back(IntImm(end[i]->dtype, end[i].IntValue()));
           } else {
             if (strides.defined() && i < strides.size()) {
               auto stride = strides[i];
@@ -2953,6 +2964,66 @@ Example::
 // relay.split
 TVM_REGISTER_NODE_TYPE(SplitAttrs);
 
+InferCorrectLayoutOutput SplitInferCorrectLayout(const Attrs& attrs,
+                                                 const Array<Layout>& new_in_layouts,
+                                                 const Array<Layout>& old_in_layouts,
+                                                 const Array<tvm::relay::Type>& old_in_types) {
+  const auto* attrs_ptr = attrs.as<SplitAttrs>();
+  ICHECK(attrs_ptr);
+  ObjectPtr<SplitAttrs> param = make_object<SplitAttrs>(*attrs_ptr);
+
+  Array<Array<IndexExpr>> old_in_shapes;
+  for (auto old_in_t : old_in_types) {
+    ICHECK(old_in_t.as<TensorTypeNode>());
+    old_in_shapes.push_back(old_in_t.as<TensorTypeNode>()->shape);
+  }
+
+  size_t axis =
+      param->axis < 0 ? param->axis + old_in_shapes[0].size() : static_cast<size_t>(param->axis);
+
+  Layout ret = Layout::Undef();
+  size_t size = 0;
+  if (const IntImmNode* sections = param->indices_or_sections.as<IntImmNode>()) {
+    size = sections->value;
+  } else {
+    size = Downcast<Array<Integer>>(param->indices_or_sections).size() + 1;
+  }
+
+  // If new_in_layouts are defined, this code tries to modify the layout.
+  if (new_in_layouts.defined() && old_in_layouts.defined()) {
+    bool divisible = true;
+    const auto& sp_dim = old_in_layouts[0][axis];
+    auto new_index = new_in_layouts[0].IndexOf(sp_dim);
+    param->axis = new_index;
+    int factor = new_in_layouts[0].FactorOf(sp_dim);
+    if (factor > 1) {
+      if (!param->indices_or_sections.as<IntImmNode>()) {
+        auto ios = Downcast<Array<Integer>>(param->indices_or_sections);
+        Array<Integer> new_ios;
+        for (const auto& v : ios) {
+          const IntImmNode* vint = v.as<IntImmNode>();
+          new_ios.push_back(vint->value / factor);
+          if (vint->value % factor) {
+            divisible = false;
+          }
+        }
+        if (divisible) {
+          param->indices_or_sections = new_ios;
+        }
+      }
+    }
+    if (divisible) {
+      ret = new_in_layouts[0];
+    } else {
+      ret = old_in_layouts[0];
+    }
+  } else if (old_in_layouts.defined()) {
+    ret = old_in_layouts[0];
+  }
+
+  return InferCorrectLayoutOutput({ret}, {Array<Layout>(size, ret)}, Attrs(param));
+}
+
 bool SplitRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
               const TypeReporter& reporter) {
   // `types` contains: [data, result]
@@ -3074,6 +3145,7 @@ the entries indicate where along axis the array is split.
     .set_support_level(3)
     .add_type_rel("Split", SplitRel)
     .set_attr<FTVMCompute>("FTVMCompute", SplitCompute)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", SplitInferCorrectLayout)
     .set_attr<TOpPattern>("TOpPattern", kInjective);
 
 // relay.slice_like
@@ -3212,17 +3284,17 @@ Array<te::Tensor> SliceLikeCompute(const Attrs& attrs, const Array<te::Tensor>& 
       }
     }
   } else {
-    for (int axis : param->axes) {
-      if (axis < 0) {
-        axis = static_cast<int>(src_shape.size()) + axis;
+    for (Integer axis : param->axes) {
+      int a = axis.IntValue();
+      if (a < 0) {
+        a = static_cast<int>(src_shape.size()) + a;
       }
-      ICHECK(target_shape[axis]->IsInstance<tvm::IntImmNode>())
+      ICHECK(target_shape[a]->IsInstance<tvm::IntImmNode>())
           << "slice_like does not support dynamic output shape";
-      end_idx.Set(axis, topi::GetConstInt(target_shape[axis]));
-      ICHECK_LE(topi::GetConstInt(end_idx[axis]), topi::GetConstInt(src_shape[axis]))
-          << "End index of axis " << axis
-          << " exceeds input shape: " << topi::GetConstInt(end_idx[axis]) << " vs "
-          << topi::GetConstInt(src_shape[axis]);
+      end_idx.Set(a, topi::GetConstInt(target_shape[a]));
+      ICHECK_LE(topi::GetConstInt(end_idx[a]), topi::GetConstInt(src_shape[a]))
+          << "End index of axis " << a << " exceeds input shape: " << topi::GetConstInt(end_idx[a])
+          << " vs " << topi::GetConstInt(src_shape[a]);
     }
   }
   return Array<te::Tensor>{topi::strided_slice(inputs[0], begin_idx, end_idx, strides, "end")};
@@ -3348,6 +3420,47 @@ RELAY_REGISTER_OP("auto_scheduler_layout_transform")
     .set_support_level(5)
     .set_attr<FTVMCompute>("FTVMCompute", AutoSchedulerLayoutTransformCompute);
 
+// relay.meta_schedule_layout_transform
+TVM_REGISTER_NODE_TYPE(MetaScheduleLayoutTransformAttrs);
+
+Array<te::Tensor> MetaScheduleLayoutTransformCompute(const Attrs& attrs,
+                                                     const Array<te::Tensor>& inputs,
+                                                     const Type& out_type) {
+  const auto* param = attrs.as<MetaScheduleLayoutTransformAttrs>();
+  CHECK(param != nullptr);
+  return Array<te::Tensor>{topi::meta_schedule_layout_transform(inputs[0], param->index_map)};
+}
+
+bool MetaScheduleLayoutTransformRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                                    const TypeReporter& reporter) {
+  TensorType data_type = Downcast<TensorType>(types[0]);
+  const MetaScheduleLayoutTransformAttrs* params = attrs.as<MetaScheduleLayoutTransformAttrs>();
+  ICHECK(params);
+  Array<PrimExpr> new_shape = params->index_map->MapShape(data_type->shape);
+  reporter->Assign(types[1], TensorType(new_shape, data_type->dtype));
+  return true;
+}
+
+Expr MakeMetaScheduleLayoutTransform(Expr data, tir::IndexMap index_map) {
+  static const Op& op = Op::Get("meta_schedule_layout_transform");
+  auto attrs = make_object<MetaScheduleLayoutTransformAttrs>();
+  attrs->index_map = index_map;
+  return Call(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.meta_schedule_layout_transform")
+    .set_body_typed(MakeMetaScheduleLayoutTransform);
+
+RELAY_REGISTER_OP("meta_schedule_layout_transform")
+    .describe(R"code(Transform the input kernel layout.
+)code" TVM_ADD_FILELINE)
+    .set_attrs_type<MetaScheduleLayoutTransformAttrs>()
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_type_rel("meta_schedule_layout_transform", MetaScheduleLayoutTransformRel)
+    .set_support_level(5)
+    .set_attr<FTVMCompute>("FTVMCompute", MetaScheduleLayoutTransformCompute);
+
 // relay._contrib_reverse_reshape
 Expr MakeReverseReshape(Expr data, Array<Integer> newshape) {
   auto attrs = make_object<ReshapeAttrs>();
@@ -3435,7 +3548,7 @@ bool GatherRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 Array<te::Tensor> GatherCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                 const Type& out_type) {
   const auto* param = attrs.as<GatherAttrs>();
-  return {topi::gather(inputs[0], param->axis, inputs[1])};
+  return {topi::gather(inputs[0], param->axis.IntValue(), inputs[1])};
 }
 
 Expr MakeGather(Expr data, Integer axis, Expr indices) {
@@ -3514,7 +3627,7 @@ Array<te::Tensor> GatherNDCompute(const Attrs& attrs, const Array<te::Tensor>& i
                                   const Type& out_type) {
   const auto* param = attrs.as<GatherNDAttrs>();
   ICHECK(param);
-  return {topi::gather_nd(inputs[0], inputs[1], param->batch_dims)};
+  return {topi::gather_nd(inputs[0], inputs[1], param->batch_dims.IntValue())};
 }
 
 Expr MakeGatherND(Expr data, Expr indices, int batch_dims = 0,
@@ -4147,6 +4260,185 @@ RELAY_REGISTER_OP("invert_permutation")
     .set_support_level(1)
     .set_attr<TOpPattern>("TOpPattern", kInjective)
     .set_attr<TOpIsStateful>("TOpIsStateful", false);
+
+// Trilu
+
+TVM_REGISTER_NODE_TYPE(TriluAttrs);
+
+bool TriluRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+              const TypeReporter& reporter) {
+  // types: [data, k, result]
+  ICHECK_EQ(types.size(), 3) << "Trilu: expect 3 types but " << types.size() << " provided";
+  ICHECK_EQ(num_inputs, 2) << "Trilu: expect 2 inputs but " << num_inputs << " provided";
+  auto data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) {
+    ICHECK(types[0].as<IncompleteTypeNode>())
+        << "Trilu: expect input type to be TensorType but get " << types[0];
+    return false;
+  }
+
+  auto k = types[1].as<TensorTypeNode>();
+  if (k == nullptr) {
+    ICHECK(types[1].as<IncompleteTypeNode>())
+        << "Trilu: expect k type to be TensorType but get " << types[1];
+    return false;
+  }
+
+  ICHECK(k->shape.size() == 0) << "Trilu: k must be a 0-D tensor but get " << k;
+
+  // Output shape is the same as input shape.
+  reporter->Assign(types[2], TensorType(data->shape, data->dtype));
+  return true;
+}
+
+Expr MakeTrilu(Expr data, Expr k, bool upper) {
+  auto attrs = make_object<TriluAttrs>();
+  attrs->upper = upper;
+  static const Op& op = Op::Get("trilu");
+  return Call(op, {data, k}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.trilu").set_body_typed(MakeTrilu);
+
+RELAY_REGISTER_OP("trilu")
+    .describe(
+        R"code(Filters out the upper or lower portion of an input tensor on one side of a diagonal.
+    )code" TVM_ADD_FILELINE)
+    .set_num_inputs(2)
+    .add_argument("data", "Tensor", "The input tensor")
+    .add_argument("k", "Tensor", "The number of diagonals above or below the main to exclude.")
+    .add_type_rel("trilu", TriluRel)
+    .set_support_level(3)
+    .set_attr<TOpPattern>("TOpPattern", kElemWise);
+
+// FixedPointMultiplyPerAxis
+
+TVM_REGISTER_NODE_TYPE(FixedPointMultiplyPerAxisAttrs);
+
+bool FixedPointMultiplyPerAxisRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                                  const TypeReporter& reporter) {
+  ICHECK_EQ(types.size(), 5) << "FixedPointMultiplyPerAxis: expect 5 types but " << types.size()
+                             << " provided";
+  ICHECK_EQ(num_inputs, 4) << "FixedPointMultiplyPerAxis: expect 4 inputs but " << num_inputs
+                           << " provided";
+
+  for (int i = 0; i < num_inputs; i++) {
+    auto data = types[i].as<TensorTypeNode>();
+    if (data == nullptr) {
+      ICHECK(types[i].as<IncompleteTypeNode>())
+          << "FixedPointMultiplyPerAxis: expect input type to be TensorType but get " << types[i];
+      return false;
+    }
+  }
+
+  return IdentityRel({types[0], types[4]}, 1, attrs, reporter);
+}
+
+InferCorrectLayoutOutput FixedPointMultiplyPerAxisInferCorrectLayout(
+    const Attrs& attrs, const Array<Layout>& new_in_layouts, const Array<Layout>& old_in_layouts,
+    const Array<tvm::relay::Type>& old_in_types) {
+  const auto* attrs_ptr = attrs.as<FixedPointMultiplyPerAxisAttrs>();
+  ICHECK(attrs_ptr);
+  ObjectPtr<FixedPointMultiplyPerAxisAttrs> param =
+      make_object<FixedPointMultiplyPerAxisAttrs>(*attrs_ptr);
+
+  Array<Array<IndexExpr>> old_in_shapes;
+  for (auto old_in_t : old_in_types) {
+    ICHECK(old_in_t.as<TensorTypeNode>());
+    old_in_shapes.push_back(old_in_t.as<TensorTypeNode>()->shape);
+  }
+
+  Array<Layout> input_layouts, output_layouts;
+
+  if (new_in_layouts.defined()) {
+    const Layout& new_layout = new_in_layouts[0];
+    const Layout& old_layout = old_in_layouts[0];
+
+    std::unordered_set<std::string> old_dims;
+    for (auto axis : param->axes) {
+      ICHECK_GE(axis->value, 0) << "Axis out of bounds in FixedPointMultiplyPerAxis operator.";
+      ICHECK_LT(axis->value, old_in_shapes[0].size())
+          << "Axis out of bounds in FixedPointMultiplyPerAxis operator.";
+      old_dims.emplace(old_layout[axis->value].name());
+    }
+
+    Array<tvm::Integer> new_axes;
+    std::string new_layout_string = "";
+    for (size_t axis_index = 0; axis_index < new_layout->axes.size(); ++axis_index) {
+      const auto& layout_axis = LayoutAxis::Get(new_layout->axes[axis_index]);
+      const std::string& layout_dim = layout_axis.name();
+      if (layout_axis.IsPrimal()) {
+        if (old_dims.count(layout_dim)) {
+          new_axes.push_back(tvm::Integer(axis_index));
+          new_layout_string += layout_dim;
+        }
+      } else {
+        auto primal_dim = layout_axis.ToPrimal().name();
+        if (old_dims.count(primal_dim)) {
+          new_axes.push_back(tvm::Integer(axis_index));
+          new_layout_string += std::to_string(new_layout.FactorOf(layout_axis)) + layout_dim;
+        }
+      }
+    }
+
+    Layout channel_layout = Layout(new_layout_string);
+
+    input_layouts = {new_layout, channel_layout, channel_layout, channel_layout};
+    output_layouts = {new_layout};
+    param->axes = std::move(new_axes);
+  } else if (old_in_layouts.defined()) {
+    ICHECK_EQ(old_in_layouts.size(), 4);
+    ICHECK_EQ(param->axes.size(), 1);  // Not tested other cases
+    const Layout& old_layout = old_in_layouts[0];
+    if (old_layout.defined()) {
+      std::string layout_string = old_layout[param->axes[0]->value].name();
+      Layout channel_layout = Layout(layout_string);
+
+      input_layouts = {old_layout, channel_layout, channel_layout, channel_layout};
+      output_layouts = {old_layout};
+    } else {
+      // Set the layouts to undef.
+      Layout undef = Layout::Undef();
+      input_layouts = Array<Layout>(4, undef);
+      output_layouts = {undef};
+    }
+  } else {
+    // Set the layouts to undef.
+    Layout undef = Layout::Undef();
+    input_layouts = Array<Layout>(4, undef);
+    output_layouts = {undef};
+  }
+
+  return InferCorrectLayoutOutput(input_layouts, output_layouts, Attrs(param));
+}
+
+Expr MakeFixedPointMultiplyPerAxis(Expr x, Expr m, Expr lshift, Expr rshift,
+                                   bool is_lshift_required, bool is_rshift_required,
+                                   Array<Integer> axes) {
+  auto attrs = make_object<FixedPointMultiplyPerAxisAttrs>();
+  attrs->is_lshift_required = is_lshift_required;
+  attrs->is_rshift_required = is_rshift_required;
+  attrs->axes = std::move(axes);
+  static const Op& op = Op::Get("fixed_point_multiply_per_axis");
+  return Call(op, {x, m, lshift, rshift}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.fixed_point_multiply_per_axis")
+    .set_body_typed(MakeFixedPointMultiplyPerAxis);
+
+RELAY_REGISTER_OP("fixed_point_multiply_per_axis")
+    .describe(R"code(per channel fixed point multiplication)code" TVM_ADD_FILELINE)
+    .set_num_inputs(4)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("fp_multiplier", "Tensor", "The multipliers tensor.")
+    .add_argument("left_shift", "Tensor", "The left shifts tensor.")
+    .add_argument("right_shift", "Tensor", "The right shifts tensor.")
+    .add_type_rel("FixedPointMultiplyPerAxis", FixedPointMultiplyPerAxisRel)
+    .set_attr<TOpPattern>("TOpPattern", kBroadcast)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
+                                   FixedPointMultiplyPerAxisInferCorrectLayout)
+    .set_attrs_type<FixedPointMultiplyPerAxisAttrs>()
+    .set_support_level(10);
 
 }  // namespace relay
 }  // namespace tvm

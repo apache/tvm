@@ -96,4 +96,4 @@ def test_extract_constants_multi():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

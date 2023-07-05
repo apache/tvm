@@ -97,7 +97,7 @@ class NodeFunctor<R(const ObjectRef& n, Args...)> {
     return (*func_[n->type_index()])(n, std::forward<Args>(args)...);
   }
   /*!
-   * \brief set the dispacher for type TNode
+   * \brief set the dispatcher for type TNode
    * \param f The function to be set.
    * \tparam TNode the type of Node to be dispatched.
    * \return reference to self.
@@ -113,7 +113,7 @@ class NodeFunctor<R(const ObjectRef& n, Args...)> {
     return *this;
   }
   /*!
-   * \brief unset the dispacher for type TNode
+   * \brief unset the dispatcher for type TNode
    *
    * \tparam TNode the type of Node to be dispatched.
    * \return reference to self.

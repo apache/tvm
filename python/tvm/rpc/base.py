@@ -120,13 +120,16 @@ def recvjson(sock):
     return data
 
 
-def random_key(prefix, cmap=None):
+def random_key(prefix, delimiter=":", cmap=None):
     """Generate a random key
 
     Parameters
     ----------
     prefix : str
         The string prefix
+
+    delimiter : str
+        The delimiter
 
     cmap : dict
         Conflict map
@@ -136,13 +139,30 @@ def random_key(prefix, cmap=None):
     key : str
         The generated random key
     """
-    if cmap:
-        while True:
-            key = prefix + str(random.random())
-            if key not in cmap:
-                return key
-    else:
-        return prefix + str(random.random())
+    while True:
+        key = f"{prefix}{delimiter}{random.random()}"
+        if not cmap or key not in cmap:
+            break
+    return key
+
+
+def split_random_key(key, delimiter=":"):
+    """Split a random key by delimiter into prefix and random part
+
+    Parameters
+    ----------
+    key : str
+        The generated random key
+
+    Returns
+    -------
+    prefix : str
+        The string prefix
+
+    random_part : str
+        The generated random
+    """
+    return key.rsplit(delimiter, 1)
 
 
 def connect_with_retry(addr, timeout=60, retry_period=5):
@@ -172,8 +192,8 @@ def connect_with_retry(addr, timeout=60, retry_period=5):
                 raise sock_err
             period = time.time() - tstart
             if period > timeout:
-                raise RuntimeError("Failed to connect to server %s" % str(addr))
+                raise RuntimeError(f"Failed to connect to server {str(addr)}")
             logger.warning(
-                "Cannot connect to tracker %s, retry in %g secs...", str(addr), retry_period
+                f"Cannot connect to tracker {str(addr)}, retry in {retry_period:g} secs..."
             )
             time.sleep(retry_period)

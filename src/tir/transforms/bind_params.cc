@@ -84,44 +84,57 @@ class ParamsCollector : public StmtExprVisitor {
   Map<tir::Var, runtime::NDArray> constant_map_;
 };
 
+PrimFunc BindParams(PrimFunc f, const Array<runtime::NDArray>& constants) {
+  Map<tir::Var, runtime::NDArray> constant_map;
+
+  // Remove constants from the primfunc signature
+  size_t num_constants = constants.size();
+  size_t start = f->params.size() - num_constants;
+  Array<tir::Var> params;
+  for (unsigned i = 0; i < start; i++) {
+    params.push_back(f->params[i]);
+  }
+
+  auto* n = f.CopyOnWrite();
+  for (unsigned i = start; i < f->params.size(); i++) {
+    tir::Var p = n->params[i];
+    tir::Var b = n->buffer_map[p]->data;
+    n->buffer_map.erase(p);
+    constant_map.Set(b, constants[i - start]);
+  }
+  n->params = params;
+  auto constant_list = ParamsCollector(constant_map).CollectParams(n->body);
+
+  // Allocate constants within the primfunc
+  for (auto i : constant_list) {
+    auto var = GetRef<Var>(i);
+    int ndim = constant_map[var]->ndim;
+    Array<PrimExpr> extents;
+
+    for (int i = 0; i < ndim; i++) {
+      int shape = constant_map[var]->shape[i];
+      extents.push_back(make_const(DataType::Int(32), shape));
+    }
+    DataType dtype = DataType(constant_map[var]->dtype);
+
+    if (n->body->IsInstance<BlockRealizeNode>()) {
+      auto* block_realize = n->body.as<BlockRealizeNode>();
+      auto block = block_realize->block;
+      block.CopyOnWrite()->body =
+          tir::AllocateConst(var, dtype, extents, constant_map[var], block->body);
+      n->body = BlockRealize(block_realize->iter_values, block_realize->predicate, block);
+    } else {
+      n->body = tir::AllocateConst(var, dtype, extents, constant_map[var], n->body);
+    }
+  }
+  return f;
+}
+
 namespace transform {
 
 Pass BindParams(const Array<runtime::NDArray>& constants) {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
-    Map<tir::Var, runtime::NDArray> constant_map;
-
-    // Remove constants from the primfunc signature
-    size_t num_constants = constants.size();
-    size_t start = f->params.size() - num_constants;
-    Array<tir::Var> params;
-    for (unsigned i = 0; i < start; i++) {
-      params.push_back(f->params[i]);
-    }
-
-    auto* n = f.CopyOnWrite();
-    for (unsigned i = start; i < f->params.size(); i++) {
-      tir::Var p = n->params[i];
-      tir::Var b = n->buffer_map[p]->data;
-      n->buffer_map.erase(p);
-      constant_map.Set(b, constants[i - start]);
-    }
-    n->params = params;
-    auto constant_list = ParamsCollector(constant_map).CollectParams(n->body);
-
-    // Allocate constants within the primfunc
-    for (auto i : constant_list) {
-      auto var = GetRef<Var>(i);
-      int ndim = constant_map[var]->ndim;
-      Array<PrimExpr> extents;
-
-      for (int i = 0; i < ndim; i++) {
-        int shape = constant_map[var]->shape[i];
-        extents.push_back(make_const(DataType::Int(32), shape));
-      }
-      DataType dtype = DataType(constant_map[var]->dtype);
-      n->body = tir::AllocateConst(var, dtype, extents, constant_map[var], n->body);
-    }
-    return f;
+    return BindParams(f, constants);
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.BindParams", {});
 }

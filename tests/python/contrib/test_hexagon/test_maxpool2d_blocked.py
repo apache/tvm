@@ -15,22 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import sys
+"""Contrib tests for blocked conv2d and maxpool2d"""
+
+import numpy as np
 
 import tvm
 import tvm.testing
-from tvm import te
-from tvm import topi
+from tvm import te, topi
 from tvm.topi import testing
-from .infrastructure import (
-    ceildiv,
-    build_and_run,
-    get_block_shape,
-    get_packed_shape,
-)
 
-import numpy as np
-import pytest
+from .infrastructure import build_and_run, get_block_shape, get_packed_shape
+
 
 # Blocked layout: NHWC8h8w32c :: [N, H//8, W//8, C//32, 8h, 8w, 32c]
 def maxpool2d_logical(
@@ -47,7 +42,7 @@ def maxpool2d_logical(
     activation is nhwc8h8w32c.
     """
 
-    block_H, block_W, block_C = get_block_shape()
+    block_h, block_w, block_c = get_block_shape()
     shape = get_packed_shape(shape_nhwc)
     logical_output_shape = (
         shape_nhwc[0],
@@ -57,60 +52,66 @@ def maxpool2d_logical(
     )
     output_shape = get_packed_shape(logical_output_shape)
 
-    N, H, W, C = shape_nhwc
-    X = te.placeholder(shape_nhwc, dtype=dtype)
+    _, height, width, _ = shape_nhwc
+    placeholder_x = te.placeholder(shape_nhwc, dtype=dtype)
 
     # Combination of padding required by maxpool operator and padding to evenly divisible
     # number of blocks. Note that this padding should be inlined in the schedule so
     # as to avoid input copying.
-    pad_h = (block_H - ((H + padding[1]) % block_H)) % block_H
-    pad_w = (block_W - ((W + padding[3]) % block_W)) % block_W
-    X_pad = topi.nn.pad(X, [0, padding[0], padding[2], 0], [0, pad_h, pad_w, 0], pad_value=0)
+    pad_h = (block_h - ((height + padding[1]) % block_h)) % block_h
+    pad_w = (block_w - ((width + padding[3]) % block_w)) % block_w
+    x_pad = topi.nn.pad(
+        placeholder_x, [0, padding[0], padding[2], 0], [0, pad_h, pad_w, 0], pad_value=0
+    )
 
     # Calculate packed layout
-    X_packed = te.compute(
+    x_packed = te.compute(
         shape,
-        lambda n, ho, wo, co, hi, wi, ci: X_pad[
-            n, ho * block_H + hi, wo * block_W + wi, co * block_C + ci
+        lambda n, ho, wo, co, hi, wi, ci: x_pad[
+            n, ho * block_h + hi, wo * block_w + wi, co * block_c + ci
         ],
     )
 
-    rh = te.reduce_axis((0, window_shape[0]), name="rh")
-    rw = te.reduce_axis((0, window_shape[1]), name="rw")
+    reduce_h = te.reduce_axis((0, window_shape[0]), name="rh")
+    reduce_w = te.reduce_axis((0, window_shape[1]), name="rw")
 
-    def compute(n, ho, wo, co, hi, wi, ci):
+    def compute(batch, h_outer, w_outer, c_outer, h_inner, w_inner, c_inner):
         # Construct blockized strided maxpool height indices
-        h = ho * block_H + hi
-        h_contig = h * stride[0] + rh
-        h_block_id = h_contig // block_H
-        h_block_offset = h_contig % block_H
+        h = h_outer * block_h + h_inner
+        h_contig = h * stride[0] + reduce_h
+        h_block_id = h_contig // block_h
+        h_block_offset = h_contig % block_h
 
         # Construct blockized strided maxpool width indices
-        w = wo * block_W + wi
-        w_contig = w * stride[1] + rw
-        w_block_id = w_contig // block_W
-        w_block_offset = w_contig % block_W
+        w_idx = w_outer * block_w + w_inner
+        w_contig = w_idx * stride[1] + reduce_w
+        w_block_id = w_contig // block_w
+        w_block_offset = w_contig % block_w
 
         return te.max(
-            X_packed[n, h_block_id, w_block_id, co, h_block_offset, w_block_offset, ci],
-            axis=[rh, rw],
+            x_packed[
+                batch, h_block_id, w_block_id, c_outer, h_block_offset, w_block_offset, c_inner
+            ],
+            axis=[reduce_h, reduce_w],
         )
 
-    Y = te.compute(output_shape, compute)
-    s = te.create_schedule(Y.op)
+    compute_y = te.compute(output_shape, compute)
+    schedule = te.create_schedule(compute_y.op)
 
     # Ensure the padding and array packing is performed inline
-    s[X_pad].compute_inline()
-    s[X_packed].compute_inline()
+    schedule[x_pad].compute_inline()
+    schedule[x_packed].compute_inline()
 
     binds = {}
     if storage_scope and storage_scope != "global":
         with tvm.transform.PassContext():
-            Xb = tvm.tir.decl_buffer(shape, name="Xb", dtype=dtype, scope=storage_scope)
-            Yb = tvm.tir.decl_buffer(output_shape, name="Yb", dtype=dtype, scope=storage_scope)
-            binds = {X: Xb, Y: Yb}
+            x_buffer = tvm.tir.decl_buffer(shape, name="Xb", dtype=dtype, scope=storage_scope)
+            y_buffer = tvm.tir.decl_buffer(
+                output_shape, name="Yb", dtype=dtype, scope=storage_scope
+            )
+            binds = {placeholder_x: x_buffer, compute_y: y_buffer}
 
-    return (s, [X, Y], binds)
+    return (schedule, [placeholder_x, compute_y], binds)
 
 
 class BaseMaxPooling:
@@ -124,8 +125,11 @@ class BaseMaxPooling:
 
 
 class TestMaxPooling(BaseMaxPooling):
+    """Test MaxPool class"""
+
     @tvm.testing.parametrize_targets("llvm")
     def test_maxpool(self, shape_nhwc, window_size, stride, pad, dtype, target):
+        """Test blocked maxpool"""
         inputs = [np.random.uniform(0, 255, size=shape_nhwc).astype(dtype)]
         ref_output = testing.poolnd_python(
             inputs[0],
@@ -147,7 +151,7 @@ class TestMaxPooling(BaseMaxPooling):
             padding=(pad, pad, pad, pad),
             dtype=dtype,
         )
-        return output, ref_output
+        assert all([output is not None, ref_output is not None])
 
 
 if __name__ == "__main__":

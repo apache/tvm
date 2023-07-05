@@ -15,11 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 """Core kernel of dot product of 4 Int8 operations"""
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name,unused-variable
 import tvm
 from tvm import te
 import tvm.target.codegen
-from .utils import target_has_sse42, target_has_vnni, get_simd_32bit_lanes
+from tvm.target.x86 import target_has_sse42, target_has_vnni, get_simd_32bit_lanes
 
 
 def dot_16x1x16_uint8_int8_int32():
@@ -120,14 +120,14 @@ def dot_16x1x16_uint8_int8_int32_skylake():
             pair_reduction = tvm.tir.call_llvm_pure_intrin(
                 int_lx32,
                 pmaddubs,
-                tvm.tir.const(0, "uint32"),
+                tvm.tir.const(2, "uint32"),
                 vec_a,
                 vec_b,
             )
             quad_reduction = tvm.tir.call_llvm_pure_intrin(
                 int_32xl,
                 pmaddw,
-                tvm.tir.const(0, "uint32"),
+                tvm.tir.const(2, "uint32"),
                 pair_reduction,
                 vec_one,
             )
@@ -215,7 +215,7 @@ def dot_16x1x16_uint8_int8_int16():
                 pair_reduction = tvm.tir.call_llvm_pure_intrin(
                     "int16x32",
                     "llvm.x86.avx512.pmaddubs.w.512",
-                    tvm.tir.const(0, "uint32"),
+                    tvm.tir.const(2, "uint32"),
                     vec_a,
                     vec_b,
                 )
@@ -305,37 +305,37 @@ def dot_16x1x16_uint8_int8_int32_cascadelake():
 
             if llvm_id != 0:  # VNNI is available for current LLVM version
                 vec_bi32 = tvm.tir.call_intrin("int32x16", "tir.reinterpret", vec_b)
-                vec_zero = tvm.tir.const(0, "int32x16")
+                vec_c = outs[0].vload([0], "int32x16")
                 quad_reduction = tvm.tir.call_llvm_pure_intrin(
                     "int32x16",
                     "llvm.x86.avx512.vpdpbusd.512",
-                    tvm.tir.const(0, "uint32"),
-                    vec_zero,
+                    tvm.tir.const(3, "uint32"),
+                    vec_c,
                     vec_ai32,
                     vec_bi32,
                 )
+                ib.emit(outs[0].vstore(0, quad_reduction))
             else:  # Fall back to the normal AVX512
                 vec_a = tvm.tir.call_intrin("int8x64", "tir.reinterpret", vec_ai32)
                 vec_one = tvm.tir.const(1, "int16x32")
                 pair_reduction = tvm.tir.call_llvm_pure_intrin(
                     "int16x32",
                     "llvm.x86.avx512.pmaddubs.w.512",
-                    tvm.tir.const(0, "uint32"),
+                    tvm.tir.const(2, "uint32"),
                     vec_a,
                     vec_b,
                 )
                 quad_reduction = tvm.tir.call_llvm_pure_intrin(
                     "int32x16",
                     "llvm.x86.avx512.pmaddw.d.512",
-                    tvm.tir.const(0, "uint32"),
+                    tvm.tir.const(2, "uint32"),
                     pair_reduction,
                     vec_one,
                 )
-
-            if index == 0:
-                ib.emit(outs[0].vstore(0, quad_reduction))
-            else:
-                ib.emit(outs[0].vstore(0, quad_reduction + outs[0].vload([0], "int32x16")))
+                if index == 0:
+                    ib.emit(outs[0].vstore(0, quad_reduction))
+                else:
+                    ib.emit(outs[0].vstore(0, quad_reduction + outs[0].vload([0], "int32x16")))
             return ib.get()
 
         # body, reset, update
@@ -348,3 +348,227 @@ def dot_16x1x16_uint8_int8_int32_cascadelake():
         binds={data: a_buffer, kernel: b_buffer},
         default_buffer_params=buffer_params,
     )
+
+
+def dot_32x128x32_u8s8s32_sapphirerapids(LDA):
+    """
+    Int8 dot product by every 16x64 elements using AMX-TMUL Sapphire Rapids instructions.
+    The tdpxxd instruction takes two tile of uint8 and int8 datatype -- data[16][64] and
+    kernel[1][16][16][4] -- and computes a dot product of data[16][16] in int32 datatype.
+
+    (Physically, to efficiently leveraging the tile register, we constructing a 2x2 tiles
+    matmul which performs 32x128x32 in total)
+
+    The pseudo code is as follows:
+        for(k=0; k<2; k++){
+            for(n=0; n<2; n++){
+                tileload64(tmm_b, B)
+                for(m=0; m<2; m++){
+                    if(n==0)
+                        tileload64(tmm_a, A)
+                    tdpbusd(tmm_c, tmm_a, tmm_b)
+                }
+            }
+        }
+
+    Args:
+        LDA (int): the stride of the matrix A, which is uint8 type and use it to determine
+                    memory strides of macro reduce axis.
+
+    Returns
+    -------
+    intrin : TensorIntrin
+        The Sapphire Rapids AMX-TMUL int8 tdpbusd TensorIntrin that can be used in tensorizing
+        schedule
+    """
+    A = te.placeholder((32, 128), name="A", dtype="uint8")
+    B = te.placeholder((2, 32, 16, 4), name="B", dtype="int8")
+    k = te.reduce_axis((0, 128), name="k")
+
+    C = te.compute(
+        (32, 32),
+        lambda i, j: te.sum(
+            A[i, k].astype("int32")
+            * B[tvm.tir.indexdiv(j, 16), tvm.tir.indexdiv(k, 4), j % 16, k % 4].astype("int32"),
+            axis=k,
+        ),
+        name="C",
+    )
+
+    BA = tvm.tir.decl_buffer(
+        A.shape, A.dtype, offset_factor=1, strides=[te.var("ldw"), 1], name="BA"
+    )
+    BB = tvm.tir.decl_buffer(
+        B.shape,
+        B.dtype,
+        offset_factor=1,
+        strides=[te.var("ldw"), te.var("ldw"), te.var("ldw"), 1],
+        name="BB",
+    )
+    BC = tvm.tir.decl_buffer(
+        C.shape, C.dtype, offset_factor=1, strides=[te.var("ldw"), 1], name="BC", scope="amx.tmm"
+    )
+
+    def intrin_func(ins, outs):  # pylint: disable=unused-variable
+        bufA = ins[0]
+        bufB = ins[1]
+        bufC = outs[0]
+
+        assert LDA
+        _strides_A = tvm.tir.const(LDA, dtype="uint64")
+        _strides_B_tile = tvm.tir.const(LDA / 128, dtype="uint64")
+
+        def init():
+            ib = tvm.tir.ir_builder.create()
+            ib.emit(
+                tvm.tir.call_llvm_intrin(
+                    "int32",
+                    "llvm.x86.tilezero",
+                    tvm.tir.const(1, "uint8"),
+                    tvm.tir.const(0, dtype="uint8"),
+                )
+            )  # tile C 0
+            ib.emit(
+                tvm.tir.call_llvm_intrin(
+                    "int32",
+                    "llvm.x86.tilezero",
+                    tvm.tir.const(1, "uint8"),
+                    tvm.tir.const(1, dtype="uint8"),
+                )
+            )  # tile C 1
+            ib.emit(
+                tvm.tir.call_llvm_intrin(
+                    "int32",
+                    "llvm.x86.tilezero",
+                    tvm.tir.const(1, "uint8"),
+                    tvm.tir.const(2, dtype="uint8"),
+                )
+            )  # tile C 2
+            ib.emit(
+                tvm.tir.call_llvm_intrin(
+                    "int32",
+                    "llvm.x86.tilezero",
+                    tvm.tir.const(1, "uint8"),
+                    tvm.tir.const(3, dtype="uint8"),
+                )
+            )  # tile C 3
+
+            return ib.get()
+
+        def body():  # load A, load B, dpbusd, store C
+            ib = tvm.tir.ir_builder.create()
+
+            for k_tile in range(2):  # reduced data blocks
+                for n_acc in range(2):  # broadcast data blocks
+                    tmm_B_ = tvm.tir.const(n_acc + 6, dtype="uint8")
+                    ib.emit(
+                        tvm.tir.call_llvm_intrin(
+                            "int32",
+                            "llvm.x86.tileloaddt164",  # load B: tmm6, tmm7
+                            tvm.tir.const(3, "uint8"),
+                            tmm_B_,
+                            bufB.access_ptr(
+                                "r", offset=64 * 16 * (n_acc * 2 * _strides_B_tile + k_tile)
+                            ),
+                            tvm.tir.const(64, dtype="uint64"),
+                        )
+                    )
+
+                    for m_acc in range(2):  # loaded data blocks
+                        tmm_A_ = tvm.tir.const(m_acc + 4, dtype="uint8")
+                        if n_acc == 0:
+                            ib.emit(
+                                tvm.tir.call_llvm_intrin(
+                                    "int32",
+                                    "llvm.x86.tileloaddt164",  # load A: , tmm4, tmm5
+                                    tvm.tir.const(3, "uint8"),
+                                    tmm_A_,
+                                    bufA.access_ptr(
+                                        "r", offset=m_acc * 16 * _strides_A + k_tile * 64
+                                    ),
+                                    _strides_A,
+                                )
+                            )
+
+                        tmm_C_ = tvm.tir.const(m_acc * 2 + n_acc, dtype="uint8")
+                        ib.emit(
+                            tvm.tir.call_llvm_intrin(
+                                "int32",
+                                "llvm.x86.tdpbusd",
+                                tvm.tir.const(3, "uint8"),
+                                tmm_C_,
+                                tmm_A_,
+                                tmm_B_,
+                            )
+                        )  # tdpxxd
+
+            return ib.get()
+
+        # body, reset, store
+        return (
+            body(),
+            init(),
+            body(),
+        )
+
+    return te.decl_tensor_intrin(C.op, intrin_func, binds={A: BA, B: BB, C: BC})
+
+
+def acc_32x32_int32_sapphirerapids(LDC):
+    """
+    Store the accumulated tile register in scope amx.tmm to global memory.
+    (tmm0, tmm1, tmm2, tmm3 --> global 4 tiles)
+
+    Args:
+        LDC (int): the stride of the matrix C, which is int32 type and use it to
+                    determine memory strides.
+
+    Returns
+    -------
+    intrin : TensorIntrin
+        The Sapphirerapids AMX-TMUL int8 tilestored64 TensorIntrin that can be used
+        in tensorizing schedule
+    """
+    A = te.placeholder((32, 32), name="A", dtype="int32")
+    bufA = tvm.tir.decl_buffer(
+        A.shape,
+        A.dtype,
+        scope="amx.tmm",
+        name="a_buffer",
+        offset_factor=1,
+        strides=[te.var("ldw"), 1],
+    )
+
+    C = te.compute((32, 32), lambda i, j: A[i, j], name="C")
+    bufC = tvm.tir.decl_buffer(
+        C.shape,
+        C.dtype,
+        scope="global",
+        name="c_buffer",
+        offset_factor=1,
+        strides=[te.var("ldw"), 1],
+    )
+
+    assert LDC
+    _strides_C = tvm.tir.const(4 * LDC, dtype="uint64")
+
+    def intrin_func(ins, outs):  # pylint: disable=unused-variable
+        ib = tvm.tir.ir_builder.create()
+        bufA = ins[0]
+        bufC = outs[0]
+        for n_acc in range(2):  # broadcast data blocks
+            for m_acc in range(2):  # loaded data blocks
+                ib.emit(
+                    tvm.tir.call_llvm_intrin(
+                        "int32",
+                        "llvm.x86.tilestored64",
+                        tvm.tir.const(3, "uint8"),
+                        tvm.tir.const(m_acc * 2 + n_acc, dtype="uint8"),
+                        bufC.access_ptr("w", offset=n_acc * 16 + m_acc * 16 * _strides_C / 4),
+                        _strides_C,
+                    )
+                )
+
+        return ib.get()
+
+    return te.decl_tensor_intrin(C.op, intrin_func, binds={A: bufA, C: bufC})

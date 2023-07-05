@@ -14,17 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, dangerous-default-value
+# pylint: disable=invalid-name, dangerous-default-value, arguments-differ
 """Driver for partitioning and building a Relay module for CUTLASS offload."""
 import logging
 import os
 import multiprocessing
 import tvm
-from tvm import runtime, relay
-from tvm.contrib.nvcc import get_cuda_version
+from tvm import relay, runtime
 from tvm._ffi.registry import register_func
-from .gen_gemm import CutlassGemmProfiler
+from tvm.contrib.nvcc import get_cuda_version
+
 from .gen_conv2d import CutlassConv2DProfiler
+from .gen_gemm import CutlassGemmProfiler
 from .library import ConvKind
 
 logger = logging.getLogger("cutlass")
@@ -38,11 +39,9 @@ def has_cutlass():
 def _get_cutlass_path():
     tvm_root = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../../../")
     cutlass_path = os.path.join(tvm_root, "3rdparty/cutlass")
-    assert os.path.exists(
-        cutlass_path
-    ), """The CUTLASS root directory not found in {}.
-        Currently, using CUTLASS requires building TVM from source.""".format(
-        cutlass_path
+    assert os.path.exists(cutlass_path), (
+        f"The CUTLASS root directory not found in {cutlass_path}. Currently, using CUTLASS "
+        f"requires building TVM from source."
     )
     return cutlass_path
 
@@ -57,21 +56,23 @@ def _get_cutlass_compile_options(sm, threads, use_fast_math=False):
     kwargs["options"] = [
         "-c",
         "-DCUTLASS_ENABLE_TENSOR_CORE_MMA=1",
-        "-gencode=arch=compute_%d,code=[sm_%d,compute_%d]" % (sm, sm, sm),
+        f"-gencode=arch=compute_{sm},code=[sm_{sm},compute_{sm}]",
+        "-DNDEBUG",
         "-Xcompiler=-fPIC",
         "-Xcompiler=-Wconversion",
         "-Xcompiler=-fno-strict-aliasing",
+        "-Xcompiler=-fvisibility=hidden",
         "-O3",
-        "-std=c++14",
-        "-I" + cutlass_include,
-        "-I" + cutlass_util_include,
+        "-std=c++17",
+        f"-I{cutlass_include}",
+        f"-I{cutlass_util_include}",
     ]
     if use_fast_math:
         kwargs["options"].append("-DCUTLASS_USE_TANH_FOR_SIGMOID")
     cuda_ver = get_cuda_version()
     if cuda_ver >= (11, 2):
         ncpu = multiprocessing.cpu_count() if threads < 0 else threads
-        kwargs["options"].append("-t %d" % ncpu)
+        kwargs["options"].append(f"-t {ncpu}")
     return kwargs
 
 
@@ -87,13 +88,17 @@ class OpAnnotator(tvm.relay.ExprVisitor):
         if isinstance(op, relay.Function) and "Composite" in op.attrs:
             self.signature["op_type"] = op.attrs["Composite"]
             for i, arg in enumerate(op.params):
-                self.signature["arg%d_shape" % i] = arg.checked_type.shape
-                self.signature["arg%d_dtype" % i] = arg.checked_type.dtype
+                self.signature[f"arg{i}_shape"] = arg.checked_type.shape
+                self.signature[f"arg{i}_dtype"] = arg.checked_type.dtype
             self.signature["ret_shape"] = op.ret_type.shape
             self.signature["ret_dtype"] = op.ret_type.dtype
             self.visit(op.body)
 
-        if str(op) in ["nn.conv2d", "nn.conv2d_transpose", "nn.conv2d_backward_weight"]:
+        elif isinstance(op, tvm.ir.Op) and op.name in [
+            "nn.conv2d",
+            "nn.conv2d_transpose",
+            "nn.conv2d_backward_weight",
+        ]:
             self.op_attrs = call.attrs
 
         for arg in call.args:
@@ -286,10 +291,7 @@ def handle_conv2d(
         else:
             logger.info("Picked the first kernel found %s", name)
 
-    return {
-        "cutlass_op_def": cutlass_op_def,
-        "cutlass_op_name": name,
-    }
+    return {"cutlass_op_def": cutlass_op_def, "cutlass_op_name": name}
 
 
 def num_cutlass_partitions(mod):
@@ -324,7 +326,7 @@ def tune_cutlass_kernels(
 
     split_k_slices : list of int
         Split factor candidates for split-K GEMM. If split-K > 1, the GEMM K-loop is computed in
-        parallel accross split-K blocks, and a seperate global reduction kernel is launched to
+        parallel across split-K blocks, and a separate global reduction kernel is launched to
         accumulate partial reductions. The profiler will pick the best split-k factor from the
         given candidate list. Note that the larger split-K factor requires a larger workspace.
         Currently, parallel split-k has been tested only for wgrad. For GEMM and other conv2d
@@ -504,7 +506,7 @@ def tune_cutlass_function(
             )
         )
     else:
-        raise ValueError("%s unsupported composite" % op_type)
+        raise ValueError(f"{op_type} unsupported composite")
 
     new_attrs = tvm.ir.make_node("DictAttrs", **new_attrs)
     return relay.Function(
@@ -514,6 +516,42 @@ def tune_cutlass_function(
         type_params=func.type_params,
         attrs=new_attrs,
     )
+
+
+@register_func("contrib.cutlass.compile")
+def compile_cutlass_module(c_source_module, options):
+    """Compile all CUTLASS kernels in the given C-source module.
+
+    Parameters
+    ----------
+    c_source_module: runtime.Module
+        A C-source module containing CUTLASS kernels.
+
+    options: dict
+        Compilation options. Currently recognizes
+          "sm": The target architecture (compute capability), for example 75 or 80 (default: 80)
+          "threads": The number of threads to use in NVCC parallel compilation (default:
+          use all logical cores)
+          "use_fast_math": Whether or not to use faster but approximate arithmetic in some
+          CUTLASS epilogues (default: False)
+
+    Returns
+    -------
+    rt_mod : runtime.Module
+        A runtime module where all cutlass kernels have been compiled.
+    """
+    tmp_dir = options.get("tmp_dir", "./tmp")
+    defaults = {"sm": 80, "threads": -1, "use_fast_math": False}
+    compile_config = {key: options.get(key, val) for key, val in defaults.items()}
+
+    function_names = c_source_module.get_function("get_func_names")()
+    compile_options = _get_cutlass_compile_options(**compile_config)
+    lib_path = os.path.join(tmp_dir, "cutlass.o")
+    logger.info("Compiling generated CUTLASS code")
+    c_source_module.export_library(lib_path, workspace_dir=tmp_dir, **compile_options)
+
+    # Recover static library
+    return tvm.runtime.load_static_library(lib_path, function_names)
 
 
 @register_func("relay.ext.cutlass.compile_for_cutlass")
@@ -549,6 +587,7 @@ def compile_for_cutlass(mod, cutlass_target):
         key: cutlass_target.attrs.get(key) for key in ["sm", "threads", "use_fast_math"]
     }
     tmp_dir = cutlass_target.attrs.get("tmp_dir")
+    compile_config["tmp_dir"] = tmp_dir
 
     # Tune
     logger.info("Tuning for CUTLASS")
@@ -558,18 +597,7 @@ def compile_for_cutlass(mod, cutlass_target):
     logger.info("Creating CSource module for CUTLASS")
     create_c_source_module = tvm._ffi.get_global_func("relay.ext.cutlass.create_c_source_module")
     c_module = create_c_source_module(mod)
-    function_names = c_module.get_function("get_func_names")()
-    compile_options = _get_cutlass_compile_options(**compile_config)
-    lib_path = os.path.join(tmp_dir, "cutlass.o")
-    logger.info("Compiling generated CUTLASS code")
-    c_module.export_library(lib_path, workspace_dir=tmp_dir, **compile_options)
-
-    # Recover static library
-    logger.info("Loading compiled CUTLASS code")
-    final_mod = tvm.runtime.load_static_library(lib_path, function_names)
-
-    logger.info("Done with CUTLASS compilation")
-    return final_mod
+    return compile_cutlass_module(c_module, compile_config)
 
 
 def finalize_modules(lib, lib_path="compile.so", tmp_dir="./tmp"):

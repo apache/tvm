@@ -17,7 +17,7 @@
 
 .. _debugging-tvm:
 
-Debuggging TVM
+Debugging TVM
 ==============
 
 **NOTE**: This page is a work in-progress. Everyone is welcomed to add suggestions and tips via
@@ -53,14 +53,14 @@ optimization). To enable VLOGging, do the following:
    level assignments of the form ``<file_name>=<level>``. Here are some specializations:
 
     - The special filename ``DEFAULT`` sets the VLOG level setting for all files.
-    - ``<level>>`` can be set to ``-1`` to disable VLOG in that file.
+    - ``<level>`` can be set to ``-1`` to disable VLOG in that file.
     - ``<file_name>`` is the name of the c++ source file (e.g. ``.cc``, not ``.h``) relative to the
       ``src/`` directory in the TVM repo. You do not need to supply ``src/`` when specifying the
       file path, but if you do, VLOG will still interpret the path correctly.
 
 Examples:
 
-.. code-block: shell
+.. code-block:: shell
 
    # enable VLOG(0), VLOG(1), VLOG(2) in all files.
    $ TVM_LOG_DEBUG=DEFAULT=2 python3 -c 'import tvm'

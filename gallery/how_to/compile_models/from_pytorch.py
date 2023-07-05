@@ -21,15 +21,15 @@ Compile PyTorch Models
 
 This article is an introductory tutorial to deploy PyTorch models with Relay.
 
-For us to begin with, PyTorch should be installed.
-TorchVision is also required since we will be using it as our model zoo.
-
-A quick solution is to install via pip
+For us to begin, PyTorch should be installed.
+TorchVision is also required so we can use the model zoo.
+A quick solution is to install via pip:
 
 .. code-block:: bash
 
-    pip install torch==1.7.0
-    pip install torchvision==0.8.1
+    %%shell
+    pip install torch
+    pip install torchvision
 
 or please refer to official site
 https://pytorch.org/get-started/locally/

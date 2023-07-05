@@ -24,26 +24,36 @@ def dequantize(data, scale, zp):
     return scale * (np.asarray(data) - zp)
 
 
-def generate_golden_output(x_data, dequantized_x, alpha, scale, zero_point):
+def generate_golden_output(x_data, dequantized_x, alpha, o_scale, o_zero_point, i_zero_point):
     prod = np.multiply(dequantized_x, alpha)
-    prod = np.around(prod / scale + zero_point)
+    prod = np.around(prod / o_scale + o_zero_point)
 
-    output = np.where(x_data < zero_point, prod, x_data)
+    q_min = np.iinfo(np.uint8).min
+    q_max = np.iinfo(np.uint8).max
+    prod = np.clip(prod, q_min, q_max)
+
+    requantized = np.clip(np.round(dequantized_x / o_scale + o_zero_point), q_min, q_max)
+
+    output = np.where(x_data < i_zero_point, prod, requantized)
     return output
 
 
 def test_qnn_leaky_relu():
     data_dtype = "uint8"
-    scale = 0.125
-    zero_point = 60
+    input_scale = 0.125
+    input_zero_point = 60
+    output_scale = 0.6
+    output_zero_point = 17
     alpha = 0.9
 
     x = relay.var("x", shape=(1, 4), dtype=data_dtype)
     y = relay.qnn.op.leaky_relu(
         x=x,
         alpha=alpha,
-        scale=relay.const(scale, "float32"),
-        zero_point=relay.const(zero_point, "int32"),
+        input_scale=relay.const(input_scale, "float32"),
+        input_zero_point=relay.const(input_zero_point, "int32"),
+        output_scale=relay.const(output_scale, "float32"),
+        output_zero_point=relay.const(output_zero_point, "int32"),
     )
 
     func = relay.Function([x], y)
@@ -53,8 +63,10 @@ def test_qnn_leaky_relu():
     func = mod["main"]
 
     x_data = np.array((255, 133, 0, 9)).reshape((1, 4))
-    x_dequantized = dequantize(x_data, scale, zero_point)
-    golden_output = generate_golden_output(x_data, x_dequantized, alpha, scale, zero_point)
+    x_dequantized = dequantize(x_data, input_scale, input_zero_point)
+    golden_output = generate_golden_output(
+        x_data, x_dequantized, alpha, output_scale, output_zero_point, input_zero_point
+    )
 
     op_res = relay.create_executor("graph", device=tvm.cpu(0), target="llvm").evaluate(func)(x_data)
 

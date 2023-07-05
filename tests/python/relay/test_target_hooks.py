@@ -73,20 +73,20 @@ def test_tir_external_generation_outline_with_target_instance(check_result):
     extern_codegen_target = tvm.target.Target(
         "example_target_hook -example_attribute=42", host=host_target
     )
-    mod = tvm.parser.fromtext(
+    mod = tvm.relay.fromtext(
         """
             #[version = "0.0.5"]
             def @main(%x: Tensor[(8), float32], %y: Tensor[(8), float32]) -> Tensor[(8), float32] {
               @replace_add_with_subtract(%x, %y) * 2.0f
             }
-            
+
             def @replace_add_with_subtract(%x: Tensor[(8), float32], %y: Tensor[(8), float32],
                                            Inline=1,
                                            Primitive=1,
                                            Compiler="example_target_hook",
                                            global_symbol="replace_add_with_subtract") -> Tensor[(8), float32] {
               %x + %y  // will be rewritten to TIR implementing %x - %y - 42.0f by custom pass
-            }  
+            }
         """
     )
 

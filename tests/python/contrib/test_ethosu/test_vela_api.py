@@ -50,16 +50,16 @@ class Module1:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         placeholder_3 = T.match_buffer(
-            placeholder, [192], dtype="uint8", elem_offset=0, align=128, offset_factor=1
+            placeholder, [192], dtype="uint8", elem_offset=0, align=64, offset_factor=1
         )
         placeholder_4 = T.match_buffer(
-            placeholder_1, [48], dtype="uint8", elem_offset=0, align=128, offset_factor=1
+            placeholder_1, [48], dtype="uint8", elem_offset=0, align=64, offset_factor=1
         )
         placeholder_5 = T.match_buffer(
-            placeholder_2, [16], dtype="int32", elem_offset=0, align=128, offset_factor=1
+            placeholder_2, [16], dtype="int32", elem_offset=0, align=64, offset_factor=1
         )
         ethosu_conv2d_1 = T.match_buffer(
-            ethosu_conv2d, [1024], dtype="uint8", elem_offset=0, align=128, offset_factor=1
+            ethosu_conv2d, [1024], dtype="uint8", elem_offset=0, align=64, offset_factor=1
         )
         # body
         T.evaluate(
@@ -142,20 +142,20 @@ class Module2:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         placeholder_3 = T.match_buffer(
-            placeholder, [192], dtype="uint8", elem_offset=0, align=128, offset_factor=1
+            placeholder, [192], dtype="uint8", elem_offset=0, align=64, offset_factor=1
         )
         placeholder_4 = T.match_buffer(
-            placeholder_1, [48], dtype="uint8", elem_offset=0, align=128, offset_factor=1
+            placeholder_1, [48], dtype="uint8", elem_offset=0, align=64, offset_factor=1
         )
         placeholder_5 = T.match_buffer(
-            placeholder_2, [16], dtype="int32", elem_offset=0, align=128, offset_factor=1
+            placeholder_2, [16], dtype="int32", elem_offset=0, align=64, offset_factor=1
         )
         # Per-channel weight scales
         placeholder_7 = T.match_buffer(
-            placeholder_6, [16], dtype="float32", elem_offset=0, align=128, offset_factor=1
+            placeholder_6, [16], dtype="float32", elem_offset=0, align=64, offset_factor=1
         )
         ethosu_conv2d_1 = T.match_buffer(
-            ethosu_conv2d, [1024], dtype="uint8", elem_offset=0, align=128, offset_factor=1
+            ethosu_conv2d, [1024], dtype="uint8", elem_offset=0, align=64, offset_factor=1
         )
         # body
         T.evaluate(
@@ -220,6 +220,28 @@ class Module2:
         )
 
     __tvm_meta__ = None
+
+
+# fmt: off
+@tvm.script.ir_module
+class Module3:
+    @T.prim_func
+    def main(ethos_u_0_i0: T.Buffer((1, 299, 299, 2), "int8"), ethosu_write: T.Buffer((1, 299, 299, 3), "int8")):
+        T.func_attr({"from_legacy_te_schedule": T.bool(True), "global_symbol": "main", "tir.noalias": T.bool(True)})
+        p2_global = T.allocate([128], "uint8", "global", annotations={"disable_lower_builtin": T.bool(True)})
+        ax0_ax1_fused_ax2_fused_ax3_fused = T.int32()
+        p2_global_1 = T.Buffer((128,), "uint8", data=p2_global)
+        with T.attr(T.iter_var(ax0_ax1_fused_ax2_fused_ax3_fused, None, "DataPar", ""), "pragma_compute_cycles_hint", 1056):
+            p1_encoded = T.Buffer((128,), "uint8")
+            T.call_extern("handle", "ethosu_copy", p1_encoded[0], 128, p2_global_1[0])
+        nn = T.int32()
+        T.attr(T.iter_var(nn, None, "DataPar", ""), "pragma_compute_cycles_hint", T.int64(179570))
+        ethos_u_0_i0_1 = T.Buffer((178802,), "int8", data=ethos_u_0_i0.data)
+        ethosu_write_1 = T.Buffer((268203,), "int8", data=ethosu_write.data)
+        T.call_extern("handle", "ethosu_conv2d", "int8", 299, 299, 2, 299, 0, 299, ethos_u_0_i0_1[0], 0, 0, 0, T.float32(0.0039215683937072754), -128, "NHWC", 598, 2, 1, "int8", 299, 299, 3, 299, 0, 299, ethosu_write_1[0], 0, 0, 0, T.float32(0.025585981085896492), -128, "NHWC", 897, 3, 1, 2, 3, 1, 1, 1, 2, p2_global_1[0], 96, T.int8(-1), T.int8(-1), 0, p2_global_1[96], 32, T.int8(-1), T.int8(-1), 2, 0, 2, 1, "NONE", 0, 0, "TFL", "NONE", 32, 12, 8)
+
+    __tvm_meta__ = None
+# fmt: on
 
 
 def test_get_optimal_block_config():
@@ -559,5 +581,33 @@ def test_encode_weights(accel):
         verify(_test_vec, _mock_enc_w)
 
 
+def test_find_block_config_with_vela():
+    block_configs_cases = [
+        {
+            "accel_type": vapi.NpuAccelerator.Ethos_U55_256,
+            "ref": vapi.NpuShape3D(30, 12, 8),
+        },
+        {
+            "accel_type": vapi.NpuAccelerator.Ethos_U55_128,
+            "ref": vapi.NpuShape3D(17, 10, 8),
+        },
+        {
+            "accel_type": vapi.NpuAccelerator.Ethos_U55_64,
+            "ref": vapi.NpuShape3D(25, 5, 8),
+        },
+        {
+            "accel_type": vapi.NpuAccelerator.Ethos_U55_32,
+            "ref": vapi.NpuShape3D(25, 5, 4),
+        },
+    ]
+
+    mod = Module3
+    ethosu_conv2d_call = mod["main"].body.body.seq[1].body.value
+    npu_op, _ = tirtocs.translate_ethosu_conv2d(ethosu_conv2d_call)
+
+    for case in block_configs_cases:
+        assert vela_api._find_block_config_with_vela(npu_op, case["accel_type"]) == case["ref"]
+
+
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

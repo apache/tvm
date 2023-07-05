@@ -92,15 +92,14 @@ class FragmentGetter : public StmtExprVisitor {
       ICHECK(k);
 
       std::string scope = GetPtrStorageScope(GetRef<Var>(buffer_var));
-      // Only wmma.accumulator can use tvm_fill_fragment
-      ICHECK_EQ(scope, "wmma.accumulator");
       if (fragments.count(buffer_var)) {
         FragmentInfo info = fragments[buffer_var];
         ICHECK_EQ(m->value, info.m);
         ICHECK_EQ(n->value, info.n);
         ICHECK_EQ(k->value, info.k);
       } else {
-        FragmentInfo info(m->value, n->value, k->value, "", scope);
+        // default to row major ordering
+        FragmentInfo info(m->value, n->value, k->value, "row_major", scope);
         fragments[buffer_var] = info;
       }
     }
@@ -148,8 +147,14 @@ class FragmentChecker : public StmtExprVisitor {
  private:
   // A tool for checking shapes of two fragments
   bool CheckShape(const VarNode* buffer1, const VarNode* buffer2) {
-    ICHECK(fragment_getter.fragments.count(buffer1));
-    ICHECK(fragment_getter.fragments.count(buffer2));
+    CHECK(fragment_getter.fragments.count(buffer1))
+        << "Tensorecore fragment " << buffer1->name_hint
+        << " must be filled (with tvm_fill_fragment) or loaded (with tvm_load_matrix_sync) before "
+           "use.";
+    CHECK(fragment_getter.fragments.count(buffer2))
+        << "Tensorecore fragment " << buffer2->name_hint
+        << " must be filled (with tvm_fill_fragment) or loaded (with tvm_load_matrix_sync) before "
+           "use.";
     FragmentInfo info1 = fragment_getter.fragments.at(buffer1);
     FragmentInfo info2 = fragment_getter.fragments.at(buffer2);
     return info1.m == info2.m && info1.n == info2.n && info1.k == info2.k;

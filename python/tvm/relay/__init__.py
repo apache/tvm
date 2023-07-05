@@ -29,9 +29,11 @@ from . import adt
 from . import prelude
 from . import loops
 from . import scope_builder
+from .base import pretty_print, astext
 
 from . import transform
 from . import analysis
+from . import collage
 from .build_module import build, create_executor, optimize
 from .transform import build_config
 from . import debug
@@ -63,11 +65,15 @@ from .scope_builder import ScopeBuilder
 # Load Memory Passes
 from .transform import memory_plan
 
+# Parser
+from .parser import parse, parse_expr, fromtext, SpanCheck
+
 # Required to traverse large programs
 setrecursionlimit(10000)
 
 # Span
 Span = base.Span
+SequentialSpan = base.SequentialSpan
 SourceName = base.SourceName
 
 # Type

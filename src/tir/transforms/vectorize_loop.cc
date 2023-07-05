@@ -63,16 +63,6 @@ class VecAllocAccess : public StmtExprMutator {
   VecAllocAccess(const VarNode* buf, Var var, int var_lanes)
       : buf_(buf), var_(var), var_lanes_(var_lanes) {}
 
-  PrimExpr VisitExpr_(const LoadNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-    return PrimExpr();
-  }
-
-  Stmt VisitStmt_(const StoreNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-    return Stmt();
-  }
-
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
     auto load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
     return UpdateBufferAccess(load);
@@ -339,8 +329,8 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       Array<PrimExpr> new_args{op->args[0], op->args[1], op->args[2], mutated_value[0]};
       return Call(op->dtype.with_lanes(lane), op->op, new_args);
     }
-    auto* op_ptr = op->op.as<OpNode>();
-    bool vectorizable = op_ptr && op_vectorizable_.get(GetRef<Op>(op_ptr), false);
+    auto optional_op = op->op.as<Op>();
+    bool vectorizable = optional_op && op_vectorizable_.get(optional_op.value(), false);
 
     if (!vectorizable) {
       // Cannot vectorize this op
@@ -369,18 +359,12 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       }
     }
   }
-  // Load
-  PrimExpr VisitExpr_(const LoadNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-    return PrimExpr();
-  }
   // BufferLoad
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
     auto load = GetRef<BufferLoad>(op);
 
     auto fmutate = [this](const PrimExpr& index) { return this->VisitExpr(index); };
-    Array<PrimExpr> indices = op->indices;
-    indices.MutateByApply(fmutate);
+    Array<PrimExpr> indices = op->indices.Map(fmutate);
 
     if (!indices.same_as(op->indices)) {
       auto writer = load.CopyOnWrite();
@@ -418,18 +402,12 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       }
     }
   }
-  // Store
-  Stmt VisitStmt_(const StoreNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-    return Stmt();
-  }
   // BufferStore
   Stmt VisitStmt_(const BufferStoreNode* op) final {
     auto store = GetRef<BufferStore>(op);
 
     auto fmutate = [this](const PrimExpr& index) { return this->VisitExpr(index); };
-    Array<PrimExpr> indices = op->indices;
-    indices.MutateByApply(fmutate);
+    Array<PrimExpr> indices = op->indices.Map(fmutate);
 
     PrimExpr value = this->VisitExpr(op->value);
 
@@ -492,9 +470,9 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       return Scalarize(GetRef<Stmt>(op));
     }
     Stmt then_case = this->VisitStmt(op->then_case);
-    Stmt else_case;
-    if (op->else_case.defined()) {
-      else_case = this->VisitStmt(op->else_case);
+    Optional<Stmt> else_case = NullOpt;
+    if (op->else_case) {
+      else_case = this->VisitStmt(op->else_case.value());
     }
     if (condition.same_as(op->condition) && then_case.same_as(op->then_case) &&
         else_case.same_as(op->else_case)) {
@@ -506,7 +484,6 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
   // While
   Stmt VisitStmt_(const WhileNode* op) final {
     LOG(FATAL) << "A while loop inside a vectorized loop not supported.";
-    return Stmt();
   }
   // LetStmt
   Stmt VisitStmt_(const LetStmtNode* op) final {
@@ -567,15 +544,13 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
   // scalarize the statment
   Stmt Scalarize(Stmt stmt) {
     Var idx(var_->name_hint + ".s", var_->dtype);
-    Map<Var, PrimExpr> values{{var_, idx}};
-    stmt = Substitute(stmt, values);
+    stmt = Substitute(stmt, {{var_, idx}});
     return For(idx, IntImm(var_->dtype, 0), IntImm(var_->dtype, var_lanes_), ForKind::kSerial,
                stmt);
   }
   // ProducerStore
   Stmt VisitStmt_(const ProducerStoreNode* op) final {
     LOG(FATAL) << "ProducerProvide cannot appear in a TIR PrimFunc";
-    return Stmt();
   }
 
  private:

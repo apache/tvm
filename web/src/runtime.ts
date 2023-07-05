@@ -29,6 +29,7 @@ import { WebGPUContext } from "./webgpu";
 
 import * as compact from "./compact";
 import * as ctypes from "./ctypes";
+import { tsImportEqualsDeclaration } from "@babel/types";
 
 /**
  * Type for PackedFunc inthe TVMRuntime.
@@ -135,6 +136,95 @@ class FFILibrary implements Disposable {
 }
 
 /**
+ * @internal
+ * Manages extra runtime context for the runtime.
+ */
+class RuntimeContext implements Disposable {
+  arrayGetItem : PackedFunc;
+  arrayGetSize : PackedFunc;
+  arrayMake : PackedFunc;
+  getSysLib: PackedFunc;
+
+  private autoDisposeScope: Array<Array<Disposable | undefined>> = [];
+
+  constructor(getGlobalFunc: (name: string) => PackedFunc) {
+    this.arrayGetItem = getGlobalFunc("runtime.ArrayGetItem");
+    this.arrayGetSize = getGlobalFunc("runtime.ArraySize");
+    this.arrayMake = getGlobalFunc("runtime.Array");
+    this.getSysLib = getGlobalFunc("runtime.SystemLib");
+  }
+
+  dispose(): void {
+    this.arrayGetItem.dispose();
+    this.arrayGetSize.dispose();
+    this.arrayMake.dispose();
+  }
+
+  beginScope() : void {
+    this.autoDisposeScope.push([]);
+  }
+
+  endScope() : void {
+    if (this.autoDisposeScope.length == 0) {
+      throw Error("tvm.endScope called when the stack is empty.");
+    }
+    // automatically dispose all the tracked values in the current scope.
+    const currScope = this.autoDisposeScope.pop() as Array<Disposable | undefined>;
+    for (let i = 0; i < currScope.length; ++i) {
+      const val = currScope[i];
+      if (val !== undefined) {
+        val.dispose();
+      }
+    }
+  }
+
+  /**
+   * Track object for dispose in current scope.
+   *
+   * @param obj The object to be tracked.
+   * @returns the same object.
+   * @note This function only needs to be called for raw system C API values.
+   *       The return value of PackedFunc will be automatically tracked.
+   */
+  attachToCurrentScope<T extends Disposable>(obj: T): T {
+    if (this.autoDisposeScope.length == 0) {
+      throw Error("Must call beginScope to use functions that returns TVM objects");
+    }
+    const currScope = this.autoDisposeScope[this.autoDisposeScope.length - 1];
+    currScope.push(obj);
+    return obj;
+  }
+
+  moveToParentScope<T extends Disposable>(obj: T): T {
+    this.detachFromCurrentScope(obj);
+    if (this.autoDisposeScope.length < 2) {
+      throw Error("moveToParentScope: Parent scope do not exist");
+    }
+    const parentScope = this.autoDisposeScope[this.autoDisposeScope.length - 2];
+    parentScope.push(obj);
+    return obj;
+  }
+
+  detachFromCurrentScope<T extends Disposable>(obj: T): T {
+    const currScope = this.autoDisposeScope[this.autoDisposeScope.length - 1];
+    let occurance = 0;
+    for (let i = 0; i < currScope.length; ++i) {
+      if (currScope[i] === obj) {
+        occurance += 1;
+        currScope[i] = undefined;
+      }
+    }
+    if (occurance == 0) {
+      throw Error("Cannot find obj in the current auto conversion pool");
+    }
+    if (occurance > 1) {
+      throw Error("Value attached to scope multiple times");
+    }
+    return obj;
+  }
+}
+
+/**
  * A typed scalar constant used to represent a typed number
  * argument to PackedFunc calls.
  */
@@ -154,7 +244,7 @@ export class Scalar {
  * Cell holds the PackedFunc object.
  */
 class PackedFuncCell implements Disposable {
-  handle: Pointer;
+  private handle: Pointer;
   private lib: FFILibrary;
 
   constructor(handle: Pointer, lib: FFILibrary) {
@@ -169,6 +259,13 @@ class PackedFuncCell implements Disposable {
       );
       this.handle = 0;
     }
+  }
+
+  getHandle(requireNotNull : boolean = true): Pointer {
+    if (requireNotNull && this.handle == 0) {
+      throw Error("PackedFunc has already been disposed");
+    }
+    return this.handle;
   }
 }
 
@@ -286,7 +383,7 @@ export class DLDataType {
  */
 export class NDArray implements Disposable {
   /** Internal array handle. */
-  handle: Pointer;
+  private handle: Pointer;
   /** Number of dimensions. */
   ndim: number;
   /** Data type of the array. */
@@ -352,6 +449,19 @@ export class NDArray implements Disposable {
     this.byteOffset = lib.memory.loadI64(this.dltensor + arrayOffsetByteOffset);
   }
 
+ /**
+  * Get handle of ndarray, check it is not null.
+  *
+  * @param requireNotNull require handle is not null.
+  * @returns The handle.
+  */
+  getHandle(requireNotNull : boolean = true): Pointer {
+    if (requireNotNull && this.handle == 0) {
+      throw Error("NDArray has already been disposed");
+    }
+    return this.handle;
+  }
+
   dispose(): void {
     if (this.handle != 0 && !this.isView) {
       this.lib.checkCall(
@@ -371,8 +481,8 @@ export class NDArray implements Disposable {
     if (data instanceof NDArray) {
       this.lib.checkCall(
         (this.lib.exports.TVMArrayCopyFromTo as ctypes.FTVMArrayCopyFromTo)(
-          data.handle,
-          this.handle,
+          data.getHandle(),
+          this.getHandle(),
           0
         )
       );
@@ -427,7 +537,7 @@ export class NDArray implements Disposable {
     this.lib.memory.storeRawBytes(tempPtr, data);
     this.lib.checkCall(
       (this.lib.exports.TVMArrayCopyFromBytes as ctypes.FTVMArrayCopyFromBytes)(
-        this.handle,
+        this.getHandle(),
         tempPtr,
         nbytes
       )
@@ -455,7 +565,7 @@ export class NDArray implements Disposable {
     const tempPtr = stack.ptrFromOffset(tempOffset);
     this.lib.checkCall(
       (this.lib.exports.TVMArrayCopyToBytes as ctypes.FTVMArrayCopyToBytes)(
-        this.handle,
+        this.getHandle(),
         tempPtr,
         nbytes
       )
@@ -499,7 +609,7 @@ export class NDArray implements Disposable {
  * Runtime Module.
  */
 export class Module implements Disposable {
-  handle: Pointer;
+  private handle: Pointer;
   private lib: FFILibrary;
   private makePackedFunc: (ptr: Pointer) => PackedFunc;
 
@@ -523,11 +633,27 @@ export class Module implements Disposable {
   }
 
   /**
+   * Get handle of module, check it is not null.
+   *
+   * @param requireNotNull require handle is not null.
+   * @returns The handle.
+   */
+  getHandle(requireNotNull : boolean = true): Pointer {
+    if (requireNotNull && this.handle == 0) {
+      throw Error("Module has already been disposed");
+    }
+    return this.handle;
+  }
+
+  /**
    * Get a function in the module.
    * @param name The name of the function.
    * @returns The result function.
    */
   getFunction(name: string): PackedFunc {
+    if (this.handle == 0) {
+      throw Error("Module has already been disposed");
+    }
     const stack = this.lib.getOrAllocCallStack();
     const nameOffset = stack.allocRawBytes(name.length + 1);
     stack.storeRawBytes(nameOffset, StringToUint8Array(name));
@@ -539,7 +665,7 @@ export class Module implements Disposable {
 
     this.lib.checkCall(
       (this.lib.exports.TVMModGetFunction as ctypes.FTVMModGetFunction)(
-        this.handle,
+        this.getHandle(),
         stack.ptrFromOffset(nameOffset),
         1,
         outPtr
@@ -561,112 +687,122 @@ export class Module implements Disposable {
   importModule(mod: Module): void {
     this.lib.checkCall(
       (this.lib.exports.TVMModImport as ctypes.FTVMModImport)(
-        this.handle,
-        mod.handle
+        this.getHandle(),
+        mod.getHandle()
       )
     );
   }
 }
 
 /**
- *  Graph executor.
- *
- *  This is a thin wrapper of the underlying TVM module.
- *  you can also directly call set_input, run, and get_output
- *  of underlying module functions
+ * Generic object base
  */
-class GraphExecutor implements Disposable {
-  module: Module;
-  private packedSetInput: PackedFunc;
-  private packedRun: PackedFunc;
-  private packedGetOutput: PackedFunc;
-  private packedLoadParams: PackedFunc;
+ export class TVMObject implements Disposable {
+  private handle: Pointer;
+  private lib: FFILibrary;
+  protected ctx: RuntimeContext;
 
-  /**
-   * COnstructor
-   * @param module The underlying module.
-   */
-  constructor(module: Module) {
-    this.module = module;
-    this.packedSetInput = module.getFunction("set_input");
-    this.packedRun = module.getFunction("run");
-    this.packedGetOutput = module.getFunction("get_output");
-    this.packedLoadParams = module.getFunction("load_params");
+  constructor(
+    handle: Pointer,
+    lib: FFILibrary,
+    ctx: RuntimeContext
+  ) {
+    this.handle = handle;
+    this.lib = lib;
+    this.ctx = ctx;
   }
 
   dispose(): void {
-    this.packedSetInput.dispose();
-    this.packedRun.dispose();
-    this.packedGetOutput.dispose();
+    if (this.handle != 0) {
+      this.lib.checkCall(
+        (this.lib.exports.TVMObjectFree as ctypes.FTVMObjectFree)(this.handle)
+      );
+      this.handle = 0;
+    }
   }
 
   /**
-   * Set input to the executor.
+   * Get handle of module, check it is not null.
    *
-   * @param key The input key.
-   * @param value The value to get set.
+   * @param requireNotNull require handle is not null.
+   * @returns The handle.
    */
-  setInput(key: number | string, value: NDArray): void {
-    if (typeof key == "number") {
-      this.packedSetInput(new Scalar(key, "int32"), value);
-    } else {
-      this.packedSetInput(key, value);
-
+  getHandle(requireNotNull : boolean = true): Pointer {
+    if (requireNotNull && this.handle == 0) {
+      throw Error("Module has already been disposed");
     }
+    return this.handle;
   }
 
-  /**
-   * Execute the underlying graph.
-   */
-  run(): void {
-    this.packedRun();
-  }
-
-  /**
-   * Get index-th output.
-   * @param index The index number.
-   * @param out The optional output storage parameters.
-   * @returns The output array.
-   */
-  getOutput(index: number, out: NDArray | undefined = undefined): NDArray {
-    if (out !== undefined) {
-      this.packedGetOutput(new Scalar(index, "int32"), out)
-      return out;
-    } else {
-      return this.packedGetOutput(new Scalar(index, "int32"));
+  /** get the type index of the object */
+  typeIndex(): number {
+    if (this.handle == 0) {
+      throw Error("The current Object has already been disposed");
     }
+    const stack = this.lib.getOrAllocCallStack();
+    const outOffset = stack.allocPtrArray(1);
+    const outPtr = stack.ptrFromOffset(outOffset);
+
+    this.lib.checkCall(
+      (this.lib.exports.TVMObjectGetTypeIndex as ctypes.FTVMObjectGetTypeIndex)(
+        this.getHandle(),
+        outPtr
+      )
+    );
+    const result = this.lib.memory.loadU32(outPtr);
+    this.lib.recycleCallStack(stack);
+    return result;
+  }
+
+  /** get the type key of the object */
+  typeKey(): string {
+    const type_index = this.typeIndex();
+    const stack = this.lib.getOrAllocCallStack();
+    const outOffset = stack.allocPtrArray(1);
+    const outPtr = stack.ptrFromOffset(outOffset);
+    this.lib.checkCall(
+      (this.lib.exports.TVMObjectTypeIndex2Key as ctypes.FTVMObjectTypeIndex2Key)(
+        type_index,
+        outPtr
+      )
+    );
+    const result =this.lib.memory.loadCString(
+      this.lib.memory.loadPointer(outPtr)
+    );
+    this.lib.recycleCallStack(stack);
+    return result;
+  }
+}
+
+/** Objectconstructor */
+type FObjectConstructor = (handle: Pointer, lib: FFILibrary, ctx: RuntimeContext) => TVMObject;
+
+/** All possible object types. */
+type TVMObjectBase = TVMObject | NDArray | Module | PackedFunc;
+
+/** Runtime array object. */
+export class TVMArray extends TVMObject {
+  constructor(
+    handle: Pointer,
+    lib: FFILibrary,
+    ctx: RuntimeContext
+  ) {
+    super(handle, lib, ctx);
   }
 
   /**
-   * Load parameters from parameter binary.
-   * @param paramBinary The parameter binary.
+   * @returns the size of the array.
    */
-  loadParams(paramBinary: Uint8Array): void {
-    this.packedLoadParams(paramBinary);
+  size() : number {
+    return this.ctx.arrayGetSize(this) as number;
   }
-
   /**
-   * Benchmark stable execution of the graph(without data copy).
-   * @params dev The device to sync during each run.
-   * @number The number of times to compute the average.
-   * @repeat The number of times to repeat the run.
+   * Get index-th element of the array
+   * @param index the array index.
+   * @returns The element.
    */
-  async benchmarkRuns(dev: DLDevice, number=10, repeat=4): Promise<number[]> {
-    // Skip first run as it can involve GPU warmup and module loading time.
-    const perf = compact.getPerformance();
-    const results = [];
-    this.run();
-    await dev.sync();
-    for (let k = 0; k < repeat; ++k) {
-      const tstart = perf.now();
-      for (let i = 0; i < number; ++i) {
-        this.run();
-      }
-      await dev.sync();
-      const tend = perf.now();
-      results.push((tend - tstart) / number);
-    }
-    return results;
+  get(index : number) : TVMObjectBase {
+    return this.ctx.arrayGetItem(this, new Scalar(index, "int32")) as TVMObjectBase;
   }
 }
 
@@ -678,12 +814,28 @@ const enum AyncCallbackCode {
 
 /**
  * TVM runtime instance.
+ *
+ * All objects(NDArray, Module, PackedFunc) returned by TVM runtim function call
+ * and PackedFunc instance are tracked through a scope mechanism that will get
+ * auto-released when we call EndScope.
+ *
+ * This is necessarily to be able to release the underlying WASM and WebGPU memory that
+ * are not tracked through JS native garbage collection mechanism.
+ *
+ * This does mean that we have to get familar with the following functions:
+ * - {@link beginScope}
+ * - {@link endScope}
+ * - {@link withNewScope}
+ * - {@link attachToCurrentScope}
+ * - {@link detachFromCurrentScope}
  */
 export class Instance implements Disposable {
   memory: Memory;
   exports: Record<string, Function>;
   private lib: FFILibrary;
   private env: Environment;
+  private objFactory: Map<number, FObjectConstructor>;
+  private ctx: RuntimeContext;
 
   /**
    * Internal function(registered by the runtime)
@@ -726,22 +878,136 @@ export class Instance implements Disposable {
     this.lib = new FFILibrary(wasmInstance, env.imports);
     this.memory = this.lib.memory;
     this.exports = this.lib.exports;
+    this.objFactory = new Map<number, ObjectConstructor>();
+    this.ctx = new RuntimeContext(
+      (name: string) => {
+        const autoAttachToScope = false;
+        // runtime context function do not auto-release.
+        return this.getGlobalFuncInternal(name, autoAttachToScope);
+      }
+    );
     this.registerEnvGlobalPackedFuncs();
+    this.registerObjectFactoryFuncs();
   }
 
+  /**
+   * Benchmark stable execution of the run function.
+   *
+   * @params run The run function
+   * @params dev The device to sync during each run.
+   * @number The number of times to compute the average.
+   * @repeat The number of times to repeat the run.
+   */
+    async benchmark(run: ()=>void, dev: DLDevice, number=10, repeat=4): Promise<number[]> {
+      // Skip first run as it can involve GPU warmup and module loading time.
+      const perf = compact.getPerformance();
+      const results = [];
+
+      // run with new scope
+      this.withNewScope(run);
+      await dev.sync();
+
+      for (let k = 0; k < repeat; ++k) {
+        const tstart = perf.now();
+        for (let i = 0; i < number; ++i) {
+          this.withNewScope(run);
+        }
+        await dev.sync();
+        const tend = perf.now();
+        results.push((tend - tstart) / number);
+      }
+      return results;
+    }
+
   dispose(): void {
+    // order matters
+    // ctx release goes back into lib.
+    this.ctx.dispose();
     this.lib.dispose();
   }
+
+  /**
+   * Begin a new scope for tracking object disposal.
+   */
+  beginScope(): void {
+    this.ctx.beginScope();
+  }
+
+  /**
+   * End a scope and release all created TVM objects
+   * under the current scope.
+   *
+   * Exception: one can call retainToParentScope to move
+   * a value to parent scope.
+   */
+  endScope(): void {
+    this.ctx.endScope();
+  }
+
+  /**
+   * Perform action under a new scope.
+   *
+   * @param action The action function.
+   * @returns The result value.
+   *
+   * @note For action to return a valid value,
+   *       we will need to call {@link retainToParentScope}
+   *       for the objects that are created in the scope.
+   */
+  withNewScope<T>(action: ()=>T): T {
+    this.beginScope();
+    const val = action();
+    this.endScope();
+    return val;
+  }
+
+  /**
+   * Attach a detached obj to the auto-release pool of the current scope.
+   *
+   * @param obj The input obj.
+   * @note Normally user do not need to call this function explicitly, as
+   *       all library call return values are explicitly attached to
+   *       the current scope. You only need to do so when you call
+   *       {@link detachFromCurrentScope} to create a detached object.
+   */
+  attachToCurrentScope<T extends Disposable>(obj: T) : T {
+    return this.ctx.attachToCurrentScope(obj);
+  }
+
+  /**
+   * Move obj's attachment to the parent scope.
+   *
+   * This function is useful to make sure objects are still
+   * alive when exit the current scope.
+   *
+   * @param obj The object to be moved.
+   * @returns The input obj.
+   */
+  moveToParentScope<T extends Disposable>(obj: T) : T {
+    return this.ctx.moveToParentScope(obj);
+  }
+
+  /**
+   * Detach the object from the current scope
+   * so it won't be released via auto-release during endscope.
+   *
+   * User needs to either explicitly call obj.dispose(), or
+   * {@link attachToCurrentScope} to re-attach to the current scope.
+   *
+   * This function can be used to return values to the parent scope.
+   * @param obj The object.
+   */
+  detachFromCurrentScope<T extends Disposable>(obj: T): T {
+    return this.ctx.detachFromCurrentScope(obj);
+  }
+
   /**
    * Get system-wide library module in the wasm.
    * System lib is a global module that contains self register functions in startup.
    * @returns The system library module.
    */
   systemLib(): Module {
-    const getSysLib = this.getGlobalFunc("runtime.SystemLib");
-    const mod = getSysLib() as Module;
-    getSysLib.dispose();
-    return mod;
+    return this.ctx.getSysLib() as Module;
   }
   /**
    * List all the global function names registered in the runtime.
@@ -791,29 +1057,39 @@ export class Instance implements Disposable {
     func: PackedFunc | Function,
     override = false
   ): void {
-    const packedFunc = this.toPackedFunc(func);
-    const ioverride = override ? 1 : 0;
+    this.withNewScope(() => {
+      const autoAttachToScope = true;
+      // packed func can be released once it is registered
+      const packedFunc = this.toPackedFuncInternal(func, autoAttachToScope);
+      const ioverride = override ? 1 : 0;
 
-    const stack = this.lib.getOrAllocCallStack();
-    const nameOffset = stack.allocRawBytes(name.length + 1);
-    stack.storeRawBytes(nameOffset, StringToUint8Array(name));
-    stack.commitToWasmMemory();
+      const stack = this.lib.getOrAllocCallStack();
+      const nameOffset = stack.allocRawBytes(name.length + 1);
+      stack.storeRawBytes(nameOffset, StringToUint8Array(name));
+      stack.commitToWasmMemory();
 
-    this.lib.checkCall(
-      (this.lib.exports.TVMFuncRegisterGlobal as ctypes.FTVMFuncRegisterGlobal)(
-        stack.ptrFromOffset(nameOffset),
-        packedFunc._tvmPackedCell.handle,
-        ioverride
-      )
-    );
+      this.lib.checkCall(
+        (this.lib.exports.TVMFuncRegisterGlobal as ctypes.FTVMFuncRegisterGlobal)(
+          stack.ptrFromOffset(nameOffset),
+          packedFunc._tvmPackedCell.getHandle(),
+          ioverride
+        )
+      );
+      this.lib.recycleCallStack(stack);
+    });
   }
 
   /**
    * Get global PackedFunc from the runtime.
    * @param name The name of the function.
+   * @param autoAttachToScope Whether to track it via autoDispose
    * @returns The result function.
    */
   getGlobalFunc(name: string): PackedFunc {
+    return this.getGlobalFuncInternal(name, true);
+  }
+
+  private getGlobalFuncInternal(name: string, autoAttachToScope: boolean = true): PackedFunc {
     const stack = this.lib.getOrAllocCallStack();
     const nameOffset = stack.allocRawBytes(name.length + 1);
     stack.storeRawBytes(nameOffset, StringToUint8Array(name));
@@ -834,6 +1110,7 @@ export class Instance implements Disposable {
       throw Error("Cannot find global function " + name);
     }
     const ret = this.makePackedFunc(handle);
+    if (autoAttachToScope) this.ctx.attachToCurrentScope(ret);
     return ret;
   }
 
@@ -854,9 +1131,15 @@ export class Instance implements Disposable {
    * @param func Input function.
    * @returns The converted function.
    */
-  toPackedFunc(func: Function): PackedFunc {
+   toPackedFunc(func: Function): PackedFunc {
+      return this.toPackedFuncInternal(func, true);
+   }
+
+  private toPackedFuncInternal(func: Function, autoAttachToScope: boolean): PackedFunc {
     if (this.isPackedFunc(func)) return func as PackedFunc;
-    return this.createPackedFuncFromCFunc(this.wrapJSFuncAsPackedCFunc(func));
+    const ret = this.createPackedFuncFromCFunc(this.wrapJSFuncAsPackedCFunc(func));
+    if (autoAttachToScope) return this.ctx.attachToCurrentScope(ret);
+    return ret;
   }
 
   /**
@@ -979,29 +1262,74 @@ export class Instance implements Disposable {
         outPtr
       )
     );
-    const ret = new NDArray(this.memory.loadPointer(outPtr), false, this.lib);
+    const ret = this.ctx.attachToCurrentScope(
+      new NDArray(this.memory.loadPointer(outPtr), false, this.lib)
+    );
     this.lib.recycleCallStack(stack);
     return ret;
   }
 
   /**
-   * Create a new graph executor.
+   * Create an tuple {@link TVMArray} input array.
    *
-   * @param graphJson The graph executor json file.
-   * @param lib The underlying library.
-   * @param dev The execution device of the graph.
+   * The input array can be passed to tvm runtime function
+   * and needs to b explicitly disposed.
+   *
+   * @param inputs The input array
+   * @returns The result array.
    */
-  createGraphExecutor(graphJson: string, lib: Module, dev: DLDevice): GraphExecutor {
-    const fcreate = this.getGlobalFunc('tvm.graph_executor.create');
-    const module = fcreate(
-      graphJson,
-      lib,
-      this.scalar(dev.deviceType, "int32"),
-      this.scalar(dev.deviceId, "int32")) as Module;
-    return new GraphExecutor(module);
+   makeTVMArray(
+    inputs: Array<TVMObjectBase>
+  ): TVMArray {
+    return this.ctx.arrayMake(...inputs) as TVMArray;
   }
 
+  /**
+   * Get type index from type key.
+   * @param typeKey The type key.
+   * @returns The corresponding type index.
+   */
+  typeKey2Index(
+    typeKey: string
+  ) : number {
+    const stack = this.lib.getOrAllocCallStack();
+    const typeKeyOffset = stack.allocRawBytes(typeKey.length + 1);
+    stack.storeRawBytes(typeKeyOffset, StringToUint8Array(typeKey));
+    const outOffset = stack.allocPtrArray(1);
+    const outPtr = stack.ptrFromOffset(outOffset);
 
+    stack.commitToWasmMemory(outOffset);
+
+    this.lib.checkCall(
+      (this.lib.exports.TVMObjectTypeKey2Index as ctypes.FTVMObjectTypeKey2Index)(
+        stack.ptrFromOffset(typeKeyOffset),
+        outPtr
+      )
+    );
+    const typeIndex = this.memory.loadU32(outPtr);
+    this.lib.recycleCallStack(stack);
+    return typeIndex;
+  }
+
+  /**
+   * Register an object constructor.
+   * @param typeKey The name of the function.
+   * @param func function to be registered.
+   * @param override Whether overwrite function in existing registry.
+   */
+  registerObjectConstructor(
+    typeKey: string,
+    func: FObjectConstructor,
+    override = false
+  ): void {
+    const typeIndex = this.typeKey2Index(typeKey);
+    if (this.objFactory.has(typeIndex)) {
+      if (!override) {
+        throw new Error("Type " + typeKey + " already registered");
+      }
+    }
+    this.objFactory.set(typeIndex, func);
+  }
   /**
    * Register an asyncfunction to be global function in the server.
    * @param name The name of the function.
@@ -1017,10 +1345,12 @@ export class Instance implements Disposable {
   ): void {
     const asyncVariant = (...args: Array<any>): void => {
       const fargs = args.slice(0, args.length - 1);
-      const callback = args[args.length - 1] as PackedFunc;
+      // need to keep it alive until callback is fulfilled.
+      const callback = this.detachFromCurrentScope(args[args.length - 1] as PackedFunc);
       const promise: Promise<any> = func(...fargs);
       promise.then((rv: any) => {
         callback(this.scalar(AyncCallbackCode.kReturn, "int32"), rv);
+        callback.dispose();
       });
     };
     this.registerFunc("__async." + name, asyncVariant, override);
@@ -1037,13 +1367,21 @@ export class Instance implements Disposable {
     this.registerFunc("wasm.WebGPUDeviceAPI", (name: string) => {
       return webGPUContext.getDeviceAPI(name);
     });
-    this.registerFunc("wasm.WebGPUCreateShader", (info: string, data: Uint8Array) => {
-      return webGPUContext.createShader(info, data);
+    this.registerFunc("wasm.WebGPUCreateShader", (info: string, code: string) => {
+      return webGPUContext.createShader(info, code);
     });
     this.registerAsyncServerFunc("wasm.WebGPUWaitForTasks", async () => {
       await webGPUContext.sync();
     });
     this.lib.webGPUContext = webGPUContext;
+  }
+
+  /** Register all object factory */
+  private registerObjectFactoryFuncs(): void {
+    this.registerObjectConstructor("Array",
+      (handle: number, lib: FFILibrary, ctx: RuntimeContext) => {
+        return new TVMArray(handle, lib, ctx);
+    });
   }
 
   /** Register global packed functions needed by the backend to the env. */
@@ -1057,8 +1395,16 @@ export class Instance implements Disposable {
       dev: DLDevice,
       nstep: number,
       repeat: number,
-      minRepeatMs: number
+      minRepeatMs: number,
+      limitZeroTimeIterations: number,
+      cooldownIntervalMs: number,
+      repeatsToCooldown: number
     ): Promise<Uint8Array> => {
+      // detach and explicit dispose when tasks is fullfilled
+      // the promise will immediately return and we need to makesure
+      // finvoke do not get recycled.
+      this.ctx.detachFromCurrentScope(finvoke);
+
       finvoke(this.scalar(1, "int32"));
       await dev.sync();
       const result = [];
@@ -1066,10 +1412,12 @@ export class Instance implements Disposable {
 
       for (let i = 0; i < repeat; ++i) {
         let durationMs = 0.0;
+        let absoluteZeroTimes = 0;
         do {
           if (durationMs > 0.0) {
+            let golden_ratio = 1.618;
             setupNumber = Math.floor(
-              Math.max(minRepeatMs / (durationMs / setupNumber) + 1, setupNumber * 1.618)
+              Math.max(minRepeatMs / (durationMs / setupNumber) + 1, setupNumber * golden_ratio)
             );
           }
           const tstart: number = perf.now();
@@ -1078,12 +1426,21 @@ export class Instance implements Disposable {
           const tend: number = perf.now();
 
           durationMs = tend - tstart;
-        } while (durationMs < minRepeatMs);
+          if (durationMs == 0) {
+            absoluteZeroTimes++;
+          }
+        } while (durationMs < minRepeatMs && absoluteZeroTimes < limitZeroTimeIterations);
         const speed = durationMs / setupNumber / 1000;
         result.push(speed);
+        if (cooldownIntervalMs > 0.0 && (i % repeatsToCooldown) == 0 ) {
+          await new Promise(r => setTimeout(r, cooldownIntervalMs));
+        }
       }
       const ret = new Float64Array(result.length);
       ret.set(result);
+
+      // dispose finvoke
+      finvoke.dispose();
       return new Uint8Array(ret.buffer);
     };
 
@@ -1143,7 +1500,7 @@ export class Instance implements Disposable {
       const valueOffset = argsValue + i * SizeOf.TVMValue;
       const codeOffset = argsCode + i * SizeOf.I32;
       if (val instanceof NDArray) {
-        stack.storePtr(valueOffset, val.handle);
+        stack.storePtr(valueOffset, val.getHandle());
         stack.storeI32(codeOffset, ArgTypeCode.TVMNDArrayHandle);
       } else if (val instanceof Scalar) {
         if (val.dtype.startsWith("int") || val.dtype.startsWith("uint")) {
@@ -1166,7 +1523,7 @@ export class Instance implements Disposable {
         stack.storeI32(codeOffset, ArgTypeCode.Float);
         // eslint-disable-next-line no-prototype-builtins
       } else if (tp == "function" && val.hasOwnProperty("_tvmPackedCell")) {
-        stack.storePtr(valueOffset, val._tvmPackedCell.handle);
+        stack.storePtr(valueOffset, val._tvmPackedCell.getHandle());
         stack.storeI32(codeOffset, ArgTypeCode.TVMPackedFuncHandle);
       } else if (val === null || val == undefined) {
         stack.storePtr(valueOffset, 0);
@@ -1178,13 +1535,16 @@ export class Instance implements Disposable {
         stack.allocThenSetArgBytes(valueOffset, val);
         stack.storeI32(codeOffset, ArgTypeCode.TVMBytes);
       } else if (val instanceof Function) {
-        val = this.toPackedFunc(val);
+        val = this.toPackedFuncInternal(val, false);
         stack.tempArgs.push(val);
-        stack.storePtr(valueOffset, val._tvmPackedCell.handle);
+        stack.storePtr(valueOffset, val._tvmPackedCell.getHandle());
         stack.storeI32(codeOffset, ArgTypeCode.TVMPackedFuncHandle);
       } else if (val instanceof Module) {
-        stack.storePtr(valueOffset, val.handle);
+        stack.storePtr(valueOffset, val.getHandle());
         stack.storeI32(codeOffset, ArgTypeCode.TVMModuleHandle);
+      } else if (val instanceof TVMObject) {
+        stack.storePtr(valueOffset, val.getHandle());
+        stack.storeI32(codeOffset, ArgTypeCode.TVMObjectHandle);
       } else {
         throw new Error("Unsupported argument type " + tp);
       }
@@ -1202,6 +1562,8 @@ export class Instance implements Disposable {
       _handle: Pointer
     ): number => {
       const jsArgs = [];
+      // use scope to track js values.
+      this.ctx.beginScope();
       for (let i = 0; i < nargs; ++i) {
         const valuePtr = argValues + i * SizeOf.TVMValue;
         const codePtr = argCodes + i * SizeOf.I32;
@@ -1226,6 +1588,8 @@ export class Instance implements Disposable {
       }
 
       const rv = func(...jsArgs);
+      // recycle all js object value in function unless we want to retain them.
+      this.ctx.endScope();
 
       if (rv !== undefined && rv !== null) {
         const stack = lib.getOrAllocCallStack();
@@ -1270,7 +1634,7 @@ export class Instance implements Disposable {
 
       this.lib.checkCall(
         (this.exports.TVMFuncCall as ctypes.FTVMFuncCall)(
-          handle,
+          cell.getHandle(),
           stack.ptrFromOffset(valueOffset),
           stack.ptrFromOffset(tcodeOffset),
           args.length,
@@ -1293,6 +1657,13 @@ export class Instance implements Disposable {
     return ret as PackedFunc;
   }
 
+  /**
+   * Creaye return value of the packed func. The value us auto-tracked for dispose.
+   * @param rvaluePtr The location of rvalue
+   * @param tcode     The type code.
+   * @param callbackArg Whether it is being used in callbackArg.
+   * @returns The JS value.
+   */
   private retValueToJS(rvaluePtr: Pointer, tcode: number, callbackArg: boolean): any {
     switch (tcode) {
       case ArgTypeCode.Int:
@@ -1304,23 +1675,45 @@ export class Instance implements Disposable {
           return this.memory.loadPointer(rvaluePtr);
         }
       case ArgTypeCode.TVMNDArrayHandle: {
-        return new NDArray(this.memory.loadPointer(rvaluePtr), false, this.lib);
+        return this.ctx.attachToCurrentScope(
+          new NDArray(this.memory.loadPointer(rvaluePtr), false, this.lib)
+        );
       }
       case ArgTypeCode.TVMDLTensorHandle: {
         assert(callbackArg);
+        // no need to attach as we are only looking at view
         return new NDArray(this.memory.loadPointer(rvaluePtr), true, this.lib);
       }
       case ArgTypeCode.TVMPackedFuncHandle: {
-        return this.makePackedFunc(this.memory.loadPointer(rvaluePtr));
+        return this.ctx.attachToCurrentScope(
+          this.makePackedFunc(this.memory.loadPointer(rvaluePtr))
+        );
       }
       case ArgTypeCode.TVMModuleHandle: {
-        return new Module(
+        return this.ctx.attachToCurrentScope(
+            new Module(
+            this.memory.loadPointer(rvaluePtr),
+            this.lib,
+            (ptr: Pointer) => {
+              return this.ctx.attachToCurrentScope(this.makePackedFunc(ptr));
+            }
+          )
+        );
+      }
+      case ArgTypeCode.TVMObjectHandle: {
+        const obj = new TVMObject(
           this.memory.loadPointer(rvaluePtr),
           this.lib,
-          (ptr: Pointer) => {
-            return this.makePackedFunc(ptr);
-          }
+          this.ctx
         );
+        const func = this.objFactory.get(obj.typeIndex())
+        if (func != undefined) {
+          return this.ctx.attachToCurrentScope(
+            func(obj.getHandle(), this.lib, this.ctx)
+          );
+        } else {
+          return this.ctx.attachToCurrentScope(obj);
+        }
       }
       case ArgTypeCode.Null: return undefined;
       case ArgTypeCode.DLDevice: {

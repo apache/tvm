@@ -22,7 +22,7 @@ set -o pipefail
 
 repo_url="https://github.com/Arm-software/ethos-n-driver-stack"
 repo_dir="ethosn-driver"
-repo_revision="21.11"
+repo_revision="23.02"
 install_path="/opt/arm/$repo_dir"
 
 tmpdir=$(mktemp -d)
@@ -34,26 +34,18 @@ cleanup()
 
 trap cleanup 0
 
-# Ubuntu 16.04 dependencies
-apt-get update
-
-apt-install-and-clear -y \
+apt-get update && apt-install-and-clear -y \
     bsdmainutils \
     build-essential \
-    cmake \
     cpp \
     git \
     linux-headers-generic \
-    python-dev \
-    python3 \
     scons \
-    wget
+    wget \
+    openssh-client
 
 cd "$tmpdir"
-git clone "$repo_url" "$repo_dir"
+git clone --branch "$repo_revision" "$repo_url" "$repo_dir"
 
-cd "$repo_dir"
-git checkout "$repo_revision"
-
-cd "driver"
-scons install_prefix="$install_path" install
+cd "$repo_dir"/driver
+scons werror=False install_prefix="$install_path" install

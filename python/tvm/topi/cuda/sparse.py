@@ -131,8 +131,8 @@ def sparse_dense_tir(data, w_data, w_indices, w_indptr):
         # pylint: disable=invalid-name, simplifiable-if-statement
         # TODO(tkonolige): use tensorcores for block multiply
         # TODO(tkonolige): use vectorize on loads
-        # TODO(tkonolige): seperate implementation if M is small
-        # TODO(tkonolige): seperate implementation for large block sizes
+        # TODO(tkonolige): separate implementation if M is small
+        # TODO(tkonolige): separate implementation for large block sizes
         ib = tvm.tir.ir_builder.create()
 
         if tvm.target.Target.current(allow_none=False).kind.name == "cuda":
@@ -159,10 +159,9 @@ def sparse_dense_tir(data, w_data, w_indices, w_indptr):
         bs_m = bs_n
         mb = m // bs_m
         mi = warp_size
-        assert (
-            mb >= mi
-        ), "Number of block rows in dense matrix must be larger than warp size: {} vs {}.".format(
-            warp_size, mb
+        assert mb >= mi, (
+            f"Number of block rows in dense matrix must be larger than warp size: "
+            f"{warp_size} vs {mb}."
         )
         mo = ceil_div(mb, mi)
         ni = 1  # TODO(tkonolige): how do I compute the number of warps per block?

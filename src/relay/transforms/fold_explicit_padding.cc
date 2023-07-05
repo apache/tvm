@@ -22,7 +22,6 @@
  * \brief A pass for folding explicit pads into other ops.
  */
 
-#include <dmlc/optional.h>
 #include <tvm/relay/dataflow_matcher.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
@@ -31,6 +30,10 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/tir/op.h>
 #include <tvm/topi/nn/pooling.h>
+
+#include <optional>
+#include <set>
+#include <string>
 
 #include "../op/tensor/transform.h"
 #include "pattern_utils.h"
@@ -126,6 +129,7 @@ class SimplifyExplicitPad {
 
     T* new_attrs = const_cast<T*>(attrs.template as<T>());
     new_attrs->auto_scheduler_rewritten_layout = old_attrs->auto_scheduler_rewritten_layout;
+    new_attrs->meta_schedule_original_shape = old_attrs->meta_schedule_original_shape;
     return attrs;
   }
 
@@ -179,10 +183,10 @@ class SimplifyExplicitPad {
     return attrs;
   }
 
-  static const Optional<Array<PrimExpr>> get_padding(const PadAttrs* param,
-                                                     std::string data_layout) {
+  static const std::optional<Array<PrimExpr>> get_padding(const PadAttrs* param,
+                                                          std::string data_layout) {
     // Gets spatial axes padding from the given PadAttrs `param`. If padding
-    // is non-zero on non-spatial axes, return NullOpt.
+    // is non-zero on non-spatial axes, return std::nullopt.
     ICHECK(param);
     ICHECK(data_layout.size() == param->pad_width.size())
         << "Data Layout and padding attributes should have the same extent";
@@ -195,7 +199,7 @@ class SimplifyExplicitPad {
       if (!image_dims.count(data_layout[i])) {
         for (size_t j = 0; j < param->pad_width[i].size(); ++j) {
           if (param->pad_width[i][j] != 0) {
-            return NullOpt;
+            return std::nullopt;
           }
         }
       }
@@ -224,7 +228,6 @@ class SimplifyExplicitPad {
 
     const Expr& pv = pad_node->args[1];
     const ConstantNode* pad_value = pv.as<ConstantNode>();
-    auto pad_scalar = ToScalar(pad_value->data);
 
     if (node_map.find(qconv2d_) != node_map.end()) {
       Attrs attrs = MakeConv2D3DAttrs(param, call_node->attrs.as<Conv2DAttrs>());
@@ -247,6 +250,7 @@ class SimplifyExplicitPad {
 
     if (param->pad_mode == "constant" && pad_value) {
       Attrs attrs;
+      auto pad_scalar = ToScalar(pad_value->data);
       if (pad_scalar == 0.0) {
         // Fold Padding and Conv/AvgPool only if pad_value == 0.
         if (node_map.count(conv_)) {

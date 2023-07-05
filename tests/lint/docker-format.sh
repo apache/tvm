@@ -20,12 +20,14 @@ TVM_HOME="$(git rev-parse --show-toplevel)"
 DOCKER_DIR="$TVM_HOME/docker"
 
 if git grep "apt install" -- ':(exclude)docker/utils/apt-install-and-clear.sh' $DOCKER_DIR; then
-  echo "Found \"apt install\" in docker file."
+  echo "Using \"apt install\" in docker file is not allowed."
+  echo "Please use \"apt-install-and-clear\" instead in order to keep the image size at a minimum."
   exit 1
 fi
 
 if git grep "apt-get install" -- ':(exclude)docker/utils/apt-install-and-clear.sh' $DOCKER_DIR; then
-  echo "Found \"apt-get install\" in docker file."
+  echo "Using \"apt-get install\" in docker file is not allowed."
+  echo "Please use \"apt-install-and-clear\" instead in order to keep the image size at a minimum."
   exit 1
 fi
 

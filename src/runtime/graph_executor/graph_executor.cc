@@ -42,6 +42,7 @@
 #include <vector>
 
 #include "../file_utils.h"
+#include "../texture.h"
 
 namespace tvm {
 namespace runtime {
@@ -51,6 +52,7 @@ inline size_t GetDataAlignment(const DLTensor& arr) {
   if (align < kAllocAlignment) return kAllocAlignment;
   return align;
 }
+constexpr auto Is2DStorage = IsTextureStorage;
 }  // namespace details
 
 /*!
@@ -95,7 +97,9 @@ void GraphExecutor::Init(const std::string& graph_json, tvm::runtime::Module mod
   for (size_t i = 0; i < outputs_.size(); i++) {
     const uint32_t nid = outputs_[i].node_id;
     std::string& name = nodes_[nid].name;
-    output_map_[name] = i;
+    std::stringstream ss;
+    ss << name << ":" << i;
+    output_map_[ss.str()] = i;
   }
 }
 
@@ -130,6 +134,28 @@ std::tuple<GraphExecutor::ShapeInfo, GraphExecutor::DtypeInfo> GraphExecutor::Ge
       auto dtype = attrs_.dltype[nid];
       dtype_dict.Set(name, String(dtype));
     }
+  }
+  return std::make_tuple(shape_dict, dtype_dict);
+}
+
+/*!
+ * \brief Get the output info of Graph by parsing the output nodes.
+ * \return The shape and dtype tuple.
+ */
+std::tuple<GraphExecutor::ShapeInfo, GraphExecutor::DtypeInfo> GraphExecutor::GetOutputInfo()
+    const {
+  GraphExecutor::ShapeInfo shape_dict;
+  GraphExecutor::DtypeInfo dtype_dict;
+  for (auto out : outputs_) {
+    uint32_t nid = out.node_id;
+    CHECK_LE(nid, nodes_.size());
+    std::string name = nodes_[nid].name;
+    CHECK_LE(nid, attrs_.shape.size());
+    auto shape = attrs_.shape[nid];
+    shape_dict.Set(name, ShapeTuple(shape));
+    CHECK_LE(nid, attrs_.dltype.size());
+    auto dtype = attrs_.dltype[nid];
+    dtype_dict.Set(name, String(dtype));
   }
   return std::make_tuple(shape_dict, dtype_dict);
 }
@@ -361,24 +387,16 @@ void GraphExecutor::SetupStorage() {
   // Find the maximum space size.
   for (size_t i = 0; i < attrs_.shape.size(); ++i) {
     int storage_id = attrs_.storage_id[i];
+    std::string storage_scope = attrs_.storage_scope.empty() ? "" : attrs_.storage_scope[i];
     // Use the fallback device if no device index is available.
     int device_type = static_cast<int>(devices_[0].device_type);
     if (!attrs_.device_index.empty()) {
       device_type = attrs_.device_index[i];
     }
-    size_t size = 1;
-    for (int64_t sz : attrs_.shape[i]) {
-      size *= static_cast<size_t>(sz);
-    }
-    ICHECK_GE(storage_id, 0) << "Do not support runtime shape op";
-    DLDataType t = vtype[i];
-    size_t bits = t.bits * t.lanes;
-    ICHECK(bits % 8U == 0U || bits == 1U || bits == 4U);
-    size_t bytes = ((bits + 7U) / 8U) * size;
 
     uint32_t sid = static_cast<uint32_t>(storage_id);
     if (sid >= pool_entry.size()) {
-      pool_entry.resize(sid + 1, {0, -1});
+      pool_entry.resize(sid + 1, {-1, {0}, {}});
     } else {
       ICHECK(pool_entry[sid].device_type == -1 || pool_entry[sid].device_type == device_type)
           << "The same pool entry cannot be assigned to multiple devices";
@@ -395,8 +413,38 @@ void GraphExecutor::SetupStorage() {
       pool_entry[sid].linked_param = lookup_rv;
     }
     pool_entry[sid].param_data_entry = i;
-    pool_entry[sid].size = std::max(pool_entry[sid].size, bytes);
     pool_entry[sid].device_type = device_type;
+    pool_entry[sid].scope = storage_scope;
+
+    DLDataType t = vtype[i];
+    if (!details::Is2DStorage(storage_scope)) {
+      size_t size = 1;
+      for (int64_t sz : attrs_.shape[i]) {
+        size *= static_cast<size_t>(sz);
+      }
+      size_t bits = t.bits * t.lanes;
+      ICHECK(bits % 8U == 0U || bits == 1U || bits == 4U);
+      int64_t bytes = ((bits + 7U) / 8U) * size;
+      pool_entry[sid].shape[0] = std::max(pool_entry[sid].shape[0], bytes);
+      pool_entry[sid].dtype = DLDataType{kDLFloat, 32, 1};
+    } else {
+      if (pool_entry[sid].shape.size() == 1) {
+        pool_entry[sid].shape.resize(3, 0);
+      }
+      size_t axis = runtime::DefaultTextureLayoutSeparator(attrs_.shape[i].size(), storage_scope);
+      auto shape = ApplyTexture2DFlattening<int64_t>(attrs_.shape[i], attrs_.shape[i].size(), axis);
+      pool_entry[sid].shape[0] = std::max(pool_entry[sid].shape[0], shape.height);
+      pool_entry[sid].shape[1] = std::max(pool_entry[sid].shape[1], shape.width);
+      CHECK(pool_entry[sid].shape[2] == 0 || pool_entry[sid].shape[2] == shape.channel)
+          << pool_entry[sid].shape[2] << " != " << shape.channel
+          << ",  texture channel length must be consistent within a storage pool";
+      pool_entry[sid].shape[2] = shape.channel;
+      CHECK(pool_entry[sid].dtype.bits == 0 || TypeEqual(pool_entry[sid].dtype, t))
+          << DLDataType2String(pool_entry[sid].dtype) << " != " << DLDataType2String(t)
+          << ", pool entry for 2d texure allocations must be of the same type;"
+          << " downstream error from memory planner likely";
+      pool_entry[sid].dtype = t;
+    }
   }
 
   // Allocate the space.
@@ -410,9 +458,15 @@ void GraphExecutor::SetupStorage() {
     if (pit.linked_param.defined()) {
       storage_pool_.push_back(pit.linked_param);
     } else {
-      std::vector<int64_t> shape;
-      shape.push_back(static_cast<int64_t>(pit.size + 3) / 4);
-      storage_pool_.push_back(NDArray::Empty(shape, DLDataType{kDLFloat, 32, 1}, dev));
+      std::vector<int64_t> shape = pit.shape;
+      if (shape.size() == 1) {
+        shape[0] = (shape[0] + 3) / 4;
+      }
+      Optional<String> mem_scope;
+      if (!pit.scope.empty()) {
+        mem_scope = String(pit.scope);
+      }
+      storage_pool_.push_back(NDArray::Empty(shape, pit.dtype, dev, mem_scope));
     }
   }
 
@@ -489,8 +543,8 @@ void GraphExecutor::SetupOpExecs() {
   }
 }
 
-std::pair<std::function<void()>, std::shared_ptr<GraphExecutor::OpArgs> >
-GraphExecutor::CreateTVMOp(const TVMOpParam& param, const std::vector<DLTensor>& args) {
+std::pair<std::function<void()>, std::shared_ptr<GraphExecutor::OpArgs>> GraphExecutor::CreateTVMOp(
+    const TVMOpParam& param, const std::vector<DLTensor>& args) {
   std::shared_ptr<GraphExecutor::OpArgs> arg_ptr = std::make_shared<GraphExecutor::OpArgs>();
   // setup address.
   arg_ptr->args = args;
@@ -539,8 +593,7 @@ GraphExecutor::CreateTVMOp(const TVMOpParam& param, const std::vector<DLTensor>&
   return {fexec, arg_ptr};
 }
 
-PackedFunc GraphExecutor::GetFunction(const std::string& name,
-                                      const ObjectPtr<Object>& sptr_to_self) {
+PackedFunc GraphExecutor::GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) {
   // Return member functions during query.
   if (name == "set_input") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -574,7 +627,19 @@ PackedFunc GraphExecutor::GetFunction(const std::string& name,
       if (args.num_args == 2) {
         this->CopyOutputTo(args[0], args[1]);
       } else {
-        *rv = this->GetOutput(args[0]);
+        int out_idx = -1;
+        if (String::CanConvertFrom(args[0])) {
+          for (size_t i = 0; i < outputs_.size(); i++) {
+            std::string& name = nodes_[outputs_[i].node_id].name;
+            if (args[0].operator String() == name) {
+              out_idx = i;
+            }
+          }
+          CHECK(out_idx != -1) << "Invalid output node:" << args[0].operator String();
+        } else {
+          out_idx = args[0];
+        }
+        *rv = this->GetOutput(out_idx);
       }
     });
   } else if (name == "get_input") {
@@ -644,9 +709,15 @@ PackedFunc GraphExecutor::GetFunction(const std::string& name,
     });
   } else if (name == "get_input_info") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      GraphExecutor::ShapeInfo shape_info;
-      GraphExecutor::DtypeInfo dtype_info;
-      std::tie(shape_info, dtype_info) = this->GetInputInfo();
+      auto [shape_info, dtype_info] = this->GetInputInfo();
+      Map<String, ObjectRef> input_info;
+      input_info.Set("shape", shape_info);
+      input_info.Set("dtype", dtype_info);
+      *rv = input_info;
+    });
+  } else if (name == "get_output_info") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      auto [shape_info, dtype_info] = this->GetOutputInfo();
       Map<String, ObjectRef> input_info;
       input_info.Set("shape", shape_info);
       input_info.Set("dtype", dtype_info);

@@ -26,18 +26,18 @@ from tvm.tir import stmt_functor
 def fused_nn_conv2d_add_fixed_point_multiply_clip_cast_cast_2(placeholder_30: T.handle, placeholder_31: T.handle, placeholder_32: T.handle, T_cast_8: T.handle) -> None:
     # function attr dict
     T.func_attr({"global_symbol": "fused_nn_conv2d_add_fixed_point_multiply_clip_cast_cast_2", "tir.noalias": True})
-    placeholder_33 = T.match_buffer(placeholder_30, [150528], dtype="int16", elem_offset=0, align=128, offset_factor=1)
-    placeholder_34 = T.match_buffer(placeholder_31, [3072], dtype="int16", elem_offset=0, align=128, offset_factor=1)
-    placeholder_35 = T.match_buffer(placeholder_32, [16], dtype="int32", elem_offset=0, align=128, offset_factor=1)
-    T_cast_9 = T.match_buffer(T_cast_8, [12544], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+    placeholder_33 = T.match_buffer(placeholder_30, [150528], dtype="int16", elem_offset=0, align=64, offset_factor=1)
+    placeholder_34 = T.match_buffer(placeholder_31, [3072], dtype="int16", elem_offset=0, align=64, offset_factor=1)
+    placeholder_35 = T.match_buffer(placeholder_32, [16], dtype="int32", elem_offset=0, align=64, offset_factor=1)
+    T_cast_9 = T.match_buffer(T_cast_8, [12544], dtype="int16", elem_offset=0, align=64, offset_factor=1)
     # body
-    PaddedInput_3 = T.allocate([150528], "int16", "global")
+    PaddedInput_3 = T.decl_buffer([150528], "int16")
     for i0_i1_fused_3 in T.parallel(0, 28):
         for i2_3, i3_3 in T.grid(28, 192):
             PaddedInput_3[(((i0_i1_fused_3*5376) + (i2_3*192)) + i3_3) ] = placeholder_33[(((i0_i1_fused_3*5376) + (i2_3*192)) + i3_3)]
     for ax0_ax1_fused_ax2_fused_3 in T.parallel(0, 784):
         for ax3_2 in T.serial(0, 16):
-            Conv2dOutput_3 = T.allocate([1], "int32", "global")
+            Conv2dOutput_3 = T.decl_buffer([1], "int32")
             Conv2dOutput_3[0] = 0
             for rc_3 in T.serial(0, 192):
                 Conv2dOutput_3[0] = (Conv2dOutput_3[0] + (T.cast(PaddedInput_3[((ax0_ax1_fused_ax2_fused_3*192) + rc_3)], "int32")*T.cast(placeholder_34[((rc_3*16) + ax3_2)], "int32")))
@@ -59,4 +59,4 @@ def test_nn_conv2d_add_fixed_point_multiply_clip_cast_cast_2():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

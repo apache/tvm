@@ -27,21 +27,34 @@ from . import _backend
 class Executor(Object):
     """Executor configuration"""
 
-    name = "executor"
+    flag_registry_name = "executor"
 
     def __init__(self, name, options=None) -> None:
         if options is None:
             options = {}
         self.__init_handle_by_constructor__(_backend.CreateExecutor, name, options)
+        self._init_wrapper()
+
+    # Note:  sometimes the _attrs field is not properly populated,
+    # most likely since __new__ is called instead of __init__ in tvm/_ffi/_ctypes/object.py
+    def _init_wrapper(self):
         self._attrs = _backend.GetExecutorAttrs(self)
+        self._init_wrapper_called = True
+
+    def _check_init_wrapper(self):
+        if not (hasattr(self, "_init_wrapper_called") and self._init_wrapper_called):
+            self._init_wrapper()
 
     def __contains__(self, name):
+        self._check_init_wrapper()
         return name in self._attrs
 
     def __getitem__(self, name):
+        self._check_init_wrapper()
         return self._attrs[name]
 
     def __eq__(self, other):
+        self._check_init_wrapper()
         return str(other) == str(self) and dict(other._attrs) == dict(self._attrs)
 
     @staticmethod

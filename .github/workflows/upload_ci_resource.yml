@@ -1,0 +1,60 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+name: Upload CI Resource
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: 'URL of the file (e.g. "https://example.com/file.zip")'
+        required: true
+        type: string
+      sha256:
+        description: 'SHA256 of the file'
+        required: true
+        type: string
+      upload_path:
+        description: 'Path of the file in S3 (e.g. "my_folder/something.zip")'
+        required: true
+        type: string
+
+concurrency:
+  group: upload-ci-resource
+  cancel-in-progress: true
+
+jobs:
+  upload-ci-resource:
+    if: github.repository == 'apache/tvm'
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Download item and upload to S3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.CI_RESOURCES_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.CI_RESOURCES_AWS_SECRET_ACCESS_KEY }}
+          URL: ${{ inputs.url }}
+          SHA256: ${{ inputs.sha256 }}
+          UPLOAD_PATH: ${{ inputs.upload_path }}
+          AWS_DEFAULT_REGION: us-west-2
+        run: |
+          set -eux
+          curl -L -o downloaded_file "$URL"
+          echo "$SHA256 downloaded_file" | sha256sum --check
+          aws s3 cp downloaded_file "s3://tvm-ci-resources/$UPLOAD_PATH"
+          echo "The item is available at https://tvm-ci-resources.s3.us-west-2.amazonaws.com/$UPLOAD_PATH"
+          echo "Add this line to tests/scripts/request_hook/request_hook.py"
+          echo "    \"$URL\": f\"{BASE}/$UPLOAD_PATH\","

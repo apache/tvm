@@ -378,4 +378,4 @@ def test_relay_cublas_dense(n, m, k, in_dtype, out_dtype):
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

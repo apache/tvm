@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import sys
 import pytest
 
 from tvm.micro.project_api.server import ServerError
@@ -23,15 +22,10 @@ from tvm.micro.project_api.server import ServerError
 import test_utils
 import tvm.testing
 
-# A new project and workspace dir is created for EVERY test
-@pytest.fixture
-def workspace_dir(request, board):
-    return test_utils.make_workspace_dir("arduino_error_detection", board)
-
 
 @pytest.fixture
-def project(board, arduino_cli_cmd, tvm_debug, workspace_dir):
-    return test_utils.make_kws_project(board, arduino_cli_cmd, tvm_debug, workspace_dir)
+def project(board, microtvm_debug, workspace_dir, serial_number):
+    return test_utils.make_kws_project(board, microtvm_debug, workspace_dir, serial_number)
 
 
 def test_blank_project_compiles(workspace_dir, project):

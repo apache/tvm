@@ -247,10 +247,11 @@ Map<IterVar, Range> InferBound(const Schedule& sch) {
     }
   }
   for (auto it = ret.begin(); it != ret.end(); it++) {
+    DataType var_type = it->first->var.dtype();
     it->second = Range::FromMinExtent(
-        analyzer.Simplify(it->second->min),
-        // The range associated with each itervar must have the same dtype as it
-        cast(it->first->var.dtype(), analyzer.Simplify(it->second->extent)));
+        // The range associated with each itervar must have the same dtype as the var
+        analyzer.Simplify(cast(var_type, it->second->min)),
+        analyzer.Simplify(cast(var_type, it->second->extent)));
   }
   return Map<IterVar, Range>(ret.begin(), ret.end());
 }

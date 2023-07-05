@@ -78,7 +78,7 @@ class EthosUModuleNode : public ModuleNode {
    * \param file_name The file to be saved to.
    * \param format The format of the file.
    */
-  void SaveToFile(const std::string& file_name, const std::string& format) final {
+  void SaveToFile(const String& file_name, const String& format) final {
     std::string fmt = GetFileFormat(file_name, format);
     ICHECK_EQ(fmt, "c") << "Can only save to format="
                         << "c";
@@ -87,9 +87,9 @@ class EthosUModuleNode : public ModuleNode {
     out.close();
   }
 
-  std::string GetSource(const std::string& format) final { return c_source; }
+  String GetSource(const String& format) final { return c_source; }
 
-  std::string GetFormat() { return "c"; }
+  String GetFormat() override { return "c"; }
 
   Array<CompilationArtifact> GetArtifacts() { return compilation_artifacts_; }
 
@@ -101,7 +101,7 @@ class EthosUModuleNode : public ModuleNode {
    *
    * \return The function pointer when it is found, otherwise, PackedFunc(nullptr).
    */
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
     if (name == "get_func_names") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         Array<String> func_names;
@@ -121,7 +121,8 @@ class EthosUModuleNode : public ModuleNode {
     return Module(n);
   }
 
-  bool IsDSOExportable() const final { return true; }
+  /*! \brief Get the property of the runtime module .*/
+  int GetPropertyMask() const override { return ModulePropertyMask::kDSOExportable; }
 
   bool ImplementsFunction(const String& name, bool query_imports) final {
     return std::find_if(compilation_artifacts_.begin(), compilation_artifacts_.end(),
@@ -199,7 +200,7 @@ class EthosUModuleNode : public ModuleNode {
     std::unordered_map<int, relay::contrib::ethosu::BaseAddress> param_idx_to_base_address;
     for (const relay::contrib::ethosu::BaseAddress& base_address : artifact->base_addresses) {
       if (base_address->primfunc_param_idx.defined()) {
-        param_idx_to_base_address[base_address->primfunc_param_idx] = base_address;
+        param_idx_to_base_address[base_address->primfunc_param_idx.IntValue()] = base_address;
       }
     }
     for (unsigned int i = 0; i < param_idx_to_base_address.size(); i++) {

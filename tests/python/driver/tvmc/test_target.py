@@ -114,9 +114,7 @@ def test_parse_multiple_target():
 
 def test_parse_hybrid_target():
     """Hybrid Target and external codegen"""
-    targets = parse_target(
-        "cmsis-nn -accelerator_config=ethos-u55-256, llvm -device=arm_cpu --system-lib"
-    )
+    targets = parse_target("cmsis-nn -accelerator_config=ethos-u55-256, llvm -device=arm_cpu")
 
     assert len(targets) == 2
     assert "cmsis-nn" == targets[0]["name"]
@@ -154,7 +152,7 @@ def test_parse_quotes_and_separators_on_options():
 
 
 def test_parse_multiple_target_with_opts_ethos_n78():
-    targets = parse_target("ethos-n -myopt=value, llvm -device=arm_cpu --system-lib")
+    targets = parse_target("ethos-n -myopt=value, llvm -device=arm_cpu")
 
     assert len(targets) == 2
     assert "ethos-n" == targets[0]["name"]

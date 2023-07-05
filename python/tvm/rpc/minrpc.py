@@ -36,11 +36,11 @@ def find_minrpc_server_libpath(server="posix_popen_server"):
     curr_dir = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
     source_dir = os.path.abspath(os.path.join(curr_dir, "..", "..", ".."))
     minrpc_dir = os.path.join(source_dir, "src", "runtime", "minrpc")
-    path = os.path.join(minrpc_dir, server, ("%s.cc" % server))
+    path = os.path.join(minrpc_dir, server, f"{server}.cc")
 
     candidates = [path]
     if not os.path.isfile(path):
-        raise RuntimeError("Cannot find minserver %s, in candidates %s" % (server, candidates))
+        raise RuntimeError(f"Cannot find minserver {server}, in candidates {candidates}")
     return minrpc_dir, path
 
 
@@ -67,10 +67,10 @@ def with_minrpc(compile_func, server="posix_popen_server", runtime="libtvm"):
     runtime_path = libinfo.find_lib_path([runtime, runtime + ".so", runtime + ".dylib"])[0]
 
     runtime_dir = os.path.abspath(os.path.dirname(runtime_path))
-    options = ["-std=c++14"]
+    options = ["-std=c++17"]
     # Make sure the rpath to the libtvm is set so we can do local tests.
     # Note that however, this approach won't work on remote.
-    # Always recommend to to link statically.
+    # Always recommend to link statically.
     options += ["-Wl,-rpath=" + runtime_dir]
     options += ["-I" + path for path in libinfo.find_include_path()]
     options += ["-I" + minrpc_dir]

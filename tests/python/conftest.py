@@ -14,30 +14,29 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+"""Configure pytest"""
 import sys
-import tvm
 import pytest
 
-collect_ignore = []
+COLLECT_IGNORE = []
 if sys.platform.startswith("win"):
-    collect_ignore.append("frontend/caffe")
-    collect_ignore.append("frontend/caffe2")
-    collect_ignore.append("frontend/coreml")
-    collect_ignore.append("frontend/darknet")
-    collect_ignore.append("frontend/keras")
-    collect_ignore.append("frontend/mxnet")
-    collect_ignore.append("frontend/pytorch")
-    collect_ignore.append("frontend/tensorflow")
-    collect_ignore.append("frontend/tflite")
-    collect_ignore.append("frontend/onnx")
-    collect_ignore.append("driver/tvmc/test_autoscheduler.py")
-    collect_ignore.append("unittest/test_auto_scheduler_cost_model.py")  # stack overflow
-    # collect_ignore.append("unittest/test_auto_scheduler_measure.py") # exception ignored
-    collect_ignore.append("unittest/test_auto_scheduler_search_policy.py")  # stack overflow
-    # collect_ignore.append("unittest/test_auto_scheduler_measure.py") # exception ignored
+    COLLECT_IGNORE.append("frontend/caffe")
+    COLLECT_IGNORE.append("frontend/caffe2")
+    COLLECT_IGNORE.append("frontend/coreml")
+    COLLECT_IGNORE.append("frontend/darknet")
+    COLLECT_IGNORE.append("frontend/keras")
+    COLLECT_IGNORE.append("frontend/mxnet")
+    COLLECT_IGNORE.append("frontend/pytorch")
+    COLLECT_IGNORE.append("frontend/tensorflow")
+    COLLECT_IGNORE.append("frontend/tflite")
+    COLLECT_IGNORE.append("frontend/onnx")
+    COLLECT_IGNORE.append("driver/tvmc/test_autoscheduler.py")
+    COLLECT_IGNORE.append("unittest/test_auto_scheduler_cost_model.py")  # stack overflow
+    # COLLECT_IGNORE.append("unittest/test_auto_scheduler_measure.py") # exception ignored
+    COLLECT_IGNORE.append("unittest/test_auto_scheduler_search_policy.py")  # stack overflow
+    # COLLECT_IGNORE.append("unittest/test_auto_scheduler_measure.py") # exception ignored
 
-    collect_ignore.append("unittest/test_tir_intrin.py")
+    COLLECT_IGNORE.append("unittest/test_tir_intrin.py")
 
 
 def pytest_addoption(parser):

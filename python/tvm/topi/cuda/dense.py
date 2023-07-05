@@ -18,8 +18,7 @@
 """Schedule for dense operator"""
 import logging
 import tvm
-from tvm import te
-import tvm.autotvm as autotvm
+from tvm import te, autotvm
 from tvm.contrib import cublas
 from .tensor_intrin import dp4a
 from .. import tag
@@ -30,13 +29,7 @@ logger = logging.getLogger("topi")
 
 
 def _matmul_cublas_common(
-    cfg,
-    tensor_a,
-    tensor_b,
-    bias=None,
-    out_dtype=None,
-    transpose_a=False,
-    transpose_b=False,
+    cfg, tensor_a, tensor_b, bias=None, out_dtype=None, transpose_a=False, transpose_b=False
 ):
     assert len(tensor_a.shape) == 2 and len(tensor_b.shape) == 2, "only support 2-dim matmul"
     if bias is not None:
@@ -59,13 +52,7 @@ def _matmul_cublas_common(
 
 @autotvm.register_topi_compute("matmul_cublas.cuda")
 def matmul_cublas(
-    cfg,
-    tensor_a,
-    tensor_b,
-    bias=None,
-    out_dtype=None,
-    transpose_a=False,
-    transpose_b=False,
+    cfg, tensor_a, tensor_b, bias=None, out_dtype=None, transpose_a=False, transpose_b=False
 ):
     """Matmul operator on CUDA with CUBLAS"""
     return _matmul_cublas_common(cfg, tensor_a, tensor_b, bias, out_dtype, transpose_a, transpose_b)
@@ -143,7 +130,7 @@ def _schedule_dense_int8(cfg, s, output):
     out_dim, _ = get_const_tuple(weight.shape)
 
     in_dim_factor = 4
-    assert in_dim % in_dim_factor == 0, "Input dimension must divide {}".format(in_dim_factor)
+    assert in_dim % in_dim_factor == 0, f"Input dimension must divide {in_dim_factor}"
     if in_dim % 16 == 0:
         in_dim_factor = 16
 

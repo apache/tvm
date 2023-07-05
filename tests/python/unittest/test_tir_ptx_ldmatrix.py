@@ -23,7 +23,7 @@ import tvm.testing
 
 @T.prim_func
 def ptx_ldmatrix(
-    A: T.Buffer[(16, 16), "float16"], B: T.Buffer[(16, 16), "float16"], num: T.int32, trans: T.uint8
+    A: T.Buffer((16, 16), "float16"), B: T.Buffer((16, 16), "float16"), num: T.int32, trans: T.uint8
 ) -> None:
     T.func_attr({"global_symbol": "default_function", "tir.noalias": True})
     bx = T.env_thread("blockIdx.x")
@@ -56,15 +56,11 @@ def ptx_ldmatrix(
                     B[8 * j + tx // 4, 8 * k + (tx % 4) * 2 + i] = A_local[4 * k + 2 * j + i]
 
 
-@tvm.testing.requires_cuda
+@tvm.testing.requires_cuda_compute_version(7, 5)
 def test_ptx_ldmatrix():
     f = ptx_ldmatrix
     _, _, param_num, param_trans = f.params
-    arch = tvm.contrib.nvcc.get_target_compute_version()
-    major, minor = tvm.contrib.nvcc.parse_compute_version(arch)
-    if major * 10 + minor < 75:
-        # Require at least SM75
-        return
+
     for num in [1, 2, 4]:
         for trans in [False, True]:
             mod = tvm.build(f.specialize({param_num: num, param_trans: trans}), target="cuda")

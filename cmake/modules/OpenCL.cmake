@@ -15,15 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# OPENCL Module
-find_opencl(${USE_OPENCL})
-
-if(OpenCL_FOUND)
-  # always set the includedir when cuda is available
-  # avoid global retrigger of cmake
-  include_directories(SYSTEM ${OpenCL_INCLUDE_DIRS})
-endif(OpenCL_FOUND)
-
 if(USE_SDACCEL)
   message(STATUS "Build with SDAccel support")
   tvm_file_glob(GLOB RUNTIME_SDACCEL_SRCS src/runtime/opencl/sdaccel/*.cc)
@@ -49,19 +40,59 @@ else()
 endif(USE_AOCL)
 
 if(USE_OPENCL)
-  if (NOT OpenCL_FOUND)
-    find_package(OpenCL REQUIRED)
-  endif()
-  message(STATUS "Build with OpenCL support")
   tvm_file_glob(GLOB RUNTIME_OPENCL_SRCS src/runtime/opencl/*.cc)
-  list(APPEND TVM_RUNTIME_LINKER_LIBS ${OpenCL_LIBRARIES})
+  list(APPEND COMPILER_SRCS src/target/spirv/spirv_utils.cc)
 
-  if(DEFINED USE_OPENCL_GTEST AND EXISTS ${USE_OPENCL_GTEST})
+  if(${USE_OPENCL} MATCHES ${IS_TRUE_PATTERN})
+    message(STATUS "Enabled runtime search for OpenCL library location")
     file_glob_append(RUNTIME_OPENCL_SRCS
-      "${CMAKE_SOURCE_DIR}/tests/cpp-runtime/opencl/*.cc"
+      "src/runtime/opencl/opencl_wrapper/opencl_wrapper.cc"
     )
+    include_directories(SYSTEM "3rdparty/OpenCL-Headers")
+  else()
+    find_opencl(${USE_OPENCL})
+    if(NOT OpenCL_FOUND)
+        message(FATAL_ERROR "Error! Cannot find specified OpenCL library")
+    endif()
+    message(STATUS "Build with OpenCL support")
+    include_directories(SYSTEM ${OpenCL_INCLUDE_DIRS})
+    list(APPEND TVM_RUNTIME_LINKER_LIBS ${OpenCL_LIBRARIES})
+  endif()
+
+  if(DEFINED USE_OPENCL_GTEST)
+    if(EXISTS ${USE_OPENCL_GTEST})
+        include(FetchContent)
+        FetchContent_Declare(googletest SOURCE_DIR "${USE_OPENCL_GTEST}")
+        set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+        FetchContent_MakeAvailable(googletest)
+        install(TARGETS gtest EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
+
+        message(STATUS "Found OpenCL gtest at ${USE_OPENCL_GTEST}")
+        set(Build_OpenCL_GTests ON)
+    elseif (ANDROID_ABI AND DEFINED ENV{ANDROID_NDK_HOME})
+        set(GOOGLETEST_ROOT $ENV{ANDROID_NDK_HOME}/sources/third_party/googletest)
+        add_library(gtest_main STATIC ${GOOGLETEST_ROOT}/src/gtest_main.cc ${GOOGLETEST_ROOT}/src/gtest-all.cc)
+        target_include_directories(gtest_main PRIVATE ${GOOGLETEST_ROOT})
+        target_include_directories(gtest_main PUBLIC ${GOOGLETEST_ROOT}/include)
+        message(STATUS "Using gtest from Android NDK")
+        set(Build_OpenCL_GTests ON)
+    endif()
+
+    if(Build_OpenCL_GTests)
+        message(STATUS "Building OpenCL-Gtests")
+        tvm_file_glob(GLOB_RECURSE OPENCL_TEST_SRCS
+          "${CMAKE_SOURCE_DIR}/tests/cpp-runtime/opencl/*.cc"
+        )
+        add_executable(opencl-cpptest ${OPENCL_TEST_SRCS})
+        target_link_libraries(opencl-cpptest PRIVATE gtest_main tvm_runtime)
+    else()
+        message(STATUS "Couldn't build OpenCL-Gtests")
+    endif()
   endif()
   list(APPEND RUNTIME_SRCS ${RUNTIME_OPENCL_SRCS})
+  if(USE_OPENCL_ENABLE_HOST_PTR)
+    add_definitions(-DOPENCL_ENABLE_HOST_PTR)
+  endif(USE_OPENCL_ENABLE_HOST_PTR)
 else()
   list(APPEND COMPILER_SRCS src/target/opt/build_opencl_off.cc)
 endif(USE_OPENCL)

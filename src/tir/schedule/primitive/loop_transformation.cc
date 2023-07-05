@@ -87,7 +87,7 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
                               bool preserve_unit_iters) {
     Map<Var, Range> loop_var2extent;
     for (const StmtSRef& sref : loop_srefs) {
-      const ForNode* loop = TVM_SREF_TO_FOR(loop, sref);
+      const ForNode* loop = TVM_SREF_TO_FOR(sref);
       loop_var2extent.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
     }
     return Downcast<For>(IterMapSimplifyBlockBinding(opaque_blocks, std::move(loop_var2extent),
@@ -120,6 +120,7 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
                                /*input_iters=*/loop_var2extent_,
                                /*input_pred=*/op->predicate,
                                /*check_level=*/arith::IterMapLevel::Surjective,
+                               /*analyzer=*/&analzyer_,
                                /*simplify_trivial_iterators=*/!preserve_unit_iters_);
     if (v.same_as(op->iter_values)) {
       return GetRef<Stmt>(op);
@@ -134,6 +135,8 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
   MapNode* opaque_blocks_;
   /*! \brief The range of loops */
   Map<Var, Range> loop_var2extent_;
+  /*! \brief Internal analyzer */
+  arith::Analyzer analzyer_;
   /*! \brief Whether or not to simplify unit iterators */
   bool preserve_unit_iters_;
 };
@@ -389,7 +392,7 @@ Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref, const Array
   // - The execution order has not changed. (The block executes with the same args and the same
   // order with before.
   // Step 1. Check correctness
-  const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
+  const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
   if (!loop->annotations.empty() || loop->thread_binding.defined()) {
     throw HasAnnotationOrThreadBindingError(self->mod, GetRef<For>(loop));
   }
@@ -430,7 +433,7 @@ Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref, const Array
       &opaque_block_reuse)(std::move(new_stmt));
   // Step 3. Update predicate to guard the loop
   PrimExpr predicate = substitute_value < loop->extent;
-  if (!analyzer.CanProve(predicate)) {
+  if (!analyzer.CanProve(predicate, arith::ProofStrength::kSymbolicBound)) {
     new_stmt = BlockPredicateAppender(/*predicate=*/predicate)(std::move(new_stmt));
   }
   // Step 4. Generate nested loops to replace the original loop and simplify the binding
@@ -445,10 +448,166 @@ Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref, const Array
   result_srefs.reserve(n);
   for (int i = 0; i < n; i++) {
     result_srefs.push_back(self->stmt2ref.at(new_stmt.get()));
-    const ForNode* outer_loop = TVM_TYPE_AS(outer_loop, new_stmt, ForNode);
+    const ForNode* outer_loop = TVM_TYPE_AS(new_stmt, ForNode);
     new_stmt = outer_loop->body;
   }
   return result_srefs;
+}
+
+class LoopReconstructor : private StmtMutator {
+ public:
+  explicit LoopReconstructor(Block scope_root, const std::vector<std::vector<For>>& loops)
+      : scope_root_(scope_root), loops_(loops) {}
+
+  using StmtMutator::operator();
+
+  /*!
+   * \brief Create the new nest loops induced by the given loops
+   */
+  void MakeNewLoop() {
+    Array<Var> new_loop_vars;
+    Array<PrimExpr> new_loop_extents;
+    Array<Stmt> new_stmts;
+    for (size_t i = 0; i < loops_.size(); i++) {
+      Map<Var, PrimExpr> var_map;
+      for (size_t j = 0; j < loops_[i].size(); j++) {
+        if (i == 0) {
+          Var merged_var = loops_[i][j]->loop_var.copy_with_suffix("_m");
+          new_loop_vars.push_back(merged_var);
+          new_loop_extents.push_back(loops_[i][j]->extent);
+        }
+        var_map.Set(loops_[i][j]->loop_var, new_loop_vars[j]);
+      }
+      auto new_stmt = Substitute(loops_[i][0]->body, var_map);
+      new_stmts.push_back(new_stmt);
+      this->need_remove_loop_.push_back(loops_[i].back());
+    }
+    auto new_loop = For(new_loop_vars[0], Integer(0), new_loop_extents[0], ForKind::kSerial,
+                        SeqStmt(std::move(new_stmts)));
+    this->new_inner_loop_ = new_loop;
+    for (size_t i = 1; i < new_loop_vars.size(); ++i) {
+      const Var& loop_var = new_loop_vars[i];
+      const PrimExpr& loop_extent = new_loop_extents[i];
+      new_loop = For(loop_var, Integer(0), loop_extent, ForKind::kSerial, new_loop);
+    }
+    this->new_outer_loop_ = new_loop;
+  }
+
+ private:
+  Stmt VisitStmt_(const BlockNode* block) final {
+    if (block != scope_root_.get()) {
+      return GetRef<Block>(block);
+    }
+    return StmtMutator::VisitStmt_(block);
+  }
+
+  Stmt VisitStmt_(const ForNode* loop) final {
+    if (GetRef<For>(loop) == need_remove_loop_.back()) {
+      return new_outer_loop_;
+    } else if (std::count(need_remove_loop_.begin(), need_remove_loop_.end(), GetRef<For>(loop))) {
+      return Evaluate(0);
+    }
+    return StmtMutator::VisitStmt_(loop);
+  }
+
+  Stmt VisitStmt_(const SeqStmtNode* seq_stmt) final {
+    auto ret = Downcast<SeqStmt>(StmtMutator::VisitSeqStmt_(seq_stmt, true));
+    Array<Stmt> filtered;
+    for (Stmt stmt : ret->seq) {
+      if (!is_no_op(stmt)) {
+        filtered.push_back(std::move(stmt));
+      }
+    }
+    ret = SeqStmt(filtered);
+    if (ret->size() == 0) {
+      return Evaluate(0);
+    } else if (ret->size() == 1) {
+      return ret->seq[0];
+    } else {
+      return std::move(ret);
+    }
+  }
+
+ public:
+  /*! \brief The root block of the block scope */
+  Block scope_root_;
+  /*! \brief The given loops to be merge */
+  const std::vector<std::vector<For>>& loops_;
+  /*! \brief The outermost new loop to replace the original loop */
+  For new_outer_loop_{nullptr};
+  /*! \brief The innermost new loop to replace the original loop */
+  For new_inner_loop_{nullptr};
+  /*! \brief The loops to be removed */
+  std::vector<For> need_remove_loop_;
+};
+
+StmtSRef Merge(ScheduleState self, const Array<StmtSRef>& loop_srefs) {
+  // Invariance
+  // - The total repeat number has not changed for each direct child block.
+  // - The execution order has not changed. (The block executes with the same
+  //   args and the same order with before.)
+  arith::Analyzer analyzer;
+  StmtSRef scope_root_sref;
+  StmtSRef lca = GetSRefLowestCommonAncestor(loop_srefs);
+  std::vector<std::vector<For>> lca_nest_loops;
+  // Step 1. check correctness
+  std::vector<For> nest_loop_loops;
+  std::vector<PrimExpr> nest_loop_extents;
+  for (size_t i = 0; i < loop_srefs.size(); i++) {
+    const StmtSRef& sref = loop_srefs[i];
+    auto scope_root_sref_ = GetScopeRoot(self, sref, /*require_stage_pipeline=*/false);
+    std::vector<PrimExpr> nest_loop_i_extents;
+    std::vector<For> nest_loop_i_loops;
+    for (auto p = sref.get(); p != lca.get(); p = p->parent) {
+      if (auto loop = p->StmtAs<ForNode>()) {
+        if (!loop->annotations.empty() || loop->thread_binding.defined()) {
+          throw HasAnnotationOrThreadBindingError(self->mod, GetRef<For>(loop));
+        }
+        CheckLoopStartsWithZero(self, GetRef<StmtSRef>(p), &analyzer);
+        nest_loop_i_loops.push_back(GetRef<For>(loop));
+        nest_loop_i_extents.push_back(loop->extent);
+      }
+    }
+    lca_nest_loops.push_back(nest_loop_i_loops);
+    const ForNode* outer_loop = nullptr;
+    for (auto iter = nest_loop_i_loops.rbegin(); iter != nest_loop_i_loops.rend(); ++iter) {
+      if (outer_loop && !outer_loop->body.same_as(*iter)) {
+        throw NotOnlyChildError(self->mod, GetRef<For>(outer_loop), *iter);
+      }
+      outer_loop = (*iter).get();
+    }
+    if (i == 0) {
+      scope_root_sref = scope_root_sref_;
+      nest_loop_loops = nest_loop_i_loops;
+      nest_loop_extents = nest_loop_i_extents;
+    } else {
+      if (scope_root_sref_.get() != scope_root_sref.get()) {
+        LOG(FATAL) << "ScheduleError: Expected the loops to be under the same block scope.";
+        throw;
+      }
+      if (nest_loop_i_extents.size() != nest_loop_extents.size()) {
+        LOG(FATAL) << "ScheduleError: Merge loop's nesting depth must be same, but not.";
+        throw;
+      } else {
+        for (size_t j = 0; j < nest_loop_i_extents.size(); j++) {
+          if (!analyzer.CanProveEqual(nest_loop_i_extents[j], nest_loop_extents[j])) {
+            LOG(FATAL) << "ScheduleError: Merge loop's `extent` must be same, but not."
+                       << " extent=[" << j << "," << nest_loop_extents[j] << ","
+                       << nest_loop_i_extents[j] << "]";
+            throw;
+          }
+        }
+      }
+    }
+  }
+  // Step 2. Create merged loops and replace the original loops
+  Block scope_root = GetRef<Block>(scope_root_sref->StmtAs<BlockNode>());
+  LoopReconstructor reconstructor(scope_root, lca_nest_loops);
+  reconstructor.MakeNewLoop();
+  Block new_scope_root = Downcast<Block>(reconstructor(scope_root));
+  // Step 3. Do the actual replacement
+  self->Replace(scope_root_sref, new_scope_root, {{scope_root, new_scope_root}});
+  return self->stmt2ref.at(reconstructor.new_inner_loop_.get());
 }
 
 StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs, bool preserve_unit_iters) {
@@ -464,7 +623,7 @@ StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs, bool preser
   std::unordered_set<const VarNode*> outer_loop_vars;
   // Step 1. check correctness
   for (const StmtSRef& sref : loop_srefs) {
-    const ForNode* loop = TVM_SREF_TO_FOR(loop, sref);
+    const ForNode* loop = TVM_SREF_TO_FOR(sref);
     if (!loop->annotations.empty() || loop->thread_binding.defined()) {
       throw HasAnnotationOrThreadBindingError(self->mod, GetRef<For>(loop));
     }
@@ -554,7 +713,7 @@ std::unordered_set<const StmtSRefNode*> CollectLoopsIntoSet(
   for (const StmtSRef& loop_sref : ordered_loop_srefs) {
     auto inserted = loop_srefs.insert(loop_sref.get());
     if (!inserted.second) {
-      const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
+      const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
       throw LoopMultiAppearanceError(self->mod, GetRef<For>(loop));
     }
   }
@@ -704,9 +863,7 @@ void Reorder(ScheduleState self, const Array<StmtSRef>& ordered_loop_srefs) {
   //   the input array
   // - the bottom of the reorder range is the last loop in the input array which is not visited in
   // the previous traversals
-  const StmtSRefNode* top = nullptr;
-  const StmtSRefNode* bottom = nullptr;
-  std::tie(top, bottom) = GetBoundaryOfReorderRange(self, loop_srefs);
+  auto [top, bottom] = GetBoundaryOfReorderRange(self, loop_srefs);
   // Step 3. Collect all loops in the chain and check the loops are single-branch
   std::vector<const StmtSRefNode*> chain = GetLoopsInReorderRange(self, top, bottom);
   // Step 4. Check the block below has all its block_var to be data-parallel or reduction,
@@ -797,6 +954,38 @@ struct SplitTraits : public UnpackedInstTraits<SplitTraits> {
   friend struct ::tvm::tir::UnpackedInstTraits;
 };
 
+struct MergeTraits : public UnpackedInstTraits<MergeTraits> {
+  static constexpr const char* kName = "Merge";
+  static constexpr bool kIsPure = false;
+
+ private:
+  static constexpr size_t kNumInputs = 1;
+  static constexpr size_t kNumAttrs = 0;
+  static constexpr size_t kNumDecisions = 0;
+
+  template <size_t delta>
+  static TVM_ALWAYS_INLINE void _SetInputs(const runtime::TVMArgsSetter& setter,
+                                           const Array<ObjectRef>& inputs) {
+    setter(delta, inputs);
+  }
+
+  static LoopRV UnpackedApplyToSchedule(Schedule sch, Array<LoopRV> loop_rvs) {
+    return sch->Merge(loop_rvs);
+  }
+
+  static String UnpackedAsPython(Array<String> outputs, Array<String> loop_rvs) {
+    PythonAPICall py("merge");
+    for (const String& loop_rv : loop_rvs) {
+      py.Input("", loop_rv);
+    }
+    py.SingleOutput(outputs);
+    return py.Str();
+  }
+
+  template <typename>
+  friend struct ::tvm::tir::UnpackedInstTraits;
+};
+
 struct FuseTraits : public UnpackedInstTraits<FuseTraits> {
   static constexpr const char* kName = "Fuse";
   static constexpr bool kIsPure = false;
@@ -873,10 +1062,10 @@ struct AddUnitLoopTraits : public UnpackedInstTraits<AddUnitLoopTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   static LoopRV UnpackedApplyToSchedule(Schedule sch, ObjectRef rv) {
-    if (const auto* block = rv.as<BlockRVNode>()) {
-      return sch->AddUnitLoop(GetRef<BlockRV>(block));
-    } else if (const auto* loop = rv.as<LoopRVNode>()) {
-      return sch->AddUnitLoop(GetRef<LoopRV>(loop));
+    if (auto block = rv.as<BlockRV>()) {
+      return sch->AddUnitLoop(block.value());
+    } else if (auto loop = rv.as<LoopRV>()) {
+      return sch->AddUnitLoop(loop.value());
     } else {
       LOG(FATAL) << "TypeError: AddUnitLoop expects a loop or block";
       throw;
@@ -895,6 +1084,7 @@ struct AddUnitLoopTraits : public UnpackedInstTraits<AddUnitLoopTraits> {
 };
 
 TVM_REGISTER_INST_KIND_TRAITS(SplitTraits);
+TVM_REGISTER_INST_KIND_TRAITS(MergeTraits);
 TVM_REGISTER_INST_KIND_TRAITS(FuseTraits);
 TVM_REGISTER_INST_KIND_TRAITS(ReorderTraits);
 TVM_REGISTER_INST_KIND_TRAITS(AddUnitLoopTraits);

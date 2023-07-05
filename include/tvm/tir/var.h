@@ -104,6 +104,12 @@ class Var : public PrimExpr {
    */
   TVM_DLL explicit Var(String name_hint, Type type_annotation, Span span = Span());
   /*!
+   * \brief Make a new copy of var with same type, but a different nam
+   * \param name The new name to be used.
+   * \return the new Var copy
+   */
+  TVM_DLL Var copy_with_name(const String& name) const;
+  /*!
    * \brief Make a new copy of var with same type, append suffix
    * \param suffix The suffix to be appended.
    * \return the new Var copy
@@ -152,6 +158,13 @@ class SizeVar : public Var {
    */
   TVM_DLL explicit SizeVar(String name_hint = "s", DataType t = DataType::Int(32),
                            Span span = Span());
+  /*!
+   * \brief Constructor which provides a more detailed type annotation.
+   * \param name_hint variable name.
+   * \param type_annotation The type annotation.
+   * \param span The location of this object in the source code.
+   */
+  TVM_DLL explicit SizeVar(String name_hint, Type type_annotation, Span span = Span());
   /*!
    * \brief Get pointer to the internal value.
    * \return the corresponding Variable.

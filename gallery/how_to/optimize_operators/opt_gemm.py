@@ -48,6 +48,7 @@ All the experiment results mentioned below, are executed on 2015's 15' MacBook e
 Intel i7-4770HQ CPU. The cache line size should be 64 bytes for all the x86 CPUs.
 """
 
+
 ################################################################################################
 # Preparation and Baseline
 # ------------------------
@@ -340,7 +341,7 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 ###################################################################################################
 # Parallel
 # --------
-# Futhermore, we can also utilize multi-core processors to do the thread-level parallelization.
+# Furthermore, we can also utilize multi-core processors to do the thread-level parallelization.
 
 s = te.create_schedule(C.op)
 

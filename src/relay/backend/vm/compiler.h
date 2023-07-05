@@ -25,7 +25,7 @@
 #ifndef TVM_RELAY_BACKEND_VM_COMPILER_H_
 #define TVM_RELAY_BACKEND_VM_COMPILER_H_
 
-#include <tvm/ir/error.h>
+#include <tvm/relay/error.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/interpreter.h>
 #include <tvm/relay/transform.h>
@@ -89,9 +89,12 @@ class VMCompiler : public runtime::ModuleNode {
   VMCompiler() = default;
   virtual ~VMCompiler() = default;
 
-  virtual PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self);
+  virtual PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self);
 
   const char* type_key() const final { return "VMCompiler"; }
+
+  /*! \brief Get the property of the runtime module .*/
+  int GetPropertyMask() const final { return ModulePropertyMask::kRunnable; }
 
   /*!
    * \brief Set the parameters

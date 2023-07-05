@@ -34,7 +34,7 @@ namespace ethosu {
 namespace cascader {
 
 void PropagatorNode::VisitAttrs(AttrVisitor* v) {
-  Array<Array<FloatImm> > tmp_transform;
+  Array<Array<FloatImm>> tmp_transform;
   for (const auto& vec : transform_) {
     tmp_transform.push_back(make_array(vec));
   }
@@ -43,7 +43,7 @@ void PropagatorNode::VisitAttrs(AttrVisitor* v) {
   v->Visit("_offset", &tmp_arr);
 }
 
-Propagator::Propagator(const std::vector<std::vector<float> >& transform,
+Propagator::Propagator(const std::vector<std::vector<float>>& transform,
                        const std::vector<int>& offset) {
   auto n = make_object<PropagatorNode>();
   size_t rows = transform.size();
@@ -102,8 +102,8 @@ StripeConfig PropagatorNode::propagate(const StripeConfig& stripe_config) const 
 }
 
 TVM_REGISTER_GLOBAL("contrib.ethosu.cascader.Propagator")
-    .set_body_typed([](Array<Array<FloatImm> > transform, Array<Integer> offset) {
-      std::vector<std::vector<float> > vtransform;
+    .set_body_typed([](Array<Array<FloatImm>> transform, Array<Integer> offset) {
+      std::vector<std::vector<float>> vtransform;
       for (const auto& vec : transform) {
         vtransform.push_back(make_vector<float, FloatImm>(vec));
       }

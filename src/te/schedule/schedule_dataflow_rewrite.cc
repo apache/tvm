@@ -174,10 +174,12 @@ Tensor Schedule::cache_read(const Tensor& tensor, const std::string& scope,
   Array<Stage>& stages = (*this)->stages;
   Stage op_stage = operator[](tensor->op);
   size_t pos = FindNodeRef(stages.GetArrayNode(), op_stage);
-  Stage cache_stage = Stage(cache->op);
-  cache_stage.set_scope(scope);
+  Stage cache_stage = Stage(cache->op, this->operator->());
   ICHECK_LT(pos, stages.size());
   stages.insert(stages.begin() + pos + 1, cache_stage);
+  // in order to obtain correct copy on schedule_record,
+  // make sure "set_scope" primitive is applied after stage being added
+  cache_stage.set_scope(scope);
   (*this)->stage_map.Set(cache->op, cache_stage);
   // Update group
   cache_stage->group = op_stage->group;
@@ -266,10 +268,12 @@ Array<Tensor> ReplaceOriginalOp(Schedule sch, Stage orig_stage, const std::strin
   // create schedule for new cached stage.
   Array<Stage>& stages = sch->stages;
   size_t pos = FindNodeRef(stages.GetArrayNode(), orig_stage);
-  Stage cache_stage = Stage(cache_op);
-  cache_stage.set_scope(scope);
+  Stage cache_stage = Stage(cache_op, sch.operator->());
   ICHECK_LT(pos, stages.size());
   stages.insert(stages.begin() + pos, cache_stage);
+  // in order to obtain correct copy on schedule_record,
+  // make sure "set_scope" primitive is applied after stage being added
+  cache_stage.set_scope(scope);
   sch->stage_map.Set(cache_op, cache_stage);
   // Update group
   cache_stage->group = orig_stage->group;
@@ -459,7 +463,6 @@ Tensor Schedule::cache_write(const Tensor& tensor, const std::string& scope) {
     return (CacheWriteWithReLayoutTensor(*this, {tensor}, scope))[0];
   } else {
     LOG(FATAL) << "cache write only take ComputeOp or TensorComputeOp as writers";
-    return Tensor();
   }
 }
 
@@ -507,7 +510,7 @@ void RebaseNonZeroMinLoop(ScheduleNode* sch) {
 void InjectInline(ScheduleNode* sch, bool feature_extraction_mode) {
   sch->InvalidateCache();
 
-  std::vector<Array<PrimExpr> > new_body(sch->stages.size());
+  std::vector<Array<PrimExpr>> new_body(sch->stages.size());
   std::vector<bool> changed(sch->stages.size(), false);
   std::vector<Stmt> new_hybrid_body(sch->stages.size());
   std::vector<bool> hybrid_changed(sch->stages.size(), false);
@@ -893,7 +896,7 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor, const IterVar& axis, int f
   Operation factor_op(n);
   Array<Stage>& stages = (*this)->stages;
   size_t stage_pos = FindNodeRef(stages.GetArrayNode(), reduce_stage);
-  Stage factor_stage = Stage(factor_op);
+  Stage factor_stage = Stage(factor_op, this->operator->());
   factor_stage->relations = rels;
   ICHECK_LT(stage_pos, stages.size());
   stages.insert(stages.begin() + stage_pos, factor_stage);

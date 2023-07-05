@@ -159,7 +159,27 @@ void LoadMetaDataFromFile(const std::string& file_name,
   fs.close();
 }
 
-void RemoveFile(const std::string& file_name) { std::remove(file_name.c_str()); }
+void RemoveFile(const std::string& file_name) {
+  // FIXME: This doesn't check the return code.
+  std::remove(file_name.c_str());
+}
+
+void CopyFile(const std::string& src_file_name, const std::string& dest_file_name) {
+  std::ifstream src(src_file_name, std::ios::binary);
+  ICHECK(src) << "Unable to open source file '" << src_file_name << "'";
+
+  std::ofstream dest(dest_file_name, std::ios::binary | std::ios::trunc);
+  ICHECK(dest) << "Unable to destination source file '" << src_file_name << "'";
+
+  dest << src.rdbuf();
+
+  src.close();
+  dest.close();
+
+  ICHECK(dest) << "File-copy operation failed."
+               << " src='" << src_file_name << "'"
+               << " dest='" << dest_file_name << "'";
+}
 
 Map<String, NDArray> LoadParams(const std::string& param_blob) {
   dmlc::MemoryStringStream strm(const_cast<std::string*>(&param_blob));
@@ -223,8 +243,20 @@ TVM_REGISTER_GLOBAL("runtime.SaveParams").set_body_typed([](const Map<String, ND
   rv = TVMByteArray{s.data(), s.size()};
   return rv;
 });
+
+TVM_REGISTER_GLOBAL("runtime.SaveParamsToFile")
+    .set_body_typed([](const Map<String, NDArray>& params, const String& path) {
+      tvm::runtime::SimpleBinaryFileStream strm(path, "wb");
+      SaveParams(&strm, params);
+    });
+
 TVM_REGISTER_GLOBAL("runtime.LoadParams").set_body_typed([](const String& s) {
   return ::tvm::runtime::LoadParams(s);
+});
+
+TVM_REGISTER_GLOBAL("runtime.LoadParamsFromFile").set_body_typed([](const String& path) {
+  tvm::runtime::SimpleBinaryFileStream strm(path, "rb");
+  return LoadParams(&strm);
 });
 
 }  // namespace runtime

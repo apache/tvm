@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-argument
+# pylint: disable=unused-argument, bad-chained-comparison
 """A Relay implementation of graph packing."""
 
 import tvm
@@ -65,7 +65,7 @@ def _unpack_batch_channel(data, old_shape, unpack_transpose=False):
 
 
 def _channel_const_match(channel_length, cfactor_out):
-    """Round the chanel const variant if the value not divisible by cfactor_out"""
+    """Round the channel const variant if the value not divisible by cfactor_out"""
     diff = int(channel_length) % cfactor_out
     if diff != 0:
         diff = cfactor_out - diff

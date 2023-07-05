@@ -21,8 +21,9 @@
  * \file src/ir/adt.cc
  * \brief ADT type definitions.
  */
-#include <tvm/relay/adt.h>
-#include <tvm/relay/type.h>
+#include <tvm/ir/adt.h>
+#include <tvm/ir/type.h>
+#include <tvm/runtime/registry.h>
 
 namespace tvm {
 

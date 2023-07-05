@@ -19,6 +19,7 @@
 from typing import Tuple
 
 from tvm import te, tir, topi
+from tvm.target import Target
 
 
 def batch_matmul_nkkm(  # pylint: disable=invalid-name,missing-docstring
@@ -26,13 +27,18 @@ def batch_matmul_nkkm(  # pylint: disable=invalid-name,missing-docstring
     N: int,
     M: int,
     K: int,
+    in_dtype: str = "float32",
+    out_dtype: str = "float32",
 ) -> Tuple[te.Tensor, te.Tensor, te.Tensor]:
-    x = te.placeholder((B, N, K), name="X")
-    y = te.placeholder((B, K, M), name="Y")
+    x = te.placeholder((B, N, K), name="X", dtype=in_dtype)
+    y = te.placeholder((B, K, M), name="Y", dtype=in_dtype)
     k = te.reduce_axis((0, K), name="k")
     z = te.compute(  # pylint: disable=invalid-name
         (B, N, M),
-        lambda b, i, j: te.sum(x[b][i][k] * y[b][k][j], axis=[k]),
+        lambda b, i, j: te.sum(
+            x[b][i][k].astype(out_dtype) * y[b][k][j].astype(out_dtype),
+            axis=[k],
+        ),
         name="Z",
     )
     return (x, y, z)
@@ -48,9 +54,11 @@ def conv1d_nlc(  # pylint: disable=invalid-name,missing-docstring
     padding: int = 0,
     dilation: int = 1,
     groups: int = 1,
+    in_dtype: str = "float32",
+    out_dtype: str = "float32",
 ) -> Tuple[te.Tensor, te.Tensor, te.Tensor]:
-    inputs = te.placeholder((N, L, CI), name="inputs")
-    weight = te.placeholder((kernel_size, CI // groups, CO), name="weight")
+    inputs = te.placeholder((N, L, CI), name="inputs", dtype=in_dtype)
+    weight = te.placeholder((kernel_size, CI // groups, CO), name="weight", dtype=in_dtype)
 
     batch_size, in_len, _ = inputs.shape
     k_len, channel_per_group, out_channel = weight.shape
@@ -68,8 +76,8 @@ def conv1d_nlc(  # pylint: disable=invalid-name,missing-docstring
                     n,
                     l * stride + rl * dilation,
                     co // out_channel_per_group * channel_per_group + rc,
-                ]
-                * weight[rl, rc, co]
+                ].astype(out_dtype)
+                * weight[rl, rc, co].astype(out_dtype)
             ),
             axis=[rl, rc],
         ),
@@ -89,9 +97,13 @@ def conv2d_nhwc(  # pylint: disable=invalid-name,missing-docstring
     padding: int = 0,
     dilation: int = 1,
     groups: int = 1,
+    in_dtype: str = "float32",
+    out_dtype: str = "float32",
 ) -> Tuple[te.Tensor, te.Tensor, te.Tensor]:
-    inputs = te.placeholder((N, H, W, CI), name="inputs")
-    weight = te.placeholder((kernel_size, kernel_size, CI // groups, CO), name="weight")
+    inputs = te.placeholder((N, H, W, CI), name="inputs", dtype=in_dtype)
+    weight = te.placeholder(
+        (kernel_size, kernel_size, CI // groups, CO), name="weight", dtype=in_dtype
+    )
     batch_size, in_h, in_w, _ = inputs.shape
     k_h, k_w, channel_per_group, out_channel = weight.shape
     out_channel_per_group = out_channel // groups
@@ -112,8 +124,8 @@ def conv2d_nhwc(  # pylint: disable=invalid-name,missing-docstring
                     h * stride + rh * dilation,
                     w * stride + rw * dilation,
                     co // out_channel_per_group * channel_per_group + rc,
-                ]
-                * weight[rh, rw, rc, co]
+                ].astype(out_dtype)
+                * weight[rh, rw, rc, co].astype(out_dtype)
             ),
             axis=[rh, rw, rc],
         ),
@@ -134,10 +146,12 @@ def conv3d_ndhwc(  # pylint: disable=invalid-name,missing-docstring
     padding: int = 0,
     dilation: int = 1,
     groups: int = 1,
+    in_dtype: str = "float32",
+    out_dtype: str = "float32",
 ) -> Tuple[te.Tensor, te.Tensor, te.Tensor]:
-    inputs = te.placeholder((N, D, H, W, CI), name="inputs")
+    inputs = te.placeholder((N, D, H, W, CI), name="inputs", dtype=in_dtype)
     weight = te.placeholder(
-        (kernel_size, kernel_size, kernel_size, CI // groups, CO), name="weight"
+        (kernel_size, kernel_size, kernel_size, CI // groups, CO), name="weight", dtype=in_dtype
     )
     batch_size, in_d, in_h, in_w, _ = inputs.shape
     k_d, k_h, k_w, channel_per_group, out_channel = weight.shape
@@ -162,8 +176,8 @@ def conv3d_ndhwc(  # pylint: disable=invalid-name,missing-docstring
                     h * stride + rh * dilation,
                     w * stride + rw * dilation,
                     co // out_channel_per_group * channel_per_group + rc,
-                ]
-                * weight[rd, rh, rw, rc, co]
+                ].astype(out_dtype)
+                * weight[rd, rh, rw, rc, co].astype(out_dtype)
             ),
             axis=[rd, rh, rw, rc],
         ),
@@ -182,9 +196,11 @@ def depthwise_conv2d_nhwc(  # pylint: disable=invalid-name,missing-docstring
     padding: int = 0,
     dilation: int = 1,
     factor: int = 1,
+    in_dtype: str = "float32",
+    out_dtype: str = "float32",
 ) -> Tuple[te.Tensor, te.Tensor, te.Tensor]:
-    inputs = te.placeholder((N, H, W, C))
-    weight = te.placeholder((factor, kernel_size, kernel_size, C))
+    inputs = te.placeholder((N, H, W, C), dtype=in_dtype)
+    weight = te.placeholder((factor, kernel_size, kernel_size, C), dtype=in_dtype)
     batch_size, in_h, in_w, in_channel = inputs.shape
     factor, k_h, k_w, in_channel = weight.shape
     out_channel = in_channel * factor
@@ -203,8 +219,8 @@ def depthwise_conv2d_nhwc(  # pylint: disable=invalid-name,missing-docstring
                     h * stride + rh * dilation,
                     w * stride + rw * dilation,
                     c // factor,
-                ]
-                * weight[c % factor, rh, rw, c // factor]
+                ].astype(out_dtype)
+                * weight[c % factor, rh, rw, c // factor].astype(out_dtype)
             ),
             axis=[rh, rw],
         ),
@@ -222,9 +238,11 @@ def conv2d_transpose_nhwc(  # pylint: disable=invalid-name,missing-docstring
     kernel_size: int,
     stride: int = 1,
     padding: int = 0,
+    in_dtype: str = "float32",
+    out_dtype: str = "float32",
 ) -> Tuple[te.Tensor, te.Tensor, te.Tensor]:
-    inputs = te.placeholder((N, H, W, CI), name="inputs")
-    weight = te.placeholder((kernel_size, kernel_size, CI, CO), name="weight")
+    inputs = te.placeholder((N, H, W, CI), name="inputs", dtype=in_dtype)
+    weight = te.placeholder((kernel_size, kernel_size, CI, CO), name="weight", dtype=in_dtype)
 
     batch, in_h, in_w, in_c = inputs.shape
     filter_h, filter_w, in_c, out_c = weight.shape
@@ -292,8 +310,8 @@ def conv2d_transpose_nhwc(  # pylint: disable=invalid-name,missing-docstring
     output = te.compute(
         (batch, out_h, out_w, out_c),
         lambda n, h, w, co: te.sum(
-            _dilate(n, h + rh + border_h, w + rw + border_w, rc)
-            * weight[filter_h - 1 - rh, filter_w - 1 - rw, rc, co],
+            _dilate(n, h + rh + border_h, w + rw + border_w, rc).astype(out_dtype)
+            * weight[filter_h - 1 - rh, filter_w - 1 - rw, rc, co].astype(out_dtype),
             axis=[rh, rw, rc],
         ),
         name="conv2d_transpose_nhwc",
@@ -311,10 +329,16 @@ def conv2d_capsule_nhwijc(  # pylint: disable=invalid-name,missing-docstring
     stride: int = 1,
     padding: int = 0,
     capsule_size: int = 4,
+    in_dtype: str = "float32",
+    out_dtype: str = "float32",
 ) -> Tuple[te.Tensor, te.Tensor, te.Tensor]:
-    inputs = te.placeholder((N, H, W, capsule_size, capsule_size, CI), name="inputs")
+    inputs = te.placeholder(
+        (N, H, W, capsule_size, capsule_size, CI), name="inputs", dtype=in_dtype
+    )
     weight = te.placeholder(
-        (kernel_size, kernel_size, capsule_size, capsule_size, CI, CO), name="weight"
+        (kernel_size, kernel_size, capsule_size, capsule_size, CI, CO),
+        name="weight",
+        dtype=in_dtype,
     )
     batch_size, in_h, in_w, _, _, in_channel = inputs.shape
     k_h, k_w, _, _, _, out_channel = weight.shape
@@ -332,8 +356,8 @@ def conv2d_capsule_nhwijc(  # pylint: disable=invalid-name,missing-docstring
         (batch_size, out_h, out_w, capsule_size, capsule_size, out_channel),
         lambda n, h, w, cap_i, cap_j, co: te.sum(
             (
-                padded[n, h * stride + rh, w * stride + rw, cap_i, cap_k, rc]
-                * weight[rh, rw, cap_k, cap_j, rc, co]
+                padded[n, h * stride + rh, w * stride + rw, cap_i, cap_k, rc].astype(out_dtype)
+                * weight[rh, rw, cap_k, cap_j, rc, co].astype(out_dtype)
             ),
             axis=[rh, rw, cap_k, rc],
         ),
@@ -360,8 +384,8 @@ def norm_bmn(  # pylint: disable=invalid-name,missing-docstring
 
 
 def conv2d_nhwc_without_layout_rewrite(  # pylint: disable=invalid-name
-    Input: int,
-    Filter: int,
+    Input: te.Tensor,
+    Filter: te.Tensor,
     stride: int,
     padding: int,
     dilation: int,
@@ -431,15 +455,17 @@ def conv2d_nhwc_bn_relu(  # pylint: disable=invalid-name,missing-docstring
     strides: int,
     padding: int,
     dilation: int = 1,
+    in_dtype: str = "float32",
+    out_dtype: str = "float32",
 ) -> Tuple[te.Tensor, te.Tensor, te.Tensor, te.Tensor, te.Tensor, te.Tensor]:
-    data = te.placeholder((N, H, W, CI), name="data")
-    kernel = te.placeholder((kernel_size, kernel_size, CI, CO), name="kernel")
+    data = te.placeholder((N, H, W, CI), name="data", dtype=in_dtype)
+    kernel = te.placeholder((kernel_size, kernel_size, CI, CO), name="kernel", dtype=in_dtype)
     bias = te.placeholder((CO,), name="bias")
     bn_scale = te.placeholder((CO,), name="bn_scale")
     bn_offset = te.placeholder((CO,), name="bn_offset")
     OH = (H + 2 * padding - (kernel_size - 1) * dilation - 1) // strides + 1
     OW = (W + 2 * padding - (kernel_size - 1) * dilation - 1) // strides + 1
-    conv = conv2d_nhwc_without_layout_rewrite(data, kernel, strides, padding, dilation)
+    conv = conv2d_nhwc_without_layout_rewrite(data, kernel, strides, padding, dilation, out_dtype)
     conv = te.compute(
         (N, OH, OW, CO), lambda i, j, k, l: conv[i, j, k, l] + bias[l], name="bias_add"
     )
@@ -458,9 +484,11 @@ def transpose_batch_matmul(  # pylint: disable=invalid-name,missing-docstring
     seq_len: int,
     n_head: int,
     n_dim: int,
+    in_dtype: str = "float32",
+    out_dtype: str = "float32",
 ) -> Tuple[te.Tensor, te.Tensor, te.Tensor]:
-    query = te.placeholder((batch, seq_len, n_head, n_dim), name="query")
-    value = te.placeholder((batch, seq_len, n_head, n_dim), name="value")
+    query = te.placeholder((batch, seq_len, n_head, n_dim), name="query", dtype=in_dtype)
+    value = te.placeholder((batch, seq_len, n_head, n_dim), name="value", dtype=in_dtype)
     query_T = te.compute(
         (batch, n_head, seq_len, n_dim),
         lambda b, h, l, d: query[b, l, h, d],
@@ -474,7 +502,9 @@ def transpose_batch_matmul(  # pylint: disable=invalid-name,missing-docstring
     k = te.reduce_axis((0, n_dim), name="k")
     out = te.compute(
         (batch, n_head, seq_len, seq_len),
-        lambda b, h, i, j: te.sum(query_T[b, h, i, k] * value_T[b, h, k, j], axis=[k]),
+        lambda b, h, i, j: te.sum(
+            query_T[b, h, i, k].astype(out_dtype) * value_T[b, h, k, j].astype(out_dtype), axis=[k]
+        ),
         name="C",
     )
     return (query, value, out)
@@ -490,145 +520,95 @@ def conv2d_winograd_nhwc(  # pylint: disable=invalid-name,missing-docstring
     stride: int = 1,
     padding: int = 0,
     dilation: int = 1,
+    tile_size: int = 4,
 ) -> Tuple[te.Tensor, te.Tensor, te.Tensor]:
-    tile_size = 4  # _infer_tile_size(data, kernel)
-    inputs = te.placeholder((N, H, W, CI), name="inputs")
-    N, H, W, CI = topi.utils.get_const_tuple(inputs.shape)
-    if isinstance(dilation, int):
-        dilation_h = dilation_w = dilation
+    from tvm.topi.nn.conv2d import (  # pylint: disable=import-outside-toplevel
+        _conv2d_winograd_nhwc_impl,
+    )
+
+    target = Target.current(allow_none=True)
+    if target is not None and target.kind.name == "cuda":
+        write_cache_level = 3
     else:
-        dilation_h, dilation_w = dilation
+        write_cache_level = 2
+    data = te.placeholder((N, H, W, CI), "float32", name="data")
+    weight = te.placeholder((kernel_size, kernel_size, CO, CI), "float32", name="weight")
+    out = _conv2d_winograd_nhwc_impl(
+        data,
+        weight,
+        stride,
+        padding,
+        dilation,
+        "float32",
+        pre_computed=True,
+        auto_scheduler_rewritten_layout="",
+        meta_schedule_original_shape=None,
+        tile_size=tile_size,
+        write_cache_level=write_cache_level,
+    )
+    return (data, weight, out)
 
-    assert (dilation_h, dilation_w) == (1, 1), "Does not support dilation"
 
-    KH = KW = kernel_size
-    HPAD, WPAD, _, _ = topi.nn.get_pad_tuple(padding, (KH, KW))
-    HSTR, WSTR = (stride, stride) if isinstance(stride, int) else stride
-    assert HSTR == 1 and WSTR == 1 and KH == KW
-
-    data_pad = topi.nn.pad(inputs, (0, HPAD, WPAD, 0), (0, HPAD, WPAD, 0), name="data_pad")
-
-    r = KW
-    m = tile_size
-    alpha = m + r - 1
-    A, B, _G = topi.nn.winograd_util.winograd_transform_matrices(m, r, "float32")
-
-    H = (H + 2 * HPAD - KH) // HSTR + 1
-    W = (W + 2 * WPAD - KW) // WSTR + 1
-    nH, nW = (H + m - 1) // m, (W + m - 1) // m
-    P = N * nH * nW
-    _rkh = te.reduce_axis((0, KH), name="r_kh")
-    _rkw = te.reduce_axis((0, KW), name="r_kw")
-    kshape = (alpha, alpha, CI, CO)
-    kernel_pack = te.placeholder(kshape, inputs.dtype, name="weight")
-
-    idxdiv = te.indexdiv
-    idxmod = te.indexmod
-    # pack input tile
-    input_tile = te.compute(
-        (alpha, alpha, P, CI),
-        lambda eps, nu, p, ci: data_pad[idxdiv(p, (nH * nW))][idxmod(idxdiv(p, nW), nH) * m + eps][
-            idxmod(p, nW) * m + nu
-        ][ci],
-        name="input_tile",
+def conv2d_winograd_nchw(  # pylint: disable=invalid-name,missing-docstring
+    N: int,
+    H: int,
+    W: int,
+    CI: int,
+    CO: int,
+    kernel_size: int,
+    stride: int = 1,
+    padding: int = 1,
+    dilation: int = 1,
+) -> Tuple[te.Tensor, te.Tensor, te.Tensor]:
+    from tvm.topi.cuda.conv2d_winograd import (  # pylint: disable=import-outside-toplevel
+        _infer_tile_size,
+    )
+    from tvm.topi.nn.conv2d import (  # pylint: disable=import-outside-toplevel
+        _conv2d_winograd_nchw_impl,
     )
 
-    # transform data
-    r_a = te.reduce_axis((0, alpha), "r_a")
-    r_b = te.reduce_axis((0, alpha), "r_b")
-    data_pack = te.compute(
-        (alpha, alpha, P, CI),
-        lambda eps, nu, p, ci: te.sum(
-            input_tile[r_a][r_b][p][ci] * B[r_a][eps] * B[r_b][nu], axis=[r_a, r_b]
-        ),
-        name="data_pack",
-        attrs={"auto_scheduler_simplify_const_tensor_indices": ["eps", "nu", "r_a", "r_b"]},
+    data = te.placeholder((N, CI, H, W), "float32", name="data")
+    weight = te.placeholder((kernel_size, kernel_size, CI, CO), "float32", name="weight")
+    out = _conv2d_winograd_nchw_impl(
+        data,
+        weight,
+        stride,
+        padding,
+        dilation,
+        "float32",
+        pre_computed=True,
+        auto_scheduler_rewritten_layout="",
+        meta_schedule_original_shape=None,
+        tile_size=_infer_tile_size(data, weight),
     )
-
-    # do batch gemm
-    ci = te.reduce_axis((0, CI), name="ci")
-    bgemm = te.compute(
-        (alpha, alpha, P, CO),
-        lambda eps, nu, p, co: te.sum(
-            data_pack[eps][nu][p][ci] * kernel_pack[eps][nu][ci][co], axis=[ci]
-        ),
-        name="bgemm",
-    )
-
-    # inverse transform
-    r_a = te.reduce_axis((0, alpha), "r_a")
-    r_b = te.reduce_axis((0, alpha), "r_b")
-    inverse = te.compute(
-        (m, m, P, CO),
-        lambda vh, vw, p, co: te.sum(
-            bgemm[r_a][r_b][p][co] * A[r_a][vh] * A[r_b][vw], axis=[r_a, r_b]
-        ),
-        name="inverse",
-        attrs={"auto_scheduler_simplify_const_tensor_indices": ["vh", "vw", "r_a", "r_b"]},
-    )
-
-    # output
-    output = te.compute(
-        (N, H, W, CO),
-        lambda n, h, w, co: inverse[
-            idxmod(h, m), idxmod(w, m), n * nH * nW + idxdiv(h, m) * nW + idxdiv(w, m), co
-        ],
-        name="conv2d_winograd",
-    )
-
-    return (inputs, kernel_pack, output)
+    return (data, weight, out)
 
 
-def matmul(n: int, m: int, k: int) -> Tuple[te.Tensor, te.Tensor, te.Tensor]:
-    a = te.placeholder((n, k), name="A")
-    b = te.placeholder((k, m), name="B")
+def matmul(
+    n: int, m: int, k: int, in_dtype: str = "float32", out_dtype: str = "float32"
+) -> Tuple[te.Tensor, te.Tensor, te.Tensor]:
+    a = te.placeholder((n, k), name="A", dtype=in_dtype)
+    b = te.placeholder((k, m), name="B", dtype=in_dtype)
     k = te.reduce_axis((0, k), name="k")
     c = te.compute(
         (n, m),
-        lambda i, j: te.sum(a[i, k] * b[k, j], axis=[k]),
+        lambda i, j: te.sum(a[i, k].astype(out_dtype) * b[k, j].astype(out_dtype), axis=[k]),
         name="C",
     )
     return (a, b, c)
 
 
-def matmul_fp16(n: int, m: int, k: int) -> Tuple[te.Tensor, te.Tensor, te.Tensor]:
-    a = te.placeholder((n, k), name="A", dtype="float16")
-    b = te.placeholder((k, m), name="B", dtype="float16")
-    k = te.reduce_axis((0, k), name="k")
-
-    def f_compute(i, j):
-        v_a = tir.Cast(dtype="float32", value=a[i, k])
-        v_b = tir.Cast(dtype="float32", value=b[k, j])
-        return te.sum(v_a * v_b, axis=[k])
-
-    c = te.compute((n, m), f_compute, name="C")
-    return (a, b, c)
-
-
-def matmul_relu(n: int, m: int, k: int) -> Tuple[te.Tensor, te.Tensor, te.Tensor]:
-    a = te.placeholder((n, k), name="A")
-    b = te.placeholder((k, m), name="B")
+def matmul_relu(
+    n: int, m: int, k: int, in_dtype: str = "float32", out_dtype: str = "float32"
+) -> Tuple[te.Tensor, te.Tensor, te.Tensor]:
+    a = te.placeholder((n, k), name="A", dtype=in_dtype)
+    b = te.placeholder((k, m), name="B", dtype=in_dtype)
     k = te.reduce_axis((0, k), name="k")
     c = te.compute(
         (n, m),
-        lambda i, j: te.sum(a[i, k] * b[k, j], axis=[k]),
+        lambda i, j: te.sum(a[i, k].astype(out_dtype) * b[k, j].astype(out_dtype), axis=[k]),
         name="C",
     )
-    d = topi.nn.relu(c)  # pylint: disable=invalid-name
-    return (a, b, d)
-
-
-def matmul_relu_fp16(n: int, m: int, k: int) -> Tuple[te.Tensor, te.Tensor, te.Tensor]:
-    a = te.placeholder((n, k), name="A", dtype="float16")
-    b = te.placeholder((k, m), name="B", dtype="float16")
-    k = te.reduce_axis((0, k), name="k")
-
-    def f_compute(i, j):
-        v_a = tir.Cast(dtype="float32", value=a[i, k])
-        v_b = tir.Cast(dtype="float32", value=b[k, j])
-        return te.sum(v_a * v_b, axis=[k])
-
-    c = te.compute((n, m), f_compute, name="C")
     d = topi.nn.relu(c)  # pylint: disable=invalid-name
     return (a, b, d)
 
@@ -644,10 +624,14 @@ def conv2d_nchw(  # pylint: disable=invalid-name
     stride: int,
     padding: int,
     dilation: int = 1,
+    in_dtype: str = "float32",
+    out_dtype: str = "float32",
 ) -> Tuple[te.Tensor, te.Tensor, te.Tensor]:
-    x = te.placeholder((n, ci, h, w), name="X")
-    w = te.placeholder((co, ci, kh, kw), name="W")
-    y = topi.nn.conv2d_nchw(Input=x, Filter=w, stride=stride, padding=padding, dilation=dilation)
+    x = te.placeholder((n, ci, h, w), name="X", dtype=in_dtype)
+    w = te.placeholder((co, ci, kh, kw), name="W", dtype=in_dtype)
+    y = topi.nn.conv2d_nchw(
+        Input=x, Filter=w, stride=stride, padding=padding, dilation=dilation, out_dtype=out_dtype
+    )
     return (x, w, y)
 
 
@@ -662,15 +646,19 @@ def conv2d_nchw_bias_bn_relu(  # pylint: disable=invalid-name
     stride: int,
     padding: int,
     dilation: int = 1,
+    in_dtype: str = "float32",
+    out_dtype: str = "float32",
 ) -> Tuple[te.Tensor, te.Tensor, te.Tensor, te.Tensor, te.Tensor, te.Tensor]:
     oh = (h + 2 * padding - (kh - 1) * dilation - 1) // stride + 1  # pylint: disable=invalid-name
     ow = (w + 2 * padding - (kw - 1) * dilation - 1) // stride + 1  # pylint: disable=invalid-name
-    x = te.placeholder((n, ci, h, w), name="X")
-    w = te.placeholder((co, ci, kh, kw), name="W")
-    b = te.placeholder((co, 1, 1), name="B")
-    bn_scale = te.placeholder((co, 1, 1), name="bn_scale")
-    bn_offset = te.placeholder((co, 1, 1), name="bn_offset")
-    y = topi.nn.conv2d_nchw(Input=x, Filter=w, stride=stride, padding=padding, dilation=dilation)
+    x = te.placeholder((n, ci, h, w), name="X", dtype=in_dtype)
+    w = te.placeholder((co, ci, kh, kw), name="W", dtype=in_dtype)
+    b = te.placeholder((co, 1, 1), name="B", dtype=out_dtype)
+    bn_scale = te.placeholder((co, 1, 1), name="bn_scale", dtype=out_dtype)
+    bn_offset = te.placeholder((co, 1, 1), name="bn_offset", dtype=out_dtype)
+    y = topi.nn.conv2d_nchw(
+        Input=x, Filter=w, stride=stride, padding=padding, dilation=dilation, out_dtype=out_dtype
+    )
     y = te.compute((n, co, oh, ow), lambda i, j, k, l: y[i, j, k, l] + b[j, 0, 0], name="bias_add")
     y = te.compute(
         (n, co, oh, ow), lambda i, j, k, l: y[i, j, k, l] * bn_scale[j, 0, 0], name="bn_mul"
@@ -699,74 +687,6 @@ def softmax_mn(m, n) -> Tuple[te.Tensor, te.Tensor]:  # pylint: disable=invalid-
     b = topi.nn.softmax(a, axis=1)
 
     return (a, b)
-
-
-def conv2d_nhwc_f16(  # pylint: disable=invalid-name,missing-docstring
-    N: int,
-    H: int,
-    W: int,
-    CI: int,
-    CO: int,
-    kernel_size: int,
-    stride: int = 1,
-    padding: int = 0,
-    dilation: int = 1,
-    groups: int = 1,
-):
-    inputs = te.placeholder((N, H, W, CI), name="inputs", dtype="float16")
-    weight = te.placeholder(
-        (kernel_size, kernel_size, CI // groups, CO), name="weight", dtype="float16"
-    )
-    batch_size, in_h, in_w, _ = inputs.shape
-    k_h, k_w, channel_per_group, out_channel = weight.shape
-    out_channel_per_group = out_channel // groups
-
-    out_h = (in_h + 2 * padding - dilation * (k_h - 1) - 1) // stride + 1
-    out_w = (in_w + 2 * padding - dilation * (k_w - 1) - 1) // stride + 1
-    rh = te.reduce_axis((0, k_h), name="rh")
-    rw = te.reduce_axis((0, k_w), name="rw")
-    rc = te.reduce_axis((0, channel_per_group), name="rc")
-
-    padded = topi.nn.pad(inputs, [0, padding, padding, 0])
-    output = te.compute(
-        (batch_size, out_h, out_w, out_channel),
-        lambda n, h, w, co: te.sum(
-            (
-                tir.Cast(
-                    value=padded[
-                        n,
-                        h * stride + rh * dilation,
-                        w * stride + rw * dilation,
-                        co // out_channel_per_group * channel_per_group + rc,
-                    ],
-                    dtype="float32",
-                )
-                * tir.Cast(value=weight[rh, rw, rc, co], dtype="float32")
-            ),
-            axis=[rh, rw, rc],
-        ),
-        name="conv2d_nhwc",
-    )
-    return (inputs, weight, output)
-
-
-def batch_matmul_nkkm_f16(  # pylint: disable=invalid-name,missing-docstring
-    B: int,
-    N: int,
-    M: int,
-    K: int,
-) -> Tuple[te.Tensor, te.Tensor, te.Tensor]:
-    x = te.placeholder((B, N, K), name="X", dtype="float16")
-    y = te.placeholder((B, K, M), name="Y", dtype="float16")
-    k = te.reduce_axis((0, K), name="k")
-    z = te.compute(  # pylint: disable=invalid-name
-        (B, N, M),
-        lambda b, i, j: te.sum(
-            tir.Cast("float32", x[b][i][k]) * tir.Cast("float32", y[b][k][j]), axis=[k]
-        ),
-        name="Z",
-    )
-    return (x, y, z)
 
 
 def create_te_workload(name: str, idx: int) -> tir.PrimFunc:
@@ -889,7 +809,7 @@ CONFIGS = {
     "T2D": (
         conv2d_transpose_nhwc,
         [
-            # all conv2d tranpose layers in DCGAN
+            # all conv2d transpose layers in DCGAN
             (1, 4, 4, 512, 256, 4, 2, 1),
             (1, 8, 8, 256, 128, 4, 2, 1),
             (1, 16, 16, 128, 64, 4, 2, 1),
@@ -924,7 +844,7 @@ CONFIGS = {
             (2048, 2048),
         ],
     ),
-    "C2d-BN-RELU": (
+    "CBR": (
         conv2d_nhwc_bn_relu,
         [
             (1, 224, 224, 3, 64, 7, 2, 3),
@@ -940,6 +860,18 @@ CONFIGS = {
             (1, 128, 16, 64),
             (1, 64, 12, 128),
             (1, 128, 12, 128),
+        ],
+    ),
+    "C2D_WIN_NHWC": (
+        conv2d_winograd_nhwc,
+        [
+            (1, 14, 14, 128, 128, 6),
+        ],
+    ),
+    "C2D_WIN_NCHW": (
+        conv2d_winograd_nchw,
+        [
+            (1, 56, 56, 64, 64, 6),
         ],
     ),
 }

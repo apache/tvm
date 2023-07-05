@@ -57,7 +57,7 @@ inline Schedule schedule_pool(const Target& target, const Array<Tensor>& outs) {
     if (padded_input->op->IsInstance<ComputeOpNode>()) {
       s[padded_input].compute_inline();
     }
-    int num_thread = target->GetAttr<Integer>("max_num_threads").value();
+    int num_thread = target->GetAttr<Integer>("max_num_threads").value().IntValue();
     Tensor out;
     Tensor OL;
     if (detail::contains(s->outputs, pool->op)) {

@@ -32,32 +32,37 @@ namespace tvm {
 namespace codegen {
 
 SPIRVSupport::SPIRVSupport(tvm::Target target) {
-  ICHECK_EQ(target->kind->device_type, kDLVulkan)
-      << "SPIRVSupport can only be checked for vulkan device type";
+  auto device_type = target->GetTargetDeviceType();
+  ICHECK(device_type == kDLVulkan || device_type == kDLOpenCL || device_type == kDLWebGPU)
+      << "Unsupported device type for SPIRV codegen:" << device_type;
 
   if (target->GetAttr<Integer>("vulkan_api_version")) {
-    vulkan_api_version = target->GetAttr<Integer>("vulkan_api_version").value();
+    vulkan_api_version = target->GetAttr<Integer>("vulkan_api_version").value().IntValue();
   }
 
   if (target->GetAttr<Integer>("supported_subgroup_operations")) {
     supported_subgroup_operations =
-        target->GetAttr<Integer>("supported_subgroup_operations").value();
+        target->GetAttr<Integer>("supported_subgroup_operations").value().IntValue();
   }
   if (target->GetAttr<Integer>("max_push_constants_size")) {
-    max_push_constants_size = target->GetAttr<Integer>("max_push_constants_size").value();
+    max_push_constants_size =
+        target->GetAttr<Integer>("max_push_constants_size").value().IntValue();
   }
   if (target->GetAttr<Integer>("max_uniform_buffer_range")) {
-    max_uniform_buffer_range = target->GetAttr<Integer>("max_uniform_buffer_range").value();
+    max_uniform_buffer_range =
+        target->GetAttr<Integer>("max_uniform_buffer_range").value().IntValue();
   }
   if (target->GetAttr<Integer>("max_storage_buffer_range")) {
-    max_storage_buffer_range = target->GetAttr<Integer>("max_storage_buffer_range").value();
+    max_storage_buffer_range =
+        target->GetAttr<Integer>("max_storage_buffer_range").value().IntValue();
   }
   if (target->GetAttr<Integer>("max_shared_memory_per_block")) {
-    max_shared_memory_per_block = target->GetAttr<Integer>("max_shared_memory_per_block").value();
+    max_shared_memory_per_block =
+        target->GetAttr<Integer>("max_shared_memory_per_block").value().IntValue();
   }
   if (target->GetAttr<Integer>("max_per_stage_descriptor_storage_buffer")) {
     max_per_stage_descriptor_storage_buffers =
-        target->GetAttr<Integer>("max_per_stage_descriptor_storage_buffer").value();
+        target->GetAttr<Integer>("max_per_stage_descriptor_storage_buffer").value().IntValue();
   }
   if (target->GetAttr<Bool>("supports_storage_buffer_storage_class")) {
     supports_storage_buffer_storage_class =
@@ -96,6 +101,10 @@ SPIRVSupport::SPIRVSupport(tvm::Target target) {
         break;
       }
     }
+  }
+  // Check whether cooperative matrix is enabled in the target string.
+  if (target->GetAttr<Bool>("supports_cooperative_matrix")) {
+    supports_cooperative_matrix = target->GetAttr<Bool>("supports_cooperative_matrix").value();
   }
 }
 

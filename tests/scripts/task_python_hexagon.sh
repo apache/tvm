@@ -39,8 +39,20 @@ if [[ "${device_serial}" == "simulator" ]]; then
     export HEXAGON_SHARED_LINK_FLAGS="-Lbuild/hexagon_api_output -lhexagon_rpc_sim"
 fi
 
+num_of_devices=0
+if [ ! "${device_serial}" == "simulator" ]; then
+    IFS=',' read -ra ADDR <<< "$device_serial"
+    for i in "${ADDR[@]}"; do
+        num_of_devices=$(($num_of_devices+1))
+    done
+fi
+
 export ANDROID_SERIAL_NUMBER=${device_serial}
-run_pytest ctypes python-contrib-hexagon tests/python/contrib/test_hexagon
+if [ "${device_serial}" == "simulator" ]; then
+    run_pytest ctypes python-contrib-hexagon tests/python/contrib/test_hexagon
+else
+    run_pytest ctypes python-contrib-hexagon tests/python/contrib/test_hexagon -n=$num_of_devices
+fi
 
 if [[ "${device_serial}" == "simulator" ]]; then
     kill ${TRACKER_PID}

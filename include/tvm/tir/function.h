@@ -88,33 +88,22 @@ class PrimFuncNode : public BaseFuncNode {
    *  While we could have express parameter unpacking and constraint using
    *  normal statements, making buffer_map as first class citizen of PrimFunc
    *  will make program analysis much easier.
+   *
+   *  Prior to buffer flattening, which is performed either in
+   *  StorageFlatten for TE-based schedules or in FlattenBuffer for
+   *  TIR-based schedules, these buffer objects are used directly in
+   *  the body of the function.  After buffer flattening, these buffer
+   *  objects remain unflattened for use in argument validation, but
+   *  all usage in the body of the function is done through a
+   *  flattened alias of the buffer.
    */
   Map<tir::Var, Buffer> buffer_map;
-
-  /*! \brief The buffer map prior to flattening.
-   *
-   * This contains the buffers as they exists prior to flattening, and
-   * is used for validating an input tensor passed into the packed
-   * API.  Any buffer that is present in `buffer_map` but not present
-   * in `preflattened_buffer_map` is assumed to be the same before
-   * and after flattening (e.g. a 1-d tensor that is backed by 1-d
-   * flat memory).
-   *
-   * TODO(Lunderberg): Remove preflattened_buffer_map, and instead
-   * declare each flattened buffer as aliasing the original tensor
-   * shape.  This should include improving the StmtExprMutator to
-   * provide easier interactions with Buffer objects, so that the
-   * bookkeeping of relationships between buffers doesn't need to be
-   * repeated across several transforms.
-   */
-  Map<tir::Var, Buffer> preflattened_buffer_map;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("params", &params);
     v->Visit("body", &body);
     v->Visit("ret_type", &ret_type);
     v->Visit("buffer_map", &buffer_map);
-    v->Visit("preflattened_buffer_map", &preflattened_buffer_map);
     v->Visit("attrs", &attrs);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
@@ -123,7 +112,6 @@ class PrimFuncNode : public BaseFuncNode {
   bool SEqualReduce(const PrimFuncNode* other, SEqualReducer equal) const {
     // visit params and buffer_map first as they contains defs.
     return equal.DefEqual(params, other->params) && equal(buffer_map, other->buffer_map) &&
-           equal(preflattened_buffer_map, other->preflattened_buffer_map) &&
            equal(ret_type, other->ret_type) && equal(body, other->body) &&
            equal(attrs, other->attrs);
   }
@@ -131,7 +119,6 @@ class PrimFuncNode : public BaseFuncNode {
   void SHashReduce(SHashReducer hash_reduce) const {
     hash_reduce.DefHash(params);
     hash_reduce(buffer_map);
-    hash_reduce(preflattened_buffer_map);
     hash_reduce(ret_type);
     hash_reduce(body);
     hash_reduce(attrs);
@@ -144,6 +131,8 @@ class PrimFuncNode : public BaseFuncNode {
    *       directly derived from the Vars without the need of type inference.
    */
   TVM_DLL FuncType func_type_annotation() const;
+
+  TVM_OBJECT_ENABLE_SCRIPT_PRINTER();
 
   static constexpr const char* _type_key = "tir.PrimFunc";
   TVM_DECLARE_FINAL_OBJECT_INFO(PrimFuncNode, BaseFuncNode);
@@ -169,21 +158,13 @@ class PrimFunc : public BaseFunc {
    * PrimFunc.  (e.g. a buffer of shape ``[1024]`` originally
    * generated as a tensor of shape ``[32, 32]``)
    *
-   * \param preflattened_buffer_map The buffer map for
-   * parameter buffer unpacking.  This contains buffer
-   * objects as they are expected to be passed in by the
-   * callee.  (e.g. a buffer of shape ``[32, 32]`` originally
-   * generated as a tensor of shape ``[32, 32]``)
-   *
    * \param attrs Additional function attributes.
    *
    * \param span The location of this object in the source code.
    */
-  TVM_DLL PrimFunc(
-      Array<tir::Var> params, Stmt body, Type ret_type = VoidType(),
-      Map<tir::Var, Buffer> buffer_map = Map<tir::Var, Buffer>(),
-      Optional<Map<tir::Var, Buffer>> preflattened_buffer_map = Optional<Map<tir::Var, Buffer>>(),
-      DictAttrs attrs = NullValue<DictAttrs>(), Span span = Span());
+  TVM_DLL PrimFunc(Array<tir::Var> params, Stmt body, Type ret_type = VoidType(),
+                   Map<tir::Var, Buffer> buffer_map = Map<tir::Var, Buffer>(),
+                   DictAttrs attrs = NullValue<DictAttrs>(), Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(PrimFunc, BaseFunc, PrimFuncNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(PrimFuncNode);
@@ -225,30 +206,34 @@ class TensorIntrin : public ObjectRef {
    * up with its name.
    * \param name The name of the TensorIntrin to register
    * \param intrin The TensorIntrin to register.
+   * \param override Whether override existing intrinsic.
    * \throws This method throws an exception if the TensorIntrin with the specified name already
    *         exists.
    */
-  TVM_DLL static void Register(String name, TensorIntrin intrin);
+  TVM_DLL static void Register(String name, TensorIntrin intrin, bool override = false);
 
   /*!
    * \brief Look up TensorIntrin by name. Raises an exception if not found.
    * \param name The name of the TensorIntrin.
+   * \param allow_missing Whether to allow missing tensor intrin. If false, an exception is raised
+   *    if the tensor intrin is not found.
    * \return The TensorIntrin with the specified name.
-   * \throws This method throws an exception if the TensorIntrin does not exist.
+   * \throws This method throws an exception if the TensorIntrin does not exist and allow_missing is
+   * false.
    */
-  TVM_DLL static TensorIntrin Get(String name);
+  TVM_DLL static Optional<TensorIntrin> Get(String name, bool allow_missing = false);
 
   TVM_DEFINE_OBJECT_REF_METHODS(TensorIntrin, ObjectRef, TensorIntrinNode)
 };
 
-/*
+/*!
  * \brief Specialize parameters of PrimFunc.
  * \param func The PrimFunc to be specialized.
  * \param param_map The mapping from function params to the instance.
  * \return The new function with parameter specialized.
  * \note We can define a Meta TIR function with symbolic shape:
  *
- * \code
+ * \code{.py}
  *  @T.prim_func
  *  def mem_copy(a: T.handle, b: T.handle, m: T.int32, n: T.int32) -> None:
  *      A = T.match_buffer(a, (m, n), "float32")
@@ -261,14 +246,14 @@ class TensorIntrin : public ObjectRef {
  *
  * Then we can make it specialized with given shapes or buffers.
  *
- * \code
+ * \code{.py}
  *  a, _, m, n = mem_copy.params
  *  func = mem_copy.specialize({a: tir.decl_buffer((16, 16))})
  *  # or
  *  func = mem_copy.specialize({n: 16, m: 16})
  * \endcode
  *
- * \code {.language-id}
+ * \code{.py}
  *  @T.prim_func
  *  def mem_copy_16_16(a: T.handle, b: T.handle) -> None:
  *      A = T.match_buffer(a, (16, 16), "float32")
@@ -287,10 +272,11 @@ PrimFunc Specialize(PrimFunc func, const Map<Var, ObjectRef>& param_map);
  * \sa tvm::attr
  */
 namespace attr {
+
 /*!
  * \brief List of thread IterVar that a DeviceLaunch function corresponds to.
  *
- * Type: Array<tir::IterVar>
+ * Type: Array<String>
  *
  * We call a device kernel launch function f using the following convention:
  *
@@ -298,23 +284,42 @@ namespace attr {
  *      [arg1, arg2, ..., arg_n,
  *       work_size_1, work_size_2, ... work_size_m, dyn_shmem_size])
  *
- * Here n = len(arg), m = len(work_size) = len(device_thread_axis).
+ * Here n = len(arg), m = len(work_size) = len(launch_params)-1.
  *
- * When kDeviceUseDynSharedMemory is not set, dyn_shmem_size argument is omitted.
+ * The list of kernel launch params indicates which additional
+ * parameters will be provided to the PackedFunc by the calling
+ * scope.
  *
- * The list of device_thread_axis indicates how can be bind the
- * work_size arguments to the corresponding threads.
+ * - "threadIdx.x", "threadIdx.y", "threadIdx.z"
+ *
+ *   The extent of the thread count in x/y/z, to be used when
+ *   launching the compute kernel on the device.  For example, the
+ *   gridDimX/Y/Z parameters passed to cuLaunchKernel when launching a
+ *   CUDA kernel, or the groupCountX/Y/Z parameters passed to
+ *   vkCmdDispatch when dispatching a compute pipeline to Vulkan.
+ *
+ * - "blockIdx.x", "blockIdx.y", "blockIdx.z"
+ *
+ *   The extent of the block iterators, to be used when launching the
+ *   compute kernel on the device.  For example, the blockDimX/Y/Z
+ *   parameters passed to cuLaunchKernel when launching a CUDA kernel.
+ *   For runtimes that do not require the block to be provided
+ *   externally, this parameter is ignored.  For example, the
+ *   spv::ExecutionModeLocalSize for SPIR-V shaders on Vulkan, where
+ *   this parameter is defined in the shader.
+ *
+ * - tvm::runtime::launch_param::kUseDynamicSharedMemoryTag
+ *
+ *   The size of the shared memory that may be allocated internally by
+ *   the kernel.  For example, exposed as the
+ *   CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES attribute in
+ *   cuda.
+ *
+ *   Defined as "tir.use_dyn_shared_memory".
  *
  * \sa tvm::CallingConv::kDeviceKernelLaunch
  */
-constexpr const char* kDeviceThreadAxis = "tir.device_thread_axis";
-
-/*!
- * \brief Whether or not use dynamic shared memory.
- *
- * Type: Integer
- */
-constexpr const char* kDeviceUseDynSharedMemory = "tir.device_use_dyn_shared_memory";
+constexpr const char* kKernelLaunchParams = "tir.kernel_launch_params";
 
 /*!
  * \brief Whether to set noalias rule on the function arguments.
@@ -339,6 +344,13 @@ constexpr const char* kIsEntryFunc = "tir.is_entry_func";
  * Type: Integer
  */
 constexpr const char* kIsGlobalFunc = "tir.is_global_func";
+
+/*!
+ * \brief Mark the function as run on the host, mutually exclusive with kTarget.
+ *
+ * Type: Integer
+ */
+constexpr const char* kIsHostFunc = "tir.is_host_func";
 
 }  // namespace attr
 }  // namespace tir

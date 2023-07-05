@@ -51,7 +51,7 @@ scheme through `Sequential`_ and `Block`_, respectively. With such constructs,
 these modern frameworks are able to conveniently add modules/layers to their
 containers and build up neural networks easily.
 
-The design of the Relay pass infra is largely inspired by the the hierarchical
+The design of the Relay pass infra is largely inspired by the hierarchical
 pass manager used in LLVM and the block-style containers used in the popular
 deep learning frameworks. The major goals of the pass infra include:
 

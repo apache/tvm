@@ -65,7 +65,8 @@ enum ValueKind {
   kPushConstantPtr,
   kFunction,
   kExtInst,
-  kUniformPtr
+  kUniformPtr,
+  kSpecConst,
 };
 
 /*! \brief Represent the SPIRV Value */
@@ -215,7 +216,7 @@ class InstrBuilder {
    * \brief add sequence of values to instruction
    * \param args The instruction sequence
    * \return reference to self.
-   * \tparams Args The positional arguments
+   * \tparam Args The positional arguments
    */
   template <typename... Args>
   InstrBuilder& AddSeq(Args&&... args) {
@@ -328,7 +329,7 @@ class IRBuilder {
    * \brief Add code to debug segment.
    * \param op The operator
    * \param args The instruction sequence
-   * \tparams Args The positional arguments
+   * \tparam Args The positional arguments
    */
   template <typename... Args>
   void Debug(spv::Op op, Args&&... args) {
@@ -339,7 +340,7 @@ class IRBuilder {
    * \brief Set the name of a value or label
    * \param obj The object to be named
    * \param name The name of the object
-   * \tparams Obj The type of the object being named.  Typically a Label or Value.
+   * \tparam Obj The type of the object being named.  Typically a Label or Value.
    */
   template <typename Obj>
   void SetName(Obj&& obj, const std::string& name) {
@@ -350,7 +351,7 @@ class IRBuilder {
    * \brief Add Execution mode to a function.
    * \param func The function value
    * \param args The instruction sequence
-   * \tparams Args The positional arguments
+   * \tparam Args The positional arguments
    */
   template <typename... Args>
   void ExecutionMode(Value func, Args&&... args) {
@@ -360,7 +361,7 @@ class IRBuilder {
    * \brief Add code to decorate segment.
    * \param op The operator
    * \param args The instruction sequence
-   * \tparams Args The positional arguments
+   * \tparam Args The positional arguments
    */
   template <typename... Args>
   void Decorate(spv::Op op, Args&&... args) {
@@ -370,7 +371,7 @@ class IRBuilder {
    * \brief Add code to global segment.
    * \param op The operator
    * \param args The instruction sequence
-   * \tparams Args The positional arguments
+   * \tparam Args The positional arguments
    */
   template <typename... Args>
   void DeclareGlobal(spv::Op op, Args&&... args) {
@@ -382,7 +383,7 @@ class IRBuilder {
    * \param op The operator
    * \param args The instruction sequence
    * \return The result SSA value.
-   * \tparams Args The positional arguments
+   * \tparam Args The positional arguments
    */
   template <typename... Args>
   Instr MakeInst(spv::Op op, Args&&... args) {
@@ -395,7 +396,7 @@ class IRBuilder {
    * \param out_type The result type.
    * \param args The instruction sequence
    * \return The result SSA value.
-   * \tparams Args The positional arguments
+   * \tparam Args The positional arguments
    */
   template <typename... Args>
   Value MakeValue(spv::Op op, const SType& out_type, Args&&... args) {
@@ -435,7 +436,7 @@ class IRBuilder {
    * \brief Build vector by concatenating components
    *
    * \param vec The vector component
-   * \tparams Args The positional arguments
+   * \tparam Args The positional arguments
    */
   Value Concat(const std::vector<Value>& vec);
   /*!
@@ -443,7 +444,7 @@ class IRBuilder {
    * \param dtype The data type.
    * \return The corresponding spirv type.
    */
-  SType GetSType(const tvm::DataType& dtype);
+  SType GetSType(const tvm::DataType& dtype, uint32_t row = 0, uint32_t col = 0);
   /*!
    * \brief Get the pointer type that points to value_type
    * \param value_type.
@@ -592,6 +593,19 @@ class IRBuilder {
   Value GT(Value a, Value b);
   Value GE(Value a, Value b);
   Value Select(Value cond, Value a, Value b);
+  /*
+   * \brief Get composite constant
+   * \param ele_stype The value type of elements in the composite.
+   * \param composite_type The value type of the composite.
+   * \param dval The initial value for all elements in the composite.
+   */
+  Value GetCompositeConst(const SType& ele_stype, const SType& composite_stype, double dval);
+  /*
+   * Get specialization constant
+   * \param dtype The content value type
+   * \param value The default value
+   */
+  Value GetSpecConst(const SType& dtype, uint64_t value);
 
  private:
   /*!
@@ -640,8 +654,9 @@ class IRBuilder {
 
   // get constant given value encoded in uint64_t
   Value GetConst_(const SType& dtype, const uint64_t* pvalue);
+
   // declare type
-  SType DeclareType(const DataType& dtype);
+  SType DeclareType(const DataType& dtype, uint32_t row = 0, uint32_t col = 0);
 
   // Declare the appropriate SPIR-V capabilities and extensions to use
   // this data type.
@@ -696,13 +711,15 @@ class IRBuilder {
   /*! \brief whether push constant is defined */
   Value push_const_;
   /*! \brief map from type code to the type */
-  std::unordered_map<uint32_t, SType> pod_type_tbl_;
+  std::unordered_map<uint64_t, SType> pod_type_tbl_;
   /*! \brief map from value to array type */
   std::map<std::tuple<uint32_t, uint32_t, bool>, SType> struct_array_type_tbl_;
   /*! \brief map from value to its pointer type */
   std::map<std::pair<uint32_t, spv::StorageClass>, SType> pointer_type_tbl_;
   /*! \brief map from constant int to its value */
   std::map<std::pair<uint32_t, uint64_t>, Value> const_tbl_;
+  /*! \brief map from floating point composite constant to its value */
+  std::map<std::pair<uint32_t, double>, Value> composite_const_tbl_;
   /*! \brief map from name of a ExtInstImport to its value */
   std::map<std::string, Value> ext_inst_tbl_;
 

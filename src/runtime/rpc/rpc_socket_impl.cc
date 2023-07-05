@@ -97,7 +97,7 @@ std::shared_ptr<RPCEndpoint> RPCConnect(std::string url, int port, std::string k
     ICHECK_EQ(sock.RecvAll(&remote_key[0], keylen), keylen);
   }
 
-  std::unique_ptr<RPCChannel> channel{new SockChannel(sock)};
+  std::unique_ptr<RPCChannel> channel = std::make_unique<SockChannel>(sock);
   if (enable_logging) {
     channel.reset(new RPCChannelLogging(std::move(channel)));
   }
@@ -116,13 +116,11 @@ Module RPCClientConnect(std::string url, int port, std::string key, bool enable_
 // TVM_DLL needed for MSVC
 TVM_DLL void RPCServerLoop(int sockfd) {
   support::TCPSocket sock(static_cast<support::TCPSocket::SockType>(sockfd));
-  RPCEndpoint::Create(std::unique_ptr<SockChannel>(new SockChannel(sock)), "SockServerLoop", "")
-      ->ServerLoop();
+  RPCEndpoint::Create(std::make_unique<SockChannel>(sock), "SockServerLoop", "")->ServerLoop();
 }
 
 void RPCServerLoop(PackedFunc fsend, PackedFunc frecv) {
-  RPCEndpoint::Create(std::unique_ptr<CallbackChannel>(new CallbackChannel(fsend, frecv)),
-                      "SockServerLoop", "")
+  RPCEndpoint::Create(std::make_unique<CallbackChannel>(fsend, frecv), "SockServerLoop", "")
       ->ServerLoop();
 }
 
@@ -142,6 +140,40 @@ TVM_REGISTER_GLOBAL("rpc.ServerLoop").set_body([](TVMArgs args, TVMRetValue* rv)
     RPCServerLoop(args[0].operator tvm::runtime::PackedFunc(),
                   args[1].operator tvm::runtime::PackedFunc());
   }
+});
+
+class SimpleSockHandler : public dmlc::Stream {
+  // Things that will interface with user directly.
+ public:
+  explicit SimpleSockHandler(int sockfd)
+      : sock_(static_cast<support::TCPSocket::SockType>(sockfd)) {}
+  using dmlc::Stream::Read;
+  using dmlc::Stream::ReadArray;
+  using dmlc::Stream::Write;
+  using dmlc::Stream::WriteArray;
+
+  // Unused here, implemented for microTVM framing layer.
+  void MessageStart(uint64_t packet_nbytes) {}
+  void MessageDone() {}
+
+  // Internal supporting.
+  // Override methods that inherited from dmlc::Stream.
+ private:
+  size_t Read(void* data, size_t size) final {
+    ICHECK_EQ(sock_.RecvAll(data, size), size);
+    return size;
+  }
+  void Write(const void* data, size_t size) final { ICHECK_EQ(sock_.SendAll(data, size), size); }
+
+  // Things of current class.
+ private:
+  support::TCPSocket sock_;
+};
+
+TVM_REGISTER_GLOBAL("rpc.ReturnException").set_body_typed([](int sockfd, String msg) {
+  auto handler = SimpleSockHandler(sockfd);
+  RPCReference::ReturnException(msg.c_str(), &handler);
+  return;
 });
 
 }  // namespace runtime

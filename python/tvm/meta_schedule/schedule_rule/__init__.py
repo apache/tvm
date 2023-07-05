@@ -20,10 +20,17 @@ Meta Schedule schedule rules are used for modification of
 blocks in a schedule. See also PostOrderApply.
 """
 from .add_rfactor import AddRFactor
+from .apply_custom_rule import ApplyCustomRule
 from .auto_bind import AutoBind
-from .auto_inline import AutoInline
+from .auto_inline import AutoInline, InlineConstantScalars
 from .cross_thread_reduction import CrossThreadReduction
-from .multi_level_tiling import MultiLevelTiling, MultiLevelTilingWithIntrin, ReuseType
+from .multi_level_tiling import (
+    MultiLevelTiling,
+    MultiLevelTilingTensorCore,
+    MultiLevelTilingWideVector,
+    MultiLevelTilingWithIntrin,
+    ReuseType,
+)
 from .parallel_vectorize_unroll import ParallelizeVectorizeUnroll
 from .random_compute_location import RandomComputeLocation
 from .schedule_rule import PyScheduleRule, ScheduleRule

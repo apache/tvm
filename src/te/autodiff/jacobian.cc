@@ -75,7 +75,6 @@ class JacobianMutator : public ExprMutator {
     }
   }
 
-  PrimExpr VisitExpr_(const LoadNode* op) NOT_IMPLEMENTED;
   PrimExpr VisitExpr_(const LetNode* op) NOT_IMPLEMENTED;
 
   PrimExpr VisitExpr_(const ProducerLoadNode* op) final {
@@ -119,7 +118,6 @@ class JacobianMutator : public ExprMutator {
       return FloatImm(expr.dtype(), 0.0);
     } else {
       LOG(FATAL) << "Derivative of this intrinsic is not implemented: " << op->op;
-      return PrimExpr();
     }
   }
 
@@ -317,9 +315,7 @@ Tensor Jacobian(const Tensor& output, const Tensor& input) {
 
   // We have to clone the iteration axes because otherwise the original expression
   // cannot be used together with the derivative (it will lead to errors during lowering)
-  Array<IterVar> new_axis;
-  Map<Var, PrimExpr> vmap;
-  std::tie(new_axis, vmap) = te::CloneIterVars(op->axis);
+  auto [new_axis, vmap] = te::CloneIterVars(op->axis);
 
   Array<PrimExpr> input_indices;
   size_t i = 0;

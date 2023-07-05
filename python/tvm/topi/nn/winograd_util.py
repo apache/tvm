@@ -160,15 +160,16 @@ def _interpolation_points(degree):
 def winograd_transform_matrices(tile_size, kernel_size, out_dtype):
     """Compute the A, B, and G transform matrices for `tile_size` as a `tvm.Expr`."""
     if not 1 < tile_size < 9:
-        raise ValueError("Unsupported tile size for Winograd: {}".format(tile_size))
+        raise ValueError(f"Unsupported tile size for Winograd: {tile_size}")
     if not 2 < kernel_size < 8:
-        raise ValueError("Unsupported kernel size for Winograd: {}".format(kernel_size))
+        raise ValueError(f"Unsupported kernel size for Winograd: {kernel_size}")
 
     degree = tile_size + kernel_size - 2
 
     intp_pts = _interpolation_points(degree)
     A_data, B_data, G_data = _cook_toom_convolution(intp_pts, tile_size, kernel_size)
 
+    out_dtype = "uint16" if out_dtype == "bfloat16" else out_dtype
     return (
         const_matrix(A_data.astype(out_dtype), "A"),
         const_matrix(B_data.astype(out_dtype), "B"),

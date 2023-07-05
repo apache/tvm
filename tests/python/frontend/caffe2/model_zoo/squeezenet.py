@@ -31,10 +31,10 @@ from tvm.relay.testing import create_workload
 
 # Helpers
 def _make_fire(net, squeeze_channels, expand1x1_channels, expand3x3_channels, prefix=""):
-    net = _make_fire_conv(net, squeeze_channels, 1, 0, "%s/squeeze1x1" % prefix)
+    net = _make_fire_conv(net, squeeze_channels, 1, 0, f"{prefix}/squeeze1x1")
 
-    left = _make_fire_conv(net, expand1x1_channels, 1, 0, "%s/expand1x1" % prefix)
-    right = _make_fire_conv(net, expand3x3_channels, 3, 1, "%s/expand3x3" % prefix)
+    left = _make_fire_conv(net, expand1x1_channels, 1, 0, f"{prefix}/expand1x1")
+    right = _make_fire_conv(net, expand3x3_channels, 3, 1, f"{prefix}/expand3x3")
     # NOTE : Assume NCHW layout here
     net = relay.concatenate((left, right), axis=1)
     return net
@@ -43,12 +43,12 @@ def _make_fire(net, squeeze_channels, expand1x1_channels, expand3x3_channels, pr
 def _make_fire_conv(net, channels, kernel_size, padding=0, prefix=""):
     net = relay.nn.conv2d(
         net,
-        relay.var("%s_weight" % prefix),
+        relay.var(f"{prefix}_weight"),
         channels=channels,
         kernel_size=(kernel_size, kernel_size),
         padding=(padding, padding),
     )
-    net = relay.nn.bias_add(net, relay.var("%s_bias" % prefix))
+    net = relay.nn.bias_add(net, relay.var(f"{prefix}_bias"))
     net = relay.nn.relu(net)
     return net
 

@@ -51,16 +51,6 @@ unsafe-load-any-extension=no
 # run arbitrary code
 extension-pkg-whitelist=numpy,opencv
 
-# Allow optimization of some AST trees. This will activate a peephole AST
-# optimizer, which will apply various small optimizations. For instance, it can
-# be used to obtain the result of joining multiple strings with the addition
-# operator. Joining a lot of strings can lead to a maximum recursion error in
-# Pylint and this flag can prevent that. It has one side effect, the resulting
-# AST will be different than the one from reality. This option is deprecated
-# and it will be removed in Pylint 2.0.
-optimize-ast=no
-
-
 [MESSAGES CONTROL]
 
 # Only show warnings with the listed confidence levels. Leave empty to show
@@ -82,7 +72,55 @@ enable=indexing-exception,old-raise-syntax
 # --enable=similarities". If you want to run only the classes checker, but have
 # no Warning level messages displayed, use"--disable=all --enable=classes
 # --disable=W"
-disable=design,similarities,no-self-use,attribute-defined-outside-init,locally-disabled,star-args,pointless-except,bad-option-value,global-statement,fixme,suppressed-message,useless-suppression,locally-enabled,no-member,no-name-in-module,import-error,unsubscriptable-object,unbalanced-tuple-unpacking,undefined-variable,protected-access,useless-object-inheritance,consider-using-get,bad-continuation,too-many-lines
+disable=
+    abstract-method,
+    attribute-defined-outside-init,
+    bad-continuation,
+    bad-option-value,
+    broad-exception-raised,
+    consider-iterating-dictionary,
+    consider-using-dict-items,
+    consider-using-enumerate,
+    consider-using-f-string,
+    consider-using-generator,
+    consider-using-get,
+    consider-using-in,
+    consider-using-max-builtin,
+    consider-using-min-builtin,
+    consider-using-with,
+    design,
+    fixme,
+    global-statement,
+    global-variable-not-assigned,
+    implicit-str-concat,
+    import-error,
+    locally-disabled,
+    locally-enabled,
+    logging-fstring-interpolation,
+    no-else-return,
+    no-member,
+    no-name-in-module,
+    no-self-use,
+    pointless-except,
+    protected-access,
+    raise-missing-from,
+    similarities,
+    star-args,
+    superfluous-parens,
+    super-with-arguments,
+    suppressed-message,
+    too-many-lines,
+    unbalanced-tuple-unpacking,
+    undefined-variable,
+    unspecified-encoding,
+    unsubscriptable-object,
+    unnecessary-dunder-call,
+    unnecessary-lambda-assignment,
+    use-a-generator,
+    use-dict-literal,
+    use-maxsplit-arg,
+    useless-object-inheritance,
+    useless-suppression
 
 [REPORTS]
 
@@ -90,12 +128,6 @@ disable=design,similarities,no-self-use,attribute-defined-outside-init,locally-d
 # (visual studio) and html. You can also give a reporter class, eg
 # mypackage.mymodule.MyReporterClass.
 output-format=parseable
-
-# Put messages in a separate file for each module / package specified on the
-# command line instead of printing them on stdout. Reports (if any) will be
-# written in a file name "pylint_global.[txt|html]". This option is deprecated
-# and it will be removed in Pylint 2.0.
-files-output=no
 
 # Tells whether to display a full report or only the messages
 reports=no
@@ -123,12 +155,6 @@ ignore-long-lines=^\s*(# )?<?https?://\S+>?$
 # Allow the body of an if to be on the same line as the test if there is no
 # else.
 single-line-if-stmt=no
-
-# List of optional constructs for which whitespace checking is disabled. `dict-
-# separator` is used to allow tabulation in dicts, etc.: {1  : 1,\n222: 2}.
-# `trailing-comma` allows a space between comma and closing bracket: (a, ).
-# `empty-line` allows space-only lines.
-no-space-check=trailing-comma,dict-separator
 
 # Maximum number of lines in a module
 max-module-lines=1500
@@ -261,62 +287,53 @@ property-classes=abc.abstractproperty
 # Regular expression matching correct module names
 module-rgx=(([a-z_][a-z0-9_]*)|([A-Z][a-zA-Z0-9]+))$
 
-# Naming hint for module names
-module-name-hint=(([a-z_][a-z0-9_]*)|([A-Z][a-zA-Z0-9]+))$
-
 # Regular expression matching correct constant names
 const-rgx=(([A-Z_][A-Z0-9_]*)|(__.*__))$
 
 # Naming hint for constant names
-const-name-hint=(([A-Z_][A-Z0-9_]*)|(__.*__))$
+const-naming-style=UPPER_CASE
 
 # Regular expression matching correct inline iteration names
 inlinevar-rgx=[A-Za-z_][A-Za-z0-9_]*$
 
 # Naming hint for inline iteration names
-inlinevar-name-hint=[A-Za-z_][A-Za-z0-9_]*$
+inlinevar-naming-style=any
 
 # Regular expression matching correct method names
 method-rgx=[a-z_][a-z0-9_]{2,30}$
 
 # Naming hint for method names
-method-name-hint=[a-z_][a-z0-9_]{2,30}$
+method-naming-style=snake_case
+
+# Naming style matching correct class constant names.
+class-const-naming-style=PascalCase
 
 # Regular expression matching correct class attribute names
 class-attribute-rgx=([A-Za-z_][A-Za-z0-9_]{2,30}|(__.*__))$
 
 # Naming hint for class attribute names
-class-attribute-name-hint=([A-Za-z_][A-Za-z0-9_]{2,30}|(__.*__))$
+class-attribute-naming-style=any
 
 # Regular expression matching correct argument names
 argument-rgx=[a-z_][a-z0-9_]{2,30}$
 
-# Naming hint for argument names
-argument-name-hint=[a-z_][a-z0-9_]{2,30}$
-
 # Regular expression matching correct attribute names
 attr-rgx=[a-z_][a-z0-9_]{2,30}$
 
-# Naming hint for attribute names
-attr-name-hint=[a-z_][a-z0-9_]{2,30}$
-
 # Regular expression matching correct variable names
 variable-rgx=[a-z_][a-z0-9_]{2,30}$
-
-# Naming hint for variable names
-variable-name-hint=[a-z_][a-z0-9_]{2,30}$
 
 # Regular expression matching correct function names
 function-rgx=[a-z_][a-z0-9_]{2,48}$
 
 # Naming hint for function names
-function-name-hint=[a-z_][a-z0-9_]{2,48}$
+function-naming-style=snake_case
 
 # Regular expression matching correct class names
 class-rgx=[A-Z_][a-zA-Z0-9]+$
 
 # Naming hint for class names
-class-name-hint=[A-Z_][a-zA-Z0-9]+$
+class-naming-style=PascalCase
 
 # Regular expression which should only match function or class names that do
 # not require a docstring.
@@ -420,4 +437,4 @@ max-bool-expr=5
 
 # Exceptions that will emit a warning when being caught. Defaults to
 # "Exception"
-overgeneral-exceptions=Exception
+overgeneral-exceptions=builtins.Exception

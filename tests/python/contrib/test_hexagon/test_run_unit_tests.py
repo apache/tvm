@@ -15,9 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import os
-import pytest
-import numpy as np
+""" capture gtest output and return over FFI """
 
 import tvm
 from tvm.contrib.hexagon.session import Session
@@ -29,11 +27,16 @@ from tvm.contrib.hexagon.session import Session
 # pytest -sv <this file> --gtests_args="--gtest_filter=*foo* --gtest_repeat=2"
 @tvm.testing.requires_hexagon
 def test_run_unit_tests(hexagon_session: Session, gtest_args):
+    """Try running gtest unit tests and capture output and error code"""
     try:
         func = hexagon_session._rpc.get_function("hexagon.run_unit_tests")
     except:
         print(
-            "This test requires TVM Runtime to be built with a Hexagon gtest version using Hexagon API cmake flag -DUSE_HEXAGON_GTEST=/path/to/hexagon/sdk/utils/googletest/gtest"
+            (
+                "This test requires TVM Runtime to be built with a Hexagon gtest"
+                "version using Hexagon API cmake flag"
+                "-DUSE_HEXAGON_GTEST=/path/to/hexagon/sdk/utils/googletest/gtest"
+            )
         )
         raise
 
@@ -41,4 +44,11 @@ def test_run_unit_tests(hexagon_session: Session, gtest_args):
     gtest_error_code = int(gtest_error_code_and_output.splitlines()[0])
     gtest_output = gtest_error_code_and_output.split("\n", 1)[-1]
     print(gtest_output)
-    np.testing.assert_equal(gtest_error_code, 0)
+    if gtest_error_code != 0:
+        raise RuntimeError(
+            f"Hexagon gtest retruned non-zero error code = {gtest_error_code}:\n{gtest_output}"
+        )
+
+
+if __name__ == "__main__":
+    tvm.testing.main()

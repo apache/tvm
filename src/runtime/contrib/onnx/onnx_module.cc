@@ -35,7 +35,10 @@ class ONNXSourceModuleNode : public runtime::ModuleNode {
       : code_(code), symbol_(symbol), const_vars_(const_vars) {}
   const char* type_key() const { return "onnx"; }
 
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
+  /*! \brief Get the property of the runtime module .*/
+  int GetPropertyMask() const final { return ModulePropertyMask::kRunnable; };
+
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
     if (name == "get_symbol") {
       return PackedFunc(
           [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->symbol_; });
@@ -49,9 +52,9 @@ class ONNXSourceModuleNode : public runtime::ModuleNode {
     }
   }
 
-  std::string GetSource(const std::string& format) final { return code_; }
+  String GetSource(const String& format) final { return code_; }
 
-  void SaveToFile(const std::string& path, const std::string& format) final {
+  void SaveToFile(const String& path, const String& format) final {
     ICHECK_EQ(format, "onnx") << "Can only save to onnx format";
     ICHECK_NE(code_.length(), 0);
     const PackedFunc* to_onnx_ = runtime::Registry::Get("relay.ext.onnx.save_to_file");

@@ -69,8 +69,7 @@ namespace tir {
 bool CommonSubexpressionEliminator::ForbiddenComputation(const PrimExpr& expr) {
   // Function calls, loads and buffer loads are absolutely forbidden as introducing them into
   // variables would change the semantics of the program.
-  return (expr.as<CallNode>() != nullptr || expr.as<LoadNode>() != nullptr ||
-          expr.as<BufferLoadNode>() != nullptr);
+  return (expr.as<CallNode>() != nullptr || expr.as<BufferLoadNode>() != nullptr);
 }
 
 /*!
@@ -116,7 +115,7 @@ bool CommonSubexpressionEliminator::CanContainEligibleComputations(const PrimExp
   // not harm the indexing mode of the CPU, but as we are still far from ASM code, we
   // finally want to perform such simplifications, which tend to happen fairly frequently.
 
-  // return ( (expr.as<LoadNode>() == nullptr) && (expr.as<BufferLoadNode>() == nullptr) )
+  // return (expr.as<BufferLoadNode>() == nullptr)
   return true;
 }
 
@@ -151,8 +150,8 @@ bool CommonSubexpressionEliminator::OrderOnExprAndFrequency(std::pair<PrimExpr, 
   // as we need a deterministic order
   std::stringstream a_stream;
   std::stringstream b_stream;
-  a_stream << a.first;
-  b_stream << b.first;
+  a_stream << AsLegacyRepr(a.first);
+  b_stream << AsLegacyRepr(b.first);
   return (a_stream.str().compare(b_stream.str()) < 0);
 }
 
@@ -213,7 +212,7 @@ Stmt CommonSubexpressionEliminator::PerformCSE(const Stmt& stmt, const Context& 
 
 /*!
  * \brief Protected constructor of CommonSubexpressionEliminator.
- * \param context_init The context at the begining of the CSE pass. It should contain the
+ * \param context_init The context at the beginning of the CSE pass. It should contain the
                         formal parameters of the function that will be analyzed
  */
 CommonSubexpressionEliminator::CommonSubexpressionEliminator(const Stmt& stmt,
@@ -278,7 +277,7 @@ PrimExpr CommonSubexpressionEliminator::VisitExpr(const PrimExpr& expr) {
     // Case where we have a perfectly equivalent computation already available in a variable
     // introduced (i.e, present in context_).
     // Note that this case is needed when the user has written something like
-    // [let x = A in ....A...A...] : we need to be able to replace all the occurences of A by
+    // [let x = A in ....A...A...] : we need to be able to replace all the occurrences of A by
     // an already existing variable holding A, when such a variable happens to exist.
     if (it_on_var != context_.end()) {
       // Replace in the current `result` everything that is selected by the selector with
@@ -458,7 +457,7 @@ Stmt CommonSubexpressionEliminator::VisitStmt(const Stmt& stmt) {
     // Case where we have a perfectly equivalent computation already available in a variable
     // introduced (i.e, present in context_).
     // Note that this case is needed when the user has written something like
-    // [let x = A in ....A...A...] : we need to be able to replace all the occurences of A by
+    // [let x = A in ....A...A...] : we need to be able to replace all the occurrences of A by
     // an already existing variable holding A, when such a variable happens to exist.
     if (it_on_var != context_.end()) {
       // Replace in the current `result` everything that is selected by the selector with

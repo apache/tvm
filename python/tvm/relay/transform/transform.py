@@ -27,8 +27,8 @@ import tvm.ir
 from tvm import relay, te
 from tvm.runtime import ndarray as _nd
 
-from . import _ffi_api
 from ..backend.utils import mangle_module_name
+from . import _ffi_api
 
 
 def build_config(opt_level=2, required_pass=None, disabled_pass=None, trace=None):
@@ -1049,7 +1049,7 @@ def function_pass(pass_func=None, opt_level=None, name=None, required=None):
         info = tvm.transform.PassInfo(opt_level, fname, required)
         if inspect.isclass(pass_arg):
             return _wrap_class_function_pass(pass_arg, info)
-        if not isinstance(pass_arg, (types.FunctionType, types.LambdaType)):
+        if not callable(pass_arg):
             raise TypeError("pass_func must be a callable for Module pass")
         return _ffi_api.MakeFunctionPass(pass_arg, info)
 
@@ -1251,7 +1251,7 @@ def AnnotateSpans():
     return _ffi_api.AnnotateSpans()
 
 
-def FakeQuantizationToInteger(hard_fail=False, use_qat=False):
+def FakeQuantizationToInteger(hard_fail=False, use_qat=False, optional_qnn_ops=None):
     # pylint: disable=anomalous-backslash-in-string
     """
     Find regions of the graph of the form
@@ -1298,12 +1298,19 @@ def FakeQuantizationToInteger(hard_fail=False, use_qat=False):
               |
               q
 
+    optional_qnn_ops : List[str]
+        Specify a list of operator names to explicitly enable conversion for
+        specific ops disabled by default.
+        Example: ['nn.softmax']
+
     Returns
     -------
     ret : tvm.transform.Pass
         The registered FakeQuantizationToInteger pass.
     """
-    return _ffi_api.FakeQuantizationToInteger(hard_fail, use_qat)
+    if optional_qnn_ops is None:
+        optional_qnn_ops = []
+    return _ffi_api.FakeQuantizationToInteger(hard_fail, use_qat, optional_qnn_ops)
 
 
 def FlattenAtrousConv():
@@ -1349,6 +1356,13 @@ def ToMixedPrecision(mixed_precision_type="float16", missing_op_mode=1):
         1: Allow missing ops but emit warnings.
         2: Allow missing ops and silently ignore them.
 
+    relay.ToMixedPrecision.keep_orig_output_dtype: boolean
+      Defines if outputs should be retained in original data type or convert to
+      mixed_precision_type. By default this parameter is False and transformation
+      modifies the data types of outputs to mixed_precision_type.
+      This parameter is not part of explicit arguments of the transformation, but should
+      be passed through tvm.transform.PassContext.
+
     Returns
     -------
     ret : tvm.transform.Pass
@@ -1386,7 +1400,7 @@ def OutlineCompilerFunctionsWithExistingGlobalSymbols(compiler_filter=""):
     Parameters
     ----------
     compiler_filter : String
-        If non-empty, the 'compiler' attribute to filter on.
+        If non-empty, the "Compiler" attribute to filter on.
 
     Returns
     -------
@@ -1412,7 +1426,7 @@ def MarkCompilerFunctionsAsExtern(compiler_filter=""):
     Parameters
     ----------
     compiler_filter : String
-        If non-empty, the 'compiler' attribute to filter on.
+        If non-empty, the "Compiler" attribute to filter on.
 
     Returns
     -------
@@ -1420,3 +1434,72 @@ def MarkCompilerFunctionsAsExtern(compiler_filter=""):
         The pass.
     """
     return _ffi_api.MarkCompilerFunctionsAsExtern(compiler_filter)
+
+
+def CapturePostDfsIndexInSpans():
+    """Captures the post-dfs index and dominator post-dfs index of (most) expression nodes in
+    their span, in the form "index:<post-dfs index>:<dominator post-dfs index>".
+
+    This is useful for debugging since a) it helps identify pretty-printed sub-expressions within
+    the overall model and b) the indexes are heavily used by Collage for its compact representation
+    of sub-graphs.
+
+    Note that Op and Constructor nodes are not changed even though they are assigned an
+    post-dfs index.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The pass.
+    """
+    return _ffi_api.CapturePostDfsIndexInSpans()
+
+
+def InlineCompilerFunctionsBoundTo(global_vars):
+    """Inlines all global functions bound to a global var in global_vars.
+
+    Both the global "Compiler" attributed function, and any calls to "Composite" functions it its
+    body are inlined.
+
+    This pass may be useful for external codegen which needs to undo partitioning based on
+    properties of the entire partition.
+
+    Parameters
+    ----------
+    global_vars : Array[tvm.relay.GlobalVar]
+        The global vars of all 'Compiler' functions to inline.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The pass.
+    """
+    return _ffi_api.InlineCompilerFunctionsBoundTo(global_vars)
+
+
+def CollagePartition(config, cost_estimator=None):
+    """Partition the bodies of all functions according to the available targets so as to
+    minimize model latency. See https://github.com/apache/tvm-rfcs/blob/main/rfcs/0062-collage.md.
+
+    Parameters
+    ----------
+    config : CompilationConfig
+        The available targets.
+    cost_estimator : CostEstimator, optional
+        The custom cost estimator to use for costing each candidate partition.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The pass.
+
+    """
+    if cost_estimator is None:
+        cost_estimator = relay.collage.CostEstimator()
+
+    return _ffi_api.CollagePartition(config, cost_estimator)
+
+
+def DivToMul():
+    """Transform division by a constant to multiplication by the inverse of the constant"""
+    return _ffi_api.DivToMul()

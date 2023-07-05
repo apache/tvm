@@ -638,4 +638,4 @@ def test_dynamic_to_static_dynamic_if():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

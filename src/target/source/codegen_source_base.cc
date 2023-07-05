@@ -28,34 +28,14 @@ namespace tvm {
 namespace codegen {
 
 void CodeGenSourceBase::ClearFuncState() {
-  name_alloc_map_.clear();
+  name_supply_ = NameSupply("");
   ssa_assign_map_.clear();
   var_idmap_.clear();
   scope_mark_.clear();
 }
 
-std::string CodeGenSourceBase::GetUniqueName(std::string prefix) {
-  for (size_t i = 0; i < prefix.size(); ++i) {
-    if (prefix[i] == '.') prefix[i] = '_';
-  }
-  auto it = name_alloc_map_.find(prefix);
-  if (it != name_alloc_map_.end()) {
-    while (true) {
-      std::ostringstream os;
-      os << prefix << (++it->second);
-      std::string name = os.str();
-      if (name_alloc_map_.count(name) == 0) {
-        prefix = name;
-        break;
-      }
-    }
-  }
-  name_alloc_map_[prefix] = 0;
-  return prefix;
-}
-
 std::string CodeGenSourceBase::SSAGetID(std::string src, DataType t) {
-  if (name_alloc_map_.count(src)) return src;
+  if (name_supply_->ContainsName(src)) return src;
   auto it = ssa_assign_map_.find(src);
   if (it != ssa_assign_map_.end()) {
     if (scope_mark_.at(it->second.scope_id)) {
@@ -63,7 +43,8 @@ std::string CodeGenSourceBase::SSAGetID(std::string src, DataType t) {
     }
   }
   SSAEntry e;
-  e.vid = GetUniqueName("_");
+  // use v_ prefix so it works for most systems
+  e.vid = name_supply_->FreshName("v_");
   e.scope_id = static_cast<int>(scope_mark_.size() - 1);
   ssa_assign_map_[src] = e;
   this->PrintIndent();
@@ -74,7 +55,7 @@ std::string CodeGenSourceBase::SSAGetID(std::string src, DataType t) {
 std::string CodeGenSourceBase::AllocVarID(const tir::VarNode* v) {
   ICHECK(!var_idmap_.count(v)) << "Need input to be in SSA form dup " << v->name_hint;
   std::string key = v->name_hint;
-  std::string vid = GetUniqueName(key);
+  std::string vid = name_supply_->FreshName(key);
   std::replace(vid.begin(), vid.end(), ':', '_');
   std::replace(vid.begin(), vid.end(), '-', '_');
   std::replace(vid.begin(), vid.end(), '.', '_');

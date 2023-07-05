@@ -18,6 +18,7 @@
 """Intrinsics for ARM tensorization."""
 from tvm.script import tir as T
 from .. import TensorIntrin
+from .dot_product_common import DP4A_INTRIN  # pylint: disable=unused-import
 
 
 # TODO(masahi): Parametrize the TVMScript description of dot product by
@@ -25,7 +26,7 @@ from .. import TensorIntrin
 
 
 @T.prim_func
-def dot_product_4x4_i8i8i32_desc(
+def neon_4x4_i8i8i32_desc(
     A: T.Buffer((4,), "int8", offset_factor=1),
     B: T.Buffer((4, 4), "int8", offset_factor=1),
     C: T.Buffer((4,), "int32", offset_factor=1),
@@ -34,8 +35,6 @@ def dot_product_4x4_i8i8i32_desc(
         T.reads(C[0:4], A[0:4], B[0:4, 0:4])
         T.writes(C[0:4])
         for i in T.serial(0, 4):
-            with T.init():
-                C[i] = T.int32(0)
             for k in T.serial(0, 4):
                 with T.block("update"):
                     vi, vk = T.axis.remap("SR", [i, k])
@@ -43,7 +42,7 @@ def dot_product_4x4_i8i8i32_desc(
 
 
 @T.prim_func
-def dot_product_4x4_i8i8i32_neon(
+def neon_4x4_i8i8i32_impl(
     A: T.Buffer((4,), "int8", offset_factor=1),
     B: T.Buffer((4, 4), "int8", offset_factor=1),
     C: T.Buffer((4,), "int32", offset_factor=1),
@@ -103,40 +102,71 @@ def dot_product_4x4_i8i8i32_neon(
         )
 
 
-@T.prim_func
-def dot_product_4x4_i8i8i32_sdot(
-    A: T.Buffer((4,), "int8", offset_factor=1),
-    B: T.Buffer((4, 4), "int8", offset_factor=1),
-    C: T.Buffer((4,), "int32", offset_factor=1),
-) -> None:
-    with T.block("root"):
-        T.reads(C[0:4], A[0:4], B[0:4, 0:4])
-        T.writes(C[0:4])
+def get_dotprod_intrin(in_dtype, out_dtype):
+    if in_dtype == "uint8":
+        instr = "udot.v4u32.v16u8"
+    else:  # if in_dtype == "int8"
+        instr = "sdot.v4i32.v16i8"
 
-        A_i8x4 = A.vload([0], "int8x4")
-        A_i32 = T.reinterpret(A_i8x4, dtype="int32")
-        vec_ai32 = T.broadcast(A_i32, 4)
-        vec_a = T.reinterpret(vec_ai32, dtype="int8x16")
+    in_dtype_x4 = f"{in_dtype}x4"
+    out_dtype_x4 = f"{out_dtype}x4"
+    in_dtype_x16 = f"{in_dtype}x16"
 
-        vec_b = B.vload([0, 0], dtype="int8x16")
+    @T.prim_func
+    def dot_prod_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
+        A = T.match_buffer(a, (4,), dtype=in_dtype, offset_factor=1)
+        B = T.match_buffer(b, (4, 4), dtype=in_dtype, offset_factor=1)
+        C = T.match_buffer(c, (4,), dtype=out_dtype, offset_factor=1)
+        with T.block("root"):
+            T.reads(C[0:4], A[0:4], B[0:4, 0:4])
+            T.writes(C[0:4])
+            for i in T.serial(0, 4):
+                for k in T.serial(0, 4):
+                    with T.block("update"):
+                        vi, vk = T.axis.remap("SR", [i, k])
+                        C[vi] = C[vi] + T.cast(A[vk], dtype=out_dtype) * T.cast(
+                            B[vi, vk], dtype=out_dtype
+                        )
 
-        C[T.ramp(T.int32(0), 1, 4)] += T.call_llvm_pure_intrin(
-            T.llvm_lookup_intrinsic_id("llvm.aarch64.neon.sdot.v4i32.v16i8"),
-            T.uint32(3),
-            T.int32x4(0),
-            vec_a,
-            vec_b,
-            dtype="int32x4",
-        )
+    @T.prim_func
+    def dot_prod_impl(a: T.handle, b: T.handle, c: T.handle) -> None:
+        A = T.match_buffer(a, (4,), dtype=in_dtype, offset_factor=1)
+        B = T.match_buffer(b, (4, 4), dtype=in_dtype, offset_factor=1)
+        C = T.match_buffer(c, (4,), dtype=out_dtype, offset_factor=1)
+        with T.block("root"):
+            T.reads(C[0:4], A[0:4], B[0:4, 0:4])
+            T.writes(C[0:4])
+
+            A_i8x4 = A.vload([0], in_dtype_x4)
+            A_i32 = T.reinterpret(A_i8x4, dtype=out_dtype)
+            vec_ai32 = T.broadcast(A_i32, 4)
+            vec_a = T.reinterpret(vec_ai32, dtype=in_dtype_x16)
+
+            vec_b = B.vload([0, 0], dtype=in_dtype_x16)
+
+            vec_c = C.vload([0], dtype=out_dtype_x4)
+
+            C[T.ramp(T.int32(0), 1, 4)] = T.call_llvm_pure_intrin(
+                T.llvm_lookup_intrinsic_id(f"llvm.aarch64.neon.{instr}"),
+                T.uint32(3),
+                vec_c,
+                vec_a,
+                vec_b,
+                dtype=out_dtype_x4,
+            )
+
+    return dot_prod_desc, dot_prod_impl
 
 
 ARM_DOT_4x4_i8_NEON_INTRIN = "dot_4x4_i8i8s32_neon"
 ARM_DOT_4x4_i8_SDOT_INTRIN = "dot_4x4_i8i8s32_sdot"
+ARM_DOT_4x4_u8_UDOT_INTRIN = "dot_4x4_u8u8u32_udot"
+ARM_DOT_4x4_u8_HDOT_INTRIN = "dot_4x4_u8u8i32_hdot"
 
-TensorIntrin.register(
-    ARM_DOT_4x4_i8_NEON_INTRIN, dot_product_4x4_i8i8i32_desc, dot_product_4x4_i8i8i32_neon
-)
+TensorIntrin.register(ARM_DOT_4x4_i8_NEON_INTRIN, neon_4x4_i8i8i32_desc, neon_4x4_i8i8i32_impl)
 
-TensorIntrin.register(
-    ARM_DOT_4x4_i8_SDOT_INTRIN, dot_product_4x4_i8i8i32_desc, dot_product_4x4_i8i8i32_sdot
-)
+TensorIntrin.register(ARM_DOT_4x4_i8_SDOT_INTRIN, *get_dotprod_intrin("int8", "int32"))
+
+TensorIntrin.register(ARM_DOT_4x4_u8_UDOT_INTRIN, *get_dotprod_intrin("uint8", "uint32"))
+
+TensorIntrin.register(ARM_DOT_4x4_u8_HDOT_INTRIN, *get_dotprod_intrin("uint8", "int32"))

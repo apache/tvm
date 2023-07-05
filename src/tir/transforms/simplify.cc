@@ -24,28 +24,175 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/analysis.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/transform.h>
 
+#include <optional>
+
 #include "../../arith/ir_mutator_with_analyzer.h"
+#include "../../tir/analysis/control_flow_graph.h"
+#include "../../tir/analysis/var_use_def_analysis.h"
 
 namespace tvm {
 namespace arith {
 
 using namespace tir;
 
+struct SimplifyConfigNode : public tvm::AttrsNode<SimplifyConfigNode> {
+  bool transitively_prove_inequalities;
+  bool propagate_knowns_to_prove_conditional;
+  bool propagate_knowns_to_simplify_expressions;
+  bool convert_boolean_to_and_of_ors;
+  bool apply_constraints_to_boolean_branches;
+
+  TVM_DECLARE_ATTRS(SimplifyConfigNode, "tir.transform.SimplifyConfig") {
+    TVM_ATTR_FIELD(transitively_prove_inequalities)
+        .describe(
+            "If true, simplify conditionals with transitive combinations of scoped constraints")
+        .set_default(false);
+
+    TVM_ATTR_FIELD(propagate_knowns_to_prove_conditional)
+        .describe(
+            "If true, known buffer values are propagated and used to statically prove conditionals")
+        .set_default(false);
+
+    TVM_ATTR_FIELD(propagate_knowns_to_simplify_expressions)
+        .describe(
+            "If true, known buffer values are propagated and used to replace BufferLoad wherever "
+            "possible")
+        .set_default(false);
+
+    TVM_ATTR_FIELD(convert_boolean_to_and_of_ors)
+        .describe("If true, simplify conditionals into an AND of ORs")
+        .set_default(false);
+
+    TVM_ATTR_FIELD(apply_constraints_to_boolean_branches)
+        .describe(
+            "If true, simplify each branch of AND/OR "
+            "under a constraints provided by the other branch")
+        .set_default(false);
+  }
+
+  RewriteSimplifier::Extension GetEnabledExtensions() const {
+    RewriteSimplifier::Extension flags = RewriteSimplifier::kNone;
+    if (transitively_prove_inequalities) {
+      flags =
+          RewriteSimplifier::Extension(flags | RewriteSimplifier::kTransitivelyProveInequalities);
+    }
+    if (convert_boolean_to_and_of_ors) {
+      flags = RewriteSimplifier::Extension(flags | RewriteSimplifier::kConvertBooleanToAndOfOrs);
+    }
+    if (apply_constraints_to_boolean_branches) {
+      flags = RewriteSimplifier::Extension(flags |
+                                           RewriteSimplifier::kApplyConstraintsToBooleanBranches);
+    }
+    return flags;
+  }
+};
+
+/* \brief Utility function to collect vars that should be retained */
+std::unordered_set<const VarNode*> CollectVarsUsedInBufferDefinition(const Stmt& stmt) {
+  struct Visitor : StmtExprVisitor {
+    using StmtExprVisitor::VisitExpr_;
+    using StmtExprVisitor::VisitStmt_;
+
+    void VisitExpr_(const BufferLoadNode* op) override {
+      VisitBuffer(op->buffer);
+      StmtExprVisitor::VisitExpr_(op);
+    }
+    void VisitStmt_(const BufferStoreNode* op) override {
+      VisitBuffer(op->buffer);
+      StmtExprVisitor::VisitStmt_(op);
+    }
+
+    void VisitBuffer(const Buffer& buf) {
+      // Collect variables that should remain defined
+      VarUseDefAnalyzer usage(Array<Var>{});
+      usage(buf->data);
+      for (const auto& dim : buf->shape) {
+        usage(dim);
+      }
+      for (const auto& dim : buf->strides) {
+        usage(dim);
+      }
+      usage(buf->elem_offset);
+
+      // Track for use in LetStmtNode mutator
+      for (const auto& var : usage.undefined_) {
+        used_in_buffer_def_.insert(var.get());
+      }
+    }
+    std::unordered_set<const VarNode*> used_in_buffer_def_;
+  };
+
+  Visitor visitor;
+  visitor(stmt);
+  return visitor.used_in_buffer_def_;
+}
+
+class SimplifyConfig : public Attrs {
+ public:
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(SimplifyConfig, Attrs, SimplifyConfigNode);
+};
+
+TVM_REGISTER_NODE_TYPE(SimplifyConfigNode);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.Simplify", SimplifyConfig);
+
 class StmtSimplifier : public IRMutatorWithAnalyzer {
  public:
-  explicit StmtSimplifier(Analyzer* analyzer) : IRMutatorWithAnalyzer(analyzer) {}
+  static PrimFunc Apply(PrimFunc func, Analyzer* analyzer,
+                        Optional<SimplifyConfig> config_opt = NullOpt) {
+    auto config = config_opt.value_or(AttrsWithDefaultValues<arith::SimplifyConfig>());
+    analyzer->rewrite_simplify.SetEnabledExtensions(config->GetEnabledExtensions());
+
+    std::optional<ControlFlowGraph> touch_pattern = std::nullopt;
+    if (config->propagate_knowns_to_prove_conditional ||
+        config->propagate_knowns_to_simplify_expressions) {
+      touch_pattern = ControlFlowGraph(func->body);
+    }
+
+    std::unordered_set<const VarNode*> used_in_buffer_def =
+        CollectVarsUsedInBufferDefinition(func->body);
+    StmtSimplifier simplifier(analyzer, config, std::move(touch_pattern),
+                              std::move(used_in_buffer_def));
+    simplifier.MarkBufferMapShapes(func);
+    func.CopyOnWrite()->body = simplifier(func->body);
+    return func;
+  }
+
+ private:
+  explicit StmtSimplifier(Analyzer* analyzer, SimplifyConfig config,
+                          std::optional<ControlFlowGraph> touch_pattern,
+                          std::unordered_set<const VarNode*> used_in_buffer_def)
+      : IRMutatorWithAnalyzer(analyzer),
+        config_(config),
+        touch_pattern_(touch_pattern),
+        used_in_buffer_def_(used_in_buffer_def) {}
 
   using Parent = IRMutatorWithAnalyzer;
+  using Parent::VisitExpr_;
   using Parent::VisitStmt;
   using Parent::VisitStmt_;
 
-  PrimExpr VisitExpr(const PrimExpr& expr) final { return analyzer_->Simplify(expr); }
+  PrimExpr VisitExpr(const PrimExpr& expr) final {
+    if (config_->propagate_knowns_to_simplify_expressions) {
+      return touch_pattern_->SimplifyInContext(expr, current_stmt_.value(), analyzer_);
+    } else {
+      return analyzer_->Simplify(expr);
+    }
+  }
 
   Stmt Simplify(Stmt stmt) { return operator()(std::move(stmt)); }
+
+  Stmt VisitStmt(const Stmt& stmt) override {
+    Optional<Stmt> cache = this->current_stmt_;
+    this->current_stmt_ = stmt;
+    Stmt output = Parent::VisitStmt(stmt);
+    this->current_stmt_ = std::move(cache);
+    return output;
+  }
 
   Stmt VisitStmt_(const ForNode* op) final {
     analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
@@ -63,16 +210,38 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     return SideEffect(op->value) <= CallEffectKind::kPure;
   }
 
-  Stmt VisitStmt_(const LetStmtNode* op) {
+  Stmt VisitStmt_(const LetStmtNode* op) override {
     PrimExpr value = this->VisitExpr(op->value);
-    if (CanInlineLetStmt(op)) {
-      // it is fine to discard the let binding
-      // because the call to simplify will always inline the var.
+    bool can_inline = CanInlineLetStmt(op);
+    if (can_inline) {
+      // It is usually fine to discard the let binding because the
+      // call to simplify will always inline the var.
+      //
+      // The exception is when the variable is used in a Buffer's
+      // definition, as these are not updated by the simplification.
+      // After DeclBuffer is required prior to use of a buffer,
+      // simplifying can update the buffer definition as well.  The
+      // buffer can only be updated at its point of definition,
+      // because the points of use may occur within contexts that
+      // allow for additional simplifications (e.g. a buffer of shape
+      // [i,j] whose first use occurs within "if i==1" should not have
+      // its shape simplified to [1,j]).
       analyzer_->Bind(op->var, value);
-      return this->VisitStmt(op->body);
+    } else if (SideEffect(op->value) <= CallEffectKind::kPure) {
+      // Even if we aren't replacing all occurrences, they may be
+      // necessary for proving conditional statements.
+      non_inlined_bindings_.Set(op->var, value);
     }
     Stmt body = this->VisitStmt(op->body);
-    if (value.same_as(op->value) && body.same_as(op->body)) {
+
+    // TODO(Lunderberg): Update the Buffer object as part of
+    // DeclBuffer updates, which will first require
+    // https://github.com/apache/tvm/pull/14778.
+    bool used_in_buffer_def = used_in_buffer_def_.count(op->var.get());
+
+    if (can_inline && !used_in_buffer_def) {
+      return body;
+    } else if (value.same_as(op->value) && body.same_as(op->body)) {
       return GetRef<Stmt>(op);
     } else {
       auto n = this->CopyOnWrite(op);
@@ -82,13 +251,37 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     }
   }
 
-  Stmt VisitStmt_(const StoreNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-    return Stmt();
+  Stmt VisitStmt_(const IfThenElseNode* op) override {
+    if (Optional<Bool> cond = ProveCondition(op->condition)) {
+      if (cond.value()->value) {
+        return this->VisitStmt(op->then_case);
+      } else if (op->else_case) {
+        return this->VisitStmt(op->else_case.value());
+      } else {
+        return Evaluate(0);
+      }
+    } else {
+      return Parent::VisitStmt_(op);
+    }
   }
 
+  PrimExpr VisitExpr_(const CallNode* op) override {
+    if (op->op.same_as(builtin::if_then_else())) {
+      if (Optional<Bool> cond = ProveCondition(op->args[0])) {
+        if (cond.value()->value) {
+          return this->VisitExpr(op->args[1]);
+        } else {
+          return this->VisitExpr(op->args[2]);
+        }
+      }
+    }
+    return Parent::VisitExpr_(op);
+  }
+
+  PrimExpr VisitExpr_(const BufferLoadNode* op) override { return Parent::VisitExpr_(op); }
+
   // eliminate useless stores
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
+  Stmt VisitStmt_(const BufferStoreNode* op) override {
     BufferStore store = Downcast<BufferStore>(Parent::VisitStmt_(op));
     if (const BufferLoadNode* load = store->value.as<BufferLoadNode>()) {
       if (load->buffer->data.same_as(store->buffer->data) &&
@@ -114,6 +307,33 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     }
     return true;
   }
+
+  /* \brief Internal utility for checking conditionals
+   *
+   * Uses more aggressive optimization, such as performing additional
+   * inlining and tracking known buffer values.
+   */
+  Optional<Bool> ProveCondition(PrimExpr condition) const {
+    condition = Substitute(condition, non_inlined_bindings_);
+    if (config_->propagate_knowns_to_prove_conditional) {
+      ICHECK(touch_pattern_.has_value());
+      condition = touch_pattern_->SimplifyInContext(condition, current_stmt_.value(), analyzer_);
+    } else {
+      condition = analyzer_->Simplify(condition);
+    }
+    if (const int64_t* as_int = as_const_int(condition)) {
+      return Bool(*as_int);
+    } else {
+      return NullOpt;
+    }
+  }
+
+  SimplifyConfig config_;
+  std::optional<ControlFlowGraph> touch_pattern_;
+
+  Map<Var, PrimExpr> non_inlined_bindings_;
+  Optional<Stmt> current_stmt_{NullOpt};
+  std::unordered_set<const VarNode*> used_in_buffer_def_;
 };
 
 }  // namespace arith
@@ -123,10 +343,10 @@ namespace transform {
 
 Pass Simplify() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
-    auto* n = f.CopyOnWrite();
     arith::Analyzer analyzer;
-    n->body = arith::StmtSimplifier(&analyzer).Simplify(std::move(n->body));
-    return f;
+    auto cfg = ctx->GetConfig<arith::SimplifyConfig>("tir.Simplify");
+
+    return arith::StmtSimplifier::Apply(f, &analyzer, cfg);
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.Simplify", {});
 }
@@ -134,6 +354,5 @@ Pass Simplify() {
 TVM_REGISTER_GLOBAL("tir.transform.Simplify").set_body_typed(Simplify);
 
 }  // namespace transform
-
 }  // namespace tir
 }  // namespace tvm

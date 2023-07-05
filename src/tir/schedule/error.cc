@@ -30,6 +30,8 @@ String ScheduleError::RenderReport(const String& primitive) const {
   std::unordered_map<ObjectRef, String, ObjectPtrHash, ObjectPtrEqual> loc_obj_to_name;
   int n_locs = locs.size();
   std::string msg = DetailRenderTemplate();
+  PrinterConfig cfg;
+  cfg->syntax_sugar = false;
   if (n_locs > 0) {
     for (int i = 0; i < n_locs; ++i) {
       std::string name = locs[i]->GetTypeKey() + '#' + std::to_string(i);
@@ -37,22 +39,13 @@ String ScheduleError::RenderReport(const String& primitive) const {
       for (size_t pos; (pos = msg.find(src)) != std::string::npos;) {
         msg.replace(pos, src.length(), name);
       }
-      loc_obj_to_name.emplace(locs[i], std::move(name));
+      cfg->obj_to_annotate.Set(locs[i], name);
+      cfg->obj_to_underline.push_back(locs[i]);
     }
   }
-
-  // print IR module
-  runtime::TypedPackedFunc<std::string(Stmt)> annotate =
-      runtime::TypedPackedFunc<std::string(Stmt)>(
-          [&loc_obj_to_name](const Stmt& expr) -> std::string {
-            auto it = loc_obj_to_name.find(Downcast<ObjectRef>(expr));
-            if (it == loc_obj_to_name.end()) return "";
-            return it->second;
-          });
-
   os << "ScheduleError: An error occurred in the schedule primitive '" << primitive
      << "'.\n\nThe IR with diagnostic is:\n"
-     << AsTVMScriptWithDiagnostic(mod, "T", false, annotate);
+     << TVMScriptPrinter::Script(mod, cfg) << std::endl;
 
   // print error message
   os << "Error message: " << msg;

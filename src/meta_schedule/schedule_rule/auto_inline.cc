@@ -31,6 +31,15 @@ enum class InlineType : int32_t {
   kInlineIntoProducer = 2,
 };
 
+bool IsInSpatialPrimFunc(const tir::Schedule& sch, const tir::StmtSRef& block_sref) {
+  using namespace tvm::tir;
+  const StmtSRefNode* sref = block_sref.get();
+  for (; sref->parent != nullptr; sref = sref->parent) {
+  }
+  ICHECK(sref->stmt != nullptr && sref->stmt->IsInstance<BlockNode>());
+  return IsSpatialPrimFunc(GetRef<PrimFunc>(GetRootPrimFunc(sch->mod(), sref->stmt, nullptr)));
+}
+
 /*! \brief The rule that inlines spatial blocks if it satisfies some conditions. */
 class AutoInlineNode : public ScheduleRuleNode {
  public:
@@ -49,6 +58,12 @@ class AutoInlineNode : public ScheduleRuleNode {
       sch->ReverseComputeInline(block_rv);
     }
     return {sch};
+  }
+
+  // Inherited from ScheduleRuleNode
+  ScheduleRule Clone() const final {
+    ObjectPtr<AutoInlineNode> n = make_object<AutoInlineNode>(*this);
+    return ScheduleRule(n);
   }
 
  public:
@@ -85,8 +100,9 @@ inline InlineType AutoInlineNode::CheckInline(const tir::Schedule& sch,
                                               const tir::BlockRV& block_rv) {
   using namespace tvm::tir;
   StmtSRef block_sref = sch->GetSRef(block_rv);
+  bool is_pure_sptial = IsInSpatialPrimFunc(sch, block_sref);
   ScheduleState state = sch->state();
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
   BlockRealize realize = GetBlockRealize(state, block_sref);
   // Cond 1. The block has only one write buffer
   if (block->writes.size() != 1) {
@@ -94,18 +110,21 @@ inline InlineType AutoInlineNode::CheckInline(const tir::Schedule& sch,
   }
   // Cond 2. For a block that generates a constant tensor, ignore all other conditions
   if (inline_const_tensor && block->reads.empty()) {
-    return InlineType::kInlineIntoConsumer;
+    Array<tir::StmtSRef> consumer_srefs = GetConsumers(state, block_sref);
+    if (!consumer_srefs.empty() && CanComputeInline(state, block_sref)) {
+      return InlineType::kInlineIntoConsumer;
+    }
   }
   // Cond 3. The block doesn't contain any disallowed operators
-  if (!disallow_op.empty() && HasOp(realize, disallow_op)) {
+  if (!is_pure_sptial && !disallow_op.empty() && HasOp(realize, disallow_op)) {
     return InlineType::kNoInline;
   }
   // Cond 4. The block doesn't have any if-then-else-like constructs
-  if (disallow_if_then_else && HasIfThenElse(realize)) {
+  if (!is_pure_sptial && disallow_if_then_else && HasIfThenElse(realize)) {
     return InlineType::kNoInline;
   }
   // Cond 5. The mapping from read indices to write indices are injective and ordered
-  if (require_injective || require_ordered) {
+  if (!is_pure_sptial && (require_injective || require_ordered)) {
     const BufferRegion& write_region = block->writes[0];
     for (const BufferRegion& read_region : block->reads) {
       bool injective, ordered;
@@ -120,6 +139,11 @@ inline InlineType AutoInlineNode::CheckInline(const tir::Schedule& sch,
       }
     }
   }
+  // Cond 6. The block is disallowed for auto inline
+  if (Optional<String> ann =
+          tir::GetAnn<String>(block_sref, tir::attr::meta_schedule_inline_rule)) {
+    if (ann.value() == "disable") return InlineType::kNoInline;
+  }
   // Last cond: Check inline into the consumers or the spatial producer
   tir::StmtSRef scope_block = tir::GetScopeRoot(sch->state(), block_sref,
                                                 /*require_stage_pipeline=*/false);
@@ -133,7 +157,8 @@ inline InlineType AutoInlineNode::CheckInline(const tir::Schedule& sch,
     Array<tir::StmtSRef> producer_srefs = GetProducers(state, block_sref);
     if (producer_srefs.size() == 1 &&
         tir::IsCompleteBlock(sch->state(), producer_srefs[0], scope_block) &&
-        CanReverseComputeInline(state, block_sref)) {
+        CanReverseComputeInline(state, block_sref) &&
+        !GetAnn<String>(producer_srefs[0], tir::attr::meta_schedule_auto_tensorize).defined()) {
       return InlineType::kInlineIntoProducer;
     }
   }
@@ -169,5 +194,45 @@ TVM_REGISTER_NODE_TYPE(AutoInlineNode);
 TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleAutoInline")
     .set_body_typed(ScheduleRule::AutoInline);
 
+/*! \brief Inline blocks that produce a constant scalar. */
+class InlineConstantScalarsNode : public ScheduleRuleNode {
+ public:
+  void InitializeWithTuneContext(const TuneContext& context) final {}
+
+  Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv) final {
+    // Look for a block of the form
+    // block compile_engine_const(iter_var(vi, range(min=0, ext=1))) {
+    //   reads([])
+    //   writes([compile_engine_const[]])
+    //   compile_engine_const[] = 59
+    // }
+    auto block = sch->Get(block_rv);
+    if (block->reads.size() == 0 && block->writes.size() == 1 &&
+        block->writes[0]->buffer->shape.size() == 0) {
+      auto sref = sch->GetSRef(block_rv);
+      if (!tir::IsOutputBlock(sch->state(), sref, tir::GetScopeRoot(sch->state(), sref, true))) {
+        sch->ComputeInline(block_rv);
+      }
+    }
+    return {sch};
+  }
+
+  ScheduleRule Clone() const final {
+    ObjectPtr<InlineConstantScalarsNode> n = make_object<InlineConstantScalarsNode>(*this);
+    return ScheduleRule(n);
+  }
+
+  static constexpr const char* _type_key = "meta_schedule.InlineConstantScalars";
+  TVM_DECLARE_FINAL_OBJECT_INFO(InlineConstantScalarsNode, ScheduleRuleNode);
+};
+
+ScheduleRule ScheduleRule::InlineConstantScalars() {
+  ObjectPtr<InlineConstantScalarsNode> n = make_object<InlineConstantScalarsNode>();
+  return ScheduleRule(n);
+}
+
+TVM_REGISTER_NODE_TYPE(InlineConstantScalarsNode);
+TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleInlineConstantScalars")
+    .set_body_typed(ScheduleRule::InlineConstantScalars);
 }  // namespace meta_schedule
 }  // namespace tvm

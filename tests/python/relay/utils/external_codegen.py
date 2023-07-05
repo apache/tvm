@@ -62,7 +62,7 @@ def update_lib(lib):
     contrib_path = os.path.join(source_dir, "src", "runtime", "contrib")
 
     kwargs = {}
-    kwargs["options"] = ["-O2", "-std=c++14", "-I" + contrib_path]
+    kwargs["options"] = ["-O2", "-std=c++17", "-I" + contrib_path]
     tmp_path = utils.tempdir()
     lib_name = "lib.so"
     lib_path = tmp_path.relpath(lib_name)

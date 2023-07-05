@@ -116,10 +116,8 @@ class ParallelDenseToDenseCombiner : public ParallelOpCombiner {
   Call MakeCombinedOp(const Group& branches) {
     const Op& dense_op = Op::Get("nn.dense");
     Expr input = branches[0][0]->args[0];
-    Expr new_weight;
-    IndexExpr new_output_dims;
     // concat all weights into one
-    std::tie(new_weight, new_output_dims) = TransformWeight(branches);
+    auto [new_weight, new_output_dims] = TransformWeight(branches);
     const auto* origin_attrs = branches[0][0]->attrs.as<DenseAttrs>();
     ICHECK(origin_attrs);
     const auto dense_attrs = make_object<DenseAttrs>();
@@ -197,23 +195,40 @@ class ParallelDenseToDenseCombiner : public ParallelOpCombiner {
   void UpdateGroupOutput(const Expr& data, const Group& branches, size_t depth,
                          ExprSubstMap* subst_map) {
     int index = 0;
+    const auto dense_op = Op::Get("nn.dense");
     for (const auto& branch : branches) {
       const CallNode* call = branch[depth];
       auto& out_shape = call->type_as<TensorTypeNode>()->shape;
-      auto out_dims = tir::as_const_int(out_shape[out_shape.size() - 1]);
-      ICHECK(out_dims != nullptr);
-      Array<Integer> begin;
-      Array<Integer> end;
-      Array<Integer> strides;
-      for (size_t k = 0; k < out_shape.size() - 1; ++k) {
-        begin.push_back(0);
-        end.push_back(-1);
-        strides.push_back(1);
+
+      const CallNode* dense = branch[0];
+      ICHECK(dense->op.same_as(dense_op));
+      auto& dense_shape = dense->type_as<TensorTypeNode>()->shape;
+      auto dense_out_dims = tir::as_const_int(dense_shape[1]);
+      ICHECK(dense_out_dims != nullptr);
+
+      // dense can be followed by shape-changing operations, so the slicing axis is
+      // not necessarily the last one.
+      // TODO(masahi): The following logic is incorrect if (1) there is no axis in
+      // out_shape[i] that directly corresponds to the output channel of dense or (2) there
+      // is another axis that happens to have the same size as the output channel of dense.
+      // Such cases might arise due to reshape / transpose / split etc. Revisit this logic
+      // when we encounter them in practice.
+      auto slice_axis = -1;
+      for (size_t i = out_shape.size() - 1; i >= 0; --i) {
+        ICHECK(tir::as_const_int(out_shape[i]));
+        if (*tir::as_const_int(out_shape[i]) == *dense_out_dims) {
+          slice_axis = i;
+          break;
+        }
       }
-      begin.push_back(index);
-      end.push_back(*out_dims);
-      strides.push_back(1);
-      index += *out_dims;
+      ICHECK(slice_axis != -1);
+
+      Array<Integer> begin(out_shape.size(), 0);
+      Array<Integer> end(out_shape.size(), -1);
+      Array<Integer> strides(out_shape.size(), 1);
+      begin.Set(slice_axis, index);
+      end.Set(slice_axis, *dense_out_dims);
+      index += *dense_out_dims;
       auto slice = MakeStridedSlice(data, begin, end, strides, "size");
       subst_map->insert({GetRef<Expr>(branch[depth]), slice});
     }

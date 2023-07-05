@@ -15,12 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
+import pytest
+
 import tvm
-from tvm.meta_schedule.space_generator.post_order_apply import PostOrderApply
-from tvm.meta_schedule.testing.schedule_rule import auto_inline
-from tvm.meta_schedule.tune_context import TuneContext
+import tvm.testing
+from tvm import meta_schedule as ms
+from tvm.ir.base import assert_structural_equal
+from tvm.meta_schedule.testing.space_generation import generate_design_space
 from tvm.script import tir as T
 from tvm.target import Target
+from tvm.tir import Schedule
 
 # fmt: off
 # pylint: disable=no-member,invalid-name,unused-variable,no-self-argument,line-too-long,chained-comparison,not-callable,too-many-nested-blocks
@@ -162,7 +166,7 @@ class MultiLevelTiledConv2D:
 @tvm.script.ir_module
 class MultiLevelTiledConv2DAfterInline:
     @T.prim_func
-    def main(X: T.Buffer[(1, 512, 56, 56), "float32"], W: T.Buffer[(512, 512, 3, 3), "float32"], B: T.Buffer[(512, 1, 1), "float32"], bn_scale: T.Buffer[(512, 1, 1), "float32"], bn_offset: T.Buffer[(512, 1, 1), "float32"], compute: T.Buffer[(1, 512, 56, 56), "float32"]) -> None:
+    def main(X: T.Buffer((1, 512, 56, 56), "float32"), W: T.Buffer((512, 512, 3, 3), "float32"), B: T.Buffer((512, 1, 1), "float32"), bn_scale: T.Buffer((512, 1, 1), "float32"), bn_offset: T.Buffer((512, 1, 1), "float32"), compute: T.Buffer((1, 512, 56, 56), "float32")) -> None:
         compute_local = T.alloc_buffer([1, 512, 56, 56], dtype="float32", scope="local")
         for i0_0_i1_0_i2_0_i3_0_fused in T.thread_binding(224, thread="blockIdx.x"):
             for i0_1_i1_1_i2_1_i3_1_fused in T.thread_binding(2, thread="vthread.x"):
@@ -190,7 +194,7 @@ class MultiLevelTiledConv2DAfterInline:
 @tvm.script.ir_module
 class SoftmaxBeforeInline:
     @T.prim_func
-    def main(A: T.Buffer[(256, 256), "float32"], T_softmax_norm: T.Buffer[(256, 256), "float32"]) -> None:
+    def main(A: T.Buffer((256, 256), "float32"), T_softmax_norm: T.Buffer((256, 256), "float32")) -> None:
         T_softmax_maxelem = T.alloc_buffer([256], dtype="float32")
         T_softmax_exp = T.alloc_buffer([256, 256], dtype="float32")
         T_softmax_expsum = T.alloc_buffer([256], dtype="float32")
@@ -219,7 +223,7 @@ class SoftmaxBeforeInline:
 @tvm.script.ir_module
 class SoftmaxAfterInline:
     @T.prim_func
-    def main(A: T.Buffer[(256, 256), "float32"], T_softmax_norm: T.Buffer[(256, 256), "float32"]) -> None:
+    def main(A: T.Buffer((256, 256), "float32"), T_softmax_norm: T.Buffer((256, 256), "float32")) -> None:
         T_softmax_maxelem = T.alloc_buffer([256], dtype="float32")
         T_softmax_expsum = T.alloc_buffer([256], dtype="float32")
         for i0, i1 in T.grid(256, 256):
@@ -240,58 +244,293 @@ class SoftmaxAfterInline:
                 T_softmax_norm[i0_4, i1_1] = T.exp(A[i0_4, i1_1] - T_softmax_maxelem[i0_4], dtype="float32") / T_softmax_expsum[i0_4]
 
 
+@tvm.script.ir_module
+class BeforePureSpatial:
+    @T.prim_func
+    def main(
+        placeholder: T.Buffer((1, 384), "int64"),
+        placeholder_1: T.Buffer((30522, 768), "float32"),
+        placeholder_2: T.Buffer((1, 384, 768), "float32"),
+        T_add: T.Buffer((1, 384, 768), "float32"),
+    ) -> None:
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        compile_engine_const = T.alloc_buffer([], dtype="int64")
+        T_less = T.alloc_buffer([1, 384], dtype="bool")
+        compile_engine_const_1 = T.alloc_buffer([], dtype="int64")
+        T_add_1 = T.alloc_buffer([1, 384], dtype="int64")
+        T_where = T.alloc_buffer([1, 384], dtype="int64")
+        T_take = T.alloc_buffer([1, 384, 768], dtype="float32")
+        with T.block("compile_engine_const"):
+            vi = T.axis.spatial(1, 0)
+            T.reads()
+            T.writes(compile_engine_const[()])
+            compile_engine_const[()] = T.int64(0)
+        for i0, i1 in T.grid(1, 384):
+            with T.block("T_less"):
+                ax0, ax1 = T.axis.remap("SS", [i0, i1])
+                T.reads(placeholder[ax0, ax1], compile_engine_const[()])
+                T.writes(T_less[ax0, ax1])
+                T_less[ax0, ax1] = placeholder[ax0, ax1] < compile_engine_const[()]
+        with T.block("compile_engine_const_1"):
+            vi = T.axis.spatial(1, 0)
+            T.reads()
+            T.writes(compile_engine_const_1[()])
+            compile_engine_const_1[()] = T.int64(30522)
+        for i0, i1 in T.grid(1, 384):
+            with T.block("T_add"):
+                ax0, ax1 = T.axis.remap("SS", [i0, i1])
+                T.reads(placeholder[ax0, ax1], compile_engine_const_1[()])
+                T.writes(T_add_1[ax0, ax1])
+                T_add_1[ax0, ax1] = placeholder[ax0, ax1] + compile_engine_const_1[()]
+        for i0, i1 in T.grid(1, 384):
+            with T.block("T_where"):
+                ax0, ax1 = T.axis.remap("SS", [i0, i1])
+                T.reads(T_less[ax0, ax1], T_add_1[ax0, ax1], placeholder[ax0, ax1])
+                T.writes(T_where[ax0, ax1])
+                T_where[ax0, ax1] = T.Select(
+                    T.cast(T_less[ax0, ax1], "int32") != 0, T_add_1[ax0, ax1], placeholder[ax0, ax1]
+                )
+        for i0, i1, i2 in T.grid(1, 384, 768):
+            with T.block("T_take"):
+                ax0, ax1, ax2 = T.axis.remap("SSS", [i0, i1, i2])
+                T.reads(
+                    placeholder_1[T.min(T.max(T.int64(0), T_where[ax0, ax1]), T.int64(30521)), ax2],
+                    T_where[ax0, ax1],
+                )
+                T.writes(T_take[ax0, ax1, ax2])
+                T_take[ax0, ax1, ax2] = placeholder_1[
+                    T.min(T.max(T.int64(0), T_where[ax0, ax1]), T.int64(30521)), ax2
+                ]
+        for i0, i1, i2 in T.grid(1, 384, 768):
+            with T.block("T_add_1"):
+                ax0, ax1, ax2 = T.axis.remap("SSS", [i0, i1, i2])
+                T.reads(T_take[ax0, ax1, ax2], placeholder_2[ax0, ax1, ax2])
+                T.writes(T_add[ax0, ax1, ax2])
+                T_add[ax0, ax1, ax2] = T_take[ax0, ax1, ax2] + placeholder_2[ax0, ax1, ax2]
+
+
+@tvm.script.ir_module
+class AfterPureSpatial:
+    @T.prim_func
+    def main(placeholder: T.Buffer((1, 384), "int64"), placeholder_1: T.Buffer((30522, 768), "float32"), placeholder_2: T.Buffer((1, 384, 768), "float32"), T_add: T.Buffer((1, 384, 768), "float32")) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # body
+        # with T.block("root")
+        for i0, i1, i2 in T.grid(1, 384, 768):
+            with T.block("T_add_1"):
+                ax0, ax1, ax2 = T.axis.remap("SSS", [i0, i1, i2])
+                T.reads(placeholder[ax0, ax1], placeholder_1[T.min(T.max(T.int64(0), placeholder[ax0, ax1]), T.int64(30521)) : T.min(T.max(T.int64(0), placeholder[ax0, ax1] + T.int64(30522)), T.int64(30521)) + T.int64(1), ax2], placeholder_2[ax0, ax1, ax2])
+                T.writes(T_add[ax0, ax1, ax2])
+                T_add[ax0, ax1, ax2] = placeholder_1[T.min(T.max(T.int64(0), T.Select(T.cast(placeholder[ax0, ax1] < T.int64(0), "int32") != 0, placeholder[ax0, ax1] + T.int64(30522), placeholder[ax0, ax1])), T.int64(30521)), ax2] + placeholder_2[ax0, ax1, ax2]
+
+@tvm.script.ir_module
+class ConstConsumer:
+    @T.prim_func
+    def main(T_full: T.Buffer((1, 12, 4096), "int64")) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # body
+        # with T.block("root")
+        for i0, i1, i2 in T.grid(1, 12, 4096):
+            with T.block("T_full"):
+                ax0, ax1, ax2 = T.axis.remap("SSS", [i0, i1, i2])
+                T.reads()
+                T.writes(T_full[ax0, ax1, ax2])
+                T_full[ax0, ax1, ax2] = T.int64(0)
+
+
+@tvm.script.ir_module
+class Conv2dInt8:
+    @T.prim_func
+    def main(p0: T.Buffer((16, 14, 14, 256), "int8"), p1: T.Buffer((1024, 1, 1, 256), "int8"), p2: T.Buffer((1, 1, 1, 1024), "int32"), p3: T.Buffer((1, 1, 1, 1024), "int32"), p4: T.Buffer(1024, "int32"), p5: T.Buffer(1024, "int32"), p6: T.Buffer(1024, "int32"), p7: T.Buffer(1, "int32"), p8: T.Buffer((16, 14, 14, 1024), "int32"), compute: T.Buffer((16, 14, 14, 1024), "int32")) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        # body
+        # with T.block("root")
+        compile_engine_const = T.alloc_buffer([], dtype="int32")
+        pad_temp = T.alloc_buffer([16, 14, 14, 256], dtype="int8")
+        conv2d_nhwc = T.alloc_buffer([16, 14, 14, 1024], dtype="int32")
+        T_subtract = T.alloc_buffer([16, 14, 14, 1024], dtype="int32")
+        T_add = T.alloc_buffer([16, 14, 14, 1024], dtype="int32")
+        compute_1 = T.alloc_buffer([16, 14, 14, 1024], dtype="int32")
+        T_add_1 = T.alloc_buffer([16, 14, 14, 1024], dtype="int32")
+        compute_2 = T.alloc_buffer([16, 14, 14, 1024], dtype="int32")
+        T_subtract_1 = T.alloc_buffer([16, 14, 14, 1024], dtype="int32")
+        compute_3 = T.alloc_buffer([16, 14, 14, 1024], dtype="int32")
+        T_add_2 = T.alloc_buffer([16, 14, 14, 1024], dtype="int32")
+        with T.block("compile_engine_const"):
+            vi = T.axis.spatial(1, 0)
+            T.reads()
+            T.writes(compile_engine_const[()])
+            compile_engine_const[()] = 59
+        for i0, i1, i2, i3 in T.grid(16, 14, 14, 256):
+            with T.block("pad_temp"):
+                i0_1, i1_1, i2_1, i3_1 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                T.reads(p0[i0_1, i1_1, i2_1, i3_1])
+                T.writes(pad_temp[i0_1, i1_1, i2_1, i3_1])
+                pad_temp[i0_1, i1_1, i2_1, i3_1] = p0[i0_1, i1_1, i2_1, i3_1]
+        for i0, i1, i2, i3, i4, i5, i6 in T.grid(16, 14, 14, 1024, 1, 1, 256):
+            with T.block("conv2d_nhwc"):
+                nn, yy, xx, ff, ry, rx, rc = T.axis.remap("SSSSRRR", [i0, i1, i2, i3, i4, i5, i6])
+                T.reads(pad_temp[nn, yy + ry, xx + rx, rc], p1[ff, ry, rx, rc])
+                T.writes(conv2d_nhwc[nn, yy, xx, ff])
+                with T.init():
+                    conv2d_nhwc[nn, yy, xx, ff] = 0
+                conv2d_nhwc[nn, yy, xx, ff] = conv2d_nhwc[nn, yy, xx, ff] + T.cast(pad_temp[nn, yy + ry, xx + rx, rc], "int32") * T.cast(p1[ff, ry, rx, rc], "int32")
+        for i0, i1, i2, i3 in T.grid(16, 14, 14, 1024):
+            with T.block("T_subtract"):
+                ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                T.reads(conv2d_nhwc[ax0, ax1, ax2, ax3], p2[0, 0, 0, ax3])
+                T.writes(T_subtract[ax0, ax1, ax2, ax3])
+                T_subtract[ax0, ax1, ax2, ax3] = conv2d_nhwc[ax0, ax1, ax2, ax3] - p2[0, 0, 0, ax3]
+        for i0, i1, i2, i3 in T.grid(16, 14, 14, 1024):
+            with T.block("T_add"):
+                ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                T.reads(T_subtract[ax0, ax1, ax2, ax3], p3[0, 0, 0, ax3])
+                T.writes(T_add[ax0, ax1, ax2, ax3])
+                T_add[ax0, ax1, ax2, ax3] = T_subtract[ax0, ax1, ax2, ax3] + p3[0, 0, 0, ax3]
+        for i0, i1, i2, i3 in T.grid(16, 14, 14, 1024):
+            with T.block("compute"):
+                i0_2, i1_2, i2_2, i3_2 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                T.reads(T_add[i0_2, i1_2, i2_2, i3_2], p4[i3_2], p5[i3_2], p6[i3_2])
+                T.writes(compute_1[i0_2, i1_2, i2_2, i3_2])
+                compute_1[i0_2, i1_2, i2_2, i3_2] = T.q_multiply_shift_per_axis(T_add[i0_2, i1_2, i2_2, i3_2], p4[i3_2], p5[i3_2], p6[i3_2], 31, False, True, dtype="int32")
+        for i0_3, i1_3, i2_3, i3_3 in T.grid(16, 14, 14, 1024):
+            with T.block("T_add_1"):
+                ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0_3, i1_3, i2_3, i3_3])
+                T.reads(compile_engine_const[()], compute_1[ax0, ax1, ax2, ax3])
+                T.writes(T_add_1[ax0, ax1, ax2, ax3])
+                T_add_1[ax0, ax1, ax2, ax3] = compile_engine_const[()] + compute_1[ax0, ax1, ax2, ax3]
+        for i0_4, i1_4, i2_4, i3_4 in T.grid(16, 14, 14, 1024):
+            with T.block("compute_1"):
+                i0_5, i1_5, i2_5, i3_5 = T.axis.remap("SSSS", [i0_4, i1_4, i2_4, i3_4])
+                T.reads(T_add_1[i0_5, i1_5, i2_5, i3_5])
+                T.writes(compute_2[i0_5, i1_5, i2_5, i3_5])
+                compute_2[i0_5, i1_5, i2_5, i3_5] = T.max(T.min(T_add_1[i0_5, i1_5, i2_5, i3_5], 255), 0)
+        for i0_6, i1_6, i2_6, i3_6 in T.grid(16, 14, 14, 1024):
+            with T.block("T_subtract_1"):
+                ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0_6, i1_6, i2_6, i3_6])
+                T.reads(compute_2[ax0, ax1, ax2, ax3], p7[0])
+                T.writes(T_subtract_1[ax0, ax1, ax2, ax3])
+                T_subtract_1[ax0, ax1, ax2, ax3] = compute_2[ax0, ax1, ax2, ax3] - p7[0]
+        for i0_7, i1_7, i2_7, i3_7 in T.grid(16, 14, 14, 1024):
+            with T.block("compute_2"):
+                i0_8, i1_8, i2_8, i3_8 = T.axis.remap("SSSS", [i0_7, i1_7, i2_7, i3_7])
+                T.reads(T_subtract_1[i0_8, i1_8, i2_8, i3_8])
+                T.writes(compute_3[i0_8, i1_8, i2_8, i3_8])
+                compute_3[i0_8, i1_8, i2_8, i3_8] = T.q_multiply_shift(T_subtract_1[i0_8, i1_8, i2_8, i3_8], 1408572815, 31, 1, dtype="int32")
+        for i0_9, i1_9, i2_9, i3_9 in T.grid(16, 14, 14, 1024):
+            with T.block("T_add_2"):
+                ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0_9, i1_9, i2_9, i3_9])
+                T.reads(compute_3[ax0, ax1, ax2, ax3], p8[ax0, ax1, ax2, ax3])
+                T.writes(T_add_2[ax0, ax1, ax2, ax3])
+                T_add_2[ax0, ax1, ax2, ax3] = compute_3[ax0, ax1, ax2, ax3] + p8[ax0, ax1, ax2, ax3]
+        for i0_10, i1_10, i2_10, i3_10 in T.grid(16, 14, 14, 1024):
+            with T.block("compute_3"):
+                i0_11, i1_11, i2_11, i3_11 = T.axis.remap("SSSS", [i0_10, i1_10, i2_10, i3_10])
+                T.reads(T_add_2[i0_11, i1_11, i2_11, i3_11])
+                T.writes(compute[i0_11, i1_11, i2_11, i3_11])
+                compute[i0_11, i1_11, i2_11, i3_11] = T.max(T.min(T_add_2[i0_11, i1_11, i2_11, i3_11], 255), 0)
+
+
 # pylint: enable=no-member,invalid-name,unused-variable,no-self-argument,line-too-long,chained-comparison,not-callable,too-many-nested-blocks
 # fmt: on
-
-
-def _create_context(mod, target, rule):
-    ctx = TuneContext(
-        mod=mod,
-        target=target,
-        space_generator=PostOrderApply(),
-        sch_rules=[rule],
-        task_name="test",
-    )
-    return ctx
 
 
 def test_inline_consumer_chain():
     mod = Conv2DBiasBnReLU
     target = Target("llvm")
-    ctx = _create_context(
+    (space,) = generate_design_space(
+        kind="llvm",
         mod=mod,
         target=target,
-        rule=auto_inline(target=target),
+        types=ms.schedule_rule.AutoInline,
     )
-    (space,) = ctx.space_generator.generate_design_space(mod=mod)
     tvm.ir.assert_structural_equal(lhs=space.mod, rhs=Conv2DBiasBnReLUInlined)
 
 
 def test_inline_into_cache():
     mod = MultiLevelTiledConv2D
     target = Target("cuda", host="llvm")
-    ctx = _create_context(
+    (space,) = generate_design_space(
+        kind="cuda",
         mod=mod,
         target=target,
-        rule=auto_inline(target=target),
+        types=ms.schedule_rule.AutoInline,
     )
-    (space,) = ctx.space_generator.generate_design_space(mod=mod)
     tvm.ir.assert_structural_equal(lhs=space.mod, rhs=MultiLevelTiledConv2DAfterInline)
 
 
 def test_inline_into_multiple_consumers():
     mod = SoftmaxBeforeInline
     target = Target("cuda", host="llvm")
-    ctx = _create_context(
+    (space,) = generate_design_space(
+        kind="cuda",
         mod=mod,
         target=target,
-        rule=auto_inline(target=target),
+        types=ms.schedule_rule.AutoInline,
     )
-    (space,) = ctx.space_generator.generate_design_space(mod=mod)
     tvm.ir.assert_structural_equal(lhs=space.mod, rhs=SoftmaxAfterInline)
 
 
+def test_inline_pure_spatial():
+    mod = BeforePureSpatial
+    target = Target("llvm")
+    (space,) = generate_design_space(
+        kind="llvm",
+        mod=mod,
+        target=target,
+        types=ms.schedule_rule.AutoInline,
+    )
+    tvm.ir.assert_structural_equal(lhs=space.mod, rhs=AfterPureSpatial)
+
+
+def test_inline_constant_tensor():
+    mod = ConstConsumer
+    target = Target("cuda", host="llvm")
+    (space,) = generate_design_space(
+        kind="cuda",
+        mod=mod,
+        target=target,
+        types=ms.schedule_rule.AutoInline,
+    )
+    tvm.ir.assert_structural_equal(lhs=space.mod, rhs=ConstConsumer)
+
+
+def test_conv2d_int8_inline_constant_scalars():
+    sch = Schedule(Conv2dInt8)
+
+    conv2d = sch.get_block("conv2d_nhwc")
+    sch.cache_write(conv2d, 0, "shared")
+
+    with pytest.raises(tvm.tir.ScheduleError) as e:
+        sch.reverse_compute_inline(sch.get_block("T_add_1"))
+
+    err_msg = "The block is only allowed to read a single buffer region, but it reads 2 region(s)"
+    assert err_msg in str(e)
+
+    ms.schedule_rule.InlineConstantScalars().apply(sch, sch.get_block("compile_engine_const"))
+    sch.reverse_compute_inline(sch.get_block("T_add_1"))
+
+
+def test_inline_constant_scalars_skip_output_block():
+    # If the constant scalar block is an output block, it should not be inlined
+
+    @tvm.script.ir_module
+    class Full:
+        @T.prim_func
+        def main(T_full: T.Buffer((), "float32")):
+            with T.block("T_full"):
+                vi = T.axis.spatial(1, 0)
+                T.reads()
+                T.writes(T_full[()])
+                T_full[()] = T.float32(1)
+
+    sch = Schedule(Full)
+    sch = ms.schedule_rule.InlineConstantScalars().apply(sch, sch.get_block("T_full"))[0]
+    assert_structural_equal(sch.mod, Full)
+
+
 if __name__ == "__main__":
-    test_inline_consumer_chain()
-    test_inline_into_cache()
-    test_inline_into_multiple_consumers()
+    tvm.testing.main()

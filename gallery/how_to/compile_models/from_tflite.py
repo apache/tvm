@@ -25,9 +25,8 @@ To get started, TFLite package needs to be installed as prerequisite.
 
 .. code-block:: bash
 
-    # install tflite
-    pip install tflite==2.1.0 --user
-
+    %%shell
+    pip install tflite==2.1.0
 
 or you could generate TFLite package yourself. The steps are the following:
 
@@ -52,9 +51,11 @@ Now please check if TFLite package is installed successfully, ``python -c "impor
 
 Below you can find an example on how to compile TFLite model using TVM.
 """
+
 ######################################################################
 # Utils for downloading and extracting zip files
 # ----------------------------------------------
+
 import os
 
 

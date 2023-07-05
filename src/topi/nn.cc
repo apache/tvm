@@ -29,6 +29,9 @@
 #include <tvm/topi/nn/dense.h>
 #include <tvm/topi/nn/dilate.h>
 #include <tvm/topi/nn/flatten.h>
+#include <tvm/topi/nn/group_norm.h>
+#include <tvm/topi/nn/instance_norm.h>
+#include <tvm/topi/nn/layer_norm.h>
 #include <tvm/topi/nn/local_response_norm.h>
 #include <tvm/topi/nn/mapping.h>
 #include <tvm/topi/nn/pooling.h>
@@ -155,6 +158,22 @@ TVM_REGISTER_GLOBAL("topi.nn.binarize_pack").set_body([](TVMArgs args, TVMRetVal
 
 TVM_REGISTER_GLOBAL("topi.nn.binary_dense").set_body([](TVMArgs args, TVMRetValue* rv) {
   *rv = nn::binary_dense(args[0], args[1]);
+});
+
+/* Ops from nn/layer_norm.h */
+TVM_REGISTER_GLOBAL("topi.nn.layer_norm").set_body([](TVMArgs args, TVMRetValue* rv) {
+  *rv = nn::layer_norm(args[0], args[1], args[2], args[3], static_cast<double>(args[4]));
+});
+
+/* Ops from nn/group_norm.h */
+TVM_REGISTER_GLOBAL("topi.nn.group_norm").set_body([](TVMArgs args, TVMRetValue* rv) {
+  *rv = nn::group_norm(args[0], args[1], args[2], static_cast<int>(args[3]),
+                       static_cast<int>(args[4]), args[5], static_cast<double>(args[6]));
+});
+
+/* Ops from nn/instance_norm.h */
+TVM_REGISTER_GLOBAL("topi.nn.instance_norm").set_body([](TVMArgs args, TVMRetValue* rv) {
+  *rv = nn::instance_norm(args[0], args[1], args[2], args[3], static_cast<double>(args[4]));
 });
 
 }  // namespace topi

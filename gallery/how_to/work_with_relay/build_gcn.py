@@ -25,7 +25,13 @@ In this tutorial, we will run our GCN on Cora dataset to demonstrate.
 Cora dataset is a common benchmark for Graph Neural Networks (GNN) and frameworks that support GNN training and inference.
 We directly load the dataset from DGL library to do the apples to apples comparison against DGL.
 
-Please refer to DGL doc for DGL installation at
+.. code-block:: bash
+
+    %%shell
+    pip install torch==2.0.0
+    pip install dgl==v1.0.0
+
+Please refer to DGL doc for installation at
 https://docs.dgl.ai/install/index.html.
 
 Please refer to PyTorch guide for PyTorch installation at
@@ -76,23 +82,12 @@ from dgl.data import load_data
 from collections import namedtuple
 
 
-def load_dataset(dataset="cora"):
-    args = namedtuple("args", ["dataset"])
-    data = load_data(args(dataset))
-
-    # Remove self-loops to avoid duplicate passing of a node's feature to itself
-    g = data.graph
-    g.remove_edges_from(nx.selfloop_edges(g))
-    g.add_edges_from(zip(g.nodes, g.nodes))
-
-    return g, data
-
-
-def evaluate(data, logits):
-    test_mask = data.test_mask  # the test set which isn't included in the training phase
+def evaluate(g, logits):
+    label = g.ndata["label"]
+    test_mask = g.ndata["test_mask"]
 
     pred = logits.argmax(axis=1)
-    acc = ((pred == data.labels) * test_mask).sum() / test_mask.sum()
+    acc = (torch.Tensor(pred[test_mask]) == label[test_mask]).float().mean()
 
     return acc
 
@@ -103,9 +98,6 @@ def evaluate(data, logits):
 """
 Parameters
 ----------
-dataset: str
-    Name of dataset. You can choose from ['cora', 'citeseer', 'pubmed'].
-
 num_layer: int
     number of hidden layers
 
@@ -118,13 +110,14 @@ infeat_dim: int
 num_classes: int
     dimension of model output (Number of classes)
 """
-dataset = "cora"
-g, data = load_dataset(dataset)
 
+dataset = dgl.data.CoraGraphDataset()
+dgl_g = dataset[0]
 num_layers = 1
 num_hidden = 16
-infeat_dim = data.features.shape[1]
-num_classes = data.num_labels
+features = dgl_g.ndata["feat"]
+infeat_dim = features.shape[1]
+num_classes = dataset.num_classes
 
 ######################################################################
 # Set up the DGL-PyTorch model and get the golden results
@@ -132,16 +125,14 @@ num_classes = data.num_labels
 #
 # The weights are trained with https://github.com/dmlc/dgl/blob/master/examples/pytorch/gcn/train.py
 from tvm.contrib.download import download_testdata
-from dgl import DGLGraph
 
-features = torch.FloatTensor(data.features)
-dgl_g = DGLGraph(g)
+features = torch.FloatTensor(features)
 
 torch_model = GCN(dgl_g, infeat_dim, num_hidden, num_classes, num_layers, F.relu)
 
 # Download the pretrained weights
-model_url = "https://homes.cs.washington.edu/~cyulin/media/gnn_model/gcn_%s.torch" % (dataset)
-model_path = download_testdata(model_url, "gcn_%s.pickle" % (dataset), module="gcn_model")
+model_url = "https://homes.cs.washington.edu/~cyulin/media/gnn_model/gcn_cora.torch"
+model_path = download_testdata(model_url, "gcn_cora.pickle", module="gcn_model")
 
 # Load the weights into the model
 torch_model.load_state_dict(torch.load(model_path))
@@ -155,7 +146,7 @@ with torch.no_grad():
     logits_torch = torch_model(features)
 print("Print the first five outputs from DGL-PyTorch execution\n", logits_torch[:5])
 
-acc = evaluate(data, logits_torch.numpy())
+acc = evaluate(dgl_g, logits_torch.numpy())
 print("Test accuracy of DGL results: {:.2%}".format(acc))
 
 
@@ -239,27 +230,26 @@ import numpy as np
 import networkx as nx
 
 
-def prepare_params(g, data):
+def prepare_params(g):
     params = {}
-    params["infeats"] = data.features.numpy().astype(
-        "float32"
-    )  # Only support float32 as feature for now
+    params["infeats"] = g.ndata["feat"].numpy().astype("float32")
 
     # Generate adjacency matrix
-    adjacency = nx.to_scipy_sparse_matrix(g)
+    nx_graph = dgl.to_networkx(g)
+    adjacency = nx.to_scipy_sparse_array(nx_graph)
     params["g_data"] = adjacency.data.astype("float32")
     params["indices"] = adjacency.indices.astype("int32")
     params["indptr"] = adjacency.indptr.astype("int32")
 
     # Normalization w.r.t. node degrees
-    degs = [g.in_degree[i] for i in range(g.number_of_nodes())]
+    degs = [g.in_degrees(i) for i in range(g.number_of_nodes())]
     params["norm"] = np.power(degs, -0.5).astype("float32")
     params["norm"] = params["norm"].reshape((params["norm"].shape[0], 1))
 
     return params
 
 
-params = prepare_params(g, data)
+params = prepare_params(dgl_g)
 
 # Check shape of features and the validity of adjacency matrix
 assert len(params["infeats"].shape) == 2
@@ -273,7 +263,7 @@ assert params["infeats"].shape[0] == params["indptr"].shape[0] - 1
 # -------------------
 
 # Define input features, norms, adjacency matrix in Relay
-infeats = relay.var("infeats", shape=data.features.shape)
+infeats = relay.var("infeats", shape=features.shape)
 norm = relay.Constant(tvm.nd.array(params["norm"]))
 g_data = relay.Constant(tvm.nd.array(params["g_data"]))
 indices = relay.Constant(tvm.nd.array(params["indices"]))
@@ -345,10 +335,7 @@ m.run()
 logits_tvm = m.get_output(0).numpy()
 print("Print the first five outputs from TVM execution\n", logits_tvm[:5])
 
-labels = data.labels
-test_mask = data.test_mask
-
-acc = evaluate(data, logits_tvm)
+acc = evaluate(dgl_g, logits_tvm)
 print("Test accuracy of TVM results: {:.2%}".format(acc))
 
 import tvm.testing

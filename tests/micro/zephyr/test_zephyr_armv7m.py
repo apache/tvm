@@ -14,14 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-from json import load
-import logging
 import os
 import pathlib
-import sys
-import tarfile
-import tempfile
 
 import pytest
 import numpy as np
@@ -35,9 +29,7 @@ from tvm import relay
 from tvm.contrib.download import download_testdata
 from tvm.relay.backend import Executor, Runtime
 
-import test_utils
-
-_LOG = logging.getLogger(__name__)
+from . import utils
 
 
 def _open_tflite_model():
@@ -103,22 +95,13 @@ def _apply_desired_layout_no_simd(relay_mod):
 
 
 @tvm.testing.requires_micro
-@pytest.mark.skip_boards(["mps2_an521"])
-def test_armv7m_intrinsic(temp_dir, board, west_cmd, tvm_debug):
+@pytest.mark.skip_boards(
+    ["mps2_an521", "stm32f746g_disco", "nucleo_f746zg", "nucleo_l4r5zi", "nrf5340dk_nrf5340_cpuapp"]
+)
+@pytest.mark.xfail(reason="due https://github.com/apache/tvm/issues/12619")
+def test_armv7m_intrinsic(workspace_dir, board, microtvm_debug, serial_number):
     """Testing a ARM v7m SIMD extension."""
-
-    if board not in [
-        "mps2_an521",
-        "stm32f746xx_disco",
-        "nucleo_f746zg",
-        "nucleo_l4r5zi",
-        "nrf5340dk_nrf5340_cpuapp",
-    ]:
-        pytest.skip(msg="Platform does not support ARM v7m SIMD extension.")
-
-    model = test_utils.ZEPHYR_BOARDS[board]
-
-    build_config = {"debug": tvm_debug}
+    build_config = {"debug": microtvm_debug}
 
     this_dir = pathlib.Path(os.path.dirname(__file__))
     testdata_dir = this_dir.parent / "testdata" / "mnist"
@@ -131,17 +114,19 @@ def test_armv7m_intrinsic(temp_dir, board, west_cmd, tvm_debug):
     # kernel layout "HWIO" is not supported by arm_cpu SIMD extension (see tvm\python\relay\op\strategy\arm_cpu.py)
     relay_mod_no_simd = _apply_desired_layout_no_simd(relay_mod)
 
-    target = tvm.target.target.micro(model, options=["-keys=cpu"])
-    target_simd = tvm.target.target.micro(model, options=["-keys=arm_cpu,cpu"])
+    target = tvm.target.target.micro(utils.ZEPHYR_BOARDS[board]["model"], options=["-keys=cpu"])
+    target_simd = tvm.target.target.micro(
+        utils.ZEPHYR_BOARDS[board]["model"], options=["-keys=arm_cpu,cpu"]
+    )
 
     executor = Executor("aot", {"unpacked-api": True, "interface-api": "c"})
     runtime = Runtime("crt")
 
-    temp_dir_simd = temp_dir / "simd"
-    temp_dir_no_simd = temp_dir / "nosimd"
+    workspace_dir_simd = workspace_dir / "simd"
+    workspace_dir_no_simd = workspace_dir / "nosimd"
 
-    os.makedirs(temp_dir_simd, exist_ok=True)
-    os.makedirs(temp_dir_no_simd, exist_ok=True)
+    os.makedirs(workspace_dir_simd, exist_ok=True)
+    os.makedirs(workspace_dir_no_simd, exist_ok=True)
 
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         lowered_simd = relay.build(
@@ -151,31 +136,31 @@ def test_armv7m_intrinsic(temp_dir, board, west_cmd, tvm_debug):
             relay_mod_no_simd, target, params=params, runtime=runtime, executor=executor
         )
 
-        simd_project, _ = test_utils.generate_project(
-            temp_dir_simd,
+        simd_project, _ = utils.generate_project(
+            workspace_dir_simd,
             board,
-            west_cmd,
             lowered_simd,
             build_config,
             sample,
             output_shape,
             "float32",
-            load_cmsis=True,
+            True,
+            serial_number,
         )
-        result_simd, time_simd = test_utils.run_model(simd_project)
+        result_simd, time_simd = utils.run_model(simd_project)
 
-        no_simd_project, _ = test_utils.generate_project(
-            temp_dir_no_simd,
+        no_simd_project, _ = utils.generate_project(
+            workspace_dir_no_simd,
             board,
-            west_cmd,
             lowered_no_simd,
             build_config,
             sample,
             output_shape,
             "float32",
-            load_cmsis=False,
+            False,
+            serial_number,
         )
-        result_no_simd, time_no_simd = test_utils.run_model(no_simd_project)
+        result_no_simd, time_no_simd = utils.run_model(no_simd_project)
 
     assert result_no_simd == result_simd == 2
 

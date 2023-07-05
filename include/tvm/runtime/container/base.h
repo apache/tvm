@@ -255,12 +255,12 @@ class ReverseIterAdapter {
     ++iter_;
     return *this;
   }
-  ReverseIterAdapter& operator++(int) {
+  ReverseIterAdapter operator++(int) {
     ReverseIterAdapter copy = *this;
     --iter_;
     return copy;
   }
-  ReverseIterAdapter& operator--(int) {
+  ReverseIterAdapter operator--(int) {
     ReverseIterAdapter copy = *this;
     ++iter_;
     return copy;

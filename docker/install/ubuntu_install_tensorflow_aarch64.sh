@@ -24,8 +24,6 @@ apt-install-and-clear -y --no-install-recommends libhdf5-dev
 # We're only using the TensorFlow wheel snapshot here as the
 # h5py wheel tries to use the wrong .so file
 pip3 install \
-    "h5py==3.1.0" \
-    keras==2.6 \
-    tensorflow-aarch64==2.6.3 \
-    "protobuf<4" \
-    -f https://snapshots.linaro.org/ldcg/python-cache/tensorflow-aarch64/
+    numpy==1.23.5 \
+    keras==2.9 \
+    tensorflow-aarch64==2.9.1

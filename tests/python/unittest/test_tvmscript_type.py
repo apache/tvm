@@ -25,13 +25,13 @@ e.g. reads/writes, match_buffer/alloc_buffer, serial/block etc.
 
 @T.prim_func
 def element_wise_storage_align(a: T.handle, c: T.handle) -> None:
-    C = T.match_buffer(c, [128, 128], elem_offset=0, align=128, offset_factor=1)
-    A = T.match_buffer(a, [128, 128], elem_offset=0, align=128, offset_factor=1)
+    C = T.match_buffer(c, [128, 128], elem_offset=0, align=64, offset_factor=1)
+    A = T.match_buffer(a, [128, 128], elem_offset=0, align=64, offset_factor=1)
     # body
     with T.block("root"):
         T.reads([])
         T.writes([])
-        B = T.alloc_buffer([128, 128], elem_offset=0, align=128, offset_factor=1)
+        B = T.alloc_buffer([128, 128], elem_offset=0, align=64, offset_factor=1)
         for i0 in T.serial(0, 128):
             for ax1 in T.serial(0, 128):
                 with T.block("B"):

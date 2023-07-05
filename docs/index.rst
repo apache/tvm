@@ -18,7 +18,7 @@
 Apache TVM Documentation
 ========================
 
-Welcome to the the documentation for Apache TVM, a deep learning compiler that
+Welcome to the documentation for Apache TVM, a deep learning compiler that
 enables access to high-performance machine learning anywhere for everyone.
 TVM's diverse community of hardware vendors, compiler engineers and ML
 researchers work together to build a unified, programmable software stack, that

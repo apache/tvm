@@ -23,6 +23,7 @@ from tvm.contrib.target.vitis_ai import vitis_ai_available
 from tvm.driver.tvmc import TVMCException
 from tvm.driver.tvmc.pass_config import parse_configs
 from tvm.tir.transform import PrimFuncPass
+from tvm.ir.transform import Sequential
 
 
 def test_config_invalid_format():
@@ -89,7 +90,8 @@ def test_add_lower_pass_multi_built_in_pass():
     assert isinstance(configs["tir.add_lower_pass"][0][1], PrimFuncPass)
     # opt_level: 1, pass: tir.transform.HoistIfThenElse
     assert configs["tir.add_lower_pass"][1][0] == 1
-    assert isinstance(configs["tir.add_lower_pass"][1][1], PrimFuncPass)
+    assert isinstance(configs["tir.add_lower_pass"][1][1], Sequential)
+    assert configs["tir.add_lower_pass"][1][1].pass_info.name == "tir.HoistIfThenElse"
     # opt_level: 2, pass: tir.transform.LoopPartition
     assert configs["tir.add_lower_pass"][2][0] == 2
     assert isinstance(configs["tir.add_lower_pass"][2][1], PrimFuncPass)

@@ -25,17 +25,24 @@ RUN apt-get update --fix-missing
 
 RUN apt-install-and-clear -y ca-certificates gnupg2 libxml2-dev
 
+COPY install/ubuntu_setup_tz.sh /install/ubuntu_setup_tz.sh
+RUN bash /install/ubuntu_setup_tz.sh
+
 COPY install/ubuntu_install_core.sh /install/ubuntu_install_core.sh
 RUN bash /install/ubuntu_install_core.sh
+
+COPY install/ubuntu_install_cmake_source.sh /install/ubuntu_install_cmake_source.sh
+RUN bash /install/ubuntu_install_cmake_source.sh
 
 COPY install/ubuntu_install_googletest.sh /install/ubuntu_install_googletest.sh
 RUN bash /install/ubuntu_install_googletest.sh
 
-COPY install/ubuntu2004_install_python.sh /install/ubuntu2004_install_python.sh
-RUN bash /install/ubuntu2004_install_python.sh
-
-# Globally disable pip cache
-RUN pip config set global.cache-dir false
+ENV TVM_VENV /venv/apache-tvm-py3.8
+COPY python/bootstrap/lockfiles /install/python/bootstrap/lockfiles
+COPY install/ubuntu_install_python.sh /install/ubuntu_install_python.sh
+RUN bash /install/ubuntu_install_python.sh 3.8
+ENV PATH ${TVM_VENV}/bin:$PATH
+ENV PYTHONNOUSERSITE 1  # Disable .local directory from affecting CI.
 
 # Rust env (build early; takes a while)
 COPY install/ubuntu_install_rust.sh /install/ubuntu_install_rust.sh
@@ -55,7 +62,6 @@ RUN bash /install/ubuntu_install_java.sh
 COPY install/ubuntu_install_androidsdk.sh /install/ubuntu_install_androidsdk.sh
 RUN bash /install/ubuntu_install_androidsdk.sh
 ENV ANDROID_HOME=/opt/android-sdk-linux
-ENV ANDROID_NDK_HOME=/opt/android-sdk-linux/ndk/21.3.6528147
 ENV PATH /opt/android-sdk-linux/platform-tools:$PATH
 
 # Hexagon
@@ -83,3 +89,7 @@ RUN bash /install/ubuntu_install_tflite.sh
 # Install ONNX
 COPY install/ubuntu_install_onnx.sh /install/ubuntu_install_onnx.sh
 RUN bash /install/ubuntu_install_onnx.sh
+
+# xgboost (for tuning)
+COPY install/ubuntu_install_redis.sh /install/ubuntu_install_redis.sh
+RUN bash /install/ubuntu_install_redis.sh

@@ -33,6 +33,8 @@
 #include <limits>
 #include <memory>
 #include <string>
+#include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "../../../../runtime/contrib/json/json_node.h"
@@ -150,7 +152,8 @@ class JSONSerializer : public MemoizedExprTranslator<std::vector<JSONGraphNodeEn
    * \param symbol The symbol that represents the graph being converted.
    * \param expr The Relay expression to be converted to the JSON form.
    */
-  JSONSerializer(const std::string& symbol, const Expr& expr) : symbol_(symbol), func_(expr) {}
+  JSONSerializer(std::string symbol, Expr expr)
+      : symbol_(std::move(symbol)), func_(std::move(expr)) {}
 
   void serialize() {
     relay::Function func = Downcast<relay::Function>(func_);
@@ -162,8 +165,18 @@ class JSONSerializer : public MemoizedExprTranslator<std::vector<JSONGraphNodeEn
     heads_ = VisitExpr(func->body);
   }
 
-  /*!\brief Return the required params. */
-  Array<String> GetParams() const { return params_; }
+  /*!
+   * \brief Returns the accumulated map from constant names to the NDArray they must be bound to
+   * at runtime. Also referred to a 'params' elsewhere in the code.
+   */
+  const std::unordered_map<std::string, runtime::NDArray>& const_name_to_constant() const {
+    return const_name_to_constant_;
+  }
+
+  /*!
+   * \brief Return the constant names in order they were encountered during translation.
+   */
+  const Array<String>& const_names() const { return const_names_; }
 
   /*!\brief Return the generated json. */
   std::string GetJSON() {
@@ -237,7 +250,6 @@ class JSONSerializer : public MemoizedExprTranslator<std::vector<JSONGraphNodeEn
 
   std::vector<JSONGraphNodeEntry> VisitExprDefault_(const Object* op) {
     LOG(FATAL) << "JSON runtime currently doesn't support " << op->GetTypeKey();
-    return {};
   }
 
   std::vector<JSONGraphNodeEntry> VisitExpr_(const VarNode* vn) {
@@ -245,11 +257,15 @@ class JSONSerializer : public MemoizedExprTranslator<std::vector<JSONGraphNodeEn
     return memo_[GetRef<Expr>(vn)];
   }
 
-  std::vector<JSONGraphNodeEntry> VisitExpr_(const ConstantNode* cn) {
-    std::string name = symbol_ + "_const_" + std::to_string(params_.size());
-    params_.push_back(name);
-    auto node = std::make_shared<JSONGraphNode>(name, "const" /* op_type_ */);
-    return AddNode(node, GetRef<Expr>(cn));
+  std::vector<JSONGraphNodeEntry> VisitExpr_(const ConstantNode* constant_node) {
+    std::string name = symbol_ + "_const_" + std::to_string(const_names_.size());
+    VLOG(1) << "Will require parameter '" << name
+            << "' to be supplied by the ConstLoaderModule at runtime";
+    ICHECK_EQ(const_name_to_constant_.count(name), 0);
+    const_name_to_constant_.emplace(name, constant_node->data);
+    const_names_.push_back(name);
+    auto node = std::make_shared<JSONGraphNode>(name, /*op_type=*/"const");
+    return AddNode(node, GetRef<Expr>(constant_node));
   }
 
   std::vector<JSONGraphNodeEntry> VisitExpr_(const TupleNode* tn) {
@@ -324,6 +340,7 @@ class JSONSerializer : public MemoizedExprTranslator<std::vector<JSONGraphNodeEn
       node_row_ptr.push_back(num_entry);
     }
     writer->BeginObject();
+    writer->WriteObjectKeyValue("symbol", symbol_);
     writer->WriteObjectKeyValue("nodes", nodes_);
     writer->WriteObjectKeyValue("arg_nodes", arg_nodes);
     writer->WriteObjectKeyValue("heads", heads_);
@@ -340,8 +357,17 @@ class JSONSerializer : public MemoizedExprTranslator<std::vector<JSONGraphNodeEn
   std::vector<JSONGraphObjectPtr> nodes_;
   /*! \brief Output of the JSON graph. */
   std::vector<JSONGraphNodeEntry> heads_;
-  /*! \brief The list of required constants. */
-  Array<String> params_;
+  /*!
+   * \brief A map from constant names to NDArrays for each Constant encountered during
+   * translation to JSON. The JSON will record only the constant name. The actual NDArray must
+   * be made available at runtime from a ConstLoaderModule.
+   */
+  std::unordered_map<std::string, runtime::NDArray> const_name_to_constant_;
+  /*!
+   * \brief The domain of the above map, but in order the constants were encountered during
+   * translation.
+   */
+  Array<String> const_names_;
 };
 
 }  // namespace contrib

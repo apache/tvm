@@ -27,7 +27,7 @@ import tensorflow as tf
 import tvm
 import tvm.relay as relay
 from tvm.micro.contrib import stm32
-from tvm.contrib.download import download
+from tvm.contrib.download import download_testdata
 from tvm import testing
 
 import conftest
@@ -384,12 +384,11 @@ def test_mnist():
             datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S"),
         )
     curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-    model_path = os.path.join(curr_path, "models/mnist.tflite")
     build_dir = tvm.contrib.utils.tempdir(tempdir_root)
     model_url = "https://storage.googleapis.com/download.tensorflow.org/models/tflite/digit_classifier/mnist.tflite"
-    download(model_url, model_path)
+    model_path = download_testdata(model_url, "mnist.tflite", module="model")
     check_network(build_dir.path, "mnist", model_path, build_dir.path)
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main([os.path.dirname(__file__)] + sys.argv[1:]))
+    tvm.testing.main()

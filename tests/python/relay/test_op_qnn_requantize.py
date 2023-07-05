@@ -23,6 +23,7 @@ from tvm.contrib import graph_executor
 
 roundings = ["UPWARD", "TONEAREST"]
 compute_dtypes = ["float32", "float64", "int64"]
+out_dtypes = ["int8", "int16"]
 
 
 def verify(mod, goldens, target="llvm"):
@@ -83,17 +84,18 @@ def test_same_scale():
     golden_output = golden_data
     for compute_dtype in compute_dtypes:
         for rounding in roundings:
-            mod = get_mod(
-                data_shape=(200,),
-                data_dtype="int32",
-                out_dtype="int8",
-                input_scale=0.5,
-                output_scale=0.5,
-                rounding=rounding,
-                compute_dtype=compute_dtype,
-            )
-            assert "right_shift" not in mod.astext()
-            verify(mod, (golden_data, golden_output))
+            for qnn_out_dtype in out_dtypes:
+                mod = get_mod(
+                    data_shape=(200,),
+                    data_dtype="int32",
+                    out_dtype=qnn_out_dtype,
+                    input_scale=0.5,
+                    output_scale=0.5,
+                    rounding=rounding,
+                    compute_dtype=compute_dtype,
+                )
+                assert "right_shift" not in mod.astext()
+                verify(mod, (golden_data, golden_output))
 
 
 def test_scalar_same_scale():
@@ -102,75 +104,77 @@ def test_scalar_same_scale():
     golden_output = golden_data
     for compute_dtype in compute_dtypes:
         for rounding in roundings:
-            mod = get_mod(
-                data_shape=(),
-                data_dtype="int32",
-                out_dtype="int8",
-                input_scale=0.5,
-                output_scale=0.5,
-                rounding=rounding,
-                compute_dtype=compute_dtype,
-            )
-            assert "right_shift" not in mod.astext()
-            verify(mod, (golden_data, golden_output))
+            for qnn_out_dtype in out_dtypes:
+                mod = get_mod(
+                    data_shape=(),
+                    data_dtype="int32",
+                    out_dtype=qnn_out_dtype,
+                    input_scale=0.5,
+                    output_scale=0.5,
+                    rounding=rounding,
+                    compute_dtype=compute_dtype,
+                )
+                assert "right_shift" not in mod.astext()
+                verify(mod, (golden_data, golden_output))
 
 
 def test_downscale():
     for compute_dtype in compute_dtypes:
         for rounding in roundings:
-            mod = get_mod(
-                data_shape=(32,),
-                data_dtype="int32",
-                out_dtype="int8",
-                input_scale=1,
-                output_scale=16,
-                rounding=rounding,
-                compute_dtype=compute_dtype,
-            )
-
-            # Try positive values
-            # 8 corresponds to 0.5, resulting in 1
-            golden_data = np.arange(0, 32, 1).astype("int32")
-            golden_output = np.repeat([0, 1, 2], [8, 16, 8])
-            verify(mod, (golden_data, golden_output))
-
-            # Try negative values
-            # -8 corresponds to -0.5. For UPWARD, this is 0
-            golden_data = np.arange(0, -32, -1).astype("int32")
-            if rounding == "UPWARD":
-                golden_output = np.repeat([0, -1, -2], [9, 16, 7])
-            else:
-                golden_output = np.repeat([0, -1, -2], [8, 16, 8])
-            verify(mod, (golden_data, golden_output))
-
-            # Try a different scale
-            mod = get_mod(
-                data_shape=(32,),
-                data_dtype="int32",
-                out_dtype="int8",
-                input_scale=1,
-                output_scale=4,
-                rounding=rounding,
-            )
-
-            # Try positive values
-            # 2I corresponds to 0.5, resulting in 1
-            golden_data = np.arange(0, 32, 1).astype("int32")
-            golden_output = np.repeat([0, 1, 2, 3, 4, 5, 6, 7, 8], [2, 4, 4, 4, 4, 4, 4, 4, 2])
-            verify(mod, (golden_data, golden_output))
-
-            # Try negative values
-            # -8 corresponds to -0.5. For UPWARD, this is 0
-            golden_data = np.arange(0, -32, -1).astype("int32")
-            if rounding == "UPWARD":
-                golden_output = np.repeat(
-                    [0, -1, -2, -3, -4, -5, -6, -7, -8], [3, 4, 4, 4, 4, 4, 4, 4, 1]
+            for qnn_out_dtype in out_dtypes:
+                mod = get_mod(
+                    data_shape=(32,),
+                    data_dtype="int32",
+                    out_dtype=qnn_out_dtype,
+                    input_scale=1,
+                    output_scale=16,
+                    rounding=rounding,
+                    compute_dtype=compute_dtype,
                 )
-            else:
-                golden_output = np.repeat(
-                    [0, -1, -2, -3, -4, -5, -6, -7, -8], [2, 4, 4, 4, 4, 4, 4, 4, 2]
+
+                # Try positive values
+                # 8 corresponds to 0.5, resulting in 1
+                golden_data = np.arange(0, 32, 1).astype("int32")
+                golden_output = np.repeat([0, 1, 2], [8, 16, 8])
+                verify(mod, (golden_data, golden_output))
+
+                # Try negative values
+                # -8 corresponds to -0.5. For UPWARD, this is 0
+                golden_data = np.arange(0, -32, -1).astype("int32")
+                if rounding == "UPWARD":
+                    golden_output = np.repeat([0, -1, -2], [9, 16, 7])
+                else:
+                    golden_output = np.repeat([0, -1, -2], [8, 16, 8])
+                verify(mod, (golden_data, golden_output))
+
+                # Try a different scale
+                mod = get_mod(
+                    data_shape=(32,),
+                    data_dtype="int32",
+                    out_dtype=qnn_out_dtype,
+                    input_scale=1,
+                    output_scale=4,
+                    rounding=rounding,
                 )
-            verify(mod, (golden_data, golden_output))
+
+                # Try positive values
+                # 2I corresponds to 0.5, resulting in 1
+                golden_data = np.arange(0, 32, 1).astype("int32")
+                golden_output = np.repeat([0, 1, 2, 3, 4, 5, 6, 7, 8], [2, 4, 4, 4, 4, 4, 4, 4, 2])
+                verify(mod, (golden_data, golden_output))
+
+                # Try negative values
+                # -8 corresponds to -0.5. For UPWARD, this is 0
+                golden_data = np.arange(0, -32, -1).astype("int32")
+                if rounding == "UPWARD":
+                    golden_output = np.repeat(
+                        [0, -1, -2, -3, -4, -5, -6, -7, -8], [3, 4, 4, 4, 4, 4, 4, 4, 1]
+                    )
+                else:
+                    golden_output = np.repeat(
+                        [0, -1, -2, -3, -4, -5, -6, -7, -8], [2, 4, 4, 4, 4, 4, 4, 4, 2]
+                    )
+                verify(mod, (golden_data, golden_output))
 
             # Try uint8 out_dtype
             mod = get_mod(
@@ -208,74 +212,76 @@ def test_downscale():
 def test_upscale():
     for compute_dtype in compute_dtypes:
         for rounding in roundings:
-            mod = get_mod(
-                data_shape=(32,),
-                data_dtype="int32",
-                out_dtype="int8",
-                input_scale=2,
-                output_scale=1,
-                rounding=rounding,
-                compute_dtype=compute_dtype,
-            )
+            for qnn_out_dtype in out_dtypes:
+                mod = get_mod(
+                    data_shape=(32,),
+                    data_dtype="int32",
+                    out_dtype=qnn_out_dtype,
+                    input_scale=2,
+                    output_scale=1,
+                    rounding=rounding,
+                    compute_dtype=compute_dtype,
+                )
 
-            # Try positive values
-            # 8 corresponds to 0.5, resulting in 1
-            golden_data = np.arange(0, 32, 1).astype("int32")
-            golden_output = np.multiply(2, golden_data)
-            verify(mod, (golden_data, golden_output))
+                # Try positive values
+                # 8 corresponds to 0.5, resulting in 1
+                golden_data = np.arange(0, 32, 1).astype("int32")
+                golden_output = np.multiply(2, golden_data)
+                verify(mod, (golden_data, golden_output))
 
-            # Try negative values
-            # -8 corresponds to -0.5. For UPWARD, this is 0
-            golden_data = np.arange(0, -32, -1).astype("int32")
-            golden_output = np.multiply(2, golden_data)
-            verify(mod, (golden_data, golden_output))
+                # Try negative values
+                # -8 corresponds to -0.5. For UPWARD, this is 0
+                golden_data = np.arange(0, -32, -1).astype("int32")
+                golden_output = np.multiply(2, golden_data)
+                verify(mod, (golden_data, golden_output))
 
 
 def test_non_power_of_two():
     for compute_dtype in compute_dtypes:
         for rounding in roundings:
-            mod = get_mod(
-                data_shape=(32,),
-                data_dtype="int32",
-                out_dtype="int8",
-                input_scale=1,
-                output_scale=3,
-                rounding=rounding,
-                compute_dtype=compute_dtype,
-            )
+            for qnn_out_dtype in out_dtypes:
+                mod = get_mod(
+                    data_shape=(32,),
+                    data_dtype="int32",
+                    out_dtype=qnn_out_dtype,
+                    input_scale=1,
+                    output_scale=3,
+                    rounding=rounding,
+                    compute_dtype=compute_dtype,
+                )
 
-            # Try positive values
-            golden_data = np.multiply(np.arange(0, 32, 1).astype("int32"), 3)
-            golden_output = np.arange(0, 32, 1)
-            verify(mod, (golden_data, golden_output))
+                # Try positive values
+                golden_data = np.multiply(np.arange(0, 32, 1).astype("int32"), 3)
+                golden_output = np.arange(0, 32, 1)
+                verify(mod, (golden_data, golden_output))
 
-            # Try negative values
-            golden_data = np.multiply(np.arange(0, -32, -1).astype("int32"), 3)
-            golden_output = np.arange(0, -32, -1)
-            verify(mod, (golden_data, golden_output))
+                # Try negative values
+                golden_data = np.multiply(np.arange(0, -32, -1).astype("int32"), 3)
+                golden_output = np.arange(0, -32, -1)
+                verify(mod, (golden_data, golden_output))
 
-            # Try a different scale
-            mod = get_mod(
-                data_shape=(32,),
-                data_dtype="int32",
-                out_dtype="int8",
-                input_scale=3,
-                output_scale=1,
-                rounding=rounding,
-            )
+                # Try a different scale
+                mod = get_mod(
+                    data_shape=(32,),
+                    data_dtype="int32",
+                    out_dtype=qnn_out_dtype,
+                    input_scale=3,
+                    output_scale=1,
+                    rounding=rounding,
+                )
 
-            # Try positive values
-            golden_data = np.arange(0, 32, 1).astype("int32")
-            golden_output = np.multiply(golden_data, 3)
-            verify(mod, (golden_data, golden_output))
+                # Try positive values
+                golden_data = np.arange(0, 32, 1).astype("int32")
+                golden_output = np.multiply(golden_data, 3)
+                verify(mod, (golden_data, golden_output))
 
-            # Try negative values
-            golden_data = np.arange(0, -32, -1).astype("int32")
-            golden_output = np.multiply(golden_data, 3)
-            verify(mod, (golden_data, golden_output))
+                # Try negative values
+                golden_data = np.arange(0, -32, -1).astype("int32")
+                golden_output = np.multiply(golden_data, 3)
+                verify(mod, (golden_data, golden_output))
 
 
-def test_saturation():
+def test_saturation_int8():
     for compute_dtype in compute_dtypes:
         for rounding in roundings:
             mod = get_mod(
@@ -322,6 +328,70 @@ def test_saturation():
             verify(mod, (golden_data, golden_output))
 
 
+def test_saturation_int16():
+    for compute_dtype in compute_dtypes:
+        for rounding in roundings:
+            mod = get_mod(
+                data_shape=(16,),
+                data_dtype="int32",
+                out_dtype="int16",
+                input_scale=0.5,
+                output_scale=0.5,
+                rounding=rounding,
+                compute_dtype=compute_dtype,
+            )
+            golden_data = np.arange(0, 16, 1).astype("int32")
+            golden_data = np.add(32760, golden_data)
+            output = np.array(
+                [
+                    32760,
+                    32761,
+                    32762,
+                    32763,
+                    32764,
+                    32765,
+                    32766,
+                    32767,
+                    32767,
+                    32767,
+                    32767,
+                    32767,
+                    32767,
+                    32767,
+                    32767,
+                    32767,
+                ]
+            )
+            golden_output = output
+            verify(mod, (golden_data, golden_output))
+
+            # Try negative numbers
+            golden_data = np.arange(0, -16, -1).astype("int32")
+            golden_data = np.add(-32760, golden_data)
+            output = np.array(
+                [
+                    -32760,
+                    -32761,
+                    -32762,
+                    -32763,
+                    -32764,
+                    -32765,
+                    -32766,
+                    -32767,
+                    -32768,
+                    -32768,
+                    -32768,
+                    -32768,
+                    -32768,
+                    -32768,
+                    -32768,
+                    -32768,
+                ]
+            )
+            golden_output = output
+            verify(mod, (golden_data, golden_output))
+
+
 def test_zero_point():
     # Output zero point
     for compute_dtype in compute_dtypes:
@@ -357,31 +427,32 @@ def test_zero_point():
     # Input zero point
     for compute_dtype in compute_dtypes:
         for rounding in roundings:
-            mod = get_mod(
-                data_shape=(32,),
-                data_dtype="int32",
-                out_dtype="int8",
-                input_scale=1,
-                output_scale=16,
-                input_zero_point=16,
-                rounding=rounding,
-                compute_dtype=compute_dtype,
-            )
+            for qnn_out_dtype in out_dtypes:
+                mod = get_mod(
+                    data_shape=(32,),
+                    data_dtype="int32",
+                    out_dtype=qnn_out_dtype,
+                    input_scale=1,
+                    output_scale=16,
+                    input_zero_point=16,
+                    rounding=rounding,
+                    compute_dtype=compute_dtype,
+                )
 
-            # Try positive values
-            golden_data = np.arange(32, 64, 1).astype("int32")
-            golden_output = np.repeat([2, 3, 4], [8, 16, 8])
-            golden_output = np.subtract(golden_output, 1)
-            verify(mod, (golden_data, golden_output))
+                # Try positive values
+                golden_data = np.arange(32, 64, 1).astype("int32")
+                golden_output = np.repeat([2, 3, 4], [8, 16, 8])
+                golden_output = np.subtract(golden_output, 1)
+                verify(mod, (golden_data, golden_output))
 
-            # Try negative values
-            golden_data = np.arange(-32, -64, -1).astype("int32")
-            if rounding == "UPWARD":
-                golden_output = np.repeat([-2, -3, -4], [9, 16, 7])
-            else:
-                golden_output = np.repeat([-2, -3, -4], [8, 16, 8])
-            golden_output = np.subtract(golden_output, 1)
-            verify(mod, (golden_data, golden_output))
+                # Try negative values
+                golden_data = np.arange(-32, -64, -1).astype("int32")
+                if rounding == "UPWARD":
+                    golden_output = np.repeat([-2, -3, -4], [9, 16, 7])
+                else:
+                    golden_output = np.repeat([-2, -3, -4], [8, 16, 8])
+                golden_output = np.subtract(golden_output, 1)
+                verify(mod, (golden_data, golden_output))
 
 
 def test_per_channel_same_scale():
@@ -390,17 +461,18 @@ def test_per_channel_same_scale():
     golden_output = golden_data
     for compute_dtype in compute_dtypes:
         for rounding in roundings:
-            mod = get_mod(
-                data_shape=(5, 2),
-                data_dtype="int32",
-                out_dtype="int8",
-                input_scale=[0.5, 0.5],
-                output_scale=0.5,
-                axis=1,
-                rounding=rounding,
-                compute_dtype=compute_dtype,
-            )
-            verify(mod, (golden_data, golden_output))
+            for qnn_out_dtype in out_dtypes:
+                mod = get_mod(
+                    data_shape=(5, 2),
+                    data_dtype="int32",
+                    out_dtype=qnn_out_dtype,
+                    input_scale=[0.5, 0.5],
+                    output_scale=0.5,
+                    axis=1,
+                    rounding=rounding,
+                    compute_dtype=compute_dtype,
+                )
+                verify(mod, (golden_data, golden_output))
 
     # Change axis
     golden_data = np.arange(-10, 10, 1).astype("int32").reshape((2, 2, 5))
@@ -480,79 +552,83 @@ def test_per_channel_different_scale():
 
 
 def test_default_cfg_and_no_args():
-    mod = get_mod(
-        data_shape=(32,),
-        data_dtype="int32",
-        out_dtype="int8",
-        input_scale=1,
-        output_scale=16,
-    )
-    golden_data = np.arange(0, -32, -1).astype("int32")
-    golden_output = np.repeat([0, -1, -2], [9, 16, 7])
-    verify(mod, (golden_data, golden_output))
+    for qnn_out_dtype in out_dtypes:
+        mod = get_mod(
+            data_shape=(32,),
+            data_dtype="int32",
+            out_dtype=qnn_out_dtype,
+            input_scale=1,
+            output_scale=16,
+        )
+        golden_data = np.arange(0, -32, -1).astype("int32")
+        golden_output = np.repeat([0, -1, -2], [9, 16, 7])
+        verify(mod, (golden_data, golden_output))
 
 
 def test_non_default_cfg_and_no_args():
     for rounding_cfg in roundings:
-        with relay.qnn.op.requantize_config(rounding=rounding_cfg):
-            mod = get_mod(
-                data_shape=(32,),
-                data_dtype="int32",
-                out_dtype="int8",
-                input_scale=1,
-                output_scale=16,
-            )
+        for qnn_out_dtype in out_dtypes:
+            with relay.qnn.op.requantize_config(rounding=rounding_cfg):
+                mod = get_mod(
+                    data_shape=(32,),
+                    data_dtype="int32",
+                    out_dtype=qnn_out_dtype,
+                    input_scale=1,
+                    output_scale=16,
+                )
 
-            golden_data = np.arange(0, -32, -1).astype("int32")
+                golden_data = np.arange(0, -32, -1).astype("int32")
 
-            if rounding_cfg == "UPWARD":
-                golden_output = np.repeat([0, -1, -2], [9, 16, 7])
-            else:
-                golden_output = np.repeat([0, -1, -2], [8, 16, 8])
-            verify(mod, (golden_data, golden_output))
+                if rounding_cfg == "UPWARD":
+                    golden_output = np.repeat([0, -1, -2], [9, 16, 7])
+                else:
+                    golden_output = np.repeat([0, -1, -2], [8, 16, 8])
+                verify(mod, (golden_data, golden_output))
 
 
 def test_default_cfg_and_args():
     for rounding in roundings:
-        with relay.qnn.op.requantize_config(rounding="UPWARD"):
-            mod = get_mod(
-                data_shape=(32,),
-                data_dtype="int32",
-                out_dtype="int8",
-                input_scale=1,
-                output_scale=16,
-                rounding=rounding,
-            )
+        for qnn_out_dtype in out_dtypes:
+            with relay.qnn.op.requantize_config(rounding="UPWARD"):
+                mod = get_mod(
+                    data_shape=(32,),
+                    data_dtype="int32",
+                    out_dtype=qnn_out_dtype,
+                    input_scale=1,
+                    output_scale=16,
+                    rounding=rounding,
+                )
 
-            golden_data = np.arange(0, -32, -1).astype("int32")
+                golden_data = np.arange(0, -32, -1).astype("int32")
 
-            if rounding == "UPWARD":
-                golden_output = np.repeat([0, -1, -2], [9, 16, 7])
-            else:
-                golden_output = np.repeat([0, -1, -2], [8, 16, 8])
-            verify(mod, (golden_data, golden_output))
+                if rounding == "UPWARD":
+                    golden_output = np.repeat([0, -1, -2], [9, 16, 7])
+                else:
+                    golden_output = np.repeat([0, -1, -2], [8, 16, 8])
+                verify(mod, (golden_data, golden_output))
 
 
 def test_non_default_cfg_and_args():
     for rounding_arg in roundings:
         for rounding_cfg in roundings:
-            with relay.qnn.op.requantize_config(rounding=rounding_cfg):
-                mod = get_mod(
-                    data_shape=(32,),
-                    data_dtype="int32",
-                    out_dtype="int8",
-                    input_scale=1,
-                    output_scale=16,
-                    rounding=rounding_arg,
-                )
+            for qnn_out_dtype in out_dtypes:
+                with relay.qnn.op.requantize_config(rounding=rounding_cfg):
+                    mod = get_mod(
+                        data_shape=(32,),
+                        data_dtype="int32",
+                        out_dtype=qnn_out_dtype,
+                        input_scale=1,
+                        output_scale=16,
+                        rounding=rounding_arg,
+                    )
 
-                golden_data = np.arange(0, -32, -1).astype("int32")
+                    golden_data = np.arange(0, -32, -1).astype("int32")
 
-                if rounding_arg == "UPWARD":
-                    golden_output = np.repeat([0, -1, -2], [9, 16, 7])
-                else:
-                    golden_output = np.repeat([0, -1, -2], [8, 16, 8])
-                verify(mod, (golden_data, golden_output))
+                    if rounding_arg == "UPWARD":
+                        golden_output = np.repeat([0, -1, -2], [9, 16, 7])
+                    else:
+                        golden_output = np.repeat([0, -1, -2], [8, 16, 8])
+                    verify(mod, (golden_data, golden_output))
 
 
 if __name__ == "__main__":
@@ -561,7 +637,8 @@ if __name__ == "__main__":
     test_downscale()
     test_upscale()
     test_non_power_of_two()
-    test_saturation()
+    test_saturation_int8()
+    test_saturation_int16()
     test_zero_point()
     test_per_channel_same_scale()
     test_per_channel_different_scale()

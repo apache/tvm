@@ -17,6 +17,8 @@
 import tvm
 import tvm.testing
 from tvm import te
+from tvm.script import tir as T, ir as I
+
 import numpy as np
 
 
@@ -122,8 +124,20 @@ def test_vm_parallel():
     run_jit(mod, check)
 
 
+def test_codegen_decl_buffer():
+    """The codegen should accept DeclBuffer nodes in its input"""
+
+    @I.ir_module
+    class mod:
+        @T.prim_func
+        def kernel(A_data: T.handle("float32")):
+            T.func_attr({"global_symbol": "kernel"})
+            A_buf = T.decl_buffer([256], dtype="float32", scope="global", data=A_data)
+
+    target = tvm.target.Target("stackvm")
+    stackvm_codegen = tvm.get_global_func("target.build.stackvm")
+    stackvm_codegen(mod, target)
+
+
 if __name__ == "__main__":
-    test_vm_parallel()
-    test_stack_vm_loop()
-    test_stack_vm_basic()
-    test_stack_vm_cond()
+    tvm.testing.main()

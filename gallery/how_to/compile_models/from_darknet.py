@@ -27,8 +27,9 @@ Please install CFFI and CV2 before executing this script
 
 .. code-block:: bash
 
-  pip install cffi
-  pip install opencv-python
+  %%shell
+  pip install cffi opencv-python
+
 """
 
 # numpy and matplotlib

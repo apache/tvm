@@ -17,7 +17,7 @@
 """Structured error classes in TVM.
 
 Each error class takes an error message as its input.
-See the example sections for for suggested message conventions.
+See the example sections for suggested message conventions.
 To make the code more readable, we recommended developers to
 copy the examples and raise errors with the same message convention.
 
@@ -25,7 +25,7 @@ copy the examples and raise errors with the same message convention.
 
     Please also refer to :ref:`error-handling-guide`.
 """
-from tvm._ffi.base import register_error, TVMError
+from tvm._ffi.base import TVMError, register_error
 
 
 @register_error
@@ -46,12 +46,6 @@ class InternalError(TVMError):
     """
 
     def __init__(self, msg):
-        # Patch up additional hint message.
-        if "TVM hint:" not in msg:
-            msg += (
-                "\nTVM hint: You hit an internal error. "
-                + "Please open a thread on https://discuss.tvm.apache.org/ to report it."
-            )
         super(InternalError, self).__init__(msg)
 
 
@@ -65,6 +59,11 @@ register_error("IndexError", IndexError)
 @register_error
 class RPCError(TVMError):
     """Error thrown by the remote server handling the RPC call."""
+
+
+@register_error
+class RPCSessionTimeoutError(RPCError, TimeoutError):
+    """Error thrown by the remote server when the RPC session has expired."""
 
 
 @register_error

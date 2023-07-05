@@ -15,8 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 """Meta Schedule Postproc."""
+from typing import TYPE_CHECKING, Callable, List
 
-from typing import TYPE_CHECKING, Callable
+# isort: off
+from typing_extensions import Literal
+
+# isort: on
 
 from tvm._ffi import register_object
 from tvm.runtime import Object
@@ -50,7 +54,7 @@ class Postproc(Object):
 
         Parameters
         ----------
-        sch : Schedule
+        sch : tvm.tir.Schedule
             The schedule to be post processed.
 
         Returns
@@ -59,6 +63,46 @@ class Postproc(Object):
             Whether the postprocessor was successfully applied.
         """
         return _ffi_api.PostprocApply(self, sch)  # type: ignore # pylint: disable=no-member
+
+    def clone(self) -> "Postproc":
+        """Clone the postprocessor.
+
+        Returns
+        -------
+        cloned_postproc : Postproc
+            The cloned postprocessor.
+        """
+        return _ffi_api.PostprocClone(self)  # type: ignore # pylint: disable=no-member
+
+    @staticmethod
+    def create(kind: Literal["llvm", "cuda", "cuda-tensorcore", "hexagon"]) -> List["Postproc"]:
+        """Create a list of default postprocessors.
+
+        Parameters
+        ----------
+        kind : Literal["llvm", "cuda", "cuda-tensorcore", "hexagon"]
+            The kind of the postprocessors.
+
+        Returns
+        -------
+        postprocs : List[Mutator]
+            The list of postprocessors.
+        """
+        funcs = {
+            # pylint: disable=no-member
+            "llvm": _ffi_api.PostprocDefaultLLVM,  # type: ignore
+            "cuda": _ffi_api.PostprocDefaultCUDA,  # type: ignore
+            "cuda-tensorcore": _ffi_api.PostprocDefaultCUDATensorCore,  # type: ignore
+            "hexagon": _ffi_api.PostprocDefaultHexagon,  # type: ignore
+            # pylint: enable=no-member
+        }
+        for k, v in funcs.items():
+            if k == kind:
+                return v()
+        raise ValueError(f"Unsupported kind {kind} for postproc creation.")
+
+
+create = Postproc.create  # pylint: disable=invalid-name
 
 
 @register_object("meta_schedule.PyPostproc")
@@ -74,6 +118,7 @@ class _PyPostproc(Postproc):
         self,
         f_initialize_with_tune_context: Callable = None,
         f_apply: Callable = None,
+        f_clone: Callable = None,
         f_as_string: Callable = None,
     ):
         """Constructor."""
@@ -82,6 +127,7 @@ class _PyPostproc(Postproc):
             _ffi_api.PostprocPyPostproc,  # type: ignore # pylint: disable=no-member
             f_initialize_with_tune_context,
             f_apply,
+            f_clone,
             f_as_string,
         )
 
@@ -96,7 +142,7 @@ class PyPostproc:
 
     _tvm_metadata = {
         "cls": _PyPostproc,
-        "methods": ["_initialize_with_tune_context", "apply", "__str__"],
+        "methods": ["_initialize_with_tune_context", "apply", "clone", "__str__"],
     }
 
     def _initialize_with_tune_context(self, context: "TuneContext") -> None:
@@ -121,6 +167,16 @@ class PyPostproc:
         -------
         result : bool
             Whether the postprocessor was successfully applied.
+        """
+        raise NotImplementedError
+
+    def clone(self) -> Postproc:
+        """Clone the postprocessor.
+
+        Returns
+        -------
+        cloned_postproc : Postproc
+            The cloned postprocessor.
         """
         raise NotImplementedError
 

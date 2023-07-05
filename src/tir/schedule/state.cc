@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "./utils.h"
+#include <tvm/arith/int_set.h>
 
+#include "./utils.h"
 namespace tvm {
 namespace tir {
 
@@ -44,13 +45,10 @@ Array<arith::IntSet> AnalyzeRegionUpperBound(const BufferRegion& region,        
       /*low_inclusive=*/dom_low_inclusive,
       /*high_exclusive=*/dom_high_exclusive,
       /*extra_relax_scope=*/runtime::StorageScope::Create(region->buffer.scope()));
-  if (Optional<Array<arith::IntSet>> result = EstimateRegionLowerBound(
-          /*region=*/region->region,
-          /*var_dom=*/var_dom,
-          /*predicate=*/predicate, /*analyzer=*/analyzer)) {
-    return result.value();
-  }
-  return arith::EvalSet(region->region, AsIntSet(var_dom));
+  return EstimateRegionUpperBound(
+      /*region=*/region->region,
+      /*var_dom=*/var_dom,
+      /*predicate=*/predicate, /*analyzer=*/analyzer);
 }
 
 /*!
@@ -101,6 +99,9 @@ bool ProducerCoversConsumer(const Array<PrimExpr>& buffer_shape,
     if (produced_region[i].IsNothing()) {
       return false;
     }
+    if (consumed_region[i].IsNothing()) {
+      continue;
+    }
     arith::IntSet produced =
         arith::IntSet::Interval(analyzer->canonical_simplify(produced_region[i].min()),
                                 analyzer->canonical_simplify(produced_region[i].max()));
@@ -110,48 +111,17 @@ bool ProducerCoversConsumer(const Array<PrimExpr>& buffer_shape,
     produced = arith::Intersect({produced, buffer_size});
     consumed = arith::Intersect({consumed, buffer_size});
 
+    produced = arith::IntSet::Interval(analyzer->Simplify(produced.min()),
+                                       analyzer->Simplify(produced.max()));
+    consumed = arith::IntSet::Interval(analyzer->Simplify(consumed.min()),
+                                       analyzer->Simplify(consumed.max()));
+
     if (!analyzer->CanProve((analyzer->canonical_simplify(produced.min() - consumed.min()) <= 0) &&
                             (analyzer->canonical_simplify(consumed.max() - produced.max()) <= 0))) {
       return false;
     }
   }
   return true;
-}
-
-/*!
- * \brief Set the `StmtSRefNode::seq_index` field for stmt
- * \param self The schedule class
- * \param stmt The statement, or the realize node of the statement whose sref to be set
- * \param seq_index The seq_index to be set
- * \note The method is NOP for statements that are not schedulable, i.e. not For or Block
- */
-void SetSeqIndex(ScheduleStateNode* self, const Stmt& stmt, int seq_index) {
-  if (const auto* realize = stmt.as<BlockRealizeNode>()) {
-    const BlockNode* block = realize->block.get();
-    ICHECK(self->stmt2ref.count(block));
-    self->stmt2ref.at(block)->seq_index = seq_index;
-  } else if (const auto* block = stmt.as<BlockNode>()) {
-    ICHECK(self->stmt2ref.count(block));
-    self->stmt2ref.at(block)->seq_index = seq_index;
-  } else if (const auto* loop = stmt.as<ForNode>()) {
-    ICHECK(self->stmt2ref.count(loop));
-    self->stmt2ref.at(loop)->seq_index = seq_index;
-  } else {
-    // do nothing
-  }
-}
-
-/*!
- * \brief Update seq_index of the children of a SeqStmt
- * \param self The schedule class
- * \param seq_stmt The SeqStmt whose children need updating
- */
-void SetSeqIndexInChildren(ScheduleStateNode* self, const SeqStmtNode* seq_stmt) {
-  int i = 0;
-  for (const Stmt& stmt : seq_stmt->seq) {
-    SetSeqIndex(self, stmt, i);
-    ++i;
-  }
 }
 
 /*!
@@ -184,7 +154,7 @@ class BlockInfoCollector : private StmtVisitor {
  private:
   explicit BlockInfoCollector(ScheduleStateNode* self)
       : self_(self), srefs_{}, block2realize_{}, block_frames_{} {
-    block_frames_.emplace({});
+    block_frames_.emplace_back();
   }
 
   /*!
@@ -210,7 +180,7 @@ class BlockInfoCollector : private StmtVisitor {
     if (is_root_block) {
       // If the block doesn't have outer loops and BlockRealize,
       // then we set the affine binding flag as true only if the block has no block vars
-      const BlockNode* block = TVM_SREF_TO_BLOCK(block, scope_root);
+      const BlockNode* block = TVM_SREF_TO_BLOCK(scope_root);
       if (block->iter_vars.empty()) info.affine_binding = true;
     } else {
       info.affine_binding =
@@ -221,8 +191,7 @@ class BlockInfoCollector : private StmtVisitor {
     // Set `region_cover` to true, will be updated on its scope block
     info.region_cover = true;
     // Set `stage_pipeline` and `region_cover` for its intermediate children
-    info.scope->stage_pipeline =
-        CheckRegionCoverAndStagePipeline(info, scope_root, child_block_srefs);
+    info.stage_pipeline = CheckRegionCoverAndStagePipeline(info, scope_root, child_block_srefs);
   }
 
   bool CheckRegionCoverAndStagePipeline(const BlockInfo& info, const StmtSRef& scope_root,
@@ -235,7 +204,7 @@ class BlockInfoCollector : private StmtVisitor {
     block_reads_unbound.reserve(child_block_srefs.size());
     block_writes_unbound.reserve(child_block_srefs.size());
     for (const StmtSRef& block_sref : child_block_srefs) {
-      const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+      const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
       Map<Var, PrimExpr> binding = GetBindings(block2realize_.at(block));
       // Step 1.1. Unbind read regions
       Array<BufferRegion> reads;
@@ -256,7 +225,7 @@ class BlockInfoCollector : private StmtVisitor {
     for (const auto& kv : info.scope->dst2deps) {
       const StmtSRef& consumer_block_sref = kv.first;
       const Array<Dependency>& deps = kv.second;
-      const BlockNode* consumer_block = TVM_SREF_TO_BLOCK(consumer_block, consumer_block_sref);
+      const BlockNode* consumer_block = TVM_SREF_TO_BLOCK(consumer_block_sref);
       const BlockRealize& consumer_realize = block2realize_.at(consumer_block);
       bool& region_cover = self_->block_info.at(consumer_block_sref).region_cover = true;
       // Step 2.1. Extract the path to the scope root
@@ -343,6 +312,7 @@ class BlockInfoCollector : private StmtVisitor {
               if (!ProducerCoversConsumer(buffer->shape, produced_region, consumed_region,
                                           &analyzer_)) {
                 region_cover = false;
+                self_->block_info.at(consumer_block_sref).region_cover = region_cover;
                 break;
               }
             }
@@ -379,7 +349,7 @@ class BlockInfoCollector : private StmtVisitor {
   void VisitStmt_(const SeqStmtNode* seq_stmt) final {
     // Set `seq_index` information for SeqStmtNode
     StmtVisitor::VisitStmt_(seq_stmt);
-    SetSeqIndexInChildren(self_, seq_stmt);
+    SetSeqIndexInChildren(self_->stmt2ref, seq_stmt);
   }
 
   /*! \brief The ScheduleStateNode we are operating on */
@@ -394,91 +364,31 @@ class BlockInfoCollector : private StmtVisitor {
   arith::Analyzer analyzer_;
 };
 
-/*! \brief A helper class to create a new ScheduleStateNode from an IRModule */
-class StateCreator : private StmtVisitor {
- public:
-  /*!
-   * \brief The entry function
-   * \param self The schedule state to be completed
-   */
-  static ObjectPtr<ScheduleStateNode> Create(IRModule mod, int debug_mask) {
-    ObjectPtr<ScheduleStateNode> n = make_object<ScheduleStateNode>();
-    ScheduleStateNode* self = n.get();
-    // Set `n->mod`
-    n->mod = std::move(mod);
-    // Set `n->debug_mask`
-    n->debug_mask = debug_mask;
-    // Set `n->stmt2ref` and `n->block_info`
-    StateCreator creator(self);
-    for (const auto& kv : n->mod->functions) {
-      const BaseFunc& base_func = kv.second;
-      if (const auto* func = base_func.as<PrimFuncNode>()) {
-        creator.VisitStmt(func->body);
-        BlockInfoCollector::Collect(self, func->body);
-      }
-    }
-    return n;
-  }
-
- private:
-  explicit StateCreator(ScheduleStateNode* self) : self_(self) {}
-
-  /*!
-   * \brief Add a new statement to the stack, which becomes the current scope
-   * \param stmt A for-loop statement or a block statement
-   * \return A sref to the stmt
-   */
-  void PushSRef(const StmtNode* stmt) {
-    if (srefs_.empty()) {
-      srefs_.push_back(
-          StmtSRef(stmt,
-                   /*parent=*/nullptr,
-                   /*seq_index=*/-1));  // `seq_index` will be set properly in SetSeqIndex
-    } else {
-      StmtSRefNode* parent = srefs_.back().get();
-      srefs_.push_back(
-          StmtSRef(stmt, parent,
-                   /*seq_index=*/-1));  // `seq_index` will be set properly in SetSeqIndex
-    }
-  }
-
-  /*! \brief Pop the top of the scope and record it in stmt2ref map */
-  void PopAndRecordSRef() {
-    StmtSRef sref = std::move(srefs_.back());
-    self_->stmt2ref[sref->stmt] = sref;
-    srefs_.pop_back();
-  }
-
-  void VisitStmt_(const ForNode* loop) final {
-    PushSRef(loop);
-    VisitStmt(loop->body);
-    PopAndRecordSRef();
-  }
-
-  void VisitStmt_(const BlockRealizeNode* realize) final {
-    const BlockNode* block = realize->block.get();
-    PushSRef(block);
-    VisitStmt(block->body);  // `block->init` is not visited
-    PopAndRecordSRef();
-  }
-
-  void VisitStmt_(const SeqStmtNode* seq_stmt) final {
-    // Set `seq_index` information for SeqStmtNode
-    StmtVisitor::VisitStmt_(seq_stmt);
-    SetSeqIndexInChildren(self_, seq_stmt);
-  }
-
-  /*! \brief The result ScheduleStateNode */
-  ScheduleStateNode* self_;
-  /*! \brief The stack frame used to indicate the current scope */
-  std::vector<StmtSRef> srefs_;
-};
-
 /**************** Constructor ****************/
 
-ScheduleState::ScheduleState(IRModule mod, int debug_mask) {
+ScheduleState::ScheduleState(IRModule mod, int debug_mask, bool enable_check) {
   CHECK_GE(debug_mask, -1) << "ValueError: negative `debug_mask` other than -1 is not supported";
-  data_ = StateCreator::Create(mod, debug_mask);
+  ObjectPtr<ScheduleStateNode> n = make_object<ScheduleStateNode>();
+  ScheduleStateNode* self = n.get();
+  // Set `n->mod`
+  n->mod = std::move(mod);
+  // Set `n->debug_mask`
+  n->debug_mask = debug_mask;
+  // Set `n->enable_check`
+  n->enable_check = enable_check;
+  std::unordered_map<const StmtNode*, StmtSRef> stmt2ref;
+  // Set `n->stmt2ref`
+  self->stmt2ref = SRefTreeCreator::Create(self->mod);
+  // Set `n->block_info`
+  for (const auto& kv : n->mod->functions) {
+    const BaseFunc& base_func = kv.second;
+    if (auto opt = base_func.as<PrimFunc>()) {
+      auto func = opt.value();
+      VerifyWellFormed(func);
+      BlockInfoCollector::Collect(self, func->body);
+    }
+  }
+  data_ = std::move(n);
 }
 
 /**************** Replace ****************/
@@ -657,10 +567,11 @@ class SRefTreePruner : public StmtVisitor {
         << GetRef<Block>(op);
     StmtSRef& sref = it->second;
     // Detect reuse
-    auto reuse_it = reuse_info_.block_sref_reuse.find(op);
-    if (reuse_it != reuse_info_.block_sref_reuse.end()) {
+    const auto& sref_reuse = reuse_info_.block_sref_reuse;
+    if (auto reuse_it = sref_reuse.find(op); reuse_it != sref_reuse.end()) {
+      const BlockNode* to_reuse = reuse_it->second;
       // sref can be reused
-      reused_srefs_.emplace(reuse_it->second, std::move(sref));
+      reused_srefs_.emplace(to_reuse, std::move(sref));
     } else {
       sref->Reset();
       self_->block_info.erase(sref);
@@ -765,7 +676,7 @@ class SRefUpdater : public StmtVisitor {
 
   void VisitStmt_(const SeqStmtNode* seq_stmt) final {
     StmtVisitor::VisitStmt_(seq_stmt);
-    SetSeqIndexInChildren(self_.get(), seq_stmt);
+    SetSeqIndexInChildren(self_->stmt2ref, seq_stmt);
   }
 
   void UpdateBlockInfo(const StmtSRef& block_sref) {
@@ -780,11 +691,11 @@ class SRefUpdater : public StmtVisitor {
       BlockInfo& info = insert_result.first->second;
       info.affine_binding = false;
       info.region_cover = false;
-      info.scope->stage_pipeline = false;
+      info.stage_pipeline = false;
     } else {
       // Insertion didn't take place, because the entry has been there before.
       // In this case, we assume that flags are still valid so intentionally keep them unchanged
-      new_info.scope->stage_pipeline = info.scope->stage_pipeline;
+      new_info.stage_pipeline = info.stage_pipeline;
       info.scope = std::move(new_info.scope);
     }
   }
@@ -852,7 +763,7 @@ class ChildReplacer : private StmtMutator {
       } else if (const auto* realize = stmt.as<BlockRealizeNode>()) {
         // Case 2. stmt is BlockRealize, src_stmt is Block
         if (realize->block.get() == src_stmt) {
-          const auto* tgt_block = TVM_TYPE_AS(tgt_block, tgt_stmt_, BlockNode);
+          const auto* tgt_block = TVM_TYPE_AS(tgt_stmt_, BlockNode);
           ObjectPtr<BlockRealizeNode> new_realize = make_object<BlockRealizeNode>(*realize);
           new_realize->block = GetRef<Block>(tgt_block);
           new_stmt = BlockRealize(std::move(new_realize));
@@ -1005,7 +916,7 @@ void ScheduleStateNode::Replace(const tir::StmtSRef& _src_sref, const Stmt& tgt_
       // As the invariance of SRefUpdater,
       // the `seq_index` of the root of `tgt_stmt` is set as -1,
       // which might be incorrect
-      SetSeqIndex(this, child_tgt_stmt, child_sref->seq_index);
+      SetSeqIndex(this->stmt2ref, child_tgt_stmt, child_sref->seq_index);
     } else {
       // Point `child_sref` to `child_tgt_stmt`
       UpdateSRef(this, child_sref, child_tgt_stmt.get());
@@ -1045,9 +956,9 @@ void ScheduleStateNode::Replace(const tir::StmtSRef& _src_sref, const Stmt& tgt_
     // If `g_func` was unique, after the 3 lines above:
     //   `ref_new_func` points to the same unique function that `g_func` points to
     // Update the body of the function the sref belongs to Assign
-    const auto* realize = TVM_TYPE_AS(realize, g_func->body, BlockRealizeNode);
+    const auto* realize = TVM_TYPE_AS(g_func->body, BlockRealizeNode);
     // Make `child_tgt_stmt` the root block
-    const auto* child_block = TVM_TYPE_AS(child_block, child_tgt_stmt, BlockNode);
+    const auto* child_block = TVM_TYPE_AS(child_tgt_stmt, BlockNode);
     ObjectPtr<BlockRealizeNode> new_realize = make_object<BlockRealizeNode>(*realize);
     new_realize->block = GetRef<Block>(child_block);
     new_func->body = BlockRealize(std::move(new_realize));
@@ -1079,7 +990,7 @@ void ScheduleStateNode::DebugVerify() const {
 /**************** BlockInfo-related ****************/
 
 BlockInfo ScheduleStateNode::GetBlockInfo(const StmtSRef& block_sref) const {
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  TVM_SREF_TO_BLOCK(block_sref);
   auto it = this->block_info.find(block_sref);
   CHECK(it != this->block_info.end())
       << "IndexError: Cannot find the corresponding BlockScope to the block sref:\n"
@@ -1095,15 +1006,15 @@ TVM_DLL Array<Bool> GetCachedFlags(const ScheduleState& self, const StmtSRef& bl
   const BlockInfo& info = self->GetBlockInfo(block_sref);
   return {Bool(info.affine_binding),  //
           Bool(info.region_cover),    //
-          Bool(info.scope->stage_pipeline)};
+          Bool(info.stage_pipeline)};
 }
 
 /**************** FFI ****************/
 
 TVM_REGISTER_NODE_TYPE(ScheduleStateNode);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleState")
-    .set_body_typed([](IRModule mod, int debug_mask) -> ScheduleState {
-      return ScheduleState(mod, debug_mask);
+    .set_body_typed([](IRModule mod, int debug_mask, bool enable_check) -> ScheduleState {
+      return ScheduleState(mod, debug_mask, enable_check);
     });
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleStateGetBlockScope")
     .set_body_method<ScheduleState>(&ScheduleStateNode::GetBlockScope);

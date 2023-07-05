@@ -24,6 +24,7 @@
 #ifndef TVM_RUNTIME_CONTAINER_STRING_H_
 #define TVM_RUNTIME_CONTAINER_STRING_H_
 
+#include <dmlc/endian.h>
 #include <dmlc/logging.h>
 #include <tvm/runtime/container/base.h>
 #include <tvm/runtime/logging.h>
@@ -36,43 +37,11 @@
 #include <initializer_list>
 #include <memory>
 #include <string>
+#include <string_view>
+#include <type_traits>
 #include <unordered_map>
 #include <utility>
-// We use c++14 std::experimental::string_view for optimizing hash computation
-// only right now, its usage is limited in this file. Any broader usage of
-// std::experiment in our core codebase is discouraged and needs community
-// discussion for each use case. Reference for feature test macros of
-// string_view:
-// https://isocpp.org/std/standing-documents/sd-6-sg10-feature-test-recommendations
-// https://en.cppreference.com/w/User:D41D8CD98F/feature_testing_macros
-#if defined(__cpp_lib_experimental_string_view) && __cpp_lib_experimental_string_view >= 201411
-#define TVM_USE_CXX14_STRING_VIEW_HASH 1
-#else
-#define TVM_USE_CXX14_STRING_VIEW_HASH 0
-#endif
-
-// Tested with clang version 9.0.1 and c++17. It will detect string_view support
-// correctly.
-#if defined(__cpp_lib_string_view) && __cpp_lib_string_view >= 201606
-#define TVM_USE_CXX17_STRING_VIEW_HASH 1
-#else
-#define TVM_USE_CXX17_STRING_VIEW_HASH 0
-#endif
-
-#if TVM_USE_CXX17_STRING_VIEW_HASH
-#include <string_view>
-#elif TVM_USE_CXX14_STRING_VIEW_HASH
-#include <experimental/string_view>
-#endif
-
-#include <type_traits>
-#include <utility>
 #include <vector>
-
-namespace llvm {
-// String to llvm object compatibility.
-class StringRef;
-}  // namespace llvm
 
 namespace tvm {
 namespace runtime {
@@ -266,14 +235,6 @@ class String : public ObjectRef {
    */
   operator std::string() const { return std::string{get()->data, size()}; }
 
-  // LLVM compatibility function, implemented in src/target/llvm/llvm_common.h
-  /*!
-   * \brief Convert String to an llvm::StringRef object
-   *
-   * \return llvm::StringRef
-   */
-  inline operator llvm::StringRef() const;
-
   /*!
    * \brief Check if a TVMArgValue can be converted to String, i.e. it can be std::string or String
    * \param val The value to be checked
@@ -287,16 +248,70 @@ class String : public ObjectRef {
    * \param size The size of the bytes.
    * \return the hash value.
    */
-  static size_t HashBytes(const char* data, size_t size) {
-    // This function falls back to string copy with c++11 compiler and is
-    // recommended to be compiled with c++14
-#if TVM_USE_CXX17_STRING_VIEW_HASH
-    return std::hash<std::string_view>()(std::string_view(data, size));
-#elif TVM_USE_CXX14_STRING_VIEW_HASH
-    return std::hash<std::experimental::string_view>()(std::experimental::string_view(data, size));
-#else
-    return std::hash<std::string>()(std::string(data, size));
-#endif
+  static uint64_t StableHashBytes(const char* data, size_t size) {
+    const constexpr uint64_t kMultiplier = 1099511628211ULL;
+    const constexpr uint64_t kMod = 2147483647ULL;
+    union Union {
+      uint8_t a[8];
+      uint64_t b;
+    } u;
+    static_assert(sizeof(Union) == sizeof(uint64_t), "sizeof(Union) != sizeof(uint64_t)");
+    const char* it = data;
+    const char* end = it + size;
+    uint64_t result = 0;
+    for (; it + 8 <= end; it += 8) {
+      if (DMLC_IO_NO_ENDIAN_SWAP) {
+        u.a[0] = it[0];
+        u.a[1] = it[1];
+        u.a[2] = it[2];
+        u.a[3] = it[3];
+        u.a[4] = it[4];
+        u.a[5] = it[5];
+        u.a[6] = it[6];
+        u.a[7] = it[7];
+      } else {
+        u.a[0] = it[7];
+        u.a[1] = it[6];
+        u.a[2] = it[5];
+        u.a[3] = it[4];
+        u.a[4] = it[3];
+        u.a[5] = it[2];
+        u.a[6] = it[1];
+        u.a[7] = it[0];
+      }
+      result = (result * kMultiplier + u.b) % kMod;
+    }
+    if (it < end) {
+      u.b = 0;
+      uint8_t* a = u.a;
+      if (it + 4 <= end) {
+        a[0] = it[0];
+        a[1] = it[1];
+        a[2] = it[2];
+        a[3] = it[3];
+        it += 4;
+        a += 4;
+      }
+      if (it + 2 <= end) {
+        a[0] = it[0];
+        a[1] = it[1];
+        it += 2;
+        a += 2;
+      }
+      if (it + 1 <= end) {
+        a[0] = it[0];
+        it += 1;
+        a += 1;
+      }
+      if (!DMLC_IO_NO_ENDIAN_SWAP) {
+        std::swap(u.a[0], u.a[7]);
+        std::swap(u.a[1], u.a[6]);
+        std::swap(u.a[2], u.a[5]);
+        std::swap(u.a[3], u.a[4]);
+      }
+      result = (result * kMultiplier + u.b) % kMod;
+    }
+    return result;
   }
 
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(String, ObjectRef, StringObj);
@@ -494,7 +509,7 @@ inline int String::memncmp(const char* lhs, const char* rhs, size_t lhs_count, s
 
 inline size_t ObjectHash::operator()(const ObjectRef& a) const {
   if (const auto* str = a.as<StringObj>()) {
-    return String::HashBytes(str->data, str->size);
+    return String::StableHashBytes(str->data, str->size);
   }
   return ObjectPtrHash()(a);
 }
@@ -522,7 +537,7 @@ namespace std {
 template <>
 struct hash<::tvm::runtime::String> {
   std::size_t operator()(const ::tvm::runtime::String& str) const {
-    return ::tvm::runtime::String::HashBytes(str.data(), str.size());
+    return ::tvm::runtime::String::StableHashBytes(str.data(), str.size());
   }
 };
 }  // namespace std

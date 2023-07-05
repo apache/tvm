@@ -133,6 +133,11 @@ def mul_partition_generic(ref_call, new_args, ctx):
         lhs = new_args[0].realize()
         return QPartitionExpr(_forward_op(ref_call, [lhs, rhs]))
 
+    if rhs_cond:
+        # introduced by efficientnet
+        rhs = new_args[1].realize()
+        return QPartitionExpr(_forward_op(ref_call, [lhs, rhs]))
+
     if not lhs_cond and not rhs_cond:
         # trivial case
         return None

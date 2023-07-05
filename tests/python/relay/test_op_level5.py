@@ -236,14 +236,18 @@ class TestCropAndResize:
 
         extrapolation_value = 0.0
 
+        np.random.seed(0)
+
+        eps = 1e-4
+
         if layout == "NHWC":
             img_shape = (10, 224, 224, 3)
-            boxes = np.array([[0.1, 0.2, 0.8, 0.7], [0.2, 0, 1, 0.6]]).astype("float32")
+            boxes = np.random.uniform(size=(2, 4)).astype("float32")
             box_indices = np.array([1, 0]).astype("int32")
             crop_size = np.array([20, 30]).astype("int32")
         elif layout == "NCHW":
             img_shape = (5, 3, 255, 255)
-            boxes = np.array([[0, 0, 1, 1], [0.2, 0.1, 1, 0.9]]).astype("float32")
+            boxes = np.random.uniform(size=(2, 4)).astype("float32")
             box_indices = np.array([0, 1]).astype("int32")
             crop_size = np.array([30, 30]).astype("int32")
         else:
@@ -1419,8 +1423,9 @@ def test_grid_sample(executor_kind):
 
     data_2D_shape = (4, 4, 8, 8)
     grid_2D_shape = (4, 2, 16, 16)
-    data_3D_shape = (4, 4, 8, 8, 8)
-    grid_3D_shape = (4, 3, 16, 16, 16)
+    # choosing smaller sizes to be testable on weaker GPUs
+    data_3D_shape = (4, 4, 4, 4, 4)
+    grid_3D_shape = (4, 3, 8, 8, 8)
 
     for _method in methods:
         for _padding in padding_modes:

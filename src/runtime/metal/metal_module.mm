@@ -30,49 +30,49 @@
 #include "../file_utils.h"
 #include "../meta_data.h"
 #include "../pack_args.h"
-#include "../source_utils.h"
 #include "../thread_storage_scope.h"
 #include "metal_common.h"
 
 namespace tvm {
 namespace runtime {
 
+// The version of metal module
+// for future compatibility checking
+// bump when we change the binary format.
+static constexpr const char* kMetalModuleVersion = "0.1.0";
+
 // Module to support thread-safe multi-GPU execution.
 // The runtime will contain a per-device module table
 // The modules will be lazily loaded
 class MetalModuleNode final : public runtime::ModuleNode {
  public:
-  explicit MetalModuleNode(std::string data, std::string fmt,
-                           std::unordered_map<std::string, FunctionInfo> fmap, std::string source)
-      : data_(data), fmt_(fmt), fmap_(fmap), source_(source) {
-    parsed_kernels_ = SplitKernels(data);
-  }
+  explicit MetalModuleNode(std::unordered_map<std::string, std::string> smap,
+                           std::unordered_map<std::string, FunctionInfo> fmap, std::string fmt,
+                           std::string source)
+      : smap_(smap), fmap_(fmap), fmt_(fmt), source_(source) {}
   const char* type_key() const final { return "metal"; }
 
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
+  /*! \brief Get the property of the runtime module. */
+  int GetPropertyMask() const final {
+    return ModulePropertyMask::kBinarySerializable | ModulePropertyMask::kRunnable;
+  }
 
-  void SaveToFile(const std::string& file_name, const std::string& format) final {
-    std::string fmt = GetFileFormat(file_name, format);
-    ICHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
-    std::string meta_file = GetMetaFilePath(file_name);
-    SaveMetaDataToFile(meta_file, fmap_);
-    SaveBinaryToFile(file_name, data_);
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final;
+
+  void SaveToFile(const String& file_name, const String& format) final {
+    LOG(FATAL) << "Do not support save to file, use save to binary and export instead";
   }
 
   void SaveToBinary(dmlc::Stream* stream) final {
-    stream->Write(fmt_);
+    std::string version = kMetalModuleVersion;
+    stream->Write(version);
+    stream->Write(smap_);
     stream->Write(fmap_);
-    stream->Write(data_);
+    stream->Write(fmt_);
   }
-  std::string GetSource(const std::string& format) final {
-    if (format == fmt_) return data_;
-    if (source_.length() != 0) {
-      return source_;
-    } else if (fmt_ == "metal") {
-      return data_;
-    } else {
-      return "";
-    }
+  String GetSource(const String& format) final {
+    // return text source if available.
+    return source_;
   }
 
   // get a from primary context in device_id
@@ -90,15 +90,11 @@ class MetalModuleNode final : public runtime::ModuleNode {
     // compile
     NSError* err_msg = nil;
     id<MTLLibrary> lib = nil;
-    std::string source;
-    auto kernel = parsed_kernels_.find(func_name);
-    // If we cannot find this kernel in parsed_kernels_, it means that all kernels going together
-    // without explicit separator. In this case we use data_ with all kernels. It done for backward
-    // compatibility.
-    if (kernel != parsed_kernels_.end())
-      source = kernel->second;
-    else
-      source = data_;
+    auto kernel = smap_.find(func_name);
+    // Directly lookup kernels
+    ICHECK(kernel != smap_.end());
+    const std::string& source = kernel->second;
+
     if (fmt_ == "metal") {
       MTLCompileOptions* opts = [MTLCompileOptions alloc];
       opts.languageVersion = MTLLanguageVersion2_3;
@@ -110,7 +106,8 @@ class MetalModuleNode final : public runtime::ModuleNode {
                                                 error:&err_msg];
       [opts dealloc];
       if (lib == nil) {
-        LOG(FATAL) << "Fail to compile metal lib:" << [[err_msg localizedDescription] UTF8String];
+        LOG(FATAL) << "Fail to compile metal source:"
+                   << [[err_msg localizedDescription] UTF8String];
       }
       if (err_msg != nil) {
         LOG(INFO) << "Warning: " << [[err_msg localizedDescription] UTF8String];
@@ -156,20 +153,18 @@ class MetalModuleNode final : public runtime::ModuleNode {
       }
     }
   };
-  // the binary data
-  std::string data_;
-  // The format
-  std::string fmt_;
+  // the source shader data, can be mtl or binary
+  std::unordered_map<std::string, std::string> smap_;
   // function information table.
   std::unordered_map<std::string, FunctionInfo> fmap_;
+  // The format
+  std::string fmt_;
   // The source
   std::string source_;
   // function information.
   std::vector<DeviceEntry> finfo_;
   // internal mutex when updating the module
   std::mutex mutex_;
-  // parsed kernel data
-  std::unordered_map<std::string, std::string> parsed_kernels_;
 };
 
 // a wrapped function class to get packed func.
@@ -246,8 +241,7 @@ class MetalWrappedFunc {
   LaunchParamConfig launch_param_config_;
 };
 
-PackedFunc MetalModuleNode::GetFunction(const std::string& name,
-                                        const ObjectPtr<Object>& sptr_to_self) {
+PackedFunc MetalModuleNode::GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) {
   PackedFunc pf;
   AUTORELEASEPOOL {
     ICHECK_EQ(sptr_to_self.get(), this);
@@ -267,39 +261,45 @@ PackedFunc MetalModuleNode::GetFunction(const std::string& name,
   return pf;
 }
 
-Module MetalModuleCreate(std::string data, std::string fmt,
-                         std::unordered_map<std::string, FunctionInfo> fmap, std::string source) {
+Module MetalModuleCreate(std::unordered_map<std::string, std::string> smap,
+                         std::unordered_map<std::string, FunctionInfo> fmap, std::string fmt,
+                         std::string source) {
   ObjectPtr<Object> n;
   AUTORELEASEPOOL {
     metal::MetalWorkspace::Global()->Init();
-    n = make_object<MetalModuleNode>(data, fmt, fmap, source);
+    n = make_object<MetalModuleNode>(smap, fmap, fmt, source);
   };
   return Module(n);
 }
 
-// Load module from module.
-Module MetalModuleLoadFile(const std::string& file_name, const std::string& format) {
-  std::string data;
-  std::unordered_map<std::string, FunctionInfo> fmap;
-  std::string fmt = GetFileFormat(file_name, format);
-  std::string meta_file = GetMetaFilePath(file_name);
-  LoadBinaryFromFile(file_name, &data);
-  LoadMetaDataFromFile(meta_file, &fmap);
-  return MetalModuleCreate(data, fmt, fmap, "");
-}
+TVM_REGISTER_GLOBAL("runtime.module.create_metal_module")
+    .set_body_typed([](Map<String, String> smap, std::string fmap_json, std::string fmt,
+                       std::string source) {
+      std::istringstream stream(fmap_json);
+      std::unordered_map<std::string, FunctionInfo> fmap;
+      dmlc::JSONReader reader(&stream);
+      reader.Read(&fmap);
+      return MetalModuleCreate(
+          std::unordered_map<std::string, std::string>(smap.begin(), smap.end()), fmap, fmt,
+          source);
+    });
 
 Module MetalModuleLoadBinary(void* strm) {
   dmlc::Stream* stream = static_cast<dmlc::Stream*>(strm);
-  std::string data;
+  // version is reserved for future changes and
+  // is discarded for now
+  std::string ver;
+  std::unordered_map<std::string, std::string> smap;
   std::unordered_map<std::string, FunctionInfo> fmap;
   std::string fmt;
-  stream->Read(&fmt);
-  stream->Read(&fmap);
-  stream->Read(&data);
-  return MetalModuleCreate(data, fmt, fmap, "");
-}
 
-TVM_REGISTER_GLOBAL("runtime.module.loadfile_metal").set_body_typed(MetalModuleLoadFile);
+  stream->Read(&ver);
+  stream->Read(&smap);
+  stream->Read(&fmap);
+  stream->Read(&fmt);
+
+  return MetalModuleCreate(smap, fmap, fmt, "");
+}
 
 TVM_REGISTER_GLOBAL("runtime.module.loadbinary_metal").set_body_typed(MetalModuleLoadBinary);
 }  // namespace runtime

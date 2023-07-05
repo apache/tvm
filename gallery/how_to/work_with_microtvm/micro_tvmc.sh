@@ -1,3 +1,4 @@
+#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,31 +16,33 @@
 # specific language governing permissions and limitations
 # under the License.
 
-: '
-.. _tutorial-micro-tvmc:
+# bash-ignore
+set -euxo pipefail
+# bash-ignore
 
-Executing a Tiny Model with TVMC Micro
-======================================
-**Author**: `Mehrdad Hessar <https://github.com/mehrdadh>`_
-
-This tutorial explains how to compile a tiny model for a micro device,
-build a program on Zephyr platform to execute this model, flash the program
-and run the model all using `tvmc micro` command.
-'
+# bash-comment
+# """
+# .. _tutorial-micro-cli-tool:
+#
+# 1. microTVM CLI Tool
+# ====================
+# **Author**: `Mehrdad Hessar <https://github.com/mehrdadh>`_
+#
+# This tutorial explains how to compile a tiny model for a micro device,
+# build a program on Zephyr platform to execute this model, flash the program
+# and run the model all using `tvmc micro` command.
+# You need to install python and Zephyr dependencies before processing with this tutorial.
+# """
+# bash-comment
 
 ######################################################################
-# .. note::
-#     This tutorial is explaining using TVMC Mirco on Zephyr platform. You need
-#     to install Zephyr dependencies before processing with this tutorial. Alternatively,
-#     you can run this tutorial in one of the following ways which has Zephyr depencencies already installed.
 #
-#     * Use `microTVM Reference Virtual Machines <https://tvm.apache.org/docs/how_to/work_with_microtvm/micro_reference_vm.html#sphx-glr-how-to-work-with-microtvm-micro-reference-vm-py>`_.
-#     * Use QEMU docker image provided by TVM. Following these you will download and login to the docker image:
+#     .. include:: ../../../../gallery/how_to/work_with_microtvm/install_dependencies.rst
 #
-#     .. code-block:: bash
+
+######################################################################
 #
-#       cd tvm
-#       ./docker/bash.sh tlcpack/ci-qemu
+#     .. include:: ../../../../gallery/how_to/work_with_microtvm/install_zephyr.rst
 #
 
 # bash-ignore
@@ -78,13 +81,13 @@ tvmc micro --help
 # Obtain a Tiny Model
 ############################################################
 #
-# For this tutorial, we will use Magic Wand model from tflite micro. Magic Wand is a
-# Depthwise Convolution Layer model which recognizes gestures with an accelerometer.
+# For this tutorial, we will use Micro Speech model from tflite micro. Micro Speech is a
+# Depthwise Convolution Layer model to recognize keywords in speech.
 #
 # For this tutorial we will be using the model in tflite format.
 #
 # bash
-wget https://github.com/tensorflow/tflite-micro/raw/main/tensorflow/lite/micro/examples/magic_wand/magic_wand.tflite
+wget https://github.com/tensorflow/tflite-micro/raw/a56087ffa2703b4d5632f024a8a4c899815c31bb/tensorflow/lite/micro/examples/micro_speech/micro_speech.tflite
 # bash
 
 ############################################################
@@ -93,25 +96,25 @@ wget https://github.com/tensorflow/tflite-micro/raw/main/tensorflow/lite/micro/e
 #
 # Model Library Format (MLF) is an output format that TVM provides for micro targets. MLF is a tarball
 # containing a file for each piece of the TVM compiler output which can be used on micro targets outside
-# TVM environment. Read more about `Model Library Format <https://tvm.apache.org/docs//arch/model_library_format.html>`_.
+# TVM environment. Read more about :ref:`Model Library Format <model_library_format>`.
 #
-# Here, we generate a MLF file for ``qemu_x86`` Zephyr board. To generate MLF output for the ``magic_wand`` tflite model:
+# Here, we generate a MLF file for ``qemu_x86`` Zephyr board. You can chooses `aot` or `graph` executor type
+# to run this tutorial, however, we recommend to use `aot` for microTVM targets since `aot` uses ahead of time
+# compilation with static memory allocation. To generate MLF output for the ``micro_speech`` tflite model:
 #
 # bash
-tvmc compile magic_wand.tflite \
-    --target='c -keys=cpu -link-params=0 -model=host' \
+tvmc compile micro_speech.tflite \
+    --target='c -keys=cpu -model=host' \
     --runtime=crt \
     --runtime-crt-system-lib 1 \
-    --executor='graph' \
-    --executor-graph-link-params 0 \
+    --executor='aot' \
     --output model.tar \
     --output-format mlf \
-    --pass-config tir.disable_vectorize=1 \
-    --disabled-pass=AlterOpLayout
+    --pass-config tir.disable_vectorize=1
 # bash
 # This will generate a ``model.tar`` file which contains TVM compiler output files. To run this command for
 # a different Zephyr device, you need to update ``target``. For instance, for ``nrf5340dk_nrf5340_cpuapp`` board
-# the target is ``--target='c -keys=cpu -link-params=0 -model=nrf5340dk'``.
+# the target is ``--target='c -keys=cpu -model=nrf5340dk'``.
 #
 
 
@@ -121,14 +124,16 @@ tvmc compile magic_wand.tflite \
 #
 # To generate a Zephyr project we use TVM Micro subcommand ``create``. We pass the MLF format and the path
 # for the project to ``create`` subcommand along with project options. Project options for each
-# platform (Zephyr/Arduino) are defined in their Project API server file. To generate Zephyr project, run:
+# platform (Zephyr/Arduino) are defined in their Project API server file. To build
+# Zephyr project for a different Zephyr board, change ``zephyr_board`` project option.
+# To generate Zephyr project, run:
 #
 # bash
 tvmc micro create \
     project \
     model.tar \
     zephyr \
-    --project-option project_type=host_driven zephyr_board=qemu_x86
+    --project-option project_type=host_driven board=qemu_x86
 # bash
 # This will generate a ``Host-Driven`` Zephyr project for ``qemu_x86`` Zephyr board. In Host-Driven template project,
 # the Graph Executor will run on host and perform the model execution on Zephyr device by issuing commands to the
@@ -151,11 +156,9 @@ tvmc micro create \
 # bash
 tvmc micro build \
     project \
-    zephyr \
-    --project-option zephyr_board=qemu_x86
+    zephyr
 # bash
-# This will build the project in ``project`` directory and generates binary files under ``project/build``. To build
-# Zephyr project for a different Zephyr board, change ``zephyr_board`` project option.
+# This will build the project in ``project`` directory and generates binary files under ``project/build``.
 #
 # Next, we flash the Zephyr binary file to Zephyr device. For ``qemu_x86`` Zephyr board this step does not
 # actually perform any action since QEMU will be used, however you need this step for physical hardware.
@@ -163,8 +166,7 @@ tvmc micro build \
 # bash
 tvmc micro flash \
     project \
-    zephyr \
-    --project-option zephyr_board=qemu_x86
+    zephyr
 # bash
 
 ############################################################
@@ -181,16 +183,20 @@ tvmc micro flash \
 tvmc run \
     --device micro \
     project \
-    --project-option zephyr_board=qemu_x86 \
     --fill-mode ones \
     --print-top 4
 # bash
-#     # Output:
-#     #
-#     # INFO:__main__:b'[100%] [QEMU] CPU: qemu32,+nx,+pae\n'
-#     # remote: microTVM Zephyr runtime - running
-#     # INFO:__main__:b'[100%] Built target run\n'
-#     # [[3.         1.         2.         0.        ]
-#     # [0.47213247 0.41364592 0.07525456 0.03896701]]
+
+############################################################
+# Specifically, this command sets the input of the model
+# to all ones and shows the four values of the output with their indices.
 #
-# Specifically, this command sets the input of the model to all ones and shows the four values of the output with their indices.
+# .. code-block:: bash
+#
+#      # Output:
+#      # INFO:__main__:b'[100%] [QEMU] CPU: qemu32,+nx,+pae\n'
+#      # remote: microTVM Zephyr runtime - running
+#      # INFO:__main__:b'[100%] Built target run\n'
+#      # [[   3    2    1    0]
+#      #  [ 113 -120 -121 -128]]
+#

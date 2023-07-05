@@ -201,12 +201,12 @@ def func_with_bufferslice_indices(data: T.handle, index: T.handle) -> None:
 
 @T.prim_func
 def expected_bufferslice_indices(data: T.handle, index: T.handle) -> None:
-    index_buf = T.match_buffer(index, [1], dtype="int32", elem_offset=0, align=128, offset_factor=1)
-    data_buf = T.match_buffer(data, [16, 16], elem_offset=0, align=128, offset_factor=1)
+    index_buf = T.match_buffer(index, [1], dtype="int32", elem_offset=0, align=64, offset_factor=1)
+    data_buf = T.match_buffer(data, [16, 16], elem_offset=0, align=64, offset_factor=1)
     with T.block("root"):
         T.reads([])
         T.writes([])
-        out_buf = T.alloc_buffer([16, 16], elem_offset=0, align=128, offset_factor=1)
+        out_buf = T.alloc_buffer([16, 16], elem_offset=0, align=64, offset_factor=1)
         for i0, i1 in T.grid(16, 16):
             with T.block():
                 vi, vj = T.axis.remap("SS", [i0, i1])
@@ -229,12 +229,12 @@ def func_with_recursive_bufferslice_indices(data: T.handle, index: T.handle) -> 
 
 @T.prim_func
 def expected_recursive_bufferslice_indices(data: T.handle, index: T.handle) -> None:
-    index_buf = T.match_buffer(index, [1], dtype="int32", elem_offset=0, align=128, offset_factor=1)
-    data_buf = T.match_buffer(data, [16, 16], elem_offset=0, align=128, offset_factor=1)
+    index_buf = T.match_buffer(index, [1], dtype="int32", elem_offset=0, align=64, offset_factor=1)
+    data_buf = T.match_buffer(data, [16, 16], elem_offset=0, align=64, offset_factor=1)
     with T.block("root"):
         T.reads([])
         T.writes([])
-        out_buf = T.alloc_buffer([16, 16], elem_offset=0, align=128, offset_factor=1)
+        out_buf = T.alloc_buffer([16, 16], elem_offset=0, align=64, offset_factor=1)
         for i0, i1 in T.grid(16, 16):
             with T.block():
                 vi, vj = T.axis.remap("SS", [i0, i1])
@@ -303,19 +303,19 @@ def alloc_buffer_func(a: T.handle, b: T.handle) -> None:
 
 @T.prim_func
 def expect_alloc_buffer_func(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [2, 2], dtype="float32", elem_offset=0, align=128, offset_factor=1)
-    B = T.match_buffer(b, [2, 2], dtype="float32", elem_offset=0, align=128, offset_factor=1)
+    A = T.match_buffer(a, [2, 2], dtype="float32", elem_offset=0, align=64, offset_factor=1)
+    B = T.match_buffer(b, [2, 2], dtype="float32", elem_offset=0, align=64, offset_factor=1)
     with T.block("root"):
         T.reads([])
         T.writes([])
-        C = T.alloc_buffer([2, 2], dtype="float32", elem_offset=0, align=128, offset_factor=1)
+        C = T.alloc_buffer([2, 2], dtype="float32", elem_offset=0, align=64, offset_factor=1)
         A[(0, 0)] = T.float32(2)
         C[(0, 0)] = A[(0, 0)] + B[(0, 0)]
         B[(0, 0)] = C[(0, 0)]
 
 
 def test_complete_alloc_buffer():
-    rt_func = tvm.script.from_source(alloc_buffer_func.script(show_meta=True))
+    rt_func = tvm.script.from_source(alloc_buffer_func.script())
     tvm.ir.assert_structural_equal(alloc_buffer_func, expect_alloc_buffer_func)
 
 

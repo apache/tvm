@@ -15,22 +15,27 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""CMSIS-NN integration tests: Conv2D"""
+"""CMSIS-NN integration tests: Pooling"""
 import numpy as np
 import pytest
 import tvm
 from tvm import relay
 from tvm.relay.op.contrib import cmsisnn
 
-from tvm.testing.aot import AOTTestModel, compile_and_run, generate_ref_data
+from tvm.testing.aot import (
+    get_dtype_range,
+    generate_ref_data,
+    AOTTestModel,
+    compile_and_run,
+)
 from tvm.micro.testing.aot_test_utils import AOT_USMP_CORSTONE300_RUNNER
 from .utils import (
     make_module,
-    get_range_for_dtype_str,
     get_same_padding,
     make_qnn_relu,
     assert_partitioned_function,
     assert_no_external_function,
+    create_test_runner,
 )
 
 
@@ -75,8 +80,8 @@ def make_model(
     return op
 
 
-@tvm.testing.requires_corstone300
 @tvm.testing.requires_cmsisnn
+@pytest.mark.parametrize("dtype", ["int16", "int8"])
 @pytest.mark.parametrize("in_shape", [(1, 28, 28, 12), (1, 64, 100, 4)])
 @pytest.mark.parametrize(
     "pool_size, strides, padding", [((3, 3), (2, 2), "SAME"), ((2, 2), (1, 1), "VALID")]
@@ -84,7 +89,11 @@ def make_model(
 @pytest.mark.parametrize("relu_type", ["NONE", "RELU"])
 @pytest.mark.parametrize("pool_type", [relay.nn.max_pool2d, relay.nn.avg_pool2d])
 @pytest.mark.parametrize("zero_point, scale", [(-34, 0.0256)])
-def test_op_int8(
+@pytest.mark.parametrize(
+    "compiler_cpu, cpu_flags", [("cortex-m55", "+nomve"), ("cortex-m55", ""), ("cortex-m7", "")]
+)
+def test_ops(
+    dtype,
     in_shape,
     pool_size,
     strides,
@@ -93,13 +102,12 @@ def test_op_int8(
     pool_type,
     zero_point,
     scale,
+    compiler_cpu,
+    cpu_flags,
 ):
-    """Tests QNN pooling op for int8 inputs"""
+    """Tests QNN pooling op for int8 and int16 pooling"""
     interface_api = "c"
     use_unpacked_api = True
-    test_runner = AOT_USMP_CORSTONE300_RUNNER
-
-    dtype = "int8"
 
     model = make_model(
         pool_op=pool_type,
@@ -107,6 +115,7 @@ def test_op_int8(
         pool_size=pool_size,
         strides=strides,
         padding=padding,
+        dtype=dtype,
         scale=scale,
         zero_point=zero_point,
         relu_type=relu_type,
@@ -119,10 +128,10 @@ def test_op_int8(
     assert_partitioned_function(orig_mod, cmsisnn_mod)
 
     # validate the output
-    in_min, in_max = get_range_for_dtype_str(dtype)
+    in_min, in_max = get_dtype_range(dtype)
     np.random.seed(0)
     inputs = {
-        "input": np.random.randint(in_min, high=in_max, size=in_shape, dtype="int8"),
+        "input": np.random.randint(in_min, high=in_max, size=in_shape, dtype=dtype),
     }
     output_list = generate_ref_data(orig_mod["main"], inputs)
     compile_and_run(
@@ -133,7 +142,7 @@ def test_op_int8(
             params=None,
             output_tolerance=1,
         ),
-        test_runner,
+        create_test_runner(compiler_cpu, cpu_flags),
         interface_api,
         use_unpacked_api,
     )
@@ -203,7 +212,6 @@ def test_int8_pool_with_float32_input(
 def test_invalid_datatype(op):
     """Checks CMSIS-NN partitioning for non int8 dtype"""
     model = make_model(pool_op=op, dtype="int64")
-
     orig_mod = make_module(model)
     cmsisnn_mod = cmsisnn.partition_for_cmsisnn(orig_mod)
     assert_no_external_function(cmsisnn_mod)

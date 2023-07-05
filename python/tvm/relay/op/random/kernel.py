@@ -231,3 +231,44 @@ def normal(key, shape, dtype="float32", mean=0.0, scale=1.0):
     if not isinstance(scale, Expr):
         scale = const(scale, dtype=dtype)
     return _make.normal(key, mean, scale, shape, dtype)
+
+
+def multinomial(key, probs, num_samples):
+    """Draw samples from a multinomial distribution.
+
+    Example
+    -------
+
+    .. code-block:: python
+
+        key = threefry_key(0)
+        key, random_indices = multinomial(key, (3, 5, 10), num_samples=2)
+
+    Parameters
+    ----------
+    key : relay.Expr
+        key that uniquely determines the random values. Multiple uses with the
+        same generator will generate the same random values. This generator should be
+        treated as an opaque pointer. You can create one from calling
+        :py:func:`threefry_key`, :py:func:`threefry_split`, or
+        :py:func:`threefry_generate`. **Do not use this generator again after calling
+        this function.**
+
+    probs: relay.Expr
+        Array containing the probabilities of returning each respective index.
+        If a tensor is provided, the last dimension is treated independently.
+        Negative values in this tensor will be clipped to zero to
+        represent they have no chance of being selected.
+
+    num_samples : int
+        Number of samples to return
+
+    Returns
+    -------
+    new_key : relay.Expr
+        New random key to pass to future uses of random functions.
+
+    random_indices : relay.Expr
+        The generated indices.
+    """
+    return _make.multinomial(key, probs, num_samples)

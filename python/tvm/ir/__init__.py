@@ -16,22 +16,47 @@
 # under the License.
 # pylint: disable=unused-import
 """Common data structures across all IR variants."""
-from .base import SourceName, Span, Node, EnvFunc, load_json, save_json
-from .base import structural_equal, assert_structural_equal, structural_hash
-from .type import Type, TypeKind, PrimType, PointerType, TypeVar, GlobalTypeVar, TupleType
-from .type import TypeConstraint, FuncType, IncompleteType, RelayRefType
-from .tensor_type import TensorType
-from .affine_type import TensorAffineType, TupleAffineType
-from .type_relation import TypeCall, TypeRelation
-from .expr import BaseExpr, PrimExpr, RelayExpr, GlobalVar, Range
-from .op import Op, register_op_attr, register_intrin_lowering
-from .function import CallingConv, BaseFunc
+from . import diagnostics, instrument, transform
 from .adt import Constructor, TypeData
-from .module import IRModule
+from .affine_type import TensorAffineType, TupleAffineType
 from .attrs import Attrs, DictAttrs, make_node
+from .base import (
+    EnvFunc,
+    Node,
+    SourceName,
+    Span,
+    SequentialSpan,
+    assert_structural_equal,
+    load_json,
+    save_json,
+    structural_equal,
+    structural_hash,
+)
 from .container import Array, Map
-from .memory_pools import PoolInfo, WorkspaceMemoryPools
-
-from . import transform
-from . import instrument
-from . import diagnostics
+from .expr import BaseExpr, GlobalVar, PrimExpr, Range, RelayExpr
+from .function import BaseFunc, CallingConv
+from .memory_pools import (
+    ConstantMemoryPools,
+    ConstantPoolInfo,
+    PoolInfo,
+    PoolInfoProperties,
+    WorkspaceMemoryPools,
+    WorkspacePoolInfo,
+)
+from .module import IRModule
+from .op import Op, register_intrin_lowering, register_op_attr
+from .tensor_type import TensorType
+from .type import (
+    FuncType,
+    GlobalTypeVar,
+    IncompleteType,
+    PointerType,
+    PrimType,
+    RelayRefType,
+    TupleType,
+    Type,
+    TypeConstraint,
+    TypeKind,
+    TypeVar,
+)
+from .type_relation import TypeCall, TypeRelation

@@ -52,6 +52,7 @@ elseif(USE_DNNL STREQUAL "C_SRC")
   find_library(EXTERN_LIBRARY_DNNL dnnl)
   list(APPEND TVM_RUNTIME_LINKER_LIBS ${EXTERN_LIBRARY_DNNL})
   tvm_file_glob(GLOB DNNL_CONTRIB_SRC src/runtime/contrib/dnnl/dnnl.cc
+                                      src/runtime/contrib/dnnl/dnnl_utils.cc
                                       src/runtime/contrib/cblas/dnnl_blas.cc)
   list(APPEND RUNTIME_SRCS ${DNNL_CONTRIB_SRC})
   message(STATUS "Build with DNNL C source module: " ${EXTERN_LIBRARY_DNNL})
@@ -60,4 +61,3 @@ elseif(USE_DNNL STREQUAL "OFF")
 else()
   message(FATAL_ERROR "Invalid option: USE_DNNL=" ${USE_DNNL})
 endif()
-

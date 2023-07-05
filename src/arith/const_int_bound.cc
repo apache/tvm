@@ -27,6 +27,7 @@
 
 #include <algorithm>
 
+#include "constraint_extract.h"
 #include "int_operator.h"
 #include "pattern_match.h"
 
@@ -176,10 +177,47 @@ class ConstIntBoundAnalyzer::Impl
     return Union(a, b);
   }
 
+  Entry VisitExpr_(const BroadcastNode* op) final { return VisitExpr(op->value); }
+
   Entry VisitExpr_(const CastNode* op) final {
-    Entry a = VisitExpr(op->value);
+    Entry a;
+
+    // int(ceil(log2(cast(n,"float64")))) is used as the
+    // implementation of topi.math.ceil_log2, and appears in iteration
+    // bounds.
+    if (auto opt = FindCeilLog2Arg(op)) {
+      a = CeilLog2Bounds(opt.value());
+    } else {
+      a = VisitExpr(op->value);
+    }
+
     Entry b = Everything(op->dtype);
     return Intersect(a, b);
+  }
+
+  /*!
+   * \brief Process the divisor by making assumption that divide by zero
+   * won't happen in a valid program.
+   *
+   * This is important for us to get a lot of symbolic shape bound right
+   * now that the shape n >= 0, but in cases
+   * when mod or divide of n occur, the intention is actually n > 0
+   *
+   * \param divisor The input divsor entry
+   * \return The processed entry
+   */
+  Entry AssumeNoZeroDivisor(Entry divisor) {
+    ICHECK(!divisor.is_const(0)) << "Find divide by zero";
+    // NOTE: here we make the assumption that
+    // divide by zero won't happen in a valid program
+    // this is important for us to get a lot of symbolic shape bound right
+    // where most conditions know that the shape n >= 0, but in cases
+    // when mod or divide of n occur, the intention is actually n > 0
+    if (divisor.min_value == 0) {
+      divisor.min_value = 1;
+      ICHECK_GE(divisor.max_value, 1);
+    }
+    return divisor;
   }
 
   Entry VisitExpr_(const IntImmNode* op) final { return MakeBound(op->value, op->value); }
@@ -210,14 +248,14 @@ class ConstIntBoundAnalyzer::Impl
 
   Entry VisitExpr_(const DivNode* op) final {
     Entry a = VisitExpr(op->a);
-    Entry b = VisitExpr(op->b);
-    ICHECK(!b.is_const(0)) << "divide by zero";
+    Entry b = AssumeNoZeroDivisor(VisitExpr(op->b));
     return HandleDivision(a, b, op->dtype, InfAwareDiv);
   }
 
   Entry VisitExpr_(const ModNode* op) final {
     Entry a = VisitExpr(op->a);
-    Entry b = VisitExpr(op->b);
+    Entry b = AssumeNoZeroDivisor(VisitExpr(op->b));
+
     if (b.min_value > 0) {
       int64_t b_max_cap = InfAwareAdd(b.max_value, -1);
       if (a.min_value >= 0) {
@@ -239,8 +277,7 @@ class ConstIntBoundAnalyzer::Impl
 
   Entry VisitExpr_(const FloorDivNode* op) final {
     Entry a = VisitExpr(op->a);
-    Entry b = VisitExpr(op->b);
-    ICHECK(!b.is_const(0)) << "floordiv by zero";
+    Entry b = AssumeNoZeroDivisor(VisitExpr(op->b));
     return HandleDivision(a, b, op->dtype, InfAwareFloorDiv);
   }
 
@@ -263,7 +300,8 @@ class ConstIntBoundAnalyzer::Impl
      * That is, min(0, b_min + 1) <= floormod(a, b) <= max(0, b_max - 1)
      */
     Entry a = VisitExpr(op->a);
-    Entry b = VisitExpr(op->b);
+    Entry b = AssumeNoZeroDivisor(VisitExpr(op->b));
+
     if (b.min_value > 0) {
       int64_t b_max_cap = InfAwareAdd(b.max_value, -1);
       if (a.min_value >= 0) {
@@ -314,6 +352,8 @@ class ConstIntBoundAnalyzer::Impl
 
     if (op->op.same_as(tir::builtin::shift_right())) {
       return VisitRightShift(op);
+    } else if (op->op.same_as(tir::builtin::shift_left())) {
+      return VisitLeftShift(op);
     } else if (op->op.same_as(tir::builtin::bitwise_and())) {
       return VisitBitwiseAnd(op);
     } else {
@@ -339,6 +379,20 @@ class ConstIntBoundAnalyzer::Impl
     } else {
       return MakeBound(0, kPosInf);
     }
+  }
+
+  Entry VisitLeftShift(const CallNode* op) {
+    Entry a = VisitExpr(op->args[0]);
+    Entry b = VisitExpr(op->args[1]);
+
+    if (a.min_value < 0 || b.min_value < 0) {
+      // If either operand can negative, we may run into undefined
+      // behavior for some targets.  In these cases, avoid making any
+      // assumptions about the result.
+      return Everything(op->dtype);
+    }
+
+    return BinaryOpBoundary(a, b, InfAwareLeftShift);
   }
 
   Entry VisitRightShift(const CallNode* op) {
@@ -428,7 +482,6 @@ class ConstIntBoundAnalyzer::Impl
     // at a negative value and ends at a positive one, narrow it down to
     // be closer to 0, because BinaryOpBoundary only checks end-points of
     // the domain ranges.
-
     // If the range of b contains 0, then some infinity will be involved
     if (b.min_value <= 0 && 0 <= b.max_value && dt.is_int()) {
       Entry b_neg = b.min_value < 0 ? MakeBound(b.min_value, -1) : Everything(dt);
@@ -509,7 +562,33 @@ class ConstIntBoundAnalyzer::Impl
     return floordiv(x, y);
   }
   /*!
-   * \brief Compute x / y, aware of inf.
+   * \brief Compute x << y, aware of inf.
+   * \param x The left operand.
+   * \param y The right operand.
+   * \return the result.
+   */
+  static int64_t InfAwareLeftShift(int64_t x, int64_t y) {
+    if (x == kPosInf || x == kNegInf) return x;
+
+    // Can be replaced with std::bit_width in C++20
+    auto bit_width = [](int64_t as_signed) {
+      uint64_t val = std::abs(as_signed);
+      int num_bits = 0;
+      while (val) {
+        ++num_bits;
+        val >>= 1;
+      }
+      return num_bits;
+    };
+    int x_bits = bit_width(x);
+    if (x_bits + y < 64) {
+      return x << y;
+    } else {
+      return kPosInf;
+    }
+  }
+  /*!
+   * \brief Compute x >> y, aware of inf.
    * \param x The left operand.
    * \param y The right operand.
    * \return the result.
@@ -585,29 +664,74 @@ class ConstIntBoundAnalyzer::Impl
   static std::vector<BoundInfo> DetectBoundInfo(const PrimExpr& cond) {
     PVar<PrimExpr> x, y;
     PVar<IntImm> c;
-    // NOTE: canonical form always use <= or <
-    if ((c <= x).Match(cond)) {
-      return {BoundInfo(x.Eval(), MakeBound(c.Eval()->value, kPosInf))};
+
+    std::vector<BoundInfo> info;
+    auto add_info = [&](const PrimExpr& expr, int64_t min_value, int64_t max_value) {
+      // If the conditional is comparing two integers, do not assign a
+      // value to them.
+      if (!expr->IsInstance<IntImmNode>()) {
+        info.push_back(BoundInfo(expr, MakeBound(min_value, max_value)));
+      }
+    };
+
+    for (const auto& subexpr : ExtractConstraints(cond)) {
+      // NOTE: The canonical form always uses <= or <, but a
+      // user-supplied constraint from the python API might not be
+      // canonicalized.
+      if ((c <= x).Match(subexpr) || (x >= c).Match(subexpr)) {
+        add_info(x.Eval(), c.Eval()->value, kPosInf);
+      } else if ((c < x).Match(subexpr) || (x > c).Match(subexpr)) {
+        add_info(x.Eval(), c.Eval()->value + 1, kPosInf);
+      } else if ((x <= c).Match(subexpr) || (x >= c).Match(subexpr)) {
+        add_info(x.Eval(), kNegInf, c.Eval()->value);
+      } else if ((x < c).Match(subexpr) || (c > x).Match(subexpr)) {
+        add_info(x.Eval(), kNegInf, c.Eval()->value - 1);
+      } else if ((x == c).Match(subexpr) || (c == x).Match(subexpr)) {
+        add_info(x.Eval(), c.Eval()->value, c.Eval()->value);
+      }
     }
-    if ((c < x).Match(cond)) {
-      return {BoundInfo(x.Eval(), MakeBound(c.Eval()->value + 1, kPosInf))};
+
+    return info;
+  }
+
+  /*!
+   * \brief Extract the argument from int(ceil(log2(arg)))
+   *
+   * This expression is used as the implementation of
+   * topi.math.ceil_log2, and can appear in iteration bounds.
+   */
+  static Optional<PrimExpr> FindCeilLog2Arg(const CastNode* op) {
+    if (op->dtype.is_int()) {
+      if (auto as_call = op->value.as<CallNode>()) {
+        if (as_call->op.same_as(Op::Get("tir.ceil"))) {
+          PrimExpr ceil_arg = as_call->args[0];
+          if (auto arg_call = ceil_arg.as<CallNode>()) {
+            if (arg_call->op.same_as(Op::Get("tir.log2"))) {
+              PrimExpr log_arg = arg_call->args[0];
+              return log_arg;
+            }
+          }
+        }
+      }
     }
-    if ((x <= c).Match(cond)) {
-      return {BoundInfo(x.Eval(), MakeBound(kNegInf, c.Eval()->value))};
+    return NullOpt;
+  }
+
+  /*! \brief Propagate constraints through ceil(log2(arg))
+   *
+   * Helper function for CastNode visitor
+   */
+  Entry CeilLog2Bounds(PrimExpr arg) {
+    if (auto as_float = arg.as<FloatImmNode>()) {
+      // A cast from int to float may have already been simplified
+      // out.  Normally we don't inspect floating-point arguments, but here we can
+      int64_t val = std::ceil(std::log2(as_float->value));
+      return MakeBound(val, val);
+    } else {
+      Entry arg_bounds = VisitExpr(arg);
+      return MakeBound(std::ceil(std::log2(arg_bounds.min_value)),
+                       std::ceil(std::log2(arg_bounds.max_value)));
     }
-    if ((x < c).Match(cond)) {
-      return {BoundInfo(x.Eval(), MakeBound(kNegInf, c.Eval()->value - 1))};
-    }
-    if ((x == c).Match(cond) || (c == x).Match(cond)) {
-      return {BoundInfo(x.Eval(), MakeBound(c.Eval()->value, c.Eval()->value))};
-    }
-    if ((x && y).Match(cond)) {
-      auto ret1 = DetectBoundInfo(x.Eval());
-      auto ret2 = DetectBoundInfo(y.Eval());
-      ret1.insert(ret1.end(), ret2.begin(), ret2.end());
-      return ret1;
-    }
-    return {};
   }
 };
 

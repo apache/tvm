@@ -44,7 +44,7 @@ def conv2d_strategy_rocm(attrs, inputs, out_type, target):
         and padding[1] == padding[3]
     ):
         strategy.add_implementation(
-            wrap_compute_conv2d(topi.rocm.conv2d_nchw_miopen, True),
+            wrap_compute_conv2d(topi.rocm.conv2d_nchw_miopen, need_data_layout=True),
             wrap_topi_schedule(topi.rocm.schedule_conv2d_nchw_miopen),
             name="conv2d_nchw_miopen.rocm",
             plevel=50,
@@ -105,23 +105,23 @@ def argsort_strategy_cuda(attrs, inputs, out_type, target):
     return strategy
 
 
-@scatter_strategy.register(["rocm"])
-def scatter_cuda(attrs, inputs, out_type, target):
+@scatter_elements_strategy.register(["rocm"])
+def scatter_elements_cuda(attrs, inputs, out_type, target):
     """scatter rocm strategy"""
     strategy = _op.OpStrategy()
     strategy.add_implementation(
-        wrap_compute_scatter(topi.cuda.scatter),
-        wrap_topi_schedule(topi.cuda.schedule_scatter),
-        name="scatter.rocm",
+        wrap_compute_scatter_elements(topi.cuda.scatter_elements),
+        wrap_topi_schedule(topi.cuda.schedule_extern),
+        name="scatter_elements.rocm",
         plevel=10,
     )
 
     rank = len(inputs[0].shape)
 
-    with SpecializedCondition(rank == 1):
+    with SpecializedCondition(rank == 1 and attrs.reduction == "update"):
         if can_use_rocthrust(target, "tvm.contrib.thrust.stable_sort_by_key"):
             strategy.add_implementation(
-                wrap_compute_scatter(topi.cuda.scatter_via_sort),
+                wrap_compute_scatter_elements(topi.cuda.scatter_via_sort),
                 wrap_topi_schedule(topi.cuda.schedule_scatter_via_sort),
                 name="scatter_via_sort.rocm",
                 plevel=9,  # use the sequential version by default

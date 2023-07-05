@@ -29,9 +29,7 @@ namespace tvm {
 namespace tir {
 // Get the function type of a PrimFunc
 PrimFunc::PrimFunc(Array<tir::Var> params, Stmt body, Type ret_type,
-                   Map<tir::Var, Buffer> buffer_map,
-                   Optional<Map<tir::Var, Buffer>> preflattened_buffer_map, DictAttrs attrs,
-                   Span span) {
+                   Map<tir::Var, Buffer> buffer_map, DictAttrs attrs, Span span) {
   // Assume void-return type for now
   // TODO(tvm-team) consider type deduction from body.
   if (!ret_type.defined()) {
@@ -42,7 +40,6 @@ PrimFunc::PrimFunc(Array<tir::Var> params, Stmt body, Type ret_type,
   n->body = std::move(body);
   n->ret_type = std::move(ret_type);
   n->buffer_map = std::move(buffer_map);
-  n->preflattened_buffer_map = preflattened_buffer_map.value_or(Map<tir::Var, Buffer>());
   n->attrs = std::move(attrs);
   n->checked_type_ = n->func_type_annotation();
   n->span = std::move(span);
@@ -88,42 +85,34 @@ TensorIntrin::TensorIntrin(PrimFunc desc, PrimFunc impl) {
   data_ = std::move(n);
 }
 
-void TensorIntrin::Register(String name, TensorIntrin intrin) {
+void TensorIntrin::Register(String name, TensorIntrin intrin, bool override) {
   TensorIntrinManager* manager = TensorIntrinManager::Global();
-  CHECK_EQ(manager->reg.count(name), 0)
-      << "ValueError: TensorIntrin '" << name << "' has already been registered";
+  if (!override) {
+    CHECK_EQ(manager->reg.count(name), 0)
+        << "ValueError: TensorIntrin '" << name << "' has already been registered";
+  }
   manager->reg.Set(name, intrin);
 }
 
-TensorIntrin TensorIntrin::Get(String name) {
+Optional<TensorIntrin> TensorIntrin::Get(String name, bool allow_missing) {
   const TensorIntrinManager* manager = TensorIntrinManager::Global();
   auto it = manager->reg.find(name);
-  CHECK(it != manager->reg.end()) << "ValueError: TensorIntrin '" << name << "' is not registered";
-  return manager->reg.at(name);
+  if (it == manager->reg.end()) {
+    if (allow_missing) {
+      return NullOpt;
+    } else {
+      LOG(FATAL) << "ValueError: TensorIntrin '" << name << "' is not registered";
+    }
+  }
+  return (*it).second;
 }
 
 TVM_REGISTER_NODE_TYPE(TensorIntrinNode);
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<PrimFuncNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      // TODO(tvm-team) redirect to Text printer once we have a good text format.
-      auto* node = static_cast<const PrimFuncNode*>(ref.get());
-      p->stream << "PrimFunc(" << node->params << ") ";
-      if (node->attrs.defined()) {
-        p->stream << "attrs=" << node->attrs;
-      }
-      p->stream << " {\n";
-      p->indent += 2;
-      p->Print(node->body);
-      p->indent -= 2;
-      p->stream << "}\n";
-    });
-
 TVM_REGISTER_GLOBAL("tir.PrimFunc")
     .set_body_typed([](Array<tir::Var> params, Stmt body, Type ret_type,
-                       Map<tir::Var, Buffer> buffer_map,
-                       Map<tir::Var, Buffer> preflattened_buffer_map, DictAttrs attrs, Span span) {
-      return PrimFunc(params, body, ret_type, buffer_map, preflattened_buffer_map, attrs, span);
+                       Map<tir::Var, Buffer> buffer_map, DictAttrs attrs, Span span) {
+      return PrimFunc(params, body, ret_type, buffer_map, attrs, span);
     });
 
 TVM_REGISTER_GLOBAL("tir.TensorIntrin")

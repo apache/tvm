@@ -27,7 +27,7 @@ from . import _backend
 class Runtime(Object):
     """Runtime configuration"""
 
-    name = "runtime"
+    flag_registry_name = "runtime"
 
     def __init__(self, name, options=None) -> None:
         if options is None:

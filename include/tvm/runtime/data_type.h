@@ -32,6 +32,7 @@
 
 namespace tvm {
 namespace runtime {
+
 /*!
  * \brief Runtime primitive data type.
  *
@@ -54,6 +55,8 @@ class DataType {
     kFloat = kDLFloat,
     kHandle = TVMArgTypeCode::kTVMOpaqueHandle,
     kBFloat = kDLBfloat,
+    kE4M3Float = 6U,
+    kE5M2Float = 7U,
     kCustomBegin = 129
   };
   /*! \brief default constructor */
@@ -76,6 +79,9 @@ class DataType {
     if (code == kBFloat) {
       ICHECK_EQ(bits, 16);
     }
+    if (code == kE4M3Float || code == kE5M2Float) {
+      ICHECK_EQ(bits, 8);
+    }
   }
   /*! \return The type code. */
   int code() const { return static_cast<int>(data_.code); }
@@ -91,6 +97,12 @@ class DataType {
   bool is_bool() const { return code() == DataType::kUInt && bits() == 1; }
   /*! \return whether type is a float type. */
   bool is_float() const { return code() == DataType::kFloat; }
+  /*! \return whether type is a float8 type. */
+  bool is_float8() const {
+    return (code() == DataType::kFloat || code() == DataType::kE4M3Float ||
+            code() == DataType::kE5M2Float) &&
+           bits() == 8;
+  }
   /*! \return whether type is a float16 type. */
   bool is_float16() const { return is_float() && bits() == 16; }
   /*! \return whether type is a bfloat16 type. */
@@ -124,6 +136,16 @@ class DataType {
    * \return the result type.
    */
   DataType element_of() const { return with_lanes(1); }
+  /*!
+   * \brief Assignment operator.
+   */
+  DataType& operator=(const DataType& rhs) {
+    if (this == &rhs) {
+      return *this;
+    }
+    data_ = rhs.data_;
+    return *this;
+  }
   /*!
    * \brief Equal comparator.
    * \param other The data type to compare against.
@@ -173,6 +195,18 @@ class DataType {
    * \return The constructed data type.
    */
   static DataType BFloat(int bits, int lanes = 1) { return DataType(kDLBfloat, bits, lanes); }
+  /*!
+   * \brief Construct NV float8 e4m3 datatype.
+   * \param lanes The number of lanes
+   * \return The constructed data type.
+   */
+  static DataType NVFloat8E4M3(int lanes = 1) { return DataType(kE4M3Float, 8, lanes); }
+  /*!
+   * \brief Construct NV float8 e5m2 datatype.
+   * \param lanes The number of lanes
+   * \return The constructed data type.
+   */
+  static DataType NVFloat8E5M2(int lanes = 1) { return DataType(kE5M2Float, 8, lanes); }
   /*!
    * \brief Construct a bool type.
    * \param lanes The number of lanes
@@ -298,9 +332,12 @@ inline const char* DLDataTypeCode2Str(DLDataTypeCode type_code) {
       return "handle";
     case kDLBfloat:
       return "bfloat";
+    case DataType::kE4M3Float:
+      return "e4m3_float";
+    case DataType::kE5M2Float:
+      return "e5m2_float";
     default:
       LOG(FATAL) << "unknown type_code=" << static_cast<int>(type_code);
-      return "";
   }
 }
 
@@ -339,7 +376,7 @@ inline std::string DLDataType2String(DLDataType t) {
 inline DLDataType String2DLDataType(std::string s) {
   DLDataType t;
   // handle void type
-  if (s.length() == 0) {
+  if (s.length() == 0 || s == "void") {
     t = DataType::Void();
     return t;
   }
@@ -367,6 +404,12 @@ inline DLDataType String2DLDataType(std::string s) {
   } else if (s.substr(0, 6) == "bfloat") {
     t.code = DataType::kBFloat;
     scan = s.c_str() + 6;
+  } else if (s.substr(0, 10) == "e4m3_float") {
+    t.code = DataType::kE4M3Float;
+    scan = s.c_str() + 10;
+  } else if (s.substr(0, 10) == "e5m2_float") {
+    t.code = DataType::kE5M2Float;
+    scan = s.c_str() + 10;
   } else if (s.substr(0, 6) == "custom") {
     t.code = ParseCustomDatatype(s, &scan);
   } else {

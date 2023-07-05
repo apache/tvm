@@ -26,7 +26,10 @@
 #include "aot_executor.h"
 
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/data_type.h>
+#include <tvm/runtime/name_transforms.h>
 
+#include <limits>
 #include <memory>
 
 #include "../meta_data.h"
@@ -46,8 +49,8 @@ AotExecutor::AotExecutor(tvm::runtime::Module module, const std::vector<Device>&
   ICHECK_EQ(devices_[0].device_id, expected_device.device_id)
       << "At this time, AOTExecutor supports only execution on kDLCPU 0";
   // TODO(tvm-team): Temporary hack since Hexagon is defined different than kDLCPU.
-  bool is_valid_device = (TVMDeviceExtType(devices_[0].device_type) == kDLHexagon) ||
-                         (DLDeviceType(devices_[0].device_type) == kDLCPU);
+  bool is_valid_device =
+      (devices_[0].device_type == kDLHexagon) || (devices_[0].device_type == kDLCPU);
   CHECK(is_valid_device)
       << "At this time, AOTExecutor supports only execution on kDLCPU 0 or kDLHexagon 0";
 
@@ -62,19 +65,40 @@ AotExecutor::AotExecutor(tvm::runtime::Module module, const std::vector<Device>&
                                       output->dtype(), devices_[0]));
   }
 
-  for (auto pool : metadata_->pools()) {
-    args_.emplace_back(NDArray::Empty(ShapeTuple(pool->shape().begin(), pool->shape().end()),
-                                      pool->dtype(), devices_[0]));
+  // USMP is used
+  if (metadata_->num_workspace_pools()) {
+    // merge all constants into one ndarray
+    int64_t blob_len = 0;
+    for (const auto& c : metadata_->constant_pools()) {
+      auto data = c->data();
+      int64_t byte_size = GetDataSize(*data.operator->()) + c->byte_offset();
+      blob_len = blob_len > byte_size ? blob_len : byte_size;
+    }
+    ICHECK(blob_len < std::numeric_limits<int32_t>::max());
+    NDArray ci = NDArray::Empty({blob_len}, DataType::UInt(8), devices_[0]);
+    for (const auto& c : metadata_->constant_pools()) {
+      auto data = c->data();
+      data.CopyToBytes(static_cast<uint8_t*>(ci->data) + c->byte_offset(),
+                       GetDataSize(*data.operator->()));
+    }
+    // Emplace constant node pool only if workspace pools supplied
+    args_.emplace_back(ci);
+
+    int32_t pool_len = 0;
+    for (auto pool : metadata_->workspace_pools()) {
+      pool_len =
+          GetDataSize(*NDArray::Empty({pool->shape()}, pool->dtype(), devices_[0]).operator->());
+      args_.emplace_back(NDArray::Empty({pool_len}, DataType::UInt(8), devices_[0]));
+    }
   }
 }
 
-PackedFunc AotExecutor::GetFunction(const std::string& name,
-                                    const ObjectPtr<Object>& sptr_to_self) {
+PackedFunc AotExecutor::GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) {
   // Return member functions during query.
   if (name == "set_input") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       if (String::CanConvertFrom(args[0])) {
-        int in_idx = this->GetInputIndex(args[0].operator String());
+        int in_idx = this->GetInputIndex(tvm::runtime::SanitizeName(args[0].operator String()));
         if (in_idx >= 0) this->SetInput(in_idx, args[1]);
       } else {
         this->SetInput(args[0], args[1]);
@@ -83,7 +107,7 @@ PackedFunc AotExecutor::GetFunction(const std::string& name,
   } else if (name == "set_input_zero_copy") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       if (String::CanConvertFrom(args[0])) {
-        int in_idx = this->GetInputIndex(args[0].operator String());
+        int in_idx = this->GetInputIndex(tvm::runtime::SanitizeName(args[0].operator String()));
         if (in_idx >= 0) this->SetInputZeroCopy(in_idx, args[1]);
       } else {
         this->SetInputZeroCopy(args[0], args[1]);
@@ -92,7 +116,7 @@ PackedFunc AotExecutor::GetFunction(const std::string& name,
   } else if (name == "set_output_zero_copy") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       if (String::CanConvertFrom(args[0])) {
-        int out_idx = this->GetOutputIndex(args[0].operator String());
+        int out_idx = this->GetOutputIndex(tvm::runtime::SanitizeName(args[0].operator String()));
         if (out_idx >= 0) this->SetOutputZeroCopy(out_idx, args[1]);
       } else {
         this->SetOutputZeroCopy(args[0], args[1]);
@@ -110,7 +134,7 @@ PackedFunc AotExecutor::GetFunction(const std::string& name,
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       int in_idx = 0;
       if (String::CanConvertFrom(args[0])) {
-        in_idx = this->GetInputIndex(args[0].operator String());
+        in_idx = this->GetInputIndex(tvm::runtime::SanitizeName(args[0].operator String()));
       } else {
         in_idx = args[0];
       }
@@ -129,8 +153,11 @@ PackedFunc AotExecutor::GetFunction(const std::string& name,
   } else if (name == "get_input_index") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       CHECK(String::CanConvertFrom(args[0])) << "Input key is not a string";
-      *rv = this->GetInputIndex(args[0].operator String());
+      *rv = this->GetInputIndex(tvm::runtime::SanitizeName(args[0].operator String()));
     });
+  } else if (name == "get_input_name") {
+    return PackedFunc(
+        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetInputName(args[0]); });
   } else {
     return PackedFunc();
   }
@@ -163,7 +190,12 @@ int AotExecutor::GetInputIndex(const std::string& name) {
       return i;
     }
   }
-  return -1;
+  ICHECK(false) << "Invalid input name.";
+}
+
+std::string AotExecutor::GetInputName(int index) {
+  auto inputs = metadata_->inputs();
+  return inputs[index]->name();
 }
 
 int AotExecutor::GetOutputIndex(const std::string& name) {

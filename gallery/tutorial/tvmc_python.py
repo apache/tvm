@@ -20,7 +20,7 @@ Getting Starting using TVMC Python: a high-level API for TVM
 **Author**:
 `Jocelyn Shiue <https://github.com/CircleSpin>`_
 
-Hi! Here we explain the scripting tool designed for the complete TVM beginner. 🙂                                                                                                      
+Hi! Here we explain the scripting tool designed for the complete TVM beginner. 🙂
 
 Before we get started let's get an example model if you don't already have one.
 Follow the steps to download a resnet model via the terminal:
@@ -29,12 +29,13 @@ Follow the steps to download a resnet model via the terminal:
 
      mkdir myscripts
      cd myscripts
-     wget https://github.com/onnx/models/raw/main/vision/classification/resnet/model/resnet50-v2-7.onnx
+     wget https://github.com/onnx/models/raw/b9a54e89508f101a1611cd64f4ef56b9cb62c7cf/vision/classification/resnet/model/resnet50-v2-7.onnx
      mv resnet50-v2-7.onnx my_model.onnx
      touch tvmcpythonintro.py
 
 Let's start editing the python file in your favorite text editor.
 """
+
 
 ################################################################################
 # Step 0: Imports
@@ -242,7 +243,7 @@ Let's start editing the python file in your favorite text editor.
 #      ...
 #
 #      # Later run tuning and reuse tuning results
-#      tvmc.tune(model, target="llvm",tuning_records=log_file)
+#      tvmc.tune(model, target="llvm", prior_records=log_file)
 #
 # Method 2:
 #    .. code-block:: python
@@ -253,7 +254,7 @@ Let's start editing the python file in your favorite text editor.
 #      ...
 #
 #      # Later run tuning and reuse tuning results
-#      tvmc.tune(model, target="llvm",tuning_records=tuning_records)
+#      tvmc.tune(model, target="llvm", prior_records=tuning_records)
 #
 
 ################################################################################

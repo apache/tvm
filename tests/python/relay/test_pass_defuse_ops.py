@@ -212,4 +212,4 @@ def test_defuse_complex():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

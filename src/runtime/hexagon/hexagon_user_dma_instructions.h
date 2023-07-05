@@ -24,8 +24,6 @@ namespace tvm {
 namespace runtime {
 namespace hexagon {
 
-#if __HEXAGON_ARCH__ >= 68
-
 inline unsigned int dmpause() {
   unsigned int dm0 = 0;
   asm volatile(" %0 = dmpause" : "=r"(dm0));
@@ -33,6 +31,10 @@ inline unsigned int dmpause() {
 }
 
 inline void dmstart(void* next) { asm volatile(" dmstart(%0)" : : "r"(next)); }
+
+inline void dmlink(void* tail, void* next) {
+  asm volatile(" dmlink(%0, %1)" : : "r"(tail), "r"(next));
+}
 
 inline unsigned int dmpoll() {
   unsigned int dm0 = 0;
@@ -69,8 +71,6 @@ inline unsigned int dmcfgrd(unsigned int dmindex) {
 inline void dmcfgwr(unsigned int dmindex, unsigned int data) {
   asm volatile(" dmcfgwr(%0, %1)" : : "r"(dmindex), "r"(data));
 }
-
-#endif
 
 }  // namespace hexagon
 }  // namespace runtime

@@ -65,6 +65,46 @@ Optional<BlockRV> ParseAnnotate(const Schedule& sch, const Instruction& inst,
   return Downcast<BlockRV>(inst->inputs[0]);
 }
 
+/*!
+ * \brief Parse instruction: sch.annotate(..., attr::warp_execution)
+ * \param sch The schedule
+ * \param inst The instruction to be parsed
+ * \return Whether ths parsing is successful
+ */
+bool ParseWarpExecutionAnn(const Schedule& sch, const Instruction& inst) {
+  static InstructionKind inst_kind_annotate = InstructionKind::Get("Annotate");
+  if (!inst->kind.same_as(inst_kind_annotate)) {
+    return false;
+  }
+  ICHECK_EQ(inst->inputs.size(), 2);
+  ICHECK_EQ(inst->attrs.size(), 1);
+  String ann_key = Downcast<String>(inst->attrs[0]);
+  return ann_key == attr::warp_execution;
+}
+
+size_t GetMaxUsedDtypeBytes(Block block) {
+  size_t max_bytes = 1;
+  static auto q_multiply_shift_per_axis = Op::Get("tir.q_multiply_shift_per_axis");
+  static auto q_multiply_shift = Op::Get("tir.q_multiply_shift");
+
+  tir::PostOrderVisit(block->body, [&](const ObjectRef& obj) {
+    if (const auto* store = obj.as<tir::BufferStoreNode>()) {
+      max_bytes = std::max(max_bytes, static_cast<size_t>(store->value->dtype.bytes()));
+    } else if (const auto* load = obj.as<tir::BufferLoadNode>()) {
+      max_bytes = std::max(max_bytes, static_cast<size_t>(load->dtype.bytes()));
+    } else if (const auto* call = obj.as<tir::CallNode>()) {
+      if (call->op.same_as(q_multiply_shift_per_axis) || call->op.same_as(q_multiply_shift)) {
+        // q_multiply_shift uses 64 bit multiply
+        max_bytes = std::max<size_t>(max_bytes, 8);
+      }
+    } else if (const auto* cast = obj.as<tir::CastNode>()) {
+      max_bytes = std::max<size_t>(max_bytes, cast->dtype.bytes());
+    }
+  });
+
+  return max_bytes;
+}
+
 }  // namespace tir
 
 namespace meta_schedule {
@@ -76,14 +116,29 @@ namespace meta_schedule {
 class RewriteCooperativeFetchNode : public PostprocNode {
  public:
   // Inherited from PostprocNode
-  void InitializeWithTuneContext(const TuneContext& context) final {}
+  void InitializeWithTuneContext(const TuneContext& context) final {
+    if (Optional<Integer> v = context->target.value()->GetAttr<Integer>("thread_warp_size")) {
+      this->thread_warp_size_ = v.value()->value;
+    } else {
+      TVM_PY_LOG(INFO, context->logger) << "'thread_warp_size' is not defined in the target";
+    }
+  }
+
   // Inherited from PostprocNode
   bool Apply(const tir::Schedule& sch) final;
+
+  Postproc Clone() const {
+    ObjectPtr<RewriteCooperativeFetchNode> n = make_object<RewriteCooperativeFetchNode>(*this);
+    return Postproc(n);
+  }
 
   void VisitAttrs(tvm::AttrVisitor* v) {}
 
   static constexpr const char* _type_key = "meta_schedule.RewriteCooperativeFetch";
   TVM_DECLARE_FINAL_OBJECT_INFO(RewriteCooperativeFetchNode, PostprocNode);
+
+ private:
+  int thread_warp_size_ = -1;
 };
 
 bool RewriteCooperativeFetchNode::Apply(const tir::Schedule& sch) {
@@ -101,6 +156,10 @@ bool RewriteCooperativeFetchNode::Apply(const tir::Schedule& sch) {
       thread_extent_y = new_thread_extent.value()->value;
       continue;
     }
+    if (tir::ParseWarpExecutionAnn(sch, inst)) {
+      thread_extent_x = thread_warp_size_;
+      continue;
+    }
     Optional<tir::BlockRV> opt_block_rv = tir::ParseAnnotate(sch, inst, &vector_lane);
     if (!opt_block_rv.defined()) {
       continue;
@@ -116,6 +175,13 @@ bool RewriteCooperativeFetchNode::Apply(const tir::Schedule& sch) {
         return;
       }
       if (fused_extent % vector_lane != 0) {
+        vector_lane = 1;
+      }
+      // If the block involves 64 bit values, disable vectorization for now since
+      // vectorization of 64 bit values does not work well on CUDA.
+      // TODO(masahi, vinx13): Decouple epilogue fusion computation and shared to global store, so
+      // that we can always vectorize the latter.
+      if (tir::GetMaxUsedDtypeBytes(sch->Get(block)) > 4) {
         vector_lane = 1;
       }
       if (thread_extent_y != -1) {

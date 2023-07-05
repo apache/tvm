@@ -115,8 +115,10 @@ class Base64InStream : public dmlc::Stream {
   }
   /*! \brief whether current position is end of a base64 stream */
   bool IsEOF(void) const { return num_prev_ == 0 && (temp_ch_ == EOF || isspace(temp_ch_)); }
+
+  using dmlc::Stream::Read;
   // override read function.
-  virtual size_t Read(void* ptr, size_t size) {
+  size_t Read(void* ptr, size_t size) final {
     using base64::DecodeTable;
     if (size == 0) return 0;
     // use tlen to record left size
@@ -224,7 +226,10 @@ class Base64InStream : public dmlc::Stream {
 class Base64OutStream : public dmlc::Stream {
  public:
   explicit Base64OutStream(dmlc::Stream* fp) : fp_(fp) {}
-  virtual void Write(const void* ptr, size_t size) {
+
+  using dmlc::Stream::Write;
+
+  void Write(const void* ptr, size_t size) final {
     using base64::EncodeTable;
     size_t tlen = size;
     const unsigned char* cptr = static_cast<const unsigned char*>(ptr);
@@ -245,7 +250,6 @@ class Base64OutStream : public dmlc::Stream {
   }
   virtual size_t Read(void* ptr, size_t size) {
     LOG(FATAL) << "Base64OutStream do not support read";
-    return 0;
   }
   /*!
    * \brief finish writing of all current base64 stream, do some post processing

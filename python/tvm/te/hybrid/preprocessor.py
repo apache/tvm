@@ -100,7 +100,7 @@ class PyVariableUsage(ast.NodeVisitor):
                     raise ValueError("Only support capturing constant values in closure")
                 return
 
-            _internal_assert(isinstance(node.ctx, ast.Store), "Undeclared variable %s" % node.id)
+            _internal_assert(isinstance(node.ctx, ast.Store), f"Undeclared variable {node.id}")
             if self.aug_assign_:
                 raise ValueError('"First store" cannot be an AugAssign')
             self.status[node.id] = (node, self.scope_level[-1], set())
@@ -108,7 +108,7 @@ class PyVariableUsage(ast.NodeVisitor):
             decl, loop, usage = self.status[node.id]
             usage.add(type(node.ctx))
             _internal_assert(
-                loop in self.scope_level, "%s is used out of the scope it is defined!" % node.id
+                loop in self.scope_level, f"{node.id} is used out of the scope it is defined!"
             )
             self.status[node.id] = (decl, loop, usage)
 

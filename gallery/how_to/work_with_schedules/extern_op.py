@@ -31,6 +31,7 @@ or pointer to DLTensor as argument.
 """
 from __future__ import absolute_import, print_function
 
+
 import tvm
 from tvm import te
 import numpy as np

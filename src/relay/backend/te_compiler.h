@@ -73,7 +73,7 @@ class TECompilerNode : public Object {
    * \param key The key to the cached function.
    * \return The result.
    */
-  virtual CachedFunc Lower(const CCacheKey& key, std::function<String(String)> mangle_fn) = 0;
+  virtual CachedFunc Lower(const CCacheKey& key) = 0;
 
   /*!
    * \brief Get lowered result.
@@ -137,7 +137,7 @@ class TECompilerNode : public Object {
 /*! \brief cache entry used in compile engine */
 class TECompiler : public ObjectRef {
  public:
-  explicit TECompiler(Optional<IRModule> opt_mod = {});
+  explicit TECompiler(Optional<IRModule> opt_mod = {}, Optional<String> mod_name = {});
   explicit TECompiler(ObjectPtr<Object> n) : ObjectRef(n) {}
   TECompilerNode* operator->() { return static_cast<TECompilerNode*>(get_mutable()); }
   using ContainerType = TECompilerNode;

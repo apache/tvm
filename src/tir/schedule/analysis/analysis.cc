@@ -16,9 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/runtime/container/optional.h>
-#include <tvm/tir/expr.h>
-
 #include "../ir_comparator.h"
 #include "../utils.h"
 
@@ -106,10 +103,10 @@ Definition of a scope that is a stage pipeline:
     }
   }
   // Step 2. Handle `require_stage_pipeline`
-  if (require_stage_pipeline) {
-    bool stage_pipeline = self->GetBlockInfo(scope_root_sref).scope->stage_pipeline;
+  if (require_stage_pipeline && self->enable_check) {
+    bool stage_pipeline = self->GetBlockInfo(scope_root_sref).stage_pipeline;
     if (stage_pipeline == false) {
-      const BlockNode* block = TVM_SREF_TO_BLOCK(block, scope_root_sref);
+      const BlockNode* block = TVM_SREF_TO_BLOCK(scope_root_sref);
       throw NotStagePipelineError(self->mod, GetRef<Block>(block));
     }
   }
@@ -188,7 +185,7 @@ bool IsDominantBlock(const ScheduleState& self, const StmtSRef& scope_root_sref,
     }
   }
   // Check whether the input block is the only writer of its outputs
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
   for (const BufferRegion& write_region : block->writes) {
     if (buffer_writers.count(write_region->buffer)) {
       if (buffer_writers.at(write_region->buffer).size() != 1) {
@@ -211,7 +208,7 @@ bool IsDominantBlock(const ScheduleState& self, const StmtSRef& scope_root_sref,
 int CheckCompleteBlockErrorCode(const ScheduleState& self, const StmtSRef& block_sref,
                                 const StmtSRef& scope_root_sref) {
   // Cond 1. All block vars are data parallel
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
   for (const IterVar& iter_var : block->iter_vars) {
     if (iter_var->iter_type != kDataPar) {
       return 1;
@@ -287,7 +284,7 @@ void CheckCompleteBlock(const ScheduleState& self, const StmtSRef& block_sref,
 
   int error_code = CheckCompleteBlockErrorCode(self, block_sref, scope_root_sref);
   if (error_code != 0) {
-    const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+    const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
     throw IncompleteBlockError(self->mod, GetRef<Block>(block), error_code);
   }
 }
@@ -303,7 +300,7 @@ void CheckCompleteBlock(const ScheduleState& self, const StmtSRef& block_sref,
  */
 int CheckReductionBlockErrorCode(const ScheduleState& self, const StmtSRef& block_sref,
                                  const StmtSRef& scope_root_sref) {
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
   // Cond 1. The block has the `init` statement.
   if (!block->init.defined()) {
     return 1;
@@ -353,7 +350,7 @@ void CheckReductionBlock(const ScheduleState& self, const StmtSRef& block_sref,
 
   int error_code = CheckReductionBlockErrorCode(self, block_sref, scope_root_sref);
   if (error_code != 0) {
-    const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+    const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
     throw NotReductionBlockError(self->mod, GetRef<Block>(block), error_code);
   }
 }
@@ -400,7 +397,7 @@ void CheckCompleteOrReductionBlock(const ScheduleState& self, const StmtSRef& bl
   if (reduction_block_error_code == 0) {
     return;
   }
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
   throw NotCompleteOrReductionBlockError(self->mod, GetRef<Block>(block), complete_block_error_code,
                                          reduction_block_error_code);
 }
@@ -450,7 +447,7 @@ void CheckSubtreeCompactDataflow(const ScheduleState& self, const StmtSRef& subt
     int local_complete_block_code = CheckCompleteBlockErrorCode(self, block_sref, subtree_root),
         local_reduction_block_code = CheckReductionBlockErrorCode(self, block_sref, subtree_root);
     if (local_complete_block_code != 0 && local_reduction_block_code != 0) {
-      const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+      const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
       throw NotCompactDataFlowError(self->mod, GetRef<Stmt>(subtree_root->stmt),
                                     GetRef<Block>(block), local_complete_block_code,
                                     local_reduction_block_code);
@@ -460,8 +457,8 @@ void CheckSubtreeCompactDataflow(const ScheduleState& self, const StmtSRef& subt
 
 bool IsOutputBlock(const ScheduleState& self, const StmtSRef& block_sref,
                    const StmtSRef& scope_root_sref) {
-  const BlockNode* scope_root = TVM_SREF_TO_BLOCK(scope_root, scope_root_sref);
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  const BlockNode* scope_root = TVM_SREF_TO_BLOCK(scope_root_sref);
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
   std::unordered_set<const BufferNode*> scope_allocated;
   scope_allocated.reserve(scope_root->alloc_buffers.size());
   for (const Buffer& buffer : scope_root->alloc_buffers) {
@@ -491,7 +488,7 @@ void CheckNotOutputBlock(const ScheduleState& self, const StmtSRef& block_sref,
     Block block_;
   };
   if (IsOutputBlock(self, block_sref, scope_root_sref)) {
-    const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+    const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
     throw OutputBlockError(self->mod, GetRef<Block>(block));
   }
 }
@@ -506,20 +503,24 @@ std::vector<IterVarType> GetBlockVarTypes(const BlockNode* block) {
 }
 
 std::vector<IterVarType> GetBlockVarTypes(const StmtSRef& block_sref) {
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
   return GetBlockVarTypes(block);
 }
 
 bool IsWriteCache(const StmtSRef& block_sref) {
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
   if (block->writes.size() != 1) {
     return false;
   }
   const BufferRegion& write_region = block->writes[0];
   for (const BufferRegion& read_region : block->reads) {
-    bool exists, surjective, injective, ordered, no_const_read, no_shift_read;
-    std::tie(exists, surjective, injective, ordered, no_const_read, no_shift_read) =
+    auto [exists, surjective, injective, ordered, no_const_read, no_shift_read] =
         AnalyzeReadWritePattern(read_region, write_region);
+    // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=81767
+    (void)exists;
+    (void)surjective;
+    (void)no_const_read;
+    (void)no_shift_read;
     if (!(injective && ordered)) {
       return false;
     }
@@ -539,7 +540,8 @@ bool IsAffineBinding(const BlockRealize& realize, const Map<Var, Range>& loop_va
       /*input_iters=*/loop_var_ranges,
       /*predicate=*/realize->predicate,
       /*check_level=*/arith::IterMapLevel::Surjective,
-      /*analyzer=*/analyzer);
+      /*analyzer=*/analyzer,
+      /*simplify_trivial_iterators=*/false);
   if (res->indices.empty()) {
     return false;
   }
@@ -608,6 +610,35 @@ void CheckPartialAffineBinding(const ScheduleState& self, Block block,
 
 void CheckAffineBinding(const ScheduleState& self, Block block) {
   CheckPartialAffineBinding(self, std::move(block), NullOpt);
+}
+
+void CheckBlockHasTrivialBinding(const ScheduleState& self, const StmtSRef& block_sref) {
+  class NotTrivialBindingError : public ScheduleError {
+   public:
+    explicit NotTrivialBindingError(IRModule mod, Block block)
+        : mod_(std::move(mod)), block_(std::move(block)) {}
+
+    String FastErrorString() const final {
+      return "ScheduleError: The binding values of the block are not variables of outer loops.";
+    }
+
+    String DetailRenderTemplate() const final {
+      std::ostringstream os;
+      os << "The binding values of the {0} are not variables of outer loops.";
+      return os.str();
+    }
+
+    IRModule mod() const final { return mod_; }
+    Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+
+   private:
+    IRModule mod_;
+    Block block_;
+  };
+
+  if (!IsTrivialBinding(self, block_sref)) {
+    throw NotTrivialBindingError(self->mod, GetRef<Block>(block_sref->StmtAs<BlockNode>()));
+  }
 }
 
 Map<Var, Range> LoopDomainOfSRefTreePath(const StmtSRef& low_inclusive,
@@ -710,7 +741,7 @@ void CheckLoopStartsWithZero(const ScheduleState& self, const StmtSRef& loop_sre
     IRModule mod_;
     For loop_;
   };
-  const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
+  const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
   if (!analyzer->CanProve(loop->min == 0)) {
     throw LoopNotStartWithZeroError(self->mod, GetRef<For>(loop));
   }
@@ -815,7 +846,7 @@ BlockRealize GetBlockRealize(const ScheduleState& self, const StmtSRef& block_sr
     const BlockRealizeNode* result;
   };
 
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
   if (block_sref->parent == nullptr) {
     const PrimFuncNode* func = GetRootPrimFunc(self->mod, block, nullptr);
     return Downcast<BlockRealize>(func->body);
@@ -829,7 +860,7 @@ BlockRealize GetBlockRealize(const ScheduleState& self, const StmtSRef& block_sr
 }
 
 IterVarType GetLoopIterType(const StmtSRef& loop_sref) {
-  const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
+  const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
   const Var& loop_var = loop->loop_var;
   int n_spatial = 0;
   int n_reduce = 0;
@@ -983,23 +1014,60 @@ std::pair<Array<StmtSRef>, std::vector<int>> CollectComputeLocation(const Schedu
 /******** Producer-consumer relation ********/
 
 Array<StmtSRef> GetProducers(const StmtSRef& block_sref, const BlockScope& scope) {
-  Array<Dependency> deps = scope->GetDepsByDst(block_sref);
-  Array<StmtSRef> result;
-  result.reserve(deps.size());
-  for (const Dependency& dep : deps) {
-    result.push_back(dep->src);
+  Array<Dependency> edges = scope->GetDepsByDst(block_sref);
+  Array<StmtSRef> results;
+  std::unordered_set<StmtSRef, ObjectPtrHash, ObjectPtrEqual> result_set;
+  results.reserve(edges.size());
+  for (const Dependency& edge : edges) {
+    if ((edge->kind == DepKind::kRAW || edge->kind == DepKind::kWAW) &&
+        !result_set.count(edge->src)) {
+      results.push_back(edge->src);
+      result_set.emplace(edge->src);
+    }
   }
-  return result;
+  return results;
 }
 
 Array<StmtSRef> GetConsumers(const StmtSRef& block_sref, const BlockScope& scope) {
-  Array<Dependency> deps = scope->GetDepsBySrc(block_sref);
-  Array<StmtSRef> result;
-  result.reserve(deps.size());
-  for (const Dependency& dep : deps) {
-    result.push_back(dep->dst);
+  Array<Dependency> edges = scope->GetDepsBySrc(block_sref);
+  Array<StmtSRef> results;
+  std::unordered_set<StmtSRef, ObjectPtrHash, ObjectPtrEqual> result_set;
+  results.reserve(edges.size());
+  for (const Dependency& edge : edges) {
+    if ((edge->kind == DepKind::kRAW || edge->kind == DepKind::kWAW) &&
+        !result_set.count(edge->dst)) {
+      results.push_back(edge->dst);
+      result_set.emplace(edge->dst);
+    }
   }
-  return result;
+  return results;
+}
+
+Array<StmtSRef> GetOutputBlocks(const ScheduleState& self, const BlockNode* scope_block) {
+  struct OutputBlockCollector : public StmtVisitor {
+    explicit OutputBlockCollector(const ScheduleState& self) : self_(self) {}
+
+    void VisitStmt_(const BlockNode* block) override {
+      auto it = self_->stmt2ref.find(block);
+      ICHECK(it != self_->stmt2ref.end());
+      auto block_sref = it->second;
+      if (block_sref->parent != nullptr) {
+        StmtSRef scope_root_sref =
+            GetScopeRoot(self_, block_sref, /*require_stage_pipeline=*/false);
+        if (IsOutputBlock(self_, block_sref, scope_root_sref)) {
+          results_.push_back(block_sref);
+        }
+      }
+      StmtVisitor::VisitStmt_(block);
+    }
+
+    const ScheduleState& self_;
+    Array<StmtSRef> results_;
+  };
+  OutputBlockCollector collector(self);
+  collector(scope_block->body);
+  auto results = collector.results_;
+  return results;
 }
 
 ProducerConsumerSplit ProducerConsumerSplit::Find(
@@ -1101,17 +1169,19 @@ ProducerConsumerSplit ProducerConsumerSplit::Find(
 
 /******** Block-buffer relation ********/
 
-Buffer GetNthAccessBuffer(const ScheduleState& self, const Block& block, int n, bool is_write) {
+BufferRegion GetNthAccessBufferRegion(const ScheduleState& self, const Block& block, int n,
+                                      BufferIndexType index_type) {
   class BufferIndexOutOfRangeError : public ScheduleError {
    public:
-    explicit BufferIndexOutOfRangeError(IRModule mod, Block block, int buffer_index, bool is_write)
+    explicit BufferIndexOutOfRangeError(IRModule mod, Block block, int buffer_index,
+                                        BufferIndexType index_type)
         : mod_(std::move(mod)),
           block_(std::move(block)),
           buffer_index_(buffer_index),
-          is_write_(is_write) {}
+          index_type_(index_type) {}
 
     String FastErrorString() const final {
-      if (is_write_) {
+      if (index_type_ == BufferIndexType::kWrite) {
         return "ScheduleError: The input `buffer_index` is out of range. It is required to be in "
                "range "
                "[0, num_write_regions) where `num_write_regions` is the number of buffer regions "
@@ -1126,9 +1196,9 @@ Buffer GetNthAccessBuffer(const ScheduleState& self, const Block& block, int n, 
 
     String DetailRenderTemplate() const final {
       std::ostringstream os;
-      size_t num = is_write_ ? block_->writes.size() : block_->reads.size();
-      std::string access_type = is_write_ ? "write" : "read";
-      os << "The block {0} has " << num << " " << access_type
+      size_t num =
+          index_type_ == BufferIndexType::kWrite ? block_->writes.size() : block_->reads.size();
+      os << "The block {0} has " << num << " " << BufferIndexType2Str(index_type_)
          << " regions, so `buffer_index` is required to be in [0, " << num
          << "). However, the input `buffer_index` is " << buffer_index_
          << ", which is out of the expected range.";
@@ -1142,15 +1212,21 @@ Buffer GetNthAccessBuffer(const ScheduleState& self, const Block& block, int n, 
     IRModule mod_;
     Block block_;
     int buffer_index_;
-    bool is_write_;
+    BufferIndexType index_type_;
   };
 
-  const Array<BufferRegion>& access_region = is_write ? block->writes : block->reads;
+  const Array<BufferRegion>& access_region =
+      index_type == BufferIndexType::kWrite ? block->writes : block->reads;
 
   if (n < 0 || static_cast<int>(access_region.size()) <= n) {
-    throw BufferIndexOutOfRangeError(self->mod, block, n, is_write);
+    throw BufferIndexOutOfRangeError(self->mod, block, n, index_type);
   }
-  return access_region[n]->buffer;
+  return access_region[n];
+}
+
+Buffer GetNthAccessBuffer(const ScheduleState& self, const Block& block, int n,
+                          BufferIndexType index_type) {
+  return GetNthAccessBufferRegion(self, block, n, index_type)->buffer;
 }
 
 std::pair<Optional<StmtSRef>, bool> GetBufferDefiningSite(const StmtSRef& block_sref,
@@ -1182,523 +1258,6 @@ std::pair<Optional<StmtSRef>, bool> GetBufferDefiningSite(const StmtSRef& block_
   // If we cannot find the defining site block, it means that the buffer must be in the function's
   // buffer_map, which isn't an intermediate buffer.
   return {NullOpt, false};
-}
-
-/******** Pattern Matcher ********/
-
-/*!
- * \brief PrimExpr pattern matcher.
- *
- * It is different from the pattern matcher in arith/pattern_match.h, which is dedicated
- * for compile-time constant patterns. This pattern matcher can work on dynamic user-specific
- * patterns.
- *
- * The code below shows how to use the pattern matcher.
- *
- * \code
- *
- * Var x("x"), y("y");
- * // use PrimExpr to declare patterns, x, y are holes that can be filled with
- * PatternMatcher pattern_matcher(x + y);
- * // expr = C[i, j] + A[i, k] * B[k, j], which is the expr we want to match
- * pattern_matcher.Match(expr);
- *
- * if (pattern_matcher.Success()) {
- *   pattern_matcher.Eval(x) // C[i, j]
- *   pattern_matcher.Eval(y) // A[i, k] * B[k, j]
- * }
- *
- * \endcode
- */
-class PatternMatcher : public ExprVisitor {
- public:
-  explicit PatternMatcher(PrimExpr pattern) : pattern_(std::move(pattern)) {}
-
-  void VisitExpr_(const VarNode* op) final {
-    auto it = filled_map_.find(op);
-    if (it == filled_map_.end()) {
-      filled_map_[op] = expr_to_match_;
-    } else {
-      ExprDeepEqual equal;
-      if (it->second.same_as(expr_to_match_) || equal(it->second, expr_to_match_)) return;
-      match_success_ = false;
-    }
-  }
-
-  void VisitExpr_(const LoadNode* op) final {
-    const auto* ptr = expr_to_match_.as<LoadNode>();
-    if (ptr == nullptr) {
-      match_success_ = false;
-    } else {
-      if (!op->buffer_var.same_as(ptr->buffer_var)) {
-        match_success_ = false;
-      } else {
-        PrimExpr tmp = expr_to_match_;
-        expr_to_match_ = ptr->predicate;
-        VisitExpr(op->predicate);
-        expr_to_match_ = ptr->index;
-        VisitExpr(op->index);
-        std::swap(expr_to_match_, tmp);
-      }
-    }
-  }
-
-  void VisitExpr_(const LetNode* op) final {
-    const auto* ptr = expr_to_match_.as<LetNode>();
-    if (ptr == nullptr) {
-      match_success_ = false;
-    } else {
-      PrimExpr tmp = expr_to_match_;
-      expr_to_match_ = ptr->var;
-      VisitExpr(op->var);
-      expr_to_match_ = ptr->value;
-      VisitExpr(op->value);
-      expr_to_match_ = ptr->body;
-      VisitExpr(op->body);
-      std::swap(expr_to_match_, tmp);
-    }
-  }
-
-  void VisitExpr_(const CallNode* op) final {
-    const auto* ptr = expr_to_match_.as<CallNode>();
-    if (ptr == nullptr) {
-      match_success_ = false;
-    } else {
-      if (!op->op.same_as(ptr->op)) {
-        match_success_ = false;
-      } else {
-        PrimExpr tmp = expr_to_match_;
-        for (size_t i = 0; i < op->args.size(); ++i) {
-          expr_to_match_ = ptr->args[i];
-          VisitExpr(op->args[i]);
-        }
-        std::swap(expr_to_match_, tmp);
-      }
-    }
-  }
-
-#define TVM_DECLARE_PATTERN_MATCHER_BIN_OP(OpName) \
-  void VisitExpr_(const OpName* op) {              \
-    const auto* ptr = expr_to_match_.as<OpName>(); \
-    if (ptr == nullptr) {                          \
-      match_success_ = false;                      \
-    } else {                                       \
-      PrimExpr current = expr_to_match_;           \
-      expr_to_match_ = ptr->a;                     \
-      VisitExpr(op->a);                            \
-      expr_to_match_ = ptr->b;                     \
-      VisitExpr(op->b);                            \
-      std::swap(expr_to_match_, current);          \
-    }                                              \
-  }
-
-  TVM_DECLARE_PATTERN_MATCHER_BIN_OP(AddNode);
-  TVM_DECLARE_PATTERN_MATCHER_BIN_OP(SubNode);
-  TVM_DECLARE_PATTERN_MATCHER_BIN_OP(MulNode);
-  TVM_DECLARE_PATTERN_MATCHER_BIN_OP(DivNode);
-  TVM_DECLARE_PATTERN_MATCHER_BIN_OP(ModNode);
-  TVM_DECLARE_PATTERN_MATCHER_BIN_OP(FloorDivNode);
-  TVM_DECLARE_PATTERN_MATCHER_BIN_OP(FloorModNode);
-  TVM_DECLARE_PATTERN_MATCHER_BIN_OP(MinNode);
-  TVM_DECLARE_PATTERN_MATCHER_BIN_OP(MaxNode);
-  TVM_DECLARE_PATTERN_MATCHER_BIN_OP(EQNode);
-  TVM_DECLARE_PATTERN_MATCHER_BIN_OP(NENode);
-  TVM_DECLARE_PATTERN_MATCHER_BIN_OP(LTNode);
-  TVM_DECLARE_PATTERN_MATCHER_BIN_OP(LENode);
-  TVM_DECLARE_PATTERN_MATCHER_BIN_OP(GTNode);
-  TVM_DECLARE_PATTERN_MATCHER_BIN_OP(GENode);
-  TVM_DECLARE_PATTERN_MATCHER_BIN_OP(AndNode);
-  TVM_DECLARE_PATTERN_MATCHER_BIN_OP(OrNode);
-
-  void VisitExpr_(const CastNode* op) final {
-    const auto* ptr = expr_to_match_.as<CastNode>();
-    if (ptr == nullptr) {
-      match_success_ = false;
-    } else {
-      if (!runtime::TypeEqual(op->dtype, ptr->dtype)) {
-        match_success_ = false;
-      } else {
-        PrimExpr tmp = expr_to_match_;
-        expr_to_match_ = ptr->value;
-        VisitExpr(op->value);
-        std::swap(expr_to_match_, tmp);
-      }
-    }
-  }
-
-  void VisitExpr_(const NotNode* op) final {
-    const auto* ptr = expr_to_match_.as<NotNode>();
-    if (ptr == nullptr) {
-      match_success_ = false;
-    } else {
-      PrimExpr tmp = expr_to_match_;
-      expr_to_match_ = ptr->a;
-      VisitExpr(op->a);
-      std::swap(expr_to_match_, tmp);
-    }
-  }
-
-  void VisitExpr_(const SelectNode* op) final {
-    const auto* ptr = expr_to_match_.as<SelectNode>();
-    if (ptr == nullptr) {
-      match_success_ = false;
-    } else {
-      PrimExpr tmp = expr_to_match_;
-      expr_to_match_ = ptr->condition;
-      VisitExpr(op->condition);
-      expr_to_match_ = ptr->true_value;
-      VisitExpr(op->true_value);
-      expr_to_match_ = ptr->false_value;
-      VisitExpr(op->false_value);
-      std::swap(expr_to_match_, tmp);
-    }
-  }
-
-  void VisitExpr_(const RampNode* op) final {
-    const auto* ptr = expr_to_match_.as<RampNode>();
-    if (ptr == nullptr) {
-      match_success_ = false;
-    } else {
-      if (op->lanes != ptr->lanes) {
-        match_success_ = false;
-      } else {
-        PrimExpr tmp = expr_to_match_;
-        expr_to_match_ = ptr->base;
-        VisitExpr(op->base);
-        expr_to_match_ = ptr->stride;
-        VisitExpr(op->stride);
-        std::swap(expr_to_match_, tmp);
-      }
-    }
-  }
-
-  void VisitExpr_(const BroadcastNode* op) final {
-    const auto* ptr = expr_to_match_.as<BroadcastNode>();
-    if (ptr == nullptr) {
-      match_success_ = false;
-    } else {
-      if (op->lanes != ptr->lanes) {
-        match_success_ = false;
-      } else {
-        PrimExpr tmp = expr_to_match_;
-        expr_to_match_ = ptr->value;
-        VisitExpr(op->value);
-        std::swap(expr_to_match_, tmp);
-      }
-    }
-  }
-
-  void VisitExpr_(const ShuffleNode* op) final {
-    const auto* ptr = expr_to_match_.as<ShuffleNode>();
-    if (ptr == nullptr) {
-      match_success_ = false;
-    } else {
-      if (op->vectors.size() != ptr->vectors.size() || op->indices.size() != ptr->indices.size()) {
-        match_success_ = false;
-      } else {
-        PrimExpr tmp = expr_to_match_;
-        for (size_t i = 0; i < op->indices.size(); ++i) {
-          expr_to_match_ = ptr->indices[i];
-          VisitExpr(op->indices[i]);
-        }
-        for (size_t i = 0; i < op->vectors.size(); ++i) {
-          expr_to_match_ = ptr->vectors[i];
-          VisitExpr(op->vectors[i]);
-        }
-        std::swap(expr_to_match_, tmp);
-      }
-    }
-  }
-
-  void VisitExpr_(const IntImmNode* op) final {
-    const auto* ptr = expr_to_match_.as<IntImmNode>();
-    match_success_ = ptr != nullptr && op->value == ptr->value;
-  }
-
-  void VisitExpr_(const FloatImmNode* op) final {
-    const auto* ptr = expr_to_match_.as<FloatImmNode>();
-    match_success_ = ptr != nullptr && op->value == ptr->value;
-  }
-
-  void VisitExpr_(const StringImmNode* op) final {
-    const auto* ptr = expr_to_match_.as<StringImmNode>();
-    match_success_ = ptr != nullptr && op->value == ptr->value;
-  }
-
-  void VisitExpr_(const BufferLoadNode* op) final {
-    const auto* ptr = expr_to_match_.as<BufferLoadNode>();
-    if (ptr == nullptr) {
-      match_success_ = false;
-    } else {
-      if (!op->buffer.same_as(ptr->buffer) || op->indices.size() != ptr->indices.size()) {
-        match_success_ = false;
-      } else {
-        PrimExpr tmp = expr_to_match_;
-        for (size_t i = 0; i < op->indices.size(); ++i) {
-          expr_to_match_ = ptr->indices[i];
-          VisitExpr(op->indices[i]);
-        }
-        std::swap(expr_to_match_, tmp);
-      }
-    }
-  }
-
-  void Match(const PrimExpr& expr_to_match) {
-    this->match_success_ = true;
-    this->filled_map_.clear();
-    this->expr_to_match_ = expr_to_match;
-    this->operator()(pattern_);
-  }
-
-  PrimExpr Eval(const Var& var) {
-    auto it = filled_map_.find(var.operator->());
-    ICHECK(it != filled_map_.end()) << "Unknown pattern variable";
-    ICHECK(match_success_) << "Match failed";
-    return it->second;
-  }
-
-  bool Success() const { return match_success_; }
-
- private:
-  bool match_success_{true};
-  PrimExpr pattern_, expr_to_match_;
-  std::unordered_map<const VarNode*, PrimExpr> filled_map_;
-};
-
-/******** Reduction Block Related ********/
-
-class InitBodyNotBufferStoreError : public ScheduleError {
- public:
-  explicit InitBodyNotBufferStoreError(IRModule mod, Block block, bool init_is_bufferstore,
-                                       bool body_is_bufferstore)
-      : mod_(std::move(mod)),
-        block_(std::move(block)),
-        init_is_bufferstore_(init_is_bufferstore),
-        body_is_bufferstore_(body_is_bufferstore) {}
-
-  String FastErrorString() const final {
-    return "ScheduleError: The `init` and `body` of reduction block are required to be both "
-           "BufferStore so that rfactor or cross-thread reduction can be applied";
-  }
-
-  String DetailRenderTemplate() const final {
-    if (!init_is_bufferstore_ && !body_is_bufferstore_) {
-      return "The `init` and `body` of block {0} are required to be BufferStore so that rfactor or "
-             "cross-thread reduction can be applied";
-    } else if (!init_is_bufferstore_) {
-      return "The `init` of block {0} is required to be BufferStore so that rfactor or cross-thread"
-             " reduction can be applied";
-    } else {
-      ICHECK(!body_is_bufferstore_);
-      return "The `body` of block {0} is required to be BufferStore so that rfactor or cross-thread"
-             " reduction can be applied";
-    }
-  }
-
-  IRModule mod() const final { return mod_; }
-  Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
-
-  IRModule mod_;
-  Block block_;
-  bool init_is_bufferstore_;
-  bool body_is_bufferstore_;
-};
-
-class InitBodyNotSameBufferAccessError : public ScheduleError {
- public:
-  explicit InitBodyNotSameBufferAccessError(IRModule mod, Block block)
-      : mod_(std::move(mod)), block_(std::move(block)) {}
-
-  String FastErrorString() const final {
-    return "ScheduleError: The `init` and `body` of the reduction block are required to have the "
-           "same buffer access pattern";
-  }
-
-  String DetailRenderTemplate() const final {
-    std::ostringstream os;
-    const auto* init = block_->init.as<BufferStoreNode>();
-    const auto* update = block_->body.as<BufferStoreNode>();
-    os << "The `init` and `body` of the block {0} is required to have the same buffer access "
-          "pattern. However, in block {0} the `init` writes to "
-       << init->buffer->name << init->indices << ", and the `body` writes to "
-       << update->buffer->name << update->indices;
-    return os.str();
-  }
-
-  IRModule mod() const final { return mod_; }
-  Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
-
-  IRModule mod_;
-  Block block_;
-};
-
-std::pair<BufferStore, BufferStore> GetBufferStoresFromReductionBlock(
-    const Optional<ScheduleState>& self, const Block& block) {
-  static constexpr const char* error_str1 =
-      "ValueError: The `init` and `body` of the reduction block are required to be both "
-      "BufferStore so that rfactor or cross-thread reduction can be applied. However, a reduction "
-      "block that doesn't meet this requirement is ";
-  static constexpr const char* error_str2 =
-      "ValueError: The `init` and `body` of the reduction block are required to have the same "
-      "buffer access pattern so that rfactor or cross-thread reduction can be applied. However, a "
-      "reduction block that doesn't meet this requirement is ";
-
-  const auto* init = block->init.as<BufferStoreNode>();
-  const auto* body = block->body.as<BufferStoreNode>();
-  if (!(init && body)) {
-    if (self.defined()) {
-      throw InitBodyNotBufferStoreError(self.value()->mod, block, init != nullptr, body != nullptr);
-    } else {
-      LOG(FATAL) << error_str1 << block;
-    }
-  }
-  if (!init->buffer.same_as(body->buffer)) {
-    if (self.defined()) {
-      throw InitBodyNotSameBufferAccessError(self.value()->mod, block);
-    } else {
-      LOG(FATAL) << error_str2 << block;
-    }
-  }
-  int ndim = static_cast<int>(init->buffer->shape.size());
-  for (int i = 0; i < ndim; ++i) {
-    if (!ExprDeepEqual()(init->indices[i], body->indices[i])) {
-      if (self.defined()) {
-        throw InitBodyNotSameBufferAccessError(self.value()->mod, block);
-      } else {
-        LOG(FATAL) << error_str2 << block;
-      }
-    }
-  }
-  return std::make_pair(GetRef<BufferStore>(init), GetRef<BufferStore>(body));
-}
-
-bool ContainsOnlyDataParAndReductionBlockIter(const Array<IterVar>& iters) {
-  for (const IterVar& iter_var : iters) {
-    if (iter_var->iter_type != kDataPar && iter_var->iter_type != kCommReduce) {
-      return false;
-    }
-  }
-  return true;
-}
-
-bool ReductionIterNotIndexOutputBuffer(const Block& block) {
-  // Step 1. Collect the reduction block iters.
-  std::unordered_set<const VarNode*> reduction_block_iters;
-  reduction_block_iters.reserve(block->iter_vars.size());
-  for (const IterVar& iter_var : block->iter_vars) {
-    if (iter_var->iter_type == kCommReduce) {
-      reduction_block_iters.insert(iter_var->var.get());
-    }
-  }
-  // Step 2. Check if the reduction block iters are used to index the output buffer.
-  std::unordered_set<const BufferNode*> buffer_written;
-  buffer_written.reserve(block->writes.size());
-  for (const BufferRegion& write_region : block->writes) {
-    buffer_written.insert(write_region->buffer.get());
-  }
-  auto f_uses_reduction_block_var = [&](const PrimExpr& expr) -> bool {
-    return UsesVar(expr, [&](const VarNode* var) {  //
-      return reduction_block_iters.count(var);
-    });
-  };
-  bool affected = false;
-  PreOrderVisit(block->body, [&](const ObjectRef& obj) {
-    if (affected) {
-      return false;
-    }
-    const auto* store = obj.as<BufferStoreNode>();
-    if (!store) {
-      return true;
-    }
-    ICHECK(buffer_written.count(store->buffer.get()))
-        << "ValueError: The buffer \"" << store->buffer
-        << "\" is written in the block but is not in the block's signature";
-    for (const PrimExpr& index : store->indices) {
-      if (f_uses_reduction_block_var(index)) {
-        affected = true;
-        return false;
-      }
-    }
-    return false;
-  });
-  return !affected;
-}
-
-class NoMatchedReducerError : public ScheduleError {
- public:
-  explicit NoMatchedReducerError(IRModule mod, PrimExpr identity, BufferStore combiner)
-      : mod_(std::move(mod)), identity_(std::move(identity)), combiner_(std::move(combiner)) {}
-
-  String FastErrorString() const final {
-    return "ScheduleError: No matched reducer for the identity and the combiner of this reduction "
-           "block. So rfactor and cross-thread reduction cannot be applied.";
-  }
-
-  String DetailRenderTemplate() const final {
-    std::ostringstream os;
-    os << "No matched reducer for identity " << identity_ << " and combiner " << combiner_
-       << "In this case rfactor cannot be applied. You can check tvm::tir::ReducerRegistry for "
-          "default reducers or registering new reducers.";
-    return os.str();
-  }
-
-  IRModule mod() const final { return mod_; }
-  Array<ObjectRef> LocationsOfInterest() const final { return {}; }
-
-  IRModule mod_;
-  PrimExpr identity_;
-  BufferStore combiner_;
-};
-
-std::tuple<CommReducer, PrimExpr, PrimExpr> GetReducerAndCombinerLhsRhs(
-    const Optional<ScheduleState>& self, const PrimExpr& identity, const BufferStore& combiner) {
-  CommReducer reducer{nullptr};
-  PrimExpr combiner_lhs{nullptr}, combiner_rhs{nullptr};
-  bool matched = FromIdentityCombiner(identity, combiner, &reducer, &combiner_lhs, &combiner_rhs);
-  if (!matched) {
-    if (self.defined()) {
-      throw NoMatchedReducerError(self.value()->mod, identity, combiner);
-    } else {
-      LOG(FATAL) << "ValueError: No matched reducer for the identity and the combiner of the "
-                    "reduction block. So rfactor and cross-thread reduction cannot be applied.";
-    }
-  }
-  return std::make_tuple(std::move(reducer), std::move(combiner_lhs), std::move(combiner_rhs));
-}
-
-/******** Commutative Reducer ********/
-
-bool MatchReducer(const CommReducer& reducer, const PrimExpr& identity, const PrimExpr& combiner,
-                  const BufferLoad& load, PrimExpr* lhs, PrimExpr* rhs) {
-  if (!ExprDeepEqual()(reducer->identity_element[0], identity)) {
-    return false;
-  }
-  PatternMatcher pattern_matcher(reducer->result[0]);
-  pattern_matcher.Match(combiner);
-  if (pattern_matcher.Success()) {
-    PrimExpr lhs_tmp = pattern_matcher.Eval(reducer->lhs[0]);
-    PrimExpr rhs_tmp = pattern_matcher.Eval(reducer->rhs[0]);
-    if (ExprDeepEqual()(load, lhs_tmp)) {
-      *lhs = std::move(lhs_tmp);
-      *rhs = std::move(rhs_tmp);
-    }
-    return true;
-  }
-  return false;
-}
-
-bool FromIdentityCombiner(const PrimExpr& identity, const BufferStore& combiner,
-                          CommReducer* result_reducer, PrimExpr* lhs, PrimExpr* rhs) {
-  BufferLoad load(combiner->buffer, combiner->indices);
-  // Check reduction patterns.
-  for (const TypedPackedFunc<CommReducer(DataType)>& reducer_getter : GetReducerGetters()) {
-    CommReducer reducer = reducer_getter(identity.dtype());
-    if (MatchReducer(reducer, identity, combiner->value, load, lhs, rhs)) {
-      *result_reducer = std::move(reducer);
-      return true;
-    }
-  }
-  return false;
 }
 
 /******** SRef Tree Related ********/
@@ -1875,7 +1434,7 @@ void CheckStorageScope(const ScheduleState& self, String storage_scope) {
 }
 
 bool IsSpatial(const StmtSRef& block_sref) {
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
   for (const IterVar& iter_var : block->iter_vars) {
     if (iter_var->iter_type != IterVarType::kDataPar) {
       return false;
@@ -1885,14 +1444,14 @@ bool IsSpatial(const StmtSRef& block_sref) {
 }
 
 bool IsTrivialBinding(const ScheduleState& self, const StmtSRef& block_sref) {
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  TVM_SREF_TO_BLOCK(block_sref);
   Array<StmtSRef> loops = GetLoops(block_sref);
   Array<PrimExpr> binds = GetBlockRealize(self, block_sref)->iter_values;
   if (loops.size() != binds.size()) {
     return false;
   }
   for (int i = 0, n = loops.size(); i < n; ++i) {
-    const ForNode* loop = TVM_SREF_TO_FOR(loop, loops[i]);
+    const ForNode* loop = TVM_SREF_TO_FOR(loops[i]);
     if (binds[i].get() != loop->loop_var.get()) {
       return false;
     }
@@ -1901,7 +1460,10 @@ bool IsTrivialBinding(const ScheduleState& self, const StmtSRef& block_sref) {
 }
 
 bool NeedsMultiLevelTiling(const ScheduleState& self, const StmtSRef& block_sref) {
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  if (HasBeenMultiLevelTiled(block_sref)) {
+    return false;
+  }
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
   if (block->writes.size() != 1 || block->reads.empty() || IsSpatial(block_sref) ||
       !IsTrivialBinding(self, block_sref)) {
     return false;
@@ -2013,11 +1575,11 @@ bool NeedsRFactorOrCrossThreadReduction(const tir::ScheduleState& self,   //
                                         const tir::StmtSRef& block_sref,  //
                                         int64_t max_parallel_extent,      //
                                         int64_t max_parallel_basic) {
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
   Array<tir::StmtSRef> loops = tir::GetLoops(block_sref);
 
-  // Cond 1. The block has only one write buffer
-  if (block->writes.size() != 1) {
+  // Cond 1. The block must have at lease one write buffer
+  if (block->writes.size() == 0) {
     return false;
   }
 
@@ -2048,9 +1610,9 @@ bool NeedsRFactorOrCrossThreadReduction(const tir::ScheduleState& self,   //
     }
 
     // Cond 5.
-    const ForNode* loop_i = TVM_SREF_TO_FOR(loop_i, loops[i]);
+    const ForNode* loop_i = TVM_SREF_TO_FOR(loops[i]);
     if (i < loops.size() - 1) {
-      const ForNode* loop_i1 = TVM_SREF_TO_FOR(loop_i1, loops[i + 1]);
+      const ForNode* loop_i1 = TVM_SREF_TO_FOR(loops[i + 1]);
       if (loop_i->body.get() != loop_i1) {
         return false;
       }
@@ -2066,8 +1628,7 @@ bool NeedsRFactorOrCrossThreadReduction(const tir::ScheduleState& self,   //
   }
 
   // Cond 6. Can successfully calculating the cumulative loop length.
-  int64_t cum_space_len, cum_reduce_len;
-  std::tie(cum_space_len, cum_reduce_len) = GetCumulativeSpaceAndReductionLength(self, block_sref);
+  auto [cum_space_len, cum_reduce_len] = GetCumulativeSpaceAndReductionLength(self, block_sref);
   if (cum_space_len == -1 || cum_reduce_len == -1) {
     return false;
   }
@@ -2076,11 +1637,18 @@ bool NeedsRFactorOrCrossThreadReduction(const tir::ScheduleState& self,   //
   if (NeedsMultiLevelTiling(self, block_sref)) {
     // Do not use rfactor/cross-thread-reduction if we have enough parallelism on spatial loops.
     return !(cum_space_len >= cum_reduce_len || cum_space_len > max_parallel_extent);
-  } else if (cum_reduce_len > 1) {
-    // Always try rfactor/cross-thread-reduction for other reduction blocks.
-    return cum_reduce_len > max_parallel_basic;
   } else {
-    return false;
+    // Always try rfactor/cross-thread-reduction for other reduction blocks.
+    return cum_reduce_len > 1;
+  }
+}
+
+PrimExpr SimplifyNonTrivialExpr(const PrimExpr& expr, arith::Analyzer* analyzer) {
+  auto simplified = analyzer->Simplify(expr);
+  if (simplified->IsInstance<IntImmNode>()) {
+    return expr;
+  } else {
+    return simplified;
   }
 }
 
@@ -2135,14 +1703,15 @@ TensorIntrinDescInfo ExtractTensorIntrinDescInfo(arith::Analyzer* analyzer,
 
 Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& self,
                                                 const tir::StmtSRef& block_sref,
-                                                const tir::PrimFunc& desc_func) {
+                                                const tir::PrimFunc& desc_func,
+                                                bool allow_padding) {
   arith::Analyzer analyzer;
   const tir::BlockRealize& block = tir::GetBlockRealize(self, block_sref);
   // Step 1. Analyze desc_func, extract its block, loops and loop vars
   TensorIntrinDescInfo desc_info = ExtractTensorIntrinDescInfo(&analyzer, desc_func);
   // Step 2. Collect loops from block_sref
   const tir::StmtSRef& scope_sref = GetScopeRoot(self, block_sref, false);
-  const tir::BlockNode* scope_block = TVM_SREF_TO_BLOCK(scope_block, scope_sref);
+  TVM_SREF_TO_BLOCK(scope_sref);
   std::vector<const tir::ForNode*> block_loops;
   std::unordered_set<const tir::VarNode*> block_loop_vars;
   {
@@ -2167,6 +1736,8 @@ Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& self,
   const int n_block_vars = block->iter_values.size();
   const int n_desc_vars = desc_block->iter_values.size();
   const int offset = n_block_vars - n_desc_vars;
+
+  std::unordered_map<int, int> block_index_to_padding;  // padding of each block iter if necessary
 
   if (offset < 0) {
     return NullOpt;
@@ -2218,10 +1789,11 @@ Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& self,
 
     // Step 3.2. Find the corresponding iter_value of the target block with a matching iterator type
     PrimExpr block_bind;
-    for (int i = next_block_ind; i >= 0; --i) {
-      if (iter_types_block[i] == iter_type_desc) {
-        next_block_ind = i - 1;
-        block_bind = block->iter_values[i];
+    int current_block_ind = next_block_ind;
+    for (; current_block_ind >= 0; --current_block_ind) {
+      if (iter_types_block[current_block_ind] == iter_type_desc) {
+        next_block_ind = current_block_ind - 1;
+        block_bind = block->iter_values[current_block_ind];
         break;
       }
     }
@@ -2238,14 +1810,29 @@ Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& self,
 
       PrimExpr residual = analyzer.Simplify(block_bind - block_loops[i]->loop_var);
       if (UsesVar(residual,
-                  [&block_loop_vars](const VarNode* var) { return block_loop_vars.count(var); }))
+                  [&block_loop_vars](const VarNode* var) { return block_loop_vars.count(var); })) {
         continue;
+      }
+      // padding is allowed only when the block has trivial bindings
+      if (allow_padding && !is_zero(residual)) {
+        allow_padding = false;
+      }
 
       const IntImmNode* int_block_extent = block_loops[i]->extent.as<IntImmNode>();
 
       // Check divisibility
-      if (!int_block_extent || int_block_extent->value % int_desc_extent->value != 0) {
+      if (!int_block_extent) {
         return NullOpt;
+      }
+      int64_t remainder = int_block_extent->value % int_desc_extent->value;
+      if (remainder != 0) {
+        if (allow_padding) {
+          // If the block loop is not divisible by the desc loop, we pad the block loop to make it
+          // divisible if padding is allowed.
+          block_index_to_padding[current_block_ind] = int_desc_extent->value;
+        } else {
+          return NullOpt;
+        }
       }
 
       ret->loop_map.Set(block_loop_sref, GetRef<tir::For>(desc_loop));
@@ -2256,13 +1843,29 @@ Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& self,
   for (int i = 0, n = desc_loops.size(); i < n; ++i) {
     ret->desc_loop_indexer.Set(GetRef<tir::For>(desc_loops[i]), Integer(i));
   }
+  if (!block_index_to_padding.empty()) {
+    if (!allow_padding) {
+      return NullOpt;
+    }
+    Array<Integer> paddings;
+    for (int i = 0, n = block->block->iter_vars.size(); i < n; ++i) {
+      const IterVar& iter_var = block->block->iter_vars[i];
+      if (auto it = block_index_to_padding.find(i); it != block_index_to_padding.end()) {
+        paddings.push_back(IntImm(iter_var->var.dtype(), it->second));
+      } else {
+        paddings.push_back(IntImm(iter_var->var.dtype(), 1));
+      }
+    }
+    ret->block_iter_paddings = std::move(paddings);
+  }
+
   return TensorizeInfo(ret);
 }
 
 TVM_REGISTER_GLOBAL("tir.schedule.IsSpatialPrimFunc").set_body_typed(IsSpatialPrimFunc);
 TVM_REGISTER_GLOBAL("tir.schedule.GetTensorizeLoopMapping")
-    .set_body_typed([](Schedule sch, BlockRV block, PrimFunc desc_func) {
-      return GetTensorizeLoopMapping(sch->state(), sch->GetSRef(block), desc_func);
+    .set_body_typed([](Schedule sch, BlockRV block, PrimFunc desc_func, bool allow_padding) {
+      return GetTensorizeLoopMapping(sch->state(), sch->GetSRef(block), desc_func, allow_padding);
     });
 
 /******** Auto Tensorization ********/
@@ -2408,6 +2011,7 @@ class AutoTensorizeMappingProposer {
     }
 
     // Step 3: Fuse LHS iters mapped to the same RHS iter
+    std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> used_rhs_vars;
     for (size_t i = 0; i < extractor_->lhs_iters_.size(); ++i) {
       const Var& lhs_iter_var = extractor_->lhs_iters_[i]->var;
       const VarSet& rhs_candidates = lhs_feasible_vars_[lhs_iter_var];
@@ -2420,12 +2024,16 @@ class AutoTensorizeMappingProposer {
         PrimExpr updated_fused_lhs =
             fused_lhs * lhs_iter_extents.at(lhs_iter_var) + index_map_src[i];
         fused_lhs_iters.Set(rhs_var, updated_fused_lhs);
+        used_rhs_vars.insert(rhs_var);
       } else {
         // non-unique mapping is not supported
         return {};
       }
     }
     for (const auto& iter : extractor_->rhs_iters_) {
+      if (!used_rhs_vars.count(iter->var)) {
+        return {};
+      }
       index_map_tgt.push_back(analyzer_->Simplify(fused_lhs_iters[iter->var]));
     }
     // At most one mapping is supported.
@@ -2442,21 +2050,33 @@ class AutoTensorizeMappingProposer {
   std::unordered_map<Var, VarSet, ObjectPtrHash, ObjectPtrEqual> lhs_feasible_vars_;
 };
 
+bool CheckAutoTensorizeApplicable(const ScheduleState& state, const tir::StmtSRef& block_sref,
+                                  const tir::PrimFunc& desc_func,
+                                  AutoTensorizeComparator* extractor) {
+  // Step 1. Analyze desc_func, extract its block, loops and loop vars
+  // Step 2. Check if `desc_block` matches `block`
+  // Ignore the scope of buffers when comparing, since we can do cache_read/write
+  const BlockRealize& block = tir::GetBlockRealize(state, block_sref);
+  arith::Analyzer analyzer;
+  auto desc_info = tir::ExtractTensorIntrinDescInfo(&analyzer, desc_func);
+
+  return extractor->VisitStmt(block->block, desc_info.desc_block->block);
+}
+
+bool CheckAutoTensorizeApplicable(const tir::Schedule& sch, const tir::BlockRV& block_rv,
+                                  const tir::PrimFunc& desc_func) {
+  AutoTensorizeComparator extractor(sch->state()->mod);
+  return CheckAutoTensorizeApplicable(sch->state(), sch->GetSRef(block_rv), desc_func, &extractor);
+}
+
 Optional<AutoTensorizeMappingInfo> GetAutoTensorizeMappingInfo(const tir::ScheduleState& self,
                                                                const tir::StmtSRef& block_sref,
                                                                const tir::PrimFunc& desc_func) {
-  arith::Analyzer analyzer;
-  const tir::BlockRealize& block = tir::GetBlockRealize(self, block_sref);
-  // Step 1. Analyze desc_func, extract its block, loops and loop vars
-  TensorIntrinDescInfo desc_info = ExtractTensorIntrinDescInfo(&analyzer, desc_func);
-  // Step 2. Check if `desc_block` matches `block`
-  // Ignore the scope of buffers when comparing, since we can do cache_read/write
-  const StmtSRef& scope_sref = GetScopeRoot(self, block_sref, false);
-  const tir::BlockNode* scope_block = TVM_SREF_TO_BLOCK(scope_block, scope_sref);
   AutoTensorizeComparator extractor(self->mod);
-  if (!extractor.VisitStmt(block->block, desc_info.desc_block->block)) {
+  if (!CheckAutoTensorizeApplicable(self, block_sref, desc_func, &extractor)) {
     return NullOpt;
   }
+  arith::Analyzer analyzer;
   Array<IndexMap> mappings = AutoTensorizeMappingProposer::ProposeMappings(&extractor, &analyzer);
   if (mappings.empty()) {
     return NullOpt;
@@ -2476,6 +2096,13 @@ TVM_REGISTER_GLOBAL("tir.schedule.GetAutoTensorizeMappingInfo")
     .set_body_typed([](Schedule sch, BlockRV block, PrimFunc desc_func) {
       return GetAutoTensorizeMappingInfo(sch->state(), sch->GetSRef(block), desc_func);
     });
+
+TVM_REGISTER_GLOBAL("tir.schedule.HasBlock").set_body_typed(HasBlock);
+TVM_REGISTER_GLOBAL("tir.schedule.IsOutputBlock").set_body_typed([](Schedule sch, BlockRV block) {
+  auto state = sch->state();
+  auto block_sref = sch->GetSRef(block);
+  return IsOutputBlock(state, block_sref, GetScopeRoot(state, block_sref, false));
+});
 
 }  // namespace tir
 }  // namespace tvm

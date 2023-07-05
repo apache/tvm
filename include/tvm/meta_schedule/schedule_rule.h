@@ -34,6 +34,7 @@ namespace tvm {
 namespace meta_schedule {
 
 class TuneContext;
+class ScheduleRule;
 
 /*! \brief Rules to modify a block in a schedule. */
 class ScheduleRuleNode : public runtime::Object {
@@ -59,12 +60,21 @@ class ScheduleRuleNode : public runtime::Object {
   virtual runtime::Array<tir::Schedule> Apply(const tir::Schedule& sch,
                                               const tir::BlockRV& block) = 0;
 
+  /*!
+   * \brief Deep clone the schedule rule.
+   * \return The cloned schedule rule.
+   */
+  virtual ScheduleRule Clone() const = 0;
+
   static constexpr const char* _type_key = "meta_schedule.ScheduleRule";
   TVM_DECLARE_BASE_OBJECT_INFO(ScheduleRuleNode, Object);
 };
 
-/*! \brief The schedule rule with customized methods on the python-side. */
-class PyScheduleRuleNode : public ScheduleRuleNode {
+/*!
+ * \brief Managed reference to ScheduleRuleNode
+ * \sa ScheduleRuleNode
+ */
+class ScheduleRule : public runtime::ObjectRef {
  public:
   /*!
    * \brief The function type of `InitializeWithTuneContext` method.
@@ -84,33 +94,19 @@ class PyScheduleRuleNode : public ScheduleRuleNode {
    * \return The string of the schedule rule.
    */
   using FAsString = runtime::TypedPackedFunc<String()>;
-
-  /*! \brief The packed function to the `InitializeWithTuneContext` function. */
-  FInitializeWithTuneContext f_initialize_with_tune_context;
-  /*! \brief The packed function to the `Apply` function. */
-  FApply f_apply;
-  /*! \brief The packed function to the `AsString` function. */
-  FAsString f_as_string;
-
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    // `f_initialize_with_tune_context` is not visited
-    // `f_apply` is not visited
-    // `f_as_string` is not visited
-  }
-
-  void InitializeWithTuneContext(const TuneContext& context) final;
-  Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block) final;
-
-  static constexpr const char* _type_key = "meta_schedule.PyScheduleRule";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PyScheduleRuleNode, ScheduleRuleNode);
-};
-
-/*!
- * \brief Managed reference to ScheduleRuleNode
- * \sa ScheduleRuleNode
- */
-class ScheduleRule : public runtime::ObjectRef {
- public:
+  /*!
+   * \brief The function type of `Clone` method.
+   * \return The cloned schedule rule.
+   */
+  using FClone = runtime::TypedPackedFunc<ScheduleRule()>;
+  /*!
+   * \brief Create a rule that applies customized rules registered using block attribute
+   * `schedule_rule`. The rule will be dispatched according to target keys.
+   * \return The created schedule rule.
+   */
+  TVM_DLL static ScheduleRule ApplyCustomRule();
+  /*! \brief Check if the rule is `ApplyCustomRule` */
+  TVM_DLL static bool IsApplyCustomRule(const ScheduleRule& rule);
   /*!
    * \brief Create an auto-inline rule that inlines spatial blocks if it satisfies some conditions
    * \param into_producer If allows to inline a block into its producer
@@ -129,6 +125,16 @@ class ScheduleRule : public runtime::ObjectRef {
                                          bool require_injective,      //
                                          bool require_ordered,        //
                                          Optional<Array<String>> disallow_op);
+
+  /*!
+   * \brief Inline blocks that produce a constant scalar. Such blocks get in the way of
+   * ReverseComputeInline during AutoInline, since they are also counted as a producer block
+   * unless they are inlined first. So it is recommended to run InlineConstantScalars before
+   * AutoInline.
+   * \return The schedule rule created
+   */
+  TVM_DLL static ScheduleRule InlineConstantScalars();
+
   /*!
    * \brief Create a mega rule: multi-level tiling with data reuse
    * \param structure The tiling structure. Recommended:
@@ -142,6 +148,10 @@ class ScheduleRule : public runtime::ObjectRef {
    * NullOpt means disable vectorization
    * \param reuse_read Data reuse configuration for reading. NullOpt means no reuse.
    * \param reuse_write Data reuse configuration for writing. NullOpt means no reuse.
+   * \param filter_fn A function that can be passed to overwrite the default condition for applying
+   * MultiLevelTiling to a block. Its signature must be (Schedule, BlockRV) -> bool.
+   * This is useful if there is a need to apply MultiLevelTiling to an operation / block which is
+   * ignored  by default. This function should return True for a block that should be tiled.
    * \return The schedule rule created
    */
   TVM_DLL static ScheduleRule MultiLevelTiling(String structure,                             //
@@ -149,11 +159,12 @@ class ScheduleRule : public runtime::ObjectRef {
                                                Optional<Integer> max_innermost_factor,       //
                                                Optional<Array<Integer>> vector_load_lens,    //
                                                Optional<Map<String, ObjectRef>> reuse_read,  //
-                                               Optional<Map<String, ObjectRef>> reuse_write);
+                                               Optional<Map<String, ObjectRef>> reuse_write,
+                                               Optional<runtime::PackedFunc> filter_fn = NullOpt);
 
   /*!
-   * \brief Extension of MultiLevelTiling for auto-tensorizing with a single intrinsic.
-   * \param intrin_name The name of a tensor intrinsic, must be registerd via
+   * \brief Extension of MultiLevelTiling for auto-tensorization with a single intrinsic.
+   * \param intrin_name The name of a tensor intrinsic, must be registered via
    * TensorIntrin.register(...) beforehand
    * \param structure The tiling structure. Recommended:
    * - 'SSRSRS' on CPU
@@ -171,6 +182,47 @@ class ScheduleRule : public runtime::ObjectRef {
   TVM_DLL static ScheduleRule MultiLevelTilingWithIntrin(
       String intrin_name, String structure, Optional<Array<String>> tile_binds,
       Optional<Integer> max_innermost_factor, Optional<Array<Integer>> vector_load_lens,
+      Optional<Map<String, ObjectRef>> reuse_read, Optional<Map<String, ObjectRef>> reuse_write);
+
+  /*!
+   * \brief Extension of MultiLevelTiling for auto-tensorization with multiple groups of candidate
+   * tensor core intrinsics
+   * \param intrin_groups A list of groups of tensor core intrinsics. The map should contains key
+   * "init", "load_a", "load_b", "compute", "store", which represent the tensor intrin for
+   * initialization, loading operand A, loading operand B, tensor core computation, storing the
+   * result. The value of the map should be names of tensor intrinsics, must be registered via
+   * TensorIntrin.register(...) beforehand
+   * \param structure The tiling structure. Recommended:
+   * - 'SSSRRSRS' on GPU
+   * \param tile_binds For each level of tiles, which thread axis it is bound to. Recommended:
+   * - [blockIdx.y, blockIdx.x, threadIdx.y] on GPU
+   * \param max_innermost_factor The maximum size of the innermost factor. NullOpt means no limit
+   * \param vector_load_lens The length of vector lane in vectorized cooperative fetching.
+   * NullOpt means disable vectorization
+   * \param reuse_read Data reuse configuration for reading. NullOpt means no reuse.
+   * \param reuse_write Data reuse configuration for writing. NullOpt means no reuse.
+   * \param use_software_pipeline Whether use the software pipeline.
+   * \return The schedule rule created
+   */
+  TVM_DLL static ScheduleRule MultiLevelTilingTensorCore(
+      Array<Map<String, String>> intrin_groups, String structure,
+      Optional<Array<String>> tile_binds, Optional<Integer> max_innermost_factor,
+      Optional<Array<Integer>> vector_load_lens, Optional<Map<String, ObjectRef>> reuse_read,
+      Optional<Map<String, ObjectRef>> reuse_write, bool use_software_pipeline);
+
+  /*!
+   * \brief Extension of MultiLevelTiling for backends with wide vectors.
+   * The loop over the innermost spatial axis of the output buffer is always vectorized with the
+   * maximum vector length.
+   * \param structure The tiling structure. 'SSRSRS' is recommended.
+   * \param vector_length_in_bits The length of a vector register in bits.
+   * \param max_innermost_factor The maximum size of the innermost factor. NullOpt means no limit
+   * \param reuse_read Data reuse configuration for reading. NullOpt means no reuse.
+   * \param reuse_write Data reuse configuration for writing. NullOpt means no reuse.
+   * \return The schedule rule created
+   */
+  TVM_DLL static ScheduleRule MultiLevelTilingWideVector(
+      String structure, Integer vector_length_in_bits, Optional<Integer> max_innermost_factor,
       Optional<Map<String, ObjectRef>> reuse_read, Optional<Map<String, ObjectRef>> reuse_write);
 
   /*!
@@ -216,21 +268,74 @@ class ScheduleRule : public runtime::ObjectRef {
    * \brief Auto bind loops around the block to BlockIdx and ThreadIdx
    * \param max_threadblocks The maximum number of threadblock on GPU
    * \param thread_extents Candidates of thread axis extent.
+   * \param max_threads_per_block The maximum number of threads per block, if it is known
+   * when this schedule rule is created.
    * \return The schedule rule created
    */
-  TVM_DLL static ScheduleRule AutoBind(int max_threadblocks, Array<Integer> thread_extents);
+  TVM_DLL static ScheduleRule AutoBind(int max_threadblocks, Array<Integer> thread_extents,
+                                       int max_threads_per_block = -1);
   /*!
    * \brief Create a schedule rule with customized methods on the python-side.
    * \param f_initialize_with_tune_context The packed function of `InitializeWithTuneContext`.
    * \param f_apply The packed function of `Apply`.
+   * \param f_clone The packed function of `Clone`.
    * \param f_as_string The packed function of `AsString`.
    * \return The schedule rule created.
    */
   TVM_DLL static ScheduleRule PyScheduleRule(
-      PyScheduleRuleNode::FInitializeWithTuneContext f_initialize_with_tune_context,  //
-      PyScheduleRuleNode::FApply f_apply,                                             //
-      PyScheduleRuleNode::FAsString f_as_string);
+      FInitializeWithTuneContext f_initialize_with_tune_context,  //
+      FApply f_apply,                                             //
+      FClone f_clone,                                             //
+      FAsString f_as_string);
+
+  /*! \brief Create default schedule rules for LLVM */
+  TVM_DLL static Array<ScheduleRule, void> DefaultLLVM();
+  /*! \brief Create default schedule rules for x86 (AVX512 and VNNI) */
+  TVM_DLL static Array<ScheduleRule, void> DefaultX86(const String& type);
+  /*! \brief Create default schedule rules for CUDA */
+  TVM_DLL static Array<ScheduleRule, void> DefaultCUDA();
+  /*! \brief Create default postprocessors for CUDA with TensorCore */
+  TVM_DLL static Array<ScheduleRule, void> DefaultCUDATensorCore();
+  /*! \brief Create default schedule rules for Hexagon */
+  TVM_DLL static Array<ScheduleRule, void> DefaultHexagon();
+  /*! \brief Create default schedule rules for Micro */
+  TVM_DLL static Array<ScheduleRule, void> DefaultMicro();
+  /*! \brief Create default schedule rules for ARM CPU (NEON and DOTPROD) */
+  TVM_DLL static Array<ScheduleRule, void> DefaultARM(const String& type);
+
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(ScheduleRule, ObjectRef, ScheduleRuleNode);
+};
+
+/*! \brief The schedule rule with customized methods on the python-side. */
+class PyScheduleRuleNode : public ScheduleRuleNode {
+ public:
+  using FInitializeWithTuneContext = ScheduleRule::FInitializeWithTuneContext;
+  using FApply = ScheduleRule::FApply;
+  using FClone = ScheduleRule::FClone;
+  using FAsString = ScheduleRule::FAsString;
+
+  /*! \brief The packed function to the `InitializeWithTuneContext` function. */
+  FInitializeWithTuneContext f_initialize_with_tune_context;
+  /*! \brief The packed function to the `Apply` function. */
+  FApply f_apply;
+  /*! \brief The packed function to the `AsString` function. */
+  FAsString f_as_string;
+  /*! \brief The packed function to the `Clone` function. */
+  FClone f_clone;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    // `f_initialize_with_tune_context` is not visited
+    // `f_apply` is not visited
+    // `f_as_string` is not visited
+    // `f_clone` is not visited
+  }
+
+  void InitializeWithTuneContext(const TuneContext& context) final;
+  Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block) final;
+  ScheduleRule Clone() const final;
+
+  static constexpr const char* _type_key = "meta_schedule.PyScheduleRule";
+  TVM_DECLARE_FINAL_OBJECT_INFO(PyScheduleRuleNode, ScheduleRuleNode);
 };
 
 }  // namespace meta_schedule

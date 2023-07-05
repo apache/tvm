@@ -50,6 +50,29 @@ namespace contrib {
 
 using namespace backend;
 
+/*!
+ * \brief Replace var expr which bind with args of call node
+ *
+ * \param args vector of expression (contains vars or constant nodes)
+ * \param cn call node which describe mapping of internal body vars with args
+ * \return updated vector of expressions
+ */
+static tvm::Array<Expr> BindToCallNodeArgs(const std::vector<Expr>& args, const CallNode* cn) {
+  tvm::Array<Expr> res;
+  for (const auto& arg : args) {
+    if (arg->IsInstance<ConstantNode>()) {
+      res.push_back(arg);
+    } else {
+      auto body_params = cn->op.as<FunctionNode>()->params;
+      auto found = std::find(body_params.begin(), body_params.end(), arg);
+      ICHECK(found != body_params.end());
+      auto idx = std::distance(body_params.begin(), found);
+      res.push_back(cn->args[idx]);
+    }
+  }
+  return res;
+}
+
 #ifndef USE_JSON_RUNTIME  // C source runtime
 inline size_t GetShape1DSize(const Type& type) {
   const auto shape = GetShape(type);
@@ -160,7 +183,6 @@ class CodegenDNNL : public MemoizedExprTranslator<std::vector<Output>>, public C
 
   std::vector<Output> VisitExprDefault_(const Object* op) final {
     LOG(FATAL) << "DNNL codegen doesn't support: " << op->GetTypeKey();
-    return {};
   }
 
   std::vector<Output> VisitExpr_(const VarNode* node) final {
@@ -204,7 +226,8 @@ class CodegenDNNL : public MemoizedExprTranslator<std::vector<Output>>, public C
 
     // Give the ndarray a unique name to ease the initialization of it at
     // runtime.
-    std::string const_var_name = CreateConstVar(ext_func_id_, const_idx_);
+    std::string const_symbol = "dnnl_" + ext_func_id_;
+    std::string const_var_name = CreateConstVar(const_symbol, const_idx_);
     const_vars_.push_back(const_var_name);
     const_idx_++;
 
@@ -262,7 +285,6 @@ class CodegenDNNL : public MemoizedExprTranslator<std::vector<Output>>, public C
     }
 
     LOG(FATAL) << "Unsupported op: " << AsText(call->op, false);
-    return {};
   }
 
   GenerateBodyOutput GenerateCompositeFunctionCall(const FunctionNode* callee,
@@ -276,13 +298,13 @@ class CodegenDNNL : public MemoizedExprTranslator<std::vector<Output>>, public C
       return GenerateBody(conv_call, "dnnl_fused_conv2d_bias_relu", GetArgumentNames(caller),
                           Conv2d(conv_call));
     } else if (pattern_name == "dnnl.conv2d_relu") {
-      const auto* conv_call = GetRootCall(callee->body.as<CallNode>(), 1, {"nn.conv2d", "nn.relu"});
+      const auto* conv_call = GetRootCall(callee->body.as<CallNode>(), 1,
+                                          (const std::vector<std::string>){"nn.conv2d", "nn.relu"});
       return GenerateBody(conv_call, "dnnl_fused_conv2d_relu", GetArgumentNames(caller),
                           Conv2d(conv_call));
     }
 
     LOG(FATAL) << "Unknown composite function:" << pattern_name;
-    return {};
   }
 
   GenerateBodyOutput GenerateBody(const CallNode* root_call, const std::string& func_name,
@@ -437,67 +459,10 @@ class DNNLModuleCodegen : public CSourceModuleCodegenBase {
 
 #else  // DNNL JSON runtime
 
-/*!
- * \brief Replace var expr which bind with args of call node
- *
- * \param args vector of expression (contains vars or constant nodes)
- * \param cn call node which describe mapping of internal body vars with args
- * \return updated vector of expressions
- */
-static tvm::Array<Expr> BindToCallNodeArgs(const std::vector<Expr>& args, const CallNode* cn) {
-  tvm::Array<Expr> res;
-  for (const auto& arg : args) {
-    if (arg->IsInstance<ConstantNode>()) {
-      res.push_back(arg);
-    } else {
-      auto body_params = cn->op.as<FunctionNode>()->params;
-      auto found = std::find(body_params.begin(), body_params.end(), arg);
-      ICHECK(found != body_params.end());
-      auto idx = std::distance(body_params.begin(), found);
-      res.push_back(cn->args[idx]);
-    }
-  }
-  return res;
-}
-
 /*! \brief Serializer to DNNL JSON runtime module */
 class DNNLJSONSerializer : public backend::contrib::JSONSerializer {
   using JSONGraphNode = tvm::runtime::json::JSONGraphNode;
   using JSONGraphNodeEntry = tvm::runtime::json::JSONGraphNodeEntry;
-
-  std::map<std::string, std::string> op_map{
-      {"bias", "add"},
-      {"relu", "nn.relu"},
-      {"tanh", "tanh"},
-      {"sigmoid", "sigmoid"},
-      {"nn.deconv2d", "nn.conv2d_transpose"},
-      {"nn.deconv3d", "nn.conv3d_transpose"},
-  };
-
-  std::vector<std::string> ParsingOpList(const std::string& pattern_name,
-                                         std::string interval = "_") {
-    ICHECK_NE(pattern_name, "");
-    std::vector<std::string> op_list;
-    size_t pos = 0, start = 0;
-
-    while ((pos = pattern_name.find(interval, start)) != std::string::npos) {
-      std::string op_name = pattern_name.substr(start, pos - start);
-      if (op_name.find("dnnl") != std::string::npos) {
-        op_name.replace(op_name.find("dnnl"), 4, "nn");
-        if (op_name.find("deconv") != std::string::npos) {
-          op_name = op_map[op_name];
-        }
-      } else {
-        op_name = op_map[op_name];
-      }
-      if (pos > start) op_list.push_back(op_name);
-      start = pos + interval.size();
-    }
-    if (pattern_name.size() > start) {
-      op_list.push_back(op_map[pattern_name.substr(start)]);
-    }
-    return op_list;
-  }
 
  public:
   DNNLJSONSerializer(const std::string& symbol, const Expr& expr)
@@ -519,24 +484,19 @@ class DNNLJSONSerializer : public backend::contrib::JSONSerializer {
       name = comp.value();
 
       if (name.find("dnnl.deconv2d") != std::string::npos) {
-        std::vector<std::string> op_list = ParsingOpList(name);
-        call = GetRootCall(fn->body.as<CallNode>(), op_list.size() - 1, op_list);
+        call = GetRootCall(fn->body.as<CallNode>(), 10, "nn.conv2d_transpose");
         ICHECK(call->op.as<OpNode>()) << "Not op node";
       } else if (name.find("dnnl.deconv3d") != std::string::npos) {
-        std::vector<std::string> op_list = ParsingOpList(name);
-        call = GetRootCall(fn->body.as<CallNode>(), op_list.size() - 1, op_list);
+        call = GetRootCall(fn->body.as<CallNode>(), 10, "nn.conv3d_transpose");
         ICHECK(call->op.as<OpNode>()) << "Not op node";
       } else if (name.find("dnnl.conv1d") != std::string::npos) {
-        std::vector<std::string> op_list = ParsingOpList(name);
-        call = GetRootCall(fn->body.as<CallNode>(), op_list.size() - 1, op_list);
+        call = GetRootCall(fn->body.as<CallNode>(), 10, "nn.conv1d");
         ICHECK(call->op.as<OpNode>()) << "Not op node";
       } else if (name.find("dnnl.conv2d") != std::string::npos) {
-        std::vector<std::string> op_list = ParsingOpList(name);
-        call = GetRootCall(fn->body.as<CallNode>(), op_list.size() - 1, op_list);
+        call = GetRootCall(fn->body.as<CallNode>(), 10, "nn.conv2d");
         ICHECK(call->op.as<OpNode>()) << "Not op node";
       } else if (name.find("dnnl.conv3d") != std::string::npos) {
-        std::vector<std::string> op_list = ParsingOpList(name);
-        call = GetRootCall(fn->body.as<CallNode>(), op_list.size() - 1, op_list);
+        call = GetRootCall(fn->body.as<CallNode>(), 10, "nn.conv3d");
         ICHECK(call->op.as<OpNode>()) << "Not op node";
       } else if (name.find("dnnl.dense") != std::string::npos) {
         call = GetRootCall(fn->body.as<CallNode>(), 10, "nn.dense");
@@ -566,6 +526,13 @@ class DNNLJSONSerializer : public backend::contrib::JSONSerializer {
                                                 "kernel", /* op_type_ */
                                                 inputs, 1 /* num_outputs_ */);
     SetCallNodeAttribute(node, call);
+    // If has post-op `clip`. Assume the last op is clip, add clip's attrs to the pattern attrs.
+    if (name.find("_clip") != std::string::npos) {
+      auto clip_call = cn->op.as<FunctionNode>()->body.as<CallNode>();
+      ICHECK(IsOp(clip_call, "clip"));
+      SetCallNodeAttribute(node, clip_call);
+    }
+    // For QNN.
     for (const auto& kvp : extra_attrs) node->SetAttr(kvp.first, kvp.second);
 
     return AddNode(node, GetRef<Expr>(cn));
@@ -585,11 +552,15 @@ runtime::Module DNNLCompiler(const ObjectRef& ref) {
   DNNLJSONSerializer serializer(func_name, func);
   serializer.serialize();
   std::string graph_json = serializer.GetJSON();
-  auto params = serializer.GetParams();
+
+  // Note that serializer.const_name_to_constant() is ignored. Instead the TECompiler invokes
+  // a callback which calls backend::UpdateConstants to capture the map before the function
+  // 'disappears' into lowered form, on the assumption the visit order and thus constant
+  // names match those generated by the JSONSerializer.
 
   const auto* pf = runtime::Registry::Get("runtime.DNNLJSONRuntimeCreate");
   ICHECK(pf != nullptr) << "Cannot find JSON runtime module to create";
-  auto mod = (*pf)(func_name, graph_json, params);
+  auto mod = (*pf)(func_name, graph_json, serializer.const_names());
   return mod;
 #else
   DNNLModuleCodegen dnnl;

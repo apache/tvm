@@ -42,6 +42,7 @@ The goal of this section is to give you an overview of TVM's capabilites and
 how to use them through the Python API.
 """
 
+
 ################################################################################
 # TVM is a deep learning compiler framework, with a number of different modules
 # available for working with deep learning models and operators. In this
@@ -343,7 +344,7 @@ tuning_option = {
 # .. admonition:: Setting Tuning Parameters
 #
 #   In this example, in the interest of time, we set the number of trials and
-#   early stopping to 10. You will likely see more performance improvements if
+#   early stopping to 20 and 100. You will likely see more performance improvements if
 #   you set these values to be higher but this comes at the expense of time
 #   spent tuning. The number of trials required for convergence will vary
 #   depending on the specifics of the model and the target platform.
@@ -354,7 +355,44 @@ tasks = autotvm.task.extract_from_program(mod["main"], target=target, params=par
 # Tune the extracted tasks sequentially.
 for i, task in enumerate(tasks):
     prefix = "[Task %2d/%2d] " % (i + 1, len(tasks))
-    tuner_obj = XGBTuner(task, loss_type="rank")
+
+    # choose tuner
+    tuner = "xgb"
+
+    # create tuner
+    if tuner == "xgb":
+        tuner_obj = XGBTuner(task, loss_type="reg")
+    elif tuner == "xgb_knob":
+        tuner_obj = XGBTuner(task, loss_type="reg", feature_type="knob")
+    elif tuner == "xgb_itervar":
+        tuner_obj = XGBTuner(task, loss_type="reg", feature_type="itervar")
+    elif tuner == "xgb_curve":
+        tuner_obj = XGBTuner(task, loss_type="reg", feature_type="curve")
+    elif tuner == "xgb_rank":
+        tuner_obj = XGBTuner(task, loss_type="rank")
+    elif tuner == "xgb_rank_knob":
+        tuner_obj = XGBTuner(task, loss_type="rank", feature_type="knob")
+    elif tuner == "xgb_rank_itervar":
+        tuner_obj = XGBTuner(task, loss_type="rank", feature_type="itervar")
+    elif tuner == "xgb_rank_curve":
+        tuner_obj = XGBTuner(task, loss_type="rank", feature_type="curve")
+    elif tuner == "xgb_rank_binary":
+        tuner_obj = XGBTuner(task, loss_type="rank-binary")
+    elif tuner == "xgb_rank_binary_knob":
+        tuner_obj = XGBTuner(task, loss_type="rank-binary", feature_type="knob")
+    elif tuner == "xgb_rank_binary_itervar":
+        tuner_obj = XGBTuner(task, loss_type="rank-binary", feature_type="itervar")
+    elif tuner == "xgb_rank_binary_curve":
+        tuner_obj = XGBTuner(task, loss_type="rank-binary", feature_type="curve")
+    elif tuner == "ga":
+        tuner_obj = GATuner(task, pop_size=50)
+    elif tuner == "random":
+        tuner_obj = RandomTuner(task)
+    elif tuner == "gridsearch":
+        tuner_obj = GridSearchTuner(task)
+    else:
+        raise ValueError("Invalid tuner: " + tuner)
+
     tuner_obj.tune(
         n_trial=min(tuning_option["trials"], len(task.config_space)),
         early_stopping=tuning_option["early_stopping"],

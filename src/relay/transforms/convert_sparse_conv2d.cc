@@ -283,7 +283,7 @@ Expr Conv2dToSparse2(const Expr& e, const String& layout, int kernel_size, int b
 
 namespace transform {
 
-// Convert a model with seperate weight info (already sparsified).
+// Convert a model with separate weight info (already sparsified).
 Pass Conv2dToSparse(const Array<ObjectRef>& weight_name, const Array<Array<PrimExpr>>& weight_shape,
                     const String& layout, int kernel_size) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =

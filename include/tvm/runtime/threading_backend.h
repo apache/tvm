@@ -137,8 +137,8 @@ void ResetThreadPool();
  * \param nthreads The number of threads to use (0 = use all).
  * \param cpus A list of CPUs is used to set the 'cpu affinity' for the worker threads.
  */
-void Configure(tvm::runtime::threading::ThreadGroup::AffinityMode mode, int nthreads,
-               std::vector<unsigned int> cpus);
+TVM_DLL void Configure(tvm::runtime::threading::ThreadGroup::AffinityMode mode, int nthreads,
+                       std::vector<unsigned int> cpus);
 
 /*!
  * \brief Get the number of threads being used by the TVM runtime

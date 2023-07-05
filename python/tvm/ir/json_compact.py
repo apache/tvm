@@ -153,7 +153,7 @@ def create_updater_06_to_07():
             val = jdata["nodes"][root_idx]
             sidx = len(nodes)
             nodes.append(val)
-            item["attrs"][key] = "%d" % sidx
+            item["attrs"][key] = f"{sidx}"
             return item
 
         return _convert
@@ -211,7 +211,6 @@ def create_updater_06_to_07():
         "Or": _rename("tir.Or"),
         "Not": _rename("tir.Not"),
         "Select": _rename("tir.Select"),
-        "Load": _rename("tir.Load"),
         "BufferLoad": _rename("tir.BufferLoad"),
         "Ramp": _rename("tir.Ramp"),
         "Broadcast": _rename("tir.Broadcast"),
@@ -221,7 +220,6 @@ def create_updater_06_to_07():
         "Any": _rename("tir.Any"),
         "LetStmt": _rename("tir.LetStmt"),
         "AssertStmt": _rename("tir.AssertStmt"),
-        "Store": _rename("tir.Store"),
         "BufferStore": _rename("tir.BufferStore"),
         "BufferRealize": _rename("tir.BufferRealize"),
         "Allocate": _rename("tir.Allocate"),
@@ -262,5 +260,5 @@ def upgrade_json(json_str):
     elif from_version.startswith("0.8"):
         data = create_updater_08_to_09()(data)
     else:
-        raise ValueError("Cannot update from version %s" % from_version)
+        raise ValueError(f"Cannot update from version {from_version}")
     return json.dumps(data, indent=2)

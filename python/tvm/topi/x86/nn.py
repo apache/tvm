@@ -18,6 +18,7 @@
 """x86 nn operators"""
 from tvm import te
 from ..utils import traverse_inline
+from .injective import schedule_injective_from_existing
 
 
 def _schedule_softmax(softmax_op, s, outs):
@@ -39,37 +40,45 @@ def _schedule_softmax(softmax_op, s, outs):
         delta = None
         max_elem = softmax_op.input_tensors[1]
         expsum = softmax_op.input_tensors[2]
-        axis = 1
+        axis = int(softmax_op.attrs["axis"])
     else:
         raise ValueError(
-            "Tag is expected to be softmax_output or log_softmax_output. \
-                         Got {0}".format(
-                op_tag
-            )
+            f"Tag is expected to be softmax_output or log_softmax_output. Got {op_tag}"
         )
 
-    # only parallelize outer dimensions up to axis
-    outer_axes = [s[softmax_op].op.axis[i] for i in range(0, axis)]
-    fused_outer_axes = s[softmax_op].fuse(*outer_axes)
-    s[softmax_op].parallel(fused_outer_axes)
+    output = outs[0]
 
-    # move computations with the same outer dimensions under the same root
-    s[max_elem].compute_at(s[softmax_op], fused_outer_axes)
-    s[expsum].compute_at(s[softmax_op], fused_outer_axes)
+    def _schedule(output_op, softmax_op):
+        # only parallelize outer dimensions up to axis
+        outer_axes = [output_op.axis[i] for i in range(0, axis)]
+        fused_outer_axes = s[output_op].fuse(*outer_axes)
+        s[output_op].parallel(fused_outer_axes)
 
-    if delta is not None:
-        s[exp].compute_inline()
-        s[delta].compute_inline()
-    if exp is not None:
-        s[exp].compute_at(s[softmax_op], fused_outer_axes)
+        if softmax_op != output_op:
+            # fuse softmax output with following elemwise ops.
+            s[softmax_op].compute_at(s[output_op], fused_outer_axes)
 
-    if softmax_op != outs[0].op:
-        # fuse softmax output with following elemwise ops.
-        output = outs[0]
-        outer_axes = [s[output].op.axis[i] for i in range(0, axis)]
-        fused_outer_axes = s[output].fuse(*outer_axes)
-        s[output].parallel(fused_outer_axes)
-        s[softmax_op].compute_at(s[output], fused_outer_axes)
+        # move computations with the same outer dimensions under the same root
+        s[max_elem].compute_at(s[output_op], fused_outer_axes)
+        s[expsum].compute_at(s[output_op], fused_outer_axes)
+
+        if delta is not None:
+            s[exp].compute_inline()
+            s[delta].compute_inline()
+        if exp is not None:
+            s[exp].compute_at(s[output_op], fused_outer_axes)
+
+    if list(output.shape) == list(softmax_op.output(0).shape):
+        _schedule(output.op, softmax_op)
+    else:
+        # This case can happen, for example, if the 4D input to softmax
+        # is in the NCHW layout while the fused elemwise op takes the NCHWc layout.
+        # Since we parallelize over outer axes up to the "axis" parameter of softmax,
+        # softmax and the fused op need to be in the same layout if we want to
+        # fuse them under the same parallel loop.
+        # This case can be removed if softmax supported AlterLayout.
+        schedule_injective_from_existing(s, output)
+        _schedule(softmax_op, softmax_op)
 
 
 def schedule_softmax(outs):
@@ -94,4 +103,34 @@ def schedule_softmax(outs):
             _schedule_softmax(op, s, outs)
 
     traverse_inline(s, outs[0].op, _callback)
+    return s
+
+
+def schedule_batch_norm(outs):
+    """Schedule for batch_norm
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of batch_norm
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    s = te.create_schedule([x.op for x in outs])
+    # only parallelize outer dimensions up to axis
+    output_op = outs[0].op
+    axis = output_op.axis
+    outer_axes = [output_op.axis[i] for i in range(0, len(axis) - 1)]
+    fused_outer_axes = s[output_op].fuse(*outer_axes)
+    s[output_op].parallel(fused_outer_axes)
+    # when scale or center is enabled
+    if "divide" not in output_op.name:
+        div = output_op.input_tensors[0]
+        substract = s[div].op.input_tensors[0]
+        s[div].compute_inline()
+        s[substract].compute_inline()
     return s

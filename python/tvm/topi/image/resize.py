@@ -23,6 +23,22 @@ from tvm.topi.utils import nchw_pack_layout, nchw_xc_layout
 from .. import tag
 
 
+def can_convert_multiply_to_intdiv(origin_size, scaled_size):
+    """Check whether can convert multiplication to division"""
+    # Only support IntImm type
+    if not isinstance(scaled_size, tvm.tir.expr.IntImm):
+        return False
+
+    div = scaled_size / origin_size.astype("float")
+    if div.value % 1 != 0:
+        return False
+    epsilon = 1e-5
+    check = 1 / (epsilon * origin_size + epsilon)
+    if div > check:
+        return False
+    return True
+
+
 def get_1d_indices(indices, layout="NCW"):
     """Get 1d indices"""
     (cc, inum, ic) = (0, 0, 0)
@@ -119,7 +135,15 @@ def get_3d_pixel(data, layout, image_depth, image_height, image_width, n, c, z, 
     return data(n, c, z, y, x, cc).astype("float")
 
 
-def get_inx(x, image_width, target_width, coordinate_transformation_mode, start_x=0, end_x=-1):
+def get_inx(
+    x,
+    image_width,
+    target_width,
+    coordinate_transformation_mode,
+    start_x=0,
+    end_x=-1,
+    use_int_div=False,
+):
     """Infer input x from output x with various coordinate transformation methods"""
     scale_x = te.div(image_width.astype("float"), target_width.astype("float"))
     if coordinate_transformation_mode == "half_pixel":
@@ -127,7 +151,10 @@ def get_inx(x, image_width, target_width, coordinate_transformation_mode, start_
     elif coordinate_transformation_mode == "align_corners":
         in_x = (image_width - 1).astype("float") / (target_width - 1) * x
     elif coordinate_transformation_mode == "asymmetric":
-        in_x = scale_x * x
+        if use_int_div:
+            in_x = te.div(x, te.div(target_width, image_width))
+        else:
+            in_x = scale_x * x
     elif coordinate_transformation_mode == "pytorch_half_pixel":
         in_x = te.if_then_else(target_width > 1, (x + 0.5) * scale_x - 0.5, 0.0)
     elif coordinate_transformation_mode == "tf_half_pixel_for_nn":
@@ -141,13 +168,17 @@ def get_inx(x, image_width, target_width, coordinate_transformation_mode, start_
         )
     else:
         raise ValueError(
-            "Unsupported coordinate_transformation_mode: {}".format(coordinate_transformation_mode)
+            f"Unsupported coordinate_transformation_mode: {coordinate_transformation_mode}"
         )
     return in_x
 
 
-def get_closest_index(in_x, rounding_method, boxes):
+def get_closest_index(in_x, rounding_method, boxes, use_int_div=False):
     """get the closest index to a value based on a certain rounding method"""
+    if use_int_div:
+        closest_x_index = in_x.astype("int32")
+        return closest_x_index
+
     if rounding_method == "round" or boxes is not None:
         closest_x_index = te.round(in_x).astype("int32")
     elif rounding_method == "round_prefer_floor":
@@ -163,7 +194,7 @@ def get_closest_index(in_x, rounding_method, boxes):
         epsilon = 1e-5
         closest_x_index = te.ceil(in_x - epsilon).astype("int32")
     else:
-        raise ValueError("Uknown rounding method: {}".format(rounding_method))
+        raise ValueError(f"Unknown rounding method: {rounding_method}")
     return closest_x_index
 
 
@@ -283,14 +314,7 @@ def _resize_1d(
     if boxes is not None:
         # TODO(mbrookhart): Find an example of this
         raise NotImplementedError("resize1d with image boxes not yet implemented")
-    in_x = get_inx(
-        x,
-        image_width,
-        target_width,
-        coordinate_transformation_mode,
-        roi[0],
-        roi[1],
-    )
+    in_x = get_inx(x, image_width, target_width, coordinate_transformation_mode, roi[0], roi[1])
 
     if method == "nearest_neighbor":
         if rounding_method == "":
@@ -301,17 +325,7 @@ def _resize_1d(
 
         closest_x_index = get_closest_index(in_x, rounding_method, boxes)
 
-        value = get_1d_pixel(
-            data,
-            layout,
-            image_width,
-            box_idx,
-            c,
-            closest_x_index,
-            cc,
-            inum,
-            ic,
-        )
+        value = get_1d_pixel(data, layout, image_width, box_idx, c, closest_x_index, cc, inum, ic)
     elif method == "linear":
         x_int = te.floor(in_x).astype("int32")
 
@@ -319,17 +333,7 @@ def _resize_1d(
 
         p = [0 for i in range(2)]
         for i in range(2):
-            p[i] = get_1d_pixel(
-                data,
-                layout,
-                image_width,
-                box_idx,
-                c,
-                x_int + i,
-                cc,
-                inum,
-                ic,
-            )
+            p[i] = get_1d_pixel(data, layout, image_width, box_idx, c, x_int + i, cc, inum, ic)
 
         value = _lerp(*p, x_lerp)
 
@@ -340,17 +344,7 @@ def _resize_1d(
         # Get the surrounding values
         p = [0 for i in range(4)]
         for i in range(4):
-            p[i] = get_1d_pixel(
-                data,
-                layout,
-                image_width,
-                box_idx,
-                c,
-                xint + i - 1,
-                cc,
-                inum,
-                ic,
-            )
+            p[i] = get_1d_pixel(data, layout, image_width, box_idx, c, xint + i - 1, cc, inum, ic)
 
         wx = _cubic_spline_weights(xfract, alpha)
         if exclude_outside:
@@ -468,7 +462,7 @@ def resize1d(
         if output_shape is None:
             output_shape = [in_n, in_c, size[0], in_cc]
     else:
-        raise ValueError("%s layout is not supported." % layout)
+        raise ValueError(f"{layout} layout is not supported.")
 
     if isinstance(size, tuple):
         size = list(size)
@@ -595,6 +589,12 @@ def _resize_2d(
             dtype = data_dtype
         return value.astype(dtype)
 
+    height_use_int_div = False
+    width_use_int_div = False
+    if method == "nearest_neighbor" and coordinate_transformation_mode == "asymmetric":
+        height_use_int_div = can_convert_multiply_to_intdiv(image_height, target_height)
+        width_use_int_div = can_convert_multiply_to_intdiv(image_width, target_width)
+
     n, c, y, x, cc, inum, ic = get_2d_indices(indices, layout)
     box_idx = box_indices(n) if box_indices is not None else n
     if boxes is not None:
@@ -609,9 +609,23 @@ def _resize_2d(
         in_y = y1 * (image_height - 1) + h_scale * y
         in_x = x1 * (image_width - 1) + w_scale * x
     else:
-        in_x = get_inx(x, image_width, target_width, coordinate_transformation_mode, roi[1], roi[3])
+        in_x = get_inx(
+            x,
+            image_width,
+            target_width,
+            coordinate_transformation_mode,
+            roi[1],
+            roi[3],
+            width_use_int_div,
+        )
         in_y = get_inx(
-            y, image_height, target_height, coordinate_transformation_mode, roi[0], roi[2]
+            y,
+            image_height,
+            target_height,
+            coordinate_transformation_mode,
+            roi[0],
+            roi[2],
+            height_use_int_div,
         )
 
     if method == "nearest_neighbor":
@@ -621,8 +635,8 @@ def _resize_2d(
             else:
                 rounding_method = "floor"
 
-        closest_x_index = get_closest_index(in_x, rounding_method, boxes)
-        closest_y_index = get_closest_index(in_y, rounding_method, boxes)
+        closest_x_index = get_closest_index(in_x, rounding_method, boxes, width_use_int_div)
+        closest_y_index = get_closest_index(in_y, rounding_method, boxes, height_use_int_div)
 
         value = get_2d_pixel(
             data,
@@ -762,12 +776,6 @@ def resize2d(
     layout: string, optional
         "NCHW", "NHWC", or "NCHWc".
 
-    coordinate_transformation_mode: string, optional
-        Describes how to transform the coordinate in the resized tensor
-        to the coordinate in the original tensor.
-        Refer to the ONNX Resize operator specification for details.
-        Available options are "half_pixel", "align_corners" and "asymmetric".
-
     method: string, optional
         method of interpolation ("nearest", "linear", "bicubic")
 
@@ -821,7 +829,7 @@ def resize2d(
         if output_shape is None:
             output_shape = [in_n, in_c, size[0], size[1], in_cc]
     else:
-        raise ValueError("%s layout is not supported." % layout)
+        raise ValueError(f"{layout} layout is not supported.")
 
     if isinstance(size, tuple):
         size = list(size)
@@ -922,7 +930,7 @@ def crop_and_resize(
         image_h = data.shape[2].astype("int32")
         image_w = data.shape[3].astype("int32")
     else:
-        raise ValueError("%s layout is not supported." % layout)
+        raise ValueError(f"{layout} layout is not supported.")
     if method == "bilinear":
         method = "linear"
 

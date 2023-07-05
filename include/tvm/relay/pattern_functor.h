@@ -25,8 +25,8 @@
 #ifndef TVM_RELAY_PATTERN_FUNCTOR_H_
 #define TVM_RELAY_PATTERN_FUNCTOR_H_
 
-#include <tvm/ir/error.h>
 #include <tvm/node/functor.h>
+#include <tvm/relay/error.h>
 
 #include <string>
 #include <unordered_map>

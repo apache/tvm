@@ -729,7 +729,7 @@ def InjectConv2DTransposeSkip():
 
         def _do_fold(op):
             if _match_pragma(op, "conv2d_transpose_gemm"):
-                is_init = ".init" in str(op)
+                is_init = "_init" in str(op)
                 tvm.tir.stmt_functor.post_order_visit(op, _find_basics)
 
                 if is_init:

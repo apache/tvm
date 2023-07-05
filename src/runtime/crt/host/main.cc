@@ -22,14 +22,12 @@
  * \brief main entry point for host subprocess-based CRT
  */
 #include <inttypes.h>
-#include <time.h>
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/crt/aot_executor_module.h>
 #include <tvm/runtime/crt/logging.h>
 #include <tvm/runtime/crt/microtvm_rpc_server.h>
-#include <tvm/runtime/crt/page_allocator.h>
 #include <unistd.h>
 
-#include <chrono>
 #include <iostream>
 
 #include "crt_config.h"
@@ -37,10 +35,6 @@
 #ifdef TVM_HOST_USE_GRAPH_EXECUTOR_MODULE
 #include <tvm/runtime/crt/graph_executor_module.h>
 #endif
-
-#include <tvm/runtime/crt/aot_executor_module.h>
-
-using namespace std::chrono;
 
 extern "C" {
 
@@ -50,69 +44,7 @@ ssize_t MicroTVMWriteFunc(void* context, const uint8_t* data, size_t num_bytes) 
   fsync(STDOUT_FILENO);
   return to_return;
 }
-
-size_t TVMPlatformFormatMessage(char* out_buf, size_t out_buf_size_bytes, const char* fmt,
-                                va_list args) {
-  return vsnprintf(out_buf, out_buf_size_bytes, fmt, args);
 }
-
-void TVMPlatformAbort(tvm_crt_error_t error_code) {
-  std::cerr << "TVMPlatformAbort: " << error_code << std::endl;
-  throw "Aborted";
-}
-
-MemoryManagerInterface* memory_manager;
-
-tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev, void** out_ptr) {
-  return memory_manager->Allocate(memory_manager, num_bytes, dev, out_ptr);
-}
-
-tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
-  return memory_manager->Free(memory_manager, ptr, dev);
-}
-
-steady_clock::time_point g_microtvm_start_time;
-int g_microtvm_timer_running = 0;
-
-tvm_crt_error_t TVMPlatformTimerStart() {
-  if (g_microtvm_timer_running) {
-    std::cerr << "timer already running" << std::endl;
-    return kTvmErrorPlatformTimerBadState;
-  }
-  g_microtvm_start_time = std::chrono::steady_clock::now();
-  g_microtvm_timer_running = 1;
-  return kTvmErrorNoError;
-}
-
-tvm_crt_error_t TVMPlatformTimerStop(double* elapsed_time_seconds) {
-  if (!g_microtvm_timer_running) {
-    std::cerr << "timer not running" << std::endl;
-    return kTvmErrorPlatformTimerBadState;
-  }
-  auto microtvm_stop_time = std::chrono::steady_clock::now();
-  std::chrono::microseconds time_span = std::chrono::duration_cast<std::chrono::microseconds>(
-      microtvm_stop_time - g_microtvm_start_time);
-  *elapsed_time_seconds = static_cast<double>(time_span.count()) / 1e6;
-  g_microtvm_timer_running = 0;
-  return kTvmErrorNoError;
-}
-
-static_assert(RAND_MAX >= (1 << 8), "RAND_MAX is smaller than acceptable");
-unsigned int random_seed = 0;
-tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
-  if (random_seed == 0) {
-    random_seed = (unsigned int)time(NULL);
-  }
-  for (size_t i = 0; i < num_bytes; ++i) {
-    int random = rand_r(&random_seed);
-    buffer[i] = (uint8_t)random;
-  }
-
-  return kTvmErrorNoError;
-}
-}
-
-uint8_t memory[2048 * 1024];
 
 static char** g_argv = NULL;
 
@@ -125,13 +57,7 @@ int testonly_reset_server(TVMValue* args, int* type_codes, int num_args, TVMValu
 
 int main(int argc, char** argv) {
   g_argv = argv;
-  int status =
-      PageMemoryManagerCreate(&memory_manager, memory, sizeof(memory), 8 /* page_size_log2 */);
-  if (status != 0) {
-    fprintf(stderr, "error initiailizing memory manager\n");
-    return 2;
-  }
-
+  TVMPlatformInitialize();
   microtvm_rpc_server_t rpc_server = MicroTVMRpcServerInit(&MicroTVMWriteFunc, nullptr);
 
 #ifdef TVM_HOST_USE_GRAPH_EXECUTOR_MODULE

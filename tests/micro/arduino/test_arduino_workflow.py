@@ -18,7 +18,6 @@
 import pathlib
 import re
 import shutil
-import sys
 import pytest
 
 import tvm.testing
@@ -36,23 +35,28 @@ This unit test simulates a simple user workflow, where we:
 6. Use serial connection to ensure model behaves correctly
 """
 
-
 # Since these tests are sequential, we'll use the same project/workspace
-# directory for all tests in this file
+# directory for all tests in this file. Note that --board can't be loaded
+# from the fixture, since the fixture is function scoped (it has to be
+# for the tests to be named correctly via parameterization).
 @pytest.fixture(scope="module")
-def workspace_dir(request, board):
+def workflow_workspace_dir(request):
+    board = request.config.getoption("--board")
     return test_utils.make_workspace_dir("arduino_workflow", board)
 
 
 @pytest.fixture(scope="module")
-def project_dir(workspace_dir):
-    return workspace_dir / "project"
+def project_dir(workflow_workspace_dir):
+    return workflow_workspace_dir / "project"
 
 
-# We MUST pass workspace_dir, not project_dir, or the workspace will be dereferenced too soon
+# We MUST pass workspace_dir, not project_dir, or the workspace will be dereferenced
+# too soon. We can't use the board fixture either for the reason mentioned above.
 @pytest.fixture(scope="module")
-def project(board, arduino_cli_cmd, tvm_debug, workspace_dir):
-    return test_utils.make_kws_project(board, arduino_cli_cmd, tvm_debug, workspace_dir)
+def project(request, microtvm_debug, workflow_workspace_dir):
+    board = request.config.getoption("--board")
+    serial_number = request.config.getoption("--serial-number")
+    return test_utils.make_kws_project(board, microtvm_debug, workflow_workspace_dir, serial_number)
 
 
 def _get_directory_elements(directory):
@@ -66,7 +70,7 @@ def test_project_folder_structure(project_dir, project):
 
     source_dir = project_dir / "src"
     assert _get_directory_elements(source_dir) == set(
-        ["model", "standalone_crt", "model.c", "model.h"]
+        ["model", "standalone_crt", "platform.c", "platform.h"]
     )
 
 
@@ -77,20 +81,20 @@ def test_project_model_integrity(project_dir, project):
     )
 
 
-def test_model_header_templating(project_dir, project):
-    # Ensure model.h was templated with correct WORKSPACE_SIZE
-    with (project_dir / "src" / "model.h").open() as f:
-        model_h = f.read()
-        workspace_size_defs = re.findall(r"\#define WORKSPACE_SIZE ([0-9]*)", model_h)
+def test_model_platform_templating(project_dir, project):
+    # Ensure platform.c was templated with correct TVM_WORKSPACE_SIZE_BYTES
+    with (project_dir / "src" / "platform.c").open() as f:
+        platform_c = f.read()
+        workspace_size_defs = re.findall(r"\#define TVM_WORKSPACE_SIZE_BYTES ([0-9]*)", platform_c)
         assert workspace_size_defs
         assert len(workspace_size_defs) == 1
 
-        # Make sure the WORKSPACE_SIZE we define is a reasonable size. We don't want
+        # Make sure the TVM_WORKSPACE_SIZE_BYTES we define is a reasonable size. We don't want
         # to set an exact value, as this test shouldn't break if an improvement to
         # TVM causes the amount of memory needed to decrease.
         workspace_size = int(workspace_size_defs[0])
         assert workspace_size < 30000
-        assert workspace_size > 10000
+        assert workspace_size > 9000
 
 
 def test_import_rerouting(project_dir, project):
@@ -163,7 +167,7 @@ SERIAL_OUTPUT_HEADERS = "category,runtime,yes,no,silence,unknown"
 def serial_output(uploaded_project):
     transport = uploaded_project.transport()
     transport.open()
-    out = transport.read(2048, -1)
+    out = transport.read(2048, 60)
     out_str = out.decode("utf-8")
     out_lines = out_str.split("\r\n")
 

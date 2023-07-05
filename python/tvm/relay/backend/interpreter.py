@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=no-else-return
+# pylint: disable=no-else-return, broad-exception-raised
 """The Python interface to the Relay reference interpreter."""
 from __future__ import absolute_import
 
@@ -99,7 +99,7 @@ class Executor(object):
 
         if kwargs and not isinstance(expr, Function):
             raise Exception(
-                "can only supply keyword parameters for a " "relay.Function, found {0}".format(expr)
+                f"can only supply keyword parameters for a relay.Function, found {expr}"
             )
 
         params = expr.params
@@ -111,17 +111,16 @@ class Executor(object):
             if i < num_of_args:
                 if kwargs.get(name):
                     raise Exception(
-                        "duplicate argument supplied in "
-                        "both positional args (at position: {0}), "
-                        "and keyword argument (with name: {1})".format(i, name)
+                        f"duplicate argument supplied in "
+                        f"both positional args (at position: {i}), "
+                        f"and keyword argument (with name: {name})"
                     )
             else:
                 cargs.append(kwargs[name])
 
         if len(cargs) != len(params):
             raise Exception(
-                "insufficient arguments, expected "
-                "{0}, provided {1}".format(len(cargs), len(params))
+                f"insufficient arguments, expected " f"{len(cargs)}, provided {len(params)}"
             )
 
         return tuple(cargs)
@@ -195,7 +194,7 @@ class Interpreter(Executor):
         The runtime device to run the code on.
 
     target : tvm.Target
-        The target option to build the function.
+        The target option to build the function. Only homogeneous execution is supported.
 
     CAUTION: Despite the API the module is prepared upon each call to evaluate
     rather than once in create_executor.

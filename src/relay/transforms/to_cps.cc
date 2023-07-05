@@ -36,7 +36,7 @@
  *
  * In relay, as tensor operation is the bottleneck,
  * CPS is currently intended to transform the program before partial eval (PE),
- * as it reify the control flow and enable PE to handle control flow join more agressively.
+ * as it reify the control flow and enable PE to handle control flow join more aggressively.
  *
  * For example, given 'let a = if b then c else d in e', it will transform the code into
  * 'let f a = e in if b then f c else f d'.

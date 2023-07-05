@@ -28,10 +28,12 @@ echo set\(USE_RPC ON\) >> config.cmake
 echo set\(USE_MICRO ON\) >> config.cmake
 echo set\(USE_MICRO_STANDALONE_RUNTIME ON\) >> config.cmake
 echo set\(USE_PROFILER ON\) >> config.cmake
-echo set\(USE_LLVM llvm-config-8\) >> config.cmake
+echo -e 'find_program(LLVM_CONFIG "llvm-config")\nif (LLVM_CONFIG) \n\tset(USE_LLVM llvm-config) \nelse() \n\tset(USE_LLVM llvm-config-16)\nendif()' >> config.cmake
 echo set\(CMAKE_CXX_FLAGS -Werror\) >> config.cmake
 echo set\(USE_VTA_FSIM ON\) >> config.cmake
 echo set\(USE_ARM_COMPUTE_LIB ON\) >> config.cmake
 echo set\(USE_ARM_COMPUTE_LIB_GRAPH_EXECUTOR "/opt/acl"\) >> config.cmake
 echo set\(USE_CCACHE OFF\) >> config.cmake
+echo set\(BACKTRACE_ON_SEGFAULT ON\) >> config.cmake
+echo set\(USE_UMA ON\) >> config.cmake
 echo set\(SUMMARIZE ON\) >> config.cmake

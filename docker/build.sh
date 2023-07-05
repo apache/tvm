@@ -22,13 +22,18 @@
 #
 # Usage: build.sh <CONTAINER_TYPE> [--tag <DOCKER_IMAGE_TAG>]
 #                [--dockerfile <DOCKERFILE_PATH>] [-it]
+#                [--env <ENVIRONMENT_VARIABLE>]
 #                [--net=host] [--cache-from <IMAGE_NAME>] [--cache]
 #                [--name CONTAINER_NAME] [--context-path <CONTEXT_PATH>]
 #                [--spec DOCKER_IMAGE_SPEC]
+#                [--platform <BUILD_PLATFORM>]
 #                [<COMMAND>]
 #
 # CONTAINER_TYPE: Type of the docker container used the run the build,
 #                 e.g. "ci_cpu", "ci_gpu"
+#
+# BUILD_PLATFORM: (Optional) Type of build platform used for the build,
+#                 e.g. "arm", "cpu", "gpu". Defaults to "cpu".
 #
 # DOCKER_IMAGE_TAG: (Optional) Docker image tag to be built and used.
 #                   Defaults to 'latest', as it is the default Docker tag.
@@ -39,6 +44,8 @@
 #
 # DOCKER_IMAGE_SPEC: Override the default logic to determine the image name and
 #                    tag
+#
+# ENVIRONMENT_VARIABLE: Pass any environment variables through to the container.
 #
 # IMAGE_NAME: An image to be as a source for cached layers when building the
 #             Docker image requested.
@@ -51,6 +58,8 @@
 #
 # COMMAND (optional): Command to be executed in the docker container
 #
+
+DOCKER_ENV=()
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Get the command line arguments.
@@ -69,6 +78,12 @@ fi
 if [[ "$1" == "--dockerfile" ]]; then
     DOCKERFILE_PATH="$2"
     echo "Using custom Dockerfile path: ${DOCKERFILE_PATH}"
+    shift 2
+fi
+
+if [[ "$1" == "--env" ]]; then
+    DOCKER_ENV+=( --env "$2" )
+    echo "Setting environment variable: $2"
     shift 2
 fi
 
@@ -116,6 +131,14 @@ fi
 if [[ "$1" == "--name" ]]; then
     CI_DOCKER_EXTRA_PARAMS+=("--name ${2} --hostname ${2}")
     echo "Using container name ${2}"
+    shift 2
+fi
+
+PLATFORM="cpu"
+
+if [[ "$1" == "--platform" ]]; then
+    PLATFORM="$2"
+    echo "Using build platform: ${PLATFORM}"
     shift 2
 fi
 
@@ -227,6 +250,8 @@ if [[ -n ${COMMAND} ]]; then
         -e "CI_BUILD_GID=$(id -g)" \
         -e "CI_PYTEST_ADD_OPTIONS=$CI_PYTEST_ADD_OPTIONS" \
         -e "CI_IMAGE_NAME=${DOCKER_IMAGE_NAME}" \
+        -e "PLATFORM=${PLATFORM}" \
+        ${DOCKER_ENV[@]+"${DOCKER_ENV[@]}"} \
         ${CUDA_ENV}\
         ${CI_DOCKER_EXTRA_PARAMS[@]} \
         ${DOCKER_IMG_SPEC} \

@@ -15,40 +15,46 @@
 # specific language governing permissions and limitations
 # under the License.
 
+""" Minimal example of tuning on hexagon. """
+
 import contextlib
 import os
-import sys
 import pytest
-import numpy as np
 
 import tvm
 import tvm.testing
-from tvm import tir, te, TVMError
-from tvm.script import tir as T
-from tvm import autotvm
+from tvm import autotvm, te
+from tvm.autotvm.tuner import GATuner, XGBTuner
+
+from .infrastructure import get_hexagon_target
 
 
 @autotvm.template("demo_template")
 def demo_template():
-    M, N, K = [1024] * 3
-    A = te.placeholder((M, K), dtype="float32")
-    B = te.placeholder((N, K), dtype="float32")
+    """Initial demo template"""
+    size_m, size_n, size_k = [1024] * 3
+    input1 = te.placeholder((size_m, size_k), dtype="float32")
+    input2 = te.placeholder((size_n, size_k), dtype="float32")
     k = te.reduce_axis((0, 1024), name="k")
-    C = te.compute((M, N), lambda i, j: te.sum(A[i, k] * B[j, k], axis=[k]))
+    output = te.compute(
+        (size_m, size_n), lambda i, j: te.sum(input1[i, k] * input2[j, k], axis=[k])
+    )
 
-    s = te.create_schedule(C.op)
+    s = te.create_schedule(output.op)
     cfg = autotvm.get_config()
 
-    m_iter, n_iter = s[C].op.axis
-    (k_iter,) = s[C].op.reduce_axis
+    _, _ = s[output].op.axis
+    (k_iter,) = s[output].op.reduce_axis
 
     cfg.define_split("k_split", k_iter, num_outputs=2)
-    ko, ki = cfg["k_split"].apply(s, C, k_iter)
+    _, _ = cfg["k_split"].apply(s, output, k_iter)
 
-    return s, [A, B, C]
+    return s, [input1, input2, output]
 
 
 class HexagonModuleLoader:
+    """HexagonModuleLoader"""
+
     def __init__(self, hexagon_session, pre_load_function=None) -> None:
         self.pre_load_function = pre_load_function
         self.hexagon_session = hexagon_session
@@ -74,8 +80,7 @@ def tune_tasks(
     log_filename="tuning.log",
     use_transfer_learning=True,
 ):
-    from tvm.autotvm.tuner import XGBTuner
-    from tvm.autotvm.tuner import GATuner
+    """Tune tasks with different tuners"""
 
     tmp_log_file = log_filename + ".tmp"
     if os.path.exists(tmp_log_file):
@@ -83,10 +88,30 @@ def tune_tasks(
 
     for i, tsk in enumerate(reversed(tasks)):
         prefix = "[Task %2d/%2d] " % (i + 1, len(tasks))
-        if tuner == "xgb" or tuner == "xgb-rank":
-            tuner_obj = XGBTuner(tsk, loss_type="rank")
+        if tuner == "xgb":
+            tuner_obj = XGBTuner(tsk, loss_type="reg")
         elif tuner == "xgb_knob":
+            tuner_obj = XGBTuner(tsk, loss_type="reg", feature_type="knob")
+        elif tuner == "xgb_itervar":
+            tuner_obj = XGBTuner(tsk, loss_type="reg", feature_type="itervar")
+        elif tuner == "xgb_curve":
+            tuner_obj = XGBTuner(tsk, loss_type="reg", feature_type="curve")
+        elif tuner == "xgb_rank":
+            tuner_obj = XGBTuner(tsk, loss_type="rank")
+        elif tuner == "xgb_rank_knob":
             tuner_obj = XGBTuner(tsk, loss_type="rank", feature_type="knob")
+        elif tuner == "xgb_rank_itervar":
+            tuner_obj = XGBTuner(tsk, loss_type="rank", feature_type="itervar")
+        elif tuner == "xgb_rank_curve":
+            tuner_obj = XGBTuner(tsk, loss_type="rank", feature_type="curve")
+        elif tuner == "xgb_rank_binary":
+            tuner_obj = XGBTuner(tsk, loss_type="rank-binary")
+        elif tuner == "xgb_rank_binary_knob":
+            tuner_obj = XGBTuner(tsk, loss_type="rank-binary", feature_type="knob")
+        elif tuner == "xgb_rank_binary_itervar":
+            tuner_obj = XGBTuner(tsk, loss_type="rank-binary", feature_type="itervar")
+        elif tuner == "xgb_rank_binary_curve":
+            tuner_obj = XGBTuner(tsk, loss_type="rank-binary", feature_type="curve")
         elif tuner == "ga":
             tuner_obj = GATuner(tsk, pop_size=50)
         elif tuner == "random":
@@ -118,6 +143,7 @@ def tune_tasks(
 @pytest.mark.skip(reason="AutoTVM tuning is not yet enabled on Hexagon")
 @tvm.testing.requires_hexagon
 def test_autotvm(hexagon_session):
+    """Top level test function for testing autotvm"""
     logfilename = "./hexagon.autotvm.log"
 
     options = {
@@ -137,12 +163,13 @@ def test_autotvm(hexagon_session):
             ),
         ),
     }
-    target_hexagon = tvm.target.hexagon("v68")
     task = autotvm.task.create(
-        "demo_template", args=[], target=target_hexagon, target_host=target_hexagon
+        "demo_template",
+        args=[],
+        target=get_hexagon_target("v68"),
     )
     tune_tasks([task], **options)
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    tvm.testing.main()

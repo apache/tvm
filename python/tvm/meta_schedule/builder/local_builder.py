@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """Local builder that compile on the local host"""
-import logging
 import os
 import tempfile
 from typing import Callable, Dict, List, Optional, Union
@@ -26,14 +25,11 @@ from tvm.runtime import Module, NDArray, load_param_dict, save_param_dict
 from tvm.target import Target
 
 from ...contrib.popen_pool import MapResult, PopenPoolExecutor, StatusKind
-from ..utils import (
-    cpu_count,
-    derived_object,
-    get_global_func_with_default_on_worker,
-)
+from ..logging import get_logger
+from ..utils import cpu_count, derived_object, get_global_func_with_default_on_worker
 from .builder import BuilderInput, BuilderResult, PyBuilder
 
-logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
+logger = get_logger(__name__)  # pylint: disable=invalid-name
 
 
 T_BUILD = Callable[  # pylint: disable=invalid-name
@@ -258,8 +254,10 @@ def default_build(mod: IRModule, target: Target, _params: Optional[Dict[str, NDA
     """
     # pylint: disable=import-outside-toplevel
     from tvm.driver import build as tvm_build
+    from tvm.tir.transform import RemoveWeightLayoutRewriteBlock
 
     # pylint: enable=import-outside-toplevel
+    mod = RemoveWeightLayoutRewriteBlock(skip_ndarray_rewrite=True)(mod)
     return tvm_build(mod, target=target)
 
 

@@ -94,7 +94,7 @@ def unpack_feature(byte_arr: bytearray) -> Tuple[np.ndarray, np.ndarray, np.ndar
     n = struct.unpack_from("1i", byte_arr, offset=offset)[0]
     offset += SIZE_OF_INT32
 
-    sizes = struct.unpack_from("%di" % (n + 2), byte_arr, offset=offset)
+    sizes = struct.unpack_from(f"{n + 2}i", byte_arr, offset=offset)
     offset += SIZE_OF_INT32 * (n + 2)
 
     # unpack features
@@ -121,13 +121,10 @@ def unpack_feature(byte_arr: bytearray) -> Tuple[np.ndarray, np.ndarray, np.ndar
             tmp_vec_len = (size - 1) // n_stmts
             assert (
                 tmp_vec_len == vec_len
-            ), "The length of feature vector is wrong. Expected %d but got %d." % (
-                vec_len,
-                tmp_vec_len,
-            )
+            ), f"The length of feature vector is wrong. Expected {vec_len} but got {tmp_vec_len}."
             assert tmp_vec_len * n_stmts == size - 1
             for _ in range(n_stmts):
-                x = struct.unpack_from("%df" % vec_len, byte_arr, offset=offset)
+                x = struct.unpack_from(f"{vec_len}f", byte_arr, offset=offset)
                 offset += vec_len * SIZE_OF_FLOAT32
                 row.append(x)
 
@@ -135,15 +132,15 @@ def unpack_feature(byte_arr: bytearray) -> Tuple[np.ndarray, np.ndarray, np.ndar
 
     # unpack normalized_throughputs
     m = sizes[-2]
-    normalized_throughputs = struct.unpack_from("%df" % m, byte_arr, offset=offset)
+    normalized_throughputs = struct.unpack_from(f"{m}f", byte_arr, offset=offset)
     offset += m * SIZE_OF_FLOAT32
 
     # unpack task_ids
     m = sizes[-1]
-    task_ids = struct.unpack_from("%di" % m, byte_arr, offset=offset)
+    task_ids = struct.unpack_from(f"{m}i", byte_arr, offset=offset)
     offset += m * SIZE_OF_INT32
 
-    assert offset == len(byte_arr), "%d vs %d" % (offset, len(byte_arr))
+    assert offset == len(byte_arr), f"{offset} vs {len(byte_arr)}"
     return np.array(features, dtype=object), np.array(normalized_throughputs), np.array(task_ids)
 
 
@@ -260,7 +257,7 @@ def features_from_primfunc(
     cache_line_bytes: int = 64,
     max_n_bufs: Optional[int] = None,
     log_scale: bool = False,
-) -> np.ndarray:
+) -> Optional[np.ndarray]:
     """Extract performance features from a PrimFunc.
 
     Parameters
@@ -284,7 +281,7 @@ def features_from_primfunc(
 
     Returns
     -------
-    np.ndarray
+    Optional[np.ndarray]
         Output features, one row per store into a unique buffer statement in `func`.
     """
     return _ffi_api.FeaturesFromPrimFunc(
@@ -297,7 +294,7 @@ def named_features_from_primfunc(
     cache_line_bytes: int = 64,
     max_n_bufs: Optional[int] = None,
     log_scale: bool = False,
-) -> Dict[str, np.ndarray]:
+) -> Optional[Dict[str, np.ndarray]]:
     """Extract performance features and associated names from a PrimFunc.
 
     Parameters
@@ -321,10 +318,12 @@ def named_features_from_primfunc(
 
     Returns
     -------
-    Dict[str, np.ndarray]
+    Optional[Dict[str, np.ndarray]]
         Mapping from feature name to features. One element per store into a
         unique buffer statement in `func`.
     """
     features = features_from_primfunc(func, cache_line_bytes, max_n_bufs, log_scale)
     names = get_per_store_feature_names(max_n_bufs)
+    if features.shape[0] == 0:
+        return None
     return {name: features[:, i] for i, name in enumerate(names)}

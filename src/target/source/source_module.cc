@@ -23,12 +23,17 @@
  */
 #include "source_module.h"
 
+#include <dmlc/memory_io.h>
 #include <tvm/runtime/metadata.h>
 #include <tvm/runtime/module.h>
+#include <tvm/runtime/name_transforms.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 
+#include <algorithm>
+#include <functional>
+#include <numeric>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -41,7 +46,9 @@
 #include "../func_registry_generator.h"
 #include "../metadata.h"
 #include "../metadata_utils.h"
+#include "codegen_params.h"
 #include "codegen_source_base.h"
+#include "tvm/relay/executor.h"
 
 namespace tvm {
 namespace codegen {
@@ -61,15 +68,15 @@ class SourceModuleNode : public runtime::ModuleNode {
   SourceModuleNode(std::string code, std::string fmt) : code_(code), fmt_(fmt) {}
   const char* type_key() const final { return "source"; }
 
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
     LOG(FATAL) << "Source module cannot execute, to get executable module"
                << " build TVM with \'" << fmt_ << "\' runtime support";
     return PackedFunc();
   }
 
-  std::string GetSource(const std::string& format) final { return code_; }
+  String GetSource(const String& format) final { return code_; }
 
-  std::string GetFormat() { return fmt_; }
+  String GetFormat() override { return fmt_; }
 
  protected:
   std::string code_;
@@ -89,7 +96,7 @@ class CSourceModuleNode : public runtime::ModuleNode {
       : code_(code), fmt_(fmt), const_vars_(const_vars), func_names_(func_names) {}
   const char* type_key() const final { return "c"; }
 
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
     // Currently c-source module is used as demonstration purposes with binary metadata module
     // that expects get_symbol interface. When c-source module is used as external module, it
     // will only contain one function. However, when its used as an internal module (e.g., target
@@ -108,11 +115,11 @@ class CSourceModuleNode : public runtime::ModuleNode {
     }
   }
 
-  std::string GetSource(const std::string& format) final { return code_; }
+  String GetSource(const String& format) final { return code_; }
 
-  std::string GetFormat() { return fmt_; }
+  String GetFormat() override { return fmt_; }
 
-  void SaveToFile(const std::string& file_name, const std::string& format) final {
+  void SaveToFile(const String& file_name, const String& format) final {
     std::string fmt = GetFileFormat(file_name, format);
     std::string meta_file = GetMetaFilePath(file_name);
     if (fmt == "c" || fmt == "cc" || fmt == "cpp" || fmt == "cu") {
@@ -123,7 +130,7 @@ class CSourceModuleNode : public runtime::ModuleNode {
     }
   }
 
-  bool IsDSOExportable() const final { return true; }
+  int GetPropertyMask() const override { return runtime::ModulePropertyMask::kDSOExportable; }
 
   bool ImplementsFunction(const String& name, bool query_imports) final {
     return std::find(func_names_.begin(), func_names_.end(), name) != func_names_.end();
@@ -174,14 +181,14 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
   }
   const char* type_key() const final { return "c"; }
 
-  std::string GetSource(const std::string& format) final { return code_.str(); }
+  String GetSource(const String& format) final { return code_.str(); }
 
-  std::string GetFormat() { return fmt_; }
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
+  String GetFormat() override { return fmt_; }
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
     return PackedFunc();
   }
 
-  void SaveToFile(const std::string& file_name, const std::string& format) final {
+  void SaveToFile(const String& file_name, const String& format) final {
     std::string fmt = GetFileFormat(file_name, format);
     std::string meta_file = GetMetaFilePath(file_name);
     if (fmt == "c" || fmt == "cc" || fmt == "cpp") {
@@ -193,7 +200,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
     }
   }
 
-  bool IsDSOExportable() const final { return true; }
+  int GetPropertyMask() const override { return runtime::ModulePropertyMask::kDSOExportable; }
 
   bool ImplementsFunction(const String& name, bool query_imports) final {
     return std::find(func_names_.begin(), func_names_.end(), name) != func_names_.end();
@@ -249,15 +256,17 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
     return reference_arg + "_tvm_value";
   }
 
-  void GenerateInternalWorkspaceBuffers() {
+  void GenerateInternalBuffers() {
     if (metadata_->pool_inputs.defined()) {
       for (const auto& kv : metadata_->pool_inputs.value()) {
         tir::usmp::AllocatedPoolInfo allocated_pool_info = kv.second;
         if (allocated_pool_info->pool_info->is_internal) {
-          code_ << "__attribute__((section(\".bss.noinit.tvm\"), ";
-          code_ << "aligned(" << 16 << ")))\n";
-          code_ << "static uint8_t " << allocated_pool_info->pool_info->pool_name << "["
-                << allocated_pool_info->allocated_size->value << "];\n";
+          if (const auto* pool_info = allocated_pool_info->pool_info.as<ConstantPoolInfoNode>()) {
+            GenerateConstantBuffer(pool_info, allocated_pool_info->allocated_size->value);
+          } else {
+            GenerateWorkspaceBuffer(allocated_pool_info->pool_info.as<WorkspacePoolInfoNode>(),
+                                    allocated_pool_info->allocated_size->value);
+          }
         }
       }
     }
@@ -281,6 +290,54 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
     code_ << "};\n";
     code_ << "return ret;\n";
     code_ << "}\n\n";
+  }
+
+  void GenerateConstantBuffer(const ConstantPoolInfoNode* pool_info, size_t allocated_size) {
+    size_t ord = 0;
+    if (pool_info->constant_info_array.size() > 0) {
+      // Pool is RO, form an initialized struct
+      code_ << "__attribute__((section(\".rodata.tvm\"), ";
+      code_ << "))\n";
+      code_ << "static struct " << pool_info->pool_name << " {\n";
+      // emit struct field names
+      std::vector<ConstantInfo> const_info_vec(pool_info->constant_info_array.begin(),
+                                               pool_info->constant_info_array.end());
+      std::sort(const_info_vec.begin(), const_info_vec.end(),
+                [](const ConstantInfo& a, const ConstantInfo& b) {
+                  return a->byte_offset->value < b->byte_offset->value;
+                });
+      for (const auto& const_info : const_info_vec) {
+        const auto& data = const_info->data;
+        const auto& offs = const_info->byte_offset;
+        int64_t num_elements = std::accumulate(data.Shape().begin(), data.Shape().end(), 1,
+                                               std::multiplies<int64_t>());
+        code_ << "  ";
+        codegen_c_base_.PrintType(data.DataType(), code_);
+        code_ << " " << const_info->name_hint << "[" << num_elements << "] __attribute__(("
+              << (ord++ ? "packed, " : "") << "aligned(" << metadata_->constant_alignment << ")));";
+        code_ << " // " << num_elements * data.DataType().bytes()
+              << " bytes, aligned offset: " << offs << "\n";
+      }
+      code_ << "} " << pool_info->pool_name << " = {\n";
+
+      // emit struct field initialization data
+      for (const auto& const_info : const_info_vec) {
+        code_ << "  ." << const_info->name_hint << " = {\n";
+        codegen::NDArrayDataToC(const_info->data, 4, code_);
+        code_ << "  },\n";
+      }
+      code_ << "};";
+      code_ << "// of total size " << allocated_size << " bytes\n";
+    } else {
+      LOG(FATAL) << "No constant data in constant pool found " << GetRef<ObjectRef>(pool_info);
+    }
+  }
+
+  void GenerateWorkspaceBuffer(const WorkspacePoolInfoNode* pool_info, size_t allocated_size) {
+    code_ << "__attribute__((section(\".bss.noinit.tvm\"), ";
+    code_ << "aligned(" << metadata_->workspace_alignment << ")))\n";
+    code_ << "static uint8_t " << pool_info->pool_name << "[";
+    code_ << allocated_size << "];\n";
   }
 
   bool IsInternalWorkspaceBuffer(const tir::Var& pool_var) {
@@ -412,8 +469,8 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
           String pool_name_tvmv = GenerateDLTensorStructWrapper(pool_name);
           code_ << "tensors[" << i << "] = " << pool_name_tvmv << ";\n";
         } else {
-          code_ << "tensors[" << i << "] = ((TVMValue*)args)["
-                << run_func_to_entry_point_args[Integer(i)] << "];\n";
+          code_ << "tensors[" << i << "] = ((TVMValue*)args)[" << run_func_to_entry_point_args[i]
+                << "];\n";
         }
       }
     }
@@ -450,7 +507,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
           } else {
             codegen_c_base_.PrintType(input_var.dtype(), call_args_ss);
           }
-          call_args_ss << " " << relay::backend::SanitizeName(input_var->name_hint) << ",";
+          call_args_ss << " " << tvm::runtime::SanitizeName(input_var->name_hint) << ",";
         }
         for (unsigned int i = 0; i < metadata_->outputs.size(); ++i) {
           call_args_ss << "void* output" << i << ",";
@@ -508,10 +565,10 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
       std::stringstream call_args_ss;
       if (metadata_->io_pool_allocations.empty()) {
         for (const auto& input : metadata_->inputs) {
-          call_args_ss << "inputs->" << relay::backend::SanitizeName(input->name_hint) << ",";
+          call_args_ss << "inputs->" << tvm::runtime::SanitizeName(input->name_hint) << ",";
         }
         for (const auto& output : metadata_->outputs) {
-          call_args_ss << "outputs->" << relay::backend::SanitizeName(output);
+          call_args_ss << "outputs->" << tvm::runtime::SanitizeName(output);
           call_args_ss << ",";
         }
       }
@@ -521,7 +578,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
         if (IsInternalWorkspaceBuffer(pool_var)) {
           call_args_ss << "&" << pool_name << ",";
         } else {
-          call_args_ss << "workspace_pools->" << relay::backend::SanitizeName(pool_name) << ",";
+          call_args_ss << "workspace_pools->" << tvm::runtime::SanitizeName(pool_name) << ",";
         }
       }
       for (const String& device : metadata_->devices) {
@@ -549,7 +606,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
     code_ << "extern \"C\" {\n";
     code_ << "#endif\n";
 
-    GenerateInternalWorkspaceBuffers();
+    GenerateInternalBuffers();
 
     if (metadata_->unpacked_api) {
       if (metadata_->interface_api == "c") {
@@ -646,9 +703,26 @@ class MetadataSerializer : public AttrVisitor {
     WriteKey(key);
   }
 
+  // Serialiding NDArray as tuple of len, data
   void Visit(const char* key, runtime::NDArray* value) final {
-    // TODO(areusch): probably we could consolidate --link-params here, tho...
-    ICHECK(false) << "do not support serializing NDArray as metadata";
+    WriteComma();
+    std::string bytes;
+    dmlc::MemoryStringStream stream(&bytes);
+    value->Save(&stream);
+    // Serializing length of the data of NDArray
+    code_ << stream.Tell();
+    WriteComma();
+    // Serializing NDArray as bytestream
+    code_ << "\"";
+    std::stringstream ss;
+    char buf[6] = {0};
+    for (uint8_t c : bytes) {
+      snprintf(buf, sizeof(buf), "\\x%02x", c);
+      ss << buf;
+    }
+    std::string as_bytes(ss.str());
+    code_ << as_bytes;
+    code_ << "\"\n";
   }
 
   void VisitArray(runtime::metadata::MetadataArray array) {
@@ -659,7 +733,7 @@ class MetadataSerializer : public AttrVisitor {
 
       switch (array->kind) {
         case MetadataKind::kUint64: {
-          int64_t i = Downcast<Integer>(o);
+          int64_t i = Downcast<Integer>(o).IntValue();
           CHECK_GT(i, 0)
               << "Metadata is of type uint64_t, but array type contains a negative number";
           uint64_t ui = static_cast<uint64_t>(i);
@@ -667,7 +741,7 @@ class MetadataSerializer : public AttrVisitor {
           continue;
         }
         case MetadataKind::kInt64: {
-          int64_t i = Downcast<Integer>(o);
+          int64_t i = Downcast<Integer>(o).IntValue();
           Visit(nullptr, &i);
           continue;
         }
@@ -722,7 +796,11 @@ class MetadataSerializer : public AttrVisitor {
     if (key != nullptr) {  // NOTE: outermost call passes nullptr key
       address_.push_back(key);
     }
+    WriteComma();
+    code_ << "{\n";
+    is_first_item_ = true;
     ReflectionVTable::Global()->VisitAttrs(metadata.operator->(), this);
+    code_ << "}\n";
     if (key != nullptr) {  // NOTE: outermost call passes nullptr key
       address_.pop_back();
     }
@@ -790,7 +868,7 @@ class MetadataSerializer : public AttrVisitor {
 
     // Finally, emit overall struct.
     address_.push_back(metadata::kMetadataGlobalSymbol);
-    code_ << "static const struct TVMMetadata " << metadata::AddressFromParts(address_) << " = {"
+    code_ << "static const struct TVMMetadata " << metadata::AddressFromParts(address_) << "[1] = {"
           << std::endl;
     Visit(nullptr, &metadata);
     code_ << "};" << std::endl;
@@ -851,11 +929,21 @@ runtime::Module CreateCSourceCrtMetadataModule(const Array<runtime::Module>& mod
                                                relay::backend::ExecutorCodegenMetadata metadata,
                                                runtime::metadata::Metadata aot_metadata) {
   Array<runtime::Module> final_modules(modules);
-  if (aot_metadata.defined()) {
-    final_modules.push_back(CreateAotMetadataModule(aot_metadata, true));
+  Array<String> func_names;
+
+  if (metadata.defined()) {
+    if (metadata->executor == "aot") {
+      if (aot_metadata.defined()) {
+        final_modules.push_back(CreateAotMetadataModule(aot_metadata, true));
+      }
+
+      // add the run function (typically "tvmgen_default_run") to function registry
+      // when using AOT executor
+      std::string run_func = runtime::get_name_mangled(metadata->mod_name, "run");
+      func_names.push_back(run_func);
+    }
   }
 
-  Array<String> func_names;
   for (runtime::Module mod : final_modules) {
     auto pf_funcs = mod.GetFunction("get_func_names");
     if (pf_funcs != nullptr) {
@@ -906,13 +994,13 @@ class DeviceSourceModuleNode final : public runtime::ModuleNode {
                          std::function<std::string(const std::string&)> fget_source)
       : data_(data), fmt_(fmt), fmap_(fmap), type_key_(type_key), fget_source_(fget_source) {}
 
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
     LOG(FATAL) << "Source module cannot execute, to get executable module"
                << " build TVM with \'" << fmt_ << "\' runtime support";
     return PackedFunc();
   }
 
-  std::string GetSource(const std::string& format) final {
+  String GetSource(const String& format) final {
     if (fget_source_ != nullptr) {
       return fget_source_(format);
     } else {
@@ -921,8 +1009,10 @@ class DeviceSourceModuleNode final : public runtime::ModuleNode {
   }
 
   const char* type_key() const final { return type_key_.c_str(); }
+  /*! \brief Get the property of the runtime module .*/
+  int GetPropertyMask() const final { return runtime::ModulePropertyMask::kBinarySerializable; }
 
-  void SaveToFile(const std::string& file_name, const std::string& format) final {
+  void SaveToFile(const String& file_name, const String& format) final {
     std::string fmt = GetFileFormat(file_name, format);
     ICHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
     std::string meta_file = GetMetaFilePath(file_name);

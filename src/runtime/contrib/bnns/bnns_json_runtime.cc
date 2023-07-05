@@ -536,7 +536,6 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
       if (dl_dtype.bits == 8) return BNNSDataTypeUInt8;
     }
     LOG(FATAL) << "Unsupported data type for BNNS runtime";
-    return BNNS::Dtype(0);
   }
 
   BNNSFilterParameters getCommonFilterParams() {

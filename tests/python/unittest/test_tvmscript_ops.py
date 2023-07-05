@@ -15,10 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import tvm
-from tvm.script import tir as T
 import numpy as np
+import tvm
 import tvm.testing
+from tvm.script import tir as T
 
 
 @T.prim_func
@@ -152,8 +152,8 @@ def _check_alloc_zero_dim_buffer(f):
 def test_alloc_zero_dim_buffer_round_trip():
     func = alloc_zero_dim_buffer
     func_with_block = alloc_zero_dim_buffer_block
-    rt_func = tvm.script.from_source(func.script(show_meta=True))
-    rt_func_with_block = tvm.script.from_source(func_with_block.script(show_meta=True))
+    rt_func = tvm.script.from_source(func.script())
+    rt_func_with_block = tvm.script.from_source(func_with_block.script())
     rt_mod = tvm.build(rt_func, "llvm")
     rt_mod_with_block = tvm.build(rt_func_with_block, "llvm")
     tvm.ir.assert_structural_equal(func, func_with_block)
@@ -162,6 +162,90 @@ def test_alloc_zero_dim_buffer_round_trip():
     _check_alloc_zero_dim_buffer(rt_mod_with_block)
 
 
+@T.prim_func
+def ceildiv_test(A: T.Buffer(16, "int32")):
+    for i in range(16):
+        A[i] = T.ceildiv(A[i], 4)
+
+
+@tvm.testing.requires_llvm
+def test_ceildiv():
+    f = tvm.build(ceildiv_test, "llvm")
+    a = tvm.nd.array(np.arange(16).astype("int32"))
+    f(a)
+    ref = (np.arange(16) + 3) // 4
+    tvm.testing.assert_allclose(a.numpy(), ref)
+
+
+@T.prim_func
+def slice_op_test(
+    A: T.Buffer((10,), "float32"), B: T.Buffer((10,), "float32"), C: T.Buffer((10,), "uint32")
+):
+    B[0:5] = A[0:5] + B[0:5]
+    B[0:5] = A[0:5] - B[0:5]
+    B[0:5] = A[0:5] * B[0:5]
+    B[0:5] = A[0:5] / B[0:5]
+    C[0:5] = C[0:5] % T.broadcast(T.uint32(5), 5)
+    B[0:5] = -B[0:5]
+    C[0:5] = C[0:5] >> 4
+    C[0:5] = C[0:5] << 4
+    C[0:5] = C[0:5] << C[0:5]
+    C[0:5] = C[0:5] >> C[0:5]
+    T.evaluate(A[0:5] > B[0:5])
+    T.evaluate(A[0:5] > 5)
+    T.evaluate(A[0:5] >= B[0:5])
+    T.evaluate(A[0:5] >= 5)
+    T.evaluate(A[0:5] < B[0:5])
+    T.evaluate(A[0:5] < 5)
+    T.evaluate(A[0:5] <= B[0:5])
+    T.evaluate(A[0:5] <= 5)
+    T.evaluate(A[0:5] == B[0:5])
+    T.evaluate(A[0:5] == 5)
+    T.evaluate(A[0:5] != B[0:5])
+    T.evaluate(A[0:5] != 5)
+    T.evaluate((A[0:5] > 0) and (B[0:5] > 0))
+    T.evaluate((A[0:5] > 0) or (B[0:5] > 0))
+    T.evaluate((A[0:5] < 0) and (1 > 0))
+    T.evaluate((A[0:5] > 0) or (1 > 0))
+
+
+@T.prim_func
+def slice_op_test_ref(
+    A: T.Buffer((10,), "float32"), B: T.Buffer((10,), "float32"), C: T.Buffer((10,), "uint32")
+):
+    B[0:5] = A[0:5] + B[0:5]
+    B[0:5] = A[0:5] - B[0:5]
+    B[0:5] = A[0:5] * B[0:5]
+    B[0:5] = A[0:5] / B[0:5]
+    C[0:5] = C[0:5] % T.Broadcast(T.uint32(5), 5)
+    B[0:5] = B[0:5] * T.Broadcast(T.float32(-1), 5)
+    C[0:5] = T.shift_right(C[0:5], T.Broadcast(T.uint32(4), 5))
+    C[0:5] = T.shift_left(C[0:5], T.Broadcast(T.uint32(4), 5))
+    C[0:5] = T.shift_left(C[0:5], C[0:5])
+    C[0:5] = T.shift_right(C[0:5], C[0:5])
+    T.evaluate(A[0:5] > B[0:5])
+    T.evaluate(A[0:5] > T.Broadcast(T.float32(5), 5))
+    T.evaluate(A[0:5] >= B[0:5])
+    T.evaluate(A[0:5] >= T.Broadcast(T.float32(5), 5))
+    T.evaluate(A[0:5] < B[0:5])
+    T.evaluate(A[0:5] < T.Broadcast(T.float32(5), 5))
+    T.evaluate(A[0:5] <= B[0:5])
+    T.evaluate(A[0:5] <= T.Broadcast(T.float32(5), 5))
+    T.evaluate(A[0:5] == B[0:5])
+    T.evaluate(A[0:5] == T.Broadcast(T.float32(5), 5))
+    T.evaluate(A[0:5] != B[0:5])
+    T.evaluate(A[0:5] != T.Broadcast(T.float32(5), 5))
+    T.bitwise_and(A[0:5] > T.Broadcast(T.float32(0), 5), B[0:5] > T.Broadcast(T.float32(0), 5))
+    T.bitwise_or(A[0:5] > T.Broadcast(T.float32(0), 5), B[0:5] > T.Broadcast(T.float32(0), 5))
+    T.bitwise_and(A[0:5] < T.Broadcast(T.float32(0), 5), T.Broadcast(T.bool(1), 5))
+    T.bitwise_or(A[0:5] > T.Broadcast(T.float32(0), 5), T.Broadcast(T.bool(1), 5))
+
+
+def test_slice_op():
+    tvm.ir.assert_structural_equal(slice_op_test, slice_op_test_ref)
+
+
 if __name__ == "__main__":
     test_get_valid_counts_script_func()
     test_alloc_zero_dim_buffer_round_trip()
+    test_slice_op()

@@ -90,7 +90,7 @@ uint8_t ParseCustomDatatype(const std::string& s, const char** scan) {
 
 class DeviceAPIManager {
  public:
-  static const int kMaxDeviceAPI = 32;
+  static const int kMaxDeviceAPI = TVMDeviceExtType_End;
   // Get API
   static DeviceAPI* Get(const Device& dev) { return Get(dev.device_type); }
   static DeviceAPI* Get(int dev_type, bool allow_missing = false) {
@@ -308,7 +308,7 @@ std::string NormalizeError(std::string err_msg) {
       error_type = "TVMError";
     }
   }
-  // Seperate out stack trace.
+  // Separate out stack trace.
   std::ostringstream os;
   os << error_type << ": " << check_msg << line << '\n';
 

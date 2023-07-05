@@ -80,14 +80,14 @@ tvm::transform::Pass ExtractPrimFuncConstants() {
     }
     auto* attrs = m->attrs.CopyOnWrite();
     ConstArrayType constant_array_ =
-        (attrs->dict.count(tvm::attr::kConstantsArray))
-            ? Downcast<ConstArrayType>(attrs->dict[tvm::attr::kConstantsArray])
+        (attrs->dict.count(tvm::attr::kConstants))
+            ? Downcast<ConstArrayType>(attrs->dict[tvm::attr::kConstants])
             : ConstArrayType();
     Applicator a = Applicator();
     func->body = a.Apply(func->body, constant_array_);
     const ConstArrayType constant_list = a.constant_array_;
     if (constant_list.size()) {
-      attrs->dict.Set(tvm::attr::kConstantsArray, constant_list);
+      attrs->dict.Set(tvm::attr::kConstants, constant_list);
     }
     return GetRef<PrimFunc>(func);
   };
@@ -95,9 +95,8 @@ tvm::transform::Pass ExtractPrimFuncConstants() {
   auto pass_func = [=](IRModule module, tvm::transform::PassContext pc) {
     auto m = GetRef<IRModule>(module.CopyOnWrite());
     for (const auto& kv : m->functions) {
-      BaseFunc f = kv.second;
-      if (f->IsInstance<PrimFuncNode>()) {
-        m->Update(kv.first, prim_func_pass(GetRef<PrimFunc>(f.as<PrimFuncNode>()), m, pc));
+      if (auto func = kv.second.as<PrimFunc>()) {
+        m->Update(kv.first, prim_func_pass(func.value(), m, pc));
       }
     }
     return m;

@@ -42,6 +42,12 @@ TVM_REGISTER_REFLECTION_VTABLE(VisitableTensorInfoNode,
       return ::tvm::runtime::make_object<VisitableTensorInfoNode>();
     });
 
+TVM_REGISTER_REFLECTION_VTABLE(VisitableConstantInfoMetadataNode,
+                               ::tvm::detail::ReflectionTrait<VisitableConstantInfoMetadataNode>)
+    .set_creator([](const std::string&) -> ObjectPtr<Object> {
+      return ::tvm::runtime::make_object<VisitableConstantInfoMetadataNode>();
+    });
+
 }  // namespace metadata
 }  // namespace target
 }  // namespace tvm

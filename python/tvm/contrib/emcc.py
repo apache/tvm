@@ -40,12 +40,13 @@ def create_tvmjs_wasm(output, objects, options=None, cc="emcc"):
     """
     cmd = [cc]
     cmd += ["-O3"]
-
-    cmd += ["-std=c++14"]
+    cmd += ["-std=c++17"]
     cmd += ["--no-entry"]
+    cmd += ["-s", "WASM_BIGINT=1"]
     cmd += ["-s", "ERROR_ON_UNDEFINED_SYMBOLS=0"]
     cmd += ["-s", "STANDALONE_WASM=1"]
     cmd += ["-s", "ALLOW_MEMORY_GROWTH=1"]
+    cmd += ["-s", "TOTAL_MEMORY=40MB"]
 
     objects = [objects] if isinstance(objects, str) else objects
 
@@ -54,14 +55,17 @@ def create_tvmjs_wasm(output, objects, options=None, cc="emcc"):
         if obj.find("wasm_runtime.bc") != -1:
             with_runtime = True
 
+    libs = []
     if not with_runtime:
-        objects += [find_lib_path("wasm_runtime.bc")[0]]
+        libs += [find_lib_path("wasm_runtime.bc")[0]]
 
-    objects += [find_lib_path("tvmjs_support.bc")[0]]
-    objects += [find_lib_path("webgpu_runtime.bc")[0]]
+    libs += [find_lib_path("tvmjs_support.bc")[0]]
+    libs += [find_lib_path("webgpu_runtime.bc")[0]]
 
     cmd += ["-o", output]
-    cmd += objects
+
+    # let libraries go before normal object
+    cmd += libs + objects
 
     if options:
         cmd += options

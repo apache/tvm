@@ -14,7 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
 import tvm
+import tvm.testing
+
 from tvm import te
 
 
@@ -336,19 +339,50 @@ def test_floormod_negative_divisor():
     assert bd.max_value == 6
 
 
+def test_divmod_assume_no_zero_divsor():
+    # Divmod non negative expression makes assumption that divide by zero won't occur
+    # this assumption is important to get best result from symbolic shape programs
+    analyzer = tvm.arith.Analyzer()
+    flm, fld = tvm.te.floormod, tvm.te.floordiv
+    a, b = te.var("a"), te.var("b")
+    analyzer.update(a, tvm.arith.ConstIntBound(0, 6))
+    analyzer.update(b, tvm.arith.ConstIntBound(0, tvm.arith.ConstIntBound.POS_INF))
+    bd = analyzer.const_int_bound(fld(a, b))
+    assert bd.min_value == 0
+    assert bd.max_value == 6
+
+    bd = analyzer.const_int_bound(flm(a, b))
+    assert bd.min_value == 0
+    assert bd.max_value == 6
+
+
+def test_multiple_condition():
+    analyzer = tvm.arith.Analyzer()
+    flm, fld = tvm.te.floormod, tvm.te.floordiv
+    a = te.var("a")
+    analyzer.update(a, tvm.arith.ConstIntBound(0, 128))
+    with analyzer.constraint_scope(tvm.tir.all(1 <= flm(a, 58), flm(a, 58) < 57)):
+        bound = analyzer.const_int_bound(flm(a, 58) - 1)
+    assert bound.min_value == 0
+
+
+def test_broadcast_bound():
+    analyzer = tvm.arith.Analyzer()
+    a = te.var("a")
+    analyzer.update(a, tvm.arith.ConstIntBound(0, 128))
+    bound = analyzer.const_int_bound(tvm.tir.Broadcast(a, 4))
+    assert bound.min_value == 0
+    assert bound.max_value == 128
+
+
+def test_ramp_bound():
+    analyzer = tvm.arith.Analyzer()
+    a = te.var("a")
+    analyzer.update(a, tvm.arith.ConstIntBound(0, 128))
+    bound = analyzer.const_int_bound(tvm.tir.Ramp(a, 2, 4) + 2)
+    assert bound.min_value == 2
+    assert bound.max_value == 128 + 2 * 3 + 2
+
+
 if __name__ == "__main__":
-    test_let_bound()
-    test_dtype_bound()
-    test_cast_bound()
-    test_add_sub_bound()
-    test_mul_bound()
-    test_truncdiv_bound()
-    test_truncmod_bound()
-    test_floordiv_bound()
-    test_floormod_bound()
-    test_min_max_bound()
-    test_select_bound()
-    test_shift_and_bound()
-    test_mix_index_bound()
-    test_size_var_bound()
-    test_floormod_negative_divisor()
+    tvm.testing.main()

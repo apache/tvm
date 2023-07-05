@@ -30,42 +30,41 @@
 #include <tvm/tir/stmt_functor.h>
 
 namespace tvm {
-namespace tir {
+namespace arith {
 
-class IRVisitorWithAnalyzer final : public StmtExprVisitor {
+class IRVisitorWithAnalyzer : public tir::StmtExprVisitor {
  public:
   PrimExpr Simplify(const PrimExpr& expr) { return analyzer_.Simplify(expr); }
 
-  void VisitStmt_(const ForNode* op) {
-    analyzer_.Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
-    return StmtExprVisitor::VisitStmt_(op);
-  }
+  using StmtExprVisitor::VisitExpr_;
+  using StmtExprVisitor::VisitStmt_;
 
-  void VisitStmt_(const AttrStmtNode* op) {
-    if (op->attr_key == attr::thread_extent || op->attr_key == attr::virtual_thread) {
-      IterVar iv = Downcast<IterVar>(op->node);
-      ICHECK_NE(iv->thread_tag.length(), 0U);
-      analyzer_.Bind(iv->var, Range::FromMinExtent(0, op->value));
-      StmtExprVisitor::VisitStmt_(op);
-    } else {
-      StmtExprVisitor::VisitStmt_(op);
-    }
-  }
+  void VisitStmt_(const tir::ForNode* op);
+  void VisitStmt_(const tir::BlockNode* op);
+  void VisitStmt_(const tir::LetStmtNode* op);
+  void VisitStmt_(const tir::IfThenElseNode* op);
+  void VisitStmt_(const tir::AttrStmtNode* op);
+  void VisitStmt_(const tir::AssertStmtNode* op);
+  void VisitExpr_(const tir::CallNode* op);
+  void VisitExpr_(const tir::LetNode* op);
+  void VisitExpr_(const tir::ReduceNode* op);
 
-  void VisitExpr_(const ReduceNode* op) {
-    // Setup the domain information before simplification.
-    for (const IterVar& iv : op->axis) {
-      analyzer_.Bind(iv->var, iv->dom);
-    }
-    // Recursively call simplification when necessary.
-    StmtExprVisitor::VisitExpr_(op);
-  }
+  // IRVisitorWithAnalyzer deliberately does not handle Select nodes,
+  // because both sides of a Select node are visited regardless of the
+  // condition.
 
  protected:
   /*! \brief internal analyzer field. */
   arith::Analyzer analyzer_;
+
+  /*! \brief Extract a constraint from a conditional statement
+   *
+   * Intended for preparing argument for use in
+   * `With<ConstraintContext>`.
+   */
+  PrimExpr ExtractRealCondition(PrimExpr condition) const;
 };
 
-}  // namespace tir
+}  // namespace arith
 }  // namespace tvm
 #endif  // TVM_ARITH_IR_VISITOR_WITH_ANALYZER_H_

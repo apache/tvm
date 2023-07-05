@@ -40,6 +40,9 @@ channel, batch.
 # convolution. The following code defines the convolution algorithm in TVM.
 #
 
+# sphinx_gallery_start_ignore
+# sphinx_gallery_requires_cuda = True
+# sphinx_gallery_end_ignore
 import numpy as np
 import tvm
 from tvm import te

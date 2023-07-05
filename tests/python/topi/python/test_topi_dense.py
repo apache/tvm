@@ -45,6 +45,7 @@ _dense_implementations = {
     "cpu": [
         (topi.x86.dense_nopack, topi.x86.schedule_dense_nopack),
         (topi.x86.dense_pack, topi.x86.schedule_dense_pack),
+        (topi.x86.dense_dynamic, topi.x86.schedule_dense_dynamic),
     ],
     "gpu": [
         (topi.gpu.dense_small_batch, topi.gpu.schedule_dense_small_batch),
@@ -136,6 +137,8 @@ def test_dense(
         implementations = tvm.topi.testing.dispatch(target, _dense_implementations)
 
     for fcompute, fschedule in implementations:
+        if fcompute == topi.x86.dense_dynamic and (batch_size != 1 or in_dtype != "float32"):
+            continue
         with tvm.target.Target(target):
             D = fcompute(A, B, C if use_bias else None, out_dtype)
             D = topi.nn.relu(D)

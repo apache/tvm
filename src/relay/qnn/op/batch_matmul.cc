@@ -96,18 +96,42 @@ Expr BatchMatmulFirstTerm(const Expr& quantized_x, const Expr& quantized_y,
 }
 
 Expr BatchMatmulSecondTerm(const Expr& x_quantized_data, const Expr& y_zero_point) {
-  Array<Integer> axes = {2};
-  return Multiply(y_zero_point, Sum(Cast(x_quantized_data, DataType::Int(32)), axes, true, false));
+  if (IsScalar(y_zero_point)) {
+    Array<Integer> axes = {2};
+    return Multiply(y_zero_point,
+                    Sum(Cast(x_quantized_data, DataType::Int(32)), axes, true, false));
+  } else {
+    LOG(FATAL) << "Tensor zero point (non-scalar) is not supported";
+    return Expr();
+  }
 }
 
 Expr BatchMatmulThirdTerm(const Expr& y_quantized_data, const Expr& x_zero_point,
                           int broadcast_dim_size) {
-  Array<Integer> axes = {2};
-  auto reducemult =
-      Multiply(x_zero_point, Sum(Cast(y_quantized_data, DataType::Int(32)), axes, true, false));
-  Array<Integer> newshape;
-  newshape = {1, 1, broadcast_dim_size};
-  return Reshape(reducemult, newshape);
+  if (IsScalar(x_zero_point)) {
+    Array<Integer> axes = {2};
+    auto reducemult =
+        Multiply(x_zero_point, Sum(Cast(y_quantized_data, DataType::Int(32)), axes, true, false));
+    Array<Integer> newshape;
+
+    // dimension of 0 in reshape copies old dimension size
+    newshape = {0, 1, broadcast_dim_size};
+    return Reshape(reducemult, newshape);
+  } else {
+    LOG(FATAL) << "Tensor zero point (non-scalar) is not supported";
+    return Expr();
+  }
+}
+
+Expr BatchMatmulFourthTerm(Expr x_zero_point, Expr y_zero_point, int reduction_dim_size) {
+  if (IsScalar(x_zero_point) && IsScalar(y_zero_point)) {
+    auto zero_point_mul = Multiply(x_zero_point, y_zero_point);
+    auto const_scale = MakeConstantScalar(DataType::Int(32), reduction_dim_size);
+    return Multiply(zero_point_mul, const_scale);
+  } else {
+    LOG(FATAL) << "Tensor zero point (non-scalar) is not supported";
+    return Expr();
+  }
 }
 
 Expr BatchMatmulFourthTerm(int x_zero_point_int, int y_zero_point_int, int reduction_dim_size) {
@@ -173,36 +197,48 @@ Expr QnnBatchMatmulCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
 
   const auto* qnn_batch_matmul_attrs = attrs.as<BatchMatmulAttrs>();
 
-  // Extract the integer zero points.
-  auto y_zero_point_int = GetScalarFromConstant<int>(y_zero_point);
-  auto x_zero_point_int = GetScalarFromConstant<int>(x_zero_point);
-
   // Get all the terms as described in the comments.
   auto term1 = BatchMatmulFirstTerm(quantized_x, quantized_y, qnn_batch_matmul_attrs);
   auto term2 = BatchMatmulSecondTerm(quantized_x, y_zero_point);
   auto term3 = BatchMatmulThirdTerm(quantized_y, x_zero_point, broadcast_dim_size);
-  auto term4 = BatchMatmulFourthTerm(x_zero_point_int, y_zero_point_int, reduction_dim_size);
 
-  // Combine those 4 terms depending on the zero points to get the best lowering.
-  if (x_zero_point_int == 0 && y_zero_point_int == 0) {
-    // term 2, 3 and 4 become zero.
-    return term1;
-  } else if (x_zero_point_int == 0 && y_zero_point_int != 0) {
-    // term 3 and term 4 become zero.
-    return Subtract(term1, term2);
-  } else if (x_zero_point_int != 0 && y_zero_point_int == 0) {
-    // term 2 and term 4 become zero.
-    return Subtract(term1, term3);
+  if (IsConstScalar(x_zero_point) && IsConstScalar(y_zero_point)) {
+    // Extract the integer zero points.
+    auto y_zero_point_int = GetScalarFromConstant<int>(y_zero_point);
+    auto x_zero_point_int = GetScalarFromConstant<int>(x_zero_point);
+    auto term4 = BatchMatmulFourthTerm(x_zero_point_int, y_zero_point_int, reduction_dim_size);
+    // Combine those 4 terms depending on the zero points to get the best lowering.
+    if (x_zero_point_int == 0 && y_zero_point_int == 0) {
+      // term 2, 3 and 4 become zero.
+      return term1;
+    } else if (x_zero_point_int == 0 && y_zero_point_int != 0) {
+      // term 3 and term 4 become zero.
+      return Subtract(term1, term2);
+    } else if (x_zero_point_int != 0 && y_zero_point_int == 0) {
+      // term 2 and term 4 become zero.
+      return Subtract(term1, term3);
+    } else {
+      return BatchMatmulCombineTerms(term1, term2, term3, term4);
+    }
   } else {
+    auto term4 = BatchMatmulFourthTerm(x_zero_point, y_zero_point, reduction_dim_size);
     return BatchMatmulCombineTerms(term1, term2, term3, term4);
   }
 }
 
 RELAY_REGISTER_OP("qnn.batch_matmul")
-    .describe(R"code(Applies a linear transformation: :math:`Z = XY`.
-- **data**: quantized(int8, unit8) `(x1, x2, ..., xn, input_dim)`
-- **weight**: quantized(int8, unit8) `(units, input_dim)`
-- **out**: quantized(int32) `(x1, x2, ..., xn, units)`.
+    .describe(R"code(Compute batch matrix multiplication of `tensor_a` and `tensor_b`.
+
+Note we expect tensor_b to be transposed to copy the standard nn.batch_matmul conventions.
+
+.. math::
+
+  batch\_matmul(A, B)[i, :, :] = matmul(A[i, :, :], B[i, :, :]^T)
+
+- **data**: quantized(int8, unit8) `(i, m, k)`
+- **weight**: quantized(int8, unit8) `(i, n, k)`
+- **out**: quantized(int32) `(i, m, n)`.
+
 )code" TVM_ADD_FILELINE)
     .set_attrs_type<BatchMatmulAttrs>()
     .set_num_inputs(6)

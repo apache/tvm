@@ -82,6 +82,18 @@ def test_lower_te():
     tvm.ir.assert_structural_equal(mod, orig_mod)  # ConvertBlocksToOpaque should do nothing on TE
 
 
+class TestErrorIfPredicateUsesBlockVariables(tvm.testing.CompareBeforeAfter):
+    transform = tvm.tir.transform.ConvertBlocksToOpaque()
+
+    def before(A: T.Buffer(8, "int32")):
+        for i in T.serial(8):
+            with T.block():
+                vi = T.axis.remap("S", [i])
+                T.where(vi < 6)
+                T.evaluate(0)
+
+    expected = tvm.TVMError
+
+
 if __name__ == "__main__":
-    test_elementwise()
-    test_lower_te()
+    tvm.testing.main()

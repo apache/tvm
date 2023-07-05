@@ -26,10 +26,12 @@
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/stmt_functor.h>
+#include <tvm/tir/usmp/utils.h>
 
 namespace tvm {
 namespace tir {
 
+template <typename T>
 class WorkspaceCalculator : public StmtExprVisitor {
  public:
   WorkspaceCalculator() = default;
@@ -37,38 +39,30 @@ class WorkspaceCalculator : public StmtExprVisitor {
   size_t byte_alignment = tvm::runtime::kDefaultWorkspaceAlignment;
 
  private:
-  void VisitStmt_(const AllocateNode* op) override;
-  size_t CalculateExtentsSize(const AllocateNode* op);
-  size_t GetByteAlignedSize(size_t non_aligned_size);
+  void VisitStmt_(const T* op) override;
+  size_t GetByteAlignedSize(Integer non_aligned_size);
+  size_t CalculateExtentsSize(const DataType& dtype, const Array<PrimExpr>& extents);
   size_t current_size = 0;
   size_t max_size = 0;
 };
 
-size_t WorkspaceCalculator::operator()(const PrimFunc& func) {
+template <typename T>
+size_t WorkspaceCalculator<T>::operator()(const PrimFunc& func) {
   this->VisitStmt(func->body);
   return this->max_size;
 }
 
-size_t WorkspaceCalculator::GetByteAlignedSize(size_t non_aligned_size) {
-  return ((non_aligned_size + byte_alignment - 1) / byte_alignment) * byte_alignment;
+template <typename T>
+size_t WorkspaceCalculator<T>::GetByteAlignedSize(Integer non_aligned_size) {
+  return non_aligned_size.defined()
+             ? ((non_aligned_size.IntValue() + byte_alignment - 1) / byte_alignment) *
+                   byte_alignment
+             : 0;
 }
 
-size_t WorkspaceCalculator::CalculateExtentsSize(const AllocateNode* op) {
-  size_t element_size_bytes = op->dtype.bytes();
-  size_t num_elements = 1;
-  for (const auto& ext : op->extents) {
-    if (ext->IsInstance<IntImmNode>()) {
-      num_elements *= Downcast<IntImm>(ext)->value;
-    } else {
-      // We cant statically calculate workspace for dynamic shapes
-      num_elements = 0;
-    }
-  }
-  return GetByteAlignedSize(num_elements * element_size_bytes);
-}
-
-void WorkspaceCalculator::VisitStmt_(const AllocateNode* op) {
-  auto size = CalculateExtentsSize(op);
+template <typename T>
+void WorkspaceCalculator<T>::VisitStmt_(const T* op) {
+  auto size = GetByteAlignedSize(usmp::CalculateExtentsSize(op));
   current_size += size;
   if (current_size > max_size) {
     max_size = current_size;
@@ -77,11 +71,22 @@ void WorkspaceCalculator::VisitStmt_(const AllocateNode* op) {
   current_size -= size;
 }
 
-size_t CalculateWorkspaceBytes(const PrimFunc& func, const Integer& workspace_byte_alignment) {
-  WorkspaceCalculator wc;
-  wc.byte_alignment = workspace_byte_alignment->value;
+size_t CalculateConstantBytes(const PrimFunc& func, const Integer& byte_alignment) {
+  WorkspaceCalculator<AllocateConstNode> wc;
+  wc.byte_alignment = byte_alignment->value;
   return wc(func);
 }
+
+size_t CalculateWorkspaceBytes(const PrimFunc& func, const Integer& byte_alignment) {
+  WorkspaceCalculator<AllocateNode> wc;
+  wc.byte_alignment = byte_alignment->value;
+  return wc(func);
+}
+
+TVM_REGISTER_GLOBAL("tir.analysis.calculate_constant_bytes")
+    .set_body_typed([](PrimFunc func, Integer constant_byte_alignment) {
+      return static_cast<int>(CalculateConstantBytes(func, constant_byte_alignment));
+    });
 
 TVM_REGISTER_GLOBAL("tir.analysis.calculate_workspace_bytes")
     .set_body_typed([](PrimFunc func, Integer workspace_byte_alignment) {

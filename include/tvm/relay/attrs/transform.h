@@ -27,6 +27,7 @@
 #include <tvm/ir/attrs.h>
 #include <tvm/relay/base.h>
 #include <tvm/relay/expr.h>
+#include <tvm/tir/index_map.h>
 
 #include <string>
 
@@ -147,19 +148,15 @@ struct ReshapeLikeAttrs : public tvm::AttrsNode<ReshapeLikeAttrs> {
   }
 };  // struct ReshapeLikeAttrs
 
-struct ScatterAttrs : public tvm::AttrsNode<ScatterAttrs> {
+struct ScatterElementsAttrs : public tvm::AttrsNode<ScatterElementsAttrs> {
   Integer axis;
+  String reduction;
 
-  TVM_DECLARE_ATTRS(ScatterAttrs, "relay.attrs.ScatterAttrs") {
+  TVM_DECLARE_ATTRS(ScatterElementsAttrs, "relay.attrs.ScatterElementsAttrs") {
     TVM_ATTR_FIELD(axis).set_default(0).describe("The axis over which to select values.");
-  }
-};
-
-struct ScatterAddAttrs : public tvm::AttrsNode<ScatterAddAttrs> {
-  Integer axis;
-
-  TVM_DECLARE_ATTRS(ScatterAddAttrs, "relay.attrs.ScatterAddAttrs") {
-    TVM_ATTR_FIELD(axis).set_default(0).describe("The axis over which to select values.");
+    TVM_ATTR_FIELD(reduction).set_default("update").describe(
+        "Reduction mode of the scatter elements, "
+        "either \"update\", \"add\", \"mul\", \"mean\", \"min\" or \"max\".");
   }
 };
 
@@ -167,8 +164,9 @@ struct ScatterNDAttrs : public tvm::AttrsNode<ScatterNDAttrs> {
   String mode;
 
   TVM_DECLARE_ATTRS(ScatterNDAttrs, "relay.attrs.ScatterNDAttrs") {
-    TVM_ATTR_FIELD(mode).describe(
-        "Accumulation mode of the scatter, either \"update\" or \"add\".");
+    TVM_ATTR_FIELD(mode).set_default("update").describe(
+        "Accumulation mode of the ScatterND, "
+        "either \"update\", \"add\", \"mul\", \"min\" or \"max\".");
   }
 };
 
@@ -404,6 +402,23 @@ struct FixedPointMultiplyAttrs : public tvm::AttrsNode<FixedPointMultiplyAttrs> 
   }
 };
 
+/*! \brief Attributes for per channel/per axes FixedPointMultiply operator */
+struct FixedPointMultiplyPerAxisAttrs : public tvm::AttrsNode<FixedPointMultiplyPerAxisAttrs> {
+  bool is_lshift_required;
+  bool is_rshift_required;
+  Array<Integer> axes;
+
+  TVM_DECLARE_ATTRS(FixedPointMultiplyPerAxisAttrs, "relay.attrs.FixedPointMultiplyPerAxisAttrs") {
+    TVM_ATTR_FIELD(is_lshift_required)
+        .describe("Whether left shift is required in fixed point multiplication.")
+        .set_default(false);
+    TVM_ATTR_FIELD(is_rshift_required)
+        .describe("Whether right shift is required in fixed point multiplication.")
+        .set_default(false);
+    TVM_ATTR_FIELD(axes).describe("List of axes on which input data was quantized.");
+  }
+};
+
 /*! \brief Attributes for LayoutTransform operator */
 struct LayoutTransformAttrs : public tvm::AttrsNode<LayoutTransformAttrs> {
   std::string src_layout;
@@ -426,6 +441,22 @@ struct AutoSchedulerLayoutTransformAttrs
     TVM_ATTR_FIELD(src_layout).describe("The source layout of the tensor. (e.g. 1N32C112H112W)");
     TVM_ATTR_FIELD(dst_layout)
         .describe("The destination layout of the tensor. (e.g. 1N2C112H112W16c)");
+  }
+};
+
+/*! \brief Attributes for MetaScheduleLayoutTransform operator */
+struct MetaScheduleLayoutTransformAttrs : public tvm::AttrsNode<MetaScheduleLayoutTransformAttrs> {
+  tir::IndexMap index_map;
+
+  TVM_DECLARE_ATTRS(MetaScheduleLayoutTransformAttrs,
+                    "relay.attrs.MetaScheduleLayoutTransformAttrs") {
+    TVM_ATTR_FIELD(index_map).describe(
+        "The order of the extents, for example, "
+        "let extents = [2, 3, 4], reorder = [0, 2, 1], and the shape of buffer A is (4, 6)"
+        "then A[i, j] will be first rewritten to "
+        "A[(6 * i + j) / 12, (6 * i + j) / 4 % 3 , (6 * i + j) % 4] according to the `extents`,"
+        "and then reordered to A[(6 * i + j) / 12, (6 * i + j) % 4 , (6 * i + j) / 4 % 3]"
+        "according to `reorder`");
   }
 };
 
@@ -557,6 +588,26 @@ struct StftAttrs : public tvm::AttrsNode<StftAttrs> {
         "Whether to return onesided result or fill with conjugate symmetry");
   }
 };  // struct StftAttrs
+
+/*! \brief Attributes used in DFT operator */
+struct DFTAttrs : public tvm::AttrsNode<DFTAttrs> {
+  Bool inverse = Bool(false);
+
+  TVM_DECLARE_ATTRS(DFTAttrs, "relay.attrs.DFTAttrs") {
+    TVM_ATTR_FIELD(inverse)
+        .describe("Whether to perform the inverse discrete Fourier transform")
+        .set_default(Bool(false));
+  }
+};  // struct DFTAttrs
+
+struct TriluAttrs : public tvm::AttrsNode<TriluAttrs> {
+  bool upper;
+
+  TVM_DECLARE_ATTRS(TriluAttrs, "relay.attrs.TriluAttrs") {
+    TVM_ATTR_FIELD(upper).set_default(true).describe(
+        "Whether to keep the upper or lower half of the diagonal.");
+  }
+};  // struct TriluAttrs
 
 }  // namespace relay
 }  // namespace tvm

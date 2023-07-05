@@ -232,7 +232,7 @@ def conv_output_shape(
         w_shape = w_shape[2:]
 
     else:
-        raise ValueError("Unknown CuDNN tensor format: '{}'".format(tensor_format))
+        raise ValueError(f"Unknown CuDNN tensor format: '{tensor_format}'")
 
     x_lanes = tvm.runtime.DataType(data_dtype).lanes
     assert x_chan * x_lanes == w_chan_input * groups, (
@@ -253,7 +253,7 @@ def conv_output_shape(
     elif tensor_format == 1:
         output = [n_output, *output_dims, c_output]
     else:
-        raise ValueError("Unknown CuDNN tensor format: '{}'".format(tensor_format))
+        raise ValueError(f"Unknown CuDNN tensor format: '{tensor_format}'")
 
     return output
 
@@ -305,7 +305,7 @@ def conv_dgrad_shape(
         dy_shape = dy_shape[1:-1]
         w_shape = w_shape[1:-1]
     else:
-        raise ValueError("Unsupported CuDNN tensor format: '{}'".format(tensor_format))
+        raise ValueError(f"Unsupported CuDNN tensor format: '{tensor_format}'")
 
     input_dims = []
     for dy_shape_i, w_shape_i, pad_i, stride_i, dilation_i, out_pad in zip(

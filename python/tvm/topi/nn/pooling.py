@@ -205,6 +205,9 @@ def pool1d(
     stride : list/tuple of one int or int
         Stride size, [stride_width]
 
+    dilation: list/tuple of two ints
+        Dilation size, [dilation_height, dilation_width]
+
     padding : list/tuple of two ints
         Pad size, [pad_left, pad_right]
 
@@ -282,6 +285,9 @@ def pool2d(
     stride : list/tuple of two ints
         Stride size, [stride_height, stride_width]
 
+    dilation: list/tuple of two ints
+        Dilation size, [dilation_height, dilation_width]
+
     padding : list/tuple of four ints
         Pad size, [pad_top, pad_left, pad_bottom, pad_right]]
 
@@ -350,6 +356,9 @@ def pool3d(
 
     stride : list/tuple of three ints
         Stride size, [stride_depth, stride_height, stride_width]
+
+    dilation: list/tuple of two ints
+        Dilation size, [dilation_height, dilation_width]
 
     padding : list/tuple of six ints
         Pad size, [pad_front, pad_top, pad_left, pad_back, pad_bottom, pad_right]

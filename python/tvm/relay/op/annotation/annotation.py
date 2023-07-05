@@ -28,7 +28,9 @@ def _make_virtual_device(device):
         return target.VirtualDevice(device)
     if isinstance(device, str):
         return target.VirtualDevice(_nd.device(device))
-    raise ValueError("expecting a Device or device name, but received a %s" % (type(device)))
+    if isinstance(device, target.VirtualDevice):
+        return device
+    raise ValueError(f"expecting a Device or device name, but received a {type(device)}")
 
 
 def on_device(body, device, constrain_result=False, constrain_body=True):

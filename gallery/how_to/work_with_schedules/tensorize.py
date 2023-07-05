@@ -34,6 +34,7 @@ and usage of tensorize instead of providing an efficient solution.
 """
 from __future__ import absolute_import, print_function
 
+
 import tvm
 from tvm import te
 import tvm.testing

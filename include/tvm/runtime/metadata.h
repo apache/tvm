@@ -24,6 +24,7 @@
 #ifndef TVM_RUNTIME_METADATA_H_
 #define TVM_RUNTIME_METADATA_H_
 
+#include <dmlc/memory_io.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/metadata_base.h>
 #include <tvm/runtime/metadata_types.h>
@@ -45,16 +46,10 @@ namespace metadata {
  * Should be populated into the `version` field of all TVMMetadata.
  */
 static const constexpr int64_t kMetadataVersion = TVM_METADATA_VERSION;
-}  // namespace metadata
-}  // namespace runtime
-}  // namespace tvm
-
-namespace tvm {
-namespace runtime {
-namespace metadata {
 
 class Metadata;
 class TensorInfo;
+class ConstantInfoMetadata;
 
 class MetadataNode : public MetadataBaseNode {
  public:
@@ -66,10 +61,12 @@ class MetadataNode : public MetadataBaseNode {
   ArrayAccessor<struct TVMTensorInfo, TensorInfo> inputs();
   inline int64_t num_outputs() const { return data_->num_outputs; }
   ArrayAccessor<struct TVMTensorInfo, TensorInfo> outputs();
-  inline int64_t num_pools() const { return data_->num_pools; }
-  ArrayAccessor<struct TVMTensorInfo, TensorInfo> pools();
+  inline int64_t num_workspace_pools() const { return data_->num_workspace_pools; }
+  ArrayAccessor<struct TVMTensorInfo, TensorInfo> workspace_pools();
   inline ::tvm::runtime::String mod_name() const { return ::tvm::runtime::String(data_->mod_name); }
   const struct ::TVMMetadata* data() const { return data_; }
+  ArrayAccessor<struct TVMConstantInfo, ConstantInfoMetadata> constant_pools();
+  inline int64_t num_constant_pools() const { return data_->num_constant_pools; }
   TVM_DECLARE_FINAL_OBJECT_INFO(MetadataNode, MetadataBaseNode);
 
  private:
@@ -105,6 +102,37 @@ class TensorInfo : public MetadataBase {
  public:
   explicit TensorInfo(const struct ::TVMTensorInfo* data);
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(TensorInfo, MetadataBase, TensorInfoNode);
+};
+
+class ConstantInfoMetadataNode : public MetadataBaseNode {
+ public:
+  explicit ConstantInfoMetadataNode(const struct ::TVMConstantInfo* data) : data_{data} {}
+  // This name should match TVMConstantInfo after processing
+  static constexpr const char* _type_key = "metadata.ConstantInfoNode";
+  const char* get_c_struct_name() const override;
+  inline ::tvm::runtime::String name_hint() const {
+    return ::tvm::runtime::String(data_->name_hint);
+  }
+  inline size_t byte_offset() const { return data_->byte_offset; }
+  inline ::tvm::runtime::NDArray data() const {
+    ::tvm::runtime::NDArray ndarray;
+    if (data_->data_len) {
+      dmlc::MemoryFixedSizeStream bytes(const_cast<void*>(data_->data_bytes), data_->data_len);
+      ndarray.Load(&bytes);
+    }
+    return ndarray;
+  }
+  TVM_DECLARE_FINAL_OBJECT_INFO(ConstantInfoMetadataNode, MetadataBaseNode);
+
+ protected:
+  const struct ::TVMConstantInfo* data_;
+};
+
+class ConstantInfoMetadata : public MetadataBase {
+ public:
+  explicit ConstantInfoMetadata(const struct ::TVMConstantInfo* data);
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(ConstantInfoMetadata, MetadataBase,
+                                        ConstantInfoMetadataNode);
 };
 
 }  // namespace metadata

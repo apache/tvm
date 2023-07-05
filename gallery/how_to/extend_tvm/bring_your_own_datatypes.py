@@ -47,10 +47,11 @@ Since we do not use any 3rdparty library, there is no setup needed.
 
 If you would like to try this with your own datatype library, first bring the library's functions into the process space with ``CDLL``:
 
-.. code-block :: python
+.. code-block:: python
 
     ctypes.CDLL('my-datatype-lib.so', ctypes.RTLD_GLOBAL)
 """
+
 
 ######################
 # A Simple TVM Program

@@ -32,10 +32,10 @@
 #include <tvm/runtime/logging.h>
 
 #include "src/runtime/c_runtime_api.cc"
+#include "src/runtime/container.cc"
 #include "src/runtime/contrib/sort/sort.cc"
 #include "src/runtime/cpu_device_api.cc"
 #include "src/runtime/file_utils.cc"
-#include "src/runtime/graph_executor/graph_executor.cc"
 #include "src/runtime/library_module.cc"
 #include "src/runtime/logging.cc"
 #include "src/runtime/module.cc"
@@ -73,8 +73,14 @@ namespace detail {
   abort();
 }
 
-void LogMessageImpl(const std::string& file, int lineno, const std::string& message) {
-  std::cout << "[INFO] " << file << ":" << lineno << ": " << message << std::endl;
+void LogMessageImpl(const std::string& file, int lineno, int level, const std::string& message) {
+  static const char* level_strings_[] = {
+      "[DEBUG] ",
+      "[INFO] ",
+      "[WARNING] ",
+      "[ERROR] ",
+  };
+  std::cout << level_strings_[level] << file << ":" << lineno << ": " << message << std::endl;
 }
 
 }  // namespace detail

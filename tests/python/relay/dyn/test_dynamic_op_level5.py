@@ -77,5 +77,5 @@ def test_resize2d(executor_kind):
 
 
 if __name__ == "__main__":
-    test_resize_infer_type()
-    test_resize()
+    test_resize2d_infer_type()
+    test_resize2d()

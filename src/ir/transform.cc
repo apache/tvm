@@ -377,7 +377,6 @@ IRModule ModulePassNode::operator()(IRModule mod, const PassContext& pass_ctx) c
 
   VLOG_CONTEXT << pass_info->name;
   VLOG(0) << "Executing module pass with opt level: " << pass_info->opt_level;
-  VLOG(1) << "Input module:" << std::endl << PrettyPrint(mod);
 
   mod = pass_func(std::move(mod), pass_ctx);
 
@@ -388,8 +387,6 @@ IRModule ModulePassNode::operator()(IRModule mod, const PassContext& pass_ctx) c
 
   pass_ctx->diag_ctx.value().Render();
   pass_ctx->diag_ctx = previous;
-
-  VLOG(1) << "Result module:" << std::endl << PrettyPrint(mod);
 
   return mod;
 }
@@ -431,7 +428,7 @@ Pass GetPass(const String& pass_name) {
     // pass
   } else if ((f = Registry::Get("relay._transform." + pass_name))) {
   }
-  ICHECK(f != nullptr) << "Cannot use " << pass_name << "to create the pass";
+  ICHECK(f != nullptr) << "Cannot use " << pass_name << " to create the pass";
   return (*f)();
 }
 
@@ -440,6 +437,7 @@ Pass GetPass(const String& pass_name) {
 // ordering problem needs to be handled in the future.
 IRModule SequentialNode::operator()(IRModule mod, const PassContext& pass_ctx) const {
   for (const Pass& pass : passes) {
+    VLOG(0) << "Running pass " << pass->Info()->name;
     ICHECK(pass.defined()) << "Found undefined pass for optimization.";
     const PassInfo& pass_info = pass->Info();
     if (!pass_ctx.PassEnabled(pass_info)) {
@@ -589,7 +587,12 @@ TVM_REGISTER_GLOBAL("transform.OverrideInstruments")
 
 Pass PrintIR(String header, bool show_meta_data) {
   auto pass_func = [header, show_meta_data](IRModule mod, const PassContext& ctx) {
-    LOG(INFO) << "PrintIR(" << header << "):\n" << AsText(mod, show_meta_data);
+    if (const auto* f = runtime::Registry::Get("relay.ir.PrintIR")) {
+      if ((*f)(mod, header, show_meta_data)) {
+        return mod;
+      }
+    }
+    LOG(INFO) << "PrintIR(" << header << "):\n" << mod;
     return mod;
   };
   return CreateModulePass(pass_func, 0, "PrintIR", {});

@@ -31,7 +31,6 @@
 
 #include "../../runtime/pack_args.h"
 #include "../../runtime/vulkan/vulkan_common.h"
-#include "../../runtime/vulkan/vulkan_shader.h"
 #include "../../tir/transforms/ir_utils.h"
 
 namespace tvm {
@@ -39,7 +38,7 @@ namespace codegen {
 
 CodeGenSPIRV::CodeGenSPIRV(Target target) : spirv_support_(target) {}
 
-runtime::VulkanShader CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::string& name) {
+runtime::SPIRVShader CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::string& name) {
   this->InitFuncState();
   ICHECK(f->HasNonzeroAttr(tir::attr::kNoAlias)) << "SPIRV only takes restricted memory model";
   std::vector<Var> pod_args;
@@ -79,7 +78,7 @@ runtime::VulkanShader CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::
   spirv::Value func_ptr = builder_->NewFunction();
   builder_->StartFunction(func_ptr);
 
-  runtime::VulkanShader shader;
+  runtime::SPIRVShader shader;
 
   if (pod_args.size() != 0) {
     std::vector<spirv::SType> value_types;
@@ -130,6 +129,7 @@ void CodeGenSPIRV::InitFuncState() {
   builder_.reset(new spirv::IRBuilder(spirv_support_));
   builder_->InitHeader();
   shared_memory_bytes_used_ = 0;
+  fragment_info_.clear();
 }
 
 spirv::Value CodeGenSPIRV::GetThreadIndex(const IterVar& iv, const PrimExpr& extent) {
@@ -199,7 +199,6 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const FloatImmNode* op) {
 
 spirv::Value CodeGenSPIRV::VisitExpr_(const StringImmNode* op) {
   LOG(FATAL) << "StringImm is not supported in Device code";
-  return spirv::Value();
 }
 
 spirv::Value CodeGenSPIRV::VisitExpr_(const CastNode* op) {
@@ -396,9 +395,122 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
     LOG(FATAL) << "SPIR-V shader cannot make extern calls.  Graph contains extern \""
                << Downcast<StringImm>(op->args[0]) << "\"";
     return spirv::Value();
+  } else if (op->op.same_as(builtin::tvm_fill_fragment())) {
+    ICHECK_EQ(op->args.size(), 6U);
+    const VarNode* buffer_node = op->args[0].as<VarNode>();
+    ICHECK(buffer_node && fragment_info_.count(buffer_node));
+    DataType ele_dtype = GetElementDataType(buffer_node);
+    ICHECK(ele_dtype.is_float()) << "Only floating point fragment accumulator is supported";
+    spirv::SType ele_stype = builder_->GetSType(ele_dtype);
+    spirv::SType& fragment_type = fragment_info_[buffer_node].stype;
+    double init = static_cast<uint64_t>(Downcast<FloatImm>(op->args[5])->value);
+    PrimExpr prim_index = op->args[4];
+    spirv::Value init_val = builder_->GetCompositeConst(ele_stype, fragment_type, init);
+    spirv::SType ptr_type =
+        builder_->GetPointerType(fragment_type, fragment_info_[buffer_node].sclass);
+    spirv::Value index = MakeValue(prim_index);
+    ICHECK(var_map_.count(buffer_node));
+    spirv::Value ptr = builder_->StructArrayAccess(ptr_type, var_map_[buffer_node], index);
+    builder_->MakeInst(spv::OpStore, ptr, init_val, spv::MemoryAccessMaskNone);
+    return spirv::Value();
+
+  } else if (op->op.same_as(builtin::tvm_load_matrix_sync())) {
+    ICHECK_EQ(op->args.size(), 8U);
+    const VarNode* buffer_node = op->args[0].as<VarNode>();
+    ICHECK(buffer_node && fragment_info_.count(buffer_node));
+    spirv::SType& fragment_type = fragment_info_[buffer_node].stype;
+    PrimExpr dst_index = op->args[4];
+    PrimExpr src_ptr_expr = op->args[5];
+    int stride = static_cast<int>(Downcast<IntImm>(op->args[6])->value);
+    auto type_int = builder_->GetSType(DataType::Int(32));
+    spirv::Value stride_val = builder_->IntImm(type_int, stride);
+    std::string layout = (op->args[7].as<StringImmNode>())->value;
+    spirv::SType dst_ptr_type =
+        builder_->GetPointerType(fragment_type, fragment_info_[buffer_node].sclass);
+    spirv::Value dst_ptr =
+        builder_->StructArrayAccess(dst_ptr_type, var_map_[buffer_node], MakeValue(dst_index));
+    spirv::Value src_ptr = VisitExpr(op->args[5]);
+    spirv::SType type_bool = builder_->GetSType(DataType::UInt(1));
+    spirv::Value t_val = builder_->UIntImm(type_bool, 1);
+    spirv::Value f_val = builder_->UIntImm(type_bool, 0);
+    spirv::Value loaded =
+        builder_->MakeValue(spv::OpCooperativeMatrixLoadNV, fragment_type, src_ptr, stride_val,
+                            (layout != "row_major") ? t_val : f_val);
+    builder_->MakeInst(spv::OpStore, dst_ptr, loaded, spv::MemoryAccessMaskNone);
+    return spirv::Value();
+  } else if (op->op.same_as(builtin::tvm_mma_sync())) {
+    const VarNode* buffer_d = op->args[0].as<VarNode>();
+    const VarNode* buffer_a = op->args[2].as<VarNode>();
+    const VarNode* buffer_b = op->args[4].as<VarNode>();
+    const VarNode* buffer_c = op->args[6].as<VarNode>();
+    PrimExpr index_d = op->args[1];
+    PrimExpr index_a = op->args[3];
+    PrimExpr index_b = op->args[5];
+    tvm::tir::ExprDeepEqual expr_equal;
+    PrimExpr index_c = op->args[7];
+    bool is_equal = ((buffer_d == buffer_c) && expr_equal(index_d, index_c));
+    spirv::SType& fragment_type_d = fragment_info_[buffer_d].stype;
+    spirv::SType& fragment_type_a = fragment_info_[buffer_a].stype;
+    spirv::SType& fragment_type_b = fragment_info_[buffer_b].stype;
+    spirv::SType& fragment_type_c = fragment_info_[buffer_c].stype;
+    spv::StorageClass storage = fragment_info_[buffer_d].sclass;
+    spirv::SType ptr_type_d = builder_->GetPointerType(fragment_type_d, storage);
+    spirv::SType ptr_type_a = builder_->GetPointerType(fragment_type_a, storage);
+    spirv::SType ptr_type_b = builder_->GetPointerType(fragment_type_b, storage);
+    spirv::SType ptr_type_c = builder_->GetPointerType(fragment_type_c, storage);
+    spirv::Value ptr_d =
+        builder_->StructArrayAccess(ptr_type_d, var_map_[buffer_d], MakeValue(index_d));
+    spirv::Value ptr_a =
+        builder_->StructArrayAccess(ptr_type_a, var_map_[buffer_a], MakeValue(index_a));
+    spirv::Value ptr_b =
+        builder_->StructArrayAccess(ptr_type_b, var_map_[buffer_b], MakeValue(index_b));
+    spirv::Value ptr_c =
+        is_equal ? ptr_d
+                 : builder_->StructArrayAccess(ptr_type_c, var_map_[buffer_c], MakeValue(index_c));
+    uint32_t mask = spv::MemoryAccessMaskNone;
+    spirv::Value loaded_a = builder_->MakeValue(spv::OpLoad, fragment_type_a, ptr_a, mask);
+    spirv::Value loaded_b = builder_->MakeValue(spv::OpLoad, fragment_type_b, ptr_b, mask);
+    spirv::Value loaded_c = builder_->MakeValue(spv::OpLoad, fragment_type_c, ptr_c, mask);
+    spirv::Value result = builder_->MakeValue(spv::OpCooperativeMatrixMulAddNV, fragment_type_d,
+                                              loaded_a, loaded_b, loaded_c);
+    builder_->MakeInst(spv::OpStore, ptr_d, result, spv::MemoryAccessMaskNone);
+    return spirv::Value();
+  } else if (op->op.same_as(builtin::tvm_store_matrix_sync())) {
+    ICHECK_EQ(op->args.size(), 8U);
+    const VarNode* buffer_node = op->args[0].as<VarNode>();
+    PrimExpr index = op->args[4];
+    PrimExpr buffer_ptr = op->args[5];
+    int stride = static_cast<int>(Downcast<IntImm>(op->args[6])->value);
+    auto type_int = builder_->GetSType(DataType::Int(32));
+    spirv::Value stride_val = builder_->IntImm(type_int, stride);
+    std::string layout = (op->args[7].as<StringImmNode>())->value;
+    spirv::Value dst_ptr = VisitExpr(op->args[5]);
+    spirv::SType& fragment_type = fragment_info_[buffer_node].stype;
+    spv::StorageClass storage = fragment_info_[buffer_node].sclass;
+    spirv::SType ptr_type = builder_->GetPointerType(fragment_type, storage);
+    spirv::Value ptr =
+        builder_->StructArrayAccess(ptr_type, var_map_[buffer_node], MakeValue(index));
+    uint32_t mask = spv::MemoryAccessMaskNone;
+    spirv::Value loaded = builder_->MakeValue(spv::OpLoad, fragment_type, ptr, mask);
+    spirv::SType type_bool = builder_->GetSType(DataType::UInt(1));
+    spirv::Value t_val = builder_->UIntImm(type_bool, 1);
+    spirv::Value f_val = builder_->UIntImm(type_bool, 0);
+    builder_->MakeInst(spv::OpCooperativeMatrixStoreNV, dst_ptr, loaded, stride_val,
+                       (layout != "row_major") ? t_val : f_val);
+    return spirv::Value();
+  } else if (op->op.same_as(builtin::address_of())) {
+    const BufferLoadNode* load = op->args[0].as<BufferLoadNode>();
+    Var buffer_var = load->buffer->data;
+    const VarNode* buffer_node = buffer_var.get();
+    PrimExpr index = load->indices[0];
+    DataType ele_dtype = GetElementDataType(buffer_node);
+    spirv::SType ele_stype = builder_->GetSType(ele_dtype);
+    spirv::Value buffer_val = MakeValue(buffer_var);
+    spirv::SType ptr_type = builder_->GetPointerType(ele_stype, buffer_val.stype.storage_class);
+    ICHECK(var_map_.count(buffer_node));
+    return builder_->StructArrayAccess(ptr_type, var_map_[buffer_node], MakeValue(index));
   } else {
     LOG(FATAL) << "Unresolved call  " << op->op;
-    return spirv::Value();
   }
 }
 
@@ -628,7 +740,7 @@ void CodeGenSPIRV::VisitStmt_(const IfThenElseNode* op) {
   spirv::Value cond = MakeValue(op->condition);
   spirv::Label then_label = builder_->NewLabel();
   spirv::Label merge_label = builder_->NewLabel();
-  if (op->else_case.defined()) {
+  if (op->else_case) {
     spirv::Label else_label = builder_->NewLabel();
     builder_->MakeInst(spv::OpSelectionMerge, merge_label, spv::SelectionControlMaskNone);
     builder_->MakeInst(spv::OpBranchConditional, cond, then_label, else_label);
@@ -638,7 +750,7 @@ void CodeGenSPIRV::VisitStmt_(const IfThenElseNode* op) {
     builder_->MakeInst(spv::OpBranch, merge_label);
     // else block
     builder_->StartLabel(else_label);
-    this->VisitStmt(op->else_case);
+    this->VisitStmt(op->else_case.value());
     builder_->MakeInst(spv::OpBranch, merge_label);
   } else {
     builder_->MakeInst(spv::OpSelectionMerge, merge_label, spv::SelectionControlMaskNone);
@@ -653,6 +765,8 @@ void CodeGenSPIRV::VisitStmt_(const IfThenElseNode* op) {
   builder_->StartLabel(merge_label);
 }
 
+void CodeGenSPIRV::VisitStmt_(const DeclBufferNode* op) { VisitStmt(op->body); }
+
 void CodeGenSPIRV::VisitStmt_(const AllocateNode* op) {
   ICHECK(!is_zero(op->condition));
   ICHECK(!op->dtype.is_handle());
@@ -660,22 +774,46 @@ void CodeGenSPIRV::VisitStmt_(const AllocateNode* op) {
   ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation in GPU";
 
   spirv::Value buf;
-  auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(op->buffer_var));
+  const std::string scope = GetPtrStorageScope(op->buffer_var);
+  auto storage_scope = runtime::StorageScope::Create(scope);
   spirv::SType etype = builder_->GetSType(op->dtype);
-  if (storage_scope.rank == runtime::StorageRank::kLocal) {
-    buf =
-        builder_->Allocate(etype, static_cast<uint32_t>(constant_size), spv::StorageClassFunction);
-  } else if (storage_scope.rank == runtime::StorageRank::kShared) {
-    // Shared memory
-    // Aligned on 4-byte boundary
-    int32_t aligned_constant_size = ((constant_size + 3) & ~0x3);
-    buf = builder_->Allocate(etype, static_cast<uint32_t>(aligned_constant_size),
-                             spv::StorageClassWorkgroup);
+  runtime::StorageRank rank = storage_scope.rank;
+  spv::StorageClass storage_class;
+  const VarNode* var_node = (op->buffer_var).get();
 
-    size_t num_bytes = op->dtype.bytes() * op->dtype.lanes() * static_cast<uint32_t>(constant_size);
-    shared_memory_bytes_used_ += num_bytes;
-  } else {
-    LOG(FATAL) << "Can only allocate shared or local memory inside kernel";
+  switch (rank) {
+    case runtime::StorageRank::kWMMAMatrixA:
+    case runtime::StorageRank::kWMMAMatrixB:
+    case runtime::StorageRank::kWMMAAccumulator: {
+      ICHECK(fragment_info_.count(var_node));
+      fragment_info_[var_node].scope = scope;
+      etype = GetFragmentSType(var_node, op->dtype);
+      storage_class = spv::StorageClassFunction;
+      fragment_info_[var_node].sclass = storage_class;
+      ICHECK(fragment_info_.count(var_node));
+      const std::string& scope = fragment_info_[var_node].scope;
+      const std::string& shape_str = fragment_info_.at(var_node).shape;
+      std::pair<int32_t, int32_t> dim = GetWmmaFragmentDimSize(shape_str, scope);
+      int64_t size = dim.first * dim.second;
+      buf = builder_->Allocate(etype, static_cast<uint32_t>(constant_size) / size, storage_class);
+    } break;
+    case runtime::StorageRank::kLocal: {
+      storage_class = spv::StorageClassFunction;
+      buf = builder_->Allocate(etype, static_cast<uint32_t>(constant_size), storage_class);
+    } break;
+    case runtime::StorageRank::kShared: {
+      storage_class = spv::StorageClassWorkgroup;
+      // Shared memory
+      // Aligned on 4-byte boundary
+      int32_t aligned_constant_size = ((constant_size + 3) & ~0x3);
+      buf = builder_->Allocate(etype, static_cast<uint32_t>(aligned_constant_size), storage_class);
+
+      size_t num_bytes =
+          op->dtype.bytes() * op->dtype.lanes() * static_cast<uint32_t>(aligned_constant_size);
+      shared_memory_bytes_used_ += num_bytes;
+    } break;
+    default:
+      LOG(FATAL) << "Can only allocate shared or local memory inside kernel";
   }
 
   builder_->SetName(buf, op->buffer_var->name_hint);
@@ -703,6 +841,13 @@ void CodeGenSPIRV::VisitStmt_(const AttrStmtNode* op) {
     const VarNode* v = op->node.as<VarNode>();
     ICHECK(v);
     storage_info_[v].is_volatile = true;
+  } else if (op->attr_key == tir::attr::buffer_bind_scope) {
+    const VarNode* v = op->node.as<VarNode>();
+    ICHECK(v);
+  } else if (op->attr_key == tir::attr::fragment_shape) {
+    const VarNode* buffer = op->node.as<VarNode>();
+    const StringImmNode* shape_str = op->value.as<StringImmNode>();
+    fragment_info_[buffer] = {shape_str->value};
   }
   this->VisitStmt(op->body);
 }
@@ -727,6 +872,23 @@ void CodeGenSPIRV::VisitStmt_(const SeqStmtNode* op) {
 }
 
 void CodeGenSPIRV::VisitStmt_(const EvaluateNode* op) { MakeValue(op->value); }
+
+spirv::SType CodeGenSPIRV::GetFragmentSType(const VarNode* buffer, const DataType& dtype) {
+  ICHECK(fragment_info_.count(buffer));
+  const std::string& scope = fragment_info_[buffer].scope;
+  const std::string& shape_str = fragment_info_.at(buffer).shape;
+  std::pair<int32_t, int32_t> dim = GetWmmaFragmentDimSize(shape_str, scope);
+  int64_t size = dim.first * dim.second;
+  spirv::SType stype = builder_->GetSType(dtype.with_lanes(size), dim.first, dim.second);
+  fragment_info_[buffer].stype = stype;
+  return stype;
+}
+
+DataType CodeGenSPIRV::GetElementDataType(const VarNode* buffer) {
+  auto it = storage_info_.find(buffer);
+  ICHECK(it != storage_info_.end());
+  return it->second.element_type;
+}
 
 }  // namespace codegen
 }  // namespace tvm

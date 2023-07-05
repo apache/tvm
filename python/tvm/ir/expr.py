@@ -15,10 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 """Common expressions data structures in the IR."""
+from numbers import Number
+
 import tvm._ffi
 
-from .base import Node
+from ..runtime import Scriptable, const, convert
 from . import _ffi_api
+from .base import Node
 
 
 class BaseExpr(Node):
@@ -47,7 +50,7 @@ class RelayExpr(BaseExpr):
         """
         ret = self._checked_type_
         if ret is None:
-            raise ValueError("The type checker has not populated" " the checked_type for this node")
+            raise ValueError("The type checker has not populated the checked_type for this node")
         return ret
 
 
@@ -85,14 +88,43 @@ class GlobalVar(RelayExpr):
             from tvm import relay
 
             return relay.Call(self, args)
+        elif all(isinstance(x, (Number, PrimExpr)) for x in args):
+            return tvm.tir.call_tir(self, *args)
+
         arg_types = [type(x) for x in args]
-        raise RuntimeError(
-            "Do not know how to handle GlobalVar.__call__ for types {}".format(arg_types)
-        )
+        raise RuntimeError(f"Do not know how to handle GlobalVar.__call__ for types {arg_types}")
+
+    def astext(self, show_meta_data=True, annotate=None):
+        """Get the text format of the expression.
+
+        Parameters
+        ----------
+        show_meta_data : bool
+            Whether to include meta data section in the text
+            if there is meta data.
+
+        annotate: Optional[Object->str]
+            Optionally annotate function to provide additional
+            information in the comment block.
+
+        Returns
+        -------
+        text : str
+            The text format of the expression.
+
+        Notes
+        -----
+        The meta data section is necessary to fully parse the text format.
+        However, it can contain dumps that are big (e.g constant weights),
+        so it can be helpful to skip printing the meta data section.
+        """
+        from tvm.relay import astext  # pylint: disable=import-outside-toplevel
+
+        return astext(self, show_meta_data, annotate)
 
 
 @tvm._ffi.register_object
-class Range(Node):
+class Range(Node, Scriptable):
     """Represent a range in TVM.
 
     You do not need to create a Range explicitly.
@@ -118,9 +150,9 @@ class Range(Node):
 
     def __init__(self, begin, end=None, span=None):
         if end is None:
-            self.__init_handle_by_constructor__(_ffi_api.Range, 0, begin, span)
-        else:
-            self.__init_handle_by_constructor__(_ffi_api.Range, begin, end, span)
+            end = convert(begin)
+            begin = const(0, dtype=end.dtype, span=span)
+        self.__init_handle_by_constructor__(_ffi_api.Range, begin, end, span)
 
     @staticmethod
     def from_min_extent(min_value, extent, span=None):

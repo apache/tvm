@@ -18,13 +18,16 @@
 
 set -euxo pipefail
 
+source tests/scripts/setup-pytest-env.sh
+
 pushd apps/microtvm/cmsisnn
  timeout 5m ./run_demo.sh
 popd
 
-pushd apps/microtvm/zephyr_cmsisnn
- timeout 5m ./run_demo.sh
-popd
+# TODO(mehrdadh): disabled due to https://github.com/apache/tvm/issues/13856
+# pushd apps/microtvm/zephyr_cmsisnn
+#  timeout 5m ./run_demo.sh
+# popd
 
 pushd apps/microtvm/ethosu
 FVP_PATH="/opt/arm/FVP_Corstone_SSE-300_Ethos-U55"

@@ -157,9 +157,9 @@ RPCEnv::RPCEnv(const std::string& wd) {
  * \return The full path of file.
  */
 std::string RPCEnv::GetPath(const std::string& file_name) const {
-  // we assume file_name has "/" means file_name is the exact path
+  // we assume file_name starts with "/" means file_name is the exact path
   // and does not create /.rpc/
-  return file_name.find('/') != std::string::npos ? file_name : base_ + "/" + file_name;
+  return !file_name.empty() && file_name[0] == '/' ? file_name : base_ + "/" + file_name;
 }
 /*!
  * \brief Remove The RPC Environment cleanup function

@@ -34,7 +34,7 @@ APP_ABI = all
 APP_PLATFORM = android-17
 
 # whether enable OpenCL during compile
-USE_OPENCL = 0
+USE_OPENCL = 1
 
 # the additional include headers you want to add, e.g., SDK_PATH/adrenosdk/Development/Inc
 ADD_C_INCLUDES =

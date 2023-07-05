@@ -73,43 +73,44 @@ macro(find_llvm use_llvm)
       OUTPUT_VARIABLE __llvm_libfiles_space
       OUTPUT_STRIP_TRAILING_WHITESPACE)
     if(NOT "${__llvm_exit_code}" STREQUAL "0")
-      message(FATAL_ERROR "Fatal error executing: ${use_llvm} --libfiles")
+      message(FATAL_ERROR "Fatal error executing: ${LLVM_CONFIG} --libfiles")
     endif()
     execute_process(COMMAND ${LLVM_CONFIG} --system-libs
       RESULT_VARIABLE __llvm_exit_code
       OUTPUT_VARIABLE __llvm_system_libs
       OUTPUT_STRIP_TRAILING_WHITESPACE)
     if(NOT "${__llvm_exit_code}" STREQUAL "0")
-      message(FATAL_ERROR "Fatal error executing: ${use_llvm} --system-libs")
+      message(FATAL_ERROR "Fatal error executing: ${LLVM_CONFIG} --system-libs")
     endif()
     execute_process(COMMAND ${LLVM_CONFIG} --cxxflags
       RESULT_VARIABLE __llvm_exit_code
       OUTPUT_VARIABLE __llvm_cxxflags_space
       OUTPUT_STRIP_TRAILING_WHITESPACE)
     if(NOT "${__llvm_exit_code}" STREQUAL "0")
-      message(FATAL_ERROR "Fatal error executing: ${use_llvm} --cxxflags")
+      message(FATAL_ERROR "Fatal error executing: ${LLVM_CONFIG} --cxxflags")
     endif()
     execute_process(COMMAND ${LLVM_CONFIG} --version
       RESULT_VARIABLE __llvm_exit_code
       OUTPUT_VARIABLE __llvm_version
       OUTPUT_STRIP_TRAILING_WHITESPACE)
     if(NOT "${__llvm_exit_code}" STREQUAL "0")
-      message(FATAL_ERROR "Fatal error executing: ${use_llvm} --version")
+      message(FATAL_ERROR "Fatal error executing: ${LLVM_CONFIG} --version")
     endif()
     execute_process(COMMAND ${LLVM_CONFIG} --prefix
       RESULT_VARIABLE __llvm_exit_code
       OUTPUT_VARIABLE __llvm_prefix
       OUTPUT_STRIP_TRAILING_WHITESPACE)
     if(NOT "${__llvm_exit_code}" STREQUAL "0")
-      message(FATAL_ERROR "Fatal error executing: ${use_llvm} --prefix")
+      message(FATAL_ERROR "Fatal error executing: ${LLVM_CONFIG} --prefix")
     endif()
     execute_process(COMMAND ${LLVM_CONFIG} --libdir
       RESULT_VARIABLE __llvm_exit_code
       OUTPUT_VARIABLE __llvm_libdir
       OUTPUT_STRIP_TRAILING_WHITESPACE)
     if(NOT "${__llvm_exit_code}" STREQUAL "0")
-      message(FATAL_ERROR "Fatal error executing: ${use_llvm} --libdir")
+      message(FATAL_ERROR "Fatal error executing: ${LLVM_CONFIG} --libdir")
     endif()
+    message(STATUS "LLVM libdir: ${__llvm_libdir}")
     # map prefix => $
     # to handle the case when the prefix contains space.
     string(REPLACE ${__llvm_prefix} "$" __llvm_cxxflags ${__llvm_cxxflags_space})
@@ -144,14 +145,33 @@ macro(find_llvm use_llvm)
     endforeach()
     separate_arguments(__llvm_system_libs)
     foreach(__flag IN ITEMS ${__llvm_system_libs})
-      # If the library file ends in .lib try to
-      # also search the llvm_libdir
-      if(__flag MATCHES ".lib$")
-        if(EXISTS "${__llvm_libdir}/${__flag}")
-          set(__flag "${__llvm_libdir}/${__flag}")
+      if("${__flag}" STREQUAL "-lm")
+        message(STATUS "LLVM links against math")
+        list(APPEND LLVM_LIBS "m")
+      elseif(("${__flag}" STREQUAL "-lz") OR ("${__flag}" STREQUAL "z.lib"))
+        message(STATUS "LLVM links against zlib")
+        find_package(ZLIB REQUIRED)
+        list(APPEND LLVM_LIBS "ZLIB::ZLIB")
+      elseif("${__flag}" STREQUAL "-lzstd" OR ("${__flag}" STREQUAL "zstd.dll.lib"))
+        find_package(zstd REQUIRED)
+        if (TARGET "zstd::libzstd_static")
+          message(STATUS "LLVM links against static zstd")
+          list(APPEND LLVM_LIBS "zstd::libzstd_static")
+        else()
+          message(STATUS "LLVM links against shared zstd")
+          list(APPEND LLVM_LIBS "zstd::libzstd_shared")
         endif()
+      elseif("${__flag}" STREQUAL "-lxml2")
+        message(STATUS "LLVM links against xml2")
+        list(APPEND LLVM_LIBS "-lxml2")
+      elseif((__flag MATCHES ".lib$") AND (EXISTS "${__llvm_libdir}/${__flag}"))
+        # If the library file ends in .lib try to also search the llvm_libdir
+        message(STATUS "LLVM linker flag under LLVM libdir: ${__llvm_libdir}/${__flag}")
+        list(APPEND LLVM_LIBS "${__llvm_libdir}/${__flag}")
+      else()
+        message(STATUS "LLVM linker flag: ${__flag}")
+        list(APPEND LLVM_LIBS "${__flag}")
       endif()
-      list(APPEND LLVM_LIBS "${__flag}")
     endforeach()
   endif()
   message(STATUS "Found LLVM_INCLUDE_DIRS=" "${LLVM_INCLUDE_DIRS}")

@@ -60,6 +60,8 @@ class BlockReadWriteDetector : public StmtExprVisitor {
   std::unordered_map<const VarNode*, arith::IntSet> dom_map_;
   /*! \brief Extra iteration range hint for free vars */
   std::unordered_map<const VarNode*, arith::IntSet> hint_map_;
+  /*! \brief Unresolved conditions within current scope. */
+  std::vector<PrimExpr> pending_conditions_;
   /*! \brief The buffers that the current block reads */
   std::vector<Buffer> read_buffers_;
   /*! \brief The buffers that the current block writes */
@@ -76,8 +78,8 @@ class BlockReadWriteDetector : public StmtExprVisitor {
   Map<Var, Buffer> buffer_var_map_;
   /*! \brief The target buffer var mapping to its matching */
   std::unordered_map<const VarNode*, MatchBufferRegion> match_buffers_;
-  /*! \brief The analyzer for simplifying*/
-  arith::Analyzer analyzer_;
+  /*!\ brief Internal analyzer. */
+  arith::Analyzer ana_;
 
   /*!
    * \brief Update read/write buffers and regions with provided buffer and region
@@ -109,9 +111,7 @@ class BlockReadWriteDetector : public StmtExprVisitor {
   void VisitStmt_(const IfThenElseNode* op) override;
   void VisitStmt_(const BlockRealizeNode* op) override;
   void VisitStmt_(const BufferStoreNode* op) override;
-  void VisitStmt_(const StoreNode* op) override;
   void VisitExpr_(const BufferLoadNode* op) override;
-  void VisitExpr_(const LoadNode* op) override;
   void VisitExpr_(const VarNode* op) override;
   void VisitExpr_(const CallNode* op) override;
 };
@@ -146,10 +146,6 @@ Array<BufferRegion> BlockReadWriteDetector::CollectOpaques() {
 
 void BlockReadWriteDetector::VisitExpr_(const VarNode* op) { UpdateOpaque(GetRef<Var>(op)); }
 
-void BlockReadWriteDetector::VisitExpr_(const LoadNode* op) {
-  LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-}
-
 void BlockReadWriteDetector::VisitExpr_(const BufferLoadNode* op) {
   std::vector<arith::IntSet> relaxed_region;
   for (const PrimExpr& index : op->indices) {
@@ -170,13 +166,13 @@ void BlockReadWriteDetector::VisitStmt_(const IfThenElseNode* op) {
   VisitExpr(op->condition);
   {
     // Visit then branch
-    With<ConditionalBoundsContext> ctx(op->condition, &dom_map_, &hint_map_, true);
+    With<ConditionalBoundsContext> ctx(op->condition, &dom_map_, &hint_map_, &pending_conditions_);
     StmtExprVisitor::VisitStmt(op->then_case);
   }
-  if (op->else_case.defined()) {
+  if (op->else_case) {
     // Visit else branch
-    With<ConditionalBoundsContext> ctx(op->condition, &dom_map_, &hint_map_, false);
-    StmtExprVisitor::VisitStmt(op->else_case);
+    With<ConditionalBoundsContext> ctx(!op->condition, &dom_map_, &hint_map_, &pending_conditions_);
+    StmtExprVisitor::VisitStmt(op->else_case.value());
   }
 }
 
@@ -213,21 +209,17 @@ void BlockReadWriteDetector::VisitExpr_(const CallNode* op) {
     VisitExpr(op->args[0]);
     {
       // Visit then branch
-      With<ConditionalBoundsContext> ctx(op->args[0], &dom_map_, &hint_map_, true);
+      With<ConditionalBoundsContext> ctx(op->args[0], &dom_map_, &hint_map_, &pending_conditions_);
       StmtExprVisitor::VisitExpr(op->args[1]);
     }
     {
       // Visit else branch
-      With<ConditionalBoundsContext> ctx(op->args[0], &dom_map_, &hint_map_, false);
+      With<ConditionalBoundsContext> ctx(!op->args[0], &dom_map_, &hint_map_, &pending_conditions_);
       StmtExprVisitor::VisitExpr(op->args[2]);
     }
     return;
   }
   StmtExprVisitor::VisitExpr_(op);
-}
-
-void BlockReadWriteDetector::VisitStmt_(const StoreNode* op) {
-  LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
 }
 
 void BlockReadWriteDetector::VisitStmt_(const BufferStoreNode* op) {
@@ -330,7 +322,12 @@ Array<BufferRegion> BlockReadWriteDetector::CollectRegions(
     ICHECK_EQ(buffers[i]->shape.size(), regions[i].size());
     for (size_t j = 0; j < regions[i].size(); j++) {
       const tvm::arith::IntSet& range = regions[i][j];
-      region.push_back(range.CoverRange(Range::FromMinExtent(0, buffers[i]->shape[j])));
+      if (range.CanProveSinglePoint(&ana_)) {
+        PrimExpr min = range.min();
+        region.push_back(Range::FromMinExtent(min, make_const(min.dtype(), 1)));
+      } else {
+        region.push_back(range.CoverRange(Range::FromMinExtent(0, buffers[i]->shape[j])));
+      }
     }
     res.push_back(BufferRegion(buffers[i], region));
   }

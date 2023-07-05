@@ -119,8 +119,6 @@ class MicroRPCServer {
         rpc_server_{&io_},
         is_running_{true} {}
 
-  void* operator new(size_t count, void* ptr) { return ptr; }
-
   void Initialize() {
     uint8_t initial_session_nonce = Session::kInvalidNonce;
     tvm_crt_error_t error =

@@ -31,6 +31,10 @@
 
 #include "hexagon_buffer.h"
 #include "hexagon_buffer_manager.h"
+#include "hexagon_power_manager.h"
+#include "hexagon_thread_manager.h"
+#include "hexagon_user_dma.h"
+#include "hexagon_vtcm_pool.h"
 
 namespace tvm {
 namespace runtime {
@@ -49,6 +53,43 @@ class HexagonDeviceAPI final : public DeviceAPI {
 
   //! \brief Destructor
   ~HexagonDeviceAPI() {}
+
+  //! \brief Ensures resource managers are in a good state for the runtime
+  void AcquireResources() {
+    CHECK_EQ(runtime_power_manager, nullptr);
+    runtime_power_manager = std::make_unique<HexagonPowerManager>();
+
+    CHECK_EQ(runtime_vtcm, nullptr);
+    runtime_vtcm = std::make_unique<HexagonVtcmPool>();
+
+    CHECK_EQ(runtime_hexbuffs, nullptr);
+    runtime_hexbuffs = std::make_unique<HexagonBufferManager>();
+
+    CHECK_EQ(runtime_threads, nullptr);
+    runtime_threads =
+        std::make_unique<HexagonThreadManager>(threads, stack_size, pipe_size, hw_resources);
+
+    CHECK_EQ(runtime_dma, nullptr);
+    runtime_dma = std::make_unique<HexagonUserDMA>();
+  }
+
+  //! \brief Ensures all runtime resources are freed
+  void ReleaseResources() {
+    CHECK(runtime_dma) << "runtime_dma was not created in AcquireResources";
+    runtime_dma.reset();
+
+    CHECK(runtime_threads) << "runtime_threads was not created in AcquireResources";
+    runtime_threads.reset();
+
+    CHECK(runtime_hexbuffs) << "runtime_hexbuffs was not created in AcquireResources";
+    runtime_hexbuffs.reset();
+
+    CHECK(runtime_vtcm) << "runtime_vtcm was not created in AcquireResources";
+    runtime_vtcm.reset();
+
+    CHECK(runtime_power_manager) << "runtime_power_manager was not created in AcquireResources";
+    runtime_power_manager.reset();
+  }
 
   /*! \brief Currently unimplemented interface to specify the active
    *  Hexagon device.
@@ -98,20 +139,6 @@ class HexagonDeviceAPI final : public DeviceAPI {
                        Optional<String> mem_scope) final;
 
   /*!
-   * \brief Allocate an Nd VTCM workspace.
-   * \param dev The device to perform the operation.
-   * \param ndim The number of dimensions of allocated tensor.
-   * \param shape The shape of allocated tensor.
-   * \param dtype The element type.
-   * \return The allocated HexagonBuffer pointer.
-   */
-  void* AllocVtcmWorkspace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
-                           Optional<String> mem_scope);
-
-  //! \brief Free the allocated Nd VTCM workspace.
-  void FreeVtcmWorkspace(Device dev, void* ptr);
-
-  /*!
    * \brief Copy data from one storage to another.
    * \note This API is designed to support special memory with shape dependent layout.
    *       DLTensor's are passed with shape information to support these cases.
@@ -120,6 +147,21 @@ class HexagonDeviceAPI final : public DeviceAPI {
    * \param stream Optional stream object.
    */
   void CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) final;
+
+  HexagonThreadManager* ThreadManager() {
+    CHECK(runtime_threads) << "runtime_threads has not been created";
+    return runtime_threads.get();
+  }
+
+  HexagonUserDMA* UserDMA() {
+    CHECK(runtime_dma) << "runtime_dma has not been created";
+    return runtime_dma.get();
+  }
+
+  HexagonVtcmPool* VtcmPool() {
+    CHECK(runtime_vtcm) << "runtime_vtcm has not been created";
+    return runtime_vtcm.get();
+  }
 
  protected:
   //! Standard Device API interface to copy data from one storage to another.
@@ -133,12 +175,30 @@ class HexagonDeviceAPI final : public DeviceAPI {
    */
   bool IsValidDevice(DLDevice dev) {
     // Added kDLCPU since we use hexagon as a sub-target of LLVM which by default maps to kDLCPU
-    return (TVMDeviceExtType(dev.device_type) == kDLHexagon) ||
-           (DLDeviceType(dev.device_type) == kDLCPU);
+    return (dev.device_type == kDLHexagon) || (dev.device_type == kDLCPU);
   }
 
-  //! \brief Manages underlying HexagonBuffer allocations
-  HexagonBufferManager hexbuffs;
+  //! \brief Manages runtime HexagonBuffer allocations
+  // runtime_hexbuffs is used for runtime allocations.  It is created with a call to
+  // AcquireResources, and destroyed on ReleaseResources.  The buffers in this manager are scoped
+  // to the lifetime of a user application session.
+  std::unique_ptr<HexagonBufferManager> runtime_hexbuffs;
+
+  //! \brief Thread manager
+  std::unique_ptr<HexagonThreadManager> runtime_threads;
+  const unsigned threads{6};
+  const unsigned pipe_size{1000};
+  const unsigned stack_size{0x4000};  // 16KB
+  const std::vector<HardwareResourceType> hw_resources{DMA_0, HTP_0, HVX_0, HVX_1, HVX_2, HVX_3};
+
+  //! \brief User DMA manager
+  std::unique_ptr<HexagonUserDMA> runtime_dma;
+
+  //! \brief VTCM memory manager
+  std::unique_ptr<HexagonVtcmPool> runtime_vtcm;
+
+  //! \brief Hexagon power manager
+  std::unique_ptr<HexagonPowerManager> runtime_power_manager;
 };
 }  // namespace hexagon
 }  // namespace runtime

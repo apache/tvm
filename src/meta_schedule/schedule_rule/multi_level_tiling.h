@@ -22,10 +22,26 @@
 #include <tvm/meta_schedule/schedule_rule.h>
 #include <tvm/tir/schedule/schedule.h>
 
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
 #include "../../support/array.h"
+
+namespace tvm {
+namespace tir {
+/*!
+ * \brief Get the buffer dimensions for all the read buffers of a block, but marks the reduction
+ * buffers' dimensions as -1
+ * \param block_sref The block to be processed
+ * \return The buffer dimensions for all the read buffers of a block, except for reduction buffers
+ * \note The method is not designed for generic analysis and relies on assumptions in the scenario
+ * of multi-level tiling, so it's intentionally kept inside this file not in the analysis header
+ */
+std::vector<int> GetReadBufferNDims(const StmtSRef& block_sref);
+
+}  // namespace tir
+}  // namespace tvm
 
 namespace tvm {
 namespace meta_schedule {
@@ -81,20 +97,41 @@ struct ReuseConfig {
   }
 };
 
+// Forware declaration
+class State;
+
 /*! \brief The state of auto scheduling for the multi-level tiling rule */
-struct State {
+class StateNode : public Object {
+ public:
   /*! \brief The schedule to date */
   tir::Schedule sch;
   /*! \brief The block to be tiled */
   tir::BlockRV block_rv;
   /*! \brief The loop tiles */
   Array<Array<tir::LoopRV>> tiles;
+  /*! \brief The factors of the loop tiles. */
+  Array<Array<tir::ExprRV>> tile_factors;
+  /*! \brief The mapping from buffer index to read cache block. */
+  std::unordered_map<int, tir::BlockRV> read_reuse;
+  /*! \brief The mapping from buffer index to write cache block. */
+  std::unordered_map<int, tir::BlockRV> write_reuse;
 
+  /*!
+   * \brief Create a copy of the state. The underlying schedule is copied. Schedule rules that
+   * produce multiple states should use this method to create new states.
+   */
+  virtual State Copy() const;
+
+  static constexpr const char* _type_key = "meta_schedule.State";
+  TVM_DECLARE_BASE_OBJECT_INFO(StateNode, Object);
+};
+
+/*! \brief Managed reference to StateNode */
+class State : public ObjectRef {
+ public:
   /*! \brief Default constructor */
-  explicit State(tir::Schedule sch, tir::BlockRV block_rv,
-                 Optional<tir::BlockRV> write_cache = NullOpt, bool write_cache_is_added = false,
-                 Array<Array<tir::LoopRV>> tiles = {})
-      : sch(sch), block_rv(block_rv), tiles(tiles) {}
+  explicit State(tir::Schedule sch, tir::BlockRV block_rv, Array<Array<tir::LoopRV>> tiles = {});
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(State, ObjectRef, StateNode);
 };
 
 /*!
@@ -128,15 +165,28 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
   std::vector<State> TileLoopNest(State state) const;
   // SubRule 3. add read cache
   std::vector<State> AddReadReuse(State state) const;
+  // SubRule 4. add async pipeline
+  std::vector<State> AddAsyncPipeline(State state) const;
 
   // Do nothing; Inherited from ScheduleRuleNode
   void InitializeWithTuneContext(const TuneContext& context) final;
 
   // Entry of the mega rule; Inherited from ScheduleRuleNode
-  Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv) final;
+  Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv) override;
+
+  // Inherited from ScheduleRuleNode
+  ScheduleRule Clone() const override;
 
  protected:
   virtual std::vector<State> ApplySubRules(std::vector<State> states);
+
+  virtual std::pair<Array<tir::ExprRV>, Array<tir::LoopRV>> SplitLoop(const tir::Schedule& sch,
+                                                                      tir::BlockRV block,
+                                                                      tir::LoopRV loop,
+                                                                      int n_tiles) const;
+
+  // Annotate a block to use cooperative fetching
+  void AnnotateCooperativeFetching(tir::Schedule* sch, const tir::BlockRV& block) const;
 
  public:
   /*!
@@ -163,6 +213,12 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
   int thread_warp_size_;
   /*! \brief The maximum number of threads to be used size of a thread warp */
   int max_threads_per_block_;
+  /*! \brief All available async pipeline stages. */
+  std::vector<int> stages;
+  /*! \brief The logging function */
+  PackedFunc logger;
+  /*! \brief The function to overwrite the default condition for applying MultiLevelTiling. */
+  Optional<PackedFunc> filter_fn_;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("structure", &structure);

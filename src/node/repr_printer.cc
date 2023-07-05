@@ -51,6 +51,38 @@ ReprPrinter::FType& ReprPrinter::vtable() {
   return inst;
 }
 
+void ReprLegacyPrinter::Print(const ObjectRef& node) {
+  static const FType& f = vtable();
+  if (!node.defined()) {
+    stream << "(nullptr)";
+  } else if (f.can_dispatch(node)) {
+    f(node, this);
+  } else {
+    try {
+      stream << node;  // Use ReprPrinter
+    } catch (const tvm::Error& e) {
+      LOG(WARNING) << "ReprPrinter fails";
+      stream << node->GetTypeKey() << '(' << node.get() << ')';
+    }
+  }
+}
+
+bool ReprLegacyPrinter::CanDispatch(const ObjectRef& node) {
+  static const FType& f = vtable();
+  return !node.defined() || f.can_dispatch(node);
+}
+
+void ReprLegacyPrinter::PrintIndent() {
+  for (int i = 0; i < indent; ++i) {
+    stream << ' ';
+  }
+}
+
+ReprLegacyPrinter::FType& ReprLegacyPrinter::vtable() {
+  static FType inst;
+  return inst;
+}
+
 void Dump(const runtime::ObjectRef& n) { std::cerr << n << "\n"; }
 
 void Dump(const runtime::Object* n) { Dump(runtime::GetRef<runtime::ObjectRef>(n)); }
@@ -60,4 +92,7 @@ TVM_REGISTER_GLOBAL("node.AsRepr").set_body_typed([](runtime::ObjectRef obj) {
   os << obj;
   return os.str();
 });
+
+TVM_REGISTER_GLOBAL("node.AsLegacyRepr").set_body_typed(runtime::AsLegacyRepr);
+
 }  // namespace tvm

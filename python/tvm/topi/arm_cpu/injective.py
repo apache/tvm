@@ -68,7 +68,8 @@ def schedule_injective(outs):
 
     if list(s[x].op.axis):
         # do not vectorize for broadcast
-        (io, ii) = s[x].split(list(s[x].op.axis)[-1], 16 // np.dtype(x.dtype).itemsize)
+        dtype = "uint16" if x.dtype == "bfloat16" else x.dtype
+        (io, ii) = s[x].split(list(s[x].op.axis)[-1], 16 // np.dtype(dtype).itemsize)
         s[x].vectorize(ii)
     tvm.te.schedule.AutoInlineInjective(s)
 

@@ -68,7 +68,7 @@ class FeatureSet {
   explicit FeatureSet(Feature ft) { bs_.set(static_cast<size_t>(ft)); }
   explicit FeatureSet(const tvm::Array<tvm::Integer>& ft) {
     for (Integer i : ft) {
-      (*this) += Feature(static_cast<int>(i));
+      *this += Feature(i.IntValue());
     }
   }
   explicit operator Array<Integer>() const {

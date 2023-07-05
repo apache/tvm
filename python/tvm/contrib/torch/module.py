@@ -16,7 +16,9 @@
 # under the License.
 # pylint: disable=invalid-name
 """Module container of PyTorch custom class"""
+import warnings
 from typing import List
+
 import torch
 
 
@@ -29,6 +31,11 @@ class GraphModule(torch.nn.Module):
         return torch.ops.tvm_dsoop.tvm_shape_repr(input_shapes)
 
     def __init__(self, num_inputs, num_outputs, device=None):
+        warnings.warn(
+            "This module will be removed at TVM version 0.11",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         super().__init__()
         self.dummy_param = torch.nn.Parameter(torch.empty(0))
         self.engine = None
@@ -67,6 +74,11 @@ class VMModule(torch.nn.Module):
         return torch.ops.tvm_dsoop.tvm_shape_repr(input_shapes)
 
     def __init__(self, num_inputs, num_outputs, device=None):
+        warnings.warn(
+            "This module will be removed at TVM version 0.11",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         super().__init__()
         self.dummy_param = torch.nn.Parameter(torch.empty(0))
         self.engine = None
@@ -113,6 +125,11 @@ class TraceTvmModule(torch.nn.Module):
     """
 
     def __init__(self, tvm_module):
+        warnings.warn(
+            "This module will be removed at TVM version 0.11",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         super().__init__()
         self.tvm_module = tvm_module
 

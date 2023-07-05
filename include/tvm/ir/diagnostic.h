@@ -27,14 +27,12 @@
 #define TVM_IR_DIAGNOSTIC_H_
 
 #include <tvm/ir/module.h>
-#include <tvm/parser/source_map.h>
 
 #include <sstream>
 #include <string>
 
 namespace tvm {
 
-using tvm::parser::SourceMap;
 using tvm::runtime::TypedPackedFunc;
 
 /*! \brief The diagnostic level, controls the printing of the message. */
@@ -58,6 +56,14 @@ class DiagnosticNode : public Object {
   DiagnosticLevel level;
   /*! \brief The span at which to report an error. */
   Span span;
+  /*!
+   * \brief The object location at which to report an error.
+   *
+   * The object loc provides a location when span is not always
+   * available during transformation. The error reporter can
+   * still pick up loc->span if necessary.
+   */
+  ObjectRef loc;
   /*! \brief The diagnostic message. */
   String message;
 
@@ -86,6 +92,18 @@ class Diagnostic : public ObjectRef {
   static DiagnosticBuilder Warning(Span span);
   static DiagnosticBuilder Note(Span span);
   static DiagnosticBuilder Help(Span span);
+  // variants uses object location
+  static DiagnosticBuilder Bug(ObjectRef loc);
+  static DiagnosticBuilder Error(ObjectRef loc);
+  static DiagnosticBuilder Warning(ObjectRef loc);
+  static DiagnosticBuilder Note(ObjectRef loc);
+  static DiagnosticBuilder Help(ObjectRef loc);
+  // variants uses object ptr.
+  static DiagnosticBuilder Bug(const Object* loc);
+  static DiagnosticBuilder Error(const Object* loc);
+  static DiagnosticBuilder Warning(const Object* loc);
+  static DiagnosticBuilder Note(const Object* loc);
+  static DiagnosticBuilder Help(const Object* loc);
 
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Diagnostic, ObjectRef, DiagnosticNode);
 };
@@ -104,6 +122,11 @@ class DiagnosticBuilder {
   /*! \brief The span of the diagnostic. */
   Span span;
 
+  /*!
+   * \brief The object location at which to report an error.
+   */
+  ObjectRef loc;
+
   template <typename T>
   DiagnosticBuilder& operator<<(const T& val) {  // NOLINT(*)
     stream_ << val;
@@ -116,6 +139,8 @@ class DiagnosticBuilder {
       : level(builder.level), source_name(builder.source_name), span(builder.span) {}
 
   DiagnosticBuilder(DiagnosticLevel level, Span span) : level(level), span(span) {}
+
+  DiagnosticBuilder(DiagnosticLevel level, ObjectRef loc) : level(level), loc(loc) {}
 
   operator Diagnostic() { return Diagnostic(this->level, this->span, this->stream_.str()); }
 

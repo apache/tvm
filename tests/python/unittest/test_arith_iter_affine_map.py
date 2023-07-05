@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from xml import dom
 import tvm
 import tvm.testing
 from tvm.tir import floormod, floordiv
@@ -61,7 +60,6 @@ def assert_iter_sum_pattern(
     )
     indices = res.indices
     assert len(indices) == len(keys), res.errors
-    print(indices)
     for i, input_iter in enumerate(keys):
         spec = expect_dict[input_iter]
         (
@@ -83,6 +81,29 @@ def assert_iter_sum_pattern(
             if not isinstance(expect_iter, tvm.arith.IterMapExpr):
                 sum_expr = convert_iter_expr(sum_expr)
             tvm.ir.assert_structural_equal(sum_expr, expect_iter)
+
+
+def assert_iter_map_simplify(
+    expect_dict, dom_map, predicate=True, check_level="surjective", simplify_trivial_iterators=True
+):
+    keys = list(expect_dict.keys())
+    imap = tvm.arith.detect_iter_map(
+        keys,
+        dom_map,
+        predicate=predicate,
+        check_level=check_level,
+        simplify_trivial_iterators=simplify_trivial_iterators,
+    )
+    res = tvm.arith.iter_map_simplify(
+        keys,
+        dom_map,
+        predicate=predicate,
+        check_level=check_level,
+        simplify_trivial_iterators=simplify_trivial_iterators,
+    )
+    for i, input_expr in enumerate(keys):
+        expected_expr = expect_dict[input_expr]
+        tvm.ir.assert_structural_equal(res[i], expected_expr)
 
 
 def assert_iter_sum_failure(iters, dom_map, predicate=True, check_level="surjective"):
@@ -172,6 +193,11 @@ def test_split():
 
     assert_iter_sum_failure([fld(x, flm(flm(y, 8), 6))], var_dom([(x, 24), (y, 8)]))
 
+    # domain of x is undefined
+    assert_iter_sum_pattern(
+        {fld(flm(x, 49) + y, 49): (1, fld(flm(x, 49) + y, 49))}, var_dom([(y, 1)])
+    )
+
 
 def test_compound():
     x = tvm.tir.Var("x", "int32")
@@ -193,6 +219,18 @@ def test_compound():
     mz = tvm.arith.IterMark(tvm.arith.IterSumExpr([myo, mxo, myi], 0), 18)
     sz = tvm.arith.IterSumExpr([tvm.arith.IterSplitExpr(mz, 1, 18, 1)], 0)
     assert_iter_sum_pattern({z[0]: (18, 0, 1, sz), xi[0]: (5, 0)}, var_dom([(x, 10), (y, 9)]))
+
+
+def test_compound_floormod_two_regression():
+    x = tvm.tir.Var("x", "int32")
+    fld = tvm.tir.floordiv
+    flm = tvm.tir.floormod
+    # regression
+    # extent of 2 of negative scale cannot be normalized
+    assert_iter_sum_failure(
+        [fld(x, 2) * 2 - flm(x, 2) + 1],
+        dom_map=var_dom([(x, 8)]),
+    )
 
 
 def test_predicate():
@@ -441,6 +479,13 @@ def test_predicate():
         predicate=xo * 129 + xi < 128,
     )
 
+    # strided iteration predicate
+    assert_iter_sum_pattern(
+        {xo * 16 + xi * 4: (10, 0, 4)},
+        var_dom([(xo, 3), (xi, 4)]),
+        predicate=xo * 4 + xi < 10,
+    )
+
 
 def convert_division(divisions):
     if divisions is None or len(divisions) == 0:
@@ -659,6 +704,35 @@ def test_subspace_division():
     assert len(res) == 0
 
 
+def test_subspace_divide_trivial_iters():
+    x = tvm.tir.Var("x", "int32")
+    y = tvm.tir.Var("y", "int32")
+    z = tvm.tir.Var("z", "int32")
+
+    # trivial 1.1
+    res = tvm.arith.subspace_divide(
+        [x * 16 + y], var_dom([(x, 1), (y, 16)]), [y], simplify_trivial_iterators=False
+    )
+    res = convert_division(res)
+    assert len(res) == 2
+    tvm.ir.assert_structural_equal(res[0][0], x)
+    tvm.ir.assert_structural_equal(res[0][1], y)
+
+    # trivial 1.2
+    res = tvm.arith.subspace_divide(
+        [x, y],
+        var_dom([(x, 1), (y, 1)]),
+        [y],
+        simplify_trivial_iterators=False,
+    )
+    res = convert_division(res)
+    assert len(res) == 3
+    tvm.ir.assert_structural_equal(res[0][0], x)
+    tvm.ir.assert_structural_equal(res[0][1], 0)
+    tvm.ir.assert_structural_equal(res[1][0], 0)
+    tvm.ir.assert_structural_equal(res[1][1], y)
+
+
 def test_complex():
     n0 = create_iter("n0", 2)
     n1 = create_iter("n1", 4)
@@ -864,6 +938,19 @@ def test_inverse_affine_iter_map():
     assert analyzer.can_prove_equal(res[l0[0]], l0_inverse)
 
 
+def test_inverse_affine_map_trivial_iter():
+    analyzer = tvm.arith.Analyzer()
+    l0 = create_iter("l0", 64)
+    l1 = create_iter("l1", 64)
+    iter_map = tvm.arith.detect_iter_map([0, l0[0], l1[0]], var_dom([l0, l1])).indices
+    outputs = [tvm.tir.Var("output_{}".format(i), "int32") for i in range(len(iter_map))]
+    res = tvm.arith.inverse_affine_iter_map(iter_map, outputs)
+    # output_0 is expected to be constant and it is not included in the inverse map
+    assert len(res) == 2
+    assert analyzer.can_prove_equal(res[l0[0]], outputs[1])
+    assert analyzer.can_prove_equal(res[l1[0]], outputs[2])
+
+
 def test_free_variables():
     x = tvm.tir.Var("x", "int32")
     y = tvm.tir.Var("y", "int32")
@@ -893,103 +980,309 @@ def test_free_variables():
     )
 
 
-def test_padding():
+class TestPadding:
     x = tvm.tir.Var("x", "int32")
     y = tvm.tir.Var("y", "int32")
     fld = tvm.tir.floordiv
     flm = tvm.tir.floormod
 
-    # left padding only, offset divisible
-    sum = 64 + y
-    dom_map = var_dom([(y, 192)])
-    assert_iter_sum_pattern(
-        {fld(sum, 32): (6, 2, 1), flm(sum, 32): (32, 0, 1)},
-        dom_map,
-        check_level="bijective",
+    positive_test_case = tvm.testing.parameter(
+        # left padding only, offset divisible
+        ({y: 192}, {fld(64 + y, 32): (6, 2, 1), flm(64 + y, 32): (32, 0, 1)}, "bijective"),
+        # left padding only, offset non-divisible
+        ({y: 176}, {fld(80 + y, 32): (6, 2, 1)}),
+        ({y: 176}, {flm(fld(80 + y, 2), 16): (16, 0, 1), flm(80 + y, 2): (2, 0, 1)}),
+        # right padding only, offset divisible
+        ({x: 5, y: 4}, {fld(x * 32 + y * 8, 16): (10, 0, 1), flm(x * 32 + y * 8, 16): (2, 0, 8)}),
+        # right padding only, offset non-divisible
+        ({x: 26}, {fld(x, 15): (2, 0, 1)}),
+        ({x: 26}, {flm(fld(x, 3), 5): (5, 0, 1), flm(x, 3): (3, 0, 1)}),
+        # padding constants on both side
+        ({x: 45}, {fld(x + 71, 32): (2, 2, 1)}),
+        ({x: 45}, {flm(fld(x, 4), 8): (8, 0, 1), flm(x, 4): (4, 0, 1)}),
+        # padding for free iteration part
+        ({y: 360}, {fld(x * 360 + y, 16): (23, fld(x * 360 - flm(x, 2) * 8, 16), 1)}),
+        ({y: 360}, {flm(x * 360 + y, 16): (16, 0, 1)}),
+        # multiple split with same mark offset, could
+        # be surjective on missing (padded // LCM)
+        (
+            {x: 240},
+            {
+                flm(x + 10, 3): (3, 0),
+                flm(fld(x + 10, 3), 4): (4, 0),
+                flm(fld(fld(x + 10, 3), 4), 5): (5, 0),
+            },
+        ),
+        # different offsets on splits
+        (
+            {x: 240},
+            {
+                flm(x + 1, 3): (3, 0),
+                flm(fld(x + 10, 3) + 2, 4): (4, 0),
+                flm(fld(fld(x + 10, 3), 4) + 3, 5): (5, 0),
+            },
+        ),
     )
 
-    # left padding only, offset non-divisible
-    sum = 80 + y
-    dom_map = var_dom([(y, 176)])
-    assert_iter_sum_pattern(
-        {fld(sum, 32): (6, 2, 1)},
-        dom_map,
-    )
-    assert_iter_sum_pattern(
-        {flm(fld(sum, 2), 16): (16, 0, 1), flm(sum, 2): (2, 0, 1)},
-        dom_map,
-    )
-    assert_iter_sum_failure({fld(sum, 32), flm(sum, 32)}, dom_map)
-    assert_iter_sum_failure({fld(sum, 32), fld(sum, 4)}, dom_map)
-
-    # right padding only, offset divisible
-    sum = x * 32 + y * 8
-    dom_map = var_dom([(x, 5), (y, 4)])
-    assert_iter_sum_pattern(
-        {fld(sum, 16): (10, 0, 1), flm(sum, 16): (2, 0, 8)},
-        dom_map,
-    )
-    assert_iter_sum_failure({fld(sum, 5)}, dom_map)
-
-    # right padding only, offset non-divisible
-    dom_map = var_dom([(x, 26)])
-    assert_iter_sum_pattern(
-        {fld(x, 15): (2, 0, 1)},
-        dom_map,
-    )
-    assert_iter_sum_pattern(
-        {flm(fld(x, 3), 5): (5, 0, 1), flm(x, 3): (3, 0, 1)},
-        dom_map,
+    negative_test_case = tvm.testing.parameter(
+        # left padding only, offset non-divisible
+        ({y: 176}, {fld(80 + y, 32), flm(80 + y, 32)}),
+        ({y: 176}, {fld(80 + y, 32), fld(80 + y, 4)}),
+        # right padding only, offset divisible
+        ({x: 5, y: 4}, {fld(x * 32 + y * 8, 5)}),
+        # multiple split with same mark offset, could
+        # be surjective on missing (padded // LCM)
+        (
+            {x: 240},
+            {
+                flm(x + 10, 3),
+                flm(fld(x + 10, 3), 4),
+                flm(fld(fld(x + 10, 3), 4), 5),
+                fld(fld(fld(x + 10, 3), 4), 5),
+            },
+        ),
+        # original extent is smaller than the divident
+        # it is not surjective wrt to the region [0, 16)
+        ({x: 3}, {flm(x, 16)}),
     )
 
-    # padding constants on both side
-    sum = x + 71
-    dom_map = var_dom([(x, 45)])
-    assert_iter_sum_pattern({fld(sum, 32): (2, 2, 1)}, dom_map)
-    assert_iter_sum_pattern(
-        {flm(fld(x, 4), 8): (8, 0, 1), flm(x, 4): (4, 0, 1)},
-        dom_map,
-    )
+    def test_padding(self, positive_test_case):
+        iter_extent, mapped_iterators, *args = positive_test_case
+        check_level = args[0] if args else "surjective"
+        dom_map = {var: tvm.ir.Range(0, ext) for var, ext in iter_extent.items()}
+        assert_iter_sum_pattern(mapped_iterators, dom_map, check_level=check_level)
 
-    # padding for free iteration part
-    sum = x * 360 + y
-    dom_map = var_dom([(y, 360)])
-    assert_iter_sum_pattern({fld(sum, 16): (23, fld(x * 360 - flm(x, 2) * 8, 16), 1)}, dom_map)
-    assert_iter_sum_pattern({flm(x * 360 + y, 16): (16, 0, 1)}, dom_map)
+    def test_padding_error(self, negative_test_case):
+        iter_extent, mapped_iterators, *args = negative_test_case
+        check_level = args[0] if args else "surjective"
+        dom_map = {var: tvm.ir.Range(0, ext) for var, ext in iter_extent.items()}
+        assert_iter_sum_failure(mapped_iterators, dom_map, check_level=check_level)
 
-    # multiple split with same mark offset, could
-    # be surjective on missing (padded // LCM)
+
+def test_overlapped_fuse():
+    x = tvm.tir.Var("x", "int32")
+    y = tvm.tir.Var("y", "int32")
+    z = tvm.tir.Var("z", "int32")
+    a = tvm.tir.Var("x", "int32")
+    b = tvm.tir.Var("y", "int32")
+
+    # non-bijective fuse of two
     assert_iter_sum_pattern(
         {
-            flm(x + 10, 3): (3, 0),
-            flm(fld(x + 10, 3), 4): (4, 0),
-            flm(fld(fld(x + 10, 3), 4), 5): (5, 0),
+            x * 7 + y: (22, 0, 1),
         },
-        var_dom([(x, 240)]),
+        var_dom([(x, 3), (y, 8)]),
+        check_level="surjective",
     )
-    assert_iter_sum_failure(
-        {
-            flm(x + 10, 3),
-            flm(fld(x + 10, 3), 4),
-            flm(fld(fld(x + 10, 3), 4), 5),
-            fld(fld(fld(x + 10, 3), 4), 5),
-        },
-        var_dom([(x, 240)]),
-    )
+    assert_iter_sum_failure([x * 7 + y], var_dom([(x, 3), (y, 8)]), check_level="bijective")
 
-    # different offsets on splits
+    # non-bijective fuse of three
     assert_iter_sum_pattern(
         {
-            flm(x + 1, 3): (3, 0),
-            flm(fld(x + 10, 3) + 2, 4): (4, 0),
-            flm(fld(fld(x + 10, 3), 4) + 3, 5): (5, 0),
+            x * 18 + y * 7 + z: (40, 0, 1),
         },
-        var_dom([(x, 240)]),
+        var_dom([(x, 2), (y, 3), (z, 8)]),
+        check_level="surjective",
+    )
+    assert_iter_sum_failure([x * 7 + y], var_dom([(x, 2), (y, 3), (z, 8)]), check_level="bijective")
+
+    # negative scale fusion is not allowed
+    assert_iter_sum_failure([x * -7 + y], var_dom([(x, 3), (y, 8)]), check_level="surjective")
+    assert_iter_sum_failure([x * 7 - y], var_dom([(x, 3), (y, 8)]), check_level="surjective")
+
+    # with predicate
+    assert_iter_sum_pattern(
+        {
+            a * 40 + b * 20 + x * 18 + y * 3 + z: (125, 6, 1),
+        },
+        var_dom([(a, 3), (b, 2), (x, 2), (y, 6), (z, 8)]),
+        predicate=tvm.tir.all(z < 4, 1 < x * 6 + y, x * 6 + y < 10),
+        check_level="surjective",
     )
 
-    # original extent is smaller than the divident
-    # it is not surjective wrt to the region [0, 16)
-    assert_iter_sum_failure({flm(x, 16)}, var_dom([(x, 3)]))
+    # stride=1 kernel
+    assert_iter_sum_pattern(
+        {x + a: (230, 0, 1)}, var_dom([(x, 224), (a, 7)]), check_level="surjective"
+    )
+
+    # do not allow both strided and overlapped
+    assert_iter_sum_failure([5 * x + 2 * y], var_dom([(x, 4), (y, 3)]), check_level="surjective")
+
+
+def test_iter_map_simplify_symbolic_case():
+    """Test itermap simplify"""
+    x = tvm.tir.Var("x", "int64")
+    y = tvm.tir.Var("y", "int64")
+    z = x * 32 + y
+
+    n = tvm.tir.SizeVar("n", "int64")
+
+    def simple_fuse0(x):
+        return (x // n) * n + x % n
+
+    assert_iter_map_simplify({simple_fuse0(x): x}, var_dom([(x, n * 32)]))
+
+    assert_iter_map_simplify({simple_fuse0(z): z}, var_dom([(x, n), (y, 32)]))
+
+    def fsymbolic_fuse0(x):
+        return ((x // (n * n)) % 32) * (n * n) + ((x // n) % n) * n + x % n
+
+    assert_iter_map_simplify({fsymbolic_fuse0(x): x}, var_dom([(x, n * n * 32)]))
+
+    assert_iter_map_simplify({fsymbolic_fuse0(z): z}, var_dom([(x, n * n), (y, 32)]))
+
+    def fsymbolic_fuse1(x):
+        return ((x % (n * n * 32)) // (n * n) * n + (x % (n * n) // n)) * n + x % n
+
+    assert_iter_map_simplify({fsymbolic_fuse1(x): x}, var_dom([(x, n * n * 32)]))
+
+    assert_iter_map_simplify({fsymbolic_fuse1(z): z}, var_dom([(x, n * n), (y, 32)]))
+
+    def fsymbolic_fuse2(i):
+        return (i // (n * n) * n + i % (n * n) // n) * n + i % n
+
+    assert_iter_map_simplify({fsymbolic_fuse2(x): x}, var_dom([(x, n * n * 32)]))
+
+
+def test_iter_map_simplify_symbolic_predicate():
+    """Test itermap simplify"""
+    x = tvm.tir.Var("x", "int64")
+    y = tvm.tir.Var("y", "int64")
+
+    n = tvm.tir.SizeVar("n", "int64")
+
+    def simple_fuse0(x):
+        return (x // n) * n + x % n
+
+    z = x * 32 + y
+    assert_iter_map_simplify(
+        {simple_fuse0(z): z}, var_dom([(x, (n + 1) // 2), (y, 32)]), predicate=(z < n * 16)
+    )
+
+    def fsymbolic_fuse2(i):
+        return (i // (n * n) * n + i % (n * n) // n) * n + i % n
+
+    z = x * 64 + y
+    assert_iter_map_simplify(
+        {fsymbolic_fuse2(z): z},
+        var_dom([(x, (n * n + 1) // 2), (y, 64)]),
+        predicate=(z < n * n * 32),
+    )
+
+
+def test_iter_map_simplify_symbolic_reshape():
+    n = tvm.tir.Var("n", "int64")
+    fused = tvm.tir.Var("fused", "int64")
+
+    ax0 = (fused // 4096) // n
+    ax1 = (fused // 4096) % n
+    ax2 = fused % 4096
+
+    rhs_index = ((ax2 // 4096 + ax0 * n + ax1) % n) * 4096 + ax2 % 4096
+
+    assert_iter_map_simplify({rhs_index: fused}, var_dom([(fused, n * 4096)]))
+
+
+def test_iter_map_simplify_unit_loop_order():
+    """Test itermap simplify"""
+    x = tvm.tir.Var("x", "int64")
+    y = tvm.tir.Var("y", "int64")
+    z = tvm.tir.Var("z", "int64")
+
+    # trivial iterators can be found at any when comparing via scale
+    # ensure order unchange
+    assert_iter_map_simplify(
+        {x + y + z: x + y + z}, var_dom([(x, 1), (y, 1), (z, 1)]), simplify_trivial_iterators=False
+    )
+
+    # Even with simplifcation, it should follow the original order
+    assert_iter_map_simplify(
+        {x + y + (z // 4) * 4 + z % 4: z + x + y},
+        var_dom([(x, 1), (y, 1), (z, 32)]),
+        simplify_trivial_iterators=False,
+    )
+
+    assert_iter_map_simplify(
+        {y + 64 - x % 2 * 64: y + 64 - x % 2 * 64},
+        var_dom([(x, 6), (y, 64)]),
+        simplify_trivial_iterators=False,
+    )
+
+    # When we have iterators that have same scale but one of them come
+    # with unit extent, we should prioritize unit extent
+    assert_iter_map_simplify(
+        {x // 128 + y + z: y + x // 128 + z},
+        var_dom([(x, 128), (y, 128), (z, 1)]),
+        simplify_trivial_iterators=False,
+    )
+
+
+def assert_normalize_to_iter_sum(index, input_iters, args, base):
+    res = tvm.arith.normalize_to_iter_sum(index, input_iters)
+
+    assert isinstance(res, tvm.arith.IterSumExpr)
+    assert len(res.args) == len(args)
+    for split, item in zip(res.args, args):
+        tvm.testing.assert_prim_expr_equal(split.scale, item[1])
+        tvm.testing.assert_prim_expr_equal(
+            tvm.arith.normalize_iter_map_to_expr(split), item[0] * item[1]
+        )
+    tvm.testing.assert_prim_expr_equal(res.base, base)
+
+
+def test_normalize_to_iter_sum():
+    x = tvm.tir.Var("x", "int64")
+    y = tvm.tir.Var("y", "int64")
+    z = tvm.tir.Var("z", "int64")
+    a = tvm.tir.Var("a", "int64")
+    n = tvm.tir.Var("n", "int64")
+
+    assert_normalize_to_iter_sum(
+        z + ((y + x * 4 + 2) * n) + 3,
+        var_dom([(x, 9), (y, 4), (z, 3)]),
+        [(x, n * 4), (y, n), (z, 1)],
+        2 * n + 3,
+    )
+
+    # max cannot detected so it goes into base
+    assert_normalize_to_iter_sum(
+        tvm.tir.max(z, a) + ((y + x * 4 + 2) * n) + 3,
+        var_dom([(x, 9), (y, 4), (z, 3)]),
+        [(x, n * 4), (y, n)],
+        tvm.tir.max(z, a) + 2 * n + 3,
+    )
+
+    # order by symbolc prod
+    assert_normalize_to_iter_sum(
+        z + ((y * 4 * a + x * 4 + 2) * n) + 3,
+        var_dom([(y, a * n * 4), (x, n * 4), (z, a)]),
+        [(y, a * n * 4), (x, n * 4), (z, 1)],
+        2 * n + 3,
+    )
+
+    # order by cscale
+    assert_normalize_to_iter_sum(
+        z + 2 * y * 3 + 4 * x,
+        var_dom([(y, a * n * 4), (x, n * 4), (z, a)]),
+        [(y, 6), (x, 4), (z, 1)],
+        0,
+    )
+
+    # split pattern
+    assert_normalize_to_iter_sum(
+        z + 2 * y * 3 + 4 * (x // 2),
+        var_dom([(y, a * n * 4), (x, n * 4), (z, a)]),
+        [(y, 6), (x // 2, 4), (z, 1)],
+        0,
+    )
+
+    # iter simplify
+    assert_normalize_to_iter_sum(
+        z * 2 + 2 * y * 3 + 4 * (x // 4) + (x % 4),
+        var_dom([(y, a * n * 4), (x, n * 4), (z, a)]),
+        [(y, 6), (z, 2), (x, 1)],
+        0,
+    )
 
 
 if __name__ == "__main__":

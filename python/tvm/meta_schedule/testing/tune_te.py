@@ -17,7 +17,7 @@
 # pylint: disable=missing-docstring
 import argparse
 import logging
-from os import cpu_count
+from distutils.util import strtobool
 from typing import Optional
 
 import tvm
@@ -80,8 +80,16 @@ def _parse_args():
         default=100,
     )
     args.add_argument(
+        "--adaptive-training",
+        type=lambda x: bool(strtobool(x)),
+        required=False,
+        help="example: True / False",
+        default=True,
+    )
+    args.add_argument(
         "--cpu-flush",
-        type=int,
+        type=lambda x: bool(strtobool(x)),
+        help="example: True / False",
         required=True,
     )
     parsed = args.parse_args()
@@ -98,40 +106,40 @@ def _parse_args():
 logging.basicConfig(
     format="%(asctime)s.%(msecs)03d %(levelname)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
 )
-logging.getLogger("tvm.meta_schedule").setLevel(logging.INFO)
+logging.getLogger("tvm.meta_schedule").setLevel(logging.DEBUG)
 ARGS = _parse_args()
 
 
 def main():
     describe()
     print(f"Workload: {ARGS.workload}")
-    runner = ms.runner.RPCRunner(
-        rpc_config=ARGS.rpc_config,
-        evaluator_config=ms.runner.EvaluatorConfig(
-            number=ARGS.number,
-            repeat=ARGS.repeat,
-            min_repeat_ms=ARGS.min_repeat_ms,
-            enable_cpu_cache_flush=ARGS.cpu_flush,
-        ),
-        alloc_repeat=1,
-    )
     with ms.Profiler() as profiler:
-        sch: Optional[tir.Schedule] = ms.tune_tir(
+        sch: Optional[tir.Schedule] = ms.tir_integration.tune_tir(
             mod=create_te_workload(ARGS.workload, 0),
             target=ARGS.target,
-            config=ms.TuneConfig(
-                strategy="evolutionary",
-                num_trials_per_iter=64,
-                max_trials_per_task=ARGS.num_trials,
-                max_trials_global=ARGS.num_trials,
-            ),
-            runner=runner,  # type: ignore
-            task_name=ARGS.workload,
             work_dir=ARGS.work_dir,
-            num_threads=cpu_count(),
+            max_trials_global=ARGS.num_trials,
+            num_trials_per_iter=64,
+            runner=ms.runner.RPCRunner(  # type: ignore
+                rpc_config=ARGS.rpc_config,
+                evaluator_config=ms.runner.EvaluatorConfig(
+                    number=ARGS.number,
+                    repeat=ARGS.repeat,
+                    min_repeat_ms=ARGS.min_repeat_ms,
+                    enable_cpu_cache_flush=ARGS.cpu_flush,
+                ),
+                alloc_repeat=1,
+            ),
+            cost_model=ms.cost_model.XGBModel(  # type: ignore
+                extractor=ms.feature_extractor.PerStoreFeature(),
+                adaptive_training=ARGS.adaptive_training,
+            ),
+            strategy=ms.search_strategy.EvolutionarySearch(),
         )
+
     print("Tuning Time:")
     print(profiler.table())
+
     if sch is None:
         print("No valid schedule found!")
     else:

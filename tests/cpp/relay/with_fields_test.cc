@@ -23,18 +23,18 @@
  */
 
 #include <gtest/gtest.h>
-#include <tvm/parser/parser.h>
 #include <tvm/relay/adt.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/function.h>
+#include <tvm/relay/parser.h>
 
 namespace tvm {
 namespace relay {
 namespace {
 
 IRModule TestIRModule() {
-  return parser::ParseModule("string",
-                             R"(
+  return ParseModule("string",
+                     R"(
     #[version = "0.0.5"]
     def @main(%data : Tensor[(1, 304, 128, 128), float32],
              %weight1 : Tensor[(304, 1, 3, 3), float32],

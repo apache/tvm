@@ -97,6 +97,11 @@ class TensorRTRuntime : public JSONRuntimeBase {
    */
   const char* type_key() const final { return "tensorrt"; }
 
+  /*! \brief Get the property of the runtime module .*/
+  int GetPropertyMask() const final {
+    return ModulePropertyMask::kBinarySerializable | ModulePropertyMask::kRunnable;
+  }
+
   /*!
    * \brief Initialize runtime. Create TensorRT layer from JSON
    * representation.
@@ -138,13 +143,21 @@ class TensorRTRuntime : public JSONRuntimeBase {
   /*! \brief Destroy engines and contexts. */
   void DestroyEngines() {
     for (auto& it : trt_engine_cache_) {
+      VLOG(1) << "Destroying TensorRT context for function '" << it.first.first << "' (batch size "
+              << it.first.second << ")";
       it.second.context->destroy();
+      VLOG(1) << "Destroying TensorRT engine for function '" << it.first.first << "' (batch size "
+              << it.first.second << ")";
       it.second.engine->destroy();
     }
     trt_engine_cache_.clear();
   }
 
-  ~TensorRTRuntime() { DestroyEngines(); }
+  ~TensorRTRuntime() override {
+    VLOG(1) << "Destroying TensorRT runtime";
+    DestroyEngines();
+    VLOG(1) << "Destroyed TensorRT runtime";
+  }
 
   /*! \brief Run inference using built engine. */
   void Run() override {
@@ -467,7 +480,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
   /*! \brief TensorRT logger. */
   TensorRTLogger logger_;
 
-#else
+#else   // TVM_GRAPH_EXECUTOR_TENSORRT
   void Run() override {
     LOG(FATAL) << "TensorRT runtime is not enabled. "
                << "Please build with USE_TENSORRT_RUNTIME.";
@@ -481,7 +494,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
   bool GetCachedEnginesFromDisk() { return false; }
 
   void CacheEngineToDisk() {}
-#endif
+#endif  // TVM_GRAPH_EXECUTOR_TENSORRT
 
   bool use_implicit_batch_;
 

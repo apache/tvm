@@ -48,7 +48,7 @@ class StaticLibraryNode final : public runtime::ModuleNode {
 
   const char* type_key() const final { return "static_library"; }
 
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
     if (name == "get_func_names") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = func_names_; });
     } else {
@@ -56,13 +56,15 @@ class StaticLibraryNode final : public runtime::ModuleNode {
     }
   }
 
-  void SaveToFile(const std::string& file_name, const std::string& format) final {
+  void SaveToFile(const String& file_name, const String& format) final {
     VLOG(0) << "Saving static library of " << data_.size() << " bytes implementing " << FuncNames()
             << " to '" << file_name << "'";
     SaveBinaryToFile(file_name, data_);
   }
 
-  bool IsDSOExportable() const final { return true; }
+  // TODO(tvm-team): Make this module serializable
+  /*! \brief Get the property of the runtime module .*/
+  int GetPropertyMask() const override { return ModulePropertyMask::kDSOExportable; }
 
   bool ImplementsFunction(const String& name, bool query_imports) final {
     return std::find(func_names_.begin(), func_names_.end(), name) != func_names_.end();

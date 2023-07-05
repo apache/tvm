@@ -29,7 +29,7 @@ from tvm import rpc, te
 from tvm._ffi.base import TVMError
 from tvm.contrib import utils
 from tvm.contrib.debugger import debug_executor
-
+from tvm import relay
 
 # Constants for creating simple graphs, fixtures to avoid free globals
 @pytest.fixture
@@ -151,6 +151,7 @@ def test_end_to_end_graph_simple(graph, n, A, B, s, myadd):
             "Shape",
             "Inputs",
             "Outputs",
+            "Measurements(us)",
         ]
         myadd_lines = split_debug_line(2)
         assert myadd_lines[0] == "add"
@@ -250,9 +251,52 @@ def test_run_single_node(graph, n, A, myadd):
     elapsed_time_in_seconds = end - start
     assert elapsed_time_in_seconds >= 0.5
 
+    # Doing `cooldown_interval_ms` should have the execution time increases
+    start = time.time()
+    mod.run_individual_node(1, repeat=2, min_repeat_ms=500, cooldown_interval_ms=1000)
+    end = time.time()
+    elapsed_time_in_seconds_with_def_rep = end - start
+    assert elapsed_time_in_seconds_with_def_rep >= 3
+
+    # Doing with `repeats_to_cooldown` not equal 1 should not trigger
+    # cooldown after each repeat
+    start = time.time()
+    mod.run_individual_node(
+        1, repeat=2, min_repeat_ms=500, cooldown_interval_ms=1000, repeats_to_cooldown=2
+    )
+    end = time.time()
+    elapsed_time_in_seconds_with_rep_2 = end - start
+    assert elapsed_time_in_seconds_with_rep_2 >= 2 and (
+        elapsed_time_in_seconds_with_rep_2 < elapsed_time_in_seconds_with_def_rep
+    )
+
     # Going out of bounds of node index throws a tvm error
     with pytest.raises(TVMError):
         mod.run_individual_node(2)
+
+
+@tvm.testing.requires_llvm
+def test_multiple_output():
+    x = relay.var("x", shape=(1, 3, 48, 16), dtype="float32")
+    t = relay.split(x, [12, 16, 32], 2).astuple()
+    x0 = relay.TupleGetItem(t, 0)
+    x1 = relay.TupleGetItem(t, 1)
+    x2 = relay.TupleGetItem(t, 2)
+    x3 = relay.TupleGetItem(t, 3)
+    p0 = relay.const(np.random.uniform(-1, 1, (3, 3, 1, 1)).astype("float32"))
+    y = relay.nn.conv2d(x2, p0, kernel_size=(1, 1), kernel_layout="OIHW", out_dtype="float32") + x3
+
+    func = relay.Function([x], relay.Tuple([x0, x1, y]))
+    mod = tvm.IRModule.from_expr(func)
+    mod = relay.transform.InferType()(mod)
+    target = tvm.target.Target("llvm")
+    device = tvm.cpu()
+    lib = relay.build(mod, target=target)
+    m = debug_executor.GraphModuleDebug(
+        lib["debug_create"]("default", device), [device], lib.get_graph_json(), None
+    )
+    nodes = m.debug_datum.get_graph_nodes()
+    assert nodes[2]["shape"] == [3, 3, 1, 1]
 
 
 if __name__ == "__main__":

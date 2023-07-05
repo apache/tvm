@@ -58,8 +58,8 @@ void JSONDumps(ObjectRef json_obj, std::ostringstream& os) {
     std::vector<std::pair<String, ObjectRef>> key_values;
     key_values.reserve(n);
     for (const auto& kv : *dict) {
-      if (const auto* k = kv.first.as<StringObj>()) {
-        key_values.emplace_back(GetRef<String>(k), kv.second);
+      if (auto key = kv.first.as<String>()) {
+        key_values.emplace_back(key.value(), kv.second);
       } else {
         LOG(FATAL) << "TypeError: Only string keys are supported in JSON dumps, but got: "
                    << kv.first->GetTypeKey();
@@ -77,6 +77,8 @@ void JSONDumps(ObjectRef json_obj, std::ostringstream& os) {
       JSONDumps(kv.second, os);
     }
     os << "}";
+  } else if (json_obj->IsInstance<tir::IndexMapNode>()) {
+    JSONDumps(String(SaveJSON(json_obj)), os);
   } else {
     LOG(FATAL) << "TypeError: Unsupported type in JSON object: " << json_obj->GetTypeKey();
   }
@@ -160,14 +162,30 @@ class JSONTokenizer {
     if (st == cur_) {
       return false;
     }
-    // TODO(@junrushao1994): error checking
+    std::string to_parse(st, cur_);
+    if (!is_float) {
+      try {
+        *token = Token{TokenType::kInteger, IntImm(DataType::Int(64), std::stoll(to_parse))};
+      } catch (const std::invalid_argument& e) {
+        LOG(WARNING) << "ValueError: Invalid argument to std::stoll: " << to_parse
+                     << ". Details: " << e.what() << ". Switching to std::stod now.";
+        is_float = true;
+      } catch (const std::out_of_range& e) {
+        LOG(WARNING) << "ValueError: Out-of-range for std::stoll: " << to_parse
+                     << ". Details: " << e.what() << ". Switching to std::stod now.";
+        is_float = true;
+      }
+    }
     if (is_float) {
-      *token = Token{TokenType::kFloat,
-                     FloatImm(DataType::Float(64),  //
-                              std::stod(std::string(st, cur_)))};
-    } else {
-      *token = Token{TokenType::kInteger,  //
-                     Integer(std::stoi(std::string(st, cur_)))};
+      try {
+        *token = Token{TokenType::kFloat, FloatImm(DataType::Float(64), std::stod(to_parse))};
+      } catch (const std::invalid_argument& e) {
+        LOG(INFO) << "ValueError: Invalid argument to std::stod: " << to_parse
+                  << ". Details: " << e.what();
+      } catch (const std::out_of_range& e) {
+        LOG(INFO) << "ValueError: Out-of-range for std::stod: " << to_parse
+                  << ". Details: " << e.what();
+      }
     }
     return true;
   }

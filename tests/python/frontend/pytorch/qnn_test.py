@@ -17,27 +17,24 @@
 """ Tests on quantized torch model conversion """
 import os
 
-from PIL import Image
-
 import numpy as np
-
 import torch
-from torch import nn
-from torch.quantization import (
-    QuantStub,
-    DeQuantStub,
-    fuse_modules,
-    QuantWrapper,
-    prepare_qat,
-    get_default_qat_qconfig,
-)
-
 import tvm
 import tvm.testing
+from PIL import Image
+from torch import nn
+from torch.quantization import (
+    DeQuantStub,
+    QuantStub,
+    QuantWrapper,
+    fuse_modules,
+    get_default_qat_qconfig,
+    prepare_qat,
+)
 from tvm import relay
-from tvm.relay.frontend.pytorch_utils import is_version_greater_than
 from tvm.contrib.download import download_testdata
-from tvm.relay.op.contrib.register import register_pattern_table, get_pattern_table
+from tvm.relay.frontend.pytorch_utils import is_version_greater_than
+from tvm.relay.op.contrib.register import get_pattern_table, register_pattern_table
 
 
 def torch_version_check():
@@ -48,9 +45,15 @@ def torch_version_check():
 
 def get_tvm_runtime(script_module, input_name, ishape, keep_quantized_weight=False, target="llvm"):
     input_shapes = [(input_name, ishape)]
-    mod, params = relay.frontend.from_pytorch(
-        script_module, input_shapes, keep_quantized_weight=keep_quantized_weight
-    )
+    with tvm.testing.disable_span_filling():
+        mod, params = relay.frontend.from_pytorch(
+            script_module, input_shapes, keep_quantized_weight=keep_quantized_weight
+        )
+    with tvm.testing.enable_span_filling():
+        mod_with_span, _ = relay.frontend.from_pytorch(
+            script_module, input_shapes, keep_quantized_weight=keep_quantized_weight
+        )
+    assert tvm.ir.structural_equal(mod, mod_with_span, map_free_vars=True)
 
     if keep_quantized_weight:
         for p in params.values():
@@ -66,8 +69,10 @@ def get_tvm_runtime(script_module, input_name, ishape, keep_quantized_weight=Fal
 
 
 def get_qconfig(per_channel):
-    from torch.quantization.observer import MovingAverageMinMaxObserver
-    from torch.quantization.observer import default_weight_observer
+    from torch.quantization.observer import (
+        MovingAverageMinMaxObserver,
+        default_weight_observer,
+    )
 
     if per_channel:
         return torch.quantization.get_default_qconfig("fbgemm")
@@ -184,18 +189,10 @@ class Hsigmoid(nn.Module):
 class Hswish(nn.Module):
     def __init__(self, add_stub=False):
         super().__init__()
-        self.quant = QuantStub()
-        self.dequant = DeQuantStub()
-        self.add_stub = add_stub
-        self.hswish = nn.Hardswish()
+        self.hswish = QuantWrapper(nn.Hardswish())
 
     def forward(self, x):
-        if self.add_stub:
-            x = self.quant(x)
-        x = self.hswish(x)
-        if self.add_stub:
-            x = self.dequant(x)
-        return x
+        return self.hswish(x)
 
     def fuse_model(self):
         pass
@@ -310,7 +307,7 @@ def test_quantized_modules():
             ("linear_relu" + postfix, (16, 16), Linear(with_relu=True), per_channel),
             ("conv_transpose", imagenet_ishape, ConvTranspose(), False),
             ("hsigmoid", imagenet_ishape, Hsigmoid(add_stub=True), False),
-            ("hswish", imagenet_ishape, Hswish(add_stub=True), False),
+            ("hswish", imagenet_ishape, Hswish(), False),
             ("semodule", (1, 16, 64, 64), SqueezeExcite(16, add_stub=True), False),
             ("semodule, per_channel", (1, 16, 64, 64), SqueezeExcite(16, add_stub=True), True),
             ("mul_scalar negative", imagenet_ishape, MulScalarNegative(), False),
@@ -372,7 +369,8 @@ def test_quantized_modules():
         linear, per_channel 0.0 0.0 1.0
         linear_relu, per_channel 0.0 0.0 1.0
         hsigmoid 0.002614379 0.00020525524 0.9214896896258503
-        hswish 0.0052286386 0.00063522335 0.7587359162414966
+        hswish 0.0026143193 1.7367661e-08 0.9999933567176871
+        hswish, per_channel 0.0 0.0 1.0
         semodule, per_channel 0.0039885044 0.0008620687 0.7838592529296875
         mul_scalar negative 0.0011764616 7.815566e-09 0.9999933567176871
         """
@@ -403,11 +401,13 @@ def test_quantized_imagenet():
         pt_tensor = preprocess(im)
         return np.expand_dims(pt_tensor.numpy(), 0)
 
-    from torchvision.models.quantization import resnet as qresnet
-    from torchvision.models.quantization import mobilenet as qmobilenet
-    from torchvision.models.quantization import inception as qinception
     from torchvision.models.quantization import googlenet as qgooglenet
-    from torchvision.models.quantization import mobilenet_v3_large as qmobilenet_v3_large
+    from torchvision.models.quantization import inception as qinception
+    from torchvision.models.quantization import mobilenet as qmobilenet
+    from torchvision.models.quantization import (
+        mobilenet_v3_large as qmobilenet_v3_large,
+    )
+    from torchvision.models.quantization import resnet as qresnet
 
     per_channel = True
     qmodels = [
@@ -603,7 +603,7 @@ def test_quantize_dynamic():
 
 
 def make_qnn_add_pattern():
-    from tvm.relay.dataflow_pattern import wildcard, is_op
+    from tvm.relay.dataflow_pattern import is_op, wildcard
 
     lhs = wildcard()
     rhs = wildcard()
@@ -635,7 +635,11 @@ def pattern_table():
 
 def run_qnn_mergecomposite(script_module, input_name, ishape):
     input_shapes = [(input_name, ishape)]
-    mod, params = relay.frontend.from_pytorch(script_module, input_shapes)
+    with tvm.testing.disable_span_filling():
+        mod, params = relay.frontend.from_pytorch(script_module, input_shapes)
+    with tvm.testing.enable_span_filling():
+        mod_with_span, _ = relay.frontend.from_pytorch(script_module, input_shapes)
+    assert tvm.ir.structural_equal(mod, mod_with_span, map_free_vars=True)
     pattern_table = get_pattern_table("test_table")
     with tvm.transform.PassContext(opt_level=3):
         pass_list = [
@@ -784,12 +788,16 @@ def test_tuple_lowered():
     script_module = torch.jit.trace(model_int8, fp32_input).eval()
 
     input_infos = [("input", (fp32_input.shape, "float32"))]
-    mod, _ = relay.frontend.from_pytorch(script_module, input_infos)
+    with tvm.testing.disable_span_filling():
+        mod, _ = relay.frontend.from_pytorch(script_module, input_infos)
+    with tvm.testing.enable_span_filling():
+        mod_with_span, _ = relay.frontend.from_pytorch(script_module, input_infos)
+    assert tvm.ir.structural_equal(mod, mod_with_span, map_free_vars=True)
     output = mod["main"].body
 
     assert isinstance(output, relay.Tuple) and len(output) == 2
     dq1, dq2 = output
-    assert str(dq1.op) == "qnn.dequantize" and str(dq2.op) == "qnn.dequantize"
+    assert dq1.op.name == "qnn.dequantize" and dq2.op.name == "qnn.dequantize"
     scale1 = dq1.args[1].data.numpy().item()
     scale2 = dq2.args[1].data.numpy().item()
     assert scale1 != scale2

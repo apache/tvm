@@ -34,8 +34,6 @@ def dot_product_16x4_u8i8i32_desc(
         T.reads(C[0:16], A[0:4], B[0:16, 0:4])
         T.writes(C[0:16])
         for i in T.serial(0, 16):
-            with T.init():
-                C[i] = T.int32(0)
             for k in T.serial(0, 4):
                 with T.block("update"):
                     vi, vk = T.axis.remap("SR", [i, k])
@@ -57,13 +55,48 @@ def dot_product_16x4_u8i8i32_vnni(
 
         B_i8x64 = B.vload([0, 0], dtype="int8x64")
         B_i32x16 = T.reinterpret(B_i8x64, dtype="int32x16")
+        C_i32x16 = C.vload([0], dtype="int32x16")
 
-        C[T.ramp(T.int32(0), 1, 16)] += T.call_llvm_pure_intrin(  # Note: this is an update +=
+        C[T.ramp(T.int32(0), 1, 16)] = T.call_llvm_pure_intrin(
             T.llvm_lookup_intrinsic_id("llvm.x86.avx512.vpdpbusd.512"),
-            T.uint32(0),
-            T.int32x16(0),
+            T.uint32(3),
+            C_i32x16,
             T.broadcast(A_i32, 16),
             B_i32x16,
+            dtype="int32x16",
+        )
+
+
+@T.prim_func
+def dot_product_16x4_u8i8i32_avx512(
+    A: T.Buffer((4,), "uint8", offset_factor=1),
+    B: T.Buffer((16, 4), "int8", offset_factor=1),
+    C: T.Buffer((16,), "int32", offset_factor=1),
+) -> None:
+    with T.block("root"):
+        T.reads(C[0:16], A[0:4], B[0:16, 0:4])
+        T.writes(C[0:16])
+
+        A_u8x4 = A.vload([0], "uint8x4")
+        A_i32 = T.reinterpret(A_u8x4, dtype="int32")
+        A_brdcst = T.broadcast(A_i32, 16)
+        A_u8x64 = T.reinterpret(A_brdcst, dtype="uint8x64")
+
+        B_i8x64 = B.vload([0, 0], dtype="int8x64")
+
+        Red = T.call_llvm_pure_intrin(
+            T.llvm_lookup_intrinsic_id("llvm.x86.avx512.pmaddubs.w.512"),
+            T.uint32(2),
+            A_u8x64,
+            B_i8x64,
+            dtype="int16x32",
+        )
+
+        C[T.ramp(T.int32(0), 1, 16)] += T.call_llvm_pure_intrin(
+            T.llvm_lookup_intrinsic_id("llvm.x86.avx512.pmaddw.d.512"),
+            T.uint32(2),
+            Red,
+            T.int16x32(1),
             dtype="int32x16",
         )
 
@@ -72,4 +105,10 @@ VNNI_DOT_16x4_INTRIN = "dot_16x4_vnni"
 
 TensorIntrin.register(
     VNNI_DOT_16x4_INTRIN, dot_product_16x4_u8i8i32_desc, dot_product_16x4_u8i8i32_vnni
+)
+
+AVX512_DOT_16x4_INTRIN = "dot_16x4_avx512"
+
+TensorIntrin.register(
+    AVX512_DOT_16x4_INTRIN, dot_product_16x4_u8i8i32_desc, dot_product_16x4_u8i8i32_avx512
 )

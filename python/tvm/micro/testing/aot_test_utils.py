@@ -15,16 +15,21 @@
 # specific language governing permissions and limitations
 # under the License.
 
+"""
+This file provides utilities for running AOT tests, especially for Corstone.
+
+"""
+
 import logging
 import itertools
 import shutil
 
 import pytest
 
-pytest.importorskip("tvm.micro")
-
 import tvm
 from tvm.testing.aot import AOTTestRunner
+
+pytest.importorskip("tvm.micro")
 
 _LOG = logging.getLogger(__name__)
 
@@ -36,9 +41,9 @@ AOT_DEFAULT_RUNNER = AOTTestRunner()
 AOT_CORSTONE300_RUNNER = AOTTestRunner(
     makefile="corstone300",
     prologue="""
-    uart_init();
+    UartStdOutInit();
     """,
-    includes=["uart.h"],
+    includes=["uart_stdout.h"],
     pass_config={
         "relay.ext.cmsisnn.options": {
             "mcpu": "cortex-m55",
@@ -49,9 +54,9 @@ AOT_CORSTONE300_RUNNER = AOTTestRunner(
 AOT_USMP_CORSTONE300_RUNNER = AOTTestRunner(
     makefile="corstone300",
     prologue="""
-    uart_init();
+    UartStdOutInit();
     """,
-    includes=["uart.h"],
+    includes=["uart_stdout.h"],
     pass_config={
         "relay.ext.cmsisnn.options": {
             "mcpu": "cortex-m55",
@@ -97,9 +102,9 @@ def parametrize_aot_options(test):
         valid_combinations,
     )
 
-    fn = pytest.mark.parametrize(
+    func = pytest.mark.parametrize(
         ["interface_api", "use_unpacked_api", "test_runner"],
         marked_combinations,
     )(test)
 
-    return tvm.testing.skip_if_32bit(reason="Reference system unavailable in i386 container")(fn)
+    return tvm.testing.skip_if_32bit(reason="Reference system unavailable in i386 container")(func)

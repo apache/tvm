@@ -17,16 +17,15 @@
 
 package org.apache.tvm.rpc;
 
-import org.apache.tvm.Device;
-import org.apache.tvm.Function;
-import org.apache.tvm.Module;
-
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
+import org.apache.tvm.Device;
+import org.apache.tvm.Function;
+import org.apache.tvm.Module;
 
 /**
  * RPC Client session module.
@@ -98,7 +97,7 @@ public class RPCSession {
    * @return Remote CPU device.
    */
   public Device cpu(int devId) {
-    return device(1, devId);
+    return Device.cpu(devId);
   }
 
   /**
@@ -115,7 +114,7 @@ public class RPCSession {
    * @return Remote CUDA GPU device.
    */
   public Device cuda(int devId) {
-    return device(2, devId);
+    return Device.cuda(devId);
   }
 
   /**
@@ -132,7 +131,7 @@ public class RPCSession {
    * @return Remote OpenCL device.
    */
   public Device cl(int devId) {
-    return device(4, devId);
+    return Device.opencl(devId);
   }
 
   /**
@@ -149,7 +148,7 @@ public class RPCSession {
    * @return Remote OpenCL device.
    */
   public Device vulkan(int devId) {
-    return device(7, devId);
+    return Device.vulkan(devId);
   }
 
   /**
@@ -160,14 +159,13 @@ public class RPCSession {
     return vulkan(0);
   }
 
-
   /**
    * Construct remote Metal device.
    * @param devId device id.
    * @return Remote metal device.
    */
   public Device metal(int devId) {
-    return device(8, devId);
+    return Device.metal(devId);
   }
 
   /**
@@ -240,7 +238,6 @@ public class RPCSession {
     return RPC.getApi("LoadRemoteModule").pushArg(session).pushArg(path).invoke().asModule();
   }
 
-
   private static byte[] getBytesFromFile(File file) throws IOException {
     // Get the size of the file
     long length = file.length();
@@ -250,7 +247,7 @@ public class RPCSession {
     }
 
     // cannot create an array using a long type.
-    byte[] bytes = new byte[(int)length];
+    byte[] bytes = new byte[(int) length];
 
     // Read in the bytes
     int offset = 0;
@@ -258,8 +255,8 @@ public class RPCSession {
 
     InputStream is = new FileInputStream(file);
     try {
-      while (offset < bytes.length
-          && (numRead = is.read(bytes, offset, bytes.length - offset)) >= 0) {
+      while (
+          offset < bytes.length && (numRead = is.read(bytes, offset, bytes.length - offset)) >= 0) {
         offset += numRead;
       }
     } finally {

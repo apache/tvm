@@ -81,8 +81,6 @@ class StorageAccessVisitor : public StmtExprVisitor {
     std::vector<AccessEntry> access;
   };
   // override visitor pattern
-  void VisitExpr_(const LoadNode* op) final;
-  void VisitStmt_(const StoreNode* op) final;
   void VisitExpr_(const BufferLoadNode* op) final;
   void VisitStmt_(const BufferStoreNode* op) final;
   void VisitStmt_(const EvaluateNode* op) final;
@@ -125,7 +123,7 @@ class StorageAccessVisitor : public StmtExprVisitor {
    */
   StorageScope GetScope(Var buffer_var) const;
   // access scope
-  std::vector<std::vector<StmtEntry> > scope_;
+  std::vector<std::vector<StmtEntry>> scope_;
 
  private:
   // whether access appending is enabled.
@@ -141,7 +139,6 @@ class StorageAccessVisitor : public StmtExprVisitor {
   // The involving threads
   Array<IterVar> env_threads_;
 };
-
 }  // namespace tir
 }  // namespace tvm
 #endif  // TVM_TIR_TRANSFORMS_STORAGE_ACCESS_H_

@@ -1,0 +1,154 @@
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+{% macro per_exec_ws(folder) -%}
+  "workspace/exec_${env.EXECUTOR_NUMBER}/{{ folder }}"
+{%- endmacro -%}
+
+{% macro junit_to_s3(test_dir_name) %}
+sh(
+            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/pytest-results/{{ test_dir_name }} --items build/pytest-results",
+            label: 'Upload JUnits to S3',
+          )
+{% endmacro %}
+
+{% macro sharded_test_step(name, num_shards, node, ws, docker_image, platform, test_method_names, condition="!skip_ci && is_docs_only_build != 1") %}
+
+{% for shard_index in range(1, num_shards + 1) %}
+{% set method_name = "shard_run_" + name.replace(":", "").replace(" ", "-").replace("-", "_") + "_" + shard_index|string + "_of_" + num_shards|string %}
+{% set test_dir_name = name.replace(":", "").replace(" ", "-").replace("-", "_")|string %}
+def {{ method_name }}(node_type='{{ node }}-SPOT', on_demand=false) {
+  if ({{ condition }}) {
+    if (on_demand==true || node_type.contains('ARM')) {
+        node_type = '{{ node }}'
+    }
+    node(node_type) {
+      ws({{ per_exec_ws(ws) }}) {
+        try {
+          init_git()
+          docker_init({{ docker_image }})
+          timeout(time: max_time, unit: 'MINUTES') {
+            withEnv([
+              'PLATFORM={{ platform }}',
+              'TEST_STEP_NAME={{ name }}',
+              'TVM_NUM_SHARDS={{ num_shards }}',
+              'TVM_SHARD_INDEX={{ shard_index - 1 }}',
+              "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
+              {{ caller(shard_index, num_shards) | trim | indent(width=12) }}
+            })
+          }
+        } finally {
+          try {
+            {{ junit_to_s3(test_dir_name) }}
+            junit 'build/pytest-results/*.xml'
+          } catch (Exception e) {
+            echo 'Exception during JUnit upload: ' + e.toString()
+          }
+        }
+      }
+    }
+  } else {
+    Utils.markStageSkippedForConditional('{{ name }} {{ shard_index }} of {{ num_shards }}')
+  }
+}
+{% set _ = test_method_names.append((name + " " + shard_index|string + " of " + num_shards|string, method_name)) %}
+
+{% endfor %}
+{% endmacro %}
+
+{% macro invoke_build(name, condition, node, docker_image, ws, platform) %}
+def build(node_type) {
+  stage('Build') {
+    if ({{ condition }}) {
+      node(node_type) {
+        ws({{ per_exec_ws(ws) }}) {
+          init_git()
+          docker_init({{ docker_image }})
+          timeout(time: max_time, unit: 'MINUTES') {
+
+            withEnv([
+              'PLATFORM={{ platform }}',
+              ], {
+              {{ caller() | trim | indent(width=6) }}
+            })
+          }
+        }
+      }
+    } else {
+      Utils.markStageSkippedForConditional('{{ name }}')
+    }
+  }
+}
+try {
+    build('{{ node }}-SPOT')
+} catch (Exception ex) {
+    build('{{ node }}')
+}
+{% endmacro %}
+
+{% macro invoke_tests(test_method_names) %}
+def test() {
+  stage('Test') {
+    environment {
+      SKIP_SLOW_TESTS = "${skip_slow_tests}"
+    }
+    parallel(
+    {% for stage_name, method_name in test_method_names %}
+    '{{ stage_name }}': {
+      try {
+      {{ method_name }}()
+      } catch (Exception ex) {
+        {{ method_name }}(on_demand = true)
+      }
+    },
+    {% endfor %}
+    )
+  }
+}
+test()
+{% endmacro %}
+
+{% macro deploy_step(name, feature_flag, ws) %}
+  '{{ name }}': {
+    if ({{ feature_flag }}) {
+      node('CPU') {
+        ws({{ per_exec_ws(ws) }}) {
+          timeout(time: max_time, unit: 'MINUTES') {
+            {{ caller() | indent(width=10) | trim }}
+          }
+        }
+      }
+    } else {
+      Utils.markStageSkippedForConditional('{{ name }}')
+    }
+  },
+{% endmacro %}
+
+{% macro upload_artifacts(action, tag, filenames) %}
+{% set items = ' '.join(filenames) %}
+sh(
+      script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/{{ tag }} --items {{ items }}",
+      label: 'Upload artifacts to S3',
+    )
+{% endmacro %}
+
+{% macro download_artifacts(tag) %}
+sh(
+      script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/{{ tag }}",
+      label: 'Download artifacts from S3',
+    )
+{% endmacro %}

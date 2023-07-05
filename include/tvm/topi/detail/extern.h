@@ -75,7 +75,7 @@ using FExtern = std::function<PrimExpr(Array<Buffer>, Array<Buffer>)>;
  * be one output Tensor for each element of out_shapes, with dtype equal to the corresponding
  * element of out_types.
  */
-inline Array<Tensor> make_extern(const Array<Array<PrimExpr> >& out_shapes,
+inline Array<Tensor> make_extern(const Array<Array<PrimExpr>>& out_shapes,
                                  const std::vector<DataType>& out_types,
                                  const Array<Tensor>& inputs, FExtern fextern, std::string name,
                                  std::string tag, ::tvm::Map<String, ObjectRef> attrs) {
@@ -118,7 +118,7 @@ inline PrimExpr pack_buffer(Buffer buf) {
   PrimExpr strides;
   if (buf->strides.size() > 0) {
     strides =
-        tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_stack_make_shape(), buf->shape);
+        tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_stack_make_shape(), buf->strides);
   } else {
     strides = 0;
   }

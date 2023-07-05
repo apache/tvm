@@ -635,8 +635,8 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
     ICHECK(mod_.defined());
     if (gv_map_.count(gv) == 0) {
       BaseFunc base_func = mod_->Lookup(gv);
-      if (auto* n = base_func.as<FunctionNode>()) {
-        Function func = GetRef<Function>(n);
+      if (auto opt = base_func.as<Function>()) {
+        auto func = opt.value();
         InitializeFuncId(func);
         Func f = VisitFuncStatic(func, gv);
         gv_map_.insert({gv, HasStatic(MkSFunc(f), gv)});
@@ -772,7 +772,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
     if (func->HasNonzeroAttr(attr::kPrimitive)) {
       return ConstEvaluateFunc(func);
     }
-    std::vector<std::pair<Var, PStatic> > free_vars;
+    std::vector<std::pair<Var, PStatic>> free_vars;
     for (const auto& v : FreeVars(func)) {
       if (v != var) {
         free_vars.push_back(std::pair<Var, PStatic>(v, env_.Lookup(v)));
@@ -879,10 +879,10 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
     if (v->IsInstance<runtime::NDArray::ContainerType>()) {
       auto nd_array = Downcast<runtime::NDArray>(v);
       return HasStatic(MkSTensor(nd_array), ll->Push(Constant(nd_array)));
-    } else if (const runtime::ADTObj* op = v.as<runtime::ADTObj>()) {
+    } else if (auto opt = v.as<runtime::ADT>()) {
       std::vector<PStatic> fields;
       tvm::Array<Expr> fields_dyn;
-      auto adt = GetRef<runtime::ADT>(op);
+      auto adt = opt.value();
       for (size_t i = 0; i < adt.size(); ++i) {
         PStatic ps = Reify(adt[i], ll);
         fields.push_back(ps);

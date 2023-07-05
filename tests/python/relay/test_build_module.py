@@ -21,44 +21,25 @@ import tvm
 import tvm.testing
 from tvm import relay
 from tvm.target.target import Target
+from tvm.relay import testing
 from tvm.relay.backend import Runtime, Executor, graph_executor_codegen
-from tvm.relay.build_module import _reconstruct_from_deprecated_options
 
 
 @pytest.mark.parametrize(
-    "target,executor,runtime",
+    "test_target,unsupported_config",
     [
-        [Target("c"), None, None],
-        [Target("c -runtime=c"), None, Runtime("crt")],
-        [Target("c -system-lib"), None, Runtime("cpp", {"system-lib": True})],
-        [Target("c -runtime=c -system-lib"), None, Runtime("crt", {"system-lib": True})],
-        [Target("c -executor=aot"), Executor("aot"), None],
-        [
-            Target("c -executor=aot -interface-api=c"),
-            Executor("aot", {"interface-api": "c"}),
-            None,
-        ],
-        [
-            Target("c -executor=aot -unpacked-api=1"),
-            Executor("aot", {"unpacked-api": True}),
-            None,
-        ],
-        [Target("c -executor=aot -link-params=1"), Executor("aot"), None],
-        [Target("c -link-params=1"), Executor("graph", {"link-params": True}), None],
-        [
-            Target(
-                "c -executor=aot -link-params=1 -interface-api=c"
-                "  -unpacked-api=1 -runtime=c -system-lib"
-            ),
-            Executor("aot", {"unpacked-api": True, "interface-api": "c"}),
-            Runtime("crt", {"system-lib": True}),
-        ],
+        ["c", "-runtime=c"],
+        ["c", "-system-lib=1"],
+        ["c", "-executor=aot"],
+        ["c", "-interface-api=c"],
+        ["c", "-unpacked-api=1"],
+        ["c", "-link-params=1"],
     ],
 )
-def test_deprecated_target_parameters(target, executor, runtime):
-    actual_executor, actual_runtime = _reconstruct_from_deprecated_options(target)
-    assert executor == actual_executor
-    assert runtime == actual_runtime
+def test_deprecated_target_parameters(test_target, unsupported_config):
+    with pytest.raises(ValueError) as e_info:
+        Target(f"{test_target} {unsupported_config}")
+        assert f"Cannot recognize '{unsupported_config}" in str(e_info.execption)
 
 
 def test_build_relay_graph_():
@@ -80,6 +61,42 @@ def test_build_relay_graph_():
         return mod
 
     build_graph(add((1, 8), "float32"), tvm.target.Target("llvm"))
+
+
+@tvm.testing.requires_llvm
+def test_schedule_record():
+    """Test to build a nn model and get schedule_record from build_module"""
+
+    def check_schedule(executor):
+        for func_name, func_meta in executor.function_metadata.items():
+            # check converted op only
+            if "main" not in func_name:
+                primfunc = list(func_meta.relay_primfuncs.values())[0]
+                # make sure schedule is well-stored in function metadata
+                assert "schedule" in primfunc.attrs
+                sch = primfunc.attrs["schedule"]
+                assert len(sch.schedule_record) == len(sch.primitive_record)
+
+    relay_mod, params = testing.mobilenet.get_workload(batch_size=1, dtype="float32")
+    target_llvm = tvm.target.Target("llvm")
+    config = {"te.keep_schedule_record": True}
+
+    with tvm.transform.PassContext(opt_level=3, config=config):
+        aot_executor_factory = relay.build(
+            relay_mod,
+            target_llvm,
+            runtime=Runtime("cpp"),
+            executor=Executor("aot"),
+            params=params,
+        )
+        graph_executor_factory = relay.build(
+            relay_mod,
+            target_llvm,
+            params=params,
+        )
+
+    check_schedule(aot_executor_factory)
+    check_schedule(graph_executor_factory)
 
 
 if __name__ == "__main__":

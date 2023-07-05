@@ -163,8 +163,12 @@ void SubgraphExtractor::VisitExpr_(const CallNode* call_node) {
 
 class SubgraphMutator : public ExprMutator {
  public:
-  SubgraphMutator(ExprSet subgraph, AffineTypeMap affine_types, bool hard_fail)
-      : subgraph_(subgraph), affine_types_(affine_types), hard_fail_(hard_fail) {}
+  SubgraphMutator(ExprSet subgraph, AffineTypeMap affine_types, bool hard_fail,
+                  const std::unordered_set<String>& optional_qnn_ops)
+      : subgraph_(subgraph),
+        affine_types_(affine_types),
+        hard_fail_(hard_fail),
+        optional_qnn_ops_(optional_qnn_ops) {}
 
   Expr MutateSubgraph(const Expr& expr) {
     if (subgraph_.size() == 0) {
@@ -176,9 +180,14 @@ class SubgraphMutator : public ExprMutator {
     out_type_ = affine_types_[expr];
     static auto fqfq =
         Op::GetAttrMap<FTVMFakeQuantizationToInteger>("FTVMFakeQuantizationToInteger");
+    static auto opt_fqfq =
+        Op::HasAttrMap("FTVMOptionalFakeQuantizationToInteger")
+            ? Op::GetAttrMap<FTVMFakeQuantizationToInteger>("FTVMOptionalFakeQuantizationToInteger")
+            : fqfq;
     for (auto node : subgraph_) {
       const Op op = Downcast<Op>(node.as<CallNode>()->op);
-      if (!fqfq.count(Downcast<Op>(op))) {
+      if (!fqfq.count(Downcast<Op>(op)) &&
+          !(optional_qnn_ops_.count(op->name) && opt_fqfq.count(Downcast<Op>(op)))) {
         // Only modify the subgraph if we have translation
         // rules for every op
         if (hard_fail_) {
@@ -193,7 +202,7 @@ class SubgraphMutator : public ExprMutator {
       return Mutate(expr);
     } catch (std::exception& e) {
       if (hard_fail_) {
-        throw e;
+        LOG(FATAL) << e.what();
       } else {
         DLOG(INFO) << "Ran into an error rewriting a subgraph, skipping" << expr << std::endl;
         return expr;
@@ -207,8 +216,12 @@ class SubgraphMutator : public ExprMutator {
 
     static auto fqfq =
         Op::GetAttrMap<FTVMFakeQuantizationToInteger>("FTVMFakeQuantizationToInteger");
+    static auto opt_fqfq =
+        Op::HasAttrMap("FTVMOptionalFakeQuantizationToInteger")
+            ? Op::GetAttrMap<FTVMFakeQuantizationToInteger>("FTVMOptionalFakeQuantizationToInteger")
+            : fqfq;
     Op op = Downcast<Op>(call_node->op);
-    if (fqfq.count(op)) {
+    if (fqfq.count(op) || (optional_qnn_ops_.count(op->name) && opt_fqfq.count(op))) {
       Expr expr;
       if (op == dequantize_op_) {
         expr = GetRef<Expr>(call_node);
@@ -219,7 +232,7 @@ class SubgraphMutator : public ExprMutator {
         affine_types_.Set(expr, out_type_);
       }
       // Call the rewrite
-      Array<ObjectRef> vals = fqfq[op](expr, affine_types_);
+      Array<ObjectRef> vals = (fqfq.count(op) ? fqfq : opt_fqfq)[op](expr, affine_types_);
       // Save the outputs of the rewrite
       ICHECK(vals.size() == 2)
           << "got the wrong number of returned arguments from FTVMFakeQuantizationToInteger for "
@@ -256,13 +269,16 @@ class SubgraphMutator : public ExprMutator {
   AffineTypeMap affine_types_;
   AffineType out_type_;
   const bool hard_fail_;
+  const std::unordered_set<String>& optional_qnn_ops_;
   const Op quantize_op_ = Op::Get("qnn.quantize");
   const Op dequantize_op_ = Op::Get("qnn.dequantize");
 };
 
 class FakeQuantizationRewriter : public MixedModeMutator {
  public:
-  explicit FakeQuantizationRewriter(bool hard_fail) : hard_fail_(hard_fail) {}
+  explicit FakeQuantizationRewriter(bool hard_fail,
+                                    const std::unordered_set<String>& optional_qnn_ops)
+      : hard_fail_(hard_fail), optional_qnn_ops_(optional_qnn_ops) {}
 
  protected:
   Expr Rewrite_(const CallNode* pre, const Expr& post) override {
@@ -286,8 +302,8 @@ class FakeQuantizationRewriter : public MixedModeMutator {
         for (auto expr : subgraph) {
           post_subgraph.insert(memo_[expr]);
         }
-        Expr out =
-            SubgraphMutator(post_subgraph, post_affine_types, hard_fail_).MutateSubgraph(post);
+        Expr out = SubgraphMutator(post_subgraph, post_affine_types, hard_fail_, optional_qnn_ops_)
+                       .MutateSubgraph(post);
         return out;
       }
     }
@@ -295,12 +311,13 @@ class FakeQuantizationRewriter : public MixedModeMutator {
   }
   const Op quantize_op_ = Op::Get("qnn.quantize");
   const bool hard_fail_;
+  const std::unordered_set<String>& optional_qnn_ops_;
 };
 
 /* Checks if the operation to convert QAT pass is enabled.
  * The following conditions must be satisfied:
  * 1. operations registered for FTVMFakeQuantizationToInteger;
- * 2. Unary operators or operators with with the TensorAffineType calculated during
+ * 2. Unary operators or operators with the TensorAffineType calculated during
  * FTVMFakeQuantizationToInteger conversion;
  * 3. Not one of the "key" operations: requantize,quantize and dequantize(they are at the boundaries
  * of regions defined to be quantized).
@@ -404,8 +421,12 @@ class QATSubgraphExtractor : public ExprVisitor {
 
 class QATSubgraphMutator : public ExprMutator {
  public:
-  QATSubgraphMutator(ExprSet subgraph, AffineTypeMap affine_types, bool hard_fail)
-      : subgraph_(subgraph), affine_types_(affine_types), hard_fail_(hard_fail) {}
+  QATSubgraphMutator(ExprSet subgraph, AffineTypeMap affine_types, bool hard_fail,
+                     const std::unordered_set<String>& optional_qnn_ops)
+      : subgraph_(subgraph),
+        affine_types_(affine_types),
+        hard_fail_(hard_fail),
+        optional_qnn_ops_(optional_qnn_ops) {}
 
   Expr MutateSubgraph(const Expr& expr) {
     if (subgraph_.size() == 0) {
@@ -447,9 +468,13 @@ class QATSubgraphMutator : public ExprMutator {
     Expr out;
     static auto fqfq =
         Op::GetAttrMap<FTVMFakeQuantizationToInteger>("FTVMFakeQuantizationToInteger");
+    static auto opt_fqfq =
+        Op::HasAttrMap("FTVMOptionalFakeQuantizationToInteger")
+            ? Op::GetAttrMap<FTVMFakeQuantizationToInteger>("FTVMOptionalFakeQuantizationToInteger")
+            : fqfq;
 
     Op op = Downcast<Op>(call_node->op);
-    if (fqfq.count(op)) {
+    if (fqfq.count(op) || (optional_qnn_ops_.count(op->name) && opt_fqfq.count(op))) {
       Expr expr;
       if (op == dequantize_op_) {
         expr = GetRef<Expr>(call_node);
@@ -457,7 +482,7 @@ class QATSubgraphMutator : public ExprMutator {
         expr = ExprMutator::VisitExpr_(call_node);
       }
       // Call the rewrite
-      Array<ObjectRef> vals = fqfq[op](expr, affine_types_);
+      Array<ObjectRef> vals = (fqfq.count(op) ? fqfq : opt_fqfq)[op](expr, affine_types_);
       // Save the outputs of the rewrite
       ICHECK(vals.size() == 2)
           << "got the wrong number of returned arguments from FTVMFakeQuantizationToInteger for "
@@ -500,13 +525,15 @@ class QATSubgraphMutator : public ExprMutator {
   ExprSet subgraph_;
   AffineTypeMap affine_types_;
   const bool hard_fail_;
+  const std::unordered_set<String>& optional_qnn_ops_;
   const Op dequantize_op_ = Op::Get("qnn.dequantize");
   const CallNode* quantize_node_ = nullptr;
 };
 
 class QATRewriter : public MixedModeMutator {
  public:
-  explicit QATRewriter(bool hard_fail) : hard_fail_(hard_fail) {}
+  explicit QATRewriter(bool hard_fail, const std::unordered_set<String>& optional_qnn_ops)
+      : hard_fail_(hard_fail), optional_qnn_ops_(optional_qnn_ops) {}
 
  protected:
   Expr Rewrite_(const CallNode* pre, const Expr& post) override {
@@ -516,33 +543,39 @@ class QATRewriter : public MixedModeMutator {
         QATSubgraphExtractor extractor;
         ExprSet subgraph = extractor.GetSubgraph(post);
         AffineTypeMap affine_types = extractor.GetAffineTypes();
-        Expr out = QATSubgraphMutator(subgraph, affine_types, hard_fail_).MutateSubgraph(post);
+        Expr out = QATSubgraphMutator(subgraph, affine_types, hard_fail_, optional_qnn_ops_)
+                       .MutateSubgraph(post);
         return out;
       }
     }
     return post;
   }
   const bool hard_fail_;
+  const std::unordered_set<String>& optional_qnn_ops_;
 };
 
-Expr FakeQuantizationToInteger(const Expr& expr, const IRModule& mod, bool hard_fail,
-                               bool use_qat) {
-  auto fq_expr = FakeQuantizationRewriter(hard_fail).Mutate(expr);
+Expr FakeQuantizationToInteger(const Expr& expr, const IRModule& mod, bool hard_fail, bool use_qat,
+                               const Array<String>& optional_qnn_ops) {
+  const std::unordered_set<String> optional_qnn_ops_(optional_qnn_ops.begin(),
+                                                     optional_qnn_ops.end());
+  auto fq_expr = FakeQuantizationRewriter(hard_fail, optional_qnn_ops_).Mutate(expr);
   if (use_qat) {
     fq_expr = tvm::relay::InferType(fq_expr);
-    fq_expr = QATRewriter(hard_fail).Mutate(fq_expr);
+    fq_expr = QATRewriter(hard_fail, optional_qnn_ops_).Mutate(fq_expr);
   }
   return fq_expr;
 }
 
 namespace transform {
 
-Pass FakeQuantizationToInteger(bool hard_fail, bool use_qat) {
+Pass FakeQuantizationToInteger(bool hard_fail, bool use_qat,
+                               const Array<String>& optional_qnn_ops) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
-        return Downcast<Function>(FakeQuantizationToInteger(f, m, hard_fail, use_qat));
+        return Downcast<Function>(
+            FakeQuantizationToInteger(f, m, hard_fail, use_qat, optional_qnn_ops));
       };
-  return CreateFunctionPass(pass_func, 0, "FakeQuantizationToInteger", {"InferType"});
+  return CreateFunctionPass(pass_func, 0, "FakeQuantizationToInteger", {"InferType", "DivToMul"});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.FakeQuantizationToInteger")

@@ -45,10 +45,11 @@ TensorRTBuilder::TensorRTBuilder(TensorRTLogger* logger,
       max_workspace_size_(max_workspace_size),
       use_implicit_batch_(use_implicit_batch),
       use_fp16_(use_fp16),
-      batch_size_(batch_size) {
+      use_int8_(false),
+      batch_size_(batch_size),
+      calibrator_(calibrator) {
   // Create TRT builder and network.
   builder_ = nvinfer1::createInferBuilder(*logger);
-  use_int8_ = false;
 
 #if TRT_VERSION_GE(6, 0, 1)
   // Use INetworkV2.
@@ -58,8 +59,7 @@ TensorRTBuilder::TensorRTBuilder(TensorRTLogger* logger,
     flags = 0U;
     builder_->setMaxBatchSize(batch_size_);
   }
-  this->calibrator_ = calibrator;
-  if (calibrator != nullptr) {
+  if (calibrator_ != nullptr) {
     use_int8_ = true;
   }
   network_ = builder_->createNetworkV2(flags);
@@ -177,6 +177,7 @@ TensorRTEngineAndContext TensorRTBuilder::BuildEngine() {
 
   if (use_int8_) {
     config_->setFlag(nvinfer1::BuilderFlag::kINT8);
+    ICHECK(calibrator_);
     config_->setInt8Calibrator(calibrator_);
     LOG(INFO) << "config finishes setting up calibrator as INT8 mode ... ";
   }
@@ -209,6 +210,9 @@ TensorRTEngineAndContext TensorRTBuilder::BuildEngine() {
   ICHECK_EQ(engine->getNbBindings(), network_input_names_.size() + network_output_names_.size());
   nvinfer1::IExecutionContext* context = engine->createExecutionContext();
   CleanUp();
+
+  ICHECK(engine);
+  ICHECK(context);
 
   return {engine, context, network_input_names_, network_output_names_};
 }
@@ -254,18 +258,33 @@ nvinfer1::ITensor* TensorRTBuilder::GetInputAsTensor(const TensorRTOpInput& inpu
 }
 
 void TensorRTBuilder::CleanUp() {
+  VLOG(1) << "Destroying TensorRT network";
+  ICHECK(network_);
   network_->destroy();
+  network_ = nullptr;
+
 #if TRT_VERSION_GE(6, 0, 1)
+  VLOG(1) << "Destroying TensorRT config";
+  ICHECK(config_);
   config_->destroy();
+  config_ = nullptr;
 #endif
+
+  VLOG(1) << "Destroying TensorRT builder";
+  ICHECK(builder_);
   builder_->destroy();
+  builder_ = nullptr;
+
+  VLOG(1) << "Destroying TensorRT weights";
   for (auto weight : trt_weights_) {
+    ICHECK(weight.values);
     if (weight.type == nvinfer1::DataType::kFLOAT || weight.type == nvinfer1::DataType::kHALF) {
       delete[] static_cast<const float*>(weight.values);
     } else {
       delete[] static_cast<const uint16_t*>(weight.values);
     }
   }
+  trt_weights_.clear();
 }
 
 }  // namespace contrib

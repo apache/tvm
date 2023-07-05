@@ -242,11 +242,11 @@ def test_storage_combine_with_vectorization():
         # find add op
         if (
             isinstance(v, tvm.tir.Add)
-            and isinstance(v.a, tvm.tir.Load)
-            and isinstance(v.b, tvm.tir.Load)
+            and isinstance(v.a, tvm.tir.BufferLoad)
+            and isinstance(v.b, tvm.tir.BufferLoad)
         ):
-            lhs_ramp = v.a.index
-            rhs_ramp = v.b.index
+            lhs_ramp = v.a.indices[0]
+            rhs_ramp = v.b.indices[0]
             # these two ramp load should not overlap
             assert lhs_ramp.lanes == n
             assert rhs_ramp.lanes == n
@@ -256,6 +256,59 @@ def test_storage_combine_with_vectorization():
 
     tvm.tir.stmt_functor.post_order_visit(stmt, verify)
     assert num_alloc[0] == 1
+
+
+def test_address_of():
+    # In this test, the storage rewrite pass is allowed to
+    # combine buffers B and D, but not C
+    @T.prim_func
+    def before(A: T.Buffer(8, "float32"), E: T.Buffer(8, "float32")):
+        B_data = T.allocate([8], "float32")
+        B = T.Buffer(8, data=B_data, align=32)
+        for i in range(8):
+            B[i] = (
+                T.call_extern("deref", T.address_of(A[i]), dtype="float32")
+                + T.call_extern("deref", T.address_of(A[0]), dtype="float32")
+                + T.float32(1)
+            )
+        C_data = T.allocate([8], "float32")
+        C = T.Buffer(8, data=C_data, align=32)
+        for i in range(8):
+            C[i] = (
+                T.call_extern("deref", T.address_of(B[i]), dtype="float32")
+                + T.call_extern("deref", T.address_of(B[0]), dtype="float32")
+                + T.float32(2)
+            )
+        D_data = T.allocate([8], "float32")
+        D = T.Buffer(8, data=D_data, align=32)
+        for i in range(8):
+            D[i] = (
+                T.call_extern("deref", T.address_of(C[i]), dtype="float32")
+                + T.call_extern("deref", T.address_of(C[0]), dtype="float32")
+                + T.float32(2)
+            )
+        for i in range(8):
+            E[i] = (
+                T.call_extern("deref", T.address_of(D[i]), dtype="float32")
+                + T.call_extern("deref", T.address_of(D[0]), dtype="float32")
+                + T.float32(3)
+            )
+
+    def verify(n):
+        if isinstance(n, tvm.tir.Allocate):
+            total_alloc[0] += n.extents[0].value
+
+    total_alloc = [0]
+    mod = tvm.IRModule.from_expr(before)
+    mod.show()
+    tvm.tir.stmt_functor.post_order_visit(mod["main"].body, verify)
+    assert total_alloc[0] == 24
+
+    total_alloc[0] = 0
+    mod = tvm.tir.transform.StorageRewrite()(mod)
+    mod.show()
+    tvm.tir.stmt_functor.post_order_visit(mod["main"].body, verify)
+    assert total_alloc[0] == 16
 
 
 def test_storage_share_gpu():
@@ -652,16 +705,18 @@ def test_large_input():
 
 def test_access_in_let_value():
     @T.prim_func
-    def func(A: T.Buffer[(8,), "float32"]):
+    def func(A: T.Buffer((8,), "float32")):
         for i in range(8):
-            B = T.allocate((1,), "float32", "global")
+            B_data = T.allocate((1,), "float32", "global")
+            B = T.Buffer(shape=[1], dtype="float32", data=B_data)
             B[0] = 3.14
             x: T.float32 = T.exp(B[0], dtype="float32")
             A[i] = (x + 1.0) / (x - 1.0)
 
     @T.prim_func
-    def func_rewritten(A: T.Buffer[(8,), "float32"]) -> None:
-        B = T.allocate((1,), "float32", "global")
+    def func_rewritten(A: T.Buffer((8,), "float32")) -> None:
+        B_data = T.allocate((1,), "float32", "global")
+        B = T.Buffer(shape=[1], dtype="float32", data=B_data)
         for i in range(8):
             B[0] = 3.14
             x: T.float32 = T.exp(B[0], dtype="float32")
@@ -669,6 +724,206 @@ def test_access_in_let_value():
 
     mod = tvm.tir.transform.StorageRewrite()(tvm.IRModule.from_expr(func))
     tvm.ir.assert_structural_equal(mod["main"], func_rewritten)
+
+
+class BaseCompare(tvm.testing.CompareBeforeAfter):
+    transform = tvm.tir.transform.StorageRewrite()
+
+
+class TestLetBufferRewrite(BaseCompare):
+    """StorageRewrite replaces the bound var of backing allocations
+
+    If StorageRewrite replaces the backing variable of an array, such
+    as when vectorizing the storage type, the variable must be
+    replaced in the LetStmt that defines it.  Currently, StmtMutator
+    only visits usage of variables, and does not visit definitions of
+    variables, so the definition in a LetStmt must be explicitly
+    handled.
+    """
+
+    def before() -> None:
+        A_data: T.handle("int32") = T.call_extern("dummy_func", dtype="handle")
+        A = T.Buffer([8], "int32", data=A_data)
+        A[0:8] = T.broadcast(42, 8)
+
+    def expected() -> None:
+        A_data: T.handle("int32x8") = T.call_extern("dummy_func", dtype="handle")
+        A = T.Buffer([1], "int32x8", data=A_data)
+        A[0] = T.broadcast(42, 8)
+
+
+class TestRewriteInPlaceUseOfNonFlatBuffer(BaseCompare):
+    """A non-flat buffer may be re-used for in-place operations"""
+
+    def before(A: T.Buffer((16, 16), "float32"), D: T.Buffer((16, 16), "float32")):
+        B_data = T.allocate(
+            [16, 16],
+            dtype="float32",
+            scope="global",
+        )
+        B = T.Buffer(
+            [16, 16],
+            dtype="float32",
+            axis_separators=[1],
+            data=B_data,
+        )
+        C_data = T.allocate(
+            [16, 16],
+            dtype="float32",
+            scope="global",
+        )
+        C = T.Buffer(
+            [16, 16],
+            dtype="float32",
+            axis_separators=[1],
+            data=C_data,
+        )
+
+        for i, j in T.grid(16, 16):
+            B[i, j] = A[i, j]
+
+        for i, j in T.grid(16, 16):
+            C[i, j] = 2.0 * B[i, j]
+
+        for i, j in T.grid(16, 16):
+            D[i, j] = C[i, j]
+
+    def expected(A: T.Buffer((16, 16), "float32"), D: T.Buffer((16, 16), "float32")):
+        B_data = T.allocate(
+            [16, 16],
+            dtype="float32",
+            scope="global",
+        )
+        B = T.Buffer([16, 16], dtype="float32", axis_separators=[1], data=B_data)
+        C = T.Buffer(
+            [16, 16],
+            dtype="float32",
+            axis_separators=[1],
+            data=B.data,
+        )
+
+        for i, j in T.grid(16, 16):
+            B[i, j] = A[i, j]
+
+        for i, j in T.grid(16, 16):
+            C[i, j] = 2.0 * B[i, j]
+
+        for i, j in T.grid(16, 16):
+            D[i, j] = C[i, j]
+
+
+class TestNoRewriteOfSharedNonFlatBuffer(BaseCompare):
+    """In general, sharing of non-flat buffer isn't supported
+
+    The current packing algorithms in StorageRewrite assume a flat
+    memory space, and do not support packing of N-d buffers.  For
+    buffers with axis separators, normal buffer sharing should be
+    disabled.
+
+    Like TestRewriteInPlaceUseOfNonFlatBuffer, except that B and C do
+    not have matching shapes.
+    """
+
+    def before(A: T.Buffer((16, 16), "float32"), D: T.Buffer((16, 16), "float32")):
+        B_data = T.allocate(
+            [16, 16],
+            dtype="float32",
+            scope="global",
+        )
+        B = T.Buffer(
+            [16, 16],
+            dtype="float32",
+            axis_separators=[1],
+            data=B_data,
+        )
+        C_data = T.allocate(
+            [20, 20],
+            dtype="float32",
+            scope="global",
+        )
+        C = T.Buffer(
+            [20, 20],
+            dtype="float32",
+            axis_separators=[1],
+            data=C_data,
+        )
+
+        for i, j in T.grid(16, 16):
+            B[i, j] = A[i, j]
+
+        for i, j in T.grid(16, 16):
+            C[i, j] = 2.0 * B[i, j]
+
+        for i, j in T.grid(16, 16):
+            D[i, j] = C[i, j]
+
+    expected = before
+
+
+class TestRewriteDeclBuffer(BaseCompare):
+    """A DeclBuffer node may appear in StorageRewrite's input"""
+
+    def before(A: T.Buffer(16, "float32"), D: T.Buffer(16, "float32")):
+        B = T.decl_buffer(16, dtype="float32")
+        C = T.decl_buffer(16, dtype="float32")
+
+        for i in range(16):
+            B[i] = A[i]
+
+        for i in range(16):
+            C[i] = 2.0 * B[i]
+
+        for i in range(16):
+            D[i] = C[i]
+
+    def expected(A: T.Buffer(16, "float32"), D: T.Buffer(16, "float32")):
+        B = T.decl_buffer(16, dtype="float32")
+        C = T.decl_buffer(16, dtype="float32", data=B.data)
+
+        for i in range(16):
+            B[i] = A[i]
+
+        for i in range(16):
+            C[i] = 2.0 * B[i]
+
+        for i in range(16):
+            D[i] = C[i]
+
+
+class TestNoOrphanedDeclBuffer(BaseCompare):
+    """A DeclBuffer of an unused Allocate should be removed
+
+    StorageRewrite removes any allocations that are unused.  When it
+    does so, any DeclBuffer that refers to that allocation should also
+    be removed.
+    """
+
+    def before(A: T.Buffer(16, "float32"), D: T.Buffer(16, "float32")):
+        B = T.decl_buffer(16, dtype="float32")
+        C = T.decl_buffer(16, dtype="float32")
+        Unused = T.decl_buffer(16, dtype="float32")
+
+        for i in range(16):
+            B[i] = A[i]
+
+        for i in range(16):
+            C[i] = 2.0 * B[i]
+
+        for i in range(16):
+            D[i] = C[i]
+
+    def expected(A: T.Buffer(16, "float32"), D: T.Buffer(16, "float32")):
+        B = T.decl_buffer(16, dtype="float32")
+        C = T.decl_buffer(16, dtype="float32", data=B.data)
+
+        for i in range(16):
+            B[i] = A[i]
+
+        for i in range(16):
+            C[i] = 2.0 * B[i]
+
+        for i in range(16):
+            D[i] = C[i]
 
 
 if __name__ == "__main__":

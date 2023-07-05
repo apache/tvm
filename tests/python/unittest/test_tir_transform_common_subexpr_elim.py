@@ -22,6 +22,7 @@ from tvm.ir.base import save_json
 from tvm.ir.module import IRModule
 from tvm.script import tir as T
 
+
 # -----------------------------------------------------
 # Basic test for the expected Behavior of the CSE pass
 # -----------------------------------------------------
@@ -349,7 +350,7 @@ def test_no_normalization_without_commoning():
 # -------------------------------------------------
 @T.prim_func
 def func_distributivity(i1: T.int32, i2: T.int32, x: T.int32, y: T.int32, z: T.int32) -> None:
-    B = T.buffer_decl((50,), "int32")
+    B = T.Buffer((50,), "int32")
     B[i1] = x * (y + z)
     B[i2] = x * y + x * z
 
@@ -358,16 +359,15 @@ def func_distributivity(i1: T.int32, i2: T.int32, x: T.int32, y: T.int32, z: T.i
 def func_distributivity_expected(
     i1: T.int32, i2: T.int32, x: T.int32, y: T.int32, z: T.int32
 ) -> None:
-    B = T.buffer_decl((50,), "int32")
-    cse_var_1 = T.var("int32")
-    with T.let(cse_var_1, x * y + x * z):
+    B = T.Buffer((50,), "int32")
+    with T.LetStmt(x * y + x * z) as cse_var_1:
         B[i1] = cse_var_1
         B[i2] = cse_var_1
 
 
 @T.prim_func
 def func_associativity(i1: T.int32, i2: T.int32, x: T.int32, y: T.int32, z: T.int32) -> None:
-    B = T.buffer_decl((50,), "int32")
+    B = T.Buffer((50,), "int32")
     B[i1] = (x + y) + z
     B[i2] = x + (y + z)
 
@@ -376,9 +376,8 @@ def func_associativity(i1: T.int32, i2: T.int32, x: T.int32, y: T.int32, z: T.in
 def func_associativity_expected(
     i1: T.int32, i2: T.int32, x: T.int32, y: T.int32, z: T.int32
 ) -> None:
-    B = T.buffer_decl((50,), "int32")
-    cse_var_1 = T.var("int32")
-    with T.let(cse_var_1, (x + y) + z):
+    B = T.Buffer((50,), "int32")
+    with T.LetStmt((x + y) + z) as cse_var_1:
         B[i1] = cse_var_1
         B[i2] = cse_var_1
 
@@ -449,7 +448,7 @@ def test_deterministic_cse():
 
 # Needed for the second test on determinism
 LOG_LINE = '{"i": [["[\\"conv2d_layer\\", 1, 7, 7, 512, 512, 3, 3, [1, 1], [1, 1]]", \
-            "llvm -keys=cpu -link-params=0 -mcpu=broadwell -num-cores=2", \
+            "llvm -keys=cpu -mcpu=broadwell -num-cores=2", \
             [8, 64, 64, 0, 0, 0, 0, 0], "", 1, []], [[], [["CI", 5], \
             ["SP", 3, 0, 1, [1, 1, 1], 1], ["SP", 3, 4, 512, [1, 32, 16], 1], \
             ["SP", 3, 8, 7, [7, 1, 1], 1], ["SP", 3, 12, 7, [1, 1, 1], 1], \

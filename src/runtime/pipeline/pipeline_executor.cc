@@ -29,7 +29,7 @@ namespace runtime {
  * \param sptr_to_self The pointer to the module node.
  * \return The corresponding packed function.
  */
-PackedFunc PipelineExecutor::GetFunction(const std::string& name,
+PackedFunc PipelineExecutor::GetFunction(const String& name,
                                          const ObjectPtr<Object>& sptr_to_self) {
   if (name == "get_num_outputs") {
     return PackedFunc(
@@ -87,7 +87,6 @@ PackedFunc PipelineExecutor::GetFunction(const std::string& name,
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetExecutionCount(); });
   } else {
     LOG(FATAL) << "Unknown packed function: " << name;
-    return PackedFunc();
   }
 }
 /*!

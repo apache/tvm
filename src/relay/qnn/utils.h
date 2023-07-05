@@ -57,7 +57,6 @@ static inline int32_t GetQmin(const DataType& dtype) {
     return static_cast<int32_t>(min_value[0]);
   } else {
     LOG(FATAL) << "Type not supported " << dtype;
-    return -1;  // To hide the warning
   }
 }
 
@@ -70,7 +69,6 @@ static inline int32_t GetQmax(const DataType& dtype) {
     return static_cast<int32_t>(max_value[0]);
   } else {
     LOG(FATAL) << "Type not supported " << dtype;
-    return -1;  // To hide the warning
   }
 }
 
@@ -120,6 +118,10 @@ static inline Expr Requantize(const Expr& data, const Array<IndexExpr>& input_sh
   return RequantizeLower(data, input_scale, input_zero_point, output_scale, output_zero_point,
                          attrs.operator->(), input_shape, attrs->out_dtype);
 }
+
+Expr MakeRequantize(Expr data, Expr input_scale, Expr input_zero_point, Expr output_scale,
+                    Expr output_zero_point, int axis, String rounding, String compute_dtype,
+                    DataType out_dtype);
 
 Expr DequantizeLower(const Expr& input_tensor, const Expr& input_scale,
                      const Expr& input_zero_point, const Array<tvm::relay::Type>& types,
@@ -208,6 +210,23 @@ Expr FixedPointMultiplyToNearest(Expr tensor, double multiplier,
 Expr FixedPointMultiplyPerChannel(Expr tensor, std::vector<double> multiplier,
                                   const Array<IndexExpr>& input_shape, int channel_axis,
                                   const std::string& rounding);
+
+/*
+ * Wrapper for 'FixedPointMultiplyPerChannel' with rounding parameter == "TONEAREST".
+ */
+Expr FixedPointMultiplyPerChannelToNearest(Expr tensor, std::vector<double> multiplier,
+                                           const Array<IndexExpr>& input_shape, int channel_axis);
+
+/*
+ * \brief Creates FixedPointMultiply operation where the input tensor is
+ per-axis/per-channel quantized..
+ * \param tensor The quantized input tensor.
+ * \param multipliers List of scalar multipliers.
+ * \param channel_axis The channel_axis along which the input tensor is quantized.
+ * \return The Relay op.
+ */
+Expr FixedPointMultiplyPerChannel(Expr tensor, const std::vector<double>& multipliers, int axis);
+
 /*
  * \brief Checks whether an expr type is scalar of a given data type.
  * \param expr_type The type of expr to be checked.

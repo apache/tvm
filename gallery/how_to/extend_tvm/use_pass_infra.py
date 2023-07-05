@@ -40,6 +40,7 @@ a certain optimization and create an optimization pipeline for a Relay program.
 The same approach can be used for tir as well.
 """
 
+
 import numpy as np
 import tvm
 from tvm import te

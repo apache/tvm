@@ -611,6 +611,18 @@ TVM_DLL const Op& tvm_store_matrix_sync();
 TVM_DLL const Op& ptx_mma();
 
 /*!
+ * \brief tvm intrinsic for ptx predicate load with 32-bit data type.
+ *
+ */
+TVM_DLL const Op& ptx_ldg32();
+
+/*!
+ * \brief tvm intrinsic for ptx predicate load with 32-bit data type.
+ *
+ */
+TVM_DLL const Op& ptx_ldg32();
+
+/*!
  * \brief tvm intrinsic for sparse tensor core ptx instructions.
  *
  * void ptx_mma_sp(StringImm shape, StringImm A_layout, StringImm B_layout,
@@ -714,11 +726,76 @@ TVM_DLL const Op& texture2d_store();
 TVM_DLL const Op& texture2d_load();
 
 /*!
- * \brief Copy 1d memory from source to destination
- * Same semantics as memcpy(destination, source, size)
- * Allows for device specific implementations e.g. direct memory access (DMA)
+ * \brief Initiate a non-blocking DMA copy from source to destination
+ *
+ * The copy is launched immediately.
+ *
+ * If a `dma_start_group()` call is active, the copy will be added
+ * to the current group for tracking of in-flight group counts.
+ *
+ * If no `dma_start_group()` call is active, the copy will be tracked
+ * individually i.e. as a group with size 1.
  */
-TVM_DLL const Op& mem_copy();
+TVM_DLL const Op& dma_copy();
+
+/*!
+ * \brief Wait until the number of DMA groups in flight is less than
+ * or equal to some maximum
+ *
+ * Calling `dma_wait()` while a group is active is unsupported.
+ */
+TVM_DLL const Op& dma_wait();
+
+/*!
+ * \brief Start a group of DMA copies
+ *
+ * Any call to `dma_copy()` that occurs after `dma_start_group()` will
+ * be added to the current group for tracking of in-flight group counts.
+ *
+ * Only one DMA group may be active at a given time.  Calling
+ * `dma_start_group()` while a group is active is unsupported.
+ */
+TVM_DLL const Op& dma_start_group();
+
+/*!
+ * \brief End a group of DMA copies
+ *
+ * Track all calls to `dma_copy()` that occurred since the preceding
+ * `dma_start_group()` as a single group in-flight.
+ *
+ * Calling `dma_end_group()` without an active group is unsupported.
+ *
+ * Note: A group of DMA calls may be empty, and will still contribute
+ * to the count of in-flight groups used by `dma_wait()`.
+ */
+TVM_DLL const Op& dma_end_group();
+
+/*!
+ * \brief Provide a true statement that can be used for simplifications
+ *
+ * Compile-time representation of known constraints about function
+ * inputs.  This assumption is removed when lowering, and does not
+ * occur in codegen.
+ */
+TVM_DLL const Op& assume();
+
+/*!
+ * \brief Returns an initialized but arbitrary value
+ *
+ * Compile-time representation of memory locations whose values may be
+ * altered as a result of optimizations.
+ */
+TVM_DLL const Op& undef();
+
+/*!
+ * \brief Profiling intrinsic
+ */
+TVM_DLL const Op& start_profile_intrinsic();
+
+/*!
+ * \brief Profiling intrinsic
+ */
+TVM_DLL const Op& end_profile_intrinsic();
 
 /*! \brief The kind of structure field info used in intrinsic */
 enum TVMStructFieldKind : int {

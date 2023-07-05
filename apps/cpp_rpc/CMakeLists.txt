@@ -33,9 +33,13 @@ if (OS)
 endif()
 
 if(USE_OPENCL)
-  if (ANDROID_ABI)
-    set_property(TARGET tvm_rpc PROPERTY LINK_FLAGS -fuse-ld=gold)
-  endif()
+   if (ANDROID_ABI)
+     if(DEFINED ENV{ANDROID_NDK_MAJOR})
+       if($ENV{ANDROID_NDK_MAJOR} VERSION_LESS "23")
+         set_property(TARGET tvm_rpc PROPERTY LINK_FLAGS -fuse-ld=gold)
+       endif()
+     endif()
+   endif()
 endif()
 
 target_include_directories(
@@ -57,10 +61,18 @@ if (BUILD_FOR_ANDROID AND USE_HEXAGON)
   list(APPEND TVM_RPC_LINKER_LIBS cdsprpc log)
 endif()
 
+if(USE_ETHOSN)
+  if (ETHOSN_RUNTIME_LIBRARY)
+    list(APPEND TVM_RPC_LINKER_LIBS ${ETHOSN_RUNTIME_LIBRARY})
+  else()
+    message(WARNING "Could not locate Arm(R) Ethos(TM)-N runtime library components")
+  endif()
+endif()
+
 if(BUILD_STATIC_RUNTIME)
   list(APPEND TVM_RPC_LINKER_LIBS -Wl,--whole-archive tvm_runtime -Wl,--no-whole-archive)
 else()
   list(APPEND TVM_RPC_LINKER_LIBS tvm_runtime)
 endif()
- 
+
 target_link_libraries(tvm_rpc ${TVM_RPC_LINKER_LIBS})

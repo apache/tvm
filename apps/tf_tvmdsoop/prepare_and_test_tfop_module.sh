@@ -22,14 +22,13 @@ echo "TVM_ROOT=${TVM_ROOT}"
 export PYTHONPATH=${TVM_ROOT}/python
 
 python3 -c "import tvm; print(tvm.runtime.enabled('gpu'))" | grep -e 1
-if [ "$?" -eq 0 ]; then 
+if [ "$?" -eq 0 ]; then
     echo "Build TF_TVMDSOOP with gpu support and execute tests"
     CMAKE_OPTIONS="-DUSE_CUDA=ON -DPython3_EXECUTABLE=python3 -DTVM_ROOT=${TVM_ROOT}"
- 
+
     mkdir -p build
     cd build; cmake .. ${CMAKE_OPTIONS} && make
     cd ..
 
     LD_LIBRARY_PATH=${TVM_ROOT}/build:./build:$LD_LIBRARY_PATH python3 -m pytest -v ./tests
 fi
-

@@ -47,10 +47,11 @@ class CodeGenExampleTargetHook : public codegen::CodeGenCHost {
 runtime::Module TIRToRuntime(IRModule mod, Target target) {
   bool output_ssa = false;
   bool emit_asserts = false;
+  bool emit_fwd_func_decl = false;
   CodeGenExampleTargetHook codegen;
   Array<String> function_names;
   std::unordered_set<std::string> devices;
-  codegen.Init(output_ssa, emit_asserts, target->str(), devices);
+  codegen.Init(output_ssa, emit_asserts, emit_fwd_func_decl, target->str(), devices);
   for (auto kv : mod->functions) {
     auto prim_func = Downcast<PrimFunc>(kv.second);
     auto global_symbol = prim_func->GetAttr<String>(tvm::attr::kGlobalSymbol);

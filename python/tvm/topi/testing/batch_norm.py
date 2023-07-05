@@ -28,6 +28,8 @@ def batch_norm(
     epsilon: float,
     center: bool,
     scale: bool,
+    training: bool,
+    momentum: float,
 ):
     """Batch Normalization operator implemented in Numpy.
 
@@ -62,6 +64,13 @@ def batch_norm(
         If True, scale normalized tensor by gamma. If False, gamma
         is ignored.
 
+    training : bool
+        Indicating whether it is in training mode. If True, update
+        moving_mean and moving_var.
+
+    momentum : float
+        The value used for the moving_mean and moving_var update
+
     Returns
     -------
     output : np.ndarray
@@ -76,14 +85,30 @@ def batch_norm(
     shape = [1] * len(x.shape)
     shape[axis] = x.shape[axis]
 
-    moving_mean_rs = moving_mean.reshape(shape)
-    moving_var_rs = moving_var.reshape(shape)
-
-    out = (x - moving_mean_rs) / np.sqrt(moving_var_rs + epsilon)
+    if training:
+        reduce_axes = list(range(len(x.shape)))
+        reduce_axes.remove(axis)
+        reduce_axes = tuple(reduce_axes)
+        data_mean = np.mean(x, axis=reduce_axes)
+        data_var = np.var(x, axis=reduce_axes)
+        data_mean_rs = np.reshape(data_mean, shape)
+        data_var_rs = np.reshape(data_var, shape)
+        out = (x - data_mean_rs) / np.sqrt(data_var_rs + epsilon)
+    else:
+        moving_mean_rs = moving_mean.reshape(shape)
+        moving_var_rs = moving_var.reshape(shape)
+        out = (x - moving_mean_rs) / np.sqrt(moving_var_rs + epsilon)
 
     if scale:
         out = out * gamma.reshape(shape)
     if center:
         out = out + beta.reshape(shape)
+
+    if training:
+        return [
+            out,
+            (1 - momentum) * moving_mean + momentum * data_mean,
+            (1 - momentum) * moving_var + momentum * data_var,
+        ]
 
     return [out, moving_mean, moving_var]

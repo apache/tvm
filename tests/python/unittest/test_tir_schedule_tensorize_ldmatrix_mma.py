@@ -15,35 +15,35 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-docstring
+import numpy as np
+import pytest
 import tvm
+import tvm.testing
 from tvm import te
+from tvm.testing.tir import mma_schedule
 from tvm.tir.tensor_intrin.cuda import (
     LDMATRIX_16x16_A_INTRIN,
     LDMATRIX_16x16_B_INTRIN,
     LDMATRIX_16x16_B_TRANS_INTRIN,
     LDMATRIX_16x32_A_INTRIN,
-    LDMATRIX_32x16_B_INTRIN,
     LDMATRIX_16x32_B_TRANS_INTRIN,
-    MMA_f16f16f32_INTRIN,
-    MMA_f16f16f32_TRANS_INTRIN,
+    LDMATRIX_32x16_B_INTRIN,
     MMA_f16f16f16_INTRIN,
     MMA_f16f16f16_TRANS_INTRIN,
+    MMA_f16f16f32_INTRIN,
+    MMA_f16f16f32_TRANS_INTRIN,
+    MMA_fill_16x16_f16_INTRIN,
+    MMA_fill_16x16_f32_INTRIN,
+    MMA_fill_16x16_i32_INTRIN,
     MMA_i8i8i32_INTRIN,
     MMA_i8i8i32_TRANS_INTRIN,
-    MMA_fill_16x16_f32_INTRIN,
-    MMA_fill_16x16_f16_INTRIN,
-    MMA_fill_16x16_i32_INTRIN,
-    MMA_store_16x16_f32_global_INTRIN,
     MMA_store_16x16_f16_global_INTRIN,
+    MMA_store_16x16_f32_global_INTRIN,
     MMA_store_16x16_i32_global_INTRIN,
     shared_16x16_to_ldmatrix_32x8_layout,
-    shared_32x16_to_ldmatrix_32x16_layout,
     shared_16x32_to_ldmatrix_32x16_layout,
+    shared_32x16_to_ldmatrix_32x16_layout,
 )
-import tvm.testing
-import numpy as np
-from tvm.testing.tir import mma_schedule
-
 
 M = 4096
 N = 4096
@@ -111,9 +111,6 @@ def run_test(
         mma_store_intrin,
     )
 
-    if not tvm.testing.is_ampere_or_newer():
-        return None
-
     f = tvm.build(sch.mod["main"], target="cuda", name="dense")
 
     dev = tvm.device("cuda", 0)
@@ -155,7 +152,7 @@ def run_test(
     return lambda: f.time_evaluator(f.entry_name, dev, number=500)(a, b, c)
 
 
-@tvm.testing.requires_cuda
+@tvm.testing.requires_cuda_compute_version(8)
 def test_f16f16f32_m16n16k16():
     def index_map(i, j):
         return (
@@ -212,7 +209,7 @@ def test_f16f16f32_m16n16k16():
         print("f16f16f32_m16n16k16_trans: %f GFLOPS" % (gflops / (timer().mean)))
 
 
-@tvm.testing.requires_cuda
+@tvm.testing.requires_cuda_compute_version(8)
 def test_f16f16f16_m16n16k16():
     def index_map(i, j):
         return (
@@ -269,7 +266,7 @@ def test_f16f16f16_m16n16k16():
         print("f16f16f16_m16n16k16_trans: %f GFLOPS" % (gflops / (timer().mean)))
 
 
-@tvm.testing.requires_cuda
+@tvm.testing.requires_cuda_compute_version(8)
 def test_i8i8i32_m16n16k32():
     def index_map_A(i, j):
         return (
@@ -341,6 +338,4 @@ def test_i8i8i32_m16n16k32():
 
 
 if __name__ == "__main__":
-    test_f16f16f32_m16n16k16()
-    test_f16f16f16_m16n16k16()
-    test_i8i8i32_m16n16k32()
+    tvm.testing.main()

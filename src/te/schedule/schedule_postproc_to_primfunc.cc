@@ -31,7 +31,7 @@
  *  This function canonicalize that body and creates a formal PrimFunc.
  *
  *  List of actions taken by the function:
- *  - Remove occurences of te::Tensor, te::Operation in the IR
+ *  - Remove occurrences of te::Tensor, te::Operation in the IR
  *    and replace them by corresponding IR nodes via tir::Buffer.
  *  - Add annotation of extern buffers using the buffer_map field
  *    in the PrimFunc type.

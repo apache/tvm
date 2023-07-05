@@ -34,7 +34,7 @@ using tir::Trace;
  * \return The result of downcast
  */
 std::vector<int64_t> DowncastTilingDecision(const ObjectRef& decision) {
-  const auto* arr = TVM_TYPE_AS(arr, decision, runtime::ArrayNode);
+  const auto* arr = TVM_TYPE_AS(decision, runtime::ArrayNode);
   return support::AsVector<ObjectRef, int64_t>(GetRef<Array<ObjectRef>>(arr));
 }
 
@@ -63,6 +63,11 @@ class MutateTileSizeNode : public MutatorNode {
   void InitializeWithTuneContext(const TuneContext& context) final {}
   // Inherit from `MutatorNode`
   Optional<Trace> Apply(const Trace& trace, TRandState* rand_state) final;
+  // Inherit from `MutatorNode`
+  Mutator Clone() const final {
+    ObjectPtr<MutateTileSizeNode> n = make_object<MutateTileSizeNode>(*this);
+    return Mutator(n);
+  }
 };
 
 /*!
@@ -123,7 +128,14 @@ void FindSampleVectorize(const Trace& trace, std::vector<Instruction>* inst,
     if (inst->kind.same_as(inst_sample_categorical)) {
       ICHECK_EQ(inst->outputs.size(), 1);
       if (annotated.count(inst->outputs[0].get())) {
-        const auto* d = TVM_TYPE_AS(d, decision, IntImmNode);
+        ICHECK_EQ(inst->attrs.size(), 2);
+        std::vector<double> probs =
+            support::AsVector<FloatImm, double>(Downcast<Array<FloatImm>>(inst->attrs[1]));
+        if (probs.size() == 1) {
+          // Skip mutating the sampling instructions who have only single candidate.
+          continue;
+        }
+        const auto* d = TVM_TYPE_AS(decision, IntImmNode);
         instructions.push_back(inst);
         decisions.push_back(d->value);
       }

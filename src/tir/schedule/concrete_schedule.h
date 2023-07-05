@@ -38,6 +38,8 @@ class ConcreteScheduleNode : public ScheduleNode {
  protected:
   /*! \brief The internal state of scheduling */
   ScheduleState state_;
+  /*! \brief The function to be worked on. */
+  Optional<GlobalVar> func_working_on_;
   /*! \brief The level of error rendering */
   ScheduleErrorRenderLevel error_render_level_;
   /*! \brief A symbol table that maps random variables to concrete StmtSRef/Integers */
@@ -50,6 +52,7 @@ class ConcreteScheduleNode : public ScheduleNode {
  public:
   void VisitAttrs(tvm::AttrVisitor* v) {
     // `state_` is not visited
+    // `func_working_on_` is not visited
     // `error_render_level_` is not visited
     // `symbol_table_` is not visited
     // `analyzer_` is not visited
@@ -61,6 +64,8 @@ class ConcreteScheduleNode : public ScheduleNode {
  public:
   ScheduleState state() const final { return state_; }
   Optional<Trace> trace() const override { return NullOpt; }
+  Optional<GlobalVar> func_working_on() const final { return func_working_on_; }
+  void WorkOn(const String& func_name) final;
   Schedule Copy() override;
   void Seed(support::LinearCongruentialEngine::TRandState seed) final;
   support::LinearCongruentialEngine::TRandState ForkSeed() final;
@@ -86,20 +91,26 @@ class ConcreteScheduleNode : public ScheduleNode {
                            Optional<Integer> decision = NullOpt) override;
   Array<ExprRV> SamplePerfectTile(const LoopRV& loop_rv, int n, int max_innermost_factor,
                                   Optional<Array<Integer>> decision = NullOpt) override;
+  Array<ExprRV> SamplePartitionedTile(const LoopRV& loop_rv, int n, int partition_pos,
+                                      int innerpart_factor,
+                                      Optional<Array<Integer>> decision = NullOpt) override;
   LoopRV SampleComputeLocation(const BlockRV& block_rv,
                                Optional<Integer> decision = NullOpt) override;
   /******** Schedule: Get blocks & loops ********/
-  BlockRV GetBlock(const String& name, const String& func_name = "main") override;
+  BlockRV GetBlock(const String& name, const Optional<String>& func_name) override;
   Array<LoopRV> GetLoops(const BlockRV& block_rv) override;
   Array<BlockRV> GetChildBlocks(const BlockRV& block_rv) override;
   Array<BlockRV> GetChildBlocks(const LoopRV& loop_rv) override;
   Array<BlockRV> GetProducers(const BlockRV& block_rv) override;
   Array<BlockRV> GetConsumers(const BlockRV& block_rv) override;
+  Array<BlockRV> GetOutputBlocks(const BlockRV& scope_block_rv) override;
   /******** Schedule: Transform loops ********/
   LoopRV Fuse(const Array<LoopRV>& loop_rvs, bool preserve_unit_iters) override;
+  LoopRV Merge(const Array<LoopRV>& loop_rvs) override;
   Array<LoopRV> Split(const LoopRV& loop_rv, const Array<Optional<ExprRV>>& factors,
                       bool preserve_unit_iters) override;
   void Reorder(const Array<LoopRV>& ordered_loop_rvs) override;
+  void ReorderBlockIterVar(const BlockRV& block_rv, const Array<Integer> new_order) override;
   LoopRV AddUnitLoop(const BlockRV& block_rv) override;
   LoopRV AddUnitLoop(const LoopRV& loop_rv) override;
   /******** Schedule: Manipulate ForKind ********/
@@ -108,29 +119,46 @@ class ConcreteScheduleNode : public ScheduleNode {
   void Bind(const LoopRV& loop_rv, const String& thread_axis) override;
   void Unroll(const LoopRV& loop_rv) override;
   /******** Schedule: Insert cache stages ********/
-  BlockRV CacheRead(const BlockRV& block_rv, int read_buffer_index,
-                    const String& storage_scope) override;
-  BlockRV CacheWrite(const BlockRV& block_rv, int write_buffer_index,
-                     const String& storage_scope) override;
+  BlockRV CacheRead(const BlockRV& block_rv, int read_buffer_index, const String& storage_scope,
+                    const Array<BlockRV> consumer_blocks = {}) override;
+  BlockRV CacheWrite(const BlockRV& block_rv, int write_buffer_index, const String& storage_scope,
+                     const Array<BlockRV> consumer_blocks = {}) override;
+  BlockRV ReindexCacheRead(const BlockRV& block_rv, int read_buffer_index,
+                           const String& storage_scope, const IndexMap& index_map) override;
+  BlockRV ReindexCacheWrite(const BlockRV& block_rv, int write_buffer_index,
+                            const String& storage_scope, const IndexMap& index_map) override;
+  Array<BlockRV> CacheInplace(const BlockRV& block_rv, int read_buffer_index,
+                              const String& storage_scope) override;
+  Array<BlockRV> CacheIndex(const BlockRV& block_rv, const String& storage_scope,
+                            int cse_thresh) override;
   BlockRV ReIndex(const BlockRV& block_rv, int buffer_index,
                   BufferIndexType buffer_index_type) override;
+  /******** Schedule: Data movement ********/
+  BlockRV ReadAt(const LoopRV& loop_rv, const BlockRV& block_rv, int read_buffer_index,
+                 const String& storage_scope) override;
+  BlockRV WriteAt(const LoopRV& loop_rv, const BlockRV& block_rv, int write_buffer_index,
+                  const String& storage_scope) override;
   /******** Schedule: Compute location ********/
-  void ComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv, bool preserve_unit_loops) override;
-  void ReverseComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv,
-                        bool preserve_unit_loops) override;
+  void ComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv, bool preserve_unit_loops,
+                 int index = -1) override;
+  void ReverseComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv, bool preserve_unit_loops,
+                        int index = -1) override;
   void ComputeInline(const BlockRV& block) override;
   void ReverseComputeInline(const BlockRV& block) override;
   /******** Schedule: Reduction ********/
   BlockRV RFactor(const LoopRV& loop_rv, int factor_axis) override;
   BlockRV DecomposeReduction(const BlockRV& block_rv, const LoopRV& loop_rv) override;
+  void PadEinsum(const BlockRV& block_rv, const Array<Integer>& padding) override;
   /******** Schedule: Block annotation ********/
   void StorageAlign(const BlockRV& block_rv, int buffer_index, int axis, int factor,
                     int offset) override;
   void SetScope(const BlockRV& block_rv, int buffer_index, const String& storage_scope) override;
+  void UnsafeSetDType(const BlockRV& block_rv, int buffer_index, const String& dtype) override;
   /******** Schedule: Blockize & Tensorize ********/
-  BlockRV Blockize(const LoopRV& loop_rv) override;
-  void Tensorize(const BlockRV& block_rv, const String& intrin) override;
-  void Tensorize(const LoopRV& loop_rv, const String& intrin) override;
+  BlockRV Blockize(const LoopRV& loop_rv, bool preserve_unit_iters) override;
+  BlockRV Blockize(const Array<BlockRV>& blocks, bool preserve_unit_iters) override;
+  void Tensorize(const BlockRV& block_rv, const String& intrin, bool preserve_unit_iters) override;
+  void Tensorize(const LoopRV& loop_rv, const String& intrin, bool preserve_unit_iters) override;
   /******** Schedule: Annotation ********/
   void Annotate(const LoopRV& loop_rv, const String& ann_key, const ObjectRef& ann_val) override;
   void Unannotate(const LoopRV& loop_rv, const String& ann_key) override;
@@ -138,13 +166,20 @@ class ConcreteScheduleNode : public ScheduleNode {
   void Unannotate(const BlockRV& block_rv, const String& ann_key) override;
   /******** Schedule: Layout transformation ********/
   void TransformLayout(const BlockRV& block_rv, int buffer_index, BufferIndexType buffer_index_type,
-                       const IndexMap& index_map) override;
+                       const IndexMap& index_map, const Optional<IndexMap>& pad_value,
+                       bool assume_injective_transform = false) override;
   void TransformBlockLayout(const BlockRV& block_rv, const IndexMap& index_map) override;
   void SetAxisSeparator(const BlockRV& block_rv, int buffer_index,
                         BufferIndexType buffer_index_type,
                         const Array<IntImm>& axis_separators) override;
+  /******** Schedule: Padding decomposition ********/
+  BlockRV DecomposePadding(const BlockRV& block_rv, const LoopRV& loop_rv) override;
+  /******** Schedule: Buffer transformation ********/
+  void RollingBuffer(const BlockRV& block_rv, int write_buffer_index) override;
   /******** Schedule: Misc ********/
   void EnterPostproc() override {}
+  void UnsafeHideBufferAccess(const BlockRV& block_rv, const String& buf_type,
+                              const Array<IntImm>& buf_index_array) override;
 
  protected:
   /******** Utility functions ********/
@@ -199,13 +234,13 @@ class ConcreteScheduleNode : public ScheduleNode {
 
 inline Block ConcreteScheduleNode::Get(const BlockRV& block_rv) const {
   StmtSRef sref = this->GetSRef(block_rv);
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block, sref);
+  const BlockNode* block = TVM_SREF_TO_BLOCK(sref);
   return GetRef<Block>(block);
 }
 
 inline For ConcreteScheduleNode::Get(const LoopRV& loop_rv) const {
   StmtSRef sref = this->GetSRef(loop_rv);
-  const ForNode* loop = TVM_SREF_TO_FOR(loop, sref);
+  const ForNode* loop = TVM_SREF_TO_FOR(sref);
   return GetRef<For>(loop);
 }
 
@@ -216,7 +251,7 @@ inline PrimExpr ConcreteScheduleNode::Get(const ExprRV& expr_rv) const {
       LOG(FATAL) << "IndexError: Cannot find corresponding ExprRV: " << var;
     }
     const ObjectRef& obj = (*it).second;
-    const auto* int_imm = TVM_TYPE_AS(int_imm, obj, IntImmNode);
+    const auto* int_imm = TVM_TYPE_AS(obj, IntImmNode);
     return Integer(int_imm->value);
   });
   return this->analyzer_->Simplify(transformed);

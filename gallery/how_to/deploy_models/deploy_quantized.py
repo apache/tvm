@@ -27,6 +27,7 @@ In this tutorial, we will import a GluonCV pre-trained model on ImageNet to
 Relay, quantize the Relay model and then perform the inference.
 """
 
+
 import tvm
 from tvm import te
 from tvm import relay

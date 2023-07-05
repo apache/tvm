@@ -28,6 +28,7 @@ various primitives provided by TVM.
 """
 from __future__ import absolute_import, print_function
 
+
 import tvm
 from tvm import te
 import numpy as np

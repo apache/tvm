@@ -63,6 +63,19 @@ Here are some example applications of this principle:
   (as an RFC or a discuss thread).
 
 
+Independent Project Management
+------------------------------
+
+Everyone is presumed to be wearing their Apache committer hat when participating in the project.
+That is, committers should act - in the context of the project activities - in the best interests of the project.
+Separating your hat between committer and any other roles you may have is important in all aspects.
+
+In the context of project participation, it can be helpful to state which hat you are wearing in cases where that
+can cause confusion, especially in cases where you are not wearing committer hat. Two examples:
+
+- "Wearing [foo] hat: [message when serving as foo's role and not as committer]".
+- "Wearing Apache TVM hat: [messages when serving as committer]".
+
 Shepherd a Pull Request
 -----------------------
 

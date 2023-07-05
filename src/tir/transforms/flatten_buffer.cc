@@ -21,124 +21,143 @@
  * \file flatten_buffer.cc
  */
 
-#include <tvm/tir/builtin.h>
-#include <tvm/tir/function.h>
-#include <tvm/tir/op.h>
+#include <tvm/arith/iter_affine_map.h>
+#include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
-#include "../../support/utils.h"
+#include "../../arith/ir_mutator_with_analyzer.h"
 #include "ir_utils.h"
 
 namespace tvm {
 namespace tir {
 
-PrimExpr BufferArea(const Buffer& buffer) {
-  if (buffer->strides.size()) {
-    ICHECK(buffer->shape.size() == buffer->strides.size());
-    return buffer->strides[0] * buffer->shape[0];
-  }
-  PrimExpr area = Integer(1);
-  for (const PrimExpr& dim : buffer->shape) {
-    area = area * dim;
-  }
-  return area;
-}
-
 /*!
  * \brief Transform multi-dimension BufferLoad/BufferStore into device-supported dimension
+ *        for the TIR not contains opaque block.
  */
-class BufferFlattener : public StmtExprMutator {
+class BufferFlattener : public arith::IRMutatorWithAnalyzer {
  public:
   static PrimFunc Flatten(PrimFunc func) {
-    Map<Var, Buffer> preflattened_buffer_map =
-        Merge(func->buffer_map, func->preflattened_buffer_map);
-    auto pass = BufferFlattener(func->buffer_map);
+    arith::Analyzer ana;
+    auto pass = BufferFlattener(&ana);
     auto writer = func.CopyOnWrite();
+    pass.MarkBufferMapShapes(func);
     writer->body = pass.VisitStmt(func->body);
-    writer->preflattened_buffer_map = preflattened_buffer_map;
-    writer->buffer_map = pass.updated_extern_buffer_map_;
+    // The buffers in func->buffer_map are deliberately left
+    // unflattened, as they are used for validation of user-provided
+    // arguments.  The flattened buffers used in the updated
+    // function body alias the argument buffers.
     return func;
   }
 
  private:
-  explicit BufferFlattener(const Map<Var, Buffer>& extern_buffer_map) {
-    for (const auto& kv : extern_buffer_map) {
-      updated_extern_buffer_map_.Set(kv.first, GetFlattenedBuffer(kv.second));
+  using IRMutatorWithAnalyzer::VisitExpr;
+  using IRMutatorWithAnalyzer::VisitExpr_;
+  using IRMutatorWithAnalyzer::VisitStmt;
+  using IRMutatorWithAnalyzer::VisitStmt_;
+
+  explicit BufferFlattener(arith::Analyzer* ana) : IRMutatorWithAnalyzer(ana) {}
+
+  Stmt VisitStmt_(const BlockNode* op) final {
+    ICHECK_EQ(op->match_buffers.size(), 0)
+        << "Unexpected MatchBufferRegion found during tir.transform.FlattenBuffer.  "
+        << "All MatchBufferRegion should be removed in tir.transform.LowerMatchBuffer.";
+
+    Block block = GetRef<Block>(op);
+
+    Array<Buffer> alloc_buffers = op->alloc_buffers;
+    alloc_buffers.MutateByApply([this](Buffer buf) { return GetFlattenedBuffer(buf); });
+    if (!alloc_buffers.same_as(op->alloc_buffers)) {
+      block.CopyOnWrite()->alloc_buffers = alloc_buffers;
     }
+
+    Array<BufferRegion> reads = op->reads;
+    reads.MutateByApply([this](BufferRegion region) { return MutateBufferRegion(region); });
+    if (!reads.same_as(op->reads)) {
+      block.CopyOnWrite()->reads = reads;
+    }
+
+    Array<BufferRegion> writes = op->writes;
+    writes.MutateByApply([this](BufferRegion region) { return MutateBufferRegion(region); });
+    if (!writes.same_as(op->writes)) {
+      block.CopyOnWrite()->writes = writes;
+    }
+
+    return StmtExprMutator::VisitStmt_(block.get());
   }
 
-  Stmt VisitStmt_(const BlockRealizeNode* op) final {
-    // We have convert blocks into opaque blocks in previous passes.
-    ICHECK(op->iter_values.empty()) << "Non-opaque blocks are not allowed in FlattenBuffer. Please "
-                                       "call pass ConvertBlocksToOpaque before.";
-    // Step 1. Visit the body
-    Block new_block = Downcast<Block>(this->VisitStmt(op->block));
-    PrimExpr predicate = this->VisitExpr(op->predicate);
-    // Step 2. Transform the `predicate` to if-then-else
-    Stmt body = new_block->body;
-    if (!is_one(predicate)) {
-      body = IfThenElse(predicate, std::move(body));
-    }
-    // Step 3. Handle allocations in reverse order
-    for (size_t i = new_block->alloc_buffers.size(); i > 0; --i) {
-      Buffer buffer = GetFlattenedBuffer(new_block->alloc_buffers[i - 1]);
-      body = Allocate(buffer->data, buffer->dtype, buffer->shape, const_true(), std::move(body));
-    }
-    return body;
-  }
-
-  Stmt VisitStmt_(const ForNode* op) final {
-    // Step 1. Update unit loop info.
-    PrimExpr min = this->VisitExpr(op->min);
-    PrimExpr extent = this->VisitExpr(op->extent);
-    if (is_one(extent) && op->annotations.empty()) {
-      // handling unit loop
-      unit_loop_vars_[op->loop_var] = min;
-    }
-    // Step 2. Visit recursively
-    Stmt body = this->VisitStmt(op->body);
-    // Step 3. Create new For loop accordingly
-    if (op->kind == ForKind::kThreadBinding) {
-      // Case 1. Thread binding
-      ICHECK(op->thread_binding.defined());
-      String thread_tag = op->thread_binding.value()->thread_tag;
-      body = MakeLaunchThread(min, extent, op->loop_var, thread_tag, body);
-    } else if (is_one(extent) && op->annotations.empty()) {
-      // Case 2. Unit loop
-      return body;
-    } else {
-      // Case 3. An ordinary loop
-      body = For(op->loop_var, std::move(min), std::move(extent), op->kind, std::move(body));
-    }
-    // Step 4. Handle annotations
-    std::set<std::string> ordered_ann_keys;
-    for (const auto& annotation : op->annotations) {
-      ordered_ann_keys.insert(annotation.first);
-    }
-    for (auto it = ordered_ann_keys.rbegin(); it != ordered_ann_keys.rend(); ++it) {
-      const std::string& ann_key = *it;
-      const ObjectRef& ann_value = op->annotations.at(ann_key);
-      if (attr::IsPragmaKey(ann_key)) {
-        body =
-            AttrStmt(op->loop_var, ann_key, ConvertAttrValue(ann_key, ann_value), std::move(body));
+  Stmt VisitStmt_(const AllocateNode* op) final {
+    // Determine the flattened extents first, before stripping of
+    // DeclBuffer.
+    auto new_extents = [&]() -> Array<PrimExpr> {
+      if (op->extents.size() == 1) {
+        // No flattening required for buffers that are already flat
+        return op->extents;
       }
+
+      if (auto* decl_buffer = op->body.as<DeclBufferNode>()) {
+        // N-d buffer, use the DeclBuffer inside to determine how it
+        // should be flattened.
+        auto& buffer = decl_buffer->buffer;
+        bool matching_buffer = [&]() {
+          if (!decl_buffer->buffer->data.same_as(op->buffer_var)) {
+            return false;
+          }
+          if (op->dtype != buffer->dtype) {
+            return false;
+          }
+          if (op->extents.size() != buffer->shape.size()) {
+            return false;
+          }
+          ExprDeepEqual expr_equal;
+          for (size_t i = 0; i < op->extents.size(); i++) {
+            if (!expr_equal(op->extents[i], buffer->shape[i])) {
+              return false;
+            }
+          }
+          return true;
+        }();
+
+        if (matching_buffer) {
+          Buffer flattened = GetFlattenedBuffer(buffer);
+          return flattened->shape;
+        } else {
+          ICHECK(decl_buffer->buffer->axis_separators.empty())
+              << "DeclBuffer node doesn't match Allocate extents, but also shouldn't be "
+                 "flattened to 1-d physical memory";
+        }
+      }
+
+      // Fallback, this is an allocation without a matching DeclBuffer
+      PrimExpr flat_extent = 1;
+      for (const auto& dim : op->extents) {
+        flat_extent *= dim;
+      }
+      return {flat_extent};
+    }();
+
+    Allocate alloc = Downcast<Allocate>(StmtExprMutator::VisitStmt_(op));
+
+    // TODO(Lunderberg): Move the handling of boolean into a
+    // dedicated pass.
+    if (alloc->dtype == DataType::Bool()) {
+      alloc.CopyOnWrite()->dtype = DataType::Int(8);
     }
-    return body;
+
+    if (!new_extents.same_as(alloc->extents)) {
+      alloc.CopyOnWrite()->extents = new_extents;
+    }
+
+    return std::move(alloc);
   }
 
-  PrimExpr VisitExpr_(const VarNode* op) final {
-    Var var = GetRef<Var>(op);
-    auto it = unit_loop_vars_.find(var);
-    if (it == unit_loop_vars_.end()) {
-      return std::move(var);
-    } else {
-      PrimExpr expr = it->second;
-      if (expr.dtype() != var.dtype()) {
-        expr = tvm::cast(var.dtype(), std::move(expr));
-      }
-      return expr;
-    }
+  Stmt VisitStmt_(const DeclBufferNode* op) final {
+    // TODO(rfc-70): Update the DeclBuffer node instead of
+    // stripping it out.  Stripping it out in the current
+    // implementation as not all lowering passes support
+    // DeclBuffer.
+    return VisitStmt(op->body);
   }
 
   Buffer GetFlattenedBuffer(Buffer buf) {
@@ -146,14 +165,17 @@ class BufferFlattener : public StmtExprMutator {
     if (it != buffer_remap_.end()) {
       return it->second;
     }
-
     auto flattened = buf.GetFlattenedBuffer();
+    auto writer = flattened.CopyOnWrite();
 
     // TODO(Lunderberg): Move the handling of boolean into a
     // dedicated pass.
     if (flattened->dtype == DataType::Bool()) {
-      auto writer = flattened.CopyOnWrite();
       writer->dtype = DataType::Int(8);
+    }
+    // canonicalize shape
+    for (size_t i = 0; i < flattened->shape.size(); ++i) {
+      writer->shape.Set(i, analyzer_->canonical_simplify(flattened->shape[i]));
     }
 
     buffer_remap_[buf] = flattened;
@@ -174,9 +196,9 @@ class BufferFlattener : public StmtExprMutator {
           << "Expected int8 backing array for boolean tensor";
       auto writer = store.CopyOnWrite();
       writer->value = tvm::cast(DataType::Int(8), store->value);
-      return store;
+      return std::move(store);
     }
-    return store;
+    return std::move(store);
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
@@ -196,10 +218,26 @@ class BufferFlattener : public StmtExprMutator {
     }
   }
 
+  Array<PrimExpr> GetSimplifiedElemOffset(const Buffer& buffer, const Array<PrimExpr>& indices) {
+    auto flattened_indices = buffer->ElemOffset(indices);
+    // Use IterMapSimplify to enable constant fold of fused indices
+    // IterMapSimplify is more powerful and time-consuming than normal
+    // simplify as it tries to deal with symbolic fusion
+    //
+    // Only use to handle indices during layout transformations
+    // So we restrict the use to here
+    PrimExpr pred = const_true();
+    for (PrimExpr val : iter_predicates_) {
+      pred = pred && val;
+    }
+    return arith::IterMapSimplify(flattened_indices, this->iter_vars_, pred,
+                                  arith::IterMapLevel::Surjective, this->analyzer_);
+  }
+
   template <typename Node>
   Node VisitBufferAccess(Node node) {
     ICHECK(node->buffer.defined());
-    auto flattened_indices = node->buffer->ElemOffset(node->indices);
+    auto flattened_indices = GetSimplifiedElemOffset(node->buffer, node->indices);
     Buffer flattened_buffer = GetFlattenedBuffer(node->buffer);
 
     auto writer = node.CopyOnWrite();
@@ -208,39 +246,31 @@ class BufferFlattener : public StmtExprMutator {
     return node;
   }
 
-  static Stmt MakeLaunchThread(PrimExpr min, PrimExpr extent, Var var, String thread_tag,
-                               Stmt body) {
-    IterVar iter_var(/*dom=*/Range::FromMinExtent(min, extent),
-                     /*var=*/std::move(var),
-                     /*iter_type=*/IterVarType::kThreadIndex,
-                     /*thread_tag=*/thread_tag);
-    String attr_key = (thread_tag == "vthread" || thread_tag == "vthread.x" ||
-                       thread_tag == "vthread.y" || thread_tag == "vthread.z")
-                          ? attr::virtual_thread
-                          : attr::thread_extent;
-    return AttrStmt(/*node=*/std::move(iter_var),
-                    /*attr_key=*/std::move(attr_key),
-                    /*value=*/std::move(extent),
-                    /*body=*/std::move(body));
-  }
-
-  /*! \brief Convert attr value from annotation map into PrimExpr. */
-  PrimExpr ConvertAttrValue(const String& key, const ObjectRef& obj) {
-    if (!obj.defined()) {
-      return PrimExpr();
-    } else if (const PrimExprNode* expr = obj.as<PrimExprNode>()) {
-      return GetRef<PrimExpr>(expr);
-    } else if (const StringObj* str = obj.as<StringObj>()) {
-      return std::move(StringImm(str->data));
-    } else {
-      LOG(FATAL) << "Illegal attribute of key " << key << ", value type " << obj->GetTypeKey()
-                 << " not supported";
-      return PrimExpr();
+  BufferRegion MutateBufferRegion(BufferRegion region) {
+    Buffer orig_buf = region->buffer;
+    Buffer flattened_buf = GetFlattenedBuffer(orig_buf);
+    if (flattened_buf.same_as(orig_buf)) {
+      return region;
     }
-  }
 
-  /*! \brief Record the loop_var and loop start value of unit loops, whose extent is one. */
-  std::unordered_map<Var, PrimExpr, ObjectPtrHash, ObjectPtrEqual> unit_loop_vars_;
+    Array<PrimExpr> min_values;
+    Array<PrimExpr> max_values;
+    for (const auto& range : region->region) {
+      min_values.push_back(range->min);
+      max_values.push_back(range->min + range->extent - 1);
+    }
+
+    Array<PrimExpr> flattened_min = GetSimplifiedElemOffset(orig_buf, min_values);
+    Array<PrimExpr> flattened_max = GetSimplifiedElemOffset(orig_buf, max_values);
+
+    Array<Range> flattened_ranges;
+    ICHECK_EQ(flattened_min.size(), flattened_max.size());
+    for (size_t i = 0; i < flattened_min.size(); i++) {
+      flattened_ranges.push_back(Range(flattened_min[i], flattened_max[i] + 1));
+    }
+
+    return BufferRegion(flattened_buf, flattened_ranges);
+  }
 
   /*! \brief Map of buffers being remapped. */
   std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> buffer_remap_;

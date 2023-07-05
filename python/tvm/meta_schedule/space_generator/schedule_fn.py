@@ -14,78 +14,50 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""
-Meta schedule design space generators that generates design
-space via a schedule function.
-"""
-from typing import TYPE_CHECKING, Callable, List, Union
+"""Union of meta Schedule design space generators."""
+from tvm._ffi import register_object
 
-from tvm.ir import IRModule
-from tvm.ir.container import Array
-from tvm.meta_schedule.utils import derived_object
-from tvm.tir.schedule import Schedule
-
-from .space_generator import PySpaceGenerator
-
-if TYPE_CHECKING:
-    from ..tune_context import TuneContext
-
-SCH_FN_TYPE = Union[  # pylint: disable=invalid-name
-    Callable[[Schedule], None],  # No output
-    Callable[[Schedule], Schedule],  # Single output
-    Callable[[Schedule], List[Schedule]],  # Multiple outputs
-]
+from .. import _ffi_api
+from .space_generator import (
+    MutatorProbType,
+    PostprocType,
+    ScheduleRuleType,
+    SpaceGenerator,
+    _normalize_rules,
+)
 
 
-@derived_object
-class ScheduleFn(PySpaceGenerator):
-    """A design space generator with design spaces specified by a schedule function."""
+@register_object("meta_schedule.ScheduleFn")
+class ScheduleFn(SpaceGenerator):
+    """Create a design space generator with customized schedule function.
+    The schedule function can have the following signatures:
+    - 1) [Schedule] -> None
+    - 2) [Schedule] -> Schedule
+    - 3) [Schedule] -> List[Schedule]
+    """
 
-    def __init__(self, sch_fn: SCH_FN_TYPE):
+    def __init__(
+        self,
+        sch_fn: SpaceGenerator.ScheduleFnType,
+        sch_rules: ScheduleRuleType = "from-target",
+        postprocs: PostprocType = "from-target",
+        mutator_probs: MutatorProbType = "from-target",
+    ):
         """Constructor.
 
         Parameters
         ----------
-        sch_fn : SCH_FN_TYPE
-            The schedule function.
+        sch_fn : SpaceGenerator.ScheduleFnType
+            The schedule function, which can have the following signatures:
+            - 1) [Schedule] -> None
+            - 2) [Schedule] -> Schedule
+            - 3) [Schedule] -> List[Schedule]
         """
-        super().__init__()
-        self.sch_fn = sch_fn
-
-    def _initialize_with_tune_context(self, context: "TuneContext") -> None:
-        """Initialize the design space generator with tuning context.
-
-        Parameters
-        ----------
-        context : TuneContext
-            The tuning context for initializing the design space generator.
-        """
-
-    def generate_design_space(self, mod: IRModule) -> List[Schedule]:
-        """Generate design spaces given a module.
-
-        Parameters
-        ----------
-        mod : IRModule
-            The module used for design space generation.
-
-        Returns
-        -------
-        design_spaces : List[Schedule]
-            The generated design spaces, i.e., schedules.
-        """
-        sch = Schedule(mod)  # Make sure the schedule is traced
-        result = self.sch_fn(sch)  # Call the schedule function
-        if result is None:  # Case 1. No output
-            return [sch]
-        if isinstance(result, Schedule):  # Case 2. Single output
-            return [result]
-        if isinstance(result, (list, tuple, Array)):  # Case 3. Multiple outputs
-            for ret in result:  # enumerate the outputs
-                if not isinstance(ret, Schedule):
-                    raise TypeError(
-                        "Wrong type of element in the list, expected Schedule got "
-                        + f"'{type(ret)}': {ret}"
-                    )
-            return result
-        raise TypeError(f"Unexpected return type {type(result)}: {result}")
+        sch_rules, postprocs, mutator_probs = _normalize_rules(sch_rules, postprocs, mutator_probs)
+        self.__init_handle_by_constructor__(
+            _ffi_api.SpaceGeneratorScheduleFn,  # type: ignore # pylint: disable=no-member
+            sch_fn,
+            sch_rules,
+            postprocs,
+            mutator_probs,
+        )

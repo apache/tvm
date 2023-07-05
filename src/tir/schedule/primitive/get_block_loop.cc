@@ -16,12 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include "../analysis.h"
 #include "../utils.h"
 
 namespace tvm {
 namespace tir {
 
-Array<StmtSRef> GetBlocks(const ScheduleState& self, const String& name, const String& func_name) {
+Array<StmtSRef> GetBlocks(const ScheduleState& self, const String& name, const GlobalVar& gv) {
   struct Finder : public StmtVisitor {
     explicit Finder(const ScheduleState& self, const String& name) : self_(self), name_(name) {}
 
@@ -39,8 +40,8 @@ Array<StmtSRef> GetBlocks(const ScheduleState& self, const String& name, const S
     Array<StmtSRef> results_;
   };
 
-  BaseFunc func = self->mod->Lookup(func_name);
-  const auto* prim_func = TVM_TYPE_AS(prim_func, func, PrimFuncNode);
+  BaseFunc func = self->mod->Lookup(gv);
+  const auto* prim_func = TVM_TYPE_AS(func, PrimFuncNode);
   Finder finder(self, name);
   finder(prim_func->body);
   return std::move(finder.results_);
@@ -79,28 +80,17 @@ Array<StmtSRef> GetChildBlocks(const ScheduleState& self, const StmtSRef& parent
 
 Array<StmtSRef> GetProducers(const ScheduleState& self, const StmtSRef& block_sref) {
   StmtSRef scope_root = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);
-  Array<Dependency> edges = self->GetBlockScope(scope_root)->GetDepsByDst(block_sref);
-  Array<StmtSRef> results;
-  results.reserve(edges.size());
-  for (const Dependency& edge : edges) {
-    if (edge->kind == DepKind::kRAW || edge->kind == DepKind::kWAW) {
-      results.push_back(edge->src);
-    }
-  }
-  return results;
+  return tir::GetProducers(block_sref, self->GetBlockScope(scope_root));
 }
 
 Array<StmtSRef> GetConsumers(const ScheduleState& self, const StmtSRef& block_sref) {
   StmtSRef scope_root = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);
-  Array<Dependency> edges = self->GetBlockScope(scope_root)->GetDepsBySrc(block_sref);
-  Array<StmtSRef> results;
-  results.reserve(edges.size());
-  for (const Dependency& edge : edges) {
-    if (edge->kind == DepKind::kRAW || edge->kind == DepKind::kWAW) {
-      results.push_back(edge->dst);
-    }
-  }
-  return results;
+  return tir::GetConsumers(block_sref, self->GetBlockScope(scope_root));
+}
+
+Array<StmtSRef> GetOutputBlocks(const ScheduleState& self, const StmtSRef& scope_sref) {
+  const auto* scope_block = TVM_SREF_TO_BLOCK(scope_sref);
+  return tir::GetOutputBlocks(self, scope_block);
 }
 
 /******** InstructionKind Registration ********/
@@ -164,11 +154,11 @@ struct GetChildBlocksTraits : public UnpackedInstTraits<GetChildBlocksTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   static Array<BlockRV> UnpackedApplyToSchedule(Schedule sch, ObjectRef block_or_loop_rv) {
-    if (const auto* block = block_or_loop_rv.as<BlockRVNode>()) {
-      return sch->GetChildBlocks(GetRef<BlockRV>(block));
+    if (auto block = block_or_loop_rv.as<BlockRV>()) {
+      return sch->GetChildBlocks(block.value());
     }
-    if (const auto* loop = block_or_loop_rv.as<LoopRVNode>()) {
-      return sch->GetChildBlocks(GetRef<LoopRV>(loop));
+    if (auto loop = block_or_loop_rv.as<LoopRV>()) {
+      return sch->GetChildBlocks(loop.value());
     }
     LOG(FATAL) << "TypeError: Expected Block or Loop, but gets: " << block_or_loop_rv->GetTypeKey();
     throw;
@@ -233,11 +223,36 @@ struct GetConsumersTraits : public UnpackedInstTraits<GetConsumersTraits> {
   friend struct ::tvm::tir::UnpackedInstTraits;
 };
 
+struct GetOutputBlocksTraits : public UnpackedInstTraits<GetOutputBlocksTraits> {
+  static constexpr const char* kName = "GetOutputBlocks";
+  static constexpr bool kIsPure = true;
+
+ private:
+  static constexpr size_t kNumInputs = 1;
+  static constexpr size_t kNumAttrs = 0;
+  static constexpr size_t kNumDecisions = 0;
+
+  static Array<BlockRV> UnpackedApplyToSchedule(Schedule sch, BlockRV block_rv) {
+    return sch->GetOutputBlocks(block_rv);
+  }
+
+  static String UnpackedAsPython(Array<String> outputs, String block_rv) {
+    PythonAPICall py("get_output_blocks");
+    py.Input("block", block_rv);
+    py.OutputList(outputs);
+    return py.Str();
+  }
+
+  template <typename>
+  friend struct ::tvm::tir::UnpackedInstTraits;
+};
+
 TVM_REGISTER_INST_KIND_TRAITS(GetBlockTraits);
 TVM_REGISTER_INST_KIND_TRAITS(GetLoopsTraits);
 TVM_REGISTER_INST_KIND_TRAITS(GetChildBlocksTraits);
 TVM_REGISTER_INST_KIND_TRAITS(GetProducersTraits);
 TVM_REGISTER_INST_KIND_TRAITS(GetConsumersTraits);
+TVM_REGISTER_INST_KIND_TRAITS(GetOutputBlocksTraits);
 
 }  // namespace tir
 }  // namespace tvm

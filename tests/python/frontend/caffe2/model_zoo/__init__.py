@@ -20,8 +20,8 @@ from __future__ import absolute_import as _abs
 import os
 import sys
 import importlib
-from . import squeezenet
 from caffe2.python.models.download import ModelDownloader
+from . import squeezenet
 
 models = [
     "squeezenet",

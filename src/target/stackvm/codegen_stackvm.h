@@ -107,7 +107,6 @@ class CodeGenStackVM : public ExprFunctor<void(const PrimExpr&)>,
   // overloadable functions
   // expression
   void VisitExpr_(const VarNode* op) final;
-  void VisitExpr_(const LoadNode* op) final;
   void VisitExpr_(const BufferLoadNode* op) final;
   void VisitExpr_(const LetNode* op) final;
   void VisitExpr_(const CallNode* op) final;
@@ -136,11 +135,11 @@ class CodeGenStackVM : public ExprFunctor<void(const PrimExpr&)>,
   void VisitExpr_(const StringImmNode* op) final;
   // statment
   void VisitStmt_(const LetStmtNode* op) final;
-  void VisitStmt_(const StoreNode* op) final;
   void VisitStmt_(const BufferStoreNode* op) final;
   void VisitStmt_(const ForNode* op) final;
   void VisitStmt_(const IfThenElseNode* op) final;
   void VisitStmt_(const AllocateNode* op) final;
+  void VisitStmt_(const DeclBufferNode* op) final;
   void VisitStmt_(const AttrStmtNode* op) final;
   void VisitStmt_(const AssertStmtNode* op) final;
   void VisitStmt_(const EvaluateNode* op) final;

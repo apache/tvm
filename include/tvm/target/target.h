@@ -49,12 +49,15 @@ class TargetNode : public Object {
   TargetKind kind;
   /*! \brief Target host information, must be Target type */
   Optional<ObjectRef> host;
-  /*! \brief Tag of the the target, can be empty */
+  /*! \brief Tag of the target, can be empty */
   String tag;
   /*! \brief Keys for this target */
   Array<String> keys;
   /*! \brief Collection of attributes */
   Map<String, ObjectRef> attrs;
+  /*! \brief Target features */
+  Map<String, ObjectRef> features;
+
   /*!
    * \brief The raw string representation of the target
    * \return the full device string to pass to codegen::Build
@@ -65,6 +68,18 @@ class TargetNode : public Object {
   TVM_DLL Map<String, ObjectRef> Export() const;
   /*! \return The Optional<Target> typed target host of the TargetNode */
   TVM_DLL Optional<Target> GetHost() const;
+  /*! \return The device type for this target */
+  TVM_DLL int GetTargetDeviceType() const;
+
+  /*!
+   * \brief Check if the target contains a key
+   *
+   * \param query_key The string name of the key to be checked
+   *
+   * \return True if the target's `TargetNode::keys` contains the
+   * specified key, False otherwise.
+   */
+  TVM_DLL bool HasKey(const std::string& query_key) const;
 
   /*!
    * \brief Returns a human readable representation of \p Target which includes all fields,
@@ -80,6 +95,7 @@ class TargetNode : public Object {
     v->Visit("tag", &tag);
     v->Visit("keys", &keys);
     v->Visit("attrs", &attrs);
+    v->Visit("features", &features);
     v->Visit("host", &host);
   }
 
@@ -114,6 +130,42 @@ class TargetNode : public Object {
   Optional<TObjectRef> GetAttr(const std::string& attr_key, TObjectRef default_value) const {
     return GetAttr<TObjectRef>(attr_key, Optional<TObjectRef>(default_value));
   }
+
+  /*!
+   * \brief Get a Target feature
+   *
+   * \param feature_key The feature key.
+   * \param default_value The default value if the key does not exist, defaults to nullptr.
+   *
+   * \return The result
+   *
+   * \tparam TOBjectRef the expected object type.
+   * \throw Error if the key exists but the value does not match TObjectRef
+   *
+   * \code
+   *
+   *  void GetTargetFeature(const Target& target) {
+   *    Bool has_feature = target->GetFeature<Bool>("has_feature", false).value();
+   *  }
+   *
+   * \endcode
+   */
+  template <typename TObjectRef>
+  Optional<TObjectRef> GetFeature(
+      const std::string& feature_key,
+      Optional<TObjectRef> default_value = Optional<TObjectRef>(nullptr)) const {
+    Optional<TObjectRef> feature = Downcast<Optional<TObjectRef>>(features.Get(feature_key));
+    if (!feature) {
+      return default_value;
+    }
+    return feature;
+  }
+  // variant that uses TObjectRef to enable implicit conversion to default value.
+  template <typename TObjectRef>
+  Optional<TObjectRef> GetFeature(const std::string& attr_key, TObjectRef default_value) const {
+    return GetFeature<TObjectRef>(attr_key, Optional<TObjectRef>(default_value));
+  }
+
   /*! \brief Get the keys for this target as a vector of string */
   TVM_DLL std::vector<std::string> GetKeys() const;
   /*! \brief Get the keys for this target as an unordered_set of string */
@@ -165,7 +217,6 @@ class Target : public ObjectRef {
    * \brief Construct a Target given target and host
    * \param target The Target typed object with host field undefined for target
    * \param host The Target typed object for target host
-   * \return The Target with given target and host context information
    */
   TVM_DLL explicit Target(Target target, Target host);
   TVM_DEFINE_OBJECT_REF_METHODS(Target, ObjectRef, TargetNode);
@@ -176,6 +227,9 @@ class Target : public ObjectRef {
    * \return The new Target object with the given target and host field of given host.
    */
   static Target WithHost(const Target& target, const Target& host);
+
+  /*! \return The target with the host stripped out */
+  Target WithoutHost() const;
 
   /*!
    * \brief Returns true if \p this target represents an external codegen. If so,
@@ -190,11 +244,11 @@ class Target : public ObjectRef {
    * with \p that target. In particular:
    *  - \p this has a true ::tvm::attr::kIsExternalCodegen attribute
    *  - \p that does not have a true ::tvm::attr::kIsExternalCodegen attribute
-   *  - \p this and \p that have the same kind->device_type
+   *  - \p this and \p that have the same GetTargetDeviceType()
    *
    * After partitioning, the external codegen compilation path may use \p that to guide it's
    * compilation to a \p runtime::Module. Given \p this, an appropriate \p that can be
-   * found using \p CompilationConfig::FindPrimitiveTargetOrFail(this->kind->device_type).
+   * found using \p CompilationConfig::FindPrimitiveTargetOrFail(this->GetTargetDeviceType()).
    *
    * The \p CollagePartition pass uses this method to guide it's search over candidate partitions
    * using external codegen.

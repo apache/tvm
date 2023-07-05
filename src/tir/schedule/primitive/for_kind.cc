@@ -145,7 +145,7 @@ void CheckParallelizability(const ScheduleState& self, const For& loop, ForKind 
  */
 void ParallelizeComputation(const ScheduleState& self, const StmtSRef& loop_sref, ForKind for_kind,
                             Optional<IterVar> thread_axis) {
-  const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
+  const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
 
   /*
    * Check:
@@ -157,7 +157,9 @@ void ParallelizeComputation(const ScheduleState& self, const StmtSRef& loop_sref
    * parallelized/vectorized/bound.
    */
   // Step 1. Check whether the subtree rooted from the `loop` in sref tree has compact data flow.
-  CheckSubtreeCompactDataflow(self, loop_sref);
+  if (self->enable_check) {
+    CheckSubtreeCompactDataflow(self, loop_sref);
+  }
 
   // Step 2. Check whether the loop can be parallelized/vectorized/bound with regard to each
   // underlying block.
@@ -186,7 +188,7 @@ void Bind(ScheduleState self, const StmtSRef& loop_sref, const IterVar& thread_a
 }
 
 void Unroll(ScheduleState self, const StmtSRef& loop_sref) {
-  const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
+  const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
   ObjectPtr<ForNode> new_loop = make_object<ForNode>(*loop);
   new_loop->kind = ForKind::kUnrolled;
   new_loop->thread_binding = NullOpt;

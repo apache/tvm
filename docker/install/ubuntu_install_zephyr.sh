@@ -21,28 +21,46 @@ set -u
 set -o pipefail
 set -x
 
-export DEBIAN_FRONTEND=noninteractive
-export TZ=Etc/UTC
-sudo ln -snf /usr/share/zoneinfo/$TZ /etc/localtime
-echo $TZ > /etc/timezone
-
 sudo apt-install-and-clear -y --no-install-recommends \
      libsdl2-dev ca-certificates gnupg software-properties-common wget \
-     git cmake ninja-build gperf \
+     git ninja-build gperf \
      ccache dfu-util device-tree-compiler wget \
      python3-dev python3-pip python3-setuptools python3-tk python3-wheel python3-venv \
-     xz-utils file make gcc gcc-multilib g++-multilib apt-transport-https
+     xz-utils file make gcc gcc-multilib g++-multilib apt-transport-https libudev-dev \
+     libmagic1
 
 wget --no-verbose https://apt.kitware.com/keys/kitware-archive-latest.asc
 sudo apt-key add kitware-archive-latest.asc
 
-echo deb https://apt.kitware.com/ubuntu/ bionic main\
+echo deb https://apt.kitware.com/ubuntu/ jammy main\
      >> /etc/apt/sources.list.d/kitware.list
 sudo apt-get update
 
 sudo apt-install-and-clear -y cmake
 
-pip3 install west
+# Find release version
+apt-get update
+apt-install-and-clear -y \
+    lsb-core
+
+release=$(lsb_release -sc)
+if [ "${release}" == "bionic" ]; then
+     python_cmd="python3"
+elif [ "${release}" == "focal" ]; then
+     python_cmd="python3.8"
+elif [ "${release}" == "jammy" ]; then
+     python_cmd="python3.8"
+else
+    echo "Don't know which version of python to use for Zephyr."
+    exit 2
+fi
+
+# Current Zephyr version is compatible with python3.8.
+# We use a different python env for Zephyr to test the
+# real world scenario where TVM and Zephyr could be in different
+# python environments.
+# TODO: use virtual env for Zephyr.
+$python_cmd -m pip install west
 
 # Init ZephyrProject
 ZEPHYR_PROJECT_PATH=/opt/zephyrproject
@@ -62,7 +80,4 @@ chmod -R o+w ${ZEPHYR_PROJECT_PATH}
 mkdir zephyr/.cache
 chmod o+rwx zephyr/.cache
 
-#/opt/west/bin/pip3 install -r /opt/zephyrproject/zephyr/scripts/requirements.txt
-pip3 install -r /opt/zephyrproject/zephyr/scripts/requirements.txt
-
-bash /install/ubuntu_install_zephyr_sdk.sh /opt/zephyr-sdk
+$python_cmd -m pip install -r /opt/zephyrproject/zephyr/scripts/requirements.txt

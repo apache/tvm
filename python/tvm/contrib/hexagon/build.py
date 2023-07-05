@@ -14,11 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=consider-using-with, unnecessary-ellipsis
 
 """Defines top-level glue functions for building Hexagon."""
 
 import abc
 import datetime
+import logging
 import multiprocessing as mp
 import os
 import pathlib
@@ -28,16 +30,38 @@ import stat
 import random
 import string
 import subprocess
+import sys
 import tempfile
 from typing import Union
 
-import tvm
+from tvm.contrib.hexagon.hexagon_profiler import HexagonProfiler
 from ..._ffi import libinfo
 from .session import Session
-
+from .tools import HEXAGON_SIMULATOR_NAME
 
 HEXAGON_RPC_LIB_DIR = os.environ.get("HEXAGON_RPC_LIB_DIR")
 ANDROID_BASH_FILE_NAME = "android_bash.sh"
+HEXAGON_REMOTE_DEVICE_KEY = "hexagon-dev"
+
+
+def _check_call_verbose(cmd, **kwargs) -> None:
+    """
+    Similar to subprocess.check_call(cmd), but if the exit code is non-zero
+    then the raised Exception's message provides more detail, including
+    the stdout/stderr provided by the subprocess.
+    """
+    try:
+        subprocess.run(
+            cmd,
+            check=True,
+            encoding="UTF-8",
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            **kwargs,
+        )
+    except subprocess.CalledProcessError as err:
+        error_msg = f"{err}\nstdout:\n{err.stdout}\nstderr:\n{err.stderr}"
+        raise Exception(error_msg)
 
 
 def _get_hexagon_rpc_lib_dir() -> pathlib.Path:
@@ -67,6 +91,67 @@ def _get_test_directory_name() -> str:
     return f"{date_str}-{random_str}"
 
 
+def _get_adb_path() -> str:
+    """Define path to adb
+
+    Order of search:
+      1. From PATH
+      2. From ANDROID_SDK_ROOT
+      3. From ANDROID_HOME
+      3. From default android sdk installation directory (platform specific)
+    """
+
+    def check_execution(exe_path):
+        try:
+            ret_code = subprocess.call(
+                [exe_path, "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            )
+        except FileNotFoundError:
+            ret_code = -1
+
+        return ret_code == 0
+
+    # Check if adb available via PATH
+    if check_execution("adb"):
+        return "adb"
+
+    # Check if adb available via env vars or default directories
+    list_of_paths = [
+        os.environ.get("ANDROID_SDK_ROOT", default=""),
+        os.environ.get("ANDROID_HOME", default=""),
+    ]
+
+    if sys.platform == "darwin":
+        list_of_paths += [
+            os.path.join(pathlib.Path.home(), "Library", "Android", "sdk", "platform-tools")
+        ]
+    if sys.platform == "win32":
+        list_of_paths += [
+            os.path.join(
+                pathlib.Path.home(), "AppData", "Local", "Android", "sdk", "platform-tools"
+            )
+        ]
+    if sys.platform == "linux":
+        list_of_paths += [os.path.join(pathlib.Path.home(), "Android", "Sdk", "platform-tools")]
+
+    list_of_paths = [path for path in list_of_paths if path != ""]
+
+    found_path = None
+    for candidate_path in list_of_paths:
+        adb_path = os.path.join(candidate_path, "adb")
+        if os.path.isfile(adb_path) and check_execution(adb_path):
+            found_path = adb_path
+            break
+
+    if found_path is None:
+        raise RuntimeError(
+            "ADB was not found. It should be available via PATH, ANDROID_SDK_ROOT "
+            "or ANDROID_HOME env var."
+        )
+
+    return found_path
+
+
 class HexagonLauncherRPC(metaclass=abc.ABCMeta):
     """Base class for RPC-based launchers.
 
@@ -82,14 +167,9 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
     The basic flow of interaction with the launcher is
         launcher = HexagonLauncher(...)
         launcher.start_server()
-        with launcher.start_session() as session:
+        with launcher.create_session() as session:
             # Do something with the session
         launcher.stop_server()
-    """
-
-    HEXAGON_REMOTE_DEVICE_KEY = "hexagon-dev"
-
-    """Configure HexagonLauncherRPC.
 
     Parameters
     ----------
@@ -108,7 +188,9 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
         used.
     """
 
-    def __init__(self, rpc_info: dict, workspace: Union[str, pathlib.Path] = None):
+    def __init__(
+        self, rpc_info: dict, workspace: Union[str, pathlib.Path] = None, serial_number: str = None
+    ):
         self._rpc_info = {
             "rpc_tracker_host": "0.0.0.0",
             "rpc_tracker_port": 9190,
@@ -117,7 +199,7 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
         }
         self._rpc_info.update(rpc_info)
         self._workspace = self._create_workspace(workspace)
-        self._device_key = self.HEXAGON_REMOTE_DEVICE_KEY
+        self._serial_number = serial_number
 
     @abc.abstractmethod
     def start_server(self):
@@ -184,28 +266,31 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
             workspace = os.path.join(base_dir, _get_test_directory_name())
         return self._create_remote_directory(workspace)
 
-    def upload(self, local_path: Union[str, pathlib.Path], remote_filename: str) -> pathlib.Path:
-        """Upload a local file to the remote workspace.
+    @abc.abstractmethod
+    def get_profile_output(
+        self,
+        hex_profiler: HexagonProfiler,
+        session: Session,
+    ) -> str:
+        """Extract profile output.
 
         Parameters
         ----------
-        local_path : str or pathlib.Path
-            Path to the local file to be copied.
-        remote_filename : str
-            Name of the file in the remote workspace.
+        hex_profiler : HexagonProfiler
+            HexagonProfiler object that contains the profiling related information.
+        session : Session
+            Remote session. The session must be established (via __enter__)
+            prior to calling this function.
 
         Returns
         -------
-        pathlib.Path :
-            Uploaded file remote path.
+        profile_data : str
+            Path of the profiling data file
         """
-        assert self._workspace
-        remote_file_path = self._workspace / remote_filename
-        self._copy_to_remote(local_path, str(remote_file_path))
-        return remote_file_path
+        ...
 
-    def start_session(self, session_name: str = "hexagon-rpc") -> Session:
-        """Connect to the RPC server.
+    def create_session(self, session_name: str = "hexagon-rpc") -> Session:
+        """Create an RPC session.
 
         Parameters
         ----------
@@ -217,104 +302,17 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
         Session :
             The session object.
         """
-        hexagon_remote_kw = {
-            "host": self._rpc_info["rpc_tracker_host"],
-            "port": self._rpc_info["rpc_tracker_port"],
-            "priority": 0,
-            "timeout": 0,
-            "key": self._device_key,
+        hexagon_session_kw = {
+            "remote_workspace": self._workspace,
+            "rpc_tracker": (self._rpc_info["rpc_tracker_host"], self._rpc_info["rpc_tracker_port"]),
+            "rpc_server_key": self._rpc_info["device_key"],
+            "serial_number": self._serial_number,
+            "session_name": session_name,
         }
-        return Session(self, hexagon_remote_kw, session_name=session_name)
+        return Session(**hexagon_session_kw)
 
-    def load_module(self, module: Union[str, pathlib.Path, tvm.runtime.Module], session: Session):
-        """Load TVM module.
-
-        Parameters
-        ----------
-        module : Union[str, pathlib.Path, tvm.runtime.Module]
-
-            The module to load.  If `module` is a
-            `tvm.runtime.Module`, it will be uploaded to the remote
-            session and loaded.
-
-            If the object passed is a string or pathlib.Path, it must
-            be a full path in the remote system.
-
-        session : Session
-
-            Remote session. The session must be established (via __enter__)
-            prior to calling this function.
-
-        Returns
-        -------
-        TVMModule :
-            TVM module object.
-
-        """
-        return session.load_module(module)
-
-    def get_graph_executor(
-        self,
-        graph_json: str,
-        module: Union[str, pathlib.Path, tvm.runtime.Module],
-        session: Session,
-    ):
-        """Create a local GraphModule which consumes a remote libmod.
-
-        Parameters
-        ----------
-        graph_json : str
-            The string with the graph JSON.
-        module : Union[str, pathlib.Path, tvm.runtime.Module]
-
-            The module to load.  If `module` is a
-            `tvm.runtime.Module`, it will be uploaded to the remote
-            session and loaded.
-
-            If the object passed is a string or pathlib.Path, it must
-            be a full path in the remote system.
-        session : Session
-            Remote session. The session must be established (via __enter__)
-            prior to calling this function.
-
-        Returns
-        -------
-        GraphModule :
-            Runtime graph module that can be used to execute the graph.
-        """
-        return session.get_graph_executor(graph_json, module)
-
-    def get_graph_debug_executor(
-        self,
-        graph_json: str,
-        module: Union[str, pathlib.Path, tvm.runtime.Module],
-        session: Session,
-        dump_root: Union[str, pathlib.Path] = None,
-    ):
-        """Create a local GraphModuleDebug which consumes a remote libmod.
-
-        Parameters
-        ----------
-        graph_json : str
-            The string with the graph JSON.
-        module : Union[str, pathlib.Path, tvm.runtime.Module]
-
-            The module to load.  If `module` is a
-            `tvm.runtime.Module`, it will be uploaded to the remote
-            session and loaded.
-
-            If the object passed is a string or pathlib.Path, it must
-            be a full path in the remote system.
-        session : Session
-            Remote session. The session must be established (via __enter__)
-            prior to calling this function.
-
-        Returns
-        -------
-        GraphModuleDebug :
-            Runtime debug graph module that can be used to debug the graph.
-        """
-        return session.get_graph_debug_executor(graph_json, module, dump_root=dump_root)
+    def is_simulator(self):
+        return self._serial_number == HEXAGON_SIMULATOR_NAME
 
 
 class HexagonLauncherAndroid(HexagonLauncherRPC):
@@ -328,7 +326,14 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
     ]
 
     def __init__(
-        self, serial_number: str, rpc_info: dict, workspace: Union[str, pathlib.Path] = None
+        self,
+        serial_number: str,
+        rpc_info: dict,
+        workspace: Union[str, pathlib.Path] = None,
+        hexagon_debug: bool = False,
+        clear_logcat: bool = False,
+        sysmon_profile: bool = False,
+        farf_config: str = "0x1e",
     ):
         """Configure a new HexagonLauncherAndroid
 
@@ -342,27 +347,45 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
             is used as the base directory.
         workspace : str or pathlib.Path, optional
             Test workspace path on android.
+        hexagon_debug: bool, optional
+            Should the server run debug options.
+        clear_logcat: bool, optional
+            Should the server clear logcat before running.
+        sysmon_profile: bool, optional
+            Should the server run sysmon profiler in the background.
+        farf_config: str, optional
+            Configuration string for runtime log level filtering.
+            Use farf_config_from_python_log_level to generate a bitmask
+            string from a Python logging level (e.g., logging.INFO)
         """
         if not rpc_info.get("workspace_base"):
             rpc_info["workspace_base"] = self.ANDROID_HEXAGON_TEST_BASE_DIR
         self._serial_number = serial_number
-        adb_socket = rpc_info["adb_server_socket"] if rpc_info["adb_server_socket"] else "tcp:5037"
-        self._adb_device_sub_cmd = ["adb", "-L", adb_socket, "-s", self._serial_number]
-        self.forwarded_ports_ = []
+        assert self._serial_number != "", "Android serial number is not set."
 
-        super(HexagonLauncherAndroid, self).__init__(rpc_info, workspace)
+        adb_socket = rpc_info["adb_server_socket"] if rpc_info["adb_server_socket"] else "tcp:5037"
+        adb_exe = _get_adb_path()
+        self._adb_device_sub_cmd = [adb_exe, "-L", adb_socket, "-s", self._serial_number]
+        self.forwarded_ports_ = []
+        self._hexagon_debug = hexagon_debug
+        self._clear_logcat = clear_logcat
+        self._sysmon_profile = sysmon_profile
+        self._sysmon_process = None
+        self._farf_config = farf_config
+        rpc_info["device_key"] = HEXAGON_REMOTE_DEVICE_KEY + "." + self._serial_number
+
+        super(HexagonLauncherAndroid, self).__init__(rpc_info, workspace, self._serial_number)
 
     def _copy_to_remote(
         self, local_path: Union[str, pathlib.Path], remote_path: Union[str, pathlib.Path]
     ):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
-        subprocess.check_call(
-            self._adb_device_sub_cmd + ["push", str(local_path), str(remote_path)]
-        )
+
+        _check_call_verbose(self._adb_device_sub_cmd + ["push", str(local_path), str(remote_path)])
 
     def _create_remote_directory(self, remote_path: Union[str, pathlib.Path]) -> pathlib.Path:
         """Abstract method implementation. See description in HexagonLauncherRPC."""
-        subprocess.check_call(self._adb_device_sub_cmd + ["shell", "mkdir", "-p", str(remote_path)])
+        _check_call_verbose(self._adb_device_sub_cmd + ["shell", "mkdir", "-p", str(remote_path)])
         return pathlib.Path(remote_path)
 
     def _copy_binaries(self):
@@ -383,11 +406,15 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
                                 "<RPC_TRACKER_PORT>", str(self._rpc_info["rpc_tracker_port"])
                             )
                         if "<HEXAGON_REMOTE_DEVICE_KEY>" in line:
-                            line = line.replace("<HEXAGON_REMOTE_DEVICE_KEY>", self._device_key)
+                            line = line.replace(
+                                "<HEXAGON_REMOTE_DEVICE_KEY>", self._rpc_info["device_key"]
+                            )
                         if "<RPC_SERVER_PORT>" in line:
                             line = line.replace(
                                 "<RPC_SERVER_PORT>", str(self._rpc_info["rpc_server_port"])
                             )
+                        if "<FARF_CONFIG>" in line:
+                            line = line.replace("<FARF_CONFIG>", str(self._farf_config))
                         dest_f.write(line)
 
                 # Make shell script executable
@@ -418,14 +445,14 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         port = rpc_server_port
         while len(self.forwarded_ports_) < 10:
             if port not in existing_forwards and not _is_port_in_use(port):
-                subprocess.check_call(
+                _check_call_verbose(
                     self._adb_device_sub_cmd + ["forward", f"tcp:{port}", f"tcp:{port}"]
                 )
                 self.forwarded_ports_.append(port)
             port += 1
 
     def _reverse_ports(self, rpc_tracker_port):
-        subprocess.check_call(
+        _check_call_verbose(
             self._adb_device_sub_cmd
             + ["reverse", f"tcp:{rpc_tracker_port}", f"tcp:{rpc_tracker_port}"]
         )
@@ -455,11 +482,11 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
     def _cleanup_port_forwarding(self):
         # Removed pre-defined forward/reverse rules
         rpc_tracker_port = self._rpc_info["rpc_tracker_port"]
-        subprocess.check_call(
+        _check_call_verbose(
             self._adb_device_sub_cmd + ["reverse", "--remove", f"tcp:{rpc_tracker_port}"]
         )
         for port in self.forwarded_ports_:
-            subprocess.check_call(self._adb_device_sub_cmd + ["forward", "--remove", f"tcp:{port}"])
+            _check_call_verbose(self._adb_device_sub_cmd + ["forward", "--remove", f"tcp:{port}"])
 
     def _terminate_remote(self):
         # Send interupt to main and child processes
@@ -486,16 +513,140 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
         subprocess.Popen(self._adb_device_sub_cmd + ["shell", f"rm -rf {self._workspace}"])
 
+    def _start_sysmon(self):
+        hexagon_sdk_root = os.environ.get("HEXAGON_SDK_ROOT", default="")
+        subprocess.call(
+            self._adb_device_sub_cmd
+            + ["push", f"{hexagon_sdk_root}/tools/utils/sysmon/sysMonApp", "/data/local/tmp/"]
+        )
+        sysmon_process = subprocess.Popen(
+            self._adb_device_sub_cmd
+            + [
+                "shell",
+                "/data/local/tmp/sysMonApp profiler --debugLevel 0 --samplePeriod 1 --q6 cdsp",
+            ],
+            stdin=subprocess.PIPE,
+        )
+        return sysmon_process
+
+    def _stop_sysmon(self):
+        if self._sysmon_process is not None:
+            self._sysmon_process.communicate(input=b"\n")
+            self._sysmon_process = None
+
+    def _retrieve_sysmon(self):
+        pathlib.Path("./sysmon_output/").mkdir(exist_ok=True)
+        subprocess.call(
+            self._adb_device_sub_cmd + ["pull", "/sdcard/sysmon_cdsp.bin", "./sysmon_output/"]
+        )
+        subprocess.call(self._adb_device_sub_cmd + ["root"])
+        hexagon_sdk_root = os.environ.get("HEXAGON_SDK_ROOT", default="")
+        subprocess.call(
+            f"{hexagon_sdk_root}/tools/utils/sysmon/parser_linux_v2/HTML_Parser/sysmon_parser "
+            + "./sysmon_output/sysmon_cdsp.bin --outdir ./sysmon_output/",
+            shell=True,
+        )
+
+    def _clear_debug_logs(self):
+        subprocess.call(self._adb_device_sub_cmd + ["shell", "logcat", "-c"])
+
+    def _retrieve_debug_logs(self):
+        run_start_time = subprocess.check_output(
+            self._adb_device_sub_cmd
+            + [
+                "shell",
+                "stat",
+                f"{self._workspace}/android_bash.sh | grep 'Change' | grep -oe '[0-9].*'",
+            ]
+        )
+        run_start_time = run_start_time[:-1].decode("UTF-8")
+        subprocess.call(
+            self._adb_device_sub_cmd
+            + [
+                "shell",
+                "logcat",
+                "-t",
+                f'"{run_start_time}"',
+                "-f",
+                f"{self._workspace}/logcat.txt",
+            ]
+        )
+        subprocess.call(self._adb_device_sub_cmd + ["pull", f"{self._workspace}/logcat.txt", "."])
+
+    def _print_cdsp_logs(self):
+        crash_count = 0
+        context_lines = 0
+        print_buffer = ""
+        try:
+            with open("./logcat.txt", "r") as f:
+                for line in f:
+                    if "Process on cDSP CRASHED" in line:
+                        if crash_count <= 5:
+                            print(print_buffer, "\n")
+                        context_lines = 40
+                        print_buffer = ""
+                        crash_count += 1
+                    if context_lines > 0 and "platform_qdi_driver" in line:
+                        context_lines -= 1
+                        print_buffer += line[80:]
+
+            if crash_count <= 5:
+                print(print_buffer, "\n")
+
+            print(
+                f"There were {crash_count} crashes on the cDSP during execution... "
+                + "Crash printing is limited to the first 5."
+            )
+        except FileNotFoundError:
+            print("Unable to parse logcat file.")
+
     def start_server(self):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
         self._copy_binaries()
+        if self._sysmon_profile:
+            self._sysmon_process = self._start_sysmon()
         self._run_server_script()
+        if self._clear_logcat:
+            self._clear_debug_logs()
 
     def stop_server(self):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
+        if self._sysmon_profile and self._sysmon_process is not None:
+            self._stop_sysmon()
+            self._retrieve_sysmon()
+        if self._hexagon_debug:
+            self._retrieve_debug_logs()
+            self._print_cdsp_logs()
         self._cleanup_port_forwarding()
         self._terminate_remote()
-        self.cleanup_directory()
+        if not self._hexagon_debug:
+            self.cleanup_directory()
+
+    def get_profile_output(
+        self,
+        hex_profiler: HexagonProfiler,
+        session: Session,
+    ):
+        """Abstract method implementation. See description in HexagonLauncherRPC."""
+        profile_data = ""
+        if hex_profiler.is_lwp_enabled():
+            temp_dir = hex_profiler.get_temp_dir()
+            remote_path = hex_profiler.get_remote_path()
+            if not temp_dir:
+                raise RuntimeError("tempdir not passed")
+            fname = "lwp.json"
+            out_path = os.path.join(remote_path, fname)
+            profile_data = temp_dir.relpath(fname)
+            ret = session.get_profile_output(hex_profiler.get_mode(), fname)
+            if ret:
+                subprocess.check_call(self._adb_device_sub_cmd + ["pull", out_path, profile_data])
+            else:
+                raise RuntimeError("Error generating profile output")
+        elif hex_profiler.profiling_mode == "etm":
+            hex_profiler.pull_files_for_etm_processing(self._workspace)
+        else:
+            raise RuntimeError("Profiling not enabled")
+        return profile_data
 
 
 class HexagonLauncherSimulator(HexagonLauncherRPC):
@@ -508,22 +659,23 @@ class HexagonLauncherSimulator(HexagonLauncherRPC):
 
         Parameters are same as for HexagonLauncherRPC.
         """
-        super(HexagonLauncherSimulator, self).__init__(rpc_info, workspace)
 
         self._toolchain = os.environ.get("HEXAGON_TOOLCHAIN")
         if not self._toolchain:
             raise RuntimeError("Please set HEXAGON_TOOLCHAIN env variable")
-        self._serial_number = "simulator"
+        self._serial_number = HEXAGON_SIMULATOR_NAME
+
+        super(HexagonLauncherSimulator, self).__init__(rpc_info, workspace, self._serial_number)
 
     def _copy_to_remote(
         self, local_path: Union[str, pathlib.Path], remote_path: Union[str, pathlib.Path]
     ):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
-        subprocess.check_call(["cp", str(local_path), str(remote_path)])
+        _check_call_verbose(["cp", str(local_path), str(remote_path)])
 
     def _create_remote_directory(self, remote_path: Union[str, pathlib.Path]) -> pathlib.Path:
         """Abstract method implementation. See description in HexagonLauncherRPC."""
-        subprocess.check_call(["mkdir", "-p", str(remote_path)])
+        _check_call_verbose(["mkdir", "-p", str(remote_path)])
         return pathlib.Path(os.path.abspath(remote_path))
 
     def _copy_libcxx(self, dest_dir: Union[str, pathlib.Path]):
@@ -547,7 +699,7 @@ class HexagonLauncherSimulator(HexagonLauncherRPC):
         # links is to save disk space.
         tar_in = f"tar -cf - -C {lib_dir} " + " ".join(libcxx_files)
         tar_out = f"tar -xf - -C {str(dest_dir)}"
-        subprocess.check_call(tar_in + " | " + tar_out, shell=True)
+        _check_call_verbose(tar_in + " | " + tar_out, shell=True)
 
     def start_server(self):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
@@ -557,18 +709,19 @@ class HexagonLauncherSimulator(HexagonLauncherRPC):
             self._copy_to_remote(lib_dir / item, self._workspace / item)
         # Copy libc++ from the toolchain to the workspace
         self._copy_libcxx(self._workspace)
-        self._device_key = self.HEXAGON_REMOTE_DEVICE_KEY + "." + str(os.getpid())
+        self._rpc_info["device_key"] = HEXAGON_REMOTE_DEVICE_KEY + "." + str(os.getpid())
 
         rpc_tracker_host = self._rpc_info["rpc_tracker_host"]
         rpc_tracker_port = self._rpc_info["rpc_tracker_port"]
         rpc_server_port = self._rpc_info["rpc_server_port"]
+        device_key = self._rpc_info["device_key"]
         server_exe = os.path.join(".", "tvm_rpc_x86")
 
         args = [
             "server",
             f"--tracker={rpc_tracker_host}:{rpc_tracker_port}",
             f"--port={rpc_server_port}",
-            f"--key={self._device_key}",
+            f"--key={device_key}",
             "--timeout=0",
         ]
 
@@ -603,6 +756,26 @@ class HexagonLauncherSimulator(HexagonLauncherRPC):
         """Abstract method implementation. See description in HexagonLauncherRPC."""
         self._server_process.terminate()
 
+    def get_profile_output(
+        self,
+        hex_profiler: HexagonProfiler,
+        session: Session,
+    ):
+        """Abstract method implementation. See description in HexagonLauncherRPC."""
+        profile_data = ""
+        if hex_profiler.is_lwp_enabled():
+            fname = "lwp.json"
+            profile_data = f"{self._workspace}/{fname}"
+            ret = session.get_profile_output(hex_profiler.get_mode(), fname)
+            if not ret:
+                raise RuntimeError("Error generating profile output")
+        elif hex_profiler.profiling_mode == "etm":
+            raise RuntimeError("ETM Profiling not supported on the simulator")
+        else:
+            raise RuntimeError("Profiling not enabled")
+
+        return profile_data
+
 
 # https://stackoverflow.com/a/52872579/2689797
 def _is_port_in_use(port: int) -> bool:
@@ -610,8 +783,57 @@ def _is_port_in_use(port: int) -> bool:
         return s.connect_ex(("localhost", port)) == 0
 
 
+def farf_config_from_python_log_level(level) -> str:
+    """Generates a FARF configuration string enabling logging at the specified level
+
+    Parameters
+    ----------
+    level : str or int
+        Minimum level to log at. Must be a known Python logging level or string
+        (e.g., logging.INFO or "INFO")
+    """
+
+    # Runtime log levels can be selectively enabled by computing a bitmask
+    # corresponding to the levels you want to enable. These get forwarded to
+    # logcat by the DSP RPC daemon. The bits for each level are:
+
+    # 0x01 - Hexagon LOW / TVM DEBUG / Python DEBUG
+    # 0x02 - Hexagon MEDIUM / TVM INFO / Python INFO
+    # 0x04 - Hexagon HIGH / TVM WARN / Python WARNING
+    # 0x08 - Hexagon ERROR / TVM ERROR / Python ERROR
+    # 0x10 - Hexagon FATAL / TVM FATAL / Python CRITICAL
+
+    # Runtime logging can also be filtered on filenames by appending a
+    # comma-separated list of filenames. For more information, see
+    # the Hexagon SDK documentation.
+
+    if level in (logging.DEBUG, "DEBUG"):
+        return "0x1F"
+    if level in (logging.INFO, "INFO"):
+        return "0x1E"
+    if level in (logging.WARNING, "WARNING"):
+        return "0x1C"
+    if level in (logging.ERROR, "ERROR"):
+        return "0x18"
+    if level in (logging.CRITICAL, "CRITICAL"):
+        return "0x10"
+
+    raise ValueError("Argument must be a known Python logging level or string")
+
+
 # pylint: disable=invalid-name
-def HexagonLauncher(serial_number: str, rpc_info: dict, workspace: Union[str, pathlib.Path] = None):
-    if serial_number == "simulator":
+def HexagonLauncher(
+    serial_number: str,
+    rpc_info: dict,
+    workspace: Union[str, pathlib.Path] = None,
+    hexagon_debug: bool = False,
+    clear_logcat: bool = False,
+    sysmon_profile: bool = False,
+    farf_config: str = farf_config_from_python_log_level(logging.INFO),
+):
+    """Creates a HexagonLauncher"""
+    if serial_number == HEXAGON_SIMULATOR_NAME:
         return HexagonLauncherSimulator(rpc_info, workspace)
-    return HexagonLauncherAndroid(serial_number, rpc_info, workspace)
+    return HexagonLauncherAndroid(
+        serial_number, rpc_info, workspace, hexagon_debug, clear_logcat, sysmon_profile, farf_config
+    )

@@ -28,11 +28,9 @@ echo set\(USE_RPC ON\) >> config.cmake
 echo set\(USE_MICRO ON\) >> config.cmake
 echo set\(USE_MICRO_STANDALONE_RUNTIME ON\) >> config.cmake
 echo set\(USE_PROFILER ON\) >> config.cmake
-echo set\(USE_LLVM llvm-config-4.0\) >> config.cmake
+echo set\(USE_LLVM llvm-config-10\) >> config.cmake
 echo set\(CMAKE_CXX_FLAGS -Werror\) >> config.cmake
-echo set\(USE_VTA_FSIM ON\) >> config.cmake
-echo set\(USE_VTA_TSIM ON\) >> config.cmake
-echo set\(USE_VERILATOR ON\) >> config.cmake
 echo set\(USE_CCACHE OFF\) >> config.cmake
+echo set\(BACKTRACE_ON_SEGFAULT ON\) >> config.cmake
+echo set\(USE_UMA OFF\) >> config.cmake
 echo set\(SUMMARIZE ON\) >> config.cmake
-

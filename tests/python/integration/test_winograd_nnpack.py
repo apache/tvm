@@ -14,18 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Test winograd convolution using nnpack impl."""
 import numpy as np
+from pytest import skip
+
 import tvm
-from tvm import te
-from tvm import autotvm
+import tvm.testing
+import tvm.topi.testing
+from tvm import autotvm, te, topi
 from tvm.autotvm.task.space import FallbackConfigEntity
 from tvm.contrib import nnpack
 from tvm.contrib.pickle_memoize import memoize
-from tvm import topi
-import tvm.topi.testing
 from tvm.topi.utils import get_const_tuple
-from pytest import skip
-import tvm.testing
 
 
 def verify_conv2d_nchw(
@@ -36,11 +36,12 @@ def verify_conv2d_nchw(
     kernel,
     stride,
     padding,
+    devices,
     dilation=1,
     add_bias=False,
     add_relu=False,
-    devices=["cuda", "llvm -device=arm_cpu", "opencl -device=mali"],
 ):
+    """Verify conv2d nchw workload."""
     print(
         "Workload: (%d, %d, %d, %d, %d, %d, %d, %d)"
         % (batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation)
@@ -48,14 +49,14 @@ def verify_conv2d_nchw(
 
     in_height = in_width = in_size
 
-    A = te.placeholder((batch, in_channel, in_height, in_width), name="A")
-    W = te.placeholder((num_filter, in_channel, kernel, kernel), name="W")
+    placholder_a = te.placeholder((batch, in_channel, in_height, in_width), name="A")
+    placeholder_w = te.placeholder((num_filter, in_channel, kernel, kernel), name="W")
     bias = te.placeholder((num_filter, 1, 1), name="bias")
 
-    a_shape = get_const_tuple(A.shape)
-    w_shape = get_const_tuple(W.shape)
+    a_shape = get_const_tuple(placholder_a.shape)
+    w_shape = get_const_tuple(placeholder_w.shape)
     bias_shape = get_const_tuple(bias.shape)
-    dtype = A.dtype
+    dtype = placholder_a.dtype
 
     @memoize("topi.tests.test_topi_conv2d_nchw.verify_conv2d_nchw")
     def get_ref_data():
@@ -79,42 +80,52 @@ def verify_conv2d_nchw(
             print("Skipping %s becuase it is not enabled" % device)
         print("Running on target: %s" % device)
         with tvm.target.Target(device):
-            C = topi.nn.conv2d(A, W, stride, padding, dilation, layout="NCHW", out_dtype=dtype)
+            result_c = topi.nn.conv2d(
+                placholder_a,
+                placeholder_w,
+                stride,
+                padding,
+                dilation,
+                data_layout="NCHW",
+                out_dtype=dtype,
+            )
             if add_bias:
-                C = topi.add(C, bias)
+                result_c = topi.add(result_c, bias)
             if add_relu:
-                C = topi.nn.relu(C)
-            s = topi.generic.schedule_conv2d_nchw([C])
+                result_c = topi.nn.relu(result_c)
+            schedule = topi.generic.schedule_conv2d_nchw([result_c])
 
-        a = tvm.nd.array(a_np, dev)
-        w = tvm.nd.array(w_np, dev)
-        b = tvm.nd.array(b_np, dev)
-        c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), dev)
+        buff_a = tvm.nd.array(a_np, dev)
+        buff_w = tvm.nd.array(w_np, dev)
+        buff_b = tvm.nd.array(b_np, dev)
+        buff_c = tvm.nd.array(np.zeros(get_const_tuple(result_c.shape), dtype=result_c.dtype), dev)
         if add_bias:
             func = tvm.build(
-                s,
-                [A, W, bias, C],
+                schedule,
+                [placholder_a, placeholder_w, bias, result_c],
                 device,
                 name="relu_%d_%d_%d_%d_%d_%d_%d_%d"
                 % (batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation),
             )
-            func(a, w, b, c)
+            func(buff_a, buff_w, buff_b, buff_c)
         else:
             func = tvm.build(
-                s,
-                [A, W, C],
+                schedule,
+                [placholder_a, placeholder_w, result_c],
                 device,
                 name="relu_%d_%d_%d_%d_%d_%d_%d_%d"
                 % (batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation),
             )
-            func(a, w, c)
-        tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-4)
+            func(buff_a, buff_w, buff_c)
+        tvm.testing.assert_allclose(buff_c.numpy(), c_np, rtol=1e-4)
 
     for device in devices:
         check_device(device)
 
 
 class WinogradFallback(autotvm.FallbackContext):
+    """Winograd fallbacks."""
+
     def _query_inside(self, target, workload):
         key = (target, workload)
         if key in self.memory:
@@ -126,6 +137,8 @@ class WinogradFallback(autotvm.FallbackContext):
 
 
 def test_conv2d_nchw():
+    """Verify conv2d nchw winograd works."""
+
     if not tvm.get_global_func(
         "tvm.contrib.nnpack.convolution_inference_without_weight_transform", True
     ):
@@ -170,6 +183,4 @@ def test_conv2d_nchw():
 
 
 if __name__ == "__main__":
-    import pytest
-
-    pytest.main([__file__])
+    tvm.testing.main()

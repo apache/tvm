@@ -34,10 +34,6 @@ void ExprVisitor::VisitExpr_(const SizeVarNode* op) {
 
 void ExprVisitor::VisitExpr_(const AnyNode* op) {}
 
-void ExprVisitor::VisitExpr_(const LoadNode* op) {
-  LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-}
-
 void ExprVisitor::VisitExpr_(const BufferLoadNode* op) {
   VisitArray(op->indices, [this](const PrimExpr& e) { this->VisitExpr(e); });
 }
@@ -125,14 +121,9 @@ PrimExpr ExprMutator::VisitExpr_(const SizeVarNode* op) {
 
 PrimExpr ExprMutator::VisitExpr_(const AnyNode* op) { return GetRef<PrimExpr>(op); }
 
-PrimExpr ExprMutator::VisitExpr_(const LoadNode* op) {
-  LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-  return PrimExpr();
-}
-
 PrimExpr ExprMutator::VisitExpr_(const BufferLoadNode* op) {
   auto fmutate = [this](const PrimExpr& e) { return this->VisitExpr(e); };
-  Array<PrimExpr> indices = MutateArray(op->indices, fmutate);
+  Array<PrimExpr> indices = op->indices.Map(fmutate);
   if (indices.same_as(op->indices)) {
     return GetRef<PrimExpr>(op);
   } else {
@@ -142,7 +133,7 @@ PrimExpr ExprMutator::VisitExpr_(const BufferLoadNode* op) {
 
 PrimExpr ExprMutator::VisitExpr_(const ProducerLoadNode* op) {
   auto fmutate = [this](const PrimExpr& e) { return this->VisitExpr(e); };
-  Array<PrimExpr> indices = MutateArray(op->indices, fmutate);
+  Array<PrimExpr> indices = op->indices.Map(fmutate);
   if (indices.same_as(op->indices)) {
     return GetRef<PrimExpr>(op);
   } else {
@@ -162,7 +153,7 @@ PrimExpr ExprMutator::VisitExpr_(const LetNode* op) {
 
 PrimExpr ExprMutator::VisitExpr_(const CallNode* op) {
   auto fmutate = [this](const PrimExpr& e) { return this->VisitExpr(e); };
-  Array<PrimExpr> args = MutateArray(op->args, fmutate);
+  Array<PrimExpr> args = op->args.Map(fmutate);
 
   if (args.same_as(op->args)) {
     return GetRef<PrimExpr>(op);
@@ -218,11 +209,11 @@ PrimExpr ExprMutator::VisitExpr_(const ReduceNode* op) {
       return IterVar(Range::FromMinExtent(min, extent), v->var, v->iter_type, v->thread_tag);
     }
   };
-  Array<IterVar> axis = MutateArray(op->axis, fitervar);
+  Array<IterVar> axis = op->axis.Map(fitervar);
 
   auto fexpr = [this](const PrimExpr& e) { return this->VisitExpr(e); };
-  Array<PrimExpr> source = MutateArray(op->source, fexpr);
-  Array<PrimExpr> init = MutateArray(op->init, fexpr);
+  Array<PrimExpr> source = op->source.Map(fexpr);
+  Array<PrimExpr> init = op->init.Map(fexpr);
 
   PrimExpr condition = this->VisitExpr(op->condition);
 
@@ -285,7 +276,7 @@ PrimExpr ExprMutator::VisitExpr_(const BroadcastNode* op) {
 
 PrimExpr ExprMutator::VisitExpr_(const ShuffleNode* op) {
   auto fexpr = [this](const PrimExpr& e) { return this->VisitExpr(e); };
-  auto vectors = MutateArray(op->vectors, fexpr);
+  auto vectors = op->vectors.Map(fexpr);
   if (vectors.same_as(op->vectors)) {
     return GetRef<PrimExpr>(op);
   } else {

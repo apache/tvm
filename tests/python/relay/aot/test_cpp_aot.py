@@ -81,42 +81,50 @@ def test_conv2d(enable_usmp, target_kind):
         }
     """
     )
-    ir_mod = tvm.parser.fromtext(relay_model)
+    ir_mod = tvm.relay.fromtext(relay_model)
 
     main_func = ir_mod["main"]
     shape_dict = {p.name_hint: p.checked_type.concrete_shape for p in main_func.params}
     type_dict = {p.name_hint: p.checked_type.dtype for p in main_func.params}
 
-    weight_data = np.ones(shape_dict["weight"]).astype(type_dict["weight"])
+    weight_data = np.random.randint(1, 255, shape_dict["weight"]).astype(type_dict["weight"])
     input_data = np.ones(shape_dict["data"]).astype(type_dict["data"])
-
     params = {"weight": weight_data}
     inputs = {"data": input_data}
     ref_outputs = generate_ref_data(ir_mod, inputs, params)
 
     with tvm.transform.PassContext(
-        opt_level=3, config={"tir.disable_vectorize": True, "tir.usmp.enable": enable_usmp}
+        opt_level=3,
+        config={
+            "tir.disable_vectorize": True,
+            "tir.usmp.enable": enable_usmp,
+        },
     ):
         mod = tvm.relay.build(
             ir_mod,
             params=params,
             target=target_kind,
-            executor=backend.Executor("aot", {"interface-api": "packed"}),
+            executor=backend.Executor("aot", {"interface-api": "packed", "unpacked-api": False}),
         )
-
     temp_dir = tvm.contrib.utils.TempDirectory()
     test_so_path = temp_dir / "test.so"
-    mod.export_library(test_so_path, cc="gcc", options=["-std=c11"])
+    mod.export_library(test_so_path, cc="gcc", options=["-std=c11", "-g3", "-O0"])
     loaded_mod = tvm.runtime.load_module(test_so_path)
     runner = tvm.runtime.executor.AotModule(loaded_mod["default"](tvm.cpu(0)))
     runner.set_input(**inputs)
+
+    assert runner.get_input_name(0) == "data"
+    shape_dict, dtype_dict = runner.get_input_info()
+    assert shape_dict == {"data": (1, 3, 64, 64)}
+    assert dtype_dict == {"data": "uint8"}
+
     runner.run()
-    assert (runner.get_output(0).asnumpy() == list(ref_outputs.values())[0]).all()
+    assert (runner.get_output(0).numpy() == list(ref_outputs.values())[0]).all()
 
 
 @pytest.mark.parametrize("enable_usmp", [True, False])
 @pytest.mark.parametrize("target_kind", ["c", "llvm"])
-def test_mobilenet(enable_usmp, target_kind):
+def test_mobilenet(enable_usmp: bool, target_kind: str):
     """Full network test with Mobilenet"""
     ir_mod, params = testing.mobilenet.get_workload(batch_size=1)
     data_shape = [int(x) for x in ir_mod["main"].checked_type.arg_types[0].shape]
@@ -136,7 +144,7 @@ def test_mobilenet(enable_usmp, target_kind):
 
     temp_dir = tvm.contrib.utils.TempDirectory()
     test_so_path = temp_dir / "test.so"
-    mod.export_library(test_so_path, cc="gcc", options=["-std=c11"])
+    mod.export_library(test_so_path, cc="c++", options=["-std=gnu++17", "-g3", "-O0"])
     loaded_mod = tvm.runtime.load_module(test_so_path)
     runner = tvm.runtime.executor.AotModule(loaded_mod["default"](tvm.cpu(0)))
     runner.set_input(**inputs)
@@ -167,7 +175,7 @@ def test_create_executor():
     x = tvm.relay.var("x", tvm.relay.TensorType([1], dtype="float32"))
     expr = tvm.relay.add(x, tvm.relay.Constant(tvm.nd.array(np.array([1], dtype="float32"))))
     actual = relay.create_executor(
-        "aot", mod=tvm.IRModule.from_expr(tvm.relay.Function([x], expr)), target="c -executor=aot"
+        "aot", mod=tvm.IRModule.from_expr(tvm.relay.Function([x], expr)), target="c"
     ).evaluate()(np.array([2], dtype="float32"))
 
     np.isfinite(np.array([3], dtype="float32"))
@@ -188,7 +196,7 @@ def test_pass_wrong_device_arg():
 
     temp_dir = tvm.contrib.utils.TempDirectory()
     test_so_path = temp_dir / "test.so"
-    mod.export_library(test_so_path, cc="gcc", options=["-std=c11"])
+    mod.export_library(test_so_path, cc="gcc", options=["-std=c11", "-g3", "-O0"])
     loaded_mod = tvm.runtime.load_module(test_so_path)
 
     with pytest.raises(tvm.TVMError) as error:
@@ -199,6 +207,83 @@ def test_pass_wrong_device_arg():
             in str(error.exception)
         )
     # TODO write asserts for # and type of device.
+
+
+@pytest.mark.parametrize("target_kind", ["c", "llvm"])
+@pytest.mark.parametrize("input_name", ["input:0", "input@0", "input_0"])
+def test_aot_input_name_with_special_character(target_kind: str, input_name: str):
+    """Test name transforms in AOT for input names with special characters."""
+    dtype = "float32"
+    input_1 = relay.var(input_name, shape=(10, 5), dtype=dtype)
+    weight = relay.var("weight", shape=(1, 5), dtype=dtype)
+    output = relay.add(input_1, weight)
+    func = relay.Function([input_1, weight], output)
+
+    input_data = np.random.rand(10, 5).astype(dtype)
+    weight_data = np.random.rand(1, 5).astype(dtype)
+    expected_output = input_data + weight_data
+    params = {"weight": weight_data}
+
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+        mod = tvm.relay.build(
+            tvm.IRModule.from_expr(func),
+            target=target_kind,
+            params=params,
+            executor=tvm.relay.backend.Executor("aot", {"interface-api": "packed"}),
+        )
+    temp_dir = tvm.contrib.utils.TempDirectory()
+    test_so_path = temp_dir / "test.so"
+    mod.export_library(test_so_path, cc="c++", options=["-std=gnu++17", "-g3", "-O0"])
+    # test both original name and transformed name
+    for name in ["input_0", input_name]:
+        loaded_mod = tvm.runtime.load_module(test_so_path)
+        runner = tvm.runtime.executor.AotModule(loaded_mod["default"](tvm.cpu(0)))
+        inputs = {name: input_data}
+        runner.set_input(**inputs)
+
+        input_ind = runner.get_input_index(name)
+        assert (runner.get_input(input_ind).asnumpy() == input_data).all()
+
+        runner.run()
+        assert (runner.get_output(0).asnumpy() == expected_output).all()
+
+
+@pytest.mark.parametrize("target_kind", ["c", "llvm"])
+def test_aot_incorrect_input_name(target_kind: str):
+    """Test passing incorrect input name."""
+    dtype = "float32"
+    correct_input_name = "input"
+    incorrect_input_name = "input1"
+    input1 = relay.var(correct_input_name, shape=(10, 5), dtype=dtype)
+    weight = relay.var("weight", shape=(1, 5), dtype=dtype)
+    output = relay.add(input1, weight)
+    func = relay.Function([input1, weight], output)
+
+    input_data = np.random.rand(10, 5).astype(dtype)
+    weight_data = np.random.rand(1, 5).astype(dtype)
+    params = {"weight": weight_data}
+
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+        mod = tvm.relay.build(
+            tvm.IRModule.from_expr(func),
+            target=target_kind,
+            params=params,
+            executor=tvm.relay.backend.Executor("aot", {"interface-api": "packed"}),
+        )
+    temp_dir = tvm.contrib.utils.TempDirectory()
+    test_so_path = temp_dir / "test.so"
+    mod.export_library(test_so_path, cc="c++", options=["-std=gnu++17", "-g3", "-O0"])
+
+    loaded_mod = tvm.runtime.load_module(test_so_path)
+    runner = tvm.runtime.executor.AotModule(loaded_mod["default"](tvm.cpu(0)))
+    inputs = {incorrect_input_name: input_data}
+
+    error_regex = r"Invalid input name."
+    with pytest.raises(tvm.TVMError, match=error_regex):
+        runner.set_input(**inputs)
+
+    with pytest.raises(tvm.TVMError, match=error_regex):
+        runner.get_input_index(incorrect_input_name)
 
 
 if __name__ == "__main__":

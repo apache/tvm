@@ -16,7 +16,7 @@
 # under the License.
 
 # pylint: disable=invalid-name, unused-argument, too-many-lines, import-outside-toplevel
-# pylint: disable=no-else-return, no-else-continue
+# pylint: disable=no-else-return, no-else-continue, use-list-literal
 """Caffe frontend."""
 import numpy as np
 import tvm
@@ -133,7 +133,7 @@ class OperatorConverter(object):
                 out = _op.maximum(out, extra_expr)
         else:
             raise tvm.error.OpNotImplemented(
-                "eltwise_type {} is not supported for frontend Caffe.".format(eltwise_type)
+                f"eltwise_type {eltwise_type} is not supported for frontend Caffe."
             )
 
         return out
@@ -351,7 +351,7 @@ class OperatorConverter(object):
             weight_value = np.asarray(weight.data, np.float32)
             weight_value = np.reshape(weight_value, weight_shape)
         else:
-            raise Exception("No weight value of layer {} in caffemodel".format(op.name))
+            raise Exception(f"No weight value of layer {op.name} in caffemodel")
 
         weight_expr = self.exp_tab.new_const(weight_value, dtype="float32")
         in_expr = self.exp_tab.get_expr(inputs[0])
@@ -416,9 +416,7 @@ class OperatorConverter(object):
                 out = _op.nn.avg_pool2d(in_expr, **params)
         else:
             raise tvm.error.OpNotImplemented(
-                "Operator {} is not supported for frontend Caffe.".format(
-                    pool_type_dict[pool_type] + " pool"
-                )
+                f"Operator {pool_type_dict[pool_type]} pool is not supported for frontend Caffe."
             )
 
         return out
@@ -465,7 +463,7 @@ class OperatorConverter(object):
             weight_value = np.reshape(weight_value, (params["num_output"], -1))
             weight_shape = weight_value.shape
         else:
-            raise Exception("No weight value of layer {} in caffemodel".format(op.name))
+            raise Exception(f"No weight value of layer {op.name} in caffemodel")
 
         weight_expr = self.exp_tab.new_const(weight_value, dtype="float32")
 
@@ -548,9 +546,7 @@ class OperatorConverter(object):
             # weight shape is in relay's IOHW format rn, we need it to be OIHW
             weight_value = np.transpose(weight_value, [1, 0, 2, 3])
         else:
-            raise tvm.error.OpAttributeRequired(
-                "No weight value of layer {} in caffemodel".format(op.name)
-            )
+            raise tvm.error.OpAttributeRequired(f"No weight value of layer {op.name} in caffemodel")
 
         weight_expr = self.exp_tab.new_const(weight_value, dtype="float32")
         in_expr = self.exp_tab.get_expr(inputs[0])
@@ -670,7 +666,7 @@ class OperatorConverter(object):
             out = _op.sum(in_expr, axis=axis)
         else:
             raise tvm.error.OpAttributeInvalid(
-                "reduction method:{} is invalid in Caffe frontend.".format(method)
+                f"reduction method:{method} is invalid in Caffe frontend."
             )
 
         if float(coeff) != 1.0:
@@ -697,7 +693,7 @@ class OperatorConverter(object):
         if len(offset) == 1:
             offset = offset * num_to_crop
         elif len(offset) != num_to_crop:
-            raise Exception("No matching the number between axis and offset!")
+            raise tvm.error.OpAttributeInvalid("No matching the number between axis and offset!")
 
         slice_end = in_a_shape
         slice_start = [0] * len(in_a_shape)
@@ -885,7 +881,7 @@ class OperatorConverter(object):
 
 
 def _rebuild_layers(predict_layer):
-    """Rebuild caffe layer. If the the caffe net include in-place layers, repalce its top
+    """Rebuild caffe layer. If the caffe net include in-place layers, repalce its top
     with its name and update the bottom of other layer that is related to it.
     """
     # dict of input name that will be changed to new name

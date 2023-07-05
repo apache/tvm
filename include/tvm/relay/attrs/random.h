@@ -61,6 +61,16 @@ struct NormalAttrs : public tvm::AttrsNode<NormalAttrs> {
   }
 };
 
+struct MultinomialAttrs : public tvm::AttrsNode<MultinomialAttrs> {
+  Integer num_samples;
+
+  TVM_DECLARE_ATTRS(MultinomialAttrs, "relay.attrs.MultinomialAttrs") {
+    TVM_ATTR_FIELD(num_samples)
+        .set_default(1)
+        .describe("Number of samples to draw from the distribution.");
+  }
+};
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_ATTRS_RANDOM_H_

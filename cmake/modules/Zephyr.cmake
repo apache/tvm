@@ -21,12 +21,18 @@ if(USE_MICRO)
       APPEND
       ZEPHYR_FILE_COPY_JOBS
       "apps/microtvm/zephyr/template_project microtvm_api_server.py -> zephyr"
+      "python/tvm/micro/project_api server.py -> zephyr"
+      "apps/microtvm/zephyr/template_project launch_microtvm_api_server.sh -> zephyr"
       "apps/microtvm/zephyr/template_project boards.json -> zephyr"
       "apps/microtvm/zephyr/template_project CMakeLists.txt.template -> zephyr"
       "apps/microtvm/zephyr/template_project/src/aot_standalone_demo *.c -> zephyr/src/aot_standalone_demo"
-      "apps/microtvm/zephyr/template_project/src/aot_standalone_demo *.h -> zephyr/src/aot_standalone_demo"
       "apps/microtvm/zephyr/template_project/src/host_driven *.c -> zephyr/src/host_driven"
+      "apps/microtvm/zephyr/template_project/src/host_driven *.h -> zephyr/src/host_driven"
+      "apps/microtvm/zephyr/template_project/src/mlperftiny *.cc -> zephyr/src/mlperftiny"
+      "3rdparty/mlperftiny/api * -> zephyr/src/mlperftiny/api"
+      "apps/microtvm/zephyr/template_project/fvp-hack * -> zephyr/fvp-hack"
       "apps/microtvm/zephyr/template_project/qemu-hack * -> zephyr/qemu-hack"
+      "apps/microtvm/zephyr/template_project/app-overlay * -> zephyr/app-overlay"
       "apps/microtvm/zephyr/template_project/crt_config *.h -> zephyr/crt_config"
     )
 

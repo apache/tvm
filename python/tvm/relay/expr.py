@@ -17,17 +17,20 @@
 # pylint: disable=no-else-return, invalid-name, unused-import
 """The expression nodes of Relay."""
 from __future__ import absolute_import
+
 from numbers import Number as _Number
 
 import numpy as _np
+
 import tvm._ffi
 from tvm._ffi import base as _base
-from tvm.runtime import NDArray, ndarray as _nd
-from tvm.ir import RelayExpr, GlobalVar, Node
+from tvm.ir import GlobalVar, Node, RelayExpr
+from tvm.runtime import NDArray
+from tvm.runtime import ndarray as _nd
 
-from .base import RelayNode
 from . import _ffi_api
 from . import ty as _ty
+from .base import RelayNode, astext, pretty_print
 
 # alias relay expr as Expr.
 Expr = RelayExpr
@@ -58,6 +61,35 @@ class ExprWithOp(RelayExpr):
         """
         return _ffi_api.cast(self, dtype)
 
+    def __str__(self):
+        return pretty_print(self)
+
+    def astext(self, show_meta_data=True, annotate=None):
+        """Get the text format of the expression.
+
+        Parameters
+        ----------
+        show_meta_data : bool
+            Whether to include meta data section in the text
+            if there is meta data.
+
+        annotate: Optional[Object->str]
+            Optionally annotate function to provide additional
+            information in the comment block.
+
+        Returns
+        -------
+        text : str
+            The text format of the expression.
+
+        Notes
+        -----
+        The meta data section is necessary to fully parse the text format.
+        However, it can contain dumps that are big (e.g constant weights),
+        so it can be helpful to skip printing the meta data section.
+        """
+        return astext(self, show_meta_data, annotate)
+
     def __neg__(self):
         return _op_make.negative(self)
 
@@ -65,41 +97,41 @@ class ExprWithOp(RelayExpr):
         if isinstance(other, Expr):
             return _op_make.less(self, other)
         elif isinstance(other, _Number):
-            raise TypeError('convert "%s" with `const` first' % str(other))
+            raise TypeError(f'convert "{str(other)}" with `const` first')
         else:
-            raise TypeError("type %s not supported" % str(type(other)))
+            raise TypeError(f"type {type(other)} not supported")
 
     def __gt__(self, other):
         if isinstance(other, Expr):
             return _op_make.greater(self, other)
         elif isinstance(other, _Number):
-            raise TypeError('convert "%s" with `const` first' % str(other))
+            raise TypeError(f'convert "{str(other)}" with `const` first')
         else:
-            raise TypeError("type %s not supported" % str(type(other)))
+            raise TypeError(f"type {type(other)} not supported")
 
     def __ge__(self, other):
         if isinstance(other, Expr):
             return _op_make.greater_equal(self, other)
         elif isinstance(other, _Number):
-            raise TypeError('convert "%s" with `const` first' % str(other))
+            raise TypeError(f'convert "{str(other)}" with `const` first')
         else:
-            raise TypeError("type %s not supported" % str(type(other)))
+            raise TypeError(f"type {type(other)} not supported")
 
     def __le__(self, other):
         if isinstance(other, Expr):
             return _op_make.less_equal(self, other)
         elif isinstance(other, _Number):
-            raise TypeError('convert "%s" with `const` first' % str(other))
+            raise TypeError(f'convert "{str(other)}" with `const` first')
         else:
-            raise TypeError("type %s not supported" % str(type(other)))
+            raise TypeError(f"type {type(other)} not supported")
 
     def __add__(self, other):
         if isinstance(other, Expr):
             return _op_make.add(self, other)
         elif isinstance(other, _Number):
-            raise TypeError('convert "%s" with `const` first' % str(other))
+            raise TypeError(f'convert "{str(other)}" with `const` first')
         else:
-            raise TypeError("type %s not supported" % str(type(other)))
+            raise TypeError(f"type {type(other)} not supported")
 
     def __radd__(self, other):
         return self.__add__(other)
@@ -108,22 +140,22 @@ class ExprWithOp(RelayExpr):
         if isinstance(other, Expr):
             return _op_make.subtract(self, other)
         elif isinstance(other, _Number):
-            raise TypeError('convert "%s" with `const` first' % str(other))
+            raise TypeError(f'convert "{str(other)}" with `const` first')
         else:
-            raise TypeError("type %s not supported" % str(type(other)))
+            raise TypeError(f"type {type(other)} not supported")
 
     def __rsub__(self, other):
         if isinstance(other, _Number):
-            raise TypeError('convert "%s" with `const` first' % str(other))
-        raise TypeError("type %s not supported" % str(type(other)))
+            raise TypeError(f'convert "{str(other)}" with `const` first')
+        raise TypeError(f"type {type(other)} not supported")
 
     def __mul__(self, other):
         if isinstance(other, Expr):
             return _op_make.multiply(self, other)
         elif isinstance(other, _Number):
-            raise TypeError('convert "%s" with `const` first' % str(other))
+            raise TypeError(f'convert "{str(other)}" with `const` first')
         else:
-            raise TypeError("type %s not supported" % str(type(other)))
+            raise TypeError(f"type {type(other)} not supported")
 
     def __rmul__(self, other):
         return self.__mul__(other)
@@ -132,14 +164,14 @@ class ExprWithOp(RelayExpr):
         if isinstance(other, Expr):
             return _op_make.divide(self, other)
         elif isinstance(other, _Number):
-            raise TypeError('convert "%s" with `const` first' % str(other))
+            raise TypeError(f'convert "{str(other)}" with `const` first')
         else:
-            raise TypeError("type %s not supported" % str(type(other)))
+            raise TypeError(f"type {type(other)} not supported")
 
     def __rdiv__(self, other):
         if isinstance(other, _Number):
-            raise TypeError('convert "%s" with `const` first' % str(other))
-        raise TypeError("type %s not supported" % str(type(other)))
+            raise TypeError(f'convert "{str(other)}" with `const` first')
+        raise TypeError(f"type {type(other)} not supported")
 
     def __truediv__(self, other):
         return self.__div__(other)
@@ -171,10 +203,23 @@ class Constant(ExprWithOp):
     ----------
     data : tvm.nd.NDArray
         The data content of the constant expression.
+
+    span: Optional[tvm.relay.Span]
+        Span that points to original source code.
     """
 
-    def __init__(self, data):
-        self.__init_handle_by_constructor__(_ffi_api.Constant, data)
+    def __init__(self, data, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.Constant, data, span)
+
+
+@tvm._ffi.register_func("relay.ConstantWithFields")
+def ConstantWithFields(constant, data=None, virtual_device=None, span=None):
+    """
+    Returns constant with the given properties. A None property denotes 'no change'.
+    Returns constant if all properties are unchanged. Otherwise, returns a copy with the new
+    fields.
+    """
+    return _ffi_api.ConstantWithFields(constant, data, virtual_device, span)
 
 
 @tvm._ffi.register_object("relay.Tuple")
@@ -187,7 +232,7 @@ class Tuple(ExprWithOp):
         The fields in the tuple.
 
     span: Optional[tvm.relay.Span]
-        Span that points to original source code
+        Span that points to original source code.
     """
 
     def __init__(self, fields, span=None):
@@ -203,6 +248,16 @@ class Tuple(ExprWithOp):
 
     def astype(self, _):
         raise TypeError("astype cannot be used on tuple")
+
+
+@tvm._ffi.register_func("relay.TupleWithFields")
+def TupleWithFields(tup, fields=None, virtual_device=None, span=None):
+    """
+    Returns tuple with the given properties. A None property denotes 'no change'.
+    Returns tuple if all properties are unchanged. Otherwise, returns a copy with the new
+    fields.
+    """
+    return _ffi_api.TupleWithFields(tup, fields, virtual_device, span)
 
 
 @tvm._ffi.register_object("relay.Var")
@@ -221,16 +276,29 @@ class Var(ExprWithOp):
 
     type_annotation: tvm.relay.Type, optional
         The type annotation on the variable.
+
+    span: Optional[tvm.relay.Span]
+        Span that points to original source code.
     """
 
-    def __init__(self, name_hint, type_annotation=None):
-        self.__init_handle_by_constructor__(_ffi_api.Var, name_hint, type_annotation)
+    def __init__(self, name_hint, type_annotation=None, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.Var, name_hint, type_annotation, span)
 
     @property
     def name_hint(self):
         """Get name hint of the current var."""
         name = str(self.vid.name_hint)
         return name
+
+
+@tvm._ffi.register_func("relay.VarWithFields")
+def VarWithFields(variable, vid=None, type_annotation=None, virtual_device=None, span=None):
+    """
+    Returns var with the given properties. A None property denotes 'no change'.
+    Returns var if all properties are unchanged. Otherwise, returns a copy with the new
+    fields.
+    """
+    return _ffi_api.VarWithFields(variable, vid, type_annotation, virtual_device, span)
 
 
 @tvm._ffi.register_object("relay.Call")
@@ -256,13 +324,25 @@ class Call(ExprWithOp):
         used in advanced usecase of template functions.
 
     span: Optional[tvm.relay.Span]
-        Span that points to original source code
+        Span that points to original source code.
     """
 
     def __init__(self, op, args, attrs=None, type_args=None, span=None):
         if not type_args:
             type_args = []
         self.__init_handle_by_constructor__(_ffi_api.Call, op, args, attrs, type_args, span)
+
+
+@tvm._ffi.register_func("relay.CallWithFields")
+def CallWithFields(
+    call, op=None, args=None, attrs=None, type_args=None, virtual_device=None, span=None
+):
+    """
+    Returns call with the given properties. A None property denotes 'no change'.
+    Returns call if all properties are unchanged. Otherwise, returns a copy with the new
+    fields.
+    """
+    return _ffi_api.CallWithFields(call, op, args, attrs, type_args, virtual_device, span)
 
 
 @tvm._ffi.register_object("relay.Let")
@@ -279,10 +359,23 @@ class Let(ExprWithOp):
 
     body: tvm.relay.Expr
         The body of the let binding.
+
+    span: Optional[tvm.relay.Span]
+        Span that points to original source code.
     """
 
-    def __init__(self, variable, value, body):
-        self.__init_handle_by_constructor__(_ffi_api.Let, variable, value, body)
+    def __init__(self, variable, value, body, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.Let, variable, value, body, span)
+
+
+@tvm._ffi.register_func("relay.LetWithFields")
+def LetWithFields(let, variable=None, value=None, body=None, virtual_device=None, span=None):
+    """
+    Returns let with the given properties. A None property denotes 'no change'.
+    Returns let if all properties are unchanged. Otherwise, returns a copy with the new
+    fields.
+    """
+    return _ffi_api.LetWithFields(let, variable, value, body, virtual_device, span)
 
 
 @tvm._ffi.register_object("relay.If")
@@ -299,10 +392,25 @@ class If(ExprWithOp):
 
     false_branch: tvm.relay.Expr
         The expression evaluated when condition is false.
+
+    span: Optional[tvm.relay.Span]
+        Span that points to original source code.
     """
 
-    def __init__(self, cond, true_branch, false_branch):
-        self.__init_handle_by_constructor__(_ffi_api.If, cond, true_branch, false_branch)
+    def __init__(self, cond, true_branch, false_branch, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.If, cond, true_branch, false_branch, span)
+
+
+@tvm._ffi.register_func("relay.IfWithFields")
+def IfWithFields(
+    if_expr, cond=None, true_branch=None, false_branch=None, virtual_device=None, span=None
+):
+    """
+    Returns if with the given properties. A None property denotes 'no change'.
+    Returns if if all properties are unchanged. Otherwise, returns a copy with the new
+    fields.
+    """
+    return _ffi_api.IfWithFields(if_expr, cond, true_branch, false_branch, virtual_device, span)
 
 
 @tvm._ffi.register_object("relay.TupleGetItem")
@@ -316,10 +424,25 @@ class TupleGetItem(ExprWithOp):
 
     index: int
         The index.
+
+    span: Optional[tvm.relay.Span]
+        Span that points to original source code.
     """
 
-    def __init__(self, tuple_value, index):
-        self.__init_handle_by_constructor__(_ffi_api.TupleGetItem, tuple_value, index)
+    def __init__(self, tuple_value, index, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.TupleGetItem, tuple_value, index, span)
+
+
+@tvm._ffi.register_func("relay.TupleGetItemWithFields")
+def TupleGetItemWithFields(
+    tuple_get_item, tuple_value=None, index=None, virtual_device=None, span=None
+):
+    """
+    Returns tuple_get_item with the given properties. A None property denotes 'no change'.
+    Returns tuple_get_item if all properties are unchanged. Otherwise, returns a copy with the new
+    fields.
+    """
+    return _ffi_api.TupleGetItemWithFields(tuple_get_item, tuple_value, index, virtual_device, span)
 
 
 @tvm._ffi.register_object("relay.RefCreate")
@@ -329,10 +452,23 @@ class RefCreate(ExprWithOp):
     ----------
     value: tvm.relay.Expr
        The initial value.
+
+    span: Optional[tvm.relay.Span]
+        Span that points to original source code.
     """
 
-    def __init__(self, value):
-        self.__init_handle_by_constructor__(_ffi_api.RefCreate, value)
+    def __init__(self, value, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.RefCreate, value, span)
+
+
+@tvm._ffi.register_func("relay.RefCreateWithFields")
+def RefCreateWithFields(ref_create, value=None, virtual_device=None, span=None):
+    """
+    Returns ref_create with the given properties. A None property denotes 'no change'.
+    Returns ref_create if all properties are unchanged. Otherwise, returns a copy with the new
+    fields.
+    """
+    return _ffi_api.RefCreateWithFields(ref_create, value, virtual_device, span)
 
 
 @tvm._ffi.register_object("relay.RefRead")
@@ -342,10 +478,23 @@ class RefRead(ExprWithOp):
     ----------
     ref: tvm.relay.Expr
          The reference.
+
+    span: Optional[tvm.relay.Span]
+        Span that points to original source code.
     """
 
-    def __init__(self, ref):
-        self.__init_handle_by_constructor__(_ffi_api.RefRead, ref)
+    def __init__(self, ref, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.RefRead, ref, span)
+
+
+@tvm._ffi.register_func("relay.RefReadWithFields")
+def RefReadWithFields(ref_read, ref=None, virtual_device=None, span=None):
+    """
+    Returns ref_read with the given properties. A None property denotes 'no change'.
+    Returns ref_read if all properties are unchanged. Otherwise, returns a copy with the new
+    fields.
+    """
+    return _ffi_api.RefReadWithFields(ref_read, ref, virtual_device, span)
 
 
 @tvm._ffi.register_object("relay.RefWrite")
@@ -357,12 +506,26 @@ class RefWrite(ExprWithOp):
     ----------
     ref: tvm.relay.Expr
         The reference.
+
     value: tvm.relay.Expr
         The new value.
+
+    span: Optional[tvm.relay.Span]
+        Span that points to original source code.
     """
 
-    def __init__(self, ref, value):
-        self.__init_handle_by_constructor__(_ffi_api.RefWrite, ref, value)
+    def __init__(self, ref, value, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.RefWrite, ref, value, span)
+
+
+@tvm._ffi.register_func("relay.RefWriteWithFields")
+def RefWriteWithFields(ref_write, ref=None, value=None, virtual_device=None, span=None):
+    """
+    Returns ref_write with the given properties. A None property denotes 'no change'.
+    Returns ref_write if all properties are unchanged. Otherwise, returns a copy with the new
+    fields.
+    """
+    return _ffi_api.RefWriteWithFields(ref_write, ref, value, virtual_device, span)
 
 
 class TempExpr(ExprWithOp):
@@ -421,7 +584,7 @@ class TupleWrapper(object):
     def __getitem__(self, index):
         if index >= len(self):
             raise IndexError("Tuple index out of range")
-        return TupleGetItem(self.tuple_value, index)
+        return TupleGetItem(self.tuple_value, index, span=self.tuple_value.span)
 
     def __len__(self):
         return self.size
@@ -433,7 +596,7 @@ class TupleWrapper(object):
         raise TypeError("astype cannot be used on tuple")
 
 
-def var(name_hint, type_annotation=None, shape=None, dtype="float32"):
+def var(name_hint, type_annotation=None, shape=None, dtype="float32", span=None):
     """Create a new tvm.relay.Var.
 
     This is a simple wrapper function that allows specify
@@ -456,6 +619,9 @@ def var(name_hint, type_annotation=None, shape=None, dtype="float32"):
     dtype: str, optional
         The data type of the tensor.
 
+    span: Optional[tvm.relay.Span]
+        Span that points to original source code.
+
     Examples
     --------
     .. code-block:: python
@@ -476,10 +642,10 @@ def var(name_hint, type_annotation=None, shape=None, dtype="float32"):
         type_annotation = _ty.TensorType(shape, dtype)
     elif isinstance(type_annotation, str):
         type_annotation = _ty.TensorType((), type_annotation)
-    return Var(name_hint, type_annotation)
+    return Var(name_hint, type_annotation, span)
 
 
-def const(value, dtype=None):
+def const(value, dtype=None, span=None):
     """Create a constant value.
 
     Parameters
@@ -489,6 +655,9 @@ def const(value, dtype=None):
 
     dtype: str, optional
         The data type of the resulting constant.
+
+    span: Optional[tvm.relay.Span]
+        Span that points to original source code.
 
     Note
     ----
@@ -516,7 +685,7 @@ def const(value, dtype=None):
     if not isinstance(value, _nd.NDArray):
         raise ValueError("value has to be scalar or NDArray")
 
-    return Constant(value)
+    return Constant(value, span)
 
 
 def bind(expr, binds):
@@ -552,6 +721,9 @@ class StorageInfo(Node):
     def __init__(self, sids, dev_types, sizes):
         self.__init_handle_by_constructor__(_ffi_api.StorageInfo, sids, dev_types, sizes)
 
+    def __str__(self):
+        return pretty_print(self)
+
     @property
     def storage_ids(self):
         return _ffi_api.StorageInfoStorageIds(self)
@@ -564,6 +736,10 @@ class StorageInfo(Node):
     def storage_sizes(self):
         return _ffi_api.StorageInfoStorageSizes(self)
 
+    @property
+    def virtual_devices(self):
+        return _ffi_api.StorageInfoVirtualDevices(self)
+
 
 @tvm._ffi.register_object("relay.StaticMemoryPlan")
 class StaticMemoryPlan(Node):
@@ -573,3 +749,6 @@ class StaticMemoryPlan(Node):
 
     def __init__(self, expr_to_storage_info):
         self.__init_handle_by_constructor__(_ffi_api.StaticMemoryPlan, expr_to_storage_info)
+
+    def __str__(self):
+        return pretty_print(self)

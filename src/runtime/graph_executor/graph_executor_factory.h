@@ -60,12 +60,15 @@ class TVM_DLL GraphExecutorFactory : public runtime::ModuleNode {
    * \param sptr_to_self The pointer to the module node.
    * \return The corresponding member function.
    */
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final;
 
   /*!
    * \return The type key of the executor.
    */
   const char* type_key() const final { return "GraphExecutorFactory"; }
+
+  /*! \brief Get the property of the runtime module .*/
+  int GetPropertyMask() const final { return ModulePropertyMask::kBinarySerializable; }
 
   /*!
    * \brief Save the module to binary stream.

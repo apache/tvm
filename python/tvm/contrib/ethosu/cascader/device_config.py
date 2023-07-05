@@ -155,7 +155,7 @@ class EthosuDeviceConfig:
         ifm_dtype: str
             Datatype of the Input Feature Map tensor (IFM)
         ofm_dtype: str
-            Datatype of the Ouput Feature Map tensor (OFM)
+            Datatype of the Output Feature Map tensor (OFM)
         activation : str
             The activation function to use.
                 "NONE" - no activation function.

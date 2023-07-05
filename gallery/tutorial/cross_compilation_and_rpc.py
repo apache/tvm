@@ -93,6 +93,7 @@ and the Firefly-RK3399 for an OpenCL example.
 #
 # Here we will declare a simple kernel on the local machine:
 
+
 import numpy as np
 
 import tvm

@@ -18,15 +18,15 @@
 # pylint: disable=unused-argument, redefined-builtin, no-else-return
 """Conv3D operators"""
 from collections import namedtuple
+
 import tvm
-from tvm import te
-from tvm import autotvm
-from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
-from ..utils import traverse_inline
-from ..nn.utils import get_pad_tuple3d, infer_pad3d
+from tvm import autotvm, te
+from tvm.autotvm.task.space import OtherOptionEntity, SplitEntity
+from tvm.target.x86 import get_simd_32bit_lanes
+
 from ..nn.pad import pad
-from ..utils import get_const_tuple, simplify, get_const_int
-from .utils import get_simd_32bit_lanes
+from ..nn.utils import get_pad_tuple3d, infer_pad3d
+from ..utils import get_const_int, get_const_tuple, simplify, traverse_inline
 
 Workload3D = namedtuple(
     "Workload",
@@ -272,16 +272,12 @@ def _conv3d_ndhwc(cfg, data, kernel, strides, padding, dilation, groups, out_dty
         shape, lambda n, C, d, h, c, w: data_pad[n, d, h, w, C * ic_bn + c], name="data_vec"
     )
 
+    ci_tile = in_channel // groups // ic_bn
+    if ci_tile == 0 or ci_tile * ic_bn * groups < in_channel:
+        ci_tile += 1
+
     # pack kernel
-    shape = (
-        num_filter // oc_bn,
-        in_channel // groups // ic_bn,
-        kernel_depth,
-        kernel_height,
-        kernel_width,
-        ic_bn,
-        oc_bn,
-    )
+    shape = (num_filter // oc_bn, ci_tile, kernel_depth, kernel_height, kernel_width, ic_bn, oc_bn)
     kernel_vec = te.compute(
         shape,
         lambda CO, CI, d, h, w, ci, co: kernel[d, h, w, CI * ic_bn + ci, CO * oc_bn + co],
@@ -389,16 +385,12 @@ def _conv3d_ncdhw(cfg, data, kernel, strides, padding, dilation, layout, groups,
         shape, lambda n, C, d, h, c, w: data_pad[n, C * ic_bn + c, d, h, w], name="data_vec"
     )
 
+    ci_tile = in_channel // groups // ic_bn
+    if ci_tile == 0 or ci_tile * ic_bn * groups < in_channel:
+        ci_tile += 1
+
     # pack kernel
-    shape = (
-        num_filter // oc_bn,
-        in_channel // groups // ic_bn,
-        kernel_depth,
-        kernel_height,
-        kernel_width,
-        ic_bn,
-        oc_bn,
-    )
+    shape = (num_filter // oc_bn, ci_tile, kernel_depth, kernel_height, kernel_width, ic_bn, oc_bn)
     kernel_vec = te.compute(
         shape,
         lambda CO, CI, d, h, w, ci, co: kernel[CO * oc_bn + co, CI * ic_bn + ci, d, h, w],
@@ -464,7 +456,7 @@ def _create_tuning_space(cfg, data, kernel, strides, padding, dilation, groups, 
         n, ic, d, h, w = dshape
         oc, _, kd, kh, kw = kshape
     else:
-        raise ValueError("Not support this layout {} with " "schedule template.".format(layout))
+        raise ValueError(f"Not support this layout {layout} with schedule template.")
 
     # pad_front, pad_top, pad_left, pad_back, pad_down(bottom), pad_right
     pf, pt, pl, pb, pd, pr = get_pad_tuple3d(padding, (kd, kh, kw))
@@ -485,7 +477,7 @@ def _get_default_config(cfg, data, kernel, strides, padding, groups, out_dtype, 
     Get default schedule config for the workload
     """
     if layout not in ["NDHWC", "NCDHW"]:
-        raise ValueError("Layout {} is not supported".format(layout))
+        raise ValueError(f"Layout {layout} is not supported")
 
     static_data_shape = []
     for dim in get_const_tuple(data.shape):
@@ -507,7 +499,7 @@ def _get_conv3d_workload(data, kernel, stride, padding, groups, out_dtype, data_
         _, ID, IH, IW, CI = get_const_tuple(data.shape)
         KD, KH, KW, CIG, CO = get_const_tuple(kernel.shape)
     else:
-        raise ValueError("not support this layout {} yet".format(data_layout))
+        raise ValueError(f"not support this layout {data_layout} yet")
 
     pad_front, pad_top, pad_left, pad_back, pad_down, pad_right = get_pad_tuple3d(
         padding, (get_const_int(KD), get_const_int(KH), get_const_int(KW))
@@ -521,10 +513,7 @@ def _get_conv3d_workload(data, kernel, stride, padding, groups, out_dtype, data_
         DSTR, HSTR, WSTR = stride, stride, stride
     assert (data.dtype == kernel.dtype) or (
         data.dtype == "uint8" and kernel.dtype == "int8"
-    ), "Do not support inputs with different data types now. ' \
-        '{} vs. {}".format(
-        data.dtype, kernel.dtype
-    )
+    ), f"Do not support inputs with different data types now. {data.dtype} vs. {kernel.dtype}"
     return Workload3D(
         data.dtype,
         out_dtype,

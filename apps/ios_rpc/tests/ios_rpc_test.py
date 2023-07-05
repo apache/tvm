@@ -20,15 +20,15 @@ To use it, start a rpc proxy with "python -m tvm.exec.rpc_proxy".
 And configure the proxy host field as commented.
 """
 
-import tvm
-from tvm import te
+import argparse
 import os
 import re
 import sys
-from tvm import rpc
-from tvm.contrib import utils, xcode
+
 import numpy as np
-import argparse
+import tvm
+from tvm import rpc, te
+from tvm.contrib import utils, xcode
 
 # Change target configuration, this is setting for iphone6s
 arch = "arm64"
@@ -37,9 +37,10 @@ target = "llvm -mtriple=%s-apple-darwin" % arch
 
 MODES = {"proxy": rpc.connect, "tracker": rpc.connect_tracker, "standalone": rpc.connect}
 
+
 # override metal compiler to compile to iphone
 @tvm.register_func("tvm_callback_metal_compile")
-def compile_metal(src):
+def compile_metal(src, target):
     return xcode.compile_metal(src, sdk=sdk)
 
 

@@ -103,10 +103,6 @@ class DynSharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
     StmtExprVisitor::VisitStmt_(op);
   }
 
-  void VisitStmt_(const StoreNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-  }
-
   void VisitStmt_(const BufferStoreNode* op) final {
     scope_.push_back(StmtEntry());
     // visit subexpr
@@ -138,10 +134,6 @@ class DynSharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
       e.stmt = op;
       linear_seq_.push_back(e);
     }
-  }
-
-  void VisitExpr_(const LoadNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
   }
 
   void VisitExpr_(const BufferLoadNode* op) final {
@@ -307,14 +299,12 @@ class DynamicSharedMemoryRewriter : public StmtExprMutator {
     return StmtExprMutator::VisitStmt_(op);
   }
 
-  PrimExpr VisitExpr_(const LoadNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-    return PrimExpr();
-  }
-
-  Stmt VisitStmt_(const StoreNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-    return Stmt();
+  Stmt VisitStmt_(const DeclBufferNode* op) final {
+    auto node = Downcast<DeclBuffer>(StmtExprMutator::VisitStmt_(op));
+    if (auto new_buf = GetUpdatedBuffer(node->buffer); !new_buf.same_as(node->buffer)) {
+      node.CopyOnWrite()->buffer = new_buf;
+    }
+    return std::move(node);
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
@@ -354,6 +344,7 @@ class DynamicSharedMemoryRewriter : public StmtExprMutator {
 
     if (IsDynamicSharedMemory(buffer->data)) {
       ICHECK_EQ(buffer->shape.size(), 1)
+          << "Buffer " << buffer << " has shape " << buffer->shape << ".  "
           << "MergeDynamicSharedMemoryAllocations expects flat memory buffers, "
           << "and is to be run after "
           << "StorageFlatten (TE schedules) or FlattenBuffer (TIR schedules)";

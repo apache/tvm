@@ -18,36 +18,26 @@
 
 set -euxo pipefail
 
-# Python is required by apps/bundle_deploy
-source tests/scripts/setup-pytest-env.sh
+if [ $# -gt 0 ]; then
+    BUILD_DIR="$1"
+elif [ -n "${TVM_BUILD_PATH:-}" ]; then
+    # TVM_BUILD_PATH may contain multiple space-separated paths.  If
+    # so, use the first one.
+    BUILD_DIR=$(IFS=" "; set -- $TVM_BUILD_PATH; echo $1)
+else
+    BUILD_DIR=build
+fi
 
-export LD_LIBRARY_PATH="lib:${LD_LIBRARY_PATH:-}"
+
 # NOTE: important to use abspath, when VTA is enabled.
-export VTA_HW_PATH=`pwd`/3rdparty/vta-hw
+VTA_HW_PATH=$(pwd)/3rdparty/vta-hw
+export VTA_HW_PATH
 
 # to avoid CI thread throttling.
 export TVM_BIND_THREADS=0
 export OMP_NUM_THREADS=1
 
-# Build cpptest suite
-python3 tests/scripts/task_build.py \
-    --sccache-bucket tvm-sccache-prod \
-    --cmake-target cpptest
-
-# crttest requires USE_MICRO to be enabled, which is currently the case
-# with all CI configs
-pushd build
-ninja crttest
+pushd "${BUILD_DIR}"
+# run cpp test executable
+./cpptest
 popd
-
-
-pushd build
-ctest --gtest_death_test_style=threadsafe
-popd
-
-# Test MISRA-C runtime
-pushd apps/bundle_deploy
-rm -rf build
-make test_dynamic test_static
-popd
-

@@ -33,8 +33,8 @@
 #include <unordered_map>
 #include <vector>
 
-#include "../../../relay/backend/contrib/ethosn/ethosn_api_version.h"
 #include "ethosn_driver_library/Network.hpp"
+#include "ethosn_driver_library/ProcMemAllocator.hpp"
 #include "ethosn_support_library/Support.hpp"
 
 namespace tvm {
@@ -46,12 +46,13 @@ namespace dl = ::ethosn::driver_library;
 
 struct OrderedCompiledNetwork {
   std::unique_ptr<sl::CompiledNetwork> compiled_cmm;
-#if _ETHOSN_API_VERSION_ > 2102
   std::unique_ptr<dl::Network> runtime_cmm;
-#endif
+  std::unique_ptr<dl::ProcMemAllocator> proc_mem_alloc;
   std::string name;
   std::vector<uint32_t> inputs;
   std::vector<uint32_t> outputs;
+  std::vector<uint32_t> input_sizes;
+  std::vector<uint32_t> output_sizes;
 };
 
 class EthosnModule : public ModuleNode {
@@ -68,7 +69,7 @@ class EthosnModule : public ModuleNode {
    * \param sptr_to_self The ObjectPtr that points to this module node.
    * \return The function pointer when it is found, otherwise, PackedFunc(nullptr).
    */
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final;
   /*!
    * \brief Save a compiled network to a binary stream, which can then be
    * serialized to disk.
@@ -88,8 +89,10 @@ class EthosnModule : public ModuleNode {
    *         std::string : serialized command stream
    *         size_t      : number of inputs
    *         std::vector : order of inputs
+   *         std::vector : buffer sizes for inputs
    *         size_t      : number of outputs
    *         std::vector : order of outputs
+   *         std::vector : buffer sizes for outputs
    *       ] * number of functions
    */
   static Module LoadFromBinary(void* strm);
@@ -97,13 +100,51 @@ class EthosnModule : public ModuleNode {
    * \brief Save a module to a specified path.
    * \param path Where to save the serialized module.
    */
-  void SaveToFile(const std::string& path, const std::string& format) override;
+  void SaveToFile(const String& path, const String& format) override;
 
   const char* type_key() const override { return "ethos-n"; }
+
+  /*! \brief Get the property of the runtime module .*/
+  int GetPropertyMask() const final {
+    return ModulePropertyMask::kBinarySerializable | ModulePropertyMask::kRunnable;
+  };
 
  private:
   /*! \brief A map between ext_symbols (function names) and ordered compiled networks. */
   std::map<std::string, OrderedCompiledNetwork> network_map_;
+};
+
+/*!
+ * \brief Error codes for evaluating the result of inference on the NPU.
+ */
+enum class InferenceWaitErrorCode { kSuccess = 0, kTimeout = 1, kError = 2 };
+
+/*!
+ * \brief A helper class holding the status of inference on the NPU and
+ * associated error message(s) if any occurred.
+ *
+ * Similar to the implementation of 'WaitStatus' in the driver stack:
+ * https://github.com/ARM-software/ethos-n-driver-stack/blob/22.08/armnn-ethos-n-backend/workloads/EthosNPreCompiledWorkload.cpp#L48
+ */
+class InferenceWaitStatus {
+ public:
+  InferenceWaitStatus() : error_code_(InferenceWaitErrorCode::kSuccess), error_description_("") {}
+
+  explicit InferenceWaitStatus(InferenceWaitErrorCode errorCode, std::string errorDescription = "")
+      : error_code_(errorCode), error_description_(errorDescription) {}
+
+  InferenceWaitStatus(const InferenceWaitStatus&) = default;
+  InferenceWaitStatus(InferenceWaitStatus&&) = default;
+  InferenceWaitStatus& operator=(const InferenceWaitStatus&) = default;
+  InferenceWaitStatus& operator=(InferenceWaitStatus&&) = default;
+
+  explicit operator bool() const { return error_code_ == InferenceWaitErrorCode::kSuccess; }
+  InferenceWaitErrorCode GetErrorCode() const { return error_code_; }
+  std::string GetErrorDescription() const { return error_description_; }
+
+ private:
+  InferenceWaitErrorCode error_code_;
+  std::string error_description_;
 };
 
 }  // namespace ethosn

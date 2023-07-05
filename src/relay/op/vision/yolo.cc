@@ -81,7 +81,7 @@ Its function is mostly shape transform.")doc" TVM_ADD_FILELINE)
                                              const Type& out_type) {
       const auto* params = attrs.as<YoloReorgAttrs>();
       ICHECK(params != nullptr);
-      return Array<te::Tensor>{topi::vision::reorg(inputs[0], params->stride)};
+      return Array<te::Tensor>{topi::vision::reorg(inputs[0], params->stride.IntValue())};
     });
 
 }  // namespace relay

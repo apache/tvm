@@ -54,7 +54,7 @@ struct VMFunction;
  *  used by the virtual machine.
  *  - Code section, handling the VM functions and bytecode.
  */
-class Executable : public ModuleNode {
+class TVM_DLL Executable : public ModuleNode {
  public:
   /*!
    * \brief Get a PackedFunc from an executable module.
@@ -64,7 +64,10 @@ class Executable : public ModuleNode {
    *
    * \return PackedFunc or nullptr when it is not available.
    */
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final;
+
+  /*! \brief Get the property of the runtime module .*/
+  int GetPropertyMask() const final { return ModulePropertyMask::kBinarySerializable; };
 
   /*!
    * \brief Write the Executable to the binary stream in serialized form.
@@ -85,7 +88,7 @@ class Executable : public ModuleNode {
    * \param path The path to write the serialized data to.
    * \param format The format of the serialized blob.
    */
-  void SaveToFile(const std::string& path, const std::string& format) final;
+  void SaveToFile(const String& path, const String& format) final;
 
   /*!
    * \brief Serialize the executable into global section, constant section, and
@@ -127,12 +130,25 @@ class Executable : public ModuleNode {
   void MoveLateBoundConstantsToFile(const std::string& path, size_t byte_limit);
 
   /*!
+   * \brief Get a map of all constants with larger that byte_limit in size.
+   */
+  Map<String, NDArray> GetLateBoundConstants(size_t byte_limit);
+
+  /*!
    * \brief Restores the late-bound constants for the executable (if any) from given byte-stream.
    *
    * Must be called after \p Load but before any other methods if \p MoveLateBoundConstantsToBinary
    * was used when saving. Otherwise can be ignored.
    */
   void LoadLateBoundConstantsFromStream(dmlc::Stream* stream);
+
+  /*!
+   * \brief Restores the late-bound constants for the executable (if any) from given map.
+   *
+   * Must be called after \p Load but before any other methods if \p MoveLateBoundConstantsToBinary
+   * was used when saving. Otherwise can be ignored.
+   */
+  void LoadLateBoundConstantsFromMap(Map<String, NDArray> map);
 
   /*!
    * \brief As for \p LoadLateBoundConstantsFromStream, but load from file at \p path.

@@ -86,6 +86,9 @@ def test_resize2d():
     verify_resize2d(6, 32, 64, 64, 20, 20, "NHWC")
     for layout in ["NCHW", "NHWC"]:
         verify_resize2d(4, 16, 32, 32, 50, 50, layout, "asymmetric", method="nearest_neighbor")
+        verify_resize2d(4, 16, 32, 32, 64, 50, layout, "asymmetric", method="nearest_neighbor")
+        verify_resize2d(4, 16, 32, 32, 50, 96, layout, "asymmetric", method="nearest_neighbor")
+        verify_resize2d(4, 16, 32, 32, 96, 96, layout, "asymmetric", method="nearest_neighbor")
         verify_resize2d(4, 16, 32, 32, 50, 50, layout, "align_corners", method="nearest_neighbor")
         verify_resize2d(4, 16, 32, 32, 50, 50, layout, "half_pixel", method="nearest_neighbor")
         verify_resize2d(4, 16, 32, 32, 50, 50, layout, "asymmetric", method="linear")
@@ -320,8 +323,9 @@ def test_grid_sample():
     data_2D_shape = (4, 4, 8, 8)
     grid_2D_shape = (4, 2, 16, 16)
     layout_2D = "NCHW"
-    data_3D_shape = (4, 4, 8, 8, 8)
-    grid_3D_shape = (4, 3, 16, 16, 16)
+    # choosing smaller sizes to be testable on weaker GPUs
+    data_3D_shape = (4, 4, 4, 4, 4)
+    grid_3D_shape = (4, 3, 8, 8, 8)
     layout_3D = "NCDHW"
 
     for _method in methods:
@@ -339,7 +343,7 @@ def test_grid_sample():
 
 
 if __name__ == "__main__":
-    test_resize()
+    test_resize2d()
     test_resize3d()
     test_crop_and_resize()
     test_affine_grid()

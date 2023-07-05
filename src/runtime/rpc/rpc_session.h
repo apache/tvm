@@ -253,6 +253,11 @@ class RPCSession {
    */
   static std::shared_ptr<RPCSession> Get(int table_index);
 
+  /*!
+   * \brief Shutdown RPC connection.
+   */
+  virtual void Shutdown() {}
+
  protected:
   /*!
    * \brief Send an exception to the callback.

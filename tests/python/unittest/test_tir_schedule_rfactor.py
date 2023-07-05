@@ -15,12 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring
-import sys
-
 import pytest
 import tvm
 import tvm.testing
-from tvm import tir
+from tvm import te, tir, topi
 from tvm.script import tir as T
 from tvm.tir.schedule.testing import verify_trace_roundtrip
 
@@ -29,9 +27,9 @@ from tvm.tir.schedule.testing import verify_trace_roundtrip
 
 @T.prim_func
 def transformed_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128])
-    B = T.match_buffer(b, [128, 128])
-    C = T.match_buffer(c, [128, 128])
+    A = T.match_buffer(a, [128, 128], dtype="float32")
+    B = T.match_buffer(b, [128, 128], dtype="float32")
+    C = T.match_buffer(c, [128, 128], dtype="float32")
 
     for i0, i1, i2_outer, i2_inner_outer, i2_inner_inner in T.grid(128, 128, 4, 8, 4):
         with T.block("update"):
@@ -45,11 +43,29 @@ def transformed_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 
 @T.prim_func
+def transformed_matmul_with_let(a: T.handle, b: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, [128, 128], dtype="float32")
+    B = T.match_buffer(b, [128, 128], dtype="float32")
+    C = T.match_buffer(c, [128, 128], dtype="float32")
+
+    for i0, i1, i2_outer, i2_inner_outer, i2_inner_inner in T.grid(128, 128, 4, 8, 4):
+        with T.block("update"):
+            vi, vj = T.axis.remap("SS", [i0, i1])
+            vk = T.axis.R(128, i2_outer * 32 + i2_inner_outer * 4 + i2_inner_inner)
+            T.reads([A[vi, vk], B[vj, vk]])
+            T.writes([C[vi, vj]])
+            with T.init():
+                C[vi, vj] = 0.0
+            v_C: T.float32 = C[vi, vj] + (A[vi, vk] * B[vj, vk])
+            C[vi, vj] = v_C
+
+
+@T.prim_func
 def matmul_rfactor(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128])
-    B = T.match_buffer(b, [128, 128])
-    C = T.match_buffer(c, [128, 128])
-    C_rf = T.alloc_buffer([4, 128, 128])
+    A = T.match_buffer(a, [128, 128], dtype="float32")
+    B = T.match_buffer(b, [128, 128], dtype="float32")
+    C = T.match_buffer(c, [128, 128], dtype="float32")
+    C_rf = T.alloc_buffer([4, 128, 128], dtype="float32")
 
     for i0, i1, i2_outer, i2_inner_outer, i2_inner_inner in T.grid(128, 128, 4, 8, 4):
         with T.block("update_rf"):
@@ -236,7 +252,7 @@ def transformed_square_sum_square_root_factor_one_1(a: T.handle, d: T.handle) ->
 
 @T.prim_func
 def square_sum_square_root_factor_one_1_rfactor(
-    A: T.Buffer[(16, 256, 256), "float32"], D: T.Buffer[(16,), "float32"]
+    A: T.Buffer((16, 256, 256), "float32"), D: T.Buffer((16,), "float32")
 ) -> None:
     C = T.alloc_buffer([16], dtype="float32")
     C_rf = T.alloc_buffer([1, 16], dtype="float32")
@@ -283,7 +299,7 @@ def transformed_square_sum_square_root_factor_one_2(a: T.handle, d: T.handle) ->
 
 @T.prim_func
 def square_sum_square_root_factor_one_2_rfactor(
-    A: T.Buffer[(16, 256, 256), "float32"], D: T.Buffer[(16,), "float32"]
+    A: T.Buffer((16, 256, 256), "float32"), D: T.Buffer((16,), "float32")
 ) -> None:
     C = T.alloc_buffer([16], dtype="float32")
     C_rf = T.alloc_buffer([16, 1], dtype="float32")
@@ -434,6 +450,20 @@ def rowsum_wrong_reduce_pattern2(a: T.handle, b: T.handle) -> None:
             with T.init():
                 B[vi] = 0.0
             B[vi] = B[vi] - A[vi, vk]
+
+
+@T.prim_func
+def rowsum_init_not_bufferstore(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128))
+    B = T.match_buffer(b, (128,))
+
+    for i, k in T.grid(128, 128):
+        with T.block("B"):
+            vi, vk = T.axis.remap("SR", [i, k])
+            with T.init():
+                v_init: T.float32 = T.float32(0)
+                B[vi] = v_init
+            B[vi] = B[vi] + A[vi, vk]
 
 
 @T.prim_func
@@ -606,8 +636,8 @@ def multiple_reduction_blocks_rfactor(a: T.handle, f: T.handle) -> None:
 
 @T.prim_func
 def rfactor_spatial_only(
-    A: T.Buffer[(1, 512, 7, 7), "float32"],
-    B: T.Buffer[(1, 512, 1, 1), "float32"],
+    A: T.Buffer((1, 512, 7, 7), "float32"),
+    B: T.Buffer((1, 512, 1, 1), "float32"),
 ) -> None:
     for _i0, i1, _i2, _i3, i4, _i5 in T.grid(1, 512, 1, 1, 49, 1):
         with T.block("acc"):
@@ -628,8 +658,8 @@ def rfactor_spatial_only(
 
 @T.prim_func
 def rfactor_spatial_only_after(
-    A: T.Buffer[(1, 512, 7, 7), "float32"],
-    B: T.Buffer[(1, 512, 1, 1), "float32"],
+    A: T.Buffer((1, 512, 7, 7), "float32"),
+    B: T.Buffer((1, 512, 1, 1), "float32"),
 ) -> None:
     # body
     # with T.block("root")
@@ -654,6 +684,575 @@ def rfactor_spatial_only_after(
             B[ax0, ax1, ax2, ax3] = B[ax0, ax1, ax2, ax3] + B_rf[ax0, ax1, ax2, ax3, vi4]
 
 
+@T.prim_func
+def argmax_split(
+    idx: T.Buffer((128, 128), "int32"),
+    val: T.Buffer((128, 128), "float32"),
+    argmax_v0: T.Buffer((128,), "int32"),
+    argmax_v1: T.Buffer((128,), "float32"),
+) -> None:
+    for i0, i1_0, i1_1 in T.grid(128, 4, 32):
+        with T.block("argmax"):
+            i = T.axis.spatial(128, i0)
+            k = T.axis.reduce(128, i1_0 * 32 + i1_1)
+            T.reads(idx[i, k], val[i, k])
+            T.writes(argmax_v0[i], argmax_v1[i])
+            with T.init():
+                argmax_v0[i] = -1
+                argmax_v1[i] = T.min_value("float32")
+            v_argmax_v0: T.int32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k])
+            v_argmax_v1: T.float32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v1[i], val[i, k])
+            argmax_v0[i] = v_argmax_v0
+            argmax_v1[i] = v_argmax_v1
+
+
+@T.prim_func
+def argmin_split_init_update_reordered(
+    idx: T.Buffer((128, 128), "int32"),
+    val: T.Buffer((128, 128), "float32"),
+    argmin_v0: T.Buffer((128,), "int32"),
+    argmin_v1: T.Buffer((128,), "float32"),
+) -> None:
+    for i0, i1_0, i1_1 in T.grid(128, 4, 32):
+        with T.block("argmin"):
+            i = T.axis.spatial(128, i0)
+            k = T.axis.reduce(128, i1_0 * 32 + i1_1)
+            T.reads(idx[i, k], val[i, k])
+            T.writes(argmin_v0[i], argmin_v1[i])
+            with T.init():
+                argmin_v1[i] = T.max_value("float32")
+                argmin_v0[i] = -1
+            v_argmin_v0: T.int32 = T.Select(argmin_v1[i] <= val[i, k], argmin_v0[i], idx[i, k])
+            v_argmin_v1: T.float32 = T.Select(argmin_v1[i] <= val[i, k], argmin_v1[i], val[i, k])
+            argmin_v1[i] = v_argmin_v1
+            argmin_v0[i] = v_argmin_v0
+
+
+@T.prim_func
+def argmax_split_different_shape(
+    idx: T.Buffer((128, 128), "int32"),
+    val: T.Buffer((128, 128), "float32"),
+    argmax_v0: T.Buffer((256,), "int32"),
+    argmax_v1: T.Buffer((128,), "float32"),
+) -> None:
+    for i0, i1_0, i1_1 in T.grid(128, 4, 32):
+        with T.block("argmax"):
+            i = T.axis.spatial(128, i0)
+            k = T.axis.reduce(128, i1_0 * 32 + i1_1)
+            T.reads(idx[i, k], val[i, k])
+            T.writes(argmax_v0[i], argmax_v1[i])
+            with T.init():
+                argmax_v0[i] = -1
+                argmax_v1[i] = T.min_value("float32")
+            v_argmax_v0: T.int32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k])
+            v_argmax_v1: T.float32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v1[i], val[i, k])
+            argmax_v0[i] = v_argmax_v0
+            argmax_v1[i] = v_argmax_v1
+
+
+@T.prim_func
+def argmax_split_different_indices(
+    idx: T.Buffer((128, 128), "int32"),
+    val: T.Buffer((128, 128), "float32"),
+    argmax_v0: T.Buffer((128,), "int32"),
+    argmax_v1: T.Buffer((128,), "float32"),
+) -> None:
+    for i0, i1_0, i1_1 in T.grid(128, 4, 32):
+        with T.block("argmax"):
+            i = T.axis.spatial(128, i0)
+            k = T.axis.reduce(128, i1_0 * 32 + i1_1)
+            T.reads(idx[i, k], val[i, k])
+            T.writes(argmax_v0[i], argmax_v1[i])
+            with T.init():
+                argmax_v0[i] = -1
+                argmax_v1[i + 1] = T.min_value("float32")
+            v_argmax_v0: T.int32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k])
+            v_argmax_v1: T.float32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v1[i], val[i, k])
+            argmax_v0[i] = v_argmax_v0
+            argmax_v1[i + 1] = v_argmax_v1
+
+
+@T.prim_func
+def argmax_split_init_not_bufferstore(
+    idx: T.Buffer((128, 128), "int32"),
+    val: T.Buffer((128, 128), "float32"),
+    argmax_v0: T.Buffer((128,), "int32"),
+    argmax_v1: T.Buffer((128,), "float32"),
+) -> None:
+    for i0, i1_0, i1_1 in T.grid(128, 4, 32):
+        with T.block("argmax"):
+            i = T.axis.spatial(128, i0)
+            k = T.axis.reduce(128, i1_0 * 32 + i1_1)
+            T.reads(idx[i, k], val[i, k])
+            T.writes(argmax_v0[i], argmax_v1[i])
+            with T.init():
+                argmax_v0[i] = -1
+                v1_init: T.float32 = T.min_value("float32")
+                argmax_v1[i] = v1_init
+            v_argmax_v0: T.int32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k])
+            v_argmax_v1: T.float32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v1[i], val[i, k])
+            argmax_v0[i] = v_argmax_v0
+            argmax_v1[i] = v_argmax_v1
+
+
+@T.prim_func
+def argmax_split_init_buffer_duplicate(
+    idx: T.Buffer((128, 128), "int32"),
+    val: T.Buffer((128, 128), "float32"),
+    argmax_v0: T.Buffer((128,), "int32"),
+    argmax_v1: T.Buffer((128,), "float32"),
+) -> None:
+    for i0, i1_0, i1_1 in T.grid(128, 4, 32):
+        with T.block("argmax"):
+            i = T.axis.spatial(128, i0)
+            k = T.axis.reduce(128, i1_0 * 32 + i1_1)
+            T.reads(idx[i, k], val[i, k])
+            T.writes(argmax_v0[i], argmax_v1[i])
+            with T.init():
+                argmax_v0[i] = -1
+                argmax_v0[i] = -1
+            v_argmax_v0: T.int32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k])
+            v_argmax_v1: T.float32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v1[i], val[i, k])
+            argmax_v0[i] = v_argmax_v0
+            argmax_v1[i] = v_argmax_v1
+
+
+@T.prim_func
+def argmax_split_letstmt_fewer_than_init(
+    idx: T.Buffer((128, 128), "int32"),
+    val: T.Buffer((128, 128), "float32"),
+    argmax_v0: T.Buffer((128,), "int32"),
+    argmax_v1: T.Buffer((128,), "float32"),
+) -> None:
+    for i0, i1_0, i1_1 in T.grid(128, 4, 32):
+        with T.block("argmax"):
+            i = T.axis.spatial(128, i0)
+            k = T.axis.reduce(128, i1_0 * 32 + i1_1)
+            T.reads(idx[i, k], val[i, k])
+            T.writes(argmax_v0[i], argmax_v1[i])
+            with T.init():
+                argmax_v0[i] = -1
+                argmax_v1[i] = T.min_value("float32")
+            v_argmax_v0: T.int32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k])
+            argmax_v0[i] = v_argmax_v0
+            argmax_v1[i] = T.Select(argmax_v1[i] >= val[i, k], argmax_v1[i], val[i, k])
+
+
+@T.prim_func
+def argmax_split_letstmt_more_than_init(
+    idx: T.Buffer((128, 128), "int32"),
+    val: T.Buffer((128, 128), "float32"),
+    argmax_v0: T.Buffer((128,), "int32"),
+    argmax_v1: T.Buffer((128,), "float32"),
+) -> None:
+    for i0, i1_0, i1_1 in T.grid(128, 4, 32):
+        with T.block("argmax"):
+            i = T.axis.spatial(128, i0)
+            k = T.axis.reduce(128, i1_0 * 32 + i1_1)
+            T.reads(idx[i, k], val[i, k])
+            T.writes(argmax_v0[i], argmax_v1[i])
+            with T.init():
+                argmax_v0[i] = -1
+            v_argmax_v0: T.int32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k])
+            v_argmax_v1: T.float32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v1[i], val[i, k])
+            argmax_v0[i] = v_argmax_v0
+            argmax_v1[i] = v_argmax_v1
+
+
+@T.prim_func
+def argmax_split_let_body_neither_seqstmt_nor_bufferstore(
+    idx: T.Buffer((128, 128), "int32"),
+    val: T.Buffer((128, 128), "float32"),
+    argmax_v0: T.Buffer((128,), "int32"),
+    argmax_v1: T.Buffer((128,), "float32"),
+) -> None:
+    for i0, i1_0, i1_1 in T.grid(128, 4, 32):
+        with T.block("argmax"):
+            i = T.axis.spatial(128, i0)
+            k = T.axis.reduce(128, i1_0 * 32 + i1_1)
+            T.reads(idx[i, k], val[i, k])
+            T.writes(argmax_v0[i], argmax_v1[i])
+            with T.init():
+                argmax_v0[i] = -1
+                argmax_v1[i] = T.min_value("float32")
+            v_argmax_v0: T.int32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k])
+            v_argmax_v1: T.float32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v1[i], val[i, k])
+            T.evaluate(0)
+
+
+@T.prim_func
+def argmax_split_init_update_inconsistent_bufferstore_number(
+    idx: T.Buffer((128, 128), "int32"),
+    val: T.Buffer((128, 128), "float32"),
+    argmax_v0: T.Buffer((128,), "int32"),
+    argmax_v1: T.Buffer((128,), "float32"),
+) -> None:
+    for i0, i1_0, i1_1 in T.grid(128, 4, 32):
+        with T.block("argmax"):
+            i = T.axis.spatial(128, i0)
+            k = T.axis.reduce(128, i1_0 * 32 + i1_1)
+            T.reads(idx[i, k], val[i, k])
+            T.writes(argmax_v0[i], argmax_v1[i])
+            with T.init():
+                argmax_v0[i] = -1
+                argmax_v1[i] = T.min_value("float32")
+            v_argmax_v0: T.int32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k])
+            v_argmax_v1: T.float32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v1[i], val[i, k])
+            argmax_v0[i] = v_argmax_v0
+            argmax_v1[i] = v_argmax_v1
+            argmax_v1[i] = v_argmax_v1
+
+
+@T.prim_func
+def argmax_split_body_seq_not_bufferstore(
+    idx: T.Buffer((128, 128), "int32"),
+    val: T.Buffer((128, 128), "float32"),
+    argmax_v0: T.Buffer((128,), "int32"),
+    argmax_v1: T.Buffer((128,), "float32"),
+) -> None:
+    for i0, i1_0, i1_1 in T.grid(128, 4, 32):
+        with T.block("argmax"):
+            i = T.axis.spatial(128, i0)
+            k = T.axis.reduce(128, i1_0 * 32 + i1_1)
+            T.reads(idx[i, k], val[i, k])
+            T.writes(argmax_v0[i], argmax_v1[i])
+            with T.init():
+                argmax_v0[i] = -1
+                argmax_v1[i] = T.min_value("float32")
+            v_argmax_v0: T.int32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k])
+            v_argmax_v1: T.float32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v1[i], val[i, k])
+            argmax_v0[i] = v_argmax_v0
+            T.evaluate(0)
+
+
+@T.prim_func
+def argmax_split_body_bufferstore_value_not_var(
+    idx: T.Buffer((128, 128), "int32"),
+    val: T.Buffer((128, 128), "float32"),
+    argmax_v0: T.Buffer((128,), "int32"),
+    argmax_v1: T.Buffer((128,), "float32"),
+) -> None:
+    for i0, i1_0, i1_1 in T.grid(128, 4, 32):
+        with T.block("argmax"):
+            i = T.axis.spatial(128, i0)
+            k = T.axis.reduce(128, i1_0 * 32 + i1_1)
+            T.reads(idx[i, k], val[i, k])
+            T.writes(argmax_v0[i], argmax_v1[i])
+            with T.init():
+                argmax_v0[i] = -1
+                argmax_v1[i] = T.min_value("float32")
+            v_argmax_v0: T.int32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k])
+            v_argmax_v1: T.float32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v1[i], val[i, k])
+            argmax_v0[i] = T.Select(argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k])
+            argmax_v1[i] = v_argmax_v1
+
+
+@T.prim_func
+def argmax_split_body_bufferstore_value_unbound_var(
+    idx: T.Buffer((128, 128), "int32"),
+    val: T.Buffer((128, 128), "float32"),
+    argmax_v0: T.Buffer((128,), "int32"),
+    argmax_v1: T.Buffer((128,), "float32"),
+) -> None:
+    v_unbound = T.int32()
+    for i0, i1_0, i1_1 in T.grid(128, 4, 32):
+        with T.block("argmax"):
+            i = T.axis.spatial(128, i0)
+            k = T.axis.reduce(128, i1_0 * 32 + i1_1)
+            T.reads(idx[i, k], val[i, k])
+            T.writes(argmax_v0[i], argmax_v1[i])
+            with T.init():
+                argmax_v0[i] = -1
+                argmax_v1[i] = T.min_value("float32")
+            v_argmax_v0: T.int32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k])
+            v_argmax_v1: T.float32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v1[i], val[i, k])
+            argmax_v0[i] = v_unbound
+            argmax_v1[i] = v_argmax_v1
+
+
+@T.prim_func
+def argmax_split_one_let_var_used_multi_times(
+    idx: T.Buffer((128, 128), "int32"),
+    val: T.Buffer((128, 128), "int32"),
+    argmax_v0: T.Buffer((128,), "int32"),
+    argmax_v1: T.Buffer((128,), "int32"),
+) -> None:
+    for i0, i1_0, i1_1 in T.grid(128, 4, 32):
+        with T.block("argmax"):
+            i = T.axis.spatial(128, i0)
+            k = T.axis.reduce(128, i1_0 * 32 + i1_1)
+            T.reads(idx[i, k], val[i, k])
+            T.writes(argmax_v0[i], argmax_v1[i])
+            with T.init():
+                argmax_v0[i] = -1
+                argmax_v1[i] = T.min_value("int32")
+            v_argmax_v0: T.int32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k])
+            v_argmax_v1: T.int32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v1[i], val[i, k])
+            argmax_v0[i] = v_argmax_v0
+            argmax_v1[i] = v_argmax_v0
+
+
+@T.prim_func
+def argmax_split_body_one_buffer_updated_multi_times(
+    idx: T.Buffer((128, 128), "int32"),
+    val: T.Buffer((128, 128), "int32"),
+    argmax_v0: T.Buffer((128,), "int32"),
+    argmax_v1: T.Buffer((128,), "int32"),
+) -> None:
+    for i0, i1_0, i1_1 in T.grid(128, 4, 32):
+        with T.block("argmax"):
+            i = T.axis.spatial(128, i0)
+            k = T.axis.reduce(128, i1_0 * 32 + i1_1)
+            T.reads(idx[i, k], val[i, k])
+            T.writes(argmax_v0[i], argmax_v1[i])
+            with T.init():
+                argmax_v0[i] = -1
+                argmax_v1[i] = T.min_value("int32")
+            v_argmax_v0: T.int32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k])
+            v_argmax_v1: T.int32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v1[i], val[i, k])
+            argmax_v0[i] = v_argmax_v0
+            argmax_v0[i] = v_argmax_v1
+
+
+@T.prim_func
+def argmax_split_init_buffer_not_match(
+    idx: T.Buffer((128, 128), "int32"),
+    val: T.Buffer((128, 128), "float32"),
+    argmax_v0: T.Buffer((128,), "int32"),
+    argmax_v0_1: T.Buffer((128,), "int32"),
+    argmax_v1: T.Buffer((128,), "float32"),
+) -> None:
+    for i0, i1_0, i1_1 in T.grid(128, 4, 32):
+        with T.block("argmax"):
+            i = T.axis.spatial(128, i0)
+            k = T.axis.reduce(128, i1_0 * 32 + i1_1)
+            T.reads(idx[i, k], val[i, k])
+            T.writes(argmax_v0[i], argmax_v0_1[i], argmax_v1[i])
+            with T.init():
+                argmax_v0_1[i] = -1
+                argmax_v1[i] = T.min_value("float32")
+            v_argmax_v0: T.int32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v0[i], idx[i, k])
+            v_argmax_v1: T.float32 = T.Select(argmax_v1[i] >= val[i, k], argmax_v1[i], val[i, k])
+            argmax_v0[i] = v_argmax_v0
+            argmax_v1[i] = v_argmax_v1
+
+
+@T.prim_func
+def argmax_split_rfactor(
+    idx: T.Buffer((128, 128), "int32"),
+    val: T.Buffer((128, 128), "float32"),
+    argmax_v0: T.Buffer((128,), "int32"),
+    argmax_v1: T.Buffer((128,), "float32"),
+) -> None:
+    argmax_v0_rf = T.alloc_buffer([128, 32], dtype="int32")
+    argmax_v1_rf = T.alloc_buffer([128, 32], dtype="float32")
+    for i0, i1_0, i1_1 in T.grid(128, 4, 32):
+        with T.block("argmax_rf"):
+            vi1_1, i, vi1_0 = T.axis.remap("SSR", [i1_1, i0, i1_0])
+            T.reads(idx[i, vi1_0 * 32 + vi1_1], val[i, vi1_0 * 32 + vi1_1])
+            T.writes(argmax_v0_rf[i, vi1_1], argmax_v1_rf[i, vi1_1])
+            with T.init():
+                argmax_v0_rf[i, vi1_1] = -1
+                argmax_v1_rf[i, vi1_1] = T.min_value("float32")
+            v_argmax_v0_rf: T.int32 = T.Select(
+                argmax_v1_rf[i, vi1_1] >= val[i, vi1_0 * 32 + vi1_1],
+                argmax_v0_rf[i, vi1_1],
+                idx[i, vi1_0 * 32 + vi1_1],
+            )
+            v_argmax_v1_rf: T.float32 = T.Select(
+                argmax_v1_rf[i, vi1_1] >= val[i, vi1_0 * 32 + vi1_1],
+                argmax_v1_rf[i, vi1_1],
+                val[i, vi1_0 * 32 + vi1_1],
+            )
+            argmax_v0_rf[i, vi1_1] = v_argmax_v0_rf
+            argmax_v1_rf[i, vi1_1] = v_argmax_v1_rf
+    for i0, i1_1 in T.grid(128, 32):
+        with T.block("argmax"):
+            vi1_1, i = T.axis.remap("RS", [i1_1, i0])
+            T.reads(argmax_v0_rf[i, vi1_1], argmax_v1_rf[i, vi1_1])
+            T.writes(argmax_v0[i], argmax_v1[i])
+            with T.init():
+                argmax_v0[i] = -1
+                argmax_v1[i] = T.min_value("float32")
+            v_argmax_v0: T.int32 = T.Select(
+                argmax_v1[i] >= argmax_v1_rf[i, vi1_1], argmax_v0[i], argmax_v0_rf[i, vi1_1]
+            )
+            v_argmax_v1: T.float32 = T.Select(
+                argmax_v1[i] >= argmax_v1_rf[i, vi1_1], argmax_v1[i], argmax_v1_rf[i, vi1_1]
+            )
+            argmax_v0[i] = v_argmax_v0
+            argmax_v1[i] = v_argmax_v1
+
+
+@T.prim_func
+def argmin_split_rfactor(
+    idx: T.Buffer((128, 128), "int32"),
+    val: T.Buffer((128, 128), "float32"),
+    argmin_v0: T.Buffer((128,), "int32"),
+    argmin_v1: T.Buffer((128,), "float32"),
+) -> None:
+    argmin_v0_rf = T.alloc_buffer([128, 32], dtype="int32")
+    argmin_v1_rf = T.alloc_buffer([128, 32], dtype="float32")
+    for i0, i1_0, i1_1 in T.grid(128, 4, 32):
+        with T.block("argmin_rf"):
+            vi1_1, i, vi1_0 = T.axis.remap("SSR", [i1_1, i0, i1_0])
+            T.reads(idx[i, vi1_0 * 32 + vi1_1], val[i, vi1_0 * 32 + vi1_1])
+            T.writes(argmin_v0_rf[i, vi1_1], argmin_v1_rf[i, vi1_1])
+            with T.init():
+                argmin_v0_rf[i, vi1_1] = -1
+                argmin_v1_rf[i, vi1_1] = T.max_value("float32")
+            v_argmin_v0_rf: T.int32 = T.Select(
+                argmin_v1_rf[i, vi1_1] <= val[i, vi1_0 * 32 + vi1_1],
+                argmin_v0_rf[i, vi1_1],
+                idx[i, vi1_0 * 32 + vi1_1],
+            )
+            v_argmin_v1_rf: T.float32 = T.Select(
+                argmin_v1_rf[i, vi1_1] <= val[i, vi1_0 * 32 + vi1_1],
+                argmin_v1_rf[i, vi1_1],
+                val[i, vi1_0 * 32 + vi1_1],
+            )
+            argmin_v0_rf[i, vi1_1] = v_argmin_v0_rf
+            argmin_v1_rf[i, vi1_1] = v_argmin_v1_rf
+    for i0, i1_1 in T.grid(128, 32):
+        with T.block("argmin"):
+            vi1_1, i = T.axis.remap("RS", [i1_1, i0])
+            T.reads(argmin_v0_rf[i, vi1_1], argmin_v1_rf[i, vi1_1])
+            T.writes(argmin_v0[i], argmin_v1[i])
+            with T.init():
+                argmin_v0[i] = -1
+                argmin_v1[i] = T.max_value("float32")
+            v_argmin_v0: T.int32 = T.Select(
+                argmin_v1[i] <= argmin_v1_rf[i, vi1_1], argmin_v0[i], argmin_v0_rf[i, vi1_1]
+            )
+            v_argmin_v1: T.float32 = T.Select(
+                argmin_v1[i] <= argmin_v1_rf[i, vi1_1], argmin_v1[i], argmin_v1_rf[i, vi1_1]
+            )
+            argmin_v0[i] = v_argmin_v0
+            argmin_v1[i] = v_argmin_v1
+
+
+@T.prim_func
+def argmax_topi_rfactor(
+    placeholder: T.Buffer((1, 32), "int32"), placeholder_red: T.Buffer(1, "int32")
+) -> None:
+    T.func_attr({"global_symbol": "main", "tir.noalias": True})
+    placeholder_red_temp_v0 = T.alloc_buffer([1], dtype="int32")
+    placeholder_red_temp_v1 = T.alloc_buffer([1], dtype="int32")
+    placeholder_red_temp_v0_rf = T.alloc_buffer([1, 8], dtype="int32")
+    placeholder_red_temp_v1_rf = T.alloc_buffer([1, 8], dtype="int32")
+    for i0, i1_0, i1_1 in T.grid(1, 4, 8):
+        with T.block("placeholder_red_temp_rf"):
+            vi1_1, ax0, vi1_0 = T.axis.remap("SSR", [i1_1, i0, i1_0])
+            T.reads(placeholder[ax0, vi1_0 * 8 + vi1_1])
+            T.writes(placeholder_red_temp_v0_rf[ax0, vi1_1], placeholder_red_temp_v1_rf[ax0, vi1_1])
+            with T.init():
+                placeholder_red_temp_v0_rf[ax0, vi1_1] = -1
+                placeholder_red_temp_v1_rf[ax0, vi1_1] = -2147483648
+            v_placeholder_red_temp_v0_rf: T.int32 = T.Select(
+                placeholder_red_temp_v1_rf[ax0, vi1_1] > placeholder[ax0, vi1_0 * 8 + vi1_1]
+                or placeholder_red_temp_v1_rf[ax0, vi1_1] == placeholder[ax0, vi1_0 * 8 + vi1_1]
+                and placeholder_red_temp_v0_rf[ax0, vi1_1] < vi1_0 * 8 + vi1_1,
+                placeholder_red_temp_v0_rf[ax0, vi1_1],
+                vi1_0 * 8 + vi1_1,
+            )
+            v_placeholder_red_temp_v1_rf: T.int32 = T.Select(
+                placeholder_red_temp_v1_rf[ax0, vi1_1] > placeholder[ax0, vi1_0 * 8 + vi1_1],
+                placeholder_red_temp_v1_rf[ax0, vi1_1],
+                placeholder[ax0, vi1_0 * 8 + vi1_1],
+            )
+            placeholder_red_temp_v0_rf[ax0, vi1_1] = v_placeholder_red_temp_v0_rf
+            placeholder_red_temp_v1_rf[ax0, vi1_1] = v_placeholder_red_temp_v1_rf
+    for i0, i1_1 in T.grid(1, 8):
+        with T.block("placeholder_red_temp"):
+            vi1_1, ax0 = T.axis.remap("RS", [i1_1, i0])
+            T.reads(placeholder_red_temp_v0_rf[ax0, vi1_1], placeholder_red_temp_v1_rf[ax0, vi1_1])
+            T.writes(placeholder_red_temp_v0[ax0], placeholder_red_temp_v1[ax0])
+            with T.init():
+                placeholder_red_temp_v0[ax0] = -1
+                placeholder_red_temp_v1[ax0] = -2147483648
+            v_placeholder_red_temp_v0: T.int32 = T.Select(
+                placeholder_red_temp_v1[ax0] > placeholder_red_temp_v1_rf[ax0, vi1_1]
+                or placeholder_red_temp_v1[ax0] == placeholder_red_temp_v1_rf[ax0, vi1_1]
+                and placeholder_red_temp_v0[ax0] < placeholder_red_temp_v0_rf[ax0, vi1_1],
+                placeholder_red_temp_v0[ax0],
+                placeholder_red_temp_v0_rf[ax0, vi1_1],
+            )
+            v_placeholder_red_temp_v1: T.int32 = T.Select(
+                placeholder_red_temp_v1[ax0] > placeholder_red_temp_v1_rf[ax0, vi1_1],
+                placeholder_red_temp_v1[ax0],
+                placeholder_red_temp_v1_rf[ax0, vi1_1],
+            )
+            placeholder_red_temp_v0[ax0] = v_placeholder_red_temp_v0
+            placeholder_red_temp_v1[ax0] = v_placeholder_red_temp_v1
+    for i0 in T.serial(1):
+        with T.block("placeholder_red"):
+            ax0 = T.axis.spatial(1, i0)
+            T.reads(placeholder_red_temp_v0[ax0])
+            T.writes(placeholder_red[ax0])
+            placeholder_red[ax0] = placeholder_red_temp_v0[ax0]
+
+
+@T.prim_func
+def argmin_topi_rfactor(
+    placeholder: T.Buffer((1, 32), "int32"), placeholder_red: T.Buffer(1, "int32")
+) -> None:
+    T.func_attr({"global_symbol": "main", "tir.noalias": True})
+    placeholder_red_temp_v0 = T.alloc_buffer([1], dtype="int32")
+    placeholder_red_temp_v1 = T.alloc_buffer([1], dtype="int32")
+    placeholder_red_temp_v0_rf = T.alloc_buffer([1, 8], dtype="int32")
+    placeholder_red_temp_v1_rf = T.alloc_buffer([1, 8], dtype="int32")
+    for i0, i1_0, i1_1 in T.grid(1, 4, 8):
+        with T.block("placeholder_red_temp_rf"):
+            vi1_1, ax0, vi1_0 = T.axis.remap("SSR", [i1_1, i0, i1_0])
+            T.reads(placeholder[ax0, vi1_0 * 8 + vi1_1])
+            T.writes(placeholder_red_temp_v0_rf[ax0, vi1_1], placeholder_red_temp_v1_rf[ax0, vi1_1])
+            with T.init():
+                placeholder_red_temp_v0_rf[ax0, vi1_1] = -1
+                placeholder_red_temp_v1_rf[ax0, vi1_1] = 2147483647
+            v_placeholder_red_temp_v0_rf: T.int32 = T.Select(
+                placeholder_red_temp_v1_rf[ax0, vi1_1] < placeholder[ax0, vi1_0 * 8 + vi1_1]
+                or placeholder_red_temp_v1_rf[ax0, vi1_1] == placeholder[ax0, vi1_0 * 8 + vi1_1]
+                and placeholder_red_temp_v0_rf[ax0, vi1_1] < vi1_0 * 8 + vi1_1,
+                placeholder_red_temp_v0_rf[ax0, vi1_1],
+                vi1_0 * 8 + vi1_1,
+            )
+            v_placeholder_red_temp_v1_rf: T.int32 = T.Select(
+                placeholder_red_temp_v1_rf[ax0, vi1_1] < placeholder[ax0, vi1_0 * 8 + vi1_1],
+                placeholder_red_temp_v1_rf[ax0, vi1_1],
+                placeholder[ax0, vi1_0 * 8 + vi1_1],
+            )
+            placeholder_red_temp_v0_rf[ax0, vi1_1] = v_placeholder_red_temp_v0_rf
+            placeholder_red_temp_v1_rf[ax0, vi1_1] = v_placeholder_red_temp_v1_rf
+    for i0, i1_1 in T.grid(1, 8):
+        with T.block("placeholder_red_temp"):
+            vi1_1, ax0 = T.axis.remap("RS", [i1_1, i0])
+            T.reads(placeholder_red_temp_v0_rf[ax0, vi1_1], placeholder_red_temp_v1_rf[ax0, vi1_1])
+            T.writes(placeholder_red_temp_v0[ax0], placeholder_red_temp_v1[ax0])
+            with T.init():
+                placeholder_red_temp_v0[ax0] = -1
+                placeholder_red_temp_v1[ax0] = 2147483647
+            v_placeholder_red_temp_v0: T.int32 = T.Select(
+                placeholder_red_temp_v1[ax0] < placeholder_red_temp_v1_rf[ax0, vi1_1]
+                or placeholder_red_temp_v1[ax0] == placeholder_red_temp_v1_rf[ax0, vi1_1]
+                and placeholder_red_temp_v0[ax0] < placeholder_red_temp_v0_rf[ax0, vi1_1],
+                placeholder_red_temp_v0[ax0],
+                placeholder_red_temp_v0_rf[ax0, vi1_1],
+            )
+            v_placeholder_red_temp_v1: T.int32 = T.Select(
+                placeholder_red_temp_v1[ax0] < placeholder_red_temp_v1_rf[ax0, vi1_1],
+                placeholder_red_temp_v1[ax0],
+                placeholder_red_temp_v1_rf[ax0, vi1_1],
+            )
+            placeholder_red_temp_v0[ax0] = v_placeholder_red_temp_v0
+            placeholder_red_temp_v1[ax0] = v_placeholder_red_temp_v1
+    for i0 in T.serial(1):
+        with T.block("placeholder_red"):
+            ax0 = T.axis.spatial(1, i0)
+            T.reads(placeholder_red_temp_v0[ax0])
+            T.writes(placeholder_red[ax0])
+            placeholder_red[ax0] = placeholder_red_temp_v0[ax0]
+
+
 # pylint: enable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
 
@@ -666,6 +1265,17 @@ def test_reduction_rfactor_matmul():
     assert s.get(rf_block).same_as(s.get(s.get_block("update_rf")))
     assert s.get(update).same_as(s.get(s.get_block("update")))
     verify_trace_roundtrip(s, mod=transformed_matmul)
+
+
+def test_reduction_rfactor_matmul_with_let():
+    s = tir.Schedule(transformed_matmul_with_let, debug_mask="all")
+    update = s.get_block("update")
+    _, _, _, _, kii = s.get_loops(update)
+    rf_block = s.rfactor(kii, 0)
+    tvm.ir.assert_structural_equal(s.mod["main"], matmul_rfactor)
+    assert s.get(rf_block).same_as(s.get(s.get_block("update_rf")))
+    assert s.get(update).same_as(s.get(s.get_block("update")))
+    verify_trace_roundtrip(s, mod=transformed_matmul_with_let)
 
 
 def test_reduction_rfactor_square_sum():
@@ -773,6 +1383,13 @@ def test_reduction_rfactor_wrong_reduce_pattern2():
         s.rfactor(k, 0)
 
 
+def test_reduction_rfactor_init_not_bufferstore():
+    s = tir.Schedule(rowsum_init_not_bufferstore, debug_mask="all")
+    _, k = s.get_loops(s.get_block("B"))
+    with pytest.raises(tvm.tir.ScheduleError):
+        s.rfactor(k, 0)
+
+
 def test_reduction_rfactor_wrong_loops1():
     s = tir.Schedule(rowsum, debug_mask="all")
     i, _ = s.get_loops(s.get_block("B"))
@@ -852,9 +1469,175 @@ def test_reduction_rfactor_spatial_only():
     s = tir.Schedule(rfactor_spatial_only, debug_mask="all")
     block = s.get_block(name="acc", func_name="main")
     _, _, _, _, loop, _ = s.get_loops(block)
-    s.rfactor(loop=loop, factor_axis=4)
+    rf_block = s.rfactor(loop=loop, factor_axis=4)
     tvm.ir.assert_structural_equal(s.mod["main"], rfactor_spatial_only_after)
+    assert s.get(rf_block).same_as(s.get(s.get_block("acc_rf")))
+    assert s.get(block).same_as(s.get(s.get_block("acc")))
     verify_trace_roundtrip(s, mod=rfactor_spatial_only)
+
+
+def test_reduction_rfactor_argmax():
+    s = tir.Schedule(argmax_split, debug_mask="all")
+    argmax = s.get_block("argmax")
+    _, _, ki = s.get_loops(argmax)
+    rf_block = s.rfactor(ki, 1)
+    tvm.ir.assert_structural_equal(s.mod["main"], argmax_split_rfactor)
+    assert s.get(rf_block).same_as(s.get(s.get_block("argmax_rf")))
+    assert s.get(argmax).same_as(s.get(s.get_block("argmax")))
+    verify_trace_roundtrip(s, mod=argmax_split)
+
+
+def test_reduction_rfactor_argmin_init_update_reordeded():
+    s = tir.Schedule(argmin_split_init_update_reordered, debug_mask="all")
+    argmin = s.get_block("argmin")
+    _, _, ki = s.get_loops(argmin)
+    rf_block = s.rfactor(ki, 1)
+    tvm.ir.assert_structural_equal(s.mod["main"], argmin_split_rfactor)
+    assert s.get(rf_block).same_as(s.get(s.get_block("argmin_rf")))
+    assert s.get(argmin).same_as(s.get(s.get_block("argmin")))
+    verify_trace_roundtrip(s, mod=argmin_split_init_update_reordered)
+
+
+def test_reduction_rfactor_argmax_reduction_buffer_different_shape():
+    s = tir.Schedule(argmax_split_different_shape, debug_mask="all")
+    argmax = s.get_block("argmax")
+    _, _, ki = s.get_loops(argmax)
+    with pytest.raises(tvm.tir.ScheduleError):
+        s.rfactor(ki, 1)
+
+
+def test_reduction_rfactor_argmax_different_access_indices():
+    s = tir.Schedule(argmax_split_different_indices, debug_mask="all")
+    argmax = s.get_block("argmax")
+    _, _, ki = s.get_loops(argmax)
+    with pytest.raises(tvm.tir.ScheduleError):
+        s.rfactor(ki, 1)
+
+
+def test_reduction_rfactor_argmax_init_not_bufferstore():
+    s = tir.Schedule(argmax_split_init_not_bufferstore, debug_mask="all")
+    argmax = s.get_block("argmax")
+    _, _, ki = s.get_loops(argmax)
+    with pytest.raises(tvm.tir.ScheduleError):
+        s.rfactor(ki, 1)
+
+
+def test_reduction_rfactor_argmax_init_buffer_duplicate():
+    s = tir.Schedule(argmax_split_init_buffer_duplicate, debug_mask="all")
+    argmax = s.get_block("argmax")
+    _, _, ki = s.get_loops(argmax)
+    with pytest.raises(tvm.tir.ScheduleError):
+        s.rfactor(ki, 1)
+
+
+def test_reduction_rfactor_argmax_letstmt_fewer_than_init():
+    s = tir.Schedule(argmax_split_letstmt_fewer_than_init, debug_mask="all")
+    argmax = s.get_block("argmax")
+    _, _, ki = s.get_loops(argmax)
+    with pytest.raises(tvm.tir.ScheduleError):
+        s.rfactor(ki, 1)
+
+
+def test_reduction_rfactor_argmax_letstmt_more_than_init():
+    s = tir.Schedule(argmax_split_letstmt_more_than_init, debug_mask="all")
+    argmax = s.get_block("argmax")
+    _, _, ki = s.get_loops(argmax)
+    with pytest.raises(tvm.tir.ScheduleError):
+        s.rfactor(ki, 1)
+
+
+def test_reduction_rfactor_argmax_let_body_neither_seqstmt_nor_bufferstore():
+    s = tir.Schedule(argmax_split_let_body_neither_seqstmt_nor_bufferstore, debug_mask="all")
+    argmax = s.get_block("argmax")
+    _, _, ki = s.get_loops(argmax)
+    with pytest.raises(tvm.tir.ScheduleError):
+        s.rfactor(ki, 1)
+
+
+def test_reduction_rfactor_argmax_init_update_inconsistent_bufferstore_number():
+    s = tir.Schedule(argmax_split_init_update_inconsistent_bufferstore_number, debug_mask="all")
+    argmax = s.get_block("argmax")
+    _, _, ki = s.get_loops(argmax)
+    with pytest.raises(tvm.tir.ScheduleError):
+        s.rfactor(ki, 1)
+
+
+def test_reduction_rfactor_argmax_body_seq_not_bufferstore():
+    s = tir.Schedule(argmax_split_body_seq_not_bufferstore, debug_mask="all")
+    argmax = s.get_block("argmax")
+    _, _, ki = s.get_loops(argmax)
+    with pytest.raises(tvm.tir.ScheduleError):
+        s.rfactor(ki, 1)
+
+
+def test_reduction_rfactor_argmax_body_bufferstore_value_not_var():
+    s = tir.Schedule(argmax_split_body_bufferstore_value_not_var, debug_mask="all")
+    argmax = s.get_block("argmax")
+    _, _, ki = s.get_loops(argmax)
+    with pytest.raises(tvm.tir.ScheduleError):
+        s.rfactor(ki, 1)
+
+
+def test_reduction_rfactor_argmax_body_bufferstore_value_unbound_var():
+    s = tir.Schedule(argmax_split_body_bufferstore_value_unbound_var, debug_mask="all")
+    argmax = s.get_block("argmax")
+    _, _, ki = s.get_loops(argmax)
+    with pytest.raises(tvm.tir.ScheduleError):
+        s.rfactor(ki, 1)
+
+
+def test_reduction_rfactor_argmax_one_let_var_used_multi_times():
+    s = tir.Schedule(argmax_split_one_let_var_used_multi_times, debug_mask="all")
+    argmax = s.get_block("argmax")
+    _, _, ki = s.get_loops(argmax)
+    with pytest.raises(tvm.tir.ScheduleError):
+        s.rfactor(ki, 1)
+
+
+def test_reduction_rfactor_argmax_body_one_buffer_updated_multi_times():
+    s = tir.Schedule(argmax_split_body_one_buffer_updated_multi_times, debug_mask="all")
+    argmax = s.get_block("argmax")
+    _, _, ki = s.get_loops(argmax)
+    with pytest.raises(tvm.tir.ScheduleError):
+        s.rfactor(ki, 1)
+
+
+def test_reduction_rfactor_argmax_init_buffer_not_match():
+    s = tir.Schedule(argmax_split_init_buffer_not_match, debug_mask="all")
+    argmax = s.get_block("argmax")
+    _, _, ki = s.get_loops(argmax)
+    with pytest.raises(tvm.tir.ScheduleError):
+        s.rfactor(ki, 1)
+
+
+def test_reduction_rfactor_topi_argmax():
+    A = te.placeholder((1, 32), dtype="int32")
+    B = topi.argmax(A, axis=1)
+    argmax_topi = te.create_prim_func([A, B])
+    s = tir.Schedule(argmax_topi, debug_mask="all")
+    argmax = s.get_block("placeholder_red_temp")
+    _, k = s.get_loops(argmax)
+    _, ki = s.split(k, [None, 8])
+    rf_block = s.rfactor(ki, 1)
+    tvm.ir.assert_structural_equal(s.mod["main"], argmax_topi_rfactor)
+    assert s.get(rf_block).same_as(s.get(s.get_block("placeholder_red_temp_rf")))
+    assert s.get(argmax).same_as(s.get(s.get_block("placeholder_red_temp")))
+    verify_trace_roundtrip(s, mod=argmax_topi)
+
+
+def test_reduction_rfactor_topi_argmin():
+    A = te.placeholder((1, 32), dtype="int32")
+    B = topi.argmin(A, axis=1)
+    argmin_topi = te.create_prim_func([A, B])
+    s = tir.Schedule(argmin_topi, debug_mask="all")
+    argmin = s.get_block("placeholder_red_temp")
+    _, k = s.get_loops(argmin)
+    _, ki = s.split(k, [None, 8])
+    rf_block = s.rfactor(ki, 1)
+    tvm.ir.assert_structural_equal(s.mod["main"], argmin_topi_rfactor)
+    assert s.get(rf_block).same_as(s.get(s.get_block("placeholder_red_temp_rf")))
+    assert s.get(argmin).same_as(s.get(s.get_block("placeholder_red_temp")))
+    verify_trace_roundtrip(s, mod=argmin_topi)
 
 
 if __name__ == "__main__":

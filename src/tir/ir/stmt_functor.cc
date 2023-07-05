@@ -21,12 +21,13 @@
  */
 #include <tvm/ir/module.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/data_type_rewriter.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/stmt_functor.h>
 
 #include <functional>
 
-#include "./functor_common.h"
+#include "functor_common.h"
 
 namespace tvm {
 namespace tir {
@@ -63,9 +64,7 @@ void StmtVisitor::VisitStmt_(const AllocateConstNode* op) {
   this->VisitStmt(op->body);
 }
 
-void StmtVisitor::VisitStmt_(const StoreNode* op) {
-  LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-}
+void StmtVisitor::VisitStmt_(const DeclBufferNode* op) { this->VisitStmt(op->body); }
 
 void StmtVisitor::VisitStmt_(const BufferStoreNode* op) {
   this->VisitExpr(op->value);
@@ -84,8 +83,8 @@ void StmtVisitor::VisitStmt_(const BufferRealizeNode* op) {
 void StmtVisitor::VisitStmt_(const IfThenElseNode* op) {
   this->VisitExpr(op->condition);
   this->VisitStmt(op->then_case);
-  if (op->else_case.defined()) {
-    this->VisitStmt(op->else_case);
+  if (op->else_case) {
+    this->VisitStmt(op->else_case.value());
   }
 }
 
@@ -136,8 +135,15 @@ void StmtVisitor::VisitStmt_(const BlockNode* op) {
   VisitArray(op->reads, fvisit_buffer_region);
   VisitArray(op->writes, fvisit_buffer_region);
   VisitArray(op->match_buffers,
-             [fvisit_buffer_region](const MatchBufferRegion& match_buffer_region) {
+             [this, fvisit_buffer_region](const MatchBufferRegion& match_buffer_region) {
                fvisit_buffer_region(match_buffer_region->source);
+               this->VisitExpr(match_buffer_region->buffer->elem_offset);
+               VisitArray(match_buffer_region->buffer->strides,
+                          [this](const PrimExpr& e) { this->VisitExpr(e); });
+               VisitArray(match_buffer_region->buffer->shape,
+                          [this](const PrimExpr& e) { this->VisitExpr(e); });
+               VisitArray(match_buffer_region->buffer->axis_separators,
+                          [this](const IntImm& e) { this->VisitExpr(e); });
              });
   if (op->init.defined()) {
     this->VisitStmt(op->init.value());
@@ -181,9 +187,8 @@ class StmtMutator::Internal {
       return arr;
     } else {
       bool allow_cow = false;
-      Array<T> copy = arr;
       std::swap(allow_cow, self->allow_copy_on_write_);
-      copy.MutateByApply(fmutate);
+      Array<T> copy = arr.Map(fmutate);
       std::swap(allow_cow, self->allow_copy_on_write_);
       return copy;
     }
@@ -240,11 +245,28 @@ class StmtMutator::Internal {
 
   static Array<MatchBufferRegion> Mutate(StmtMutator* self, const Array<MatchBufferRegion>& arr) {
     auto fmutate = [self](const MatchBufferRegion& match_buffer_region) {
+      const Buffer& buffer = match_buffer_region->buffer;
       Array<Range> region = Mutate(self, match_buffer_region->source->region);
-      if (region.same_as(match_buffer_region->source->region)) {
-        return match_buffer_region;
+      PrimExpr elem_offset = self->VisitExpr(buffer->elem_offset);
+      Array<PrimExpr> strides = Mutate(self, buffer->strides);
+      Array<PrimExpr> shape = Mutate(self, buffer->shape);
+      Array<IntImm> axis_separators =
+          MutateArray(self, buffer->axis_separators,
+                      [self](const IntImm& e) { return Downcast<IntImm>(self->VisitExpr(e)); });
+
+      if (elem_offset.same_as(buffer->elem_offset) && strides.same_as(buffer->strides) &&
+          shape.same_as(buffer->shape) && axis_separators.same_as(buffer->axis_separators)) {
+        if (region.same_as(match_buffer_region->source->region)) {
+          return match_buffer_region;
+        } else {
+          return MatchBufferRegion(buffer,
+                                   BufferRegion(match_buffer_region->source->buffer, region));
+        }
       } else {
-        return MatchBufferRegion(match_buffer_region->buffer,
+        Buffer new_buffer(buffer->data, buffer->dtype, shape, strides, elem_offset, buffer->name,
+                          buffer->data_alignment, buffer->offset_factor, buffer->buffer_type,
+                          axis_separators, buffer->span);
+        return MatchBufferRegion(new_buffer,
                                  BufferRegion(match_buffer_region->source->buffer, region));
       }
     };
@@ -336,12 +358,24 @@ Stmt StmtMutator::VisitStmt_(const AllocateConstNode* op) {
   }
 }
 
+Stmt StmtMutator::VisitStmt_(const DeclBufferNode* op) {
+  Stmt body = this->VisitStmt(op->body);
+
+  if (body.same_as(op->body)) {
+    return GetRef<Stmt>(op);
+  } else {
+    auto n = CopyOnWrite(op);
+    n->body = std::move(body);
+    return Stmt(n);
+  }
+}
+
 Stmt StmtMutator::VisitStmt_(const IfThenElseNode* op) {
   PrimExpr condition = this->VisitExpr(op->condition);
   Stmt then_case = this->VisitStmt(op->then_case);
-  Stmt else_case;
-  if (op->else_case.defined()) {
-    else_case = this->VisitStmt(op->else_case);
+  Optional<Stmt> else_case = NullOpt;
+  if (op->else_case) {
+    else_case = this->VisitStmt(op->else_case.value());
   }
   if (condition.same_as(op->condition) && then_case.same_as(op->then_case) &&
       else_case.same_as(op->else_case)) {
@@ -353,11 +387,6 @@ Stmt StmtMutator::VisitStmt_(const IfThenElseNode* op) {
     n->else_case = std::move(else_case);
     return Stmt(n);
   }
-}
-
-Stmt StmtMutator::VisitStmt_(const StoreNode* op) {
-  LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-  return Stmt();
 }
 
 Stmt StmtMutator::VisitStmt_(const BufferStoreNode* op) {
@@ -432,11 +461,11 @@ Stmt StmtMutator::VisitStmt_(const PrefetchNode* op) {
 Stmt StmtMutator::VisitStmt_(const SeqStmtNode* op) {
   Array<Stmt> seq = Internal::Mutate(this, op->seq);
   if (seq.same_as(op->seq)) {
-    return GetRef<Stmt>(op);
+    return SeqStmt::Flatten(GetRef<Stmt>(op));
   } else {
-    auto n = CopyOnWrite(op);
-    n->seq = std::move(seq);
-    return Stmt(n);
+    auto node = CopyOnWrite(op);
+    node->seq = std::move(seq);
+    return SeqStmt::Flatten(SeqStmt(node));
   }
 }
 
@@ -647,18 +676,169 @@ class IRSubstitute : public StmtExprMutator {
   PrimExpr VisitExpr_(const VarNode* op) final {
     Var var = GetRef<Var>(op);
     auto ret = vmap_(var);
-    if (ret.defined()) return ret.value();
+    if (ret.defined()) {
+      // Allow substitution of void variables with any expression. The TVM script parser
+      // uses void variables for lambda parameters (since exact types are not known yet).
+      if (!var.dtype().is_void()) {
+        PrimExpr ret_ex = Downcast<PrimExpr>(ret.value());
+        ICHECK(ret_ex.dtype() == var.dtype()) << "substituting " << var << ":" << var.dtype()
+                                              << " -> " << ret_ex << ":" << ret_ex.dtype();
+      }
+      return ret.value();
+    }
     return std::move(var);
   }
 
-  PrimExpr VisitExpr_(const LoadNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-    return PrimExpr();
+  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+    auto node = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+    return VisitBufferAccess(std::move(node));
   }
 
-  Stmt VisitStmt_(const StoreNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-    return Stmt();
+  Stmt VisitStmt_(const BufferStoreNode* op) final {
+    auto node = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+    return VisitBufferAccess(std::move(node));
+  }
+
+  Stmt VisitStmt_(const DeclBufferNode* op) final {
+    auto node = Downcast<DeclBuffer>(StmtExprMutator::VisitStmt_(op));
+    return VisitBufferAccess(std::move(node));
+  }
+
+  template <typename Node>
+  Node VisitBufferAccess(Node node) {
+    Buffer new_buf = GetRemappedBuffer(node->buffer);
+
+    if (!new_buf.same_as(node->buffer)) {
+      auto writer = node.CopyOnWrite();
+      writer->buffer = new_buf;
+    }
+
+    return node;
+  }
+
+  Buffer GetRemappedBuffer(Buffer buf) {
+    auto key = buf.get();
+    auto it = buf_remap_.find(key);
+    if (it != buf_remap_.end()) {
+      return it->second;
+    }
+
+    PrimExpr new_buffer_var_expr = VisitExpr(buf->data);
+    CHECK(new_buffer_var_expr->IsInstance<VarNode>())
+        << "Buffer " << buf << " uses backing allocation " << buf->data
+        << ", which was substituted into the expression " << new_buffer_var_expr << ".  "
+        << "However, this expression is of type " << new_buffer_var_expr->GetTypeKey()
+        << " and the backing allocation must be a tir::Var";
+
+    Var buffer_var = Downcast<Var>(new_buffer_var_expr);
+    auto elem_offset = VisitExpr(buf->elem_offset);
+    auto shape = buf->shape.Map([this](const auto& expr) { return VisitExpr(expr); });
+    auto strides = buf->strides.Map([this](const auto& expr) { return VisitExpr(expr); });
+
+    if (!buffer_var.same_as(buf->data) || !elem_offset.same_as(buf->elem_offset) ||
+        !shape.same_as(buf->shape) || !strides.same_as(buf->strides)) {
+      auto writer = buf.CopyOnWrite();
+      writer->data = buffer_var;
+      writer->elem_offset = elem_offset;
+      writer->shape = shape;
+      writer->strides = strides;
+    }
+
+    buf_remap_[key] = buf;
+    return buf;
+  }
+
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
+    Stmt ret = StmtExprMutator::VisitStmt_(op);
+    op = ret.as<AttrStmtNode>();
+    // remap var node in attr
+    if (auto var_node = op->node.as<Var>()) {
+      if (auto mapped_var = vmap_(var_node.value())) {
+        return AttrStmt(mapped_var, op->attr_key, op->value, op->body);
+      }
+    }
+    return ret;
+  }
+
+ private:
+  // Caller provided function that defines the variables to be remapped.
+  std::function<Optional<PrimExpr>(const Var&)> vmap_;
+
+  /* \brief Generated map to track buffers being remapped.
+   *
+   * If a `Var BufferNode::data` is remapped, then all buffers
+   * containing that data pointer should also be remapped.  This map
+   * is used to track buffer modifications, and ensure all instances
+   * of a buffer are replaced by the same modified buffer object.
+   */
+  std::unordered_map<const BufferNode*, Buffer> buf_remap_;
+};
+
+Stmt Substitute(Stmt stmt, std::function<Optional<PrimExpr>(const Var&)> vmap) {
+  return IRSubstitute(vmap)(std::move(stmt));
+}
+
+PrimExpr Substitute(PrimExpr expr, std::function<Optional<PrimExpr>(const Var&)> vmap) {
+  return IRSubstitute(vmap)(std::move(expr));
+}
+
+void PreOrderVisit(const ObjectRef& stmt_or_expr,
+                   const std::function<bool(const ObjectRef&)>& fvisit) {
+  class PreOrderVisitor : public StmtExprVisitor {
+   public:
+    explicit PreOrderVisitor(const std::function<bool(const ObjectRef&)>& f) : f_(f) {}
+
+   private:
+    void VisitExpr(const PrimExpr& expr) final {
+      const PrimExprNode* p_expr = expr.get();
+      if (visited_.count(p_expr) == 0) {
+        visited_.insert(p_expr);
+        if (f_(expr)) {
+          ExprVisitor::VisitExpr(expr);
+        }
+      }
+    }
+
+    void VisitStmt(const Stmt& stmt) final {
+      const StmtNode* p_stmt = stmt.get();
+      if (visited_.count(p_stmt) == 0) {
+        visited_.insert(p_stmt);
+        if (f_(stmt)) {
+          StmtVisitor::VisitStmt(stmt);
+        }
+      }
+    }
+
+    const std::function<bool(const ObjectRef&)>& f_;
+    std::unordered_set<const Object*> visited_;
+  };
+
+  PreOrderVisitor visitor(fvisit);
+  if (auto stmt = stmt_or_expr.as<Stmt>()) {
+    visitor(stmt.value());
+  } else if (auto expr = stmt_or_expr.as<PrimExpr>()) {
+    visitor(expr.value());
+  } else {
+    LOG(FATAL) << "InternalError: PreOrderVisit does not accept object with type: "
+               << stmt_or_expr->GetTypeKey();
+  }
+}
+
+class IRSubstituteWithDataTypeLegalization : public DataTypeLegalizer {
+ public:
+  explicit IRSubstituteWithDataTypeLegalization(std::function<Optional<PrimExpr>(const Var&)> vmap)
+      : vmap_(vmap) {}
+
+  using DataTypeLegalizer::VisitExpr_;
+  using DataTypeLegalizer::VisitStmt_;
+
+  PrimExpr VisitExpr_(const VarNode* op) final {
+    Var var = GetRef<Var>(op);
+    auto ret = vmap_(var);
+    if (ret.defined()) {
+      return ret.value();
+    }
+    return std::move(var);
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
@@ -704,8 +884,8 @@ class IRSubstitute : public StmtExprMutator {
     Stmt ret = StmtExprMutator::VisitStmt_(op);
     op = ret.as<AttrStmtNode>();
     // remap var node in attr
-    if (const auto* var_node = op->node.as<VarNode>()) {
-      if (auto mapped_var = vmap_(GetRef<Var>(var_node))) {
+    if (auto var_node = op->node.as<Var>()) {
+      if (auto mapped_var = vmap_(var_node.value())) {
         return AttrStmt(mapped_var, op->attr_key, op->value, op->body);
       }
     }
@@ -726,65 +906,14 @@ class IRSubstitute : public StmtExprMutator {
   std::unordered_map<const BufferNode*, Buffer> buf_remap_;
 };
 
-Stmt Substitute(Stmt stmt, std::function<Optional<PrimExpr>(const Var&)> vmap) {
-  return IRSubstitute(vmap)(std::move(stmt));
+Stmt SubstituteWithDataTypeLegalization(Stmt stmt,
+                                        std::function<Optional<PrimExpr>(const Var&)> vmap) {
+  return IRSubstituteWithDataTypeLegalization(vmap)(std::move(stmt));
 }
 
-PrimExpr Substitute(PrimExpr expr, std::function<Optional<PrimExpr>(const Var&)> vmap) {
-  return IRSubstitute(vmap)(std::move(expr));
-}
-
-Array<Range> Substitute(const Array<Range>& region, const Map<Var, PrimExpr>& vmap) {
-  Array<Range> result;
-  result.reserve(region.size());
-  for (const Range& range : region) {
-    PrimExpr min = Substitute(range->min, vmap);
-    PrimExpr extent = Substitute(range->extent, vmap);
-    result.push_back(Range::FromMinExtent(std::move(min), std::move(extent)));
-  }
-  return result;
-}
-
-void PreOrderVisit(const ObjectRef& stmt_or_expr,
-                   const std::function<bool(const ObjectRef&)>& fvisit) {
-  class PreOrderVisitor : public StmtExprVisitor {
-   public:
-    explicit PreOrderVisitor(const std::function<bool(const ObjectRef&)>& f) : f_(f) {}
-
-   private:
-    void VisitExpr(const PrimExpr& expr) final {
-      const PrimExprNode* p_expr = expr.get();
-      if (visited_.count(p_expr) == 0) {
-        visited_.insert(p_expr);
-        if (f_(expr)) {
-          ExprVisitor::VisitExpr(expr);
-        }
-      }
-    }
-
-    void VisitStmt(const Stmt& stmt) final {
-      const StmtNode* p_stmt = stmt.get();
-      if (visited_.count(p_stmt) == 0) {
-        visited_.insert(p_stmt);
-        if (f_(stmt)) {
-          StmtVisitor::VisitStmt(stmt);
-        }
-      }
-    }
-
-    const std::function<bool(const ObjectRef&)>& f_;
-    std::unordered_set<const Object*> visited_;
-  };
-
-  PreOrderVisitor visitor(fvisit);
-  if (const auto* stmt = stmt_or_expr.as<StmtNode>()) {
-    visitor(GetRef<Stmt>(stmt));
-  } else if (const auto* expr = stmt_or_expr.as<PrimExprNode>()) {
-    visitor(GetRef<PrimExpr>(expr));
-  } else {
-    LOG(FATAL) << "InternalError: PreOrderVisit does not accept object with type: "
-               << stmt_or_expr->GetTypeKey();
-  }
+PrimExpr SubstituteWithDataTypeLegalization(PrimExpr expr,
+                                            std::function<Optional<PrimExpr>(const Var&)> vmap) {
+  return IRSubstituteWithDataTypeLegalization(vmap)(std::move(expr));
 }
 
 TVM_REGISTER_GLOBAL("tir.IRTransform").set_body_typed(IRTransform);

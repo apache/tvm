@@ -101,6 +101,46 @@ def verify_upsampling(
         check_target(target, dev)
 
 
+def test_int_div_upsampling():
+    """Test whether upsampling op is tilable when scale_h and scale_w is integer.
+
+    Compute_at cannot work correctly in the original floating-point multiplication.
+    After using integer division,compute_at can work correctly and reduce the
+    capacity of cache buffer.
+
+    In this test case, scale_h and scale_w are set to integers, the size
+    of cache buffer should be equal to (h_i/scale_h * w_i/scale_w * c_i).
+    """
+    dtype = "int8"
+    scale_h = 2
+    scale_w = 2
+
+    x = te.placeholder([1, 32, 64, 64], dtype, "x")
+    y = topi.nn.upsampling(x, scale_h, scale_w)
+    func = te.create_prim_func([x, y])
+
+    s = tvm.tir.Schedule(func)
+    block = s.get_block("resize")
+    cache = s.cache_read(block, 0, "local")
+    n, c, h, w = s.get_loops(block)
+    s_factor = 8
+    c_o, c_i = s.split(c, factors=[None, s_factor])
+    h_o, h_i = s.split(h, factors=[None, s_factor])
+    w_o, w_i = s.split(w, factors=[None, s_factor])
+    s.reorder(n, c_o, h_o, w_o, h_i, w_i, c_i)
+    s.compute_at(cache, w_o)
+    wanted_rt = s_factor**3 / (scale_h * scale_w)
+
+    def analyze_upsampling_allocate(stmt):
+        if isinstance(stmt, tvm.tir.stmt.Allocate):
+            tvm.testing.assert_allclose(stmt.extents[0].value, wanted_rt)
+
+    lowerd_irmodule = tvm.lower(s.mod["main"])
+    tvm.tir.stmt_functor.post_order_visit(
+        lowerd_irmodule.functions.items()[0][1].body, analyze_upsampling_allocate
+    )
+
+
 @tvm.testing.uses_gpu
 def test_upsampling():
     # nearest_neighbor - NCHW
@@ -269,3 +309,4 @@ def test_upsampling3d():
 if __name__ == "__main__":
     test_upsampling()
     test_upsampling3d()
+    test_int_div_upsampling()

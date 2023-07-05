@@ -41,8 +41,13 @@ ArrayAccessor<struct TVMTensorInfo, TensorInfo> MetadataNode::inputs() {
 ArrayAccessor<struct TVMTensorInfo, TensorInfo> MetadataNode::outputs() {
   return ArrayAccessor<struct TVMTensorInfo, TensorInfo>(data_->outputs, data_->num_outputs);
 }
-ArrayAccessor<struct TVMTensorInfo, TensorInfo> MetadataNode::pools() {
-  return ArrayAccessor<struct TVMTensorInfo, TensorInfo>(data_->pools, data_->num_pools);
+ArrayAccessor<struct TVMTensorInfo, TensorInfo> MetadataNode::workspace_pools() {
+  return ArrayAccessor<struct TVMTensorInfo, TensorInfo>(data_->workspace_pools,
+                                                         data_->num_workspace_pools);
+}
+ArrayAccessor<struct TVMConstantInfo, ConstantInfoMetadata> MetadataNode::constant_pools() {
+  return ArrayAccessor<struct TVMConstantInfo, ConstantInfoMetadata>(data_->constant_pools,
+                                                                     data_->num_constant_pools);
 }
 
 TVM_REGISTER_OBJECT_TYPE(MetadataBaseNode);
@@ -68,6 +73,12 @@ TVM_REGISTER_OBJECT_TYPE(TensorInfoNode);
 
 const char* TensorInfoNode::get_c_struct_name() const { return "TVMTensorInfo"; }
 
+ConstantInfoMetadata::ConstantInfoMetadata(const struct ::TVMConstantInfo* data)
+    : MetadataBase{make_object<ConstantInfoMetadataNode>(data)} {}
+TVM_REGISTER_OBJECT_TYPE(ConstantInfoMetadataNode);
+
+const char* ConstantInfoMetadataNode::get_c_struct_name() const { return "TVMConstantInfo"; }
+
 }  // namespace metadata
 
 class MetadataModuleNode : public ::tvm::runtime::ModuleNode {
@@ -77,13 +88,16 @@ class MetadataModuleNode : public ::tvm::runtime::ModuleNode {
 
   const char* type_key() const final { return "metadata_module"; }
 
+  /*! \brief Get the property of the runtime module .*/
+  int GetPropertyMask() const final { return ModulePropertyMask::kBinarySerializable; }
+
   static Module LoadFromBinary() {
     return Module(make_object<MetadataModuleNode>(runtime::metadata::Metadata()));
   }
 
   void SaveToBinary(dmlc::Stream* stream) final {}
 
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) {
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) {
     if (name == "get_metadata") {
       return PackedFunc([this, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
         if (!metadata_.defined()) {

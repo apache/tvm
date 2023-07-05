@@ -17,11 +17,13 @@
 # pylint: disable=invalid-name,unused-variable,unused-argument,no-else-return
 """util functions to be reused in different compute/schedule on Qualcomm Adreno GPU"""
 
-import tvm
 import numpy
+import tvm
 from tvm import te
+from tvm._ffi.registry import register_func
 from tvm.topi.utils import simplify
 from tvm.topi import nn
+from tvm.autotvm.task.space import SplitEntity
 from ..utils import get_const_tuple
 
 
@@ -235,6 +237,18 @@ def pack_filter(
             Filter[indices[0], indices[1], indices[2] * out_block + indices[4], indices[3]],
         )
 
+    def _reorder_weights_depthwise_hwio(*indices):
+        conditionA = []
+        conditionA.append(indices[3] == out_chunks - 1)
+        conditionA.append(indices[4] >= out_original_tail)
+        conditionAT = tvm.tir.all(*conditionA)
+
+        return tvm.tir.if_then_else(
+            conditionAT,
+            pad_value,
+            Filter[indices[0], indices[1], indices[2], indices[3] * out_block + indices[4]],
+        )
+
     def _reorder_weights_oihw(*indices):
         conditionA = []
         conditionA.append(indices[0] == out_chunks - 1)
@@ -279,6 +293,13 @@ def pack_filter(
             reordered_filter = te.compute(
                 [kernel_h, kernel_w, out_chunks, in_filter_channels, out_block],
                 _reorder_weights_depthwise_hwoi,
+                name="filter_pack",
+                tag="filter_pack",
+            )
+        elif layout == "HWIO":
+            reordered_filter = te.compute(
+                [kernel_h, kernel_w, in_filter_channels, out_chunks, out_block],
+                _reorder_weights_depthwise_hwio,
                 name="filter_pack",
                 tag="filter_pack",
             )
@@ -473,7 +494,19 @@ def add_pad(
         pad_after[x_axis] -= in_width + pad_before[x_axis] + pad_after[x_axis] - input_latest_w
     if input_latest_h < in_height + pad_before[y_axis] + pad_after[y_axis]:
         pad_after[y_axis] -= in_height + pad_before[y_axis] + pad_after[y_axis] - input_latest_h
-    return nn.pad(data, pad_before, pad_after, name="pad_temp")
+    if (
+        pad_before[0] == 0
+        and pad_before[1] == 0
+        and pad_before[2] == 0
+        and pad_before[3] == 0
+        and pad_after[0] == 0
+        and pad_after[1] == 0
+        and pad_after[2] == 0
+        and pad_after[3] == 0
+    ):
+        return data
+    else:
+        return nn.pad(data, pad_before, pad_after, name="pad_temp")
 
 
 def bind_data_copy(stage, axis_to_vectorize=None):
@@ -511,19 +544,27 @@ def bind_data_copy(stage, axis_to_vectorize=None):
         stage.bind(block, te.thread_axis("blockIdx.z"))
         stage.bind(thread, te.thread_axis("threadIdx.z"))
     else:
-        axes = stage.op.axis
-        fused = stage.fuse(*axes[:-1])
-        if shape[-1] <= 32:
+        if shape[-1] == 4:
+            axes = stage.op.axis
+            fused = stage.fuse(*axes[:-1])
             ftc = numpy.prod(shape[:-1])
             div = get_div(ftc, 64)
             block, thread = stage.split(fused, factor=div)
             stage.bind(block, te.thread_axis("blockIdx.x"))
             stage.bind(thread, te.thread_axis("threadIdx.x"))
-            if shape[-1] == 4:
-                stage.vectorize(axes[-1])
+            stage.vectorize(axes[-1])
         else:
-            stage.bind(fused, te.thread_axis("blockIdx.x"))
-            stage.bind(*axes[-1:], te.thread_axis("threadIdx.x"))
+            ftc = numpy.prod(shape)
+            vthread = get_div(ftc, 8)
+            fused = stage.fuse(*stage.op.axis)
+            ftc = ftc / vthread
+            # 1024 is a maximum work group size on the most Adreno GPU
+            num_thread = get_div(ftc, 1024 // vthread)
+            a, b = stage.split(fused, factor=num_thread)
+            a, c = stage.split(a, factor=vthread)
+            stage.bind(c, te.thread_axis("vthread"))
+            stage.bind(a, te.thread_axis("blockIdx.x"))
+            stage.bind(b, te.thread_axis("threadIdx.x"))
 
 
 def get_texture_storage(shape):
@@ -547,6 +588,19 @@ def get_texture_storage(shape):
         return "global.texture-nhwc"
     else:
         return "global.texture-weight"
+
+
+@register_func("tvm.info.mem.global.texture")
+@register_func("tvm.info.mem.global.texture-nhwc")
+@register_func("tvm.info.mem.global.texture-weight")
+def mem_info_global_texture_variants():
+    return tvm.ir.make_node(
+        "MemoryInfo",
+        unit_bits=16,
+        max_num_bits=16384 * 16384 * 4 * 32,
+        max_simd_bits=4 * 32,
+        head_address=None,
+    )
 
 
 def infer_tile_size(data, layout):
@@ -575,3 +629,46 @@ def infer_tile_size(data, layout):
     if H % 8 == 0:
         return 4
     return 2
+
+
+def get_default_conv2d_config(cfg, fc, y, x):
+    """Defines conv2d default parameters for split axis for Adreno conv2d and depthwise conv2d"""
+    # look for vthread params:
+    vy = 1
+    for n in range(5, 0, -1):
+        if y % n == 0:
+            vy = n
+            break
+
+    vx = 1
+    for n in range(5, 0, -1):
+        if x % n == 0 and vy * n < 9:
+            vx = n
+            break
+
+    y = y // vy
+    x = x // vx
+
+    tfc = 1
+    for n in range(64, 0, -1):
+        if fc % n == 0:
+            tfc = n
+            break
+    ty = 1
+    for n in range(16, 0, -1):
+        if y % n == 0 and tfc * n <= 512:
+            ty = n
+            break
+    tx = 1
+    for n in range(16, 0, -1):
+        if x % n == 0 and tfc * ty * n <= 512:
+            tx = n
+            break
+
+    fc = fc // tfc
+    y = y // ty
+    x = x // tx
+
+    cfg["tile_fc"] = SplitEntity([fc, 1, tfc])
+    cfg["tile_y"] = SplitEntity([y, vy, ty])
+    cfg["tile_x"] = SplitEntity([x, vx, tx])

@@ -15,7 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 # coding: utf-8
-# pylint: disable=invalid-name, protected-access, too-many-branches, global-statement, unused-import
+# pylint: disable=invalid-name, protected-access, too-many-branches
+# pylint: disable=global-statement, unused-import, using-constant-test
 """Function configuration API."""
 import ctypes
 import traceback
@@ -39,7 +40,7 @@ TVMRetValueHandle = ctypes.c_void_p
 
 
 def _ctypes_free_resource(rhandle):
-    """callback to free resources when it it not needed."""
+    """callback to free resources when it is not needed."""
     pyobj = ctypes.cast(rhandle, ctypes.py_object)
     ctypes.pythonapi.Py_DecRef(pyobj)
 

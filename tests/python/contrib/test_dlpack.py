@@ -21,7 +21,7 @@ import numpy as np
 from tvm.contrib.dlpack import to_pytorch_func
 
 
-def test():
+def verify_torch_dlpack():
     a = np.random.randn(1337)
     tvm_a = tvm.nd.array(a)
     np.testing.assert_equal(tvm.nd.from_dlpack(tvm_a.to_dlpack()).numpy(), a)
@@ -63,5 +63,11 @@ def test():
         pass
 
 
+def test_torch_dlpack():
+    # Run dlpack interoperability test a few times to make sure it's stable.
+    for i in range(5):
+        verify_torch_dlpack()
+
+
 if __name__ == "__main__":
-    test()
+    test_torch_dlpack()

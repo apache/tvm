@@ -15,7 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 """Utility for ROCm backend"""
+import re
 import subprocess
+import os
 from os.path import join, exists
 
 import tvm._ffi
@@ -48,8 +50,8 @@ def find_lld(required=True):
     lld_list = []
     major = tvm.target.codegen.llvm_version_major(allow_none=True)
     if major is not None:
-        lld_list += ["ld.lld-%d.0" % major]
-        lld_list += ["ld.lld-%d" % major]
+        lld_list += [f"ld.lld-{major}.0"]
+        lld_list += [f"ld.lld-{major}"]
     lld_list += ["ld.lld"]
     valid_list = [utils.which(x) for x in lld_list]
     valid_list = [x for x in valid_list if x]
@@ -141,20 +143,21 @@ def callback_rocm_bitcode_path(rocdl_dir=None):
     bitcode_names = [
         "oclc_daz_opt_on",
         "ocml",
-        "hc",
         "irif",  # this does not exist in rocm 3.9, drop eventually
-        "ockl",
         "oclc_correctly_rounded_sqrt_off",
         "oclc_correctly_rounded_sqrt_on",
         "oclc_daz_opt_off",
         "oclc_finite_only_off",
         "oclc_finite_only_on",
-        "oclc_isa_version_803",  # todo (t-vi): an alternative might be to scan for the
-        "oclc_isa_version_900",  #              isa version files (if the linker throws out
-        "oclc_isa_version_906",  #              the unneeded ones or we filter for the arch we need)
+        # todo (t-vi): an alternative might be to scan for the
+        "oclc_isa_version_803",
+        "oclc_isa_version_900",  # isa version files (if the linker throws out
+        "oclc_isa_version_906",  # the unneeded ones or we filter for the arch we need)
+        "oclc_isa_version_1030",
         "oclc_unsafe_math_off",
         "oclc_unsafe_math_on",
         "oclc_wavefrontsize64_on",
+        "oclc_abi_version_500",
     ]
 
     bitcode_files = []
@@ -168,3 +171,113 @@ def callback_rocm_bitcode_path(rocdl_dir=None):
             raise RuntimeError("could not find bitcode " + n)
 
     return tvm.runtime.convert(bitcode_files)
+
+
+def parse_compute_version(compute_version):
+    """Parse compute capability string to divide major and minor version
+
+    Parameters
+    ----------
+    compute_version : str
+        compute capability of a GPU (e.g. "6.0")
+
+    Returns
+    -------
+    major : int
+        major version number
+    minor : int
+        minor version number
+    """
+    split_ver = compute_version.split(".")
+    try:
+        major = int(split_ver[0])
+        minor = int(split_ver[1])
+        return major, minor
+    except (IndexError, ValueError) as err:
+        # pylint: disable=raise-missing-from
+        raise RuntimeError("Compute version parsing error: " + str(err))
+
+
+def have_matrixcore(compute_version=None):
+    """Either MatrixCore support is provided in the compute capability or not
+
+    Parameters
+    ----------
+    compute_version : str, optional
+        compute capability of a GPU (e.g. "7.0").
+
+    Returns
+    -------
+    have_matrixcore : bool
+        True if MatrixCore support is provided, False otherwise
+    """
+    if compute_version is None:
+        if tvm.rocm(0).exist:
+            compute_version = tvm.rocm(0).compute_version
+        else:
+            raise RuntimeError("No ROCm runtime found")
+    major, _ = parse_compute_version(compute_version)
+    # matrix core first introduced in 8.0
+    if major >= 8:
+        return True
+
+    return False
+
+
+@tvm._ffi.register_func("tvm_callback_rocm_get_arch")
+def get_rocm_arch(rocm_path="/opt/rocm"):
+    """Utility function to get the AMD GPU architecture
+
+    Parameters
+    ----------
+    rocm_path : str
+        The path to rocm installation directory
+
+    Returns
+    -------
+    gpu_arch : str
+        The AMD GPU architecture
+    """
+    gpu_arch = "gfx900"
+    # check if rocm is installed
+    if not os.path.exists(rocm_path):
+        print("ROCm not detected, using default gfx900")
+        return gpu_arch
+    try:
+        # Execute rocminfo command
+        rocminfo_output = subprocess.check_output([f"{rocm_path}/bin/rocminfo"]).decode("utf-8")
+
+        # Use regex to match the "Name" field
+        match = re.search(r"Name:\s+(gfx\d+[a-zA-Z]*)", rocminfo_output)
+        if match:
+            gpu_arch = match.group(1)
+        return gpu_arch
+    except subprocess.CalledProcessError:
+        print(
+            f"Unable to execute rocminfo command, \
+                please ensure ROCm is installed and you have an AMD GPU on your system.\
+                    using default {gpu_arch}."
+        )
+        return gpu_arch
+
+
+def find_rocm_path():
+    """Utility function to find ROCm path
+
+    Returns
+    -------
+    path : str
+        Path to ROCm root.
+    """
+    if "ROCM_PATH" in os.environ:
+        return os.environ["ROCM_PATH"]
+    cmd = ["which", "hipcc"]
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    (out, _) = proc.communicate()
+    out = out.decode("utf-8").strip()
+    if proc.returncode == 0:
+        return os.path.realpath(os.path.join(out, "../.."))
+    rocm_path = "/opt/rocm"
+    if os.path.exists(os.path.join(rocm_path, "bin/hipcc")):
+        return rocm_path
+    raise RuntimeError("Cannot find ROCm path")

@@ -23,28 +23,37 @@
  */
 #ifndef TVM_TARGET_LLVM_CODEGEN_BLOB_H_
 #define TVM_TARGET_LLVM_CODEGEN_BLOB_H_
+
 #ifdef TVM_LLVM_VERSION
+
 #include <memory>
 #include <string>
-#include <utility>
 
-#include "llvm_common.h"
+namespace llvm {
+class Module;
+}
 
 namespace tvm {
 namespace codegen {
+
+class LLVMTarget;
+
 /**
  * \brief Code Generation of blob data
  *
  * \param data Blob data
  * \param system_lib Whether expose as system library.
  * \param target_triple LLVM target triple
+ * \param c_symbol prefix The C symbol prefix of the blob.
  *
  * \return LLVM module and LLVM context
  */
-std::pair<std::unique_ptr<llvm::Module>, std::shared_ptr<llvm::LLVMContext>> CodeGenBlob(
-    const std::string& data, bool system_lib, const std::string& target_triple);
+std::unique_ptr<llvm::Module> CodeGenBlob(const std::string& data, bool system_lib,
+                                          LLVMTarget* llvm_target,
+                                          const std::string& c_symbol_prefix = "");
 
 }  // namespace codegen
 }  // namespace tvm
+
 #endif  // LLVM_VERSION
 #endif  // TVM_TARGET_LLVM_CODEGEN_BLOB_H_

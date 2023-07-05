@@ -21,16 +21,22 @@
 
 #include <gtest/gtest.h>
 #include <tvm/runtime/container/string.h>
+#include <tvm/runtime/name_transforms.h>
 
-using namespace tvm::relay::backend;
+namespace tvm {
+namespace relay {
+namespace backend {
+
 using namespace tvm::runtime;
+
+std::string ToCamel(const std::string& original_name);
 
 TEST(NameTransforms, ToCFunctionStyle) {
   ASSERT_EQ(ToCFunctionStyle("TVM_Woof"), "TVMWoof");
   ASSERT_EQ(ToCFunctionStyle("TVM_woof"), "TVMWoof");
   ASSERT_EQ(ToCFunctionStyle("TVM_woof_woof"), "TVMWoofWoof");
   ASSERT_EQ(ToCFunctionStyle("TVMGen_woof_woof"), "TVMGenWoofWoof");
-  EXPECT_THROW(ToCVariableStyle("Cake_Bakery"), InternalError);  // Incorrect prefix
+  EXPECT_THROW(ToCFunctionStyle("Cake_Bakery"), InternalError);  // Incorrect prefix
   EXPECT_THROW(ToCFunctionStyle(""), InternalError);
 }
 
@@ -48,6 +54,27 @@ TEST(NameTransforms, ToCConstantStyle) {
   ASSERT_EQ(ToCConstantStyle("TVM_woof_Woof"), "TVM_WOOF_WOOF");
   EXPECT_THROW(ToCConstantStyle("Cake_Bakery"), InternalError);  // Incorrect prefix
   EXPECT_THROW(ToCConstantStyle(""), InternalError);
+}
+
+TEST(NameTransforms, ToRustStructStyle) {
+  ASSERT_EQ(ToRustStructStyle("Woof"), "Woof");
+  ASSERT_EQ(ToRustStructStyle("woof"), "Woof");
+  ASSERT_EQ(ToRustStructStyle("woof_woof"), "WoofWoof");
+  EXPECT_THROW(ToRustStructStyle(""), InternalError);
+}
+
+TEST(NameTransforms, ToRustMacroStyle) {
+  ASSERT_EQ(ToRustMacroStyle("Woof"), "woof");
+  ASSERT_EQ(ToRustMacroStyle("woof"), "woof");
+  ASSERT_EQ(ToRustMacroStyle("woof_Woof"), "woof_woof");
+  EXPECT_THROW(ToRustMacroStyle(""), InternalError);
+}
+
+TEST(NameTransforms, ToRustConstantStyle) {
+  ASSERT_EQ(ToRustConstantStyle("Woof"), "WOOF");
+  ASSERT_EQ(ToRustConstantStyle("woof"), "WOOF");
+  ASSERT_EQ(ToRustConstantStyle("woof_Woof"), "WOOF_WOOF");
+  EXPECT_THROW(ToRustConstantStyle(""), InternalError);
 }
 
 TEST(NameTransforms, PrefixName) {
@@ -93,3 +120,23 @@ TEST(NameTransforms, CombinedLogic) {
   ASSERT_EQ(ToCVariableStyle(PrefixName({"Device", "target", "t"})), "tvm_device_target_t");
   ASSERT_EQ(ToCVariableStyle(PrefixGeneratedName({"model", "Devices"})), "tvmgen_model_devices");
 }
+
+TEST(NameTransforms, Internal_ToCamel) {
+  ASSERT_EQ(ToCamel("Woof"), "Woof");
+  ASSERT_EQ(ToCamel("woof"), "Woof");
+  ASSERT_EQ(ToCamel("woof_woof"), "WoofWoof");
+}
+
+TEST(NameTransforms, Internal_ToCamel_Allocation) {
+  std::string woof = "Woof_woof_woof_woof";
+  std::string camel = ToCamel(woof);
+  std::string check;
+  check.reserve(woof.size());
+
+  // Check that the pre-allocation happens
+  ASSERT_EQ(camel.capacity(), check.capacity());
+}
+
+}  // namespace backend
+}  // namespace relay
+}  // namespace tvm

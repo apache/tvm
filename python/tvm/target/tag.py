@@ -26,7 +26,7 @@ def list_tags() -> Optional[Dict[str, Target]]:
     Returns
     -------
     tag_dict : Optional[Dict[str, Target]]
-        The dict of tags mapping each tag name to to its corresponding target.
+        The dict of tags mapping each tag name to its corresponding target.
         None if TVM is built in runtime-only mode.
     """
     if hasattr(_ffi_api, "TargetTagListTags"):

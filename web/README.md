@@ -81,7 +81,7 @@ The following is an example to reproduce this.
 - Start the WebSocket RPC
   - Browswer version:  open https://localhost:8888, click connect to proxy
   - NodeJS version: `npm run rpc`
-- run `python tests/node/websock_rpc_test.py` to run the rpc client.
+- run `python tests/python/websock_rpc_test.py` to run the rpc test.
 
 
 ## WebGPU Experiments

@@ -106,21 +106,29 @@ class DoubleBufferInjector : public StmtExprMutator {
     const VarNode* buf = op->buffer_var.as<VarNode>();
     auto it = dbuffer_info_.find(buf);
     if (it != dbuffer_info_.end()) {
-      it->second.scope = GetPtrStorageScope(op->buffer_var);
+      StorageEntry& entry = it->second;
+      entry.scope = GetPtrStorageScope(op->buffer_var);
 
       ICHECK_EQ(op->extents.size(), 1) << "InjectDoubleBuffer expects flat 1-d buffers.  "
                                        << "Has StorageFlatten (TE-based schedules) or "
                                        << "FlattenBuffer (TIR-based schedules) been run?";
-      it->second.stride = op->extents[0];
+      entry.stride = op->extents[0];
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
       op = stmt.as<AllocateNode>();
 
       Array<PrimExpr> new_extents = {op->extents[0] * make_const(op->extents[0].dtype(), 2)};
-      ICHECK(it->second.loop != nullptr);
-      auto& alloc_nest = loop_allocs_[it->second.loop];
+      ICHECK(entry.loop != nullptr);
+      auto& alloc_nest = loop_allocs_[entry.loop];
       alloc_nest.emplace_back(
           Allocate(op->buffer_var, op->dtype, new_extents, op->condition, Evaluate(0)));
-      return op->body;
+      Stmt body = op->body;
+      if (auto ptr = body.as<DeclBufferNode>()) {
+        auto new_buf = GetRemappedBuffer(ptr->buffer, entry.stride);
+        alloc_nest.emplace_back(DeclBuffer(new_buf, Evaluate(0)));
+        body = ptr->body;
+      }
+
+      return body;
     } else {
       return StmtExprMutator::VisitStmt_(op);
     }
@@ -168,16 +176,6 @@ class DoubleBufferInjector : public StmtExprMutator {
     }
     loop_nest_.pop_back();
     return stmt;
-  }
-
-  PrimExpr VisitExpr_(const LoadNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-    return PrimExpr();
-  }
-
-  Stmt VisitStmt_(const StoreNode* op) final {
-    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
-    return Stmt();
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
@@ -236,8 +234,10 @@ class DoubleBufferInjector : public StmtExprMutator {
     ICHECK_EQ(buf->shape.size(), 1) << "InjectDoubleBuffer expects flat 1-d buffers.  "
                                     << "Has StorageFlatten (TE-based schedules) or "
                                     << "FlattenBuffer (TIR-based schedules) been run?";
-    auto writer = buf.CopyOnWrite();
-    writer->shape = {buf->shape[0] * stride};
+
+    // Stride gives the distance between the two halves of the
+    // double-buffer, not the stride of the buffer's index.
+    buf.CopyOnWrite()->shape = {buf->shape[0] + stride};
 
     buf_remap_[key] = buf;
     return buf;
@@ -299,9 +299,9 @@ class DoubleBufferInjector : public StmtExprMutator {
   // The current loop next
   std::vector<const ForNode*> loop_nest_;
   // The allocs to be appended before the loop
-  std::unordered_map<const ForNode*, std::vector<Stmt> > loop_allocs_;
+  std::unordered_map<const ForNode*, std::vector<Stmt>> loop_allocs_;
   // The stmt to be appended before the loop
-  std::unordered_map<const ForNode*, std::vector<Stmt> > loop_pre_;
+  std::unordered_map<const ForNode*, std::vector<Stmt>> loop_pre_;
   // The allocation size of the buffer
   std::unordered_map<const VarNode*, StorageEntry> dbuffer_info_;
   // The updated Buffer objects

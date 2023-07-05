@@ -33,11 +33,10 @@
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/stmt_functor.h>  // For the class StmtExprVisitor
 
+#include <optional>
 #include <unordered_map>  // For the hashtable datatype
 #include <utility>        // For pairs datatype
 #include <vector>
-
-#include "../../../3rdparty/dmlc-core/include/dmlc/optional.h"
 
 namespace tvm {
 namespace tir {
@@ -177,7 +176,7 @@ class UsesVarName : public StmtExprVisitor {
  */
 void PrintComputationTable(const ComputationTable& table);
 
-using MaybeValue = dmlc::optional<PrimExpr>;
+using MaybeValue = std::optional<PrimExpr>;
 
 bool EqualTerms(const PrimExpr& a, const PrimExpr& b);
 // Used for deciding the (decidable) equivalence relation
@@ -211,9 +210,10 @@ template std::vector<Var> VectorMap(const std::vector<std::pair<Var, MaybeValue>
 
 void InsertElemToSortedSemanticComputations(std::vector<std::pair<PrimExpr, size_t>>* sorted_vec,
                                             const std::pair<PrimExpr, size_t>& pair);
+
 void InsertVectorToSortedSemanticComputations(std::vector<std::pair<PrimExpr, size_t>>* sorted_vec,
                                               const std::vector<PrimExpr>& vec_to_add,
-                                              bool identify_equiv_terms);
+                                              bool identify_equiv_terms, size_t increase_count = 1);
 
 }  // namespace tir
 }  // namespace tvm

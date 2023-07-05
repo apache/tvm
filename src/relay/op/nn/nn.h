@@ -31,6 +31,7 @@
 
 #include <algorithm>
 #include <utility>
+#include <vector>
 
 #include "../op_common.h"
 
@@ -48,6 +49,12 @@ bool MatmulRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
   const AttrType* param = attrs.as<AttrType>();
   ICHECK(param != nullptr);
+  TensorType meta_schedule_tensor_b{nullptr};
+  if (param->meta_schedule_original_shape.size() > 0) {
+    meta_schedule_tensor_b = TensorType(param->meta_schedule_original_shape,
+                                        tensor_b == nullptr ? tensor_a->dtype : tensor_b->dtype);
+    tensor_b = meta_schedule_tensor_b.get();
+  }
   // Default set to dense layout
   bool transpose_a = false;
   bool transpose_b = true;
@@ -64,6 +71,7 @@ bool MatmulRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     reduce = dshape[dshape.size() - 2];
     oshape.Set((oshape.size() - 2), dshape[oshape.size() - 1]);
   }
+  auto tensor_b_dtype = (tensor_b == nullptr ? tensor_a->dtype : tensor_b->dtype);
   if (param->units.defined()) {
     // validate the tensor_b shape is proper if defined
     // Assign tensor_b type
@@ -72,15 +80,14 @@ bool MatmulRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     // It is possible for tensor_b to be nullptr in which case we will use
     // data dtype as the tensor_b dtype. However if tensor_b dtype is explicitly
     // present we will use that.
-    auto tensor_b_dtype = (tensor_b == nullptr ? tensor_a->dtype : tensor_b->dtype);
-    if (param->auto_scheduler_rewritten_layout.size() == 0) {
-      // Normal case: assign result to reporter
-      reporter->Assign(types[1], TensorType(wshape, tensor_b_dtype));
-    } else {
-      // If the layout is rewritten by auto-scheduler,
-      // we just forcly apply the layout provided by auto-scheduler and
+    if (param->auto_scheduler_rewritten_layout.size() != 0) {
+      // If the layout is rewritten by auto-scheduler or meta-schedule,
+      // we just forcefully apply the layout provided by auto-scheduler and
       // skip the normal inference logic.
       {}  // do nothing
+    } else if (param->meta_schedule_original_shape.size() == 0) {
+      // Normal case: assign result to reporter
+      reporter->Assign(types[1], TensorType(wshape, tensor_b_dtype));
     }
     oshape.Set((oshape.size() - 1), param->units);
   } else {
@@ -97,13 +104,45 @@ bool MatmulRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       // Otherwise just pull it out of the tensor_b shape directly.
     } else {
       ICHECK(static_cast<int>(tensor_b->shape.size()) == 2);
-      if (!tensor_a->shape.back().as<tir::AnyNode>()) {
-        ICHECK((transpose_b && reporter->AssertEQ(reduce, tensor_b->shape[1])) ||
-               (!transpose_b && reporter->AssertEQ(reduce, tensor_b->shape[0])))
-            << "MatmulRel: input dimension doesn't match,"
-            << " tensor_a shape=" << tensor_a->shape << ", tensor_b shape=" << tensor_b->shape;
+      if (param->auto_scheduler_rewritten_layout.size() == 0 &&
+          param->meta_schedule_original_shape.size() == 0) {
+        // ensure inner dimension matches between data and weight. If one inner
+        // dimension is dynamic then it is inferred to match the other inner
+        // dimension.
+        std::vector<PrimExpr> A_shape(tensor_a->shape.begin(), tensor_a->shape.end());
+        std::vector<PrimExpr> B_shape(tensor_b->shape.begin(), tensor_b->shape.end());
+        auto sa = A_shape.size();
+        auto sb = B_shape.size();
+        size_t index_swap_A;
+        size_t index_swap_B;
+        if (transpose_a && transpose_b) {
+          index_swap_A = sa - 2;
+          index_swap_B = sb - 1;
+        } else if (transpose_a) {
+          index_swap_A = sa - 2;
+          index_swap_B = sb - 2;
+        } else if (transpose_b) {
+          index_swap_A = sa - 1;
+          index_swap_B = sb - 1;
+        } else {
+          index_swap_A = sa - 1;
+          index_swap_B = sb - 2;
+        }
+
+        // Rewrite dynamic axes to static where constraints allow.
+        auto tmp = A_shape[index_swap_A];
+        if (A_shape[index_swap_A].as<tir::AnyNode>()) {
+          A_shape[index_swap_A] = B_shape[index_swap_B];
+        }
+        if (B_shape[index_swap_B].as<tir::AnyNode>()) {
+          B_shape[index_swap_B] = tmp;
+        }
+
+        // Update input types with new constrained shapes.
+        reporter->Assign(types[0], TensorType(A_shape, tensor_a->dtype));
+        reporter->Assign(types[1], TensorType(B_shape, tensor_b_dtype));
       }
-      oshape.Set((oshape.size() - 1), transpose_b ? wshape[0] : wshape[1]);
+      oshape.Set(oshape.size() - 1, transpose_b ? wshape[0] : wshape[1]);
     }
   }
 
@@ -125,16 +164,32 @@ bool BatchMatmulRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   if (x == nullptr || y == nullptr) return false;
 
   const AttrType* param = attrs.as<AttrType>();
+  DataType out_dtype = param->out_dtype;
+  if (out_dtype.bits() == 0) {
+    out_dtype = x->dtype;
+    if (x->dtype.bits() == 0) {
+      out_dtype = y->dtype;
+    }
+  }
+  TensorType meta_schedule_y{nullptr};
+  if (param->meta_schedule_original_shape.size() != 0) {
+    meta_schedule_y = TensorType(param->meta_schedule_original_shape, out_dtype);
+    y = meta_schedule_y.get();
+  }
   ICHECK(param != nullptr);
   bool transpose_a = param->transpose_a;
   bool transpose_b = param->transpose_b;
-  const Array<PrimExpr>& y_shape =
-      param->auto_scheduler_rewritten_layout.size() == 0
-          ? y->shape
-          : auto_scheduler::GetShapeFromRewrittenLayout(
-                param->auto_scheduler_rewritten_layout,
-                transpose_b ? tvm::runtime::Array<tvm::runtime::String>({"b", "j", "k"})
-                            : tvm::runtime::Array<tvm::runtime::String>({"b", "k", "j"}));
+  Array<PrimExpr> y_shape{nullptr};
+  if (param->auto_scheduler_rewritten_layout.size() != 0) {
+    y_shape = auto_scheduler::GetShapeFromRewrittenLayout(
+        param->auto_scheduler_rewritten_layout,
+        transpose_b ? tvm::runtime::Array<tvm::runtime::String>({"b", "j", "k"})
+                    : tvm::runtime::Array<tvm::runtime::String>({"b", "k", "j"}));
+  } else if (param->meta_schedule_original_shape.size() != 0) {
+    y_shape = param->meta_schedule_original_shape;
+  } else {
+    y_shape = y->shape;
+  }
   ICHECK(x->shape.size() == 3 && y_shape.size() == 3);
   const PrimExpr& xb = x->shape[0];
   const PrimExpr& xi = x->shape[transpose_a ? 2 : 1];
@@ -158,16 +213,17 @@ bool BatchMatmulRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
                                        << " x shape=" << x->shape << ", y shape=" << y_shape;
   }
 
-  DataType out_dtype = param->out_dtype;
-  if (out_dtype.bits() == 0) {
-    out_dtype = x->dtype;
-  }
   // assign output type
   const auto& out_b =
       xb->IsInstance<tir::AnyNode>() || yb->IsInstance<tir::AnyNode>() ? tir::Any() : max(xb, yb);
   reporter->Assign(types[2], TensorType(Array<tvm::PrimExpr>({out_b, xi, yj}), out_dtype));
   return true;
 }
+
+InferCorrectLayoutOutput DenseInferCorrectLayout(const Attrs& attrs,
+                                                 const Array<Layout>& new_in_layouts,
+                                                 const Array<Layout>& old_in_layouts,
+                                                 const Array<tvm::relay::Type>& old_in_types);
 
 }  // namespace relay
 }  // namespace tvm

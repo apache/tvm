@@ -64,9 +64,20 @@ class ThreadBindingUnifier : public StmtExprMutator {
     if (annotations.empty()) {
       return stmt;
     }
-    For new_loop = Downcast<For>(stmt);
-    new_loop.CopyOnWrite()->annotations = std::move(annotations);
-    return std::move(new_loop);
+    if (const auto* loop = stmt.as<ForNode>()) {
+      For new_loop = GetRef<For>(loop);
+      new_loop.CopyOnWrite()->annotations = std::move(annotations);
+      return std::move(new_loop);
+    } else {
+      // Create a new unit loop with the annotation.
+      DataType dtype = op->loop_var->dtype;
+      return For(/*loop_var=*/Var("var", dtype),   //
+                 /*min=*/IntImm(dtype, 0),         //
+                 /*extent=*/IntImm(dtype, 1),      //
+                 /*kind=*/ForKind::kSerial, stmt,  //
+                 /*thread_binding=*/NullOpt,       //
+                 /*annotation=*/std::move(annotations));
+    }
   }
 
   template <typename Node>
@@ -109,8 +120,9 @@ class ThreadBindingUnifier : public StmtExprMutator {
     }
 
     // Step 4. We will substitute the occurrences of the old variable in the old IterVar with the
-    // new variable in further mutation. Thus, we store the mapping entry.
-    var_substitution_map_.Set(old_var, new_iter_var->var);
+    // new variable in further mutation. Thus, we store the mapping entry. Cast to old dtype if
+    // needed (we assume both old and new dtype are valid for the range of the thread extent).
+    var_substitution_map_.Set(old_var, cast(old_var.dtype(), new_iter_var->var));
 
     // Step 5. Mutate recursively, update the body with the new IterVar, and restore the depth
     // counter. Emit for-loops to launch threads if current statement is the outermost thread
@@ -149,7 +161,7 @@ class ThreadBindingUnifier : public StmtExprMutator {
   PrimExpr VisitExpr_(const VarNode* var) final {
     // If this variable appears as a key in `var_substitution_map_`, we substitute it with its
     // corresponding value in the mapping.
-    Map<Var, Var>::iterator it = var_substitution_map_.find(GetRef<Var>(var));
+    Map<Var, PrimExpr>::iterator it = var_substitution_map_.find(GetRef<Var>(var));
     return it != var_substitution_map_.end() ? (*it).second : GetRef<Var>(var);
   }
 
@@ -164,7 +176,7 @@ class ThreadBindingUnifier : public StmtExprMutator {
    */
   Array<IterVar> launch_threads_;
   /*! \brief A mapping from old variables to new variables, which is used for substitution */
-  Map<Var, Var> var_substitution_map_;
+  Map<Var, PrimExpr> var_substitution_map_;
   /*! \brief A integer counter storing the depth of thread bindings of "blockIdx.x/y/z" */
   int thread_block_depth_ = 0;
   /*! \brief An analyzer used for equality proof */

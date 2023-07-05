@@ -94,6 +94,8 @@ struct Model {
 };
 
 struct ExecutionSession {
+  explicit ExecutionSession(bool lwp_json = false) : gen_lwp_json(lwp_json) {}
+
   template <typename T>
   T* alloc(size_t bytes, size_t align = 1) {
     return reinterpret_cast<T*>(alloc_mem(bytes, align));
@@ -111,6 +113,7 @@ struct ExecutionSession {
   virtual bool get_num_outputs(int* num_outputs) = 0;
   virtual bool get_output(int output_idx, tensor_meta* output_meta, int meta_size,
                           void* output_data, int data_size) = 0;
+  bool gen_lwp_json = false;
 };
 
 bool read_model_config(const std::string& file_name, ModelConfig* model_config);

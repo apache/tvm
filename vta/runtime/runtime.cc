@@ -915,7 +915,7 @@ class InsnQueue : public BaseQueue<VTAGenericInsn> {
  protected:
   /*! \return Add new instruction to the buffer. */
   VTAGenericInsn* NextInsn() {
-    VTAGenericInsn insn;
+    VTAGenericInsn insn = {};
     dram_buffer_.push_back(insn);
     return &dram_buffer_.back();
   }
@@ -955,7 +955,6 @@ class InsnQueue : public BaseQueue<VTAGenericInsn> {
       return kStoreStage;
     }
     LOG(FATAL) << "not reached";
-    return kNoneStage;
   }
 
   // Get stage of memory and computation

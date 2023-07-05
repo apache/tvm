@@ -14,23 +14,24 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""CLML integration conv2d tests."""
-
-import numpy as np
-
-np.random.seed(0)
+"""CLML integration operator tests."""
 
 import tvm
-from tvm import testing
+import numpy as np
 from tvm import relay
+from tvm.relay.op.contrib import clml
+from tvm.relay import testing
 from tvm.ir import IRModule
-
+from tvm.contrib import utils
 from test_clml.infrastructure import (
-    skip_runtime_test,
-    skip_codegen_test,
     build_and_run,
     Device,
+    skip_codegen_test,
+    verify_codegen,
+    build_module,
+    get_cpu_op_count,
 )
+import pytest
 
 
 def _get_conv_model(
@@ -52,7 +53,7 @@ def _get_conv_model(
     a = relay.var(next(iter(var)), shape=shape, dtype=dtype)
     input_arr = var[next(iter(var))]
     if has_pad:
-        p = ((0, 0), (padding[0], padding[0]), (padding[1], padding[1]), (0, 0))
+        p = ((0, 0), (0, 0), (padding[0], padding[0]), (padding[1], padding[1]))
         a = relay.nn.pad(a, pad_width=p)
         padding = (0, 0, 0, 0)
     else:
@@ -61,11 +62,8 @@ def _get_conv_model(
         shape = (shape[0], shape[1], shape[2] + padding[0] * 2, shape[3] + padding[1] * 2)
     is_depthwise = shape[1] == channels == groups
 
-    weight_format = "OIHW" if is_depthwise else "OIHW"
-    if weight_format == "IOHW":
-        weight_shape = (shape[1] // groups, channels, kernel_h, kernel_w)
-    else:
-        weight_shape = (channels, shape[1] // groups, kernel_h, kernel_w)
+    weight_format = "OIHW"
+    weight_shape = (channels, shape[1] // groups, kernel_h, kernel_w)
 
     w = tvm.nd.array(np.random.uniform(-1, 1, weight_shape).astype(dtype))
     weights = relay.const(w, dtype)
@@ -84,7 +82,7 @@ def _get_conv_model(
     )
     params = {"w": w}
     if has_bias:
-        bias_shape = weight_shape[2] if is_depthwise else weight_shape[0]
+        bias_shape = (weight_shape[0],)
         b = tvm.nd.array(np.random.uniform(-1, 1, bias_shape).astype(dtype))
         biasc = relay.const(b, dtype)
         out = relay.nn.bias_add(out, biasc, axis=1)
@@ -93,39 +91,121 @@ def _get_conv_model(
     if has_activation:
         out = relay.nn.relu(out)
 
-    print("Out:", out)
-
     return out, params
 
 
-def test_conv2d():
-    Device.load("test_config.json")
+def _get_conv_expected_codegen(
+    shape,
+    kernel_h,
+    kernel_w,
+    padding,
+    strides,
+    dilation,
+    groups,
+    dtype,
+    channels,
+    has_bias=False,
+    has_activation=False,
+):
+    if len(padding) == 2:
+        padding = (padding[0], padding[1], padding[0], padding[1])
+    output_height = ((shape[2] - kernel_h + padding[0] + padding[2]) / strides[0]) + 1
+    output_width = ((shape[3] - kernel_w + padding[1] + padding[3]) / strides[1]) + 1
+    output_shape = (1, channels, int(output_height), int(output_width))
+    out_dtype = dtype
+    is_depthwise = shape[1] == channels == groups
 
-    if skip_runtime_test():
-        return
+    weight_format = "IOHW" if is_depthwise else "OIHW"
+    if weight_format == "OIHW":
+        weight_shape = (channels, shape[1] // groups, kernel_h, kernel_w)
+    else:
+        weight_shape = (shape[1] // groups, channels, kernel_h, kernel_w)
 
-    device = Device()
-    np.random.seed(0)
+    if is_depthwise:
+        name = "nn.depthwise_conv2d"
+    else:
+        name = "nn.conv2d"
 
-    dtype = "float32"
+    node = {
+        "op": "kernel",
+        "name": name,
+        "inputs": [],
+        "attrs": {
+            "groups": [[str(groups)]],
+            "num_outputs": "1",
+            "data_layout": [["NCHW"]],
+            "kernel_layout": [[weight_format]],
+            "channels": [[str(channels)]],
+            "dilation": [[str(dilation[0]), str(dilation[1])]],
+            "out_layout": [[""]],
+            "out_dtype": [[out_dtype]],
+            "kernel_size": [[str(kernel_h), str(kernel_w)]],
+            "shape": [[list(output_shape)]],
+            "dtype": [[dtype]],
+            "padding": [[str(p) for p in padding]],
+            "strides": [[str(s) for s in strides]],
+        },
+    }
 
+    if has_activation:
+        node["attrs"]["activation_type"] = [["relu"]]
+
+    inputs = [
+        {"op": "input", "name": "", "attrs": {"shape": [[list(shape)]], "dtype": [[str(dtype)]]}},
+        {
+            "op": "const",
+            "name": "",
+            "attrs": {"shape": [[list(weight_shape)]], "dtype": [[str(dtype)]]},
+        },
+    ]
+
+    if has_bias:
+        bias_dtype = dtype
+        inputs.append(
+            {
+                "op": "const",
+                "name": "",
+                "attrs": {
+                    "shape": [[[1, weight_shape[1] if is_depthwise else weight_shape[0], 1, 1]]],
+                    "dtype": [[bias_dtype]],
+                },
+            }
+        )
+
+    input_idx = 0
+    for _ in range(len(inputs)):
+        node["inputs"].append([input_idx, 0, 0])
+        input_idx += 1
+    node["attrs"]["num_inputs"] = str(len(inputs))
+    inputs.append(node)
+    return inputs
+
+
+@pytest.mark.parametrize("dtype", ["float32"])
+@tvm.testing.requires_openclml
+def test_conv2d(device, dtype):
     trials = [
         # Normal convolution
-        [3, 3, (1, 1), (1, 1), (1, 1), 4, (14, 10, 10), (False, False, False)],
-        [2, 1, (2, 2), (1, 1), (1, 1), 7, (15, 16, 12), (False, False, True)],
-        [3, 3, (2, 1), (1, 1), (1, 1), 4, (14, 10, 10), (False, True, False)],
-        [3, 3, (2, 1), (1, 1), (1, 1), 4, (14, 10, 10), (False, True, True)],
-        # Normal convolution
-        [2, 2, (1, 1), (1, 1), (1, 1), 4, (14, 10, 10), (False, False, False)],
-        [2, 1, (2, 2), (1, 1), (1, 1), 7, (16, 12, 15), (False, False, True)],
-        [3, 3, (2, 1), (1, 1), (1, 1), 4, (14, 10, 10), (False, True, False)],
-        [3, 3, (1, 1), (1, 1), (1, 1), 16, (16, 12, 15), (False, False, False)],
-        [5, 5, (1, 1), (2, 2), (1, 1), 4, (14, 10, 10), (False, False, False)],
-        [1, 3, (1, 1), (1, 1), (1, 1), 7, (20, 20, 20), (False, False, True)],
-        [2, 2, (2, 2), (1, 1), (1, 1), 4, (20, 20, 20), (False, True, False)],
-        [5, 5, (1, 1), (2, 2), (1, 1), 4, (14, 10, 10), (False, False, False)],
-        [3, 3, (2, 1), (1, 1), (1, 1), 7, (20, 20, 20), (False, False, False)],
-        [3, 3, (1, 1), (2, 2), (1, 1), 16, (14, 10, 10), (False, True, True)],
+        [3, 3, (1, 1), (1, 1), (1, 1), 4, (14, 10, 10), (False, False, False), False],
+        [2, 1, (2, 2), (1, 1), (1, 1), 7, (15, 16, 12), (True, False, True), False],
+        [3, 3, (2, 1), (1, 1), (1, 1), 4, (14, 10, 10), (False, True, False), False],
+        [3, 3, (2, 1), (1, 1), (1, 1), 4, (14, 10, 10), (False, True, True), False],
+        [2, 2, (1, 1), (1, 1), (1, 1), 4, (14, 10, 10), (False, False, False), False],
+        [2, 1, (2, 2), (1, 1), (1, 1), 7, (16, 12, 15), (False, False, True), False],
+        [3, 3, (2, 1), (1, 1), (1, 1), 4, (14, 10, 10), (False, True, False), False],
+        [3, 3, (1, 1), (1, 1), (1, 1), 16, (16, 12, 15), (False, False, False), False],
+        [5, 5, (1, 1), (2, 2), (1, 1), 4, (14, 10, 10), (False, False, False), False],
+        [1, 3, (1, 1), (1, 1), (1, 1), 7, (20, 20, 20), (False, False, True), False],
+        [2, 2, (2, 2), (1, 1), (1, 1), 4, (20, 20, 20), (False, True, False), False],
+        [5, 5, (1, 1), (2, 2), (1, 1), 4, (14, 10, 10), (False, False, False), False],
+        [3, 3, (2, 1), (1, 1), (1, 1), 7, (20, 20, 20), (False, False, False), False],
+        [3, 3, (1, 1), (2, 2), (1, 1), 16, (14, 10, 10), (False, True, True), False],
+        # Depth-wise convolution
+        [3, 3, (1, 1), (1, 1), (1, 1), 20, (20, 20, 20), (False, False, True), True],
+        [5, 5, (2, 2), (1, 1), (1, 1), 20, (20, 20, 20), (False, True, False), True],
+        [3, 3, (2, 2), (2, 2), (1, 1), 14, (14, 10, 10), (False, False, False), True],
+        [5, 5, (0, 0), (1, 1), (1, 1), 20, (20, 20, 20), (False, False, False), True],
+        [3, 3, (1, 1), (2, 2), (1, 1), 14, (14, 10, 10), (False, True, True), True],
     ]
 
     for (
@@ -137,9 +217,13 @@ def test_conv2d():
         out_channels,
         shape,
         composite,
+        is_depthwise,
     ) in trials:
         shape = (1, *shape)
-        groups = 1
+        if is_depthwise:
+            groups = shape[1]
+        else:
+            groups = 1
         outputs = []
         inputs = {
             "a": tvm.nd.array(np.random.uniform(-1, 1, shape).astype(dtype)),
@@ -166,21 +250,120 @@ def test_conv2d():
         tvm.testing.assert_allclose(
             clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-5, atol=1e-5
         )
+        args = (shape, kernel_h, kernel_w, pad, stride, dilation, groups, dtype, out_channels)
+        exp_codegen = _get_conv_expected_codegen(
+            *args, has_bias=composite[1], has_activation=composite[2]
+        )
+        verify_codegen(func, exp_codegen, device, params)
 
 
-def test_batchnorm():
-    Device.load("test_config.json")
+def _get_conv2d_transpose_expected_codegen(
+    dshape, kshape, channels, kernel_size, strides, padding, dilation, dtype, output_shape
+):
+    attrs = {
+        "channels": [[str(channels)]],
+        "data_layout": [["NCHW"]],
+        "kernel_layout": [["OIHW"]],
+        "groups": [["1"]],
+        "dilation": [[str(p) for p in dilation]],
+        "num_inputs": "2",
+        "num_outputs": "1",
+        "padding": [[str(p) for p in padding]],
+        "kernel_size": [[str(p) for p in kernel_size]],
+        "shape": [[list(output_shape)]],
+        "dtype": [[dtype]],
+        "strides": [[str(s) for s in strides]],
+        "out_dtype": [[""]],
+        "out_layout": [[""]],
+        "output_padding": [["0", "0"]],
+    }
 
-    if skip_runtime_test():
+    kshape = [kshape[1], kshape[0], kshape[2], kshape[3]]
+
+    exp_codegen = [
+        {
+            "op": "input",
+            "name": "",
+            "attrs": {"shape": [[list(dshape)]], "dtype": [[str(dtype)]]},
+        },
+        {
+            "op": "const",
+            "name": "",
+            "attrs": {"shape": [[list(kshape)]], "dtype": [[str(dtype)]]},
+        },
+        {
+            "op": "kernel",
+            "name": "nn.conv2d_transpose",
+            "inputs": [[0, 0, 0], [1, 0, 0]],
+            "attrs": attrs,
+        },
+    ]
+    return exp_codegen
+
+
+@pytest.mark.parametrize("dtype", ["float32"])
+@tvm.testing.requires_openclml
+def test_conv2d_transpose(device, dtype):
+    trials = [
+        [(1, 256, 100, 100), (256, 64, 4, 4), 64, (4, 4), (2, 2), (1, 1, 1, 1)],
+        [(1, 64, 200, 200), (64, 64, 4, 4), 64, (4, 4), (2, 2), (1, 1, 1, 1)],
+        [(1, 64, 400, 400), (64, 16, 4, 4), 16, (4, 4), (2, 2), (1, 1, 1, 1)],
+    ]
+    for (dshape, kshape, channels, kernel_size, strides, padding) in trials:
+        x = relay.var("input", shape=dshape, dtype=dtype)
+        input_arr = tvm.nd.array(np.random.uniform(-1, 1, dshape).astype(dtype))
+        w = relay.var("wt", shape=kshape, dtype=dtype)
+        weight_arr = tvm.nd.array(np.random.uniform(-1, 1, kshape).astype(dtype))
+        inputs = {
+            "input": input_arr,
+        }
+        params = {
+            "wt": weight_arr,
+        }
+        y = relay.nn.conv2d_transpose(
+            x,
+            w,
+            channels=channels,
+            kernel_size=kernel_size,
+            strides=strides,
+            padding=padding,
+            kernel_layout="IOHW",
+            data_layout="NCHW",
+        )
+        func = relay.Function([x, w], y)
+        mod = IRModule.from_expr(func)
+
+        opencl_out = build_and_run(mod, inputs, 1, params, device, enable_clml=False)[0]
+        clml_out = build_and_run(mod, inputs, 1, params, device, enable_clml=True)[0]
+        tvm.testing.assert_allclose(
+            clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-3, atol=1e-3
+        )
+
+        args = (
+            dshape,
+            kshape,
+            channels,
+            kernel_size,
+            strides,
+            padding,
+            (1, 1),
+            dtype,
+            opencl_out[0].shape,
+        )
+        exp_codegen = _get_conv2d_transpose_expected_codegen(*args)
+        verify_codegen(mod, exp_codegen, device, params)
+
+
+@pytest.mark.parametrize("dtype", ["float16"])
+@tvm.testing.requires_openclml
+def test_batchnorm(device, dtype):
+    if clml.clml_sdk_version() < 3:
+        print("Skip due to unsupported CLML version:", clml.clml_sdk_version())
         return
-
-    device = Device()
-    np.random.seed(0)
-
-    dtype = "float32"
-
     in_shape = (1, 8, 64, 64)
     channels = 8
+
+    np.random.seed(8)
 
     input_arr = tvm.nd.array(np.random.uniform(-1, 1, in_shape).astype(dtype))
     inp = relay.var("a", shape=in_shape, dtype=dtype)
@@ -196,7 +379,7 @@ def test_batchnorm():
 
     params = {}
 
-    func = relay.nn.batch_norm(inp, gamma, beta, mean, variance, axis=1, epsilon=0.0001)[0]
+    func = relay.nn.batch_norm(inp, gamma, beta, mean, variance, axis=1, epsilon=0.0003)[0]
     mod = IRModule.from_expr(func)
 
     inputs = {
@@ -207,10 +390,466 @@ def test_batchnorm():
     clml_out = build_and_run(mod, inputs, 1, params, device, enable_clml=True)[0]
 
     tvm.testing.assert_allclose(
-        clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-5, atol=1e-5
+        clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-3, atol=1e-3
     )
 
 
+@pytest.mark.parametrize("dtype", ["float16"])
+@tvm.testing.requires_openclml
+def test_concat(device, dtype):
+    in_shape_1 = (1, 16, 16, 16)
+    in_shape_2 = (1, 16, 16, 16)
+    a = relay.var("input_1", shape=in_shape_1, dtype=dtype)
+    b = relay.var("input_2", shape=in_shape_2, dtype=dtype)
+    low, high = -1, 1
+    inputs = {
+        "input_1": tvm.nd.array(np.random.uniform(-1, 1, in_shape_1).astype(dtype)),
+        "input_2": tvm.nd.array(np.random.uniform(-1, 1, in_shape_2).astype(dtype)),
+    }
+
+    params = {}
+    func = relay.concatenate((a, b), axis=1)
+    mod = IRModule.from_expr(func)
+
+    opencl_out = build_and_run(mod, inputs, 1, params, device, enable_clml=False)[0]
+    clml_out = build_and_run(mod, inputs, 1, params, device, enable_clml=True)[0]
+
+    tvm.testing.assert_allclose(
+        clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-3, atol=1e-3
+    )
+    exp_codegen = [
+        {
+            "attrs": {
+                "dtype": [[dtype]],
+                "shape": [[list(in_shape_1)]],
+            },
+            "name": "",
+            "op": "input",
+        },
+        {
+            "attrs": {
+                "dtype": [[dtype]],
+                "shape": [[list(in_shape_2)]],
+            },
+            "name": "",
+            "op": "input",
+        },
+        {
+            "attrs": {
+                "axis": [["1"]],
+                "dtype": [[dtype]],
+                "num_inputs": "2",
+                "num_outputs": "1",
+                "shape": [[list(clml_out[0].shape)]],
+            },
+            "inputs": [[0, 0, 0], [1, 0, 0]],
+            "name": "concatenate",
+            "op": "kernel",
+        },
+    ]
+    verify_codegen(func, exp_codegen, device, params)
+
+
+def _get_pool_expected_codegen(input_shape, pool_size, stride, padding, pool_type, dtype):
+    import math
+
+    pool_height = math.floor(((input_shape[2] + padding[2] - pool_size[0]) / stride[0]) + 1)
+    pool_width = math.floor(((input_shape[3] + padding[3] - pool_size[1]) / stride[1]) + 1)
+    output_shape = [input_shape[0], input_shape[1], pool_height, pool_width]
+    attrs = {
+        "ceil_mode": [["0"]],
+        "dilation": [["1", "1"]],
+        "layout": [["NCHW"]],
+        "num_inputs": "1",
+        "num_outputs": "1",
+        "out_layout": [[""]],
+        "padding": [[str(p) for p in padding]],
+        "pool_size": [[str(p) for p in pool_size]],
+        "shape": [[list(output_shape)]],
+        "dtype": [[dtype]],
+        "strides": [[str(s) for s in stride]],
+    }
+    if sum(padding):
+        attrs["count_include_pad"] = [["0"]]
+
+    exp_codegen = [
+        {
+            "op": "input",
+            "name": "",
+            "attrs": {"shape": [[list(input_shape)]], "dtype": [[str(dtype)]]},
+        },
+        {
+            "op": "kernel",
+            "name": "nn.avg_pool2d" if pool_type == "avg" else "nn.max_pool2d",
+            "inputs": [[0, 0, 0]],
+            "attrs": attrs,
+        },
+    ]
+    return exp_codegen
+
+
+@pytest.mark.parametrize("dtype", ["float16"])
+@tvm.testing.requires_openclml
+def test_pool(device, dtype):
+    trials = [
+        # input size         pool_size stride  paading
+        [(1, 64, 147, 147), (3, 3), (2, 2), (0, 0, 0, 0), "max"],
+        [(1, 192, 71, 71), (3, 3), (2, 2), (0, 0, 0, 0), "max"],
+        [(1, 288, 35, 35), (3, 3), (2, 2), (0, 0, 0, 0), "max"],
+        [(1, 768, 17, 17), (3, 3), (2, 2), (0, 0, 0, 0), "max"],
+        [(1, 2048, 17, 17), (3, 3), (2, 2), (0, 0, 0, 0), "max"],
+        [(1, 192, 35, 35), (3, 3), (1, 1), (0, 0, 1, 1), "avg"],
+        [(1, 256, 35, 35), (3, 3), (1, 1), (0, 0, 1, 1), "avg"],
+        [(1, 288, 35, 35), (3, 3), (1, 1), (0, 0, 1, 1), "avg"],
+        [(1, 768, 17, 17), (3, 3), (1, 1), (0, 0, 1, 1), "avg"],
+        [(1, 1280, 8, 8), (3, 3), (1, 1), (0, 0, 1, 1), "avg"],
+    ]
+    params = {}
+    for (
+        input_shape,
+        pool_size,
+        stride,
+        padding,
+        pooling_type,
+    ) in trials:
+        a = relay.var("input_1", shape=input_shape, dtype=dtype)
+        input_arr = tvm.nd.array(np.random.uniform(-1, 1, input_shape).astype(dtype))
+        inputs = {
+            "input_1": input_arr,
+        }
+
+        if pooling_type == "max":
+            func = relay.nn.max_pool2d(a, pool_size=pool_size, strides=stride, padding=padding)
+        else:
+            func = relay.nn.avg_pool2d(a, pool_size=pool_size, strides=stride, padding=padding)
+        mod = IRModule.from_expr(func)
+
+        opencl_out = build_and_run(mod, inputs, 1, params, device, enable_clml=False)[0]
+        clml_out = build_and_run(mod, inputs, 1, params, device, enable_clml=True)[0]
+        tvm.testing.assert_allclose(
+            clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-3, atol=1e-3
+        )
+
+        args = (input_shape, pool_size, stride, padding, pooling_type, dtype)
+        exp_codegen = _get_pool_expected_codegen(*args)
+        verify_codegen(func, exp_codegen, device, params)
+
+
+@pytest.mark.parametrize("dtype", ["float32"])
+@tvm.testing.requires_openclml
+def test_dense(device, dtype):
+    def _get_model(x_shape, k_shape, has_bias=False):
+        x = relay.var("x", shape=(x_shape), dtype=dtype)
+        kernel = relay.var("kernel", shape=(k_shape), dtype=dtype)
+        out = relay.nn.dense(x, kernel, units=k_shape[0])
+        params = {"kernel": tvm.nd.array(np.random.uniform(-1, 1, k_shape).astype(dtype))}
+        inputs = {"x": tvm.nd.array(np.random.uniform(-1, 1, x_shape).astype(dtype))}
+        exp_codegen = [
+            {
+                "attrs": {
+                    "dtype": [[dtype]],
+                    "shape": [[list(x_shape)]],
+                },
+                "name": "",
+                "op": "input",
+            },
+            {
+                "attrs": {
+                    "dtype": [[dtype]],
+                    "shape": [[list(k_shape)]],
+                },
+                "name": "",
+                "op": "const",
+            },
+        ]
+
+        dense_node = {
+            "attrs": {
+                "num_inputs": "2",
+                "num_outputs": "1",
+                "dtype": [[dtype]],
+                "out_dtype": [[""]],
+                "shape": [[[x_shape[0], k_shape[0]]]],
+                "units": [[str(k_shape[0])]],
+            },
+            "inputs": [[0, 0, 0], [1, 0, 0]],
+            "name": "nn.dense",
+            "op": "kernel",
+        }
+        exp_codegen.append(dense_node)
+
+        if has_bias:
+            bias = relay.var("bias", shape=(k_shape[0],), dtype=dtype)
+            out = relay.nn.bias_add(out, bias)
+            bias_data_node = {
+                "attrs": {
+                    "dtype": [[dtype]],
+                    "shape": [[list((1, k_shape[0]))]],
+                },
+                "name": "",
+                "op": "const",
+            }
+            exp_codegen.append(bias_data_node)
+            bias_node = {
+                "attrs": {
+                    "num_inputs": "2",
+                    "num_outputs": "1",
+                    "dtype": [[dtype]],
+                    "shape": [[[x_shape[0], k_shape[0]]]],
+                },
+                "inputs": [[2, 0, 0], [3, 0, 0]],
+                "name": "add",
+                "op": "kernel",
+            }
+            exp_codegen.append(bias_node)
+
+            params["bias"] = tvm.nd.array(np.random.uniform(-1, 1, (k_shape[0],)).astype(dtype))
+
+        return out, params, inputs, exp_codegen
+
+    def _verify(out, params, inputs, exp_codegen):
+        mod = IRModule.from_expr(out)
+        opencl_out = build_and_run(mod, inputs, 1, params, device, enable_clml=False)[0]
+        clml_out = build_and_run(mod, inputs, 1, params, device, enable_clml=True)[0]
+        tvm.testing.assert_allclose(
+            clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-2, atol=1e-2
+        )
+        verify_codegen(out, exp_codegen, device, params)
+
+    _verify(*(_get_model((5, 16), (32, 16), False)))
+    _verify(*(_get_model((1, 16), (32, 16), True)))
+
+
+@pytest.mark.parametrize("dtype", ["float32"])
+@tvm.testing.requires_openclml
+def test_binary_ops(device, dtype):
+    def _get_model(a_shape, b_shape, op):
+        a = relay.var("a", shape=(a_shape), dtype=dtype)
+        b = relay.var("b", shape=(b_shape), dtype=dtype)
+        out = op(a, b)
+        inputs = {
+            "a": tvm.nd.array(np.random.uniform(-1, 1, a_shape).astype(dtype)),
+            "b": tvm.nd.array(np.random.uniform(-1, 1, b_shape).astype(dtype)),
+        }
+        params = {}
+        return out, params, inputs
+
+    def _verify(out, params, inputs):
+        mod = IRModule.from_expr(out)
+        opencl_out = build_and_run(mod, inputs, 1, params, device, enable_clml=False)[0]
+        clml_out = build_and_run(mod, inputs, 1, params, device, enable_clml=True)[0]
+        tvm.testing.assert_allclose(
+            clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-3, atol=1e-3
+        )
+
+        # Check to make sure these ops are offloaded to CLML instead of TVM.
+        with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
+            mod = clml.partition_for_clml(mod, params)
+            tvm_op_count = get_cpu_op_count(mod)
+            assert tvm_op_count == 0, "Got {} TVM Native Compute partitions, expected 0".format(
+                tvm_op_count
+            )
+
+    _verify(*(_get_model((1, 16), (1, 16), relay.add)))
+    _verify(*(_get_model((1, 16), (1, 16), relay.subtract)))
+    _verify(*(_get_model((1, 16), (1, 16), relay.multiply)))
+    _verify(*(_get_model((1, 16), (1, 16), relay.divide)))
+    _verify(*(_get_model((1, 16), (1, 16), relay.minimum)))
+    _verify(*(_get_model((1, 16), (1, 16), relay.maximum)))
+
+
+@pytest.mark.parametrize("dtype", ["float32"])
+@tvm.testing.requires_openclml
+def test_unary_ops(device, dtype):
+    def _get_model(a_shape, op):
+        a = relay.var("a", shape=(a_shape), dtype=dtype)
+        out = op(a)
+        inputs = {"a": tvm.nd.array(np.random.uniform(-1, 1, a_shape).astype(dtype))}
+        params = {}
+        return out, params, inputs
+
+    def _verify(out, params, inputs):
+        mod = IRModule.from_expr(out)
+        opencl_out = build_and_run(mod, inputs, 1, params, device, enable_clml=False)[0]
+        clml_out = build_and_run(mod, inputs, 1, params, device, enable_clml=True)[0]
+        tvm.testing.assert_allclose(
+            clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-3, atol=1e-3
+        )
+
+        # Check to make sure these ops are offloaded to CLML instead of TVM.
+        with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
+            mod = clml.partition_for_clml(mod, params)
+            tvm_op_count = get_cpu_op_count(mod)
+            assert tvm_op_count == 0, "Got {} TVM Native Compute partitions, expected 0".format(
+                tvm_op_count
+            )
+
+    _verify(*(_get_model((1, 16), relay.nn.softmax)))
+    _verify(*(_get_model((1, 16), relay.nn.relu)))
+
+
+@pytest.mark.parametrize("dtype", ["float32", "float16"])
+@tvm.testing.requires_openclml
+def test_depth_to_space(device, dtype):
+    def _get_model(a_shape, block_size):
+        a = relay.var("a", shape=(a_shape), dtype=dtype)
+        out = relay.nn.depth_to_space(a, block_size)
+        inputs = {"a": tvm.nd.array(np.random.uniform(-1, 1, a_shape).astype(dtype))}
+        params = {}
+        return out, params, inputs
+
+    def _verify(out, params, inputs):
+        mod = IRModule.from_expr(out)
+        opencl_out = build_and_run(mod, inputs, 1, params, device, enable_clml=False)[0]
+        clml_out = build_and_run(mod, inputs, 1, params, device, enable_clml=True)[0]
+        tvm.testing.assert_allclose(
+            clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-3, atol=1e-3
+        )
+
+        # Check to make sure these ops are offloaded to CLML instead of TVM.
+        exp_codegen = [
+            {
+                "attrs": {
+                    "dtype": [[dtype]],
+                    "shape": [[list(inputs["a"].shape)]],
+                },
+                "name": "",
+                "op": "input",
+            },
+            {
+                "attrs": {
+                    "block_size": [[str(int(out.attrs.block_size))]],
+                    "layout": [["NCHW"]],
+                    "mode": [["DCR"]],
+                    "dtype": [[dtype]],
+                    "num_inputs": "1",
+                    "num_outputs": "1",
+                    "shape": [[list(clml_out[0].shape)]],
+                },
+                "inputs": [[0, 0, 0]],
+                "name": "nn.depth_to_space",
+                "op": "kernel",
+            },
+        ]
+        verify_codegen(out, exp_codegen, device, params)
+
+    _verify(*(_get_model((1, 64, 8, 8), 4)))
+    _verify(*(_get_model((1, 64, 8, 8), 8)))
+
+
+@pytest.mark.parametrize("dtype", ["float32", "float16"])
+@tvm.testing.requires_openclml
+def test_resize_bilinear(device, dtype):
+    def _get_model(a_shape, scale, align_corners):
+        a = relay.var("a", shape=(a_shape), dtype=dtype)
+        out = relay.nn.upsampling(
+            a, scale_h=scale[0], scale_w=scale[1], method="bilinear", align_corners=align_corners
+        )
+        inputs = {"a": tvm.nd.array(np.random.uniform(-1, 1, a_shape).astype(dtype))}
+        params = {}
+        return out, params, inputs
+
+    def _verify(out, params, inputs):
+        mod = IRModule.from_expr(out)
+        opencl_out = build_and_run(mod, inputs, 1, params, device, enable_clml=False)[0]
+        clml_out = build_and_run(mod, inputs, 1, params, device, enable_clml=True)[0]
+        tvm.testing.assert_allclose(
+            clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-3, atol=1e-3
+        )
+
+        # Check to make sure these ops are offloaded to CLML instead of TVM.
+        exp_codegen = [
+            {
+                "attrs": {
+                    "dtype": [[dtype]],
+                    "shape": [[list(inputs["a"].shape)]],
+                },
+                "name": "",
+                "op": "input",
+            },
+            {
+                "attrs": {
+                    "scale_h": [[str(int(out.attrs.scale_h))]],
+                    "scale_w": [[str(int(out.attrs.scale_w))]],
+                    "layout": [["NCHW"]],
+                    "method": [[out.attrs.method]],
+                    "align_corners": [[str(out.attrs.align_corners)]],
+                    "dtype": [[dtype]],
+                    "num_inputs": "1",
+                    "num_outputs": "1",
+                    "shape": [[list(clml_out[0].shape)]],
+                },
+                "inputs": [[0, 0, 0]],
+                "name": "nn.upsampling",
+                "op": "kernel",
+            },
+        ]
+        verify_codegen(out, exp_codegen, device, params)
+
+    _verify(*(_get_model((1, 16, 8, 8), (2, 2), False)))
+    _verify(*(_get_model((1, 16, 7, 7), (2, 2), True)))
+
+
+@pytest.mark.parametrize("dtype", ["float32"])
+@tvm.testing.requires_openclml
+def test_batch_matmul(device, dtype):
+    def _get_model(a_shape, b_shape, a_transpose, b_transpose):
+        a = relay.var("a", shape=(a_shape), dtype=dtype)
+        b = relay.var("b", shape=(b_shape), dtype=dtype)
+        out = relay.nn.batch_matmul(a, b, transpose_a=a_transpose, transpose_b=b_transpose)
+        inputs = {
+            "a": tvm.nd.array(np.random.uniform(-1, 1, a_shape).astype(dtype)),
+            "b": tvm.nd.array(np.random.uniform(-1, 1, b_shape).astype(dtype)),
+        }
+        params = {}
+        return out, params, inputs
+
+    def _verify(out, params, inputs):
+        mod = IRModule.from_expr(out)
+        opencl_out = build_and_run(mod, inputs, 1, params, device, enable_clml=False)[0]
+        clml_out = build_and_run(mod, inputs, 1, params, device, enable_clml=True)[0]
+        tvm.testing.assert_allclose(
+            clml_out[0].asnumpy(), opencl_out[0].asnumpy(), rtol=1e-3, atol=1e-3
+        )
+
+        # Check to make sure these ops are offloaded to CLML instead of TVM.
+        exp_codegen = [
+            {
+                "attrs": {
+                    "dtype": [[dtype]],
+                    "shape": [[list(inputs["a"].shape)]],
+                },
+                "name": "",
+                "op": "input",
+            },
+            {
+                "attrs": {
+                    "dtype": [[dtype]],
+                    "shape": [[list(inputs["b"].shape)]],
+                },
+                "name": "",
+                "op": "input",
+            },
+            {
+                "attrs": {
+                    "transpose_a": [[str(int(out.attrs.transpose_a))]],
+                    "transpose_b": [[str(int(out.attrs.transpose_b))]],
+                    "out_dtype": [[""]],
+                    "dtype": [[dtype]],
+                    "num_inputs": "2",
+                    "num_outputs": "1",
+                    "shape": [[list(clml_out[0].shape)]],
+                },
+                "inputs": [[0, 0, 0], [1, 0, 0]],
+                "name": "nn.batch_matmul",
+                "op": "kernel",
+            },
+        ]
+        verify_codegen(out, exp_codegen, device, params)
+
+    _verify(*(_get_model((1, 128, 32), (1, 128, 32), False, True)))
+    _verify(*(_get_model((1, 128, 128), (1, 32, 128), False, True)))
+
+
 if __name__ == "__main__":
-    # test_conv2d()
-    test_batchnorm()
+    tvm.testing.main()

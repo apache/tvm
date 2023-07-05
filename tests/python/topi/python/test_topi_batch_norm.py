@@ -28,23 +28,24 @@ import tvm.topi.testing
 _DEVICE = "llvm"
 _BATCH_NORM_IMPLEMENT = {
     "generic": (topi.nn.batch_norm, topi.generic.schedule_batch_norm),
+    "cpu": (topi.nn.batch_norm, topi.x86.schedule_batch_norm),
 }
 
 
 @pytest.mark.parametrize(
-    "shape, axis, epsilon, center, scale",
+    "shape, axis, epsilon, center, scale, training, momentum",
     [
-        ((1,), 0, 0.1, True, True),
-        ((2, 3), 0, 0.1, True, True),
-        ((1, 2, 4), 0, 0.1, True, True),
-        ((1, 2, 3, 4), 0, 0.001, False, False),
-        ((2, 3, 4, 1), 1, 0.01, False, True),
-        ((3, 4, 1, 2), 2, 0.1, True, False),
-        ((4, 1, 2, 3), 3, 1.0, True, True),
-        ((1, 2, 4, 4, 5), 0, 0.1, True, True),
+        ((1,), 0, 0.1, True, True, False, 0.1),
+        ((2, 3), 0, 0.1, True, True, False, 0.1),
+        ((1, 2, 4), 0, 0.1, True, True, False, 0.1),
+        ((1, 2, 3, 4), 0, 0.001, False, False, False, 0.1),
+        ((2, 3, 4, 1), 1, 0.01, False, True, False, 0.1),
+        ((3, 4, 1, 2), 2, 0.1, True, False, True, 0.1),
+        ((4, 1, 2, 3), 3, 1.0, True, True, True, 0.2),
+        ((1, 2, 4, 4, 5), 0, 0.1, True, True, True, 0.3),
     ],
 )
-def test_batch_norm(shape, axis, epsilon, center, scale):
+def test_batch_norm(shape, axis, epsilon, center, scale, training, momentum):
     x_np = np.random.random(shape).astype("float32")
     gamma_np = np.random.random(shape[axis]).astype("float32")
     beta_np = np.random.random(shape[axis]).astype("float32")
@@ -52,7 +53,17 @@ def test_batch_norm(shape, axis, epsilon, center, scale):
     moving_var_np = np.random.random(shape[axis]).astype("float32")
 
     out_x_np, out_moving_mean_np, out_moving_var_np = tvm.topi.testing.batch_norm(
-        x_np, gamma_np, beta_np, moving_mean_np, moving_var_np, axis, epsilon, center, scale
+        x_np,
+        gamma_np,
+        beta_np,
+        moving_mean_np,
+        moving_var_np,
+        axis,
+        epsilon,
+        center,
+        scale,
+        training,
+        momentum,
     )
 
     x_te = te.placeholder(shape, name="x", dtype="float32")
@@ -64,7 +75,17 @@ def test_batch_norm(shape, axis, epsilon, center, scale):
     with tvm.target.Target(_DEVICE):
         fcompute, fschedule = tvm.topi.testing.dispatch(_DEVICE, _BATCH_NORM_IMPLEMENT)
         out_x, out_moving_mean, out_moving_var = fcompute(
-            x_te, gamma_te, beta_te, moving_mean_te, moving_var_te, axis, epsilon, center, scale
+            x_te,
+            gamma_te,
+            beta_te,
+            moving_mean_te,
+            moving_var_te,
+            axis,
+            epsilon,
+            center,
+            scale,
+            training,
+            momentum,
         )
         s = fschedule([out_x, out_moving_mean, out_moving_var])
 
@@ -112,4 +133,4 @@ def test_batch_norm(shape, axis, epsilon, center, scale):
 
 
 if __name__ == "__main__":
-    test_batch_norm()
+    tvm.testing.main()

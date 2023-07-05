@@ -183,7 +183,7 @@ def _ActivationParams(op, inexpr, etab):
         beta_expr = etab.new_const(beta)
         return _op.multiply(_op.log(_op.add(_op.exp(inexpr), beta_expr)), alpha_expr)
     raise tvm.error.OpNotImplemented(
-        "Operator {} is not supported in frontend CoreML.".format(whichActivation)
+        f"Operator {whichActivation} is not supported in frontend CoreML."
     )
 
 
@@ -231,9 +231,9 @@ def _PoolingLayerParams(op, inexpr, etab):
         params["padding"] = padding
         params["ceil_mode"] = True
     else:
-        msg = "PoolingPaddingType {} is not supported in operator Pooling."
         op_name = op.WhichOneof("PoolingPaddingType")
-        raise tvm.error.OpAttributeUnImplemented(msg.format(op_name))
+        msg = f"PoolingPaddingType {op_name} is not supported in operator Pooling."
+        raise tvm.error.OpAttributeUnImplemented(msg)
 
     if op.type == 0:
         return _op.nn.max_pool2d(inexpr, **params)
@@ -302,7 +302,7 @@ def _PaddingLayerParams(op, inexpr, etab):
         constant = op.constant
         if constant.value != 0:
             raise tvm.error.OpAttributeUnImplemented(
-                "{} is not supported in operator Padding.".format(constant.value)
+                f"{constant.value} is not supported in operator Padding."
             )
         pad_t = op.paddingAmounts.borderAmounts[0].startEdgeSize
         pad_l = op.paddingAmounts.borderAmounts[1].startEdgeSize
@@ -391,8 +391,8 @@ def _UnaryFunctionLayerParams(op, inexpr, etab):
         alpha = _expr.const(op.alpha)
         return _op.maximum(inexpr, alpha)
     else:
-        msg = "Unary Op type value {} is not supported in frontend CoreML."
-        raise tvm.error.OpAttributeUnImplemented(msg.format(op_type))
+        msg = f"Unary Op type value {op_type} is not supported in frontend CoreML."
+        raise tvm.error.OpAttributeUnImplemented(msg)
 
 
 def _ReduceLayerParams(op, inexpr, etab):
@@ -408,8 +408,8 @@ def _ReduceLayerParams(op, inexpr, etab):
     elif axis == op.W:
         axis = -1
     else:
-        msg = "Reduce axis value {} is not supported in frontend CoreML."
-        raise tvm.error.OpAttributeUnImplemented(msg.format(axis))
+        msg = f"Reduce axis value {axis} is not supported in frontend CoreML."
+        raise tvm.error.OpAttributeUnImplemented(msg)
 
     mode = op.mode
     if mode == op.SUM:
@@ -425,8 +425,8 @@ def _ReduceLayerParams(op, inexpr, etab):
     elif mode == op.ARGMAX:
         return _op.argmax(inexpr, axis=axis, keepdims=True)
     else:
-        msg = "Reduce mode value {} is not supported in frontend CoreML."
-        raise tvm.error.OpAttributeUnImplemented(msg.format(mode))
+        msg = f"Reduce mode value {mode} is not supported in frontend CoreML."
+        raise tvm.error.OpAttributeUnImplemented(msg)
 
 
 def _ReshapeLayerParams(op, inexpr, etab):
@@ -511,7 +511,7 @@ def coreml_op_to_relay(op, inname, outnames, etab):
     classname = type(op).__name__
     if classname not in _convert_map:
         raise tvm.error.OpNotImplemented(
-            "Operator {} is not supported in frontend CoreML.".format(classname)
+            f"Operator {classname} is not supported in frontend CoreML."
         )
     if isinstance(inname, _base.string_types):
         insym = etab.get_expr(inname)

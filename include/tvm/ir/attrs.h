@@ -229,7 +229,6 @@ class DictAttrs : public Attrs {
   /*!
    * \brief Consruct a Attrs backed by DictAttrsNode.
    * \param dict The attributes.
-   * \return The dict attributes.
    */
   TVM_DLL explicit DictAttrs(Map<String, ObjectRef> dict);
 
@@ -296,7 +295,7 @@ class DictAttrs : public Attrs {
    * \endcode
    */
   bool HasNonzeroAttr(const std::string& attr_key) const {
-    return GetAttr<Integer>(attr_key, 0) != 0;
+    return GetAttr<Integer>(attr_key, 0).value_or(0).IntValue() != 0;
   }
 
   TVM_DEFINE_OBJECT_REF_METHODS(DictAttrs, Attrs, DictAttrsNode);

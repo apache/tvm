@@ -26,24 +26,26 @@ endif
 
 ENABLE_TVM_PLATFORM_ABORT_BACKTRACE ?= 1
 
+build_dir := build
+
 DMLC_CORE=${TVM_ROOT}/3rdparty/dmlc-core
 PKG_COMPILE_OPTS = -g -Wall -O2 -fPIC
-PKG_CXXFLAGS = ${PKG_COMPILE_OPTS} -std=c++14 \
+PKG_CXXFLAGS = ${PKG_COMPILE_OPTS} -std=c++17 \
 	-I${TVM_ROOT}/include \
 	-I${DMLC_CORE}/include \
 	-I${TVM_ROOT}/3rdparty/dlpack/include \
-	-Icrt_config \
+	-I${build_dir}/crt_config \
 	-DDMLC_USE_LOGGING_LIBRARY=\<tvm/runtime/logging.h\>
 PKG_CFLAGS = ${PKG_COMPILE_OPTS} \
 	-I${TVM_ROOT}/include \
 	-I${DMLC_CORE}/include \
 	-I${TVM_ROOT}/3rdparty/dlpack/include \
-	-Icrt_config \
+	-I${build_dir}/crt_config \
 	-DDMLC_USE_LOGGING_LIBRARY=\<tvm/runtime/logging.h\>
 
 PKG_LDFLAGS = -pthread -lm
 
-build_dir := build
+
 
 BACKTRACE_SRCS =
 BACKTRACE_LDFLAGS =
@@ -62,8 +64,6 @@ $(else)
 QUIET ?= @
 $(endif)
 
-CRT_SRCS = $(shell find $(CRT_ROOT))
-
 MODEL_OBJ = $(build_dir)/model_c/devc.o $(build_dir)/model_c/lib0.o $(build_dir)/model_c/lib1.o
 TEST_MODEL_OBJ = $(build_dir)/test_model_c/devc.o $(build_dir)/test_model_c/lib0.o $(build_dir)/test_model_c/lib1.o
 
@@ -78,17 +78,23 @@ test_dynamic: $(build_dir)/test_dynamic $(build_dir)/test_bundle.so $(build_dir)
 demo_static: $(build_dir)/demo_static $(build_dir)/cat.bin
 	$(QUIET)TVM_NUM_THREADS=1 $(build_dir)/demo_static $(build_dir)/cat.bin
 
-test_static: $(build_dir)/test_static $(build_dir)/test_data_c.bin $(build_dir)/test_output_c.bin
+test_static: $(build_dir)/crt_config/crt_config.h $(build_dir)/test_static $(build_dir)/test_data_c.bin $(build_dir)/test_output_c.bin
 	$(QUIET)TVM_NUM_THREADS=1 $(build_dir)/test_static $(build_dir)/test_data_c.bin $(build_dir)/test_output_c.bin $(build_dir)/test_graph_c.json $(build_dir)/test_params_c.bin
 
-$(build_dir)/crt/libcommon.a: $(CRT_SRCS)
-	$(QUIET)cd $(CRT_ROOT) && make QUIET= BUILD_DIR=$(abspath $(build_dir))/crt CRT_CONFIG=$(abspath crt_config/crt_config.h) "EXTRA_CFLAGS=$(PKG_COMPILE_OPTS)" common
+$(build_dir)/crt_config/crt_config.h:
+	$(QUIET)mkdir --parents $(build_dir)/crt_config && cp ../../build/microtvm_template_projects/crt/crt_config/crt_config.h $(build_dir)/crt_config/crt_config.h
 
-$(build_dir)/crt/libgraph_executor.a: $(CRT_SRCS)
-	$(QUIET)cd $(CRT_ROOT) && make QUIET= BUILD_DIR=$(abspath $(build_dir))/crt CRT_CONFIG=$(abspath crt_config/crt_config.h) "EXTRA_CFLAGS=$(PKG_COMPILE_OPTS)" graph_executor
+$(build_dir)/crt:
+	$(QUIET)mkdir --parents $(build_dir)/crt && cp -r $(CRT_ROOT)/* $(build_dir)/crt
 
-$(build_dir)/crt/libmemory.a: $(CRT_SRCS)
-	$(QUIET)cd $(CRT_ROOT) && make QUIET= BUILD_DIR=$(abspath $(build_dir))/crt CRT_CONFIG=$(abspath crt_config/crt_config.h) "EXTRA_CFLAGS=$(PKG_COMPILE_OPTS)" memory
+$(build_dir)/libcommon.a: $(build_dir)/crt $(build_dir)/crt_config/crt_config.h
+	$(QUIET)cd $(build_dir)/crt && mkdir -p build && cd build && cmake -DCRT_CONFIG_PATH=$(abspath $(build_dir)/crt_config) -DCMAKE_C_FLAGS="${PKG_COMPILE_OPTS}" .. && make && cp libcommon.a $(abspath $(build_dir)/libcommon.a)
+
+$(build_dir)/libgraph_executor.a: $(build_dir)/crt $(build_dir)/crt_config/crt_config.h
+	$(QUIET)cd $(build_dir)/crt && mkdir -p build && cd build && cmake -DCRT_CONFIG_PATH=$(abspath $(build_dir)/crt_config) -DCMAKE_C_FLAGS="${PKG_COMPILE_OPTS}" .. && make && cp libgraph_executor.a $(abspath $(build_dir)/libgraph_executor.a)
+
+$(build_dir)/libmemory.a: $(build_dir)/crt $(build_dir)/crt_config/crt_config.h
+	$(QUIET)cd $(build_dir)/crt && mkdir -p build && cd build && cmake -DCRT_CONFIG_PATH=$(abspath $(build_dir)/crt_config) -DCMAKE_C_FLAGS="${PKG_COMPILE_OPTS}" .. && make && cp libmemory.a $(abspath $(build_dir)/libmemory.a)
 
 $(build_dir)/demo_dynamic: demo.cc
 	$(QUIET)mkdir -p $(@D)
@@ -98,11 +104,11 @@ $(build_dir)/test_dynamic: test.cc ${build_dir}/test_graph_c.json ${build_dir}/t
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)g++ $(PKG_CXXFLAGS) -o $@ test.cc $(BACKTRACE_OBJS) $(BACKTRACE_LDFLAGS)
 
-$(build_dir)/demo_static: demo_static.c ${build_dir}/bundle_static.o $(MODEL_OBJ) ${build_dir}/crt/libmemory.a ${build_dir}/crt/libgraph_executor.a ${build_dir}/crt/libcommon.a ${build_dir}/graph_c.json.c ${build_dir}/params_c.bin.c $(BACKTRACE_OBJS)
+$(build_dir)/demo_static: demo_static.c ${build_dir}/bundle_static.o $(MODEL_OBJ) ${build_dir}/libmemory.a ${build_dir}/libgraph_executor.a ${build_dir}/libcommon.a ${build_dir}/graph_c.json.c ${build_dir}/params_c.bin.c $(BACKTRACE_OBJS)
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)gcc $(PKG_CFLAGS) -o $@ $^ $(PKG_LDFLAGS) $(BACKTRACE_LDFLAGS) $(BACKTRACE_CFLAGS)
 
-$(build_dir)/test_static: test_static.c ${build_dir}/bundle_static.o $(TEST_MODEL_OBJ) ${build_dir}/crt/libmemory.a ${build_dir}/crt/libgraph_executor.a ${build_dir}/crt/libcommon.a $(BACKTRACE_OBJS)
+$(build_dir)/test_static: test_static.c ${build_dir}/bundle_static.o $(TEST_MODEL_OBJ) ${build_dir}/libmemory.a ${build_dir}/libgraph_executor.a ${build_dir}/libcommon.a $(BACKTRACE_OBJS)
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)gcc $(PKG_CFLAGS) -o $@ $^ $(BACKTRACE_LDFLAGS)
 
@@ -140,7 +146,7 @@ $(build_dir)/bundle.so: bundle.cc runtime.cc $(build_dir)/model_cpp.o
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)g++ -shared $(PKG_CXXFLAGS) -fvisibility=hidden -o $@  $^ $(PKG_LDFLAGS)
 
-$(build_dir)/bundle_c.so: bundle.c $(MODEL_OBJ) ${build_dir}/crt/libmemory.a ${build_dir}/crt/libgraph_executor.a ${build_dir}/crt/libcommon.a $(BACKTRACE_OBJS)
+$(build_dir)/bundle_c.so: bundle.c $(MODEL_OBJ) ${build_dir}/libmemory.a ${build_dir}/libgraph_executor.a ${build_dir}/libcommon.a $(BACKTRACE_OBJS)
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)gcc -shared $(PKG_CFLAGS) -fvisibility=hidden -o $@  $^ $(PKG_LDFLAGS) $(BACKTRACE_LDFLAGS) $(BACKTRACE_CFLAGS)
 
@@ -148,7 +154,7 @@ $(build_dir)/test_bundle.so: bundle.cc runtime.cc $(build_dir)/test_model_cpp.o
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)g++ -shared $(PKG_CXXFLAGS) -fvisibility=hidden -o $@  $^ $(PKG_LDFLAGS)
 
-$(build_dir)/test_bundle_c.so: bundle.c $(TEST_MODEL_OBJ) ${build_dir}/crt/libmemory.a ${build_dir}/crt/libgraph_executor.a ${build_dir}/crt/libcommon.a $(BACKTRACE_OBJS)
+$(build_dir)/test_bundle_c.so: bundle.c $(TEST_MODEL_OBJ) ${build_dir}/libmemory.a ${build_dir}/libgraph_executor.a ${build_dir}/libcommon.a $(BACKTRACE_OBJS)
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)gcc -shared $(PKG_CFLAGS) -fvisibility=hidden -o $@  $^ $(PKG_LDFLAGS) $(BACKTRACE_LDFLAGS) $(BACKTRACE_CFLAGS)
 

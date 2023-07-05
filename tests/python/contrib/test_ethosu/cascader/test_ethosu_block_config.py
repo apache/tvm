@@ -457,4 +457,4 @@ def test_force_block_config_elementwise(ofm_layout, block_config_str, expected_b
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

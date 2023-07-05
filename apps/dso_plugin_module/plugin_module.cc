@@ -35,15 +35,13 @@ class MyModuleNode : public ModuleNode {
 
   virtual const char* type_key() const final { return "MyModule"; }
 
-  virtual PackedFunc GetFunction(const std::string& name,
-                                 const ObjectPtr<Object>& sptr_to_self) final {
+  virtual PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
     if (name == "add") {
       return TypedPackedFunc<int(int)>([sptr_to_self, this](int value) { return value_ + value; });
     } else if (name == "mul") {
       return TypedPackedFunc<int(int)>([sptr_to_self, this](int value) { return value_ * value; });
     } else {
       LOG(FATAL) << "unknown function " << name;
-      return PackedFunc();
     }
   }
 

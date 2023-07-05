@@ -80,7 +80,7 @@ Schedule ScheduleReduce(const Target& target, Operation op, Schedule sch,
     thread_y = tvm::te::thread_axis(Range(0, num_thread), "threadIdx.y");
   } else {
     all_reduce = true;
-    num_thread = target->GetAttr<Integer>("max_num_threads").value();
+    num_thread = target->GetAttr<Integer>("max_num_threads").value().IntValue();
     thread_x = tvm::te::thread_axis(Range(0, num_thread), "threadIdx.x");
   }
 

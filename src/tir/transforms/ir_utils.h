@@ -25,6 +25,7 @@
 #define TVM_TIR_TRANSFORMS_IR_UTILS_H_
 
 #include <tvm/arith/int_set.h>
+#include <tvm/arith/int_solver.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/support/with.h>
 #include <tvm/tir/builtin.h>
@@ -33,8 +34,10 @@
 #include <tvm/tir/op.h>
 
 #include <limits>
+#include <optional>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace tvm {
@@ -53,7 +56,7 @@ Stmt MergeNest(const std::vector<Stmt>& nest, Stmt body);
  * \param body body
  * \return The combined Stmt
  */
-Stmt MergeNest(const std::vector<std::vector<Stmt> >& nest, Stmt body);
+Stmt MergeNest(const std::vector<std::vector<Stmt>>& nest, Stmt body);
 
 /*!
  * \brief update array with an unary function
@@ -149,6 +152,7 @@ inline Stmt TVMStructSet(Var handle, int index, builtin::TVMStructFieldKind kind
  * \return The corresponding API type.
  */
 inline DataType APIType(DataType t) {
+  ICHECK(!t.is_void()) << "Cannot pass void type through packed API.";
   if (t.is_handle()) return t;
   ICHECK_EQ(t.lanes(), 1) << "Cannot pass vector type through packed API.";
   if (t.is_uint() || t.is_int()) return DataType::Int(64);
@@ -224,6 +228,13 @@ Array<PrimExpr> ConvertIndices(const MatchBufferRegion& match_buffer,
 Region ConvertRegion(const MatchBufferRegion& match_buffer, const Region& region);
 
 /*!
+ * \brief Get stride aware buffer allocation shape from buffer.
+ * \param buffer The buffer object.
+ * \return shape The shape considering buffer strides.
+ */
+Array<PrimExpr> GetBufferAllocationShape(const Buffer& buffer);
+
+/*!
  * \brief Check if a given PrimFunc originated from a TE schedule.
  *
  * Internally this checks for the `from_legacy_te_schedule` attr of the PrimFunc.
@@ -234,12 +245,12 @@ Region ConvertRegion(const MatchBufferRegion& match_buffer, const Region& region
 Bool IsFromLegacyTESchedule(PrimFunc f);
 
 /*!
- *\brief Context helper to update domain map within conditional scope.
- *
- * Assume the condition is `0 <= i && i < 9` and global domain of i is [0, 20], thus `bounds[i]` is
- * [0, 8]. Then `With<ConditionalBoundsContext> ctx(condition, &relax_map, &hint_map, true)` step
- *into scope where dom_map[i] is [0, 8] and `With<ConditionalBoundsContext> ctx(condition,
- *&relax_map, &hint_map, false)` step into scope where dom_map[i] is [9, 20]
+ * \brief Context helper to update domain map within conditional scope.
+ * Assume the condition is `0 <= i && i < 9` and domain of i is [0, 20], Then
+ * `With<ConditionalBoundsContext> ctx(condition, &relax_map, &hint_map, &constraints)`
+ * step into scope where dom_map[i] is [0, 8]; and
+ * `With<ConditionalBoundsContext> ctx(!condition, &relax_map, &hint_map, &constraints)`
+ * step into scope where dom_map[i] is [9, 20]
  */
 class ConditionalBoundsContext {
  private:
@@ -249,17 +260,17 @@ class ConditionalBoundsContext {
    * \param condition The condition holds on true branch.
    * \param relax_map The domain map for relaxed vars to update.
    * \param hint_map The domain map for free vars to update.
-   * \param is_true_branch Whether step into the branch where condition bounds holds.
+   * \param pending_conditions The stack of unresolved constraints.
    */
   ConditionalBoundsContext(const PrimExpr& condition,
                            std::unordered_map<const VarNode*, arith::IntSet>* relax_map,
                            std::unordered_map<const VarNode*, arith::IntSet>* hint_map,
-                           bool is_true_branch);
+                           std::vector<PrimExpr>* pending_constraints);
   void EnterWithScope();
   void ExitWithScope();
 
   /*! \brief Helper to solve related variable's bound within conditional scope.*/
-  Map<Var, Range> GetVarBoundsFromCondition();
+  Optional<arith::IntConstraints> TrySolveCondition();
 
   /*! \brief the condition holds on true branch. */
   const PrimExpr& condition_;
@@ -267,10 +278,12 @@ class ConditionalBoundsContext {
   std::unordered_map<const VarNode*, arith::IntSet>* relax_map_;
   /*! \brief domain map for free vars to update */
   std::unordered_map<const VarNode*, arith::IntSet>* hint_map_;
-  /*! \brief whether is on true branch */
-  bool is_true_branch_;
+  /*! \brief unresolved condition stack */
+  std::vector<PrimExpr>* pending_conditions_;
   /*! \brief used to record and restore original var bounds */
   std::unordered_map<const VarNode*, arith::IntSet> origin_map_;
+  /*! \brief used to record unresolved conditions num. */
+  size_t origin_pending_conditions_num_;
 };
 
 // Information of tensor core fragment.
@@ -305,6 +318,51 @@ struct FragmentInfo {
  * \return Map from buffer variables to the fragment info.
  */
 std::unordered_map<const VarNode*, FragmentInfo> GetTensorCoreFragmentInfo(const Stmt& stmt);
+
+// Return the queue id and the in-flight count associated with the given
+// attr::async_wait_queue_scope annotation.
+std::pair<PrimExpr, PrimExpr> GetAsyncWaitAttributes(const AttrStmtNode* op);
+
+/*!
+ * \brief Bind a subset of parameter tensors to constants, replacing them by AllocateConst nodes.
+ * \param f The function to bind constants to.
+ * \param constants Raw constant data. If the size of this array is N, the last N parameter tensors
+ * will be removed from the signature and instead AllocateConst nodes will be introduced in the
+ * function body.
+ * \return The updated function.
+ */
+PrimFunc BindParams(PrimFunc f, const Array<runtime::NDArray>& constants);
+
+/*! \brief The quad used by StorageAlign for (buffer_idx, axis, factor, offset) */
+using StorageAlignTuple = Array<Integer>;
+/*! \brief A list of StorageAlignTuple, used by StorageAlign */
+using StorageAlignAnnotation = Array<StorageAlignTuple>;
+/*!
+ * \brief Collect storage alignment annotations for all buffer vars within body.
+ * \param body The stmt to collect.
+ * \return The result dict from buffer var to storage align annotations.
+ */
+std::unordered_map<Var, StorageAlignAnnotation, ObjectPtrHash, ObjectPtrEqual>
+CollectStorageAlignAnnotation(const Stmt& body);
+/*!
+ * \brief Split string separated by "," to get wmma fragment dimension size.
+ * \param  shape_str The string to split.
+ * \param  scope The scope to match.
+ * \return The result pair of fragment dimension size.
+ */
+std::pair<int32_t, int32_t> GetWmmaFragmentDimSize(const std::string& shape_str,
+                                                   const std::string& scope);
+
+/*! \brief Check if a PrimFunc is a host function
+ *
+ * \param func The function to be inspected
+ *
+ * \return True if the function is known to run on the host, false if
+ * the function is known to run on the device.  If it cannot be
+ * determined (e.g. a function without a tvm::attr::kTarget
+ * attribute), returns std::nullopt.
+ */
+std::optional<bool> IsHostFunc(const PrimFunc& func);
 
 }  // namespace tir
 }  // namespace tvm

@@ -73,7 +73,7 @@ def test_checkpoint_alpha_equal():
         mod = tvm.transform.Sequential(passes)(tvm.IRModule.from_expr(df))
         df = mod["main"]
 
-    df_parsed = tvm.parser.parse_expr(
+    df_parsed = tvm.relay.parse_expr(
         """
         #[version = "0.0.5"]
         fn (%x: Tensor[(1), float32], %y: Tensor[(1), float32],
@@ -137,7 +137,7 @@ def test_checkpoint_alpha_equal_tuple():
         mod = tvm.transform.Sequential(passes)(tvm.IRModule.from_expr(df))
         df = mod["main"]
 
-    df_parsed = tvm.parser.parse_expr(
+    df_parsed = tvm.relay.parse_expr(
         """
         #[version = "0.0.5"]
         fn (%x: Tensor[(1), float32], %y: Tensor[(1), float32],
@@ -240,6 +240,40 @@ def test_broadcast_to_const_shape_int64(executor_kind):
 
     x = np.random.randint(10, size=(1,), dtype="int64")
     ref_res = np.broadcast_to(x, (5,))
+    for target, dev in tvm.testing.enabled_targets():
+        op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(f)(x)
+        tvm.testing.assert_allclose(op_res.numpy(), ref_res)
+
+
+def test_broadcast_concat_shape_int64(executor_kind):
+    x_shape = (1, 2, 1, 1)
+    broadcast_shape = [1, 2, 2, 1]
+    x = relay.var("data", relay.TensorType(x_shape, "float32"))
+    broadcast_to = relay.op.broadcast_to(x, relay.const(broadcast_shape, dtype="int64"))
+    concate = relay.op.concatenate((broadcast_to,), axis=0)
+
+    f = relay.Function([x], concate)
+
+    x = np.zeros(x_shape).astype("float32")
+    ref_res = np.concatenate((np.broadcast_to(x, broadcast_shape),), axis=0)
+
+    for target, dev in tvm.testing.enabled_targets():
+        op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(f)(x)
+        tvm.testing.assert_allclose(op_res.numpy(), ref_res)
+
+
+def test_broadcast_pool2d_shape_int64(executor_kind):
+    x_shape = (1, 3, 32, 32)
+    out_shape = (2, 3, 32, 32)
+    x = relay.var("data", shape=x_shape, dtype="float32")
+    broadcast_to = relay.broadcast_to(x, shape=relay.const([2, 3, 32, 32], dtype="int64"))
+    pool2d = relay.nn.max_pool2d(broadcast_to, pool_size=(3, 3), padding=(1, 1, 1, 1))
+    sub = relay.subtract(broadcast_to, pool2d)
+
+    f = relay.Function([x], sub)
+    x = np.ones(x_shape).astype("float32")
+    ref_res = np.zeros(out_shape).astype("float32")
+
     for target, dev in tvm.testing.enabled_targets():
         op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(f)(x)
         tvm.testing.assert_allclose(op_res.numpy(), ref_res)
@@ -439,11 +473,10 @@ def test_batch_matmul(executor_kind):
     verify_batch_matmul_with_inputs(executor_kind, x, x, x_np, x_np, (10, 27, 27))
 
 
-@pytest.mark.skip("Requires cascadelake")
-def test_batch_matmul_vnni():
-    x_shape = (16, 32, 96)
-    y_shape = (16, 128, 96)
-    z_shape = (16, 32, 128)
+def batch_matmul_x86_test(b, m, n, k, target="llvm -mcpu=cascadelake", intrins=["vpdpbusd"]):
+    x_shape = (b, m, k)
+    y_shape = (b, n, k)
+    z_shape = (b, m, n)
 
     for lhs_dtype in ["uint8", "int8"]:
         x = relay.var("x", shape=x_shape, dtype=lhs_dtype)
@@ -453,12 +486,14 @@ def test_batch_matmul_vnni():
         out = bmm + z
         mod = tvm.IRModule.from_expr(out)
 
-        target = "llvm -mcpu=cascadelake"
         with tvm.transform.PassContext(opt_level=3):
             lib = relay.build(mod, target=target)
 
-        asm = lib.lib.get_source("asm")
-        assert "vpdpbusd" in asm
+        # TODO(vvchernov): needs for avx512 arch, can be extended
+        if n % 16 == 0 and k % 4 == 0:
+            asm = lib.lib.get_source("asm")
+            for intrin in intrins:
+                assert intrin in asm
 
         dev = tvm.device(target, 0)
         runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
@@ -476,6 +511,87 @@ def test_batch_matmul_vnni():
         ref = tvm.topi.testing.batch_matmul(x_np, y_np, out_dtype="int32") + z_np
 
         np.testing.assert_equal(out, ref)
+
+
+@pytest.mark.skip("skip due to AMX feature not avaliable yet")
+@pytest.mark.parametrize(
+    "b,m,n,k",
+    [
+        (16, 32, 32, 128),
+        (16, 32, 32, 127),
+        (16, 32, 31, 128),
+    ],
+)
+def test_batch_matmul_amx(b, m, n, k):
+    amx_init = tvm.get_global_func("runtime.amx_init")
+    amx_tileconfig = tvm.get_global_func("runtime.amx_tileconfig")
+    assert amx_init()
+    assert amx_tileconfig(16, 64)  # config tile size to 16 rows by 64 columns.
+
+    x_shape = (b, m, k)
+    y_shape = (b, n, k)
+    z_shape = (b, m, n)
+
+    for lhs_dtype in ["uint8", "int8"]:
+        x = relay.var("x", shape=x_shape, dtype=lhs_dtype)
+        y = relay.var("y", shape=y_shape, dtype="int8")
+        z = relay.var("z", shape=z_shape, dtype="int32")
+        bmm = relay.nn.batch_matmul(x, y, out_dtype="int32")
+        out = bmm + z
+        mod = tvm.IRModule.from_expr(out)
+
+        target = "llvm -mcpu=sapphirerapids"
+        with tvm.transform.PassContext(opt_level=3):
+            lib = relay.build(mod, target=target)
+
+        asm = lib.lib.get_source("asm")
+        assert "tilezero" in asm
+        assert "tileloaddt1" in asm
+        assert "tdpbusd" in asm
+        assert "tilestored" in asm
+
+        dev = tvm.device(target, 0)
+        runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
+
+        x_np = np.random.uniform(1, 10, size=x_shape).astype(lhs_dtype)
+        y_np = np.random.uniform(1, 10, size=y_shape).astype("int8")
+        z_np = np.random.uniform(1, 10, size=z_shape).astype("int32")
+
+        runtime.set_input("x", x_np)
+        runtime.set_input("y", y_np)
+        runtime.set_input("z", z_np)
+        runtime.run()
+
+        out = runtime.get_output(0).numpy()
+        ref = tvm.topi.testing.batch_matmul(x_np, y_np, out_dtype="int32") + z_np
+
+        np.testing.assert_equal(out, ref)
+
+
+@tvm.testing.requires_cascadelake
+@pytest.mark.parametrize(
+    "b,m,n,k",
+    [
+        (16, 32, 128, 96),
+        (16, 32, 128, 97),
+        (16, 32, 129, 96),
+    ],
+)
+def test_batch_matmul_vnni(b, m, n, k):
+    batch_matmul_x86_test(b, m, n, k)
+
+
+@tvm.testing.requires_skylake_avx512
+@pytest.mark.parametrize(
+    "b,m,n,k",
+    [
+        (16, 32, 128, 96),
+        (16, 32, 128, 97),
+        (16, 32, 129, 96),
+    ],
+)
+def test_batch_matmul_skylake_avx512(b, m, n, k):
+    batch_matmul_x86_test(b, m, n, k, "llvm -mcpu=skylake-avx512", ["pmaddubs", "pmaddw", "vpaddd"])
 
 
 @pytest.mark.skip("Requires GFX10 AMDGPU")

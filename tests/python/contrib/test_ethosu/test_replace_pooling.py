@@ -38,6 +38,7 @@ def _create_serial_pooling(
     activation="NONE",
     rounding_mode="TFL",
     upscale="NONE",
+    ofm_dtype="int8",
 ):
     upscale_factor = 2 if upscale != "NONE" else 1
     if ifm_layout == "NHWC":
@@ -70,12 +71,14 @@ def _create_serial_pooling(
         ofm_stride_c = 16 * ofm_width if ofm_channels >= 16 else 1
         ofm_stride_h = 16 * ofm_width * ((ofm_channels - 1) // 16 + 1)
 
+    ifm_channels = ofm_channels if pooling_type != "SUM" else ifm_shape[-1]
+
     return spec.SerialPooling(
         ifm=spec.SerialFeatureMap(
             data_type="int8",
             height=ifm_shape[1],
             width=ifm_shape[2] if ifm_layout == "NHWC" else ifm_shape[3],
-            channels=ofm_channels,
+            channels=ifm_channels,
             tile_height_0=ifm_shape[1],
             tile_height_1=0,
             tile_width_0=ifm_shape[2] if ifm_layout == "NHWC" else ifm_shape[3],
@@ -91,7 +94,7 @@ def _create_serial_pooling(
             stride_c=ifm_stride_c,
         ),
         ofm=spec.SerialFeatureMap(
-            data_type="int8",
+            data_type=ofm_dtype,
             height=ofm_height,
             width=ofm_width,
             channels=ofm_channels,
@@ -145,7 +148,7 @@ def _create_serial_pooling(
 )
 @pytest.mark.parametrize("pooling_type", ["AVG", "MAX"])
 @pytest.mark.parametrize("activation", ["NONE", "CLIP"])
-def test_pooling_single(
+def test_avg_max_pooling_single(
     ifm_shape,
     ofm_channels,
     ifm_layout,
@@ -166,12 +169,15 @@ def test_pooling_single(
     # hardcoded padding values are used for each case.
     padding = (1, 1, 1, 0) if upscale == "NONE" else (0, 0, 0, 0)
 
-    ifm = relay.var("ifm", shape=ifm_shape, dtype="int8")
+    dtype = "int8"
+
+    ifm = relay.var("ifm", shape=ifm_shape, dtype=dtype)
     pooling = make_ethosu_pooling(
         ifm,
         pooling_type,
         pool_shape,
         ofm_channels,
+        dtype,
         strides,
         padding,
         activation,
@@ -207,6 +213,62 @@ def test_pooling_single(
     assert data[0] == ["ethosu_pooling"] + list(serial_pooling)
 
 
+@pytest.mark.parametrize(
+    "ifm_shape, ofm_layout, rounding_mode",
+    [
+        ((1, 5, 9, 3), "NHWC", "TFL"),
+        ((1, 8, 9, 40), "NHCWB16", "TFL"),
+        ((1, 8, 9, 8), "NHCWB16", "TRUNCATE"),
+        ((1, 5, 9, 3), "NHWC", "NATURAL"),
+    ],
+)
+@pytest.mark.parametrize("activation", ["NONE", "CLIP"])
+def test_sum_pooling_single(
+    ifm_shape,
+    ofm_layout,
+    activation,
+    rounding_mode,
+):
+    ifm = relay.var("ifm", shape=ifm_shape, dtype="int8")
+    pooling = make_ethosu_pooling(
+        ifm=ifm,
+        pooling_type="SUM",
+        pool_shape=(1, 1),
+        ofm_channels=1,
+        ofm_dtype="int32",
+        strides=(1, 1),
+        padding=(0, 0, 0, 0),
+        activation=activation,
+        ofm_layout=ofm_layout,
+        rounding_mode=rounding_mode,
+    )
+    func = relay.Function(relay.analysis.free_vars(pooling), pooling)
+    func = run_opt_pass(func, relay.transform.InferType())
+    mod, _ = _lower_to_tir(func)
+    data = []
+
+    def _visit(stmt):
+        if isinstance(stmt, tvm.tir.Call):
+            data.append(get_pooling_args(stmt))
+
+    tvm.tir.stmt_functor.post_order_visit(mod["main"].body, _visit)
+
+    serial_pooling = _create_serial_pooling(
+        ifm_shape=ifm_shape,
+        ofm_channels=1,
+        ifm_layout="NHWC",
+        ofm_layout=ofm_layout,
+        pool_shape=(1, 1),
+        pooling_type="SUM",
+        strides=(1, 1),
+        padding=(0, 0, 0, 0),
+        activation=activation,
+        rounding_mode=rounding_mode,
+        ofm_dtype="int32",
+    )
+    assert data[0] == ["ethosu_pooling"] + list(serial_pooling)
+
+
 def test_correct_stride_with_multiple_pooling():
     """Testing a specific case of two pooling operations with NHWC inputs/outputs
     but a NHCWB16 intermediate tensor. This lead to elements being accessed in the
@@ -218,13 +280,15 @@ def test_correct_stride_with_multiple_pooling():
     pool_shape = (1, 1)
     strides = (1, 1)
     padding = (0, 0, 0, 0)
+    dtype = "int8"
 
-    ifm = relay.var("ifm", shape=ifm_shape, dtype="int8")
+    ifm = relay.var("ifm", shape=ifm_shape, dtype=dtype)
     op = make_ethosu_pooling(
         ifm,
         pooling_type,
         pool_shape,
         ofm_channels,
+        dtype,
         strides,
         padding,
         ifm_layout="NHWC",
@@ -235,6 +299,7 @@ def test_correct_stride_with_multiple_pooling():
         pooling_type,
         pool_shape,
         ofm_channels,
+        dtype,
         strides,
         padding,
         ifm_layout="NHCWB16",
@@ -278,4 +343,4 @@ def test_correct_stride_with_multiple_pooling():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

@@ -35,6 +35,7 @@ get it to run, you will need to wrap the body of this tutorial in a :code:`if
 __name__ == "__main__":` block.
 """
 
+
 import os
 
 import numpy as np
@@ -96,6 +97,7 @@ Y_np = X_np @ W_np.T  # Process the matrix multiplication
 B_np = np.random.randn(M, N).astype("float32")
 Y_np = Y_np + B_np  # Bias add
 Y_np = np.maximum(np.zeros((M, N), dtype="float32"), Y_np)  # Relu
+
 
 ######################################################################
 # Create the search task
@@ -228,6 +230,7 @@ search_policy = auto_scheduler.SketchPolicy(
     ],
 )
 
+
 ######################################################################
 # Run the search
 # ^^^^^^^^^^^^^^
@@ -236,52 +239,55 @@ search_policy = auto_scheduler.SketchPolicy(
 # After some measurement trials, we can load the best schedule from the log
 # file and apply it.
 
-# Run auto-tuning (search)
+
+def tune_and_evaluate(tune_option, search_policy):
+    # Run auto-tuning (search)
+    task.tune(tune_option, search_policy)
+
+    # Apply the best schedule
+    sch, args = task.apply_best(log_file)
+
+    # We can lower the schedule to see the IR after auto-scheduling.
+    # The auto-scheduler correctly performs optimizations including multi-level tiling,
+    # layout transformation, parallelization, vectorization, unrolling, and operator fusion.
+    print("Lowered TIR:")
+    print(tvm.lower(sch, args, simple_mode=True))
+
+    # Check correctness and evaluate performance
+    # We build the binary and check its correctness and performance.
+    func = tvm.build(sch, args, target)
+
+    dev = tvm.cpu()
+
+    X_tvm = tvm.nd.array(X_np, device=dev)
+    W_data_tvm = tvm.nd.array(W_sp_np.data, device=dev)
+    W_indices_tvm = tvm.nd.array(W_sp_np.indices, device=dev)
+    W_indptr_tvm = tvm.nd.array(W_sp_np.indptr, device=dev)
+    B_tvm = tvm.nd.array(B_np, device=dev)
+    Y_tvm = tvm.nd.empty(Y_np.shape, device=dev)
+
+    func(X_tvm, W_data_tvm, W_indices_tvm, W_indptr_tvm, B_tvm, Y_tvm)
+
+    # Check results
+    tvm.testing.assert_allclose(Y_np, Y_tvm.numpy(), atol=1e-4, rtol=1e-4)
+
+    # Evaluate execution time.
+    evaluator = func.time_evaluator(func.entry_name, dev, min_repeat_ms=500)
+    print(
+        "Execution time of this operator: %.3f ms"
+        % (
+            np.median(
+                evaluator(X_tvm, W_data_tvm, W_indices_tvm, W_indptr_tvm, B_tvm, Y_tvm).results
+            )
+            * 1000
+        )
+    )
+
+
 # Notice: We do not run the tuning in our webpage server since it takes too long.
 # Uncomment the following line to run it by yourself.
-task.tune(tune_option, search_policy)
+# tune_and_evaluate(tune_option, search_policy)
 
-# Apply the best schedule
-sch, args = task.apply_best(log_file)
-
-######################################################################
-# We can lower the schedule to see the IR after auto-scheduling.
-# The auto-scheduler correctly performs optimizations including multi-level tiling,
-# layout transformation, parallelization, vectorization, unrolling, and operator fusion.
-
-print("Lowered TIR:")
-print(tvm.lower(sch, args, simple_mode=True))
-
-######################################################################
-# Check correctness and evaluate performance
-# ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-# We build the binary and check its correctness and performance.
-
-func = tvm.build(sch, args, target)
-
-dev = tvm.cpu()
-
-X_tvm = tvm.nd.array(X_np, device=dev)
-W_data_tvm = tvm.nd.array(W_sp_np.data, device=dev)
-W_indices_tvm = tvm.nd.array(W_sp_np.indices, device=dev)
-W_indptr_tvm = tvm.nd.array(W_sp_np.indptr, device=dev)
-B_tvm = tvm.nd.array(B_np, device=dev)
-Y_tvm = tvm.nd.empty(Y_np.shape, device=dev)
-
-func(X_tvm, W_data_tvm, W_indices_tvm, W_indptr_tvm, B_tvm, Y_tvm)
-
-# Check results
-tvm.testing.assert_allclose(Y_np, Y_tvm.numpy(), atol=1e-4, rtol=1e-4)
-
-# Evaluate execution time.
-evaluator = func.time_evaluator(func.entry_name, dev, min_repeat_ms=500)
-print(
-    "Execution time of this operator: %.3f ms"
-    % (
-        np.median(evaluator(X_tvm, W_data_tvm, W_indices_tvm, W_indptr_tvm, B_tvm, Y_tvm).results)
-        * 1000
-    )
-)
 
 ######################################################################
 # .. note:: Tuning result example

@@ -117,16 +117,16 @@ def test_unroll_allocations():
         @T.prim_func
         def main():
             for i in T.unroll(2):
-                with T.allocate([16], "float32", "global") as buf:
+                with T.decl_buffer([16], "float32") as buf:
                     buf[0] = 0.0
 
     @tvm.script.ir_module
     class expected:
         @T.prim_func
         def main():
-            with T.allocate([16], "float32", "global") as buf1:
+            with T.decl_buffer([16], "float32") as buf1:
                 buf1[0] = 0.0
-            with T.allocate([16], "float32", "global") as buf2:
+            with T.decl_buffer([16], "float32") as buf2:
                 buf2[0] = 0.0
 
     after = tvm.tir.transform.UnrollLoop()(before)
@@ -134,7 +134,49 @@ def test_unroll_allocations():
     tvm.ir.assert_structural_equal(after, expected)
 
 
+def test_unroll_local_access():
+    @tvm.script.ir_module
+    class Before:
+        @T.prim_func
+        def main(B: T.Buffer((64,), "float32")):
+            for bx in T.thread_binding(4, thread="blockIdx.x"):
+                for tx in T.thread_binding(4, thread="threadIdx.x"):
+                    A_local_data = T.allocate([4], dtype="float32", scope="local")
+                    A_local = T.Buffer([4], dtype="float32", data=A_local_data)
+                    for i in T.serial(4):
+                        A_local[i] = T.float32(i)
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func
+        def main(B: T.Buffer((64,), "float32")):
+            for bx in T.thread_binding(4, thread="blockIdx.x"):
+                for tx in T.thread_binding(4, thread="threadIdx.x"):
+                    A_local_data = T.allocate([4], dtype="float32", scope="local")
+                    A_local = T.Buffer([4], dtype="float32", data=A_local_data)
+                    A_local[0] = T.float32(0)
+                    A_local[1] = T.float32(1)
+                    A_local[2] = T.float32(2)
+                    A_local[3] = T.float32(3)
+
+    with tvm.transform.PassContext(
+        config={
+            "tir.UnrollLoop": {
+                "auto_max_depth": 0,
+                "auto_max_extent": 1,
+                "explicit_unroll": True,
+                "unroll_local_access": True,
+            }
+        }
+    ):
+        after = tvm.tir.transform.UnrollLoop()(Before)
+        after = tvm.tir.transform.Simplify()(after)
+
+    tvm.ir.assert_structural_equal(after, Expected)
+
+
 if __name__ == "__main__":
+    test_unroll_local_access()
     test_unroll_loop()
     test_unroll_fake_loop()
     test_unroll_single_count_loops()

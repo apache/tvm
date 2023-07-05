@@ -41,6 +41,35 @@
 namespace tvm {
 namespace runtime {
 
+/*!
+ * \brief Property of runtime module
+ * We classify the property of runtime module into the following categories.
+ */
+enum ModulePropertyMask : int {
+  /*! \brief kBinarySerializable
+   *  we can serialize the module to the stream of bytes. CUDA/OpenCL/JSON
+   * runtime are representative examples. A binary exportable module can be integrated into final
+   * runtime artifact by being serialized as data into the artifact, then deserialized at runtime.
+   * This class of modules must implement SaveToBinary, and have a matching deserializer registered
+   * as 'runtime.module.loadbinary_<type_key>'.
+   */
+  kBinarySerializable = 0b001,
+  /*! \brief kRunnable
+   * we can run the module directly. LLVM/CUDA/JSON runtime, executors (e.g,
+   * virtual machine) runtimes are runnable. Non-runnable modules, such as CSourceModule, requires a
+   * few extra steps (e.g,. compilation, link) to make it runnable.
+   */
+  kRunnable = 0b010,
+  /*! \brief kDSOExportable
+   * we can export the module as DSO. A DSO exportable module (e.g., a
+   * CSourceModuleNode of type_key 'c') can be incorporated into the final runtime artifact (ie
+   * shared library) by compilation and/or linking using the external compiler (llvm, nvcc, etc).
+   * DSO exportable modules must implement SaveToFile. In general, DSO exportable modules are not
+   * runnable unless there is a special support like JIT for `LLVMModule`.
+   */
+  kDSOExportable = 0b100
+};
+
 class ModuleNode;
 class PackedFunc;
 
@@ -61,7 +90,7 @@ class Module : public ObjectRef {
    *  This function will return PackedFunc(nullptr) if function do not exist.
    * \note Implemented in packed_func.cc
    */
-  inline PackedFunc GetFunction(const std::string& name, bool query_imports = false);
+  inline PackedFunc GetFunction(const String& name, bool query_imports = false);
   // The following functions requires link with runtime.
   /*!
    * \brief Import another module into this module.
@@ -82,7 +111,7 @@ class Module : public ObjectRef {
    * \note This function won't load the import relationship.
    *  Re-create import relationship by calling Import.
    */
-  TVM_DLL static Module LoadFromFile(const std::string& file_name, const std::string& format = "");
+  TVM_DLL static Module LoadFromFile(const String& file_name, const String& format = "");
   // refer to the corresponding container.
   using ContainerType = ModuleNode;
   friend class ModuleNode;
@@ -113,7 +142,7 @@ class Module : public ObjectRef {
 class TVM_DLL ModuleNode : public Object {
  public:
   /*! \brief virtual destructor */
-  virtual ~ModuleNode() {}
+  virtual ~ModuleNode() = default;
   /*!
    * \return The per module type key.
    * \note This key is used to for serializing custom modules.
@@ -136,14 +165,13 @@ class TVM_DLL ModuleNode : public Object {
    *   If the function need resource from the module(e.g. late linking),
    *   it should capture sptr_to_self.
    */
-  virtual PackedFunc GetFunction(const std::string& name,
-                                 const ObjectPtr<Object>& sptr_to_self) = 0;
+  virtual PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) = 0;
   /*!
    * \brief Save the module to file.
    * \param file_name The file to be saved to.
    * \param format The format of the file.
    */
-  virtual void SaveToFile(const std::string& file_name, const std::string& format);
+  virtual void SaveToFile(const String& file_name, const String& format);
   /*!
    * \brief Save the module to binary stream.
    * \param stream The binary stream to save to.
@@ -157,12 +185,12 @@ class TVM_DLL ModuleNode : public Object {
    * \param format Format of the source code, can be empty by default.
    * \return Possible source code when available.
    */
-  virtual std::string GetSource(const std::string& format = "");
+  virtual String GetSource(const String& format = "");
   /*!
    * \brief Get the format of the module, when available.
    * \return Possible format when available.
    */
-  virtual std::string GetFormat();
+  virtual String GetFormat();
   /*!
    * \brief Get packed function from current module by name.
    *
@@ -172,7 +200,7 @@ class TVM_DLL ModuleNode : public Object {
    *  This function will return PackedFunc(nullptr) if function do not exist.
    * \note Implemented in packed_func.cc
    */
-  PackedFunc GetFunction(const std::string& name, bool query_imports = false);
+  PackedFunc GetFunction(const String& name, bool query_imports = false);
   /*!
    * \brief Import another module into this module.
    * \param other The module to be imported.
@@ -188,25 +216,21 @@ class TVM_DLL ModuleNode : public Object {
    * \param name name of the function.
    * \return The corresponding function.
    */
-  const PackedFunc* GetFuncFromEnv(const std::string& name);
+  const PackedFunc* GetFuncFromEnv(const String& name);
   /*! \return The module it imports from */
   const std::vector<Module>& imports() const { return imports_; }
 
   /*!
-   * \brief Returns true if this module is 'DSO exportable'.
-   *
-   * A DSO exportable module (eg a CSourceModuleNode of type_key 'c') can be incorporated into the
-   * final runtime artifact (ie shared library) by compilation and/or linking using the external
-   * compiler (llvm, nvcc, etc). DSO exportable modules must implement SaveToFile.
-   *
-   * By contrast, non-DSO exportable modules (eg CUDAModuleNode of type_key 'cuda') typically must
-   * be incorporated into the final runtime artifact by being serialized as data into the
-   * artifact, then deserialized at runtime. Non-DSO exportable modules must implement SaveToBinary,
-   * and have a matching deserializer registered as 'runtime.module.loadbinary_<type_key>'.
-   *
-   * The default implementation returns false.
+   * \brief Returns bitmap of property.
+   * By default, none of the property is set. Derived class can override this function and set its
+   * own property.
    */
-  virtual bool IsDSOExportable() const;
+  virtual int GetPropertyMask() const { return 0b000; }
+
+  /*! \brief Returns true if this module is 'DSO exportable'. */
+  bool IsDSOExportable() const {
+    return (GetPropertyMask() & ModulePropertyMask::kDSOExportable) != 0;
+  }
 
   /*!
    * \brief Returns true if this module has a definition for a function of \p name. If
@@ -234,7 +258,7 @@ class TVM_DLL ModuleNode : public Object {
 
  private:
   /*! \brief Cache used by GetImport */
-  std::unordered_map<std::string, std::shared_ptr<PackedFunc> > import_cache_;
+  std::unordered_map<std::string, std::shared_ptr<PackedFunc>> import_cache_;
   std::mutex mutex_;
 };
 
@@ -243,7 +267,7 @@ class TVM_DLL ModuleNode : public Object {
  * \param target The target module name.
  * \return Whether runtime is enabled.
  */
-TVM_DLL bool RuntimeEnabled(const std::string& target);
+TVM_DLL bool RuntimeEnabled(const String& target);
 
 /*! \brief namespace for constant symbols */
 namespace symbol {
@@ -253,8 +277,6 @@ constexpr const char* tvm_get_c_metadata = "get_c_metadata";
 constexpr const char* tvm_module_ctx = "__tvm_module_ctx";
 /*! \brief Global variable to store device module blob */
 constexpr const char* tvm_dev_mblob = "__tvm_dev_mblob";
-/*! \brief Number of bytes of device module blob. */
-constexpr const char* tvm_dev_mblob_nbytes = "__tvm_dev_mblob_nbytes";
 /*! \brief global function to set device */
 constexpr const char* tvm_set_device = "__tvm_set_device";
 /*! \brief Auxiliary counter to global barrier. */

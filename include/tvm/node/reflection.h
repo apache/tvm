@@ -134,7 +134,6 @@ class ReflectionVTable {
    * \brief Dispatch the SHashReduce function.
    * \param self The pointer to the object.
    * \param hash_reduce The hash reducer.
-   * \return the result.
    */
   void SHashReduce(const Object* self, SHashReducer hash_reduce) const;
   /*!
@@ -244,7 +243,7 @@ class ReflectionVTable::Registry {
  *    static constexpr const std::nullptr_t VisitAttrs = nullptr;
  *
  *    static void SHashReduce(const runtime::StringObj* key, SHashReducer hash_reduce) {
- *      hash_reduce->SHashReduceHashedValue(runtime::String::HashBytes(key->data, key->size));
+ *      hash_reduce->SHashReduceHashedValue(runtime::String::StableHashBytes(key->data, key->size));
  *    }
  *
  *    static bool SEqualReduce(const runtime::StringObj* lhs,
@@ -403,6 +402,12 @@ inline bool ReflectionVTable::GetReprBytes(const Object* self, std::string* repr
     return false;
   }
 }
+
+/*!
+ * \brief Given an object and an address of its attribute, return the key of the attribute.
+ * \return nullptr if no attribute with the given address exists.
+ */
+Optional<String> GetAttrKeyByAddress(const Object* object, const void* attr_address);
 
 }  // namespace tvm
 #endif  // TVM_NODE_REFLECTION_H_

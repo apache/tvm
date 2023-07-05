@@ -37,6 +37,7 @@ TEDD renders these three graphs from a given schedule.  This tutorial demonstrat
 how to use TEDD and how to interpret the rendered graphs.
 
 """
+
 import tvm
 from tvm import te
 from tvm import topi

@@ -273,7 +273,7 @@ def show_detections(im, dets, thresh, names, classes):
         valid, detection = get_detections(im, det, thresh, names, classes)
         if valid:
             print(
-                "class:{} left:{} right:{} top:{} bottom:{}".format(
+                "class:{} left:{} top:{} right:{} bottom:{}".format(
                     detection["labelstr"],
                     detection["left"],
                     detection["top"],

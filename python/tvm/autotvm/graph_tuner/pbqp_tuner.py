@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name,too-many-locals
+# pylint: disable=invalid-name, too-many-locals, unnecessary-list-index-lookup
 """Partitioned Boolean Quadratic Programming Tuner"""
 from ._base import INVALID_LAYOUT_TIME
 from .base_graph_tuner import BaseGraphTuner
@@ -172,7 +172,7 @@ class PBQPTuner(BaseGraphTuner):
 
         if record_idx < 0:
             raise RuntimeError(
-                "Can't find a soltuion for node %d when " "applying RN reduction" % node_idx
+                f"Can't find a soltuion for node {node_idx} when applying RN reduction"
             )
         self._optimal_record_dict[node_idx] = record_idx
         self._is_optimal = False
@@ -284,5 +284,5 @@ class PBQPTuner(BaseGraphTuner):
         self._forward()
         self._backward()
         is_optimal = "optimal" if self._is_optimal else "sub-optimal"
-        msg = "Finished PBQPExecutor run. Got %s solution." % is_optimal
+        msg = f"Finished PBQPExecutor run. Got {is_optimal} solution."
         self._logger.info(msg)

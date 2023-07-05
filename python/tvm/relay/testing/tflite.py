@@ -18,12 +18,12 @@
 from distutils.version import LooseVersion
 import numpy as np
 import pytest
+import tflite.Model  # pylint: disable=wrong-import-position
+import tensorflow as tf  # pylint: disable=wrong-import-position
 import tvm
 
 pytest.importorskip("tflite")
 pytest.importorskip("tensorflow")
-import tflite.Model  # pylint: disable=wrong-import-position
-import tensorflow as tf  # pylint: disable=wrong-import-position
 
 
 class TFLiteModel:
@@ -56,10 +56,20 @@ class TFLiteModel:
             elif activation == "NONE":
                 pass
             else:
-                assert False, "Unsupported activation {}".format(activation)
+                assert False, f"Unsupported activation {activation}"
             return op
 
         return conv2d_single_function
+
+    def load_from_file(self, model_file, shapes):
+        """Load tflite model from a tflite file"""
+        for i, shape in enumerate(shapes):
+            input_name = "input_" + str(i)
+            self.shape_dict.update({input_name: shape})
+            self.dtype_dict.update({input_name: self.dtype})
+
+        with open(model_file, "rb") as f:
+            self.serial_model = f.read()
 
     def create_tflite_model(self, tfl_function, shapes, ranges=None):
         """Creates TFLite serial graph"""

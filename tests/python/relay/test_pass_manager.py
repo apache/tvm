@@ -614,4 +614,4 @@ def test_print_debug_callback():
 
 
 if __name__ == "__main__":
-    pytest.main()
+    tvm.testing.main()

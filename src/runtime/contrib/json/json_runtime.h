@@ -54,7 +54,14 @@ class JSONRuntimeBase : public ModuleNode {
     LoadGraph(graph_json_);
   }
 
+  ~JSONRuntimeBase() override = default;
+
   const char* type_key() const override { return "json"; }  // May be overridden
+
+  /*! \brief Get the property of the runtime module .*/
+  int GetPropertyMask() const override {
+    return ModulePropertyMask::kBinarySerializable | ModulePropertyMask::kRunnable;
+  }
 
   /*! \brief Initialize a specific json runtime. */
   virtual void Init(const Array<NDArray>& consts) = 0;
@@ -68,7 +75,7 @@ class JSONRuntimeBase : public ModuleNode {
    * \param sptr_to_self The pointer to the module node.
    * \return The packed function.
    */
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) override {
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) override {
     if (name == "get_symbol") {
       return PackedFunc(
           [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->symbol_name_; });
@@ -138,7 +145,7 @@ class JSONRuntimeBase : public ModuleNode {
    * \param format the format to return.
    * \return A string of JSON.
    */
-  std::string GetSource(const std::string& format = "json") override { return graph_json_; }
+  String GetSource(const String& format = "json") override { return graph_json_; }
 
  protected:
   /*!
@@ -226,6 +233,7 @@ class JSONRuntimeBase : public ModuleNode {
   void Load(dmlc::JSONReader* reader) {
     reader->BeginObject();
     std::string key;
+    std::string symbol_;
     while (reader->NextObjectItem(&key)) {
       if (key == "nodes") {
         reader->Read(&nodes_);
@@ -235,6 +243,8 @@ class JSONRuntimeBase : public ModuleNode {
         reader->Read(&node_row_ptr_);
       } else if (key == "heads") {
         reader->Read(&outputs_);
+      } else if (key == "symbol") {
+        reader->Read(&symbol_);
       } else {
         LOG(FATAL) << "Unknown key: " << key;
       }

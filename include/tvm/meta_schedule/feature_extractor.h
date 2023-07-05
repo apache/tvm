@@ -101,11 +101,13 @@ class FeatureExtractor : public runtime::ObjectRef {
    * \param arith_intensity_curve_num_samples The number of samples used in the arithmetic intensity
    * curve.
    * \param cache_line_bytes The number of bytes in a cache line.
+   * \param extract_workload Whether to extract features in the workload in tuning context or not.
    * \return The feature extractor created.
    */
   TVM_DLL static FeatureExtractor PerStoreFeature(int buffers_per_store = 5,
                                                   int arith_intensity_curve_num_samples = 10,
-                                                  int cache_line_bytes = 64);
+                                                  int cache_line_bytes = 64,
+                                                  bool extract_workload = false);
   /*!
    * \brief Create a feature extractor with customized methods on the python-side.
    * \param f_extract_from The packed function of `ExtractFrom`.

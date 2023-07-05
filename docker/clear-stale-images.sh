@@ -66,13 +66,15 @@ for r in "${repositories[@]}"; do
         worktree="${r}"
     else
         worktree="$(cat "${r}/.git")"
+        worktree="${worktree##gitdir: }"
     fi
+    worktree_list=$(cd "${worktree}" && git worktree list --porcelain | grep '^worktree ')
     while read wt; do
         d="${wt:9:${#wt}}"  # strip "worktree " prefix
         for img in $(cat "${d}/Jenkinsfile" | grep -E '^ci_[a-z]+ = ' | sed -E "s/ci_[a-z]+ = '([^\"]*)'/\1/"); do
             used_images=( "${used_images[@]}" "${img}" )
         done
-    done < <(cd "${worktree}" && git worktree list --porcelain | grep '^worktree ')
+    done < <(echo -n "${worktree_list}")
 done
 
 declare -a to_rm

@@ -121,7 +121,6 @@ inline DataType DTypeFromString(const std::string str) {
     return DataType::kBit64;
   } else {
     LOG(FATAL) << "Unrecognized PTX data type " << str;
-    return DataType(0);
   }
 }
 
@@ -162,7 +161,6 @@ LayoutType LayoutTypeFromString(const std::string& str) {
     return LayoutType::kColumnMajor;
   } else {
     LOG(FATAL) << "Unrecognized layout type " << str;
-    return LayoutType::kRowMajor;
   }
 }
 
@@ -403,8 +401,7 @@ class Replacer {
   }
   std::string rewrite(std::string str) {
     for (auto&& rule : _rules) {
-      std::string pattern, replacement;
-      std::tie(pattern, replacement) = rule;
+      auto [pattern, replacement] = rule;
       size_t len = pattern.size();
       size_t new_len = replacement.size();
       size_t pos = str.find(pattern);
@@ -532,8 +529,7 @@ std::string PrintMMAAssembly(const std::string& shape, const std::string& A_layo
                 dtype_c = ptx::DTypeFromString(C_dtype);
   ptx::LayoutType layout_a = ptx::LayoutTypeFromString(A_layout),
                   layout_b = ptx::LayoutTypeFromString(B_layout);
-  int m, n, k;
-  std::tie(m, n, k) = ptx::ParseMMAShape(shape);
+  auto [m, n, k] = ptx::ParseMMAShape(shape);
   CheckMMAConfigValidity(m, n, k, layout_a, layout_b, dtype_a, dtype_b, dtype_c, bit_op, sparse,
                          saturate);
   std::string asm_code = R"(
@@ -545,8 +541,7 @@ std::string PrintMMAAssembly(const std::string& shape, const std::string& A_layo
       : {inputs});
   }
 )";
-  std::string templates_str, inputs_str, outputs_str;
-  std::tie(templates_str, inputs_str, outputs_str) =
+  auto [templates_str, inputs_str, outputs_str] =
       GetMMAOperands(m, n, k, dtype_a, dtype_b, dtype_c, sparse);
 
   // replace patterns
@@ -622,8 +617,7 @@ std::string PrintLoadMatrixAssembly(bool trans, int num, const std::string& type
     );
   }
 )";
-  std::string templates_str, outputs_str;
-  std::tie(templates_str, outputs_str) = GetLoadMatrixOperands(num, local_ptr, local_elem_offset);
+  auto [templates_str, outputs_str] = GetLoadMatrixOperands(num, local_ptr, local_elem_offset);
 
   Replacer replacer;
   replacer.register_rule("{.shape}", ".m8n8");
@@ -651,8 +645,12 @@ std::string PrintCpAsyncAssembly(const std::string& shared_ptr,
       : "l"((void *)({smem_addr}))
     );
     __asm__ __volatile__(
-      "cp.async.{cg_or_ca}.shared.global [%0], [%1], %2;"
-       :: "r"(addr), "l"((void*)({global_ptr})), "n"({bytes})
+      #if TVM_ENABLE_L2_PREFETCH
+        "cp.async.{cg_or_ca}.shared.global.L2::128B [%0], [%1], %2;"
+      #else
+        "cp.async.{cg_or_ca}.shared.global [%0], [%1], %2;"
+      #endif
+        :: "r"(addr), "l"((void*)({global_ptr})), "n"({bytes})
     );
   }
 )";
@@ -663,6 +661,67 @@ std::string PrintCpAsyncAssembly(const std::string& shared_ptr,
   replacer.register_rule("{cg_or_ca}", bytes == "16" ? "cg" : "ca");
   asm_code = replacer.rewrite(asm_code);
   return asm_code;
+}
+
+std::string PrintPredicatedCpAsyncAssembly(const std::string& shared_ptr,
+                                           const std::string& shared_elem_offset,
+                                           const std::string& global_ptr,
+                                           const std::string& global_elem_offset,
+                                           const std::string& bytes,
+                                           const std::string& predicate_value) {
+  CHECK(bytes == "16" || bytes == "12" || bytes == "8" || bytes == "4" || bytes == "2" ||
+        bytes == "1")
+      << "Only support 16, 12, 8, 4, 2, 1 bytes for predicated cp.async";
+  std::string predicated_asm_code = R"(
+  {
+    unsigned int addr;
+    __asm__ __volatile__(
+      "{ .reg .u64 addr; cvta.to.shared.u64 addr, %1; cvt.u32.u64 %0, addr; }"
+      : "=r"(addr)
+      : "l"((void *)({smem_addr}))
+    );
+    int pred_guard = (int){pred_guard};
+    __asm__ __volatile__(
+        "{  .reg .pred p;"
+        "  setp.ne.b32 p, %0, 0;"
+      #if TVM_ENABLE_L2_PREFETCH
+        " @p cp.async.{cg_or_ca}.shared.global.L2::128B [%1], [%2], %3;"
+      #else
+        " @p cp.async.{cg_or_ca}.shared.global [%1], [%2], %3;"
+      #endif
+      "  @!p {store_shared};}"
+        :: "r"(pred_guard), "r"(addr), "l"((void*)({global_ptr})), "n"({bytes}), {nopreg}
+    );
+  }
+)";
+  auto [store_shared, nopreg] = [](const std::string& bytes) {
+    if (bytes == "16")
+      return std::make_tuple("st.shared.v4.u32 [%1], {%4, %5, %6, %7}",
+                             "\"r\"(0), \"r\"(0), \"r\"(0),\"r\"(0)");
+    else if (bytes == "12")
+      return std::make_tuple("st.shared.v3.u32 [%1], {%4, %5, %6}", "\"r\"(0), \"r\"(0), \"r\"(0)");
+    else if (bytes == "8")
+      return std::make_tuple("st.shared.v2.u32 [%1], {%4, %5}", "\"r\"(0), \"r\"(0)");
+    else if (bytes == "4")
+      return std::make_tuple("st.shared.u32 [%1], {%4}", "\"r\"(0)");
+    else if (bytes == "2")
+      return std::make_tuple("st.shared.u16 [%1], {%4}", "\"r\"(0)");
+    else if (bytes == "1")
+      return std::make_tuple("st.shared.u8 [%1], {%4}", "\"r\"(0)");
+    else
+      return std::make_tuple("", "");
+  }(bytes);
+
+  Replacer replacer;
+  replacer.register_rule("{smem_addr}", shared_ptr + " + " + shared_elem_offset);
+  replacer.register_rule("{global_ptr}", global_ptr + " + " + global_elem_offset);
+  replacer.register_rule("{bytes}", bytes);
+  replacer.register_rule("{cg_or_ca}", bytes == "16" ? "cg" : "ca");
+  replacer.register_rule("{store_shared}", store_shared);
+  replacer.register_rule("{nopreg}", nopreg);
+  replacer.register_rule("{pred_guard}", predicate_value);
+  predicated_asm_code = replacer.rewrite(predicated_asm_code);
+  return predicated_asm_code;
 }
 
 }  // namespace codegen

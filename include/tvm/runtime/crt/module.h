@@ -42,7 +42,7 @@ typedef struct TVMModule {
 /*!
  * \brief Create a new module handle from the given TVMModule instance.
  * \param mod The module instance to register.
- * \param out_handle Pointer to recieve the newly-minted handle for this module.
+ * \param out_handle Pointer to receive the newly-minted handle for this module.
  * \return 0 on success, non-zero on error.
  */
 int TVMModCreateFromCModule(const TVMModule* mod, TVMModuleHandle* out_handle);

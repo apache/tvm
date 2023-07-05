@@ -142,11 +142,10 @@ Expr QuantizeLower(const Expr& input_tensor, const Expr& output_scale,
 
   const int32_t min_val = GetQmin(out_dtype);
   const int32_t max_val = GetQmax(out_dtype);
-  auto scale_data = Divide(input_tensor, expanded_output_scale);
+  auto scale_data = Round(Divide(input_tensor, expanded_output_scale));
   auto add_zero_point = Add(scale_data, Cast(expanded_output_zero_point, DataType::Float(32)));
   auto clamped_output = Clip(add_zero_point, min_val, max_val);
-  auto rounded_clamped_output = Round(clamped_output);
-  return Cast(rounded_clamped_output, out_dtype);
+  return Cast(clamped_output, out_dtype);
 }
 
 Expr QuantizeQnnCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,

@@ -31,6 +31,7 @@ For example, to use cuDNN, USE_CUDNN option in `cmake/config.cmake` needs to be 
 
 To begin with, we import Relay and TVM.
 """
+
 import tvm
 from tvm import te
 import numpy as np

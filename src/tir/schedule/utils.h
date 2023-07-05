@@ -22,6 +22,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/arith/int_set.h>
 #include <tvm/arith/iter_affine_map.h>
+#include <tvm/node/serialization.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
@@ -30,13 +31,15 @@
 #include <tvm/tir/schedule/state.h>
 #include <tvm/tir/schedule/trace.h>
 #include <tvm/tir/stmt_functor.h>
+#include <tvm/tir/utils.h>
 
+#include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 
 #include "../../arith/pattern_match.h"
 #include "../../node/attr_registry.h"
-#include "../../printer/text_printer.h"
 #include "../../runtime/thread_storage_scope.h"
 #include "../../support/array.h"
 #include "../../support/nd_int_set.h"
@@ -48,63 +51,6 @@
 
 namespace tvm {
 namespace tir {
-
-/*!
- * \brief A helper macro to convert an sref to the statement it points to,
- * then check if the downcasting succeeded.
- * \param Result The result variable, used for checking
- * \param SRef The SRef to be cast
- * \param Type The type to be cast to, can be Block or For
- */
-#define TVM_SREF_AS_OR_ERR(Result, SRef, Type) \
-  SRef->StmtAs<Type>();                        \
-  ICHECK(Result)
-
-/*!
- * \brief A helper macro to convert an sref to the block it points to,
- * throwing an internal error if downcasting fails
- * \param Result The result variable, used for checking
- * \param SRef The SRef to be cast
- */
-#define TVM_SREF_TO_BLOCK(Result, SRef)                   \
-  TVM_SREF_AS_OR_ERR(Result, SRef, ::tvm::tir::BlockNode) \
-      << "TypeError: Expects StmtSRef `" << #SRef         \
-      << "` points to `Block`, but gets: " << (SRef->stmt ? SRef->stmt->GetTypeKey() : "None")
-
-/*!
- * \brief A helper macro to convert an sref to the for-loop it points to,
- * throwing an internal error if downcasting fails
- * \param Result The name of the result variable, used for checking
- * \param SRef The SRef to be cast
- */
-#define TVM_SREF_TO_FOR(Result, SRef)                   \
-  TVM_SREF_AS_OR_ERR(Result, SRef, ::tvm::tir::ForNode) \
-      << "TypeError: Expects StmtSRef `" << #SRef       \
-      << "` points to `Loop`, but gets: " << (SRef->stmt ? SRef->stmt->GetTypeKey() : "None")
-
-/*!
- * \brief Downcast a TVM ObjectRef to its corresponding container using `ObjectRef::as<Type>`,
- * then check if the downcasting succeeded.
- * \param Result The result variable, used for checking
- * \param From The ObjectRef to be downcast
- * \param Type The type to be downcast to
- */
-#define TVM_TYPE_AS_OR_ERR(Result, From, Type) \
-  From.as<Type>();                             \
-  ICHECK(Result)
-
-/*!
- * \brief Downcast a TVM ObjectRef to its corresponding container using `ObjectRef::as<Type>`,
- * throwing an internal error if downcast fails.
- * \param Result The result variable, used for checking
- * \param From The ObjectRef to be downcast
- * \param Type The type to be downcast to
- */
-#define TVM_TYPE_AS(Result, From, Type)                                           \
-  TVM_TYPE_AS_OR_ERR(Result, From, Type)                                          \
-      << "TypeError: Expects `" << #From << "` to have type `" << Type::_type_key \
-      << "`, but gets: " << (From.defined() ? From->GetTypeKey() : "None")
-
 /*!
  * \brief Convert an array of loop StmtSRefs to an array of loops
  * \param loop_srefs The loop StmtSRefs to be converted
@@ -114,7 +60,7 @@ inline Array<For> LoopSRefs2Loops(const Array<StmtSRef>& loop_srefs) {
   Array<For> loops;
   loops.reserve(loop_srefs.size());
   for (StmtSRef loop_sref : loop_srefs) {
-    const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
+    const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
     loops.push_back(GetRef<For>(loop));
   }
   return loops;
@@ -249,24 +195,6 @@ inline bool IsThreadIdx(const runtime::ThreadScope& thread_scope) {
   return thread_scope.rank == 1 && thread_scope.dim_index >= 0;
 }
 
-/******** Integer set ********/
-
-/*!
- * \brief Converts the Ranges to IntSets
- * \param var_dom The ranges of variables
- * \return The integer sets of the variables
- */
-inline Map<Var, arith::IntSet> AsIntSet(const Map<Var, Range>& var_dom) {
-  std::unordered_map<Var, arith::IntSet, ObjectPtrHash, ObjectPtrEqual> result;
-  result.reserve(var_dom.size());
-  for (auto kv : var_dom) {
-    Var& var = kv.first;
-    Range& range = kv.second;
-    result.emplace(std::move(var), arith::IntSet::FromRange(std::move(range)));
-  }
-  return {result.begin(), result.end()};
-}
-
 /**************** Loop extents ****************/
 
 /*!
@@ -282,7 +210,7 @@ inline const int64_t* GetLoopIntExtent(const ForNode* loop) { return as_const_in
  * \return The extent of the loop, nullptr if the extent is not constant
  */
 inline const int64_t* GetLoopIntExtent(const StmtSRef& loop_sref) {
-  const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
+  const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
   return as_const_int(loop->extent);
 }
 
@@ -446,6 +374,60 @@ inline String BufferIndexType2Str(BufferIndexType buffer_index_type) {
     return "write";
   }
 }
+
+/******** Utilities for retrieving information about blocks ********/
+
+/*! \brief Returns the names of the blocks in the provided module. */
+inline std::unordered_set<std::string> GetBlockNames(const IRModule& mod) {
+  struct BlockNameCollector : public tir::StmtVisitor {
+    void VisitStmt_(const tir::BlockNode* block) override {
+      block_names.insert(block->name_hint);
+      StmtVisitor::VisitStmt(block->body);
+    }
+    std::unordered_set<std::string> block_names;
+  };
+
+  if (auto prim_func = tir::FindEntryFunc(mod, nullptr)) {
+    BlockNameCollector collector;
+    collector(prim_func->body);
+    return collector.block_names;
+  }
+  return {};
+}
+
+/*! \brief Query if the given block name exists in the module associated with the schedule */
+inline bool HasBlock(const Schedule& sch, const std::string& block_name) {
+  auto block_names = GetBlockNames(sch->mod());
+  return block_names.count(block_name);
+}
+
+/******** Utilites for trace application ********/
+
+/*!
+ * \brief Translate the input objects using the provided substitution map.
+ * \param inputs The input objects.
+ * \param rv_map The substitution map for variables.
+ * \return The transformed objects.
+ */
+Array<ObjectRef> TranslateInputRVs(const Array<ObjectRef>& inputs,
+                                   const std::unordered_map<const Object*, const Object*>& rv_map);
+
+/*!
+ * \brief Update the variable substitution map according to the new outputs.
+ * \param old_outputs The previous outputs of a schedule instruction.
+ * \param new_outputs The new outputs of the same schedule instruction.
+ * \param rv_map The substitution map for variables.
+ */
+void TranslateAddOutputRVs(const Array<ObjectRef>& old_outputs, const Array<ObjectRef>& new_outputs,
+                           std::unordered_map<const Object*, const Object*>* rv_map);
+
+/*!
+ * \brief Counts the number of trace instructions.
+ * \param insts The instructions representing a trace.
+ * \param remove_postproc If postprocessing instructions are removed.
+ * \return Number of instructions.
+ */
+int GetNumValidInstructions(const Array<Instruction>& insts, bool remove_postproc);
 
 }  // namespace tir
 }  // namespace tvm

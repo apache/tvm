@@ -79,6 +79,7 @@ class StringImm : public PrimExpr {
  public:
   TVM_DLL StringImm(String value, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(StringImm, PrimExpr, StringImmNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(StringImmNode);
 };
 
 /*!
@@ -117,6 +118,7 @@ class Cast : public PrimExpr {
  public:
   TVM_DLL Cast(DataType dtype, PrimExpr value, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(Cast, PrimExpr, CastNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(CastNode);
 };
 
 /*!
@@ -165,6 +167,7 @@ class Add : public PrimExpr {
  public:
   TVM_DLL Add(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(Add, PrimExpr, AddNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(AddNode);
 };
 
 /*! \brief a - b */
@@ -181,6 +184,7 @@ class Sub : public PrimExpr {
  public:
   TVM_DLL Sub(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(Sub, PrimExpr, SubNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(SubNode);
 };
 
 /*! \brief a * b */
@@ -197,6 +201,7 @@ class Mul : public PrimExpr {
  public:
   TVM_DLL Mul(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(Mul, PrimExpr, MulNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(MulNode);
 };
 
 /*!
@@ -216,6 +221,7 @@ class Div : public PrimExpr {
  public:
   TVM_DLL Div(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(Div, PrimExpr, DivNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(DivNode);
 };
 
 /*!
@@ -235,6 +241,7 @@ class Mod : public PrimExpr {
  public:
   TVM_DLL Mod(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(Mod, PrimExpr, ModNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(ModNode);
 };
 
 /*! \brief Floor division, floor(a/b) */
@@ -251,6 +258,7 @@ class FloorDiv : public PrimExpr {
  public:
   TVM_DLL FloorDiv(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(FloorDiv, PrimExpr, FloorDivNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(FloorDivNode);
 };
 
 /*! \brief The remainder of the floordiv */
@@ -267,6 +275,7 @@ class FloorMod : public PrimExpr {
  public:
   TVM_DLL FloorMod(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(FloorMod, PrimExpr, FloorModNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(FloorModNode);
 };
 
 /*! \brief min(a, b) */
@@ -283,6 +292,7 @@ class Min : public PrimExpr {
  public:
   TVM_DLL Min(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(Min, PrimExpr, MinNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(MinNode);
 };
 
 /*! \brief max(a, b) */
@@ -299,6 +309,7 @@ class Max : public PrimExpr {
  public:
   TVM_DLL Max(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(Max, PrimExpr, MaxNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(MaxNode);
 };
 
 /*!
@@ -347,6 +358,7 @@ class EQ : public PrimExpr {
  public:
   TVM_DLL EQ(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(EQ, PrimExpr, EQNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(EQNode);
 };
 
 /*! \brief a != b */
@@ -363,6 +375,7 @@ class NE : public PrimExpr {
  public:
   TVM_DLL NE(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(NE, PrimExpr, NENode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(NENode);
 };
 
 /*! \brief a < b */
@@ -379,6 +392,7 @@ class LT : public PrimExpr {
  public:
   TVM_DLL LT(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(LT, PrimExpr, LTNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(LTNode);
 };
 
 /*! \brief a <= b */
@@ -395,6 +409,7 @@ class LE : public PrimExpr {
  public:
   TVM_DLL LE(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(LE, PrimExpr, LENode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(LENode);
 };
 
 /*! \brief a > b */
@@ -411,6 +426,7 @@ class GT : public PrimExpr {
  public:
   TVM_DLL GT(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(GT, PrimExpr, GTNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(GTNode);
 };
 
 /*! \brief a >= b */
@@ -427,6 +443,7 @@ class GE : public PrimExpr {
  public:
   TVM_DLL GE(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(GE, PrimExpr, GENode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(GENode);
 };
 
 /*! \brief a && b */
@@ -466,6 +483,7 @@ class And : public PrimExpr {
  public:
   TVM_DLL And(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(And, PrimExpr, AndNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(AndNode);
 };
 
 /*! \brief a || b */
@@ -505,6 +523,7 @@ class Or : public PrimExpr {
  public:
   TVM_DLL Or(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(Or, PrimExpr, OrNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(OrNode);
 };
 
 /*! \brief !a */
@@ -540,6 +559,7 @@ class Not : public PrimExpr {
  public:
   TVM_DLL Not(PrimExpr a, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(Not, PrimExpr, NotNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(NotNode);
 };
 
 /*!
@@ -591,6 +611,7 @@ class Select : public PrimExpr {
   TVM_DLL Select(PrimExpr condition, PrimExpr true_value, PrimExpr false_value, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Select, PrimExpr, SelectNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(SelectNode);
 };
 
 /*!
@@ -706,65 +727,7 @@ class ProducerLoad : public PrimExpr {
   TVM_DLL explicit ProducerLoad(DataProducer producer, Array<PrimExpr> indices, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(ProducerLoad, PrimExpr, ProducerLoadNode);
-};
-
-/*!
- * \brief Load the value from buffer_var.
- *
- *  Equivalent to ((DType*)buffer_var)[index]
- *  where DType is the type specified by type().element_of().
- *
- *  For example, if type = float32x3, then the load will corresponds to
- *
- * \code
- *
- *  auto buffer = static_cast<float*>(buffer_var);
- *  auto loaded_val = float32x3(buffer[index.v0], buffer[index.v1], buffer[index.v2]);
- *
- * \endcode
- */
-class LoadNode : public PrimExprNode {
- public:
-  /*! \brief The buffer variable. */
-  Var buffer_var;
-  /*! \brief The index locations to be loaded. */
-  PrimExpr index;
-  /*! \brief The predicate to mask which lanes would be loaded. */
-  PrimExpr predicate;
-
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &dtype);
-    v->Visit("buffer_var", &buffer_var);
-    v->Visit("index", &index);
-    v->Visit("predicate", &predicate);
-    v->Visit("span", &span);
-  }
-
-  bool SEqualReduce(const LoadNode* other, SEqualReducer equal) const {
-    return equal(dtype, other->dtype) && equal(buffer_var, other->buffer_var) &&
-           equal(index, other->index) && equal(predicate, other->predicate);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(dtype);
-    hash_reduce(buffer_var);
-    hash_reduce(index);
-    hash_reduce(predicate);
-  }
-
-  static constexpr const char* _type_key = "tir.Load";
-  TVM_DECLARE_FINAL_OBJECT_INFO(LoadNode, PrimExprNode);
-};
-
-/*!
- * \brief Managed reference to LoadNode
- * \sa LoadNode
- */
-class Load : public PrimExpr {
- public:
-  TVM_DLL Load(DataType dtype, Var buffer_var, PrimExpr index, PrimExpr predicate,
-               Span span = Span());
-  TVM_DEFINE_OBJECT_REF_METHODS(Load, PrimExpr, LoadNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(ProducerLoadNode);
 };
 
 /*!
@@ -817,6 +780,7 @@ class Ramp : public PrimExpr {
  public:
   TVM_DLL Ramp(PrimExpr base, PrimExpr stride, int lanes, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(Ramp, PrimExpr, RampNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(RampNode);
 };
 
 /*! \brief Create a vector where all the elements are value. */
@@ -856,6 +820,7 @@ class Broadcast : public PrimExpr {
  public:
   TVM_DLL Broadcast(PrimExpr value, int lanes, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(Broadcast, PrimExpr, BroadcastNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(BroadcastNode);
 };
 
 /*!
@@ -902,6 +867,7 @@ class Let : public PrimExpr {
  public:
   TVM_DLL Let(Var var, PrimExpr value, PrimExpr body, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(Let, PrimExpr, LetNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(LetNode);
 };
 
 /*!
@@ -948,6 +914,7 @@ class Call : public PrimExpr {
  public:
   TVM_DLL Call(DataType dtype, RelayExpr op, Array<PrimExpr> args, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(Call, PrimExpr, CallNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(CallNode);
 };
 
 /*!
@@ -995,6 +962,7 @@ class Shuffle : public PrimExpr {
   TVM_DLL static PrimExpr ExtractElement(PrimExpr vector, int index, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Shuffle, PrimExpr, ShuffleNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(ShuffleNode);
 };
 
 // Reduce operator
@@ -1124,6 +1092,7 @@ class Reduce : public PrimExpr {
                  int value_index, Array<PrimExpr> init, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Reduce, PrimExpr, ReduceNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(ReduceNode);
 };
 
 /*! \brief Any shape. */
@@ -1159,6 +1128,7 @@ class Any : public PrimExpr {
   TVM_DLL Any(Span span = Span());
 
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Any, PrimExpr, AnyNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(AnyNode);
 };
 
 /*

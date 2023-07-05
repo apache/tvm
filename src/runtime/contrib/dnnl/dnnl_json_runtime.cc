@@ -83,12 +83,23 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
       // Find proper dnnl::memory buffers
       std::unordered_map<int, dnnl::memory> mem_args;
       for (const auto& kvp : arg_reqs) mem_args[kvp.first] = mem_solver(kvp.second);
+
+      // skip the reorder if src==dst to enable inplace operation
+      if (prim.get_kind() == dnnl::primitive::kind::reorder) {
+        const auto& mem_src = mem_args.at(DNNL_ARG_SRC);
+        const auto& mem_dst = mem_args.at(DNNL_ARG_DST);
+        if ((mem_src.get_desc() == mem_dst.get_desc()) &&
+            (mem_src.get_data_handle() == mem_dst.get_data_handle())) {
+          continue;
+        }
+      }
+
       prim.execute(stream_, mem_args);
     }
   }
 
   /* Override GetFunction to reimplement Run method */
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) override {
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) override {
     if (this->symbol_name_ == name) {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         ICHECK(this->initialized_) << "The module has not been initialized";
@@ -182,28 +193,47 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
 
     if (o_scl_tr || activation[0] != "none" || sum_scl_tr || dst_zp_tr) return attr;
 
-    // parsing of name to extract attributes
-    auto op_name = nodes_[nid].GetOpName();
     // Define RegExp.
     std::regex bias_add_pat(".*_bias.*");
     std::regex relu_pat(".*_relu.*");
     std::regex tanh_pat(".*_tanh.*");
     std::regex sigmoid_pat(".*_sigmoid.*");
+    std::regex clip_pat(".*_clip.*");
     std::regex gelu_pat(".*_gelu.*");
+    std::regex swish_pat(".*_swish.*");
+    std::regex sum_pat(".*_sum.*");
+    std::regex mish_pat(".*_mish.*");
+
+    // parsing of name to extract attributes
+    auto op_name = nodes_[nid].GetOpName();
 
     // Parsing post-ops.
     dnnl::post_ops ops;
+    if (std::regex_match(op_name, sum_pat)) {
+      ops.append_sum(1.f);
+    }
     if (std::regex_match(op_name, relu_pat)) {
       ops.append_eltwise(1.f, dnnl::algorithm::eltwise_relu, 0.f, 0.f);
     }
     if (std::regex_match(op_name, tanh_pat)) {
       ops.append_eltwise(1.f, dnnl::algorithm::eltwise_tanh, 0.f, 0.f);
     }
+    if (std::regex_match(op_name, clip_pat)) {
+      float a_min = GetNodeAttr<float>(nodes_[nid], "a_min");
+      float a_max = GetNodeAttr<float>(nodes_[nid], "a_max");
+      ops.append_eltwise(1.f, dnnl::algorithm::eltwise_clip, a_min, a_max);
+    }
     if (std::regex_match(op_name, sigmoid_pat)) {
       ops.append_eltwise(1.f, dnnl::algorithm::eltwise_logistic, 0.f, 0.f);
     }
+    if (std::regex_match(op_name, swish_pat)) {
+      ops.append_eltwise(1.f, dnnl::algorithm::eltwise_swish, 1.f, 1.f);
+    }
     if (std::regex_match(op_name, gelu_pat)) {
       ops.append_eltwise(1.f, dnnl::algorithm::eltwise_gelu_erf, 0.f, 0.f);
+    }
+    if (std::regex_match(op_name, mish_pat)) {
+      ops.append_eltwise(1.f, dnnl::algorithm::eltwise_mish, 1.f, 0.f);
     }
     if (ops.len() != 0) {
       attr.set_post_ops(ops);
@@ -259,6 +289,8 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
           Binary(nid, dnnl::algorithm::binary_mul);
         } else if ("nn.layer_norm" == op_name) {
           LayerNorm(nid);
+        } else if ("nn.batch_matmul" == op_name) {
+          BatchMatMul(nid);
         } else {
           LOG(FATAL) << "Unsupported op: " << op_name;
         }
@@ -268,6 +300,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
 
   void Convolution(const size_t& nid) {
     auto node = nodes_[nid];
+    auto op_name = nodes_[nid].GetOpName();
 
     // Setup attributes.
     auto src_tr = GetInput(nid, 0);
@@ -318,9 +351,15 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     // Let's try to compensate it for weight tensor. Weight IC should match with source IC.
     // Example src: [1, 3, 224, 224] with layout NCHW
     //         wgh: [16, 3, 3, 3] with layout OIHW2i8o -> [2, 2, 3, 3, 2, 8]
-    if (wgh_tr.dims()[2] != src_tr.dims()[1] / groups) {
+    // Similarly, Weight OC should match with destination OC.
+    // Example dst: [1, 1000, 7, 7] with layout NCHW
+    //         wgh: [1000, 1024, 1, 1] with layout OIHW48o -> [21, 1024, 1, 1, 48]
+    if (wgh_tr.dims()[0] != groups || wgh_tr.dims()[1] != dst_tr.dims()[1] / groups ||
+        wgh_tr.dims()[2] != src_tr.dims()[1] / groups) {
       auto wgh_croped_dims = wgh_tr.dims();
-      wgh_croped_dims[2] = src_tr.dims()[1];
+      wgh_croped_dims[0] = groups;
+      wgh_croped_dims[1] = dst_tr.dims()[1] / groups;  // wgh_OC = dst_OC / groups
+      wgh_croped_dims[2] = src_tr.dims()[1] / groups;  // wgh_IC = src_IC / groups
       auto zero_offset = dnnl::memory::dims(wgh_tr.dims().size(), 0);
       wgh_tr = wgh_tr.Crop(wgh_croped_dims, zero_offset);
     }
@@ -343,6 +382,10 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
 
     // TODO(@apeskov): Simulation of inplace primitive. just as PoC.
     auto sum_in_tr = GetInputByName(nid, "sum_idx").TreatAs(dst_layout);
+    if (op_name.find("_sum") != std::string::npos) {
+      sum_in_tr = GetInput(nid, node.GetInputs().size() - 1);
+      sum_in_tr = sum_in_tr.TreatAs(dst_layout);
+    }
 
     Submit(dnnl::convolution_forward(conv_prim_desc),
            {{DNNL_ARG_SRC, src_tr},
@@ -381,15 +424,10 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     // Minus one for DNNL representation. No dilation for DNNL is 0, for relay is 1.
     for (auto& d : dilates) d--;
 
-    // TODO(@apeskov): WA. conv3dTranspose uses wrong layout specifier. IO instead of OI.
-    auto wgh_logic_layout = TensorRequisite::DefaultLogicLayoutFor(wgh_layout);
-    if (wgh_logic_layout == "OIDHW") wgh_logic_layout = "IODHW";
-    if (wgh_logic_layout == "GOIDHW") wgh_logic_layout = "GIODHW";
-
     // Take into account provided layout strings
     src_tr = src_tr.TreatAs(src_layout);
     dst_tr = dst_tr.TreatAs(dst_layout);
-    wgh_tr = wgh_tr.TreatAs(wgh_layout, wgh_logic_layout);
+    wgh_tr = wgh_tr.TreatAs(wgh_layout);
 
     // Should support G mixed with O. Like { G*O, I, H, W }
     if (wgh_layout.find("G") == std::string::npos) {
@@ -427,6 +465,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
 
   void Dense(const size_t& nid) {
     auto node = nodes_[nid];
+    auto op_name = node.GetOpName();
 
     // Setup attributes.
     auto src_tr = GetInput(nid, 0);
@@ -457,6 +496,9 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
 
     // TODO(@apeskov): Simulation of inplace primitive. just as PoC.
     auto sum_in_tr = GetInputByName(nid, "sum_idx");
+    if (op_name.find("_sum") != std::string::npos) {
+      sum_in_tr = GetInput(nid, node.GetInputs().size() - 1);
+    }
 
     Submit(dnnl::inner_product_forward(dense_prim_desc),
            {{DNNL_ARG_SRC, src_tr},
@@ -465,6 +507,52 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
             {DNNL_ARG_SCRATCHPAD, scratchpad_tr},
             {DNNL_ARG_DST, dst_tr}},
            {sum_in_tr, DNNL_ARG_DST});
+  }
+
+  void BatchMatMul(const size_t& nid) {
+    auto node = nodes_[nid];
+
+    // Setup attributes.
+    auto src_tr = GetInput(nid, 0);
+    auto wgh_tr = GetInput(nid, 1);
+    auto dst_tr = GetOutput(nid, 0);
+    auto bias_tr = TensorRequisite{};
+
+    auto attr = ParseAttrs(nid, &bias_tr);
+    attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
+
+    bool transpose_a = GetNodeAttr<bool>(node, "transpose_a");
+    bool transpose_b = GetNodeAttr<bool>(node, "transpose_b");
+
+    if (transpose_a) {
+      src_tr = src_tr.Permute({0, 2, 1});
+    }
+    if (transpose_b) {
+      wgh_tr = wgh_tr.Permute({0, 2, 1});
+    }
+
+    // Assumption that bias is correct and can be squeezed to 1D
+    bias_tr = bias_tr.Reshape({dst_tr.dims()[1]});
+
+    // Matmul description.
+    auto bmm_desc = dnnl::matmul::desc(src_tr.LayoutAny().desc(), wgh_tr.LayoutAny().desc(),
+                                       bias_tr.LayoutAny().desc(), dst_tr.LayoutAny().desc());
+
+    // Enable elementwise post-ops.
+    auto bmm_prim_desc = dnnl::matmul::primitive_desc(bmm_desc, attr, engine_);
+
+    src_tr = src_tr.RequestLayout(bmm_prim_desc.src_desc());
+    wgh_tr = wgh_tr.RequestLayout(bmm_prim_desc.weights_desc());
+    dst_tr = dst_tr.RequestLayout(bmm_prim_desc.dst_desc());
+    bias_tr = bias_tr.RequestLayout(bmm_prim_desc.bias_desc());
+
+    auto scratchpad_tr = TensorRequisite::AsIs(bmm_prim_desc.scratchpad_desc());
+
+    Submit(dnnl::matmul(bmm_prim_desc), {{DNNL_ARG_SRC, src_tr},
+                                         {DNNL_ARG_WEIGHTS, wgh_tr},
+                                         {DNNL_ARG_BIAS, bias_tr},
+                                         {DNNL_ARG_SCRATCHPAD, scratchpad_tr},
+                                         {DNNL_ARG_DST, dst_tr}});
   }
 
   void BatchNorm(const size_t& nid) {
@@ -560,32 +648,46 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
 
   void Pooling(const size_t& nid, dnnl::algorithm algo) {
     auto node = nodes_[nid];
+    auto op_name = node.GetOpName();
+    bool is_global = op_name.find("global") != std::string::npos;
 
     auto src_tr = GetInput(nid, 0);
     auto dst_tr = GetOutput(nid, 0);
 
-    // Setup attributes.
-    auto strides = GetNodeAttr<std::vector<int64_t>>(node, "strides");
-    auto dilates = GetNodeAttr<std::vector<int64_t>>(node, "dilation");
-    auto padding = GetNodeAttr<std::vector<int64_t>>(node, "padding");
-    std::vector<int64_t> padding_l(padding.begin(), padding.begin() + padding.size() / 2);
-    std::vector<int64_t> padding_r(padding.begin() + padding.size() / 2, padding.end());
-    auto kernel = GetNodeAttr<std::vector<int64_t>>(node, "pool_size");
+    // Get layout.
     auto src_layout = GetNodeAttr<std::string>(node, "layout");
     auto dst_layout = GetNodeAttr<std::string>(node, "out_layout");
 
     // dst_layout == "" means to use data_layout
     if (dst_layout.empty()) dst_layout = src_layout;
 
-    // Minus one for DNNL representation. No dilation for DNNL is 0, for relay is 1.
-    for (auto& d : dilates) d--;
-
     // Take into account provided layout strings
     src_tr = src_tr.TreatAs(src_layout);
     dst_tr = dst_tr.TreatAs(dst_layout);
 
+    ICHECK(src_tr.dims().size() > 2);
+
+    std::vector<int64_t> feature_size;
+    for (size_t i = 2; i < src_tr.dims().size(); i++) {
+      feature_size.push_back(int64_t(src_tr.dims()[i]));
+    }
+
+    // Set attributes.
+    auto kernel = is_global ? feature_size : GetNodeAttr<std::vector<int64_t>>(node, "pool_size");
+    auto strides = is_global ? std::vector<int64_t>(src_tr.dims().size() - 2, 1)
+                             : GetNodeAttr<std::vector<int64_t>>(node, "strides");
+    auto dilates = is_global ? std::vector<int64_t>(src_tr.dims().size() - 2, 1)
+                             : GetNodeAttr<std::vector<int64_t>>(node, "dilation");
+    auto padding = is_global ? std::vector<int64_t>((src_tr.dims().size() - 2) * 2, 0)
+                             : GetNodeAttr<std::vector<int64_t>>(node, "padding");
+    std::vector<int64_t> padding_l(padding.begin(), padding.begin() + padding.size() / 2);
+    std::vector<int64_t> padding_r(padding.begin() + padding.size() / 2, padding.end());
+
+    // Minus one for DNNL representation. No dilation for DNNL is 0, for relay is 1.
+    for (auto& d : dilates) d--;
+
     // Attributes related to AvgPool
-    if (algo == dnnl::algorithm::pooling_avg) {
+    if (!is_global && algo == dnnl::algorithm::pooling_avg) {
       auto include_pad = GetNodeAttr<bool>(node, "count_include_pad");
       algo = include_pad ? dnnl::algorithm::pooling_avg_include_padding
                          : dnnl::algorithm::pooling_avg_exclude_padding;
@@ -739,7 +841,6 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
 
   TensorRequisite GetOutput(const size_t& nid, const int idx) {
     if (idx == -1) return {};  // -1 reserved value for empty input.
-
     const JSONGraphNode& node = nodes_[nid];
 
     ICHECK_LT(idx, node.GetNumOutput());
@@ -748,9 +849,22 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     auto eid = node_row_ptr_[nid] + static_cast<uint32_t>(idx);
 
     ICHECK(data_entry_[eid] == nullptr);
+
     auto desc = MakePlainDesc(shape, dtype);
 
     return TensorRequisite::AsIs(desc, eid).Backward();
+  }
+
+  bool IsIntermidate(const TensorRequisite& tr) {
+    auto eid = tr.eid();
+    bool is_input = std::find(input_nodes_.begin(), input_nodes_.end(), eid) != input_nodes_.end();
+    bool is_output = std::any_of(outputs_.begin(), outputs_.end(),
+                                 [eid](auto& output) { return output.id_ == eid; });
+    if (is_input || is_output) {
+      return false;
+    } else {
+      return true;
+    }
   }
 
   /*! \brief Helper function to register primitive into execution queue */
@@ -759,6 +873,16 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     // Register all provided TR arguments
     std::unordered_map<int, TensorRegistry::ArgId> prim_arg_id;
     TensorRegistry::ActionQue post_prim_actions;
+
+    // mark inplace tr
+    if (auto tr_in = inplace_conf.first) {
+      auto tr_out = tr_args.at(inplace_conf.second);
+      if (IsIntermidate(tr_in) && IsIntermidate(tr_out)) {
+        tensor_registry_.Register(tr_in, &net_);
+        tensor_registry_.MarkInplace(tr_out, tr_in);
+      }
+    }
+
     for (const auto& kvp : tr_args) {
       const auto& key = kvp.first;
       const auto& tr = kvp.second;
@@ -768,7 +892,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
       prim_arg_id[key] = arg_id;
     }
 
-    // Simulate inplace primitive
+    // Simulate inplace primitive, the reorder with src==dst will be skipped in Run()
     if (auto tr = inplace_conf.first) {
       auto arg_id = tensor_registry_.Register(tr, &net_);
       auto dst_tr = tr_args.at(inplace_conf.second);

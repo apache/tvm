@@ -32,6 +32,7 @@
 #include <vector>
 
 #include "../../transforms/infer_layout_utils.h"
+#include "pooling_common.h"
 
 namespace tvm {
 namespace relay {
@@ -39,43 +40,6 @@ namespace relay {
 // relay.nn.max_pool2d & relay.nn.avg_pool2d
 TVM_REGISTER_NODE_TYPE(MaxPool2DAttrs);
 TVM_REGISTER_NODE_TYPE(AvgPool2DAttrs);
-
-template <typename T>
-InferCorrectLayoutOutput PoolInferCorrectLayout(const Attrs& attrs,
-                                                const Array<Layout>& new_in_layouts,
-                                                const Array<Layout>& old_in_layouts,
-                                                const Array<tvm::relay::Type>& old_in_types) {
-  const auto* attrs_ptr = attrs.as<T>();
-  ICHECK(attrs_ptr);
-  ObjectPtr<T> params = make_object<T>(*attrs_ptr);
-
-  if (params->out_layout != "") {
-    // when users specify the out_layout of pooling, follow user's preference
-    ICHECK_EQ(params->layout, params->out_layout)
-        << "Pooling input/output layouts mismatch: " << params->layout << " vs. "
-        << params->out_layout;
-  } else if (new_in_layouts.defined()) {
-    // the pooling is using an inferred layout (i.e., new_in_layouts[0]) given by relay caller
-    ICHECK_EQ(new_in_layouts.size(), 1);
-    params->layout = new_in_layouts[0].name();
-  }
-
-  return InferCorrectLayoutOutput({params->layout}, {params->layout}, Attrs(params));
-}
-
-IndexExpr calculate_pool_dimension(IndexExpr in_dimension, IndexExpr pad_amount,
-                                   IndexExpr pool_size, IndexExpr dilation, IndexExpr stride_size,
-                                   bool ceil_mode) {
-  IndexExpr numerator = in_dimension + pad_amount - ((pool_size - 1) * dilation + 1);
-  IndexExpr denominator = stride_size;
-
-  // Emulate the behavior of running ceil on numerator / denominator rather than floor
-  if (ceil_mode) {
-    numerator += denominator - 1;
-  }
-
-  return numerator / denominator + 1;
-}
 
 template <typename AttrType>
 bool Pool2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
@@ -216,6 +180,7 @@ RELAY_REGISTER_OP("nn.max_pool2d")
     .set_support_level(2)
     .add_type_rel("MaxPool2D", Pool2DRel<MaxPool2DAttrs>)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", PoolInferCorrectLayout<MaxPool2DAttrs>)
+    .set_attr<TOpPattern>("TOpPattern", kOutEWiseFusable)
     .set_attr<FTVMCompute>("FTVMCompute", Pool2DCompute<MaxPool2DAttrs, topi::nn::kMaxPool>);
 
 // AvgPool2D
@@ -255,6 +220,7 @@ Average pooling operation for one dimensional data.
     .set_support_level(2)
     .add_type_rel("AvgPool2D", Pool2DRel<AvgPool2DAttrs>)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", PoolInferCorrectLayout<AvgPool2DAttrs>)
+    .set_attr<TOpPattern>("TOpPattern", kOutEWiseFusable)
     .set_attr<FTVMCompute>("FTVMCompute", Pool2DCompute<AvgPool2DAttrs, topi::nn::kAvgPool>);
 
 // relay.nn.global_pool_2d & relay.nn.max_pool_2d
@@ -335,6 +301,7 @@ RELAY_REGISTER_OP("nn.global_avg_pool2d")
     .set_support_level(2)
     .add_type_rel("GlobalAvgPool2D", GlobalPool2DRel)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", PoolInferCorrectLayout<GlobalPool2DAttrs>)
+    .set_attr<TOpPattern>("TOpPattern", kOutEWiseFusable)
     .set_attr<FTVMCompute>("FTVMCompute", GlobalPool2DCompute<topi::nn::kAvgPool>);
 
 // GlobalMaxPool
@@ -363,6 +330,7 @@ RELAY_REGISTER_OP("nn.global_max_pool2d")
     .set_support_level(2)
     .add_type_rel("GlobalMaxPool2D", GlobalPool2DRel)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", PoolInferCorrectLayout<GlobalPool2DAttrs>)
+    .set_attr<TOpPattern>("TOpPattern", kOutEWiseFusable)
     .set_attr<FTVMCompute>("FTVMCompute", GlobalPool2DCompute<topi::nn::kMaxPool>);
 
 // relay.nn.adaptive_pool_1d
@@ -463,6 +431,7 @@ RELAY_REGISTER_OP("nn.adaptive_avg_pool1d")
     .add_type_rel("AdaptiveAvgPool1D", AdaptivePool1DRel)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
                                    PoolInferCorrectLayout<AdaptivePool1DAttrs>)
+    .set_attr<TOpPattern>("TOpPattern", kOutEWiseFusable)
     .set_attr<FTVMCompute>("FTVMCompute", AdaptivePool1DCompute<topi::nn::kAvgPool>);
 
 // relay.nn.adaptive_max_pool1d
@@ -498,6 +467,7 @@ RELAY_REGISTER_OP("nn.adaptive_max_pool1d")
     .add_type_rel("AdaptiveMaxPool1D", AdaptivePool1DRel)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
                                    PoolInferCorrectLayout<AdaptivePool1DAttrs>)
+    .set_attr<TOpPattern>("TOpPattern", kOutEWiseFusable)
     .set_attr<FTVMCompute>("FTVMCompute", AdaptivePool1DCompute<topi::nn::kMaxPool>);
 
 // relay.nn.adaptive_pool_2d
@@ -617,6 +587,7 @@ RELAY_REGISTER_OP("nn.adaptive_avg_pool2d")
     .add_type_rel("AdaptiveAvgPool2D", AdaptivePool2DRel)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
                                    PoolInferCorrectLayout<AdaptivePool2DAttrs>)
+    .set_attr<TOpPattern>("TOpPattern", kOutEWiseFusable)
     .set_attr<FTVMCompute>("FTVMCompute", AdaptivePool2DCompute<topi::nn::kAvgPool>);
 
 // relay.nn.adaptive_max_pool2d
@@ -654,6 +625,7 @@ RELAY_REGISTER_OP("nn.adaptive_max_pool2d")
     .add_type_rel("AdaptiveMaxPool2D", AdaptivePool2DRel)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
                                    PoolInferCorrectLayout<AdaptivePool2DAttrs>)
+    .set_attr<TOpPattern>("TOpPattern", kOutEWiseFusable)
     .set_attr<FTVMCompute>("FTVMCompute", AdaptivePool2DCompute<topi::nn::kMaxPool>);
 
 // relay.nn.adaptive_pool3d
@@ -788,6 +760,7 @@ RELAY_REGISTER_OP("nn.adaptive_max_pool3d")
     .add_type_rel("AdaptiveMaxPool3D", AdaptivePool3DRel)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
                                    PoolInferCorrectLayout<AdaptivePool3DAttrs>)
+    .set_attr<TOpPattern>("TOpPattern", kOutEWiseFusable)
     .set_attr<FTVMCompute>("FTVMCompute", AdaptivePool3DCompute<topi::nn::kMaxPool>);
 
 // relay.nn.adaptive_max_pool3d
@@ -823,6 +796,7 @@ RELAY_REGISTER_OP("nn.adaptive_avg_pool3d")
     .add_type_rel("AdaptiveAvgPool3D", AdaptivePool3DRel)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
                                    PoolInferCorrectLayout<AdaptivePool3DAttrs>)
+    .set_attr<TOpPattern>("TOpPattern", kOutEWiseFusable)
     .set_attr<FTVMCompute>("FTVMCompute", AdaptivePool3DCompute<topi::nn::kAvgPool>);
 
 bool Pool2DGradRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
@@ -906,7 +880,7 @@ RELAY_REGISTER_OP("nn.max_pool2d_grad")
 
 - **out_grad**: This depends on the `layout` parameter. Output gradient is 4D array of
                 shape (batch_size, channels, out_height, out_width) if `layout` is `NCHW`.
-                out_height and out_width are are the output size of the pooling operation,
+                out_height and out_width are the output size of the pooling operation,
                 which are calculated as::
                     out_height = floor((height+padding[0]+padding[2]-pool_size[0])/strides[0])+1
                     out_width = floor((width+padding[1]+padding[3]-pool_size[1])/strides[1])+1
@@ -930,6 +904,7 @@ RELAY_REGISTER_OP("nn.max_pool2d_grad")
     .add_argument("grad", "Tensor", "The grad tensor.")
     .set_support_level(2)
     .add_type_rel("MaxPool2DGrad", Pool2DGradRel)
+    .set_attr<TOpPattern>("TOpPattern", kOutEWiseFusable)
     .set_attr<FTVMCompute>("FTVMCompute", Pool2DGradCompute<MaxPool2DAttrs, topi::nn::kMaxPool>);
 
 // AvgPool2DGrad
@@ -955,7 +930,7 @@ RELAY_REGISTER_OP("nn.avg_pool2d_grad")
 
 - **out_grad**: This depends on the `layout` parameter. Output gradient is 4D array of
                 shape (batch_size, channels, out_height, out_width) if `layout` is `NCHW`.
-                out_height and out_width are are the output size of the pooling operation,
+                out_height and out_width are the output size of the pooling operation,
                 which are calculated as::
                     out_height = floor((height+padding[0]+padding[2]-pool_size[0])/strides[0])+1
                     out_width = floor((width+padding[1]+padding[3]-pool_size[1])/strides[1])+1
@@ -979,6 +954,7 @@ RELAY_REGISTER_OP("nn.avg_pool2d_grad")
     .add_argument("grad", "Tensor", "The grad tensor.")
     .set_support_level(2)
     .add_type_rel("MaxPool2DGrad", Pool2DGradRel)
+    .set_attr<TOpPattern>("TOpPattern", kOutEWiseFusable)
     .set_attr<FTVMCompute>("FTVMCompute", Pool2DGradCompute<AvgPool2DAttrs, topi::nn::kAvgPool>);
 
 // relay.nn.max_pool1d & relay.nn.avg_pool1d
@@ -1101,6 +1077,7 @@ RELAY_REGISTER_OP("nn.max_pool1d")
     .set_support_level(2)
     .add_type_rel("MaxPool1D", Pool1DRel<MaxPool1DAttrs>)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", PoolInferCorrectLayout<MaxPool1DAttrs>)
+    .set_attr<TOpPattern>("TOpPattern", kOutEWiseFusable)
     .set_attr<FTVMCompute>("FTVMCompute", Pool1DCompute<MaxPool1DAttrs, topi::nn::kMaxPool>);
 
 // AvgPool1D
@@ -1138,6 +1115,7 @@ Average pooling operation for one dimensional data.
     .set_support_level(2)
     .add_type_rel("AvgPool1D", Pool1DRel<AvgPool1DAttrs>)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", PoolInferCorrectLayout<AvgPool1DAttrs>)
+    .set_attr<TOpPattern>("TOpPattern", kOutEWiseFusable)
     .set_attr<FTVMCompute>("FTVMCompute", Pool1DCompute<AvgPool1DAttrs, topi::nn::kAvgPool>);
 
 // relay.nn.max_pool3d & relay.nn.avg_pool3d
@@ -1291,6 +1269,7 @@ RELAY_REGISTER_OP("nn.max_pool3d")
     .set_support_level(2)
     .add_type_rel("MaxPool3D", Pool3DRel<MaxPool3DAttrs>)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", PoolInferCorrectLayout<MaxPool3DAttrs>)
+    .set_attr<TOpPattern>("TOpPattern", kOutEWiseFusable)
     .set_attr<FTVMCompute>("FTVMCompute", Pool3DCompute<MaxPool3DAttrs, topi::nn::kMaxPool>);
 
 // AvgPool3D
@@ -1331,6 +1310,7 @@ Average pooling operation for three dimensional data.
     .set_support_level(2)
     .add_type_rel("AvgPool3D", Pool3DRel<AvgPool3DAttrs>)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", PoolInferCorrectLayout<AvgPool3DAttrs>)
+    .set_attr<TOpPattern>("TOpPattern", kOutEWiseFusable)
     .set_attr<FTVMCompute>("FTVMCompute", Pool3DCompute<AvgPool3DAttrs, topi::nn::kAvgPool>);
 
 }  // namespace relay

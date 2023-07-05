@@ -73,6 +73,43 @@ def unified_element_wise_thread_x(a: T.handle, b: T.handle, c: T.handle) -> None
 
 
 @T.prim_func
+def element_wise_thread_x_different_dtype(
+    A: T.Buffer((128, 128), "float32"),
+    B: T.Buffer((128, 128), "float32"),
+    C: T.Buffer((128, 128), "float32"),
+) -> None:
+    for i in T.thread_binding(128, "blockIdx.x"):
+        for j0_0 in T.thread_binding(4, "threadIdx.x"):
+            for j0_1 in T.serial(0, 32):
+                with T.block(""):
+                    B[i, j0_0 * 32 + j0_1] = A[i, j0_0 * 32 + j0_1] * 2.0
+        for j1_0 in T.thread_binding(T.int64(4), "threadIdx.x"):
+            for j1_1 in T.serial(T.int64(32)):
+                with T.block(""):
+                    C[i, j1_0 * T.int64(32) + j1_1] = B[i, j1_0 * T.int64(32) + j1_1] + 1.0
+
+
+@T.prim_func
+def unified_element_wise_thread_x_different_dtype(
+    A: T.Buffer((128, 128), "float32"),
+    B: T.Buffer((128, 128), "float32"),
+    C: T.Buffer((128, 128), "float32"),
+) -> None:
+    for blockIdx_x in T.thread_binding(128, "blockIdx.x"):
+        for threadIdx_x in T.thread_binding(4, "threadIdx.x"):
+            for j0_1 in T.serial(0, 32):
+                with T.block(""):
+                    B[blockIdx_x, threadIdx_x * 32 + j0_1] = (
+                        A[blockIdx_x, threadIdx_x * 32 + j0_1] * 2.0
+                    )
+            for j1_1 in T.serial(T.int64(32)):
+                with T.block(""):
+                    C[blockIdx_x, T.cast(threadIdx_x, "int64") * T.int64(32) + j1_1] = (
+                        B[blockIdx_x, T.cast(threadIdx_x, "int64") * T.int64(32) + j1_1] + 1.0
+                    )
+
+
+@T.prim_func
 def element_wise_env_thread_x(a: T.handle, b: T.handle, c: T.handle) -> None:
     j1_0 = T.env_thread("threadIdx.x")
     j0_0 = T.env_thread("threadIdx.x")
@@ -219,8 +256,51 @@ def unified_element_wise_implicit_block(a: T.handle, b: T.handle, c: T.handle) -
                     )
 
 
+@T.prim_func
+def match_buffer_with_elem_offset(
+    A: T.Buffer((8, 10, 8), "float32"), I: T.Buffer((4,), "int32"), offset: T.int32
+) -> None:
+    for i in T.thread_binding(0, 4, "blockIdx.x"):
+        for j in range(2):
+            with T.block():
+                T.writes(A[I[i], offset, j * 4 : j * 4 + 4])
+                sub_A = T.match_buffer(
+                    A[I[i], offset, j * 4 : j * 4 + 4],
+                    (4),
+                    elem_offset=I[i] * 80 + offset * 8 + j * 4,
+                )
+                for ji in range(0, 4):
+                    sub_A[j * 4 + ji] = 1
+
+
+@T.prim_func
+def unified_match_buffer_with_elem_offset(
+    A: T.Buffer((8, 10, 8), "float32"), I: T.Buffer((4,), "int32"), offset: T.int32
+) -> None:
+    for blockIdx_x in T.thread_binding(4, thread="blockIdx.x"):
+        for j in range(2):
+            with T.block(""):
+                T.reads(I[blockIdx_x])
+                T.writes(A[I[blockIdx_x], offset, j * 4 : j * 4 + 4])
+                sub_A = T.match_buffer(
+                    A[I[blockIdx_x], offset, j * 4 : j * 4 + 4],
+                    (4,),
+                    elem_offset=I[blockIdx_x] * 80 + offset * 8 + j * 4,
+                )
+                for ji in range(4):
+                    i = T.int32()
+                    sub_A_1 = T.Buffer(
+                        (4,), data=sub_A.data, elem_offset=I[i] * 80 + offset * 8 + j * 4
+                    )
+                    sub_A_1[j * 4 + ji] = T.float32(1)
+
+
 def test_thread_x():
     _check(element_wise_thread_x, unified_element_wise_thread_x)
+
+
+def test_thread_x_different_dtype():
+    _check(element_wise_thread_x_different_dtype, unified_element_wise_thread_x_different_dtype)
 
 
 def test_env_thread_x():
@@ -243,6 +323,35 @@ def test_kernels_with_different_size():
 
 def test_implicit_block():
     _check(element_wise_implicit_block, unified_element_wise_implicit_block)
+
+
+def test_match_buffer_with_elem_offset():
+    _check(match_buffer_with_elem_offset, unified_match_buffer_with_elem_offset)
+
+
+def test_inner_binding_with_annotation():
+    @T.prim_func
+    def inner_binding_with_annotation(A: T.Buffer((64,), "float32"), B: T.Buffer((64,), "float32")):
+        for bx in T.thread_binding(32, "blockIdx.x"):
+            for tx in T.thread_binding(2, "threadIdx.x", annotations={"my_annotation": 1}):
+                with T.block("block"):
+                    v = T.axis.spatial(64, bx * 2 + tx)
+                    B[v] = A[v]
+
+    @T.prim_func
+    def unified_inner_binding_with_annotation(
+        A: T.Buffer((64,), "float32"), B: T.Buffer((64,), "float32")
+    ):
+        for blockIdx_x in T.thread_binding(32, thread="blockIdx.x"):
+            for threadIdx_x in T.thread_binding(2, thread="threadIdx.x"):
+                for var in T.serial(1, annotations={"my_annotation": 1}):
+                    with T.block("block"):
+                        v = T.axis.spatial(64, blockIdx_x * 2 + threadIdx_x)
+                        T.reads(A[v])
+                        T.writes(B[v])
+                        B[v] = A[v]
+
+    _check(inner_binding_with_annotation, unified_inner_binding_with_annotation)
 
 
 def test_lower_te():

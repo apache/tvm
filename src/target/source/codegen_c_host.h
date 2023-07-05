@@ -40,11 +40,12 @@ namespace codegen {
 class CodeGenCHost : public CodeGenC {
  public:
   CodeGenCHost();
-  void Init(bool output_ssa, bool emit_asserts, std::string target_str,
+  void Init(bool output_ssa, bool emit_asserts, bool emit_fwd_func_decl, std::string target_str,
             const std::unordered_set<std::string>& devices);
 
   void InitGlobalContext();
-  void AddFunction(const PrimFunc& f);
+  void AddFunction(const PrimFunc& f, bool emit_fwd_func_decl = false);
+  std::string Finish() final;
   /*!
    * \brief Add functions from the (unordered) range to the current module in a deterministic
    * order. This helps with debugging.
@@ -54,13 +55,13 @@ class CodeGenCHost : public CodeGenC {
   void AddFunctionsOrdered(std::vector<std::pair<tvm::GlobalVar, tvm::BaseFunc>> functions);
   void DefineModuleName();
 
+  using CodeGenC::PrintType;
   void PrintType(DataType t, std::ostream& os) final;  // NOLINT(*)
-  void PrintFuncPrefix() final;                        // NOLINT(*)
-  void PrintFinalReturn() final;                       // NOLINT(*)
+  void PrintFuncPrefix(std::ostream& os) final;        // NOLINT(*)
 
   // overload visitor functions
   void VisitExpr_(const BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)
-  void VisitExpr_(const CallNode* op, std::ostream& os);             // NOLINT(*)
+  void VisitExpr_(const CallNode* op, std::ostream& os) override;    // NOLINT(*)
   // overload min and max to use the ternary operator, so we don't rely on the
   // standard library implementations
   void VisitExpr_(const MinNode* op, std::ostream& os) final;  // NOLINT(*)
@@ -68,6 +69,8 @@ class CodeGenCHost : public CodeGenC {
 
   void VisitStmt_(const AssertStmtNode* op) final;  // NOLINT(*)
 
+  void GenerateForwardFunctionDeclarations(String global_symbol, const Array<Type>& arg_types,
+                                           const Type& ret_type) override;
   Array<String> GetFunctionNames() { return function_names_; }
 
  private:
@@ -87,6 +90,8 @@ class CodeGenCHost : public CodeGenC {
   Array<String> function_names_;
   /*! \brief whether to emit asserts in the resulting C code */
   bool emit_asserts_;
+  /*! \brief whether to emit forwared function declarations in the resulting C code */
+  bool emit_fwd_func_decl_;
 
   FunctionInfo GetFunctionInfo(const CallNode* op, bool has_resource_handle);
   std::string GetPackedName(const CallNode* op);

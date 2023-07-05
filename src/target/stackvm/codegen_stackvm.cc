@@ -139,10 +139,6 @@ int CodeGenStackVM::GetVarID(const VarNode* v) const {
   return it->second;
 }
 
-void CodeGenStackVM::VisitExpr_(const LoadNode* op) {
-  LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
-}
-
 void CodeGenStackVM::VisitExpr_(const BufferLoadNode* op) {
   ICHECK_EQ(op->indices.size(), 1) << "StackVM expects flat 1-d buffers.  "
                                    << "Has StorageFlatten (TE-based schedules) or "
@@ -160,10 +156,6 @@ void CodeGenStackVM::VisitExpr_(const BufferLoadNode* op) {
     this->PushOp(StackVM::ADDR_ADD);
     this->PushOp(code, 0);
   }
-}
-
-void CodeGenStackVM::VisitStmt_(const StoreNode* op) {
-  LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
 }
 
 void CodeGenStackVM::VisitStmt_(const BufferStoreNode* op) {
@@ -190,6 +182,8 @@ void CodeGenStackVM::VisitStmt_(const BufferStoreNode* op) {
 void CodeGenStackVM::VisitStmt_(const AllocateNode* op) {
   LOG(FATAL) << "Dynamic allocation not supported";
 }
+
+void CodeGenStackVM::VisitStmt_(const DeclBufferNode* op) { VisitStmt(op->body); }
 
 void CodeGenStackVM::VisitExpr_(const CallNode* op) {
   if (op->op.same_as(builtin::address_of())) {
@@ -290,6 +284,12 @@ void CodeGenStackVM::VisitExpr_(const CallNode* op) {
     this->Push(op->args[0]);
     this->PushOp(StackVM::PUSH_I64, 0);
     this->PushOp(StackVM::EQ_HANDLE);
+  } else if (op->op.same_as(builtin::ret())) {
+    CHECK(op->args.size() == 1 && op->args[0]->IsInstance<IntImmNode>() &&
+          op->args[0].as<IntImmNode>()->value == 0)
+        << "StackVM does not support return values, "
+        << "and the return value " << op->args
+        << " is not special case of returning an error code of zero.";
   } else {
     LOG(FATAL) << "unknown function call " << op->op;
   }
@@ -475,13 +475,13 @@ void CodeGenStackVM::VisitStmt_(const IfThenElseNode* op) {
   int64_t else_jump = this->PushOp(StackVM::RJUMP_IF_FALSE, 0);
   this->PushOp(StackVM::POP);
   this->Push(op->then_case);
-  if (op->else_case.defined()) {
+  if (op->else_case) {
     int64_t label_then_jump = this->GetPC();
     int64_t then_jump = this->PushOp(StackVM::RJUMP, 0);
     int64_t else_begin = this->GetPC();
     this->SetOperand(else_jump, else_begin - label_ejump);
     this->PushOp(StackVM::POP);
-    this->Push(op->else_case);
+    this->Push(op->else_case.value());
     int64_t if_end = this->GetPC();
     this->SetOperand(then_jump, if_end - label_then_jump);
   } else {

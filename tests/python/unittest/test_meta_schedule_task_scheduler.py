@@ -15,25 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 """ Test Meta Schedule Task Scheduler """
-
 import random
 import weakref
 from typing import Set
 
 import pytest
+
 import tvm
 import tvm.testing
 from tvm import meta_schedule as ms
-from tvm._ffi.base import TVMError
 from tvm.meta_schedule.testing.dummy_object import DummyBuilder, DummyRunner
 from tvm.script import tir as T
 from tvm.tir import Schedule
-
-# from tvm.meta_schedule import TuneContext, measure_callback
-# from tvm.meta_schedule.search_strategy import ReplayTrace
-# from tvm.meta_schedule.space_generator import ScheduleFn
-# from tvm.meta_schedule.task_scheduler import GradientBased, PyTaskScheduler, RoundRobin
-# from tvm.meta_schedule.utils import derived_object
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring
 
@@ -130,9 +123,10 @@ class MyTaskScheduler(ms.task_scheduler.PyTaskScheduler):
     done: Set = set()
 
     def next_task_id(self) -> int:
-        while len(self.done) != len(self.tasks):
-            x = random.randint(0, len(self.tasks) - 1)
-            task = self.tasks[x]
+        tasks = self._outer().tasks_
+        while len(self.done) != len(tasks):
+            x = random.randint(0, len(tasks) - 1)
+            task = tasks[x]
             if not task.is_terminated:
                 """Calling base func via following route:
                 Python side:
@@ -156,28 +150,28 @@ def test_meta_schedule_task_scheduler_single():
     num_trials_per_iter = 3
     max_trials_per_task = 10
     database = ms.database.MemoryDatabase()
-    round_robin = ms.task_scheduler.RoundRobin(
+    round_robin = ms.task_scheduler.RoundRobin()
+    round_robin.tune(
         [
             ms.TuneContext(
                 MatmulModule,
                 target=tvm.target.Target("llvm"),
-                space_generator=ms.space_generator.ScheduleFn(sch_fn=_schedule_matmul),
-                search_strategy=ms.search_strategy.ReplayTrace(
-                    num_trials_per_iter,
-                    max_trials_per_task,
-                ),
+                space_generator=_schedule_matmul,
+                search_strategy=ms.search_strategy.ReplayTrace(),
                 task_name="Test",
                 rand_state=42,
             )
         ],
         [1.0],
+        max_trials_global=num_trials_per_iter,
+        max_trials_per_task=max_trials_per_task,
+        num_trials_per_iter=64,
         builder=DummyBuilder(),
         runner=DummyRunner(),
         database=database,
         measure_callbacks=[ms.measure_callback.AddToDatabase()],
-        max_trials=max_trials_per_task,
+        cost_model=None,
     )
-    round_robin.tune()
     assert len(database) == max_trials_per_task
 
 
@@ -188,48 +182,42 @@ def test_meta_schedule_task_scheduler_multiple():
         ms.TuneContext(
             MatmulModule,
             target=tvm.target.Target("llvm"),
-            space_generator=ms.space_generator.ScheduleFn(sch_fn=_schedule_matmul),
-            search_strategy=ms.search_strategy.ReplayTrace(
-                num_trials_per_iter,
-                max_trials_per_task,
-            ),
+            space_generator=_schedule_matmul,
+            search_strategy=ms.search_strategy.ReplayTrace(),
             task_name="Matmul",
             rand_state=42,
         ),
         ms.TuneContext(
             MatmulReluModule,
             target=tvm.target.Target("llvm"),
-            space_generator=ms.space_generator.ScheduleFn(sch_fn=_schedule_matmul),
-            search_strategy=ms.search_strategy.ReplayTrace(
-                num_trials_per_iter,
-                max_trials_per_task,
-            ),
+            space_generator=_schedule_matmul,
+            search_strategy=ms.search_strategy.ReplayTrace(),
             task_name="MatmulRelu",
             rand_state=0xDEADBEEF,
         ),
         ms.TuneContext(
             BatchMatmulModule,
             target=tvm.target.Target("llvm"),
-            space_generator=ms.space_generator.ScheduleFn(sch_fn=_schedule_batch_matmul),
-            search_strategy=ms.search_strategy.ReplayTrace(
-                num_trials_per_iter,
-                max_trials_per_task,
-            ),
+            space_generator=_schedule_batch_matmul,
+            search_strategy=ms.search_strategy.ReplayTrace(),
             task_name="BatchMatmul",
             rand_state=0x114514,
         ),
     ]
     database = ms.database.MemoryDatabase()
-    round_robin = ms.task_scheduler.RoundRobin(
+    round_robin = ms.task_scheduler.RoundRobin()
+    round_robin.tune(
         tasks,
         [1.0, 1.0, 1.0],
         builder=DummyBuilder(),
         runner=DummyRunner(),
         database=database,
         measure_callbacks=[ms.measure_callback.AddToDatabase()],
-        max_trials=max_trials_per_task * len(tasks),
+        max_trials_global=max_trials_per_task * len(tasks),
+        max_trials_per_task=max_trials_per_task,
+        num_trials_per_iter=num_trials_per_iter,
+        cost_model=None,
     )
-    round_robin.tune()
     assert len(database) == max_trials_per_task * len(tasks)
     for task in tasks:
         assert (
@@ -248,82 +236,60 @@ def test_meta_schedule_task_scheduler_NIE():  # pylint: disable=invalid-name
     class NIETaskScheduler(ms.task_scheduler.PyTaskScheduler):
         pass
 
-    with pytest.raises(TVMError, match="PyTaskScheduler's NextTaskId method not implemented!"):
-        scheduler = NIETaskScheduler(
-            tasks=[],
-            builder=DummyBuilder(),
-            runner=DummyRunner(),
-            database=ms.database.MemoryDatabase(),
-            max_trials=1,
-        )
+    with pytest.raises(ValueError, match="next_task_id is not defined"):
+        scheduler = NIETaskScheduler()
         scheduler.next_task_id()
 
 
 def test_meta_schedule_task_scheduler_avoid_cyclic():  # pylint: disable=invalid-name
-    database = ms.database.MemoryDatabase()
-    scheduler = MyTaskScheduler(
-        [],
-        builder=DummyBuilder(),
-        runner=DummyRunner(),
-        database=database,
-        measure_callbacks=[
-            ms.measure_callback.AddToDatabase(),
-        ],
-        max_trials=10,
-    )
+    scheduler = MyTaskScheduler()
     test = weakref.ref(scheduler)  # test if it can be destructed successfully
     del scheduler
     assert test() is None
 
 
 def test_meta_schedule_task_scheduler_override_next_task_id_only():  # pylint: disable=invalid-name
-    num_trials_per_iter = 6
     max_trials_per_task = 101
     tasks = [
         ms.TuneContext(
             MatmulModule,
             target=tvm.target.Target("llvm"),
-            space_generator=ms.space_generator.ScheduleFn(sch_fn=_schedule_matmul),
-            search_strategy=ms.search_strategy.ReplayTrace(
-                num_trials_per_iter,
-                max_trials_per_task,
-            ),
+            space_generator=_schedule_matmul,
+            search_strategy=ms.search_strategy.ReplayTrace(),
             task_name="Matmul",
             rand_state=42,
         ),
         ms.TuneContext(
             MatmulReluModule,
             target=tvm.target.Target("llvm"),
-            space_generator=ms.space_generator.ScheduleFn(sch_fn=_schedule_matmul),
-            search_strategy=ms.search_strategy.ReplayTrace(
-                num_trials_per_iter,
-                max_trials_per_task,
-            ),
+            space_generator=_schedule_matmul,
+            search_strategy=ms.search_strategy.ReplayTrace(),
             task_name="MatmulRelu",
             rand_state=0xDEADBEEF,
         ),
         ms.TuneContext(
             BatchMatmulModule,
             target=tvm.target.Target("llvm"),
-            space_generator=ms.space_generator.ScheduleFn(sch_fn=_schedule_batch_matmul),
-            search_strategy=ms.search_strategy.ReplayTrace(
-                num_trials_per_iter,
-                max_trials_per_task,
-            ),
+            space_generator=_schedule_batch_matmul,
+            search_strategy=ms.search_strategy.ReplayTrace(),
             task_name="BatchMatmul",
             rand_state=0x114514,
         ),
     ]
     database = ms.database.MemoryDatabase()
-    scheduler = MyTaskScheduler(
+    scheduler = MyTaskScheduler()
+    scheduler.tune(
         tasks,
+        task_weights=[1.0] * len(tasks),
         builder=DummyBuilder(),
         runner=DummyRunner(),
         database=database,
         measure_callbacks=[ms.measure_callback.AddToDatabase()],
-        max_trials=max_trials_per_task * len(tasks),
+        max_trials_global=max_trials_per_task * len(tasks),
+        max_trials_per_task=max_trials_per_task,
+        num_trials_per_iter=6,
+        cost_model=None,
     )
-    scheduler.tune()
     assert len(database) == max_trials_per_task * len(tasks)
     for task in tasks:
         assert (
@@ -338,55 +304,47 @@ def test_meta_schedule_task_scheduler_override_next_task_id_only():  # pylint: d
 
 
 def test_meta_schedule_task_scheduler_multiple_gradient_based():
-    num_trials_per_iter = 6
     max_trials_per_task = 101
     tasks = [
         ms.TuneContext(
             MatmulModule,
             target=tvm.target.Target("llvm"),
-            space_generator=ms.space_generator.ScheduleFn(sch_fn=_schedule_matmul),
-            search_strategy=ms.search_strategy.ReplayTrace(
-                num_trials_per_iter,
-                max_trials_per_task,
-            ),
+            space_generator=_schedule_matmul,
+            search_strategy=ms.search_strategy.ReplayTrace(),
             task_name="Matmul",
             rand_state=42,
         ),
         ms.TuneContext(
             MatmulReluModule,
             target=tvm.target.Target("llvm"),
-            space_generator=ms.space_generator.ScheduleFn(sch_fn=_schedule_matmul),
-            search_strategy=ms.search_strategy.ReplayTrace(
-                num_trials_per_iter,
-                max_trials_per_task,
-            ),
+            space_generator=_schedule_matmul,
+            search_strategy=ms.search_strategy.ReplayTrace(),
             task_name="MatmulRelu",
             rand_state=0xDEADBEEF,
         ),
         ms.TuneContext(
             BatchMatmulModule,
             target=tvm.target.Target("llvm"),
-            space_generator=ms.space_generator.ScheduleFn(sch_fn=_schedule_batch_matmul),
-            search_strategy=ms.search_strategy.ReplayTrace(
-                num_trials_per_iter,
-                max_trials_per_task,
-            ),
+            space_generator=_schedule_batch_matmul,
+            search_strategy=ms.search_strategy.ReplayTrace(),
             task_name="BatchMatmul",
             rand_state=0x114514,
         ),
     ]
     database = ms.database.MemoryDatabase()
-    gradient_based = ms.task_scheduler.GradientBased(
+    gradient_based = ms.task_scheduler.GradientBased()
+    gradient_based.tune(
         tasks,
         task_weights=[1.0, 1.0, 1.0],
         builder=DummyBuilder(),
         runner=DummyRunner(),
         database=database,
         measure_callbacks=[ms.measure_callback.AddToDatabase()],
-        seed=0x20220214,
-        max_trials=max_trials_per_task * len(tasks),
+        max_trials_global=max_trials_per_task * len(tasks),
+        max_trials_per_task=max_trials_per_task,
+        num_trials_per_iter=6,
+        cost_model=None,
     )
-    gradient_based.tune()
     assert len(database) == max_trials_per_task * len(tasks)
     for task in tasks:
         assert (
@@ -395,5 +353,94 @@ def test_meta_schedule_task_scheduler_multiple_gradient_based():
         )
 
 
+def test_meta_schedule_task_scheduler_gradient_based_with_null_search_strategy():
+    """
+    When search strategy of one task returns empty list of candidates or None,
+    the scheduler should continue working as normal for other tasks
+    """
+
+    @ms.derived_object
+    class NullSearchStrategy(ms.search_strategy.PySearchStrategy):
+        def __init__(self, rounds_with_empty_candidates):
+            self.rounds_with_empty_candidates = rounds_with_empty_candidates
+
+        def _initialize_with_tune_context(self, context: "TuneContext") -> None:
+            pass
+
+        def pre_tuning(self, *args, **kwargs):
+            pass
+
+        def post_tuning(self):
+            pass
+
+        def generate_measure_candidates(self):
+            """
+            Returns empty list to indicate there is no result from search, while
+            the search isn't ended.
+            """
+            if self.rounds_with_empty_candidates:
+                self.rounds_with_empty_candidates -= 1
+                return []
+            return None
+
+        def notify_runner_results(self, *args, **kwargs):
+            pass
+
+        def clone(self):
+            return NullSearchStrategy(n=self.n)
+
+    tasks = [
+        ms.TuneContext(
+            MatmulModule,
+            target=tvm.target.Target("llvm"),
+            space_generator=_schedule_matmul,
+            search_strategy=NullSearchStrategy(rounds_with_empty_candidates=5),
+            task_name="Matmul",
+            rand_state=42,
+        ),
+        ms.TuneContext(
+            BatchMatmulModule,
+            target=tvm.target.Target("llvm"),
+            space_generator=_schedule_batch_matmul,
+            search_strategy=NullSearchStrategy(rounds_with_empty_candidates=0),
+            task_name="BatchMatmul",
+            rand_state=0x114514,
+        ),
+        ms.TuneContext(
+            MatmulReluModule,
+            target=tvm.target.Target("llvm"),
+            space_generator=_schedule_matmul,
+            search_strategy=ms.search_strategy.ReplayTrace(),
+            task_name="MatmulRelu",
+            rand_state=0xDEADBEEF,
+        ),
+    ]
+    database = ms.database.MemoryDatabase()
+    gradient_based = ms.task_scheduler.GradientBased()
+    gradient_based.tune(
+        tasks,
+        task_weights=[1.0, 1.0, 1.0],
+        builder=DummyBuilder(),
+        runner=DummyRunner(),
+        database=database,
+        measure_callbacks=[ms.measure_callback.AddToDatabase()],
+        max_trials_global=30,
+        max_trials_per_task=10,
+        num_trials_per_iter=6,
+        cost_model=None,
+    )
+
+    assert len(database) == 10
+    assert len(database.get_top_k(database.commit_workload(MatmulModule), 100)) == 0
+    assert len(database.get_top_k(database.commit_workload(BatchMatmulModule), 100)) == 0
+    assert len(database.get_top_k(database.commit_workload(MatmulReluModule), 100)) == 10
+
+
 if __name__ == "__main__":
-    tvm.testing.main()
+    test_meta_schedule_task_scheduler_single()
+    test_meta_schedule_task_scheduler_multiple()
+    test_meta_schedule_task_scheduler_NIE()
+    test_meta_schedule_task_scheduler_avoid_cyclic()
+    test_meta_schedule_task_scheduler_override_next_task_id_only()
+    test_meta_schedule_task_scheduler_multiple_gradient_based()
+    test_meta_schedule_task_scheduler_gradient_based_with_null_search_strategy()

@@ -22,11 +22,10 @@
  * \brief Used by TVM Script parser to expand incomplete TIR input
  */
 
+#include "./script_complete.h"
+
 #include <tvm/arith/int_set.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/tir/analysis.h>
-#include <tvm/tir/stmt.h>
-#include <tvm/tir/stmt_functor.h>
 
 #include <utility>
 
@@ -106,16 +105,35 @@ PrimFunc ScriptComplete(PrimFunc func, const Array<Buffer>& root_allocates) {
   for (const auto& alloc : root_allocates) {
     buffer_var_map.Set(alloc->data, alloc);
   }
-  bool contain_root = root_allocates.empty() && func->body->IsInstance<BlockRealizeNode>() &&
-                      Downcast<BlockRealize>(func->body)->block->iter_vars.empty();
-  ScriptCompleter script_completer(&buffer_var_map);
-  // generate surrounding loops automatically
-  Stmt res = script_completer(func->body);
-  // generate root block automatically
-  if ((script_completer.contains_block || root_allocates.size()) && !contain_root) {
-    res = Block({}, {}, {}, "root", res, NullOpt, root_allocates);
-    res = BlockRealize({}, Bool(true), Downcast<Block>(res));
+
+  Stmt res = func->body;
+
+  // Generate root block automatically.  This is done before
+  // ScriptCompleter, in order to fill the root block's T.reads() and
+  // T.writes() annotations, as if it had been explicitly written.
+  bool should_insert_root = [&]() -> bool {
+    if (root_allocates.size()) {
+      return true;
+    }
+    auto* block_realize = func->body.as<BlockRealizeNode>();
+    if (block_realize && block_realize->block->iter_vars.size()) {
+      return true;
+    }
+    if (!block_realize && ContainsNode<BlockRealizeNode>(func->body)) {
+      return true;
+    }
+    return false;
+  }();
+
+  if (should_insert_root) {
+    Block root_block({}, {}, {}, "root", std::move(res), NullOpt, root_allocates);
+    res = BlockRealize({}, Bool(true), std::move(root_block));
   }
+
+  // generate surrounding loops automatically
+  ScriptCompleter script_completer(&buffer_var_map);
+  res = script_completer(std::move(res));
+
   if (func->body.same_as(res)) {
     return func;
   } else {

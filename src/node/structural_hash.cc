@@ -22,6 +22,7 @@
 #include <dmlc/memory_io.h>
 #include <tvm/node/functor.h>
 #include <tvm/node/node.h>
+#include <tvm/node/object_path.h>
 #include <tvm/node/reflection.h>
 #include <tvm/node/structural_hash.h>
 #include <tvm/runtime/container/adt.h>
@@ -34,10 +35,11 @@
 #include "../support/base64.h"
 #include "../support/str_escape.h"
 #include "../support/utils.h"
+#include "ndarray_hash_equal.h"
 
 namespace tvm {
 
-// Define the dispatch functio here since primary user is in this file.
+// Define the dispatch function here since primary user is in this file.
 void ReflectionVTable::SHashReduce(const Object* self, SHashReducer reducer) const {
   uint32_t tindex = self->type_index();
   if (tindex >= fshash_reduce_.size() || fshash_reduce_[tindex] == nullptr) {
@@ -48,14 +50,16 @@ void ReflectionVTable::SHashReduce(const Object* self, SHashReducer reducer) con
 }
 
 // Hash handler that handles free vars
-// by assigning an unique counter in the order of their ocurrence.
+// by assigning an unique counter in the order of their occurrence.
 //
 // This algorithm depends on the determinism of the traversal of SHash function.
 // In particular, when we traverse unordered_map, we should first sort
 // the entries by keys(or hash of keys) before traversing.
 
-class VarCountingSHashHandler : public SHashReducer::Handler {
+class SHashHandlerDefault::Impl {
  public:
+  explicit Impl(SHashHandlerDefault* parent) : parent_(parent) {}
+
   /*! \brief Pending reduce tasks. */
   struct Task {
     /*!
@@ -65,9 +69,9 @@ class VarCountingSHashHandler : public SHashReducer::Handler {
      */
     ObjectRef object;
     /*! \brief The partially reduce hash value.*/
-    size_t reduced_hash;
+    uint64_t reduced_hash;
     /*! \brief The expected location in the result stack. */
-    size_t result_stack_index = std::numeric_limits<size_t>::max();
+    uint64_t result_stack_index = std::numeric_limits<uint64_t>::max();
     /*! \brief Whether the children has been expanded via SEqualReduce */
     bool children_expanded{false};
     /*! \brief Whether the node is graph node. */
@@ -76,19 +80,17 @@ class VarCountingSHashHandler : public SHashReducer::Handler {
     bool map_free_vars;
 
     Task() = default;
-    explicit Task(ObjectRef object, size_t reduced_hash, bool map_free_vars)
+    explicit Task(ObjectRef object, uint64_t reduced_hash, bool map_free_vars)
         : object(object), reduced_hash(reduced_hash), map_free_vars(map_free_vars) {}
   };
 
-  VarCountingSHashHandler() {}
-
-  void MarkGraphNode() final {
+  void MarkGraphNode() {
     // need to push to pending tasks in this case
     ICHECK(!allow_push_to_stack_ && !task_stack_.empty());
     task_stack_.back().graph_node_hash = true;
   }
 
-  bool LookupHashedValue(const ObjectRef& key, size_t* hash_value) final {
+  bool LookupHashedValue(const ObjectRef& key, uint64_t* hash_value) {
     auto it = hash_memo_.find(key);
     if (it != hash_memo_.end()) {
       hash_value[0] = it->second;
@@ -97,26 +99,26 @@ class VarCountingSHashHandler : public SHashReducer::Handler {
     return false;
   }
 
-  void SHashReduceHashedValue(size_t hashed_value) final {
+  void SHashReduceHashedValue(uint64_t hashed_value) {
     pending_tasks_.emplace_back(Task(ObjectRef(nullptr), hashed_value, false));
   }
 
-  void SHashReduceFreeVar(const runtime::Object* var, bool map_free_vars) final {
+  void SHashReduceFreeVar(const runtime::Object* var, bool map_free_vars) {
     ICHECK(!hash_memo_.count(GetRef<ObjectRef>(var)));
     if (map_free_vars) {
       // use counter value.
-      size_t value = std::hash<size_t>()(free_var_counter_++);
+      uint64_t value = std::hash<uint64_t>()(free_var_counter_++);
       pending_tasks_.emplace_back(Task(ObjectRef(nullptr), value, false));
     } else {
       // use pointer hash
-      size_t value = std::hash<const runtime::Object*>()(var);
+      uint64_t value = std::hash<const runtime::Object*>()(var);
       pending_tasks_.emplace_back(Task(ObjectRef(nullptr), value, false));
     }
   }
 
-  void SHashReduce(const ObjectRef& object, bool map_free_vars) final {
+  void SHashReduce(const ObjectRef& object, bool map_free_vars) {
     // Directly push the result
-    // Note: it is still important to push the result to pendng tasks
+    // Note: it is still important to push the result to pending tasks
     // so that the reduction order of hash values stays the same.
     if (!object.defined()) {
       pending_tasks_.emplace_back(Task(ObjectRef(nullptr), 0, false));
@@ -131,7 +133,7 @@ class VarCountingSHashHandler : public SHashReducer::Handler {
     }
   }
 
-  size_t Hash(const ObjectRef& object, bool map_free_vars) {
+  uint64_t Hash(const ObjectRef& object, bool map_free_vars) {
     ICHECK_EQ(task_stack_.size(), 0U);
     ICHECK_EQ(pending_tasks_.size(), 0U);
     ICHECK_EQ(result_stack_.size(), 0U);
@@ -145,9 +147,14 @@ class VarCountingSHashHandler : public SHashReducer::Handler {
     this->RunTasks();
 
     ICHECK_EQ(result_stack_.size(), 1U);
-    size_t ret = result_stack_.back();
+    uint64_t ret = result_stack_.back();
     result_stack_.pop_back();
     return ret;
+  }
+
+  void DispatchSHash(const ObjectRef& object, bool map_free_vars) {
+    ICHECK(object.defined());
+    vtable_->SHashReduce(object.get(), SHashReducer(parent_, map_free_vars));
   }
 
  protected:
@@ -163,13 +170,13 @@ class VarCountingSHashHandler : public SHashReducer::Handler {
    * \brief Compute the reduced hash value for the task.
    * \param task The indicated task.
    */
-  size_t ReduceHash(const Task& task) {
-    size_t stack_begin = task.result_stack_index;
+  uint64_t ReduceHash(const Task& task) {
+    uint64_t stack_begin = task.result_stack_index;
     ICHECK_LE(stack_begin, result_stack_.size());
 
     // combine in the reverse order of the stack.
-    size_t reduced_hash = task.reduced_hash;
-    for (size_t i = result_stack_.size(); i != stack_begin; --i) {
+    uint64_t reduced_hash = task.reduced_hash;
+    for (uint32_t i = result_stack_.size(); i != stack_begin; --i) {
       reduced_hash = support::HashCombine(reduced_hash, result_stack_[i - 1]);
     }
     result_stack_.resize(stack_begin);
@@ -194,7 +201,7 @@ class VarCountingSHashHandler : public SHashReducer::Handler {
           // so that we can distinguish DAG from trees.
           if (entry.graph_node_hash) {
             entry.reduced_hash = support::HashCombine(entry.reduced_hash,
-                                                      std::hash<size_t>()(graph_node_counter_++));
+                                                      std::hash<uint64_t>()(graph_node_counter_++));
           }
           hash_memo_[entry.object] = entry.reduced_hash;
         }
@@ -218,7 +225,7 @@ class VarCountingSHashHandler : public SHashReducer::Handler {
           ICHECK_EQ(pending_tasks_.size(), 0U);
           allow_push_to_stack_ = false;
           // dispatch hash, reduce to the current slot.
-          this->DispatchSHash(entry.object, entry.map_free_vars);
+          parent_->DispatchSHash(entry.object, entry.map_free_vars);
           allow_push_to_stack_ = true;
           // Move pending tasks to the stack until the marked point.
           while (pending_tasks_.size() != 0) {
@@ -230,39 +237,64 @@ class VarCountingSHashHandler : public SHashReducer::Handler {
     }
   }
 
-  // The default equal as registered in the structural equal vtable.
-  void DispatchSHash(const ObjectRef& object, bool map_free_vars) {
-    ICHECK(object.defined());
-    vtable_->SHashReduce(object.get(), SHashReducer(this, map_free_vars));
-  }
-
  private:
+  // The owner of this impl
+  SHashHandlerDefault* parent_;
   // free var counter.
-  size_t free_var_counter_{0};
+  uint32_t free_var_counter_{0};
   // graph node counter.
-  size_t graph_node_counter_{0};
+  uint32_t graph_node_counter_{0};
   // record current stack top
   bool allow_push_to_stack_{true};
   // list of pending tasks to be pushed to the stack.
   std::vector<Task> pending_tasks_;
   // Internal task stack to executed the task
   std::vector<Task> task_stack_;
-  // Internal stack to store the result poped from the task stack.
-  std::vector<size_t> result_stack_;
+  // Internal stack to store the result popped from the task stack.
+  std::vector<uint64_t> result_stack_;
   // reflection vtable
   ReflectionVTable* vtable_ = ReflectionVTable::Global();
   // map from lhs to rhs
-  std::unordered_map<ObjectRef, size_t, ObjectPtrHash, ObjectPtrEqual> hash_memo_;
+  std::unordered_map<ObjectRef, uint64_t, ObjectPtrHash, ObjectPtrEqual> hash_memo_;
 };
+
+SHashHandlerDefault::SHashHandlerDefault() { impl = new Impl(this); }
+SHashHandlerDefault::~SHashHandlerDefault() { delete impl; }
+
+void SHashHandlerDefault::SHashReduceHashedValue(uint64_t hashed_value) {
+  return impl->SHashReduceHashedValue(hashed_value);
+}
+
+void SHashHandlerDefault::SHashReduce(const ObjectRef& key, bool map_free_vars) {
+  impl->SHashReduce(key, map_free_vars);
+}
+
+void SHashHandlerDefault::SHashReduceFreeVar(const runtime::Object* var, bool map_free_vars) {
+  impl->SHashReduceFreeVar(var, map_free_vars);
+}
+
+bool SHashHandlerDefault::LookupHashedValue(const ObjectRef& key, uint64_t* hashed_value) {
+  return impl->LookupHashedValue(key, hashed_value);
+}
+
+void SHashHandlerDefault::MarkGraphNode() { impl->MarkGraphNode(); }
+
+uint64_t SHashHandlerDefault::Hash(const ObjectRef& object, bool map_free_vars) {
+  return impl->Hash(object, map_free_vars);
+}
+
+void SHashHandlerDefault::DispatchSHash(const ObjectRef& key, bool map_free_vars) {
+  impl->DispatchSHash(key, map_free_vars);
+}
 
 TVM_REGISTER_GLOBAL("node.StructuralHash")
     .set_body_typed([](const ObjectRef& object, bool map_free_vars) -> int64_t {
-      size_t hashed_value = VarCountingSHashHandler().Hash(object, map_free_vars);
+      uint64_t hashed_value = SHashHandlerDefault().Hash(object, map_free_vars);
       return static_cast<int64_t>(hashed_value);
     });
 
-size_t StructuralHash::operator()(const ObjectRef& object) const {
-  return VarCountingSHashHandler().Hash(object, false);
+uint64_t StructuralHash::operator()(const ObjectRef& object) const {
+  return SHashHandlerDefault().Hash(object, false);
 }
 
 // SEQualReduce traits for runtime containers.
@@ -270,7 +302,7 @@ struct StringObjTrait {
   static constexpr const std::nullptr_t VisitAttrs = nullptr;
 
   static void SHashReduce(const runtime::StringObj* key, SHashReducer hash_reduce) {
-    hash_reduce->SHashReduceHashedValue(runtime::String::HashBytes(key->data, key->size));
+    hash_reduce->SHashReduceHashedValue(runtime::String::StableHashBytes(key->data, key->size));
   }
 
   static bool SEqualReduce(const runtime::StringObj* lhs, const runtime::StringObj* rhs,
@@ -328,41 +360,25 @@ struct ADTObjTrait {
 
 TVM_REGISTER_REFLECTION_VTABLE(runtime::ADTObj, ADTObjTrait);
 
-void NDArrayContainerTrait::SHashReduce(const runtime::NDArray::Container* key,
-                                        SHashReducer hash_reduce) {
-  ICHECK_EQ(key->dl_tensor.device.device_type, kDLCPU) << "can only compare CPU tensor";
-  ICHECK(runtime::IsContiguous(key->dl_tensor)) << "Can only hash contiguous tensor";
-  hash_reduce(runtime::DataType(key->dl_tensor.dtype));
-  hash_reduce(key->dl_tensor.ndim);
-  for (int i = 0; i < key->dl_tensor.ndim; ++i) {
-    hash_reduce(key->dl_tensor.shape[i]);
+void NDArrayHash(const runtime::NDArray::Container* arr, SHashReducer* hash_reduce,
+                 bool hash_data) {
+  ICHECK_EQ(arr->dl_tensor.device.device_type, kDLCPU) << "can only compare CPU tensor";
+  ICHECK(runtime::IsContiguous(arr->dl_tensor)) << "Can only hash contiguous tensor";
+  (*hash_reduce)(runtime::DataType(arr->dl_tensor.dtype));
+  (*hash_reduce)(arr->dl_tensor.ndim);
+  for (int i = 0; i < arr->dl_tensor.ndim; ++i) {
+    (*hash_reduce)(arr->dl_tensor.shape[i]);
   }
-  hash_reduce->SHashReduceHashedValue(runtime::String::HashBytes(
-      static_cast<const char*>(key->dl_tensor.data), runtime::GetDataSize(key->dl_tensor)));
+  if (hash_data) {
+    (*hash_reduce)
+        ->SHashReduceHashedValue(runtime::String::StableHashBytes(
+            static_cast<const char*>(arr->dl_tensor.data), runtime::GetDataSize(arr->dl_tensor)));
+  }
 }
 
-bool NDArrayContainerTrait::SEqualReduce(const runtime::NDArray::Container* lhs,
-                                         const runtime::NDArray::Container* rhs,
-                                         SEqualReducer equal) {
-  if (lhs == rhs) return true;
-
-  auto ldt = lhs->dl_tensor.dtype;
-  auto rdt = rhs->dl_tensor.dtype;
-  ICHECK_EQ(lhs->dl_tensor.device.device_type, kDLCPU) << "can only compare CPU tensor";
-  ICHECK_EQ(rhs->dl_tensor.device.device_type, kDLCPU) << "can only compare CPU tensor";
-  ICHECK(runtime::IsContiguous(lhs->dl_tensor)) << "Can only compare contiguous tensor";
-  ICHECK(runtime::IsContiguous(rhs->dl_tensor)) << "Can only compare contiguous tensor";
-
-  if (lhs->dl_tensor.ndim != rhs->dl_tensor.ndim) return false;
-  for (int i = 0; i < lhs->dl_tensor.ndim; ++i) {
-    if (!equal(lhs->dl_tensor.shape[i], rhs->dl_tensor.shape[i])) return false;
-  }
-  if (ldt.code == rdt.code && ldt.lanes == rdt.lanes && ldt.bits == rdt.bits) {
-    size_t data_size = runtime::GetDataSize(lhs->dl_tensor);
-    return std::memcmp(lhs->dl_tensor.data, rhs->dl_tensor.data, data_size) == 0;
-  } else {
-    return false;
-  }
+void NDArrayContainerTrait::SHashReduce(const runtime::NDArray::Container* key,
+                                        SHashReducer hash_reduce) {
+  NDArrayHash(key, &hash_reduce, /*bool hash_data*/ true);
 }
 
 TVM_REGISTER_REFLECTION_VTABLE(runtime::NDArray::Container, NDArrayContainerTrait)
@@ -389,22 +405,129 @@ struct ArrayNodeTrait {
 
   static void SHashReduce(const ArrayNode* key, SHashReducer hash_reduce) {
     hash_reduce(static_cast<uint64_t>(key->size()));
-    for (size_t i = 0; i < key->size(); ++i) {
+    for (uint32_t i = 0; i < key->size(); ++i) {
       hash_reduce(key->at(i));
     }
   }
 
   static bool SEqualReduce(const ArrayNode* lhs, const ArrayNode* rhs, SEqualReducer equal) {
+    if (equal.IsPathTracingEnabled()) {
+      return SEqualReduceTraced(lhs, rhs, equal);
+    }
+
     if (lhs->size() != rhs->size()) return false;
-    for (size_t i = 0; i < lhs->size(); ++i) {
+    for (uint32_t i = 0; i < lhs->size(); ++i) {
       if (!equal(lhs->at(i), rhs->at(i))) return false;
     }
     return true;
+  }
+
+ private:
+  static bool SEqualReduceTraced(const ArrayNode* lhs, const ArrayNode* rhs,
+                                 const SEqualReducer& equal) {
+    uint32_t min_size = std::min(lhs->size(), rhs->size());
+    const ObjectPathPair& array_paths = equal.GetCurrentObjectPaths();
+
+    for (uint32_t index = 0; index < min_size; ++index) {
+      ObjectPathPair element_paths = {array_paths->lhs_path->ArrayIndex(index),
+                                      array_paths->rhs_path->ArrayIndex(index)};
+      if (!equal(lhs->at(index), rhs->at(index), element_paths)) {
+        return false;
+      }
+    }
+
+    if (lhs->size() == rhs->size()) {
+      return true;
+    }
+
+    // If the array length is mismatched, don't report it immediately.
+    // Instead, defer the failure until we visit all children.
+    //
+    // This is for human readability. For example, say we have two sequences
+    //
+    //    (1)     a b c d e f g h i j k l m
+    //    (2)     a b c d e g h i j k l m
+    //
+    // If we directly report a mismatch at the end of the array right now,
+    // the user will see that array (1) has an element `m` at index 12 but array (2)
+    // has no index 12 because it's too short:
+    //
+    //    (1)     a b c d e f g h i j k l m
+    //                                    ^error here
+    //    (2)     a b c d e g h i j k l m
+    //                                    ^ error here
+    //
+    // This is not very helpful. Instead, if we defer reporting this mismatch until all elements
+    // are fully visited, we can be much more helpful with pointing out the location:
+    //
+    //    (1)     a b c d e f g h i j k l m
+    //                      ^
+    //                   error here
+    //
+    //    (2)     a b c d e g h i j k l m
+    //                      ^
+    //                  error here
+    if (equal->IsFailDeferralEnabled()) {
+      if (lhs->size() > min_size) {
+        equal->DeferFail({array_paths->lhs_path->ArrayIndex(min_size),
+                          array_paths->rhs_path->MissingArrayElement(min_size)});
+      } else {
+        equal->DeferFail({array_paths->lhs_path->MissingArrayElement(min_size),
+                          array_paths->rhs_path->ArrayIndex(min_size)});
+      }
+      // Can return `true` pretending that everything is good since we have deferred the failure.
+      return true;
+    }
+    return false;
   }
 };
 TVM_REGISTER_REFLECTION_VTABLE(ArrayNode, ArrayNodeTrait)
     .set_creator([](const std::string&) -> ObjectPtr<Object> {
       return ::tvm::runtime::make_object<ArrayNode>();
+    });
+
+struct ShapeTupleObjTrait {
+  static constexpr const std::nullptr_t VisitAttrs = nullptr;
+
+  static void SHashReduce(const ShapeTupleObj* self, SHashReducer hash_reduce) {
+    hash_reduce(self->size);
+    for (uint32_t i = 0; i < self->size; ++i) {
+      hash_reduce(self->data[i]);
+    }
+  }
+
+  static bool SEqualReduce(const ShapeTupleObj* lhs, const ShapeTupleObj* rhs,
+                           SEqualReducer equal) {
+    if (lhs->size != rhs->size) return false;
+    for (uint32_t i = 0; i < lhs->size; ++i) {
+      if (!equal(lhs->data[i], rhs->data[i])) return false;
+    }
+    return true;
+  }
+};
+
+TVM_REGISTER_REFLECTION_VTABLE(ShapeTupleObj, ShapeTupleObjTrait)
+    .set_creator([](const std::string& blob) {
+      // Store shape tuple in blob to avoid large integer overflow in JSON.
+      dmlc::MemoryStringStream mstrm(const_cast<std::string*>(&blob));
+      support::Base64InStream b64strm(&mstrm);
+      b64strm.InitPosition();
+      uint64_t size;
+      b64strm.Read<uint64_t>(&size);
+      std::vector<int64_t> data(size);
+      b64strm.ReadArray(data.data(), size);
+      ShapeTuple shape(data);
+      return RefToObjectPtr::Get(shape);
+    })
+    .set_repr_bytes([](const Object* n) -> std::string {
+      std::string blob;
+      dmlc::MemoryStringStream mstrm(&blob);
+      support::Base64OutStream b64strm(&mstrm);
+      const auto* shape = static_cast<const runtime::ShapeTupleObj*>(n);
+      b64strm.Write<uint64_t>(shape->size);
+      b64strm.WriteArray(shape->data, shape->size);
+      b64strm.Finish();
+      return blob;
     });
 
 struct MapNodeTrait {
@@ -416,10 +539,10 @@ struct MapNodeTrait {
     // This resolves common use cases where we want to store
     // Map<Var, Value> where Var is defined in the function
     // parameters.
-    using KV = std::pair<size_t, ObjectRef>;
+    using KV = std::pair<uint64_t, ObjectRef>;
     std::vector<KV> temp;
     for (const auto& kv : *key) {
-      size_t hashed_value;
+      uint64_t hashed_value;
       if (hash_reduce->LookupHashedValue(kv.first, &hashed_value)) {
         temp.emplace_back(hashed_value, kv.second);
       }
@@ -430,11 +553,11 @@ struct MapNodeTrait {
     // add size to the hash
     hash_reduce(static_cast<uint64_t>(key->size()));
     // hash the content
-    for (size_t i = 0; i < temp.size();) {
-      size_t k = i + 1;
+    for (uint32_t i = 0; i < temp.size();) {
+      uint32_t k = i + 1;
       for (; k < temp.size() && temp[k].first == temp[i].first; ++k) {
       }
-      // ties are rare, but we need to skip them to make the hash determinsitic
+      // ties are rare, but we need to skip them to make the hash deterministic
       if (k == i + 1) {
         hash_reduce->SHashReduceHashedValue(temp[i].first);
         hash_reduce(temp[i].second);
@@ -460,7 +583,7 @@ struct MapNodeTrait {
     // add size to the hash after sorting.
     hash_reduce(static_cast<uint64_t>(key->size()));
     // hash the content
-    for (size_t i = 0; i < temp.size(); ++i) {
+    for (uint32_t i = 0; i < temp.size(); ++i) {
       hash_reduce(temp[i].first);
       hash_reduce(temp[i].second);
     }
@@ -501,13 +624,105 @@ struct MapNodeTrait {
     return true;
   }
 
+  static bool IsStringMap(const MapNode* map) {
+    return std::all_of(map->begin(), map->end(),
+                       [](const auto& v) { return v.first->template IsInstance<StringObj>(); });
+  }
+
+  static bool SEqualReduceTracedForOMap(const MapNode* lhs, const MapNode* rhs,
+                                        const SEqualReducer& equal) {
+    const ObjectPathPair& map_paths = equal.GetCurrentObjectPaths();
+
+    std::vector<const Object*> seen_rhs_keys;
+
+    // First, check that every key from `lhs` is also in `rhs`,
+    // and their values are mapped to each other.
+    for (const auto& kv : *lhs) {
+      ObjectPath lhs_path = map_paths->lhs_path->MapValue(kv.first);
+
+      ObjectRef rhs_key = equal->MapLhsToRhs(kv.first);
+      if (!rhs_key.defined()) {
+        equal.RecordMismatchPaths({lhs_path, map_paths->rhs_path->MissingMapEntry()});
+        return false;
+      }
+
+      auto it = rhs->find(rhs_key);
+      if (it == rhs->end()) {
+        equal.RecordMismatchPaths({lhs_path, map_paths->rhs_path->MissingMapEntry()});
+        return false;
+      }
+
+      if (!equal(kv.second, it->second, {lhs_path, map_paths->rhs_path->MapValue(it->first)})) {
+        return false;
+      }
+
+      seen_rhs_keys.push_back(it->first.get());
+    }
+
+    std::sort(seen_rhs_keys.begin(), seen_rhs_keys.end());
+
+    // Second, check that we have visited every `rhs` key when iterating over `lhs`.
+    for (const auto& kv : *rhs) {
+      if (!std::binary_search(seen_rhs_keys.begin(), seen_rhs_keys.end(), kv.first.get())) {
+        equal.RecordMismatchPaths(
+            {map_paths->lhs_path->MissingMapEntry(), map_paths->rhs_path->MapValue(kv.first)});
+        return false;
+      }
+    }
+
+    ICHECK(lhs->size() == rhs->size());
+    return true;
+  }
+
+  static bool SEqualReduceTracedForSMap(const MapNode* lhs, const MapNode* rhs,
+                                        const SEqualReducer& equal) {
+    const ObjectPathPair& map_paths = equal.GetCurrentObjectPaths();
+
+    // First, check that every key from `lhs` is also in `rhs`, and their values are equal.
+    for (const auto& kv : *lhs) {
+      ObjectPath lhs_path = map_paths->lhs_path->MapValue(kv.first);
+      auto it = rhs->find(kv.first);
+      if (it == rhs->end()) {
+        equal.RecordMismatchPaths({lhs_path, map_paths->rhs_path->MissingMapEntry()});
+        return false;
+      }
+
+      if (!equal(kv.second, it->second, {lhs_path, map_paths->rhs_path->MapValue(it->first)})) {
+        return false;
+      }
+    }
+
+    // Second, make sure every key from `rhs` is also in `lhs`.
+    for (const auto& kv : *rhs) {
+      ObjectPath rhs_path = map_paths->rhs_path->MapValue(kv.first);
+      if (!lhs->count(kv.first)) {
+        equal.RecordMismatchPaths({map_paths->lhs_path->MissingMapEntry(), rhs_path});
+        return false;
+      }
+    }
+
+    ICHECK(lhs->size() == rhs->size());
+    return true;
+  }
+
+  static bool SEqualReduceTraced(const MapNode* lhs, const MapNode* rhs,
+                                 const SEqualReducer& equal) {
+    if (IsStringMap(lhs)) {
+      return SEqualReduceTracedForSMap(lhs, rhs, equal);
+    } else {
+      return SEqualReduceTracedForOMap(lhs, rhs, equal);
+    }
+  }
+
   static bool SEqualReduce(const MapNode* lhs, const MapNode* rhs, SEqualReducer equal) {
+    if (equal.IsPathTracingEnabled()) {
+      return SEqualReduceTraced(lhs, rhs, equal);
+    }
+
     if (rhs->size() != lhs->size()) return false;
     if (rhs->size() == 0) return true;
-    bool ls = std::all_of(lhs->begin(), lhs->end(),
-                          [](const auto& v) { return v.first->template IsInstance<StringObj>(); });
-    bool rs = std::all_of(rhs->begin(), rhs->end(),
-                          [](const auto& v) { return v.first->template IsInstance<StringObj>(); });
+    bool ls = IsStringMap(lhs);
+    bool rs = IsStringMap(rhs);
     if (ls != rs) {
       return false;
     }

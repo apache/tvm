@@ -22,6 +22,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/ir/op.h>
 #include <tvm/tir/index_map.h>
+#include <tvm/tir/schedule/schedule.h>
 #include <tvm/tir/schedule/state.h>
 
 #include <tuple>
@@ -288,6 +289,15 @@ bool GetVarsTouchedByBlockIters(const BlockRealize& block_realize,
 void CheckLoopStartsWithZero(const ScheduleState& self, const StmtSRef& loop_sref,
                              arith::Analyzer* analyzer);
 
+/*!
+ * \brief Check whether a block has a trivial binding, i.e. each block var is bound to a outer loop,
+ * from outer to inner.
+ * \param self The schedule state
+ * \param block_sref The block to be checked
+ * \throw ScheduleError If the block does not have trivial bindings
+ */
+void CheckBlockHasTrivialBinding(const ScheduleState& self, const StmtSRef& block_sref);
+
 /******** Block-loop relation ********/
 
 /*!
@@ -376,6 +386,16 @@ Array<StmtSRef> GetProducers(const StmtSRef& block_sref, const BlockScope& scope
 Array<StmtSRef> GetConsumers(const StmtSRef& block_sref, const BlockScope& scope);
 
 /*!
+ * \brief Get the list of output blocks within the given scope
+ * An output block is a block which has atleast one buffer being written
+ * to, but is not allocated within the PrimFunc
+ * \param scope_block_rv The scope block from which output blocks are collected
+ * \return A list of all blocks that write to some output buffer
+ * block
+ */
+Array<StmtSRef> GetOutputBlocks(const ScheduleState& self, const BlockNode* scope_block);
+
+/*!
  * \brief A solution to split a ordered list of subtrees into two parts,
  * where producers are on the LHS and consumers are on the RHS.
  * For example, subtree[0, 3) are on the LHS, and subtree[3, 6) are on the RHS.
@@ -413,11 +433,24 @@ struct ProducerConsumerSplit {
  * \param self The schedule state.
  * \param block The queried block.
  * \param n The index of the queried buffer.
- * \param is_write A boolean flag to indicate querying write buffer or read buffer.
+ * \param index_type The type of the buffer index, kRead or kWrite.
  * \return The buffer of the n-th read/write region of the block.
  * \throw ScheduleError If the buffer index is out of bound.
  */
-Buffer GetNthAccessBuffer(const ScheduleState& self, const Block& block, int n, bool is_write);
+Buffer GetNthAccessBuffer(const ScheduleState& self, const Block& block, int n,
+                          BufferIndexType index_type);
+
+/*!
+ * \brief Get the n-th read or write buffer of the given block.
+ * \param self The schedule state.
+ * \param block The queried block.
+ * \param n The index of the queried buffer.
+ * \param index_type The type of the buffer index, kRead or kWrite.
+ * \return The n-th read/write region of the block.
+ * \throw ScheduleError If the buffer index is out of bound.
+ */
+BufferRegion GetNthAccessBufferRegion(const ScheduleState& self, const Block& block, int n,
+                                      BufferIndexType index_type);
 
 /*!
  * \brief Find the defining site of the buffer in the given block and its ancestors
@@ -432,15 +465,14 @@ std::pair<Optional<StmtSRef>, bool> GetBufferDefiningSite(const StmtSRef& block_
 /******** Reduction Block Related ********/
 
 /*!
- * \brief Convert the `init` and `body` of the input block to BufferStores
- * \param self The schedule state
- * \param block The block to be analyzed
- * \return The BufferStores of the `init` and `body` of the input block
- * \throw ScheduleError If the `init` or `body` is not BufferStore, or they don't write to the same
- * buffer
+ * \brief Get the init values and the BufferStore updates from the input reduction block
+ * \param self The schedule state, used for error reporting
+ * \param block The block from which the init values and BufferStore updates are extracted from
+ * \return The extracted init values and BufferStore updates
+ * \throw ScheduleError If rfactor or cross-thread reduction cannot be applied to the block
  */
-std::pair<BufferStore, BufferStore> GetBufferStoresFromReductionBlock(
-    const Optional<ScheduleState>& self, const Block& block);
+std::pair<Array<PrimExpr>, Array<BufferStore>> GetInitValuesAndUpdatesFromReductionBlock(
+    const Optional<ScheduleState>& self, Block block);
 
 /*!
  * \brief Check whether the input array of IterVars only contains data-parallel and reduction block
@@ -461,16 +493,17 @@ bool ContainsOnlyDataParAndReductionBlockIter(const Array<IterVar>& iters);
 bool ReductionIterNotIndexOutputBuffer(const Block& block);
 
 /*!
- * \brief Given a reduction identity and a reduction combiner, detect the corresponding commutative
- * reducer, and extract the combiner lhs and combiner rhs
+ * \brief Given a list of reduction identities and a list of reduction combiners, detect the
+ * corresponding commutative reducer, and extract the combiner LHS values and combiner RHS values
  * \param self The schedule state
- * \param identity The reduction identity to be analyzed
- * \param combiner The reduction combiner to be analyzed
- * \return The corresponding CommReducer, the combiner lhs and the combiner rhs
+ * \param identities The reduction identities to be analyzed
+ * \param combiners The reduction combiners to be analyzed
+ * \return The corresponding CommReducer, combiner LHS values and combiner RHS values
  * \throw ScheduleError If no corresponding commutative reducer can be matched
  */
-std::tuple<CommReducer, PrimExpr, PrimExpr> GetReducerAndCombinerLhsRhs(
-    const Optional<ScheduleState>& self, const PrimExpr& identity, const BufferStore& combiner);
+std::tuple<CommReducer, Array<PrimExpr>, Array<PrimExpr>> GetReducerAndCombinerLhsRhs(
+    const Optional<ScheduleState>& self, const Array<PrimExpr>& identities,
+    const Array<BufferStore>& combiners);
 
 /******** Commutative Reducer ********/
 
@@ -479,20 +512,20 @@ std::tuple<CommReducer, PrimExpr, PrimExpr> GetReducerAndCombinerLhsRhs(
  * \return The list of the registered reducer-getter functions
  * \sa ReducerRegistry
  */
-std::vector<runtime::TypedPackedFunc<CommReducer(DataType)>> GetReducerGetters();
+std::vector<runtime::TypedPackedFunc<Optional<CommReducer>(Array<PrimExpr>)>> GetReducerGetters();
 
 /*!
- * \brief Given the input identity and the combiner BufferStore of a reduction, extract the
- * corresponding commutative reducer and its lhs, rhs if possible.
- * \param identity The identity of the reduction
- * \param combiner The combiner of the reduction
+ * \brief Given the input identities and the combiner BufferStores of a reduction, extract the
+ * corresponding commutative reducer, LHS values and RHS values, if possible.
+ * \param identities The identities of the reduction
+ * \param combiners The combiners of the reduction
  * \param result_reducer The extracted CommReducer
- * \param lhs The extracted lhs of the reducer
- * \param rhs The extracted rhs of the reducer
+ * \param lhs The extracted LHS values of the reducer
+ * \param rhs The extracted RHS values of the reducer
  * \return A boolean indicating whether a corresponding commutative reducer is found
  */
-bool FromIdentityCombiner(const PrimExpr& identity, const BufferStore& combiner,
-                          CommReducer* result_reducer, PrimExpr* lhs, PrimExpr* rhs);
+bool FromIdentityCombiner(const Array<PrimExpr>& identities, const Array<BufferStore>& combiners,
+                          CommReducer* result_reducer, Array<PrimExpr>* lhs, Array<PrimExpr>* rhs);
 
 /******** Misc ********/
 
@@ -674,6 +707,18 @@ Array<arith::IntSet> AnalyzeRegionLowerBound(const BufferRegion& region, const P
                                              const StmtSRef& dom_high_exclusive,
                                              arith::Analyzer* analyzer);
 
+/*!
+ * \brief Simplify non-trivial expressions
+ * \param expr The expression to be simplified
+ * \param analyzer The analyzer
+ * \return The simplified expression
+ *
+ * During scheduling, we often need preserve block iters in trivial expressions that can be
+ * simplified to constant values for further scheduling and analysis because simplifing away the
+ * block iters may result in loss of information for further analysis.
+ */
+PrimExpr SimplifyNonTrivialExpr(const PrimExpr& expr, arith::Analyzer* analyzer);
+
 /*! \brief Necessary information used for tensorization */
 class TensorizeInfoNode : public Object {
  public:
@@ -681,10 +726,15 @@ class TensorizeInfoNode : public Object {
   Map<tir::StmtSRef, tir::For> loop_map;
   /*! \brief Maps loops in an intrinsic description to its index, outer to inner */
   Map<tir::For, Integer> desc_loop_indexer;
+  /*! \brief Optional padded extents of the block iters when padding is needed to match the
+   * intrinsic description
+   */
+  Optional<Array<Integer>> block_iter_paddings;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("loop_map", &loop_map);
     v->Visit("desc_loop_indexer", &desc_loop_indexer);
+    v->Visit("block_iter_paddings", &block_iter_paddings);
   }
 
   static constexpr const char* _type_key = "tir.schedule.TensorizeInfo";
@@ -701,11 +751,12 @@ class TensorizeInfo : public ObjectRef {
  * \param self The schedule state to be tensorized
  * \param block_sref The target block to match against
  * \param desc_func The prim func describing the computation to be tensorized
+ * \param allow_padding Whether to allow padding the block iters to match the intrinsic description
  * \return TensorizeInfo structure if a valid mapping is found, NullOpt otherwise
  */
 Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& self,
                                                 const tir::StmtSRef& block_sref,
-                                                const tir::PrimFunc& desc_func);
+                                                const tir::PrimFunc& desc_func, bool allow_padding);
 
 /*！\brief Necessary information used to perform transformations for tensorization */
 class AutoTensorizeMappingInfoNode : public Object {
@@ -757,6 +808,16 @@ Optional<AutoTensorizeMappingInfo> GetAutoTensorizeMappingInfo(const ScheduleSta
                                                                const StmtSRef& block_sref,
                                                                const PrimFunc& desc_func);
 
+/*!
+ * \brief Perform basic checks for auto tensorization applicability, such as the structure of
+ * arithmetic operations and data types.
+ * \param sch The schedule to be tensorized
+ * \param block_rv The compute block for auto tensorization
+ * \param desc_func The prim func describing the computation to be tensorized
+ * \return true if basic conditions are met.
+ */
+bool CheckAutoTensorizeApplicable(const tir::Schedule& sch, const tir::BlockRV& block_rv,
+                                  const tir::PrimFunc& desc_func);
 }  // namespace tir
 }  // namespace tvm
 

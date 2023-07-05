@@ -142,7 +142,7 @@ def @main(%l: Tensor[(5, 5), float32]) -> Tensor[(5, 5), float32] {
   @simple(%0, %l)
 }
 """
-    mod = tvm.parser.fromtext(code)
+    mod = tvm.relay.fromtext(code)
     defunc_mod = defunctionalized(mod)
 
     input = np.random.rand(5, 5).astype("float32")
@@ -174,7 +174,7 @@ def @main(%l: List[float32]) -> List[float32] {
   @map(@id, %l)
 }
 """
-    mod = tvm.parser.fromtext(code)
+    mod = tvm.relay.fromtext(code)
     defunc_mod = defunctionalized(mod)
 
     input = np.random.rand(10).astype("float32")
@@ -212,7 +212,7 @@ def @main(%l: List[int32]) -> int32 {
   @sum(@id, %l)
 }
 """
-    mod = tvm.parser.fromtext(code)
+    mod = tvm.relay.fromtext(code)
     defunc_mod = defunctionalized(mod)
 
     input = np.random.randint(1, 100, 10)
@@ -227,4 +227,4 @@ def @main(%l: List[int32]) -> int32 {
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

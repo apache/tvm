@@ -29,6 +29,7 @@ how we can invoke these target specific functions, and how we can unify
 the interface via TVM's intrinsic API.
 """
 from __future__ import absolute_import, print_function
+
 import numpy as np
 
 import tvm

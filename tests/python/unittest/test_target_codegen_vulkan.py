@@ -16,6 +16,7 @@
 # under the License.
 
 import os
+from posixpath import split
 import random
 import re
 import threading
@@ -27,6 +28,18 @@ import tvm
 import tvm.testing
 from tvm import relay, te
 from tvm.topi.math import cast
+from tvm.script import tir as T, ir as I
+from tvm.tir import TensorIntrin, IntImm, Cast, Schedule
+from tvm.tir.tensor_intrin.cuda import (
+    WMMA_LOAD_16x16x16_F16_A_INTRIN,
+    WMMA_LOAD_16x16x16_F16_B_INTRIN,
+    WMMA_SYNC_16x16x16_f16f16f32_INTRIN,
+    WMMA_FILL_16x16x16_F32_INTRIN,
+    WMMA_STORE_16x16x16_F32_GLOBAL_INTRIN,
+    WMMA_SYNC_16x16x16_f16f16f16_INTRIN,
+    WMMA_FILL_16x16x16_F16_INTRIN,
+    WMMA_STORE_16x16x16_F16_GLOBAL_INTRIN,
+)
 
 
 dtype = tvm.testing.parameter("float32", "int32", "float16", "int8")
@@ -91,6 +104,8 @@ def test_array_copy(dev, dtype, fuzz_seed):
 def test_array_vectorize_add(target, dev, dtype):
     arr_size = 64
     lanes = 2
+    if "opencl" in target and dtype == "float16":
+        pytest.xfail("Opencl target does not support float16")
 
     num_thread = 8
 
@@ -553,6 +568,181 @@ def test_shared_mem_alloc(target, dev):
     # target supports.
     with pytest.raises(tvm.TVMError):
         tvm.build(s, [Out], target)
+
+
+def test_negative_operand_divmod(target, dev):
+    """Test handling of negative offsets to floormod/floordiv
+
+    Even though the SPIR-V spec states that OpSRem and OpSMod can give
+    the signed modulo, the Vulkan spec states that any use of negative
+    operands is undefined behavior.  This test starts with negative
+    operands to floordiv, validating that they are simplified into the
+    corresponding positive operands, such that the final TIR can be
+    expressed using only positive operands.
+
+    SPIR-V: https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html#OpSRem
+    Vulkan: https://registry.khronos.org/vulkan/specs/1.3/html/chap37.html#spirvenv-op-prec
+    """
+
+    N = 32
+    offset = 16
+    divisor = 5
+
+    @T.prim_func
+    def func(A: T.Buffer((N, 2), "int32")):
+        for i in T.serial(N):
+            with T.block("A"):
+                v_i = T.axis.spatial(N, i)
+                A[v_i, 0] = T.floordiv(v_i - offset, divisor)
+                A[v_i, 1] = T.floormod(v_i - offset, divisor)
+
+    if "gpu" in tvm.target.Target(target).keys:
+        sch = tvm.tir.Schedule(func)
+        sch.bind(sch.get_loops("A")[0], "threadIdx.x")
+        func = sch.mod["main"]
+
+    built = tvm.build(func, target=target)
+
+    a_dev = tvm.nd.empty([N, 2], "int32", dev)
+    built(a_dev)
+    a = a_dev.numpy()
+
+    np.testing.assert_array_equal(a[:, 0], (np.arange(N) - offset) // divisor)
+    np.testing.assert_array_equal(a[:, 1], (np.arange(N) - offset) % divisor)
+
+
+@pytest.mark.parametrize("out_dtype", ["float32", "float16"])
+def test_cooperative_matrix(out_dtype):
+    def get_matmul(m, n, k, out_dtype="float32"):
+        X = te.placeholder((m, k), name="X", dtype="float16")
+        W = te.placeholder((k, n), name="W", dtype="float16")
+        ak = te.reduce_axis((0, k), name="k")
+
+        if out_dtype == "float32":
+            matmul = te.compute(
+                (m, n),
+                lambda i, j: te.sum(
+                    X[i, ak].astype("float32") * W[ak, j].astype("float32"),
+                    axis=ak,
+                ),
+                name="compute",
+            )
+        else:
+            matmul = te.compute(
+                (m, n),
+                lambda i, j: te.sum(X[i, ak] * W[ak, j], axis=ak),
+                name="compute",
+            )
+
+        return te.create_prim_func([X, W, matmul])
+
+    M, N, K = 16, 16, 32
+    func = get_matmul(M, N, K, out_dtype)
+    sch = Schedule(func)
+    block = sch.get_block("compute")
+
+    i, j, k = sch.get_loops(block)
+    i_outer, i_inner = sch.split(i, factors=[None, 16])
+    j_outer, j_inner = sch.split(j, factors=[None, 16])
+    k_outer, k_inner = sch.split(k, factors=[None, 16])
+    sch.reorder(i_outer, j_outer, k_outer, i_inner, j_inner, k_inner)
+    fused_outer = sch.fuse(i_outer, j_outer)
+    sch.bind(fused_outer, "blockIdx.x")
+
+    def fetch_to_shared(block, idx):
+        block_read = sch.cache_read(block, idx, "shared")
+        sch.compute_at(block_read, k_outer)
+        warp_size = 32
+
+        fused = sch.fuse(*sch.get_loops(block_read)[-2:])
+
+        vector_size = 4
+        _, f_2, f_3 = sch.split(fused, factors=[None, warp_size, vector_size])
+        sch.bind(f_2, "threadIdx.x")
+        sch.vectorize(f_3)
+
+    def tensorize_load(block, dim):
+        loops = sch.get_loops(block)
+        i, j = loops[-dim : (len(loops) - dim + 2)]
+
+        i0, i1 = sch.split(i, factors=[None, 16])
+        j0, j1 = sch.split(j, factors=[None, 16])
+        sch.reorder(i0, j0, i1, j1)
+        sch.unroll(i0)
+        sch.unroll(j0)
+        return i1
+
+    fetch_to_shared(block, 0)
+    fetch_to_shared(block, 1)
+
+    c_warp_scope = "wmma.accumulator"
+    a_warp_scope = "wmma.matrix_a"
+    b_warp_scope = "wmma.matrix_b"
+
+    A_mat = sch.cache_read(block, 0, a_warp_scope)
+    B_mat = sch.cache_read(block, 1, b_warp_scope)
+
+    loop_a = tensorize_load(A_mat, 2)
+    sch.tensorize(loop_a, WMMA_LOAD_16x16x16_F16_A_INTRIN)
+
+    loop_b = tensorize_load(B_mat, 2)
+    sch.tensorize(loop_b, WMMA_LOAD_16x16x16_F16_B_INTRIN)
+
+    store = sch.cache_write(block, 0, c_warp_scope)
+    sch.reverse_compute_at(store, fused_outer)
+    init = sch.decompose_reduction(block, sch.get_loops(block)[1])
+
+    intrin = WMMA_FILL_16x16x16_F32_INTRIN
+    if out_dtype == "float16":
+        intrin = WMMA_FILL_16x16x16_F16_INTRIN
+    sch.tensorize(sch.get_loops(init)[1], intrin)
+
+    intrin = WMMA_STORE_16x16x16_F32_GLOBAL_INTRIN
+    if out_dtype == "float16":
+        intrin = WMMA_STORE_16x16x16_F16_GLOBAL_INTRIN
+    sch.tensorize(sch.get_loops(store)[1], intrin)
+
+    intrin = WMMA_SYNC_16x16x16_f16f16f32_INTRIN
+    if out_dtype == "float16":
+        intrin = WMMA_SYNC_16x16x16_f16f16f16_INTRIN
+    sch.tensorize(sch.get_loops(block)[2], intrin)
+
+    target = "vulkan -from_device=0"
+    tgt_attrs = tvm.target.Target(target).attrs
+
+    if tgt_attrs.get("supports_cooperative_matrix"):
+        f = tvm.build(sch.mod, target=target)
+
+        dev = tvm.device(target, 0)
+
+        A = tvm.nd.array(np.random.randn(M, K).astype("float16"), dev)
+        B = tvm.nd.array(np.random.randn(K, N).astype("float16"), dev)
+        C = tvm.nd.array(np.random.randn(M, N).astype(out_dtype), dev)
+
+        f(A, B, C)
+
+        A_np = A.numpy()
+        B_np = B.numpy()
+        ref = np.dot(A_np.astype("float32"), B_np.astype("float32"))
+
+        tvm.testing.assert_allclose(C.numpy(), ref, rtol=1e-2, atol=1e-2)
+
+
+@tvm.testing.requires_vulkan(support_required="compile-only")
+def test_codegen_decl_buffer():
+    """The codegen should accept DeclBuffer nodes in its input"""
+
+    @I.ir_module
+    class mod:
+        @T.prim_func
+        def kernel():
+            T.func_attr({"calling_conv": 2, "global_symbol": "kernel", "tir.noalias": True})
+            A_data = T.allocate([256], dtype="float32", scope="local")
+            A_buf = T.decl_buffer([256], dtype="float32", scope="local", data=A_data)
+
+    target = tvm.target.Target("vulkan")
+    vulkan_codegen = tvm.get_global_func("target.build.vulkan")
+    vulkan_codegen(mod, target)
 
 
 if __name__ == "__main__":

@@ -19,6 +19,8 @@
 
 import logging
 
+import numpy as np
+
 import tvm
 from tvm import te
 from tvm import relay
@@ -31,6 +33,7 @@ from ..x86.conv2d_int8 import _get_default_config_int8
 from .conv2d_int8 import is_int8_hw_support
 from .arm_utils import get_tiling_B_interleaved_t
 from ..generic.conv2d import conv2d_alter_int8_common
+from .mprofile.dsp.micro_kernel.common import num_simd_lanes_per_word
 
 logger = logging.getLogger("topi")
 
@@ -121,7 +124,38 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
 
     idxd = tvm.tir.indexdiv
 
-    # We don't perform layout alteration for NHWC layout with real data types
+    if topi_tmpl == "depthwise_conv2d_nhwc_dsp.arm_cpu":
+        assert data_layout == "NHWC" and kernel_layout == "HWOI"
+
+        # We are not able to check if inputs[1] (the kernel) is a constant in the
+        # strategy function, so as a stopgap solution we use an assert here.
+        assert isinstance(
+            inputs[1], relay.Constant
+        ), "depthwise_conv2d_nhwc_dsp.arm_cpu requires kernel be a relay Constant"
+
+        channels = get_const_tuple(data.shape)[3]
+        KH, KW, _, _ = get_const_tuple(kernel.shape)
+        simd_lanes = num_simd_lanes_per_word(data.dtype)
+
+        HWOI_kernel_np = inputs[1].data.numpy()
+        CHWc_kernel_np = np.zeros((channels // simd_lanes, KH, KW, simd_lanes), dtype=kernel.dtype)
+        for i in range(channels // simd_lanes):
+            CHWc_kernel_np[i] = HWOI_kernel_np[:, :, simd_lanes * i : simd_lanes * (i + 1), 0]
+        reshaped_new_kernel = CHWc_kernel_np.reshape((KH, KW, channels, 1))
+
+        # Store the same config for the altered operator (workload)
+        new_data = data
+        new_kernel = te.placeholder((KH, KW, channels, 1), dtype=kernel.dtype)
+        new_workload = autotvm.task.args_to_workload(
+            [new_data, new_kernel, strides, padding, dilation, out_dtype],
+            "depthwise_conv2d_nhwc_dsp.arm_cpu",
+        )
+        dispatch_ctx.update(target, new_workload, cfg)
+        return relay.nn.conv2d(
+            inputs[0], relay.Constant(tvm.nd.array(reshaped_new_kernel)), **new_attrs
+        )
+
+    # Only microTVM does layout alteration for NHWC layout with real data types
     if data_layout == "NHWC" and data_dtype not in ["uint8", "int8"]:
         return None
 
@@ -131,7 +165,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         CO, _, KH, KW = get_const_tuple(kernel.shape)
         VC = cfg["tile_co"].size[-1]
 
-        new_attrs["kernel_layout"] = "OIHW%do" % VC
+        new_attrs["kernel_layout"] = f"OIHW{VC}o"
 
         new_data = data
         new_kernel = te.placeholder((idxd(CO, VC), CI, KH, KW, VC), dtype=kernel.dtype)
@@ -211,7 +245,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         new_attrs["channels"] = CO
 
         # pre-compute winograd_nnpack transform
-        # for winograd_nnpack_fp16, the the precompute prune pass must run on device,
+        # for winograd_nnpack_fp16, the precompute prune pass must run on device,
         # where float16 is supported
         weight_dtype = "float32"
         weight_expr = inputs[1]
@@ -239,7 +273,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         CO, M, KH, KW = get_const_tuple(kernel.shape)
         VC = cfg["tile_co"].size[-1]
 
-        new_attrs["kernel_layout"] = "OIHW%do" % (cfg["tile_co"].size[-1])
+        new_attrs["kernel_layout"] = f"OIHW{cfg['tile_co'].size[-1]}o"
 
         # Store the same config for the altered operator (workload)
         new_data = data
@@ -273,10 +307,10 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
 
         # update new attrs
         new_attrs["channels"] = out_channel
-        new_attrs["data_layout"] = "NCHW%dc" % ic_bn
+        new_attrs["data_layout"] = f"NCHW{ic_bn}c"
         # (oc, ic, h, w) -> (OC, IC, h, w, ic, oc)
-        new_attrs["kernel_layout"] = "OIHW%di%do" % (ic_bn, oc_bn)
-        new_attrs["out_layout"] = "NCHW%dc" % oc_bn
+        new_attrs["kernel_layout"] = f"OIHW{ic_bn}i{oc_bn}o"
+        new_attrs["out_layout"] = f"NCHW{oc_bn}c"
 
         # Store altered operator's config
         new_data = te.placeholder(
@@ -317,9 +351,9 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
 
         # update new attrs
         new_attrs["channels"] = out_channel
-        new_attrs["data_layout"] = "NCHW%dc" % ic_bn
-        new_attrs["kernel_layout"] = "OIHW1i%do" % oc_bn
-        new_attrs["out_layout"] = "NCHW%dc" % oc_bn
+        new_attrs["data_layout"] = f"NCHW{ic_bn}c"
+        new_attrs["kernel_layout"] = f"OIHW1i{oc_bn}o"
+        new_attrs["out_layout"] = f"NCHW{oc_bn}c"
 
         # Store altered operator's config.
         new_data = te.placeholder(
@@ -371,9 +405,9 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
 
         # update new attrs
         new_attrs["channels"] = out_channel
-        new_attrs["data_layout"] = "NCHW%dc" % ic_bn
-        new_attrs["kernel_layout"] = "OIHW{:n}i{:n}o{:n}i".format(ic_bn // n_elems, oc_bn, n_elems)
-        new_attrs["out_layout"] = "NCHW%dc" % oc_bn
+        new_attrs["data_layout"] = f"NCHW{ic_bn}c"
+        new_attrs["kernel_layout"] = f"OIHW{ic_bn // n_elems:n}i{oc_bn:n}o{n_elems:n}i"
+        new_attrs["out_layout"] = f"NCHW{oc_bn}c"
 
         # Store altered operator's config.
         new_data = te.placeholder(

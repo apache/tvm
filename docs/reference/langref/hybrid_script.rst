@@ -110,7 +110,7 @@ In HalideIR, loops have in total 4 types: ``serial``, ``unrolled``, ``parallel``
 
 Here we use ``range`` aka ``serial``, ``unroll``, ``parallel``, and ``vectorize``,
 these **4** keywords to annotate the corresponding types of for loops.
-The the usage is roughly the same as Python standard ``range``.
+The usage is roughly the same as Python standard ``range``.
 
 Besides all the loop types supported in Halide, ``const_range`` is supported for some specific conditions.
 Sometimes, ``tvm.container.Array`` is desired to pass as an argument, but in TVM-HalideIR, there is no

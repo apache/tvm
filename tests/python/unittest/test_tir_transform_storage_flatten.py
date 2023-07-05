@@ -95,7 +95,7 @@ def test_flatten_double_buffer():
             threadIdx_x = T.env_thread("threadIdx.x")
             T.launch_thread(threadIdx_x, 1)
             for i in T.serial(0, 100):
-                B = T.allocate([4], "float32", scope="shared", strides=[1])
+                B = T.decl_buffer([4], "float32", scope="shared")
                 with T.attr(B.data, "double_buffer_scope", 1):
                     for j in T.serial(0, 4):
                         B[j] = A[4 * i + j]
@@ -139,10 +139,10 @@ def test_flatten_let_buffer():
             T.func_attr({"from_legacy_te_schedule": True})
 
             # If a pointer defined using a LetStmt,
-            A_data: T.Ptr[T.int32] = T.call_extern("dummy_extern_function", dtype="handle")
+            A_data: T.handle("int32") = T.call_extern("dummy_extern_function", dtype="handle")
 
             # and a buffer is backed by that pointer,
-            A: T.Buffer = T.buffer_decl([1], dtype="float32", data=A_data)
+            A = T.decl_buffer([1], dtype="float32", data=A_data)
             T.evaluate(A[0])
 
     # then the call to StorageFlatten would result in an exception
@@ -163,6 +163,22 @@ def test_flatten_tir():
     tvm.ir.assert_structural_equal(
         orig_mod, mod
     )  # StorageFlatten should do nothing to TIR functions
+
+
+class TestPreserveDeclBuffer(tvm.testing.CompareBeforeAfter):
+    transform = tvm.tir.transform.StorageFlatten(64)
+
+    def before():
+        T.func_attr({"from_legacy_te_schedule": True})
+        A = T.decl_buffer([16, 16], "float32")
+        for i, j in T.grid(16, 16):
+            A[i, j] = 0.0
+
+    def expected():
+        T.func_attr({"from_legacy_te_schedule": True})
+        A = T.decl_buffer([256], "float32")
+        for i, j in T.grid(16, 16):
+            A[i * 16 + j] = 0.0
 
 
 if __name__ == "__main__":

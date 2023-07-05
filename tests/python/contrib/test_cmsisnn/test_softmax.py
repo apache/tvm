@@ -24,15 +24,14 @@ import pytest
 import tvm.testing
 from tvm import relay
 from tvm.relay.op.contrib import cmsisnn
-from tvm.testing.aot import AOTTestModel, compile_and_run, generate_ref_data
-from tvm.micro.testing.aot_test_utils import AOT_USMP_CORSTONE300_RUNNER
+from tvm.testing.aot import get_dtype_range, AOTTestModel, compile_and_run, generate_ref_data
 
 from .utils import (
     skip_if_no_reference_system,
     make_module,
-    get_range_for_dtype_str,
     assert_partitioned_function,
     assert_no_external_function,
+    create_test_runner,
 )
 
 
@@ -57,13 +56,15 @@ def make_model(
 
 
 @skip_if_no_reference_system
-@pytest.mark.parametrize(["zero_point", "scale"], [[33, 0.256], [-64, 0.0128]])
 @tvm.testing.requires_cmsisnn
-def test_op_int8(zero_point, scale):
+@pytest.mark.parametrize(["zero_point", "scale"], [[33, 0.256], [-64, 0.0128]])
+@pytest.mark.parametrize(
+    "compiler_cpu, cpu_flags", [("cortex-m55", "+nomve"), ("cortex-m55", ""), ("cortex-m7", "")]
+)
+def test_op_int8(zero_point, scale, compiler_cpu, cpu_flags):
     """Tests int8 QNN Softmax for CMSIS-NN"""
     interface_api = "c"
     use_unpacked_api = True
-    test_runner = AOT_USMP_CORSTONE300_RUNNER
 
     dtype = "int8"
     shape = [1, 16, 16, 3]
@@ -76,7 +77,7 @@ def test_op_int8(zero_point, scale):
     assert_partitioned_function(orig_mod, cmsisnn_mod)
 
     # validate the output
-    in_min, in_max = get_range_for_dtype_str(dtype)
+    in_min, in_max = get_dtype_range(dtype)
     np.random.seed(0)
     input_data = np.random.randint(in_min, high=in_max, size=shape, dtype=dtype)
     inputs = {"in0": input_data}
@@ -84,7 +85,7 @@ def test_op_int8(zero_point, scale):
     output_list = generate_ref_data(orig_mod["main"], inputs, params)
     compile_and_run(
         AOTTestModel(module=cmsisnn_mod, inputs=inputs, outputs=output_list, params=params),
-        test_runner,
+        create_test_runner(compiler_cpu, cpu_flags),
         interface_api,
         use_unpacked_api,
     )

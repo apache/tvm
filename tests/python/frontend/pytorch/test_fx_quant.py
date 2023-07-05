@@ -17,28 +17,34 @@
 """ Tests on fx-quantized torch model conversion """
 import torch
 import torchvision
+import pytest
 import numpy as np
 from torch.quantization import get_default_qconfig
 from torch.quantization.quantize_fx import prepare_fx, convert_fx
 from torchvision.models.efficientnet import efficientnet_b4
 from torchvision.models.resnet import resnet50
 from tvm import relay
+import tvm.testing
 
 
-def quantize(model):
+def quantize(model, example_inputs):
     qconfig = get_default_qconfig("fbgemm")
     qconfig_dict = {"": qconfig}
-    return convert_fx(prepare_fx(model, qconfig_dict))
+    return convert_fx(prepare_fx(model, qconfig_dict, example_inputs))
 
 
 def quantize_and_build(model, in_size):
     inp = torch.rand(1, 3, in_size, in_size)
     input_name = "inp"
-    qmodel = quantize(model)
+    qmodel = quantize(model, inp)
 
     with torch.no_grad():
         script_module = torch.jit.trace(qmodel, inp)
-        mod, _ = relay.frontend.from_pytorch(script_module, [(input_name, inp.shape)])
+        with tvm.testing.disable_span_filling():
+            mod, _ = relay.frontend.from_pytorch(script_module, [(input_name, inp.shape)])
+        with tvm.testing.enable_span_filling():
+            mod_with_span, _ = relay.frontend.from_pytorch(script_module, [(input_name, inp.shape)])
+        assert tvm.ir.structural_equal(mod, mod_with_span, map_free_vars=True)
         mod = relay.transform.InferType()(mod)
 
         # Make sure that the model is quantized
@@ -48,6 +54,7 @@ def quantize_and_build(model, in_size):
         # relay.build(mod, params=params, target="llvm")
 
 
+@pytest.mark.skip(reason="unsupported op aten::linalg_vector_norm")
 def test_ssd_vgg():
     class TraceWrapper(torch.nn.Module):
         def __init__(self, model):

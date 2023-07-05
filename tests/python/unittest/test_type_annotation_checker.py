@@ -16,11 +16,22 @@
 # under the License.
 """Test type checker based on python's type annotations"""
 
-from typing import List, Tuple, Union
+import sys
+from typing import Dict, List, Tuple, Union, Callable
 
 import pytest
+import _pytest
 
+import tvm
 from tvm.tir.schedule._type_checker import type_checked
+
+
+def int_func(x: int) -> int:
+    return 2 * x
+
+
+def str_func(x: str) -> str:
+    return 2 * x
 
 
 test_cases = [
@@ -43,6 +54,13 @@ test_cases = [
             5,
             ["5"],
         ],
+    },
+    {
+        "type_annotation": Dict[str, int],
+        "positive_cases": [
+            {"key1": 0, "key2": 1, "key3": -1},
+        ],
+        "negative_cases": [None, [1], {1: "1"}],
     },
     {
         "type_annotation": Tuple[int],
@@ -82,30 +100,71 @@ test_cases = [
             None,
         ],
     },
+    {
+        "type_annotation": Callable,
+        "positive_cases": [str_func, int_func],
+        "negative_cases": [
+            None,
+            "x",
+            42,
+        ],
+    },
+    {
+        "type_annotation": Callable[[int], int],
+        "positive_cases": [int_func],
+        "negative_cases": [
+            None,
+            "x",
+            42,
+            pytest.param(
+                str_func,
+                marks=pytest.mark.xfail(
+                    reason="Signature of Callable arguments not currently checked"
+                ),
+            ),
+        ],
+    },
 ]
 
+
+def make_parametrization(type_annotation, case):
+    if isinstance(case, _pytest.mark.structures.ParameterSet):
+        marks = case.marks
+        (case,) = case.values
+    else:
+        marks = []
+
+    try:
+        annotation_name = type_annotation.__name__
+    except AttributeError:
+        annotation_name = str(type_annotation).replace("typing.", "")
+
+    if hasattr(case, "__name__"):
+        case_name = case.__name__
+    else:
+        case_name = str(case)
+
+    name = f"{annotation_name}, {case_name}"
+
+    return pytest.param(type_annotation, case, marks=marks, id=name)
+
+
 positive_cases = [
-    (config["type_annotation"], case) for config in test_cases for case in config["positive_cases"]
+    make_parametrization(config["type_annotation"], case)
+    for config in test_cases
+    for case in config["positive_cases"]
 ]
 
 negative_cases = [
-    (config["type_annotation"], case) for config in test_cases for case in config["negative_cases"]
+    make_parametrization(config["type_annotation"], case)
+    for config in test_cases
+    for case in config["negative_cases"]
 ]
-
-
-def format_name(type_annotation, case):
-    try:
-        name = type_annotation.__name__
-    except AttributeError:
-        name = str(type_annotation).replace("typing.", "")
-
-    return f"{name}_{case}"
 
 
 @pytest.mark.parametrize(
     ["type_annotation", "case"],
     positive_cases,
-    ids=[format_name(t, c) for t, c in positive_cases],
 )
 def test_matches_type(type_annotation, case):
     @type_checked
@@ -118,7 +177,6 @@ def test_matches_type(type_annotation, case):
 @pytest.mark.parametrize(
     ["type_annotation", "case"],
     negative_cases,
-    ids=[format_name(t, c) for t, c in negative_cases],
 )
 def test_not_matches(type_annotation, case):
     @type_checked
@@ -130,4 +188,4 @@ def test_not_matches(type_annotation, case):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    tvm.testing.main()

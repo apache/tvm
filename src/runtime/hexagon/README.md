@@ -54,7 +54,7 @@ ANDROID_ABI=aarch64-v8a
 ANDROID_PLATFORM=android-28
 CMAKE_TOOLCHAIN_FILE=/path/to/android-ndk/build/cmake/android.toolchain.cmake
 USE_HEXAGON=ON
-USE_HEXAGON_ARCH=v65|v66|v68|v69
+USE_HEXAGON_ARCH=v65|v66|v68|v69|v73
 USE_HEXAGON_SDK=/path/to/sdk
 ```
 
@@ -63,9 +63,13 @@ Building for Hexagon requires setting the C/C++ compiler to `hexagon-clang/++`:
 CMAKE_C_COMPILER=hexagon-clang
 CMAKE_CXX_COMPILER=hexagon-clang++
 USE_HEXAGON=ON
-USE_HEXAGON_ARCH=v65|v66|v68|v69
+USE_HEXAGON_ARCH=v65|v66|v68|v69|v73
 USE_HEXAGON_SDK=/path/to/sdk
+USE_RPC=OFF
+USE_LIBBACKTRACE=OFF
 ```
 
 As mentioned before, only build the `runtime` component (e.g. `make runtime`).
 
+Please note that the Hexagon SDK version needs to support the architecture
+specified in `USE_HEXAGON_ARCH`.

@@ -95,12 +95,12 @@ inline Array<PrimExpr> StridedSliceCanonicalizeBegin(const Array<PrimExpr>& isha
                                                      std::string slice_mode = "end") {
   Array<PrimExpr> begin_expr;
   for (size_t i = 0; i < axes.size(); ++i) {
-    if (ishape[axes[i]]->IsInstance<tvm::IntImmNode>()) {
-      int64_t dim_i = GetConstInt(ishape[axes[i]]);
+    if (ishape[axes[i].IntValue()]->IsInstance<tvm::IntImmNode>()) {
+      int64_t dim_i = GetConstInt(ishape[axes[i].IntValue()]);
       int64_t begin_i = CanonicalizeIndex(begin[i], dim_i, strides[i]);
       begin_expr.push_back(make_const(dtype, begin_i));
     } else {
-      auto idim = ishape[axes[i]];
+      auto idim = ishape[axes[i].IntValue()];
       auto b_expr = make_const(dtype, begin[i]);
       PrimExpr b = begin[i] < 0 ? b_expr + idim : b_expr;
       auto s = strides[i];
@@ -129,8 +129,8 @@ inline Array<PrimExpr> StridedSliceOutputShape(const Array<PrimExpr>& ishape,
   }
 
   for (size_t i = 0; i < axes.size(); ++i) {
-    if (ishape[axes[i]]->IsInstance<tvm::IntImmNode>()) {
-      const int64_t dim_i = GetConstInt(ishape[axes[i]]);
+    if (ishape[axes[i].IntValue()]->IsInstance<tvm::IntImmNode>()) {
+      const int64_t dim_i = GetConstInt(ishape[axes[i].IntValue()]);
       ICHECK(begin_canonicalized[i]->IsInstance<tvm::IntImmNode>());
       int64_t begin_i = GetConstInt(begin_canonicalized[i]);
       int64_t end_i = CanonicalizeIndex(end[i], dim_i, strides[i]);
@@ -139,11 +139,11 @@ inline Array<PrimExpr> StridedSliceOutputShape(const Array<PrimExpr>& ishape,
           static_cast<int>((interval + std::abs(strides[i]) - 1) / std::abs(strides[i]));
       ICHECK(strides[i] < 0 ? (end_i <= begin_i) : (begin_i <= end_i))
           << ": Input [Begin=" << begin[i] << ", End=" << end[i] << "] is invalid for axis=" << i;
-      out_shape.Set(axes[i], cast(out_shape[i].dtype(), PrimExpr(slice_size)));
+      out_shape.Set(axes[i].IntValue(), cast(out_shape[i].dtype(), PrimExpr(slice_size)));
     } else if (use_any) {
-      out_shape.Set(axes[i], tvm::tir::Any());
+      out_shape.Set(axes[i].IntValue(), tvm::tir::Any());
     } else {
-      out_shape.Set(axes[i], tvm::tir::Var("dim", out_shape[i]->dtype));
+      out_shape.Set(axes[i].IntValue(), tvm::tir::Var("dim", out_shape[i]->dtype));
     }
   }
 

@@ -20,8 +20,15 @@ set -e
 set -u
 set -o pipefail
 
-v=3.14
-version=3.14.7
+# the minimum cmake is 3.20.0 for LLVM 16+
+if [ -z ${1+x} ]; then
+    version=3.20.0
+else
+    version=$1
+fi
+
+v=$(echo $version | sed 's/\(.*\)\..*/\1/g')
+echo "Installing cmake $version ($v)"
 wget https://cmake.org/files/v${v}/cmake-${version}.tar.gz
 tar xvf cmake-${version}.tar.gz
 cd cmake-${version}

@@ -54,6 +54,14 @@ Block WithAnnotation(const BlockNode* block, const String& attr_key, const Objec
 Buffer WithScope(const Buffer& buffer, const String& scope);
 
 /*!
+ * \brief Create a new buffer by changint the data type.
+ * \param buffer The given buffer.
+ * \param scope The target data type.
+ * \return The new buffer with target data type.
+ */
+Buffer WithDType(const Buffer& buffer, const DataType& dtype);
+
+/*!
  * \brief Replaces the buffer within the specific sequence of regions
  * \param regions The regions whose buffers are to be replaced
  * \param source The buffer to be replaced
@@ -114,7 +122,12 @@ class ReplaceBufferMutator : public StmtExprMutator {
   ReplaceBufferMutator(const Buffer& old_buffer, Buffer new_buffer,
                        Map<Block, Block>* block_sref_reuse);
 
+  ReplaceBufferMutator(const Map<Buffer, Buffer>& buffer_map, Map<Block, Block>* block_sref_reuse);
+
  protected:
+  using StmtExprMutator::VisitExpr_;
+  using StmtExprMutator::VisitStmt_;
+
   PrimExpr VisitExpr_(const VarNode* var) final;
 
   template <typename Node>
@@ -126,13 +139,13 @@ class ReplaceBufferMutator : public StmtExprMutator {
     return node;
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* op) final;
+  Stmt VisitStmt_(const BufferStoreNode* op) override;
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final;
+  PrimExpr VisitExpr_(const BufferLoadNode* op) override;
 
   virtual MatchBufferRegion VisitMatchBufferRegion(const MatchBufferRegion& match_buffer);
 
-  Stmt VisitStmt_(const BlockNode* block) final;
+  Stmt VisitStmt_(const BlockNode* block) override;
 
   /*!
    * \brief A mapping which maps old buffer vars to new buffers, including the buffers defined in
@@ -188,11 +201,12 @@ void LeafBlockRemovalPlan(const ScheduleState& self, const StmtSRef& leaf_block_
  * \param block_rv The block whose subset of loops will be tiled
  * \param intrin_name The name of a tensor intrinsic, must be registerd via
  * TensorIntrin.register(...) beforehand
+ * \param allow_padding Whether to allow padding when tiling
  * \return LoopRV corresponding to the outermost loop of a
  * block tiled according to the given intrin, NullOpt if a valid loop mapping is not found
  */
 Optional<tir::LoopRV> TileWithTensorIntrin(const tir::Schedule& sch, const tir::BlockRV& block_rv,
-                                           const String& intrin_name);
+                                           const String& intrin_name, bool allow_padding = false);
 
 /******** Block mutation ********/
 
@@ -220,16 +234,11 @@ class BlockBufferAccessSimplifier : public arith::IRMutatorWithAnalyzer {
   using IRMutatorWithAnalyzer::VisitStmt_;
 
   void SimplifyAccessRegion(Array<BufferRegion>* old_access_regions);
+  void SimplifyBufferIndices(Array<PrimExpr>* indices);
+
   Stmt VisitStmt_(const BlockNode* op) final;
   Stmt VisitStmt_(const BufferStoreNode* op) final;
   PrimExpr VisitExpr_(const BufferLoadNode* op) final;
-
-  template <typename Node>
-  Node VisitBufferAccess(Node node) {
-    node.CopyOnWrite()->indices.MutateByApply(
-        [this](const PrimExpr& expr) { return analyzer_->Simplify(expr); });
-    return node;
-  }
 };
 
 }  // namespace tir

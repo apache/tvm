@@ -32,7 +32,7 @@ function shard1 {
   tests/scripts/task_convert_scripts_to_python.sh
 
   echo "Check Jenkinsfile generation"
-  python3 jenkins/generate.py --check
+  python3 ci/jenkins/generate.py --check
 
   echo "Checking file types..."
   python3 tests/lint/check_file_type.py
@@ -57,6 +57,9 @@ function shard1 {
 }
 
 function shard2 {
+  echo "check whitespace..."
+  tests/lint/whitespace.sh
+
   echo "Linting the Python code with pylint..."
   tests/lint/pylint.sh
 
@@ -90,4 +93,3 @@ else
   shard1
   shard2
 fi
-

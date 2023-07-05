@@ -107,6 +107,7 @@ TEST(VirtualDeviceCache, Memoized) {
   VirtualDeviceCache cache;
   Target target_a = Target("cuda");
   Target target_b = Target("llvm");
+  Target target_c = Target("cuda");
   VirtualDevice virtual_device_a = cache.Make(kDLCUDA, 3, target_a, "local");
   VirtualDevice virtual_device_b = cache.Make(kDLCPU, 1, target_b, "global");
 
@@ -115,6 +116,9 @@ TEST(VirtualDeviceCache, Memoized) {
   EXPECT_NE(cache.Make(kDLCUDA, 2, target_a, "local"), virtual_device_a);
   EXPECT_NE(cache.Make(kDLCPU, 3, target_b, "local"), virtual_device_a);
   EXPECT_NE(cache.Make(kDLCUDA, 3, target_a, "global"), virtual_device_a);
+  EXPECT_EQ(cache.Make(kDLCUDA, 3, Target("cuda"), "local"), virtual_device_a);
+  EXPECT_NE(cache.Make(kDLCUDA, 3, Target("cuda -max_threads_per_block=4096"), "local"),
+            virtual_device_a);
 }
 
 }  // namespace

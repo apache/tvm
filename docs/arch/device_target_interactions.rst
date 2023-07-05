@@ -194,8 +194,8 @@ different code generation targets can run on the same physical device.
 device type.)
 
 All options for a specific target kind are added with the
-``add_attr_option`` function, with optional default values.  A
-preprocessor can be added with ``set_attrs_preprocessor`` to define
+``add_attr_option`` function, with optional default values.  A `Target`
+parser can be added with ``set_target_parser`` to process
 any parameters that are dynamically based on other parameters or
 queried from device properties.
 
