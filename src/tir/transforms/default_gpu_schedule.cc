@@ -41,15 +41,9 @@ void ThreadBind(tir::Schedule sch, const tir::BlockRV& block, int64_t max_thread
   }
   Array<tir::IterVar> iters = sch->Get(block)->iter_vars;
 
-  // special check for no-loop case
-  // in te/operation/create_primfunc.cc:L321, it will create a dummy iter var
-  // which makes loops.size() == 0 and iters.size() == 1.
-  if (loops.size() == 0 && iters.size() == 1) {
-    auto loop = sch->AddUnitLoop(block);
-    loops.push_back(loop);
-  }
-
-  ICHECK_EQ(loops.size(), iters.size());
+  // when there is no loops, tir will add a dummy iter var for the block
+  // so loops.size() == 0 && iters.size() == 1
+  ICHECK(loops.size() == iters.size() || (loops.size() == 0 && iters.size() == 1));
 
   Array<tir::LoopRV> data_parallel_loops;
   // only fuse data parallel loops
@@ -58,9 +52,11 @@ void ThreadBind(tir::Schedule sch, const tir::BlockRV& block, int64_t max_thread
       data_parallel_loops.push_back(loops[i]);
     }
   }
-  // skip if no data parallel loops
+
+  // Add a dummy loop if there is no data parallel loops
   if (data_parallel_loops.size() == 0) {
-    return;
+    data_parallel_loops.push_back(loops.empty() ? sch->AddUnitLoop(block)
+                                                : sch->AddUnitLoop(loops[0]));
   }
   // fuse all data parallel loops
   tir::LoopRV fused = sch->Fuse(data_parallel_loops, /*preserve_unit_iters=*/false);
@@ -123,6 +119,10 @@ Pass DefaultGPUSchedule() {
             sch->WorkOn(gv->name_hint);
             Array<tir::BlockRV> blocks = meta_schedule::BlockCollector::Collect(sch);
             for (const tir::BlockRV& block : blocks) {
+              auto childs = sch->GetChildBlocks(block);
+              if (!childs.empty()) {
+                continue;
+              }
               ThreadBind(sch, block, max_thread_per_block);
             }
           }
