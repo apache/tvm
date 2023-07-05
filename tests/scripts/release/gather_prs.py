@@ -98,15 +98,19 @@ def fetch_pr_data(args, cache):
     cursor = f"{args.from_commit} {i}"
 
     while True:
-        r = github.graphql(
-            query=PRS_QUERY,
-            variables={
-                "owner": user,
-                "name": repo,
-                "after": cursor,
-                "pageSize": page_size,
-            },
-        )
+        try:
+            r = github.graphql(
+                query=PRS_QUERY,
+                variables={
+                    "owner": user,
+                    "name": repo,
+                    "after": cursor,
+                    "pageSize": page_size,
+                },
+            )
+        except RuntimeError as e:
+            print(f"{e}\nPlease check enviroment variable GITHUB_TOKEN whether is valid.")
+            exit(1)
         data = r["data"]["repository"]["defaultBranchRef"]["target"]["history"]
         if not data["pageInfo"]["hasNextPage"]:
             break
