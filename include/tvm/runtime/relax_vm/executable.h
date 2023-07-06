@@ -33,6 +33,12 @@
 
 #include "./bytecode.h"
 
+// Convention: this version should set to minimum TVM version it support
+// NOTE: this file only changes if we change relax vm format
+// for example if relax vm format do not change in 0.15, this should remain as 0.14
+// if it changes in 0.16, we will change it to 0.16
+#define RELAX_VM_VERSION "0.14"
+
 namespace tvm {
 namespace runtime {
 namespace relax_vm {
