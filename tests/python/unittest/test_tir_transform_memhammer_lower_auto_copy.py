@@ -315,8 +315,6 @@ class TransformedGlobalToSharedWithLocalStage:
         A = T.match_buffer(a, (1024, 1024))
         B = T.match_buffer(b, (1024, 1024))
         with T.block("root"):
-            T.reads(A[0:1024, 0:1024])
-            T.writes(B[0:1024, 0:1024])
             T.block_attr({"warp_execution": True})
             for bx in T.thread_binding(8, thread="blockIdx.x"):
                 for by in T.thread_binding(8, thread="blockIdx.y"):
@@ -583,8 +581,6 @@ class TransformedWmmaToGlobal:
     @T.prim_func
     def main(C: T.Buffer((1024, 1024), "float32")):
         with T.block("root"):
-            T.reads()
-            T.writes(C[0:1024, 0:1024])
             T.block_attr({"warp_execution": True})
             for bx in T.thread_binding(8, thread="blockIdx.x"):
                 for by in T.thread_binding(8, thread="blockIdx.y"):
@@ -785,8 +781,6 @@ class TransformedWmmaToGlobalWithFusion:
         s1 = T.int32()
         # body
         with T.block("root"):
-            T.reads(A[0:1024])
-            T.writes(C[0:1024, 0:1024])
             T.block_attr({"warp_execution": True})
             for bx in T.thread_binding(8, thread="blockIdx.x"):
                 for by in T.thread_binding(8, thread="blockIdx.y"):
@@ -1009,8 +1003,6 @@ class TransformedMmaToGlobal:
     @T.prim_func
     def main(C: T.Buffer((1024, 1024), "float32")):
         with T.block("root"):
-            T.reads()
-            T.writes(C[0:1024, 0:1024])
             T.block_attr({"warp_execution": T.bool(True)})
             for bx in T.thread_binding(8, thread="blockIdx.x"):
                 for by in T.thread_binding(8, thread="blockIdx.y"):
