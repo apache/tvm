@@ -14,9 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
 import tvm
+import tvm.testing
+
 from tvm import te
 from tvm.script import tir as T
+
 import numpy as np
 
 
@@ -205,9 +209,6 @@ class TestLowerDeviceAllocate(tvm.testing.CompareBeforeAfter):
       CodeGenLLVM.  This fails to match when `map_free_vars=False`
       (default), because the first occurrence is undefined.
 
-    - The call to TVMBackendFreeWorkspace uses the allocated pointer,
-      but occurs outside the LetStmt.
-
     - TVMScript always produces "handle" dtype for
       `T.tvm_throw_last_error`, while LowerTVMBuiltin outputs "int32"
       dtype.
@@ -230,10 +231,10 @@ class TestLowerDeviceAllocate(tvm.testing.CompareBeforeAfter):
         with T.LetStmt(T.TVMBackendAllocWorkspace(2, 0, T.uint64(64), 2, 32), var=ptr):
             if T.isnullptr(ptr):
                 T.Call("int32", "tir.tvm_throw_last_error", [])
-            buf = T.decl_buffer((16,), data=ptr)
-            buf[0] = T.float32(0)
-        if T.TVMBackendFreeWorkspace(2, 0, ptr) != 0:
-            T.Call("int32", "tir.tvm_throw_last_error", [])
+            with T.decl_buffer((16,), data=ptr) as buf:
+                buf[0] = T.float32(0)
+            if T.TVMBackendFreeWorkspace(2, 0, ptr) != 0:
+                T.Call("int32", "tir.tvm_throw_last_error", [])
 
     def test_compare(self, before, expected, transform):
         after = transform(before)

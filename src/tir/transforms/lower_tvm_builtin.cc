@@ -247,22 +247,21 @@ class BuiltinLower : public StmtExprMutator {
     ICHECK(device_id_) << "Unknown device id in current IR";
     Stmt throw_last_error = Evaluate(Call(DataType::Int(32), builtin::tvm_throw_last_error(), {}));
 
-    Stmt body = SeqStmt({IfThenElse(Call(DataType::Bool(1), builtin::isnullptr(), {op->buffer_var}),
-                                    throw_last_error),
-                         op->body});
-    Stmt alloca = LetStmt(op->buffer_var,
-                          Call(op->buffer_var.dtype(), Op::Get("tir.TVMBackendAllocWorkspace"),
-                               {cast(DataType::Int(32), device_type_.value()),
-                                cast(DataType::Int(32), device_id_.value()), total_bytes,
-                                IntImm(DataType::Int(32), op->dtype.code()),
-                                IntImm(DataType::Int(32), op->dtype.bits())}),
-                          body);
-
+    Stmt alloc_nullptr_check = IfThenElse(
+        Call(DataType::Bool(1), builtin::isnullptr(), {op->buffer_var}), throw_last_error);
     PrimExpr free_op = Call(DataType::Int(32), Op::Get("tir.TVMBackendFreeWorkspace"),
                             {cast(DataType::Int(32), device_type_.value()),
                              cast(DataType::Int(32), device_id_.value()), op->buffer_var});
     Stmt free_stmt = IfThenElse(free_op != make_zero(DataType::Int(32)), throw_last_error);
-    body = SeqStmt({alloca, free_stmt});
+
+    Stmt body = SeqStmt({alloc_nullptr_check, op->body, free_stmt});
+    body = LetStmt(op->buffer_var,
+                   Call(op->buffer_var.dtype(), Op::Get("tir.TVMBackendAllocWorkspace"),
+                        {cast(DataType::Int(32), device_type_.value()),
+                         cast(DataType::Int(32), device_id_.value()), total_bytes,
+                         IntImm(DataType::Int(32), op->dtype.code()),
+                         IntImm(DataType::Int(32), op->dtype.bits())}),
+                   body);
     body = AttrStmt(op->buffer_var, attr::storage_alignment,
                     make_const(DataType::Int(32), runtime::kTempAllocaAlignment), body);
     return body;
@@ -567,9 +566,15 @@ class BuiltinLower : public StmtExprMutator {
     ICHECK(device_id_) << "Unknown device id in current IR";
     Stmt throw_last_error = Evaluate(Call(DataType::Int(32), builtin::tvm_throw_last_error(), {}));
 
+    PrimExpr storage_scope = call->args[0];
+    Call free_op = Call(DataType::Int(32), builtin::tvm_call_packed(),
+                        {GetDeviceMethodName("free_nd"), device_type_.value(), device_id_.value(),
+                         storage_scope, let->var});
+    Stmt free_stmt = IfThenElse(free_op != make_zero(DataType::Int(32)), throw_last_error);
+
     Stmt body = SeqStmt(
         {IfThenElse(Call(DataType::Bool(1), builtin::isnullptr(), {let->var}), throw_last_error),
-         let->body});
+         let->body, free_stmt});
 
     DataType dtype =
         let->var->type_annotation.as<PointerTypeNode>()->element_type.as<PrimTypeNode>()->dtype;
@@ -591,15 +596,7 @@ class BuiltinLower : public StmtExprMutator {
 
     Call call_packed = Call(let->var.dtype(), builtin::tvm_call_packed(), args);
     Stmt alloca = LetStmt(let->var, call_packed, body);
-
-    PrimExpr storage_scope = call->args[0];
-    Call free_op = Call(DataType::Int(32), builtin::tvm_call_packed(),
-                        {GetDeviceMethodName("free_nd"), device_type_.value(), device_id_.value(),
-                         storage_scope, let->var});
-
-    Stmt free_stmt = IfThenElse(free_op != make_zero(DataType::Int(32)), throw_last_error);
-    body = SeqStmt({alloca, free_stmt});
-    return body;
+    return alloca;
   }
 
  private:
