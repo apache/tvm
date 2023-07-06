@@ -124,12 +124,24 @@ class TestBindTargetWithHostToInternalFunction(tvm.testing.CompareBeforeAfter):
 
     transform = tvm.tir.transform.BindTarget(tvm.target.Target("cuda", host="llvm"))
 
-    def before():
-        T.evaluate(0)
+    def before(self):
+        @I.ir_module
+        class module:
+            @T.prim_func(private=True)
+            def main():
+                T.evaluate(0)
 
-    def expected():
-        T.func_attr({"target": T.target("cuda")})
-        T.evaluate(0)
+        return module
+
+    def expected(self):
+        @I.ir_module
+        class module:
+            @T.prim_func(private=True)
+            def main():
+                T.func_attr({"target": T.target("cuda")})
+                T.evaluate(0)
+
+        return module
 
 
 class TestBindTargetIgnoresExisting(tvm.testing.CompareBeforeAfter):
