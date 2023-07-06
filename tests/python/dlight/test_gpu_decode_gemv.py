@@ -428,6 +428,7 @@ def test_reduction_no_spatial():
     class Before:
         @T.prim_func
         def main(A: T.Buffer((1, 1, 4096), "float16"), B: T.Buffer((4096,), "float16"), rms_norm: T.Buffer((1, 4096), "float16")):
+            T.func_attr({"global_symbol": "main", "tir.noalias": True})
             Ared_temp = T.alloc_buffer((1, 1))
             for ax0 in range(4096):
                 with T.block("Ared_temp"):
@@ -444,9 +445,9 @@ def test_reduction_no_spatial():
     class After:
         @T.prim_func
         def main(A: T.Buffer((1, 1, 4096), "float16"), B: T.Buffer((4096,), "float16"), rms_norm: T.Buffer((1, 4096), "float16")):
-            T.func_attr({"tir.is_scheduled": 1})
+            T.func_attr({"global_symbol": "main", "tir.noalias": True, "tir.is_scheduled": 1})
             # with T.block("root"):
-            Ared_temp_local = T.alloc_buffer((1, 1), scope="local")
+            Ared_temp_shared = T.alloc_buffer((1, 1), scope="shared")
             Ared_temp_rf_local = T.alloc_buffer((256, 1, 1), scope="local")
             for ax0_fused in T.thread_binding(T.int64(1), thread="blockIdx.x"): # pylint: disable=unused-variable
                 for ax1_fused_1 in T.thread_binding(256, thread="threadIdx.x"):
@@ -470,16 +471,17 @@ def test_reduction_no_spatial():
                             vax1_fused_1 = T.axis.reduce(256, ax0)
                             v0 = T.axis.spatial(T.int64(1), T.int64(0))
                             T.reads(Ared_temp_rf_local[vax1_fused_1, 0, 0])
-                            T.writes(Ared_temp_local[0, 0])
+                            T.writes(Ared_temp_shared[0, 0])
                             with T.init():
-                                Ared_temp_local[0, 0] = T.float32(0)
-                            Ared_temp_local[0, 0] = Ared_temp_local[0, 0] + Ared_temp_rf_local[vax1_fused_1, 0, 0]
-                for ax0 in range(4096):
-                    with T.block("rms_norm"):
-                        v0 = T.axis.spatial(4096, ax0)
-                        T.reads(B[v0], A[0, 0, v0], Ared_temp_local[0, 0])
-                        T.writes(rms_norm[0, v0])
-                        rms_norm[0, v0] = T.Cast("float16", T.Cast("float32", B[v0]) * (T.Cast("float32", A[0, 0, v0]) / T.sqrt(Ared_temp_local[0, 0] * T.float32(0.000244140625) + T.float32(9.9999999999999995e-07))))
+                                Ared_temp_shared[0, 0] = T.float32(0)
+                            Ared_temp_shared[0, 0] = Ared_temp_shared[0, 0] + Ared_temp_rf_local[vax1_fused_1, 0, 0]
+                for ax0_fused_0 in range(16):
+                    for ax0_fused_1 in T.thread_binding(256, thread="threadIdx.x"):
+                        with T.block("rms_norm"):
+                            v0 = T.axis.spatial(4096, ax0_fused_0 * 256 + ax0_fused_1)
+                            T.reads(B[v0], A[0, 0, v0], Ared_temp_shared[0, 0])
+                            T.writes(rms_norm[0, v0])
+                            rms_norm[0, v0] = T.Cast("float16", T.Cast("float32", B[v0]) * (T.Cast("float32", A[0, 0, v0]) / T.sqrt(Ared_temp_shared[0, 0] * T.float32(0.000244140625) + T.float32(9.9999999999999995e-07))))
     # fmt: on
     target = Target("nvidia/geforce-rtx-3090-ti")
     with target:

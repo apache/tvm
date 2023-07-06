@@ -17,12 +17,13 @@
 """Analysis on TIR blocks, loops and functions."""
 from typing import List, Optional, Union
 
-from tvm import tir
+from typing_extensions import Literal
+
+from tvm import ir, tir
 from tvm._ffi import get_global_func
 from tvm.target.target import Target
 from tvm.tir import Schedule
 from tvm.tir.schedule import BlockRV
-from typing_extensions import Literal
 
 
 class IterInfo:
@@ -90,6 +91,26 @@ class BlockInfo:
     def is_injective(self) -> bool:
         """Whether the block is injective, i.e. all its iteration domains are injective."""
         return all(k == "S" for k in self.dom_kind())
+
+    def is_elementwise(self, sch: tir.Schedule) -> bool:
+        """Whether the block is elementwise, i.e. trivial mapping between read/write region"""
+
+        def _check_unit_var_range(dom: ir.Range, var: tir.Var) -> bool:
+            return dom.min.same_as(var) and dom.extent == 1
+
+        if not self.is_injective():
+            return False
+        block = sch.get(self.block_rv)
+        if len(block.reads) != 1 or len(block.writes) != 1:
+            return False
+        r_region = block.reads[0].region
+        w_region = block.writes[0].region
+        if len(r_region) != len(w_region):
+            return False
+        for var, r_dom, w_dom in zip(block.iter_vars, r_region, w_region):
+            if not _check_unit_var_range(var, r_dom) or not _check_unit_var_range(var, w_dom):
+                return False
+        return True
 
     def is_reduction(self) -> bool:
         """Whether the block is a reduction workload."""
