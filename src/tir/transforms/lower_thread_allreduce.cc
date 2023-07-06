@@ -53,7 +53,7 @@ class UpdatePointerStorageScopeAllReduce final : public UpdatePointerStorageScop
         // use volatile access to shared buffer.
         body = AttrStmt(remapped, attr::volatile_scope, 1, body);
       }
-      return Allocate(remapped, op->dtype, op->extents, op->condition, body);
+      return Allocate(remapped, op->dtype, op->extents, op->condition, body, op->annotations);
     }
     return StmtExprMutator::VisitStmt_(op);
   }
