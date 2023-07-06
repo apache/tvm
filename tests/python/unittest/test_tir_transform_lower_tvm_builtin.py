@@ -204,11 +204,6 @@ class TestLowerDeviceAllocate(tvm.testing.CompareBeforeAfter):
     This test validates the current behavior of LowerTVMBuiltin.  This
     unit test may be improved in the future by addressing:
 
-    - The AttrStmt for "storage_alignment" occurs outside the LetStmt
-      that defines the pointer, which is currently required by
-      CodeGenLLVM.  This fails to match when `map_free_vars=False`
-      (default), because the first occurrence is undefined.
-
     - TVMScript always produces "handle" dtype for
       `T.tvm_throw_last_error`, while LowerTVMBuiltin outputs "int32"
       dtype.
@@ -226,15 +221,14 @@ class TestLowerDeviceAllocate(tvm.testing.CompareBeforeAfter):
 
     def expected():
         T.func_attr({"target": T.target("llvm")})
-        ptr = T.handle("float32", "global")
+        ptr: T.handle("float32") = T.TVMBackendAllocWorkspace(2, 0, T.uint64(64), 2, 32)
         T.attr(ptr, "storage_alignment", 64)
-        with T.LetStmt(T.TVMBackendAllocWorkspace(2, 0, T.uint64(64), 2, 32), var=ptr):
-            if T.isnullptr(ptr):
-                T.Call("int32", "tir.tvm_throw_last_error", [])
-            with T.decl_buffer((16,), data=ptr) as buf:
-                buf[0] = T.float32(0)
-            if T.TVMBackendFreeWorkspace(2, 0, ptr) != 0:
-                T.Call("int32", "tir.tvm_throw_last_error", [])
+        if T.isnullptr(ptr):
+            T.Call("int32", "tir.tvm_throw_last_error", [])
+        buf = T.decl_buffer((16,), data=ptr)
+        buf[0] = T.float32(0)
+        if T.TVMBackendFreeWorkspace(2, 0, ptr) != 0:
+            T.Call("int32", "tir.tvm_throw_last_error", [])
 
     def test_compare(self, before, expected, transform):
         after = transform(before)

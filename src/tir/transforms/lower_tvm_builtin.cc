@@ -254,7 +254,21 @@ class BuiltinLower : public StmtExprMutator {
                              cast(DataType::Int(32), device_id_.value()), op->buffer_var});
     Stmt free_stmt = IfThenElse(free_op != make_zero(DataType::Int(32)), throw_last_error);
 
-    Stmt body = SeqStmt({alloc_nullptr_check, op->body, free_stmt});
+    Stmt body = op->body;
+    std::vector<Stmt> nest;
+    while (auto opt = body.as<DeclBuffer>()) {
+      auto decl = opt.value();
+      body = decl->body;
+      decl.CopyOnWrite()->body = Evaluate(0);
+      nest.push_back(decl);
+    }
+
+    body = SeqStmt::Flatten(body, free_stmt);
+    body = MergeNest(nest, body);
+    body = SeqStmt::Flatten(alloc_nullptr_check, body);
+
+    body = AttrStmt(op->buffer_var, attr::storage_alignment,
+                    make_const(DataType::Int(32), runtime::kTempAllocaAlignment), body);
     body = LetStmt(op->buffer_var,
                    Call(op->buffer_var.dtype(), Op::Get("tir.TVMBackendAllocWorkspace"),
                         {cast(DataType::Int(32), device_type_.value()),
@@ -262,8 +276,7 @@ class BuiltinLower : public StmtExprMutator {
                          IntImm(DataType::Int(32), op->dtype.code()),
                          IntImm(DataType::Int(32), op->dtype.bits())}),
                    body);
-    body = AttrStmt(op->buffer_var, attr::storage_alignment,
-                    make_const(DataType::Int(32), runtime::kTempAllocaAlignment), body);
+
     return body;
   }
 
