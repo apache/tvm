@@ -36,6 +36,7 @@ def test_pass_simple():
                 C[i, j] = B[i, j] * 2.0
 
     assert tvm.tir.analysis.verify_well_formed(element_wise)
+    assert tvm.tir.analysis.verify_well_formed(tvm.IRModule.from_expr(element_wise))
 
 
 def test_fail_use_out_loop_var():
