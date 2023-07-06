@@ -456,6 +456,7 @@ Optional<ObjectRef> NormalizePrimFunc(Schedule sch) {
   Array<IntImm> block_is_reduction;
   for (const BlockRV& block : blocks) {
     Array<IterVar> iters = sch->Get(block)->iter_vars;
+    bool has_spatial_iter = false;
     Array<Var> index_map_inputs;
     Array<PrimExpr> index_map_outputs;
     for (const IterVar& iter : sch->Get(block)->iter_vars) {
@@ -463,10 +464,13 @@ Optional<ObjectRef> NormalizePrimFunc(Schedule sch) {
       index_map_inputs.push_back(var);
       if (!is_one(iter->dom->extent)) {
         index_map_outputs.push_back(var);
+        if (iter->iter_type == IterVarType::kDataPar) {
+          has_spatial_iter = true;
+        }
       }
     }
-    if (index_map_outputs.empty()) {
-      index_map_outputs.push_back(make_zero(DataType::Int(64)));
+    if (index_map_outputs.empty() || !has_spatial_iter) {
+      index_map_outputs.insert(index_map_outputs.begin(), tir::make_const(DataType::Int(64), 0));
     }
     sch->TransformBlockLayout(block, IndexMap(index_map_inputs, index_map_outputs));
     block_loops.push_back(sch->GetLoops(block));
