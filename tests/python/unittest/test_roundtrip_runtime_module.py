@@ -37,6 +37,7 @@ has_tensorrt_runtime = pytest.mark.skipif(
     reason="TensorRT runtime not available",
 )
 
+
 @has_tensorrt_codegen
 @has_tensorrt_runtime
 def test_tensorrt():
@@ -49,27 +50,29 @@ def test_tensorrt():
     f = relay.Function(inputs, net)
     mod, params = testing.create_workload(f)
     mod = build_relay_with_tensorrt(mod, "cuda", params)
-    
+
     # json runtime is binary serializable. so roundtrip works.
     assert mod.is_binary_serializable
-    tvm.ir.load_json(tvm.ir.save_json(mod))    
-    
+    tvm.ir.load_json(tvm.ir.save_json(mod))
+
 
 def test_csource_module():
     mod = tvm.runtime._ffi_api.CSourceModuleCreate("", "cc", [], None)
     # source module that is not binary serializable.
-    # Thus, it would raise an error. 
+    # Thus, it would raise an error.
     assert not mod.is_binary_serializable
     with pytest.raises(TVMError):
         tvm.ir.load_json(tvm.ir.save_json(mod))
 
+
 def test_aot_module():
     mod = tvm.get_global_func("relay.build_module._AOTExecutorCodegen")()
     # aot module that is not binary serializable.
-    # Thus, it would raise an error. 
+    # Thus, it would raise an error.
     assert not mod.is_binary_serializable
     with pytest.raises(TVMError):
         tvm.ir.load_json(tvm.ir.save_json(mod))
+
 
 if __name__ == "__main__":
     tvm.testing.main()
