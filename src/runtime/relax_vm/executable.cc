@@ -183,7 +183,7 @@ Instruction Executable::GetInstruction(Index i) const {
 void SaveHeader(dmlc::Stream* strm) {
   uint64_t header = kTVMVMBytecodeMagic;
   strm->Write(header);
-  std::string version = TVM_VERSION;
+  std::string version = RELAX_VM_VERSION;
   strm->Write(version);
 }
 
@@ -196,7 +196,7 @@ void LoadHeader(dmlc::Stream* strm) {
   // Check version.
   std::string version;
   STREAM_CHECK(strm->Read(&version), "version");
-  STREAM_CHECK(version == TVM_VERSION, "version");
+  STREAM_CHECK(version == RELAX_VM_VERSION, "version");
 }
 
 void Executable::SaveToBinary(dmlc::Stream* stream) {
