@@ -31,8 +31,20 @@ def _assert_print(obj, expected):
     assert obj == expected.strip(), "\n" + obj
 
 
-def test_dtensor_struct_info():
+def test_constant():
+    constant = R.dist.const(
+        1,
+        struct_info=R.DTensor(
+            (), "float32", device_mesh=DeviceMesh((2, 2), Range(0, 4)), placement="R, R"
+        ),
+    )
+    assert (
+        constant.__str__()
+        == """R.dist.const(1, R.DTensor((), "float32", R.device_mesh((2, 2), R.Range(0, 4)), "R, R"))"""
+    )
 
+
+def test_dtensor_struct_info():
     tensor_sinfo1 = TensorStructInfo((32, 32), "float32")
     tensor_sinfo2 = TensorStructInfo((32, 32), "void")
     obj0 = DTensorStructInfo(

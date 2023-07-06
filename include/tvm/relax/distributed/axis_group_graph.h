@@ -37,16 +37,20 @@ namespace distributed {
 
 /*! \brief tensor axis*/
 struct Axis {
-  const VarNode* var = nullptr;
+  const ExprNode* tensor;
   int dim = 0;
 
-  bool operator==(const Axis& other) const { return var == other.var && dim == other.dim; }
+  Axis(const ExprNode* tensor, int dim) : tensor(tensor), dim(dim) {
+    ICHECK(tensor->IsInstance<ConstantNode>() || tensor->IsInstance<VarNode>());
+  }
+
+  bool operator==(const Axis& other) const { return tensor == other.tensor && dim == other.dim; }
 };
 
 class AxisHash {
  public:
   size_t operator()(const Axis& axis) const {
-    size_t const h1(std::hash<const VarNode*>()(axis.var));
+    size_t const h1(std::hash<const ExprNode*>()(axis.tensor));
     size_t const h2(std::hash<int>()(axis.dim));
     return h1 ^ (h2 << 1);
   }
@@ -242,8 +246,8 @@ class AxisGroupGraph {
           it++;
         }
       }
-      ICHECK(specs.size() == 1) << "multiple possible sharding for axis " << axis.var->name_hint()
-                                << " dim " << axis.dim;
+      ICHECK(specs.size() == 1) << "multiple possible sharding for axis "
+                                << GetRef<Expr>(axis.tensor) << " dim " << axis.dim;
     }
   }
 

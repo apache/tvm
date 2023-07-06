@@ -19,12 +19,17 @@
 """IRBuilder for distributed Relax dialect"""
 from typing import Union, List, Tuple, Optional
 
+import numpy as _np  # type: ignore
+import tvm
+
 from tvm.ir import PrimExpr
-from tvm.relax.expr import Expr, ShapeExpr, Call, ExternFunc
+from tvm.relax.expr import Expr, ShapeExpr, Call, ExternFunc, Constant
 from tvm.relax.expr import Tuple as RxTuple
 from tvm.relax.distributed import DTensorStructInfo
-from . import _ffi_api
 from tvm.relax.utils import args_converter
+from tvm._ffi import base as _base
+from tvm.runtime import ndarray as _nd
+from . import _ffi_api
 
 
 @args_converter.auto
@@ -70,3 +75,44 @@ def call_tir(
         tir_vars = ShapeExpr(tir_vars)
 
     return _ffi_api.call_tir_dist(func, args, out_sinfo, tir_vars)  # type: ignore
+
+
+def const(
+    value: Union[bool, int, float, _np.ndarray, tvm.nd.NDArray],
+    struct_info: DTensorStructInfo,
+) -> Constant:
+    """Create a constant value.
+
+    Parameters
+    ----------
+    value: Union[bool, int, float, numpy.ndarray, tvm.nd.NDArray]
+        The constant value.
+
+    dtype: Optional[str]
+        The data type of the resulting constant.
+
+    Note
+    ----
+    When dtype is None, we use the following rule:
+
+    - int maps to "int32"
+    - float maps to "float32"
+    - bool maps to "bool"
+    - other using the same default rule as numpy.
+    """
+    struct_info = tvm.runtime.convert_to_object(struct_info)
+    if not isinstance(struct_info, DTensorStructInfo):
+        raise TypeError("struct_info needs to be an instance of DTensorStructInfo. ")
+    dtype = str(struct_info.tensor_sinfo.dtype)
+    if isinstance(value, (_base.numeric_types, (bool, list))):
+        value = _np.array(value, dtype=dtype)
+
+    if isinstance(value, (_np.ndarray, _np.generic)):
+        if dtype is not None:
+            value = value.astype(dtype)
+        value = _nd.array(value)
+
+    if not isinstance(value, _nd.NDArray):
+        raise ValueError("value has to be scalar or NDArray")
+
+    return Constant(value, struct_info)

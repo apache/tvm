@@ -146,5 +146,48 @@ def test_explicit_device_id():
     _check(TestModule)
 
 
+def test_constant():
+    @I.ir_module
+    class TestModule:
+        I.module_attrs({"device_num": 10})
+        I.module_global_infos(
+            {
+                "mesh": [
+                    R.device_mesh((2, 2), I.Range(0, 4)),  # mesh[0]
+                    R.device_mesh((1,), I.Range(4, 5)),  # mesh[1]
+                ]
+            }
+        )
+
+        @T.prim_func
+        def tir_func(
+            x: T.Buffer((T.int64(128), T.int64(128)), "float32"),
+            y: T.Buffer((T.int64(128), T.int64(128)), "float32"),
+        ):
+            T.func_attr({"tir.noalias": True})
+            for i, j in T.grid(T.int64(128), T.int64(128)):
+                with T.block():
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    y[vi, vj] = x[vi, vj] + 1.0
+
+        @R.function
+        def foo(
+            x: R.DTensor((128, 128), "float32", device_mesh="mesh[0]", placement="S[0], R"),
+        ) -> R.DTensor((128, 128), "float32", device_mesh="mesh[0]", placement="S[0], R"):
+            gv0 = R.dist.call_tir(
+                TestModule.tir_func,
+                x,
+                R.DTensor(
+                    shape=(128, 128), dtype="float32", device_mesh="mesh[0]", placement="S[0], R"
+                ),
+            )
+            gv1 = R.add(
+                gv0, R.dist.const(1.0, struct_info=R.DTensor((), "float32", "mesh[0]", "R, R"))
+            )
+            return gv1
+
+    _check(TestModule)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

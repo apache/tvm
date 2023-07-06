@@ -109,7 +109,7 @@ void CollectAxisGraphReshape(const VarBindingNode* binding, const CallNode* call
 
 void CollectAxisGraphForDeviceMesh(const VarBindingNode* binding, const CallNode* call,
                                    AxisGroupGraph* axis_group_graph) {
-  Array<Var> var_list;
+  Array<Expr> tensor_list;
   static const Op& call_tir_op = Op::Get("relax.call_tir");
   Array<Expr> args;
   if (call->op.same_as(call_tir_op)) {
@@ -118,12 +118,12 @@ void CollectAxisGraphForDeviceMesh(const VarBindingNode* binding, const CallNode
     args = call->args;
   }
   for (const auto& arg : args) {
-    if (arg.as<VarNode>()) {
-      var_list.push_back(Downcast<Var>(arg));
+    if (arg->struct_info_.as<TensorStructInfoNode>()) {
+      tensor_list.push_back(arg);
     }
   }
-  for (int i = 0; i < static_cast<int>(var_list.size()); i++) {
-    axis_group_graph->JoinAxis({var_list[i].get(), -1}, {binding->var.get(), -1},
+  for (int i = 0; i < static_cast<int>(tensor_list.size()); i++) {
+    axis_group_graph->JoinAxis(Axis(tensor_list[i].get(), -1), {binding->var.get(), -1},
                                distributed::AxisGroupGraph::EdgeType::kDescend);
   }
 }
@@ -272,7 +272,29 @@ class ShardingConflictHandler : public ExprVisitor {
     }
   }
 
-  void VisitBinding_(const VarBindingNode* binding) {
+  void CheckConstantNoSharding(Constant constant) {
+    const auto* sinfo = GetStructInfoAs<TensorStructInfoNode>(constant);
+    for (int i = 0; i < sinfo->ndim; i++) {
+      AxisShardingSpec sharding_spec;
+      int has_sharding_spec;
+      std::tie(sharding_spec, has_sharding_spec) =
+          axis_group_graph_->GetAxisShardingSpec({constant.get(), i});
+      ICHECK(!has_sharding_spec)
+          << "Constant is not allowed to be sharded. Please convert it into an input param.";
+    }
+  }
+
+  void VisitExpr_(const CallNode* op) final {
+    Array<Expr> args = GetCallArgs(GetRef<Call>(op));
+    for (const auto& arg : args) {
+      if (arg.as<ConstantNode>()) {
+        CheckConstantNoSharding(Downcast<Constant>(arg));
+      }
+    }
+    ExprVisitor::VisitExpr_(op);
+  }
+
+  void VisitBinding_(const VarBindingNode* binding) final {
     if (GetStructInfoAs<TensorStructInfoNode>(binding->var)) {
       CheckTensorShardingCompatible(binding->var);
     }
@@ -303,26 +325,37 @@ class DistributedIRBuilder : public ExprMutator {
   }
 
  private:
-  Var RewriteInputTensor(Var param) {
-    const auto* sinfo = GetStructInfoAs<TensorStructInfoNode>(param);
+  Expr RewriteInputTensorAndConstant(Expr tensor) {
+    const auto* sinfo = GetStructInfoAs<TensorStructInfoNode>(tensor);
     int ndim = sinfo->ndim;
     DeviceMesh device_mesh =
-        std::get<0>(axis_group_graph_.GetAxisShardingSpec({param.get(), -1})).first;
+        std::get<0>(axis_group_graph_.GetAxisShardingSpec({tensor.get(), -1})).first;
+    ICHECK(device_mesh.defined()) << tensor << " is not assigned device mesh";
     Array<PlacementSpec> placement_specs(
         std::vector<PlacementSpec>(device_mesh->shape.size(), PlacementSpec::Replica()));
     for (int i = 0; i < ndim; i++) {
       AxisShardingSpec sharding_spec;
       bool has_sharding_spec;
       std::tie(sharding_spec, has_sharding_spec) =
-          axis_group_graph_.GetAxisShardingSpec({param.get(), i});
+          axis_group_graph_.GetAxisShardingSpec({tensor.get(), i});
       if (has_sharding_spec) {
         int sharding_dim = sharding_spec.second;
         placement_specs.Set(sharding_dim, PlacementSpec::Sharding(i));
       }
     }
-    Var new_param(param->name_hint(), DTensorStructInfo(GetRef<TensorStructInfo>(sinfo),
+    if (const auto* var = tensor.as<VarNode>()) {
+      Var new_param(var->name_hint(), DTensorStructInfo(GetRef<TensorStructInfo>(sinfo),
                                                         device_mesh, Placement(placement_specs)));
-    return new_param;
+      return new_param;
+    } else if (const auto* constant = tensor.as<ConstantNode>()) {
+      Constant new_constant(constant->data,
+                            DTensorStructInfo(GetRef<TensorStructInfo>(sinfo), device_mesh,
+                                              Placement(placement_specs)));
+      return new_constant;
+    } else {
+      LOG(FATAL) << "Cannot rewrite tensor which is not a Var or Constant";
+      throw;
+    }
   }
 
   Function RewriteFunction(Function func, IRModule mod) {
@@ -336,7 +369,7 @@ class DistributedIRBuilder : public ExprMutator {
     Array<Var> new_params;
     for (const Var& var : func->params) {
       if (GetStructInfoAs<TensorStructInfoNode>(var)) {
-        Var new_param = RewriteInputTensor(var);
+        Var new_param = Downcast<Var>(RewriteInputTensorAndConstant(var));
         input_tensor_remap_.Set(var, new_param);
         new_params.push_back(new_param);
       } else {
@@ -357,26 +390,33 @@ class DistributedIRBuilder : public ExprMutator {
       return BuildAxisGraphCallTIR(var, call, prim_func.value(), axis_group_graph);
     };
     Call new_call = Downcast<Call>(ExprMutator::VisitExpr_(call));
+    Array<Expr> args = GetCallArgs(new_call);
+    for (int i = 0; i < static_cast<int>(args.size()); i++) {
+      if (args[i].as<ConstantNode>()) {
+        args.Set(i, RewriteInputTensorAndConstant(args[i]));
+      }
+    }
+
+    ObjectPtr<CallNode> n = make_object<CallNode>(*new_call.get());
     if (new_call->op.same_as(call_tir_op)) {
+      n->args.Set(1, Tuple(args));
       ICHECK(new_call->sinfo_args[0]->IsInstance<TensorStructInfoNode>());
       ShardingSpec sharding_spec = InferShardingSpec(
-          new_call, this->builder_, Downcast<TensorStructInfo>(new_call->sinfo_args[0]), f);
-      ObjectPtr<CallNode> modified_new_call = make_object<CallNode>(*new_call.get());
-      modified_new_call->sinfo_args = {
-          DTensorStructInfo(Downcast<TensorStructInfo>(new_call->sinfo_args[0]),
-                            sharding_spec.first, sharding_spec.second)};
-      return Call(modified_new_call);
-    } else if (const auto* extern_func = new_call->op.as<ExternFuncNode>()) {
-      ObjectPtr<CallNode> modified_new_call = make_object<CallNode>(*new_call.get());
-      if (extern_func->global_symbol == "vm.builtin.attention_kv_cache_append") {
-        modified_new_call->op = ExternFunc("vm.builtin.distributed.attention_kv_cache_append");
-      } else if (extern_func->global_symbol == "vm.builtin.attention_kv_cache_view") {
-        modified_new_call->op = ExternFunc("vm.builtin.distributed.attention_kv_cache_view");
-      }
-      return Call(modified_new_call);
+          Call(n), this->builder_, Downcast<TensorStructInfo>(new_call->sinfo_args[0]), f);
+      n->sinfo_args = {DTensorStructInfo(Downcast<TensorStructInfo>(new_call->sinfo_args[0]),
+                                         sharding_spec.first, sharding_spec.second)};
     } else {
-      return new_call;
+      n->args = args;
     }
+
+    if (const auto* extern_func = new_call->op.as<ExternFuncNode>()) {
+      if (extern_func->global_symbol == "vm.builtin.attention_kv_cache_append") {
+        n->op = ExternFunc("vm.builtin.distributed.attention_kv_cache_append");
+      } else if (extern_func->global_symbol == "vm.builtin.attention_kv_cache_view") {
+        n->op = ExternFunc("vm.builtin.distributed.attention_kv_cache_view");
+      }
+    }
+    return Call(n);
   }
 
   void VisitBinding_(const VarBindingNode* binding, const CallNode* val) {

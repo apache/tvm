@@ -159,28 +159,28 @@ class BufferAxisGraphExtractor : public StmtExprVisitor {
 namespace relax {
 namespace distributed {
 
-const TensorStructInfoNode* GetTensorStructInfo(Var var) {
-  const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(var);
+const TensorStructInfoNode* GetTensorStructInfo(Expr tensor) {
+  const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(tensor);
   if (tensor_sinfo) {
     return tensor_sinfo;
   }
-  const auto* dtensor_sinfo = GetStructInfoAs<DTensorStructInfoNode>(var);
+  const auto* dtensor_sinfo = GetStructInfoAs<DTensorStructInfoNode>(tensor);
   if (dtensor_sinfo) {
     return dtensor_sinfo->tensor_sinfo.get();
   }
-  LOG(FATAL) << var->name_hint() << " must be either Tensor or DTensor";
+  LOG(FATAL) << tensor << " must be either Tensor or DTesor";
   throw;
 }
 
-void UnaryOpHelper(Array<Var> var_list, distributed::AxisGroupGraph* axis_group_graph) {
-  int n_dim = GetTensorStructInfo(var_list[0])->ndim;
-  for (const auto& var : var_list) {
-    ICHECK(GetTensorStructInfo(var)->ndim == n_dim);
+void UnaryOpHelper(Array<Expr> tensor_list, distributed::AxisGroupGraph* axis_group_graph) {
+  int n_dim = GetTensorStructInfo(tensor_list[0])->ndim;
+  for (const auto& tensor : tensor_list) {
+    ICHECK(GetTensorStructInfo(tensor)->ndim == n_dim);
   }
   for (int i = 0; i < n_dim; i++) {
-    ICHECK(var_list.size() <= 2);
-    for (int j = 0; j < static_cast<int>(var_list.size()) - 1; j++) {
-      axis_group_graph->JoinAxis({var_list[j].get(), i}, {var_list[j + 1].get(), i},
+    ICHECK(tensor_list.size() <= 2);
+    for (int j = 0; j < static_cast<int>(tensor_list.size()) - 1; j++) {
+      axis_group_graph->JoinAxis({tensor_list[j].get(), i}, {tensor_list[j + 1].get(), i},
                                  distributed::AxisGroupGraph::EdgeType::kDescend);
     }
   }
@@ -188,30 +188,32 @@ void UnaryOpHelper(Array<Var> var_list, distributed::AxisGroupGraph* axis_group_
 
 void BuildAxisGraphUnary(const Var& output_var, const Call& call,
                          distributed::AxisGroupGraph* axis_group_graph) {
-  Array<Var> var_list;  // vars in param and output
+  Array<Expr> tensor_list;  // vars in param and output
   if (call->args[0]->IsInstance<VarNode>()) {
-    var_list.push_back(Downcast<Var>(call->args[0]));
+    tensor_list.push_back(call->args[0]);
   }
-  var_list.push_back(output_var);
-  UnaryOpHelper(var_list, axis_group_graph);
+  tensor_list.push_back(output_var);
+  UnaryOpHelper(tensor_list, axis_group_graph);
 }
 
 void BuildAxisGraphBinary(const Var& output_var, const Call& call,
                           distributed::AxisGroupGraph* axis_group_graph) {
-  Array<Var> var_list;  // vars in param and output
-  if (call->args[0]->IsInstance<VarNode>()) {
-    var_list.push_back(Downcast<Var>(call->args[0]));
+  Array<Expr> tensor_list;  // vars in param and output
+  if (call->args[0]->struct_info_.as<TensorStructInfoNode>() ||
+      call->args[0]->struct_info_.as<DTensorStructInfoNode>()) {
+    tensor_list.push_back(call->args[0]);
   }
-  if (call->args[1]->IsInstance<VarNode>()) {
-    var_list.push_back(Downcast<Var>(call->args[1]));
+  if (call->args[1]->struct_info_.as<TensorStructInfoNode>() ||
+      call->args[1]->struct_info_.as<DTensorStructInfoNode>()) {
+    tensor_list.push_back(call->args[1]);
   }
-  var_list.push_back(output_var);
-  if (var_list.size() <= 2) {
-    UnaryOpHelper(var_list, axis_group_graph);
+  tensor_list.push_back(output_var);
+  if (tensor_list.size() <= 2) {
+    UnaryOpHelper(tensor_list, axis_group_graph);
     return;
   }
-  const auto* x1_sinfo = GetTensorStructInfo(var_list[0]);
-  const auto* x2_sinfo = GetTensorStructInfo(var_list[1]);
+  const auto* x1_sinfo = GetTensorStructInfo(tensor_list[0]);
+  const auto* x2_sinfo = GetTensorStructInfo(tensor_list[1]);
   int x1_ndim = x1_sinfo->ndim;
   int x2_ndim = x2_sinfo->ndim;
   const auto* x1_shape = x1_sinfo->shape.as<ShapeExprNode>();
@@ -223,30 +225,40 @@ void BuildAxisGraphBinary(const Var& output_var, const Call& call,
     const PrimExpr& dim1 = x2_shape->values[x2_ndim - i];
     if (analyzer.CanProveEqual(dim0, dim1)) {
       // join batch dim
-      axis_group_graph->JoinAxis({var_list[0].get(), x1_ndim - i},
-                                 {var_list[2].get(), std::max(x1_ndim, x2_ndim) - i},
+      axis_group_graph->JoinAxis({tensor_list[0].get(), x1_ndim - i},
+                                 {tensor_list[2].get(), std::max(x1_ndim, x2_ndim) - i},
                                  distributed::AxisGroupGraph::EdgeType::kDescend);
-      axis_group_graph->JoinAxis({var_list[1].get(), x2_ndim - i},
-                                 {var_list[2].get(), std::max(x1_ndim, x2_ndim) - i},
+      axis_group_graph->JoinAxis({tensor_list[1].get(), x2_ndim - i},
+                                 {tensor_list[2].get(), std::max(x1_ndim, x2_ndim) - i},
                                  distributed::AxisGroupGraph::EdgeType::kDescend);
     } else if (analyzer.CanProveEqual(dim0, 1)) {
-      axis_group_graph->JoinAxis({var_list[1].get(), x2_ndim - i},
-                                 {var_list[2].get(), std::max(x1_ndim, x2_ndim) - i},
+      axis_group_graph->JoinAxis({tensor_list[1].get(), x2_ndim - i},
+                                 {tensor_list[2].get(), std::max(x1_ndim, x2_ndim) - i},
                                  distributed::AxisGroupGraph::EdgeType::kDescend);
     } else if (analyzer.CanProveEqual(dim1, 1)) {
-      axis_group_graph->JoinAxis({var_list[0].get(), x1_ndim - i},
-                                 {var_list[2].get(), std::max(x1_ndim, x2_ndim) - i},
+      axis_group_graph->JoinAxis({tensor_list[0].get(), x1_ndim - i},
+                                 {tensor_list[2].get(), std::max(x1_ndim, x2_ndim) - i},
                                  distributed::AxisGroupGraph::EdgeType::kDescend);
     } else {
       LOG(FATAL) << "Invalid broadcast, dim0: " << dim0 << ", dim1: " << dim1;
+    }
+  }
+  if (x1_ndim > x2_ndim) {
+    for (int i = 0; i < x1_ndim - x2_ndim; i++) {
+      axis_group_graph->JoinAxis({tensor_list[0].get(), i}, {tensor_list[2].get(), i},
+                                 distributed::AxisGroupGraph::EdgeType::kDescend);
+    }
+  } else if (x1_ndim < x2_ndim) {
+    for (int i = 0; i < x2_ndim - x1_ndim; i++) {
+      axis_group_graph->JoinAxis({tensor_list[1].get(), i}, {tensor_list[2].get(), i},
+                                 distributed::AxisGroupGraph::EdgeType::kDescend);
     }
   }
 }
 
 void BuildAxisGraphReduce(const Var& output_var, const Call& call,
                           distributed::AxisGroupGraph* axis_group_graph) {
-  ICHECK(call->args[0]->IsInstance<VarNode>());
-  Var input_var = Downcast<Var>(call->args[0]);
+  Expr input_tensor = call->args[0];
   Array<Integer> axes;
   bool keepdims;
   if (const auto* attrs = call->attrs.as<StatisticalAttrs>()) {
@@ -261,7 +273,7 @@ void BuildAxisGraphReduce(const Var& output_var, const Call& call,
     LOG(FATAL) << "Unsupported reduce op: " << call->op;
   }
 
-  int ndim = GetTensorStructInfo(input_var)->ndim;
+  int ndim = GetTensorStructInfo(input_tensor)->ndim;
 
   std::unordered_set<int> normalized_axes;
   for (const Integer& i : axes) {
@@ -275,14 +287,14 @@ void BuildAxisGraphReduce(const Var& output_var, const Call& call,
   if (keepdims) {
     for (int i = 0; i < ndim; i++) {
       if (!normalized_axes.count(i)) {
-        axis_group_graph->JoinAxis({input_var.get(), i}, {output_var.get(), i},
+        axis_group_graph->JoinAxis({input_tensor.get(), i}, {output_var.get(), i},
                                    distributed::AxisGroupGraph::EdgeType::kDescend);
       }
     }
   } else {
     for (int i = 0, j = 0; i < ndim; i++) {
       if (!normalized_axes.count(i)) {
-        axis_group_graph->JoinAxis({input_var.get(), i}, {output_var.get(), j},
+        axis_group_graph->JoinAxis({input_tensor.get(), i}, {output_var.get(), j},
                                    distributed::AxisGroupGraph::EdgeType::kDescend);
         j++;
       }
@@ -292,8 +304,8 @@ void BuildAxisGraphReduce(const Var& output_var, const Call& call,
 
 void BuildAxisGraphMatmul(const Var& output_var, const Call& call,
                           distributed::AxisGroupGraph* axis_group_graph) {
-  Var x1 = Downcast<Var>(call->args[0]);
-  Var x2 = Downcast<Var>(call->args[1]);
+  Expr x1 = call->args[0];
+  Expr x2 = call->args[1];
   Var x3 = output_var;
   const auto* x1_sinfo = GetTensorStructInfo(x1);
   const auto* x2_sinfo = GetTensorStructInfo(x2);
@@ -366,10 +378,10 @@ void BuildAxisGraphMatmul(const Var& output_var, const Call& call,
 
 void BuildAxisGraphPermuteDims(const Var& output_var, const Call& call,
                                distributed::AxisGroupGraph* axis_group_graph) {
-  Var input_var = Downcast<Var>(call->args[0]);
+  Expr input_tensor = call->args[0];
   const auto* attrs = call->attrs.as<PermuteDimsAttrs>();
   ICHECK(attrs);
-  int ndim = GetTensorStructInfo(input_var)->ndim;
+  int ndim = GetTensorStructInfo(input_tensor)->ndim;
   std::vector<int> normalized_axes;
   if (attrs->axes.defined()) {
     for (const Integer& i : attrs->axes.value()) {
@@ -385,14 +397,14 @@ void BuildAxisGraphPermuteDims(const Var& output_var, const Call& call,
     std::iota(normalized_axes.rbegin(), normalized_axes.rend(), 0);
   }
   for (int i = 0; i < ndim; i++) {
-    axis_group_graph->JoinAxis({input_var.get(), normalized_axes[i]}, {output_var.get(), i},
+    axis_group_graph->JoinAxis({input_tensor.get(), normalized_axes[i]}, {output_var.get(), i},
                                distributed::AxisGroupGraph::EdgeType::kDescend);
   }
 }
 void BuildAxisGraphReshape(const Var& output_var, const Call& call,
                            distributed::AxisGroupGraph* axis_group_graph) {
-  Var input_var = Downcast<Var>(call->args[0]);
-  const auto* tensor_sinfo = GetTensorStructInfo(input_var);
+  Expr input_tensor = call->args[0];
+  const auto* tensor_sinfo = GetTensorStructInfo(input_tensor);
   const auto* new_shape_sinfo = GetStructInfoAs<ShapeStructInfoNode>(call->args[1]);
   const auto* old_shape_sinfo = GetStructInfoAs<ShapeStructInfoNode>(tensor_sinfo->shape.value());
   ICHECK_NOTNULL(old_shape_sinfo);
@@ -411,7 +423,7 @@ void BuildAxisGraphReshape(const Var& output_var, const Call& call,
       new_shape_product *= new_shape_values[j];
     } else {
       if (i != static_cast<int>(old_shape_values.size())) {
-        axis_group_graph->JoinAxis({input_var.get(), i}, {output_var.get(), j},
+        axis_group_graph->JoinAxis({input_tensor.get(), i}, {output_var.get(), j},
                                    distributed::AxisGroupGraph::EdgeType::kDescend);
       }
       i--;
@@ -425,18 +437,18 @@ void BuildAxisGraphReshape(const Var& output_var, const Call& call,
 void BuildAxisGraphCallTIR(const Var& output_var, const Call& call, const tir::PrimFunc& func,
                            distributed::AxisGroupGraph* axis_group_graph) {
   auto tir_var_axis_group_list = tir::BufferAxisGraphExtractor::GetTIRVarAxisGraph(func);
-  Map<tir::Var, Var> tir_var_to_relax_var;
-  Array<Expr> var_list = Downcast<Tuple>(call->args[1])->fields;
-  var_list.push_back(output_var);
-  for (int i = 0; i < static_cast<int>(var_list.size()); i++) {
+  Map<tir::Var, Expr> tir_var_to_relax_expr;
+  Array<Expr> tensor_list = Downcast<Tuple>(call->args[1])->fields;
+  tensor_list.push_back(output_var);
+  for (int i = 0; i < static_cast<int>(tensor_list.size()); i++) {
     if (func->buffer_map.count(func->params[i])) {
-      tir_var_to_relax_var.Set(func->params[i], Downcast<Var>(var_list[i]));
+      tir_var_to_relax_expr.Set(func->params[i], tensor_list[i]);
     }
   }
   for (const auto& var_axis_group : tir_var_axis_group_list) {
     int output_idx = -1;
     for (int i = 0; i < static_cast<int>(var_axis_group.size()); i++) {
-      if (tir_var_to_relax_var[var_axis_group[i].first].same_as(output_var)) {
+      if (tir_var_to_relax_expr[var_axis_group[i].first].same_as(output_var)) {
         output_idx = i;
         break;
       }
@@ -444,16 +456,16 @@ void BuildAxisGraphCallTIR(const Var& output_var, const Call& call, const tir::P
     if (output_idx == -1) {
       for (int i = 1; i < static_cast<int>(var_axis_group.size()); i++) {
         axis_group_graph->JoinAxis(
-            {tir_var_to_relax_var[var_axis_group[i].first].get(), var_axis_group[i].second},
-            {tir_var_to_relax_var[var_axis_group[0].first].get(), var_axis_group[0].second},
+            {tir_var_to_relax_expr[var_axis_group[i].first].get(), var_axis_group[i].second},
+            {tir_var_to_relax_expr[var_axis_group[0].first].get(), var_axis_group[0].second},
             distributed::AxisGroupGraph::EdgeType::kSimbling);
       }
     } else {
       for (int i = 0; i < static_cast<int>(var_axis_group.size()); i++) {
         if (i != output_idx) {
           axis_group_graph->JoinAxis(
-              {tir_var_to_relax_var[var_axis_group[i].first].get(), var_axis_group[i].second},
-              {tir_var_to_relax_var[var_axis_group[output_idx].first].get(),
+              {tir_var_to_relax_expr[var_axis_group[i].first].get(), var_axis_group[i].second},
+              {tir_var_to_relax_expr[var_axis_group[output_idx].first].get(),
                var_axis_group[output_idx].second},
               distributed::AxisGroupGraph::EdgeType::kDescend);
         }

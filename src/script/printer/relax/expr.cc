@@ -16,6 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
+#include <tvm/relax/distributed/struct_info.h>
+
 #include "./utils.h"
 
 namespace tvm {
@@ -99,6 +102,10 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::Constant>(  //
         "", [](relax::Constant n, ObjectPath n_p, IRDocsifier d) -> Doc {
           if (Optional<ExprDoc> s = SpecialScalar(n->data, n_p->Attr("data"))) {
+            if (n->struct_info_.as<relax::distributed::DTensorStructInfoNode>()) {
+              ExprDoc ann = d->AsDoc<ExprDoc>(n->struct_info_, n_p->Attr("struct_info_"));
+              return Relax(d, "dist.const")->Call({s.value(), ann});
+            }
             return Relax(d, "const")
                 ->Call({
                     s.value(),

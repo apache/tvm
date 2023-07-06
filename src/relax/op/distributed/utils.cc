@@ -55,13 +55,13 @@ distributed::ShardingSpec InferShardingSpec(const Call& call, const BlockBuilder
   int n_input_var = input_dtensor_sinfos.size();
   for (int i = 0; i < n_input_var; i++) {
     distributed::DTensorStructInfo dtensor_sinfo = input_dtensor_sinfos[i];
-    Var input_var = Downcast<Var>(args[i]);
+    Expr input_tensor = args[i];
     for (int j = 0; j < static_cast<int>(device_mesh->shape.size()); j++) {
       distributed::PlacementSpec placement_spec = dtensor_sinfo->placement->dim_specs[j];
       if (placement_spec->kind != distributed::PlacementSpecKind::kSharding) {
         continue;
       }
-      axis_group_graph.AddSrcShardingPoint({input_var.get(), placement_spec->axis},
+      axis_group_graph.AddSrcShardingPoint({input_tensor.get(), placement_spec->axis},
                                            {dtensor_sinfo->device_mesh, j});
     }
   }
