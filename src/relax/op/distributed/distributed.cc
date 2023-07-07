@@ -33,7 +33,7 @@
 namespace tvm {
 namespace relax {
 
-/* relax.distributed.annotate_sharding */
+/* relax.dist.annotate_sharding */
 TVM_REGISTER_NODE_TYPE(DistributionAttrs);
 Expr annotate_sharding(Expr input, distributed::DeviceMesh device_mesh,
                        distributed::Placement placement) {
@@ -41,24 +41,24 @@ Expr annotate_sharding(Expr input, distributed::DeviceMesh device_mesh,
   attrs->device_mesh = device_mesh;
   attrs->placement = placement;
 
-  static const Op& op = Op::Get("relax.distributed.annotate_sharding");
+  static const Op& op = Op::Get("relax.dist.annotate_sharding");
   return Call(op, {std::move(input)}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.distributed.annotate_sharding").set_body_typed(annotate_sharding);
+TVM_REGISTER_GLOBAL("relax.op.dist.annotate_sharding").set_body_typed(annotate_sharding);
 
 StructInfo InferStructInfoAnnotateSharding(const Call& call, const BlockBuilder& ctx) {
   return GetStructInfo(call->args[0]);
 }
 
-TVM_REGISTER_OP("relax.distributed.annotate_sharding")
+TVM_REGISTER_OP("relax.dist.annotate_sharding")
     .set_num_inputs(1)
     .add_argument("input", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAnnotateSharding)
     .set_attr<FInferStructInfo>("dist.FInferStructInfo", InferStructInfoAnnotateSharding)
     .set_attr<Bool>("FPurity", Bool(true));
 
-/* relax.distributed.redistribute */
+/* relax.dist.redistribute */
 TVM_REGISTER_NODE_TYPE(DistributionAttrs);
 Expr redistribute(Expr input, distributed::DeviceMesh device_mesh,
                   distributed::Placement placement) {
@@ -66,11 +66,11 @@ Expr redistribute(Expr input, distributed::DeviceMesh device_mesh,
   attrs->device_mesh = device_mesh;
   attrs->placement = placement;
 
-  static const Op& op = Op::Get("relax.distributed.redistribute");
+  static const Op& op = Op::Get("relax.dist.redistribute");
   return Call(op, {std::move(input)}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.distributed.redistribute").set_body_typed(redistribute);
+TVM_REGISTER_GLOBAL("relax.op.dist.redistribute").set_body_typed(redistribute);
 
 StructInfo InferDistStructInfoRedistribute(const Call& call, const BlockBuilder& ctx) {
   const auto* attrs = call->attrs.as<DistributionAttrs>();
@@ -79,7 +79,7 @@ StructInfo InferDistStructInfoRedistribute(const Call& call, const BlockBuilder&
   return distributed::DTensorStructInfo(sinfo->tensor_sinfo, attrs->device_mesh, attrs->placement);
 }
 
-TVM_REGISTER_OP("relax.distributed.redistribute")
+TVM_REGISTER_OP("relax.dist.redistribute")
     .set_num_inputs(1)
     .add_argument("input", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("dist.FInferStructInfo", InferDistStructInfoRedistribute)

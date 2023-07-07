@@ -29,7 +29,15 @@ from tvm.relax.distributed import DTensorStructInfo
 from tvm.relax.utils import args_converter
 from tvm._ffi import base as _base
 from tvm.runtime import ndarray as _nd
+from tvm.relax.op.distributed import (
+    redistribute as _redistribute,
+    annotate_sharding as _annotate_sharding,
+)
+from tvm.relax.distributed import DeviceMesh, Placement
 from . import _ffi_api
+from ..ir import py_str
+from ...ir import IRModuleFrame
+from ... import IRBuilder
 
 
 @args_converter.auto
@@ -116,3 +124,37 @@ def const(
         raise ValueError("value has to be scalar or NDArray")
 
     return Constant(value, struct_info)
+
+
+def _lookup_device_mesh(device_mesh_str: py_str) -> DeviceMesh:
+    if not IRBuilder.is_in_scope():
+        raise ValueError("device_mesh cannot be found in global info")
+    name, index_str = device_mesh_str.split("[")
+    index = int(index_str[:-1])
+    frames = IRBuilder.current().frames
+    for f in frames:
+        if isinstance(f, IRModuleFrame):
+            device_mesh = f.global_infos[name][index]
+            break
+    assert isinstance(device_mesh, DeviceMesh)
+    return device_mesh
+
+
+def annotate_sharding(
+    value: Expr, device_mesh: Union[py_str, DeviceMesh], placement: Union[py_str, Placement]
+) -> Expr:
+    if isinstance(device_mesh, py_str):
+        device_mesh = _lookup_device_mesh(device_mesh)
+    if isinstance(placement, py_str):
+        placement = Placement.from_text(placement)
+    return _annotate_sharding(value, device_mesh, placement)
+
+
+def redistribute(
+    value: Expr, device_mesh: Union[py_str, DeviceMesh], placement: Union[py_str, Placement]
+) -> Expr:
+    if isinstance(device_mesh, py_str):
+        device_mesh = _lookup_device_mesh(device_mesh)
+    if isinstance(placement, py_str):
+        placement = Placement.from_text(placement)
+    return _redistribute(value, device_mesh, placement)

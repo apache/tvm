@@ -46,7 +46,7 @@ class MLP:
     ) -> R.Tensor((128, 128), "float32"):
         lv0 = R.matmul(x, weight1)
         lv1 = R.nn.gelu(lv0)
-        lv2 = R.annotate_sharding(lv1, device_mesh="mesh[0]", placement="S[1]")
+        lv2 = R.dist.annotate_sharding(lv1, device_mesh="mesh[0]", placement="S[1]")
         lv3 = R.matmul(lv2, weight2)
         return lv3
 
@@ -76,6 +76,75 @@ class ShardedMLP:
 
 
 @I.ir_module
+class PipelineMLP:
+    I.module_attrs({"device_num": 10})
+    I.module_global_infos(
+        {
+            "mesh": [
+                R.device_mesh((2,), I.Range(0, 2)),  # mesh[0]
+                R.device_mesh((2,), I.Range(4, 6)),  # mesh[1]
+            ]
+        }
+    )
+
+    @R.function
+    def foo(
+        x: R.Tensor((128, 128), "float32"),
+        weight1: R.Tensor((128, 128), "float32"),
+        weight2: R.Tensor((128, 128), "float32"),
+        weight3: R.Tensor((128, 128), "float32"),
+        weight4: R.Tensor((128, 128), "float32"),
+    ) -> R.Tensor((128, 128), "float32"):
+        lv0 = R.matmul(x, weight1)
+        lv1 = R.nn.gelu(lv0)
+        lv2 = R.dist.annotate_sharding(lv1, device_mesh="mesh[0]", placement="S[1]")
+        lv3 = R.matmul(lv2, weight2)
+        lv4 = R.dist.annotate_sharding(lv3, device_mesh="mesh[1]", placement="R")
+        lv5 = R.matmul(lv4, weight3)
+        lv6 = R.nn.gelu(lv5)
+        lv7 = R.dist.annotate_sharding(lv6, device_mesh="mesh[1]", placement="S[1]")
+        lv8 = R.matmul(lv7, weight4)
+        return lv8
+
+
+@I.ir_module
+class ShardedPipelineMLP:
+    I.module_attrs({"device_num": 10})
+    I.module_global_infos(
+        {"mesh": [R.device_mesh((2,), I.Range(0, 2)), R.device_mesh((2,), I.Range(4, 6))]}
+    )
+
+    @R.function
+    def foo(
+        x: R.DTensor((128, 128), "float32", "mesh[0]", "R"),
+        weight1: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]"),
+        weight2: R.DTensor((128, 128), "float32", "mesh[0]", "S[0]"),
+        weight3: R.DTensor((128, 128), "float32", "mesh[1]", "S[1]"),
+        weight4: R.DTensor((128, 128), "float32", "mesh[1]", "S[0]"),
+    ) -> R.DTensor((128, 128), "float32", "mesh[1]", "R"):
+        lv0: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]") = R.matmul(
+            x, weight1, out_dtype="void"
+        )
+        lv1: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]") = R.nn.gelu(lv0)
+        lv2: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]") = lv1
+        lv3: R.DTensor((128, 128), "float32", "mesh[0]", "R") = R.matmul(
+            lv2, weight2, out_dtype="void"
+        )
+        lv4: R.DTensor((128, 128), "float32", "mesh[1]", "R") = R.dist.redistribute(
+            lv3, device_mesh="mesh[1]", placement="R"
+        )
+        lv5: R.DTensor((128, 128), "float32", "mesh[1]", "S[1]") = R.matmul(
+            lv4, weight3, out_dtype="void"
+        )
+        lv6: R.DTensor((128, 128), "float32", "mesh[1]", "S[1]") = R.nn.gelu(lv5)
+        lv7: R.DTensor((128, 128), "float32", "mesh[1]", "S[1]") = lv6
+        lv8: R.DTensor((128, 128), "float32", "mesh[1]", "R") = R.matmul(
+            lv7, weight4, out_dtype="void"
+        )
+        return lv8
+
+
+@I.ir_module
 class MLPWithConst:
     I.module_attrs({"device_num": 10})
     I.module_global_infos(
@@ -96,7 +165,7 @@ class MLPWithConst:
         lv0 = R.matmul(x, weight1)
         lv1 = R.nn.gelu(lv0)
         lv2 = R.add(lv1, R.const(2, "float32"))
-        lv3 = R.annotate_sharding(lv2, device_mesh="mesh[0]", placement="S[1]")
+        lv3 = R.dist.annotate_sharding(lv2, device_mesh="mesh[0]", placement="S[1]")
         lv4 = R.matmul(lv3, weight2)
         return lv4
 
@@ -148,7 +217,7 @@ class MLPDynamicShape:
     ) -> R.Tensor(("m", "n"), "float32"):
         lv0 = R.matmul(x, weight1)
         lv1 = R.nn.gelu(lv0)
-        lv2 = R.annotate_sharding(lv1, device_mesh="mesh[0]", placement="S[1]")
+        lv2 = R.dist.annotate_sharding(lv1, device_mesh="mesh[0]", placement="S[1]")
         lv3 = R.matmul(lv2, weight2)
         return lv3
 
@@ -278,7 +347,7 @@ class LlamaAttentionLayer:
             out_sinfo=R.Tensor((1, 256, 4096), dtype="float16"),
         )
         lv7: R.Tensor((4096, 4096), dtype="float16") = R.permute_dims(linear_weight, axes=None)
-        lv7_copy: R.Tensor((4096, 4096), dtype="float16") = R.annotate_sharding(
+        lv7_copy: R.Tensor((4096, 4096), dtype="float16") = R.dist.annotate_sharding(
             lv7, "mesh[0]", "S[1]"
         )
         lv8: R.Tensor((1, 256, 4096), dtype="float16") = R.matmul(lv6, lv7_copy, out_dtype="void")
@@ -286,7 +355,7 @@ class LlamaAttentionLayer:
             lv8, R.shape([1, 256, 32, 128])
         )
         lv10: R.Tensor((4096, 4096), dtype="float16") = R.permute_dims(linear_weight1, axes=None)
-        lv10_copy: R.Tensor((4096, 4096), dtype="float16") = R.annotate_sharding(
+        lv10_copy: R.Tensor((4096, 4096), dtype="float16") = R.dist.annotate_sharding(
             lv10, "mesh[0]", "S[1]"
         )
         lv11: R.Tensor((1, 256, 4096), dtype="float16") = R.matmul(lv6, lv10_copy, out_dtype="void")
@@ -294,7 +363,7 @@ class LlamaAttentionLayer:
             lv11, R.shape([1, 256, 32, 128])
         )
         lv13: R.Tensor((4096, 4096), dtype="float16") = R.permute_dims(linear_weight2, axes=None)
-        lv13_copy: R.Tensor((4096, 4096), dtype="float16") = R.annotate_sharding(
+        lv13_copy: R.Tensor((4096, 4096), dtype="float16") = R.dist.annotate_sharding(
             lv13, "mesh[0]", "S[1]"
         )
         lv14: R.Tensor((1, 256, 4096), dtype="float16") = R.matmul(lv6, lv13_copy, out_dtype="void")
@@ -681,19 +750,19 @@ class LlamaAttentionLayerDynamicShape:
             out_sinfo=R.Tensor((1, n, 4096), dtype="float16"),
         )
         lv7: R.Tensor((4096, 4096), dtype="float16") = R.permute_dims(linear_weight, axes=None)
-        lv7_copy: R.Tensor((4096, 4096), dtype="float16") = R.annotate_sharding(
+        lv7_copy: R.Tensor((4096, 4096), dtype="float16") = R.dist.annotate_sharding(
             lv7, "mesh[0]", "S[1]"
         )
         lv8: R.Tensor((1, n, 4096), dtype="float16") = R.matmul(lv6, lv7_copy, out_dtype="void")
         lv9: R.Tensor((1, n, 32, 128), dtype="float16") = R.reshape(lv8, R.shape([1, n, 32, 128]))
         lv10: R.Tensor((4096, 4096), dtype="float16") = R.permute_dims(linear_weight1, axes=None)
-        lv10_copy: R.Tensor((4096, 4096), dtype="float16") = R.annotate_sharding(
+        lv10_copy: R.Tensor((4096, 4096), dtype="float16") = R.dist.annotate_sharding(
             lv10, "mesh[0]", "S[1]"
         )
         lv11: R.Tensor((1, n, 4096), dtype="float16") = R.matmul(lv6, lv10_copy, out_dtype="void")
         lv12: R.Tensor((1, n, 32, 128), dtype="float16") = R.reshape(lv11, R.shape([1, n, 32, 128]))
         lv13: R.Tensor((4096, 4096), dtype="float16") = R.permute_dims(linear_weight2, axes=None)
-        lv13_copy: R.Tensor((4096, 4096), dtype="float16") = R.annotate_sharding(
+        lv13_copy: R.Tensor((4096, 4096), dtype="float16") = R.dist.annotate_sharding(
             lv13, "mesh[0]", "S[1]"
         )
         lv14: R.Tensor((1, n, 4096), dtype="float16") = R.matmul(lv6, lv13_copy, out_dtype="void")
@@ -983,6 +1052,11 @@ def test_mlp_const():
 def test_mlp_dynamic_shape():
     after = relax.distributed.transform.PropagateSharding()(MLPDynamicShape)
     assert_structural_equal(after, ShardedMLPDynamicShape)
+
+
+def test_mlp_pipeline_parallelism():
+    after = relax.distributed.transform.PropagateSharding()(PipelineMLP)
+    assert_structural_equal(after, ShardedPipelineMLP)
 
 
 def test_decoder_layer():

@@ -25,8 +25,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union, Callable
 import tvm
 from tvm import DataType, relax
 from tvm.ir import PrimExpr
-from ..ir import decl_function, IRModuleFrame
-from .. import IRBuilder
+from ..ir import decl_function
 from tvm.relax import Call, Expr, ExternFunc, TupleGetItem, ShapeExpr, Var, VarBinding, const
 from tvm.relax.utils import gen_call_tir_inputs
 
@@ -149,11 +148,6 @@ from tvm.relax.op import (
     zeros_like,
     nn,
 )
-from tvm.relax.op.distributed import (
-    redistribute as _redistribute,
-    annotate_sharding as _annotate_sharding,
-)
-from tvm.relax.distributed import DeviceMesh, Placement
 from tvm.relax.op.builtin import stop_lift_params
 from tvm.relax.struct_info import StructInfo
 from tvm.relax.utils import args_converter
@@ -563,40 +557,6 @@ def dtype(value: Union[py_str, DataType]) -> Expr:
     return relax.DataTypeImm(value)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def _lookup_device_mesh(device_mesh_str: py_str) -> DeviceMesh:
-    if not IRBuilder.is_in_scope():
-        raise ValueError("device_mesh cannot be found in global info")
-    name, index_str = device_mesh_str.split("[")
-    index = int(index_str[:-1])
-    frames = IRBuilder.current().frames
-    for f in frames:
-        if isinstance(f, IRModuleFrame):
-            device_mesh = f.global_infos[name][index]
-            break
-    assert isinstance(device_mesh, DeviceMesh)
-    return device_mesh
-
-
-def annotate_sharding(
-    value: Expr, device_mesh: Union[py_str, DeviceMesh], placement: Union[py_str, Placement]
-) -> Expr:
-    if isinstance(device_mesh, py_str):
-        device_mesh = _lookup_device_mesh(device_mesh)
-    if isinstance(placement, py_str):
-        placement = Placement.from_text(placement)
-    return _annotate_sharding(value, device_mesh, placement)
-
-
-def redistribute(
-    value: Expr, device_mesh: Union[py_str, DeviceMesh], placement: Union[py_str, Placement]
-) -> Expr:
-    if isinstance(device_mesh, py_str):
-        device_mesh = _lookup_device_mesh(device_mesh)
-    if isinstance(placement, py_str):
-        placement = Placement.from_text(placement)
-    return _redistribute(value, device_mesh, placement)
-
-
 ############################### Importer ###############################
 
 __all__ = [
@@ -612,7 +572,6 @@ __all__ = [
     "atan",
     "atanh",
     "add",
-    "annotate_sharding",
     "arange",
     "arg",
     "argmax",
@@ -702,7 +661,6 @@ __all__ = [
     "prim_value",
     "print",
     "prod",
-    "redistribute",
     "repeat",
     "reshape",
     "tensor_to_shape",

@@ -60,7 +60,7 @@ void CollectAxisGraphUnary(const VarBindingNode* binding, const CallNode* call,
       "atanh",  "ceil",     "cos",      "cosh",   "exp",   "floor",
       "log",    "negative", "nn.relu",  "round",  "rsqrt", "sigmoid",
       "sign",   "sin",      "sinh",     "square", "sqrt",  "tan",
-      "tanh",   "clip",     "isfinite", "isinf",  "isnan", "distributed.annotate_sharding",
+      "tanh",   "clip",     "isfinite", "isinf",  "isnan", "dist.annotate_sharding",
       "nn.gelu"};
   for (const auto& op_name : unary_op_names) {
     const Op& unary_op = Op::Get("relax." + op_name);
@@ -190,7 +190,7 @@ class ShardingAnnotationCollector : public ExprVisitor {
   explicit ShardingAnnotationCollector(AxisGroupGraph* axis_group_graph)
       : axis_group_graph_(axis_group_graph) {}
   void VisitBinding_(const VarBindingNode* binding, const CallNode* val) {
-    static const Op& annotate_sharding_op = Op::Get("relax.distributed.annotate_sharding");
+    static const Op& annotate_sharding_op = Op::Get("relax.dist.annotate_sharding");
     if (val->op.same_as(annotate_sharding_op)) {
       const auto* attrs = val->attrs.as<DistributionAttrs>();
       ICHECK(attrs);
@@ -427,6 +427,7 @@ class DistributedIRBuilder : public ExprMutator {
     }
     int ndim = sinfo->ndim;
     bool insert_redistribute = false;
+    // get DTensorStuctInfo from axis group graph
     DeviceMesh device_mesh =
         std::get<0>(axis_group_graph_.GetAxisShardingSpec({binding->var.get(), -1})).first;
     Array<PlacementSpec> placement_specs(
@@ -441,6 +442,7 @@ class DistributedIRBuilder : public ExprMutator {
         placement_specs.Set(sharding_spec.second, PlacementSpec::Sharding(i));
       }
     }
+    // get DTensorStuctInfo from struct info deduction
     Call new_call = Downcast<Call>(this->VisitExpr(binding->value));
     if (const auto* extern_func = new_call->op.as<ExternFuncNode>()) {
       if (extern_func->global_symbol == "vm.builtin.distributed.attention_kv_cache_view") {
@@ -456,11 +458,13 @@ class DistributedIRBuilder : public ExprMutator {
     Expr new_value = builder_->Normalize(new_call);
     const auto* inferred_dtensor_sinfo = GetStructInfoAs<DTensorStructInfoNode>(new_value);
     ICHECK(inferred_dtensor_sinfo);
-    if (!StructuralEqual()(placement_specs, inferred_dtensor_sinfo->placement->dim_specs)) {
+    if (!StructuralEqual()(DTensorStructInfo(inferred_dtensor_sinfo->tensor_sinfo, device_mesh,
+                                             Placement(placement_specs)),
+                           GetRef<DTensorStructInfo>(inferred_dtensor_sinfo))) {
       insert_redistribute = true;
     }
 
-    static const Op& annotate_sharding_op = Op::Get("relax.distributed.annotate_sharding");
+    static const Op& annotate_sharding_op = Op::Get("relax.dist.annotate_sharding");
     if (val->op.same_as(annotate_sharding_op)) {
       if (insert_redistribute) {
         Expr redistribute_call =
