@@ -24,10 +24,10 @@ on bare metal Cortex(R)-M55 CPU, Ethos(TM)-U55 NPU and CMSIS-NN.
 
 Prerequisites
 -------------
-If the demo is run in the ci_cpu Docker container provided with TVM, then the following
+If the demo is run in the ci_cortexm Docker container provided with TVM, then the following
 software will already be installed.
 
-If the demo is not run in the ci_cpu Docker container, then you will need the following:
+If the demo is not run in the ci_cortexm Docker container, then you will need the following:
 - Software required to build the Ethos(TM)-U driver stack and run the demo (These can all be
   installed by running tvm/docker/install/ubuntu_install_ethosu_driver_stack.sh.)
   - [Fixed Virtual Platform (FVP) based on Arm(R) Corstone(TM)-300 software](https://developer.arm.com/tools-and-software/open-source-software/arm-platforms-software/arm-ecosystem-fvps)
@@ -59,15 +59,24 @@ export PATH=/opt/arm/FVP_Corstone_SSE-300/models/Linux64_GCC-6.4:/opt/arm/cmake/
 
 Running the demo application
 ----------------------------
-Type the following command to run the bare metal demo application ([src/demo_bare_metal.c](./src/demo_bare_metal.c)):
+Type the following command to run the bare metal demo application on FVP ([src/demo_bare_metal.c](./src/demo_bare_metal.c)):
 
 ```bash
 ./run_demo.sh
 ```
 
-To run the demo using FreeRTOS task scheduling and queues ([src/demo_freertos.c](./src/demo_freertos.c)), specify the path to FreeRTOS using `--freertos_path`, for example:
-```
+To run the demo on FVP using FreeRTOS task scheduling and queues ([src/demo_freertos.c](./src/demo_freertos.c)), specify the path to FreeRTOS using `--freertos_path`, for example:
+```bash
 ./run_demo.sh --freertos_path /opt/freertos/FreeRTOSv202112.00/
+```
+
+To run the demo on Alif Evaluation Kit, specify board revision using `--alif_target_board`, for example:
+```bash
+./run_demo.sh --alif_target_board BOARD_AppKit_Alpha1
+```
+Than use `flash.sh` to upload firmware to the board. Make sure that you have SETools installed and configured toolkit according AUGD0005 and console port connected to UART4.
+```bash
+./flash --alif_toolkit_path path_to_SETools --alif_console_port tty_device
 ```
 
 If the Ethos(TM)-U driver and/or CMSIS have not been installed in /opt/arm/ethosu then
