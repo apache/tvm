@@ -325,6 +325,28 @@ class simplify_qnn_concat_in_func(DFPatternCallback):
     """
     Propagate qnn.concat's quantization params to its inputs,
     and try to avoid redundant requantization while doing so.
+
+    Replace
+    def @main(%q1: Tensor[(1, 64, 35, 35), uint8],
+        %q2: Tensor[(1, 64, 35, 35), uint8], %q3: Tensor[(1, 32, 35, 35), uint8]) {
+        %0 = nn.max_pool2d(%q1, pool_size=[3, 3], padding=[1, 1, 1, 1], layout="NHWC");
+        %1 = qnn.requantize(%q2, 0.000109401f, 0, 0.00345f, 0, axis=1, out_dtype="uint8");
+        %2 = (%0, %1, %q3);
+        %3 = (0.0425042f, 0.00345f, 0.0486874f);
+        %4 = (0, 0, 0);
+        qnn.concatenate(%2, %3, %4, 0.0486874f, 0, axis=1)
+    }
+
+    with
+
+    def @main(%q1: Tensor[(1, 64, 35, 35), uint8],
+        %q2: Tensor[(1, 64, 35, 35), uint8], %q3: Tensor[(1, 32, 35, 35), uint8]) {
+        %0 = nn.max_pool2d(%q1, pool_size=[3, 3], padding=[1, 1, 1, 1], layout="NHWC");
+        %1 = qnn.requantize(%0, 0.0425042f, 0, 0.0486874f, 0, axis=1, out_dtype="uint8");
+        %2 = qnn.requantize(%q2, 0.000109401f, 0, 0.0486874f, 0, axis=1, out_dtype="uint8");
+        %3 = (%1, %2, %q3);
+        concatenate(%3, axis=1)
+    }
     """
 
     def __init__(self):
