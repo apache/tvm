@@ -21,8 +21,16 @@ import functools as ft
 
 import tvm
 from tvm import relay
-from tvm.relay.dataflow_pattern import DFPatternCallback, rewrite, wildcard
-from tvm.relay.dataflow_pattern import is_constant, is_op, is_tuple
+from tvm.relay.dataflow_pattern import (
+    DFPatternCallback,
+    is_constant,
+    is_op,
+    is_tuple,
+    rewrite,
+    wildcard,
+)
+from tvm.relay.expr import Call
+
 from ..._ffi.registry import register_func
 
 ### VTCM
@@ -43,7 +51,6 @@ def mem_info_vtcm():
 
 
 def lower_vtcm_(get_alloc, get_free, def_align, func, mod, ctx):  # pylint: disable=unused-argument
-
     """Generic VTCM allocation
 
     Parameters
@@ -310,4 +317,74 @@ class remove_empty_pad_callback(DFPatternCallback):
 def remove_empty_pad(mod):
     """Remove the empty pad operator."""
     mod["main"] = rewrite(remove_empty_pad_callback(), mod["main"])
+    return mod
+
+
+class simplify_qnn_concat_in_func(DFPatternCallback):
+
+    """
+    Propagate qnn.concat's quantization params to its inputs,
+    and try to avoid redundant requantization while doing so.
+    """
+
+    def __init__(self):
+        super(simplify_qnn_concat_in_func, self).__init__()
+        self.qvals = wildcard()
+        self.scales = wildcard()
+        self.zps = wildcard()
+        self.out_scale = wildcard()
+        self.out_zp = wildcard()
+        self.pattern = is_op("qnn.concatenate")(
+            self.qvals, self.scales, self.zps, self.out_scale, self.out_zp
+        )
+
+    def callback(self, pre, post, node_map):
+        in_qvals = node_map[self.qvals][0]
+        in_scales = node_map[self.scales][0]
+        in_zps = node_map[self.zps][0]
+        new_qvals = []
+        for i in range(len(in_qvals)):
+            new_requant_args = []
+            # TODO Generalize for all qnn ops
+            if isinstance(in_qvals[i], Call) and (in_qvals[i].op.name == "qnn.requantize"):
+                # propagate scale/zp of qnn.concat to this requantize op
+                for j in range(3):
+                    new_requant_args.append(in_qvals[i].args[j])
+                new_requant_args += [node_map[self.out_scale][0], node_map[self.out_zp][0]]
+                new_qvals.append(relay.qnn.op.requantize(*new_requant_args, **(in_qvals[i].attrs)))
+            else:
+                # simply create a new requantize op if there is a change in quantization params
+                # if not, just retain the old qval
+                if (in_scales[i] == node_map[self.out_scale][0]) and (
+                    in_zps[i] == node_map[self.out_zp][0]
+                ):
+                    new_qvals.append(in_qvals[i])
+                else:
+                    new_requant_args += [
+                        in_qvals[i],
+                        in_scales[i],
+                        in_zps[i],
+                        node_map[self.out_scale][0],
+                        node_map[self.out_zp][0],
+                    ]
+                    new_qvals.append(
+                        relay.qnn.op.requantize(
+                            *new_requant_args,
+                            axis=post.attrs["axis"],
+                            out_dtype=post.checked_type.dtype,
+                        )
+                    )
+
+        new_op = relay.op.concatenate(
+            new_qvals,
+            node_map[self.pattern][0].attrs["axis"],
+        )
+        return new_op
+
+
+# Right now context is ignored
+@tvm.transform.module_pass(opt_level=1)
+def simplify_qnn_concat(mod, _):
+    for global_var in mod.functions.keys():
+        mod[global_var] = rewrite(simplify_qnn_concat_in_func(), mod[global_var])
     return mod
