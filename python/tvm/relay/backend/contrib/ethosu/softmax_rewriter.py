@@ -82,6 +82,8 @@ class SoftmaxRewriter(DFPatternCallback):
         self, pre: tvm.relay.Expr, post: tvm.relay.Expr, node_map: tvm.ir.container.Map
     ) -> tvm.relay.Expr:
         params = self.params_class(post.op.body)
+        quant_min = -128
+        quant_max = 127
 
         ifm = post.args[0]
         ifm_dtype = ifm.checked_type.dtype
@@ -121,12 +123,14 @@ class SoftmaxRewriter(DFPatternCallback):
             ifm2_scale=0.0,
             ifm2_zero_point=int(params.ifm.q_params.zero_point),
             ofm_scale=1.0,
-            ofm_zero_point=127,
+            ofm_zero_point=quant_max,
             ifm_channels=depth,
             ifm2_channels=1,
             reversed_operands=False,
             ofm_dtype="int32",
             activation="LUT",
+            clip_min=-255,
+            clip_max=0,
         )
 
         # PASS 2 - SHR
@@ -147,8 +151,8 @@ class SoftmaxRewriter(DFPatternCallback):
             reversed_operands=False,
             ofm_dtype="int32",
             activation="CLIP",
-            clip_min=-128,
-            clip_max=127,
+            clip_min=quant_min,
+            clip_max=quant_max,
             rounding_mode="NATURAL",
         )
 
@@ -165,6 +169,9 @@ class SoftmaxRewriter(DFPatternCallback):
             ofm_channels=1,
             upscale="NONE",
             ofm_dtype="int32",
+            activation="CLIP",
+            clip_min=quant_min,
+            clip_max=quant_max,
         )
 
         # PASS 4 - CLZ
@@ -177,6 +184,9 @@ class SoftmaxRewriter(DFPatternCallback):
             ofm_scale=0.0,
             ofm_zero_point=int(params.ifm.q_params.zero_point),
             ofm_channels=1,
+            activation="CLIP",
+            clip_min=quant_min,
+            clip_max=quant_max,
         )
 
         # PASS 5 - Sub
@@ -196,6 +206,9 @@ class SoftmaxRewriter(DFPatternCallback):
             ifm2_channels=1,
             reversed_operands=False,
             ofm_dtype="int32",
+            activation="CLIP",
+            clip_min=quant_min,
+            clip_max=quant_max,
         )
 
         # PASS 6 - Sub
@@ -215,6 +228,9 @@ class SoftmaxRewriter(DFPatternCallback):
             ifm2_channels=1,
             reversed_operands=False,
             ofm_dtype="int32",
+            activation="CLIP",
+            clip_min=quant_min,
+            clip_max=quant_max,
         )
 
         # PASS 7 - SHL
@@ -229,13 +245,13 @@ class SoftmaxRewriter(DFPatternCallback):
             ifm2_zero_point=0,
             ofm_scale=0.0,
             ofm_zero_point=int(params.ifm.q_params.zero_point),
-            ifm_channels=depth,
+            ifm_channels=1,
             ifm2_channels=1,
             reversed_operands=False,
             ofm_dtype="int32",
             activation="CLIP",
-            clip_min=-128,
-            clip_max=127,
+            clip_min=quant_min,
+            clip_max=quant_max,
         )
 
         # PASS 8 - Sub
@@ -255,6 +271,9 @@ class SoftmaxRewriter(DFPatternCallback):
             ifm2_channels=1,
             reversed_operands=False,
             ofm_dtype="int32",
+            activation="CLIP",
+            clip_min=quant_min,
+            clip_max=quant_max,
         )
 
         # PASS 9 - SHL
@@ -274,8 +293,8 @@ class SoftmaxRewriter(DFPatternCallback):
             reversed_operands=False,
             ofm_dtype="int32",
             activation="CLIP",
-            clip_min=-128,
-            clip_max=127,
+            clip_min=quant_min,
+            clip_max=quant_max,
         )
 
         # PASS 10 - Add
@@ -296,8 +315,8 @@ class SoftmaxRewriter(DFPatternCallback):
             reversed_operands=False,
             ofm_dtype="int32",
             activation="CLIP",
-            clip_min=-128,
-            clip_max=127,
+            clip_min=quant_min,
+            clip_max=quant_max,
             use_rescale=True,
             rescale_scale=1,
             rescale_shift=1,
@@ -316,13 +335,13 @@ class SoftmaxRewriter(DFPatternCallback):
             ifm2_zero_point=0,
             ofm_scale=2.0,
             ofm_zero_point=0,
-            ifm_channels=depth,
+            ifm_channels=1,
             ifm2_channels=1,
             reversed_operands=False,
             ofm_dtype="int32",
             activation="CLIP",
-            clip_min=-128 * 2,
-            clip_max=127 * 2,
+            clip_min=quant_min,
+            clip_max=quant_max,
         )
 
         # PASS 12 - Add
@@ -343,8 +362,8 @@ class SoftmaxRewriter(DFPatternCallback):
             reversed_operands=False,
             ofm_dtype="int32",
             activation="CLIP",
-            clip_min=-128,
-            clip_max=127,
+            clip_min=quant_min,
+            clip_max=quant_max,
         )
 
         nr_x = rescale_w_offset
@@ -368,8 +387,8 @@ class SoftmaxRewriter(DFPatternCallback):
                 reversed_operands=False,
                 ofm_dtype="int32",
                 activation="CLIP",
-                clip_min=-128 * 2,
-                clip_max=127 * 2,
+                clip_min=quant_min,
+                clip_max=quant_max,
             )
 
             # PASS 14, 19, 24 - Sub
@@ -388,6 +407,9 @@ class SoftmaxRewriter(DFPatternCallback):
                 ifm2_channels=1,
                 reversed_operands=False,
                 ofm_dtype="int32",
+                activation="CLIP",
+                clip_min=quant_min,
+                clip_max=quant_max,
             )
 
             # PASS 15, 20, 25 - Mul
@@ -407,8 +429,8 @@ class SoftmaxRewriter(DFPatternCallback):
                 reversed_operands=False,
                 ofm_dtype="int32",
                 activation="CLIP",
-                clip_min=-128 * 2,
-                clip_max=127 * 2,
+                clip_min=quant_min,
+                clip_max=quant_max,
             )
 
             # PASS 16, 21, 26 - Mul
@@ -428,8 +450,8 @@ class SoftmaxRewriter(DFPatternCallback):
                 reversed_operands=False,
                 ofm_dtype="int32",
                 activation="CLIP",
-                clip_min=-128,
-                clip_max=127,
+                clip_min=quant_min,
+                clip_max=quant_max,
             )
 
             # PASS 17, 22, 27 - Add
@@ -448,6 +470,9 @@ class SoftmaxRewriter(DFPatternCallback):
                 ifm2_channels=1,
                 reversed_operands=False,
                 ofm_dtype="int32",
+                activation="CLIP",
+                clip_min=quant_min,
+                clip_max=quant_max,
             )
 
         # PASS 28 - Mul
@@ -468,8 +493,8 @@ class SoftmaxRewriter(DFPatternCallback):
             reversed_operands=False,
             ofm_dtype="int32",
             activation="CLIP",
-            clip_min=-128,
-            clip_max=127,
+            clip_min=quant_min,
+            clip_max=quant_max,
         )
 
         # PASS 29 - Mul
@@ -489,8 +514,8 @@ class SoftmaxRewriter(DFPatternCallback):
             reversed_operands=False,
             ofm_dtype="int32",
             activation="CLIP",
-            clip_min=-128 * 2,
-            clip_max=127 * 2,
+            clip_min=quant_min,
+            clip_max=quant_max,
         )
 
         # PASS 30 - SHR

@@ -475,6 +475,12 @@ TVM_DLL Pass PlanAndUpdateBufferAllocationLocation();
 TVM_DLL Pass ConvertBlocksToOpaque();
 
 /*!
+ * \brief Lift the same thread bindings to their LCA loops
+ * \return The pass.
+ */
+TVM_DLL Pass LiftThreadBinding();
+
+/*!
  * \brief Compact the buffer access region by removing the buffer regions that are not accessed,
  *        i.e. narrowing the buffer shape and adjust the access region if necessary.
  *
@@ -524,6 +530,18 @@ TVM_DLL Pass LegalizePackedCalls();
  * \return The pass.
  */
 TVM_DLL Pass LowerMatchBuffer();
+
+/*!
+ * \brief Inject permuted layout for shared memory.
+ * \return The pass.
+ */
+TVM_DLL Pass InjectPermutedLayout();
+
+/*!
+ * \brief Transform Mma scope (m16n8k8.matrixA/B/C) to local scope with layout transformation.
+ * \return The pass.
+ */
+TVM_DLL Pass TransformMmaBufferLayout();
 
 /*!
  * \brief Remove the block to ensure that the TIR can not be scheduled again.

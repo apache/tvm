@@ -42,6 +42,7 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
     arith::Analyzer ana;
     auto pass = BufferFlattener(&ana);
     auto writer = func.CopyOnWrite();
+    pass.MarkBufferMapShapes(func);
     writer->body = pass.VisitStmt(func->body);
     // The buffers in func->buffer_map are deliberately left
     // unflattened, as they are used for validation of user-provided

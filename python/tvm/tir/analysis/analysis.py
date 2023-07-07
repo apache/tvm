@@ -16,7 +16,7 @@
 # under the License.
 """Wrapping existing analysis utils."""
 # pylint: disable=invalid-name
-from typing import Dict, List, Union
+from typing import Dict, List, Optional, Union
 
 import tvm
 from tvm import Object
@@ -211,7 +211,7 @@ def calculate_allocated_bytes(
     ----------
     func_or_mod: Union[PrimFunc, IRModule]
         The function or module to be detected. If a module is passed, allocated
-        memory is calcualted for all PrimFuncs inside the module
+        memory is calculated for all PrimFuncs inside the module
 
     Returns
     -------
@@ -264,6 +264,26 @@ def estimate_tir_flops(stmt_or_mod: Union[Stmt, IRModule]) -> float:
 
 # NOTE: relay_func_type in the following two functions should be relay.FuncType however that would
 # introduce a cycling dependency. We make do with Object.
+
+
+def undefined_vars(node: Union[Stmt, PrimExpr], defs: Optional[List[Var]] = None) -> List[Var]:
+    """Find undefined vars in a TIR statement or expression.
+
+    Parameters
+    ----------
+    node: Union[Stmt, PrimExpr]
+        The TIR statement or expression to be checked.
+
+    defs: Optional[List[Var]]
+        The vars that is defined
+
+    Returns
+    -------
+    result : List[Var]
+        The undefined vars.
+    """
+    defs = defs or []
+    return _ffi_api.UndefinedVars(node, defs)  # type: ignore # pylint: disable=no-member
 
 
 def get_prim_func_arg_and_result_memory_constraints(
@@ -329,14 +349,14 @@ def apply_prim_func_arg_and_result_memory_constraints(
     )
 
 
-def verify_well_formed(func: PrimFunc, assert_mode: bool = True) -> bool:
+def verify_well_formed(obj: Union[PrimFunc, IRModule], assert_mode: bool = True) -> bool:
     """Verify if the given TIR is well-formed. The verification includes:
         - Check if expressions not contain vars that is defined outside the block.
 
     Parameters
     ----------
-    func: tvm.tir.PrimFunc
-        The function to be verified.
+    obj: Union[tvm.tir.PrimFunc, tvm.ir.IRModule]
+        The function or module to be verified.
 
     assert_mode: bool
         The indicator if it raises an error when the function is not well-formed.
@@ -346,7 +366,7 @@ def verify_well_formed(func: PrimFunc, assert_mode: bool = True) -> bool:
     result: bool
         Whether it is a well-formed TIR function.
     """
-    return _ffi_api.VerifyWellFormed(func, assert_mode)  # type: ignore # pylint: disable=no-member
+    return _ffi_api.VerifyWellFormed(obj, assert_mode)  # type: ignore # pylint: disable=no-member
 
 
 def OOBChecker():
@@ -388,7 +408,7 @@ def find_anchor_block(mod: IRModule) -> Block:
 
 
 def get_vtcm_compaction_passes() -> List[tvm.transform.Pass]:
-    """Utility function to get the list of lowering passes to be applied to calculate thecompacted
+    """Utility function to get the list of lowering passes to be applied to calculate the compacted
     VTCM allocation size
 
     Returns

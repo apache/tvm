@@ -256,6 +256,45 @@ def unified_element_wise_implicit_block(a: T.handle, b: T.handle, c: T.handle) -
                     )
 
 
+@T.prim_func
+def match_buffer_with_elem_offset(
+    A: T.Buffer((8, 10, 8), "float32"), I: T.Buffer((4,), "int32"), offset: T.int32
+) -> None:
+    for i in T.thread_binding(0, 4, "blockIdx.x"):
+        for j in range(2):
+            with T.block():
+                T.writes(A[I[i], offset, j * 4 : j * 4 + 4])
+                sub_A = T.match_buffer(
+                    A[I[i], offset, j * 4 : j * 4 + 4],
+                    (4),
+                    elem_offset=I[i] * 80 + offset * 8 + j * 4,
+                )
+                for ji in range(0, 4):
+                    sub_A[j * 4 + ji] = 1
+
+
+@T.prim_func
+def unified_match_buffer_with_elem_offset(
+    A: T.Buffer((8, 10, 8), "float32"), I: T.Buffer((4,), "int32"), offset: T.int32
+) -> None:
+    for blockIdx_x in T.thread_binding(4, thread="blockIdx.x"):
+        for j in range(2):
+            with T.block(""):
+                T.reads(I[blockIdx_x])
+                T.writes(A[I[blockIdx_x], offset, j * 4 : j * 4 + 4])
+                sub_A = T.match_buffer(
+                    A[I[blockIdx_x], offset, j * 4 : j * 4 + 4],
+                    (4,),
+                    elem_offset=I[blockIdx_x] * 80 + offset * 8 + j * 4,
+                )
+                for ji in range(4):
+                    i = T.int32()
+                    sub_A_1 = T.Buffer(
+                        (4,), data=sub_A.data, elem_offset=I[i] * 80 + offset * 8 + j * 4
+                    )
+                    sub_A_1[j * 4 + ji] = T.float32(1)
+
+
 def test_thread_x():
     _check(element_wise_thread_x, unified_element_wise_thread_x)
 
@@ -284,6 +323,10 @@ def test_kernels_with_different_size():
 
 def test_implicit_block():
     _check(element_wise_implicit_block, unified_element_wise_implicit_block)
+
+
+def test_match_buffer_with_elem_offset():
+    _check(match_buffer_with_elem_offset, unified_match_buffer_with_elem_offset)
 
 
 def test_inner_binding_with_annotation():

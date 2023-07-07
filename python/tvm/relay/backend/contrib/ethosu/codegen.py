@@ -526,7 +526,8 @@ def relay_to_tir(mod: tvm.ir.IRModule) -> tvm.ir.IRModule:
         sram = extract_memory_info(workspace_memory_pools.pools[0], memory_pressure)
         tir_mod = LowerToTIR(_ethos_u55_cascader(sram, util.is_striping_enabled()))(mod)
     else:
-        tir_mod = LowerToTIR(copy_constants())(mod)
+        scheduler = None if util.is_copying_constants_disabled() else copy_constants()
+        tir_mod = LowerToTIR(scheduler)(mod)
 
     return tir_mod
 

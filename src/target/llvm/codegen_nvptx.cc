@@ -68,11 +68,11 @@ class CodeGenNVPTX : public CodeGenLLVM {
  public:
   llvm::Function* DeclareFunction(const GlobalVar& gvar, const PrimFunc& f) final {
     // add function as void return value
-    return CodeGenLLVM::DeclareFunctionInternal(gvar, f, true);
+    return CodeGenLLVM::DeclareFunctionInternal(gvar, f);
   }
   void AddFunction(const GlobalVar& gvar, const PrimFunc& f) final {
     // add function as void return value
-    CodeGenLLVM::AddFunctionInternal(gvar, f, true);
+    CodeGenLLVM::AddFunctionInternal(gvar, f);
     // annotate as kernel function
     llvm::LLVMContext* ctx = llvm_target_->GetContext();
     module_->getOrInsertNamedMetadata("nvvm.annotations")

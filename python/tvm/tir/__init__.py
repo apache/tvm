@@ -79,6 +79,7 @@ from .op import start_profile_intrinsic, end_profile_intrinsic
 from .generic import add, subtract, multiply
 
 from .schedule import StmtSRef, BlockScope, ScheduleState, Schedule, ScheduleError
+from .block_dependence_info import BlockDependenceInfo
 
 from . import schedule
 from . import ir_builder

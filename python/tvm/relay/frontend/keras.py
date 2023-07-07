@@ -955,10 +955,13 @@ def _convert_concat(
     if input_shape is None:
         input_shape = keras_layer.input_shape
 
-    if data_layout == "NHWC" or len(input_shape[0]) < 4:
-        axis = -1
-    else:
-        axis = 1
+    axis = keras_layer.axis
+    dims = len(input_shape[0])
+    if data_layout == "NCHW":  # need_transpose
+        if axis == -1:
+            axis = 1
+        else:
+            axis = axis + 1 if axis < dims else 1
     return _op.concatenate(_as_list(inexpr), axis=axis)
 
 

@@ -222,22 +222,20 @@ TargetJSON UpdateNVPTXAttrs(TargetJSON target) {
  * \return The updated attributes
  */
 TargetJSON UpdateROCmAttrs(TargetJSON target) {
+  using tvm::runtime::Registry;
   CheckOrSetAttr(&target, "mtriple", "amdgcn-amd-amdhsa-hcc");
   // Update -mcpu=gfx
-  std::string arch;
+  std::string arch = "gfx900";
   if (target.count("mcpu")) {
     String mcpu = Downcast<String>(target.at("mcpu"));
     arch = ExtractStringWithPrefix(mcpu, "gfx");
     ICHECK(!arch.empty()) << "ValueError: ROCm target gets an invalid GFX version: -mcpu=" << mcpu;
   } else {
     TVMRetValue val;
-    if (!DetectDeviceFlag({kDLROCM, 0}, runtime::kGcnArch, &val)) {
-      LOG(WARNING) << "Unable to detect ROCm compute arch, default to \"-mcpu=gfx900\" instead";
-      arch = "900";
-    } else {
-      arch = val.operator std::string();
+    if (const auto* f_get_rocm_arch = Registry::Get("tvm_callback_rocm_get_arch")) {
+      arch = (*f_get_rocm_arch)().operator std::string();
     }
-    target.Set("mcpu", String("gfx") + arch);
+    target.Set("mcpu", String(arch));
   }
   // Update -mattr before ROCm 3.5:
   //   Before ROCm 3.5 we needed code object v2, starting
@@ -362,6 +360,8 @@ TVM_REGISTER_TARGET_KIND("rocm", kDLROCM)
     .set_target_parser(UpdateROCmAttrs);
 
 TVM_REGISTER_TARGET_KIND("opencl", kDLOpenCL)
+    .add_attr_option<Integer>("max_threads_per_block", Integer(256))
+    .add_attr_option<Integer>("max_shared_memory_per_block", Integer(16384))
     .add_attr_option<Integer>("max_num_threads", Integer(256))
     .add_attr_option<Integer>("thread_warp_size", Integer(1))
     .add_attr_option<Integer>("texture_spatial_limit", Integer(16384))

@@ -119,8 +119,8 @@ class DoubleBufferInjector : public StmtExprMutator {
       Array<PrimExpr> new_extents = {op->extents[0] * make_const(op->extents[0].dtype(), 2)};
       ICHECK(entry.loop != nullptr);
       auto& alloc_nest = loop_allocs_[entry.loop];
-      alloc_nest.emplace_back(
-          Allocate(op->buffer_var, op->dtype, new_extents, op->condition, Evaluate(0)));
+      alloc_nest.emplace_back(Allocate(op->buffer_var, op->dtype, new_extents, op->condition,
+                                       Evaluate(0), op->annotations));
       Stmt body = op->body;
       if (auto ptr = body.as<DeclBufferNode>()) {
         auto new_buf = GetRemappedBuffer(ptr->buffer, entry.stride);
