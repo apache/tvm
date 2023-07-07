@@ -87,7 +87,9 @@ def macro(func: Callable) -> doc.AST:
 
 
 def insert(name: Union[str, doc.Name], *args, **kwargs) -> Any:  # pylint: disable=unused-argument
-    """Placeholder function, so that T.insert (i.e. macro insertion) can be parsed without errors."""
+    """Placeholder function, so that T.insert (i.e. macro insertion)
+    can be parsed without errors.
+    """
 
 
 class BufferProxy:
