@@ -157,7 +157,7 @@ if [ -n "${ALIF_TARGET_BOARD+x}" ]; then
 
     # Clone Alif's evaluation kit
     ALIF_ML_KIT_VERSION="cb583e4cfb34dccb683717513ec94beacb6957ab"
-    wget -q https://github.com/sergio-grovety/alif_ml-embedded-evaluation-kit/archive/${ALIF_ML_KIT_VERSION}.zip -O ALIF_Ml_KIT.zip
+    wget -q https://github.com/Grovety/alif_ml-embedded-evaluation-kit/archive/${ALIF_ML_KIT_VERSION}.zip -O ALIF_Ml_KIT.zip
     unzip -q ALIF_Ml_KIT.zip -d .
     mv alif_ml-embedded-evaluation-kit-${ALIF_ML_KIT_VERSION} alif_ml-embedded-evaluation-kit
     rm ALIF_Ml_KIT.zip
