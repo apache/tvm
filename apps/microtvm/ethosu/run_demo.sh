@@ -24,13 +24,17 @@ set -x
 # Show usage
 function show_usage() {
     cat <<EOF
-Usage: run_demo.sh [--ethosu_driver_path ETHOSU_DRIVER_PATH] [--alif_toolkit_path ALIF_TOOLKIT_PATH]
+Usage: run_demo.sh [--ethosu_driver_path ETHOSU_DRIVER_PATH] [--alif_target_board BOARD_DevKit]
 -h, --help
     Display this help message.
 --ethosu_driver_path ETHOSU_DRIVER_PATH
     Set path to Arm(R) Ethos(TM)-U core driver.
+--alif_target_board
+   Set Alif target board. Could be one of [BOARD_DevKit, BOARD_AppKit_Alpha1, BOARD_AppKit_Alpha2].
 --alif_toolkit_path
-   Set path to Alif's toolkit.
+    Set path to the Alif SETools.
+--alif_console_port
+    Set Alif Evaluation Kit console port.
 --cmsis_path CMSIS_PATH
     Set path to CMSIS.
 --ethosu_platform_path ETHOSU_PLATFORM_PATH
@@ -57,6 +61,21 @@ while (( $# )); do
                 shift 2
             else
                 echo 'ERROR: --ethosu_driver_path requires a non-empty argument' >&2
+                show_usage >&2
+                exit 1
+            fi
+            ;;
+
+        --alif_target_board)
+            if [ $# -gt 1 ]
+            then
+                export ALIF_TARGET_BOARD="$2"
+                shift 2
+            else
+                echo 'ERROR: --alif_target_board requires one of the'
+                echo 'following values [BOARD_DevKit, BOARD_AppKit_Alpha1, BOARD_AppKit_Alpha2]' >&2
+
+
                 show_usage >&2
                 exit 1
             fi
@@ -160,18 +179,18 @@ script_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
 make cleanall
 
-if [ -n "${ALIF_TOOLKIT_PATH+x}" ]; then
+if [ -n "${ALIF_TARGET_BOARD+x}" ]; then
     mkdir -p ${script_dir}/build/dependencies
     cd ${script_dir}/build/dependencies
 
     # Clone Alif's evaluation kit
-    ALIF_ML_KIT_VERSION="07b186198f148994683d970d57983bfe0eb996bb"
-    wget -q https://github.com/alifsemi/alif_ml-embedded-evaluation-kit/archive/${ALIF_ML_KIT_VERSION}.zip -O ALIF_Ml_KIT.zip
+    ALIF_ML_KIT_VERSION="cb583e4cfb34dccb683717513ec94beacb6957ab"
+    wget -q https://github.com/sergio-grovety/alif_ml-embedded-evaluation-kit/archive/${ALIF_ML_KIT_VERSION}.zip -O ALIF_Ml_KIT.zip
     unzip -q ALIF_Ml_KIT.zip -d .
     mv alif_ml-embedded-evaluation-kit-${ALIF_ML_KIT_VERSION} alif_ml-embedded-evaluation-kit
     rm ALIF_Ml_KIT.zip
 
-    ALIF_CMSIS_VERSION="833ffaba7ddeb3b59e2786a7acab215a62a0b617"
+    ALIF_CMSIS_VERSION="dd07ce1b3f25cf588455167a3583e8579c6dca8b"
     wget -q https://github.com/alifsemi/alif_ensemble-cmsis-dfp/archive/${ALIF_CMSIS_VERSION}.zip -O ALIF_CMSIS.zip
     unzip -q ALIF_CMSIS.zip -d .
     mv alif_ensemble-cmsis-dfp-${ALIF_CMSIS_VERSION} alif_ensemble-cmsis-dfp
@@ -210,28 +229,31 @@ curl -sS  https://raw.githubusercontent.com/tensorflow/tensorflow/master/tensorf
 # Get input image
 curl -sS https://s3.amazonaws.com/model-server/inputs/kitten.jpg -o kitten.jpg
 
-# Create C header files
+# # Create C header files
 cd ${script_dir}
 python3 ./convert_image.py ./build/kitten.jpg
 python3 ./convert_labels.py ./build/labels_mobilenet_quant_v1_224.txt
 
-if [ -n "${ALIF_TOOLKIT_PATH+x}" ]; then
+if [ -n "${ALIF_TARGET_BOARD+x}" ]; then
     # Build alif demo executable
-    make -f Makefile_alif.mk demo_alif
+    ALIF_TARGET_BOARD=$ALIF_TARGET_BOARD make -f Makefile_alif.mk demo_alif
 
-    # copy demo artifacts to the Alis Toolkit folder
-    cp ${script_dir}/alif_flash_config.json ${ALIF_TOOLKIT_PATH}/build/config
-    cp ${script_dir}/build/demo_alif.bin ${ALIF_TOOLKIT_PATH}/build/images
+    if [ -n "${ALIF_TOOLKIT_PATH+x}" ]; then
+        # copy demo artifacts to the Alis Toolkit folder
+        cp ${script_dir}/alif_flash_config.json ${ALIF_TOOLKIT_PATH}/build/config
+        cp ${script_dir}/build/demo_alif.bin ${ALIF_TOOLKIT_PATH}/build/images
 
-    # upload binary to the MCU
-    cd ${ALIF_TOOLKIT_PATH}
-    ./app-gen-toc -f ./build/config/alif_flash_config.json
-    ./app-write-mram
+        # upload binary to the MCU
+        cd ${ALIF_TOOLKIT_PATH}
+        ./app-gen-toc -f ./build/config/alif_flash_config.json
+        ./app-write-mram
 
-    # Read the board's console output
-    if [ -n "${ALIF_CONSOLE_PORT+x}" ]; then
-        stty -F ${ALIF_CONSOLE_PORT} 115200
-        cat ${ALIF_CONSOLE_PORT}
+        # Read the board's console output
+        if [ -n "${ALIF_CONSOLE_PORT+x}" ]; then
+            stty -F ${ALIF_CONSOLE_PORT} 115200
+            stty -F ${ALIF_CONSOLE_PORT} time 10
+            cat ${ALIF_CONSOLE_PORT}
+        fi
     fi
 else
     # Build demo executable

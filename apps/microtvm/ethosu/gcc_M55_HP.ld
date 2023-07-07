@@ -122,6 +122,8 @@ SECTIONS
     *(.data)
     *(.data*)
     KEEP(*(.jcr*))
+    *(ethosu_scratch)
+    *(output_data_sec)
   } > DTCM AT> MRAM
 
   .weights : ALIGN(8)

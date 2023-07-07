@@ -33,7 +33,6 @@ int main()
 {
     uint64_t started_ns = 0, ended_ns = 0;
 
-    printf("Starting Demo\n");
     platform_init();
     platform_reset_counters();
 
@@ -57,7 +56,7 @@ int main()
 
         ethosu_release_driver(driver);
 
-        printf("Inference done in %.3f microseconds\n", (ended_ns - started_ns) / 1000.0f);
+        printf("Inference done in %.2f microseconds\n", (ended_ns - started_ns) / 1000.0f);
 
         // Calculate index of max value
         int8_t max_value = -128;

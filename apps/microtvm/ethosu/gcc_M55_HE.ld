@@ -119,6 +119,8 @@ SECTIONS
     *(vtable)
     *(.data)
     *(.data*)
+    *(ethosu_scratch)
+    *(output_data_sec)
     KEEP(*(.jcr*))
   } > DTCM AT> MRAM
 
