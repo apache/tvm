@@ -3041,9 +3041,9 @@ class OperatorConverter(object):
                 _op.concatenate([out_batch, _op.strided_slice(shape_b, [rank_b - 2], [rank_b])], 0)
             )
             if not tvm.ir.structural_equal(shape_a, a_broadcasted_shape):
-                input_a = _op.transform.broadcast_to(a, a_broadcasted_shape)
+                input_a = _op.transform.broadcast_to(input_a, a_broadcasted_shape)
             if not tvm.ir.structural_equal(shape_b, b_broadcasted_shape):
-                input_b = _op.transform.broadcast_to(b, b_broadcasted_shape)
+                input_b = _op.transform.broadcast_to(input_b, b_broadcasted_shape)
 
             input_a = self.flatten_to_nd(input_a, shape_a, 3)
             input_b = self.flatten_to_nd(input_b, shape_b, 3)
