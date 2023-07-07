@@ -547,7 +547,7 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> GlobalVar
 
 def process_insert_macro(self: Parser, call: doc.Call) -> None:
     """Bind arguments to T.insert to the parameters of the macro, and pass the macro body
-       for further parsing.
+    for further parsing.
     """
 
     def find_macro_def(name: str, decl_list: doc.AST) -> Union[doc.FunctionDef, Any]:
@@ -608,7 +608,7 @@ def process_insert_macro(self: Parser, call: doc.Call) -> None:
     module_ast = ast.fix_missing_locations(module_ast)
     cmacro = compile(module_ast, filename="<tmp-string>", mode="exec")
     local_vars = {}
-    exec(cmacro, self.var_table.get(), local_vars)  # pylint disable=exec-used
+    exec(cmacro, self.var_table.get(), local_vars)  # pylint: disable=exec-used
     local_vars = local_vars[tmp_name]
 
     with self.var_table.with_frame():
