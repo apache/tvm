@@ -17,9 +17,7 @@
 # under the License.
 
 set -e
-set -u
 set -o pipefail
-set -x
 
 # Show usage
 function show_usage() {
