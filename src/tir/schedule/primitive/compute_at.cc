@@ -680,20 +680,6 @@ void CalculateProvidedRequiredRegions(
 
 /******** Main Implementation ********/
 
-void AddShapeVarBounds(const ScheduleState& state, const StmtSRefNode* sref,
-                       arith::Analyzer* analyzer) {
-  while (sref->parent != nullptr) {
-    sref = sref->parent;
-  }
-  const PrimFuncNode* f = GetRootPrimFunc(state->mod, sref->stmt, nullptr);
-  for (const auto& kv : f->buffer_map) {
-    const Buffer& buffer = kv.second;
-    for (const PrimExpr& e : buffer->shape) {
-      analyzer->MarkGlobalNonNegValue(e);
-    }
-  }
-}
-
 template <bool is_compute_at>
 void ComputeAtOrReverseComputeAtImpl(ScheduleState self, const StmtSRef& block_sref,
                                      const StmtSRef& loop_sref, bool preserve_unit_loops,

@@ -193,7 +193,7 @@ void PassDownDomain(const Stage& stage, std::unordered_map<IterVar, Range>* p_st
       for (const auto& iter_var : s->original_variables) {
         original_ranges.push_back(state[iter_var]);
       }
-      Array<Range> updated_ranges = s->forward_transformation->MapRanges(original_ranges);
+      Array<Range> updated_ranges = s->forward_transformation->MapRanges(original_ranges, actx);
 
       ICHECK_EQ(updated_ranges.size(), s->transformed_variables.size());
       for (size_t i = 0; i < updated_ranges.size(); i++) {
@@ -269,6 +269,7 @@ void PassUpIndex(const Stage& stage, const Map<IterVar, Range>& dom_map,
       }
     } else if (rel.as<SingletonNode>()) {
     } else if (const TransformNode* s = rel.as<TransformNode>()) {
+      arith::Analyzer analyzer;
       bool missing_transformed = false;
       for (const auto& iter_var : s->transformed_variables) {
         if (!state.count(iter_var)) {
@@ -284,7 +285,8 @@ void PassUpIndex(const Stage& stage, const Map<IterVar, Range>& dom_map,
       for (const auto& iter_var : s->transformed_variables) {
         transformed_indices.push_back(state[iter_var]);
       }
-      Array<PrimExpr> original_indices = s->inverse_transformation->MapIndices(transformed_indices);
+      Array<PrimExpr> original_indices =
+          s->inverse_transformation->MapIndices(transformed_indices, &analyzer);
 
       ICHECK_EQ(original_indices.size(), s->original_variables.size());
       for (size_t i = 0; i < original_indices.size(); i++) {
@@ -352,7 +354,9 @@ void PassDownIndex(const Stage& stage, const Map<IterVar, Range>& dom_map,
       for (const auto& iter_var : s->original_variables) {
         original_indices.push_back(state[iter_var]);
       }
-      Array<PrimExpr> transformed_indices = s->forward_transformation->MapIndices(original_indices);
+      arith::Analyzer analyzer;
+      Array<PrimExpr> transformed_indices =
+          s->forward_transformation->MapIndices(original_indices, &analyzer);
 
       ICHECK_EQ(transformed_indices.size(), s->transformed_variables.size());
       for (size_t i = 0; i < transformed_indices.size(); i++) {
@@ -449,7 +453,9 @@ Array<IntSet> PassUpDomain(const TransformNode* s,
     transformed_indices.push_back(iter_var->var);
   }
 
-  Array<PrimExpr> transformed_exprs = s->inverse_transformation->MapIndices(transformed_indices);
+  arith::Analyzer analyzer;
+  Array<PrimExpr> transformed_exprs =
+      s->inverse_transformation->MapIndices(transformed_indices, &analyzer);
 
   ICHECK_EQ(transformed_exprs.size(), s->original_variables.size());
   for (size_t i = 0; i < transformed_exprs.size(); i++) {

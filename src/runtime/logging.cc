@@ -130,6 +130,9 @@ int BacktraceFullCallback(void* data, uintptr_t pc, const char* filename, int li
     backtrace_syminfo(_bt_state, pc, BacktraceSyminfoCallback, BacktraceErrorCallback,
                       symbol_str.get());
   }
+  if (filename == nullptr && strstr(symbol_str.get()->data(), "ffi_call_")) {
+    return 0;
+  }
   s << *symbol_str;
 
   if (filename != nullptr) {

@@ -55,7 +55,9 @@ IndexMap IndexMap::FromFunc(int ndim, runtime::TypedPackedFunc<Array<PrimExpr>(A
 
 std::pair<IndexMap, PrimExpr> IndexMapInverseImpl(const IndexMap& self,
                                                   const Array<Range>& initial_ranges,
-                                                  arith::IterMapLevel check_level) {
+                                                  arith::IterMapLevel check_level,
+                                                  arith::Analyzer* analyzer) {
+  ICHECK(analyzer != nullptr);
   if (self->inverse_index_map.defined()) {
     // return the pre-defined inverse index map if exists.  In this
     // case, the user-defined inverse is assumed to be correct and
@@ -88,9 +90,8 @@ std::pair<IndexMap, PrimExpr> IndexMapInverseImpl(const IndexMap& self,
 
   // Unpack the output indices into linear combinations of the initial
   // indices.
-  arith::Analyzer analyzer;
-  auto padded_iter_map = DetectIterMap(self->final_indices, input_iters, /* predicate = */ 1,
-                                       /*check_level=*/check_level, &analyzer,
+  auto padded_iter_map = DetectIterMap(self->final_indices, input_iters, /*predicate=*/1,
+                                       /*check_level=*/check_level, analyzer,
                                        /*simplify_trivial_iterators=*/false);
   CHECK(padded_iter_map->errors.empty()) << "Could not parse mapping as sum of iterators.  "
                                          << "Error: " << padded_iter_map->errors[0];
@@ -110,15 +111,15 @@ std::pair<IndexMap, PrimExpr> IndexMapInverseImpl(const IndexMap& self,
     } else {
       expr = inverse_exprs_map.at(index);
     }
-    inverse_exprs.push_back(analyzer.Simplify(expr));
+    inverse_exprs.push_back(analyzer->Simplify(expr));
   }
 
   PrimExpr padding_predicate = padded_iter_map->padding_predicate;
   padding_predicate = arith::NormalizeIterMapToExpr(padding_predicate);
   padding_predicate = Substitute(padding_predicate, inverse_exprs_map);
 
+  auto output_ranges = self->MapRanges(initial_ranges, analyzer);
   {
-    auto output_ranges = self->MapRanges(initial_ranges);
     ICHECK_EQ(output_ranges.size(), output_vars.size());
 
     arith::Analyzer analyzer;
@@ -133,15 +134,17 @@ std::pair<IndexMap, PrimExpr> IndexMapInverseImpl(const IndexMap& self,
   return {IndexMap(output_vars, inverse_exprs), padding_predicate};
 }
 
-std::pair<IndexMap, PrimExpr> IndexMap::NonSurjectiveInverse(Array<Range> initial_ranges) const {
-  return IndexMapInverseImpl(*this, initial_ranges, arith::IterMapLevel::NoCheck);
+std::pair<IndexMap, PrimExpr> IndexMap::NonSurjectiveInverse(Array<Range> initial_ranges,
+                                                             arith::Analyzer* analyzer) const {
+  ICHECK(analyzer != nullptr);
+  return IndexMapInverseImpl(*this, initial_ranges, arith::IterMapLevel::NoCheck, analyzer);
 }
 
-IndexMap IndexMap::Inverse(Array<Range> initial_ranges) const {
+IndexMap IndexMap::Inverse(Array<Range> initial_ranges, arith::Analyzer* analyzer) const {
+  ICHECK(analyzer != nullptr);
   auto [inverse, padding_predicate] =
-      IndexMapInverseImpl(*this, initial_ranges, arith::IterMapLevel::Bijective);
-  arith::Analyzer analyzer;
-  CHECK(analyzer.CanProve(!padding_predicate))
+      IndexMapInverseImpl(*this, initial_ranges, arith::IterMapLevel::Bijective, analyzer);
+  CHECK(analyzer->CanProve(!padding_predicate))
       << "Bijective inverse should not contain padding, but inverse of " << *this << " over range "
       << initial_ranges << " resulted in a padding predicate of " << padding_predicate;
   return inverse;
@@ -149,17 +152,13 @@ IndexMap IndexMap::Inverse(Array<Range> initial_ranges) const {
 
 Array<PrimExpr> IndexMapNode::MapIndices(const Array<PrimExpr>& indices,
                                          arith::Analyzer* analyzer) const {
+  ICHECK(analyzer != nullptr);
   ICHECK_EQ(indices.size(), initial_indices.size());
 
   Map<Var, PrimExpr> vmap;
 
   for (size_t i = 0; i < initial_indices.size(); i++) {
     vmap.Set(initial_indices[i], indices[i]);
-  }
-
-  arith::Analyzer local_analyzer;
-  if (!analyzer) {
-    analyzer = &local_analyzer;
   }
 
   Array<PrimExpr> output = final_indices.Map([&](PrimExpr index) {
@@ -171,18 +170,13 @@ Array<PrimExpr> IndexMapNode::MapIndices(const Array<PrimExpr>& indices,
 }
 
 Array<Range> IndexMapNode::MapRanges(const Array<Range>& ranges, arith::Analyzer* analyzer) const {
+  ICHECK(analyzer != nullptr);
   ICHECK_EQ(ranges.size(), initial_indices.size());
 
   Map<Var, Range> input_iters;
   for (size_t i = 0; i < initial_indices.size(); i++) {
     input_iters.Set(initial_indices[i], ranges[i]);
   }
-
-  arith::Analyzer local_analyzer;
-  if (!analyzer) {
-    analyzer = &local_analyzer;
-  }
-
   auto iter_map = DetectIterMap(final_indices, input_iters, /* predicate = */ 1,
                                 /*check_level=*/arith::IterMapLevel::NoCheck, analyzer,
                                 /*simplify_trivial_iterators=*/false);
@@ -240,6 +234,7 @@ Array<Range> IndexMapNode::MapRanges(const Array<Range>& ranges, arith::Analyzer
 
 Array<PrimExpr> IndexMapNode::MapShape(const Array<PrimExpr>& shape,
                                        arith::Analyzer* analyzer) const {
+  ICHECK(analyzer != nullptr);
   ICHECK_EQ(shape.size(), initial_indices.size());
 
   Array<Range> ranges;
@@ -258,6 +253,7 @@ Array<PrimExpr> IndexMapNode::MapShape(const Array<PrimExpr>& shape,
 }
 
 runtime::NDArray IndexMapNode::MapNDArray(runtime::NDArray arr_src) const {
+  arith::Analyzer analyzer;
   auto shape = arr_src.Shape();
   ICHECK(shape.size() == initial_indices.size())
       << "The rank of the input array should be " << initial_indices.size() << " but got "
@@ -268,7 +264,7 @@ runtime::NDArray IndexMapNode::MapNDArray(runtime::NDArray arr_src) const {
     size_1d *= shape[i];
     orig_shape.push_back(PrimExpr(static_cast<int>((shape[i]))));
   }
-  auto dst_shape = MapShape(orig_shape);
+  auto dst_shape = MapShape(orig_shape, &analyzer);
 
   std::vector<int64_t> dst_shape_int;
   for (size_t i = 0; i < dst_shape.size(); ++i) {
@@ -292,7 +288,7 @@ runtime::NDArray IndexMapNode::MapNDArray(runtime::NDArray arr_src) const {
       src_indices.push_back(PrimExpr(static_cast<int>((src_linear_index / div_factor))));
       src_linear_index %= div_factor;
     }
-    auto dst_indices = MapIndices(src_indices);
+    auto dst_indices = MapIndices(src_indices, &analyzer);
 
     // Convert an N-d coordinate to a linear coordinate
     // (z, y, x) -> z * height * width + y * width + x
@@ -430,19 +426,29 @@ TVM_REGISTER_GLOBAL("tir.IndexMap")
     });
 
 TVM_REGISTER_GLOBAL("tir.IndexMapMapIndices")
-    .set_body_typed([](IndexMap map, Array<PrimExpr> indices) { return map->MapIndices(indices); });
+    .set_body_typed([](IndexMap map, Array<PrimExpr> indices) {
+      arith::Analyzer analyzer;
+      return map->MapIndices(indices, &analyzer);
+    });
 
 TVM_REGISTER_GLOBAL("tir.IndexMapMapShape").set_body_typed([](IndexMap map, Array<PrimExpr> shape) {
-  return map->MapShape(shape);
+  arith::Analyzer analyzer;
+  return map->MapShape(shape, &analyzer);
 });
-TVM_REGISTER_GLOBAL("tir.IndexMapInverse").set_body_method(&IndexMap::Inverse);
+
+TVM_REGISTER_GLOBAL("tir.IndexMapInverse")
+    .set_body_typed([](IndexMap map, Array<Range> initial_ranges) {
+      arith::Analyzer analyzer;
+      return map.Inverse(initial_ranges, &analyzer);
+    });
 
 TVM_REGISTER_GLOBAL("tir.IndexMapMapNDArray")
     .set_body_typed([](IndexMap map, runtime::NDArray arr) { return map->MapNDArray(arr); });
 
 TVM_REGISTER_GLOBAL("tir.IndexMapNonSurjectiveInverse")
     .set_body_typed([](IndexMap forward, Array<Range> initial_ranges) {
-      auto result = forward.NonSurjectiveInverse(initial_ranges);
+      arith::Analyzer analyzer;
+      auto result = forward.NonSurjectiveInverse(initial_ranges, &analyzer);
       return Array<ObjectRef>{result.first, result.second};
     });
 

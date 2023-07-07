@@ -130,7 +130,7 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
         const auto* index_map_func = runtime::Registry::Get("tir.index_map_m16n8k8.matrixC");
         ICHECK(index_map_func);
         auto index_map = IndexMap::FromFunc(2, *index_map_func);
-        auto new_indices = index_map->MapIndices(store->indices);
+        auto new_indices = index_map->MapIndices(store->indices, &analyzer);
         n->buffer = buffer_map_[store->buffer];
         n->indices = std::move(new_indices);
       } else if (store->buffer.scope() == "m16n8k8.matrixA" ||
@@ -149,7 +149,7 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
         const auto* index_map_func = runtime::Registry::Get("tir.index_map_m16n8k8.matrixC");
         ICHECK(index_map_func);
         auto index_map = IndexMap::FromFunc(2, *index_map_func);
-        auto new_indices = index_map->MapIndices(load->indices);
+        auto new_indices = index_map->MapIndices(load->indices, &analyzer);
         n->buffer = buffer_map_[load->buffer];
         n->indices = std::move(new_indices);
       } else if (load->buffer.scope() == "m16n8k8.matrixA" ||
@@ -179,7 +179,7 @@ Pass TransformMmaBufferLayout() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     n->body = MmaBufferLayoutTransformer()(std::move(n->body));
-    return std::move(f);
+    return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.TransformMmaBufferLayout", {});
 }

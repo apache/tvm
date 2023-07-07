@@ -70,6 +70,12 @@ class IRMutatorWithAnalyzer : public tir::StmtExprMutator {
    */
   void MarkBufferMapShapes(const tir::PrimFunc& func);
 
+  /*!
+   * \brief Use internal bound information to perform inter map simplification of indices.
+   * \note Only do this during layout remapping
+   */
+  Array<PrimExpr> IterMapSimplifyWithContext(const Array<PrimExpr>& indices, bool non_trivial_only);
+
   /*! \brief internal analyzer field. */
   Analyzer* analyzer_;
   // the following two fields are useful in case we want
