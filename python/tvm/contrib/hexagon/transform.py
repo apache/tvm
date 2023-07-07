@@ -384,7 +384,7 @@ class simplify_qnn_concat_in_func(DFPatternCallback):
 
 # Right now context is ignored
 @tvm.transform.module_pass(opt_level=1)
-def simplify_qnn_concat(mod, _):
+def simplify_qnn_concat(mod, _=None):
     for global_var in mod.functions.keys():
         mod[global_var] = rewrite(simplify_qnn_concat_in_func(), mod[global_var])
     return mod
