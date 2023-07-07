@@ -3817,6 +3817,22 @@ def subroutine_call():
     return mod
 
 
+def subroutine_call_returning_int():
+    """An internal function call may return non-void"""
+
+    @I.ir_module
+    class mod:
+        @T.prim_func
+        def main(A: T.Buffer(2, "float32")):
+            mod.subroutine(A[0]) + mod.subroutine(A[1])
+
+        @T.prim_func
+        def subroutine(x: T.float32) -> T.float32:
+            T.ret(x * x)
+
+    return mod
+
+
 def undefined_data_ptr_in_decl_buffer():
     """The T.decl_buffer syntax should not introduce an Allocate
 
@@ -4009,6 +4025,7 @@ ir_generator = tvm.testing.parameter(
     ir_module_with_attrs,
     nested_seqstmt,
     subroutine_call,
+    subroutine_call_returning_int,
     undefined_data_ptr_in_decl_buffer,
     undefined_shape_in_decl_buffer,
     undefined_stride_in_decl_buffer,
