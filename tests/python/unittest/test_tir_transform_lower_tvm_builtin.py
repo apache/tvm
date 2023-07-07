@@ -71,7 +71,9 @@ def check_packed_func(target="llvm"):
 
     # Recursively visit PrimFunc until we meet the for-loop:
     while True:
-        if isinstance(node, (tvm.tir.AssertStmt, tvm.tir.LetStmt, tvm.tir.AttrStmt)):
+        if isinstance(
+            node, (tvm.tir.AssertStmt, tvm.tir.LetStmt, tvm.tir.AttrStmt, tvm.tir.DeclBuffer)
+        ):
             node = node.body
         elif isinstance(node, tvm.tir.SeqStmt):
             node = node[0]
@@ -98,7 +100,7 @@ def check_packed_func(target="llvm"):
     #
     # let stack_value = tir.tvm_stack_alloca("arg_value", 4)
     #
-    alloca_value = alloca_tcode.body
+    alloca_value = alloca_tcode.body.body
     assert isinstance(alloca_value, tvm.tir.LetStmt)
 
     expected_value = tvm.tir.call_intrin(
