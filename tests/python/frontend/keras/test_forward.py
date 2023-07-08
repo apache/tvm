@@ -525,6 +525,8 @@ class TestKeras:
         rnn_funcs = [
             keras_mod.layers.LSTM(16),
             keras_mod.layers.LSTM(16, return_sequences=True),
+            keras_mod.layers.LSTM(16, go_backwards=True),
+            keras_mod.layers.LSTM(16, return_sequences=True, go_backwards=True),
             keras_mod.layers.LSTM(16, return_sequences=True, use_bias=False),
         ]
         for rnn_func in rnn_funcs:
