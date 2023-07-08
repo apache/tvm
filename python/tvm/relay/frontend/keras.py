@@ -1528,7 +1528,6 @@ def from_keras(model, shape=None, layout="NCHW"):
             import keras.src.engine as E
         else:
             import keras.engine as E
-        
         expected_model_class = E.training.Model
         if hasattr(E, "InputLayer"):
             input_layer_class = E.InputLayer
