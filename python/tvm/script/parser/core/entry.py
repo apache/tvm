@@ -36,7 +36,7 @@ def _default_globals() -> Dict[str, Any]:
 
 def parse_macro(program: Union[Any, str], extra_vars: Dict[str, Any] = None) -> Any:
     """Generate the AST, and the source code for __repr__."""
-    # The AST will be converted into TIR at the time of insertion.
+    # The AST will be converted into TIR at the time of expansion.
     source = Source(program)
     source_txt = source.source
     source_ast = source.as_ast()
