@@ -558,7 +558,7 @@ def expand_macro(self: Parser, callee: TIRMacro, call: doc.Call) -> None:
 
     if isinstance(macro.doc, doc.Module):
         macro_def = find_macro_def(macro_name, macro.doc.body)
-    elif not isinstance(macro.doc, doc.FunctionDef) or macro.doc.name != macro_name:
+    else:
         macro_def = None
 
     if macro_def is None:
