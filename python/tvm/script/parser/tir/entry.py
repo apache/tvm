@@ -75,6 +75,7 @@ def macro(func: Callable) -> doc.AST:
     obj = TIRMacro(*parse_macro(func))
     obj.__name__ = func.__name__
     obj.func = func
+    obj.closure_vars = utils.inspect_function_capture(func)
     # We don't need to explicitly store the return value anywhere.
     # This function is a decorator, so the return value will replace
     # the function definition (to which the decorator it is applied)
