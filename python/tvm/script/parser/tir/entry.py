@@ -16,7 +16,7 @@
 # under the License.
 """The entry point of TVM parser for tir."""
 import inspect
-from typing import Any, Callable, Union
+from typing import Any, Callable, Dict, Union
 
 from tvm.ir.base import deprecated
 from tvm.tir import Buffer, PrimFunc
@@ -63,19 +63,22 @@ setattr(prim_func, "dispatch_token", "tir")
 class TIRMacro:
     """Representation of T.macro: consists of the doc.AST and the text of the source."""
 
-    def __init__(self, node, source):
-        self.doc = node
-        self.source = source
+    func: Callable
+
+    def __init__(self, source_ast: doc.AST, source_txt: str, closure_vars: Dict[str, Any]) -> None:
+        self.source_ast = source_ast
+        self.source_txt = source_txt
+        self.closure_vars = closure_vars
+        self.func = None
 
     def __repr__(self):
-        return self.source
+        return self.source_txt
 
 
 def macro(func: Callable) -> doc.AST:
-    obj = TIRMacro(*parse_macro(func))
+    obj = TIRMacro(*parse_macro(func, utils.inspect_function_capture(func)))
     obj.__name__ = func.__name__
     obj.func = func
-    obj.closure_vars = utils.inspect_function_capture(func)
     # We don't need to explicitly store the return value anywhere.
     # This function is a decorator, so the return value will replace
     # the function definition (to which the decorator it is applied)

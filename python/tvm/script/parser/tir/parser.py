@@ -544,27 +544,17 @@ def expand_macro(self: Parser, callee: TIRMacro, call: doc.Call) -> None:
     and pass the macro body for further parsing.
     """
 
+    assert isinstance(callee, TIRMacro), f"Unexpected macro type {type(callee)}"
+
     def find_macro_def(name: str, decl_list: doc.AST) -> Union[doc.FunctionDef, Any]:
         for decl in decl_list:
             if isinstance(decl, doc.FunctionDef) and decl.name == name:
                 return decl
         return None
 
-    macro_name = callee.__name__
-    macro = self.var_table.get().get(macro_name)
-
-    if macro is None:
-        self.report_error(node, f"Undefined macro '{macro_name}'")
-
-    if isinstance(macro.doc, doc.Module):
-        macro_def = find_macro_def(macro_name, macro.doc.body)
-    else:
-        macro_def = None
-
-    if macro_def is None:
-        self.report_error(call, f"Undefined macro {macro_name}")
-
-    # `macro_def` is a FunctionDef of the macro.
+    macro_def = find_macro_def(callee.__name__, callee.source_ast.body)
+    assert macro_def is not None, f"Invalid macro AST for {callee.__name__}"
+    # `macro_def` is the FunctionDef of the macro.
 
     args = [self.eval_expr(arg) for arg in call.args]
     kwargs = {kw.arg: self.eval_expr(kw.value) for kw in call.keywords}
