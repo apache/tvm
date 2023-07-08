@@ -44,4 +44,5 @@ pip3 install --upgrade \
     six \
     tornado \
     pytest-lazy-fixture \
-    ml_dtypes
+    git+https://github.com/jax-ml/ml_dtypes.git@v0.2.0
+
