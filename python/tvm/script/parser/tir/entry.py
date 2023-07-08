@@ -81,7 +81,7 @@ class TIRMacro:
         return self.source_txt
 
 
-def macro(*, hygienic: bool = True) -> Callable:
+def macro(*args, hygienic: bool = True) -> Callable:
     """Decorator for macro definitions.
 
     Parameters
@@ -132,7 +132,14 @@ def macro(*, hygienic: bool = True) -> Callable:
         # in that function's name space.
         return obj
 
-    return _decorator
+    if len(args) == 0:
+        return _decorator
+    if len(args) == 1 and inspect.isfunction(args[0]):
+        return _decorator(args[0])
+
+    raise ValueError(
+        "Invalid use of T.macro. Usage: @T.macro, @T.macro(), @T.macro(hygienic=[True|False])"
+    )
 
 
 # There is no dispatch_token for macro, because macro doesn't invoke parser.

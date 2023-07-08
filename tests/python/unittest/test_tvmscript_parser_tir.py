@@ -71,6 +71,64 @@ def test_tir_func_name():
     assert matmul.__name__ == "matmul"
 
 
+def test_tir_macro_decorator():
+    @T.macro
+    def func1(n):
+        T.evaluate(n)
+
+    assert func1.hygienic
+
+    @T.macro()
+    def func2(n):
+        T.evaluate(n)
+
+    assert func2.hygienic
+
+    with pytests.raises(ValueException) as exc:
+
+        @T.macro(True)
+        def func3(n):
+            T.evaluate(n)
+
+
+def test_tir_macro_decorator_signature():
+    @T.prim_func
+    def evaluate0():
+        T.evaluate(0)
+
+    # Ok, no parentheses
+    @T.macro
+    def func1():
+        T.evaluate(0)
+
+    assert func1.hygienic
+
+    @T.prim_func
+    def use1():
+        func1()
+
+    tvm.ir.assert_structural_equal(use1, evaluate0)
+
+    # Ok, empty parentheses
+    @T.macro()
+    def func2():
+        T.evaluate(0)
+
+    assert func2.hygienic
+
+    @T.prim_func
+    def use2():
+        func2()
+
+    tvm.ir.assert_structural_equal(use1, evaluate0)
+
+    with pytest.raises(ValueError):
+        # Wrong: non-keyword argument
+        @T.macro(True)
+        def func3():
+            T.evaluate()
+
+
 def test_tir_macro_signature():
     @T.macro
     def assign(i, *args, t1, **kwargs):
