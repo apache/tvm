@@ -2053,8 +2053,8 @@ def test_conv2d_nchw_dnnl():
     for t in ["float32", "bfloat16"]:
         mod = tvm.IRModule.from_expr(get_subgraph(t))
 
-        data_np = np.random.uniform(1, 10, d_shape).astype("float32")
-        weight_np = np.random.uniform(1, 10, size=w_shape).astype("float32")
+        data_np = np.random.uniform(1, 10, d_shape).astype(t)
+        weight_np = np.random.uniform(1, 10, size=w_shape).astype(t)
         ref = tvm.topi.testing.conv2d_nchw_python(data_np, weight_np, strides, padding)
 
         target = "llvm -mcpu=skylake-avx512 -libs=dnnl"
