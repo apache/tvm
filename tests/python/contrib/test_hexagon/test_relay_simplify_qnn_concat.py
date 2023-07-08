@@ -17,7 +17,7 @@
 # pylint: disable=unused-wildcard-import, invalid-name
 
 """
-Test hexagon relay transforms
+Test hexagon relay transform - qnn.concat optimization
 """
 import tvm
 from tvm import relay, testing
