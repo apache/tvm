@@ -16,7 +16,6 @@
 # under the License.
 """The base parser for tir"""
 
-import ast
 import contextlib
 import inspect
 from functools import partial
@@ -457,6 +456,7 @@ def visit_expr_stmt(self: Parser, node: doc.Expr) -> None:
         pass
     else:
         self.report_error(node, f"Parsing resulted in unexpected type {type(res)}")
+    return None  # For pylint
 
 
 @dispatch.register(token="tir", type_name="If")
