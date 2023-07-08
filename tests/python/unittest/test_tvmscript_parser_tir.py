@@ -84,7 +84,7 @@ def test_tir_macro():
         C = T.match_buffer(c, [128, 128])
         for i, j, k in T.grid(128, 128, 128):
             with T.block("update"):
-                T.insert(assign, i, j, k, t1=A, t2=B, t3=C)
+                assign(i, j, k, t1=A, t2=B, t3=C)
 
     @T.prim_func
     def matmul_no_macro(a: T.handle, b: T.handle, c: T.handle) -> None:

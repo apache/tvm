@@ -18,6 +18,7 @@
 
 import ast
 import contextlib
+import inspect
 from functools import partial
 from typing import Any, Union
 
@@ -30,6 +31,7 @@ from ...ir_builder import tir as T
 from ...ir_builder.base import IRBuilder
 from ...ir_builder.base import IRBuilderFrame as Frame
 from .._core import Parser, dispatch, doc
+from .entry import TIRMacro
 
 
 def bind_with_value(self: Parser, node: doc.expr, var_name: str, value: Any) -> Any:
@@ -429,18 +431,10 @@ def visit_expr_stmt(self: Parser, node: doc.Expr) -> None:
         The doc AST Expr node.
     """
 
-    def is_insert_macro(node: doc.Call) -> bool:
-        if not isinstance(node.func, doc.Attribute):
-            return False
-        attr = node.func
-        if not isinstance(attr.value, doc.Name):
-            return False
-        if attr.value.id != "T" or attr.attr != "insert":
-            return False
-        return True
-
-    if isinstance(node.value, doc.Call) and is_insert_macro(node.value):
-        return process_insert_macro(self, node.value)
+    if isinstance(node.value, doc.Call):
+        callee = self.eval_expr(node.value.func)
+        if isinstance(callee, TIRMacro):
+            return expand_macro(self, callee, node.value)
 
     res = self.eval_expr(node.value)
     if res is None:
@@ -545,9 +539,9 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> GlobalVar
     return I.decl_function(node.name, func_signature)
 
 
-def process_insert_macro(self: Parser, call: doc.Call) -> None:
-    """Bind arguments to T.insert to the parameters of the macro, and pass the macro body
-    for further parsing.
+def expand_macro(self: Parser, callee: TIRMacro, call: doc.Call) -> None:
+    """Bind arguments to the macro invocation to the parameters in the macro definition,
+    and pass the macro body for further parsing.
     """
 
     def find_macro_def(name: str, decl_list: doc.AST) -> Union[doc.FunctionDef, Any]:
@@ -556,13 +550,9 @@ def process_insert_macro(self: Parser, call: doc.Call) -> None:
                 return decl
         return None
 
-    macro_name = call.args[0]
-
-    if not isinstance(macro_name, doc.Name):
-        self.report_error(call, "Invalid macro name in T.insert")
-    macro_name = macro_name.id
-
+    macro_name = callee.__name__
     macro = self.var_table.get().get(macro_name)
+
     if macro is None:
         self.report_error(node, f"Undefined macro '{macro_name}'")
 
@@ -576,40 +566,11 @@ def process_insert_macro(self: Parser, call: doc.Call) -> None:
 
     # `macro_def` is a FunctionDef of the macro.
 
-    # We have the AST for the macro definition, and the AST for the call. We need to
-    # substitute the actual arguments from the call for the parameters from the
-    # definition. To allow full flexibility of python, i.e. positional, unnamed, and
-    # keyword parameters, get the python interpreter to do the work: create and execute
-    # the following:
-    # ```
-    # def macro_name(...macro parameters...)
-    #     return locals()
-    # tmp = macro_name(...arguments from the call...)
-    # ```
-    # Obtain the dictionary `tmp` resulting from the execution, and update the var_table
-    # with it.
-
-    # Construct the function with the macro's parameters, and returning locals().
-    macro_ast = doc.from_doc(macro_def)
-    macro_ast.body = [
-        ast.Return(value=ast.Call(func=ast.Name("locals", ctx=ast.Load()), args=[], keywords=[]))
-    ]
-    macro_ast.decorator_list = []
-
-    # Construct the assignment with the call.
-    call_ast = doc.from_doc(call)
-    call_ast.func = ast.Name(macro_name, ctx=ast.Load())
-    call_ast.args = call_ast.args[1:]
-    tmp_name = "__tmp_param_eval_64e98b523301204b"
-    assign_ast = ast.Assign(targets=[ast.Name(tmp_name, ctx=ast.Store())], value=call_ast)
-
-    # Finalize and execute the module:
-    module_ast = ast.Module(body=[macro_ast, assign_ast], type_ignores=[])
-    module_ast = ast.fix_missing_locations(module_ast)
-    cmacro = compile(module_ast, filename="<tmp-string>", mode="exec")
-    local_vars = {}
-    exec(cmacro, self.var_table.get(), local_vars)  # pylint: disable=exec-used
-    local_vars = local_vars[tmp_name]
+    args = [self.eval_expr(arg) for arg in call.args]
+    kwargs = {kw.arg: self.eval_expr(kw.value) for kw in call.keywords}
+    param_binding = inspect.signature(callee.func).bind(*args, **kwargs)
+    param_binding.apply_defaults()
+    local_vars = param_binding.arguments
 
     with self.var_table.with_frame():
         for k, v in local_vars.items():

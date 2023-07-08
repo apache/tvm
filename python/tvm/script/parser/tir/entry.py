@@ -54,12 +54,10 @@ setattr(prim_func, "dispatch_token", "tir")
 # - Function that is decorated with @T.macro can have any parameters that
 #   follow Python syntax, i.e. positional, keyword, etc. Type annotations
 #   are not required, but are allowed.
-# - The arguments to `T.insert` are: macro name (either as value, or as
-#   a string with the name), followed by the argument list.
-#   For `T.insert(arg1, arg2, arg3, ...)`, the values are substituted into
-#   the body of the macro as in the call `arg1(arg2, arg3, ...)`.
-#   The body with the substituted values is then inserted at the point
-#   where the `T.insert` is located.
+# - Macro use follows the same syntax as a function call.
+#   For `macro_name(arg1, arg2, arg3, ...)`, the values are substituted into
+#   the body of the macro, and the body with the substituted values is then
+#   inserted at the point where the call to the macro is located.
 
 
 class TIRMacro:
@@ -75,7 +73,8 @@ class TIRMacro:
 
 def macro(func: Callable) -> doc.AST:
     obj = TIRMacro(*parse_macro(func))
-    setattr(obj, "__name__", func.__name__)
+    obj.__name__ = func.__name__
+    obj.func = func
     # We don't need to explicitly store the return value anywhere.
     # This function is a decorator, so the return value will replace
     # the function definition (to which the decorator it is applied)
@@ -84,12 +83,6 @@ def macro(func: Callable) -> doc.AST:
 
 
 # There is no dispatch_token for macro, because macro doesn't invoke parser.
-
-
-def insert(name: Union[str, doc.Name], *args, **kwargs) -> Any:  # pylint: disable=unused-argument
-    """Placeholder function, so that T.insert (i.e. macro insertion)
-    can be parsed without errors.
-    """
 
 
 class BufferProxy:
