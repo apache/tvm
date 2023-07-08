@@ -61,29 +61,78 @@ setattr(prim_func, "dispatch_token", "tir")
 
 
 class TIRMacro:
-    """Representation of T.macro: consists of the doc.AST and the text of the source."""
+    """Representation of T.macro."""
 
-    func: Callable
-
-    def __init__(self, source_ast: doc.AST, source_txt: str, closure_vars: Dict[str, Any]) -> None:
+    def __init__(
+        self,
+        source_ast: doc.AST,
+        source_txt: str,
+        closure_vars: Dict[str, Any],
+        func: Callable,
+        hygienic: bool,
+    ) -> None:
         self.source_ast = source_ast
         self.source_txt = source_txt
         self.closure_vars = closure_vars
-        self.func = None
+        self.func = func
+        self.hygienic = hygienic
 
     def __repr__(self):
         return self.source_txt
 
 
-def macro(func: Callable) -> doc.AST:
-    obj = TIRMacro(*parse_macro(func, utils.inspect_function_capture(func)))
-    obj.__name__ = func.__name__
-    obj.func = func
-    # We don't need to explicitly store the return value anywhere.
-    # This function is a decorator, so the return value will replace
-    # the function definition (to which the decorator it is applied)
-    # in that function's name space.
-    return obj
+def macro(*, hygienic: bool = True) -> Callable:
+    """Decorator for macro definitions.
+
+    Parameters
+    ----------
+    hygienic: bool
+        Specifies whether the macro is hygienic or not.
+        A macro is hygienic if all symbols used in the macro's body are resolved
+        to values from the location of the macro definition. A non-hygienic macro
+        will have its symbols resolved to values at the time of the macro's use.
+
+        Example:
+        ```
+        import tvm
+        from tvm.script import tir as T
+
+        x_value = 128
+
+        @T.macro(hygienic=True)
+        def static_capture(A, B):
+            B[()] = A[x_value]          ### x_value binds to 128
+
+        @T.macro(hygienic=False)
+        def dynamic_capture(A, B):
+            B[()] = A[x_value]          ### x_value will bind at the time of use
+
+
+        @T.prim_func
+        def use1(A: T.Buffer((1024,), "int32"), B: T.Buffer((), "int32")) -> None:
+            for x_value in T.serial(10):
+                static_capture(A, B)    ### Produces B[()] = A[128]
+
+        @T.prim_func
+        def use2(A: T.Buffer((1024,), "int32"), B: T.Buffer((), "int32")) -> None:
+            for x_value in T.serial(10):
+                dynamic_capture(A, B)   ### Produces B[()] = A[x_value]
+        ```
+    """
+
+    def _decorator(func: Callable) -> TIRMacro:
+        source_ast, source_txt, closure_vars = parse_macro(
+            func, utils.inspect_function_capture(func)
+        )
+        obj = TIRMacro(source_ast, source_txt, closure_vars, func, hygienic)
+        obj.__name__ = func.__name__
+        # We don't need to explicitly store the return value anywhere.
+        # This function is a decorator, so the return value will replace
+        # the function definition (to which the decorator it is applied)
+        # in that function's name space.
+        return obj
+
+    return _decorator
 
 
 # There is no dispatch_token for macro, because macro doesn't invoke parser.

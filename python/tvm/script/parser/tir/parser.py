@@ -31,6 +31,7 @@ from ...ir_builder import tir as T
 from ...ir_builder.base import IRBuilder
 from ...ir_builder.base import IRBuilderFrame as Frame
 from .._core import Parser, dispatch, doc
+from ..core.parser import VarTable
 from .entry import TIRMacro
 
 
@@ -562,8 +563,26 @@ def expand_macro(self: Parser, callee: TIRMacro, call: doc.Call) -> None:
     param_binding.apply_defaults()
     local_vars = param_binding.arguments
 
-    with self.var_table.with_frame():
-        for k, v in local_vars.items():
-            self.var_table.add(k, v)
+    if callee.hygienic:
+        # If the macro was hygienic, construct new var_table with a single frame that
+        # contains the captured environment, and process the macro's body with that
+        # frame.
+        saved_var_table = self.var_table
+        self.var_table = VarTable()
+        with self.var_table.with_frame():
+            for k, v in callee.closure_vars.items():
+                self.var_table.add(k, v)
+            for k, v in local_vars.items():
+                self.var_table.add(k, v)
 
-        self.visit_body(macro_def.body)
+            self.visit_body(macro_def.body)
+
+        self.var_table = saved_var_table
+
+    else:
+        # Otherwise, dynamically resolve symbols in the macro's body.
+        with self.var_table.with_frame():
+            for k, v in local_vars.items():
+                self.var_table.add(k, v)
+
+            self.visit_body(macro_def.body)

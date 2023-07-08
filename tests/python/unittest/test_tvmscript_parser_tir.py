@@ -71,7 +71,7 @@ def test_tir_func_name():
     assert matmul.__name__ == "matmul"
 
 
-def test_tir_macro():
+def test_tir_macro_signature():
     @T.macro
     def assign(i, *args, t1, **kwargs):
         vi, vj, vk = T.axis.remap("SSR", [i, args[0], args[1]])
@@ -97,6 +97,46 @@ def test_tir_macro():
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
     tvm.ir.assert_structural_equal(matmul_no_macro, matmul_w_macro)
+
+
+def test_tir_macro_hygienic():
+    x_value = 128
+
+    @T.macro(hygienic=True)
+    def static_capture(A, B):
+        B[()] = A[x_value]
+
+    @T.prim_func
+    def use_hygienic(A: T.Buffer((1024,), "int32"), B: T.Buffer((), "int32")) -> None:
+        for x_value in T.serial(10):
+            static_capture(A, B)
+
+    @T.prim_func
+    def expected_hygienic(A: T.Buffer((1024,), "int32"), B: T.Buffer((), "int32")) -> None:
+        for x_value in range(10):
+            B[()] = A[128]
+
+    tvm.ir.assert_structural_equal(use_hygienic, expected_hygienic)
+
+
+def test_tir_macro_non_hygienic():
+    x_value = 128
+
+    @T.macro(hygienic=False)
+    def dynamic_capture(A, B):
+        B[()] = A[x_value]
+
+    @T.prim_func
+    def use_non_hygienic(A: T.Buffer((1024,), "int32"), B: T.Buffer((), "int32")) -> None:
+        for x_value in T.serial(10):
+            dynamic_capture(A, B)
+
+    @T.prim_func
+    def expected_non_hygienic(A: T.Buffer((1024,), "int32"), B: T.Buffer((), "int32")) -> None:
+        for x_value in range(10):
+            B[()] = A[x_value]
+
+    tvm.ir.assert_structural_equal(use_non_hygienic, expected_non_hygienic)
 
 
 if __name__ == "__main__":
