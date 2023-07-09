@@ -185,10 +185,7 @@ def _layout_transform(bb: BlockBuilder, call: Call) -> Expr:
                 lambda *idx: tvm.te.if_then_else(
                     tir.stmt_functor.substitute(
                         padding_predicate,
-                        {
-                            old_idx: tvm.tir.Cast("int32", idx[i])
-                            for i, old_idx in enumerate(inverse.initial_indices)
-                        },
+                        {old_idx: idx[i] for i, old_idx in enumerate(inverse.initial_indices)},
                     ),
                     pad_value,
                     data(*inverse.map_indices(idx)),

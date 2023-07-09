@@ -442,6 +442,14 @@ def well_formed(mod: IRModule, check_struct_info: bool = True) -> bool:
     return _ffi_api.well_formed(mod, check_struct_info)  # type: ignore
 
 
+def _get_prim_func_default_dtype(func: PrimFunc):
+    """Detect default index dtype from function buffer map"""
+    for _, v in func.buffer_map.items():
+        for value in v.shape:
+            return value.dtype
+    return "int64"
+
+
 def suggest_layout_transforms(
     func: PrimFunc, write_buffer_transforms: List[Union[IndexMap, Callable]]
 ) -> Dict[Block, Dict[Union[Block, Buffer], IndexMap]]:
@@ -463,9 +471,10 @@ def suggest_layout_transforms(
          from the object (block or buffer) to it's index map transformation.
     """
     write_buffer_index_maps = []
+    default_index_dtype = _get_prim_func_default_dtype(func)
     for transform in write_buffer_transforms:
         if callable(transform):
-            transform = IndexMap.from_func(transform)
+            transform = IndexMap.from_func(transform, index_dtype=default_index_dtype)
         assert isinstance(transform, IndexMap)
         write_buffer_index_maps.append(transform)
     return _ffi_api.suggest_layout_transforms(func, write_buffer_index_maps)  # type: ignore

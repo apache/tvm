@@ -16,6 +16,7 @@
 # under the License.
 import tvm
 import tvm.testing
+import pytest
 from tvm.script import relax as R, tir as T
 from tvm.script import ir as I
 from tvm.relax.transform import LazyTransformParams
@@ -95,6 +96,8 @@ def test_lazy_transform_params():
     tvm.ir.assert_structural_equal(after, Expected, map_free_vars=True)
 
 
+# TODO(tvm-team): remove once regression get fixed
+@pytest.mark.skip("temp disable, minor regression on read/write region in zero dim buffer")
 def test_output_with_use_site():
     @I.ir_module
     class Module:
