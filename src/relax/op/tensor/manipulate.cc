@@ -474,7 +474,8 @@ StructInfo InferStructInfoLayoutTransform(const Call& call, const BlockBuilder& 
     return TensorStructInfo(data_sinfo->dtype, /*ndim=*/index_map->final_indices.size());
   }
 
-  Array<PrimExpr> output_shape = index_map->MapShape(shape_sinfo->values.value());
+  arith::Analyzer analyzer;
+  Array<PrimExpr> output_shape = index_map->MapShape(shape_sinfo->values.value(), &analyzer);
   return TensorStructInfo(ShapeExpr(output_shape), data_sinfo->dtype);
 }
 
