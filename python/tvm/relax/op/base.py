@@ -114,10 +114,9 @@ def call_tir_with_grad(
     gvar: GlobalVar,
     args: Expr,
     out_sinfo: Union[TensorStructInfo, List[TensorStructInfo]],
-    tir_vars: Optional[Union[ShapeExpr, Tuple[PrimExpr], List[PrimExpr]]] = None,
-    *,
     te_grad_name: str,
     te_grad_kwargs: Dict[str, Object] = None,
+    tir_vars: Optional[Union[ShapeExpr, Tuple[PrimExpr], List[PrimExpr]]] = None,
 ) -> Call:
     """
     Call a tir.prim_func and return the output. This intrinsic will bind a te gradient function
@@ -137,9 +136,6 @@ def call_tir_with_grad(
         It should be a single or a list of TensorStructInfo. Each one denotes the
         structure info of a returned tensor.
 
-    tir_vars : Optional[Union[ShapeExpr, Tuple[PrimExpr], List[PrimExpr]]]
-        ShapeExpr representing a tuple of integers to unpack when calling func. Is null if not used
-
     te_grad_name : str
         The registered name of the te gradient function associated with the call_tir_with_grad
         node. Must be provided as a keyword argument.
@@ -147,6 +143,9 @@ def call_tir_with_grad(
     te_grad_kwargs : Dict[str, Object], optional
         The keyword arguments passed to the te gradient function.
         Optionally provided as a keyword argument. Default: {}.
+
+    tir_vars : Optional[Union[ShapeExpr, Tuple[PrimExpr], List[PrimExpr]]]
+        ShapeExpr representing a tuple of integers to unpack when calling func. Is null if not used
 
     Returns
     -------
@@ -166,7 +165,7 @@ def call_tir_with_grad(
         te_grad_kwargs = {}
 
     return _ffi_api.call_tir_with_grad(  # type: ignore
-        gvar, args, out_sinfo, tir_vars, te_grad_name, te_grad_kwargs
+        gvar, args, out_sinfo, te_grad_name, te_grad_kwargs, tir_vars
     )
 
 

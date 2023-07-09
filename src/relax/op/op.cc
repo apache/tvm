@@ -189,8 +189,8 @@ RELAY_REGISTER_OP("relax.call_tir_with_grad")
     .set_attr<Bool>("FPurity", Bool(true));
 
 Expr MakeCallTIRWithGrad(Expr func, Tuple args, Array<TensorStructInfo> out_sinfo_list,
-                         Optional<Expr> packed_ints, String te_grad_name,
-                         Map<String, ObjectRef> te_grad_kwargs) {
+                         String te_grad_name, Map<String, ObjectRef> te_grad_kwargs,
+                         Optional<Expr> packed_ints) {
   for (const TensorStructInfo& sinfo : out_sinfo_list) {
     const auto* shape = sinfo->shape.as<ShapeExprNode>();
     CHECK(shape != nullptr)

@@ -385,7 +385,7 @@ class BlockBuilder(Object):
         gvar = self.add_func(tir_func, primfunc_name)
 
         return call_tir_with_grad(
-            gvar, call_args, output_sinfo, tir_vars, te_grad_name, te_grad_kwargs
+            gvar, call_args, output_sinfo, te_grad_name, te_grad_kwargs, tir_vars
         )
 
     def emit_te(self, func: Callable, *args: Any, **kwargs: Any) -> Var:
