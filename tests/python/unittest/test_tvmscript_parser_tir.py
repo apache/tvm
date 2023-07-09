@@ -85,7 +85,7 @@ def test_tir_macro_decorator():
 
     assert func2.hygienic
 
-    with pytests.raises(ValueException) as exc:
+    with pytest.raises(ValueException) as exc:
 
         @T.macro(True)
         def func3(n):
