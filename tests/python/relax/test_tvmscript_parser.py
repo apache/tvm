@@ -865,7 +865,7 @@ def test_call_tir_with_tir_var():
     _check(Module)
 
 
-def test_call_tir_with_te_grad():
+def test_call_tir_with_grad():
     @I.ir_module
     class Module:
         @T.prim_func

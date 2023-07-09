@@ -376,7 +376,7 @@ R.call_dps_packed("my_dps_func", (a,), out_sinfo=R.Tensor((1, x, 3), dtype="floa
     )
 
 
-def test_call_te_grad():
+def test_call_tir_with_grad():
     x = tir.Var("x", "int64")
     v0 = relax.Var("v0", R.Tensor([54, 96], "float32"))
     v1 = relax.call_tir_with_grad(
