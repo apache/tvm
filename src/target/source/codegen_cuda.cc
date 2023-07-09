@@ -898,8 +898,9 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
         runtime::Registry::Get("tir.index_map.shared_16x16_to_ldmatrix_32x8_layout");
     ICHECK(index_map_func);
 
+    arith::Analyzer analyzer;
     auto inverse_index_map =
-        IndexMap::FromFunc(2, *index_map_func).Inverse({Range(0, m), Range(0, n)});
+        IndexMap::FromFunc(2, *index_map_func).Inverse({Range(0, m), Range(0, n)}, &analyzer);
     auto indices_16x16 = inverse_index_map->final_indices;
 
     // "//" and "%" in the index map are translated to FloorDiv/Mod, but the plain Div/Mod are fine.

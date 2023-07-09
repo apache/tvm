@@ -15,17 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
-
 import pytest
+
 import tvm
 import tvm.testing
 from tvm.ir import assert_structural_equal
-from tvm.tir import IndexMap, IntImm, floordiv, floormod
 from tvm.runtime import const
+from tvm.tir import IndexMap, IntImm, floordiv, floormod
 
 
 def assert_equal_index_map(map1: IndexMap, map2: IndexMap) -> None:
-
     iters_1 = map1.map_indices(map2.initial_indices)
     iters_2 = map2.final_indices
     assert len(iters_1) == len(iters_2)
@@ -36,7 +35,7 @@ def assert_equal_index_map(map1: IndexMap, map2: IndexMap) -> None:
 
 
 def test_index_mapping():
-    index_map = IndexMap.from_func(lambda i: [i // 4, i % 4])
+    index_map = IndexMap.from_func(lambda i: [i // 4, i % 4], index_dtype="int32")
 
     assert_structural_equal(index_map.map_indices([0]), [0, 0])
     assert_structural_equal(index_map.map_indices([3]), [0, 3])
@@ -48,7 +47,7 @@ def test_index_mapping():
 
 
 def test_shape_mapping():
-    index_map = IndexMap.from_func(lambda i: [i // 4, i % 4])
+    index_map = IndexMap.from_func(lambda i: [i // 4, i % 4], index_dtype="int32")
 
     assert_structural_equal(index_map.map_shape([4]), [1, 4])
     assert_structural_equal(index_map.map_shape([16]), [4, 4])
@@ -184,7 +183,7 @@ padding_test_case = tvm.testing.parameter(
 
 
 def test_nonsurjective_inverse(padding_test_case):
-    index_map = IndexMap.from_func(padding_test_case["forward"])
+    index_map = IndexMap.from_func(padding_test_case["forward"], index_dtype="int32")
 
     inverse, padding_predicate = index_map.non_surjective_inverse(padding_test_case["pre_shape"])
     expected_inverse = IndexMap.from_func(padding_test_case["inverse"])

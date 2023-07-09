@@ -102,8 +102,7 @@ class IndexMapNode : public Object {
    * \returns The indices in the output space.  Contains one value for
    * each expression in `final_indices`.
    */
-  Array<PrimExpr> MapIndices(const Array<PrimExpr>& indices,
-                             arith::Analyzer* analyzer = nullptr) const;
+  Array<PrimExpr> MapIndices(const Array<PrimExpr>& indices, arith::Analyzer* analyzer) const;
 
   /*! \brief Map a memory range to the output space
    *
@@ -121,7 +120,7 @@ class IndexMapNode : public Object {
    * \returns The ranges in the output space.  Contains one value for
    * each expression in `final_indices`.
    */
-  Array<Range> MapRanges(const Array<Range>& ranges, arith::Analyzer* analyzer = nullptr) const;
+  Array<Range> MapRanges(const Array<Range>& ranges, arith::Analyzer* analyzer) const;
 
   /*! \brief Map a buffer shape to the output space
    *
@@ -134,7 +133,7 @@ class IndexMapNode : public Object {
    * \returns The buffer shape in the output space.  Contains one
    * value for each expression in `final_indices`.
    */
-  Array<PrimExpr> MapShape(const Array<PrimExpr>& shape, arith::Analyzer* analyzer = nullptr) const;
+  Array<PrimExpr> MapShape(const Array<PrimExpr>& shape, arith::Analyzer* analyzer) const;
 
   /* \brief Map an NDArray according to this index map
    *
@@ -203,7 +202,7 @@ class IndexMap : public ObjectRef {
    * If the user has supplied an `inverse_index_map`, that map is
    * assumed to be correct and bijective, and is returned.
    */
-  IndexMap Inverse(Array<Range> initial_ranges) const;
+  IndexMap Inverse(Array<Range> initial_ranges, arith::Analyzer* analyzer) const;
 
   /*! \brief Rename the variables in the index map and ensure the names are unique.
    *
@@ -225,7 +224,8 @@ class IndexMap : public ObjectRef {
    * \return The inverted index map, along with the predicate for
    * which the inverse maps to a valid range.
    */
-  std::pair<IndexMap, PrimExpr> NonSurjectiveInverse(Array<Range> initial_ranges) const;
+  std::pair<IndexMap, PrimExpr> NonSurjectiveInverse(Array<Range> initial_ranges,
+                                                     arith::Analyzer* analyzer) const;
 
   TVM_DEFINE_OBJECT_REF_METHODS(IndexMap, ObjectRef, IndexMapNode);
 };

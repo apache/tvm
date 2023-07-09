@@ -2061,6 +2061,12 @@ class IterMapToExprNormalizer : public ExprMutator {
     if (analyzer_->CanProve(expr->extent == expr->source->extent) && is_one(expr->lower_factor)) {
       return source * expr->scale;
     } else if (analyzer_->CanProve(expr->source->extent == expr->lower_factor * expr->extent)) {
+      // Simplify if `expr` is always 0. The 2nd condition guarantess that we do not aggressively
+      // simplify trivial iters like `vi \in [0, 1)`, which can be useful for subsequent analysis
+      // like tensorization.
+      if (is_one(expr->extent) && !is_one(expr->source->extent)) {
+        return make_const(expr->extent->dtype, 0);
+      }
       return floordiv(source, expr->lower_factor) * expr->scale;
     } else {
       return floordiv(floormod(source, expr->lower_factor * expr->extent), expr->lower_factor) *

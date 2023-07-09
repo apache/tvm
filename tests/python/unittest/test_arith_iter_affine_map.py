@@ -16,7 +16,7 @@
 # under the License.
 import tvm
 import tvm.testing
-from tvm.tir import floormod, floordiv
+from tvm.tir import floordiv, floormod
 
 
 def ifuse(inputs, pred_extent=None):
@@ -1211,7 +1211,7 @@ def test_iter_map_simplify_unit_loop_order():
     # When we have iterators that have same scale but one of them come
     # with unit extent, we should prioritize unit extent
     assert_iter_map_simplify(
-        {x // 128 + y + z: y + x // 128 + z},
+        {x // 128 + y + z: y + z},
         var_dom([(x, 128), (y, 128), (z, 1)]),
         simplify_trivial_iterators=False,
     )
