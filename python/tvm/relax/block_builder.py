@@ -32,7 +32,7 @@ from .expr import (
     Binding,
 )
 from .struct_info import StructInfo
-from .op.base import call_tir
+from .op.base import call_tir, call_tir_with_grad
 from . import _ffi_api
 from .utils import gen_call_tir_inputs
 
@@ -330,6 +330,63 @@ class BlockBuilder(Object):
         gvar = self.add_func(tir_func, primfunc_name)
 
         return call_tir(gvar, call_args, output_sinfo, tir_vars)
+
+    def call_te_with_grad(
+        self,
+        func: Callable,
+        *args: Any,
+        te_grad_name: str,
+        te_grad_kwargs: Dict[str, Object] = None,
+        **kwargs: Any,
+    ) -> Expr:
+        """Generate a call node according to the te function.
+        This method will generate a call_tir_with_grad node, i.e. a call_tir node bound with a
+        te gradient function (refered by te_grad_name).
+
+        Parameters
+        ----------
+        func : Callable
+            A function that returns a te tensor or a list of te tensors.
+
+        args : Any, optional
+            arguments passed to the function.
+
+        te_grad_name : str
+            The registered name of the te gradient function associated with the call_tir_with_grad
+            node. Must be provided as a keyword argument.
+
+        te_grad_kwargs : Dict[str, Object], optional
+            The keyword arguments passed to the te gradient function.
+            Optionally provided as a keyword argument. Default: {}.
+
+        kwargs : Any, optional
+            The keyword arguments passed to the function.
+            Note that the following keyword args are reserved:
+
+                - 'primfunc_name_hint' for passing name hint to the PrimFunc
+                  that gets generated.
+                - 'primfunc_attrs' is reserved for passing func attributes to
+                  be added to the PrimFunc that gets created.
+
+        Returns
+        -------
+        ret : tvm.relax.Call
+            A newly created call node
+        """
+
+        primfunc_name = kwargs.pop("primfunc_name_hint", None)
+        tir_func, call_args, output_sinfo, tir_vars = gen_call_tir_inputs(func, *args, **kwargs)
+
+        if te_grad_kwargs is None:
+            te_grad_kwargs = {}
+
+        if not primfunc_name:
+            primfunc_name = func.__name__
+        gvar = self.add_func(tir_func, primfunc_name)
+
+        return call_tir_with_grad(
+            gvar, call_args, output_sinfo, tir_vars, te_grad_name, te_grad_kwargs
+        )
 
     def emit_te(self, func: Callable, *args: Any, **kwargs: Any) -> Var:
         """Emit a call node according to the te function.

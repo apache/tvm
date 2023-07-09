@@ -17,9 +17,13 @@
 # pylint: disable=invalid-name
 """Utility functions for relax training."""
 
-from typing import Optional
+from typing import Optional, Callable
 
 import tvm
+from tvm import relax
+from tvm._ffi.registry import register_func
+from tvm.relax.block_builder import BlockBuilder
+
 from ..expr import Function
 from . import _ffi_api
 
@@ -153,3 +157,49 @@ def AppendLoss(
         num_backbone_outputs,
         new_func_name,
     )
+
+
+def register_te_gradient(te_grad_name: str, te_grad_func: Callable = None):
+    """Register a te gradient function bind with name te_grad_name. te_grad_name can be referenced
+    later in call_tir_with_grad nodes.
+
+    Parameters
+    ----------
+    te_grad_name : str
+        The registered name of the te gradient function. Should be align with the te_grad_name in
+        call_tir_with_grad nodes.
+
+    grad_func : Callable
+        The te grad function.
+        It must be a function taking (output_grad: Tensor, arg1: Tensor, arg2: Tensor, ...)
+        as inputs and returning a list of Tensor created by te.compute.
+
+    Returns
+    -------
+    mod : IRModule
+        The mod with corresponding attributes attached.
+    """
+
+    def register(func: Callable):
+        func_prefix = "tvm.relax.te_grad._register."
+
+        # The handler function is used to let the backend (cpp side) to emit_te.
+        # It's a wrapper of the te_grad_func.
+        # It takes the blockbuilder, the gradient var of the output and the forward call expr.
+        # It will return the emitted var.
+
+        def handler(
+            builder: BlockBuilder, output_grad_var: relax.Var, call_tir: relax.Call
+        ) -> relax.Expr:
+            return builder.emit_te(
+                func,
+                output_grad_var,
+                *call_tir.args[1],
+                **call_tir.attrs.te_grad_kwargs,
+                primfunc_name_hint=te_grad_name,
+            )
+
+        register_func(func_prefix + te_grad_name, handler)
+        return func
+
+    return register(te_grad_func) if te_grad_func else register
