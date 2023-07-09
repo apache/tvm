@@ -157,6 +157,11 @@ if __name__ == "__main__":
     help = "List out commits with attached PRs since a certain commit"
     parser = argparse.ArgumentParser(description=help)
     parser.add_argument("--notes-csv", required=True, help="csv file of categorized PRs in order")
+    parser.add_argument(
+        "--is-pr-with-link",
+        required=False,
+        help="exported pr number with hyper-link for forum format",
+    )
     args = parser.parse_args()
     user = "apache"
     repo = "tvm"
@@ -204,7 +209,12 @@ if __name__ == "__main__":
         misc += value.get("n/a", [])
         misc += value.get("Misc", [])
         for pr_number in misc:
-            output += f" * #{pr_number} - {pr_title(pr_number, '[' + key + ']')}\n"
+            if args.is_pr_with_link:
+                pr_number_str = f"[#{pr_number}](https://github.com/apache/tvm/pull/{pr_number})"
+            else:
+                pr_number_str = f"#{pr_number}"
+            pr_str = f" * {pr_number_str} - {pr_title(pr_number, '[' + key + ']')}\n"
+            output += pr_str
 
         for subheading, pr_numbers in value.items():
             if subheading == "DO NOT INCLUDE":

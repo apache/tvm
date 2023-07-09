@@ -93,6 +93,15 @@ def _parse_seed(seed: Optional[int]) -> int:
     return seed
 
 
+def _get_block_default_dtype(block: Block) -> str:
+    for i in block.iter_vars:
+        return i.var.dtype
+    for buffer_region in list(block.reads) + list(block.writes):
+        for dom in buffer_region.region:
+            return dom.min.dtype
+    return "int64"
+
+
 @_register_object("tir.Schedule")
 class Schedule(Object):
     """The user-facing schedule class
@@ -1492,7 +1501,10 @@ class Schedule(Object):
         block = self._normalize_block_arg(block)
 
         if callable(index_map):
-            index_map = IndexMap.from_func(index_map)
+            index_map = IndexMap.from_func(
+                index_map,
+                index_dtype=_get_block_default_dtype(self.get(block)),
+            )
         return _ffi_api.ScheduleReindexCacheRead(  # type: ignore # pylint: disable=no-member
             self, block, read_buffer_index, storage_scope, index_map
         )
@@ -1589,7 +1601,10 @@ class Schedule(Object):
         block = self._normalize_block_arg(block)
 
         if callable(index_map):
-            index_map = IndexMap.from_func(index_map)
+            index_map = IndexMap.from_func(
+                index_map,
+                index_dtype=_get_block_default_dtype(self.get(block)),
+            )
         return _ffi_api.ScheduleReindexCacheWrite(  # type: ignore # pylint: disable=no-member
             self, block, write_buffer_index, storage_scope, index_map
         )
@@ -3246,14 +3261,22 @@ class Schedule(Object):
 
         ndim = len(buffer_obj.shape)
         if callable(index_map):
-            index_map, axis_separators = IndexMap.from_func_with_separators(index_map, ndim=ndim)
+            index_map, axis_separators = IndexMap.from_func_with_separators(
+                index_map,
+                ndim=ndim,
+                index_dtype=_get_block_default_dtype(self.get(block)),
+            )
         else:
             axis_separators = []
 
         if pad_value is None:
             pass
         elif callable(pad_value):
-            pad_value = IndexMap.from_func(pad_value, ndim=len(index_map.final_indices))
+            pad_value = IndexMap.from_func(
+                pad_value,
+                ndim=len(index_map.final_indices),
+                index_dtype=_get_block_default_dtype(self.get(block)),
+            )
         elif not isinstance(pad_value, IndexMap):
             # Explicitly convert python int/float arguments to the
             # buffer's type.  If the default `tvm.runtime.convert`
@@ -3264,7 +3287,9 @@ class Schedule(Object):
             elif "float" in buffer_obj.dtype and isinstance(pad_value, float):
                 pad_value = FloatImm(buffer_obj.dtype, pad_value)
             pad_value = IndexMap.from_func(
-                lambda *indices: pad_value, ndim=len(index_map.final_indices)
+                lambda *indices: pad_value,
+                ndim=len(index_map.final_indices),
+                index_dtype=_get_block_default_dtype(self.get(block)),
             )
 
         buffer_index_type_enum = 0 if buffer_index_type == "read" else 1
@@ -3337,7 +3362,10 @@ class Schedule(Object):
         """
         block = self._normalize_block_arg(block)
         if callable(index_map):
-            index_map = IndexMap.from_func(index_map)
+            index_map = IndexMap.from_func(
+                index_map,
+                index_dtype=_get_block_default_dtype(self.get(block)),
+            )
         _ffi_api.ScheduleTransformBlockLayout(  # type: ignore # pylint: disable=no-member
             self, block, index_map
         )

@@ -1005,6 +1005,8 @@ def _convert_lstm(
     recurrent_weight = etab.new_const(weightList[1].transpose([1, 0]))
     if keras_layer.use_bias:
         in_bias = etab.new_const(weightList[2])
+    if keras_layer.go_backwards:
+        in_data = _op.reverse(in_data, axis=1)
     units = list(weightList[0].shape)[1]
     time_steps = in_shape[1]
     in_data = _op.squeeze(in_data, axis=[0])

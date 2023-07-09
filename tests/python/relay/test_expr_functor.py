@@ -32,7 +32,7 @@ def check_visit(expr):
     ev.visit(expr)
 
     em = ExprMutator()
-    assert em.visit(expr)
+    assert expr == em.visit(expr)
 
 
 def test_constant():

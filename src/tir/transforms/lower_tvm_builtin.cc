@@ -145,6 +145,7 @@ class BuiltinLower : public StmtExprMutator {
       if (scope.max_sizes.shape_stack != -1) {
         scope.stack_shape = decl_buffer({IntImm(DataType::Int(64), scope.max_sizes.shape_stack)},
                                         DataType::Int(64), "stack_shape");
+        stmt = DeclBuffer(scope.stack_shape, stmt);
         stmt = LetStmt(scope.stack_shape->data, StackAlloca("shape", scope.max_sizes.shape_stack),
                        stmt);
       }
@@ -159,6 +160,7 @@ class BuiltinLower : public StmtExprMutator {
         stmt =
             LetStmt(scope.stack_value, StackAlloca("arg_value", scope.max_sizes.arg_stack), stmt);
 
+        stmt = DeclBuffer(scope.stack_tcode, stmt);
         stmt = LetStmt(scope.stack_tcode->data, StackAlloca("arg_tcode", scope.max_sizes.arg_stack),
                        stmt);
       }

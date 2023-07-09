@@ -388,16 +388,17 @@ TVM_REGISTER_GLOBAL("tir.schedule.TileWithTensorIntrin").set_body_typed(TileWith
 /******** BlockBufferAccessSimplifier ********/
 void BlockBufferAccessSimplifier::SimplifyAccessRegion(Array<BufferRegion>* old_access_regions) {
   auto fmutate = [this](const BufferRegion& buffer_region) {
-    std::vector<Range> new_buffer_region;
+    Array<Range> new_buffer_region;
+    Array<PrimExpr> simplified_min;
     for (const auto& range : buffer_region->region) {
-      if (is_one(range->extent) && range->min->IsInstance<VarNode>()) {
-        new_buffer_region.push_back(Range::FromMinExtent(
-            SimplifyNonTrivialExpr(range->min, analyzer_), make_const(range->min.dtype(), 1)));
-      } else {
-        new_buffer_region.push_back(
-            Range::FromMinExtent(SimplifyNonTrivialExpr(range->min, analyzer_),
-                                 SimplifyNonTrivialExpr(range->extent, analyzer_)));
-      }
+      simplified_min.push_back(range->min);
+    }
+    simplified_min = this->IterMapSimplifyWithContext(simplified_min, true);
+    int n = buffer_region->region.size();
+    for (int i = 0; i < n; ++i) {
+      PrimExpr min = simplified_min[i];
+      PrimExpr extent = analyzer_->Simplify(buffer_region->region[i]->extent);
+      new_buffer_region.push_back(Range::FromMinExtent(min, extent));
     }
     return BufferRegion(buffer_region->buffer, new_buffer_region);
   };
@@ -405,8 +406,7 @@ void BlockBufferAccessSimplifier::SimplifyAccessRegion(Array<BufferRegion>* old_
 }
 
 void BlockBufferAccessSimplifier::SimplifyBufferIndices(Array<PrimExpr>* indices) {
-  (*indices).MutateByApply(
-      [this](const PrimExpr& expr) { return SimplifyNonTrivialExpr(expr, analyzer_); });
+  *indices = this->IterMapSimplifyWithContext(*indices, true);
 }
 
 Stmt BlockBufferAccessSimplifier::VisitStmt_(const BlockNode* op) {

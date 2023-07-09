@@ -153,6 +153,10 @@ def test_complete_matmul_original():
 def _check_elementwise(func):
     A, B, C = [func.buffer_map[x] for x in func.params]
 
+    root_block = func.body.block
+    assert len(root_block.reads) == 0
+    assert len(root_block.writes) == 0
+
     block1 = func.body.block.body[0].body.body.block
     assert isinstance(block1, tvm.tir.Block)
     vi, vj = [x.var for x in block1.iter_vars]

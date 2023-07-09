@@ -335,7 +335,8 @@ class IRConvertSSA final : public StmtExprMutator {
       ScopedRedefine redefine(this, v);
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
       op = stmt.as<AllocateNode>();
-      return Allocate(redefine.new_var, op->dtype, op->extents, op->condition, op->body);
+      return Allocate(redefine.new_var, op->dtype, op->extents, op->condition, op->body,
+                      op->annotations);
     } else {
       defined_.insert(v.get());
       return StmtExprMutator::VisitStmt_(op);
