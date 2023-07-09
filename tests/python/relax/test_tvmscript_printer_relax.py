@@ -376,6 +376,27 @@ R.call_dps_packed("my_dps_func", (a,), out_sinfo=R.Tensor((1, x, 3), dtype="floa
     )
 
 
+def test_call_tir_with_grad():
+    x = tir.Var("x", "int64")
+    v0 = relax.Var("v0", R.Tensor([54, 96], "float32"))
+    v1 = relax.call_tir_with_grad(
+        relax.GlobalVar("tir_func"),
+        (v0,),
+        R.Tensor((54, 96), "float32"),
+        te_grad_name="grad_func",
+        te_grad_kwargs={"k": 1.0, "x": x},
+    )
+
+    _assert_print(
+        v1,
+        """
+v0: R.Tensor((54, 96), dtype="float32")
+x = T.int64()
+R.call_tir_with_grad(tir_func, (v0,), out_sinfo=R.Tensor((54, 96), dtype="float32"), te_grad_name="grad_func", te_grad_kwargs={"k": T.float32(1), "x": x})
+""",
+    )
+
+
 def test_seq_expr():
     x = tir.Var("x", "int64")
     a = relax.Var("a", relax.TensorStructInfo([1, x, 3], "float32"))

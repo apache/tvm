@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/relax/analysis.h>
+#include <tvm/relax/attrs/op.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/utils.h>
 #include <tvm/relay/op.h>
@@ -171,6 +172,56 @@ Expr MakeCallTIR(Expr func, Tuple args, Array<TensorStructInfo> out_sinfo_list,
 }
 
 TVM_REGISTER_GLOBAL("relax.op.call_tir").set_body_typed(MakeCallTIR);
+
+// call_tir_with_grad
+
+TVM_REGISTER_NODE_TYPE(CallTIRWithGradAttrs);
+
+RELAY_REGISTER_OP("relax.call_tir_with_grad")
+    .set_num_inputs(3)
+    .set_attrs_type<CallTIRWithGradAttrs>()
+    .add_argument("func", "Expr", "The destination-passing-style function.")
+    .add_argument("args", "Tuple", "The input arguments.")
+    .add_argument("packed_ints", "Expr",
+                  "ShapeExpr representing a tuple of ints to unpack during runtime. Omitted from "
+                  "args if unused")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallTIR)
+    .set_attr<Bool>("FPurity", Bool(true));
+
+Expr MakeCallTIRWithGrad(Expr func, Tuple args, Array<TensorStructInfo> out_sinfo_list,
+                         String te_grad_name, Map<String, ObjectRef> te_grad_kwargs,
+                         Optional<Expr> packed_ints) {
+  for (const TensorStructInfo& sinfo : out_sinfo_list) {
+    const auto* shape = sinfo->shape.as<ShapeExprNode>();
+    CHECK(shape != nullptr)
+        << "out_sinfo of call_tir_with_grad should have defined ShapeExpr as shape. "
+           "However, one given structure info is "
+        << sinfo;
+  }
+
+  StructInfo out_sinfo{nullptr};
+  if (out_sinfo_list.size() == 1) {
+    out_sinfo = out_sinfo_list[0];
+  } else {
+    out_sinfo = TupleStructInfo({out_sinfo_list.begin(), out_sinfo_list.end()});
+  }
+
+  ObjectPtr<CallTIRWithGradAttrs> attrs = make_object<CallTIRWithGradAttrs>();
+  attrs->te_grad_name = te_grad_name;
+  attrs->te_grad_kwargs = te_grad_kwargs;
+
+  static const Op& op = Op::Get("relax.call_tir_with_grad");
+  Call call;
+  if (!packed_ints) {
+    // don't use additional optional argument
+    call = Call(op, {func, args}, Attrs(attrs), {out_sinfo});
+  } else {
+    call = Call(op, {func, args, packed_ints.value()}, Attrs(attrs), {out_sinfo});
+  }
+  return call;
+}
+
+TVM_REGISTER_GLOBAL("relax.op.call_tir_with_grad").set_body_typed(MakeCallTIRWithGrad);
 
 // call_dps_packed
 

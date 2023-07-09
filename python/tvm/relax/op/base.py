@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # pylint: disable=redefined-builtin
 """The base Relax operators."""
-from typing import Union, List, Tuple, Optional, Callable
+from typing import Dict, Union, List, Tuple, Optional, Callable
 
 
 import tvm
@@ -107,6 +107,66 @@ def call_tir(
         tir_vars = ShapeExpr(tir_vars)
 
     return _ffi_api.call_tir(gvar, args, out_sinfo, tir_vars)  # type: ignore
+
+
+@args_converter.auto
+def call_tir_with_grad(
+    gvar: GlobalVar,
+    args: Expr,
+    out_sinfo: Union[TensorStructInfo, List[TensorStructInfo]],
+    te_grad_name: str,
+    te_grad_kwargs: Dict[str, Object] = None,
+    tir_vars: Optional[Union[ShapeExpr, Tuple[PrimExpr], List[PrimExpr]]] = None,
+) -> Call:
+    """
+    Call a tir.prim_func and return the output. This intrinsic will bind a te gradient function
+    (refered by te_grad_name) to the call_tir_with_grad node. The te gradient function will be
+    called by the Gradient pass.
+
+    Parameters
+    ----------
+    gvar : GlobalVar
+        The GlobalVar referring to a tir PrimFunc.
+
+    args : Expr
+        The input arguments.
+
+    out_sinfo : Union[TensorStructInfo, List[TensorStructInfo]]
+        The structure info of the call_tir_with_grad output.
+        It should be a single or a list of TensorStructInfo. Each one denotes the
+        structure info of a returned tensor.
+
+    te_grad_name : str
+        The registered name of the te gradient function associated with the call_tir_with_grad
+        node. Must be provided as a keyword argument.
+
+    te_grad_kwargs : Dict[str, Object], optional
+        The keyword arguments passed to the te gradient function.
+        Optionally provided as a keyword argument. Default: {}.
+
+    tir_vars : Optional[Union[ShapeExpr, Tuple[PrimExpr], List[PrimExpr]]]
+        ShapeExpr representing a tuple of integers to unpack when calling func. Is null if not used
+
+    Returns
+    -------
+    ret: Call
+        A call node for the call_tir_with_grad operator.
+    """
+    if isinstance(args, Expr) and not isinstance(args, RxTuple):  # type: ignore
+        args = RxTuple((args,))
+
+    if not isinstance(out_sinfo, list):
+        out_sinfo = [out_sinfo]
+
+    if isinstance(tir_vars, (list, tuple)):
+        tir_vars = ShapeExpr(tir_vars)
+
+    if te_grad_kwargs is None:
+        te_grad_kwargs = {}
+
+    return _ffi_api.call_tir_with_grad(  # type: ignore
+        gvar, args, out_sinfo, te_grad_name, te_grad_kwargs, tir_vars
+    )
 
 
 @args_converter.auto

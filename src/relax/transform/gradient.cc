@@ -25,6 +25,7 @@
  * with respect to the only return value of the function, which needs to be scalar.
  */
 
+#include <tvm/relax/attrs/op.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/nested_msg.h>
 #include <tvm/relax/op_attr_types.h>
@@ -103,27 +104,35 @@ class BackwardBindingGenerator : private ExprVisitor {
     ExprVisitor::VisitBinding_(var_binding);
   }
 
-  // Handle the adjoint expr of the inputs of binding
+  // The following functions will handle the adjoint expr of the inputs of binding
   // For call node, we would call the registered gradient functions
   void VisitBinding_(const VarBindingNode* binding, const CallNode* call) final {
+    // Skip if it is not an Op
+    if (!call->op->IsInstance<OpNode>()) {
+      return;
+    }
+
     static const OpAttrMap<FPrimalGradient>& gradient_op_map =
         Op::GetAttrMap<FPrimalGradient>("FPrimalGradient");
 
     Var adjoint_var = adjoint_var_map_[binding->var];
     const Op& call_op = Downcast<Op>(call->op);
-    const Array<Expr>& partials =
-        gradient_op_map[call_op](binding->var, GetRef<Call>(call), adjoint_var, builder_);
-    ICHECK(partials.size() == call->args.size()) << "partials number != inputs number";
 
-    for (size_t i = 0; i < partials.size(); ++i) {
-      Expr partial = partials[i];
-      if (IsCallNoGrad(partial)) {  // no grad: don't update
-        continue;
+    if (call_op == Op::Get("relax.call_tir")) {
+      LOG(FATAL) << "Differentiation of call_tir op is not supported yet.";
+    } else {
+      Array<Expr> partials =
+          gradient_op_map[call_op](binding->var, GetRef<Call>(call), adjoint_var, builder_);
+      ICHECK(partials.size() == call->args.size()) << "partials number != inputs number";
+      for (size_t i = 0; i < partials.size(); ++i) {
+        if (IsCallNoGrad(partials[i])) {  // no grad: don't update
+          continue;
+        }
+        if (!partials[i]->struct_info_.defined()) {
+          UpdateStructInfo(partials[i], GetStructInfo(call->args[i]));
+        }
+        UpdateAdjoint(call->args[i], partials[i]);
       }
-      if (!partial->struct_info_.defined()) {
-        UpdateStructInfo(partial, GetStructInfo(call->args[i]));
-      }
-      UpdateAdjoint(call->args[i], partial);
     }
   }
 
@@ -339,9 +348,8 @@ class GradientMutator : private ExprMutator {
     Function new_func_transformed = WithAttr(Downcast<Function>(mutator.VisitExpr(new_func)),
                                              tvm::attr::kGlobalSymbol, new_name);
 
-    IRModule new_module = GetRef<IRModule>(mod.CopyOnWrite());
-    new_module->Add(GlobalVar(new_name), new_func_transformed);
-    return new_module;
+    mutator.builder_->AddFunction(new_func_transformed, new_name);
+    return mutator.builder_->GetContextIRModule();
   }
 
  private:

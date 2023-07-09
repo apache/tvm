@@ -865,6 +865,34 @@ def test_call_tir_with_tir_var():
     _check(Module)
 
 
+def test_call_tir_with_grad():
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def identity_tir(a: T.handle, b: T.handle) -> None:
+            A = T.match_buffer(a, [54, 96])
+            B = T.match_buffer(b, [54, 96])
+
+            for i, j in T.grid(54, 96):
+                with T.block("compute"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    B[vi, vj] = A[vi, vj]
+
+        @R.function
+        def main(v0: R.Tensor([54, 96], "float32")):
+            cls = Module
+            out = R.call_tir_with_grad(
+                cls.identity_tir,
+                (v0,),
+                R.Tensor((54, 96), "float32"),
+                te_grad_name="identity_k_grad",
+                te_grad_kwargs={"k": 1.0},
+            )
+            return out
+
+    _check(Module)
+
+
 def test_local_function():
     @R.function
     def main(

@@ -43,6 +43,25 @@ def test_call_tir() -> None:
     v1 = rx.call_tir(identity_tir, [v0], R.Tensor((54, 96), "float32"))
 
 
+def test_call_tir_with_grad():
+    v0 = rx.Var("v0", R.Tensor([54, 96], "float32"))
+    v1 = rx.call_tir_with_grad(
+        identity_tir, (v0,), R.Tensor((54, 96), "float32"), te_grad_name="identity_grad"
+    )
+    assert v1.attrs.te_grad_name == "identity_grad"
+    v2 = rx.call_tir_with_grad(
+        identity_tir,
+        (v0,),
+        R.Tensor((54, 96), "float32"),
+        te_grad_name="identity_k_grad",
+        te_grad_kwargs={"k": 1.0},
+    )
+    assert v2.attrs.te_grad_name == "identity_k_grad"
+    assert isinstance(v2.attrs.te_grad_kwargs, tvm.ir.container.Map)
+    val = v2.attrs.te_grad_kwargs.items()[0]
+    assert val[0] == "k" and float(val[1]) == 1.0
+
+
 def test_implicit_op():
     m, n = tvm.tir.Var("m", "int64"), tvm.tir.Var("n", "int64")
     x = rx.Var("x", R.Tensor([m, n], "float32"))
