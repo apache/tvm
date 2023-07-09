@@ -16,6 +16,7 @@
 # under the License.
 """Unittests for tvm.script.parser.tir"""
 
+import pytest
 import tvm.testing
 from tvm.script.parser import tir as T
 from tvm import ir, tir
