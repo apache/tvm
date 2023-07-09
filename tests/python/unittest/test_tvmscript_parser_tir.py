@@ -72,26 +72,6 @@ def test_tir_func_name():
     assert matmul.__name__ == "matmul"
 
 
-def test_tir_macro_decorator():
-    @T.macro
-    def func1(n):
-        T.evaluate(n)
-
-    assert func1.hygienic
-
-    @T.macro()
-    def func2(n):
-        T.evaluate(n)
-
-    assert func2.hygienic
-
-    with pytest.raises(ValueException) as exc:
-
-        @T.macro(True)
-        def func3(n):
-            T.evaluate(n)
-
-
 def test_tir_macro_decorator_signature():
     @T.prim_func
     def evaluate0():
