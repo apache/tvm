@@ -43,5 +43,5 @@ from .popen_pool import (
     slow_summation,
     timeout_job,
 )
-from .rpc_run import rpc_run
+from .runner import local_run, rpc_run
 from .utils import *
