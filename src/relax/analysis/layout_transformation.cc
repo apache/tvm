@@ -22,6 +22,7 @@
  * \brief Analyze the PrimFunc and suggest layout transformation on it's blocks and buffers based on
  * the user provided layout transformations on it's outputs.
  */
+#include <tvm/arith/analyzer.h>
 #include <tvm/arith/iter_affine_map.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/tir/analysis.h>
@@ -172,8 +173,8 @@ static bool AreIdenticalTransforms(const IndexMap& t0, const IndexMap& t1) {
   // Create a new shape expression.
   Array<PrimExpr> t1_initial_indices =
       t1->initial_indices.Map([](tir::Var i) -> PrimExpr { return i; });
-  auto t0_output = t0->MapIndices(t1_initial_indices);
   arith::Analyzer analyzer;
+  auto t0_output = t0->MapIndices(t1_initial_indices, &analyzer);
   for (size_t i = 0; i < t0_output.size(); ++i) {
     if (!analyzer.CanProveEqual(t0_output[i], t1->final_indices[i])) return false;
   }

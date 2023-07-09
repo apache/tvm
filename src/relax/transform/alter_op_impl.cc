@@ -23,6 +23,7 @@
  * identify PrimFuncs to be replaced. Marks the new PrimFuncs with kFrozenLayout attribute set to
  * true.
  */
+#include <tvm/arith/analyzer.h>
 #include <tvm/ir/attrs.h>
 #include <tvm/node/serialization.h>
 #include <tvm/relax/analysis.h>
@@ -60,9 +61,9 @@ static IndexMap DeepCopyIndexMap(const IndexMap& index_map) {
 bool IsTransformBijective(const Expr& expr, const IndexMap& transform) {
   Array<PrimExpr> input_shape = GetShapeFromTensor(expr);
   Array<Range> initial_ranges = ConstructRangeFromShape(input_shape);
-  auto [inverse, padding_predicate] = transform.NonSurjectiveInverse(initial_ranges);
-  (void)inverse;  // to avoid unused variable warning;
   arith::Analyzer analyzer;
+  auto [inverse, padding_predicate] = transform.NonSurjectiveInverse(initial_ranges, &analyzer);
+  (void)inverse;  // to avoid unused variable warning;
   if (!analyzer.CanProve(!padding_predicate)) return false;
   return true;
 }
@@ -169,7 +170,9 @@ class AlterOpImplMutator : public ExprMutator {
                               const TensorStructInfo& old_tensor_sinfo) {
     Array<PrimExpr> old_shape = GetShapeFromTensorStructInfo(old_tensor_sinfo);
     Array<Range> initial_ranges = ConstructRangeFromShape(old_shape);
-    auto [inverse_index_map, padding_predicate] = index_map.NonSurjectiveInverse(initial_ranges);
+    arith::Analyzer analyzer;
+    auto [inverse_index_map, padding_predicate] =
+        index_map.NonSurjectiveInverse(initial_ranges, &analyzer);
     ICHECK(tir::is_zero(padding_predicate))
         << "Only bijective transformations on input/output buffers are supported, but found "
            "padding predicate "
@@ -245,7 +248,8 @@ class AlterOpImplMutator : public ExprMutator {
   /*! \brief Returns the TensorStructInfo after applying the \p transform on its shape */
   StructInfo UpdateStructInfo(const TensorStructInfo& tensor_sinfo, const IndexMap& transform) {
     auto shape = GetShapeFromTensorStructInfo(tensor_sinfo);
-    auto new_shape = transform->MapShape(shape);
+    arith::Analyzer analyzer;
+    auto new_shape = transform->MapShape(shape, &analyzer);
     return TensorStructInfo(ShapeExpr(new_shape), tensor_sinfo->dtype);
   }
 
