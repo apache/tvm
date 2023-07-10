@@ -271,7 +271,7 @@ class DecodeGEMV(ScheduleRule):
                 _, *s = sch.get_loops(epilogue)  # pylint: disable=invalid-name
                 _, tx, ty = sch.split(sch.fuse(*s), factors=[None, len_tx, len_ty])
                 sch.bind(tx, "threadIdx.x")
-                sch.bind(ty, "threadIdx.x")
+                sch.bind(ty, "threadIdx.y")
             else:
                 sch.set_scope(block, 0, "local")
         # pylint: enable=invalid-name
