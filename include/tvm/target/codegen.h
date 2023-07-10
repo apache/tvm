@@ -48,6 +48,13 @@ using runtime::TVMRetValue;
 runtime::Module Build(IRModule mod, Target target);
 
 /*!
+ * \brief Serialize runtime module including
+ *
+ * \param mod The runtime module to serialize including its import tree.
+ */
+std::string SerializeModule(const runtime::Module& mod);
+
+/*!
  * \brief Pack imported device library to a C file.
  *  Compile the C file and link with the host library
  *  will allow the DSO loader to automatically discover and import

@@ -83,17 +83,19 @@ class ModuleSerializer {
 
     for (const auto& group : mod_group_vec_) {
       ICHECK_NE(group.size(), 0) << "Every allocated group must have at least one module";
-      if (!group[0]->IsDSOExportable()) {
+      if (group[0]->IsBinarySerializable()) {
         ICHECK_EQ(group.size(), 1U) << "Non DSO module is never merged";
         std::string mod_type_key = group[0]->type_key();
         stream->Write(mod_type_key);
         group[0]->SaveToBinary(stream);
-      } else {
+      } else if (group[0]->IsDSOExportable()) {
         // DSOExportable: do not need binary
         if (has_import_tree) {
           std::string mod_type_key = "_lib";
           stream->Write(mod_type_key);
         }
+      } else {
+        ICHECK(0) << group[0]->type_key() << " is not serializable.";
       }
     }
 
@@ -227,7 +229,6 @@ class ModuleSerializer {
   std::vector<uint64_t> import_tree_child_indices_;
 };
 
-namespace {
 std::string SerializeModule(const runtime::Module& mod) {
   std::string bin;
   dmlc::MemoryStringStream ms(&bin);
@@ -238,7 +239,6 @@ std::string SerializeModule(const runtime::Module& mod) {
 
   return bin;
 }
-}  // namespace
 
 std::string PackImportsToC(const runtime::Module& mod, bool system_lib,
                            const std::string& c_symbol_prefix) {

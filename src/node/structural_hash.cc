@@ -28,6 +28,7 @@
 #include <tvm/runtime/container/adt.h>
 #include <tvm/runtime/profiling.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/target/codegen.h>
 
 #include <algorithm>
 #include <unordered_map>
@@ -371,12 +372,12 @@ TVM_REGISTER_REFLECTION_VTABLE(runtime::ModuleNode, ModuleNodeTrait)
       dmlc::MemoryStringStream mstrm(const_cast<std::string*>(&blob));
       support::Base64InStream b64strm(&mstrm);
       b64strm.InitPosition();
-      // retrieve derived type key 
+      // retrieve derived type key
       dmlc::Stream* stream = static_cast<dmlc::Stream*>(&b64strm);
       std::string derived_type;
       stream->Read(&derived_type);
       // pick up the deserializer
-      std::string load_func_key = "runtime.module.loadbinary_"+derived_type;
+      std::string load_func_key = "runtime.module.loadbinary_" + derived_type;
       const auto* load_func = runtime::Registry::Get(load_func_key);
       ICHECK(load_func) << load_func_key << " is not registered.";
       // deserialize
@@ -385,20 +386,8 @@ TVM_REGISTER_REFLECTION_VTABLE(runtime::ModuleNode, ModuleNodeTrait)
     })
     .set_repr_bytes([](const Object* n) -> std::string {
       const auto* rtmod = static_cast<const runtime::ModuleNode*>(n);
-      std::string blob;
-      dmlc::MemoryStringStream mstrm(&blob);
-      support::Base64OutStream b64strm(&mstrm);
-      // JSON serializer prints the type key as runtime.Module, which is too high-level.
-      // Thus, we explicitly print the type key of derived runtime.Module (e.g., cublas_json)
-      // so that we can pick up the right deserializer in set_creator method. 
-      dmlc::Stream* stream = static_cast<dmlc::Stream*>(&b64strm);
-      std::string derived_type(rtmod->type_key());
-      stream->Write(derived_type);
-      GetRef<runtime::Module>(rtmod)->SaveToBinary(&b64strm);
-      b64strm.Finish();
-      return blob;
+      return codegen::SerializeModule(GetRef<runtime::Module>(rtmod));
     });
-
 
 void NDArrayHash(const runtime::NDArray::Container* arr, SHashReducer* hash_reduce,
                  bool hash_data) {

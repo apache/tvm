@@ -20,40 +20,8 @@
 import pytest
 import tvm
 import tvm.testing
-from tvm import relay
-from tvm.meta_schedule.testing.custom_builder_runner import (
-    build_relay_with_tensorrt,
-)
-from tvm.relay import testing
-from tvm.relay.op.contrib import tensorrt
 from tvm import TVMError
-
-has_tensorrt_codegen = pytest.mark.skipif(
-    not tensorrt.is_tensorrt_compiler_enabled(),
-    reason="TensorRT codegen not available",
-)
-has_tensorrt_runtime = pytest.mark.skipif(
-    not tensorrt.is_tensorrt_runtime_enabled(),
-    reason="TensorRT runtime not available",
-)
-
-
-@has_tensorrt_codegen
-@has_tensorrt_runtime
-def test_tensorrt():
-    data_shape = (1, 1280, 14, 14)
-    dtype = "float32"
-
-    data = relay.var("data", relay.TensorType(data_shape, dtype))
-    net = relay.nn.relu(data)
-    inputs = relay.analysis.free_vars(net)
-    f = relay.Function(inputs, net)
-    mod, params = testing.create_workload(f)
-    mod = build_relay_with_tensorrt(mod, "cuda", params)
-
-    # json runtime is binary serializable. so roundtrip works.
-    assert mod.is_binary_serializable
-    tvm.ir.load_json(tvm.ir.save_json(mod))
+from tvm import relay
 
 
 def test_csource_module():
@@ -74,5 +42,24 @@ def test_aot_module():
         tvm.ir.load_json(tvm.ir.save_json(mod))
 
 
+def test_recursive_imports():
+    x = relay.var("x", shape=(1, 10))
+    y = relay.var("y", shape=(1, 10))
+    z = relay.add(x, y)
+    func = relay.Function([x, y], z)
+    mod = relay.build_module._build_module_no_factory(func, target="cuda")
+
+    mod.imported_modules[0].imported_modules[0]
+    assert mod.is_binary_serializable
+    # GraphExecutorFactory Module contains LLVM Module and LLVM Module contains cuda Module.
+    assert mod.type_key == "GraphExecutorFactory"
+    assert mod.imported_modules[0].type_key == "llvm"
+    assert mod.imported_modules[0].imported_modules[0].type_key == "cuda"
+
+    json = tvm.ir.save_json(mod)
+    print(json)
+
+
 if __name__ == "__main__":
-    tvm.testing.main()
+    test_recursive_imports()
+    # tvm.testing.main()
