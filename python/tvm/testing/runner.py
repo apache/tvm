@@ -22,6 +22,7 @@ from typing_extensions import Literal
 
 if TYPE_CHECKING:
     import numpy as np
+
     from tvm.meta_schedule.runner import EvaluatorConfig, RPCConfig
     from tvm.runtime import Device, Module, NDArray
 
@@ -30,6 +31,7 @@ if TYPE_CHECKING:
 
 def _args_to_device(args, device):
     import numpy as np
+
     from tvm.runtime.ndarray import NDArray, empty
 
     uploaded_args = []
@@ -109,6 +111,8 @@ def local_run(  # pylint: disable=too-many-arguments,too-many-locals
     -------
     args : List[Union[np.ndarray, NDArray, int, float]]
         The results of running the module.
+    profile_result : tvm.runtime.BenchmarkResult
+        The profiling result of running the module.
     """
     import os.path as osp
     import tempfile
@@ -137,13 +141,12 @@ def local_run(  # pylint: disable=too-many-arguments,too-many-locals
                 if evaluator_config.enable_cpu_cache_flush
                 else "",
             )(*args)
-            print(profile_result)
             remote_mod(*args)
             args = _args_to_numpy(args)
         finally:
             pass
 
-    return args
+    return args, profile_result
 
 
 def rpc_run(  # pylint: disable=too-many-arguments,too-many-locals
@@ -188,6 +191,8 @@ def rpc_run(  # pylint: disable=too-many-arguments,too-many-locals
     -------
     args : List[Union[np.ndarray, NDArray, int, float]]
         The results of running the module.
+    profile_result : tvm.runtime.BenchmarkResult
+        The profiling result of running the module.
     """
 
     import os.path as osp
@@ -220,7 +225,6 @@ def rpc_run(  # pylint: disable=too-many-arguments,too-many-locals
                 if evaluator_config.enable_cpu_cache_flush
                 else "",
             )(*args)
-            print(profile_result)
             remote_mod(*args)
             args = _args_to_numpy(args)
         finally:
@@ -228,4 +232,4 @@ def rpc_run(  # pylint: disable=too-many-arguments,too-many-locals
             session.remove(remote_path + "." + output_format)
             session.remove("")
 
-    return args
+    return args, profile_result
