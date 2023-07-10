@@ -206,6 +206,8 @@ class DecodeGEMV(ScheduleRule):
         sch.reorder(bx, tx, r)
         sch.bind(bx, "blockIdx.x")
         sch.bind(tx, "threadIdx.x")
+        sch.annotate(tx, ann_key="pragma_auto_unroll_max_step", ann_val=256)
+        sch.annotate(tx, ann_key="pragma_unroll_explicit", ann_val=1)
         sch.set_scope(rf, 0, "local")
         sch.decompose_reduction(rf, r)
         # Schedule the write back block
