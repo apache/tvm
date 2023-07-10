@@ -36,9 +36,9 @@ def get_copy_params(stmt, producers_consumers):
     -------
     SerialCopy
         The parameters needed to construct a copy.
-    tvm.tir.Var
-        The output pointer of the copy operation.
-    replace_pointer : tvm.tir.Var
+    tvm.tir.Buffer
+        The output buffer of the copy operation.
+    replace_buffer : tvm.tir.Var
         The output pointer of the DMA write operation, which is to replace
         the convolution output pointer.
     is_allocator : bool
@@ -56,7 +56,7 @@ def get_copy_params(stmt, producers_consumers):
             length=length,
             write_address=tvm.tir.expr.BufferLoad(write_store.buffer, write_base),
         ),
-        write_store.buffer.data,
+        write_store.buffer,
         None,
         True,
     )

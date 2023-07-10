@@ -179,33 +179,48 @@ class HoistAllocatesMutator : public StmtExprMutator {
   HoistAllocatesMutator() {}
 
   PrimFunc operator()(PrimFunc main_func) {
-    Stmt new_main_func_body = SeqStmt::Flatten(this->VisitStmt(main_func->body));
-
-    // Write all allocates that were removed in reverse order
-    for (auto it = allocates_.rbegin(); it != allocates_.rend(); it++) {
-      Allocate current_alloc = *it;
-      if (it != allocates_.rbegin()) {
-        new_main_func_body = SeqStmt::Flatten(new_main_func_body);
-      }
-      new_main_func_body =
-          Allocate(current_alloc->buffer_var, current_alloc->dtype, current_alloc->extents,
-                   current_alloc->condition, new_main_func_body, current_alloc->annotations,
-                   current_alloc->span);
+    Stmt body = main_func->body;
+    while (auto opt = body.as<DeclBuffer>()) {
+      auto node = opt.value();
+      body = node->body;
+      node.CopyOnWrite()->body = Evaluate(0);
+      init_nest_.push_back(node);
     }
 
-    PrimFunc new_main_func = PrimFunc(main_func->params, new_main_func_body, main_func->ret_type,
-                                      main_func->buffer_map, main_func->attrs);
-    return new_main_func;
+    body = this->VisitStmt(body);
+    body = SeqStmt::Flatten(body);
+
+    body = MergeNest(init_nest_, body);
+
+    main_func.CopyOnWrite()->body = body;
+    return main_func;
   }
 
  private:
   Stmt VisitStmt_(const AllocateNode* op) override {
-    allocates_.push_back(GetRef<Allocate>(op));
-    return VisitStmt(op->body);
+    auto body = op->body;
+    auto node = GetRef<Allocate>(op);
+    node.CopyOnWrite()->body = Evaluate(0);
+    init_nest_.push_back(node);
+
+    while (true) {
+      auto decl_ptr = body.as<DeclBufferNode>();
+
+      if (decl_ptr && decl_ptr->buffer->data.same_as(op->buffer_var)) {
+        auto decl = GetRef<DeclBuffer>(decl_ptr);
+        body = decl->body;
+        decl.CopyOnWrite()->body = Evaluate(0);
+        init_nest_.push_back(decl);
+      } else {
+        break;
+      }
+    }
+
+    return VisitStmt(body);
   }
 
   /*! A stack to store allocates as they are visited. */
-  std::vector<Allocate> allocates_;
+  std::vector<Stmt> init_nest_;
 };
 
 /*!
@@ -417,29 +432,14 @@ TVM_REGISTER_GLOBAL("tir.contrib.ethos-u.CopyComputeReordering")
     .set_body_typed(CopyComputeReordering);
 
 /*!
- * \brief This mutator removes all allocates.
- */
-class RemoveAllocatesMutator : public StmtExprMutator {
- public:
-  PrimFunc operator()(PrimFunc main_func) {
-    auto prim_func_node{main_func.CopyOnWrite()};
-    prim_func_node->body = this->VisitStmt(main_func->body);
-    return GetRef<PrimFunc>(prim_func_node);
-  }
-
- private:
-  Stmt VisitStmt_(const AllocateNode* op) override { return VisitStmt(op->body); }
-};
-
-/*!
  * \brief This extractor collects information used by the MergeConstantsMutator
  */
 class MergeConstantsInfoExtractor : public StmtExprVisitor {
  public:
   class Info {
    public:
-    /*! A stack to store allocates as they are visited. */
-    std::vector<Allocate> allocates{};
+    /*! A stack to store Allocate/DeclBuffer as they are visited. */
+    std::vector<Stmt> init_nest{};
 
     /*! A list that contains in the i-th position the write buffer of the i-th statement
      * if that statement is a copy to a buffer with global scope  */
@@ -467,12 +467,28 @@ class MergeConstantsInfoExtractor : public StmtExprVisitor {
   Info _info{};
 
   void VisitStmt_(const AllocateNode* op) override {
-    _info.allocates.push_back(GetRef<Allocate>(op));
-    VisitStmt(op->body);
+    auto alloc = GetRef<Allocate>(op);
+    alloc.CopyOnWrite()->body = Evaluate(0);
+    _info.init_nest.push_back(alloc);
+
+    Stmt body = op->body;
+    while (true) {
+      auto decl = body.as<DeclBufferNode>();
+      if (decl && decl->buffer->data.same_as(op->buffer_var)) {
+        auto node = GetRef<DeclBuffer>(decl);
+        node.CopyOnWrite()->body = Evaluate(0);
+        _info.init_nest.push_back(node);
+        body = decl->body;
+      } else {
+        break;
+      }
+    }
+
+    VisitStmt(body);
   }
 
   void VisitStmt_(const SeqStmtNode* op) override {
-    std::vector<Stmt> seq_stmt = FlattenUnwrap(GetRef<Stmt>(op)).seq;
+    auto seq_stmt = FlattenUnwrap(GetRef<Stmt>(op)).seq;
 
     if (seq_stmt.size() <= 1) {
       StmtExprVisitor::VisitStmt_(op);
@@ -590,53 +606,73 @@ class MergeConstantsMutator : public StmtExprMutator {
   Stmt RewritePrimFuncBody(Stmt body) {
     std::unordered_map<const VarNode*, Allocate> var_to_allocate{};
 
+    std::vector<Stmt> init_nest;
+    while (auto opt = body.as<DeclBuffer>()) {
+      auto node = opt.value();
+      body = node->body;
+      node.CopyOnWrite()->body = Evaluate(0);
+      init_nest.push_back(node);
+    }
+
     // Rewrite old allocates
-    std::unordered_set<const VarNode*> buffer_vars{GetVarsForWrittenCopyBuffers()};
-    for (auto it{_info.allocates.rbegin()}; it != _info.allocates.rend(); ++it) {
-      Allocate alloc{*it};
-      var_to_allocate[alloc->buffer_var.get()] = alloc;
-      if (buffer_vars.count(alloc->buffer_var.as<VarNode>()) == 0) {
-        body = Allocate(alloc->buffer_var, alloc->dtype, alloc->extents, alloc->condition, body,
-                        alloc->annotations, alloc->span);
+    auto buffer_vars = GetVarsForWrittenCopyBuffers();
+    for (auto init_stmt : _info.init_nest) {
+      if (auto opt = init_stmt.as<Allocate>()) {
+        auto alloc = opt.value();
+        var_to_allocate[alloc->buffer_var.get()] = alloc;
+      }
+
+      auto var = [&]() -> Var {
+        if (auto opt = init_stmt.as<Allocate>()) {
+          return opt.value()->buffer_var;
+        } else if (auto opt = init_stmt.as<DeclBuffer>()) {
+          return opt.value()->buffer->data;
+        } else {
+          LOG(FATAL) << "Expected Allocate or DeclBuffer, but found " << init_stmt->GetTypeKey();
+        }
+      }();
+      if (!buffer_vars.count(var.get())) {
+        init_nest.push_back(init_stmt);
       }
     }
 
     // Rewrite new allocates
-    for (auto it{_info.copy_write_buffers.rbegin()}; it != _info.copy_write_buffers.rend(); ++it) {
-      if (Optional<Buffer> buffer_opt = *it) {
-        Buffer old_write_buffer{buffer_opt.value()};
-        int new_buffer_index{
-            _info.old_to_new_write_buffer[old_write_buffer.as<BufferNode>()].first};
+    for (auto buffer_opt : _info.copy_write_buffers) {
+      if (buffer_opt) {
+        Buffer old_write_buffer = buffer_opt.value();
+        int new_buffer_index = _info.old_to_new_write_buffer[old_write_buffer.get()].first;
 
         // Check if the allocate has already been created
         if (new_buffers.count(new_buffer_index) == 0) {
-          BufferNode* new_buffer{old_write_buffer.CopyOnWrite()};
-          new_buffer->shape = {_info.new_buffers_length[new_buffer_index]};
+          Buffer new_buffer = old_write_buffer;
 
-          new_buffers[new_buffer_index] = GetRef<Buffer>(new_buffer);
+          new_buffer.CopyOnWrite()->shape = {_info.new_buffers_length[new_buffer_index]};
+          new_buffers[new_buffer_index] = new_buffer;
 
           Allocate old_allocate{var_to_allocate[old_write_buffer->data.get()]};
-          body = Allocate(new_buffer->data, new_buffer->dtype, new_buffer->shape, tir::const_true(),
-                          body, old_allocate->annotations, old_allocate->span);
+          init_nest.push_back(Allocate(new_buffer->data, new_buffer->dtype, new_buffer->shape,
+                                       tir::const_true(), Evaluate(0), old_allocate->annotations,
+                                       old_allocate->span));
+          init_nest.push_back(DeclBuffer(new_buffer, Evaluate(0)));
         }
       }
     }
 
     // Rewrite operators
-    return this->VisitStmt(body);
+    return MergeNest(init_nest, this->VisitStmt(body));
   }
 
-  Stmt VisitStmt_(const AllocateNode* op) override {
-    auto allocate{CopyOnWrite(op)};
-    allocate->body = this->VisitStmt(op->body);
-    return Stmt(allocate);
-  }
+  Stmt VisitStmt_(const AllocateNode* op) override { return this->VisitStmt(op->body); }
+
+  Stmt VisitStmt_(const DeclBufferNode* op) override { return this->VisitStmt(op->body); }
 
   Stmt VisitStmt_(const SeqStmtNode* op) override {
-    std::vector<Stmt> seq_stmt = FlattenUnwrap(GetRef<Stmt>(op)).seq;
+    auto [seq_stmt, rewrap_nest] = FlattenUnwrap(GetRef<Stmt>(op));
 
-    if (seq_stmt.size() <= 1) {
-      return StmtExprMutator::VisitStmt_(op);
+    if (seq_stmt.size() == 0) {
+      return Evaluate(0);
+    } else if (seq_stmt.size() == 1) {
+      return MergeNest(rewrap_nest, VisitStmt(seq_stmt[0]));
     }
 
     Array<Stmt> new_seq{};
@@ -669,7 +705,7 @@ class MergeConstantsMutator : public StmtExprMutator {
         }
       }
     }
-    return SeqStmt::Flatten(new_seq);
+    return MergeNest(rewrap_nest, SeqStmt::Flatten(new_seq));
   }
 
   /*! Returns the variables of the buffers written by copies */
@@ -947,7 +983,6 @@ tvm::transform::Pass MergeConstants() {
     ICHECK(const_dict) << "Expected a ethos-u.const_dict attribute";
 
     MergeConstantsInfoExtractor::Info info{MergeConstantsInfoExtractor()(f)};
-    f = RemoveAllocatesMutator()(f);
     return MergeConstantsMutator(info)(f, const_dict.value());
   };
   return tvm::tir::transform::CreatePrimFuncPass(pass_func, 0, "tir.contrib.ethos-u.MergeConstants",

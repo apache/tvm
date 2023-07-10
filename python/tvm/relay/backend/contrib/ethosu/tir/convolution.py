@@ -40,9 +40,9 @@ def get_conv2d_params(stmt, producers_consumers):
     -------
     Serial2DConvolution
         The parameters needed to construct a 2D convolution.
-    output_pointer : tvm.tir.Var
+    output_buffer : tvm.tir.Buffer
         The output pointer of the convolution operation.
-    replace_pointer : tvm.tir.Var
+    replace_buffer : tvm.tir.Buffer
         The output pointer of the DMA write operation, which is to replace
         the convolution output pointer.
     is_allocator : bool
@@ -60,12 +60,12 @@ def get_conv2d_params(stmt, producers_consumers):
     loads = get_loads(rc.body)
     # stores = [output]
     stores = get_stores(rc.body)
-    input_pointer = loads[1].buffer.data
-    output_pointer = stores[0].buffer.data
+    input_buffer = loads[1].buffer
+    output_buffer = stores[0].buffer
     # Get feature map info
-    serial_ifm, serial_padding = get_ifm_params(input_pointer, producers_consumers, stmt)
-    serial_ofm, serial_block_config, replace_pointer, is_allocator = get_ofm_params(
-        output_pointer, producers_consumers, stmt
+    serial_ifm, serial_padding = get_ifm_params(input_buffer, producers_consumers, stmt)
+    serial_ofm, serial_block_config, replace_buffer, is_allocator = get_ofm_params(
+        output_buffer, producers_consumers, stmt
     )
     # Get kernel info
     serial_kernel = SerialKernel(
@@ -157,7 +157,7 @@ def get_conv2d_params(stmt, producers_consumers):
             upscale=attrs["upscale"],
             block_config=serial_block_config,
         ),
-        output_pointer,
-        replace_pointer,
+        output_buffer,
+        replace_buffer,
         is_allocator,
     )

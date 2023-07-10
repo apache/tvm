@@ -311,7 +311,10 @@ def test_identity_optimizer_runs_in_compilation_pipeline():
 
     # Check for hints in the TIR prim func that the identity optimization pass
     # has ran. There should not be an identity in the prim func.
-    assert prim_func.body.value.args[0] == "ethosu_pooling"
+    body = prim_func
+    while not isinstance(body, tvm.tir.Evaluate):
+        body = body.body
+    assert body.value.args[0] == "ethosu_pooling"
 
 
 def test_same_output():
