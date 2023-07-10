@@ -34,21 +34,21 @@ def get_pad_params(stmt):
     -------
     pad : SerialPadding
         The serializable padding.
-    input_pointer : tvm.tir.Var
-        The pointer consumed by the operation.
-    output_pointer : tvm.tir.Var
-        The pointer produced by the operation.
+    input_buffer: tvm.tir.Buffer
+        The buffer consumed by the operation.
+    output_buffer: tvm.tir.Buffer
+        The buffer produced by the operation.
 
     """
     _, body = get_op_attrs(stmt)
     n, h, w, c, _, inner = get_outer_loops(body, "NHWC")
-    output_pointer = inner.buffer.data
+    output_buffer = inner.buffer
     pad = SerialPadding(top=0, left=0, bottom=0, right=0)
     if isinstance(inner.value, tvm.tir.Call):
-        input_pointer = inner.value.args[1].buffer.data
+        input_buffer = inner.value.args[1].buffer
     else:
-        input_pointer = inner.value.buffer.data
-        return pad, input_pointer, output_pointer
+        input_buffer = inner.value.buffer
+        return pad, input_buffer, output_buffer
 
     padded_shape = [n.extent, h.extent, w.extent, c.extent]
 
@@ -72,8 +72,8 @@ def get_pad_params(stmt):
     tvm.tir.stmt_functor.post_order_visit(cond, _visit)
     return (
         pad,
-        input_pointer,
-        output_pointer,
+        input_buffer,
+        output_buffer,
     )
 
 
@@ -87,19 +87,19 @@ def get_upscale_params(stmt):
 
     Returns
     -------
-    input_pointer : tvm.tir.Var
-        The pointer consumed by the operation.
-    output_pointer : tvm.tir.Var
-        The pointer produced by the operation.
+    input_buffer: tvm.tir.Buffer
+        The buffer consumed by the operation.
+    output_buffer: tvm.tir.Buffer
+        The buffer produced by the operation.
     """
     _, body = get_op_attrs(stmt)
     _, _, _, _, _, inner = get_outer_loops(body, "NHWC")
     if isinstance(inner.value, tvm.tir.Call):
-        input_pointer = inner.value.args[1].buffer.data
+        input_buffer = inner.value.args[1].buffer
     else:
-        input_pointer = inner.value.buffer.data
-    output_pointer = inner.buffer.data
-    return (input_pointer, output_pointer)
+        input_buffer = inner.value.buffer
+    output_buffer = inner.buffer
+    return (input_buffer, output_buffer)
 
 
 def get_convert_to_nhwc_params(stmt):
@@ -114,10 +114,10 @@ def get_convert_to_nhwc_params(stmt):
     -------
     int
         The true number of channels.
-    input_pointer : tvm.tir.Var
-        The pointer consumed by the operation.
-    output_pointer : tvm.tir.Var
-        The pointer produced by the operation.
+    input_buffer: tvm.tir.Buffer
+        The buffer consumed by the operation.
+    output_buffer: tvm.tir.Buffer
+        The buffer produced by the operation.
 
     """
     attrs, body = get_op_attrs(stmt)
@@ -127,12 +127,12 @@ def get_convert_to_nhwc_params(stmt):
     # compute that is deemed uneccesary isn't removed by TVM.
     if attrs["layout"] == "NHCWB16":
         inner = inner.body
-        input_pointer = inner.value.b.buffer.data
+        input_buffer = inner.value.b.buffer
     else:
-        input_pointer = inner.value.buffer.data
+        input_buffer = inner.value.buffer
 
-    output_pointer = inner.buffer.data
-    return c.extent, input_pointer, output_pointer
+    output_buffer = inner.buffer
+    return c.extent, input_buffer, output_buffer
 
 
 def get_convert_to_nhcwb16_params(stmt):
@@ -147,24 +147,24 @@ def get_convert_to_nhcwb16_params(stmt):
     -------
     out_channels : int
         The true number of channels.
-    input_pointer : tvm.tir.Var
-        The pointer consumed by the operation.
-    output_pointer : tvm.tir.Var
-        The pointer produced by the operation.
+    input_buffer : tvm.tir.Buffer
+        The buffer consumed by the operation.
+    output_buffer : tvm.tir.Buffer
+        The buffer produced by the operation.
 
     """
     attrs, body = get_op_attrs(stmt)
     _, _, _, c, b, inner = get_outer_loops(body, attrs["layout"])
-    output_pointer = inner.buffer.data
+    output_buffer = inner.buffer
     if isinstance(inner.value, tvm.tir.Call):
         cond = inner.value.args[0]
         out_channels = cond.b.value
-        input_pointer = inner.value.args[1].buffer.data
+        input_buffer = inner.value.args[1].buffer
     else:
-        input_pointer = inner.value.buffer.data
+        input_buffer = inner.value.buffer
         out_channels = c.extent * b.extent if attrs["layout"] == "NHCWB16" else c.extent
 
-    return out_channels, input_pointer, output_pointer
+    return out_channels, input_buffer, output_buffer
 
 
 class Tiles(NamedTuple):
@@ -298,16 +298,16 @@ def get_read_params(stmt):
     -------
     SerialFeatureMap
         The serializable feature map.
-    input_pointer : tvm.tir.Var
-        The pointer consumed by the operation.
-    output_pointer : tvm.tir.Var
-        The pointer produced by the operation.
+    input_buffer: tvm.tir.Buffer
+        The buffer consumed by the operation.
+    output_buffer: tvm.tir.Buffer
+        The buffer produced by the operation.
 
     """
     attrs, body = get_op_attrs(stmt)
     _, h, w, c, _, inner = get_outer_loops(body, attrs["layout"])
-    input_pointer = inner.value.buffer.data
-    output_pointer = inner.buffer.data
+    input_buffer = inner.value.buffer
+    output_buffer = inner.buffer
 
     # Needed for stride calculation, can replace with
     # inner.value.buffer.strides in future.
@@ -337,8 +337,8 @@ def get_read_params(stmt):
             stride_w=strides[1],
             stride_c=strides[2],
         ),
-        input_pointer,
-        output_pointer,
+        input_buffer,
+        output_buffer,
     )
 
 
@@ -354,16 +354,16 @@ def get_write_params(stmt):
     -------
     SerialFeatureMap
         The serializable feature map.
-    input_pointer : tvm.tir.Var
-        The pointer consumed by the operation.
-    output_pointer : tvm.tir.Var
-        The pointer produced by the operation.
+    input_buffer: tvm.tir.Buffer
+        The buffer consumed by the operation.
+    output_buffer: tvm.tir.Buffer
+        The buffer produced by the operation.
 
     """
     attrs, body = get_op_attrs(stmt)
     _, h, w, c, _, inner = get_outer_loops(body, attrs["layout"])
-    input_pointer = inner.value.buffer.data
-    output_pointer = inner.buffer.data
+    input_buffer = inner.value.buffer.data
+    output_buffer = inner.buffer
 
     # Needed for stride calculation, can replace with
     # inner.value.buffer.strides in future.
@@ -402,18 +402,18 @@ def get_write_params(stmt):
             stride_c=strides[2],
         ),
         block_config,
-        input_pointer,
-        output_pointer,
+        input_buffer,
+        output_buffer,
     )
 
 
-def get_ifm_params(pointer, producers_consumers, stmt):
+def get_ifm_params(buffer, producers_consumers, stmt):
     """Get the parameters associated with the DMA capabilities for an IFM.
 
     Parameters
     ----------
-    pointer : tvm.tir.Var
-        The pointer that the IFM DMA pipeline produces.
+    buffer: tvm.tir.Buffer
+        The buffer that the IFM DMA pipeline produces.
     producers_consumers: ProducersConsumers
         It associates pointers with the loop nest that produces
         their values and with the loop nest that consumes their values.
@@ -426,13 +426,13 @@ def get_ifm_params(pointer, producers_consumers, stmt):
         The serializable padding.
 
     """
-    pad = producers_consumers.get_producer(pointer, stmt)
-    serial_padding, input_pointer, _ = get_pad_params(pad)
-    upscale = producers_consumers.get_producer(input_pointer, pad)
-    input_pointer, _ = get_upscale_params(upscale)
-    convert_to_nhwc = producers_consumers.get_producer(input_pointer, upscale)
-    in_channels, input_pointer, _ = get_convert_to_nhwc_params(convert_to_nhwc)
-    read = producers_consumers.get_producer(input_pointer, convert_to_nhwc)
+    pad = producers_consumers.get_producer(buffer, stmt)
+    serial_padding, input_buffer, _ = get_pad_params(pad)
+    upscale = producers_consumers.get_producer(input_buffer, pad)
+    input_buffer, _ = get_upscale_params(upscale)
+    convert_to_nhwc = producers_consumers.get_producer(input_buffer, upscale)
+    in_channels, input_buffer, _ = get_convert_to_nhwc_params(convert_to_nhwc)
+    read = producers_consumers.get_producer(input_buffer, convert_to_nhwc)
     serial_ifm, _, _ = get_read_params(read)
     serial_ifm.channels = in_channels
 
@@ -479,13 +479,13 @@ def get_ifm_params(pointer, producers_consumers, stmt):
     return serial_ifm, serial_padding
 
 
-def get_ofm_params(pointer, producers_consumers, stmt):
+def get_ofm_params(buffer, producers_consumers, stmt):
     """Get the parameters associated with the DMA capabilities for an OFM.
 
     Parameters
     ----------
-    pointer : tvm.tir.Var
-        The pointer that the OFM DMA pipeline consumes.
+    buffer: tvm.tir.Buffer
+        The buffer that the OFM DMA pipeline consumes.
     producers_consumers: ProducersConsumers
         It associates pointers with the loop nest that produces
         their values and with the loop nest that consumes their values.
@@ -496,20 +496,20 @@ def get_ofm_params(pointer, producers_consumers, stmt):
         The serializable OFM.
     serial_block_config : SerialBlockConfig
         The serializable block config.
-    output_pointer : tvm.tir.Var
-        The pointer that the OFM DMA pipeline produces.
+    output_buffer: tvm.tir.Buffer
+        The buffer that the OFM DMA pipeline produces.
     is_allocator : bool
         Whether this operator allocates its output.
 
     """
-    convert_to_nhcwb16 = producers_consumers.get_consumer(pointer, stmt)
-    out_channels, _, output_pointer = get_convert_to_nhcwb16_params(convert_to_nhcwb16)
-    write = producers_consumers.get_consumer(output_pointer, convert_to_nhcwb16)
-    serial_ofm, serial_block_config, _, output_pointer = get_write_params(write)
+    convert_to_nhcwb16 = producers_consumers.get_consumer(buffer, stmt)
+    out_channels, _, output_buffer = get_convert_to_nhcwb16_params(convert_to_nhcwb16)
+    write = producers_consumers.get_consumer(output_buffer, convert_to_nhcwb16)
+    serial_ofm, serial_block_config, _, output_buffer = get_write_params(write)
     is_allocator = True
 
-    producer = producers_consumers.get_producer(output_pointer, write)
+    producer = producers_consumers.get_producer(output_buffer, write)
     if producer is None or producer != write:
         is_allocator = False
     serial_ofm.channels = out_channels
-    return serial_ofm, serial_block_config, output_pointer, is_allocator
+    return serial_ofm, serial_block_config, output_buffer, is_allocator

@@ -37,9 +37,9 @@ def get_unary_elementwise_params(stmt, producers_consumers):
     -------
     SerialUnaryElementwise
         The parameters needed to construct a unary elementwise operator.
-    output_pointer : tvm.tir.Var
+    output_buffer : tvm.tir.Buffer
         The output pointer of the unary elementwise operation.
-    replace_pointer : tvm.tir.Var
+    replace_buffer : tvm.tir.Buffer
         The output pointer of the DMA write operation, which is to replace
         the unary elementwise output pointer.
     is_allocator : bool
@@ -48,18 +48,18 @@ def get_unary_elementwise_params(stmt, producers_consumers):
     attrs, body = get_op_attrs(stmt)
 
     _, _, _, _, _, inner = get_outer_loops(body, "NHWC")
-    input_pointer = None
+    input_buffer = None
     if isinstance(inner.value, tir.expr.Select):
         # ABS
-        input_pointer = inner.value.condition.b.buffer.data
+        input_buffer = inner.value.condition.b.buffer
     if isinstance(inner.value, tir.expr.Sub):
         # CLZ
-        input_pointer = inner.value.b.args[0].buffer.data
-    output_pointer = inner.buffer.data
+        input_buffer = inner.value.b.args[0].buffer
+    output_buffer = inner.buffer
     # Get feature map info
-    serial_ifm, _ = get_ifm_params(input_pointer, producers_consumers, stmt)
-    serial_ofm, serial_block_config, replace_pointer, is_allocator = get_ofm_params(
-        output_pointer, producers_consumers, stmt
+    serial_ifm, _ = get_ifm_params(input_buffer, producers_consumers, stmt)
+    serial_ofm, serial_block_config, replace_buffer, is_allocator = get_ofm_params(
+        output_buffer, producers_consumers, stmt
     )
     # Get activation info
     serial_activation = SerialActivation(
@@ -74,7 +74,7 @@ def get_unary_elementwise_params(stmt, producers_consumers):
             rounding_mode=attrs["rounding_mode"],
             block_config=serial_block_config,
         ),
-        output_pointer,
-        replace_pointer,
+        output_buffer,
+        replace_buffer,
         is_allocator,
     )
