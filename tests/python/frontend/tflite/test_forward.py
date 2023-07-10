@@ -795,8 +795,26 @@ def test_forward_batch_matmul(config):
         quantized=config[2],
     )
     _test_batch_matmul(
+        (2, 3, 5, 4),
+        (1, 3, 5, 4),
+        dtype=config[0],
+        out_dtype=config[1],
+        adjoint_a=True,
+        adjoint_b=False,
+        quantized=config[2],
+    )
+    _test_batch_matmul(
         (3, 5, 4),
         (3, 5, 4),
+        dtype=config[0],
+        out_dtype=config[1],
+        adjoint_a=False,
+        adjoint_b=True,
+        quantized=config[2],
+    )
+    _test_batch_matmul(
+        (2, 3, 5, 4),
+        (1, 3, 5, 4),
         dtype=config[0],
         out_dtype=config[1],
         adjoint_a=False,
