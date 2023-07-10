@@ -340,18 +340,17 @@ def test_blockize_blocks():
     def after_blocks_blockize(
         A: T.Buffer((128, 128), "float32"), B: T.Buffer((128, 128), "float32")
     ) -> None:
-        for m in range(6):
+        for m in T.serial(6):
             with T.block("outer_B_C_"):
-                vi_o = T.axis.spatial(1, 0)
-                vj_o = T.axis.spatial(1, 0)
+                init_o = T.axis.spatial(1, 0)
                 T.reads(A[0:128, 0:128])
                 T.writes(B[0:128, 0:128])
                 for i, j in T.grid(3, 1):
                     with T.block("B"):
-                        vi_i = T.axis.spatial(3, i)
-                        T.reads(A[vi_i, 0])
-                        T.writes(B[vi_i, 0])
-                        B[vi_i, 0] = A[vi_i, 0] * T.float32(2)
+                        vi_i, vj_i = T.axis.remap("SS", [i, j])
+                        T.reads(A[vi_i, vj_i])
+                        T.writes(B[vi_i, vj_i])
+                        B[vi_i, vj_i] = A[vi_i, vj_i] * T.float32(2)
                 for i, j in T.grid(128, 64):
                     with T.block("C"):
                         vi_i, vj_i = T.axis.remap("SS", [i, j])

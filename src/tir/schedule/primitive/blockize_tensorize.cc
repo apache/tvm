@@ -229,7 +229,7 @@ Map<Var, PrimExpr> DeriveBlockBinding(const Array<IterVar>& iter_vars,          
     // base == iter_outer * iter_inner_extent
     // create iter var for the outer block
     IterVar outer_iter;
-    if (reuse_outer) {
+    if (reuse_outer && static_cast<unsigned int>(i) < outer_iter_vars->size()) {
       outer_iter = outer_iter_vars->operator[](i);
       ICHECK(ana.CanProveEqual(outer_iter->dom->extent, outer_mark->extent));
       ICHECK(
@@ -565,58 +565,223 @@ StmtSRef Blockize(ScheduleState self, const StmtSRef& loop_sref, bool preserve_u
   return result;
 }
 
-BlockRealize BlockizeBlocks(const ScheduleState& self, const Array<StmtSRef>& block_srefs,
-                            const StmtSRef& lca, Map<Block, Block>* block_sref_reuse,
-                            bool preserve_unit_iters) {
+class CollectSubstInfo : public StmtVisitor {
+ public:
+  static void Collect(const ScheduleState& self, const StmtSRef& lca, const StmtSRef& block_sref,
+                      Array<IterVar>* outer_iter_vars, Array<PrimExpr>* outer_bindings,
+                      Map<Var, PrimExpr>* block_var_subst) {
+    CollectSubstInfo collector(self, lca, outer_iter_vars, outer_bindings, block_var_subst);
+    StmtSRef scope_root = tir::GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);
+    const BlockNode* root_block = scope_root->StmtAs<BlockNode>();
+    Block block = GetRef<Block>(root_block);
+    return collector(block);
+  }
+
+ private:
+  explicit CollectSubstInfo(const ScheduleState& self, const StmtSRef& lca,
+                            Array<IterVar>* outer_iter_vars, Array<PrimExpr>* outer_bindings,
+                            Map<Var, PrimExpr>* block_var_subst)
+      : self_(self),
+        lca_(lca),
+        outer_iter_vars_(outer_iter_vars),
+        outer_bindings_(outer_bindings),
+        block_var_subst_(block_var_subst) {}
+
+  void VisitStmt_(const ForNode* loop) final {
+    if (!in_lca) {
+      if (loop == lca_->stmt) {
+        match_lca = true;
+        in_lca = true;
+      }
+      outer_bindings_->push_back(loop->loop_var);
+      out_extent.push_back(loop->extent);
+      // traverse lca
+      StmtVisitor::VisitStmt(loop->body);
+      if (!match_lca) {
+        outer_bindings_->pop_back();
+        out_extent.pop_back();
+      }
+    } else {
+      return;
+    }
+  }
+
+  void VisitStmt_(const BlockNode* block) final {
+    if (block == lca_->stmt && block->name_hint == String("root")) {
+      // nothings need to substitute, so all output is nullptr.
+      return;
+    }
+    if (in_lca) {
+      if (block->iter_vars.size() > 0) {
+        // collect info
+        for (int i = 0, n = block->iter_vars.size(); i < n; ++i) {
+          const IterVar& iter_var = block->iter_vars[i];
+          if (static_cast<unsigned int>(i) < out_extent.size()) {
+            arith::Analyzer ana;
+            ICHECK(ana.CanProveEqual(out_extent[i], iter_var->dom->extent));
+            auto outer_iter = IterVar(/*dom=*/RangeFromExtent(iter_var->dom->extent),
+                                      /*var=*/iter_var->var.copy_with_suffix("_o"),
+                                      /*iter_type=*/iter_var->iter_type);
+            if (num_outer_iter_vars == 0) {
+              outer_iter_vars_->push_back(outer_iter);
+              block_var_subst_->Set(iter_var->var, outer_iter->var);
+            }
+          }
+        }
+        ++num_outer_iter_vars;
+        return;
+      }
+    }
+    StmtVisitor::VisitStmt_(block);
+  }
+
+  ScheduleState self_;
+  StmtSRef lca_;
+  Array<IterVar>* outer_iter_vars_;
+  Array<PrimExpr>* outer_bindings_;
+  Array<IterVar>* inner_iter_vars_;
+  Array<PrimExpr>* inner_bindings_;
+  Map<Var, PrimExpr>* block_var_subst_;
+  Array<PrimExpr> out_extent{nullptr};
+  bool match_lca = false;
+  bool in_lca = false;
+  int num_outer_iter_vars = 0;
+};
+
+class BlockizeBlocks : public StmtMutator {
+  Array<StmtSRef> blocks_;
+  StmtSRef lca_;
+  Map<Block, Block>* block_sref_reuse_;
+  BlockRealize* blockized_;
   Array<Stmt> seq_body;
-  PrimExpr outer_predicate{nullptr};
   Array<IterVar> outer_iter_vars{nullptr};
   Array<PrimExpr> outer_bindings{nullptr};
+  Array<IterVar> inner_iter_vars{nullptr};
+  Map<Var, PrimExpr> block_var_subst;
   Array<BufferRegion> read_regions;
   Array<BufferRegion> write_regions;
   std::string outer_block_name = "outer_";
   Map<Var, Var> loop_var_subst;
   arith::Analyzer analyzer;
-  for (const auto& block_sref : block_srefs) {
-    auto block_realize = GetBlockRealize(self, block_sref);
-    auto block = block_realize->block;
-    // Step 1: Derive subspace division
-    std::vector<const ForNode*> loops;
-    Array<Array<arith::IterMark>> division = SubspaceDivide(block_realize, block_sref, lca, &loops,
-                                                            &analyzer, preserve_unit_iters, true);
-    if (division.empty()) {
-      throw SubspaceNotDivisibleError(self->mod, GetRef<For>(loops.back()), block);
-    }
-    outer_predicate = division.back()[0]->extent;
-    PrimExpr inner_predicate = division.back()[1]->extent;
-    // Step 2. Derive block bindings for both outer and inner block.
-    Array<IterVar> inner_iter_vars;
-    Array<PrimExpr> inner_bindings;
-    Map<Var, PrimExpr> block_var_subst =                       //
-        DeriveBlockBinding(block->iter_vars, division,         //
-                           &outer_iter_vars, &outer_bindings,  //
-                           &inner_iter_vars, &inner_bindings,  //
-                           preserve_unit_iters, outer_iter_vars.defined());
-    // Step 3: Do var substitution to adjust to the new block bindings
+  Block tmp_in_block;
+  Map<Var, arith::IntSet> inner_iter_dom;
+  bool _in_lca = false;
+  bool target_in_ = false;
+  bool IsBlockNode = false;
+
+ public:
+  static Stmt Rewrite(const ScheduleState& self, const Array<StmtSRef>& block_srefs,
+                      const StmtSRef& lca, Map<Block, Block>* block_sref_reuse,
+                      bool preserve_unit_iters, BlockRealize* blockized) {
+    BlockizeBlocks rewriter(self, block_srefs, lca, block_sref_reuse, preserve_unit_iters,
+                            blockized);
+    return rewriter(GetRef<Stmt>(lca->stmt));
+  }
+
+ private:
+  explicit BlockizeBlocks(const ScheduleState& self, const Array<StmtSRef>& block_srefs,
+                          const StmtSRef& lca, Map<Block, Block>* block_sref_reuse,
+                          bool preserve_unit_iters, BlockRealize* blockized)
+      : blocks_(block_srefs),
+        lca_(lca),
+        block_sref_reuse_(block_sref_reuse),
+        blockized_(blockized) {
+    CollectSubstInfo::Collect(self, lca, block_srefs.front(), &outer_iter_vars, &outer_bindings,
+                              &block_var_subst);
     for (size_t i = 0; i < outer_iter_vars.size(); ++i) {
       if (outer_bindings[i].as<Var>()) {
         loop_var_subst.Set(Downcast<Var>(outer_bindings[i]), outer_iter_vars[i]->var);
       }
     }
-    Map<Var, arith::IntSet> inner_iter_dom;
-    for (const IterVar& iter : inner_iter_vars) {
-      Range dom = Substitute(iter->dom, loop_var_subst);
-      inner_iter_dom.Set(iter->var, arith::IntSet::FromRange(dom));
-      analyzer.Bind(iter->var, dom);
+  }
+
+  Stmt VisitStmt_(const ForNode* loop) final {
+    if (loop == lca_->stmt) {
+      _in_lca = true;
+      return For(loop->loop_var, loop->min, loop->extent, loop->kind, RewriteSeq(loop->body),
+                 loop->thread_binding, loop->annotations, loop->span);
     }
-    Block block_subst =
-        Downcast<Block>(Substitute(block, block_var_subst, block_sref_reuse, &analyzer));
-    auto reads = EvalSetRegions(block_subst->reads, inner_iter_dom);
-    auto writes = EvalSetRegions(block_subst->writes, inner_iter_dom);
-    read_regions.insert(read_regions.end(), reads.begin(), reads.end());
-    write_regions.insert(write_regions.end(), writes.begin(), writes.end());
-    outer_block_name += block_subst->name_hint + "_";
-    // Step 4: Generate the inner block. No reduction iter vars allowed for the outer loops.
+    if (_in_lca && !loop_var_subst.empty()) {
+      // substitute outter_var name
+      Var loop_var = Downcast<Var>(Substitute(loop->loop_var, loop_var_subst));
+      return For(loop_var, loop->min, loop->extent, loop->kind, StmtMutator::VisitStmt(loop->body),
+                 loop->thread_binding, loop->annotations, loop->span);
+    }
+    return StmtMutator::VisitStmt_(loop);
+  }
+
+  Stmt VisitStmt_(const IfThenElseNode* op) final {
+    if (_in_lca && !loop_var_subst.empty()) {
+      PrimExpr new_condition;
+      new_condition = Downcast<PrimExpr>(Substitute(op->condition, loop_var_subst));
+      Stmt stmt_then = StmtMutator::VisitStmt(op->then_case);
+      Stmt else_case;
+      if (op->else_case.defined()) {
+        else_case = StmtMutator::VisitStmt(op->else_case.value());
+      }
+      return IfThenElse(new_condition, stmt_then, else_case, op->span);
+    }
+    return StmtMutator::VisitStmt_(op);
+  }
+
+  Stmt VisitStmt_(const BlockNode* block) final {
+    if (block == lca_->stmt) {
+      _in_lca = true;
+      return Block(block->iter_vars, block->reads, block->writes, block->name_hint,
+                   RewriteSeq(block->body), block->init, block->alloc_buffers, block->match_buffers,
+                   block->annotations, block->span);
+    }
+    if (_in_lca) {
+      for (const StmtSRef& block_sref : blocks_) {
+        if (block_sref->stmt == block) {
+          target_in_ = true;
+          if (block->iter_vars.size() > outer_iter_vars.size()) {
+            for (int i = outer_iter_vars.size(), n = block->iter_vars.size(); i < n; ++i) {
+              const IterVar& iter_var = block->iter_vars[i];
+              auto inner_iter = IterVar(/*dom=*/RangeFromExtent(iter_var->dom->extent),
+                                        /*var=*/iter_var->var.copy_with_suffix("_i"),
+                                        /*iter_type=*/iter_var->iter_type);
+              inner_iter_vars.push_back(inner_iter);
+              block_var_subst.Set(iter_var->var, inner_iter->var);
+            }
+          }
+          // substitute block
+          tmp_in_block = GetRef<Block>(block);
+          Block block_subst = Downcast<Block>(
+              Substitute(tmp_in_block, block_var_subst, block_sref_reuse_, &analyzer));
+          // Collect reads/writes info
+          if (inner_iter_vars.defined()) {
+            for (const IterVar& iter : inner_iter_vars) {
+              inner_iter_dom.Set(iter->var, arith::IntSet::FromRange(iter->dom));
+            }
+            auto reads = EvalSetRegions(block_subst->reads, inner_iter_dom);
+            read_regions.insert(read_regions.end(), reads.begin(), reads.end());
+            auto writes = EvalSetRegions(block_subst->writes, inner_iter_dom);
+            write_regions.insert(write_regions.end(), writes.begin(), writes.end());
+          } else {
+            auto reads = block_subst->reads;
+            read_regions.insert(read_regions.end(), reads.begin(), reads.end());
+            auto writes = block_subst->writes;
+            write_regions.insert(write_regions.end(), writes.begin(), writes.end());
+          }
+          outer_block_name += block_subst->name_hint + "_";
+          return std::move(block_subst);
+        }
+      }
+    }
+    return GetRef<Stmt>(block);
+  }
+
+  Stmt VisitStmt_(const BlockRealizeNode* blockrealize) final {
+    inner_iter_vars.clear();
+    Stmt stmt = StmtMutator::VisitStmt(blockrealize->block);
+    if (!target_in_) {
+      return GetRef<Stmt>(blockrealize);
+    }
+    const BlockNode* block_node = stmt.as<BlockNode>();
+    ICHECK(block_node) << "The blocks is null!";
+    Block block_subst = GetRef<Block>(block_node);
+    // Generate the inner block. No reduction iter vars allowed for the outer loops.
     bool has_outer_reduction = false;
     if (block_subst->init.defined()) {
       for (const IterVar& iter_var : outer_iter_vars) {
@@ -628,66 +793,97 @@ BlockRealize BlockizeBlocks(const ScheduleState& self, const Array<StmtSRef>& bl
     }
     ICHECK(has_outer_reduction == false)
         << "No reduction iter vars allowed for the outer loops when blockize multiple blocks";
-    BlockRealize inner_realize = GenerateInner(/*is_write_reduction=*/has_outer_reduction,
-                                               /*iter_vars=*/inner_iter_vars,
-                                               /*iter_values*/ inner_bindings,
-                                               /*predicate=*/inner_predicate,
-                                               /*block=*/block_subst);
-    block_sref_reuse->Set(block, inner_realize->block);
-    Stmt stmt = inner_realize;
-    for (const ForNode* loop : loops) {
-      ObjectPtr<ForNode> new_loop = make_object<ForNode>(*loop);
-      new_loop->body = std::move(stmt);
-      new_loop->extent = Substitute(new_loop->extent, loop_var_subst);
-      stmt = For(new_loop);
+    if (inner_iter_vars.defined()) {
+      Array<PrimExpr> new_inner_iter_vars{nullptr};
+      for (int i = outer_iter_vars.size(), n = blockrealize->iter_values.size(); i < n; ++i) {
+        new_inner_iter_vars.push_back(blockrealize->iter_values[i]);
+      }
+      BlockRealize inner_realize = GenerateInner(/*is_write_reduction=*/has_outer_reduction,
+                                                 /*iter_vars=*/inner_iter_vars,
+                                                 /*iter_values=*/new_inner_iter_vars,
+                                                 /*predicate=*/blockrealize->predicate,
+                                                 /*block=*/block_subst);
+      block_sref_reuse_->Set(tmp_in_block, inner_realize->block);
+      return std::move(inner_realize);
+    } else {
+      BlockRealize inner_realize = GenerateInner(/*is_write_reduction=*/has_outer_reduction,
+                                                 /*iter_vars=*/inner_iter_vars,
+                                                 /*iter_values*/ blockrealize->iter_values,
+                                                 /*predicate=*/blockrealize->predicate,
+                                                 /*block=*/block_subst);
+      block_sref_reuse_->Set(tmp_in_block, inner_realize->block);
+      return std::move(inner_realize);
     }
-    seq_body.push_back(stmt);
   }
-  // Step 5: Generate the outer block.
-  return BlockRealize(
-      /*iter_values=*/std::move(outer_bindings),
-      /*predicate=*/std::move(outer_predicate),
-      /*block=*/
-      Block(/*iter_vars=*/std::move(outer_iter_vars),
-            /*reads=*/UnionRegions(read_regions),
-            /*writes=*/UnionRegions(write_regions),
-            /*name_hint=*/outer_block_name,
-            /*body=*/SeqStmt(seq_body),
-            /*init=*/Optional<Stmt>(NullOpt)));
-}
-
-class BlockizeRewriter : public StmtMutator {
- public:
-  static Stmt Rewrite(const StmtSRef& lca, const Array<StmtSRef>& blocks,
-                      const BlockRealize& blockized) {
-    BlockizeRewriter rewriter(lca, blocks, blockized);
-    return rewriter(GetRef<Stmt>(lca->stmt));
-  }
-
- private:
-  explicit BlockizeRewriter(const StmtSRef& lca, const Array<StmtSRef>& blocks,
-                            const BlockRealize& blockized)
-      : lca_(lca), blocks_(blocks), blockized_(blockized) {}
 
   Stmt RewriteSeq(const Stmt& stmt) {
     const SeqStmtNode* seq = stmt.as<SeqStmtNode>();
     ICHECK(seq) << "Target blocks must not be nested with each other!";
     int idx_start = -1;
+    int found_cnt = 0;
     int last_found_idx = -1;
     size_t cur_idx = 0;
     Array<Stmt> new_seq;
-    for (const Stmt& it : seq->seq) {
+    const size_t seq_size = seq->seq.size();
+    for (size_t i = 0; i < seq_size; ++i) {
+      const Stmt& it = seq->seq[i];
       target_in_ = false;
       Stmt stmt = StmtMutator::VisitStmt(it);
       if (target_in_) {
         if (idx_start == -1) {
           idx_start = cur_idx;
-          new_seq.push_back(blockized_);
         } else {
           ICHECK_EQ(last_found_idx, cur_idx - 1) << "Target blocks must be consecutive!";
         }
+        seq_body.push_back(stmt);
         last_found_idx = cur_idx;
+        ++found_cnt;
+        if (i == seq_size - 1) {
+          if (!outer_iter_vars.defined()) {
+            outer_bindings.clear();
+            // new_var is automatically eliminated for "with T.block("root"):"
+            Var new_var = Var("init", DataType::Int(32));
+            auto outer_iter = IterVar(/*dom=*/RangeFromExtent(1),
+                                      /*var=*/new_var.copy_with_suffix("_o"),
+                                      /*iter_type=*/kDataPar);
+            outer_iter_vars.push_back(outer_iter);
+            outer_bindings.push_back(make_zero(new_var->dtype));
+          }
+          *blockized_ = BlockRealize(
+              /*iter_values=*/std::move(outer_bindings),
+              /*predicate=*/make_const(DataType::Bool(), true),
+              /*block=*/
+              Block(/*iter_vars=*/std::move(outer_iter_vars),
+                    /*reads=*/UnionRegions(read_regions),
+                    /*writes=*/UnionRegions(write_regions),
+                    /*name_hint=*/outer_block_name,
+                    /*body=*/SeqStmt(seq_body),
+                    /*init=*/Optional<Stmt>(NullOpt)));
+          new_seq.push_back(*blockized_);
+        }
       } else {
+        if (idx_start != -1 && last_found_idx == static_cast<int>(cur_idx) - 1) {
+          if (!outer_iter_vars.defined()) {
+            outer_bindings.clear();
+            Var new_var = Var("init", DataType::Int(32));
+            auto outer_iter = IterVar(/*dom=*/RangeFromExtent(1),
+                                      /*var=*/new_var.copy_with_suffix("_o"),
+                                      /*iter_type=*/kDataPar);
+            outer_iter_vars.push_back(outer_iter);
+            outer_bindings.push_back(make_zero(new_var->dtype));
+          }
+          *blockized_ = BlockRealize(
+              /*iter_values=*/std::move(outer_bindings),
+              /*predicate=*/make_const(DataType::Bool(), true),
+              /*block=*/
+              Block(/*iter_vars=*/std::move(outer_iter_vars),
+                    /*reads=*/UnionRegions(read_regions),
+                    /*writes=*/UnionRegions(write_regions),
+                    /*name_hint=*/outer_block_name,
+                    /*body=*/SeqStmt(seq_body),
+                    /*init=*/Optional<Stmt>(NullOpt)));
+          new_seq.push_back(*blockized_);
+        }
         new_seq.push_back(it);
       }
       ++cur_idx;
@@ -695,43 +891,15 @@ class BlockizeRewriter : public StmtMutator {
     if (new_seq.size() == 1) return new_seq[0];
     return SeqStmt(new_seq, seq->span);
   }
-
-  Stmt VisitStmt_(const ForNode* loop) final {
-    if (loop == lca_->stmt) {
-      return For(loop->loop_var, loop->min, loop->extent, loop->kind, RewriteSeq(loop->body),
-                 loop->thread_binding, loop->annotations, loop->span);
-    }
-    return StmtMutator::VisitStmt_(loop);
-  }
-
-  Stmt VisitStmt_(const BlockNode* block) final {
-    if (block == lca_->stmt) {
-      return Block(block->iter_vars, block->reads, block->writes, block->name_hint,
-                   RewriteSeq(block->body), block->init, block->alloc_buffers, block->match_buffers,
-                   block->annotations, block->span);
-    }
-    for (const StmtSRef& block_sref : blocks_) {
-      if (block_sref->stmt == block) {
-        target_in_ = true;
-        break;
-      }
-    }
-    return GetRef<Stmt>(block);
-  }
-
-  StmtSRef lca_;
-  Array<StmtSRef> blocks_;
-  BlockRealize blockized_;
-  bool target_in_ = false;
 };
 
 StmtSRef Blockize(ScheduleState self, const Array<StmtSRef>& blocks, bool preserve_unit_iters) {
   Map<Block, Block> block_sref_reuse;
   auto lca = GetSRefLowestCommonAncestor(blocks);
-  BlockRealize blockized =
-      BlockizeBlocks(self, blocks, lca, &block_sref_reuse, preserve_unit_iters);
-  auto new_root = BlockizeRewriter::Rewrite(lca, blocks, blockized);
-  self->Replace(lca, new_root, block_sref_reuse);
+  BlockRealize blockized{nullptr};
+  auto new_lca = BlockizeBlocks::Rewrite(self, blocks, lca, &block_sref_reuse, preserve_unit_iters,
+                                         &blockized);
+  self->Replace(lca, new_lca, block_sref_reuse);
   StmtSRef result = self->stmt2ref.at(blockized->block.get());
   StmtSRef scope_root = tir::GetScopeRoot(self, result, /*require_stage_pipeline=*/false);
   self->UpdateScopeBlockInfo(tir::GetBlockRealize(self, scope_root));
