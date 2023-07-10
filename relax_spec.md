@@ -31,7 +31,7 @@ While Relax aims to be as general and expressive as Relay, Relax is intended to 
 
 Below is a diagram of the various AST constructs in Relax, including types. In code, these are defined on the C++ side in `include/tvm/relax/{expr.h, type.h}` and in Python in `python/tvm/relax/{expr.py, ty.py}`. This diagram will give the names of the AST nodes and the types and names of their members. The semantics will describe what computation each construct represents; an AST is simply data. A Relax program consists of an `IRModule` with global variables bound to Relax functions that implement the computations of interest.
 
-(On the notation: `[x]` means "a list of `x`," `x?` means "optionally `x`," `{x: y}` means "a map of `x` to `y`," `x | y` means "`x` or `y`," and `#` is used for comments.)
+(On the notation: `[x]` means "a list of `x`," `x?` means "optionally `x`," `{x: y}` means "a map of `x` to `y`," `x | y` means "`x` or `y`," and `#` is used for comments. For the definition of `PrimFunc`, AST constructs are prefixed with `tir::` to indicate that these are the TIR versions of these AST nodes rather than the Relax ones.)
 
 ```
 # PrimExprs are defined in TIR, see include/tvm/tir/expr.h
@@ -50,6 +50,12 @@ PrimExpr ::=
          | Or(a: PrimExpr, b: PrimExpr)
          | Select(condition: PrimExpr, true_value: PrimExpr, false_value: PrimExpr)
          # (others may be added later, as deemed necessary)
+
+# See include/tvm/tir/function.h
+# Can appear at the module level but otherwise do not interact with any Relax constructs;
+# intended to have the same semantics as in TIR
+PrimFunc ::= PrimFunc(params: [tir::Var], body: tir::Stmt, ret_type: tir::Type?,
+                      buffer_map: {tir::Var: tir::Buffer}, attrs: Attrs)
 
 # Also from TIR
 DataType ::= Int(bits: int, lanes: int)
@@ -95,8 +101,8 @@ Binding ::=
          | MatchCast(var: (Var|DataflowVar)?, struct_info: StructInfo, value: Expr)
 
 # Relax programs are IRModules. Modules may bind global variables either to
-# Relax functions or TIR PrimFuncs (specified separately).
-# The Relax compiler may analyze and modify the TIR PrimFUncs as well.
+# Relax functions or TIR PrimFuncs.
+# The Relax compiler may analyze and modify the TIR PrimFuncs as well.
 Program ::= IRModule(funcs: {GlobalVar: Function|PrimFunc})
 ```
 
@@ -203,8 +209,9 @@ Here are the classes of values that Relax operates over, meaning that they can b
 - *Closures* are the values resulting from evaluating Relax function expressions; closures can be passed around like other values, ensuring that functions are first-class in Relax. Functions defined in Relax can capture variables from outer scopes. A [closure](https://en.wikipedia.org/wiki/Closure_(computer_programming)) consists of a function and a mapping of any variables "captured" (those are *free variables* in the function body, variables from an outer scope that are neither arguments nor defined within the function but are used in the function) to their values. Closures capture both Relax-level local variables and shape variables from outer scopes. A closure also stores a name for itself when the body contains recursive calls. «Closures additionally carry some *run-time structural information* (RTSI) indicating their argument and result structures, in order to facilitate dynamic structural checks (since it is not otherwise possible to introspect the function contained within a closure); the precise form of the RTSI is left up to the compiler implementation to determine so long as `MatchCast` can verify the structure of a closure, including whether it is pure. Closures can be evaluated in a call node, which results in calling the function with the call's arguments and the captured values.»
 - *Tensor shapes* (shape values) are immutable tuples of integers describing a tensor shape, obtained by evaluating `ShapeExpr`s.
 - *Packed functions* (`PackedFunc`s or external functions) represent arbitrary opaque functions implemented in TVM. That is, packed functions are routines that are defined outside of Relax and cannot be inspected by the compiler. They can perform side effects and return arbitrary values.
+- *TIR `PrimFuncs`* are functions in TIR. They are usually invoked using the `call_tir` operator, but can be called on their own as first-class functions.
 - *Primitive values* (`PrimValue`s) represent immutable scalar values that are primarily intended for being passed to external procedures, like calls to `PackedFunc`s. As a rule of thumb, scalar values intended for arithmetical computations should be 0-rank tensors while scalar values meant to serve as metadata should be `PrimValue`s.
-- Additionally, there are further  *arbitrary objects* that do not belong in the above categories. These can be returned by `PackedFunc`s and operators; additionally, we treat TIR `PrimFunc`s as opaque objects. Though Relax expressions other than `PackedFunc` and operator calls cannot use those objects, Relax should pass around these values faithfully. In the future we may add more value types in order to distinguish between different objects, but at present we treat these all as arbitrary values with `ObjectStructInfo`. Note that, for now, strings and TIR datatypes are also treated as opaque objects. Another noteworthy value in this category is the _null object_ (the result of returning a null pointer in C++ or passing in `None` through the Python FFI), which is returned by the `null_value()` operator.
+- Additionally, there are further  *arbitrary objects* that do not belong in the above categories. These can be returned by `PackedFunc`s and operators. Though Relax expressions other than `PackedFunc` and operator calls cannot use those objects, Relax should pass around these values faithfully. In the future we may add more value types in order to distinguish between different objects, but at present we treat these all as arbitrary values with `ObjectStructInfo`. Note that, for now, strings and TIR datatypes are also treated as opaque objects. Another noteworthy value in this category is the _null object_ (the result of returning a null pointer in C++ or passing in `None` through the Python FFI), which is returned by the `null_value()` operator.
 
 ## Representation of Values at Run Time
 
@@ -728,6 +735,11 @@ Let `Γ` be the `StructInfo` context for Relax variables and let `Σ` track whic
     5. Give an error if `Sb` is incompatible with `Sr` via `check_compatibility` (warn if only possibly compatible).
     6. If `ret_struct_info` is defined, use `FuncStructInfo(params=[S1, S2, ..., Sn], ret_struct_info, purity=is_pure)` as the structural information for the function. If `ret_struct_info` is not defined, use `FuncStructInfo(params=[S1, S2, ..., Sn], erase_to_well_defined(Sb, Γ, Σ), purity=is_pure)`.
     7. Remove all variables added to `Γ` and `Σ` during the above steps of the derivation.
+16. For `PrimFunc(params, body, ret_type, buffer_map, attrs)` at the module level, which is bound to a `GlobalVar`:
+    1. Suppose there are `n` members of `params`. For the `i`th member of `params` (let us call it `v`), let `si` be a corresponding `StructInfo` defined as follows:
+        1. If `v` is not in `buffer_map`, then `si` is `PrimType(d)`, where `d` is the `dtype` field of `v`.
+        2. If `v` is in `buffer_map`, then let `b` be `buffer_map[v]`. Then, `si` is `TensorStructInfo(d, ShapeExpr(s))`, where `d` is the `dtype` field of `b` and `s` is the `shape` field of `b`.
+    2. The `StructInfo` for the `PrimFunc` (namely, for the `GlobalVar` to which the `PrimFunc` is bound) is `FuncStructInfo([s0, s1, ..., sn-1], TupleStructInfo([]), purity=False)`. (`PrimFunc`s work by mutating their arguments, so direct calls to `PrimFunc`s are treated as impure; in order to call a `PrimFunc` from within a `DataflowBlock`, use `call_tir`, which allocates fresh tensors for the outputs.)
 
 ### Note on Proving Shapes Equivalent and Eliminating Dynamic Checks
 
@@ -788,7 +800,7 @@ def erase_struct_info(si: StructInfo) -> Type:
 
 In the `IRModule`, every mapping of a `GlobalVar` to a `Function` node or a TIR `PrimFunc` should be processed first and added to the global scope. «Global functions that have a `global_symbol` attribute should be externally linked, meaning that they can be invoked as program entry points; those that do not have a `global_symbol` attribute can be called only from within the global functions in the `IRModule`.»
 
-The rules for evaluating `Function` nodes into closures are given below. TIR `PrimFunc`s evaluate into objects that are opaque to Relax; these objects are of `ObjectStructInfo` and can be used only by the `call_tir` operator. None of the values in global scope is mutable. Execution of a Relax function in an IR module thus begins by evaluating all globally visible functions into a form in which they can be accessed.
+The rules for evaluating `Function` nodes into closures are given below. TIR `PrimFunc`s evaluate into objects that are opaque to Relax, but are also assigned `FuncStructInfo` and can be called like closures. None of the values in global scope is mutable. Execution of a Relax function in an IR module thus begins by evaluating all globally visible functions into a form in which they can be accessed.
 
 ## Evaluating Expressions
 
@@ -813,6 +825,7 @@ For each expression, we define how it affects the program's visible state and th
     2. Otherwise, first evaluate `op` (it must evaluate to a closure or `PackedFunc`). Next, we evaluate  `arg1`, `arg2`, …, `argn` in that order and call the results `a1`, `a2`, …, `an`. 
         1. If `op` evaluated to a closure, push a new scope onto the stack where arguments `v1`, `v2`, …, `vn` in the closure are bound to `a1`, `a2`, …, and `an`, respectively, and all variables saved in the closure are added to the scope. Evaluate the closure body in this new scope; this will be the return value of the call. Pop the scope before returning the value. (Note that the checking of the structural information of the argument result values and the body values should be done as described in the previous section.)
         2. If `op` evaluated to a `PackedFunc`, simply invoke it. `PackedFunc`s may have arbitrary side effect and are responsible for whether the result is a newly allocated value or aliases another value.
+        3. Similarly, if `op` evaluates to a `PrimFunc` representation, the `PrimFunc` is directly called with its arguments (it likely mutates one or more of them as a result).
 13. For the node `SeqExpr(blocks, body)`, we evaluate as follows:
     1. Push a new scope onto the stack.
     2. Iterate through the `BindingBlock`s in `blocks` in order. We will call the current one `block`. For each binding in `Block`:
