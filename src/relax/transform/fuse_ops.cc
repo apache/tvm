@@ -586,8 +586,8 @@ class FunctionCreator : public ExprMutator {
       }
 
       StructInfo param_sinfo = GetStructInfo(expr);
-      // Exclude PrimValues from arg/params to make composite functions contain PrimValues.  
-      if(!expr->IsInstance<PrimValueNode>()){
+      // Exclude PrimValues from arg/params to make composite functions contain PrimValues.
+      if (!expr->IsInstance<PrimValueNode>()) {
         Var param(std::move(name), GetStructInfo(expr));
         arguments_.push_back(expr);
         params_.push_back(param);
