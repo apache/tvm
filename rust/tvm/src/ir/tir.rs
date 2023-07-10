@@ -62,6 +62,14 @@ impl From<i32> for PrimExpr {
     }
 }
 
+impl Into<i64> for PrimExpr {
+    fn into(self) -> i64 {
+        let int_val = self.downcast::<IntImm>().unwrap().value as i64;
+        int_val
+    }
+}
+
+
 define_node!(Var, "Var", "tir.Var";
              VarNode { name_hint: TVMString });
 

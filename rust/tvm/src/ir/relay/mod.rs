@@ -33,6 +33,8 @@ pub use crate::runtime::DataType;
 
 pub mod attrs;
 pub mod nn;
+pub mod tensor;
+pub mod reduce;
 
 #[repr(C)]
 #[derive(Object, Debug)]

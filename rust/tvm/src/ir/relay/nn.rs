@@ -147,6 +147,7 @@ external! {
         dilation: Array<PrimExpr>,
         padding: Array<PrimExpr>, 
         layout: TVMString,
+        out_out_layout: TVMString,
         ceil_mode: bool,
     ) -> Expr;
 
@@ -158,6 +159,7 @@ external! {
         dilation: Array<PrimExpr>,
         padding: Array<PrimExpr>, 
         layout: TVMString,
+        out_layout: TVMString,
         ceil_mode: bool,
     ) -> Expr;
 
@@ -169,6 +171,7 @@ external! {
         dilation: Array<PrimExpr>,
         padding: Array<PrimExpr>, 
         layout: TVMString,
+        out_layout: TVMString,
         ceil_mode: bool,
         count_include_pad: bool,
     ) -> Expr;
@@ -181,6 +184,7 @@ external! {
         dilation: Array<PrimExpr>,
         padding: Array<PrimExpr>, 
         layout: TVMString,
+        out_layout: TVMString,
         ceil_mode: bool,
         count_include_pad: bool,
     ) -> Expr;
@@ -193,6 +197,7 @@ external! {
         dilation: Array<PrimExpr>,
         padding: Array<PrimExpr>, 
         layout: TVMString,
+        out_layout: TVMString,
         ceil_mode: bool,
         count_include_pad: bool,
     ) -> Expr;
@@ -219,16 +224,16 @@ external! {
     ) -> Expr;
 
     #[name("relay.op.nn._make.batch_flatten")]
-    pub fn batch_flatten(data: Expr, bias: Expr, axis: i32) -> Expr;
+    pub fn batch_flatten(data: Expr) -> Expr;
 
     #[name("relay.op.nn._make.bias_add")]
     pub fn bias_add(data: Expr, bias: Expr, axis: i32) -> Expr;
 
     #[name("relay.op.nn._make.matmul")]
-    pub fn matmul(lhs: Expr, rhs: Expr, units: i32, out_dtype: TVMString, transpose_a: bool, transpose_b: bool) -> Expr;
+    pub fn matmul(lhs: Expr, rhs: Expr, units: i32, out_dtype: DLDataType, transpose_a: bool, transpose_b: bool) -> Expr;
 
     #[name("relay.op.nn._make.dense")]
-    pub fn dense(data: Expr, weight: Expr, units: i32, out_dtype: TVMString) -> Expr;
+    pub fn dense(data: Expr, weight: Expr, units: i32, out_dtype: DLDataType) -> Expr;
 
     //FIXME: contrib_dense_pack, fifo_buffer
 
@@ -395,7 +400,17 @@ external! {
     #[name("relay.op.nn._make.space_to_depth")]
     pub fn space_to_depth(data: Expr, block_size: i32, layout: TVMString) -> Expr;
 
-    //FIXME: adaptive and global operators
+    #[name("relay.op.nn._make.global_avg_pool2d")]
+    pub fn global_avg_pool2d_(data: Expr, layout: TVMString, out_layout: TVMString) -> Expr; //FIXME: global_avg_pool2d without underscore creates error
+
+    #[name("relay.op.nn._make.adaptive_avg_pool1d")]
+    pub fn adaptive_avg_pool1d(data: Expr, output_size: Array<PrimExpr>, layout: TVMString, out_layout: TVMString) -> Expr;
+    
+    #[name("relay.op.nn._make.adaptive_avg_pool2d")]
+    pub fn adaptive_avg_pool2d(data: Expr, output_size: Array<PrimExpr>, layout: TVMString, out_layout: TVMString) -> Expr;
+
+    #[name("relay.op.nn._make.adaptive_avg_pool3d")]
+    pub fn adaptive_avg_pool3d(data: Expr, output_size: Array<PrimExpr>, layout: TVMString, out_layout: TVMString) -> Expr;
 
     #[name("relay.op.nn._make.space_to_batch_nd")]
     pub fn space_to_batch_nd(data: Expr, block_shape: Array<PrimExpr>, pads: Array<PrimExpr>, layout: TVMString) -> Expr;

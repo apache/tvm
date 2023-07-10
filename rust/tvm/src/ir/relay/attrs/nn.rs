@@ -190,6 +190,22 @@ pub struct GlobalPool2DAttrsNode {
 
 #[repr(C)]
 #[derive(Object, Debug)]
+#[ref_name = "MaxPool1DAttrs"]
+#[type_key = "relay.attrs.MaxPool1DAttrs"]
+pub struct MaxPool1DAttrsNode {
+    pub base: BaseAttrsNode,
+    pub pool_size: Array<IndexExpr>,
+    pub strides: Array<IndexExpr>,
+    pub padding: Array<IndexExpr>,
+    pub dilation: Array<IndexExpr>,
+    pub layout: TString,
+    pub out_layout: TString,
+    pub ceil_mode: bool,
+}
+
+
+#[repr(C)]
+#[derive(Object, Debug)]
 #[ref_name = "MaxPool2DAttrs"]
 #[type_key = "relay.attrs.MaxPool2DAttrs"]
 pub struct MaxPool2DAttrsNode {
@@ -199,6 +215,23 @@ pub struct MaxPool2DAttrsNode {
     pub padding: Array<IndexExpr>,
     pub dilation: Array<IndexExpr>,
     pub layout: TString,
+    pub out_layout: TString,
+    pub ceil_mode: bool,
+}
+
+
+#[repr(C)]
+#[derive(Object, Debug)]
+#[ref_name = "MaxPool3DAttrs"]
+#[type_key = "relay.attrs.MaxPool3DAttrs"]
+pub struct MaxPool3DAttrsNode {
+    pub base: BaseAttrsNode,
+    pub pool_size: Array<IndexExpr>,
+    pub strides: Array<IndexExpr>,
+    pub padding: Array<IndexExpr>,
+    pub dilation: Array<IndexExpr>,
+    pub layout: TString,
+    pub out_layout: TString,
     pub ceil_mode: bool,
 }
 
@@ -234,6 +267,22 @@ pub struct LeakyReluAttrsNode {
 
 #[repr(C)]
 #[derive(Object, Debug)]
+#[ref_name = "AvgPool1DAttrs"]
+#[type_key = "relay.attrs.AvgPool1DAttrs"]
+pub struct AvgPool1DAttrsNode {
+    pub base: BaseAttrsNode,
+    pub pool_size: Array<IndexExpr>,
+    pub strides: Array<IndexExpr>,
+    pub padding: Array<IndexExpr>,
+    pub dilation: Array<IndexExpr>,
+    pub layout: TString,
+    pub out_layout: TString,
+    pub ceil_mode: bool,
+    pub count_include_pad: bool,
+}
+
+#[repr(C)]
+#[derive(Object, Debug)]
 #[ref_name = "AvgPool2DAttrs"]
 #[type_key = "relay.attrs.AvgPool2DAttrs"]
 pub struct AvgPool2DAttrsNode {
@@ -243,6 +292,23 @@ pub struct AvgPool2DAttrsNode {
     pub padding: Array<IndexExpr>,
     pub dilation: Array<IndexExpr>,
     pub layout: TString,
+    pub out_layout: TString,
+    pub ceil_mode: bool,
+    pub count_include_pad: bool,
+}
+
+#[repr(C)]
+#[derive(Object, Debug)]
+#[ref_name = "AvgPool3DAttrs"]
+#[type_key = "relay.attrs.AvgPool3DAttrs"]
+pub struct AvgPool3DAttrsNode {
+    pub base: BaseAttrsNode,
+    pub pool_size: Array<IndexExpr>,
+    pub strides: Array<IndexExpr>,
+    pub padding: Array<IndexExpr>,
+    pub dilation: Array<IndexExpr>,
+    pub layout: TString,
+    pub out_layout: TString,
     pub ceil_mode: bool,
     pub count_include_pad: bool,
 }
