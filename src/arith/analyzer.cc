@@ -25,6 +25,7 @@
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 
+#include "const_fold.h"
 #include "product_normal_form.h"
 
 namespace tvm {
@@ -61,6 +62,56 @@ void Analyzer::Bind(const Var& var, const Range& range, bool allow_override) {
   }
   // skip modular_set
   // skip rewrite simplify
+}
+
+void Analyzer::MarkGlobalNonNegValue(const PrimExpr& value) {
+  // decompose value as symbol * scale + offset
+  int64_t offset = 0;
+  PrimExpr symbol_scale = tir::make_const(value.dtype(), 0);
+
+  auto fcollect_sum = [&](PrimExpr val, int sign) {
+    if (const auto* intimm = val.as<IntImmNode>()) {
+      offset += intimm->value * sign;
+    } else {
+      if (sign > 0) {
+        symbol_scale = symbol_scale + val;
+      } else {
+        symbol_scale = symbol_scale - val;
+      }
+    }
+  };
+  UnpackSum(value, fcollect_sum);
+
+  // split out the symbol and non-symbolic part
+  int64_t cscale = 1;
+  PrimExpr symbol = tir::make_const(value.dtype(), 1);
+  auto fcollect_prod = [&](PrimExpr val) {
+    if (const auto* intimm = val.as<IntImmNode>()) {
+      cscale *= intimm->value;
+    } else {
+      symbol = symbol * val;
+    }
+  };
+  UnpackReduction<tir::MulNode>(symbol_scale, fcollect_prod);
+  if (cscale <= 0) return;
+  // override the constant int bound by marking it as non-negative
+  // NOTE: there might be future opportunities of more bound hint
+  // this is a simple step and covers all the current needs
+  //
+  // We may consider enhance the sub analyzer to directly take
+  // MarkPositiveVar so their bounds do not overlap
+  if (const auto* var_ptr = symbol.as<VarNode>()) {
+    Var var = GetRef<Var>(var_ptr);
+    // skip non-index type, keep it to be compatible
+    // with any_dim that do not represent any value
+    if (!IsIndexType(var.dtype())) return;
+    bool allow_override = true;
+    // mark the constant bound is sufficient
+    // we cannot mark interval set as that will cause relaxation of the var
+    // during bound proof which is not our intention
+    this->const_int_bound.Update(var, ConstIntBound(-offset, ConstIntBound::kPosInf),
+                                 allow_override);
+  }
 }
 
 void Analyzer::Bind(const Map<Var, Range>& variables, bool allow_override) {

@@ -14,3 +14,5 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Schedule for arm_cpu targets supporting DSP"""
+from .pool import schedule_pool

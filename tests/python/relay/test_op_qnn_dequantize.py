@@ -23,13 +23,19 @@ from tvm.contrib import graph_executor
 from tvm.relay.testing import run_infer_type
 
 
-def dequantize_test_driver(in_dtype, quant_args, in_data, verify_output_data, axis):
+def dequantize_test_driver(
+    in_dtype, quant_args, in_data, verify_output_data, axis, out_dtype="float32"
+):
     shape = in_data.shape
     input_data = relay.var("input_data", shape=shape, dtype=in_dtype)
     input_zero_point = relay.const(quant_args["in_zero_point"], "int32")
     input_scale = relay.const(quant_args["in_scale"], "float32")
     quantized_output = relay.qnn.op.dequantize(
-        input_data, input_scale=input_scale, input_zero_point=input_zero_point, axis=axis
+        input_data,
+        input_scale=input_scale,
+        input_zero_point=input_zero_point,
+        axis=axis,
+        out_dtype=out_dtype,
     )
     mod = relay.Function(relay.analysis.free_vars(quantized_output), quantized_output)
     mod = tvm.IRModule.from_expr(mod)
@@ -41,7 +47,7 @@ def dequantize_test_driver(in_dtype, quant_args, in_data, verify_output_data, ax
         rt_mod.run()
         res = rt_mod.get_output(0).numpy()
         np.testing.assert_equal(res, verify_output_data)
-        assert res.dtype == np.float32
+        assert res.dtype == out_dtype
 
 
 def test_uint8_to_float32():
@@ -71,6 +77,28 @@ def test_int8_to_float32():
     quant_args = {"in_zero_point": -1, "in_scale": 0.5}
     dequantize_test_driver(
         in_dtype="int8", quant_args=quant_args, in_data=data, verify_output_data=output, axis=-1
+    )
+
+
+def test_int8_to_float16():
+    data = (
+        np.array([-128, -127, -126, -125, -124, 123, 124, 125, 126, 127])
+        .astype("int8")
+        .reshape((2, 5))
+    )
+    output = (
+        np.array([-63.5, -63, -62.5, -62, -61.5, 62, 62.5, 63, 63.5, 64])
+        .astype("float16")
+        .reshape((2, 5))
+    )
+    quant_args = {"in_zero_point": -1, "in_scale": 0.5}
+    dequantize_test_driver(
+        in_dtype="int8",
+        quant_args=quant_args,
+        in_data=data,
+        verify_output_data=output,
+        axis=-1,
+        out_dtype="float16",
     )
 
 
@@ -171,6 +199,7 @@ def test_dynamic_dequantize():
 if __name__ == "__main__":
     test_uint8_to_float32()
     test_int8_to_float32()
+    test_int8_to_float16()
     test_scalar_int8_to_float32()
     test_int32_to_float32()
     test_channelwise_axis_1()

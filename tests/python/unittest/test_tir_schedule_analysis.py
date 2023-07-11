@@ -16,30 +16,39 @@
 # under the License.
 # pylint: disable=missing-docstring
 from typing import List
+
 import pytest
 import tvm
 import tvm.testing
+from tvm.meta_schedule.testing import te_workload
+from tvm.script import tir as T
+from tvm.te import create_prim_func
+from tvm.tir import (
+    Evaluate,
+    For,
+    ForKind,
+    IndexMap,
+    Schedule,
+    Var,
+    decl_buffer,
+    floordiv,
+    floormod,
+)
+from tvm.tir.analysis import expr_deep_equal
 from tvm.tir.function import TensorIntrin
-from tvm.tir.tensor_intrin.x86 import dot_product_16x4_u8i8i32_desc
+from tvm.tir.schedule.analysis import (
+    TensorizeInfo,
+    get_auto_tensorize_mapping_info,
+    get_tensorize_loop_mapping,
+    is_output_block,
+    suggest_index_map,
+)
+from tvm.tir.stmt_functor import pre_order_visit
 from tvm.tir.tensor_intrin.cuda import (
     WMMA_SYNC_16x16x16_f16f16f16_INTRIN,
     WMMA_SYNC_16x16x16_f16f16f32_INTRIN,
 )
-
-
-from tvm.tir import Evaluate, For, ForKind, IndexMap, Var, decl_buffer, floordiv, floormod, Schedule
-from tvm.tir.analysis import expr_deep_equal
-from tvm.tir.schedule.analysis import (
-    get_auto_tensorize_mapping_info,
-    suggest_index_map,
-    get_tensorize_loop_mapping,
-    TensorizeInfo,
-)
-from tvm.script import tir as T
-from tvm.tir.stmt_functor import pre_order_visit
-from tvm.meta_schedule.testing import te_workload
-from tvm.te import create_prim_func
-from tvm.tir.schedule.analysis import is_output_block
+from tvm.tir.tensor_intrin.x86 import dot_product_16x4_u8i8i32_desc
 
 
 def _make_vars(*args: str) -> List[Var]:
@@ -322,7 +331,7 @@ def test_get_tensorize_loop_mapping_padding_matmul():
     desc = TensorIntrin.get(WMMA_SYNC_16x16x16_f16f16f16_INTRIN).desc
     info = get_tensorize_loop_mapping(s, block, desc, allow_padding=True)
     assert info is not None
-    expected_padding = [1, 0, 15]
+    expected_padding = [16, 1, 16]
     actual_padding = info.block_iter_paddings
     assert actual_padding is not None
     assert len(actual_padding) == len(expected_padding)

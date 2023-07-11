@@ -252,6 +252,16 @@ Array<ExprRV> ConcreteScheduleNode::SamplePerfectTile(const LoopRV& loop_rv, int
   throw;
 }
 
+Array<ExprRV> ConcreteScheduleNode::SamplePartitionedTile(const LoopRV& loop_rv, int n,
+                                                          int partition_pos, int innerpart_factor,
+                                                          Optional<Array<Integer>> decision) {
+  TVM_TIR_SCHEDULE_BEGIN();
+  return CreateRV(tir::SamplePartitionedTile(&this->rand_state_, this->GetSRef(loop_rv), n,
+                                             partition_pos, innerpart_factor, &decision));
+  TVM_TIR_SCHEDULE_END("sample-partitioned-tile", this->error_render_level_);
+  throw;
+}
+
 LoopRV ConcreteScheduleNode::SampleComputeLocation(const BlockRV& block_rv,
                                                    Optional<Integer> decision) {
   TVM_TIR_SCHEDULE_BEGIN();
@@ -951,6 +961,14 @@ void ConcreteScheduleNode::RollingBuffer(const BlockRV& block_rv, int write_buff
 }
 
 /******** Schedule: Misc ********/
+
+void ConcreteScheduleNode::UnsafeHideBufferAccess(const BlockRV& block_rv, const String& buf_type,
+                                                  const Array<IntImm>& buf_index_array) {
+  TVM_TIR_SCHEDULE_BEGIN();
+  tir::UnsafeHideBufferAccess(state_, this->GetSRef(block_rv), buf_type, buf_index_array);
+  TVM_TIR_SCHEDULE_END("hide-buffer-access", this->error_render_level_);
+  this->state_->DebugVerify();
+}
 
 }  // namespace tir
 }  // namespace tvm

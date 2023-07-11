@@ -27,6 +27,7 @@
 #include <tvm/tir/stmt_functor.h>
 
 #include "../ir/functor_common.h"
+#include "tvm/ir/module.h"
 
 namespace tvm {
 namespace tir {
@@ -142,7 +143,29 @@ bool VerifyWellFormed(const PrimFunc& func, bool assert_mode) {
   return true;
 }
 
-TVM_REGISTER_GLOBAL("tir.analysis.VerifyWellFormed").set_body_typed(VerifyWellFormed);
+bool VerifyWellFormed(const IRModule& mod, bool assert_mode) {
+  for (const auto& [gvar, base_func] : mod->functions) {
+    if (auto prim_func = base_func.as<PrimFunc>()) {
+      bool res = VerifyWellFormed(prim_func.value(), assert_mode);
+      if (!res) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+TVM_REGISTER_GLOBAL("tir.analysis.VerifyWellFormed")
+    .set_body_typed([](const ObjectRef& obj, bool assert_mode) {
+      if (auto opt = obj.as<PrimFunc>()) {
+        return VerifyWellFormed(opt.value(), assert_mode);
+      } else if (auto opt = obj.as<IRModule>()) {
+        return VerifyWellFormed(opt.value(), assert_mode);
+      } else {
+        LOG(FATAL) << "Expected VerifyWellFormed argument to be a PrimFunc or IRModule, but found "
+                   << obj->GetTypeKey();
+      }
+    });
 
 }  // namespace tir
 }  // namespace tvm

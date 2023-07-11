@@ -339,6 +339,23 @@ def test_floormod_negative_divisor():
     assert bd.max_value == 6
 
 
+def test_divmod_assume_no_zero_divsor():
+    # Divmod non negative expression makes assumption that divide by zero won't occur
+    # this assumption is important to get best result from symbolic shape programs
+    analyzer = tvm.arith.Analyzer()
+    flm, fld = tvm.te.floormod, tvm.te.floordiv
+    a, b = te.var("a"), te.var("b")
+    analyzer.update(a, tvm.arith.ConstIntBound(0, 6))
+    analyzer.update(b, tvm.arith.ConstIntBound(0, tvm.arith.ConstIntBound.POS_INF))
+    bd = analyzer.const_int_bound(fld(a, b))
+    assert bd.min_value == 0
+    assert bd.max_value == 6
+
+    bd = analyzer.const_int_bound(flm(a, b))
+    assert bd.min_value == 0
+    assert bd.max_value == 6
+
+
 def test_multiple_condition():
     analyzer = tvm.arith.Analyzer()
     flm, fld = tvm.te.floormod, tvm.te.floordiv

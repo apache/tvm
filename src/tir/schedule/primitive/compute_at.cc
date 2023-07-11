@@ -692,6 +692,7 @@ void ComputeAtOrReverseComputeAtImpl(ScheduleState self, const StmtSRef& block_s
   StmtSRef scope_root_sref = GetScopeRoot(self, block_sref,
                                           /*require_stage_pipeline=*/true);
   Block scope_root = GetRef<Block>(scope_root_sref->StmtAs<BlockNode>());
+  AddShapeVarBounds(self, scope_root_sref.get(), analyzer);
   BlockScope scope = self->GetBlockScope(scope_root_sref);
   Array<StmtSRef> producer_srefs = GetProducers(block_sref, scope);
   Array<StmtSRef> consumer_srefs = GetConsumers(block_sref, scope);

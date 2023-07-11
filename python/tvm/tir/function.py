@@ -67,7 +67,6 @@ class PrimFunc(BaseFunc, Scriptable):
         attrs=None,
         span=None,
     ):
-
         param_list = []
         buffer_map = {} if buffer_map is None else buffer_map
         for x in params:
@@ -266,6 +265,8 @@ class IndexMap(Object):
         mapping_function: Callable,
         ndim: Optional[int] = None,
         inverse_index_map: Union[Callable, Optional["IndexMap"]] = None,
+        *,
+        index_dtype: str = "int64",
     ):
         """Create an index map from a function
 
@@ -302,7 +303,10 @@ class IndexMap(Object):
 
         """
         index_map, axis_separators = IndexMap.from_func_with_separators(
-            mapping_function, ndim, inverse_index_map
+            mapping_function,
+            ndim,
+            inverse_index_map,
+            index_dtype=index_dtype,
         )
         assert not axis_separators, (
             "The mapping_function provided to IndexMap.from_func "
@@ -316,6 +320,8 @@ class IndexMap(Object):
         mapping_function: Callable,
         ndim: Optional[int] = None,
         inverse_index_map: Union[Callable, Optional["IndexMap"]] = None,
+        *,
+        index_dtype: str = "int64",
     ):
         """Create an index map from a function
 
@@ -346,6 +352,9 @@ class IndexMap(Object):
             It is the user's responsibility to ensure the correctness of the pre-defined inverse
             index map.
 
+        index_dtype : str
+            The default index dtype to use for input iters in the mapping function.
+
         Returns
         -------
         ret: Tuple[IndexMap, List[int]]
@@ -361,20 +370,19 @@ class IndexMap(Object):
         args = []
         var_arg_name = None
         kwargs = collections.OrderedDict()
-        default_index_dtype = "int32"
 
         for name, param in params.items():
             if param.kind in [
                 inspect.Parameter.POSITIONAL_ONLY,
                 inspect.Parameter.POSITIONAL_OR_KEYWORD,
             ]:
-                args.append(tvm.tir.Var(name, default_index_dtype))
+                args.append(tvm.tir.Var(name, index_dtype))
 
             elif param.kind == inspect.Parameter.VAR_POSITIONAL:
                 var_arg_name = name
 
             elif param.kind == inspect.Parameter.KEYWORD_ONLY:
-                kwargs[name] = tvm.tir.Var(name, default_index_dtype)
+                kwargs[name] = tvm.tir.Var(name, index_dtype)
 
             else:
                 raise ValueError("transform_layout mapping may not have *args")
@@ -386,7 +394,7 @@ class IndexMap(Object):
             assert ndim is not None, "ndim must be specified when *args is used"
             num_var_args = ndim - len(args) - len(kwargs)
             for i in range(num_var_args):
-                args.append(tvm.tir.Var(f"{var_arg_name}_{i}", default_index_dtype))
+                args.append(tvm.tir.Var(f"{var_arg_name}_{i}", index_dtype))
 
         mapping = mapping_function(*args, **kwargs)
 

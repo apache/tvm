@@ -138,6 +138,22 @@ def test_copy_constants():
     assert ".global" in sch.stages[19].op.name
 
 
+def test_no_copy_constants():
+    ifm_a = relay.var("IFM_A", shape=(1, 26, 26, 32), dtype="int8")
+    conv_a = make_ethosu_conv2d(ifm_a, 32, 8, (3, 3), (0, 0), (1, 1), (1, 1))
+    conv_b = make_ethosu_conv2d(conv_a, 8, 4, (1, 1), (0, 0), (1, 1), (1, 1))
+    func = relay.Function(relay.analysis.free_vars(conv_b), conv_b)
+    func = run_opt_pass(func, relay.transform.InferType())
+
+    func, _ = extract_constants(func)
+    cached_func = lower_to_te(func)
+
+    sch = te.create_schedule([cached_func.outputs[0].op])
+    assert len(sch.stages) == 19
+    ops_names = [x.op.name for x in sch.stages]
+    assert all(".global" not in x for x in ops_names)
+
+
 # This test makes sure that constants and LUTs have a correct storage scope
 def test_copy_luts():
     ifm_shape = (1, 33, 33, 11)

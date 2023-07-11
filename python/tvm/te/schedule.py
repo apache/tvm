@@ -22,13 +22,12 @@ from typing import Callable, List
 
 import tvm._ffi
 from tvm._ffi.base import string_types
-
-from tvm.runtime import Object, convert
 from tvm.ir import container as _container
-from tvm.tir import IterVar, Buffer, Var, IndexMap
+from tvm.runtime import Object, convert
+from tvm.tir import Buffer, IndexMap, IterVar, Var
 
-from . import tensor as _tensor
 from . import _ffi_api
+from . import tensor as _tensor
 
 
 @tvm._ffi.register_object
@@ -600,7 +599,9 @@ class Stage(Object):
         """
 
         ndim = len(self.op.output(0).shape)
-        index_map, axis_separators = IndexMap.from_func_with_separators(mapping_function, ndim=ndim)
+        index_map, axis_separators = IndexMap.from_func_with_separators(
+            mapping_function, ndim=ndim, index_dtype="int32"
+        )
 
         new_iter_vars = _ffi_api.StageTransformLayout(
             self, index_map.initial_indices, index_map.final_indices

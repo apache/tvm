@@ -42,6 +42,7 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
     arith::Analyzer ana;
     auto pass = BufferFlattener(&ana);
     auto writer = func.CopyOnWrite();
+    pass.MarkBufferMapShapes(func);
     writer->body = pass.VisitStmt(func->body);
     // The buffers in func->buffer_map are deliberately left
     // unflattened, as they are used for validation of user-provided
@@ -219,18 +220,7 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
 
   Array<PrimExpr> GetSimplifiedElemOffset(const Buffer& buffer, const Array<PrimExpr>& indices) {
     auto flattened_indices = buffer->ElemOffset(indices);
-    // Use IterMapSimplify to enable constant fold of fused indices
-    // IterMapSimplify is more powerful and time-consuming than normal
-    // simplify as it tries to deal with symbolic fusion
-    //
-    // Only use to handle indices during layout transformations
-    // So we restrict the use to here
-    PrimExpr pred = const_true();
-    for (PrimExpr val : iter_predicates_) {
-      pred = pred && val;
-    }
-    return arith::IterMapSimplify(flattened_indices, this->iter_vars_, pred,
-                                  arith::IterMapLevel::Surjective, this->analyzer_);
+    return this->IterMapSimplifyWithContext(flattened_indices, false);
   }
 
   template <typename Node>

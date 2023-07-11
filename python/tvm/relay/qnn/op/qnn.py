@@ -186,8 +186,8 @@ def requantize(
 
 def quantize(data, output_scale, output_zero_point, axis=-1, out_dtype="int8"):
     r"""Quantize op
-    This operator takes float32 as input and produces quantized int8 or unit8 as output.
-    The input tensor can be of any shape. The output shape is the same as input shape.
+    This operator takes float32 input and produces quantized output. The input
+    tensor can be of any shape. The output shape is the same as input shape.
 
     Q_output = clamp((round(input_tensor/output_scale) + output_zero_point),
                      out_dtype::min,
@@ -206,8 +206,9 @@ def quantize(data, output_scale, output_zero_point, axis=-1, out_dtype="int8"):
 
     axis : int
         The channel axis for quantization. Default value is -1 which corresponds to the last axis.
+
     out_dtype : str, optional
-        The data type of the input tensor. Can be [int8, uint8, int32]
+        The data type of the output tensor. Can be [int8, unit8, int16, uint16, int32].
 
     Returns
     -------
@@ -256,16 +257,15 @@ def simulated_quantize(data, output_scale, output_zero_point, axis=-1, out_dtype
     return _make.simulated_quantize(data, out_dtype, output_scale, output_zero_point, axis)
 
 
-def dequantize(data, input_scale, input_zero_point, axis=-1):
+def dequantize(data, input_scale, input_zero_point, axis=-1, out_dtype="float32"):
     r"""Dequantize op
-    This operator takes quantized int8 and unit8 as input and produces
-    dequantized float32 as output. The output shape is the same as input shape. The input
-    tensor can be of any shape.
+    This operator takes quantized input and produces dequantized float output.
+    The output shape is the same as input shape. The input tensor can be of any shape.
 
     Parameters
     ----------
     data : tvm.relay.Expr
-        The input tensor to be dequantized. Can be of type [int8, uint8, int32].
+        The input tensor to be dequantized. Can be of type [int8, unit8, int16, uint16, int32].
 
     input_scale : tvm.relay.Expr
         The input scale.
@@ -276,13 +276,16 @@ def dequantize(data, input_scale, input_zero_point, axis=-1):
     axis : int
         The channel axis for quantization. Default value is -1 which corresponds to the last axis.
 
+    out_dtype : str, optional
+        The data type of the output tensor. Can be [float16, float32].
+
     Returns
     -------
     result : tvm.relay.Expr
         The computed result.
     """
 
-    return _make.dequantize(data, input_scale, input_zero_point, axis)
+    return _make.dequantize(data, input_scale, input_zero_point, axis, out_dtype)
 
 
 def simulated_dequantize(data, input_scale, input_zero_point, axis=-1, in_dtype="int8"):

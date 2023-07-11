@@ -15,16 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 import pytest
-
 import tvm
-import tvm.testing
 import tvm.meta_schedule as ms
+import tvm.testing
 from tvm.script import tir as T
-from tvm.tir import Schedule, floormod, floordiv
-from tvm.tir.tensor_intrin.cuda import *
 from tvm.target import Target
 from tvm.target.codegen import llvm_lookup_intrinsic_id
-
+from tvm.tir import Schedule, floordiv, floormod
+from tvm.tir.tensor_intrin.cuda import *
 from tvm.tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
 
 
@@ -1885,6 +1883,7 @@ def test_dense_add_cpu():
                     ((i0 * 64) + i2),
                     i1,
                 ),
+                index_dtype="int32",
             ),
             pad_value=None,
         )
@@ -1950,6 +1949,7 @@ def test_dense_add_cpu_no_write_cache():
                     ((i1 * 32) + i3),
                     ((i0 * 16) + i2),
                 ),
+                index_dtype="int32",
             ),
             pad_value=None,
         )

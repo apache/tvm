@@ -955,10 +955,13 @@ def _convert_concat(
     if input_shape is None:
         input_shape = keras_layer.input_shape
 
-    if data_layout == "NHWC" or len(input_shape[0]) < 4:
-        axis = -1
-    else:
-        axis = 1
+    axis = keras_layer.axis
+    dims = len(input_shape[0])
+    if data_layout == "NCHW":  # need_transpose
+        if axis == -1:
+            axis = 1
+        else:
+            axis = axis + 1 if axis < dims else 1
     return _op.concatenate(_as_list(inexpr), axis=axis)
 
 
@@ -1002,6 +1005,8 @@ def _convert_lstm(
     recurrent_weight = etab.new_const(weightList[1].transpose([1, 0]))
     if keras_layer.use_bias:
         in_bias = etab.new_const(weightList[2])
+    if keras_layer.go_backwards:
+        in_data = _op.reverse(in_data, axis=1)
     units = list(weightList[0].shape)[1]
     time_steps = in_shape[1]
     in_data = _op.squeeze(in_data, axis=[0])

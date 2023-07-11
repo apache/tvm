@@ -1269,6 +1269,20 @@ StmtSRef GetSRefTreeRoot(const StmtSRef& sref) {
   return GetRef<StmtSRef>(p);
 }
 
+void AddShapeVarBounds(const ScheduleState& state, const StmtSRefNode* sref,
+                       arith::Analyzer* analyzer) {
+  while (sref->parent != nullptr) {
+    sref = sref->parent;
+  }
+  const PrimFuncNode* f = GetRootPrimFunc(state->mod, sref->stmt, nullptr);
+  for (const auto& kv : f->buffer_map) {
+    const Buffer& buffer = kv.second;
+    for (const PrimExpr& e : buffer->shape) {
+      analyzer->MarkGlobalNonNegValue(e);
+    }
+  }
+}
+
 /******** Misc ********/
 
 bool HasOp(const Stmt& stmt, const Array<Op>& ops) {
@@ -1829,7 +1843,7 @@ Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& self,
         if (allow_padding) {
           // If the block loop is not divisible by the desc loop, we pad the block loop to make it
           // divisible if padding is allowed.
-          block_index_to_padding[current_block_ind] = int_desc_extent->value - remainder;
+          block_index_to_padding[current_block_ind] = int_desc_extent->value;
         } else {
           return NullOpt;
         }
@@ -1853,7 +1867,7 @@ Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& self,
       if (auto it = block_index_to_padding.find(i); it != block_index_to_padding.end()) {
         paddings.push_back(IntImm(iter_var->var.dtype(), it->second));
       } else {
-        paddings.push_back(IntImm(iter_var->var.dtype(), 0));
+        paddings.push_back(IntImm(iter_var->var.dtype(), 1));
       }
     }
     ret->block_iter_paddings = std::move(paddings);

@@ -606,7 +606,7 @@ def create_prim_func(
             B = T.match_buffer(b, (128, 128))
             C = T.match_buffer(c, (128, 128))
 
-            for i, j, k in T.grip(128, 128, 128):
+            for i, j, k in T.grid(128, 128, 128):
                 with T.block():
                     vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                     with T.init():

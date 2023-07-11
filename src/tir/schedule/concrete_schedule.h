@@ -91,6 +91,9 @@ class ConcreteScheduleNode : public ScheduleNode {
                            Optional<Integer> decision = NullOpt) override;
   Array<ExprRV> SamplePerfectTile(const LoopRV& loop_rv, int n, int max_innermost_factor,
                                   Optional<Array<Integer>> decision = NullOpt) override;
+  Array<ExprRV> SamplePartitionedTile(const LoopRV& loop_rv, int n, int partition_pos,
+                                      int innerpart_factor,
+                                      Optional<Array<Integer>> decision = NullOpt) override;
   LoopRV SampleComputeLocation(const BlockRV& block_rv,
                                Optional<Integer> decision = NullOpt) override;
   /******** Schedule: Get blocks & loops ********/
@@ -175,6 +178,8 @@ class ConcreteScheduleNode : public ScheduleNode {
   void RollingBuffer(const BlockRV& block_rv, int write_buffer_index) override;
   /******** Schedule: Misc ********/
   void EnterPostproc() override {}
+  void UnsafeHideBufferAccess(const BlockRV& block_rv, const String& buf_type,
+                              const Array<IntImm>& buf_index_array) override;
 
  protected:
   /******** Utility functions ********/

@@ -18,6 +18,7 @@
 # pylint: disable=invalid-name
 import ctypes
 import json
+
 import numpy as np
 
 try:
@@ -97,6 +98,7 @@ class DataType(ctypes.Structure):
         np.dtype(np.float_): "float64",
     }
     STR2DTYPE = {
+        "void": {"type_code": DataTypeCode.HANDLE, "bits": 0, "lanes": 0},
         "bool": {"type_code": DataTypeCode.UINT, "bits": 1, "lanes": 1},
         "int8": {"type_code": DataTypeCode.INT, "bits": 8, "lanes": 1},
         "int16": {"type_code": DataTypeCode.INT, "bits": 16, "lanes": 1},
@@ -175,6 +177,8 @@ class DataType(ctypes.Structure):
 
     def __repr__(self):
         # pylint: disable=import-outside-toplevel
+        if self.bits == 0 and self.lanes == 0:
+            return "void"
         if self.bits == 1 and self.lanes == 1:
             return "bool"
         if self.type_code in DataType.CODE2STR:
