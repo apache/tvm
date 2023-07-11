@@ -1492,7 +1492,11 @@ def test_rms_norm():
     @I.ir_module
     class Module:
         @T.prim_func
-        def rms_norm1(A: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16"), B: T.Buffer((T.int64(4096),), "float16"), rms_norm: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16")):
+        def rms_norm(
+            A: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16"),
+            B: T.Buffer((T.int64(4096),), "float16"),
+            rms_norm: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16"),
+        ):
             T.func_attr({"tir.noalias": T.bool(True)})
             # with T.block("root"):
             Ared_temp = T.alloc_buffer((T.int64(1), T.int64(1)))
@@ -1503,19 +1507,36 @@ def test_rms_norm():
                     T.writes(Ared_temp[v_bsz, v_i])
                     with T.init():
                         Ared_temp[v_bsz, v_i] = T.float32(0)
-                    Ared_temp[v_bsz, v_i] = Ared_temp[v_bsz, v_i] + T.Cast("float32", A[v_bsz, v_i, v_k]) * T.Cast("float32", A[v_bsz, v_i, v_k])
+                    Ared_temp[v_bsz, v_i] = Ared_temp[v_bsz, v_i] + T.Cast(
+                        "float32", A[v_bsz, v_i, v_k]
+                    ) * T.Cast("float32", A[v_bsz, v_i, v_k])
             for bsz, i, k in T.grid(T.int64(1), T.int64(1), T.int64(4096)):
                 with T.block("rms_norm"):
                     v_bsz, v_i, v_k = T.axis.remap("SSS", [bsz, i, k])
                     T.reads(B[v_k], A[v_bsz, v_i, v_k], Ared_temp[v_bsz, v_i])
                     T.writes(rms_norm[v_bsz, v_i, v_k])
-                    rms_norm[v_bsz, v_i, v_k] = T.Cast("float16", T.Cast("float32", B[v_k]) * (T.Cast("float32", A[v_bsz, v_i, v_k]) / T.sqrt(Ared_temp[v_bsz, v_i] * T.float32(0.000244140625) + T.float32(9.9999999999999995e-07))))
+                    rms_norm[v_bsz, v_i, v_k] = T.Cast(
+                        "float16",
+                        T.Cast("float32", B[v_k])
+                        * (
+                            T.Cast("float32", A[v_bsz, v_i, v_k])
+                            / T.sqrt(
+                                Ared_temp[v_bsz, v_i] * T.float32(0.000244140625)
+                                + T.float32(9.9999999999999995e-07)
+                            )
+                        ),
+                    )
 
         @R.function
-        def main(input: R.Tensor((1, 1, 4096), dtype="float16"), weight: R.Tensor((4096,), dtype="float16")) -> R.Tensor((1, 1, 4096), dtype="float16"):
+        def main(
+            input: R.Tensor((1, 1, 4096), dtype="float16"),
+            weight: R.Tensor((4096,), dtype="float16"),
+        ) -> R.Tensor((1, 1, 4096), dtype="float16"):
             cls = Module
             with R.dataflow():
-                lv = R.call_tir(cls.rms_norm1, (input, weight), out_sinfo=R.Tensor((1, 1, 4096), dtype="float16"))
+                lv = R.call_tir(
+                    cls.rms_norm, (input, weight), out_sinfo=R.Tensor((1, 1, 4096), dtype="float16")
+                )
                 R.output(lv)
             return lv
 
@@ -1535,4 +1556,3 @@ def test_rms_norm():
 
 if __name__ == "__main__":
     tvm.testing.main()
-    # test_rms_norm()

@@ -800,5 +800,4 @@ def instantiate_template(func_name, annotations, func_args):
         code = instantiate_rms_norm_template(attrs)
         return CodegenResult(code, headers)
 
-
     raise ValueError(f"Do not have a template for {func_name}")

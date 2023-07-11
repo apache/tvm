@@ -475,19 +475,14 @@ def layer_norm_pattern():
 
 def _check_rms_norm(ctx: PatternCheckContext) -> bool:
     rms_norm = ctx.annotated_expr["rms_norm"]
-    if "rms_norm1" not in rms_norm.args[0].name_hint:
-        return False
-
-    inp = rms_norm.args[1][0]
-    if inp.struct_info.shape[-1] % 8 != 0 or inp.struct_info.dtype != "float16":
+    if "rms_norm" not in rms_norm.args[0].name_hint:
         return False
 
     return True
 
 
-
 def rms_norm_pattern():
-    """Create a layer norm pattern for CUTLASS."""
+    """Create a RMS norm pattern for CUTLASS."""
     return [
         (
             "cutlass.rms_norm",
@@ -520,7 +515,7 @@ register_patterns(
         *residual_block_patterns(),
         *attention_patterns(),
         *layer_norm_pattern(),
-        *rms_norm_pattern()
+        *rms_norm_pattern(),
     ]
 )
 
