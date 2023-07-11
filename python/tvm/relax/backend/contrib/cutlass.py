@@ -42,6 +42,7 @@ from ..patterns import (
     make_attention_rewrite_pattern,
     make_fused_bias_activation_pattern,
     make_layer_norm_pattern,
+    make_rms_norm_pattern,
     make_matmul_pattern,
     make_residual_block_pattern,
     make_stacked_attention_pattern,
@@ -472,6 +473,25 @@ def layer_norm_pattern():
     ]
 
 
+def _check_rms_norm(ctx: PatternCheckContext) -> bool:
+    rms_norm = ctx.annotated_expr["rms_norm"]
+    if "rms_norm" not in rms_norm.args[0].name_hint:
+        return False
+
+    return True
+
+
+def rms_norm_pattern():
+    """Create a RMS norm pattern for CUTLASS."""
+    return [
+        (
+            "cutlass.rms_norm",
+            *make_rms_norm_pattern(),
+            _check_rms_norm,
+        ),
+    ]
+
+
 def attention_rewrite_patterns():
     """
     Returns a list of all attention rewriting patterns in cutlass BYOC backend.
@@ -495,6 +515,7 @@ register_patterns(
         *residual_block_patterns(),
         *attention_patterns(),
         *layer_norm_pattern(),
+        *rms_norm_pattern(),
     ]
 )
 

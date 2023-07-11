@@ -33,6 +33,7 @@ from .attention_operation import instantiate_attention_template
 from .conv2d_operation import instantiate_conv2d_template
 from .gemm_operation import instantiate_gemm_template, emit_fp16A_int4B_matmul
 from .layer_norm_operation import instantiate_layer_norm_template
+from .rms_norm_operation import instantiate_rms_norm_template
 from .library import (
     DataType,
     DataTypeSize,
@@ -790,6 +791,19 @@ def instantiate_template(func_name, annotations, func_args):
         attrs = {"input": func_args[0], "gamma": func_args[1], "beta": func_args[2]}
         attrs.update(dict(annotations))
         code = instantiate_layer_norm_template(attrs)
+        return CodegenResult(code, headers)
+    elif "rms_norm" in func_name:
+        headers.append("cutlass/util/device_rmsnorm.h")
+        headers.append("cutlass/layout/matrix.h")
+        attrs = {"input": func_args[0], "weight": func_args[1]}
+        attrs.update(dict(annotations))
+
+        if isinstance(attrs["M"], tvm.tir.Var):
+            attrs["M"] = " * ".join(
+                ["{}->shape[{}]".format(func_args[0], i) for i in range(int(attrs["batch_rank"]))]
+            )
+
+        code = instantiate_rms_norm_template(attrs)
         return CodegenResult(code, headers)
 
     raise ValueError(f"Do not have a template for {func_name}")
