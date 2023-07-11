@@ -156,6 +156,29 @@ def test_edge_binding_block_fake_unused_remove_all_unused():
     tvm.ir.assert_structural_equal(optimized, IdentityUnused["main"])
 
 
+def test_edge_binding_block_fake_unused_remove_all_unused2():
+    @tvm.script.ir_module
+    class IdentityUnused:
+        @R.function
+        def main(x: R.Tensor((3,), dtype="int64")) -> R.Tensor(dtype="int32", ndim=3):
+            m = T.int64()
+            n = T.int64()
+            k = T.int64()
+            with R.dataflow():
+                lv: R.Shape(ndim=3) = R.call_pure_packed(
+                    "vm.builtin.tensor_to_shape", x, sinfo_args=(R.Shape(ndim=3),)
+                )
+                lv1: R.Shape([m, n, k]) = R.match_cast(lv, R.Shape([m, n, k]))
+                gv: R.Tensor((m, n, k), dtype="int32") = R.full(
+                    R.shape([m, n, k]), R.const(1, "int32"), dtype="int32"
+                )
+                R.output(gv)
+            return gv
+
+    optimized = remove_all_unused(IdentityUnused["main"])
+    tvm.ir.assert_structural_equal(optimized, IdentityUnused["main"])
+
+
 def test_name_to_binding_var_shadowing():
     @R.function
     def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
