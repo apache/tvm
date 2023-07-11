@@ -95,7 +95,7 @@ This will:
 - Create a C header file outputs.c containing a C array where the output of inference will be stored
 - Build the Ethos(TM)-U55 core driver
 - Build the demo application
-- Run the demo application on a Fixed Virtual Platform (FVP) based on Arm(R) Corstone(TM)-300 software
+- Run the demo application on a Fixed Virtual Platform (FVP) based on Arm(R) Corstone(TM)-300 software or on the Alif Evaluation Kit
 - The application will display what the image has been classified as e.g. "The image has been classified as 'king penguin'"
 
 Using your own image

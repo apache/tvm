@@ -184,6 +184,7 @@ python3 -m tvm.driver.tvmc compile --target=ethos-u,cmsis-nn,c \
     --target-ethos-u-accelerator_config=ethos-u55-256 \
     --target-cmsis-nn-mcpu=cortex-m55 \
     --target-c-mcpu=cortex-m55 \
+    --target-ethos-u-disable_copying_constants=1 \
     --runtime=crt \
     --executor=aot \
     --executor-aot-interface-api=c \
