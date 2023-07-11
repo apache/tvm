@@ -17,8 +17,9 @@
 """The base parser for tir"""
 
 import contextlib
+import inspect
 from functools import partial
-from typing import Any
+from typing import Any, Union
 
 import tvm
 from tvm.ir import GlobalVar, PrimType
@@ -29,6 +30,8 @@ from ...ir_builder import tir as T
 from ...ir_builder.base import IRBuilder
 from ...ir_builder.base import IRBuilderFrame as Frame
 from .._core import Parser, dispatch, doc
+from ..core.parser import VarTable
+from .entry import TIRMacro
 
 
 def bind_with_value(self: Parser, node: doc.expr, var_name: str, value: Any) -> Any:
@@ -427,6 +430,12 @@ def visit_expr_stmt(self: Parser, node: doc.Expr) -> None:
     node : doc.Expr
         The doc AST Expr node.
     """
+
+    if isinstance(node.value, doc.Call):
+        callee = self.eval_expr(node.value.func)
+        if isinstance(callee, TIRMacro):
+            return expand_macro(self, callee, node.value)
+
     res = self.eval_expr(node.value)
     if res is None:
         pass
@@ -447,6 +456,7 @@ def visit_expr_stmt(self: Parser, node: doc.Expr) -> None:
         pass
     else:
         self.report_error(node, f"Parsing resulted in unexpected type {type(res)}")
+    return None  # For pylint
 
 
 @dispatch.register(token="tir", type_name="If")
@@ -528,3 +538,51 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> GlobalVar
     # Only ret_type is needed for func_signature.
     func_signature = tvm.tir.PrimFunc([], None, ret_type=ret_type)
     return I.decl_function(node.name, func_signature)
+
+
+def expand_macro(self: Parser, callee: TIRMacro, call: doc.Call) -> None:
+    """Bind arguments to the macro invocation to the parameters in the macro definition,
+    and pass the macro body for further parsing.
+    """
+
+    assert isinstance(callee, TIRMacro), f"Unexpected macro type {type(callee)}"
+
+    def find_macro_def(name: str, decl_list: doc.AST) -> Union[doc.FunctionDef, Any]:
+        for decl in decl_list:
+            if isinstance(decl, doc.FunctionDef) and decl.name == name:
+                return decl
+        return None
+
+    macro_def = find_macro_def(callee.__name__, callee.source_ast.body)
+    assert macro_def is not None, f"Invalid macro AST for {callee.__name__}"
+    # `macro_def` is the FunctionDef of the macro.
+
+    args = [self.eval_expr(arg) for arg in call.args]
+    kwargs = {kw.arg: self.eval_expr(kw.value) for kw in call.keywords}
+    param_binding = inspect.signature(callee.func).bind(*args, **kwargs)
+    param_binding.apply_defaults()
+    local_vars = param_binding.arguments
+
+    if callee.hygienic:
+        # If the macro was hygienic, construct new var_table with a single frame that
+        # contains the captured environment, and process the macro's body with that
+        # frame.
+        saved_var_table = self.var_table
+        self.var_table = VarTable()
+        with self.var_table.with_frame():
+            for k, v in callee.closure_vars.items():
+                self.var_table.add(k, v)
+            for k, v in local_vars.items():
+                self.var_table.add(k, v)
+
+            self.visit_body(macro_def.body)
+
+        self.var_table = saved_var_table
+
+    else:
+        # Otherwise, dynamically resolve symbols in the macro's body.
+        with self.var_table.with_frame():
+            for k, v in local_vars.items():
+                self.var_table.add(k, v)
+
+            self.visit_body(macro_def.body)
