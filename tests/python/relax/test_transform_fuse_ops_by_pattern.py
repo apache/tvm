@@ -66,7 +66,10 @@ class Conv2dReLU_composite_annotated:
         weight11: R.Tensor((64, 64, 3, 3), dtype="float32"),
     ) -> R.Tensor((1, 64, 56, 56), dtype="float32"):
         R.func_attr(
-            {"Codegen": "dnnl", "global_symbol": "fused_relax_nn_conv2d_relax_nn_relu_dnnl"}
+            {
+                "Codegen": "dnnl",
+                "global_symbol": "fused_relax_nn_conv2d_relax_nn_relu_dnnl",
+            }
         )
 
         @R.function
@@ -308,7 +311,8 @@ class BranchTupleOutputPartitioned:
         data1: R.Tensor((1, 64, 56, 56), dtype="float32"),
         weight1: R.Tensor((64, 64, 3, 3), dtype="float32"),
     ) -> R.Tuple(
-        R.Tensor((1, 64, 54, 54), dtype="float32"), R.Tensor((1, 64, 54, 54), dtype="float32")
+        R.Tensor((1, 64, 54, 54), dtype="float32"),
+        R.Tensor((1, 64, 54, 54), dtype="float32"),
     ):
         R.func_attr({"Primitive": 1, "Composite": "dnnl.conv2d_relu"})
         with R.dataflow():
@@ -476,7 +480,11 @@ def test_partition_order():
 
 
 def test_branch_tuple_output():
-    check(BranchTupleOutput, [("dnnl.conv2d_relu", conv2d_relu_pat)], BranchTupleOutputPartitioned)
+    check(
+        BranchTupleOutput,
+        [("dnnl.conv2d_relu", conv2d_relu_pat)],
+        BranchTupleOutputPartitioned,
+    )
 
 
 def test_cyclic_dependency():
@@ -530,7 +538,8 @@ def test_ignore_call_tir():
     class Conv2dReLUCallTIR:
         @T.prim_func
         def relu(
-            data: T.Buffer((64, 64, 56, 56), "float32"), out: T.Buffer((64, 64, 56, 56), "float32")
+            data: T.Buffer((64, 64, 56, 56), "float32"),
+            out: T.Buffer((64, 64, 56, 56), "float32"),
         ):
             for ax0, ax1, ax2, ax3 in T.grid(64, 64, 56, 56):
                 with T.block("root"):
@@ -545,7 +554,9 @@ def test_ignore_call_tir():
             with R.dataflow():
                 conv1 = R.nn.conv2d(data, weight1, padding=(1, 1))
                 relu1 = R.call_tir(
-                    Conv2dReLUCallTIR.relu, (conv1,), R.Tensor((64, 64, 56, 56), "float32")
+                    Conv2dReLUCallTIR.relu,
+                    (conv1,),
+                    R.Tensor((64, 64, 56, 56), "float32"),
                 )
                 R.output(relu1)
 
@@ -555,7 +566,8 @@ def test_ignore_call_tir():
     class Conv2dReLUCallTIR_partitioned:
         @T.prim_func
         def relu(
-            data: T.Buffer((64, 64, 56, 56), "float32"), out: T.Buffer((64, 64, 56, 56), "float32")
+            data: T.Buffer((64, 64, 56, 56), "float32"),
+            out: T.Buffer((64, 64, 56, 56), "float32"),
         ):
             # with T.block("root"):
             for ax0, ax1, ax2, ax3 in T.grid(64, 64, 56, 56):
@@ -591,7 +603,9 @@ def test_ignore_call_tir():
                     data, weight1
                 )
                 relu1 = R.call_tir(
-                    cls.relu, (lv,), out_sinfo=R.Tensor((64, 64, 56, 56), dtype="float32")
+                    cls.relu,
+                    (lv,),
+                    out_sinfo=R.Tensor((64, 64, 56, 56), dtype="float32"),
                 )
                 R.output(relu1)
             return relu1
@@ -737,7 +751,8 @@ def test_split():
             R.func_attr({"Composite": "x.split", "Primitive": 1})
             with R.dataflow():
                 gv: R.Tuple(
-                    R.Tensor((16, 16), dtype="float32"), R.Tensor((16, 16), dtype="float32")
+                    R.Tensor((16, 16), dtype="float32"),
+                    R.Tensor((16, 16), dtype="float32"),
                 ) = R.split(inp, indices_or_sections=[16], axis=1)
                 R.output(gv)
             return gv
@@ -747,7 +762,8 @@ def test_split():
             cls = Expected1
             with R.dataflow():
                 lv: R.Tuple(
-                    R.Tensor((16, 16), dtype="float32"), R.Tensor((16, 16), dtype="float32")
+                    R.Tensor((16, 16), dtype="float32"),
+                    R.Tensor((16, 16), dtype="float32"),
                 ) = cls.fused_relax_split(inp)
                 lv1: R.Tensor((16, 16), dtype="float32") = lv[0]
                 lv2: R.Tensor((16, 16), dtype="float32") = lv[1]
@@ -764,7 +780,8 @@ def test_split():
             R.func_attr({"Composite": "x.split", "Primitive": 1})
             with R.dataflow():
                 tup: R.Tuple(
-                    R.Tensor((16, 16), dtype="float32"), R.Tensor((16, 16), dtype="float32")
+                    R.Tensor((16, 16), dtype="float32"),
+                    R.Tensor((16, 16), dtype="float32"),
                 ) = R.split(inp, indices_or_sections=[16], axis=1)
                 lv1: R.Tensor((16, 16), dtype="float32") = tup[0]
                 lv2: R.Tensor((16, 16), dtype="float32") = tup[1]
@@ -789,6 +806,92 @@ def test_split():
 
     check(mod, [("x.split", split)], Expected1)
     check(mod, [("x.split", add)], Expected2)
+
+
+def test_clip():
+    @R.function
+    def func1(x: R.Tensor((10, 10), "float32")):
+        R.func_attr({"global_symbol": "main"})
+        with R.dataflow():
+            gv = R.clip(x, 0, 4)
+            R.output(gv)
+        return gv
+
+    @I.ir_module
+    class Expected1:
+        @R.function(private=True)
+        def fused_relax_clip(
+            x: R.Tensor((10, 10), dtype="float32")
+        ) -> R.Tensor((10, 10), dtype="float32"):
+            R.func_attr({"Composite": "x.clip", "Primitive": 1})
+            with R.dataflow():
+                gv: R.Tensor((10, 10), dtype="float32") = R.clip(
+                    x, R.prim_value(0), R.prim_value(4)
+                )
+                R.output(gv)
+            return gv
+
+        @R.function
+        def main(x: R.Tensor((10, 10), dtype="float32")) -> R.Tensor((10, 10), dtype="float32"):
+            cls = Expected1
+            with R.dataflow():
+                gv: R.Tensor((10, 10), dtype="float32") = cls.fused_relax_clip(x)
+                R.output(gv)
+            return gv
+
+    mod1 = tvm.IRModule({"main": func1})
+    pat_clip = is_op("relax.clip")(wildcard(), wildcard(), wildcard())
+
+    check(mod1, [("x.clip", pat_clip)], Expected1)
+
+    @R.function
+    def func2(x: R.Tensor((10, 10), "float32")):
+        R.func_attr({"global_symbol": "main"})
+        with R.dataflow():
+            gv0 = R.clip(x, 0, 4)
+            gv1 = R.clip(x, 1, 3)
+            R.output(gv0, gv1)
+        return gv0, gv1
+
+    @I.ir_module
+    class Expected2:
+        @R.function(private=True)
+        def fused_relax_clip(
+            x: R.Tensor((10, 10), dtype="float32")
+        ) -> R.Tensor((10, 10), dtype="float32"):
+            R.func_attr({"Composite": "x.clip", "Primitive": 1})
+            with R.dataflow():
+                gv: R.Tensor((10, 10), dtype="float32") = R.clip(
+                    x, R.prim_value(0), R.prim_value(4)
+                )
+                R.output(gv)
+            return gv
+
+        @R.function(private=True)
+        def fused_relax_clip1(
+            x: R.Tensor((10, 10), dtype="float32")
+        ) -> R.Tensor((10, 10), dtype="float32"):
+            R.func_attr({"Composite": "x.clip", "Primitive": 1})
+            with R.dataflow():
+                gv: R.Tensor((10, 10), dtype="float32") = R.clip(
+                    x, R.prim_value(1), R.prim_value(3)
+                )
+                R.output(gv)
+            return gv
+
+        @R.function
+        def main(
+            x: R.Tensor((10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((10, 10), dtype="float32"), R.Tensor((10, 10), dtype="float32")):
+            cls = Expected2
+            with R.dataflow():
+                gv: R.Tensor((10, 10), dtype="float32") = cls.fused_relax_clip(x)
+                gv1: R.Tensor((10, 10), dtype="float32") = cls.fused_relax_clip1(x)
+                R.output(gv, gv1)
+            return (gv, gv1)
+
+    mod = tvm.IRModule({"main": func2})
+    check(mod, [("x.clip", pat_clip)], Expected2)
 
 
 if __name__ == "__main__":
