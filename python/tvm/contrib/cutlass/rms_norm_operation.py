@@ -28,8 +28,8 @@ def instantiate_rms_norm_template(attrs):
     using data_type = ${data_type};
     using namespace cutlass::layout;
 
-    auto M = ${M};
-    auto N = ${N};
+    int M = ${M};
+    int N = ${N};
     cutlass::MatrixCoord size(M, N);
     auto layout_2D = RowMajor::packed(size);
     auto layout_channels = RowMajor::packed({1, N});

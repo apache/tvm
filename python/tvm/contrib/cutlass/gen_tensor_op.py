@@ -797,6 +797,12 @@ def instantiate_template(func_name, annotations, func_args):
         headers.append("cutlass/layout/matrix.h")
         attrs = {"input": func_args[0], "weight": func_args[1]}
         attrs.update(dict(annotations))
+
+        if isinstance(attrs["M"], tvm.tir.Var):
+            attrs["M"] = " * ".join(
+                ["{}->shape[{}]".format(func_args[0], i) for i in range(int(attrs["batch_rank"]))]
+            )
+
         code = instantiate_rms_norm_template(attrs)
         return CodegenResult(code, headers)
 

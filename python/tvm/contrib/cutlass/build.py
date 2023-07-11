@@ -926,6 +926,7 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
         """Annotate a rms norm op."""
         signature = _extract_relax_function_signature(f)
         attrs = {}
+        attrs["batch_rank"] = len(signature["arg0_shape"][:-1])
         attrs["M"] = reduce(operator.mul, signature["arg0_shape"][:-1], 1)
         attrs["N"] = signature["arg0_shape"][-1]
         dtype = signature["arg0_dtype"]
@@ -950,7 +951,7 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
         elif "layer_norm" in op_type:
             return self.handle_layer_norm(f, op_type)
         elif "rms_norm" in op_type:
-            return self.handle_layer_norm(f, op_type)
+            return self.handle_rms_norm(f, op_type)
 
         raise ValueError("Unsupported composite {}".format(op_type))
 
