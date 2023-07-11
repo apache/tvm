@@ -1488,5 +1488,51 @@ def test_fp16A_int4B_gemm():
         tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
+def test_rms_norm():
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def rms_norm1(A: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16"), B: T.Buffer((T.int64(4096),), "float16"), rms_norm: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16")):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            # with T.block("root"):
+            Ared_temp = T.alloc_buffer((T.int64(1), T.int64(1)))
+            for bsz, i, k in T.grid(T.int64(1), T.int64(1), T.int64(4096)):
+                with T.block("Ared_temp"):
+                    v_bsz, v_i, v_k = T.axis.remap("SSR", [bsz, i, k])
+                    T.reads(A[v_bsz, v_i, v_k])
+                    T.writes(Ared_temp[v_bsz, v_i])
+                    with T.init():
+                        Ared_temp[v_bsz, v_i] = T.float32(0)
+                    Ared_temp[v_bsz, v_i] = Ared_temp[v_bsz, v_i] + T.Cast("float32", A[v_bsz, v_i, v_k]) * T.Cast("float32", A[v_bsz, v_i, v_k])
+            for bsz, i, k in T.grid(T.int64(1), T.int64(1), T.int64(4096)):
+                with T.block("rms_norm"):
+                    v_bsz, v_i, v_k = T.axis.remap("SSS", [bsz, i, k])
+                    T.reads(B[v_k], A[v_bsz, v_i, v_k], Ared_temp[v_bsz, v_i])
+                    T.writes(rms_norm[v_bsz, v_i, v_k])
+                    rms_norm[v_bsz, v_i, v_k] = T.Cast("float16", T.Cast("float32", B[v_k]) * (T.Cast("float32", A[v_bsz, v_i, v_k]) / T.sqrt(Ared_temp[v_bsz, v_i] * T.float32(0.000244140625) + T.float32(9.9999999999999995e-07))))
+
+        @R.function
+        def main(input: R.Tensor((1, 1, 4096), dtype="float16"), weight: R.Tensor((4096,), dtype="float16")) -> R.Tensor((1, 1, 4096), dtype="float16"):
+            cls = Module
+            with R.dataflow():
+                lv = R.call_tir(cls.rms_norm1, (input, weight), out_sinfo=R.Tensor((1, 1, 4096), dtype="float16"))
+                R.output(lv)
+            return lv
+
+    data_shape = (1, 1, 4096)
+    dtype = "float16"
+    mod = partition_for_cutlass(Module)
+
+    mod = relax.transform.RunCodegen()(mod)
+
+    inp = np.random.randn(*data_shape).astype(dtype)
+    weight = np.random.randn(data_shape[-1]).astype(dtype)
+    out = build_and_run(mod, [inp, weight], "cuda")
+    ref = build_and_run(Module, [inp, weight], "llvm", legalize=True)
+
+    tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
+    # test_rms_norm()

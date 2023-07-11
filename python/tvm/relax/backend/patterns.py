@@ -19,7 +19,7 @@
 
 from typing import Dict, Mapping, Tuple, Union
 from tvm.script import relax as R, tir as T
-from tvm.relax.dpl.pattern import DFPattern, is_const, is_op, is_tuple_get_item, wildcard
+from tvm.relax.dpl.pattern import DFPattern, is_const, is_op, is_tuple_get_item, wildcard, GlobalVarPattern, TuplePattern
 
 
 def _with_bias_activation_pattern(
@@ -261,6 +261,17 @@ def make_layer_norm_pattern():
     beta = wildcard()
 
     return is_op("relax.nn.layer_norm")(inp, gamma, beta), {}
+
+
+def make_rms_norm_pattern():
+    """Create a layer norm pattern."""
+    inp = wildcard()
+    weight = wildcard()
+    gv = GlobalVarPattern()
+    out = is_op("relax.call_tir")(gv,TuplePattern([inp, weight]))
+    annotations = {"gv": gv, "inp": inp, "rms_norm": out}
+    return out, annotations
+
 
 
 def make_attention_rewrite_pattern(

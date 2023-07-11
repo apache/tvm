@@ -922,6 +922,16 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
         attrs["data_type"] = {"float32": "float", "float16": "cutlass::half_t"}[str(dtype)]
         return f.with_attrs(attrs)
 
+    def handle_rms_norm(self, f, _):
+        """Annotate a rms norm op."""
+        signature = _extract_relax_function_signature(f)
+        attrs = {}
+        attrs["M"] = reduce(operator.mul, signature["arg0_shape"][:-1], 1)
+        attrs["N"] = signature["arg0_shape"][-1]
+        dtype = signature["arg0_dtype"]
+        attrs["data_type"] = {"float32": "float", "float16": "cutlass::half_t"}[str(dtype)]
+        return f.with_attrs(attrs)
+
     def visit_function_(self, f):
         if "Composite" not in f.attrs:
             body = super().visit_expr(f.body)
@@ -938,6 +948,8 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
         elif "attention" in op_type:
             return self.handle_attention(f, op_type)
         elif "layer_norm" in op_type:
+            return self.handle_layer_norm(f, op_type)
+        elif "rms_norm" in op_type:
             return self.handle_layer_norm(f, op_type)
 
         raise ValueError("Unsupported composite {}".format(op_type))
