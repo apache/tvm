@@ -69,7 +69,7 @@ def test_unary_elementwise_single(
     )
     func = relay.Function(relay.analysis.free_vars(unary_elementwise), unary_elementwise)
     func = run_opt_pass(func, relay.transform.InferType())
-    mod, _ = _lower_to_tir(func)
+    mod = _lower_to_tir(func)
     data = []
 
     def _visit(stmt):

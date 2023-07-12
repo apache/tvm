@@ -33,7 +33,7 @@ def test_identity(ifm_shape):
 
     func = relay.Function(relay.analysis.free_vars(identity), identity)
     func = run_opt_pass(func, relay.transform.InferType())
-    mod, _ = _lower_to_tir(func)
+    mod = _lower_to_tir(func)
     data = []
 
     def _visit(stmt):

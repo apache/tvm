@@ -789,3 +789,62 @@ def make_ethosu_unary_elementwise(
         ofm_layout=ofm_layout,
     )
     return ethosu_unary_elementwise
+
+
+def copy_allocate_const_data(test_mod: tvm.IRModule, reference_mod: tvm.IRModule) -> tvm.IRModule:
+    """For testing purposes, copy the NDArray into refernece
+
+    NDArray does not implement SEqual, so StructuralEqual defaults to
+    pointer equality.  Since the reference module and the test module
+    were generated separately, they won't have the same NDArray.
+    Therefore, copy it over before StructuralEqual.
+    """
+
+    def collect_ndarray(func):
+        output = []
+
+        def fvisit(node):
+            if isinstance(node, tvm.tir.AllocateConst):
+                output.append(node.data)
+
+        tvm.tir.stmt_functor.post_order_visit(func.body, fvisit)
+
+        return output
+
+    def inject_ndarray(func, data_arrays):
+        def fvisit(node):
+            if data_arrays and isinstance(node, tvm.tir.AllocateConst):
+                data = data_arrays.pop(0)
+                return tvm.tir.AllocateConst(
+                    buffer_var=node.buffer_var,
+                    dtype=node.dtype,
+                    extents=node.extents,
+                    data_or_idx=data,
+                    body=node.body,
+                    annotations=node.annotations,
+                    span=node.span,
+                )
+            else:
+                return node
+
+        body = tvm.tir.stmt_functor.ir_transform(func.body, lambda node: None, fvisit)
+        if body.same_as(func.body):
+            return func
+        else:
+            return tvm.tir.PrimFunc(
+                func.params, body, func.ret_type, func.buffer_map, func.attrs, func.span
+            )
+
+    data_arrays = {
+        gvar.name_hint: collect_ndarray(func)
+        for gvar, func in test_mod.functions.items()
+        if isinstance(func, tvm.tir.PrimFunc)
+    }
+
+    new_module = {}
+    for gvar, func in reference_mod.functions.items():
+        if isinstance(func, tvm.tir.PrimFunc):
+            if gvar.name_hint in data_arrays:
+                func = inject_ndarray(func, data_arrays[gvar.name_hint])
+        new_module[gvar] = func
+    return tvm.IRModule(new_module)

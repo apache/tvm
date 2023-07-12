@@ -74,7 +74,9 @@ def _compile_model(relay_function):
     mod = tvm.IRModule()
     mod["main"] = relay_function
     mod = relay.transform.InferType()(mod)
-    tir_mod = _lower_to_tir(mod["main"], _ethos_u55_cascader())[0]
+    func = mod["main"]
+    cascader = _ethos_u55_cascader()
+    tir_mod = _lower_to_tir(func, cascader)
     return tir_mod["main"]
 
 
@@ -109,7 +111,7 @@ def test_single_conv_compute_cycles_hint():
     for single convolution.
     """
     primfunc = _compile_model(_create_single_conv2d())
-    ops = primfunc.body.body.seq
+    ops = primfunc.body.body.body.seq
     compute_cycles_hints = [2944, 320]
     for op, compute_cycle_hint in zip(ops, compute_cycles_hints):
         assert op.attr_key == "pragma_compute_cycles_hint"
@@ -135,7 +137,7 @@ def test_scalar_add_compute_cycles_hint():
     for add with scalar values.
     """
     primfunc = _compile_model(_create_scalar_add())
-    ops = primfunc.body.body.seq
+    ops = primfunc.body.body.body.seq
 
     compute_cycles_hints = [16, 24]
     for op, compute_cycle_hint in zip(ops, compute_cycles_hints):

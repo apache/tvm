@@ -147,7 +147,10 @@ def test_device_api_context_implicit_resource_handle():
         lambda f: f.with_attr("target", tvm.target.Target("llvm", host="llvm"))
     )(mod)
     mod = tvm.tir.transform.Apply(lambda f: f.with_attr("global_symbol", "main"))(mod)
-    func = tvm.tir.transform.MakePackedAPI()(mod)["main"]
+    mod.show(name="before")
+    mod = tvm.tir.transform.MakePackedAPI()(mod)
+    mod.show(name="after")
+    func = mod["main"]
 
     num_args = func.params[2]
     device_context_in_resource_handle = func.params[5]

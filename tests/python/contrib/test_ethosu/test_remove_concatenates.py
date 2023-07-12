@@ -24,7 +24,7 @@ from tvm.relay.backend.contrib.ethosu.tir.compiler import _lower_to_tir
 from tvm.relay.testing import run_opt_pass
 from tvm.script import tir as T
 
-from .infra import make_ethosu_conv2d
+from .infra import make_ethosu_conv2d, copy_allocate_const_data
 
 
 # fmt: off
@@ -35,18 +35,29 @@ class ReferenceModule:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
 
+        data_3 = T.allocate_const([0]*160, 'uint8', [160])
+        data_2 = T.allocate_const([0]*2992, 'uint8', [2992])
+        data_7 = T.allocate_const([0]*160, 'uint8', [160])
+        data_6 = T.allocate_const([0]*2992, 'uint8', [2992])
+        data_1 = T.allocate_const([0]*160, 'uint8', [160])
+        data = T.allocate_const([0]*2992, 'uint8', [2992])
+        data_5 = T.allocate_const([0]*160, 'uint8', [160])
+        data_4 = T.allocate_const([0]*2992, 'uint8', [2992])
+
+        buffer = T.Buffer([2992], "uint8", data=data)
+        buffer_1 = T.Buffer([160], "uint8", data=data_1)
+        buffer_2 = T.Buffer([2992], "uint8", data=data_2)
+        buffer_3 = T.Buffer([160], "uint8", data=data_3)
+        buffer_4 = T.Buffer([2992], "uint8", data=data_4)
+        buffer_5 = T.Buffer([160], "uint8", data=data_5)
+        buffer_6 = T.Buffer([2992], "uint8", data=data_6)
+        buffer_7 = T.Buffer([160], "uint8", data=data_7)
+
         placeholder = T.Buffer(1536, dtype="int8", data=input_placeholder.data)
         placeholder_1 = T.Buffer(1280, dtype="int8", data=input_placeholder_1.data)
         T_concat = T.Buffer(4096, dtype="int8", data=input_T_concat.data)
 
-        buffer = T.Buffer([2992], "uint8")
-        buffer_1 = T.Buffer([160], "uint8")
-        buffer_2 = T.Buffer([2992], "uint8")
-        buffer_3 = T.Buffer([160], "uint8")
-        buffer_4 = T.Buffer([2992], "uint8")
-        buffer_5 = T.Buffer([160], "uint8")
-        buffer_6 = T.Buffer([2992], "uint8")
-        buffer_7 = T.Buffer([160], "uint8")
+
         # body
         T_concat_1_data = T.allocate([2816], "int8", "global", annotations={"disable_lower_builtin":True})
         T_concat_1 = T.Buffer([2816], "int8", data=T_concat_1_data)
@@ -73,11 +84,12 @@ def test_concat():
         return func
 
     func = _get_func()
-    mod, _ = _lower_to_tir(func)
+    mod = _lower_to_tir(func)
     script = mod.script()
     test_mod = tvm.script.from_source(script)
 
     reference_mod = ReferenceModule
+    reference_mod = copy_allocate_const_data(test_mod, reference_mod)
     tvm.ir.assert_structural_equal(test_mod["main"], reference_mod["main"], True)
 
 

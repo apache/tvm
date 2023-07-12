@@ -188,7 +188,7 @@ def test_avg_max_pooling_single(
     )
     func = relay.Function(relay.analysis.free_vars(pooling), pooling)
     func = run_opt_pass(func, relay.transform.InferType())
-    mod, _ = _lower_to_tir(func)
+    mod = _lower_to_tir(func)
     data = []
 
     def _visit(stmt):
@@ -244,7 +244,7 @@ def test_sum_pooling_single(
     )
     func = relay.Function(relay.analysis.free_vars(pooling), pooling)
     func = run_opt_pass(func, relay.transform.InferType())
-    mod, _ = _lower_to_tir(func)
+    mod = _lower_to_tir(func)
     data = []
 
     def _visit(stmt):
@@ -307,7 +307,7 @@ def test_correct_stride_with_multiple_pooling():
     )
     func = relay.Function(relay.analysis.free_vars(op), op)
     func = run_opt_pass(func, relay.transform.InferType())
-    mod, _ = _lower_to_tir(func)
+    mod = _lower_to_tir(func)
 
     data = []
 

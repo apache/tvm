@@ -287,6 +287,7 @@ AllocateConst::AllocateConst(Var buffer_var, DataType dtype, Array<PrimExpr> ext
   }
   ICHECK(body.defined());
   ICHECK(data_or_idx.defined());
+  ICHECK(annotations.defined());
 
   ObjectPtr<AllocateConstNode> node = make_object<AllocateConstNode>();
   node->buffer_var = std::move(buffer_var);
@@ -323,9 +324,10 @@ int64_t AllocateConstNode::ConstantAllocationSize(const Array<PrimExpr>& extents
 }
 TVM_REGISTER_GLOBAL("tir.AllocateConst")
     .set_body_typed([](Var buffer_var, DataType dtype, Array<PrimExpr> extents,
-                       ObjectRef data_or_idx, Stmt body, Map<String, ObjectRef> annotations,
-                       Span span) {
-      return AllocateConst(buffer_var, dtype, extents, data_or_idx, body, annotations, span);
+                       ObjectRef data_or_idx, Stmt body,
+                       Optional<Map<String, ObjectRef>> annotations, Span span) {
+      return AllocateConst(buffer_var, dtype, extents, data_or_idx, body,
+                           annotations.value_or(Map<String, ObjectRef>()), span);
     });
 
 TVM_REGISTER_NODE_TYPE(AllocateConstNode);

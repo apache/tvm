@@ -2347,14 +2347,26 @@ def partition_for_ethosu(
         mod["main"] = bind_params_by_name(mod["main"], params)
 
     pattern = relay.op.contrib.get_pattern_table("ethos-u")
-    mod = relay.transform.InferType()(mod)
-    mod = codegen.replicate_pads(mod)
-    mod = relay.transform.InferType()(mod)
-    mod = relay.transform.MergeComposite(pattern)(mod)
-    mod = relay.transform.AnnotateTarget("ethos-u")(mod)
-    mod = relay.transform.MergeCompilerRegions()(mod)
-    mod = relay.transform.InferType()(mod)
-    mod = relay.transform.PartitionGraph(mod_name)(mod)
-    mod = relay.transform.InferType()(mod)
-    mod = preprocess.preprocess_ext_io()(mod)
+
+    seq = tvm.ir.transform.Sequential(
+        [
+            relay.transform.InferType(),
+            tvm.ir.transform.module_pass(
+                lambda mod, context: codegen.replicate_pads(mod),
+                opt_level=0,
+                name="ethosu.replicate_pads",
+            ),
+            relay.transform.InferType(),
+            relay.transform.MergeComposite(pattern),
+            relay.transform.AnnotateTarget("ethos-u"),
+            relay.transform.MergeCompilerRegions(),
+            relay.transform.InferType(),
+            relay.transform.PartitionGraph(mod_name),
+            relay.transform.InferType(),
+            preprocess.preprocess_ext_io(),
+        ],
+        name="partition_for_ethosu",
+    )
+    mod = seq(mod)
+
     return mod

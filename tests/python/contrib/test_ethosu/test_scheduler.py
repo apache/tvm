@@ -41,6 +41,7 @@ from .infra import (
     make_ethosu_conv2d,
     make_ethosu_identity,
     make_ethosu_binary_elementwise,
+    copy_allocate_const_data,
 )
 
 
@@ -198,10 +199,15 @@ class DiamondGraphTir:
     @T.prim_func
     def main(input_placeholder: T.Buffer((1, 56, 56, 96), "int8"), input_ethosu_write: T.Buffer((1, 56, 56, 24), "int8")) -> None:
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
+
+        data3 = T.allocate_const([0]*976, 'uint8', [976])
+        buffer3 = T.Buffer([976], "uint8", data=data3)
+        data1 = T.allocate_const([0]*2848, 'uint8', [2848])
+        buffer1 = T.Buffer([2848], "uint8", data=data1)
+
+
         placeholder = T.Buffer([301056], dtype='int8', data=input_placeholder.data)
         ethosu_write = T.Buffer([75264], dtype='int8', data=input_ethosu_write.data)
-        buffer1 = T.Buffer([2848], "uint8")
-        buffer3 = T.Buffer([976], "uint8")
         p1_data = T.allocate([2848], "uint8", "global", annotations={"disable_lower_builtin":True})
         p1 = T.Buffer([2848], "uint8", data=p1_data)
         p2_data = T.allocate([976], "uint8", "global", annotations={"disable_lower_builtin":True})
@@ -228,8 +234,9 @@ def test_schedule_diamond_graph():
     func = relay.Function(relay.analysis.free_vars(add), add)
     func = run_opt_pass(func, relay.transform.InferType())
 
-    test_mod, _ = _lower_to_tir(func, copy_constants())
+    test_mod = _lower_to_tir(func, copy_constants())
     reference_mod = DiamondGraphTir
+    reference_mod = copy_allocate_const_data(test_mod, reference_mod)
     tvm.ir.assert_structural_equal(test_mod["main"], reference_mod["main"], True)
 
 
