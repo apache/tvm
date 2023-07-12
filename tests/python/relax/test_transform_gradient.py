@@ -960,6 +960,29 @@ def test_function_copy():
     old_bindings_len = len(old_bindings)
     new_bindings = After["main_adjoint"].body.blocks[0].bindings[:old_bindings_len]
     assert_structural_equal(old_bindings, new_bindings, True)
+    assert relax.analysis.well_formed(After)
+
+
+def test_tir_copy():
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            x0: R.Tensor(("n", "n"), "float32"),
+            x1: R.Tensor(("n", "n"), "float32"),
+            x2: R.Tensor(("n", "n"), "float32"),
+            x3: R.Tensor(("n", "n"), "float32"),
+        ):
+            with R.dataflow():
+                lv0 = R.add(x0, x1)
+                lv1 = R.add(x2, x3)
+                lv2 = R.add(lv0, lv1)
+                gv = R.sum(lv2)
+                R.output(gv)
+            return gv
+
+    After = relax.transform.Gradient("main")(Before)
+    assert relax.analysis.well_formed(After)
 
 
 def test_report_error():
