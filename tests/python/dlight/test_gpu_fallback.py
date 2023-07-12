@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-docstring
+import tvm.testing
 from tvm import dlight as dl
 from tvm.ir import assert_structural_equal
 from tvm.script import ir as I
@@ -64,5 +65,49 @@ def test_fallback():
     assert_structural_equal(mod, After)
 
 
+def test_fallback_reduction():
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(A: T.Buffer((1, 6144), "float32"), B: T.Buffer((1,), "float32")):
+            for ax0, ax1 in T.grid(1, 6144):
+                with T.block("block"):
+                    v0 = T.axis.spatial(1, ax0)
+                    v1 = T.axis.reduce(6144, ax1)
+                    T.reads(A[v0, v1])
+                    T.writes(B[v0])
+                    with T.init():
+                        B[v0] = T.float32(0)
+                    B[v0] = B[v0] + T.Cast("float32", A[v0, v1])
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main(A: T.Buffer((1, 6144), "float32"), B: T.Buffer((1,), "float32")):
+            T.func_attr({"tir.is_scheduled": 1})
+            for ax0_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
+                for ax0_fused_1 in T.thread_binding(T.int64(1024), thread="threadIdx.x"):
+                    with T.block("block_init"):
+                        v0 = T.axis.spatial(T.int64(1), T.int64(0))
+                        T.where(ax0_fused_0 * T.int64(1024) + ax0_fused_1 < T.int64(1))
+                        T.reads()
+                        T.writes(B[0])
+                        B[0] = T.float32(0)
+                    for ax1 in range(6144):
+                        with T.block("block_update"):
+                            v0 = T.axis.spatial(T.int64(1), T.int64(0))
+                            v1 = T.axis.reduce(6144, ax1)
+                            T.where(ax0_fused_0 * T.int64(1024) + ax0_fused_1 < T.int64(1))
+                            T.reads(B[0], A[0, v1])
+                            T.writes(B[0])
+                            B[0] = B[0] + T.Cast("float32", A[0, v1])
+
+    with Target("apple/m1-gpu"):
+        mod = dl.ApplyDefaultSchedule(  # pylint: disable=not-callable
+            dl.gpu.Fallback(),
+        )(Module)
+    assert_structural_equal(mod, Expected)
+
+
 if __name__ == "__main__":
-    test_fallback()
+    tvm.testing.main()

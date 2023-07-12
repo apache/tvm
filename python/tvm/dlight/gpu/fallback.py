@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=missing-docstring
 """A fallback schedule rule for GPU operators."""
-from typing import List
+from typing import List, Tuple
 
 from tvm import tir
 from tvm.target import Target
@@ -41,6 +41,7 @@ class Fallback(ScheduleRule):
 
         sch = tir.Schedule(func)
         block_infos = try_inline(sch, normalize_prim_func(sch))
+        reduction_blocks: List[Tuple[tir.schedule.BlockRV, tir.schedule.LoopRV]] = []
         for block in block_infos:
             s_loops: List[tir.schedule.LoopRV] = []
             r_loops: List[tir.schedule.LoopRV] = []
@@ -59,4 +60,11 @@ class Fallback(ScheduleRule):
             )
             sch.bind(bx, "blockIdx.x")
             sch.bind(tx, "threadIdx.x")
+
+            if len(r_loops) > 0:
+                reduction_blocks.append((block, r_loops[0]))
+
+        for block, r_loop in reduction_blocks:
+            sch.decompose_reduction(block, r_loop)
+
         return sch
