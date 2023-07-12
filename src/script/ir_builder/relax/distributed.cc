@@ -43,17 +43,13 @@ Expr MakeCallTIRDist(Expr func, Tuple args, Array<distributed::DTensorStructInfo
     out_sinfo = TupleStructInfo({out_sinfo_list.begin(), out_sinfo_list.end()});
   }
 
-  ObjectPtr<CallTIRAttrs> attrs = make_object<CallTIRAttrs>();
-  attrs->te_grad_name = NullOpt;
-  attrs->te_grad_kwargs = Map<String, ObjectRef>();
-
   static const Op& op = Op::Get("relax.call_tir");
   Call call;
   if (!packed_ints) {
     // don't use additional optional argument
-    call = Call(op, {func, args}, Attrs(attrs), {out_sinfo});
+    call = Call(op, {func, args}, {}, {out_sinfo});
   } else {
-    call = Call(op, {func, args, packed_ints.value()}, Attrs(attrs), {out_sinfo});
+    call = Call(op, {func, args, packed_ints.value()}, {}, {out_sinfo});
   }
   return call;
 }
