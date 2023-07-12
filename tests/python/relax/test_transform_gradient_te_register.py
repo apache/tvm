@@ -215,7 +215,7 @@ def get_expected_2():
         def main(a: R.Tensor((5, 5), dtype="float32")) -> R.Tensor((), dtype="float32"):
             cls = Expected
             with R.dataflow():
-                lv = R.call_tir(cls.f_mul, (a,), out_sinfo=R.Tensor((5, 5), dtype="float32"), te_grad_name="f_mulk_grad", te_grad_kwargs={"k": T.float32(2)})
+                lv = R.call_tir_with_grad(cls.f_mul, (a,), out_sinfo=R.Tensor((5, 5), dtype="float32"), te_grad_name="f_mulk_grad", te_grad_kwargs={"k": T.float32(2)})
                 gv: R.Tensor((), dtype="float32") = R.sum(lv, axis=None, keepdims=False)
                 R.output(gv)
             return gv
