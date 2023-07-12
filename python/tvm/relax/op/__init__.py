@@ -38,7 +38,7 @@ from . import image
 from . import memory
 from . import nn
 
-# Operator gradient functions
+# Register operator gradient functions
 from . import _op_gradient
 
 

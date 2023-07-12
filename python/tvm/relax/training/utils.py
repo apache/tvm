@@ -24,7 +24,7 @@ from tvm import relax
 from tvm._ffi.registry import register_func
 from tvm.relax.block_builder import BlockBuilder
 
-from ..expr import Function
+from ..expr import Function, Var, Call
 from . import _ffi_api
 
 
@@ -189,13 +189,13 @@ def register_te_gradient(te_grad_name: str, te_grad_func: Callable = None):
         # It will return the emitted var.
 
         def handler(
-            builder: BlockBuilder, output_grad_var: relax.Var, call_tir: relax.Call
+            orig_var: Var, call_tir_with_grad: Call, output_grad: Var, ctx: BlockBuilder
         ) -> relax.Expr:
-            return builder.emit_te(
+            return ctx.emit_te(
                 func,
-                output_grad_var,
-                *call_tir.args[1],
-                **call_tir.attrs.te_grad_kwargs,
+                output_grad,
+                *call_tir_with_grad.args[1],
+                **call_tir_with_grad.attrs.te_grad_kwargs,
                 primfunc_name_hint=te_grad_name,
             )
 

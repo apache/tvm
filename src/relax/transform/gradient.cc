@@ -25,6 +25,7 @@
  * with respect to the only return value of the function, which needs to be scalar.
  */
 
+#include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/op.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/nested_msg.h>
@@ -40,10 +41,235 @@
 namespace tvm {
 namespace relax {
 
+// We will use NestedMsg<Expr> to handle adjoint updates involving tuple handling
 using AdjointMsg = NestedMsg<Expr>;
+using VarIdSet = std::unordered_set<Id, ObjectPtrHash, ObjectPtrEqual>;
 
-// A tool class for GradientMutator
-// Visit the forward bindings and generate the backward bindings
+// Used in CallTIRWithGradCollector. call_tir -> call_tir_with_grad
+using CallTIRWithGradInfo = std::unordered_map<Call, Call, ObjectPtrHash, ObjectPtrEqual>;
+
+/*!
+ * \brief Collect all call_tir_with_grad nodes, transform them into call_tir nodes, and collect the
+ * te_grad_name and te_grad_kwargs information.
+ */
+class CallTIRWithGradEliminator : private ExprMutator {
+ public:
+  /*!
+   * \brief Collect all variables that needs to be checkpointed, and remove the start_checkpoint
+   * and the end_checkpoint bindings.
+   *
+   * \param func The original function
+   * \return The function with all start_checkpoint and end_checkpoint bindings removed, and a
+   * VarIdSet containing all checkpointed vars.
+   */
+  static Function Transform(const Function& func) {
+    return Downcast<Function>(CallTIRWithGradEliminator().VisitExpr(func));
+  }
+
+ private:
+  using ExprMutator::VisitExpr_;
+
+  Expr VisitExpr_(const CallNode* call_node) final {
+    if (call_node->op != Op::Get("relax.call_tir_with_grad")) {
+      return ExprMutator::VisitExpr_(call_node);
+    }
+    return Call(Op::Get("relax.call_tir"), call_node->args, {}, call_node->sinfo_args,
+                call_node->span);
+  }
+};
+
+/*!
+ * \brief Collect all variables that needs to be checkpointed, and remove the start_checkpoint
+ * and the end_checkpoint bindings.
+ *
+ * Here we have some principles to determine which var should be checkpointed:
+ * 1. Input of the function is checkpointed
+ * 2. For var x marked with start_checkpoint() (wrapped by start_checkpoint), it means x is an input
+ *    to some checkpoint function. So var x is checkpointed
+ * 3. For other var x , find its predecessor path.
+ *   a. If every predecessor path is marked with end_checkpoint(), x is checkpointed
+ *   b. Else, there must exists a predecessor path marked with start_checkpoint(). So x is not
+ *      checkpointed
+ */
+class CheckpointCollector : private ExprMutator {
+ public:
+  /*!
+   * \brief Collect all variables that needs to be checkpointed, and remove the start_checkpoint
+   * and the end_checkpoint bindings.
+   *
+   * \param func The original function
+   * \return The function with all start_checkpoint and end_checkpoint bindings removed, and a
+   * VarIdSet containing all checkpointed vars.
+   */
+  static std::pair<Function, VarIdSet> Collect(const Function& func) {
+    auto collector = CheckpointCollector();
+    return std::make_pair(Downcast<Function>(collector.VisitExpr(func)), collector.checkpoints_);
+  }
+
+ private:
+  Expr VisitExpr_(const FunctionNode* func) final {
+    for (auto var : func->params) {
+      checkpoints_.insert(var->vid);
+    }
+
+    return ExprMutator::VisitExpr_(func);
+  }
+
+  void VisitBinding(const Binding& binding) {
+    static const auto s_cp = Op::Get("relax.grad.start_checkpoint");
+    static const auto e_cp = Op::Get("relax.grad.end_checkpoint");
+
+    // If every variable that the variable of binding relys on is either
+    // 1) the output of end_checkpoint; 2) checkpointed
+    // then the variable of binding will be checkpointed
+    auto var_binding = binding.as<VarBindingNode>();
+    ICHECK(var_binding);
+
+    auto value_call = var_binding->value.as<CallNode>();
+    if (!value_call || (value_call->op != s_cp && value_call->op != e_cp)) {
+      bool all_inner_var_checkpointed = true;
+      PostOrderVisit(var_binding->value, [this, &all_inner_var_checkpointed](const Expr& expr) {
+        if (auto var = expr.as<VarNode>()) {
+          all_inner_var_checkpointed &=
+              (checkpoints_.count(var->vid) != 0 || e_vars_.count(var->vid) != 0);
+        }
+      });
+
+      if (all_inner_var_checkpointed) {
+        checkpoints_.insert(var_binding->var->vid);
+      }
+    }
+
+    ExprMutator::VisitBinding(binding);
+  }
+
+  // mark vars to be checkpointed, and eliminate bindings with checkpoint calls
+  void VisitBinding_(const VarBindingNode* binding, const CallNode* value) final {
+    static const auto s_cp = Op::Get("relax.grad.start_checkpoint");
+    static const auto e_cp = Op::Get("relax.grad.end_checkpoint");
+
+    if (value->op == s_cp || value->op == e_cp) {
+      // Eliminate the binding
+      auto var = value->args[0].as<VarNode>();
+      ICHECK(var) << "The first argument of relax.grad.start_checkpoint and "
+                     "relax.grad.end_checkpoint should be a Var";
+      // var might already be remapped. Find the original var
+      auto orig_var = Downcast<Var>(ExprMutator::VisitExpr(GetRef<Var>(var)));
+      // Add remapping from binding->var to new_var
+      if (!binding->var.as<DataflowVarNode>() && var->IsInstance<DataflowVarNode>()) {
+        // For output binding, emit a dummy binding
+        this->var_remap_[binding->var->vid] = builder_->EmitOutput(orig_var, orig_var->name_hint());
+      } else {
+        this->var_remap_[binding->var->vid] = orig_var;
+      }
+
+      if (value->op == s_cp) {
+        // mark the original var to be checkpointed
+        checkpoints_.insert(orig_var->vid);
+      } else if (value->op == e_cp) {
+        e_vars_.insert(binding->var->vid);
+      }
+    } else {
+      ExprMutator::VisitBinding_(binding, value);
+    }
+  }
+
+  VarIdSet checkpoints_;
+  VarIdSet e_vars_;
+};
+
+/*!
+ * \brief A tool class for BackwardBindingGenerator
+ * Generate the checkpoint bindings. To be specific, in the backward process, we need to use vars
+ * computed in the forward process. Those vars contained in the given checkpoints array, and the
+ * inputs of the function, will be used as is; other vars will be computed again (this will
+ * generate bindings) using the checkpoint vars.
+ */
+class CheckpointGenerator : private ExprMutator {
+ public:
+  /*!
+   * \brief Generate the checkpoint bindings for BackwardBindingGenerator
+   *
+   * \param builder The BlockBuilder of BackwardBindingGenerator, used to generate bindings
+   * \param orig_params The parameters of the forward function
+   * \param forward_block The forward DataflowBlock
+   * \param checkpoints The checkpointed vars. checkpoints being empty means all Vars are
+   * checkpointed
+   */
+  CheckpointGenerator(const BlockBuilder& builder, const Array<Var>& orig_params,
+                      const DataflowBlock& forward_block, const VarIdSet& checkpoints)
+      : builder_(builder) {
+    // func params will always be checkpointed
+    for (auto var : orig_params) {
+      checkpoint_map_.Set(var, var);
+    }
+
+    for (auto binding : forward_block->bindings) {
+      auto* var_binding = binding.as<VarBindingNode>();
+      CHECK(var_binding) << "Now only support VarBindingNode";
+      auto var = var_binding->var;
+      binding_map_.Set(var, var_binding->value);
+      if (checkpoints.count(var->vid)) {
+        checkpoint_map_.Set(var, var);
+      }
+    }
+  }
+
+  // Receives the forward binding var and value, returns the checkpointed binding var and value.
+  std::pair<Var, Expr> UpdateBinding(const Var& var, const Expr& value) {
+    Expr new_value = VisitExpr(value);
+    auto it = checkpoint_map_.find(var);
+    if (it != checkpoint_map_.end()) {
+      return std::make_pair((*it).second, new_value);
+    }
+    auto new_var = builder_->Emit(new_value, var->name_hint() + "_cp");
+    checkpoint_map_.Set(var, new_var);
+    return std::make_pair(new_var, new_value);
+  }
+
+ private:
+  using ExprMutator::VisitExpr_;
+
+  // Visit the use-site of a defined Var
+  Expr VisitExpr_(const VarNode* op) final { return VisitVar(GetRef<Var>(op)); }
+
+  // Visit the use-site of a defined DataflowVar
+  Expr VisitExpr_(const DataflowVarNode* op) final { return VisitVar(GetRef<Var>(op)); }
+
+  Expr VisitVar(const Var& var) {
+    auto it = checkpoint_map_.find(var);
+    if (it != checkpoint_map_.end()) {
+      return (*it).second;
+    }
+    Var new_var = builder_->Emit(VisitExpr(binding_map_[var]), var->name_hint() + "_cp");
+    checkpoint_map_.Set(var, new_var);
+    return new_var;
+  }
+
+  // The only purpose of this function is create a new expr for Call node
+  // to pass the structual equal check
+  Expr VisitExpr_(const CallNode* call_node) final {
+    Expr new_op = this->VisitExpr(call_node->op);
+
+    tvm::Array<Expr> call_args;
+    for (Expr arg : call_node->args) {
+      Expr new_arg = this->VisitExpr(arg);
+      call_args.push_back(new_arg);
+    }
+    return Call(new_op, call_args, call_node->attrs, call_node->sinfo_args);
+  }
+
+  BlockBuilder builder_;
+  // The mapping from the forward vars to the checkpoint vars.
+  Map<Var, Var> checkpoint_map_;
+  // The mapping from the forward vars to their bindings, used to generate checkpoint bindings
+  Map<Var, Expr> binding_map_;
+};
+
+/*!
+ * \brief A tool class for GradientMutator
+ * Visit the forward bindings and generate the backward bindings
+ */
 class BackwardBindingGenerator : private ExprVisitor {
  public:
   /*!
@@ -52,23 +278,26 @@ class BackwardBindingGenerator : private ExprVisitor {
    * \param builder The BlockBuilder of GradientMutator, used to generate bindings
    * \param forward_block The forward DataflowBlock
    * \param require_grads The Var list to differentiate w.r.t.
+   * \param orig_params The params of the forward function. Used for checkpointing
    * \param target_var The target Var to differentiate
    * \param orig_return_value The original return value of the function. The new return value is a
-   * 2-tuple, containing the original return value, and a tuple of the adjoints of parameters.
+   * 2-tuple, containing the original return value, and a tuple of the adjoints of parameters
+   * \param checkpoints The checkpointed vars. checkpoints being empty means all Vars are
+   * checkpointed
    * \return The return expr of new adjoint function.
    */
   static Expr Generate(const BlockBuilder& builder, const DataflowBlock& forward_block,
                        const Array<Var>& require_grads, const Var& target_var,
-                       const Expr& orig_return_value) {
-    BackwardBindingGenerator generator(builder);
+                       const Array<Var>& orig_params, const Expr& orig_return_value,
+                       const VarIdSet& checkpoints) {
+    CheckpointGenerator checkpoint_generator(builder, orig_params, forward_block, checkpoints);
+    BackwardBindingGenerator generator(builder, checkpoint_generator);
 
-    // Initialize the adjoint of target_var as ones op. We have already check the target.
+    // Initialize the adjoint of target_var as ones op. We have already checked the target.
     auto* target_sinfo = GetStructInfoAs<TensorStructInfoNode>(target_var);
-    const Expr& target_adjoint = ones(target_sinfo->shape.value(), target_sinfo->dtype);
-    UpdateStructInfo(target_adjoint, GetRef<StructInfo>(target_sinfo));
-    generator.adjoint_msg_map_.Set(target_var, AdjointMsg(target_adjoint));
+    generator.UpdateAdjoint(target_var, ones(target_sinfo->shape.value(), target_sinfo->dtype));
 
-    // We do reverse-mode ad, so visit bindings backwards
+    // Do reverse-mode ad, so visit bindings backwards
     for (auto it = forward_block->bindings.rbegin(); it != forward_block->bindings.rend(); ++it) {
       generator.VisitBinding(*it);
     }
@@ -77,29 +306,26 @@ class BackwardBindingGenerator : private ExprVisitor {
   }
 
  private:
-  explicit BackwardBindingGenerator(const BlockBuilder& builder) : builder_(builder) {}
+  explicit BackwardBindingGenerator(const BlockBuilder& builder,
+                                    const CheckpointGenerator& checkpoint_generator)
+      : builder_(builder), checkpoint_generator_(checkpoint_generator) {}
 
   void VisitBinding(const Binding& binding) final {
     // TODO(chaofan, yixin): support other types of bindings
-    CHECK(binding->IsInstance<VarBindingNode>()) << "now only support VarBindingNode";
+    CHECK(binding->IsInstance<VarBindingNode>()) << "Now only support VarBindingNode";
     auto* var_binding = binding.as<VarBindingNode>();
 
-    auto it = adjoint_msg_map_.find(var_binding->var);
-    if (it == adjoint_msg_map_.end()) {
-      // This var is not used in the following bindings
+    if (adjoint_var_map_.count(var_binding->var) == 0) {
+      // Optimization: this var is not used in the following bindings
       return;
     }
-
-    // Meet the definition of binding->var
-    // Create the adjoint var and bind the adjoint value to it
-    EmitAdjoint(var_binding->var, (*it).second, true);
 
     Expr value = var_binding->value;
     // TODO(chaofan, yixin): support other types of binding values
     CHECK(value->IsInstance<CallNode>() || value->IsInstance<TupleNode>() ||
           value->IsInstance<TupleGetItemNode>() || value->IsInstance<VarNode>() ||
           value->IsInstance<ConstantNode>())
-        << "now does not support the type of binding value: " << value;
+        << "Now does not support the type of binding value: " << value;
 
     ExprVisitor::VisitBinding_(var_binding);
   }
@@ -114,44 +340,66 @@ class BackwardBindingGenerator : private ExprVisitor {
 
     static const OpAttrMap<FPrimalGradient>& gradient_op_map =
         Op::GetAttrMap<FPrimalGradient>("FPrimalGradient");
+    static const constexpr char* te_grad_func_prefix = "tvm.relax.te_grad._register.";
 
     Var adjoint_var = adjoint_var_map_[binding->var];
     const Op& call_op = Downcast<Op>(call->op);
 
+    // Support for checkpointing
+    auto [checkpoint_var, checkpoint_call] =
+        checkpoint_generator_.UpdateBinding(binding->var, GetRef<Call>(call));
+
     if (call_op == Op::Get("relax.call_tir")) {
-      LOG(FATAL) << "Differentiation of call_tir op is not supported yet.";
+      LOG(FATAL) << "Differentiation of call_tir op without registering corresponding gradient "
+                    "function is not supported yet.";
+    } else if (call_op == Op::Get("relax.call_tir_with_grad")) {
+      // tir gradient registering
+      auto te_grad_name = call->attrs.as<CallTIRWithGradAttrs>()->te_grad_name;
+      auto* grad_func = tvm::runtime::Registry::Get(te_grad_func_prefix + te_grad_name);
+      CHECK(grad_func) << "TIR gradient function " << te_grad_name << " is not registered";
+      Var partials =
+          (*grad_func)(checkpoint_var, Downcast<Call>(checkpoint_call), adjoint_var, builder_);
+      Tuple args = Downcast<Tuple>(call->args[1]);
+      auto* tuple_sinfo = GetStructInfoAs<TupleStructInfoNode>(partials);
+      if (!tuple_sinfo) {
+        // result_var is a tensor
+        ICHECK(args->fields.size() == 1);
+        UpdateAdjoint(args->fields[0], partials);
+      } else {
+        ICHECK(args->fields.size() == tuple_sinfo->fields.size());
+        for (int i = 0; i < static_cast<int>(args->fields.size()); ++i) {
+          UpdateAdjoint(args->fields[i], TupleGetItem(partials, i));
+        }
+      }
     } else {
-      Array<Expr> partials =
-          gradient_op_map[call_op](binding->var, GetRef<Call>(call), adjoint_var, builder_);
+      const Array<Expr>& partials = gradient_op_map[call_op](
+          checkpoint_var, Downcast<Call>(checkpoint_call), adjoint_var, builder_);
       ICHECK(partials.size() == call->args.size()) << "partials number != inputs number";
       for (size_t i = 0; i < partials.size(); ++i) {
-        if (IsCallNoGrad(partials[i])) {  // no grad: don't update
+        Expr partial = partials[i];
+        if (IsCallNoGrad(partial)) {  // no grad: don't update
           continue;
         }
-        if (!partials[i]->struct_info_.defined()) {
-          UpdateStructInfo(partials[i], GetStructInfo(call->args[i]));
-        }
-        UpdateAdjoint(call->args[i], partials[i]);
+        UpdateAdjoint(call->args[i], partial);
       }
     }
   }
 
   // For Tuple nodes, we would iterate over the input tuple and update adjoint exprs for each input
   // e.g.
-  // a = (b, c)
+  // a = (b, c) -->
   // b_adjoint += a_adjoint_var[0], c_adjoint += a_adjoint_var[1]
-  // a = ((b, c), d)
+  //
+  // a = ((b, c), d) -->
   // b_adjoint += a_adjoint_var[0][0], c_adjoint += a_adjoint_var[0][1],
   // d_adjoint += a_adjoint_var[1]
-  //
-  // Here we use adjoint_var to simplify calculation
   void VisitBinding_(const VarBindingNode* binding, const TupleNode* tuple) final {
     UpdateAdjoint(GetRef<Tuple>(tuple), adjoint_var_map_[binding->var]);
   }
 
   // For TupleGetItem nodes, we do a partial update
   // e.g.
-  // b = a[0]
+  // b = a[0] -->
   // a_adjoint[0] += b_adjoint_var
   // If a_adjoint does not exist, we would create a zeros tuple as a_adjoint first, and then add
   void VisitBinding_(const VarBindingNode* binding, const TupleGetItemNode* tuple_get_item) final {
@@ -161,14 +409,16 @@ class BackwardBindingGenerator : private ExprVisitor {
     ICHECK(tuple_sinfo) << "The tuple field of a TupleGetItem must has a TupleStructInfo";
 
     const Var& tuple_var = Downcast<Var>(tuple_get_item->tuple);
-    if (adjoint_msg_map_.count(tuple_var) == 0) {
-      const AdjointMsg& init = InitZerosAdjointNested(GetRef<StructInfo>(tuple_sinfo));
-      adjoint_msg_map_.Set(tuple_var, init);
+    if (adjoint_var_map_.count(tuple_var) == 0) {
+      auto nested_zeros = Downcast<Tuple>(NestedZeros(GetRef<StructInfo>(tuple_sinfo)));
+      auto tuple_fields = nested_zeros->fields;
+      tuple_fields.Set(tuple_get_item->index, adjoint_var_map_[binding->var]);
+      EmitAdjoint(tuple_var, Tuple(tuple_fields), false);
+    } else {
+      Expr updated_adjoint = AddInTuple(adjoint_var_map_[tuple_var], tuple_get_item->index,
+                                        adjoint_var_map_[binding->var]);
+      EmitAdjoint(tuple_var, updated_adjoint, false);
     }
-
-    adjoint_msg_map_.Set(tuple_var,
-                         AddInAdjointMsg(adjoint_msg_map_[tuple_var], tuple_get_item->index,
-                                         ExprToAdjointMsg(adjoint_var_map_[binding->var])));
   }
 
   // For assign nodes, we add the adjoint of output to the adjoint of input
@@ -183,16 +433,24 @@ class BackwardBindingGenerator : private ExprVisitor {
   // For constant nodes, we do not have to handle it because it does not contribute to the adjoint
   void VisitBinding_(const VarBindingNode* binding, const ConstantNode* var) final { return; }
 
-  // Add partial (Expr type) to the adjoint of expr
+  // Add partial to the adjoint of expr
+  // expr may be a argument of a func call / tuple definition. Its type can be
+  // 1) var 2) constant (in this case, the adjoint will not be updated)
+  // 3) (maybe nested) tuple of vars / constant
+  //
+  // We use NestedMsg to simplify handling (nested) tuples. That requires converting partial from
+  // expr to NestedMsg or backwards.
   void UpdateAdjoint(const Expr& expr, const Expr& partial) {
-    DecomposeNestedMsg(expr, ExprToAdjointMsg(partial), [&](Expr leaf, AdjointMsg msg) {
+    AdjointMsg partial_msg = ExprToAdjointMsg(builder_->Normalize(partial));
+    DecomposeNestedMsg(expr, partial_msg, [&](Expr leaf, AdjointMsg msg) {
       if (leaf->IsInstance<VarNode>()) {
         const Var& v = Downcast<Var>(leaf);
-        if (adjoint_msg_map_.count(v) == 0) {
-          adjoint_msg_map_.Set(v, msg);
-        } else {
-          adjoint_msg_map_.Set(v, TupleAwareAdd(adjoint_msg_map_[v], msg));
+        Expr updated_adjoint_expr = builder_->Normalize(AdjointMsgToExpr(msg));
+        auto it = adjoint_var_map_.find(v);
+        if (it != adjoint_var_map_.end()) {
+          updated_adjoint_expr = TupleAwareAdd((*it).second, updated_adjoint_expr);
         }
+        EmitAdjoint(v, updated_adjoint_expr, false);
       } else if (leaf->IsInstance<ConstantNode>()) {
         // nothing to do
       } else if (leaf->IsInstance<ShapeExprNode>()) {
@@ -205,21 +463,6 @@ class BackwardBindingGenerator : private ExprVisitor {
     });
   }
 
-  // Transform the adjoint expressed as NestedMsg<Expr> into adjoint Expr, and then emit it
-  // If the adjoint is assigned to a DataflowVar (the adjoint corresponds to a non-output binding),
-  // it would be stored in adjoint_var_map_ for future lookup
-  Var EmitAdjoint(const Var& source_var, const AdjointMsg& adjoint, bool is_dataflow_var) {
-    Var adjoint_var;
-    if (is_dataflow_var) {
-      adjoint_var = builder_->Emit(AdjointMsgToExpr(adjoint), source_var->name_hint() + "_adjoint");
-      adjoint_var_map_.Set(source_var, adjoint_var);
-    } else {
-      adjoint_var =
-          builder_->EmitOutput(AdjointMsgToExpr(adjoint), source_var->name_hint() + "_adjoint");
-    }
-    return adjoint_var;
-  }
-
   // Handle the return value of the AD function.
   // Returns the new return value, which would be like:
   // Tuple(original_return_value,
@@ -229,19 +472,29 @@ class BackwardBindingGenerator : private ExprVisitor {
     Array<Expr> out_adjoints;
 
     for (Var var : require_grads) {
-      // If the var don't have adjoint msg, it do not contribute to the target
-      // so its adjoint is zeros
-      AdjointMsg adjoint =
-          adjoint_msg_map_.Get(var).value_or(InitZerosAdjointNested(GetStructInfo(var)));
-      Var adjoint_var = EmitAdjoint(var, adjoint, false);
-      out_adjoints.push_back(adjoint_var);
+      // If the var don't have adjoint var, it do not contribute to the target. So its adjoint is
+      // zeros
+      auto it = adjoint_var_map_.find(var);
+      if (it == adjoint_var_map_.end()) {
+        UpdateAdjoint(var, NestedZeros(GetStructInfo(var)));
+      }
+      Var adjoint_output_var = EmitAdjoint(var, adjoint_var_map_[var], true);
+      out_adjoints.push_back(adjoint_output_var);
     }
 
     return Tuple({orig_return_value, Tuple(out_adjoints)});
   }
 
-  static bool IsCallZeros(const Expr& expr) {
-    return expr->IsInstance<CallNode>() && Downcast<Call>(expr)->op == Op::Get("relax.zeros");
+  // Emit the adjoint expr as the name `original_var_name` + "_adjoint"
+  Var EmitAdjoint(const Var& source_var, const Expr& adjoint, bool is_output) {
+    Var adjoint_var;
+    if (is_output) {
+      adjoint_var = builder_->EmitOutput(adjoint, source_var->name_hint() + "_adjoint_out");
+    } else {
+      adjoint_var = builder_->Emit(adjoint, source_var->name_hint() + "_adjoint");
+      adjoint_var_map_.Set(source_var, adjoint_var);
+    }
+    return adjoint_var;
   }
 
   static bool IsCallNoGrad(const Expr& expr) {
@@ -266,99 +519,139 @@ class BackwardBindingGenerator : private ExprVisitor {
     });
   }
 
-  // Create a zeros AdjointMsg with specified struct info
-  // When sinfo is TupleStructInfo, we would create a nested zeros Tuple
-  static AdjointMsg InitZerosAdjointNested(const StructInfo& sinfo) {
-    return MapToNestedMsg<Expr>(sinfo, [](StructInfo sinfo) {
+  // Create a zeros Expr with specified struct info
+  // When sinfo is TupleStructInfo, we would create a (nested) Tuple containing zeros
+  static Expr NestedZeros(const StructInfo& sinfo) {
+    AdjointMsg msg = MapToNestedMsg<Expr>(sinfo, [](StructInfo sinfo) {
       auto* tensor_sinfo = sinfo.as<TensorStructInfoNode>();
       ICHECK(tensor_sinfo) << "The leaf of adjoint should be a Tensor.";
-      ICHECK(tensor_sinfo->shape.defined()) << "Error: missing shape when building zeros tuple.";
+      ICHECK(tensor_sinfo->shape.defined()) << "Missing shape when building zeros tuple.";
       const Expr& init = zeros(tensor_sinfo->shape.value(), tensor_sinfo->dtype);
-      UpdateStructInfo(init, sinfo);
       return init;
     });
+    return AdjointMsgToExpr(msg);
   }
 
-  // Return base + increment. A tuple-aware addition.
-  static AdjointMsg TupleAwareAdd(const AdjointMsg& base, const AdjointMsg& increment) {
-    return CombineNestedMsg(base, increment, [&](Expr lhs, Expr rhs) {
-      // a small optimization: a+0=a, 0+a=a.
-      if (IsCallZeros(lhs)) {
-        return rhs;
-      } else if (IsCallZeros(rhs)) {
-        return lhs;
-      }
-      auto* sinfo = GetStructInfoAs<TensorStructInfoNode>(lhs);
-      ICHECK(sinfo) << "The leaf of adjoint should have StructInfo and be a Tensor.";
-      ICHECK(GetStructInfoAs<TensorStructInfoNode>(rhs))
-          << "The leaf of adjoint should have StructInfo and be a Tensor.";
-      Expr res = add(lhs, rhs);
-      UpdateStructInfo(res, GetRef<StructInfo>(sinfo));
-      return res;
-    });
+  // Return lhs + rhs. Requires lhs and rhs has the same StructInfo.
+  // Use NestedMsg to handle cases when lhs and rhs are tuples.
+  static Expr TupleAwareAdd(const Expr& lhs, const Expr& rhs) {
+    AdjointMsg res = CombineNestedMsg(
+        ExprToAdjointMsg(lhs), ExprToAdjointMsg(rhs), [](Expr l_leaf, Expr r_leaf) {
+          auto* sinfo = GetStructInfoAs<TensorStructInfoNode>(l_leaf);
+          ICHECK(sinfo) << "The leaf of adjoint should have StructInfo and be a Tensor.";
+          ICHECK(GetStructInfoAs<TensorStructInfoNode>(r_leaf))
+              << "The leaf of adjoint should have StructInfo and be a Tensor.";
+          Expr res = add(l_leaf, r_leaf);
+          UpdateStructInfo(res, GetRef<StructInfo>(sinfo));
+          return res;
+        });
+    return AdjointMsgToExpr(res);
   }
 
   // Perform an addition in a specified position of tuple.
-  // e.g. tuple=(a, b, c), index=1, increment=d, then return (a, b+d, c)
-  static AdjointMsg AddInAdjointMsg(const AdjointMsg& adjoint, int index,
-                                    const AdjointMsg& increment) {
-    ICHECK(adjoint.IsNested()) << "The adjoint should be nested.";
-    Array<AdjointMsg> arr = adjoint.NestedArray();
-    ICHECK(index >= 0 && index < static_cast<int>(arr.size()));
-    arr.Set(index, TupleAwareAdd(arr[index], increment));
-    return AdjointMsg(arr);
+  // tuple[index] += increment
+  // Impl:
+  // Step 1) t1 = tuple[0], t2 = tuple[1], t3 = tuple[2]
+  // Step 2）t2_new = t2 + increment (TupleAwareAdd)
+  // Step 3) tuple_new = (t1, t2_new, t3)
+  static Expr AddInTuple(const Expr& tuple, int index, const Expr& increment) {
+    auto* sinfo = GetStructInfoAs<TupleStructInfoNode>(tuple);
+    ICHECK(sinfo) << "The first argument of AddInTuple should have tuple struct info.";
+    ICHECK(index >= 0 && index < static_cast<int>(sinfo->fields.size()));
+    Array<Expr> res;
+    for (size_t i = 0; i < sinfo->fields.size(); ++i) {
+      Expr field;
+      if (const auto* expr_tuple = tuple.as<TupleNode>()) {
+        field = expr_tuple->fields[i];
+      } else {
+        field = TupleGetItem(tuple, i);
+      }
+      if (static_cast<int>(i) == index) {
+        field = TupleAwareAdd(field, increment);
+      }
+      res.push_back(field);
+    }
+    return Tuple(res);
   }
 
   // The block builder of the corresponding GradientMutator, to emit bindings
   BlockBuilder builder_;
   // Forward Var to its adjoint Var
   Map<Var, Var> adjoint_var_map_;
-  // Forward Var to its adjoint NestedMsg<Expr>
-  // We use NestedMsg<Expr> to save the adjoint information (equivalent to adjoint Expr)
-  // When emitting, adjoint information will be transformed into adjoint Expr
-  Map<Var, AdjointMsg> adjoint_msg_map_;
+  // The generator for checkpoint bindings
+  CheckpointGenerator checkpoint_generator_;
 };
 
 class GradientMutator : private ExprMutator {
  public:
   static IRModule Transform(IRModule mod, String func_name, Optional<Array<Var>> require_grads,
                             int target_index) {
-    auto* old_func_ptr = mod->Lookup(func_name).as<FunctionNode>();
-    CHECK(old_func_ptr) << func_name << "is not a Relax Function";
-    auto old_func = GetRef<Function>(old_func_ptr);
+    // Step 1. Copy function
+    auto* old_func = mod->Lookup(func_name).as<FunctionNode>();
+    CHECK(old_func) << func_name << "is not a Relax Function";
+    auto new_func = CopyWithNewVars(GetRef<Function>(old_func));
 
-    // when require_grads is not specified, it would be set to all params of the function
-    auto require_grads_value = require_grads.value_or(old_func->params);
+    // Step 2. Handle the checkpoints and eliminate start_checkpoint and end_checkpoint ops
+    auto checkpoint_collected = CheckpointCollector::Collect(new_func);
+    new_func = checkpoint_collected.first;
+    auto checkpoints = checkpoint_collected.second;
 
-    CheckRequireGrads(require_grads_value, old_func->params, func_name);
+    // Step 3. Collect call_tir_with_grad information
+    auto tir_grad_collected = CallTIRWithGradEliminator::Transform(new_func);
 
-    Function new_func = CopyWithNewVars(old_func);
-    // map the parameter list into new params
-    for (size_t i = 0; i < require_grads_value.size(); ++i) {
-      int idx =
-          std::find(old_func->params.begin(), old_func->params.end(), require_grads_value[i]) -
-          old_func->params.begin();
-      require_grads_value.Set(i, new_func->params[idx]);
+    // Step 4. Handle require_grads
+    // When require_grads is not specified, it would be set to all params of the function
+    if (require_grads) {
+      CheckRequireGrads(require_grads.value(), old_func->params, func_name);
     }
+    // then map the parameter list into new params
+    auto require_grads_value = require_grads.value_or(old_func->params).Map([&](const Var& v) {
+      return new_func->params[std::find(old_func->params.begin(), old_func->params.end(), v) -
+                              old_func->params.begin()];
+    });
 
-    GradientMutator mutator(mod, require_grads_value, target_index);
-
-    // make the adjoint public
-    auto new_name = func_name + "_adjoint";
-    Function new_func_transformed = WithAttr(Downcast<Function>(mutator.VisitExpr(new_func)),
-                                             tvm::attr::kGlobalSymbol, new_name);
-
-    mutator.builder_->AddFunction(new_func_transformed, new_name);
-    return mutator.builder_->GetContextIRModule();
+    // Step 5. Generate the adjoint function, use RemoveAllUnused to simplify it, and then return
+    // the IRModule with the adjoint function
+    return GradientMutator(mod, require_grads_value, target_index, checkpoints)
+        .AddAdjointFunction(new_func, func_name, true);
   }
 
  private:
-  GradientMutator(const IRModule& module, const Array<Var>& require_grads, int target_index)
-      : ExprMutator(module), require_grads_(require_grads), target_index_(target_index) {}
+  GradientMutator(const IRModule& module, const Array<Var>& require_grads, int target_index,
+                  const VarIdSet& checkpoints)
+      : ExprMutator(module),
+        require_grads_(require_grads),
+        checkpoints_(checkpoints),
+        target_index_(target_index) {}
+
+  // Add the adjoint function of func to the IRModule using BlockBuilder
+  IRModule AddAdjointFunction(const Function& func, const String& func_name,
+                              bool remove_all_unused = true) {
+    // Step 5.1 forward -> forward + backward
+    auto new_func = Downcast<Function>(VisitExpr(func));
+
+    // Step 5.2 Convert call_tir_with_grad nodes into call_tir nodes
+    // because call_tir_with_grad nodes is not actually implemented
+    new_func = CallTIRWithGradEliminator::Transform(new_func);
+
+    if (remove_all_unused) {
+      new_func = RemoveAllUnused(new_func);
+    }
+
+    // Step 5.3 mark the transformed function as public
+    // because the original function may be public, and have gsymbol attribute as func_name
+    auto new_func_name = func_name + "_adjoint";
+    auto new_func_with_gsymbol = WithAttr(new_func, tvm::attr::kGlobalSymbol, new_func_name);
+
+    // Step 5.4 Add the transformed function to IRModule
+    builder_->AddFunction(new_func_with_gsymbol, new_func_name);
+    return builder_->GetContextIRModule();
+  }
 
   Expr VisitExpr_(const FunctionNode* func) final {
     CHECK(func->body->IsInstance<SeqExprNode>()) << "The body of the function must be SeqExpr.";
 
+    orig_params_ = func->params;
     Expr new_body = this->VisitExpr(func->body);
 
     return Function(func->params, new_body, NullOpt, func->is_pure, func->attrs);
@@ -376,7 +669,7 @@ class GradientMutator : private ExprMutator {
     CheckAndSetTarget(seq_expr->body, target_index_);
 
     BindingBlock new_block = this->VisitBindingBlock(seq_expr->blocks[0]);
-    return SeqExpr({new_block}, this->return_expr_);
+    return SeqExpr({new_block}, return_expr_);
   }
 
   BindingBlock VisitBindingBlock_(const DataflowBlockNode* block) final {
@@ -387,9 +680,9 @@ class GradientMutator : private ExprMutator {
     }
 
     // generate backward bindings and the return value
-    return_expr_ = BackwardBindingGenerator::Generate(this->builder_, GetRef<DataflowBlock>(block),
-                                                      this->require_grads_, this->target_var_,
-                                                      orig_return_expr_);
+    return_expr_ = BackwardBindingGenerator::Generate(builder_, GetRef<DataflowBlock>(block),
+                                                      require_grads_, target_var_, orig_params_,
+                                                      orig_return_expr_, checkpoints_);
 
     return builder_->EndBlock();
   }
@@ -435,13 +728,14 @@ class GradientMutator : private ExprMutator {
   // 3. the type of the input var should be Tensor of floating point dtype, or Tuple of that
   static void CheckRequireGrads(const Array<Var>& require_grads, const Array<Var>& func_params,
                                 const String& func_name) {
-    std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> var_set;
+    VarIdSet var_set;
     for (const auto& var : require_grads) {
       CHECK(std::find(func_params.begin(), func_params.end(), var) != func_params.end())
           << "There is no Var named " << var->name_hint() << " in the parameters of the function "
           << func_name;
-      CHECK_EQ(var_set.count(var), 0) << "Var " << var->name_hint() << " appears more than once";
-      var_set.emplace(var);
+      CHECK_EQ(var_set.count(var->vid), 0)
+          << "Var " << var->name_hint() << " appears more than once";
+      var_set.emplace(var->vid);
 
       CHECK(IsNestedTensorConditioned(GetStructInfo(var), IsFloatTensorSInfo))
           << "Only Tensors of floating point dtype or Tuples of float "
@@ -452,10 +746,13 @@ class GradientMutator : private ExprMutator {
 
   // differentiation sources
   Array<Var> require_grads_;
+  // checkpoint
+  VarIdSet checkpoints_;
   // the differentiation target
   int target_index_;
   Var target_var_;
   // the return value of the original function and the differentiated function
+  Array<Var> orig_params_;
   Expr orig_return_expr_;
   Expr return_expr_;
 };

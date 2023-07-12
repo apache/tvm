@@ -29,6 +29,16 @@ def _no_grad(bb: BlockBuilder, call: Call) -> Expr:
     return call.args[0]
 
 
+@register_legalize("relax.grad.start_checkpoint")
+def _start_checkpoint(bb: BlockBuilder, call: Call) -> Expr:
+    return call.args[0]
+
+
+@register_legalize("relax.grad.end_checkpoint")
+def _end_checkpoint(bb: BlockBuilder, call: Call) -> Expr:
+    return call.args[0]
+
+
 @register_legalize("relax.grad.nll_loss_backward")
 def _grad_nll_loss_backward(bb: BlockBuilder, call: Call) -> Expr:
     # topi.sum don't support zero-dim x
@@ -51,8 +61,17 @@ def _grad_nll_loss_backward(bb: BlockBuilder, call: Call) -> Expr:
         if reduction == "sum":
             output_grad = topi.broadcast_to(output_grad, targets.shape)
         elif reduction == "mean":
+            weight_sum = topi_sum_extend(all_weights)
+            weight_sum_elim_zero = te.compute(
+                (),
+                lambda *x: tir.Select(
+                    weight_sum() != tir.const(0, weight_sum.dtype),
+                    weight_sum(),
+                    tir.const(1, weight_sum.dtype),
+                ),
+            )
             output_grad = topi.divide(
-                topi.broadcast_to(output_grad, targets.shape), topi_sum_extend(all_weights)
+                topi.broadcast_to(output_grad, targets.shape), weight_sum_elim_zero
             )
 
         # handle no batch

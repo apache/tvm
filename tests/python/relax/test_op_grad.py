@@ -14,7 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
 import tvm
+from tvm._ffi.base import TVMError
 import tvm.testing
 from tvm import relax
 from tvm.ir import Op
@@ -43,11 +45,54 @@ def test_op_correctness():
         "relax.grad.take_backward"
     )
     assert relax.op.grad.no_grad(x).op == Op.get("relax.grad.no_grad")
+    assert relax.op.grad.no_grad(x).args[0] == x
+    assert relax.op.grad.start_checkpoint(x).op == Op.get("relax.grad.start_checkpoint")
+    assert relax.op.grad.start_checkpoint(x).args[0] == x
+    assert relax.op.grad.end_checkpoint(x).op == Op.get("relax.grad.end_checkpoint")
+    assert relax.op.grad.end_checkpoint(x).args[0] == x
 
 
 def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_sinfo: relax.StructInfo):
     ret = bb.normalize(call)
     tvm.ir.assert_structural_equal(ret.struct_info, expected_sinfo)
+
+
+def test_start_checkpoint_input_not_var():
+    bb = relax.BlockBuilder()
+    x = relax.Var("x", R.Tensor((3, 4), "float32"))
+    y = relax.Var("y", R.Tensor((3, 4), "float32"))
+
+    # ok because x + y will be normalized into a relax Var
+    with bb.function("main", [x, y]):
+        gv = bb.emit(relax.op.grad.start_checkpoint(x + y))
+        bb.emit_func_output(gv)
+
+    # wrong: tuple will not be normalized
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.grad.start_checkpoint((x, y)))
+
+    # wrong: const will not be normalized
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.grad.start_checkpoint(relax.const(1, "float32")))
+
+
+def test_end_checkpoint_input_not_var():
+    bb = relax.BlockBuilder()
+    x = relax.Var("x", R.Tensor((3, 4), "float32"))
+    y = relax.Var("y", R.Tensor((3, 4), "float32"))
+
+    # ok because x + y will be normalized into a relax Var
+    with bb.function("main", [x, y]):
+        gv = bb.emit(relax.op.grad.end_checkpoint(x + y))
+        bb.emit_func_output(gv)
+
+    # wrong: tuple will not be normalized
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.grad.end_checkpoint((x, y)))
+
+    # wrong: const will not be normalized
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.grad.end_checkpoint(relax.const(1, "float32")))
 
 
 def test_nll_loss_backward_infer_struct_info():

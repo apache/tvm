@@ -91,21 +91,23 @@ def get_expected_1():
         def main_adjoint(a: R.Tensor((5, 5), dtype="float32"), b: R.Tensor((5, 5), dtype="float32")) -> R.Tuple(R.Tensor((), dtype="float32"), R.Tuple(R.Tensor((5, 5), dtype="float32"), R.Tensor((5, 5), dtype="float32"))):
             cls = Expected
             with R.dataflow():
-                lv = R.call_tir(cls.f_mul, (a, b), out_sinfo=R.Tensor((5, 5), dtype="float32"), te_grad_name="f_mul_grad")
+                lv = R.call_tir(cls.f_mul, (a, b), out_sinfo=R.Tensor((5, 5), dtype="float32"))
                 gv: R.Tensor((), dtype="float32") = R.sum(lv, axis=None, keepdims=False)
                 gv_adjoint: R.Tensor((), dtype="float32") = R.ones(R.shape([]), dtype="float32")
                 lv_adjoint: R.Tensor((5, 5), dtype="float32") = R.broadcast_to(gv_adjoint, R.shape([5, 5]))
                 lv_1 = R.call_tir(cls.f_mul_grad, (lv_adjoint, a, b), out_sinfo=[R.Tensor((5, 5), dtype="float32"), R.Tensor((5, 5), dtype="float32")])
                 a_adjoint: R.Tensor((5, 5), dtype="float32") = lv_1[0]
                 b_adjoint: R.Tensor((5, 5), dtype="float32") = lv_1[1]
-                R.output(gv, a_adjoint, b_adjoint)
-            return (gv, (a_adjoint, b_adjoint))
+                a_adjoint_out: R.Tensor((5, 5), dtype="float32") = a_adjoint
+                b_adjoint_out: R.Tensor((5, 5), dtype="float32") = b_adjoint
+                R.output(gv, a_adjoint_out, b_adjoint_out)
+            return (gv, (a_adjoint_out, b_adjoint_out))
 
         @R.function
         def main(a: R.Tensor((5, 5), dtype="float32"), b: R.Tensor((5, 5), dtype="float32")) -> R.Tensor((), dtype="float32"):
             cls = Expected
             with R.dataflow():
-                lv = R.call_tir(cls.f_mul, (a, b), out_sinfo=R.Tensor((5, 5), dtype="float32"), te_grad_name="f_mul_grad")
+                lv = R.call_tir_with_grad(cls.f_mul, (a, b), out_sinfo=R.Tensor((5, 5), dtype="float32"), te_grad_name="f_mul_grad")
                 gv: R.Tensor((), dtype="float32") = R.sum(lv, axis=None, keepdims=False)
                 R.output(gv)
             return gv
@@ -113,7 +115,6 @@ def get_expected_1():
     return Expected
 
 
-@pytest.mark.skip("gradient will be refactored in later pull requests")
 def test_emit_te(register_te_grads):
     # Build the target module using emit_te
     def f_mul(src1, src2):
@@ -128,7 +129,11 @@ def test_emit_te(register_te_grads):
     bb = relax.BlockBuilder()
     with bb.function("main", [a, b]):
         with bb.dataflow():
-            d = bb.emit_te(f_mul, a, b, primfunc_name_hint="f_mul", te_grad_name="f_mul_grad")
+            d = bb.emit(
+                bb.call_te_with_grad(
+                    f_mul, a, b, primfunc_name_hint="f_mul", te_grad_name="f_mul_grad"
+                )
+            )
             out = bb.emit_output(R.sum(d))
         bb.emit_func_output(out)
 
@@ -137,7 +142,6 @@ def test_emit_te(register_te_grads):
     assert_structural_equal(After, get_expected_1())
 
 
-@pytest.mark.skip("gradient will be refactored in later pull requests")
 def test_call_tir(register_te_grads):
     # fmt: off
     @I.ir_module
@@ -157,7 +161,7 @@ def test_call_tir(register_te_grads):
         def main(a: R.Tensor((5, 5), dtype="float32"), b: R.Tensor((5, 5), dtype="float32")) -> R.Tensor((), dtype="float32"):
             cls = Before
             with R.dataflow():
-                lv = R.call_tir(cls.f_mul, (a, b), out_sinfo=R.Tensor((5, 5), dtype="float32"), te_grad_name="f_mul_grad")
+                lv = R.call_tir_with_grad(cls.f_mul, (a, b), out_sinfo=R.Tensor((5, 5), dtype="float32"), te_grad_name="f_mul_grad")
                 gv: R.Tensor((), dtype="float32") = R.sum(lv, axis=None, keepdims=False)
                 R.output(gv)
             return gv
@@ -197,14 +201,15 @@ def get_expected_2():
         def main_adjoint(a: R.Tensor((5, 5), dtype="float32")) -> R.Tuple(R.Tensor((), dtype="float32"), R.Tuple(R.Tensor((5, 5), dtype="float32"))):
             cls = Expected
             with R.dataflow():
-                lv = R.call_tir(cls.f_mul, (a,), out_sinfo=R.Tensor((5, 5), dtype="float32"), te_grad_name="f_mulk_grad", te_grad_kwargs={"k": T.float32(2)})
+                lv = R.call_tir(cls.f_mul, (a,), out_sinfo=R.Tensor((5, 5), dtype="float32"))
                 gv: R.Tensor((), dtype="float32") = R.sum(lv, axis=None, keepdims=False)
                 gv_adjoint: R.Tensor((), dtype="float32") = R.ones(R.shape([]), dtype="float32")
                 lv_adjoint: R.Tensor((5, 5), dtype="float32") = R.broadcast_to(gv_adjoint, R.shape([5, 5]))
                 lv_1 = R.call_tir(cls.f_mulk_grad, (lv_adjoint, a), out_sinfo=R.Tensor((5, 5), dtype="float32"))
                 a_adjoint: R.Tensor((5, 5), dtype="float32") = lv_1
-                R.output(gv, a_adjoint)
-            return (gv, (a_adjoint,))
+                a_adjoint_out: R.Tensor((5, 5), dtype="float32") = a_adjoint
+                R.output(gv, a_adjoint_out)
+            return (gv, (a_adjoint_out,))
 
         @R.function
         def main(a: R.Tensor((5, 5), dtype="float32")) -> R.Tensor((), dtype="float32"):
@@ -218,7 +223,6 @@ def get_expected_2():
     return Expected
 
 
-@pytest.mark.skip("gradient will be refactored in later pull requests")
 def test_emit_te_kwargs(register_te_grads):
     # Build the target module using emit_te
     def f_mul2(src):
@@ -229,24 +233,24 @@ def test_emit_te_kwargs(register_te_grads):
     bb = relax.BlockBuilder()
     with bb.function("main", [a]):
         with bb.dataflow():
-            d = bb.emit_te(
-                f_mul2,
-                a,
-                primfunc_name_hint="f_mul",
-                te_grad_name="f_mulk_grad",
-                te_grad_kwargs={"k": T.float32(2)},
+            d = bb.emit(
+                bb.call_te_with_grad(
+                    f_mul2,
+                    a,
+                    primfunc_name_hint="f_mul",
+                    te_grad_name="f_mulk_grad",
+                    te_grad_kwargs={"k": T.float32(2)},
+                )
             )
             out = bb.emit_output(R.sum(d))
         bb.emit_func_output(out)
 
     Before = bb.get()
     After = Gradient("main")(Before)
-    After.show(None, False)
 
     assert_structural_equal(After, get_expected_2())
 
 
-@pytest.mark.skip("gradient will be refactored in later pull requests")
 def test_call_tir_kwargs(register_te_grads):
     # fmt: off
     @I.ir_module
@@ -266,7 +270,7 @@ def test_call_tir_kwargs(register_te_grads):
         def main(a: R.Tensor((5, 5), dtype="float32")) -> R.Tensor((), dtype="float32"):
             cls = Before
             with R.dataflow():
-                lv = R.call_tir(cls.f_mul, (a,), out_sinfo=R.Tensor((5, 5), dtype="float32"), te_grad_name="f_mulk_grad", te_grad_kwargs={"k": T.float32(2)})
+                lv = R.call_tir_with_grad(cls.f_mul, (a,), out_sinfo=R.Tensor((5, 5), dtype="float32"), te_grad_name="f_mulk_grad", te_grad_kwargs={"k": T.float32(2)})
                 gv: R.Tensor((), dtype="float32") = R.sum(lv, axis=None, keepdims=False)
                 R.output(gv)
             return gv

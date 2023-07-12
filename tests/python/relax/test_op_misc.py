@@ -46,14 +46,14 @@ def test_call_tir() -> None:
 def test_call_tir_with_grad():
     v0 = rx.Var("v0", R.Tensor([54, 96], "float32"))
     v1 = rx.call_tir_with_grad(
-        identity_tir, (v0,), R.Tensor((54, 96), "float32"), te_grad_name="identity_grad"
+        identity_tir, (v0,), R.Tensor((54, 96), "float32"), tir_grad_name="identity_grad"
     )
     assert v1.attrs.te_grad_name == "identity_grad"
     v2 = rx.call_tir_with_grad(
         identity_tir,
         (v0,),
         R.Tensor((54, 96), "float32"),
-        te_grad_name="identity_k_grad",
+        tir_grad_name="identity_k_grad",
         te_grad_kwargs={"k": 1.0},
     )
     assert v2.attrs.te_grad_name == "identity_k_grad"

@@ -383,7 +383,7 @@ def test_call_tir_with_grad():
         relax.GlobalVar("tir_func"),
         (v0,),
         R.Tensor((54, 96), "float32"),
-        te_grad_name="grad_func",
+        tir_grad_name="grad_func",
         te_grad_kwargs={"k": 1.0, "x": x},
     )
 
