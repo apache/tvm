@@ -441,12 +441,15 @@ Array<BufferRegion> EvalSetRegions(const Array<BufferRegion>& regions,
  * \return The union regions
  */
 Array<BufferRegion> UnionRegions(const Array<BufferRegion>& regions) {
+  arith::Analyzer analyzer;
   typedef std::vector<Array<arith::IntSet>> ranges_t;
   std::unordered_map<Buffer, ranges_t, ObjectPtrHash, ObjectPtrEqual> intset_map;
+  Array<Buffer> buffer_order;
   for (const BufferRegion& buffer_region : regions) {
     const Buffer& buffer = buffer_region->buffer;
     if (intset_map.find(buffer) == intset_map.end()) {
       intset_map[buffer] = {buffer->shape.size(), Array<arith::IntSet>()};
+      buffer_order.push_back(buffer);
     }
     std::vector<Array<arith::IntSet>> dim_range(buffer->shape.size(), Array<arith::IntSet>());
     for (size_t dim = 0; dim < buffer->shape.size(); ++dim) {
@@ -454,12 +457,13 @@ Array<BufferRegion> UnionRegions(const Array<BufferRegion>& regions) {
     }
   }
   Array<BufferRegion> results;
-  for (const auto& it : intset_map) {
-    const Buffer& buffer = it.first;
+  for (size_t i = 0; i < buffer_order.size(); ++i) {
+    auto it = intset_map.find(buffer_order[i]);
+    const Buffer& buffer = it->first;
     Array<Range> regions;
     for (size_t dim = 0; dim < buffer->shape.size(); ++dim) {
-      const arith::IntSet intset = arith::Union(it.second[dim]);
-      regions.push_back({intset.min(), intset.max() + 1});
+      const arith::IntSet intset = arith::Union(it->second[dim]);
+      regions.push_back({analyzer.Simplify(intset.min()), analyzer.Simplify(intset.max() + 1)});
     }
     results.push_back(BufferRegion(buffer, regions));
   }
@@ -566,6 +570,10 @@ StmtSRef Blockize(ScheduleState self, const StmtSRef& loop_sref, bool preserve_u
 }
 
 class CollectSubstInfo : public StmtVisitor {
+  /**
+   * It is to collect the external loop information of the common ancestor of the block list,
+   * which is used to replace some block and loop variables in BlockizeBlocks.
+   */
  public:
   static void Collect(const ScheduleState& self, const StmtSRef& lca, const StmtSRef& block_sref,
                       Array<IterVar>* outer_iter_vars, Array<PrimExpr>* outer_bindings,
@@ -590,19 +598,23 @@ class CollectSubstInfo : public StmtVisitor {
   void VisitStmt_(const ForNode* loop) final {
     if (!in_lca) {
       if (loop == lca_->stmt) {
-        match_lca = true;
         in_lca = true;
       }
       outer_bindings_->push_back(loop->loop_var);
-      out_extent.push_back(loop->extent);
+      outer_extent.push_back(loop->extent);
       // traverse lca
+      ++num_travered;
       StmtVisitor::VisitStmt(loop->body);
-      if (!match_lca) {
+      --num_travered;
+      if (!in_lca) {
         outer_bindings_->pop_back();
-        out_extent.pop_back();
+        outer_extent.pop_back();
+      }
+      if (num_travered == 0) {
+        in_lca = false;
       }
     } else {
-      return;
+      StmtVisitor::VisitStmt_(loop);
     }
   }
 
@@ -612,16 +624,24 @@ class CollectSubstInfo : public StmtVisitor {
       return;
     }
     if (in_lca) {
-      if (block->iter_vars.size() > 0) {
+      if (!block->iter_vars.empty()) {
         // collect info
-        for (int i = 0, n = block->iter_vars.size(); i < n; ++i) {
+        for (size_t i = 0, n = block->iter_vars.size(); i < n; ++i) {
           const IterVar& iter_var = block->iter_vars[i];
-          if (static_cast<unsigned int>(i) < out_extent.size()) {
+          if (static_cast<unsigned int>(i) < outer_extent.size()) {
             arith::Analyzer ana;
-            ICHECK(ana.CanProveEqual(out_extent[i], iter_var->dom->extent));
-            auto outer_iter = IterVar(/*dom=*/RangeFromExtent(iter_var->dom->extent),
-                                      /*var=*/iter_var->var.copy_with_suffix("_o"),
+            // According to outer_bindings info, check outer iter_vars
+            ICHECK(ana.CanProveEqual(outer_extent[i], iter_var->dom->extent));
+            auto outer_bind = Downcast<Var>((*outer_bindings_)[i]);
+            ObjectPtr<VarNode> new_ptr = make_object<VarNode>(*iter_var->var.get());
+            new_ptr->name_hint = "v" + outer_bind->name_hint;
+            auto outer_iter = IterVar(/*dom=*/iter_var->dom,
+                                      /*var=*/Var(new_ptr),
                                       /*iter_type=*/iter_var->iter_type);
+            // In order to collect the iter_vars information of externally generated blocks,
+            // please refer to "vm = T.axis.opaque(3, m)" in test case().
+            // Because this information only needs to be collected once, use num_outer_iter_vars ==
+            // 0 to judge.
             if (num_outer_iter_vars == 0) {
               outer_iter_vars_->push_back(outer_iter);
               block_var_subst_->Set(iter_var->var, outer_iter->var);
@@ -642,10 +662,10 @@ class CollectSubstInfo : public StmtVisitor {
   Array<IterVar>* inner_iter_vars_;
   Array<PrimExpr>* inner_bindings_;
   Map<Var, PrimExpr>* block_var_subst_;
-  Array<PrimExpr> out_extent{nullptr};
-  bool match_lca = false;
+  Array<PrimExpr> outer_extent;
   bool in_lca = false;
   int num_outer_iter_vars = 0;
+  int num_travered = 0;
 };
 
 class BlockizeBlocks : public StmtMutator {
@@ -665,9 +685,8 @@ class BlockizeBlocks : public StmtMutator {
   arith::Analyzer analyzer;
   Block tmp_in_block;
   Map<Var, arith::IntSet> inner_iter_dom;
-  bool _in_lca = false;
-  bool target_in_ = false;
-  bool IsBlockNode = false;
+  bool _first_in = false;
+  bool _target_in = false;
 
  public:
   static Stmt Rewrite(const ScheduleState& self, const Array<StmtSRef>& block_srefs,
@@ -697,11 +716,11 @@ class BlockizeBlocks : public StmtMutator {
 
   Stmt VisitStmt_(const ForNode* loop) final {
     if (loop == lca_->stmt) {
-      _in_lca = true;
+      _first_in = true;
       return For(loop->loop_var, loop->min, loop->extent, loop->kind, RewriteSeq(loop->body),
                  loop->thread_binding, loop->annotations, loop->span);
     }
-    if (_in_lca && !loop_var_subst.empty()) {
+    if (!loop_var_subst.empty()) {
       // substitute outter_var name
       Var loop_var = Downcast<Var>(Substitute(loop->loop_var, loop_var_subst));
       return For(loop_var, loop->min, loop->extent, loop->kind, StmtMutator::VisitStmt(loop->body),
@@ -711,7 +730,7 @@ class BlockizeBlocks : public StmtMutator {
   }
 
   Stmt VisitStmt_(const IfThenElseNode* op) final {
-    if (_in_lca && !loop_var_subst.empty()) {
+    if (!loop_var_subst.empty()) {
       PrimExpr new_condition;
       new_condition = Downcast<PrimExpr>(Substitute(op->condition, loop_var_subst));
       Stmt stmt_then = StmtMutator::VisitStmt(op->then_case);
@@ -726,25 +745,24 @@ class BlockizeBlocks : public StmtMutator {
 
   Stmt VisitStmt_(const BlockNode* block) final {
     if (block == lca_->stmt) {
-      _in_lca = true;
+      _first_in = true;
       return Block(block->iter_vars, block->reads, block->writes, block->name_hint,
                    RewriteSeq(block->body), block->init, block->alloc_buffers, block->match_buffers,
                    block->annotations, block->span);
     }
-    if (_in_lca) {
+    if (_first_in) {
       for (const StmtSRef& block_sref : blocks_) {
         if (block_sref->stmt == block) {
-          target_in_ = true;
-          if (block->iter_vars.size() > outer_iter_vars.size()) {
-            for (int i = outer_iter_vars.size(), n = block->iter_vars.size(); i < n; ++i) {
-              const IterVar& iter_var = block->iter_vars[i];
-              auto inner_iter = IterVar(/*dom=*/RangeFromExtent(iter_var->dom->extent),
-                                        /*var=*/iter_var->var.copy_with_suffix("_i"),
-                                        /*iter_type=*/iter_var->iter_type);
-              inner_iter_vars.push_back(inner_iter);
-              block_var_subst.Set(iter_var->var, inner_iter->var);
-            }
+          _target_in = true;
+          for (size_t i = 0, n = block->iter_vars.size(); i < n; ++i) {
+            const IterVar& iter_var = block->iter_vars[i];
+            auto inner_iter = IterVar(/*dom=*/RangeFromExtent(iter_var->dom->extent),
+                                      /*var=*/iter_var->var.copy_with_suffix("_i"),
+                                      /*iter_type=*/iter_var->iter_type);
+            inner_iter_vars.push_back(inner_iter);
+            block_var_subst.Set(iter_var->var, inner_iter->var);
           }
+
           // substitute block
           tmp_in_block = GetRef<Block>(block);
           Block block_subst = Downcast<Block>(
@@ -775,7 +793,7 @@ class BlockizeBlocks : public StmtMutator {
   Stmt VisitStmt_(const BlockRealizeNode* blockrealize) final {
     inner_iter_vars.clear();
     Stmt stmt = StmtMutator::VisitStmt(blockrealize->block);
-    if (!target_in_) {
+    if (!_target_in) {
       return GetRef<Stmt>(blockrealize);
     }
     const BlockNode* block_node = stmt.as<BlockNode>();
@@ -793,10 +811,11 @@ class BlockizeBlocks : public StmtMutator {
     }
     ICHECK(has_outer_reduction == false)
         << "No reduction iter vars allowed for the outer loops when blockize multiple blocks";
-    if (inner_iter_vars.defined()) {
-      Array<PrimExpr> new_inner_iter_vars{nullptr};
-      for (int i = outer_iter_vars.size(), n = blockrealize->iter_values.size(); i < n; ++i) {
-        new_inner_iter_vars.push_back(blockrealize->iter_values[i]);
+    if (loop_var_subst.defined()) {
+      Array<PrimExpr> new_inner_iter_vars;
+      for (size_t i = 0, n = blockrealize->iter_values.size(); i < n; ++i) {
+        auto iter_value = Substitute(blockrealize->iter_values[i], loop_var_subst);
+        new_inner_iter_vars.push_back(iter_value);
       }
       BlockRealize inner_realize = GenerateInner(/*is_write_reduction=*/has_outer_reduction,
                                                  /*iter_vars=*/inner_iter_vars,
@@ -827,9 +846,9 @@ class BlockizeBlocks : public StmtMutator {
     const size_t seq_size = seq->seq.size();
     for (size_t i = 0; i < seq_size; ++i) {
       const Stmt& it = seq->seq[i];
-      target_in_ = false;
+      _target_in = false;
       Stmt stmt = StmtMutator::VisitStmt(it);
-      if (target_in_) {
+      if (_target_in) {
         if (idx_start == -1) {
           idx_start = cur_idx;
         } else {
