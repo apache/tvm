@@ -324,14 +324,14 @@ def test_blockize_blocks():
         for m in T.serial(6):
             for i, j in T.grid(3, 1):
                 with T.block("B"):
-                    vi, vj = T.axis.remap("SS", [i, j])
+                    vm, vi, vj = T.axis.remap("SSS", [m, i, j])
                     T.reads(A[vi, vj])
                     T.writes(B[vi, vj])
                     B[vi, vj] = A[vi, vj] * 2.0
 
             for i, j in T.grid(128, 64):
                 with T.block("C"):
-                    vi, vj = T.axis.remap("SS", [i, j])
+                    vm, vi, vj = T.axis.remap("SSS", [m, i, j])
                     T.reads(A[vi, vj + 64])
                     T.writes(B[vi, vj + 64])
                     B[vi, vj + 64] = A[vi, vj + 64] * 3.0
@@ -342,17 +342,19 @@ def test_blockize_blocks():
     ) -> None:
         for m in T.serial(6):
             with T.block("outer_B_C_"):
-                init_o = T.axis.spatial(1, 0)
+                vm = T.axis.spatial(6, m)
                 T.reads(A[0:128, 0:128])
                 T.writes(B[0:128, 0:128])
                 for i, j in T.grid(3, 1):
                     with T.block("B"):
+                        vm_i = T.axis.spatial(6, vm)
                         vi_i, vj_i = T.axis.remap("SS", [i, j])
                         T.reads(A[vi_i, vj_i])
                         T.writes(B[vi_i, vj_i])
                         B[vi_i, vj_i] = A[vi_i, vj_i] * T.float32(2)
                 for i, j in T.grid(128, 64):
                     with T.block("C"):
+                        vm_i = T.axis.spatial(6, vm)
                         vi_i, vj_i = T.axis.remap("SS", [i, j])
                         T.reads(A[vi_i, vj_i + 64])
                         T.writes(B[vi_i, vj_i + 64])
@@ -365,6 +367,169 @@ def test_blockize_blocks():
     tvm.ir.assert_structural_equal(
         s.mod["main"], expected.with_attr("global_symbol", "blocks_func")
     )
+    verify_trace_roundtrip(sch=s, mod=blocks_func)
+
+
+def test_blockize_blocks_v1():
+    @T.prim_func
+    def blocks_func(concat_mat: T.Buffer((9, 9), "float32"), out: T.Buffer((3, 3), "float32")):
+        temp_buffer = T.alloc_buffer((18,))
+        j = T.alloc_buffer((1,), "int32")
+        for m, i in T.grid(3, 9):
+            j[0] = 1
+            for k in range(9):
+                if concat_mat[i, i] == T.float32(0) and i + j[0] < 9:
+                    for iter in range(18):
+                        with T.block("auto_0"):
+                            poly_m = T.axis.opaque(3, m)
+                            poly_i = T.axis.opaque(9, i)
+                            poly_k = T.axis.opaque(9, k)
+                            poly_iter = T.axis.spatial(18, iter)
+                            T.reads(
+                                concat_mat[
+                                    T.min(poly_i, poly_i + j[0]) : T.min(poly_i, poly_i + j[0])
+                                    + (
+                                        T.max(poly_i, poly_i + j[0])
+                                        + 1
+                                        - T.min(poly_i, poly_i + j[0])
+                                    ),
+                                    poly_iter,
+                                ],
+                                j[0],
+                                temp_buffer[poly_iter],
+                            )
+                            T.writes(
+                                temp_buffer[poly_iter],
+                                concat_mat[
+                                    T.min(poly_i, poly_i + j[0]) : T.min(poly_i, poly_i + j[0])
+                                    + (
+                                        T.max(poly_i, poly_i + j[0])
+                                        + 1
+                                        - T.min(poly_i, poly_i + j[0])
+                                    ),
+                                    poly_iter,
+                                ],
+                            )
+                            T.block_attr({"tir.custom_op": 1})
+                            temp_buffer[poly_iter] = concat_mat[poly_i, poly_iter]
+                            concat_mat[poly_i, poly_iter] = concat_mat[poly_i + j[0], poly_iter]
+                            concat_mat[poly_i + j[0], poly_iter] = temp_buffer[poly_iter]
+                    with T.block("pre_blockize_0"):
+                        T.reads(j[0])
+                        T.writes(j[0])
+                        j[0] = j[0] + 1
+            for n in range(3):
+                with T.block("auto_1"):
+                    poly_m = T.axis.opaque(3, m)
+                    poly_i = T.axis.opaque(9, i)
+                    poly_n = T.axis.reduce(3, n)
+                    T.reads()
+                    T.writes(concat_mat[poly_i, poly_m])
+                    T.block_attr({"tir.custom_op": 1})
+                    concat_mat[poly_i, poly_m] = T.Cast("float32", poly_n)
+        for p, q in T.grid(3, 3):
+            with T.block("auto_2"):
+                vi_p, vj_q = T.axis.remap("SS", [p, q])
+                T.reads(concat_mat[vi_p, vj_q])
+                T.writes(out[vi_p, vj_q])
+                out[vi_p, vj_q] = concat_mat[vi_p, vj_q] * T.float32(3)
+
+    @T.prim_func
+    def after_blocks_blockize(
+        concat_mat: T.Buffer((9, 9), "float32"), out: T.Buffer((3, 3), "float32")
+    ):
+        # with T.block("root"):
+        temp_buffer = T.alloc_buffer((18,))
+        j = T.alloc_buffer((1,), "int32")
+        for m, i in T.grid(3, 9):
+            j[0] = 1
+            with T.block("outer_auto_0_pre_blockize_0_auto_1_"):
+                vm = T.axis.opaque(3, m)
+                vi = T.axis.opaque(9, i)
+                T.reads(
+                    concat_mat[
+                        T.min(0, j[0]) : T.min(0, j[0]) + (T.max(8, j[0] + 8) + 1 - T.min(0, j[0])),
+                        0:18,
+                    ],
+                    j[0],
+                    temp_buffer[0:18],
+                )
+                T.writes(
+                    temp_buffer[0:18],
+                    concat_mat[
+                        T.min(0, j[0]) : T.min(0, j[0]) + (T.max(8, j[0] + 8) + 1 - T.min(0, j[0])),
+                        0:18,
+                    ],
+                    j[0],
+                )
+                for k in range(9):
+                    if concat_mat[vi, vi] == T.float32(0) and vi + j[0] < 9:
+                        for iter in range(18):
+                            with T.block("auto_0"):
+                                poly_m_i = T.axis.opaque(3, vm)
+                                poly_i_i = T.axis.opaque(9, vi)
+                                poly_k_i = T.axis.opaque(9, k)
+                                poly_iter_i = T.axis.spatial(18, iter)
+                                T.reads(
+                                    concat_mat[
+                                        T.min(poly_i_i, poly_i_i + j[0]) : T.min(
+                                            poly_i_i, poly_i_i + j[0]
+                                        )
+                                        + (
+                                            T.max(poly_i_i, poly_i_i + j[0])
+                                            + 1
+                                            - T.min(poly_i_i, poly_i_i + j[0])
+                                        ),
+                                        poly_iter_i,
+                                    ],
+                                    j[0],
+                                    temp_buffer[poly_iter_i],
+                                )
+                                T.writes(
+                                    temp_buffer[poly_iter_i],
+                                    concat_mat[
+                                        T.min(poly_i_i, poly_i_i + j[0]) : T.min(
+                                            poly_i_i, poly_i_i + j[0]
+                                        )
+                                        + (
+                                            T.max(poly_i_i, poly_i_i + j[0])
+                                            + 1
+                                            - T.min(poly_i_i, poly_i_i + j[0])
+                                        ),
+                                        poly_iter_i,
+                                    ],
+                                )
+                                T.block_attr({"tir.custom_op": 1})
+                                temp_buffer[poly_iter_i] = concat_mat[poly_i_i, poly_iter_i]
+                                concat_mat[poly_i_i, poly_iter_i] = concat_mat[
+                                    poly_i_i + j[0], poly_iter_i
+                                ]
+                                concat_mat[poly_i_i + j[0], poly_iter_i] = temp_buffer[poly_iter_i]
+                        with T.block("pre_blockize_0"):
+                            T.reads(j[0])
+                            T.writes(j[0])
+                            j[0] = j[0] + 1
+                for n in range(3):
+                    with T.block("auto_1"):
+                        poly_m_i = T.axis.opaque(3, vm)
+                        poly_i_i = T.axis.opaque(9, vi)
+                        poly_n_i = T.axis.reduce(3, n)
+                        T.reads()
+                        T.writes(concat_mat[poly_i_i, poly_m_i])
+                        T.block_attr({"tir.custom_op": 1})
+                        concat_mat[poly_i_i, poly_m_i] = T.Cast("float32", poly_n_i)
+        for p, q in T.grid(3, 3):
+            with T.block("auto_2"):
+                vi_p, vj_q = T.axis.remap("SS", [p, q])
+                T.reads(concat_mat[vi_p, vj_q])
+                T.writes(out[vi_p, vj_q])
+                out[vi_p, vj_q] = concat_mat[vi_p, vj_q] * T.float32(3)
+
+    s = tir.Schedule(blocks_func, debug_mask="all")
+    blocks = [s.get_block("auto_0"), s.get_block("pre_blockize_0"), s.get_block("auto_1")]
+    s.blockize(blocks, preserve_unit_iters=False)
+    expected = after_blocks_blockize
+    tvm.ir.assert_structural_equal(s.mod["main"], expected)
     verify_trace_roundtrip(sch=s, mod=blocks_func)
 
 
