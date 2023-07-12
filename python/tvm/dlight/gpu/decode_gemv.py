@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """A rule for DecodeGEMV."""
-from typing import List, Optional, Set, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 from tvm import arith, ir, tir
 from tvm.target import Target
@@ -25,6 +25,8 @@ from ..base import (
     ScheduleRule,
     normalize_prim_func,
     try_inline_contiguous_spatial,
+    detect_dominant_read,
+    is_broadcast_epilogue,
 )
 from . import utils
 
@@ -43,48 +45,6 @@ def _get_reduction_expr(block: tir.Block) -> Optional[tir.PrimExpr]:
     ):
         return None
     return buffer_store.value.b
-
-
-def _collect_vars_used_in_access_region(region: List[ir.Range]) -> Set[tir.Var]:
-    tir_vars: Set[tir.Var] = set()
-
-    def _collect_tir_var(expr):
-        if isinstance(expr, tir.Var):
-            tir_vars.add(expr)
-
-    for expr in region:
-        assert expr.extent == 1
-        tir.stmt_functor.post_order_visit(expr.min, _collect_tir_var)
-    return tir_vars
-
-
-def _detect_dominant_read(block: tir.Block) -> tir.PrimExpr:
-    dominant_read = None
-    num_read_iters = -1
-    for buffer_region in block.reads:
-        tir_vars = _collect_vars_used_in_access_region(buffer_region.region)
-        if num_read_iters < len(tir_vars):
-            num_read_iters = len(tir_vars)
-            dominant_read = buffer_region
-    assert dominant_read is not None
-    (result,) = dominant_read.buffer.offset_of([e.min for e in dominant_read.region])
-    return result
-
-
-def _is_broadcast_epilogue(
-    sch: tir.Schedule,
-    block: tir.schedule.BlockRV,
-    epilogue: tir.schedule.BlockRV,
-) -> bool:
-    write_buffers = {r.buffer for r in sch.get(block).writes}
-    epilogue_iters = {i.var: i for i in sch.get(epilogue).iter_vars if i.dom != 1}
-    for buffer_region in sch.get(epilogue).reads:
-        if buffer_region.buffer not in write_buffers:
-            continue
-        tir_vars = _collect_vars_used_in_access_region(buffer_region.region)
-        if len(tir_vars) < len(epilogue_iters):
-            return True
-    return False
 
 
 class DecodeGEMV(ScheduleRule):
@@ -128,7 +88,7 @@ class DecodeGEMV(ScheduleRule):
             sch,
             block_info,
             arith.normalize_to_iter_sum(
-                _detect_dominant_read(block_stmt),
+                detect_dominant_read(block_stmt),
                 input_iters={i.var: i.dom for i in block_stmt.iter_vars},
             ),
         )
@@ -221,7 +181,7 @@ class DecodeGEMV(ScheduleRule):
         if epilogue_info is not None:
             epilogue = epilogue_info.block_rv
             sch.reverse_compute_at(epilogue, bx)
-            if _is_broadcast_epilogue(sch, block, epilogue):
+            if is_broadcast_epilogue(sch, block, epilogue):
                 sch.set_scope(block, 0, "shared")
                 _, *s = sch.get_loops(epilogue)  # pylint: disable=invalid-name
                 _, tx = sch.split(sch.fuse(*s), factors=[None, len_tx])
@@ -266,7 +226,7 @@ class DecodeGEMV(ScheduleRule):
         if epilogue_info is not None:
             epilogue = epilogue_info.block_rv
             sch.reverse_compute_at(epilogue, bx)
-            if _is_broadcast_epilogue(sch, block, epilogue):
+            if is_broadcast_epilogue(sch, block, epilogue):
                 sch.set_scope(block, 0, "shared")
                 _, *s = sch.get_loops(epilogue)  # pylint: disable=invalid-name
                 _, tx, ty = sch.split(sch.fuse(*s), factors=[None, len_tx, len_ty])
