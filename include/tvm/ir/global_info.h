@@ -35,7 +35,7 @@ namespace tvm {
  */
 class GlobalInfoNode : public Object {
  public:
-  static constexpr const char* _type_key = "GlobalInfoNode";
+  static constexpr const char* _type_key = "GlobalInfo";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_BASE_OBJECT_INFO(GlobalInfoNode, Object);
