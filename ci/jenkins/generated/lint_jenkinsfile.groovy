@@ -65,7 +65,7 @@ return
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2023-02-02T20:12:16.725728
+// Generated at 2023-06-09T15:32:58.300218
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -117,7 +117,7 @@ properties([
 upstream_revision = null
 
 // command to start a docker container
-docker_run = 'docker/bash.sh --env CI --env TVM_SHARD_INDEX --env TVM_NUM_SHARDS --env RUN_DISPLAY_URL --env PLATFORM --env SKIP_SLOW_TESTS --env TEST_STEP_NAME'
+docker_run = 'docker/bash.sh --env CI --env PLATFORM --env TVM_SHARD_INDEX --env TVM_NUM_SHARDS --env RUN_DISPLAY_URL --env PLATFORM --env SKIP_SLOW_TESTS --env TEST_STEP_NAME'
 docker_build = 'docker/build.sh'
 // timeout in minutes
 max_time = 180
@@ -162,7 +162,7 @@ def init_git() {
     script: """
       set -eux
       . ${jenkins_scripts_root}/retry.sh
-      retry 3 timeout 5m git submodule update --init -f --jobs 0
+      retry 3 timeout 5m git submodule update --init --recursive -f --jobs 0
     """,
     label: 'Update git submodules',
   )
@@ -359,9 +359,9 @@ def check_pr(pr_number) {
 
 }
 
-def prepare() {
+def prepare(node_type) {
   stage('Prepare') {
-    node('CPU-SMALL') {
+    node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/prepare") {
         init_git()
 
@@ -544,7 +544,11 @@ def micro_cpp_unittest(image) {
 
 cancel_previous_build()
 
-prepare()
+try {
+    prepare('CPU-SMALL-SPOT')
+} catch(Exception ex) {
+  prepare('CPU-SMALL')
+}
 
 stage('Lint') {
   parallel(

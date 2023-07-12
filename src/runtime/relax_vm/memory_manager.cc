@@ -21,6 +21,7 @@
  * \file tvm/runtime/relax_vm/memory_manager.cc
  * \brief Allocate and manage memory for the Relay VM.
  */
+#include <tvm/runtime/registry.h>
 #include <tvm/runtime/relax_vm/memory_manager.h>
 
 #include <memory>
@@ -28,6 +29,7 @@
 
 #include "naive_allocator.h"
 #include "pooled_allocator.h"
+#include "tvm/runtime/memory.h"
 
 namespace tvm {
 namespace runtime {
@@ -56,6 +58,12 @@ void StorageObj::Deleter(Object* obj) {
   StorageObj* storage = reinterpret_cast<StorageObj*>(ptr->manager_ctx);
   storage->DecRef();
   delete ptr;
+}
+
+Storage::Storage(Buffer buffer) {
+  auto n = make_object<StorageObj>();
+  n->buffer = std::move(buffer);
+  data_ = std::move(n);
 }
 
 inline void VerifyDataType(DLDataType dtype) {
@@ -162,6 +170,31 @@ Allocator* MemoryManager::GetAllocator(Device dev) {
   return it->second.get();
 }
 
+void MemoryManager::Clear() {
+  MemoryManager* m = MemoryManager::Global();
+  std::lock_guard<std::mutex> lock(m->mutex_);
+  m->allocators_.clear();
+}
+
+Buffer Allocator::Alloc(ShapeTuple shape, DLDataType dtype, String mem_scope) {
+  ICHECK_EQ(shape.size(), 1) << "Allocator of type (" << type_
+                             << ") does not support nD allocation. Please use allocator type ("
+                             << AllocatorType::kNaive << ")";
+  CHECK_EQ(mem_scope, "global") << "Allocator of type (" << type_
+                                << ") does not support memory scope " << mem_scope
+                                << ". Please use allocator type (" << AllocatorType::kNaive << ")";
+
+  DLTensor temp;
+  temp.ndim = shape.size();
+  temp.dtype = dtype;
+  temp.shape = const_cast<int64_t*>(shape.data());
+  temp.strides = nullptr;
+  temp.byte_offset = 0;
+  size_t nbytes = GetDataSize(temp);
+
+  return Alloc(nbytes, runtime::kAllocAlignment, dtype);
+}
+
 runtime::NDArray Allocator::Empty(ShapeTuple shape, DLDataType dtype, DLDevice dev) {
   VerifyDataType(dtype);
   runtime::NDArray::Container* container =
@@ -175,6 +208,8 @@ runtime::NDArray Allocator::Empty(ShapeTuple shape, DLDataType dtype, DLDevice d
   container->dl_tensor.data = buffer->data;
   return runtime::NDArray(runtime::GetObjectPtr<Object>(container));
 }
+
+TVM_REGISTER_GLOBAL("vm.builtin.memory_manager.clear").set_body_typed(MemoryManager::Clear);
 
 }  // namespace relax_vm
 }  // namespace runtime

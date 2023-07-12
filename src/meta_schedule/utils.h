@@ -150,12 +150,16 @@ inline void print_interactive_table(const String& data) {
  * \param logging_func The logging function.
  */
 inline void clear_logging(const char* file, int lineno, PackedFunc logging_func) {
-  if (logging_func.defined() && using_ipython()) {
-    logging_func(static_cast<int>(PyLogMessage::Level::CLEAR), file, lineno, "");
-  } else {
-    // this would clear all logging output in the console
-    runtime::detail::LogMessage(file, lineno, TVM_LOG_LEVEL_INFO).stream()
-        << "\033c\033[3J\033[2J\033[0m\033[H";
+  if (const char* env_p = std::getenv("TVM_META_SCHEDULE_CLEAR_SCREEN")) {
+    if (std::string(env_p) == "1") {
+      if (logging_func.defined() && using_ipython()) {
+        logging_func(static_cast<int>(PyLogMessage::Level::CLEAR), file, lineno, "");
+      } else {
+        // this would clear all logging output in the console
+        runtime::detail::LogMessage(file, lineno, TVM_LOG_LEVEL_INFO).stream()
+            << "\033c\033[3J\033[2J\033[0m\033[H";
+      }
+    }
   }
 }
 
@@ -566,16 +570,26 @@ class BlockCollector : public tir::StmtVisitor {
   /*! \brief Entry point */
   Array<tir::BlockRV> Run() {
     std::vector<tir::BlockRV> results;
-    for (const auto& [gv, base_func] : sch_->mod()->functions) {
-      // `gv->name_hint` is the name of the function
-      // `base_func` can be PrimFunc or relay::Function
-      if (const auto* func = base_func.as<tir::PrimFuncNode>()) {
-        func_name_ = gv->name_hint;
-        block_names_.clear();
-        blocks_to_collect_.clear();
-        VisitStmt(func->body);
-        for (const String& name : blocks_to_collect_) {
-          results.push_back(sch_->GetBlock(name, func_name_));
+    auto f_collect = [this, &results](tir::PrimFunc func, String func_name) {
+      func_name_ = func_name;
+      block_names_.clear();
+      blocks_to_collect_.clear();
+      VisitStmt(func->body);
+      for (const String& name : blocks_to_collect_) {
+        results.push_back(sch_->GetBlock(name, func_name_));
+      }
+    };
+
+    if (sch_->func_working_on().defined()) {
+      GlobalVar gv = sch_->func_working_on().value();
+      tir::PrimFunc func = Downcast<tir::PrimFunc>(sch_->mod()->functions[gv]);
+      f_collect(func, gv->name_hint);
+    } else {
+      for (const auto& [gv, base_func] : sch_->mod()->functions) {
+        // `gv->name_hint` is the name of the function
+        // `base_func` can be PrimFunc or relay::Function
+        if (const auto* func = base_func.as<tir::PrimFuncNode>()) {
+          f_collect(GetRef<tir::PrimFunc>(func), gv->name_hint);
         }
       }
     }

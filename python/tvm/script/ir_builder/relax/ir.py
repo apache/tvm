@@ -45,10 +45,16 @@ from tvm.relax.op import (
     argmin,
     assert_op,
     astype,
+    bitwise_and,
+    bitwise_not,
+    bitwise_or,
+    bitwise_xor,
     broadcast_to,
     builtin,
     call_builtin_with_ctx,
+    call_pure_packed,
     call_tir,
+    call_tir_with_grad,
     call_dps_packed,
     ceil,
     clip,
@@ -76,6 +82,7 @@ from tvm.relax.op import (
     greater_equal,
     image,
     invoke_closure,
+    invoke_pure_closure,
     isfinite,
     isinf,
     isnan,
@@ -84,6 +91,10 @@ from tvm.relax.op import (
     less_equal,
     linear,
     log,
+    logical_and,
+    logical_not,
+    logical_or,
+    logical_xor,
     make_closure,
     matmul,
     max,
@@ -111,6 +122,7 @@ from tvm.relax.op import (
     shape_of,
     std,
     strided_slice,
+    dynamic_strided_slice,
     sum,
     take,
     variance,
@@ -154,14 +166,24 @@ py_str = str
 ############################### Function ################################
 
 
-def function() -> frame.FunctionFrame:
+def function(is_pure: bool = True, is_private: bool = False) -> frame.FunctionFrame:
     """Start a function frame.
+    Parameters
+    ----------
+    is_pure: bool
+        Whether the function is annotated as pure.
+
+    is_private : bool
+        Whether the function is annotated as private.
+
     Returns
     -------
     frame: FunctionFrame
         The constructed function frame.
     """
-    return _ffi_api.Function()  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.Function(  # type: ignore[attr-defined]  # pylint: disable=no-member
+        is_pure, is_private
+    )
 
 
 def arg(name: py_str, struct_info: StructInfo) -> Var:
@@ -556,10 +578,16 @@ __all__ = [
     "argmin",
     "assert_op",
     "astype",
+    "bitwise_and",
+    "bitwise_not",
+    "bitwise_or",
+    "bitwise_xor",
     "broadcast_to",
     "builtin",
     "call_packed",
+    "call_pure_packed",
     "call_tir",
+    "call_tir_with_grad",
     "call_dps_packed",
     "call_builtin_with_ctx",
     "ceil",
@@ -600,6 +628,7 @@ __all__ = [
     "greater_equal",
     "image",
     "invoke_closure",
+    "invoke_pure_closure",
     "isfinite",
     "isinf",
     "isnan",
@@ -608,6 +637,10 @@ __all__ = [
     "less_equal",
     "linear",
     "log",
+    "logical_and",
+    "logical_not",
+    "logical_or",
+    "logical_xor",
     "make_closure",
     "matmul",
     "max",
@@ -639,7 +672,6 @@ __all__ = [
     "ShapeExpr",
     "std",
     "str",
-    "strided_slice",
     "sum",
     "sigmoid",
     "sign",
@@ -652,6 +684,7 @@ __all__ = [
     "stop_lift_params",
     "str",
     "strided_slice",
+    "dynamic_strided_slice",
     "subtract",
     "take",
     "tan",

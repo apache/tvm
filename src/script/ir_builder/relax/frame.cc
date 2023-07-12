@@ -56,11 +56,17 @@ void FunctionFrameNode::ExitWithScope() {
                              "`return` to return an Expr";
   this->block_builder->BeginScope(params);
   Expr body = this->block_builder->Normalize(tvm::relax::SeqExpr(binding_blocks, output.value()));
+  // if the function is not private, add a global symbol to its attributes
+  if (!is_private.value_or(Bool(false))->value && name.defined() &&
+      !attrs.count(tvm::attr::kGlobalSymbol)) {
+    attrs.Set(tvm::attr::kGlobalSymbol, name.value());
+  }
   auto dict_attrs = attrs.empty() ? NullValue<DictAttrs>() : DictAttrs(attrs);
   this->block_builder->EndScope();
   tvm::relax::Function func(/*params=*/params,
                             /*body=*/body,
                             /*ret_struct_info=*/ret_struct_info,
+                            /*is_pure=*/is_pure.value_or(Bool(true))->value,
                             /*attrs=*/dict_attrs);
   // Step 2: Update IRModule.
   if (builder->frames.empty()) {

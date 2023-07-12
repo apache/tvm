@@ -43,12 +43,14 @@ RELAX_REGISTER_UNARY_ARITH_OP_AND_IMPL(asin, /*require_float_dtype=*/true);
 RELAX_REGISTER_UNARY_ARITH_OP_AND_IMPL(asinh, /*require_float_dtype=*/true);
 RELAX_REGISTER_UNARY_ARITH_OP_AND_IMPL(atan, /*require_float_dtype=*/true);
 RELAX_REGISTER_UNARY_ARITH_OP_AND_IMPL(atanh, /*require_float_dtype=*/true);
+RELAX_REGISTER_UNARY_ARITH_OP_AND_IMPL(bitwise_not, /*require_float_dtype=*/false);
 RELAX_REGISTER_UNARY_ARITH_OP_AND_IMPL(ceil, /*require_float_dtype=*/false);
 RELAX_REGISTER_UNARY_ARITH_OP_AND_IMPL(cos, /*require_float_dtype=*/true);
 RELAX_REGISTER_UNARY_ARITH_OP_AND_IMPL(cosh, /*require_float_dtype=*/true);
 RELAX_REGISTER_UNARY_ARITH_OP_AND_IMPL(exp, /*require_float_dtype=*/true);
 RELAX_REGISTER_UNARY_ARITH_OP_AND_IMPL(floor, /*require_float_dtype=*/false);
 RELAX_REGISTER_UNARY_ARITH_OP_AND_IMPL(log, /*require_float_dtype=*/true);
+RELAX_REGISTER_UNARY_ARITH_OP_AND_IMPL(logical_not, /*require_float_dtype=*/false);
 RELAX_REGISTER_UNARY_ARITH_OP_AND_IMPL(negative, /*require_float_dtype=*/false);
 RELAX_REGISTER_UNARY_ARITH_OP_AND_IMPL(round, /*require_float_dtype=*/false);
 RELAX_REGISTER_UNARY_ARITH_OP_AND_IMPL(rsqrt, /*require_float_dtype=*/true);
@@ -67,7 +69,8 @@ TVM_REGISTER_OP("relax.clip")
     .add_argument("x", "Tensor", "The input tensor.")
     .add_argument("min", "PrimValue", "The lower-bound of the range to be clipped to")
     .add_argument("max", "PrimValue", "The upper-bound of the range to be clipped to")
-    .set_attr<FInferStructInfo>("FInferStructInfo", ReturnStructInfoFromArg<0>);
+    .set_attr<FInferStructInfo>("FInferStructInfo", ReturnStructInfoFromArg<0>)
+    .set_attr<Bool>("FPurity", Bool(true));
 
 Expr clip(Expr x, Expr min, Expr max) {
   CHECK(min->IsInstance<PrimValueNode>())

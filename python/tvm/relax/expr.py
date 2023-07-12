@@ -229,7 +229,17 @@ class ExprWithOp(Expr, Scriptable):
         result: ExprWithOp
             The result expression.
         """
-        return TupleGetItem(self, index)
+        try:
+            return TupleGetItem(self, index)
+        except tvm.TVMError as err:
+            # For Python objects with __getitem__, but without
+            # __len__, tuple unpacking is done by iterating over
+            # sequential indices until IndexError is raised.
+            # Therefore, convert from TVMError to IndexError for
+            # compatibility.
+            if "Index out of bounds" in err.args[0]:
+                raise IndexError from err
+            raise
 
 
 @tvm._ffi.register_object("relax.expr.Call")
@@ -371,8 +381,12 @@ def make_shape(shape: Union[List[Any], typing.Tuple[Any, ...]]) -> ShapeExpr:
 
 @tvm._ffi.register_object("relax.expr.Constant")
 class Constant(ExprWithOp):
-    def __init__(self, data: tvm.nd.NDArray, span: Span = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.Constant, data, span)  # type: ignore
+    def __init__(
+        self, data: tvm.nd.NDArray, struct_info: Optional[StructInfo] = None, span: Span = None
+    ) -> None:
+        self.__init_handle_by_constructor__(
+            _ffi_api.Constant, data, struct_info, span
+        )  # type: ignore
 
 
 @tvm._ffi.register_object("relax.expr.Var")
@@ -560,6 +574,7 @@ class Function(BaseFunc, Scriptable):
     params: List[Var]
     body: Expr
     ret_struct_info: StructInfo
+    is_pure: bool
     attrs: Optional[tvm.ir.DictAttrs]
 
     def __init__(
@@ -567,22 +582,32 @@ class Function(BaseFunc, Scriptable):
         params: List[Var],
         body: Expr,
         ret_struct_info: Optional[StructInfo] = None,
+        is_pure: Optional[bool] = True,
         attrs: Optional[tvm.ir.DictAttrs] = None,
         span: Optional[Span] = None,
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.Function, params, body, ret_struct_info, attrs, span  # type: ignore
-        )
+            _ffi_api.Function,
+            params,
+            body,
+            ret_struct_info,
+            is_pure,
+            attrs,
+            span,  # type: ignore
+        )  # type: ignore
 
     @staticmethod
     def create_empty(
         params: List[Var],
         ret_struct_info: StructInfo,
+        is_pure: Optional[bool] = True,
         attrs: Optional[tvm.ir.DictAttrs] = None,
         span: Optional[Span] = None,
     ):
         """Construct a relax.Function but without body"""
-        return _ffi_api.FunctionCreateEmpty(params, ret_struct_info, attrs, span)  # type: ignore
+        return _ffi_api.FunctionCreateEmpty(
+            params, ret_struct_info, is_pure, attrs, span
+        )  # type: ignore
 
     def __call__(self, *args):
         """Invoke the global function.

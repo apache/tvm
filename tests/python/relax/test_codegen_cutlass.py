@@ -25,7 +25,9 @@ from tvm.contrib.cutlass.build import is_shape_valid_for_cutlass_matmul
 from tvm.contrib.pickle_memoize import memoize
 from tvm.relax.backend.contrib.cutlass import partition_for_cutlass
 from tvm.relax.testing import get_relax_matmul_module
+from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import tir as T
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import relax as relax_builder
 
@@ -83,9 +85,9 @@ cutlass_enabled = pytest.mark.skipif(
 pytestmark = [cutlass_enabled]
 
 
-def build_and_run(mod, inputs_np, target, legalize=False):
+def build_and_run(mod, inputs_np, target, legalize=True):
     if legalize:
-        mod = relax.transform.LegalizeOps()(mod)
+        mod = relax.transform.LegalizeOps()(mod)  # For cpu reference, nop for cutlass.
 
     dev = tvm.device(target, 0)
     ex = relax.build(mod, target)
@@ -95,11 +97,13 @@ def build_and_run(mod, inputs_np, target, legalize=False):
     return f(*inputs).numpy()
 
 
-def get_result_with_relax_cutlass_offload(mod, *args, assert_all_bindings_fused=True):
+def get_result_with_relax_cutlass_offload(
+    mod, *args, assert_all_bindings_fused=True, num_final_bindings=1
+):
     mod = partition_for_cutlass(mod)
 
     if assert_all_bindings_fused:
-        assert len(mod["main"].body.blocks[0].bindings) == 1
+        assert len(mod["main"].body.blocks[0].bindings) == num_final_bindings
 
     codegen_pass = relax.transform.RunCodegen({"cutlass": {"sm": 80, "find_first_valid": True}})
     mod = codegen_pass(mod)
@@ -116,7 +120,7 @@ def test_kernel_sharing():
     out = get_result_with_relax_cutlass_offload(
         Conv2dx2, data_np, weight1_np, weight2_np, assert_all_bindings_fused=False
     )
-    ref = build_and_run(Conv2dx2, [data_np, weight1_np, weight2_np], "llvm", legalize=True)
+    ref = build_and_run(Conv2dx2, [data_np, weight1_np, weight2_np], "llvm")
 
     np.testing.assert_equal(out, ref)
 
@@ -165,9 +169,16 @@ def get_relax_conv2d_module(
     return tvm.IRModule({"main": func})
 
 
-def _to_concrete_shape(symbolic_shape, var_table):
+def _to_concrete_shape(symbolic_shape, var_table=None):
+    if var_table is None:
+        var_table = {}
+
     result = []
     for dim in symbolic_shape:
+        if isinstance(dim, tuple):
+            result.append(_to_concrete_shape(dim, var_table))
+            continue
+
         if not isinstance(dim, tvm.tir.expr.Var):
             result.append(dim)
             continue
@@ -243,7 +254,7 @@ def test_conv2d_offload(data_shape, weight_shape, dtype, epilogue, residual_bloc
     )
     out = get_result_with_relax_cutlass_offload(mod, *args)
 
-    ref = build_and_run(mod, args, "llvm", legalize=True)
+    ref = build_and_run(mod, args, "llvm")
 
     tvm.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
 
@@ -317,6 +328,8 @@ def test_cutlass_partition_conv2d_residual_blocked():
         # Residual
         ((32, 8), (8, 8), False, "bias", "add"),
         ((4, 16), (16, 16), True, "relu", "add_relu"),
+        ((8, 32, 8), (8, 8, 8), False, "bias", "add"),
+        ((5, 3, 32, 8), (8, 8), True, "relu", "add"),
         # Residual fusion without bias - this is supported via the matmul + bias pattern
         # where bias == residual input
         ((4, 16), (16, 16), False, "none", "add"),
@@ -360,14 +373,45 @@ def test_matmul_offload(
         x_shape,
         y_shape,
         dtype,
-        with_bias=with_bias,
+        bias_shape=bias.shape if with_bias else None,
         transposed_y=transpose_y,
         activation=activation,
         residual_bin_op=residual_bin_op,
         residual_activation=residual_activation,
     )
     out = get_result_with_relax_cutlass_offload(mod, *args)
-    ref = build_and_run(mod, args, "llvm", legalize=True)
+    ref = build_and_run(mod, args, "llvm")
+
+    tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
+
+
+def test_matmul_with_3d_bias_offload():
+    x_shape = (1, 4, 8)
+    y_shape = (1, 8, 16)
+    dtype = "float16"
+
+    x = np.random.randn(*x_shape).astype(dtype)
+    y = np.random.randn(*y_shape).astype(dtype)
+    bias = np.random.randn(1, x_shape[-2], y_shape[-1]).astype(dtype)
+    args = (x, y, bias)
+
+    @tvm.script.ir_module
+    class Mod:
+        @R.function
+        def main(
+            x: R.Tensor((1, 4, 8), "float16"),
+            y: R.Tensor((1, 8, 16), "float16"),
+            bias: R.Tensor((1, 4, 16), "float16"),
+        ):
+            with R.dataflow():
+                lv1 = R.matmul(x, y)
+                gv1 = lv1 + bias
+                R.output(gv1)
+
+            return gv1
+
+    out = get_result_with_relax_cutlass_offload(Mod, *args)
+    ref = build_and_run(Mod, args, "llvm", legalize=True)
 
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
@@ -437,9 +481,7 @@ def test_cutlass_partition_matmul_blocked(x_shape, y_shape, transpose_y, dtype):
     if transpose_y:
         y_shape = (*y_shape[:-2], y_shape[-1], y_shape[-2])
 
-    mod = get_relax_matmul_module(
-        x_shape, y_shape, dtype, with_bias=False, transposed_y=transpose_y
-    )
+    mod = get_relax_matmul_module(x_shape, y_shape, dtype, transposed_y=transpose_y)
     mod = partition_for_cutlass(mod)
 
     assert len(mod.functions) == 1
@@ -508,6 +550,7 @@ def attention_dtype(request):
 @pytest.fixture(
     params=[
         # B, S, N, H
+        (32, (_vars["a"], 8), 16, (8, 8)),
         (32, (8, 8), 16, (8, 8)),
         (4, (16, 8), 32, (8, 8)),  # s != s_kv
         (4, (16, 8), 32, (8, 16)),  # h != h_v
@@ -519,11 +562,12 @@ def attention_size(request):
     return request.param
 
 
-def get_relax_attention_module(q, k, v, bias=None, qk_scale=None):
-    dtype = str(q.dtype)
-
+def get_relax_attention_module(
+    q_shape, k_shape, v_shape, *, dtype, bias_shape=None, qk_scale=None, causal_mask=None
+):
     from tvm.script.ir_builder import IRBuilder
-    from tvm.script.ir_builder import relax as relax_builder, tir as T
+    from tvm.script.ir_builder import relax as relax_builder
+    from tvm.script.ir_builder import tir as T
 
     if qk_scale is not None:
         qk_scale = T.FloatImm("float32", qk_scale)
@@ -531,13 +575,15 @@ def get_relax_attention_module(q, k, v, bias=None, qk_scale=None):
     with IRBuilder() as builder:
         with relax_builder.function():
             R.func_name("main")
-            q = R.arg("q", R.Tensor(q.shape, dtype))
-            k = R.arg("k", R.Tensor(k.shape, dtype))
-            v = R.arg("v", R.Tensor(v.shape, dtype))
-            if bias is not None:
-                bias = R.arg("bias", R.Tensor(bias.shape, dtype))
+            q = R.arg("q", R.Tensor(q_shape, dtype))
+            k = R.arg("k", R.Tensor(k_shape, dtype))
+            v = R.arg("v", R.Tensor(v_shape, dtype))
+            bias = None
+            if bias_shape is not None and bias_shape != "none":
+                bias = R.arg("bias", R.Tensor(bias_shape, dtype))
+
             with R.dataflow() as frame:
-                result = R.emit(R.nn.attention(q, k, v, bias, qk_scale))
+                result = R.emit(R.nn.attention(q, k, v, bias, qk_scale, causal_mask))
                 R.output(result)
 
             R.func_ret_value(frame.output_vars[0])
@@ -547,7 +593,7 @@ def get_relax_attention_module(q, k, v, bias=None, qk_scale=None):
 
 
 @memoize("topi.tests.test_codegen_cutlass.test_attention_offload")
-def get_numpy_attention_ref(b, s, s_kv, n, h, h_v, bias_shape, bias_reshape, qk_scale, dtype):
+def get_numpy_attention_ref(b, s, s_kv, n, h, h_v, bias_shape, qk_scale, causal, dtype):
     q = np.random.randn(b, s, n, h).astype(dtype)
     k = np.random.randn(b, s_kv, n, h).astype(dtype)
     v = np.random.randn(b, s_kv, n, h_v).astype(dtype)
@@ -559,10 +605,24 @@ def get_numpy_attention_ref(b, s, s_kv, n, h, h_v, bias_shape, bias_reshape, qk_
         score = qt @ kt / np.sqrt(q.shape[-1])  # b, n, s, s_kv
     if not bias_shape == "none":
         bias = np.random.randn(*bias_shape).astype(dtype)
-        score = score + bias.reshape(*bias_reshape)  # b, n, s, s_kv
+        score = score + bias  # b, n, s, s_kv
     else:
         bias = None
-    attn = tvm.topi.testing.softmax_python(score, -1)
+    if causal == "none":
+        attn = tvm.topi.testing.softmax_python(score, -1)
+    else:
+        if causal == "TopLeft":
+            offset = 0
+        elif causal == "BottomRight":
+            offset = abs(s - s_kv)
+        else:
+            raise NotImplementedError()
+        score_masked = np.tril(score, k=offset)
+        score_masked_exp = np.tril(
+            np.exp(score_masked - np.max(score_masked, axis=-1, keepdims=True)), k=offset
+        )
+        score_masked_sum = np.sum(score_masked_exp, axis=-1, keepdims=True)
+        attn = np.divide(score_masked_exp, score_masked_sum)
     vt = v.transpose(0, 2, 1, 3)  # b, n, s_kv, h_v
     ref = attn @ vt  # b, n, s, h_v
     return q, k, v, bias, ref.transpose(0, 2, 1, 3)  # b, s, n, h_v
@@ -570,45 +630,63 @@ def get_numpy_attention_ref(b, s, s_kv, n, h, h_v, bias_shape, bias_reshape, qk_
 
 def test_attention_offload(attention_size, attention_dtype):
     b, (s, s_kv), n, (h, h_v) = attention_size
+    concrete_s, concrete_s_kv = _to_concrete_shape((s, s_kv))
     q, k, v, _, ref = get_numpy_attention_ref(
-        b, s, s_kv, n, h, h_v, "none", "none", "none", attention_dtype
+        b, concrete_s, concrete_s_kv, n, h, h_v, "none", "none", "none", attention_dtype
     )
 
-    mod = get_relax_attention_module(q, k, v)
-    out = get_result_with_relax_cutlass_offload(mod, q, k, v)
+    q_shape = (b, s, n, h)
+    k_shape = (b, s_kv, n, h)
+    v_shape = (b, s_kv, n, h_v)
+
+    mod = get_relax_attention_module(q_shape, k_shape, v_shape, dtype=attention_dtype)
+    out = get_result_with_relax_cutlass_offload(mod, q, k, v, num_final_bindings=3)
 
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
 @pytest.fixture(
     params=[
-        # B, S, N, H, bias_shape, bias_reshape
-        (4, (16, 8), 32, (8, 16), (4, 32, 16, 8), (4, 32, 16, 8)),
-        (4, (16, 8), 32, (8, 16), (4, 16, 8), (4, 1, 16, 8)),
-        (4, (16, 8), 32, (8, 16), (4, 8), (4, 1, 1, 8)),
+        # B, S, N, H, bias_shape
+        (4, (16, 8), 32, (8, 16), (4, 32, 16, 8)),
+        (4, (16, 8), 32, (8, 16), (4, 1, 16, 8)),
+        (4, (16, 8), 32, (8, 16), (4, 32, 1, 8)),
+        (4, (16, 8), 32, (8, 16), (4, 1, 1, 8)),
+        (4, (16, 8), 32, (8, 16), (1, 32, 16, 8)),
+        (4, (16, 8), 32, (8, 16), (1, 1, 16, 8)),
+        (4, (16, 8), 32, (8, 16), (1, 32, 1, 8)),
+        (4, (16, 8), 32, (8, 16), (1, 1, 1, 8)),
     ]
 )
 def attention_bias_size(request):
     return request.param
 
 
-def test_attention_bias_offload(attention_bias_size, attention_dtype):
-    b, (s, s_kv), n, (h, h_v), bias_shape, bias_reshape = attention_bias_size
+def test_attention_bias_offload(attention_bias_size):
+    b, (s, s_kv), n, (h, h_v), bias_shape = attention_bias_size
+    concrete_s, concrete_s_kv, concrete_bias_shape = _to_concrete_shape((s, s_kv, bias_shape))
+
     q, k, v, bias, ref = get_numpy_attention_ref(
-        b, s, s_kv, n, h, h_v, bias_shape, bias_reshape, "none", attention_dtype
+        b, concrete_s, concrete_s_kv, n, h, h_v, concrete_bias_shape, "none", "none", "float32"
     )
 
-    mod = get_relax_attention_module(q, k, v, bias)
-    out = get_result_with_relax_cutlass_offload(mod, q, k, v, bias)
+    q_shape = (b, s, n, h)
+    k_shape = (b, s_kv, n, h)
+    v_shape = (b, s_kv, n, h_v)
+
+    mod = get_relax_attention_module(
+        q_shape, k_shape, v_shape, bias_shape=bias_shape, dtype="float32"
+    )
+    out = get_result_with_relax_cutlass_offload(mod, q, k, v, bias, num_final_bindings=3)
 
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
 @pytest.fixture(
     params=[
-        # B, S, N, H, bias_shape, bias_reshape
-        (4, (16, 8), 32, (8, 16), (4, 32, 16, 8), (4, 32, 16, 8)),
-        (4, (16, 8), 32, (8, 16), "none", "none"),
+        # B, S, N, H, bias_shape
+        (4, (16, 8), 32, (8, 16), (4, 32, 16, 8)),
+        (4, (16, 8), 32, (8, 16), "none"),
     ]
 )
 def attention_scale_size(request):
@@ -620,17 +698,859 @@ def attention_scale(request):
     return request.param
 
 
-def test_attention_scale_offload(attention_scale_size, attention_scale, attention_dtype):
-    b, (s, s_kv), n, (h, h_v), bias_shape, bias_reshape = attention_scale_size
+def test_attention_scale_offload(attention_scale_size, attention_scale):
+    b, (s, s_kv), n, (h, h_v), bias_shape = attention_scale_size
     q, k, v, bias, ref = get_numpy_attention_ref(
-        b, s, s_kv, n, h, h_v, bias_shape, bias_reshape, attention_scale, attention_dtype
+        b, s, s_kv, n, h, h_v, bias_shape, attention_scale, "none", "float32"
     )
 
-    mod = get_relax_attention_module(q, k, v, bias, attention_scale)
+    q_shape = (b, s, n, h)
+    k_shape = (b, s_kv, n, h)
+    v_shape = (b, s_kv, n, h_v)
+
+    mod = get_relax_attention_module(
+        q_shape, k_shape, v_shape, dtype="float32", bias_shape=bias_shape, qk_scale=attention_scale
+    )
     if bias is None:
-        out = get_result_with_relax_cutlass_offload(mod, q, k, v)
+        out = get_result_with_relax_cutlass_offload(mod, q, k, v, num_final_bindings=3)
     else:
-        out = get_result_with_relax_cutlass_offload(mod, q, k, v, bias)
+        out = get_result_with_relax_cutlass_offload(mod, q, k, v, bias, num_final_bindings=3)
+    tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
+
+
+@pytest.fixture(
+    params=[
+        # B, S, N, H, bias_shape
+        (2, (16, 8), 4, (8, 16), "none"),
+        (2, (8, 16), 4, (8, 16), "none"),
+        (2, (16, 8), 4, (8, 16), (2, 4, 16, 8)),
+    ]
+)
+def attention_causal_size(request):
+    return request.param
+
+
+@pytest.fixture(params=["TopLeft", "BottomRight"])
+def attention_causal(request):
+    return request.param
+
+
+def test_attention_causal_offload(attention_causal_size, attention_causal):
+    b, (s, s_kv), n, (h, h_v), bias_shape = attention_causal_size
+    q, k, v, bias, ref = get_numpy_attention_ref(
+        b, s, s_kv, n, h, h_v, bias_shape, "none", attention_causal, "float32"
+    )
+
+    q_shape = (b, s, n, h)
+    k_shape = (b, s_kv, n, h)
+    v_shape = (b, s_kv, n, h_v)
+
+    mod = get_relax_attention_module(
+        q_shape,
+        k_shape,
+        v_shape,
+        dtype="float32",
+        bias_shape=bias_shape,
+        causal_mask=attention_causal,
+    )
+    if bias is None:
+        out = get_result_with_relax_cutlass_offload(mod, q, k, v, num_final_bindings=3)
+    else:
+        out = get_result_with_relax_cutlass_offload(mod, q, k, v, bias, num_final_bindings=3)
+    tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
+
+
+@memoize("topi.tests.test_codegen_cutlass.test_stacked_attention_offload")
+def get_numpy_stacked_attention_ref(b, s, n, h, h_v, bias_shape, qk_scale, dtype):
+    qkv = np.random.randn(b, s, n * h + n * h + n * h_v).astype(dtype)
+    split_qkv = np.split(qkv, [n * h, n * h * 2], axis=2)
+    q = np.reshape(split_qkv[0], (b, s, n, h))
+    k = np.reshape(split_qkv[1], (b, s, n, h))
+    v = np.reshape(split_qkv[2], (b, s, n, h_v))
+    qt = q.transpose(0, 2, 1, 3)  # b, n, s, h
+    kt = k.transpose(0, 2, 3, 1)  # b, n, h, s
+    if not qk_scale == "none":
+        score = qt @ kt * qk_scale  # b, n, s, s
+    else:
+        score = qt @ kt / np.sqrt(q.shape[-1])  # b, n, s, s
+    if not bias_shape == "none":
+        bias = np.random.randn(*bias_shape).astype(dtype)
+        score = score + bias  # b, n, s, s
+    else:
+        bias = None
+    attn = tvm.topi.testing.softmax_python(score, -1)
+    vt = v.transpose(0, 2, 1, 3)  # b, n, s, h_v
+    ref = attn @ vt  # b, n, s, h_v
+    return qkv, bias, ref.transpose(0, 2, 1, 3)  # b, s, n, h_v
+
+
+def get_relax_stacked_attention_module(
+    qkv, b, s, n, h, h_v, op, bias=None, qk_scale=None, single_shape=False
+):
+    dtype = str(qkv.dtype)
+
+    from tvm.script.ir_builder import IRBuilder
+    from tvm.script.ir_builder import relax as relax_builder
+    from tvm.script.ir_builder import tir as T
+
+    if qk_scale is not None:
+        qk_scale = T.FloatImm("float32", qk_scale)
+
+    if single_shape:
+        qk_shape = R.shape([b, s, n, h])
+        v_shape = qk_shape
+    else:
+        qk_shape = [b, s, n, h]
+        v_shape = [b, s, n, h_v]
+
+    with IRBuilder() as builder:
+        with relax_builder.function():
+            R.func_name("main")
+            qkv = R.arg("qkv", R.Tensor(qkv.shape, dtype))
+            if bias is not None:
+                bias = R.arg("bias", R.Tensor(bias.shape, dtype))
+            with R.dataflow() as frame:
+                if op == "split":
+                    qkv_tuple = R.split(qkv, [n * h, n * h * 2], axis=2)
+                    q = R.reshape(qkv_tuple[0], qk_shape)
+                    k = R.reshape(qkv_tuple[1], qk_shape)
+                    v = R.reshape(qkv_tuple[2], v_shape)
+                elif op == "strided_slice":
+                    q = R.reshape(R.strided_slice(qkv, [2], [0], [n * h], [1]), qk_shape)
+                    k = R.reshape(R.strided_slice(qkv, [2], [n * h], [n * h * 2], [1]), qk_shape)
+                    v = R.reshape(
+                        R.strided_slice(qkv, [2], [n * h * 2], [n * h * 2 + n * h_v], [1]), v_shape
+                    )
+                else:
+                    raise NotImplementedError()
+                result = R.emit(R.nn.attention(q, k, v, bias, qk_scale))
+                R.output(result)
+
+            R.func_ret_value(frame.output_vars[0])
+
+    func = builder.get()
+    return tvm.IRModule({"main": func})
+
+
+@pytest.fixture(
+    params=[
+        # B, S, N, H, bias_shape, scale, single_shape
+        (4, 8, 32, (64, 32), "none", "none", False),
+        (4, 8, 32, (64, 32), (4, 32, 8, 8), 0.5, False),
+        (4, 8, 32, (64, 64), "none", "none", True),
+    ]
+)
+def stacked_attention_size(request):
+    return request.param
+
+
+def test_stacked_attention_split_offload(stacked_attention_size):
+    b, s, n, (h, h_v), bias_shape, scale, single_shape = stacked_attention_size
+    qkv, bias, ref = get_numpy_stacked_attention_ref(b, s, n, h, h_v, bias_shape, scale, "float32")
+    if scale == "none":
+        mod = get_relax_stacked_attention_module(
+            qkv, b, s, n, h, h_v, "split", bias, single_shape=single_shape
+        )
+    else:
+        mod = get_relax_stacked_attention_module(
+            qkv, b, s, n, h, h_v, "split", bias, scale, single_shape=single_shape
+        )
+
+    if bias is None:
+        out = get_result_with_relax_cutlass_offload(mod, qkv, num_final_bindings=3)
+    else:
+        out = get_result_with_relax_cutlass_offload(mod, qkv, bias, num_final_bindings=3)
+    tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
+
+
+def test_stacked_attention_strided_slice_offload(stacked_attention_size):
+    b, s, n, (h, h_v), bias_shape, scale, single_shape = stacked_attention_size
+    qkv, bias, ref = get_numpy_stacked_attention_ref(b, s, n, h, h_v, bias_shape, scale, "float32")
+    if scale == "none":
+        mod = get_relax_stacked_attention_module(
+            qkv, b, s, n, h, h_v, "strided_slice", bias, single_shape=single_shape
+        )
+    else:
+        mod = get_relax_stacked_attention_module(
+            qkv, b, s, n, h, h_v, "strided_slice", bias, scale, single_shape=single_shape
+        )
+    if bias is None:
+        out = get_result_with_relax_cutlass_offload(mod, qkv, num_final_bindings=3)
+    else:
+        out = get_result_with_relax_cutlass_offload(mod, qkv, bias, num_final_bindings=3)
+    tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
+
+
+@pytest.fixture(
+    params=[
+        # B, S, N, H, bias_shape, scale
+        (4, (16, 8), 32, (8, 16), "none", 0.5),
+        (4, (16, 8), 32, (8, 16), (4, 32, 16, 8), 0.5),
+        (4, (16, 8), "none", (8, 16), "none", 0.5),
+        (4, (16, 8), "none", (8, 16), (4, 32, 16, 8), 0.5),
+    ]
+)
+def attention_rewrite_size(request):
+    return request.param
+
+
+def get_relax_attention_rewrite_module(
+    q_shape, k_shape, v_shape, out_shape, dtype, bias_shape=None, scale=None
+):
+    from tvm.script.ir_builder import IRBuilder
+    from tvm.script.ir_builder import relax as relax_builder
+    from tvm.script.ir_builder import tir as T
+
+    with IRBuilder() as builder:
+        with relax_builder.function():
+            R.func_name("main")
+            q = R.arg("q", R.Tensor(q_shape, dtype))
+            k = R.arg("k", R.Tensor(k_shape, dtype))
+            v = R.arg("v", R.Tensor(v_shape, dtype))
+            if bias_shape is not None:
+                bias = R.arg("bias", R.Tensor(bias_shape, dtype))
+            with R.dataflow() as frame:
+                if len(q_shape) == 4:
+                    q = R.emit(R.permute_dims(q, axes=[0, 2, 1, 3]))
+                    q = R.emit(R.reshape(q, [q_shape[0] * q_shape[2], q_shape[1], q_shape[3]]))
+
+                if len(k_shape) == 4:
+                    k = R.emit(R.permute_dims(k, axes=[0, 2, 1, 3]))
+                    k = R.emit(R.reshape(k, [k_shape[0] * k_shape[2], k_shape[1], k_shape[3]]))
+
+                if len(v_shape) == 4:
+                    v = R.emit(R.permute_dims(v, axes=[0, 2, 1, 3]))
+                    v = R.emit(R.reshape(v, [v_shape[0] * v_shape[2], v_shape[1], v_shape[3]]))
+
+                k = R.emit(R.permute_dims(k, axes=[0, 2, 1]))
+                qk = R.emit(R.matmul(q, k))
+                qk_scaled = R.emit(R.multiply(qk, R.const(scale, "float32")))
+                if bias_shape is not None:
+                    if len(bias_shape) == 4:
+                        bias = R.emit(
+                            R.reshape(bias, [bias_shape[0] * bias_shape[1], *bias_shape[2:]])
+                        )
+                    qk_added = R.emit(R.add(qk_scaled, bias))
+                    softmax = R.emit(R.nn.softmax(qk_added, axis=-1))
+                else:
+                    softmax = R.emit(R.nn.softmax(qk_scaled, axis=-1))
+                out = R.emit(R.matmul(softmax, v))
+
+                if len(out_shape) == 4:
+                    out = R.emit(
+                        R.reshape(
+                            out,
+                            [out_shape[0], out_shape[2], out_shape[1], out_shape[3]],
+                        )
+                    )
+                    out = R.emit(R.permute_dims(out, axes=[0, 2, 1, 3]))
+                R.output(out)
+
+            R.func_ret_value(frame.output_vars[0])
+
+    original_func = builder.get()
+
+    if scale is not None:
+        scale = T.FloatImm("float32", scale)
+
+    with IRBuilder() as builder:
+        with relax_builder.function():
+            R.func_name("main")
+            q = R.arg("q", R.Tensor(q_shape, dtype))
+            k = R.arg("k", R.Tensor(k_shape, dtype))
+            v = R.arg("v", R.Tensor(v_shape, dtype))
+            if bias_shape is not None:
+                bias = R.arg("bias", R.Tensor(bias_shape, dtype))
+            with R.dataflow() as frame:
+                if len(q_shape) == 3:
+                    q = R.emit(R.reshape(q, [q_shape[0], q_shape[1], 1, q_shape[2]]))
+
+                if len(k_shape) == 3:
+                    k = R.emit(R.reshape(k, [k_shape[0], k_shape[1], 1, k_shape[2]]))
+
+                if len(v_shape) == 3:
+                    v = R.emit(R.reshape(v, [v_shape[0], v_shape[1], 1, v_shape[2]]))
+
+                if bias_shape is not None:
+                    if len(bias_shape) == 4:
+                        bias = R.emit(
+                            R.reshape(
+                                bias,
+                                [
+                                    bias_shape[0] * bias_shape[1],
+                                    bias_shape[2],
+                                    bias_shape[3],
+                                ],
+                            )
+                        )
+                        bias = R.emit(
+                            R.reshape(
+                                bias,
+                                [
+                                    bias_shape[0],
+                                    bias_shape[1],
+                                    bias_shape[2],
+                                    bias_shape[3],
+                                ],
+                            )
+                        )
+                    elif len(bias_shape) == 3:
+                        bias = R.emit(
+                            R.reshape(bias, [bias_shape[0], 1, bias_shape[1], bias_shape[2]])
+                        )
+                else:
+                    bias = None
+                out = R.emit(R.nn.attention(q, k, v, bias, scale))
+
+                if len(out_shape) == 3:
+                    out = R.emit(R.reshape(out, [out_shape[0], out_shape[1], out_shape[2]]))
+                R.output(out)
+
+            R.func_ret_value(frame.output_vars[0])
+
+    expected_func = builder.get()
+    return tvm.IRModule({"main": original_func}), tvm.IRModule({"main": expected_func})
+
+
+def get_numpy_attention_input(q_shape, k_shape, v_shape, bias_shape, dtype):
+    q = np.random.randn(*q_shape).astype(dtype)
+    k = np.random.randn(*k_shape).astype(dtype)
+    v = np.random.randn(*v_shape).astype(dtype)
+    if not bias_shape == "none":
+        bias = np.random.randn(*bias_shape).astype(dtype)
+    else:
+        bias = None
+    return q, k, v, bias
+
+
+def test_attention_rewrite_offload(attention_rewrite_size):
+    b, (s, s_kv), n, (h, h_v), bias_shape, scale = attention_rewrite_size
+    q_shape = [b, s, n, h] if n != "none" else [b, s, h]
+    k_shape = [b, s_kv, n, h] if n != "none" else [b, s_kv, h]
+    v_shape = [b, s_kv, n, h_v] if n != "none" else [b, s_kv, h_v]
+    out_shape = [b, s, n, h_v] if n != "none" else [b, s, h_v]
+    bias_shape = [b, n, s, s_kv] if n != "none" else [b, s, s_kv]
+    q, k, v, bias = get_numpy_attention_input(q_shape, k_shape, v_shape, bias_shape, "float32")
+    original_mod, expected_mod = get_relax_attention_rewrite_module(
+        q_shape, k_shape, v_shape, out_shape, "float32", bias_shape, scale
+    )
+    original_mod = partition_for_cutlass(original_mod, True)
+    expected_mod = partition_for_cutlass(expected_mod, True)
+    tvm.ir.assert_structural_equal(original_mod, expected_mod, True)
+
+    codegen_pass = relax.transform.RunCodegen({"cutlass": {"sm": 80, "find_first_valid": True}})
+    original_mod = codegen_pass(original_mod)
+    expected_mod = codegen_pass(expected_mod)
+    if bias is None:
+        original_out = build_and_run(original_mod, [q, k, v], "cuda")
+        expected_out = build_and_run(expected_mod, [q, k, v], "cuda")
+        tvm.testing.assert_allclose(original_out, expected_out, rtol=1e-5, atol=1e-5)
+    else:
+        original_out = build_and_run(original_mod, [q, k, v, bias], "cuda", legalize=False)
+        expected_out = build_and_run(expected_mod, [q, k, v, bias], "cuda", legalize=False)
+        tvm.testing.assert_allclose(original_out, expected_out, rtol=1e-5, atol=1e-5)
+
+
+def test_conv2d_residual_broadcast():
+    data_shape = (2, 64, 64, 8)
+    weight_shape = (8, 3, 3, 8)
+    dtype = "float16"
+
+    def get_mod(residual_batch):
+        with IRBuilder() as builder:
+            with relax_builder.function():
+                R.func_name("main")
+                data = R.arg("data", R.Tensor(data_shape, dtype))
+                weight = R.arg("weight", R.Tensor(weight_shape, dtype))
+                bias = R.arg("bias", R.Tensor((1, 1, weight_shape[0]), dtype))
+                residual = R.arg(
+                    "residual", R.Tensor((residual_batch, 1, 1, weight_shape[0]), dtype)
+                )
+
+                with R.dataflow() as frame:
+                    output = R.emit(
+                        R.nn.conv2d(
+                            data,
+                            weight,
+                            out_dtype=dtype,
+                            padding=(1, 1),
+                            data_layout="NHWC",
+                            kernel_layout="OHWI",
+                        )
+                    )
+                    output = R.emit(output + bias)
+                    output = R.emit(R.nn.relu(output))
+                    output = R.emit(R.add(output, residual))
+                    R.output(output)
+
+                R.func_ret_value(frame.output_vars[0])
+
+        func = builder.get()
+        return tvm.IRModule({"main": func})
+
+    low = -1
+    high = 1
+
+    residual_batch = 1
+    mod = get_mod(residual_batch)
+    data = np.random.randint(low, high, size=data_shape).astype(dtype)
+    weight = np.random.randint(low, high, size=weight_shape).astype(dtype)
+    bias = np.random.randint(low, high, size=(1, 1, weight_shape[0])).astype(dtype)
+    bias2 = np.random.randint(low, high, size=(residual_batch, 1, 1, weight_shape[0])).astype(dtype)
+
+    args = [data, weight, bias, bias2]
+    out = get_result_with_relax_cutlass_offload(mod, *args)
+    ref = build_and_run(mod, args, "llvm")
+    tvm.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
+
+
+@pytest.mark.parametrize(
+    "data_shape, dtype, axes",
+    [
+        ((2, 128, 64), "float16", [-1]),
+        ((128, 30), "float32", [-1]),
+        ((2, 128, 64), "float32", [1]),
+        ((2, 128, 64), "float32", [1, 2]),
+    ],
+)
+def test_layer_norm(data_shape, dtype, axes):
+    def get_mod(data_shape, dtype, axes):
+        reduced_shape = [data_shape[axis] for axis in axes]
+        with IRBuilder() as builder:
+            with relax_builder.function():
+                R.func_name("main")
+                inp = R.arg("input", R.Tensor(data_shape, dtype))
+                gamma = R.arg("gamma", R.Tensor(reduced_shape, dtype))
+                beta = R.arg("beta", R.Tensor(reduced_shape, dtype))
+
+                with R.dataflow() as frame:
+                    output = R.emit(R.nn.layer_norm(inp, gamma, beta, axes))
+                    R.output(output)
+
+                R.func_ret_value(frame.output_vars[0])
+
+        func = builder.get()
+        return tvm.IRModule({"main": func})
+
+    Module = get_mod(data_shape, dtype, axes)
+    mod = partition_for_cutlass(Module)
+
+    if len(axes) != 1 or (axes[0] != -1 and axes[0] != len(data_shape) - 1):
+        tvm.ir.assert_structural_equal(mod, Module)
+        return
+
+    mod = relax.transform.RunCodegen()(mod)
+
+    inp = np.random.randn(*data_shape).astype(dtype)
+    gamma = np.random.randn(data_shape[-1]).astype(dtype)
+    beta = np.random.randn(data_shape[-1]).astype(dtype)
+    out = build_and_run(mod, [inp, gamma, beta], "cuda")
+    ref = build_and_run(Module, [inp, gamma, beta], "llvm")
+
+    tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
+
+
+def test_attention_rewrite_fp16():
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(
+            q: R.Tensor((4, 16, 32, 8), dtype="float16"),
+            k: R.Tensor((4, 8, 32, 8), dtype="float16"),
+            v: R.Tensor((4, 8, 32, 16), dtype="float16"),
+            bias: R.Tensor((4, 32, 16, 8), dtype="float16"),
+        ) -> R.Tensor((4, 16, 32, 16), dtype="float16"):
+            with R.dataflow():
+                lv = R.permute_dims(q, axes=[0, 2, 1, 3])
+                lv1 = R.reshape(lv, R.shape([128, 16, 8]))
+                lv2 = R.permute_dims(k, axes=[0, 2, 1, 3])
+                lv3 = R.reshape(lv2, R.shape([128, 8, 8]))
+                lv4 = R.permute_dims(v, axes=[0, 2, 1, 3])
+                lv5 = R.reshape(lv4, R.shape([128, 8, 16]))
+                lv6 = R.permute_dims(lv3, axes=[0, 2, 1])
+                lv7 = R.matmul(lv1, lv6, out_dtype="float16")
+                lv3_1 = R.astype(R.const(0.5, "float32"), dtype="float16")
+                lv8 = R.multiply(lv7, lv3_1)
+                lv9 = R.reshape(bias, R.shape([128, 16, 8]))
+                lv10 = R.add(lv8, lv9)
+                lv10_fp16 = R.astype(lv10, dtype="float16")
+                lv11 = R.nn.softmax(lv10_fp16, axis=2)
+                lv5_1 = R.astype(lv11, dtype="float16")
+                lv12 = R.matmul(lv5_1, lv5, out_dtype="float16")
+                lv13 = R.reshape(lv12, R.shape([4, 32, 16, 16]))
+                lv6_1 = R.permute_dims(lv13, axes=[0, 2, 1, 3])
+                lv14 = R.astype(lv6_1, dtype="float32")
+                R.output(lv14)
+            return lv14
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def fused_relax_nn_attention_bias_cutlass1(
+            q: R.Tensor((4, 16, 32, 8), dtype="float16"),
+            k: R.Tensor((4, 8, 32, 8), dtype="float16"),
+            v: R.Tensor((4, 8, 32, 16), dtype="float16"),
+            lv1: R.Tensor((4, 32, 16, 8), dtype="float16"),
+            workspace: R.Tensor((65536,), dtype="uint8"),
+        ) -> R.Tensor((4, 16, 32, 16), dtype="float16"):
+            R.func_attr(
+                {
+                    "Codegen": "cutlass",
+                    "WorkspaceSize": T.int64(65536),
+                    "global_symbol": "fused_relax_nn_attention_bias_cutlass1",
+                }
+            )
+
+            @R.function
+            def gv_1(
+                q_1: R.Tensor((4, 16, 32, 8), dtype="float16"),
+                k_1: R.Tensor((4, 8, 32, 8), dtype="float16"),
+                v_1: R.Tensor((4, 8, 32, 16), dtype="float16"),
+                lv1_1: R.Tensor((4, 32, 16, 8), dtype="float16"),
+                workspace_1: R.Tensor((65536,), dtype="uint8"),
+            ) -> R.Tensor((4, 16, 32, 16), dtype="float16"):
+                R.func_attr(
+                    {
+                        "Composite": "cutlass.attention_bias",
+                        "Primitive": 1,
+                        "WorkspaceSize": T.int64(65536),
+                    }
+                )
+                with R.dataflow():
+                    gv_2 = R.nn.attention(
+                        q_1, k_1, v_1, lv1_1, scale=T.float32(0.5), causal_mask=None
+                    )
+                    R.output(gv_2)
+                return gv_2
+
+            gv1: R.Tensor((4, 16, 32, 16), dtype="float16") = gv_1(q, k, v, lv1, workspace)
+            return gv1
+
+        @R.function
+        def main(
+            q: R.Tensor((4, 16, 32, 8), dtype="float16"),
+            k: R.Tensor((4, 8, 32, 8), dtype="float16"),
+            v: R.Tensor((4, 8, 32, 16), dtype="float16"),
+            bias: R.Tensor((4, 32, 16, 8), dtype="float16"),
+        ) -> R.Tensor((4, 16, 32, 16), dtype="float16"):
+            cls = Expected
+            with R.dataflow():
+                lv = R.vm.alloc_storage(R.shape([65536]), R.prim_value(0), R.dtype("uint8"))
+                workspace_main = R.vm.alloc_tensor(
+                    lv, R.prim_value(0), R.shape([65536]), R.dtype("uint8")
+                )
+                lv_1 = R.reshape(bias, R.shape([128, 16, 8]))
+                lv1 = R.reshape(lv_1, R.shape([4, 32, 16, 8]))
+                lv_2 = cls.fused_relax_nn_attention_bias_cutlass1(q, k, v, lv1, workspace_main)
+                lv14 = R.astype(lv_2, dtype="float32")
+                R.output(lv14)
+            return lv14
+
+    mod = partition_for_cutlass(Module)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_fp16A_int4B_gemm():
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def decode(
+            A: T.Buffer((T.int64(64), T.int64(64)), "int8"),
+            B: T.Buffer((T.int64(128),), "float16"),
+            decode_1: T.Buffer((T.int64(64), T.int64(128)), "float16"),
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            # with T.block("root"):
+            for i, j in T.grid(T.int64(64), T.int64(128)):
+                with T.block("decode"):
+                    v_i, v_j = T.axis.remap("SS", [i, j])
+                    T.reads(A[v_i, v_j // T.int64(2)], B[v_j])
+                    T.writes(decode_1[v_i, v_j])
+                    decode_1[v_i, v_j] = (
+                        T.Cast(
+                            "float16",
+                            T.shift_right(
+                                T.shift_left(
+                                    T.bitwise_and(
+                                        T.shift_right(
+                                            T.Cast("int32", A[v_i, v_j // T.int64(2)]),
+                                            T.Cast("int32", v_j % T.int64(2)) * 4,
+                                        ),
+                                        15,
+                                    ),
+                                    28,
+                                ),
+                                28,
+                            ),
+                        )
+                        * B[v_j]
+                    )
+
+        @T.prim_func
+        def encode(
+            A: T.Buffer((T.int64(128), T.int64(64)), "float16"),
+            w_gathered: T.Buffer((T.int64(64), T.int64(64)), "int8"),
+            compute: T.Buffer((T.int64(128),), "float16"),
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            # with T.block("root"):
+            max_abs_value = T.alloc_buffer((T.int64(128),), "float16")
+            scale = T.alloc_buffer((T.int64(128),))
+            for i, k in T.grid(T.int64(128), T.int64(64)):
+                with T.block("max_abs_value"):
+                    v_i, v_k = T.axis.remap("SR", [i, k])
+                    T.reads(A[v_i, v_k])
+                    T.writes(max_abs_value[v_i])
+                    with T.init():
+                        max_abs_value[v_i] = T.float16(-65504)
+                    max_abs_value[v_i] = T.max(max_abs_value[v_i], T.fabs(A[v_i, v_k]))
+            for i in range(T.int64(128)):
+                with T.block("scale"):
+                    v_i = T.axis.spatial(T.int64(128), i)
+                    T.reads(max_abs_value[v_i])
+                    T.writes(scale[v_i])
+                    scale[v_i] = T.max(
+                        T.Cast("float32", max_abs_value[v_i]), T.float32(0.0001)
+                    ) * T.float32(0.125)
+            for j, i, k in T.grid(T.int64(64), T.int64(64), T.int64(2)):
+                with T.block("w_gathered"):
+                    v_j, v_i, v_k = T.axis.remap("SSR", [j, i, k])
+                    T.reads(A[v_i * T.int64(2) + v_k, v_j], scale[v_i * T.int64(2) + v_k])
+                    T.writes(w_gathered[v_j, v_i])
+                    with T.init():
+                        w_gathered[v_j, v_i] = T.int8(0)
+                    w_gathered[v_j, v_i] = T.bitwise_or(
+                        w_gathered[v_j, v_i],
+                        T.if_then_else(
+                            v_i * T.int64(2) + v_k < T.int64(128),
+                            T.shift_left(
+                                T.bitwise_and(
+                                    T.Cast(
+                                        "int8",
+                                        T.min(
+                                            T.max(
+                                                T.round(
+                                                    T.Cast(
+                                                        "float32", A[v_i * T.int64(2) + v_k, v_j]
+                                                    )
+                                                    / scale[v_i * T.int64(2) + v_k]
+                                                ),
+                                                T.float32(-8),
+                                            ),
+                                            T.float32(7),
+                                        ),
+                                    ),
+                                    T.int8(15),
+                                ),
+                                T.Cast("int8", v_k) * T.int8(4),
+                            ),
+                            T.int8(0),
+                        ),
+                    )
+            for i0 in range(T.int64(128)):
+                with T.block("compute"):
+                    v_i0 = T.axis.spatial(T.int64(128), i0)
+                    T.reads(scale[v_i0])
+                    T.writes(compute[v_i0])
+                    compute[v_i0] = T.Cast("float16", scale[v_i0])
+
+        @R.function
+        def main_bias(
+            x: R.Tensor((64, 64), dtype="float16"),
+            y: R.Tensor((128, 64), dtype="float16"),
+            bias: R.Tensor((1, 128), dtype="float16"),
+        ) -> R.Tensor((64, 128), dtype="float16"):
+            R.func_attr({"num_input": 1})
+            cls = Module
+            with R.dataflow():
+                lv = R.call_tir(
+                    cls.encode,
+                    (y,),
+                    out_sinfo=[R.Tensor((64, 64), dtype="int8"), R.Tensor((128,), dtype="float16")],
+                )
+                lv1 = lv[0]
+                lv2 = R.call_pure_packed(
+                    "cutlass.ft_preprocess_weight_int4",
+                    lv1,
+                    80,
+                    sinfo_args=(R.Tensor((64, 64), dtype="int8"),),
+                )
+                lv3: R.Tensor((128,), dtype="float16") = lv[1]
+                lv6 = R.call_tir(
+                    cls.decode, (lv2, lv3), out_sinfo=R.Tensor((64, 128), dtype="float16")
+                )
+                lv1_1: R.Tensor((64, 128), dtype="float16") = R.matmul(x, lv6, out_dtype="float16")
+                lv2_1: R.Tensor((64, 128), dtype="float16") = R.add(lv1_1, bias)
+                R.output(lv2_1)
+            return lv2_1
+
+        @R.function
+        def main_residual(
+            x: R.Tensor((64, 64), dtype="float16"),
+            residual: R.Tensor((64, 128), dtype="float16"),
+            y: R.Tensor((128, 64), dtype="float16"),
+            bias: R.Tensor((1, 128), dtype="float16"),
+        ) -> R.Tensor((64, 128), dtype="float16"):
+            R.func_attr({"num_input": 2})
+            cls = Module
+            with R.dataflow():
+                lv = R.call_tir(
+                    cls.encode,
+                    (y,),
+                    out_sinfo=[R.Tensor((64, 64), dtype="int8"), R.Tensor((128,), dtype="float16")],
+                )
+                lv1 = lv[0]
+                lv2 = R.call_pure_packed(
+                    "cutlass.ft_preprocess_weight_int4",
+                    lv1,
+                    80,
+                    sinfo_args=(R.Tensor((64, 64), dtype="int8"),),
+                )
+                lv3: R.Tensor((128,), dtype="float16") = lv[1]
+                lv6 = R.call_tir(
+                    cls.decode, (lv2, lv3), out_sinfo=R.Tensor((64, 128), dtype="float16")
+                )
+                lv1_1: R.Tensor((64, 128), dtype="float16") = R.matmul(x, lv6, out_dtype="float16")
+                lv2_1: R.Tensor((64, 128), dtype="float16") = R.add(lv1_1, bias)
+                lv3_1: R.Tensor((64, 128), dtype="float16") = R.add(lv2_1, residual)
+                R.output(lv3_1)
+            return lv3_1
+
+    def split_transform_deploy_mod(mod):
+        mod_transform = tvm.IRModule()
+        mod_deploy = tvm.IRModule().with_attrs(mod.attrs)
+
+        transform_func_name = None
+
+        for gv, func in mod.functions.items():
+            if "transform_params" in gv.name_hint:
+                transform_func_name = gv.name_hint
+                mod_transform[gv] = func
+            elif isinstance(func, tvm.tir.PrimFunc):
+                mod_transform[gv] = func
+            else:
+                mod_deploy[gv] = func
+
+        assert transform_func_name is not None
+        return mod_transform, mod_deploy, transform_func_name
+
+    x_shape = (64, 64)
+    y_shape = (128, 64)
+
+    mod = partition_for_cutlass(Module)
+    func_names = [name.name_hint for (name, _) in mod.functions.items()]
+    assert "fused_decode_relax_matmul_relax_add_cutlass" in func_names
+    assert "fused_decode_relax_matmul_relax_add_relax_add_cutlass" in func_names
+
+    mod = relax.transform.RunCodegen(
+        {"cutlass": {"sm": 80, "find_first_valid": False}},
+        entry_functions=["main_bias", "main_residual"],
+    )(mod)
+
+    x = np.random.randn(*x_shape).astype("float16")
+    y = np.random.normal(0, 0.002, size=y_shape).astype("float16")
+    bias = np.random.randn(1, y_shape[0]).astype("float16")
+    residual = np.random.randn(x_shape[0], y_shape[0]).astype("float16")
+
+    mod = relax.pipeline.get_pipeline()(mod)
+    mod = relax.transform.LiftTransformParams()(mod)
+
+    mod_transform, mod_deploy, transform_func_name = split_transform_deploy_mod(mod)
+
+    ex = relax.build(mod_transform, target="llvm")
+    vm = relax.vm.VirtualMachine(ex, tvm.cpu(0))
+
+    packed_weight, scales, bias_trans = vm[transform_func_name](
+        (tvm.nd.array(y), tvm.nd.array(bias))
+    )
+
+    dev = tvm.device("cuda", 0)
+    ex = relax.build(mod_deploy, target="cuda")
+    vm = relax.vm.VirtualMachine(ex, dev)
+
+    x_nd = tvm.nd.array(x, dev)
+    residual_nd = tvm.nd.array(residual, dev)
+    params = (packed_weight.copyto(dev), scales.copyto(dev), bias_trans.copyto(dev))
+
+    for with_residual in [False, True]:
+        if with_residual:
+            inp = [x_nd, residual_nd, params]
+        else:
+            inp = [x_nd, params]
+
+        out = vm["main_residual" if with_residual else "main_bias"](*inp).numpy()
+
+        ref = np.dot(x, y.transpose()) + bias
+
+        if with_residual:
+            ref += residual
+
+        tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
+
+
+def test_rms_norm():
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def rms_norm(
+            A: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16"),
+            B: T.Buffer((T.int64(4096),), "float16"),
+            rms_norm: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16"),
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            # with T.block("root"):
+            Ared_temp = T.alloc_buffer((T.int64(1), T.int64(1)))
+            for bsz, i, k in T.grid(T.int64(1), T.int64(1), T.int64(4096)):
+                with T.block("Ared_temp"):
+                    v_bsz, v_i, v_k = T.axis.remap("SSR", [bsz, i, k])
+                    T.reads(A[v_bsz, v_i, v_k])
+                    T.writes(Ared_temp[v_bsz, v_i])
+                    with T.init():
+                        Ared_temp[v_bsz, v_i] = T.float32(0)
+                    Ared_temp[v_bsz, v_i] = Ared_temp[v_bsz, v_i] + T.Cast(
+                        "float32", A[v_bsz, v_i, v_k]
+                    ) * T.Cast("float32", A[v_bsz, v_i, v_k])
+            for bsz, i, k in T.grid(T.int64(1), T.int64(1), T.int64(4096)):
+                with T.block("rms_norm"):
+                    v_bsz, v_i, v_k = T.axis.remap("SSS", [bsz, i, k])
+                    T.reads(B[v_k], A[v_bsz, v_i, v_k], Ared_temp[v_bsz, v_i])
+                    T.writes(rms_norm[v_bsz, v_i, v_k])
+                    rms_norm[v_bsz, v_i, v_k] = T.Cast(
+                        "float16",
+                        T.Cast("float32", B[v_k])
+                        * (
+                            T.Cast("float32", A[v_bsz, v_i, v_k])
+                            / T.sqrt(
+                                Ared_temp[v_bsz, v_i] * T.float32(0.000244140625)
+                                + T.float32(9.9999999999999995e-07)
+                            )
+                        ),
+                    )
+
+        @R.function
+        def main(
+            input: R.Tensor((1, 1, 4096), dtype="float16"),
+            weight: R.Tensor((4096,), dtype="float16"),
+        ) -> R.Tensor((1, 1, 4096), dtype="float16"):
+            cls = Module
+            with R.dataflow():
+                lv = R.call_tir(
+                    cls.rms_norm, (input, weight), out_sinfo=R.Tensor((1, 1, 4096), dtype="float16")
+                )
+                R.output(lv)
+            return lv
+
+    data_shape = (1, 1, 4096)
+    dtype = "float16"
+    mod = partition_for_cutlass(Module)
+
+    mod = relax.transform.RunCodegen()(mod)
+
+    inp = np.random.randn(*data_shape).astype(dtype)
+    weight = np.random.randn(data_shape[-1]).astype(dtype)
+    out = build_and_run(mod, [inp, weight], "cuda")
+    ref = build_and_run(Module, [inp, weight], "llvm", legalize=True)
+
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 

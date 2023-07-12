@@ -182,6 +182,28 @@ def test_block():
     tvm.ir.assert_structural_equal(func, expected)
 
 
+def test_i16_buffer():
+    @T.prim_func
+    def before(A: T.Buffer((128,), "int16"), B: T.Buffer((128,), "int16")):
+        for i in T.serial(0, T.int64(16)):
+            for j in T.serial(0, T.int64(16)):
+                with T.block():
+                    vi = T.axis.spatial(T.int64(128), i * 8 + j)
+                    B[vi] = A[vi] + T.int16(1)
+
+    @T.prim_func
+    def expected(A: T.Buffer((128,), "int16"), B: T.Buffer((128,), "int16")):
+        for i in T.serial(0, 16):
+            for j in T.serial(0, 16):
+                with T.block():
+                    vi = T.axis.spatial(128, i * 8 + j)
+                    B[vi] = A[vi] + T.int16(1)
+
+    mod = tvm.IRModule.from_expr(before)
+    after = tvm.tir.transform.ForceNarrowIndexToInt32()(mod)["main"]
+    tvm.ir.assert_structural_equal(after, expected)
+
+
 def test_fail_on_buffer_map():
     @T.prim_func
     def func(A: T.Buffer((128,), "int64"), B: T.Buffer((128,), "int64")):
@@ -214,6 +236,27 @@ def test_fail_on_buffer_map():
     mod = tvm.IRModule.from_expr(func)
     with pytest.raises(TVMError):
         tvm.tir.transform.ForceNarrowIndexToInt32()(mod)["main"]
+
+
+def test_pod_params_and_select():
+    @tvm.script.ir_module
+    class Before:
+        @T.prim_func
+        def main(
+            A: T.Buffer((T.int64(4),), "float32"), B: T.Buffer((T.int64(4),), "float32"), n: T.int64
+        ):
+            for i in T.serial(T.int64(4)):
+                B[i] = T.Select(T.int64(1) <= i, A[i + n], T.Cast("float32", i))
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func
+        def main(A: T.Buffer((4,), "float32"), B: T.Buffer((4,), "float32"), n: T.int32):
+            for i in range(4):
+                B[i] = T.Select(1 <= i, A[i + n], T.Cast("float32", i))
+
+    after = tvm.tir.transform.ForceNarrowIndexToInt32()(Before)
+    tvm.ir.assert_structural_equal(Expected, after)
 
 
 if __name__ == "__main__":

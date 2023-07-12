@@ -96,6 +96,20 @@ def test_include_known_codegen():
     }
 
 
+@tvm.testing.requires_ethosu
+def test_ethosu_compiler_attrs():
+    # It is checked that the represented string and boolean types in the
+    # EthosUCompilerConfigNode structure can be passed via the command line
+    parser = argparse.ArgumentParser()
+    generate_target_args(parser)
+    parsed, _ = parser.parse_known_args(
+        ["--target-ethos-u-accelerator_config=ethos-u55-32", "--target-ethos-u-enable_cascader=1"]
+    )
+    assert reconstruct_target_args(parsed) == {
+        "ethos-u": {"accelerator_config": "ethos-u55-32", "enable_cascader": 1},
+    }
+
+
 def test_skip_target_from_codegen():
     parser = argparse.ArgumentParser()
     generate_target_args(parser)

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-import "@webgpu/types";
 import { assert } from "./support";
 import { Pointer } from "./ctypes";
 import { Memory } from "./memory";
@@ -36,17 +35,58 @@ export interface GPUDeviceDetectOutput {
  */
 export async function detectGPUDevice(): Promise<GPUDeviceDetectOutput | undefined> {
   if (typeof navigator !== "undefined" && navigator.gpu !== undefined) {
-    const adapter = await navigator.gpu.requestAdapter();
+    const adapter = await navigator.gpu.requestAdapter({"powerPreference":"high-performance"});
     if (adapter == null) {
       throw Error("Cannot find adapter that matches the request");
     }
+    const computeMB = (value: number) => {
+      return Math.ceil(value  / (1 << 20)) + "MB";
+    }
+
+    // more detailed error message
+    const requiedMaxBufferSize = 1 << 30;
+    if (requiedMaxBufferSize > adapter.limits.maxBufferSize) {
+      throw Error(
+        `Cannot initialize runtime because of requested maxBufferSize ` +
+        `exceeds limit. requested=${computeMB(requiedMaxBufferSize)}, ` +
+        `limit=${computeMB(adapter.limits.maxBufferSize)}. ` +
+        `This error may be caused by an older version of the browser (e.g. Chrome 112). ` +
+        `You can try to upgrade your browser to Chrome 113 or later.`
+      );
+    }
+
+    const requiredMaxStorageBufferBindingSize = 1 << 30;
+    if (requiredMaxStorageBufferBindingSize > adapter.limits.maxStorageBufferBindingSize) {
+      throw Error(
+        `Cannot initialize runtime because of requested maxStorageBufferBindingSize ` +
+        `exceeds limit. requested=${computeMB(requiredMaxStorageBufferBindingSize)}, ` +
+        `limit=${computeMB(adapter.limits.maxStorageBufferBindingSize)}. `
+      );
+    }
+
+    const requiredMaxComputeWorkgroupStorageSize = 32 << 10;
+    if (requiredMaxComputeWorkgroupStorageSize> adapter.limits.maxComputeWorkgroupStorageSize) {
+      throw Error(
+        `Cannot initialize runtime because of requested maxComputeWorkgroupStorageSize ` +
+        `exceeds limit. requested=${requiredMaxComputeWorkgroupStorageSize}, ` +
+        `limit=${adapter.limits.maxComputeWorkgroupStorageSize}. `
+      );
+    }
+
+    let requiredFeatures : GPUFeatureName[] = [];
+    // Always require f16 if available
+    if (adapter.features.has("shader-f16")) {
+      requiredFeatures.push("shader-f16");
+    }
+
     const adapterInfo = await adapter.requestAdapterInfo();
     const device = await adapter.requestDevice({
       requiredLimits: {
-        maxBufferSize: 1 << 30,
-        maxStorageBufferBindingSize: 1 << 30,
-        maxComputeWorkgroupStorageSize: 32 << 10,
-      }
+        maxBufferSize: requiedMaxBufferSize,
+        maxStorageBufferBindingSize: requiredMaxStorageBufferBindingSize,
+        maxComputeWorkgroupStorageSize: requiredMaxComputeWorkgroupStorageSize,
+      },
+      requiredFeatures
     });
     return {
       adapter: adapter,
@@ -508,15 +548,13 @@ export class WebGPUContext {
 
     assert(paramWriteAccess.length == bufferArgIndices.length);
     // POD arguments are pass in the end
-    if (podArgIndices.length != 0) {
-      layoutEntries.push({
-        binding: bufferArgIndices.length,
-        visibility: GPUShaderStage.COMPUTE,
-        buffer :  {
-          type: "uniform"
-        }
-      });
-    }
+    layoutEntries.push({
+      binding: bufferArgIndices.length,
+      visibility: GPUShaderStage.COMPUTE,
+      buffer :  {
+        type: "uniform"
+      }
+    });
 
     const bindGroupLayout = this.device.createBindGroupLayout({
       entries: layoutEntries
@@ -542,6 +580,35 @@ export class WebGPUContext {
 
         assert(args.length == numBufferOrPodArgs + dispatchToDim.length);
 
+        const workDim: Array<number> = [1, 1, 1, 1, 1, 1];
+        for (let i = 0; i < dispatchToDim.length; ++i) {
+          workDim[dispatchToDim[i]] = args[numBufferOrPodArgs + i];
+        }
+
+        // get around 65535 restriction of blockIdx.x
+        if (workDim[2] != 1) {
+          throw Error("WebGPU: blockIdx.z is reserved for internal use");
+        }
+        const packDimX = workDim[0];
+        // spread thinsg out into blockIdx.z
+        if (workDim[0] >= (1 << 16)) {
+          let wl_x = workDim[0];
+          let wl_z = workDim[2];
+
+          while (wl_x >= (1 << 16)) {
+            if (wl_x % 2 == 0) {
+              wl_x = wl_x / 2;
+            } else {
+              // pad up
+              wl_x = (wl_x + 1) / 2;
+            }
+            wl_z *= 2;
+          }
+          workDim[0] = wl_x;
+          workDim[2] = wl_z;
+          assert(wl_x * wl_z >= packDimX);
+        }
+
         for (let i = 0; i < bufferArgIndices.length; ++i) {
           bindGroupEntries.push({
             binding: i,
@@ -552,66 +619,43 @@ export class WebGPUContext {
         }
 
         // push pod buffer
-        if (podArgIndices.length != 0) {
-          const sizeOfI32 = 4;
-          const podArgBuffer = this.getPodArgsBuffer(podArgIndices.length * sizeOfI32);
-          const i32View = new Int32Array(podArgIndices.length);
-          const u32View = new Uint32Array(i32View.buffer);
-          const f32View = new Float32Array(i32View.buffer);
+        const sizeOfI32 = 4;
+        const podArgBuffer = this.getPodArgsBuffer((podArgIndices.length + 1) * sizeOfI32);
+        const i32View = new Int32Array(podArgIndices.length + 1);
+        const u32View = new Uint32Array(i32View.buffer);
+        const f32View = new Float32Array(i32View.buffer);
 
-          for (let i = 0; i < podArgIndices.length; ++i) {
-            const value = args[podArgIndices[i]];
-            const dtype = finfo.arg_types[podArgIndices[i]];
-            if (dtype.startsWith("int")) {
-              i32View[i] = value;
-            } else if (dtype.startsWith("uint")) {
-              u32View[i] = value;
-            } else if (dtype.startsWith("float")) {
-              f32View[i] = value;
-            } else {
-              throw Error("Unknown pod dtype " + dtype);
-            }
+        for (let i = 0; i < podArgIndices.length; ++i) {
+          const value = args[podArgIndices[i]];
+          const dtype = finfo.arg_types[podArgIndices[i]];
+          if (dtype.startsWith("int")) {
+            i32View[i] = value;
+          } else if (dtype.startsWith("uint")) {
+            u32View[i] = value;
+          } else if (dtype.startsWith("float")) {
+            f32View[i] = value;
+          } else {
+            throw Error("Unknown pod dtype " + dtype);
           }
-          this.device.queue.writeBuffer(podArgBuffer, 0, i32View.buffer);
-
-          bindGroupEntries.push({
-            binding: bufferArgIndices.length,
-            resource: {
-              buffer: podArgBuffer,
-              size: i32View.buffer.byteLength
-            }
-          });
         }
+        // always pass in dim z launching grid size in
+        u32View[podArgIndices.length] = packDimX;
+        this.device.queue.writeBuffer(podArgBuffer, 0, i32View.buffer);
+
+        bindGroupEntries.push({
+          binding: bufferArgIndices.length,
+          resource: {
+            buffer: podArgBuffer,
+            size: i32View.buffer.byteLength
+          }
+        });
 
         compute.setBindGroup(0, this.device.createBindGroup({
           layout: bindGroupLayout,
           entries: bindGroupEntries
         }));
-        const wl: Array<number> = [1, 1, 1, 1, 1, 1];
-        for (let i = 0; i < dispatchToDim.length; ++i) {
-          wl[dispatchToDim[i]] = args[numBufferOrPodArgs + i];
-        }
 
-        // get around 65535 restriction of blockIdx.x
-        if (wl[2] != 1) {
-          throw Error("WebGPU: blockIdx.z is reserved for internal use");
-        }
-        // spread thinsg out into blockIdx.z
-        if (wl[0] >= (1 << 16)) {
-          let wl_x = wl[0];
-          let wl_z = wl[2];
-
-          while (wl_x >= (1 << 16)) {
-            if (wl_x % 2 != 0) {
-              throw Error("WebGPU: cannot factorize big gridDim.x=" + wl[0].toString());
-            }
-            wl_x /= 2;
-            wl_z *= 2;
-          }
-          wl[0] = wl_x;
-          wl[2] = wl_z;
-        }
-        compute.dispatchWorkgroups(wl[0], wl[1], wl[2])
+        compute.dispatchWorkgroups(workDim[0], workDim[1], workDim[2])
         compute.end()
         const command = commandEncoder.finish();
         this.device.queue.submit([command]);
@@ -707,6 +751,10 @@ export class WebGPUContext {
 
   // DeviceAPI
   private deviceAllocDataSpace(nbytes: number): GPUPointer {
+    // allocate 0 bytes buffer as 1 bytes buffer.
+    if (nbytes == 0) {
+      nbytes = 1;
+    }
     const buffer = this.device.createBuffer({
       size: nbytes,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST,

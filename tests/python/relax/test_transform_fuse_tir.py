@@ -32,7 +32,7 @@ def test_simple():
         x = relax.Var("x", R.Tensor([10, 20], "float32"))
         p0 = relax.Var("p0", R.Tensor([], "float32"))
 
-        with bb.function("fused_add_exp_squeeze", [x, p0], attrs={"Primitive": True}):
+        with bb.function("fused_add_exp_squeeze", [x, p0], attrs={"Primitive": True}, private=True):
             with bb.dataflow():
                 lv0 = bb.emit_te(topi.add, x, p0)
                 lv1 = bb.emit_te(topi.exp, lv0)
@@ -565,7 +565,7 @@ def test_multiple_relax_functions():
 
         x = relax.Var("x", R.Tensor([10, 20], "float32"))
         p0 = relax.Var("p0", R.Tensor((), "float32"))
-        with bb.function("fused_add_exp_squeeze", [x, p0], attrs={"Primitive": 1}):
+        with bb.function("fused_add_exp_squeeze", [x, p0], attrs={"Primitive": 1}, private=True):
             with bb.dataflow():
                 lv0 = bb.emit_te(topi.add, x, p0)
                 lv1 = bb.emit_te(topi.exp, lv0)
@@ -575,7 +575,7 @@ def test_multiple_relax_functions():
 
         x = relax.Var("x", R.Tensor([20, 10], "float32"))
         p0 = relax.Var("p0", R.Tensor((), "float32"))
-        with bb.function("fused_add1_exp1_squeeze1", [x, p0], attrs={"Primitive": 1}):
+        with bb.function("fused_add1_exp1_squeeze1", [x, p0], attrs={"Primitive": 1}, private=True):
             with bb.dataflow():
                 lv0 = bb.emit_te(topi.add, x, p0)
                 lv1 = bb.emit_te(topi.exp, lv0)
@@ -694,7 +694,7 @@ def test_skip_call_dps_packed():
                 R.output(y)
             return y
 
-    # FuseTIR should does no change to it.
+    # FuseTIR should do no change to it.
     _check(Module, Module)
 
 
@@ -999,6 +999,201 @@ def test_same_buffer_multiple_read():
                 )
                 R.output(lv)
             return lv
+
+    _check(Module, Expected)
+
+
+def test_tir_expression_in_shape():
+    @I.ir_module
+    class Module:
+        @R.function
+        def fused_transpose_matmul(
+            x: R.Tensor((3, 4), dtype="float32"),
+            y: R.Tensor(("n - 1", 4), dtype="float32"),
+            tir_vars: R.Shape(["n"]),
+        ) -> R.Tensor(("n - 1", 3), dtype="float32"):
+            R.func_attr({"Primitive": 1})
+            with R.dataflow():
+                lv = R.emit_te(topi.transpose, x)
+                gv = R.emit_te(topi.matmul, y, lv)
+                R.output(gv)
+            return gv
+
+        @R.function
+        def main(
+            x: R.Tensor((3, 4), dtype="float32"),
+            y: R.Tensor(("n - 1", 4), dtype="float32"),
+            tir_vars: R.Shape(["n"]),
+        ) -> R.Tensor(("n - 1", 3), dtype="float32"):
+            cls = Module
+            with R.dataflow():
+                lv = cls.fused_transpose_matmul(x, y, tir_vars)
+                R.output(lv)
+            return lv
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def fused_transpose_matmul(
+            x: T.Buffer((T.int64(3), T.int64(4)), "float32"),
+            p_y: T.handle,
+            p_output0: T.handle,
+            n: T.int64,
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            y = T.match_buffer(p_y, (n - T.int64(1), T.int64(4)))
+            var_T_matmul_intermediate = T.match_buffer(p_output0, (n - T.int64(1), T.int64(3)))
+            var_T_transpose_intermediate = T.alloc_buffer((T.int64(4), T.int64(3)))
+            for ax0, ax1 in T.grid(T.int64(4), T.int64(3)):
+                with T.block("T_transpose"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    var_T_transpose_intermediate[v_ax0, v_ax1] = x[v_ax1, v_ax0]
+            for ax0, ax1, k in T.grid(n - T.int64(1), T.int64(3), T.int64(4)):
+                with T.block("T_matmul"):
+                    v_ax0, v_ax1, v_k = T.axis.remap("SSR", [ax0, ax1, k])
+                    with T.init():
+                        var_T_matmul_intermediate[v_ax0, v_ax1] = T.float32(0)
+                    var_T_matmul_intermediate[v_ax0, v_ax1] = (
+                        var_T_matmul_intermediate[v_ax0, v_ax1]
+                        + y[v_ax0, v_k] * var_T_transpose_intermediate[v_k, v_ax1]
+                    )
+
+        @R.function
+        def main(
+            x: R.Tensor((3, 4), dtype="float32"),
+            y: R.Tensor(("n - 1", 4), dtype="float32"),
+            tir_vars: R.Shape(["n"]),
+        ) -> R.Tensor(("n - 1", 3), dtype="float32"):
+            n = T.int64()
+            cls = Expected
+            with R.dataflow():
+                lv = R.call_tir(
+                    cls.fused_transpose_matmul,
+                    (x, y),
+                    out_sinfo=R.Tensor((n - 1, 3), dtype="float32"),
+                    tir_vars=R.shape([n]),
+                )
+                R.output(lv)
+            return lv
+
+    _check(Module, Expected)
+
+
+def test_tuple_input_unused_field():
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def reshape(
+            A: T.Buffer((T.int64(4), T.int64(8), T.int64(2048)), "float32"),
+            T_reshape: T.Buffer((T.int64(4), T.int64(8), T.int64(32), T.int64(64)), "float32"),
+        ):
+            T.func_attr({"op_pattern": 2, "tir.noalias": T.bool(True)})
+            # with T.block("root"):
+            for ax0, ax1, ax2, ax3 in T.grid(T.int64(4), T.int64(8), T.int64(32), T.int64(64)):
+                with T.block("T_reshape"):
+                    v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    T.reads(
+                        A[
+                            (
+                                ((v_ax2 * T.int64(64) + v_ax3) // T.int64(2048) + v_ax1)
+                                // T.int64(8)
+                                + v_ax0
+                            )
+                            % T.int64(4),
+                            ((v_ax2 * T.int64(64) + v_ax3) // T.int64(2048) + v_ax1) % T.int64(8),
+                            (v_ax2 * T.int64(64) + v_ax3) % T.int64(2048),
+                        ]
+                    )
+                    T.writes(T_reshape[v_ax0, v_ax1, v_ax2, v_ax3])
+                    T_reshape[v_ax0, v_ax1, v_ax2, v_ax3] = A[
+                        (
+                            ((v_ax2 * T.int64(64) + v_ax3) // T.int64(2048) + v_ax1) // T.int64(8)
+                            + v_ax0
+                        )
+                        % T.int64(4),
+                        ((v_ax2 * T.int64(64) + v_ax3) // T.int64(2048) + v_ax1) % T.int64(8),
+                        (v_ax2 * T.int64(64) + v_ax3) % T.int64(2048),
+                    ]
+
+        @R.function
+        def fused_reshape(
+            lv: R.Tuple(
+                R.Tensor((4, 8, 2048), dtype="float32"), R.Tensor((4, 8, 2048), dtype="float32")
+            )
+        ) -> R.Tensor((4, 8, 32, 64), dtype="float32"):
+            R.func_attr({"Primitive": 1})
+            cls = Module
+            with R.dataflow():
+                lv1: R.Tensor((4, 8, 2048), dtype="float32") = lv[0]
+                gv = R.call_tir(
+                    cls.reshape, (lv1,), out_sinfo=R.Tensor((4, 8, 32, 64), dtype="float32")
+                )
+                R.output(gv)
+            return gv
+
+        @R.function
+        def main(
+            tup: R.Tuple(
+                R.Tensor((4, 8, 2048), dtype="float32"), R.Tensor((4, 8, 2048), dtype="float32")
+            )
+        ) -> R.Tensor((4, 8, 32, 64), dtype="float32"):
+            cls = Module
+            with R.dataflow():
+                lv_1: R.Tensor((4, 8, 32, 64), dtype="float32") = cls.fused_reshape(tup)
+                R.output(lv_1)
+            return lv_1
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def fused_reshape(
+            lv_0: T.Buffer((T.int64(4), T.int64(8), T.int64(2048)), "float32"),
+            T_reshape_handle_intermediate: T.Buffer(
+                (T.int64(4), T.int64(8), T.int64(32), T.int64(64)), "float32"
+            ),
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            # with T.block("root"):
+            for ax0, ax1, ax2, ax3 in T.grid(T.int64(4), T.int64(8), T.int64(32), T.int64(64)):
+                with T.block("T_reshape"):
+                    v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    T.reads(
+                        lv_0[
+                            (
+                                ((v_ax2 * T.int64(64) + v_ax3) // T.int64(2048) + v_ax1)
+                                // T.int64(8)
+                                + v_ax0
+                            )
+                            % T.int64(4),
+                            ((v_ax2 * T.int64(64) + v_ax3) // T.int64(2048) + v_ax1) % T.int64(8),
+                            (v_ax2 * T.int64(64) + v_ax3) % T.int64(2048),
+                        ]
+                    )
+                    T.writes(T_reshape_handle_intermediate[v_ax0, v_ax1, v_ax2, v_ax3])
+                    T_reshape_handle_intermediate[v_ax0, v_ax1, v_ax2, v_ax3] = lv_0[
+                        (
+                            ((v_ax2 * T.int64(64) + v_ax3) // T.int64(2048) + v_ax1) // T.int64(8)
+                            + v_ax0
+                        )
+                        % T.int64(4),
+                        ((v_ax2 * T.int64(64) + v_ax3) // T.int64(2048) + v_ax1) % T.int64(8),
+                        (v_ax2 * T.int64(64) + v_ax3) % T.int64(2048),
+                    ]
+
+        @R.function
+        def main(
+            tup: R.Tuple(
+                R.Tensor((4, 8, 2048), dtype="float32"), R.Tensor((4, 8, 2048), dtype="float32")
+            )
+        ) -> R.Tensor((4, 8, 32, 64), dtype="float32"):
+            cls = Expected
+            with R.dataflow():
+                lv: R.Tensor((4, 8, 2048), dtype="float32") = tup[0]
+                lv_1 = R.call_tir(
+                    cls.fused_reshape, (lv,), out_sinfo=R.Tensor((4, 8, 32, 64), dtype="float32")
+                )
+                R.output(lv_1)
+            return lv_1
 
     _check(Module, Expected)
 

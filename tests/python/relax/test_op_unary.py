@@ -54,6 +54,12 @@ def test_op_correctness():
     assert relax.op.tanh(x).op == Op.get("relax.tanh")
     assert relax.op.clip(x, 0, 6).op == Op.get("relax.clip")
 
+    x = relax.Var("x", R.Tensor((2, 3), "int32"))
+    assert relax.op.bitwise_not(x).op == Op.get("relax.bitwise_not")
+
+    x = relax.Var("x", R.Tensor((2, 3), "bool"))
+    assert relax.op.logical_not(x).op == Op.get("relax.logical_not")
+
 
 def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_sinfo: relax.StructInfo):
     ret = bb.normalize(call)

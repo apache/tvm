@@ -277,7 +277,7 @@ class VMShapeLowerMutator
 
     auto new_body = builder_->Normalize(SeqExpr(blocks, body_seq->body));
     // create a new function
-    return Function(func->params, new_body, func->ret_struct_info, func->attrs);
+    return Function(func->params, new_body, func->ret_struct_info, func->is_pure, func->attrs);
   }
 
   //-------------------------------------------------------
@@ -634,11 +634,9 @@ class VMShapeLowerMutator
   Expr MakeTupleGetItem(Expr value, int64_t index) {
     if (auto* tuple_expr = value.as<TupleNode>()) {
       return tuple_expr->fields[index];
-    } else if (auto* tuple_sinfo = GetStructInfoAs<TupleStructInfoNode>(value)) {
+    } else if (GetStructInfoAs<TupleStructInfoNode>(value)) {
       // value is tuple type, it is OK to run tuple get item.
-      auto ret = TupleGetItem(value, index);
-      UpdateStructInfo(ret, tuple_sinfo->fields[index]);
-      return ret;
+      return TupleGetItem(value, index);
     } else {
       // call runtime tuple get item, and return a object.
       Call call(builtin_tuple_getitem_, {value, PrimValue::Int64(index)}, Attrs(), {object_sinfo_});

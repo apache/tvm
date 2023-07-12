@@ -43,7 +43,7 @@ def _schedule_conv2d(outs):
                 Out = outs[0].op.output(0)
                 s[Conv2d].compute_at(s[Out], s[Out].op.axis[1])
         else:
-            raise RuntimeError("Unsupported operator: %s" % OP.tag)
+            raise RuntimeError(f"Unsupported operator: {OP.tag}")
 
     traverse(outs[0].op)
 
@@ -223,7 +223,7 @@ def schedule_reduce(outs):
                 Out = outs[0].op.output(0)
                 s[Reduce].compute_at(s[Out], s[Out].op.axis[0])
         else:
-            raise RuntimeError("Unsupported operator: %s" % OP.tag)
+            raise RuntimeError(f"Unsupported operator: {OP.tag}")
 
     traverse(outs[0].op)
 
@@ -264,10 +264,7 @@ def schedule_softmax(outs):
         expsum = softmax.op.input_tensors[2]
     else:
         raise ValueError(
-            "Tag is expected to be softmax_output or log_softmax_output. \
-                         Got {0}".format(
-                op_tag
-            )
+            f"Tag is expected to be softmax_output or log_softmax_output. Got {op_tag}"
         )
 
     if exp is not None:
@@ -315,7 +312,7 @@ def schedule_dense(outs):
                 Out = outs[0].op.output(0)
                 s[Dense].compute_at(s[Out], s[Out].op.axis[1])
         else:
-            raise RuntimeError("Unsupported operator: %s" % OP.tag)
+            raise RuntimeError(f"Unsupported operator: {OP.tag}")
 
     traverse(outs[0].op)
 
@@ -358,7 +355,7 @@ def schedule_pool(outs, layout):
                 Out = outs[0].op.output(0)
                 s[Pool].compute_at(s[Out], s[Out].op.axis[1])
         else:
-            raise RuntimeError("Unsupported operator: %s" % OP.tag)
+            raise RuntimeError(f"Unsupported operator: {OP.tag}")
 
     traverse(outs[0].op)
 
@@ -401,7 +398,7 @@ def schedule_adaptive_pool(outs):
                 Out = outs[0].op.output(0)
                 s[Pool].compute_at(s[Out], s[Out].op.axis[1])
         else:
-            raise RuntimeError("Unsupported operator: %s" % OP.tag)
+            raise RuntimeError(f"Unsupported operator: {OP.tag}")
 
     traverse(outs[0].op)
 

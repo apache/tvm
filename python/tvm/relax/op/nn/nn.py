@@ -532,10 +532,10 @@ def adaptive_avg_pool2d(
 
 
 def relu(data: Expr) -> Expr:
-    """Rectified linear unit.
+    r"""Rectified linear unit.
 
     .. math::
-        text{ReLU}(x) = max(x, 0)
+        \text{ReLU}(x) = \max(x, 0)
 
     Parameters
     ----------
@@ -574,10 +574,10 @@ def leakyrelu(data: Expr, alpha: float = 0.01) -> Expr:
 
 
 def gelu(data: Expr) -> Expr:
-    """Gaussian Error Linear Units function
+    r"""Gaussian Error Linear Units function
 
     .. math::
-        text{GeLU}(x) = 0.5 * x * (1 + erf(x * 0.5**0.5))
+        \text{GeLU}(x) = 0.5 * x * (1 + \text{erf}(x * 0.5**0.5))
 
     where :math:`erf` is the Gauss Error function.
 
@@ -598,11 +598,34 @@ def gelu(data: Expr) -> Expr:
     return _ffi_api.gelu(data)  # type: ignore
 
 
-def silu(data: Expr) -> Expr:
-    """Sigmoid Linear Unit function
+def gelu_tanh(data: Expr) -> Expr:
+    r"""Gaussian Error Linear Units function with tanh approximation
 
     .. math::
-        text{SiLU}(x) = x * sigmoid(x)
+        \text{GELU}(x) = 0.5 * x * (1 + \text{Tanh}(\sqrt(2 / \pi) * (x + 0.044715 * x^3)))
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input data
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+
+    Note
+    ----
+    The input tensor is required to have float dtype
+    """
+    return _ffi_api.gelu_tanh(data)  # type: ignore
+
+
+def silu(data: Expr) -> Expr:
+    r"""Sigmoid Linear Unit function
+
+    .. math::
+        \text{SiLU}(x) = x * \text{sigmoid}(x)
 
     Parameters
     ----------
@@ -624,7 +647,7 @@ def silu(data: Expr) -> Expr:
 def softmax(data: Expr, axis: int = -1) -> Expr:
     r"""Computes softmax.
 
-    .. math:: text{softmax}(x)_i = frac{exp(x_i)}{\sum_j exp(x_j)}
+    .. math:: \text{softmax}(x)_i = \frac{\exp(x_i)}{\sum_j \exp(x_j)}
 
     Parameters
     ----------
@@ -690,6 +713,7 @@ def batch_norm(
 ) -> Expr:
     r"""
     Batch normalization layer (Ioffe and Szegedy, 2014).
+
     Normalizes the input at each batch, i.e. applies a transformation
     that maintains the mean activation close to 0 and the activation
     standard deviation close to 1.
@@ -699,14 +723,14 @@ def batch_norm(
         data\_mean[i] = mean(data[:,i,:,...]) \\
         data\_var[i] = var(data[:,i,:,...])
 
+    Both *mean* and *var* returns a scalar by treating the input as a vector.
+
     Then compute the normalized output, which has the same shape as input, as following:
 
     .. math::
 
         out[:,i,:,...] = \frac{data[:,i,:,...] - data\_mean[i]}{\sqrt{data\_var[i]+\epsilon}}
             * gamma[i] + beta[i]
-
-    Both *mean* and *var* returns a scalar by treating the input as a vector.
 
     Assume the input has size *k* on axis 1, then both ``gamma`` and ``beta``
     have shape *(k,)*.
@@ -726,7 +750,19 @@ def batch_norm(
 
     .. note::
 
-        This operator can be optimized away for inference.
+        This operator has two modes:
+        - Training mode.
+            - Use the mean and var computed from THIS batch to normalize.
+            - Update and then return the running mean and running var.
+        - Inference mode.
+            - Use the running_mean and running_var parameters to normalize.
+            - Do not update the running mean and running var. Just return the original value.
+
+        In the legalization stage, this operator will be legalized to the training mode by default.
+
+        You can use tvm.relax.transform.DecomposeOpsForInference to decompose the operator, so it
+        executes the inference mode computation. Similarly, use
+        tvm.relax.transform.DecomposeOpsForTraining to execute the training mode computation.
 
     Parameters
     ----------
@@ -992,6 +1028,7 @@ def attention(
     value: Expr,
     bias: Optional[Expr] = None,
     scale: Optional[FloatImm] = None,
+    causal_mask: Optional[str] = None,
 ) -> Expr:
     r"""Computes fused multi head attention.
 
@@ -1019,11 +1056,35 @@ def attention(
 
     bias: Optional[Expr]
         The optional attention bias to the operator. The layout of the attention bias should be
-        (batch_size, num_head, seq_len, seq_len_kv),
-        (batch_size, seq_len, seq_len_kv) or (batch_size, seq_len_kv).
+        a 4-D tensor ending with seq_len_kv, and broadcastable to
+        (batch_size, num_head, seq_len, seq_len_kv).
 
-    scale: Optional[FloatImm]
-        The custom scale applied before the softmax. The default value is 1 / sqrt(head_dim).
+    scale: Optional[float]
+        The scale value to be applied to the attention score, by default 1 / sqrt(head_dim).
+
+    causal_mask: Optional[str]
+        The optional causal mask, i.e. 'TopLeft' and 'BottomRight'.
+        For 'TopLeft', the mask matrix is as `np.tril(*, k=0)`,
+        while for 'BottomRight', the mask matrix is as `np.tril(*, k=abs(seq_len - seq_len_kv))`
+        For example, with seq_len = 4, seq_len_kv = 2,
+        mask for 'TopLeft':
+        [[1, 0],
+         [1, 1],
+         [1, 1],
+         [1, 1]]
+        mask for 'BottomRight':
+        [[1, 1],
+         [1, 1],
+         [1, 1],
+         [1, 1]]
+        with seq_len = 2, seq_len_kv = 4,
+        mask for 'TopLeft':
+        [[1, 0, 0, 0],
+         [1, 1, 0, 0]]
+        mask for 'BottomRight':
+        [[1, 1, 1, 0],
+         [1, 1, 1, 1]]
+
 
     Returns
     -------
@@ -1031,4 +1092,4 @@ def attention(
         The computed result. The layout of the output should be
         (batch_size, seq_len, num_head, head_dim_v).
     """
-    return _ffi_api.attention(query, key, value, bias, scale)  # type: ignore
+    return _ffi_api.attention(query, key, value, bias, scale, causal_mask)  # type: ignore

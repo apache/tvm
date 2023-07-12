@@ -51,8 +51,8 @@ def nll_loss_backward(
     reduction: str = "mean",
     ignore_index: int = -100,
 ) -> Expr:
-    """Backward operator of relax.nll_loss. All parameters except output_grad is the same as
-    relax.nll_loss. Returns the gradient w.r.t. predictions.
+    """Backward operator of relax.nn.nll_loss. All parameters except output_grad is the same as
+    relax.nn.nll_loss. Returns the gradient w.r.t. predictions.
 
     Parameters
     ----------
@@ -80,8 +80,8 @@ def max_pool2d_backward(
     layout: str = "NCHW",
     out_layout: Optional[str] = None,
 ) -> Expr:
-    """Backward operator of relax.max_pool2d. All parameters except output_grad is the same as
-    relax.max_pool2d. Returns the gradient w.r.t. data.
+    """Backward operator of relax.nn.max_pool2d. All parameters except output_grad is the same as
+    relax.nn.max_pool2d. Returns the gradient w.r.t. data.
 
     Parameters
     ----------
@@ -109,8 +109,8 @@ def avg_pool2d_backward(
     layout: str = "NCHW",
     out_layout: Optional[str] = None,
 ) -> Expr:
-    """Backward operator of relax.avg_pool2d. All parameters except output_grad is the same as
-    relax.avg_pool2d. Returns the gradient w.r.t. data.
+    """Backward operator of relax.nn.avg_pool2d. All parameters except output_grad is the same as
+    relax.nn.avg_pool2d. Returns the gradient w.r.t. data.
 
     Parameters
     ----------

@@ -445,11 +445,11 @@ Doc RelayTextPrinter::PrintFunc(const Doc& prefix, const relay::Function& fn) {
 }
 
 Doc RelayTextPrinter::PrintFunc(const Doc& prefix, const BaseFunc& base_func) {
-  if (auto* n = base_func.as<relay::FunctionNode>()) {
-    return PrintFunc(prefix, GetRef<relay::Function>(n));
-  } else if (auto* n = base_func.as<tir::PrimFuncNode>()) {
+  if (auto func = base_func.as<relay::Function>()) {
+    return PrintFunc(prefix, func.value());
+  } else if (auto func = base_func.as<tir::PrimFunc>()) {
     std::ostringstream os;
-    os << GetRef<tir::PrimFunc>(n);
+    os << func.value();
     return Doc::RawText(os.str());
   } else {
     // def @xyz = meta['ExternalFunc'][id]
@@ -555,7 +555,7 @@ Doc RelayTextPrinter::VisitExpr_(const MatchNode* op) {
     Doc clause_doc;
     clause_doc << PrintPattern(clause->lhs, false) << " => ";
     Doc rhs_doc = PrintScope(clause->rhs);
-    // TODO(@jroesch): This is unsound right now, and we need to revist it.
+    // TODO(@jroesch): This is unsound right now, and we need to revisit it.
     // if (clause->rhs.as<LetNode>()) {
     // only add braces if there are multiple lines on the rhs
     rhs_doc = Doc::Brace("{", rhs_doc, "}");
@@ -896,18 +896,18 @@ Doc RelayTextPrinter::PrintAttributeValue(const ObjectRef& value, bool force_met
     Doc printed_attr;
     if (value.as<tvm::tir::AnyNode>()) {
       printed_attr << "?";
-    } else if (auto str_obj = value.as<tvm::StringObj>()) {
-      printed_attr << Doc::StrLiteral(GetRef<String>(str_obj));
+    } else if (auto str_obj = value.as<tvm::String>()) {
+      printed_attr << Doc::StrLiteral(str_obj.value());
     } else if (force_meta) {
       printed_attr = meta_->GetMetaNode(Downcast<ObjectRef>(value));
-    } else if (const auto* virtual_device_node = value.as<VirtualDeviceNode>()) {
+    } else if (auto virtual_device_node = value.as<VirtualDevice>()) {
       if (show_meta_data_) {
-        printed_attr = meta_->GetMetaNode(GetRef<ObjectRef>(virtual_device_node));
+        printed_attr = meta_->GetMetaNode(virtual_device_node.value());
       } else {
         // Special case: The ReprPrinter for VirtualDeviceNodes is much easier to work with while
         // debugging.
         std::ostringstream os;
-        os << GetRef<VirtualDevice>(virtual_device_node);
+        os << virtual_device_node.value();
         return Doc::Text(os.str());
       }
     } else if (const auto* base_attr_node = value.as<BaseAttrsNode>()) {
@@ -925,11 +925,11 @@ Doc RelayTextPrinter::PrintAttributeValue(const ObjectRef& value, bool force_met
         // Special case: Show maps fields as key=value pairs to help debugging.
         printed_attr << PrintMapAsAttributeValue(GetRef<Map<ObjectRef, ObjectRef>>(base_map_node));
       }
-    } else if (const auto* global_var_node = value.as<GlobalVarNode>()) {
+    } else if (auto global_var = value.as<GlobalVar>()) {
       if (show_meta_data_) {
-        printed_attr = meta_->GetMetaNode(GetRef<ObjectRef>(global_var_node));
+        printed_attr = meta_->GetMetaNode(global_var.value());
       } else {
-        printed_attr << "'" << global_var_node->name_hint << "'";
+        printed_attr << "'" << global_var.value()->name_hint << "'";
       }
     } else {
       printed_attr = VisitAttr(value);

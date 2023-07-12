@@ -24,7 +24,9 @@ from tvm import relax
 from tvm.ir import transform
 from tvm.ir.module import IRModule
 from tvm.ir.transform import PassContext
-from tvm.relax.transform.tuning_api import Trace
+
+# TODO(@sunggg): re-enable Trace when we have a solution for large params
+# from tvm.relax.transform.tuning_api import Trace
 from tvm.script import relax as R
 from tvm.script import tir as T
 
@@ -78,7 +80,9 @@ def test_ms_tuning_irmodule():
     assert isinstance(mod, IRModule)
 
     with tempfile.TemporaryDirectory() as work_dir:
-        with target, transform.PassContext(trace=Trace(mod), opt_level=0):
+        """
+        # TODO(@sunggg): revisit when ready
+        with target, PassContext(trace=Trace(mod), opt_level=0):
             tuning_pass = relax.transform.MetaScheduleTuneIRMod(
                 params={}, work_dir=work_dir, max_trials_global=4
             )
@@ -86,6 +90,13 @@ def test_ms_tuning_irmodule():
             assert PassContext.current().get_trace_stack_size() == 1
             assert PassContext.current().get_current_trace().size == 1
             tvm.ir.assert_structural_equal(mod, out_mod)
+        """
+
+        with target, PassContext(opt_level=0):
+            tuning_pass = relax.transform.MetaScheduleTuneIRMod(
+                params={}, work_dir=work_dir, max_trials_global=4
+            )
+            out_mod = tuning_pass(mod)
 
             application_pass = relax.transform.MetaScheduleApplyDatabase(work_dir)
 
@@ -97,7 +108,9 @@ def test_ms_tuning_primfunc():
     mod = InputModule
     assert isinstance(mod, IRModule)
     with tempfile.TemporaryDirectory() as work_dir:
-        with target, transform.PassContext(trace=Trace(mod), opt_level=0):
+        """
+        # TODO(@sunggg): revisit when ready
+        with target, PassContext(trace=Trace(mod), opt_level=0):
             tuning_pass = relax.transform.MetaScheduleTuneTIR(
                 work_dir=work_dir, max_trials_global=4
             )
@@ -106,10 +119,36 @@ def test_ms_tuning_primfunc():
             # TODO (@sunggg): Need to determine how to track subgraph-level tuning traces.
             # Currently, we don't track this so the trace size. Revisit this later.
             tvm.ir.assert_structural_equal(mod, out_mod)
+        """
+        with target, PassContext(opt_level=0):
+            tuning_pass = relax.transform.MetaScheduleTuneIRMod(
+                params={}, work_dir=work_dir, max_trials_global=4
+            )
+            out_mod = tuning_pass(mod)
 
             application_pass = relax.transform.MetaScheduleApplyDatabase(work_dir)
             out_mod = application_pass(mod)
             assert not tvm.ir.structural_equal(mod, out_mod)
+
+    with tempfile.TemporaryDirectory() as work_dir:
+        with target, PassContext(opt_level=0):
+            tuning_pass = relax.transform.MetaScheduleTuneIRMod(
+                params={},
+                work_dir=work_dir,
+                max_trials_global=4,
+                max_trials_per_task=2,
+                op_names=["matmul"],
+            )
+            tuning_pass(mod)
+
+            db = ms.database.JSONDatabase(
+                work_dir + "/database_workload.json", work_dir + "/database_tuning_record.json"
+            )
+
+            assert len(db.get_all_tuning_records()) == 2
+
+            for rec in db.get_all_tuning_records():
+                assert rec.workload.mod["main"].attrs["global_symbol"] == "tir_matmul"
 
 
 @tvm.script.ir_module
@@ -172,12 +211,20 @@ def test_ms_database_apply_fallback():
     target_cuda = tvm.target.Target("nvidia/geforce-rtx-3090-ti")
     assert isinstance(mod, IRModule)
     with tempfile.TemporaryDirectory() as work_dir:
-        with target_cuda, transform.PassContext(trace=Trace(mod), opt_level=0):
+        """
+        # TODO(@sunggg): Revisit when ready
+        with target_cuda, PassContext(trace=Trace(mod), opt_level=0):
             tuning_pass = relax.transform.MetaScheduleTuneTIR(
                 work_dir=work_dir, max_trials_global=0
             )
             out_mod = tuning_pass(mod)
             tvm.ir.assert_structural_equal(mod, out_mod)
+        """
+        with target_cuda, PassContext(opt_level=0):
+            tuning_pass = relax.transform.MetaScheduleTuneTIR(
+                work_dir=work_dir, max_trials_global=0
+            )
+            out_mod = tuning_pass(mod)
             default_pass = tvm.tir.transform.DefaultGPUSchedule()
             out_mod = default_pass(mod)
             tvm.ir.assert_structural_equal(out_mod, DefaultScheduledModule)

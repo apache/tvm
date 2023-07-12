@@ -186,7 +186,7 @@ class VirtualMachineImpl : public VirtualMachine {
   void Init(const std::vector<Device>& devices,
             const std::vector<AllocatorType>& alloc_types) final;
 
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) override;
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) override;
 
   VMClosure GetClosure(const String& func_name) final {
     return this->GetClosureInternal(func_name, false).value();
@@ -327,7 +327,7 @@ class VirtualMachineImpl : public VirtualMachine {
     } else {
       ICHECK_EQ(reg, Instruction::kVMRegister);
       // per convention, ctx ptr must be VirtualMachine* casted to void.
-      // this and VirtualMachine* may or maynot be the same
+      // this and VirtualMachine* may or may not be the same
       // do first cast to VirtualMachine* then to void*
       ret = static_cast<void*>(static_cast<VirtualMachine*>(this));
     }
@@ -445,7 +445,7 @@ RegType VirtualMachineImpl::LookupVMOutput(const std::string& func_name) {
   return outputs_[func_name];
 }
 
-PackedFunc VirtualMachineImpl::GetFunction(const std::string& name,
+PackedFunc VirtualMachineImpl::GetFunction(const String& name,
                                            const ObjectPtr<Object>& sptr_to_self) {
   if (name == "vm_initialization") {
     // initialize the VirtualMachine, takes variable-length arguments
@@ -870,7 +870,7 @@ void VirtualMachineImpl::RunLoop() {
   VMFrame* curr_frame = frames_.back().get();
 
   while (true) {
-    ICHECK_LT(static_cast<size_t>(pc_), exec_->instr_offset.size()) << "run into invalide section";
+    ICHECK_LT(static_cast<size_t>(pc_), exec_->instr_offset.size()) << "run into invalid section";
     Instruction instr = exec_->GetInstruction(pc_);
     switch (instr.op) {
       case Opcode::Call: {
@@ -925,7 +925,7 @@ ObjectPtr<VirtualMachine> VirtualMachine::Create() { return make_object<VirtualM
  */
 class VirtualMachineProfiler : public VirtualMachineImpl {
  public:
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) override {
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) override {
     if (name == "profile") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         std::string f_name = args[0];
@@ -1005,7 +1005,7 @@ class VirtualMachineProfiler : public VirtualMachineImpl {
       std::unordered_map<std::string, ObjectRef> metrics;
       metrics["Argument Shapes"] = profiling::ShapeString(arrs);
 
-      // If a sutiable device is found, enable profiling.
+      // If a suitable device is found, enable profiling.
       if (dev) {
         profiling = true;
         prof_->StartCall(f_name, *dev, metrics);

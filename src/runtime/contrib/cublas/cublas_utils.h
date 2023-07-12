@@ -77,6 +77,13 @@ struct CuBlasThreadEntry {
   static CuBlasThreadEntry* ThreadLocal();
 };  // CuBlasThreadEntry
 
+struct CuBlasLtThreadEntry {
+  CuBlasLtThreadEntry();
+  ~CuBlasLtThreadEntry();
+  cublasLtHandle_t handle{nullptr};
+  static CuBlasLtThreadEntry* ThreadLocal();
+};  // CuBlasLtThreadEntry
+
 inline cudaDataType_t GetCudaDataType(DLDataType type) {
   if (type.code == kDLInt) {
     switch (type.bits) {

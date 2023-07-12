@@ -49,6 +49,7 @@ import threading
 import errno
 import struct
 import json
+import sys
 from tvm.contrib.popen_pool import PopenWorker
 
 try:
@@ -56,7 +57,7 @@ try:
     from . import tornado_util
 except ImportError as error_msg:
     raise ImportError(
-        "RPCTracker module requires tornado package %s. Try 'pip install tornado'." % error_msg
+        f"RPCTracker module requires tornado package {error_msg}. Try 'pip install tornado'."
     )
 
 from .._ffi.base import py_str
@@ -184,7 +185,7 @@ class TCPEventHandler(tornado_util.TCPHandler):
 
     def name(self):
         """name of connection"""
-        return "TCPSocket: %s" % str(self._addr)
+        return f"TCPSocket: {str(self._addr)}"
 
     def summary(self):
         """Summary of this connection"""
@@ -392,7 +393,12 @@ class PopenTrackerServerState(object):
             logger.setLevel(logging.WARN)
 
         sock = socket.socket(base.get_addr_family((host, port)), socket.SOCK_STREAM)
-        if reuse_addr:
+
+        # Never set socket SO_REUSEADDR on Windows. The SO_REUSEADDR flag allow reusing the
+        # inactivate TIME_WATI state sockets on POSIX, but on Windows it will allow two or more
+        # activate sockets to bind on the same address and port if they all set SO_REUSEADDR,
+        # and result in indeterminate behavior.
+        if reuse_addr and sys.platform != "win32":
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         if timeout is not None:
             sock.settimeout(timeout)
@@ -408,7 +414,7 @@ class PopenTrackerServerState(object):
                     continue
                 raise sock_err
         if not self.port:
-            raise ValueError("cannot bind to any port in [%d, %d)" % (port, port_end))
+            raise ValueError(f"cannot bind to any port in [{port}, {port_end})")
         logger.info("bind to %s:%d", host, self.port)
         sock.listen(1)
         self.thread = threading.Thread(target=_tracker_server, args=(sock, self.stop_key))
@@ -463,15 +469,7 @@ class Tracker(object):
         self.proc = PopenWorker()
         # send the function
         self.proc.send(
-            _popen_start_tracker_server,
-            [
-                host,
-                port,
-                port_end,
-                silent,
-                reuse_addr,
-                timeout,
-            ],
+            _popen_start_tracker_server, [host, port, port_end, silent, reuse_addr, timeout]
         )
         # receive the port
         self.port, self.stop_key = self.proc.recv()

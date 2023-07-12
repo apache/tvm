@@ -53,7 +53,9 @@ using vm::VMFuncInfo;
 class CodeGenVMTIR : public ExprFunctor<Optional<PrimExpr>(const Expr&)> {
  public:
   explicit CodeGenVMTIR(relax::ExecBuilder builder, IRModule ctx_mod)
-      : builder_(builder), ctx_mod_(ctx_mod) {}
+      : builder_(builder), ctx_mod_(ctx_mod) {
+    system_lib_prefix_ = ctx_mod_->GetAttr<String>(tvm::attr::kSystemLibPrefix);
+  }
 
   static IRModule Run(relax::ExecBuilder builder, IRModule mod) {
     // create a new copy
@@ -189,7 +191,7 @@ class CodeGenVMTIR : public ExprFunctor<Optional<PrimExpr>(const Expr&)> {
     Type ret_type = VoidType();
     Array<tir::Var> tir_params = {ctx_ptr_, reg_anylist_handle_, const_anylist_handle_,
                                   func_anylist_handle_};
-    String tir_func_name = "__vmtir__" + gsymbol.value();
+    String tir_func_name = system_lib_prefix_.value_or("") + "__vmtir__" + gsymbol.value();
     tir::PrimFunc tir_func(tir_params, body, ret_type, {});
     tir_func = WithAttr(tir_func, "global_symbol", tir_func_name);
     registers_num_ = 0;
@@ -230,6 +232,8 @@ class CodeGenVMTIR : public ExprFunctor<Optional<PrimExpr>(const Expr&)> {
         EmitAllocStorage(call, dst_reg);
       } else if (call_node->op == alloc_tensor_op_) {
         EmitAllocTensor(call, dst_reg);
+      } else if (call_node->op == kill_object_op_) {
+        dst_reg = EmitKillObject(call);
       } else {
         // every "normal" operator is lowered to a global var in the IRModule. The Attrs for those
         // ops are handled in a pass when lowering them to TIR.
@@ -404,6 +408,25 @@ class CodeGenVMTIR : public ExprFunctor<Optional<PrimExpr>(const Expr&)> {
     this->EmitCallPacked("vm.builtin.alloc_tensor", args, dst_reg);
   }
 
+  int64_t EmitKillObject(const Call& call_node) {
+    ICHECK_EQ(call_node->args.size(), 1);
+    PrimExpr arg = this->VisitExpr(call_node->args[0]).value();
+
+    // Check the arg is a register.
+    const auto* tir_call = arg.as<tir::CallNode>();
+    ICHECK(tir_call != nullptr);
+    ICHECK(tir_call->op == tir::builtin::anylist_getitem());
+    ICHECK(tir_call->args.size() == 2);
+    ICHECK(tir_call->args[0].same_as(reg_anylist_handle_));
+    const auto* p_dst_reg = tir_call->args[1].as<tir::IntImmNode>();
+    ICHECK(p_dst_reg != nullptr);
+    ICHECK(p_dst_reg->dtype == DataType::Int(32));
+
+    int64_t dst_reg = p_dst_reg->value;
+    this->EmitCallPacked("vm.builtin.null_value", {}, dst_reg);
+    return dst_reg;
+  }
+
   void EmitCallBuiltinWithCtx(const Call& call_node, int64_t dst_reg) {
     Array<PrimExpr> args;
     // if context is required, pass as first argument.
@@ -485,9 +508,12 @@ class CodeGenVMTIR : public ExprFunctor<Optional<PrimExpr>(const Expr&)> {
   std::unordered_map<Var, Optional<PrimExpr>, ObjectPtrHash, ObjectPtrEqual> var_map_;
   /*! \brief the context module. */
   IRModule ctx_mod_;
+  /*! \brief system lib prefix */
+  Optional<String> system_lib_prefix_;
   /*! \brief Cache ops that need to be frequently used later to reduce lookup overhead. */
   const Op& alloc_storage_op_ = Op::Get("relax.vm.alloc_storage");
   const Op& alloc_tensor_op_ = Op::Get("relax.vm.alloc_tensor");
+  const Op& kill_object_op_ = Op::Get("relax.vm.kill_object");
   const Op& call_builtin_with_ctx_op_ = Op::Get("relax.call_builtin_with_ctx");
   const Op& null_value_op_ = Op::Get("relax.null_value");
 };

@@ -66,7 +66,7 @@ def convert_roi_align(attrs, inputs, tinfos, desired_layouts):
     if desired_data_layout in ["NCHW", "NHWC"]:
         return relay.vision.roi_align(data, rois, **new_attrs)
 
-    raise ValueError("Layout %s is not yet supported." % desired_data_layout)
+    raise ValueError(f"Layout {desired_data_layout} is not yet supported.")
 
 
 @reg.register_convert_op_layout("vision.roi_pool")
@@ -108,7 +108,7 @@ def convert_roi_pool(attrs, inputs, tinfos, desired_layouts):
     if desired_data_layout in ["NCHW", "NHWC"]:
         return relay.vision.roi_pool(data, rois, **new_attrs)
 
-    raise ValueError("Layout %s is not yet supported." % desired_data_layout)
+    raise ValueError(f"Layout {desired_data_layout} is not yet supported.")
 
 
 # roi_pool

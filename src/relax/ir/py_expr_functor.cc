@@ -557,17 +557,35 @@ TVM_REGISTER_GLOBAL("relax.ExprVisitorVisitExpr")
 
 TVM_REGISTER_GLOBAL("relax.ExprVisitorVisitBinding")
     .set_body_typed([](PyExprVisitor visitor, const Binding& binding) {
-      visitor->ExprVisitor::VisitBinding(binding);
+      if (const auto* ptr = binding.as<VarBindingNode>()) {
+        visitor->ExprVisitor::VisitBinding_(ptr);
+      } else if (const auto* ptr = binding.as<MatchCastNode>()) {
+        visitor->ExprVisitor::VisitBinding_(ptr);
+      } else {
+        LOG(FATAL) << "unreachable";
+      }
     });
 
 TVM_REGISTER_GLOBAL("relax.ExprVisitorVisitBindingBlock")
     .set_body_typed([](PyExprVisitor visitor, const BindingBlock& block) {
-      visitor->ExprVisitor::VisitBindingBlock(block);
+      if (const auto* ptr = block.as<DataflowBlockNode>()) {
+        visitor->ExprVisitor::VisitBindingBlock_(ptr);
+      } else if (const auto* ptr = block.as<BindingBlockNode>()) {
+        visitor->ExprVisitor::VisitBindingBlock_(ptr);
+      } else {
+        LOG(FATAL) << "TypeError: Invalid type: " << block->GetTypeKey();
+      }
     });
 
 TVM_REGISTER_GLOBAL("relax.ExprVisitorVisitVarDef")
     .set_body_typed([](PyExprVisitor visitor, const Var& var) {
-      visitor->ExprVisitor::VisitVarDef(var);
+      if (const auto* node = var.as<DataflowVarNode>()) {
+        visitor->ExprVisitor::VisitVarDef_(node);
+      } else if (const auto* node = var.as<VarNode>()) {
+        visitor->ExprVisitor::VisitVarDef_(node);
+      } else {
+        LOG(FATAL) << "TypeError: Invalid type: " << var->GetTypeKey();
+      }
     });
 
 TVM_REGISTER_GLOBAL("relax.ExprVisitorVisitSpan")
@@ -604,17 +622,35 @@ TVM_REGISTER_GLOBAL("relax.ExprMutatorVisitExpr")
 
 TVM_REGISTER_GLOBAL("relax.ExprMutatorVisitBinding")
     .set_body_typed([](PyExprMutator mutator, const Binding& binding) {
-      return mutator->ExprMutator::VisitBinding(binding);
+      if (const auto* ptr = binding.as<VarBindingNode>()) {
+        return mutator->ExprMutator::VisitBinding_(ptr);
+      } else if (const auto* ptr = binding.as<MatchCastNode>()) {
+        return mutator->ExprMutator::VisitBinding_(ptr);
+      } else {
+        LOG(FATAL) << "unreachable";
+      }
     });
 
 TVM_REGISTER_GLOBAL("relax.ExprMutatorVisitBindingBlock")
     .set_body_typed([](PyExprMutator mutator, const BindingBlock& block) {
-      return mutator->ExprMutator::VisitBindingBlock(block);
+      if (const auto* node = block.as<DataflowBlockNode>()) {
+        return mutator->ExprMutator::VisitBindingBlock_(node);
+      } else if (const auto* node = block.as<BindingBlockNode>()) {
+        return mutator->ExprMutator::VisitBindingBlock_(node);
+      } else {
+        LOG(FATAL) << "TypeError: Invalid type: " << block->GetTypeKey();
+      }
     });
 
 TVM_REGISTER_GLOBAL("relax.ExprMutatorVisitVarDef")
     .set_body_typed([](PyExprMutator mutator, const Var& var) {
-      return mutator->ExprMutator::VisitVarDef(var);
+      if (const auto* node = var.as<DataflowVarNode>()) {
+        return mutator->ExprMutator::VisitVarDef_(node);
+      } else if (const auto* node = var.as<VarNode>()) {
+        return mutator->ExprMutator::VisitVarDef_(node);
+      } else {
+        LOG(FATAL) << "TypeError: Invalid type: " << var->GetTypeKey();
+      }
     });
 
 TVM_REGISTER_GLOBAL("relax.PyExprMutatorVisitExprPostOrder")

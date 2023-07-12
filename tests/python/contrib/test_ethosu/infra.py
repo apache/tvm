@@ -475,7 +475,9 @@ def get_convolutional_args(call, include_buffers=False, remove_constants=False):
     return conv_args
 
 
-def compute_ofm_shape(ifm_shape, padding, kernel_shape, strides, dilation=[1, 1]):
+def compute_ofm_shape(
+    ifm_shape, padding, kernel_shape, strides, dilation=[1, 1], channel_padding=[0, 0]
+):
     assert len(strides) == 2
     assert len(dilation) == 2
     assert len(kernel_shape) == 2
@@ -492,7 +494,7 @@ def compute_ofm_shape(ifm_shape, padding, kernel_shape, strides, dilation=[1, 1]
     elif padding.lower() == "same":
         h = math.ceil(ifm_shape[1] / strides[0])
         w = math.ceil(ifm_shape[2] / strides[1])
-    ofm_shape = [ifm_shape[0], h, w, ifm_shape[3]]
+    ofm_shape = [ifm_shape[0], h, w, ifm_shape[3] + channel_padding[0] + channel_padding[1]]
     return ofm_shape
 
 
@@ -639,6 +641,7 @@ def make_ethosu_pooling(
     pooling_type,
     pool_shape,
     ofm_channels,
+    ofm_dtype,
     strides,
     padding,
     activation="NONE",
@@ -657,6 +660,7 @@ def make_ethosu_pooling(
         ofm_zero_point=0,
         pool_shape=pool_shape,
         ofm_channels=ofm_channels,
+        ofm_dtype=ofm_dtype,
         strides=strides,
         padding=padding,
         activation=activation,
@@ -702,18 +706,24 @@ def make_ethosu_binary_elementwise(
     rescale_scale: int = 0,
     rescale_shift: int = 0,
     lut=relay.const([], dtype="int8"),
+    ifm_scale: float = 1.0,
+    ifm_zero_point: int = 0,
+    ifm2_scale: float = 1.0,
+    ifm2_zero_point: int = 0,
+    ofm_scale: float = 1.0,
+    ofm_zero_point: int = 0,
 ):
     ethosu_binary_elementwise = ethosu_ops.ethosu_binary_elementwise(
         ifm=ifm,
         ifm2=ifm2,
         lut=lut,
         operator_type=operator_type,
-        ifm_scale=1,
-        ifm_zero_point=0,
-        ifm2_scale=1,
-        ifm2_zero_point=0,
-        ofm_scale=1,
-        ofm_zero_point=0,
+        ifm_scale=ifm_scale,
+        ifm_zero_point=ifm_zero_point,
+        ifm2_scale=ifm2_scale,
+        ifm2_zero_point=ifm2_zero_point,
+        ofm_scale=ofm_scale,
+        ofm_zero_point=ofm_zero_point,
         ifm_channels=ifm_channels,
         ifm2_channels=ifm2_channels,
         reversed_operands=reversed_operands,

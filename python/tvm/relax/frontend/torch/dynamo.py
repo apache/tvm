@@ -16,7 +16,7 @@
 # under the License.
 
 # pylint: disable=invalid-name, missing-function-docstring, not-callable
-# pylint: disable=import-outside-toplevel, unused-argument
+# pylint: disable=import-outside-toplevel, unused-argument, use-list-literal
 # mypy: ignore-errors
 """PyTorch Dynamo backend of Relax."""
 import functools
@@ -154,7 +154,8 @@ def dynamo_capture_subgraphs(model, *params, **kwargs) -> tvm.IRModule:
             keep_params_as_input=keep_params_as_input,
             unwrap_unit_return_tuple=True,
         )
-        mod[f"subgraph_{len(mod.get_global_vars())}"] = mod_["main"]
+        new_name = f"subgraph_{len(mod.get_global_vars())}"
+        mod[new_name] = mod_["main"].with_attr("global_symbol", new_name)
         return graph_module.forward
 
     dynamo.reset()

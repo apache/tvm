@@ -347,7 +347,7 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
 
     // TODO(@sunggg): Revisit when we have op naming convention.
     // Currently, simply remove "relax." prefix to make it work.
-    name = std::string("tensorrt.") + name.substr(6);
+    name = std::string("jsonruntime.") + name.substr(6);
 
     NodeEntries inputs;
     for (const auto& arg : cn->args) {

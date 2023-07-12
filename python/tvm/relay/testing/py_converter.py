@@ -133,13 +133,13 @@ class PythonConverter(ExprFunctor):
 
     def generate_var_name(self, name_hint: str) -> str:
         """Generates a unique variable name starting from the hint."""
-        name = "{}_var_{}".format(self.sanitize(name_hint), self.var_no)
+        name = f"{self.sanitize(name_hint)}_var_{self.var_no}"
         self.var_no += 1
         return name
 
     def generate_function_name(self, name_hint: str) -> str:
         """Generates a unique function name starting from the hint."""
-        name = "{}_fun_{}".format(self.sanitize(name_hint), self.fun_no)
+        name = f"{self.sanitize(name_hint)}_fun_{self.fun_no}"
         self.fun_no += 1
         return name
 
@@ -261,11 +261,7 @@ class PythonConverter(ExprFunctor):
             arguments = ast.arguments(inner_args, None, [], [], None, [])
 
         return ast.FunctionDef(
-            func_name,
-            arguments,
-            body,
-            decorator_list if register_packed else [],
-            None,
+            func_name, arguments, body, decorator_list if register_packed else [], None
         )
 
     def create_tuple(self, fields):
@@ -285,7 +281,7 @@ class PythonConverter(ExprFunctor):
         # compile the function and register globally
         cc_key = te_compiler.CCacheKey(op, self.tgt)
         func_hash = tvm.ir.structural_hash(op)
-        op_name = "_lowered_op_{}".format(func_hash)
+        op_name = f"_lowered_op_{func_hash}"
         if not tvm.get_global_func(op_name, allow_missing=True):
             jitted = self.tec.jit(cc_key, self.tgt)
             tvm.register_func(op_name, jitted)
@@ -334,8 +330,8 @@ class PythonConverter(ExprFunctor):
 
         # create a function to wrap the call of the lowered op and return
         # a call to that function
-        wrap_name = self.generate_function_name("_{}_wrapper".format(op_name))
-        wrap_args = [self.generate_var_name("_arg_{}".format(i)) for i in range(len(py_args))]
+        wrap_name = self.generate_function_name(f"_{op_name}_wrapper")
+        wrap_args = [self.generate_var_name(f"_arg_{i}") for i in range(len(py_args))]
 
         inner_call_args = []
         for i in range(len(py_args)):
@@ -588,10 +584,7 @@ class PythonConverter(ExprFunctor):
             [],
             ref_defs
             + val_defs
-            + [
-                Assign([ast.Attribute(ref, "value", Store())], val),
-                Return(self.create_tuple([])),
-            ],
+            + [Assign([ast.Attribute(ref, "value", Store())], val), Return(self.create_tuple([]))],
         )
         return (self.create_call(thunk_name, []), [thunk])
 

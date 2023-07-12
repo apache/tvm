@@ -376,7 +376,7 @@ def test_op_tensor_to_shape():
             x = T.int64()
             x_1 = T.int64()
             x_2 = T.int64()
-            gv: R.Shape(ndim=3) = R.call_packed(
+            gv: R.Shape(ndim=3) = R.call_pure_packed(
                 "vm.builtin.tensor_to_shape", t, sinfo_args=(R.Shape(ndim=3),)
             )
             y: R.Shape([x, x_1, x_2]) = R.match_cast(gv, R.Shape([x, x_1, x_2]))

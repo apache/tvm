@@ -17,6 +17,7 @@
  * under the License.
  */
 
+#include <tvm/arith/iter_affine_map.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/expr_functor.h>
@@ -264,21 +265,34 @@ class PatternKindAnalyzer : public StmtExprVisitor {
     return !vars.empty();
   }
 
+  static PrimExpr RemoveCast(PrimExpr e) {
+    for (;;) {
+      if (const auto* cast = e.as<tir::CastNode>()) {
+        e = cast->value;
+      } else {
+        break;
+      }
+    }
+    return e;
+  }
+
   /*! \brief Checking if the stmt is multiply add. E.g. C[i, j] += A[i, k] * B[j, k] */
   static bool IsFMA(const Stmt& body) {
     if (const auto* store = body.as<BufferStoreNode>()) {
-      if (const auto* add = store->value.as<AddNode>()) {
-        if (const auto* l = add->a.as<BufferLoadNode>()) {
-          if (const auto* r = add->b.as<MulNode>()) {
-            bool incremental =
-                store->buffer.same_as(l->buffer) && IsSameArray(store->indices, l->indices);
-            const auto* l_load = r->a.as<BufferLoadNode>();
-            const auto* r_load = r->b.as<BufferLoadNode>();
-            if (incremental && l_load && r_load) {
-              return IsAllowReusePattern(GetRef<BufferStore>(store), GetRef<BufferLoad>(l_load)) &&
-                     IsAllowReusePattern(GetRef<BufferStore>(store), GetRef<BufferLoad>(r_load));
-            }
+      if (const auto* add = RemoveCast(store->value).as<tir::AddNode>()) {
+        if (const auto* mul = RemoveCast(add->b).as<tir::MulNode>()) {
+          const auto* store_lhs = RemoveCast(add->a).as<tir::BufferLoadNode>();
+          if (!store_lhs || !store->buffer.same_as(store_lhs->buffer) ||
+              !IsSameArray(store->indices, store_lhs->indices)) {
+            return false;
           }
+          const auto* lhs = RemoveCast(mul->a).as<tir::BufferLoadNode>();
+          const auto* rhs = RemoveCast(mul->b).as<tir::BufferLoadNode>();
+          if (!lhs || !rhs) {
+            return false;
+          }
+          return IsAllowReusePattern(GetRef<BufferStore>(store), GetRef<BufferLoad>(lhs)) &&
+                 IsAllowReusePattern(GetRef<BufferStore>(store), GetRef<BufferLoad>(rhs));
         }
       }
     }
@@ -407,7 +421,10 @@ bool HasReshapePattern(const PrimFunc& func) {
         return;
       }
 
-      // Step 3. Calculate the flattened access index according to the load/store pattern.
+      // Apply check 1: use iter_map_simplify
+      // This check requires at least one of the src/dst side is a trivial buffer
+      // access (e.g., buf[ax0, ax1, ax2]).
+
       auto f_calc_flattened_idx = [](const Buffer& buffer, const Array<PrimExpr>& indices) {
         ICHECK_EQ(indices.size(), buffer->shape.size());
         int ndim = indices.size();
@@ -417,12 +434,71 @@ bool HasReshapePattern(const PrimFunc& func) {
         }
         return idx;
       };
+
+      auto f_is_trivial_indices = [block, this](const Buffer& buffer,
+                                                const Array<PrimExpr>& indices) {
+        if (indices.size() != block->iter_vars.size()) {
+          return false;
+        }
+        for (int i = 0; i < static_cast<int>(block->iter_vars.size()); ++i) {
+          if (!(indices[i].same_as(block->iter_vars[i]->var) &&
+                this->ana_.CanProveEqual(block->iter_vars[i]->dom->min,
+                                         IntImm(DataType::Int(64), /*value=*/0)) &&
+                this->ana_.CanProveEqual(buffer->shape[i], block->iter_vars[i]->dom->extent))) {
+            return false;
+          }
+        }
+        return true;
+      };
+
+      Array<PrimExpr> nontrivial_indices{nullptr};
+      Buffer nontrivial_buffer{nullptr};
+      if (f_is_trivial_indices(dst_buffer_, buffer_store->indices)) {
+        nontrivial_indices = buffer_load->indices;
+        nontrivial_buffer = src_buffer_;
+      } else if (f_is_trivial_indices(src_buffer_, buffer_load->indices)) {
+        nontrivial_indices = buffer_store->indices;
+        nontrivial_buffer = dst_buffer_;
+      }
+
+      if (nontrivial_indices.defined()) {
+        DataType dtype =
+            !block->iter_vars.empty() ? block->iter_vars[0]->var->dtype : DataType::Int(64);
+        tir::Var fused_var("fused", dtype);
+        Map<tir::Var, PrimExpr> inverse_indices_map;
+        PrimExpr stride = IntImm(dtype, /*value=*/1);
+        for (int i = static_cast<int>(block->iter_vars.size()) - 1; i >= 0; --i) {
+          inverse_indices_map.Set(
+              block->iter_vars[i]->var,
+              floormod(floordiv(fused_var, stride), block->iter_vars[i]->dom->extent));
+          stride *= block->iter_vars[i]->dom->extent;
+        }
+        PrimExpr flattened_idx = f_calc_flattened_idx(nontrivial_buffer, nontrivial_indices);
+        flattened_idx = Substitute(std::move(flattened_idx), inverse_indices_map);
+
+        Array<PrimExpr> simplify_res = arith::IterMapSimplify(
+            /*indices=*/{flattened_idx},
+            /*input_iters=*/{{fused_var, Range(IntImm(dtype, /*value=*/0), stride)}},
+            /*input_pred=*/Bool(true),
+            /*check_level=*/arith::IterMapLevel::Surjective,
+            /*analyzer=*/&this->ana_,
+            /*simplify_trivial_iterators=*/true);
+        ICHECK_EQ(simplify_res.size(), 1);
+
+        if (simplify_res[0].same_as(fused_var)) {
+          this->is_reshape_ = true;
+          return;
+        }
+      }
+
+      // Apply check 2 as followup when check 1 is not satisfied.
+      // Calculate the flattened access index according to the load/store pattern.
       PrimExpr src_idx = f_calc_flattened_idx(src_buffer_, buffer_load->indices);
       PrimExpr dst_idx = f_calc_flattened_idx(dst_buffer_, buffer_store->indices);
-
-      // Step 4. Check if we can prove the equality of flattened indices.
+      // Check if we can prove the equality of flattened indices.
       if (ana_.CanProveEqual(src_idx, dst_idx)) {
         this->is_reshape_ = true;
+        return;
       }
     }
 

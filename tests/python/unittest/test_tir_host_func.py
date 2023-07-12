@@ -22,6 +22,7 @@ from tvm.meta_schedule.testing import te_workload
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument,missing-class-docstring,missing-function-docstring
 # fmt: off
 
+
 @I.ir_module
 class Module:
     @T.prim_func
@@ -33,7 +34,7 @@ class Module:
         T.func_attr(
             {
                 "global_symbol": "test",
-                "target": T.target({"keys": ["cpu"], "kind": "llvm", "tag": ""}),
+                "target": tvm.target.Target("llvm", host="llvm"),
                 "tir.noalias": True,
             }
         )

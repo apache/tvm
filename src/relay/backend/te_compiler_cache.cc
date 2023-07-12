@@ -19,6 +19,7 @@
 
 #include "./te_compiler_cache.h"
 
+#include <tvm/arith/analyzer.h>
 #include <tvm/driver/driver_api.h>
 #include <tvm/ir/name_supply.h>
 #include <tvm/ir/type_functor.h>
@@ -594,7 +595,8 @@ class ScheduleBuilder : public ExprVisitor {
                       src_size_1d *= c->shape[i];
                       orig_shape.push_back(PrimExpr(static_cast<int>((c->shape[i]))));
                     }
-                    auto dst_shape = index_map->MapShape(orig_shape);
+                    arith::Analyzer analyzer;
+                    auto dst_shape = index_map->MapShape(orig_shape, &analyzer);
                     std::vector<int64_t> dst_shape_int;
                     size_t dst_size_1d = 1;
                     for (size_t i = 0; i < dst_shape.size(); ++i) {

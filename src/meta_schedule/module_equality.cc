@@ -34,6 +34,7 @@ class ModuleEqualityStructural : public ModuleEquality {
  public:
   size_t Hash(IRModule mod) const { return tvm::StructuralHash()(mod); }
   bool Equal(IRModule lhs, IRModule rhs) const { return tvm::StructuralEqual()(lhs, rhs); }
+  String GetName() const { return "structural"; }
 };
 
 class SEqualHandlerIgnoreNDArray : public SEqualHandlerDefault {
@@ -53,25 +54,13 @@ class SEqualHandlerIgnoreNDArray : public SEqualHandlerDefault {
   }
 };
 
-class SHashHandlerIgnoreNDArray : public SHashHandlerDefault {
- protected:
-  void DispatchSHash(const ObjectRef& object, bool map_free_vars) override {
-    ICHECK(object.defined());
-    if (auto ndarray = object.as<runtime::NDArray::Container>()) {
-      SHashReducer hash_reduce(this, map_free_vars);
-      NDArrayHash(ndarray, &hash_reduce, false);
-    } else {
-      SHashHandlerDefault::DispatchSHash(object, map_free_vars);
-    }
-  }
-};
-
 class ModuleEqualityIgnoreNDArray : public ModuleEquality {
  public:
   size_t Hash(IRModule mod) const { return SHashHandlerIgnoreNDArray().Hash(mod, false); }
   bool Equal(IRModule lhs, IRModule rhs) const {
     return SEqualHandlerIgnoreNDArray().Equal(lhs, rhs, false);
   }
+  String GetName() const { return "ignore-ndarray"; }
 };
 
 // The NDArray-ignoring variant of structural equal / hash is used for the module equality
@@ -93,6 +82,7 @@ class ModuleEqualityAnchorBlock : public ModuleEquality {
     }
     return ModuleEqualityIgnoreNDArray().Equal(lhs, rhs);
   }
+  String GetName() const { return "anchor-block"; }
 };
 
 std::unique_ptr<ModuleEquality> ModuleEquality::Create(const std::string& mod_eq_name) {

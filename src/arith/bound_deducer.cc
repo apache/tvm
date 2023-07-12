@@ -344,6 +344,10 @@ void BoundDeducer::Deduce() {
   expr_map_ = EvalSetForEachSubExpr(expr_, hint_map_);
 
   this->VisitExpr(expr_);
+
+  if (success_) {
+    result_ = analyzer_.Simplify(result_);
+  }
 }
 
 void BoundDeducer::Relax() {

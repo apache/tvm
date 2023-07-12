@@ -21,13 +21,36 @@
 """Common hexagon specific utilities"""
 import math
 import struct
-from typing import Tuple
-from tvm import te
+from typing import Dict, Tuple, Union
+
+import tvm
+from tvm import IRModule, te, tir
+from tvm.tir import IndexMap, PrimFunc
+
+
+def is_scalar(expr):
+    if isinstance(expr, te.Tensor):
+        return expr.ndim == 0 and (isinstance(expr.op.body[0], (tir.FloatImm, tir.IntImm)))
+    return isinstance(expr, (tir.FloatImm, tir.IntImm))
+
+
+def get_const_int_value(expr):
+    if isinstance(expr, te.Tensor):
+        assert isinstance(expr.op.body[0], tir.IntImm)
+        return expr.op.body[0].value
+    return tvm.topi.utils.get_const_int(expr)
+
+
+def get_const_float_value(expr):
+    if isinstance(expr, te.Tensor):
+        assert isinstance(expr.op.body[0], tir.FloatImm)
+        return expr.op.body[0].value
+    return tvm.topi.utils.get_const_float(expr)
 
 
 def n11c_1024c_2d(n, h, w, c):
     """Return index map for n11c_1024 2d layout"""
-    return [n, h, w, c // 1024, te.AXIS_SEPARATOR, c % 1024]
+    return [n, h, w, c // 1024, IndexMap.AXIS_SEPARATOR, c % 1024]
 
 
 def n11c_1024c_1d(n, h, w, c):
@@ -35,9 +58,14 @@ def n11c_1024c_1d(n, h, w, c):
     return [n, h, w, c // 1024, c % 1024]
 
 
+def nc11_1024c_2d(n, c, h, w):
+    """Return index map for nc11_1024 2d layout"""
+    return [n, c // 1024, IndexMap.AXIS_SEPARATOR, c % 1024, h, w]
+
+
 def nhwc_8h2w32c2w_2d(n, h, w, c):
     """Return index map for nhwc_8h2w32c2w 2d layout"""
-    return [n, h // 8, w // 4, c // 32, te.AXIS_SEPARATOR, h % 8, (w % 4) // 2, c % 32, w % 2]
+    return [n, h // 8, w // 4, c // 32, IndexMap.AXIS_SEPARATOR, h % 8, (w % 4) // 2, c % 32, w % 2]
 
 
 def nhwc_8h2w32c2w_1d(n, h, w, c):
@@ -45,9 +73,14 @@ def nhwc_8h2w32c2w_1d(n, h, w, c):
     return [n, h // 8, w // 4, c // 32, h % 8, (w % 4) // 2, c % 32, w % 2]
 
 
+def nchw_8h2w32c2w_2d(n, c, h, w):
+    """Return index map for nchw_8h2w32c2w 2d layout"""
+    return [n, c // 32, h // 8, w // 4, IndexMap.AXIS_SEPARATOR, h % 8, (w % 4) // 2, c % 32, w % 2]
+
+
 def nhw_32h16w_2d(n, h, w):
     """Return index map for nhw_32h16w 2d layout"""
-    return [n, h // 32, w // 16, te.AXIS_SEPARATOR, h % 32, w % 16]
+    return [n, h // 32, w // 16, IndexMap.AXIS_SEPARATOR, h % 32, w % 16]
 
 
 def nhwc_4h4w32c_1d(n, h, w, c):
@@ -57,7 +90,7 @@ def nhwc_4h4w32c_1d(n, h, w, c):
 
 def nhwc_4h4w32c_2d(n, h, w, c):
     """Return index map for nhwc_4h4w32c 2d layout"""
-    return [n, h // 4, w // 4, c // 32, te.AXIS_SEPARATOR, h % 4, w % 4, c % 32]
+    return [n, h // 4, w // 4, c // 32, IndexMap.AXIS_SEPARATOR, h % 4, w % 4, c % 32]
 
 
 def nc_512c_1d(n, c):
@@ -67,12 +100,12 @@ def nc_512c_1d(n, c):
 
 def nc_512c_2d(n, c):
     """Return index map for nc_512c 2d layout"""
-    return [n, c // 512, te.AXIS_SEPARATOR, c % 512]
+    return [n, c // 512, IndexMap.AXIS_SEPARATOR, c % 512]
 
 
 def nc_1024c_2d(n, c):
     """Return index map for nc_1024c 2d layout"""
-    return [n, c // 1024, te.AXIS_SEPARATOR, c % 1024]
+    return [n, c // 1024, IndexMap.AXIS_SEPARATOR, c % 1024]
 
 
 def nc_2048c_1d(n, c):
@@ -82,7 +115,12 @@ def nc_2048c_1d(n, c):
 
 def nc_2048c_2d(n, c):
     """Return index map for nc_2024c 2d layout"""
-    return [n, c // 2048, te.AXIS_SEPARATOR, c % 2048]
+    return [n, c // 2048, IndexMap.AXIS_SEPARATOR, c % 2048]
+
+
+def nc11_2048c_2d(n, c, h, w):
+    """Return index map for nc11_2048c 2d layout"""
+    return [n, c // 2048, IndexMap.AXIS_SEPARATOR, h, w, c % 2048]
 
 
 def nc_1024c_1d(n, c):
@@ -92,37 +130,51 @@ def nc_1024c_1d(n, c):
 
 def nhwc_4h2w32c2w_2d(n, h, w, c):
     """Return index map for nhwc_4h2w32c2w 2d layout"""
-    return [n, h // 4, w // 4, c // 32, te.AXIS_SEPARATOR, h % 4, (w % 4) // 2, c % 32, w % 2]
+    return [n, h // 4, w // 4, c // 32, IndexMap.AXIS_SEPARATOR, h % 4, (w % 4) // 2, c % 32, w % 2]
 
 
 def nhwc_1024c_2d(n, h, w, c):
     """Return index map for nhwc_1024 2d layout"""
-    return [n, h, w, c // 1024, te.AXIS_SEPARATOR, c % 1024]
+    return [n, h, w, c // 1024, IndexMap.AXIS_SEPARATOR, c % 1024]
 
 
 def nc_1024_2d(n, c):
     """Return index map for nc_1024 2d layout"""
-    return [n, c // 1024, te.AXIS_SEPARATOR, c % 1024]
+    return [n, c // 1024, IndexMap.AXIS_SEPARATOR, c % 1024]
 
 
 def nhwc_2048c_2d(n, h, w, c):
     """Return index map for nhwc_2048 2d layout"""
-    return [n, h, w, c // 2048, te.AXIS_SEPARATOR, c % 2048]
+    return [n, h, w, c // 2048, IndexMap.AXIS_SEPARATOR, c % 2048]
 
 
 def nc_2048_2d(n, c):
     """Return index map for nc_2048 2d layout"""
-    return [n, c // 2048, te.AXIS_SEPARATOR, c % 2048]
+    return [n, c // 2048, IndexMap.AXIS_SEPARATOR, c % 2048]
 
 
 def nhwc_8h8w32c_2d(n, h, w, c):
     """Return index map for nhwc_8h8w32c 2d layout"""
-    return [n, h // 8, w // 8, c // 32, te.AXIS_SEPARATOR, h % 8, w % 8, c % 32]
+    return [n, h // 8, w // 8, c // 32, IndexMap.AXIS_SEPARATOR, h % 8, w % 8, c % 32]
+
+
+def nhwc_8h8w32c_1d(n, h, w, c):
+    """Return index map for nhwc_8h8w32c 1d layout"""
+    return [n, h // 8, w // 8, c // 32, h % 8, w % 8, c % 32]
+
+
+def nchw_8h8w32c_2d(n, c, h, w):
+    return [n, c // 32, h // 8, w // 8, IndexMap.AXIS_SEPARATOR, h % 8, w % 8, c % 32]
 
 
 def n11c_2048c_2d(n, h, w, c):
     """Return index map for n11c_2048c 2d layout"""
-    return [n, h, w, c // 2048, te.AXIS_SEPARATOR, c % 2048]
+    return [n, h, w, c // 2048, IndexMap.AXIS_SEPARATOR, c % 2048]
+
+
+def n11c_2048c_1d(n, h, w, c):
+    """Return index map for n11c_2048c 1 layout"""
+    return [n, h, w, c // 2048, c % 2048]
 
 
 def iohw_16i32o2i_1d(height, width, in_channel, out_channel):
@@ -143,15 +195,15 @@ def ohwi32o_1d(height, width, in_channel, out_channel):
 
 def ncw_32c64w_2d(n, c, w):
     """Return index map for ncw_32c64w 2d layout"""
-    return [n, c // 32, w // 64, te.AXIS_SEPARATOR, c % 32, w % 64]
+    return [n, c // 32, w // 64, IndexMap.AXIS_SEPARATOR, c % 32, w % 64]
 
 
 def nchw_32c8h8w_2d(n, c, h, w):
-    return [n, c // 32, h // 8, w // 8, te.AXIS_SEPARATOR, c % 32, h % 8, w % 8]
+    return [n, c // 32, h // 8, w // 8, IndexMap.AXIS_SEPARATOR, c % 32, h % 8, w % 8]
 
 
 def nchw_32c8h4w_2d(n, c, h, w):
-    return [n, c // 32, h // 8, w // 4, te.AXIS_SEPARATOR, c % 32, h % 8, w % 4]
+    return [n, c // 32, h // 8, w // 4, IndexMap.AXIS_SEPARATOR, c % 32, h % 8, w % 4]
 
 
 def get_layout_transform_fn(layout):
@@ -160,12 +212,16 @@ def get_layout_transform_fn(layout):
         return nhwc_8h2w32c2w_2d
     if layout == "nhwc-8h2w32c2w-1d":
         return nhwc_8h2w32c2w_1d
+    if layout == "nchw-8h2w32c2w-2d":
+        return nchw_8h2w32c2w_2d
     if layout == "n11c-1024c-2d":
         return n11c_1024c_2d
     if layout == "n11c-1024c-1d":
         return n11c_1024c_1d
     if layout == "nhwc-1024c-2d":
         return nhwc_1024c_2d
+    if layout == "nc11-1024c-2d":
+        return nc11_1024c_2d
     if layout == "nc-1024-2d":
         return nc_1024_2d
     if layout == "nhw-32h16w-2d":
@@ -198,16 +254,26 @@ def get_layout_transform_fn(layout):
         return nc_2048c_2d
     if layout == "nhwc-8h8w32c-2d":
         return nhwc_8h8w32c_2d
+    if layout == "nhwc-8h8w32c-1d":
+        return nhwc_8h8w32c_1d
+    if layout == "nchw-8h8w32c-2d":
+        return nchw_8h8w32c_2d
     if layout == "n11c-2048c-2d":
         return n11c_2048c_2d
+    if layout == "n11c-2048c-1d":
+        return n11c_2048c_1d
     if layout == "ohwi32o-1d":
         return ohwi32o_1d
+    if layout == "nc11-2048c-2d":
+        return nc11_2048c_2d
     if layout == "ncw-32c64w-2d":
         return ncw_32c64w_2d
     if layout == "nchw-32c8h8w-2d":
         return nchw_32c8h8w_2d
     if layout == "nchw-32c8h4w-2d":
         return nchw_32c8h4w_2d
+    if layout == "nchw-8h8w32c-2d":
+        return nchw_8h8w32c_2d
     raise RuntimeError(f"Unexpected layout '{layout}'")
 
 
@@ -353,3 +419,47 @@ def get_fixed_point_value(flp: float, dtype: str = "int16") -> Tuple[int, int]:
 def saturate(x: te.Tensor, dtype: str):
     """Saturate value for the specified data type"""
     return te.max(te.min_value(dtype), te.min(x, te.max_value(dtype)))
+
+
+def get_vtcm_allocation_sizes(
+    func_or_mod: Union[PrimFunc, IRModule], compacted=True
+) -> Dict[str, int]:
+    """Calculate and return the vtcm allocation sizes for all the functions in
+    the IRModule or just the vtcm size if a single PrimFunc is passed
+
+    Parameters
+    ----------
+    func_or_mod : Union[PrimFunc, IRModule]
+        PrimFunc or IRModule for which VTCM allocation size is to be calculated
+    compacted :
+        Whether to calculate the sizes after applying VTCM lowering passes for
+        buffer compaction. This helps return the VTCM size that would get
+        allocated after lowering
+
+    Returns
+    -------
+    result : Dict[str, int]
+        A dict with function names as keys and vtcm allocated
+        inside that function as values
+
+    """
+    if not isinstance(func_or_mod, (PrimFunc, IRModule)):
+        raise TypeError(
+            f"Expected argument to be PrimFunc or IRModule, but received {type(func_or_mod)}"
+        )
+    if isinstance(func_or_mod, tvm.tir.PrimFunc):
+        mod = tvm.IRModule.from_expr(func_or_mod)
+    else:
+        mod = func_or_mod
+    if compacted:
+        passes = tvm.tir.analysis.get_vtcm_compaction_passes()
+        mod = tvm.transform.Sequential(list(passes))(mod)
+
+    result = {}
+    all_sizes = tvm.tir.analysis.calculate_allocated_bytes(mod)
+    for func_name, sizes in all_sizes.items():
+        if "global.vtcm" in sizes:
+            result[func_name] = sizes["global.vtcm"]
+        else:
+            result[func_name] = 0
+    return result

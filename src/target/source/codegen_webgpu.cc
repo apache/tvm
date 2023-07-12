@@ -99,7 +99,11 @@ class WebGPUWorkgroupInfoCollector : public StmtExprVisitor {
 };
 
 std::string CodeGenWebGPU::Finish() {
-  return decl_stream.str() + this->fwd_decl_stream.str() + stream.str();
+  // Using f16 requires enable directive
+  if (enable_fp16_) {
+    header_stream << "enable f16;\n\n";
+  }
+  return header_stream.str() + decl_stream.str() + this->fwd_decl_stream.str() + stream.str();
 }
 
 void CodeGenWebGPU::InitFuncState(const PrimFunc& f) {
@@ -117,6 +121,11 @@ CodeGenWebGPU::CodeGenWebGPU(Target target) : target_(target) {}
 runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f, bool skip_readonly_decl) {
   // clear previous generated state.
   this->InitFuncState(f);
+  // reserve keywords
+  name_supply_->ReserveName("var");
+  name_supply_->ReserveName("let");
+  name_supply_->ReserveName("const");
+
   // skip the first underscore, so SSA variable starts from
   name_supply_->FreshName("v_");
   // Setup the thread group info.
@@ -129,9 +138,9 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f, bool skip_re
   ICHECK(global_symbol.defined())
       << "CodeGenWebGPU: Expect PrimFunc to have the global_symbol attribute";
 
-  decl_stream << "//----------------------------------------\n"
-              << "// Function: " << global_symbol.value() << "\n"
-              << "//----------------------------------------\n";
+  header_stream << "//----------------------------------------\n"
+                << "// Function: " << global_symbol.value() << "\n"
+                << "//----------------------------------------\n";
   runtime::FunctionInfo func_info;
   func_info.name = global_symbol.value();
 
@@ -187,46 +196,43 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f, bool skip_re
 
   // Store all pod arguments in a single buffer of int32
   // do bitcast to change to other data types
-  if (pod_args.size() != 0) {
-    std::string type_pod_args = name_supply_->FreshName("PODArgs");
-    std::string val_pod_args = name_supply_->FreshName("podArgs");
+  // always pass gridDimX in to get around of the 65535 gridDim
+  // restrictions in some platforms
+  std::string type_pod_args = name_supply_->FreshName("PODArgs");
+  std::string val_pod_args = name_supply_->FreshName("podArgs");
+  std::string packGridDimX = name_supply_->FreshName("packGridDimX");
 
-    this->decl_stream << "\nstruct " << type_pod_args << " {\n";
+  this->decl_stream << "\nstruct " << type_pod_args << " {\n";
 
-    for (size_t i = 0; i < pod_args.size(); ++i) {
-      Var v = pod_args[i];
-      ICHECK(!v.dtype().is_handle());
-      std::string vid = AllocVarID(v.get());
+  for (size_t i = 0; i < pod_args.size(); ++i) {
+    Var v = pod_args[i];
+    ICHECK(!v.dtype().is_handle());
+    std::string vid = AllocVarID(v.get());
 
-      if (v.dtype() == DataType::Int(32)) {
-        this->decl_stream << "  " << vid << ": i32";
-      } else if (v.dtype() == DataType::UInt(32)) {
-        this->decl_stream << "  " << vid << ": u32";
-      } else if (v.dtype() == DataType::Float(32)) {
-        this->decl_stream << "  " << vid << ": f32";
-      } else {
-        LOG(FATAL) << "Do not support pod argument type " << v.dtype();
-      }
-      if (i + 1 != pod_args.size()) {
-        this->decl_stream << ",\n";
-      } else {
-        this->decl_stream << "\n}\n";
-      }
-      // value ref
-      std::ostringstream vref;
-      vref << val_pod_args << "." << vid;
-      var_idmap_[v.get()] = vref.str();
+    if (v.dtype() == DataType::Int(32)) {
+      this->decl_stream << "  " << vid << ": i32";
+    } else if (v.dtype() == DataType::UInt(32)) {
+      this->decl_stream << "  " << vid << ": u32";
+    } else if (v.dtype() == DataType::Float(32)) {
+      this->decl_stream << "  " << vid << ": f32";
+    } else {
+      LOG(FATAL) << "Do not support pod argument type " << v.dtype();
     }
-
-    this->decl_stream << "@group(0) @binding(" << num_buffer++ << ") "
-                      << "var<uniform> " << val_pod_args << " : " << type_pod_args << ";\n\n";
+    this->decl_stream << ",\n";
+    // value ref
+    std::ostringstream vref;
+    vref << val_pod_args << "." << vid;
+    var_idmap_[v.get()] = vref.str();
   }
+  this->decl_stream << "  " << packGridDimX << ": u32\n}\n";
+
+  this->decl_stream << "@group(0) @binding(" << num_buffer++ << ") "
+                    << "var<uniform> " << val_pod_args << " : " << type_pod_args << ";\n\n";
 
   // setup thread tags and param access in launch param tags;
-  if (auto opt = f->GetAttr<Array<tir::IterVar>>(tir::attr::kDeviceThreadAxis)) {
-    auto thread_axis = opt.value();
-    for (size_t i = 0; i < thread_axis.size(); ++i) {
-      func_info.launch_param_tags.push_back(thread_axis[i]->thread_tag);
+  if (auto opt = f->GetAttr<Array<String>>(tir::attr::kKernelLaunchParams)) {
+    for (const auto& thread_tag : opt.value()) {
+      func_info.launch_param_tags.push_back(thread_tag);
     }
   }
   os_param_access << "]";
@@ -245,6 +251,9 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f, bool skip_re
                << "  @builtin(num_workgroups) gridDim : vec3<u32>,\n"
                << "  @builtin(local_invocation_id) threadIdx : vec3<u32>\n"
                << ") {\n";
+  // skip out of bound grids
+  this->stream << "  if (blockIdx.z * gridDim.x + blockIdx.x > "  // NOLINT(*)
+               << val_pod_args << "." << packGridDimX << ") { return; }\n";
   // the function scope.
   int func_scope = this->BeginScope();
   this->PrintStmt(f->body);
@@ -294,6 +303,10 @@ void CodeGenWebGPU::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
 
   if (t.is_float()) {
     ICHECK(t.bits() == 16 || t.bits() == 32) << "CodeGenWebGPU: only support f16 or f32";
+    if (t.bits() == 16) {
+      // Using f16 requires enable directive
+      enable_fp16_ = true;
+    }
     os << "f" << t.bits();
   } else if (t.is_uint()) {
     ICHECK(t.bits() != 64) << "CodeGenWebGPU: do not support u64";
@@ -429,6 +442,8 @@ void CodeGenWebGPU::VisitExpr_(const FloatImmNode* op, std::ostream& os) {  // N
   if (op->dtype.bits() == 32) {
     temp << 'f';
   } else if (op->dtype.bits() == 16) {
+    // Using f16 requires enable directive
+    enable_fp16_ = true;
     temp << 'h';
   } else {
     LOG(FATAL) << "Unsupported floating point bits " << op->dtype.bits();
@@ -487,6 +502,7 @@ void CodeGenWebGPU::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {  //
       // vec3<f32>(buf[index[0]], buf[index[1]], buf[index[2]]);
       std::string index_vid = SSAGetID(PrintExpr(index), index.dtype());
       PrintType(element_dtype.with_lanes(value_dtype.lanes()), os);
+      os << "(";
       for (int i = 0; i < lanes; ++i) {
         if (i != 0) os << ", ";
         os << buffer_vid << "[" << index_vid << "[" << i << "]]";
@@ -633,13 +649,9 @@ class WebGPUSourceModuleNode final : public runtime::ModuleNode {
   /*! \brief Get the property of the runtime module .*/
   int GetPropertyMask() const final { return runtime::ModulePropertyMask::kBinarySerializable; }
 
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
     LOG(FATAL) << "WebGPUSourceModule is not directly runnable, export and run through tvmjs";
     return PackedFunc(nullptr);
-  }
-
-  void SaveToFile(const std::string& file_name, const std::string& format) final {
-    LOG(FATAL) << "Not implemented";
   }
 
   void SaveToBinary(dmlc::Stream* stream) final {
@@ -647,7 +659,7 @@ class WebGPUSourceModuleNode final : public runtime::ModuleNode {
     stream->Write(smap_);
   }
 
-  std::string GetSource(const std::string& format) final {
+  String GetSource(const String& format) final {
     if (format == "func_info") {
       std::ostringstream stream;
       dmlc::JSONWriter(&stream).Write(fmap_);
@@ -662,7 +674,7 @@ class WebGPUSourceModuleNode final : public runtime::ModuleNode {
   }
 
  private:
-  // function information table.
+  // function shader code table.
   std::unordered_map<std::string, std::string> smap_;
   // function information table.
   std::unordered_map<std::string, runtime::FunctionInfo> fmap_;

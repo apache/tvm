@@ -115,6 +115,8 @@ class ScheduleNode : public runtime::Object {
   virtual ScheduleState state() const = 0;
   /*! \return The internally maintained trace of scheduling program execution */
   virtual Optional<Trace> trace() const = 0;
+  /*! \return The GlobalVar of the func that the schedule is currently working on */
+  virtual Optional<GlobalVar> func_working_on() const = 0;
   /*!
    * \brief Instruct the schedule to work on a function in the IRModule.
    *
@@ -235,6 +237,24 @@ class ScheduleNode : public runtime::Object {
   virtual Array<ExprRV> SamplePerfectTile(const LoopRV& loop_rv, int n, int max_innermost_factor,
                                           Optional<Array<Integer>> decision = NullOpt) = 0;
   /*!
+   * \brief Sample the factors to a partitioned tile for a specific loop
+   *
+   *  The sampled tile size will be partitioned into two parts. The second part has a guarantee
+   *  that their extent's product have a factor of `innerpart_factor`. The first part is loops at
+   *  [0, partition_pos); the second part is loops at [partition_pos, n) and we will have
+   *  `innerpart_factor` | (l[partition_pos].extent * ... * l[n-1].extent)
+   *
+   * \param loop_rv The loop to be tiled
+   * \param n The number of tiles to be sampled
+   * \param partition_pos The position to partition tiles to two parts
+   * \param innerpart_factor The factor of the second part
+   * \param decision The sampling decision
+   * \return A list of length `n`, the random partitioned tile sizes sampled
+   */
+  virtual Array<ExprRV> SamplePartitionedTile(const LoopRV& loop_rv, int n, int partition_pos,
+                                              int innerpart_factor,
+                                              Optional<Array<Integer>> decision = NullOpt) = 0;
+  /*!
    * \brief Sample a compute-at location of the given block
    * \param block_rv The block whose compute-at location is to be sampled
    * \param decision The sampling decision
@@ -291,7 +311,26 @@ class ScheduleNode : public runtime::Object {
    * block
    */
   virtual Array<BlockRV> GetConsumers(const BlockRV& block_rv) = 0;
+  /*!
+   * \brief Get the list of output blocks within the given scope
+   * An output block is a block which has atleast one buffer being written
+   * to, but is not allocated within the PrimFunc
+   * \param scope_block_rv The scope block from which output blocks are collected
+   * \return A list of all blocks that write to some output buffer
+   * block
+   */
+  virtual Array<BlockRV> GetOutputBlocks(const BlockRV& scope_block_rv) = 0;
   /******** Schedule: Transform loops ********/
+  /*!
+   * \brief Merge a list of loops into one. The loops under their LCA requires:
+   * 1) Under the same scope
+   * 2) Can't have annotations or thread bindings
+   * 3) Start with 0 and have same extent and same nesting depth
+   * 4) From target loop to their LCA, the inner loop must be the only child of the outer loop
+   * \param loop_rvs The loops to be merged
+   * \return The new loop after merge
+   */
+  virtual LoopRV Merge(const Array<LoopRV>& loop_rvs) = 0;
   /*!
    * \brief Fuse a list of consecutive loops into one. It requires:
    * 1) The loops can't have annotations or thread bindings.
@@ -328,6 +367,12 @@ class ScheduleNode : public runtime::Object {
    * \param ordered_loop_rvs The loops in the new order
    */
   virtual void Reorder(const Array<LoopRV>& ordered_loop_rvs) = 0;
+  /*!
+   * \brief Reorder the itervars inside a block.
+   * \param block_rv The block to be transformed.
+   * \param new_order The new itervar order.
+   */
+  virtual void ReorderBlockIterVar(const BlockRV& block_rv, const Array<Integer> new_order) = 0;
   /*!
    * \brief Create a new unit loop on top of the specific block.
    * \param block_rv The block above which the new loop is created
@@ -615,6 +660,13 @@ class ScheduleNode : public runtime::Object {
    */
   virtual BlockRV Blockize(const LoopRV& loop_rv, bool preserve_unit_iters = true) = 0;
   /*!
+   * \brief Convert specified blocks into a nested block.
+   * \param blocks the specified block to construct the new block
+   * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
+   * \return the new block
+   */
+  virtual BlockRV Blockize(const Array<BlockRV>& blocks, bool preserve_unit_iters = true) = 0;
+  /*!
    * \brief Tensorize the computation enclosed by loop with the tensor intrin.
    * \param loop_rv The loop to be tensorized
    * \param intrin Name of the tensor intrinsic
@@ -768,6 +820,15 @@ class ScheduleNode : public runtime::Object {
   /******** Schedule: Misc ********/
   /*! \brief A no-op that marks the start of postprocessing phase of scheduling */
   virtual void EnterPostproc() = 0;
+
+  /*!
+   * \brief Hide some buffer access in the given block.
+   * \param block_rv The block where we hide buffer access.
+   * \param buf_type The buffer type: read/write
+   * \param buf_index_array The array of buffer indices we hide access.
+   */
+  virtual void UnsafeHideBufferAccess(const BlockRV& block_rv, const String& buf_type,
+                                      const Array<IntImm>& buf_index_array) = 0;
 };
 
 /*!

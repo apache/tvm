@@ -26,31 +26,26 @@ def get_relax_matmul_module(
     y_shape,
     dtype,
     transposed_y=False,
-    with_bias=False,
+    bias_shape=None,
     activation=None,
     residual_bin_op=None,
     residual_activation=None,
 ):
     """Create a matmul op followd by epilogue operations."""
-    if transposed_y:
-        n = y_shape[-2]
-    else:
-        n = y_shape[-1]
-
     with IRBuilder() as builder:
         with relax_builder.function():
             R.func_name("main")
             x = R.arg("x", R.Tensor(x_shape, dtype))
             y = R.arg("y", R.Tensor(y_shape, dtype))
-            if with_bias:
-                bias = R.arg("bias", R.Tensor((n,), dtype))
+            if bias_shape is not None:
+                bias = R.arg("bias", R.Tensor(bias_shape, dtype))
 
             with R.dataflow() as frame:
                 if transposed_y:
                     axes = list(range(len(y_shape) - 2)) + [-1, -2]
                     y = R.emit(R.permute_dims(y, axes=axes))
                 result = R.emit(R.matmul(x, y, out_dtype=dtype))
-                if with_bias:
+                if bias_shape is not None:
                     result = R.emit(result + bias)
                 if activation is not None:
                     result = R.emit(activation(result))

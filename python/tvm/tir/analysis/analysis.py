@@ -16,8 +16,9 @@
 # under the License.
 """Wrapping existing analysis utils."""
 # pylint: disable=invalid-name
-from typing import Dict, List, Union
+from typing import Dict, List, Optional, Union
 
+import tvm
 from tvm import Object
 from tvm.ir import IRModule
 from tvm.tir.expr import Var
@@ -201,20 +202,29 @@ def calculate_constant_bytes(func: PrimFunc, constant_byte_alignment: int) -> in
     return _ffi_api.calculate_constant_bytes(func, constant_byte_alignment)  # type: ignore
 
 
-def calculate_allocated_bytes(func: PrimFunc) -> Dict[str, int]:
+def calculate_allocated_bytes(
+    func_or_mod: Union[PrimFunc, IRModule]
+) -> Union[Dict[str, int], Dict[str, Dict[str, int]]]:
     """Calculate allocated memory per memory scope required by TIR PrimFuncs.
 
     Parameters
     ----------
-    func: tvm.tir.PrimFunc
-        The function to be detected.
+    func_or_mod: Union[PrimFunc, IRModule]
+        The function or module to be detected. If a module is passed, allocated
+        memory is calculated for all PrimFuncs inside the module
 
     Returns
     -------
-    result : Dict[String, int]
-        Allocated memory size per scope in bytes.
+    result : Union[Dict[str, int], Dict[str, Dict[str, int]]]
+        Allocated memory size per scope in bytes for each function in the IRModule returned as a
+        dict with function names as keys and a dict of allocated sizes as values. If a single
+        PrimFunc is passed, the function name is returned as "main"
     """
-    return _ffi_api.calculate_allocated_bytes(func)  # type: ignore
+    if not isinstance(func_or_mod, (PrimFunc, IRModule)):
+        raise TypeError(
+            f"Expected argument to be PrimFunc or IRModule, but received {type(func_or_mod)}"
+        )
+    return _ffi_api.calculate_allocated_bytes(func_or_mod)  # type: ignore
 
 
 def detect_buffer_access_lca(func: PrimFunc) -> Dict[Buffer, Stmt]:
@@ -254,6 +264,26 @@ def estimate_tir_flops(stmt_or_mod: Union[Stmt, IRModule]) -> float:
 
 # NOTE: relay_func_type in the following two functions should be relay.FuncType however that would
 # introduce a cycling dependency. We make do with Object.
+
+
+def undefined_vars(node: Union[Stmt, PrimExpr], defs: Optional[List[Var]] = None) -> List[Var]:
+    """Find undefined vars in a TIR statement or expression.
+
+    Parameters
+    ----------
+    node: Union[Stmt, PrimExpr]
+        The TIR statement or expression to be checked.
+
+    defs: Optional[List[Var]]
+        The vars that is defined
+
+    Returns
+    -------
+    result : List[Var]
+        The undefined vars.
+    """
+    defs = defs or []
+    return _ffi_api.UndefinedVars(node, defs)  # type: ignore # pylint: disable=no-member
 
 
 def get_prim_func_arg_and_result_memory_constraints(
@@ -319,14 +349,14 @@ def apply_prim_func_arg_and_result_memory_constraints(
     )
 
 
-def verify_well_formed(func: PrimFunc, assert_mode: bool = True) -> bool:
+def verify_well_formed(obj: Union[PrimFunc, IRModule], assert_mode: bool = True) -> bool:
     """Verify if the given TIR is well-formed. The verification includes:
         - Check if expressions not contain vars that is defined outside the block.
 
     Parameters
     ----------
-    func: tvm.tir.PrimFunc
-        The function to be verified.
+    obj: Union[tvm.tir.PrimFunc, tvm.ir.IRModule]
+        The function or module to be verified.
 
     assert_mode: bool
         The indicator if it raises an error when the function is not well-formed.
@@ -336,7 +366,7 @@ def verify_well_formed(func: PrimFunc, assert_mode: bool = True) -> bool:
     result: bool
         Whether it is a well-formed TIR function.
     """
-    return _ffi_api.VerifyWellFormed(func, assert_mode)  # type: ignore # pylint: disable=no-member
+    return _ffi_api.VerifyWellFormed(obj, assert_mode)  # type: ignore # pylint: disable=no-member
 
 
 def OOBChecker():
@@ -375,3 +405,15 @@ def find_anchor_block(mod: IRModule) -> Block:
         The anchor block if found, None otherwise.
     """
     return _ffi_api.find_anchor_block(mod)  # type: ignore # pylint: disable=no-member
+
+
+def get_vtcm_compaction_passes() -> List[tvm.transform.Pass]:
+    """Utility function to get the list of lowering passes to be applied to calculate the compacted
+    VTCM allocation size
+
+    Returns
+    -------
+    result : List[tvm.transform.Pass]
+        returns list of passes
+    """
+    return _ffi_api.get_vtcm_compaction_passes()  # type: ignore # pylint: disable=no-member

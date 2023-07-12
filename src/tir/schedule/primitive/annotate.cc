@@ -97,11 +97,11 @@ struct AnnotateTraits : public UnpackedInstTraits<AnnotateTraits> {
 
   static void UnpackedApplyToSchedule(Schedule sch, ObjectRef block_or_loop_rv, ObjectRef ann_val,
                                       String ann_key) {
-    if (const auto* block = block_or_loop_rv.as<BlockRVNode>()) {
-      return sch->Annotate(GetRef<BlockRV>(block), ann_key, ann_val);
+    if (auto block = block_or_loop_rv.as<BlockRV>()) {
+      return sch->Annotate(block.value(), ann_key, ann_val);
     }
-    if (const auto* loop = block_or_loop_rv.as<LoopRVNode>()) {
-      return sch->Annotate(GetRef<LoopRV>(loop), ann_key, ann_val);
+    if (auto loop = block_or_loop_rv.as<LoopRV>()) {
+      return sch->Annotate(loop.value(), ann_key, ann_val);
     }
     LOG(FATAL) << "TypeError: Expected Block or Loop, but gets: " << block_or_loop_rv->GetTypeKey();
     throw;
@@ -130,11 +130,11 @@ struct UnannotateTraits : public UnpackedInstTraits<UnannotateTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   static void UnpackedApplyToSchedule(Schedule sch, ObjectRef block_or_loop_rv, String ann_key) {
-    if (const auto* block = block_or_loop_rv.as<BlockRVNode>()) {
-      return sch->Unannotate(GetRef<BlockRV>(block), ann_key);
+    if (auto block = block_or_loop_rv.as<BlockRV>()) {
+      return sch->Unannotate(block.value(), ann_key);
     }
-    if (const auto* loop = block_or_loop_rv.as<LoopRVNode>()) {
-      return sch->Unannotate(GetRef<LoopRV>(loop), ann_key);
+    if (auto loop = block_or_loop_rv.as<LoopRV>()) {
+      return sch->Unannotate(loop.value(), ann_key);
     }
     LOG(FATAL) << "TypeError: Expected Block or Loop, but gets: " << block_or_loop_rv->GetTypeKey();
     throw;

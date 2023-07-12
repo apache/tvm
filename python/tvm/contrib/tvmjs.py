@@ -186,7 +186,7 @@ def dump_ndarray_cache(
             v = v.numpy()
 
         # prefer to preserve original dtype, especially if the format was bfloat16
-        dtype = str(origin_v.dtype) if isinstance(origin_v, tvm.nd.NDArray) else v.dtype
+        dtype = str(origin_v.dtype) if isinstance(origin_v, tvm.nd.NDArray) else str(v.dtype)
 
         # convert fp32 to bf16
         if encode_format == "f32-to-bf16" and dtype == "float32":
@@ -210,7 +210,7 @@ def dump_ndarray_cache(
     with open(nd_cache_json, "w") as outfile:
         json.dump({"metadata": meta_data, "records": records}, outfile, indent=4)
     print(
-        f"\nAll finished, %d total shards committed, record saved to %s"
+        "\nAll finished, %d total shards committed, record saved to %s"
         % (shard_manager.counter, nd_cache_json)
     )
 

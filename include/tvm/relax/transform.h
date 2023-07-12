@@ -84,6 +84,19 @@ TVM_DLL Pass LambdaLift();
 TVM_DLL Pass ToNonDataflow();
 
 /*!
+ * \brief Activate force_pure on all pure functions in the module
+ * and unwrap all pure override ops into the normal versions.
+ *
+ * This effectively means that there will be no more purity tracking,
+ * useful for low-level code generation.
+ *
+ * \return The Pass.
+ *
+ * \note Should be used after ToNonDataflow()
+ */
+TVM_DLL Pass RemovePurityChecking();
+
+/*!
  * \brief Perform explicit tensor allocation for call_tir and call_dps_packed.
  *
  * \return The Pass.
@@ -151,13 +164,13 @@ TVM_DLL Pass Normalize();
 TVM_DLL Pass CanonicalizeBindings();
 
 /*!
- * Eliminate common subexpressions within dataflow blocks.
+ * Eliminate common subexpressions within functions.
  * \return The pass that eliminates common subexpressions.
  *
- * \note For functions local to dataflow blocks, this pass performs
- * CSE *within* those functions.
+ * \note For nested functions, this pass performs CSE *within* those functions.
+ * \param call_only If true, enable eliminating only call nodes.
  */
-TVM_DLL Pass EliminateCommonSubexpr();
+TVM_DLL Pass EliminateCommonSubexpr(bool call_only = false);
 
 /*!
  * \brief Bind params of function of the module to constant tensors.
@@ -195,9 +208,11 @@ TVM_DLL Pass FoldConstant();
  *
  * \param cmap The customized operator legalization function map. The customized function
  * will override the default one.
+ * \param enable_warning A boolean value indicating if to print warnings for TIR functions not
+ * showing up in the database.
  * \return The Pass.
  */
-TVM_DLL Pass LegalizeOps(Optional<Map<String, PackedFunc>> cmap);
+TVM_DLL Pass LegalizeOps(Optional<Map<String, PackedFunc>> cmap, bool enable_warning = false);
 
 /*!
  * \brief Lift transformation of the parameters of a function.
@@ -477,9 +492,31 @@ TVM_DLL Pass DeadCodeElimination(Array<runtime::String> entry_functions);
  * \brief Automatic mixed precision pass. Currently the pass assumes the input module to be fp32
  * only, and will automatically cast fp32 to fp16 for certain ops.
  * \param out_dtype The output data type of gemm/conv, which is the data type of the accumulator.
+ * \param fp16_input_names The names of function parameters whose dtype should become fp16. The
+ * function signature would change accordingly.
  * \return The Pass.
  */
-TVM_DLL Pass ToMixedPrecision(const DataType& out_dtype);
+TVM_DLL Pass ToMixedPrecision(const DataType& out_dtype,
+                              Optional<Array<String>> fp16_input_names = NullOpt);
+
+/*!
+ * \brief Rewrite a Relax module for executing with CUDA graph. This pass identifies
+ * the regions that can be executed with CUDA graph and lifts them into new functions for runtime
+ * graph capturing.
+ */
+TVM_DLL Pass RewriteCUDAGraph();
+
+/*!
+ * \brief The pass is designed for few shot tuning for static shape PrimFuncs. It examines all the
+ *  blocks within the PrimFunc and conducts loop fusion, splitting, and other transformations based
+ *  on MetaSchedule schedule rules but directly samples from the search space instead of using the
+ *  tuning algorithm. User can specify the number of valid counts to try and whether to use runner
+ *  for benchmarking.
+ * \param valid_count The number of valid counts to try.
+ * \param benchmark Whether to use runner for benchmarking.
+ * \return The Pass.
+ */
+TVM_DLL Pass FewShotTuning(int valid_count, bool benchmark);
 
 }  // namespace transform
 }  // namespace relax

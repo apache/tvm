@@ -427,10 +427,10 @@ ObjectRef TargetInternal::ParseType(const ObjectRef& obj,
     return GetRef<String>(ObjTypeCheck<StringObj>(obj, "String"));
   } else if (info.type_index == Target::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
     // Parsing target
-    if (const auto* ptr = obj.as<TargetNode>()) {
-      return GetRef<Target>(ptr);
-    } else if (const auto* ptr = obj.as<StringObj>()) {
-      return Target(TargetInternal::FromString(GetRef<String>(ptr)));
+    if (auto opt = obj.as<Target>()) {
+      return opt.value();
+    } else if (auto str = obj.as<String>()) {
+      return Target(TargetInternal::FromString(str.value()));
     } else if (const auto* ptr = obj.as<MapNode>()) {
       for (const auto& kv : *ptr) {
         if (!kv.first->IsInstance<StringObj>()) {
@@ -495,8 +495,8 @@ std::string TargetInternal::StringifyAtomicType(const ObjectRef& obj) {
   if (const auto* p = obj.as<IntImmNode>()) {
     return std::to_string(p->value);
   }
-  if (const auto* p = obj.as<StringObj>()) {
-    auto s = static_cast<std::string>(GetRef<String>(p));
+  if (auto tvm_str = obj.as<String>()) {
+    std::string s = tvm_str.value();
     auto u = Uninterpret(s);
     if (u.find_first_of(' ') != std::string::npos && !IsQuoted(u)) {
       u = Quote(u);
@@ -660,8 +660,16 @@ Map<String, ObjectRef> TargetNode::Export() const {
   return result;
 }
 
-Optional<Target> TargetNode::GetHost() const {
-  return GetRef<Optional<Target>>(this->host.as<TargetNode>());
+Optional<Target> TargetNode::GetHost() const { return this->host.as<Target>(); }
+
+Target Target::WithoutHost() const {
+  if ((*this)->GetHost()) {
+    auto output = make_object<TargetNode>(*get());
+    output->host = NullOpt;
+    return Target(output);
+  } else {
+    return *this;
+  }
 }
 
 int TargetNode::GetTargetDeviceType() const {
@@ -669,6 +677,11 @@ int TargetNode::GetTargetDeviceType() const {
     return Downcast<Integer>(device_type)->value;
   }
   return kind->default_device_type;
+}
+
+bool TargetNode::HasKey(const std::string& query_key) const {
+  return std::any_of(keys.begin(), keys.end(),
+                     [&query_key](const auto& key) { return key == query_key; });
 }
 
 String TargetNode::ToDebugString() const {
@@ -853,8 +866,8 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ObjectRef> config) {
 
   // parse 'kind'
   if (config.count(kKind)) {
-    if (const auto* kind = config[kKind].as<StringObj>()) {
-      target->kind = GetTargetKind(GetRef<String>(kind));
+    if (auto kind = config[kKind].as<String>()) {
+      target->kind = GetTargetKind(kind.value());
       ICHECK(!(target->kind->preprocessor != nullptr && target->kind->target_parser != nullptr))
           << "Cannot use both set_attrs_preprocessor and set_target_parser";
 
@@ -878,8 +891,8 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ObjectRef> config) {
   }
   // parse "tag"
   if (config.count(kTag)) {
-    if (const auto* tag = config[kTag].as<StringObj>()) {
-      target->tag = GetRef<String>(tag);
+    if (auto tag = config[kTag].as<String>()) {
+      target->tag = tag.value();
       config.erase(kTag);
     } else {
       throw Error(": Expect type of field \"tag\" is String, but get type: " +
@@ -896,8 +909,8 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ObjectRef> config) {
       // user provided keys
       if (const auto* cfg_keys = config[kKeys].as<ArrayNode>()) {
         for (const ObjectRef& e : *cfg_keys) {
-          if (const auto* key = e.as<StringObj>()) {
-            keys.push_back(GetRef<String>(key));
+          if (auto key = e.as<String>()) {
+            keys.push_back(key.value());
           } else {
             throw Error(
                 ": Expect 'keys' to be an array of strings, but it "
@@ -912,8 +925,8 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ObjectRef> config) {
     }
     // add device name
     if (config.count(kDeviceName)) {
-      if (const auto* device = config.at(kDeviceName).as<StringObj>()) {
-        keys.push_back(GetRef<String>(device));
+      if (auto device = config.at(kDeviceName).as<String>()) {
+        keys.push_back(device.value());
       }
     }
     if (!has_user_keys) {

@@ -122,7 +122,7 @@ StructInfo StructInfoMutator::VisitStructInfo_(const FuncStructInfoNode* op) {
     return GetRef<StructInfo>(op);
   } else {
     ICHECK(ret.defined()) << "FuncStructInfo that contains params must contain ret";
-    return FuncStructInfo(params.value(), ret, op->span);
+    return FuncStructInfo(params.value(), ret, op->purity, op->span);
   }
 }
 

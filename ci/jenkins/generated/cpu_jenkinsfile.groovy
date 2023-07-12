@@ -65,7 +65,7 @@ return
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2023-02-02T20:12:16.563887
+// Generated at 2023-06-09T15:32:58.358921
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -117,7 +117,7 @@ properties([
 upstream_revision = null
 
 // command to start a docker container
-docker_run = 'docker/bash.sh --env CI --env TVM_SHARD_INDEX --env TVM_NUM_SHARDS --env RUN_DISPLAY_URL --env PLATFORM --env SKIP_SLOW_TESTS --env TEST_STEP_NAME'
+docker_run = 'docker/bash.sh --env CI --env PLATFORM --env TVM_SHARD_INDEX --env TVM_NUM_SHARDS --env RUN_DISPLAY_URL --env PLATFORM --env SKIP_SLOW_TESTS --env TEST_STEP_NAME'
 docker_build = 'docker/build.sh'
 // timeout in minutes
 max_time = 180
@@ -162,7 +162,7 @@ def init_git() {
     script: """
       set -eux
       . ${jenkins_scripts_root}/retry.sh
-      retry 3 timeout 5m git submodule update --init -f --jobs 0
+      retry 3 timeout 5m git submodule update --init --recursive -f --jobs 0
     """,
     label: 'Update git submodules',
   )
@@ -359,9 +359,9 @@ def check_pr(pr_number) {
 
 }
 
-def prepare() {
+def prepare(node_type) {
   stage('Prepare') {
-    node('CPU-SMALL') {
+    node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/prepare") {
         init_git()
 
@@ -544,16 +544,24 @@ def micro_cpp_unittest(image) {
 
 cancel_previous_build()
 
-prepare()
-def build() {
+try {
+    prepare('CPU-SMALL-SPOT')
+} catch(Exception ex) {
+  prepare('CPU-SMALL')
+}
+def build(node_type) {
   stage('Build') {
     if (!skip_ci && is_docs_only_build != 1) {
-      node('CPU-SMALL') {
+      node(node_type) {
         ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-cpu") {
           init_git()
           docker_init(ci_cpu)
           timeout(time: max_time, unit: 'MINUTES') {
-            sh (
+
+            withEnv([
+              'PLATFORM=cpu',
+              ], {
+              sh (
           script: "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh build",
           label: 'Create CPU cmake config',
         )
@@ -569,6 +577,7 @@ def build() {
         // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
         // TODO(@jroesch): need to resolve CI issue will turn back on in follow up patch
         sh (script: "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh", label: 'Rust build and test')
+            })
           }
         }
       }
@@ -577,13 +586,20 @@ def build() {
     }
   }
 }
-build()
+try {
+    build('CPU-SMALL-SPOT')
+} catch (Exception ex) {
+    build('CPU-SMALL')
+}
 
 
 
-def shard_run_integration_CPU_1_of_4() {
+def shard_run_integration_CPU_1_of_4(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    node('CPU-SMALL') {
+    if (on_demand==true || node_type.contains('ARM')) {
+        node_type = 'CPU-SMALL'
+    }
+    node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
         try {
           init_git()
@@ -626,9 +642,12 @@ def shard_run_integration_CPU_1_of_4() {
   }
 }
 
-def shard_run_integration_CPU_2_of_4() {
+def shard_run_integration_CPU_2_of_4(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    node('CPU-SMALL') {
+    if (on_demand==true || node_type.contains('ARM')) {
+        node_type = 'CPU-SMALL'
+    }
+    node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
         try {
           init_git()
@@ -671,9 +690,12 @@ def shard_run_integration_CPU_2_of_4() {
   }
 }
 
-def shard_run_integration_CPU_3_of_4() {
+def shard_run_integration_CPU_3_of_4(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    node('CPU-SMALL') {
+    if (on_demand==true || node_type.contains('ARM')) {
+        node_type = 'CPU-SMALL'
+    }
+    node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
         try {
           init_git()
@@ -716,9 +738,12 @@ def shard_run_integration_CPU_3_of_4() {
   }
 }
 
-def shard_run_integration_CPU_4_of_4() {
+def shard_run_integration_CPU_4_of_4(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    node('CPU-SMALL') {
+    if (on_demand==true || node_type.contains('ARM')) {
+        node_type = 'CPU-SMALL'
+    }
+    node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-cpu") {
         try {
           init_git()
@@ -763,9 +788,12 @@ def shard_run_integration_CPU_4_of_4() {
 
 
 
-def shard_run_unittest_CPU_1_of_1() {
+def shard_run_unittest_CPU_1_of_1(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    node('CPU-SMALL') {
+    if (on_demand==true || node_type.contains('ARM')) {
+        node_type = 'CPU-SMALL'
+    }
+    node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-cpu") {
         try {
           init_git()
@@ -813,9 +841,12 @@ def shard_run_unittest_CPU_1_of_1() {
 }
 
 
-def shard_run_frontend_CPU_1_of_1() {
+def shard_run_frontend_CPU_1_of_1(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    node('CPU-SMALL') {
+    if (on_demand==true || node_type.contains('ARM')) {
+        node_type = 'CPU-SMALL'
+    }
+    node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/frontend-python-cpu") {
         try {
           init_git()
@@ -866,22 +897,46 @@ def test() {
     }
     parallel(
     'integration: CPU 1 of 4': {
+      try {
       shard_run_integration_CPU_1_of_4()
+      } catch (Exception ex) {
+        shard_run_integration_CPU_1_of_4(on_demand = true)
+      }
     },
     'integration: CPU 2 of 4': {
+      try {
       shard_run_integration_CPU_2_of_4()
+      } catch (Exception ex) {
+        shard_run_integration_CPU_2_of_4(on_demand = true)
+      }
     },
     'integration: CPU 3 of 4': {
+      try {
       shard_run_integration_CPU_3_of_4()
+      } catch (Exception ex) {
+        shard_run_integration_CPU_3_of_4(on_demand = true)
+      }
     },
     'integration: CPU 4 of 4': {
+      try {
       shard_run_integration_CPU_4_of_4()
+      } catch (Exception ex) {
+        shard_run_integration_CPU_4_of_4(on_demand = true)
+      }
     },
     'unittest: CPU 1 of 1': {
+      try {
       shard_run_unittest_CPU_1_of_1()
+      } catch (Exception ex) {
+        shard_run_unittest_CPU_1_of_1(on_demand = true)
+      }
     },
     'frontend: CPU 1 of 1': {
+      try {
       shard_run_frontend_CPU_1_of_1()
+      } catch (Exception ex) {
+        shard_run_frontend_CPU_1_of_1(on_demand = true)
+      }
     },
     )
   }

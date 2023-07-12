@@ -31,7 +31,9 @@ from tvm.tir import IntImm
 from . import _ffi_api as ffi
 from .attention_operation import instantiate_attention_template
 from .conv2d_operation import instantiate_conv2d_template
-from .gemm_operation import instantiate_gemm_template
+from .gemm_operation import instantiate_gemm_template, emit_fp16A_int4B_matmul
+from .layer_norm_operation import instantiate_layer_norm_template
+from .rms_norm_operation import instantiate_rms_norm_template
 from .library import (
     DataType,
     DataTypeSize,
@@ -76,13 +78,7 @@ def generate_tensor_op_common(
     return ops
 
 
-def generate_sm50_simt(
-    out_dtype,
-    arg0_dtype,
-    arg1_dtype,
-    op_creator,
-    accumulator_dtype="float32",
-):
+def generate_sm50_simt(out_dtype, arg0_dtype, arg1_dtype, op_creator, accumulator_dtype="float32"):
     """Gemerate GEMM or Conv2D SIMT kernels"""
     # pylint: disable=unused-argument
     min_cc = 50
@@ -98,11 +94,9 @@ def generate_sm50_simt(
                 DataType.f32,
                 OpcodeClass.Simt,
                 MathOperation.multiply_add,
-            ),
+            )
         ]
-        alignment_constraints = [
-            1,
-        ]
+        alignment_constraints = [1]
         tile_descriptions = [
             ([128, 128, 8], 2, [4, 2, 1], min_cc, max_cc),
             ([128, 64, 8], 2, [2, 2, 1], min_cc, max_cc),
@@ -174,7 +168,7 @@ def generate_sm75_tensor_op_1688(
                 DataType.s32,
                 OpcodeClass.TensorOp,
                 MathOperation.multiply_add_saturate,
-            ),
+            )
         ]
         alignment_constraints = [16, 8, 4, 2, 1]
         tile_descriptions = [
@@ -188,13 +182,7 @@ def generate_sm75_tensor_op_1688(
             ([64, 64, 64], 2, [2, 2, 1], min_cc, max_cc),
         ]
     elif arg0_dtype == "float32" and arg1_dtype == "float32" and out_dtype == "float32":
-        return generate_sm50_simt(
-            out_dtype,
-            arg0_dtype,
-            arg1_dtype,
-            op_creator,
-            accumlator_dtype,
-        )
+        return generate_sm50_simt(out_dtype, arg0_dtype, arg1_dtype, op_creator, accumlator_dtype)
     else:
         raise NotImplementedError()
 
@@ -280,7 +268,7 @@ def generate_sm80_tensor_op_16816(
                 DataType.f32,
                 OpcodeClass.TensorOp,
                 MathOperation.multiply_add_fast_f32 if use_3xtf32 else MathOperation.multiply_add,
-            ),
+            )
         ]
         alignment_constraints = [4, 2, 1]
 
@@ -314,7 +302,7 @@ def generate_sm80_tensor_op_16816(
                 DataType.s32,
                 OpcodeClass.TensorOp,
                 MathOperation.multiply_add_saturate,
-            ),
+            )
         ]
         alignment_constraints = [16, 8, 4]
         tile_descriptions = get_default_tile_descriptions(2)
@@ -363,10 +351,7 @@ def generate_sm80_tensor_op_16816(
     return sm75_kernels + sm80_kernels
 
 
-GENERATOR_FUNC_TABLE = {
-    75: generate_sm75_tensor_op_1688,
-    80: generate_sm80_tensor_op_16816,
-}
+GENERATOR_FUNC_TABLE = {75: generate_sm75_tensor_op_1688, 80: generate_sm80_tensor_op_16816}
 
 
 # (Epilogue functor name, no_beta_scaling)
@@ -403,12 +388,10 @@ class ProfilerEngine:
         self.cuda_arch = cuda_arch
         self.binary_prefix = binary_prefix
         self.cutlass = cutlass_path
-        self.cflags = "-I{cutlass}/include -I{cutlass}/tools/util/include -O3 -std=c++17".format(
-            cutlass=cutlass_path
-        )
+        self.cflags = f"-I{cutlass_path}/include -I{cutlass_path}/tools/util/include -O3 -std=c++17"
         self.cflags += " -DCUTLASS_ENABLE_TENSOR_CORE_MMA=1"
-        self.cflags += " -gencode=arch=compute_{arch},code=[sm_{arch},compute_{arch}]".format(
-            arch=cuda_arch
+        self.cflags += (
+            f" -gencode=arch=compute_{cuda_arch},code=[sm_{cuda_arch},compute_{cuda_arch}]"
         )
         self.cflags += " -Xcompiler=-Wconversion -Xcompiler=-fno-strict-aliasing"
         self.cmd = "nvcc {cflags} {src} -o {output}"
@@ -500,12 +483,6 @@ def instantiate_template(func_name, annotations, func_args):
         if k in annotations:
             attrs[k] = annotations[k]
 
-    arg0_shape = annotations["arg0_shape"]
-    arg1_shape = annotations["arg1_shape"]
-    attrs["ElementInputA"] = DataTypeTag[dtype_map[annotations["arg0_dtype"]]]
-    attrs["ElementInputB"] = DataTypeTag[dtype_map[annotations["arg1_dtype"]]]
-    attrs["ElementOutput"] = DataTypeTag[dtype_map[annotations["ret_dtype"]]]
-
     headers = []
 
     if "relu" in func_name:
@@ -527,16 +504,41 @@ def instantiate_template(func_name, annotations, func_args):
     def get_dim(shape_annot, var_name, axis_idx, batched_offset=0):
         if isinstance(shape_annot, IntImm):
             return str(int(shape_annot))
-        return "{}->shape[{}]".format(var_name, batched_offset + axis_idx)
+        return f"{var_name}->shape[{batched_offset + axis_idx}]"
 
     def get_batch_stride(stride_annot, arg0_idx, arg1_idx, arg0_axis_idx, arg1_axis_idx):
         if isinstance(stride_annot, IntImm):
             return str(int(stride_annot))
-        dim1 = func_args[arg0_idx] + "->shape[{}]".format(arg0_axis_idx)
-        dim2 = func_args[arg1_idx] + "->shape[{}]".format(arg1_axis_idx)
+        dim1 = func_args[arg0_idx] + f"->shape[{arg0_axis_idx}]"
+        dim2 = func_args[arg1_idx] + f"->shape[{arg1_axis_idx}]"
         return dim1 + " * " + dim2
 
-    if "dense" in func_name or "matmul" in func_name:
+    if "decode_matmul" in func_name:
+        headers.append("cutlass_kernels/fpA_intB_gemm.h")
+        lhs_arg_idx = _get_optional_int_annotation(annotations, "lhs_arg_idx", 0)
+        rhs_arg_idx = _get_optional_int_annotation(annotations, "rhs_arg_idx", 1)
+        scales_arg_idx = _get_optional_int_annotation(annotations, "scales_arg_idx", 2)
+        bias_arg_idx = _get_optional_int_annotation(annotations, "bias_arg_idx", None)
+        residual_arg_idx = _get_optional_int_annotation(annotations, "residual_arg_idx", None)
+
+        attrs["A_arg"] = func_args[lhs_arg_idx]
+        attrs["B_arg"] = func_args[rhs_arg_idx]
+        attrs["scales_arg"] = func_args[scales_arg_idx]
+        attrs["batch_offset"] = _get_optional_int_annotation(annotations, "batch_offset", 0)
+        attrs["activation"] = annotations.get("activation", "identity")
+
+        if bias_arg_idx is not None:
+            attrs["bias_arg"] = func_args[bias_arg_idx]
+
+        if residual_arg_idx is not None:
+            attrs["residual_arg"] = func_args[residual_arg_idx]
+            attrs["binary_op"] = annotations["binary_op"]
+            attrs["unary_op"] = annotations["unary_op"]
+
+        code = emit_fp16A_int4B_matmul(attrs)
+        return CodegenResult(code, headers)
+
+    elif "dense" in func_name or "matmul" in func_name:
         batched = "batch" in annotations
         transposed = "transposed" in func_name
         lhs_arg_idx = _get_optional_int_annotation(annotations, "lhs_arg_idx", 0)
@@ -649,12 +651,12 @@ def instantiate_template(func_name, annotations, func_args):
         if "conv2d_transpose" in func_name:
             headers.append("cutlass/conv/kernel/default_conv2d_dgrad.h")
             activation_shape = output_shape
-            output_shape = arg0_shape
+            output_shape = annotations["arg0_shape"]
         elif "backward" in func_name:
             headers.append("cutlass/conv/kernel/default_conv2d_wgrad.h")
-            activation_shape = arg1_shape
+            activation_shape = annotations["arg1_shape"]
             weight_shape = output_shape
-            output_shape = arg0_shape
+            output_shape = annotations["arg0_shape"]
         elif "residual" in func_name:
             headers.append("cutlass/conv/kernel/default_conv2d_fprop_with_broadcast.h")
         else:
@@ -694,16 +696,36 @@ def instantiate_template(func_name, annotations, func_args):
             attrs["split_k_mode"] = "kSerial"
             attrs["split_k_slices"] = 1
 
+        if "residual_shape" in annotations:
+            attrs["residual_shape"] = annotations["residual_shape"]
+
         code = instantiate_conv2d_template(attrs)
         return CodegenResult(code, headers)
 
     elif "attention" in func_name:
         headers.append("kernel_forward.h")
         data_type = dtype_map[annotations["arg0_dtype"]]
+
+        attrs["qkv_layout"] = annotations["qkv_layout"]
+        if attrs["qkv_layout"] == "default":
+            attrs["query"] = func_args[0]
+            attrs["key"] = func_args[1]
+            attrs["value"] = func_args[2]
+            attrs["num_queries"] = s = get_dim(annotations["num_queries"], func_args[0], 1)
+            attrs["num_keys"] = get_dim(annotations["num_keys"], func_args[1], 1)
+            if len(func_args) > 4:  # +1 for workspace, the last arg
+                attrs["bias"] = func_args[3]
+        elif attrs["qkv_layout"] == "qkv_stacked":
+            attrs["qkv"] = func_args[0]
+            attrs["num_queries"] = s = annotations["num_queries"]
+            attrs["num_keys"] = annotations["num_keys"]
+            if len(func_args) > 5:  # +1 for workspace, the last arg
+                attrs["bias"] = func_args[4]
+        else:
+            raise NotImplementedError()
+
         attrs["data_type"] = DataTypeTag[data_type]
         attrs["num_batches"] = b = annotations["num_batches"]
-        attrs["num_queries"] = s = annotations["num_queries"]
-        attrs["num_keys"] = annotations["num_keys"]
         attrs["num_heads"] = n = annotations["num_heads"]
         attrs["head_dim"] = h = annotations["head_dim"]
         attrs["head_dim_value"] = h_v = annotations["head_dim_value"]
@@ -722,30 +744,66 @@ def instantiate_template(func_name, annotations, func_args):
             attrs["kQueriesPerBlock"] = 64
             attrs["kKeysPerBlock"] = 64
             attrs["kSingleValueIteration"] = True
-        attrs["output_size"] = b * s * n * h_v
+        attrs["output_size"] = f"{b} * {s} * {n} * {h_v}"
         attrs["scale"] = (
             float(1 / math.sqrt(h.value)) if annotations["scale"] is None else annotations["scale"]
         )
+        attrs["custom_mask_type"] = annotations["custom_mask_type"]
+
         assert (
             attrs["scale"] > 0 or attrs["scale"] < 0
         ), "Cutlass may generate nan occasionally when scale == 0.0"
         attrs["arch"] = "cutlass::arch::Sm{}".format(annotations["arch"])
         attrs["kSupportsDropout"] = False
-        if len(func_args) > 3:
+
+        for arg in func_args:
+            if "workspace" in arg:
+                attrs["workspace"] = arg
+        if "bias" in attrs:
             attrs["kSupportsBias"] = True
-            if len(annotations["arg3_shape"]) == 4:
-                attrs["bias_layout"] = "BNSS'"
-            elif len(annotations["arg3_shape"]) == 3:
-                attrs["bias_layout"] = "B1SS'"
-            elif len(annotations["arg3_shape"]) == 2:
-                attrs["bias_layout"] = "B11S'"
+            if len(annotations["bias_shape"]) == 4:
+                strides = "p.num_keys"
+                if annotations["bias_shape"][2] == 1:
+                    attrs["bias_strideM"] = 0
+                else:
+                    attrs["bias_strideM"] = strides
+                    strides = f"p.num_queries * {strides}"
+                if annotations["bias_shape"][1] == 1:
+                    attrs["bias_strideH"] = 0
+                else:
+                    attrs["bias_strideH"] = strides
+                    strides = f"p.num_heads * {strides}"
+                if annotations["bias_shape"][0] == 1:
+                    attrs["bias_strideB"] = 0
+                else:
+                    attrs["bias_strideB"] = strides
             else:
                 raise NotImplementedError()
         else:
             # To support negative scale in current Cutlass implementation,
             # kSupportsBias should be set true, or there are nan's as result.
             attrs["kSupportsBias"] = attrs["scale"] < 0
-        code = instantiate_attention_template(attrs, func_args)
+        code = instantiate_attention_template(attrs)
+        return CodegenResult(code, headers)
+    elif "layer_norm" in func_name:
+        headers.append("cutlass/util/device_layernorm.h")
+        headers.append("cutlass/layout/matrix.h")
+        attrs = {"input": func_args[0], "gamma": func_args[1], "beta": func_args[2]}
+        attrs.update(dict(annotations))
+        code = instantiate_layer_norm_template(attrs)
+        return CodegenResult(code, headers)
+    elif "rms_norm" in func_name:
+        headers.append("cutlass/util/device_rmsnorm.h")
+        headers.append("cutlass/layout/matrix.h")
+        attrs = {"input": func_args[0], "weight": func_args[1]}
+        attrs.update(dict(annotations))
+
+        if isinstance(attrs["M"], tvm.tir.Var):
+            attrs["M"] = " * ".join(
+                ["{}->shape[{}]".format(func_args[0], i) for i in range(int(attrs["batch_rank"]))]
+            )
+
+        code = instantiate_rms_norm_template(attrs)
         return CodegenResult(code, headers)
 
-    raise ValueError("Do not have a template for {}".format(func_name))
+    raise ValueError(f"Do not have a template for {func_name}")

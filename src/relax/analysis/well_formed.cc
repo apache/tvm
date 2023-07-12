@@ -30,16 +30,17 @@
  *    3. When a Function has a corresponding GlobalVar and a `global_symbol`
  *       attribute, the name of the GlobalVar must equal the value of the
  *       `global_symbol` attribute value.
- *    4. Any variable cannot used as different function parameters in the same IRModule
- *    5. Vars are defined before use.
- *    6. Vars are defined exactly once.
- *    7. Symbolic Vars are defined before use.
- *    8. DataflowVars cannot be defined inside BindingBlock.
- *    9. Vars defined in IfNode, except the return Var, are invisible
+ *    4. Any variable cannot used as different function parameters in the same IRModule.
+ *    5. Any symbolic var cannot present across different functions in the same IRModule.
+ *    6. Vars are defined before use.
+ *    7. Vars are defined exactly once.
+ *    8. Symbolic Vars are defined before use.
+ *    9. DataflowVars cannot be defined inside BindingBlock.
+ *    10. Vars defined in IfNode, except the return Var, are invisible
  *       out of the If body.(May change for new AST designs)
- *    10. SeqExpr only serves as function body, or in the true and
+ *    11. SeqExpr only serves as function body, or in the true and
  *       false branches in IfNode.
- *    11. The IR is in ANF:
+ *    12. The IR is in ANF:
  *       (a) Expressions cannot contain nested complex expressions.
  *           Here are the expressions that may be nested inside other expressions:
  *           Var, DataflowVar, GlobalVar, Constant, ShapeExpr,
@@ -54,7 +55,14 @@
  *           * The cond field of If nodes
  *           * The op or args fields of Call nodes
  *           * Inside the fields of Tuple nodes
- *    12. Expr always has checked_type_ (with the exception of Op).
+ *    13. Expr always has checked_type_ (with the exception of Op).
+ *    14. DataflowBlocks may not contain If nodes.
+ *    15. DataflowBlocks may not contain calls to impure functions or operators
+ *        (only checked if check_struct_info is true).
+ *    16. If a function has is_pure set to true and the kForcePure attribute is not set,
+ *        the body may not contain any impure call (only checked if check_struct_info is true).
+ *    17. If the kForcePure attribute is set for a function,
+ *        that function's is_pure field must be true.
  */
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
@@ -92,7 +100,7 @@ class WellFormedChecker : public relax::ExprVisitor,
 
  private:
   explicit WellFormedChecker(IRModule mod, bool check_struct_info)
-      : mod_(std::move(mod)), check_struct_info_(check_struct_info) {}
+      : mod_(std::move(mod)), check_struct_info_(check_struct_info), cur_visited_func_(nullptr) {}
 
   using relax::ExprVisitor::VisitExpr_;
   using tir::ExprVisitor::VisitExpr;
@@ -196,6 +204,12 @@ class WellFormedChecker : public relax::ExprVisitor,
   }
 
   void VisitExpr_(const FunctionNode* op) final {
+    // set current visited function.
+    // for nested functions, we only set the outermost function.
+    if (cur_visited_func_ == nullptr) {
+      cur_visited_func_ = op;
+    }
+
     // save the var_set_ for local function
     auto prev_var_set = var_set_;
     auto prev_dataflow_var_set = dataflow_var_set_;
@@ -213,6 +227,14 @@ class WellFormedChecker : public relax::ExprVisitor,
       }
     });
 
+    // ensure the purity attributes are valid
+    if (op->GetAttr<Bool>(relax::attr::kForcePure).value_or(Bool(false))->value && !op->is_pure) {
+      Malformed(Diagnostic::Error(op->span)
+                << "Function " << op << " has true for " << relax::attr::kForcePure
+                << " but false for is_pure; " << relax::attr::kForcePure
+                << " should be true only if is_pure is also true.");
+    }
+
     // check all expr are well defined.
     for (Var param : op->params) {
       this->VisitVarDef(param);
@@ -223,13 +245,25 @@ class WellFormedChecker : public relax::ExprVisitor,
                   << "Relax variable " << param->name_hint()
                   << " is repeatedly used as parameters in function.");
       }
-      param_var_func_map_.insert({param, GetRef<Function>(op)});
+      param_var_func_map_.insert({param, cur_visited_func_});
     }
     // check function ret_struct_info
     if (op->ret_struct_info.defined()) {
       this->VisitStructInfo(op->ret_struct_info);
     } else {
       Malformed(Diagnostic::Error(op) << "Function must have defined ret_struct_info");
+    }
+
+    // if we are not forcing purity and the function is annotated as pure, it must not contain an
+    // impure call
+    if (check_struct_info_ &&
+        !op->GetAttr<Bool>(relax::attr::kForcePure).value_or(Bool(false))->value && op->is_pure &&
+        ContainsImpureCall(op->body)) {
+      Malformed(Diagnostic::Error(op)
+                << "Function " << op << " is annotated as pure but contains an impure call; "
+                << "please set " << relax::attr::kForcePure << " to true "
+                << "or use a pure operator variant (e.g., call_pure_packed) "
+                << "if it is necessary to override this judgment.");
     }
 
     if (auto seq = op->body.as<SeqExprNode>()) {
@@ -242,11 +276,18 @@ class WellFormedChecker : public relax::ExprVisitor,
     dataflow_var_set_ = prev_dataflow_var_set;
     var_set_ = prev_var_set;
     symbolic_var_set_ = prev_symbolic_var_set;
+
+    if (cur_visited_func_ == op) {
+      cur_visited_func_ = nullptr;
+    }
   }
 
   void VisitExpr_(const CallNode* op) final {
     if (IsLeafOrTuple(op->op)) {
+      const FunctionNode* prev_visited_func = cur_visited_func_;
+      cur_visited_func_ = nullptr;  // close the symbolic var dup check
       this->VisitExpr(op->op);
+      cur_visited_func_ = prev_visited_func;
     } else {
       Malformed(Diagnostic::Error(op) << "The called expression must be a leaf expression");
     }
@@ -265,9 +306,15 @@ class WellFormedChecker : public relax::ExprVisitor,
     }
 
     CheckStructInfo(op);
+    if (is_dataflow_ && check_struct_info_ && IsImpureCall(GetRef<Call>(op))) {
+      Malformed(Diagnostic::Error(op) << "There cannot be an impure call inside a dataflow block.");
+    }
   }
 
   void VisitExpr_(const IfNode* op) final {
+    if (is_dataflow_) {
+      Malformed(Diagnostic::Error(op) << "If nodes are not allowed to appear in dataflow blocks.");
+    }
     if (IsLeafOrTuple(op->cond)) {
       this->VisitExpr(op->cond);
     } else {
@@ -332,6 +379,7 @@ class WellFormedChecker : public relax::ExprVisitor,
     } else {
       this->VisitExpr(binding->value);
     }
+
     this->VisitVarDef(binding->var);
     if (is_lambda) {
       recur_vars_.erase(binding->var);
@@ -400,6 +448,21 @@ class WellFormedChecker : public relax::ExprVisitor,
       this->Malformed(Diagnostic::Error(var)
                       << "Symbolic Var " << var->name_hint << " is not defined.");
     }
+
+    // don't perform the check
+    if (cur_visited_func_ == nullptr) {
+      return;
+    }
+
+    // check across functions presence
+    auto it = symbolic_var_func_map_.find(var);
+    if (it != symbolic_var_func_map_.end() && it->second != cur_visited_func_) {
+      // TODO(relax-team): Complete this error info after we integrate printer
+      Malformed(Diagnostic::Error(var->span)
+                << "Symbolic Var " << var->name_hint
+                << " presents in different functions in the same Module.");
+    }
+    symbolic_var_func_map_.insert({var, cur_visited_func_});
   }
 
   void VisitStructInfo_(const FuncStructInfoNode* op) final {
@@ -473,6 +536,8 @@ class WellFormedChecker : public relax::ExprVisitor,
   const bool check_struct_info_;
   bool well_formed_ = true;
   bool is_dataflow_;
+  // Current visited function.
+  const FunctionNode* cur_visited_func_;
   // Current visit mode.
   VisitMode mode_ = VisitMode::kDefault;
   // set of context variables.
@@ -480,7 +545,9 @@ class WellFormedChecker : public relax::ExprVisitor,
   std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> recur_vars_;
   std::unordered_set<DataflowVar, ObjectPtrHash, ObjectPtrEqual> dataflow_var_set_;
   std::unordered_set<tir::Var, ObjectPtrHash, ObjectPtrEqual> symbolic_var_set_;
-  std::unordered_map<Var, Function, ObjectPtrHash, ObjectPtrEqual> param_var_func_map_;
+  std::unordered_map<Var, const FunctionNode*, ObjectPtrHash, ObjectPtrEqual> param_var_func_map_;
+  std::unordered_map<tir::Var, const FunctionNode*, ObjectPtrHash, ObjectPtrEqual>
+      symbolic_var_func_map_;
 };
 
 bool WellFormed(IRModule m, bool check_struct_info) {

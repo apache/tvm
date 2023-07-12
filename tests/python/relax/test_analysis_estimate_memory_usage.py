@@ -117,8 +117,9 @@ def test_basic():
         == r"""Memory usage estimation:
 - Function main:
  * Without memory planning, there are 5 constant-size memory allocation(s) with total size 1.639e-07 GB.
- * With memory planning, there are 2 constant-size memory allocation(s) with total size 6.706e-08 GB.
- * Memory planning reduces constant memory size to 40.9%."""
+ * With memory planning, there are 3 constant-size memory allocation(s) with total size 1.043e-07 GB.
+ * Memory planning reduces constant memory size to 63.6%.
+"""
     )
 
 

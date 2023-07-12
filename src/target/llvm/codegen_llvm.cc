@@ -66,6 +66,7 @@
 #include <llvm/IR/Metadata.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Type.h>
+#include <llvm/IR/Verifier.h>
 #include <llvm/IRReader/IRReader.h>
 #include <llvm/Linker/Linker.h>
 #include <llvm/Pass.h>
@@ -73,8 +74,10 @@
 #include <llvm/IR/Verifier.h>  // For VerifierPass
 #include <llvm/Passes/PassBuilder.h>
 #include <llvm/Passes/StandardInstrumentations.h>
+#include <llvm/TargetParser/Host.h>
 #else
 #include <llvm/IR/LegacyPassManager.h>
+#include <llvm/Support/Host.h>
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 #endif
 #if TVM_LLVM_VERSION >= 100
@@ -135,8 +138,9 @@ std::unique_ptr<CodeGenLLVM> CodeGenLLVM::Create(LLVMTarget* llvm_target) {
   }
 }
 
-void CodeGenLLVM::Init(const std::string& module_name, LLVMTarget* llvm_target, bool system_lib,
-                       bool dynamic_lookup, bool target_c_runtime) {
+void CodeGenLLVM::Init(const std::string& module_name, LLVMTarget* llvm_target,
+                       Optional<String> system_lib_prefix, bool dynamic_lookup,
+                       bool target_c_runtime) {
   llvm_target_ = llvm_target;
   llvm::LLVMContext* ctx = llvm_target_->GetContext();
   builder_.reset(new IRBuilder(*ctx));
@@ -222,7 +226,13 @@ void CodeGenLLVM::InitTarget() {
 #endif  // TVM_LLVM_VERSION >= 60
 }
 
-void CodeGenLLVM::AddFunction(const PrimFunc& f) { this->AddFunctionInternal(f, false); }
+llvm::Function* CodeGenLLVM::DeclareFunction(const GlobalVar& gvar, const PrimFunc& f) {
+  return this->DeclareFunctionInternal(gvar, f);
+}
+
+void CodeGenLLVM::AddFunction(const GlobalVar& gvar, const PrimFunc& f) {
+  this->AddFunctionInternal(gvar, f);
+}
 
 void CodeGenLLVM::InitFuncState() {
   var_map_.clear();
@@ -232,37 +242,62 @@ void CodeGenLLVM::InitFuncState() {
   analyzer_.reset(new arith::Analyzer());
 }
 
-void CodeGenLLVM::AddFunctionInternal(const PrimFunc& f, bool ret_void) {
-  this->InitFuncState();
+std::tuple<std::string, llvm::Function::LinkageTypes> CodeGenLLVM::GetLinkage(
+    const GlobalVar& gvar, const PrimFunc& func) {
+  if (auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol)) {
+    return {global_symbol.value(), llvm::Function::ExternalLinkage};
+  }
 
-  ICHECK_EQ(f->buffer_map.size(), 0U)
+  std::string symbol_name = [&]() {
+    std::stringstream ss;
+    ss << "_internal_";
+    ss << gvar->name_hint;
+    return ss.str();
+  }();
+
+  return {symbol_name, llvm::Function::PrivateLinkage};
+}
+
+llvm::Function* CodeGenLLVM::DeclareFunctionInternal(const GlobalVar& gvar, const PrimFunc& func) {
+  if (auto it = functions_.find(gvar.get()); it != functions_.end()) {
+    return it->second;
+  }
+
+  ICHECK_EQ(func->buffer_map.size(), 0U)
       << "Cannot codegen function with buffer_map, please lower them first";
 
   std::vector<llvm::Type*> param_types;
-  is_restricted_ = f->HasNonzeroAttr(tir::attr::kNoAlias);
-  for (Var param : f->params) {
+  is_restricted_ = func->HasNonzeroAttr(tir::attr::kNoAlias);
+  for (Var param : func->params) {
     param_types.push_back(GetLLVMType(param));
     if (!is_restricted_ && param.dtype().is_handle()) {
       alias_var_set_.insert(param.get());
     }
   }
-  // TODO(tvm-team):
-  // Update the function type to respect the ret_type field of f.
-  // Once we allow more flexibility in the PrimFunc.
-  llvm::FunctionType* ftype =
-      llvm::FunctionType::get(ret_void ? t_void_ : t_int_, param_types, false);
 
-  auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
-  ICHECK(global_symbol.defined())
-      << "CodeGenLLVM: Expect PrimFunc to have the global_symbol attribute";
-  function_ = module_->getFunction(MakeStringRef(global_symbol.value()));
-  if (function_ == nullptr) {
-    function_ = llvm::Function::Create(ftype, llvm::Function::ExternalLinkage,
-                                       MakeStringRef(global_symbol.value()), module_.get());
+  llvm::FunctionType* ftype =
+      llvm::FunctionType::get(GetLLVMType(func->ret_type), param_types, false);
+
+  auto [symbol_name, linkage_type] = GetLinkage(gvar, func);
+
+  auto function = module_->getFunction(MakeStringRef(symbol_name));
+  if (function == nullptr) {
+    function =
+        llvm::Function::Create(ftype, linkage_type, MakeStringRef(symbol_name), module_.get());
   }
-  function_->setCallingConv(llvm::CallingConv::C);
-  function_->setDLLStorageClass(llvm::GlobalValue::DLLStorageClassTypes::DLLExportStorageClass);
-  SetTargetAttributes(function_);
+  function->setCallingConv(llvm::CallingConv::C);
+  function->setDLLStorageClass(llvm::GlobalValue::DLLStorageClassTypes::DLLExportStorageClass);
+  SetTargetAttributes(function);
+
+  functions_[gvar.get()] = function;
+
+  return function;
+}
+
+void CodeGenLLVM::AddFunctionInternal(const GlobalVar& gvar, const PrimFunc& f) {
+  this->InitFuncState();
+
+  function_ = DeclareFunctionInternal(gvar, f);
 
   // set var map and align information
   auto arg_it = function_->arg_begin();
@@ -303,11 +338,22 @@ void CodeGenLLVM::AddFunctionInternal(const PrimFunc& f, bool ret_void) {
 #endif
 
   EmitDebugLocation(f->span);
-  if (ret_void) {
+
+  if (IsVoidType(f->ret_type)) {
+    // All other return types are handled when encountering
+    // builtin::ret().
     builder_->CreateRetVoid();
   } else {
     builder_->CreateRet(ConstInt32(0));
   }
+}
+
+void CodeGenLLVM::Verify() const {
+  std::string verify_errors_storage;
+  llvm::raw_string_ostream verify_errors(verify_errors_storage);
+  LOG_IF(FATAL, llvm::verifyModule(*module_, &verify_errors))
+      << "LLVM module verification failed with the following errors: \n"
+      << verify_errors.str();
 }
 
 std::unique_ptr<llvm::Module> CodeGenLLVM::Finish() {
@@ -317,8 +363,9 @@ std::unique_ptr<llvm::Module> CodeGenLLVM::Finish() {
         << "Failed to link modules";
   }
   link_modules_.clear();
-  // optimize
+  this->Verify();
   this->Optimize();
+  this->Verify();
   return std::move(module_);
 }
 
@@ -335,6 +382,7 @@ void CodeGenLLVM::HandleImport(const std::string& code) {
   mlib->setDataLayout(llvm_target_->GetOrCreateTargetMachine()->createDataLayout());
   // mark all the functions as force inline
   for (llvm::Function& f : mlib->functions()) {
+    f.removeFnAttr(llvm::Attribute::OptimizeNone);
     f.removeFnAttr(llvm::Attribute::NoInline);
     f.addFnAttr(llvm::Attribute::AlwaysInline);
     f.setLinkage(llvm::GlobalValue::AvailableExternallyLinkage);
@@ -536,10 +584,11 @@ llvm::Type* CodeGenLLVM::GetLLVMType(const Type& type) const {
   if (auto* ptr = type.as<PrimTypeNode>()) {
     return DTypeToLLVMType(ptr->dtype);
   } else if (auto* ptr = type.as<PointerTypeNode>()) {
-    // LLVM IR doesn't allow void*, so we need to recognize this
-    // pattern explicitly.
+    // LLVM IR doesn't allow void*, nor do we require custom datatypes
+    // to have LLVM equivalents, so we need to recognize these
+    // patterns explicitly.
     if (auto* primtype = ptr->element_type.as<PrimTypeNode>()) {
-      if (primtype->dtype.is_void()) {
+      if (primtype->dtype.is_void() || primtype->dtype.code() >= DataType::kCustomBegin) {
         return t_void_p_;
       }
     }
@@ -1279,6 +1328,19 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
 #else
               << llvm::Intrinsic::getName(id, {});
 #endif
+
+    // In earlier versions of LLVM's, the prefetch intrinsic is not
+    // overloaded, and always takes the first argument as i8*.  If
+    // this is the case, this argument should insert a cast to i8*.
+    if (id == llvm::Intrinsic::prefetch) {
+      llvm::Type* param_type = f->arg_begin()->getType();
+      if (param_type != arg_value[0]->getType()) {
+        unsigned addrspace =
+            llvm::dyn_cast<llvm::PointerType>(arg_value[0]->getType())->getAddressSpace();
+        arg_value[0] = builder_->CreatePointerCast(arg_value[0], t_char_->getPointerTo(addrspace));
+      }
+    }
+
     return builder_->CreateCall(f, arg_value);
   } else if (op->op.same_as(builtin::bitwise_and())) {
     return builder_->CreateAnd(MakeValue(op->args[0]), MakeValue(op->args[1]));
@@ -1314,9 +1376,7 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
 
     TypedPointer buffer_ptr = CreateBufferPtr(MakeValue(load->buffer->data), load->buffer->dtype,
                                               indices_val, load->dtype);
-    unsigned addrspace =
-        llvm::dyn_cast<llvm::PointerType>(buffer_ptr.addr->getType())->getAddressSpace();
-    return builder_->CreatePointerCast(buffer_ptr.addr, t_char_->getPointerTo(addrspace));
+    return buffer_ptr.addr;
   } else if (op->op.same_as(builtin::reinterpret()) && is_zero(op->args[0])) {
     return llvm::Constant::getNullValue(t_void_p_);
   } else if (op->op.same_as(builtin::isnullptr())) {
@@ -1705,8 +1765,8 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const BufferLoadNode* op) {
 }
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const CallNode* op) {
-  if (auto* ptr_op = op->op.as<OpNode>()) {
-    auto call_op = GetRef<Op>(ptr_op);
+  if (auto opt_call_op = op->op.as<Op>()) {
+    auto call_op = opt_call_op.value();
     if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {
       // call extern intrinsic
       ICHECK_GE(op->args.size(), 1U);
@@ -1723,9 +1783,19 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const CallNode* op) {
       VLOG(2) << "CreateIntrinsic done";
       return x;
     }
+  } else if (auto* ptr_gvar = op->op.as<GlobalVarNode>()) {
+    auto gvar = GetRef<GlobalVar>(ptr_gvar);
+    auto it = functions_.find(ptr_gvar);
+    ICHECK(it != functions_.end()) << "Call to undefined GlobalVar \"" << gvar << "\"";
+    llvm::Function* callee = it->second;
+    std::vector<llvm::Value*> arg_value;
+    for (const auto& arg : op->args) {
+      arg_value.push_back(MakeValue(arg));
+    }
+    return builder_->CreateCall(callee, arg_value);
+
   } else {
-    ICHECK(op->op.as<GlobalVarNode>());
-    LOG(FATAL) << "Do not yet support cross function call";
+    LOG(FATAL) << "Unsupported operation in CallNode: " << op->op;
   }
 }
 
@@ -1952,6 +2022,22 @@ void CodeGenLLVM::VisitStmt_(const LetStmtNode* op) {
     }
   }
   llvm::Value* value = MakeValue(op->value);
+
+  // TIR has type-annotations on variables, but not on each PrimExpr.
+  // Therefore, to have the correct LLVM type for pointers, we may
+  // need to introduce a pointer-cast, even though pointer-to-pointer
+  // casts are not expressible with the `tir::CastNode`.
+  if (v->dtype.is_handle() && v->type_annotation.defined()) {
+    CHECK(op->value->dtype.is_handle())
+        << "Variable " << op->var << " is a pointer with type " << op->value
+        << ", but is being bound to expression with type " << op->value->dtype;
+    auto* llvm_type = GetLLVMType(v->type_annotation);
+    if (llvm_type != value->getType()) {
+      value->setName((v->name_hint + "_void_ptr").c_str());
+      value = builder_->CreatePointerCast(value, llvm_type);
+    }
+  }
+
   value->setName(v->name_hint.c_str());
   var_map_[v] = value;
   analyzer_->Bind(op->var, op->value);
@@ -1997,6 +2083,34 @@ void CodeGenLLVM::EmitDebugLocation(const Span& span) {
 
 void CodeGenLLVM::EmitDebugLocation() { builder_->SetCurrentDebugLocation(nullptr); }
 void CodeGenLLVM::EmitDebugLocation(const StmtNode* op) { EmitDebugLocation(op->span); }
+
+TVM_REGISTER_GLOBAL("tvm.codegen.llvm.GetDefaultTargetTriple").set_body_typed([]() -> std::string {
+  return llvm::sys::getDefaultTargetTriple();
+});
+
+TVM_REGISTER_GLOBAL("tvm.codegen.llvm.GetProcessTriple").set_body_typed([]() -> std::string {
+  return llvm::sys::getProcessTriple();
+});
+
+TVM_REGISTER_GLOBAL("tvm.codegen.llvm.GetHostCPUName").set_body_typed([]() -> std::string {
+  return llvm::sys::getHostCPUName().str();
+});
+
+TVM_REGISTER_GLOBAL("tvm.codegen.llvm.GetHostCPUFeatures")
+    .set_body_typed([]() -> Map<String, IntImm> {
+      llvm::StringMap<bool> features;
+      if (llvm::sys::getHostCPUFeatures(features)) {
+        Map<String, IntImm> ret;
+        for (auto it = features.begin(); it != features.end(); ++it) {
+          std::string name = it->getKey().str();
+          bool value = it->getValue();
+          ret.Set(name, IntImm(DataType::Bool(), value));
+        }
+        return ret;
+      }
+      LOG(WARNING) << "Current version of LLVM does not support feature detection on your CPU";
+      return {};
+    });
 
 }  // namespace codegen
 }  // namespace tvm

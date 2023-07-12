@@ -62,6 +62,10 @@ def _deferred(exit_f: Callable[[], None]):
     return context()
 
 
+def _do_nothing(*args, **kwargs):  # pylint: disable=unused-argument
+    pass
+
+
 class VarTableFrame:
     """The variable table frame.
     A frame of variable table stores the variables created in one block or scope.
@@ -188,10 +192,11 @@ class VarTable:
         res : bool
             The existence of the value.
         """
-        for v in self.name2value.values():
-            if v is value:
-                return True
-        return False
+        return any(
+            value.same_as(known_value)
+            for known_value_stack in self.name2value.values()
+            for known_value in known_value_stack
+        )
 
 
 def _dispatch_wrapper(func: dispatch.ParseMethod) -> dispatch.ParseMethod:
@@ -233,12 +238,20 @@ class Parser(doc.NodeVisitor):
 
     diag: Diagnostics
     dispatch_tokens: List[str]
+    function_annotations: Optional[Dict[str, Dict[str, Any]]]
     var_table: VarTable
+    inside_function: bool  # whether we are within a function
 
-    def __init__(self, source: Source) -> None:
+    def __init__(
+        self,
+        source: Source,
+        function_annotations: Dict[str, Dict[str, Any]],
+    ) -> None:
         self.diag = Diagnostics(source)
         self.dispatch_tokens = ["default"]
+        self.function_annotations = function_annotations
         self.var_table = VarTable()
+        self.inside_function = False
 
     def parse(self, extra_vars: Optional[Dict[str, Any]] = None) -> Any:
         """The main parse method for parser.
@@ -682,3 +695,18 @@ class Parser(doc.NodeVisitor):
             The visiting result.
         """
         return _dispatch(self, "Return")(self, node)
+
+    def visit_Nonlocal(self, node: doc.Nonlocal) -> Any:  # pylint: disable=invalid-name
+        """The general nonlocal visiting method.
+
+        Parameters
+        ----------
+        node : doc.Nonlocal
+            The doc AST nonlocal node.
+
+        Returns
+        -------
+        res : Any
+            The visiting result.
+        """
+        return _dispatch(self, "Nonlocal")(self, node)

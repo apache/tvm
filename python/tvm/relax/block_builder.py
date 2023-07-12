@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=no-else-return, invalid-name
+# pylint: disable=no-else-return, invalid-name, unused-argument
 """Developer API of constructing Relax AST."""
 
 from typing import Dict, List, Optional, Union, Any, Callable
@@ -32,7 +32,7 @@ from .expr import (
     Binding,
 )
 from .struct_info import StructInfo
-from .op.base import call_tir
+from .op.base import call_tir, call_tir_with_grad
 from . import _ffi_api
 from .utils import gen_call_tir_inputs
 
@@ -199,6 +199,7 @@ class BlockBuilder(Object):
         name: str,
         params: Optional[Union[Var, Tuple, List[Var]]] = None,
         attrs: Optional[Dict[str, Object]] = None,
+        private: bool = False,
     ) -> FunctionScope:
         """Annotate a Relax function.
 
@@ -214,6 +215,12 @@ class BlockBuilder(Object):
 
         attrs : Dict[str, Object], optional
             The function attrs
+
+        private : bool, optional
+            Whether the function is annotated as private.
+            If the function is private, it will not have a global symbol attribute.
+            If it is not private and not an inner function, then it will have
+            a global symbol attribute (mapped to the function's name)
 
         Returns
         -------
@@ -233,6 +240,11 @@ class BlockBuilder(Object):
                     )
         if attrs is None:
             attrs = {}
+        # The block builder does not permit nesting functions, per above comment,
+        # so no further check should be needed
+        if not private:
+            attrs["global_symbol"] = name
+
         return FunctionScope(self, name, params, attrs)
 
     def testing_scope(self, def_vars: List[tir.Var]) -> TestingScope:
@@ -318,6 +330,63 @@ class BlockBuilder(Object):
         gvar = self.add_func(tir_func, primfunc_name)
 
         return call_tir(gvar, call_args, output_sinfo, tir_vars)
+
+    def call_te_with_grad(
+        self,
+        func: Callable,
+        *args: Any,
+        te_grad_name: str,
+        te_grad_kwargs: Dict[str, Object] = None,
+        **kwargs: Any,
+    ) -> Expr:
+        """Generate a call node according to the te function.
+        This method will generate a call_tir_with_grad node, i.e. a call_tir node bound with a
+        te gradient function (refered by te_grad_name).
+
+        Parameters
+        ----------
+        func : Callable
+            A function that returns a te tensor or a list of te tensors.
+
+        args : Any, optional
+            arguments passed to the function.
+
+        te_grad_name : str
+            The registered name of the te gradient function associated with the call_tir_with_grad
+            node. Must be provided as a keyword argument.
+
+        te_grad_kwargs : Dict[str, Object], optional
+            The keyword arguments passed to the te gradient function.
+            Optionally provided as a keyword argument. Default: {}.
+
+        kwargs : Any, optional
+            The keyword arguments passed to the function.
+            Note that the following keyword args are reserved:
+
+                - 'primfunc_name_hint' for passing name hint to the PrimFunc
+                  that gets generated.
+                - 'primfunc_attrs' is reserved for passing func attributes to
+                  be added to the PrimFunc that gets created.
+
+        Returns
+        -------
+        ret : tvm.relax.Call
+            A newly created call node
+        """
+
+        primfunc_name = kwargs.pop("primfunc_name_hint", None)
+        tir_func, call_args, output_sinfo, tir_vars = gen_call_tir_inputs(func, *args, **kwargs)
+
+        if te_grad_kwargs is None:
+            te_grad_kwargs = {}
+
+        if not primfunc_name:
+            primfunc_name = func.__name__
+        gvar = self.add_func(tir_func, primfunc_name)
+
+        return call_tir_with_grad(
+            gvar, call_args, output_sinfo, te_grad_name, te_grad_kwargs, tir_vars
+        )
 
     def emit_te(self, func: Callable, *args: Any, **kwargs: Any) -> Var:
         """Emit a call node according to the te function.
@@ -437,7 +506,8 @@ class BlockBuilder(Object):
                     gv = relax.call_tir(te_func, (y,), R.Tensor((n + 1,), "float32"), (n,))
                     return gv
         """
-        return self.emit(self.call_te(func, *args, **kwargs))
+        name_hint = kwargs.pop("name_hint", "")
+        return self.emit(self.call_te(func, *args, **kwargs), name_hint=name_hint)
 
     def match_cast(self, value: Expr, struct_info: StructInfo) -> Var:
         """Emit a MatchCast.

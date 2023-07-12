@@ -85,9 +85,8 @@ def expand_like(a, shape_like, axis):
             # A special case: `a` is a scalar represented as a 1-dim tensor
             return te.compute(shape_like.shape, lambda *idxs: a(0))
         raise ValueError(
-            "shape inconsistent when expand_like ({}, {}, {})".format(
-                len(axis), len(a.shape), len(shape_like.shape)
-            )
+            f"shape inconsistent when expand_like ({len(axis)}, "
+            f"{len(a.shape)}, {len(shape_like.shape)})"
         )
 
     real_axis = topi.reduction._get_real_axis(len(shape_like.shape), axis)
@@ -225,6 +224,41 @@ def strided_slice(a, begin, end, strides=None, axes=None, slice_mode="end"):
     if axes is None:
         axes = []
     return cpp.strided_slice(a, begin, end, strides, axes, slice_mode)
+
+
+def dynamic_strided_slice(a, begin, end, strides, output_shape):
+    """Slice of an array.
+
+    Parameters
+    ----------
+    a : tvm.te.Tensor
+        The tensor to be sliced.
+
+    begin : tvm.te.Tensor
+        The indices to begin with in the slicing.
+
+    end : tvm.te.Tensor
+        Indices indicating end of the slice.
+
+    strides : tvm.te.Tensor
+        Specifies the stride values, it can be negative
+        in that case, the input tensor will be reversed
+        in that particular axis.
+
+    output_shape: list of PrimExpr
+        Specifies the output shape
+
+    Returns
+    -------
+    ret : tvm.te.Tensor
+    """
+    if not isinstance(begin, tvm.te.Tensor):
+        begin = const_vector(begin)
+    if not isinstance(end, tvm.te.Tensor):
+        end = const_vector(end)
+    if not isinstance(strides, tvm.te.Tensor):
+        strides = const_vector(strides)
+    return cpp.relax_dynamic_strided_slice(a, begin, end, strides, output_shape)
 
 
 @tvm.te.tag_scope(tag=tag.INJECTIVE + ",strided_set")
@@ -710,10 +744,8 @@ def sequence_mask(data, valid_length, mask_value=0, axis=0):
         depending on the value of `axis`.
     """
 
-    assert len(data.shape) >= 2, "only support data.ndim >= 2, received data.shape = {}".format(
-        data.shape
-    )
-    assert axis in (0, 1), "only support axis = 0, 1, received axis = {}".format(axis)
+    assert len(data.shape) >= 2, f"only support data.ndim >= 2, received data.shape = {data.shape}"
+    assert axis in (0, 1), f"only support axis = 0, 1, received axis = {axis}"
     return cpp.sequence_mask(data, valid_length, mask_value, axis)
 
 

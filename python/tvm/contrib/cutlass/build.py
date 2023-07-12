@@ -45,11 +45,9 @@ def has_cutlass():
 def _get_cutlass_path():
     tvm_root = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../../../")
     cutlass_path = os.path.join(tvm_root, "3rdparty/cutlass")
-    assert os.path.exists(
-        cutlass_path
-    ), """The CUTLASS root directory not found in {}.
-        Currently, using CUTLASS requires building TVM from source.""".format(
-        cutlass_path
+    assert os.path.exists(cutlass_path), (
+        f"The CUTLASS root directory not found in {cutlass_path}. Currently, using CUTLASS "
+        f"requires building TVM from source."
     )
     return cutlass_path
 
@@ -59,28 +57,32 @@ def _get_cutlass_compile_options(sm, threads, use_fast_math=False):
     cutlass_include = os.path.join(cutlass_root, "include")
     cutlass_util_include = os.path.join(cutlass_root, "tools/util/include")
     cutlass_attention_include = os.path.join(cutlass_root, "examples/41_fused_multi_head_attention")
+    cutlass_fpA_intB_gemm_include = os.path.join(cutlass_root, "../cutlass_fpA_intB_gemm")
 
     kwargs = {}
     kwargs["cc"] = "nvcc"
     kwargs["options"] = [
         "-c",
         "-DCUTLASS_ENABLE_TENSOR_CORE_MMA=1",
-        "-gencode=arch=compute_%d,code=[sm_%d,compute_%d]" % (sm, sm, sm),
+        f"-gencode=arch=compute_{sm},code=[sm_{sm},compute_{sm}]",
+        "-DNDEBUG",
         "-Xcompiler=-fPIC",
         "-Xcompiler=-Wconversion",
         "-Xcompiler=-fno-strict-aliasing",
+        "-Xcompiler=-fvisibility=hidden",
         "-O3",
         "-std=c++17",
-        "-I" + cutlass_include,
-        "-I" + cutlass_util_include,
-        "-I" + cutlass_attention_include,
+        f"-I{cutlass_include}",
+        f"-I{cutlass_util_include}",
+        f"-I{cutlass_attention_include}",
+        f"-I{cutlass_fpA_intB_gemm_include}",
     ]
     if use_fast_math:
         kwargs["options"].append("-DCUTLASS_USE_TANH_FOR_SIGMOID")
     cuda_ver = get_cuda_version()
     if cuda_ver >= (11, 2):
         ncpu = multiprocessing.cpu_count() if threads < 0 else threads
-        kwargs["options"].append("-t %d" % ncpu)
+        kwargs["options"].append(f"-t {ncpu}")
     return kwargs
 
 
@@ -96,8 +98,8 @@ class OpAnnotator(tvm.relay.ExprVisitor):
         if isinstance(op, relay.Function) and "Composite" in op.attrs:
             self.signature["op_type"] = op.attrs["Composite"]
             for i, arg in enumerate(op.params):
-                self.signature["arg%d_shape" % i] = arg.checked_type.shape
-                self.signature["arg%d_dtype" % i] = arg.checked_type.dtype
+                self.signature[f"arg{i}_shape"] = arg.checked_type.shape
+                self.signature[f"arg{i}_dtype"] = arg.checked_type.dtype
             self.signature["ret_shape"] = op.ret_type.shape
             self.signature["ret_dtype"] = op.ret_type.dtype
             self.visit(op.body)
@@ -299,10 +301,7 @@ def handle_conv2d(
         else:
             logger.info("Picked the first kernel found %s", name)
 
-    return {
-        "cutlass_op_def": cutlass_op_def,
-        "cutlass_op_name": name,
-    }
+    return {"cutlass_op_def": cutlass_op_def, "cutlass_op_name": name}
 
 
 def num_cutlass_partitions(mod):
@@ -517,7 +516,7 @@ def tune_cutlass_function(
             )
         )
     else:
-        raise ValueError("%s unsupported composite" % op_type)
+        raise ValueError(f"{op_type} unsupported composite")
 
     new_attrs = tvm.ir.make_node("DictAttrs", **new_attrs)
     return relay.Function(
@@ -546,12 +545,17 @@ def _extract_relax_function_signature(f):
 
     for i, arg in enumerate(f.params):
         sinfo = arg.struct_info
-        signature["arg%d_shape" % i] = get_const_tuple(sinfo.shape)
-        signature["arg%d_dtype" % i] = sinfo.dtype
+        if isinstance(sinfo, relax.TensorStructInfo):
+            signature["arg%d_shape" % i] = get_const_tuple(sinfo.shape)
+            signature["arg%d_dtype" % i] = sinfo.dtype
+        elif isinstance(sinfo, relax.ShapeStructInfo):
+            signature["arg%d_shape" % i] = get_const_tuple(sinfo.values)
+        else:
+            raise NotImplementedError()
 
     ret_sinfo = f.ret_struct_info
     if ret_sinfo.shape is not None:
-        signature["ret_shape"] = list(ret_sinfo.shape)
+        signature["ret_shape"] = get_const_tuple(ret_sinfo.shape)
     else:
         signature["ret_shape"] = None
     signature["ret_dtype"] = ret_sinfo.dtype
@@ -662,29 +666,84 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
             use_multiprocessing=use_multiprocessing,
         )
 
-        return f.with_attrs(
-            {
-                "op_type": op_type,
-                "data_arg_idx": arg_idx["lhs"],
-                "weight_arg_idx": arg_idx["rhs"],
-                "bias_arg_idx": arg_idx.get("bias"),
-                "residual_arg_idx": arg_idx.get("residual"),
-                "arg0_dtype": data_dtype,
-                "arg1_dtype": weight_dtype,
-                "ret_dtype": out_dtype,
-                "arg0_shape": d_shape,
-                "arg1_shape": w_shape,
-                "ret_shape": out_shape,
-                "strides": strides,
-                "padding": padding,
-                "dilation": dilation,
-                "cutlass_op_name": op_name,
-                "cutlass_op_def": op_def,
-            }
-        )
+        attrs = {
+            "op_type": op_type,
+            "data_arg_idx": arg_idx["lhs"],
+            "weight_arg_idx": arg_idx["rhs"],
+            "bias_arg_idx": arg_idx.get("bias"),
+            "residual_arg_idx": arg_idx.get("residual"),
+            "arg0_dtype": data_dtype,
+            "arg1_dtype": weight_dtype,
+            "ret_dtype": out_dtype,
+            "arg0_shape": d_shape,
+            "arg1_shape": w_shape,
+            "ret_shape": out_shape,
+            "strides": strides,
+            "padding": padding,
+            "dilation": dilation,
+            "cutlass_op_name": op_name,
+            "cutlass_op_def": op_def,
+        }
+
+        residual_arg = arg_idx.get("residual")
+
+        if residual_arg:
+            residual_shape = signature[f"arg{residual_arg}_shape"]
+            attrs["residual_shape"] = residual_shape
+        elif "residual" in op_type:
+            attrs["residual_shape"] = d_shape
+
+        return f.with_attrs(attrs)
+
+    def handle_decode_matmul(self, f, op_type):
+        """Annotate a decode -> matmul op."""
+        arg_idx = _extract_arg_idx(op_type, f)
+        signature = _extract_relax_function_signature(f)
+        lhs_arg = f"arg{arg_idx['lhs']}"
+        lhs_shape = signature[f"{lhs_arg}_shape"]
+        attrs = {
+            "op_type": op_type,
+            "lhs_arg_idx": arg_idx["lhs"],
+            "rhs_arg_idx": arg_idx["w_encoded"],
+            "scales_arg_idx": arg_idx["scales"],
+            "bias_arg_idx": arg_idx.get("bias"),
+            "batch_offset": len(lhs_shape) - 2,
+        }
+
+        if "residual" in op_type:
+            residual_pos = op_type.find("residual_")
+            postfix = op_type[residual_pos + len("residual_") :]
+
+            if postfix.startswith("multiply"):
+                binary_op = "multiply"
+            else:
+                binary_op = "plus"
+
+            if "relu" in postfix:
+                unary_op = "relu"
+            else:
+                unary_op = "identity"
+
+            activation = "identity"
+
+            for act in ["relu", "silu", "gelu"]:
+                if act in op_type[op_type.find("matmul_") + len("matmul_") : residual_pos]:
+                    activation = act
+                    break
+
+            attrs.update(
+                {
+                    "unary_op": unary_op,
+                    "binary_op": binary_op,
+                    "activation": activation,
+                    "residual_arg_idx": arg_idx["residual"],
+                }
+            )
+
+        return f.with_attrs(attrs)
 
     def handle_matmul(self, f, op_type):
-        """Tune and annotate a dense op."""
+        """Tune and annotate a matmul op."""
         signature = _extract_relax_function_signature(f)
         arg_idx = _extract_arg_idx(op_type, f)
 
@@ -771,42 +830,73 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
         )
 
     def handle_attention(self, f, op_type):
-        """Tune and annotate a dense op."""
+        """Annotate an attention op."""
         signature = _extract_relax_function_signature(f)
         if _get_call_node(f.body, "relax.nn.attention") is not None:
             op_attrs = _get_call_node(f.body, "relax.nn.attention").attrs
         elif _get_call_node(f.body, "relax.nn.attention_bias") is not None:
             op_attrs = _get_call_node(f.body, "relax.nn.attention_bias").attrs
         else:
-            raise ValueError(f"Cannot find call node for attention")
-        q_shape = signature["arg0_shape"]
-        k_shape = signature["arg1_shape"]
-        v_shape = signature["arg2_shape"]
+            raise ValueError("Cannot find call node for attention")
+        arg = {}
+
+        if "stacked_attention" in op_type:
+            arg["arg0_shape"] = signature["arg0_shape"]
+            arg["arg0_dtype"] = signature["arg0_dtype"]
+            arg["arg1_shape"] = q_shape = signature["arg1_shape"]
+
+            if "arg3_shape" not in signature:
+                # arg0: qkv, arg1: shape, arg2: workspace
+                arg["arg2_shape"] = k_shape = signature["arg1_shape"]
+                arg["arg3_shape"] = v_shape = signature["arg1_shape"]
+            else:
+                # arg0: qkv, arg1: shape1, arg2: shape2, arg3: shape3, arg4: workspace
+                arg["arg2_shape"] = k_shape = signature["arg2_shape"]
+                arg["arg3_shape"] = v_shape = signature["arg3_shape"]
+
+            if "arg5_dtype" in signature:
+                # arg0: qkv, arg1: shape1, arg2: shape2, arg3: shape3, arg4: bias, arg5: workspace
+                arg["bias_dtype"] = signature["arg4_dtype"]
+            if "arg5_shape" in signature:
+                arg["bias_shape"] = signature["arg4_shape"]
+
+            qkv_layout = "qkv_stacked"
+        else:
+            # arg0: q, arg1: k, arg2: v,  arg3: bias, arg4: workspace
+            arg["arg0_shape"] = q_shape = signature["arg0_shape"]
+            arg["arg1_shape"] = k_shape = signature["arg1_shape"]
+            arg["arg2_shape"] = v_shape = signature["arg2_shape"]
+            arg["arg0_dtype"] = signature["arg0_dtype"]
+            arg["arg1_dtype"] = signature["arg1_dtype"]
+            arg["arg2_dtype"] = signature["arg2_dtype"]
+
+            if "arg4_dtype" in signature:
+                arg["bias_dtype"] = signature["arg3_dtype"]
+            if "arg4_shape" in signature:
+                arg["bias_shape"] = signature["arg3_shape"]
+
+            qkv_layout = "default"
+
         out_shape = signature["ret_shape"]
-        q_dtype = signature["arg0_dtype"]
-        k_dtype = signature["arg1_dtype"]
-        v_dtype = signature["arg2_dtype"]
         out_dtype = signature["ret_dtype"]
         num_batches, num_queries, num_heads, head_dim = q_shape
         _, num_keys, _, _ = k_shape
         _, _, _, head_dim_value = v_shape
         scale = op_attrs.scale
-        bias = {}
-        if "arg3_dtype" in signature:
-            bias["arg3_dtype"] = signature["arg3_dtype"]
-        if "arg3_shape" in signature:
-            bias["arg3_shape"] = signature["arg3_shape"]
+
+        if op_attrs.causal_mask is None:
+            custom_mask_type = 0
+        elif op_attrs.causal_mask == "TopLeft":
+            custom_mask_type = 1
+        elif op_attrs.causal_mask == "BottomRight":
+            custom_mask_type = 2
+        else:
+            raise NotImplementedError()
 
         return f.with_attrs(
             {
                 "op_type": op_type,
-                "arg0_dtype": q_dtype,
-                "arg1_dtype": k_dtype,
-                "arg2_dtype": v_dtype,
                 "ret_dtype": out_dtype,
-                "arg0_shape": q_shape,
-                "arg1_shape": k_shape,
-                "arg2_shape": v_shape,
                 "ret_shape": out_shape,
                 "num_batches": num_batches,
                 "num_queries": num_queries,
@@ -816,23 +906,52 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
                 "head_dim_value": head_dim_value,
                 "scale": scale,
                 "arch": self.options["sm"],
-                **bias,
+                "qkv_layout": qkv_layout,
+                "custom_mask_type": custom_mask_type,
+                **arg,
             }
         )
+
+    def handle_layer_norm(self, f, _):
+        """Annotate a layer norm op."""
+        signature = _extract_relax_function_signature(f)
+        attrs = {}
+        attrs["M"] = reduce(operator.mul, signature["arg0_shape"][:-1], 1)
+        attrs["N"] = signature["arg0_shape"][-1]
+        dtype = signature["arg0_dtype"]
+        attrs["data_type"] = {"float32": "float", "float16": "cutlass::half_t"}[str(dtype)]
+        return f.with_attrs(attrs)
+
+    def handle_rms_norm(self, f, _):
+        """Annotate a rms norm op."""
+        signature = _extract_relax_function_signature(f)
+        attrs = {}
+        attrs["batch_rank"] = len(signature["arg0_shape"][:-1])
+        attrs["M"] = reduce(operator.mul, signature["arg0_shape"][:-1], 1)
+        attrs["N"] = signature["arg0_shape"][-1]
+        dtype = signature["arg0_dtype"]
+        attrs["data_type"] = {"float32": "float", "float16": "cutlass::half_t"}[str(dtype)]
+        return f.with_attrs(attrs)
 
     def visit_function_(self, f):
         if "Composite" not in f.attrs:
             body = super().visit_expr(f.body)
-            return relax.Function(f.params, body, f.ret_struct_info, f.attrs, f.span)
+            return relax.Function(f.params, body, f.ret_struct_info, f.is_pure, f.attrs, f.span)
 
         op_type = f.attrs["Composite"]
 
         if "conv2d" in op_type:
             return self.handle_conv2d(f, op_type)
+        elif "decode" in op_type:
+            return self.handle_decode_matmul(f, op_type)
         elif "matmul" in op_type:
             return self.handle_matmul(f, op_type)
         elif "attention" in op_type:
             return self.handle_attention(f, op_type)
+        elif "layer_norm" in op_type:
+            return self.handle_layer_norm(f, op_type)
+        elif "rms_norm" in op_type:
+            return self.handle_rms_norm(f, op_type)
 
         raise ValueError("Unsupported composite {}".format(op_type))
 

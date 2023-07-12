@@ -190,6 +190,22 @@ class WmmaToGlobal : public RewriteRule {
 };
 
 /*!
+ * \brief Add a cache stage in shared memory. Perform tensor core rewrite for mma->shared, and
+ *  perform coalescing and vectorizing for shared->global.
+ */
+class MmaToGlobal : public RewriteRule {
+ public:
+  MmaToGlobal() = default;
+  Stmt Rewrite(const Stmt& stmt, const ConstraintSet& constraints, OutputSet* output) const final;
+  bool CanApply(const Stmt& stmt, const ConstraintSet& constraints) const final {
+    Buffer src_buffer = constraints.read_region->buffer;
+    Buffer tgt_buffer = constraints.write_region->buffer;
+    return IsCopyBetweenScope(src_buffer, tgt_buffer, runtime::StorageRank::kMMAMatrixC,
+                              runtime::StorageRank::kGlobal);
+  }
+};
+
+/*!
  * \brief Rewrite shared->wmma data copy with load_matrix_sync
  */
 class SharedToWmma : public RewriteRule {

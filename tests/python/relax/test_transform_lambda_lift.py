@@ -42,7 +42,7 @@ def test_basic():
     # the target IRModule
     @tvm.script.ir_module
     class Expected:
-        @R.function
+        @R.function(private=True)
         def lifted_func_0(
             x2: R.Tensor((10, 5), "float32"), y2: R.Tensor((10, 5), "float32")
         ) -> R.Tensor((10, 5), "float32"):
@@ -92,15 +92,17 @@ def test_closure():
         ) -> R.Tensor((2, 3), "float32"):
             outer_func = Expected.lifted_func_0
             in_call = outer_func(x)
-            res = R.invoke_closure(in_call, (y,), sinfo_args=(R.Tensor((2, 3), dtype="float32")))
+            res = R.invoke_pure_closure(
+                in_call, (y,), sinfo_args=(R.Tensor((2, 3), dtype="float32"))
+            )
             return res
 
-        @R.function
+        @R.function(private=True)
         def lifted_func_1(x1: R.Tensor((2, 3), "float32"), c1: R.Tensor((2, 3), "float32")):
             r_1: R.Tensor((2, 3), "float32") = R.add(x1, c1)
             return r_1
 
-        @R.function
+        @R.function(private=True)
         def lifted_func_0(y: R.Tensor((2, 3), "float32")) -> R.Object:
             inner_func = R.make_closure(Expected.lifted_func_1, (y,))
             return inner_func
@@ -138,11 +140,11 @@ def test_recursive():
     # the expected IRModule
     @tvm.script.ir_module
     class Expected:
-        @R.function
+        @R.function(private=True)
         def lifted_func_0(
             i: R.Tensor((), "int32"), s: R.Tensor((2, 3), "float32"), x: R.Tensor((2, 3), "float32")
         ) -> R.Tensor((2, 3), "float32"):
-            cond: R.Tensor((), "bool") = R.call_packed(
+            cond: R.Tensor((), "bool") = R.call_pure_packed(
                 "test.vm.less", i, R.const(10), sinfo_args=(R.Tensor((), dtype="bool"))
             )
             c: R.Tensor((), "int32") = R.const(1, dtype="int32")
@@ -158,7 +160,7 @@ def test_recursive():
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), dtype="float32"):
             while_loop = R.make_closure(Expected.lifted_func_0, (x,))
-            gv: R.Tensor((2, 3), dtype="float32") = R.invoke_closure(
+            gv: R.Tensor((2, 3), dtype="float32") = R.invoke_pure_closure(
                 while_loop,
                 (R.const(0), x),
                 sinfo_args=(R.Tensor((2, 3), dtype="float32")),
@@ -174,7 +176,7 @@ def test_recursive():
             def while_loop(
                 i: R.Tensor((), "int32"), s: R.Tensor((2, 3), "float32")
             ) -> R.Tensor((2, 3), "float32"):
-                cond: R.Tensor((), "bool") = R.call_packed(
+                cond: R.Tensor((), "bool") = R.call_pure_packed(
                     "test.vm.less", i, R.const(10), sinfo_args=(R.Tensor((), dtype="bool"))
                 )
                 c: R.Tensor((), "int32") = R.const(1, dtype="int32")
@@ -222,14 +224,14 @@ def test_multi_func():
             gv11: R.Tensor((10, 5), "float32") = inner(x11, y11)
             return gv11
 
-        @R.function
+        @R.function(private=True)
         def lifted_func_0(
             x2: R.Tensor((10, 5), "float32"), y2: R.Tensor((10, 5), "float32")
         ) -> R.Tensor((10, 5), "float32"):
             s: R.Tensor((10, 5), "float32") = R.add(x2, y2)
             return s
 
-        @R.function
+        @R.function(private=True)
         def lifted_func_1(
             x21: R.Tensor((10, 5), "float32"), y21: R.Tensor((10, 5), "float32")
         ) -> R.Tensor((10, 5), "float32"):
@@ -300,6 +302,40 @@ def test_no_local_func():
     after = transform.LambdaLift()(before)
     # No local functions are lifted
     assert_structural_equal(after, before, map_free_vars=True)
+    _check_save_roundtrip(after)
+
+
+def test_impure_function():
+    @tvm.script.ir_module
+    class Expected:
+        @R.function(pure=False, private=True)
+        def lifted_func_0() -> R.Tuple:
+            y = R.print(format="Wow!")
+            return y
+
+        @R.function(pure=False)
+        def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+            inner = Expected.lifted_func_0
+            gv1 = inner()
+            return x
+
+    @tvm.script.ir_module
+    class Before:
+        @R.function(pure=False)
+        def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+            @R.function(pure=False)
+            def inner() -> R.Tuple:
+                y = R.print(format="Wow!")
+                return y
+
+            gv1 = inner()
+            return x
+
+    before = Before
+    expected = Expected
+    after = transform.LambdaLift()(before)
+    assert len(after.functions) == 2
+    assert_structural_equal(after, expected, map_free_vars=True)
     _check_save_roundtrip(after)
 
 

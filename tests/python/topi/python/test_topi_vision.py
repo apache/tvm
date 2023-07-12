@@ -364,41 +364,57 @@ class TestMultiboxPrior:
         tvm.testing.assert_allclose(tvm_out.numpy(), np_out, rtol=1e-3)
 
 
-def test_multibox_detection(target, dev):
-    batch_size = 1
-    num_anchors = 3
-    num_classes = 3
-    cls_prob = te.placeholder((batch_size, num_anchors, num_classes), name="cls_prob")
-    loc_preds = te.placeholder((batch_size, num_anchors * 4), name="loc_preds")
-    anchors = te.placeholder((1, num_anchors, 4), name="anchors")
+class TestMultiboxDetection:
+    (batch_size,) = tvm.testing.parameters((1,), (6,))
 
-    # Manually create test case
-    np_cls_prob = np.array([[[0.2, 0.5, 0.3], [0.25, 0.3, 0.45], [0.7, 0.1, 0.2]]])
-    np_loc_preds = np.array([[0.1, -0.2, 0.3, 0.2, 0.2, 0.4, 0.5, -0.3, 0.7, -0.2, -0.4, -0.8]])
-    np_anchors = np.array([[[-0.1, -0.1, 0.1, 0.1], [-0.2, -0.2, 0.2, 0.2], [1.2, 1.2, 1.5, 1.5]]])
-
-    expected_np_out = np.array(
-        [
+    @tvm.testing.fixture(cache_return_value=True)
+    def ref_data(
+        self,
+        batch_size,
+    ):
+        # Manually create test case
+        np_cls_prob = np.array([[[0.2, 0.5, 0.3], [0.25, 0.3, 0.45], [0.7, 0.1, 0.2]]] * batch_size)
+        np_loc_preds = np.array(
+            [[0.1, -0.2, 0.3, 0.2, 0.2, 0.4, 0.5, -0.3, 0.7, -0.2, -0.4, -0.8]] * batch_size
+        )
+        np_anchors = np.array(
+            [[[-0.1, -0.1, 0.1, 0.1], [-0.2, -0.2, 0.2, 0.2], [1.2, 1.2, 1.5, 1.5]]] * batch_size
+        )
+        expected_np_out = np.array(
             [
-                [1, 0.69999999, 0, 0, 0.10818365, 0.10008108],
-                [0, 0.44999999, 1, 1, 1, 1],
-                [0, 0.30000001, 0, 0, 0.22903419, 0.20435292],
+                [
+                    [1, 0.69999999, 0, 0, 0.10818365, 0.10008108],
+                    [0, 0.44999999, 1, 1, 1, 1],
+                    [0, 0.30000001, 0, 0, 0.22903419, 0.20435292],
+                ]
             ]
-        ]
-    )
+            * batch_size
+        )
+        return np_cls_prob, np_loc_preds, np_anchors, expected_np_out
 
-    fcompute, fschedule = tvm.topi.testing.dispatch(target, _multibox_detection_implement)
-    with tvm.target.Target(target):
-        out = fcompute(cls_prob, loc_preds, anchors)
-        s = fschedule(out)
+    def test_multibox_detection(self, target, dev, ref_data):
 
-    tvm_cls_prob = tvm.nd.array(np_cls_prob.astype(cls_prob.dtype), dev)
-    tvm_loc_preds = tvm.nd.array(np_loc_preds.astype(loc_preds.dtype), dev)
-    tvm_anchors = tvm.nd.array(np_anchors.astype(anchors.dtype), dev)
-    tvm_out = tvm.nd.array(np.zeros((batch_size, num_anchors, 6)).astype(out.dtype), dev)
-    f = tvm.build(s, [cls_prob, loc_preds, anchors, out], target)
-    f(tvm_cls_prob, tvm_loc_preds, tvm_anchors, tvm_out)
-    tvm.testing.assert_allclose(tvm_out.numpy(), expected_np_out, rtol=1e-4)
+        np_cls_prob, np_loc_preds, np_anchors, expected_np_out = ref_data
+
+        batch_size = np_cls_prob.shape[0]
+        num_anchors = 3
+        num_classes = 3
+        cls_prob = te.placeholder((batch_size, num_anchors, num_classes), name="cls_prob")
+        loc_preds = te.placeholder((batch_size, num_anchors * 4), name="loc_preds")
+        anchors = te.placeholder((batch_size, num_anchors, 4), name="anchors")
+
+        fcompute, fschedule = tvm.topi.testing.dispatch(target, _multibox_detection_implement)
+        with tvm.target.Target(target):
+            out = fcompute(cls_prob, loc_preds, anchors)
+            s = fschedule(out)
+
+        tvm_cls_prob = tvm.nd.array(np_cls_prob.astype(cls_prob.dtype), dev)
+        tvm_loc_preds = tvm.nd.array(np_loc_preds.astype(loc_preds.dtype), dev)
+        tvm_anchors = tvm.nd.array(np_anchors.astype(anchors.dtype), dev)
+        tvm_out = tvm.nd.array(np.zeros((batch_size, num_anchors, 6)).astype(out.dtype), dev)
+        f = tvm.build(s, [cls_prob, loc_preds, anchors, out], target)
+        f(tvm_cls_prob, tvm_loc_preds, tvm_anchors, tvm_out)
+        tvm.testing.assert_allclose(tvm_out.numpy(), expected_np_out, rtol=1e-4)
 
 
 class TestRoiAlign:

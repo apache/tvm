@@ -36,6 +36,21 @@ def test_copy_with_new_vars():
         assert before_var != after_var
 
 
+def test_copy_with_new_vars_copied_symbolic_vars():
+    @R.function
+    def before(x: R.Tensor(("m",), "float32"), y: R.Tensor(("m",), "float32")):
+        gv = R.add(x, y)
+        return gv
+
+    after = relax.utils.copy_with_new_vars(before)
+    assert_structural_equal(after, before)
+
+    assert len(after.params) == len(before.params)
+    for before_var, after_var in zip(before.params, after.params):
+        assert before_var != after_var
+        assert before_var.struct_info.shape[0] != after_var.struct_info.shape[0]
+
+
 def test_copy_with_new_vars_on_ir_module():
     @tvm.script.ir_module
     class Actual:
@@ -56,7 +71,9 @@ def test_copy_with_new_vars_on_ir_module():
             gv = R.add(x, y)
             return gv
 
-    Actual["func_copied"] = relax.utils.copy_with_new_vars(Actual["func"])
+    Actual["func_copied"] = relax.utils.copy_with_new_vars(Actual["func"]).with_attr(
+        "global_symbol", "func_copied"
+    )
 
     # Assertion will fail if the f_copied contains the same VarNode that's used in
     # the original function, due to var mapping during structural equal.
@@ -98,7 +115,9 @@ def test_copy_with_new_vars_on_ir_module_nested_function():
             gv = R.add(x, y)
             return gv
 
-    Actual["func_copied"] = relax.utils.copy_with_new_vars(Actual["func"])
+    Actual["func_copied"] = relax.utils.copy_with_new_vars(Actual["func"]).with_attr(
+        "global_symbol", "func_copied"
+    )
 
     assert_structural_equal(Actual, Expected)
 

@@ -17,6 +17,9 @@
  * under the License.
  */
 
+#include "transform/utils.h"
+
+#include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 
 namespace tvm {
@@ -52,7 +55,9 @@ class ExprBinder : public ExprMutator {
     if (all_params_unchanged && body.same_as(op->body)) {
       return GetRef<Expr>(op);
     } else {
-      return Function(params, body, VisitExprDepStructInfoField(op->ret_struct_info), op->attrs);
+      // purity won't be affected, no need to update annotation
+      return Function(params, body, VisitExprDepStructInfoField(op->ret_struct_info), op->is_pure,
+                      op->attrs);
     }
   }
 
@@ -109,32 +114,25 @@ bool IsLeafOrTuple(const Expr& expr) {
          expr.as<OpNode>() || expr.as<TupleNode>();
 }
 
-class FunctionCopier : public ExprMutator {
- public:
-  static Function Transform(Function func) {
-    FunctionCopier copier;
-    // All variables that are bound inside the original function would be copied
-    // to satisfy the restriction in the well-formed check: Variables in Relax
-    // must be bound exactly once.
-    return Downcast<Function>(copier.VisitExpr(func));
+bool IsImpureCall(const Call& call) {
+  if (auto op_ptr = call->op.as<OpNode>()) {
+    auto op = GetRef<Op>(op_ptr);
+    static auto purity_map = Op::GetAttrMap<Bool>("FPurity");
+    ICHECK(purity_map.count(op)) << "Cannot find the registered purity of this op: " << op->name;
+    return !(purity_map[op]->value);
   }
+  // the StructInfo must be FuncStructInfo
+  auto func_struct_info = GetStructInfoAs<FuncStructInfoNode>(call->op);
+  return !func_struct_info->purity;
+}
 
-  Var VisitVarDef_(const DataflowVarNode* var) override {
-    Var new_var = ExprMutator::VisitVarDef_(var);
-    Var copied_var = DataflowVar(new_var->name_hint(), GetStructInfo(new_var), new_var->span);
-    var_remap_[var->vid] = copied_var;
-    return copied_var;
-  }
-
-  Var VisitVarDef_(const VarNode* var) override {
-    Var new_var = ExprMutator::VisitVarDef_(var);
-    Var copied_var = Var(new_var->name_hint(), GetStructInfo(new_var), new_var->span);
-    var_remap_[var->vid] = copied_var;
-    return copied_var;
-  }
-};
-
-Function CopyWithNewVars(Function func) { return FunctionCopier::Transform(func); }
+/*!
+ * \brief Copy a new Relax function with new remapped vars and symbolic vars.
+ * To get the var mapping from old vars to new vars, see FuncCopier in src/relax/transform/utils.h.
+ * \param func The Relax function we want to copy.
+ * \return The copied function.
+ */
+Function CopyWithNewVars(Function func) { return FunctionCopier().Copy(func); }
 
 TVM_REGISTER_GLOBAL("relax.CopyWithNewVars").set_body_typed(CopyWithNewVars);
 

@@ -49,8 +49,8 @@ class UnsafeExprDetector : public ExprFunctor<bool(const PrimExpr& n)> {
         }
       }
       return false;
-    } else if (auto* ptr_op = op->op.as<OpNode>()) {
-      auto effect_kind = op_call_effect_[GetRef<Op>(ptr_op)];
+    } else if (auto opt = op->op.as<Op>()) {
+      auto effect_kind = op_call_effect_[opt.value()];
       if (effect_kind == CallEffectKind::kPure || effect_kind == CallEffectKind::kExprAnnotation) {
         for (PrimExpr e : op->args) {
           if (VisitExpr(e)) return true;

@@ -32,6 +32,7 @@ import argparse
 import logging
 import socket
 import struct
+import sys
 
 import tvm.micro.debugger as _  # NOTE: imported to expose global PackedFuncs over RPC.
 
@@ -130,7 +131,12 @@ def main():
         importlib.import_module(args.impl, package)
 
     sock = socket.socket(base.get_addr_family([args.host, args.port]), socket.SOCK_STREAM)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    # Never set socket SO_REUSEADDR on Windows. The SO_REUSEADDR flag allow reusing the
+    # inactivate TIME_WATI state sockets on POSIX, but on Windows it will allow two or more
+    # activate sockets to bind on the same address and port if they all set SO_REUSEADDR,
+    # and result in indeterminate behavior.
+    if reuse_addr and sys.platform != "win32":
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.bind((args.host, args.port))
     sock.listen(1)
     bind_addr, bind_port = sock.getsockname()

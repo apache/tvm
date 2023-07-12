@@ -37,18 +37,19 @@ namespace relax {
  *  1. be prepended with a prefix "relax.op." as the FFI identifier string for the make function,
  *  2. be prepended with a prefix "relax." as the identifier string in the operator registry.
  */
-#define RELAX_REGISTER_BINARY_OP_AND_IMPL(OpName)                               \
-  Expr OpName(Expr x1, Expr x2) {                                               \
-    static const Op& op = Op::Get("relax." #OpName);                            \
-    return Call(op, {x1, x2}, Attrs(), {});                                     \
-  }                                                                             \
-  TVM_REGISTER_GLOBAL("relax.op." #OpName).set_body_typed(OpName);              \
-  TVM_REGISTER_OP("relax." #OpName)                                             \
-      .set_num_inputs(2)                                                        \
-      .add_argument("x1", "Tensor", "The first input tensor.")                  \
-      .add_argument("x2", "Tensor", "The second input tensor.")                 \
-      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutBinaryEwise) \
-      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+#define RELAX_REGISTER_BINARY_OP_AND_IMPL(OpName)                                                  \
+  Expr OpName(Expr x1, Expr x2) {                                                                  \
+    static const Op& op = Op::Get("relax." #OpName);                                               \
+    return Call(op, {x1, x2}, Attrs(), {});                                                        \
+  }                                                                                                \
+  TVM_REGISTER_GLOBAL("relax.op." #OpName).set_body_typed(OpName);                                 \
+  TVM_REGISTER_OP("relax." #OpName)                                                                \
+      .set_num_inputs(2)                                                                           \
+      .add_argument("x1", "Tensor", "The first input tensor.")                                     \
+      .add_argument("x2", "Tensor", "The second input tensor.")                                    \
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutBinaryEwise)                    \
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow) \
+      .set_attr<Bool>("FPurity", Bool(true))
 
 #define RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(OpName)             \
   RELAX_REGISTER_BINARY_OP_AND_IMPL(OpName).set_attr<FInferStructInfo>( \
@@ -105,6 +106,28 @@ Expr minimum(Expr x1, Expr x2);
 
 /*! \brief Element-wise maximum */
 Expr maximum(Expr x1, Expr x2);
+
+/***************** Logical operators *****************/
+
+/*! \brief Broadcasted element-wise logical and */
+Expr logical_and(Expr x1, Expr x2);
+
+/*! \brief Broadcasted element-wise logical or */
+Expr logical_or(Expr x1, Expr x2);
+
+/*! \brief Broadcasted element-wise logical xor */
+Expr logical_xor(Expr x1, Expr x2);
+
+/***************** Bitwise operators *****************/
+
+/*! \brief Broadcasted element-wise bitwise and */
+Expr bitwise_and(Expr x1, Expr x2);
+
+/*! \brief Broadcasted element-wise bitwise or */
+Expr bitwise_or(Expr x1, Expr x2);
+
+/*! \brief Broadcasted element-wise bitwise xor */
+Expr bitwise_xor(Expr x1, Expr x2);
 
 }  // namespace relax
 }  // namespace tvm

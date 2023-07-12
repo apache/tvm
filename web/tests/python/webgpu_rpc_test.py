@@ -44,7 +44,7 @@ def test_rpc():
     mod = tvm.IRModule.from_expr(te.create_prim_func([A, B]))
     sch = tvm.tir.Schedule(mod)
     (i,) = sch.get_loops(block=sch.get_block("B"))
-    i0, i1 = sch.split(i, [None, 128])
+    i0, i1 = sch.split(i, [None, 32])
     sch.bind(i0, "blockIdx.x")
     sch.bind(i1, "threadIdx.x")
 
@@ -76,7 +76,7 @@ def test_rpc():
         np.testing.assert_allclose(b.numpy(), np.log(np.abs(a.numpy()) + 1), atol=1e-5, rtol=1e-5)
         print("Test pass..")
 
-    check(remote, 2049)
+    check(remote, 71821 * 32)
 
 
 test_rpc()

@@ -14,7 +14,4 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-"""External backend codegen modules for Relax."""
-
-from .cutlass import partition_for_cutlass
+"""Relax backends contrib"""

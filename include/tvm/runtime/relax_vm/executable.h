@@ -33,6 +33,12 @@
 
 #include "./bytecode.h"
 
+// Convention: this version should set to minimum TVM version it support
+// NOTE: this file only changes if we change relax vm format
+// for example if relax vm format do not change in 0.15, this should remain as 0.14
+// if it changes in 0.16, we will change it to 0.16
+#define RELAX_VM_VERSION "0.14"
+
 namespace tvm {
 namespace runtime {
 namespace relax_vm {
@@ -87,7 +93,7 @@ class Executable : public runtime::ModuleNode {
    * \param sptr_to_self The shared_ptr that points to this module node.
    * \return PackedFunc or nullptr when it is not available.
    */
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final;
 
   /*! \brief Get the property of the runtime module .*/
   int GetPropertyMask() const final { return ModulePropertyMask::kBinarySerializable; };
@@ -137,13 +143,13 @@ class Executable : public runtime::ModuleNode {
    * \param file_name The name of the file to write the serialized data to.
    * \param format The target format of the saved file.
    */
-  void SaveToFile(const std::string& file_name, const std::string& format) final;
+  void SaveToFile(const String& file_name, const String& format) final;
   /*!
    * \brief Load Executable from the file.
    * \param file_name The path of the file that load the executable from.
    * \return The loaded executable, in the form of a `runtime::Module`.
    */
-  static Module LoadFromFile(const std::string& file_name);
+  static Module LoadFromFile(const String& file_name);
 
   /*! \brief The virtual machine's function table. */
   std::vector<VMFuncInfo> func_table;

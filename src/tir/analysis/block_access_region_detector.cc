@@ -60,6 +60,8 @@ class BlockReadWriteDetector : public StmtExprVisitor {
   std::unordered_map<const VarNode*, arith::IntSet> dom_map_;
   /*! \brief Extra iteration range hint for free vars */
   std::unordered_map<const VarNode*, arith::IntSet> hint_map_;
+  /*! \brief Unresolved conditions within current scope. */
+  std::vector<PrimExpr> pending_conditions_;
   /*! \brief The buffers that the current block reads */
   std::vector<Buffer> read_buffers_;
   /*! \brief The buffers that the current block writes */
@@ -76,6 +78,8 @@ class BlockReadWriteDetector : public StmtExprVisitor {
   Map<Var, Buffer> buffer_var_map_;
   /*! \brief The target buffer var mapping to its matching */
   std::unordered_map<const VarNode*, MatchBufferRegion> match_buffers_;
+  /*!\ brief Internal analyzer. */
+  arith::Analyzer ana_;
 
   /*!
    * \brief Update read/write buffers and regions with provided buffer and region
@@ -162,12 +166,12 @@ void BlockReadWriteDetector::VisitStmt_(const IfThenElseNode* op) {
   VisitExpr(op->condition);
   {
     // Visit then branch
-    With<ConditionalBoundsContext> ctx(op->condition, &dom_map_, &hint_map_, true);
+    With<ConditionalBoundsContext> ctx(op->condition, &dom_map_, &hint_map_, &pending_conditions_);
     StmtExprVisitor::VisitStmt(op->then_case);
   }
   if (op->else_case) {
     // Visit else branch
-    With<ConditionalBoundsContext> ctx(op->condition, &dom_map_, &hint_map_, false);
+    With<ConditionalBoundsContext> ctx(!op->condition, &dom_map_, &hint_map_, &pending_conditions_);
     StmtExprVisitor::VisitStmt(op->else_case.value());
   }
 }
@@ -205,12 +209,12 @@ void BlockReadWriteDetector::VisitExpr_(const CallNode* op) {
     VisitExpr(op->args[0]);
     {
       // Visit then branch
-      With<ConditionalBoundsContext> ctx(op->args[0], &dom_map_, &hint_map_, true);
+      With<ConditionalBoundsContext> ctx(op->args[0], &dom_map_, &hint_map_, &pending_conditions_);
       StmtExprVisitor::VisitExpr(op->args[1]);
     }
     {
       // Visit else branch
-      With<ConditionalBoundsContext> ctx(op->args[0], &dom_map_, &hint_map_, false);
+      With<ConditionalBoundsContext> ctx(!op->args[0], &dom_map_, &hint_map_, &pending_conditions_);
       StmtExprVisitor::VisitExpr(op->args[2]);
     }
     return;
@@ -318,7 +322,7 @@ Array<BufferRegion> BlockReadWriteDetector::CollectRegions(
     ICHECK_EQ(buffers[i]->shape.size(), regions[i].size());
     for (size_t j = 0; j < regions[i].size(); j++) {
       const tvm::arith::IntSet& range = regions[i][j];
-      if (range.IsSinglePoint()) {
+      if (range.CanProveSinglePoint(&ana_)) {
         PrimExpr min = range.min();
         region.push_back(Range::FromMinExtent(min, make_const(min.dtype(), 1)));
       } else {

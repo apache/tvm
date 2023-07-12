@@ -53,10 +53,12 @@ NDArray AllocShapeHeap(void* ctx_ptr, int64_t size) {
   VirtualMachine* vm = static_cast<VirtualMachine*>(ctx_ptr);
   // use host allocator, which is always last element.
   size_t host_device_index = vm->devices.size() - 1;
-  // specialy handle hexagon on-device RT.
+  // specially handle hexagon on-device RT.
   // TODO(relax-team): visit and consider other possible choices.
   if (vm->devices[0].device_type == kDLHexagon) {
     host_device_index = 0;
+  } else {
+    ICHECK_EQ(vm->devices[host_device_index].device_type, kDLCPU);
   }
   auto* alloc = vm->allocators[host_device_index];
   return alloc->Empty({size}, DLDataType{kDLInt, 64, 1}, vm->devices[host_device_index]);
@@ -241,12 +243,10 @@ TVM_REGISTER_GLOBAL("vm.builtin.check_func_info").set_body_typed(CheckFuncInfo);
 //-------------------------------------------------
 //  Storage management.
 //-------------------------------------------------
-Storage VMAllocStorage(void* ctx_ptr, ShapeTuple buffer_size, Index device_index,
-                       DLDataType dtype_hint) {
+Storage VMAllocStorage(void* ctx_ptr, ShapeTuple buffer_shape, Index device_index,
+                       DLDataType dtype_hint, String mem_scope) {
   VirtualMachine* vm = static_cast<VirtualMachine*>(ctx_ptr);
 
-  ICHECK_EQ(buffer_size.size(), 1);
-  int alignment = runtime::kAllocAlignment;
   ICHECK_LT(device_index, vm->devices.size())
       << "The device index is out of VM physical devices list";
 
@@ -255,12 +255,11 @@ Storage VMAllocStorage(void* ctx_ptr, ShapeTuple buffer_size, Index device_index
     device_index = vm->devices.size() - 1;
   }
 
-  int64_t size_imm = buffer_size[0];
-
   auto storage_obj = runtime::SimpleObjAllocator().make_object<StorageObj>();
   auto* alloc = vm->allocators[device_index];
   ICHECK(alloc) << "Did you forget to init the VirtualMachine with devices?";
-  storage_obj->buffer = alloc->Alloc(size_imm, alignment, dtype_hint);
+
+  storage_obj->buffer = alloc->Alloc(buffer_shape, dtype_hint, mem_scope);
   Storage storage(storage_obj);
   return storage;
 }
@@ -321,6 +320,11 @@ TVM_REGISTER_GLOBAL("vm.builtin.copy").set_body([](TVMArgs args, TVMRetValue* rv
 
 TVM_REGISTER_GLOBAL("vm.builtin.reshape").set_body_typed([](NDArray data, ShapeTuple new_shape) {
   return data.CreateView(new_shape, data->dtype);
+});
+
+TVM_REGISTER_GLOBAL("vm.builtin.null_value").set_body([](TVMArgs args, TVMRetValue* rv) {
+  CHECK_EQ(args.size(), 0);
+  *rv = nullptr;
 });
 
 /*!

@@ -137,7 +137,7 @@ class _ArgsConverter:
         """
 
         if any([x in args_to_list_expr for x in args_to_expr]):
-            raise ValueError(f"`args_to_expr` and `args_to_list_expr` should be disjoint.")
+            raise ValueError("`args_to_expr` and `args_to_list_expr` should be disjoint.")
 
         def _convert(name: str, value: Any) -> Any:
             if value is None:
@@ -348,7 +348,10 @@ def gen_call_tir_inputs(
 
             tir.stmt_functor.post_order_visit(expr, _visit_expr)
 
+        n_tensor = 0
+
         def _convert_te_arg_helper(arg):
+            nonlocal n_tensor
             if isinstance(arg, Expr):  # type: ignore
                 if isinstance(arg.struct_info, TensorStructInfo):
                     assert isinstance(
@@ -357,7 +360,9 @@ def gen_call_tir_inputs(
                     for shape_value in arg.struct_info.shape.values:
                         _copy_undefined_var(shape_value)
 
-                    arg = te_tensor(arg, tir_var_map)
+                    name = chr(ord("A") + n_tensor) if n_tensor < 26 else f"input{n_tensor}"
+                    arg = te_tensor(arg, tir_var_map, name)
+                    n_tensor += 1
                     te_args_list.append(arg)
                     return arg
                 if isinstance(arg.struct_info, ShapeStructInfo):

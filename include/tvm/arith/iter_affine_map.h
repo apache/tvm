@@ -349,12 +349,13 @@ IterMapResult DetectIterMap(const Array<PrimExpr>& indices, const Map<Var, Range
  * \param input_iters Map from variable to iterator's range.
  * \param input_pred The predicate constraints on the input iterators
  * \param check_level The iter mapping checking level.
+ * \param analyzer Analyzer used to get context information.
  * \param simplify_trivial_iterators If true, iterators with unit extents are simplified
  * \return The indices after rewrite
  */
 Array<PrimExpr> IterMapSimplify(const Array<PrimExpr>& indices, const Map<Var, Range>& input_iters,
                                 const PrimExpr& input_pred, IterMapLevel check_level,
-                                bool simplify_trivial_iterators = true);
+                                arith::Analyzer* analyzer, bool simplify_trivial_iterators = true);
 
 /*!
  * \brief Apply the inverse of the affine transformation to the outputs.
@@ -418,6 +419,25 @@ Array<Array<IterMark>> SubspaceDivide(const Array<PrimExpr>& bindings,
  * \return The corresponding normal PrimExpr.
  */
 PrimExpr NormalizeIterMapToExpr(const PrimExpr& expr);
+
+/*!
+ * \brief Rewrite index as IterSumExpr
+ *
+ * ((i0 // b0) % a0) * s0 + ((i0 // b1) % a1) * s1 ... + base
+ *
+ * The iterators are ordered such that s0 > s1 ...
+ * if we can prove the relation.
+ *
+ * Note that base may contain expressions that cannot be detected
+ * as the right pattern.
+ *
+ * \param index The input index
+ * \param input_iters The input iterators.
+ * \param analyzer The input analyzer.
+ * \note This function is useful to detect iterator stride patterns.
+ */
+IterSumExpr NormalizeToIterSum(PrimExpr index, const Map<Var, Range>& input_iters,
+                               arith::Analyzer* analyzer);
 
 }  // namespace arith
 }  // namespace tvm

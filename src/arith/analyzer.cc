@@ -25,6 +25,9 @@
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 
+#include "const_fold.h"
+#include "product_normal_form.h"
+
 namespace tvm {
 namespace arith {
 
@@ -59,6 +62,56 @@ void Analyzer::Bind(const Var& var, const Range& range, bool allow_override) {
   }
   // skip modular_set
   // skip rewrite simplify
+}
+
+void Analyzer::MarkGlobalNonNegValue(const PrimExpr& value) {
+  // decompose value as symbol * scale + offset
+  int64_t offset = 0;
+  PrimExpr symbol_scale = tir::make_const(value.dtype(), 0);
+
+  auto fcollect_sum = [&](PrimExpr val, int sign) {
+    if (const auto* intimm = val.as<IntImmNode>()) {
+      offset += intimm->value * sign;
+    } else {
+      if (sign > 0) {
+        symbol_scale = symbol_scale + val;
+      } else {
+        symbol_scale = symbol_scale - val;
+      }
+    }
+  };
+  UnpackSum(value, fcollect_sum);
+
+  // split out the symbol and non-symbolic part
+  int64_t cscale = 1;
+  PrimExpr symbol = tir::make_const(value.dtype(), 1);
+  auto fcollect_prod = [&](PrimExpr val) {
+    if (const auto* intimm = val.as<IntImmNode>()) {
+      cscale *= intimm->value;
+    } else {
+      symbol = symbol * val;
+    }
+  };
+  UnpackReduction<tir::MulNode>(symbol_scale, fcollect_prod);
+  if (cscale <= 0) return;
+  // override the constant int bound by marking it as non-negative
+  // NOTE: there might be future opportunities of more bound hint
+  // this is a simple step and covers all the current needs
+  //
+  // We may consider enhance the sub analyzer to directly take
+  // MarkPositiveVar so their bounds do not overlap
+  if (const auto* var_ptr = symbol.as<VarNode>()) {
+    Var var = GetRef<Var>(var_ptr);
+    // skip non-index type, keep it to be compatible
+    // with any_dim that do not represent any value
+    if (!IsIndexType(var.dtype())) return;
+    bool allow_override = true;
+    // mark the constant bound is sufficient
+    // we cannot mark interval set as that will cause relaxation of the var
+    // during bound proof which is not our intention
+    this->const_int_bound.Update(var, ConstIntBound(-offset, ConstIntBound::kPosInf),
+                                 allow_override);
+  }
 }
 
 void Analyzer::Bind(const Map<Var, Range>& variables, bool allow_override) {
@@ -115,15 +168,66 @@ bool Analyzer::CanProveEqual(const PrimExpr& lhs, const PrimExpr& rhs) {
   return CanProve(lhs - rhs == 0);
 }
 
-bool Analyzer::CanProve(const PrimExpr& expr) {
+bool Analyzer::CanProveLessEqualThanSymbolicShapeValue(const PrimExpr& lhs, const PrimExpr& shape) {
+  if (this->CanProve(lhs <= shape, ProofStrength::kSymbolicBound)) return true;
+  // no need to do further attempt if shape is already a constant.
+  if (tir::is_const_int(shape)) return false;
+  // collect constant scale and ignore symbolic part
+  // so 32 * n => cscale = 32
+  int64_t cscale = 1;
+  auto fcollect = [&](const PrimExpr& expr) {
+    if (auto* ptr = expr.as<IntImmNode>()) {
+      cscale *= ptr->value;
+    }
+  };
+  UnpackReduction<tir::MulNode>(shape, fcollect);
+  PrimExpr const_shape_bound = IntImm(shape.dtype(), std::abs(cscale));
+  if (this->CanProve(lhs <= const_shape_bound, ProofStrength::kSymbolicBound)) return true;
+  return false;
+}
+
+bool Analyzer::CanProve(const PrimExpr& expr, ProofStrength strength) {
   // Avoid potentially expensive simplification unless required.
   if (const auto* ptr = expr.as<IntImmNode>()) {
     return ptr->value != 0;
   }
-
   PrimExpr simplified = Simplify(expr);
   const int64_t* as_int = tir::as_const_int(simplified);
-  return as_int && *as_int;
+  if (as_int && *as_int) return true;
+  if (strength >= ProofStrength::kSymbolicBound) {
+    // NOTE: we intentionally only pattern match common bound predicate i < bound
+    // and put this implementation at the top-level.
+    // This is to avoid repeatitive calling of this function
+    // that causes speed issues.
+    // This strategy can only be called from top-level and not from sub-analyzers.
+    Optional<PrimExpr> pos_diff;
+    int lower_bound = 0;
+    if (const auto* ptr_lt = expr.as<tir::LTNode>()) {
+      pos_diff = ptr_lt->b - ptr_lt->a;
+      lower_bound = 1;
+    }
+    if (const auto* ptr_le = expr.as<tir::LENode>()) {
+      pos_diff = ptr_le->b - ptr_le->a;
+      lower_bound = 0;
+    }
+    if (const auto* ptr_gt = expr.as<tir::GTNode>()) {
+      pos_diff = ptr_gt->a - ptr_gt->b;
+      lower_bound = 1;
+    }
+    if (const auto* ptr_ge = expr.as<tir::GENode>()) {
+      pos_diff = ptr_ge->a - ptr_ge->b;
+      lower_bound = 0;
+    }
+    if (pos_diff) {
+      IntSet iset = this->int_set(this->Simplify(pos_diff.value()));
+      if (iset.HasLowerBound()) {
+        ConstIntBound relaxed_lower_bound = this->const_int_bound(this->Simplify(iset.min()));
+        if (relaxed_lower_bound->min_value >= lower_bound) return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 PrimExpr Analyzer::Simplify(const PrimExpr& expr, int steps) {
@@ -175,6 +279,13 @@ TVM_REGISTER_GLOBAL("arith.CreateAnalyzer").set_body([](TVMArgs args, TVMRetValu
     } else if (name == "rewrite_simplify") {
       return PackedFunc(
           [self](TVMArgs args, TVMRetValue* ret) { *ret = self->rewrite_simplify(args[0]); });
+    } else if (name == "get_rewrite_simplify_stats") {
+      return PackedFunc([self](TVMArgs args, TVMRetValue* ret) {
+        *ret = self->rewrite_simplify.GetStatsCounters();
+      });
+    } else if (name == "reset_rewrite_simplify_stats") {
+      return PackedFunc(
+          [self](TVMArgs args, TVMRetValue* ret) { self->rewrite_simplify.ResetStatsCounters(); });
     } else if (name == "canonical_simplify") {
       return PackedFunc(
           [self](TVMArgs args, TVMRetValue* ret) { *ret = self->canonical_simplify(args[0]); });
@@ -188,6 +299,11 @@ TVM_REGISTER_GLOBAL("arith.CreateAnalyzer").set_body([](TVMArgs args, TVMRetValu
         } else {
           self->Bind(args[0], args[1].operator PrimExpr());
         }
+      });
+    } else if (name == "can_prove") {
+      return PackedFunc([self](TVMArgs args, TVMRetValue* ret) {
+        int strength = args[1];
+        *ret = self->CanProve(args[0], static_cast<ProofStrength>(strength));
       });
     } else if (name == "enter_constraint_context") {
       return PackedFunc([self](TVMArgs args, TVMRetValue* ret) {

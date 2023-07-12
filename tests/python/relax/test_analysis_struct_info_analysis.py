@@ -458,7 +458,9 @@ def test_derive_call_ret_struct_info():
             func_shape_mixed(3),
             [
                 rx.ShapeStructInfo([10, 20]),
-                rx.FuncStructInfo.opaque_func(ret=rx.ShapeStructInfo(ndim=2)),
+                # have to specify purity because an impure function cannot be passed
+                # where a pure one is expected
+                rx.FuncStructInfo.opaque_func(ret=rx.ShapeStructInfo(ndim=2), purity=True),
             ],
             rx.ShapeStructInfo([30, 3]),
         )

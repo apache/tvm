@@ -189,14 +189,8 @@ def conv_kernel_layout(data_layout, is_depthwise=False):
     result : str
         The corresponding kernel layout.
     """
-    conv_layout_map = {
-        "NCHW": "OIHW",
-        "NHWC": "HWIO",
-    }
-    depthwise_conv_layout_map = {
-        "NCHW": "OIHW",
-        "NHWC": "HWOI",
-    }
+    conv_layout_map = {"NCHW": "OIHW", "NHWC": "HWIO"}
+    depthwise_conv_layout_map = {"NCHW": "OIHW", "NHWC": "HWOI"}
     mapping = depthwise_conv_layout_map if is_depthwise else conv_layout_map
-    assert data_layout in mapping, "Unknown data layout %s" % data_layout
+    assert data_layout in mapping, f"Unknown data layout {data_layout}"
     return mapping[data_layout]

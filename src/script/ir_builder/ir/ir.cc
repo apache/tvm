@@ -20,6 +20,8 @@
 #include <tvm/relax/analysis.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/script/ir_builder/ir/ir.h>
+#include <tvm/tir/function.h>
+#include <tvm/tir/op.h>
 
 #include "./utils.h"
 
@@ -50,7 +52,17 @@ GlobalVar DeclFunction(const String& func_name, const BaseFunc& func_signature) 
   IRModuleFrame frame = FindModuleFrame();
   CHECK(!frame->global_var_map.count(func_name))
       << "ValueError: function " << func_name << " already exists";
-  GlobalVar gv = GlobalVar(func_name);
+
+  auto gvar_type = [&]() -> Type {
+    if (auto prim_func = func_signature.as<tir::PrimFuncNode>()) {
+      Array<Type> arg_types = prim_func->params.Map([](const auto& var) { return GetType(var); });
+      return FuncType(arg_types, prim_func->ret_type, {}, {});
+    }
+
+    return {};
+  }();
+
+  GlobalVar gv = GlobalVar(func_name, gvar_type);
   gv->struct_info_ = GetGlobalVarStructInfo(func_signature);
   CHECK(frame->functions.find(gv) == frame->functions.end())
       << "ValueError: function " << func_name << " has already been defined.";

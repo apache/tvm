@@ -15,8 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 import pytest
+
+pytest.importorskip("ethosu.vela")
+
 import numpy as np
 
+import tvm
 from tvm import relay
 from tests.python.contrib.test_ethosu.infra import get_tflite_graph
 from tvm.relay.op.contrib.ethosu import partition_for_ethosu
@@ -28,7 +32,6 @@ def test_operations_distribution_ethos():
 
     tflite = pytest.importorskip("tflite")
     tensorflow = pytest.importorskip("tensorflow")
-    pytest.importorskip("ethosu.vela")
 
     import tensorflow as tf
 
@@ -42,6 +45,9 @@ def test_operations_distribution_ethos():
     def simple_net(x):
         weight_shape = [kernel_shape[0], kernel_shape[1], input_shape[3], 3]
         weights = tf.constant(np.random.uniform(size=weight_shape), dtype=tf.float32)
+        weight_shape[2] = 3
+        weights1 = tf.constant(np.random.uniform(size=weight_shape), dtype=tf.float32)
+        weights2 = tf.constant(np.random.uniform(size=weight_shape), dtype=tf.float32)
         op = tf.nn.conv2d(
             x,
             filters=weights,
@@ -50,21 +56,29 @@ def test_operations_distribution_ethos():
             data_format="NHWC",
             dilations=1,
         )
+        op1 = tf.nn.conv2d(
+            op,
+            filters=weights1,
+            strides=1,
+            padding="SAME",
+            data_format="NHWC",
+            dilations=1,
+        )
+        op2 = tf.nn.conv2d(
+            op,
+            filters=weights2,
+            strides=1,
+            padding="SAME",
+            data_format="NHWC",
+            dilations=1,
+        )
+        op = tf.concat([op1, op2], 1)
         op = tf.pad(
             op,
-            [[0, 0], [padding[0], padding_out[2]], [padding_out[1], padding[3]], [0, 0]],
+            [[0, 0], [padding[0], padding_out[1]], [padding_out[2], padding[3]], [0, 0]],
             "CONSTANT",
         )
-        op = tf.pad(
-            op,
-            [[0, 0], [padding[0], padding[2]], [padding[1], padding[3]], [0, 0]],
-            "CONSTANT",
-        )
-        return tf.pad(
-            op,
-            [[0, 0], [padding_out[0], padding[2]], [padding[1], padding_out[3]], [0, 0]],
-            "CONSTANT",
-        )
+        return op
 
     _, tflite_graph = get_tflite_graph(simple_net, [input_shape])
 
@@ -85,12 +99,11 @@ def test_operations_distribution_ethos():
     operations_distribution = analyze_operations_distribution(mod)
 
     expected = {
-        "Pad_PART_0": ["generic", "generic", 1],
-        "Conv2D2_PART_2": ["ethos-u", "ethos-u.qnn_conv2d", 3],
-        "Conv2D2_PART_1": ["ethos-u", "ethos-u.qnn_conv2d", 3],
-        "Conv2D2_PART_0": ["ethos-u", "ethos-u.qnn_conv2d", 3],
-        "Identity_PART_0": ["ethos-u", "ethos-u.pad2d", 4],
-        "Pad_1_PART_0": ["ethos-u", "ethos-u.pad2d", 5],
+        "Identity": ["generic", "generic"],
+        "concat": ["ethos-u", "ethos-u.concat"],
+        "Conv2D_11": ["ethos-u", "ethos-u.qnn_conv2d"],
+        "Conv2D1": ["ethos-u", "ethos-u.qnn_conv2d"],
+        "Conv2D_221": ["ethos-u", "ethos-u.qnn_conv2d"],
     }
 
     assert operations_distribution == expected
@@ -100,7 +113,6 @@ def test_operations_distribution_generic():
 
     tflite = pytest.importorskip("tflite")
     tensorflow = pytest.importorskip("tensorflow")
-    pytest.importorskip("ethosu.vela")
 
     import tensorflow as tf
 
@@ -158,16 +170,14 @@ def test_operations_distribution_generic():
     operations_distribution = analyze_operations_distribution(mod)
 
     expected = {
-        "Identity_PART_0": ["generic", "generic", 1],
-        "Pad_1_PART_0": ["generic", "generic", 2],
-        "Pad_PART_0": ["generic", "generic", 3],
-        "Conv2D2_PART_2": ["generic", "generic", 4],
-        "Conv2D2_PART_1": ["generic", "generic", 5],
-        "Conv2D2_PART_0": ["generic", "generic", 6],
+        "Identity": ["generic", "generic"],
+        "Pad_1": ["generic", "generic"],
+        "Pad": ["generic", "generic"],
+        "Conv2D2": ["generic", "generic"],
     }
 
     assert operations_distribution == expected
 
 
 if __name__ == "__main__":
-    test_operations_distribution()
+    tvm.testing.main()

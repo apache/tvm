@@ -203,7 +203,7 @@ def test_simple_module():
 
     x = relax.Var("x", R.Tensor((128, 128), "float32"))
     bb = relax.BlockBuilder()
-    with bb.function("foo", (x,)):
+    with bb.function("foo", (x,), {"global_symbol": "foo"}):
         out = bb.emit_te(lambda x: x + 1, x, primfunc_name_hint="tir_func")
         bb.emit_func_output(out)
 
@@ -232,7 +232,7 @@ def test_emit_te_primfunc_attrs():
 
     x = relax.Var("x", R.Tensor((128, 128), "float32"))
     bb = relax.BlockBuilder()
-    with bb.function("foo", (x,)):
+    with bb.function("foo", (x,), {"global_symbol": "foo"}):
         out = bb.emit_te(
             lambda x: x + 1,
             x,
@@ -254,7 +254,7 @@ def test_emit_te():
 
     bb = relax.BlockBuilder()
     x = relax.Var("x", relax.TensorStructInfo([10, 20], "float32"))
-    with bb.function("main", [x]):
+    with bb.function("main", [x], {"global_symbol": "main"}):
         lv1 = bb.emit_te(topi.add, x, x)
         out = bb.emit_te(topi.multiply, lv1, lv1)
         bb.emit_func_output(out)
@@ -294,7 +294,7 @@ def test_module_with_attr_and_global_info():
 
     x = relax.Var("x", R.Tensor((128, 128), "float32"))
     bb = relax.BlockBuilder()
-    with bb.function("foo", (x,)):
+    with bb.function("foo", (x,), {"global_symbol": "foo"}):
         out = bb.emit_te(lambda x: x + 1, x, primfunc_name_hint="tir_func")
         bb.emit_func_output(out)
     mod = bb.get()
@@ -834,7 +834,7 @@ def test_call_dps_packed_empty_shape():
 def test_call_tir_empty_tuple_arg():
     bb = relax.BlockBuilder()
     dummy_param = relax.Var("dummy_param", R.Tensor(()))
-    with bb.function("foo", [dummy_param]):
+    with bb.function("foo", [dummy_param], {"global_symbol": "foo"}):
         output = bb.emit_te(topi.full, shape=(16, 32), dtype="float32", fill_value=1.0)
         bb.emit_func_output(output)
 
@@ -861,6 +861,34 @@ def test_call_tir_with_tir_var():
                 with T.block("block"):
                     vi = T.axis.remap("S", [i])
                     Y[vi] = X[vi]
+
+    _check(Module)
+
+
+def test_call_tir_with_grad():
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def identity_tir(a: T.handle, b: T.handle) -> None:
+            A = T.match_buffer(a, [54, 96])
+            B = T.match_buffer(b, [54, 96])
+
+            for i, j in T.grid(54, 96):
+                with T.block("compute"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    B[vi, vj] = A[vi, vj]
+
+        @R.function
+        def main(v0: R.Tensor([54, 96], "float32")):
+            cls = Module
+            out = R.call_tir_with_grad(
+                cls.identity_tir,
+                (v0,),
+                R.Tensor((54, 96), "float32"),
+                te_grad_name="identity_k_grad",
+                te_grad_kwargs={"k": 1.0},
+            )
+            return out
 
     _check(Module)
 
@@ -1208,7 +1236,7 @@ def test_vm_ops():
     def foo(x: R.Tensor(("m", "n"), dtype="float32")):
         m = T.int64()
         n = T.int64()
-        storage = R.vm.alloc_storage(R.shape([4 * m * n]), runtime_device_index=0, dtype="float32")
+        storage = R.vm.alloc_storage(R.shape([4 * m * n]), runtime_device_index=0, dtype="uint8")
         alloc = R.vm.alloc_tensor(storage, offset=0, shape=R.shape([m, n]), dtype="float32")
         tensor = R.builtin.alloc_tensor(R.shape([m, n]), dtype="float32", runtime_device_index=0)
         tir_dym = R.vm.call_tir_dyn("te_func", (x, tensor, R.ShapeExpr((m, n))))
@@ -1324,6 +1352,7 @@ def test_context_aware_parsing():
 
         @R.function
         def main(x: R.Tensor((2, 4), dtype="float32")) -> R.Tensor((10,), dtype="float32"):
+            R.func_attr({"relax.force_pure": 1})
             cls = Module
             alloc = R.builtin.alloc_tensor(R.shape([2, 4]), dtype="float32", runtime_device_index=0)
             _: R.Tuple() = cls.add(x, R.const(1, "float32"), alloc)
@@ -1377,6 +1406,166 @@ def test_global_var_sinfo():
     tvm.ir.assert_structural_equal(gv.struct_info, target_sinfo)
     tvm.ir.assert_structural_equal(Module["foo"].struct_info, target_sinfo)
     _check(Module)
+
+
+def test_assert_op():
+    @I.ir_module
+    class AssertOp:
+        @R.function(pure=False)
+        def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+            y = R.assert_op(R.const(False, dtype="bool"), x, format="x: {}")
+            return x
+
+    _check(AssertOp)
+
+
+def test_assert_outside_of_class():
+    @R.function(pure=False)
+    def func(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+        y = R.assert_op(R.const(False, dtype="bool"), x, format="x: {}")
+        return x
+
+    # this just makes sure that the machinery regarding the pure attribute parses
+    # in the case where the function is outside of a class too
+    _check(func)
+
+
+def test_impure_inner_function():
+    @R.function
+    def f(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+        # we will not actually call it
+        @R.function(pure=False)
+        def g(y: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+            z = R.assert_op(R.const(False, dtype="bool"), y, format="y: {}")
+            return y
+
+        return x
+
+    assert f.is_pure
+    # definition of g
+    assert not f.body.blocks[0].bindings[0].value.is_pure
+
+    # make sure we are not incorrectly passing state for inner functions
+    _check(f)
+
+
+def test_impure_inner_function_in_class():
+    @I.ir_module
+    class ImpureInner:
+        @R.function
+        def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+            # we will not actually call it
+            @R.function(pure=False)
+            def g(y: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+                z = R.assert_op(R.const(False, dtype="bool"), y, format="y: {}")
+                return y
+
+            return x
+
+    assert ImpureInner["main"].is_pure
+    # definition of g
+    assert not ImpureInner["main"].body.blocks[0].bindings[0].value.is_pure
+
+    # make sure we are not incorrectly passing state for inner functions
+    _check(ImpureInner)
+
+
+def test_print():
+    @I.ir_module
+    class Print:
+        @R.function(pure=False)
+        def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+            y = R.print(x, format="x: {}")
+            return x
+
+    _check(Print)
+
+
+def test_parse_multiple_pure_and_impure_funcs():
+    @I.ir_module
+    class Mixture:
+        @R.function(pure=False)
+        def print(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+            y = R.print(x, format="x: {}")
+            return x
+
+        @R.function(pure=False)
+        def assert_func(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+            y = R.assert_op(R.const(False, dtype="bool"), x, format="x: {}")
+            return x
+
+        @R.function
+        def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+            return x
+
+    assert not Mixture["print"].is_pure
+    assert not Mixture["assert_func"].is_pure
+    assert Mixture["main"].is_pure
+    _check(Mixture)
+
+
+def test_call_pure_packed():
+    @R.function
+    def foo(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
+        z = R.call_pure_packed("vm.builtin.copy", x, sinfo_args=R.Tensor((32, 32), "float32"))
+        return z
+
+    x = relax.Var("x", R.Tensor((32, 32), "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", (x)):
+        z = bb.emit(
+            R.call_pure_packed("vm.builtin.copy", x, sinfo_args=[R.Tensor((32, 32), "float32")])
+        )
+        bb.emit_func_output(z)
+
+    _check(foo, bb.get()["foo"])
+
+
+def test_private_function():
+    @I.ir_module
+    class Addition:
+        @R.function(private=True)
+        def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+            y = R.add(x, x)
+            return y
+
+    x = relax.Var("x", R.Tensor((), "int32"))
+    bb = relax.BlockBuilder()
+    with bb.function("main", (x), private=True):
+        y = bb.emit(R.add(x, x))
+        bb.emit_func_output(y)
+
+    _check(Addition, bb.get())
+
+
+def test_private_function_with_global_symbol_fail():
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @I.ir_module
+        class Addition:
+            @R.function(private=True)
+            def main(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+                # it is an error to simultaneously mark a function private
+                # and give it a global symbol manually
+                R.func_attr({"global_symbol": "main"})
+                y = R.add(x, x)
+                return y
+
+        # should not execute
+        _check(Addition)
+
+
+def test_private_function_with_global_symbol_no_module_fail():
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @R.function(private=True)
+        def func(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+            R.func_attr({"global_symbol": "main"})
+            y = R.add(x, x)
+            return y
+
+        # should not execute
+        _check(func)
 
 
 if __name__ == "__main__":

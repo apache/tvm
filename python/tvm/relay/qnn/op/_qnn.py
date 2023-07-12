@@ -101,7 +101,11 @@ def legalize_clip(attrs, inputs, tinfos):
     implementations (like Cortex-M) need it to be done earlier in legalization.
     """
 
-    if hasattr(inputs[0], "op") and inputs[0].op.name == "qnn.requantize":
+    if (
+        hasattr(inputs[0], "op")
+        and hasattr(inputs[0].op, "name")
+        and inputs[0].op.name == "qnn.requantize"
+    ):
         dtype_info = np.iinfo(tinfos[0].dtype)
         if dtype_info.min == attrs.a_min and dtype_info.max == attrs.a_max:
             return inputs[0]
@@ -163,3 +167,6 @@ register_strategy("qnn.contrib_dense_pack", strategy.qnn_dense_pack_strategy)
 # qnn.batch_matmul
 register_strategy("qnn.batch_matmul", strategy.qnn_batch_matmul_strategy)
 register_pattern("qnn.batch_matmul", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+# qnn.avg_pool2d
+register_strategy("qnn.avg_pool2d", strategy.qnn_avg_pool2d_strategy)

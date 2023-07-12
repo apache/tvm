@@ -145,6 +145,7 @@ class BuiltinLower : public StmtExprMutator {
       if (scope.max_sizes.shape_stack != -1) {
         scope.stack_shape = decl_buffer({IntImm(DataType::Int(64), scope.max_sizes.shape_stack)},
                                         DataType::Int(64), "stack_shape");
+        stmt = DeclBuffer(scope.stack_shape, stmt);
         stmt = LetStmt(scope.stack_shape->data, StackAlloca("shape", scope.max_sizes.shape_stack),
                        stmt);
       }
@@ -159,6 +160,7 @@ class BuiltinLower : public StmtExprMutator {
         stmt =
             LetStmt(scope.stack_value, StackAlloca("arg_value", scope.max_sizes.arg_stack), stmt);
 
+        stmt = DeclBuffer(scope.stack_tcode, stmt);
         stmt = LetStmt(scope.stack_tcode->data, StackAlloca("arg_tcode", scope.max_sizes.arg_stack),
                        stmt);
       }
@@ -636,9 +638,11 @@ namespace transform {
 
 Pass LowerTVMBuiltin() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
-    auto* n = f.CopyOnWrite();
-    n->body = BuiltinLower().Build(n->body);
-    VLOG(2) << "LowerTVMBuiltin: " << f;
+    if (IsHostFunc(f).value_or(false)) {
+      auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
+      f.CopyOnWrite()->body = BuiltinLower().Build(f->body);
+      VLOG(2) << "LowerTVMBuiltin: " << f;
+    }
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerTVMBuiltin", {});

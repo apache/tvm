@@ -330,13 +330,47 @@ NestedMsg<T> MapToNestedMsgBySInfo(Expr expr, FType fmapleaf) {
         field = expr_tuple->fields[i];
       } else {
         field = TupleGetItem(expr, i);
-        UpdateStructInfo(field, tuple->fields[i]);
       }
       res.push_back(MapToNestedMsgBySInfo<T, FType>(field, fmapleaf));
     }
     return res;
   } else {
     return fmapleaf(expr);
+  }
+}
+
+/*!
+ * \brief Map nested message back to TargetType.
+ *
+ * This function will decompose the nested message and
+ * run fmapleaf for each leaf message and get the leaf value,
+ * then recursively combines the results by fcombine.
+ *
+ * \param msg The input nested message.
+ * \param fmapleaf The mapping function for each leaf with signature
+ * `TargetType fmapleaf(Optional<T>)`.
+ * \param fcombine The function for combining all childs of a node into TargetType with signature
+ * `TargetType fmapleaf(Array<TargetType>)`.
+ * \tparam TargetType the target type to map nested msg to.
+ * \tparam T the content type of nested msg.
+ * \tparam FMapLeaf The leaf mapping function type.
+ * \tparam FCombine The combining function type.
+ */
+template <typename TargetType, typename T, typename FMapLeaf, typename FCombine>
+TargetType NestedMsgTo(NestedMsg<T> msg, FMapLeaf fmapleaf, FCombine fcombine) {
+  if (msg.IsNull()) {
+    return fmapleaf(NullOpt);
+  } else if (msg.IsLeaf()) {
+    return fmapleaf(msg.LeafValue());
+  } else {
+    ICHECK(msg.IsNested());
+    Array<NestedMsg<T>> arr = msg.NestedArray();
+    Array<TargetType> subexpr;
+    subexpr.reserve(arr.size());
+    for (size_t i = 0; i < arr.size(); ++i) {
+      subexpr.push_back(NestedMsgTo<TargetType>(arr[i], fmapleaf, fcombine));
+    }
+    return fcombine(subexpr);
   }
 }
 
@@ -354,24 +388,13 @@ NestedMsg<T> MapToNestedMsgBySInfo(Expr expr, FType fmapleaf) {
  */
 template <typename T, typename FType>
 Expr NestedMsgToExpr(NestedMsg<T> msg, FType fmapleaf) {
-  if (msg.IsNull()) {
-    return fmapleaf(NullOpt);
-  } else if (msg.IsLeaf()) {
-    return fmapleaf(msg.LeafValue());
-  } else {
-    ICHECK(msg.IsNested());
-    Array<NestedMsg<T>> arr = msg.NestedArray();
-    Array<Expr> subexpr;
-    subexpr.reserve(arr.size());
-    for (size_t i = 0; i < arr.size(); ++i) {
-      subexpr.push_back(NestedMsgToExpr<T, FType>(arr[i], fmapleaf));
-    }
+  return NestedMsgTo<Expr>(msg, fmapleaf, [](Array<Expr> arr) {
     Optional<Expr> simplified_tuple;
     bool simplified_flag = false;
-    if (subexpr.size() >= 1) {
+    if (arr.size() >= 1) {
       simplified_flag = true;
-      for (size_t i = 0; i < subexpr.size() && simplified_flag; ++i) {
-        auto* node = subexpr[i].as<TupleGetItemNode>();
+      for (size_t i = 0; i < arr.size() && simplified_flag; ++i) {
+        auto* node = arr[i].as<TupleGetItemNode>();
         if (node == nullptr || node->index != static_cast<int>(i)) {
           simplified_flag = false;
         } else {
@@ -384,8 +407,8 @@ Expr NestedMsgToExpr(NestedMsg<T> msg, FType fmapleaf) {
         }
       }
     }
-    return simplified_flag ? simplified_tuple.value() : Tuple(subexpr);
-  }
+    return simplified_flag ? simplified_tuple.value() : Tuple(arr);
+  });
 }
 
 /*!
@@ -513,7 +536,6 @@ Expr TransformTupleLeaf(Expr expr, std::array<NestedMsg<T>, N> msgs, FType ftran
         field = expr_tuple->fields[i];
       } else {
         field = TupleGetItem(expr, i);
-        UpdateStructInfo(field, tuple->fields[i]);
       }
       std::array<NestedMsg<T>, N> sub_msgs;
       for (size_t j = 0; j < N; ++j) {

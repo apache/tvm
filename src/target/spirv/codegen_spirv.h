@@ -34,10 +34,11 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
+#include "../../runtime/spirv/spirv_shader.h"
 #include "../../runtime/thread_storage_scope.h"
-#include "../../runtime/vulkan/vulkan_shader.h"
 #include "ir_builder.h"
 #include "spirv_support.h"
 
@@ -66,7 +67,7 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const PrimExpr&)>,
    * \param name The name of the target function.
    * \return The final spirv module.
    */
-  virtual runtime::VulkanShader BuildFunction(const PrimFunc& f, const std::string& name);
+  virtual runtime::SPIRVShader BuildFunction(const PrimFunc& f, const std::string& name);
   /*!
    * \brief Create Value for expression e
    * \param e The expression to be created value for.
@@ -106,6 +107,7 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const PrimExpr&)>,
   void VisitStmt_(const ForNode* op) override;
   void VisitStmt_(const WhileNode* op) override;
   void VisitStmt_(const IfThenElseNode* op) override;
+  void VisitStmt_(const DeclBufferNode* op) override;
   void VisitStmt_(const AllocateNode* op) override;
   void VisitStmt_(const AttrStmtNode* op) override;
   void VisitStmt_(const AssertStmtNode* op) override;
@@ -153,7 +155,7 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const PrimExpr&)>,
      * product of the number of lanes of the buffer element type and
      * the number of lanes of the index.
      */
-    void CheckContentType(DataType type, int index_lanes = 1) {
+    void CheckContentType(DataType type, int index_lanes = 1) const {
       ICHECK(element_type_known) << "Cannot check element type of buffer " << name_hint
                                  << " no previous element type defined";
       DataType expected_type = element_type.with_lanes(index_lanes * element_type.lanes());
@@ -171,6 +173,14 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const PrimExpr&)>,
       element_type_known = true;
     }
   };
+
+  struct FragmentInfo {
+    std::string shape;
+    std::string scope;
+    spirv::SType stype;
+    spv::StorageClass sclass;
+  };
+
   // Reset the state so it works for a new function.
   void InitFuncState();
   // Get the thread index
@@ -178,6 +188,9 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const PrimExpr&)>,
 
   spirv::Value CreateStorageSync(const CallNode* op);
   void Scalarize(const PrimExpr& e, std::function<void(int i, spirv::Value v)> f);
+
+  spirv::SType GetFragmentSType(const VarNode* buffer, const DataType& dtype);
+  DataType GetElementDataType(const VarNode* buffer);
 
   // SPIRV-related capabilities of the target
   SPIRVSupport spirv_support_;
@@ -218,6 +231,8 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const PrimExpr&)>,
   // Running total of the number of bytes of shared memory used.
   // Checked against the max_shared_memory_per_group
   size_t shared_memory_bytes_used_{0};
+
+  std::unordered_map<const VarNode*, FragmentInfo> fragment_info_;
 };
 
 }  // namespace codegen

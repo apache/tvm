@@ -43,6 +43,7 @@ from tvm.relax.expr import (
 )
 from tvm.script import relax as R
 import pytest
+import tvm.testing
 
 m, n = tir.Var("m", "int64"), tir.Var("n", "int64")
 x = relax.Var("x", R.Tensor([n], "float32"))
@@ -674,6 +675,15 @@ def test_wrong_inherit():
                 pass
 
 
+@R.function
+def dummy(x: R.Tensor((10, 10))):
+    lv = R.add(x, R.const(1))
+    with R.dataflow():
+        gv = lv
+        R.output(gv)
+    return gv
+
+
 def test_call_visitor_super():
     @relax.expr_functor.visitor
     class InternalVisitor(PyExprVisitor):
@@ -681,9 +691,29 @@ def test_call_visitor_super():
             super().__init__()
             self.log = ASTLog()
 
+        def visit_binding_block_(self, block: relax.BindingBlock) -> None:
+            self.log.add("BindingBlock")
+            super().visit_binding_block_(block)
+
+        def visit_dataflow_block_(self, block: DataflowBlock) -> None:
+            self.log.add("DataflowBlock")
+            super().visit_dataflow_block_(block)
+
+        def visit_var_binding_(self, binding: relax.VarBinding) -> None:
+            self.log.add("VarBinding")
+            super().visit_var_binding_(binding)
+
         def visit_call_(self, op: Call) -> None:
             self.log.add("InternalCall")
             super().visit_call_(op)  # call PyExprVisitor.visit_call_
+
+        def visit_var_def_(self, var: Var) -> None:
+            self.log.add("VarDef")
+            super().visit_var_def_(var)
+
+        def visit_dataflow_var_def_(self, var: Var) -> None:
+            self.log.add("DataflowVarDef")
+            super().visit_dataflow_var_def_(var)
 
         def visit_var_(self, op: Var) -> None:
             self.log.add("Var")
@@ -706,6 +736,26 @@ def test_call_visitor_super():
     lv.visit_expr(call_node)
     assert str(lv.log) == "\n".join(["LeafCall", "InternalCall", "Op", "Var", "Var"])
 
+    lv = LeafVisitor()
+    lv.visit_expr(dummy)
+    assert str(lv.log) == "\n".join(
+        [
+            "VarDef",
+            "BindingBlock",
+            "VarBinding",
+            "LeafCall",
+            "InternalCall",
+            "Op",
+            "Var",
+            "VarDef",
+            "DataflowBlock",
+            "VarBinding",
+            "Var",
+            "VarDef",
+            "Var",
+        ]
+    )
+
 
 def test_call_mutator_super():
     @relax.expr_functor.mutator
@@ -714,9 +764,29 @@ def test_call_mutator_super():
             super().__init__()
             self.log = ASTLog()
 
+        def visit_binding_block_(self, block: relax.BindingBlock) -> None:
+            self.log.add("BindingBlock")
+            return super().visit_binding_block_(block)
+
+        def visit_dataflow_block_(self, block: DataflowBlock) -> None:
+            self.log.add("DataflowBlock")
+            return super().visit_dataflow_block_(block)
+
+        def visit_var_binding_(self, binding: relax.VarBinding) -> None:
+            self.log.add("VarBinding")
+            return super().visit_var_binding_(binding)
+
         def visit_call_(self, op: Call) -> None:
             self.log.add("InternalCall")
             return super().visit_call_(op)  # call PyExprMutator.visit_call_
+
+        def visit_var_def_(self, var: Var) -> None:
+            self.log.add("VarDef")
+            return super().visit_var_def_(var)
+
+        def visit_dataflow_var_def_(self, var: Var) -> None:
+            self.log.add("DataflowVarDef")
+            return super().visit_dataflow_var_def_(var)
 
         def visit_var_(self, op: Var) -> None:
             self.log.add("Var")
@@ -740,6 +810,26 @@ def test_call_mutator_super():
     lm = LeafMutator()
     lm.visit_expr(call_node)
     assert str(lm.log) == "\n".join(["LeafCall", "InternalCall", "Op", "Var", "Var"])
+
+    lm = LeafMutator()
+    lm.visit_expr(dummy)
+    assert str(lm.log) == "\n".join(
+        [
+            "VarDef",
+            "BindingBlock",
+            "VarBinding",
+            "LeafCall",
+            "InternalCall",
+            "Op",
+            "Var",
+            "VarDef",
+            "DataflowBlock",
+            "VarBinding",
+            "Var",
+            "VarDef",
+            "Var",
+        ]
+    )
 
 
 if __name__ == "__main__":

@@ -30,6 +30,7 @@ make cython3
 
 # Run Relax tests
 TVM_TEST_TARGETS="${TVM_RELAY_TEST_TARGETS:-llvm}" pytest tests/python/relax
+TVM_TEST_TARGETS="${TVM_RELAY_TEST_TARGETS:-llvm}" pytest tests/python/dlight
 
 # Run Relax examples
 # python3 ./apps/relax_examples/mlp.py

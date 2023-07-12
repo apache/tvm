@@ -134,8 +134,10 @@ def layout_transform(
     result : relax.Expr
         The transformed tensor.
     """
+    default_index_dtype = "int64"
+
     if callable(index_map):
-        index_map = IndexMap.from_func(index_map)
+        index_map = IndexMap.from_func(index_map, index_dtype=default_index_dtype)
     x_dtype = x.checked_type.dtype
 
     # Explicitly convert python int/float pad_value to the x's type.  If the default behavior

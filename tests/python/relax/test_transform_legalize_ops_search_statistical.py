@@ -16,10 +16,11 @@
 # under the License.
 
 import tvm
-from tvm.relax.transform import LegalizeOps
-from tvm.script import relax as R, tir as T, ir as I
 import tvm.testing
-
+from tvm.relax.transform import LegalizeOps
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 ##################### Search #####################
 
@@ -48,7 +49,7 @@ def test_where():
                     ax0, ax1, ax2 = T.axis.remap("SSS", [i0, i1, i2])
                     T.reads(rxplaceholder[ax0, ax1, T.int64(0)], rxplaceholder_1[ax1, ax2], rxplaceholder_2[ax1, T.int64(0)])
                     T.writes(T_where[ax0, ax1, ax2])
-                    T_where[ax0, ax1, ax2] = T.Select(0 < T.Cast("int32", rxplaceholder[ax0, ax1, T.int64(0)]), rxplaceholder_1[ax1, ax2], rxplaceholder_2[ax1, T.int64(0)])
+                    T_where[ax0, ax1, ax2] = T.Select(T.int64(0) < T.Cast("int64", rxplaceholder[ax0, ax1, T.int64(0)]), rxplaceholder_1[ax1, ax2], rxplaceholder_2[ax1, T.int64(0)])
     # fmt: on
 
     mod = LegalizeOps()(Where)
@@ -92,7 +93,7 @@ def test_where_symbolic():
                     ax0, ax1, ax2 = T.axis.remap("SSS", [i0, i1, i2])
                     T.reads(rxplaceholder[ax0, ax1, T.int64(0)], rxplaceholder_1[ax1, ax2], rxplaceholder_2[ax1, T.int64(0)])
                     T.writes(T_where[ax0, ax1, ax2])
-                    T_where[ax0, ax1, ax2] = T.Select(0 < T.Cast("int32", rxplaceholder[ax0, ax1, T.int64(0)]), rxplaceholder_1[ax1, ax2], rxplaceholder_2[ax1, T.int64(0)])
+                    T_where[ax0, ax1, ax2] = T.Select(T.int64(0) < T.Cast("int64", rxplaceholder[ax0, ax1, T.int64(0)]), rxplaceholder_1[ax1, ax2], rxplaceholder_2[ax1, T.int64(0)])
     # fmt: on
 
     mod = LegalizeOps()(Where)

@@ -860,5 +860,71 @@ class TestNoRewriteOfSharedNonFlatBuffer(BaseCompare):
     expected = before
 
 
+class TestRewriteDeclBuffer(BaseCompare):
+    """A DeclBuffer node may appear in StorageRewrite's input"""
+
+    def before(A: T.Buffer(16, "float32"), D: T.Buffer(16, "float32")):
+        B = T.decl_buffer(16, dtype="float32")
+        C = T.decl_buffer(16, dtype="float32")
+
+        for i in range(16):
+            B[i] = A[i]
+
+        for i in range(16):
+            C[i] = 2.0 * B[i]
+
+        for i in range(16):
+            D[i] = C[i]
+
+    def expected(A: T.Buffer(16, "float32"), D: T.Buffer(16, "float32")):
+        B = T.decl_buffer(16, dtype="float32")
+        C = T.decl_buffer(16, dtype="float32", data=B.data)
+
+        for i in range(16):
+            B[i] = A[i]
+
+        for i in range(16):
+            C[i] = 2.0 * B[i]
+
+        for i in range(16):
+            D[i] = C[i]
+
+
+class TestNoOrphanedDeclBuffer(BaseCompare):
+    """A DeclBuffer of an unused Allocate should be removed
+
+    StorageRewrite removes any allocations that are unused.  When it
+    does so, any DeclBuffer that refers to that allocation should also
+    be removed.
+    """
+
+    def before(A: T.Buffer(16, "float32"), D: T.Buffer(16, "float32")):
+        B = T.decl_buffer(16, dtype="float32")
+        C = T.decl_buffer(16, dtype="float32")
+        Unused = T.decl_buffer(16, dtype="float32")
+
+        for i in range(16):
+            B[i] = A[i]
+
+        for i in range(16):
+            C[i] = 2.0 * B[i]
+
+        for i in range(16):
+            D[i] = C[i]
+
+    def expected(A: T.Buffer(16, "float32"), D: T.Buffer(16, "float32")):
+        B = T.decl_buffer(16, dtype="float32")
+        C = T.decl_buffer(16, dtype="float32", data=B.data)
+
+        for i in range(16):
+            B[i] = A[i]
+
+        for i in range(16):
+            C[i] = 2.0 * B[i]
+
+        for i in range(16):
+            D[i] = C[i]
+
+
 if __name__ == "__main__":
     tvm.testing.main()

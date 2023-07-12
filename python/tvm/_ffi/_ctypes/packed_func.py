@@ -15,7 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 # coding: utf-8
-# pylint: disable=invalid-name, protected-access, too-many-branches, global-statement, unused-import
+# pylint: disable=invalid-name, protected-access, too-many-branches
+# pylint: disable=global-statement, unused-import, using-constant-test
 """Function configuration API."""
 import ctypes
 import traceback

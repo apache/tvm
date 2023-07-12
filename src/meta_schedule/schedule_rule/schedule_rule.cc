@@ -217,6 +217,21 @@ Array<ScheduleRule> ScheduleRule::DefaultCUDATensorCore() {
           {"compute", "wmma_sync_16x16x16_s8s8s32_trans"},
           {"store", "wmma_store_16x16x16_s32_shared_dyn"},
       },
+      // Tensor Core MMA
+      {
+          {"init", "mma_init_m16n8k8_f16"},
+          {"load_a", "mma_load_m16n8k8_f16_A_shared_dyn"},
+          {"load_b", "mma_load_m16n8k8_f16_B_shared_dyn"},
+          {"compute", "mma_sync_m16n8k8_f16f16f16"},
+          {"store", "mma_store_m16n8k8_f16_global"},
+      },
+      {
+          {"init", "mma_init_m16n8k8_f32"},
+          {"load_a", "mma_load_m16n8k8_f16_A_shared_dyn"},
+          {"load_b", "mma_load_m16n8k8_f16_B_shared_dyn"},
+          {"compute", "mma_sync_m16n8k8_f16f16f32"},
+          {"store", "mma_store_m16n8k8_f32_global"},
+      },
   };
   Array<ScheduleRule> results{
       ScheduleRule::ApplyCustomRule(),
@@ -295,7 +310,7 @@ Array<ScheduleRule> ScheduleRule::DefaultMicro() {
   };
 }
 
-Array<ScheduleRule> GetNeonSpecificRules() {
+Array<ScheduleRule> GetARMNeonSpecificRules() {
   return {
       ScheduleRule::MultiLevelTilingWithIntrin(
           /*intrin_name=*/String("dot_4x4_i8i8s32_neon"),
@@ -311,7 +326,7 @@ Array<ScheduleRule> GetNeonSpecificRules() {
   };
 }
 
-Array<ScheduleRule> GetDotprodSpecificRules() {
+Array<ScheduleRule> GetARMDotprodSpecificRules() {
   return {
       ScheduleRule::MultiLevelTilingWithIntrin(
           /*intrin_name=*/String("dot_4x4_i8i8s32_sdot"),
@@ -363,8 +378,8 @@ Array<ScheduleRule> ScheduleRule::DefaultARM(const String& type) {
       ScheduleRule::AddRFactor(
           /*max_jobs_per_core=*/8,
           /*max_innermost_factor=*/Integer(32)),
-      "neon" == type ? GetNeonSpecificRules() : Array<ScheduleRule>{},
-      "dotprod" == type ? GetDotprodSpecificRules() : Array<ScheduleRule>{},
+      "neon" == type ? GetARMNeonSpecificRules() : Array<ScheduleRule>{},
+      "dotprod" == type ? GetARMDotprodSpecificRules() : Array<ScheduleRule>{},
       ScheduleRule::MultiLevelTiling(
           /*structure=*/"SSRSRS",
           /*tile_binds=*/NullOpt,

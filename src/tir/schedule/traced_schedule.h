@@ -51,6 +51,9 @@ class TracedScheduleNode : public ConcreteScheduleNode {
                            Optional<Integer> decision = NullOpt) final;
   Array<ExprRV> SamplePerfectTile(const LoopRV& loop_rv, int n, int max_innermost_factor,
                                   Optional<Array<Integer>> decision = NullOpt) final;
+  Array<ExprRV> SamplePartitionedTile(const LoopRV& loop_rv, int n, int partition_pos,
+                                      int innerpart_factor,
+                                      Optional<Array<Integer>> decision = NullOpt) final;
   LoopRV SampleComputeLocation(const BlockRV& block_rv, Optional<Integer> decision = NullOpt) final;
   /******** Schedule: Get blocks & loops ********/
   BlockRV GetBlock(const String& name, const Optional<String>& func_name) final;
@@ -59,11 +62,14 @@ class TracedScheduleNode : public ConcreteScheduleNode {
   Array<BlockRV> GetChildBlocks(const LoopRV& loop_rv) final;
   Array<BlockRV> GetProducers(const BlockRV& block_rv) final;
   Array<BlockRV> GetConsumers(const BlockRV& block_rv) final;
+  Array<BlockRV> GetOutputBlocks(const BlockRV& scope_block_rv) final;
   /******** Schedule: Transform loops ********/
   LoopRV Fuse(const Array<LoopRV>& loop_rvs, bool preserve_unit_iters) final;
+  LoopRV Merge(const Array<LoopRV>& loop_rvs) final;
   Array<LoopRV> Split(const LoopRV& loop_rv, const Array<Optional<ExprRV>>& factor_rvs,
                       bool preserve_unit_iters) final;
   void Reorder(const Array<LoopRV>& ordered_loop_rvs) final;
+  void ReorderBlockIterVar(const BlockRV& block_rv, const Array<Integer> new_order) final;
   LoopRV AddUnitLoop(const BlockRV& block_rv) final;
   LoopRV AddUnitLoop(const LoopRV& loop_rv) final;
   /******** Schedule: Manipulate ForKind ********/
@@ -108,6 +114,7 @@ class TracedScheduleNode : public ConcreteScheduleNode {
   void UnsafeSetDType(const BlockRV& block_rv, int buffer_index, const String& dtype) final;
   /******** Schedule: Blockize & Tensorize ********/
   BlockRV Blockize(const LoopRV& loop_rv, bool preserve_unit_iters) final;
+  BlockRV Blockize(const Array<BlockRV>& blocks, bool preserve_unit_iters) final;
   void Tensorize(const BlockRV& block_rv, const String& intrin, bool preserve_unit_iters) final;
   void Tensorize(const LoopRV& loop_rv, const String& intrin, bool preserve_unit_iters) final;
   /******** Schedule: Annotation ********/
@@ -130,6 +137,8 @@ class TracedScheduleNode : public ConcreteScheduleNode {
   void RollingBuffer(const BlockRV& block_rv, int write_buffer_index) final;
   /******** Schedule: Misc ********/
   void EnterPostproc() final;
+  void UnsafeHideBufferAccess(const BlockRV& block_rv, const String& buf_type,
+                              const Array<IntImm>& buf_index_array) final;
 };
 
 }  // namespace tir

@@ -33,14 +33,7 @@ import numpy as np
 
 from PIL import Image
 
-import tvm
-import tvm.relay.testing.tf as tf_testing
-from tvm.contrib.download import download_testdata
-from tvm import relay, ir
-from tvm.contrib import graph_executor
 from tflite.BuiltinOperator import BuiltinOperator
-from relay.utils.tag_span import _set_span, _create_span, _verify_structural_equal_with_span
-
 
 try:
     import tensorflow.compat.v1 as tf
@@ -67,6 +60,13 @@ try:
     from tensorflow import lite as interpreter_wrapper
 except ImportError:
     from tensorflow.contrib import lite as interpreter_wrapper
+
+import tvm
+import tvm.relay.testing.tf as tf_testing
+from tvm.contrib.download import download_testdata
+from tvm import relay, ir
+from tvm.contrib import graph_executor
+from relay.utils.tag_span import _set_span, _create_span, _verify_structural_equal_with_span
 
 
 #######################################################################
@@ -305,7 +305,7 @@ def compare_tflite_with_tvm(
     mode="graph_executor",
     experimental_new_converter=False,
     fp16_quantized=False,
-    int_quant_dtype=tf.int8,
+    int_quant_dtype=tf.uint8,
 ):
     """Generic function to generate and compare TFLite and TVM output"""
     in_data = convert_to_list(in_data)
@@ -334,6 +334,8 @@ def compare_tflite_with_tvm(
                 converter.target_spec.supported_ops = [
                     tf.lite.OpsSet.EXPERIMENTAL_TFLITE_BUILTINS_ACTIVATIONS_INT16_WEIGHTS_INT8
                 ]
+            elif int_quant_dtype == tf.int8:
+                converter.inference_type = tf.lite.constants.INT8
             else:
                 # default to int8 quantization
                 converter.inference_type = tf.lite.constants.QUANTIZED_UINT8
@@ -1646,6 +1648,86 @@ def test_forward_transpose_conv():
             )
 
 
+def _test_tflite2_quantized_transpose_conv(
+    input_shape,
+    kernel_shape,
+    filters,
+    padding="valid",
+    strides=(1, 1),
+    data_format=None,
+    int_quant_dtype=tf.int8,
+):
+    """One iteration of TFLite2 quantized tranpose conv with given shapes and attributes"""
+    data_format = "channels_last" if data_format == "NHWC" else "channels_first"
+    data = np.random.uniform(0, 1, input_shape).astype("float32")
+    _ = np.random.uniform(0, 1, kernel_shape).astype("float32")
+
+    data_in = tf.keras.layers.Input(shape=data.shape[1:], batch_size=1)
+    transpose_conv = tf.keras.layers.Conv2DTranspose(
+        filters=filters,
+        kernel_size=(kernel_shape[0], kernel_shape[1]),
+        padding=padding,
+        strides=strides,
+        use_bias=True,
+    )(data_in)
+    keras_model = tf.keras.models.Model(data_in, transpose_conv)
+
+    # To create quantized values with dynamic range of activations, needs representative dataset
+    def representative_data_gen():
+        for _ in range(1):
+            yield [data]
+
+    tflite_model_quant = _quantize_keras_model(
+        keras_model,
+        representative_data_gen,
+        is_float_input=True,
+        is_float_output=True,
+        int_quant_dtype=int_quant_dtype,
+    )
+
+    # TFLite.Model.Model has changed to TFLite.Model from 1.14 to 2.1
+    try:
+        import tflite.Model
+
+        tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_quant, 0)
+    except AttributeError:
+        import tflite
+
+        tflite_model = tflite.Model.GetRootAsModel(tflite_model_quant, 0)
+    except ImportError as exc:
+        raise ImportError("The tflite package must be installed") from exc
+
+    subgraph = tflite_model.Subgraphs(0)
+    model_input = subgraph.InputsAsNumpy()
+    input_node = subgraph.Tensors(model_input).Name().decode("utf-8")
+
+    tflite_output = run_tflite_graph(tflite_model_quant, data)
+
+    if tf.__version__ < LooseVersion("2.9"):
+        input_node = data_in.name.replace(":0", "")
+    else:
+        input_node = "serving_default_" + data_in.name + ":0"
+
+    tvm_output = run_tvm_graph(tflite_model_quant, data, input_node)
+    tvm.testing.assert_allclose(
+        np.squeeze(tvm_output[0]), np.squeeze(tflite_output[0]), rtol=1e-2, atol=1e-2
+    )
+
+
+def test_forward_quantized_transpose_conv():
+    """Quantized convolution"""
+    for int_quant_dtype in [tf.int8, tf.int16]:
+        _test_tflite2_quantized_transpose_conv(
+            (1, 1, 5, 64),
+            (3, 3),
+            64,
+            padding="same",
+            strides=(1, 2),
+            data_format="NHWC",
+            int_quant_dtype=int_quant_dtype,
+        )
+
+
 #######################################################################
 # Reshape
 # -------
@@ -2327,6 +2409,16 @@ def _test_elemwise(
     def __test_elemwise(in_data):
         assert len(in_data) == 2
         if quantized:
+            int_quant_dtype = None
+            if data[0].dtype == "int8":
+                int_quant_dtype = tf.int8
+            elif data[0].dtype == "uint8":
+                int_quant_dtype = tf.uint8
+            elif data[0].dtype == "int16":
+                int_quant_dtype = tf.int16
+            else:
+                assert False, "Unsupported conversion from numpy to tflite dtype!"
+
             # set the fp32 output range with respect to the operation
             out_min, out_max = _test_elemwise_qnn_out_range(qnn_op)
             inq0_min, inq0_max = (-100, 100)
@@ -2375,6 +2467,7 @@ def _test_elemwise(
                     quantized=True,
                     input_range=input_range,
                     experimental_new_converter=same_qnn_params,
+                    int_quant_dtype=int_quant_dtype,
                 )
             else:
                 out = math_op(inq_data[0], inq_data[1])
@@ -2392,6 +2485,7 @@ def _test_elemwise(
                     quantized=True,
                     input_range=input_range,
                     experimental_new_converter=same_qnn_params,
+                    int_quant_dtype=int_quant_dtype,
                 )
         else:
             out = math_op(
@@ -2585,9 +2679,16 @@ def _test_not_equal(data):
 # ------------------
 
 
-def _test_squared_difference(data):
+def _test_squared_difference(data, fused_activation_function=None, quantized=False, qnn_op=None):
     """One iteration of squared difference"""
-    return _test_elemwise(math_ops.squared_difference, data)
+    return _test_elemwise(
+        math_ops.squared_difference,
+        data,
+        fused_activation_function,
+        quantized,
+        qnn_op,
+        same_qnn_params=True,
+    )
 
 
 #######################################################################
@@ -2632,11 +2733,13 @@ def _test_forward_elemwise(testop):
     )
 
 
-def _test_forward_elemwise_quantized(testop):
+def _test_forward_elemwise_quantized(testop, dtype=np.uint8):
+    type_info = np.iinfo(dtype)
+    _min, _max = type_info.min, type_info.max
     testop(
         [
-            np.array(np.random.uniform(0, 255, (3, 6)), dtype=np.uint8),
-            np.array(np.random.uniform(0, 255, (3, 6)), dtype=np.uint8),
+            np.array(np.random.uniform(_min, _max, (3, 6)), dtype=dtype),
+            np.array(np.random.uniform(_min, _max, (3, 6)), dtype=dtype),
         ],
         quantized=True,
         qnn_op=testop,
@@ -2653,6 +2756,7 @@ def _test_elemwise_qnn_out_range(qnn_op):
         _test_minimum: (-128, 127),
         _test_equal: (-150, 150),
         _test_greater: (-150, 150),
+        _test_squared_difference: (0, 65025),
     }
 
     return qnn_out_range[qnn_op]
@@ -2685,6 +2789,7 @@ def test_all_elemwise():
     _test_forward_elemwise(_test_greater)
     _test_forward_elemwise_quantized(_test_greater)
     _test_forward_elemwise(_test_squared_difference)
+    _test_forward_elemwise_quantized(_test_squared_difference, np.int8)
     _test_forward_elemwise(_test_greater_equal)
     _test_forward_elemwise(_test_less)
     _test_forward_elemwise(_test_less_equal)

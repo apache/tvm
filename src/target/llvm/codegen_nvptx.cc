@@ -45,7 +45,9 @@
 #include <llvm/Support/SourceMgr.h>
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Target/TargetMachine.h>
+#if TVM_LLVM_VERSION < 170
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
+#endif
 #include <tvm/runtime/device_api.h>
 
 #include <memory>
@@ -64,9 +66,13 @@ namespace codegen {
 // NVPTX code generator.
 class CodeGenNVPTX : public CodeGenLLVM {
  public:
-  void AddFunction(const PrimFunc& f) final {
+  llvm::Function* DeclareFunction(const GlobalVar& gvar, const PrimFunc& f) final {
     // add function as void return value
-    CodeGenLLVM::AddFunctionInternal(f, true);
+    return CodeGenLLVM::DeclareFunctionInternal(gvar, f);
+  }
+  void AddFunction(const GlobalVar& gvar, const PrimFunc& f) final {
+    // add function as void return value
+    CodeGenLLVM::AddFunctionInternal(gvar, f);
     // annotate as kernel function
     llvm::LLVMContext* ctx = llvm_target_->GetContext();
     module_->getOrInsertNamedMetadata("nvvm.annotations")
@@ -119,7 +125,7 @@ class CodeGenNVPTX : public CodeGenLLVM {
         ICHECK(storage_scope.rank == runtime::StorageRank::kShared)
             << "Can only allocate shared or local memory inside kernel";
         buf = AllocateSharedMemory(op->dtype, constant_size, 3, info.alignment,
-                                   llvm::GlobalValue::PrivateLinkage);
+                                   llvm::GlobalValue::ExternalLinkage);
       }
     }
 
@@ -307,13 +313,9 @@ runtime::Module BuildNVPTX(IRModule mod, Target target) {
   int compute_ver = GetCUDAComputeVersion(target);
   auto cg = std::make_unique<CodeGenNVPTX>();
 
-  cg->Init("TVMPTXModule", llvm_target.get(), false, false, false);
+  cg->Init("TVMPTXModule", llvm_target.get(), NullOpt, false, false);
 
-  cg->AddFunctionsOrdered(mod->functions.begin(), mod->functions.end(), [](auto& kv) {
-    ICHECK(kv.second->template IsInstance<PrimFuncNode>())
-        << "Can only lower IR Module with PrimFuncs";
-    return Downcast<PrimFunc>(kv.second);
-  });
+  cg->AddFunctionsOrdered(mod->functions.begin(), mod->functions.end());
 
   llvm::TargetMachine* tm = llvm_target->GetOrCreateTargetMachine();
   const auto* flibdevice_path = tvm::runtime::Registry::Get("tvm_callback_libdevice_path");

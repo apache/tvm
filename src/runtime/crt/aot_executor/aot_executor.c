@@ -82,7 +82,7 @@ int TVMAotExecutor_GetInputIndex(TVMAotExecutor* executor, const char* name) {
   return rv;
 }
 
-int TVMAotExecutor_GetInputName(TVMAotExecutor* executor, int index, char** name) {
+int TVMAotExecutor_GetInputName(TVMAotExecutor* executor, int index, const char** name) {
   const TVMMetadata* md = executor->metadata;
   *name = md->inputs[index].name;
   return 0;

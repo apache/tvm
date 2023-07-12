@@ -27,6 +27,7 @@
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/stmt_functor.h>
+#include <tvm/tir/transform.h>
 #include <tvm/tir/usmp/utils.h>
 
 #include <algorithm>
@@ -79,16 +80,50 @@ void AllocationCalculator<T>::VisitStmt_(const T* op) {
   _current_size[storage_scope] -= size;
 }
 
-tvm::Map<String, Integer> CalculateAllocatedBytes(const PrimFunc& func) {
-  return AllocationCalculator<AllocateNode>()(func);
+tvm::Map<String, tvm::Map<String, Integer> > CalculateAllocatedBytes(const PrimFunc& func) {
+  tvm::Map<String, tvm::Map<String, Integer> > results;
+  results.Set("main", AllocationCalculator<AllocateNode>()(func));
+  return results;
 }
 
-TVM_REGISTER_GLOBAL("tir.analysis.calculate_allocated_bytes").set_body_typed([](PrimFunc func) {
-  return CalculateAllocatedBytes(func);
-});
+tvm::Map<String, tvm::Map<String, Integer> > CalculateAllocatedBytes(const IRModule& mod) {
+  tvm::Map<String, tvm::Map<String, Integer> > results;
+  for (const auto& kv : mod->functions) {
+    if (auto prim_func = kv.second.as<tir::PrimFunc>()) {
+      String func_name = kv.first->name_hint;
+      results.Set(func_name, AllocationCalculator<AllocateNode>()(prim_func.value()));
+    }
+  }
+  return results;
+}
+
+TVM_REGISTER_GLOBAL("tir.analysis.calculate_allocated_bytes")
+    .set_body_typed([](ObjectRef obj) -> tvm::Map<String, tvm::Map<String, Integer> > {
+      if (auto func = obj.as<PrimFunc>()) {
+        return CalculateAllocatedBytes(func.value());
+      } else if (auto mod = obj.as<IRModule>()) {
+        return CalculateAllocatedBytes(mod.value());
+      } else {
+        LOG(FATAL) << "TypeError: Expect the input to be either PrimFunc or IRModule, but gets: "
+                   << obj->GetTypeKey();
+        throw;
+      }
+    });
+
+bool VerifyVTCMLimit(const IRModule& mod, Integer limit) {
+  auto all_sizes = CalculateAllocatedBytes(mod);
+  for (const auto& kv : all_sizes) {
+    auto sizes = kv.second;
+    const auto vtcm_allocated = sizes.Get("global.vtcm").value_or(0);
+    if (limit.IntValue() > 0 && vtcm_allocated.IntValue() > limit.IntValue()) {
+      return false;
+    }
+  }
+  return true;
+}
 
 bool VerifyVTCMLimit(const PrimFunc& func, Integer limit) {
-  auto sizes = CalculateAllocatedBytes(func);
+  auto sizes = CalculateAllocatedBytes(func)["main"];
   const auto vtcm_allocated = sizes.Get("global.vtcm").value_or(0);
   if (limit.IntValue() > 0 && vtcm_allocated.IntValue() > limit.IntValue()) {
     return false;
@@ -96,21 +131,59 @@ bool VerifyVTCMLimit(const PrimFunc& func, Integer limit) {
   return true;
 }
 
+int64_t GetVTCMCapacity(Target target, const transform::PassContext& pass_ctx) {
+  if (!target.defined()) target = Target::Current(/*allow_not_defined=*/true);
+  if (target.defined() && target->kind->name == "hexagon") {
+    auto value = Downcast<Integer>(target->attrs.at("vtcm-capacity"))->value;
+    if (value > 0) return value;
+  }
+  return pass_ctx->GetConfig<Integer>("tir.vtcm_capacity", Integer(0)).value()->value;
+}
+
+Array<tvm::transform::Pass> GetVTCMCompactionPasses() {
+  auto pass_list = Array<tvm::transform::Pass>();
+  pass_list.push_back(tir::transform::LowerInitBlock());
+  pass_list.push_back(tir::transform::PlanAndUpdateBufferAllocationLocation());
+  pass_list.push_back(tir::transform::ConvertBlocksToOpaque());
+  pass_list.push_back(tir::transform::CompactBufferAllocation());
+  pass_list.push_back(tir::transform::LowerMatchBuffer());
+  pass_list.push_back(tir::transform::InjectSoftwarePipeline());
+  pass_list.push_back(tir::transform::LowerOpaqueBlock());
+  pass_list.push_back(tir::transform::FlattenBuffer());
+  pass_list.push_back(tir::transform::Simplify());
+  pass_list.push_back(tir::transform::VectorizeLoop(true));
+  pass_list.push_back(tir::transform::StorageRewrite());
+  return pass_list;
+}
+
+TVM_REGISTER_GLOBAL("tir.analysis.get_vtcm_compaction_passes").set_body_typed([]() {
+  return GetVTCMCompactionPasses();
+});
+
 namespace transform {
 
-Pass VerifyVTCMLimit(const Integer& limit) {
+Pass VerifyVTCMLimit(Optional<Target> default_target) {
   auto pass_func = [=](IRModule mod, PassContext ctx) {
     for (auto kv : mod->functions) {
-      if (auto* n = kv.second.as<PrimFuncNode>()) {
-        auto func = GetRef<PrimFunc>(n);
-        auto sizes = CalculateAllocatedBytes(func);
-        const auto vtcm_allocated = sizes.Get("global.vtcm").value_or(0);
-        if (limit.IntValue() > 0 && vtcm_allocated.IntValue() > limit.IntValue()) {
-          LOG(FATAL) << "RuntimeError: The global.vtcm memory allocation limit has been "
-                        "exceeded(allocated: "
-                     << vtcm_allocated << ", limit: " << limit << ").\n"
-                     << "In function\n"
-                     << func;
+      if (auto opt = kv.second.as<PrimFunc>()) {
+        auto func = opt.value();
+
+        std::optional<int64_t> limit = std::nullopt;
+        if (auto func_target = func->GetAttr<Target>(tvm::attr::kTarget)) {
+          limit = GetVTCMCapacity(func_target.value(), ctx);
+        } else if (default_target) {
+          limit = GetVTCMCapacity(default_target.value(), ctx);
+        }
+
+        if (limit.has_value() && limit.value() > 0) {
+          auto sizes = CalculateAllocatedBytes(func)["main"];
+          const auto vtcm_allocated = sizes.Get("global.vtcm").value_or(0);
+          if (vtcm_allocated.IntValue() > limit.value()) {
+            LOG(FATAL) << "RuntimeError: The global.vtcm memory allocation limit has been exceeded "
+                       << "(allocated: " << vtcm_allocated << ", limit: " << limit.value() << ").\n"
+                       << "In function\n"
+                       << func;
+          }
         }
       }
     }

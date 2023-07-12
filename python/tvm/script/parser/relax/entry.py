@@ -42,13 +42,34 @@ FType = TypeVar("FType", bound=_Callable)
 
 ############################## R.function ##############################
 
+# this formulation allows us to support having @R.function
+# appear as a decorator by itself or to have optional arguments
+# like @R.function(pure=False)
+def function(
+    f: Optional[FType] = None, pure: bool = True, private: bool = False
+) -> Union[Function, FType]:
+    # pylint: disable=unused-argument
+    # (pure and private aren't used here, but are used later in parsing)
 
-def function(f: FType) -> Union[Function, FType]:
-    if not inspect.isfunction(f):
-        raise TypeError(f"Expect a function, but got: {f}")
-    if utils.is_defined_in_class(inspect.stack(), f):
-        return f
-    return parse(f, utils.inspect_function_capture(f))
+    # need to inspect the stack first because is_defined_in_class expects the outer class
+    # to be in a particular position in the stack
+    orig_stack = inspect.stack()
+
+    def decorator_wrapper(f):
+        if not inspect.isfunction(f):
+            raise TypeError(f"Expect a function, but got: {f}")
+        if utils.is_defined_in_class(orig_stack, f):
+            return f
+        return parse(f, utils.inspect_function_capture(f))
+
+    if f is not None:
+        # if there are no optional args given, this will directly invoke the wrapper
+        return decorator_wrapper(f)
+    else:
+        # if there is a optional arg given, it returns the wrapper function
+        # as a new decorator and applies it
+        setattr(decorator_wrapper, "dispatch_token", "relax")
+        return decorator_wrapper
 
 
 setattr(function, "dispatch_token", "relax")
@@ -149,12 +170,14 @@ def Tensor(
 class CallableProxy(StructInfoProxy):
     params: List[StructInfoProxy]
     ret: StructInfoProxy
+    purity: bool
+
     """Function type.
 
     A function type consists of a list of type parameters to enable
     the definition of generic functions,
     a set of type constraints which we omit for the time being,
-    a sequence of argument types, and a return type.
+    a sequence of argument types, the purity of the function, and a return type.
 
     Parameters
     ----------
@@ -164,18 +187,23 @@ class CallableProxy(StructInfoProxy):
     ret : StructInfoProxy
         The return StructInfoProxy.
 
+    purity : bool
+        Whether the callable is pure.
+
     """
 
     def __init__(
         self,
         params: Union[StructInfoProxy, List[StructInfoProxy]],
         ret: StructInfoProxy,
+        purity: bool = True,
     ) -> None:
         if not isinstance(params, (list, tuple)):
             params = [params]
         # convert `R.Tensor` to `R.Tensor()`
         self.params = [param() if callable(param) else param for param in params]
         self.ret = ret() if callable(ret) else ret
+        self.purity = purity
 
     def get_symbolic_vars(self) -> Set[str]:
         return set().union(*[p.get_symbolic_vars() for p in self.params])
@@ -183,14 +211,15 @@ class CallableProxy(StructInfoProxy):
     def as_struct_info(self, dict_globals: Optional[Dict[str, Any]] = None) -> FuncStructInfo:
         params = [param.as_struct_info(dict_globals) for param in self.params]
         ret = self.ret.as_struct_info(dict_globals)
-        return FuncStructInfo(params, ret)
+        return FuncStructInfo(params, ret, purity=self.purity)
 
 
 def Callable(
     params: Union[StructInfoProxy, List[StructInfoProxy]],
     ret: StructInfoProxy,
+    purity: bool = True,
 ) -> CallableProxy:
-    return CallableProxy(params, ret)
+    return CallableProxy(params, ret, purity=purity)
 
 
 ############################### R.Tuple ################################

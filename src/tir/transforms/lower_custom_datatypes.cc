@@ -97,10 +97,15 @@ class CustomDatatypesLowerer : public StmtExprMutator {
       allocate = stmt.as<AllocateNode>();
 
       return Allocate(new_buffer_var, new_allocate_type, allocate->extents, allocate->condition,
-                      allocate->body);
+                      allocate->body, allocate->annotations);
     } else {
       return StmtExprMutator::VisitStmt_(allocate);
     }
+  }
+
+  Stmt VisitStmt_(const DeclBufferNode* op) final {
+    auto node = Downcast<DeclBuffer>(StmtExprMutator::VisitStmt_(op));
+    return VisitBufferAccess(std::move(node));
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
@@ -166,8 +171,8 @@ class CustomDatatypesLowerer : public StmtExprMutator {
     // remap these vars when needed
     // TODO(tvm-team): remove the rewriting once the buffer var
     // attrs are being refactored into the corresponding definition node
-    if (const auto* var_node = op->node.as<VarNode>()) {
-      auto it = var_remap_.find(GetRef<Var>(var_node));
+    if (auto var_node = op->node.as<Var>()) {
+      auto it = var_remap_.find(var_node.value());
       if (it != var_remap_.end()) {
         return AttrStmt(it->second, op->attr_key, op->value, op->body);
       }

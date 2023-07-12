@@ -25,6 +25,7 @@ import tvm.testing
 from tvm import relax
 from tvm.relax.testing.runtime_builtin import MakeShapeCode, MatchShapeCode
 from tvm.relax.testing.vm import check_saved_func
+from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tir as T
 
@@ -329,6 +330,68 @@ def test_vm_builtin_reshape(exec_mode):
     res = vm["main"](input)
     expected = input_np.reshape(6, 2)
     tvm.testing.assert_allclose(res.numpy(), expected, rtol=1e-7, atol=1e-7)
+
+
+@pytest.mark.parametrize("exec_mode", EXEC_MODE)
+def test_vm_kill_object(exec_mode):
+    @I.ir_module
+    class TestKillObject:
+        @T.prim_func
+        def full(T_full: T.Buffer((T.int64(4),), "float32")):
+            T.func_attr({"global_symbol": "full", "tir.noalias": T.bool(True)})
+            for ax0 in range(T.int64(4)):
+                with T.block("T_full"):
+                    v_ax0 = T.axis.spatial(T.int64(4), ax0)
+                    T.reads()
+                    T.writes(T_full[v_ax0])
+                    T_full[v_ax0] = T.float32(0)
+
+        @T.prim_func
+        def full1(T_full: T.Buffer((T.int64(4),), "float32")):
+            T.func_attr({"global_symbol": "full1", "tir.noalias": T.bool(True)})
+            for ax0 in range(T.int64(4)):
+                with T.block("T_full"):
+                    v_ax0 = T.axis.spatial(T.int64(4), ax0)
+                    T.reads()
+                    T.writes(T_full[v_ax0])
+                    T_full[v_ax0] = T.float32(1)
+
+        @R.function
+        def main() -> R.Tensor((4,), dtype="float32"):
+            R.func_attr({"global_symbol": "main"})
+            cls = TestKillObject
+            storage: R.Object = R.vm.alloc_storage(R.shape([16]), R.prim_value(0), R.dtype("uint8"))
+            alloc: R.Tensor((4,), dtype="float32") = R.vm.alloc_tensor(
+                storage, R.prim_value(0), R.shape([4]), R.dtype("float32")
+            )
+            _: R.Tuple = cls.full(alloc)
+            __1: R.Tuple = R.vm.kill_object(alloc)
+            x: R.Tensor((4,), dtype="float32") = alloc
+            alloc1: R.Tensor((4,), dtype="float32") = R.vm.alloc_tensor(
+                storage, R.prim_value(0), R.shape([4]), R.dtype("float32")
+            )
+            _1: R.Tuple = cls.full(alloc1)
+            _1_1: R.Tuple = R.vm.kill_object(alloc1)
+            y: R.Tensor((4,), dtype="float32") = alloc1
+            storage_1: R.Object = R.vm.alloc_storage(
+                R.shape([16]), R.prim_value(0), R.dtype("uint8")
+            )
+            alloc2: R.Tensor((4,), dtype="float32") = R.vm.alloc_tensor(
+                storage_1, R.prim_value(0), R.shape([4]), R.dtype("float32")
+            )
+            _2: R.Tuple = cls.full1(alloc2)
+            z: R.Tensor((4,), dtype="float32") = alloc2
+            _2_1: R.Tuple = R.vm.kill_object(storage)
+            return z
+
+    mod = TestKillObject
+    target = tvm.target.Target("llvm", host="llvm")
+    ex = codegen(mod, target, exec_mode)
+    dev = tvm.cpu()
+    vm = relax.VirtualMachine(ex, dev)
+
+    res = vm["main"]()
+    tvm.testing.assert_allclose(res.numpy(), np.ones((4,), "float32"))
 
 
 if __name__ == "__main__":

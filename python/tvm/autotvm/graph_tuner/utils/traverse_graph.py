@@ -119,7 +119,7 @@ def _expr2graph_impl(expr, target_ops, node_dict, node_list, tvm_target):
                     node_entry["types"].append(tupe_type)
             else:
                 raise RuntimeError(
-                    "Unsupported output type %s in operator %s" % (type(out_type), op.name)
+                    f"Unsupported output type {type(out_type)} in operator {op.name}"
                 )
 
             # Utilize tracing target to fetch workload with topo-order.
@@ -138,7 +138,7 @@ def _expr2graph_impl(expr, target_ops, node_dict, node_list, tvm_target):
                             "find a target op %s with input type %s"
                             % (op, str(type(input_node_entry["node"])))
                         )
-                    free_var = relay.Var("var_%d" % i, input_type)
+                    free_var = relay.Var(f"var_{i}", input_type)
                     params.append(free_var)
                 call = relay.Call(node.op, params, node.attrs)
                 mod = tvm.IRModule.from_expr(relay.Function(params, call))
@@ -173,9 +173,7 @@ def _expr2graph_impl(expr, target_ops, node_dict, node_list, tvm_target):
         elif isinstance(node, tvm.ir.Op):
             return
         else:
-            raise RuntimeError(
-                "Not supported relay node type in graph tuning: %s" % str(type(node))
-            )
+            raise RuntimeError(f"Not supported relay node type in graph tuning: {type(node)}")
         node_dict[node] = node_index
         node_list.append(node_entry)
 

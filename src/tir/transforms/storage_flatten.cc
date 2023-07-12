@@ -1265,7 +1265,7 @@ class ApplyLayoutTransforms : public StmtExprMutator {
 
       Array<IndexMap> transforms = lookup.value();
       for (const auto& transform : transforms) {
-        write_ptr->bounds = transform->MapRanges(realize->bounds);
+        write_ptr->bounds = transform->MapRanges(realize->bounds, &analyzer);
       }
     }
 
@@ -1292,7 +1292,7 @@ class ApplyLayoutTransforms : public StmtExprMutator {
 
       Array<IndexMap> transforms = lookup.value();
       for (const auto& transform : transforms) {
-        write_ptr->indices = transform->MapIndices(node->indices);
+        write_ptr->indices = transform->MapIndices(node->indices, &analyzer);
       }
     }
     return node;
@@ -1315,7 +1315,7 @@ class ApplyLayoutTransforms : public StmtExprMutator {
 
       auto write_ptr = buf.CopyOnWrite();
       for (const auto& transform : transforms) {
-        write_ptr->shape = transform->MapShape(buf->shape);
+        write_ptr->shape = transform->MapShape(buf->shape, &analyzer);
       }
     }
 
@@ -1326,6 +1326,7 @@ class ApplyLayoutTransforms : public StmtExprMutator {
   std::unordered_map<const BufferNode*, Buffer> buf_map_;
 
   Map<Buffer, Array<IndexMap>> layout_transforms_;
+  arith::Analyzer analyzer;
 };
 
 class StorageFlattener : public StmtExprMutator {
@@ -1429,6 +1430,15 @@ class StorageFlattener : public StmtExprMutator {
       }
     }
     return body;
+  }
+
+  Stmt VisitStmt_(const DeclBufferNode* op) final {
+    auto node = Downcast<DeclBuffer>(StmtExprMutator::VisitStmt_(op));
+    const BufferEntry& entry = GetBufferEntry(node->buffer);
+    if (!entry.flattened_buffer.same_as(node->buffer)) {
+      node.CopyOnWrite()->buffer = entry.flattened_buffer;
+    }
+    return std::move(node);
   }
 
   // AllocateNodes may be present from tvm.tir.ir_builder.  This can

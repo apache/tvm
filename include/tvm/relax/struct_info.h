@@ -296,6 +296,12 @@ class FuncStructInfoNode : public StructInfoNode {
    *       ret should be ObjectStructInfo()
    */
   Optional<StructInfoDeriveFunc> derive_func;
+  /*!
+   * \brief Whether the function is pure.
+   * \note This parameter should be set to true only if the function is pure on all inputs.
+   *   If the function _may_ have visible side effects, set it to false.
+   */
+  bool purity;
 
   /*!
    * \return Whether the func struct info is opaque.
@@ -308,16 +314,18 @@ class FuncStructInfoNode : public StructInfoNode {
     v->Visit("ret", &ret);
     v->Visit("derive_func", &derive_func);
     v->Visit("span", &span);
+    v->Visit("purity", &purity);
   }
 
   bool SEqualReduce(const FuncStructInfoNode* other, SEqualReducer equal) const {
     return equal.DefEqual(params, other->params) && equal(ret, other->ret) &&
-           equal(derive_func, other->derive_func);
+           equal(purity, other->purity) && equal(derive_func, other->derive_func);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
     hash_reduce.DefHash(params);
     hash_reduce(ret);
+    hash_reduce(purity);
     hash_reduce(derive_func);
   }
 
@@ -335,34 +343,42 @@ class FuncStructInfo : public StructInfo {
    * \brief Constructor from parameter struct info and return value struct info.
    * \param params The struct info of function parameters.
    * \param ret The return value struct info.
+   * \param purity The purity of the function (true by default).
    * \param span The span of the AST.
    *
    * \note If the ret contains variables(tir::Var and relax::Var), they must be deducible from
    * params. If you are unsure, you can always erase ret to static.
    */
-  TVM_DLL FuncStructInfo(Array<StructInfo> params, StructInfo ret, Span span = Span());
+  TVM_DLL FuncStructInfo(Array<StructInfo> params, StructInfo ret, bool purity = true,
+                         Span span = Span());
 
   /*!
    * \brief Constructing an opaque function struct info using derive_func.
    *
    * \param derive_func Derivation function.
+   * \param purity The purity of the function
+   *   (false by default: most external functions are not pure).
    * \param span The span of the AST.
    *
    * \return The FuncStructInfo for opaque packedfunc.
    * \note Defaults to an derive func that always return ObjectStructInfo if not specified.
    */
-  TVM_DLL static FuncStructInfo OpaqueFunc(StructInfoDeriveFunc derive_func, Span span = Span());
+  TVM_DLL static FuncStructInfo OpaqueFunc(StructInfoDeriveFunc derive_func, bool purity = false,
+                                           Span span = Span());
 
   /*!
    * \brief Construct an opaque function using from return struct info.
    *
    * \param ret The struct info of the return value.
+   * \param purity The purity of the function
+   *   (false by default: most external functions are not pure).
    * \param span The span of the AST.
    *
    * \return The FuncStructInfo for opaque packedfunc.
    * \note Defaults to an derive func that always return ObjectStructInfo if not specified.
    */
-  TVM_DLL static FuncStructInfo OpaqueFunc(StructInfo ret = ObjectStructInfo(), Span span = Span());
+  TVM_DLL static FuncStructInfo OpaqueFunc(StructInfo ret = ObjectStructInfo(), bool purity = false,
+                                           Span span = Span());
 
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(FuncStructInfo, StructInfo, FuncStructInfoNode);
 };

@@ -57,3 +57,13 @@ register_legalize("relax.not_equal", _binary(topi.not_equal))
 
 register_legalize("relax.maximum", _binary(topi.maximum))
 register_legalize("relax.minimum", _binary(topi.minimum))
+
+# bitwise
+register_legalize("relax.bitwise_and", _binary(topi.bitwise_and))
+register_legalize("relax.bitwise_or", _binary(topi.bitwise_or))
+register_legalize("relax.bitwise_xor", _binary(topi.bitwise_xor))
+
+# logical
+register_legalize("relax.logical_and", _binary(topi.logical_and))
+register_legalize("relax.logical_or", _binary(topi.logical_or))
+register_legalize("relax.logical_xor", _binary(topi.logical_xor))

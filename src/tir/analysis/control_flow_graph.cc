@@ -291,11 +291,11 @@ class ControlFlowGraphBuilder final : public IRVisitorWithAnalyzer {
 
     tir::BufferLoad load;
     PrimExpr value;
-    if (auto* as_load = as_equal_node->a.as<tir::BufferLoadNode>()) {
-      load = GetRef<tir::BufferLoad>(as_load);
+    if (auto opt = as_equal_node->a.as<tir::BufferLoad>()) {
+      load = opt.value();
       value = as_equal_node->b;
-    } else if (auto* as_load = as_equal_node->b.as<tir::BufferLoadNode>()) {
-      load = GetRef<tir::BufferLoad>(as_load);
+    } else if (auto opt = as_equal_node->b.as<tir::BufferLoad>()) {
+      load = opt.value();
       value = as_equal_node->a;
     } else if (!from_assume_statement) {
       return;
@@ -820,8 +820,9 @@ BufferTouch ControlFlowGraph::ControlFlowBlock::MakeBufferTouch(ControlFlowGraph
   return buffer_touch;
 }
 
-ControlFlowGraph::ControlFlowGraph(const tir::Stmt& stmt, size_t max_revisits)
-    : max_revisits_(max_revisits) {
+ControlFlowGraph::ControlFlowGraph(const tir::Stmt& stmt, int64_t max_simplification_steps,
+                                   size_t max_revisits)
+    : max_revisits_(max_revisits), max_simplification_steps_(max_simplification_steps) {
   ControlFlowGraphBuilder::Build(this, stmt);
   ForwardPropagateKnownValues();
   BackwardPropagateUnusedValues();
@@ -1377,6 +1378,7 @@ void ControlFlowGraph::ForwardPropagateKnownValues(std::optional<size_t> flow_fr
   std::unordered_map<size_t, size_t> visit_count_lookup;
 
   Analyzer analyzer;
+  analyzer.rewrite_simplify.SetMaximumRewriteSteps(max_simplification_steps_);
   analyzer.rewrite_simplify.SetEnabledExtensions(arith::RewriteSimplifier::Extension(
       arith::RewriteSimplifier::kTransitivelyProveInequalities |
       arith::RewriteSimplifier::kConvertBooleanToAndOfOrs |
@@ -1510,6 +1512,7 @@ void ControlFlowGraph::BackwardPropagateUnusedValues(std::optional<size_t> flow_
   std::unordered_map<size_t, size_t> visit_count_lookup;
 
   Analyzer analyzer;
+  analyzer.rewrite_simplify.SetMaximumRewriteSteps(max_simplification_steps_);
   analyzer.rewrite_simplify.SetEnabledExtensions(arith::RewriteSimplifier::Extension(
       arith::RewriteSimplifier::kTransitivelyProveInequalities |
       arith::RewriteSimplifier::kConvertBooleanToAndOfOrs |

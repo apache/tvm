@@ -17,18 +17,80 @@
 # under the License.
 
 import argparse
-import os
 import pickle
 from pathlib import Path
 import csv
 import sys
 from collections import defaultdict
-from typing import Callable, Dict, List, Any
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.append(str(REPO_ROOT / "tests" / "scripts"))
 sys.path.append(str(REPO_ROOT / "tests" / "scripts" / "github"))
 sys.path.append(str(REPO_ROOT / "tests" / "scripts" / "jenkins"))
+
+# Tag dictionary used to create a mapping relation to categorize PRs owning same tag.
+TAG_DICT = {
+    "metaschedule": "MetaSchedule",
+    "cuda": "cuda & cutlass & tensorrt",
+    "cutlass": "cuda & cutlass & tensorrt",
+    "tensorrt": "cuda & cutlass & tensorrt",
+    "ethosn": "Ethosn",
+    "hexagon": "Hexagon",
+    "metal": "metal",
+    "cmsis-nn": "CMSIS-NN",
+    "clml": "OpenCL & CLML",
+    "opencl": "OpenCL & CLML",
+    "adreno": "Adreno",
+    "acl": "ArmComputeLibrary",
+    "rocm": "ROCm",
+    "crt": "CRT",
+    "micronpu": "micoNPU",
+    "microtvm": "microTVM",
+    "web": "web",
+    "wasm": "web",
+    "runtime": "Runtime",
+    "aot": "AOT",
+    "arith": "Arith",
+    "byoc": "BYOC",
+    "community": "Community",
+    "tensorir": "TIR",
+    "tir": "TIR",
+    "tensorflow": "Frontend",
+    "tflite": "Frontend",
+    "paddle": "Frontend",
+    "oneflow": "Frontend",
+    "pytorch": "Frontend",
+    "torch": "Frontend",
+    "keras": "Frontend",
+    "frontend": "Frontend",
+    "onnx": "Frontend",
+    "roofline": "Misc",
+    "rpc": "Misc",
+    "transform": "Misc",
+    "tophub": "Misc",
+    "vta": "Misc",
+    "ux": "Misc",
+    "APP": "Misc",
+    "docker": "Docker",
+    "doc": "Docs",
+    "docs": "Docs",
+    "llvm": "LLVM",
+    "sve": "LLVM",
+    "ci": "CI",
+    "test": "CI",
+    "tests": "CI",
+    "testing": "CI",
+    "unittest": "CI",
+    "bugfix": "BugFix",
+    "fix": "BugFix",
+    "bug": "BugFix",
+    "hotfix": "BugFix",
+    "relay": "Relay",
+    "tvmscript": "TVMScript",
+    "tvmscripts": "TVMScript",
+    "tvmc": "TVMC",
+    "topi": "TOPI",
+}
 
 
 def strip_header(title: str, header: str) -> str:
@@ -43,63 +105,78 @@ def sprint(*args):
     print(*args, file=sys.stderr)
 
 
-if __name__ == "__main__":
-    help = "List out commits with attached PRs since a certain commit"
-    parser = argparse.ArgumentParser(description=help)
-    parser.add_argument("--notes-csv", required=True, help="csv file of categorized PRs in order")
-    args = parser.parse_args()
-    user = "apache"
-    repo = "tvm"
-
-    cache = Path("out.pkl")
-    if not cache.exists():
-        sprint("run gather_prs.py first to generate out.pkl")
-        exit(1)
-
+def create_pr_dict(cache: Path):
     with open(cache, "rb") as f:
         data = pickle.load(f)
 
     sprint(data[1])
-    reverse = {}
+    pr_dict = {}
     for item in data:
         prs = item["associatedPullRequests"]["nodes"]
         if len(prs) != 1:
             continue
 
         pr = prs[0]
-        reverse[pr["number"]] = pr
+        pr_dict[pr["number"]] = pr
+    return pr_dict
 
-    def pr_title(number, heading):
-        title = reverse[int(number)]["title"]
-        title = strip_header(title, heading)
-        return title
 
+def categorize_csv_file(csv_path: str):
     headings = defaultdict(lambda: defaultdict(list))
-    output = ""
-
     sprint("Opening CSV")
-    with open(args.notes_csv) as f:
-        # Skip header stuff
-        f.readline()
-        f.readline()
-        f.readline()
-
+    with open(csv_path) as f:
         input_file = csv.DictReader(f)
 
         i = 0
+        blank_cate_set = {"Misc"}
         for row in input_file:
-            category = row["category"].strip()
+            # print(row)
+            tags = row["pr_title_tags"].split("/")
+            tags = ["misc"] if len(tags) == 0 else tags
+
+            categories = map(lambda t: TAG_DICT.get(t.lower(), "Misc"), tags)
+            categories = list(categories)
+            categories = list(set(categories) - blank_cate_set)
+            category = "Misc" if len(categories) == 0 else categories[0]
+
             subject = row["subject"].strip()
             pr_number = row["url"].split("/")[-1]
+
             if category == "" or subject == "":
-                sprint(f"Skipping {pr_number}")
+                sprint(f"Skipping {i}th pr with number: {pr_number}, row: {row}")
                 continue
 
             headings[category][subject].append(pr_number)
             i += 1
             # if i > 30:
             #     break
+    return headings
 
+
+if __name__ == "__main__":
+    help = "List out commits with attached PRs since a certain commit"
+    parser = argparse.ArgumentParser(description=help)
+    parser.add_argument("--notes-csv", required=True, help="csv file of categorized PRs in order")
+    parser.add_argument(
+        "--is-pr-with-link",
+        required=False,
+        help="exported pr number with hyper-link for forum format",
+    )
+    args = parser.parse_args()
+    user = "apache"
+    repo = "tvm"
+
+    # 1. Create PR dict from cache file
+    cache = Path("out.pkl")
+    if not cache.exists():
+        sprint("run gather_prs.py first to generate out.pkl")
+        exit(1)
+    pr_dict = create_pr_dict(cache)
+
+    # 2. Categorize csv file as dict by category and subject (sub-category)
+    headings = categorize_csv_file(args.notes_csv)
+
+    # 3. Summarize and sort all categories
     def sorter(x):
         if x == "Misc":
             return 10
@@ -108,6 +185,19 @@ if __name__ == "__main__":
     keys = list(headings.keys())
     keys = list(sorted(keys))
     keys = list(sorted(keys, key=sorter))
+
+    # 4. Generate markdown by loop categorized csv file dict
+    def pr_title(number, heading):
+        # print(f"number:{number}, heading:{heading}, len(pr_dict):{len(pr_dict)}")
+        try:
+            title = pr_dict[int(number)]["title"]
+            title = strip_header(title, heading)
+        except:
+            sprint("The out.pkl file is not match with csv file.")
+            exit(1)
+        return title
+
+    output = ""
     for key in keys:
         value = headings[key]
         if key == "DO NOT INCLUDE":
@@ -119,7 +209,12 @@ if __name__ == "__main__":
         misc += value.get("n/a", [])
         misc += value.get("Misc", [])
         for pr_number in misc:
-            output += f" * #{pr_number} - {pr_title(pr_number, '[' + key + ']')}\n"
+            if args.is_pr_with_link:
+                pr_number_str = f"[#{pr_number}](https://github.com/apache/tvm/pull/{pr_number})"
+            else:
+                pr_number_str = f"#{pr_number}"
+            pr_str = f" * {pr_number_str} - {pr_title(pr_number, '[' + key + ']')}\n"
+            output += pr_str
 
         for subheading, pr_numbers in value.items():
             if subheading == "DO NOT INCLUDE":
@@ -132,4 +227,5 @@ if __name__ == "__main__":
 
         output += "\n"
 
+    # 5. Print markdown-format output
     print(output)

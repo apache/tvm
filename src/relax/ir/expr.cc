@@ -166,7 +166,18 @@ Tuple WithFields(Tuple tuple, Optional<Array<Expr>> opt_fields, Optional<Span> o
 }
 
 TupleGetItem::TupleGetItem(Expr tuple, int index, Span span) {
+  CHECK_GE(index, 0) << "Index out of bounds: Tuple " << tuple
+                     << " cannot be accessed with negative index " << index;
   ObjectPtr<TupleGetItemNode> n = make_object<TupleGetItemNode>();
+
+  if (auto* tuple_info = tuple->struct_info_.as<TupleStructInfoNode>()) {
+    CHECK_LT(index, tuple_info->fields.size())
+        << "Index out of bounds: Tuple " << tuple << " is of size " << tuple_info->fields.size()
+        << ", and cannot be accessed with index " << index;
+    auto sinfo = tuple_info->fields[index];
+    n->struct_info_ = sinfo;
+    n->checked_type_ = GetStaticType(sinfo);
+  }
   n->tuple = std::move(tuple);
   n->index = index;
   n->span = std::move(span);
@@ -266,7 +277,7 @@ TVM_REGISTER_GLOBAL("relax.DataflowVarFromId")
       return DataflowVar(vid, struct_info_annotation, span);
     });
 
-Constant::Constant(runtime::NDArray data, Span span) {
+Constant::Constant(runtime::NDArray data, Optional<StructInfo> struct_info_annotation, Span span) {
   ObjectPtr<ConstantNode> n = make_object<ConstantNode>();
   n->data = std::move(data);
   n->span = std::move(span);
@@ -277,18 +288,25 @@ Constant::Constant(runtime::NDArray data, Span span) {
   for (size_t dim = 0; dim < shape_tuple.size(); ++dim) {
     values.push_back(IntImm(DataType::Int(64), shape_tuple[dim]));
   }
-  TensorStructInfo tinfo(ShapeExpr(values), n->data.DataType(), span);
+  if (struct_info_annotation.defined()) {
+    n->struct_info_ = struct_info_annotation.value();
+    n->checked_type_ = GetStaticType(struct_info_annotation.value());
+  } else {
+    TensorStructInfo tinfo(ShapeExpr(values), n->data.DataType(), span);
+    n->struct_info_ = tinfo;
+    n->checked_type_ = DynTensorType(tinfo->ndim, tinfo->dtype);
+  }
 
-  n->struct_info_ = tinfo;
-  n->checked_type_ = DynTensorType(tinfo->ndim, tinfo->dtype);
   data_ = std::move(n);
 }
 
 TVM_REGISTER_NODE_TYPE(ConstantNode);
 
-TVM_REGISTER_GLOBAL("relax.Constant").set_body_typed([](runtime::NDArray data, Span span = Span()) {
-  return Constant(data, span);
-});
+TVM_REGISTER_GLOBAL("relax.Constant")
+    .set_body_typed([](runtime::NDArray data, Optional<StructInfo> struct_info_annotation = NullOpt,
+                       Span span = Span()) {
+      return Constant(data, struct_info_annotation, span);
+    });
 
 PrimValue::PrimValue(PrimExpr value, Span span) {
   ObjectPtr<PrimValueNode> n = make_object<PrimValueNode>();
@@ -417,7 +435,7 @@ TVM_REGISTER_GLOBAL("relax.SeqExpr")
 
 TVM_REGISTER_NODE_TYPE(FunctionNode);
 
-Function::Function(Array<Var> params, Expr body, Optional<StructInfo> ret_struct_info,
+Function::Function(Array<Var> params, Expr body, Optional<StructInfo> ret_struct_info, bool is_pure,
                    DictAttrs attrs, Span span) {
   // Set the function type.
   // For function, we take a conservative approach and require the function type
@@ -449,13 +467,14 @@ Function::Function(Array<Var> params, Expr body, Optional<StructInfo> ret_struct
     ret_struct_info = body_sinfo;
   }
 
-  FuncStructInfo func_sinfo(param_sinfo, ret_struct_info.value());
+  FuncStructInfo func_sinfo(param_sinfo, ret_struct_info.value(), is_pure);
 
   // set the fields
   ObjectPtr<FunctionNode> n = make_object<FunctionNode>();
   n->params = std::move(params);
   n->body = std::move(body);
   n->ret_struct_info = std::move(ret_struct_info.value());
+  n->is_pure = is_pure;
   n->checked_type_ = GetStaticType(func_sinfo);
   n->struct_info_ = std::move(func_sinfo);
   n->attrs = std::move(attrs);
@@ -465,23 +484,26 @@ Function::Function(Array<Var> params, Expr body, Optional<StructInfo> ret_struct
 
 TVM_REGISTER_GLOBAL("relax.Function")
     .set_body_typed([](Array<Var> params, Expr body, Optional<StructInfo> ret_struct_info,
-                       DictAttrs attrs,
-                       Span span) { return Function(params, body, ret_struct_info, attrs, span); });
+                       bool is_pure, DictAttrs attrs, Span span) {
+      return Function(params, body, ret_struct_info, is_pure, attrs, span);
+    });
 
-Function Function::CreateEmpty(Array<Var> params, StructInfo ret_struct_info, DictAttrs attrs,
-                               Span span) {
+Function Function::CreateEmpty(Array<Var> params, StructInfo ret_struct_info, bool is_pure,
+                               DictAttrs attrs, Span span) {
   Array<StructInfo> param_sinfo;
   for (const Var& param : params) {
     ICHECK(param->checked_type_.defined())
         << "relax.Function requires params to contain checked_type_.";
     param_sinfo.push_back(GetStructInfo(param));
   }
-  FuncStructInfo finfo(param_sinfo, ret_struct_info);
+
+  FuncStructInfo finfo(param_sinfo, ret_struct_info, is_pure);
 
   // set the fields
   ObjectPtr<FunctionNode> n = make_object<FunctionNode>();
   n->params = std::move(params);
   n->body = Expr();
+  n->is_pure = is_pure;
   n->checked_type_ = GetStaticType(finfo);
   n->struct_info_ = std::move(finfo);
   n->ret_struct_info = std::move(ret_struct_info);
@@ -491,8 +513,9 @@ Function Function::CreateEmpty(Array<Var> params, StructInfo ret_struct_info, Di
 }
 
 TVM_REGISTER_GLOBAL("relax.FunctionCreateEmpty")
-    .set_body_typed([](Array<Var> params, StructInfo ret_struct_info, DictAttrs attrs, Span span) {
-      return Function::CreateEmpty(params, ret_struct_info, attrs, span);
+    .set_body_typed([](Array<Var> params, StructInfo ret_struct_info, bool is_pure, DictAttrs attrs,
+                       Span span) {
+      return Function::CreateEmpty(params, ret_struct_info, is_pure, attrs, span);
     });
 
 // Special opaque derivation function for ExternFunc

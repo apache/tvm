@@ -149,7 +149,6 @@ class ScheduleCopier {
       scope->src2deps = Copy(old_info.scope->src2deps);
       scope->dst2deps = Copy(old_info.scope->dst2deps);
       scope->buffer_writers = Copy(old_info.scope->buffer_writers);
-      scope->stage_pipeline = old_info.scope->stage_pipeline;
       new_info.scope = BlockScope(std::move(scope));
       result[Copy(old_sref)] = std::move(new_info);
     }
@@ -250,6 +249,16 @@ Array<ExprRV> ConcreteScheduleNode::SamplePerfectTile(const LoopRV& loop_rv, int
   return CreateRV(tir::SamplePerfectTile(&this->rand_state_, this->GetSRef(loop_rv), n,
                                          max_innermost_factor, &decision));
   TVM_TIR_SCHEDULE_END("sample-perfect-tile", this->error_render_level_);
+  throw;
+}
+
+Array<ExprRV> ConcreteScheduleNode::SamplePartitionedTile(const LoopRV& loop_rv, int n,
+                                                          int partition_pos, int innerpart_factor,
+                                                          Optional<Array<Integer>> decision) {
+  TVM_TIR_SCHEDULE_BEGIN();
+  return CreateRV(tir::SamplePartitionedTile(&this->rand_state_, this->GetSRef(loop_rv), n,
+                                             partition_pos, innerpart_factor, &decision));
+  TVM_TIR_SCHEDULE_END("sample-partitioned-tile", this->error_render_level_);
   throw;
 }
 
@@ -354,7 +363,25 @@ Array<BlockRV> ConcreteScheduleNode::GetConsumers(const BlockRV& block_rv) {
   throw;
 }
 
+Array<BlockRV> ConcreteScheduleNode::GetOutputBlocks(const BlockRV& scope_block_rv) {
+  TVM_TIR_SCHEDULE_BEGIN();
+  return CreateRV<BlockRV>(tir::GetOutputBlocks(state_, this->GetSRef(scope_block_rv)));
+  TVM_TIR_SCHEDULE_END("get-output-blocks", this->error_render_level_);
+  throw;
+}
+
 /******** Schedule: Transform loops ********/
+
+LoopRV ConcreteScheduleNode::Merge(const Array<LoopRV>& loop_rvs) {
+  CHECK(loop_rvs.size() > 1) << "ValueError: 'merge' requires at least 2 loop(s)";
+  Array<StmtSRef> loop_srefs = this->GetSRefs(loop_rvs);
+  StmtSRef result{nullptr};
+  TVM_TIR_SCHEDULE_BEGIN();
+  result = tir::Merge(state_, loop_srefs);
+  TVM_TIR_SCHEDULE_END("merge", this->error_render_level_);
+  this->state_->DebugVerify();
+  return CreateRV<LoopRV>(result);
+}
 
 LoopRV ConcreteScheduleNode::Fuse(const Array<LoopRV>& loop_rvs, bool preserve_unit_iters) {
   CHECK(!loop_rvs.empty()) << "ValueError: 'fuse' requires at least 1 loop(s)";
@@ -477,6 +504,14 @@ void ConcreteScheduleNode::Reorder(const Array<LoopRV>& ordered_loop_rvs) {
   TVM_TIR_SCHEDULE_BEGIN();
   tir::Reorder(state_, GetSRefs(ordered_loop_rvs));
   TVM_TIR_SCHEDULE_END("reorder", this->error_render_level_);
+  this->state_->DebugVerify();
+}
+
+void ConcreteScheduleNode::ReorderBlockIterVar(const BlockRV& block_rv,
+                                               const Array<Integer> new_order) {
+  TVM_TIR_SCHEDULE_BEGIN();
+  tir::ReorderBlockIterVar(state_, GetSRef(block_rv), new_order);
+  TVM_TIR_SCHEDULE_END("reorder_block_iter_var", this->error_render_level_);
   this->state_->DebugVerify();
 }
 
@@ -765,6 +800,15 @@ BlockRV ConcreteScheduleNode::Blockize(const LoopRV& loop_rv, bool preserve_unit
   return CreateRV<BlockRV>(result);
 }
 
+BlockRV ConcreteScheduleNode::Blockize(const Array<BlockRV>& blocks, bool preserve_unit_iters) {
+  StmtSRef result{nullptr};
+  TVM_TIR_SCHEDULE_BEGIN();
+  result = tir::Blockize(state_, this->GetSRefs(blocks), preserve_unit_iters);
+  this->state_->DebugVerify();
+  TVM_TIR_SCHEDULE_END("blockize", this->error_render_level_);
+  return CreateRV<BlockRV>(result);
+}
+
 void ConcreteScheduleNode::Tensorize(const LoopRV& loop_rv, const String& intrin,
                                      bool preserve_unit_iters) {
   TVM_TIR_SCHEDULE_BEGIN();
@@ -917,6 +961,14 @@ void ConcreteScheduleNode::RollingBuffer(const BlockRV& block_rv, int write_buff
 }
 
 /******** Schedule: Misc ********/
+
+void ConcreteScheduleNode::UnsafeHideBufferAccess(const BlockRV& block_rv, const String& buf_type,
+                                                  const Array<IntImm>& buf_index_array) {
+  TVM_TIR_SCHEDULE_BEGIN();
+  tir::UnsafeHideBufferAccess(state_, this->GetSRef(block_rv), buf_type, buf_index_array);
+  TVM_TIR_SCHEDULE_END("hide-buffer-access", this->error_render_level_);
+  this->state_->DebugVerify();
+}
 
 }  // namespace tir
 }  // namespace tvm

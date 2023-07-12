@@ -226,6 +226,25 @@ def ToNonDataflow() -> tvm.ir.transform.Pass:
     return _ffi_api.ToNonDataflow()  # type: ignore
 
 
+def RemovePurityChecking() -> tvm.ir.transform.Pass:
+    """Activate relax.force_pure on all pure functions in the module
+    and unwrap all pure override ops into the normal versions.
+
+    This effectively means that there will be no more purity tracking,
+    useful for low-level code generation.
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+        The Pass.
+
+    Note
+    ----
+    Should be used after ToNonDataflow()
+    """
+    return _ffi_api.RemovePurityChecking()  # type: ignore
+
+
 def LambdaLift():
     """A pass that lifts local functions into global.
 
@@ -271,18 +290,22 @@ def CanonicalizeBindings() -> tvm.ir.transform.Pass:
     return _ffi_api.CanonicalizeBindings()  # type: ignore
 
 
-def EliminateCommonSubexpr() -> DataflowBlockPass:
-    """Eliminate common subexpressions within dataflow blocks.
+def EliminateCommonSubexpr(call_only=False) -> FunctionPass:
+    """Eliminate common subexpressions within functions.
 
-    Note: For functions local to dataflow blocks, this pass performs
-    CSE *within* those functions
+    Note: For nested functions, this pass performs CSE *within* those functions
+
+    Parameters
+    ----------
+    call_only : bool
+        If True, enable eliminating only call nodes.
 
     Returns
     -------
     ret : tvm.transform.Pass
         The registered pass that eliminates common subexpressions.
     """
-    return _ffi_api.EliminateCommonSubexpr()  # type: ignore
+    return _ffi_api.EliminateCommonSubexpr(call_only)  # type: ignore
 
 
 def RewriteDataflowReshape() -> tvm.ir.transform.Pass:
@@ -631,7 +654,9 @@ def LiftTransformParams() -> tvm.ir.transform.Pass:
     return _ffi_api.LiftTransformParams()  # type: ignore
 
 
-def LegalizeOps(customize_legalize_map: Optional[Dict[str, LegalizeFunc]] = None):
+def LegalizeOps(
+    customize_legalize_map: Optional[Dict[str, LegalizeFunc]] = None, enable_warning: bool = False
+):
     """Legalize high-level operator calls in Relax functions to call_tir
     with corresponding low-level TIR PrimFuncs.
 
@@ -655,6 +680,11 @@ def LegalizeOps(customize_legalize_map: Optional[Dict[str, LegalizeFunc]] = None
     customize_legalize_map : Optional[Dict[str, LegalizeFunc]]
         The customized operator legalization function map. The customized function will override
         the default one.
+
+    enable_warning : bool
+        A boolean value indicating if to print warnings for CallNode whose op's
+        legalization function is not registered. By default we don't print
+        warnings.
 
     Returns
     -------
@@ -730,22 +760,29 @@ def LegalizeOps(customize_legalize_map: Optional[Dict[str, LegalizeFunc]] = None
                         T_multiply[v_ax0, v_ax1] = A[v_ax0, v_ax1] * B[v_ax0, v_ax1]
     """
 
-    return _ffi_api.LegalizeOps(customize_legalize_map)  # type: ignore
+    return _ffi_api.LegalizeOps(customize_legalize_map, enable_warning)  # type: ignore
 
 
 def MetaScheduleApplyDatabase(
-    work_dir: Optional[str] = None,
+    work_dir: Optional[str] = None, enable_warning: bool = False
 ) -> tvm.ir.transform.Pass:
     """Apply the best schedule from tuning database.
+
+    Parameters
+    ----------
     work_dir : Optional[str]
        work directory to deduce default database if database is not provided
        (it will be ignored when an user passes database)
+    enable_warning : bool
+        A boolean value indicating if to print warnings for TIR functions not
+        showing up in the database. By default we don't print warning.
+
     Returns
     -------
     ret : tvm.transform.Pass
         The registered pass
     """
-    return _ffi_api.MetaScheduleApplyDatabase(work_dir)  # type: ignore
+    return _ffi_api.MetaScheduleApplyDatabase(work_dir, enable_warning)  # type: ignore
 
 
 def MetaScheduleTuneTIR(
@@ -770,6 +807,8 @@ def MetaScheduleTuneIRMod(
     params: Dict[str, NDArray],
     work_dir: str,
     max_trials_global: int,
+    max_trials_per_task: Optional[int] = None,
+    op_names: Optional[List[str]] = None,
 ) -> tvm.ir.transform.Pass:
     """Tune Relax IRModule with MetaSchedule.
     Parameters
@@ -780,11 +819,43 @@ def MetaScheduleTuneIRMod(
        work directory
     max_trials_gloabl: int
        maximum number of total trials allowed for tuning
+    max_trials_per_task: int
+       maximum number of trials per task
+    op_names: Optional[List[str]]
+       A list of operator names to specify which op to tune. When it is None, all operators
+        are tuned.
+
     Returns
     -------
     ret: tvm.ir.transform.Pass
     """
-    return _ffi_api.MetaScheduleTuneIRMod(params, work_dir, max_trials_global)  # type: ignore
+    return _ffi_api.MetaScheduleTuneIRMod(
+        params, work_dir, max_trials_global, max_trials_per_task, op_names
+    )  # type: ignore
+
+
+def FewShotTuning(
+    valid_count: int = 1,
+    benchmark: bool = False,
+) -> tvm.ir.transform.Pass:
+    """The pass is designed for few shot tuning for static shape PrimFuncs. It examines all the
+    blocks within the PrimFunc and conducts loop fusion, splitting, and other transformations based
+    on MetaSchedule schedule rules but directly samples from the search space instead of using the
+    tuning algorithm. User can specify the number of valid counts to try and whether to use runner
+    for benchmarking.
+
+    Parameters
+    ----------
+    valid_count: int
+        The number of valid counts to try.
+    benchmark: bool
+        Whether to use runner for benchmarking.
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+    """
+    return _ffi_api.FewShotTuning(valid_count, benchmark)  # type: ignore
 
 
 def DecomposeOpsForInference(func_name: Optional[str] = None) -> tvm.ir.transform.Pass:
@@ -900,19 +971,25 @@ def DeadCodeElimination(entry_functions: Optional[List[str]] = None) -> tvm.ir.t
     return _ffi_api.DeadCodeElimination(entry_functions)  # type: ignore
 
 
-def ToMixedPrecision(out_dtype="float32") -> tvm.ir.transform.Pass:
+def ToMixedPrecision(
+    out_dtype="float32", fp16_input_names: Optional[List[str]] = None
+) -> tvm.ir.transform.Pass:
     """Automatic mixed precision pass. Currently the pass assumes the input module to be fp32
     only, and will automatically cast fp32 to fp16 for certain ops.
     Parameters
     ----------
     out_dtype : str
         The output data type of gemm/conv, which is the data type of the accumulator.
+    fp16_input_names : List[str]
+        The names of function parameters whose dtype should become fp16. The  function signature
+        would change accordingly.
+
     Returns
     -------
     ret : tvm.transform.Pass
         The registered pass for mixed precision.
     """
-    return _ffi_api.ToMixedPrecision(out_dtype)  # type: ignore
+    return _ffi_api.ToMixedPrecision(out_dtype, fp16_input_names)  # type: ignore
 
 
 def SplitCallTIRByPattern(patterns, fcodegen) -> tvm.ir.transform.Pass:
@@ -932,6 +1009,57 @@ def SplitCallTIRByPattern(patterns, fcodegen) -> tvm.ir.transform.Pass:
         The registered pass for splitting call_tir.
     """
     return _ffi_api.SplitCallTIRByPattern(patterns, fcodegen)  # type: ignore
+
+
+def CombineParallelMatmul(check=None):
+    """Combine multiple matmul operators sharing the same LHS matrix into one,
+    followed by slicing. When all matmul branches in a tree have the same set of fused ops,
+    the fused ops are applied to the combined matmul output before slicing.
+
+    Currently, only a limited set of fused ops is supported. It includes bias add,
+    relu, gelu, gelu_tanh and silu activation.
+
+    Parameters
+    ----------
+    check : Callable[[Var, List[Var], List[Var], Dict[Var, Expr]], bool]
+        A function to filter out unwanted branches, with the signature
+        (input, [rhs], [bias], binding) -> bool.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The corresponding pass.
+    """
+    if check is None:
+        check = lambda *_: True
+    return _ffi_api.CombineParallelMatmul(check)  # type: ignore
+
+
+def RewriteCUDAGraph() -> tvm.ir.transform.Pass:
+    """Rewrite a Relax module for executing with CUDA graph. This pass identifies the regions that
+    can be executed with CUDA graph and lifts them into new functions for runtime graph capturing.
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+        The registered pass for rewriting cuda graph
+    """
+    return _ffi_api.RewriteCUDAGraph()  # type: ignore
+
+
+def AllocateWorkspace() -> tvm.ir.transform.Pass:
+    """Allocate a workspace, represented by a tensor of size big enough for all external
+    functions that require a temporary storage, and append it to the arguments of external
+    functions.
+
+    An external function can specify its workspace requirement by the kWorkspaceSize attribute.
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+        The registered pass for allocating workspace.
+    """
+    return _ffi_api.AllocateWorkspace()  # type: ignore
 
 
 def _wrap_class_function_pass(pass_cls, pass_info):

@@ -134,7 +134,7 @@ def test_reshape_infer_struct_info_shape_symbolic():
     _check_inference(
         bb,
         relax.op.reshape(x, (d, c, b, -1)),
-        relax.TensorStructInfo((d, c, b, tir.floordiv(a * b * c * d, d * c * b)), "float32"),
+        relax.TensorStructInfo((d, c, b, a), "float32"),
     )
     _check_inference(
         bb,
@@ -144,12 +144,12 @@ def test_reshape_infer_struct_info_shape_symbolic():
     _check_inference(
         bb,
         relax.op.reshape(x, (2, -1, a)),
-        relax.TensorStructInfo((2, tir.floordiv(a * b * c * d, a * 2), a), "float32"),
+        relax.TensorStructInfo((2, tir.floordiv(b * c * d, 2), a), "float32"),
     )
     _check_inference(
         bb,
         relax.op.reshape(x, (c, -1, d, b)),
-        relax.TensorStructInfo((c, tir.floordiv(a * b * c * d, c * d * b), d, b), "float32"),
+        relax.TensorStructInfo((c, a, d, b), "float32"),
     )
     _check_inference(
         bb,
@@ -159,9 +159,7 @@ def test_reshape_infer_struct_info_shape_symbolic():
     _check_inference(
         bb,
         relax.op.reshape(x, (c, a * b * d, -1)),
-        relax.TensorStructInfo(
-            (c, a * b * d, tir.floordiv(a * b * c * d, c * (a * b * d))), "float32"
-        ),
+        relax.TensorStructInfo((c, a * b * d, 1), "float32"),
     )
     # Remove Var from StructInfo when we can
     _check_inference(bb, relax.op.reshape(x, s0), relax.TensorStructInfo((c, a, d, b), "float32"))

@@ -31,7 +31,7 @@ from .injective import schedule_injective_from_existing
 
 def _get_thrust_func_name(tvmop):
     tvmop_to_thrust_func_name = {tvm.tir.generic.add: "tvm.contrib.thrust.sum_scan"}
-    assert tvmop in tvmop_to_thrust_func_name, "{} not supported by thrust".format(tvmop)
+    assert tvmop in tvmop_to_thrust_func_name, f"{tvmop} not supported by thrust"
     return tvmop_to_thrust_func_name[tvmop]
 
 

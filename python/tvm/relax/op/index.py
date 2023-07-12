@@ -91,3 +91,40 @@ def strided_slice(
     same length as `axes`.
     """
     return _ffi_api.strided_slice(x, axes, begin, end, strides)  # type: ignore
+
+
+def dynamic_strided_slice(
+    x: Expr,
+    begin: Expr,
+    end: Expr,
+    strides: Expr,
+) -> Expr:
+    """Dynamic strided slice of a tensor. `begin`, `end`, `strids` can be computed at runtime.
+
+    Parameters
+    ----------
+    x : Expr
+        The source tensor to be sliced.
+
+    begin : Expr
+        The indices to begin with in the slicing, inclusive.
+
+    end : Expr
+        The indices indicating end of the slice, exclusive.
+
+    strides : Expr
+        Specifies the stride values, it can be negative in that case,
+        the input tensor will be reversed in that particular axis.
+        If not specified, it by default is an list of ones of the same length as `axes`.
+
+    Returns
+    -------
+    ret : relax.Expr
+        The sliced result.
+
+    Note
+    ----
+    dyn_strided_slice require the input `begin`, `end` and `strides` to have the
+    same length as rank of `data` tensor.
+    """
+    return _ffi_api.dynamic_strided_slice(x, begin, end, strides)  # type: ignore

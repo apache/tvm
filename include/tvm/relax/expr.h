@@ -550,10 +550,13 @@ class ConstantNode : public LeafExprNode {
 
   bool SEqualReduce(const ConstantNode* other, SEqualReducer equal) const {
     // struct info can be deterministically derived from data.
-    return equal(data, other->data);
+    return equal(data, other->data) && equal(struct_info_, other->struct_info_);
   }
 
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(data); }
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(data);
+    hash_reduce(struct_info_);
+  }
 
   static constexpr const char* _type_key = "relax.expr.Constant";
   TVM_DECLARE_FINAL_OBJECT_INFO(ConstantNode, LeafExprNode);
@@ -564,9 +567,12 @@ class Constant : public LeafExpr {
   /*!
    * \brief The constructor
    * \param data The data of the constant tensor.
-   * \param span The source span of the expression.
+   * \param struct_info_annotation The struct info of the constant tensor. If not specified, infer
+   * it from data. \param span The source span of the expression.
    */
-  TVM_DLL explicit Constant(runtime::NDArray data, Span span = Span());
+  TVM_DLL explicit Constant(runtime::NDArray data,
+                            Optional<StructInfo> struct_info_annotation = NullOpt,
+                            Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Constant, LeafExpr, ConstantNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ConstantNode);
@@ -920,10 +926,13 @@ class FunctionNode : public BaseFuncNode {
   Expr body;
   /*! \brief The return type of the function. */
   StructInfo ret_struct_info;
+  /*! \brief Whether the function is annotated as pure or not. */
+  bool is_pure;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("params", &params);
     v->Visit("body", &body);
+    v->Visit("is_pure", &is_pure);
     v->Visit("ret_struct_info", &ret_struct_info);
     v->Visit("attrs", &attrs);
     v->Visit("struct_info_", &struct_info_);
@@ -934,8 +943,8 @@ class FunctionNode : public BaseFuncNode {
   bool SEqualReduce(const FunctionNode* other, SEqualReducer equal) const {
     equal->MarkGraphNode();
     return equal.DefEqual(params, other->params) && equal(body, other->body) &&
-           equal(ret_struct_info, other->ret_struct_info) && equal(attrs, other->attrs) &&
-           equal(struct_info_, other->struct_info_);
+           equal(ret_struct_info, other->ret_struct_info) && equal(is_pure, other->is_pure) &&
+           equal(attrs, other->attrs) && equal(struct_info_, other->struct_info_);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -943,6 +952,7 @@ class FunctionNode : public BaseFuncNode {
     hash_reduce.DefHash(params);
     hash_reduce(body);
     hash_reduce(ret_struct_info);
+    hash_reduce(is_pure);
     hash_reduce(attrs);
     hash_reduce(struct_info_);
   }
@@ -956,14 +966,16 @@ class FunctionNode : public BaseFuncNode {
 class Function : public BaseFunc {
  public:
   TVM_DLL explicit Function(Array<Var> params, Expr body, Optional<StructInfo> ret_struct_info,
-                            DictAttrs attrs = NullValue<DictAttrs>(), Span span = Span());
+                            bool is_pure = true, DictAttrs attrs = NullValue<DictAttrs>(),
+                            Span span = Span());
 
   /*!
    * \brief Mimics the constructor but without body Expr.
-   * \note ret_struct_info is required, since it can not deduced by the body
+   * \note ret_struct_info is required, since it can not deduced by the body.
    */
   TVM_DLL static Function CreateEmpty(Array<Var> params, StructInfo ret_struct_info,
-                                      DictAttrs attrs = NullValue<DictAttrs>(), Span span = Span());
+                                      bool is_pure = true, DictAttrs attrs = NullValue<DictAttrs>(),
+                                      Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Function, BaseFunc, FunctionNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(FunctionNode);
@@ -983,6 +995,14 @@ constexpr const char* kCodegen = "Codegen";
 constexpr const char* kComposite = "Composite";
 /*! \brief Indicate the function was created by the Pattern Partitioning Pass. */
 constexpr const char* kPartitionedFromPattern = "PartitionedFromPattern";
+/*! \brief The required workspace for an external function. */
+constexpr const char* kWorkspaceSize = "WorkspaceSize";
+
+// Note: in the future, we prefer snake_case instead of CamelCase for attributes.
+// Past ones will be kept for backwards compatibility.
+/*! \brief Override checking purity for this function and treat as pure
+ * (is_pure must be set to true) */
+constexpr const char* kForcePure = "relax.force_pure";
 }  // namespace attr
 
 /*! \brief The extern function, which can represent packed function. */

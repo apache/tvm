@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-wildcard-import, wildcard-import
+# pylint: disable=invalid-name, unused-wildcard-import, wildcard-import, pointless-exception-statement
 """Generator for CUTLASS GEMM kernels."""
 from .library import *
 
@@ -66,12 +66,7 @@ class GemmOperation:
             ):
                 intermediate_type = DataTypeNames[self.tile_description.math_instruction.element_a]
 
-        return "%s%s%s%s" % (
-            self.short_math_name(),
-            inst_shape,
-            intermediate_type,
-            "gemm",
-        )
+        return f"{self.short_math_name()}{inst_shape}{intermediate_type}gemm"
 
     def extended_name(self):
         """Append data types if they differ from compute type."""
@@ -100,7 +95,7 @@ class GemmOperation:
         return extended_name
 
     def layout_name(self):
-        return "%s%s" % (ShortLayoutTypeNames[self.A.layout], ShortLayoutTypeNames[self.B.layout])
+        return f"{ShortLayoutTypeNames[self.A.layout]}{ShortLayoutTypeNames[self.B.layout]}"
 
     def procedural_name(self):
         """The full procedural name indicates architecture, extended name, tile size,
@@ -116,7 +111,7 @@ class GemmOperation:
                 "extended_name": self.extended_name(),
                 "threadblock": threadblock,
                 "layout": self.layout_name(),
-                "alignment": "%d" % self.A.alignment,
+                "alignment": f"{self.A.alignment}",
             },
         )
 
@@ -145,11 +140,7 @@ class GemmOperation:
 
         return substitute_template(
             "int lda = ${lda_val};\n\tint ldb = ${ldb_val};\n\tint ldc = ${ldc_val};\n",
-            {
-                "lda_val": lda,
-                "ldb_val": ldb,
-                "ldc_val": ldc,
-            },
+            {"lda_val": lda, "ldb_val": ldb, "ldc_val": ldc},
         )
 
 
@@ -229,7 +220,7 @@ class EmitGemmInstance:
             "opcode_class": OpcodeClassTag[
                 operation.tile_description.math_instruction.opcode_class
             ],
-            "arch": "cutlass::arch::Sm%d" % operation.arch,
+            "arch": f"cutlass::arch::Sm{operation.arch}",
             "threadblock_shape_m": str(operation.tile_description.threadblock_shape[0]),
             "threadblock_shape_n": str(operation.tile_description.threadblock_shape[1]),
             "threadblock_shape_k": str(operation.tile_description.threadblock_shape[2]),
@@ -297,12 +288,11 @@ def instantiate_gemm_template(attrs):
     """
 
     # See cutlass/gemm/kernel/gemm_with_fused_epilogue.h
-    # Batched GEMM + residual fusion is not supported for now.
     argument_template_residual = """
   typename ${kernel}::Arguments arguments{
-    cutlass::gemm::GemmUniversalMode::kGemm,
+    cutlass::gemm::GemmUniversalMode::${gemm_universal_mode},
     problem_size,
-    1, // batch_count,
+    ${split_k_slices_or_batch}, // batch_count
     {${alpha_beta}},
     static_cast<ElementInputA*>(ptr_a),
     static_cast<ElementInputB*>(ptr_b),
@@ -310,10 +300,10 @@ def instantiate_gemm_template(attrs):
     static_cast<ElementOutput*>(ptr_out),
     static_cast<ElementOutput*>(ptr_bias),
     nullptr, // ptr_Tensor
-    0, // batch_stride_A,
-    0, // batch_stride_B,
-    0, // batch_stride_C,
-    0, // batch_stride_D,
+    ${batch_stride_A}
+    ${batch_stride_B}
+    ${batch_stride_C}
+    ${batch_stride_D}
     0, // batch_stride_Vector,
     0, // batch_stride_Tensor,
     ${lda},
@@ -369,8 +359,10 @@ def instantiate_gemm_template(attrs):
             {
                 "bias_decl": "void* ptr_bias = (void*)(${bias_arg}->data);\n",
                 "ptr_c": "ptr_bias",
-                "c_stride": "(${bias_arg}->ndim == 1 || ${bias_arg}->shape[0] == 1) ? 0 : "
-                + attrs["ldc"],
+                "c_stride": (
+                    "(${bias_arg}->ndim == 1 ||"
+                    " ${bias_arg}->shape[${bias_arg}->ndim - 2] == 1) ? 0 : " + attrs["ldc"]
+                ),
             }
         )
     else:
@@ -388,13 +380,13 @@ def instantiate_gemm_template(attrs):
         aux_map["alpha_beta"] = "alpha, beta"
 
     for key in ["batch_stride_A", "batch_stride_B", "batch_stride_C"]:
-        if not batched:
+        if not batched and not has_residual_block:
             aux_map[key] = ""
         else:
-            aux_map[key] = attrs[key] + ","
+            aux_map[key] = attrs.get(key, "0") + ","
 
     aux_map["batch_stride_D"] = aux_map["batch_stride_C"]
-    if has_bias and batched:
+    if has_bias and batched and not has_residual_block:
         aux_map["batch_stride_C"] = "0,"
 
     if batched:
@@ -403,13 +395,72 @@ def instantiate_gemm_template(attrs):
         attrs["split_k_slices_or_batch"] = 1
 
     if has_residual_block:
-        assert not batched, "Residual fusion is supported only for non-batched GEMM for now."
         template = substitute_template(template, {"argument": argument_template_residual})
         aux_map["residual_decl"] = "void* ptr_residual = (void*)(${residual_arg}->data);\n"
+        aux_map["gemm_universal_mode"] = "kBatched" if batched else "kGemm"
     else:
         template = substitute_template(template, {"argument": argument_template_default})
         aux_map["residual_decl"] = ""
 
     template = substitute_template(template, aux_map)
+
+    return substitute_template(template, attrs)
+
+
+def emit_fp16A_int4B_matmul(attrs):
+    """Return CUTLASS host code for fp16 A and int4 B GEMM."""
+
+    attrs["template_common"] = substitute_template(
+        """
+  using namespace fastertransformer;
+  int m = ${A_arg}->shape[${batch_offset}];
+  int n = ${B_arg}->shape[1] * 2;
+  int k = ${B_arg}->shape[0];
+    """,
+        attrs,
+    )
+
+    template = """
+  ${template_common}
+  gemm_fp16_int4(static_cast<cutlass::half_t*>(${A_arg}->data),
+                 static_cast<cutlass::uint4b_t*>(${B_arg}->data),
+                 static_cast<cutlass::half_t*>(${scales_arg}->data),
+                 static_cast<cutlass::half_t*>(out0->data),
+                 m, n, k, nullptr, 0, nullptr);
+"""
+
+    template_bias = """
+  ${template_common}
+  gemm_fp16_int4_bias(static_cast<cutlass::half_t*>(${A_arg}->data),
+                 static_cast<cutlass::uint4b_t*>(${B_arg}->data),
+                 static_cast<cutlass::half_t*>(${scales_arg}->data),
+                 static_cast<cutlass::half_t*>(${bias_arg}->data),
+                 static_cast<cutlass::half_t*>(out0->data),
+                 m, n, k, nullptr, 0, nullptr);
+"""
+
+    template_residual = """
+  ${template_common}
+  gemm_fp16_int4_bias_act_residual(static_cast<cutlass::half_t*>(${A_arg}->data),
+                 static_cast<cutlass::uint4b_t*>(${B_arg}->data),
+                 static_cast<cutlass::half_t*>(${scales_arg}->data),
+                 ${bias},
+                 static_cast<cutlass::half_t*>(${residual_arg}->data),
+                 static_cast<cutlass::half_t*>(out0->data), "${activation}", "${binary_op}", "${unary_op}",
+                 m, n, k, nullptr, 0, nullptr);
+"""
+
+    if "residual_arg" in attrs and "bias_arg" in attrs:
+        template_residual = substitute_template(
+            template_residual, {"bias": "static_cast<cutlass::half_t*>(${bias_arg}->data)"}
+        )
+        return substitute_template(template_residual, attrs)
+
+    if "residual_arg" in attrs:
+        template_residual = substitute_template(template_residual, {"bias": "nullptr"})
+        return substitute_template(template_residual, attrs)
+
+    if "bias_arg" in attrs:
+        return substitute_template(template_bias, attrs)
 
     return substitute_template(template, attrs)

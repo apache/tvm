@@ -49,11 +49,14 @@ apt-install-and-clear -y software-properties-common
 release=$(lsb_release -sc)
 if [ "${release}" == "bionic" ]; then
     if [ "${PYTHON_VERSION}" == "3.8" ]; then
-        echo "Only 3.7 is supported for bionic in this script."
-        exit -1
+        add-apt-repository -y ppa:deadsnakes/ppa
     fi
 elif [ "${release}" == "focal" ]; then
     if [ "${PYTHON_VERSION}" == "3.7" ]; then
+        add-apt-repository -y ppa:deadsnakes/ppa
+    fi
+elif [ "${release}" == "jammy" ]; then
+    if [ "${PYTHON_VERSION}" == "3.8" ]; then
         add-apt-repository -y ppa:deadsnakes/ppa
     fi
 else
@@ -71,6 +74,7 @@ apt-install-and-clear -y \
     python${PYTHON_VERSION}-venv
 
 update-alternatives --install /usr/bin/python3 python3 /usr/bin/python${PYTHON_VERSION} 1
+update-alternatives --install /usr/bin/python python /usr/bin/python${PYTHON_VERSION} 1
 
 # Allow disabling user site-packages, even with sudo; this makes it harder to repro CI failures
 # locally because it's hard to tell what might be in this directory.

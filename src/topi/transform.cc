@@ -201,6 +201,14 @@ TVM_REGISTER_GLOBAL("topi.dynamic_strided_slice").set_body([](TVMArgs args, TVMR
   *rv = dynamic_strided_slice(args[0], begin, end, strides);
 });
 
+TVM_REGISTER_GLOBAL("topi.relax_dynamic_strided_slice").set_body([](TVMArgs args, TVMRetValue* rv) {
+  te::Tensor begin = args[1];
+  te::Tensor end = args[2];
+  te::Tensor strides = args[3];
+  Array<PrimExpr> output_shape = args[4];
+  *rv = relax::dynamic_strided_slice(args[0], begin, end, strides, output_shape);
+});
+
 TVM_REGISTER_GLOBAL("topi.one_hot").set_body([](TVMArgs args, TVMRetValue* rv) {
   int depth = args[3];
   int axis = args[4];

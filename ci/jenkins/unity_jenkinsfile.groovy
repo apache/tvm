@@ -30,14 +30,14 @@
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
-ci_lint = 'tlcpack/ci_lint:20230322-060120-46fb2ff35'
-ci_gpu = 'tlcpack/ci-gpu:20230318-060139-2ff41c615'
-ci_cpu = 'tlcpack/ci-cpu:20230110-070003-d00168ffb'
+ci_lint = 'tlcpackstaging/ci_lint:20230504-142417-4d37a0a0'
+ci_gpu = 'tlcpackstaging/ci_gpu:20230504-142417-4d37a0a0'
+ci_cpu = 'tlcpackstaging/ci_cpu:20230513-200357-e54bbc73'
 ci_wasm = 'tlcpack/ci-wasm:v0.72'
 ci_i386 = 'tlcpack/ci-i386:v0.75'
 ci_qemu = 'tlcpack/ci-qemu:v0.11'
 ci_arm = 'tlcpack/ci-arm:v0.08'
-ci_hexagon = 'tlcpack/ci-hexagon:20221025-182121-e41d0ed6e'
+ci_hexagon = 'tlcpackstaging/ci_hexagon:20230504-142417-4d37a0a0'
 // <--- End of regex-scanned config.
 
 // Parameters to allow overriding (in Jenkins UI), the images
@@ -86,7 +86,7 @@ def init_git() {
   )
   retry(5) {
     timeout(time: 2, unit: 'MINUTES') {
-      sh (script: 'git submodule update --init -f', label: 'Update git submodules')
+      sh (script: 'git submodule update --init --recursive -f', label: 'Update git submodules')
     }
   }
 }

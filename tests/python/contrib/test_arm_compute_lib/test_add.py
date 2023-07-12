@@ -17,6 +17,7 @@
 """Arm Compute Library integration reshape tests."""
 
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
@@ -134,6 +135,34 @@ def test_codegen_add():
             verify_codegen(func, exp_codegen, 1)
 
 
+@pytest.mark.parametrize(
+    "param, param_type",
+    [
+        ("lhs_scale", "float32"),
+        ("lhs_zero_point", "int32"),
+        ("rhs_scale", "float32"),
+        ("rhs_zero_point", "int32"),
+    ],
+)
+def test_codegen_add_per_channel_quantization(param, param_type):
+    if skip_codegen_test():
+        return
+
+    qnn_params = _qnn_params
+    qnn_params[param] = relay.const([1, 2], param_type)
+
+    dtype = "int8"
+    op_name = "qnn.add"
+    op = relay.qnn.op.add
+    inputs = {"a", "b"}
+
+    for shape in [(1, 3, 3, 2)]:
+        func = _get_model(shape, dtype, iter(inputs), op, qnn_params)
+        exp_codegen = _get_expected_codegen(shape, dtype, op_name, qnn_params)
+        verify_codegen(func, exp_codegen, num_acl_modules=0, tvm_ops=1)
+
+
 if __name__ == "__main__":
-    test_codegen_add()
     test_runtime_add()
+    test_codegen_add()
+    test_codegen_add_per_channel_quantization()

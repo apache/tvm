@@ -141,10 +141,6 @@ legacy_redirects = [
     ],
     ["tutorials/frontend/deploy_sparse.html", "../../how_to/deploy_models/deploy_sparse.html"],
     [
-        "tutorials/frontend/deploy_ssd_gluoncv.html",
-        "../../how_to/deploy_models/deploy_ssd_gluoncv.html",
-    ],
-    [
         "tutorials/dev/bring_your_own_datatypes.html",
         "../../how_to/extend_tvm/bring_your_own_datatypes.html",
     ],

@@ -134,6 +134,8 @@ VulkanDeviceProperties::VulkanDeviceProperties(const VulkanInstance& instance,
 
   supports_integer_dot_product = device.HasExtension("VK_KHR_shader_integer_dot_product");
 
+  supports_cooperative_matrix = device.HasExtension("VK_NV_cooperative_matrix");
+
   // The check of VK_SHADER_STAGE_COMPUTE_BIT isn't technically
   // needed, since it will be set so long at least one queue has
   // VK_QUEUE_COMPUTE_BIT.  Including it to avoid potential future
@@ -144,7 +146,11 @@ VulkanDeviceProperties::VulkanDeviceProperties(const VulkanInstance& instance,
   max_num_threads = properties.properties.limits.maxComputeWorkGroupInvocations;
 
   // Even if we can't query it, warp size must be at least 1.
-  thread_warp_size = std::max(subgroup.subgroupSize, 1U);
+  // thread_warp_size = std::max(subgroup.subgroupSize, 1U);
+  // vulkan's subgroup may not directly map to warp and atm
+  // can cause issues in softmax allreduce in NVidia GPU
+  // disable warp setting to be safe.
+  thread_warp_size = 1U;
 
   max_block_size_x = properties.properties.limits.maxComputeWorkGroupSize[0];
   max_block_size_y = properties.properties.limits.maxComputeWorkGroupSize[1];
@@ -435,7 +441,8 @@ std::vector<const char*> VulkanDevice::SelectEnabledExtensions() const {
                                                "VK_KHR_get_memory_requirements2",
                                                "VK_KHR_dedicated_allocation",
                                                "VK_KHR_spirv_1_4",
-                                               "VK_KHR_shader_integer_dot_product"};
+                                               "VK_KHR_shader_integer_dot_product",
+                                               "VK_NV_cooperative_matrix"};
 
   uint32_t device_extension_prop_count;
   VULKAN_CALL(vkEnumerateDeviceExtensionProperties(physical_device_, nullptr,

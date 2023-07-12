@@ -76,6 +76,9 @@ Expr atan(Expr x);
 /*! \brief Compute element-wise arc tanh of the input data. */
 Expr atanh(Expr x);
 
+/*! \brief Compute element-wise bitwise not */
+Expr bitwise_not(Expr x);
+
 /*! \brief Take ceil of input data. */
 Expr ceil(Expr x);
 
@@ -93,6 +96,9 @@ Expr floor(Expr x);
 
 /*! \brief Compute element-wise natural logarithm of data. */
 Expr log(Expr x);
+
+/*! \brief Compute element-wise logical not */
+Expr logical_not(Expr x);
 
 /*! \brief Compute element-wise negative value of data. */
 Expr negative(Expr x);

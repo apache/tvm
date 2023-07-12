@@ -72,6 +72,16 @@ const PrimFuncNode* GetRootPrimFunc(const IRModule& mod, const StmtNode* root_bl
  */
 StmtSRef GetSRefTreeRoot(const StmtSRef& sref);
 
+/*!
+ * \brief Given an arbitrary sref, bind the shape var info of the PrimFunc it belongs to to the
+ * given analyzer
+ * \param state The schedule state
+ * \param sref The given sref
+ * \param analyzer The analyzer to be bound
+ */
+void AddShapeVarBounds(const ScheduleState& state, const StmtSRefNode* sref,
+                       arith::Analyzer* analyzer);
+
 /******** Scope ********/
 /*!
  * \brief Checks if scope the specified sref is in is a stage-pipeline and return it
@@ -386,6 +396,16 @@ Array<StmtSRef> GetProducers(const StmtSRef& block_sref, const BlockScope& scope
 Array<StmtSRef> GetConsumers(const StmtSRef& block_sref, const BlockScope& scope);
 
 /*!
+ * \brief Get the list of output blocks within the given scope
+ * An output block is a block which has atleast one buffer being written
+ * to, but is not allocated within the PrimFunc
+ * \param scope_block_rv The scope block from which output blocks are collected
+ * \return A list of all blocks that write to some output buffer
+ * block
+ */
+Array<StmtSRef> GetOutputBlocks(const ScheduleState& self, const BlockNode* scope_block);
+
+/*!
  * \brief A solution to split a ordered list of subtrees into two parts,
  * where producers are on the LHS and consumers are on the RHS.
  * For example, subtree[0, 3) are on the LHS, and subtree[3, 6) are on the RHS.
@@ -696,24 +716,6 @@ Array<arith::IntSet> AnalyzeRegionLowerBound(const BufferRegion& region, const P
                                              const StmtSRef& dom_low_inclusive,
                                              const StmtSRef& dom_high_exclusive,
                                              arith::Analyzer* analyzer);
-
-/*!
- * \brief Check if buffer indices are all Vars and extr
- * \param buffer_access The BufferLoad or BufferStore
- * \return The indices if the indices are all Vars, otherwise NullOpt
- */
-template <typename T>
-Optional<Array<Var>> CheckTrivialBufferIndices(const T& buffer_access) {
-  Array<Var> indices;
-  for (const PrimExpr& index : buffer_access->indices) {
-    const VarNode* var = index.as<VarNode>();
-    if (var == nullptr) {
-      return NullOpt;
-    }
-    indices.push_back(GetRef<Var>(var));
-  }
-  return indices;
-}
 
 /*!
  * \brief Simplify non-trivial expressions

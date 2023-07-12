@@ -15,11 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """Unit tests for various models and operators"""
+from packaging import version as package_version
 import numpy as np
-import tvm
-from tvm import relay
-from tvm.contrib import graph_executor
-import tvm.testing
 
 try:
     import tensorflow.compat.v1 as tf
@@ -30,6 +27,11 @@ from tensorflow import keras as tf_keras
 
 # prevent Keras from using up all gpu memory
 import keras
+
+import tvm
+from tvm import relay
+from tvm.contrib import graph_executor
+import tvm.testing
 
 if tf.executing_eagerly():
     GPUS = tf.config.experimental.list_physical_devices("GPU")
@@ -157,6 +159,24 @@ class TestKeras:
             keras_model = keras_mod.models.Model(data, out)
             verify_keras_frontend(keras_model)
 
+    def test_forward_concatenate(self, keras_mod):
+        """test_forward_concatenate"""
+        data1 = keras_mod.layers.Input(shape=(1, 2, 2))
+        data2 = keras_mod.layers.Input(shape=(1, 1, 2))
+        merge_func = keras_mod.layers.Concatenate(axis=2)
+        out = merge_func([data1, data2])
+        keras_model = keras_mod.models.Model([data1, data2], out)
+        verify_keras_frontend(keras_model, layout="NHWC")
+        verify_keras_frontend(keras_model, layout="NCHW")
+        # test default axis (e.g., -1)
+        data1 = keras_mod.layers.Input(shape=(1, 2, 2))
+        data2 = keras_mod.layers.Input(shape=(1, 2, 3))
+        merge_func = keras_mod.layers.Concatenate()
+        out = merge_func([data1, data2])
+        keras_model = keras_mod.models.Model([data1, data2], out)
+        verify_keras_frontend(keras_model, layout="NHWC")
+        verify_keras_frontend(keras_model, layout="NCHW")
+
     def test_forward_merge_dot(self, keras_mod):
         """test_forward_merge_dot"""
         data1 = keras_mod.layers.Input(shape=(2, 2))
@@ -209,6 +229,30 @@ class TestKeras:
             keras_model = keras_mod.models.Model(data, x)
             verify_keras_frontend(keras_model)
             verify_keras_frontend(keras_model, need_transpose=False, layout="NHWC")
+
+    def test_forward_activations_except(self, keras_mod):
+        """
+        test invalid attribute alpha=None for LeakyReLU and ELU.
+        after version 2.3.1 in keras, checking was added to reject the invalid api call:
+        LeakyReLU(alpha=None) and ELU(alpha=None),
+        (see issue: https://github.com/tensorflow/tensorflow/pull/47017)
+        Thus, it's necessary to check the keras version to avoid crash at LeakyReLU(alpha=None)
+        and ELU(alpha=None)
+        """
+        if package_version.parse(keras_mod.__version__.split("-tf")[0]) <= package_version.parse(
+            "2.3.1"
+        ):
+            act_funcs = [
+                keras_mod.layers.LeakyReLU(alpha=None),
+                keras_mod.layers.LEU(2, 3, 4),
+                keras_mod.layers.ReLU(threshold=None),
+            ]
+            data = keras_mod.layers.Input(shape=(2, 3, 4))
+            for act_func in act_funcs:
+                layer = act_func(data)
+                keras_model = keras_mod.models.Model(data, layer)
+                with pytest.raises(tvm.error.OpAttributeInvalid):
+                    verify_keras_frontend(keras_model)
 
     def test_forward_dense(self, keras_mod):
         """test_forward_dense"""
@@ -284,6 +328,8 @@ class TestKeras:
             keras_mod.layers.DepthwiseConv2D(kernel_size=(3, 3), padding="same"),
             keras_mod.layers.Conv2DTranspose(filters=10, kernel_size=(3, 3), padding="valid"),
             keras_mod.layers.SeparableConv2D(filters=10, kernel_size=(3, 3), padding="same"),
+            keras_mod.layers.SeparableConv2D(filters=10, kernel_size=(3, 3), dilation_rate=(2, 2)),
+            keras_mod.layers.SeparableConv2D(filters=2, kernel_size=(3, 3), dilation_rate=2),
         ]
         for conv_func in conv_funcs:
             x = conv_func(data)
@@ -295,6 +341,9 @@ class TestKeras:
         data = keras_mod.layers.Input(shape=(32, 32, 128))
         conv_funcs = [
             keras_mod.layers.Conv2DTranspose(filters=64, kernel_size=(2, 2), padding="valid"),
+            keras_mod.layers.Conv2DTranspose(
+                filters=2, kernel_size=(3, 3), strides=(2, 2), output_padding=(1, 1)
+            ),
         ]
         for conv_func in conv_funcs:
             x = conv_func(data)
@@ -353,11 +402,16 @@ class TestKeras:
         for batch_norm_func in batch_norm_funcs:
             x = batch_norm_func(data)
             keras_model = keras_mod.models.Model(data, x)
-        verify_keras_frontend(keras_model)
+            verify_keras_frontend(keras_model)
 
     def test_forward_upsample(self, keras_mod, interpolation="nearest"):
         data = keras_mod.layers.Input(shape=(32, 32, 3))
         x = keras_mod.layers.UpSampling2D(size=(3, 3), interpolation=interpolation)(data)
+        keras_model = keras_mod.models.Model(data, x)
+        verify_keras_frontend(keras_model)
+        # Height and width are not equal for the attribute size
+        data = keras_mod.layers.Input(shape=(2, 1, 3))
+        x = keras_mod.layers.UpSampling2D(size=(1, 2), interpolation=interpolation)(data)
         keras_model = keras_mod.models.Model(data, x)
         verify_keras_frontend(keras_model)
 
@@ -415,7 +469,15 @@ class TestKeras:
         x = keras_mod.layers.Cropping2D(cropping=0)(x)
         x = keras_mod.layers.Add()([x, x])
         keras_model = keras_mod.models.Model(data, x)
-        verify_keras_frontend(keras_model)
+        verify_keras_frontend(keras_model, layout="NHWC")
+        verify_keras_frontend(keras_model, layout="NHWC")
+
+        data = keras_mod.layers.Input(shape=(32, 32, 3))
+        x = keras_mod.layers.Cropping2D(cropping=(2, 1))(data)
+        x = keras_mod.layers.Cropping2D(cropping=(1, 2))(x)
+        keras_model = keras_mod.models.Model(data, x)
+        verify_keras_frontend(keras_model, layout="NHWC")
+        verify_keras_frontend(keras_model, layout="NCHW")
 
     def test_forward_multi_inputs(self, keras_mod):
         data1 = keras_mod.layers.Input(shape=(32, 32, 3))
@@ -463,6 +525,8 @@ class TestKeras:
         rnn_funcs = [
             keras_mod.layers.LSTM(16),
             keras_mod.layers.LSTM(16, return_sequences=True),
+            keras_mod.layers.LSTM(16, go_backwards=True),
+            keras_mod.layers.LSTM(16, return_sequences=True, go_backwards=True),
             keras_mod.layers.LSTM(16, return_sequences=True, use_bias=False),
         ]
         for rnn_func in rnn_funcs:
@@ -593,6 +657,9 @@ class TestKeras:
                 filters=1, kernel_size=(3, 3, 3), padding="valid", use_bias=False
             ),
             keras_mod.layers.Conv3DTranspose(filters=10, kernel_size=(2, 2, 2), padding="valid"),
+            keras_mod.layers.Conv3DTranspose(
+                filters=2, kernel_size=(3, 3, 3), strides=(2, 2, 2), output_padding=(1, 1, 1)
+            ),
         ]
         for conv_func in conv_funcs:
             x = conv_func(data)
@@ -746,9 +813,11 @@ class TestKeras:
 if __name__ == "__main__":
     for k in [keras, tf_keras]:
         sut = TestKeras()
+        sut.test_forward_concatenate(keras_mod=k)
         sut.test_forward_merge_dot(keras_mod=k)
         sut.test_forward_merge(keras_mod=k)
         sut.test_forward_activations(keras_mod=k)
+        sut.test_forward_activations_except(keras_mod=k)
         sut.test_forward_dense(keras_mod=k)
         sut.test_forward_permute(keras_mod=k)
         sut.test_forward_sequential(keras_mod=k)

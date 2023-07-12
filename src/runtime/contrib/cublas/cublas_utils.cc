@@ -48,5 +48,18 @@ CuBlasThreadEntry* CuBlasThreadEntry::ThreadLocal() {
   return retval;
 }
 
+CuBlasLtThreadEntry::CuBlasLtThreadEntry() { CHECK_CUBLAS_ERROR(cublasLtCreate(&handle)); }
+
+CuBlasLtThreadEntry::~CuBlasLtThreadEntry() {
+  if (handle) {
+    cublasLtDestroy(handle);
+    handle = nullptr;
+  }
+}
+
+typedef dmlc::ThreadLocalStore<CuBlasLtThreadEntry> CuBlasLtThreadStore;
+
+CuBlasLtThreadEntry* CuBlasLtThreadEntry::ThreadLocal() { return CuBlasLtThreadStore::Get(); }
+
 }  // namespace contrib
 }  // namespace tvm

@@ -22,6 +22,7 @@
  * \brief The dataflow pattern matcher for Relax.
  */
 
+#include <tvm/node/structural_equal.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/dataflow_pattern.h>
@@ -699,6 +700,7 @@ static std::optional<MatchState> MatchTree(
         return new_match;
       }
       // Recursive matching has failed, backtrack.
+      new_match = current_match;
       continue;
     }
   }
@@ -706,12 +708,11 @@ static std::optional<MatchState> MatchTree(
   return std::nullopt;
 }
 
-Optional<Map<DFPattern, Var>> MatchGraph(const PatternContext& ctx, const DataflowBlock& dfb) {
+Optional<Map<DFPattern, Var>> MatchGraph(const PatternContext& ctx, const DataflowBlock& dfb,
+                                         const Map<Var, Expr>& bindings) {
   // TODO(@ganler): Handle non-may external use.
   ICHECK(ctx->allow_extern_use == PatternContextNode::kMay) << "Only kMay is supported yet.";
-
-  const auto var2val = AnalyzeVar2Value(dfb);
-  DFPatternMatcher matcher(var2val);
+  DFPatternMatcher matcher(bindings);
 
   MatcherUseDefAnalysis ud_analysis;
   ud_analysis.VisitBindingBlock_(dfb.get());
@@ -771,7 +772,14 @@ Optional<Map<DFPattern, Var>> MatchGraph(const PatternContext& ctx, const Datafl
   return NullOpt;
 }
 
-TVM_REGISTER_GLOBAL("relax.dpl.match_dfb").set_body_typed(MatchGraph);
+Optional<Map<DFPattern, Var>> MatchGraph(const PatternContext& ctx, const DataflowBlock& dfb) {
+  return MatchGraph(ctx, dfb, AnalyzeVar2Value(dfb));
+}
+
+TVM_REGISTER_GLOBAL("relax.dpl.match_dfb")
+    .set_body_typed([](const PatternContext& ctx, const DataflowBlock& dfb) {
+      return MatchGraph(ctx, dfb);
+    });
 
 /*!
  * \brief Apply pattern matching to each call node and dataflow block, and replace matching ones
@@ -791,7 +799,7 @@ class PatternRewriter : ExprMutator {
       : ctx_(ctx), rewriter_func_(rewriter_func), params_(params) {}
 
   template <typename PatternType>
-  static Expr Run(PatternType pat, PackedFunc rewriter_func, Function f) {
+  static Function Run(PatternType pat, PackedFunc rewriter_func, Function f) {
     std::unordered_set<const VarNode*> params;
     for (const auto& p : f->params) {
       params.insert(p.get());
@@ -862,21 +870,25 @@ class PatternRewriter : ExprMutator {
 
   // Repeat until all matchable subsets of bindings are rewritten.
   BindingBlock RewriteDataflowBlockFixedPoint(BindingBlock block) {
-    if (auto matches = MatchGraph(ctx_.value(), Downcast<DataflowBlock>(block))) {
+    auto df_block = Downcast<DataflowBlock>(block);
+    Map<Var, Expr> bindings = AnalyzeVar2Value(df_block);
+    if (auto matches = MatchGraph(ctx_.value(), df_block, bindings)) {
       builder_->BeginDataflowBlock();
-      Map<Var, Expr> replacements = rewriter_func_(matches.value());
+      Map<Var, Expr> replacements = rewriter_func_(matches.value(), bindings);
 
       std::unordered_set<const VarNode*> emitted_vars;
 
+      bool changed = false;
       for (size_t i = 0; i < block->bindings.size(); ++i) {
         const auto& binding = block->bindings[i];
         if (auto var_bind = binding.as<VarBindingNode>()) {
-          if (replacements.count(var_bind->var)) {
-            auto new_val = replacements[var_bind->var];
+          if (auto new_val = replacements.Get(var_bind->var).value_or(var_bind->value);
+              !StructuralEqual()(var_bind->value, new_val)) {
             Array<Binding> pending_bindings(block->bindings.begin() + i + 1, block->bindings.end());
             // Make sure there is no unbound variable used in the new value before it is emitted
             EmitUsedVars(new_val, pending_bindings, &emitted_vars);
             this->ReEmitBinding(var_bind, builder_->Normalize(new_val));
+            changed = true;
           } else if (!emitted_vars.count(var_bind->var.get())) {
             this->VisitBinding(binding);
             emitted_vars.insert(var_bind->var.get());
@@ -885,7 +897,11 @@ class PatternRewriter : ExprMutator {
           this->VisitBinding(binding);
         }
       }
-      return RewriteDataflowBlockFixedPoint(builder_->EndBlock());
+
+      auto new_block = builder_->EndBlock();
+
+      if (!changed) return new_block;
+      return RewriteDataflowBlockFixedPoint(new_block);
     }
     return block;
   }
@@ -899,9 +915,10 @@ class PatternRewriter : ExprMutator {
    * - (Call, Map<DFPattern, Expr>) -> Call for call node rewriting. Given the matched
    *    call node and the map of patterns and matched expressions, it should return a new call node
    *    to replace the original one or the original matched call node as is.
-   * - Map<DFPattern, Var> -> Map<Var, Expr> for dataflow block rewriting. Given the map of patterns
-   *   and corresponding variables (bound variables or parameters), it should return a map that
-   *   specifies new values for matched bound variables.
+   * - (Map<DFPattern, Var>, Map<Var, Expr>) -> Map<Var, Expr> for dataflow block rewriting.
+   *    Given the map of patterns and corresponding variables (bound variables or parameters),
+   *    it should return a map that specifies new values for matched bound variables. It can refer
+   *    to the passed bindings to create the replacement expressions.
    */
   PackedFunc rewriter_func_;
   std::unordered_set<const VarNode*> params_;
@@ -909,15 +926,16 @@ class PatternRewriter : ExprMutator {
   std::unordered_map<const Object*, Expr> memo_;
 };
 
+Function RewriteBindings(const PatternContext& ctx, PackedFunc rewriter, Function f) {
+  return PatternRewriter::Run(ctx, rewriter, f);
+}
+
 TVM_REGISTER_GLOBAL("relax.dpl.rewrite_call")
     .set_body_typed([](DFPattern pat, PackedFunc rewriter, Function f) {
       return PatternRewriter::Run(pat, rewriter, f);
     });
 
-TVM_REGISTER_GLOBAL("relax.dpl.rewrite_bindings")
-    .set_body_typed([](const PatternContext& ctx, PackedFunc rewriter, Function f) {
-      return PatternRewriter::Run(ctx, rewriter, f);
-    });
+TVM_REGISTER_GLOBAL("relax.dpl.rewrite_bindings").set_body_typed(RewriteBindings);
 
 }  // namespace relax
 }  // namespace tvm

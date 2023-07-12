@@ -27,7 +27,7 @@ def init_git() {
     script: """
       set -eux
       . ${jenkins_scripts_root}/retry.sh
-      retry 3 timeout 5m git submodule update --init -f --jobs 0
+      retry 3 timeout 5m git submodule update --init --recursive -f --jobs 0
     """,
     label: 'Update git submodules',
   )
@@ -224,9 +224,9 @@ def check_pr(pr_number) {
 
 }
 
-def prepare() {
+def prepare(node_type) {
   stage('Prepare') {
-    node('CPU-SMALL') {
+    node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/prepare") {
         init_git()
 

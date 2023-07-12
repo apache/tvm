@@ -277,13 +277,13 @@ with T.attr("pragma", "unroll", 1):
 
 def test_assert_stmt():
     with IRBuilder() as ib:
-        with T.Assert(1, "assertion"):
+        with T.Assert(True, "assertion"):
             T.evaluate(0)
     obj = ib.get()
     _assert_print(
         obj,
         """
-with T.Assert(1, "assertion"):
+with T.Assert(T.bool(True), "assertion"):
     T.evaluate(0)
 """,
     )
@@ -373,7 +373,8 @@ def test_decl_buffer():
     _assert_print(
         obj,
         """
-with T.decl_buffer((10, 10)) as buffer:
+v = T.handle("float32", "global")
+with T.decl_buffer((10, 10), data=v) as buffer:
     T.evaluate(0)
 """,
     )
@@ -396,14 +397,14 @@ T.prefetch(A, [T.Range(0, 64), T.Range(0, 64)])
 def test_seq_stmt():
     with IRBuilder() as ib:
         with T.serial(10):
-            T.evaluate(0)
             T.evaluate(1)
+            T.evaluate(2)
     obj = ib.get().body
     _assert_print(
         obj,
         """
-T.evaluate(0)
 T.evaluate(1)
+T.evaluate(2)
 """,
     )
 

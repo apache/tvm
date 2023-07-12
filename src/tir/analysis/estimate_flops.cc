@@ -174,6 +174,7 @@ class FlopEstimator : private ExprFunctor<TResult(const PrimExpr& n)>,
   TResult VisitExpr_(const FloatImmNode* op) override { return TResult(); }
   TResult VisitExpr_(const CastNode* op) override { return VisitExpr(op->value); }
   TResult VisitStmt_(const AllocateConstNode* op) override { return VisitStmt(op->body); }
+  TResult VisitStmt_(const DeclBufferNode* op) override { return VisitStmt(op->body); }
 
   TResult VisitStmt_(const SeqStmtNode* seq) override {
     TResult result;
@@ -220,10 +221,10 @@ double EstimateTIRFlops(const IRModule& mod) {
 }
 
 TVM_REGISTER_GLOBAL("tir.analysis.EstimateTIRFlops").set_body_typed([](ObjectRef obj) -> double {
-  if (const auto* mod = obj.as<IRModuleNode>()) {
-    return EstimateTIRFlops(GetRef<IRModule>(mod));
-  } else if (const auto* stmt = obj.as<StmtNode>()) {
-    return EstimateTIRFlops(GetRef<Stmt>(stmt));
+  if (auto mod = obj.as<IRModule>()) {
+    return EstimateTIRFlops(mod.value());
+  } else if (auto stmt = obj.as<Stmt>()) {
+    return EstimateTIRFlops(stmt.value());
   } else {
     LOG(FATAL) << "TypeError: Expect the input to be either IRModule or Stmt, but gets: "
                << obj->GetTypeKey();

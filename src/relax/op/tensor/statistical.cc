@@ -179,7 +179,8 @@ TVM_REGISTER_OP("relax.cumsum")
     .set_attrs_type<CumsumAttrs>()
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input tensor.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCumsum);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCumsum)
+    .set_attr<Bool>("FPurity", Bool(true));
 
 TVM_REGISTER_NODE_TYPE(StatisticalAttrs);
 

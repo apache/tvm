@@ -33,6 +33,13 @@ namespace tir {
  * \brief Remove Block to ensure that the TIR can not be scheduled again.
  */
 class OpaqueBlockLower : public StmtExprMutator {
+ public:
+  static Stmt Rewrite(Stmt body) {
+    OpaqueBlockLower lower;
+    lower.storage_align_ = CollectStorageAlignAnnotation(body);
+    return lower(std::move(body));
+  }
+
  private:
   Stmt VisitStmt_(const BlockRealizeNode* op) final {
     // We have convert blocks into opaque blocks in previous passes.
@@ -49,16 +56,22 @@ class OpaqueBlockLower : public StmtExprMutator {
     // Step 3. Handle allocations in reverse order
     for (size_t i = new_block->alloc_buffers.size(); i > 0; --i) {
       const Buffer& buffer = new_block->alloc_buffers[i - 1];
-      Array<PrimExpr> new_shape = buffer->shape;
-      if (buffer->strides.size()) {
-        ICHECK_EQ(buffer->shape.size(), buffer->strides.size());
-        for (size_t i = buffer->strides.size() - 1; i > 0; --i) {
-          ICHECK(is_zero(floormod(buffer->strides[i - 1], buffer->strides[i])));
-          new_shape.Set(i, buffer->strides[i - 1] / buffer->strides[i]);
-        }
-      }
+      Array<PrimExpr> allocation_shape = GetBufferAllocationShape(buffer);
       body = DeclBuffer(buffer, std::move(body));
-      body = Allocate(buffer->data, buffer->dtype, new_shape, const_true(), std::move(body));
+      Map<String, ObjectRef> allocate_annotations;
+      auto it = storage_align_.find(buffer->data);
+      if (it != storage_align_.end()) {
+        StorageAlignAnnotation allocate_aligns;
+        for (auto tuple : it->second) {
+          ICHECK_EQ(tuple.size(), 4);
+          tuple.Set(0, -1);
+          allocate_aligns.push_back(tuple);
+        }
+        allocate_annotations.Set(attr::buffer_dim_align, allocate_aligns);
+      }
+
+      body = Allocate(buffer->data, buffer->dtype, allocation_shape, const_true(), std::move(body),
+                      allocate_annotations);
     }
     // Step 4. Handle annotations, block annotations are not preserved by default.
     std::vector<std::pair<std::string, PrimExpr>> pragma_attrs;
@@ -138,10 +151,10 @@ class OpaqueBlockLower : public StmtExprMutator {
   PrimExpr ConvertAttrValue(const String& key, const ObjectRef& obj) {
     if (!obj.defined()) {
       return PrimExpr();
-    } else if (const PrimExprNode* expr = obj.as<PrimExprNode>()) {
-      return GetRef<PrimExpr>(expr);
-    } else if (const StringObj* str = obj.as<StringObj>()) {
-      return std::move(StringImm(str->data));
+    } else if (auto expr = obj.as<PrimExpr>()) {
+      return expr.value();
+    } else if (auto str = obj.as<String>()) {
+      return std::move(StringImm(str.value()));
     } else {
       LOG(FATAL) << "Illegal attribute of key " << key << ", value type " << obj->GetTypeKey()
                  << " not supported";
@@ -181,13 +194,16 @@ class OpaqueBlockLower : public StmtExprMutator {
 
   /*! \brief Attr keys to preserve into loop annotations. */
   std::unordered_set<std::string> preserved_annotations_;
+
+  /*! \brief The map from buffer var to its storage alignment information. */
+  std::unordered_map<Var, StorageAlignAnnotation, ObjectPtrHash, ObjectPtrEqual> storage_align_;
 };
 
 PrimFunc LowerOpaqueBlock(PrimFunc f) {
   // Only apply this pass to TIR that is not from TE schedules
   if (!IsFromLegacyTESchedule(f)) {
     auto fptr = f.CopyOnWrite();
-    fptr->body = OpaqueBlockLower()(std::move(fptr->body));
+    fptr->body = OpaqueBlockLower::Rewrite(std::move(fptr->body));
     return f;
   } else {
     return f;

@@ -579,9 +579,9 @@ def test_reshape_symbolic():
             for i0, i1 in T.grid(a // T.int64(2), b * T.int64(2)):
                 with T.block("T_reshape"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(rxplaceholder[(ax0 * (b * T.int64(2)) + ax1) // b % a, (ax0 * (b * T.int64(2)) + ax1) % b])
+                    T.reads(rxplaceholder[(ax0 * b * T.int64(2) + ax1) // b % a, (ax0 * b * T.int64(2) + ax1) % b])
                     T.writes(T_reshape[ax0, ax1])
-                    T_reshape[ax0, ax1] = rxplaceholder[(ax0 * (b * T.int64(2)) + ax1) // b % a, (ax0 * (b * T.int64(2)) + ax1) % b]
+                    T_reshape[ax0, ax1] = rxplaceholder[(ax0 * b * T.int64(2) + ax1) // b % a, (ax0 * b * T.int64(2) + ax1) % b]
     # fmt: on
 
     mod = LegalizeOps()(Reshape)
@@ -623,13 +623,13 @@ def test_reshape_symbolic():
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
                     T.reads(
                         rxplaceholder[
-                            (ax0 * (b * T.int64(2)) + ax1) // b % a,
-                            (ax0 * (b * T.int64(2)) + ax1) % b,
+                            (ax0 * b * T.int64(2) + ax1) // b % a,
+                            (ax0 * b * T.int64(2) + ax1) % b,
                         ]
                     )
                     T.writes(T_reshape[ax0, ax1])
                     T_reshape[ax0, ax1] = rxplaceholder[
-                        (ax0 * (b * T.int64(2)) + ax1) // b % a, (ax0 * (b * T.int64(2)) + ax1) % b
+                        (ax0 * b * T.int64(2) + ax1) // b % a, (ax0 * b * T.int64(2) + ax1) % b
                     ]
 
     mod2 = LegalizeOps()(Reshape2)
@@ -661,14 +661,14 @@ def test_reshape_symbolic():
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(
                         rxplaceholder[
-                            (v_ax0 * (b * T.int64(2)) + v_ax1) // b % T.int64(10),
-                            (v_ax0 * (b * T.int64(2)) + v_ax1) % b,
+                            (v_ax0 * b * T.int64(2) + v_ax1) // b % T.int64(10),
+                            (v_ax0 * b * T.int64(2) + v_ax1) % b,
                         ]
                     )
                     T.writes(T_reshape[v_ax0, v_ax1])
                     T_reshape[v_ax0, v_ax1] = rxplaceholder[
-                        (v_ax0 * (b * T.int64(2)) + v_ax1) // b % T.int64(10),
-                        (v_ax0 * (b * T.int64(2)) + v_ax1) % b,
+                        (v_ax0 * b * T.int64(2) + v_ax1) // b % T.int64(10),
+                        (v_ax0 * b * T.int64(2) + v_ax1) % b,
                     ]
 
         @R.function
@@ -722,9 +722,7 @@ def test_data_dependent_reshape():
         @R.function
         def main(x: R.Tensor((3,), dtype="int64")) -> R.Tensor((3,), dtype="int64"):
             x_1 = T.int64()
-            gv: R.Shape([3]) = R.call_packed(
-                "vm.builtin.tensor_to_shape", x, sinfo_args=(R.Shape([3]),)
-            )
+            gv: R.Shape([3]) = R.call_pure_packed("vm.builtin.tensor_to_shape", x, sinfo_args=(R.Shape([3]),))
             y: R.Shape([x_1]) = R.match_cast(gv, R.Shape([x_1]))
             lv: R.Shape([x_1]) = R.shape([x_1])
             gv_1 = R.call_tir(Expected.reshape, (x,), out_sinfo=R.Tensor((x_1,), dtype="int64"))
@@ -1013,52 +1011,6 @@ def test_collapse_sum_like():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
-def test_collapse_sum_like_symbolic():
-    # fmt: off
-    @tvm.script.ir_module
-    class CollapseSumLike:
-        @R.function
-        def main(x: R.Tensor(("a", "b", "a"), "float32"), y: R.Tensor(("b", 1), "float32")) -> R.Tensor(("b", 1), "float32"):
-            b = T.int64()
-            gv: R.Tensor((b, 1), "float32") = R.collapse_sum_like(x, y)
-            return gv
-
-    @I.ir_module
-    class Expected:
-        @T.prim_func
-        def collapse_sum(var_rxplaceholder: T.handle, var_rxplaceholder_red: T.handle):
-            T.func_attr({"tir.noalias": T.bool(True)})
-            a, b = T.int64(), T.int64()
-            rxplaceholder = T.match_buffer(var_rxplaceholder, (a, b, a))
-            rxplaceholder_red = T.match_buffer(var_rxplaceholder_red, (b, T.int64(1)))
-            # with T.block("root"):
-            for ax0, ax1, k0, k2 in T.grid(b, T.int64(1), a, a):
-                with T.block("rxplaceholder_red"):
-                    v_ax0, v_ax1, v_k0, v_k2 = T.axis.remap("SSRR", [ax0, ax1, k0, k2])
-                    T.reads(rxplaceholder[v_k0, v_ax0, v_k2])
-                    T.writes(rxplaceholder_red[v_ax0, v_ax1])
-                    with T.init():
-                        rxplaceholder_red[v_ax0, v_ax1] = T.float32(0)
-                    rxplaceholder_red[v_ax0, v_ax1] = (rxplaceholder_red[v_ax0, v_ax1] + rxplaceholder[v_k0, v_ax0, v_k2])
-
-        @R.function
-        def main(
-            x: R.Tensor(("a", "b", "a"), dtype="float32"),
-            y: R.Tensor(("b", 1), dtype="float32"),
-        ) -> R.Tensor(("b", 1), dtype="float32"):
-            b = T.int64()
-            a = T.int64()
-            cls = Expected
-            gv = R.call_tir(
-                cls.collapse_sum, (x,), out_sinfo=R.Tensor((b, 1), dtype="float32")
-            )
-            return gv
-    # fmt: on
-
-    mod = LegalizeOps()(CollapseSumLike)
-    tvm.ir.assert_structural_equal(mod, Expected)
-
-
 def test_collapse_sum_to():
     # fmt: off
     @tvm.script.ir_module
@@ -1089,54 +1041,6 @@ def test_collapse_sum_to():
                     with T.init():
                         rxplaceholder_red[v_ax0, v_ax1] = T.float32(0)
                     rxplaceholder_red[v_ax0, v_ax1] = (rxplaceholder_red[v_ax0, v_ax1] + rxplaceholder[v_k0, v_ax0, v_k2])
-    # fmt: on
-
-    mod = LegalizeOps()(CollapseSumTo)
-    tvm.ir.assert_structural_equal(mod, Expected)
-
-
-def test_collapse_sum_to_symbolic():
-    # fmt: off
-    @tvm.script.ir_module
-    class CollapseSumTo:
-        @R.function
-        def main(x: R.Tensor(("a", "b", "c"), "float32")) -> R.Tensor(("b", 1), "float32"):
-            b = T.int64()
-            gv: R.Tensor((b, 1), "float32") = R.collapse_sum_to(x, (b, 1))
-            return gv
-
-    @I.ir_module
-    class Expected:
-        @T.prim_func
-        def collapse_sum(var_rxplaceholder: T.handle, var_rxplaceholder_red: T.handle):
-            T.func_attr({"tir.noalias": T.bool(True)})
-            a, b, c = T.int64(), T.int64(), T.int64()
-            rxplaceholder = T.match_buffer(var_rxplaceholder, (a, b, c))
-            rxplaceholder_red = T.match_buffer(var_rxplaceholder_red, (b, T.int64(1)))
-            # with T.block("root"):
-            for ax0, ax1, k0, k2 in T.grid(b, T.int64(1), a, c):
-                with T.block("rxplaceholder_red"):
-                    v_ax0, v_ax1, v_k0, v_k2 = T.axis.remap("SSRR", [ax0, ax1, k0, k2])
-                    T.reads(rxplaceholder[v_k0, v_ax0, v_k2])
-                    T.writes(rxplaceholder_red[v_ax0, v_ax1])
-                    with T.init():
-                        rxplaceholder_red[v_ax0, v_ax1] = T.float32(0)
-                    rxplaceholder_red[v_ax0, v_ax1] = (
-                        rxplaceholder_red[v_ax0, v_ax1] + rxplaceholder[v_k0, v_ax0, v_k2]
-                    )
-
-        @R.function
-        def main(
-            x: R.Tensor(("a", "b", "c"), dtype="float32")
-        ) -> R.Tensor(("b", 1), dtype="float32"):
-            b = T.int64()
-            a = T.int64()
-            c = T.int64()
-            cls = Expected
-            gv = R.call_tir(
-                cls.collapse_sum, (x,), out_sinfo=R.Tensor((b, 1), dtype="float32")
-            )
-            return gv
     # fmt: on
 
     mod = LegalizeOps()(CollapseSumTo)
@@ -1615,6 +1519,123 @@ def test_scatter_elements_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(ScatterElements)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_layout_transform():
+    transformation = lambda a, b, c: (a, c, b // 3, b % 3)
+    pad_value = 2
+    # fmt: off
+    @I.ir_module
+    class LayoutTransform:
+        @R.function
+        def main(x: R.Tensor((10, 21, 30), "float32")):
+            gv = R.layout_transform(
+                x, index_map=transformation, pad_value=pad_value
+            )
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def te_layout_transform(A: T.Buffer((T.int64(10), T.int64(21), T.int64(30)), "float32"), te_layout_transform_1: T.Buffer((T.int64(10), T.int64(30), T.int64(7), T.int64(3)), "float32")):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            # with T.block("root"):
+            for i0, i1, i2, i3 in T.grid(T.int64(10), T.int64(30), T.int64(7), T.int64(3)):
+                with T.block("te_layout_transform"):
+                    v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                    T.reads(A[v_i0, v_i2 * T.int64(3) + v_i3, v_i1])
+                    T.writes(te_layout_transform_1[v_i0, v_i1, v_i2, v_i3])
+                    te_layout_transform_1[v_i0, v_i1, v_i2, v_i3] = A[v_i0, v_i2 * T.int64(3) + v_i3, v_i1]
+
+        @R.function
+        def main(x: R.Tensor((10, 21, 30), dtype="float32")) -> R.Tensor((10, 30, 7, 3), dtype="float32"):
+            cls = Expected
+            gv = R.call_tir(cls.te_layout_transform, (x,), out_sinfo=R.Tensor((10, 30, 7, 3), dtype="float32"))
+            return gv
+    # fmt: on
+
+    mod = LegalizeOps()(LayoutTransform)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_layout_transform_with_pad():
+    transformation = lambda a, b, c: (a, c, b // 3, b % 3)
+    pad_value = 2
+    # fmt: off
+    @I.ir_module
+    class LayoutTransform:
+        @R.function
+        def main(x: R.Tensor((10, 20, 30), "float32")):
+            gv = R.layout_transform(
+                x, index_map=transformation, pad_value=pad_value
+            )
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def te_layout_transform(A: T.Buffer((T.int64(10), T.int64(20), T.int64(30)), "float32"), te_layout_transform_1: T.Buffer((T.int64(10), T.int64(30), T.int64(7), T.int64(3)), "float32")):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            # with T.block("root"):
+            for i0, i1, i2, i3 in T.grid(T.int64(10), T.int64(30), T.int64(7), T.int64(3)):
+                with T.block("te_layout_transform_with_pad"):
+                    v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                    T.reads(A[v_i0, v_i2 * T.int64(3) + v_i3, v_i1])
+                    T.writes(te_layout_transform_1[v_i0, v_i1, v_i2, v_i3])
+                    te_layout_transform_1[v_i0, v_i1, v_i2, v_i3] = T.if_then_else(v_i2 == T.int64(6) and v_i3 == T.int64(2), T.float32(2), A[v_i0, v_i2 * T.int64(3) + v_i3, v_i1])
+
+        @R.function
+        def main(x: R.Tensor((10, 20, 30), dtype="float32")) -> R.Tensor((10, 30, 7, 3), dtype="float32"):
+            cls = Expected
+            gv = R.call_tir(cls.te_layout_transform, (x,), out_sinfo=R.Tensor((10, 30, 7, 3), dtype="float32"))
+            return gv
+    # fmt: on
+
+    mod = LegalizeOps()(LayoutTransform)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_layout_transform_symbolic():
+    transformation = lambda a, b, c: (a, c, b // 3, b % 3)
+    pad_value = 2
+    # fmt: off
+    @I.ir_module
+    class LayoutTransform:
+        @R.function
+        def main(x: R.Tensor(("a", "b", "c"), "float32")):
+            gv = R.layout_transform(
+                x, index_map=transformation, pad_value=pad_value
+            )
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def te_layout_transform(var_A: T.handle, var_te_layout_transform: T.handle):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            a, b, c = T.int64(), T.int64(), T.int64()
+            A = T.match_buffer(var_A, (a, b, c))
+            te_layout_transform_1 = T.match_buffer(var_te_layout_transform, (a, c, (b - b % T.int64(-3)) // T.int64(3), T.int64(3)))
+            # with T.block("root"):
+            for i0, i1, i2, i3 in T.grid(a, c, (b - b % T.int64(-3)) // T.int64(3), T.int64(3)):
+                with T.block("te_layout_transform_with_pad"):
+                    v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                    T.reads(A[v_i0, v_i2 * T.int64(3) + v_i3, v_i1])
+                    T.writes(te_layout_transform_1[v_i0, v_i1, v_i2, v_i3])
+                    te_layout_transform_1[v_i0, v_i1, v_i2, v_i3] = T.if_then_else(b % T.int64(-3) < T.int64(0) and v_i2 == b // T.int64(3) and b % T.int64(3) <= v_i3, T.float32(2), A[v_i0, v_i2 * T.int64(3) + v_i3, v_i1])
+
+        @R.function
+        def main(x: R.Tensor(("a", "b", "c"), dtype="float32")) -> R.Tensor(("a", "c", "(b - b % -3) // 3", 3), dtype="float32"):
+            a = T.int64()
+            c = T.int64()
+            b = T.int64()
+            cls = Expected
+            gv = R.call_tir(cls.te_layout_transform, (x,), out_sinfo=R.Tensor((a, c, (b - b % -3) // 3, 3), dtype="float32"))
+            return gv
+    # fmt: on
+
+    mod = LegalizeOps()(LayoutTransform)
     tvm.ir.assert_structural_equal(mod, Expected)
 
 

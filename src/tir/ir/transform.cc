@@ -88,7 +88,8 @@ PrimFuncPass::PrimFuncPass(
 // Perform Module -> Module optimizations at the PrimFunc level.
 IRModule PrimFuncPassNode::operator()(IRModule mod, const PassContext& pass_ctx) const {
   ICHECK(mod.defined());
-  std::vector<ObjectRef> deleted_list;
+  std::vector<GlobalVar> deleted_list;
+
   IRModuleNode* mod_ptr = mod.CopyOnWrite();
   auto* func_dict = mod_ptr->functions.CopyOnWrite();
   // directly loop over the underlying dict
@@ -101,14 +102,16 @@ IRModule PrimFuncPassNode::operator()(IRModule mod, const PassContext& pass_ctx)
       kv.second = std::move(func);
 
       if (!kv.second.defined()) {
-        deleted_list.push_back(kv.first);
+        deleted_list.push_back(Downcast<GlobalVar>(kv.first));
       }
     }
   }
 
-  // automatic removal of None
+  // Automatic removal of None.  This uses IRModuleNode::Remove
+  // instead of manipulating func_dict directly, to ensure that both
+  // the function map and the global_var_map_ are correctly updated.
   for (const auto& gv : deleted_list) {
-    func_dict->erase(gv);
+    mod_ptr->Remove(gv);
   }
   return mod;
 }

@@ -104,7 +104,7 @@ Definition of a scope that is a stage pipeline:
   }
   // Step 2. Handle `require_stage_pipeline`
   if (require_stage_pipeline && self->enable_check) {
-    bool stage_pipeline = self->GetBlockInfo(scope_root_sref).scope->stage_pipeline;
+    bool stage_pipeline = self->GetBlockInfo(scope_root_sref).stage_pipeline;
     if (stage_pipeline == false) {
       const BlockNode* block = TVM_SREF_TO_BLOCK(scope_root_sref);
       throw NotStagePipelineError(self->mod, GetRef<Block>(block));
@@ -327,6 +327,11 @@ bool IsReductionBlock(const ScheduleState& self, const StmtSRef& block_sref,
                       const StmtSRef& scope_root_sref) {
   return CheckReductionBlockErrorCode(self, block_sref, scope_root_sref) == 0;
 }
+
+TVM_REGISTER_GLOBAL("tir.schedule.IsReductionBlock")
+    .set_body_typed([](Schedule sch, BlockRV block_rv, BlockRV scope_block_rv) {
+      return IsReductionBlock(sch->state(), sch->GetSRef(block_rv), sch->GetSRef(scope_block_rv));
+    });
 
 void CheckReductionBlock(const ScheduleState& self, const StmtSRef& block_sref,
                          const StmtSRef& scope_root_sref) {
@@ -859,6 +864,11 @@ BlockRealize GetBlockRealize(const ScheduleState& self, const StmtSRef& block_sr
   }
 }
 
+TVM_REGISTER_GLOBAL("tir.schedule.GetBlockRealize")
+    .set_body_typed([](Schedule sch, BlockRV block_rv) {
+      return GetBlockRealize(sch->state(), sch->GetSRef(block_rv));
+    });
+
 IterVarType GetLoopIterType(const StmtSRef& loop_sref) {
   const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
   const Var& loop_var = loop->loop_var;
@@ -1040,6 +1050,33 @@ Array<StmtSRef> GetConsumers(const StmtSRef& block_sref, const BlockScope& scope
       result_set.emplace(edge->dst);
     }
   }
+  return results;
+}
+
+Array<StmtSRef> GetOutputBlocks(const ScheduleState& self, const BlockNode* scope_block) {
+  struct OutputBlockCollector : public StmtVisitor {
+    explicit OutputBlockCollector(const ScheduleState& self) : self_(self) {}
+
+    void VisitStmt_(const BlockNode* block) override {
+      auto it = self_->stmt2ref.find(block);
+      ICHECK(it != self_->stmt2ref.end());
+      auto block_sref = it->second;
+      if (block_sref->parent != nullptr) {
+        StmtSRef scope_root_sref =
+            GetScopeRoot(self_, block_sref, /*require_stage_pipeline=*/false);
+        if (IsOutputBlock(self_, block_sref, scope_root_sref)) {
+          results_.push_back(block_sref);
+        }
+      }
+      StmtVisitor::VisitStmt_(block);
+    }
+
+    const ScheduleState& self_;
+    Array<StmtSRef> results_;
+  };
+  OutputBlockCollector collector(self);
+  collector(scope_block->body);
+  auto results = collector.results_;
   return results;
 }
 
@@ -1242,6 +1279,20 @@ StmtSRef GetSRefTreeRoot(const StmtSRef& sref) {
   return GetRef<StmtSRef>(p);
 }
 
+void AddShapeVarBounds(const ScheduleState& state, const StmtSRefNode* sref,
+                       arith::Analyzer* analyzer) {
+  while (sref->parent != nullptr) {
+    sref = sref->parent;
+  }
+  const PrimFuncNode* f = GetRootPrimFunc(state->mod, sref->stmt, nullptr);
+  for (const auto& kv : f->buffer_map) {
+    const Buffer& buffer = kv.second;
+    for (const PrimExpr& e : buffer->shape) {
+      analyzer->MarkGlobalNonNegValue(e);
+    }
+  }
+}
+
 /******** Misc ********/
 
 bool HasOp(const Stmt& stmt, const Array<Op>& ops) {
@@ -1431,6 +1482,11 @@ bool IsTrivialBinding(const ScheduleState& self, const StmtSRef& block_sref) {
   }
   return true;
 }
+
+TVM_REGISTER_GLOBAL("tir.schedule.IsTrivialBinding")
+    .set_body_typed([](Schedule sch, BlockRV block_rv) {
+      return IsTrivialBinding(sch->state(), sch->GetSRef(block_rv));
+    });
 
 bool NeedsMultiLevelTiling(const ScheduleState& self, const StmtSRef& block_sref) {
   if (HasBeenMultiLevelTiled(block_sref)) {
@@ -1802,7 +1858,7 @@ Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& self,
         if (allow_padding) {
           // If the block loop is not divisible by the desc loop, we pad the block loop to make it
           // divisible if padding is allowed.
-          block_index_to_padding[current_block_ind] = int_desc_extent->value - remainder;
+          block_index_to_padding[current_block_ind] = int_desc_extent->value;
         } else {
           return NullOpt;
         }
@@ -1826,7 +1882,7 @@ Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& self,
       if (auto it = block_index_to_padding.find(i); it != block_index_to_padding.end()) {
         paddings.push_back(IntImm(iter_var->var.dtype(), it->second));
       } else {
-        paddings.push_back(IntImm(iter_var->var.dtype(), 0));
+        paddings.push_back(IntImm(iter_var->var.dtype(), 1));
       }
     }
     ret->block_iter_paddings = std::move(paddings);
@@ -2076,6 +2132,18 @@ TVM_REGISTER_GLOBAL("tir.schedule.IsOutputBlock").set_body_typed([](Schedule sch
   auto block_sref = sch->GetSRef(block);
   return IsOutputBlock(state, block_sref, GetScopeRoot(state, block_sref, false));
 });
+
+TVM_REGISTER_GLOBAL("tir.schedule.GetLoopIterType")
+    .set_body_typed([](Schedule sch, LoopRV loop) -> String {
+      IterVarType kind = GetLoopIterType(sch->GetSRef(loop));
+      if (kind == kDataPar) {
+        return "S";
+      } else if (kind == kCommReduce) {
+        return "R";
+      } else {
+        return "O";
+      }
+    });
 
 }  // namespace tir
 }  // namespace tvm

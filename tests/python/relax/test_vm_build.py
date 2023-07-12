@@ -15,19 +15,19 @@
 # specific language governing permissions and limitations
 # under the License.
 import os
+import ctypes
 from typing import Tuple, Callable
 
-import sys
-import tempfile
+
 import numpy as np
 import pytest
 import tvm
 import tvm.script
 import tvm.testing
 from tvm import relax, rpc, te, tir, topi
-from tvm.contrib import utils
+from tvm.contrib import utils, cc, popen_pool
 from tvm.relax.testing import nn
-from tvm.script import relax as R, tir as T
+from tvm.script import relax as R, tir as T, ir as I
 from tvm.relax.testing.vm import check_saved_func
 
 EXEC_MODE = ["bytecode", "compiled"]
@@ -39,7 +39,7 @@ def test_vm_compile_simple(exec_mode):
     class TestVMCompileStage0:
         @R.function
         def foo(x: R.Tensor((3, 4), "float32"), y: R.Tensor((3, 4), "float32")):
-            z = R.call_packed(
+            z = R.call_pure_packed(
                 "test.vm.identity", x, y, sinfo_args=(R.Tensor(ndim=2, dtype="float32"))
             )
             return y
@@ -286,8 +286,6 @@ def test_vm_emit_te_dtype_change(exec_mode):
 
     mod = bb.get()
 
-    new_mod = relax.transform.CallTIRRewrite()(mod)
-
     target = tvm.target.Target("llvm", host="llvm")
     ex = relax.build(mod, target, exec_mode=exec_mode)
 
@@ -488,7 +486,9 @@ def test_vm_tuplegetitem(exec_mode):
             t = (x, y)
             a = t[0]
             b = t[1]
-            c = R.call_packed("test.vm.add", a, b, sinfo_args=(R.Tensor(ndim=2, dtype="float32")))
+            c = R.call_pure_packed(
+                "test.vm.add", a, b, sinfo_args=(R.Tensor(ndim=2, dtype="float32"))
+            )
             return c
 
     mod = TestVMTupleGetItem
@@ -507,11 +507,13 @@ def test_lower_memory_alloc_storage_tensor(exec_mode):
     class TestMemoryAllocStorageTensor:
         @R.function
         def main(x: R.Tensor((2, 3), dtype="float32")):
+            R.func_attr({"relax.force_pure": True})
             cls = TestMemoryAllocStorageTensor
             storage = R.memory.alloc_storage(
                 R.shape([24]), virtual_device_index=0, storage_scope="global", dtype="float32"
             )
             y = R.memory.alloc_tensor(storage, 0, R.shape([2, 3]), dtype="float32")
+            # this is an impure operation, but the overall function is pure so we force purity
             _ = cls.copy(x, y)
             return y
 
@@ -566,7 +568,9 @@ def test_sub_func_call(exec_mode):
         def relax_matmul_packed(
             x: R.Tensor((32, 32), "float32"), w: R.Tensor((32, 32), "float32")
         ) -> R.Object:
-            gv0 = R.call_packed("test.vm.mul", x, w, sinfo_args=(R.Tensor(ndim=2, dtype="float32")))
+            gv0 = R.call_pure_packed(
+                "test.vm.mul", x, w, sinfo_args=(R.Tensor(ndim=2, dtype="float32"))
+            )
             return gv0
 
         @R.function
@@ -593,17 +597,17 @@ def test_recursion(exec_mode):
     class TestVMRecursion:
         @R.function
         def recursion(n: R.Tensor((1,), "float32")) -> R.Tensor:
-            cond = R.call_packed(
+            cond = R.call_pure_packed(
                 "test.vm.equal_zero", n, sinfo_args=(R.Tensor(ndim=1, dtype="float32"))
             )
             if cond:
                 res = R.const(1.0)
             else:
-                gv0 = R.call_packed(
+                gv0 = R.call_pure_packed(
                     "test.vm.subtract_one", n, sinfo_args=(R.Tensor(ndim=1, dtype="float32"))
                 )
                 tmp = TestVMRecursion.recursion(gv0)
-                res = R.call_packed(
+                res = R.call_pure_packed(
                     "test.vm.add", tmp, tmp, sinfo_args=(R.Tensor(ndim=1, dtype="float32"))
                 )
             return res
@@ -626,7 +630,7 @@ def test_vm_closure(exec_mode):
     class TestClosure:
         @R.function
         def lifted_func_1(x: R.Tensor((2, 3), "float32"), env: R.Tensor((2, 3), "float32")):
-            return R.call_packed("test.vm.add", x, env, sinfo_args=(R.Tensor))
+            return R.call_pure_packed("test.vm.add", x, env, sinfo_args=(R.Tensor()))
 
         @R.function
         def main(
@@ -635,7 +639,7 @@ def test_vm_closure(exec_mode):
         ):
             cls = TestClosure
             clo = R.make_closure(cls.lifted_func_1, (x,))
-            res = R.invoke_closure(clo, (y,), sinfo_args=(R.Tensor))
+            res = R.invoke_pure_closure(clo, (y,), sinfo_args=(R.Tensor()))
             return res
 
     mod = TestClosure
@@ -654,7 +658,7 @@ def test_time_evaluator(exec_mode):
     class TestTimeEvaluator:
         @R.function
         def main(x: R.Tensor((1,), "float32"), y: R.Tensor((1,), "float32")):
-            return R.call_packed(
+            return R.call_pure_packed(
                 "test.vm.add", x, y, sinfo_args=(R.Tensor(ndim=1, dtype="float32"))
             )
 
@@ -724,6 +728,72 @@ class TestVMSetInput:
         return gv0
 
 
+@pytest.mark.parametrize("exec_mode", EXEC_MODE)
+def test_multi_systemlib(exec_mode):
+    @tvm.script.ir_module
+    class ModA:
+        I.module_attrs({"system_lib_prefix": "libA_"})
+
+        @T.prim_func
+        def tir_init(x: T.Buffer((2), "float32")) -> None:
+            for i in range(2):
+                x[i] = T.float32(0)
+
+        @R.function
+        def main(s: R.Shape(["m"])) -> R.Tensor:
+            m = T.int64()
+            gv0 = R.call_tir(ModA.tir_init, (), R.Tensor((m + 1,), dtype="float32"))
+            return gv0
+
+    @tvm.script.ir_module
+    class ModB:
+        I.module_attrs({"system_lib_prefix": "libB_"})
+
+        @T.prim_func
+        def tir_init(x: T.Buffer((2), "float32")) -> None:
+            for i in range(2):
+                x[i] = T.float32(1)
+
+        @R.function
+        def main(s: R.Shape(["m"])) -> R.Tensor:
+            m = T.int64()
+            gv0 = R.call_tir(ModB.tir_init, (), R.Tensor((m,), dtype="float32"))
+            return gv0
+
+    target = tvm.target.Target("llvm", host="llvm")
+    libA = relax.build(ModA, target, exec_mode=exec_mode)
+    libB = relax.build(ModB, target, exec_mode=exec_mode)
+
+    temp = utils.tempdir()
+    pathA = temp.relpath("libA.a")
+    pathB = temp.relpath("libB.a")
+    path_dso = temp.relpath("mylibAll.so")
+    libA.export_library(pathA, cc.create_staticlib)
+    libB.export_library(pathB, cc.create_staticlib)
+
+    # package two static libs together
+    # check that they do not interfere with each other
+    # even though they have shared global var names
+    # intentionally craft same gvar function with different behaviors
+    cc.create_shared(path_dso, ["-Wl,--whole-archive", pathA, pathB, "-Wl,--no-whole-archive"])
+
+    def popen_check():
+        # Load dll, will trigger system library registration
+        ctypes.CDLL(path_dso)
+        # Load the system wide library
+        vmA = relax.VirtualMachine(tvm.runtime.system_lib("libA_"), tvm.cpu())
+        vmB = relax.VirtualMachine(tvm.runtime.system_lib("libB_"), tvm.cpu())
+
+        retA = vmA["main"](tvm.runtime.ShapeTuple([1]))
+        retB = vmB["main"](tvm.runtime.ShapeTuple([2]))
+        np.testing.assert_equal(retA.numpy(), np.array([0, 0]).astype("float32"))
+        np.testing.assert_equal(retB.numpy(), np.array([1, 1]).astype("float32"))
+
+    # system lib should be loaded in different process
+    worker = popen_pool.PopenWorker()
+    worker.send(popen_check)
+
+
 def set_input_trial(vm: relax.VirtualMachine, device: tvm.runtime.Device) -> None:
     a = tvm.nd.array(np.random.rand(32, 32).astype("float32"), device)
     b = tvm.nd.array(np.random.rand(32, 32).astype("float32"), device)
@@ -779,13 +849,13 @@ def set_input_attempt_get(vm: relax.VirtualMachine, device: tvm.runtime.Device) 
     _ = vm.get_outputs("main")
 
 
-def make_vm(mod, exec_mode) -> Tuple[relax.VirtualMachine, tvm.runtime.Device]:
+def make_vm(mod, exec_mode, temp) -> Tuple[relax.VirtualMachine, tvm.runtime.Device]:
     """Returns a local VM for the given mod and the device"""
     target = tvm.target.Target("llvm", host="llvm")
-    exec = relax.build(TestVMSetInput, target, exec_mode=exec_mode)
-    exec.export_library("exec.so")
-    exec_loaded = tvm.runtime.load_module("exec.so")
-    os.remove("exec.so")
+    exec = relax.build(mod, target, exec_mode=exec_mode)
+    libname = temp.relpath("exec.so")
+    exec.export_library(libname)
+    exec_loaded = tvm.runtime.load_module(libname)
     device = tvm.cpu()
     return relax.VirtualMachine(exec_loaded, device), device
 
@@ -827,7 +897,26 @@ def run_on_rpc(
 
 @pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_set_input(exec_mode):
-    set_input_trial(*make_vm(TestVMSetInput, exec_mode))
+    temp = utils.tempdir()
+    set_input_trial(*make_vm(TestVMSetInput, exec_mode, temp))
+
+
+@pytest.mark.parametrize("exec_mode", EXEC_MODE)
+def test_set_input_tuple(exec_mode):
+    @tvm.script.ir_module
+    class MyMod:
+        @R.function
+        def main(x: R.Tuple([R.Tensor((32,), "float32"), R.Tensor((32,), "float32")])) -> R.Tensor:
+            y = x[0]
+            return y
+
+    temp = utils.tempdir()
+    vm, device = make_vm(MyMod, exec_mode, temp)
+    device = tvm.cpu(0)
+    a = tvm.nd.empty((32,), "float32", device=device)
+    b = tvm.nd.empty((32,), "float32", device=device)
+    vm.set_input("main", (a, b))
+    vm.invoke_stateful("main")
 
 
 def save_function_kwargs_trial(vm: relax.VirtualMachine, device: tvm.runtime.Device) -> None:
@@ -841,7 +930,8 @@ def save_function_kwargs_trial(vm: relax.VirtualMachine, device: tvm.runtime.Dev
 
 @pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_save_function_kwargs(exec_mode):
-    save_function_kwargs_trial(*make_vm(TestVMSetInput, exec_mode))
+    temp = utils.tempdir()
+    save_function_kwargs_trial(*make_vm(TestVMSetInput, exec_mode, temp))
 
 
 @pytest.mark.parametrize("exec_mode", EXEC_MODE)
@@ -861,7 +951,8 @@ def save_function_time_evaluator_trial(
 
 @pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_save_function_time_evaluator(exec_mode):
-    save_function_time_evaluator_trial(*make_vm(TestVMSetInput, exec_mode))
+    temp = utils.tempdir()
+    save_function_time_evaluator_trial(*make_vm(TestVMSetInput, exec_mode, temp))
 
 
 @pytest.mark.parametrize("exec_mode", EXEC_MODE)
@@ -873,7 +964,8 @@ def test_save_function_time_evaluator(exec_mode):
 @pytest.mark.parametrize("exec_mode", EXEC_MODE)
 @pytest.mark.xfail()
 def test_set_input_stateless_failure(exec_mode):
-    set_input_attempt_stateless(*make_vm(TestVMSetInput, exec_mode))
+    temp = utils.tempdir()
+    set_input_attempt_stateless(*make_vm(TestVMSetInput, exec_mode, temp))
 
 
 @pytest.mark.parametrize("exec_mode", EXEC_MODE)
@@ -885,19 +977,22 @@ def test_set_input_stateless_failure_rpc(exec_mode):
 @pytest.mark.parametrize("exec_mode", EXEC_MODE)
 @pytest.mark.xfail()
 def test_set_input_invoke_failure(exec_mode):
-    set_input_attempt_invoke(*make_vm(TestVMSetInput, exec_mode))
+    temp = utils.tempdir()
+    set_input_attempt_invoke(*make_vm(TestVMSetInput, exec_mode, temp))
 
 
 @pytest.mark.parametrize("exec_mode", EXEC_MODE)
 @pytest.mark.xfail()
 def test_set_input_invoke_failure_rpc(exec_mode):
-    run_on_rpc(TestVMSetInput, set_input_attempt_invoke, exec_mode)
+    temp = utils.tempdir()
+    run_on_rpc(TestVMSetInput, set_input_attempt_invoke, exec_mode, temp)
 
 
 @pytest.mark.parametrize("exec_mode", EXEC_MODE)
 @pytest.mark.xfail()
 def test_set_input_get_failure(exec_mode):
-    set_input_attempt_get(*make_vm(TestVMSetInput, exec_mode))
+    temp = utils.tempdir()
+    set_input_attempt_get(*make_vm(TestVMSetInput, exec_mode, temp))
 
 
 @pytest.mark.parametrize("exec_mode", EXEC_MODE)
@@ -907,4 +1002,4 @@ def test_set_input_get_failure_rpc(exec_mode):
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    pytest.main()

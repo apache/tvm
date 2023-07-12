@@ -29,11 +29,11 @@
 
 #include "../meta_data.h"
 #include "../pack_args.h"
+#include "../spirv/spirv_shader.h"
 #include "../thread_storage_scope.h"
 #include "vulkan/vulkan_core.h"
 #include "vulkan_common.h"
 #include "vulkan_device.h"
-#include "vulkan_shader.h"
 
 namespace tvm {
 namespace runtime {
@@ -82,26 +82,31 @@ class VulkanWrappedFunc {
 
 class VulkanModuleNode final : public runtime::ModuleNode {
  public:
-  explicit VulkanModuleNode(std::unordered_map<std::string, VulkanShader> smap,
+  explicit VulkanModuleNode(std::unordered_map<std::string, SPIRVShader> smap,
                             std::unordered_map<std::string, FunctionInfo> fmap, std::string source)
       : smap_(smap), fmap_(fmap), source_(source) {}
   ~VulkanModuleNode();
 
   const char* type_key() const final { return "vulkan"; }
 
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
+  /*! \brief Get the property of the runtime module. */
+  int GetPropertyMask() const final {
+    return ModulePropertyMask::kBinarySerializable | ModulePropertyMask::kRunnable;
+  }
+
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final;
 
   std::shared_ptr<VulkanPipeline> GetPipeline(size_t device_id, const std::string& func_name,
                                               size_t num_pack_args);
 
-  void SaveToFile(const std::string& file_name, const std::string& format) final;
+  void SaveToFile(const String& file_name, const String& format) final;
 
   void SaveToBinary(dmlc::Stream* stream) final;
-  std::string GetSource(const std::string& format) final;
+  String GetSource(const String& format) final;
 
  private:
   // function information table.
-  std::unordered_map<std::string, VulkanShader> smap_;
+  std::unordered_map<std::string, SPIRVShader> smap_;
   // function information table.
   std::unordered_map<std::string, FunctionInfo> fmap_;
   // The format

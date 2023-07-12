@@ -25,6 +25,7 @@ from .datatype import *
 from .index import *
 from .linear_algebra import *
 from .manipulate import *
+from .mask import *
 from .op_attrs import *
 from .statistical import *
 from .search import *

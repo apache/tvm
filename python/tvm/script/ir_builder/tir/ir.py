@@ -862,6 +862,8 @@ def Assert(condition: PrimExpr, message: str) -> frame.AssertFrame:  # pylint: d
     res : frame.AssertFrame
         The result AssertFrame.
     """
+    if isinstance(condition, bool):
+        condition = IntImm("bool", condition)
     return _ffi_api.Assert(condition, message)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
@@ -1441,7 +1443,9 @@ def boolean(expr: Optional[PrimExpr] = None, is_size_var: bool = False) -> PrimE
     return _ffi_api.Boolean(expr, is_size_var)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def handle(dtype: str = "void", storage_scope: str = "global", *, is_size_var: bool = False) -> Var:
+def handle(
+    dtype: Optional[str] = None, storage_scope: str = "global", *, is_size_var: bool = False
+) -> Var:
     """Create a TIR var that represents a pointer.
 
     Parameters
@@ -1460,7 +1464,15 @@ def handle(dtype: str = "void", storage_scope: str = "global", *, is_size_var: b
     res : PrimExpr
         The new tir.Var with type handle or casted expression with type handle.
     """
-    return _ffi_api.Handle(dtype, storage_scope, is_size_var)  # type: ignore[attr-defined] # pylint: disable=no-member
+    is_unknown_type = dtype is None
+    if dtype is None:
+        dtype = "void"
+    return _ffi_api.Handle(  # type: ignore[attr-defined] # pylint: disable=no-member
+        dtype,
+        storage_scope,
+        is_size_var,
+        is_unknown_type,
+    )
 
 
 def void(expr: Optional[PrimExpr] = None, *, is_size_var: bool = False) -> PrimExpr:
@@ -1645,13 +1657,19 @@ def index_map(
     return IndexMap.from_func(mapping, inverse_index_map=inverse_index_map)
 
 
-def target(target_config: Union[Dict, str]) -> Target:
+def target(
+    target_config: Union[Dict, str],
+    host: Optional[Union[Dict, str, Target]] = None,
+) -> Target:
     """
     Create a target
 
     Parameters
     ----------
     target_config : Union[Dict, str]
+        The target configuration.
+
+    host : Optional[Union[Dict, str, Target]]
         The target configuration.
 
     Returns
@@ -1663,7 +1681,19 @@ def target(target_config: Union[Dict, str]) -> Target:
         raise ValueError(
             f"T.target expected a config dict or string, but got {type(target_config)}"
         )
-    return Target(target_config)
+    if host is not None and not isinstance(host, (str, dict, Target)):
+        raise ValueError(
+            "T.target expected the host to be "
+            "a config dict, string, or T.target, "
+            f"but got {type(host)}"
+        )
+    if isinstance(target_config, dict) and "host" in target_config and host is not None:
+        raise ValueError(
+            "T.target expects to either receive the host "
+            "as part of the target's config dictionary, "
+            "or as a separate argument, but not both."
+        )
+    return Target(target_config, host)
 
 
 def Range(begin: PrimExpr, end: PrimExpr) -> ir.Range:  # pylint: disable=invalid-name

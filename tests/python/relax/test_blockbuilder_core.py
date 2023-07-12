@@ -303,6 +303,37 @@ def test_normalize():
     assert isinstance(tuple_2.struct_info.fields[1].fields[1], rx.TensorStructInfo)
 
 
+def test_tuple_indexing():
+    m = tir.Var("m", "int64")
+    n = tir.Var("n", "int64")
+
+    shape_x = rx.TensorStructInfo([m, n], "float16")
+    shape_y = rx.TensorStructInfo([n], "float16")
+    relax_tuple = rx.Var("relax_tuple", rx.TupleStructInfo([shape_x, shape_y]))
+
+    assert isinstance(relax_tuple.struct_info, rx.TupleStructInfo)
+    assert isinstance(relax_tuple.struct_info.fields[0], rx.TensorStructInfo)
+    assert isinstance(relax_tuple.struct_info.fields[1], rx.TensorStructInfo)
+
+    # TupleGetItem will initialize struct info from the
+    # TupleStructInfo, if present.
+    x = relax_tuple[0]
+    tvm.ir.assert_structural_equal(x.struct_info, shape_x)
+
+    y = relax_tuple[1]
+    tvm.ir.assert_structural_equal(y.struct_info, shape_y)
+
+    # Tuple unpacking produces TupleGetItem structs
+    x_unpack, y_unpack = relax_tuple
+    tvm.ir.assert_structural_equal(x, x_unpack)
+    tvm.ir.assert_structural_equal(y, y_unpack)
+
+    # When TupleStructInfo is available, tuple unpacking fails immediately
+    # for incorrect number of arguments.
+    with pytest.raises(ValueError):
+        x_unpack, y_unpack, z_unpack = relax_tuple
+
+
 def test_call_te():
     bb = rx.BlockBuilder()
     n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
@@ -331,6 +362,24 @@ def test_call_te():
     assert rx_func.body.body == out
     assert len(rx_func.body.blocks) == 1
     assert len(rx_func.body.blocks[0].bindings) == 1
+
+
+def test_call_te_unique_tensor_name():
+    bb = rx.BlockBuilder()
+    x = rx.Var("x", R.Tensor((2, 3), "float32"))
+    y = rx.Var("y", R.Tensor((3, 4), "float32"))
+    with bb.function("main", [x, y]):
+        gv = bb.emit_te(topi.nn.matmul, x, y)
+        bb.emit_func_output(gv)
+
+    f_matmul = bb.get()["matmul"]
+    param_A = f_matmul.params[0]
+    param_B = f_matmul.params[1]
+    buffer_A = f_matmul.buffer_map[param_A]
+    buffer_B = f_matmul.buffer_map[param_B]
+    assert param_A.name != param_B.name
+    assert buffer_A.name != buffer_B.name
+    assert buffer_A.data.name != buffer_B.data.name
 
 
 def test_call_te_with_unsupported_shape_arg():

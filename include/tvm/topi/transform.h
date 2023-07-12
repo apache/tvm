@@ -24,6 +24,7 @@
 #ifndef TVM_TOPI_TRANSFORM_H_
 #define TVM_TOPI_TRANSFORM_H_
 
+#include <tvm/arith/analyzer.h>
 #include <tvm/te/operation.h>
 #include <tvm/tir/data_layout.h>
 #include <tvm/tir/index_map.h>
@@ -323,11 +324,7 @@ inline Tensor reshape(const Tensor& x, Array<PrimExpr> newshape, std::string nam
   Array<PrimExpr> target_shape;
 
   for (const auto& ele : newshape) {
-    if (ele.as<IntImmNode>()) {
-      target_shape.push_back(cast(DataType::Int(32), ele));
-    } else {
-      target_shape.push_back(ele);
-    }
+    target_shape.push_back(ele);
   }
 
   // If either the input shape or the target shape contains a zero, return an empty tensor.
@@ -892,7 +889,6 @@ inline Array<Tensor> split_sections(const Tensor& x, int num_sections, int axis,
  * \param batch_dims The number of batch dimensions.
  * \param mode The mode of the operation.
  * \param name The name of the operation.
- * \param mode The mode of to handle out of bound indices.
  * \param tag The tag to mark the operation.
  *
  * \return A Tensor whose op member is the take operation
@@ -1752,16 +1748,18 @@ inline Tensor auto_scheduler_layout_transform(const Tensor& src, const String& s
 inline Tensor meta_schedule_layout_transform(const Tensor& src, const tir::IndexMap& index_map,
                                              const String name = "T_meta_schedule_layout_trans",
                                              const String tag = kInjective) {
+  arith::Analyzer analyzer;
   Array<Range> iter_domain;
   iter_domain.reserve(src->shape.size());
   for (const PrimExpr& e : src->shape) {
     iter_domain.push_back(Range::FromMinExtent(make_zero(e->dtype), e));
   }
-  Array<PrimExpr> post_transform_shape = index_map->MapShape(src->shape);
+  Array<PrimExpr> post_transform_shape = index_map->MapShape(src->shape, &analyzer);
   return compute(
       post_transform_shape,
-      [src, inv = index_map.Inverse(iter_domain)](const Array<Var>& indices) -> PrimExpr {
-        return src(inv->MapIndices(Array<PrimExpr>{indices.begin(), indices.end()}));
+      [src, inv = index_map.Inverse(iter_domain, &analyzer),
+       &analyzer](const Array<Var>& indices) -> PrimExpr {
+        return src(inv->MapIndices(Array<PrimExpr>{indices.begin(), indices.end()}, &analyzer));
       },
       name, tag);
 }
@@ -2021,7 +2019,6 @@ inline Tensor adv_index(const Tensor& data, const Array<Tensor>& indices,
         for (size_t i = 0; i < broadcast_shape.size(); ++i) {
           tensor_indices.push_back(iter_var[i]);
         }
-
         Array<PrimExpr> real_indices;
         for (size_t i = 0; i < bindices.size(); ++i) {
           real_indices.push_back(bindices[i](tensor_indices));
@@ -2034,6 +2031,42 @@ inline Tensor adv_index(const Tensor& data, const Array<Tensor>& indices,
       },
       name, tag);
 }
+
+namespace relax {
+// relax dynamic slice
+inline te::Tensor dynamic_strided_slice(const te::Tensor& x, const te::Tensor& begin,
+                                        const te::Tensor& end, const te::Tensor& strides,
+                                        Array<PrimExpr> output_shape,
+                                        std::string name = "T_strided_slice_dynamic",
+                                        std::string tag = kInjective) {
+  const size_t num_dynamic_axes = x.ndim();
+  ICHECK_EQ(begin.ndim(), 1);
+  ICHECK_EQ(end.ndim(), 1);
+  ICHECK_EQ(strides.ndim(), 1);
+  const auto* len_begin = begin->shape[0].as<IntImmNode>();
+  const auto* len_end = end->shape[0].as<IntImmNode>();
+  const auto* len_strides = strides->shape[0].as<IntImmNode>();
+  ICHECK(len_begin);
+  ICHECK(len_end);
+  ICHECK(len_strides);
+  ICHECK_EQ(len_begin->value, num_dynamic_axes);
+  ICHECK_EQ(len_end->value, num_dynamic_axes);
+  ICHECK_EQ(len_strides->value, num_dynamic_axes);
+
+  return te::compute(
+      output_shape,
+      [&](const Array<tvm::tir::Var>& indices) {
+        Array<PrimExpr> real_indices;
+        for (size_t i = 0; i < num_dynamic_axes; ++i) {
+          auto ind = make_const(DataType::Int(64), i);
+          real_indices.push_back(indices[i] * strides(ind) + tvm::min(begin(ind), x->shape[i] - 1));
+        }
+        return x(real_indices);
+      },
+      name, tag);
+}
+
+}  // namespace relax
 
 }  // namespace topi
 }  // namespace tvm

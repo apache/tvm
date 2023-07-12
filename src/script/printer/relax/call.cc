@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/relax/attrs/op.h>
+
 #include "./utils.h"
 
 namespace tvm {
@@ -95,7 +97,9 @@ Optional<ExprDoc> PrintCallTIRDPSPacked(const relax::Call& n, const ObjectPath& 
                                         const IRDocsifier& d) {
   static const Op& call_tir_op = Op::Get("relax.call_tir");
   static const Op& call_dps_packed_op = Op::Get("relax.call_dps_packed");
-  if (!n->op.same_as(call_tir_op) && !n->op.same_as(call_dps_packed_op)) {
+  static const Op& call_tir_with_grad_op = Op::Get("relax.call_tir_with_grad");
+  if (!n->op.same_as(call_tir_op) && !n->op.same_as(call_dps_packed_op) &&
+      !n->op.same_as(call_tir_with_grad_op)) {
     return NullOpt;
   }
   ICHECK(n->args.size() == 2 || n->args.size() == 3);
@@ -121,6 +125,23 @@ Optional<ExprDoc> PrintCallTIRDPSPacked(const relax::Call& n, const ObjectPath& 
   } else {
     kwargs_values.push_back(d->AsDoc<ExprDoc>(o_sinfo, o_sinfo_p));
   }
+
+  // start of specially handling call_tir_with_grad
+  if (const auto* call_tir_with_grad_attrs = n->attrs.as<relax::CallTIRWithGradAttrs>()) {
+    kwargs_keys.push_back("te_grad_name");
+    kwargs_values.push_back(LiteralDoc::Str(call_tir_with_grad_attrs->te_grad_name,
+                                            n_p->Attr("attrs")->Attr("te_grad_name")));
+    if (!call_tir_with_grad_attrs->te_grad_kwargs.empty()) {
+      kwargs_keys.push_back("te_grad_kwargs");
+      kwargs_values.push_back(d->AsDoc<ExprDoc>(call_tir_with_grad_attrs->te_grad_kwargs,
+                                                n_p->Attr("attrs")->Attr("te_grad_kwargs")));
+    }
+  }
+  if (n->op.same_as(call_tir_with_grad_op)) {
+    return Relax(d, "call_tir_with_grad")->Call(args, kwargs_keys, kwargs_values);
+  }
+  // end of specially handling call_tir_with_grad
+
   if (n->op.same_as(call_dps_packed_op)) {
     return Relax(d, "call_dps_packed")->Call(args, kwargs_keys, kwargs_values);
   }
@@ -132,11 +153,57 @@ Optional<ExprDoc> PrintCallTIRDPSPacked(const relax::Call& n, const ObjectPath& 
   return Relax(d, "call_tir")->Call(args, kwargs_keys, kwargs_values);
 }
 
+Optional<ExprDoc> PrintAssertOp(const relax::Call& n, const ObjectPath& n_p, const IRDocsifier& d) {
+  static const Op& assert_op = Op::Get("relax.assert_op");
+  if (!n->op.same_as(assert_op)) {
+    return NullOpt;
+  }
+  ICHECK(n->args.size() >= 2);
+  // special handling: it is important to indicate that the format string (second argument)
+  // is the _format_ string, or else roundtripping will fail
+  // (the format string will be interpreted as an argument and there will be a new default format
+  // string given)
+  Array<ExprDoc> args;
+  args.push_back(d->AsDoc<ExprDoc>(n->args[0], n_p->Attr("args")->ArrayIndex(0)));
+  ExprDoc second_arg = d->AsDoc<ExprDoc>(n->args[1], n_p->Attr("args")->ArrayIndex(1));
+  for (size_t i = 2; i < n->args.size(); i++) {
+    args.push_back(d->AsDoc<ExprDoc>(n->args[i], n_p->Attr("args")->ArrayIndex(i)));
+  }
+  return Relax(d, "assert_op")->Call(args, {"format"}, {second_arg});
+}
+
+Optional<ExprDoc> PrintRelaxPrint(const relax::Call& n, const ObjectPath& n_p,
+                                  const IRDocsifier& d) {
+  static const Op& print_op = Op::Get("relax.print");
+  if (!n->op.same_as(print_op)) {
+    return NullOpt;
+  }
+  ICHECK(n->args.size() >= 1);
+  // special handling: it is important to indicate that the format string (first argument)
+  // is the _format_ string, or else roundtripping will fail
+  // (the format string will be interpreted as an argument and there will be a new default format
+  // string given)
+  ExprDoc first_arg = d->AsDoc<ExprDoc>(n->args[0], n_p->Attr("args")->ArrayIndex(0));
+  Array<ExprDoc> args;
+  for (size_t i = 1; i < n->args.size(); i++) {
+    args.push_back(d->AsDoc<ExprDoc>(n->args[i], n_p->Attr("args")->ArrayIndex(i)));
+  }
+  return Relax(d, "print")->Call(args, {"format"}, {first_arg});
+}
+
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::Call>(  //
         "", [](relax::Call n, ObjectPath n_p, IRDocsifier d) -> Doc {
-          // Special case: call_tir, call_dps_packed
+          // Special case: call_tir, call_dps_packed, call_tir_with_grad
           if (Optional<ExprDoc> doc = PrintCallTIRDPSPacked(n, n_p, d)) {
+            return doc.value();
+          }
+          // Special case: assert_op
+          if (Optional<ExprDoc> doc = PrintAssertOp(n, n_p, d)) {
+            return doc.value();
+          }
+          // Special case: print
+          if (Optional<ExprDoc> doc = PrintRelaxPrint(n, n_p, d)) {
             return doc.value();
           }
           ExprDoc prefix{nullptr};

@@ -42,6 +42,7 @@
 #include "../../relay/analysis/graph_partitioner.h"
 #include "../../support/arena.h"
 #include "tvm/relax/expr.h"
+#include "utils.h"
 
 namespace tvm {
 namespace relax {
@@ -252,7 +253,9 @@ class GraphCreator : public ExprVisitor {
     IndexedForwardGraph::Node* leaf_node = nullptr;
     if (it != graph_.node_map.end()) {
       leaf_node = it->second;
-    } else if (leaf_expr->IsInstance<ConstantNode>() || leaf_expr->IsInstance<ShapeExprNode>()) {
+    } else if (leaf_expr->IsInstance<ConstantNode>() || leaf_expr->IsInstance<ShapeExprNode>() ||
+               leaf_expr->IsInstance<PrimValueNode>() || leaf_expr->IsInstance<StringImmNode>() ||
+               leaf_expr->IsInstance<DataTypeImmNode>()) {
       leaf_node = CreateNode(leaf_expr.get());
       // Since we never fuse constants, the pattern of the constant is set to `kOpaque`.
       SetNodePattern(leaf_node, OpPatternKind::kOpaque);
@@ -346,45 +349,6 @@ class GraphCreator : public ExprVisitor {
 };
 
 /*!
- * \brief Renew the definition of symbolic vars in Relax.
- * \details This mutator is used to prevent the same symbolic var from being used in different
- *          functions, which is malformed.
- */
-class SymbolicVarRenewMutator : public ExprMutator, tir::ExprMutator {
- public:
-  static Function Renew(const Function& function) {
-    SymbolicVarRenewMutator mutator;
-    return Downcast<Function>(mutator.VisitExpr(function));
-  }
-
- private:
-  SymbolicVarRenewMutator() = default;
-  using relax::ExprMutator::VisitExpr;
-  using relax::ExprMutator::VisitExpr_;
-  using tir::ExprMutator::VisitExpr_;
-
-  PrimExpr VisitPrimExpr(const PrimExpr& expr) final { return tir::ExprMutator::VisitExpr(expr); }
-
-  // TODO(Siyuan): enhance the method to the following steps:
-  // 1. Visit and replace all tir::Vars at the definition point
-  // 2. Revisit the function again and update the use side.
-  PrimExpr VisitExpr_(const tir::VarNode* op) final {
-    auto it = var_map_.find(GetRef<tir::Var>(op));
-    if (it != var_map_.end()) {
-      return (*it).second;
-    } else {
-      auto n = make_object<tir::VarNode>(*op);
-      tir::Var v(n);
-      var_map_.Set(GetRef<tir::Var>(op), v);
-      return v;
-    }
-  }
-
- private:
-  Map<tir::Var, tir::Var> var_map_;
-};
-
-/*!
  * \brief The ExprMutator used to create a new grouped function
  * \details The workflow of this ExprMutator is:
  *  - The bindings in the function will be added by OperatorFusor via `AppendBinding(...)`.
@@ -420,6 +384,7 @@ class FunctionCreator : public ExprMutator {
           const Tuple& args = Downcast<Tuple>(call->args[1]);
           for (const Expr& arg : args->fields) {
             CheckDefAndUpdateParam(arg);
+            ICHECK(GetStructInfoAs<TupleStructInfoNode>(arg) == nullptr);
           }
           // TODO(tvm-team): handle shape expr
         } else {
@@ -436,12 +401,21 @@ class FunctionCreator : public ExprMutator {
 
           for (const Expr& arg : call->args) {
             CheckDefAndUpdateParam(arg);
+            if (GetStructInfoAs<TupleStructInfoNode>(arg) != nullptr) {
+              // The argument is fully referenced. Thus we remove it from the mapping.
+              partially_used_tuple_params_.erase(arg.get());
+            }
           }
         }
-      } else {
+      } else if (var_binding->value.as<TupleGetItemNode>()) {
         const auto* tuple_item = var_binding->value.as<TupleGetItemNode>();
-        ICHECK(tuple_item != nullptr);
         CheckDefAndUpdateParam(tuple_item->tuple);
+
+        if (partially_used_tuple_params_.find(tuple_item->tuple.get()) !=
+            partially_used_tuple_params_.end()) {
+          // Appending get-item index to the mapping.
+          partially_used_tuple_params_[tuple_item->tuple.get()].push_back(tuple_item->index);
+        }
       }
 
       // Mark the binding variable as defined.
@@ -477,9 +451,51 @@ class FunctionCreator : public ExprMutator {
     // Step 1. Start constructing a new dataflow block.
     builder_->BeginDataflowBlock();
 
-    // Step 2. Visit each binding and collect outputs one by one.
+    // Step 2. Handing partially used tuple parameters: replacing entire tuple
+    // parameters with the parameters of its fields that are accessed in the
+    // function.
+    std::unordered_map<const ExprNode*, std::unordered_map<int, Var>> tuple_get_item_remap;
+    for (auto& [tuple_arg, item_indices] : partially_used_tuple_params_) {
+      ICHECK(!item_indices.empty());
+      int param_idx = tuple_param_idx_[tuple_arg];
+      Var param = params_[param_idx];
+      String param_name = params_[param_idx]->name_hint();
+      TupleStructInfo param_sinfo = Downcast<TupleStructInfo>(tuple_arg->struct_info_);
+
+      Array<Expr> item_args;
+      Array<Var> item_params;
+      item_args.reserve(item_indices.size());
+      item_params.reserve(item_indices.size());
+      for (int item_idx : item_indices) {
+        Var item_param(param_name + "_" + std::to_string(item_idx), param_sinfo->fields[item_idx]);
+        item_args.push_back(TupleGetItem(GetRef<Expr>(tuple_arg), item_idx));
+        item_params.push_back(item_param);
+        tuple_get_item_remap[tuple_arg][item_idx] = item_param;
+      }
+      arguments_.erase(arguments_.begin() + param_idx);
+      arguments_.insert(arguments_.begin() + param_idx, item_args.begin(), item_args.end());
+      params_.erase(params_.begin() + param_idx);
+      params_.insert(params_.begin() + param_idx, item_params.begin(), item_params.end());
+    }
+
+    // Step 3. Visit each binding and collect outputs one by one.
     Array<Expr> outputs(output_vars_.size(), Expr());
     for (const Binding& binding : bindings_) {
+      // Special handing for TupleGetItem.
+      if (const auto* var_binding = binding.as<VarBindingNode>()) {
+        if (const auto* tuple_get_item = var_binding->value.as<TupleGetItemNode>()) {
+          auto it = tuple_get_item_remap.find(tuple_get_item->tuple.get());
+          if (it != tuple_get_item_remap.end()) {
+            ICHECK(it->second.find(tuple_get_item->index) != it->second.end());
+            var_remap_[var_binding->var->vid] = it->second[tuple_get_item->index];
+            if (auto output_idx = GetOutputIndex(binding->var)) {
+              outputs.Set(*output_idx, it->second[tuple_get_item->index]);
+            }
+            continue;
+          }
+        }
+      }
+
       if (auto output_idx = GetOutputIndex(binding->var)) {
         // Case 1. It is an output binding
         // We only allow VarBinding as output.
@@ -494,7 +510,7 @@ class FunctionCreator : public ExprMutator {
       }
     }
 
-    // Step 3. Finish constructing the new block.
+    // Step 4. Finish constructing the new block.
     BindingBlock new_block = builder_->EndBlock();
     if (outputs.empty()) {
       // If the result is not used outside
@@ -509,6 +525,7 @@ class FunctionCreator : public ExprMutator {
       Function function = Function(/*params=*/params_,           //
                                    /*body=*/body,                //
                                    /*ret_struct_info=*/NullOpt,  //
+                                   /*is_pure=*/true,             //
                                    /*attrs=*/DictAttrs(group_attrs));
       Array<PrimExpr> free_vars =
           FreeSymbolicVars(function).Map([](const tir::Var& var) -> PrimExpr { return var; });
@@ -518,6 +535,7 @@ class FunctionCreator : public ExprMutator {
         function = Function(/*params=*/params_,           //
                             /*body=*/body,                //
                             /*ret_struct_info=*/NullOpt,  //
+                            /*is_pure=*/true,             //
                             /*attrs=*/DictAttrs(group_attrs));
       }
       function_ = SymbolicVarRenewMutator::Renew(function);
@@ -567,9 +585,20 @@ class FunctionCreator : public ExprMutator {
         name = String("param_" + std::to_string(n_param_for_const_++));
       }
 
-      Var param(std::move(name), GetStructInfo(expr));
-      arguments_.push_back(expr);
-      params_.push_back(param);
+      StructInfo param_sinfo = GetStructInfo(expr);
+      // Exclude PrimValues from arg/params to make composite functions contain PrimValues.
+      if (!expr->IsInstance<PrimValueNode>()) {
+        Var param(std::move(name), GetStructInfo(expr));
+        arguments_.push_back(expr);
+        params_.push_back(param);
+      }
+
+      // Mark the tuple parameter is partially referenced in the beginning.
+      // We will remove it from the mapping once we find it is fully referenced.
+      if (param_sinfo->IsInstance<TupleStructInfoNode>()) {
+        partially_used_tuple_params_[expr.get()] = {};
+        tuple_param_idx_[expr.get()] = static_cast<int>(arguments_.size()) - 1;
+      }
     }
   }
 
@@ -592,6 +621,13 @@ class FunctionCreator : public ExprMutator {
   std::vector<const VarNode*> output_vars_;
   /*! \brief Whether or not to lift bound constants to parameters */
   bool lift_constant_;
+  /*! \brief Mapping from tuple parameter of the function to its position index */
+  std::unordered_map<const ExprNode*, int> tuple_param_idx_;
+  /*!
+   * \brief Mapping from partially referenced tuple parameter to the list of
+   * indices that the parameter is referred by TupleGetItem
+   */
+  std::unordered_map<const ExprNode*, std::vector<int>> partially_used_tuple_params_;
 };
 
 /*!
@@ -1083,7 +1119,7 @@ class PatternBasedPartitioner : ExprVisitor {
 
     Map<Var, Expr> matched_bindings;
     for (const auto& [pat, match] : matched_result) {
-      if (pat->IsInstance<CallPatternNode>()) {
+      if (pat->IsInstance<CallPatternNode>() || pat->IsInstance<TupleGetItemPatternNode>()) {
         matched_bindings.Set(value_to_bound_var_[match], match);
       }
     }
@@ -1115,11 +1151,20 @@ class CompositeFunctionAnnotator : public ExprMutator {
 
   IRModule Run() {
     auto mod = builder_->GetContextIRModule();
-    auto gvar = mod->GetGlobalVar("main");
-    auto func = Downcast<Function>(mod->Lookup(gvar));
-    auto new_func =
-        Function(func->params, VisitExpr(func->body), func->ret_struct_info, func->attrs);
-    builder_->UpdateFunction(gvar, new_func);
+    auto all_functions = mod->functions;
+    for (const auto& entry : all_functions) {
+      if (const auto* func = entry.second.as<FunctionNode>()) {
+        if (func->GetAttr<String>(attr::kComposite).defined()) {
+          continue;
+        }
+        auto new_body = VisitExpr(func->body);
+        if (!new_body.same_as(func->body)) {
+          auto new_func = Function(func->params, VisitExpr(func->body), func->ret_struct_info,
+                                   func->is_pure, func->attrs, func->span);
+          builder_->UpdateFunction(entry.first, new_func);
+        }
+      }
+    }
     return builder_->GetContextIRModule();
   }
 
@@ -1158,7 +1203,9 @@ class CompositeFunctionAnnotator : public ExprMutator {
       params.push_back(new_v);
     }
 
-    return Function(param_vars, Call(f_inner, params), func_node->ret_struct_info);
+    // pure if the inner func is pure (no need to force purity if it's forced for the inner func)
+    return Function(param_vars, Call(f_inner, params), func_node->ret_struct_info,
+                    Downcast<Function>(f_inner)->is_pure);
   }
 
  private:

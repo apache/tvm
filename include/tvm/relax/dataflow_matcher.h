@@ -58,6 +58,16 @@ Optional<Map<DFPattern, Expr>> ExtractMatchedExpr(
 TVM_DLL Optional<Map<DFPattern, Var>> MatchGraph(const PatternContext& ctx,
                                                  const DataflowBlock& dfb);
 
+/**
+ * \brief Rewrite a function with the given pattern and the rewriter function.
+ * \param ctx The pattern constraint context under which rewriting takes place.
+ * \param rewriter The function to be called on a successful matching for rewriting.
+    Given the map of patterns and corresponding variables (bound variables or parameters),
+    it should return a map that specifies new values for matched bound variables.
+ * \param f The function to rewrite
+ * \return The rewritten or the input function, depending on the pattern matching result.
+ */
+TVM_DLL Function RewriteBindings(const PatternContext& ctx, PackedFunc rewriter, Function f);
 }  // namespace relax
 }  // namespace tvm
 

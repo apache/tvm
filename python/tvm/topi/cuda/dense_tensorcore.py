@@ -18,8 +18,7 @@
 """Compute and Schedule definition for dense tensorcore with cuda backend"""
 from __future__ import absolute_import as _abs
 import tvm
-from tvm import te
-import tvm.autotvm as autotvm
+from tvm import te, autotvm
 from .. import tag
 from ..utils import traverse_inline, get_const_tuple
 from .tensor_intrin import (
@@ -153,7 +152,7 @@ def _schedule_dense_tensorcore(cfg, s, C):
         wmma_m = wmma_n = 8
         wmma_k = 32
     else:
-        raise ValueError("data dtype %s is not yet supported" % data_dtype)
+        raise ValueError(f"data dtype {data_dtype} is not yet supported")
 
     warp_size = 32
     block_row_warps = cfg["block_row_warps"].val

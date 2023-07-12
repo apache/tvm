@@ -31,6 +31,9 @@ RELAX_REGISTER_UNARY_NN_OP_AND_IMPL(relu, "nn.relu", /*require_float_dtype=*/fal
 /* relax.nn.gelu */
 RELAX_REGISTER_UNARY_NN_OP_AND_IMPL(gelu, "nn.gelu", /*require_float_dtype=*/true);
 
+/* relax.nn.gelu_tanh */
+RELAX_REGISTER_UNARY_NN_OP_AND_IMPL(gelu_tanh, "nn.gelu_tanh", /*require_float_dtype=*/true);
+
 /* relax.nn.silu */
 RELAX_REGISTER_UNARY_NN_OP_AND_IMPL(silu, "nn.silu", /*require_float_dtype=*/true);
 
@@ -98,7 +101,8 @@ TVM_REGISTER_OP("relax.nn.softmax")
     .add_argument("data", "Tensor", "The input tensor.")
     .set_attrs_type<SoftmaxAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoSoftmax)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutSoftmax);
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutSoftmax)
+    .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.log_softmax */
 Expr log_softmax(Expr data, int axis) {
@@ -114,7 +118,8 @@ TVM_REGISTER_OP("relax.nn.log_softmax")
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input tensor.")
     .set_attrs_type<SoftmaxAttrs>()
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoSoftmax);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoSoftmax)
+    .set_attr<Bool>("FPurity", Bool(true));
 
 bool NormCheckDtypeAndShape(const Call& call, const BlockBuilder& ctx,
                             const Array<TensorStructInfo>& input_sinfo, Array<Integer> axes) {
@@ -252,7 +257,8 @@ TVM_REGISTER_OP("relax.nn.batch_norm")
     .add_argument("moving_mean", "Tensor", "Running mean of input.")
     .add_argument("moving_var", "Tensor", "Running variance of input.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoBatchNorm)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutBatchNorm);
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutBatchNorm)
+    .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.layer_norm */
 TVM_REGISTER_NODE_TYPE(LayerNormAttrs);
@@ -314,7 +320,8 @@ TVM_REGISTER_OP("relax.nn.layer_norm")
     .add_argument("beta", "Tensor", "The beta offset factor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoLayerNorm)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutLayerNorm)
-    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow);
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+    .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.group_norm */
 TVM_REGISTER_NODE_TYPE(GroupNormAttrs);
@@ -425,7 +432,8 @@ TVM_REGISTER_OP("relax.nn.group_norm")
     .add_argument("beta", "Tensor", "The beta offset factor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoGroupNorm)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutGroupNorm)
-    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow);
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+    .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.dropout */
 TVM_REGISTER_NODE_TYPE(DropoutAttrs);
@@ -451,7 +459,8 @@ TVM_REGISTER_OP("relax.nn.dropout")
     .add_argument("data", "Tensor", "Input to which dropout will be applied.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoDropout)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
-    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow);
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+    .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.cross_entropy_with_logits */
 StructInfo InferStructInfoCrossEntropy(const Call& call, const BlockBuilder& ctx) {
@@ -509,7 +518,8 @@ TVM_REGISTER_OP("relax.nn.cross_entropy_with_logits")
     .set_num_inputs(2)
     .add_argument("predictions", "Tensor", "The predictions.")
     .add_argument("labels", "Tensor", "The labels.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCrossEntropy);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCrossEntropy)
+    .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.nll_loss */
 TVM_REGISTER_NODE_TYPE(NLLLossAttrs);
@@ -734,7 +744,8 @@ TVM_REGISTER_OP("relax.nn.nll_loss")
     .add_argument("predictions", "Tensor", "The prediction tensor.")
     .add_argument("targets", "Tensor", "The target tensor.")
     .add_argument("weights", "Optional<Tensor>", "The weight of each target values.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoNLLLoss);
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoNLLLoss)
+    .set_attr<Bool>("FPurity", Bool(true));
 
 }  // namespace relax
 }  // namespace tvm

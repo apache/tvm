@@ -55,6 +55,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <tuple>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -70,9 +71,11 @@ namespace codegen {
 CodeGenCPU::CodeGenCPU() = default;
 CodeGenCPU::~CodeGenCPU() = default;
 
-void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target, bool system_lib,
-                      bool dynamic_lookup, bool target_c_runtime) {
-  CodeGenLLVM::Init(module_name, llvm_target, system_lib, dynamic_lookup, target_c_runtime);
+void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target,
+                      Optional<String> system_lib_prefix, bool dynamic_lookup,
+                      bool target_c_runtime) {
+  CodeGenLLVM::Init(module_name, llvm_target, system_lib_prefix, dynamic_lookup, target_c_runtime);
+  system_lib_prefix_ = system_lib_prefix;
   dbg_info_ = CreateDebugInfo(module_.get());
   static_assert(sizeof(TVMValue) == sizeof(double), "invariant");
   func_handle_map_.clear();
@@ -152,7 +155,7 @@ void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target, b
                                ftype_tvm_static_init_callback_->getPointerTo(), t_void_p_, t_int_},
                               false);
   // initialize TVM runtime API
-  if (system_lib && !target_c_runtime) {
+  if (system_lib_prefix_.defined() && !target_c_runtime) {
     // We will need this in environment for backward registration.
     // Defined in include/tvm/runtime/c_backend_api.h:
     // int TVMBackendRegisterSystemLibSymbol(const char* name, void* ptr);
@@ -162,7 +165,7 @@ void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target, b
   } else {
     f_tvm_register_system_symbol_ = nullptr;
   }
-  if (dynamic_lookup || system_lib) {
+  if (dynamic_lookup || system_lib_prefix_.defined()) {
     f_tvm_func_call_ = llvm::Function::Create(ftype_tvm_func_call_, llvm::Function::ExternalLinkage,
                                               "TVMFuncCall", module_.get());
     f_tvm_get_func_from_env_ =
@@ -179,7 +182,6 @@ void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target, b
                                "TVMBackendParallelBarrier", module_.get());
   }
   target_c_runtime_ = target_c_runtime;
-  is_system_lib_ = system_lib;
   InitGlobalContext(dynamic_lookup);
 }
 
@@ -218,18 +220,17 @@ llvm::DISubprogram* CodeGenCPU::CreateDebugFunction(const PrimFunc& f) {
 #endif
 }
 
-void CodeGenCPU::AddFunction(const PrimFunc& f) {
+void CodeGenCPU::AddFunction(const GlobalVar& gvar, const PrimFunc& f) {
 #if TVM_LLVM_VERSION >= 50
   di_subprogram_ = CreateDebugFunction(f);
 #endif
   EmitDebugLocation(f->span);
-  CodeGenLLVM::AddFunction(f);
+  CodeGenLLVM::AddFunction(gvar, f);
   if (f_tvm_register_system_symbol_ != nullptr) {
-    auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
-    ICHECK(global_symbol.defined())
-        << "CodeGenLLVM: Expect PrimFunc to have the global_symbol attribute";
-    export_system_symbols_.emplace_back(
-        std::make_pair(global_symbol.value().operator std::string(), function_));
+    if (auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol)) {
+      export_system_symbols_.emplace_back(
+          std::make_pair(global_symbol.value().operator std::string(), function_));
+    }
   }
   AddDebugInformation(f, function_);
 }
@@ -285,12 +286,7 @@ llvm::DIType* CodeGenCPU::GetDebugType(const Type& ty_tir) {
 llvm::DIType* CodeGenCPU::GetDebugType(const Type& ty_tir, llvm::Type* ty_llvm) {
   if (ty_llvm == t_void_) {
     return nullptr;
-  } else if (ty_llvm == llvm::Type::getFloatTy(*llvm_target_->GetContext())) {
-    return dbg_info_->di_builder_->createBasicType("float", 32, llvm::dwarf::DW_ATE_float);
-  } else if (ty_llvm == t_int8_) {
-    return dbg_info_->di_builder_->createBasicType("int8", 8, llvm::dwarf::DW_ATE_signed);
-  } else if (ty_llvm == t_int32_) {
-    return dbg_info_->di_builder_->createBasicType("int32", 32, llvm::dwarf::DW_ATE_signed);
+
   } else if (ty_llvm->isPointerTy()) {
     auto* ptr_type = ty_tir.as<PointerTypeNode>();
     ICHECK(ptr_type != nullptr || GetRuntimeDataType(ty_tir).is_handle())
@@ -300,6 +296,26 @@ llvm::DIType* CodeGenCPU::GetDebugType(const Type& ty_tir, llvm::Type* ty_llvm) 
                                              : nullptr;
     return dbg_info_->di_builder_->createPointerType(pointee_type,
                                                      ty_llvm->getPrimitiveSizeInBits());
+
+  } else if (auto* prim_type = ty_tir.as<PrimTypeNode>()) {
+    DataType dtype = prim_type->dtype;
+    auto dwarf_type = [&]() -> llvm::dwarf::TypeKind {
+      if (dtype.is_bool()) {
+        return llvm::dwarf::DW_ATE_boolean;
+      } else if (dtype.is_float()) {
+        return llvm::dwarf::DW_ATE_float;
+      } else if (dtype.is_int()) {
+        return llvm::dwarf::DW_ATE_signed;
+      } else if (dtype.is_uint()) {
+        return llvm::dwarf::DW_ATE_unsigned;
+      } else {
+        LOG(FATAL) << "No DWARF representation for TIR type " << dtype;
+      }
+    }();
+
+    return dbg_info_->di_builder_->createBasicType(DLDataType2String(dtype),
+                                                   dtype.bits() * dtype.lanes(), dwarf_type);
+
   } else {
     std::string type_str;
     llvm::raw_string_ostream rso(type_str);
@@ -448,31 +464,25 @@ llvm::Value* CodeGenCPU::CreateCallExtern(Type ret_type, String global_symbol,
   }
   llvm::FunctionType* ftype = llvm::FunctionType::get(GetLLVMType(ret_type), arg_types, false);
   // Check if it is available in global function table as injected function.
-  auto it = gv_func_map_.find(global_symbol);
-  if (it != gv_func_map_.end()) {
-    if (it->second == nullptr) {
-      gv_func_map_[global_symbol] = InitContextPtr(ftype->getPointerTo(), "__" + global_symbol);
-      it = gv_func_map_.find(global_symbol);
+
+  auto callee = [&]() -> llvm::Value* {
+    if (auto it = gv_func_map_.find(global_symbol); it != gv_func_map_.end()) {
+      if (it->second == nullptr) {
+        it->second = InitContextPtr(ftype->getPointerTo(), "__" + global_symbol);
+      }
+      return GetContextPtr(it->second);
+    } else if (llvm::Function* f = module_->getFunction(MakeStringRef(global_symbol))) {
+      return f;
+    } else {
+      return llvm::Function::Create(ftype, llvm::Function::ExternalLinkage,
+                                    MakeStringRef(global_symbol), module_.get());
     }
-#if TVM_LLVM_VERSION >= 90
-    auto ext_callee = llvm::FunctionCallee(ftype, GetContextPtr(it->second));
-#else
-    auto ext_callee = GetContextPtr(it->second);
-#endif
-    return builder_->CreateCall(ext_callee, arg_values);
-  } else {
-    llvm::Function* f = module_->getFunction(MakeStringRef(global_symbol));
-    if (f == nullptr) {
-      f = llvm::Function::Create(ftype, llvm::Function::ExternalLinkage,
-                                 MakeStringRef(global_symbol), module_.get());
-    }
-#if TVM_LLVM_VERSION >= 90
-    auto ext_callee = llvm::FunctionCallee(f);
-#else
-    auto ext_callee = f;
-#endif
-    return builder_->CreateCall(ext_callee, arg_values);
+  }();
+
+  if (callee->getType() != ftype->getPointerTo()) {
+    callee = builder_->CreatePointerCast(callee, ftype->getPointerTo());
   }
+  return builder_->CreateCall(ftype, callee, arg_values);
 }
 
 llvm::GlobalVariable* CodeGenCPU::InitContextPtr(llvm::Type* p_type, std::string name) {
@@ -511,12 +521,12 @@ llvm::Value* CodeGenCPU::GetContextPtr(llvm::GlobalVariable* gv) {
 }
 
 void CodeGenCPU::InitGlobalContext(bool dynamic_lookup) {
+  std::string ctx_symbol = system_lib_prefix_.value_or("") + tvm::runtime::symbol::tvm_module_ctx;
   // Module context
-  gv_mod_ctx_ = InitContextPtr(t_void_p_, tvm::runtime::symbol::tvm_module_ctx);
+  gv_mod_ctx_ = InitContextPtr(t_void_p_, ctx_symbol);
   // Register back the locations.
   if (f_tvm_register_system_symbol_ != nullptr && !target_c_runtime_) {
-    export_system_symbols_.emplace_back(
-        std::make_pair(tvm::runtime::symbol::tvm_module_ctx, gv_mod_ctx_));
+    export_system_symbols_.emplace_back(std::make_pair(ctx_symbol, gv_mod_ctx_));
   } else {
     if (!dynamic_lookup) {
       gv_tvm_func_call_ = InitContextPtr(ftype_tvm_func_call_->getPointerTo(), "__TVMFuncCall");
@@ -869,8 +879,13 @@ CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const Array<PrimExpr>& 
                                                          const DataType& r_type,
                                                          const int64_t begin, const int64_t end,
                                                          bool use_string_lookup) {
-  PackedCall pc;
-  std::string func_name = args[0].as<StringImmNode>()->value;
+  std::string func_name = [&]() {
+    auto ptr = args[0].as<StringImmNode>();
+    ICHECK(ptr) << "Expected first argument of tir::Call to be "
+                << "a string containing the callee's name, "
+                << "but instead contained " << args[0];
+    return ptr->value;
+  }();
   // call the function
   int64_t nargs = end - begin;
   ICHECK_GE(nargs, 0);
@@ -928,27 +943,32 @@ CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const Array<PrimExpr>& 
 
   llvm::BasicBlock* end_block = CheckCallSuccess(call);
 
-  // Load the return value and cast it to the designated type (r_type).
-  DataType r_api_type = tir::APIType(r_type);
-  llvm::Type* llvm_r_api_type = DTypeToLLVMType(r_api_type);
-  llvm::Value* load_ptr = builder_->CreatePointerCast(ret_value, llvm_r_api_type->getPointerTo());
-#if TVM_LLVM_VERSION >= 110
-  llvm::Value* rvalue = builder_->CreateAlignedLoad(llvm_r_api_type, load_ptr, llvm::Align(8));
-#elif TVM_LLVM_VERSION >= 80
-  llvm::Value* rvalue = builder_->CreateAlignedLoad(llvm_r_api_type, load_ptr, 8);
-#else
-  llvm::Value* rvalue = builder_->CreateAlignedLoad(load_ptr, 8);
-#endif
-  pc.ret_value = CreateCast(r_api_type, r_type, rvalue);
+  PackedCall pc = {nullptr};
 
-  // Load the return type code.
+  if (!r_type.is_void()) {
+    // Load the return value and cast it to the designated type (r_type).
+    DataType r_api_type = tir::APIType(r_type);
+    llvm::Type* llvm_r_api_type = DTypeToLLVMType(r_api_type);
+    llvm::Value* load_ptr = builder_->CreatePointerCast(ret_value, llvm_r_api_type->getPointerTo());
 #if TVM_LLVM_VERSION >= 110
-  pc.ret_tcode = builder_->CreateAlignedLoad(ret_tcode.type, ret_tcode.addr, llvm::Align(8));
+    llvm::Value* rvalue = builder_->CreateAlignedLoad(llvm_r_api_type, load_ptr, llvm::Align(8));
 #elif TVM_LLVM_VERSION >= 80
-  pc.ret_tcode = builder_->CreateAlignedLoad(ret_tcode.type, ret_tcode.addr, 8);
+    llvm::Value* rvalue = builder_->CreateAlignedLoad(llvm_r_api_type, load_ptr, 8);
 #else
-  pc.ret_tcode = builder_->CreateAlignedLoad(ret_tcode.addr, 8);
+    llvm::Value* rvalue = builder_->CreateAlignedLoad(load_ptr, 8);
 #endif
+
+    pc.ret_value = CreateCast(r_api_type, r_type, rvalue);
+
+    // Load the return type code.
+#if TVM_LLVM_VERSION >= 110
+    pc.ret_tcode = builder_->CreateAlignedLoad(ret_tcode.type, ret_tcode.addr, llvm::Align(8));
+#elif TVM_LLVM_VERSION >= 80
+    pc.ret_tcode = builder_->CreateAlignedLoad(ret_tcode.type, ret_tcode.addr, 8);
+#else
+    pc.ret_tcode = builder_->CreateAlignedLoad(ret_tcode.addr, 8);
+#endif
+  }
 
   pc.end_block = end_block;
   return pc;
@@ -1330,7 +1350,8 @@ void CodeGenCPU::DefineMetadata(runtime::metadata::Metadata metadata) {
 }
 
 void CodeGenCPU::DefineFunctionRegistry(Array<String> func_names) {
-  ICHECK(is_system_lib_) << "Loading of --system-lib modules is yet to be defined for C runtime";
+  ICHECK(system_lib_prefix_.defined())
+      << "Loading of --system-lib modules is yet to be defined for C runtime";
   Array<String> symbols;
   std::vector<llvm::Constant*> funcs;
   for (auto sym : func_names) {

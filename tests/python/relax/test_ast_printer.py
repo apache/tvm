@@ -225,6 +225,7 @@ def test_func():
     assert "params=" in func_str
     assert "body=" in func_str
     assert "ret_struct_info=" in func_str
+    assert "is_pure=" in func_str
     assert "attrs=" in func_str
     assert '"global_symbol": "func"' in func_str
     assert "SeqExpr(" in func_str
@@ -350,13 +351,13 @@ def test_struct_info():
     simple_func = rx.FuncStructInfo([], rx.ObjectStructInfo())
     assert (
         strip_whitespace(printer.visit_struct_info_(simple_func))
-        == "FuncStructInfo(params=[],ret=ObjectStructInfo())"
+        == "FuncStructInfo(params=[],ret=ObjectStructInfo(),purity=True)"
     )
 
 
 def test_call_packed():
     # test case from test_parser
-    @R.function
+    @R.function(pure=False)
     def f(
         x: R.Tensor((32, "m"), "float32"),
         y: R.Tensor(("m",), "float32"),
@@ -385,6 +386,8 @@ def test_call_packed():
 
     # the function has an annotated return type
     assert "ret_struct_info=ObjectStructInfo()" in f_str
+    # the purity attribute is set to false
+    assert "is_pure=False"
 
     assert isinstance(f.body, rx.SeqExpr)
     extern_call = f.body.blocks[0].bindings[-1].value

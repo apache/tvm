@@ -21,10 +21,12 @@
  * \file flatten_buffer.cc
  */
 
+#include <tvm/arith/iter_affine_map.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
+#include "../../arith/ir_mutator_with_analyzer.h"
 #include "ir_utils.h"
 
 namespace tvm {
@@ -34,11 +36,13 @@ namespace tir {
  * \brief Transform multi-dimension BufferLoad/BufferStore into device-supported dimension
  *        for the TIR not contains opaque block.
  */
-class BufferFlattener : public StmtExprMutator {
+class BufferFlattener : public arith::IRMutatorWithAnalyzer {
  public:
   static PrimFunc Flatten(PrimFunc func) {
-    auto pass = BufferFlattener();
+    arith::Analyzer ana;
+    auto pass = BufferFlattener(&ana);
     auto writer = func.CopyOnWrite();
+    pass.MarkBufferMapShapes(func);
     writer->body = pass.VisitStmt(func->body);
     // The buffers in func->buffer_map are deliberately left
     // unflattened, as they are used for validation of user-provided
@@ -48,7 +52,12 @@ class BufferFlattener : public StmtExprMutator {
   }
 
  private:
-  BufferFlattener() {}
+  using IRMutatorWithAnalyzer::VisitExpr;
+  using IRMutatorWithAnalyzer::VisitExpr_;
+  using IRMutatorWithAnalyzer::VisitStmt;
+  using IRMutatorWithAnalyzer::VisitStmt_;
+
+  explicit BufferFlattener(arith::Analyzer* ana) : IRMutatorWithAnalyzer(ana) {}
 
   Stmt VisitStmt_(const BlockNode* op) final {
     ICHECK_EQ(op->match_buffers.size(), 0)
@@ -79,77 +88,76 @@ class BufferFlattener : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const AllocateNode* op) final {
+    // Determine the flattened extents first, before stripping of
+    // DeclBuffer.
+    auto new_extents = [&]() -> Array<PrimExpr> {
+      if (op->extents.size() == 1) {
+        // No flattening required for buffers that are already flat
+        return op->extents;
+      }
+
+      if (auto* decl_buffer = op->body.as<DeclBufferNode>()) {
+        // N-d buffer, use the DeclBuffer inside to determine how it
+        // should be flattened.
+        auto& buffer = decl_buffer->buffer;
+        bool matching_buffer = [&]() {
+          if (!decl_buffer->buffer->data.same_as(op->buffer_var)) {
+            return false;
+          }
+          if (op->dtype != buffer->dtype) {
+            return false;
+          }
+          if (op->extents.size() != buffer->shape.size()) {
+            return false;
+          }
+          ExprDeepEqual expr_equal;
+          for (size_t i = 0; i < op->extents.size(); i++) {
+            if (!expr_equal(op->extents[i], buffer->shape[i])) {
+              return false;
+            }
+          }
+          return true;
+        }();
+
+        if (matching_buffer) {
+          Buffer flattened = GetFlattenedBuffer(buffer);
+          return flattened->shape;
+        } else {
+          ICHECK(decl_buffer->buffer->axis_separators.empty())
+              << "DeclBuffer node doesn't match Allocate extents, but also shouldn't be "
+                 "flattened to 1-d physical memory";
+        }
+      }
+
+      // Fallback, this is an allocation without a matching DeclBuffer
+      PrimExpr flat_extent = 1;
+      for (const auto& dim : op->extents) {
+        flat_extent *= dim;
+      }
+      return {flat_extent};
+    }();
+
     Allocate alloc = Downcast<Allocate>(StmtExprMutator::VisitStmt_(op));
+
     // TODO(Lunderberg): Move the handling of boolean into a
     // dedicated pass.
     if (alloc->dtype == DataType::Bool()) {
-      auto writer = alloc.CopyOnWrite();
-      writer->dtype = DataType::Int(8);
+      alloc.CopyOnWrite()->dtype = DataType::Int(8);
     }
 
-    if (alloc->extents.size() == 1) {
-      // No flattening required for buffers that are already flat
-
-      // TODO(rfc-70): Keep the DeclBuffer node as-is.  Stripping it
-      // out in the current implementation as not all lowering passes
-      // support DeclBuffer.
-      if (auto* decl_buffer = alloc->body.as<DeclBufferNode>()) {
-        alloc.CopyOnWrite()->body = std::move(decl_buffer->body);
-      }
-
-      return std::move(alloc);
+    if (!new_extents.same_as(alloc->extents)) {
+      alloc.CopyOnWrite()->extents = new_extents;
     }
 
-    if (auto* decl_buffer = alloc->body.as<DeclBufferNode>();
-        decl_buffer && decl_buffer->buffer->data.same_as(alloc->buffer_var)) {
-      // N-d buffer, use the DeclBuffer inside to determine how it
-      // should be flattened.
-      auto& buffer = decl_buffer->buffer;
-      bool matching_buffer = [&]() {
-        if (alloc->dtype != buffer->dtype) {
-          return false;
-        }
-        if (alloc->extents.size() != buffer->shape.size()) {
-          return false;
-        }
-        ExprDeepEqual expr_equal;
-        for (size_t i = 0; i < alloc->extents.size(); i++) {
-          if (!expr_equal(alloc->extents[i], buffer->shape[i])) {
-            return false;
-          }
-        }
-        return true;
-      }();
-
-      if (matching_buffer) {
-        Buffer flattened = GetFlattenedBuffer(buffer);
-
-        auto n = alloc.CopyOnWrite();
-        // TODO(rfc-70): Update the DeclBuffer node instead of
-        // stripping it out.  Stripping it out in the current
-        // implementation as not all lowering passes support
-        // DeclBuffer.
-        //
-        // n->body = DeclBuffer(flattened, std::move(decl_buffer->body));
-        n->body = std::move(decl_buffer->body);
-        n->extents = flattened->shape;
-        return std::move(alloc);
-      } else {
-        ICHECK(decl_buffer->buffer->axis_separators.empty())
-            << "DeclBuffer node doesn't match Allocate extents, but also shouldn't be "
-               "flattened to 1-d physical memory";
-      }
-    }
-
-    // Fallback, this is an allocation without a matching DeclBuffer
-    PrimExpr flat_extent = 1;
-    for (const auto& dim : alloc->extents) {
-      flat_extent *= dim;
-    }
-
-    auto n = alloc.CopyOnWrite();
-    n->extents = {flat_extent};
     return std::move(alloc);
+  }
+
+  Stmt VisitStmt_(const DeclBufferNode* op) final {
+    // TODO(rfc-70): Update the DeclBuffer node instead of
+    // stripping it out.  Stripping it out in the current
+    // implementation as not all lowering passes support
+    // DeclBuffer.
+    return VisitStmt(op->body);
   }
 
   Buffer GetFlattenedBuffer(Buffer buf) {
@@ -158,12 +166,16 @@ class BufferFlattener : public StmtExprMutator {
       return it->second;
     }
     auto flattened = buf.GetFlattenedBuffer();
+    auto writer = flattened.CopyOnWrite();
 
     // TODO(Lunderberg): Move the handling of boolean into a
     // dedicated pass.
     if (flattened->dtype == DataType::Bool()) {
-      auto writer = flattened.CopyOnWrite();
       writer->dtype = DataType::Int(8);
+    }
+    // canonicalize shape
+    for (size_t i = 0; i < flattened->shape.size(); ++i) {
+      writer->shape.Set(i, analyzer_->canonical_simplify(flattened->shape[i]));
     }
 
     buffer_remap_[buf] = flattened;
@@ -206,10 +218,15 @@ class BufferFlattener : public StmtExprMutator {
     }
   }
 
+  Array<PrimExpr> GetSimplifiedElemOffset(const Buffer& buffer, const Array<PrimExpr>& indices) {
+    auto flattened_indices = buffer->ElemOffset(indices);
+    return this->IterMapSimplifyWithContext(flattened_indices, false);
+  }
+
   template <typename Node>
   Node VisitBufferAccess(Node node) {
     ICHECK(node->buffer.defined());
-    auto flattened_indices = node->buffer->ElemOffset(node->indices);
+    auto flattened_indices = GetSimplifiedElemOffset(node->buffer, node->indices);
     Buffer flattened_buffer = GetFlattenedBuffer(node->buffer);
 
     auto writer = node.CopyOnWrite();
@@ -232,8 +249,8 @@ class BufferFlattener : public StmtExprMutator {
       max_values.push_back(range->min + range->extent - 1);
     }
 
-    Array<PrimExpr> flattened_min = orig_buf->ElemOffset(min_values);
-    Array<PrimExpr> flattened_max = orig_buf->ElemOffset(max_values);
+    Array<PrimExpr> flattened_min = GetSimplifiedElemOffset(orig_buf, min_values);
+    Array<PrimExpr> flattened_max = GetSimplifiedElemOffset(orig_buf, max_values);
 
     Array<Range> flattened_ranges;
     ICHECK_EQ(flattened_min.size(), flattened_max.size());

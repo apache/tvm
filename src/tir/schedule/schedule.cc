@@ -50,6 +50,8 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetState")  //
     .set_body_method<Schedule>(&ScheduleNode::state);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetTrace")  //
     .set_body_method<Schedule>(&ScheduleNode::trace);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetFuncWorkingOn")  //
+    .set_body_method<Schedule>(&ScheduleNode::func_working_on);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleCopy")  //
     .set_body_method<Schedule>(&ScheduleNode::Copy);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSeed")  //
@@ -82,14 +84,14 @@ TVM_REGISTER_GLOBAL("tir.schedule.TracedSchedule")
 
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGet")
     .set_body_typed([](Schedule self, ObjectRef obj) -> ObjectRef {
-      if (const auto* loop_rv = obj.as<LoopRVNode>()) {
-        return self->Get(GetRef<LoopRV>(loop_rv));
+      if (auto loop_rv = obj.as<LoopRV>()) {
+        return self->Get(loop_rv.value());
       }
-      if (const auto* block_rv = obj.as<BlockRVNode>()) {
-        return self->Get(GetRef<BlockRV>(block_rv));
+      if (auto block_rv = obj.as<BlockRV>()) {
+        return self->Get(block_rv.value());
       }
-      if (const auto* expr_rv = obj.as<ExprRVNode>()) {
-        return self->Get(GetRef<ExprRV>(expr_rv));
+      if (auto expr_rv = obj.as<ExprRV>()) {
+        return self->Get(expr_rv.value());
       }
       LOG(FATAL) << "TypeError: Cannot evaluate the random variable of type: " << obj->GetTypeKey()
                  << ". Its value is: " << obj;
@@ -97,28 +99,28 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGet")
     });
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetSRef")
     .set_body_typed([](Schedule self, ObjectRef obj) -> Optional<ObjectRef> {
-      if (const auto* loop_rv = obj.as<LoopRVNode>()) {
-        return self->GetSRef(GetRef<LoopRV>(loop_rv));
+      if (auto loop_rv = obj.as<LoopRV>()) {
+        return self->GetSRef(loop_rv.value());
       }
-      if (const auto* block_rv = obj.as<BlockRVNode>()) {
-        return self->GetSRef(GetRef<BlockRV>(block_rv));
+      if (auto block_rv = obj.as<BlockRV>()) {
+        return self->GetSRef(block_rv.value());
       }
-      if (const auto* stmt = obj.as<StmtNode>()) {
-        return self->GetSRef(GetRef<Stmt>(stmt));
+      if (auto stmt = obj.as<Stmt>()) {
+        return self->GetSRef(stmt.value());
       }
       LOG(FATAL) << "TypeError: Invalid type: " << obj->GetTypeKey();
       throw;
     });
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleRemoveRV")
     .set_body_typed([](Schedule self, ObjectRef obj) -> void {
-      if (const auto* loop_rv = obj.as<LoopRVNode>()) {
-        return self->RemoveRV(GetRef<LoopRV>(loop_rv));
+      if (auto loop_rv = obj.as<LoopRV>()) {
+        return self->RemoveRV(loop_rv.value());
       }
-      if (const auto* block_rv = obj.as<BlockRVNode>()) {
-        return self->RemoveRV(GetRef<BlockRV>(block_rv));
+      if (auto block_rv = obj.as<BlockRV>()) {
+        return self->RemoveRV(block_rv.value());
       }
-      if (const auto* expr_rv = obj.as<ExprRVNode>()) {
-        return self->RemoveRV(GetRef<ExprRV>(expr_rv));
+      if (auto expr_rv = obj.as<ExprRV>()) {
+        return self->RemoveRV(expr_rv.value());
       }
       LOG(FATAL) << "TypeError: Invalid type: " << obj->GetTypeKey();
       throw;
@@ -129,6 +131,8 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSampleCategorical")
     .set_body_method<Schedule>(&ScheduleNode::SampleCategorical);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSamplePerfectTile")
     .set_body_method<Schedule>(&ScheduleNode::SamplePerfectTile);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSamplePartitionedTile")
+    .set_body_method<Schedule>(&ScheduleNode::SamplePartitionedTile);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSampleComputeLocation")
     .set_body_method<Schedule>(&ScheduleNode::SampleComputeLocation);
 /******** (FFI) Get blocks & loops ********/
@@ -138,11 +142,11 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetLoops")
     .set_body_method<Schedule>(&ScheduleNode::GetLoops);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetChildBlocks")
     .set_body_typed([](Schedule self, ObjectRef rv) {
-      if (const auto* block_rv = rv.as<BlockRVNode>()) {
-        return self->GetChildBlocks(GetRef<BlockRV>(block_rv));
+      if (auto block_rv = rv.as<BlockRV>()) {
+        return self->GetChildBlocks(block_rv.value());
       }
-      if (const auto* loop_rv = rv.as<LoopRVNode>()) {
-        return self->GetChildBlocks(GetRef<LoopRV>(loop_rv));
+      if (auto loop_rv = rv.as<LoopRV>()) {
+        return self->GetChildBlocks(loop_rv.value());
       }
       LOG(FATAL) << "TypeError: Cannot evaluate the random variable of type: " << rv->GetTypeKey()
                  << ". Its value is: " << rv;
@@ -152,17 +156,22 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetProducers")
     .set_body_method<Schedule>(&ScheduleNode::GetProducers);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetConsumers")
     .set_body_method<Schedule>(&ScheduleNode::GetConsumers);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetOutputBlocks")
+    .set_body_method<Schedule>(&ScheduleNode::GetOutputBlocks);
 /******** (FFI) Transform loops ********/
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleMerge").set_body_method<Schedule>(&ScheduleNode::Merge);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleFuse").set_body_method<Schedule>(&ScheduleNode::Fuse);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSplit").set_body_method<Schedule>(&ScheduleNode::Split);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleReorder")
     .set_body_method<Schedule>(&ScheduleNode::Reorder);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleReorderBlockIterVar")
+    .set_body_method<Schedule>(&ScheduleNode::ReorderBlockIterVar);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleAddUnitLoop")
     .set_body_typed([](Schedule self, ObjectRef rv) -> LoopRV {
-      if (const auto* loop_rv = rv.as<LoopRVNode>()) {
-        return self->AddUnitLoop(GetRef<LoopRV>(loop_rv));
-      } else if (const auto* block_rv = rv.as<BlockRVNode>()) {
-        return self->AddUnitLoop(GetRef<BlockRV>(block_rv));
+      if (auto loop_rv = rv.as<LoopRV>()) {
+        return self->AddUnitLoop(loop_rv.value());
+      } else if (auto block_rv = rv.as<BlockRV>()) {
+        return self->AddUnitLoop(block_rv.value());
       } else {
         LOG(FATAL) << "TypeError: Cannot evaluate the random variable of type: " << rv->GetTypeKey()
                    << ". Its value is: " << rv;
@@ -221,13 +230,20 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleUnsafeSetDType")
     .set_body_method<Schedule>(&ScheduleNode::UnsafeSetDType);
 /******** (FFI) Blockize & Tensorize ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleBlockize")
-    .set_body_method<Schedule>(&ScheduleNode::Blockize);
+    .set_body_typed([](Schedule self, ObjectRef target, bool preserve_unit_iters) {
+      if (auto loop_rv = target.as<LoopRV>()) {
+        return self->Blockize(loop_rv.value(), preserve_unit_iters);
+      } else if (auto blocks = target.as<Array<BlockRV>>()) {
+        return self->Blockize(blocks.value(), preserve_unit_iters);
+      }
+      LOG(FATAL) << "Unsupported target type: " << target->GetTypeKey();
+    });
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleTensorize")
     .set_body_typed([](Schedule self, ObjectRef rv, String intrin, bool preserve_unit_iters) {
-      if (const auto* block_rv = rv.as<BlockRVNode>()) {
-        self->Tensorize(GetRef<BlockRV>(block_rv), intrin, preserve_unit_iters);
-      } else if (const auto* loop_rv = rv.as<LoopRVNode>()) {
-        self->Tensorize(GetRef<LoopRV>(loop_rv), intrin, preserve_unit_iters);
+      if (auto block_rv = rv.as<BlockRV>()) {
+        self->Tensorize(block_rv.value(), intrin, preserve_unit_iters);
+      } else if (auto loop_rv = rv.as<LoopRV>()) {
+        self->Tensorize(loop_rv.value(), intrin, preserve_unit_iters);
       } else {
         LOG(FATAL) << "TypeError: Cannot evaluate the random variable of type: " << rv->GetTypeKey()
                    << ". Its value is: " << rv;
@@ -238,11 +254,11 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleTensorize")
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleAnnotate")
     .set_body_typed([](Schedule self, ObjectRef rv, const String& ann_key,
                        const ObjectRef& ann_val) {
-      if (const auto* block_rv = rv.as<BlockRVNode>()) {
-        return self->Annotate(GetRef<BlockRV>(block_rv), ann_key, ann_val);
+      if (auto block_rv = rv.as<BlockRV>()) {
+        return self->Annotate(block_rv.value(), ann_key, ann_val);
       }
-      if (const auto* loop_rv = rv.as<LoopRVNode>()) {
-        return self->Annotate(GetRef<LoopRV>(loop_rv), ann_key, ann_val);
+      if (auto loop_rv = rv.as<LoopRV>()) {
+        return self->Annotate(loop_rv.value(), ann_key, ann_val);
       }
       LOG(FATAL) << "TypeError: Cannot evaluate the random variable of type: " << rv->GetTypeKey()
                  << ". Its value is: " << rv;
@@ -250,11 +266,11 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleAnnotate")
     });
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleUnannotate")
     .set_body_typed([](Schedule self, ObjectRef rv, const String& ann_key) {
-      if (const auto* block_rv = rv.as<BlockRVNode>()) {
-        return self->Unannotate(GetRef<BlockRV>(block_rv), ann_key);
+      if (auto block_rv = rv.as<BlockRV>()) {
+        return self->Unannotate(block_rv.value(), ann_key);
       }
-      if (const auto* loop_rv = rv.as<LoopRVNode>()) {
-        return self->Unannotate(GetRef<LoopRV>(loop_rv), ann_key);
+      if (auto loop_rv = rv.as<LoopRV>()) {
+        return self->Unannotate(loop_rv.value(), ann_key);
       }
       LOG(FATAL) << "TypeError: Cannot evaluate the random variable of type: " << rv->GetTypeKey()
                  << ". Its value is: " << rv;
@@ -290,6 +306,8 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleRollingBuffer")
 /******** (FFI) Misc ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleEnterPostproc")
     .set_body_method<Schedule>(&ScheduleNode::EnterPostproc);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleUnsafeHideBufferAccess")
+    .set_body_method<Schedule>(&ScheduleNode::UnsafeHideBufferAccess);
 
 }  // namespace tir
 }  // namespace tvm

@@ -84,6 +84,17 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
     for (const auto& param : func->params) {
       memo_[param] = arena_->make<Group>();
     }
+
+    PostOrderVisit(func, [this](Expr e) {
+      // Make default groups for dataflow nodes other than CallNode.
+      // Groups for CallNode are created in its visitor.
+      if (e->IsInstance<ConstantNode>() || e->IsInstance<ShapeExprNode>() ||
+          e->IsInstance<TupleNode>() || e->IsInstance<TupleGetItemNode>() ||
+          e->IsInstance<PrimValueNode>()) {
+        memo_[e] = arena_->make<Group>();
+      }
+    });
+
     VisitExpr(func->body);
 
     GroupMap group_map;
@@ -288,8 +299,8 @@ class CompositeInliner : public ExprMutator {
   Function Run(Function func) {
     inlined_functions_ = Map<Function, Function>();
     auto new_body = VisitExpr(func->body);
-    auto new_func =
-        Function(func->params, new_body, func->ret_struct_info, func->attrs, func->span);
+    auto new_func = Function(func->params, new_body, func->ret_struct_info, func->is_pure,
+                             func->attrs, func->span);
     return new_func;
   }
 

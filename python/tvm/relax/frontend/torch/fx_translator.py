@@ -234,6 +234,18 @@ class TorchFXImporter:
             )
         return self.block_builder.emit(relax.op.clip(args[0], a_min, a_max))
 
+    def _gelu(self, node: fx.node.Node) -> relax.Expr:
+        if "approximate" not in node.kwargs:
+            approximate = "none"
+        else:
+            approximate = node.kwargs["approximate"]
+        if approximate == "none":
+            return self.block_builder.emit(relax.op.nn.gelu(self.env[node.args[0]]))
+        elif approximate == "tanh":
+            return self.block_builder.emit(relax.op.nn.gelu_tanh(self.env[node.args[0]]))
+        else:
+            raise KeyError("Unregonized approximate algorithm for gelu: {}.".format(approximate))
+
     ########## Compare ##########
 
     def _lt(self, node: fx.node.Node) -> relax.Expr:
@@ -722,6 +734,34 @@ class TorchFXImporter:
             )
         )
 
+    def _avg_pool2d(self, node: fx.node.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        if node.target in self.named_modules:
+            module = self.named_modules[node.target]
+            kernel = module.kernel_size
+            stride = module.stride
+            padding = module.padding
+            ceil_mode = module.ceil_mode
+        else:
+            nargs = len(node.args)
+            kernel = node.args[1] if nargs > 1 else node.kwargs["kernel_size"]
+            stride = node.args[2] if nargs > 2 else node.kwargs["stride"]
+            padding = node.args[3] if nargs > 3 else node.kwargs["padding"]
+            ceil_mode = node.args[4] if nargs > 4 else node.kwargs["ceil_mode"]
+
+        stride = kernel if stride is None else stride
+
+        return self.block_builder.emit(
+            relax.op.nn.avg_pool2d(
+                x,
+                pool_size=kernel,
+                strides=stride,
+                padding=padding,
+                layout="NCHW",
+                ceil_mode=ceil_mode,
+            )
+        )
+
     def _adaptive_avg_pool2d(self, is_module: bool) -> Callable:
         from torch import fx
 
@@ -950,6 +990,61 @@ class TorchFXImporter:
             )
         )
 
+    def _cross_entropy(self, node: fx.node.Node) -> relax.Expr:
+        preds = self.env[node.args[0]]
+        targets = self.env[node.args[1]]
+
+        # functional.cross_entropy
+        if node.target not in self.named_modules:
+            weights = node.kwargs["weight"]
+            if weights is not None:
+                weights = self.env[weights]
+            reduction = node.kwargs["reduction"]
+            ignore_index = node.kwargs["ignore_index"]
+
+            return self.block_builder.emit(
+                relax.op.nn.nll_loss(
+                    relax.op.nn.log_softmax(preds), targets, weights, reduction, ignore_index
+                )
+            )
+
+        module = self.named_modules[node.target]
+
+        weights = module.weight
+        if weights is not None:
+            if weights in self.params:
+                weights = self.params[weights]
+            else:
+                weights = relax.const(weights.numpy(), preds.struct_info.dtype)
+        reduction = module.reduction
+        ignore_index = module.ignore_index
+
+        return self.block_builder.emit(
+            relax.op.nn.nll_loss(
+                relax.op.nn.log_softmax(preds), targets, weights, reduction, ignore_index
+            )
+        )
+
+    def _scaled_dot_product_attention(self, node: fx.node.Node) -> relax.Var:
+        assert (
+            len(node.args) <= 4
+        ), "Dropout is not supported, and is_causal should be called by kwargs."
+        transpose_S_H = lambda tensor: relax.op.permute_dims(tensor, [0, 2, 1, 3])
+        query = transpose_S_H(self.env[node.args[0]])
+        key = transpose_S_H(self.env[node.args[1]])
+        value = transpose_S_H(self.env[node.args[2]])
+        causal_mask = "TopLeft" if node.kwargs.get("is_causal", False) else None
+
+        if len(node.args) == 4:
+            mask = self.env[node.args[3]]
+            msg = "Only a float mask is supported for the attn_mask input."
+            assert "float" in mask.struct_info.dtype, msg
+            attn = relax.op.nn.attention(query, key, value, bias=mask, causal_mask=causal_mask)
+        else:
+            attn = relax.op.nn.attention(query, key, value, causal_mask=causal_mask)
+
+        return self.block_builder.emit(attn)
+
     ########## Others ##########
 
     def _size(self, node: fx.node.Node) -> relax.Expr:
@@ -1041,6 +1136,7 @@ class TorchFXImporter:
             nn.Conv1d: self._conv1d,
             nn.Conv2d: self._conv2d,
             nn.MaxPool2d: self._max_pool2d,
+            nn.AvgPool2d: self._avg_pool2d,
             nn.AdaptiveAvgPool2d: self._adaptive_avg_pool2d(is_module=True),
             nn.Softmax: self._softmax,
             nn.ReLU: lambda node: self.block_builder.emit(relax.op.nn.relu(self.env[node.args[0]])),
@@ -1054,11 +1150,14 @@ class TorchFXImporter:
             nn.LayerNorm: self._layer_norm,
             nn.GroupNorm: self._group_norm,
             nn.Dropout: lambda node: self.env[node.args[0]],
+            nn.Identity: lambda node: self.env[node.args[0]],
             nn.modules.sparse.Embedding: self._embedding,
+            nn.CrossEntropyLoss: self._cross_entropy,
             # call_function and call_method
             "cos": self._cos,
             "exp": self._exp,
             "sin": self._sin,
+            "iadd": self._add,
             "add": self._add,
             "floordiv": self._floordiv,
             "mul": self._mul,
@@ -1109,7 +1208,7 @@ class TorchFXImporter:
             "clamp": self._clamp,
             "relu": lambda node: self.block_builder.emit(relax.op.nn.relu(self.env[node.args[0]])),
             "leaky_relu": self._leakyrelu,
-            "gelu": lambda node: self.block_builder.emit(relax.op.nn.gelu(self.env[node.args[0]])),
+            "gelu": self._gelu,
             "silu": lambda node: self.block_builder.emit(relax.op.nn.silu(self.env[node.args[0]])),
             "tanh": lambda node: self.block_builder.emit(relax.op.tanh(self.env[node.args[0]])),
             "interpolate": self._interpolate,
@@ -1118,6 +1217,7 @@ class TorchFXImporter:
             "getitem": self._getitem,
             "contiguous": lambda node: self.env[node.args[0]],
             "to": self._to,
+            "avg_pool2d": self._avg_pool2d,
             "adaptive_avg_pool2d": self._adaptive_avg_pool2d(is_module=False),
             "layer_norm": self._layer_norm,
             "index_select": self._index_select,
@@ -1129,6 +1229,8 @@ class TorchFXImporter:
             "rsqrt": self._rsqrt,
             "neg": self._neg,
             "max": self._max,
+            "cross_entropy": self._cross_entropy,
+            "scaled_dot_product_attention": self._scaled_dot_product_attention,
         }
 
     def from_fx(
@@ -1137,6 +1239,7 @@ class TorchFXImporter:
         input_info: List[Tuple[Tuple[int], str]],
         keep_params_as_input: bool,
         unwrap_unit_return_tuple: bool,
+        no_bind_return_tuple: bool,
     ) -> tvm.IRModule:
         """Convert a PyTorch FX GraphModule to a Relax program."""
         from torch import fx
@@ -1188,13 +1291,18 @@ class TorchFXImporter:
                     elif node.op == "output":
                         args = self.retrieve_args(node)
                         assert len(args) == 1
-                        if (
-                            unwrap_unit_return_tuple
-                            and isinstance(args[0], (tuple, list, relax.Tuple))
-                            and len(args[0]) == 1
-                        ):
-                            output = self.block_builder.emit_output(args[0][0])
-                        else:
+
+                        # return tuple
+                        if isinstance(args[0], (tuple, list, relax.Tuple)):
+                            # unit tuple
+                            if unwrap_unit_return_tuple and len(args[0]) == 1:
+                                output = self.block_builder.emit_output(args[0][0])
+                            elif no_bind_return_tuple:
+                                output = []
+                                for ret in args[0]:
+                                    output.append(self.block_builder.emit_output(ret))
+
+                        if output is None:
                             output = self.block_builder.emit_output(args[0])
                         break
                     elif node.op == "get_attr":
@@ -1233,6 +1341,7 @@ def from_fx(
     *,
     keep_params_as_input: bool = False,
     unwrap_unit_return_tuple: bool = False,
+    no_bind_return_tuple: bool = False,
 ) -> tvm.IRModule:
     """Convert a PyTorch FX GraphModule to a Relax program
 
@@ -1250,6 +1359,10 @@ def from_fx(
     unwrap_unit_return_tuple : bool
         A boolean flag indicating if to the return value when it is an unit tuple.
         When the return value is not a unit tuple, no unwrap will take place.
+
+    no_bind_return_tuple : bool
+        A boolean flag indicating whether to bind the return tuple as a relax var.
+        If the flag is true and the return value is a tuple, it will not bind it to a var.
 
     Returns
     -------
@@ -1319,5 +1432,5 @@ def from_fx(
     check the placeholder rows in the beginning of the tabular.
     """
     return TorchFXImporter().from_fx(
-        model, input_info, keep_params_as_input, unwrap_unit_return_tuple
+        model, input_info, keep_params_as_input, unwrap_unit_return_tuple, no_bind_return_tuple
     )

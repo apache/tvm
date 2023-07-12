@@ -14,14 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=no-else-return
+# pylint: disable=no-else-return, invalid-name
 # pylint: disable=unidiomatic-typecheck
 """
 This file contains the set of passes for Relax, which exposes an interface for
 configuring the passes and scripting them in Python.
 """
 
-from typing import Dict, List, Union, Callable
+from typing import Dict, List, Optional, Union, Callable
 from enum import IntEnum
 
 import tvm
@@ -327,6 +327,34 @@ def has_reshape_pattern(func: tir.PrimFunc) -> bool:
     return _ffi_api.has_reshape_pattern(func)  # type: ignore
 
 
+def contains_impure_call(expr: Expr, own_name: Optional[Union[Var, GlobalVar]] = None) -> bool:
+    """
+    Check if the given expression (likely a function body) contains any impure calls.
+
+    Parameter
+    ---------
+    expr : Expr
+        The expression to be examined. If expr is a function, we check the body.
+
+    own_name : Var or GlobalVar (optional)
+        For a recursive function, the analysis can ignore the self-calls
+        for checking purity.
+
+    Returns
+    -------
+    ret : bool
+        True if there is an impure call
+        (call to a function that may have visible side effects).
+
+    Notes
+    -----
+    Relies on StructInfo annotations, so ensure that the module has been normalized first.
+    Also, an impure call in a *nested* function does *not* mean that the outer expression contains
+    an impure call--it only does if the nested function is *later called*.
+    """
+    return _ffi_api.contains_impure_call(expr, own_name)
+
+
 def get_var2val(func: Function) -> Dict[Var, Expr]:
     """
     Get a mapping from Var to Expr for each variable in the function.
@@ -414,6 +442,14 @@ def well_formed(mod: IRModule, check_struct_info: bool = True) -> bool:
     return _ffi_api.well_formed(mod, check_struct_info)  # type: ignore
 
 
+def _get_prim_func_default_dtype(func: PrimFunc):
+    """Detect default index dtype from function buffer map"""
+    for _, v in func.buffer_map.items():
+        for value in v.shape:
+            return value.dtype
+    return "int64"
+
+
 def suggest_layout_transforms(
     func: PrimFunc, write_buffer_transforms: List[Union[IndexMap, Callable]]
 ) -> Dict[Block, Dict[Union[Block, Buffer], IndexMap]]:
@@ -435,9 +471,10 @@ def suggest_layout_transforms(
          from the object (block or buffer) to it's index map transformation.
     """
     write_buffer_index_maps = []
+    default_index_dtype = _get_prim_func_default_dtype(func)
     for transform in write_buffer_transforms:
         if callable(transform):
-            transform = IndexMap.from_func(transform)
+            transform = IndexMap.from_func(transform, index_dtype=default_index_dtype)
         assert isinstance(transform, IndexMap)
         write_buffer_index_maps.append(transform)
     return _ffi_api.suggest_layout_transforms(func, write_buffer_index_maps)  # type: ignore

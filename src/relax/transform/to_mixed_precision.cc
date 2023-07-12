@@ -26,6 +26,8 @@
 #include <tvm/relax/transform.h>
 
 #include <array>
+#include <cstdint>
+#include <unordered_set>
 
 #include "../op/nn/convolution.h"
 #include "../op/tensor/datatype.h"
@@ -272,13 +274,30 @@ class DTypeDecisionCollector : public ExprVisitor {
 
 class ToMixedPrecisionRewriter : public ExprMutator {
  public:
-  explicit ToMixedPrecisionRewriter(const VarDTypeMap* only_fp16_map, DataType output_dtype)
-      : only_fp16_map_(only_fp16_map), output_dtype_(output_dtype) {}
+  explicit ToMixedPrecisionRewriter(const VarDTypeMap* only_fp16_map, DataType output_dtype,
+                                    const std::unordered_set<std::string>& fp16_input_names)
+      : only_fp16_map_(only_fp16_map),
+        output_dtype_(output_dtype),
+        fp16_input_names_(fp16_input_names) {}
 
  private:
   Var GetRemapped(const Var& var) {
     auto it = var_remap_.find(var->vid);
-    return it == var_remap_.end() ? var : it->second;
+    if (it != var_remap_.end()) {
+      return it->second;
+    } else {
+      if (fp16_input_names_.count(var->name_hint())) {
+        auto sinfo = GetStructInfo(var);
+        if (auto tensor_sinfo = sinfo.as<TensorStructInfoNode>()) {
+          TensorStructInfo fp16_sinfo(tensor_sinfo->shape.value(), DataType::Float(16),
+                                      tensor_sinfo->span);
+          Var fp16_var(var->vid, fp16_sinfo, var->span);
+          var_remap_[var->vid] = fp16_var;
+          return fp16_var;
+        }
+      }
+      return var;
+    }
   }
 
   Array<Expr> RemapArgs(const Array<Expr>& args) {
@@ -318,25 +337,75 @@ class ToMixedPrecisionRewriter : public ExprMutator {
     return new_args;
   }
 
-  // Util function to check if any of the tensors in the args is fp32
-  bool AnyArgIsFP32(const NType& cur_type) {
-    bool result = false;
-    auto fvisitleaf = [&](const String& dtype) {
-      if (dtype == "float32") {
-        result = true;
-      }
-    };
-    ForEachLeaf<String>(cur_type, fvisitleaf);
-    return result;
+  template <typename T>
+  bool CheckInFP16Range(const std::vector<uint8_t>& bytes, size_t num_elem) {
+    const T* ptr = reinterpret_cast<const T*>(bytes.data());
+    constexpr float fp16_max = 65504;
+    for (size_t i = 0; i < num_elem; ++i) {
+      if (std::abs(ptr[i]) > fp16_max) return false;
+    }
+    return true;
   }
 
-  bool AnyArgIsFP32(const Array<Expr>& args) {
+  bool AllFP16Castable(const Array<Expr>& args) {
+    auto is_fp16 = [](StructInfo sinfo) {
+      if (auto tensor_sinfo = sinfo.as<TensorStructInfoNode>();
+          tensor_sinfo && tensor_sinfo->dtype == DataType::Float(16)) {
+        return true;
+      }
+      return false;
+    };
+
+    auto is_in_fp16_range = [this](const ConstantNode* constant) {
+      const auto& data = constant->data;
+      if (data->dtype.lanes > 1) {
+        // Skip vectorized types for now.
+        return false;
+      }
+
+      if (data.DataType() == DataType::Float(16)) {
+        return true;
+      }
+
+      auto shape = data.Shape();
+      size_t size_1d = 1;
+      for (size_t i = 0; i < shape.size(); ++i) {
+        size_1d *= shape[i];
+      }
+      auto elem_bytes = data->dtype.bits / 8;
+      std::vector<uint8_t> bytes(size_1d * elem_bytes);
+      data.CopyToBytes(bytes.data(), bytes.size());
+
+      if (data.DataType() == DataType::Float(32)) {
+        return CheckInFP16Range<float>(bytes, size_1d);
+      } else if (data.DataType() == DataType::Float(64)) {
+        return CheckInFP16Range<double>(bytes, size_1d);
+      } else if (data.DataType() == DataType::Int(8)) {
+        return CheckInFP16Range<std::int8_t>(bytes, size_1d);
+      } else if (data.DataType() == DataType::Int(16)) {
+        return CheckInFP16Range<std::int16_t>(bytes, size_1d);
+      } else if (data.DataType() == DataType::Int(32)) {
+        return CheckInFP16Range<std::int32_t>(bytes, size_1d);
+      } else if (data.DataType() == DataType::Int(64)) {
+        return CheckInFP16Range<std::int64_t>(bytes, size_1d);
+      }
+      return false;
+    };
+
     for (const Expr& arg : args) {
-      if (IsNestedTensor(arg)) {
-        if (AnyArgIsFP32(NTypeFrom(arg))) return true;
+      auto sinfo = GetStructInfo(arg);
+      auto constant = arg.as<ConstantNode>();
+      auto tuple = arg.as<TupleNode>();
+
+      if (!IsNestedTensor(arg) || is_fp16(sinfo) || (constant && is_in_fp16_range(constant)) ||
+          (tuple && AllFP16Castable(tuple->fields))) {
+        continue;
+      } else {
+        return false;
       }
     }
-    return false;
+
+    return true;
   }
 
   void CastIfFp16Only(const Var& var) {
@@ -375,6 +444,8 @@ class ToMixedPrecisionRewriter : public ExprMutator {
     }
     return VisitVar_(GetRef<Var>(op));
   }
+
+  Var VisitVarDef(const Var& var) { return GetRemapped(var); }
 
   Expr VisitExpr_(const DataflowVarNode* op) final {
     if (!builder_->CurrentBlockIsDataFlow()) {
@@ -421,7 +492,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
       auto f = attr_map[op];
       new_call = make_object<CallNode>(*(f(Call(new_call), output_dtype_).get()));
     } else if (policy == kFollow) {
-      to = AnyArgIsFP32(new_call->args) ? fp32_ : fp16_;
+      to = AllFP16Castable(new_call->args) ? fp16_ : fp32_;
     } else if (policy == kNever) {
       to = fp32_;
     } else {
@@ -510,22 +581,28 @@ class ToMixedPrecisionRewriter : public ExprMutator {
   DataType fp32_ = DataType(DataType::TypeCode::kFloat, 32, 1);
   DataType output_dtype_;
   Array<Var> params_;
+  std::unordered_set<std::string> fp16_input_names_;
 
   const Op& wrap_param_op = Op::Get("relax.wrap_param");
 };
 
-Expr ToMixedPrecision(const Function& f, const DataType& out_dtype) {
+Expr ToMixedPrecision(const Function& f, const DataType& out_dtype,
+                      Optional<Array<String>> fp16_input_names) {
   VarDTypeMap only_fp16_map = std::move(DTypeDecisionCollector::Collect(f, out_dtype));
-  ToMixedPrecisionRewriter mutator(&only_fp16_map, out_dtype);
+  std::unordered_set<std::string> fp16_input_names_set;
+  if (fp16_input_names) {
+    fp16_input_names_set.insert(fp16_input_names.value().begin(), fp16_input_names.value().end());
+  }
+  ToMixedPrecisionRewriter mutator(&only_fp16_map, out_dtype, fp16_input_names_set);
   return mutator(f);
 }
 
 namespace transform {
 
-Pass ToMixedPrecision(const DataType& out_dtype) {
+Pass ToMixedPrecision(const DataType& out_dtype, Optional<Array<String>> fp16_input_names) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
-        return Downcast<Function>(ToMixedPrecision(f, out_dtype));
+        return Downcast<Function>(ToMixedPrecision(f, out_dtype, fp16_input_names));
       };
   return CreateFunctionPass(pass_func, 0, "ToMixedPrecision", {});
 }

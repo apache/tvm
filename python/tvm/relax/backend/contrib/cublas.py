@@ -53,6 +53,14 @@ def _check_matmul(context: PatternCheckContext) -> bool:
     lhs_batches = reduce(operator.mul, lhs_shape[:-2], 1)
     rhs_batches = reduce(operator.mul, rhs_shape[:-2], 1)
 
+    if "bias" in context.annotated_expr:
+        bias = context.annotated_expr["bias"]
+        bias_shape = bias.struct_info.shape.values
+        bias_batches = reduce(operator.mul, bias_shape[:-1], 1)
+        if not isinstance(bias_batches, (tvm.tir.expr.IntImm, int)) or int(bias_batches) > 1:
+            # cuBLAS only supports bias vector
+            return False
+
     # cuBLASLt does not seem to support batched GEMM with one of matrices having
     # one batch (with batch_stride 0). So for batched GEMM, the two batch counts
     # must be equal.

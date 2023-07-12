@@ -25,7 +25,7 @@ namespace script {
 namespace printer {
 
 Map<String, ExprDoc> BufferAttrs(tir::Buffer buffer, const ObjectPath& buffer_p, const Frame& frame,
-                                 const IRDocsifier& d) {
+                                 const IRDocsifier& d, BufferVarDefinition var_definitions) {
   using tvm::tir::Var;
   using tvm::tir::VarNode;
   Map<String, ExprDoc> kwargs;
@@ -93,11 +93,18 @@ Map<String, ExprDoc> BufferAttrs(tir::Buffer buffer, const ObjectPath& buffer_p,
     kwargs.Set("dtype", LiteralDoc::DataType(buffer->dtype, buffer_p->Attr("dtype")));
   }
   // Step 3. Handle `buffer.data`
-  if (!is_new_var(buffer->data)) {
+  bool is_inline_data = false;
+  if (is_new_var(buffer->data)) {
+    if (var_definitions >= BufferVarDefinition::DataPointer) {
+      is_inline_data = try_inline_def(buffer->data, buffer_p->Attr("data"), [=]() {
+        return d->AsDoc<ExprDoc>(buffer, buffer_p)->Attr("data");
+      });
+    } else {
+      add_out_of_line_var_def(buffer->data, buffer_p->Attr("data"));
+    }
+  }
+  if (!is_inline_data) {
     kwargs.Set("data", d->AsDoc<ExprDoc>(buffer->data, buffer_p->Attr("data")));
-  } else {
-    try_inline_def(buffer->data, buffer_p->Attr("data"),
-                   [=]() { return d->AsDoc<ExprDoc>(buffer, buffer_p)->Attr("data"); });
   }
   // Step 4. Handle `buffer.strides`
   if (!buffer->strides.empty()) {
@@ -194,15 +201,16 @@ ExprDoc BufferCall(const ExprDoc& prefix, const Map<String, ExprDoc>& attrs, Arr
 }
 
 ExprDoc BufferDecl(const tir::Buffer& buffer, const String& method, const Array<ExprDoc>& args,
-                   const ObjectPath& p, const Frame& frame, const IRDocsifier& d) {
+                   const ObjectPath& p, const Frame& frame, const IRDocsifier& d,
+                   BufferVarDefinition var_definitions) {
   return BufferCall(/*prefix=*/TIR(d, method),
-                    /*attrs=*/BufferAttrs(buffer, p, frame, d),
+                    /*attrs=*/BufferAttrs(buffer, p, frame, d, var_definitions),
                     /*args=*/args);
 }
 
 ExprDoc BufferAttn(const tir::Buffer& buffer, const ObjectPath& p, const Frame& frame,
                    const IRDocsifier& d) {
-  Map<String, ExprDoc> attrs = BufferAttrs(buffer, p, frame, d);
+  Map<String, ExprDoc> attrs = BufferAttrs(buffer, p, frame, d, BufferVarDefinition::DataPointer);
   ExprDoc shape = attrs.Get("shape").value();
   ExprDoc dtype =
       attrs.Get("dtype").value_or(LiteralDoc::DataType(buffer->dtype, p->Attr("dtype")));
@@ -281,7 +289,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)  //
       if (!d->IsVarDefined(buffer)) {
         if (Optional<Frame> opt_f = FindLowestVarDef(buffer, d)) {
           ExprDoc lhs = DefineBuffer(buffer, opt_f.value(), d);
-          ExprDoc rhs = BufferDecl(buffer, "Buffer", {}, p, opt_f.value(), d);
+          ExprDoc rhs = BufferDecl(buffer, "Buffer", {}, p, opt_f.value(), d,
+                                   BufferVarDefinition::DataPointer);
           opt_f.value()->stmts.push_back(AssignDoc(lhs, rhs, NullOpt));
         }
       }
@@ -298,7 +307,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           ExprDoc lhs = DefineBuffer(stmt->buffer, frame, d);
           ExprDoc src_buffer = d->AsDoc<ExprDoc>(stmt->source, p->Attr("source"));
           ExprDoc rhs = BufferDecl(stmt->buffer, "match_buffer", {src_buffer}, p->Attr("buffer"),
-                                   d->frames.back(), d);
+                                   d->frames.back(), d, BufferVarDefinition::MatchBuffer);
           return AssignDoc(lhs, rhs, NullOpt);
         });
 

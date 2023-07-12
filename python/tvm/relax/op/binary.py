@@ -250,11 +250,9 @@ def not_equal(x1: Expr, x2: Expr) -> Expr:
     return _ffi_api.not_equal(x1, x2)  # type: ignore
 
 
-###################### Comparison operators ######################
-
-
 def maximum(x1: Expr, x2: Expr) -> Expr:
     """Element-wise maximum
+
     Parameters
     ----------
     x1 : relax.Expr
@@ -272,6 +270,7 @@ def maximum(x1: Expr, x2: Expr) -> Expr:
 
 def minimum(x1: Expr, x2: Expr) -> Expr:
     """Element-wise minimum
+
     Parameters
     ----------
     x1 : relax.Expr
@@ -285,3 +284,105 @@ def minimum(x1: Expr, x2: Expr) -> Expr:
         The computed result.
     """
     return _ffi_api.minimum(x1, x2)
+
+
+###################### Logical operators ######################
+
+
+def logical_and(x1: Expr, x2: Expr) -> Expr:
+    """Logical AND
+    Parameters
+    ----------
+    x1 : relax.Expr
+        The first input tensor.
+    x2 : relax.Expr
+        The second input tensor.
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.logical_and(x1, x2)
+
+
+def logical_or(x1: Expr, x2: Expr) -> Expr:
+    """Logical OR
+    Parameters
+    ----------
+    x1 : relax.Expr
+        The first input tensor.
+    x2 : relax.Expr
+        The second input tensor.
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.logical_or(x1, x2)
+
+
+def logical_xor(x1: Expr, x2: Expr) -> Expr:
+    """Logical XOR
+    Parameters
+    ----------
+    x1 : relax.Expr
+        The first input tensor.
+    x2 : relax.Expr
+        The second input tensor.
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.logical_xor(x1, x2)
+
+
+###################### Bitwise operators ######################
+
+
+def bitwise_and(x1: Expr, x2: Expr) -> Expr:
+    """Bitwise AND
+    Parameters
+    ----------
+    x1 : relax.Expr
+        The first input tensor.
+    x2 : relax.Expr
+        The second input tensor.
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.bitwise_and(x1, x2)
+
+
+def bitwise_or(x1: Expr, x2: Expr) -> Expr:
+    """Bitwise OR
+    Parameters
+    ----------
+    x1 : relax.Expr
+        The first input tensor.
+    x2 : relax.Expr
+        The second input tensor.
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.bitwise_or(x1, x2)
+
+
+def bitwise_xor(x1: Expr, x2: Expr) -> Expr:
+    """Bitwise XOR
+    Parameters
+    ----------
+    x1 : relax.Expr
+        The first input tensor.
+    x2 : relax.Expr
+        The second input tensor.
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.bitwise_xor(x1, x2)
