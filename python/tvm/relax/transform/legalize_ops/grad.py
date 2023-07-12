@@ -62,16 +62,8 @@ def _grad_nll_loss_backward(bb: BlockBuilder, call: Call) -> Expr:
             output_grad = topi.broadcast_to(output_grad, targets.shape)
         elif reduction == "mean":
             weight_sum = topi_sum_extend(all_weights)
-            weight_sum_elim_zero = te.compute(
-                (),
-                lambda *x: tir.Select(
-                    weight_sum() != tir.const(0, weight_sum.dtype),
-                    weight_sum(),
-                    tir.const(1, weight_sum.dtype),
-                ),
-            )
             output_grad = topi.divide(
-                topi.broadcast_to(output_grad, targets.shape), weight_sum_elim_zero
+                topi.broadcast_to(output_grad, targets.shape), weight_sum
             )
 
         # handle no batch
