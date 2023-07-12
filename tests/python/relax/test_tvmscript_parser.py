@@ -885,7 +885,7 @@ def test_call_tir_with_grad():
                 cls.identity_tir,
                 (v0,),
                 R.Tensor((54, 96), "float32"),
-                tir_grad_name="identity_k_grad",
+                te_grad_name="identity_k_grad",
                 te_grad_kwargs={"k": 1.0},
             )
             return out
