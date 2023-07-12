@@ -23,6 +23,9 @@ from ...ir_builder.relax import ir as _relax
 from . import parser as _parser
 from .entry import Callable, Object, Prim, Shape, Tensor, Tuple, match_cast
 
+from . import dist
+from .dist import *  # pylint: disable=wildcard-import,redefined-builtin
+
 if TYPE_CHECKING:
     # pylint: disable=invalid-name
     # Define prim_func and make it type check as static method
@@ -31,13 +34,17 @@ if TYPE_CHECKING:
 else:
     from .entry import function
 
-__all__ = _relax.__all__ + [
-    "Callable",
-    "Object",
-    "Prim",
-    "Shape",
-    "Tensor",
-    "Tuple",
-    "function",
-    "match_cast",
-]
+__all__ = (
+    _relax.__all__
+    + dist.__all__
+    + [
+        "Callable",
+        "Object",
+        "Prim",
+        "Shape",
+        "Tensor",
+        "Tuple",
+        "function",
+        "match_cast",
+    ]
+)
