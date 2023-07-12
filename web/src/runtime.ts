@@ -1007,11 +1007,11 @@ export class ArtifactCache {
 
   async hasAllKeys(keys: string[]) {
     if (this.cache === undefined) {
-      return false;
+      this.cache = await caches.open(this.scope);
     }
     return this.cache.keys()
       .then(requests => requests.map(request => request.url))
-      .then(cacheKeys => keys.every(key => cacheKeys.includes(key)))
+      .then(cacheKeys => keys.every(key => cacheKeys.indexOf(key) !== -1))
       .catch(err => false);
   }
 }
@@ -2370,4 +2370,23 @@ export function instantiate(
       return new Instance(result.module, {}, result.instance, env);
     }
   );
+}
+
+export async function hasNDArrayInCache(
+  ndarrayCacheUrl: string,
+  cacheScope: string = "tvmjs"
+): Promise<boolean> {
+  const artifactCache = new ArtifactCache(cacheScope);
+  const jsonUrl = new URL("ndarray-cache.json", ndarrayCacheUrl).href;
+  const hasJsonUrlInCache = await artifactCache.hasAllKeys([jsonUrl]);
+  if (!hasJsonUrlInCache) {
+    return false;
+  }
+  const result = await artifactCache.fetchWithCache(jsonUrl);
+  let list;
+  if (result instanceof Response) {
+    list = await result.json();
+  }
+  list = list["records"] as Array<NDArrayShardEntry>;
+  return await artifactCache.hasAllKeys(list.map(key => new URL(key.dataPath, ndarrayCacheUrl).href));
 }
