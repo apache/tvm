@@ -366,7 +366,11 @@ def test_tir_var(register_te_grads):
     bb = relax.BlockBuilder()
     with bb.function("main", [a, b]):
         with bb.dataflow():
-            d = bb.emit(bb.call_te_with_grad(f_mul, a, b, primfunc_name_hint="f_mul", te_grad_name="f_mul_grad"))
+            d = bb.emit(
+                bb.call_te_with_grad(
+                    f_mul, a, b, primfunc_name_hint="f_mul", te_grad_name="f_mul_grad"
+                )
+            )
             out = bb.emit_output(R.sum(d))
         bb.emit_func_output(out)
 
