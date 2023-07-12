@@ -161,7 +161,9 @@ def categorize_csv_file(csv_path: str):
 if __name__ == "__main__":
     help = "List out commits with attached PRs since a certain commit"
     parser = argparse.ArgumentParser(description=help)
-    parser.add_argument("--notes", required=True, help="csv or markdown file of categorized PRs in order")
+    parser.add_argument(
+        "--notes", required=True, help="csv or markdown file of categorized PRs in order"
+    )
     parser.add_argument(
         "--is-pr-with-link",
         required=False,
