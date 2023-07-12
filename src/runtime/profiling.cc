@@ -861,7 +861,7 @@ TVM_REGISTER_GLOBAL("runtime.profiling.ProfileFunction")
 
 PackedFunc WrapTimeEvaluator(PackedFunc pf, Device dev, int number, int repeat, int min_repeat_ms,
                              int limit_zero_time_iterations, int cooldown_interval_ms,
-                             int repeats_to_cooldown, PackedFunc f_preproc) {
+                             int repeats_to_cooldown, int cache_flush_bytes, PackedFunc f_preproc) {
   ICHECK(pf != nullptr);
 
   if (static_cast<int>(dev.device_type) == static_cast<int>(kDLMicroDev)) {
@@ -871,12 +871,19 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf, Device dev, int number, int repeat, 
   }
 
   auto ftimer = [pf, dev, number, repeat, min_repeat_ms, limit_zero_time_iterations,
-                 cooldown_interval_ms, repeats_to_cooldown,
+                 cooldown_interval_ms, repeats_to_cooldown, cache_flush_bytes,
                  f_preproc](TVMArgs args, TVMRetValue* rv) mutable {
     TVMRetValue temp;
     std::ostringstream os;
     // skip first time call, to activate lazy compilation components.
     pf.CallPacked(args, &temp);
+
+    // allocate two large arrays to flush L2 cache
+    NDArray arr1, arr2;
+    if (cache_flush_bytes > 0) {
+      arr1 = NDArray::Empty({cache_flush_bytes / 4}, {kDLInt, 32, 1}, dev);
+      arr2 = NDArray::Empty({cache_flush_bytes / 4}, {kDLInt, 32, 1}, dev);
+    }
 
     DeviceAPI::Get(dev)->StreamSync(dev, nullptr);
 
@@ -892,7 +899,10 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf, Device dev, int number, int repeat, 
           number = static_cast<int>(
               std::max((min_repeat_ms / (duration_ms / number) + 1), number * golden_ratio));
         }
-
+        if (cache_flush_bytes > 0) {
+          arr1.CopyFrom(arr2);
+        }
+        DeviceAPI::Get(dev)->StreamSync(dev, nullptr);
         // start timing
         Timer t = Timer::Start(dev);
         for (int j = 0; j < number; ++j) {
