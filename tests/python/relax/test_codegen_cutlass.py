@@ -1595,15 +1595,16 @@ def test_fp16A_int8B_gemm():
                 )
                 lv1_1: R.Tensor((64, 64), dtype="float16") = R.matmul(x, lv6, out_dtype="float16")
                 lv2_1: R.Tensor((64, 128), dtype="float16") = R.add(lv1_1, bias)
-                R.output(lv2_1)
-            return lv2_1
+                lv2_2: R.Tensor((64, 128), dtype="float16") = R.nn.gelu(lv2_1)
+                R.output(lv2_2)
+            return lv2_2
 
     x_shape = (64, 64)
     y_shape = (64, 64)
 
     mod = partition_for_cutlass(Module)
     func_names = [name.name_hint for (name, _) in mod.functions.items()]
-    assert "fused_decode_relax_matmul_relax_add_cutlass" in func_names
+    assert "fused_decode_relax_matmul_relax_add_relax_nn_gelu_cutlass" in func_names
 
     mod = relax.transform.RunCodegen(
         {"cutlass": {"sm": 80, "find_first_valid": False}},
@@ -1633,7 +1634,15 @@ def test_fp16A_int8B_gemm():
     params = (packed_weight.copyto(dev), scales.copyto(dev), bias_trans.copyto(dev))
     inp = [x_nd, params]
     out = vm["main"](*inp).numpy()
-    ref = np.dot(x, y.transpose()) + bias
+
+    def gelu_fp16(x):
+        erf_inp = x * (0.5**0.5)
+        from scipy.special import erf
+
+        erf_out = erf(erf_inp.astype("float32")).astype("float16")
+        return x * 0.5 * (1.0 + erf_out)
+
+    ref = gelu_fp16(np.dot(x, y.transpose()) + bias)
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
@@ -1762,5 +1771,4 @@ def test_conv2d_cuda_graph():
 
 
 if __name__ == "__main__":
-    # tvm.testing.main()
-    test_fp16A_int8B_gemm()
+    tvm.testing.main()
