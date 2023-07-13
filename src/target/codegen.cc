@@ -231,6 +231,12 @@ class ModuleSerializer {
   std::vector<uint64_t> import_tree_child_indices_;
 };
 
+/*!
+ * \brief Serialize runtime module including
+ *
+ * \param mod The runtime module to serialize including its import tree.
+ */
+namespace {
 std::string SerializeModule(const runtime::Module& mod) {
   std::string bin;
   dmlc::MemoryStringStream ms(&bin);
@@ -241,6 +247,7 @@ std::string SerializeModule(const runtime::Module& mod) {
 
   return bin;
 }
+}  // namespace
 
 std::string PackImportsToC(const runtime::Module& mod, bool system_lib,
                            const std::string& c_symbol_prefix) {
