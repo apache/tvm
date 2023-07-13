@@ -417,6 +417,7 @@ def test_relu():
     verify_model(ReLU0(), input_info, {}, expected)
     verify_model(ReLU1(), input_info, {}, expected)
 
+
 @tvm.testing.requires_gpu
 def test_leakyrelu():
     import torch
@@ -452,6 +453,7 @@ def test_leakyrelu():
     input_info = [([10, 10], "float32")]
     verify_model(LeakyReLU0(), input_info, {}, expected)
     verify_model(LeakyReLU1(), input_info, {}, expected)
+
 
 def test_relu6():
     class ReLU6(Module):

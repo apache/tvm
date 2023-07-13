@@ -1037,6 +1037,7 @@ def test_relu_symbolic():
     mod = LegalizeOps()(Relu)
     tvm.ir.assert_structural_equal(mod, Expected)
 
+
 def test_leakyrelu():
     # fmt: off
     @tvm.script.ir_module
@@ -1045,6 +1046,7 @@ def test_leakyrelu():
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
             gv: R.Tensor((2, 3), "float32") = R.nn.leakyrelu(x, 0.02)
             return gv
+
 
     @tvm.script.ir_module
     class Expected:
@@ -1107,6 +1109,7 @@ def test_leakyrelu_symbolic():
 
     mod = LegalizeOps()(LeakyRelu)
     tvm.ir.assert_structural_equal(mod, Expected)
+
 
 def test_gelu():
     # fmt: off

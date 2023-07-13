@@ -102,7 +102,6 @@ def test_linear_unit_infer_struct_info_more_input_dtype():
     x0 = relax.Var("x", R.Tensor((2, 3), "float64"))
     x1 = relax.Var("x", R.Tensor((2, 3), "int8"))
     x2 = relax.Var("x", R.Tensor((2, 3), "int64"))
-    #todo: I don't think leaky can't pass this test
 
     _check_inference(bb, relax.op.nn.relu(x0), relax.TensorStructInfo((2, 3), "float64"))
     _check_inference(bb, relax.op.nn.relu(x1), relax.TensorStructInfo((2, 3), "int8"))
