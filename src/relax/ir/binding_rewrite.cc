@@ -249,7 +249,7 @@ class RemoveUnusedVars : public ExprMutator {
     auto prev_dfb = GetRef<DataflowBlock>(block);
     builder_->BeginDataflowBlock();
     for (Binding binding : block->bindings) {
-      if (!unused_vars.count(binding->var)) {
+      if (!unused_vars.count(binding->var) || binding.as<MatchCastNode>()) {
         VisitBinding(binding);
       }
     }
