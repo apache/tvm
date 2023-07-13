@@ -88,7 +88,7 @@ def instantiate_attention_template(attrs):
                       /*is_aligned=*/${kIsAligned},
                       /*queries_per_block=*/${kQueriesPerBlock},
                       /*keys_per_block=*/${kKeysPerBlock},
-                      /*single_value_iteration=*/${kSingleValueIteration},
+                      /*kMaxK=*/${kMaxK},
                       /*supports_dropout=*/${kSupportsDropout},
                       /*supports_bias=*/${kSupportsBias}
       >;

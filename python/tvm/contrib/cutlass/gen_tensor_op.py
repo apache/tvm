@@ -729,6 +729,8 @@ def instantiate_template(func_name, annotations, func_args):
         attrs["num_heads"] = n = annotations["num_heads"]
         attrs["head_dim"] = h = annotations["head_dim"]
         attrs["head_dim_value"] = h_v = annotations["head_dim_value"]
+        attrs["kMaxK"] = max(int(attrs["head_dim"]), int(attrs["head_dim_value"]))
+
         data_type_size = DataTypeSize[data_type]
         if (data_type_size * h // 8) % 16 == 0 and (data_type_size * h_v // 8) % 16 == 0:
             attrs["kIsAligned"] = True
