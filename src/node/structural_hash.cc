@@ -369,12 +369,12 @@ struct ModuleNodeTrait {
 
 TVM_REGISTER_REFLECTION_VTABLE(runtime::ModuleNode, ModuleNodeTrait)
     .set_creator([](const std::string& blob) {
-      runtime::Module rtmod = codegen::deserialize(blob);
+      runtime::Module rtmod = codegen::DeserializeModuleFromBase64(blob);
       return RefToObjectPtr::Get(rtmod);
     })
     .set_repr_bytes([](const Object* n) -> std::string {
       const auto* rtmod = static_cast<const runtime::ModuleNode*>(n);
-      return codegen::serialize(GetRef<runtime::Module>(rtmod));
+      return codegen::SerializeModuleToBase64(GetRef<runtime::Module>(rtmod));
     });
 
 void NDArrayHash(const runtime::NDArray::Container* arr, SHashReducer* hash_reduce,

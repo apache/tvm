@@ -46,8 +46,6 @@ struct ThreadLocalStore {
   }
 };
 
-
-
 TVM_REGISTER_GLOBAL("tvmtorch.save_runtime_mod").set_body_typed([](tvm::runtime::Module mod) {
   ThreadLocalStore::ThreadLocal()->mod = mod;
 });
@@ -197,14 +195,14 @@ size_t tvm_contrib_torch_graph_executor_module_forward(TVMContribTorchRuntimeMod
 }
 
 char* tvm_contrib_torch_encode(TVMContribTorchRuntimeModule* runtime_module) {
-  std::string std = tvm::contrib::serialize(runtime_module->mod);
+  std::string std = tvm::codegen::SerializeModuleToBase64(runtime_module->mod);
   char* ret = new char[std.length() + 1];
   snprintf(ret, std.length() + 1, "%s", std.c_str());
   return ret;
 }
 
 TVMContribTorchRuntimeModule* tvm_contrib_torch_decode(const char* state) {
-  tvm::runtime::Module ret = tvm::codegen::deserialize(state);
+  tvm::runtime::Module ret = tvm::codegen::DeserializeModuleFromBase64(state);
   return new TVMContribTorchRuntimeModule(ret);
 }
 

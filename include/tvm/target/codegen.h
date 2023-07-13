@@ -81,12 +81,12 @@ runtime::Module PackImportsToLLVM(const runtime::Module& m, bool system_lib,
 /*
  * Encode TVM runtime module to base64 stream
  */
-std::string serialize(tvm::runtime::Module module);
+std::string SerializeModuleToBase64(tvm::runtime::Module module);
 
 /*
  * Decode TVM runtime module from base64 stream
  */
-runtime::Module deserialize(std::string state);
+runtime::Module DeserializeModuleFromBase64(std::string state);
 }  // namespace codegen
 }  // namespace tvm
 #endif  // TVM_TARGET_CODEGEN_H_

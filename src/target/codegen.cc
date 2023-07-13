@@ -65,7 +65,7 @@ class ModuleSerializer {
  public:
   explicit ModuleSerializer(runtime::Module mod) : mod_(mod) { Init(); }
 
-  void SerializeModule(dmlc::Stream* stream) {
+  void SerializeModuleToBytes(dmlc::Stream* stream) {
     // Only have one DSO module and it is in the root, then
     // we will not produce import_tree_.
     bool has_import_tree = true;
@@ -237,13 +237,13 @@ class ModuleSerializer {
  * \param mod The runtime module to serialize including its import tree.
  */
 namespace {
-std::string SerializeModule(const runtime::Module& mod) {
+std::string SerializeModuleToBytes(const runtime::Module& mod) {
   std::string bin;
   dmlc::MemoryStringStream ms(&bin);
   dmlc::Stream* stream = &ms;
 
   ModuleSerializer module_serializer(mod);
-  module_serializer.SerializeModule(stream);
+  module_serializer.SerializeModuleToBytes(stream);
 
   return bin;
 }
@@ -251,7 +251,7 @@ std::string SerializeModule(const runtime::Module& mod) {
 
 std::string PackImportsToC(const runtime::Module& mod, bool system_lib,
                            const std::string& c_symbol_prefix) {
-  std::string bin = SerializeModule(mod);
+  std::string bin = SerializeModuleToBytes(mod);
   std::string mdev_blob_name = c_symbol_prefix + runtime::symbol::tvm_dev_mblob;
 
   if (c_symbol_prefix.length() != 0) {
@@ -313,7 +313,7 @@ runtime::Module PackImportsToLLVM(const runtime::Module& mod, bool system_lib,
         << "c_symbol_prefix advanced option should be used in conjuction with system-lib";
   }
 
-  std::string bin = SerializeModule(mod);
+  std::string bin = SerializeModuleToBytes(mod);
 
   uint64_t nbytes = bin.length();
   std::string header;
@@ -343,14 +343,14 @@ struct Deleter {  // deleter
   std::string file_name;
 };
 
-std::string serialize(tvm::runtime::Module module) {
+std::string SerializeModuleToBase64(tvm::runtime::Module module) {
   static const runtime::PackedFunc* f_to_str = runtime::Registry::Get("serialize_runtime_module");
   ICHECK(f_to_str) << "IndexError: Cannot find the packed function "
                       "`serialize_runtime_module` in the global registry";
   return (*f_to_str)(module);
 }
 
-tvm::runtime::Module deserialize(std::string state) {
+tvm::runtime::Module DeserializeModuleFromBase64(std::string state) {
   auto length = tvm::support::b64strlen(state);
 
   std::vector<u_char> bytes(length);  // bytes stream
