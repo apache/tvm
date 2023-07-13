@@ -70,6 +70,7 @@ class CUDAGraphCache : public Object {
     ObjectRef states;
     /*! \brief The cuda graph instance */
     CUDAGraph graph;
+    cudaGraphExec_t exec;
   };
 
   static CUDAGraphCache* Get() { return dmlc::ThreadLocalStore<CUDAGraphCache>::Get(); }
@@ -88,11 +89,9 @@ class CUDAGraphCache : public Object {
                          int64_t entry_index) {
     if (auto it = capture_cache_.find(entry_index); it != capture_cache_.end()) {
       // Launch CUDA graph
-      const auto& [states, cuda_graph] = it->second;
-      cudaGraphExec_t cuda_graph_exec;
-      CUDA_CALL(cudaGraphInstantiate(&cuda_graph_exec, cuda_graph->handle_, NULL, NULL, 0));
-      CUDA_CALL(cudaGraphLaunch(cuda_graph_exec, CUDAThreadEntry::ThreadLocal()->stream));
-      CUDA_CALL(cudaGraphExecDestroy(cuda_graph_exec));
+      const auto& [states, cuda_graph, exec] = it->second;
+      CUDA_CALL(cudaGraphLaunch(exec, CUDAThreadEntry::ThreadLocal()->stream));
+      // CUDA_CALL(cudaGraphExecDestroy(cuda_graph_exec));
       return states;
     }
 
@@ -131,6 +130,7 @@ class CUDAGraphCache : public Object {
 
     entry.graph = CUDAGraph(graph);
     capture_cache_[entry_index] = entry;
+    CUDA_CALL(cudaGraphInstantiate(&capture_cache_[entry_index].exec, graph, NULL, NULL, 0));
     CUDA_CALL(cudaStreamDestroy(capture_stream));
     return entry.states;
   }
