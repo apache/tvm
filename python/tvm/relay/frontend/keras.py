@@ -1525,6 +1525,7 @@ def from_keras(model, shape=None, layout="NCHW"):
         if keras.backend.image_data_format() != "channels_last":
             raise ValueError("Keras frontend currently supports data_format = channels_last only.")
         import tensorflow
+        
         if tensorflow.__version__ >= "2.13.0":
             import keras.src.engine as E
         else:
