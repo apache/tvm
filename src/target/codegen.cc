@@ -97,7 +97,7 @@ class ModuleSerializer {
           stream->Write(mod_type_key);
         }
       } else {
-        ICHECK(0) << group[0]->type_key() << " is not serializable.";
+        ICHECK(0) << group[0]->type_key() << " is not exportable.";
       }
     }
 
