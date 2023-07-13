@@ -1567,7 +1567,9 @@ def test_fp16A_int8B_gemm():
 
         @R.function
         def main(
-            x: R.Tensor((64, 64), dtype="float16"), y: R.Tensor((64, 64), dtype="float16")
+            x: R.Tensor((64, 64), dtype="float16"),
+            y: R.Tensor((64, 64), dtype="float16"),
+            bias: R.Tensor((64, 64), dtype="float16"),
         ) -> R.Tensor((64, 64), dtype="float16"):
             R.func_attr({"num_input": 1})
             cls = Module
@@ -1592,15 +1594,16 @@ def test_fp16A_int8B_gemm():
                     cls.decode, (lv4, lv5), out_sinfo=R.Tensor((64, 64), dtype="float16")
                 )
                 lv1_1: R.Tensor((64, 64), dtype="float16") = R.matmul(x, lv6, out_dtype="float16")
-                R.output(lv1_1)
-            return lv1_1
+                lv2_1: R.Tensor((64, 128), dtype="float16") = R.add(lv1_1, bias)
+                R.output(lv2_1)
+            return lv2_1
 
     x_shape = (64, 64)
     y_shape = (64, 64)
 
     mod = partition_for_cutlass(Module)
     func_names = [name.name_hint for (name, _) in mod.functions.items()]
-    assert "fused_decode_relax_matmul_cutlass" in func_names
+    assert "fused_decode_relax_matmul_relax_add_cutlass" in func_names
 
     mod = relax.transform.RunCodegen(
         {"cutlass": {"sm": 80, "find_first_valid": False}},
@@ -1608,6 +1611,7 @@ def test_fp16A_int8B_gemm():
 
     x = np.random.randn(*x_shape).astype("float16")
     y = np.random.normal(0, 0.002, size=y_shape).astype("float16")
+    bias = np.random.randn(x_shape[0], y_shape[0]).astype("float16")
 
     mod = relax.pipeline.get_pipeline()(mod)
     mod = relax.transform.LiftTransformParams()(mod)
@@ -1617,21 +1621,19 @@ def test_fp16A_int8B_gemm():
     ex = relax.build(mod_transform, target="llvm")
     vm = relax.vm.VirtualMachine(ex, tvm.cpu(0))
 
-    packed_weight, scales = vm[transform_func_name]((tvm.nd.array(y),))
+    packed_weight, scales, bias_trans = vm[transform_func_name](
+        (tvm.nd.array(y), tvm.nd.array(bias))
+    )
 
     dev = tvm.device("cuda", 0)
     ex = relax.build(mod_deploy, target="cuda")
     vm = relax.vm.VirtualMachine(ex, dev)
 
     x_nd = tvm.nd.array(x, dev)
-    params = (packed_weight.copyto(dev), scales.copyto(dev))
-
+    params = (packed_weight.copyto(dev), scales.copyto(dev), bias_trans.copyto(dev))
     inp = [x_nd, params]
-
     out = vm["main"](*inp).numpy()
-
-    ref = np.dot(x, y.transpose())
-
+    ref = np.dot(x, y.transpose()) + bias
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 

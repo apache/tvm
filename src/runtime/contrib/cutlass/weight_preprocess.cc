@@ -42,16 +42,13 @@ TVM_REGISTER_GLOBAL("cutlass.ft_preprocess_weight")
       std::vector<int8_t> input_cpu(rows * cols);
       std::vector<int8_t> output_cpu(rows * cols);
       packed_weight.CopyToBytes(input_cpu.data(), input_cpu.size());
-
       // multiply cols by 2 since the "col" params in preprocess_weights refers to the column of
       // the unpacked weight.
       if (is_int4) {
         cols *= 2;
       }
-
       fastertransformer::preprocess_weights(output_cpu.data(), input_cpu.data(), rows, cols,
                                             is_int4, sm);
-
       auto out = NDArray::Empty(packed_weight.Shape(), packed_weight->dtype, packed_weight->device);
       out.CopyFromBytes(output_cpu.data(), output_cpu.size());
       return out;
