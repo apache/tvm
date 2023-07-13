@@ -5261,6 +5261,20 @@ def test_weight_norm():
 
 
 @tvm.testing.uses_gpu
+def test_addmm():
+    def test_fn(alpha, beta):
+        return lambda inp, batch1, batch2: torch.addmm(
+            inp, batch1, batch2, beta=beta, alpha=alpha
+        )
+
+    M = torch.randn(3, 5)
+    batch1 = torch.randn(3, 4)
+    batch2 = torch.randn(4, 5)
+
+    verify_model(test_fn(0.4, 0.8), [M, batch1, batch2])
+
+
+@tvm.testing.uses_gpu
 def test_baddbmm():
     def test_fn(alpha, beta):
         return lambda inp, batch1, batch2: torch.baddbmm(
