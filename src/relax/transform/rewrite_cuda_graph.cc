@@ -150,8 +150,14 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
   explicit CUDAGraphRewritePlanner(const IRModule& mod) : mod_(mod) {}
   std::vector<LiftedFunctionRewritePlan> Plan() {
     for (const auto& pair : mod_->functions) {
-      const auto& func = pair.second;
-      if (func->IsInstance<FunctionNode>()) {
+      if (pair.second->IsInstance<FunctionNode>() && pair.first->name_hint == "decode") {
+        static const char* attr_num_input = "num_input";
+        const auto& func = Downcast<Function>(pair.second);
+        if (auto num_input = func->attrs.GetAttr<Integer>(attr_num_input)) {
+          for (size_t i = num_input.value().IntValue(); i < func->params.size(); ++i) {
+            static_bindings_.insert(func->params[i].get());
+          }
+        }
         VisitExpr(func);
       }
     }
@@ -402,7 +408,7 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
       current_.capture_builder->AddBinding(binding);
       binding_to_region_[binding->var.get()] = current_.capture_builder;
     }
-    static_bindings_.emplace(binding->var.get(), GetRef<VarBinding>(binding));
+    static_bindings_.emplace(binding->var.get());
   }
 
   /*! \brief The states of the current scope (the BindingBlock) which is a pair of FuncBuilder.
@@ -420,7 +426,7 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
   // States of the current scope
   Scope current_;
   // All the static bindings
-  std::unordered_map<const VarNode*, VarBinding> static_bindings_;
+  std::unordered_set<const VarNode*> static_bindings_;
   // Binding to the FuncBuilder if the binding is lifted. This is used to update the inputs/outputs
   // of the lifted function when its binding is used outside.
   std::unordered_map<const VarNode*, FuncBuilder*> binding_to_region_;
