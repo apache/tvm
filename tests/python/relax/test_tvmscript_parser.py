@@ -108,7 +108,6 @@ def test_unexpected_ndim_type():
 
 
 def test_unexpected_tir_cast_args():
-
     with pytest.raises(tvm.error.DiagnosticError):
 
         @R.function
@@ -119,7 +118,6 @@ def test_unexpected_tir_cast_args():
 
 
 def test_unexpected_tir_args():
-
     with pytest.raises(tvm.error.DiagnosticError):
 
         @tvm.script.ir_module
@@ -1661,6 +1659,81 @@ def test_private_function_with_global_symbol_no_module_fail():
 
         # should not execute
         _check(func)
+
+
+def test_macro_hygienic():
+    x = R.prim_value(2)
+
+    @R.macro(hygienic=True)
+    def alloc_and_shape(dtype: str):
+        alloc = R.builtin.alloc_tensor(R.shape([4, 4]), runtime_device_index=x, dtype=dtype)
+        shape = R.shape_of(alloc)
+        return shape
+
+    x = R.prim_value(1)
+
+    @R.function(private=True)
+    def func(z: R.Tensor((4, 4), "float32")):
+        shape = alloc_and_shape(dtype="float32")
+        return shape
+
+    @R.function(private=True)
+    def expect(z: R.Tensor((4, 4), dtype="float32")) -> R.Shape([4, 4]):
+        alloc: R.Tensor((4, 4), dtype="float32") = R.builtin.alloc_tensor(
+            R.shape([4, 4]), R.dtype("float32"), R.prim_value(2)  # Make sure prim_value is 2
+        )
+        shape: R.Shape([4, 4]) = R.shape_of(alloc)
+        shape_1: R.Shape([4, 4]) = shape
+        return shape_1
+
+    _check(func, expect)
+
+
+def test_macro_non_hygienic():
+    global global_x_var  # Lookup doesn't find this variable if it's not global
+
+    global_x_var = R.prim_value(2)
+
+    @R.macro(hygienic=False)
+    def alloc_and_shape(dtype: str):
+        alloc = R.builtin.alloc_tensor(
+            R.shape([4, 4]), runtime_device_index=global_x_var, dtype=dtype
+        )
+        shape = R.shape_of(alloc)
+        return shape
+
+    global_x_var = R.prim_value(1)
+
+    @R.function(private=True)
+    def func(z: R.Tensor((4, 4), "float32")):
+        shape = alloc_and_shape(dtype="float32")
+        return shape
+
+    @R.function(private=True)
+    def expect(z: R.Tensor((4, 4), dtype="float32")) -> R.Shape([4, 4]):
+        alloc: R.Tensor((4, 4), dtype="float32") = R.builtin.alloc_tensor(
+            R.shape([4, 4]), R.dtype("float32"), R.prim_value(1)  # Make sure prim_value is 1
+        )
+        shape: R.Shape([4, 4]) = R.shape_of(alloc)
+        shape_1: R.Shape([4, 4]) = shape
+        return shape_1
+
+    _check(func, expect)
+
+
+def test_macro_no_variable_leak():
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @R.macro(hygienic=True)
+        def add_two(value):
+            x = value + R.const(1)  # `x` defined in macro
+            y = x + R.const(1)
+            return y
+
+        @R.function(private=True)
+        def func(t: R.Tensor((), "int32")):
+            u = add_two(t)
+            return x  # Should be undefined here
 
 
 if __name__ == "__main__":
