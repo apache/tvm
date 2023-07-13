@@ -339,5 +339,56 @@ def test_vm_builtin():
     tvm.ir.assert_structural_equal(after, Expected)
 
 
+def test():
+    @tvm.script.ir_module
+    class Conv2d:
+        @R.function
+        def main(
+            data: R.Tensor((16, 32, 32, 16), "float16"),
+            weight1: R.Tensor((16, 3, 3, 16), "float16"),
+            weight2: R.Tensor((16, 3, 3, 16), "float16"),
+            weight3: R.Tensor((16, 3, 3, 16), "float16"),
+            gamma: R.Tensor((16,), "float16"),
+            beta: R.Tensor((16,), "float16"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                conv1 = R.nn.relu(
+                    R.nn.conv2d(
+                        data, weight1, padding=(1, 1), data_layout="NHWC", kernel_layout="OHWI"
+                    )
+                )
+                conv2 = R.nn.relu(
+                    R.nn.conv2d(
+                        conv1, weight2, padding=(1, 1), data_layout="NHWC", kernel_layout="OHWI"
+                    )
+                )
+                ln = R.nn.layer_norm(conv2, gamma, beta, axes=[-1])
+                conv3 = R.nn.relu(
+                    R.nn.conv2d(
+                        ln, weight3, padding=(1, 1), data_layout="NHWC", kernel_layout="OHWI"
+                    )
+                )
+                R.output(conv3)
+
+            return conv3
+
+    mod = tvm.transform.Sequential(
+        [
+            relax.pipeline.get_pipeline(),
+            relax.transform.LiftTransformParams(),
+            relax.transform.RewriteDataflowReshape(),
+            relax.transform.ToNonDataflow(),
+            relax.transform.RemovePurityChecking(),
+            relax.transform.CallTIRRewrite(),
+            relax.transform.StaticPlanBlockMemory(),
+            relax.transform.RewriteCUDAGraph(),
+        ]
+    )(Conv2d)
+
+    print(mod)
+
+
 if __name__ == "__main__":
-    tvm.testing.main()
+    # tvm.testing.main()
+    test()

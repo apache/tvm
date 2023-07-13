@@ -150,7 +150,7 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
   explicit CUDAGraphRewritePlanner(const IRModule& mod) : mod_(mod) {}
   std::vector<LiftedFunctionRewritePlan> Plan() {
     for (const auto& pair : mod_->functions) {
-      if (pair.second->IsInstance<FunctionNode>() && pair.first->name_hint == "decode") {
+      if (pair.second->IsInstance<FunctionNode>()) {
         static const char* attr_num_input = "num_input";
         const auto& func = Downcast<Function>(pair.second);
         if (auto num_input = func->attrs.GetAttr<Integer>(attr_num_input)) {
