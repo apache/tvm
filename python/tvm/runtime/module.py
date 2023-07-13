@@ -21,9 +21,9 @@ import os
 import ctypes
 import struct
 from typing import Sequence
-import numpy as np
 import base64
 import tempfile
+import numpy as np
 
 import tvm._ffi
 from tvm._ffi import register_func
