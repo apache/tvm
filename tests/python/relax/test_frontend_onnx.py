@@ -530,8 +530,8 @@ def test_relu():
 
 def test_tril():
     verify_unary("Trilu", [3, 5, 5], attrs={"upper": False})
-    
-    
+
+
 def test_triu():
     verify_unary("Trilu", [3, 5, 5], attrs={"upper": True})
 
