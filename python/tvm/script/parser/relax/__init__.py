@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     # so most tvmscript won't trigger pylint error here.
     function = staticmethod
 else:
-    from .entry import function
+    from .entry import function, macro
 
 __all__ = (
     _relax.__all__
@@ -45,6 +45,7 @@ __all__ = (
         "Tensor",
         "Tuple",
         "function",
+        "macro",
         "match_cast",
     ]
 )
