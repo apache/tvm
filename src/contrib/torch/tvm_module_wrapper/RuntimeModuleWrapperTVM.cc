@@ -46,53 +46,7 @@ struct ThreadLocalStore {
   }
 };
 
-/*
- * Encode TVM runtime module to base64 stream
- */
-std::string serialize(tvm::runtime::Module module) {
-  static const runtime::PackedFunc* f_to_str =
-      runtime::Registry::Get("script_torch.save_to_base64");
-  ICHECK(f_to_str) << "IndexError: Cannot find the packed function "
-                      "`script_torch.save_to_base64` in the global registry";
-  return (*f_to_str)(module);
-}
 
-struct Deleter {  // deleter
-  explicit Deleter(std::string file_name) { this->file_name = file_name; }
-  void operator()(FILE* p) const {
-    fclose(p);
-    ICHECK(remove(file_name.c_str()) == 0)
-        << "remove temporary file (" << file_name << ") unsuccessfully";
-  }
-  std::string file_name;
-};
-
-/*
- * Decode TVM runtime module from base64 stream
- */
-tvm::runtime::Module deserialize(std::string state) {
-  auto length = tvm::support::b64strlen(state);
-
-  std::vector<u_char> bytes(length);  // bytes stream
-  tvm::support::b64decode(state, bytes.data());
-
-  const std::string name = tmpnam(NULL);
-  auto file_name = name + ".so";
-  std::unique_ptr<FILE, Deleter> pFile(fopen(file_name.c_str(), "wb"), Deleter(file_name));
-  fwrite(bytes.data(), sizeof(u_char), length, pFile.get());
-  fflush(pFile.get());
-
-  std::string load_f_name = "runtime.module.loadfile_so";
-  const PackedFunc* f = runtime::Registry::Get(load_f_name);
-  ICHECK(f != nullptr) << "Loader for `.so` files is not registered,"
-                       << " resolved to (" << load_f_name << ") in the global registry."
-                       << "Ensure that you have loaded the correct runtime code, and"
-                       << "that you are on the correct hardware architecture.";
-
-  tvm::runtime::Module ret = (*f)(file_name, "");
-
-  return ret;
-}
 
 TVM_REGISTER_GLOBAL("tvmtorch.save_runtime_mod").set_body_typed([](tvm::runtime::Module mod) {
   ThreadLocalStore::ThreadLocal()->mod = mod;
@@ -250,7 +204,7 @@ char* tvm_contrib_torch_encode(TVMContribTorchRuntimeModule* runtime_module) {
 }
 
 TVMContribTorchRuntimeModule* tvm_contrib_torch_decode(const char* state) {
-  tvm::runtime::Module ret = tvm::contrib::deserialize(state);
+  tvm::runtime::Module ret = tvm::codegen::deserialize(state);
   return new TVMContribTorchRuntimeModule(ret);
 }
 

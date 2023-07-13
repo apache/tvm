@@ -22,6 +22,8 @@ import tvm
 import tvm.testing
 from tvm import TVMError
 from tvm import relay
+import numpy as np
+from tvm.contrib.graph_executor import GraphModule
 
 
 def test_csource_module():
@@ -43,23 +45,43 @@ def test_aot_module():
 
 
 def test_recursive_imports():
-    x = relay.var("x", shape=(1, 10))
-    y = relay.var("y", shape=(1, 10))
+    x = relay.var("x", shape=(1, 10), dtype="float32")
+    y = relay.var("y", shape=(1, 10), dtype="float32")
     z = relay.add(x, y)
     func = relay.Function([x, y], z)
     mod = relay.build_module._build_module_no_factory(func, target="cuda")
 
-    mod.imported_modules[0].imported_modules[0]
     assert mod.is_binary_serializable
     # GraphExecutorFactory Module contains LLVM Module and LLVM Module contains cuda Module.
     assert mod.type_key == "GraphExecutorFactory"
     assert mod.imported_modules[0].type_key == "llvm"
     assert mod.imported_modules[0].imported_modules[0].type_key == "cuda"
 
-    json = tvm.ir.save_json(mod)
-    print(json)
+    new_mod = tvm.ir.load_json(tvm.ir.save_json(mod))
+    assert new_mod.is_binary_serializable
+    # GraphExecutorFactory Module contains LLVM Module and LLVM Module contains cuda Module.
+    assert new_mod.type_key == "GraphExecutorFactory"
+    # This type key is now `library` rather than llvm.
+    assert new_mod.imported_modules[0].type_key == "library"
+    assert new_mod.imported_modules[0].imported_modules[0].type_key == "cuda"
+
+    dev = tvm.cuda()
+    data_x = tvm.nd.array(np.random.rand(1, 10).astype("float32"), dev)
+    data_y = tvm.nd.array(np.random.rand(1, 10).astype("float32"), dev)
+
+    graph_mod = GraphModule(mod["default"](dev))
+    graph_mod.set_input("x", data_x)
+    graph_mod.set_input("y", data_y)
+    graph_mod.run()
+    expected = graph_mod.get_output(0)
+
+    graph_mod = GraphModule(new_mod["default"](dev))
+    graph_mod.set_input("x", data_x)
+    graph_mod.set_input("y", data_y)
+    graph_mod.run()
+    output = graph_mod.get_output(0)
+    tvm.testing.assert_allclose(output.numpy(), expected.numpy(), atol=1e-5, rtol=1e-5)
 
 
 if __name__ == "__main__":
-    test_recursive_imports()
-    # tvm.testing.main()
+    tvm.testing.main()

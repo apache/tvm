@@ -25,7 +25,7 @@ optimize_torch: a function similar to `torch.jit.trace`,
 which is used to optimize the `torch.nn.module` by TVM metaSchedule,
 and returns a custom TorchScript operator
 """
-import base64
+
 import contextlib
 import tempfile
 from typing import Optional, Tuple, Union
@@ -35,7 +35,7 @@ import torch.utils.dlpack
 import tvm
 from tvm import meta_schedule as ms
 from tvm import relay
-from tvm._ffi import get_global_func, register_func
+from tvm._ffi import get_global_func
 from tvm.target import Target
 
 
@@ -49,14 +49,6 @@ class GraphExecutorFactoryWrapper(torch.nn.Module):
         if len(ret) == 1:
             return ret[0]
         return ret
-
-
-@register_func("script_torch.save_to_base64")
-def save_to_base64(obj) -> bytes:
-    with tempfile.NamedTemporaryFile(suffix=".so") as tmpfile:
-        obj.export_library(tmpfile.name)
-        with open(tmpfile.name, "rb") as temp_file:
-            return base64.b64encode(temp_file.read())
 
 
 def optimize_torch(

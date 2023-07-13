@@ -369,24 +369,12 @@ struct ModuleNodeTrait {
 
 TVM_REGISTER_REFLECTION_VTABLE(runtime::ModuleNode, ModuleNodeTrait)
     .set_creator([](const std::string& blob) {
-      dmlc::MemoryStringStream mstrm(const_cast<std::string*>(&blob));
-      support::Base64InStream b64strm(&mstrm);
-      b64strm.InitPosition();
-      // retrieve derived type key
-      dmlc::Stream* stream = static_cast<dmlc::Stream*>(&b64strm);
-      std::string derived_type;
-      stream->Read(&derived_type);
-      // pick up the deserializer
-      std::string load_func_key = "runtime.module.loadbinary_" + derived_type;
-      const auto* load_func = runtime::Registry::Get(load_func_key);
-      ICHECK(load_func) << load_func_key << " is not registered.";
-      // deserialize
-      runtime::Module rtmod = (*load_func)(&b64strm);
+      runtime::Module rtmod = codegen::deserialize(blob);
       return RefToObjectPtr::Get(rtmod);
     })
     .set_repr_bytes([](const Object* n) -> std::string {
       const auto* rtmod = static_cast<const runtime::ModuleNode*>(n);
-      return codegen::SerializeModule(GetRef<runtime::Module>(rtmod));
+      return codegen::serialize(GetRef<runtime::Module>(rtmod));
     });
 
 void NDArrayHash(const runtime::NDArray::Container* arr, SHashReducer* hash_reduce,

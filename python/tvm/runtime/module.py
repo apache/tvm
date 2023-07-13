@@ -22,8 +22,11 @@ import ctypes
 import struct
 from typing import Sequence
 import numpy as np
+import base64
+import tempfile
 
 import tvm._ffi
+from tvm._ffi import register_func
 from tvm._ffi.base import _LIB, check_call, c_str, string_types, _RUNTIME_ONLY
 from tvm._ffi.libinfo import find_include_path
 from .packed_func import PackedFunc, PackedFuncHandle, _set_class_module
@@ -713,3 +716,11 @@ def num_threads() -> int:
 
 
 _set_class_module(Module)
+
+
+@register_func("serialize_runtime_module")
+def save_to_base64(obj) -> bytes:
+    with tempfile.NamedTemporaryFile(suffix=".so") as tmpfile:
+        obj.export_library(tmpfile.name)
+        with open(tmpfile.name, "rb") as temp_file:
+            return base64.b64encode(temp_file.read())

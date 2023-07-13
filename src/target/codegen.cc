@@ -37,6 +37,8 @@
 #include <unordered_set>
 #include <vector>
 
+#include "../contrib/torch/base64.h"
+
 namespace tvm {
 namespace codegen {
 
@@ -322,6 +324,46 @@ runtime::Module PackImportsToLLVM(const runtime::Module& mod, bool system_lib,
   const PackedFunc* codegen_f = runtime::Registry::Get(codegen_f_name);
   ICHECK(codegen_f != nullptr) << "codegen.codegen_blob is not presented.";
   return (*codegen_f)(blob_byte_array, system_lib, llvm_target_string, c_symbol_prefix);
+}
+
+struct Deleter {  // deleter
+  explicit Deleter(std::string file_name) { this->file_name = file_name; }
+  void operator()(FILE* p) const {
+    fclose(p);
+    ICHECK(remove(file_name.c_str()) == 0)
+        << "remove temporary file (" << file_name << ") unsuccessfully";
+  }
+  std::string file_name;
+};
+
+std::string serialize(tvm::runtime::Module module) {
+  static const runtime::PackedFunc* f_to_str = runtime::Registry::Get("serialize_runtime_module");
+  ICHECK(f_to_str) << "IndexError: Cannot find the packed function "
+                      "`serialize_runtime_module` in the global registry";
+  return (*f_to_str)(module);
+}
+
+tvm::runtime::Module deserialize(std::string state) {
+  auto length = tvm::support::b64strlen(state);
+
+  std::vector<u_char> bytes(length);  // bytes stream
+  tvm::support::b64decode(state, bytes.data());
+  const std::string name = tmpnam(NULL);
+  auto file_name = name + ".so";
+  std::unique_ptr<FILE, Deleter> pFile(fopen(file_name.c_str(), "wb"), Deleter(file_name));
+  fwrite(bytes.data(), sizeof(u_char), length, pFile.get());
+  fflush(pFile.get());
+
+  std::string load_f_name = "runtime.module.loadfile_so";
+  const PackedFunc* f = runtime::Registry::Get(load_f_name);
+  ICHECK(f != nullptr) << "Loader for `.so` files is not registered,"
+                       << " resolved to (" << load_f_name << ") in the global registry."
+                       << "Ensure that you have loaded the correct runtime code, and"
+                       << "that you are on the correct hardware architecture.";
+
+  LOG(INFO) << "Run " << load_f_name;
+  tvm::runtime::Module ret = (*f)(file_name, "");
+  return ret;
 }
 
 TVM_REGISTER_GLOBAL("target.Build").set_body_typed(Build);
