@@ -139,7 +139,11 @@ def instantiate_attention_template(attrs):
   }
 
   CHECK(Attention::check_supported(p));
-  kernel_fn<<<p.getBlocksGrid(), p.getThreadsGrid(), smem_bytes>>>(p);
+  auto func = tvm::runtime::Registry::Get("runtime.get_cuda_stream");
+  ICHECK(func != nullptr);
+  cudaStream_t stream = static_cast<cudaStream_t>((*func)().operator void*());
+
+  kernel_fn<<<p.getBlocksGrid(), p.getThreadsGrid(), smem_bytes, stream>>>(p);
 
   if (accumulator_buf_allocated) {
     cudaFree(p.output_accum_ptr);

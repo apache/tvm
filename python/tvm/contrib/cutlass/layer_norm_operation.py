@@ -39,6 +39,10 @@ def instantiate_layer_norm_template(attrs):
     cutlass::TensorRef<data_type, RowMajor> _beta((data_type*)${beta}->data, layout_channels);
     cutlass::TensorRef<data_type, RowMajor> _output((data_type*)out0->data, layout_2D);
 
-    cutlass::layernorm(size, _output, _input, _gamma, _beta, NULL);
+    auto func = tvm::runtime::Registry::Get("runtime.get_cuda_stream");
+    ICHECK(func != nullptr);
+    cudaStream_t stream = static_cast<cudaStream_t>((*func)().operator void*());
+
+    cutlass::layernorm(size, _output, _input, _gamma, _beta, stream);
     """
     return substitute_template(template, attrs)
