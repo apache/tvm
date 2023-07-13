@@ -1,7 +1,25 @@
-#include <stdint.h>
-#include <stdio.h>
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 
 #include <platform_drivers.h>
+#include <stdint.h>
+#include <stdio.h>
 #include <tvm_runtime.h>
 #include <tvmgen_default.h>
 
@@ -12,65 +30,61 @@
 #include "labels.h"
 #include "outputs.h"
 
-
 extern uint64_t Get_SysTick_Cycle_Count();
 extern uint32_t GetSystemCoreClock();
 
-uint64_t read_timer_ns()
-{
-    uint64_t ticks = Get_SysTick_Cycle_Count();
-    return 1000 * ticks / (uint32_t)(GetSystemCoreClock() / 1000000);
+uint64_t read_timer_ns() {
+  uint64_t ticks = Get_SysTick_Cycle_Count();
+  return 1000 * ticks / (uint32_t)(GetSystemCoreClock() / 1000000);
 }
 
-inline void sleep(uint32_t time_ms)
-{
-    uint64_t time = read_timer_ns();
-    while (read_timer_ns() - time < (uint64_t)time_ms * 1000000)
-        ;
+inline void sleep(uint32_t time_ms) {
+  uint64_t time = read_timer_ns();
+  while (read_timer_ns() - time < (uint64_t)time_ms * 1000000)
+    ;
 }
 
-int main()
-{
-    uint64_t started_ns = 0, ended_ns = 0;
+int main() {
+  uint64_t started_ns = 0, ended_ns = 0;
 
-    platform_init();
-    platform_reset_counters();
+  platform_init();
+  platform_reset_counters();
 
-    while (1 == 1) {
-        printf("Running inference\n");
+  while (1 == 1) {
+    printf("Running inference\n");
 
-        struct tvmgen_default_outputs outputs = {
-            .MobilenetV2_Predictions_Reshape_11 = output,
-        };
-        struct tvmgen_default_inputs inputs = {
-            .tfl_quantize = input,
-        };
-        struct ethosu_driver* driver = ethosu_reserve_driver();
-        struct tvmgen_default_devices devices = {
-            .ethos_u = driver,
-        };
+    struct tvmgen_default_outputs outputs = {
+        .MobilenetV2_Predictions_Reshape_11 = output,
+    };
+    struct tvmgen_default_inputs inputs = {
+        .tfl_quantize = input,
+    };
+    struct ethosu_driver* driver = ethosu_reserve_driver();
+    struct tvmgen_default_devices devices = {
+        .ethos_u = driver,
+    };
 
-        started_ns = read_timer_ns();
-        tvmgen_default_run(&inputs, &outputs, &devices);
-        ended_ns = read_timer_ns();
+    started_ns = read_timer_ns();
+    tvmgen_default_run(&inputs, &outputs, &devices);
+    ended_ns = read_timer_ns();
 
-        ethosu_release_driver(driver);
+    ethosu_release_driver(driver);
 
-        printf("Inference done in %.2f microseconds\n", (ended_ns - started_ns) / 1000.0f);
+    printf("Inference done in %.2f microseconds\n", (ended_ns - started_ns) / 1000.0f);
 
-        // Calculate index of max value
-        int8_t max_value = -128;
-        int32_t max_index = -1;
-        for (unsigned int i = 0; i < output_len; ++i) {
-            if (output[i] > max_value) {
-            max_value = output[i];
-            max_index = i;
-            }
-        }
-        printf("The image has been classified as '%s'\n", labels[max_index]);
-
-        sleep(1000);
+    // Calculate index of max value
+    int8_t max_value = -128;
+    int32_t max_index = -1;
+    for (unsigned int i = 0; i < output_len; ++i) {
+      if (output[i] > max_value) {
+        max_value = output[i];
+        max_index = i;
+      }
     }
+    printf("The image has been classified as '%s'\n", labels[max_index]);
 
-    return 0;
+    sleep(1000);
+  }
+
+  return 0;
 }
