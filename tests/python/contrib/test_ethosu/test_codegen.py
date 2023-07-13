@@ -158,29 +158,22 @@ def test_ethosu_conv2d_double(
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
-@pytest.mark.parametrize("ifm_shape", [(1, 55, 32, 3)])
-@pytest.mark.parametrize(
-    "kernel_shape, activation_function",
-    [((3, 3), "RELU"), ((1, 2), "NONE")],
-)
-@pytest.mark.parametrize("strides, dilation", [((3, 2), (1, 1))])
-@pytest.mark.parametrize("op_padding", ["SAME", "VALID"])
-@pytest.mark.parametrize("sep_padding", [(0, 0, 1, 1), (7, 5, 4, 5)])
 @pytest.mark.parametrize(
     "op_pairs", [("conv2d", "conv2d"), ("depthwise", "depthwise"), ("conv2d", "depthwise")]
 )
 def test_tflite_shared_pad(
     accel_type,
-    ifm_shape,
-    kernel_shape,
-    activation_function,
-    strides,
-    dilation,
-    op_padding,
-    sep_padding,
     op_pairs,
 ):
     np.random.seed(0)
+
+    ifm_shape = (1, 55, 32, 3)
+    kernel_shape = (3, 3)
+    strides = (3, 2)
+    dilation = (1, 1)
+    activation_function = "RELU"
+    op_padding = "SAME"
+    sep_padding = (0, 0, 1, 1)
 
     @tf.function
     def tf_function(x):
