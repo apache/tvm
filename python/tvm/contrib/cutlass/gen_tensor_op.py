@@ -31,7 +31,7 @@ from tvm.tir import IntImm
 from . import _ffi_api as ffi
 from .attention_operation import instantiate_attention_template
 from .conv2d_operation import instantiate_conv2d_template
-from .gemm_operation import instantiate_gemm_template, emit_fp16A_int4B_matmul
+from .gemm_operation import instantiate_gemm_template, emit_fp16A_intB_matmul
 from .layer_norm_operation import instantiate_layer_norm_template
 from .rms_norm_operation import instantiate_rms_norm_template
 from .library import (
@@ -526,6 +526,7 @@ def instantiate_template(func_name, annotations, func_args):
         attrs["scales_arg"] = func_args[scales_arg_idx]
         attrs["batch_offset"] = _get_optional_int_annotation(annotations, "batch_offset", 0)
         attrs["activation"] = annotations.get("activation", "identity")
+        attrs["bias_stride"] = annotations["bias_stride"]
 
         if bias_arg_idx is not None:
             attrs["bias_arg"] = func_args[bias_arg_idx]
@@ -535,7 +536,15 @@ def instantiate_template(func_name, annotations, func_args):
             attrs["binary_op"] = annotations["binary_op"]
             attrs["unary_op"] = annotations["unary_op"]
 
-        code = emit_fp16A_int4B_matmul(attrs)
+        if annotations["weight_nbit"] == 4:
+            attrs["weight_dtype"] = "cutlass::uint4b_t"
+            attrs["float_per_int"] = 2
+        else:
+            assert annotations["weight_nbit"] == 8
+            attrs["weight_dtype"] = "uint8_t"
+            attrs["float_per_int"] = 1
+
+        code = emit_fp16A_intB_matmul(attrs)
         return CodegenResult(code, headers)
 
     elif "dense" in func_name or "matmul" in func_name:
@@ -792,6 +801,12 @@ def instantiate_template(func_name, annotations, func_args):
         headers.append("cutlass/layout/matrix.h")
         attrs = {"input": func_args[0], "gamma": func_args[1], "beta": func_args[2]}
         attrs.update(dict(annotations))
+
+        if isinstance(attrs["M"], tvm.tir.Var):
+            attrs["M"] = " * ".join(
+                ["{}->shape[{}]".format(func_args[0], i) for i in range(int(attrs["batch_rank"]))]
+            )
+
         code = instantiate_layer_norm_template(attrs)
         return CodegenResult(code, headers)
     elif "rms_norm" in func_name:
