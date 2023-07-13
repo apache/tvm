@@ -26,6 +26,7 @@ from tvm.relax.dpl.pattern import (
     wildcard,
 )
 from tvm.relax.transform import PatternCheckContext
+from tvm.relax.backend.contrib.cutlass import partition_for_cutlass
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tir as T
@@ -892,6 +893,32 @@ def test_clip():
 
     mod = tvm.IRModule({"main": func2})
     check(mod, [("x.clip", pat_clip)], Expected2)
+
+
+def test_matmul_add3():
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(
+            x: R.Tensor((32, 8), dtype="float16"),
+            y: R.Tensor((8, 8), dtype="float16"),
+            x2: R.Tensor((32, 8), dtype="float16"),
+            y2: R.Tensor((8, 8), dtype="float16"),
+            bias: R.Tensor((8,), dtype="float16"),
+            residual: R.Tensor((32, 8), dtype="float16"),
+        ) -> R.Tensor((32, 8), dtype="float16"):
+            with R.dataflow():
+                lv_: R.Tensor((32, 8), dtype="float16") = R.matmul(x2, y2, out_dtype="float16")
+                lv: R.Tensor((32, 8), dtype="float16") = R.matmul(x, y, out_dtype="float16")
+                lv1: R.Tensor((32, 8), dtype="float16") = R.add(lv, bias)
+                lv2: R.Tensor((32, 8), dtype="float16") = R.add(lv1, lv_)
+                out: R.Tensor((32, 8), dtype="float16") = R.add(lv2, residual)
+                R.output(out)
+            return out
+
+    mod = partition_for_cutlass(Module)
+    func_names = [name.name_hint for (name, _) in mod.functions.items()]
+    assert "fused_relax_matmul_relax_add_relax_add_cutlass" in func_names
 
 
 if __name__ == "__main__":
