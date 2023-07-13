@@ -501,7 +501,7 @@ class Sqrt(OnnxOpConverter):
 
 class Trilu(OnnxOpConverter):
     """Given a 2-D matrix or batches of 2-D matrices, returns the upper or
-       lower triangular part of the tensor(s)
+    lower triangular part of the tensor(s)
     """
 
     @classmethod
@@ -509,12 +509,12 @@ class Trilu(OnnxOpConverter):
         upper = attr.get("upper", True)
         x = inputs[0]
         k = inputs[1] if len(inputs) > 1 else 0
-        
+
         if upper:
             return relax.op.triu(x, k)
         else:
             return relax.op.tril(x, k)
-    
+
 
 class Relu(OnnxOpConverter):
     """Converts an onnx Relu node into an equivalent Relax expression."""
