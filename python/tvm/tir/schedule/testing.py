@@ -51,6 +51,8 @@ def verify_trace_roundtrip(
         The text format or formats whose round-trip behavior should be
         validated.  If a single string, validate round-trips through
     """
+    from tvm.script import tir as T  # pylint: disable=import-outside-toplevel
+
     if not isinstance(text_format, str):
         for opt in text_format:
             new_sch = verify_trace_roundtrip(sch, mod, debug_mask=debug_mask, text_format=opt)
@@ -66,7 +68,9 @@ def verify_trace_roundtrip(
         Trace.apply_json_to_schedule(json_obj=json_obj, sch=new_sch)
     elif text_format == "python":
         py_trace = "\n".join(trace.as_python())
-        exec(py_trace, tvm.tir.__dict__, {"sch": new_sch})  # pylint: disable=exec-used
+        vars_dict = {"T": T}
+        vars_dict.update(tvm.tir.__dict__)
+        exec(py_trace, vars_dict, {"sch": new_sch})  # pylint: disable=exec-used
     else:
         assert text_format in ("json", "python"), f"Unknown text format: {text_format}"
 
