@@ -1526,12 +1526,13 @@ def from_keras(model, shape=None, layout="NCHW"):
             raise ValueError("Keras frontend currently supports tensorflow backend only.")
         if keras.backend.image_data_format() != "channels_last":
             raise ValueError("Keras frontend currently supports data_format = channels_last only.")
-        import tensorflow
-        
-        if tensorflow.__version__ == "2.13.0" and keras.__version__ == "2.13.1":
-            import keras.src.engine as E
-        else:
+        try:
             import keras.engine as E
+        except ImportError:
+            try:
+                import keras.src.engine as E
+            except ImportError:
+                raise ImportError("Cannot find Keras's engine")
         expected_model_class = E.training.Model
         if hasattr(E, "InputLayer"):
             input_layer_class = E.InputLayer
