@@ -1673,7 +1673,7 @@ def test_symbolic_matmul_blocked_cache_read(use_block_name):
     sch = tir.Schedule(symbolic_matmul_blocked, debug_mask="all")
     block = "matmul" if use_block_name else sch.get_block("matmul")
     sch.cache_read(block=block, read_buffer_index=0, storage_scope="shared")
-    tvm.ir.assert_structural_equal(sch.mod["main"], symbolic_matmul_blocked_cache_read)
+    assert_structural_equal_gs(sch.mod["main"], symbolic_matmul_blocked_cache_read)
     verify_trace_roundtrip(sch=sch, mod=symbolic_matmul_blocked)
 
 
@@ -1681,7 +1681,7 @@ def test_symbolic_matmul_blocked_cache_write(use_block_name):
     sch = tir.Schedule(symbolic_matmul_blocked, debug_mask="all")
     block = "matmul" if use_block_name else sch.get_block("matmul")
     sch.cache_write(block=block, write_buffer_index=0, storage_scope="local")
-    tvm.ir.assert_structural_equal(sch.mod["main"], symbolic_matmul_blocked_cache_write)
+    assert_structural_equal_gs(sch.mod["main"], symbolic_matmul_blocked_cache_write)
     verify_trace_roundtrip(sch=sch, mod=symbolic_matmul_blocked)
 
 
