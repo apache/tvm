@@ -274,6 +274,8 @@ class TransformParamsLifter : public ExprMutator {
 
     // Step 3.3: Remove function attributes that are not needed
     auto new_attrs = func->attrs;
+    auto* new_attrs_node = new_attrs.CopyOnWrite();
+    new_attrs_node->dict.erase(attr_num_input_);
     if (new_attrs->dict.empty()) {
       new_attrs = NullValue<DictAttrs>();
     }
