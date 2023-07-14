@@ -300,5 +300,9 @@ TVM_DLL String GetCudaFreeMemory() {
 
 TVM_REGISTER_GLOBAL("runtime.GetCudaFreeMemory").set_body_typed(GetCudaFreeMemory);
 
+TVM_REGISTER_GLOBAL("runtime.get_cuda_stream").set_body_typed([]() {
+  return static_cast<void*>(CUDAThreadEntry::ThreadLocal()->stream);
+});
+
 }  // namespace runtime
 }  // namespace tvm
