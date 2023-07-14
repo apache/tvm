@@ -899,6 +899,7 @@ def DecomposeOpsForTraining(func_name: Optional[str] = None) -> tvm.ir.transform
 def AlterOpImpl(
     op_impl_map: Dict[str, PrimFunc],
     op_buffer_transforms: Dict[str, List[Union[IndexMap, Callable]]],
+    op_buffer_axis_separators: Dict[str, List[Union[IndexMap.AXIS_SEPARATOR, Callable]]],
 ):
     """Replace all PrimFunc's which have matching 'operator_name' attribute, with replacement
     PrimFunc that could possibly have different layouts on i/o buffers. The layout
@@ -912,6 +913,9 @@ def AlterOpImpl(
         op_kind to PrimFunc map
     op_buffer_transforms: Dict[str, List[Union[IndexMap, Callable]]
         op_kind to layout transformation map for each of the buffers
+    op_buffer_axis_separators: Dict[str, List[Union[IndexMap.AXIS_SEPARATOR, Callable]]]
+        op_kind to axis_separator for each index_map
+
     Returns
     -------
     ret: tvm.ir.transform.Pass
@@ -924,7 +928,9 @@ def AlterOpImpl(
             l.append(transform)
         op_buffer_transforms[operator_name] = l
 
-    return _ffi_api.AlterOpImpl(op_impl_map, op_buffer_transforms)  # type: ignore
+    return _ffi_api.AlterOpImpl(
+        op_impl_map, op_buffer_transforms, op_buffer_axis_separators
+    )  # type: ignore
 
 
 def ConvertLayout(desired_layouts: Dict[str, List[str]]) -> tvm.ir.transform.Pass:
