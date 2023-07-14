@@ -78,6 +78,9 @@ Expr layer_norm(Expr data, Expr gamma, Expr beta, Array<Integer> axes, double ep
 Expr group_norm(Expr data, Expr gamma, Expr beta, int num_groups, int channel_axis,
                 Array<Integer> axes, double epsilon, bool center, bool scale);
 
+/*! \brief Compute root mean square normalization. */
+Expr rms_norm(Expr data, Expr weight, Array<Integer> axes, double epsilon);
+
 /*!
  * \brief Applies the dropout operation to the input tensor.
  * \param data The input data to the operator.

@@ -437,6 +437,65 @@ TVM_REGISTER_OP("relax.nn.group_norm")
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<Bool>("FPurity", Bool(true));
 
+/* relax.nn.rms_norm */
+TVM_REGISTER_NODE_TYPE(RMSNormAttrs);
+
+Expr rms_norm(Expr data, Expr weight, Array<Integer> axes, double epsilon) {
+  ObjectPtr<RMSNormAttrs> attrs = make_object<RMSNormAttrs>();
+  attrs->axes = std::move(axes);
+  attrs->epsilon = epsilon;
+
+  static const Op& op = Op::Get("relax.nn.rms_norm");
+  return Call(op, {std::move(data), std::move(weight)}, Attrs{attrs}, {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.nn.rms_norm").set_body_typed(rms_norm);
+
+StructInfo InferStructInfoRMSNorm(const Call& call, const BlockBuilder& ctx) {
+  Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
+
+  const auto* attrs = call->attrs.as<RMSNormAttrs>();
+  bool unknown_shape = NormCheckDtypeAndShape(call, ctx, input_sinfo, attrs->axes);
+
+  return unknown_shape ? TensorStructInfo(input_sinfo[0]->dtype, input_sinfo[0]->ndim)
+                       : input_sinfo[0];
+}
+
+InferLayoutOutput InferLayoutRMSNorm(const Call& call,
+                                     const Map<String, Array<String>>& desired_layouts,
+                                     const VarLayoutMap& var_layout_map) {
+  ICHECK(NoDesiredLayout(call, desired_layouts));
+  std::vector<NLayout> initial_layouts;
+  for (size_t i = 0; i < 3; ++i) {
+    const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[i]);
+    ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
+    ICHECK(!tensor_sinfo->IsUnknownNdim()) << "Only support known ndim";
+    initial_layouts.push_back(InitialLayoutDecision(tensor_sinfo->ndim));
+  }
+  const auto* attrs = call->attrs.as<RMSNormAttrs>();
+  ICHECK(attrs) << "Invalid Call";
+
+  LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
+  ObjectPtr<RMSNormAttrs> new_attrs = make_object<RMSNormAttrs>(*attrs);
+  std::vector<Integer> new_axis;
+  for (const auto& axis : attrs->axes) {
+    new_axis.push_back(FindAxis(layout->layout, axis->value));
+  }
+  new_attrs->axes = std::move(new_axis);
+  return InferLayoutOutput({layout, initial_layouts[1], initial_layouts[2]}, {layout},
+                           Attrs(new_attrs));
+}
+
+TVM_REGISTER_OP("relax.nn.rms_norm")
+    .set_attrs_type<RMSNormAttrs>()
+    .set_num_inputs(2)
+    .add_argument("data", "Tensor", "Input to which batch_norm will be applied.")
+    .add_argument("weight", "Tensor", "Input to which batch_norm will be applied.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoRMSNorm)
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutRMSNorm)
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+    .set_attr<Bool>("FPurity", Bool(true));
+
 /* relax.nn.dropout */
 TVM_REGISTER_NODE_TYPE(DropoutAttrs);
 
