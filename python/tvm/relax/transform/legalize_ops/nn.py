@@ -329,6 +329,17 @@ def _nn_group_norm(bb: BlockBuilder, call: Call) -> Expr:
     )
 
 
+@register_legalize("relax.nn.rms_norm")
+def _nn_layer_norm(bb: BlockBuilder, call: Call) -> Expr:
+    return bb.call_te(
+        topi.nn.rms_norm,
+        call.args[0],
+        call.args[1],
+        axis=call.attrs.axes,
+        epsilon=call.attrs.epsilon,
+    )
+
+
 @register_legalize("relax.nn.dropout")
 def _nn_dropout(bb: BlockBuilder, call: Call) -> Expr:
     logging.info("Dropout is handled by frontend translator at this moment and is not legalized.")
