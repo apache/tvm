@@ -85,15 +85,23 @@ cutlass_enabled = pytest.mark.skipif(
 pytestmark = [cutlass_enabled]
 
 
-def build_and_run(mod, inputs_np, target, legalize=True):
+def build_and_run(mod, inputs_np, target, legalize=True, cuda_graph=False):
     if legalize:
         mod = relax.transform.LegalizeOps()(mod)  # For cpu reference, nop for cutlass.
 
+    with tvm.transform.PassContext(config={"relax.backend.use_cuda_graph": cuda_graph}):
+        ex = relax.build(mod, target)
+
     dev = tvm.device(target, 0)
-    ex = relax.build(mod, target)
     vm = relax.VirtualMachine(ex, dev)
     f = vm["main"]
     inputs = [tvm.nd.array(inp, dev) for inp in inputs_np]
+
+    # For cuda graph, run the compiled function twice to make sure that we can launch the cached
+    # graph on the second run.
+    if cuda_graph:
+        f(*inputs)
+
     return f(*inputs).numpy()
 
 
@@ -1551,6 +1559,64 @@ def test_rms_norm():
     out = build_and_run(mod, [inp, weight], "cuda")
     ref = build_and_run(Module, [inp, weight], "llvm", legalize=True)
 
+    tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
+
+
+def test_conv2d_cuda_graph():
+    @tvm.script.ir_module
+    class Conv2d:
+        @R.function
+        def main(
+            data: R.Tensor((16, 32, 32, 16), "float16"),
+            weight1: R.Tensor((16, 3, 3, 16), "float16"),
+            weight2: R.Tensor((16, 3, 3, 16), "float16"),
+            weight3: R.Tensor((16, 3, 3, 16), "float16"),
+            gamma: R.Tensor((16,), "float16"),
+            beta: R.Tensor((16,), "float16"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                conv1 = R.nn.relu(
+                    R.nn.conv2d(
+                        data, weight1, padding=(1, 1), data_layout="NHWC", kernel_layout="OHWI"
+                    )
+                )
+                conv2 = R.nn.relu(
+                    R.nn.conv2d(
+                        conv1, weight2, padding=(1, 1), data_layout="NHWC", kernel_layout="OHWI"
+                    )
+                )
+                ln = R.nn.layer_norm(conv2, gamma, beta, axes=[-1])
+                conv3 = R.nn.relu(
+                    R.nn.conv2d(
+                        ln, weight3, padding=(1, 1), data_layout="NHWC", kernel_layout="OHWI"
+                    )
+                )
+                R.output(conv3)
+
+            return conv3
+
+    low, high = -1, 1
+    data_shape = (16, 32, 32, 16)
+    weight_shape = (16, 3, 3, 16)
+    dtype = "float16"
+    data = np.random.randint(low, high, size=data_shape).astype(dtype)
+    weight1 = np.random.randint(low, high, size=weight_shape).astype(dtype)
+    weight2 = np.random.randint(low, high, size=weight_shape).astype(dtype)
+    weight3 = np.random.randint(low, high, size=weight_shape).astype(dtype)
+    gamma = np.random.randint(low, high, size=(weight_shape[0],)).astype(dtype)
+    beta = np.random.randint(low, high, size=(weight_shape[0],)).astype(dtype)
+    inputs = [data, weight1, weight2, weight3, gamma, beta]
+
+    mod = partition_for_cutlass(Conv2d)
+    mod = relax.transform.RunCodegen({"cutlass": {"sm": 80, "find_first_valid": True}})(mod)
+    mod = relax.pipeline.get_pipeline()(mod)  # pylint: disable=no-value-for-parameter
+
+    with tvm.target.Target("cuda"):
+        mod = tvm.tir.transform.DefaultGPUSchedule()(mod)
+
+    out = build_and_run(mod, inputs, "cuda", cuda_graph=True)
+    ref = build_and_run(Conv2d, inputs, "llvm", legalize=True)
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 

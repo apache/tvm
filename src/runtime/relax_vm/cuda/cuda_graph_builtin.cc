@@ -31,45 +31,22 @@ namespace tvm {
 namespace runtime {
 namespace relax_vm {
 
-/*! \brief Represents a CUDA graph. */
-class CUDAGraphNode : public Object {
- public:
-  cudaGraph_t handle_ = nullptr;
-
-  ~CUDAGraphNode() {
-    if (handle_ != nullptr) {
-      cudaGraphDestroy(handle_);
-    }
-  }
-
-  TVM_DECLARE_FINAL_OBJECT_INFO(CUDAGraphNode, Object);
-};
-
-/*!
- * \brief Managed reference to CUDAGraphNode
- * \sa CUDAGraphNode
- */
-class CUDAGraph : public ObjectRef {
- public:
-  explicit CUDAGraph(cudaGraph_t handle) {
-    auto n = make_object<CUDAGraphNode>();
-    n->handle_ = handle;
-    data_ = std::move(n);
-  }
-  TVM_DEFINE_OBJECT_REF_METHODS(CUDAGraph, ObjectRef, CUDAGraphNode);
-};
-
 /*! \brief The cache states of a CUDA graph. */
 class CUDAGraphCache : public Object {
  public:
   struct CaptureResult {
+    ~CaptureResult() {
+      if (exec) {
+        CUDA_CALL(cudaGraphExecDestroy(exec));
+      }
+    }
     /*!
      * \brief Tuple of intemediate tensors in the capture func that will be used outside the
      * capture func
      */
     ObjectRef states;
-    /*! \brief The cuda graph instance */
-    CUDAGraph graph;
+    /*! \brief The instantiated cuda graph */
+    cudaGraphExec_t exec = nullptr;
   };
 
   static CUDAGraphCache* Get() { return dmlc::ThreadLocalStore<CUDAGraphCache>::Get(); }
@@ -88,11 +65,8 @@ class CUDAGraphCache : public Object {
                          int64_t entry_index) {
     if (auto it = capture_cache_.find(entry_index); it != capture_cache_.end()) {
       // Launch CUDA graph
-      const auto& [states, cuda_graph] = it->second;
-      cudaGraphExec_t cuda_graph_exec;
-      CUDA_CALL(cudaGraphInstantiate(&cuda_graph_exec, cuda_graph->handle_, NULL, NULL, 0));
-      CUDA_CALL(cudaGraphLaunch(cuda_graph_exec, CUDAThreadEntry::ThreadLocal()->stream));
-      CUDA_CALL(cudaGraphExecDestroy(cuda_graph_exec));
+      const auto& [states, exec] = it->second;
+      CUDA_CALL(cudaGraphLaunch(exec, CUDAThreadEntry::ThreadLocal()->stream));
       return states;
     }
 
@@ -129,9 +103,10 @@ class CUDAGraphCache : public Object {
     CUDA_CALL(cudaStreamEndCapture(CUDAThreadEntry::ThreadLocal()->stream, &graph));
     std::swap(capture_stream, CUDAThreadEntry::ThreadLocal()->stream);
 
-    entry.graph = CUDAGraph(graph);
     capture_cache_[entry_index] = entry;
+    CUDA_CALL(cudaGraphInstantiate(&capture_cache_[entry_index].exec, graph, NULL, NULL, 0));
     CUDA_CALL(cudaStreamDestroy(capture_stream));
+    CUDA_CALL(cudaGraphDestroy(graph));
     return entry.states;
   }
 

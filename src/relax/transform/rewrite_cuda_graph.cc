@@ -150,8 +150,16 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
   explicit CUDAGraphRewritePlanner(const IRModule& mod) : mod_(mod) {}
   std::vector<LiftedFunctionRewritePlan> Plan() {
     for (const auto& pair : mod_->functions) {
-      const auto& func = pair.second;
-      if (func->IsInstance<FunctionNode>()) {
+      if (pair.second->IsInstance<FunctionNode>()) {
+        // If a function has the num_input attribute, the last func->params.size() - num_inputs
+        // inputs are assumed to be fixed and thus they can be captured into a cuda graph.
+        static const char* attr_num_input = "num_input";
+        const auto& func = Downcast<Function>(pair.second);
+        if (auto num_input = func->attrs.GetAttr<Integer>(attr_num_input)) {
+          for (size_t i = num_input.value().IntValue(); i < func->params.size(); ++i) {
+            static_vars_.insert(func->params[i].get());
+          }
+        }
         VisitExpr(func);
       }
     }
@@ -349,7 +357,7 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
       if (vars_collector != nullptr) {
         vars_collector->push_back(var);
       }
-      return static_bindings_.count(var);
+      return static_vars_.count(var);
     }
 
     if (const auto* shape = expr.as<ShapeExprNode>()) {
@@ -402,7 +410,7 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
       current_.capture_builder->AddBinding(binding);
       binding_to_region_[binding->var.get()] = current_.capture_builder;
     }
-    static_bindings_.emplace(binding->var.get(), GetRef<VarBinding>(binding));
+    static_vars_.emplace(binding->var.get());
   }
 
   /*! \brief The states of the current scope (the BindingBlock) which is a pair of FuncBuilder.
@@ -419,8 +427,8 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
   IRModule mod_;
   // States of the current scope
   Scope current_;
-  // All the static bindings
-  std::unordered_map<const VarNode*, VarBinding> static_bindings_;
+  // Variables whose buffer address is fixed
+  std::unordered_set<const VarNode*> static_vars_;
   // Binding to the FuncBuilder if the binding is lifted. This is used to update the inputs/outputs
   // of the lifted function when its binding is used outside.
   std::unordered_map<const VarNode*, FuncBuilder*> binding_to_region_;

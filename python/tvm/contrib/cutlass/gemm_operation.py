@@ -344,7 +344,12 @@ def instantiate_gemm_template(attrs):
   CHECK(status == cutlass::Status::kSuccess);
   status = gemm_op.initialize(arguments, workspace.get());
   CHECK(status == cutlass::Status::kSuccess);
-  status = gemm_op();
+
+  auto func = tvm::runtime::Registry::Get("runtime.get_cuda_stream");
+  ICHECK(func != nullptr);
+  cudaStream_t stream = static_cast<cudaStream_t>((*func)().operator void*());
+
+  status = gemm_op(stream);
   CHECK(status == cutlass::Status::kSuccess);
 """
     op_type = attrs["op_type"]
@@ -416,38 +421,34 @@ def emit_fp16A_int4B_matmul(attrs):
   int m = ${A_arg}->shape[${batch_offset}];
   int n = ${B_arg}->shape[1] * 2;
   int k = ${B_arg}->shape[0];
+
+  auto func = tvm::runtime::Registry::Get("runtime.get_cuda_stream");
+  ICHECK(func != nullptr);
+  cudaStream_t stream = static_cast<cudaStream_t>((*func)().operator void*());
     """,
         attrs,
     )
 
     template = """
   ${template_common}
-  gemm_fp16_int4(static_cast<cutlass::half_t*>(${A_arg}->data),
-                 static_cast<cutlass::uint4b_t*>(${B_arg}->data),
-                 static_cast<cutlass::half_t*>(${scales_arg}->data),
-                 static_cast<cutlass::half_t*>(out0->data),
-                 m, n, k, nullptr, 0, nullptr);
-"""
-
-    template_bias = """
-  ${template_common}
-  gemm_fp16_int4_bias(static_cast<cutlass::half_t*>(${A_arg}->data),
-                 static_cast<cutlass::uint4b_t*>(${B_arg}->data),
-                 static_cast<cutlass::half_t*>(${scales_arg}->data),
-                 static_cast<cutlass::half_t*>(${bias_arg}->data),
-                 static_cast<cutlass::half_t*>(out0->data),
-                 m, n, k, nullptr, 0, nullptr);
+  gemm_fp16_int_bias_act(static_cast<cutlass::half_t*>(${A_arg}->data),
+                static_cast<${weight_dtype}*>(${B_arg}->data),
+                static_cast<cutlass::half_t*>(${scales_arg}->data),
+                ${bias},
+                static_cast<cutlass::half_t*>(out0->data),
+                "${activation}",
+                m, n, k, ${bias_stride}, nullptr, 0, stream);
 """
 
     template_residual = """
   ${template_common}
-  gemm_fp16_int4_bias_act_residual(static_cast<cutlass::half_t*>(${A_arg}->data),
-                 static_cast<cutlass::uint4b_t*>(${B_arg}->data),
-                 static_cast<cutlass::half_t*>(${scales_arg}->data),
-                 ${bias},
-                 static_cast<cutlass::half_t*>(${residual_arg}->data),
-                 static_cast<cutlass::half_t*>(out0->data), "${activation}", "${binary_op}", "${unary_op}",
-                 m, n, k, nullptr, 0, nullptr);
+  gemm_fp16_int_bias_act_residual(static_cast<cutlass::half_t*>(${A_arg}->data),
+                static_cast<${weight_dtype}*>(${B_arg}->data),
+                static_cast<cutlass::half_t*>(${scales_arg}->data),
+                ${bias},
+                static_cast<cutlass::half_t*>(${residual_arg}->data),
+                static_cast<cutlass::half_t*>(out0->data), "${activation}", "${binary_op}", "${unary_op}",
+                m, n, k, nullptr, 0, stream);
 """
 
     if "residual_arg" in attrs and "bias_arg" in attrs:

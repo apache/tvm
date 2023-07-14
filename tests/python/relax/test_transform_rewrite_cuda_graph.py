@@ -339,5 +339,327 @@ def test_vm_builtin():
     tvm.ir.assert_structural_equal(after, Expected)
 
 
+def test_capture_fixed_inputs():
+    @tvm.script.ir_module
+    class Conv2dx3:
+        @R.function
+        def main(
+            data: R.Tensor((16, 32, 32, 16), "float16"),
+            weight1: R.Tensor((16, 3, 3, 16), "float16"),
+            weight2: R.Tensor((16, 3, 3, 16), "float16"),
+            weight3: R.Tensor((16, 3, 3, 16), "float16"),
+            gamma: R.Tensor((16,), "float16"),
+            beta: R.Tensor((16,), "float16"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                conv1 = R.nn.relu(
+                    R.nn.conv2d(
+                        data, weight1, padding=(1, 1), data_layout="NHWC", kernel_layout="OHWI"
+                    )
+                )
+
+                ###############################################################################
+                # The second conv2d and layer norm can be captured into a graph
+                conv2 = R.nn.relu(
+                    R.nn.conv2d(
+                        conv1, weight2, padding=(1, 1), data_layout="NHWC", kernel_layout="OHWI"
+                    )
+                )
+                ln = R.nn.layer_norm(conv2, gamma, beta, axes=[-1])
+                ###############################################################################
+
+                conv3 = R.nn.relu(
+                    R.nn.conv2d(
+                        ln, weight3, padding=(1, 1), data_layout="NHWC", kernel_layout="OHWI"
+                    )
+                )
+                R.output(conv3)
+
+            return conv3
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def fused_conv2d_relu(
+            data: T.Buffer((T.int64(16), T.int64(32), T.int64(32), T.int64(16)), "float16"),
+            weight1: T.Buffer((T.int64(16), T.int64(3), T.int64(3), T.int64(16)), "float16"),
+            var_compute_intermediate: T.Buffer(
+                (T.int64(16), T.int64(32), T.int64(32), T.int64(16)), "float16"
+            ),
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            # with T.block("root"):
+            pad_temp = T.alloc_buffer(
+                (T.int64(16), T.int64(34), T.int64(34), T.int64(16)), "float16"
+            )
+            var_conv2d_nhwc_intermediate = T.alloc_buffer(
+                (T.int64(16), T.int64(32), T.int64(32), T.int64(16)), "float16"
+            )
+            for i0, i1, i2, i3 in T.grid(T.int64(16), T.int64(34), T.int64(34), T.int64(16)):
+                with T.block("pad_temp"):
+                    v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                    T.reads(data[v_i0, v_i1 - T.int64(1), v_i2 - T.int64(1), v_i3])
+                    T.writes(pad_temp[v_i0, v_i1, v_i2, v_i3])
+                    pad_temp[v_i0, v_i1, v_i2, v_i3] = T.if_then_else(
+                        T.int64(1) <= v_i1
+                        and v_i1 < T.int64(33)
+                        and T.int64(1) <= v_i2
+                        and v_i2 < T.int64(33),
+                        data[v_i0, v_i1 - T.int64(1), v_i2 - T.int64(1), v_i3],
+                        T.float16(0),
+                    )
+            for nn, yy, xx, ff, ry, rx, rc in T.grid(
+                T.int64(16),
+                T.int64(32),
+                T.int64(32),
+                T.int64(16),
+                T.int64(3),
+                T.int64(3),
+                T.int64(16),
+            ):
+                with T.block("conv2d_nhwc"):
+                    v_nn, v_yy, v_xx, v_ff, v_ry, v_rx, v_rc = T.axis.remap(
+                        "SSSSRRR", [nn, yy, xx, ff, ry, rx, rc]
+                    )
+                    T.reads(
+                        pad_temp[v_nn, v_yy + v_ry, v_xx + v_rx, v_rc],
+                        weight1[v_ff, v_ry, v_rx, v_rc],
+                    )
+                    T.writes(var_conv2d_nhwc_intermediate[v_nn, v_yy, v_xx, v_ff])
+                    with T.init():
+                        var_conv2d_nhwc_intermediate[v_nn, v_yy, v_xx, v_ff] = T.float16(0)
+                    var_conv2d_nhwc_intermediate[v_nn, v_yy, v_xx, v_ff] = (
+                        var_conv2d_nhwc_intermediate[v_nn, v_yy, v_xx, v_ff]
+                        + pad_temp[v_nn, v_yy + v_ry, v_xx + v_rx, v_rc]
+                        * weight1[v_ff, v_ry, v_rx, v_rc]
+                    )
+            for i0, i1, i2, i3 in T.grid(T.int64(16), T.int64(32), T.int64(32), T.int64(16)):
+                with T.block("compute"):
+                    v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                    T.reads(var_conv2d_nhwc_intermediate[v_i0, v_i1, v_i2, v_i3])
+                    T.writes(var_compute_intermediate[v_i0, v_i1, v_i2, v_i3])
+                    var_compute_intermediate[v_i0, v_i1, v_i2, v_i3] = T.max(
+                        var_conv2d_nhwc_intermediate[v_i0, v_i1, v_i2, v_i3], T.float16(0)
+                    )
+
+        @T.prim_func
+        def layer_norm(
+            A: T.Buffer((T.int64(16), T.int64(32), T.int64(32), T.int64(16)), "float16"),
+            B: T.Buffer((T.int64(16),), "float16"),
+            C: T.Buffer((T.int64(16),), "float16"),
+            T_layer_norm: T.Buffer((T.int64(16), T.int64(32), T.int64(32), T.int64(16)), "float16"),
+        ):
+            T.func_attr({"op_pattern": 4, "tir.noalias": T.bool(True)})
+            # with T.block("root"):
+            A_red_temp_v0 = T.alloc_buffer((T.int64(16), T.int64(32), T.int64(32)))
+            A_red_temp_v1 = T.alloc_buffer((T.int64(16), T.int64(32), T.int64(32)))
+            for ax0, ax1, ax2, k3 in T.grid(T.int64(16), T.int64(32), T.int64(32), T.int64(16)):
+                with T.block("A_red_temp"):
+                    v_ax0, v_ax1, v_ax2, v_k3 = T.axis.remap("SSSR", [ax0, ax1, ax2, k3])
+                    T.reads(A[v_ax0, v_ax1, v_ax2, v_k3])
+                    T.writes(A_red_temp_v0[v_ax0, v_ax1, v_ax2], A_red_temp_v1[v_ax0, v_ax1, v_ax2])
+                    with T.init():
+                        A_red_temp_v0[v_ax0, v_ax1, v_ax2] = T.float32(0)
+                        A_red_temp_v1[v_ax0, v_ax1, v_ax2] = T.float32(0)
+                    v_A_red_temp_v0: T.float32 = A_red_temp_v0[v_ax0, v_ax1, v_ax2] + T.Cast(
+                        "float32", A[v_ax0, v_ax1, v_ax2, v_k3]
+                    )
+                    v_A_red_temp_v1: T.float32 = A_red_temp_v1[v_ax0, v_ax1, v_ax2] + T.Cast(
+                        "float32", A[v_ax0, v_ax1, v_ax2, v_k3]
+                    ) * T.Cast("float32", A[v_ax0, v_ax1, v_ax2, v_k3])
+                    A_red_temp_v0[v_ax0, v_ax1, v_ax2] = v_A_red_temp_v0
+                    A_red_temp_v1[v_ax0, v_ax1, v_ax2] = v_A_red_temp_v1
+            for ax0, ax1, ax2, ax3 in T.grid(T.int64(16), T.int64(32), T.int64(32), T.int64(16)):
+                with T.block("T_layer_norm"):
+                    v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    T.reads(
+                        A[v_ax0, v_ax1, v_ax2, v_ax3],
+                        A_red_temp_v0[v_ax0, v_ax1, v_ax2],
+                        A_red_temp_v1[v_ax0, v_ax1, v_ax2],
+                        B[v_ax3],
+                        C[v_ax3],
+                    )
+                    T.writes(T_layer_norm[v_ax0, v_ax1, v_ax2, v_ax3])
+                    T_layer_norm[v_ax0, v_ax1, v_ax2, v_ax3] = (
+                        T.Cast(
+                            "float16",
+                            (
+                                T.Cast("float32", A[v_ax0, v_ax1, v_ax2, v_ax3])
+                                - A_red_temp_v0[v_ax0, v_ax1, v_ax2] * T.float32(0.0625)
+                            )
+                            * T.rsqrt(
+                                A_red_temp_v1[v_ax0, v_ax1, v_ax2] * T.float32(0.0625)
+                                - A_red_temp_v0[v_ax0, v_ax1, v_ax2]
+                                * T.float32(0.0625)
+                                * (A_red_temp_v0[v_ax0, v_ax1, v_ax2] * T.float32(0.0625))
+                                + T.float32(1.0000000000000001e-05)
+                            ),
+                        )
+                        * B[v_ax3]
+                        + C[v_ax3]
+                    )
+
+        @R.function(private=True)
+        def cuda_graph_alloc() -> R.Tuple(R.Object, R.Object):
+            R.func_attr({"relax.force_pure": True})
+            storage: R.Object = R.memory.alloc_storage(
+                R.shape([524288]), R.prim_value(0), R.str("global"), R.dtype("float16")
+            )
+            storage1: R.Object = R.memory.alloc_storage(
+                R.shape([524288]), R.prim_value(0), R.str("global"), R.dtype("float16")
+            )
+            gv: R.Tuple(R.Object, R.Object) = storage, storage1
+            return gv
+
+        @R.function(private=True)
+        def cuda_graph_capture(
+            lv: R.Tensor((16, 32, 32, 16), dtype="float16"),
+            lv1: R.Tensor((16, 3, 3, 16), dtype="float16"),
+            alloc1: R.Tensor((16, 32, 32, 16), dtype="float16"),
+            alloc: R.Tensor((16, 32, 32, 16), dtype="float16"),
+            params: R.Tuple(
+                R.Tensor((16, 3, 3, 16), dtype="float16"),
+                R.Tensor((16, 3, 3, 16), dtype="float16"),
+                R.Tensor((16, 3, 3, 16), dtype="float16"),
+                R.Tensor((16,), dtype="float16"),
+                R.Tensor((16,), dtype="float16"),
+            ),
+            storage: R.Object,
+        ) -> R.Tuple(
+            R.Tensor((16, 32, 32, 16), dtype="float16"),
+            R.Tensor((16, 3, 3, 16), dtype="float16"),
+            R.Tensor((16, 32, 32, 16), dtype="float16"),
+        ):
+            R.func_attr({"relax.force_pure": True})
+            cls = Expected
+            _1: R.Tuple = cls.fused_conv2d_relu(lv, lv1, alloc1)
+            _: R.Tuple = R.memory.kill_tensor(alloc)
+            lv1_1: R.Tensor((16, 32, 32, 16), dtype="float16") = alloc1
+            lv2: R.Tensor((16,), dtype="float16") = params[3]
+            lv3: R.Tensor((16,), dtype="float16") = params[4]
+            alloc2: R.Tensor((16, 32, 32, 16), dtype="float16") = R.memory.alloc_tensor(
+                storage, R.prim_value(0), R.shape([16, 32, 32, 16]), R.dtype("float16")
+            )
+            _2: R.Tuple = cls.layer_norm(lv1_1, lv2, lv3, alloc2)
+            _1_1: R.Tuple = R.memory.kill_tensor(alloc1)
+            ln: R.Tensor((16, 32, 32, 16), dtype="float16") = alloc2
+            lv4: R.Tensor((16, 3, 3, 16), dtype="float16") = params[2]
+            gv: R.Tuple(
+                R.Tensor((16, 32, 32, 16), dtype="float16"),
+                R.Tensor((16, 3, 3, 16), dtype="float16"),
+                R.Tensor((16, 32, 32, 16), dtype="float16"),
+            ) = (ln, lv4, alloc2)
+            return gv
+
+        @R.function
+        def main_transform_params(
+            params: R.Tuple(
+                R.Tensor((16, 3, 3, 16), dtype="float16"),
+                R.Tensor((16, 3, 3, 16), dtype="float16"),
+                R.Tensor((16, 3, 3, 16), dtype="float16"),
+                R.Tensor((16,), dtype="float16"),
+                R.Tensor((16,), dtype="float16"),
+            )
+        ) -> R.Tuple(
+            R.Tensor((16, 3, 3, 16), dtype="float16"),
+            R.Tensor((16, 3, 3, 16), dtype="float16"),
+            R.Tensor((16, 3, 3, 16), dtype="float16"),
+            R.Tensor((16,), dtype="float16"),
+            R.Tensor((16,), dtype="float16"),
+        ):
+            R.func_attr({"relax.force_pure": True})
+            lv: R.Tensor((16, 3, 3, 16), dtype="float16") = params[0]
+            lv1: R.Tensor((16, 3, 3, 16), dtype="float16") = params[1]
+            lv2: R.Tensor((16, 3, 3, 16), dtype="float16") = params[2]
+            lv3: R.Tensor((16,), dtype="float16") = params[3]
+            lv4: R.Tensor((16,), dtype="float16") = params[4]
+            gv: R.Tuple(
+                R.Tensor((16, 3, 3, 16), dtype="float16"),
+                R.Tensor((16, 3, 3, 16), dtype="float16"),
+                R.Tensor((16, 3, 3, 16), dtype="float16"),
+                R.Tensor((16,), dtype="float16"),
+                R.Tensor((16,), dtype="float16"),
+            ) = (lv, lv1, lv2, lv3, lv4)
+            return gv
+
+        @R.function
+        def main(
+            data: R.Tensor((16, 32, 32, 16), dtype="float16"),
+            params: R.Tuple(
+                R.Tensor((16, 3, 3, 16), dtype="float16"),
+                R.Tensor((16, 3, 3, 16), dtype="float16"),
+                R.Tensor((16, 3, 3, 16), dtype="float16"),
+                R.Tensor((16,), dtype="float16"),
+                R.Tensor((16,), dtype="float16"),
+            ),
+        ) -> R.Tensor((16, 32, 32, 16), dtype="float16"):
+            R.func_attr({"num_input": 1, "relax.force_pure": True})
+            cls = Expected
+            lv: R.Tensor((16, 3, 3, 16), dtype="float16") = params[0]
+            gv: R.Tuple(R.Object, R.Object) = R.call_builtin_with_ctx(
+                "vm.builtin.cuda_graph.get_cached_alloc",
+                (cls.cuda_graph_alloc, R.prim_value(0)),
+                sinfo_args=(R.Tuple(R.Object, R.Object),),
+            )
+            storage: R.Object = gv[0]
+            alloc: R.Tensor((16, 32, 32, 16), dtype="float16") = R.memory.alloc_tensor(
+                storage, R.prim_value(0), R.shape([16, 32, 32, 16]), R.dtype("float16")
+            )
+            _: R.Tuple = cls.fused_conv2d_relu(data, lv, alloc)
+            lv_1: R.Tensor((16, 32, 32, 16), dtype="float16") = alloc
+            lv1: R.Tensor((16, 3, 3, 16), dtype="float16") = params[1]
+            storage1: R.Object = gv[1]
+            alloc1: R.Tensor((16, 32, 32, 16), dtype="float16") = R.memory.alloc_tensor(
+                storage1, R.prim_value(0), R.shape([16, 32, 32, 16]), R.dtype("float16")
+            )
+            gv1: R.Tuple(
+                R.Tensor((16, 32, 32, 16), dtype="float16"),
+                R.Tensor((16, 3, 3, 16), dtype="float16"),
+                R.Tensor((16, 32, 32, 16), dtype="float16"),
+            ) = R.call_builtin_with_ctx(
+                "vm.builtin.cuda_graph.run_or_capture",
+                (
+                    cls.cuda_graph_capture,
+                    (lv_1, lv1, alloc1, alloc, params, storage),
+                    R.prim_value(0),
+                ),
+                sinfo_args=(
+                    R.Tuple(
+                        R.Tensor((16, 32, 32, 16), dtype="float16"),
+                        R.Tensor((16, 3, 3, 16), dtype="float16"),
+                        R.Tensor((16, 32, 32, 16), dtype="float16"),
+                    ),
+                ),
+            )
+            alloc2: R.Tensor((16, 32, 32, 16), dtype="float16") = gv1[2]
+            ln: R.Tensor((16, 32, 32, 16), dtype="float16") = gv1[0]
+            lv4: R.Tensor((16, 3, 3, 16), dtype="float16") = gv1[1]
+            alloc3: R.Tensor((16, 32, 32, 16), dtype="float16") = R.builtin.alloc_tensor(
+                R.shape([16, 32, 32, 16]), R.dtype("float16"), R.prim_value(0)
+            )
+            _3: R.Tuple = cls.fused_conv2d_relu(ln, lv4, alloc3)
+            _2: R.Tuple = R.memory.kill_tensor(alloc2)
+            gv_1: R.Tensor((16, 32, 32, 16), dtype="float16") = alloc3
+            _3_1: R.Tuple = R.memory.kill_storage(storage)
+            _4: R.Tuple = R.memory.kill_storage(storage1)
+            return gv_1
+
+    mod = tvm.transform.Sequential(
+        [
+            relax.pipeline.get_pipeline(),
+            relax.transform.LiftTransformParams(),
+            relax.transform.ToNonDataflow(),
+            relax.transform.RemovePurityChecking(),
+            relax.transform.CallTIRRewrite(),
+            relax.transform.StaticPlanBlockMemory(),
+        ]
+    )(Conv2dx3)
+
+    mod["main"] = mod["main"].with_attr({"num_input": 1})
+    after = relax.transform.RewriteCUDAGraph()(mod)
+    tvm.ir.assert_structural_equal(after, after)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
