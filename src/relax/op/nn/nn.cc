@@ -54,7 +54,8 @@ TVM_REGISTER_OP("relax.nn.leakyrelu")
     .add_argument("data", "Tensor", "The input tensor.")
     .set_attrs_type<LeakyReluAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo",
-                                InferStructInfoUnaryArith</*require_float_dtype=*/true>);
+                                InferStructInfoUnaryArith</*require_float_dtype=*/true>)
+    .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.softmax */
 TVM_REGISTER_NODE_TYPE(SoftmaxAttrs);
