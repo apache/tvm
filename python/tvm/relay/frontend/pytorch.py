@@ -1553,11 +1553,11 @@ class PyTorchOpConverter:
         beta = inputs[3]
         alpha = inputs[4]
         data_type = input_types[1]
-        
+
         transposed_mat2 = _op.transform.transpose(mat2, axes=[1, 0])
         units = self.infer_shape(transposed_mat2)[0]
         dense_out = _op.nn.dense(mat1, transposed_mat2, units=units)
-        
+
         if not isinstance(alpha, _expr.Expr) and alpha != 1:
             alpha = _create_typed_const(alpha, data_type)
             dense_out *= alpha
