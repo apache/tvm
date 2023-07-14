@@ -330,7 +330,7 @@ def _nn_group_norm(bb: BlockBuilder, call: Call) -> Expr:
 
 
 @register_legalize("relax.nn.rms_norm")
-def _nn_layer_norm(bb: BlockBuilder, call: Call) -> Expr:
+def _nn_rms_norm(bb: BlockBuilder, call: Call) -> Expr:
     return bb.call_te(
         topi.nn.rms_norm,
         call.args[0],
