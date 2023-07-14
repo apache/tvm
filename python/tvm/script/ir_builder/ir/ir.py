@@ -106,11 +106,20 @@ def dummy_global_info() -> DummyGlobalInfo:
     return DummyGlobalInfo()  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def vdevice() -> VDevice:
+def vdevice(target=None, vdevice_id: int = 0, memory_scope: str = "global") -> VDevice:
     """Create a virtual device global info.
+    Parameters
+    ----------
+    target
+        The target.
+    vdevice_id: int
+        The virtual device index.
+    memory_scope: str
+        The memory scope, default is "global"
+
     Returns
     -------
     res : VDevice
         The result virtual device global info.
     """
-    return VDevice()  # type: ignore[attr-defined] # pylint: disable=no-member
+    return VDevice(target, vdevice_id, memory_scope)  # type: ignore[attr-defined] # pylint: disable=no-member

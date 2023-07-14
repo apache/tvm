@@ -309,9 +309,9 @@ def test_vdevice():
         I.module_attrs({"attr": 10})
         I.module_global_infos(
             {
-                "dummy": [
-                    I.dummy_global_info(),  # dummy[0]
-                    I.dummy_global_info(),  # dummy[1]
+                "vdevice": [
+                    I.vdevice("llvm", 0, "global"),
+                    I.vdevice("cuda", 0, "global"),
                 ]
             }
         )
@@ -339,7 +339,7 @@ def test_vdevice():
         out = bb.emit_te(lambda x: x + 1, x, primfunc_name_hint="tir_func")
         bb.emit_func_output(out)
     mod = bb.get()
-    mod.update_global_info("dummy", [DummyGlobalInfo(), DummyGlobalInfo()])
+    mod.update_global_info("vdevice", [VDevice("llvm", 0, "global"), VDevice("cuda", 0, "global")])
     mod = mod.with_attr("attr", tvm.tir.IntImm("int32", 10))
     _check(TestModule, mod)
 

@@ -50,4 +50,6 @@ class VDevice(GlobalInfo):
         vdevice_id: int = 0,
         memory_scope: str = "global",
     ) -> None:
+        if isinstance(target, (dict, str)):
+            target = tvm.target.Target(tvm.runtime.convert(target))
         self.__init_handle_by_constructor__(_ffi_api.VDevice, target, vdevice_id, memory_scope)
