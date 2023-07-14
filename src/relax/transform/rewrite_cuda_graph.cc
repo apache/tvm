@@ -427,7 +427,7 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
   IRModule mod_;
   // States of the current scope
   Scope current_;
-  // All the static bindings
+  // Variables whose buffer address is fixed
   std::unordered_set<const VarNode*> static_vars_;
   // Binding to the FuncBuilder if the binding is lifted. This is used to update the inputs/outputs
   // of the lifted function when its binding is used outside.
