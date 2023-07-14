@@ -1556,7 +1556,7 @@ def test_rms_norm():
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
-def test():
+def test_conv2d_cuda_graph():
     @tvm.script.ir_module
     class Conv2d:
         @R.function
@@ -1615,5 +1615,4 @@ def test():
 
 
 if __name__ == "__main__":
-    # tvm.testing.main()
-    test()
+    tvm.testing.main()
