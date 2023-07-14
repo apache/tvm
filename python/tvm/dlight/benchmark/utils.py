@@ -1,0 +1,149 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+"""Util functions for benchmarking dynamic shape workloads"""
+
+from typing import Dict, List, Tuple, Union, Any
+
+import tvm
+from tvm import relax
+
+INPUT_SHAPE_TYPE = List[Tuple[Tuple[int, ...], str]]  # pylint: disable=invalid-name
+
+
+def get_func_name_from_gv(gv: tvm.ir.GlobalVar) -> str:  # pylint: disable=invalid-name
+    """Get function name from a global variable.
+
+    Parameters
+    ----------
+    gv : tvm.ir.GlobalVar
+        The given global variable.
+
+    Returns
+    -------
+    result : str
+        The global variable name without the prefix "...@".
+    """
+    return gv.astext().split("@")[1] if "@" in gv.astext() else gv.astext()
+
+
+def dym_var_sample_str(sample: Dict[Union[str, tvm.relax.expr.Call], int]) -> str:
+    """Convert a variable value sample to a string.
+
+    Parameters
+    ----------
+    sample : Dict[Union[str, tvm.relax.expr.Call], int]
+        Variable value sample, e.g., {n: 64, m: 128} or {"n": 64, "m": 128}
+
+    Returns
+    -------
+    result : str
+        Variable value sample string, e.g., "n=64, m=128"
+    """
+    return ", ".join([f"{k}={v}" for k, v in sample.items()])
+
+
+def populuate_input_shape(
+    input_infos: List[Union[relax.TensorStructInfo, Tuple[Tuple[Union[int, str], ...], str]]],
+    dym_var_sample: Dict[str, int],
+) -> INPUT_SHAPE_TYPE:
+    """
+    Populate input shapes with dynamic shape variable samples.
+
+    Parameters
+    ----------
+    input_infos : List[Union[relax.TensorStructInfo, Tuple[Tuple[Union[int, str], ...], str]]]
+        Input tensor information, including shape and dtype,
+        e.g., [..., Shape(1, n, 128) with dtype="int32", ...]
+    dym_var_sample : Dict[str, int]
+        Dynamic shape variable sample, e.g., {"n": 64}
+
+    Returns
+    -------
+    results : INPUT_SHAPE_TYPE
+        Input shapes with dynamic shape variable samples, e.g.,
+        [..., ((1, 64, 128), "int32"), ...] if n=64 or
+        [..., (128, "scalar"), ...] if n=128 for scalar input
+    """
+    results: INPUT_SHAPE_TYPE = []
+    for input_info in input_infos:
+        shape = []
+        if isinstance(input_info, relax.struct_info.ShapeStructInfo):
+            # scalar input
+            results.append(((dym_var_sample[str(input_info.values[0])],), "scalar"))
+        else:
+            if isinstance(input_info, relax.TensorStructInfo):
+                tensor_shape = input_info.shape
+                tensor_dtype = input_info.dtype
+            else:
+                tensor_shape, tensor_dtype = input_info  # type: ignore
+            for dim in tensor_shape:
+                if isinstance(dim, int):
+                    shape.append(dim)
+                elif isinstance(dim, tvm.tir.IntImm):
+                    shape.append(dim.value)
+                else:
+                    shape.append(dym_var_sample[str(dim)])
+            results.append(((*shape,), tensor_dtype))
+    return results
+
+
+def default_dym_var_sample_func(dym_var_dict: Dict[str, str]) -> Dict[str, int]:
+    """
+    Default dynamic shape variable sample function.
+    Sample a random value for each dynamic shape variable.
+
+    Parameters
+    ----------
+    dym_var_dict : Dict[str, str]
+        Dynamic shape variable dictionary, e.g., {"n": "int32", "m": "int32"}
+
+    Returns
+    -------
+    result : Dict[str, int]
+        Dynamic shape variable sample, e.g., {"n": 64, "m": 128}
+    """
+    results = {}
+    for var in dym_var_dict:
+        if dym_var_dict[var] in ["int32", "int64"]:
+            import random  # pylint: disable=import-outside-toplevel
+
+            results[var] = random.randint(2, 128)
+        else:
+            raise TypeError("Unsupported dynamic shape variable type: " + dym_var_dict[var])
+    return results
+
+
+def print_results(bench_results: List[Dict[str, Any]], sort_by: str = "WxTime(ms)"):
+    """Print benchmark results.
+
+    Parameters
+    ----------
+    bench_results : List[Dict[str, Any]]
+        Benchmark results as dictionary list.
+    sort_by : str
+        Sort results by this key, descending.
+    """
+    import pandas as pd  # pylint: disable=import-outside-toplevel
+
+    df = pd.DataFrame()  # pylint: disable=invalid-name
+    for record in bench_results:
+        df.append(
+            record,
+            ignore_index=True,
+        )
+    print(df.sort_values(sort_by, ascending=False).reset_index().drop("index", axis=1))
+    print("\n")
