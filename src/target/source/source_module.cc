@@ -367,10 +367,10 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
           } else {
             codegen_c_base_.PrintType(input_var.dtype(), call_args_ss);
           }
-          call_args_ss << " " << input_var->name_hint << ",";
+          call_args_ss << " " << input_var->name_hint << ", ";
         }
         for (unsigned int i = 0; i < metadata_->outputs.size(); ++i) {
-          call_args_ss << "void* output" << i << ",";
+          call_args_ss << "void* output" << i << ", ";
         }
       }
       for (const tir::Var& pool_var : metadata_->pools) {
@@ -379,10 +379,10 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
         } else {
           codegen_c_base_.PrintType(pool_var.dtype(), call_args_ss);
         }
-        call_args_ss << " " << pool_var->name_hint << ",";
+        call_args_ss << " " << pool_var->name_hint << ", ";
       }
       std::string call_args_str = call_args_ss.str();
-      call_args_str.pop_back();
+      call_args_str.erase(call_args_str.length() - 2);
       code_ << call_args_str;
     }
 
@@ -396,21 +396,21 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
       std::stringstream call_args_ss;
       if (metadata_->io_pool_allocations.empty()) {
         for (unsigned int i = 0; i < metadata_->inputs.size(); ++i) {
-          call_args_ss << "((DLTensor*)(((TVMValue*)args)[" << i << "].v_handle))[0].data,";
+          call_args_ss << "((DLTensor*)(((TVMValue*)args)[" << i << "].v_handle))[0].data, ";
         }
         for (unsigned int i = 0; i < metadata_->outputs.size(); ++i) {
           int j = metadata_->inputs.size() + i;
-          call_args_ss << "((DLTensor*)(((TVMValue*)args)[" << j << "].v_handle))[0].data,";
+          call_args_ss << "((DLTensor*)(((TVMValue*)args)[" << j << "].v_handle))[0].data, ";
         }
       }
       for (const tir::Var& pool_var : metadata_->pools) {
         if (IsInternalWorkspaceBuffer(pool_var)) {
           call_args_ss << "&" << metadata_->pool_inputs.value()[pool_var]->pool_info->pool_name
-                       << ",";
+                       << ", ";
         }
       }
       std::string call_args_str = call_args_ss.str();
-      call_args_str.pop_back();
+      call_args_str.erase(call_args_str.length() - 2);
       code_ << call_args_str;
       code_ << ");\n";
       code_ << "}\n";
@@ -484,7 +484,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
 
   void GenerateCInterfaceEntrypoint(const std::string& entrypoint_name, const std::string& run_func,
                                     const std::string& mod_name) {
-    code_ << "#include <" << mod_name << ".h>\n";
+    code_ << "#include <" << mod_name << ".h>\n\n";
     if (!metadata_->io_pool_allocations.empty()) {
       const std::string input_struct_type =
           runtime::get_name_mangled(metadata_->mod_name, "inputs");
@@ -507,10 +507,10 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
           } else {
             codegen_c_base_.PrintType(input_var.dtype(), call_args_ss);
           }
-          call_args_ss << " " << tvm::runtime::SanitizeName(input_var->name_hint) << ",";
+          call_args_ss << " " << tvm::runtime::SanitizeName(input_var->name_hint) << ", ";
         }
         for (unsigned int i = 0; i < metadata_->outputs.size(); ++i) {
-          call_args_ss << "void* output" << i << ",";
+          call_args_ss << "void* output" << i << ", ";
         }
       }
       for (const tir::Var& pool_var : metadata_->pools) {
@@ -519,23 +519,25 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
         } else {
           codegen_c_base_.PrintType(pool_var.dtype(), call_args_ss);
         }
-        call_args_ss << " " << pool_var->name_hint << ",";
+        call_args_ss << " " << pool_var->name_hint << ", ";
       }
       for (const String& device : metadata_->devices) {
-        call_args_ss << "void* " << device << ",";
+        call_args_ss << "void* " << device << ", ";
       }
       std::string call_args_str = call_args_ss.str();
-      call_args_str.pop_back();
+      call_args_str.erase(call_args_str.length() - 2);
       code_ << call_args_str;
     }
 
-    code_ << ");\n";
+    code_ << ");\n\n";
     code_ << "int32_t " << entrypoint_name << "(";
     {
       std::stringstream call_args_ss;
       if (metadata_->io_pool_allocations.empty()) {
-        call_args_ss << "struct " << runtime::get_name_mangled(mod_name, "inputs") << "* inputs,";
-        call_args_ss << "struct " << runtime::get_name_mangled(mod_name, "outputs") << "* outputs,";
+        call_args_ss << "struct " << runtime::get_name_mangled(mod_name, "inputs")
+                     << "* inputs, ";
+        call_args_ss << "struct " << runtime::get_name_mangled(mod_name, "outputs")
+                     << "* outputs, ";
       }
       if (!metadata_->pools.empty()) {
         bool is_external_pools_present = false;
@@ -547,49 +549,49 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
         }
         if (is_external_pools_present) {
           call_args_ss << "struct " << runtime::get_name_mangled(mod_name, "workspace_pools")
-                       << "* workspace_pools,";
+                       << "* workspace_pools, ";
         }
       }
       if (!metadata_->devices.empty()) {
-        call_args_ss << "struct " << runtime::get_name_mangled(mod_name, "devices") << "* devices,";
+        call_args_ss << "struct " << runtime::get_name_mangled(mod_name, "devices")
+                     << "* devices, ";
       }
       std::string call_args_str = call_args_ss.str();
-      call_args_str.pop_back();
+      call_args_str.erase(call_args_str.length() - 2);
       code_ << call_args_str;
     }
 
-    code_ << ") {"
-          << "return " << run_func << "(";
+    code_ << ") {\n"
+          << "  return " << run_func << "(";
 
     {
       std::stringstream call_args_ss;
       if (metadata_->io_pool_allocations.empty()) {
         for (const auto& input : metadata_->inputs) {
-          call_args_ss << "inputs->" << tvm::runtime::SanitizeName(input->name_hint) << ",";
+          call_args_ss << "inputs->" << tvm::runtime::SanitizeName(input->name_hint) << ", ";
         }
         for (const auto& output : metadata_->outputs) {
-          call_args_ss << "outputs->" << tvm::runtime::SanitizeName(output);
-          call_args_ss << ",";
+          call_args_ss << "outputs->" << tvm::runtime::SanitizeName(output) << ", ";
         }
       }
 
       for (const tir::Var& pool_var : metadata_->pools) {
         String pool_name = metadata_->pool_inputs.value()[pool_var]->pool_info->pool_name;
         if (IsInternalWorkspaceBuffer(pool_var)) {
-          call_args_ss << "&" << pool_name << ",";
+          call_args_ss << pool_name << ", ";
         } else {
-          call_args_ss << "workspace_pools->" << tvm::runtime::SanitizeName(pool_name) << ",";
+          call_args_ss << "workspace_pools->" << tvm::runtime::SanitizeName(pool_name) << ", ";
         }
       }
       for (const String& device : metadata_->devices) {
-        call_args_ss << "devices->" << device << ",";
+        call_args_ss << "devices->" << device << ", ";
       }
       std::string call_args_str = call_args_ss.str();
-      call_args_str.pop_back();
+      call_args_str.erase(call_args_str.length() - 2);
       code_ << call_args_str;
     }
     code_ << ");\n";
-    code_ << "}\n";
+    code_ << "}\n\n";
   }
 
   void GenerateAOTDescriptor() {
@@ -601,10 +603,10 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
         runtime::get_name_mangled(metadata_->mod_name, tvm_entrypoint_suffix);
     const std::string network_mangled = runtime::get_name_mangled(metadata_->mod_name, "network");
 
-    code_ << "#include \"tvm/runtime/c_runtime_api.h\"\n";
+    code_ << "#include \"tvm/runtime/c_runtime_api.h\"\n\n";
     code_ << "#ifdef __cplusplus\n";
     code_ << "extern \"C\" {\n";
-    code_ << "#endif\n";
+    code_ << "#endif\n\n";
 
     GenerateInternalBuffers();
 
@@ -633,7 +635,6 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
     if (metadata_.defined() && metadata_->executor == runtime::kTvmExecutorAot) {
       GenerateAOTDescriptor();
     }
-    code_ << ";";
   }
 };
 
