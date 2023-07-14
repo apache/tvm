@@ -333,8 +333,8 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       {
         PrimExpr mask = Call(mask_dtype, builtin::tvm_warp_activemask(), {});
         if (group_extent > 1) {
-          mask = mask &
-                 (((1 << reduce_extent) - 1) << (reduce_extent * cast(mask_dtype, group_index)));
+          mask = mask & (make_const(mask_dtype, (1ll << reduce_extent) - 1)
+                         << (reduce_extent * cast(mask_dtype, group_index)));
         }
         seq.emplace_back(BufferStore(mask_buffer, mask, zero_indices));
         // Push the buffer description.  Later this will have an
@@ -392,7 +392,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         // During the sub-warp reduction, values from inactive threads could be read,
         // which is an undefined behavior according to the cuda document.
         //
-        // In practise, the return value are usually 0, which does no harm to sum reduction.
+        // In practice, the return value are usually 0, which does no harm to sum reduction.
         // However, the result can be incorrect in max or prod reduction.
         // Therefore an additional range check has to be performed to ensure the correctness.
         if (offset * 2 > reduce_extent) {
@@ -405,7 +405,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
 
       // Broadcast the reduction result from lane 0 to all other lanes.
       // This avoids to emit predicated stores, as all threads are
-      // uniformly writting the same result.
+      // uniformly writing the same result.
       //
       for (size_t i = 0; i < size; ++i) {
         Buffer buf = shared_bufs[i];
@@ -669,7 +669,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       return false;
     }
 
-    // whether reduce_extent and group_extent are vaild for warp reduction.
+    // whether reduce_extent and group_extent are valid for warp reduction.
     if (target_->kind->name == "rocm") {
       return reduce_extent == warp_size_;
     } else {  // target_->kind->name == "cuda"
