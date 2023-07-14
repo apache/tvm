@@ -1528,7 +1528,7 @@ def from_keras(model, shape=None, layout="NCHW"):
             raise ValueError("Keras frontend currently supports data_format = channels_last only.")
         import tensorflow
         
-        if tensorflow.__version__ >= "2.13.0":
+        if tensorflow.__version__ == "2.13.0" and keras.__version__ == "2.13.1":
             import keras.src.engine as E
         else:
             import keras.engine as E
