@@ -28,6 +28,7 @@
 #include <tvm/target/target.h>
 #include <tvm/target/target_kind.h>
 #include <tvm/tir/expr.h>
+#include <tvm/ir/transform.h>
 
 #include <algorithm>
 #include <cctype>
@@ -91,7 +92,8 @@ void CheckAndUpdateHostConsistency(Target* target, Target* host) {
   *host = (*target)->GetHost().value_or(Target());
 }
 
-void CheckAndUpdateHostConsistency(Map<Target, IRModule>* targets, Target* host) {
+/*
+void CheckAndUpdateHostConsistency(Map<Target, tvm::IRModule>* targets, Target* host) {
   Map<Target, IRModule> new_targets;
   for (auto& it : *targets) {
     auto target = it.first;
@@ -100,6 +102,7 @@ void CheckAndUpdateHostConsistency(Map<Target, IRModule>* targets, Target* host)
   }
   *targets = new_targets;
 }
+*/
 
 static std::vector<String> DeduplicateKeys(const std::vector<String>& keys) {
   std::vector<String> new_keys;
@@ -614,8 +617,8 @@ Target::Target(TargetKind kind, Optional<ObjectRef> host, String tag, Array<Stri
 bool Target::IsExternalCodegen() const {
   TargetKindAttrMap<Bool> is_external_codegen_map =
       TargetKind::GetAttrMap<Bool>(tvm::attr::kIsExternalCodegen);
-  TargetKindAttrMap<FTVMRelayToTIR> relay_to_tir_map =
-      TargetKind::GetAttrMap<FTVMRelayToTIR>(tvm::attr::kRelayToTIR);
+  TargetKindAttrMap<tvm::transform::Pass> relay_to_tir_map =
+      TargetKind::GetAttrMap<tvm::transform::Pass>(tvm::attr::kRelayToTIR);
   return is_external_codegen_map.get(get()->kind, Bool(false)) ||
          relay_to_tir_map.count(get()->kind);
 }

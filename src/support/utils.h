@@ -33,6 +33,10 @@
 #endif  // _WIN32
 
 #include <tvm/runtime/container/string.h>
+// #include <tvm/runtime/container/map.h>
+// #include <tvm/target/target.h>
+// #include <tvm/ir/module.h>
+
 
 #include <algorithm>
 #include <array>
@@ -224,6 +228,18 @@ inline bool BoolEnvironmentVar(const char* varname) {
 
   return *var;
 }
+
+/*
+void CheckAndUpdateHostConsistency(Map<Target, IRModule>* targets, Target* host) {
+  Map<Target, IRModule> new_targets;
+  for (auto& it : *targets) {
+    auto target = it.first;
+    CheckAndUpdateHostConsistency(&target, host);
+    new_targets.Set(target, it.second);
+  }
+  *targets = new_targets;
+}
+*/
 
 }  // namespace support
 }  // namespace tvm

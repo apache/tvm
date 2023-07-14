@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Global Info."""
+from typing import Union
 import tvm
 from tvm.runtime.object import Object
 from . import _ffi_api
@@ -40,3 +41,13 @@ class DummyGlobalInfo(GlobalInfo):
         self.__init_handle_by_constructor__(
             _ffi_api.DummyGlobalInfo,
         )
+
+
+class VDevice(GlobalInfo):
+    def __init__(
+        self,
+        target=None,
+        vdevice_id: int = 0,
+        memory_scope: str = "global",
+    ) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.VDevice, target, vdevice_id, memory_scope)

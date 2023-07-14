@@ -18,7 +18,7 @@
 
 from typing import Dict, List
 
-from tvm.ir import BaseFunc, GlobalVar, GlobalInfo, DummyGlobalInfo
+from tvm.ir import BaseFunc, GlobalVar, GlobalInfo, VDevice, DummyGlobalInfo
 from tvm.runtime import Object as tvm_Object
 
 
@@ -104,3 +104,13 @@ def dummy_global_info() -> DummyGlobalInfo:
         The result dummy global info.
     """
     return DummyGlobalInfo()  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
+def vdevice() -> VDevice:
+    """Create a virtual device global info.
+    Returns
+    -------
+    res : VDevice
+        The result virtual device global info.
+    """
+    return VDevice()  # type: ignore[attr-defined] # pylint: disable=no-member

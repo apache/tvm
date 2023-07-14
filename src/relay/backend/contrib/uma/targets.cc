@@ -32,6 +32,7 @@ namespace relay {
 namespace contrib {
 namespace uma {
 transform::Pass RelayToTIR(String target_name);
+using FTVMTIRToRuntime = runtime::TypedPackedFunc<runtime::Module(IRModule, Target)>;
 runtime::Module TIRToRuntime(IRModule mod, Target target);
 }  // namespace uma
 }  // namespace contrib
@@ -57,7 +58,7 @@ TVM_REGISTER_GLOBAL("relay.backend.contrib.uma.RegisterTarget")
               .add_attr_option<Array<String>>("libs")
               .add_attr_option<Target>("host")
               .add_attr_option<Integer>("from_device")
-              .set_attr<FTVMRelayToTIR>(attr::kRelayToTIR,
+              .set_attr<tvm::transform::Pass>(attr::kRelayToTIR,
                                         relay::contrib::uma::RelayToTIR(target_name))
               .set_attr<FTVMTIRToRuntime>("TIRToRuntime", relay::contrib::uma::TIRToRuntime);
 

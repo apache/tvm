@@ -27,4 +27,5 @@ __all__ = [
     "module_global_infos",
     "dummy_global_info",
     "Range",
+    "vdevice",
 ]

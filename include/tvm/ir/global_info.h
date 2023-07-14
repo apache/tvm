@@ -25,9 +25,15 @@
 #ifndef TVM_IR_GLOBAL_INFO_H_
 #define TVM_IR_GLOBAL_INFO_H_
 
-#include "tvm/ir/expr.h"
+#include <tvm/ir/expr.h>
+#include <tvm/target/target.h>
 
 namespace tvm {
+
+/*!
+ * \brief Abstract label for an area of memory.
+ */
+using MemoryScope = String;
 
 /*!
  * \brief GlobalInfo are globally static object that are referred by the IR itself.
@@ -48,6 +54,38 @@ class GlobalInfoNode : public Object {
 class GlobalInfo : public ObjectRef {
  public:
   TVM_DEFINE_OBJECT_REF_METHODS(GlobalInfo, ObjectRef, GlobalInfoNode);
+};
+
+/*!
+ * \brief A global info subclass for virtual devices.
+ */
+class VDeviceNode : public GlobalInfoNode {
+ public:
+  /*! \brief The \p Target describing how to compile for the virtual device. */
+  Target target;
+  /*! \brief The device identifier for the virtual device. This enables us to
+   * differentiate between distinct devices with same Target, such as multiple GPUs.
+   */
+  int vdevice_id;
+  MemoryScope memory_scope;
+  void VisitAttrs(tvm::AttrVisitor* v) {}
+  static constexpr const char* _type_key = "VDevice";
+
+  TVM_DLL bool SEqualReduce(const VDeviceNode* other, SEqualReducer equal) const {
+    return true;
+  }
+
+  TVM_DLL void SHashReduce(SHashReducer hash_reduce) const {}
+  TVM_DECLARE_FINAL_OBJECT_INFO(VDeviceNode, GlobalInfoNode);
+};
+
+/*!
+ * \brief Managed reference to VDeviceNode.
+ * \sa VDeviceNode
+ */
+class VDevice : public GlobalInfo {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(VDevice, GlobalInfo, VDeviceNode);
 };
 
 /*!

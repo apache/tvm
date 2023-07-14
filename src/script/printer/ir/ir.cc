@@ -119,6 +119,11 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
+    .set_dispatch<VDevice>("", [](GlobalInfo ginfo, ObjectPath p, IRDocsifier d) -> Doc {
+      return IR(d, "vdevice")->Call({});
+    });
+
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<Op>("", [](Op op, ObjectPath p, IRDocsifier d) -> Doc {
       return IR(d, "Op")->Call({LiteralDoc::Str(op->name, p->Attr("name"))});
     });

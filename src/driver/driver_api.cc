@@ -431,6 +431,23 @@ std::pair<IRModule, IRModule> SplitMixedModule(IRModule mod_mixed, const Target&
   return {host_mod, device_mod};
 }
 
+/*!
+ * \brief Check and update host field of the given legacy heterogeneous targets and
+ *  target host.Note that this function is for legacy target api compatibility issue only,
+ *  not recommended for other use.
+ * \param ir_modules The pointer to a Map objects with keys being Target objects
+ * \param host The Target typed object for target host to be updated
+ */
+void CheckAndUpdateHostConsistency(Map<Target, IRModule>* targets, Target* host) {
+  Map<Target, IRModule> new_targets;
+  for (auto& it : *targets) {
+    auto target = it.first;
+    CheckAndUpdateHostConsistency(&target, host);
+    new_targets.Set(target, it.second);
+  }
+  *targets = new_targets;
+}
+
 runtime::Module TIRToRuntime(const Map<Target, IRModule>& inputs_arg,
                              const Target& target_host_arg) {
   std::vector<runtime::Module> device_modules;

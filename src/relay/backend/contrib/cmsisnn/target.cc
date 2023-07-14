@@ -31,13 +31,14 @@ namespace contrib {
 namespace cmsisnn {
 
 tvm::transform::Pass RelayToTIR();
+using FTVMTIRToRuntime = runtime::TypedPackedFunc<runtime::Module(IRModule, Target)>;
 runtime::Module TIRToRuntime(IRModule mod, Target target);
 
 TVM_REGISTER_TARGET_KIND("cmsis-nn", kDLCPU)
     .add_attr_option<Array<String>>("mattr")
     .add_attr_option<String>("mcpu")
     .add_attr_option<Bool>("debug_last_error")
-    .set_attr<FTVMRelayToTIR>(tvm::attr::kRelayToTIR, RelayToTIR())
+    .set_attr<tvm::transform::Pass>(tvm::attr::kRelayToTIR, RelayToTIR())
     .set_attr<FTVMTIRToRuntime>("TIRToRuntime", TIRToRuntime)
     .set_target_parser(tvm::target::parsers::cpu::ParseTarget);
 

@@ -46,6 +46,7 @@ namespace tvm {
 namespace relay {
 namespace contrib {
 namespace ethosu {
+using FTVMTIRToRuntime = runtime::TypedPackedFunc<runtime::Module(IRModule, Target)>;
 
 /*!
  * \brief This mutator outlines functions that are marked with a named
@@ -320,7 +321,7 @@ runtime::Module TIRToRuntime(IRModule mod, Target target) {
 
 TVM_REGISTER_TARGET_KIND("ethos-u", kDLCPU)
     .set_attr<Bool>("use_device_api", Bool(true))
-    .set_attr<FTVMRelayToTIR>(tvm::attr::kRelayToTIR, RelayToTIR())
+    .set_attr<tvm::transform::Pass>(tvm::attr::kRelayToTIR, RelayToTIR())
     .set_attr<FTVMTIRToRuntime>("TIRToRuntime", TIRToRuntime);
 
 }  // namespace ethosu
