@@ -102,6 +102,15 @@ def _has_dependency(from_var: Var, to_var: Var, var_usages: Mapping[Var, Sequenc
     return False
 
 
+def _is_same_shape(shape1, shape2):
+    analyzer = tvm.arith.Analyzer()
+    return all([analyzer.can_prove_equal(s1, s2) for s1, s2 in zip(shape1, shape2)])
+
+
+def _is_bias_like(shape, out_channel):
+    return shape[-1] == out_channel and _shape_1d(shape) == out_channel
+
+
 def _check_residual(root_call: Call, context: PatternCheckContext) -> bool:
     if "residual" in context.annotated_expr:
         residual = context.annotated_expr["residual"]
@@ -116,14 +125,12 @@ def _check_residual(root_call: Call, context: PatternCheckContext) -> bool:
             # If residual depends on the result of the root call, this cannot be handled by cutlass.
             return False
 
-        # shape1 = [int(s) for s in root_var.struct_info.shape]
-        # shape2 = [int(s) for s in residual.struct_info.shape]
+        shape1 = root_var.struct_info.shape
+        shape2 = residual.struct_info.shape
+        out_channel = shape1[-1]
 
-        # out_channel = shape1[-1]
-        # is_bias_like = lambda shape: (shape[-1] == out_channel and _shape_1d(shape) == out_channel)
-
-        # if shape1 != shape2 and not is_bias_like(shape2):
-        #     return False
+        if not _is_same_shape(shape1, shape2) and not _is_bias_like(shape2, out_channel):
+            return False
 
     return True
 
@@ -239,7 +246,6 @@ def _check_decode_matmul(ctx):
         return False
 
     N = root.struct_info.shape[-1]
-    K = call_tir_decode.struct_info.shape[0]
 
     if ctx.annotated_expr["lhs"].struct_info.dtype != "float16":
         return False
@@ -258,10 +264,6 @@ def _check_decode_matmul(ctx):
     ):
         return False
 
-    # # packed weight needs to be of shape (K, N // 2)
-    # if packed_weight.struct_info.shape[0] != K or packed_weight.struct_info.shape[1] != N // 2:
-    #     return False
-
     scales = ctx.annotated_expr["scales"]
 
     if scales.struct_info.dtype != "float16":
@@ -271,12 +273,14 @@ def _check_decode_matmul(ctx):
     if len(scales.struct_info.shape) != 1 or scales.struct_info.shape[0] != N:
         return False
 
-    # # bias shape needs to be (N,), possibly with additional axes on the front.
-    # if "bias" in ctx.annotated_expr:
-    #     bias_shape = ctx.annotated_expr["bias"].struct_info.shape
-    #     bias_shape_1d = reduce(operator.mul, bias_shape, 1)
-    #     if bias_shape_1d != bias_shape[-1]:
-    #         return False
+    if "bias" in ctx.annotated_expr:
+        out_shape = root.struct_info.shape
+        bias_shape = ctx.annotated_expr["bias"].struct_info.shape
+
+        # bias shape needs to be (N,), possibly with additional axes on the front.
+        # It can also have the same shape as the output.
+        if not _is_bias_like(bias_shape, N) and not _is_same_shape(out_shape, bias_shape):
+            return False
 
     return True
 
