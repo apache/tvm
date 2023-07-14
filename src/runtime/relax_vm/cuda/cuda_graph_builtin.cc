@@ -36,7 +36,9 @@ class CUDAGraphCache : public Object {
  public:
   struct CaptureResult {
     ~CaptureResult() {
-      CUDA_CALL(cudaGraphExecDestroy(exec));
+      if (exec) {
+	CUDA_CALL(cudaGraphExecDestroy(exec));
+      }
     }
     /*!
      * \brief Tuple of intemediate tensors in the capture func that will be used outside the
@@ -44,7 +46,7 @@ class CUDAGraphCache : public Object {
      */
     ObjectRef states;
     /*! \brief The instantiated cuda graph */
-    cudaGraphExec_t exec;
+    cudaGraphExec_t exec = nullptr;
   };
 
   static CUDAGraphCache* Get() { return dmlc::ThreadLocalStore<CUDAGraphCache>::Get(); }
