@@ -37,6 +37,26 @@ RELAX_REGISTER_UNARY_NN_OP_AND_IMPL(gelu_tanh, "nn.gelu_tanh", /*require_float_d
 /* relax.nn.silu */
 RELAX_REGISTER_UNARY_NN_OP_AND_IMPL(silu, "nn.silu", /*require_float_dtype=*/true);
 
+/* relax.nn.leakyrelu */
+TVM_REGISTER_NODE_TYPE(LeakyReluAttrs);
+
+Expr leakyrelu(Expr data, double alpha) {
+  auto attrs = make_object<LeakyReluAttrs>();
+  attrs->alpha = alpha;
+  static const Op& op = Op::Get("relax.nn.leakyrelu");
+  return Call(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.nn.leakyrelu").set_body_typed(leakyrelu);
+
+TVM_REGISTER_OP("relax.nn.leakyrelu")
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .set_attrs_type<LeakyReluAttrs>()
+    .set_attr<FInferStructInfo>("FInferStructInfo",
+                                InferStructInfoUnaryArith</*require_float_dtype=*/true>)
+    .set_attr<Bool>("FPurity", Bool(true));
+
 /* relax.nn.softmax */
 TVM_REGISTER_NODE_TYPE(SoftmaxAttrs);
 

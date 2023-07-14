@@ -26,6 +26,7 @@ from tvm.script import relax as R
 def test_op_correctness():
     x = relax.Var("x", R.Tensor((2, 3), "float32"))
     assert relax.op.nn.relu(x).op == Op.get("relax.nn.relu")
+    assert relax.op.nn.leakyrelu(x).op == Op.get("relax.nn.leakyrelu")
     assert relax.op.nn.gelu(x).op == Op.get("relax.nn.gelu")
     assert relax.op.nn.silu(x).op == Op.get("relax.nn.silu")
     assert relax.op.nn.softmax(x).op == Op.get("relax.nn.softmax")
@@ -61,12 +62,15 @@ def test_linear_unit_infer_struct_info():
     x2 = relax.Var("x", R.Tensor("float32", ndim=-1))
     x3 = relax.Var("x", R.Tensor((2, 3)))
     x4 = relax.Var("x", R.Tensor())
+    x5 = relax.Var("x", R.Tensor((3, 4)))
 
     _check_inference(bb, relax.op.nn.relu(x0), relax.TensorStructInfo((2, 3), "float32"))
     _check_inference(bb, relax.op.nn.silu(x1), relax.TensorStructInfo(dtype="float32", ndim=3))
     _check_inference(bb, relax.op.nn.gelu(x2), relax.TensorStructInfo(dtype="float32"))
     _check_inference(bb, relax.op.nn.relu(x3), relax.TensorStructInfo((2, 3), dtype=""))
     _check_inference(bb, relax.op.nn.gelu(x4), relax.TensorStructInfo(dtype=""))
+    _check_inference(bb, relax.op.nn.leakyrelu(x0), relax.TensorStructInfo((2, 3), "float32"))
+    _check_inference(bb, relax.op.nn.leakyrelu(x5), relax.TensorStructInfo((3, 4), dtype=""))
 
 
 def test_linear_unit_infer_struct_info_shape_symbolic():
@@ -78,6 +82,7 @@ def test_linear_unit_infer_struct_info_shape_symbolic():
 
     _check_inference(bb, relax.op.nn.silu(x0), relax.TensorStructInfo((m, n), "float32"))
     _check_inference(bb, relax.op.nn.relu(x1), relax.TensorStructInfo((4, n), "float32"))
+    _check_inference(bb, relax.op.nn.leakyrelu(x1), relax.TensorStructInfo((4, n), "float32"))
 
 
 def test_linear_unit_infer_struct_info_shape_var():
@@ -89,6 +94,7 @@ def test_linear_unit_infer_struct_info_shape_var():
 
     _check_inference(bb, relax.op.nn.gelu(x0), relax.TensorStructInfo(s0, "float32"))
     _check_inference(bb, relax.op.nn.relu(x1), relax.TensorStructInfo(s1, "float32"))
+    _check_inference(bb, relax.op.nn.leakyrelu(x1), relax.TensorStructInfo(s1, "float32"))
 
 
 def test_linear_unit_infer_struct_info_more_input_dtype():
