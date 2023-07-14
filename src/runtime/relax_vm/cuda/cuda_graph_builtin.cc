@@ -37,7 +37,7 @@ class CUDAGraphCache : public Object {
   struct CaptureResult {
     ~CaptureResult() {
       if (exec) {
-	CUDA_CALL(cudaGraphExecDestroy(exec));
+        CUDA_CALL(cudaGraphExecDestroy(exec));
       }
     }
     /*!

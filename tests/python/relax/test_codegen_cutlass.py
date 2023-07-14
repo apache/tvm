@@ -96,6 +96,12 @@ def build_and_run(mod, inputs_np, target, legalize=True, cuda_graph=False):
     vm = relax.VirtualMachine(ex, dev)
     f = vm["main"]
     inputs = [tvm.nd.array(inp, dev) for inp in inputs_np]
+
+    # For cuda graph, run the compiled function twice to make sure that we can launch the cached
+    # graph on the second run.
+    if cuda_graph:
+        f(*inputs)
+
     return f(*inputs).numpy()
 
 
