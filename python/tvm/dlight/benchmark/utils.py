@@ -127,7 +127,9 @@ def default_dym_var_sample_func(dym_var_dict: Dict[str, str]) -> Dict[str, int]:
     return results
 
 
-def print_results(bench_results: List[Dict[str, Any]], sort_by: str = "WxTime(ms)"):
+def print_results(
+    bench_results: List[Dict[str, Any]], sort_by: str = "WxTime(ms)", desc: bool = True
+):
     """Print benchmark results.
 
     Parameters
@@ -135,15 +137,23 @@ def print_results(bench_results: List[Dict[str, Any]], sort_by: str = "WxTime(ms
     bench_results : List[Dict[str, Any]]
         Benchmark results as dictionary list.
     sort_by : str
-        Sort results by this key, descending.
+        Sort results by this key, if None, no sorting.
+    desc : bool
+        Whether to sort results in descending order.
     """
-    import pandas as pd  # pylint: disable=import-outside-toplevel
+    # pylint: disable=invalid-name, import-outside-toplevel
+    import pandas as pd
 
-    df = pd.DataFrame()  # pylint: disable=invalid-name
+    df = pd.DataFrame()
     for record in bench_results:
-        df.append(
-            record,
+        df = pd.concat(
+            [df, pd.DataFrame(record, index=[0])],
             ignore_index=True,
         )
-    print(df.sort_values(sort_by, ascending=False).reset_index().drop("index", axis=1))
+    if sort_by is not None:
+        if sort_by not in df.columns:
+            raise ValueError(f"sort_by key {sort_by} not in benchmark results")
+        df = df.sort_values(sort_by, ascending=not desc).reset_index().drop("index", axis=1)
+    print(df)
     print("\n")
+    # pylint: enable=invalid-name, import-outside-toplevel

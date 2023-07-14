@@ -15,5 +15,5 @@
 # specific language governing permissions and limitations
 # under the License.
 """Benchmarking dynamic shape workloads"""
-from .bench import benchmark, benchmark_relax_func
+from .bench import benchmark, benchmark_prim_func, benchmark_relax_func
 from .extract import extract_prim_func, extract_from_relax

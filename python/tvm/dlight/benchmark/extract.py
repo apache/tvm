@@ -31,14 +31,13 @@ import tvm
 from tvm import relax
 from tvm.script import tir as T
 
-from mlc_bench.benchmark import MLCBench
+from tvm.dlight.bench import benchmark_prim_func
 
 MODEL_NAME = "{model_name}"
 RELAX_FUNC_NAME = "{relax_func_name}"
 PRIM_FUNC_NAME = "{prim_func_name}"
 FUNC_HASH = {func_hash}
 WEIGHT = {weight}
-CAT = {category}
 SAMPLE_NUMBER = {sample_number}
 
 INPUT_ARGS = pickle.loads({input_args})
@@ -48,33 +47,21 @@ DYM_VAR_DICT = pickle.loads({dym_var_dict})
 {func_script}
 
 if __name__ == "__main__":
-    bench = MLCBench()
     target = tvm.target.Target("{target}")
     dev = {dev}
     print("Input args:", INPUT_ARGS)
-    for _ in range(SAMPLE_NUMBER):
-        dym_var_sample = DYM_VAR_SAMPLE_FUNC(DYM_VAR_DICT)
-        input_infos, median, std = bench.benchmark(
-            main,
-            INPUT_ARGS,
-            dym_var_sample=dym_var_sample,
-            target=target,
-            dev=dev,
-        )
-        bench.record(
-            {{
-                "RelaxFunc": RELAX_FUNC_NAME,
-                "PrimFunc": PRIM_FUNC_NAME,
-                "InputInfo": ", ".join(
-                    [f"{{k}} = {{v}}" for k, v in dym_var_sample.items()]
-                ),
-                "Time(us)": median*1e6,
-                "Std(us)": std*1e6,
-                "Weight": WEIGHT,
-                "WxTime(ms)": WEIGHT*median*1e3,
-            }}
-        )
-    bench.show()
+    benchmark_prim_func(
+        main,
+        args=INPUT_ARGS,
+        dym_var_dict=DYM_VAR_DICT,
+        dym_var_sample_func=DYM_VAR_SAMPLE_FUNC,
+        sample_number=SAMPLE_NUMBER,
+        target=target,
+        dev = dev,
+        weight = WEIGHT,
+        relax_func_name = RELAX_FUNC_NAME,
+        prim_func_name = PRIM_FUNC_NAME,
+    )
 """
 
 
