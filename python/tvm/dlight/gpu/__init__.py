@@ -22,3 +22,4 @@ from .decode_gemv import DecodeGEMV
 from .fallback import Fallback
 from .matmul import Matmul
 from .reduction import Reduction
+from .transpose import Transpose
