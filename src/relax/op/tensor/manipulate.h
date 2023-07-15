@@ -66,7 +66,7 @@ Expr flatten(Expr x);
  * \param pad_value The value used for padding if the transformation results in implicit padding. If
  * not specified, any value can be used.
  * \param axis_separators Array of values to differentiate between input axes
- * when generating flattened output axes
+ * when generating flattened output axes.
  * \return The transformed result.
  */
 Expr layout_transform(Expr x, tir::IndexMap index_map, Optional<PrimValue> pad_value,

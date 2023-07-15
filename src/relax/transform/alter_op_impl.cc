@@ -123,7 +123,8 @@ class AlterOpImplMutator : public ExprMutator {
     Array<IndexMap> buffer_transforms;
     Optional<Array<Array<IntImm>>> axis_separators;
     if (op_buffer_transforms__.count(op_kind)) buffer_transforms = op_buffer_transforms__[op_kind];
-    if (op_buffer_axis_separators__.count(op_kind)) axis_separators = op_buffer_axis_separators__[op_kind];
+    if (op_buffer_axis_separators__.count(op_kind))
+      axis_separators = op_buffer_axis_separators__[op_kind];
 
     ICHECK(buffer_transforms.empty() || buffer_transforms.size() == replacement_func->params.size())
         << "Either the i/o buffers do not require any transformations or transformations for each "
@@ -210,7 +211,7 @@ class AlterOpImplMutator : public ExprMutator {
    * \brief Updates call inputs with layout transformed inputs
    */
   Tuple UpdateInputs(const Tuple& inputs, const Array<IndexMap>& transforms,
-                     Optional<Array<Array<IntImm>>>& axis_separators) {
+                     const Optional<Array<Array<IntImm>>>& axis_separators) {
     if (transforms.empty()) return inputs;
 
     Array<Expr> updated_inputs;
@@ -268,7 +269,7 @@ class AlterOpImplMutator : public ExprMutator {
 
   Expr TransformOutputs(const Expr& expr, const Array<IndexMap>& buffer_transforms,
                         const StructInfo& old_struct_info,
-                        Optional<Array<Array<IntImm>>>& axis_separators) {
+                        const Optional<Array<Array<IntImm>>>& axis_separators) {
     if (buffer_transforms.empty()) return expr;
 
     Array<TensorStructInfo> old_output_sinfo = GetTensorStructInfoPerOutput(old_struct_info);
