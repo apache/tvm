@@ -150,6 +150,7 @@ class TensorProxy(StructInfoProxy):
 def Tensor(
     shape: Optional[Union[List[Union[PrimExpr, str]], Expr]] = None,
     dtype: Optional[str] = None,
+    vdevice: Optional[str] = None,
     ndim: int = -1,
 ) -> TensorProxy:
     # scalar tensor case

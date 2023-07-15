@@ -156,6 +156,10 @@ class TensorStructInfoNode : public StructInfoNode {
    * \note shape must be normalized: it can only be NullOpt or ShapeExpr or Var.
    */
   Optional<Expr> shape;
+  /*! \brief The virtual device, indicates where the tensor
+   *  is expected to be executed.
+   */
+  Optional<VDevice> vdevice;
   /*! \brief The content data type, use void to denote the dtype is unknown. */
   DataType dtype;
   /*!
