@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=redefined-builtin
+# pylint: disable=redefined-builtin, invalid-name
 """PyTorch-like nn.Module API for constructing workloads."""
 
 
@@ -24,6 +24,7 @@ import numpy as np  # type: ignore
 
 import tvm
 from tvm import relax, topi, tir
+from tvm.relax.op.grad.grad import end_checkpoint, start_checkpoint
 
 
 def emit(expr: relax.Expr, name_hint: str = "") -> relax.Var:
@@ -32,6 +33,126 @@ def emit(expr: relax.Expr, name_hint: str = "") -> relax.Var:
 
 def emit_te(func: Callable, *args: Any, **kwargs: Any) -> relax.Var:
     return relax.BlockBuilder.current().emit_te(func, *args, **kwargs)
+
+
+def checkpoint(
+    func: Callable, *args: Any, **kwargs: Any
+) -> Union[relax.Var, List[relax.Var], List[Any]]:
+    """Mark function(*args, **kwargs) should be computed in a checkpointed manner during backward.
+
+    To be specific, args and kwargs will be checkpointed, and func(*args, **kwargs) will be
+    recomputed in the backward stage.
+    """
+    args = [start_checkpoint(v) if isinstance(v, relax.Expr) else v for v in args]
+    kwargs = {k: start_checkpoint(v) if isinstance(v, relax.Expr) else v for k, v in kwargs.items()}
+    result = func(*args, **kwargs)
+    if isinstance(result, (list, tuple)):
+        result = [end_checkpoint(v) if isinstance(v, relax.Expr) else v for v in result]
+    else:
+        assert isinstance(result, relax.Expr)
+        result = end_checkpoint(result)
+    return result
+
+
+def emit_checkpoint(
+    func: Callable, *args: Any, **kwargs: Any
+) -> Union[relax.Var, List[relax.Var], List[Any]]:
+    """Mark function(*args, **kwargs) should be computed in a checkpointed manner during backward.
+
+    To be specific, args and kwargs will be checkpointed, and func(*args, **kwargs) will be
+    recomputed in the backward stage.
+
+    This interface will additionally emit the exprs marked with start_checkpoint() and
+    end_checkpoint() with suffix "_scp" and "_ecp" respectively, for easily understanding the
+    result tvmscript.
+    """
+    bb = relax.BlockBuilder.current()
+    args = [
+        bb.emit(start_checkpoint(v), v.name_hint + "_scp") if isinstance(v, relax.Var) else v
+        for v in args
+    ]
+    kwargs = {
+        k: bb.emit(start_checkpoint(v), v.name_hint + "_scp") if isinstance(v, relax.Var) else v
+        for k, v in kwargs.items()
+    }
+    result = func(*args, **kwargs)
+    if isinstance(result, (list, tuple)):
+        result = list(result)
+        for i, v in enumerate(result):
+            if isinstance(v, relax.Expr):
+                if not isinstance(v, relax.Var):
+                    v = bb.emit(v)
+                result[i] = bb.emit(end_checkpoint(v), v.name_hint + "_ecp")
+    else:
+        assert isinstance(result, relax.Expr)
+        result_emit = bb.emit(result)
+        result = bb.emit(end_checkpoint(result_emit), result_emit.name_hint + "_ecp")
+
+    return result
+
+
+def emit_checkpoint_sequential(
+    functions: List[Callable],
+    segments: Union[int, List[int]],
+    input: relax.Var,
+    checkpoint_last: bool = False,
+) -> Union[relax.Var, List[relax.Var], List[Any]]:
+    """A helper function for checkpointing sequential models. This interface has similar purpose
+    as torch.utils.checkpoint.checkpoint_sequential.
+
+    Sequential models execute a list of modules/functions in order (sequentially). Therefore, we
+    can divide such a model in various segments and checkpoint each segment. By default, we will
+    checkpoint all segments except the last, meaning their inputs will be saved from the forward
+    stage and they will be recomputed in the backward stage.
+
+    Parameters
+    ----------
+    functions : List[Callable]
+        The list of functions to be executed sequentially.
+
+    segments : Union[int, List[int]]
+        The segments. If segments is int `n`, functions will be evenly divided into `n` segments;
+        if segments is a list of ints, it marks the start of every segment.
+
+    input : relax.Var
+        The input of the first function.
+
+    checkpoint_last : bool
+        Whether the last segment will be checkpointed. Default: False
+
+    Returns
+    -------
+    output : Union[relax.Var, List[relax.Var], List[Any]]
+        The emited output of the last function.
+    """
+    bb = relax.BlockBuilder.current()
+
+    def run_function(start, end, functions):
+        def forward(input):
+            for j in range(start, end):
+                input = functions[j](input)
+            return input
+
+        return forward
+
+    n = len(functions)
+    if not isinstance(segments, list):
+        segments = list(range(0, n, n // segments)) + [n]
+    if segments[-1] != n:
+        segments = segments + [n]
+
+    assert len(segments) >= 2
+
+    for i in range(len(segments) - 1):
+        if i == len(segments) - 2 and not checkpoint_last:
+            input = run_function(segments[i], segments[i + 1], functions)(input)
+        else:
+            input = emit_checkpoint(run_function(segments[i], segments[i + 1], functions), input)
+
+    assert isinstance(input, relax.Expr)
+    if not isinstance(input, relax.Var):
+        input = bb.emit(input)
+    return input
 
 
 def _try_unique_name(name: str):

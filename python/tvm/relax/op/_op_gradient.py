@@ -87,14 +87,14 @@ def _get_dtype(expr: Expr) -> str:
     return dtype
 
 
-def _fit_shape(bb: BlockBuilder, expr: Expr, target: Expr) -> Expr:
+def _fit_shape(bb: BlockBuilder, input_grad: Expr, input: Expr) -> Expr:
     """When expr and target has the same shape, return expr;
     otherwise return `collapse_sum_to(expr, target.struct_info.shape)`.
 
     Will use BlockBuilder to normalize expr first.
     """
-    target_shape = _get_shape(target)
-    expr_sinfo = _get_shape(bb.normalize(expr)).struct_info
+    target_shape = _get_shape(input)
+    expr_sinfo = _get_shape(bb.normalize(input_grad)).struct_info
     target_sinfo = target_shape.struct_info
     assert isinstance(expr_sinfo, ShapeStructInfo)
     assert isinstance(target_sinfo, ShapeStructInfo)
@@ -109,9 +109,9 @@ def _fit_shape(bb: BlockBuilder, expr: Expr, target: Expr) -> Expr:
         return True
 
     return (
-        expr
+        input_grad
         if _check_shape_equal(expr_sinfo, target_sinfo)
-        else collapse_sum_to(expr, target_shape)
+        else collapse_sum_to(input_grad, target_shape)
     )
 
 
@@ -250,15 +250,14 @@ def maximum_grad(
         `z = relax.maximum(x, y)`
 
     Backward:
-        Returns `[z_grad * (where(x < y, 0, 1)), z_grad * (where(x >= y, 0, 1))]`.
+        Returns `[where(x < y, 0, z_grad), where(x >= y, 0, z_grad)]`.
     """
     x = orig_call.args[0]
     y = orig_call.args[1]
-    one = relax.const(1, _get_dtype(x))
     zero = relax.const(0, _get_dtype(x))
     return [
-        where(less(x, y), zero, one) * output_grad,
-        where(greater_equal(x, y), zero, one) * output_grad,
+        where(less(x, y), zero, output_grad),
+        where(greater_equal(x, y), zero, output_grad),
     ]
 
 
@@ -275,15 +274,14 @@ def minimum_grad(
         `z = relax.minimum(x, y)`
 
     Backward:
-        Returns `[z_grad * (where(x >= y, 0, 1)), z_grad * (where(x < y, 0, 1))]`.
+        Returns `[where(x >= y, 0, z_grad), where(x < y, 0, z_grad)]`.
     """
     x = orig_call.args[0]
     y = orig_call.args[1]
-    one = relax.const(1, _get_dtype(x))
     zero = relax.const(0, _get_dtype(x))
     return [
-        where(greater_equal(x, y), zero, one) * output_grad,
-        where(less(x, y), zero, one) * output_grad,
+        where(greater_equal(x, y), zero, output_grad),
+        where(less(x, y), zero, output_grad),
     ]
 
 
@@ -1030,12 +1028,11 @@ def relu_grad(
         `y = relax.relu(x)`
 
     Backward:
-        Returns `[y_grad * (where(x < 0, 0, 1))]`.
+        Returns `[where(x < 0, 0, y_grad)]`.
     """
     x = orig_call.args[0]
-    one = relax.const(1, _get_dtype(x))
     zero = relax.const(0, _get_dtype(x))
-    return [where(less(x, zero), zero, one) * output_grad]
+    return [where(less(x, zero), zero, output_grad)]
 
 
 @register_gradient("relax.nn.silu")
@@ -1090,10 +1087,10 @@ def log_softmax_grad(
         `y = relax.log_softmax(x, axis)`
 
     Backward:
-        Returns `[y_grad - sum(y_output_grad, axis, keepdims=True) * softmax(x)]`
+        Returns `[y_grad - sum(y_grad, axis, keepdims=True) * exp(y)]`
     """
-    x_softmax = exp(orig_var)
-    return [(output_grad - sum(output_grad, orig_call.attrs.axis, True) * x_softmax)]
+    y_exp = exp(orig_var)
+    return [(output_grad - sum(output_grad, orig_call.attrs.axis, True) * y_exp)]
 
 
 @register_gradient("relax.nn.cross_entropy_with_logits")

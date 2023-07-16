@@ -747,7 +747,7 @@ def test_nll_loss_no_batch(target, dev, nll_reduction1, nll_weighted1, nll_ignor
     )
 
 
-(c2d_shape1, c2d_shape2, c2d_kwargs,) = tvm.testing.parameters(
+(c2d_shape1, c2d_shape2, c2d_kwargs) = tvm.testing.parameters(
     (
         (3, 2, 10, 10),
         (3, 2, 3, 3),
@@ -797,7 +797,7 @@ def test_conv2d(target, dev, c2d_shape1, c2d_shape2, c2d_kwargs):
     )
 
 
-(pool_size, pool_kwargs,) = tvm.testing.parameters(
+(pool_size, pool_kwargs) = tvm.testing.parameters(
     (
         (3, 3),
         {},
