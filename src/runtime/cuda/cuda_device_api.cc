@@ -105,7 +105,7 @@ class CUDADeviceAPI final : public DeviceAPI {
       }
       case kDriverVersion:
         return;
-      case kGlobalMemCacheSizeBytes:
+      case kL2CacheSizeBytes:
         // Get size of device l2 cache size in bytes.
         int l2_size = 0;
         CUDA_CALL(cudaDeviceGetAttribute(&l2_size, cudaDevAttrL2CacheSize, dev.device_id));
