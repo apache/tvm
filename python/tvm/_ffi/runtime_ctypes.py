@@ -487,10 +487,20 @@ class Device(ctypes.Structure):
 
         """
         return self._GetDeviceAttr(self.device_type, self.device_id, 12)
-    
+
     @property
-    def global_mem_cache_size(self):
-        """TODO(Zihao)
+    def l2_cache_size_bytes(self):
+        """Return the size of the device L2 cache in bytes
+
+        Returns
+        -------
+        l2_cache_size_bytes : int or None
+            The size of the device L2 cache in bytes returned by device runtime API.
+
+        Note
+        ----
+        The value returned by opencl's API is smaller than real device L2 cache size.
+        Vulkan does not support this attribute.
         """
         return self._GetDeviceAttr(self.device_type, self.device_id, 13)
 
