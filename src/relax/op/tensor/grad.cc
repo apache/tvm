@@ -42,8 +42,53 @@ StructInfo InferStructInfoNoGrad(const Call& call, const BlockBuilder& ctx) {
 }
 
 TVM_REGISTER_OP("relax.grad.no_grad")
-    .set_num_inputs(0)
+    .set_num_inputs(1)
+    .add_argument("x", "Expr", "The corresponding input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoNoGrad)
+    .set_attr<Bool>("FPurity", Bool(true));
+
+/* relax.grad.start_checkpoint */
+Expr start_checkpoint(Expr input) {
+  static const Op& op = Op::Get("relax.grad.start_checkpoint");
+  return Call(op, {std::move(input)}, {}, {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.grad.start_checkpoint").set_body_typed(start_checkpoint);
+
+StructInfo InferStructInfoStartCheckpoint(const Call& call, const BlockBuilder& ctx) {
+  if (!call->args[0].as<VarNode>()) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "The argument of relax.op.grad.start_checkpoint should be a Var.");
+  }
+  return GetStructInfo(call->args[0]);
+}
+
+TVM_REGISTER_OP("relax.grad.start_checkpoint")
+    .set_num_inputs(1)
+    .add_argument("x", "Expr", "The tensor marking the input of the checkpoint stage.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoStartCheckpoint)
+    .set_attr<Bool>("FPurity", Bool(true));
+
+/* relax.grad.end_checkpoint */
+Expr end_checkpoint(Expr input) {
+  static const Op& op = Op::Get("relax.grad.end_checkpoint");
+  return Call(op, {std::move(input)}, {}, {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.grad.end_checkpoint").set_body_typed(end_checkpoint);
+
+StructInfo InferStructInfoEndCheckpoint(const Call& call, const BlockBuilder& ctx) {
+  if (!call->args[0].as<VarNode>()) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "The argument of relax.op.grad.end_checkpoint should be a Var.");
+  }
+  return GetStructInfo(call->args[0]);
+}
+
+TVM_REGISTER_OP("relax.grad.end_checkpoint")
+    .set_num_inputs(1)
+    .add_argument("x", "Expr", "The output of the checkpoint stage.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoEndCheckpoint)
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.grad.nll_loss_backward */

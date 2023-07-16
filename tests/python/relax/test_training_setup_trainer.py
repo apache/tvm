@@ -68,13 +68,14 @@ def test_simple():
                 gv: R.Tensor((), dtype="float64") = R.sum(lv1, axis=None, keepdims=False)
                 gv_adjoint: R.Tensor((), dtype="float64") = R.ones(R.shape([]), dtype="float64")
                 lv1_adjoint: R.Tensor((2, 2), dtype="float64") = R.broadcast_to(gv_adjoint, R.shape([2, 2]))
+                lv_adjoint: R.Tensor((2, 2), dtype="float64") = R.multiply(lv1_adjoint, lv)
                 lv_1: R.Tensor((2, 2), dtype="float64") = R.multiply(lv1_adjoint, lv)
-                lv1_1: R.Tensor((2, 2), dtype="float64") = R.multiply(lv1_adjoint, lv)
-                lv_adjoint: R.Tensor((2, 2), dtype="float64") = R.add(lv_1, lv1_1)
-                x1_adjoint: R.Tensor((2, 2), dtype="float64") = lv_adjoint
+                lv_adjoint1: R.Tensor((2, 2), dtype="float64") = R.add(lv_adjoint, lv_1)
+                x1_adjoint: R.Tensor((2, 2), dtype="float64") = lv_adjoint1
                 y_adjoint: R.Tensor((2, 2), dtype="float64") = x1_adjoint
-                R.output(gv, y_adjoint)
-            return (gv, (y_adjoint,))
+                y_adjoint_out: R.Tensor((2, 2), dtype="float64") = y_adjoint
+                R.output(gv, y_adjoint_out)
+            return (gv, (y_adjoint_out,))
 
         @R.function
         def optimizer(params: R.Tuple(R.Tensor((2, 2), dtype="float64")), gradients: R.Tuple(R.Tensor((2, 2), dtype="float64")), optim_states: R.Tuple(R.Tensor((), dtype="int64"))) -> R.Tuple(R.Tuple(R.Tensor((2, 2), dtype="float64")), R.Tuple(R.Tensor((), dtype="int64"))):
@@ -142,13 +143,14 @@ def test_states():
                 gv: R.Tensor((), dtype="float64") = R.sum(lv1, axis=None, keepdims=False)
                 gv_adjoint: R.Tensor((), dtype="float64") = R.ones(R.shape([]), dtype="float64")
                 lv1_adjoint: R.Tensor((2, 2), dtype="float64") = R.broadcast_to(gv_adjoint, R.shape([2, 2]))
+                lv_adjoint: R.Tensor((2, 2), dtype="float64") = R.multiply(lv1_adjoint, lv)
                 lv_1: R.Tensor((2, 2), dtype="float64") = R.multiply(lv1_adjoint, lv)
-                lv1_1: R.Tensor((2, 2), dtype="float64") = R.multiply(lv1_adjoint, lv)
-                lv_adjoint: R.Tensor((2, 2), dtype="float64") = R.add(lv_1, lv1_1)
-                x1_adjoint: R.Tensor((2, 2), dtype="float64") = lv_adjoint
+                lv_adjoint1: R.Tensor((2, 2), dtype="float64") = R.add(lv_adjoint, lv_1)
+                x1_adjoint: R.Tensor((2, 2), dtype="float64") = lv_adjoint1
                 y_adjoint: R.Tensor((2, 2), dtype="float64") = x1_adjoint
-                R.output(z1, gv, y_adjoint)
-            return ((gv, z1), (y_adjoint,))
+                y_adjoint_out: R.Tensor((2, 2), dtype="float64") = y_adjoint
+                R.output(z1, gv, y_adjoint_out)
+            return ((gv, z1), (y_adjoint_out,))
 
         @R.function
         def optimizer(params: R.Tuple(R.Tensor((2, 2), dtype="float64")), gradients: R.Tuple(R.Tensor((2, 2), dtype="float64")), optim_states: R.Tuple(R.Tensor((), dtype="int64"), R.Tensor((2, 2), dtype="float64"))) -> R.Tuple(R.Tuple(R.Tensor((2, 2), dtype="float64")), R.Tuple(R.Tensor((), dtype="int64"), R.Tensor((2, 2), dtype="float64"))):
@@ -163,9 +165,10 @@ def test_states():
                 lv1: R.Tensor((2, 2), dtype="float64") = R.multiply(R.const(0.10000000000000001, "float64"), y_v_new)
                 y_new: R.Tensor((2, 2), dtype="float64") = R.subtract(y, lv1)
                 params_new: R.Tuple(R.Tensor((2, 2), dtype="float64")) = (y_new,)
-                optim_states_new: R.Tuple(R.Tensor((), dtype="int64"), R.Tensor((2, 2), dtype="float64")) = (num_steps_new, y_v_new)
+                optim_states_new: R.Tuple(R.Tensor((), dtype="int64"), R.Tensor((2, 2), dtype="float64")) = num_steps_new, y_v_new
                 R.output(params_new, optim_states_new)
             return (params_new, optim_states_new)
+
     # fmt: on
 
     sinfo = relax.TensorStructInfo((2, 2), "float64")

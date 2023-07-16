@@ -43,6 +43,59 @@ def no_grad(input: Expr) -> Expr:
     return _ffi_api.no_grad(input)  # type: ignore
 
 
+def start_checkpoint(input: Expr) -> Expr:
+    """Mark the start of the checkpoint stage. The computation between start_checkpoint and
+    end_checkpoint will be marked as the checkpoint stage.
+
+    Rather than storing all intermediate activations of the entire computation graph for
+    computing backward, the checkpointed stage does not save intermediate activations, and instead
+    recomputes them in backward process.
+
+    For instance,
+    ```
+    a = relax.Var("a", relax.TensorStructInfo((2, 2), "float32"))
+    b = relax.Var("b", relax.TensorStructInfo((2, 2), "float32"))
+    c = a * 2
+    d = b * 2
+    c_cp = start_checkpoint(c)
+    d_cp = start_checkpoint(d)
+    e = c_cp + d_cp
+    e_out = end_checkpoint(e)
+    ```
+    Then `e` will be recomputed in the backward stage.
+
+    See tvm.relax.transform.Gradient, tvm.relax.testing.nn.checkpoint,
+    tvm.relax.op.grad.end_checkpoint for more information.
+
+    Parameters
+    ----------
+    input : relax.Expr
+      The tensor marking the input of the checkpoint stage.
+
+    Returns
+    -------
+    result : relax.Expr
+      The same tensor as the input.
+    """
+    return _ffi_api.start_checkpoint(input)  # type: ignore
+
+
+def end_checkpoint(input: Expr) -> Expr:
+    """Mark the end of checkpoint stage. See tvm.relax.op.grad.start_checkpoint.
+
+    Parameters
+    ----------
+    input : relax.Expr
+      The output of the checkpoint stage.
+
+    Returns
+    -------
+    result : relax.Expr
+      The same tensor as the input.
+    """
+    return _ffi_api.end_checkpoint(input)  # type: ignore
+
+
 def nll_loss_backward(
     output_grad: Expr,
     predictions: Expr,

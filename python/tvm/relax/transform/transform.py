@@ -75,6 +75,10 @@ def Gradient(
                 R.output(original_outputs, grad_1, grad_2, ...)
             return (original_return_value, (grad_1, grad_2, ...))
 
+    This AD pass also supports checkpointing as described in
+    "Training deep nets with sublinear memory cost." - Chen, Tianqi, et al. (2016).
+    See tvm.relax.testing.nn.checkpoint for more details.
+
     Parameters
     ----------
     func_name : str
