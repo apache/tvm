@@ -161,7 +161,7 @@ class MixedPrecisionPass : public MixedModeMutator {
      */
     DataType cur_type = (attrs->out_dtype);
     ObjectPtr<T> new_attrs = make_object<T>(*attrs);
-    if (cur_type.is_float() || cur_type.is_bfloat16() || cur_type.is_void()) {
+    if (cur_type.is_floating_point() || cur_type.is_void()) {
       new_attrs->out_dtype = accumulation_dtype;
     }
     return Attrs(new_attrs);
@@ -177,7 +177,7 @@ class MixedPrecisionPass : public MixedModeMutator {
     */
     DataType cur_type = (attrs->dtype);
     ObjectPtr<T> new_attrs = make_object<T>(*attrs);
-    if (cur_type.is_float() || cur_type.is_bfloat16() || cur_type.is_void()) {
+    if (cur_type.is_floating_point() || cur_type.is_void()) {
       new_attrs->dtype = accumulation_dtype;
     }
     return Attrs(new_attrs);
@@ -202,8 +202,7 @@ class MixedPrecisionPass : public MixedModeMutator {
        If ignore_non_float, then ignore non-floating types.
      */
     if (const TensorTypeNode* tensor_type = t.as<TensorTypeNode>()) {
-      bool is_supported_floating_point_type =
-          (tensor_type->dtype).is_float() || (tensor_type->dtype).is_bfloat16();
+      bool is_supported_floating_point_type = tensor_type->dtype.is_floating_point();
       return (ignore_non_float && !is_supported_floating_point_type) ||
              tensor_type->dtype == mixed_precision_type_;
     } else if (const TupleTypeNode* tuple_type = t.as<TupleTypeNode>()) {
@@ -220,7 +219,7 @@ class MixedPrecisionPass : public MixedModeMutator {
     /* Cast tensor to the wanted datatype, returning a cached version if it's already been done. */
 
     // If this is not a floating point type, do not cast. E.g. it might be an integer
-    if (!(expr_dtype.is_float() || expr_dtype.is_bfloat16())) {
+    if (!(expr_dtype.is_floating_point())) {
       return expr;
     }
 
@@ -302,7 +301,7 @@ class MixedPrecisionPass : public MixedModeMutator {
         original_dtype_.push_back((root_->checked_type_).as<TensorTypeNode>()->dtype);
       }
     }
-    if (!(mixed_precision_type_.is_float() || mixed_precision_type_.is_bfloat16())) {
+    if (!(mixed_precision_type_.is_floating_point())) {
       LOG(FATAL) << "Only support IEEE floating point mixed precision types and bfloat16, but got "
                  << mixed_precision_type_;
     }

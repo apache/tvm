@@ -115,7 +115,7 @@ def get_type(elem_type):
         raise ImportError(f"Unable to import TensorProto from onnx {e}")
 
     # Onnx mapping converts bfloat16 to float16 because
-    # numpy does not have a bfloat16 data type. However,
+    # onnx does not have a bfloat16 data type. However,
     # tvm has one, so we force the return type to be bfloat16
     if elem_type == int(TensorProto.BFLOAT16):
         return "bfloat16"

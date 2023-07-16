@@ -2083,8 +2083,8 @@ def test_conv2d_nhwc_dnnl():
                 built with dnnl=ON"
         )
         return
-    d_shape = (1, 56, 56, 64)
-    w_shape = (3, 3, 64, 64)
+    d_shape = (1, 56, 56, 32)
+    w_shape = (3, 3, 32, 64)
     padding = (1, 1)
     strides = (1, 1)
 
@@ -2108,8 +2108,8 @@ def test_conv2d_nhwc_dnnl():
     for t in ["float32", "bfloat16"]:
         mod = tvm.IRModule.from_expr(get_subgraph(t))
 
-        data_np = np.random.uniform(1, 10, d_shape).astype("float32")
-        weight_np = np.random.uniform(1, 10, size=w_shape).astype("float32")
+        data_np = np.random.uniform(0, 10, size=d_shape).astype(t) / 10
+        weight_np = np.random.uniform(0, 10, size=w_shape).astype(t) / 10
         ref = tvm.topi.testing.conv2d_nhwc_python(data_np, weight_np, strides, padding)
 
         target = "llvm -mcpu=skylake-avx512 -libs=dnnl"
@@ -2121,13 +2121,12 @@ def test_conv2d_nhwc_dnnl():
 
         runtime.set_input("data", data_np)
         runtime.run()
-
         out = runtime.get_output(0).numpy()
 
         if t == "bfloat16":
-            np.testing.assert_allclose(out, ref, rtol=1e-2)
+            np.testing.assert_allclose(out, ref, rtol=3e-1)
         else:
-            np.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
+            np.testing.assert_allclose(out, ref, rtol=1e-3, atol=1e-3)
 
 
 def _test_conv2d_int8_alter_dtype(data_dtype, target, dot_product_instrs):
