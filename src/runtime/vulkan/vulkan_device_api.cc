@@ -160,6 +160,10 @@ void VulkanDeviceAPI::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) 
       *rv = os.str();
       break;
     }
+
+    case kGlobalMemCacheSizeBytes:
+      *rv = 256 * 1024 * 1024;  // return 256mb by default
+      break;
   }
 }
 

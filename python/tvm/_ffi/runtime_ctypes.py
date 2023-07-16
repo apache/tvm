@@ -487,6 +487,12 @@ class Device(ctypes.Structure):
 
         """
         return self._GetDeviceAttr(self.device_type, self.device_id, 12)
+    
+    @property
+    def global_mem_cache_size(self):
+        """TODO(Zihao)
+        """
+        return self._GetDeviceAttr(self.device_type, self.device_id, 13)
 
     def texture_spatial_limit(self):
         """Returns limits for textures by spatial dimensions

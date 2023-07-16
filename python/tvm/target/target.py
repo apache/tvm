@@ -243,7 +243,11 @@ class Target(Object):
     @property
     def features(self):
         return TargetFeatures(self)
-
+    
+    @property
+    def global_mem_cache_size(self):
+        return int(self.attrs.get("global_mem_cache_size", 0))
+    
     def get_kind_attr(self, attr_name):
         """Get additional attribute about the target kind.
 

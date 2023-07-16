@@ -198,6 +198,12 @@ void OpenCLWorkspace::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) 
       *rv = std::string(value);
       break;
     }
+    case kGlobalMemCacheSizeBytes:
+      cl_ulong value;
+      OPENCL_CALL(clGetDeviceInfo(device_id, CL_DEVICE_GLOBAL_MEM_CACHE_SIZE, sizeof(value), &value,
+                                  nullptr));
+      *rv = static_cast<int64_t>(value);
+      break;
   }
 }
 
