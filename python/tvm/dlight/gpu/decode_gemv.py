@@ -233,7 +233,11 @@ class DecodeGEMV(ScheduleRule):
                 _, *s = sch.get_loops(epilogue)  # pylint: disable=invalid-name
                 _, tx, ty = sch.split(sch.fuse(*s), factors=[None, len_tx, len_ty])
                 sch.bind(tx, "threadIdx.x")
-                sch.bind(ty, "threadIdx.x")
+                sch.bind(ty, "threadIdx.y")
             else:
+                # The epilogue is element-wise without broadcasting.
+                # Thus the remaining spatial part should be bind to tx.
                 sch.set_scope(block, 0, "local")
+                _, *s = sch.get_loops(epilogue)  # pylint: disable=invalid-name
+                sch.bind(sch.fuse(*s), "threadIdx.x")
         # pylint: enable=invalid-name
