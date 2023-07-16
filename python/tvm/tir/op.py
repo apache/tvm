@@ -616,7 +616,7 @@ def tvm_storage_sync(storage_scope):
     call : PrimExpr
         The call expression.
     """
-    return call_intrin("handle", "tir.tvm_storage_sync", storage_scope)
+    return call_intrin("int32", "tir.tvm_storage_sync", storage_scope)
 
 
 def tvm_warp_shuffle(mask, value, warp_id, width, warp_size):
