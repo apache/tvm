@@ -302,7 +302,7 @@ class TestKeras:
         x = keras_mod.layers.GlobalAveragePooling3D()(data)
         keras_model = keras_mod.models.Model(data, x)
         with pytest.raises(RuntimeError):
-            verify_model(keras_model)
+            verify_keras_frontend(keras_model)
 
     def test_forward_conv1d(self, keras_mod):
         """test_forward_conv1d"""
