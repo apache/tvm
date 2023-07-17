@@ -125,7 +125,7 @@ class ROCMDeviceAPI final : public DeviceAPI {
       case kL2CacheSizeBytes:
         // Get size of device l2 cache size in bytes.
         int l2_size;
-        ROCM_CALL(hipDeviceGetAttribute(l2_size, hipDeviceAttributeL2CacheSize, device.device_id));
+        ROCM_CALL(hipDeviceGetAttribute(&l2_size, hipDeviceAttributeL2CacheSize, device.device_id));
         *rv = l2_size;
     }
     *rv = value;
