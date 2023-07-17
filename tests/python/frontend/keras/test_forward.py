@@ -32,7 +32,6 @@ import tvm
 from tvm import relay
 from tvm.contrib import graph_executor
 import tvm.testing
-import pytest
 
 if tf.executing_eagerly():
     GPUS = tf.config.experimental.list_physical_devices("GPU")
@@ -302,7 +301,7 @@ class TestKeras:
         data = keras_mod.layers.Input(shape=(0, 3, 6, 4))
         x = keras_mod.layers.GlobalAveragePooling3D()(data)
         keras_model = keras_mod.models.Model(data, x)
-        with pytest.raises(RuntimeError):
+        with pytest.raises(ValueError):
             verify_keras_frontend(keras_model)
 
     def test_forward_conv1d(self, keras_mod):
