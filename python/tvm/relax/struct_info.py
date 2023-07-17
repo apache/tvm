@@ -16,14 +16,15 @@
 # under the License.
 # pylint: disable=invalid-name, unused-import
 """The struct info nodes of the Relax language."""
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Union
 
 import tvm._ffi
 import tvm
 
-from tvm.ir import Span, Node, EnvFunc, Array, Type
+from tvm.ir import Span, EnvFunc, Array
 from tvm.tir import PrimExpr
-from .expr import StructInfo, Var, Expr, ShapeExpr
+from tvm.runtime import String
+from .expr import StructInfo, Expr, ShapeExpr
 
 from . import _ffi_api, ty, expr
 
@@ -93,6 +94,9 @@ class TensorStructInfo(StructInfo):
     dtype : Optional[str]
         The content data type.
 
+    vdevice : Optional[str]
+        The virtual device.
+
     ndim : Optional[int]
        The number of dimensions of the tensor.
 
@@ -103,6 +107,7 @@ class TensorStructInfo(StructInfo):
 
     shape: Optional[Expr]
     dtype: str
+    vdevice: str
     ndim: int
     span: Span
 
@@ -110,14 +115,15 @@ class TensorStructInfo(StructInfo):
         self,
         shape: Union[Optional[Expr], List[PrimExpr]] = None,
         dtype: str = "float32",
+        vdevice: str = "",
         ndim: int = -1,
         span: Span = None,
     ) -> None:
         if isinstance(shape, (list, tuple, Array)):
             shape = ShapeExpr(shape)
-
+        vdevice = "" if vdevice is None else vdevice
         self.__init_handle_by_constructor__(
-            _ffi_api.TensorStructInfo, shape, dtype, ndim, span  # type: ignore
+            _ffi_api.TensorStructInfo, shape, dtype, ndim, vdevice, span  # type: ignore
         )
 
 

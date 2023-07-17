@@ -290,7 +290,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
         auto sinfo = GetStructInfo(var);
         if (auto tensor_sinfo = sinfo.as<TensorStructInfoNode>()) {
           TensorStructInfo fp16_sinfo(tensor_sinfo->shape.value(), DataType::Float(16),
-                                      tensor_sinfo->span);
+                                      tensor_sinfo->vdevice.value(), tensor_sinfo->span);
           Var fp16_var(var->vid, fp16_sinfo, var->span);
           var_remap_[var->vid] = fp16_var;
           return fp16_var;

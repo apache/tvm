@@ -97,7 +97,7 @@ StructInfo StructInfoMutator::VisitStructInfo_(const TensorStructInfoNode* op) {
   if (shape.same_as(op->shape)) {
     return GetRef<StructInfo>(op);
   } else {
-    return TensorStructInfo(shape.value(), op->dtype, op->span);
+    return TensorStructInfo(shape.value(), op->dtype, op->vdevice.value(), op->span);
   }
 }
 

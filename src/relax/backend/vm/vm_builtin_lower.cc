@@ -21,6 +21,7 @@
  * \brief Lowers most builtin functions and packed calls.
  */
 #include <tvm/relax/analysis.h>
+#include <tvm/relax/attrs/op.h>
 #include <tvm/relax/backend.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/type.h>
@@ -46,6 +47,8 @@ class VMBuiltinLowerMutator : public ExprMutator {
       return Reshape(call);
     } else if (call->op == shape_of_op_) {
       return ShapeOf(call);
+    } else if (call->op == to_vdevice_op_) {
+      return ToDevice(call);
     } else if (call->op == make_closure_op_) {
       return MakeClosure(call);
     } else if (call->op == invoke_closure_op_) {
@@ -156,6 +159,22 @@ class VMBuiltinLowerMutator : public ExprMutator {
     return Call(builtin_shape_of_, call_node->args, Attrs(), {GetStructInfo(call_node)});
   }
 
+  Expr ToDevice(const Call& call_node) {
+    // TODO(yongwww): replace ToVDeviceAttrs with related Expr
+    ICHECK(call_node->args.size() == 1);
+    ICHECK(call_node->struct_info_.defined());
+    auto attrs = call_node->attrs.as<ToVDeviceAttrs>();
+    Array<Expr> args;
+    args.push_back(call_node->args[0]);
+    // Get the DLDeviceType and device_id from VDevice
+    VDevice vdev = attrs->dst_vdevice;
+    int dev_type = vdev->target->GetTargetDeviceType();
+    int dev_id = vdev->vdevice_id;
+    args.push_back(PrimValue::Int64(dev_type));
+    args.push_back(PrimValue::Int64(dev_id));
+    return Call(builtin_to_device_, args, call_node->attrs, {GetStructInfo(call_node)});
+  }
+
   Expr MakeClosure(const Call& call_node) {
     ICHECK(call_node->args.size() == 2);
     ICHECK(call_node->args[0]->IsInstance<GlobalVarNode>());
@@ -198,6 +217,7 @@ class VMBuiltinLowerMutator : public ExprMutator {
   const Op& call_tir_dyn_op_ = Op::Get("relax.vm.call_tir_dyn");
   const Op& reshape_op_ = Op::Get("relax.reshape");
   const Op& shape_of_op_ = Op::Get("relax.shape_of");
+  const Op& to_vdevice_op_ = Op::Get("relax.to_vdevice");
   const Op& make_closure_op_ = Op::Get("relax.make_closure");
   const Op& invoke_closure_op_ = Op::Get("relax.invoke_closure");
   const Op& alloc_tensor_op_ = Op::Get("relax.builtin.alloc_tensor");
@@ -214,6 +234,7 @@ class VMBuiltinLowerMutator : public ExprMutator {
   const ExternFunc builtin_call_tir_dyn_{"vm.builtin.call_tir_dyn"};
   const ExternFunc builtin_reshape_{"vm.builtin.reshape"};
   const ExternFunc builtin_shape_of_{"vm.builtin.shape_of"};
+  const ExternFunc builtin_to_device_{"vm.builtin.to_device"};
   const ExternFunc builtin_make_closure_{"vm.builtin.make_closure"};
   const ExternFunc builtin_invoke_closure_{"vm.builtin.invoke_closure"};
 };

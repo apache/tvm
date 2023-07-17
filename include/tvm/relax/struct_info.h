@@ -159,7 +159,7 @@ class TensorStructInfoNode : public StructInfoNode {
   /*! \brief The virtual device, indicates where the tensor
    *  is expected to be executed.
    */
-  Optional<VDevice> vdevice;
+  Optional<String> vdevice;
   /*! \brief The content data type, use void to denote the dtype is unknown. */
   DataType dtype;
   /*!
@@ -184,17 +184,20 @@ class TensorStructInfoNode : public StructInfoNode {
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("shape", &shape);
     v->Visit("dtype", &dtype);
+    v->Visit("vdevice", &vdevice);
     v->Visit("ndim", &ndim);
     v->Visit("span", &span);
   }
 
   bool SEqualReduce(const TensorStructInfoNode* other, SEqualReducer equal) const {
-    return equal(shape, other->shape) && equal(ndim, other->ndim) && equal(dtype, other->dtype);
+    return equal(shape, other->shape) && equal(ndim, other->ndim) &&
+           equal(vdevice, other->vdevice) && equal(dtype, other->dtype);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
     hash_reduce(shape);
     hash_reduce(dtype);
+    hash_reduce(vdevice);
     hash_reduce(ndim);
   }
 
@@ -212,19 +215,21 @@ class TensorStructInfo : public StructInfo {
    * \brief Construction with a known shape expression.
    * \param shape The shape of the tensor.
    * \param dtype The data type of tensor's elements.
+   * \param vdevice The virtual device.
    * \param span The span of the AST.
    *
    * \note shape must already be normalized.
    */
-  TVM_DLL TensorStructInfo(Expr shape, DataType dtype, Span span = Span());
+  TVM_DLL TensorStructInfo(Expr shape, DataType dtype, String vdevice = "", Span span = Span());
 
   /*!
    * \brief Construction with an unknown shape expression.
    * \param dtype The data type of tensor's elements.
    * \param ndim The number of dimensions
+   * \param vdevice The virtual device.
    * \param span The span of the AST.
    */
-  TVM_DLL TensorStructInfo(DataType dtype, int ndim, Span span = Span());
+  TVM_DLL TensorStructInfo(DataType dtype, int ndim, String vdev = "", Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(TensorStructInfo, StructInfo, TensorStructInfoNode);
 };

@@ -58,6 +58,28 @@ def test_vm_copy(exec_mode):
 
 
 @pytest.mark.parametrize("exec_mode", EXEC_MODE)
+def test_vm_to_device(exec_mode):
+    @tvm.script.ir_module
+    class TestVMToDevice:
+        @R.function
+        def foo(x: R.Tensor((3, 4), "float32")):
+            R.func_attr({"global_symbol": "foo"})
+            dev = tvm.device("llvm", 0)
+            dst_sinfo = R.Tensor((3, 4), "float32", "llvm")
+            vdevice = tvm.ir.VDevice()
+            z = R.call_packed("vm.builtin.to_device", x, vdevice, sinfo_args=(R.Tensor((3, 4), dtype="float32")))
+            return z
+
+    mod = TestVMToDevice
+    target = tvm.target.Target("llvm", host="llvm")
+    ex = codegen(mod, target, exec_mode)
+    inp = tvm.nd.array(np.random.rand(3, 4).astype(np.float32))
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+    res = check_saved_func(vm, "foo", inp)
+    tvm.testing.assert_allclose(res.numpy(), inp.numpy(), rtol=1e-7, atol=1e-7)
+
+
+@pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_if_cond_const(exec_mode):
     @tvm.script.ir_module
     class TestVMIfCondConst:

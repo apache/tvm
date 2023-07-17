@@ -155,13 +155,13 @@ class WellDefinedEraser : public StructInfoMutator,
         return GetRef<StructInfo>(op);
       } else {
         if (shape.defined()) {
-          return TensorStructInfo(shape.value(), op->dtype, op->span);
+          return TensorStructInfo(shape.value(), op->dtype, op->vdevice.value(), op->span);
         } else {
-          return TensorStructInfo(op->dtype, op->ndim, op->span);
+          return TensorStructInfo(op->dtype, op->ndim, op->vdevice.value(), op->span);
         }
       }
     } else {
-      return TensorStructInfo(op->dtype, op->ndim, op->span);
+      return TensorStructInfo(op->dtype, op->ndim, op->vdevice.value(), op->span);
     }
   }
 
@@ -775,12 +775,12 @@ class StructInfoLCAFinder
       if (!lhs->shape.defined() && lhs->dtype == dtype && lhs->ndim == ndim) {
         return GetRef<StructInfo>(lhs);
       } else {
-        return TensorStructInfo(dtype, ndim, lhs->span);
+        return TensorStructInfo(dtype, ndim, lhs->vdevice.value(), lhs->span);
       }
     }
     // symbolic shape match but dtype mismatch
     if (lhs->dtype != dtype) {
-      return TensorStructInfo(lhs->shape.value(), dtype, lhs->span);
+      return TensorStructInfo(lhs->shape.value(), dtype, lhs->vdevice.value(), lhs->span);
     } else {
       return GetRef<StructInfo>(lhs);
     }

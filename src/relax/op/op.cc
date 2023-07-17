@@ -869,7 +869,7 @@ TVM_REGISTER_GLOBAL("relax.op.builtin.stop_lift_params").set_body_typed(MakeStop
 // to_vdevice
 TVM_REGISTER_NODE_TYPE(ToVDeviceAttrs);
 
-StructInfo ReturnToVDeviceStructInfo(const Call& call, const BlockBuilder& ctx) {
+StructInfo InferToVDeviceStructInfo(const Call& call, const BlockBuilder& ctx) {
   ICHECK(call->args.size() == 1);
   ICHECK(call->args[0]->struct_info_.defined());
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
@@ -880,9 +880,7 @@ RELAY_REGISTER_OP("relax.to_vdevice")
     .set_num_inputs(1)
     .set_attrs_type<ToVDeviceAttrs>()
     .add_argument("data", "Expr", "The input expression to be copied")
-    // .add_argument("dst_vdevice", "Expr", "The destination device where the data is copied to")
-    .set_attr<FInferStructInfo>("FInferStructInfo", ReturnToVDeviceStructInfo)
-    .set_attr<FCallPacked>("FCallPacked", "relax.op.to_vdevice")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferToVDeviceStructInfo)
     .set_attr<Bool>("FPurity", Bool(true));
 
 Expr MakeToVDevice(Expr data, VDevice dst_vdevice) {

@@ -726,6 +726,28 @@ def test_recursion(exec_mode):
 
 
 @pytest.mark.parametrize("exec_mode", EXEC_MODE)
+def test_vm_to_device(exec_mode):
+    @tvm.script.ir_module
+    class TestToVDevice:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3), "float32"),
+        ) -> R.Tensor((2, 3), "float32"):
+            # tvm.device
+            copied = R.to_vdevice(x, tvm.ir.VDevice("llvm", 0, "global"))
+            # tvm.target.Target
+            return copied
+
+    mod = TestToVDevice
+    target = tvm.target.Target("llvm", host="llvm")
+    ex = relax.build(mod, target, exec_mode=exec_mode)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+    x_inp = tvm.nd.array(np.random.rand(2, 3).astype("float32"))
+    res = check_saved_func(vm, "main", x_inp)
+    tvm.testing.assert_allclose(res.numpy(), x_inp.numpy())
+
+
+@pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_vm_closure(exec_mode):
     @tvm.script.ir_module
     class TestClosure:
