@@ -81,6 +81,8 @@ void MetalWorkspace::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) {
         return;
       case kDriverVersion:
         return;
+      case kL2CacheSizeBytes:
+        return;
     }
   };
 }
