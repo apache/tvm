@@ -151,12 +151,12 @@ class TestTargetHostRemoved(tvm.testing.CompareBeforeAfter):
     def before(self):
         @I.ir_module
         class mod:
-            @T.prim_func
+            @T.prim_func(private=True)
             def main(A: T.Buffer(1, "float32")):
                 T.func_attr({"global_symbol": "main", "target": T.target("cuda", host="llvm")})
                 mod.subroutine(A.data)
 
-            @T.prim_func
+            @T.prim_func(private=True)
             def subroutine(A_data: T.handle("float32")):
                 T.func_attr({"target": T.target("cuda")})
                 T.evaluate(A_data)
@@ -166,7 +166,7 @@ class TestTargetHostRemoved(tvm.testing.CompareBeforeAfter):
     def expected(self):
         @I.ir_module
         class mod:
-            @T.prim_func
+            @T.prim_func(private=True)
             def main(A_data: T.handle("float32")) -> T.int32:
                 T.func_attr({"global_symbol": "main", "target": T.target("llvm")})
                 T.attr("default", "device_id", 0)
@@ -174,7 +174,7 @@ class TestTargetHostRemoved(tvm.testing.CompareBeforeAfter):
                 mod.subroutine(A_data)
                 T.ret(T.int32(0))
 
-            @T.prim_func
+            @T.prim_func(private=True)
             def subroutine(A_data: T.handle("float32")):
                 T.func_attr({"target": T.target("cuda")})
                 T.evaluate(A_data)
@@ -195,12 +195,12 @@ class TestInternalSubroutineCall(tvm.testing.CompareBeforeAfter):
     def before(self):
         @I.ir_module
         class mod:
-            @T.prim_func
+            @T.prim_func(private=True)
             def main(A: T.Buffer(1, "float32")):
                 T.func_attr({"global_symbol": "main", "target": T.target("llvm", host="llvm")})
                 mod.subroutine(A.data)
 
-            @T.prim_func
+            @T.prim_func(private=True)
             def subroutine(A_data: T.handle("float32")):
                 T.func_attr({"target": T.target("llvm")})
                 T.evaluate(A_data)
@@ -210,7 +210,7 @@ class TestInternalSubroutineCall(tvm.testing.CompareBeforeAfter):
     def expected(self):
         @I.ir_module
         class mod:
-            @T.prim_func
+            @T.prim_func(private=True)
             def main(A_data: T.handle("float32")) -> T.int32:
                 T.func_attr({"global_symbol": "main", "target": T.target("llvm")})
                 T.attr("default", "device_id", 0)
@@ -218,7 +218,7 @@ class TestInternalSubroutineCall(tvm.testing.CompareBeforeAfter):
                 mod.subroutine(A_data)
                 T.ret(T.int32(0))
 
-            @T.prim_func
+            @T.prim_func(private=True)
             def subroutine(A_data: T.handle("float32")):
                 T.func_attr({"target": T.target("llvm")})
                 T.evaluate(A_data)
