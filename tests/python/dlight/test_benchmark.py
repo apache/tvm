@@ -16,14 +16,79 @@
 # under the License.
 # pylint: disable=missing-docstring
 
-from tvm.script import tir as T
+import pytest
+
 from tvm import meta_schedule as ms
 from tvm.meta_schedule.testing.local_rpc import LocalRPC
+from tvm.script import ir as I
+from tvm.script import tir as T
+from tvm.script import relax as R
 
-from tvm.dlight.benchmark import benchmark, benchmark_prim_func
+
+from tvm.dlight.benchmark import benchmark, benchmark_prim_func, benchmark_relax_func
 import tvm.testing
 
+# pylint: disable=no-self-argument,invalid-name,line-too-long
 # fmt: off
+@I.ir_module
+class Module:
+    @T.prim_func
+    def full1(var_T_full: T.handle):
+        T.func_attr({"op_pattern": 0, "tir.noalias": T.bool(True)})
+        n = T.int64()
+        T_full = T.match_buffer(var_T_full, (T.int64(1), T.int64(32), T.int64(1), n), "float16")
+        # with T.block("root"):
+        for ax0, ax1, ax2, ax3 in T.grid(T.int64(1), T.int64(32), T.int64(1), n):
+            with T.block("T_full"):
+                v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                T.reads()
+                T.writes(T_full[v_ax0, v_ax1, v_ax2, v_ax3])
+                T_full[v_ax0, v_ax1, v_ax2, v_ax3] = T.float16(1.0)
+
+    @T.prim_func
+    def full2(var_T_full: T.handle):
+        T.func_attr({"op_pattern": 0, "tir.noalias": T.bool(True)})
+        n = T.int64()
+        T_full = T.match_buffer(var_T_full, (T.int64(1), T.int64(32), n, T.int64(128)), "float16")
+        # with T.block("root"):
+        for ax0, ax1, ax2, ax3 in T.grid(T.int64(1), T.int64(32), n, T.int64(128)):
+            with T.block("T_full"):
+                v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                T.reads()
+                T.writes(T_full[v_ax0, v_ax1, v_ax2, v_ax3])
+                T_full[v_ax0, v_ax1, v_ax2, v_ax3] = T.float16(1.0)
+
+    @T.prim_func
+    def matmul1(var_A: T.handle, var_B: T.handle, matmul: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16")):
+        T.func_attr({"op_pattern": 4, "tir.noalias": T.bool(True)})
+        n = T.int64()
+        A = T.match_buffer(var_A, (T.int64(1), T.int64(32), T.int64(1), n), "float16")
+        B = T.match_buffer(var_B, (T.int64(1), T.int64(32), n, T.int64(128)), "float16")
+        # with T.block("root"):
+        for i0, i1, i2, i3, k in T.grid(T.int64(1), T.int64(32), T.int64(1), T.int64(128), n):
+            with T.block("matmul"):
+                v_i0, v_i1, v_i2, v_i3, v_k = T.axis.remap("SSSSR", [i0, i1, i2, i3, k])
+                T.reads(A[v_i0, v_i1, v_i2, v_k], B[v_i0, v_i1, v_k, v_i3])
+                T.writes(matmul[v_i0, v_i1, v_i2, v_i3])
+                with T.init():
+                    matmul[v_i0, v_i1, v_i2, v_i3] = T.float16(0)
+                matmul[v_i0, v_i1, v_i2, v_i3] = matmul[v_i0, v_i1, v_i2, v_i3] + A[v_i0, v_i1, v_i2, v_k] * B[v_i0, v_i1, v_k, v_i3]
+
+    @R.function
+    def test():
+        n = T.int64()
+        R.func_attr({"tir_var_upper_bound": {"n": 2048}})
+        cls = Module
+        with R.dataflow():
+            lv1 = R.call_tir(cls.full1,(), out_sinfo=R.Tensor((1, 32, 1, n), dtype="float16"))
+            lv1_1 = R.call_tir(cls.full1,(), out_sinfo=R.Tensor((1, 32, 1, n), dtype="float16"))
+            lv1_2 = R.call_tir(cls.full1,(), out_sinfo=R.Tensor((1, 32, 1, n), dtype="float16"))
+            lv2 = R.call_tir(cls.full2,(), out_sinfo=R.Tensor((1, 32, n, 128), dtype="float16"))
+            lv2_1 = R.call_tir(cls.full2,(), out_sinfo=R.Tensor((1, 32, n, 128), dtype="float16"))
+            lv3 = R.call_tir(cls.matmul1, (lv1, lv2), out_sinfo=R.Tensor((1, 32, 1, 128), dtype="float16"))
+            R.output(lv3)
+        return lv3
+
 @T.prim_func
 def cuda_workload(var_inp0: T.handle, inp1: T.Buffer((T.int64(4096), T.int64(4096)), "float32"), var_matmul: T.handle):
     T.func_attr({"tir.is_scheduled": 1})
@@ -94,10 +159,11 @@ def cuda_workload(var_inp0: T.handle, inp1: T.Buffer((T.int64(4096), T.int64(409
                                             if v1 < m:
                                                 matmul[T.int64(0), v1, v2] = matmul_reindex_pad_local[v0, v1, v2]
 # fmt: on
+# pylint: enable=no-self-argument,invalid-name,line-too-long
 
 
+@pytest.mark.skip("requires CUDA")
 def test_benchmark_prim_func_rpc():
-
     with LocalRPC() as rpc:
         rpc_config = ms.runner.RPCConfig(
             tracker_host=rpc.tracker_host,
@@ -125,6 +191,7 @@ def test_benchmark_prim_func_rpc():
         ]
 
 
+@pytest.mark.skip("requires CUDA")
 def test_benchmark_prim_func_local():
     input_infos, _, _ = benchmark(
         cuda_workload,
@@ -144,6 +211,7 @@ def test_benchmark_prim_func_local():
     ]
 
 
+@pytest.mark.skip("requires CUDA")
 def test_benchmark_prim_func_full_local():
     benchmark_prim_func(
         cuda_workload,
@@ -158,6 +226,7 @@ def test_benchmark_prim_func_full_local():
     )
 
 
+@pytest.mark.skip("requires CUDA")
 def test_benchmark_prim_func_full_rpc():
     with LocalRPC() as rpc:
         rpc_config = ms.runner.RPCConfig(
@@ -187,5 +256,9 @@ def test_benchmark_prim_func_full_rpc():
         )
 
 
+def test_benchmark_relax_func():
+    benchmark_relax_func(Module, "test")
+
+
 if __name__ == "__main__":
-    tvm.testing.main()
+    test_benchmark_relax_func()

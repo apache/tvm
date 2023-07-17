@@ -278,7 +278,7 @@ def extract_from_relax(mod: tvm.ir.IRModule, model_name: str, file_path: str) ->
     """
     relax_funcs, dym_var_dict = extract_func_info(mod)
     Path(file_path).mkdir(parents=True, exist_ok=True)
-    for relax_func_gv in relax_funcs.items():
+    for relax_func_gv in relax_funcs:  # pylint: disable=consider-using-dict-items
         relax_func_name = get_func_name_from_gv(relax_func_gv)
         for prim_func_gv in relax_funcs[relax_func_gv]:
             prim_func_name = get_func_name_from_gv(prim_func_gv)

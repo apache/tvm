@@ -94,19 +94,19 @@ def benchmark(
     input_infos = populuate_input_shape(args, dym_var_sample)
     # generate input tensors, including scalars
     # scalars are appended to the end of the list due to parsing order
-    input_tensors = []
-    scalar_input_tensors: List[Tuple[Tuple[int], str]] = []
+    input_tensors: List[Union[tvm.nd.NDArray, int]] = []
+    scalar_input_tensors: List[int] = []
     for input_shape, input_dtype in input_infos:
         if input_dtype == "scalar":
             # special case like [n], generate int value
-            assert isinstance(input_shape, int)
-            scalar_input_tensors.append(input_shape)
+            assert len(input_shape) == 1
+            scalar_input_tensors.append(input_shape[0])
         else:
             # normal case like [1, n, 128], generate random tensor
             input_tensors.append(
                 tvm.nd.array(generate_input_data(list(input_shape), input_dtype), device=dev)
             )
-    # append scalar input tensors
+    # append scalar input tensors for rotary embedding
     input_tensors.extend(scalar_input_tensors)
     # build locally
     rt_mod = tvm.build(mod, target=target)
@@ -262,7 +262,10 @@ def benchmark_relax_func(
                 relax_func = gv
                 break
         if not isinstance(relax_func, tvm.ir.GlobalVar):
-            raise ValueError(f"Cannot find relax function with name {relax_func}")
+            raise ValueError(
+                f"Cannot find relax function with name {relax_func}, "
+                + f"candidates are: {[get_func_name_from_gv(gv) for gv in relax_funcs]}"
+            )
     # benchmark
     for _ in range(sample_number):
         dym_var_sample = dym_var_sample_func(dynamic_var_dict[relax_func])

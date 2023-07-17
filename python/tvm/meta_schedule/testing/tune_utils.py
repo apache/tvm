@@ -48,10 +48,6 @@ def generate_input_data(
     """
     if input_dtype.startswith("float"):
         return np.random.uniform(size=input_shape).astype(input_dtype)
-    if low is None or high is None:
-        warnings.warn(
-            f"Model input value range for shape {input_shape} of {input_dtype} is not set!"
-        )
     range_map = {
         "uint8": (0, 255),
         "int8": (-128, 127),
