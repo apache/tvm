@@ -37,7 +37,7 @@
 #include <unordered_set>
 #include <vector>
 
-#include "../contrib/torch/base64.h"
+#include "../support/base64.h"
 
 namespace tvm {
 namespace codegen {
