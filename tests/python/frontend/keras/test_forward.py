@@ -288,6 +288,7 @@ class TestKeras:
         verify_keras_frontend(keras_model)
 
     def test_forward_pool(self, keras_mod):
+        """test_forward_pool"""
         data = keras_mod.layers.Input(shape=(32, 32, 1))
         # maxpool
         x = keras_mod.layers.MaxPooling2D((3, 3), strides=(1, 1), padding="same")(data)
