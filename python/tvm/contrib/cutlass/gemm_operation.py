@@ -412,14 +412,13 @@ def instantiate_gemm_template(attrs):
     return substitute_template(template, attrs)
 
 
-def emit_fp16A_int4B_matmul(attrs):
-    """Return CUTLASS host code for fp16 A and int4 B GEMM."""
-
+def emit_fp16A_intB_matmul(attrs):
+    """Return CUTLASS host code for fp16 A and int4 or int8 B GEMM."""
     attrs["template_common"] = substitute_template(
         """
   using namespace fastertransformer;
   int m = ${A_arg}->shape[${batch_offset}];
-  int n = ${B_arg}->shape[1] * 2;
+  int n = ${B_arg}->shape[1] * ${float_per_int};
   int k = ${B_arg}->shape[0];
 
   auto func = tvm::runtime::Registry::Get("runtime.get_cuda_stream");
@@ -451,17 +450,20 @@ def emit_fp16A_int4B_matmul(attrs):
                 m, n, k, nullptr, 0, stream);
 """
 
-    if "residual_arg" in attrs and "bias_arg" in attrs:
-        template_residual = substitute_template(
-            template_residual, {"bias": "static_cast<cutlass::half_t*>(${bias_arg}->data)"}
-        )
-        return substitute_template(template_residual, attrs)
-
     if "residual_arg" in attrs:
-        template_residual = substitute_template(template_residual, {"bias": "nullptr"})
+        if "bias_arg" in attrs:
+            bias = "static_cast<cutlass::half_t*>(${bias_arg}->data)"
+        else:
+            bias = "nullptr"
+
+        template_residual = substitute_template(template_residual, {"bias": bias})
         return substitute_template(template_residual, attrs)
 
     if "bias_arg" in attrs:
-        return substitute_template(template_bias, attrs)
+        template = substitute_template(
+            template, {"bias": "static_cast<cutlass::half_t*>(${bias_arg}->data)"}
+        )
+    else:
+        template = substitute_template(template, {"bias": "nullptr"})
 
     return substitute_template(template, attrs)

@@ -1258,6 +1258,25 @@ def test_attention_rewrite_fp16():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def split_transform_deploy_mod(mod):
+    mod_transform = tvm.IRModule()
+    mod_deploy = tvm.IRModule().with_attrs(mod.attrs)
+
+    transform_func_name = None
+
+    for gv, func in mod.functions.items():
+        if "transform_params" in gv.name_hint:
+            transform_func_name = gv.name_hint
+            mod_transform[gv] = func
+        elif isinstance(func, tvm.tir.PrimFunc):
+            mod_transform[gv] = func
+        else:
+            mod_deploy[gv] = func
+
+    assert transform_func_name is not None
+    return mod_transform, mod_deploy, transform_func_name
+
+
 def test_fp16A_int4B_gemm():
     @I.ir_module
     class Module:
@@ -1378,9 +1397,10 @@ def test_fp16A_int4B_gemm():
                 )
                 lv1 = lv[0]
                 lv2 = R.call_pure_packed(
-                    "cutlass.ft_preprocess_weight_int4",
+                    "cutlass.ft_preprocess_weight",
                     lv1,
                     80,
+                    True,
                     sinfo_args=(R.Tensor((64, 64), dtype="int8"),),
                 )
                 lv3: R.Tensor((128,), dtype="float16") = lv[1]
@@ -1409,9 +1429,10 @@ def test_fp16A_int4B_gemm():
                 )
                 lv1 = lv[0]
                 lv2 = R.call_pure_packed(
-                    "cutlass.ft_preprocess_weight_int4",
+                    "cutlass.ft_preprocess_weight",
                     lv1,
                     80,
+                    True,
                     sinfo_args=(R.Tensor((64, 64), dtype="int8"),),
                 )
                 lv3: R.Tensor((128,), dtype="float16") = lv[1]
@@ -1423,24 +1444,6 @@ def test_fp16A_int4B_gemm():
                 lv3_1: R.Tensor((64, 128), dtype="float16") = R.add(lv2_1, residual)
                 R.output(lv3_1)
             return lv3_1
-
-    def split_transform_deploy_mod(mod):
-        mod_transform = tvm.IRModule()
-        mod_deploy = tvm.IRModule().with_attrs(mod.attrs)
-
-        transform_func_name = None
-
-        for gv, func in mod.functions.items():
-            if "transform_params" in gv.name_hint:
-                transform_func_name = gv.name_hint
-                mod_transform[gv] = func
-            elif isinstance(func, tvm.tir.PrimFunc):
-                mod_transform[gv] = func
-            else:
-                mod_deploy[gv] = func
-
-        assert transform_func_name is not None
-        return mod_transform, mod_deploy, transform_func_name
 
     x_shape = (64, 64)
     y_shape = (128, 64)
@@ -1494,6 +1497,153 @@ def test_fp16A_int4B_gemm():
             ref += residual
 
         tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
+
+
+def test_fp16A_int8B_gemm():
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def decode(
+            A: T.Buffer((T.int64(64), T.int64(64)), "int8"),
+            B: T.Buffer((T.int64(64),), "float16"),
+            decode_1: T.Buffer((T.int64(64), T.int64(64)), "float16"),
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            # with T.block("root"):
+            for i, j in T.grid(T.int64(64), T.int64(64)):
+                with T.block("decode"):
+                    v_i, v_j = T.axis.remap("SS", [i, j])
+                    T.reads(A[v_i, v_j], B[v_j])
+                    T.writes(decode_1[v_i, v_j])
+                    decode_1[v_i, v_j] = T.Cast("float16", A[v_i, v_j]) * B[v_j]
+
+        @T.prim_func
+        def encode(
+            A: T.Buffer((T.int64(64), T.int64(64)), "float16"),
+            w_gathered: T.Buffer((T.int64(64), T.int64(64)), "int8"),
+            compute: T.Buffer((T.int64(64),), "float16"),
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            # with T.block("root"):
+            max_abs_value = T.alloc_buffer((T.int64(64),), "float16")
+            scale = T.alloc_buffer((T.int64(64),))
+            for i, k in T.grid(T.int64(64), T.int64(64)):
+                with T.block("max_abs_value"):
+                    v_i, v_k = T.axis.remap("SR", [i, k])
+                    T.reads(A[v_i, v_k])
+                    T.writes(max_abs_value[v_i])
+                    with T.init():
+                        max_abs_value[v_i] = T.float16(-65504)
+                    max_abs_value[v_i] = T.max(max_abs_value[v_i], T.fabs(A[v_i, v_k]))
+            for i in range(T.int64(64)):
+                with T.block("scale"):
+                    v_i = T.axis.spatial(T.int64(64), i)
+                    T.reads(max_abs_value[v_i])
+                    T.writes(scale[v_i])
+                    scale[v_i] = T.max(
+                        T.Cast("float32", max_abs_value[v_i]), T.float32(0.0001)
+                    ) * T.float32(0.0078125)
+            for j, i in T.grid(T.int64(64), T.int64(64)):
+                with T.block("w_gathered"):
+                    v_j, v_i = T.axis.remap("SS", [j, i])
+                    T.reads(A[v_i, v_j], scale[v_i])
+                    T.writes(w_gathered[v_j, v_i])
+                    w_gathered[v_j, v_i] = T.Cast(
+                        "int8",
+                        T.min(
+                            T.max(
+                                T.round(T.Cast("float32", A[v_i, v_j]) / scale[v_i]),
+                                T.float32(-128),
+                            ),
+                            T.float32(127),
+                        ),
+                    )
+            for i0 in range(T.int64(64)):
+                with T.block("compute"):
+                    v_i0 = T.axis.spatial(T.int64(64), i0)
+                    T.reads(scale[v_i0])
+                    T.writes(compute[v_i0])
+                    compute[v_i0] = T.Cast("float16", scale[v_i0])
+
+        @R.function
+        def main(
+            x: R.Tensor((64, 64), dtype="float16"),
+            y: R.Tensor((64, 64), dtype="float16"),
+            bias: R.Tensor((64, 64), dtype="float16"),
+        ) -> R.Tensor((64, 64), dtype="float16"):
+            R.func_attr({"num_input": 1})
+            cls = Module
+            with R.dataflow():
+                lv = R.call_tir(
+                    cls.encode,
+                    (y,),
+                    out_sinfo=[R.Tensor((64, 64), dtype="int8"), R.Tensor((64,), dtype="float16")],
+                )
+                lv1: R.Tensor((64, 64), dtype="int8") = lv[0]
+                lv2: R.Tensor((64, 64), dtype="int8") = R.call_pure_packed(
+                    "cutlass.ft_preprocess_weight",
+                    lv1,
+                    R.prim_value(80),
+                    R.prim_value(0),
+                    sinfo_args=(R.Tensor((64, 64), dtype="int8"),),
+                )
+                lv3: R.Tensor((64,), dtype="float16") = lv[1]
+                lv4: R.Tensor((64, 64), dtype="int8") = R.builtin.stop_lift_params(lv2)
+                lv5: R.Tensor((64,), dtype="float16") = R.builtin.stop_lift_params(lv3)
+                lv6 = R.call_tir(
+                    cls.decode, (lv4, lv5), out_sinfo=R.Tensor((64, 64), dtype="float16")
+                )
+                lv1_1: R.Tensor((64, 64), dtype="float16") = R.matmul(x, lv6, out_dtype="float16")
+                lv2_1: R.Tensor((64, 128), dtype="float16") = R.add(lv1_1, bias)
+                lv2_2: R.Tensor((64, 128), dtype="float16") = R.nn.gelu(lv2_1)
+                R.output(lv2_2)
+            return lv2_2
+
+    x_shape = (64, 64)
+    y_shape = (64, 64)
+
+    mod = partition_for_cutlass(Module)
+    func_names = [name.name_hint for (name, _) in mod.functions.items()]
+    assert "fused_decode_relax_matmul_relax_add_relax_nn_gelu_cutlass" in func_names
+
+    mod = relax.transform.RunCodegen(
+        {"cutlass": {"sm": 80, "find_first_valid": False}},
+    )(mod)
+
+    x = np.random.randn(*x_shape).astype("float16")
+    y = np.random.normal(0, 0.002, size=y_shape).astype("float16")
+    bias = np.random.randn(x_shape[0], y_shape[0]).astype("float16")
+
+    mod = relax.pipeline.get_pipeline()(mod)
+    mod = relax.transform.LiftTransformParams()(mod)
+
+    mod_transform, mod_deploy, transform_func_name = split_transform_deploy_mod(mod)
+
+    ex = relax.build(mod_transform, target="llvm")
+    vm = relax.vm.VirtualMachine(ex, tvm.cpu(0))
+
+    packed_weight, scales, bias_trans = vm[transform_func_name](
+        (tvm.nd.array(y), tvm.nd.array(bias))
+    )
+
+    dev = tvm.device("cuda", 0)
+    ex = relax.build(mod_deploy, target="cuda")
+    vm = relax.vm.VirtualMachine(ex, dev)
+
+    x_nd = tvm.nd.array(x, dev)
+    params = (packed_weight.copyto(dev), scales.copyto(dev), bias_trans.copyto(dev))
+    inp = [x_nd, params]
+    out = vm["main"](*inp).numpy()
+
+    def gelu_fp16(x):
+        erf_inp = x * (0.5**0.5)
+        from scipy.special import erf
+
+        erf_out = erf(erf_inp.astype("float32")).astype("float16")
+        return x * 0.5 * (1.0 + erf_out)
+
+    ref = gelu_fp16(np.dot(x, y.transpose()) + bias)
+    tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
 def test_rms_norm():
