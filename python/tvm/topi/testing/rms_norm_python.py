@@ -19,7 +19,7 @@
 import numpy as np
 
 
-def rms_norm_python(data, weight, axis, epsilon=1e-5):
+def rms_norm_python(data, weight, bias, axis, epsilon=1e-5):
     """Root mean square normalization operator in Python.
 
     Parameters
@@ -29,6 +29,9 @@ def rms_norm_python(data, weight, axis, epsilon=1e-5):
 
     weight: numpy.ndarray
         K-D with shape (r_0, r_1, ..., r_{K-1}) where K == len(axis) and d_{axis_k} == r_k
+
+    bias: numpy.ndarray
+        Optional, K-D with shape (r_0, r_1, ..., r_{K-1}) where K == len(axis) and d_{axis_k} == r_k
 
     axis : int or tuple of ints
         Axis over the normalization applied
@@ -41,8 +44,8 @@ def rms_norm_python(data, weight, axis, epsilon=1e-5):
     result : np.ndarray
         N-D with shape (d_0, d_1, ..., d_{N-1})
     """
-    old_dtype = data.dtype
-    data = data.astype("float32")
     square_mean = np.mean(np.square(data), axis, keepdims=True)
     result = data * weight / np.sqrt(square_mean + epsilon)
-    return result.astype(old_dtype)
+    if bias is not None:
+        result += bias
+    return result

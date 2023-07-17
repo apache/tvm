@@ -41,25 +41,24 @@ using namespace tvm::te;
  * \param data N-D tensor with shape [d_0, d_1, ..., d_{N-1}]
  * \param weight K-D tensor with shape [r_0, r_1, ..., r_{K-1}] where K == len(axis) and
  *               d_{axis_k} == r_k
+ * \param bias Optional, K-D tensor with shape [r_0, r_1, ..., r_{K-1}] where
+ *             d_{axis_k} == r_k
  * \param axis The axis to normalize over.
  * \param epsilon The epsilon value to avoid division by zero.
  * \param name The name of the operation.
  * \param tag The tag to mark the operation.
  * \return The normalized tensor, with the same shape as data.
  */
-inline Tensor rms_norm(const Tensor& data, const Tensor& weight, const Array<Integer>& axis,
-                       double epsilon, std::string name = "T_rms_norm",
+inline Tensor rms_norm(const Tensor& data, const Tensor& weight, const Tensor& bias,
+                       const Array<Integer>& axis, double epsilon, std::string name = "T_rms_norm",
                        std::string tag = kInjective) {
   const auto& data_type = data->dtype;
   const auto& weight_type = weight.defined() ? weight->dtype : data_type;
   ICHECK(data_type == weight_type) << "rms_norm: data and weight must have the same type";
-  ICHECK(data_type == DataType::Float(32) || data_type == DataType::Float(16))
-      << "rms_norm: only support float32 and float16 for now";
-  bool is_float16 = data_type == DataType::Float(16);
+  const auto& bias_type = bias.defined() ? bias->dtype : data_type;
+  ICHECK(data_type == bias_type) << "rms_norm: data and bias must have the same type";
 
-  auto x = is_float16 ? cast(data, DataType::Float(32)) : data;
-  auto w = is_float16 ? cast(weight, DataType::Float(32)) : weight;
-  auto square = multiply(x, x);
+  auto square = multiply(data, data);
   auto square_sum = sum(square, axis, /*keepdims=*/false, /*atleast1d=*/true);
 
   auto ndim = data->shape.size();
@@ -79,12 +78,15 @@ inline Tensor rms_norm(const Tensor& data, const Tensor& weight, const Array<Int
       }
     }
     auto output =
-        x(indices) * w(reduce_indices) *
+        data(indices) * weight(reduce_indices) *
         tvm::rsqrt(square_sum(non_reduce_indices) / reduce_extent + make_const(data_type, epsilon));
+    if (bias.defined()) {
+      output += bias(reduce_indices);
+    }
     return output;
   };
   auto rms_norm = tvm::te::compute(data->shape, rms_norm_func, name, tag);
-  return is_float16 ? cast(rms_norm, DataType::Float(16)) : rms_norm;
+  return rms_norm;
 }
 
 }  // namespace nn
