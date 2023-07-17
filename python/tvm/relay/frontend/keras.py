@@ -1434,7 +1434,7 @@ def from_keras(model, shape=None, layout="NCHW"):
                 "Expected input's non-batch dimensions to have positive length, "
                 f"but the input has a shape of {input_shape}"
             )
-            raise RuntimeError(msg)
+            raise ValueError(msg)
         etab.set_expr(input_name, new_var(input_name, shape=input_shape))
 
     def _convert_layer(keras_layer, etab, scope=""):
