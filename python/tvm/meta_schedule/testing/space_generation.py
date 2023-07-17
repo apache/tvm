@@ -47,9 +47,9 @@ def structural_equal_no_gs(mod1: IRModule, mod2: IRModule) -> bool:
     # for every function in the modules, remove global symbols from the attrs and then compare
     def remove_global_symbols(mod: IRModule) -> IRModule:
         stripped_mod = IRModule()
-        for gv in mod.get_global_vars():
-            func = mod[gv]
-            stripped_mod[gv] = func.without_attr("global_symbol")
+        for global_var in mod.get_global_vars():
+            func = mod[global_var]
+            stripped_mod[global_var] = func.without_attr("global_symbol")
         return stripped_mod
 
     return structural_equal(remove_global_symbols(mod1), remove_global_symbols(mod2))
