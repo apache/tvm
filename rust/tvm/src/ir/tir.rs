@@ -69,6 +69,15 @@ impl Into<i64> for PrimExpr {
     }
 }
 
+define_node!(FloatImm, "FloatImm", "FloatImm";
+             FloatImmNode { value: f64 });
+
+impl Into<f64> for PrimExpr {
+    fn into(self) -> f64 {
+        let float_val = self.downcast::<FloatImm>().unwrap().value as f64;
+        float_val
+    }
+}   
 
 define_node!(Var, "Var", "tir.Var";
              VarNode { name_hint: TVMString });
