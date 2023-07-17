@@ -33,18 +33,23 @@ _rms_norm_schedule = {
 
 # only test on llvm because schedule is missing
 @tvm.testing.parametrize_targets("llvm")
-@pytest.mark.parametrize("shape,axis", [([4, 16], (1,)), ([4, 16, 16], (1, 2))])
+@pytest.mark.parametrize(
+    "shape,axis", [([4, 16], (1,)), ([4, 16, 16], (1, 2)), ([("a", 4), ("b", 16)], (1,))]
+)
 @pytest.mark.parametrize("dtype", ["float32", "float16"])
 def test_rms_norm(target, dev, shape, axis, dtype, episilon=1e-5, rtol=5e-3, atol=1e-4):
-    data = te.placeholder(shape, dtype=dtype, name="data")
-    scale_shape = [shape[dim] for dim in axis]
-    weight = te.placeholder(scale_shape, dtype=dtype, name="weight")
-    bias = te.placeholder(scale_shape, dtype=dtype, name="weight")
+    shape_te = [te.var(v[0]) if isinstance(v, tuple) else v for v in shape]
+    scale_shape_te = [shape_te[dim] for dim in axis]
+    data = te.placeholder(shape_te, dtype=dtype, name="data")
+    weight = te.placeholder(scale_shape_te, dtype=dtype, name="weight")
+    bias = te.placeholder(scale_shape_te, dtype=dtype, name="weight")
     B = topi.nn.rms_norm(data, weight, bias, axis, episilon)
 
-    data_np = np.random.uniform(size=shape).astype(dtype)
-    weight_np = np.random.uniform(size=scale_shape).astype(dtype)
-    bias_np = np.random.uniform(size=scale_shape).astype(dtype)
+    shape_np = [v[1] if isinstance(v, tuple) else v for v in shape]
+    scale_shape_np = [shape_np[dim] for dim in axis]
+    data_np = np.random.uniform(size=shape_np).astype(dtype)
+    weight_np = np.random.uniform(size=scale_shape_np).astype(dtype)
+    bias_np = np.random.uniform(size=scale_shape_np).astype(dtype)
     b_np = tvm.topi.testing.rms_norm_python(data_np, weight_np, bias_np, axis, episilon)
 
     with tvm.target.Target(target):
@@ -53,7 +58,7 @@ def test_rms_norm(target, dev, shape, axis, dtype, episilon=1e-5, rtol=5e-3, ato
     data_tvm = tvm.nd.array(data_np, dev)
     weight_tvm = tvm.nd.array(weight_np, dev)
     bias_tvm = tvm.nd.array(bias_np, dev)
-    b_tvm = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=dtype), dev)
+    b_tvm = tvm.nd.array(np.zeros(shape_np, dtype=dtype), dev)
     f = tvm.build(s, [data, weight, bias, B], target)
     f(data_tvm, weight_tvm, bias_tvm, b_tvm)
     tvm.testing.assert_allclose(b_tvm.numpy(), b_np, rtol=rtol, atol=atol)
