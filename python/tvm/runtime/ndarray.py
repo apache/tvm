@@ -175,7 +175,7 @@ class NDArray(NDArrayBase):
                 dtype = "float8_e4m3fn"
             elif dtype == "e5m2_float8":
                 dtype = "float8_e5m2"
-            source_array = np.ascontiguousarray(source_array).view(dtype)
+            source_array = np.ascontiguousarray(source_array, dtype)
         assert source_array.flags["C_CONTIGUOUS"]
         data = source_array.ctypes.data_as(ctypes.c_void_p)
         nbytes = ctypes.c_size_t(source_array.size * source_array.dtype.itemsize)

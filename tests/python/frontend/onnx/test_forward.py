@@ -104,7 +104,7 @@ def get_tvm_output_with_vm(
         for i, param in enumerate(mod["main"].params):
             if param.type_annotation.dtype == "bfloat16":
                 input_data[i] = tvm.nd.empty(input_data[i].shape, "bfloat16").copyfrom(
-                    input_data[i]
+                    input_data[i].view("bfloat16")
                 )
 
     if validate_structural_equal:
