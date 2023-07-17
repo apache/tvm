@@ -220,8 +220,7 @@ class DecodeGEMV(ScheduleRule):
         s = sch.fuse(*s)
         sch.reorder(s, r)
         if unroll_spatial_factor:
-            s, inner = sch.split(s, factors=[None, unroll_spatial_factor])
-            sch.reorder(s, r, inner)
+            s, _ = sch.split(s, factors=[None, unroll_spatial_factor])
         sch.bind(s, "threadIdx.x")
         sch.bind(r, "threadIdx.y")
         # Schedule epilogue
