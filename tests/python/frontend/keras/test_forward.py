@@ -32,6 +32,7 @@ import tvm
 from tvm import relay
 from tvm.contrib import graph_executor
 import tvm.testing
+from tvm.relay.backend import Runtime
 
 if tf.executing_eagerly():
     GPUS = tf.config.experimental.list_physical_devices("GPU")
