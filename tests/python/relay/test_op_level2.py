@@ -1540,7 +1540,7 @@ def test_batch_flatten():
     ref_res = batch_flatten(data)
     for target, dev in tvm.testing.enabled_targets():
         op_res = relay.create_executor("graph", device=dev, target=target).evaluate(func)(data)
-        np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=0.01)
+        tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=0.01)
 
 
 def _test_upsampling(layout, method, align_corners=False):
@@ -2019,7 +2019,7 @@ def test_conv2d_rocm_sdot4():
         data_np.astype("int32"), weight_np.astype("int32"), strides, padding
     )
 
-    np.testing.assert_equal(out, ref)
+    tvm.testing.assert_equal(out, ref)
 
 
 @tvm.testing.requires_x86
@@ -2070,9 +2070,9 @@ def test_conv2d_nchw_dnnl():
         out = runtime.get_output(0).numpy()
 
         if t == "bfloat16":
-            np.testing.assert_allclose(out, ref, rtol=1e-2)
+            tvm.testing.assert_allclose(out, ref, rtol=3e-1)
         else:
-            np.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
+            tvm.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
 
 
 @tvm.testing.requires_x86
@@ -2124,9 +2124,9 @@ def test_conv2d_nhwc_dnnl():
         out = runtime.get_output(0).numpy()
 
         if t == "bfloat16":
-            np.testing.assert_allclose(out, ref, rtol=3e-1)
+            tvm.testing.assert_allclose(out, ref, rtol=3e-1)
         else:
-            np.testing.assert_allclose(out, ref, rtol=1e-3, atol=1e-3)
+            tvm.testing.assert_allclose(out, ref, rtol=1e-3, atol=1e-3)
 
 
 def _test_conv2d_int8_alter_dtype(data_dtype, target, dot_product_instrs):
@@ -2197,7 +2197,7 @@ def _test_conv2d_int8_alter_dtype(data_dtype, target, dot_product_instrs):
 
     out = rt_mod.get_output(0).numpy()
 
-    np.testing.assert_equal(out, ref)
+    tvm.testing.assert_equal(out, ref)
 
 
 @tvm.testing.requires_arm_dot

@@ -103,9 +103,8 @@ def get_tvm_output_with_vm(
         # bfloat16 arrays as input
         for i, param in enumerate(mod["main"].params):
             if param.type_annotation.dtype == "bfloat16":
-                # cast uint16 to bloat16
                 input_data[i] = tvm.nd.empty(input_data[i].shape, "bfloat16").copyfrom(
-                    input_data[i].view("bfloat16")
+                    input_data[i]
                 )
 
     if validate_structural_equal:
@@ -5558,7 +5557,10 @@ def _load_proto(proto_filename, target_list, model_type_proto):
         elif model_type_proto.HasField("tensor_type"):
             tensor = onnx.TensorProto()
             tensor.ParseFromString(protobuf_content)
-            target_list.append(numpy_helper.to_array(tensor))
+            np_tensor = numpy_helper.to_array(tensor)
+            if model_type_proto.tensor_type.elem_type == TensorProto.BFLOAT16:
+                np_tensor = np_tensor.view("bfloat16")
+            target_list.append(np_tensor)
         elif model_type_proto.HasField("optional_type"):
             optional = onnx.OptionalProto()
             optional.ParseFromString(protobuf_content)
