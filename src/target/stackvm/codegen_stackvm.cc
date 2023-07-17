@@ -183,6 +183,8 @@ void CodeGenStackVM::VisitStmt_(const AllocateNode* op) {
   LOG(FATAL) << "Dynamic allocation not supported";
 }
 
+void CodeGenStackVM::VisitStmt_(const DeclBufferNode* op) { VisitStmt(op->body); }
+
 void CodeGenStackVM::VisitExpr_(const CallNode* op) {
   if (op->op.same_as(builtin::address_of())) {
     const BufferLoadNode* load = op->args[0].as<BufferLoadNode>();
@@ -282,6 +284,12 @@ void CodeGenStackVM::VisitExpr_(const CallNode* op) {
     this->Push(op->args[0]);
     this->PushOp(StackVM::PUSH_I64, 0);
     this->PushOp(StackVM::EQ_HANDLE);
+  } else if (op->op.same_as(builtin::ret())) {
+    CHECK(op->args.size() == 1 && op->args[0]->IsInstance<IntImmNode>() &&
+          op->args[0].as<IntImmNode>()->value == 0)
+        << "StackVM does not support return values, "
+        << "and the return value " << op->args
+        << " is not special case of returning an error code of zero.";
   } else {
     LOG(FATAL) << "unknown function call " << op->op;
   }

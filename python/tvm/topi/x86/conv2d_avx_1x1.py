@@ -61,7 +61,7 @@ def _fallback_schedule(cfg, wkl):
                     cfg["tile_oh"] = OtherOptionEntity(oh_factor)
                     cfg["tile_ow"] = SplitEntity([out_width // ow_factor, ow_factor])
                     return
-    raise ValueError("cannot decide default schedule for workload: {}".format(wkl))
+    raise ValueError(f"cannot decide default schedule for workload: {wkl}")
 
 
 def _schedule_conv_NCHWc(s, cfg, data_vec, kernel_vec, conv_out, last):
@@ -145,7 +145,7 @@ def _schedule_conv_NCHWc(s, cfg, data_vec, kernel_vec, conv_out, last):
             s[O].vectorize(oc_block)
             s[O].parallel(parallel_axis)
         else:
-            raise ValueError("Unsupported output ndim: %s" % out_ndim)
+            raise ValueError(f"Unsupported output ndim: {out_ndim}")
 
     return s
 

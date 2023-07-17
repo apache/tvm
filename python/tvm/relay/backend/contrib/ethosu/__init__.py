@@ -21,3 +21,4 @@ from . import preprocess
 from . import codegen
 from . import vela_api
 from . import tir_to_cs_translator
+from . import softmax_rewriter

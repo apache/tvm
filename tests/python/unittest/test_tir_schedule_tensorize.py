@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring
-import sys
 
 import pytest
 import tvm
@@ -98,6 +97,30 @@ def dot_product_intrin(a: T.handle, b: T.handle, c: T.handle) -> None:
     with T.block("root"):
         T.reads(C[()], A[0 : 4], B[0 : 4])
         T.writes(C[()])
+        T.evaluate(
+            T.call_extern(
+                "vec4add",
+                C.data,
+                C.elem_offset,
+                A.data,
+                A.elem_offset,
+                B.data,
+                B.elem_offset,
+                dtype="int32",
+            )
+        )
+
+
+@T.prim_func
+def dot_product_intrin_annotated(a: T.handle, b: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (4,), offset_factor=1)
+    B = T.match_buffer(b, (4,), offset_factor=1)
+    C = T.match_buffer(c, (), offset_factor=1)
+
+    with T.block("root"):
+        T.reads(C[()], A[0 : 4], B[0 : 4])
+        T.writes(C[()])
+        T.block_attr({"test_annotation": True})
         T.evaluate(
             T.call_extern(
                 "vec4add",
@@ -469,6 +492,7 @@ tir.TensorIntrin.register("test_mma_intrin", mma_desc, mma_intrin)
 tir.TensorIntrin.register("test_annotated_mma_intrin", annotated_mma_desc, mma_intrin)
 tir.TensorIntrin.register("test_dot_product_intrin", dot_product_desc, dot_product_intrin)
 tir.TensorIntrin.register("test_outer_product_intrin", outer_product_desc, outer_product_intrin)
+tir.TensorIntrin.register("test_dot_product_intrin_annotated", dot_product_desc, dot_product_intrin_annotated)
 
 
 def test_tensorize_matmul():
@@ -537,6 +561,20 @@ def test_tensorize_with_annotation():
     s.decompose_reduction(update, ko)
     s.tensorize(ii, "test_annotated_mma_intrin")
     tvm.ir.assert_structural_equal(annotated_tensorized_matmul, s.mod["main"])
+    verify_trace_roundtrip(sch=s, mod=func)
+
+
+def test_tensorize_intrinsic_with_annotation():
+    func = matmul
+    s = tir.Schedule(func, debug_mask="all")
+    update = s.get_block("update")
+    _, _, k = s.get_loops(update)
+    ko, ki = s.split(k, factors=[None, 4])
+    s.decompose_reduction(update, ko)
+    s.tensorize(ki, "test_dot_product_intrin_annotated")
+
+    b = s.get(s.get_block("update_update_o"))
+    assert b.annotations["test_annotation"] == T.bool(True)
     verify_trace_roundtrip(sch=s, mod=func)
 
 

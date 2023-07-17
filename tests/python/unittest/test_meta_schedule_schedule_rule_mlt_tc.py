@@ -14,9 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
+# pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring,line-too-long,invalid-name,too-many-locals,too-many-statements,too-many-nested-blocks,too-many-branches,too-many-lines,chained-comparison
 
 import pytest
+
 import tvm
 import tvm.testing
 from tvm import meta_schedule as ms
@@ -26,6 +27,7 @@ from tvm.meta_schedule.testing.space_generation import (
     check_sketches,
     generate_design_space,
     get_rules,
+    print_sketches,
 )
 from tvm.script import tir as T
 from tvm.tir.tensor_intrin.cuda import get_wmma_intrin_group
@@ -211,7 +213,7 @@ def test_matmul_relu(shared_scope):
     actual = generate_design_space(
         kind="cuda",
         mod=mod,
-        target=tvm.target.Target("cuda"),
+        target=tvm.target.Target("cuda --arch=sm_70"),
         types=None,
         sch_rules=[
             multi_level_tiling_tensor_core(
@@ -362,7 +364,7 @@ def test_matmul_relu_with_fallback():
     actual = generate_design_space(
         kind="cuda",
         mod=mod,
-        target=tvm.target.Target("cuda"),
+        target=tvm.target.Target("cuda --arch=sm_70"),
         types=None,
         sch_rules=[
             multi_level_tiling_tensor_core(),
@@ -412,10 +414,10 @@ def test_conv2d(shared_scope):
                             with T.block("PadInput_reindex_shared.dyn"):
                                 v0 = T.axis.spatial(256, ax0_0_1_ax1_0_1_fused * 16 + ax0_ax1_fused // 288)
                                 v1 = T.axis.spatial(288, ax0_ax1_fused % 288)
-                                T.reads(PadInput[v0 // 256, v1 // 96 + v0 // 16, v1 % 96 // 32 + v0 % 16, v1 % 32])
+                                T.reads(PadInput[0, v0 // 16 + v1 // 96, v0 % 16 + v1 % 96 // 32, v1 % 32])
                                 T.writes(PadInput_reindex_shared_dyn[v0, v1])
                                 T.block_attr({"buffer_dim_align": [[0, 0, 32, 8]], "meta_schedule.cooperative_fetch": 2})
-                                PadInput_reindex_shared_dyn[v0, v1] = PadInput[v0 // 256, v1 // 96 + v0 // 16, v1 % 96 // 32 + v0 % 16, v1 % 32]
+                                PadInput_reindex_shared_dyn[v0, v1] = PadInput[0, v0 // 16 + v1 // 96, v0 % 16 + v1 % 96 // 32, v1 % 32]
                         for ax0_ax1_fused in range(4608):
                             with T.block("weight_reindex_shared.dyn"):
                                 v0 = T.axis.spatial(288, ax0_ax1_fused // 16)
@@ -496,9 +498,9 @@ def test_conv2d(shared_scope):
                             v4 = T.axis.spatial(16, ax0_ax1_ax3_ax4_ax5_fused // 16)
                             v5 = T.axis.spatial(16, ax0_ax1_ax3_ax4_ax5_fused % 16)
                             T.reads(conv2d_nhwc_reindex_shared_dyn[v0, v1, v2, v3, v4, v5])
-                            T.writes(conv2d_nhwc[(v4 + v0 * 16) // 256, (v4 + v0 * 16) // 16, (v4 + v0 * 16) % 16, v5 + v1 * 16])
+                            T.writes(conv2d_nhwc[0, (v4 + v0 * 16) // 16, (v4 + v0 * 16) % 16, v5 + v1 * 16])
                             T.block_attr({"meta_schedule.cooperative_fetch": 3})
-                            conv2d_nhwc[(v4 + v0 * 16) // 256, (v4 + v0 * 16) // 16, (v4 + v0 * 16) % 16, v5 + v1 * 16] = conv2d_nhwc_reindex_shared_dyn[v0, v1, v2, v3, v4, v5]
+                            conv2d_nhwc[0, (v4 + v0 * 16) // 16, (v4 + v0 * 16) % 16, v5 + v1 * 16] = conv2d_nhwc_reindex_shared_dyn[v0, v1, v2, v3, v4, v5]
     # fmt: on
     decision_0 = [
         ("SamplePerfectTile", [1, 16, 1, 1, 1]),
@@ -525,7 +527,7 @@ def test_conv2d(shared_scope):
     actual = generate_design_space(
         kind="cuda",
         mod=mod,
-        target=tvm.target.Target("cuda"),
+        target=tvm.target.Target("cuda --arch=sm_70"),
         types=None,
         sch_rules=[
             multi_level_tiling_tensor_core(
@@ -545,7 +547,7 @@ def test_conv2d(shared_scope):
     actual = generate_design_space(
         kind="cuda",
         mod=mod,
-        target=tvm.target.Target("cuda"),
+        target=tvm.target.Target("cuda --arch=sm_70"),
         types=None,
         sch_rules=[
             multi_level_tiling_tensor_core(
@@ -709,7 +711,7 @@ def test_matmul_relu_pipeline(shared_scope):
     actual = generate_design_space(
         kind="cuda",
         mod=mod,
-        target=tvm.target.Target("cuda"),
+        target=tvm.target.Target("cuda --arch=sm_70"),
         types=None,
         sch_rules=[
             multi_level_tiling_tensor_core(
@@ -739,7 +741,7 @@ def test_matmul_relu_non_tensorizable():
     (sch,) = generate_design_space(
         kind="cuda",
         mod=mod,
-        target=tvm.target.Target("cuda"),
+        target=tvm.target.Target("cuda --arch=sm_70"),
         types=None,
         sch_rules=[multi_level_tiling_tensor_core(write_reuse_scope="shared")]
         + get_rules("cuda", ms.schedule_rule.AutoInline),
@@ -848,17 +850,17 @@ def test_padded_matmul_relu():
                                         C_reindex_shared[v0, v1, v2, v3, v4_i, v5_i] = C_reindex_shared_wmma_accumulator[v0, v1, v2, v3, v4_i, v5_i]
                     for ax0_ax1_ax3_ax4_ax5_fused in range(512):
                         with T.block("C_reindex_shared"):
-                            v0 = T.axis.spatial(4, T.Add(ax0_0_0_ax1_0_0_fused // 2, 0))
-                            v1 = T.axis.spatial(8, ax0_0_0_ax1_0_0_fused % 2 * 4 + ax0_0_1_ax1_0_1_fused * 2 + ax0_ax1_ax3_ax4_ax5_fused % 512 // 256)
+                            v0 = T.axis.spatial(4, ax0_0_0_ax1_0_0_fused // 2)
+                            v1 = T.axis.spatial(8, ax0_0_0_ax1_0_0_fused % 2 * 4 + ax0_0_1_ax1_0_1_fused * 2 + ax0_ax1_ax3_ax4_ax5_fused // 256)
                             v2 = T.axis.spatial(2, ax2)
                             v3 = T.axis.spatial(1, 0)
                             v4 = T.axis.spatial(16, ax0_ax1_ax3_ax4_ax5_fused % 256 // 16)
                             v5 = T.axis.spatial(16, ax0_ax1_ax3_ax4_ax5_fused % 16)
-                            T.where(ax0_0_0_ax1_0_0_fused // 2 * 32 + ax2 * 16 + ax0_ax1_ax3_ax4_ax5_fused % 256 // 16 < 127 and ax0_0_0_ax1_0_0_fused % 2 * 64 + ax0_0_1_ax1_0_1_fused * 32 + ax0_ax1_ax3_ax4_ax5_fused % 512 // 256 * 16 + ax0_ax1_ax3_ax4_ax5_fused % 16 < 127)
                             T.reads(C_reindex_shared[v0, v1, v2, v3, v4, v5])
                             T.writes(compute[v4 + v2 * 16 + v0 * 32, v5 + v1 * 16])
                             T.block_attr({"meta_schedule.cooperative_fetch": 4})
-                            compute[v4 + v2 * 16 + v0 * 32, v5 + v1 * 16] = T.max(C_reindex_shared[v0, v1, v2, v3, v4, v5], T.float32(0))
+                            if v0 * 32 + v2 * 16 + v4 < 127 and v1 * 16 + v5 < 127:
+                                compute[v4 + v2 * 16 + v0 * 32, v5 + v1 * 16] = T.max(C_reindex_shared[v0, v1, v2, v3, v4, v5], T.float32(0))
     # fmt: on
 
     decision_0 = [
@@ -882,7 +884,7 @@ def test_padded_matmul_relu():
     actual = generate_design_space(
         kind="cuda",
         mod=mod,
-        target=tvm.target.Target("cuda"),
+        target=tvm.target.Target("cuda --arch=sm_70"),
         types=None,
         sch_rules=[multi_level_tiling_tensor_core(write_reuse_scope="shared")]
         + get_rules("cuda", ms.schedule_rule.AutoInline),
@@ -914,10 +916,10 @@ def test_conv_1x1():
                             with T.block("PadInput_reindex_shared"):
                                 v0 = T.axis.spatial(256, ax2_0_0_ax3_0_0_fused // 2 * 32 + ax2_0_1_ax3_0_1_fused * 16 + ax0_ax1_fused // 64)
                                 v1 = T.axis.spatial(64, ax0_ax1_fused % 64)
-                                T.reads(inputs[v0 // 256, v0 // 16, v0 % 16, v1])
+                                T.reads(inputs[0, v0 // 16, v0 % 16, v1])
                                 T.writes(PadInput_reindex_shared[v0, v1])
                                 T.block_attr({"buffer_dim_align": [[0, 0, 32, 8]], "meta_schedule.cooperative_fetch": 1})
-                                PadInput_reindex_shared[v0, v1] = inputs[v0 // 256, v0 // 16, v0 % 16, v1]
+                                PadInput_reindex_shared[v0, v1] = inputs[0, v0 // 16, v0 % 16, v1]
                         for ax0_ax1_ax2_ax3_fused in range(2048):
                             with T.block("weight_reindex_shared"):
                                 v0 = T.axis.spatial(1, 0)
@@ -1006,9 +1008,9 @@ def test_conv_1x1():
                             v4 = T.axis.spatial(16, ax0_ax1_ax3_ax4_ax5_fused % 256 // 16)
                             v5 = T.axis.spatial(16, ax0_ax1_ax3_ax4_ax5_fused % 16)
                             T.reads(conv2d_nhwc_reindex_shared[v0, v1, v2, v3, v4, v5])
-                            T.writes(conv2d_nhwc[(v4 + v0 * 16) // 256, (v4 + v0 * 16) // 16, (v4 + v0 * 16) % 16, v5 + v1 * 16])
+                            T.writes(conv2d_nhwc[0, (v4 + v0 * 16) // 16, (v4 + v0 * 16) % 16, v5 + v1 * 16])
                             T.block_attr({"meta_schedule.cooperative_fetch": 2})
-                            conv2d_nhwc[(v4 + v0 * 16) // 256, (v4 + v0 * 16) // 16, (v4 + v0 * 16) % 16, v5 + v1 * 16] = conv2d_nhwc_reindex_shared[v0, v1, v2, v3, v4, v5]
+                            conv2d_nhwc[0, (v4 + v0 * 16) // 16, (v4 + v0 * 16) % 16, v5 + v1 * 16] = conv2d_nhwc_reindex_shared[v0, v1, v2, v3, v4, v5]
     # fmt: on
 
     decision_0 = [
@@ -1039,7 +1041,7 @@ def test_conv_1x1():
     actual = generate_design_space(
         kind="cuda",
         mod=mod,
-        target=tvm.target.Target("cuda"),
+        target=tvm.target.Target("cuda --arch=sm_70"),
         types=None,
         sch_rules=[multi_level_tiling_tensor_core(write_reuse_scope="shared")]
         + get_rules("cuda", ms.schedule_rule.AutoInline),

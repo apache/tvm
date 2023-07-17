@@ -420,6 +420,25 @@ Array<Array<IterMark>> SubspaceDivide(const Array<PrimExpr>& bindings,
  */
 PrimExpr NormalizeIterMapToExpr(const PrimExpr& expr);
 
+/*!
+ * \brief Rewrite index as IterSumExpr
+ *
+ * ((i0 // b0) % a0) * s0 + ((i0 // b1) % a1) * s1 ... + base
+ *
+ * The iterators are ordered such that s0 > s1 ...
+ * if we can prove the relation.
+ *
+ * Note that base may contain expressions that cannot be detected
+ * as the right pattern.
+ *
+ * \param index The input index
+ * \param input_iters The input iterators.
+ * \param analyzer The input analyzer.
+ * \note This function is useful to detect iterator stride patterns.
+ */
+IterSumExpr NormalizeToIterSum(PrimExpr index, const Map<Var, Range>& input_iters,
+                               arith::Analyzer* analyzer);
+
 }  // namespace arith
 }  // namespace tvm
 #endif  // TVM_ARITH_ITER_AFFINE_MAP_H_

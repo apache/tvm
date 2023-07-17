@@ -71,13 +71,6 @@ bool LLVMEnabled() {
   return pf != nullptr;
 }
 
-bool ShouldAnnotateEntryFunc(const IRModule mod) {
-  Optional<tvm::relay::Executor> executor = mod->GetAttr<tvm::relay::Executor>("executor");
-  const bool aot_executor = executor.defined() && executor.value()->name == "aot";
-  const bool single_entry_func = (mod->functions.size() == 1);
-  return single_entry_func && !aot_executor;
-}
-
 /*! \return The default host target for a given device target */
 Target DefaultTargetHost(Target target) {
   if (target.defined() && target->GetTargetDeviceType() == kDLCPU) {
@@ -209,14 +202,20 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
   pass_list.push_back(tir::transform::LowerInitBlock());
   pass_list.push_back(tir::transform::PlanAndUpdateBufferAllocationLocation());
   pass_list.push_back(tir::transform::ConvertBlocksToOpaque());
-  pass_list.push_back(tir::transform::UnifyThreadBinding());
+  pass_list.push_back(tir::transform::LiftThreadBinding());
   pass_list.push_back(tir::transform::ManifestSharedMemoryLocalStage());
   pass_list.push_back(tir::transform::CompactBufferAllocation());
   pass_list.push_back(tir::transform::LowerAutoCopy());
+  pass_list.push_back(tir::transform::UnifyThreadBinding());
   pass_list.push_back(tir::transform::LowerMatchBuffer());
+  pass_list.push_back(tir::transform::Simplify());
+  pass_list.push_back(tir::transform::InjectPermutedLayout());
+  pass_list.push_back(tir::transform::Simplify());
   pass_list.push_back(tir::transform::InjectSoftwarePipeline());
+  pass_list.push_back(tir::transform::TransformMmaBufferLayout());
   pass_list.push_back(tir::transform::LowerOpaqueBlock());
   pass_list.push_back(tir::transform::FlattenBuffer());
+  pass_list.push_back(tir::transform::FP8ComputeLegalize());
   pass_list.push_back(tir::transform::BF16ComputeLegalize());
   pass_list.push_back(tir::transform::NarrowDataType(32));
   pass_list.push_back(tir::transform::Simplify());
@@ -558,9 +557,7 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
 
   mixed_pass_list.push_back(tir::transform::VerifyMemory());
 
-  if (ShouldAnnotateEntryFunc(mixed_mod)) {
-    mixed_pass_list.push_back(tir::transform::AnnotateEntryFunc());
-  }
+  mixed_pass_list.push_back(tir::transform::AnnotateEntryFunc());
 
   bool detect_global_barrier =
       pass_ctx->GetConfig<Bool>("tir.detect_global_barrier", Bool(false)).value();
@@ -586,6 +583,9 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
     mixed_pass_list.push_back(tir::transform::InjectPTXLDG32());
   }
 
+  mixed_pass_list.push_back(tir::transform::AnnotateDeviceRegions());
+  mixed_pass_list.push_back(tir::transform::SplitHostDevice());
+
   bool unpacked_api = mixed_mod->GetAttr<relay::Executor>(tvm::attr::kExecutor)
                           .value_or(relay::Executor::Create("graph", {}))
                           ->GetAttr<Bool>("unpacked-api")
@@ -595,8 +595,10 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
   } else {
     mixed_pass_list.push_back(tir::transform::MakePackedAPI());
   }
+  mixed_pass_list.push_back(tir::transform::FP8StorageLegalize());
   mixed_pass_list.push_back(tir::transform::BF16StorageLegalize());
-  mixed_pass_list.push_back(tir::transform::SplitHostDevice());
+
+  mixed_pass_list.push_back(tir::transform::LowerDeviceKernelLaunch());
 
   return transform::Sequential(mixed_pass_list);
 }

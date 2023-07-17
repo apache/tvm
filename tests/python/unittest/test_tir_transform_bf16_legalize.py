@@ -53,12 +53,11 @@ def f32tou16(v):
     rounding_bias = (uint32_v >> tvm.tir.const(16, "uint32")) & tvm.tir.const(1, "uint32")
     rounding_bias += tvm.tir.const(0x7FFF, "uint32")
     uint32_v = uint32_v + rounding_bias
-    return uint32_v >> tvm.tir.const(16, "uint32")
+    return (uint32_v >> tvm.tir.const(16, "uint32")).astype("uint16")
 
 
 def f32tobf16(v):
-    uint32_v = f32tou16(v)
-    return T.reinterpret("bfloat16", uint32_v.astype("uint16"))
+    return T.reinterpret("bfloat16", f32tou16(v))
 
 
 def get_after_compute_legalize():

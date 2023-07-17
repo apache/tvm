@@ -74,25 +74,19 @@ class BenchmarkResult:
         self.max = np.max(self.results)
 
     def __repr__(self):
-        return "BenchmarkResult(min={}, mean={}, median={}, max={}, std={}, results={})".format(
-            self.min, self.mean, self.median, self.max, self.std, self.results
+        return (
+            f"BenchmarkResult(min={self.min}, mean={self.mean}, median={self.median}, "
+            f"max={self.max}, std={self.std}, results={self.results})"
         )
 
     def __str__(self):
-        return """Execution time summary:
-{:^12} {:^12} {:^12} {:^12} {:^12}
-{:^12.4f} {:^12.4f} {:^12.4f} {:^12.4f} {:^12.4f}
-               """.format(
-            "mean (ms)",
-            "median (ms)",
-            "max (ms)",
-            "min (ms)",
-            "std (ms)",
-            self.mean * 1000,
-            self.median * 1000,
-            self.max * 1000,
-            self.min * 1000,
-            self.std * 1000,
+        return (
+            f"Execution time summary:\n"
+            f"{'mean (ms)':^12} {'median (ms)':^12} {'max (ms)':^12} "
+            f"{'min (ms)':^12} {'std (ms)':^12}\n"
+            f"{self.mean * 1000:^12.4f} {self.median * 1000:^12.4f} {self.max * 1000:^12.4f} "
+            f"{self.min * 1000:^12.4f} {self.std * 1000:^12.4f}"
+            "               "
         )
 
 
@@ -180,7 +174,7 @@ class Module(object):
             )
         )
         if not ret_handle.value:
-            raise AttributeError("Module has no function '%s'" % name)
+            raise AttributeError(f"Module has no function '{name}'")
         return PackedFunc(ret_handle, False)
 
     def import_module(self, module):
@@ -208,7 +202,7 @@ class Module(object):
         return self.entry_func(*args)
 
     def __repr__(self):
-        return "Module(%s, %x)" % (self.type_key, self.handle.value)
+        return f"Module({self.type_key}, {self.handle.value:x})"
 
     @property
     def type_key(self):
@@ -495,8 +489,8 @@ class Module(object):
         if self.type_key == "stackvm":
             if not file_name.endswith(".stackvm"):
                 raise ValueError(
-                    "Module[%s]: can only be saved as stackvm format."
-                    "did you build with LLVM enabled?" % self.type_key
+                    f"Module[{self.type_key}]: can only be saved as stackvm format."
+                    "did you build with LLVM enabled?"
                 )
             self.save(file_name)
             return
@@ -508,6 +502,7 @@ class Module(object):
         files = addons if addons else []
         is_system_lib = False
         has_c_module = False
+        system_lib_prefix = None
         llvm_target_string = None
         global_object_format = "o"
         for index, module in enumerate(modules):
@@ -549,6 +544,8 @@ class Module(object):
             if module.type_key == "llvm":
                 is_system_lib = module.get_function("__tvm_is_system_module")()
                 llvm_target_string = module.get_function("_get_target_string")()
+                system_lib_prefix = module.get_function("__tvm_get_system_lib_prefix")()
+
         if not fcompile:
             if file_name.endswith(".tar"):
                 fcompile = _tar.tar
@@ -561,18 +558,24 @@ class Module(object):
             llvm_target_string = "llvm -mtriple " + triple
 
         if getattr(fcompile, "need_system_lib", False) and not is_system_lib:
-            raise ValueError("%s need --system-lib option" % str(fcompile))
+            raise ValueError(f"{str(fcompile)} need --system-lib option")
 
         if self.imported_modules:
+            pack_lib_prefix = system_lib_prefix if system_lib_prefix else ""
+
             if enabled("llvm") and llvm_target_string:
-                path_obj = os.path.join(workspace_dir, f"devc.{global_object_format}")
-                m = _ffi_api.ModulePackImportsToLLVM(self, is_system_lib, llvm_target_string)
+                path_obj = os.path.join(
+                    workspace_dir, f"{pack_lib_prefix}devc.{global_object_format}"
+                )
+                m = _ffi_api.ModulePackImportsToLLVM(
+                    self, is_system_lib, llvm_target_string, pack_lib_prefix
+                )
                 m.save(path_obj)
                 files.append(path_obj)
             else:
-                path_cc = os.path.join(workspace_dir, "devc.c")
+                path_cc = os.path.join(workspace_dir, f"{pack_lib_prefix}devc.c")
                 with open(path_cc, "w") as f:
-                    f.write(_ffi_api.ModulePackImportsToC(self, is_system_lib))
+                    f.write(_ffi_api.ModulePackImportsToC(self, is_system_lib, pack_lib_prefix))
                 files.append(path_cc)
 
         # The imports could contain a c module but the object format could be tar
@@ -589,7 +592,7 @@ class Module(object):
         return fcompile(file_name, files, **kwargs)
 
 
-def system_lib():
+def system_lib(symbol_prefix=""):
     """Get system-wide library module singleton.
 
     System lib is a global module that contains self register functions in startup.
@@ -602,12 +605,18 @@ def system_lib():
     The system lib is intended to be linked and loaded during the entire life-cyle of the program.
     If you want dynamic loading features, use dso modules instead.
 
+    Parameters
+    ----------
+    symbol_prefix: Optional[str]
+        Optional symbol prefix that can be used for search. When we lookup a symbol
+        symbol_prefix + name will first be searched, then the name without symbol_prefix.
+
     Returns
     -------
     module : runtime.Module
         The system-wide library module.
     """
-    return _ffi_api.SystemLib()
+    return _ffi_api.SystemLib(symbol_prefix)
 
 
 def load_module(path, fmt=""):
@@ -635,7 +644,7 @@ def load_module(path, fmt=""):
     if os.path.isfile(path):
         path = os.path.realpath(path)
     else:
-        raise ValueError("cannot find file %s" % path)
+        raise ValueError(f"cannot find file {path}")
 
     # High level handling for .o and .tar file.
     # We support this to be consistent with RPC module load.

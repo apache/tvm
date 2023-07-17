@@ -126,6 +126,8 @@ class SpaceGenerator(Object):
             return PostOrderApply(*args, **kwargs)
         if kind == "union":
             return SpaceGeneratorUnion(*args, **kwargs)
+        if isinstance(kind, str):
+            return PostOrderApply(sch_rules=kind, postprocs=kind, mutator_probs=kind)
         raise ValueError(f"Unknown SpaceGenerator: {kind}")
 
 

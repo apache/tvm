@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=use-list-literal, invalid-name
 """This source will contain code to convert TIR, as produced by
 the Relay to TIR compilation process, to Vela API calls to
 generate command stream.
@@ -582,12 +583,16 @@ def _convert_clip_bounds(npu_op: vapi.NpuBlockOperation):
     """
     clip_min_quant = npu_op.activation.min
     clip_max_quant = npu_op.activation.max
-    clip_min_actual = (
-        clip_min_quant - npu_op.ofm.quantization.zero_point
-    ) * npu_op.ofm.quantization.scale_f32
-    clip_max_actual = (
-        clip_max_quant - npu_op.ofm.quantization.zero_point
-    ) * npu_op.ofm.quantization.scale_f32
+    if npu_op.ofm.quantization.scale_f32:
+        clip_min_actual = (
+            clip_min_quant - npu_op.ofm.quantization.zero_point
+        ) * npu_op.ofm.quantization.scale_f32
+        clip_max_actual = (
+            clip_max_quant - npu_op.ofm.quantization.zero_point
+        ) * npu_op.ofm.quantization.scale_f32
+    else:
+        clip_min_actual = clip_min_quant
+        clip_max_actual = clip_max_quant
     npu_op.activation.min = clip_min_actual
     npu_op.activation.max = clip_max_actual
 
@@ -921,17 +926,20 @@ def _create_npu_dma_op(serial_copy):
     """This is a helper function to capture the list of arguments
     to create a NpuDmaOperation object"""
     data_type_bytes = np.iinfo(np.dtype(serial_copy.read_address.dtype)).bits // 8
+    length = int(serial_copy.length.value) * data_type_bytes
+    # The buffer size in bytes must be at least 16 bytes
+    length = max(length, 16)
     src = vapi.NpuAddressRange(
         # region will be updated later
         region=0,
         address=serial_copy.read_address,
-        length=int(serial_copy.length.value) * data_type_bytes,
+        length=length,
     )
     dest = vapi.NpuAddressRange(
         # region will be updated later
         region=0,
         address=serial_copy.write_address,
-        length=int(serial_copy.length.value) * data_type_bytes,
+        length=length,
     )
     return vapi.NpuDmaOperation(src, dest)
 
@@ -1071,7 +1079,6 @@ def _create_npu_op_binary_elementwise(serial_binary_elementwise: spec.SerialBina
 def translate_ethosu_unary_elementwise(
     tir_extern_call: tvm.tir.Call,
 ) -> vapi.NpuElementWiseOperation:
-
     """This function will translate a tir extern_call
     as produced by Relay to TIR compilation.
     Parameters

@@ -55,7 +55,7 @@ VMInstructionSerializer SerializeInstruction(const Instruction& instr);
 // Helper to deserialize a serialized vm instruction.
 Instruction DeserializeInstruction(const VMInstructionSerializer& instr);
 
-PackedFunc Executable::GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) {
+PackedFunc Executable::GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) {
   if (name == "get_lib") {
     return PackedFunc(
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetLib(); });
@@ -1057,7 +1057,7 @@ Module ExecutableLoadBinary(void* strm) {
   return exec;
 }
 
-void Executable::SaveToFile(const std::string& path, const std::string& format) {
+void Executable::SaveToFile(const String& path, const String& format) {
   tvm::runtime::SimpleBinaryFileStream stream(path, "wb");
   SaveToBinary(&stream);
 }
@@ -1065,7 +1065,7 @@ void Executable::SaveToFile(const std::string& path, const std::string& format) 
 TVM_REGISTER_GLOBAL("runtime.module.loadbinary_VMExecutable").set_body_typed(ExecutableLoadBinary);
 
 // Load module from module.
-Module ExecutableLoadFile(const std::string& file_name, const std::string& format) {
+Module ExecutableLoadFile(const std::string& file_name, const String& format) {
   tvm::runtime::SimpleBinaryFileStream stream(file_name, "rb");
   auto exec = ExecutableLoadBinary(reinterpret_cast<void*>(&stream));
   return exec;

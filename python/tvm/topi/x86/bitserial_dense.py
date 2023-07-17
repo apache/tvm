@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, too-many-locals, too-many-arguments
+# pylint: disable=invalid-name, too-many-locals, too-many-arguments, condition-evals-to-constant
 """Schedule for bitserial dense operator."""
 from __future__ import absolute_import as _abs
 import tvm
@@ -192,7 +192,7 @@ def schedule_bitserial_dense(cfg, outs):
                 data = data.op.input_tensors[0]
             _schedule(cfg, s, data_vec, weight_vec, output)
         else:
-            raise RuntimeError("Unsupported operator: %s" % op.tag)
+            raise RuntimeError(f"Unsupported operator: {op.tag}")
 
     traverse(outs[0].op)
     return s

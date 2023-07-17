@@ -16,8 +16,7 @@
 # under the License.
 import tvm
 from tvm import te
-from tvm.contrib import cc, utils
-import ctypes
+from tvm.contrib import cc, utils, popen_pool
 import sys
 import numpy as np
 import subprocess
@@ -128,15 +127,24 @@ def test_device_module_dump():
         # test cross compiler function
         f.export_library(path_dso, cc.cross_compiler("g++"))
 
-        f1 = tvm.runtime.load_module(path_dso)
-        a = tvm.nd.array(np.random.uniform(size=1024).astype(A.dtype), dev)
-        b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), dev)
-        f1(a, b)
-        np.testing.assert_equal(b.numpy(), a.numpy() + 1)
-        if sys.platform != "win32":
-            f2 = tvm.runtime.system_lib()
-            f2[name](a, b)
+        def popen_check():
+            import tvm
+            import sys
+
+            f1 = tvm.runtime.load_module(path_dso)
+            a = tvm.nd.array(np.random.uniform(size=1024).astype(A.dtype), dev)
+            b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), dev)
+            f1(a, b)
             np.testing.assert_equal(b.numpy(), a.numpy() + 1)
+            if sys.platform != "win32":
+                f2 = tvm.runtime.system_lib()
+                f2[name](a, b)
+                np.testing.assert_equal(b.numpy(), a.numpy() + 1)
+
+        # system lib should be loaded in different process
+        worker = popen_pool.PopenWorker()
+        worker.send(popen_check)
+        worker.recv()
 
     def check_stackvm(device):
         dev = tvm.device(device, 0)
@@ -208,16 +216,26 @@ def test_combine_module_llvm():
         fadd1.save(path1)
         fadd2.save(path2)
         cc.create_shared(path_dso, [path1, path2])
-        # Load dll, will trigger system library registration
-        ctypes.CDLL(path_dso)
-        # Load the system wide library
-        mm = tvm.runtime.system_lib()
-        a = tvm.nd.array(np.random.uniform(size=nn).astype(A.dtype), dev)
-        b = tvm.nd.array(np.zeros(nn, dtype=A.dtype), dev)
-        mm["myadd1"](a, b)
-        np.testing.assert_equal(b.numpy(), a.numpy() + 1)
-        mm["myadd2"](a, b)
-        np.testing.assert_equal(b.numpy(), a.numpy() + 1)
+
+        def popen_check():
+            import tvm.runtime
+            import ctypes
+
+            # Load dll, will trigger system library registration
+            ctypes.CDLL(path_dso)
+            # Load the system wide library
+            mm = tvm.runtime.system_lib()
+            a = tvm.nd.array(np.random.uniform(size=nn).astype(A.dtype), dev)
+            b = tvm.nd.array(np.zeros(nn, dtype=A.dtype), dev)
+            mm["myadd1"](a, b)
+            np.testing.assert_equal(b.numpy(), a.numpy() + 1)
+            mm["myadd2"](a, b)
+            np.testing.assert_equal(b.numpy(), a.numpy() + 1)
+
+        # system lib should be loaded in different process
+        worker = popen_pool.PopenWorker()
+        worker.send(popen_check)
+        worker.recv()
 
     if sys.platform != "win32":
         check_system_lib()

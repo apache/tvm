@@ -24,6 +24,7 @@
 #ifndef TVM_TOPI_TRANSFORM_H_
 #define TVM_TOPI_TRANSFORM_H_
 
+#include <tvm/arith/analyzer.h>
 #include <tvm/te/operation.h>
 #include <tvm/tir/data_layout.h>
 #include <tvm/tir/index_map.h>
@@ -888,7 +889,6 @@ inline Array<Tensor> split_sections(const Tensor& x, int num_sections, int axis,
  * \param batch_dims The number of batch dimensions.
  * \param mode The mode of the operation.
  * \param name The name of the operation.
- * \param mode The mode of to handle out of bound indices.
  * \param tag The tag to mark the operation.
  *
  * \return A Tensor whose op member is the take operation
@@ -1739,16 +1739,18 @@ inline Tensor auto_scheduler_layout_transform(const Tensor& src, const String& s
 inline Tensor meta_schedule_layout_transform(const Tensor& src, const tir::IndexMap& index_map,
                                              const String name = "T_meta_schedule_layout_trans",
                                              const String tag = kInjective) {
+  arith::Analyzer analyzer;
   Array<Range> iter_domain;
   iter_domain.reserve(src->shape.size());
   for (const PrimExpr& e : src->shape) {
     iter_domain.push_back(Range::FromMinExtent(make_zero(e->dtype), e));
   }
-  Array<PrimExpr> post_transform_shape = index_map->MapShape(src->shape);
+  Array<PrimExpr> post_transform_shape = index_map->MapShape(src->shape, &analyzer);
   return compute(
       post_transform_shape,
-      [src, inv = index_map.Inverse(iter_domain)](const Array<Var>& indices) -> PrimExpr {
-        return src(inv->MapIndices(Array<PrimExpr>{indices.begin(), indices.end()}));
+      [src, inv = index_map.Inverse(iter_domain, &analyzer),
+       &analyzer](const Array<Var>& indices) -> PrimExpr {
+        return src(inv->MapIndices(Array<PrimExpr>{indices.begin(), indices.end()}, &analyzer));
       },
       name, tag);
 }

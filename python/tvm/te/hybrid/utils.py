@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=inconsistent-return-statements
 """Internal utilities for parsing Python subset to TIR"""
 
 import ast
@@ -94,15 +95,15 @@ def _is_tvm_arg_types(args):
         for elem in args[1:]:
             _internal_assert(
                 isinstance(elem, tvm_arg_types),
-                "Expecting a Var, Tensor or ConstExpr instance but %s get!" % str(type(elem)),
+                f"Expecting a Var, Tensor or ConstExpr instance but {type(elem)} get!",
             )
         return True
 
     _internal_assert(
-        isinstance(args[0], np_arg_types), "Expect a numpy type but %s get!" % str(type(args[0]))
+        isinstance(args[0], np_arg_types), f"Expect a numpy type but {type(args[0])} get!"
     )
     for elem in args[1:]:
         _internal_assert(
-            isinstance(elem, np_arg_types), "Expect a numpy type but %s get!" % str(type(elem))
+            isinstance(elem, np_arg_types), f"Expect a numpy type but {type(elem)} get!"
         )
     return False

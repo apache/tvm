@@ -107,12 +107,13 @@ function(_get_hexagon_sdk_property_impl
   set(_hexarch_dir_v65 "computev65")
   set(_hexarch_dir_v66 "computev66")
   set(_hexarch_dir_v68 "computev68")
-  set(_hexarch_dir_v69 "computev68")   # Use computev68 for v69
+  set(_hexarch_dir_v69 "computev69")
+  set(_hexarch_dir_v73 "computev73")
   set(_hexarch_dir_str "_hexarch_dir_${_hexagon_arch}")
   set(_hexarch_dir "${${_hexarch_dir_str}}")
 
   if(NOT _hexarch_dir)
-    message(SEND_ERROR "Please set Hexagon architecture to one of v65, v66, v68, v69")
+    message(SEND_ERROR "Please set Hexagon architecture to one of v65, v66, v68, v69, v73")
   endif()
 
   if(_property STREQUAL "VERSION")
@@ -167,6 +168,10 @@ function(_get_hexagon_sdk_property_impl
         "${_hexagon_sdk_root}/rtos/qurt/${_hexarch_dir}/include/qurt"
         "${_hexagon_sdk_root}/ipc/fastrpc/rtld/ship/${_rtld_dir}"
       )
+      _check_path_exists("${_hexagon_sdk_root}/ipc/fastrpc/rtld/ship/inc" _sdk_dlfcn)
+      if(_sdk_dlfcn)
+        list(APPEND _dirs "${_hexagon_sdk_root}/ipc/fastrpc/rtld/ship/inc")
+      endif()
     elseif(_property STREQUAL "QURT_LIB")
       set(_dirs "${_hexagon_sdk_root}/rtos/qurt/${_hexarch_dir}/lib/pic")
     elseif(_property STREQUAL "RPCMEM_ROOT")

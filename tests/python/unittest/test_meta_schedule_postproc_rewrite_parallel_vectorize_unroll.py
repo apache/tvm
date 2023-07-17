@@ -235,8 +235,6 @@ def test_no_unroll_for_spatial_block():
     @T.prim_func
     def expected(A: T.Buffer((1, 4, 4, 32), "float32"), B: T.Buffer((4, 4, 32), "float32"), C: T.Buffer((4, 4, 32), "float32"), T_layer_norm: T.Buffer((1, 4, 4, 32), "float32")):
         with T.block("root"):
-            T.reads(A[0, 0:4, 0:4, 0:32], B[0:4, 0:4, 0:32], C[0:4, 0:4, 0:32])
-            T.writes(T_layer_norm[0, 0:4, 0:4, 0:32])
             A_red_temp_v0 = T.alloc_buffer((1,))
             A_red_temp_v1 = T.alloc_buffer((1,))
             for ax0 in T.serial(1, annotations={"pragma_auto_unroll_max_step": 512, "pragma_unroll_explicit": 1}):

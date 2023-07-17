@@ -24,7 +24,7 @@ arXiv preprint arXiv:1512.00567 (2015).
 Adopted from https://github.com/apache/incubator-mxnet/blob/master/
              example/image-classification/symbols/inception-v3.py
 """
-# pylint: disable=invalid-name,missing-docstring,unused-argument
+# pylint: disable=invalid-name,missing-docstring,unused-argument, superfluous-parens
 from tvm import relay
 from .init import create_workload
 from . import layers
@@ -37,12 +37,10 @@ def Conv(data, num_filter, kernel=(1, 1), stride=(1, 1), pad=(0, 0), name=None, 
         kernel_size=kernel,
         strides=stride,
         padding=pad,
-        name="%s%s_conv1" % (name, suffix),
+        name=f"{name}{suffix}_conv1",
     )
 
-    bn = layers.batch_norm_infer(
-        data=conv, epsilon=2e-5, scale=False, name="%s%s_bn" % (name, suffix)
-    )
+    bn = layers.batch_norm_infer(data=conv, epsilon=2e-5, scale=False, name=f"{name}{suffix}_bn")
     act = relay.nn.relu(data=bn)
     return act
 
@@ -60,27 +58,17 @@ def Pooling(data, kernel, stride, pad, pool_type, name):
 def Inception7A(
     data, num_1x1, num_3x3_red, num_3x3_1, num_3x3_2, num_5x5_red, num_5x5, pool, proj, name
 ):
-    tower_1x1 = Conv(data, num_1x1, name=("%s_conv" % name))
-    tower_5x5 = Conv(data, num_5x5_red, name=("%s_tower" % name), suffix="_conv")
+    tower_1x1 = Conv(data, num_1x1, name=f"{name}_conv")
+    tower_5x5 = Conv(data, num_5x5_red, name=f"{name}_tower", suffix="_conv")
     tower_5x5 = Conv(
-        tower_5x5, num_5x5, kernel=(5, 5), pad=(2, 2), name=("%s_tower" % name), suffix="_conv_1"
+        tower_5x5, num_5x5, kernel=(5, 5), pad=(2, 2), name=f"{name}_tower", suffix="_conv_1"
     )
-    tower_3x3 = Conv(data, num_3x3_red, name=("%s_tower_1" % name), suffix="_conv")
+    tower_3x3 = Conv(data, num_3x3_red, name=f"{name}_tower_1", suffix="_conv")
     tower_3x3 = Conv(
-        tower_3x3,
-        num_3x3_1,
-        kernel=(3, 3),
-        pad=(1, 1),
-        name=("%s_tower_1" % name),
-        suffix="_conv_1",
+        tower_3x3, num_3x3_1, kernel=(3, 3), pad=(1, 1), name=f"{name}_tower_1", suffix="_conv_1"
     )
     tower_3x3 = Conv(
-        tower_3x3,
-        num_3x3_2,
-        kernel=(3, 3),
-        pad=(1, 1),
-        name=("%s_tower_1" % name),
-        suffix="_conv_2",
+        tower_3x3, num_3x3_2, kernel=(3, 3), pad=(1, 1), name=f"{name}_tower_1", suffix="_conv_2"
     )
     pooling = Pooling(
         data=data,
@@ -88,27 +76,25 @@ def Inception7A(
         stride=(1, 1),
         pad=(1, 1),
         pool_type=pool,
-        name=("%s_pool_%s_pool" % (pool, name)),
+        name=f"{pool}_pool_{name}_pool",
     )
 
-    cproj = Conv(pooling, proj, name=("%s_tower_2" % name), suffix="_conv")
+    cproj = Conv(pooling, proj, name=f"{name}_tower_2", suffix="_conv")
     concat = relay.concatenate((tower_1x1, tower_5x5, tower_3x3, cproj), axis=1)
     return concat
 
 
 # First Downsample
 def Inception7B(data, num_3x3, num_d3x3_red, num_d3x3_1, num_d3x3_2, pool, name):
-    tower_3x3 = Conv(
-        data, num_3x3, kernel=(3, 3), pad=(0, 0), stride=(2, 2), name=("%s_conv" % name)
-    )
-    tower_d3x3 = Conv(data, num_d3x3_red, name=("%s_tower" % name), suffix="_conv")
+    tower_3x3 = Conv(data, num_3x3, kernel=(3, 3), pad=(0, 0), stride=(2, 2), name=f"{name}_conv")
+    tower_d3x3 = Conv(data, num_d3x3_red, name=f"{name}_tower", suffix="_conv")
     tower_d3x3 = Conv(
         tower_d3x3,
         num_d3x3_1,
         kernel=(3, 3),
         pad=(1, 1),
         stride=(1, 1),
-        name=("%s_tower" % name),
+        name=f"{name}_tower",
         suffix="_conv_1",
     )
     tower_d3x3 = Conv(
@@ -117,7 +103,7 @@ def Inception7B(data, num_3x3, num_d3x3_red, num_d3x3_1, num_d3x3_2, pool, name)
         kernel=(3, 3),
         pad=(0, 0),
         stride=(2, 2),
-        name=("%s_tower" % name),
+        name=f"{name}_tower",
         suffix="_conv_2",
     )
     pooling = Pooling(
@@ -126,7 +112,7 @@ def Inception7B(data, num_3x3, num_d3x3_red, num_d3x3_1, num_d3x3_2, pool, name)
         stride=(2, 2),
         pad=(0, 0),
         pool_type="max",
-        name=("max_pool_%s_pool" % name),
+        name=f"max_pool_{name}_pool",
     )
     concat = relay.concatenate((tower_3x3, tower_d3x3, pooling), axis=1)
     return concat
@@ -147,14 +133,14 @@ def Inception7C(
     proj,
     name,
 ):
-    tower_1x1 = Conv(data=data, num_filter=num_1x1, kernel=(1, 1), name=("%s_conv" % name))
-    tower_d7 = Conv(data=data, num_filter=num_d7_red, name=("%s_tower" % name), suffix="_conv")
+    tower_1x1 = Conv(data=data, num_filter=num_1x1, kernel=(1, 1), name=f"{name}_conv")
+    tower_d7 = Conv(data=data, num_filter=num_d7_red, name=f"{name}_tower", suffix="_conv")
     tower_d7 = Conv(
         data=tower_d7,
         num_filter=num_d7_1,
         kernel=(1, 7),
         pad=(0, 3),
-        name=("%s_tower" % name),
+        name=f"{name}_tower",
         suffix="_conv_1",
     )
     tower_d7 = Conv(
@@ -162,16 +148,16 @@ def Inception7C(
         num_filter=num_d7_2,
         kernel=(7, 1),
         pad=(3, 0),
-        name=("%s_tower" % name),
+        name=f"{name}_tower",
         suffix="_conv_2",
     )
-    tower_q7 = Conv(data=data, num_filter=num_q7_red, name=("%s_tower_1" % name), suffix="_conv")
+    tower_q7 = Conv(data=data, num_filter=num_q7_red, name=f"{name}_tower_1", suffix="_conv")
     tower_q7 = Conv(
         data=tower_q7,
         num_filter=num_q7_1,
         kernel=(7, 1),
         pad=(3, 0),
-        name=("%s_tower_1" % name),
+        name=f"{name}_tower_1",
         suffix="_conv_1",
     )
     tower_q7 = Conv(
@@ -179,7 +165,7 @@ def Inception7C(
         num_filter=num_q7_2,
         kernel=(1, 7),
         pad=(0, 3),
-        name=("%s_tower_1" % name),
+        name=f"{name}_tower_1",
         suffix="_conv_2",
     )
     tower_q7 = Conv(
@@ -187,7 +173,7 @@ def Inception7C(
         num_filter=num_q7_3,
         kernel=(7, 1),
         pad=(3, 0),
-        name=("%s_tower_1" % name),
+        name=f"{name}_tower_1",
         suffix="_conv_3",
     )
     tower_q7 = Conv(
@@ -195,7 +181,7 @@ def Inception7C(
         num_filter=num_q7_4,
         kernel=(1, 7),
         pad=(0, 3),
-        name=("%s_tower_1" % name),
+        name=f"{name}_tower_1",
         suffix="_conv_4",
     )
     pooling = Pooling(
@@ -204,10 +190,10 @@ def Inception7C(
         stride=(1, 1),
         pad=(1, 1),
         pool_type=pool,
-        name=("%s_pool_%s_pool" % (pool, name)),
+        name=f"{pool}_pool_{name}_pool",
     )
     cproj = Conv(
-        data=pooling, num_filter=proj, kernel=(1, 1), name=("%s_tower_2" % name), suffix="_conv"
+        data=pooling, num_filter=proj, kernel=(1, 1), name=f"{name}_tower_2", suffix="_conv"
     )
     # concat
     concat = relay.concatenate((tower_1x1, tower_d7, tower_q7, cproj), axis=1)
@@ -217,25 +203,25 @@ def Inception7C(
 def Inception7D(
     data, num_3x3_red, num_3x3, num_d7_3x3_red, num_d7_1, num_d7_2, num_d7_3x3, pool, name
 ):
-    tower_3x3 = Conv(data=data, num_filter=num_3x3_red, name=("%s_tower" % name), suffix="_conv")
+    tower_3x3 = Conv(data=data, num_filter=num_3x3_red, name=f"{name}_tower", suffix="_conv")
     tower_3x3 = Conv(
         data=tower_3x3,
         num_filter=num_3x3,
         kernel=(3, 3),
         pad=(0, 0),
         stride=(2, 2),
-        name=("%s_tower" % name),
+        name=f"{name}_tower",
         suffix="_conv_1",
     )
     tower_d7_3x3 = Conv(
-        data=data, num_filter=num_d7_3x3_red, name=("%s_tower_1" % name), suffix="_conv"
+        data=data, num_filter=num_d7_3x3_red, name=f"{name}_tower_1", suffix="_conv"
     )
     tower_d7_3x3 = Conv(
         data=tower_d7_3x3,
         num_filter=num_d7_1,
         kernel=(1, 7),
         pad=(0, 3),
-        name=("%s_tower_1" % name),
+        name=f"{name}_tower_1",
         suffix="_conv_1",
     )
     tower_d7_3x3 = Conv(
@@ -243,7 +229,7 @@ def Inception7D(
         num_filter=num_d7_2,
         kernel=(7, 1),
         pad=(3, 0),
-        name=("%s_tower_1" % name),
+        name=f"{name}_tower_1",
         suffix="_conv_2",
     )
     tower_d7_3x3 = Conv(
@@ -251,7 +237,7 @@ def Inception7D(
         num_filter=num_d7_3x3,
         kernel=(3, 3),
         stride=(2, 2),
-        name=("%s_tower_1" % name),
+        name=f"{name}_tower_1",
         suffix="_conv_3",
     )
     pooling = Pooling(
@@ -260,7 +246,7 @@ def Inception7D(
         stride=(2, 2),
         pool_type=pool,
         pad=(0, 0),
-        name=("%s_pool_%s_pool" % (pool, name)),
+        name=f"{pool}_pool_{name}_pool",
     )
     # concat
     concat = relay.concatenate((tower_3x3, tower_d7_3x3, pooling), axis=1)
@@ -281,14 +267,14 @@ def Inception7E(
     proj,
     name,
 ):
-    tower_1x1 = Conv(data=data, num_filter=num_1x1, kernel=(1, 1), name=("%s_conv" % name))
-    tower_d3 = Conv(data=data, num_filter=num_d3_red, name=("%s_tower" % name), suffix="_conv")
+    tower_1x1 = Conv(data=data, num_filter=num_1x1, kernel=(1, 1), name=f"{name}_conv")
+    tower_d3 = Conv(data=data, num_filter=num_d3_red, name=f"{name}_tower", suffix="_conv")
     tower_d3_a = Conv(
         data=tower_d3,
         num_filter=num_d3_1,
         kernel=(1, 3),
         pad=(0, 1),
-        name=("%s_tower" % name),
+        name=f"{name}_tower",
         suffix="_mixed_conv",
     )
     tower_d3_b = Conv(
@@ -296,18 +282,18 @@ def Inception7E(
         num_filter=num_d3_2,
         kernel=(3, 1),
         pad=(1, 0),
-        name=("%s_tower" % name),
+        name=f"{name}_tower",
         suffix="_mixed_conv_1",
     )
     tower_3x3_d3 = Conv(
-        data=data, num_filter=num_3x3_d3_red, name=("%s_tower_1" % name), suffix="_conv"
+        data=data, num_filter=num_3x3_d3_red, name=f"{name}_tower_1", suffix="_conv"
     )
     tower_3x3_d3 = Conv(
         data=tower_3x3_d3,
         num_filter=num_3x3,
         kernel=(3, 3),
         pad=(1, 1),
-        name=("%s_tower_1" % name),
+        name=f"{name}_tower_1",
         suffix="_conv_1",
     )
     tower_3x3_d3_a = Conv(
@@ -315,7 +301,7 @@ def Inception7E(
         num_filter=num_3x3_d3_1,
         kernel=(1, 3),
         pad=(0, 1),
-        name=("%s_tower_1" % name),
+        name=f"{name}_tower_1",
         suffix="_mixed_conv",
     )
     tower_3x3_d3_b = Conv(
@@ -323,7 +309,7 @@ def Inception7E(
         num_filter=num_3x3_d3_2,
         kernel=(3, 1),
         pad=(1, 0),
-        name=("%s_tower_1" % name),
+        name=f"{name}_tower_1",
         suffix="_mixed_conv_1",
     )
     pooling = Pooling(
@@ -332,10 +318,10 @@ def Inception7E(
         stride=(1, 1),
         pad=(1, 1),
         pool_type=pool,
-        name=("%s_pool_%s_pool" % (pool, name)),
+        name=f"{pool}_pool_{name}_pool",
     )
     cproj = Conv(
-        data=pooling, num_filter=proj, kernel=(1, 1), name=("%s_tower_2" % name), suffix="_conv"
+        data=pooling, num_filter=proj, kernel=(1, 1), name=f"{name}_tower_2", suffix="_conv"
     )
     # concat
     concat = relay.concatenate(

@@ -32,7 +32,7 @@ def get_inx(x, image_width, target_width, coordinate_transformation_mode):
         in_x = scale * x
     else:
         raise ValueError(
-            "Unsupported coordinate_transformation_mode: {}".format(coordinate_transformation_mode)
+            f"Unsupported coordinate_transformation_mode: {coordinate_transformation_mode}"
         )
     return in_x
 

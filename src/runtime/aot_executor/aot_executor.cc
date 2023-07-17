@@ -93,8 +93,7 @@ AotExecutor::AotExecutor(tvm::runtime::Module module, const std::vector<Device>&
   }
 }
 
-PackedFunc AotExecutor::GetFunction(const std::string& name,
-                                    const ObjectPtr<Object>& sptr_to_self) {
+PackedFunc AotExecutor::GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) {
   // Return member functions during query.
   if (name == "set_input") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {

@@ -99,7 +99,7 @@ class StrAttrsDict(object):
         if key in self.attrs:
             return float(self.attrs[key])
         if isinstance(default, RequiredAttr):
-            raise AttributeError("Required attribute {} not found.".format(key))
+            raise AttributeError(f"Required attribute {key} not found.")
         return default
 
     def get_int(self, key, default=RequiredAttr()):
@@ -123,7 +123,7 @@ class StrAttrsDict(object):
                 return None
             return int(val)
         if isinstance(default, RequiredAttr):
-            raise AttributeError("Required attribute {} not found.".format(key))
+            raise AttributeError(f"Required attribute {key} not found.")
         return default
 
     def get_str(self, key, default=RequiredAttr()):
@@ -144,7 +144,7 @@ class StrAttrsDict(object):
         if key in self.attrs:
             return self.attrs[key]
         if isinstance(default, RequiredAttr):
-            raise AttributeError("Required attribute {} not found.".format(key))
+            raise AttributeError(f"Required attribute {key} not found.")
         return default
 
     def get_int_tuple(self, key, default=RequiredAttr()):
@@ -170,7 +170,7 @@ class StrAttrsDict(object):
                 if x
             )
         if isinstance(default, RequiredAttr):
-            raise AttributeError("Required attribute {} not found.".format(key))
+            raise AttributeError(f"Required attribute {key} not found.")
         return default
 
     def get_float_tuple(self, key, default=RequiredAttr()):
@@ -193,7 +193,7 @@ class StrAttrsDict(object):
             tshape = self.attrs[key]
             return tuple(float(x.strip()) for x in tshape.strip("()[]").split(","))
         if isinstance(default, RequiredAttr):
-            raise AttributeError("Required attribute {} not found.".format(key))
+            raise AttributeError(f"Required attribute {key} not found.")
         return default
 
     def get_tuple_tuple_int(self, key, default=RequiredAttr()):
@@ -222,7 +222,7 @@ class StrAttrsDict(object):
             return tuple(seq)
 
         if isinstance(default, RequiredAttr):
-            raise AttributeError("Required attribute {} not found.".format(key))
+            raise AttributeError(f"Required attribute {key} not found.")
         return default
 
     def get_int_list(self, key, default=RequiredAttr()):
@@ -244,7 +244,7 @@ class StrAttrsDict(object):
             tshape = self.attrs[key]
             return tuple(int(x.strip()) for x in tshape.strip("[]()").split(","))
         if isinstance(default, RequiredAttr):
-            raise AttributeError("Required attribute {} not found.".format(key))
+            raise AttributeError(f"Required attribute {key} not found.")
         return default
 
     def get_bool(self, key, default=RequiredAttr()):
@@ -266,7 +266,7 @@ class StrAttrsDict(object):
             val = self.attrs[key]
             return val.strip().lower() in ["true", "1", "t", "y", "yes"]
         if isinstance(default, RequiredAttr):
-            raise AttributeError("Required attribute {} not found.".format(key))
+            raise AttributeError(f"Required attribute {key} not found.")
         return default
 
 
@@ -292,7 +292,7 @@ def get_relay_op(op_name):
             if op is not None:
                 break
     if not op:
-        raise tvm.error.OpNotImplemented("Unable to map op_name {} to relay".format(op_name))
+        raise tvm.error.OpNotImplemented(f"Unable to map op_name {op_name} to relay")
     return op
 
 
@@ -307,7 +307,7 @@ class ExprTable(object):
 
     def new_const(self, value, shape=None, dtype="float32", source_name=None):
         """Construct a new var expr and add to exprs dictionary"""
-        name = "_param_%d" % (self.const_ctr)
+        name = f"_param_{self.const_ctr}"
         if hasattr(value, "shape"):
             shape = value.shape
         self.const_ctr += 1
@@ -412,7 +412,7 @@ class AttrCvt(object):
         if self._custom_check:
             func, msg = self._custom_check
             if not func(attrs):
-                raise RuntimeError("Check failed: {}".format(msg))
+                raise RuntimeError(f"Check failed: {msg}")
         # get new op_name
         if isinstance(self._op_name, str):
             op_name = self._op_name
@@ -465,7 +465,7 @@ class AttrCvt(object):
         else:
             k = None  # should raise
         if not isinstance(k, str):
-            msg = "{} is not a valid target, (name, default) expected.".format(target)
+            msg = f"{target} is not a valid target, (name, default) expected."
             raise ValueError(msg)
         return k, v, t
 
@@ -479,7 +479,7 @@ class AttrCvt(object):
         """Wrapper for getting required attributes."""
         assert isinstance(attr, dict)
         if key not in attr:
-            raise AttributeError("Required attribute {} not found.".format(key))
+            raise AttributeError(f"Required attribute {key} not found.")
         return attr[key]
 
 
@@ -1035,7 +1035,7 @@ def ensure_scalar_shape(x):
         return x
 
     num_elem = np.prod(x_shape)
-    assert num_elem == 1, "Cannot squeeze tensor shape {} to scalar form.".format(x_shape)
+    assert num_elem == 1, f"Cannot squeeze tensor shape {x_shape} to scalar form."
 
     return _op.squeeze(x)
 

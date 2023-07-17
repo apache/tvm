@@ -75,10 +75,10 @@ class Initializer(object):
 
     def _init_default(self, name, _):
         raise ValueError(
-            "Unknown initialization pattern for %s. "
-            "Default initialization is now limited to "
-            '"weight", "bias", "gamma" (1.0), and "beta" (0.0).'
-            "Please use mx.sym.Variable(init=mx.init.*) to set initialization pattern" % name
+            f"Unknown initialization pattern for {name}. "
+            f"Default initialization is now limited to "
+            f'"weight", "bias", "gamma" (1.0), and "beta" (0.0).'
+            f"Please use mx.sym.Variable(init=mx.init.*) to set initialization pattern"
         )
 
 
@@ -110,8 +110,7 @@ class Xavier(Initializer):
         hw_scale = 1.0
         if len(shape) < 2:
             raise ValueError(
-                "Xavier initializer cannot be applied to vector {0}. It requires at"
-                " least 2D.".format(name)
+                f"Xavier initializer cannot be applied to vector {name}. It requires at least 2D."
             )
         if len(shape) > 2:
             hw_scale = np.prod(shape[2:])

@@ -89,6 +89,7 @@ IGNORED_WARNINGS=(
     # Warning is thrown during TFLite quantization for micro_train tutorial
     'absl:For model inputs containing unsupported operations which cannot be quantized, the `inference_input_type` attribute will default to the original type.'
     'absl:Found untraced functions such as _jit_compiled_convolution_op'
+    'You are using pip version'
 )
 
 JOINED_WARNINGS=$(join_by '|' "${IGNORED_WARNINGS[@]}")
@@ -162,7 +163,7 @@ cd ..
 # Rust doc
 cd rust
 # Temp disable rust doc build
-# cargo doc --workspace --no-deps
+cargo doc --workspace --no-deps
 cd ..
 
 # Prepare the doc dir
@@ -172,7 +173,7 @@ rm -f _docs/.buildinfo
 mkdir -p _docs/reference/api
 mv docs/doxygen/html _docs/reference/api/doxygen
 mv jvm/core/target/site/apidocs _docs/reference/api/javadoc
-# mv rust/target/doc _docs/api/rust
+mv rust/target/doc _docs/api/rust
 mv web/dist/docs _docs/reference/api/typedoc
 git rev-parse HEAD > _docs/commit_hash
 

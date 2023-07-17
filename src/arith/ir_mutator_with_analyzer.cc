@@ -22,6 +22,7 @@
  */
 #include "ir_mutator_with_analyzer.h"
 
+#include <tvm/arith/iter_affine_map.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/op.h>
 
@@ -29,6 +30,34 @@ namespace tvm {
 namespace arith {
 
 using namespace tir;
+
+void IRMutatorWithAnalyzer::MarkBufferMapShapes(const tir::PrimFunc& func) {
+  // Mark the all the symbolic buffer shape values in the buffer map as positive value.
+  for (auto kv : func->buffer_map) {
+    for (PrimExpr shape : kv.second->shape) {
+      analyzer_->MarkGlobalNonNegValue(shape);
+    }
+  }
+}
+
+Array<PrimExpr> IRMutatorWithAnalyzer::IterMapSimplifyWithContext(const Array<PrimExpr>& indices,
+                                                                  bool non_trivial_only) {
+  PrimExpr pred = const_true();
+  for (PrimExpr val : iter_predicates_) {
+    pred = pred && val;
+  }
+  int n = indices.size();
+  Array<PrimExpr> simplified = arith::IterMapSimplify(
+      indices, this->iter_vars_, pred, arith::IterMapLevel::Surjective, this->analyzer_);
+  if (non_trivial_only) {
+    for (int i = 0; i < n; ++i) {
+      if (simplified[i]->IsInstance<IntImmNode>() && indices[i]->IsInstance<VarNode>()) {
+        simplified.Set(i, indices[i]);
+      }
+    }
+  }
+  return simplified;
+}
 
 Stmt IRMutatorWithAnalyzer::VisitStmt_(const ForNode* op) {
   // record the loop variable as iterators

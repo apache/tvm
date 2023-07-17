@@ -7,8 +7,8 @@ cloudpickle==2.0.0 \
 decorator==5.1.0 \
     --hash=sha256:7b12e7c3c6ab203a29e157335e9122cb03de9ab7264b137594103fd4a683b374 \
     --hash=sha256:e59913af105b9860aa2c8d3272d9de5a56a4e608db9a2f167a8480b323d529a7
-ethos-u-vela==3.7.0 \
-    --hash=sha256:314b761e171d19bf03e141684f9a371af7bf830f739b9b2f90b5f303a7fb1203
+ethos-u-vela==3.8.0 \
+    --hash=sha256:cb0b1f5b1f886242d67ff0072efb88ac90cc87574ebe92fc98db4609f7797acf
 flatbuffers==2.0.7 \
     --hash=sha256:0ae7d69c5b82bf41962ca5fde9cc43033bc9501311d975fd5a25e8a7d29c1245 \
     --hash=sha256:71e135d533be527192819aaab757c5e3d109cb10fbb01e687f6bdb7a61ad39d1

@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2023-04-24T11:43:39.830981
+// Generated at 2023-06-09T15:32:58.342947
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -157,7 +157,7 @@ def init_git() {
     script: """
       set -eux
       . ${jenkins_scripts_root}/retry.sh
-      retry 3 timeout 5m git submodule update --init -f --jobs 0
+      retry 3 timeout 5m git submodule update --init --recursive -f --jobs 0
     """,
     label: 'Update git submodules',
   )
@@ -586,7 +586,7 @@ try {
 
 def shard_run_integration_aarch64_1_of_4(node_type='ARM-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'ARM-SMALL'
     }
     node(node_type) {
@@ -635,7 +635,7 @@ def shard_run_integration_aarch64_1_of_4(node_type='ARM-SMALL-SPOT', on_demand=f
 
 def shard_run_integration_aarch64_2_of_4(node_type='ARM-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'ARM-SMALL'
     }
     node(node_type) {
@@ -684,7 +684,7 @@ def shard_run_integration_aarch64_2_of_4(node_type='ARM-SMALL-SPOT', on_demand=f
 
 def shard_run_integration_aarch64_3_of_4(node_type='ARM-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'ARM-SMALL'
     }
     node(node_type) {
@@ -733,7 +733,7 @@ def shard_run_integration_aarch64_3_of_4(node_type='ARM-SMALL-SPOT', on_demand=f
 
 def shard_run_integration_aarch64_4_of_4(node_type='ARM-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'ARM-SMALL'
     }
     node(node_type) {
@@ -784,7 +784,7 @@ def shard_run_integration_aarch64_4_of_4(node_type='ARM-SMALL-SPOT', on_demand=f
 
 def shard_run_topi_aarch64_1_of_2(node_type='ARM-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'ARM-SMALL'
     }
     node(node_type) {
@@ -838,7 +838,7 @@ def shard_run_topi_aarch64_1_of_2(node_type='ARM-SMALL-SPOT', on_demand=false) {
 
 def shard_run_topi_aarch64_2_of_2(node_type='ARM-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'ARM-SMALL'
     }
     node(node_type) {
@@ -892,7 +892,7 @@ def shard_run_topi_aarch64_2_of_2(node_type='ARM-SMALL-SPOT', on_demand=false) {
 
 def shard_run_frontend_aarch64_1_of_2(node_type='ARM-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'ARM-SMALL'
     }
     node(node_type) {
@@ -940,7 +940,7 @@ def shard_run_frontend_aarch64_1_of_2(node_type='ARM-SMALL-SPOT', on_demand=fals
 
 def shard_run_frontend_aarch64_2_of_2(node_type='ARM-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'ARM-SMALL'
     }
     node(node_type) {

@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2023-04-24T11:43:39.885039
+// Generated at 2023-06-09T15:32:58.237181
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -157,7 +157,7 @@ def init_git() {
     script: """
       set -eux
       . ${jenkins_scripts_root}/retry.sh
-      retry 3 timeout 5m git submodule update --init -f --jobs 0
+      retry 3 timeout 5m git submodule update --init --recursive -f --jobs 0
     """,
     label: 'Update git submodules',
   )
@@ -586,7 +586,7 @@ try {
 
 def shard_run_test_Cortex_M_1_of_12(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'CPU-SMALL'
     }
     node(node_type) {
@@ -640,7 +640,7 @@ def shard_run_test_Cortex_M_1_of_12(node_type='CPU-SMALL-SPOT', on_demand=false)
 
 def shard_run_test_Cortex_M_2_of_12(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'CPU-SMALL'
     }
     node(node_type) {
@@ -688,7 +688,7 @@ def shard_run_test_Cortex_M_2_of_12(node_type='CPU-SMALL-SPOT', on_demand=false)
 
 def shard_run_test_Cortex_M_3_of_12(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'CPU-SMALL'
     }
     node(node_type) {
@@ -736,7 +736,7 @@ def shard_run_test_Cortex_M_3_of_12(node_type='CPU-SMALL-SPOT', on_demand=false)
 
 def shard_run_test_Cortex_M_4_of_12(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'CPU-SMALL'
     }
     node(node_type) {
@@ -784,7 +784,7 @@ def shard_run_test_Cortex_M_4_of_12(node_type='CPU-SMALL-SPOT', on_demand=false)
 
 def shard_run_test_Cortex_M_5_of_12(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'CPU-SMALL'
     }
     node(node_type) {
@@ -832,7 +832,7 @@ def shard_run_test_Cortex_M_5_of_12(node_type='CPU-SMALL-SPOT', on_demand=false)
 
 def shard_run_test_Cortex_M_6_of_12(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'CPU-SMALL'
     }
     node(node_type) {
@@ -880,7 +880,7 @@ def shard_run_test_Cortex_M_6_of_12(node_type='CPU-SMALL-SPOT', on_demand=false)
 
 def shard_run_test_Cortex_M_7_of_12(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'CPU-SMALL'
     }
     node(node_type) {
@@ -928,7 +928,7 @@ def shard_run_test_Cortex_M_7_of_12(node_type='CPU-SMALL-SPOT', on_demand=false)
 
 def shard_run_test_Cortex_M_8_of_12(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'CPU-SMALL'
     }
     node(node_type) {
@@ -976,7 +976,7 @@ def shard_run_test_Cortex_M_8_of_12(node_type='CPU-SMALL-SPOT', on_demand=false)
 
 def shard_run_test_Cortex_M_9_of_12(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'CPU-SMALL'
     }
     node(node_type) {
@@ -1024,7 +1024,7 @@ def shard_run_test_Cortex_M_9_of_12(node_type='CPU-SMALL-SPOT', on_demand=false)
 
 def shard_run_test_Cortex_M_10_of_12(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'CPU-SMALL'
     }
     node(node_type) {
@@ -1072,7 +1072,7 @@ def shard_run_test_Cortex_M_10_of_12(node_type='CPU-SMALL-SPOT', on_demand=false
 
 def shard_run_test_Cortex_M_11_of_12(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'CPU-SMALL'
     }
     node(node_type) {
@@ -1120,7 +1120,7 @@ def shard_run_test_Cortex_M_11_of_12(node_type='CPU-SMALL-SPOT', on_demand=false
 
 def shard_run_test_Cortex_M_12_of_12(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'CPU-SMALL'
     }
     node(node_type) {

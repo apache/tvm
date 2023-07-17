@@ -179,7 +179,7 @@ def measure_bandwidth_all_types(
                     )
                     max_speed = max(max_speed, speed)
                 type_name = base_type + str(bits)
-                result.append(["%sx%d" % (type_name, lanes), max_speed])
+                result.append([f"{type_name}x{lanes}", max_speed])
                 if verbose:
                     logging.info("\t%-10s %.2f GBPS", result[-1][0], result[-1][1])
     return result
@@ -343,7 +343,7 @@ def measure_compute_all_types(
                     )
                     max_speed = max(max_speed, speed)
                 type_name = base_type + str(bits)
-                result.append(["%sx%d" % (type_name, lanes), max_speed])
+                result.append([f"{type_name}x{lanes}", max_speed])
 
                 unit = "GFLOPS" if base_type == "float" else "GIOPS"
 

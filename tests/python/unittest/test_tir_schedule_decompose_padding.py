@@ -41,6 +41,47 @@ def check_decompose_padding(origin, scheduled, expected, check_run=False):
         tvm.testing.assert_allclose(y0.numpy(), y1.numpy())
 
 
+def test_int64_indices_batch_decompose_padding():
+    @T.prim_func
+    def before_decompose(
+        x: T.Buffer((T.int64(1), T.int64(128), T.int64(128)), "int32"),
+        y: T.Buffer((T.int64(1), T.int64(140), T.int64(128)), "int32"),
+    ):
+        for b, i, j in T.grid(T.int64(1), T.int64(140), T.int64(128)):
+            with T.block("block"):
+                vb, vi, vj = T.axis.remap("SSS", [b, i, j])
+                y[vb, vi, vj] = T.if_then_else(vi < T.int64(128), x[vb, vi, vj], 0)
+
+    @T.prim_func
+    def after_decompose(
+        x: T.Buffer((T.int64(1), T.int64(128), T.int64(128)), "int32"),
+        y: T.Buffer((T.int64(1), T.int64(140), T.int64(128)), "int32"),
+    ):
+        # with T.block("root"):
+        for b, i in T.grid(T.int64(1), T.int64(140)):
+            for j in range(T.int64(128)):
+                with T.block("block_pad_const"):
+                    vb = T.axis.spatial(T.int64(1), T.int64(0))
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    T.reads()
+                    T.writes(y[vb, vi, vj])
+                    y[vb, vi, vj] = 0
+            for j in range(T.int64(128)):
+                with T.block("block"):
+                    vb = T.axis.spatial(T.int64(1), T.int64(0))
+                    vi = T.axis.spatial(T.int64(128), i)
+                    vj = T.axis.spatial(T.int64(128), j)
+                    T.where(i < T.int64(128))
+                    T.reads(x[vb, vi, vj])
+                    T.writes(y[vb, vi, vj])
+                    y[vb, vi, vj] = x[vb, vi, vj]
+
+    sch = tir.Schedule(before_decompose, debug_mask="all")
+    block = sch.get_block("block")
+    sch.decompose_padding(block, sch.get_loops(block)[2])
+    check_decompose_padding(before_decompose, sch.mod["main"], after_decompose, check_run=False)
+
+
 def test_1d_decompose_padding():
     @T.prim_func
     def before_decompose(x: T.Buffer(128, "int32"), y: T.Buffer(140, "int32")):

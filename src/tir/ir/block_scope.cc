@@ -16,7 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "./utils.h"
+#include <tvm/tir/block_scope.h>
+#include <tvm/tir/utils.h>
 
 namespace tvm {
 namespace tir {
@@ -135,27 +136,73 @@ Array<Dependency> BlockScopeNode::GetDepsByDst(const StmtSRef& block_sref) const
   }
 }
 
+/*!
+ * \brief Add a new statement to the stack, which becomes the current scope
+ * \param stmt A for-loop statement or a block statement
+ */
+void SRefTreeCreator::PushSRef(const StmtNode* stmt) {
+  if (srefs_.empty()) {
+    srefs_.push_back(
+        StmtSRef(stmt,
+                 /*parent=*/nullptr,
+                 /*seq_index=*/-1));  // `seq_index` will be set properly in SetSeqIndex
+  } else {
+    StmtSRefNode* parent = srefs_.back().get();
+    srefs_.push_back(
+        StmtSRef(stmt, parent,
+                 /*seq_index=*/-1));  // `seq_index` will be set properly in SetSeqIndex
+  }
+}
+
+/*! \brief Pop the top of the scope and record it in stmt2ref map */
+void SRefTreeCreator::PopAndRecordSRef() {
+  StmtSRef sref = std::move(srefs_.back());
+  stmt2ref_[sref->stmt] = sref;
+  srefs_.pop_back();
+}
+
+void SRefTreeCreator::VisitStmt_(const ForNode* loop) {
+  if (!include_loops_) {
+    VisitStmt(loop->body);
+  } else {
+    PushSRef(loop);
+    VisitStmt(loop->body);
+    PopAndRecordSRef();
+  }
+}
+
+void SRefTreeCreator::VisitStmt_(const BlockRealizeNode* realize) {
+  const BlockNode* block = realize->block.get();
+  PushSRef(block);
+  VisitStmt(block->body);  // `block->init` is not visited
+  PopAndRecordSRef();
+}
+
+void SRefTreeCreator::VisitStmt_(const SeqStmtNode* seq_stmt) {
+  // Set `seq_index` information for SeqStmtNode
+  StmtVisitor::VisitStmt_(seq_stmt);
+  SetSeqIndexInChildren(stmt2ref_, seq_stmt, include_loops_);
+}
+
 /******** FFI ********/
 
 TVM_REGISTER_NODE_TYPE(StmtSRefNode);
 TVM_REGISTER_NODE_TYPE(DependencyNode);
 TVM_REGISTER_NODE_TYPE(BlockScopeNode);
 
-TVM_REGISTER_GLOBAL("tir.schedule.StmtSRefStmt")
-    .set_body_typed([](StmtSRef sref) -> Optional<Stmt> {
-      return GetRef<Optional<Stmt>>(sref->stmt);
-    });
-TVM_REGISTER_GLOBAL("tir.schedule.StmtSRefParent")
-    .set_body_typed([](StmtSRef sref) -> Optional<StmtSRef> {
-      return GetRef<Optional<StmtSRef>>(sref->parent);
-    });
-TVM_REGISTER_GLOBAL("tir.schedule.StmtSRefRootMark")  //
+TVM_REGISTER_GLOBAL("tir.StmtSRefStmt").set_body_typed([](StmtSRef sref) -> Optional<Stmt> {
+  return GetRef<Optional<Stmt>>(sref->stmt);
+});
+TVM_REGISTER_GLOBAL("tir.StmtSRefParent").set_body_typed([](StmtSRef sref) -> Optional<StmtSRef> {
+  return GetRef<Optional<StmtSRef>>(sref->parent);
+});
+TVM_REGISTER_GLOBAL("tir.StmtSRefRootMark")  //
     .set_body_typed(StmtSRef::RootMark);
-TVM_REGISTER_GLOBAL("tir.schedule.StmtSRefInlineMark")  //
+TVM_REGISTER_GLOBAL("tir.StmtSRefInlineMark")  //
     .set_body_typed(StmtSRef::InlineMark);
-TVM_REGISTER_GLOBAL("tir.schedule.BlockScopeGetDepsBySrc")
+TVM_REGISTER_GLOBAL("tir.BlockScopeGetDepsBySrc")
     .set_body_method<BlockScope>(&BlockScopeNode::GetDepsBySrc);
-TVM_REGISTER_GLOBAL("tir.schedule.BlockScopeGetDepsByDst")
+TVM_REGISTER_GLOBAL("tir.BlockScopeGetDepsByDst")
     .set_body_method<BlockScope>(&BlockScopeNode::GetDepsByDst);
 
 }  // namespace tir

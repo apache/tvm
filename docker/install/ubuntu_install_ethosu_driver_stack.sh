@@ -23,7 +23,7 @@ set -o pipefail
 fvp_dir="/opt/arm/FVP_Corstone_SSE-300"
 cmake_dir="/opt/arm/cmake"
 ethosu_dir="/opt/arm/ethosu"
-ethosu_driver_ver="22.08"
+ethosu_driver_ver="23.05"
 
 mkdir -p /opt/arm
 
@@ -36,7 +36,7 @@ cleanup()
 
 trap cleanup 0
 
-# Ubuntu 18.04 dependencies
+# Ubuntu 22.04 dependencies
 apt-get update
 apt-install-and-clear -y \
     bsdmainutils \
@@ -45,7 +45,7 @@ apt-install-and-clear -y \
     git \
     linux-headers-generic \
     make \
-    python-dev \
+    python3-dev \
     python3 \
     ssh \
     wget \

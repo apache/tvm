@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2023-04-24T11:43:39.867544
+// Generated at 2023-06-09T15:32:58.285500
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -157,7 +157,7 @@ def init_git() {
     script: """
       set -eux
       . ${jenkins_scripts_root}/retry.sh
-      retry 3 timeout 5m git submodule update --init -f --jobs 0
+      retry 3 timeout 5m git submodule update --init --recursive -f --jobs 0
     """,
     label: 'Update git submodules',
   )
@@ -587,7 +587,7 @@ try {
 
 def shard_run_python_i386_1_of_3(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'CPU-SMALL'
     }
     node(node_type) {
@@ -638,7 +638,7 @@ def shard_run_python_i386_1_of_3(node_type='CPU-SMALL-SPOT', on_demand=false) {
 
 def shard_run_python_i386_2_of_3(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'CPU-SMALL'
     }
     node(node_type) {
@@ -688,7 +688,7 @@ def shard_run_python_i386_2_of_3(node_type='CPU-SMALL-SPOT', on_demand=false) {
 
 def shard_run_python_i386_3_of_3(node_type='CPU-SMALL-SPOT', on_demand=false) {
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true) {
+    if (on_demand==true || node_type.contains('ARM')) {
         node_type = 'CPU-SMALL'
     }
     node(node_type) {

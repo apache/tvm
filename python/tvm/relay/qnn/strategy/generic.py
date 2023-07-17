@@ -157,6 +157,36 @@ def wrap_topi_qnn_dense(topi_compute):
     return wrapper
 
 
+def wrap_compute_qnn_avg_pool2d(topi_compute):
+    """Wrap qnn.avg_pool2d topi compute"""
+
+    def wrapper(attrs, inputs, out_type):
+        kernel = attrs.pool_size
+        strides = attrs.strides
+        padding = attrs.padding
+        dilation = attrs.dilation
+        count_include_pad = attrs.count_include_pad
+        oshape = out_type.shape
+        odtype = out_type.dtype
+        args = [
+            inputs[0],
+            kernel,
+            strides,
+            padding,
+            dilation,
+            count_include_pad,
+            oshape,
+            odtype,
+            inputs[1],
+            inputs[2],
+            inputs[3],
+            inputs[4],
+        ]
+        return [topi_compute(*args)]
+
+    return wrapper
+
+
 def wrap_topi_concatenate(topi_compute):
     """Wrap TOPI compute which use qnn.concatenate attrs"""
 
@@ -278,5 +308,14 @@ def qnn_batch_matmul_strategy(attrs, inputs, out_type, target):
     """qnn.batch_matmul generic strategy"""
     raise RuntimeError(
         "qnn.batch_matmul is currently only supported with Hexagon. "
+        "Please run QNN Canonicalize pass to decompose this op into supported ops."
+    )
+
+
+@override_native_generic_func("qnn_avg_pool2d_strategy")
+def qnn_avg_pool2d_strategy(attrs, inputs, out_type, target):
+    """qnn.avg_pool2d generic strategy"""
+    raise RuntimeError(
+        "qnn.avg_pool2d is currently only supported with Hexagon. "
         "Please run QNN Canonicalize pass to decompose this op into supported ops."
     )

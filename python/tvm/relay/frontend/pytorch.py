@@ -17,7 +17,7 @@
 # pylint: disable=import-self, too-many-lines, len-as-condition, no-else-return, unused-variable, too-many-nested-blocks
 # pylint: disable=consider-iterating-dictionary, invalid-name, unused-argument, unused-variable, broad-except
 # pylint: disable=import-outside-toplevel, simplifiable-if-expression, cell-var-from-loop, unnecessary-lambda
-# pylint: disable=missing-function-docstring, redefined-builtin
+# pylint: disable=missing-function-docstring, redefined-builtin, use-implicit-booleaness-not-comparison
 """PT: PyTorch frontend."""
 import functools
 import itertools
@@ -338,7 +338,7 @@ class PyTorchOpConverter:
 
     def lerp(self, inputs, input_types):
         if len(inputs) != 3:
-            msg = "Wrong number of arguments (%d) to parse." % (len(inputs))
+            msg = f"Wrong number of arguments ({len(inputs)}) to parse."
             raise AssertionError(msg)
 
         start = inputs[0]
@@ -388,7 +388,7 @@ class PyTorchOpConverter:
             stop = _get_value(inputs[1 if len(inputs) > 5 else 0], dtype)
             step = _get_value(inputs[2], dtype) if len(inputs) > 6 else _expr.const(1, dtype)
         else:
-            msg = "Unknown number of arguments (%d) to parse." % (len(inputs))
+            msg = f"Unknown number of arguments ({len(inputs)}) to parse."
             raise AssertionError(msg)
 
         return _op.transform.arange(start=start, stop=stop, step=step, dtype=dtype)
@@ -399,7 +399,8 @@ class PyTorchOpConverter:
             axis = None
         else:
             # TODO (t-vi): why is the cast to int needed? similarly elsewhere
-            axis = [int(inputs[1])]
+            inputs = [inputs[1]] if not isinstance(inputs[1], list) else inputs[1]
+            axis = [int(v) for v in inputs]
 
         return _op.transform.squeeze(data, axis)
 
@@ -585,8 +586,9 @@ class PyTorchOpConverter:
         import torch
 
         if not isinstance(inputs[1], (int, list, tuple, torch.Tensor)):
-            msg = "indices_or_sections type %s could not be parsed in tensor_split op" % (
-                type(inputs[1])
+            msg = (
+                f"indices_or_sections type {type(inputs[1])} could not be parsed in "
+                f"tensor_split op"
             )
             raise AssertionError(msg)
 
@@ -761,7 +763,7 @@ class PyTorchOpConverter:
         import torch
 
         if not isinstance(data, (_expr.Expr, list, torch.Tensor, np.ndarray)):
-            msg = "Data type %s could not be parsed in ones op" % (type(data))
+            msg = f"Data type {type(data)} could not be parsed in ones op"
             raise AssertionError(msg)
 
         if inputs[1] is not None:
@@ -790,7 +792,7 @@ class PyTorchOpConverter:
         import torch
 
         if not isinstance(size, (_expr.Expr, list, tuple, torch.Size, np.ndarray)):
-            msg = "Data type %s could not be parsed in ones op" % (type(size))
+            msg = f"Data type {type(size)} could not be parsed in ones op"
             raise AssertionError(msg)
 
         if inputs[2] is not None:
@@ -805,7 +807,7 @@ class PyTorchOpConverter:
         import torch
 
         if not isinstance(data, (_expr.Expr, list, torch.Tensor, np.ndarray)):
-            msg = "Data type %s could not be parsed in zeros op" % (type(data))
+            msg = f"Data type {type(data)} could not be parsed in zeros op"
             raise AssertionError(msg)
 
         if inputs[1] is not None:
@@ -832,6 +834,22 @@ class PyTorchOpConverter:
 
         return out
 
+    def new_zeros(self, inputs, input_types):
+        data = inputs[1]
+
+        import torch
+
+        if not isinstance(data, (_expr.Expr, list, tuple, torch.Size)):
+            msg = f"Data type {type(data)} could not be parsed in new_zeros op"
+            raise AssertionError(msg)
+
+        if inputs[2] is not None:
+            dtype = _convert_dtype_value(inputs[2])
+        else:
+            # if dtype is None, use the dtype of the input tensor
+            dtype = self.infer_type(inputs[0])
+        return self.full_impl(data, 0, dtype)
+
     def full(self, inputs, input_types):
         data = inputs[0]
         fill_value = inputs[1]
@@ -839,7 +857,7 @@ class PyTorchOpConverter:
         import torch
 
         if not isinstance(data, (_expr.Expr, list, torch.Tensor, np.ndarray)):
-            msg = "Data type %s could not be parsed in full op" % (type(data))
+            msg = f"Data type {type(data)} could not be parsed in full op"
             raise AssertionError(msg)
 
         if inputs[2] is not None:  # dtype given
@@ -873,7 +891,7 @@ class PyTorchOpConverter:
         import torch
 
         if not isinstance(data, (_expr.Expr, list, tuple, torch.Size)):
-            msg = "Data type %s could not be parsed in full op" % (type(data))
+            msg = f"Data type {type(data)} could not be parsed in full op"
             raise AssertionError(msg)
 
         if inputs[3] is not None:  # dtype given
@@ -952,8 +970,9 @@ class PyTorchOpConverter:
         data = inputs[0]
         dtype = input_types[0]
         alpha = _expr.const(float(inputs[1]), dtype=dtype)
-        return alpha * _op.nn.relu(
-            _expr.const(1, dtype=dtype) - _op.exp(data / alpha)
+        zero = _op.const(0, dtype)
+        return alpha * _op.minimum(
+            zero, _op.exp(data / alpha) - _expr.const(1, dtype=dtype)
         ) + _op.nn.relu(data)
 
     def gelu(self, inputs, input_types):
@@ -1089,6 +1108,10 @@ class PyTorchOpConverter:
     def adaptive_avg_pool(self, op, inputs, input_types):
         data = inputs[0]
         output_size = inputs[1]
+        for i, item in enumerate(output_size):
+            if isinstance(item, tvm.relay.expr.Constant):
+                # convert Constant to int
+                output_size[i] = item.data.numpy()[()]
 
         def func(x):
             return op(x, output_size=output_size)
@@ -1101,6 +1124,10 @@ class PyTorchOpConverter:
     def adaptive_max_pool(self, op, inputs, input_types):
         data = inputs[0]
         output_size = inputs[1]
+        for i, item in enumerate(output_size):
+            if isinstance(item, tvm.relay.expr.Constant):
+                # convert Constant to int
+                output_size[i] = item.data.numpy()[()]
         # returns dummy indices too
         return op(data, output_size=output_size), None
 
@@ -1200,7 +1227,7 @@ class PyTorchOpConverter:
             for infer in inferred_shape:
                 weight_shape.append(infer)
         else:
-            msg = "Data type %s could not be parsed in conv op" % (type(weight))
+            msg = f"Data type {type(weight)} could not be parsed in conv op"
             raise AssertionError(msg)
 
         groups = int(inputs[8])
@@ -1316,7 +1343,11 @@ class PyTorchOpConverter:
 
     def threshold(self, inputs, input_types):
         data = inputs[0]
-        return _op.nn.relu(data)
+        threshold_f = float(inputs[1])
+        threshold_ = _op.full_like(inputs[0], fill_value=_expr.const(threshold_f))
+        value_f = float(inputs[2])
+        value = _op.full_like(inputs[0], fill_value=_expr.const(value_f))
+        return _op.where(_op.greater(data, threshold_), data, value)
 
     def contiguous(self, inputs, input_types):
         return inputs[0]
@@ -1327,18 +1358,16 @@ class PyTorchOpConverter:
 
         channels = self.infer_shape(data)
 
-        if isinstance(inputs[1], _expr.Expr) and isinstance(inputs[2], _expr.Expr):
-            scale = center = True
-            weight = inputs[1]
-            beta = inputs[2]
-            gamma = weight
+        scale = isinstance(inputs[1], _expr.Expr)
+        if scale:
+            gamma = inputs[1]
         else:
-            scale = center = False
-
-        if not scale:
             gamma = _create_typed_const(np.ones([int(channels[1])]), data_type)
 
-        if not center:
+        center = isinstance(inputs[2], _expr.Expr)
+        if center:
+            beta = inputs[2]
+        else:
             beta = _create_typed_const(np.zeros([int(channels[1])]), data_type)
 
         moving_mean = inputs[3]
@@ -1361,6 +1390,9 @@ class PyTorchOpConverter:
         data = inputs[0]
         data_type = input_types[0]
         channels = self.infer_shape(data)
+        running_mean = inputs[3]
+        running_var = inputs[4]
+        use_input_stats = inputs[5]
 
         if isinstance(inputs[1], _expr.Expr) and isinstance(inputs[2], _expr.Expr):
             scale = center = True
@@ -1377,6 +1409,20 @@ class PyTorchOpConverter:
             beta = _create_typed_const(np.zeros([int(channels[1])]), data_type)
 
         epsilon = float(inputs[7])
+
+        if not use_input_stats:
+            return _op.nn.batch_norm(
+                data,
+                gamma,
+                beta,
+                running_mean,
+                running_var,
+                axis=1,
+                epsilon=epsilon,
+                center=center,
+                scale=scale,
+            )[0]
+
         return _op.nn.instance_norm(
             data, gamma, beta, axis=1, epsilon=epsilon, center=center, scale=scale
         )
@@ -1391,7 +1437,7 @@ class PyTorchOpConverter:
         elif isinstance(data, (torch.Tensor, np.ndarray)):
             dims = data.shape
         else:
-            msg = "Data type %s could not be parsed" % type(data)
+            msg = f"Data type {type(data)} could not be parsed"
             raise AssertionError(msg)
         return dims
 
@@ -1440,7 +1486,7 @@ class PyTorchOpConverter:
         elif isinstance(data, (torch.Tensor, np.ndarray)):
             ndims = data.shape
         else:
-            msg = "Data type %s could not be parsed in transpose op" % (type(data))
+            msg = f"Data type {type(data)} could not be parsed in transpose op"
             raise AssertionError(msg)
 
         if isinstance(data, tvm.runtime.NDArray):
@@ -1663,7 +1709,10 @@ class PyTorchOpConverter:
     def softplus(self, inputs, input_types):
         dtype = input_types[0]
         beta = _expr.const(float(inputs[1]), dtype=dtype)
-        return _op.log(_op.exp(inputs[0] * beta) + _expr.const(1.0, dtype=dtype)) / beta
+        threshold = int(inputs[2]) if inputs[2] else 20
+        threshold_ = _op.full_like(inputs[0], fill_value=_expr.const(threshold))
+        softplus_value = _op.log(_op.exp(inputs[0] * beta) + _expr.const(1.0, dtype=dtype)) / beta
+        return _op.where(_op.greater(inputs[0] * beta, threshold_), inputs[0], softplus_value)
 
     def make_avg_pool(self, dim):
         def avg_pool(inputs, input_types):
@@ -2131,13 +2180,7 @@ class PyTorchOpConverter:
         # special handling for aten::to(data, 6, _, _, _) case
         # 6 means dtype = float
         # this happens when converting upsampling with scale factor
-        cast_map = {
-            5: "float16",
-            6: "float32",
-            7: "float64",
-            3: "int32",
-            4: "int64",
-        }
+        cast_map = {5: "float16", 6: "float32", 7: "float64", 3: "int32", 4: "int64"}
 
         cast_func = {5: float, 6: float, 7: float, 3: int, 4: int}
 
@@ -2239,7 +2282,12 @@ class PyTorchOpConverter:
         tensor_list = inputs[0]
         import torch
 
-        res_shape = list(torch.broadcast_shapes(*[self.infer_shape(t) for t in tensor_list]))
+        infer_shape_value = [self.infer_shape(t) for t in tensor_list]
+        # "torch.broadcast_shapes" is available after PyTorch 1.8.0
+        if hasattr(torch, "broadcast_shapes"):
+            res_shape = list(torch.broadcast_shapes(*infer_shape_value))
+        else:
+            res_shape = list(torch.broadcast_tensors(*map(torch.empty, infer_shape_value))[0].shape)
         return [_op.broadcast_to(tensor, res_shape) for tensor in tensor_list]
 
     def Bool(self, inputs, input_types):
@@ -2575,8 +2623,8 @@ class PyTorchOpConverter:
 
     def scatter(self, inputs, input_types):
         assert len(inputs) == 4 or len(inputs) == 5, (
-            "scatter takes 4 or 5 inputs: data, dim, index, src, reduce (optional), "
-            + "but {} given".format(len(inputs))
+            f"scatter takes 4 or 5 inputs: data, dim, index, src, reduce (optional), "
+            f"but {len(inputs)} given"
         )
         data = inputs[0]
         axis = int(inputs[1])
@@ -2646,12 +2694,7 @@ class PyTorchOpConverter:
 
     def scalar_tensor(self, inputs, input_types):
         data = inputs[0]
-        cast_map = {
-            6: "float32",
-            7: "float64",
-            3: "int32",
-            4: "int64",
-        }
+        cast_map = {6: "float32", 7: "float64", 3: "int32", 4: "int64"}
         type_key = inputs[1]
         if isinstance(data, _expr.Constant):
             data = data.data.numpy().tolist()
@@ -2718,7 +2761,7 @@ class PyTorchOpConverter:
         import torch
 
         if not isinstance(size, (_expr.Expr, list, tuple, torch.Size, np.ndarray)):
-            msg = "Data type %s could not be parsed in empty op" % (type(size))
+            msg = f"Data type {type(size)} could not be parsed in empty op"
             raise AssertionError(msg)
 
         if inputs[2] is not None:
@@ -2765,7 +2808,7 @@ class PyTorchOpConverter:
     def scatter_add(self, inputs, input_types):
         assert (
             len(inputs) == 4
-        ), "scatter_add takes 4 inputs (data, dim, index, src), but {} given".format(len(inputs))
+        ), f"scatter_add takes 4 inputs (data, dim, index, src), but {len(inputs)} given"
         data = inputs[0]
         axis = inputs[1]
         index = inputs[2]
@@ -2796,8 +2839,8 @@ class PyTorchOpConverter:
 
     def scatter_reduce(self, inputs, input_types):
         assert len(inputs) == 5 or len(inputs) == 6, (
-            "scatter_reduce takes 5 or 6 inputs (data, dim, index, src, reduce, include_self), "
-            + "but {} given".format(len(inputs))
+            f"scatter_reduce takes 5 or 6 inputs (data, dim, index, src, reduce, include_self), "
+            f"but {len(inputs)} given"
         )
         data = inputs[0]
         dim = inputs[1]
@@ -2828,9 +2871,9 @@ class PyTorchOpConverter:
                 ), "Index dim size should be less than data one"
 
         red_valids = ["sum", "prod", "mean", "amax", "amin"]
-        assert reduce in red_valids, "Only {} modes are supported, but {} is gotten".format(
-            red_valids, reduce
-        )
+        assert (
+            reduce in red_valids
+        ), f"Only {red_valids} modes are supported, but {reduce} is gotten"
         if reduce == "sum":
             reduce = "add"
         elif reduce == "prod":
@@ -3097,11 +3140,7 @@ class PyTorchOpConverter:
             len(layer_weights_dicts) == num_layers and k == num_layers
         ), "For stacked RNN number of weights sets should be the same as number of layers!"
         output, out_hidden_state = self.rnn_layers(
-            X,
-            layer_weights_dicts,
-            bidirectional,
-            act,
-            dropout_p=dropout_p,
+            X, layer_weights_dicts, bidirectional, act, dropout_p=dropout_p
         )
 
         # output shape = (seq_num, batch, hidden_size) or
@@ -3111,25 +3150,14 @@ class PyTorchOpConverter:
 
         return (output, out_hidden_state)
 
-    def bidir_gru_cell(
-        self,
-        input_seqs,
-        weights_dicts,
-    ):
+    def bidir_gru_cell(self, input_seqs, weights_dicts):
         """
         Bidirectional GRU cell
         """
         seq_len = len(input_seqs)
-        forward_outputs, fw_H_t = gru_cell(
-            input_seqs,
-            **weights_dicts[0],
-        )
+        forward_outputs, fw_H_t = gru_cell(input_seqs, **weights_dicts[0])
 
-        reverse_outputs, rev_H_t = gru_cell(
-            input_seqs,
-            **weights_dicts[1],
-            backwards=True,
-        )
+        reverse_outputs, rev_H_t = gru_cell(input_seqs, **weights_dicts[1], backwards=True)
 
         final_outputs = []
         for i in range(seq_len):
@@ -3284,10 +3312,7 @@ class PyTorchOpConverter:
         ), "For stacked GRU number of weights sets should be the same as number of layers!"
 
         output, out_hidden_state = self.gru_layers(
-            X,
-            layer_weights_dicts,
-            bidirectional,
-            dropout_p=dropout_p,
+            X, layer_weights_dicts, bidirectional, dropout_p=dropout_p
         )
 
         # output shape = (seq_num, batch, hidden_size) or
@@ -3297,24 +3322,15 @@ class PyTorchOpConverter:
 
         return (output, out_hidden_state)
 
-    def bidir_lstm_cell(
-        self,
-        input_seqs,
-        weights_dicts,
-    ):
+    def bidir_lstm_cell(self, input_seqs, weights_dicts):
         """
         Bidirectional LSTM cell
         """
         seq_len = len(input_seqs)
-        forward_outputs, fw_H_t, fw_C_t = lstm_cell(
-            input_seqs,
-            **weights_dicts[0],
-        )
+        forward_outputs, fw_H_t, fw_C_t = lstm_cell(input_seqs, **weights_dicts[0])
 
         reverse_outputs, rev_H_t, rev_C_t = lstm_cell(
-            input_seqs,
-            **weights_dicts[1],
-            backwards=True,
+            input_seqs, **weights_dicts[1], backwards=True
         )
 
         final_outputs = []
@@ -3531,11 +3547,7 @@ class PyTorchOpConverter:
         ), "For stacked LSTM number of weights sets should be the same as number of layers!"
 
         outputs = self.lstm_layers(
-            X,
-            layer_weights_dicts,
-            bidirectional,
-            dtype=X_dtype,
-            dropout_p=dropout_p,
+            X, layer_weights_dicts, bidirectional, dtype=X_dtype, dropout_p=dropout_p
         )
 
         # output shape = (seq_num, batch, hidden_size) or
@@ -3617,16 +3629,15 @@ class PyTorchOpConverter:
             # First fill in the last axis with roll indices, and then do transpose to
             # bring the roll indices into the desired axis.
             indices = slide_axes(
-                _op.tile(indices_1d, shape[:dim] + shape[dim + 1 :] + (1,)),
-                shape,
-                dim,
+                _op.tile(indices_1d, shape[:dim] + shape[dim + 1 :] + (1,)), shape, dim
             )
             out = _op.gather(out, dim, indices)
 
         return out
 
     def einsum(self, inputs, input_types):
-        equation, data = inputs
+        equation = inputs[0]
+        data = inputs[1]
         return _op.einsum(data, equation)
 
     def dot(self, inputs, _):
@@ -3661,7 +3672,7 @@ class PyTorchOpConverter:
             axes = [0, 4, 1, 2, 3]
             grid = _op.transform.transpose(inputs[1], axes)
         else:
-            msg = f"only 4D and 5D are supported."
+            msg = "only 4D and 5D are supported."
             raise ValueError(msg)
 
         if interpolate_mode == 0:
@@ -3755,6 +3766,7 @@ class PyTorchOpConverter:
             "aten::zeros": self.zeros,
             "aten::zero_": self.zero_,
             "aten::zeros_like": self.zeros_like,
+            "aten::new_zeros": self.new_zeros,
             "aten::new_ones": self.new_ones,
             "aten::full": self.full,
             "aten::full_like": self.full_like,
@@ -4023,16 +4035,13 @@ class PyTorchOpConverter:
                 missing.append(op_name)
 
         if missing:
-            msg = "The following operators are not implemented: {}".format(missing)
+            msg = f"The following operators are not implemented: {missing}"
             raise NotImplementedError(msg)
 
     def convert_block(self, block, outputs):
         """Translate Torch "Block", used for prim::If and prim::Loop"""
         ops = _get_operator_nodes(
-            block.nodes(),
-            self.source_map,
-            self.op_type_dict,
-            self.use_parser_friendly_name,
+            block.nodes(), self.source_map, self.op_type_dict, self.use_parser_friendly_name
         )
         ret_names = _get_input_names(block.returnNode())
         return self.convert_operators(ops, outputs, ret_names)
@@ -4195,8 +4204,7 @@ class PyTorchOpConverter:
                 outputs[node_name] = _get_constant(op_node)
             elif operator == "prim::ListConstruct" and _should_construct_dynamic_list(op_node):
                 outputs[node_name] = set_span(
-                    self.convert_to_list_adt(inputs),
-                    self.source_map[op_node],
+                    self.convert_to_list_adt(inputs), self.source_map[op_node]
                 )
             elif operator == "prim::ListConstruct":
                 # This assumes that no more elements will be appended to this list
@@ -4215,8 +4223,7 @@ class PyTorchOpConverter:
                     return _expr.Tuple(inputs_list)
 
                 outputs[node_name] = set_span(
-                    _handel_nested_input(inputs),
-                    self.source_map[op_node],
+                    _handel_nested_input(inputs), self.source_map[op_node]
                 )
             elif operator in ["prim::ListUnpack", "prim::TupleUnpack"]:
                 assert len(inputs) == 1
@@ -4350,7 +4357,7 @@ def _convert_dtype_value(val):
     if val in convert_torch_dtype_map:
         return _convert_data_type(convert_torch_dtype_map[val])
     else:
-        msg = "Torch data type value %d is not handled yet." % (val)
+        msg = f"Torch data type value {val} is not handled yet."
         raise NotImplementedError(msg)
 
 
@@ -4389,7 +4396,7 @@ def _convert_data_type(input_type, default_dtype=None):
     elif input_type in ["str"]:
         return "str"
     else:
-        raise NotImplementedError("input_type {} is not handled yet".format(input_type))
+        raise NotImplementedError(f"input_type {input_type} is not handled yet")
     return "float32"  # Never reached
 
 
@@ -4414,7 +4421,7 @@ def _create_typed_const(data, dtype):
     elif dtype == "uint8":
         typed_data = _expr.const(np.uint8(data), dtype=dtype)
     else:
-        raise NotImplementedError("input_type {} is not handled yet".format(dtype))
+        raise NotImplementedError(f"input_type {dtype} is not handled yet")
     return typed_data
 
 
@@ -4554,7 +4561,7 @@ def _get_constant(node):
         elif ty == "FunctionType":
             return None
         else:
-            raise NotImplementedError("Unsupported type: %s" % ty)
+            raise NotImplementedError(f"Unsupported type: {ty}")
     else:
         assert num_attributes == 0
         return None
@@ -4604,12 +4611,7 @@ def _debug_rename(graph, use_parser_friendly_name):
     return source_map
 
 
-def _get_operator_nodes(
-    nodes,
-    source_map=None,
-    op_type_dict=None,
-    use_parser_friendly_name=False,
-):
+def _get_operator_nodes(nodes, source_map=None, op_type_dict=None, use_parser_friendly_name=False):
     """Returns torch IR nodes that need conversion to Relay"""
     ops, should_rename_graph = [], all([source_map, op_type_dict]) is not None
 
@@ -4648,9 +4650,7 @@ def _get_relay_input_vars(graph, input_infos, prelude, is_module=True, default_d
         raise RuntimeError(msg)
 
     if len(graph_inputs) != len(input_infos):
-        msg = "PyTorch has {} inputs and input_infos lists {}.".format(
-            len(graph_inputs), len(input_infos)
-        )
+        msg = f"PyTorch has {len(graph_inputs)} inputs and input_infos lists {len(input_infos)}."
         raise RuntimeError(msg)
 
     def get_relay_ty(ishape, itype, pt_type):
@@ -4663,6 +4663,12 @@ def _get_relay_input_vars(graph, input_infos, prelude, is_module=True, default_d
                 and any([s1 != s2 for s1, s2 in zip(pt_type.sizes(), ishape)])
             ):
                 msg = "Shapes of input list and information in the graph do not match"
+                raise RuntimeError(msg)
+            if len(ishape) > 1 and any(dim <= 0 for dim in ishape[1:]):
+                msg = (
+                    "Expected input's non-batch dimensions to have positive length, "
+                    f"but input has a shape of {pt_type.sizes()}"
+                )
                 raise RuntimeError(msg)
             pt_dtype = pt_type.scalarType()
             if not pt_dtype and itype:
@@ -4698,12 +4704,12 @@ def _get_relay_input_vars(graph, input_infos, prelude, is_module=True, default_d
     new_input_infos = []
     for num, inp in enumerate(input_infos):
         if not isinstance(inp, tuple):
-            msg = "Graph input {} is not a tuple".format(num)
+            msg = f"Graph input {num} is not a tuple"
             raise RuntimeError(msg)
         if len(inp) != 2 or not isinstance(inp[0], str):
             msg = (
-                "Graph input {} is not valid,"
-                " expected ('name', shape) or ('name', (shape, dtype))".format(inp)
+                f"Graph input {inp} is not valid,"
+                f" expected ('name', shape) or ('name', (shape, dtype))"
             )
             raise RuntimeError(msg)
         if not isinstance(inp[1], tuple) or len(inp[1]) == 0 or not isinstance(inp[1][-1], str):
@@ -4817,10 +4823,7 @@ def convert_params(graph, state_dict, source_map, use_parser_friendly_name=False
             # set variable name by concatenating first consumer's name with full attribute
             # e.g. "aten::batch_norm_5.running_mean"
             var_name = attr_name_sep.join(
-                [
-                    source_map[_get_users(getattrs[-1])[0]],
-                    full_attr.split(attr_name_sep)[-1],
-                ]
+                [source_map[_get_users(getattrs[-1])[0]], full_attr.split(attr_name_sep)[-1]]
             )
 
             if full_attr.endswith("_packed_params"):  # for quantized models
@@ -4860,7 +4863,7 @@ def export_c_graph(location, graph):
     if not os.path.exists(location):
         os.makedirs(location)
     time_stamp = datetime.datetime.now().strftime("%m_%d_%Y_%H_%M_%S")
-    fname = os.path.join(location, "tvm_exported_c_graph_{}.txt".format(time_stamp))
+    fname = os.path.join(location, f"tvm_exported_c_graph_{time_stamp}.txt")
     with open(f"{fname}", "w") as f:
         f.write(str(graph))
 
@@ -4993,10 +4996,7 @@ def from_pytorch(
         converter.update_convert_map(qnn_torch.convert_map)
 
     operator_nodes = _get_operator_nodes(
-        graph.nodes(),
-        converter.source_map,
-        converter.op_type_dict,
-        use_parser_friendly_name,
+        graph.nodes(), converter.source_map, converter.op_type_dict, use_parser_friendly_name
     )
     ret_name = _get_input_names(graph.return_node())
     outputs = converter.convert_operators(operator_nodes, outputs, ret_name)

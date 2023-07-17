@@ -322,7 +322,6 @@ class Schedule : public ObjectRef {
   /*!
    * \brief Create a schedule for array of ops(and their dependencies).
    * \param ops The ops to be scheduled.
-   * \return sch The created Schedule.
    */
   TVM_DLL explicit Schedule(Array<Operation> ops);
   /*!

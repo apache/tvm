@@ -66,8 +66,7 @@ EthosnModule::EthosnModule(std::vector<OrderedCompiledNetwork>* cmms) {
   }
 }
 
-PackedFunc EthosnModule::GetFunction(const std::string& name,
-                                     const ObjectPtr<Object>& sptr_to_self) {
+PackedFunc EthosnModule::GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) {
   if (network_map_.find(name) != network_map_.end()) {
     return PackedFunc([sptr_to_self, this, name](TVMArgs args, TVMRetValue* rv) {
       *rv = Inference(args, network_map_[name].proc_mem_alloc.get(),
@@ -143,7 +142,7 @@ Module EthosnModule::LoadFromBinary(void* strm) {
   return Module(n);
 }
 
-void EthosnModule::SaveToFile(const std::string& path, const std::string& format) {
+void EthosnModule::SaveToFile(const String& path, const String& format) {
   std::string data;
   dmlc::MemoryStringStream writer(&data);
   dmlc::SeekStream* strm = &writer;

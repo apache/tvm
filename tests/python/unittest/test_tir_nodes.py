@@ -118,9 +118,12 @@ def test_cast():
     assert z.lanes == 4
 
     s = tvm.tir.StringImm("s")
-    with pytest.raises(tvm.error.TVMError) as cm:
-        s.astype("int")
-        assert "Can't cast a handle to other types" in str(cm.execption)
+    with pytest.raises(tvm.error.TVMError):
+        try:
+            s.astype("int")
+        except Exception as e:
+            assert "Can't cast a handle to other types" in str(e)
+            raise
 
 
 def test_attr():

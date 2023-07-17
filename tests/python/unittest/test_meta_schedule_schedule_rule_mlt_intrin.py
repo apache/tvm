@@ -21,6 +21,7 @@ from tvm.ir import assert_structural_equal
 from tvm.meta_schedule.testing.space_generation import (
     check_sketches,
     generate_design_space,
+    print_sketches,
 )
 from tvm.script import tir as T
 from tvm.target import Target
@@ -276,7 +277,7 @@ def _check_dp4a_dense(m, n, k, in_dtype, out_dtype, expected_mods, expected_deci
     actual = generate_design_space(
         kind="cuda",
         mod=mod,
-        target=Target("cuda"),
+        target=Target("cuda --arch=sm_70"),
         types=None,
         sch_rules=[
             ms.schedule_rule.MultiLevelTilingWithIntrin(

@@ -17,11 +17,12 @@
 """The base parser for tir"""
 
 import contextlib
+import inspect
 from functools import partial
-from typing import Any
+from typing import Any, Union
 
 import tvm
-from tvm.ir import PrimType
+from tvm.ir import GlobalVar, PrimType
 from tvm.tir import Buffer, IterVar, PrimExpr, Var
 
 from ...ir_builder import ir as I
@@ -29,6 +30,8 @@ from ...ir_builder import tir as T
 from ...ir_builder.base import IRBuilder
 from ...ir_builder.base import IRBuilderFrame as Frame
 from .._core import Parser, dispatch, doc
+from ..core.parser import VarTable
+from .entry import TIRMacro
 
 
 def bind_with_value(self: Parser, node: doc.expr, var_name: str, value: Any) -> Any:
@@ -143,14 +146,14 @@ def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -
     ):
         IRBuilder.name(var_name, value)
         return value
-    elif isinstance(value, PrimExpr):
+    else:
+        value = tvm.runtime.convert(value)
         frame = T.LetStmt(value)
         var = frame.var
         IRBuilder.name(var_name, var)
         frame.add_callback(partial(frame.__exit__, None, None, None))
         frame.__enter__()
         return var
-    return value
 
 
 @dispatch.register(token="tir", type_name="For")
@@ -211,6 +214,28 @@ def visit_assign(self: Parser, node: doc.Assign) -> None:
     if len(node.targets) != 1:
         self.report_error(node, "Consequential assignments like 'a = b = c' are not supported.")
     lhs = node.targets[0]
+
+    if isinstance(node.value, doc.Subscript):
+        check_slices = []
+        if isinstance(node.value.slice, doc.Slice):
+            check_slices = [node.value.slice]
+        elif isinstance(node.value.slice, doc.Tuple):
+            for p in node.value.slice.elts:
+                if isinstance(p, doc.Slice):
+                    check_slices.append(p)
+        for s in check_slices:
+            if not s.step and s.upper and s.lower:
+                s.step = doc.Constant(
+                    1,
+                    None,
+                    1,
+                    1,
+                    s.upper.lineno,
+                    s.upper.end_col_offset + 1,
+                    s.upper.lineno,
+                    s.upper.end_col_offset + 2,
+                )
+
     rhs = self.eval_expr(node.value)
     if isinstance(lhs, doc.Subscript):
         if isinstance(lhs.slice, doc.Tuple):
@@ -338,6 +363,9 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
     node : doc.FunctionDef
         The doc AST function definition node.
     """
+    supplied_annotation = self.function_annotations
+    func_annotation = supplied_annotation.get(node.name, {})
+    self.function_annotations = None
     with self.var_table.with_frame():
         self.var_table.add("range", T.serial)
         with T.prim_func():
@@ -348,35 +376,28 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
                     ret_type = PrimType(ret_type().dtype)
                 T.func_ret(ret_type)
             with self.with_dispatch_token("tir"):
-                self.visit(node.args)
+                # TODO: handle different types of arguments:
+                # - vararg: arg | None
+                # - kwonlyargs: list[arg]
+                # - kw_defaults: list[expr | None]
+                # - kwarg: arg | None
+                # - defaults: list[expr]
+                # - posonlyargs: list[arg]
+                for arg in node.args.args:
+                    if arg.annotation is None:
+                        self.report_error(arg, "Type annotation required for function parameters.")
+                    try:
+                        ann = self.eval_expr(arg.annotation)
+                        if callable(ann):
+                            ann = ann()
+                    except Exception:  # pylint: disable=broad-except
+                        ann = func_annotation.get(arg.arg, None)
+                        if ann is None:
+                            raise
+                    param = T.arg(arg.arg, ann)
+                    self.var_table.add(arg.arg, param)
                 self.visit_body(node.body)
-
-
-@dispatch.register(token="tir", type_name="arguments")
-def visit_arguments(self: Parser, node: doc.arguments) -> None:
-    """The arguments visiting method for tir.
-
-    Parameters
-    ----------
-    self : Parser
-        The visiting parser.
-
-    node : doc.arguments
-        The doc AST arguments node.
-    """
-    # TODO: handle different types of arguments:
-    # - vararg: arg | None
-    # - kwonlyargs: list[arg]
-    # - kw_defaults: list[expr | None]
-    # - kwarg: arg | None
-    # - defaults: list[expr]
-    # - posonlyargs: list[arg]
-    arg: doc.arg
-    for arg in node.args:
-        if arg.annotation is None:
-            self.report_error(arg, "Type annotation is required for function parameters.")
-        param = T.arg(arg.arg, self.visit_tvm_annotation(arg.annotation))
-        self.var_table.add(arg.arg, param)
+    self.function_annotations = supplied_annotation
 
 
 @dispatch.register(token="tir", type_name="tvm_annotation")
@@ -409,14 +430,33 @@ def visit_expr_stmt(self: Parser, node: doc.Expr) -> None:
     node : doc.Expr
         The doc AST Expr node.
     """
+
+    if isinstance(node.value, doc.Call):
+        callee = self.eval_expr(node.value.func)
+        if isinstance(callee, TIRMacro):
+            return expand_macro(self, callee, node.value)
+
     res = self.eval_expr(node.value)
-    if isinstance(res, Frame):
+    if res is None:
+        pass
+    elif isinstance(res, Frame):
         res.add_callback(partial(res.__exit__, None, None, None))
         res.__enter__()
     elif isinstance(res, PrimExpr):
         T.evaluate(res)
     elif isinstance(res, (int, bool)):
         T.evaluate(tvm.tir.const(res))
+    elif isinstance(res, tvm.relay.Call) and not res.args:
+        # Using GlobalVar.__call__ with no arguments is ambiguous, as
+        # each IR has a different function Call representation.  If
+        # this occurs, convert to the TIR representation.
+        T.evaluate(tvm.tir.call_tir(res.op))
+    elif isinstance(res, str):
+        # Ignore docstrings
+        pass
+    else:
+        self.report_error(node, f"Parsing resulted in unexpected type {type(res)}")
+    return None  # For pylint
 
 
 @dispatch.register(token="tir", type_name="If")
@@ -477,7 +517,7 @@ def visit_return(self: Parser, node: doc.Return) -> None:
 
 
 @dispatch.register(token="tir", type_name="tvm_declare_function")
-def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> None:
+def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> GlobalVar:
     """The function declaration step for tir
 
     Parameters
@@ -497,5 +537,52 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> None:
 
     # Only ret_type is needed for func_signature.
     func_signature = tvm.tir.PrimFunc([], None, ret_type=ret_type)
-    global_var = I.decl_function(node.name, func_signature)
-    self.var_table.add(node.name, global_var)
+    return I.decl_function(node.name, func_signature)
+
+
+def expand_macro(self: Parser, callee: TIRMacro, call: doc.Call) -> None:
+    """Bind arguments to the macro invocation to the parameters in the macro definition,
+    and pass the macro body for further parsing.
+    """
+
+    assert isinstance(callee, TIRMacro), f"Unexpected macro type {type(callee)}"
+
+    def find_macro_def(name: str, decl_list: doc.AST) -> Union[doc.FunctionDef, Any]:
+        for decl in decl_list:
+            if isinstance(decl, doc.FunctionDef) and decl.name == name:
+                return decl
+        return None
+
+    macro_def = find_macro_def(callee.__name__, callee.source_ast.body)
+    assert macro_def is not None, f"Invalid macro AST for {callee.__name__}"
+    # `macro_def` is the FunctionDef of the macro.
+
+    args = [self.eval_expr(arg) for arg in call.args]
+    kwargs = {kw.arg: self.eval_expr(kw.value) for kw in call.keywords}
+    param_binding = inspect.signature(callee.func).bind(*args, **kwargs)
+    param_binding.apply_defaults()
+    local_vars = param_binding.arguments
+
+    if callee.hygienic:
+        # If the macro was hygienic, construct new var_table with a single frame that
+        # contains the captured environment, and process the macro's body with that
+        # frame.
+        saved_var_table = self.var_table
+        self.var_table = VarTable()
+        with self.var_table.with_frame():
+            for k, v in callee.closure_vars.items():
+                self.var_table.add(k, v)
+            for k, v in local_vars.items():
+                self.var_table.add(k, v)
+
+            self.visit_body(macro_def.body)
+
+        self.var_table = saved_var_table
+
+    else:
+        # Otherwise, dynamically resolve symbols in the macro's body.
+        with self.var_table.with_frame():
+            for k, v in local_vars.items():
+                self.var_table.add(k, v)
+
+            self.visit_body(macro_def.body)

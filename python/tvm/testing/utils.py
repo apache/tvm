@@ -91,7 +91,7 @@ import tvm.tir
 import tvm.te
 import tvm._ffi
 
-from tvm.contrib import nvcc, cudnn
+from tvm.contrib import nvcc, cudnn, rocm
 import tvm.contrib.hexagon._ci_env_check as hexagon
 from tvm.driver.tvmc.frontends import load_model
 from tvm.error import TVMError
@@ -914,6 +914,14 @@ requires_rocm = Feature(
     parent_features="gpu",
 )
 
+# Mark a test as requiring a matrixcore to run
+requires_matrixcore = Feature(
+    "matrixcore",
+    "AMD Matrix Core",
+    run_time_check=lambda: tvm.rocm().exist and rocm.have_matrixcore(tvm.rocm().compute_version),
+    parent_features="rocm",
+)
+
 # Mark a test as requiring the metal runtime
 requires_metal = Feature(
     "metal",
@@ -954,6 +962,9 @@ requires_rpc = Feature("rpc", "RPC", cmake_flag="USE_RPC")
 
 # Mark a test as requiring Arm(R) Ethos(TM)-N to run
 requires_ethosn = Feature("ethosn", "Arm(R) Ethos(TM)-N", cmake_flag="USE_ETHOSN")
+
+# Mark a test as requiring Arm(R) Ethos(TM)-U to run
+requires_ethosu = Feature("ethosu", "Arm(R) Ethos(TM)-U", cmake_flag="USE_ETHOSU")
 
 # Mark a test as requiring libtorch to run
 requires_libtorch = Feature("libtorch", "LibTorch", cmake_flag="USE_LIBTORCH")
@@ -1239,7 +1250,6 @@ def requires_package(*packages):
 
 
 def parametrize_targets(*args):
-
     """Parametrize a test over a specific set of targets.
 
     Use this decorator when you want your test to be run over a
@@ -1503,7 +1513,6 @@ def parameters(*value_sets, ids=None):
 
     outputs = []
     for param_values in zip(*value_sets):
-
         # Optional cls parameter in case a parameter is defined inside a
         # class scope.
         def fixture_func(*_cls, request):
@@ -1664,7 +1673,7 @@ def _fixture_cache(func):
         try:
             hash((args, kwargs))
             return (args, kwargs)
-        except TypeError as e:
+        except TypeError:
             pass
 
         try:
@@ -1761,7 +1770,7 @@ def install_request_hook(depth: int) -> None:
         base = __file__
         msg += f"found file {__file__}\n"
     except NameError:
-        msg += f"no file\n"
+        msg += "no file\n"
 
     if base is None:
         hook_script_dir = Path.cwd().resolve()
@@ -2029,7 +2038,6 @@ class CompareBeforeAfter:
             return inner
 
         if hasattr(transform, "_pytestfixturefunction"):
-
             if not hasattr(cls, "_transform_orig"):
                 cls._transform_orig = transform
 
@@ -2050,7 +2058,6 @@ class CompareBeforeAfter:
                 return apply(transform(self))
 
         else:
-
             raise TypeError(
                 "Expected transform to be a tvm.ir.transform.Pass, or a method returning a Pass"
             )
@@ -2065,13 +2072,6 @@ class CompareBeforeAfter:
     def test_compare(self, before, expected, transform):
         """Unit test to compare the expected TIR PrimFunc to actual"""
 
-        def pprint(name, obj):
-            script = obj.script()
-            if isinstance(obj, tvm.IRModule):
-                return script.replace("class Module", f"class {name}")
-            else:
-                return script.replace("def func", f"def {name}")
-
         if inspect.isclass(expected) and issubclass(expected, Exception):
             with pytest.raises(expected):
                 after = transform(before)
@@ -2079,8 +2079,8 @@ class CompareBeforeAfter:
                 # This portion through pytest.fail isn't strictly
                 # necessary, but gives a better error message that
                 # includes the before/after.
-                before_str = pprint("before", before)
-                after_str = pprint("after", after)
+                before_str = before.script(name="before")
+                after_str = after.script(name="after")
 
                 pytest.fail(
                     msg=(
@@ -2095,9 +2095,9 @@ class CompareBeforeAfter:
             try:
                 tvm.ir.assert_structural_equal(after, expected)
             except ValueError as err:
-                before_str = pprint("before", before)
-                after_str = pprint("after", after)
-                expected_str = pprint("expected", expected)
+                before_str = before.script(name="before")
+                after_str = after.script(name="after")
+                expected_str = expected.script(name="expected")
                 raise ValueError(
                     f"TIR after transformation did not match expected:\n"
                     f"{before_str}\n{after_str}\n{expected_str}"

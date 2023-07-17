@@ -29,6 +29,21 @@
 #include "../../support/array.h"
 
 namespace tvm {
+namespace tir {
+/*!
+ * \brief Get the buffer dimensions for all the read buffers of a block, but marks the reduction
+ * buffers' dimensions as -1
+ * \param block_sref The block to be processed
+ * \return The buffer dimensions for all the read buffers of a block, except for reduction buffers
+ * \note The method is not designed for generic analysis and relies on assumptions in the scenario
+ * of multi-level tiling, so it's intentionally kept inside this file not in the analysis header
+ */
+std::vector<int> GetReadBufferNDims(const StmtSRef& block_sref);
+
+}  // namespace tir
+}  // namespace tvm
+
+namespace tvm {
 namespace meta_schedule {
 
 /*!

@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Integration test for MetaSchedule"""
+import platform
 import tempfile
 from typing import List
 
@@ -55,6 +56,7 @@ class MockModule:
 # pylint: enable=no-member,line-too-long,too-many-nested-blocks,unbalanced-tuple-unpacking,no-self-argument
 
 
+@pytest.mark.skip("Integration tests")
 def test_meta_schedule_dynamic_loop_extent():
     a = relay.var("a", shape=(1, 8, 8, 512), dtype="float32")
     b = relay.nn.adaptive_avg_pool2d(a, (7, 7), "NHWC")
@@ -63,6 +65,11 @@ def test_meta_schedule_dynamic_loop_extent():
     assert not extracted_tasks
 
 
+@pytest.mark.skip("Integration tests")
+@pytest.mark.skipif(
+    platform.machine() == "aarch64",
+    reason="Currently torch.jit.trace fails on AArch64",
+)
 @tvm.testing.requires_package("torch")
 def test_meta_schedule_integration_extract_from_resnet():
     mod, params, _ = get_network(name="resnet_18", input_shape=[1, 3, 224, 224])
@@ -99,6 +106,11 @@ def test_meta_schedule_integration_extract_from_resnet():
         assert t.task_name in expected_task_names, t.task_name
 
 
+@pytest.mark.skip("Integration tests")
+@pytest.mark.skipif(
+    platform.machine() == "aarch64",
+    reason="Currently torch.jit.trace fails on AArch64",
+)
 @tvm.testing.requires_package("torch")
 def test_task_extraction_winograd_tensorcore():
     mod, params, _ = get_network(name="resnet_50", input_shape=[16, 3, 224, 224])
@@ -117,6 +129,11 @@ def test_task_extraction_winograd_tensorcore():
     assert len([t for t in extracted_tasks if "winograd" in t.task_name]) == 4
 
 
+@pytest.mark.skip("Integration tests")
+@pytest.mark.skipif(
+    platform.machine() == "aarch64",
+    reason="Currently torch.jit.trace fails on AArch64",
+)
 @tvm.testing.requires_package("torch")
 def test_task_extraction_anchor_block():
     mod, params, _ = get_network(name="resnet_18", input_shape=[1, 3, 224, 224])
@@ -152,6 +169,7 @@ def test_task_extraction_anchor_block():
         assert t.task_name in expected_task_names, t.task_name
 
 
+@pytest.mark.skip("Integration tests")
 @tvm.testing.requires_package("torch")
 def test_meta_schedule_integration_extract_from_bert_base():
     pytest.importorskip(
@@ -250,6 +268,11 @@ def test_meta_schedule_integration_extract_from_bert_base():
         assert expected_shape == shape, t.task_name
 
 
+@pytest.mark.skip("Integration tests")
+@pytest.mark.skipif(
+    platform.machine() == "aarch64",
+    reason="Currently torch.jit.trace fails on AArch64",
+)
 @tvm.testing.requires_package("torch")
 def test_meta_schedule_integration_extract_from_resnet_with_filter_func():
     @register_func("relay.backend.tir_converter.remove_purely_spatial", override=True)
@@ -357,6 +380,7 @@ def extract_task_qbert_avx512():
     extract_task_qbert("llvm -mcpu=skylake-avx512", "avx512")
 
 
+@pytest.mark.skip("Integration tests")
 @tvm.testing.skip_if_32bit(reason="Apparently the LLVM version on i386 image is too old")
 def test_extract_task_arm_conv2d_nchwc():
     data_shape = (1, 64, 128, 128)
@@ -402,6 +426,7 @@ def test_extract_task_arm_conv2d_nchwc():
     assert list(out_type.shape) == [1, 8, 130, 130, 4]
 
 
+@pytest.mark.skip("Integration tests")
 def test_meta_schedule_te2primfunc_argument_order_and_lowering():
     # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
     # fmt: off
@@ -564,7 +589,9 @@ def test_meta_schedule_te2primfunc_argument_order_and_lowering():
         dev,
     )
 
-    with target, _create_verification_database(), PassContext(  # pylint: disable=not-context-manager
+    with (
+        target
+    ), _create_verification_database(), PassContext(  # pylint: disable=not-context-manager
         opt_level=3,
         config={
             "relay.backend.use_meta_schedule": True,
@@ -590,6 +617,7 @@ def test_meta_schedule_te2primfunc_argument_order_and_lowering():
     assert np.allclose(actual_output, expected_output, rtol=1e-4, atol=2e-4)
 
 
+@pytest.mark.skip("Integration tests")
 def test_rewrite_layout_link_params():
     I, O, H, W = 64, 64, 56, 56
     kH = kW = 3
@@ -668,6 +696,7 @@ def test_rewrite_layout_link_params():
         np.testing.assert_allclose(ref, out, rtol=1e-4, atol=1e-4)
 
 
+@pytest.mark.skip("Integration tests")
 def test_module_equality_ignore_ndarray():
     target = "llvm --num-cores=4"
 
@@ -783,6 +812,7 @@ def _test_anchor_tuning(target, space):
     np.testing.assert_allclose(ref, out, atol=1e-3)
 
 
+@pytest.mark.skip("Integration tests")
 @pytest.mark.parametrize(
     "space",
     [
@@ -794,6 +824,7 @@ def test_anchor_tuning_cpu(space):
     _test_anchor_tuning("llvm --num-cores=4", space)
 
 
+@pytest.mark.skip("Integration tests")
 def test_anchor_tuning_cpu_link_params():
     data_shape = (128, 128)
     weight_shape1 = (128, 128)
@@ -846,6 +877,7 @@ def test_anchor_tuning_cpu_link_params():
     np.testing.assert_allclose(ref, out, atol=1e-3)
 
 
+@pytest.mark.skip("Integration tests")
 @pytest.mark.xfail(raises=tvm.error.TVMError)
 def test_disabled_pass_param():
     """
@@ -891,6 +923,7 @@ def test_disabled_pass_param():
     pytest.fail("'disabled_pass' argument does not work")
 
 
+@pytest.mark.skip("Integration tests")
 def test_rewrite_layout_link_params_1x1_conv2d():
     I, O, H, W = 32, 16, 256, 256
     kH = kW = 1

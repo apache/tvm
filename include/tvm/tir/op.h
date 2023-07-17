@@ -865,7 +865,12 @@ inline bool is_const_number(const PrimExpr& x);
  */
 template <typename FReduce>
 inline PrimExpr foldl(FReduce freduce, PrimExpr init_value, const Array<PrimExpr>& values,
-                      Span span = Span());
+                      Span span = Span()) {
+  for (PrimExpr val : values) {
+    init_value = freduce(init_value, val, span);
+  }
+  return init_value;
+}
 
 /*!
  * \brief Check whether x is a constant power of two
@@ -934,7 +939,8 @@ inline PrimExpr MakeConstScalar(DataType t, ValueType value, Span span = Span())
       return LargeUIntImm(t, static_cast<int64_t>(low), static_cast<int64_t>(high), span);
     }
   }
-  if (t.is_float() || t.is_bfloat16()) return FloatImm(t, static_cast<double>(value), span);
+  if (t.is_float() || t.is_bfloat16() || t.is_float8())
+    return FloatImm(t, static_cast<double>(value), span);
   // For now, we store const scalar values of custom datatypes within doubles; later, during the
   // datatypes lowering pass, we will lower the value to its true representation in the format
   // specified by the datatype.
@@ -964,15 +970,6 @@ inline PrimExpr make_zero(DataType t, Span span) {
     return reinterpret(t, make_const(DataType::UInt(64), 0, span));
   }
   return make_const(t, 0, span);
-}
-
-template <typename FReduce>
-inline PrimExpr foldl(FReduce freduce, PrimExpr init_value, const Array<PrimExpr>& values,
-                      Span span) {
-  for (PrimExpr val : values) {
-    init_value = freduce(init_value, val, span);
-  }
-  return init_value;
 }
 
 }  // namespace tir

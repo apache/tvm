@@ -105,6 +105,12 @@ TVM_REGISTER_TARGET_TAG("nvidia/jetson-agx-xavier")
       {"registers_per_block", Integer(RegPerBlock)},              \
   });
 
+// Naming convention for CUDA tags see https://developer.nvidia.com/cuda-gpus
+// Parameters see Table 15. Technical Specifications per Compute Capability
+// https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html
+// Check `Maximum y- or z-dimension of a grid of thread blocks` for max threads per block
+// Check `Maximum amount of shared memory per thread block` for max shared memory per block
+// Note that above 48 KB requires dynamic shared memory
 TVM_REGISTER_CUDA_TAG("nvidia/tesla-k80", "sm_37", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/tesla-k40", "sm_35", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/tesla-k20", "sm_35", 49152, 65536);
@@ -129,6 +135,7 @@ TVM_REGISTER_CUDA_TAG("nvidia/tesla-k80", "sm_37", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/tesla-k40", "sm_35", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/tesla-k20", "sm_35", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/tesla-k10", "sm_30", 49152, 65536);
+TVM_REGISTER_CUDA_TAG("nvidia/rtx-a6000", "sm_86", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/quadro-rtx-8000", "sm_75", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/quadro-rtx-6000", "sm_75", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/quadro-rtx-5000", "sm_75", 49152, 65536);

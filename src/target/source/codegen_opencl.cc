@@ -30,6 +30,7 @@
 #include "../../runtime/texture.h"
 #include "../../runtime/thread_storage_scope.h"
 #include "../build_common.h"
+#include "../spirv/spirv_utils.h"
 
 namespace tvm {
 namespace codegen {
@@ -87,7 +88,7 @@ void CodeGenOpenCL::InitFuncState(const PrimFunc& f) {
   }
 }
 
-void CodeGenOpenCL::PrintFuncPrefix(std::ostream& os) { os << "__kernel void"; }
+void CodeGenOpenCL::PrintFuncPrefix(std::ostream& os) { os << "__kernel "; }
 
 void CodeGenOpenCL::PreFunctionBody(const PrimFunc& f) {
   for (Var arg : f->params) {
@@ -369,17 +370,19 @@ std::string CodeGenOpenCL::CastFromTo(std::string value, DataType from, DataType
 
 std::string CodeGenOpenCL::CastTo(std::string value, DataType target) {
   std::ostringstream os;
-  if (target.lanes() == 1) {
-    os << "((";
+  if (target == DataType::Bool()) {
+    os << "(";
+    os << "(";
     this->PrintType(target, os);
     os << ")" << value << ")";
-  } else {  // convert vector type
+    return os.str();
+  } else {
     os << "(";
     os << "convert_";
     this->PrintType(target, os);
     os << "(" << value << "))";
+    return os.str();
   }
-  return os.str();
 }
 
 void CodeGenOpenCL::VisitStmt_(const AllocateNode* op) {
@@ -566,11 +569,7 @@ void CodeGenOpenCL::VisitExpr_(const SelectNode* op, std::ostream& os) {
   os << ", ";
   PrintExpr(op->condition, oss);
   if (op->dtype.is_float()) {
-    if (op->condition.dtype().is_uint() || op->condition.dtype().is_int()) {
-      os << oss.str();
-    } else {
-      os << CastTo(oss.str(), DataType::Int(op->dtype.bits(), op->dtype.lanes()));
-    }
+    os << CastTo(oss.str(), DataType::Int(op->dtype.bits(), op->dtype.lanes()));
   } else {
     os << CastFromTo(oss.str(), op->condition.dtype(), op->dtype);
   }
@@ -585,6 +584,14 @@ void CodeGenOpenCL::SetTextureScope(
 }
 
 runtime::Module BuildOpenCL(IRModule mod, Target target) {
+#if TVM_ENABLE_SPIRV
+  Optional<String> device = target->GetAttr<String>("device");
+  if (device && device.value() == "spirv") {
+    auto [smap, spirv_text] = LowerToSPIRV(mod, target);
+    return runtime::OpenCLModuleCreate(smap, spirv_text, ExtractFuncInfo(mod));
+  }
+#endif
+
   using tvm::runtime::Registry;
   bool output_ssa = false;
 
@@ -602,7 +609,7 @@ runtime::Module BuildOpenCL(IRModule mod, Target target) {
     cg.AddFunction(f);
     std::string fsource = cg.Finish();
     if (fpostproc) {
-      fsource = (*fpostproc)(fsource).operator std::string();
+      fsource = (*fpostproc)(fsource, target).operator std::string();
     }
     code << fsource;
   }

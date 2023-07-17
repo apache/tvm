@@ -135,8 +135,15 @@ void StmtVisitor::VisitStmt_(const BlockNode* op) {
   VisitArray(op->reads, fvisit_buffer_region);
   VisitArray(op->writes, fvisit_buffer_region);
   VisitArray(op->match_buffers,
-             [fvisit_buffer_region](const MatchBufferRegion& match_buffer_region) {
+             [this, fvisit_buffer_region](const MatchBufferRegion& match_buffer_region) {
                fvisit_buffer_region(match_buffer_region->source);
+               this->VisitExpr(match_buffer_region->buffer->elem_offset);
+               VisitArray(match_buffer_region->buffer->strides,
+                          [this](const PrimExpr& e) { this->VisitExpr(e); });
+               VisitArray(match_buffer_region->buffer->shape,
+                          [this](const PrimExpr& e) { this->VisitExpr(e); });
+               VisitArray(match_buffer_region->buffer->axis_separators,
+                          [this](const IntImm& e) { this->VisitExpr(e); });
              });
   if (op->init.defined()) {
     this->VisitStmt(op->init.value());
@@ -238,11 +245,28 @@ class StmtMutator::Internal {
 
   static Array<MatchBufferRegion> Mutate(StmtMutator* self, const Array<MatchBufferRegion>& arr) {
     auto fmutate = [self](const MatchBufferRegion& match_buffer_region) {
+      const Buffer& buffer = match_buffer_region->buffer;
       Array<Range> region = Mutate(self, match_buffer_region->source->region);
-      if (region.same_as(match_buffer_region->source->region)) {
-        return match_buffer_region;
+      PrimExpr elem_offset = self->VisitExpr(buffer->elem_offset);
+      Array<PrimExpr> strides = Mutate(self, buffer->strides);
+      Array<PrimExpr> shape = Mutate(self, buffer->shape);
+      Array<IntImm> axis_separators =
+          MutateArray(self, buffer->axis_separators,
+                      [self](const IntImm& e) { return Downcast<IntImm>(self->VisitExpr(e)); });
+
+      if (elem_offset.same_as(buffer->elem_offset) && strides.same_as(buffer->strides) &&
+          shape.same_as(buffer->shape) && axis_separators.same_as(buffer->axis_separators)) {
+        if (region.same_as(match_buffer_region->source->region)) {
+          return match_buffer_region;
+        } else {
+          return MatchBufferRegion(buffer,
+                                   BufferRegion(match_buffer_region->source->buffer, region));
+        }
       } else {
-        return MatchBufferRegion(match_buffer_region->buffer,
+        Buffer new_buffer(buffer->data, buffer->dtype, shape, strides, elem_offset, buffer->name,
+                          buffer->data_alignment, buffer->offset_factor, buffer->buffer_type,
+                          axis_separators, buffer->span);
+        return MatchBufferRegion(new_buffer,
                                  BufferRegion(match_buffer_region->source->buffer, region));
       }
     };
@@ -675,6 +699,11 @@ class IRSubstitute : public StmtExprMutator {
     return VisitBufferAccess(std::move(node));
   }
 
+  Stmt VisitStmt_(const DeclBufferNode* op) final {
+    auto node = Downcast<DeclBuffer>(StmtExprMutator::VisitStmt_(op));
+    return VisitBufferAccess(std::move(node));
+  }
+
   template <typename Node>
   Node VisitBufferAccess(Node node) {
     Buffer new_buf = GetRemappedBuffer(node->buffer);
@@ -694,10 +723,25 @@ class IRSubstitute : public StmtExprMutator {
       return it->second;
     }
 
-    auto new_buffer_var = vmap_(buf->data);
-    if (new_buffer_var.defined() && !new_buffer_var.value().same_as(buf->data)) {
+    PrimExpr new_buffer_var_expr = VisitExpr(buf->data);
+    CHECK(new_buffer_var_expr->IsInstance<VarNode>())
+        << "Buffer " << buf << " uses backing allocation " << buf->data
+        << ", which was substituted into the expression " << new_buffer_var_expr << ".  "
+        << "However, this expression is of type " << new_buffer_var_expr->GetTypeKey()
+        << " and the backing allocation must be a tir::Var";
+
+    Var buffer_var = Downcast<Var>(new_buffer_var_expr);
+    auto elem_offset = VisitExpr(buf->elem_offset);
+    auto shape = buf->shape.Map([this](const auto& expr) { return VisitExpr(expr); });
+    auto strides = buf->strides.Map([this](const auto& expr) { return VisitExpr(expr); });
+
+    if (!buffer_var.same_as(buf->data) || !elem_offset.same_as(buf->elem_offset) ||
+        !shape.same_as(buf->shape) || !strides.same_as(buf->strides)) {
       auto writer = buf.CopyOnWrite();
-      writer->data = Downcast<Var>(new_buffer_var);
+      writer->data = buffer_var;
+      writer->elem_offset = elem_offset;
+      writer->shape = shape;
+      writer->strides = strides;
     }
 
     buf_remap_[key] = buf;

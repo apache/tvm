@@ -42,6 +42,7 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
     arith::Analyzer ana;
     auto pass = BufferFlattener(&ana);
     auto writer = func.CopyOnWrite();
+    pass.MarkBufferMapShapes(func);
     writer->body = pass.VisitStmt(func->body);
     // The buffers in func->buffer_map are deliberately left
     // unflattened, as they are used for validation of user-provided
@@ -51,6 +52,8 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
   }
 
  private:
+  using IRMutatorWithAnalyzer::VisitExpr;
+  using IRMutatorWithAnalyzer::VisitExpr_;
   using IRMutatorWithAnalyzer::VisitStmt;
   using IRMutatorWithAnalyzer::VisitStmt_;
 
@@ -85,77 +88,76 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
   }
 
   Stmt VisitStmt_(const AllocateNode* op) final {
+    // Determine the flattened extents first, before stripping of
+    // DeclBuffer.
+    auto new_extents = [&]() -> Array<PrimExpr> {
+      if (op->extents.size() == 1) {
+        // No flattening required for buffers that are already flat
+        return op->extents;
+      }
+
+      if (auto* decl_buffer = op->body.as<DeclBufferNode>()) {
+        // N-d buffer, use the DeclBuffer inside to determine how it
+        // should be flattened.
+        auto& buffer = decl_buffer->buffer;
+        bool matching_buffer = [&]() {
+          if (!decl_buffer->buffer->data.same_as(op->buffer_var)) {
+            return false;
+          }
+          if (op->dtype != buffer->dtype) {
+            return false;
+          }
+          if (op->extents.size() != buffer->shape.size()) {
+            return false;
+          }
+          ExprDeepEqual expr_equal;
+          for (size_t i = 0; i < op->extents.size(); i++) {
+            if (!expr_equal(op->extents[i], buffer->shape[i])) {
+              return false;
+            }
+          }
+          return true;
+        }();
+
+        if (matching_buffer) {
+          Buffer flattened = GetFlattenedBuffer(buffer);
+          return flattened->shape;
+        } else {
+          ICHECK(decl_buffer->buffer->axis_separators.empty())
+              << "DeclBuffer node doesn't match Allocate extents, but also shouldn't be "
+                 "flattened to 1-d physical memory";
+        }
+      }
+
+      // Fallback, this is an allocation without a matching DeclBuffer
+      PrimExpr flat_extent = 1;
+      for (const auto& dim : op->extents) {
+        flat_extent *= dim;
+      }
+      return {flat_extent};
+    }();
+
     Allocate alloc = Downcast<Allocate>(StmtExprMutator::VisitStmt_(op));
+
     // TODO(Lunderberg): Move the handling of boolean into a
     // dedicated pass.
     if (alloc->dtype == DataType::Bool()) {
-      auto writer = alloc.CopyOnWrite();
-      writer->dtype = DataType::Int(8);
+      alloc.CopyOnWrite()->dtype = DataType::Int(8);
     }
 
-    if (alloc->extents.size() == 1) {
-      // No flattening required for buffers that are already flat
-
-      // TODO(rfc-70): Keep the DeclBuffer node as-is.  Stripping it
-      // out in the current implementation as not all lowering passes
-      // support DeclBuffer.
-      if (auto* decl_buffer = alloc->body.as<DeclBufferNode>()) {
-        alloc.CopyOnWrite()->body = std::move(decl_buffer->body);
-      }
-
-      return std::move(alloc);
+    if (!new_extents.same_as(alloc->extents)) {
+      alloc.CopyOnWrite()->extents = new_extents;
     }
 
-    if (auto* decl_buffer = alloc->body.as<DeclBufferNode>();
-        decl_buffer && decl_buffer->buffer->data.same_as(alloc->buffer_var)) {
-      // N-d buffer, use the DeclBuffer inside to determine how it
-      // should be flattened.
-      auto& buffer = decl_buffer->buffer;
-      bool matching_buffer = [&]() {
-        if (alloc->dtype != buffer->dtype) {
-          return false;
-        }
-        if (alloc->extents.size() != buffer->shape.size()) {
-          return false;
-        }
-        ExprDeepEqual expr_equal;
-        for (size_t i = 0; i < alloc->extents.size(); i++) {
-          if (!expr_equal(alloc->extents[i], buffer->shape[i])) {
-            return false;
-          }
-        }
-        return true;
-      }();
-
-      if (matching_buffer) {
-        Buffer flattened = GetFlattenedBuffer(buffer);
-
-        auto n = alloc.CopyOnWrite();
-        // TODO(rfc-70): Update the DeclBuffer node instead of
-        // stripping it out.  Stripping it out in the current
-        // implementation as not all lowering passes support
-        // DeclBuffer.
-        //
-        // n->body = DeclBuffer(flattened, std::move(decl_buffer->body));
-        n->body = std::move(decl_buffer->body);
-        n->extents = flattened->shape;
-        return std::move(alloc);
-      } else {
-        ICHECK(decl_buffer->buffer->axis_separators.empty())
-            << "DeclBuffer node doesn't match Allocate extents, but also shouldn't be "
-               "flattened to 1-d physical memory";
-      }
-    }
-
-    // Fallback, this is an allocation without a matching DeclBuffer
-    PrimExpr flat_extent = 1;
-    for (const auto& dim : alloc->extents) {
-      flat_extent *= dim;
-    }
-
-    auto n = alloc.CopyOnWrite();
-    n->extents = {flat_extent};
     return std::move(alloc);
+  }
+
+  Stmt VisitStmt_(const DeclBufferNode* op) final {
+    // TODO(rfc-70): Update the DeclBuffer node instead of
+    // stripping it out.  Stripping it out in the current
+    // implementation as not all lowering passes support
+    // DeclBuffer.
+    return VisitStmt(op->body);
   }
 
   Buffer GetFlattenedBuffer(Buffer buf) {
@@ -218,18 +220,7 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
 
   Array<PrimExpr> GetSimplifiedElemOffset(const Buffer& buffer, const Array<PrimExpr>& indices) {
     auto flattened_indices = buffer->ElemOffset(indices);
-    // Use IterMapSimplify to enable constant fold of fused indices
-    // IterMapSimplify is more powerful and time-consuming than normal
-    // simplify as it tries to deal with symbolic fusion
-    //
-    // Only use to handle indices during layout transformations
-    // So we restrict the use to here
-    PrimExpr pred = const_true();
-    for (PrimExpr val : iter_predicates_) {
-      pred = pred && val;
-    }
-    return arith::IterMapSimplify(flattened_indices, this->iter_vars_, pred,
-                                  arith::IterMapLevel::Surjective, this->analyzer_);
+    return this->IterMapSimplifyWithContext(flattened_indices, false);
   }
 
   template <typename Node>

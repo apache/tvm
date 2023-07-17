@@ -245,7 +245,7 @@ class ConstantMemoryPools(Object):
         )
 
 
-@register_object("ir.ConstantMemoryPools")
+@register_object("ir.AllocatedPoolInfo")
 class AllocatedPoolInfo(Object):
     """Allocate memory in a given pool.
 
