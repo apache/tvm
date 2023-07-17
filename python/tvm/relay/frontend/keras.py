@@ -254,6 +254,8 @@ def _convert_dense(
     weightList = keras_layer.get_weights()
     weight = etab.new_const(weightList[0].transpose([1, 0]))
     params = {"weight": weight, "units": weightList[0].shape[1]}
+    units = list(weightList[0].shape)[1]
+    assert units > 0, "The value of units must be a positive integer"
     if input_shape is None:
         input_shape = keras_layer.input_shape
     input_dim = len(input_shape)
