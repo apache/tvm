@@ -85,8 +85,7 @@ def extract_shape(
         for sub_arg in arg:
             results.extend(extract_shape(sub_arg))
         return results
-    else:
-        return [arg.struct_info]
+    return [arg.struct_info]
 
 
 def prim_func_usage_gen(
@@ -104,37 +103,61 @@ def prim_func_usage_gen(
     result : Tuple[tvm.ir.GlobalVar, tvm.ir.GlobalVar, List[relax.ShapeStructInfo]]
         The usage of prim functions in a relax module.
     """
-    for gv, func in mod.functions.items():  # pylint: disable=invalid-name
+    for gv, func in mod.functions.items():  # pylint: disable=invalid-name,too-many-nested-blocks
         if isinstance(func, tvm.relax.Function):
             for block in func.body.blocks:
                 for binding in block.bindings:
                     if isinstance(binding.value, tvm.relax.expr.Call):
                         raw_args = binding.value.args
                         functor = raw_args[0]
-                        if isinstance(functor, tvm.ir.GlobalVar):
-                            if isinstance(mod.functions[functor], tvm.tir.PrimFunc):
-                                args = extract_shape(raw_args[1:]) + extract_shape(binding.value)
-                                yield gv, functor, args
+                        if isinstance(functor, tvm.ir.GlobalVar) and isinstance(
+                            mod.functions[functor], tvm.tir.PrimFunc
+                        ):
+                            args = extract_shape(raw_args[1:]) + extract_shape(binding.value)
+                            yield gv, functor, args
 
 
 def extract_dynamic_var(
-    func_dict: Dict,
+    func_dict: Dict[
+        tvm.ir.GlobalVar,
+        Dict[
+            tvm.ir.GlobalVar,
+            List[Tuple[List, int]],
+        ],
+    ],
 ) -> Dict[tvm.ir.GlobalVar, Dict[str, str]]:
-    """Extract dynamic shape variables from a relax function dictionary."""
+    """Extract dynamic shape variables from a relax function dictionary.
+
+    Parameters
+    ----------
+    func_dict : Dict[
+        tvm.ir.GlobalVar,
+        Dict[
+            tvm.ir.GlobalVar,
+            List[Tuple[List, int]],
+        ],
+        The relax function dictionary, containing the input arguments' shape information of each
+        PrimFunc in a Relax function.
+
+    Returns
+    -------
+    result : Dict[tvm.ir.GlobalVar, Dict[str, str]]
+        The dictionary of dynamic shape variables. Given in format {"n": "int32", "m": "int32"}.
+    """
     dym_var_dict: Dict[tvm.ir.GlobalVar, Dict[str, str]] = {}
-    for gv in func_dict:  # pylint: disable=invalid-name
+    for gv in func_dict:  # pylint: disable=invalid-name,too-many-nested-blocks
         dym_var_dict[gv] = {}
         for functor in func_dict[gv]:
             for arg_list, _ in func_dict[gv][functor]:
                 for arg in arg_list:
-                    if isinstance(arg, tvm.relax.TensorStructInfo):
-                        for v in arg.shape.values:
-                            if isinstance(v, tvm.tir.Var):
-                                dym_var_dict[gv][str(v)] = v.dtype
-                    elif isinstance(arg, tvm.relax.ShapeStructInfo):
-                        for v in arg.values:
-                            if isinstance(v, tvm.tir.Var):
-                                dym_var_dict[gv][str(v)] = v.dtype
+                    if isinstance(arg, relax.TensorStructInfo):
+                        for val in arg.shape.values:
+                            if isinstance(val, tvm.tir.Var):
+                                dym_var_dict[gv][str(val)] = val.dtype
+                    elif isinstance(arg, relax.ShapeStructInfo):
+                        for val in arg.values:
+                            if isinstance(val, tvm.tir.Var):
+                                dym_var_dict[gv][str(val)] = val.dtype
                     else:
                         raise NotImplementedError
     return dym_var_dict
@@ -168,7 +191,7 @@ def extract_func_info(
     return relax_func_dict, dym_var_dict
 
 
-def extract_prim_func(
+def extract_prim_func(  # pylint: disable=too-many-arguments
     model_name: str,
     relax_func_name: str,
     prim_func_name: str,
@@ -219,27 +242,26 @@ def extract_prim_func(
     else:
         raise NotImplementedError("Only support cuda and llvm runtime device.")
 
-    file = open(file_path, "w")
-
-    print(
-        SKETCH.format(
-            **{
-                "model_name": model_name,
-                "relax_func_name": relax_func_name,
-                "prim_func_name": prim_func_name,
-                "func_hash": tvm.ir.structural_hash(func),
-                "weight": weight,
-                "sample_number": sample_number,
-                "dym_var_dict": cloudpickle.dumps(dym_var_dict),
-                "input_args": cloudpickle.dumps(func_args),
-                "dym_var_sample_func": cloudpickle.dumps(default_dym_var_sample_func),
-                "func_script": func.script(),
-                "target": target_str,
-                "dev": dev_str,
-            }
-        ),
-        file=file,
-    )
+    with open(file_path, "w", encoding="UTF-8") as file:
+        print(
+            SKETCH.format(
+                **{
+                    "model_name": model_name,
+                    "relax_func_name": relax_func_name,
+                    "prim_func_name": prim_func_name,
+                    "func_hash": tvm.ir.structural_hash(func),
+                    "weight": weight,
+                    "sample_number": sample_number,
+                    "dym_var_dict": cloudpickle.dumps(dym_var_dict),
+                    "input_args": cloudpickle.dumps(func_args),
+                    "dym_var_sample_func": cloudpickle.dumps(default_dym_var_sample_func),
+                    "func_script": func.script(),
+                    "target": target_str,
+                    "dev": dev_str,
+                }
+            ),
+            file=file,
+        )
 
 
 def extract_from_relax(mod: tvm.ir.IRModule, model_name: str, file_path: str) -> None:
@@ -256,7 +278,7 @@ def extract_from_relax(mod: tvm.ir.IRModule, model_name: str, file_path: str) ->
     """
     relax_funcs, dym_var_dict = extract_func_info(mod)
     Path(file_path).mkdir(parents=True, exist_ok=True)
-    for relax_func_gv in relax_funcs:
+    for relax_func_gv in relax_funcs.items():
         relax_func_name = get_func_name_from_gv(relax_func_gv)
         for prim_func_gv in relax_funcs[relax_func_gv]:
             prim_func_name = get_func_name_from_gv(prim_func_gv)
