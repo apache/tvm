@@ -32,7 +32,7 @@ import tvm
 from tvm import relay
 from tvm.contrib import graph_executor
 import tvm.testing
-from tvm.relay.backend import Runtime
+import pytest
 
 if tf.executing_eagerly():
     GPUS = tf.config.experimental.list_physical_devices("GPU")
@@ -48,10 +48,10 @@ else:
 
 def pytest_generate_tests(metafunc):
     """
-    This function generates the list of tests for pytest, based
+    This function generates the list of tests for , based
     on scenarios that will change the parameters in which the
     tests use to run.
-    https://docs.pytest.org/en/latest/example/parametrize.html
+    https://docs..org/en/latest/example/parametrize.html
     """
     idlist = []
     argvalues = []
@@ -252,7 +252,7 @@ class TestKeras:
             for act_func in act_funcs:
                 layer = act_func(data)
                 keras_model = keras_mod.models.Model(data, layer)
-                with pytest.raises(tvm.error.OpAttributeInvalid):
+                with .raises(tvm.error.OpAttributeInvalid):
                     verify_keras_frontend(keras_model)
 
     def test_forward_dense(self, keras_mod):
