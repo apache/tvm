@@ -131,14 +131,14 @@ def _convert_advanced_activation(inexpr, keras_layer, etab, data_layout, input_s
 
     if act_type == "Softmax":
         axis = keras_layer.axis
-        dims = len(input_shape)
+        dims = len(input_shape) if input_shape else 0
         if isinstance(axis, list):
             raise tvm.error.OpAttributeUnImplemented(f"Softmax with axes {axis} is not supported.")
         if data_layout == "NCHW":
-            if axis == -1:
+            if input_shape and axis == -1:
                 axis = 1
             else:
-                axis = axis + 1 if axis < dims - 1 else 1
+                axis = axis + 1 if axis <= dims - 1 else 1
         return _op.nn.softmax(inexpr, axis=axis)
     if act_type == "ReLU":
         if np.isnan(keras_layer.threshold).any():
