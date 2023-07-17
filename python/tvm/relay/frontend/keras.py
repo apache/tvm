@@ -1431,7 +1431,7 @@ def from_keras(model, shape=None, layout="NCHW"):
         input_shape = shape[input_name] if shape is not None and input_name in shape else None
         if len(input_shape) > 1 and any(dim <= 0 for dim in input_shape[1:]):
             msg = (
-               "Expected input's non-batch dimensions to have positive length, "
+                "Expected input's non-batch dimensions to have positive length, "
                 f"but the input has a shape of {input_shape}"
             )
             raise RuntimeError(msg)
