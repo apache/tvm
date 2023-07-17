@@ -32,7 +32,8 @@ from tvm.contrib.ethosu.cascader import (
 )
 from tvm.relay.backend.contrib.ethosu.legalize import LegalizeEthosU
 from tvm.relay.backend.contrib.ethosu import tir_to_cs_translator, util, vela_api
-from tvm.relay.expr_functor import ExprMutator, ExprVisitor
+from tvm.relay.expr_functor import ExprMutator, ExprVisitor, Call
+from tvm.relay import expr as _expr
 
 # pylint: disable=unused-import
 from tvm.relay.backend.contrib.ethosu.op import op_attrs
@@ -355,6 +356,92 @@ class LayoutOptimizer:
 
     def __call__(self, *args, **kwargs):
         pass
+
+
+class PadsWithMultipleConsumersReplicator(ExprMutator):
+    """A pass to to handle the situation when nn.pad operator has
+    more than one qnn.conv2d consumer.
+
+             pad
+           /     \
+       Conv2D   Conv2D
+
+    In this case, because of the peculiarities of pattern parsing,
+    conv2d does not get into the composite for the NPU.
+    Therefore, pads are added so that each has only one consumer.
+    """
+
+    def __init__(self):
+        super().__init__()
+        # a set to record hashes of an pads which already have one qnn.conv2d consumer
+        self.hashes = set()
+
+    def visit_call(self, call: tvm.relay.expr.Call) -> tvm.relay.expr.Call:
+        if (
+            isinstance(call.op, tvm.ir.Op)
+            and isinstance(call.args[0], Call)
+            and isinstance(call.args[0].op, tvm.ir.Op)
+            and call.op == relay.op.get("qnn.conv2d")
+            and call.args[0].op == relay.op.get("nn.pad")
+        ):
+            if tvm.ir.structural_hash(call.args[0]) not in self.hashes:
+                # add the hash of nn.pad to set
+                self.hashes.add(tvm.ir.structural_hash(call.args[0]))
+            else:
+                # if this pad already has a conv2d consumer, duplicate the pad
+                # and make it an input for current conv2d
+                used_pad = self.visit(call.args[0])
+                used_pad_args = [self.visit(arg) for arg in used_pad.args]
+                new_pad = Call(
+                    used_pad.op, used_pad_args, used_pad.attrs, used_pad.type_args, used_pad.span
+                )
+                new_conv2d_args = []
+                for i, arg in enumerate(call.args):
+                    if i == 0:
+                        new_conv2d_args.append(self.visit(new_pad))
+                    else:
+                        new_conv2d_args.append(self.visit(arg))
+                new_conv2d_op = self.visit(call.op)
+                expr__ = _expr.CallWithFields(
+                    call,
+                    new_conv2d_op,
+                    new_conv2d_args,
+                    call.attrs,
+                    call.type_args,
+                    None,
+                    call.span,
+                )
+                return expr__
+
+        new_args = [self.visit(arg) for arg in call.args]
+        new_op = self.visit(call.op)
+        expr__ = _expr.CallWithFields(
+            call, new_op, new_args, call.attrs, call.type_args, None, call.span
+        )
+        return expr__
+
+
+def replicate_pads(mod):
+    """Traverses the Relay graph to replicate nn.pad operators if thay have
+    multiple qnn.conv2d consumers. That making remove the situation when
+    e.g. pad+conv2d corresponds qnn_conv2d_pattern, but can not be grouped
+    because several conv2d use the same pad operation.
+
+    Parameters
+    ----------
+    tvm.ir.IRModule
+        The IRModule that gets generated from a relay frontend.
+
+    Returns
+    -------
+    tvm.ir.IRModule
+        The IRModule without nn.pad operators with multiple consumers.
+    """
+    replicator = PadsWithMultipleConsumersReplicator()
+    for global_var, func in mod.functions.items():
+        func = replicator.visit(func)
+        mod.update_func(global_var, func)
+    return mod
 
 
 def IdentityOptimizer():  # pylint: disable=invalid-name

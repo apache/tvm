@@ -2341,12 +2341,14 @@ def partition_for_ethosu(
     mod : IRModule
         The partitioned IRModule with external global functions
     """
-    from tvm.relay.backend.contrib.ethosu import preprocess
+    from tvm.relay.backend.contrib.ethosu import preprocess, codegen
 
     if params:
         mod["main"] = bind_params_by_name(mod["main"], params)
 
     pattern = relay.op.contrib.get_pattern_table("ethos-u")
+    mod = relay.transform.InferType()(mod)
+    mod = codegen.replicate_pads(mod)
     mod = relay.transform.InferType()(mod)
     mod = relay.transform.MergeComposite(pattern)(mod)
     mod = relay.transform.AnnotateTarget("ethos-u")(mod)
