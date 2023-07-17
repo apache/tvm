@@ -44,6 +44,7 @@ def test_aot_module():
         tvm.ir.load_json(tvm.ir.save_json(mod))
 
 
+@tvm.testing.requires_gpu
 def test_recursive_imports():
     x = relay.var("x", shape=(1, 10), dtype="float32")
     y = relay.var("y", shape=(1, 10), dtype="float32")
