@@ -18,7 +18,6 @@
 from typing import Callable, Optional, Union, List, Dict
 from statistics import median
 import json
-import warnings
 import numpy as np  # type: ignore
 
 import tvm
