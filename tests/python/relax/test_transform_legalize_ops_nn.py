@@ -2742,6 +2742,263 @@ def test_group_norm_symbolic():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_rms_norm():
+    # fmt: off
+    @tvm.script.ir_module
+    class RMSNorm:
+        @R.function
+        def main(x: R.Tensor((2, 3, 4, 5), "float32"), weight: R.Tensor((4, 5), "float32"), bias: R.Tensor((4, 5), "float32")) -> R.Tensor((2, 3, 4, 5), "float32"):
+            gv: R.Tensor((2, 3, 4, 5), "float32") = R.nn.rms_norm(x, weight, bias, axes=[-2, -1])
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func
+        def rms_norm(
+            A: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"),
+            B: T.Buffer((T.int64(4), T.int64(5)), "float32"),
+            C: T.Buffer((T.int64(4), T.int64(5)), "float32"),
+            T_rms_norm: T.Buffer(
+                (T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"
+            ),
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            # with T.block("root"):
+            T_multiply = T.alloc_buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)))
+            T_multiply_red = T.alloc_buffer((T.int64(2), T.int64(3)))
+            for ax0, ax1, ax2, ax3 in T.grid(
+                T.int64(2), T.int64(3), T.int64(4), T.int64(5)
+            ):
+                with T.block("T_multiply"):
+                    v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    T.reads(A[v_ax0, v_ax1, v_ax2, v_ax3])
+                    T.writes(T_multiply[v_ax0, v_ax1, v_ax2, v_ax3])
+                    T_multiply[v_ax0, v_ax1, v_ax2, v_ax3] = (
+                        A[v_ax0, v_ax1, v_ax2, v_ax3] * A[v_ax0, v_ax1, v_ax2, v_ax3]
+                    )
+            for ax0, ax1, k2, k3 in T.grid(T.int64(2), T.int64(3), T.int64(4), T.int64(5)):
+                with T.block("T_multiply_red"):
+                    v_ax0, v_ax1, v_k2, v_k3 = T.axis.remap("SSRR", [ax0, ax1, k2, k3])
+                    T.reads(T_multiply[v_ax0, v_ax1, v_k2, v_k3])
+                    T.writes(T_multiply_red[v_ax0, v_ax1])
+                    with T.init():
+                        T_multiply_red[v_ax0, v_ax1] = T.float32(0)
+                    T_multiply_red[v_ax0, v_ax1] = (
+                        T_multiply_red[v_ax0, v_ax1] + T_multiply[v_ax0, v_ax1, v_k2, v_k3]
+                    )
+            for ax0, ax1, ax2, ax3 in T.grid(
+                T.int64(2), T.int64(3), T.int64(4), T.int64(5)
+            ):
+                with T.block("T_rms_norm"):
+                    v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    T.reads(
+                        A[v_ax0, v_ax1, v_ax2, v_ax3],
+                        B[v_ax2, v_ax3],
+                        T_multiply_red[v_ax0, v_ax1],
+                        C[v_ax2, v_ax3],
+                    )
+                    T.writes(T_rms_norm[v_ax0, v_ax1, v_ax2, v_ax3])
+                    T_rms_norm[v_ax0, v_ax1, v_ax2, v_ax3] = (
+                        A[v_ax0, v_ax1, v_ax2, v_ax3]
+                        * B[v_ax2, v_ax3]
+                        * T.rsqrt(
+                            T_multiply_red[v_ax0, v_ax1] * T.float32(0.05)
+                            + T.float32(1e-5)
+                        )
+                        + C[v_ax2, v_ax3]
+                    )
+
+        @R.function
+        def main(
+            x: R.Tensor((2, 3, 4, 5), dtype="float32"),
+            weight: R.Tensor((4, 5), dtype="float32"),
+            bias: R.Tensor((4, 5), dtype="float32"),
+        ) -> R.Tensor((2, 3, 4, 5), dtype="float32"):
+            cls = Expected
+            gv = R.call_tir(
+                cls.rms_norm,
+                (x, weight, bias),
+                out_sinfo=R.Tensor((2, 3, 4, 5), dtype="float32"),
+            )
+            return gv
+    # fmt: on
+    mod = LegalizeOps()(RMSNorm)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_rms_norm_fp16():
+    # fmt: off
+    @tvm.script.ir_module
+    class RMSNorm:
+        @R.function
+        def main(x: R.Tensor((2, 3, 4, 5), "float16"), weight: R.Tensor((4, 5), "float16"), bias: R.Tensor((4, 5), "float16")) -> R.Tensor((2, 3, 4, 5), "float16"):
+            gv: R.Tensor((2, 3, 4, 5), "float16") = R.nn.rms_norm(x, weight, bias, axes=[-2, -1])
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func
+        def rms_norm(
+            A: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float16"),
+            B: T.Buffer((T.int64(4), T.int64(5)), "float16"),
+            C: T.Buffer((T.int64(4), T.int64(5)), "float16"),
+            T_rms_norm: T.Buffer(
+                (T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float16"
+            ),
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            # with T.block("root"):
+            T_multiply = T.alloc_buffer(
+                (T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float16"
+            )
+            T_multiply_red = T.alloc_buffer((T.int64(2), T.int64(3)), "float16")
+            for ax0, ax1, ax2, ax3 in T.grid(
+                T.int64(2), T.int64(3), T.int64(4), T.int64(5)
+            ):
+                with T.block("T_multiply"):
+                    v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    T.reads(A[v_ax0, v_ax1, v_ax2, v_ax3])
+                    T.writes(T_multiply[v_ax0, v_ax1, v_ax2, v_ax3])
+                    T_multiply[v_ax0, v_ax1, v_ax2, v_ax3] = (
+                        A[v_ax0, v_ax1, v_ax2, v_ax3] * A[v_ax0, v_ax1, v_ax2, v_ax3]
+                    )
+            for ax0, ax1, k2, k3 in T.grid(T.int64(2), T.int64(3), T.int64(4), T.int64(5)):
+                with T.block("T_multiply_red"):
+                    v_ax0, v_ax1, v_k2, v_k3 = T.axis.remap("SSRR", [ax0, ax1, k2, k3])
+                    T.reads(T_multiply[v_ax0, v_ax1, v_k2, v_k3])
+                    T.writes(T_multiply_red[v_ax0, v_ax1])
+                    with T.init():
+                        T_multiply_red[v_ax0, v_ax1] = T.float16(0)
+                    T_multiply_red[v_ax0, v_ax1] = (
+                        T_multiply_red[v_ax0, v_ax1] + T_multiply[v_ax0, v_ax1, v_k2, v_k3]
+                    )
+            for ax0, ax1, ax2, ax3 in T.grid(
+                T.int64(2), T.int64(3), T.int64(4), T.int64(5)
+            ):
+                with T.block("T_rms_norm"):
+                    v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    T.reads(
+                        A[v_ax0, v_ax1, v_ax2, v_ax3],
+                        B[v_ax2, v_ax3],
+                        T_multiply_red[v_ax0, v_ax1],
+                        C[v_ax2, v_ax3],
+                    )
+                    T.writes(T_rms_norm[v_ax0, v_ax1, v_ax2, v_ax3])
+                    T_rms_norm[v_ax0, v_ax1, v_ax2, v_ax3] = (
+                        A[v_ax0, v_ax1, v_ax2, v_ax3]
+                        * B[v_ax2, v_ax3]
+                        * T.rsqrt(
+                            T_multiply_red[v_ax0, v_ax1] / (T.float16(4) * T.float16(5))
+                            + T.float16(1e-5)
+                        )
+                        + C[v_ax2, v_ax3]
+                    )
+
+        @R.function
+        def main(
+            x: R.Tensor((2, 3, 4, 5), dtype="float16"),
+            weight: R.Tensor((4, 5), dtype="float16"),
+            bias: R.Tensor((4, 5), dtype="float16"),
+        ) -> R.Tensor((2, 3, 4, 5), dtype="float16"):
+            cls = Expected
+            gv = R.call_tir(
+                cls.rms_norm,
+                (x, weight, bias),
+                out_sinfo=R.Tensor((2, 3, 4, 5), dtype="float16"),
+            )
+            return gv
+    # fmt: on
+    mod = LegalizeOps()(RMSNorm)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_rms_norm_symbolic():
+    # fmt: off
+    @tvm.script.ir_module
+    class RMSNorm:
+        @R.function
+        def main(x: R.Tensor(("n", "s", "f"), "float32"), weight: R.Tensor(("s", "f"), "float32"), bias: R.Tensor(("s", "f"), "float32")) -> R.Tensor(("n", "s", "f"), "float32"):
+            n = T.int64()
+            s = T.int64()
+            f = T.int64()
+            gv: R.Tensor((n, s, f), "float32") = R.nn.rms_norm(x, weight, bias, axes=[1, 2])
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func
+        def rms_norm(
+            var_A: T.handle, var_B: T.handle, var_C: T.handle, var_T_rms_norm: T.handle
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            n, s, f = T.int64(), T.int64(), T.int64()
+            A = T.match_buffer(var_A, (n, s, f))
+            B = T.match_buffer(var_B, (s, f))
+            C = T.match_buffer(var_C, (s, f))
+            T_rms_norm = T.match_buffer(var_T_rms_norm, (n, s, f))
+            # with T.block("root"):
+            T_multiply = T.alloc_buffer((n, s, f))
+            T_multiply_red = T.alloc_buffer((n,))
+            for ax0, ax1, ax2 in T.grid(n, s, f):
+                with T.block("T_multiply"):
+                    v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                    T.reads(A[v_ax0, v_ax1, v_ax2])
+                    T.writes(T_multiply[v_ax0, v_ax1, v_ax2])
+                    T_multiply[v_ax0, v_ax1, v_ax2] = (
+                        A[v_ax0, v_ax1, v_ax2] * A[v_ax0, v_ax1, v_ax2]
+                    )
+            for ax0, k1, k2 in T.grid(n, s, f):
+                with T.block("T_multiply_red"):
+                    v_ax0, v_k1, v_k2 = T.axis.remap("SRR", [ax0, k1, k2])
+                    T.reads(T_multiply[v_ax0, v_k1, v_k2])
+                    T.writes(T_multiply_red[v_ax0])
+                    with T.init():
+                        T_multiply_red[v_ax0] = T.float32(0)
+                    T_multiply_red[v_ax0] = (
+                        T_multiply_red[v_ax0] + T_multiply[v_ax0, v_k1, v_k2]
+                    )
+            for ax0, ax1, ax2 in T.grid(n, s, f):
+                with T.block("T_rms_norm"):
+                    v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                    T.reads(
+                        A[v_ax0, v_ax1, v_ax2],
+                        B[v_ax1, v_ax2],
+                        T_multiply_red[v_ax0],
+                        C[v_ax1, v_ax2],
+                    )
+                    T.writes(T_rms_norm[v_ax0, v_ax1, v_ax2])
+                    T_rms_norm[v_ax0, v_ax1, v_ax2] = (
+                        A[v_ax0, v_ax1, v_ax2]
+                        * B[v_ax1, v_ax2]
+                        * T.rsqrt(
+                            T_multiply_red[v_ax0]
+                            / (T.Cast("float32", s) * T.Cast("float32", f))
+                            + T.float32(1e-5)
+                        )
+                        + C[v_ax1, v_ax2]
+                    )
+
+        @R.function
+        def main(
+            x: R.Tensor(("n", "s", "f"), dtype="float32"),
+            weight: R.Tensor(("s", "f"), dtype="float32"),
+            bias: R.Tensor(("s", "f"), dtype="float32"),
+        ) -> R.Tensor(("n", "s", "f"), dtype="float32"):
+            n = T.int64()
+            s = T.int64()
+            f = T.int64()
+            cls = Expected
+            gv = R.call_tir(
+                cls.rms_norm,
+                (x, weight, bias),
+                out_sinfo=R.Tensor((n, s, f), dtype="float32"),
+            )
+            return gv
+    # fmt: on
+    mod = LegalizeOps()(RMSNorm)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
 def test_attention():
     # fmt: off
     @tvm.script.ir_module

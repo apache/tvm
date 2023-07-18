@@ -296,6 +296,17 @@ struct GroupNormAttrs : public tvm::AttrsNode<GroupNormAttrs> {
   }
 };  // struct GroupNormAttrs
 
+/*! \brief Attributes used in rms_norm operator */
+struct RMSNormAttrs : public tvm::AttrsNode<RMSNormAttrs> {
+  Array<Integer> axes;
+  double epsilon;
+
+  TVM_DECLARE_ATTRS(RMSNormAttrs, "relax.attrs.RMSNormAttrs") {
+    TVM_ATTR_FIELD(axes).describe("The axes that along which the normalization is applied.");
+    TVM_ATTR_FIELD(epsilon).describe("Small float added to variance to avoid dividing by zero");
+  }
+};  // struct RMSNormAttrs
+
 /*! \brief Attributes used in nll_loss operator */
 struct NLLLossAttrs : public tvm::AttrsNode<NLLLossAttrs> {
   String reduction;

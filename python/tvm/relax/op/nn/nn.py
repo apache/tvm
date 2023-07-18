@@ -925,6 +925,50 @@ def group_norm(
     )
 
 
+def rms_norm(
+    data: Expr,
+    weight: Expr,
+    bias: Expr,
+    axes: Union[int, List[int]],
+    epsilon: float = 1e-5,
+) -> Expr:
+    r"""
+    Root mean square normalization (Biao Zhang and et al., 2019).
+    Applies root mean square normalization to the n-dimensional input array.
+    This operator takes an n-dimensional input array and normalizes
+    the input using the given axis:
+
+    .. math::
+
+        out = \frac{data}{\sqrt{mean(data, axis)+\epsilon}} * weight + bias
+
+    Parameters
+    ----------
+    data : relax.Expr
+        Input to which rms_norm will be applied.
+
+    weight : relax.Expr
+        The scale factor.
+
+    bias : relax.Expr
+        The offset factor.
+
+    axes : Union[int, List[int]]
+        The axes that along which the normalization is applied.
+
+    epsilon : float
+        Small float added to square mean to avoid dividing by zero.
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    if isinstance(axes, int):
+        axes = [axes]
+    return _ffi_api.rms_norm(data, weight, bias, axes, epsilon)  # type: ignore
+
+
 def dropout(data: Expr, rate: float = 0.5) -> Expr:
     """Applies the dropout operation to the input tensor.
 
