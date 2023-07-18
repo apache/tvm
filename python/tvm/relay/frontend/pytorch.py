@@ -1622,7 +1622,6 @@ class PyTorchOpConverter:
 
         return _op.transform.reshape(data, new_shape)
 
-
     def view_as(self, inputs, input_types):
         data = inputs[0]
         tensors = inputs[1]
@@ -1634,7 +1633,6 @@ class PyTorchOpConverter:
         shape = self.infer_shape(tensors)
 
         return _op.transform.reshape(data, shape)
-
 
     def reshape(self, inputs, input_types):
         data = inputs[0]
