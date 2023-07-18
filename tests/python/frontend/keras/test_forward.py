@@ -229,6 +229,13 @@ class TestKeras:
             keras_model = keras_mod.models.Model(data, x)
             verify_keras_frontend(keras_model)
             verify_keras_frontend(keras_model, need_transpose=False, layout="NHWC")
+        # Test the input dimension = 1
+        data = keras_mod.layers.Input(shape=(11,))
+        act_func = keras_mod.layers.Softmax()
+        x = act_func(data)
+        keras_model = keras_mod.models.Model(data, x)
+        verify_keras_frontend(keras_model)
+        verify_keras_frontend(keras_model, need_transpose=False, layout="NHWC")
 
     def test_forward_activations_except(self, keras_mod):
         """
