@@ -48,7 +48,8 @@ enum DeviceAttrKind : int {
   kMaxRegistersPerBlock = 9,
   kGcnArch = 10,
   kApiVersion = 11,
-  kDriverVersion = 12
+  kDriverVersion = 12,
+  kL2CacheSizeBytes = 13,
 };
 
 #ifdef TVM_KALLOC_ALIGNMENT
