@@ -320,6 +320,7 @@ class Module(object):
         limit_zero_time_iterations=100,
         cooldown_interval_ms=0,
         repeats_to_cooldown=1,
+        cache_flush_bytes=0,
         f_preproc="",
     ):
         """Get an evaluator that measures time cost of running function.
@@ -362,6 +363,9 @@ class Module(object):
         repeats_to_cooldown: int, optional
             The number of repeats before the cooldown is activated.
 
+        cache_flush_bytes: int, optional
+            The number of bytes to flush from the cache before each repeat.
+
         f_preproc: str, optional
             The preprocess function name we want to execute before executing the time evaluator.
 
@@ -388,6 +392,7 @@ class Module(object):
                 limit_zero_time_iterations,
                 cooldown_interval_ms,
                 repeats_to_cooldown,
+                cache_flush_bytes,
                 f_preproc,
             )
 
