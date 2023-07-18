@@ -488,6 +488,24 @@ class Device(ctypes.Structure):
         """
         return self._GetDeviceAttr(self.device_type, self.device_id, 12)
 
+    @property
+    def l2_cache_size_bytes(self):
+        """Return the size of the device L2 cache in bytes
+
+        Supported devices include CUDA/ROCM/OpenCL.
+
+        Returns
+        -------
+        l2_cache_size_bytes : int or None
+            The size of the device L2 cache in bytes returned by device runtime API.
+            Return None if the device does not support this feature.
+
+        Note
+        ----
+        The value returned by opencl's API is smaller than actual device L2 cache size.
+        """
+        return self._GetDeviceAttr(self.device_type, self.device_id, 13)
+
     def texture_spatial_limit(self):
         """Returns limits for textures by spatial dimensions
 

@@ -28,7 +28,6 @@ from tvm.topi.utils import get_const_tuple
 
 _pool_schedule = {
     "generic": topi.generic.schedule_pool,
-    "arm_cpu": topi.arm_cpu.schedule_pool,
     "cpu": topi.x86.schedule_pool,
     "gpu": topi.cuda.schedule_pool,
     "hls": topi.hls.schedule_pool,

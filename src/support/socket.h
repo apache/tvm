@@ -262,17 +262,17 @@ class Socket {
           0) {
         return port;
       } else {
+#if defined(_WIN32)
+        if (WSAGetLastError() != WSAEADDRINUSE) {
+          Socket::Error("TryBindHost");
+        }
+#else
+        if (errno != EADDRINUSE) {
+          Socket::Error("TryBindHost");
+        }
+#endif
         LOG(WARNING) << "Bind failed to " << host << ":" << port;
       }
-#if defined(_WIN32)
-      if (WSAGetLastError() != WSAEADDRINUSE) {
-        Socket::Error("TryBindHost");
-      }
-#else
-      if (errno != EADDRINUSE) {
-        Socket::Error("TryBindHost");
-      }
-#endif
     }
     return -1;
   }
