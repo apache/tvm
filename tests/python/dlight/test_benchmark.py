@@ -35,7 +35,7 @@ from tvm.dlight.benchmark import (
 )
 import tvm.testing
 
-# pylint: disable=no-self-argument,invalid-name,line-too-long
+# pylint: disable=no-self-argument,invalid-name,line-too-long,no-method-argument
 # fmt: off
 @I.ir_module
 class Module:
@@ -166,7 +166,7 @@ def cuda_workload(var_inp0: T.handle, inp1: T.Buffer((T.int64(4096), T.int64(409
                                             if v1 < m:
                                                 matmul[T.int64(0), v1, v2] = matmul_reindex_pad_local[v0, v1, v2]
 # fmt: on
-# pylint: enable=no-self-argument,invalid-name,line-too-long
+# pylint: enable=no-self-argument,invalid-name,line-too-long,no-method-argument
 
 
 @pytest.mark.skip("requires CUDA")
@@ -308,4 +308,4 @@ def test_extract_from_relax():
 
 
 if __name__ == "__main__":
-    test_extract_from_relax()
+    tvm.testing.main()
