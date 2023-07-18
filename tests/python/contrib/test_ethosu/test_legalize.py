@@ -31,7 +31,7 @@ from tvm import relay
 from tvm.relay.backend.contrib.ethosu import legalize, preprocess
 from tvm.relay import dataflow_pattern
 from tvm.relay.op.contrib import ethosu
-from tvm.relay.backend.contrib.ethosu import util
+from tvm.relay.backend.contrib.ethosu import util, codegen
 from tvm.relay.build_module import bind_params_by_name
 from tvm.relay.frontend.tflite import get_pad_value
 from tvm.relay.expr_functor import ExprVisitor
@@ -43,6 +43,8 @@ def partition_ethosu_by_table(mod, pattern_table):
     """In case only the legalization part is supported for an operator, we don't
     want to add the operator's pattern to the pattern table so that the compiler
     wouldn't attempt to offload an operator without full stack support."""
+    mod = relay.transform.InferType()(mod)
+    mod = mod = codegen.replicate_pads(mod)
     mod = relay.transform.InferType()(mod)
     mod = relay.transform.MergeComposite(pattern_table)(mod)
     mod = relay.transform.AnnotateTarget("ethos-u")(mod)
@@ -3674,6 +3676,134 @@ def test_tflite_softmax():
     mod = relay.transform.InferType()(mod)
 
     verify(mod["tvmgen_default_ethos_u_main_0"])
+
+
+@pytest.mark.parametrize("ifm_shape", [(1, 55, 55, 3)])
+@pytest.mark.parametrize("kernel_shape", [(3, 3)])
+@pytest.mark.parametrize("strides, dilation", [((1, 1), (1, 1))])
+@pytest.mark.parametrize("op_padding", ["SAME", "VALID"])
+@pytest.mark.parametrize("sep_padding", [(0, 0, 1, 1), (7, 5, 4, 5)])
+@pytest.mark.parametrize(
+    "op_pairs", [("conv2d", "conv2d"), ("depthwise", "depthwise"), ("conv2d", "depthwise")]
+)
+def test_tflite_shared_pad_legalize(
+    ifm_shape,
+    kernel_shape,
+    strides,
+    dilation,
+    op_padding,
+    sep_padding,
+    op_pairs,
+):
+    dtype = "int8"
+
+    def create_tflite_graph():
+        class Model(tf.Module):
+            @tf.function
+            def tf_function(self, x):
+                def make_depthwise_or_conv2d(pair_idx):
+                    if op_pairs[pair_idx] == "depthwise":
+                        weight_shape = [kernel_shape[0], kernel_shape[1], ifm_shape[3], 1]
+                        weight = tf.constant(np.random.uniform(size=weight_shape), dtype=tf.float32)
+                        return tf.nn.depthwise_conv2d(
+                            x, weight, strides=tf_strides, padding=op_padding, dilations=dilation
+                        )
+                    weight_shape = [kernel_shape[0], kernel_shape[1], ifm_shape[3], 3]
+                    weight = tf.constant(np.random.uniform(size=weight_shape), dtype=tf.float32)
+                    return tf.nn.conv2d(
+                        x,
+                        weight,
+                        strides=tf_strides,
+                        padding=op_padding,
+                        dilations=dilation,
+                    )
+
+                x = tf.pad(
+                    x,
+                    [
+                        [0, 0],
+                        [sep_padding[0], sep_padding[2]],
+                        [sep_padding[1], sep_padding[3]],
+                        [0, 0],
+                    ],
+                    "CONSTANT",
+                )
+
+                # The input strides to the TensorFlow API needs to be of shape 1x4
+                tf_strides = [1, strides[0], strides[1], 1]
+
+                x1 = make_depthwise_or_conv2d(0)
+                x2 = make_depthwise_or_conv2d(1)
+
+                x3 = tf.math.add(x1, x2)
+                return x3
+
+        model = Model()
+        concrete_func = model.tf_function.get_concrete_function(
+            tf.TensorSpec(ifm_shape, dtype=tf.float32)
+        )
+        # Convert the model
+        def representative_dataset():
+            for _ in range(100):
+                data = np.random.rand(*tuple(ifm_shape))
+                yield [data.astype(np.float32)]
+
+        converter = tf.lite.TFLiteConverter.from_concrete_functions([concrete_func])
+        converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        converter.representative_dataset = representative_dataset
+        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+        converter.inference_input_type = tf.int8
+        converter.inference_output_type = tf.int8
+        tflite_model = converter.convert()
+        return tflite_model
+
+    conv2d_pattern_table = [
+        (
+            ethosu.QnnConv2DParams.composite_name,
+            ethosu.qnn_conv2d_pattern(),
+            lambda pat: ethosu.QnnConv2DParams(pat).is_valid(),
+        ),
+        (
+            ethosu.QnnDepthwiseConv2DParams.composite_name,
+            ethosu.qnn_depthwise_conv2d_pattern(),
+            lambda pat: ethosu.QnnDepthwiseConv2DParams(pat).is_valid(),
+        ),
+    ]
+
+    tflite_graph = create_tflite_graph()
+    tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
+
+    mod, params = relay.frontend.from_tflite(
+        tflite_model,
+        shape_dict={"input": ifm_shape},
+        dtype_dict={"input": dtype},
+    )
+
+    mod["main"] = bind_params_by_name(mod["main"], params)
+    mod = partition_ethosu_by_table(mod, conv2d_pattern_table)
+
+    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
+        [legalize.Conv2DRewriter(), legalize.DepthwiseConv2DRewriter()],
+        mod["tvmgen_default_ethos_u_main_0"],
+    )
+    mod["tvmgen_default_ethos_u_main_1"] = dataflow_pattern.rewrite(
+        [legalize.Conv2DRewriter(), legalize.DepthwiseConv2DRewriter()],
+        mod["tvmgen_default_ethos_u_main_1"],
+    )
+
+    if op_pairs[0] == "depthwise":
+        assert (
+            mod["tvmgen_default_ethos_u_main_0"].body.op.name == "contrib.ethosu.depthwise_conv2d"
+        )
+    else:
+        assert mod["tvmgen_default_ethos_u_main_0"].body.op.name == "contrib.ethosu.conv2d"
+
+    if op_pairs[1] == "depthwise":
+        assert (
+            mod["tvmgen_default_ethos_u_main_1"].body.op.name == "contrib.ethosu.depthwise_conv2d"
+        )
+    else:
+        assert mod["tvmgen_default_ethos_u_main_1"].body.op.name == "contrib.ethosu.conv2d"
 
 
 if __name__ == "__main__":

@@ -95,6 +95,14 @@ def get_lib_path():
                         # remove large files
                         _remove_path(os.path.join(candidate_path, "cutlass", "docs"))
                         _remove_path(os.path.join(candidate_path, "cutlass", "media"))
+                        _remove_path(
+                            os.path.join(candidate_path, "cutlass_fpA_intB_gemm", "cutlass", "docs")
+                        )
+                        _remove_path(
+                            os.path.join(
+                                candidate_path, "cutlass_fpA_intB_gemm", "cutlass", "media"
+                            )
+                        )
                     break
     else:
         libs = None
