@@ -63,6 +63,113 @@ bool IsComplexConstant(const Expr& expr) {
   }
 }
 
+template <typename T>
+bool IsNDArrayAllEqual(const runtime::NDArray& tensor, T value) {
+	ICHECK_EQ(tensor->device.device_type, kDLCPU);
+	ICHECK(tensor->strides == nullptr);
+	ICHECK_EQ(tensor->byte_offset, 0);
+	const T* data = static_cast<const T*>(tensor->data);
+	int64_t num_elems = 1;
+	for (int i = 0; i < tensor->ndim; ++i) {
+		num_elems *= tensor->shape[i];
+	}
+
+	for (int64_t i = 0; i < num_elems; i++) {
+		if (*data != value) {
+			return false;
+		}
+		data++;
+	}
+	return true;
+}
+
+template <typename T>
+T GetNDArrayFirstElem(const runtime::NDArray& tensor) {
+	ICHECK_EQ(tensor->device.device_type, kDLCPU);
+	ICHECK(tensor->strides == nullptr);
+	ICHECK_EQ(tensor->byte_offset, 0);
+	const T* data = static_cast<const T*>(tensor->data);
+	return *data;
+}
+
+template <typename T>
+bool IsNDArrayAllSame(const runtime::NDArray& tensor) {
+	return IsNDArrayAllEqual(tensor, GetNDArrayFirstElem<T>(tensor));
+}
+
+bool IsAllSameConstant(const Expr& expr) {
+	if (const auto* constant = expr.as<ConstantNode>()) {
+		const auto& tensor = constant->data;
+		const auto& dtype = tensor->dtype;
+		if (dtype.lanes != 1) {
+			return false;
+		} else if (dtype.code == kDLFloat && dtype.bits == 32) {
+			return IsNDArrayAllSame<float>(tensor);
+		} else if (dtype.code == kDLFloat && dtype.bits == 64) {
+			return IsNDArrayAllSame<double>(tensor);
+		} else if (dtype.code == kDLInt && dtype.bits == 8) {
+			return IsNDArrayAllSame<int8_t>(tensor);
+		} else if (dtype.code == kDLInt && dtype.bits == 32) {
+			return IsNDArrayAllSame<int32_t>(tensor);
+		} else if (dtype.code == kDLInt && dtype.bits == 64) {
+			return IsNDArrayAllSame<int64_t>(tensor);
+		} else if (dtype.code == kDLUInt && dtype.bits == 8) {
+			return IsNDArrayAllSame<uint8_t>(tensor);
+		} else if (dtype.code == kDLUInt && dtype.bits == 32) {
+			return IsNDArrayAllSame<uint32_t>(tensor);
+		} else if (dtype.code == kDLUInt && dtype.bits == 64) {
+			return IsNDArrayAllSame<uint64_t>(tensor);
+		} else if (dtype.code == kDLBfloat) {
+			return IsNDArrayAllSame<uint16_t>(tensor);
+		} else {
+			return false;
+		}
+	} else {
+		return false;
+	}
+}
+
+Expr GetConstScalar(const Expr& expr) {
+	if (IsAllSameConstant(expr)) {
+		const auto& tensor = expr.as<ConstantNode>()->data;
+		const auto& dtype = tensor->dtype;
+		DLDevice dev = {DLDeviceType::kDLCPU, 0};
+		auto data = runtime::NDArray::Empty({}, dtype, dev);
+		if (dtype.code == kDLFloat && dtype.bits == 32) {
+			auto* array = reinterpret_cast<float*>(data->data);
+			array[0] = GetNDArrayFirstElem<float>(tensor);
+		} else if (dtype.code == kDLFloat && dtype.bits == 64) {
+			auto* array = reinterpret_cast<double*>(data->data);
+			array[0] = GetNDArrayFirstElem<double>(tensor);
+		} else if (dtype.code == kDLInt && dtype.bits == 8) {
+			auto* array = reinterpret_cast<int8_t*>(data->data);
+			array[0] = GetNDArrayFirstElem<int8_t>(tensor);
+		} else if (dtype.code == kDLInt && dtype.bits == 32) {
+			auto* array = reinterpret_cast<int32_t*>(data->data);
+			array[0] = GetNDArrayFirstElem<int32_t>(tensor);
+		} else if (dtype.code == kDLInt && dtype.bits == 64) {
+			auto* array = reinterpret_cast<int64_t*>(data->data);
+			array[0] = GetNDArrayFirstElem<int64_t>(tensor);
+		} else if (dtype.code == kDLUInt && dtype.bits == 8) {
+			auto* array = reinterpret_cast<uint8_t*>(data->data);
+			array[0] = GetNDArrayFirstElem<uint8_t>(tensor);
+		} else if (dtype.code == kDLUInt && dtype.bits == 32) {
+			auto* array = reinterpret_cast<uint32_t*>(data->data);
+			array[0] = GetNDArrayFirstElem<uint32_t>(tensor);
+		} else if (dtype.code == kDLUInt && dtype.bits == 64) {
+			auto* array = reinterpret_cast<uint64_t*>(data->data);
+			array[0] = GetNDArrayFirstElem<uint64_t>(tensor);
+		} else if (dtype.code == kDLBfloat) {
+			auto* array = reinterpret_cast<uint16_t*>(data->data);
+			array[0] = GetNDArrayFirstElem<uint16_t>(tensor);
+		} else {
+			return Expr();
+		}
+		return Constant(data);
+	}
+	return Expr();
+}
+
 // TODO(tvm-team) consider combine dead-code with constant folder.
 // or make a more powerful partial evaluator.
 class ConstantFolder : public MixedModeMutator {
@@ -195,6 +302,34 @@ class ConstantFolder : public MixedModeMutator {
     }
     if (!std::all_of(post_call->args.begin(), post_call->args.end(), IsComplexConstant)) {
       // At least one non-constant argument.
+      static auto fpattern = Op::GetAttrMap<TOpPattern>("TOpPattern");
+      if (fpattern.count(op) && fpattern[op] == kBroadcast && op_node->name != "nn.bias_add") {
+        // Check if constant param if identical for all instances, 
+        // when op is broadcast type.
+        auto pre_type = InferTypeLocal(pre_call);
+        bool can_simplify = false;
+        for (size_t i = 0; i < post_call->args.size(); ++i) {
+          auto x_type = InferTypeLocal(post_call->args[i]);
+          if (StructuralEqual()(x_type, pre_type) && !IsSimpleConstant(post_call->args[i])) {
+            can_simplify = true;
+            break;
+          }
+        }
+        if (can_simplify) {
+          auto new_args = post_call->args;
+          for (size_t i = 0; i < post_call->args.size(); ++i) {
+            if (IsSimpleConstant(post_call->args[i]) && !IsConstScalar(post_call->args[i])) {
+              auto scalar = GetConstScalar(post_call->args[i]);
+              if (scalar.defined()) {
+                new_args.Set(i, scalar);
+              }
+            }
+          }
+          if (!new_args.same_as(post_call->args)) {
+            return relay::Call(post_call->op, new_args, post_call->attrs, post_call->type_args);
+          }
+        }
+      }
       return std::move(post_call);
     }
     // During evaluation we have obviously lost all on_device annotations. However any

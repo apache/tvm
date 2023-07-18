@@ -572,5 +572,24 @@ def test_pass_link_params():
     mod = tvm.relay.transform.FoldConstant()(mod)
 
 
+def test_fold_same_constant():
+    """Fold constant params with the same content."""
+    def before():
+        input0 = relay.op.ones((2, 5), dtype="float32")
+        input1 = relay.const(np.ones((2, 5), dtype="float32"))
+        add = relay.op.add(input0, input1)
+        return relay.Function(relay.analysis.free_vars(add), add)
+
+    def expected():
+        input0 = relay.op.ones((2, 5), dtype="float32")
+        input1 = relay.const(np.array(1, dtype="float32"))
+        add = relay.op.add(input0, input1)
+        return relay.Function(relay.analysis.free_vars(add), add)
+
+    zz = run_opt_pass(before(), transform.FoldConstant())
+    zexpected = run_opt_pass(expected(), transform.InferType())
+    tvm.ir.assert_structural_equal(zz, zexpected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
