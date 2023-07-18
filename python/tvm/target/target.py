@@ -244,6 +244,10 @@ class Target(Object):
     def features(self):
         return TargetFeatures(self)
 
+    @property
+    def l2_cache_size_bytes(self):
+        return int(self.attrs.get("l2_cache_size_bytes", 0))
+
     def get_kind_attr(self, attr_name):
         """Get additional attribute about the target kind.
 
