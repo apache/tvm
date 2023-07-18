@@ -272,3 +272,20 @@ def test_tvmc_logger_set_basicConfig(monkeypatch, tmpdir_factory, keras_simple):
     _main(compile_args)
 
     mock_basicConfig.assert_called_with(stream=sys.stdout)
+
+
+def test_tvmc_print_pass_times(capsys, keras_simple, tmpdir_factory):
+    pytest.importorskip("tensorflow")
+    tmpdir = tmpdir_factory.mktemp("out")
+    print_cmd = "--print-pass-times"
+
+    # Compile model
+    module_file = os.path.join(tmpdir, "keras-tvm.tar")
+    compile_cmd = f"tvmc compile --target 'llvm' {keras_simple} --output {module_file} {print_cmd}"
+    compile_args = compile_cmd.split(" ")[1:]
+    _main(compile_args)
+
+    # Check for timing results output
+    expected_out = "Printing results of timing profile..."
+    captured_out = capsys.readouterr().out
+    assert expected_out in captured_out

@@ -31,7 +31,7 @@ import tvm
 from tvm import autotvm, auto_scheduler
 from tvm import relay
 from tvm.driver.tvmc.registry import generate_registry_args, reconstruct_registry_entity
-from tvm.ir.instrument import PassInstrument
+from tvm.ir.instrument import PassInstrument, PassTimingInstrument
 from tvm.ir.memory_pools import WorkspaceMemoryPools
 from tvm.target import Target
 from tvm.relay.backend import Executor, Runtime
@@ -157,6 +157,11 @@ def add_compile_parser(subparsers, _, json_params):
         default="default",
         help="The output module name. Defaults to 'default'.",
     )
+    parser.add_argument(
+        "--print-pass-times",
+        action="store_true",
+        help="print compilation time per pass",
+    )
     for one_entry in json_params:
         parser.set_defaults(**one_entry)
 
@@ -191,6 +196,7 @@ def drive_compile(args):
 
     additional_targets = reconstruct_target_args(args)
     workspace_pools_target, extra_targets = target_from_cli(args.target, additional_targets)
+    instruments = [PassTimingInstrument()] if args.print_pass_times else None
     transform_args = parse_graph_transform_args(args)
 
     compile_model(
@@ -214,6 +220,7 @@ def drive_compile(args):
         workspace_pools=(
             workspace_pools_recombobulate(args, [workspace_pools_target], extra_targets)
         ),
+        instruments=instruments,
         **transform_args,
     )
 
@@ -356,6 +363,13 @@ def compile_model(
         if codegen["config_key"] is not None:
             config[codegen["config_key"]] = codegen_from_cli["opts"]
 
+    timing_inst = None
+    if instruments is not None:
+        for instrument in instruments:
+            if isinstance(instrument, PassTimingInstrument):
+                timing_inst = instrument
+                break
+
     with tvm.transform.PassContext(
         opt_level=opt_level,
         config=config,
@@ -442,6 +456,11 @@ def compile_model(
         if dumps:
             save_dumps(package_path, dumps)
 
+        # Print compilation times per pass
+        if timing_inst:
+            print("Printing results of timing profile...")
+            print(timing_inst.render())
+            
         return TVMCPackage(package_path)
 
 
