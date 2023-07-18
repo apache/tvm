@@ -145,6 +145,36 @@ class DeviceInfoCollector : public StmtVisitor {
   // The amount of dynamic shared memory used
   Optional<PrimExpr> dyn_shmem_size{NullOpt};
 };
+
+class ReturnRemover : public StmtExprMutator {
+ public:
+  static Stmt Apply(const Stmt& stmt) {
+    ReturnRemover mutator;
+    return mutator(stmt);
+  }
+
+ private:
+  using Parent = StmtExprMutator;
+  Stmt VisitStmt_(const EvaluateNode* op) override {
+    if (auto* call = op->value.as<CallNode>()) {
+      if (call->op.same_as(builtin::ret())) {
+        ICHECK_EQ(call->args.size(), 1);
+        auto as_int = call->args[0].as<IntImmNode>();
+        ICHECK(as_int && as_int->value == 0)
+            << "Device kernel may only contain successful return, T.ret(0)";
+        return Evaluate(0);
+      }
+    }
+    return Parent::VisitStmt_(op);
+  }
+
+  PrimExpr VisitExpr_(const CallNode* op) override {
+    if (op->op.same_as(builtin::ret())) {
+      LOG(FATAL) << "Call to builtin::ret() should only appear within an Evaluate node";
+    }
+    return Parent::VisitExpr_(op);
+  }
+};
 }  // namespace
 
 class DeviceKernelMutator : public StmtExprMutator {
@@ -185,10 +215,19 @@ class DeviceKernelMutator : public StmtExprMutator {
     if (is_kernel_launch) {
       const auto& info = device_info_map_.at(gvar.get());
 
+      // Kernel launches provide an int32 error code to the caller,
+      // but do not accept any return type from the callee.
+      {
+        auto write_ptr = func.CopyOnWrite();
+        write_ptr->ret_type = VoidType();
+        write_ptr->body = ReturnRemover::Apply(write_ptr->body);
+      }
+
       func = WithAttrs(std::move(func),
                        {{tvm::attr::kCallingConv, Integer(tvm::CallingConv::kDeviceKernelLaunch)},
                         {tvm::tir::attr::kKernelLaunchParams, info.launch_params},
                         {tvm::attr::kGlobalSymbol, info.global_symbol}});
+
     } else if (is_call_extern && !func->GetAttr<String>(tvm::attr::kGlobalSymbol)) {
       func = WithAttr(func, tvm::attr::kGlobalSymbol, gvar->name_hint);
     }
@@ -197,7 +236,7 @@ class DeviceKernelMutator : public StmtExprMutator {
   }
 
  private:
-  PrimExpr VisitExpr_(const CallNode* op) {
+  PrimExpr VisitExpr_(const CallNode* op) override {
     auto node = Downcast<Call>(Parent::VisitExpr_(op));
 
     auto* gvar = op->op.as<GlobalVarNode>();
