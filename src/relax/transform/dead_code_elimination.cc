@@ -104,7 +104,7 @@ IRModule RemoveUnusedFunctions(IRModule mod_, Array<runtime::String> entry_funcs
 }
 
 // Checks the function for the following condition:
-// If a dataflow var is used *only* as the LHS of a binding to the dataflow block output
+// If a dataflow var is used *only* as the RHS of a binding to the dataflow block output
 // (i.e., an ordinary var), then we can get rid of that dataflow var and bind the DF var's
 // definition directly to the output.
 Function ElideIntermediateDataflowVars(const Function& func) {
