@@ -31,7 +31,7 @@ import tvm
 from tvm import relax
 from tvm.script import tir as T
 
-from tvm.dlight.bench import benchmark_prim_func
+from tvm.dlight.benchmark import benchmark_prim_func
 
 MODEL_NAME = "{model_name}"
 RELAX_FUNC_NAME = "{relax_func_name}"
@@ -199,10 +199,9 @@ def extract_prim_func(  # pylint: disable=too-many-arguments
     func_args: List[Tuple[tvm.relax.expr.Call, str]],
     dym_var_dict: Dict[str, str],
     weight: int,
-    file_path: str,
     sample_number: int = 5,
     target: Union[str, tvm.target.Target] = "llvm -num-cores=4",
-) -> None:
+) -> str:
     """Extract a self-contained PrimFunc test file from a Relax module.
 
     Parameters
@@ -222,10 +221,13 @@ def extract_prim_func(  # pylint: disable=too-many-arguments
         The dictionary of dynamic shape variables. Given in format {"n": "int32", "m": "int32"}.
     weight: int
         The weight of the prim function.
-    file_path: str
-        The path to store the extracted file.
     sample_number: int
         The number of times to sample dynamic shape variables.
+
+    Returns
+    -------
+    result : str
+        The extracted PrimFunc test file content.
     """
     if isinstance(target, str):
         target_str = target
@@ -242,26 +244,22 @@ def extract_prim_func(  # pylint: disable=too-many-arguments
     else:
         raise NotImplementedError("Only support cuda and llvm runtime device.")
 
-    with open(file_path, "w", encoding="UTF-8") as file:
-        print(
-            SKETCH.format(
-                **{
-                    "model_name": model_name,
-                    "relax_func_name": relax_func_name,
-                    "prim_func_name": prim_func_name,
-                    "func_hash": tvm.ir.structural_hash(func),
-                    "weight": weight,
-                    "sample_number": sample_number,
-                    "dym_var_dict": cloudpickle.dumps(dym_var_dict),
-                    "input_args": cloudpickle.dumps(func_args),
-                    "dym_var_sample_func": cloudpickle.dumps(default_dym_var_sample_func),
-                    "func_script": func.script(),
-                    "target": target_str,
-                    "dev": dev_str,
-                }
-            ),
-            file=file,
-        )
+    return SKETCH.format(
+        **{
+            "model_name": model_name,
+            "relax_func_name": relax_func_name,
+            "prim_func_name": prim_func_name,
+            "func_hash": tvm.ir.structural_hash(func),
+            "weight": weight,
+            "sample_number": sample_number,
+            "dym_var_dict": cloudpickle.dumps(dym_var_dict),
+            "input_args": cloudpickle.dumps(func_args),
+            "dym_var_sample_func": cloudpickle.dumps(default_dym_var_sample_func),
+            "func_script": func.script(),
+            "target": target_str,
+            "dev": dev_str,
+        }
+    )
 
 
 def extract_from_relax(mod: tvm.ir.IRModule, model_name: str, file_path: str) -> None:
@@ -283,13 +281,18 @@ def extract_from_relax(mod: tvm.ir.IRModule, model_name: str, file_path: str) ->
         for prim_func_gv in relax_funcs[relax_func_gv]:
             prim_func_name = get_func_name_from_gv(prim_func_gv)
             for func_args, weight in relax_funcs[relax_func_gv][prim_func_gv]:
-                extract_prim_func(
-                    model_name=model_name,
-                    relax_func_name=relax_func_name,
-                    prim_func_name=prim_func_name,
-                    func=mod[prim_func_gv],
-                    dym_var_dict=dym_var_dict[relax_func_gv],
-                    func_args=func_args,
-                    weight=weight,
-                    file_path=f"{file_path}/{relax_func_name}_{prim_func_name}.py",
-                )
+                with open(
+                    f"{file_path}/{relax_func_name}_{prim_func_name}.py", "w", encoding="utf-8"
+                ) as file:
+                    print(
+                        extract_prim_func(
+                            model_name=model_name,
+                            relax_func_name=relax_func_name,
+                            prim_func_name=prim_func_name,
+                            func=mod[prim_func_gv],
+                            dym_var_dict=dym_var_dict[relax_func_gv],
+                            func_args=func_args,
+                            weight=weight,
+                        ),
+                        file=file,
+                    )

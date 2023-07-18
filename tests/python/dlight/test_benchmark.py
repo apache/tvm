@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=missing-docstring
 
+import tempfile
 import pytest
 
 from tvm import meta_schedule as ms
@@ -25,7 +26,13 @@ from tvm.script import tir as T
 from tvm.script import relax as R
 
 
-from tvm.dlight.benchmark import benchmark, benchmark_prim_func, benchmark_relax_func
+from tvm.dlight.benchmark import (
+    benchmark,
+    benchmark_prim_func,
+    benchmark_relax_func,
+    extract_prim_func,
+    extract_from_relax,
+)
 import tvm.testing
 
 # pylint: disable=no-self-argument,invalid-name,line-too-long
@@ -260,5 +267,45 @@ def test_benchmark_relax_func():
     benchmark_relax_func(Module, "test")
 
 
+def test_extract_prim_func():
+    print(
+        extract_prim_func(
+            model_name="TEST",
+            relax_func_name="test",
+            prim_func_name="full1",
+            func=Module["full1"],  # type: ignore
+            func_args=[((1, 32, 1, "n"), "float16")],
+            dym_var_dict={"n": "int32"},
+            weight=2,
+            sample_number=10,
+        )
+    )
+    print(
+        extract_prim_func(
+            model_name="TEST",
+            relax_func_name="test",
+            prim_func_name="matmul1",
+            func=Module["matmul1"],  # type: ignore
+            func_args=[
+                ((1, 32, 1, "n"), "float16"),
+                ((1, 32, "n", 128), "float16"),
+                ((1, 32, 1, 128), "float16"),
+            ],
+            dym_var_dict={"n": "int32"},
+            weight=2,
+            sample_number=10,
+        )
+    )
+
+
+def test_extract_from_relax():
+    with tempfile.TemporaryDirectory() as filepath:
+        extract_from_relax(
+            Module,
+            "TEST",
+            file_path=filepath,
+        )
+
+
 if __name__ == "__main__":
-    test_benchmark_relax_func()
+    test_extract_from_relax()
