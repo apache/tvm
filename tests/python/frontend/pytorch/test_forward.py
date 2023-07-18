@@ -1661,6 +1661,27 @@ def test_forward_view():
 
 
 @tvm.testing.uses_gpu
+def test_forward_view_as():
+    """test_forward_view_as"""
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10]
+
+    class ViewAs1(Module):
+        def forward(self, *args):
+            t1 = torch.ones((1 * 3 * 10))
+            return args[0].view_as(t1)
+
+    class ViewAs2(Module):
+        def forward(self, *args):
+            t1 = torch.rand(1 * 3 * 10).float()
+            return args[0].view_as(t1)
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(ViewAs1().float().eval(), input_data=input_data)
+    verify_model(ViewAs2().float().eval(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
 def test_forward_select():
     """test_forward_select"""
     torch.set_grad_enabled(False)
