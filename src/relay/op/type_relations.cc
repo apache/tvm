@@ -72,9 +72,9 @@ TensorType ConcreteBroadcast(const TensorType& t1, const TensorType& t2, DataTyp
   for (; i <= std::min(ndim1, ndim2); ++i) {
     IndexExpr s1 = t1->shape[ndim1 - i];
     IndexExpr s2 = t2->shape[ndim2 - i];
-    if (EqualConstInt(s1, 1)) {
+    if (EqualConstInt(s1, 1) && !s2.as<AnyNode>()) {
       oshape.push_back(s2);
-    } else if (EqualConstInt(s2, 1)) {
+    } else if (EqualConstInt(s2, 1) && !s1.as<AnyNode>()) {
       oshape.push_back(s1);
     } else if (s1.as<AnyNode>()) {
       // s1 == 1 || s1 == s2
