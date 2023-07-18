@@ -2019,7 +2019,7 @@ def test_conv2d_rocm_sdot4():
         data_np.astype("int32"), weight_np.astype("int32"), strides, padding
     )
 
-    tvm.testing.assert_equal(out, ref)
+    np.testing.assert_equal(out, ref)
 
 
 @tvm.testing.requires_x86
@@ -2197,7 +2197,7 @@ def _test_conv2d_int8_alter_dtype(data_dtype, target, dot_product_instrs):
 
     out = rt_mod.get_output(0).numpy()
 
-    tvm.testing.assert_equal(out, ref)
+    np.testing.assert_equal(out, ref)
 
 
 @tvm.testing.requires_arm_dot
