@@ -23,7 +23,7 @@ from tvm.script import tir as T
 
 import numpy as np
 
-from tvm.tir.schedule.testing import assert_structural_equal_gs
+from tvm.tir.schedule.testing import assert_structural_equal_ignore_global_symbol
 
 
 @tvm.register_func("tvm.test_matmul")
@@ -236,7 +236,7 @@ class TestLowerDeviceAllocate(tvm.testing.CompareBeforeAfter):
 
     def test_compare(self, before, expected, transform):
         after = transform(before)
-        assert_structural_equal_gs(after, expected, map_free_vars=True)
+        assert_structural_equal_ignore_global_symbol(after, expected, map_free_vars=True)
 
 
 class TestLowerCPUAllocation(tvm.testing.CompareBeforeAfter):

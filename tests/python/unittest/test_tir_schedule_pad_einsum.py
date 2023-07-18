@@ -20,7 +20,10 @@ import tvm
 import tvm.testing
 from tvm import tir
 from tvm.script import tir as T
-from tvm.tir.schedule.testing import verify_trace_roundtrip, assert_structural_equal_gs
+from tvm.tir.schedule.testing import (
+    verify_trace_roundtrip,
+    assert_structural_equal_ignore_global_symbol,
+)
 
 # pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
@@ -150,7 +153,7 @@ def test_pad_matmul():
     sch = tir.Schedule(matmul_before, debug_mask="all")
     C = sch.get_block("C")
     sch.pad_einsum(C, [32, 32, 32])
-    assert_structural_equal_gs(matmul_after, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(matmul_after, sch.mod["main"])
     verify_trace_roundtrip(sch, mod=matmul_before)
 
 
@@ -220,7 +223,7 @@ def test_pad_matmul_2():
     sch = tir.Schedule(before, debug_mask="all")
     C = sch.get_block("C")
     sch.pad_einsum(C, [1, 32, 32, 32])
-    assert_structural_equal_gs(after, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(after, sch.mod["main"])
     verify_trace_roundtrip(sch, mod=before)
 
 
@@ -292,7 +295,7 @@ def test_pad_rms():
     sch = tir.Schedule(before, debug_mask="all")
     C = sch.get_block("S")
     sch.pad_einsum(C, [1, 32, 1])
-    assert_structural_equal_gs(after, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(after, sch.mod["main"])
     verify_trace_roundtrip(sch, mod=before)
 
 

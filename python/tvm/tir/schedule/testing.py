@@ -24,7 +24,7 @@ from tvm.tir import PrimFunc
 from tvm.tir.schedule import Schedule, Trace
 
 
-def assert_structural_equal_gs(
+def assert_structural_equal_ignore_global_symbol(
     func1: PrimFunc,
     func2: PrimFunc,
     *args: Any,
