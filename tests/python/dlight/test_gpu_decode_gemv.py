@@ -259,8 +259,8 @@ def test_decode_gemv_4():
                                 vk_fused_0 = T.axis.reduce(256, k_fused_0)
                                 C_rf_local[vk_fused_1, 0, 0, v_i2] = C_rf_local[vk_fused_1, 0, 0, v_i2] + V[0, 0, vk_fused_0 * 16 + vk_fused_1] * ((T.Cast("float16", T.bitwise_and(T.shift_right(W[vk_fused_0 * 16 + vk_fused_1, v_i2 // 8], T.Cast("uint32", v_i2 % 8) * T.uint32(4)), T.uint32(15))) - T.float16(7)) * S[vk_fused_0 * 16 + vk_fused_1, v_i2 // 32])
                 for ax1_ax2_ax3_fused_0 in T.thread_binding(16, thread="threadIdx.x"):
-                    for ax0_fused in T.thread_binding(16, thread="threadIdx.y"):
-                        for ax1_ax2_ax3_fused_1 in range(8):
+                    for ax1_ax2_ax3_fused_1 in range(8):
+                        for ax0_fused in T.thread_binding(16, thread="threadIdx.y"):
                             with T.block("matmul"):
                                 vk_fused_1 = T.axis.reduce(16, ax0_fused)
                                 v_i2 = T.axis.spatial(4096, i2_0_i0_i1_fused_0 * 128 + ax1_ax2_ax3_fused_0 * 8 + ax1_ax2_ax3_fused_1)
