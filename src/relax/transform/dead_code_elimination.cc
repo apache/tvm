@@ -103,7 +103,6 @@ IRModule RemoveUnusedFunctions(IRModule mod_, Array<runtime::String> entry_funcs
   return mod_;
 }
 
-
 IRModule DeadCodeElimination(const IRModule& mod, Array<runtime::String> entry_functions) {
   // S1: remove unused functions to reduce the number of functions to be analyzed.
   IRModule tmp_mod = RemoveUnusedFunctions(mod, entry_functions);
