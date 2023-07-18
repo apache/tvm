@@ -19,6 +19,7 @@ import pytest
 
 import tvm.testing
 from tvm import dlight as dl
+from tvm.script import ir as I
 from tvm.script import tir as T
 from tvm.target import Target
 
@@ -247,5 +248,68 @@ class TestSkipGEMV(BaseBeforeAfter):
     expected = before
 
 
+def test_fp32_out():
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def fused_fused_decode3_fused_matmul2_cast6_add1_cast1_add2(lv13: T.Buffer((T.int64(4096), T.int64(512)), "uint32"), lv14: T.Buffer((T.int64(4096), T.int64(128)), "float16"), p_lv48: T.handle, lv13_1: T.Buffer((T.int64(4096),), "float16"), p_lv3: T.handle, p_output0: T.handle):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            n = T.int64()
+            lv48 = T.match_buffer(p_lv48, (T.int64(1), n, T.int64(4096)), "float16")
+            lv3 = T.match_buffer(p_lv3, (T.int64(1), n, T.int64(4096)), "float16")
+            p_output0_intermediate = T.match_buffer(p_output0, (T.int64(1), n, T.int64(4096)), "float16")
+            # with T.block("root"):
+            p_output0_intermediate_1 = T.alloc_buffer((T.int64(4096), T.int64(4096)), "float16")
+            var_matmul_intermediate = T.alloc_buffer((T.int64(1), n, T.int64(4096)))
+            var_compute_intermediate = T.alloc_buffer((T.int64(4096),))
+            var_T_add_intermediate = T.alloc_buffer((T.int64(1), n, T.int64(4096)))
+            var_compute_intermediate_1 = T.alloc_buffer((T.int64(1), n, T.int64(4096)), "float16")
+            for i, j in T.grid(T.int64(4096), T.int64(4096)):
+                with T.block("decode"):
+                    v_i, v_j = T.axis.remap("SS", [i, j])
+                    T.reads(lv13[v_i, v_j // T.int64(8)], lv14[v_i, v_j // T.int64(32)])
+                    T.writes(p_output0_intermediate_1[v_i, v_j])
+                    p_output0_intermediate_1[v_i, v_j] = (T.Cast("float16", T.bitwise_and(T.shift_right(lv13[v_i, v_j // T.int64(8)], T.Cast("uint32", v_j % T.int64(8)) * T.uint32(4)), T.uint32(15))) - T.float16(7)) * lv14[v_i, v_j // T.int64(32)]
+            for i0, i1, i2, k in T.grid(T.int64(1), n, T.int64(4096), T.int64(4096)):
+                with T.block("matmul"):
+                    v_i0, v_i1, v_i2, v_k = T.axis.remap("SSSR", [i0, i1, i2, k])
+                    T.reads(lv48[v_i0, v_i1, v_k], p_output0_intermediate_1[v_k, v_i2])
+                    T.writes(var_matmul_intermediate[v_i0, v_i1, v_i2])
+                    with T.init():
+                        var_matmul_intermediate[v_i0, v_i1, v_i2] = T.float32(0)
+                    var_matmul_intermediate[v_i0, v_i1, v_i2] = var_matmul_intermediate[v_i0, v_i1, v_i2] + T.Cast("float32", lv48[v_i0, v_i1, v_k]) * T.Cast("float32", p_output0_intermediate_1[v_k, v_i2])
+            for i0 in range(T.int64(4096)):
+                with T.block("compute"):
+                    v_i0 = T.axis.spatial(T.int64(4096), i0)
+                    T.reads(lv13_1[v_i0])
+                    T.writes(var_compute_intermediate[v_i0])
+                    var_compute_intermediate[v_i0] = T.Cast("float32", lv13_1[v_i0])
+            for ax0, ax1, ax2 in T.grid(T.int64(1), n, T.int64(4096)):
+                with T.block("T_add"):
+                    v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                    T.reads(var_matmul_intermediate[v_ax0, v_ax1, v_ax2], var_compute_intermediate[v_ax2])
+                    T.writes(var_T_add_intermediate[v_ax0, v_ax1, v_ax2])
+                    var_T_add_intermediate[v_ax0, v_ax1, v_ax2] = var_matmul_intermediate[v_ax0, v_ax1, v_ax2] + var_compute_intermediate[v_ax2]
+            for i0, i1, i2 in T.grid(T.int64(1), n, T.int64(4096)):
+                with T.block("compute_1"):
+                    v_i0, v_i1, v_i2 = T.axis.remap("SSS", [i0, i1, i2])
+                    T.reads(var_T_add_intermediate[v_i0, v_i1, v_i2])
+                    T.writes(var_compute_intermediate_1[v_i0, v_i1, v_i2])
+                    var_compute_intermediate_1[v_i0, v_i1, v_i2] = T.Cast("float16", var_T_add_intermediate[v_i0, v_i1, v_i2])
+            for ax0, ax1, ax2 in T.grid(T.int64(1), n, T.int64(4096)):
+                with T.block("T_add_1"):
+                    v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                    T.reads(var_compute_intermediate_1[v_ax0, v_ax1, v_ax2], lv3[v_ax0, v_ax1, v_ax2])
+                    T.writes(p_output0_intermediate[v_ax0, v_ax1, v_ax2])
+                    p_output0_intermediate[v_ax0, v_ax1, v_ax2] = var_compute_intermediate_1[v_ax0, v_ax1, v_ax2] + lv3[v_ax0, v_ax1, v_ax2]
+
+
+    target = Target("nvidia/geforce-rtx-3090-ti")
+    with target:
+        mod = dl.ApplyDefaultSchedule(dl.gpu.Matmul())(Before)  # pylint: disable=not-callable
+
+    print(mod)
+
+
 if __name__ == "__main__":
-    tvm.testing.main()
+    test_fp32_out()

@@ -365,5 +365,17 @@ class Matmul(ScheduleRule):
         auto_inline_producers(sch, a_g2s)
         auto_inline_producers(sch, b_g2s)
         auto_inline_consumers(sch, l2g)
+
+        remaining_consumers = sch.get_consumers(l2g)
+
+        if len(remaining_consumers) != 0:
+            for c in remaining_consumers:
+                for p in sch.get_producers(c):
+                    if sch.get(p) != sch.get(l2g):
+                        sch.compute_inline(p)
+
+        auto_inline_consumers(sch, l2g)
+        assert len(sch.get_consumers(l2g)) == 0
+
         sch.decompose_reduction(main_block, ko)
         return sch
