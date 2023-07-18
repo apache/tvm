@@ -18,9 +18,11 @@
 """Schedule for pooling operators"""
 
 import logging
-from tvm import topi, te
+from tvm import te
 from tvm.target import Target
+
 from .. import tag
+from .. import generic
 
 
 def schedule_pool(outs, layout):
@@ -32,7 +34,7 @@ def schedule_pool(outs, layout):
             """We currently only support NHWC target specific pools on arm_cpu,
                falling back on generic pool scheduling"""
         )
-        return topi.generic.schedule_pool(outs, layout)
+        return generic.schedule_pool(outs, layout)
 
     return schedule_pool_2d(outs)
 

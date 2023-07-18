@@ -20,12 +20,12 @@ import logging
 
 import tvm
 
-from tvm import te, topi
+from tvm import te
 from tvm.topi.utils import traverse_inline
 
 from .micro_kernel.max_pool import intrin_max, max_impl
-
 from .micro_kernel.avg_pool import intrin_sum, sum_impl
+from .... import generic
 
 logger = logging.getLogger("topi")
 
@@ -103,14 +103,14 @@ def schedule_pool(outs, layout, is_avg_pool):
             "enabled targets, falling back on generic pool"
             "implementation"
         )
-        return topi.generic.schedule_pool(outs, layout)
+        return generic.schedule_pool(outs, layout)
     elif not is_avg_pool and layout not in ["NWC", "NHWC"]:
         logger.warning(
             "max pool not support for NWC or NHWC layouts on DSP"
             "enabled targets, falling back on generic pool"
             "implementation"
         )
-        return topi.generic.schedule_pool(outs, layout)
+        return generic.schedule_pool(outs, layout)
 
     s = te.create_schedule([x.op for x in outs])
 
