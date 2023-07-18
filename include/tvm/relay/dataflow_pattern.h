@@ -537,6 +537,41 @@ DFPattern IsTuple(const Array<DFPattern>& fields);
 /*! \brief Syntatic Sugar for creating a TupleGetItemPattern*/
 DFPattern IsTupleGetItem(const DFPattern tuple, int index = -1);
 
+/*! \brief A printer class to print pattern. */
+class DFPatternPrinter : public ReprPrinter {
+ public:
+  std::stringstream string_stream{};
+
+  std::unordered_map<DFPattern, std::pair<size_t, std::string>, ObjectPtrHash,
+                     ObjectPtrEqual> memo_{};
+  std::vector<DFPattern> recursed_patterns{};
+
+  DFPatternPrinter(std::ostream& stream)  // NOLINT(*)
+      : ReprPrinter(stream) {}
+  TVM_DLL void Print(const ObjectRef& node);
+  using FType = NodeFunctor<void(const ObjectRef&, DFPatternPrinter*)>;
+  TVM_DLL static FType& vtable();
+};
+
+inline std::ostream& operator<<(std::ostream& os,
+                                const DFPattern& n) {  // NOLINT(*)
+  std::stringstream string_stream{}, tmp_stream{};
+  DFPatternPrinter printer{tmp_stream};
+  printer.Print(n);
+  string_stream << "Main pattern is:" << std::endl;
+  string_stream << printer.string_stream.str();
+  string_stream << std::endl;
+  string_stream << "Auxiliary patterns are:";
+  for (const DFPattern& pat : printer.recursed_patterns) {
+    string_stream << std::endl;
+    string_stream << printer.memo_[pat].second;
+  }
+  os << string_stream.str();
+  return os;
+}
+
+String PrettyPrint(const DFPattern& pattern);
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_DATAFLOW_PATTERN_H_
