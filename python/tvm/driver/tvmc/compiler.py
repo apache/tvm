@@ -460,7 +460,7 @@ def compile_model(
         if timing_inst:
             print("Printing results of timing profile...")
             print(timing_inst.render())
-            
+
         return TVMCPackage(package_path)
 
 
