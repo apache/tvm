@@ -44,6 +44,7 @@ def prim_func(func: Callable) -> Union[PrimFunc, Callable]:
         return func
     f = parse(func, utils.inspect_function_capture(func))
     setattr(f, "__name__", func.__name__)
+    f = f.with_attr("global_symbol", func.__name__)
     return f
 
 
