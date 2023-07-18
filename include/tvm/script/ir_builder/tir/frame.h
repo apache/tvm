@@ -72,7 +72,7 @@ class PrimFuncFrameNode : public TIRFrameNode {
   /*! \brief Function parameters. */
   Array<tvm::tir::Var> args;
   /*! \brief Whether the PrimFunc is annotated as private. */
-  Optional<Bool> is_private;
+  bool is_private;
   /*! \brief The return type of the function. */
   Optional<Type> ret_type;
   /*! \brief Maps some parameters to specific Buffer data structures. */

@@ -32,7 +32,7 @@ void PrimFuncFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
   // if the prim func is not private and there isn't already a global symbol,
   // add a global symbol
-  if (!is_private.value_or(Bool(false))->value && name.defined()) {
+  if (!is_private && name.defined()) {
     if (!attrs.defined()) {
       attrs = {{tvm::attr::kGlobalSymbol, name.value()}};
     } else if (!attrs.value().count(tvm::attr::kGlobalSymbol)) {
