@@ -103,6 +103,138 @@ IRModule RemoveUnusedFunctions(IRModule mod_, Array<runtime::String> entry_funcs
   return mod_;
 }
 
+// Checks the function for the following condition:
+// If a dataflow var is used *only* as the LHS of a binding to the dataflow block output
+// (i.e., an ordinary var), then we can get rid of that dataflow var and bind the DF var's
+// definition directly to the output.
+Function ElideIntermediateDataflowVars(const Function& func) {
+  // helper: gather all dataflow vars inside an expression
+  class DataflowVarGatherer : public ExprVisitor {
+   public:
+    // ignore inner functions
+    void VisitExpr_(const FunctionNode* _) override {}
+
+    void VisitExpr_(const DataflowVarNode* var) override { vars_.insert(GetRef<DataflowVar>(var)); }
+
+    std::unordered_set<DataflowVar, ObjectPtrHash, ObjectPtrEqual> Gather(const Expr& expr) {
+      VisitExpr(expr);
+      return vars_;
+    }
+
+    std::unordered_set<DataflowVar, ObjectPtrHash, ObjectPtrEqual> vars_;
+  };
+
+  // first we search for dataflow vars for which the condition is met:
+  // exclude if found anywhere other than RHS of a binding to an ordinary var (or more than once)
+  // candidate set -> eliminate if we find somewhere it's not supposed to be
+  class CandidateFinder : public ExprVisitor {
+   public:
+    // ignore non-DF blocks
+    void VisitBindingBlock_(const BindingBlockNode* block) override {}
+
+    void VisitBinding_(const VarBindingNode* binding) override {
+      ProcessBinding(binding->var, binding->value);
+    }
+
+    void VisitBinding_(const MatchCastNode* binding) override {
+      ProcessBinding(binding->var, binding->value);
+    }
+
+    void ProcessBinding(const Var& var, const Expr& value) {
+      if (var.as<DataflowVarNode>()) {
+        // add definition to binding map
+        candidate_map_[Downcast<DataflowVar>(var)] = value;
+
+        // disqualify any dataflow vars in the RHS (since the LHS isn't an ordinary var)
+        DataflowVarGatherer gatherer;
+        auto disqualified = gatherer.Gather(value);
+        for (auto var : disqualified) {
+          candidate_map_.erase(var);
+        }
+      } else {
+        // the LHS is an output, so disqualify if the RHS is not a single dataflow var
+        // or if the var has been output before
+        if (const auto* rhs_var = value.as<DataflowVarNode>()) {
+          if (output_vars_.count(GetRef<DataflowVar>(rhs_var))) {
+            candidate_map_.erase(GetRef<DataflowVar>(rhs_var));
+          }
+          output_vars_.insert(GetRef<DataflowVar>(rhs_var));
+        } else {
+          DataflowVarGatherer gatherer;
+          auto disqualified = gatherer.Gather(value);
+          for (auto var : disqualified) {
+            candidate_map_.erase(var);
+          }
+        }
+      }
+    }
+
+    std::unordered_map<DataflowVar, Expr, ObjectPtrHash, ObjectPtrEqual> candidate_map_;
+    std::unordered_set<DataflowVar, ObjectPtrHash, ObjectPtrEqual> output_vars_;
+  };
+
+  // given a candidate map (dataflow vars that should be eliminated mapped to their definitions),
+  // remove the bindings corresponding to those DF vars and replace the vars with their definitions
+  // when the appear on the RHS of a binding to an output var (non-DF var)
+  class BindingUpdater : public ExprMutator {
+   public:
+    explicit BindingUpdater(
+        const std::unordered_map<DataflowVar, Expr, ObjectPtrHash, ObjectPtrEqual>& candidate_map)
+        : candidate_map_(candidate_map) {}
+
+    // skip non-DF blocks
+    BindingBlock VisitBindingBlock_(const BindingBlockNode* block) override {
+      return GetRef<BindingBlock>(block);
+    }
+
+    void VisitBinding_(const VarBindingNode* binding) override {
+      // case 1: if the LHS is a DF node in the candidate map, erase the binding
+      if (binding->var.as<DataflowVarNode>() &&
+          candidate_map_.count(Downcast<DataflowVar>(binding->var))) {
+        return;
+      }
+      // case 2: if the RHS consists only of a DF node in the candidate map, replace the value
+      //   with the definition from the candidate map
+      if (!binding->var.as<DataflowVarNode>() && binding->value.as<DataflowVarNode>() &&
+          candidate_map_.count(Downcast<DataflowVar>(binding->value))) {
+        builder_->EmitNormalized(
+            VarBinding(binding->var, candidate_map_.at(Downcast<DataflowVar>(binding->value))));
+        return;
+      }
+      // case 3: if neither, use the default logic
+      ExprMutator::VisitBinding_(binding);
+    };
+
+    void VisitBinding_(const MatchCastNode* binding) {
+      // case 1: if the LHS is a DF node in the candidate map, erase the binding
+      if (binding->var.as<DataflowVarNode>() &&
+          candidate_map_.count(Downcast<DataflowVar>(binding->var))) {
+        return;
+      }
+      // case 2: if the RHS consists only of a DF node in the candidate map, replace the value
+      //   with the definition from the candidate map
+      if (!binding->var.as<DataflowVarNode>() && binding->value.as<DataflowVarNode>() &&
+          candidate_map_.count(Downcast<DataflowVar>(binding->value))) {
+        builder_->EmitNormalized(MatchCast(binding->var,
+                                           candidate_map_.at(Downcast<DataflowVar>(binding->value)),
+                                           binding->struct_info));
+        return;
+      }
+      // case 3: if neither, use the default logic
+      ExprMutator::VisitBinding_(binding);
+    }
+
+    const std::unordered_map<DataflowVar, Expr, ObjectPtrHash, ObjectPtrEqual>& candidate_map_;
+  };
+
+  CandidateFinder finder;
+  finder.VisitExpr(func->body);
+  auto candidate_map = finder.candidate_map_;
+  BindingUpdater updater(candidate_map);
+  auto new_body = updater.VisitExpr(func->body);
+  return Function(func->params, new_body, func->ret_struct_info, func->is_pure, func->attrs);
+}
+
 IRModule DeadCodeElimination(const IRModule& mod, Array<runtime::String> entry_functions) {
   // S1: remove unused functions to reduce the number of functions to be analyzed.
   IRModule tmp_mod = RemoveUnusedFunctions(mod, entry_functions);
@@ -110,7 +242,8 @@ IRModule DeadCodeElimination(const IRModule& mod, Array<runtime::String> entry_f
   for (const auto& gv : tmp_mod->GetGlobalVars()) {
     auto func = tmp_mod->Lookup(gv);
     if (func->IsInstance<FunctionNode>()) {
-      tmp_mod->Update(gv, RemoveAllUnused(Downcast<Function>(func)));
+      auto new_func = ElideIntermediateDataflowVars(RemoveAllUnused(Downcast<Function>(func)));
+      tmp_mod->Update(gv, new_func);
     }
   }
   // S3: remove unused functions again as some callers may be removed in S2.

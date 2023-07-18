@@ -448,5 +448,79 @@ def test_unused_dfb2():
     verify(Input, Expected)
 
 
+def test_elide_intermediate_dataflow_var_simple():
+    @tvm.script.ir_module
+    class Input:
+        @R.function
+        def main() -> R.Tensor((), "int32"):
+            with R.dataflow():
+                y = R.const(1)
+                n = y
+                R.output(n)
+            return n
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main() -> R.Tensor((), "int32"):
+            with R.dataflow():
+                n = R.const(1)
+                R.output(n)
+            return n
+
+    verify(Input, Expected)
+
+
+def test_elide_intermediate_dataflow_var_match_cast():
+    @tvm.script.ir_module
+    class Input:
+        @R.function
+        def main() -> R.Tensor((), "int32"):
+            with R.dataflow():
+                y = R.const(1)
+                n = R.match_cast(y, R.Tensor((), "int32"))
+                R.output(n)
+            return n
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main() -> R.Tensor((), "int32"):
+            with R.dataflow():
+                n = R.match_cast(R.const(1), R.Tensor((), "int32"))
+                R.output(n)
+            return n
+
+    verify(Input, Expected)
+
+
+def test_elide_intermediate_dataflow_var_fail():
+    @tvm.script.ir_module
+    class MultipleUse:
+        @R.function
+        def main() -> R.Tensor((), "int32"):
+            with R.dataflow():
+                y = R.const(1)
+                # multiple uses -> cannot coalesce
+                m = R.add(y, y)
+                n = y
+                R.output(n)
+            return n
+
+    @tvm.script.ir_module
+    class ComplexExpr:
+        @R.function
+        def main() -> R.Tensor((), "int32"):
+            with R.dataflow():
+                y = R.const(1)
+                # y does not appear by itself -> cannot coalesce
+                n = R.add(y, y)
+                R.output(n)
+            return n
+
+    verify(MultipleUse, MultipleUse)
+    verify(ComplexExpr, ComplexExpr)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
