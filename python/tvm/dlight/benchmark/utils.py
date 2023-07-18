@@ -142,18 +142,31 @@ def print_results(
         Whether to sort results in descending order.
     """
     # pylint: disable=invalid-name, import-outside-toplevel
-    import pandas as pd
+    try:
+        import pandas as pd
 
-    df = pd.DataFrame()
-    for record in bench_results:
-        df = pd.concat(
-            [df, pd.DataFrame(record, index=[0])],
-            ignore_index=True,
-        )
-    if sort_by is not None:
-        if sort_by not in df.columns:
-            raise ValueError(f"sort_by key {sort_by} not in benchmark results")
-        df = df.sort_values(sort_by, ascending=not desc).reset_index().drop("index", axis=1)
-    print(df)
+        df = pd.DataFrame()
+        for record in bench_results:
+            df = pd.concat(
+                [df, pd.DataFrame(record, index=[0])],
+                ignore_index=True,
+            )
+        if sort_by is not None:
+            if sort_by not in df.columns:
+                raise ValueError(f"sort_by key {sort_by} not in benchmark results")
+            df = df.sort_values(sort_by, ascending=not desc).reset_index().drop("index", axis=1)
+        print(df)
+    except ModuleNotFoundError:
+        print("Pandas not found, printing results in raw format.")
+        keys = []
+        if len(bench_results) > 0:
+            for key in bench_results[0]:
+                keys.append(str(key))
+        print("\t".join(keys))
+        for record in bench_results:
+            values = []
+            for key in keys:
+                values.append(str(record[key]))
+            print("\t".join(values))
     print("\n")
     # pylint: enable=invalid-name, import-outside-toplevel
