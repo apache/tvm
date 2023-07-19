@@ -972,6 +972,7 @@ export interface NDArrayShardEntry {
 export interface InitProgressReport {
   progress: number;
   timeElapsed: number;
+  cacheOnly: boolean;
   text: string;
 }
 
@@ -1002,6 +1003,16 @@ export class ArtifactCache {
       throw Error("Cannot fetch " + url);
     }
     return result;
+  }
+
+  async hasAllKeys(keys: string[]) {
+    if (this.cache === undefined) {
+      this.cache = await caches.open(this.scope);
+    }
+    return this.cache.keys()
+      .then(requests => requests.map(request => request.url))
+      .then(cacheKeys => keys.every(key => cacheKeys.indexOf(key) !== -1))
+      .catch(err => false);
   }
 }
 
@@ -1472,6 +1483,8 @@ export class Instance implements Disposable {
     let fetchedBytes = 0;
     let timeElapsed = 0;
 
+    const cacheOnly = await artifactCache.hasAllKeys(list.map(key => new URL(key.dataPath, ndarrayCacheUrl).href))
+
     const reportCallback = (iter: number) => {
       // report
       for (let j = 0; j < this.initProgressCallback.length; ++j) {
@@ -1481,9 +1494,16 @@ export class Instance implements Disposable {
         text += timeElapsed + " secs elapsed.";
         text += " It can take a while when we first visit this page to populate the cache."
         text += " Later refreshes will become faster.";
+        if (cacheOnly) {
+          text = "Loading model from cache[" + iter + "/" + list.length + "]: ";
+          text += Math.ceil(fetchedBytes / (1024 * 1024)).toString() + "MB loaded. "
+          text += Math.floor(fetchedBytes * 100 / totalBytes).toString() + "% completed, "
+          text += timeElapsed + " secs elapsed.";
+        }
         this.initProgressCallback[j]({
           progress: fetchedBytes / totalBytes,
           timeElapsed: timeElapsed,
+          cacheOnly: cacheOnly,
           text: text
         });
       }
@@ -1493,6 +1513,7 @@ export class Instance implements Disposable {
       this.initProgressCallback[j]({
         progress: fetchedBytes / totalBytes,
         timeElapsed: 0,
+        cacheOnly: cacheOnly,
         text: "Start to fetch params",
       });
     }
@@ -1926,6 +1947,7 @@ export class Instance implements Disposable {
           this.initProgressCallback[j]({
             progress: progress,
             timeElapsed: timeElapsed,
+            cacheOnly: false,
             text: text
           });
         }
@@ -2348,4 +2370,23 @@ export function instantiate(
       return new Instance(result.module, {}, result.instance, env);
     }
   );
+}
+
+export async function hasNDArrayInCache(
+  ndarrayCacheUrl: string,
+  cacheScope: string = "tvmjs"
+): Promise<boolean> {
+  const artifactCache = new ArtifactCache(cacheScope);
+  const jsonUrl = new URL("ndarray-cache.json", ndarrayCacheUrl).href;
+  const hasJsonUrlInCache = await artifactCache.hasAllKeys([jsonUrl]);
+  if (!hasJsonUrlInCache) {
+    return false;
+  }
+  const result = await artifactCache.fetchWithCache(jsonUrl);
+  let list;
+  if (result instanceof Response) {
+    list = await result.json();
+  }
+  list = list["records"] as Array<NDArrayShardEntry>;
+  return await artifactCache.hasAllKeys(list.map(key => new URL(key.dataPath, ndarrayCacheUrl).href));
 }
