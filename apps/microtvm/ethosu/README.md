@@ -60,7 +60,7 @@ Understanding the demo application
 ----------------------------------
 This demo will:
 - Download a quantized (int8) mobilenet v2 model
-- Use tvmc to compile the model for Cortex(R)-M55 CPU, Ethos(TM)-U55 NPU and CMSIS-NN
+- Use tvmc to compile the model for Cortex(R)-M55 CPU with Ethos(TM)-U55 NPU
 - Download an image of a penguin to run the model on
 - Create a C header file inputs.c containing the image data as a C array
 - Create a C header file outputs.c containing a C array where the output of inference will be stored
@@ -89,6 +89,11 @@ To run the demo ([src/demo_bare_metal_alif.c](./src/demo_bare_metal_alif.c)) on 
 ```bash
 ./run_demo.sh --alif_target_board BOARD_AppKit_Alpha1
 ```
+By default this command will build the firmware for RTSS_HP (High Performance) core. If you want to build the firmware for RTSS_HE (High Efficiency) core you need to set ```PLATFORM=RTSS_HE``` variable, e.g.:
+```bash
+PLATFORM=RTSS_HE ./run_demo.sh --alif_target_board BOARD_AppKit_Alpha1
+```
+
 Than use `flash.sh` to upload the firmware to the board. Make sure that you have SETools installed and toolkit is configured according to AUGD0005 and console port connected to UART4.
 ```bash
 ./flash --alif_toolkit_path path_to_SETools --alif_console_port tty_device

@@ -168,7 +168,8 @@ if [ -n "${ALIF_TARGET_BOARD+x}" ]; then
     mv alif_ensemble-cmsis-dfp-${ALIF_CMSIS_VERSION} alif_ensemble-cmsis-dfp
     rm ALIF_CMSIS.zip
 
-    # Clone the latest version of vela compiler
+    # TODO: Remove this after ethos-u-vela==3.9.0 become available in PyPi and TVM's ci_cortexm docker image
+    # Clone the specific version of vela compiler with required bugfixes
     VELA_VERSION=ca9cc420984eba39b85885bf0d2d7b48bb920da9
     curl -sL "https://git.mlplatform.org/ml/ethos-u/ethos-u-vela.git/snapshot/ethos-u-vela-${VELA_VERSION}.tar.gz" | tar -xz
     mv ethos-u-vela-${VELA_VERSION} ethos-u-vela

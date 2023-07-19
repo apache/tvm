@@ -103,7 +103,8 @@ ALIF_SDK_SRCS = \
 	$(wildcard $(ALIF_PLATFORM_DRIVERS)/hal/source/platform/ensemble/services_lib/services_lib/*.c) \
 	$(wildcard $(ALIF_PLATFORM_DRIVERS)/hal/source/components/npu/*.c)
 
-demo_alif: $(BUILD_DIR)/demo_alif
+demo_alif: $(BUILD_DIR)/demo_alif gen_config
+
 
 ${BUILD_DIR}/libethosu_core_driver/libethosu_core_driver.a: $(ETHOSU_DRIVER_PATH)
 	mkdir -p $(BUILD_DIR)/libethosu_core_driver
@@ -115,6 +116,7 @@ ${BUILD_DIR}/libethosu_core_driver/libethosu_core_driver.a: $(ETHOSU_DRIVER_PATH
 		-DCMAKE_BUILD_TYPE=Release && \
 		make
 
+
 ${BUILD_DIR}/libalif.a: $(ALIF_SDK_SRCS)
 	mkdir -p $(BUILD_DIR)/libalif
 	cd $(BUILD_DIR)/libalif && $(CC) -c $(CCFLAGS) $(INCLUDES) $^
@@ -125,6 +127,28 @@ $(BUILD_DIR)/demo_alif: $(SRCS) ${BUILD_DIR}/libalif.a ${BUILD_DIR}/libethosu_co
 	$(CC) $(CCFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS)
 	$(OBJCOPY) -O binary $@ $@.bin
 	truncate --size=%16 $@.bin
+
+
+
+define GEN_CONFIG_CONTENT
+{\\n\
+\ \"demo\": {\\n\
+\ \ \"binary\": \"demo_alif.bin\",\\n\
+\ \ \"version\": \"1.0.0\",\\n\
+\ \ \"cpu_id\": \"$(CORE_TYPE)\",\\n\
+\ \ \"mramAddress\": \"0x80001000\",\\n\
+\ \ \"flags\": [\\n\
+\ \ \ \"boot\"\\n\
+\ \ ],\\n\
+\ \ \"signed\": false\\n\
+\ }\\n\
+}
+endef
+
+.PHONY: gen_config
+gen_config:
+	@echo $(call GEN_CONFIG_CONTENT) > $(BUILD_DIR)/alif_flash_config.json
+
 
 cleanall:
 	rm -rf $(BUILD_DIR)

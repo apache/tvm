@@ -82,7 +82,7 @@ fi
 script_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
 # copy demo artifacts to the Alis Toolkit folder
-cp ${script_dir}/alif_flash_config.json ${ALIF_TOOLKIT_PATH}/build/config
+cp ${script_dir}/build/alif_flash_config.json ${ALIF_TOOLKIT_PATH}/build/config
 cp ${script_dir}/build/demo_alif.bin ${ALIF_TOOLKIT_PATH}/build/images
 
 # upload binary to the MCU
