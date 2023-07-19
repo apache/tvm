@@ -135,7 +135,7 @@ TVM_STATIC_IR_FUNCTOR(DFPatternPrinter, vtable)
         p->Print(arg);
         args_pattern_string.push_back(p->string_stream.str());
       }
-    
+
       p->string_stream.str("");
       p->string_stream << "(id " << p->memo_[pattern].first << "): ";
       p->string_stream << "CallPatternNode(" << op_pattern_string << ", [";
@@ -218,8 +218,8 @@ TVM_STATIC_IR_FUNCTOR(DFPatternPrinter, vtable)
 
       p->string_stream.str("");
       p->string_stream << "(id " << p->memo_[pattern].first << "): ";
-      p->string_stream << "LetPatternNode(" << var_pattern_string << ", " << value_pattern_string << ", " << body_pattern_string
-                << ")";
+      p->string_stream << "LetPatternNode(" << var_pattern_string << ", " << value_pattern_string
+                       << ", " << body_pattern_string << ")";
     });
 
 IfPattern::IfPattern(DFPattern cond, DFPattern true_branch, DFPattern false_branch) {
@@ -252,8 +252,8 @@ TVM_STATIC_IR_FUNCTOR(DFPatternPrinter, vtable)
 
       p->string_stream.str("");
       p->string_stream << "(id " << p->memo_[pattern].first << "): ";
-      p->string_stream << "IfPattern(" << cond_pattern_string << ", " << true_branch_pattern_string << ", "
-                << false_branch_pattern_string << ")";
+      p->string_stream << "IfPattern(" << cond_pattern_string << ", " << true_branch_pattern_string
+                       << ", " << false_branch_pattern_string << ")";
     });
 
 TuplePattern::TuplePattern(tvm::Array<DFPattern> fields) {
@@ -310,7 +310,6 @@ TVM_STATIC_IR_FUNCTOR(DFPatternPrinter, vtable)
       p->Print(pattern->tuple);
       std::string tuple_pattern_string{p->string_stream.str()};
 
-
       p->string_stream.str("");
       p->string_stream << "(id " << p->memo_[pattern].first << "): ";
       p->string_stream << "TupleGetItemPatternNode(";
@@ -341,8 +340,8 @@ TVM_STATIC_IR_FUNCTOR(DFPatternPrinter, vtable)
 
       p->string_stream.str("");
       p->string_stream << "(id " << p->memo_[pattern].first << "): ";
-      p->string_stream << "AltPattern(" << left_pattern_string << " | "
-                       << right_pattern_string << ")";
+      p->string_stream << "AltPattern(" << left_pattern_string << " | " << right_pattern_string
+                       << ")";
     });
 
 TVM_REGISTER_NODE_TYPE(WildcardPatternNode);
@@ -379,8 +378,8 @@ TVM_STATIC_IR_FUNCTOR(DFPatternPrinter, vtable)
 
       p->string_stream.str("");
       p->string_stream << "(id " << p->memo_[pattern].first << "): ";
-      p->string_stream << "TypePattern(" << pattern_pattern_string
-                       << " has type " << pattern->type << ")";
+      p->string_stream << "TypePattern(" << pattern_pattern_string << " has type " << pattern->type
+                       << ")";
     });
 
 ShapePattern::ShapePattern(DFPattern pattern, Array<PrimExpr> shape) {
@@ -431,8 +430,8 @@ TVM_STATIC_IR_FUNCTOR(DFPatternPrinter, vtable)
 
       p->string_stream.str("");
       p->string_stream << "(id " << p->memo_[pattern].first << "): ";
-      p->string_stream << "DataTypePattern(" << pattern_pattern_string
-                       << " has dtype " << pattern->dtype << ")";
+      p->string_stream << "DataTypePattern(" << pattern_pattern_string << " has dtype "
+                       << pattern->dtype << ")";
     });
 
 AttrPattern::AttrPattern(DFPattern pattern, DictAttrs attrs) {
@@ -456,8 +455,8 @@ TVM_STATIC_IR_FUNCTOR(DFPatternPrinter, vtable)
 
       p->string_stream.str("");
       p->string_stream << "(id " << p->memo_[pattern].first << "): ";
-      p->string_stream << "AttrPattern(" << pattern_pattern_string
-                       << " has attributes " << pattern->attrs << ")";
+      p->string_stream << "AttrPattern(" << pattern_pattern_string << " has attributes "
+                       << pattern->attrs << ")";
     });
 
 DominatorPattern::DominatorPattern(DFPattern parent, DFPattern path, DFPattern child) {
@@ -492,8 +491,7 @@ TVM_STATIC_IR_FUNCTOR(DFPatternPrinter, vtable)
       p->string_stream.str("");
       p->string_stream << "(id " << p->memo_[pattern].first << "): ";
       p->string_stream << "DominatorPattern(" << parent_pattern_string << ", "
-                       << path_pattern_string << ", " << child_pattern_string
-                       << ")";
+                       << path_pattern_string << ", " << child_pattern_string << ")";
     });
 
 // Syntatic Sugar

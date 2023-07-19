@@ -28,6 +28,8 @@
 #include <tvm/relay/type.h>
 
 #include <string>
+#include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace tvm {
@@ -542,8 +544,8 @@ class DFPatternPrinter : public ReprPrinter {
  public:
   std::stringstream string_stream{};
 
-  std::unordered_map<DFPattern, std::pair<size_t, std::string>, ObjectPtrHash,
-                     ObjectPtrEqual> memo_{};
+  std::unordered_map<DFPattern, std::pair<size_t, std::string>, ObjectPtrHash, ObjectPtrEqual>
+      memo_{};
   std::vector<DFPattern> recursed_patterns{};
 
   DFPatternPrinter(std::ostream& stream)  // NOLINT(*)
