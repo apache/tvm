@@ -152,7 +152,7 @@ class TestSplitHostDeviceOnCPU(BaseCompare):
                 err = mod.main_kernel(n)
                 assert err == 0, "Error executing compute kernel"
 
-            @T.prim_func
+            @T.prim_func(private=True)
             def main_kernel(n: T.int32) -> T.int32:
                 T.func_attr(
                     {
