@@ -16,7 +16,7 @@
 # under the License.
 """Performance debug tool for dynamic shape workloads"""
 
-from typing import List, Dict, Union, Tuple, Iterator
+from typing import List, Dict, Union, Tuple
 from pathlib import Path
 
 import cloudpickle
@@ -88,35 +88,6 @@ def extract_shape(
     return [arg.struct_info]
 
 
-def prim_func_usage_gen(
-    mod: tvm.ir.IRModule,
-) -> Iterator[Tuple[tvm.ir.GlobalVar, tvm.ir.GlobalVar, List[relax.ShapeStructInfo]]]:
-    """Generate the usage of prim functions in a relax module.
-
-    Parameters
-    ----------
-    mod : tvm.ir.IRModule
-        The relax module to be analyzed.
-
-    Yields
-    ------
-    result : Tuple[tvm.ir.GlobalVar, tvm.ir.GlobalVar, List[relax.ShapeStructInfo]]
-        The usage of prim functions in a relax module.
-    """
-    for gv, func in mod.functions.items():  # pylint: disable=invalid-name,too-many-nested-blocks
-        if isinstance(func, tvm.relax.Function):
-            for block in func.body.blocks:
-                for binding in block.bindings:
-                    if isinstance(binding.value, tvm.relax.expr.Call):
-                        raw_args = binding.value.args
-                        functor = raw_args[0]
-                        if isinstance(functor, tvm.ir.GlobalVar) and isinstance(
-                            mod.functions[functor], tvm.tir.PrimFunc
-                        ):
-                            args = extract_shape(raw_args[1:]) + extract_shape(binding.value)
-                            yield gv, functor, args
-
-
 def extract_dynamic_var(
     func_dict: Dict[
         tvm.ir.GlobalVar,
@@ -163,32 +134,66 @@ def extract_dynamic_var(
     return dym_var_dict
 
 
-def extract_func_info(
+def update_records(
+    records: Dict[List[relax.ShapeStructInfo], int], new_args: List[relax.ShapeStructInfo]
+) -> None:
+    """Update the count of a function input argument config.
+
+    Parameters
+    ----------
+    records : Dict[List[relax.ShapeStructInfo], int]
+        The dictionary to count how many times a function input argument config appears.
+    new_args : List[relax.ShapeStructInfo]
+        The new input argument config.
+    """
+    for i, (args, count) in enumerate(records):
+        if new_args == args:
+            records[i] = (args, count + 1)
+            return
+    records.append((new_args, 1))
+
+
+def extract_func_info_from_relax(
     mod: tvm.ir.IRModule,
 ) -> Tuple[
     Dict[tvm.ir.GlobalVar, Dict[tvm.ir.GlobalVar, List[Tuple[List, int]]]],
     Dict[tvm.ir.GlobalVar, Dict[str, str]],
 ]:
-    """Extract function information from a relax module."""
+    """Extract function input information from a relax module.
 
-    def update_records(records, new_args):
-        for i, (args, count) in enumerate(records):
-            if new_args == args:
-                records[i] = (args, count + 1)
-                return
-        records.append((new_args, 1))
+    Parameters
+    ----------
+    mod : tvm.ir.IRModule
+        The Relax module to be analyzed.
 
+    Returns
+    -------
+    result : Tuple[
+        Dict[tvm.ir.GlobalVar, Dict[tvm.ir.GlobalVar, List[Tuple[List, int]]]],
+        Dict[tvm.ir.GlobalVar, Dict[str, str]],
+    ]
+        The function input information and dynamic shape variable dictionary.
+    """
     relax_func_dict: Dict[tvm.ir.GlobalVar, Dict[tvm.ir.GlobalVar, List[Tuple[List, int]]]] = {}
-    for gv, functor, args in prim_func_usage_gen(mod):  # pylint: disable=invalid-name
-        if isinstance(functor, tvm.ir.GlobalVar):
-            if not gv in relax_func_dict:
-                relax_func_dict[gv] = {}
-            if not functor in relax_func_dict[gv]:
-                relax_func_dict[gv][functor] = []
-            update_records(relax_func_dict[gv][functor], args)
+    for gv, func in mod.functions.items():  # pylint: disable=invalid-name,too-many-nested-blocks
+        if isinstance(func, tvm.relax.Function):
+            for block in func.body.blocks:
+                for binding in block.bindings:
+                    if isinstance(binding.value, tvm.relax.expr.Call):
+                        raw_args = binding.value.args
+                        functor = raw_args[0]
+                        if isinstance(functor, tvm.ir.GlobalVar) and isinstance(
+                            mod.functions[functor], tvm.tir.PrimFunc
+                        ):
+                            args = extract_shape(raw_args[1:]) + extract_shape(binding.value)
+                            if isinstance(functor, tvm.ir.GlobalVar):
+                                if not gv in relax_func_dict:
+                                    relax_func_dict[gv] = {}
+                                if not functor in relax_func_dict[gv]:
+                                    relax_func_dict[gv][functor] = []
+                                update_records(relax_func_dict[gv][functor], args)
 
-    dym_var_dict = extract_dynamic_var(relax_func_dict)
-    return relax_func_dict, dym_var_dict
+    return relax_func_dict, extract_dynamic_var(relax_func_dict)
 
 
 def extract_prim_func(  # pylint: disable=too-many-arguments
@@ -274,7 +279,7 @@ def extract_from_relax(mod: tvm.ir.IRModule, model_name: str, file_path: str) ->
     file_path: str
         The path to store the extracted files.
     """
-    relax_funcs, dym_var_dict = extract_func_info(mod)
+    relax_funcs, dym_var_dict = extract_func_info_from_relax(mod)
     Path(file_path).mkdir(parents=True, exist_ok=True)
     for relax_func_gv in relax_funcs:  # pylint: disable=consider-using-dict-items
         relax_func_name = get_func_name_from_gv(relax_func_gv)

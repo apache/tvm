@@ -28,7 +28,7 @@ from tvm.meta_schedule.testing.tune_utils import generate_input_data
 from tvm.testing import rpc_run
 
 
-from .extract import extract_func_info
+from .extract import extract_func_info_from_relax
 from .utils import (
     populuate_input_shape,
     default_dym_var_sample_func,
@@ -254,7 +254,7 @@ def benchmark_relax_func(
         The RPC configuration to connect to the remote device.
     """
     # extract function information
-    relax_funcs, dynamic_var_dict = extract_func_info(mod)
+    relax_funcs, dynamic_var_dict = extract_func_info_from_relax(mod)
     # find the relax function global var
     if isinstance(relax_func, str):
         for gv in relax_funcs:  # pylint: disable=invalid-name
