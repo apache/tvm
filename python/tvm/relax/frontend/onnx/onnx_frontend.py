@@ -16,7 +16,7 @@
 # under the License.
 """ONNX: Open Neural Network Exchange importer for Relax.
 
-This module implemnets the required functionality to read ONNX models
+This module implements the required functionality to read ONNX models
 and convert them into equivalent Relax functions. The entry point that encapsulates
 this functionality is the function from_onnx.
 
@@ -35,16 +35,15 @@ Not all TVM kernels currently support dynamic shapes, please file an issue on
 github.com/apache/tvm/issues if you hit an error with dynamic kernels.
 """
 import warnings
-from typing import Union, Tuple, Optional, List, Dict, Any
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as _np
+import onnx.onnx_ml_pb2
 
 import tvm
-from tvm import relax, topi
+from tvm import relax, tir, topi
 from tvm.ir import IRModule
 from tvm.ir.supply import NameSupply
-
-import onnx.onnx_ml_pb2
 
 
 def get_type(elem_type: Union[str, int]) -> str:
@@ -55,7 +54,9 @@ def get_type(elem_type: Union[str, int]) -> str:
         return elem_type
 
     try:
-        from onnx.mapping import TENSOR_TYPE_TO_NP_TYPE  # pylint: disable=import-outside-toplevel
+        from onnx.mapping import (
+            TENSOR_TYPE_TO_NP_TYPE,  # pylint: disable=import-outside-toplevel
+        )
     except ImportError as exception:
         raise ImportError("Unable to import onnx which is required {}".format(exception))
 
@@ -117,7 +118,7 @@ def get_info(info_proto: onnx.onnx_ml_pb2.ValueInfoProto) -> Tuple[str, List, st
         name = dim.dim_param
         value = dim.dim_value
         if value is None or value == 0:
-            value = tvm.tir.Var("dyn", "int64")
+            value = tvm.tir.SizeVar(name, "int64")
             shape_name.append(name)
         else:
             shape_name.append(value)
@@ -134,10 +135,38 @@ def get_info(info_proto: onnx.onnx_ml_pb2.ValueInfoProto) -> Tuple[str, List, st
 def get_numpy(tensor_proto: onnx.onnx_ml_pb2.TensorProto) -> _np.ndarray:
     """Grab data in TensorProto and convert to numpy array."""
     try:
-        from onnx.numpy_helper import to_array  # pylint: disable=import-outside-toplevel
+        from onnx.numpy_helper import (
+            to_array,  # pylint: disable=import-outside-toplevel
+        )
     except ImportError as exception:
         raise ImportError("Unable to import onnx which is required {}".format(exception))
     return to_array(tensor_proto)
+
+
+def get_prim_expr_list(
+    inputs: Union[relax.Constant, relax.ShapeExpr],
+) -> List[Union[int, tir.PrimExpr]]:
+    """Attempt to convert a variable to list of PrimExpr if possible.
+
+    Parameters
+    ----------
+    inputs : Union[relax.Constant, relax.ShapeExpr]
+        The input value to try to convert to a list of PrimExpr.
+
+    Returns
+    -------
+    ret : List[Union[int, tir.PrimExpr]]
+        The input value converted to a list of PrimExpr if possible.
+    """
+    if isinstance(inputs, relax.Constant):
+        np_value = inputs.data.numpy()
+        if np_value.ndim != 1:
+            raise ValueError("Cannot cast {} to list of PrimExpr".format(type(inputs)))
+        return np_value.tolist()
+    elif isinstance(inputs, relax.ShapeExpr):
+        return inputs.values
+    else:
+        raise ValueError("Cannot cast {} to list of PrimExpr".format(type(inputs)))
 
 
 class onnx_input(list):  # pylint: disable=invalid-name
@@ -249,6 +278,16 @@ class Unsqueeze(OnnxOpConverter):
     def _impl_v13(cls, bb, inputs, attr, params):
         data = inputs[0]
         axes = get_constant(inputs[1], params)
+
+        # Handle ONNX shape inference
+        if isinstance(data, relax.PrimValue) and isinstance(axes, relax.Constant):
+            axes = axes.data.numpy().tolist()
+            if axes == [0]:
+                return relax.ShapeExpr([data.value])
+            else:
+                raise NotImplementedError(
+                    "Unsqueeze with symbolic axes and non-zero axes is not supported."
+                )
         # If input is a constant, compute directly
         if isinstance(data, relax.Constant) and isinstance(axes, relax.Constant):
             axes = axes.data.numpy().tolist()
@@ -279,6 +318,27 @@ class Concat(OnnxOpConverter):
     @classmethod
     def _impl_v13(cls, bb, inputs, attr, params):
         axis = attr.get("axis", 0)
+
+        def is_shape_like(x: Any) -> bool:
+            if isinstance(x, relax.ShapeExpr):
+                return True
+            elif isinstance(x, relax.Constant):
+                return x.struct_info.ndim == 1 and x.struct_info.dtype == "int64"
+            else:
+                return False
+
+        # If all inputs are shape expr, perform computation directly.
+        if all([is_shape_like(inp) for inp in inputs]):
+            const_inputs = []
+            for inp in inputs:
+                if isinstance(inp, relax.ShapeExpr):
+                    const_inputs.extend(inp.values)
+                elif isinstance(inp, relax.Constant):
+                    const_inputs.extend(inp.data.numpy().tolist())
+                else:
+                    raise NotImplementedError("Unsupported input type: {}".format(type(inp)))
+            return relax.ShapeExpr(const_inputs)
+
         # If all inputs are constant, perform computation directly.
         if all([isinstance(inp, relax.Constant) for inp in inputs]):
             const_inputs = []
@@ -287,6 +347,7 @@ class Concat(OnnxOpConverter):
             out = _np.concatenate(const_inputs, axis=axis)
             dtype = inputs[0].struct_info.dtype
             return relax.const(out, dtype)
+
         return relax.op.concat(inputs, axis=axis)
 
 
@@ -349,10 +410,7 @@ class Gather(OnnxOpConverter):
                 np_index = np_index[0]
             np_index = int(np_index)
             shape_val = data[np_index]
-            if hasattr(shape_val, "value"):
-                return relax.const(shape_val.value, dtype="int64")
-            else:
-                raise ValueError("Need to fix this case.")
+            return relax.PrimValue(shape_val)
 
         # TODO(jwfromm) Make relax.take work with other indices shape.
         return bb.emit_te(topi.take, data, indices, axis)
@@ -399,6 +457,12 @@ class Reshape(OnnxOpConverter):
         data = inputs[0]
         new_shape = get_constant(inputs[1], params)
 
+        if isinstance(data, relax.ShapeExpr) and isinstance(new_shape, relax.Constant):
+            new_shape = new_shape.data.numpy().tolist()
+            if new_shape != [-1]:
+                raise NotImplementedError("Need to fix this case")
+            return data
+
         if isinstance(data, relax.Constant) and isinstance(new_shape, relax.Constant):
             out = _np.reshape(data.data.numpy(), new_shape.data.numpy().tolist())
             return relax.const(out, out.dtype)
@@ -440,6 +504,12 @@ class Where(OnnxOpConverter):
             np_inputs = [inp.data.numpy() for inp in inputs]
             output = _np.where(*np_inputs)
             return relax.const(output, output.dtype)
+        if all([isinstance(inp, (relax.Constant, relax.ShapeExpr)) for inp in inputs]):
+            condition, x, y = [get_prim_expr_list(inp) for inp in inputs]
+            if len(condition) != len(x) or len(condition) != len(y):
+                raise ValueError("Cannot broadcast condition to x and y")
+            output = [x if c else y for c, x, y in zip(condition, x, y)]
+            return relax.ShapeExpr(output)
         return relax.op.where(inputs[0], inputs[1], inputs[2])
 
 
@@ -464,6 +534,13 @@ class Equal(OnnxOpConverter):
         if all([isinstance(inp, relax.Constant) for inp in inputs]):
             output = inputs[0].data.numpy() == inputs[1].data.numpy()
             return relax.const(output, output.dtype)
+        elif all([isinstance(inp, (relax.Constant, relax.ShapeExpr)) for inp in inputs]):
+            lhs = get_prim_expr_list(inputs[0])
+            rhs = get_prim_expr_list(inputs[1])
+            if len(lhs) != len(rhs):
+                raise ValueError("Cannot compare two tensors with different shapes")
+            output = [tvm.ir.structural_equal(l, r) for l, r in zip(lhs, rhs)]
+            return relax.const(output, "bool")
         return relax.op.equal(inputs[0], inputs[1])
 
 
@@ -473,6 +550,11 @@ class Shape(OnnxOpConverter):
     @classmethod
     def _impl_v13(cls, bb, inputs, attr, params):
         data_info = inputs[0].struct_info
+
+        if isinstance(data_info, relax.ShapeStructInfo):
+            if data_info.ndim == -1:
+                raise ValueError("The ndim of ShapeExpr is expected to a real number, but got -1.")
+            return relax.ShapeExpr([data_info.ndim])
 
         # If no shape is defined in the struct info, it must be computed at runtime.
         if not data_info.shape:
@@ -653,23 +735,20 @@ class ConstantOfShape(OnnxOpConverter):
             dtype = str(value.dtype)
         else:
             dtype = "float32"
-
-        # If shape is a constant, treat it as a shapexpr.
+        # If shape is a constant, treat it as a ShapeExpr.
         if isinstance(shape, relax.Constant):
             shape = relax.ShapeExpr(list(shape.data.numpy()))
 
-        # Create a constant for the new value.
-        const_value = relax.const(value, dtype)
-
-        # Special case where requested shape is a scalar.
-        if len(shape) == 1 and int(shape[0]) == 1:
-            return const_value
+        # Special case where requested shape are constant
+        if len(shape) == 1 and all([isinstance(x, tir.IntImm) for x in shape]):
+            shape = [int(x) for x in shape]
+            return relax.const(_np.full(shape, value, dtype), dtype)
 
         # Convert to shape expression from tensor if needed.
         if not isinstance(shape, relax.ShapeExpr):
             shape = relax.op.tensor_to_shape(shape)
 
-        return relax.op.broadcast_to(const_value, shape)
+        return relax.op.broadcast_to(relax.const(value, dtype), shape)
 
 
 class Sub(OnnxOpConverter):
@@ -863,16 +942,16 @@ class Slice(OnnxOpConverter):
         steps = get_constant(inputs[4], params)
         if not all(
             [
-                (isinstance(param, relax.Constant) or param is None)
+                (isinstance(param, (relax.Constant, relax.ShapeExpr)) or param is None)
                 for param in [starts, ends, axes, steps]
             ]
         ):
             raise ValueError("Only constant Slice parameters are currently supported.")
         # Convert parameters to constant lists.
-        starts = starts.data.numpy().tolist()
-        ends = ends.data.numpy().tolist()
+        starts = get_prim_expr_list(starts)
+        ends = get_prim_expr_list(ends)
         if axes is not None:
-            axes = axes.data.numpy().tolist()
+            axes = get_prim_expr_list(axes)
         else:
             axes = list(range(len(starts)))
         # Convert negative axis to positive if needed.
@@ -880,7 +959,7 @@ class Slice(OnnxOpConverter):
             if axis < 0:
                 axes[i] = axis + len(data.struct_info.shape)
         if steps is not None:
-            steps = steps.data.numpy().tolist()
+            steps = get_prim_expr_list(steps)
         else:
             steps = [1] * len(axes)
         # If input is a shape tensor, we can directly extract it.
@@ -890,7 +969,15 @@ class Slice(OnnxOpConverter):
             assert all(len(i) == 1 for i in [starts, ends, steps])
             sliced_values = shape_data[starts[0] : ends[0] : steps[0]]
             return relax.const(sliced_values, "int64")
-        return relax.op.strided_slice(data, axes, starts, ends, steps)
+        # If all `starts`, `ends`, and `steps` are constant, use strict mode
+        # Otherwise, we assume the slice is inbound.
+        assume_inbound = not all(
+            [isinstance(param, (tir.IntImm, int)) for param in [*starts, *ends, *steps]]
+        )
+        # return relax.op.strided_slice(data, axes, starts, ends, steps)
+        return relax.op.strided_slice(
+            data, axes, starts, ends, steps, assume_inbound=assume_inbound
+        )
 
 
 class Pad(OnnxOpConverter):
@@ -1962,15 +2049,25 @@ class ONNXGraphImporter:
             # Perform special handling for shape expressions. If an input is a
             # shape expr, make sure the current op can handle it, otherwise
             # convert it to a tensor.
-            shape_compatible_ops = ["Reshape", "ConstantOfShape", "Gather", "Slice", "Expand"]
+            shape_compatible_ops = [
+                "Reshape",
+                "ConstantOfShape",
+                "Gather",
+                "Slice",
+                "Shape",
+                "Expand",
+                "Concat",
+                "Equal",
+                "Where",
+            ]
             for i, inp in enumerate(inputs):
                 if (
                     inp is not None
+                    and isinstance(inp, relax.Expr)
                     and isinstance(inp.struct_info, relax.ShapeStructInfo)
                     and op_name not in shape_compatible_ops
                 ):
                     raise ValueError(f"Node {node.name} cannot handle ShapeExpr inputs.")
-
             op = self._convert_operator(op_name, inputs, attr, self.opset)
             # Create struct information for the new operator.
             op = self.bb.normalize(op)
