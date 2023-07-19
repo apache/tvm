@@ -32,6 +32,7 @@ from tvm.dlight.benchmark import (
     benchmark_relax_func,
     extract_prim_func,
     extract_from_relax,
+    extract_func_info_from_prim_func,
 )
 import tvm.testing
 
@@ -188,7 +189,6 @@ def test_benchmark_prim_func_rpc():
             ],
             dym_var_sample={"m": 128},
             target="nvidia/geforce-rtx-3070",
-            dev=tvm.cuda(),
             rpc_config=rpc_config,
         )
         assert input_infos == [
@@ -209,7 +209,6 @@ def test_benchmark_prim_func_local():
         ],
         dym_var_sample={"m": 128},
         target="nvidia/geforce-rtx-3070",
-        dev=tvm.cuda(),
     )
     assert input_infos == [
         ((1, 128, 4096), "float32"),
@@ -220,17 +219,10 @@ def test_benchmark_prim_func_local():
 
 @pytest.mark.skip("requires CUDA")
 def test_benchmark_prim_func_full_local():
-    benchmark_prim_func(
-        cuda_workload,
-        args=[
-            ((1, "m", 4096), "float32"),
-            ((4096, 4096), "float32"),
-            ((1, "m", 4096), "float32"),
-        ],
-        dym_var_dict={"m": "int32"},
-        target="nvidia/geforce-rtx-3070",
-        dev=tvm.cuda(),
-    )
+    with tvm.target.Target("nvidia/geforce-rtx-3070"):
+        benchmark_prim_func(
+            cuda_workload,
+        )
 
 
 @pytest.mark.skip("requires CUDA")
@@ -245,14 +237,7 @@ def test_benchmark_prim_func_full_rpc():
         )
         benchmark_prim_func(
             cuda_workload,
-            args=[
-                ((1, "m", 4096), "float32"),
-                ((4096, 4096), "float32"),
-                ((1, "m", 4096), "float32"),
-            ],
-            dym_var_dict={"m": "int32"},
             target="nvidia/geforce-rtx-3070",
-            dev=tvm.cuda(),
             rpc_config=rpc_config,
             evaluator_config=ms.runner.EvaluatorConfig(
                 number=10,
@@ -264,7 +249,8 @@ def test_benchmark_prim_func_full_rpc():
 
 
 def test_benchmark_relax_func():
-    benchmark_relax_func(Module, "test")
+    with tvm.target.Target("llvm -num-cores=4"):
+        benchmark_relax_func(Module, "test")
 
 
 def test_extract_prim_func():
@@ -278,6 +264,7 @@ def test_extract_prim_func():
             dym_var_dict={"n": "int32"},
             weight=2,
             sample_number=10,
+            target="llvm -num-cores=4",
         )
     )
     print(
@@ -286,14 +273,9 @@ def test_extract_prim_func():
             relax_func_name="test",
             prim_func_name="matmul1",
             func=Module["matmul1"],  # type: ignore
-            func_args=[
-                ((1, 32, 1, "n"), "float16"),
-                ((1, 32, "n", 128), "float16"),
-                ((1, 32, 1, 128), "float16"),
-            ],
-            dym_var_dict={"n": "int32"},
             weight=2,
             sample_number=10,
+            target="llvm -num-cores=4",
         )
     )
 
@@ -305,6 +287,25 @@ def test_extract_from_relax():
             "TEST",
             file_path=filepath,
         )
+
+
+def test_extract_func_info_from_prim_func():
+    assert (
+        str(extract_func_info_from_prim_func(cuda_workload))
+        == "([((1, m, 4096), 'float32'), ((4096, 4096), 'float32'), ((1, m, 4096), 'float32')], {'m': 'int64'})"
+    )
+    assert (
+        str(extract_func_info_from_prim_func(Module["full1"]))
+        == "([((1, 32, 1, n), 'float16')], {'n': 'int64'})"
+    )
+    assert (
+        str(extract_func_info_from_prim_func(Module["matmul1"]))
+        == "([((1, 32, 1, n), 'float16'), ((1, 32, n, 128), 'float16'), ((1, 32, 1, 128), 'float16')], {'n': 'int64'})"
+    )
+    assert (
+        str(extract_func_info_from_prim_func(Module["full2"]))
+        == "([((1, 32, n, 128), 'float16')], {'n': 'int64'})"
+    )
 
 
 if __name__ == "__main__":

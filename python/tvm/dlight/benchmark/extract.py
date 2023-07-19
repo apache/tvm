@@ -16,7 +16,7 @@
 # under the License.
 """Performance debug tool for dynamic shape workloads"""
 
-from typing import List, Dict, Union, Tuple
+from typing import List, Dict, Union, Tuple, Optional
 from pathlib import Path
 
 import cloudpickle
@@ -40,24 +40,23 @@ FUNC_HASH = {func_hash}
 WEIGHT = {weight}
 SAMPLE_NUMBER = {sample_number}
 
-INPUT_ARGS = pickle.loads({input_args})
-DYM_VAR_SAMPLE_FUNC = pickle.loads({dym_var_sample_func})
-DYM_VAR_DICT = pickle.loads({dym_var_dict})
+DYM_VAR_SAMPLE_FUNC = {dym_var_sample_func}
+
+# None means extract from PrimFunc
+INPUT_ARGS = {input_args}
+DYM_VAR_DICT = {dym_var_dict}
 
 {func_script}
 
 if __name__ == "__main__":
     target = tvm.target.Target("{target}")
-    dev = {dev}
-    print("Input args:", INPUT_ARGS)
     benchmark_prim_func(
         main,
-        args=INPUT_ARGS,
-        dym_var_dict=DYM_VAR_DICT,
-        dym_var_sample_func=DYM_VAR_SAMPLE_FUNC,
-        sample_number=SAMPLE_NUMBER,
-        target=target,
-        dev = dev,
+        args = INPUT_ARGS,
+        dym_var_dict = DYM_VAR_DICT,
+        dym_var_sample_func = DYM_VAR_SAMPLE_FUNC,
+        sample_number = SAMPLE_NUMBER,
+        target = target,
         weight = WEIGHT,
         relax_func_name = RELAX_FUNC_NAME,
         prim_func_name = PRIM_FUNC_NAME,
@@ -153,7 +152,42 @@ def update_records(
     records.append((new_args, 1))
 
 
-def extract_func_info_from_relax(
+def extract_func_info_from_prim_func(
+    func: tvm.tir.PrimFunc,
+) -> Tuple[List[Tuple[Tuple[Union[tvm.tir.Var, int], ...], str]], Dict[str, str]]:
+    """Extract function input information from a PrimFunc.
+
+    Parameters
+    ----------
+    func : tvm.tir.PrimFunc
+        The PrimFunc to be analyzed.
+
+    Returns
+    -------
+    result : Tuple[
+        List[Tuple[Tuple[Union[tvm.tir.Var, int], ...], str]],
+        Dict[str, str],
+    ]
+        The function input information and dynamic shape variable dictionary.
+    """
+    func_args = []
+    dym_var = {}
+    for param in func.params:
+        buffer = func.buffer_map[param]
+        shape = []
+        for dim in buffer.shape:
+            if isinstance(dim, tvm.tir.IntImm):
+                shape.append(dim.value)
+            elif isinstance(dim, tvm.tir.Var):
+                dym_var[str(dim)] = str(dim.dtype)
+                shape.append(dim)
+            else:
+                raise ValueError(f"Unknown shape: {buffer.shape}")
+        func_args.append((tuple(shape), str(buffer.dtype)))
+    return func_args, dym_var
+
+
+def extract_all_func_info_from_relax(
     mod: tvm.ir.IRModule,
 ) -> Tuple[
     Dict[tvm.ir.GlobalVar, Dict[tvm.ir.GlobalVar, List[Tuple[List, int]]]],
@@ -201,11 +235,12 @@ def extract_prim_func(  # pylint: disable=too-many-arguments
     relax_func_name: str,
     prim_func_name: str,
     func: tvm.tir.PrimFunc,
-    func_args: List[Tuple[tvm.relax.expr.Call, str]],
-    dym_var_dict: Dict[str, str],
-    weight: int,
+    *,
+    func_args: Optional[List[Tuple[Tuple[Union[tvm.relax.expr.Call, int], ...], str]]] = None,
+    dym_var_dict: Optional[Dict[str, str]] = None,
+    weight: int = 1,
     sample_number: int = 5,
-    target: Union[str, tvm.target.Target] = "llvm -num-cores=4",
+    target: Optional[Union[str, tvm.target.Target]] = None,
 ) -> str:
     """Extract a self-contained PrimFunc test file from a Relax module.
 
@@ -218,36 +253,36 @@ def extract_prim_func(  # pylint: disable=too-many-arguments
     prim_func_name: str
         The name of the prim function.
     func: tvm.tir.PrimFunc
-        The name of the prim function to be extracted.
-    func_args: List[Tuple[tvm.relax.expr.Call, str]]
+        The PrimFunc to be extracted.
+    func_args: Optional[List[Tuple[Tuple[Union[tvm.relax.expr.Call, int], ...], str]]]
         The arguments of the prim function, including both static and dynamic shape arguments.
         Given in format [ ..., ((1, n, 128), "float32"), ... ].
-    dym_var_dict: Dict[str, str]
+        If not given, the arguments will be extracted from the PrimFunc.
+    dym_var_dict: Optional[Dict[str, str]]
         The dictionary of dynamic shape variables. Given in format {"n": "int32", "m": "int32"}.
+        If not given, the dictionary will be extracted from the PrimFunc.
     weight: int
-        The weight of the prim function.
+        The weight of the prim function, by default 1.
     sample_number: int
-        The number of times to sample dynamic shape variables.
+        The number of times to sample dynamic shape variables, by default 5.
+    target: Optional[Union[str, tvm.target.Target]]
+        The target device to run the PrimFunc. If None, will use target from the context.
 
     Returns
     -------
     result : str
         The extracted PrimFunc test file content.
     """
-    if isinstance(target, str):
+    if target is None:
+        target = tvm.target.Target.current()
+        target_str = str(target)
+    elif isinstance(target, str):
         target_str = target
         target = tvm.target.Target(target)
     elif isinstance(target, tvm.target.Target):
         target_str = str(target)
     else:
         raise TypeError("Unsupported target type: " + str(type(target)))
-
-    if target.kind.name == "cuda":
-        dev_str = "tvm.cuda()"
-    elif target.kind.name == "llvm":
-        dev_str = "tvm.cpu()"
-    else:
-        raise NotImplementedError("Only support cuda and llvm runtime device.")
 
     return SKETCH.format(
         **{
@@ -257,12 +292,13 @@ def extract_prim_func(  # pylint: disable=too-many-arguments
             "func_hash": tvm.ir.structural_hash(func),
             "weight": weight,
             "sample_number": sample_number,
-            "dym_var_dict": cloudpickle.dumps(dym_var_dict),
-            "input_args": cloudpickle.dumps(func_args),
-            "dym_var_sample_func": cloudpickle.dumps(default_dym_var_sample_func),
+            "dym_var_dict": f"pickle.loads({cloudpickle.dumps(dym_var_dict)})"
+            if dym_var_dict is not None
+            else "None",
+            "input_args": f"pickle.loads({cloudpickle.dumps(func_args)})" if func_args else "None",
+            "dym_var_sample_func": f"pickle.loads({cloudpickle.dumps(default_dym_var_sample_func)})",
             "func_script": func.script(),
             "target": target_str,
-            "dev": dev_str,
         }
     )
 
@@ -279,7 +315,7 @@ def extract_from_relax(mod: tvm.ir.IRModule, model_name: str, file_path: str) ->
     file_path: str
         The path to store the extracted files.
     """
-    relax_funcs, dym_var_dict = extract_func_info_from_relax(mod)
+    relax_funcs, dym_var_dict = extract_all_func_info_from_relax(mod)
     Path(file_path).mkdir(parents=True, exist_ok=True)
     for relax_func_gv in relax_funcs:  # pylint: disable=consider-using-dict-items
         relax_func_name = get_func_name_from_gv(relax_func_gv)
