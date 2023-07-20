@@ -25,7 +25,6 @@ from tvm import relay
 from tvm.relay.dataflow_pattern import (
     DFPatternCallback,
     is_constant,
-    has_shape,
     is_op,
     is_tuple,
     rewrite,
