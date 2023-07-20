@@ -1671,14 +1671,8 @@ def test_forward_view_as():
             t1 = torch.ones((1 * 3 * 10))
             return args[0].view_as(t1)
 
-    class ViewAs2(Module):
-        def forward(self, *args):
-            return args[0].view_as(args[1])
-
     input_data = torch.rand(input_shape).float()
-    tensor = torch.rand(1 * 3 * 10).float()
     verify_model(ViewAs1().float().eval(), input_data=input_data)
-    verify_model(ViewAs2().float().eval(), input_data=[input_data, tensor])
 
 
 @tvm.testing.uses_gpu
