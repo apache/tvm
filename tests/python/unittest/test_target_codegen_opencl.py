@@ -357,10 +357,11 @@ def test_opencl_fuse_max_args(executor_type, shape_type):
 @tvm.testing.requires_opencl
 def test_fuse_concat_max_num_args(executor_type, shape_type):
     """
-    In this test before concat we have an operation with 3 inputs. In the
-    SplitArgs we cannot calculate these inputs as inputs to concat, because
-    they will be added to the concat after fusing operation. So FuseOps pass
-    should handle this case and stop fusing before concat.
+    In this test, we have an operation with 3 inputs before concat. In the
+    SplitArgs we cannot calculate these inputs as inputs to the concat layer,
+    because they will be added to the concat after the fusing operation. So
+    FuseOps pass should handle this case and stop fusing before the concat
+    layer.
 
     The example:
        x     y     z                  x     y     z

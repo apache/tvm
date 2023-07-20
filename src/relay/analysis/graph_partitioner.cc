@@ -243,21 +243,21 @@ size_t GraphPartitioner::CountArgs_(IndexedForwardGraph::Node* src,
   ICHECK(gnode != nullptr);
   auto sum = gnode->args_num;
   visited_groups.insert(gnode->FindRoot());
-  auto calcArgs = [this, src, &graph, &visited_groups,
-                   update_postpone](const relay::Expr& arg) -> size_t {
+  auto calc_args_number = [this, src, &graph, &visited_groups,
+                           update_postpone](const relay::Expr& arg) -> size_t {
     if (arg.as<VarNode>()) return 0;
     auto* node = graph.node_map.at(arg.get());
     Group* prev_group = groups_[node->index]->FindRoot();
     if (visited_groups.count(prev_group) == 0) {
       visited_groups.insert(prev_group);
       if (prev_group->args_num > 0) {
-        // Get number of arguments from group
+        // Get the number of arguments from the group
         return prev_group->args_num;
       } else if (update_postpone) {
-        // Update pointer to node which should be postponed for deferred fusing
+        // Update pointer to the node which should be postponed for deferred fusing
         postpone_node_ = src;
       } else {
-        // Calculate number of arguments for the node which wasn't processed before
+        // Calculate the number of arguments for the node which wasn't processed before
         return CountArgs_(node, graph, update_postpone);
       }
     }
@@ -265,11 +265,11 @@ size_t GraphPartitioner::CountArgs_(IndexedForwardGraph::Node* src,
   };
   if (auto call_node = GetRef<ObjectRef>(src->ref).as<CallNode>()) {
     for (auto& it : call_node->args) {
-      sum += calcArgs(it);
+      sum += calc_args_number(it);
     }
   } else if (auto tuple_node = GetRef<ObjectRef>(src->ref).as<TupleNode>()) {
     for (auto& it : tuple_node->fields) {
-      sum += calcArgs(it);
+      sum += calc_args_number(it);
     }
   }
   return sum;
@@ -357,11 +357,11 @@ void GraphPartitioner::RunFuse(const IndexedForwardGraph& graph,    //
     Group* group_node = groups_[nid];
     ICHECK(group_node != nullptr);
     postpone_node_ = nullptr;
-    // Check if fusing of some inputs was postponed
+    // Check if the fusing of some inputs was postponed
     if (postponed_fusing_map_.count(graph_node)) {
       auto range = postponed_fusing_map_.equal_range(graph_node);
       for (auto it = range.first; it != range.second; ++it) {
-        // If number of arguments is less than limit then the input can be fused
+        // If the number of arguments is less than the limit then the input can be fused
         if (CountArgs_(graph_node, graph, false) <= CountArgsLimit_(graph_node)) {
           auto* src = it->second;
           auto* snode = post_dom_tree.nodes[src->index]->parent->gnode;
@@ -381,7 +381,7 @@ void GraphPartitioner::RunFuse(const IndexedForwardGraph& graph,    //
     // refuse the fusion if too many ops are going to be fused together
     if (CountFusedNodesWithNewChild(graph_node, dom_node->parent->gnode) > max_fuse_depth_)
       continue;
-    // refuse the fusion if too many arguments are going to be in fused function
+    // Refuse the fusion if too many arguments are going to be in the fused function
     if (max_function_args_ > 0) {
       auto limit = CountArgsLimit_(graph_node);
       if (limit > 0) {

@@ -120,8 +120,8 @@ TVM_DLL Pass FoldConstant(bool fold_qnn = false);
 /*!
  * \brief Split function with huge number of arguments to smaller pieces.
  *
- * \param max_function_args Maximum number of function arguments. If it is 0 then SplitArgs won't
- *                          split function.
+ * \param max_function_args Maximum number of function arguments. If it equals 0 then SplitArgs
+ *                          shouldn't split the function.
  *
  * \return The pass.
  */

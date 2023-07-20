@@ -1379,7 +1379,8 @@ def SplitArgs(max_function_args):
     Parameters
     ----------
     max_function_args: int
-      Maximum number of function arguments. If it is 0 then SplitArgs won't split function.
+      Maximum number of function arguments. If it equals 0 then SplitArgs
+      shouldn't split the function.
 
 
     Returns

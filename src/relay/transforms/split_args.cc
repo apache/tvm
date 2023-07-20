@@ -61,7 +61,8 @@ class ArgumentSplitter : public ExprRewriter {
     return lastExpr;
   }
 
-  // In case of dynamic shape in tensor, size of any_dims and strides are passed as function args
+  // In the case of dynamic shape in tensor, the sizes of any_dims and strides are passed as
+  // function args
   size_t CalculateNumberOfAdditionalArgs_(const TensorTypeNode* arg, bool isOutput = false) {
     size_t num = 0;
     for (const auto& dim : arg->shape) {
@@ -69,8 +70,8 @@ class ArgumentSplitter : public ExprRewriter {
         num++;
       }
     }
-    // In case of dynamic shape also strides will be passed to function
-    // as arguments. Number of strides equals to the rank of the tensor.
+    // In the case of dynamic shape, strides are also passed to a function as arguments. The number
+    // of strides equals the rank of the tensor.
     if (num > 0 && isOutput)
       return arg->shape.size();
     else if (num > 0)

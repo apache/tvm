@@ -224,8 +224,8 @@ class GraphPartitioner {
       postponed_fusing_map_;
   /*!
    * \brief Fusing of this node should be postponed till all child nodes will be evaluated.
-   *        It is used to calculate number of arguments which will be passed to this node in
-   * generated function.
+   *        It is used to calculate the number of arguments which will be passed to this node in
+   *        the generated function.
    */
   const IndexedForwardGraph::Node* postpone_node_{nullptr};
   // Internal implementation of CheckPath
@@ -266,21 +266,21 @@ class GraphPartitioner {
   void CommitFuse(IndexedForwardGraph::Node* src, IndexedForwardGraph::Node* sink);
 
   size_t CountNodesUptoSink_(IndexedForwardGraph::Node* src, IndexedForwardGraph::Node* sink);
-  // Count the number of additional arguments. In case of dynamic shape,
-  // generated function takes several additional arguments, such as size of
-  // dynamic dimension and strides.
-  // This function calculates number of such additional arguments.
+  // Count the number of additional arguments. In the case of dynamic shape,
+  // generated function takes several additional arguments, such as the sizes of
+  // the dynamic dimensions and strides.
+  // This function calculates the number of such additional arguments.
   size_t CountAdditionalArgs_(const TensorTypeNode* ttype, bool with_strides = true);
   // Calculate the number of arguments for the node.
   size_t CountArgs_(IndexedForwardGraph::Node* src, const IndexedForwardGraph& graph,
                     bool update_postpone = true);
-  // Count actual limit of arguments for a generated function.
+  // Count the actual limit of arguments for a generated function.
   // max_function_args_ specifies the number of maximum function arguments. But
-  // usually, output tensors also passed to the function as arguments.
-  // Additionally, in case of dynamic shape, it is necessary to take into
-  // account the number of parameters which specifies the size of dynamic
-  // dimension.
-  // This function computes limit of arguments by the following formula:
+  // usually, output tensors are also passed to the function as arguments.
+  // Additionally, in the case of dynamic shape, it is necessary to take into
+  // account the number of parameters which specifies the sizes of the dynamic
+  // dimensions.
+  // This function computes the limit of arguments by the following formula:
   // limit = max_function_args_ - output_args_count
   size_t CountArgsLimit_(const IndexedForwardGraph::Node* child);
 
@@ -292,7 +292,9 @@ class GraphPartitioner {
   // is important for correct calculation.
   size_t CountFusedNodesWithNewChild(IndexedForwardGraph::Node* child,
                                      IndexedForwardGraph::Node* dom_parent);
-  // Count the number of arguments in a fused subgraph if the output of child is additionally fused.
+  // Count the number of arguments in a fused subgraph. This function also takes into account the
+  // number of the child's output node argument. It helps to stop fusing before the node when the
+  // limit will be exceeded.
   size_t CountFusedArgs(const IndexedForwardGraph& graph, IndexedForwardGraph::Node* child);
 
   // Initialize the groups.
