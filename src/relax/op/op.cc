@@ -245,11 +245,7 @@ StructInfo InferStructInfoCallTIRInplace(const Call& call, const BlockBuilder& c
   }
 
   // check the range for inplace indices, make sure at least one is not -1, ensure they're unique
-  size_t num_args = call->args.size() - 1;  // args[0] is the prim func
-  // if the last arg is a shape expr, do not include it either
-  if (GetStructInfoAs<ShapeStructInfoNode>(call->args[call->args.size() - 1])) {
-    num_args -= 1;
-  }
+  size_t num_args = Downcast<Tuple>(call->args[1])->fields.size();
   std::unordered_set<int> encountered;
   for (size_t i = 0; i < attrs->inplace_indices.size(); i++) {
     int index = attrs->inplace_indices[i].IntValue();
@@ -285,7 +281,7 @@ StructInfo InferStructInfoCallTIRInplace(const Call& call, const BlockBuilder& c
     auto* input_sinfo = GetStructInfoAs<TensorStructInfoNode>(
         call_args->fields[attrs->inplace_indices[0].IntValue()]);
     if (!input_sinfo || !input_sinfo->shape.defined() ||
-        CanProveShapeEqual(input_sinfo->shape.value(), out_sinfo->shape.value(),
+        !CanProveShapeEqual(input_sinfo->shape.value(), out_sinfo->shape.value(),
                            ctx->GetAnalyzer())) {
       ctx->ReportFatal(Diagnostic::Error(call)
                        << "The shape of output 0 must match input "
@@ -307,7 +303,7 @@ StructInfo InferStructInfoCallTIRInplace(const Call& call, const BlockBuilder& c
       auto* input_sinfo = GetStructInfoAs<TensorStructInfoNode>(
           call_args->fields[attrs->inplace_indices[i].IntValue()]);
       if (!input_sinfo || !input_sinfo->shape.defined() ||
-          CanProveShapeEqual(input_sinfo->shape.value(), out_sinfo->shape.value(),
+          !CanProveShapeEqual(input_sinfo->shape.value(), out_sinfo->shape.value(),
                              ctx->GetAnalyzer())) {
         ctx->ReportFatal(Diagnostic::Error(call)
                          << "The shape of output " << i << " must match that of input "
@@ -332,7 +328,7 @@ RELAY_REGISTER_OP("relax.call_tir_inplace")
     .add_argument("packed_ints", "Expr",
                   "ShapeExpr representing a tuple of ints to unpack during runtime. Omitted from "
                   "args if unused")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallTIR)
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallTIRInplace)
     // Warning: considered pure, but it has the potential to create visible effects!
     // This should only be used if it has been *checked* that it is safe (no aliases, in-place
     // arguments will no longer be live)

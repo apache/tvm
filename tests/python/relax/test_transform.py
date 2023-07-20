@@ -444,6 +444,47 @@ def test_call_tir_inplace_some_new():
     tvm.ir.assert_structural_equal(Expected["foo"], new_mod["foo"], map_free_vars=True)
 
 
+@pytest.mark.xfail()
+def test_call_tir_inplace_repeated_input():
+    @tvm.script.ir_module
+    class Input:
+        @T.prim_func
+        def func(
+            A: T.Buffer((2, 3), "int32"), B: T.Buffer((2, 3), "int32"), C: T.Buffer((2, 3), "int32")
+        ):
+            T.evaluate(0)
+
+        @R.function
+        def foo(
+            x: R.Tensor((2, 3), "int32"), y: R.Tensor((2, 3), "int32"), z: R.Tensor((2, 3), "int32")
+        ) -> R.Tuple(R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32")):
+            R.func_attr({"relax.force_pure": True})
+            gv0 = R.call_tir_inplace(
+                Input.func,
+                (x, y, z),
+                # repeated 0 -> that's an error
+                [0, 0],
+                [R.Tensor((2, 3), dtype="int32"), R.Tensor((2, 3), dtype="int32")],
+            )
+            return gv0
+
+
+@pytest.mark.xfail()
+def test_call_tir_inplace_all_new():
+    @tvm.script.ir_module
+    class Input:
+        @T.prim_func
+        def func(A: T.Buffer((2, 3), "int32")):
+            T.evaluate(0)
+
+        @R.function
+        def foo(x: R.Tensor((2, 3), "int32")) -> R.Tensor((2, 3), "int32"):
+            R.func_attr({"relax.force_pure": True})
+            # cannot make the only output a fresh one
+            gv0 = R.call_tir_inplace(Input.func, x, -1, R.Tensor((2, 3), dtype="int32"))
+            return gv0
+
+
 def test_vm_builtin_lower():
     @tvm.script.ir_module
     class TestVMBuiltinLower:
