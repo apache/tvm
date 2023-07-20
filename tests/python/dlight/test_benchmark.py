@@ -253,7 +253,7 @@ def test_benchmark_relax_func():
         benchmark_relax_func(Module, "test")
 
 
-def test_extract_prim_func():
+def test_extract_prim_func_full1():
     print(
         extract_prim_func(
             model_name="TEST",
@@ -267,6 +267,9 @@ def test_extract_prim_func():
             target="llvm -num-cores=4",
         )
     )
+
+
+def test_extract_prim_func_matmul1():
     print(
         extract_prim_func(
             model_name="TEST",

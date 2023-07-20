@@ -298,9 +298,9 @@ def extract_prim_func(  # pylint: disable=too-many-arguments
             if dym_var_dict is not None
             else "None",
             "input_args": f"pickle.loads({cloudpickle.dumps(func_args)})" if func_args else "None",
-            "dym_var_sample_func": f"pickle.loads({
-                cloudpickle.dumps(default_dym_var_sample_func)
-            })",
+            "dym_var_sample_func": "pickle.loads("
+            + f"{cloudpickle.dumps(default_dym_var_sample_func)}"
+            + ")",
             "func_script": func.script(),
             "target": target_str,
         }
