@@ -126,8 +126,8 @@ class ScriptMacro(abc.ABC):
 
     def _find_parser_def(self):
         outer_frame_infos = inspect.getouterframes(inspect.currentframe())
-        for fi in outer_frame_infos:
-            parser = fi.frame.f_globals.get(ScriptMacro.parser_object_name)
+        for finfo in outer_frame_infos:
+            parser = finfo.frame.f_globals.get(ScriptMacro.parser_object_name)
             if parser is not None:
                 return parser
         raise RuntimeError(f"{ScriptMacro.parser_object_name} not available")

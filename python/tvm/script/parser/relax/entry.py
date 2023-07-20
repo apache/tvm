@@ -41,7 +41,7 @@ from .._core import doc, parse, utils
 from ..core.entry import scan_macro
 from ..core.parser import Parser, ScriptMacro
 from ..core.diagnostics import Source
-from ...ir_builder import IRBuilder, relax as R
+from ...ir_builder import relax as R
 
 FType = TypeVar("FType", bound=_Callable)
 
@@ -84,14 +84,7 @@ setattr(function, "dispatch_token", "relax")
 
 
 class RelaxMacro(ScriptMacro):
-    def __init__(
-        self,
-        source: Source,
-        closure_vars: Dict[str, Any],
-        func: _Callable,
-        hygienic: bool,
-    ) -> None:
-        super().__init__(source, closure_vars, func, hygienic)
+    """Specialization of the ScriptMacro class for Relax."""
 
     def parse_macro(self, parser: Parser) -> Expr:
         macro_def = self.get_macro_def()
@@ -110,8 +103,7 @@ class RelaxMacro(ScriptMacro):
                     if idx + 1 != len(macro_def.body):
                         parser.report_error(macro_def, "'return' should be the last statement")
                     break
-                else:
-                    parser.visit(stmt)
+                parser.visit(stmt)
 
         if ret_value is None:
             parser.report_error(macro_def, "Macros must end with a return statement")
@@ -131,7 +123,7 @@ def macro(*args, hygienic: bool = True) -> _Callable:
         will have its symbols resolved to values at the time of the macro's use.
     """
 
-    def _decorator(func: Callable) -> ScriptMacro:
+    def _decorator(func: _Callable) -> ScriptMacro:
         source, closure_vars = scan_macro(func, utils.inspect_function_capture(func))
         obj = RelaxMacro(source, closure_vars, func, hygienic)
         obj.__name__ = func.__name__

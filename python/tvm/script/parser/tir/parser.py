@@ -18,7 +18,7 @@
 
 import contextlib
 from functools import partial
-from typing import Any, Union
+from typing import Any
 
 import tvm
 from tvm.ir import GlobalVar, PrimType
@@ -448,7 +448,6 @@ def visit_expr_stmt(self: Parser, node: doc.Expr) -> None:
         pass
     else:
         self.report_error(node, f"Parsing resulted in unexpected type {type(res)}")
-    return None  # For pylint
 
 
 @dispatch.register(token="tir", type_name="If")

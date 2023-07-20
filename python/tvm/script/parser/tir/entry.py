@@ -22,7 +22,7 @@ from tvm.ir.base import deprecated
 from tvm.tir import Buffer, PrimFunc
 
 from ...ir_builder.tir import buffer, ptr
-from .._core import doc, parse, scan_macro, utils
+from .._core import parse, scan_macro, utils
 from ..core.diagnostics import Source
 from ..core.parser import Parser, ScriptMacro
 
@@ -63,14 +63,7 @@ setattr(prim_func, "dispatch_token", "tir")
 
 
 class TIRMacro(ScriptMacro):
-    def __init__(
-        self,
-        source: Source,
-        closure_vars: Dict[str, Any],
-        func: Callable,
-        hygienic: bool,
-    ) -> None:
-        super().__init__(source, closure_vars, func, hygienic)
+    """Specialization of the ScriptMacro class for TIR."""
 
     def parse_macro(self, parser: Parser) -> None:
         macro_def = self.get_macro_def()
