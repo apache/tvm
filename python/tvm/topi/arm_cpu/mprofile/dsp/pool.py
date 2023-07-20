@@ -23,15 +23,9 @@ import tvm
 from tvm import te
 from tvm.topi.utils import traverse_inline
 
-from .micro_kernel.max_pool import (
-    intrin_max,
-    max_impl,
-)
-
-from .micro_kernel.avg_pool import (
-    intrin_sum,
-    sum_impl,
-)
+from .micro_kernel.max_pool import intrin_max, max_impl
+from .micro_kernel.avg_pool import intrin_sum, sum_impl
+from .... import generic
 
 logger = logging.getLogger("topi")
 
@@ -100,8 +94,24 @@ def schedule_avgpool_2d_nchw(s, op):
     s[output].pragma(n, "import_c", sum_impl(pool_w, uniq_id))
 
 
-def pool_dsp_schedule(outs, layout):
+def schedule_pool(outs, layout, is_avg_pool):
     """Schedule function for v7e-m DSP instructions of pooling."""
+
+    if is_avg_pool and layout not in ["NCW", "NCHW"]:
+        logger.warning(
+            "avg pool not support for NCW or NCHW layouts on DSP"
+            "enabled targets, falling back on generic pool"
+            "implementation"
+        )
+        return generic.schedule_pool(outs, layout)
+    elif not is_avg_pool and layout not in ["NWC", "NHWC"]:
+        logger.warning(
+            "max pool not support for NWC or NHWC layouts on DSP"
+            "enabled targets, falling back on generic pool"
+            "implementation"
+        )
+        return generic.schedule_pool(outs, layout)
+
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
