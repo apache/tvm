@@ -61,6 +61,7 @@ setattr(prim_func, "dispatch_token", "tir")
 #   the body of the macro, and the body with the substituted values is then
 #   inserted at the point where the call to the macro is located.
 
+
 class TIRMacro(ScriptMacro):
     def __init__(
         self,
@@ -129,7 +130,6 @@ def macro(*args, hygienic: bool = True) -> Callable:
     raise ValueError(
         "Invalid use of T.macro. Usage: @T.macro, @T.macro(), @T.macro(hygienic=[True|False])"
     )
-
 
 
 class BufferProxy:
