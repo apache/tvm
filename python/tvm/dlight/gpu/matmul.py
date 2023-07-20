@@ -365,5 +365,22 @@ class Matmul(ScheduleRule):
         auto_inline_producers(sch, a_g2s)
         auto_inline_producers(sch, b_g2s)
         auto_inline_consumers(sch, l2g)
+
+        remaining_consumers = sch.get_consumers(l2g)
+
+        if len(remaining_consumers) != 0:
+            # Some blocks have failed to be inlined to the producer cache-write stage.
+            # This could be due to another producer block that has not been scheduled.
+            for c in remaining_consumers:
+                for p in sch.get_producers(c):
+                    if sch.get(p) != sch.get(l2g):
+                        sch.compute_inline(p)
+
+            # Try inlining into the cache-write stage again, this time it should succeed.
+            auto_inline_consumers(sch, l2g)
+
+        msg = "There are some consumers of the cache-write stage that are not properly inlined."
+        assert len(sch.get_consumers(l2g)) == 0, msg
+
         sch.decompose_reduction(main_block, ko)
         return sch
