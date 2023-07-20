@@ -24,6 +24,7 @@ import tvm.testing
 from tvm import tir
 from tvm.script import tir as T
 from tvm.tir.schedule import BlockRV, Instruction, InstructionKind, LoopRV, Trace
+from tvm.tir.schedule.testing import assert_structural_equal_ignore_global_symbol
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
@@ -229,7 +230,7 @@ def test_trace_apply_to_schedule():
     trace = _make_trace_2(BlockRV())
     sch = tir.Schedule(elementwise, debug_mask="all")
     trace.apply_to_schedule(sch, remove_postproc=False, decision_provider=None)
-    tvm.ir.assert_structural_equal(elementwise_inlined, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(elementwise_inlined, sch.mod["main"])
 
 
 def test_trace_as_json_1():
@@ -313,7 +314,7 @@ def test_apply_json_to_schedule_1():
     json_obj = trace.as_json()
     sch = tir.Schedule(elementwise, debug_mask="all")
     Trace.apply_json_to_schedule(json_obj, sch)
-    tvm.ir.assert_structural_equal(elementwise_inlined, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(elementwise_inlined, sch.mod["main"])
 
 
 def test_apply_json_to_schedule_sample_categorical():
@@ -373,7 +374,7 @@ def _test_apply_annotation_trace_from_json(annotation: str):
                 vi, vj = T.axis.remap("SS", [i, j])
                 C[vi, vj] = B[vi, vj] + 1.0
 
-    tvm.ir.assert_structural_equal(elementwise_expected, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(elementwise_expected, sch.mod["main"])
 
 
 def test_apply_annotation_from_json():

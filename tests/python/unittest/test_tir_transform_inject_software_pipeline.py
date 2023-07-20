@@ -37,10 +37,12 @@ from tvm.tir.tensor_intrin.cuda import (
 
 def _check(original, transformed):
     func = original
-    mod = tvm.IRModule.from_expr(func)
+    mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
     mod = tvm.tir.transform.InjectSoftwarePipeline()(mod)
     mod = tvm.tir.transform.Simplify()(mod)
-    tvm.ir.assert_structural_equal(mod["main"], transformed, True)
+    tvm.ir.assert_structural_equal(
+        mod["main"], transformed.with_attr("global_symbol", "main"), True
+    )
 
 
 def _check_error(func):
@@ -1108,7 +1110,7 @@ def test_error_missing_annotation():
 
 
 def test_simple_compute_async():
-    mod = tvm.IRModule.from_expr(gen_simple_compute(1))
+    mod = tvm.IRModule.from_expr(gen_simple_compute(1).with_attr("global_symbol", "main"))
     sch = tvm.tir.Schedule(mod)
 
     _, loop = sch.get_loops(sch.get_block("compute"))
@@ -1153,9 +1155,9 @@ def test_simple_compute_async():
                         with T.attr(0, "async_wait_inflight_count", 0):
                             C[tx, 15] = B[T.FloorMod(15, 2), tx, 0] + T.float32(1)
 
-    tvm.ir.assert_structural_equal(mod["main"], ref, True)
+    tvm.ir.assert_structural_equal(mod["main"], ref.with_attr("global_symbol", "main"), True)
 
-    mod = tvm.IRModule.from_expr(gen_simple_compute(3))
+    mod = tvm.IRModule.from_expr(gen_simple_compute(3).with_attr("global_symbol", "main"))
     sch = tvm.tir.Schedule(mod)
 
     _, loop = sch.get_loops(sch.get_block("compute"))
@@ -1210,7 +1212,7 @@ def test_simple_compute_async():
                                 with T.attr(0, "async_wait_inflight_count", 2 - i):
                                     C[tx, i - 3 + 16] = B[(i - 3 + 16) % 4, tx, 0] + T.float32(1)
 
-    tvm.ir.assert_structural_equal(mod["main"], ref, True)
+    tvm.ir.assert_structural_equal(mod["main"], ref.with_attr("global_symbol", "main"), True)
 
 
 def test_async_producer_interleaving():
@@ -1240,7 +1242,7 @@ def test_async_producer_interleaving():
                         T.writes(C[tx, i])
                         C[tx, i] = A_shared[tx, 0] + B_shared[tx, 0]
 
-    mod = tvm.IRModule.from_expr(simple_compute)
+    mod = tvm.IRModule.from_expr(simple_compute.with_attr("global_symbol", "main"))
     sch = tvm.tir.Schedule(mod)
 
     _, loop = sch.get_loops(sch.get_block("compute"))
@@ -1317,11 +1319,11 @@ def test_async_producer_interleaving():
                                         + B_shared[(i - 3 + 16) % 4, tx, 0]
                                     )
 
-    tvm.ir.assert_structural_equal(mod["main"], ref, True)
+    tvm.ir.assert_structural_equal(mod["main"], ref.with_attr("global_symbol", "main"), True)
 
 
 def test_three_stage_compute_two_stage_async():
-    mod = tvm.IRModule.from_expr(three_stage_compute)
+    mod = tvm.IRModule.from_expr(three_stage_compute.with_attr("global_symbol", "main"))
     sch = tvm.tir.Schedule(mod)
 
     _, loop = sch.get_loops(sch.get_block("compute"))
@@ -1415,7 +1417,7 @@ def test_three_stage_compute_two_stage_async():
                                 ):
                                     D[tx, i - 2 + 16] = C[(i - 2 + 16) % 2, tx, 0] + T.float32(1)
 
-    tvm.ir.assert_structural_equal(mod["main"], ref, True)
+    tvm.ir.assert_structural_equal(mod["main"], ref.with_attr("global_symbol", "main"), True)
 
 
 N = K = M = 4096

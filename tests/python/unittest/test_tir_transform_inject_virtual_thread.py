@@ -103,7 +103,9 @@ def test_vthread_extern(vthread_name):
     C_expected_alloc = m * nthread * nthread
 
     stmt = tvm.tir.transform.InjectVirtualThread()(
-        tvm.IRModule.from_expr(tvm.tir.PrimFunc([], get_vthread(vthread_name)))
+        tvm.IRModule.from_expr(
+            tvm.tir.PrimFunc([], get_vthread(vthread_name)).with_attr("global_symbol", "main")
+        )
     )["main"]
 
     assert list(stmt.body.body.extents) == [A_expected_alloc]
@@ -127,7 +129,7 @@ def test_vthread_if_then_else():
     stmt = ib.get()
 
     stmt = tvm.tir.transform.InjectVirtualThread()(
-        tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
+        tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt).with_attr("global_symbol", "main"))
     )["main"]
 
     assert stmt.body.body.body[0].else_case != None
@@ -160,11 +162,11 @@ def test_vthread_simplified():
         B[T.Mul(2, 4) : T.Mul(2, 4) + 4] = T.broadcast(2, 4)
         B[T.Mul(3, 4) : T.Mul(3, 4) + 4] = T.broadcast(3, 4)
 
-    before_mod = tvm.IRModule.from_expr(before_func)
+    before_mod = tvm.IRModule.from_expr(before_func.with_attr("global_symbol", "main"))
     after_mod = tvm.tir.transform.InjectVirtualThread()(before_mod)
     after_func = after_mod["main"]
 
-    tvm.ir.assert_structural_equal(after_func, expected_func)
+    tvm.ir.assert_structural_equal(after_func, expected_func.with_attr("global_symbol", "main"))
 
 
 def test_vthread_vectorized():
@@ -187,12 +189,12 @@ def test_vthread_vectorized():
         B[T.Div(T.Mul(2, 4), 4)] = T.broadcast(2, 4)
         B[T.Div(T.Mul(3, 4), 4)] = T.broadcast(3, 4)
 
-    before_mod = tvm.IRModule.from_expr(before_func)
+    before_mod = tvm.IRModule.from_expr(before_func.with_attr("global_symbol", "main"))
     intermediate_mod = tvm.tir.transform.InjectVirtualThread()(before_mod)
     after_mod = tvm.tir.transform.StorageRewrite()(intermediate_mod)
     after_func = after_mod["main"]
 
-    tvm.ir.assert_structural_equal(after_func, expected_func)
+    tvm.ir.assert_structural_equal(after_func, expected_func.with_attr("global_symbol", "main"))
 
 
 if __name__ == "__main__":

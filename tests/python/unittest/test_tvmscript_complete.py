@@ -253,10 +253,18 @@ def expected_recursive_bufferslice_indices(data: T.handle, index: T.handle) -> N
 
 
 def test_complete_buffer_indices():
-    new_func = tvm.script.from_source(func_with_bufferslice_indices.script())
-    tvm.ir.assert_structural_equal(new_func, expected_bufferslice_indices)
-    new_func = tvm.script.from_source(func_with_recursive_bufferslice_indices.script())
-    tvm.ir.assert_structural_equal(new_func, expected_recursive_bufferslice_indices)
+    new_func = tvm.script.from_source(func_with_bufferslice_indices.script()).with_attr(
+        "global_symbol", "main"
+    )
+    tvm.ir.assert_structural_equal(
+        new_func, expected_bufferslice_indices.with_attr("global_symbol", "main")
+    )
+    new_func = tvm.script.from_source(func_with_recursive_bufferslice_indices.script()).with_attr(
+        "global_symbol", "main"
+    )
+    tvm.ir.assert_structural_equal(
+        new_func, expected_recursive_bufferslice_indices.with_attr("global_symbol", "main")
+    )
 
 
 @T.prim_func
@@ -292,7 +300,10 @@ def expected_match_buffer_func(a: T.handle) -> None:
 
 
 def test_complete_match_buffer():
-    tvm.ir.assert_structural_equal(match_buffer_func, expected_match_buffer_func)
+    tvm.ir.assert_structural_equal(
+        match_buffer_func.with_attr("global_symbol", "main"),
+        expected_match_buffer_func.with_attr("global_symbol", "main"),
+    )
 
 
 @T.prim_func
@@ -319,8 +330,10 @@ def expect_alloc_buffer_func(a: T.handle, b: T.handle) -> None:
 
 
 def test_complete_alloc_buffer():
-    rt_func = tvm.script.from_source(alloc_buffer_func.script())
-    tvm.ir.assert_structural_equal(alloc_buffer_func, expect_alloc_buffer_func)
+    rt_func = tvm.script.from_source(alloc_buffer_func.script()).with_attr("global_symbol", "main")
+    tvm.ir.assert_structural_equal(
+        rt_func, expect_alloc_buffer_func.with_attr("global_symbol", "main")
+    )
 
 
 if __name__ == "__main__":
