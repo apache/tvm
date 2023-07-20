@@ -223,7 +223,7 @@ class GraphPartitioner {
   std::unordered_multimap<const IndexedForwardGraph::Node*, IndexedForwardGraph::Node*>
       postponed_fusing_map_;
   /*!
-   * \brief Fusing of this node should be postponed till all child nodes will be evaluated.
+   * \brief Fusing of this node should be postponed till all child nodes are evaluated.
    *        It is used to calculate the number of arguments which will be passed to this node in
    *        the generated function.
    */
@@ -280,7 +280,7 @@ class GraphPartitioner {
   // Additionally, in the case of dynamic shape, it is necessary to take into
   // account the number of parameters which specifies the sizes of the dynamic
   // dimensions.
-  // This function computes the limit of arguments by the following formula:
+  // This function computes the maximum number of arguments by the following formula:
   // limit = max_function_args_ - output_args_count
   size_t CountArgsLimit_(const IndexedForwardGraph::Node* child);
 
