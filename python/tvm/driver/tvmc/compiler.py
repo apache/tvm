@@ -196,7 +196,6 @@ def drive_compile(args):
 
     additional_targets = reconstruct_target_args(args)
     workspace_pools_target, extra_targets = target_from_cli(args.target, additional_targets)
-    instruments = [PassTimingInstrument()] if args.print_pass_times else None
     transform_args = parse_graph_transform_args(args)
 
     compile_model(
@@ -220,7 +219,7 @@ def drive_compile(args):
         workspace_pools=(
             workspace_pools_recombobulate(args, [workspace_pools_target], extra_targets)
         ),
-        instruments=instruments,
+        print_pass_times=args.print_pass_times,
         **transform_args,
     )
 
@@ -247,6 +246,7 @@ def compile_model(
     use_vm: bool = False,
     mod_name: Optional[str] = "default",
     workspace_pools: Optional[WorkspaceMemoryPools] = None,
+    print_pass_times: bool = False,
     instruments: Optional[Sequence[PassInstrument]] = None,
     desired_layout: Optional[str] = None,
     desired_layout_ops: Optional[List[str]] = None,
@@ -308,6 +308,8 @@ def compile_model(
     workspace_pools: WorkspaceMemoryPools, optional
         Specification of WorkspacePoolInfo objects to be used as workspace memory in the
         compilation.
+    print_pass_times: bool
+        To enable printing a breakdown of compilation times by pass. Disabled by default.
     instruments: Optional[Sequence[PassInstrument]]
         The list of pass instrument implementations.
     desired_layout: str, optional
@@ -363,12 +365,9 @@ def compile_model(
         if codegen["config_key"] is not None:
             config[codegen["config_key"]] = codegen_from_cli["opts"]
 
-    timing_inst = None
-    if instruments is not None:
-        for instrument in instruments:
-            if isinstance(instrument, PassTimingInstrument):
-                timing_inst = instrument
-                break
+    if print_pass_times:
+        timing_inst = PassTimingInstrument()
+        instruments = [timing_inst] if instruments is None else [timing_inst] + instruments
 
     with tvm.transform.PassContext(
         opt_level=opt_level,
@@ -457,8 +456,8 @@ def compile_model(
             save_dumps(package_path, dumps)
 
         # Print compilation times per pass
-        if timing_inst:
-            print("Printing results of timing profile...")
+        if print_pass_times:
+            print("Compilation time breakdown by pass:")
             print(timing_inst.render())
 
         return TVMCPackage(package_path)

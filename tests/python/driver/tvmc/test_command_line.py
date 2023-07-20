@@ -286,6 +286,6 @@ def test_tvmc_print_pass_times(capsys, keras_simple, tmpdir_factory):
     _main(compile_args)
 
     # Check for timing results output
-    expected_out = "Printing results of timing profile..."
     captured_out = capsys.readouterr().out
-    assert expected_out in captured_out
+    for exp_str in ("Compilation time breakdown by pass:", "sequential:", "us]"):
+        assert exp_str in captured_out
