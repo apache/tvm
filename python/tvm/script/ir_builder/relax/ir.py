@@ -441,7 +441,13 @@ def emit_var_binding(value: VarBinding) -> Var:
 
 
 def SeqExpr() -> frame.SeqExprFrame:  # pylint: disable=invalid-name
-    return _ffi_api.SeqExpr()
+    """Create a SeqExpr frame.
+    Returns
+    -------
+    res : frame.SeqExprFrame
+        The result SeqExprFrame
+    """
+    return _ffi_api.SeqExpr()  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 ############################# If Then Else #############################
