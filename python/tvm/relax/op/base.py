@@ -232,7 +232,13 @@ def call_tir_inplace(
     if isinstance(tir_vars, (list, tuple)):
         tir_vars = ShapeExpr(tir_vars)
 
-    return _ffi_api.call_tir_inplace(gvar, args, inplace_indices, out_sinfo, tir_vars)  # type: ignore
+    return _ffi_api.call_tir_inplace(  # type: ignore
+        gvar,
+        args,
+        inplace_indices,
+        out_sinfo,
+        tir_vars,
+    )
 
 
 @args_converter.auto
