@@ -95,7 +95,9 @@ def benchmark(
         args, _ = extract_func_info_from_prim_func(mod[func_name])
     # produce target & device
     target = tvm.target.Target.current() if target is None else tvm.target.Target(target)
-    if target.kind.name == "llvm":
+    if target is None:
+        raise ValueError("Target is not specified")
+    elif target.kind.name == "llvm":
         dev = tvm.cpu()
     elif target.kind.name == "cuda":
         dev = tvm.cuda()

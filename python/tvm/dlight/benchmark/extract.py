@@ -276,6 +276,8 @@ def extract_prim_func(  # pylint: disable=too-many-arguments
     if target is None:
         target = tvm.target.Target.current()
         target_str = str(target)
+        if target is None:
+            raise ValueError("Target is not specified.")
     elif isinstance(target, str):
         target_str = target
         target = tvm.target.Target(target)
@@ -303,7 +305,12 @@ def extract_prim_func(  # pylint: disable=too-many-arguments
     )
 
 
-def extract_from_relax(mod: tvm.ir.IRModule, model_name: str, file_path: str) -> None:
+def extract_from_relax(
+    mod: tvm.ir.IRModule,
+    model_name: str,
+    file_path: str,
+    target: Optional[Union[str, tvm.target.Target]] = None,
+) -> None:
     """Extract self-contained PrimFunc test files from a Relax module.
 
     Parameters
@@ -314,6 +321,8 @@ def extract_from_relax(mod: tvm.ir.IRModule, model_name: str, file_path: str) ->
         The name of the model.
     file_path: str
         The path to store the extracted files.
+    target: Optional[Union[str, tvm.target.Target]]
+        The target device to run the PrimFunc. If None, will use target from the context.
     """
     relax_funcs, dym_var_dict = extract_all_func_info_from_relax(mod)
     Path(file_path).mkdir(parents=True, exist_ok=True)
@@ -334,6 +343,7 @@ def extract_from_relax(mod: tvm.ir.IRModule, model_name: str, file_path: str) ->
                             dym_var_dict=dym_var_dict[relax_func_gv],
                             func_args=func_args,
                             weight=weight,
+                            target=target,
                         ),
                         file=file,
                     )
