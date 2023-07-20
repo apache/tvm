@@ -26,7 +26,6 @@ from tvm import relay, topi, tir
 from ....auto_scheduler import is_auto_scheduler_enabled
 from ....meta_schedule import is_meta_schedule_enabled
 from ....topi.generic import conv2d as conv2d_generic
-from ....topi.arm_cpu.mprofile import dsp
 from .. import op as _op
 from .generic import *
 
@@ -64,11 +63,19 @@ def concatenate_strategy_arm_cpu(attrs, inputs, out_type, target):
 def schedule_pool_arm_cpu(attrs, outs, target):
     """schedule pooling ops arm cpu"""
     layout = attrs.layout
+    avg_pool = isinstance(attrs, relay.op.op_attrs.AvgPool2DAttrs)
     with target:
-        if target.features.has_dsp:
-            is_avg_pool = isinstance(attrs, relay.op.op_attrs.AvgPool2DAttrs)
-            return dsp.pool.schedule_pool(outs, layout, is_avg_pool)
-        return topi.arm_cpu.schedule_pool(outs, layout)
+        if (
+            avg_pool
+            and target.features.has_dsp
+            and layout in ("NCW", "NCHW")
+            or not avg_pool
+            and target.features.has_dsp
+            and layout in ("NWC", "NHWC")
+        ):
+            return topi.arm_cpu.schedule_pool(outs, layout)
+        logger.warning("pool is not optimized for arm cpu.")
+        return topi.generic.schedule_pool(outs, layout)
 
 
 def _get_padding_width(padding):
