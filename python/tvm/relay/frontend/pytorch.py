@@ -1626,7 +1626,7 @@ class PyTorchOpConverter:
         data = inputs[0]
         tensors = inputs[1]
 
-        if not isinstance(tensors, (_expr.Call, _expr.Constant)):
+        if not isinstance(tensors, (_expr.Call, _expr.Constant, _expr.Var)):
             msg = f"Data type {type(tensors)} could not be parsed in view_as op"
             raise AssertionError(msg)
 
