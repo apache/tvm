@@ -256,6 +256,8 @@ def _convert_dense(
     weightList = keras_layer.get_weights()
     weight = etab.new_const(weightList[0].transpose([1, 0]))
     params = {"weight": weight, "units": weightList[0].shape[1]}
+    units = list(weightList[0].shape)[1]
+    assert units > 0, "The value of units must be a positive integer"
     if input_shape is None:
         input_shape = keras_layer.input_shape
     input_dim = len(input_shape)
@@ -1010,6 +1012,7 @@ def _convert_lstm(
     if keras_layer.go_backwards:
         in_data = _op.reverse(in_data, axis=1)
     units = list(weightList[0].shape)[1]
+    assert units > 0, "The value of units must be a positive integer"
     time_steps = in_shape[1]
     in_data = _op.squeeze(in_data, axis=[0])
     in_data = _op.split(in_data, indices_or_sections=time_steps, axis=0)
@@ -1053,6 +1056,7 @@ def _convert_simple_rnn(
     if keras_layer.use_bias:
         in_bias = etab.new_const(weightList[2])
     units = list(weightList[0].shape)[1]
+    assert units > 0, "The value of units must be a positive integer"
     in_data = _op.nn.batch_flatten(in_data)
     ixh = _op.nn.dense(in_data, kernel_weight, units=units)
     if keras_layer.use_bias:
@@ -1082,6 +1086,7 @@ def _convert_gru(
     if keras_layer.use_bias:
         in_bias = etab.new_const(weightList[2])
     units = list(weightList[0].shape)[1]
+    assert units > 0, "The value of units must be a positive integer"
     in_data = _op.nn.batch_flatten(in_data)
     matrix_x = _op.nn.dense(in_data, kernel_weight, units=units)
     if keras_layer.use_bias:

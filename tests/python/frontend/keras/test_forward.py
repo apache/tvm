@@ -251,7 +251,7 @@ class TestKeras:
         ):
             act_funcs = [
                 keras_mod.layers.LeakyReLU(alpha=None),
-                keras_mod.layers.LEU(2, 3, 4),
+                keras_mod.layers.ELU(2, 3, 4),
                 keras_mod.layers.ReLU(threshold=None),
             ]
             data = keras_mod.layers.Input(shape=(2, 3, 4))
