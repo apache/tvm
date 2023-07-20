@@ -35,7 +35,7 @@ def _func():
 
 
 def test_annotation_multi_object_paths():
-    result = _func.script(
+    result = _func.with_attr("global_symbol", "main").script(
         path_to_annotate={
             ObjectPath.root().attr("body").attr("seq").array_index(1): "annotation 1",
             ObjectPath.root().attr("body").attr("seq").array_index(3): "annotation 3",
@@ -61,7 +61,7 @@ def main():
 
 
 def test_annotate_from_multi_obj():
-    result = _func.script(
+    result = _func.with_attr("global_symbol", "main").script(
         obj_to_annotate={
             _func.body.seq[1]: "annotation 1",
             _func.body.seq[3]: "annotation 3",

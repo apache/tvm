@@ -103,7 +103,12 @@ class TestReusedVarAcrossModule(BaseBeforeAfter):
             with T.LetStmt(10) as var:
                 T.evaluate(var)
 
-        return tvm.IRModule({"func_a": func, "func_b": func})
+        return tvm.IRModule(
+            {
+                "func_a": func.with_attr("global_symbol", "func_a"),
+                "func_b": func.with_attr("global_symbol", "func_b"),
+            }
+        )
 
     def expected(self):
         @I.ir_module
@@ -133,7 +138,12 @@ class TestReusedParameter(BaseBeforeAfter):
         def func(n: T.int32):
             T.evaluate(n)
 
-        return tvm.IRModule({"func_a": func, "func_b": func})
+        return tvm.IRModule(
+            {
+                "func_a": func.with_attr("global_symbol", "func_a"),
+                "func_b": func.with_attr("global_symbol", "func_b"),
+            }
+        )
 
     def expected(self):
         @I.ir_module
@@ -158,7 +168,12 @@ class TestReusedBufferObj(BaseBeforeAfter):
             A = T.Buffer(shape=1, dtype="float32", data=a)
             T.evaluate(A[0])
 
-        return tvm.IRModule({"func_a": func, "func_b": func})
+        return tvm.IRModule(
+            {
+                "func_a": func.with_attr("global_symbol", "func_a"),
+                "func_b": func.with_attr("global_symbol", "func_b"),
+            }
+        )
 
     def expected(self):
         @I.ir_module
@@ -184,7 +199,12 @@ class TestReusedBufferParameter(BaseBeforeAfter):
         def func(A: T.Buffer(1, "float32")):
             T.evaluate(A[0])
 
-        return tvm.IRModule({"func_a": func, "func_b": func})
+        return tvm.IRModule(
+            {
+                "func_a": func.with_attr("global_symbol", "func_a"),
+                "func_b": func.with_attr("global_symbol", "func_b"),
+            }
+        )
 
     def expected(self):
         @I.ir_module

@@ -162,15 +162,22 @@ def buffer_decl(*args, **kwargs):
     return buffer(*args, **kwargs)
 
 
-def prim_func() -> frame.PrimFuncFrame:
+def prim_func(is_private: bool = False) -> frame.PrimFuncFrame:
     """The primitive function statement.
+
+    Parameters
+    ----------
+    is_private : bool
+        Whether the PrimFunc is annotated as private
+        (if yes, it does not have a global symbol assigned;
+        otherwise, the global symbol is the PrimFunc's name)
 
     Returns
     -------
     res : frame.PrimFuncFrame
         The PrimFuncFrame.
     """
-    return _ffi_api.PrimFunc()  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.PrimFunc(is_private)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def arg(name: str, obj: Union[Var, Buffer]) -> Union[Var, Buffer]:

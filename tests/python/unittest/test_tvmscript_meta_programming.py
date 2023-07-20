@@ -49,8 +49,8 @@ def test_meta_programming_matmul():
                     C[vi, vj] = T.float32(0)
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
-    f = matmul_generator(128, 128, 128, "float16")
-    tvm.ir.assert_structural_equal(f, matmul_128_128_128_fp16)
+    f = matmul_generator(128, 128, 128, "float16").with_attr("global_symbol", "main")
+    tvm.ir.assert_structural_equal(f, matmul_128_128_128_fp16.with_attr("global_symbol", "main"))
 
 
 def test_meta_programming_uncaptured_var():
@@ -75,8 +75,8 @@ def test_meta_programming_uncaptured_var():
             with T.block("C"):
                 C[i] = T.erf(A[i])
 
-    tvm.ir.assert_structural_equal(fp16, generate_erf("float16"))
-    tvm.ir.assert_structural_equal(fp32, generate_erf("float32"))
+    tvm.ir.assert_structural_equal(fp16.with_attr("global_symbol", "main"), generate_erf("float16"))
+    tvm.ir.assert_structural_equal(fp32.with_attr("global_symbol", "main"), generate_erf("float32"))
 
 
 if __name__ == "__main__":

@@ -156,8 +156,13 @@ def test_alloc_zero_dim_buffer_round_trip():
     rt_func_with_block = tvm.script.from_source(func_with_block.script())
     rt_mod = tvm.build(rt_func, "llvm")
     rt_mod_with_block = tvm.build(rt_func_with_block, "llvm")
-    tvm.ir.assert_structural_equal(func, func_with_block)
-    tvm.ir.assert_structural_equal(rt_func, rt_func_with_block)
+    tvm.ir.assert_structural_equal(
+        func.with_attr("global_symbol", "main"), func_with_block.with_attr("global_symbol", "main")
+    )
+    tvm.ir.assert_structural_equal(
+        rt_func.with_attr("global_symbol", "main"),
+        rt_func_with_block.with_attr("global_symbol", "main"),
+    )
     _check_alloc_zero_dim_buffer(rt_mod)
     _check_alloc_zero_dim_buffer(rt_mod_with_block)
 
@@ -242,7 +247,10 @@ def slice_op_test_ref(
 
 
 def test_slice_op():
-    tvm.ir.assert_structural_equal(slice_op_test, slice_op_test_ref)
+    tvm.ir.assert_structural_equal(
+        slice_op_test.with_attr("global_symbol", "main"),
+        slice_op_test_ref.with_attr("global_symbol", "main"),
+    )
 
 
 if __name__ == "__main__":

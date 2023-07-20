@@ -37,7 +37,7 @@ def test_prim_func():
             b: tir.decl_buffer(shape=[256, 256], dtype="float32", name="B"),
         },
         body=tir.Evaluate(0),
-    )
+    ).with_attr("global_symbol", "main")
     _assert_print(
         func,
         expected="""
@@ -60,7 +60,7 @@ def test_prim_func_no_sugar_inlined_buffer():
             b: tir.decl_buffer(shape=[256, 256], dtype="float32", name="B"),
         },
         body=tir.Evaluate(a),
-    )
+    ).with_attr("global_symbol", "main")
     _assert_print(
         func,
         expected="""
@@ -86,7 +86,7 @@ def test_prim_func_no_sugar_shared_buffer_data():
             b: tir.decl_buffer(shape=[256, 256], dtype="float32", name="B", data=buffer_data),
         },
         body=tir.Evaluate(0),
-    )
+    ).with_attr("global_symbol", "main")
     _assert_print(
         func,
         expected="""
@@ -759,8 +759,8 @@ def main():
             T.reads()
             T.writes()
             T.evaluate(0)"""
-    _assert_print(block_with_remap_explicitly, expected_output)
-    _assert_print(block_with_remap_implicitly, expected_output)
+    _assert_print(block_with_remap_explicitly.with_attr("global_symbol", "main"), expected_output)
+    _assert_print(block_with_remap_implicitly.with_attr("global_symbol", "main"), expected_output)
 
 
 def test_root_block():
@@ -794,8 +794,51 @@ def main():
             T.writes()
             T.evaluate(0)
     """
-    _assert_print(root_block_implicitly, expected_output)
-    _assert_print(root_block_explicitly, expected_output)
+    _assert_print(root_block_implicitly.with_attr("global_symbol", "main"), expected_output)
+    _assert_print(root_block_explicitly.with_attr("global_symbol", "main"), expected_output)
+
+
+def test_private_primfunc():
+    from tvm.script import tir as T
+
+    a = tir.Var("a", "handle")
+    b = tir.Var("b", "handle")
+    func = tir.PrimFunc(
+        params=[a, b],
+        ret_type=None,
+        buffer_map={
+            a: tir.decl_buffer(shape=[128, 128], dtype="float32", name="A"),
+            b: tir.decl_buffer(shape=[256, 256], dtype="float32", name="B"),
+        },
+        body=tir.Evaluate(0),
+    )
+    _assert_print(
+        func,
+        expected="""
+# from tvm.script import tir as T
+
+@T.prim_func(private=True)
+def main(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
+    T.evaluate(0)""",
+    )
+
+
+def test_prim_func_different_symbol():
+    from tvm.script import tir as T
+
+    @T.prim_func
+    def main(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
+        T.func_attr({"global_symbol": "func"})
+        T.evaluate(0)
+
+    expected_output = """
+# from tvm.script import tir as T
+
+@T.prim_func
+def func(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
+    T.evaluate(0)
+    """
+    _assert_print(main, expected_output)
 
 
 if __name__ == "__main__":
