@@ -281,12 +281,13 @@ def test_extract_prim_func():
 
 
 def test_extract_from_relax():
-    with tempfile.TemporaryDirectory() as filepath:
-        extract_from_relax(
-            Module,
-            "TEST",
-            file_path=filepath,
-        )
+    with tvm.target.Target("llvm -num-cores=4"):
+        with tempfile.TemporaryDirectory() as filepath:
+            extract_from_relax(
+                Module,
+                "TEST",
+                file_path=filepath,
+            )
 
 
 def test_extract_func_info_from_prim_func():

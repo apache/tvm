@@ -65,7 +65,7 @@ def benchmark(
     target : Optional[Union[str, tvm.target.Target]]
         The target to be benchmarked on, if none, will get the target from context.
     func_name : Optional[str]
-        The name of the function to be benchmarked, will use "main" by default if a PrimFunc is given.
+        The name of the function to be benchmarked, will use "main" by default.
     evaluator_config : Optional["EvaluatorConfig"]
         The evaluator configuration to use.
         If none, will use default evaluator configuration.
@@ -97,7 +97,7 @@ def benchmark(
     target = tvm.target.Target.current() if target is None else tvm.target.Target(target)
     if target is None:
         raise ValueError("Target is not specified")
-    elif target.kind.name == "llvm":
+    if target.kind.name == "llvm":
         dev = tvm.cpu()
     elif target.kind.name == "cuda":
         dev = tvm.cuda()
@@ -242,7 +242,6 @@ def benchmark_relax_func(
         Dict[str, int],
     ] = default_dym_var_sample_func,
     target: Union[str, tvm.target.Target] = "llvm -num-cores=4",
-    dev: tvm.runtime.Device = tvm.cpu(),
     evaluator_config: Optional["EvaluatorConfig"] = None,
     rpc_config: Optional["RPCConfig"] = None,
 ) -> None:
