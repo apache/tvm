@@ -14,8 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""A rule for DecodeGEMV."""
-from typing import List, Optional, Tuple, Union
+"""A rule for GEMV and DecodeGEMV."""
+from typing import List, Optional, Tuple, Union, Set
 
 from tvm import arith, ir, tir
 from tvm.target import Target
@@ -47,8 +47,57 @@ def _get_reduction_expr(block: tir.Block) -> Optional[tir.PrimExpr]:
     return buffer_store.value.b
 
 
-class DecodeGEMV(ScheduleRule):
-    """A rule for DecodeGEMV."""
+def _collect_vars_used_in_access_region(region: List[ir.Range]) -> Set[tir.Var]:
+    tir_vars: Set[tir.Var] = set()
+
+    for expr in region:
+        assert expr.extent == 1
+        tir_vars.union(set(tir.analysis.undefined_vars(expr.min)))
+    return tir_vars
+
+
+def _detect_dominant_read(block: tir.Block) -> tir.PrimExpr:
+    dominant_read = None
+    num_read_iters = -1
+    for buffer_region in block.reads:
+        tir_vars = _collect_vars_used_in_access_region(buffer_region.region)
+        if num_read_iters < len(tir_vars):
+            num_read_iters = len(tir_vars)
+            dominant_read = buffer_region
+    assert dominant_read is not None
+    (result,) = dominant_read.buffer.offset_of([e.min for e in dominant_read.region])
+    return result
+
+
+def _is_broadcast_epilogue(
+    sch: tir.Schedule,
+    block: tir.schedule.BlockRV,
+    epilogue: tir.schedule.BlockRV,
+) -> bool:
+    write_buffers = {r.buffer for r in sch.get(block).writes}
+    epilogue_iters = {i.var: i for i in sch.get(epilogue).iter_vars if i.dom != 1}
+    for buffer_region in sch.get(epilogue).reads:
+        if buffer_region.buffer not in write_buffers:
+            continue
+        tir_vars = _collect_vars_used_in_access_region(buffer_region.region)
+        if len(tir_vars) < len(epilogue_iters):
+            return True
+    return False
+
+
+def _is_gemv(sch: tir.Schedule, block_info: BlockInfo) -> bool:
+    block = block_info.block_rv
+    block_stmt = sch.get(block)
+    conditions = []
+    conditions.append(block_info.is_reduction())
+    conditions.append(len(block_stmt.reads) >= 2)
+    conditions.append(len(block_stmt.writes) == 1)
+    conditions.append(_get_reduction_expr(block_stmt) is not None)
+    return all(conditions)
+
+
+class GEMV(ScheduleRule):
+    """A rule for GEMV and DecodeGEMV."""
 
     def apply(  # pylint: disable=too-many-locals,too-many-branches,too-many-return-statements
         self,
@@ -63,6 +112,8 @@ class DecodeGEMV(ScheduleRule):
         if block_infos is None:
             return None
         block_infos = try_inline_contiguous_spatial(sch, block_infos)
+        print(block_infos)
+        print(_get_reduction_expr(sch.get(block_infos[0].block_rv)))
         if len(block_infos) == 1:
             epilogue = None
         elif len(block_infos) == 2:
@@ -76,14 +127,7 @@ class DecodeGEMV(ScheduleRule):
         block = block_info.block_rv
         block_stmt = sch.get(block)
 
-        # Step 1. Check reduction block
-        if (
-            (not block_info.is_reduction())
-            or len(block_stmt.writes) != 1
-            or _get_reduction_expr(block_stmt) is None
-        ):
-            return None
-        # Step 2. Normalize the block, merge spatial and reduction iters
+        # Step 1. Normalize the block, merge spatial and reduction iters
         is_inner_reduction, c_factor = self._normalize(
             sch,
             block_info,
@@ -92,14 +136,13 @@ class DecodeGEMV(ScheduleRule):
                 input_iters={i.var: i.dom for i in block_stmt.iter_vars},
             ),
         )
-        if is_inner_reduction is None and c_factor is None:
-            return None
-        # Step 3. Do the scheduling
+        # Step 2. Do the scheduling
         if is_inner_reduction:
             self._sch_inner_reduction(sch, target, block, c_factor, epilogue)
+            return sch
         else:
-            self._sch_inner_spatial(sch, target, block, c_factor, epilogue)
-        return sch
+            # TODO: Need to handle GEMV with KN layout
+            return None
 
     def _normalize(  # pylint: disable=too-many-branches
         self,
@@ -155,9 +198,10 @@ class DecodeGEMV(ScheduleRule):
     ):
         # pylint: disable=invalid-name
         _, r, _ = sch.get_loops(block)
-        (len_tx,) = utils.suggest_threads_per_block(  # pylint: disable=unbalanced-tuple-unpacking
-            target, [sch.get(r)]
-        )
+        # TODO: make it tunable
+        len_tx = 32
+        len_ty = 2
+        vec_len = 8 if target.kind.name == "cuda" else 4
 
         _, tx = sch.split(r, factors=[None, len_tx])
         # Schedule the RF block
@@ -168,6 +212,20 @@ class DecodeGEMV(ScheduleRule):
         sch.bind(tx, "threadIdx.x")
         sch.annotate(tx, ann_key="pragma_auto_unroll_max_step", ann_val=256)
         sch.annotate(tx, ann_key="pragma_unroll_explicit", ann_val=1)
+
+        # Cache read the vector
+        def cache_gemv_input(index: int, loop: tir.schedule.LoopRV, out_loops: int):
+            cache = sch.cache_read(rf, index, "shared")
+            sch.compute_at(cache, loop, preserve_unit_loops=True)
+            loops = sch.get_loops(cache)[out_loops:]
+            _, _tx, vec = sch.split(sch.fuse(*loops), factors=[None, len_tx, vec_len])
+            sch.bind(_tx, "threadIdx.x")
+            sch.vectorize(vec)
+        if target.kind.name == "cuda":
+            cache_gemv_input(0, tx, 2)
+            if len(sch.get(rf).reads) > 2:
+                cache_gemv_input(2, tx, 2)
+
         sch.set_scope(rf, 0, "local")
         sch.decompose_reduction(rf, r)
         # Schedule the write back block
