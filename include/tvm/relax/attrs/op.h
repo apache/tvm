@@ -43,6 +43,20 @@ struct CallTIRWithGradAttrs : public tvm::AttrsNode<CallTIRWithGradAttrs> {
   }
 };  // struct CallTIRAttrs
 
+/*! \brief Attributes used in call_tir_inplace */
+struct CallTIRInplaceAttrs : public tvm::AttrsNode<CallTIRInplaceAttrs> {
+  Array<Integer> inplace_indices;
+
+  TVM_DECLARE_ATTRS(CallTIRInplaceAttrs, "relax.attrs.CallTIRInplaceAttrs") {
+    TVM_ATTR_FIELD(inplace_indices)
+        .describe(
+            "Indices that describe which input corresponds to which output. If the `i`th member "
+            "has the value `k` >= 0, then that means that input `k` should be used to store the "
+            "`i`th output. If an element has the value -1, that means a new tensor should be "
+            "allocated for that output.");
+  }
+};  // struct CallTIRInplaceAttrs
+
 }  // namespace relax
 }  // namespace tvm
 
