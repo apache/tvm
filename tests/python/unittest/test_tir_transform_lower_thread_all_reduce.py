@@ -386,13 +386,14 @@ class TestMultiWarpReduce1(BaseCompare):
         T.func_attr({"target": T.target("cuda", host="llvm")})
         for i in range(128):
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
-            red_buf0 = T.allocate([1], "float32", "local")
-            red_buf0_3 = T.Buffer((1,), data=red_buf0, scope="local")
+            red_result = T.allocate([1], "float32", "shared")
+            red_result_1 = T.Buffer((1,), data=red_result, scope="shared")
             with T.attr(
                 T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
                 "reduce_scope",
                 T.reinterpret("handle", T.uint64(0)),
             ):
+                red_buf0 = T.allocate([1], "float32", "local")
                 mask = T.allocate([1], "uint32", "local")
                 t0 = T.allocate([1], "float32", "local")
                 red_buf0_1 = T.allocate([1], "float32", "local")
@@ -415,11 +416,11 @@ class TestMultiWarpReduce1(BaseCompare):
                 red_buf0_2[0] = red_buf0_2[0] + t0_2[0]
                 t0_2[0] = T.tvm_warp_shuffle_down(mask_2[0], red_buf0_2[0], 1, 32, 32)
                 red_buf0_2[0] = red_buf0_2[0] + t0_2[0]
-                red_buf0_2[0] = T.tvm_warp_shuffle(mask_2[0], red_buf0_2[0], 0, 32, 32)
                 red_buf_staging_1 = T.Buffer((4,), data=red_buf_staging, scope="shared")
                 if threadIdx_x % 32 == 0:
                     red_buf_staging_1[threadIdx_x // 32] = red_buf0_2[0]
                 T.tvm_storage_sync("shared")
+                red_buf0_3 = T.Buffer((1,), data=red_buf0, scope="local")
                 if threadIdx_x < 4:
                     red_buf0_3[0] = red_buf_staging_1[threadIdx_x]
                 mask_3 = T.Buffer((1,), "uint32", data=mask, scope="local")
@@ -429,10 +430,12 @@ class TestMultiWarpReduce1(BaseCompare):
                 red_buf0_3[0] = red_buf0_3[0] + t0_3[0]
                 t0_3[0] = T.tvm_warp_shuffle_down(mask_3[0], red_buf0_3[0], 1, 32, 32)
                 red_buf0_3[0] = red_buf0_3[0] + t0_3[0]
-                red_buf0_3[0] = T.tvm_warp_shuffle(mask_3[0], red_buf0_3[0], 0, 32, 32)
+                if threadIdx_x == 0:
+                    red_result_1[0] = red_buf0_3[0]
+                T.tvm_storage_sync("shared")
             if threadIdx_x == 0:
                 B_1 = T.Buffer((128,), data=B.data)
-                B_1[i] = red_buf0_3[0]
+                B_1[i] = red_result_1[0]
 
 
 class TestMultiWarpReduce2(BaseCompare):
@@ -459,13 +462,14 @@ class TestMultiWarpReduce2(BaseCompare):
     def expected(A: T.Buffer((1, 1024), "float32"), B: T.Buffer((1,), "float32")):
         T.func_attr({"target": T.target("cuda", host="llvm")})
         threadIdx_x = T.launch_thread("threadIdx.x", 1024)
-        red_buf0 = T.allocate([1], "float32", "local")
-        red_buf0_3 = T.Buffer((1,), data=red_buf0, scope="local")
+        red_result = T.allocate([1], "float32", "shared")
+        red_result_1 = T.Buffer((1,), data=red_result, scope="shared")
         with T.attr(
             T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
             "reduce_scope",
             T.reinterpret("handle", T.uint64(0)),
         ):
+            red_buf0 = T.allocate([1], "float32", "local")
             mask = T.allocate([1], "uint32", "local")
             t0 = T.allocate([1], "float32", "local")
             red_buf0_1 = T.allocate([1], "float32", "local")
@@ -488,11 +492,11 @@ class TestMultiWarpReduce2(BaseCompare):
             red_buf0_2[0] = red_buf0_2[0] + t0_2[0]
             t0_2[0] = T.tvm_warp_shuffle_down(mask_2[0], red_buf0_2[0], 1, 32, 32)
             red_buf0_2[0] = red_buf0_2[0] + t0_2[0]
-            red_buf0_2[0] = T.tvm_warp_shuffle(mask_2[0], red_buf0_2[0], 0, 32, 32)
             red_buf_staging_1 = T.Buffer((32,), data=red_buf_staging, scope="shared")
             if threadIdx_x % 32 == 0:
                 red_buf_staging_1[threadIdx_x // 32] = red_buf0_2[0]
             T.tvm_storage_sync("shared")
+            red_buf0_3 = T.Buffer((1,), data=red_buf0, scope="local")
             if threadIdx_x < 32:
                 red_buf0_3[0] = red_buf_staging_1[threadIdx_x]
             mask_3 = T.Buffer((1,), "uint32", data=mask, scope="local")
@@ -508,10 +512,12 @@ class TestMultiWarpReduce2(BaseCompare):
             red_buf0_3[0] = red_buf0_3[0] + t0_3[0]
             t0_3[0] = T.tvm_warp_shuffle_down(mask_3[0], red_buf0_3[0], 1, 32, 32)
             red_buf0_3[0] = red_buf0_3[0] + t0_3[0]
-            red_buf0_3[0] = T.tvm_warp_shuffle(mask_3[0], red_buf0_3[0], 0, 32, 32)
+            if threadIdx_x == 0:
+                red_result_1[0] = red_buf0_3[0]
+            T.tvm_storage_sync("shared")
         if threadIdx_x == 0:
             B_1 = T.Buffer((1,), data=B.data)
-            B_1[0] = red_buf0_3[0]
+            B_1[0] = red_result_1[0]
 
 
 class TestMultiGroupMultiWarpReduction(BaseCompare):
@@ -543,14 +549,15 @@ class TestMultiGroupMultiWarpReduction(BaseCompare):
     def expected(A: T.Buffer((4, 128), "float32"), B: T.Buffer((4,), "float32")):
         T.func_attr({"target": T.target("cuda", host="llvm")})
         threadIdx_y = T.launch_thread("threadIdx.y", 4)
-        red_buf0 = T.allocate([1], "float32", "local")
+        red_result = T.allocate([4], "float32", "shared")
         threadIdx_x = T.launch_thread("threadIdx.x", 128)
-        red_buf0_3 = T.Buffer((1,), data=red_buf0, scope="local")
+        red_result_1 = T.Buffer((4,), data=red_result, scope="shared")
         with T.attr(
             T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
             "reduce_scope",
             T.reinterpret("handle", T.uint64(0)),
         ):
+            red_buf0 = T.allocate([1], "float32", "local")
             mask = T.allocate([1], "uint32", "local")
             t0 = T.allocate([1], "float32", "local")
             red_buf0_1 = T.allocate([1], "float32", "local")
@@ -573,11 +580,11 @@ class TestMultiGroupMultiWarpReduction(BaseCompare):
             red_buf0_2[0] = red_buf0_2[0] + t0_2[0]
             t0_2[0] = T.tvm_warp_shuffle_down(mask_2[0], red_buf0_2[0], 1, 32, 32)
             red_buf0_2[0] = red_buf0_2[0] + t0_2[0]
-            red_buf0_2[0] = T.tvm_warp_shuffle(mask_2[0], red_buf0_2[0], 32 * threadIdx_y, 32, 32)
             red_buf_staging_1 = T.Buffer((16,), data=red_buf_staging, scope="shared")
             if threadIdx_x % 32 == 0:
                 red_buf_staging_1[threadIdx_y * 4 + threadIdx_x // 32] = red_buf0_2[0]
             T.tvm_storage_sync("shared")
+            red_buf0_3 = T.Buffer((1,), data=red_buf0, scope="local")
             if threadIdx_x < 16:
                 red_buf0_3[0] = red_buf_staging_1[threadIdx_x]
             mask_3 = T.Buffer((1,), "uint32", data=mask, scope="local")
@@ -589,10 +596,12 @@ class TestMultiGroupMultiWarpReduction(BaseCompare):
             red_buf0_3[0] = red_buf0_3[0] + t0_3[0]
             t0_3[0] = T.tvm_warp_shuffle_down(mask_3[0], red_buf0_3[0], 1, 32, 32)
             red_buf0_3[0] = red_buf0_3[0] + t0_3[0]
-            red_buf0_3[0] = T.tvm_warp_shuffle(mask_3[0], red_buf0_3[0], 4 * threadIdx_y, 32, 32)
+            if threadIdx_x == 0:
+                red_result_1[0] = red_buf0_3[0]
+            T.tvm_storage_sync("shared")
         if threadIdx_x == 0:
             B_1 = T.Buffer((4,), data=B.data)
-            B_1[threadIdx_y] = red_buf0_3[0]
+            B_1[threadIdx_y] = red_result_1[0]
 
 
 class TestMultiGroupMultiWarpPredicatedReduction(BaseCompare):
@@ -626,19 +635,20 @@ class TestMultiGroupMultiWarpPredicatedReduction(BaseCompare):
         T.func_attr({"target": T.target("cuda", host="llvm")})
         threadIdx_y = T.launch_thread("threadIdx.y", 2)
         in_thread_B = T.allocate([1], "float32", "local")
-        red_buf0 = T.allocate([1], "float32", "local")
+        red_result = T.allocate([2], "float32", "shared")
         threadIdx_x = T.launch_thread("threadIdx.x", 512)
         in_thread_B_1 = T.Buffer((1,), data=in_thread_B, scope="local")
         in_thread_B_1[0] = T.float32(0)
         if threadIdx_x < 70:
             A_1 = T.Buffer((140,), data=A.data)
             in_thread_B_1[0] = in_thread_B_1[0] + A_1[threadIdx_y * 70 + threadIdx_x]
-        red_buf0_3 = T.Buffer((1,), data=red_buf0, scope="local")
+        red_result_1 = T.Buffer((2,), data=red_result, scope="shared")
         with T.attr(
             T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
             "reduce_scope",
             T.reinterpret("handle", T.uint64(0)),
         ):
+            red_buf0 = T.allocate([1], "float32", "local")
             mask = T.allocate([1], "uint32", "local")
             t0 = T.allocate([1], "float32", "local")
             red_buf0_1 = T.allocate([1], "float32", "local")
@@ -660,11 +670,11 @@ class TestMultiGroupMultiWarpPredicatedReduction(BaseCompare):
             red_buf0_2[0] = red_buf0_2[0] + t0_2[0]
             t0_2[0] = T.tvm_warp_shuffle_down(mask_2[0], red_buf0_2[0], 1, 32, 32)
             red_buf0_2[0] = red_buf0_2[0] + t0_2[0]
-            red_buf0_2[0] = T.tvm_warp_shuffle(mask_2[0], red_buf0_2[0], 32 * threadIdx_y, 32, 32)
             red_buf_staging_1 = T.Buffer((32,), data=red_buf_staging, scope="shared")
             if threadIdx_x % 32 == 0:
                 red_buf_staging_1[threadIdx_y * 16 + threadIdx_x // 32] = red_buf0_2[0]
             T.tvm_storage_sync("shared")
+            red_buf0_3 = T.Buffer((1,), data=red_buf0, scope="local")
             if threadIdx_x < 32:
                 red_buf0_3[0] = red_buf_staging_1[threadIdx_x]
             mask_3 = T.Buffer((1,), "uint32", data=mask, scope="local")
@@ -680,10 +690,12 @@ class TestMultiGroupMultiWarpPredicatedReduction(BaseCompare):
             red_buf0_3[0] = red_buf0_3[0] + t0_3[0]
             t0_3[0] = T.tvm_warp_shuffle_down(mask_3[0], red_buf0_3[0], 1, 32, 32)
             red_buf0_3[0] = red_buf0_3[0] + t0_3[0]
-            red_buf0_3[0] = T.tvm_warp_shuffle(mask_3[0], red_buf0_3[0], 16 * threadIdx_y, 32, 32)
+            if threadIdx_x == 0:
+                red_result_1[0] = red_buf0_3[0]
+            T.tvm_storage_sync("shared")
         if threadIdx_x == 0:
             B_1 = T.Buffer((2,), data=B.data)
-            B_1[threadIdx_y] = red_buf0_3[0]
+            B_1[threadIdx_y] = red_result_1[0]
 
 
 if __name__ == "__main__":
