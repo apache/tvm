@@ -1620,6 +1620,18 @@ class PyTorchOpConverter:
 
         return _op.transform.reshape(data, new_shape)
 
+    def view_as(self, inputs, input_types):
+        data = inputs[0]
+        tensors = inputs[1]
+
+        if not isinstance(tensors, (_expr.Call, _expr.Constant, _expr.Var)):
+            msg = f"Data type {type(tensors)} could not be parsed in view_as op"
+            raise AssertionError(msg)
+
+        shape = self.infer_shape(tensors)
+
+        return _op.transform.reshape(data, shape)
+
     def reshape(self, inputs, input_types):
         data = inputs[0]
         new_shape = inputs[1]
@@ -3836,6 +3848,7 @@ class PyTorchOpConverter:
             "aten::addmm": self.addmm,
             "aten::size": self.size,
             "aten::view": self.view,
+            "aten::view_as": self.view_as,
             "aten::reshape": self.reshape,
             "aten::reshape_as": self.reshape_as,
             "aten::clone": self.clone,
