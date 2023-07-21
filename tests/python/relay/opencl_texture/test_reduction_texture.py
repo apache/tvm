@@ -21,123 +21,151 @@ import numpy as np
 from tvm import relay
 from tvm.relay import testing
 from tvm.contrib import utils
-from utils.adreno_utils import gpu_preprocess, build_run_compare
+from utils.adreno_utils import gpu_preprocess, build_run_compare, build_run_compare_vm
 
 
+executor_type = tvm.testing.parameter("ge", "vm")
 dtype = tvm.testing.parameter("float32")
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_mean(remote, target, dtype):
+def test_mean(remote, target, executor_type, dtype):
     # NCHW
     input_shape = (1, 3, 720, 1280)
     A = relay.var("data", shape=input_shape, dtype=dtype)
     mean = relay.mean(A, axis=1, keepdims=True)
     mod = relay.Function([A], mean)
 
-    build_run_compare(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
+    if executor_type == "ge":
+        build_run_compare(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
+    else:
+        build_run_compare_vm(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_argmax(remote, target, dtype):
+def test_argmax(remote, target, executor_type, dtype):
     # NCHW
     input_shape = (1, 3, 720, 1280)
     A = relay.var("data", shape=input_shape, dtype=dtype)
     argmax = relay.op.argmax(A, axis=[1])
     mod = relay.Function([A], argmax)
 
-    build_run_compare(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
+    if executor_type == "ge":
+        build_run_compare(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
+    else:
+        build_run_compare_vm(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_reduction_max(remote, target, dtype):
+def test_reduction_max(remote, target, executor_type, dtype):
     # NCHW
     input_shape = (1, 3, 720, 1280)
     A = relay.var("data", shape=input_shape, dtype=dtype)
     argmax = relay.op.max(A, axis=[1])
     mod = relay.Function([A], argmax)
 
-    build_run_compare(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
+    if executor_type == "ge":
+        build_run_compare(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
+    else:
+        build_run_compare_vm(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_mean_nd4(remote, target, dtype):
+def test_mean_nd4(remote, target, executor_type, dtype):
     # NCHW
     input_shape = (1, 3, 729, 729)
     A = relay.var("data", shape=input_shape, dtype=dtype)
     mean = relay.mean(A, axis=1, keepdims=True)
     mod = relay.Function([A], mean)
 
-    build_run_compare(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
+    if executor_type == "ge":
+        build_run_compare(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
+    else:
+        build_run_compare_vm(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_argmax_nd4(remote, target, dtype):
+def test_argmax_nd4(remote, target, executor_type, dtype):
     # NCHW
     input_shape = (1, 3, 729, 729)
     A = relay.var("data", shape=input_shape, dtype=dtype)
     argmax = relay.op.argmax(A, axis=[1])
     mod = relay.Function([A], argmax)
 
-    build_run_compare(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
+    if executor_type == "ge":
+        build_run_compare(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
+    else:
+        build_run_compare_vm(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_reduction_max_nd4(remote, target, dtype):
+def test_reduction_max_nd4(remote, target, executor_type, dtype):
     # NCHW
     input_shape = (1, 3, 729, 729)
     A = relay.var("data", shape=input_shape, dtype=dtype)
     argmax = relay.op.max(A, axis=[1])
     mod = relay.Function([A], argmax)
 
-    build_run_compare(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
+    if executor_type == "ge":
+        build_run_compare(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
+    else:
+        build_run_compare_vm(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_mean_b4(remote, target, dtype):
+def test_mean_b4(remote, target, executor_type, dtype):
     # NCHW
     input_shape = (1, 3, 720, 320, 4)
     A = relay.var("data", shape=input_shape, dtype=dtype)
     mean = relay.mean(A, axis=1, keepdims=True)
     mod = relay.Function([A], mean)
 
-    build_run_compare(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
+    if executor_type == "ge":
+        build_run_compare(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
+    else:
+        build_run_compare_vm(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_argmax_b4(remote, target, dtype):
+def test_argmax_b4(remote, target, executor_type, dtype):
     # NCHW
     input_shape = (1, 3, 720, 320, 4)
     A = relay.var("data", shape=input_shape, dtype=dtype)
     argmax = relay.op.argmax(A, axis=[1])
     mod = relay.Function([A], argmax)
 
-    build_run_compare(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
+    if executor_type == "ge":
+        build_run_compare(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
+    else:
+        build_run_compare_vm(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_reduction_max_b4(remote, target, dtype):
+def test_reduction_max_b4(remote, target, executor_type, dtype):
     # NCHW
     input_shape = (1, 3, 720, 320, 4)
     A = relay.var("data", shape=input_shape, dtype=dtype)
     argmax = relay.op.max(A, axis=[1])
     mod = relay.Function([A], argmax)
 
-    build_run_compare(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
+    if executor_type == "ge":
+        build_run_compare(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
+    else:
+        build_run_compare_vm(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_mean_global_pooling(remote, target, dtype):
+def test_mean_global_pooling(remote, target, executor_type, dtype):
     """
     Use case of blocked NCHW4c global pooling with big spatial valies
     """
@@ -146,12 +174,15 @@ def test_mean_global_pooling(remote, target, dtype):
     mean = relay.mean(A, axis=[1, 2], keepdims=True)
     mod = relay.Function([A], mean)
 
-    build_run_compare(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
+    if executor_type == "ge":
+        build_run_compare(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
+    else:
+        build_run_compare_vm(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_mean_global_pooling_block4(remote, target, dtype):
+def test_mean_global_pooling_block4(remote, target, executor_type, dtype):
     """
     Use case of blocked NCHW4c global pooling with big spatial valies
     """
@@ -160,12 +191,15 @@ def test_mean_global_pooling_block4(remote, target, dtype):
     mean = relay.mean(A, axis=[1, 2], keepdims=True)
     mod = relay.Function([A], mean)
 
-    build_run_compare(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
+    if executor_type == "ge":
+        build_run_compare(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
+    else:
+        build_run_compare_vm(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
 
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_max_global_pooling_block4(remote, target, dtype):
+def test_max_global_pooling_block4(remote, target, executor_type, dtype):
     """
     Use case of blocked NCHW4c global pooling with big spatial valies
     """
@@ -174,7 +208,10 @@ def test_max_global_pooling_block4(remote, target, dtype):
     mean = relay.max(A, axis=[1, 2], keepdims=True)
     mod = relay.Function([A], mean)
 
-    build_run_compare(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
+    if executor_type == "ge":
+        build_run_compare(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
+    else:
+        build_run_compare_vm(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
 
 
 @tvm.testing.requires_opencl
