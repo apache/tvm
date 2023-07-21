@@ -282,7 +282,7 @@ StructInfo InferStructInfoCallTIRInplace(const Call& call, const BlockBuilder& c
         call_args->fields[attrs->inplace_indices[0].IntValue()]);
     if (!input_sinfo || !input_sinfo->shape.defined() ||
         !CanProveShapeEqual(input_sinfo->shape.value(), out_sinfo->shape.value(),
-                           ctx->GetAnalyzer())) {
+                            ctx->GetAnalyzer())) {
       ctx->ReportFatal(Diagnostic::Error(call)
                        << "The shape of output 0 must match input "
                        << attrs->inplace_indices[0].IntValue() << ", whereas we have "
@@ -304,7 +304,7 @@ StructInfo InferStructInfoCallTIRInplace(const Call& call, const BlockBuilder& c
           call_args->fields[attrs->inplace_indices[i].IntValue()]);
       if (!input_sinfo || !input_sinfo->shape.defined() ||
           !CanProveShapeEqual(input_sinfo->shape.value(), out_sinfo->shape.value(),
-                             ctx->GetAnalyzer())) {
+                              ctx->GetAnalyzer())) {
         ctx->ReportFatal(Diagnostic::Error(call)
                          << "The shape of output " << i << " must match that of input "
                          << attrs->inplace_indices[i].IntValue() << ", whereas we have "
