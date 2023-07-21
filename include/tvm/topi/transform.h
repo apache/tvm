@@ -723,7 +723,7 @@ inline te::Tensor dynamic_strided_slice(const te::Tensor& x, const te::Tensor& b
 }
 
 /*!
- * \brief Calcluate the output shape of strided_slice, the entry point for Relay type relation
+ * \brief Calculate the output shape of strided_slice, the entry point for Relay type relation
  *
  * \param ishape The input tensor shape
  * \param begin The indices to begin with in the slicing
