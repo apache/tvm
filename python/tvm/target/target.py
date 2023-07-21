@@ -194,7 +194,7 @@ class Target(Object):
 
     @property
     def max_function_args(self):
-        return int(self.attrs.get("max_function_args", -1))
+        return int(self.attrs.get("max_function_args", 0))
 
     @property
     def vtcm_capacity(self):
