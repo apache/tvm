@@ -16,14 +16,13 @@
 # under the License.
 """The entry point of TVM parser for tir."""
 import inspect
-from typing import Any, Callable, Dict, Union
+from typing import Callable, Union
 
 from tvm.ir.base import deprecated
 from tvm.tir import Buffer, PrimFunc
 
 from ...ir_builder.tir import buffer, ptr
 from .._core import parse, scan_macro, utils
-from ..core.diagnostics import Source
 from ..core.parser import Parser, ScriptMacro
 
 
