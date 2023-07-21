@@ -546,7 +546,11 @@ class DFPatternPrinter : public ReprPrinter {
 
   std::unordered_map<DFPattern, std::pair<size_t, std::string>, ObjectPtrHash, ObjectPtrEqual>
       memo_{};
-  std::vector<DFPattern> recursed_patterns{};
+  /*! \brief Subpatterns that are encountered more than once during printing. If a subpattern has
+   * already printed, only the pattern ID will be printed in the next encounter of the same pattern.
+   * This avoids printing a subpattern infinitely many times is the considered pattern involves
+   * recursion.*/
+  std::vector<DFPattern> auxiliary_patterns{};
 
   DFPatternPrinter(std::ostream& stream)  // NOLINT(*)
       : ReprPrinter(stream) {}
@@ -560,11 +564,11 @@ inline std::ostream& operator<<(std::ostream& os,
   std::stringstream string_stream{}, tmp_stream{};
   DFPatternPrinter printer{tmp_stream};
   printer.Print(n);
-  string_stream << "Main pattern is:" << std::endl;
+  string_stream << "Main pattern:" << std::endl;
   string_stream << printer.string_stream.str();
   string_stream << std::endl;
-  string_stream << "Auxiliary patterns are:";
-  for (const DFPattern& pat : printer.recursed_patterns) {
+  string_stream << "Auxiliary patterns:";
+  for (const DFPattern& pat : printer.auxiliary_patterns) {
     string_stream << std::endl;
     string_stream << printer.memo_[pat].second;
   }

@@ -47,7 +47,7 @@ void DFPatternPrinter::Print(const ObjectRef& node) {
     string_stream << "(nullptr)";
   } else if (memo_.find(pat) != memo_.end()) {
     string_stream << "(invoke pattern id " << memo_[pat].first << ")";
-    recursed_patterns.push_back(pat);
+    auxiliary_patterns.push_back(pat);
   } else {
     if (f.can_dispatch(node)) {
       memo_.insert({pat, {memo_.size(), ""}});
