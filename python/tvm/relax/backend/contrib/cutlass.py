@@ -237,7 +237,7 @@ def _check_decode_matmul(ctx):
     if not _check_residual(root, ctx):
         return False
 
-    # out_dtype = "float32" not supported.
+    # out_dtype = "float32" not supported unless matmul is followed by cast to fp16.
     if root.struct_info.dtype == "float32":
         return False
 
@@ -299,6 +299,9 @@ def decode_matmul_patterns():
         )
         matmul = is_op("relax.matmul")(x, w)
 
+        if "cast" in name:
+            matmul = is_op("relax.astype")(matmul)
+
         annotations = {
             "root": matmul,
             "lhs": x,
@@ -321,7 +324,10 @@ def decode_matmul_patterns():
     return [
         _decode_matmul_pattern("cutlass.decode_matmul"),
         _decode_matmul_pattern("cutlass.decode_matmul_bias"),
+        _decode_matmul_pattern("cutlass.decode_matmul_cast"),
+        _decode_matmul_pattern("cutlass.decode_matmul_cast_bias"),
         _decode_matmul_pattern("cutlass.decode_matmul_bias_gelu"),
+        _decode_matmul_pattern("cutlass.decode_matmul_cast_bias_gelu"),
     ]
 
 

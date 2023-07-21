@@ -1413,6 +1413,38 @@ def test_fp16A_int4B_gemm():
             return lv2_1
 
         @R.function
+        def main_cast_bias(
+            x: R.Tensor((64, 64), dtype="float16"),
+            y: R.Tensor((128, 64), dtype="float16"),
+            bias: R.Tensor((1, 128), dtype="float16"),
+        ) -> R.Tensor((64, 128), dtype="float16"):
+            R.func_attr({"num_input": 1})
+            cls = Module
+            with R.dataflow():
+                lv = R.call_tir(
+                    cls.encode,
+                    (y,),
+                    out_sinfo=[R.Tensor((64, 64), dtype="int8"), R.Tensor((128,), dtype="float16")],
+                )
+                lv1 = lv[0]
+                lv2 = R.call_pure_packed(
+                    "cutlass.ft_preprocess_weight",
+                    lv1,
+                    80,
+                    True,
+                    sinfo_args=(R.Tensor((64, 64), dtype="int8"),),
+                )
+                lv3: R.Tensor((128,), dtype="float16") = lv[1]
+                lv6 = R.call_tir(
+                    cls.decode, (lv2, lv3), out_sinfo=R.Tensor((64, 128), dtype="float16")
+                )
+                lv1_1: R.Tensor((64, 128), dtype="float32") = R.matmul(x, lv6, out_dtype="float32")
+                cast: R.Tensor((64, 128), dtype="float16") = R.astype(lv1_1, dtype="float16")
+                lv2_1: R.Tensor((64, 128), dtype="float16") = R.add(cast, bias)
+                R.output(lv2_1)
+            return lv2_1
+
+        @R.function
         def main_residual(
             x: R.Tensor((64, 64), dtype="float16"),
             residual: R.Tensor((64, 128), dtype="float16"),
@@ -1452,10 +1484,11 @@ def test_fp16A_int4B_gemm():
     func_names = [name.name_hint for (name, _) in mod.functions.items()]
     assert "fused_decode_relax_matmul_relax_add_cutlass" in func_names
     assert "fused_decode_relax_matmul_relax_add_relax_add_cutlass" in func_names
+    assert "fused_decode_relax_matmul_relax_astype_relax_add_cutlass" in func_names
 
     mod = relax.transform.RunCodegen(
         {"cutlass": {"sm": 80, "find_first_valid": False}},
-        entry_functions=["main_bias", "main_residual"],
+        entry_functions=["main_bias", "main_residual", "main_cast_bias"],
     )(mod)
 
     x = np.random.randn(*x_shape).astype("float16")
@@ -1483,13 +1516,15 @@ def test_fp16A_int4B_gemm():
     residual_nd = tvm.nd.array(residual, dev)
     params = (packed_weight.copyto(dev), scales.copyto(dev), bias_trans.copyto(dev))
 
-    for with_residual in [False, True]:
+    for f_name in ["main_bias", "main_cast_bias", "main_residual"]:
+        with_residual = "residual" in f_name
+
         if with_residual:
             inp = [x_nd, residual_nd, params]
         else:
             inp = [x_nd, params]
 
-        out = vm["main_residual" if with_residual else "main_bias"](*inp).numpy()
+        out = vm[f_name](*inp).numpy()
 
         ref = np.dot(x, y.transpose()) + bias
 
