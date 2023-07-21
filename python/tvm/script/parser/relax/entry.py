@@ -40,7 +40,6 @@ from tvm.tir import PrimExpr
 from .._core import doc, parse, utils
 from ..core.entry import scan_macro
 from ..core.parser import Parser, ScriptMacro
-from ..core.diagnostics import Source
 from ...ir_builder import relax as R
 
 FType = TypeVar("FType", bound=_Callable)
