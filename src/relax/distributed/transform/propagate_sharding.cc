@@ -325,6 +325,8 @@ class DistributedIRBuilder : public ExprMutator {
   }
 
  private:
+  using ExprMutator::VisitExpr_;
+
   Expr RewriteInputTensorAndConstant(Expr tensor) {
     const auto* sinfo = GetStructInfoAs<TensorStructInfoNode>(tensor);
     int ndim = sinfo->ndim;

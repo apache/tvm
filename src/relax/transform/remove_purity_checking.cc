@@ -30,6 +30,8 @@ namespace relax {
 
 class PurityRemover : public ExprMutator {
  public:
+  using ExprMutator::VisitExpr_;
+
   Function RemovePurity(Function func) {
     bool purity = func->is_pure;
     auto ret = func;
