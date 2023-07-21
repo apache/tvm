@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Analysis on TIR blocks, loops and functions."""
-from typing import List, Optional, Union, Set
+from typing import List, Optional, Set, Union
 
 from typing_extensions import Literal
 
@@ -208,7 +208,8 @@ def get_root_block(sch: Schedule, func_name: str = "main") -> BlockRV:
     return sch.get_block(block.name_hint)
 
 
-def _collect_vars_used_in_access_region(region: List[ir.Range]) -> Set[tir.Var]:
+def collect_vars_used_in_access_region(region: List[ir.Range]) -> Set[tir.Var]:
+    """Collect the variables used in the access region of a buffer region."""
     tir_vars: Set[tir.Var] = set()
 
     def _collect_tir_var(expr):
@@ -226,7 +227,7 @@ def detect_dominant_read(block: tir.Block) -> tir.PrimExpr:
     dominant_read = None
     num_read_iters = -1
     for buffer_region in block.reads:
-        tir_vars = _collect_vars_used_in_access_region(buffer_region.region)
+        tir_vars = collect_vars_used_in_access_region(buffer_region.region)
         if num_read_iters < len(tir_vars):
             num_read_iters = len(tir_vars)
             dominant_read = buffer_region
@@ -246,7 +247,7 @@ def is_broadcast_epilogue(
     for buffer_region in sch.get(epilogue).reads:
         if buffer_region.buffer not in write_buffers:
             continue
-        tir_vars = _collect_vars_used_in_access_region(buffer_region.region)
+        tir_vars = collect_vars_used_in_access_region(buffer_region.region)
         if len(tir_vars) < len(epilogue_iters):
             return True
     return False

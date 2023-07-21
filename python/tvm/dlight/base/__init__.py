@@ -18,9 +18,10 @@
 from .analysis import (
     BlockInfo,
     IterInfo,
-    normalize_prim_func,
+    collect_vars_used_in_access_region,
     detect_dominant_read,
     is_broadcast_epilogue,
+    normalize_prim_func,
 )
 from .common_schedules import try_inline, try_inline_contiguous_spatial
 from .schedule_rule import ScheduleRule
