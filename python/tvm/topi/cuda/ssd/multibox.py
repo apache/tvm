@@ -363,9 +363,7 @@ def transform_loc_ir(
         with ib.if_scope(tvm.tir.any(keep_background == 1, cls_id[tid] > 0)):
             with ib.if_scope(j == 0):
                 out_base_idx = i * num_anchors * 6
-                out_loc[out_base_idx] = (
-                    cls_id[tid] - 0.0 if keep_background == 1 else cls_id[tid] - 1.0
-                )
+                out_loc[out_base_idx] = cls_id[tid] if keep_background == 1 else cls_id[tid] - 1.0
                 out_loc[out_base_idx + 1] = score[tid]
                 (
                     out_loc[out_base_idx + 2],
@@ -385,9 +383,7 @@ def transform_loc_ir(
                 )
             with ib.else_scope():
                 out_base_idx = i * num_anchors * 6 + temp_valid_count[tid - 1] * 6
-                out_loc[out_base_idx] = (
-                    cls_id[tid] - 0.0 if keep_background == 1 else cls_id[tid] - 1.0
-                )
+                out_loc[out_base_idx] = cls_id[tid] if keep_background == 1 else cls_id[tid] - 1.0
                 out_loc[out_base_idx + 1] = score[tid]
                 (
                     out_loc[out_base_idx + 2],

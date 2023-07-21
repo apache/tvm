@@ -142,7 +142,7 @@ def _regular_nms_shape_func(boxes_shape, scores_shape, attrs):
     out_scores_shape[0] = boxes_shape[0]
     out_scores_shape[1] = int64(attrs.max_detections)
 
-    out_num_detections_shape[0] = int64(1)
+    out_num_detections_shape[0] = boxes_shape[0]
 
     return out_boxes_shape, out_classes_shape, out_scores_shape, out_num_detections_shape
 
