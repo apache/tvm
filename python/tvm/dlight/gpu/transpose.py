@@ -89,7 +89,6 @@ class Transpose(ScheduleRule):
         c_factor = 1
         if prologue is not None:
             block_stmt = sch.get(prologue)
-            print(detect_dominant_read(block_stmt))
             result = arith.normalize_to_iter_sum(
                 detect_dominant_read(block_stmt),
                 input_iters={i.var: i.dom for i in block_stmt.iter_vars},

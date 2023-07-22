@@ -60,8 +60,11 @@ def try_inline(
     return blocks
 
 
-def try_inline_contiguous_spatial(sch: tir.Schedule, block_infos: List[BlockInfo]):
-    """Try to spatial blocks in a schedule
+def try_inline_contiguous_spatial(
+    sch: tir.Schedule,
+    block_infos: List[BlockInfo],
+) -> List[BlockInfo]:
+    """Try to inline contiguous spatial blocks in a schedule
 
     Parameters
     ----------
