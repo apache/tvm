@@ -87,7 +87,7 @@ class Allocator {
 
 class MemoryManager {
  public:
-  static MemoryManager* Global();
+  static std::shared_ptr<MemoryManager> Global();
   /*!
    * \brief Get or create an allocator given the context and allocator type.
    * \param dev The TVM device
@@ -104,8 +104,12 @@ class MemoryManager {
 
  private:
   MemoryManager() {}
+  MemoryManager(const MemoryManager&) = delete;
+  MemoryManager(MemoryManager&&) = delete;
 
- private:
+  MemoryManager& operator=(const MemoryManager&) = delete;
+  MemoryManager& operator=(MemoryManager&&) = delete;
+
   std::mutex mu_;
   std::unordered_map<Device, std::unique_ptr<Allocator>> allocators_;
 };
