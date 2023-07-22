@@ -21,6 +21,8 @@ from collections import OrderedDict
 from itertools import chain as itertools_chain
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, NamedTuple, Optional, Tuple
 
+from typing_extensions import Literal
+
 import numpy as np  # type: ignore
 
 from ...contrib.tar import tar, untar
@@ -219,7 +221,7 @@ class XGBConfig(NamedTuple):
     nthread : Optional[int],
         The number of threads to use.
         Default is None, which means to use physical number of cores.
-    tree_method str :
+    tree_method : Literal["auto", "exact", "approx", "hist", "gpu_hist"]
         The tree construction algorithm used in XGBoost.
     """
 
@@ -229,7 +231,7 @@ class XGBConfig(NamedTuple):
     eta: float = 0.2
     seed: int = 43
     nthread: Optional[int] = None
-    tree_method: str = "auto"
+    tree_method: Literal["auto", "exact", "approx", "hist", "gpu_hist"] = "auto"
 
     def to_dict(self):
         """Convert to dict"""
