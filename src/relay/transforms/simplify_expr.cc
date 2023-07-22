@@ -160,6 +160,9 @@ class SimplifyConsecutiveCast : public DFPatternRewrite {
   DFPattern cast1_;
 };
 
+/*! If mode == 0, return true if the interval [min_value, max_value] contains the range of dtype,
+ * and return false otherwise. If mode == 1, return true if the interval [min_value, max_value] is
+ * contained by the range of dtype, and return false otherwise.*/
 bool CheckDataTypeMaxMinValue(DataType dtype, double min_value, double max_value, int mode = 0) {
   double lbound{}, ubound{};
   if (dtype.is_int() || dtype.is_uint()) {
