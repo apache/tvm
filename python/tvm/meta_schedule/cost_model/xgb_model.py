@@ -344,7 +344,7 @@ class XGBModel(PyCostModel):
         average_peak_n: int = 32,
         adaptive_training: bool = True,
         num_tuning_cores: Optional[int] = None,
-        tree_method: Optional[str] = None,
+        tree_method: Optional[Literal["auto", "exact", "approx", "hist", "gpu_hist"]] = None,
     ):
         super().__init__()
         if not isinstance(extractor, FeatureExtractor):
