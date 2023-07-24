@@ -3446,7 +3446,7 @@ def test_forward_adaptive_max_pool1d():
     input_data = [torch.randn([2, 2, 4], dtype=torch.float32)]
     m = torch.nn.AdaptiveMaxPool1d(3, return_indices=True)
 
-    verify_model(m.float().eval(), input_date=input_data)
+    verify_model(m.float().eval(), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
