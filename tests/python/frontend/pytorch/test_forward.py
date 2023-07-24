@@ -3448,6 +3448,7 @@ def test_forward_adaptive_max_pool1d():
 
     verify_model(m.float().eval(), input_date=input_data)
 
+
 @tvm.testing.uses_gpu
 def test_forward_full_like():
     """test_forward_full_like"""
