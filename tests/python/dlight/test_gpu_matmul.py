@@ -28,7 +28,7 @@ class BaseBeforeAfter(tvm.testing.CompareBeforeAfter):
     @pytest.fixture
     def transform(self):
         def transform(mod):
-            with Target("nvidia/geforce-rtx-3090-ti"):
+            with Target("nvidia/geforce-gtx-1080-ti"):
                 return dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod)
 
         return transform
