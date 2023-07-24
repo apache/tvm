@@ -205,9 +205,9 @@ def test_vm_compile_e2e_func_param_with_shape(exec_mode):
 
 
 @pytest.mark.parametrize("exec_mode", EXEC_MODE)
-def test_call_tir_inplace_e2e(exec_mode):
+def test_call_tir_inplace_e2e_simple(exec_mode):
     @tvm.script.ir_module
-    class TestCallTIRInplaceE2E:
+    class TestCallTIRInplaceE2ESimple:
         @T.prim_func
         def copy(
             A: T.Buffer((2, 3), "int32"),
@@ -233,14 +233,14 @@ def test_call_tir_inplace_e2e(exec_mode):
             R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32")
         ):
             res = R.call_tir_inplace(
-                TestCallTIRInplaceE2E.copy,
+                TestCallTIRInplaceE2ESimple.copy,
                 (x, y, z),
                 [0, 1, -1],
                 [R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32")],
             )
             return res
 
-    mod = TestCallTIRInplaceE2E
+    mod = TestCallTIRInplaceE2ESimple
 
     target = tvm.target.Target("llvm", host="llvm")
     ex = relax.build(mod, target, exec_mode=exec_mode)
