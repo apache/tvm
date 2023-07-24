@@ -269,7 +269,7 @@ def get_reduction_blocks(sch, blocks) -> bool:
     reduction_blocks = [block for block in blocks if is_reduction(block)]
     if len(reduction_blocks) != 1:
         return None
-    
+
     return reduction_blocks
 
 def check_sm_version(arch: str) -> int:
@@ -288,8 +288,8 @@ class MatmulTensorization(ScheduleRule):
         target: Target,
         _: bool,
     ) -> Optional[tir.Schedule]:
-        from tvm.tir.tensor_intrin.cuda import get_wmma_intrin_group
-        
+        from tvm.tir.tensor_intrin.cuda import get_wmma_intrin_group  # pylint: disable=import-outside-toplevel
+
         sch = tir.Schedule(func)
         root_block = analysis.get_root_block(sch)
         blocks = sch.get_child_blocks(root_block)
@@ -384,7 +384,7 @@ class MatmulTensorization(ScheduleRule):
             warp_size = 32
             fused = sch.fuse(*sch.get_loops(block_read)[-ndim:])
 
-            f_0, f_1, f_2, f_3 = sch.split(
+            _, f_1, f_2, f_3 = sch.split(
                 fused, factors=[None, num_ty, warp_size, vector_size]
             )
             sch.bind(f_2, "threadIdx.x")
@@ -412,7 +412,7 @@ class MatmulTensorization(ScheduleRule):
 
         store = sch.cache_write(block_outer, 0, "wmma.accumulator")
         sch.reverse_compute_at(store, thread_idy)
-        sch.reverse_compute_at(accumulator_shared_to_global, thread_idy)        
+        sch.reverse_compute_at(accumulator_shared_to_global, thread_idy)
 
         # split the store loop to match hardware intrinsic pattern
         i, j = sch.get_loops(store)[-2:]
@@ -449,12 +449,12 @@ class MatmulTensorization(ScheduleRule):
             sch.unroll(i0)
             sch.unroll(j0)
             sch.tensorize(i1, intrin_group["load_b"])
-        except:
+        except:  # pylint: disable=bare-except
             return None
 
         # Try to tensorize the init, store and compute block with f16 or f32 intrinsics
         tensorize_success: bool = False
-        
+
         def tensorize_init_store_compute():
             sch.tensorize(sch.get_loops(block_init_c_inner)[-2], intrin_group["init"])
             sch.tensorize(sch.get_loops(store)[-2], intrin_group["store"])
@@ -463,7 +463,7 @@ class MatmulTensorization(ScheduleRule):
         try:
             tensorize_init_store_compute()
             tensorize_success = True
-        except:
+        except:  # pylint: disable=bare-except
             intrin_group = get_wmma_intrin_group(
                 load_scope="shared.dyn",
                 store_scope="shared",
@@ -471,14 +471,14 @@ class MatmulTensorization(ScheduleRule):
                 out_dtype="float16",
                 trans_b=True
             )
-            
+
         if not tensorize_success:
             try:
                 tensorize_init_store_compute()
                 tensorize_success = True
-            except:
+            except:  # pylint: disable=bare-except
                 return None
-        
+
         auto_inline_consumers(sch, accumulator_shared_to_global)
         return sch if tensorize_success else None
 
@@ -512,7 +512,7 @@ class Matmul(ScheduleRule):
             for item_var in block_stmt.iter_vars:
                 extent = item_var.dom.extent
                 if isinstance(extent, tir.expr.IntImm):
-                    if int(str(extent.astype("int32"))) > 1 and int(str(extent.astype("int32"))) <= 128:
+                    if extent.value > 1 and extent.value <= 128:
                         apply_tensorization = False
             if apply_tensorization:
                 return MatmulTensorization().apply(func, target, _)
