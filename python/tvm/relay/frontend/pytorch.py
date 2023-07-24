@@ -4292,7 +4292,9 @@ class PyTorchOpConverter:
             self.current_op.pop()
 
         return [
-            _wrap_const(outputs[ret_name]) for ret_name in ret_names if outputs[ret_name] is not None
+            _wrap_const(outputs[ret_name])
+            for ret_name in ret_names
+            if outputs[ret_name] is not None
         ]
 
     def _set_parameter_source_name(self, op_node, outputs):
