@@ -291,9 +291,9 @@ class MatmulTensorization(ScheduleRule):
         target: Target,
         _: bool,
     ) -> Optional[tir.Schedule]:
-        from tvm.tir.tensor_intrin.cuda import (
+        from tvm.tir.tensor_intrin.cuda import ( # pylint: disable=import-outside-toplevel
             get_wmma_intrin_group,
-        )  # pylint: disable=import-outside-toplevel
+        )
 
         sch = tir.Schedule(func)
         root_block = analysis.get_root_block(sch)
