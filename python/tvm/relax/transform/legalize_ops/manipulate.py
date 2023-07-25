@@ -173,7 +173,7 @@ def _layout_transform(bb: BlockBuilder, call: Call) -> Expr:
     def te_layout_transform(data, name):
         return te.compute(
             data.shape,
-            lambda *idx: data(*idx),
+            data,
             name=name,
         )
 
@@ -183,7 +183,7 @@ def _layout_transform(bb: BlockBuilder, call: Call) -> Expr:
     # Convert to list from array
     axis_separators = list(map(lambda x: x.value, axis_separators))
     primfunc_name = "te_layout_transform"
-    inverse, padding_predicate = index_map.non_surjective_inverse(call.args[0].struct_info.shape)
+    _, padding_predicate = index_map.non_surjective_inverse(call.args[0].struct_info.shape)
     if not isinstance(padding_predicate, tvm.tir.expr.IntImm):
         primfunc_name += "_with_pad"
     if len(axis_separators) != 0:
