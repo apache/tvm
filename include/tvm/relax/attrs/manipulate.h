@@ -59,12 +59,21 @@ struct LayoutTransformAttrs : public tvm::AttrsNode<LayoutTransformAttrs> {
   // pad_value is chosen to be of PrimValue type, as it represents constant TIR POD expression. This
   // needs to be revisited in case PrimValue is evolved to represent symbolic expression in future.
   Optional<PrimValue> pad_value;
+  /*!
+   * axis_separators between input axes when generating flattened output axes. For buffers
+   * representing flat 1-d memory (e.g. any buffer in RAM), this should be an empty array.
+   * For buffers representing non-flat memory, each entry in axis_separators should be the
+   * first input axis that is part of a new flattened axis.
+   */
+  Optional<Array<IntImm>> axis_separators;
 
   TVM_DECLARE_ATTRS(LayoutTransformAttrs, "relax.attrs.LayoutTransformAttrs") {
     TVM_ATTR_FIELD(index_map).describe("The layout transformation to apply.");
     TVM_ATTR_FIELD(pad_value).describe(
         "The specific value to be used to pad if the layout transform would result in implicit "
         "padding. If not specified, the compiler is free to choose any value.");
+    TVM_ATTR_FIELD(axis_separators)
+        .describe("The separators between input axes when generating flat output axes");
   }
 };  // struct LayoutTransformAttrs
 

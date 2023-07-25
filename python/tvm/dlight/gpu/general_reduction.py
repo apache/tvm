@@ -51,13 +51,26 @@ class GeneralReduction(ScheduleRule):
         dom_kind = block_infos[0].dom_kind()
         num_leading_s = len(dom_kind) - len(dom_kind.lstrip("S"))
         num_trailing_r = len(dom_kind) - len(dom_kind.rstrip("R"))
+
+        # Align the number of block iters of the last block.
+        num_last_block_iter = len(block_infos[-1].dom_kind())
+        if num_last_block_iter < len(dom_kind):
+            index_map = tir.IndexMap.from_func(
+                lambda *iters: (
+                    [tir.const(0, iters[0].dtype)] * (len(dom_kind) - num_last_block_iter)
+                    + list(iters)
+                ),
+                ndim=num_last_block_iter,
+            )
+            sch.transform_block_layout(block_infos[-1].block_rv, index_map)
+
         try:
             # TODO: fix num_leading_s = 0 case
             assert num_trailing_r > 0
             for block in block_infos[1:-1]:
                 assert block.dom_kind() == dom_kind
             assert block_infos[-1].is_injective()
-            assert len(block_infos[-1].dom_kind()) == len(dom_kind)
+            assert len(block_infos[-1].dom_kind()) <= len(dom_kind)
         except AssertionError:
             return None
 
