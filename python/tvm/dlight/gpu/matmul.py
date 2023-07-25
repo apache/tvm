@@ -380,7 +380,7 @@ class MatmulTensorization(ScheduleRule):
         def fetch_to_shared(block, idx, ndim):
             block_read = sch.cache_read(block, idx, "shared.dyn")
             sch.compute_at(block_read, k0)
-            vector_size = 8
+            vector_size = 4
             warp_size = 32
             fused = sch.fuse(*sch.get_loops(block_read)[-ndim:])
 
