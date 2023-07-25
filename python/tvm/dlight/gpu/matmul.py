@@ -248,6 +248,7 @@ def get_index_map(block: tir.Block) -> Optional[Tuple[tir.IndexMap, ...]]:
         C_index_map,
     )
 
+
 def get_reduction_blocks(sch, blocks) -> bool:
     # Get the main computation block
     def is_reduction(block: BlockRV) -> bool:
@@ -272,9 +273,11 @@ def get_reduction_blocks(sch, blocks) -> bool:
 
     return reduction_blocks
 
+
 def check_sm_version(arch: str) -> int:
     sm_version = arch.replace("sm_", "")
     return int(sm_version) if sm_version.isdigit() else -1
+
 
 class MatmulTensorization(ScheduleRule):
     """
@@ -288,7 +291,9 @@ class MatmulTensorization(ScheduleRule):
         target: Target,
         _: bool,
     ) -> Optional[tir.Schedule]:
-        from tvm.tir.tensor_intrin.cuda import get_wmma_intrin_group  # pylint: disable=import-outside-toplevel
+        from tvm.tir.tensor_intrin.cuda import (
+            get_wmma_intrin_group,
+        )  # pylint: disable=import-outside-toplevel
 
         sch = tir.Schedule(func)
         root_block = analysis.get_root_block(sch)
@@ -384,9 +389,8 @@ class MatmulTensorization(ScheduleRule):
             warp_size = 32
             fused = sch.fuse(*sch.get_loops(block_read)[-ndim:])
 
-            _, f_1, f_2, f_3 = sch.split(
-                fused, factors=[None, num_ty, warp_size, vector_size]
-            )
+            _, f_1, f_2, f_3 = sch.split(fused, factors=[None, num_ty, warp_size, vector_size])
+
             sch.bind(f_2, "threadIdx.x")
             sch.bind(f_1, "threadIdx.y")
             sch.vectorize(f_3)
@@ -429,7 +433,7 @@ class MatmulTensorization(ScheduleRule):
             store_scope="shared",
             in_dtype="float16",
             out_dtype="float32",
-            trans_b=True
+            trans_b=True,
         )
 
         try:
@@ -440,7 +444,6 @@ class MatmulTensorization(ScheduleRule):
             sch.unroll(i0)
             sch.unroll(j0)
             sch.tensorize(i1, intrin_group["load_a"])
-
 
             i, j = sch.get_loops(B_mat)[-2:]
             i0, i1 = sch.split(i, factors=[None, 16])
@@ -469,7 +472,7 @@ class MatmulTensorization(ScheduleRule):
                 store_scope="shared",
                 in_dtype="float16",
                 out_dtype="float16",
-                trans_b=True
+                trans_b=True,
             )
 
         if not tensorize_success:
@@ -537,7 +540,7 @@ class Matmul(ScheduleRule):
         if target.kind.name == "cuda" and check_sm_version(target.arch) > 70:
             apply_tensorization: bool = True
             # the batch dimension is not taken into consideration.
-            for item_var in block_stmt.iter_vars[1: ]:
+            for item_var in block_stmt.iter_vars[1:]:
                 extent = item_var.dom.extent
                 if isinstance(extent, tir.expr.IntImm):
                     if extent.value <= minimal_tensorize_threshold:

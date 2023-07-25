@@ -30,6 +30,7 @@ class BaseBeforeAfter(tvm.testing.CompareBeforeAfter):
         def transform(mod):
             with Target("nvidia/geforce-rtx-2080-ti"):
                 return dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod)
+
         return transform
 
 
@@ -164,6 +165,7 @@ class TestMatmulTensorize(BaseBeforeAfter):
                                 compute[v1, v2] = compute_reindex_shared[v0, v1, v2]
 
     # fmt: on
+
 
 class TestMatmulTensorizeTooSmall(BaseBeforeAfter):
     # fmt: off
