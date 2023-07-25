@@ -507,16 +507,6 @@ class Matmul(ScheduleRule):
             return None
         matmul_index_map, a_index_map, b_index_map, c_index_map = index_maps
 
-        if target.kind.name == "cuda" and check_sm_version(target.arch) > 70:
-            apply_tensorization: bool = True
-            for item_var in block_stmt.iter_vars:
-                extent = item_var.dom.extent
-                if isinstance(extent, tir.expr.IntImm):
-                    if extent.value > 1 and extent.value <= 128:
-                        apply_tensorization = False
-            if apply_tensorization:
-                return MatmulTensorization().apply(func, target, _)
-
         # Start Schedule
         # Step 0. Get schedule config.
         # NOTE: we can analyze the config by the hardware spec in the future
@@ -529,6 +519,11 @@ class Matmul(ScheduleRule):
         micro_size_k = 16
         vector_size = 2
 
+        # Tensorization config:
+        # If any value of I, J, K is fixed and less than this threshold,
+        # tensorization rule will not be applied.
+        minimal_tensorize_threshold = 128
+
         # Step 1. Normalize generic matmul to C[S, I, J] += A[S, I, K] * B[S, J, K]
         block = sch.reindex(main_block, ("read", 0))
         sch.transform_layout(block, ("write", 0), a_index_map)
@@ -537,6 +532,18 @@ class Matmul(ScheduleRule):
         block = sch.reindex(main_block, ("write", 0))
         sch.transform_layout(block, ("read", 0), c_index_map)
         sch.transform_block_layout(main_block, matmul_index_map)
+
+        block_stmt = sch.get(main_block)
+        if target.kind.name == "cuda" and check_sm_version(target.arch) > 70:
+            apply_tensorization: bool = True
+            # the batch dimension is not taken into consideration.
+            for item_var in block_stmt.iter_vars[1: ]:
+                extent = item_var.dom.extent
+                if isinstance(extent, tir.expr.IntImm):
+                    if extent.value <= minimal_tensorize_threshold:
+                        apply_tensorization = False
+            if apply_tensorization:
+                return MatmulTensorization().apply(func, target, _)
 
         # Step 2. Padding for dynamic shape kernels
         sch.pad_einsum(
