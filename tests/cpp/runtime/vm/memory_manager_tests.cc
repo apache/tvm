@@ -149,6 +149,11 @@ TEST_F(TvmVMMemoryManagerTest, PooledAllocWithShape) {
 }
 
 TEST_F(TvmVMMemoryManagerTest, NaiveAllocOpenCLTexture) {
+  bool enabled = tvm::runtime::RuntimeEnabled("opencl");
+  if (!enabled) {
+    LOG(INFO) << "Skip OpenCL Texture alloc test because opencl runtime is disabled.\n";
+    return;
+  }
   Device dev = {kDLOpenCL, 0};
   Allocator* allocator = MemoryManagerWrapper::GetOrCreateAllocator(dev, kNaive);
   EXPECT_EQ(allocator->UsedMemory(), 0);
@@ -167,6 +172,11 @@ TEST_F(TvmVMMemoryManagerTest, NaiveAllocOpenCLTexture) {
 }
 
 TEST_F(TvmVMMemoryManagerTest, PooledAllocOpenCLTexture) {
+  bool enabled = tvm::runtime::RuntimeEnabled("opencl");
+  if (!enabled) {
+    LOG(INFO) << "Skip OpenCL Texture alloc test because opencl runtime is disabled.\n";
+    return;
+  }
   Device dev = {kDLOpenCL, 0};
   Allocator* allocator = MemoryManagerWrapper::GetOrCreateAllocator(dev, kPooled);
   EXPECT_EQ(allocator->UsedMemory(), 0);
