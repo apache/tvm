@@ -42,7 +42,7 @@ class MemoryManagerWrapper : public MemoryManager {
 
 class TvmVMMemoryManagerTest : public ::testing::Test {
  protected:
-  virtual void SetUp() override {
+  void SetUp() override {
     // Clear allocators from previous tests
     MemoryManagerWrapper::Global()->clear();
   }

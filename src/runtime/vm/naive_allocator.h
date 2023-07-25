@@ -27,6 +27,7 @@
 #include <tvm/runtime/vm/memory_manager.h>
 
 #include <atomic>
+#include <string>
 
 namespace tvm {
 namespace runtime {
