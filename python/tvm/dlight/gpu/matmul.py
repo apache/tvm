@@ -291,7 +291,7 @@ class MatmulTensorization(ScheduleRule):
         target: Target,
         _: bool,
     ) -> Optional[tir.Schedule]:
-        from tvm.tir.tensor_intrin.cuda import ( # pylint: disable=import-outside-toplevel
+        from tvm.tir.tensor_intrin.cuda import (  # pylint: disable=import-outside-toplevel
             get_wmma_intrin_group,
         )
 
