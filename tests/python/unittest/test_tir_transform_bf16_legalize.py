@@ -24,7 +24,9 @@ def get_before():
     class Before:
         @T.prim_func
         def main(
-            Aptr: T.handle("bfloat16"), Bptr: T.handle("bfloat16"), Dptr: T.handle("bfloat16")
+            Aptr: T.handle("bfloat16", storage_scope="shared"),
+            Bptr: T.handle("bfloat16", storage_scope="shared"),
+            Dptr: T.handle("bfloat16"),
         ):
             T.func_attr({"global_symbol": "main"})
             A = T.decl_buffer((100,), "bfloat16", data=Aptr)
@@ -65,7 +67,9 @@ def get_after_compute_legalize():
     class After:
         @T.prim_func
         def main(
-            Aptr: T.handle("bfloat16"), Bptr: T.handle("bfloat16"), Dptr: T.handle("bfloat16")
+            Aptr: T.handle("bfloat16", storage_scope="shared"),
+            Bptr: T.handle("bfloat16", storage_scope="shared"),
+            Dptr: T.handle("bfloat16"),
         ):
             T.func_attr({"global_symbol": "main"})
             A = T.decl_buffer((100,), "bfloat16", data=Aptr)
@@ -83,7 +87,11 @@ def get_after_storage_legalize():
     @tvm.script.ir_module
     class After:
         @T.prim_func
-        def main(Aptr: T.handle("uint16"), Bptr: T.handle("uint16"), Dptr: T.handle("uint16")):
+        def main(
+            Aptr: T.handle("uint16", storage_scope="shared"),
+            Bptr: T.handle("uint16", storage_scope="shared"),
+            Dptr: T.handle("uint16"),
+        ):
             T.func_attr({"global_symbol": "main"})
             A = T.decl_buffer((100,), "uint16", data=Aptr)
             B = T.decl_buffer((100,), "uint16", data=Bptr)
@@ -103,7 +111,6 @@ def test_bf16_compute_legalize():
     # with this repeative optimizations
     after = tvm.tir.transform.BF16ComputeLegalize()(before)
     after = tvm.tir.transform.BF16ComputeLegalize()(after)
-
     tvm.ir.assert_structural_equal(after, expected)
 
 
