@@ -171,6 +171,10 @@ def _scatter_elements(bb: BlockBuilder, call: Call) -> Expr:
 @register_legalize("relax.layout_transform")
 def _layout_transform(bb: BlockBuilder, call: Call) -> Expr:
     def te_layout_transform(data, name):
+        """
+        Returns a passthrough TE compute with appropriate name. This is needed to generate
+        TIR function, output shape info, TIR vars from gen_call_tir_inputs function.
+        """
         return te.compute(
             data.shape,
             data,
@@ -188,9 +192,10 @@ def _layout_transform(bb: BlockBuilder, call: Call) -> Expr:
         primfunc_name += "_with_pad"
     if len(axis_separators) != 0:
         primfunc_name += "_axis_separator"
-    tir_func, call_args, output_sinfo, tir_vars = gen_call_tir_inputs(
+    tir_func, call_args, _, tir_vars = gen_call_tir_inputs(
         te_layout_transform, call.args[0], primfunc_name
     )
+    # Create TIR schedule to apply layout changes with axis separators
     sch = tir.Schedule(tir_func)
     sch.transform_layout(primfunc_name, ("write", 0), index_map, pad_value)
     if len(axis_separators) != 0:
