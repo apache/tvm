@@ -85,11 +85,13 @@ def benchmark(
     # produce IRModule and function name
     if isinstance(mod_or_func, PrimFunc):
         func_name = "main" if func_name is None else func_name
-        mod = IRModule.from_expr(mod_or_func.with_attr("global_symbol", func_name))
     else:
-        mod = mod_or_func
         # assume only one global function
-        (func_name,) = mod.get_global_vars()
+        (func_gv,) = mod_or_func.get_global_vars()
+        func_name = func_gv.name_hint
+        mod_or_func = mod_or_func[func_gv]
+    mod = IRModule.from_expr(mod_or_func.with_attr("global_symbol", func_name))
+
     # produce input shapes
     if args is None:
         args, _ = extract_func_info_from_prim_func(mod[func_name])
@@ -130,7 +132,7 @@ def benchmark(
     # run benchmark
     if rpc_config is None:
         profile_result = rt_mod.time_evaluator(
-            func_name,
+            func_name if isinstance(func_name, str) else func_name.name_hint,
             dev=dev,
             number=evaluator_config.number,
             repeat=evaluator_config.repeat,
@@ -206,9 +208,17 @@ def benchmark_prim_func(
     """
     results = []
     if dym_var_dict is None or args is None:
-        args, dym_var_dict = extract_func_info_from_prim_func(mod_or_func)
+        if isinstance(mod_or_func, tvm.tir.PrimFunc):
+            args, dym_var_dict = extract_func_info_from_prim_func(mod_or_func)
+        else:
+            gvs = mod_or_func.get_global_vars()
+            assert len(gvs) == 1, "Only support one PrimFunc in IRModule"
+            args, dym_var_dict = extract_func_info_from_prim_func(mod_or_func[gvs[0]])
+    if dym_var_dict == {}:  # static shape
+        sample_number = 1
+        dym_var_sample_func = lambda _, sample_cnt: {"shape": "static"}
     for _ in range(sample_number):
-        dym_var_sample = dym_var_sample_func(dym_var_dict)
+        dym_var_sample = dym_var_sample_func(dym_var_dict, sample_cnt=_)
         _, median, std = benchmark(
             mod_or_func,
             args=args,

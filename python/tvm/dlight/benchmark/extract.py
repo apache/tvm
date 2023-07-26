@@ -173,17 +173,21 @@ def extract_func_info_from_prim_func(
     func_args = []
     dym_var = {}
     for param in func.params:
-        buffer = func.buffer_map[param]
-        shape = []
-        for dim in buffer.shape:
-            if isinstance(dim, tvm.tir.IntImm):
-                shape.append(dim.value)
-            elif isinstance(dim, tvm.tir.Var):
-                dym_var[str(dim)] = str(dim.dtype)
-                shape.append(dim)
-            else:
-                raise ValueError(f"Unknown shape: {buffer.shape}")
-        func_args.append((tuple(shape), str(buffer.dtype)))
+        if param in func.buffer_map:
+            buffer = func.buffer_map[param]
+            shape = []
+            for dim in buffer.shape:
+                if isinstance(dim, tvm.tir.IntImm):
+                    shape.append(dim.value)
+                elif isinstance(dim, tvm.tir.Var):
+                    dym_var[str(dim)] = str(dim.dtype)
+                    shape.append(dim)
+                else:
+                    raise ValueError(f"Unknown shape: {buffer.shape}")
+            func_args.append((tuple(shape), str(buffer.dtype)))
+        else:
+            func_args.append(((param,), "scalar"))
+            dym_var[str(param)] = str(param.dtype)
     return func_args, dym_var
 
 
