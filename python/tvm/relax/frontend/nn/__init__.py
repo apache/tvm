@@ -14,6 +14,5 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Frontends for constructing Relax programs, with the model importers"""
-from . import nn
-from .common import detach_params
+# pylint: disable=invalid-name
+"""A PyTorch-like API to build IRModules."""

@@ -14,6 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Frontends for constructing Relax programs, with the model importers"""
-from . import nn
-from .common import detach_params
+"""Adding member operators to nn.Tensor."""
+
+
+class _TensorOp:  # pylint: disable=too-few-public-methods
+    pass
