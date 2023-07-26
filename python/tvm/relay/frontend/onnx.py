@@ -2142,6 +2142,7 @@ class Pow(OnnxOpConverter):
 
 class Prelu(OnnxOpConverter):
     """Operator converter for Prelu."""
+    
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         assert len(inputs) == 2, f"Prelu need 2 inputs, {len(inputs)} given"
