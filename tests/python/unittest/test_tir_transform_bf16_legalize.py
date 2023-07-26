@@ -122,7 +122,7 @@ def test_bf16_storage_scope():
             def main(
                 Aptr: T.handle("bfloat16", storage_scope="shared"),
                 Bptr: T.handle("bfloat16", storage_scope="local"),
-                Dptr: T.handle("bfloat16", storage_scope="global"),
+                Dptr: T.handle("bfloat16"),
             ):
                 T.func_attr({"global_symbol": "main"})
                 A = T.decl_buffer((100,), "bfloat16", data=Aptr)
@@ -142,7 +142,7 @@ def test_bf16_storage_scope():
             def main(
                 Aptr: T.handle("bfloat16", storage_scope="shared"),
                 Bptr: T.handle("bfloat16", storage_scope="local"),
-                Dptr: T.handle("bfloat16", storage_scope="global"),
+                Dptr: T.handle("bfloat16"),
             ):
                 T.func_attr({"global_symbol": "main"})
                 A = T.decl_buffer((100,), "bfloat16", data=Aptr)
@@ -162,7 +162,7 @@ def test_bf16_storage_scope():
             def main(
                 Aptr: T.handle("uint16", storage_scope="shared"),
                 Bptr: T.handle("uint16", storage_scope="local"),
-                Dptr: T.handle("uint16", storage_scope="global"),
+                Dptr: T.handle("uint16"),
             ):
                 T.func_attr({"global_symbol": "main"})
                 A = T.decl_buffer((100,), "uint16", data=Aptr)
