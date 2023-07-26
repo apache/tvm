@@ -411,7 +411,7 @@ class MatmulTensorization(ScheduleRule):
         sch.compute_at(B_mat, k1)
 
         # create write cache to store matrix from wmma fragments to shared memory and global memory
-        accumulator_shared_to_global = sch.cache_write(block_outer, 0, "shared")
+        accumulator_shared_to_global = sch.cache_write(block_outer, 0, "shared.dyn")
         sch.storage_align(accumulator_shared_to_global, 0, -2, 16, 4)
 
         store = sch.cache_write(block_outer, 0, "wmma.accumulator")
@@ -430,7 +430,7 @@ class MatmulTensorization(ScheduleRule):
         # Tensorization by hardware intrinsics
         intrin_group = get_wmma_intrin_group(
             load_scope="shared.dyn",
-            store_scope="shared",
+            store_scope="shared.dyn",
             in_dtype="float16",
             out_dtype="float32",
             trans_b=True,
@@ -469,7 +469,7 @@ class MatmulTensorization(ScheduleRule):
         except:  # pylint: disable=bare-except
             intrin_group = get_wmma_intrin_group(
                 load_scope="shared.dyn",
-                store_scope="shared",
+                store_scope="shared.dyn",
                 in_dtype="float16",
                 out_dtype="float16",
                 trans_b=True,
