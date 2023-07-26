@@ -912,7 +912,9 @@ class RFactorBlockCreator : public BaseBlockCreator {
     write_regions_.reserve(old_block->writes.size());
     for (const BufferRegion& write_region : old_block->writes) {
       Array<Range> region = write_region->region;
-      region.insert(region.begin() + factor_axis_, Range::FromMinExtent(additional_iter_->var, 1));
+      region.insert(region.begin() + factor_axis_,
+                    Range::FromMinExtent(additional_iter_->var,
+                                         make_const(additional_iter_->var.dtype(), 1)));
       Optional<Buffer> rf_buffer = buffer_map.Get(write_region->buffer);
       ICHECK(rf_buffer.defined());
       write_regions_.push_back(BufferRegion(rf_buffer.value(), Substitute(region, var_map_)));
@@ -1005,7 +1007,7 @@ class WriteBackBlockCreator : public BaseBlockCreator {
       Array<Range> region;
       region.reserve(buf_load->indices.size());
       for (const PrimExpr& index : buf_load->indices) {
-        region.push_back(Range::FromMinExtent(index, 1));
+        region.push_back(Range::FromMinExtent(index, make_const(index.dtype(), 1)));
       }
       buf_regions.push_back(BufferRegion(buf_load->buffer, std::move(region)));
     }
