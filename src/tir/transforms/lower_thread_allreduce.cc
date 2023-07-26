@@ -476,12 +476,13 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     // The mask for this reducer, as this reducer may sit inside
     // a divergent control flow. Here it uses a variable to cache the current
     // active channels.
-    Buffer mask_buffer = decl_buffer(shape, mask->dtype, "mask", "local");
-    {
-      seq->emplace_back(BufferStore(mask_buffer, mask, zero_indices));
+    Optional<Buffer> mask_buffer;
+    if (need_warp_shuffle_mask_) {
+      mask_buffer = decl_buffer(shape, mask->dtype, "mask", "local");
+      seq->emplace_back(BufferStore(mask_buffer.value(), mask, zero_indices));
       // Push the buffer description.  Later this will have an
       // allocation built for it.
-      local_bufs.push_back(mask_buffer);
+      local_bufs.push_back(mask_buffer.value());
     }
 
     // Emit reductions within a warp.
@@ -698,9 +699,15 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
   }
 
   // Emit warp shuffle  calls.
-  PrimExpr WarpShuffle(const Op& op, Buffer mask_buffer, PrimExpr val, PrimExpr delta_or_lane) {
+  PrimExpr WarpShuffle(const Op& op, Optional<Buffer> mask_buffer, PrimExpr val,
+                       PrimExpr delta_or_lane) {
     Array<PrimExpr> indices = {0};
-    PrimExpr mask = BufferLoad(mask_buffer, indices);
+    PrimExpr mask;
+    if (mask_buffer.defined()) {
+      mask = BufferLoad(mask_buffer.value(), indices);
+    } else {
+      mask = IntImm(DataType::Int(32), 0);
+    }
     PrimExpr width = IntImm(DataType::Int(32), warp_size_);
     Array<PrimExpr> args{mask, val, delta_or_lane, width, width};
     return Call(val.dtype(), op, args);
@@ -709,11 +716,15 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
   // Check if we can use warp level reduction.
   //
   // Note: The ROCm backend will only have warp reductions for now.
-  // Also, the warp/wavefront size differs (64 on rocm, 32 on cuda).
+  // Also, the warp/wavefront size differs (64 on rocm, 32 on cuda and metal).
   bool IsWarpReduction(const std::vector<DataType>& types, int group_extent, int reduce_extent,
-                       int contiguous_reduce_extent) const {
-    // Only cuda target supports warp reductions.
-    if ((target_->kind->name != "cuda") && (target_->kind->name != "rocm")) return false;
+                       int contiguous_reduce_extent) {
+    if ((target_->kind->name != "cuda") && (target_->kind->name != "rocm") &&
+        (target_->kind->name != "metal")) {
+      return false;
+    }
+
+    need_warp_shuffle_mask_ = target_->kind->name != "metal";
 
     // rocm only supports 32 bit operands for shuffling at the moment
     if ((target_->kind->name == "rocm") &&
@@ -745,7 +756,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     // whether reduce_extent and group_extent are valid for warp reduction.
     if (target_->kind->name == "rocm") {
       return reduce_extent == warp_size_;
-    } else {  // target_->kind->name == "cuda"
+    } else {
       if (reduce_extent == 1) {
         return false;  // no need to warp reduce
       } else {
@@ -769,6 +780,8 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
   int warp_size_{1};
   // The maximum number of threads of the device. "-1" denotes unknown.
   int max_num_threads_{-1};
+  // A boolean indicating if the target supports warp-level masking.
+  bool need_warp_shuffle_mask_;
 
   // surrounding scope of thread extent.
   std::vector<const AttrStmtNode*> thread_extents_;
