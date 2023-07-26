@@ -239,5 +239,6 @@ class Reduction(ScheduleRule):
                 # Thus the remaining spatial part should be bind to tx.
                 sch.set_scope(block, 0, "local")
                 _, *s = sch.get_loops(epilogue)  # pylint: disable=invalid-name
-                sch.bind(sch.fuse(*s), "threadIdx.x")
+                tx, _ = sch.split(sch.fuse(*s), factors=[len_tx, None])
+                sch.bind(tx, "threadIdx.x")
         # pylint: enable=invalid-name
