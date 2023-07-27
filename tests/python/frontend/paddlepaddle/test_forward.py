@@ -2577,6 +2577,7 @@ def test_forward_set_value():
             x[0][0] = 5
             return x
 
+
     input_shapes = [[5, 2], [10, 3], [10, 3, 3]]
     for input_shape in input_shapes:
         input_data = paddle.uniform(shape=input_shape, dtype="float32", min=-1, max=1)
