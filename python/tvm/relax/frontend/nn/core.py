@@ -24,17 +24,35 @@
   impure external function callings, inplace mutation, etc.
 """
 from collections import OrderedDict
-from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Tuple, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    Iterator,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+)
 
 import numpy as np
 
 from tvm import tir
+from tvm.ir import IRModule
 from tvm.runtime import Device, NDArray, ndarray
+from tvm.runtime.relax_vm import VirtualMachine
+from tvm.target import Target
 
 from ... import expr as rx
 from ...block_builder import BlockBuilder
 from ...struct_info import ShapeStructInfo, TensorStructInfo
 from ._tensor_op import _TensorOp
+
+if TYPE_CHECKING:
+    from . import spec as _spec
+
 
 _DEFAULT_DTYPE = "float32"
 
@@ -327,6 +345,44 @@ class Module:
             if hasattr(item, "to") and callable(item.to):
                 item.to(dtype=dtype)
 
+    def export_tvm(self, spec: "_spec.Module") -> Tuple[IRModule, List[Tuple[str, Parameter]]]:
+        """Export the module to TVM IRModule and parameters"""
+        from . import spec as _spec  # pylint: disable=import-outside-toplevel
+
+        spec = _spec.ModuleSpec.from_raw(spec, self)
+        mod, params = _spec.SpecBuilder().build(spec)
+        return mod, params
+
+    def jit(
+        self,
+        spec: "_spec.Module",
+        target: Union[str, Target] = "llvm",
+        device: str = "cpu",
+        pipeline: str = "zero",
+        out_format: str = "torch",
+    ) -> Callable:
+        """Just-in-time compilation of a nn.model to an executable"""
+        from tvm import relax  # pylint: disable=import-outside-toplevel
+
+        from . import spec as _spec  # pylint: disable=import-outside-toplevel
+
+        # Convert nn.Module to IRModule
+        spec = _spec.ModuleSpec.from_raw(spec, self)
+        mod, params = _spec.SpecBuilder().build(spec)
+
+        # Convert parameters
+        device = _str_to_device(device)
+        params = _param_to_ndarray(params, device)
+
+        # Compile mod and feed it to VM
+        mod = relax.pipeline.get_pipeline(pipeline)(mod)  # pylint: disable=no-value-for-parameter
+        mod = relax.build(mod, target=target)
+        VirtualMachine(mod, device)
+
+        if out_format == "torch":
+            raise NotImplementedError
+        raise ValueError(f"Unknown out_format: {out_format}")
+
 
 class ModuleList(Module):
     """Holds submodules in a list."""
@@ -417,3 +473,27 @@ def _from_dlpack(tensor) -> NDArray:
             device_id,
         ),
     )
+
+
+def _str_to_device(device: str) -> Device:
+    split = device.split(":")
+    if len(split) > 2:
+        raise ValueError(f"Invalid device: {device}")
+    device_type = split[0]
+    device_id = 0 if len(split) == 1 else int(split[1])
+    if device_type not in Device.STR2MASK:
+        raise ValueError(f"Unsupported device type: {device_type}")
+    return Device(Device.STR2MASK[device_type], device_id)
+
+
+def _param_to_ndarray(params: List[Tuple[str, Parameter]], device: Device) -> List[NDArray]:
+    results = []
+    missing = []
+    for name, param in params:
+        if param.data is None:
+            missing.append(name)
+        else:
+            results.append(param.data.copyto(target=device))
+    if missing:
+        raise ValueError(f"Parameters are not set to any concrete values: {', '.join(missing)}")
+    return results
