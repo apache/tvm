@@ -730,7 +730,7 @@ def convert_fill_constant_batch_size_like(g, op, block):
     )
     shape_before = shape[:output_dim_idx]
     shape_before = _expr.const(shape_before, dtype="int32")
-    shape_after = shape[output_dim_idx + 1 :]
+    shape_after = shape[output_dim_idx + 1:]
     shape_after = _expr.const(shape_after, dtype="int32")
 
     out_shape = _op.concatenate([shape_before, batch, shape_after], axis=0)
@@ -837,8 +837,8 @@ def convert_gelu(g, op, block):
 
     x = g.get_node(op.input("X")[0])
     out = x * (
-        _expr.const(0.5, dtype="float32")
-        + _op.erf(x * _expr.const(0.5**0.5, dtype="float32")) * _expr.const(0.5, dtype="float32")
+            _expr.const(0.5, dtype="float32")
+            + _op.erf(x * _expr.const(0.5 ** 0.5, dtype="float32")) * _expr.const(0.5, dtype="float32")
     )
     g.add_node(op.output("Out")[0], out)
 
@@ -1440,7 +1440,7 @@ def convert_padding(g, op, block):
         new_paddings[index] = padding[i + 1]
         new_paddings[index - 1] = padding[i]
 
-    new_paddings = [new_paddings[i : i + 2] for i in range(0, len(new_paddings), 2)]
+    new_paddings = [new_paddings[i: i + 2] for i in range(0, len(new_paddings), 2)]
 
     out = _op.nn.pad(input_x, new_paddings, pad_value=value, pad_mode=mode)
     g.add_node(op.output("Out")[0], out)
@@ -1503,15 +1503,15 @@ def convert_pool2d(g, op, block):
     # while kernel size more than input size
     # shrink kernel size to input size
     if (
-        not isinstance(in_h, _op.Expr)
-        and padding_algorithm == "EXPLICIT"
-        and in_h + paddings[0] + paddings[2] < ksize[0]
+            not isinstance(in_h, _op.Expr)
+            and padding_algorithm == "EXPLICIT"
+            and in_h + paddings[0] + paddings[2] < ksize[0]
     ):
         ksize[0] = in_h
     if (
-        not isinstance(in_w, _op.Expr)
-        and padding_algorithm == "EXPLICIT"
-        and in_w + paddings[1] + paddings[3] < ksize[1]
+            not isinstance(in_w, _op.Expr)
+            and padding_algorithm == "EXPLICIT"
+            and in_w + paddings[1] + paddings[3] < ksize[1]
     ):
         ksize[1] = in_w
 
@@ -1601,15 +1601,15 @@ def convert_pool3d(g, op, block):
     # while kernel size less than input size
     # shrink kernel size to input size
     if (
-        not isinstance(in_h, _op.Expr)
-        and padding_algorithm == "EXPLICIT"
-        and in_h + paddings[0] + paddings[2] < ksize[0]
+            not isinstance(in_h, _op.Expr)
+            and padding_algorithm == "EXPLICIT"
+            and in_h + paddings[0] + paddings[2] < ksize[0]
     ):
         ksize[0] = in_h
     if (
-        not isinstance(in_w, _op.Expr)
-        and padding_algorithm == "EXPLICIT"
-        and in_w + paddings[1] + paddings[3] < ksize[1]
+            not isinstance(in_w, _op.Expr)
+            and padding_algorithm == "EXPLICIT"
+            and in_w + paddings[1] + paddings[3] < ksize[1]
     ):
         ksize[1] = in_w
 
@@ -1788,17 +1788,17 @@ def convert_rnn(g, op, block):
     """Operator converter for rnn."""
 
     def generate_lstm(
-        input_seqs,
-        hidden_state,
-        cell_state,
-        w_inp,
-        w_hid,
-        b_inp,
-        b_hid,
-        f_act,
-        g_act,
-        h_act,
-        backwards=False,
+            input_seqs,
+            hidden_state,
+            cell_state,
+            w_inp,
+            w_hid,
+            b_inp,
+            b_hid,
+            f_act,
+            g_act,
+            h_act,
+            backwards=False,
     ):
         """Implementation of LSTM cell for paddlepaddle of TVM"""
 
@@ -1840,7 +1840,7 @@ def convert_rnn(g, op, block):
         return output, hidden_state, cell_state
 
     def generate_gru(
-        input_seqs, hidden_state, w_inp, w_hid, b_inp, b_hid, rz_act, n_act, backwards=False
+            input_seqs, hidden_state, w_inp, w_hid, b_inp, b_hid, rz_act, n_act, backwards=False
     ):
         """Implementation of GRU cell for paddlepaddle of TVM"""
 
@@ -1876,7 +1876,7 @@ def convert_rnn(g, op, block):
         return output, hidden_state
 
     def generate_simplernn(
-        input_seqs, hidden_state, w_inp, w_hid, b_inp, b_hid, n_act, backwards=False
+            input_seqs, hidden_state, w_inp, w_hid, b_inp, b_hid, n_act, backwards=False
     ):
         """Implementation of SimpleRNN cell for paddlepaddle of TVM"""
 
@@ -1913,18 +1913,18 @@ def convert_rnn(g, op, block):
         bidirect_len = 4 if node.attr("is_bidirec") else 2
         all_layer_param_len = len(node.input("WeightList"))
         weight_list = node.input("WeightList")[: all_layer_param_len // 2]
-        bias_list = node.input("WeightList")[all_layer_param_len // 2 :]
+        bias_list = node.input("WeightList")[all_layer_param_len // 2:]
 
-        layer_weight_list = weight_list[layer * bidirect_len : layer * bidirect_len + bidirect_len]
-        layer_bias_list = bias_list[layer * bidirect_len : layer * bidirect_len + bidirect_len]
+        layer_weight_list = weight_list[layer * bidirect_len: layer * bidirect_len + bidirect_len]
+        layer_bias_list = bias_list[layer * bidirect_len: layer * bidirect_len + bidirect_len]
         param_list = layer_weight_list + layer_bias_list
         param_list_len = len(param_list)
 
-        input_weights = param_list[0 : param_list_len // 2 : 2]
-        hidden_weights = param_list[1 : param_list_len // 2 : 2]
+        input_weights = param_list[0: param_list_len // 2: 2]
+        hidden_weights = param_list[1: param_list_len // 2: 2]
 
-        input_bias = param_list[param_list_len // 2 : param_list_len : 2]
-        hidden_bias = param_list[param_list_len // 2 + 1 : param_list_len : 2]
+        input_bias = param_list[param_list_len // 2: param_list_len: 2]
+        hidden_bias = param_list[param_list_len // 2 + 1: param_list_len: 2]
 
         return input_weights, hidden_weights, input_bias, hidden_bias
 
@@ -2136,9 +2136,9 @@ def convert_selu(g, op, block):
     alpha = _op.const(op.attr("alpha"), dtype)
     scale = _op.const(op.attr("scale"), dtype)
     out = (
-        _expr.const(-1.0, dtype=dtype)
-        * alpha
-        * _op.nn.relu(_expr.const(1.0, dtype=dtype) - _op.exp(x))
+            _expr.const(-1.0, dtype=dtype)
+            * alpha
+            * _op.nn.relu(_expr.const(1.0, dtype=dtype) - _op.exp(x))
     )
     out = scale * (out + _op.nn.relu(x))
     g.add_node(op.output("Out")[0], out)
@@ -2723,9 +2723,9 @@ def convert_dequantize_linear(g, op, block):
     if axis == -1:
         axis = 0
     out = _qnn.op.dequantize(
-        data=data, 
-        input_scale=scale, 
-        input_zero_point=_op.cast(zp, "int32"), 
+        data=data,
+        input_scale=scale,
+        input_zero_point=_op.cast(zp, "int32"),
         axis=axis
     )
     g.add_node(op.output("Y")[0], out)
@@ -2741,9 +2741,9 @@ def convert_quantize_linear(g, op, block):
     if axis == -1:
         axis = 0
     out = _qnn.op.quantize(
-        data=data, 
-        output_scale=scale, 
-        output_zero_point=_op.cast(zp, "int32"), 
+        data=data,
+        output_scale=scale,
+        output_zero_point=_op.cast(zp, "int32"),
         axis=axis
     )
     g.add_node(op.output("Y")[0], out)
