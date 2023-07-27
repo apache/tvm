@@ -17,8 +17,7 @@
 import pytest
 import tvm
 import tvm.testing
-from tvm import relax
-from tvm import tir
+from tvm import relax, te, tir
 from tvm.relax.frontend.nn import op
 from tvm.relax.frontend.nn.core import Tensor
 
@@ -160,6 +159,20 @@ def test_create():
         and zeros_fp16_out.shape == [10, 10]
         and zeros_fp16_out.dtype == "float16"
     )
+
+
+def test_tensor_expr_op():
+    np_x = np.random.rand(10, 10)
+    x = Tensor.from_const(np_x)
+
+    bb = relax.BlockBuilder()
+    with bb.function("test"):
+        tensor_expr_op_out = op.tensor_expr_op(
+            tensor_expr_func=lambda x: x + 1, name_hint="add_one", args=[x]
+        )
+        bb.emit_func_output(x._expr, [])
+
+    assert isinstance(tensor_expr_op_out, Tensor) and tensor_expr_op_out.shape == [10, 10]
 
 
 if __name__ == "__main__":
