@@ -239,8 +239,12 @@ void CallCublasLt(cublasLtHandle_t hdl, const DLTensor* A, const DLTensor* B, co
   auto B_data = static_cast<char*>(B->data) + B->byte_offset;
   auto C_data = static_cast<char*>(C->data) + C->byte_offset;
 
+  auto func = tvm::runtime::Registry::Get("runtime.get_cuda_stream");
+  ICHECK(func != nullptr);
+  cudaStream_t stream = static_cast<cudaStream_t>((*func)().operator void*());
+
   CHECK_CUBLAS_ERROR(cublasLtMatmul(hdl, op_desc, alpha, B_data, A_desc, A_data, B_desc, beta,
-                                    C_data, C_desc, C_data, C_desc, nullptr, nullptr, 0, nullptr));
+                                    C_data, C_desc, C_data, C_desc, nullptr, nullptr, 0, stream));
 
   cublasLtMatmulDescDestroy(op_desc);
   cublasLtMatrixLayoutDestroy(A_desc);
@@ -315,8 +319,11 @@ inline void CallLtIgemm(TVMArgs args, TVMRetValue* ret, cublasLtHandle_t hdl) {
   CHECK_CUBLAS_ERROR(cublasLtMatrixLayoutSetAttribute(Cdesc, CUBLASLT_MATRIX_LAYOUT_ORDER,
                                                       &order_COL32, sizeof(order_COL32)));
 
+  auto func = tvm::runtime::Registry::Get("runtime.get_cuda_stream");
+  ICHECK(func != nullptr);
+  cudaStream_t stream = static_cast<cudaStream_t>((*func)().operator void*());
   CHECK_CUBLAS_ERROR(cublasLtMatmul(hdl, operationDesc, &alpha, B_data, Adesc, A_data, Bdesc, &beta,
-                                    C_data, Cdesc, C_data, Cdesc, nullptr, nullptr, 0, nullptr));
+                                    C_data, Cdesc, C_data, Cdesc, nullptr, nullptr, 0, stream));
 }
 #endif
 
