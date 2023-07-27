@@ -21,6 +21,9 @@ from typing import Optional
 
 import tvm
 from tvm import topi, tir, relax, te
+from tvm.relax.op.base import call_tir
+from tvm.relax.struct_info import TensorStructInfo
+from tvm.relax.utils import gen_call_tir_inputs
 from tvm.tir.expr import IntImm
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr, Var, Tuple, TupleGetItem, ShapeExpr
@@ -167,30 +170,38 @@ def _scatter_elements(bb: BlockBuilder, call: Call) -> Expr:
 
 @register_legalize("relax.layout_transform")
 def _layout_transform(bb: BlockBuilder, call: Call) -> Expr:
+    def te_layout_transform(data, name):
+        """
+        Returns a passthrough TE compute with appropriate name. This is needed to generate
+        TIR function, output shape info, TIR vars from gen_call_tir_inputs function.
+        """
+        return te.compute(
+            data.shape,
+            data,
+            name=name,
+        )
+
     index_map: tvm.tir.IndexMap = call.attrs.index_map
     pad_value = call.attrs.pad_value.value
-
-    def te_layout_transform(data):
-        inverse, padding_predicate = index_map.non_surjective_inverse(data.shape)
-        output_shape = index_map.map_shape(data.shape)
-        if isinstance(padding_predicate, tvm.tir.expr.IntImm) and bool(padding_predicate) is False:
-            return te.compute(
-                output_shape,
-                lambda *idx: data(*inverse.map_indices(idx)),
-                name="te_layout_transform",
-            )
-        else:
-            return te.compute(
-                output_shape,
-                lambda *idx: tvm.te.if_then_else(
-                    tir.stmt_functor.substitute(
-                        padding_predicate,
-                        {old_idx: idx[i] for i, old_idx in enumerate(inverse.initial_indices)},
-                    ),
-                    pad_value,
-                    data(*inverse.map_indices(idx)),
-                ),
-                name="te_layout_transform_with_pad",
-            )
-
-    return bb.call_te(te_layout_transform, call.args[0])
+    axis_separators: tvm.tir.IndexMap.AXIS_SEPARATOR = call.attrs.axis_separators
+    # Convert to list from array
+    axis_separators = list(map(lambda x: x.value, axis_separators))
+    primfunc_name = "te_layout_transform"
+    _, padding_predicate = index_map.non_surjective_inverse(call.args[0].struct_info.shape)
+    if not isinstance(padding_predicate, tvm.tir.expr.IntImm):
+        primfunc_name += "_with_pad"
+    if len(axis_separators) != 0:
+        primfunc_name += "_axis_separator"
+    tir_func, call_args, _, tir_vars = gen_call_tir_inputs(
+        te_layout_transform, call.args[0], primfunc_name
+    )
+    # Create TIR schedule to apply layout changes with axis separators
+    sch = tir.Schedule(tir_func)
+    sch.transform_layout(primfunc_name, ("write", 0), index_map, pad_value)
+    if len(axis_separators) != 0:
+        sch.set_axis_separator(primfunc_name, ("write", 0), axis_separators=axis_separators)
+    gvar = bb.add_func(sch.mod["main"], primfunc_name)
+    output_shape = index_map.map_shape(list(call_args[0].struct_info.shape))
+    output_dtype = call_args[0].struct_info.dtype
+    output_sinfo = [TensorStructInfo(output_shape, output_dtype)]
+    return call_tir(gvar, call_args, output_sinfo, tir_vars)
