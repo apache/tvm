@@ -18,7 +18,8 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import relax
-from tvm.relax.frontend.nn.core import Tensor
+from tvm.relax.frontend.nn import Tensor, Module, spec
+from tvm.script import relax as R
 
 import numpy as np
 
@@ -42,78 +43,116 @@ def test_tensor_from_scalar():
 
 
 def test_tensor_op_binary_tensor_tensor():
-    np_x = np.random.rand(1, 10)
-    np_y = np.random.rand(2, 1)
-    x, y = Tensor.from_const(np_x), Tensor.from_const(np_y)
+    class Model(Module):
+        def test(self, x: Tensor, y: Tensor):
+            z0 = x + y
+            z1 = x * y
+            z2 = x / y
+            z3 = x.maximum(y)
+            z4 = x.minimum(y)
+            return (z0, z1, z2, z3, z4)
 
-    bb = relax.BlockBuilder()
-    with bb.function("test"):
-        add_out = x + y
-        mul_out = x * y
-        div_out = x / y
-        max_out = x.maximum(y)
-        min_out = x.minimum(y)
-        bb.emit_func_output(x._expr, [])
+    # fmt: off
+    @R.function
+    def test(x: R.Tensor((1, 10), dtype="float32"), y: R.Tensor((2, 1), dtype="float32"), _io: R.Object) -> R.Tuple(R.Tuple(R.Tensor((2, 10), dtype="float32"), R.Tensor((2, 10), dtype="float32"), R.Tensor((2, 10), dtype="float32"), R.Tensor((2, 10), dtype="float32"), R.Tensor((2, 10), dtype="float32")), R.Tuple(R.Object)):
+        with R.dataflow():
+            add: R.Tensor((2, 10), dtype="float32") = R.add(x, y)
+            mul: R.Tensor((2, 10), dtype="float32") = R.multiply(x, y)
+            divide: R.Tensor((2, 10), dtype="float32") = R.divide(x, y)
+            maximum: R.Tensor((2, 10), dtype="float32") = R.maximum(x, y)
+            minimum: R.Tensor((2, 10), dtype="float32") = R.minimum(x, y)
+            gv1: R.Tuple(R.Tuple(R.Tensor((2, 10), dtype="float32"), R.Tensor((2, 10), dtype="float32"), R.Tensor((2, 10), dtype="float32"), R.Tensor((2, 10), dtype="float32"), R.Tensor((2, 10), dtype="float32")), R.Tuple(R.Object)) = (add, mul, divide, maximum, minimum), (_io,)
+            R.output(gv1)
+        return gv1
+    # fmt: on
 
-    assert isinstance(add_out, Tensor) and add_out.shape == [2, 10]
-    assert isinstance(mul_out, Tensor) and mul_out.shape == [2, 10]
-    assert isinstance(div_out, Tensor) and div_out.shape == [2, 10]
-    assert isinstance(max_out, Tensor) and max_out.shape == [2, 10]
-    assert isinstance(min_out, Tensor) and min_out.shape == [2, 10]
+    m = Model()
+    irmodule, _ = m.export_tvm(
+        spec={"test": {"x": spec.Tensor([1, 10], "float32"), "y": spec.Tensor([2, 1], "float32")}}
+    )
+
+    tvm.ir.assert_structural_equal(irmodule["test"], test)
 
 
 def test_tensor_op_binary_tensor_saclar():
-    np_x = np.random.rand(2, 10)
-    y = 10
-    x = Tensor.from_const(np_x)
+    class Model(Module):
+        def test(self, x: Tensor):
+            y = 10
+            z0 = x + y
+            z1 = y + x
+            z2 = x * y
+            z3 = x / y
+            z4 = x.maximum(y)
+            z5 = x.minimum(y)
+            return (z0, z1, z2, z3, z4, z5)
 
-    bb = relax.BlockBuilder()
-    with bb.function("test"):
-        add_out = x + y
-        radd_out = y + x
-        mul_out = x * y
-        div_out = x / y
-        max_out = x.maximum(y)
-        min_out = x.minimum(y)
-        bb.emit_func_output(x._expr, [])
+    # fmt: off
+    @R.function
+    def test(x: R.Tensor((1, 10), dtype="float32"), _io: R.Object) -> R.Tuple(R.Tuple(R.Tensor((1, 10), dtype="float32"), R.Tensor((1, 10), dtype="float32"), R.Tensor((1, 10), dtype="float32"), R.Tensor((1, 10), dtype="float32"), R.Tensor((1, 10), dtype="float32"), R.Tensor((1, 10), dtype="float32")), R.Tuple(R.Object)):
+        with R.dataflow():
+            add: R.Tensor((1, 10), dtype="float32") = R.add(x, R.const(10, "float32"))
+            add1: R.Tensor((1, 10), dtype="float32") = R.add(x, R.const(10, "float32"))
+            mul: R.Tensor((1, 10), dtype="float32") = R.multiply(x, R.const(10, "float32"))
+            divide: R.Tensor((1, 10), dtype="float32") = R.divide(x, R.const(10, "float32"))
+            maximum: R.Tensor((1, 10), dtype="float32") = R.maximum(x, R.const(10, "float32"))
+            minimum: R.Tensor((1, 10), dtype="float32") = R.minimum(x, R.const(10, "float32"))
+            gv1: R.Tuple(R.Tuple(R.Tensor((1, 10), dtype="float32"), R.Tensor((1, 10), dtype="float32"), R.Tensor((1, 10), dtype="float32"), R.Tensor((1, 10), dtype="float32"), R.Tensor((1, 10), dtype="float32"), R.Tensor((1, 10), dtype="float32")), R.Tuple(R.Object)) = (add, add1, mul, divide, maximum, minimum), (_io,)
+            R.output(gv1)
+        return gv1
+    # fmt: on
 
-    assert isinstance(add_out, Tensor) and add_out.shape == [2, 10]
-    assert isinstance(radd_out, Tensor) and radd_out.shape == [2, 10]
-    assert isinstance(mul_out, Tensor) and mul_out.shape == [2, 10]
-    assert isinstance(div_out, Tensor) and div_out.shape == [2, 10]
-    assert isinstance(max_out, Tensor) and max_out.shape == [2, 10]
-    assert isinstance(min_out, Tensor) and min_out.shape == [2, 10]
+    m = Model()
+    irmodule, _ = m.export_tvm(spec={"test": {"x": spec.Tensor([1, 10], "float32")}})
+
+    tvm.ir.assert_structural_equal(irmodule["test"], test)
 
 
 def test_tensor_op_datatype():
-    np_x = np.random.rand(2, 1, 10).astype("float32")
-    x = Tensor.from_const(np_x)
-    bb = relax.BlockBuilder()
-    with bb.function("test"):
-        astype_out = x.astype("float16")
-        bb.emit_func_output(x._expr, [])
+    class Model(Module):
+        def test(self, x: Tensor):
+            z0 = x.astype(dtype="float16")
+            return z0
 
-    assert (
-        isinstance(astype_out, Tensor)
-        and astype_out.shape == [2, 1, 10]
-        and astype_out.dtype == "float16"
-    )
+    # fmt: off
+    @R.function
+    def test(x: R.Tensor((1, 10), dtype="float32"), _io: R.Object) -> R.Tuple(R.Tensor((1, 10), dtype="float16"), R.Tuple(R.Object)):
+        with R.dataflow():
+            astype: R.Tensor((1, 10), dtype="float16") = R.astype(x, dtype="float16")
+            gv1: R.Tuple(R.Tensor((1, 10), dtype="float16"), R.Tuple(R.Object)) = astype, (_io,)
+            R.output(gv1)
+        return gv1
+    # fmt: on
+
+    m = Model()
+    irmodule, _ = m.export_tvm(spec={"test": {"x": spec.Tensor([1, 10], "float32")}})
+
+    tvm.ir.assert_structural_equal(irmodule["test"], test)
 
 
 def test_tensor_op_manipulate():
-    np_x = np.random.rand(2, 1, 10)
-    x = Tensor.from_const(np_x)
+    class Model(Module):
+        def test(self, x: Tensor):
+            z0 = x.reshape([2, 5, 2])
+            z1 = x.permute_dims([2, 1, 0])
+            z2 = x.repeat(2, axis=1)
+            return (z0, z1, z2)
 
-    bb = relax.BlockBuilder()
-    with bb.function("test"):
-        reshape_out = x.reshape([2, 5, 2])
-        permute_dims_out = x.permute_dims([2, 1, 0])
-        repeat_out = x.repeat(2, axis=1)
-        bb.emit_func_output(x._expr, [])
+    # fmt: off
+    @R.function
+    def test(x: R.Tensor((2, 1, 10), dtype="float32"), _io: R.Object) -> R.Tuple(R.Tuple(R.Tensor((2, 5, 2), dtype="float32"), R.Tensor((10, 1, 2), dtype="float32"), R.Tensor((2, 2, 10), dtype="float32")), R.Tuple(R.Object)):
+        with R.dataflow():
+            reshape: R.Tensor((2, 5, 2), dtype="float32") = R.reshape(x, R.shape([2, 5, 2]))
+            permute_dims: R.Tensor((10, 1, 2), dtype="float32") = R.permute_dims(x, axes=[2, 1, 0])
+            repeat: R.Tensor((2, 2, 10), dtype="float32") = R.repeat(x, repeats=2, axis=1)
+            gv1: R.Tuple(R.Tuple(R.Tensor((2, 5, 2), dtype="float32"), R.Tensor((10, 1, 2), dtype="float32"), R.Tensor((2, 2, 10), dtype="float32")), R.Tuple(R.Object)) = (reshape, permute_dims, repeat), (_io,)
+            R.output(gv1)
+        return gv1
+    # fmt: on
 
-    assert isinstance(reshape_out, Tensor) and reshape_out.shape == [2, 5, 2]
-    assert isinstance(permute_dims_out, Tensor) and permute_dims_out.shape == [10, 1, 2]
-    assert isinstance(repeat_out, Tensor) and repeat_out.shape == [2, 2, 10]
+    m = Model()
+    irmodule, params = m.export_tvm(spec={"test": {"x": spec.Tensor([2, 1, 10], "float32")}})
+
+    tvm.ir.assert_structural_equal(irmodule["test"], test)
 
 
 if __name__ == "__main__":
