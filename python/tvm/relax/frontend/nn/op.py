@@ -1,5 +1,5 @@
 # pylint: disable=missing-docstring,too-many-lines,invalid-name,protected-access
-from typing import Any, List, Optional, Sequence, Union, Tuple
+from typing import List, Optional, Sequence, Union, Tuple
 
 from tvm import tir as _tir
 
@@ -112,12 +112,12 @@ def full(
     dtype: str = "float32",
     name: str = "full",
 ) -> Tensor:
-    from tvm import relax as rx  # pylint: disable=import-outside-toplevel
+    from tvm import relax  # pylint: disable=import-outside-toplevel
 
     if isinstance(fill_value, (_tir.FloatImm, _tir.IntImm)):
-        fill_value = rx.const(fill_value.value, dtype=dtype)
+        fill_value = relax.const(fill_value.value, dtype=dtype)
     elif isinstance(fill_value, (int, float)):
-        fill_value = rx.const(fill_value, dtype=dtype)
+        fill_value = relax.const(fill_value, dtype=dtype)
     else:
         fill_value = fill_value._expr
     return _wrap_nested(_op.full(shape, fill_value, dtype), name)
