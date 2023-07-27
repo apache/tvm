@@ -511,13 +511,13 @@ def test_forward_conv():
 
     class Conv2D2(nn.Layer):
         def __init__(
-            self,
-            stride=1,
-            padding=0,
-            dilation=1,
-            groups=1,
-            padding_mode="zeros",
-            data_format="NCHW",
+                self,
+                stride=1,
+                padding=0,
+                dilation=1,
+                groups=1,
+                padding_mode="zeros",
+                data_format="NCHW",
         ):
             super(Conv2D2, self).__init__()
             self.conv = nn.Conv2D(
@@ -609,13 +609,13 @@ def test_forward_conv3d():
 
     class Conv3D2(nn.Layer):
         def __init__(
-            self,
-            stride=1,
-            padding=0,
-            dilation=1,
-            groups=1,
-            padding_mode="zeros",
-            data_format="NCDHW",
+                self,
+                stride=1,
+                padding=0,
+                dilation=1,
+                groups=1,
+                padding_mode="zeros",
+                data_format="NCDHW",
         ):
             super(Conv3D2, self).__init__()
             self.conv = nn.Conv3D(
@@ -997,7 +997,7 @@ def test_forward_shape_full():
 def test_forward_split():
     class Split(nn.Layer):
         def __init__(
-            self, axis=None, num_or_sections=None, axis_is_tensor=False, num_is_tensor=False
+                self, axis=None, num_or_sections=None, axis_is_tensor=False, num_is_tensor=False
         ):
             super(Split, self).__init__()
             self.axis = axis
@@ -1126,15 +1126,15 @@ def test_forward_instance_norm():
 def test_forward_interpolate():
     class Interpolate(nn.Layer):
         def __init__(
-            self,
-            mode="nearest",
-            align_corners=False,
-            align_mode=0,
-            data_format="NCHW",
-            use_scale=False,
-            use_list=False,
-            use_const=False,
-            use_scaler=False,
+                self,
+                mode="nearest",
+                align_corners=False,
+                align_mode=0,
+                data_format="NCHW",
+                use_scale=False,
+                use_list=False,
+                use_const=False,
+                use_scaler=False,
         ):
             super(Interpolate, self).__init__()
             self.mode = mode
@@ -1588,12 +1588,12 @@ def test_forward_slice():
 def test_forward_unique():
     class Unique(nn.Layer):
         def __init__(
-            self,
-            return_index=False,
-            return_inverse=False,
-            return_counts=False,
-            axis=None,
-            dtype="int64",
+                self,
+                return_index=False,
+                return_inverse=False,
+                return_counts=False,
+                axis=None,
+                dtype="int64",
         ):
             super(Unique, self).__init__()
             self.return_index = return_index
@@ -2537,6 +2537,30 @@ def test_forward_pool3d():
         verify_model(Pool3D3(), input_data=input_data)
         verify_model(Pool3D4(), input_data=input_data)
         verify_model(Pool3D5(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_quantize_linear():
+    class QuantizeLinear(nn.Layer):
+        def __init__(self):
+            super().__init__()
+            self.fc1 = nn.quant.quant_layers.QuantizedLinear
+
+        def forward(self, x):
+            out = self.fc1(x)
+            return out
+
+    input_shapes = [
+        [10],
+        [2, 3],
+        [3, 4, 5],
+        [5, 3, 1, 4],
+        [1, 3, 1, 6, 7],
+    ]
+
+    for input_shape in input_shapes:
+        input_data = paddle.uniform(shape=input_shape, dtype="float32", min=-1, max=1)
+        verify_model(QuantizeLinear(), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
