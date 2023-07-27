@@ -115,7 +115,9 @@ def test_depthwise_conv2d_deeplabv3_4_35_35_576x3_3_576_1(remote, target, execut
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_depthwise_conv2d_deeplabv3_1_129_129_144x3_3_144_1_with_padding(remote, target, executor_type, dtype):
+def test_depthwise_conv2d_deeplabv3_1_129_129_144x3_3_144_1_with_padding(
+    remote, target, executor_type, dtype
+):
     input_shape = (1, 129, 129, 144)
     filter_shape = (3, 3, 144, 1)
     kernel_size = (filter_shape[0], filter_shape[1])
@@ -273,7 +275,9 @@ def test_conv2d_to_3_channels(remote, target, executor_type, dtype):
     if executor_type == "ge":
         build_run_compare(remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, [])
     else:
-        build_run_compare_vm(remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, [])
+        build_run_compare_vm(
+            remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, []
+        )
 
 
 if __name__ == "__main__":

@@ -240,7 +240,9 @@ def test_conv2d_to_3_channels(remote, target, executor_type, dtype):
     if executor_type == "ge":
         build_run_compare(remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, [])
     else:
-        build_run_compare_vm(remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, [])
+        build_run_compare_vm(
+            remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, []
+        )
 
 
 if __name__ == "__main__":

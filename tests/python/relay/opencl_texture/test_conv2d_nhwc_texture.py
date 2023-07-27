@@ -630,13 +630,25 @@ def test_conv2d_vgg16_winograd_4d(remote, target, executor_type, dtype):
         )
     if executor_type == "ge":
         graph = build_run_compare(
-            remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, stat_file=stat_file
+            remote,
+            mod,
+            params1,
+            {"data": input_shape},
+            {"data": dtype},
+            target,
+            stat_file=stat_file,
         )
         matches = re.findall("winograd", graph)
         assert len(matches) > 0
     else:
         vmc = build_run_compare_vm(
-            remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, stat_file=stat_file
+            remote,
+            mod,
+            params1,
+            {"data": input_shape},
+            {"data": dtype},
+            target,
+            stat_file=stat_file,
         )
         matches = re.findall("winograd", vmc.primitives)
         assert len(matches) > 0
@@ -684,13 +696,25 @@ def test_conv2d_vgg16_winograd_4d_expand_spatial_dims(remote, target, executor_t
         )
     if executor_type == "ge":
         graph = build_run_compare(
-            remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, stat_file=stat_file
+            remote,
+            mod,
+            params1,
+            {"data": input_shape},
+            {"data": dtype},
+            target,
+            stat_file=stat_file,
         )
         matches = re.findall("winograd", graph)
         assert len(matches) > 0
     else:
         vmc = build_run_compare_vm(
-            remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, stat_file=stat_file
+            remote,
+            mod,
+            params1,
+            {"data": input_shape},
+            {"data": dtype},
+            target,
+            stat_file=stat_file,
         )
         matches = re.findall("winograd", vmc.primitives)
         assert len(matches) > 0
@@ -752,13 +776,25 @@ def test_conv2d_winograd_conv(remote, target, executor_type, dtype):
         )
     if executor_type == "ge":
         graph = build_run_compare(
-            remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, stat_file=stat_file
+            remote,
+            mod,
+            params1,
+            {"data": input_shape},
+            {"data": dtype},
+            target,
+            stat_file=stat_file,
         )
         matches = re.findall("winograd", graph)
         assert len(matches) > 0
     else:
         vmc = build_run_compare_vm(
-            remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, stat_file=stat_file
+            remote,
+            mod,
+            params1,
+            {"data": input_shape},
+            {"data": dtype},
+            target,
+            stat_file=stat_file,
         )
         matches = re.findall("winograd", vmc.primitives)
         assert len(matches) > 0
@@ -799,13 +835,25 @@ def test_conv2d_winograd_non_rect(remote, target, executor_type, dtype):
         )
     if executor_type == "ge":
         graph = build_run_compare(
-            remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, stat_file=stat_file
+            remote,
+            mod,
+            params1,
+            {"data": input_shape},
+            {"data": dtype},
+            target,
+            stat_file=stat_file,
         )
         matches = re.findall("winograd", graph)
         assert len(matches) > 0
     else:
         vmc = build_run_compare_vm(
-            remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, stat_file=stat_file
+            remote,
+            mod,
+            params1,
+            {"data": input_shape},
+            {"data": dtype},
+            target,
+            stat_file=stat_file,
         )
         matches = re.findall("winograd", vmc.primitives)
         assert len(matches) > 0
@@ -841,7 +889,9 @@ def test_conv2d_to_3_channels(remote, target, executor_type, dtype):
     if executor_type == "ge":
         build_run_compare(remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, [])
     else:
-        build_run_compare_vm(remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, [])
+        build_run_compare_vm(
+            remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, []
+        )
 
 
 if __name__ == "__main__":
