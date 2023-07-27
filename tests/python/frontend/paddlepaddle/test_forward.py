@@ -2544,10 +2544,10 @@ def test_forward_quantize_linear():
     class QuantizeLinear(nn.Layer):
         def __init__(self):
             super().__init__()
-            self.fc1 = nn.quant.quant_layers.QuantizedLinear
+            self.function = nn.quant.quant_layers.QuantizedLinear
 
         def forward(self, x):
-            out = self.fc1(x)
+            out = self.function(x)
             return out
 
     input_shapes = [
