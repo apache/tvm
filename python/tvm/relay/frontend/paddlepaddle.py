@@ -31,6 +31,7 @@ from .. import expr as _expr
 from .. import function as _function
 from .. import ty as _ty
 from .. import op as _op
+from .. import qnn as _qnn
 from .common import (
     autopad,
     fold_constant,
@@ -1499,7 +1500,7 @@ def convert_pool2d(g, op, block):
         raise tvm.error.OpAttributeInvalid(msg)
 
     # handle with special case
-    # while kernel size less than input size
+    # while kernel size more than input size
     # shrink kernel size to input size
     if (
         not isinstance(in_h, _op.Expr)
@@ -2712,6 +2713,42 @@ def convert_where_index(g, op, block):
     g.add_node(op.output("Out")[0], out)
 
 
+def convert_dequantize_linear(g, op, block):
+    """Operator converter for dequantize_linear."""
+
+    data = g.get_node(op.input("X")[0])
+    scale = g.get_node(op.input("Scale")[0])
+    zp = g.get_node(op.input("ZeroPoint")[0])
+    axis = op.attr("quant_axis")
+    if axis == -1:
+        axis = 0
+    out = _qnn.op.dequantize(
+        data=data, 
+        input_scale=scale, 
+        input_zero_point=_op.cast(zp, "int32"), 
+        axis=axis
+    )
+    g.add_node(op.output("Y")[0], out)
+
+
+def convert_quantize_linear(g, op, block):
+    """Operator converter for dequantize_linear."""
+
+    data = g.get_node(op.input("X")[0])
+    scale = g.get_node(op.input("Scale")[0])
+    zp = g.get_node(op.input("ZeroPoint")[0])
+    axis = op.attr("quant_axis")
+    if axis == -1:
+        axis = 0
+    out = _qnn.op.quantize(
+        data=data, 
+        output_scale=scale, 
+        output_zero_point=_op.cast(zp, "int32"), 
+        axis=axis
+    )
+    g.add_node(op.output("Y")[0], out)
+
+
 _convert_map = {
     "abs": convert_unary_op,
     "acos": convert_unary_op,
@@ -2876,6 +2913,9 @@ _convert_map = {
     "unstack": convert_unstack,
     "where": convert_where,
     "where_index": convert_where_index,
+    # Quantized
+    "dequantize_linear": convert_dequantize_linear,
+    "quantize_linear": convert_quantize_linear,
 }
 
 
