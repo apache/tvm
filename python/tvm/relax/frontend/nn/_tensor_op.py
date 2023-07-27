@@ -43,6 +43,10 @@ class _TensorOp:
         other = _convert_scalar(other, self)
         return _op().add(self, other)
 
+    def __radd__(self, other):
+        other = _convert_scalar(other, self)
+        return _op().add(self, other)
+
     def __mul__(self, other):
         other = _convert_scalar(other, self)
         return _op().multiply(self, other)
