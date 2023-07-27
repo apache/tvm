@@ -79,7 +79,9 @@ def test_vtcm_limit(vtcm_capacity, limited):
 
     with tvm.transform.PassContext(config={"tir.vtcm_capacity": vtcm_capacity}):
         assert (
-            _raises_exception(lambda: tvm.build(sch.mod, target=get_hexagon_target("v68")))
+            _raises_exception(
+                lambda: tvm.build(sch.mod, target=get_hexagon_target("v68", vtcm_capacity=0))
+            )
             == limited
         ), "Case 3 - context. VTCM memory allocation limiter does not work correctly "
 
