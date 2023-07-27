@@ -120,6 +120,8 @@ def _convert_activation(
     if act_type == "hard_sigmoid":
         x = (_expr.const(0.2, dtype="float32") * inexpr) + _expr.const(0.5, dtype="float32")
         return _op.clip(x, a_min=0.0, a_max=1.0)
+    if act_type == "swish":
+        return inexpr * _op.sigmoid(inexpr)
 
     raise tvm.error.OpNotImplemented(f"Operator {act_type} is not supported in frontend Keras.")
 
