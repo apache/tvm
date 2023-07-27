@@ -1228,16 +1228,22 @@ class AOTExecutorCodegen : public MixedModeVisitor {
 
     // Collect any constants extracted by external codegen.
     ret.params = std::unordered_map<std::string, tvm::runtime::NDArray>();
+    ret.params_for_tpat = std::unordered_map<std::string, std::pair<int, const tvm::runtime::NDArray>>();
+
     Map<String, runtime::NDArray> const_name_to_constant =
         lowered_mod->GetAttr<Map<String, runtime::NDArray>>(tvm::attr::kConstNameToConstant)
             .value_or({});
     for (const auto& kv : const_name_to_constant) {
       ICHECK(ret.params.emplace(kv.first, kv.second).second);
+      ret.params_for_tpat.emplace(std::make_pair(
+          kv.first, std::make_pair(static_cast<int>(param_storage_ids_[kv.first]), kv.second)));
     }
 
     // Collect any constants extracted during lowering.
     for (const auto& kv : params_) {
       ICHECK(ret.params.emplace(kv.first, kv.second).second);
+      ret.params_for_tpat.emplace(std::make_pair(
+          kv.first, std::make_pair(static_cast<int>(param_storage_ids_[kv.first]), kv.second)));
     }
 
     // AoT Executor codegen works completely on TIR beyond this point, hence removing relay main
@@ -1387,6 +1393,11 @@ class AOTExecutorCodegenModule : public runtime::ModuleNode {
         String key = args[0];
         *rv = get_param_by_name(key);
       });
+    } else if (name == "get_param_id") {
+      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        String key = args[0];
+        *rv = get_param_id(key);
+      });
     } else if (name == "get_irmodule") {
       return PackedFunc(
           [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = get_irmodule(); });
@@ -1435,6 +1446,12 @@ class AOTExecutorCodegenModule : public runtime::ModuleNode {
   }
 
   Array<tvm::runtime::Module> get_external_modules() { return output_.external_mods; }
+
+  int get_param_id(String key) {
+    auto it = this->output_.params_for_tpat.find(key);
+    CHECK(it != this->output_.params_for_tpat.end()) << "no such parameter " << key;
+    return (*it).second.first;
+  }
 
   Map<Target, IRModule> get_irmodule() { return this->output_.lowered_funcs; }
 

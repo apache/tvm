@@ -266,18 +266,26 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
 
     // Collect any constants extracted by external codegen.
     ret.params = std::unordered_map<std::string, tvm::runtime::NDArray>();
+    ret.params_for_tpat = std::unordered_map<std::string, std::pair<int, const tvm::runtime::NDArray>>();
+
     Map<String, runtime::NDArray> const_name_to_constant =
         lowered_mod->GetAttr<Map<String, runtime::NDArray>>(tvm::attr::kConstNameToConstant)
             .value_or({});
     for (const auto& kv : const_name_to_constant) {
       VLOG(1) << "constant '" << kv.first << "' contributed by external codegen";
       ICHECK(ret.params.emplace(kv.first, kv.second).second);
+      ret.params_for_tpat.emplace(std::make_pair(
+          kv.first,
+          std::make_pair(static_cast<int>(param_storage_ids_[kv.first]), kv.second)));
     }
 
     // Collect any constants extracted during lowering.
     for (const auto& kv : params_) {
       VLOG(1) << "constant '" << kv.first << "' contributed by TECompiler";
       ICHECK(ret.params.emplace(kv.first, kv.second).second);
+      ret.params_for_tpat.emplace(std::make_pair(
+          kv.first,
+          std::make_pair(static_cast<int>(param_storage_ids_[kv.first]), kv.second)));
     }
 
     ret.function_metadata = std::move(function_metadata_);
@@ -662,6 +670,13 @@ class GraphExecutorCodegenModule : public runtime::ModuleNode {
         auto it = this->output_.params.find(key);
         CHECK(it != this->output_.params.end()) << "no such parameter " << key;
         *rv = (*it).second;
+      });
+    } else if (name == "get_param_id") {
+      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        String key = args[0];
+        auto it = this->output_.params_for_tpat.find(key);
+        CHECK(it != this->output_.params_for_tpat.end()) << "no such parameter " << key;
+        *rv = (*it).second.first;
       });
     } else if (name == "get_irmodule") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {

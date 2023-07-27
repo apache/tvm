@@ -32,6 +32,8 @@
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
+#include <sstream>
+#include <string>
 #include <unordered_map>
 
 #include "../../runtime/thread_storage_scope.h"
@@ -41,10 +43,13 @@
 namespace tvm {
 namespace tir {
 
+extern std::unordered_map<std::string, std::vector<PrimExpr> > host_name_to_param;
+std::unordered_map<std::string, std::string> curr2prev;
+
 class HostDeviceSplitter : public StmtMutator {
  public:
-  explicit HostDeviceSplitter(IRModule* device_mod, std::function<GlobalVar()> var_supply)
-      : device_mod_(device_mod), var_supply_(var_supply) {}
+  explicit HostDeviceSplitter(IRModule* device_mod, std::function<GlobalVar()> var_supply, std::string name_prefix = "")
+      : device_mod_(device_mod), var_supply_(var_supply), name_prefix_(name_prefix) {}
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == tvm::attr::kTarget) {
@@ -92,6 +97,9 @@ class HostDeviceSplitter : public StmtMutator {
     }
 
     GlobalVar kernel_symbol_global = var_supply_();
+
+    curr2prev[kernel_symbol_global->name_hint] = name_prefix_;
+
     PrimFunc device_func(params, body, kernel_ret_type);
     device_func = WithAttrs(std::move(device_func), {{tvm::attr::kTarget, device_target},
                                                      {tir::attr::kNoAlias, Bool(true)},
@@ -99,6 +107,15 @@ class HostDeviceSplitter : public StmtMutator {
 
     (*device_mod_)->Add(kernel_symbol_global, device_func);
     Array<PrimExpr> args = params.Map([](const Var& var) -> PrimExpr { return var; });
+
+    // std::cout << "1. IN SPLIT HOST DEVICE: " << '\n';
+    // for (auto& entry : host_name_to_param) {
+    //   std::cout << ">>> NAME HINT: " << entry.first << " : " << '\n';
+    //   for (auto& item : entry.second) {
+    //     std::cout << ">>> " << item << ", ";
+    //   }
+    // }
+    // std::cout << "=========================\n\n\n";
 
     if (can_propagate_errors) {
       Var kernel_error_code("kernel_error_code", success->dtype);
@@ -117,11 +134,12 @@ class HostDeviceSplitter : public StmtMutator {
   IRModule* device_mod_;
   // Generate new GlobalVar for the kernel
   std::function<GlobalVar()> var_supply_;
+  std::string name_prefix_;
 };
 
 PrimFunc SplitHostDevice(PrimFunc func, IRModule* device_mod,
-                         std::function<GlobalVar()> var_supply) {
-  HostDeviceSplitter splitter(device_mod, var_supply);
+                         std::function<GlobalVar()> var_supply, std::string name_prefix = "") {
+  HostDeviceSplitter splitter(device_mod, var_supply, name_prefix);
 
   if (auto body = splitter(func->body); !body.same_as(func->body)) {
     func.CopyOnWrite()->body = body;
@@ -139,6 +157,8 @@ Pass SplitHostDevice() {
     IRModule device_mod = IRModule(Map<GlobalVar, BaseFunc>({}));
     IRModule updates = IRModule(Map<GlobalVar, BaseFunc>({}));
 
+    curr2prev.clear();
+
     for (const auto& [gvar, base_func] : mod->functions) {
       if (auto opt = base_func.as<PrimFunc>()) {
         PrimFunc func = opt.value();
@@ -150,7 +170,7 @@ Pass SplitHostDevice() {
           return global_var_supply->FreshGlobal(kernel_name, false);
         };
 
-        func = SplitHostDevice(std::move(func), &device_mod, var_supply);
+        func = SplitHostDevice(std::move(func), &device_mod, var_supply, name_prefix);
         if (!func.same_as(base_func)) {
           updates->Add(gvar, func);
         }

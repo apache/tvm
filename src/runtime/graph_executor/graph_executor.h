@@ -416,6 +416,14 @@ class TVM_DLL GraphExecutor : public ModuleNode {
     }
     ICHECK_EQ(bitmask, 1 | 2 | 4 | 8 | 16) << "invalid format";
   }
+  /*! \brief get the storage dtype */
+  String GetWorkspaceDtype();
+  /*! \brief get the storage size */
+  String GetWorkspaceSize();
+  /*! \brief get the exec func in order*/
+  String GetFuncList();
+  String GetStorageId();
+  int GetOutputEid(int index) const;
   /*! \brief PackedFunc to lookup a linked paramter from a local Module. */
   void DefaultLookupLinkedParam(TVMArgs args, TVMRetValue* rv);
   /*! \brief Delete NDArray::Container with linked (i.e. static) data. */
@@ -430,6 +438,8 @@ class TVM_DLL GraphExecutor : public ModuleNode {
    * \param eid The data_enrty_ index.
    */
   void CheckExternalDLTensor(const DLTensor* external, uint32_t eid) const;
+  /*! \brief Store execute function in order */
+  std::vector<std::vector<String>> exec_func_;
   /*!
    * \brief Create an execution function given input.
    * \param attrs The node attributes.

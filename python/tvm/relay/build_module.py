@@ -70,6 +70,7 @@ class BuildModule(object):
         self._get_executor_codegen_metadata = self.mod["get_executor_codegen_metadata"]
         self._get_devices = self.mod["get_devices"]
         self._get_irmodule = self.mod["get_irmodule"]
+        self._get_constant_params_func = self.mod["get_constant_params"]
 
     def build(
         self,
@@ -249,6 +250,13 @@ class BuildModule(object):
             ret[key] = value.data
         return ret
 
+    def get_constant_params(self):
+        params = self._get_constant_params_func()
+        ret = {}
+        for key, value in params.items():
+            ret[key] = value.data.asnumpy()
+        return ret
+
     def get_irmodule(self):
         """Returns the TargetIRModule's post-lowering"""
         return self._get_irmodule()
@@ -372,6 +380,7 @@ def build(
             mod_name=mod_name,
         )
         func_metadata = bld_mod.get_function_metadata()
+        constant_params = bld_mod.get_constant_params()
         devices = bld_mod.get_devices()
         lowered_ir_mods = bld_mod.get_irmodule()
         executor_codegen_metadata = bld_mod.get_executor_codegen_metadata()
@@ -400,6 +409,7 @@ def build(
                 mod_name,
                 params,
                 func_metadata,
+                constant_params=constant_params
             )
         else:
             assert False, "Executor " + executor + " not supported"

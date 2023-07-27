@@ -28,12 +28,17 @@
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
+#include <sstream>
 
 #include "../../runtime/thread_storage_scope.h"
 #include "ir_utils.h"
 
 namespace tvm {
 namespace tir {
+extern std::unordered_map<std::string, std::vector<PrimExpr> > host_name_to_param;
+extern std::unordered_map<std::string, std::string> curr2prev;
+std::vector<String> device_funcs;
+std::vector<String> device_memory_size;
 
 namespace {
 struct KernelInfo {
@@ -120,6 +125,14 @@ class DeviceInfoCollector : public StmtVisitor {
   }
 
   void VisitStmt_(const AllocateNode* op) final {
+    std::ostringstream os;
+    os << op->buffer_var.get() << " " << op->dtype << " ";
+    for (auto extent : op->extents) {
+      os << extent << " ";
+    }
+    os << "\n";
+    device_memory_size.push_back(os.str());
+
     auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(op->buffer_var));
     if (storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn") {
       ICHECK(!dyn_shmem_size.defined()) << "Only one dynamic shared memory allocation is allowed.";
@@ -298,13 +311,39 @@ class DeviceKernelMutator : public StmtExprMutator {
     device_kernel_launch_.insert(gvar);
 
     Array<PrimExpr> call_args;
+    Array<PrimExpr> cuda_kernel_args;
+
     call_args.push_back(StringImm(dev_info.global_symbol));
     for (PrimExpr arg : node->args) {
       call_args.push_back(arg);
+      cuda_kernel_args.push_back(arg);
     }
     for (const auto& launch_arg : dev_info.launch_args) {
       call_args.push_back(Substitute(launch_arg, param_map));
     }
+    std::stringstream ss;
+    ss << gvar->name_hint << " ";
+    for (auto arg : cuda_kernel_args) {
+      bool find_param_in_host = false;
+      for (int i = 0; i < host_name_to_param[curr2prev[gvar->name_hint]].size(); ++i) {
+        if (arg.same_as(host_name_to_param[curr2prev[gvar->name_hint]][i])) {
+          ss <<  i << " ";
+          find_param_in_host = true;
+        }
+      }
+      std::cout << std::endl;
+      if (!find_param_in_host) {
+        ss << arg.get() << " ";
+      }
+    }
+    ss << "\n";
+    device_funcs.push_back(ss.str());
+
+    // std::cout << "3. Lower device kernel" << '\n';
+    // for (auto& item: device_funcs) {
+    //   std::cout << item << ", ";
+    // }
+    // std::cout << '\n';
 
     auto dtype = node->dtype.is_void() ? DataType::Int(32) : node->dtype;
 
@@ -318,9 +357,27 @@ class DeviceKernelMutator : public StmtExprMutator {
 };
 
 namespace transform {
+String GetDeviceFuncsList() {
+  String ret = "";
+  for (auto func : device_funcs) {
+    ret = ret + func;
+  }
+  return ret;
+}
+
+String GetDeviceMemorySize() {
+  String ret = "";
+  for (auto m : device_memory_size) {
+    ret = ret + m;
+  }
+  return ret;
+}
 
 Pass LowerDeviceKernelLaunch() {
   auto pass_func = [](IRModule mod, PassContext ctx) -> IRModule {
+    device_funcs.clear();
+    device_memory_size.clear();
+
     auto mutator = [&mod]() {
       std::unordered_map<const GlobalVarNode*, KernelInfo> device_info_map;
       for (const auto& [gvar, base_func] : mod->functions) {
@@ -371,6 +428,13 @@ Pass LowerDeviceKernelLaunch() {
 
 TVM_REGISTER_GLOBAL("tir.transform.LowerDeviceKernelLaunch")
     .set_body_typed(LowerDeviceKernelLaunch);
+
+
+TVM_REGISTER_GLOBAL("tir.transform.retrieve_device_funcs_list")
+    .set_body([](TVMArgs args, TVMRetValue* rv) { *rv = GetDeviceFuncsList(); });
+
+TVM_REGISTER_GLOBAL("tir.transform.retrieve_device_memory_size")
+    .set_body([](TVMArgs args, TVMRetValue* rv) { *rv = GetDeviceMemorySize(); });
 
 }  // namespace transform
 }  // namespace tir

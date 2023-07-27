@@ -41,6 +41,7 @@ namespace tvm {
 namespace tir {
 
 static constexpr const char* kDeviceContextVar = "device_api_context";
+std::unordered_map<std::string, std::vector<PrimExpr> > host_name_to_param;
 
 namespace {
 class ReturnRewriter : public StmtMutator {
@@ -277,6 +278,7 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   // appear in the buffer.
   std::vector<std::pair<PrimExpr, Var>> var_def;
   std::vector<std::pair<Var, Buffer>> buffer_def;
+  std::vector<PrimExpr> cur_func_param;
 
   for (int i = 0; i < static_cast<int>(func_ptr->params.size()); ++i) {
     Var param = func_ptr->params[i];
@@ -290,6 +292,7 @@ PrimFunc MakePackedAPI(PrimFunc func) {
 
     var_def.emplace_back(f_arg_value(param.dtype(), i), param);
     if (func_ptr->buffer_map.count(param)) {
+      cur_func_param.push_back(func_ptr->buffer_map[param]->data);
       buffer_def.emplace_back(param, func_ptr->buffer_map[param]);
     }
 
@@ -315,6 +318,14 @@ PrimFunc MakePackedAPI(PrimFunc func) {
       seq_check.emplace_back(AssertStmt(tcode == kDLFloat, tvm::tir::StringImm(msg.str()), nop));
     }
   }
+
+  host_name_to_param[name_hint] = cur_func_param;
+
+  // std::cout << "2.2. IN MAKE_PACKED_API, NAME HINT: " << name_hint << " : " << '\n';
+  // for (auto& item: cur_func_param) {
+  //   std::cout << ">>> " << item << ", ";
+  // }
+  // std::cout << "=====================\n\n\n";
 
   Array<Var> args{v_packed_args,     buf_packed_arg_type_ids->data,
                   v_num_packed_args, v_out_ret_value,
@@ -398,6 +409,7 @@ Pass MakePackedAPI() {
 
     IRModuleNode* mptr = mod.CopyOnWrite();
     IRModule updates;
+    host_name_to_param.clear();
 
     for (const auto& [gvar, base_func] : mptr->functions) {
       if (auto opt = base_func.as<PrimFunc>()) {
