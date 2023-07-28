@@ -2490,6 +2490,23 @@ def test_selu(target, dev):
 
 
 @tvm.testing.parametrize_targets
+def test_mish(target, dev):
+    def mish_x(x):
+        return x * np.tanh(np.log1p(np.exp(x)))
+    
+    _test_onnx_op_elementwise(
+        target,
+        dev,
+        (2, 4, 5, 6),
+        mish_x,
+        {},
+        "float64",
+        "Mish",
+        {}
+    )
+
+
+@tvm.testing.parametrize_targets
 def test_prelu(target, dev):
     """test_prelu"""
 
