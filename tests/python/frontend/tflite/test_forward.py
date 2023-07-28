@@ -4591,8 +4591,8 @@ def test_detection_postprocess():
     class_predictions_size = (1, 1917, 91)
     tf_model_file = download_testdata(
         (
-            "https://github.com/Grovety/ModelZoo/raw/main/models/object_detection/ssd_mobilenet_v1/"
-            "tflite_int8/tflite_graph_with_regular_nms.pb"
+            "https://github.com/Grovety/ModelZoo/raw/52fb82156ae8c8e3f62c7d7caf6867b25261dda4/"
+            "models/object_detection/ssd_mobilenet_v1/tflite_int8/tflite_graph_with_regular_nms.pb"
         ),
         "tflite_graph_with_regular_nms.pb",
     )
