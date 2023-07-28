@@ -345,7 +345,10 @@ class Module:
             if hasattr(item, "to") and callable(item.to):
                 item.to(dtype=dtype)
 
-    def export_tvm(self, spec: "_spec.Module") -> Tuple[IRModule, List[Tuple[str, Parameter]]]:
+    def export_tvm(
+        self,
+        spec: "_spec.ModuleSpecType",
+    ) -> Tuple[IRModule, List[Tuple[str, Parameter]]]:
         """Export the module to TVM IRModule and parameters"""
         from . import spec as _spec  # pylint: disable=import-outside-toplevel
 
@@ -353,7 +356,7 @@ class Module:
         mod, params = _spec.SpecBuilder().build(spec)
         return mod, params
 
-    def jit(
+    def jit(  # pylint: disable=too-many-arguments
         self,
         spec: "_spec.Module",
         target: Union[str, Target] = "llvm",
@@ -377,10 +380,13 @@ class Module:
         # Compile mod and feed it to VM
         mod = relax.pipeline.get_pipeline(pipeline)(mod)  # pylint: disable=no-value-for-parameter
         mod = relax.build(mod, target=target)
-        VirtualMachine(mod, device)
+        vm = VirtualMachine(mod, device)  # pylint: disable=invalid-name
 
         if out_format == "torch":
-            raise NotImplementedError
+            from . import torch  # pylint: disable=import-outside-toplevel
+
+            return torch.TorchModule(spec=spec, params=params, vm=vm)
+
         raise ValueError(f"Unknown out_format: {out_format}")
 
 
