@@ -35,6 +35,7 @@ PADDLE_TEST_DATA_ROOT_PATH = Path(Path("~").expanduser(), ".tvm_test_data", "pad
 PADDLE_TEST_DATA_ROOT_PATH.mkdir(parents=True, exist_ok=True)
 cached_program = list()
 
+import wget
 
 def assert_shapes_match(tru, est):
     if tru.shape != est.shape:
@@ -2540,27 +2541,13 @@ def test_forward_pool3d():
 
 
 @tvm.testing.uses_gpu
-def test_forward_quantize_linear():
-    class QuantizeLinear(nn.Layer):
-        def __init__(self):
-            super().__init__()
-            self.function = nn.quant.quant_layers.QuantizedLinear
-
-        def forward(self, x):
-            out = self.function(x)
-            return out
-
-    input_shapes = [
-        [10],
-        [2, 3],
-        [3, 4, 5],
-        [5, 3, 1, 4],
-        [1, 3, 1, 6, 7],
-    ]
-
-    for input_shape in input_shapes:
-        input_data = paddle.uniform(shape=input_shape, dtype="float32", min=-1, max=1)
-        verify_model(QuantizeLinear(), input_data=input_data)
+def test_forward_quantize_and_dequantized():
+    os.system("wget https://paddle-slim-models.bj.bcebos.com/act/MobileNetV1_QAT.tar")
+    os.system("tar -xf MobileNetV1_QAT.tar")
+    input_shape = [1, 3, 224, 224]
+    input_data = paddle.uniform(shape=input_shape, dtype="float32", min=-1, max=1)
+    model = paddle.jit.load("MobileNetV1_QAT/inference")
+    verify_model(model, input_data=input_data)
 
 
 @tvm.testing.uses_gpu
