@@ -236,10 +236,11 @@ DeviceDomainPtr DeviceDomains::DomainForCallee(const Call& call) {
     args_and_result.emplace_back(ForVirtualDevice(device_copy_props.body->checked_type(),
                                                   device_copy_props.dst_virtual_device));
   } else if (call->op == alloc_storage_op) {
-    ICHECK_EQ(call->args.size(), 2U);
-    // alloc_storage(size, alignment, virtual_device=<t>)
-    // alloc_storage: fn(<cpu>, <cpu>):<t>
+    ICHECK_EQ(call->args.size(), 3U);
+    // alloc_storage(size, shape, alignment, virtual_device=<t>)
+    // alloc_storage: fn(<cpu>, <cpu>, <cpu>):<t>
     const auto* attrs = call->attrs.as<AllocStorageAttrs>();
+    args_and_result.emplace_back(host_domain_);
     args_and_result.emplace_back(host_domain_);
     args_and_result.emplace_back(host_domain_);
     args_and_result.emplace_back(ForVirtualDevice(call->checked_type(), attrs->virtual_device));
