@@ -163,7 +163,7 @@ class TestMatmulTensorize(BaseBeforeAfter):
                                         v2 = T.axis.spatial(256, ax1_0_1_ax2_0_1_fused * 128 + ax2_0_2_ax1_0_2_fused // 4 * 32 + (ax0_ax1_fused_0 * 128 + ax0_ax1_fused_1 * 4 + ax0_ax1_fused_2) % 32)
                                         T.reads(compute_reindex_shared_dyn[v0, v1, v2])
                                         T.writes(compute[v1, v2])
-                                        T.block_attr({"buffer_dim_align": [[0, 1, 16, 8]]})
+                                        T.block_attr({"buffer_dim_align": [[0, 1, 16, 4]]})
                                         compute[v1, v2] = compute_reindex_shared_dyn[v0, v1, v2]
 
     # fmt: on
