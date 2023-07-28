@@ -2488,7 +2488,7 @@ def test_selu(target, dev):
         {"alpha": 0.25, "gamma": 0.3},
     )
 
-
+@pytest.mark.skip("Currently ONNX Runtime in CI does not support domain version of 18")
 @tvm.testing.parametrize_targets
 def test_mish(target, dev):
     def mish_x(x):
