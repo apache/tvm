@@ -21,8 +21,6 @@ import logging
 import tvm
 from tvm import relay
 from tvm.relay.expr import Call
-#from tvm.relay.backend import Executor
-#from tvm.contrib.hexagon.pytest_plugin import HEXAGON_AOT_LLVM_TARGET
 #logger = logging.getLogger()
 #logger.setLevel(logging.DEBUG)
 
@@ -30,23 +28,23 @@ from tvm.relay.expr import Call
 # maps to store the nodes(callnodes) and their ids and vice-versa
 id_to_node = {}
 node_to_id = {}
-node_id = 0
+NODEID = 0
 def fvisit(expr):
-    global node_id
+    """function to create the mapping"""
+    global NODEID
     if isinstance(expr, relay.expr.Call):
-        id_to_node[node_id] = expr
-        node_to_id[expr] = node_id
-        node_id += 1
+        id_to_node[NODEID] = expr
+        node_to_id[expr] = NODEID
+        NODEID += 1
 
 
 op_name_map = {}
 
-"""Function that returns appropriate callnode or a relay variable """
 def give_call_node(call_arg, start_node, new_id_to_node):
-#    global op_name_map
+    """Function that returns appropriate callnode or a relay variable """
     if node_to_id[call_arg] < start_node:
-#append a temporary variable tensor of apprpriate shape if the id of the
-#argument node of the current node is outside the given range to the arguments list
+        #append a temporary variable tensor of apprpriate shape if the id of the
+        #argument node of the current node is outside the given range to the arguments list
         if call_arg.op.name not in op_name_map:
             op_name_map[call_arg.op.name] = 1
         else:
@@ -56,13 +54,13 @@ def give_call_node(call_arg, start_node, new_id_to_node):
             type_annotation=relay.transform.InferTypeLocal(call_arg),
         )
 
-    else:
-        # else just add the new node that must have already been created in previous iterations
-        return new_id_to_node[node_to_id[call_arg]]
+    # else just add the new node that must have already been created in previous iterations
+    return new_id_to_node[node_to_id[call_arg]]
 
 
-"""Producing the ir given a starting and ending node of a module(extracting subgraph)"""
 def produce_ir(start_node, end_node):
+    """Producing the ir given a starting and ending node of a module(extracting subgraph)"""
+
     assert start_node <= end_node, "Start node cannot be greater than the end node"
 
     # temporary map used for storing newnodes created and their ids
@@ -112,9 +110,10 @@ def produce_ir(start_node, end_node):
     return mod
 
 
-"""Recursive function to return the smallest test case(IR) that throws the
-error(assuming there is only one error in the module)"""
 def give_test_case(mod, target, func, start_node, end_node):
+    """Recursive function to return the smallest test case(IR) that throws the 
+    error(assuming there is only one error in the module)"""
+
     logging.debug(mod)
     # base case
     if start_node == end_node:
@@ -135,8 +134,9 @@ def give_test_case(mod, target, func, start_node, end_node):
     return mod
 
 
-"""Function that is to be called to get the smallest ir"""
 def smallest_ir(mod, target, func):
+    """Function that is to be called to get the smallest ir"""
+
     start_node = 0
     end_node = int(give_count(mod) - 1)
 # Applying the InferType pass on the module to populate the checked_type
@@ -146,11 +146,11 @@ def smallest_ir(mod, target, func):
     relay.analysis.post_order_visit(mod["main"], fvisit)
     if func(mod, target):
         return None
-    else:
-        return give_test_case(mod, target, func, start_node, end_node)
+    return give_test_case(mod, target, func, start_node, end_node)
 
 
-# fucntion to calculate the total number of nodes in a module
 def give_count(mod):
+    """fucntion to calculate the total number of nodes in a module"""
+
     op_freqs = relay.analysis.list_op_freqs(mod)
     return sum(op_freqs.values())
