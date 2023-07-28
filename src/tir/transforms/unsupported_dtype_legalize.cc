@@ -79,7 +79,11 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
     // remap all intermediate constant buffer to promote data types (fp16/fp32)
     if (MatchDType(op->dtype) && op->ConstantAllocationSize() != 0) {
       DataType dtype = promote_dtype_.with_lanes(op->dtype.lanes());
-      Var buffer_var = Var(op->buffer_var->name_hint, PointerType(PrimType(dtype)));
+      String storage_scope = "global";
+      if (auto* ptr_type = op->buffer_var->type_annotation.as<PointerTypeNode>()) {
+        storage_scope = ptr_type->storage_scope;
+      }
+      Var buffer_var = Var(op->buffer_var->name_hint, PointerType(PrimType(dtype), storage_scope));
       (*var_remap_)[op->buffer_var] = buffer_var;
     }
     return StmtExprVisitor::VisitStmt_(op);
@@ -496,7 +500,11 @@ class StorageLegalizer : public StmtExprMutator {
   Stmt VisitStmt_(const AllocateNode* op) final {
     if (MatchDType(op->dtype)) {
       DataType dtype = GetStorageUIntDType(op->dtype);
-      Var buffer_var = Var(op->buffer_var->name_hint, PointerType(PrimType(dtype)));
+      String storage_scope = "global";
+      if (auto* ptr_type = op->buffer_var->type_annotation.as<PointerTypeNode>()) {
+        storage_scope = ptr_type->storage_scope;
+      }
+      Var buffer_var = Var(op->buffer_var->name_hint, PointerType(PrimType(dtype), storage_scope));
       var_remap_[op->buffer_var] = buffer_var;
       return VisitStmt(Allocate(buffer_var, dtype, op->extents, op->condition, op->body));
     } else {
@@ -637,7 +645,8 @@ class StorageLegalizer : public StmtExprMutator {
         if (auto* elem_type = ptr_type->element_type.as<PrimTypeNode>()) {
           if (MatchDType(elem_type->dtype)) {
             Var new_var =
-                Var(var->name_hint, PointerType(PrimType(GetStorageUIntDType(elem_type->dtype))));
+                Var(var->name_hint, PointerType(PrimType(GetStorageUIntDType(elem_type->dtype)),
+                                                ptr_type->storage_scope));
             var_remap_[var] = new_var;
             return new_var;
           }
