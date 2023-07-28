@@ -249,7 +249,6 @@ class Unsqueeze(OnnxOpConverter):
     def _impl_v13(cls, bb, inputs, attr, params):
         data = inputs[0]
         axes = get_constant(inputs[1], params)
-
         # If input is a constant, compute directly
         if isinstance(data, relax.Constant) and isinstance(axes, relax.Constant):
             axes = axes.data.numpy().tolist()
@@ -666,34 +665,20 @@ class ConstantOfShape(OnnxOpConverter):
         else:
             dtype = "float32"
 
-        # If shape is a constant, we can directly create a relax constant.
+        # If shape is a constant, treat it as a shapexpr.
         if isinstance(shape, relax.Constant):
-            np_array = _np.zeros(shape=shape.data.numpy()) + value
-            return relax.const(np_array, dtype=dtype)
-        elif isinstance(shape, relax.ShapeExpr):
-            np_array = _np.zeros(shape=[dim.value for dim in shape]) + value
-            return relax.const(np_array, dtype)
+            shape = relax.ShapeExpr(list(shape.data.numpy()))
 
-        # Otherwise we have to use the value of shape at runtime.
         # Create a constant for the new value.
         const_value = relax.const(value, dtype)
 
-        # Convert to shape expression if needed.
-        if not isinstance(shape.struct_info, relax.ShapeStructInfo):
-            shape_ndim = [dim.value for dim in shape.struct_info.shape.values][0]
-            # Broadcast the constant to the input shape.
-            shape_dataflow_var = bb.emit(
-                relax.Call(
-                    relax.ExternFunc("vm.builtin.tensor_to_shape"),
-                    [shape],
-                    sinfo_args=[relax.ShapeStructInfo(ndim=shape_ndim)],
-                )
-            )
-            shape_vars = []
-            for i in range(shape_ndim):
-                shape_vars.append(tvm.tir.Var("x_%d" % i, "int64"))
-            bb.match_cast(shape_dataflow_var, relax.ShapeStructInfo(shape_vars))
-            shape = relax.ShapeExpr(shape_vars)
+        # Special case where requested shape is a scalar.
+        if len(shape) == 1 and int(shape[0]) == 1:
+            return const_value
+
+        # Convert to shape expression from tensor if needed.
+        if not isinstance(shape, relax.ShapeExpr):
+            shape = relax.op.tensor_to_shape(shape)
 
         return relax.op.broadcast_to(const_value, shape)
 
@@ -983,8 +968,9 @@ class Expand(OnnxOpConverter):
             # For some reason, onnx allows target shapes to be smaller than input shapes.
             # We need to go correct it.
             data_shape = [dim.value for dim in data.struct_info.shape]
+            # Fix small target shapes.
             for i, s in enumerate(new_shape):
-                if s < data_shape[i]:
+                if i < len(data_shape) and s < data_shape[i]:
                     new_shape[i] = data_shape[i]
             # If the new shape matches the input shape, no transformation is needed.
             if new_shape == data_shape:
