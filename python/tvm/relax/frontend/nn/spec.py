@@ -106,7 +106,7 @@ class MethodSpec:
         for arg_name in arg_names:
             arg_spec = spec[arg_name]
             if arg_spec is Int or arg_spec is int:
-                arg_spec = arg_spec()
+                arg_spec = Int()
             elif isinstance(arg_spec, str) and arg_spec == "int":
                 arg_spec = Int()
             elif isinstance(arg_spec, (Int, Tensor)):
