@@ -928,8 +928,8 @@ def group_norm(
 def rms_norm(
     data: Expr,
     weight: Expr,
-    bias: Expr,
-    axes: Union[int, List[int]],
+    bias: Optional[Expr] = None,
+    axes: Union[int, List[int]] = -1,
     epsilon: float = 1e-5,
 ) -> Expr:
     r"""

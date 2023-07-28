@@ -267,7 +267,7 @@ class Module:
 
         Yields
         ------
-        (str, Parameter) – Tuple containing the name and parameter
+        (str, Parameter) - Tuple containing the name and parameter
         """
         yield from _attribute_finder(
             self, prefix, condition_yield=lambda x: isinstance(x, Parameter)

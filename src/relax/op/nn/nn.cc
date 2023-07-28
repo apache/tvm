@@ -440,13 +440,18 @@ TVM_REGISTER_OP("relax.nn.group_norm")
 /* relax.nn.rms_norm */
 TVM_REGISTER_NODE_TYPE(RMSNormAttrs);
 
-Expr rms_norm(Expr data, Expr weight, Expr bias, Array<Integer> axes, double epsilon) {
+Expr rms_norm(Expr data, Expr weight, Optional<Expr> bias, Array<Integer> axes, double epsilon) {
   ObjectPtr<RMSNormAttrs> attrs = make_object<RMSNormAttrs>();
   attrs->axes = std::move(axes);
   attrs->epsilon = epsilon;
 
   static const Op& op = Op::Get("relax.nn.rms_norm");
-  return Call(op, {std::move(data), std::move(weight), std::move(bias)}, Attrs{attrs}, {});
+  if (bias.defined()) {
+    return Call(op, {std::move(data), std::move(weight), std::move(bias.value())}, Attrs{attrs},
+                {});
+  } else {
+    return Call(op, {std::move(data), std::move(weight)}, Attrs{attrs}, {});
+  }
 }
 
 TVM_REGISTER_GLOBAL("relax.op.nn.rms_norm").set_body_typed(rms_norm);

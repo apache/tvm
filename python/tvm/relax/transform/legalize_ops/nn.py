@@ -340,7 +340,7 @@ def _nn_rms_norm(bb: BlockBuilder, call: Call) -> Expr:
         topi.nn.rms_norm,
         call.args[0],
         call.args[1],
-        call.args[2],
+        call.args[2] if len(call.args) == 3 else None,
         axis=call.attrs.axes,
         epsilon=call.attrs.epsilon,
     )
