@@ -16,7 +16,7 @@
 # under the License.
 """A rule for GEMV and DecodeGEMV."""
 import re
-from typing import List, Optional, Union
+from typing import List, Optional, Tuple, Union
 
 from tvm import DataType, arith, ir, tir
 from tvm.target import Target
@@ -55,7 +55,7 @@ def get_bytes(dtype: Union[DataType, str]) -> int:
     return int(num[0]) // 8
 
 
-def is_gemv(sch: tir.Schedule, block_info: BlockInfo) -> Optional[List[tir.Buffer]]:
+def is_gemv(sch: tir.Schedule, block_info: BlockInfo) -> Optional[Tuple[List[int], int]]:
     """Check if the block is a GEMV.
 
     Parameters
@@ -70,8 +70,9 @@ def is_gemv(sch: tir.Schedule, block_info: BlockInfo) -> Optional[List[tir.Buffe
 
     Returns
     -------
-    ret : Optional[List[tir.Buffer]]
-        The vector buffers used in the GEMV if it is a GEMV, otherwise None.
+    ret : Optional[Tuple[List[int], int]]
+        The buffer indices of the vector buffers and the matrix buffer used in the GEMV if it is a
+        GEMV, otherwise None.
     """
     block = block_info.block_rv
     block_stmt = sch.get(block)
@@ -85,12 +86,16 @@ def is_gemv(sch: tir.Schedule, block_info: BlockInfo) -> Optional[List[tir.Buffe
         return None
 
     iter_num = len(block_stmt.iter_vars)
-    ret = [
-        read.buffer
-        for read in block_stmt.reads
-        if len(collect_vars_used_in_access_region(read.region)) < iter_num
-    ]
-    return ret if 0 < len(ret) < len(block_stmt.reads) else None
+    vector_buffers = []
+    matrix_buffers = []
+    for index, read in enumerate(block_stmt.reads):
+        if len(collect_vars_used_in_access_region(read.region)) < iter_num:
+            vector_buffers.append(index)
+        else:
+            matrix_buffers.append(index)
+    if len(vector_buffers) > 0 and len(matrix_buffers) > 0:
+        return vector_buffers, matrix_buffers
+    return None
 
 
 def normalize(
@@ -170,17 +175,19 @@ class GEMV(ScheduleRule):
 
         block_info = block_infos[0]
         block = block_info.block_rv
-        vector_input_buffers = is_gemv(sch, block_info)
-        if vector_input_buffers is None:
+        gemv_buffers = is_gemv(sch, block_info)
+        if gemv_buffers is None:
             return None
+        vector_input_buffers, matrix_input_buffers = gemv_buffers
 
         # Step 1. Normalize the block, merge spatial and reduction iters
         is_inner_reduction = normalize(sch, block_info)
 
         # Step 2. Do the scheduling
         if is_inner_reduction:
-            # print(func)
-            self.sch_inner_reduction(sch, target, block, vector_input_buffers, epilogue)
+            self.sch_inner_reduction(
+                sch, target, block, vector_input_buffers, matrix_input_buffers, epilogue
+            )
             return sch
         else:
             # TODO: Need to handle GEMV with KN layout
@@ -191,12 +198,13 @@ class GEMV(ScheduleRule):
         sch: tir.Schedule,
         target: Target,
         block: tir.schedule.BlockRV,
-        vector_input_buffers: List[tir.Buffer],
+        vector_input_buffers: List[int],
+        matrix_input_buffers: List[int],
         epilogue_info: Optional[BlockInfo],
     ):
         """Schedule the inner reduction block."""
         # pylint: disable=invalid-name
-        _, s, r, _ = sch.get_loops(block)
+        _, s, r, c = sch.get_loops(block)
         # TODO: make it tunable
         vec_bytes = 16 if target.kind.name == "cuda" else 8
         unroll_number = 256 if target.kind.name == "cuda" else 64
@@ -206,7 +214,7 @@ class GEMV(ScheduleRule):
             return loop.extent.value if isinstance(loop.extent, tir.IntImm) else 1
 
         # Specify the `len_tx` and `len_ty` according to the loop extent
-        len_s, len_r = get_extent(s), get_extent(r)
+        len_s, len_r, len_c = get_extent(s), get_extent(r), get_extent(c)
         if len_r >= 4096 and len_r % 128 == 0:
             len_tx = 128
         elif 1024 < len_r <= 2048 and len_r % 64 == 0:
@@ -219,11 +227,18 @@ class GEMV(ScheduleRule):
         else:
             len_ty = min(len_s, 4)
 
-        _, tx = sch.split(r, [None, len_tx], preserve_unit_iters=True)
+        rf_inner_length = 1
+        if len_c == 1:
+            type_bytes = get_bytes(sch.get(block).reads[matrix_input_buffers[0]].buffer.dtype)
+            vec_length = min(vec_bytes // type_bytes, len_r // len_tx)
+            if len_r % vec_length == 0:
+                rf_inner_length = vec_length
+
+        _, tx, r_inner = sch.split(r, [None, len_tx, rf_inner_length], preserve_unit_iters=True)
         # Schedule the RF block
         rf = sch.rfactor(tx, 0)
-        batch, bx, r, tx, _ = sch.get_loops(rf)
-        sch.reorder(bx, tx, r)
+        batch, bx, r, tx, r_inner, _ = sch.get_loops(rf)
+        sch.reorder(bx, tx, r, r_inner)
         bx, ty = sch.split(bx, [None, len_ty], preserve_unit_iters=True)
         sch.bind(batch, "blockIdx.y")
         sch.bind(bx, "blockIdx.x")
@@ -262,9 +277,11 @@ class GEMV(ScheduleRule):
                 elif isinstance(loop.extent, tir.IntImm) and loop.extent.value < vec_length:
                     sch.vectorize(fused)
 
-            for buffer in vector_input_buffers:
-                index = vector_input_buffers.index(buffer)
+            for index in vector_input_buffers:
                 cache_shared(index)
+                cache_local(index)
+
+            for index in matrix_input_buffers:
                 cache_local(index)
 
             # TODO: cache scale buffer in Decode-GEMV to shared memory
