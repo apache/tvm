@@ -31,7 +31,7 @@ node_to_id = {}
 NODEID = 0
 def fvisit(expr):
     """function to create the mapping"""
-    global NODEID
+    global NODEID # pylint: disable=W0603
     if isinstance(expr, relay.expr.Call):
         id_to_node[NODEID] = expr
         node_to_id[expr] = NODEID

@@ -18,11 +18,14 @@
 
 """This module is to test the subgraph module that is in /python/tvm/contrib/hexagon/"""
 import sys
+import logging
 import tvm
 from tvm.contrib.hexagon.subgraph import smallest_ir
 from tvm import relay
 from tvm.relay.backend import Executor
 from tvm.contrib.hexagon.pytest_plugin import HEXAGON_AOT_LLVM_TARGET
+#logger = logging.getLogger()
+#logger.setLevel(logging.DEBUG)
 
 if len(sys.argv) != 2:
     raise RuntimeError("You should give a target as an argument to the file")
@@ -57,8 +60,9 @@ def is_compiled(mod, targ):
             executor=executor,
             params=params,
         )
+        logging.debug(lowered)
         return True
-    except:
+    except: # pylint: disable=W0702
         return False
 
 def test_case(boo):
