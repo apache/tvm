@@ -117,9 +117,13 @@ class MethodSpec:
         return MethodSpec(method, arg_names, arg_specs)
 
     @staticmethod
-    def from_torch(torch_args: List[Any], method: Callable) -> "MethodSpec":
+    def from_torch(args: List[Any], method: Callable) -> "MethodSpec":
         """Converts a list of torch tensors to MethodSpec."""
-        raise NotImplementedError
+        from .torch import (  # pylint: disable=import-outside-toplevel
+            _method_spec_from_torch,
+        )
+
+        return _method_spec_from_torch(args, method)
 
     def as_inputs(self) -> List[Union[tir.Var, core.Tensor]]:
         """Convert the MethodSpec to a list of inputs to Module's method."""
