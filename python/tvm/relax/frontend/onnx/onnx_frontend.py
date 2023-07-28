@@ -1186,18 +1186,16 @@ class Resize(OnnxOpConverter):
             ), "Only constant output size currently supported."
             sizes = sizes.data.numpy().astype("int64").tolist()[2:]
 
-        # TODO(jwfromm) relax.image.resize2d runs into some issues with dynamism.
-        return bb.emit_te(
-            topi.image.resize2d,
+        return relax.op.image.resize2d(
             x,
-            roi,
-            sizes,
+            size=relax.ShapeExpr(sizes),
+            roi=roi,
             layout="NCHW",
             method=mode,
             coordinate_transformation_mode=coord_mode,
             rounding_method=rounding_method,
-            bicubic_alpha=cubic_coeff_a,
-            bicubic_exclude=exclude_outside,
+            cubic_alpha=cubic_coeff_a,
+            cubic_exclude=exclude_outside,
             extrapolation_value=extrapolation_value,
         )
 
