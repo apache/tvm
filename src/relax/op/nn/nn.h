@@ -79,7 +79,7 @@ Expr group_norm(Expr data, Expr gamma, Expr beta, int num_groups, int channel_ax
                 Array<Integer> axes, double epsilon, bool center, bool scale);
 
 /*! \brief Compute root mean square normalization. */
-Expr rms_norm(Expr data, Expr weight, Expr bias, Array<Integer> axes, double epsilon);
+Expr rms_norm(Expr data, Expr weight, Array<Integer> axes, double epsilon);
 
 /*!
  * \brief Applies the dropout operation to the input tensor.

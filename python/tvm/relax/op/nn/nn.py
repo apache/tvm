@@ -20,8 +20,8 @@ from typing import List, Optional, Tuple, Union
 from tvm import DataType
 from tvm.tir import FloatImm
 
-from . import _ffi_api
 from ...expr import Expr
+from . import _ffi_api
 
 
 def conv1d(
@@ -928,8 +928,7 @@ def group_norm(
 def rms_norm(
     data: Expr,
     weight: Expr,
-    bias: Expr,
-    axes: Union[int, List[int]],
+    axes: Union[int, List[int]] = -1,
     epsilon: float = 1e-5,
 ) -> Expr:
     r"""
@@ -966,7 +965,7 @@ def rms_norm(
     """
     if isinstance(axes, int):
         axes = [axes]
-    return _ffi_api.rms_norm(data, weight, bias, axes, epsilon)  # type: ignore
+    return _ffi_api.rms_norm(data, weight, axes, epsilon)  # type: ignore
 
 
 def dropout(data: Expr, rate: float = 0.5) -> Expr:
