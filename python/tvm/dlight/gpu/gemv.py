@@ -196,19 +196,28 @@ class GEMV(ScheduleRule):
     ):
         """Schedule the inner reduction block."""
         # pylint: disable=invalid-name
-        _, bx, r, _ = sch.get_loops(block)
+        _, s, r, _ = sch.get_loops(block)
         # TODO: make it tunable
-        len_tx = 32
-        len_ty = 8
         vec_bytes = 16 if target.kind.name == "cuda" else 8
         unroll_number = 256 if target.kind.name == "cuda" else 64
 
-        # Specify the `len_ty` according to the loop extent
-        bx_loop: tir.For = sch.get(bx)
-        if isinstance(bx_loop.extent, tir.IntImm):
-            len_ty = min(bx_loop.extent.value, len_ty)
+        def get_extent(loop_rv: tir.schedule.LoopRV):
+            loop: tir.For = sch.get(loop_rv)
+            return loop.extent.value if isinstance(loop.extent, tir.IntImm) else 1
+
+        # Specify the `len_tx` and `len_ty` according to the loop extent
+        len_s, len_r = get_extent(s), get_extent(r)
+        if len_r >= 4096 and len_r % 128 == 0:
+            len_tx = 128
+        elif 1024 < len_r <= 2048 and len_r % 64 == 0:
+            len_tx = 64
         else:
-            len_ty = 1
+            len_tx = 32
+
+        if len_s >= 4096:
+            len_ty = 8
+        else:
+            len_ty = min(len_s, 4)
 
         _, tx = sch.split(r, [None, len_tx], preserve_unit_iters=True)
         # Schedule the RF block
@@ -220,8 +229,9 @@ class GEMV(ScheduleRule):
         sch.bind(bx, "blockIdx.x")
         sch.bind(ty, "threadIdx.y")
         sch.bind(tx, "threadIdx.x")
-        sch.annotate(tx, "pragma_auto_unroll_max_step", unroll_number)
-        sch.annotate(tx, "pragma_unroll_explicit", 1)
+        unit = sch.add_unit_loop(r)
+        sch.annotate(unit, "pragma_auto_unroll_max_step", unroll_number)
+        sch.annotate(unit, "pragma_unroll_explicit", 1)
 
         if target.kind.name == "cuda":
             # Cache read the vector
@@ -229,8 +239,8 @@ class GEMV(ScheduleRule):
                 block: tir.Block = sch.get(rf)
                 type_bytes: int = get_bytes(block.reads[index].buffer.dtype)
                 cache = sch.cache_read(rf, index, "shared")
-                sch.compute_at(cache, tx, preserve_unit_loops=True)
-                fused = sch.fuse(*sch.get_loops(cache)[4:])
+                sch.compute_at(cache, unit, preserve_unit_loops=True)
+                fused = sch.fuse(*sch.get_loops(cache)[5:])
                 _, _ty, _tx, _vec = sch.split(
                     fused, [None, len_ty, len_tx, vec_bytes // type_bytes]
                 )
@@ -244,7 +254,7 @@ class GEMV(ScheduleRule):
                 vec_length = vec_bytes // type_bytes
                 cache = sch.cache_read(rf, index, "local")
                 sch.compute_at(cache, r, preserve_unit_loops=True)
-                fused = sch.fuse(*sch.get_loops(cache)[5:])
+                fused = sch.fuse(*sch.get_loops(cache)[6:])
                 loop: tir.For = sch.get(fused)
                 if isinstance(loop.extent, tir.IntImm) and loop.extent.value % vec_length == 0:
                     _, _vec = sch.split(fused, [None, vec_length])
