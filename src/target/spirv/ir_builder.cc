@@ -37,9 +37,15 @@ void IRBuilder::InitHeader() {
   ICHECK_EQ(header_.size(), 0U);
   header_.push_back(spv::MagicNumber);
 
-  // Target SPIR-V version 1.0.  Additional functionality will be
-  // enabled through extensions.
-  header_.push_back(0x10000);
+  // Subgroup operations require SPIR-V version 1.3. Otherwise, target SPIR-V version 1.0.
+  // Additional functionality will be enabled through extensions.
+  if (spirv_support_.supported_subgroup_operations > 0) {
+    header_.push_back(0x10300);
+    capabilities_used_.insert(spv::CapabilityGroupNonUniformShuffle);
+    capabilities_used_.insert(spv::CapabilityGroupNonUniformShuffleRelative);
+  } else {
+    header_.push_back(0x10000);
+  }
 
   // generator: set to 0, unknown
   header_.push_back(0U);
