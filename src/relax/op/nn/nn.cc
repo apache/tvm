@@ -440,13 +440,13 @@ TVM_REGISTER_OP("relax.nn.group_norm")
 /* relax.nn.rms_norm */
 TVM_REGISTER_NODE_TYPE(RMSNormAttrs);
 
-Expr rms_norm(Expr data, Expr weight, Expr bias, Array<Integer> axes, double epsilon) {
+Expr rms_norm(Expr data, Expr weight, Array<Integer> axes, double epsilon) {
   ObjectPtr<RMSNormAttrs> attrs = make_object<RMSNormAttrs>();
   attrs->axes = std::move(axes);
   attrs->epsilon = epsilon;
 
   static const Op& op = Op::Get("relax.nn.rms_norm");
-  return Call(op, {std::move(data), std::move(weight), std::move(bias)}, Attrs{attrs}, {});
+  return Call(op, {std::move(data), std::move(weight)}, Attrs{attrs}, {});
 }
 
 TVM_REGISTER_GLOBAL("relax.op.nn.rms_norm").set_body_typed(rms_norm);
@@ -466,7 +466,7 @@ InferLayoutOutput InferLayoutRMSNorm(const Call& call,
                                      const VarLayoutMap& var_layout_map) {
   ICHECK(NoDesiredLayout(call, desired_layouts));
   std::vector<NLayout> initial_layouts;
-  for (size_t i = 0; i < 3; ++i) {
+  for (size_t i = 0; i < 2; ++i) {
     const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[i]);
     ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
     ICHECK(!tensor_sinfo->IsUnknownNdim()) << "Only support known ndim";
@@ -488,10 +488,9 @@ InferLayoutOutput InferLayoutRMSNorm(const Call& call,
 
 TVM_REGISTER_OP("relax.nn.rms_norm")
     .set_attrs_type<RMSNormAttrs>()
-    .set_num_inputs(3)
+    .set_num_inputs(2)
     .add_argument("data", "Tensor", "Input to which rms_norm will be applied.")
     .add_argument("weight", "Tensor", "The scale factor.")
-    .add_argument("bias", "Tensor", "The offset factor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoRMSNorm)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutRMSNorm)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)

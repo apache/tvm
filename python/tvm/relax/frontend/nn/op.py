@@ -488,7 +488,6 @@ def softmax(x: Tensor, axis: int = -1, name: str = "softmax") -> Tensor:
 def rms_norm(
     x: Tensor,
     weight: Tensor,
-    bias: Optional[Tensor],
     axes: Union[int, List[int]],
     epsilon: float = 1e-5,
     name: str = "rms_norm",
@@ -501,7 +500,7 @@ def rms_norm(
 
     .. math::
 
-        out = \frac{data}{\sqrt{mean(data, axis)+\epsilon}} * weight + bias
+        out = \frac{data}{\sqrt{mean(data, axis)+\epsilon}} * weight
 
     Parameters
     ----------
@@ -510,9 +509,6 @@ def rms_norm(
 
     weight : Tensor
         The scale factor.
-
-    bias : Tensor
-        Optional offset factor.
 
     axes : Union[int, List[int]]
         The axes that along which the normalization is applied.
@@ -528,11 +524,7 @@ def rms_norm(
     result : Tensor
         The computed result.
     """
-    if bias is None:
-        bias = _op.zeros(weight.shape, dtype=weight.dtype)
-    else:
-        bias = bias._expr
-    return _wrap_nested(_op.nn.rms_norm(x._expr, weight._expr, bias, axes, epsilon), name)
+    return _wrap_nested(_op.nn.rms_norm(x._expr, weight._expr, axes, epsilon), name)
 
 
 def triu(x: Tensor, diagonal: int = 0, name: str = "triu") -> Tensor:

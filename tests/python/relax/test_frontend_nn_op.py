@@ -15,13 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 import pytest
+
 import tvm
 import tvm.testing
 from tvm import relax, te, tir
-from tvm.relax.frontend.nn import Tensor, Module, spec, op
+from tvm.relax.frontend.nn import Module, Tensor, op, spec
+from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tir as T
-from tvm.script import ir as I
 
 
 def test_binary():
@@ -136,21 +137,21 @@ def test_datatype():
 
 def test_nn():
     class Model(Module):
-        def test(self, x: Tensor, weight: Tensor, bias: Tensor):
+        def test(self, x: Tensor, weight: Tensor):
             silu_out = op.silu(x)
             softmax_out = op.softmax(x, axis=2)
-            rms_norm_out = op.rms_norm(x, weight, bias, axes=[-2, -1])
-            rms_norm_with_bias_out = op.rms_norm(x, weight, bias, axes=[-2, -1])
+            rms_norm_out = op.rms_norm(x, weight, axes=[-2, -1])
+            rms_norm_with_bias_out = op.rms_norm(x, weight, axes=[-2, -1])
             return x
 
     # fmt: off
     @R.function
-    def test(x: R.Tensor((2, 3, 4, 5), dtype="float32"), weight: R.Tensor((4, 5), dtype="float32"), bias: R.Tensor((4, 5), dtype="float32"), _io: R.Object) -> R.Tuple(R.Tensor((2, 3, 4, 5), dtype="float32"), R.Tuple(R.Object)):
+    def test(x: R.Tensor((2, 3, 4, 5), dtype="float32"), weight: R.Tensor((4, 5), dtype="float32"), _io: R.Object) -> R.Tuple(R.Tensor((2, 3, 4, 5), dtype="float32"), R.Tuple(R.Object)):
         with R.dataflow():
             silu: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.silu(x)
             softmax: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.softmax(x, axis=2)
-            rms_norm: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.rms_norm(x, weight, bias, axes=[-2, -1], epsilon=1.0000000000000001e-05)
-            rms_norm1: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.rms_norm(x, weight, bias, axes=[-2, -1], epsilon=1.0000000000000001e-05)
+            rms_norm: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.rms_norm(x, weight, axes=[-2, -1], epsilon=1.0000000000000001e-05)
+            rms_norm1: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.rms_norm(x, weight, axes=[-2, -1], epsilon=1.0000000000000001e-05)
             gv1: R.Tuple(R.Tensor((2, 3, 4, 5), dtype="float32"), R.Tuple(R.Object)) = x, (_io,)
             R.output(gv1)
         return gv1

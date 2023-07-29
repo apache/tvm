@@ -218,7 +218,7 @@ class Parameter(Tensor):
 
     def to(self, dtype: Optional[str] = None) -> None:  # pylint: disable=invalid-name
         """Change the dtype of the parameter if it is not bound to any concrete data"""
-        if dtype is not None and self._data is not None:
+        if dtype is not None:
             if self._data is not None:
                 raise ValueError(
                     "Changing the dtype of a Parameter that has been bound to concrete "
@@ -267,7 +267,7 @@ class Module:
 
         Yields
         ------
-        (str, Parameter) – Tuple containing the name and parameter
+        (str, Parameter) - Tuple containing the name and parameter
         """
         yield from _attribute_finder(
             self, prefix, condition_yield=lambda x: isinstance(x, Parameter)

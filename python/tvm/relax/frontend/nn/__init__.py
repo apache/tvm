@@ -15,5 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """A PyTorch-like API to build IRModules."""
-from . import spec
+from . import op, spec
 from .core import Effect, Module, ModuleList, Parameter, Tensor
+from .modules import Embedding, IOEffect, KVCache, Linear, RMSNorm
+from .op import *
