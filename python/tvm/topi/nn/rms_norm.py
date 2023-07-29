@@ -18,7 +18,7 @@
 from .. import cpp
 
 
-def rms_norm(data, weight, bias, axis, epsilon=1e-5):
+def rms_norm(data, weight, axis, epsilon=1e-5):
     """Root mean square normalization operator. The output will have the same data type as input.
 
     Parameters
@@ -28,9 +28,6 @@ def rms_norm(data, weight, bias, axis, epsilon=1e-5):
 
     weight: tvm.te.Tensor
         K-D with shape (r_0, r_1, ..., r_{K-1}) where K == len(axis) and d_{axis_k} == r_k
-
-    bias: tvm.te.Tensor
-        Optional, K-D with shape (r_0, r_1, ..., r_{K-1}) where K == len(axis) and d_{axis_k} == r_k
 
     axis : list of int
         Axis over the normalization applied
@@ -43,4 +40,4 @@ def rms_norm(data, weight, bias, axis, epsilon=1e-5):
     result : tvm.te.Tensor
         N-D with shape (d_0, d_1, ..., d_{N-1})
     """
-    return cpp.nn.rms_norm(data, weight, bias, axis, epsilon)
+    return cpp.nn.rms_norm(data, weight, axis, epsilon)

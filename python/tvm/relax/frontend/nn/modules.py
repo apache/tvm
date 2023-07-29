@@ -22,9 +22,8 @@ from tvm import tir
 from tvm._ffi import register_func
 from tvm.runtime import NDArray
 
-from .core import Effect, Module, Parameter, Tensor, get_default_dtype
-
 from . import op
+from .core import Effect, Module, Parameter, Tensor, get_default_dtype
 
 
 class IOEffect(Effect):
@@ -129,7 +128,6 @@ class RMSNorm(Module):
             self.bias = Parameter((hidden_size,), dtype=dtype)
         else:
             self.bias = None
-        # TODO(@junrushao): add bias
 
     # pylint: disable=invalid-name
     def forward(self, x: Tensor):
@@ -146,9 +144,10 @@ class RMSNorm(Module):
         ret : Tensor
             The output tensor for the rms norm layer.
         """
-        return op.rms_norm(
-            x, weight=self.weight, bias=self.bias, axes=self.axes, epsilon=self.epsilon
-        )
+        out = op.rms_norm(x, weight=self.weight, axes=self.axes, epsilon=self.epsilon)
+        if self.bias:
+            out = op.add(out, self.bias)
+        return out
 
     # pylint: enable=invalid-name
 
