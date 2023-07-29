@@ -322,10 +322,13 @@ class MatmulTensorization(ScheduleRule):
         micro_size_y = 16
         micro_size_k = 16
 
+        warp_size = 32
+        vector_size = 4
+
         i_factors, j_factors, k_factors = (
-            [None, 1, 2, 2],
-            [1, None, 2, 2],
-            [None, 2],
+            [None, 1, 4, 2],
+            [1, None, 4, 2],
+            [None, 4],
         )
 
         num_ty = i_factors[2] * j_factors[2]
@@ -385,8 +388,6 @@ class MatmulTensorization(ScheduleRule):
         def fetch_to_shared(block, idx, ndim):
             block_read = sch.cache_read(block, idx, "shared.dyn")
             sch.compute_at(block_read, k0)
-            vector_size = 4
-            warp_size = 32
             fused = sch.fuse(*sch.get_loops(block_read)[-ndim:])
 
             _, f_1, f_2, f_3 = sch.split(fused, factors=[None, num_ty, warp_size, vector_size])
@@ -483,6 +484,12 @@ class MatmulTensorization(ScheduleRule):
                 return None
 
         auto_inline_consumers(sch, accumulator_shared_to_global)
+
+        fused = sch.fuse(*sch.get_loops(accumulator_shared_to_global)[-2:])
+        _, f1, f2 = sch.split(fused, factors=[None, warp_size, vector_size])
+        sch.bind(f1, "threadIdx.x")
+        sch.vectorize(f2)
+
         return sch if tensorize_success else None
 
 
@@ -525,7 +532,7 @@ class Matmul(ScheduleRule):
         # Tensorization config:
         # If any value of I, J, K is fixed and less than this threshold,
         # tensorization rule will not be applied.
-        minimal_tensorize_threshold = 128
+        minimal_tensorize_threshold = 64
 
         # Step 1. Normalize generic matmul to C[S, I, J] += A[S, I, K] * B[S, J, K]
         block = sch.reindex(main_block, ("read", 0))
@@ -546,7 +553,9 @@ class Matmul(ScheduleRule):
                     if extent.value <= minimal_tensorize_threshold:
                         apply_tensorization = False
             if apply_tensorization:
-                return MatmulTensorization().apply(func, target, _)
+                tensorize_sch = MatmulTensorization().apply(func, target, _)
+                if tensorize_sch is not None:
+                    return tensorize_sch
 
         # Step 2. Padding for dynamic shape kernels
         sch.pad_einsum(
