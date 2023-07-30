@@ -35,8 +35,6 @@ PADDLE_TEST_DATA_ROOT_PATH = Path(Path("~").expanduser(), ".tvm_test_data", "pad
 PADDLE_TEST_DATA_ROOT_PATH.mkdir(parents=True, exist_ok=True)
 cached_program = list()
 
-import wget
-
 def assert_shapes_match(tru, est):
     if tru.shape != est.shape:
         msg = "Output shapes {} and {} don't match"
