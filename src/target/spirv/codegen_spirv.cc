@@ -28,7 +28,6 @@
 #include <tvm/tir/op.h>
 #include <vulkan/vulkan_core.h>
 
-#include <spirv.hpp>
 #include <string>
 
 #include "../../runtime/pack_args.h"
