@@ -135,8 +135,9 @@ int roundoff(int v, int d) { return (v + d - 1) / d * d; }
 
 #if CUDART_VERSION >= 10010
 
-void CallCublasLt(cublasLtHandle_t hdl, const DLTensor* A, const DLTensor* B, const DLTensor* bias,
-                  const DLTensor* C, bool transa, bool transb, cublasLtEpilogue_t epilogue) {
+void CallCublasLt(cublasLtHandle_t hdl, cudaStream_t stream, const DLTensor* A, const DLTensor* B,
+                  const DLTensor* bias, const DLTensor* C, bool transa, bool transb,
+                  cublasLtEpilogue_t epilogue) {
   ICHECK(TypeEqual(A->dtype, B->dtype));
   // Reversed strides indicates an in-place transpose operation.
   transa = IsInPlaceTransposed(A) ? !transa : transa;
@@ -240,7 +241,7 @@ void CallCublasLt(cublasLtHandle_t hdl, const DLTensor* A, const DLTensor* B, co
   auto C_data = static_cast<char*>(C->data) + C->byte_offset;
 
   CHECK_CUBLAS_ERROR(cublasLtMatmul(hdl, op_desc, alpha, B_data, A_desc, A_data, B_desc, beta,
-                                    C_data, C_desc, C_data, C_desc, nullptr, nullptr, 0, nullptr));
+                                    C_data, C_desc, C_data, C_desc, nullptr, nullptr, 0, stream));
 
   cublasLtMatmulDescDestroy(op_desc);
   cublasLtMatrixLayoutDestroy(A_desc);
@@ -248,7 +249,7 @@ void CallCublasLt(cublasLtHandle_t hdl, const DLTensor* A, const DLTensor* B, co
   cublasLtMatrixLayoutDestroy(C_desc);
 }
 
-inline void CallLtIgemm(TVMArgs args, TVMRetValue* ret, cublasLtHandle_t hdl) {
+inline void CallLtIgemm(TVMArgs args, TVMRetValue* ret, cublasLtHandle_t hdl, cudaStream_t stream) {
   DLTensor* A = args[0];
   DLTensor* B = args[1];
   DLTensor* C = args[2];
@@ -316,7 +317,7 @@ inline void CallLtIgemm(TVMArgs args, TVMRetValue* ret, cublasLtHandle_t hdl) {
                                                       &order_COL32, sizeof(order_COL32)));
 
   CHECK_CUBLAS_ERROR(cublasLtMatmul(hdl, operationDesc, &alpha, B_data, Adesc, A_data, Bdesc, &beta,
-                                    C_data, Cdesc, C_data, Cdesc, nullptr, nullptr, 0, nullptr));
+                                    C_data, Cdesc, C_data, Cdesc, nullptr, nullptr, 0, stream));
 }
 #endif
 
@@ -490,7 +491,10 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cublaslt.matmul").set_body([](TVMArgs args, TVM
   ICHECK(TypeMatch(A->dtype, kDLInt, 8)) << "Expects dtype to be int8\n";
   cublasLtHandle_t ltHandle;
   CHECK_CUBLAS_ERROR(cublasLtCreate(&ltHandle));
-  CallLtIgemm(args, ret, ltHandle);
+  auto func = tvm::runtime::Registry::Get("runtime.get_cuda_stream");
+  ICHECK(func != nullptr);
+  cudaStream_t stream = static_cast<cudaStream_t>((*func)().operator void*());
+  CallLtIgemm(args, ret, ltHandle, stream);
   CHECK_CUBLAS_ERROR(cublasLtDestroy(ltHandle));
 });
 #endif  // CUDART_VERSION >= 10010

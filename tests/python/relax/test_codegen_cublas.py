@@ -41,23 +41,30 @@ cublas_enabled = pytest.mark.skipif(
 pytestmark = [cublas_enabled]
 
 
-def build_and_run(mod, inputs_np, target, legalize=False):
+def build_and_run(mod, inputs_np, target, legalize=False, cuda_graph=False):
     if legalize:
         mod = relax.transform.LegalizeOps()(mod)
 
     dev = tvm.device(target, 0)
-    ex = relax.build(mod, target)
+    with tvm.transform.PassContext(config={"relax.backend.use_cuda_graph": cuda_graph}):
+        ex = relax.build(mod, target)
     vm = relax.VirtualMachine(ex, dev)
     f = vm["main"]
     inputs = [tvm.nd.array(inp, dev) for inp in inputs_np]
+
+    # For cuda graph, run the compiled function twice to make sure that we can launch the cached
+    # graph on the second run.
+    if cuda_graph:
+        f(*inputs)
+
     return f(*inputs).numpy()
 
 
-def get_result_with_relax_cublas_offload(mod, *args):
+def get_result_with_relax_cublas_offload(mod, np_inputs, cuda_graph=False):
     mod = partition_for_cublas(mod)
     mod = relax.transform.RunCodegen()(mod)
 
-    return build_and_run(mod, args, "cuda")
+    return build_and_run(mod, np_inputs, "cuda", cuda_graph)
 
 
 def _to_concrete_shape(symbolic_shape, var_table):
@@ -146,7 +153,7 @@ def test_matmul_offload(
         activation=activation,
     )
 
-    out = get_result_with_relax_cublas_offload(mod, *args)
+    out = get_result_with_relax_cublas_offload(mod, args)
     ref = build_and_run(mod, args, "llvm", legalize=True)
 
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
@@ -159,6 +166,40 @@ def test_cublass_partition_matmul_without_bias():
 
     # R.add is still in the main function
     assert len(mod["main"].body.blocks[0].bindings) == 2
+
+
+def test_cublas_matmul_cuda_graph():
+    @tvm.script.ir.ir_module
+    class Mod:
+        @R.function
+        def main(
+            x: R.Tensor((16, 16), "float16"),
+            w0: R.Tensor((16, 16), "float16"),
+            w1: R.Tensor((16, 16), "float16"),
+            w2: R.Tensor((16, 16), "float16"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv0 = R.matmul(x, w0)
+                lv1 = R.matmul(lv0, w1)
+                lv2 = R.matmul(lv1, w2)
+                R.output(lv2)
+            return lv2
+
+    mod = Mod
+    shape = [16, 16]
+    data = np.random.rand(*shape).astype(np.float16)
+    w0 = np.random.rand(*shape).astype(np.float16)
+    w1 = np.random.rand(*shape).astype(np.float16)
+    w2 = np.random.rand(*shape).astype(np.float16)
+    inputs = (data, w0, w1, w2)
+
+    out = get_result_with_relax_cublas_offload(Mod, inputs, cuda_graph=True)
+
+    with tvm.target.Target("cuda"):
+        mod = tvm.tir.transform.DefaultGPUSchedule()(mod)
+    ref = build_and_run(mod, inputs, "llvm", legalize=True)
+    tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
 if __name__ == "__main__":

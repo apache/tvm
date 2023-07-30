@@ -54,6 +54,10 @@ class CublasJSONRuntime : public JSONRuntimeBase {
   void Run() override {
     auto* entry_ptr = tvm::contrib::CuBlasLtThreadEntry::ThreadLocal();
 
+    auto func = tvm::runtime::Registry::Get("runtime.get_cuda_stream");
+    ICHECK(func != nullptr);
+    cudaStream_t stream = static_cast<cudaStream_t>((*func)().operator void*());
+
     for (size_t i = 0; i < nodes_.size(); ++i) {
       const auto& node = nodes_[i];
       if (node.GetOpType() == "kernel") {
@@ -86,8 +90,8 @@ class CublasJSONRuntime : public JSONRuntimeBase {
 
         auto [a_ptr, b_ptr, bias_ptr] = get_inputs(node, epilogue != CUBLASLT_EPILOGUE_DEFAULT);
 
-        tvm::contrib::CallCublasLt(entry_ptr->handle, a_ptr, b_ptr, bias_ptr, out_ptr, transa,
-                                   transb, epilogue);
+        tvm::contrib::CallCublasLt(entry_ptr->handle, stream, a_ptr, b_ptr, bias_ptr, out_ptr,
+                                   transa, transb, epilogue);
       }
     }
   }
