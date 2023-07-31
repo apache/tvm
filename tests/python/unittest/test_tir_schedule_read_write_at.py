@@ -21,7 +21,10 @@ import pytest
 import tvm
 from tvm import tir
 from tvm.script import tir as T
-from tvm.tir.schedule.testing import verify_trace_roundtrip
+from tvm.tir.schedule.testing import (
+    verify_trace_roundtrip,
+    assert_structural_equal_ignore_global_symbol,
+)
 
 
 # fmt: off
@@ -191,7 +194,7 @@ def test_read_at_global_to_shared_a():
     _by, _bx, _vy, _vx, _ty, _tx, k0, _k1, _, _i, _j = sch.get_loops(block)
     # pylint: enable=invalid-name
     sch.read_at(k0, block, 1, "shared")
-    tvm.ir.assert_structural_equal(sch.mod["main"], cuda_matmul_read_at_a)
+    assert_structural_equal_ignore_global_symbol(sch.mod["main"], cuda_matmul_read_at_a)
     verify_trace_roundtrip(sch, cuda_matmul)
 
 
@@ -202,7 +205,7 @@ def test_read_at_global_to_shared_ab():
     _by, _bx, _vy, _vx, _ty, _tx, k0, _k1, _, _i, _j = sch.get_loops(block)
     # pylint: enable=invalid-name
     sch.read_at(k0, block, 2, "shared")
-    tvm.ir.assert_structural_equal(sch.mod["main"], cuda_matmul_read_at_ab)
+    assert_structural_equal_ignore_global_symbol(sch.mod["main"], cuda_matmul_read_at_ab)
     verify_trace_roundtrip(sch, cuda_matmul_read_at_a)
 
 
@@ -213,7 +216,7 @@ def test_read_at_local_to_shared_c():
     _by, _bx, _vy, _vx, _ty, tx, _k0, _k1, _, _i, _j = sch.get_loops(block)
     # pylint: enable=invalid-name
     sch.write_at(tx, block, 0, "shared")
-    tvm.ir.assert_structural_equal(sch.mod["main"], cuda_matmul_write_at_c)
+    assert_structural_equal_ignore_global_symbol(sch.mod["main"], cuda_matmul_write_at_c)
     verify_trace_roundtrip(sch, cuda_matmul_read_at_ab)
 
 

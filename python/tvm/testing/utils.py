@@ -1983,11 +1983,11 @@ class CompareBeforeAfter:
                     if name.startswith("_"):
                         pass
                     elif isinstance(method, tvm.ir.function.BaseFunc):
-                        func_dict[name] = method
+                        func_dict[name] = method.with_attr("global_symbol", name)
                     else:
                         source_code = "@T.prim_func\n" + textwrap.dedent(inspect.getsource(method))
                         prim_func = tvm.script.from_source(source_code)
-                        func_dict[name] = prim_func
+                        func_dict[name] = prim_func.with_attr("global_symbol", name)
                 return tvm.IRModule(func_dict)
 
         else:
@@ -2093,6 +2093,10 @@ class CompareBeforeAfter:
             after = transform(before)
 
             try:
+                # overwrite global symbol so it doesn't come up in the comparison
+                if isinstance(after, tvm.tir.PrimFunc):
+                    after = after.with_attr("global_symbol", "main")
+                    expected = expected.with_attr("global_symbol", "main")
                 tvm.ir.assert_structural_equal(after, expected)
             except ValueError as err:
                 before_str = before.script(name="before")

@@ -54,9 +54,10 @@ Buffer BufferDecl(Array<PrimExpr> shape, DataType dtype, String buffer_name, Opt
                 axis_separators.value_or(Array<IntImm>()));
 }
 
-PrimFuncFrame PrimFunc() {
+PrimFuncFrame PrimFunc(bool is_private) {
   ObjectPtr<PrimFuncFrameNode> n = make_object<PrimFuncFrameNode>();
   n->name = NullOpt;
+  n->is_private = is_private;
   n->args.clear();
   n->ret_type = NullOpt;
   n->buffer_map.clear();
@@ -95,6 +96,10 @@ void FuncAttrs(Map<String, ObjectRef> attrs) {
   PrimFuncFrame frame = FindPrimFuncFrame("T.func_attr");
   if (frame->attrs.defined()) {
     LOG(FATAL) << "ValueError: Duplicate prim func annotations, previous one is " << frame->attrs;
+  }
+  if (attrs.count(tvm::attr::kGlobalSymbol) && frame->is_private) {
+    LOG(FATAL) << "ValueError: Specifying the global symbol even though the PrimFunc is annotated "
+                  "as private";
   }
   frame->attrs = attrs;
 }

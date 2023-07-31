@@ -579,13 +579,15 @@ PackedFunc ProfileFunction(Module mod, std::string func_name, int device_type, i
  *        defined by `repeats_to_cooldown`.
  * \param repeats_to_cooldown The number of repeats before the
  *        cooldown is activated.
+ * \param cache_flush_bytes The number of bytes to flush from cache before
  * \param f_preproc The function to be executed before we execute time
  *        evaluator.
  * \return f_timer A timer function.
  */
 PackedFunc WrapTimeEvaluator(PackedFunc f, Device dev, int number, int repeat, int min_repeat_ms,
                              int limit_zero_time_iterations, int cooldown_interval_ms,
-                             int repeats_to_cooldown, PackedFunc f_preproc = nullptr);
+                             int repeats_to_cooldown, int cache_flush_bytes = 0,
+                             PackedFunc f_preproc = nullptr);
 
 }  // namespace profiling
 }  // namespace runtime

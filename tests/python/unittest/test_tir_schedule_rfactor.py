@@ -16,11 +16,15 @@
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring
 import pytest
+
 import tvm
 import tvm.testing
 from tvm import te, tir, topi
 from tvm.script import tir as T
-from tvm.tir.schedule.testing import verify_trace_roundtrip
+from tvm.tir.schedule.testing import (
+    assert_structural_equal_ignore_global_symbol,
+    verify_trace_roundtrip,
+)
 
 # pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
@@ -1261,7 +1265,7 @@ def test_reduction_rfactor_matmul():
     update = s.get_block("update")
     _, _, _, _, kii = s.get_loops(update)
     rf_block = s.rfactor(kii, 0)
-    tvm.ir.assert_structural_equal(s.mod["main"], matmul_rfactor)
+    assert_structural_equal_ignore_global_symbol(s.mod["main"], matmul_rfactor)
     assert s.get(rf_block).same_as(s.get(s.get_block("update_rf")))
     assert s.get(update).same_as(s.get(s.get_block("update")))
     verify_trace_roundtrip(s, mod=transformed_matmul)
@@ -1272,7 +1276,7 @@ def test_reduction_rfactor_matmul_with_let():
     update = s.get_block("update")
     _, _, _, _, kii = s.get_loops(update)
     rf_block = s.rfactor(kii, 0)
-    tvm.ir.assert_structural_equal(s.mod["main"], matmul_rfactor)
+    assert_structural_equal_ignore_global_symbol(s.mod["main"], matmul_rfactor)
     assert s.get(rf_block).same_as(s.get(s.get_block("update_rf")))
     assert s.get(update).same_as(s.get(s.get_block("update")))
     verify_trace_roundtrip(s, mod=transformed_matmul_with_let)
@@ -1283,7 +1287,7 @@ def test_reduction_rfactor_square_sum():
     C = s.get_block("C")
     _, _, j = s.get_loops(C)
     rf_block = s.rfactor(j, 1)
-    tvm.ir.assert_structural_equal(s.mod["main"], square_sum_rfactor)
+    assert_structural_equal_ignore_global_symbol(s.mod["main"], square_sum_rfactor)
     assert s.get(rf_block).same_as(s.get(s.get_block("C_rf")))
     assert s.get(C).same_as(s.get(s.get_block("C")))
     verify_trace_roundtrip(s, mod=square_sum)
@@ -1294,7 +1298,7 @@ def test_reduction_rfactor_square_sum_square_root():
     C = s.get_block("C")
     _, _, f_i = s.get_loops(C)
     rf_block = s.rfactor(f_i, 0)
-    tvm.ir.assert_structural_equal(s.mod["main"], square_sum_square_root_rfactor)
+    assert_structural_equal_ignore_global_symbol(s.mod["main"], square_sum_square_root_rfactor)
     assert s.get(rf_block).same_as(s.get(s.get_block("C_rf")))
     assert s.get(C).same_as(s.get(s.get_block("C")))
     verify_trace_roundtrip(s, mod=transformed_square_sum_square_root)
@@ -1363,7 +1367,7 @@ def test_reduction_rfactor_factor_axis_range():
     update = s.get_block("update")
     _, _, _, _, kii = s.get_loops(update)
     rf_block = s.rfactor(kii, -3)
-    tvm.ir.assert_structural_equal(s.mod["main"], matmul_rfactor)
+    assert_structural_equal_ignore_global_symbol(s.mod["main"], matmul_rfactor)
     assert s.get(rf_block).same_as(s.get(s.get_block("update_rf")))
     assert s.get(update).same_as(s.get(s.get_block("update")))
     verify_trace_roundtrip(s, mod=transformed_matmul)
@@ -1409,7 +1413,7 @@ def test_reduction_rfactor_zero_dim():
     B = s.get_block("B")
     (k,) = s.get_loops(B)
     rf_block = s.rfactor(k, 0)
-    tvm.ir.assert_structural_equal(s.mod["main"], rowsum_zero_dim_rfactor)
+    assert_structural_equal_ignore_global_symbol(s.mod["main"], rowsum_zero_dim_rfactor)
     assert s.get(rf_block).same_as(s.get(s.get_block("B_rf")))
     assert s.get(B).same_as(s.get(s.get_block("B")))
     verify_trace_roundtrip(s, mod=rowsum_zero_dim)
@@ -1439,7 +1443,7 @@ def test_reduction_rfactor_outermost_loop_multiple_children():  # pylint: disabl
     C = s.get_block("C")
     _, _, k1o, _ = s.get_loops(C)
     rf_block = s.rfactor(k1o, 2)
-    tvm.ir.assert_structural_equal(s.mod["main"], multiple_reduction_blocks_rfactor)
+    assert_structural_equal_ignore_global_symbol(s.mod["main"], multiple_reduction_blocks_rfactor)
     assert s.get(rf_block).same_as(s.get(s.get_block("C_rf")))
     assert s.get(C).same_as(s.get(s.get_block("C")))
     verify_trace_roundtrip(s, mod=multiple_reduction_blocks)
@@ -1459,7 +1463,7 @@ def test_reduction_rfactor_with_annotation():
     C = s.get_block("C")
     _, _, j = s.get_loops(C)
     rf_block = s.rfactor(j, 1)
-    tvm.ir.assert_structural_equal(s.mod["main"], square_sum_with_annotation_rfactor)
+    assert_structural_equal_ignore_global_symbol(s.mod["main"], square_sum_with_annotation_rfactor)
     assert s.get(rf_block).same_as(s.get(s.get_block("C_rf")))
     assert s.get(C).same_as(s.get(s.get_block("C")))
     verify_trace_roundtrip(s, mod=square_sum_with_annotation)
@@ -1470,7 +1474,7 @@ def test_reduction_rfactor_spatial_only():
     block = s.get_block(name="acc", func_name="main")
     _, _, _, _, loop, _ = s.get_loops(block)
     rf_block = s.rfactor(loop=loop, factor_axis=4)
-    tvm.ir.assert_structural_equal(s.mod["main"], rfactor_spatial_only_after)
+    assert_structural_equal_ignore_global_symbol(s.mod["main"], rfactor_spatial_only_after)
     assert s.get(rf_block).same_as(s.get(s.get_block("acc_rf")))
     assert s.get(block).same_as(s.get(s.get_block("acc")))
     verify_trace_roundtrip(s, mod=rfactor_spatial_only)
@@ -1481,7 +1485,7 @@ def test_reduction_rfactor_argmax():
     argmax = s.get_block("argmax")
     _, _, ki = s.get_loops(argmax)
     rf_block = s.rfactor(ki, 1)
-    tvm.ir.assert_structural_equal(s.mod["main"], argmax_split_rfactor)
+    assert_structural_equal_ignore_global_symbol(s.mod["main"], argmax_split_rfactor)
     assert s.get(rf_block).same_as(s.get(s.get_block("argmax_rf")))
     assert s.get(argmax).same_as(s.get(s.get_block("argmax")))
     verify_trace_roundtrip(s, mod=argmax_split)
@@ -1492,7 +1496,7 @@ def test_reduction_rfactor_argmin_init_update_reordeded():
     argmin = s.get_block("argmin")
     _, _, ki = s.get_loops(argmin)
     rf_block = s.rfactor(ki, 1)
-    tvm.ir.assert_structural_equal(s.mod["main"], argmin_split_rfactor)
+    assert_structural_equal_ignore_global_symbol(s.mod["main"], argmin_split_rfactor)
     assert s.get(rf_block).same_as(s.get(s.get_block("argmin_rf")))
     assert s.get(argmin).same_as(s.get(s.get_block("argmin")))
     verify_trace_roundtrip(s, mod=argmin_split_init_update_reordered)
@@ -1619,7 +1623,7 @@ def test_reduction_rfactor_topi_argmax():
     _, k = s.get_loops(argmax)
     _, ki = s.split(k, [None, 8])
     rf_block = s.rfactor(ki, 1)
-    tvm.ir.assert_structural_equal(s.mod["main"], argmax_topi_rfactor)
+    assert_structural_equal_ignore_global_symbol(s.mod["main"], argmax_topi_rfactor)
     assert s.get(rf_block).same_as(s.get(s.get_block("placeholder_red_temp_rf")))
     assert s.get(argmax).same_as(s.get(s.get_block("placeholder_red_temp")))
     verify_trace_roundtrip(s, mod=argmax_topi)
@@ -1634,10 +1638,66 @@ def test_reduction_rfactor_topi_argmin():
     _, k = s.get_loops(argmin)
     _, ki = s.split(k, [None, 8])
     rf_block = s.rfactor(ki, 1)
-    tvm.ir.assert_structural_equal(s.mod["main"], argmin_topi_rfactor)
+    assert_structural_equal_ignore_global_symbol(s.mod["main"], argmin_topi_rfactor)
     assert s.get(rf_block).same_as(s.get(s.get_block("placeholder_red_temp_rf")))
     assert s.get(argmin).same_as(s.get(s.get_block("placeholder_red_temp")))
     verify_trace_roundtrip(s, mod=argmin_topi)
+
+
+def test_reduction_rfactor_int64():
+    # fmt: off
+    @T.prim_func
+    def before(
+        A: T.Buffer((T.int64(128), T.int64(128)), "float32"),
+        B: T.Buffer((T.int64(128), T.int64(128)), "float32"),
+        C: T.Buffer((T.int64(128), T.int64(128)), "float32"),
+    ):
+        for i0, i1, i2_outer, i2_inner_outer, i2_inner_inner in T.grid(
+            T.int64(128), T.int64(128), T.int64(4), T.int64(8), T.int64(4)
+        ):
+            with T.block("update"):
+                vi, vj = T.axis.remap("SS", [i0, i1])
+                vk = T.axis.R(
+                    T.int64(128),
+                    i2_outer * T.int64(32) + i2_inner_outer * T.int64(4) + i2_inner_inner,
+                )
+                with T.init():
+                    C[vi, vj] = 0.0
+                C[vi, vj] = C[vi, vj] + (A[vi, vk] * B[vj, vk])
+
+    @T.prim_func
+    def expected(A: T.Buffer((T.int64(128), T.int64(128)), "float32"),
+        B: T.Buffer((T.int64(128), T.int64(128)), "float32"),
+        C: T.Buffer((T.int64(128), T.int64(128)), "float32"),
+    ):
+        C_rf = T.alloc_buffer((T.int64(4), T.int64(128), T.int64(128)), "float32")
+
+        for i0, i1, i2_outer, i2_inner_outer, i2_inner_inner in T.grid(T.int64(128), T.int64(128), T.int64(4), T.int64(8), T.int64(4)):
+            with T.block("update_rf"):
+                vi2_inner_inner, vi, vj, vi2_outer, vi2_inner_outer= T.axis.remap("SSSRR", [i2_inner_inner, i0, i1, i2_outer, i2_inner_outer])
+                with T.init():
+                    C_rf[vi2_inner_inner, vi, vj] = 0.0
+                C_rf[vi2_inner_inner, vi, vj] = C_rf[vi2_inner_inner, vi, vj] + (
+                    A[vi, (((vi2_outer * T.int64(32)) + (vi2_inner_outer * T.int64(4))) + vi2_inner_inner)]
+                    * B[vj, (((vi2_outer * T.int64(32)) + (vi2_inner_outer * T.int64(4))) + vi2_inner_inner)]
+                )
+
+        for i0_1, i1_1, i2_inner_inner_1 in T.grid(T.int64(128), T.int64(128), T.int64(4)):
+            with T.block("update"):
+                vi2_inner_inner_1, vi_1, vj_1 = T.axis.remap("RSS", [i2_inner_inner_1, i0_1, i1_1])
+                with T.init():
+                    C[vi_1, vj_1] = 0.0
+                C[vi_1, vj_1] = C[vi_1, vj_1] + C_rf[vi2_inner_inner_1, vi_1, vj_1]
+    # fmt: on
+
+    s = tir.Schedule(before, debug_mask="all")
+    update = s.get_block("update")
+    _, _, _, _, kii = s.get_loops(update)
+    rf_block = s.rfactor(kii, 0)
+    assert_structural_equal_ignore_global_symbol(s.mod["main"], expected)
+    assert s.get(rf_block).same_as(s.get(s.get_block("update_rf")))
+    assert s.get(update).same_as(s.get(s.get_block("update")))
+    verify_trace_roundtrip(s, mod=before)
 
 
 if __name__ == "__main__":

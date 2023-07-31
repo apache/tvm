@@ -1650,7 +1650,7 @@ def test_lowered():
     of device_copies to mediate any scope changes.
     """
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def input_gem(a: T.handle, b: T.handle, c: T.handle, d: T.handle) -> None:
         A = T.match_buffer(a, [128, 128], scope="scopeA")  # will flow out
         B = T.match_buffer(b, [128, 128], scope="")  # will flow in
@@ -1664,7 +1664,7 @@ def test_lowered():
                     D[vi, vj] = C[vi, vj]
                 D[vi, vj] = D[vi, vj] + A[vi, vk] * B[vj, vk]
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def expected_gem(a: T.handle, b: T.handle, c: T.handle, d: T.handle) -> None:
         A = T.match_buffer(a, [128, 128], scope="scopeA")
         B = T.match_buffer(b, [128, 128], scope="scopeB")  # flowed in

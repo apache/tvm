@@ -170,6 +170,24 @@ NDArray Allocator::Empty(std::vector<int64_t> shape, DLDataType dtype, DLDevice 
   return NDArray(GetObjectPtr<Object>(container));
 }
 
+Buffer Allocator::Alloc(Device dev, int ndims, int64_t* shape, DLDataType type_hint,
+                        const std::string& mem_scope) {
+  if (mem_scope.empty() || mem_scope == "global") {
+    // by default, we can always redirect to the flat memory allocations
+    std::vector<int64_t> s;
+    for (int i = 0; i < ndims; ++i) {
+      s.push_back(shape[i]);
+    }
+    NDArray::Container container(nullptr, s, type_hint, dev);
+    size_t size = GetDataSize(container.dl_tensor);
+    size_t alignment = GetDataAlignment(container.dl_tensor);
+    return Alloc(size, alignment, type_hint);
+  }
+  LOG(FATAL) << "Allocator cannot allocate data space with "
+             << "specified memory scope: " << mem_scope;
+  return {};
+}
+
 }  // namespace vm
 }  // namespace runtime
 }  // namespace tvm

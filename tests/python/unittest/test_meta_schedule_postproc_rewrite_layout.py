@@ -20,6 +20,7 @@ import tvm.testing
 from tvm import meta_schedule as ms
 from tvm.script import tir as T
 from tvm.target import Target
+from tvm.tir.schedule.testing import assert_structural_equal_ignore_global_symbol
 
 
 def _target() -> Target:
@@ -201,7 +202,7 @@ def test_layout_rewrite():
     sch = tvm.tir.Schedule(tir_matmul, debug_mask="all")
     sch.enter_postproc()
     assert ctx.space_generator.postprocs[0].apply(sch)
-    tvm.ir.assert_structural_equal(sch.mod["main"], rewritten_tir_matmul)
+    assert_structural_equal_ignore_global_symbol(sch.mod["main"], rewritten_tir_matmul)
 
 
 # fmt: off

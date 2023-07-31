@@ -32,7 +32,7 @@ def opt_gemm_normalize():
         @T.prim_func
         def mmult(A: T.handle, B: T.handle, C: T.handle) -> None:
             # function attr dict
-            T.func_attr({"global_symbol": "mmult", "tir.noalias": True})
+            T.func_attr({"tir.noalias": True})
             # buffer definition
             C_global = T.Buffer([1024, 1024], elem_offset=0, align=64, offset_factor=1)
             packedB = T.Buffer([32, 1024, 32], elem_offset=0, align=64, offset_factor=1)
@@ -89,7 +89,7 @@ def opt_gemm_lower():
         @T.prim_func
         def mmult(A: T.handle, B: T.handle, C: T.handle) -> None:
             # function attr dict
-            T.func_attr({"global_symbol": "mmult", "tir.noalias": True})
+            T.func_attr({"tir.noalias": True})
             A_1 = T.match_buffer(A, [16384], elem_offset=0, align=64, offset_factor=1)
             B_1 = T.match_buffer(B, [1024, 1024], elem_offset=0, align=64, offset_factor=1)
             C_1 = T.match_buffer(C, [16384], elem_offset=0, align=64, offset_factor=1)
@@ -196,7 +196,6 @@ def opt_gemm_mod_host():
             T.func_attr(
                 {
                     "tir.noalias": True,
-                    "global_symbol": "mmult",
                     "tir.is_entry_func": True,
                     "calling_conv": 1,
                 }
@@ -3567,7 +3566,9 @@ def multi_env_threads():
         for i in T.thread_binding(128, thread="threadIdx.x"):
             C[i] = B[i] + 2.0
 
-    mod = tvm.tir.transform.LowerOpaqueBlock()(tvm.IRModule.from_expr(func))
+    mod = tvm.tir.transform.LowerOpaqueBlock()(
+        tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
+    )
     return mod["main"]
 
 
@@ -3906,6 +3907,23 @@ def return_zero():
     return func
 
 
+def return_zero_private():
+    @T.prim_func(private=True)
+    def func() -> T.int32:
+        T.ret(0)
+
+    return func
+
+
+def return_zero_private_with_attr():
+    @T.prim_func(private=True)
+    def func() -> T.int32:
+        T.func_attr({"greeting": "hello"})
+        T.ret(0)
+
+    return func
+
+
 def op_of_literal():
     op_list = [
         (T.exp, 0),
@@ -4032,6 +4050,8 @@ ir_generator = tvm.testing.parameter(
     undefined_elem_offset_in_decl_buffer,
     subroutine_call_without_arguments,
     return_zero,
+    return_zero_private,
+    return_zero_private_with_attr,
     *op_of_literal(),
 )
 
