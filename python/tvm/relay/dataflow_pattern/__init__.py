@@ -733,7 +733,7 @@ class WildcardPattern(DFPattern):
         pat: relay.dataflow_pattern.DFPattern
             The pattern that wildcard is redirected to.
         """
-        ffi.WildcardPattern_redirect_to(self, pat);
+        ffi.WildcardPattern_redirect_to(self, pat)
 
 
 @register_df_node
