@@ -536,7 +536,7 @@ def clip(x: Expr, min: Expr, max: Expr) -> Expr:
 
 def erf(x: Expr) -> Expr:
     """Computes the error function of the input.
-    
+
     Parameters
     ----------
     x : relax.Expr

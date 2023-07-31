@@ -51,6 +51,7 @@ register_legalize("relax.tan", _call_topi_without_attr(topi.tan, "tir_tan"))
 register_legalize("relax.tanh", _call_topi_without_attr(topi.tanh, "tir_tanh"))
 register_legalize("relax.clip", _call_topi_without_attr(topi.clip, "tir_clip"))
 
+
 @register_legalize("relax.erf")
 def _erf(bb: BlockBuilder, call: Call) -> Expr:
     def te_erf(x: te.Tensor):
@@ -60,4 +61,5 @@ def _erf(bb: BlockBuilder, call: Call) -> Expr:
         else:
             erf = topi.erf(x)
         return erf
+
     return bb.call_te(te_erf, call.args[0], primfunc_name_hint="erf")
