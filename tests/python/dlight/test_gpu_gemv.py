@@ -101,13 +101,12 @@ class TestGEMV(BaseBeforeAfter):
                             for ax0_ax1_ax2_ax3_fused_0 in range(1):
                                 for ax0_ax1_ax2_ax3_fused_1 in T.thread_binding(1, thread="threadIdx.y"):
                                     for ax0_ax1_ax2_ax3_fused_2 in T.thread_binding(32, thread="threadIdx.x"):
-                                        for ax0_ax1_ax2_ax3_fused_3 in T.vectorized(8):
+                                        for ax0_ax1_ax2_ax3_fused_3 in T.vectorized(4):
                                             with T.block("lv1637_shared"):
                                                 v0 = T.axis.spatial(1, 0)
                                                 v1 = T.axis.spatial(32, ax0_fused)
                                                 v2 = T.axis.spatial(1, 0)
-                                                v3 = T.axis.spatial(128, ax0_ax1_ax2_ax3_fused_0 * 256 + ax0_ax1_ax2_ax3_fused_1 * 256 + ax0_ax1_ax2_ax3_fused_2 * 8 + ax0_ax1_ax2_ax3_fused_3)
-                                                T.where(((ax0_ax1_ax2_ax3_fused_0 + ax0_ax1_ax2_ax3_fused_1) * 32 + ax0_ax1_ax2_ax3_fused_2) * 8 + ax0_ax1_ax2_ax3_fused_3 < 128)
+                                                v3 = T.axis.spatial(128, ax0_ax1_ax2_ax3_fused_0 * 128 + ax0_ax1_ax2_ax3_fused_1 * 128 + ax0_ax1_ax2_ax3_fused_2 * 4 + ax0_ax1_ax2_ax3_fused_3)
                                                 T.reads(lv1637[v0, v1, v2, v3])
                                                 T.writes(lv1637_shared[v0, v1, v2, v3])
                                                 lv1637_shared[v0, v1, v2, v3] = lv1637[v0, v1, v2, v3]
