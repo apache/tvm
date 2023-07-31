@@ -587,18 +587,7 @@ class Erf(OnnxOpConverter):
 
     @classmethod
     def _impl_v13(cls, bb, inputs, attr, params):
-        x = inputs[0]
-        sqrt2 = relax.const(_np.sqrt(2), x.struct_info.dtype)
-        # TODO: replace with erf operator once it is implemented
-        mul = relax.op.multiply(x, sqrt2)
-        gelu = relax.op.nn.gelu(mul)
-        mul_2 = relax.op.multiply(gelu, sqrt2)
-        return bb.normalize(
-            relax.op.add(
-                relax.op.divide(mul_2, x),
-                relax.const(-1, x.struct_info.dtype),
-            )
-        )
+        return relax.op.erf(inputs[0])
 
 
 class CumSum(OnnxOpConverter):

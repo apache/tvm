@@ -138,6 +138,7 @@ from tvm.relax.op import (
     subtract,
     tan,
     tanh,
+    erf,
     tile,
     tril,
     triu,
@@ -703,4 +704,5 @@ __all__ = [
     "zeros",
     "zeros_like",
     "nn",
+    "erf",
 ]
