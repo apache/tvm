@@ -205,6 +205,107 @@ def test_vm_compile_e2e_func_param_with_shape(exec_mode):
 
 
 @pytest.mark.parametrize("exec_mode", EXEC_MODE)
+def test_call_tir_inplace_e2e_simple(exec_mode):
+    @tvm.script.ir_module
+    class TestCallTIRInplaceE2ESimple:
+        @T.prim_func
+        def copy(
+            A: T.Buffer((2, 3), "int32"),
+            B: T.Buffer((2, 3), "int32"),
+            C: T.Buffer((2, 3), "int32"),
+            out1: T.Buffer((2, 3), "int32"),
+        ):
+            # copies the contents of C into A, B, and out1
+            T.func_attr({"tir.noalias": True})
+            for i0, i1 in T.grid(T.int64(2), T.int64(3)):
+                with T.block("T_zeros"):
+                    ax0, ax1 = T.axis.remap("SS", [i0, i1])
+                    T.reads(C[ax0, ax1])
+                    T.writes(A[ax0, ax1], B[ax0, ax1], out1[ax0, ax1])
+                    A[ax0, ax1] = C[ax0, ax1]
+                    B[ax0, ax1] = C[ax0, ax1]
+                    out1[ax0, ax1] = C[ax0, ax1]
+
+        @R.function
+        def main(
+            x: R.Tensor((2, 3), "int32"), y: R.Tensor((2, 3), "int32"), z: R.Tensor((2, 3), "int32")
+        ) -> R.Tuple(
+            R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32")
+        ):
+            res = R.call_tir_inplace(
+                TestCallTIRInplaceE2ESimple.copy,
+                (x, y, z),
+                [0, 1, -1],
+                [R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32")],
+            )
+            return res
+
+    mod = TestCallTIRInplaceE2ESimple
+
+    target = tvm.target.Target("llvm", host="llvm")
+    ex = relax.build(mod, target, exec_mode=exec_mode)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+
+    x = tvm.nd.array(np.zeros((2, 3)).astype(np.int32))
+    y = tvm.nd.array(np.zeros((2, 3)).astype(np.int32))
+    z = tvm.nd.array(np.ones((2, 3)).astype(np.int32))
+    vm.set_input("main", x, y, z)
+    vm.invoke_stateful("main")
+    outs = vm.get_outputs("main")
+    # check the expected aliasing (the last result is newly allocated)
+    assert x == outs[0]
+    assert y == outs[1]
+    assert x != y
+    assert x != outs[2]
+    assert y != outs[2]
+    tvm.testing.assert_allclose(x.numpy(), z.numpy(), rtol=1e-7, atol=1e-7)
+    tvm.testing.assert_allclose(y.numpy(), z.numpy(), rtol=1e-7, atol=1e-7)
+    tvm.testing.assert_allclose(outs[2].numpy(), z.numpy(), rtol=1e-7, atol=1e-7)
+
+
+@pytest.mark.parametrize("exec_mode", EXEC_MODE)
+def test_call_tir_inplace_e2e_rw(exec_mode):
+    # read and write from the same tensor
+    @tvm.script.ir_module
+    class TestCallTIRInplaceE2ERW:
+        @T.prim_func
+        def inplace_add(A: T.Buffer((2, 3), "int32"), B: T.Buffer((2, 3), "int32")):
+            # sums A and B, storing the result in A
+            T.func_attr({"tir.noalias": True})
+            for i0, i1 in T.grid(T.int64(2), T.int64(3)):
+                with T.block("T_add"):
+                    ax0, ax1 = T.axis.remap("SS", [i0, i1])
+                    T.reads(A[ax0, ax1], B[ax0, ax1])
+                    T.writes(A[ax0, ax1])
+                    A[ax0, ax1] = A[ax0, ax1] + B[ax0, ax1]
+
+        @R.function
+        def main(
+            x: R.Tensor((2, 3), "int32"), y: R.Tensor((2, 3), "int32")
+        ) -> R.Tensor((2, 3), "int32"):
+            res = R.call_tir_inplace(
+                TestCallTIRInplaceE2ERW.inplace_add, (x, y), [0], R.Tensor((2, 3), "int32")
+            )
+            return res
+
+    mod = TestCallTIRInplaceE2ERW
+
+    target = tvm.target.Target("llvm", host="llvm")
+    ex = relax.build(mod, target, exec_mode=exec_mode)
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+
+    x = tvm.nd.array(np.ones((2, 3)).astype(np.int32))
+    y = tvm.nd.array(np.ones((2, 3)).astype(np.int32))
+    vm.set_input("main", x, y)
+    vm.invoke_stateful("main")
+    out = vm.get_outputs("main")
+    expected = tvm.nd.array(np.full((2, 3), 2).astype(np.int32))
+
+    assert x == out
+    tvm.testing.assert_allclose(out.numpy(), expected.numpy(), rtol=1e-7, atol=1e-7)
+
+
+@pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_vm_emit_te_extern(exec_mode):
     if not tvm.get_global_func("tvm.contrib.cblas.matmul", True):
         print("skip because extern function is not available")

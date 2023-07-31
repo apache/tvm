@@ -126,7 +126,7 @@ TVM_REGISTER_GLOBAL("relax.op.call_pure_packed").set_body_typed(MakeCallPurePack
 StructInfo InferStructInfoCallTIR(const Call& call, const BlockBuilder& ctx) {
   if (call->sinfo_args.size() != 1) {
     ctx->ReportFatal(Diagnostic::Error(call)
-                     << "sinfo_args should have exact 1 output struct info.");
+                     << "sinfo_args should have exactly 1 output struct info.");
   }
   CHECK(call->args[0]->IsInstance<GlobalVarNode>())
       << "call_tir expects the first argument to be a GlobalVar referring to a TIR PrimFunc. "
@@ -222,6 +222,149 @@ Expr MakeCallTIRWithGrad(Expr func, Tuple args, Array<TensorStructInfo> out_sinf
 }
 
 TVM_REGISTER_GLOBAL("relax.op.call_tir_with_grad").set_body_typed(MakeCallTIRWithGrad);
+
+// call_tir_inplace
+
+StructInfo InferStructInfoCallTIRInplace(const Call& call, const BlockBuilder& ctx) {
+  if (call->sinfo_args.size() != 1) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "sinfo_args should have exactly 1 output struct info.");
+  }
+  CHECK(call->args[0]->IsInstance<GlobalVarNode>())
+      << "call_tir expects the first argument to be a GlobalVar referring to a TIR PrimFunc. "
+      << "However, gets " << call->args[0];
+  // there must be an inplace index for each output
+  const auto* attrs = call->attrs.as<CallTIRInplaceAttrs>();
+  size_t num_outputs = 1U;
+  if (auto* tup_info = call->sinfo_args[0].as<TupleStructInfoNode>()) {
+    num_outputs = tup_info->fields.size();
+  }
+  if (attrs->inplace_indices.size() != num_outputs) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "There must be an in-place index specified for each output");
+  }
+
+  // check the range for inplace indices, make sure at least one is not -1, ensure they're unique
+  size_t num_args = Downcast<Tuple>(call->args[1])->fields.size();
+  std::unordered_set<int> encountered;
+  for (size_t i = 0; i < attrs->inplace_indices.size(); i++) {
+    int index = attrs->inplace_indices[i].IntValue();
+    if (index < -1 || index >= static_cast<int>(num_args)) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "In-place index " << i << " is out of range (must be between -1 and "
+                       << (num_args - 1) << ", inclusive, but is " << index << ")");
+    }
+    if (index != -1) {
+      if (encountered.count(index)) {
+        ctx->ReportFatal(Diagnostic::Error(call)
+                         << "All in-place indices must be unique, but index " << index
+                         << " appears more than once.");
+      }
+      encountered.insert(index);
+    }
+  }
+  if (encountered.empty()) {
+    ctx->ReportFatal(
+        Diagnostic::Error(call)
+        << "At least one index must have a value other than -1 (or else simply use call_tir)");
+  }
+
+  // for safety, we will make sure the output shape for each in-place argument exactly matches the
+  // input shape
+  // TODO(@slyubomirsky): eventually we will want to handle cases where that is not true
+  Tuple call_args = Downcast<Tuple>(call->args[1]);
+  if (attrs->inplace_indices.size() == 1) {
+    auto* out_sinfo = call->sinfo_args[0].as<TensorStructInfoNode>();
+    if (!out_sinfo) {
+      ctx->ReportFatal(Diagnostic::Error(call) << "The output struct info must be a tensor");
+    }
+    auto* input_sinfo = GetStructInfoAs<TensorStructInfoNode>(
+        call_args->fields[attrs->inplace_indices[0].IntValue()]);
+    if (!input_sinfo || !input_sinfo->shape.defined() ||
+        !CanProveShapeEqual(input_sinfo->shape.value(), out_sinfo->shape.value(),
+                            ctx->GetAnalyzer())) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "The shape of output 0 must match input "
+                       << attrs->inplace_indices[0].IntValue() << ", whereas we have "
+                       << out_sinfo->shape.value() << " in output 0 versus "
+                       << input_sinfo->shape.value() << " in input "
+                       << attrs->inplace_indices[0].IntValue());
+    }
+  } else {
+    auto out_sinfos = call->sinfo_args[0].as<TupleStructInfoNode>()->fields;
+    for (size_t i = 0; i < attrs->inplace_indices.size(); i++) {
+      if (attrs->inplace_indices[i].IntValue() == -1) {
+        continue;
+      }
+      auto* out_sinfo = out_sinfos[i].as<TensorStructInfoNode>();
+      if (!out_sinfo) {
+        ctx->ReportFatal(Diagnostic::Error(call) << "The output struct info must be a tensor");
+      }
+      auto* input_sinfo = GetStructInfoAs<TensorStructInfoNode>(
+          call_args->fields[attrs->inplace_indices[i].IntValue()]);
+      if (!input_sinfo || !input_sinfo->shape.defined() ||
+          !CanProveShapeEqual(input_sinfo->shape.value(), out_sinfo->shape.value(),
+                              ctx->GetAnalyzer())) {
+        ctx->ReportFatal(Diagnostic::Error(call)
+                         << "The shape of output " << i << " must match that of input "
+                         << attrs->inplace_indices[i].IntValue() << ", whereas we have "
+                         << out_sinfo->shape.value() << " in output " << i << " versus "
+                         << input_sinfo->shape.value() << " in input "
+                         << attrs->inplace_indices[i].IntValue());
+      }
+    }
+  }
+
+  return call->sinfo_args[0];
+}
+
+TVM_REGISTER_NODE_TYPE(CallTIRInplaceAttrs);
+
+RELAY_REGISTER_OP("relax.call_tir_inplace")
+    .set_num_inputs(3)
+    .set_attrs_type<CallTIRInplaceAttrs>()
+    .add_argument("func", "Expr", "The destination-passing-style function.")
+    .add_argument("args", "Tuple", "The input arguments.")
+    .add_argument("packed_ints", "Expr",
+                  "ShapeExpr representing a tuple of ints to unpack during runtime. Omitted from "
+                  "args if unused")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallTIRInplace)
+    // Warning: considered pure, but it has the potential to create visible effects!
+    // This should only be used if it has been *checked* that it is safe (no aliases, in-place
+    // arguments will no longer be live)
+    .set_attr<Bool>("FPurity", Bool(true));
+
+Expr MakeCallTIRInplace(Expr func, Tuple args, Array<Integer> inplace_indices,
+                        Array<TensorStructInfo> out_sinfo_list, Optional<Expr> packed_ints) {
+  for (const TensorStructInfo& sinfo : out_sinfo_list) {
+    const auto* shape = sinfo->shape.as<ShapeExprNode>();
+    CHECK(shape != nullptr) << "out_sinfo of call_tir should have defined ShapeExpr as shape. "
+                               "However, one given structure info is "
+                            << sinfo;
+  }
+
+  ObjectPtr<CallTIRInplaceAttrs> attrs = make_object<CallTIRInplaceAttrs>();
+  attrs->inplace_indices = Array<Integer>(inplace_indices.begin(), inplace_indices.end());
+
+  StructInfo out_sinfo{nullptr};
+  if (out_sinfo_list.size() == 1) {
+    out_sinfo = out_sinfo_list[0];
+  } else {
+    out_sinfo = TupleStructInfo({out_sinfo_list.begin(), out_sinfo_list.end()});
+  }
+
+  static const Op& op = Op::Get("relax.call_tir_inplace");
+  Call call;
+  if (!packed_ints) {
+    // don't use additional optional argument
+    call = Call(op, {func, args}, Attrs(attrs), {out_sinfo});
+  } else {
+    call = Call(op, {func, args, packed_ints.value()}, Attrs(attrs), {out_sinfo});
+  }
+  return call;
+}
+
+TVM_REGISTER_GLOBAL("relax.op.call_tir_inplace").set_body_typed(MakeCallTIRInplace);
 
 // call_dps_packed
 
