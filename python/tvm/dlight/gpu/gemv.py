@@ -246,9 +246,7 @@ class GEMV(ScheduleRule):
                 if isinstance(loop.extent, tir.IntImm):
                     # avoid introducing predicates when vector length is too large
                     vec_length = min(loop.extent // len_ty // len_tx, vec_length)
-                _, _ty, _tx, _vec = sch.split(
-                    fused, [None, len_ty, len_tx, vec_length]
-                )
+                _, _ty, _tx, _vec = sch.split(fused, [None, len_ty, len_tx, vec_length])
                 sch.bind(_ty, "threadIdx.y")
                 sch.bind(_tx, "threadIdx.x")
                 sch.vectorize(_vec)
