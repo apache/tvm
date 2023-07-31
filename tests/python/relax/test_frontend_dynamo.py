@@ -119,6 +119,25 @@ def test_relax_dynamo():
     )
 
 
+def test_relax_dynamo_dynamic():
+    class Input1(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.lin = torch.nn.Linear(100, 10)
+
+        def forward(self, x):
+            return torch.nn.functional.relu(self.lin(x))
+
+    model = Input1()
+
+    opt_model = torch.compile(model, backend=relax_dynamo(), dynamic=True)
+
+    inp = torch.randn(10, 100)
+    tvm.testing.assert_allclose(
+        opt_model(inp).detach().numpy(), model(inp).detach().numpy(), rtol=1e-5, atol=1e-5
+    )
+
+
 def test_subgraph_capture():
     import torch
     from tvm.relax.frontend.torch.dynamo import dynamo_capture_subgraphs
