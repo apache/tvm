@@ -39,6 +39,21 @@ def get_rules(
     return [rule for rule in rules if isinstance(rule, types)]
 
 
+def structural_equal_no_gs(mod1: IRModule, mod2: IRModule) -> bool:
+    """
+    Checks structural equality but ignores global symbols
+    """
+    # for every function in the modules, remove global symbols from the attrs and then compare
+    def remove_global_symbols(mod: IRModule) -> IRModule:
+        stripped_mod = IRModule()
+        for global_var in mod.get_global_vars():
+            func = mod[global_var]
+            stripped_mod[global_var] = func.without_attr("global_symbol")
+        return stripped_mod
+
+    return structural_equal(remove_global_symbols(mod1), remove_global_symbols(mod2))
+
+
 def generate_design_space(
     kind: Literal["llvm", "cuda", "cuda-tensorcore", "hexagon"],
     mod: IRModule,
@@ -87,7 +102,7 @@ def _find_match_sketch_id(
             insts=sketch.trace.insts,
             decisions=new_decisions,
         ).apply_to_schedule(sch, remove_postproc=True)
-        if structural_equal(sch.mod, expected_mod):
+        if structural_equal_no_gs(sch.mod, expected_mod):
             verify_trace_roundtrip(sch=sch, mod=mod, debug_mask=debug_mask, text_format="json")
             return sketch_id
     return None

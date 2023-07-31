@@ -19,13 +19,14 @@ import numpy as np
 import tvm
 import tvm.testing
 from tvm import tir
+from tvm.tir.schedule.testing import assert_structural_equal_ignore_global_symbol
 from tvm.script import tir as T
 
 # pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
 
 def check_decompose_padding(origin, scheduled, expected, check_run=False):
-    tvm.ir.assert_structural_equal(scheduled, expected)
+    assert_structural_equal_ignore_global_symbol(scheduled, expected)
     if check_run:
         in_buffer = origin.buffer_map[origin.params[0]]
         out_buffer = origin.buffer_map[origin.params[1]]

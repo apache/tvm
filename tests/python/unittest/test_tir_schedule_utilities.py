@@ -23,7 +23,10 @@ import tvm.testing
 from tvm import tir
 from tvm.ir import IRModule
 from tvm.script import tir as T
-from tvm.tir.schedule.testing import verify_trace_roundtrip
+from tvm.tir.schedule.testing import (
+    assert_structural_equal_ignore_global_symbol,
+    verify_trace_roundtrip,
+)
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
@@ -333,7 +336,7 @@ def test_annotate_unannotate_loop():
     sch.annotate(sch.get_loops(matmul)[1], "test2", 612)
     sch.annotate(sch.get_loops(matmul)[1], "test3", ["aa", 1])
     sch.annotate(sch.get_loops(matmul)[0], "test4", {"arr": [0, 0], "key": 3})
-    tvm.ir.assert_structural_equal(sch.mod["main"], matmul_relu_ann1)
+    assert_structural_equal_ignore_global_symbol(sch.mod["main"], matmul_relu_ann1)
     verify_trace_roundtrip(sch=sch, mod=matmul_relu)
     sch.unannotate(sch.get_loops(matmul)[0], "test1")
     sch.unannotate(sch.get_loops(matmul)[1], "test2")
@@ -350,7 +353,7 @@ def test_annotate_unannotate_block():
     sch.annotate(relu, "test2", 0.22)
     sch.annotate(relu, "test3", ["aa", 1])
     sch.annotate(matmul, "test4", {"arr": [0, 0], "key": 3})
-    tvm.ir.assert_structural_equal(sch.mod["main"], matmul_relu_ann2)
+    assert_structural_equal_ignore_global_symbol(sch.mod["main"], matmul_relu_ann2)
     verify_trace_roundtrip(sch=sch, mod=matmul_relu)
     sch.unannotate(matmul, "test1")
     sch.unannotate(relu, "test2")

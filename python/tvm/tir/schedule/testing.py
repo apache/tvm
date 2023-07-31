@@ -16,12 +16,31 @@
 # under the License.
 # pylint: disable=dangerous-default-value
 """Testing utilities for the TensorIR schedule API"""
-from typing import Sequence, Union
+from typing import Any, Sequence, Union
 
 import tvm
 from tvm.ir import IRModule, assert_structural_equal
 from tvm.tir import PrimFunc
 from tvm.tir.schedule import Schedule, Trace
+
+
+def assert_structural_equal_ignore_global_symbol(
+    func1: PrimFunc,
+    func2: PrimFunc,
+    *args: Any,
+    **kwargs: Any,
+) -> None:
+    """
+    Asserts that PrimFuncs func1 and func2 are structurally equal, setting both
+    their global symbol attributes to main so that the global symbol
+    will not be a point of comparison.
+    """
+    assert_structural_equal(
+        func1.with_attr("global_symbol", "main"),
+        func2.with_attr("global_symbol", "main"),
+        *args,
+        **kwargs,
+    )
 
 
 def verify_trace_roundtrip(
@@ -51,6 +70,8 @@ def verify_trace_roundtrip(
         The text format or formats whose round-trip behavior should be
         validated.  If a single string, validate round-trips through
     """
+    from tvm.script import tir as T  # pylint: disable=import-outside-toplevel
+
     if not isinstance(text_format, str):
         for opt in text_format:
             new_sch = verify_trace_roundtrip(sch, mod, debug_mask=debug_mask, text_format=opt)
@@ -66,7 +87,9 @@ def verify_trace_roundtrip(
         Trace.apply_json_to_schedule(json_obj=json_obj, sch=new_sch)
     elif text_format == "python":
         py_trace = "\n".join(trace.as_python())
-        exec(py_trace, tvm.tir.__dict__, {"sch": new_sch})  # pylint: disable=exec-used
+        vars_dict = {"T": T}
+        vars_dict.update(tvm.tir.__dict__)
+        exec(py_trace, vars_dict, {"sch": new_sch})  # pylint: disable=exec-used
     else:
         assert text_format in ("json", "python"), f"Unknown text format: {text_format}"
 

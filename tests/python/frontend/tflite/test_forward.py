@@ -795,8 +795,26 @@ def test_forward_batch_matmul(config):
         quantized=config[2],
     )
     _test_batch_matmul(
+        (2, 3, 5, 4),
+        (1, 3, 5, 4),
+        dtype=config[0],
+        out_dtype=config[1],
+        adjoint_a=True,
+        adjoint_b=False,
+        quantized=config[2],
+    )
+    _test_batch_matmul(
         (3, 5, 4),
         (3, 5, 4),
+        dtype=config[0],
+        out_dtype=config[1],
+        adjoint_a=False,
+        adjoint_b=True,
+        quantized=config[2],
+    )
+    _test_batch_matmul(
+        (2, 3, 5, 4),
+        (1, 3, 5, 4),
         dtype=config[0],
         out_dtype=config[1],
         adjoint_a=False,
@@ -4548,6 +4566,8 @@ def _test_detection_postprocess(tf_model_file, box_encodings_size, class_predict
 
 def test_detection_postprocess():
     """Detection PostProcess"""
+
+    # Fast-NMS
     box_encodings_size = (1, 1917, 4)
     class_predictions_size = (1, 1917, 91)
     tf_model_file = tf_testing.get_workload_official(
@@ -4557,11 +4577,24 @@ def test_detection_postprocess():
     )
     _test_detection_postprocess(tf_model_file, box_encodings_size, class_predictions_size)
 
+    # Fast-NMS
     box_encodings_size = (1, 2034, 4)
     class_predictions_size = (1, 2034, 91)
     tf_model_file = download_testdata(
         "https://github.com/czh978/models_for_tvm_test/raw/main/tflite_graph_with_postprocess.pb",
         "tflite_graph_with_postprocess.pb",
+    )
+    _test_detection_postprocess(tf_model_file, box_encodings_size, class_predictions_size)
+
+    # Regular NMS
+    box_encodings_size = (1, 1917, 4)
+    class_predictions_size = (1, 1917, 91)
+    tf_model_file = download_testdata(
+        (
+            "https://github.com/Grovety/ModelZoo/raw/52fb82156ae8c8e3f62c7d7caf6867b25261dda4/"
+            "models/object_detection/ssd_mobilenet_v1/tflite_int8/tflite_graph_with_regular_nms.pb"
+        ),
+        "tflite_graph_with_regular_nms.pb",
     )
     _test_detection_postprocess(tf_model_file, box_encodings_size, class_predictions_size)
 

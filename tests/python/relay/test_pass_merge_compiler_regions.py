@@ -17,6 +17,7 @@
 """Unit tests for merge compiler regions."""
 import tvm
 from tvm import relay
+import tvm.relay.transform as transform
 from tvm.relay.op.annotation import compiler_begin, compiler_end
 from tvm.relay.testing import run_opt_pass
 
@@ -214,6 +215,67 @@ def test_example_graph():
     assert tvm.ir.structural_equal(mod, ref_mod)
 
 
+def test_if_else():
+    """
+    This tests that the restriction regions propagate successful in
+    if_else control flow.
+
+    O = supported by target
+    X = not supported by target
+
+
+           O1 - - - |      O1 --|
+            |       |               |
+            X       |               X
+            |       |                              |
+    If cond ? O1: X | -->       +       +  If cond ? O1: X  +
+            |       |                                           |
+           O2 <- - -|                                          O2 <-|
+
+
+    Avoid O1 merge to O2.
+    """
+
+    target = "test_if_else_merge"
+
+    @tvm.ir.register_op_attr("sigmoid", "target." + target)
+    def sigmoid(expr):  # pylint: disable=unused-variable
+        return True
+
+    @tvm.ir.register_op_attr("erf", "target." + target)
+    def erf(expr):  # pylint: disable=unused-variable
+        return True
+
+    @tvm.ir.register_op_attr("add", "target." + target)
+    def add(expr):  # pylint: disable=unused-variable
+        return True
+
+    """Test that If-else nodes merges regions correctly."""
+
+    def get_mod():
+        data = relay.var("data", shape=(1, 32))
+        add0 = relay.add(data, data)
+        sub0 = relay.subtract(add0, data)
+        eq = relay.equal(relay.sum(add0), relay.sum(sub0))
+
+        true_branch = relay.sigmoid(add0)
+        false_branch = relay.sigmoid(sub0)
+        ife = relay.If(eq, true_branch, false_branch)
+        erf = relay.erf(ife)
+        out = relay.add(add0, erf)
+        func = relay.Function([data], out)
+        mod = tvm.IRModule.from_expr(func)
+
+        return mod
+
+    for annotate_non_call_ops in [True, False]:
+        result = transform.AnnotateTarget(target, annotate_non_call_ops)(get_mod())
+        merge = transform.MergeCompilerRegions()(result)
+        # Ensure partition finished without segment fault.
+        partition = transform.PartitionGraph()(merge)
+
+
 if __name__ == "__main__":
     test_diamond_graph_fanouts()
     test_example_graph()
+    test_if_else()

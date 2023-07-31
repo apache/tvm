@@ -160,7 +160,10 @@ class SimplifyConsecutiveCast : public DFPatternRewrite {
   DFPattern cast1_;
 };
 
-bool CheckDataTypeMaxMinValue(DataType dtype, double min_value, double max_value) {
+/*! If mode == 0, return true if the interval [min_value, max_value] contains the range of dtype,
+ * and return false otherwise. If mode == 1, return true if the interval [min_value, max_value] is
+ * contained by the range of dtype, and return false otherwise.*/
+bool CheckDataTypeMaxMinValue(DataType dtype, double min_value, double max_value, int mode = 0) {
   double lbound{}, ubound{};
   if (dtype.is_int() || dtype.is_uint()) {
     ubound = static_cast<double>(Downcast<IntImm>(tvm::max_value(dtype))->value);
@@ -169,21 +172,40 @@ bool CheckDataTypeMaxMinValue(DataType dtype, double min_value, double max_value
     ubound = Downcast<FloatImm>(tvm::max_value(dtype))->value;
     lbound = Downcast<FloatImm>(tvm::min_value(dtype))->value;
   }
-  return max_value >= ubound && min_value <= lbound;
+  if (mode == 0) {
+    return max_value >= ubound && min_value <= lbound;
+  } else if (mode == 1) {
+    return max_value <= ubound && min_value >= lbound;
+  } else {
+    LOG(FATAL) << "invalid mode " << mode << " in CheckDataTypeMaxMinValue";
+    return false;
+  }
 }
 
 /*!
- * \brief SimplifyClipAndConsecutiveCast matches the pattern clip->cast->cast and remove redundant
- *   casts.
- * Analysis of "redundancy" is done based on clip min/max values and min/max values of casted data
- * type.
+ * \brief SimplifyClipAndConsecutiveCast matches the pattern clip->cast->...->cast and remove
+ * redundant casts. Analysis of "redundancy" is done based on clip min/max values and min/max values
+ * of casted data type.
+ *
+ * Example:
+ *   %0 == [type=int32]
+ *   %1 = clip(%0, a_min=0f, a_max=255f) [type=int32]
+ *   %2 = cast(%1, dtype="uint8") [type=uint8]
+ *   %3 = cast(%2, dtype="int32") [type=int32]
+ *
+ * Optimized to (both casts can be removed):
+ *   %1 = clip(%0, a_min=0f, a_max=255f) [type=int32]
  */
 class SimplifyClipAndConsecutiveCast : public DFPatternRewrite {
  public:
   SimplifyClipAndConsecutiveCast() {
     clip_ = IsOp("clip")({IsWildcard()});
-    cast1_ = IsOp("cast")({clip_});
-    pattern_ = IsOp("cast")({cast1_});
+    ObjectPtr<CallPatternNode> pattern_ptr = make_object<CallPatternNode>();
+    pattern_ptr->op = IsOp("cast");
+    pattern_ptr->args.clear();
+    pattern_ = CallPattern(pattern_ptr);
+    AltPattern or_pattern{pattern_, clip_};
+    pattern_ptr->args.push_back(or_pattern);
   }
 
   Expr Callback(const Expr& pre, const Expr& post,
@@ -191,34 +213,40 @@ class SimplifyClipAndConsecutiveCast : public DFPatternRewrite {
     auto clip = Downcast<Call>(node_map[clip_][0]);
     const CallNode* clip_node = clip.as<CallNode>();
     const ClipAttrs* clip_attrs = clip_node->attrs.as<ClipAttrs>();
-    DataType clip_dtype = Downcast<TensorType>(clip->checked_type())->dtype;
 
-    auto cast1 = Downcast<Call>(node_map[cast1_][0]);
-    DataType cast1_dtype = Downcast<TensorType>(cast1->checked_type())->dtype;
-
-    auto cast2 = Downcast<Call>(post);
-    DataType cast2_dtype = Downcast<TensorType>(cast2->checked_type())->dtype;
-
-    if (clip_dtype == cast2_dtype &&
-        CheckDataTypeMaxMinValue(cast1_dtype, clip_attrs->a_min, clip_attrs->a_max)) {
-      // Case 1:
-      // Data type of Clip == target data type of second Cast and min/max value of Clip == min/max
-      // value of first Clip target data type. In this case both Clip ops can be removed.
-      // Example:
-      //   %0 == [type=int32]
-      //   %1 = clip(%0, a_min=0f, a_max=255f) [type=int32]
-      //   %2 = cast(%1, dtype="uint8") [type=uint8]
-      //   %3 = cast(%2, dtype="int32") [type=int32]
-      //
-      // Optimized to (both casts can be removed):
-      //   %1 = clip(%0, a_min=0f, a_max=255f) [type=int32]
-      return node_map[clip_][0];
+    std::vector<Expr> remaining_casts{};
+    Expr cast_expr{post};
+    while (cast_expr != clip) {
+      DataType cast_dtype = Downcast<TensorType>(cast_expr->checked_type())->dtype;
+      if (!CheckDataTypeMaxMinValue(cast_dtype, clip_attrs->a_min, clip_attrs->a_max, 1)) {
+        remaining_casts.push_back(cast_expr);
+      }
+      cast_expr = cast_expr.as<CallNode>()->args[0];
     }
-    return post;
+
+    Expr last_op = (remaining_casts.size() == 0) ? clip : remaining_casts[0];
+    DataType last_op_dtype = Downcast<TensorType>(last_op->checked_type())->dtype;
+    bool need_additional_cast{false};
+    if (last_op_dtype != Downcast<TensorType>(post->checked_type())->dtype) {
+      need_additional_cast = true;
+    }
+
+    Expr res{clip};
+    for (size_t i = remaining_casts.size(); i > 0; --i) {
+      auto attrs = make_object<CastAttrs>();
+      attrs->dtype = remaining_casts[i - 1].as<CallNode>()->attrs.as<CastAttrs>()->dtype;
+      res = Call(Op::Get("cast"), {res}, Attrs(attrs), {});
+    }
+    if (need_additional_cast) {
+      auto attrs = make_object<CastAttrs>();
+      attrs->dtype = Downcast<TensorType>(post->checked_type())->dtype;
+      res = Call(Op::Get("cast"), {res}, Attrs(attrs), {});
+    }
+    return res;
   }
 
  protected:
-  DFPattern clip_, cast1_;
+  DFPattern clip_;
 };
 
 /*!

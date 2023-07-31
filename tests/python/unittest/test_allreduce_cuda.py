@@ -48,7 +48,7 @@ def reduce_max(a: T.handle, b: T.handle, d1: T.int32, d2: T.int32, d3: T.int32) 
 
 @tvm.testing.requires_gpu
 @tvm.testing.requires_cuda
-def test_cuda_subwarp_reduction():
+def test_allreduce_cuda():
     def check_sum(d1: int, d2: int, d3: int):
         _, _, _d1, _d2, _d3 = reduce.params
         mod = reduce.specialize({_d1: d1, _d2: d2, _d3: d3})
@@ -95,10 +95,12 @@ def test_cuda_subwarp_reduction():
 
     for d1 in range(1, 5):
         for d2 in range(1, 5):
-            for d3 in range(2, 33):
+            for d3 in [2, 4, 8, 12, 16, 32, 48, 64, 100, 128, 201, 256, 512, 1024]:
+                if d1 * d2 * d3 > 1024:
+                    continue
                 check_sum(d1, d2, d3)
                 check_max(d1, d2, d3)
 
 
 if __name__ == "__main__":
-    test_cuda_subwarp_reduction()
+    test_allreduce_cuda()

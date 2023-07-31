@@ -36,13 +36,10 @@ namespace tir {
 class ScriptCompleter : public StmtMutator {
  public:
   explicit ScriptCompleter(Map<Var, Buffer>* buffer_var_map) : buffer_var_map_(buffer_var_map) {}
-  /*! \brief Whether the stmt contains at least one block. */
-  bool contains_block = false;
 
  private:
   Map<Var, Buffer>* buffer_var_map_;
-  Stmt VisitStmt_(const BlockRealizeNode* op) override {
-    contains_block = true;
+  Stmt VisitStmt_(const BlockRealizeNode* op) final {
     for (const PrimExpr& value : op->iter_values) {
       CHECK(value.dtype().is_int())
           << "BlockRealize iter_value expected a IntImm, but got " << value.dtype();
@@ -50,7 +47,7 @@ class ScriptCompleter : public StmtMutator {
     return StmtMutator::VisitStmt_(op);
   }
 
-  Stmt VisitStmt_(const BlockNode* op) override {
+  Stmt VisitStmt_(const BlockNode* op) final {
     // Buffers allocated in the block can be accessed by its body.
     for (const auto& alloc_buffer : op->alloc_buffers) {
       buffer_var_map_->Set(alloc_buffer->data, alloc_buffer);
@@ -59,7 +56,12 @@ class ScriptCompleter : public StmtMutator {
       const Buffer& target_buffer = match_buffer->buffer;
       buffer_var_map_->Set(target_buffer->data, target_buffer);
     }
+
+    bool is_root_block = this->is_root_block_;
+    this->is_root_block_ = false;
     Block block = Downcast<Block>(StmtMutator::VisitStmt_(op));
+    this->is_root_block_ = is_root_block;
+
     // Remove buffers allocated inside block to detect its access region
     for (const auto& alloc_buffer : op->alloc_buffers) {
       buffer_var_map_->erase(alloc_buffer->data);
@@ -85,8 +87,10 @@ class ScriptCompleter : public StmtMutator {
           << "ValueError: Can not auto detect buffer access region from tir.Load, tir.Store or "
              "direct access by buffer data. Please annotation the access region manually";
       auto n = CopyOnWrite(block.operator->());
-      if (mask & 1) n->reads = reads;
-      if (mask & 2) n->writes = writes;
+      if (!is_root_block) {
+        if (mask & 1) n->reads = reads;
+        if (mask & 2) n->writes = writes;
+      }
       n->annotations = op->annotations;
       n->annotations.erase(attr::script_parsing_detect_access);
       return Block(n);
@@ -94,6 +98,8 @@ class ScriptCompleter : public StmtMutator {
       return std::move(block);
     }
   }
+
+  bool is_root_block_ = true;
 };
 
 PrimFunc ScriptComplete(PrimFunc func, const Array<Buffer>& root_allocates) {

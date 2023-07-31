@@ -44,7 +44,7 @@ def test_makeapi():
     )(mod)
 
     before = mod
-    after = tvm.tir.transform.MakePackedAPI()(mod)
+    after = tvm.tir.transform.MakePackedAPI()(before)
     f = after["main"]
     assert len(f.params) == 6
 
@@ -175,13 +175,14 @@ def test_device_api_context_implicit_resource_handle():
 @pytest.mark.parametrize("use_global_symbol", [True, False])
 def test_no_op_when_global_symbol_is_absent(use_global_symbol):
     func_attr = {"target": tvm.target.Target("llvm", host="llvm")}
-    if use_global_symbol:
-        func_attr["global_symbol"] = "main"
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def before():
         T.func_attr(func_attr)
         T.evaluate(0)
+
+    if use_global_symbol:
+        before = before.with_attr("global_symbol", "main")
 
     after = tvm.tir.transform.MakePackedAPI()(tvm.IRModule.from_expr(before))["main"]
     if use_global_symbol:
@@ -225,10 +226,11 @@ def test_internal_subroutine_call():
     class before:
         @T.prim_func
         def main(A: T.Buffer(1, "float32")):
-            T.func_attr({"global_symbol": "main", "target": T.target("llvm", host="llvm")})
+            T.func_attr({"target": T.target("llvm", host="llvm")})
             before.subroutine(A.data)
 
-        @T.prim_func
+        # this test fails if it's made public
+        @T.prim_func(private=True)
         def subroutine(A_data: T.handle("float32")):
             T.func_attr({"target": T.target("llvm")})
             T.evaluate(A_data)

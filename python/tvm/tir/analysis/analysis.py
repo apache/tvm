@@ -349,14 +349,14 @@ def apply_prim_func_arg_and_result_memory_constraints(
     )
 
 
-def verify_well_formed(func: PrimFunc, assert_mode: bool = True) -> bool:
+def verify_well_formed(obj: Union[PrimFunc, IRModule], assert_mode: bool = True) -> bool:
     """Verify if the given TIR is well-formed. The verification includes:
         - Check if expressions not contain vars that is defined outside the block.
 
     Parameters
     ----------
-    func: tvm.tir.PrimFunc
-        The function to be verified.
+    obj: Union[tvm.tir.PrimFunc, tvm.ir.IRModule]
+        The function or module to be verified.
 
     assert_mode: bool
         The indicator if it raises an error when the function is not well-formed.
@@ -366,7 +366,7 @@ def verify_well_formed(func: PrimFunc, assert_mode: bool = True) -> bool:
     result: bool
         Whether it is a well-formed TIR function.
     """
-    return _ffi_api.VerifyWellFormed(func, assert_mode)  # type: ignore # pylint: disable=no-member
+    return _ffi_api.VerifyWellFormed(obj, assert_mode)  # type: ignore # pylint: disable=no-member
 
 
 def OOBChecker():

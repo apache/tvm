@@ -53,6 +53,35 @@ class RegionMerger : public MixedModeVisitor {
  public:
   explicit RegionMerger(AnnotatedRegionSet regions) : regions_(regions) {}
 
+  void find_control_flow_regions(
+      const Expr op,
+      std::unordered_set<AnnotatedRegion, ObjectPtrHash, ObjectPtrEqual>& correlative_regions) {
+    // Find correlative restriction regions from control flow.
+
+    // In IfNode, find from condition, true_branch and false branch.
+    const IfNode* if_node = op.as<IfNode>();
+    if (if_node) {
+      auto cond_region = regions_->GetRegion(if_node->cond);
+      auto true_branch_region = regions_->GetRegion(if_node->true_branch);
+      auto false_branch_region = regions_->GetRegion(if_node->false_branch);
+      if (cond_region.defined()) {
+        correlative_regions.insert(cond_region);
+      } else {
+        find_control_flow_regions(if_node->cond, correlative_regions);
+      }
+      if (true_branch_region.defined()) {
+        correlative_regions.insert(true_branch_region);
+      } else {
+        find_control_flow_regions(if_node->true_branch, correlative_regions);
+      }
+      if (false_branch_region.defined()) {
+        correlative_regions.insert(false_branch_region);
+      } else {
+        find_control_flow_regions(if_node->false_branch, correlative_regions);
+      }
+    }
+  }
+
   void VisitExpr_(const CallNode* call) final {
     if (call->op == CompilerEndOp()) {
       auto region = regions_->GetRegion(GetRef<Call>(call));
@@ -84,18 +113,23 @@ class RegionMerger : public MixedModeVisitor {
 
       // Collect unmerged parent regions.
       std::unordered_set<AnnotatedRegion, ObjectPtrHash, ObjectPtrEqual> mergeable_regions;
+      // Collect correlative regions to propagate restrictions.
+      std::unordered_set<AnnotatedRegion, ObjectPtrHash, ObjectPtrEqual> correlative_regions;
       for (const auto& arg : region->GetInputs()) {
         auto begin = Downcast<Call>(arg);
         ICHECK_EQ(begin->op, CompilerBeginOp());
         auto parent_region = regions_->GetRegion(begin->args[0]);
         if (parent_region.defined()) {
           mergeable_regions.insert(parent_region);
+          correlative_regions.insert(parent_region);
+        } else {
+          find_control_flow_regions(begin->args[0], correlative_regions);
         }
       }
 
       // Propogate all the parent restrictions to the current region.
       auto& region_restrictions = region_restrictions_[region->GetID()];
-      for (const auto& parent_region : mergeable_regions) {
+      for (const auto& parent_region : correlative_regions) {
         auto parent_restrictions = region_restrictions_[parent_region->GetID()];
         region_restrictions.insert(parent_restrictions.begin(), parent_restrictions.end());
       }

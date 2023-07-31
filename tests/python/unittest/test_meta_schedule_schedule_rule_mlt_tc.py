@@ -14,9 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
+# pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring,line-too-long,invalid-name,too-many-locals,too-many-statements,too-many-nested-blocks,too-many-branches,too-many-lines,chained-comparison
 
 import pytest
+
 import tvm
 import tvm.testing
 from tvm import meta_schedule as ms
@@ -413,10 +414,10 @@ def test_conv2d(shared_scope):
                             with T.block("PadInput_reindex_shared.dyn"):
                                 v0 = T.axis.spatial(256, ax0_0_1_ax1_0_1_fused * 16 + ax0_ax1_fused // 288)
                                 v1 = T.axis.spatial(288, ax0_ax1_fused % 288)
-                                T.reads(PadInput[v0 // 256, v1 // 96 + v0 // 16, v1 % 96 // 32 + v0 % 16, v1 % 32])
+                                T.reads(PadInput[0, v0 // 16 + v1 // 96, v0 % 16 + v1 % 96 // 32, v1 % 32])
                                 T.writes(PadInput_reindex_shared_dyn[v0, v1])
                                 T.block_attr({"buffer_dim_align": [[0, 0, 32, 8]], "meta_schedule.cooperative_fetch": 2})
-                                PadInput_reindex_shared_dyn[v0, v1] = PadInput[v0 // 256, v1 // 96 + v0 // 16, v1 % 96 // 32 + v0 % 16, v1 % 32]
+                                PadInput_reindex_shared_dyn[v0, v1] = PadInput[0, v0 // 16 + v1 // 96, v0 % 16 + v1 % 96 // 32, v1 % 32]
                         for ax0_ax1_fused in range(4608):
                             with T.block("weight_reindex_shared.dyn"):
                                 v0 = T.axis.spatial(288, ax0_ax1_fused // 16)
@@ -497,9 +498,9 @@ def test_conv2d(shared_scope):
                             v4 = T.axis.spatial(16, ax0_ax1_ax3_ax4_ax5_fused // 16)
                             v5 = T.axis.spatial(16, ax0_ax1_ax3_ax4_ax5_fused % 16)
                             T.reads(conv2d_nhwc_reindex_shared_dyn[v0, v1, v2, v3, v4, v5])
-                            T.writes(conv2d_nhwc[(v4 + v0 * 16) // 256, (v4 + v0 * 16) // 16, (v4 + v0 * 16) % 16, v5 + v1 * 16])
+                            T.writes(conv2d_nhwc[0, (v4 + v0 * 16) // 16, (v4 + v0 * 16) % 16, v5 + v1 * 16])
                             T.block_attr({"meta_schedule.cooperative_fetch": 3})
-                            conv2d_nhwc[(v4 + v0 * 16) // 256, (v4 + v0 * 16) // 16, (v4 + v0 * 16) % 16, v5 + v1 * 16] = conv2d_nhwc_reindex_shared_dyn[v0, v1, v2, v3, v4, v5]
+                            conv2d_nhwc[0, (v4 + v0 * 16) // 16, (v4 + v0 * 16) % 16, v5 + v1 * 16] = conv2d_nhwc_reindex_shared_dyn[v0, v1, v2, v3, v4, v5]
     # fmt: on
     decision_0 = [
         ("SamplePerfectTile", [1, 16, 1, 1, 1]),
@@ -915,10 +916,10 @@ def test_conv_1x1():
                             with T.block("PadInput_reindex_shared"):
                                 v0 = T.axis.spatial(256, ax2_0_0_ax3_0_0_fused // 2 * 32 + ax2_0_1_ax3_0_1_fused * 16 + ax0_ax1_fused // 64)
                                 v1 = T.axis.spatial(64, ax0_ax1_fused % 64)
-                                T.reads(inputs[v0 // 256, v0 // 16, v0 % 16, v1])
+                                T.reads(inputs[0, v0 // 16, v0 % 16, v1])
                                 T.writes(PadInput_reindex_shared[v0, v1])
                                 T.block_attr({"buffer_dim_align": [[0, 0, 32, 8]], "meta_schedule.cooperative_fetch": 1})
-                                PadInput_reindex_shared[v0, v1] = inputs[v0 // 256, v0 // 16, v0 % 16, v1]
+                                PadInput_reindex_shared[v0, v1] = inputs[0, v0 // 16, v0 % 16, v1]
                         for ax0_ax1_ax2_ax3_fused in range(2048):
                             with T.block("weight_reindex_shared"):
                                 v0 = T.axis.spatial(1, 0)
@@ -1007,9 +1008,9 @@ def test_conv_1x1():
                             v4 = T.axis.spatial(16, ax0_ax1_ax3_ax4_ax5_fused % 256 // 16)
                             v5 = T.axis.spatial(16, ax0_ax1_ax3_ax4_ax5_fused % 16)
                             T.reads(conv2d_nhwc_reindex_shared[v0, v1, v2, v3, v4, v5])
-                            T.writes(conv2d_nhwc[(v4 + v0 * 16) // 256, (v4 + v0 * 16) // 16, (v4 + v0 * 16) % 16, v5 + v1 * 16])
+                            T.writes(conv2d_nhwc[0, (v4 + v0 * 16) // 16, (v4 + v0 * 16) % 16, v5 + v1 * 16])
                             T.block_attr({"meta_schedule.cooperative_fetch": 2})
-                            conv2d_nhwc[(v4 + v0 * 16) // 256, (v4 + v0 * 16) // 16, (v4 + v0 * 16) % 16, v5 + v1 * 16] = conv2d_nhwc_reindex_shared[v0, v1, v2, v3, v4, v5]
+                            conv2d_nhwc[0, (v4 + v0 * 16) // 16, (v4 + v0 * 16) % 16, v5 + v1 * 16] = conv2d_nhwc_reindex_shared[v0, v1, v2, v3, v4, v5]
     # fmt: on
 
     decision_0 = [

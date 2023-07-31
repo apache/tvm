@@ -153,6 +153,21 @@ def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -
         return var
 
 
+def find_decorator_annotation(node: doc.FunctionDef, annotation: str, default: bool = True) -> bool:
+    """
+    Check the value of given annotation (argument name) in the prim_func decorator.
+    Returns the value of the annotation if present, otherwise giving the default value.
+    """
+    # look for the named argument in the prim_func decorator
+    for dec in node.decorator_list:
+        if not isinstance(dec, doc.Call) or dec.func.attr != "prim_func":
+            continue
+        for keyword in dec.keywords:
+            if keyword.arg == annotation:
+                return keyword.value.value
+    return default
+
+
 @dispatch.register(token="tir", type_name="For")
 def visit_for(self: Parser, node: doc.For) -> None:
     """The for visiting method for tir.
@@ -362,10 +377,11 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
     """
     supplied_annotation = self.function_annotations
     func_annotation = supplied_annotation.get(node.name, {})
+    privacy = find_decorator_annotation(node, "private", default=False)
     self.function_annotations = None
     with self.var_table.with_frame():
         self.var_table.add("range", T.serial)
-        with T.prim_func():
+        with T.prim_func(is_private=privacy):
             T.func_name(node.name)
             if node.returns is not None:
                 ret_type = self.eval_expr(node.returns)
@@ -427,6 +443,7 @@ def visit_expr_stmt(self: Parser, node: doc.Expr) -> None:
     node : doc.Expr
         The doc AST Expr node.
     """
+
     res = self.eval_expr(node.value)
     if res is None:
         pass

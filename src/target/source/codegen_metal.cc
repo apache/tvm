@@ -66,8 +66,8 @@ void CodeGenMetal::PrintFunctionSignature(const String& function_name, const Pri
 
   // Buffer arguments
   size_t num_buffer = 0;
-  int limit = target_->GetAttr<Integer>("max_function_args").value().IntValue();
-  if (static_cast<int>(func->params.size()) > limit) {
+  size_t limit = target_->GetAttr<Integer>("max_function_args").value().IntValue();
+  if (func->params.size() > limit) {
     LOG(WARNING) << "Probably you won't be able to execute your kernel due to high number of "
                     "buffers in the kernel";
   }

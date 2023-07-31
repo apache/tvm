@@ -32,7 +32,7 @@ def opt_gemm_normalize():
         @T.prim_func
         def mmult(A: T.handle, B: T.handle, C: T.handle) -> None:
             # function attr dict
-            T.func_attr({"global_symbol": "mmult", "tir.noalias": True})
+            T.func_attr({"tir.noalias": True})
             # buffer definition
             C_global = T.Buffer([1024, 1024], elem_offset=0, align=64, offset_factor=1)
             packedB = T.Buffer([32, 1024, 32], elem_offset=0, align=64, offset_factor=1)
@@ -89,7 +89,7 @@ def opt_gemm_lower():
         @T.prim_func
         def mmult(A: T.handle, B: T.handle, C: T.handle) -> None:
             # function attr dict
-            T.func_attr({"global_symbol": "mmult", "tir.noalias": True})
+            T.func_attr({"tir.noalias": True})
             A_1 = T.match_buffer(A, [16384], elem_offset=0, align=64, offset_factor=1)
             B_1 = T.match_buffer(B, [1024, 1024], elem_offset=0, align=64, offset_factor=1)
             C_1 = T.match_buffer(C, [16384], elem_offset=0, align=64, offset_factor=1)
@@ -196,7 +196,6 @@ def opt_gemm_mod_host():
             T.func_attr(
                 {
                     "tir.noalias": True,
-                    "global_symbol": "mmult",
                     "tir.is_entry_func": True,
                     "calling_conv": 1,
                 }
@@ -3567,7 +3566,9 @@ def multi_env_threads():
         for i in T.thread_binding(128, thread="threadIdx.x"):
             C[i] = B[i] + 2.0
 
-    mod = tvm.tir.transform.LowerOpaqueBlock()(tvm.IRModule.from_expr(func))
+    mod = tvm.tir.transform.LowerOpaqueBlock()(
+        tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
+    )
     return mod["main"]
 
 
@@ -3817,6 +3818,22 @@ def subroutine_call():
     return mod
 
 
+def subroutine_call_returning_int():
+    """An internal function call may return non-void"""
+
+    @I.ir_module
+    class mod:
+        @T.prim_func
+        def main(A: T.Buffer(2, "float32")):
+            mod.subroutine(A[0]) + mod.subroutine(A[1])
+
+        @T.prim_func
+        def subroutine(x: T.float32) -> T.float32:
+            T.ret(x * x)
+
+    return mod
+
+
 def undefined_data_ptr_in_decl_buffer():
     """The T.decl_buffer syntax should not introduce an Allocate
 
@@ -3885,6 +3902,23 @@ def subroutine_call_without_arguments():
 def return_zero():
     @T.prim_func
     def func() -> T.int32:
+        T.ret(0)
+
+    return func
+
+
+def return_zero_private():
+    @T.prim_func(private=True)
+    def func() -> T.int32:
+        T.ret(0)
+
+    return func
+
+
+def return_zero_private_with_attr():
+    @T.prim_func(private=True)
+    def func() -> T.int32:
+        T.func_attr({"greeting": "hello"})
         T.ret(0)
 
     return func
@@ -4009,12 +4043,15 @@ ir_generator = tvm.testing.parameter(
     ir_module_with_attrs,
     nested_seqstmt,
     subroutine_call,
+    subroutine_call_returning_int,
     undefined_data_ptr_in_decl_buffer,
     undefined_shape_in_decl_buffer,
     undefined_stride_in_decl_buffer,
     undefined_elem_offset_in_decl_buffer,
     subroutine_call_without_arguments,
     return_zero,
+    return_zero_private,
+    return_zero_private_with_attr,
     *op_of_literal(),
 )
 

@@ -14,10 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
 import tvm
+import tvm.testing
+
 from tvm import te
 from tvm.script import tir as T
+
 import numpy as np
+
+from tvm.tir.schedule.testing import assert_structural_equal_ignore_global_symbol
 
 
 @tvm.register_func("tvm.test_matmul")
@@ -71,7 +77,9 @@ def check_packed_func(target="llvm"):
 
     # Recursively visit PrimFunc until we meet the for-loop:
     while True:
-        if isinstance(node, (tvm.tir.AssertStmt, tvm.tir.LetStmt, tvm.tir.AttrStmt)):
+        if isinstance(
+            node, (tvm.tir.AssertStmt, tvm.tir.LetStmt, tvm.tir.AttrStmt, tvm.tir.DeclBuffer)
+        ):
             node = node.body
         elif isinstance(node, tvm.tir.SeqStmt):
             node = node[0]
@@ -98,7 +106,7 @@ def check_packed_func(target="llvm"):
     #
     # let stack_value = tir.tvm_stack_alloca("arg_value", 4)
     #
-    alloca_value = alloca_tcode.body
+    alloca_value = alloca_tcode.body.body
     assert isinstance(alloca_value, tvm.tir.LetStmt)
 
     expected_value = tvm.tir.call_intrin(
@@ -200,14 +208,6 @@ class TestLowerDeviceAllocate(tvm.testing.CompareBeforeAfter):
     This test validates the current behavior of LowerTVMBuiltin.  This
     unit test may be improved in the future by addressing:
 
-    - The AttrStmt for "storage_alignment" occurs outside the LetStmt
-      that defines the pointer, which is currently required by
-      CodeGenLLVM.  This fails to match when `map_free_vars=False`
-      (default), because the first occurrence is undefined.
-
-    - The call to TVMBackendFreeWorkspace uses the allocated pointer,
-      but occurs outside the LetStmt.
-
     - TVMScript always produces "handle" dtype for
       `T.tvm_throw_last_error`, while LowerTVMBuiltin outputs "int32"
       dtype.
@@ -225,19 +225,18 @@ class TestLowerDeviceAllocate(tvm.testing.CompareBeforeAfter):
 
     def expected():
         T.func_attr({"target": T.target("llvm")})
-        ptr = T.handle("float32", "global")
+        ptr: T.handle("float32") = T.TVMBackendAllocWorkspace(2, 0, T.uint64(64), 2, 32)
         T.attr(ptr, "storage_alignment", 64)
-        with T.LetStmt(T.TVMBackendAllocWorkspace(2, 0, T.uint64(64), 2, 32), var=ptr):
-            if T.isnullptr(ptr):
-                T.Call("int32", "tir.tvm_throw_last_error", [])
-            buf = T.decl_buffer((16,), data=ptr)
-            buf[0] = T.float32(0)
+        if T.isnullptr(ptr):
+            T.Call("int32", "tir.tvm_throw_last_error", [])
+        buf = T.decl_buffer((16,), data=ptr)
+        buf[0] = T.float32(0)
         if T.TVMBackendFreeWorkspace(2, 0, ptr) != 0:
             T.Call("int32", "tir.tvm_throw_last_error", [])
 
     def test_compare(self, before, expected, transform):
         after = transform(before)
-        tvm.ir.assert_structural_equal(after, expected, map_free_vars=True)
+        assert_structural_equal_ignore_global_symbol(after, expected, map_free_vars=True)
 
 
 class TestLowerCPUAllocation(tvm.testing.CompareBeforeAfter):

@@ -105,7 +105,7 @@ TVM_DLL std::vector<int64_t> SamplePerfectTile(
  *  The sampled tile size will be partitioned into two parts. The second part has a guarantee
  *  that their extent's product have a factor of `innerpart_factor`. The first part is loops at
  *  [0, partition_pos); the second part is loops at [partition_pos, n) and we will have
- *  `innerpart_factor` | \prod_{l=partition_pos}^{n-1} l.extent
+ *  `innerpart_factor` | prod_{l=partition_pos}^{n-1} l.extent
  *
  * \param rand_state The random state
  * \param extent The loop extent to be tiled
@@ -123,7 +123,7 @@ TVM_DLL std::vector<int64_t> SamplePartitionedTile(
  *  The sampled tile size will be partitioned into two parts. The second part has a guarantee
  *  that their extent's product have a factor of `innerpart_factor`. The first part is loops at
  *  [0, partition_pos); the second part is loops at [partition_pos, n) and we will have
- *  `innerpart_factor` | \prod_{l=partition_pos}^{n-1} l.extent
+ *  `innerpart_factor` | prod_{l=partition_pos}^{n-1} l.extent
  *
  * \param rand_state The random state
  * \param loop_sref The loop to be tiled
