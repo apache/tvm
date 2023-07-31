@@ -1964,5 +1964,61 @@ def test_partition_parallel_branch_with_same_input():
     assert tvm.ir.structural_equal(partitioned, reference)
 
 
+def test_rewrite_with_pattern_recursion():
+    data = relay.var("data", relay.TensorType((2, 8), "float32"))
+    dense_weight = relay.const(np.zeros((4, 8)))
+    feat = relay.nn.dense(data, dense_weight)
+    feat = relay.cast(feat, "float32")
+    feat = relay.cast(feat, "float32")
+    feat = relay.cast(feat, "float32")
+    feat = relay.cast(feat, "float32")
+    feat = relay.cast(feat, "float32")
+    oup = relay.cast(feat, "float32")
+
+    expected = relay.nn.relu(oup)
+
+    class TheRewrite(DFPatternCallback):
+        def __init__(self, pattern):
+            super(TheRewrite, self).__init__(rewrite_once=True)
+            self.pattern = pattern
+
+        def callback(self, pre, post, node_map):
+            return relay.nn.relu(post)
+
+    def test_reset_call_args():
+        dense_pattern = is_op("nn.dense")(wildcard(), wildcard())
+        wildcard_redirect = wildcard()
+        the_pattern = is_op("cast")(wildcard_redirect)
+        the_pattern2 = the_pattern | dense_pattern
+        wildcard_redirect.redirect_to(the_pattern2)
+
+        actual = rewrite(TheRewrite(the_pattern), oup)
+        tvm.ir.assert_structural_equal(actual, expected)
+
+    def test_reset_alt_left():
+        dense_pattern = is_op("nn.dense")(wildcard(), wildcard())
+        wildcard_redirect = wildcard()
+        or_pattern = wildcard_redirect | dense_pattern
+        the_pattern = is_op("cast")(or_pattern)
+        wildcard_redirect.redirect_to(the_pattern)
+
+        actual = rewrite(TheRewrite(the_pattern), oup)
+        tvm.ir.assert_structural_equal(actual, expected)
+
+    def test_reset_alt_right():
+        dense_pattern = is_op("nn.dense")(wildcard(), wildcard())
+        wildcard_redirect = wildcard()
+        or_pattern = dense_pattern | wildcard_redirect
+        the_pattern = is_op("cast")(or_pattern)
+        wildcard_redirect.redirect_to(the_pattern)
+
+        actual = rewrite(TheRewrite(the_pattern), oup)
+        tvm.ir.assert_structural_equal(actual, expected)
+
+    test_reset_call_args()
+    test_reset_alt_left()
+    test_reset_alt_right()
+
+
 if __name__ == "__main__":
     tvm.testing.main()

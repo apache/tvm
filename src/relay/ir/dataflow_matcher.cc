@@ -485,7 +485,11 @@ bool DFPatternMatcher::VisitDFPattern_(const ConstantPatternNode* op, const Expr
 }
 
 bool DFPatternMatcher::VisitDFPattern_(const WildcardPatternNode* op, const Expr& expr) {
-  return true;
+  if (op->pattern) {
+    return VisitDFPattern(op->pattern.value(), expr);
+  } else {
+    return true;
+  }
 }
 
 bool MatchPattern(DFPattern pattern, Expr expr) {
