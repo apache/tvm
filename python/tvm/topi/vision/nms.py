@@ -873,3 +873,311 @@ def all_class_non_max_suppression(
     )
 
     return [selected_indices, selected_scores, num_total_detections]
+
+
+@hybrid.script
+def hybrid_regular_nms(
+    boxes,
+    scores,
+    max_detections_per_class,
+    max_detections,
+    batch_size,
+    num_boxes,
+    num_classes,
+    num_classes_with_background,
+    iou_threshold,
+    score_threshold,
+):
+    """Hybrid routing for regular non-maximum suppression.
+
+    Parameters
+    ----------
+    boxes : tvm.te.Tensor
+        3-D tensor with shape (batch_size, num_boxes, 4)
+
+    scores: tvm.te.Tensor
+        3-D tensor with shape (batch_size, num_boxes, num_classes_with_background)
+
+    max_detections_per_class : tvm.tir.const
+        The maxinum number of output selected boxes per class
+
+    max_detections : tvm.tir.const
+        The maxinum number of output selected boxes
+
+    batch_size : tvm.tir.IntImm or tvm.tir.Var
+        The number of batches
+
+    num_boxes : tvm.tir.IntImm or tvm.tir.Var
+        The number of bounding boxes
+
+    num_classes : tvm.tir.const
+        The number of classes without background
+
+    num_classes_with_background : tvm.tir.IntImm or tvm.tir.Var
+        The number of classes including background ones
+
+    iou_threshold : tvm.tir.const
+        IoU test threshold
+
+    score_threshold : tvm.tir.const
+        Score threshold to filter out low score boxes early
+
+    Returns
+    -------
+    detection_boxes : tvm.te.Tensor
+        3-D tensor with shape [batch_size, max_detections, 4].
+
+    detection_classes : tvm.te.Tensor
+        2-D tensor with shape [batch_size, max_detections].
+
+    detection_scores : tvm.te.Tensor
+        2-D tensor with shape [batch_size, max_detections].
+
+    num_detections : tvm.te.Tensor
+        1-D tensor with shape [batch_size].
+    """
+    # output tensors
+    detection_boxes = output_tensor((batch_size, max_detections, 4), boxes.dtype)
+    detection_classes = output_tensor((batch_size, max_detections), "int32")
+    detection_scores = output_tensor((batch_size, max_detections), scores.dtype)
+    num_detections = output_tensor((batch_size,), "int32")
+
+    # scratch buffers
+    class_scores = allocate((num_boxes,), scores.dtype)
+    keep_indices = allocate((num_boxes,), "int32")
+    keep_scores = allocate((num_boxes,), scores.dtype)
+    sorted_indices = allocate((max_detections + num_boxes,), "int32")
+    sorted_scores = allocate((max_detections + num_boxes,), scores.dtype)
+    active_box_candidate = allocate((num_boxes,), "int32")
+    selected = allocate((num_boxes,), "int32")
+    box_indices_after_regular_nms = allocate((max_detections + num_boxes,), "int32")
+    scores_after_regular_nms = allocate((max_detections + num_boxes,), scores.dtype)
+
+    label_offset = num_classes_with_background - num_classes
+    tmp_idx = 0
+
+    for batch_idx in range(batch_size):
+        size_of_sorted_indices = 0
+
+        for class_id in range(num_classes):
+            for box_id in range(num_boxes):
+                # get scores of boxes corresponding to all anchors for single class
+                class_scores[box_id] = scores[batch_idx, box_id, class_id + label_offset]
+
+            # perform non-maximal suppression on single class
+
+            # select detections above score threshold
+            num_scores_kept = 0
+            for i in range(num_boxes):
+                if class_scores[i] >= score_threshold:
+                    keep_scores[num_scores_kept] = class_scores[i]
+                    keep_indices[num_scores_kept] = i
+                    num_scores_kept += 1
+
+            # iota
+            for i in range(num_scores_kept):
+                sorted_indices[i] = i
+            # decreasing sort of scores
+            for i in range(num_scores_kept):
+                for j in range(num_scores_kept - i - 1):
+                    if keep_scores[sorted_indices[j]] < keep_scores[sorted_indices[j + 1]]:
+                        tmp_idx = sorted_indices[j]
+                        sorted_indices[j] = sorted_indices[j + 1]
+                        sorted_indices[j + 1] = tmp_idx
+
+            selected_size = 0
+
+            for i in range(num_scores_kept):
+                active_box_candidate[i] = 1
+
+            num_active_candidate = num_scores_kept
+            for i in range(num_scores_kept):
+                if (
+                    num_active_candidate != 0
+                    and selected_size < min(num_scores_kept, max_detections_per_class)
+                    and active_box_candidate[i] == 1
+                ):
+                    selected[selected_size] = keep_indices[sorted_indices[i]]
+                    selected_size += 1
+
+                    active_box_candidate[i] = 0
+                    num_active_candidate -= 1
+
+                    for j in range(i + 1, num_scores_kept):
+                        if active_box_candidate[j] == 1:
+                            # compute IOU
+                            i_ymin = boxes[batch_idx, keep_indices[sorted_indices[i]], 0]
+                            i_xmin = boxes[batch_idx, keep_indices[sorted_indices[i]], 1]
+                            i_ymax = boxes[batch_idx, keep_indices[sorted_indices[i]], 2]
+                            i_xmax = boxes[batch_idx, keep_indices[sorted_indices[i]], 3]
+
+                            j_ymin = boxes[batch_idx, keep_indices[sorted_indices[j]], 0]
+                            j_xmin = boxes[batch_idx, keep_indices[sorted_indices[j]], 1]
+                            j_ymax = boxes[batch_idx, keep_indices[sorted_indices[j]], 2]
+                            j_xmax = boxes[batch_idx, keep_indices[sorted_indices[j]], 3]
+
+                            area_i = (i_ymax - i_ymin) * (i_xmax - i_xmin)
+                            area_j = (j_ymax - j_ymin) * (j_xmax - j_xmin)
+
+                            iou = 0.0
+                            if area_i > 0 and area_j > 0:
+                                intersection_ymin = max(i_ymin, j_ymin)
+                                intersection_xmin = max(i_xmin, j_xmin)
+                                intersection_ymax = min(i_ymax, j_ymax)
+                                intersection_xmax = min(i_xmax, j_xmax)
+                                intersection_area = max(
+                                    intersection_ymax - intersection_ymin, 0.0
+                                ) * max(intersection_xmax - intersection_xmin, 0.0)
+                                iou = intersection_area / (area_i + area_j - intersection_area)
+
+                            if iou > iou_threshold:
+                                active_box_candidate[j] = 0
+                                num_active_candidate -= 1
+
+            # end of non-maximal suppression on single class
+
+            # add selected indices from non-max suppression of boxes in this class
+            output_index = size_of_sorted_indices
+            for i in range(selected_size):
+                selected_index = selected[i]
+
+                box_indices_after_regular_nms[output_index] = (
+                    selected_index * num_classes_with_background + class_id + label_offset
+                )
+                scores_after_regular_nms[output_index] = class_scores[selected_index]
+
+                output_index += 1
+
+            # sort the max scores among the selected indices
+            # get the indices for top scores
+            num_indices_to_sort = min(output_index, max_detections)
+
+            # iota
+            for i in range(output_index):
+                sorted_indices[i] = i
+            # deacreasing sort of scores
+            for i in range(output_index):
+                for j in range(output_index - i - 1):
+                    if (
+                        scores_after_regular_nms[sorted_indices[j]]
+                        < scores_after_regular_nms[sorted_indices[j + 1]]
+                    ):
+                        tmp_idx = sorted_indices[j]
+                        sorted_indices[j] = sorted_indices[j + 1]
+                        sorted_indices[j + 1] = tmp_idx
+
+            # copy values to temporary vectors
+            for i in range(num_indices_to_sort):
+                sorted_scores[i] = scores_after_regular_nms[sorted_indices[i]]
+                sorted_indices[i] = box_indices_after_regular_nms[sorted_indices[i]]
+
+            # copy scores and indices from temporary vectors
+            for i in range(num_indices_to_sort):
+                box_indices_after_regular_nms[i] = sorted_indices[i]
+                scores_after_regular_nms[i] = sorted_scores[i]
+
+            size_of_sorted_indices = num_indices_to_sort
+
+        # fill output tensors
+        for output_box_index in range(max_detections):
+            box_ymin = 0.0
+            box_xmin = 0.0
+            box_ymax = 0.0
+            box_xmax = 0.0
+            class_idx = 0
+            selected_score = 0.0
+
+            if output_box_index < size_of_sorted_indices:
+                anchor_idx = (
+                    box_indices_after_regular_nms[output_box_index] // num_classes_with_background
+                )
+
+                box_ymin = boxes[batch_idx, anchor_idx, 0]
+                box_xmin = boxes[batch_idx, anchor_idx, 1]
+                box_ymax = boxes[batch_idx, anchor_idx, 2]
+                box_xmax = boxes[batch_idx, anchor_idx, 3]
+                class_idx = (
+                    box_indices_after_regular_nms[output_box_index]
+                    - anchor_idx * num_classes_with_background
+                    - label_offset
+                )
+                selected_score = scores_after_regular_nms[output_box_index]
+
+            detection_boxes[batch_idx, output_box_index, 0] = box_ymin
+            detection_boxes[batch_idx, output_box_index, 1] = box_xmin
+            detection_boxes[batch_idx, output_box_index, 2] = box_ymax
+            detection_boxes[batch_idx, output_box_index, 3] = box_xmax
+            detection_classes[batch_idx, output_box_index] = class_idx
+            detection_scores[batch_idx, output_box_index] = selected_score
+
+        num_detections[batch_idx] = size_of_sorted_indices
+
+    return detection_boxes, detection_classes, detection_scores, num_detections
+
+
+def regular_non_max_suppression(
+    boxes,
+    scores,
+    max_detections_per_class,
+    max_detections,
+    num_classes,
+    iou_threshold,
+    score_threshold,
+):
+    """Regular non-maximum suppression operator for object detection, corresponding to TFLite's
+    regular NMS. NMS is performed for each class separately.
+
+    Parameters
+    ----------
+    boxes : tvm.te.Tensor
+        3-D tensor with shape (batch_size, num_boxes, 4). The four values in boxes
+        encode (ymin, xmin, ymax, xmax) coordinates of a box
+
+    scores: tvm.te.Tensor
+        3-D tensor with shape (batch_size, num_boxes, num_classes_with_background)
+
+    max_detections_per_class : int
+        The maxinum number of output selected boxes per class
+
+    max_detections : int
+        The maxinum number of output selected boxes
+
+    num_classes : int
+        The number of classes without background
+
+    iou_threshold : float
+        IoU test threshold
+
+    score_threshold : float
+        Score threshold to filter out low score boxes early
+
+    Returns
+    -------
+    out : list of tvm.te.Tensor
+        The output is a list of four tensors. The first is `detection_boxes` of size
+        `(batch_size, max_detections , 4)`, the second is `detection_classes` of size
+        `(batch_size, max_detections)`, the third is `detection_scores` of size
+        `(batch_size, max_detections)`, and the fourth is `num_detections` of size `(batch_size,)`
+        representing the total number of selected boxes per batch.
+    """
+    batch_size, num_boxes, num_classes_with_background = scores.shape
+
+    detection_boxes, detection_classes, detection_scores, num_detections = hybrid_regular_nms(
+        boxes=boxes,
+        scores=scores,
+        max_detections_per_class=tvm.tir.const(max_detections_per_class, dtype="int32"),
+        max_detections=tvm.tir.const(max_detections, dtype="int32"),
+        batch_size=batch_size,
+        num_boxes=num_boxes,
+        num_classes=tvm.tir.const(num_classes, dtype="int32"),
+        num_classes_with_background=num_classes_with_background,
+        iou_threshold=tvm.tir.const(iou_threshold, dtype="float32"),
+        score_threshold=tvm.tir.const(score_threshold, dtype="float32"),
+    )
+
+    return [
+        detection_boxes,
+        cast(detection_classes, dtype="float32"),
+        detection_scores,
+        num_detections,
+    ]
