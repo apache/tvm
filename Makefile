@@ -16,7 +16,6 @@
 # under the License.
 
 
-
 .PHONY: all \
         runtime vta cpptest crttest \
         lint pylint cpplint scalalint \
