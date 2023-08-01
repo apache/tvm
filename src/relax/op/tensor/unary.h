@@ -147,6 +147,9 @@ Expr isinf(Expr x);
 /*! \brief Check if input value is Nan. */
 Expr isnan(Expr x);
 
+/*! \brief Apply error function to input value. */
+Expr erf(Expr x);
+
 }  // namespace relax
 }  // namespace tvm
 

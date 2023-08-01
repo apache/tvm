@@ -14,8 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=invalid-name,unused-argument
 """Default legalization function for unary operators."""
-from tvm import topi
+from tvm import topi, te
+
+from ...block_builder import BlockBuilder
+from ...expr import Call, Expr
 from .common import _call_topi_without_attr, register_legalize
 
 # To avoid conflict of IRModule function name and libc function name, we add
@@ -47,3 +51,16 @@ register_legalize("relax.sqrt", _call_topi_without_attr(topi.sqrt, "tir_sqrt"))
 register_legalize("relax.tan", _call_topi_without_attr(topi.tan, "tir_tan"))
 register_legalize("relax.tanh", _call_topi_without_attr(topi.tanh, "tir_tanh"))
 register_legalize("relax.clip", _call_topi_without_attr(topi.clip, "tir_clip"))
+
+
+@register_legalize("relax.erf")
+def _erf(bb: BlockBuilder, call: Call) -> Expr:
+    def te_erf(x: te.Tensor):
+        dtype = x.dtype
+        if dtype == "float16":
+            erf = topi.math.cast(topi.erf(topi.math.cast(x, "float32")), "float16")
+        else:
+            erf = topi.erf(x)
+        return erf
+
+    return bb.call_te(te_erf, call.args[0], primfunc_name_hint="erf")

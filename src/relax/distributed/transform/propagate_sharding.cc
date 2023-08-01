@@ -56,12 +56,12 @@ void CollectAxisGraphBinary(const VarBindingNode* binding, const CallNode* call,
 void CollectAxisGraphUnary(const VarBindingNode* binding, const CallNode* call,
                            AxisGroupGraph* axis_group_graph) {
   const std::vector<std::string> unary_op_names = {
-      "abs",    "acos",     "acosh",    "asin",   "asinh", "atan",
-      "atanh",  "ceil",     "cos",      "cosh",   "exp",   "floor",
-      "log",    "negative", "nn.relu",  "round",  "rsqrt", "sigmoid",
-      "sign",   "sin",      "sinh",     "square", "sqrt",  "tan",
-      "tanh",   "clip",     "isfinite", "isinf",  "isnan", "dist.annotate_sharding",
-      "nn.gelu"};
+      "abs",   "acos",     "acosh",    "asin",   "asinh", "atan",
+      "atanh", "ceil",     "cos",      "cosh",   "exp",   "floor",
+      "log",   "negative", "nn.relu",  "round",  "rsqrt", "sigmoid",
+      "sign",  "sin",      "sinh",     "square", "sqrt",  "tan",
+      "tanh",  "clip",     "isfinite", "isinf",  "isnan", "dist.annotate_sharding",
+      "erf",   "nn.gelu"};
   for (const auto& op_name : unary_op_names) {
     const Op& unary_op = Op::Get("relax." + op_name);
     if (call->op.same_as(unary_op)) {
