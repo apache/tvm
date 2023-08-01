@@ -54,7 +54,7 @@ class Module0:
 # fmt: off
 @I.ir_module
 class Module:
-    @T.prim_func
+    @T.prim_func(private=True)
     def conv2d(rxplaceholder: T.Buffer((T.int64(1), T.int64(8), T.int64(8), T.int64(4)), "int32"), DepthwiseConv2d: T.Buffer((T.int64(1), T.int64(8), T.int64(8), T.int64(4)), "int32")):
         T.func_attr({"op_pattern": 4, "tir.noalias": True})
         # with T.block("root"):
@@ -76,7 +76,7 @@ class Module:
                     DepthwiseConv2d[v_b, v_i, v_j, v_c] = 0
                 DepthwiseConv2d[v_b, v_i, v_j, v_c] = DepthwiseConv2d[v_b, v_i, v_j, v_c] + PaddedInput[v_b, v_i + v_di, v_j + v_dj, v_c] * fused_constant_1[v_di, v_dj, v_c, T.int64(0)]
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def conv2d0(rxplaceholder0: T.Buffer((T.int64(1), T.int64(8), T.int64(8), T.int64(4)), "int32"), DepthwiseConv2d0: T.Buffer((T.int64(1), T.int64(8), T.int64(8), T.int64(4)), "int32")):
         T.func_attr({"op_pattern": 4, "tir.noalias": True})
         # with T.block("root"):
@@ -98,7 +98,7 @@ class Module:
                     DepthwiseConv2d0[v_b, v_i, v_j, v_c] = 0
                 DepthwiseConv2d0[v_b, v_i, v_j, v_c] = DepthwiseConv2d0[v_b, v_i, v_j, v_c] + PaddedInput0[v_b, v_i + v_di, v_j + v_dj, v_c] * fused_constant0_1[v_di, v_dj, v_c, T.int64(0)]
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def fused_conv2d_add(data: T.Buffer((T.int64(1), T.int64(8), T.int64(8), T.int64(4)), "int32"), T_add: T.Buffer((T.int64(1), T.int64(8), T.int64(8), T.int64(4)), "int32")):
         T.func_attr({"tir.noalias": True})
         # with T.block("root"):

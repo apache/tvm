@@ -998,7 +998,7 @@ IRModule FuseOps(IRModule mod, int opt_level, size_t max_fuse_depth) {
 
   // Step 2. Partition the graph by applying the fusion algorithm.
   std::vector<GraphPartitioner::Group*> groups =
-      GraphPartitioner(&arena, opt_level, max_fuse_depth).Partition(graph);
+      GraphPartitioner(&arena, opt_level, max_fuse_depth, /*max_function_args=*/0).Partition(graph);
 
   // Step 3. Transform the IRModule by fusing the operators in accordance with the graph partition
   // results.
