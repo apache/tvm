@@ -949,7 +949,7 @@ export class VirtualMachine implements Disposable {
 }
 
 /** Code used as the first argument of the async callback. */
-enum AyncCallbackCode {
+enum AsyncCallbackCode {
   kReturn = 4,
   kException = 5,
 }
@@ -1886,7 +1886,7 @@ export class Instance implements Disposable {
       const callback = this.detachFromCurrentScope(args[args.length - 1] as PackedFunc);
       const promise: Promise<any> = func(...fargs);
       promise.then((rv: any) => {
-        callback(this.scalar(AyncCallbackCode.kReturn, "int32"), rv);
+        callback(this.scalar(AsyncCallbackCode.kReturn, "int32"), rv);
         callback.dispose();
       });
     };
@@ -1894,10 +1894,10 @@ export class Instance implements Disposable {
   }
 
   /**
-   * Asynchrously load webgpu pipelines when possible.
+   * Asynchronously load webgpu pipelines when possible.
    * @param mod The input module.
    */
-  async asyncLoadWebGPUPiplines(mod: Module): Promise<void> {
+  async asyncLoadWebGPUPipelines(mod: Module): Promise<void> {
     if (this.lib.webGPUContext == undefined) throw Error("WebGPU not initialied");
     const webgpuContext = this.lib.webGPUContext;
 
