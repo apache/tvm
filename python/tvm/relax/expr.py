@@ -152,6 +152,9 @@ class ExprWithOp(Expr, Scriptable):
     # NOTE: Cannot override __eq__ and __ne__, which will influence object equal
 
     def __add__(self, other: Expr) -> "ExprWithOp":
+        if isinstance(self.struct_info_, tvm.relax.TupleStructInfo) and isinstance(other, tuple):
+            return tuple([*self, *other])
+
         return _binary_op_helper(self, other, _op_ffi_api.add)  # type: ignore
 
     def __radd__(self, other: Expr) -> "ExprWithOp":
@@ -321,6 +324,11 @@ class Tuple(ExprWithOp):
     """
 
     def __init__(self, fields: Union[List[Expr], typing.Tuple[Expr, ...]], span: Span = None):
+        if isinstance(fields, tvm.relax.Tuple):
+            fields = fields.fields
+        elif isinstance(getattr(fields, "struct_info_", None), tvm.relax.TupleStructInfo):
+            fields = [*fields]
+
         self.__init_handle_by_constructor__(_ffi_api.Tuple, fields, span)  # type: ignore
 
     def __getitem__(self, index: int) -> Expr:
