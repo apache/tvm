@@ -374,18 +374,18 @@ class Gemm(OnnxOpConverter):
 
         # Compute Y = alpha * A X B + beta * C
 
-        if alpha is not None:
-            A = bb.normalize(relax.op.multiply(A, relax.const(alpha, dtype=dtype)))
+        if alpha is not None and alpha != 1.0:
+            A = relax.op.multiply(A, relax.const(alpha, dtype=dtype))
 
         if transA:
             A = relax.op.permute_dims(A, [1, 0])
         if transB:
             B = relax.op.permute_dims(B, [1, 0])
-        Y = bb.normalize(relax.op.matmul(A, B))
+        Y = relax.op.matmul(A, B)
 
         if C is not None:
-            if beta is not None:
-                C = bb.normalize(relax.op.multiply(C, relax.const(beta, dtype=dtype)))
+            if beta is not None and beta != 1.0:
+                C = relax.op.multiply(C, relax.const(beta, dtype=dtype))
             Y = relax.op.add(Y, C)
 
         return Y
