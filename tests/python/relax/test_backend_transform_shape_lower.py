@@ -189,7 +189,7 @@ def test_symbolic_compute():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(private=True)
         def shape_func(H: T.Buffer(T.int64(4), "int64")):
             # generated compute function
             T.func_attr({"tir.is_host_func": 1})

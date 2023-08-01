@@ -630,7 +630,7 @@ def test_non_max_suppression(executor_kind):
 
 @tvm.testing.uses_gpu
 def test_multibox_transform_loc(executor_kind):
-    def test_default_value():
+    def test_default_value(keep_background):
         num_anchors = 3
         num_classes = 3
 
@@ -644,14 +644,26 @@ def test_multibox_transform_loc(executor_kind):
             [[[-0.1, -0.1, 0.1, 0.1], [-0.2, -0.2, 0.2, 0.2], [1.2, 1.2, 1.5, 1.5]]]
         ).astype("float32")
 
-        expected_np_out = np.array(
-            [
+        expected_np_out = (
+            np.array(
                 [
-                    [1, 0.69999999, 0, 0, 0.10818365, 0.10008108],
-                    [0, 0.44999999, 1, 1, 1, 1],
-                    [0, 0.30000001, 0, 0, 0.22903419, 0.20435292],
+                    [
+                        [2, 0.69999999, 0, 0, 0.10818365, 0.10008108],
+                        [0, 0.49999999, 0, 0, 0.22903419, 0.20435292],
+                        [1, 0.44999999, 1, 1, 1, 1],
+                    ]
                 ]
-            ]
+            )
+            if keep_background
+            else np.array(
+                [
+                    [
+                        [1, 0.69999999, 0, 0, 0.10818365, 0.10008108],
+                        [0, 0.44999999, 1, 1, 1, 1],
+                        [0, 0.30000001, 0, 0, 0.22903419, 0.20435292],
+                    ]
+                ]
+            )
         )
 
         cls_prob = relay.var(
@@ -661,7 +673,7 @@ def test_multibox_transform_loc(executor_kind):
         anchors = relay.var("anchors", relay.ty.TensorType((1, num_anchors, 4), "float32"))
 
         mtl = relay.vision.multibox_transform_loc(
-            cls_prob=cls_prob, loc_pred=loc_pred, anchor=anchors
+            cls_prob=cls_prob, loc_pred=loc_pred, anchor=anchors, keep_background=keep_background
         )
         ret = run_infer_type(mtl.astuple())
         ref_type = relay.ty.TupleType(
@@ -714,7 +726,8 @@ def test_multibox_transform_loc(executor_kind):
         )
         assert ret.checked_type == ref_type
 
-    test_default_value()
+    test_default_value(keep_background=False)
+    test_default_value(keep_background=True)
     test_threshold()
 
 

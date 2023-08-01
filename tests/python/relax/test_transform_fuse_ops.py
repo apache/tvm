@@ -859,7 +859,7 @@ def test_edge_with_call_dps_packed():
                 R.output(b, c)
             return R.tuple(b, c)
 
-        @T.prim_func
+        @T.prim_func(private=True)
         def exp(A: T.Buffer((2, 3), "float32"), B: T.Buffer((2, 3), "float32")):
             T.evaluate(0)
 
@@ -880,7 +880,7 @@ def test_layer_norm_silu():
                 R.output(gv1)
             return gv1
 
-        @T.prim_func
+        @T.prim_func(private=True)
         def layer_norm(A: T.Buffer((T.int64(1), T.int64(512), T.int64(64), T.int64(64)), "float32"), gamma: T.Buffer((T.int64(64), T.int64(64)), "float32"), beta: T.Buffer((T.int64(64), T.int64(64)), "float32"), T_layer_norm: T.Buffer((T.int64(1), T.int64(512), T.int64(64), T.int64(64)), "float32")):
             rxplaceholder_red_temp_v0 = T.alloc_buffer([T.int64(64), T.int64(64)], dtype="float32")
             rxplaceholder_red_temp_v1 = T.alloc_buffer([T.int64(64), T.int64(64)], dtype="float32")
@@ -903,7 +903,7 @@ def test_layer_norm_silu():
                     T.writes(T_layer_norm[ax0, ax1, ax2, ax3])
                     T_layer_norm[ax0, ax1, ax2, ax3] = (A[ax0, ax1, ax2, ax3] - rxplaceholder_red_temp_v0[ax0, ax1] * T.float32(0.05)) * T.rsqrt(rxplaceholder_red_temp_v1[ax0, ax1] * T.float32(0.05) - rxplaceholder_red_temp_v0[ax0, ax1] * T.float32(0.05) * (rxplaceholder_red_temp_v0[ax0, ax1] * T.float32(0.05)) + T.float32(1e-05), dtype="float32") * gamma[ax2, ax3] + beta[ax2, ax3]
 
-        @T.prim_func
+        @T.prim_func(private=True)
         def relu(A: T.Buffer((T.int64(1), T.int64(512), T.int64(64), T.int64(64)), "float32"), B: T.Buffer((T.int64(1), T.int64(512), T.int64(64), T.int64(64)), "float32")):
             for i0, i1, i2, i3 in T.grid(T.int64(1), T.int64(512), T.int64(64), T.int64(64)):
                 with T.block("relu"):
@@ -914,7 +914,7 @@ def test_layer_norm_silu():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(private=True)
         def layer_norm(A: T.Buffer((T.int64(1), T.int64(512), T.int64(64), T.int64(64)), "float32"), gamma: T.Buffer((T.int64(64), T.int64(64)), "float32"), beta: T.Buffer((T.int64(64), T.int64(64)), "float32"), T_layer_norm: T.Buffer((T.int64(1), T.int64(512), T.int64(64), T.int64(64)), "float32")):
             T.func_attr({"op_pattern": 4})
             # with T.block("root"):
@@ -939,7 +939,7 @@ def test_layer_norm_silu():
                     T.writes(T_layer_norm[ax0, ax1, ax2, ax3])
                     T_layer_norm[ax0, ax1, ax2, ax3] = (A[ax0, ax1, ax2, ax3] - rxplaceholder_red_temp_v0[ax0, ax1] * T.float32(0.050000000000000003)) * T.rsqrt(rxplaceholder_red_temp_v1[ax0, ax1] * T.float32(0.050000000000000003) - rxplaceholder_red_temp_v0[ax0, ax1] * T.float32(0.050000000000000003) * (rxplaceholder_red_temp_v0[ax0, ax1] * T.float32(0.050000000000000003)) + T.float32(1.0000000000000001e-05)) * gamma[ax2, ax3] + beta[ax2, ax3]
 
-        @T.prim_func
+        @T.prim_func(private=True)
         def relu(A: T.Buffer((T.int64(1), T.int64(512), T.int64(64), T.int64(64)), "float32"), B: T.Buffer((T.int64(1), T.int64(512), T.int64(64), T.int64(64)), "float32")):
             T.func_attr({"op_pattern": 0})
             # with T.block("root"):
@@ -1001,7 +1001,7 @@ def test_multiple_paths():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(private=True)
         def add(rxplaceholder: T.Buffer((T.int64(2), T.int64(320), T.int64(64), T.int64(64)), "float32"), rxplaceholder_1: T.Buffer((T.int64(1), T.int64(320), T.int64(1), T.int64(1)), "float32"), T_add: T.Buffer((T.int64(2), T.int64(320), T.int64(64), T.int64(64)), "float32")):
             T.func_attr({"op_pattern": 0, "tir.noalias": True})
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(2), T.int64(320), T.int64(64), T.int64(64)):
@@ -1011,7 +1011,7 @@ def test_multiple_paths():
                     T.writes(T_add[v_ax0, v_ax1, v_ax2, v_ax3])
                     T_add[v_ax0, v_ax1, v_ax2, v_ax3] = rxplaceholder[v_ax0, v_ax1, v_ax2, v_ax3] + rxplaceholder_1[T.int64(0), v_ax1, T.int64(0), T.int64(0)]
 
-        @T.prim_func
+        @T.prim_func(private=True)
         def add1(rxplaceholder: T.Buffer((T.int64(2), T.int64(320)), "float32"), rxplaceholder_1: T.Buffer((T.int64(320),), "float32"), T_add: T.Buffer((T.int64(2), T.int64(320)), "float32")):
             T.func_attr({"op_pattern": 0, "tir.noalias": True})
             for ax0, ax1 in T.grid(T.int64(2), T.int64(320)):
@@ -1021,7 +1021,7 @@ def test_multiple_paths():
                     T.writes(T_add[v_ax0, v_ax1])
                     T_add[v_ax0, v_ax1] = rxplaceholder[v_ax0, v_ax1] + rxplaceholder_1[v_ax1]
 
-        @T.prim_func
+        @T.prim_func(private=True)
         def add2(rxplaceholder: T.Buffer((T.int64(2), T.int64(320), T.int64(64), T.int64(64)), "float32"), rxplaceholder_1: T.Buffer((T.int64(2), T.int64(320), T.int64(1), T.int64(1)), "float32"), T_add: T.Buffer((T.int64(2), T.int64(320), T.int64(64), T.int64(64)), "float32")):
             T.func_attr({"op_pattern": 0, "tir.noalias": True})
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(2), T.int64(320), T.int64(64), T.int64(64)):
@@ -1031,7 +1031,7 @@ def test_multiple_paths():
                     T.writes(T_add[v_ax0, v_ax1, v_ax2, v_ax3])
                     T_add[v_ax0, v_ax1, v_ax2, v_ax3] = rxplaceholder[v_ax0, v_ax1, v_ax2, v_ax3] + rxplaceholder_1[v_ax0, v_ax1, T.int64(0), T.int64(0)]
 
-        @T.prim_func
+        @T.prim_func(private=True)
         def conv2d(rxplaceholder: T.Buffer((T.int64(2), T.int64(320), T.int64(64), T.int64(64)), "float32"), rxplaceholder_1: T.Buffer((T.int64(320), T.int64(320), T.int64(3), T.int64(3)), "float32"), conv2d_nchw: T.Buffer((T.int64(2), T.int64(320), T.int64(64), T.int64(64)), "float32")):
             T.func_attr({"op_pattern": 4, "tir.noalias": True})
             pad_temp = T.alloc_buffer((T.int64(2), T.int64(320), T.int64(66), T.int64(66)))
@@ -1050,7 +1050,7 @@ def test_multiple_paths():
                         conv2d_nchw[v_nn, v_ff, v_yy, v_xx] = T.float32(0)
                     conv2d_nchw[v_nn, v_ff, v_yy, v_xx] = conv2d_nchw[v_nn, v_ff, v_yy, v_xx] + pad_temp[v_nn, v_rc, v_yy + v_ry, v_xx + v_rx] * rxplaceholder_1[v_ff, v_rc, v_ry, v_rx]
 
-        @T.prim_func
+        @T.prim_func(private=True)
         def matmul(rxplaceholder: T.Buffer((T.int64(2), T.int64(1280)), "float32"), rxplaceholder_1: T.Buffer((T.int64(1280), T.int64(320)), "float32"), matmul: T.Buffer((T.int64(2), T.int64(320)), "float32")):
             T.func_attr({"op_pattern": 4, "tir.noalias": True})
             for i0, i1, k in T.grid(T.int64(2), T.int64(320), T.int64(1280)):
@@ -1062,7 +1062,7 @@ def test_multiple_paths():
                         matmul[v_i0, v_i1] = T.float32(0)
                     matmul[v_i0, v_i1] = matmul[v_i0, v_i1] + rxplaceholder[v_i0, v_k] * rxplaceholder_1[v_k, v_i1]
 
-        @T.prim_func
+        @T.prim_func(private=True)
         def reshape(rxplaceholder: T.Buffer((T.int64(320),), "float32"), T_reshape: T.Buffer((T.int64(1), T.int64(320), T.int64(1), T.int64(1)), "float32")):
             T.func_attr({"op_pattern": 2, "tir.noalias": True})
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(1), T.int64(320), T.int64(1), T.int64(1)):
@@ -1072,7 +1072,7 @@ def test_multiple_paths():
                     T.writes(T_reshape[v_ax0, v_ax1, v_ax2, v_ax3])
                     T_reshape[v_ax0, v_ax1, v_ax2, v_ax3] = rxplaceholder[(v_ax1 + v_ax2 + v_ax3) % T.int64(320)]
 
-        @T.prim_func
+        @T.prim_func(private=True)
         def reshape1(rxplaceholder: T.Buffer((T.int64(2), T.int64(320)), "float32"), T_reshape: T.Buffer((T.int64(2), T.int64(320), T.int64(1), T.int64(1)), "float32")):
             T.func_attr({"op_pattern": 2, "tir.noalias": True})
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(2), T.int64(320), T.int64(1), T.int64(1)):
@@ -1082,7 +1082,7 @@ def test_multiple_paths():
                     T.writes(T_reshape[v_ax0, v_ax1, v_ax2, v_ax3])
                     T_reshape[v_ax0, v_ax1, v_ax2, v_ax3] = rxplaceholder[((v_ax1 + v_ax2 + v_ax3) // T.int64(320) + v_ax0) % T.int64(2), (v_ax1 + v_ax2 + v_ax3) % T.int64(320)]
 
-        @T.prim_func
+        @T.prim_func(private=True)
         def transpose(rxplaceholder: T.Buffer((T.int64(320), T.int64(1280)), "float32"), T_transpose: T.Buffer((T.int64(1280), T.int64(320)), "float32")):
             T.func_attr({"op_pattern": 2, "tir.noalias": True})
             for ax0, ax1 in T.grid(T.int64(1280), T.int64(320)):
@@ -1156,7 +1156,7 @@ def test_dead_group():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(private=True)
         def add(rxplaceholder: T.Buffer((T.int64(1), T.int64(128)), "float32"), rxplaceholder_1: T.Buffer((T.int64(128),), "float32"), T_add: T.Buffer((T.int64(1), T.int64(128)), "float32")):
             T.func_attr({"op_pattern": 0, "tir.noalias": True})
             # with T.block("root"):
@@ -1167,7 +1167,7 @@ def test_dead_group():
                     T.writes(T_add[v_ax0, v_ax1])
                     T_add[v_ax0, v_ax1] = rxplaceholder[v_ax0, v_ax1] + rxplaceholder_1[v_ax1]
 
-        @T.prim_func
+        @T.prim_func(private=True)
         def add1(rxplaceholder: T.Buffer((T.int64(1), T.int64(10)), "float32"), rxplaceholder_1: T.Buffer((T.int64(10),), "float32"), T_add: T.Buffer((T.int64(1), T.int64(10)), "float32")):
             T.func_attr({"op_pattern": 0, "tir.noalias": True})
             # with T.block("root"):
@@ -1178,7 +1178,7 @@ def test_dead_group():
                     T.writes(T_add[v_ax0, v_ax1])
                     T_add[v_ax0, v_ax1] = rxplaceholder[v_ax0, v_ax1] + rxplaceholder_1[v_ax1]
 
-        @T.prim_func
+        @T.prim_func(private=True)
         def matmul(rxplaceholder: T.Buffer((T.int64(1), T.int64(784)), "float32"), rxplaceholder_1: T.Buffer((T.int64(784), T.int64(128)), "float32"), matmul_1: T.Buffer((T.int64(1), T.int64(128)), "float32")):
             T.func_attr({"op_pattern": 4, "tir.noalias": True})
             # with T.block("root"):
@@ -1191,7 +1191,7 @@ def test_dead_group():
                         matmul_1[v_i0, v_i1] = T.float32(0)
                     matmul_1[v_i0, v_i1] = matmul_1[v_i0, v_i1] + rxplaceholder[v_i0, v_k] * rxplaceholder_1[v_k, v_i1]
 
-        @T.prim_func
+        @T.prim_func(private=True)
         def matmul1(rxplaceholder: T.Buffer((T.int64(1), T.int64(128)), "float32"), rxplaceholder_1: T.Buffer((T.int64(128), T.int64(10)), "float32"), matmul: T.Buffer((T.int64(1), T.int64(10)), "float32")):
             T.func_attr({"op_pattern": 4, "tir.noalias": True})
             # with T.block("root"):
@@ -1204,7 +1204,7 @@ def test_dead_group():
                         matmul[v_i0, v_i1] = T.float32(0)
                     matmul[v_i0, v_i1] = matmul[v_i0, v_i1] + rxplaceholder[v_i0, v_k] * rxplaceholder_1[v_k, v_i1]
 
-        @T.prim_func
+        @T.prim_func(private=True)
         def relu(rxplaceholder: T.Buffer((T.int64(1), T.int64(128)), "float32"), compute: T.Buffer((T.int64(1), T.int64(128)), "float32")):
             T.func_attr({"op_pattern": 0, "tir.noalias": True})
             # with T.block("root"):
@@ -1215,7 +1215,7 @@ def test_dead_group():
                     T.writes(compute[v_i0, v_i1])
                     compute[v_i0, v_i1] = T.max(rxplaceholder[v_i0, v_i1], T.float32(0))
 
-        @T.prim_func
+        @T.prim_func(private=True)
         def transpose(rxplaceholder: T.Buffer((T.int64(128), T.int64(784)), "float32"), T_transpose: T.Buffer((T.int64(784), T.int64(128)), "float32")):
             T.func_attr({"op_pattern": 2, "tir.noalias": True})
             # with T.block("root"):
@@ -1226,7 +1226,7 @@ def test_dead_group():
                     T.writes(T_transpose[v_ax0, v_ax1])
                     T_transpose[v_ax0, v_ax1] = rxplaceholder[v_ax1, v_ax0]
 
-        @T.prim_func
+        @T.prim_func(private=True)
         def transpose1(rxplaceholder: T.Buffer((T.int64(10), T.int64(128)), "float32"), T_transpose: T.Buffer((T.int64(128), T.int64(10)), "float32")):
             T.func_attr({"op_pattern": 2, "tir.noalias": True})
             # with T.block("root"):

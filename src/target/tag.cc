@@ -94,6 +94,18 @@ TVM_REGISTER_TARGET_TAG("nvidia/jetson-agx-xavier")
                                                  {"mcpu", String("carmel")},
                                                  {"num-cores", Integer(8)}}}});
 
+TVM_REGISTER_TARGET_TAG("nvidia/jetson-orin-nano")
+    .set_config({{"kind", String("cuda")},
+                 {"arch", String("sm_87")},
+                 {"max_shared_memory_per_block", Integer(49152)},
+                 {"max_threads_per_block", Integer(1024)},
+                 {"thread_warp_size", Integer(32)},
+                 {"registers_per_block", Integer(65536)},
+                 {"host", Map<String, ObjectRef>{{"kind", String("llvm")},
+                                                 {"mtriple", String("aarch64-linux-gnu")},
+                                                 {"mcpu", String("carmel")},
+                                                 {"num-cores", Integer(6)}}}});
+
 #define TVM_REGISTER_CUDA_TAG(Name, Arch, SharedMem, RegPerBlock) \
   TVM_REGISTER_TARGET_TAG(Name).set_config({                      \
       {"kind", String("cuda")},                                   \

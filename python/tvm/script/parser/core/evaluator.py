@@ -221,6 +221,17 @@ class ExprEvaluator:
             return node
         if isinstance(node, doc.Lambda):
             return self._eval_lambda(node)
+        if isinstance(node, doc.Starred):
+            value = self._visit(node.value)
+            return doc.Starred(
+                value=value,
+                ctx=node.ctx,
+                lineno=node.lineno,
+                col_offset=node.col_offset,
+                end_lineno=node.end_lineno,
+                end_col_offset=node.end_col_offset,
+            )
+
         fields = {}
         for field in node.__class__._FIELDS:  # pylint: disable=protected-access
             attr = getattr(node, field)

@@ -184,7 +184,7 @@ def test_unassigned_call_fail():
 def test_simple_module():
     @I.ir_module
     class TestModule:
-        @T.prim_func
+        @T.prim_func(private=True)
         def tir_func(
             x: T.Buffer((T.int64(128), T.int64(128)), "float32"),
             y: T.Buffer((T.int64(128), T.int64(128)), "float32"),
@@ -213,7 +213,7 @@ def test_simple_module():
 def test_emit_te_primfunc_attrs():
     @I.ir_module
     class TestModule:
-        @T.prim_func
+        @T.prim_func(private=True)
         def plus_one(
             x: T.Buffer((T.int64(128), T.int64(128)), "float32"),
             y: T.Buffer((T.int64(128), T.int64(128)), "float32"),
@@ -275,7 +275,7 @@ def test_module_with_attr_and_global_info():
             }
         )
 
-        @T.prim_func
+        @T.prim_func(private=True)
         def tir_func(
             x: T.Buffer((T.int64(128), T.int64(128)), "float32"),
             y: T.Buffer((T.int64(128), T.int64(128)), "float32"),

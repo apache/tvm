@@ -337,7 +337,7 @@ class RelayBuildModule : public runtime::ModuleNode {
     if (config_->optional_homogeneous_target.defined()) {
       // This pass currently only supports the homogeneous case.
       pass_seqs.push_back(transform::SplitArgs(
-          config_->optional_homogeneous_target->GetAttr<Integer>("max_function_args", -1)
+          config_->optional_homogeneous_target->GetAttr<Integer>("max_function_args", 0)
               .value()
               .IntValue()));
     }

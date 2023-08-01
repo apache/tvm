@@ -625,7 +625,7 @@ def test_multiple_relax_functions():
                 R.output(gv3)
             return gv3
 
-        @T.prim_func
+        @T.prim_func(private=True)
         def fused_add1_exp1_squeeze1(
             x: T.Buffer((T.int64(20), T.int64(10)), "float32"),
             p0: T.Buffer((), "float32"),
@@ -653,7 +653,7 @@ def test_multiple_relax_functions():
                     T.writes(T_squeeze[v_ax0, v_ax1])
                     T_squeeze[v_ax0, v_ax1] = compute[v_ax0, v_ax1]
 
-        @T.prim_func
+        @T.prim_func(private=True)
         def fused_add_exp_squeeze(
             x: T.Buffer((T.int64(10), T.int64(20)), "float32"),
             p0: T.Buffer((), "float32"),
@@ -796,7 +796,7 @@ def test_symbolic_shape_aware_fuse_with_allocation():
 def test_symbolic_var_in_call_tir_args():
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.prim_func(private=True)
         def foo(
             X: T.Buffer((T.int64(1), T.int64(1), T.int64(32), T.int64(128)), "float32"),
             Y: T.Buffer((T.int64(2048), T.int64(128)), "float32"),
@@ -842,7 +842,7 @@ def test_symbolic_var_in_call_tir_args():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(private=True)
         def fused(
             X: T.Buffer((T.int64(1), T.int64(1), T.int64(32), T.int64(128)), "float32"),
             Y: T.Buffer((T.int64(2048), T.int64(128)), "float32"),
@@ -886,7 +886,7 @@ def test_symbolic_var_in_call_tir_args():
 def test_same_buffer_multiple_read():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.prim_func(private=True)
         def concatenate(
             rxplaceholder: T.Buffer((T.int64(1), T.int64(4), T.int64(64), T.int64(64)), "float32"),
             rxplaceholder_1: T.Buffer(
@@ -909,7 +909,7 @@ def test_same_buffer_multiple_read():
                         rxplaceholder[v_ax0, v_ax1, v_ax2, v_ax3],
                     )
 
-        @T.prim_func
+        @T.prim_func(private=True)
         def transpose2(
             rxplaceholder: T.Buffer((T.int64(2), T.int64(4), T.int64(64), T.int64(64)), "float32"),
             T_transpose: T.Buffer((T.int64(2), T.int64(64), T.int64(64), T.int64(4)), "float32"),
@@ -955,7 +955,7 @@ def test_same_buffer_multiple_read():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(private=True)
         def fused_concatenate_transpose2(
             inp_0: T.Buffer((T.int64(1), T.int64(4), T.int64(64), T.int64(64)), "float32"),
             T_transpose_handle_intermediate: T.Buffer(
@@ -1033,7 +1033,7 @@ def test_tir_expression_in_shape():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(private=True)
         def fused_transpose_matmul(
             x: T.Buffer((T.int64(3), T.int64(4)), "float32"),
             p_y: T.handle,
@@ -1082,7 +1082,7 @@ def test_tir_expression_in_shape():
 def test_tuple_input_unused_field():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.prim_func(private=True)
         def reshape(
             A: T.Buffer((T.int64(4), T.int64(8), T.int64(2048)), "float32"),
             T_reshape: T.Buffer((T.int64(4), T.int64(8), T.int64(32), T.int64(64)), "float32"),
@@ -1145,7 +1145,7 @@ def test_tuple_input_unused_field():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(private=True)
         def fused_reshape(
             lv_0: T.Buffer((T.int64(4), T.int64(8), T.int64(2048)), "float32"),
             T_reshape_handle_intermediate: T.Buffer(

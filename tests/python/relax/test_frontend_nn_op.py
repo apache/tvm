@@ -218,7 +218,7 @@ def test_tensor_expr_op():
     # fmt: off
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(private=True)
         def add_one(A: T.Buffer((T.int64(10), T.int64(10)), "float32"), T_add: T.Buffer((T.int64(10), T.int64(10)), "float32")):
             T.func_attr({"tir.noalias": T.bool(True)})
             # with T.block("root"):

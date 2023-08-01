@@ -44,11 +44,11 @@ export async function detectGPUDevice(): Promise<GPUDeviceDetectOutput | undefin
     }
 
     // more detailed error message
-    const requiedMaxBufferSize = 1 << 30;
-    if (requiedMaxBufferSize > adapter.limits.maxBufferSize) {
+    const requitedMaxBufferSize = 1 << 30;
+    if (requitedMaxBufferSize > adapter.limits.maxBufferSize) {
       throw Error(
         `Cannot initialize runtime because of requested maxBufferSize ` +
-        `exceeds limit. requested=${computeMB(requiedMaxBufferSize)}, ` +
+        `exceeds limit. requested=${computeMB(requitedMaxBufferSize)}, ` +
         `limit=${computeMB(adapter.limits.maxBufferSize)}. ` +
         `This error may be caused by an older version of the browser (e.g. Chrome 112). ` +
         `You can try to upgrade your browser to Chrome 113 or later.`
@@ -73,7 +73,7 @@ export async function detectGPUDevice(): Promise<GPUDeviceDetectOutput | undefin
       );
     }
 
-    let requiredFeatures : GPUFeatureName[] = [];
+    const requiredFeatures : GPUFeatureName[] = [];
     // Always require f16 if available
     if (adapter.features.has("shader-f16")) {
       requiredFeatures.push("shader-f16");
@@ -82,7 +82,7 @@ export async function detectGPUDevice(): Promise<GPUDeviceDetectOutput | undefin
     const adapterInfo = await adapter.requestAdapterInfo();
     const device = await adapter.requestDevice({
       requiredLimits: {
-        maxBufferSize: requiedMaxBufferSize,
+        maxBufferSize: requitedMaxBufferSize,
         maxStorageBufferBindingSize: requiredMaxStorageBufferBindingSize,
         maxComputeWorkgroupStorageSize: requiredMaxComputeWorkgroupStorageSize,
       },
@@ -143,7 +143,7 @@ fn fragment_clear(@location(0) uv : vec2<f32>) -> @location(0) vec4<f32> {
   return vec4(1.0, 1.0, 1.0, 1.0);
 }
 `
-class CanvaRenderManager implements Disposable {
+class CanvasRenderManager implements Disposable {
   private device: GPUDevice;
   private canvasContext: GPUCanvasContext;
   private stagingTexture: GPUTexture;
@@ -326,23 +326,23 @@ export class WebGPUContext {
   private bufferTable: Array<GPUBuffer | undefined> = [undefined];
   private bufferTableFreeId: Array<number> = [];
   private podArgStagingBuffers: Array<GPUBuffer> = [];
-  private canvasRenderManager?: CanvaRenderManager = undefined;
+  private canvasRenderManager?: CanvasRenderManager = undefined;
   // number of pod arg staging buffers
-  private maxNumPodArgsStagingBuffers: number = 2;
+  private maxNumPodArgsStagingBuffers = 2;
   // flags for debugging
   // stats of the runtime.
   // peak allocation
-  private peakAllocatedBytes: number = 0;
+  private peakAllocatedBytes = 0;
   // current allocation
-  private currAllocatedBytes: number = 0;
+  private currAllocatedBytes = 0;
   // all allocation(ignoring free)
-  private allAllocatedBytes: number = 0;
+  private allAllocatedBytes = 0;
   // shader submit counter
-  private shaderSubmitCounter: number = 0;
+  private shaderSubmitCounter = 0;
   // limite number of shaders to be submitted, useful for debugging, default to -1
-  protected debugShaderSubmitLimit: number = -1;
+  protected debugShaderSubmitLimit = -1;
   // log and sync each step
-  protected debugLogFinish: boolean = false;
+  protected debugLogFinish = false;
 
   constructor(memory: Memory, device: GPUDevice) {
     this.memory = memory;
@@ -429,7 +429,7 @@ export class WebGPUContext {
    * @param canvas The HTML canvas/
    */
   bindCanvas(canvas: HTMLCanvasElement) {
-    this.canvasRenderManager = new CanvaRenderManager(this.device, canvas);
+    this.canvasRenderManager = new CanvasRenderManager(this.device, canvas);
   }
 
   /**
@@ -445,7 +445,7 @@ export class WebGPUContext {
   }
 
   /**
-   * Create a PackedFunc that runs the given shader asynchrously
+   * Create a PackedFunc that runs the given shader asynchronously
    * via createComputePipelineAsync
    *
    * @param info The function information already parsed as a record.

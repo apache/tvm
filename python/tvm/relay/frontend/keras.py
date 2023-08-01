@@ -120,6 +120,8 @@ def _convert_activation(
     if act_type == "hard_sigmoid":
         x = (_expr.const(0.2, dtype="float32") * inexpr) + _expr.const(0.5, dtype="float32")
         return _op.clip(x, a_min=0.0, a_max=1.0)
+    if act_type == "swish":
+        return inexpr * _op.sigmoid(inexpr)
 
     raise tvm.error.OpNotImplemented(f"Operator {act_type} is not supported in frontend Keras.")
 
@@ -256,6 +258,8 @@ def _convert_dense(
     weightList = keras_layer.get_weights()
     weight = etab.new_const(weightList[0].transpose([1, 0]))
     params = {"weight": weight, "units": weightList[0].shape[1]}
+    units = list(weightList[0].shape)[1]
+    assert units > 0, "The value of units must be a positive integer"
     if input_shape is None:
         input_shape = keras_layer.input_shape
     input_dim = len(input_shape)
@@ -1010,6 +1014,7 @@ def _convert_lstm(
     if keras_layer.go_backwards:
         in_data = _op.reverse(in_data, axis=1)
     units = list(weightList[0].shape)[1]
+    assert units > 0, "The value of units must be a positive integer"
     time_steps = in_shape[1]
     in_data = _op.squeeze(in_data, axis=[0])
     in_data = _op.split(in_data, indices_or_sections=time_steps, axis=0)
@@ -1053,6 +1058,7 @@ def _convert_simple_rnn(
     if keras_layer.use_bias:
         in_bias = etab.new_const(weightList[2])
     units = list(weightList[0].shape)[1]
+    assert units > 0, "The value of units must be a positive integer"
     in_data = _op.nn.batch_flatten(in_data)
     ixh = _op.nn.dense(in_data, kernel_weight, units=units)
     if keras_layer.use_bias:
@@ -1082,6 +1088,7 @@ def _convert_gru(
     if keras_layer.use_bias:
         in_bias = etab.new_const(weightList[2])
     units = list(weightList[0].shape)[1]
+    assert units > 0, "The value of units must be a positive integer"
     in_data = _op.nn.batch_flatten(in_data)
     matrix_x = _op.nn.dense(in_data, kernel_weight, units=units)
     if keras_layer.use_bias:
@@ -1431,6 +1438,12 @@ def from_keras(model, shape=None, layout="NCHW"):
     def _convert_input_layer(keras_layer):
         input_name = keras_layer.name
         input_shape = shape[input_name] if shape is not None and input_name in shape else None
+        if input_shape and len(input_shape) > 1 and any(dim <= 0 for dim in input_shape[1:]):
+            msg = (
+                "Expected input's non-batch dimensions to have positive length, "
+                f"but the input has a shape of {input_shape}"
+            )
+            raise ValueError(msg)
         etab.set_expr(input_name, new_var(input_name, shape=input_shape))
 
     def _convert_layer(keras_layer, etab, scope=""):

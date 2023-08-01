@@ -70,10 +70,44 @@ def test_tir_func_name():
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
     assert matmul.__name__ == "matmul"
+    assert matmul.attrs["global_symbol"] == "matmul"
+
+
+def test_tir_func_private_attrs():
+    @T.prim_func(private=True)
+    def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
+        T.func_attr({"attr": "value"})
+        A = T.match_buffer(a, [128, 128])
+        B = T.match_buffer(b, [128, 128])
+        C = T.match_buffer(c, [128, 128])
+        for i, j, k in T.grid(128, 128, 128):
+            with T.block("update"):
+                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
+
+    assert "global_symbol" not in matmul.attrs
+
+
+def test_tir_func_private_manual_global_symbol_fail():
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @T.prim_func(private=True)
+        def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
+            T.func_attr({"global_symbol": "matmul"})
+            A = T.match_buffer(a, [128, 128])
+            B = T.match_buffer(b, [128, 128])
+            C = T.match_buffer(c, [128, 128])
+            for i, j, k in T.grid(128, 128, 128):
+                with T.block("update"):
+                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                    C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
+
+        # should not execute
+        assert matmul.__name__ == "matmul"
 
 
 def test_tir_macro_decorator_signature():
-    @T.prim_func
+    @T.prim_func(private=True)
     def evaluate0():
         T.evaluate(0)
 
@@ -84,7 +118,7 @@ def test_tir_macro_decorator_signature():
 
     assert func1.hygienic
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def use1():
         func1()
 
@@ -97,7 +131,7 @@ def test_tir_macro_decorator_signature():
 
     assert func2.hygienic
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def use2():
         func2()
 
@@ -116,7 +150,7 @@ def test_tir_macro_signature():
         vi, vj, vk = T.axis.remap("SSR", [i, args[0], args[1]])
         kwargs["t3"][vi, vj] = kwargs["t3"][vi, vj] + t1[vi, vk] * kwargs["t2"][vj, vk]
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def matmul_w_macro(a: T.handle, b: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, [128, 128])
         B = T.match_buffer(b, [128, 128])
@@ -125,7 +159,7 @@ def test_tir_macro_signature():
             with T.block("update"):
                 assign(i, j, k, t1=A, t2=B, t3=C)
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def matmul_no_macro(a: T.handle, b: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, [128, 128])
         B = T.match_buffer(b, [128, 128])
@@ -145,12 +179,12 @@ def test_tir_macro_hygienic():
     def static_capture(A, B):
         B[()] = A[x_value]
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def use_hygienic(A: T.Buffer((1024,), "int32"), B: T.Buffer((), "int32")) -> None:
         for x_value in T.serial(10):
             static_capture(A, B)
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def expected_hygienic(A: T.Buffer((1024,), "int32"), B: T.Buffer((), "int32")) -> None:
         for x_value in range(10):
             B[()] = A[128]
@@ -165,17 +199,35 @@ def test_tir_macro_non_hygienic():
     def dynamic_capture(A, B):
         B[()] = A[x_value]
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def use_non_hygienic(A: T.Buffer((1024,), "int32"), B: T.Buffer((), "int32")) -> None:
         for x_value in T.serial(10):
             dynamic_capture(A, B)
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def expected_non_hygienic(A: T.Buffer((1024,), "int32"), B: T.Buffer((), "int32")) -> None:
         for x_value in range(10):
             B[()] = A[x_value]
 
     tvm.ir.assert_structural_equal(use_non_hygienic, expected_non_hygienic)
+
+
+def test_tir_starred_expression():
+    dims = (128, 128)
+
+    @T.prim_func(private=True)
+    def starred(a: T.handle) -> None:
+        A = T.match_buffer(a, [128, *dims], "int32")
+        for i, j, k in T.grid(128, *dims):
+            A[i, j, k] = T.int32(1)
+
+    @T.prim_func(private=True)
+    def non_starred(a: T.handle) -> None:
+        A = T.match_buffer(a, [128, 128, 128], "int32")
+        for i, j, k in T.grid(128, 128, 128):
+            A[i, j, k] = T.int32(1)
+
+    tvm.ir.assert_structural_equal(starred, non_starred)
 
 
 if __name__ == "__main__":

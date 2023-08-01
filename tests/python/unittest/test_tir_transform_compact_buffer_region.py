@@ -34,8 +34,8 @@ class BaseCompactTest:
         is_lower_order_free = getattr(self, "is_lower_order_free", True)
         is_strict = getattr(self, "is_strict_mode", True)
 
-        before = tvm.IRModule.from_expr(self.before)
-        expected = tvm.IRModule.from_expr(self.expected)
+        before = tvm.IRModule.from_expr(self.before.with_attr("global_symbol", "main"))
+        expected = tvm.IRModule.from_expr(self.expected.with_attr("global_symbol", "main"))
         simplify = tvm.transform.Sequential([tir.transform.Simplify(), tir.transform.RemoveNoOp()])
         after = simplify(tir.transform.CompactBufferAllocation(is_strict=is_strict)(before))
         expected = simplify(expected)
@@ -1056,7 +1056,7 @@ class TestTileAwareCompaction(BaseCompactTest):
                         C[i_0 * 26 + ax0, j_0 * 26 + ax1] = C_local[ax0, ax1]
 
     # Get partitioned workload to compact
-    before_mod = tvm.IRModule.from_expr(before)
+    before_mod = tvm.IRModule.from_expr(before.with_attr("global_symbol", "main"))
     with tvm.transform.PassContext(config={"tir.LoopPartition": {"partition_const_loop": True}}):
         before_mod = tvm.tir.transform.LowerOpaqueBlock()(before_mod)
         before_mod = tvm.tir.transform.LoopPartition()(before_mod)

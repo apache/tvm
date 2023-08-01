@@ -41,7 +41,7 @@ def test_emit_te_with_symbolic_arg():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(private=True)
         def te_func(
             A: T.Buffer((T.int64(10),), "float32"),
             B: T.Buffer((T.int64(10),), "float32"),
