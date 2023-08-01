@@ -101,11 +101,12 @@ TVM_REGISTER_OP("relax.take")
 /* relax.strided_slice */
 TVM_REGISTER_NODE_TYPE(StridedSliceAttrs);
 
-Expr strided_slice(Expr x,                 //
-                   Array<Integer> axes,    //
-                   Array<PrimExpr> begin,  //
-                   Array<PrimExpr> end,    //
-                   Optional<Array<PrimExpr>> strides) {
+Expr strided_slice(Expr x,                             //
+                   Array<Integer> axes,                //
+                   Array<PrimExpr> begin,              //
+                   Array<PrimExpr> end,                //
+                   Optional<Array<PrimExpr>> strides,  //
+                   bool assume_inbound) {
   int n_axis = axes.size();
   CHECK_EQ(static_cast<int>(begin.size()), n_axis)
       << "StridedSlice requires the number of begin indices to equal the number of axes.";
@@ -141,6 +142,7 @@ Expr strided_slice(Expr x,                 //
   attrs->begin = begin.Map(f_convert_to_int64);
   attrs->end = end.Map(f_convert_to_int64);
   attrs->strides = strides.defined() ? strides.value().Map(f_convert_to_int64) : strides;
+  attrs->assume_inbound = assume_inbound;
 
   static const Op& op = Op::Get("relax.strided_slice");
   return Call(op, {std::move(x)}, Attrs(attrs), {});
@@ -148,23 +150,25 @@ Expr strided_slice(Expr x,                 //
 
 TVM_REGISTER_GLOBAL("relax.op.strided_slice").set_body_typed(strided_slice);
 
-inline PrimExpr CanonicalizeIndex(PrimExpr index, PrimExpr extent, int64_t stride) {
+inline PrimExpr CanonicalizeIndex(PrimExpr index, PrimExpr extent, int64_t stride,
+                                  bool assume_inbound) {
   // Same as topi strided slice CanonicalizeIndex function in
   // include/tvm/topi/detail/strided_slice.h
   PrimExpr begin_range = stride < 0 ? -1 : 0;
   PrimExpr end_range = stride < 0 ? extent - 1 : extent;
   index = if_then_else(index < 0, index + extent, index);
-  return min(max(index, begin_range), end_range);  // NOLINT
+  return assume_inbound ? index : min(max(index, begin_range), end_range);  // NOLINT
 }
 
-PrimExpr GetLength(PrimExpr begin, PrimExpr end, const int64_t stride, const PrimExpr& length) {
-  begin = CanonicalizeIndex(begin, length, stride);
-  end = CanonicalizeIndex(end, length, stride);
-
+PrimExpr GetLength(PrimExpr begin, PrimExpr end, const int64_t stride, const PrimExpr& length,
+                   bool assume_inbound) {
+  begin = CanonicalizeIndex(begin, length, stride, assume_inbound);
+  end = CanonicalizeIndex(end, length, stride, assume_inbound);
+  arith::Analyzer ana;
   if (stride < 0) {
-    return ceildiv(begin - end, IntImm(DataType::Int(64), -stride));
+    return ana.Simplify(ceildiv(begin - end, IntImm(DataType::Int(64), -stride)));
   } else {
-    return ceildiv(end - begin, IntImm(DataType::Int(64), stride));
+    return ana.Simplify(ceildiv(end - begin, IntImm(DataType::Int(64), stride)));
   }
 }
 
@@ -193,10 +197,8 @@ StructInfo InferStructInfoStridedSlice(const Call& call, const BlockBuilder& ctx
   int_strides.reserve(n_axis);
   // Only do output shape inference when all the begin/end/strides values are integers.
   for (int i = 0; i < n_axis; ++i) {
-    const auto* int_begin = attrs->begin[i].as<IntImmNode>();
-    const auto* int_end = attrs->end[i].as<IntImmNode>();
     const auto* int_stride = strides[i].as<IntImmNode>();
-    if (!int_begin || !int_end || !int_stride) {
+    if (!int_stride) {
       return TensorStructInfo(data_sinfo->dtype, data_sinfo->ndim);
     }
     int_strides.push_back(int_stride->value);
@@ -207,7 +209,7 @@ StructInfo InferStructInfoStridedSlice(const Call& call, const BlockBuilder& ctx
     ICHECK_NE(int_strides[i], 0)
         << "Strided slice requires strides to be non-zero but got 0 for axis " << axes[i] << ".";
     output_shape.Set(axes[i], GetLength(attrs->begin[i], attrs->end[i], int_strides[i],
-                                        data_shape->values[axes[i]]));
+                                        data_shape->values[axes[i]], attrs->assume_inbound));
   }
   return TensorStructInfo(ShapeExpr(output_shape), data_sinfo->dtype);
 }
