@@ -374,7 +374,7 @@ export class DLDevice {
 /**
  * The data type code in DLDataType
  */
-export const enum DLDataTypeCode {
+export enum DLDataTypeCode {
   Int = 0,
   UInt = 1,
   Float = 2,
@@ -896,7 +896,7 @@ export class TVMString extends TVMObject {
   }
 }
 
-export const enum VMAllocatorKind {
+export enum VMAllocatorKind {
   NAIVE_ALLOCATOR = 1,
   POOLED_ALLOCATOR = 2,
 }
@@ -949,7 +949,7 @@ export class VirtualMachine implements Disposable {
 }
 
 /** Code used as the first argument of the async callback. */
-const enum AyncCallbackCode {
+enum AyncCallbackCode {
   kReturn = 4,
   kException = 5,
 }
