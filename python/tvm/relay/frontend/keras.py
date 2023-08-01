@@ -1438,13 +1438,14 @@ def from_keras(model, shape=None, layout="NCHW"):
     def _convert_input_layer(keras_layer):
         input_name = keras_layer.name
         input_shape = shape[input_name] if shape is not None and input_name in shape else None
+        input_dtype = keras_layer.dtype if hasattr(keras_layer, 'dtype') else 'float32'
         if input_shape and len(input_shape) > 1 and any(dim <= 0 for dim in input_shape[1:]):
             msg = (
                 "Expected input's non-batch dimensions to have positive length, "
                 f"but the input has a shape of {input_shape}"
             )
             raise ValueError(msg)
-        etab.set_expr(input_name, new_var(input_name, shape=input_shape))
+        etab.set_expr(input_name, new_var(input_name, shape=input_shape, dtype=input_dtype))
 
     def _convert_layer(keras_layer, etab, scope=""):
         inbound_nodes = (
