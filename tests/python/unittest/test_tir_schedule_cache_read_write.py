@@ -22,7 +22,10 @@ import tvm
 import tvm.testing
 from tvm import tir
 from tvm.script import tir as T
-from tvm.tir.schedule.testing import verify_trace_roundtrip
+from tvm.tir.schedule.testing import (
+    verify_trace_roundtrip,
+    assert_structural_equal_ignore_global_symbol,
+)
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
@@ -1284,7 +1287,7 @@ def test_cache_read_elementwise(use_block_name):
     assert sch.get(cached_b) == sch.get(sch.get_block("B_local"))
     assert sch.get(block_b) == sch.get(sch.get_block("B"))
     assert sch.get(block_c) == sch.get(sch.get_block("C"))
-    tvm.ir.assert_structural_equal(cache_read_elementwise, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(cache_read_elementwise, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=elementwise)
 
 
@@ -1294,7 +1297,7 @@ def test_cache_read_under_scope(use_block_name):
     block_c = "C" if use_block_name else sch.get_block("C")
     sch.cache_read(block_b, 0, "local")
     sch.cache_read(block_c, 0, "global")
-    tvm.ir.assert_structural_equal(cache_read_under_scope, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(cache_read_under_scope, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=access_under_scope)
 
 
@@ -1302,7 +1305,7 @@ def test_cache_read_opaque_access(use_block_name):
     sch = tir.Schedule(opaque_access, debug_mask="all")
     block = "load_store" if use_block_name else sch.get_block("load_store")
     sch.cache_read(block, 0, "global")
-    tvm.ir.assert_structural_equal(cache_read_opaque_access, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(cache_read_opaque_access, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=opaque_access)
 
 
@@ -1310,7 +1313,7 @@ def test_cache_read_location(use_block_name):
     sch = tir.Schedule(func_multi_consumer, debug_mask="all")
     block_b = "B" if use_block_name else sch.get_block("B")
     sch.cache_read(block_b, 0, "global")
-    tvm.ir.assert_structural_equal(cache_read_multi_consumer, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(cache_read_multi_consumer, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=func_multi_consumer)
 
     # Test that specific consumer block targeting works.
@@ -1318,7 +1321,7 @@ def test_cache_read_location(use_block_name):
     block_b = "B" if use_block_name else sch.get_block("B")
     block_c = "C" if use_block_name else sch.get_block("C")
     sch.cache_read(block_b, 0, "global", consumer_blocks=[block_c])
-    tvm.ir.assert_structural_equal(cache_read_multi_consumer_target, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(cache_read_multi_consumer_target, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=func_multi_consumer)
 
     # Also test setting multiple consumers yields same result as unspecified.
@@ -1326,7 +1329,7 @@ def test_cache_read_location(use_block_name):
     block_b = "B" if use_block_name else sch.get_block("B")
     block_c = "C" if use_block_name else sch.get_block("C")
     sch.cache_read(block_b, 0, "global", consumer_blocks=[block_b, block_c])
-    tvm.ir.assert_structural_equal(cache_read_multi_consumer, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(cache_read_multi_consumer, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=func_multi_consumer)
 
 
@@ -1335,7 +1338,7 @@ def test_continuous_cache_read(use_block_name):
     block_c = "C" if use_block_name else sch.get_block("C")
     sch.cache_read(block_c, 0, "shared")
     sch.cache_read(block_c, 0, "local")
-    tvm.ir.assert_structural_equal(continuous_cache_read, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(continuous_cache_read, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=elementwise)
 
 
@@ -1343,7 +1346,7 @@ def test_cache_read_with_block_predicate(use_block_name):
     sch = tir.Schedule(func_with_block_predicate, debug_mask="all")
     block = "consumer" if use_block_name else sch.get_block("consumer")
     sch.cache_read(block, 0, "shared")
-    tvm.ir.assert_structural_equal(block_predicate_cache_read, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(block_predicate_cache_read, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=func_with_block_predicate)
 
 
@@ -1351,7 +1354,7 @@ def test_cache_read_non_int32_shape(use_block_name):
     sch = tir.Schedule(elementwise_shape_int64, debug_mask="all")
     block_b = "B" if use_block_name else sch.get_block("B")
     sch.cache_read(block_b, 0, "global")
-    tvm.ir.assert_structural_equal(cache_read_shape_int64, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(cache_read_shape_int64, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=elementwise_shape_int64)
 
 
@@ -1380,7 +1383,7 @@ def test_inplace_cache_read():
     sch = tvm.tir.Schedule(inplace_func, debug_mask="all")
     block = sch.get_block("copy_in")
     sch.cache_read(block, 0, "local", [block])
-    tvm.ir.assert_structural_equal(cache_read_inplace, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(cache_read_inplace, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=inplace_func)
 
 
@@ -1393,7 +1396,7 @@ def test_cache_inplace():
     block = sch.cache_read(blocks[0], 0, "global", [blocks[0]])
     block = sch.cache_write(blocks[1], 0, "global")
 
-    tvm.ir.assert_structural_equal(cache_inplace_buffer, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(cache_inplace_buffer, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=inplace_call, debug_mask=debug_mask)
 
 
@@ -1401,7 +1404,7 @@ def test_cache_read_nested_seq(use_block_name):
     sch = tir.Schedule(func_nested_seq, debug_mask="all")
     block_c = "C" if use_block_name else sch.get_block("C")
     sch.cache_read(block_c, 0, "global", consumer_blocks=[block_c])
-    tvm.ir.assert_structural_equal(cache_read_nested_seq_target, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(cache_read_nested_seq_target, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=func_nested_seq)
 
 
@@ -1418,7 +1421,7 @@ def test_cache_write_elementwise(use_block_name):
     assert sch.get(cached_c) == sch.get(sch.get_block("C_global"))
     assert sch.get(block_b) == sch.get(sch.get_block("B"))
     assert sch.get(block_c) == sch.get(sch.get_block("C"))
-    tvm.ir.assert_structural_equal(cache_write_elementwise, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(cache_write_elementwise, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=elementwise)
 
 
@@ -1430,7 +1433,7 @@ def test_cache_write_under_scope(use_block_name):
     sch.cache_write(block_a, 0, "local")
     sch.cache_write(block_b, 0, "global")
     sch.cache_write(block_scope, 0, "global")
-    tvm.ir.assert_structural_equal(cache_write_under_scope, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(cache_write_under_scope, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=access_under_scope)
 
 
@@ -1442,7 +1445,7 @@ def test_cache_write_opaque_access(use_block_name):
     sch.cache_write(block_store, 0, "global")
     sch.cache_write(block_opaque, 0, "global")
     sch.cache_write(block_match_buffer, 0, "global")
-    tvm.ir.assert_structural_equal(cache_write_opaque_access, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(cache_write_opaque_access, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=opaque_access)
 
 
@@ -1450,7 +1453,7 @@ def test_cache_write_location(use_block_name):
     sch = tir.Schedule(func_multi_consumer, debug_mask="all")
     block_a = "A" if use_block_name else sch.get_block("A")
     sch.cache_write(block_a, 0, "global")
-    tvm.ir.assert_structural_equal(cache_write_multi_consumer, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(cache_write_multi_consumer, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=func_multi_consumer)
 
     # Test that specific consumer block targeting works.
@@ -1459,7 +1462,9 @@ def test_cache_write_location(use_block_name):
     block_a = "A" if use_block_name else sch.get_block("A")
     block_b = "B" if use_block_name else sch.get_block("B")
     sch.cache_write(block_a, 0, "global", consumer_blocks=[block_b])
-    tvm.ir.assert_structural_equal(cache_write_multi_consumer_B_consume_cache, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(
+        cache_write_multi_consumer_B_consume_cache, sch.mod["main"]
+    )
     verify_trace_roundtrip(sch=sch, mod=func_multi_consumer)
 
     # Test that specific consumer block targeting works.
@@ -1468,7 +1473,9 @@ def test_cache_write_location(use_block_name):
     block_a = "A" if use_block_name else sch.get_block("A")
     block_c = "C" if use_block_name else sch.get_block("C")
     sch.cache_write(block_a, 0, "global", consumer_blocks=[block_c])
-    tvm.ir.assert_structural_equal(cache_write_multi_consumer_C_consume_cache, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(
+        cache_write_multi_consumer_C_consume_cache, sch.mod["main"]
+    )
     verify_trace_roundtrip(sch=sch, mod=func_multi_consumer)
 
     # Test that specific consumer block targeting works.
@@ -1478,7 +1485,9 @@ def test_cache_write_location(use_block_name):
     block_b = "B" if use_block_name else sch.get_block("B")
     block_c = "C" if use_block_name else sch.get_block("C")
     sch.cache_write(block_a, 0, "global", consumer_blocks=[block_b, block_c])
-    tvm.ir.assert_structural_equal(cache_write_multi_consumer_all_consume_cache, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(
+        cache_write_multi_consumer_all_consume_cache, sch.mod["main"]
+    )
     verify_trace_roundtrip(sch=sch, mod=func_multi_consumer)
 
 
@@ -1487,7 +1496,7 @@ def test_continuous_cache_write(use_block_name):
     block_b = "B" if use_block_name else sch.get_block("B")
     sch.cache_write(block_b, 0, "shared")
     sch.cache_write(block_b, 0, "local")
-    tvm.ir.assert_structural_equal(continuous_cache_write, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(continuous_cache_write, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=elementwise)
 
 
@@ -1496,13 +1505,17 @@ def test_cache_write_with_block_predicate(use_block_name):
     sch = tir.Schedule(func_with_block_predicate, debug_mask="all")
     block = "producer" if use_block_name else sch.get_block("producer")
     sch.cache_write(block, 0, "shared")
-    tvm.ir.assert_structural_equal(block_predicate_cache_write_intermediate_buf, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(
+        block_predicate_cache_write_intermediate_buf, sch.mod["main"]
+    )
     verify_trace_roundtrip(sch=sch, mod=func_with_block_predicate)
     # cache write for external buffer
     sch = tir.Schedule(func_with_block_predicate, debug_mask="all")
     block = "consumer" if use_block_name else sch.get_block("consumer")
     sch.cache_write(block, 0, "shared")
-    tvm.ir.assert_structural_equal(block_predicate_cache_write_output_buf, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(
+        block_predicate_cache_write_output_buf, sch.mod["main"]
+    )
     verify_trace_roundtrip(sch=sch, mod=func_with_block_predicate)
 
 
@@ -1601,21 +1614,21 @@ def test_cache_write_allocate_const(use_decl_buffer):
 
     after = sch.mod["main"]
 
-    tvm.ir.assert_structural_equal(expected, after)
+    assert_structural_equal_ignore_global_symbol(expected, after)
     verify_trace_roundtrip(sch=sch, mod=before)
 
 
 def test_reindex_cache_read():
     sch = tir.Schedule(elementwise, debug_mask="all")
     sch.reindex_cache_read("C", 0, "shared", lambda i, j: (j, i // 2, i % 2))
-    tvm.ir.assert_structural_equal(elementwise_reindex_cache_read, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(elementwise_reindex_cache_read, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=elementwise)
 
 
 def test_reindex_cache_read_multi_consumer():
     sch = tir.Schedule(func_multi_consumer)
     sch.reindex_cache_read("B", 0, "shared", lambda i: (i // 32, i % 32))
-    tvm.ir.assert_structural_equal(reindex_cache_read_multi_consumer, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(reindex_cache_read_multi_consumer, sch.mod["main"])
     # NOTE(zihao): we do not verify trace roundtrip because of in set analysis issues.
 
 
@@ -1639,16 +1652,16 @@ def test_reindex_cache_read_failed_not_single_point():
 def test_reindex_cache_write():
     sch = tir.Schedule(elementwise, debug_mask="all")
     sch.reindex_cache_write("B", 0, "shared", lambda i, j: (j, i))
-    tvm.ir.assert_structural_equal(elementwise_reindex_cache_write, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(elementwise_reindex_cache_write, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=elementwise)
 
 
 def test_reindex_cache_write_reduce():
     sch = tir.Schedule(reduce, debug_mask="all")
     sch.reindex_cache_write("B", 0, "shared", lambda i, j, k, l: (j, i, k))
-    tvm.ir.assert_structural_equal(reduce_reindex_cache_write_0, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(reduce_reindex_cache_write_0, sch.mod["main"])
     sch.reindex_cache_write("C", 0, "shared", lambda i, j, k: [j, i])
-    tvm.ir.assert_structural_equal(reduce_reindex_cache_write_1, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(reduce_reindex_cache_write_1, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=reduce)
 
 
@@ -1673,7 +1686,9 @@ def test_symbolic_matmul_blocked_cache_read(use_block_name):
     sch = tir.Schedule(symbolic_matmul_blocked, debug_mask="all")
     block = "matmul" if use_block_name else sch.get_block("matmul")
     sch.cache_read(block=block, read_buffer_index=0, storage_scope="shared")
-    tvm.ir.assert_structural_equal(sch.mod["main"], symbolic_matmul_blocked_cache_read)
+    assert_structural_equal_ignore_global_symbol(
+        sch.mod["main"], symbolic_matmul_blocked_cache_read
+    )
     verify_trace_roundtrip(sch=sch, mod=symbolic_matmul_blocked)
 
 
@@ -1681,7 +1696,9 @@ def test_symbolic_matmul_blocked_cache_write(use_block_name):
     sch = tir.Schedule(symbolic_matmul_blocked, debug_mask="all")
     block = "matmul" if use_block_name else sch.get_block("matmul")
     sch.cache_write(block=block, write_buffer_index=0, storage_scope="local")
-    tvm.ir.assert_structural_equal(sch.mod["main"], symbolic_matmul_blocked_cache_write)
+    assert_structural_equal_ignore_global_symbol(
+        sch.mod["main"], symbolic_matmul_blocked_cache_write
+    )
     verify_trace_roundtrip(sch=sch, mod=symbolic_matmul_blocked)
 
 

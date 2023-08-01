@@ -19,7 +19,7 @@
 
 {% call m.invoke_build(
   name='BUILD: arm',
-  node='ARM-SMALL',
+  node='ARM-GRAVITON3',
   condition='!skip_ci && is_docs_only_build != 1',
   ws='tvm/build-arm',
   docker_image='ci_arm',
@@ -40,7 +40,7 @@
 {% call(shard_index, num_shards) m.sharded_test_step(
   name="integration: aarch64",
   num_shards=4,
-  node="ARM-SMALL",
+  node="ARM-GRAVITON3",
   ws="tvm/ut-python-arm",
   platform="arm",
   docker_image="ci_arm",
@@ -57,7 +57,7 @@
 
 {% call(shard_index, num_shards) m.sharded_test_step(
   name="topi: aarch64",
-  node="ARM-SMALL",
+  node="ARM-GRAVITON3",
   ws="tvm/ut-python-arm",
   platform="arm",
   docker_image="ci_arm",
@@ -82,7 +82,7 @@
 
 {% call(shard_index, num_shards) m.sharded_test_step(
   name="frontend: aarch64",
-  node="ARM-SMALL",
+  node="ARM-GRAVITON3",
   ws="tvm/frontend-python-arm",
   platform="arm",
   docker_image="ci_arm",

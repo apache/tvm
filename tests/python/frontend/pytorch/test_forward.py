@@ -1661,6 +1661,21 @@ def test_forward_view():
 
 
 @tvm.testing.uses_gpu
+def test_forward_view_as():
+    """test_forward_view_as"""
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10]
+
+    class ViewAs1(Module):
+        def forward(self, *args):
+            t1 = torch.ones((1 * 3 * 10))
+            return args[0].view_as(t1)
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(ViewAs1().float().eval(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
 def test_forward_select():
     """test_forward_select"""
     torch.set_grad_enabled(False)
@@ -5258,6 +5273,18 @@ def test_weight_norm():
     linear_wn = torch.nn.utils.weight_norm(torch.nn.Linear(in_channels, out_channels))
     input_data_linear = torch.rand((128, in_channels)).float()
     verify_model(linear_wn.eval().float(), input_data_linear)
+
+
+@tvm.testing.uses_gpu
+def test_addmm():
+    def test_fn(alpha, beta):
+        return lambda inp, batch1, batch2: torch.addmm(inp, batch1, batch2, beta=beta, alpha=alpha)
+
+    M = torch.randn(3, 5)
+    batch1 = torch.randn(3, 4)
+    batch2 = torch.randn(4, 5)
+
+    verify_model(test_fn(0.4, 0.8), [M, batch1, batch2])
 
 
 @tvm.testing.uses_gpu

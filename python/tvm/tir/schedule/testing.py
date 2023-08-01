@@ -16,12 +16,31 @@
 # under the License.
 # pylint: disable=dangerous-default-value
 """Testing utilities for the TensorIR schedule API"""
-from typing import Sequence, Union
+from typing import Any, Sequence, Union
 
 import tvm
 from tvm.ir import IRModule, assert_structural_equal
 from tvm.tir import PrimFunc
 from tvm.tir.schedule import Schedule, Trace
+
+
+def assert_structural_equal_ignore_global_symbol(
+    func1: PrimFunc,
+    func2: PrimFunc,
+    *args: Any,
+    **kwargs: Any,
+) -> None:
+    """
+    Asserts that PrimFuncs func1 and func2 are structurally equal, setting both
+    their global symbol attributes to main so that the global symbol
+    will not be a point of comparison.
+    """
+    assert_structural_equal(
+        func1.with_attr("global_symbol", "main"),
+        func2.with_attr("global_symbol", "main"),
+        *args,
+        **kwargs,
+    )
 
 
 def verify_trace_roundtrip(

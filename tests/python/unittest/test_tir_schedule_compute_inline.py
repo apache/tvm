@@ -21,7 +21,10 @@ import tvm.testing
 import tvm.tir.tensor_intrin
 from tvm import tir
 from tvm.script import tir as T
-from tvm.tir.schedule.testing import verify_trace_roundtrip
+from tvm.tir.schedule.testing import (
+    verify_trace_roundtrip,
+    assert_structural_equal_ignore_global_symbol,
+)
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
@@ -986,7 +989,7 @@ def test_compute_inline_elementwise(use_block_name):
     block_b = "B" if use_block_name else sch.get_block("B")
     block_c = sch.get_block("C")
     sch.compute_inline(block_b)
-    tvm.ir.assert_structural_equal(elementwise_inlined, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(elementwise_inlined, sch.mod["main"])
     assert sch.get(block_c).name_hint == "C"
     verify_trace_roundtrip(sch=sch, mod=elementwise)
 
@@ -996,7 +999,7 @@ def test_compute_inline_under_loop(use_block_name):
     block_b = "B" if use_block_name else sch.get_block("B")
     block_c = sch.get_block("C")
     sch.compute_inline(block_b)
-    tvm.ir.assert_structural_equal(elementwise_inlined, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(elementwise_inlined, sch.mod["main"])
     assert sch.get(block_c).name_hint == "C"
     verify_trace_roundtrip(sch=sch, mod=elementwise_under_loop)
 
@@ -1006,7 +1009,7 @@ def test_compute_inline_as_dce(use_block_name):
     block_b = "B" if use_block_name else sch.get_block("B")
     block_c = sch.get_block("C")
     sch.compute_inline(block_b)
-    tvm.ir.assert_structural_equal(elementwise_standalone_dce, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(elementwise_standalone_dce, sch.mod["main"])
     assert sch.get(block_c).name_hint == "C"
     verify_trace_roundtrip(sch=sch, mod=elementwise_standalone)
 
@@ -1017,7 +1020,9 @@ def test_compute_inline_multi_consumer(use_block_name):
     block_c = sch.get_block("C")
     block_d = sch.get_block("D")
     sch.compute_inline(block_b)
-    tvm.ir.assert_structural_equal(elementwise_multi_consumer_inlined, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(
+        elementwise_multi_consumer_inlined, sch.mod["main"]
+    )
     assert sch.get(block_c).name_hint == "C"
     assert sch.get(block_d).name_hint == "D"
     verify_trace_roundtrip(sch=sch, mod=elementwise_multi_producer_consumer)
@@ -1035,7 +1040,7 @@ def test_reverse_compute_inline_elementwise(use_block_name):
     block_b = sch.get_block("B")
     block_c = "C" if use_block_name else sch.get_block("C")
     sch.reverse_compute_inline(block_c)
-    tvm.ir.assert_structural_equal(elementwise_inlined, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(elementwise_inlined, sch.mod["main"])
     assert sch.get(block_b).name_hint == "B"
     verify_trace_roundtrip(sch=sch, mod=elementwise)
 
@@ -1045,7 +1050,7 @@ def test_reverse_compute_inline_under_loop(use_block_name):
     block_b = sch.get_block("B")
     block_c = "C" if use_block_name else sch.get_block("C")
     sch.reverse_compute_inline(block_c)
-    tvm.ir.assert_structural_equal(elementwise_inlined, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(elementwise_inlined, sch.mod["main"])
     assert sch.get(block_b).name_hint == "B"
     verify_trace_roundtrip(sch=sch, mod=elementwise_under_loop)
 
@@ -1075,7 +1080,9 @@ def test_reverse_compute_multi_reverse_loads(use_block_name):
     sch = tir.Schedule(elementwise_multi_reverse_loads, debug_mask="all")
     block_c = "C" if use_block_name else sch.get_block("C")
     sch.reverse_compute_inline(block_c)
-    tvm.ir.assert_structural_equal(elementwise_multi_reverse_loads_inlined, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(
+        elementwise_multi_reverse_loads_inlined, sch.mod["main"]
+    )
     verify_trace_roundtrip(sch=sch, mod=elementwise_multi_reverse_loads)
 
 
@@ -1083,7 +1090,9 @@ def test_reverse_compute_inline_affine_load(use_block_name):
     sch = tir.Schedule(elementwise_reverse_affine_load, debug_mask="all")
     block_c = "C" if use_block_name else sch.get_block("C")
     sch.reverse_compute_inline(block_c)
-    tvm.ir.assert_structural_equal(elementwise_reverse_affine_load_inlined, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(
+        elementwise_reverse_affine_load_inlined, sch.mod["main"]
+    )
     verify_trace_roundtrip(sch=sch, mod=elementwise_reverse_affine_load)
 
 
@@ -1091,7 +1100,9 @@ def test_reverse_compute_inline_multi_affine_load(use_block_name):
     sch = tir.Schedule(elementwise_multi_reverse_affine_load, debug_mask="all")
     block_c = "C" if use_block_name else sch.get_block("C")
     sch.reverse_compute_inline(block_c)
-    tvm.ir.assert_structural_equal(elementwise_multi_reverse_affine_load_inlined, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(
+        elementwise_multi_reverse_affine_load_inlined, sch.mod["main"]
+    )
     verify_trace_roundtrip(sch=sch, mod=elementwise_multi_reverse_affine_load)
 
 
@@ -1099,7 +1110,7 @@ def test_reverse_compute_inline_affine_load_unit_iter(use_block_name):
     sch = tir.Schedule(elementwise_reverse_affine_load_unit_iter, debug_mask="all")
     block_c = "C" if use_block_name else sch.get_block("C")
     sch.reverse_compute_inline(block_c)
-    tvm.ir.assert_structural_equal(
+    assert_structural_equal_ignore_global_symbol(
         elementwise_reverse_affine_load_unit_iter_inlined, sch.mod["main"]
     )
     verify_trace_roundtrip(sch=sch, mod=elementwise_reverse_affine_load_unit_iter)
@@ -1109,7 +1120,7 @@ def test_reverse_compute_inline_affine_load_unit_iter_simplified(use_block_name)
     sch = tir.Schedule(elementwise_reverse_affine_load_unit_iter_simplified, debug_mask="all")
     block_c = "C" if use_block_name else sch.get_block("C")
     sch.reverse_compute_inline(block_c)
-    tvm.ir.assert_structural_equal(
+    assert_structural_equal_ignore_global_symbol(
         elementwise_reverse_affine_load_unit_iter_simplified_inlined, sch.mod["main"]
     )
     verify_trace_roundtrip(sch=sch, mod=elementwise_reverse_affine_load_unit_iter_simplified)
@@ -1126,7 +1137,9 @@ def test_reverse_compute_inline_affine_chain(use_block_name, reverse_order):
     else:
         sch.reverse_compute_inline(block_c)
         sch.reverse_compute_inline(block_d)
-    tvm.ir.assert_structural_equal(elementwise_reverse_affine_chain_inlined, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(
+        elementwise_reverse_affine_chain_inlined, sch.mod["main"]
+    )
     verify_trace_roundtrip(sch=sch, mod=elementwise_reverse_affine_chain)
 
 
@@ -1185,7 +1198,7 @@ def test_compute_inline_predicate(use_block_name):
     sch = tir.Schedule(elementwise_predicate, debug_mask="all")
     block_b = "B" if use_block_name else sch.get_block("B")
     sch.compute_inline(block_b)
-    tvm.ir.assert_structural_equal(elementwise_predicate_inlined, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(elementwise_predicate_inlined, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=elementwise_predicate)
 
 
@@ -1193,7 +1206,7 @@ def test_compute_inline_multi_loads(use_block_name):
     sch = tir.Schedule(elementwise_multi_loads, debug_mask="all")
     block_b = "B" if use_block_name else sch.get_block("B")
     sch.compute_inline(block_b)
-    tvm.ir.assert_structural_equal(elementwise_multi_loads_inlined, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(elementwise_multi_loads_inlined, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=elementwise_multi_loads)
 
 
@@ -1202,7 +1215,9 @@ def test_compute_inline_with_opaque_access(use_block_name):
     sch = tir.Schedule(access_opaque_ptr_then_elemwise, debug_mask="all")
     BB = "BB" if use_block_name else sch.get_block("BB")
     sch.compute_inline(BB)
-    tvm.ir.assert_structural_equal(access_opaque_ptr_then_elemwise_inline, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(
+        access_opaque_ptr_then_elemwise_inline, sch.mod["main"]
+    )
 
 
 def test_inline_block_with_init():
@@ -1217,7 +1232,7 @@ def test_compute_inline_opaque_access_with_tvm_access_ptr(use_block_name):
     sch = tir.Schedule(exp_exp_opaque_access_with_tvm_access_ptr, debug_mask="all")
     compute = "compute" if use_block_name else sch.get_block("compute")
     sch.compute_inline(compute)
-    tvm.ir.assert_structural_equal(
+    assert_structural_equal_ignore_global_symbol(
         exp_exp_opaque_access_with_tvm_access_ptr_inlined, sch.mod["main"]
     )
 
@@ -1227,7 +1242,7 @@ def test_reverse_compute_inline_overcomputed_producer(use_block_name):
     sch = tir.Schedule(elementwise_overcomputed_producer, debug_mask="all")
     compute = "C" if use_block_name else sch.get_block("C")
     sch.reverse_compute_inline(compute)
-    tvm.ir.assert_structural_equal(
+    assert_structural_equal_ignore_global_symbol(
         elementwise_overcomputed_producer_reverse_inlined, sch.mod["main"]
     )
 
@@ -1237,7 +1252,7 @@ def test_reverse_compute_inline_overcomputed_producer_simplify_predicate(use_blo
     sch = tir.Schedule(elementwise_overcomputed_producer_simplify_predicate, debug_mask="all")
     compute = "C" if use_block_name else sch.get_block("C")
     sch.reverse_compute_inline(compute)
-    tvm.ir.assert_structural_equal(
+    assert_structural_equal_ignore_global_symbol(
         elementwise_overcomputed_producer_simplify_predicate_reverse_inlined, sch.mod["main"]
     )
 
@@ -1247,7 +1262,7 @@ def test_reverse_compute_inline_overcomputed_producer_injective_load(use_block_n
     sch = tir.Schedule(elementwise_overcomputed_producer_injective_load, debug_mask="all")
     compute = "C" if use_block_name else sch.get_block("C")
     sch.reverse_compute_inline(compute)
-    tvm.ir.assert_structural_equal(
+    assert_structural_equal_ignore_global_symbol(
         elementwise_overcomputed_producer_injective_load_reverse_inlined, sch.mod["main"]
     )
 
@@ -1269,7 +1284,9 @@ def test_reverse_compute_inline_producer_predicate_allowed():
 
     sch = tir.Schedule(elementwise_predicate_producer, debug_mask="all")
     sch.reverse_compute_inline(sch.get_block("C"))
-    tvm.ir.assert_structural_equal(elementwise_predicate_producer_inlined, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(
+        elementwise_predicate_producer_inlined, sch.mod["main"]
+    )
 
 
 def test_reverse_compute_inline_producer_predicate_disallowed():
@@ -1279,7 +1296,7 @@ def test_reverse_compute_inline_producer_predicate_disallowed():
 
     sch = tir.Schedule(Conv2dInt8_TensorCore_with_predicate_before, debug_mask="all")
     sch.reverse_compute_inline(sch.get_block("compute_4"))
-    tvm.ir.assert_structural_equal(
+    assert_structural_equal_ignore_global_symbol(
         Conv2dInt8_TensorCore_with_predicate_after["main"], sch.mod["main"]
     )
 
@@ -1382,7 +1399,7 @@ def test_compute_inline_softmax():
 
     sch = tir.Schedule(before)
     sch.compute_inline(sch.get_block("T_softmax_exp"))
-    tvm.ir.assert_structural_equal(after, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(after, sch.mod["main"])
 
 
 def test_reverse_compute_inline_layer_norm():
@@ -1466,7 +1483,7 @@ def test_reverse_compute_inline_layer_norm():
 
     sch = tir.Schedule(before)
     sch.reverse_compute_inline(sch.get_block("compute"))
-    tvm.ir.assert_structural_equal(after, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(after, sch.mod["main"])
 
 
 if __name__ == "__main__":

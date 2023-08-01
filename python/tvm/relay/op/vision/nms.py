@@ -226,3 +226,62 @@ def all_class_non_max_suppression(
         return expr.TupleWrapper(out, 2)
 
     return expr.TupleWrapper(out, 3)
+
+
+def regular_non_max_suppression(
+    boxes,
+    scores,
+    max_detections_per_class,
+    max_detections,
+    num_classes,
+    iou_threshold,
+    score_threshold,
+):
+    """Regular non-maximum suppression operator for object detection, corresponding to TFLite's
+    regular NMS. NMS is performed for each class separately.
+
+    Parameters
+    ----------
+    boxes : relay.Expr
+        3-D tensor with shape (batch_size, num_boxes, 4). The four values in boxes
+        encode (ymin, xmin, ymax, xmax) coordinates of a box
+
+    scores: relay.Expr
+        3-D tensor with shape (batch_size, num_boxes, num_classes_with_background)
+
+    max_detections_per_class : int
+        The maxinum number of output selected boxes per class
+
+    max_detections : int
+        The maxinum number of output selected boxes
+
+    num_classes : int
+        The number of classes without background
+
+    iou_threshold : float
+        IoU test threshold
+
+    score_threshold : float
+        Score threshold to filter out low score boxes early
+
+    Returns
+    -------
+    out : relay.Tuple
+        The output is a relay.Tuple of four tensors. The first is `detection_boxes` of size
+        `(batch_size, max_detections , 4)`, the second is `detection_classes` of size
+        `(batch_size, max_detections)`, the third is `detection_scores` of size
+        `(batch_size, max_detections)`, and the fourth is `num_detections` of size `(batch_size,)`
+        representing the total number of selected boxes per batch.
+    """
+    return expr.TupleWrapper(
+        _make.regular_non_max_suppression(
+            boxes,
+            scores,
+            max_detections_per_class,
+            max_detections,
+            num_classes,
+            iou_threshold,
+            score_threshold,
+        ),
+        4,
+    )
