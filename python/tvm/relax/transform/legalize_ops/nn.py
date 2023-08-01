@@ -108,6 +108,46 @@ def _nn_conv2d(bb: BlockBuilder, call: Call) -> Expr:
     )
 
 
+@register_legalize("relax.nn.conv1d_transpose")
+def _nn_conv1d_transpose(bb: BlockBuilder, call: Call) -> Expr:
+    if call.attrs.out_layout != call.attrs.data_layout:
+        logging.info(
+            "TOPI conv1d_transpose does not support different input-output "
+            "layouts, and thus cannot be legalized by TOPI"
+        )
+        return call
+    if call.attrs.data_layout != "NCW" or call.attrs.kernel_layout != "IOW":
+        logging.info(
+            "TOPI conv1d_transpose does not support input layout other than NCW, "
+            "and kernel layout other than IOW, so cannot be legalized by TOPI"
+        )
+        return call
+    dilation = call.attrs.dilation
+    if len(dilation) != 1 or dilation[0] != 1:
+        logging.info(
+            "TOPI conv1d_transpose does not support dilations other than 1, "
+            "and thus cannot be legalized by TOPI"
+        )
+        return call
+    if call.attrs.groups != 1:
+        logging.info(
+            "TOPI conv1d_transpose does not support groups other than 1, "
+            "and thus cannot be legalized by TOPI"
+        )
+        return call
+
+    return bb.call_te(
+        topi.nn.conv1d_transpose_ncw,
+        call.args[0],
+        call.args[1],
+        stride=call.attrs.strides,
+        padding=call.attrs.padding,
+        out_dtype=call.struct_info.dtype,
+        output_padding=call.attrs.output_padding,
+        primfunc_name_hint="conv1d_transpose",
+    )
+
+
 @register_legalize("relax.nn.conv2d_transpose")
 def _nn_conv2d_transpose(bb: BlockBuilder, call: Call) -> Expr:
     if call.attrs.out_layout != call.attrs.data_layout:

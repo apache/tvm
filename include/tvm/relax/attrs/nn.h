@@ -117,6 +117,51 @@ struct Conv2DAttrs : public tvm::AttrsNode<Conv2DAttrs> {
   }
 };  // struct Conv2dAttrs
 
+/*! \brief Attributes used in Conv1DTranspose operator */
+struct Conv1DTransposeAttrs : public tvm::AttrsNode<Conv1DTransposeAttrs> {
+  Array<IntImm> strides;
+  Array<IntImm> padding;
+  Array<IntImm> output_padding;
+  Array<IntImm> dilation;
+  int groups;
+  String data_layout;
+  String kernel_layout;
+  String out_layout;
+  DataType out_dtype;
+
+  TVM_DECLARE_ATTRS(Conv1DTransposeAttrs, "relax.attrs.Conv1DTransposeAttrs") {
+    TVM_ATTR_FIELD(strides).describe("Specifies the strides of the convolution.");
+    TVM_ATTR_FIELD(padding).describe(
+        "If padding is non-zero, then the input is implicitly zero-padded"
+        "Padding support both symmetric and asymmetric as"
+        "one int : same padding used on both sides"
+        "two int : padding width in the order of (left, right)");
+    TVM_ATTR_FIELD(output_padding).describe("Used to disambiguate the output shape.");
+    TVM_ATTR_FIELD(dilation).describe(
+        "Specifies the dilation rate to use for dilated convolution.");
+    TVM_ATTR_FIELD(groups).describe(
+        "Number of groups to split the input into for grouped convolution. The number of input and "
+        "output channels should be divisible by the number of groups.");
+    TVM_ATTR_FIELD(data_layout)
+        .describe(
+            "Dimension ordering of input data. Can be 'NCW', 'NWC', etc."
+            "'N', 'C', 'W' stands for batch, channel, width"
+            "dimensions respectively. Convolution is applied on the 'W' dimensions.");
+    TVM_ATTR_FIELD(kernel_layout)
+        .describe(
+            "Dimension ordering of weight. Can be 'OIW', 'IOW', etc."
+            "'O', 'I', 'W' stands for num_filter, input_channel, and width"
+            "dimensions respectively.");
+    TVM_ATTR_FIELD(out_layout)
+        .describe(
+            "Dimension ordering of output. Can be 'NCW', 'NWC', etc."
+            "'N', 'C', 'W' stands for batch, channel, and width"
+            "dimensions respectively. Default to be same as input layout.");
+    TVM_ATTR_FIELD(out_dtype).describe(
+        "Output data type, set to explicit type under mixed precision setting");
+  }
+};  // struct Conv1DTransposeAttrs
+
 /*! \brief Attributes used in Conv2d operator */
 struct Conv2DTransposeAttrs : public tvm::AttrsNode<Conv2DTransposeAttrs> {
   Array<IntImm> strides;
