@@ -60,6 +60,7 @@ def _nn_conv1d(bb: BlockBuilder, call: Call) -> Expr:
         strides=call.attrs.strides,
         padding=call.attrs.padding,
         dilation=call.attrs.dilation,
+        groups=call.attrs.groups,
         data_layout=call.attrs.data_layout,
         kernel_layout=call.attrs.kernel_layout,
         out_dtype=call.attrs.out_dtype if call.attrs.out_dtype != "" else None,
