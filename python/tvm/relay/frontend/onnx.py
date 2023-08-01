@@ -1161,6 +1161,24 @@ class BiasGelu(OnnxOpConverter):
         return Gelu._impl_v1([inp], attr, params)
 
 
+class Mish(OnnxOpConverter):
+    """Operator converter for Mish from Microsoft onnxruntime contrib opset.
+
+    mish(x) = x * tanh(softplus(x)) = x * tanh(ln(1 + e^{x}))
+    """
+
+    @classmethod
+    def _impl_v18(cls, inputs, attr, params):
+        x = inputs[0]
+        # Declare const
+        const_dtype = infer_type(x).checked_type.dtype
+        one = _expr.const(1.0, dtype=const_dtype)
+
+        # Compute Mish
+        term1 = _op.log(one + _op.exp(x))
+        return _op.multiply(x, _op.tanh(term1))
+
+
 class LayerNormalization(OnnxOpConverter):
     """Operator converter for LayerNormalization from Microsoft onnxruntime contrib opset."""
 
@@ -6536,6 +6554,7 @@ def _get_convert_map(opset):
         "Gelu": Gelu.get_converter(opset),
         "FastGelu": FastGelu.get_converter(opset),
         "BiasGelu": BiasGelu.get_converter(opset),
+        "Mish": Mish.get_converter(opset),
         "LayerNormalization": LayerNormalization.get_converter(opset),
         # TODO: We need a better way to handle different domains, in case
         # of name collisions. EmbedLayerNormalization, SkipLayerNormalization, and Attention
