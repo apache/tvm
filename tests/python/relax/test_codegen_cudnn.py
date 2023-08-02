@@ -29,23 +29,22 @@ from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import relax as relax_builder
 
 
-# @pytest.fixture(autouse=True)
-# def reset_seed():
-#     np.random.seed(0)
+@pytest.fixture(autouse=True)
+def reset_seed():
+    np.random.seed(0)
 
-# has_cudnn = tvm.get_global_func("relax.ext.cudnn", False)
+has_cudnn = tvm.get_global_func("relax.ext.cudnn", False)
 
-# cudnn_enabled = pytest.mark.skipif(
-#     not has_cudnn,
-#     reason="cuDNN not enabled.",
-# )
+cudnn_enabled = pytest.mark.skipif(
+    not has_cudnn,
+    reason="cuDNN not enabled.",
+)
 
-# pytestmark = [cudnn_enabled]
+pytestmark = [cudnn_enabled]
 
 
 _activation_table = {
     "none": None,
-    "bias": None,
     "relu": R.nn.relu,
     "gelu": R.nn.gelu,
     "silu": R.nn.silu,
@@ -94,6 +93,11 @@ def get_relax_conv2d_module(
     func = builder.get()
     return tvm.IRModule({"main": func})
 
+def get_result_with_relax_cudnn_offload(mod, np_inputs, cuda_graph=False):
+    mod = partition_for_cudnn(mod)  
+    print(mod)
+    mod = relax.transform.RunCodegen()(mod)
+    return build_and_run(mod, np_inputs, "cuda", cuda_graph)
 
 def build_and_run(mod, inputs_np, target, legalize=False, cuda_graph=False):
     if legalize:
@@ -140,6 +144,51 @@ def test_cudnn_partition_conv2d_without_bias(data_shape, weight_shape, dtype, wi
     )
     mod = partition_for_cudnn(mod)
     assert mod["main"].body.blocks[0].bindings[0].value.op.name_hint == 'fused_relax_nn_conv2d_cudnn'
+
+
+@pytest.mark.parametrize(
+    "data_shape, weight_shape, dtype, with_bias, activation",
+    [
+        # Regular
+        ((16, 32, 32, 16), (32, 3, 3, 16), "float16", False, "none"),
+        # Bias
+        ((16, 32, 32, 16), (32, 3, 3, 16), "float16", True, "none"),
+        # Bias+ReLU
+        ((16, 32, 32, 16), (32, 3, 3, 16), "float16", True, "relu"),  
+    ],
+)
+def test_conv2d_offload(
+    data_shape, weight_shape, dtype, with_bias, activation
+):
+    
+    input = np.random.randn(*data_shape).astype(dtype)
+    weight = np.random.randn(*weight_shape).astype(dtype)
+
+    if with_bias:
+        oc = weight_shape[0]
+        bias = np.random.randn(oc).astype(dtype)
+        bias = bias.reshape((1, 1, 1, weight_shape[0]))
+        args = (input, weight, bias)
+    else:
+        bias = None
+        args = (input, weight)
+    
+    activation = _activation_table[activation]
+    
+    mod = get_relax_conv2d_module(
+        data_shape,
+        weight_shape,
+        dtype,
+        with_bias=with_bias,
+        activation=activation,
+    )
+
+    out = get_result_with_relax_cudnn_offload(mod, args)
+    ref = build_and_run(mod, args, "llvm", legalize=True)
+    # print(out)
+    # print("ref: ")
+    # print(ref)
+    tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
 if __name__ == "__main__":

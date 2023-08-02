@@ -49,9 +49,24 @@ def _check_conv2d(context: PatternCheckContext) -> bool:
 register_patterns(
     [
         (
-            "cudnn.conv2d.nhwc.nhwc",
+            "cudnn.conv2d.nhwc_ohwi",
             *make_conv2d_pattern(
                 with_bias=False,
+            ),
+            _check_conv2d,
+        ),
+        (
+            "cudnn.conv2d.nhwc_ohwi_bias",
+            *make_conv2d_pattern(
+                with_bias=True,
+            ),
+            _check_conv2d,
+        ),
+        (
+            "cudnn.conv2d.nhwc_ohwi_bias_relu",
+            *make_conv2d_pattern(
+                with_bias=True,
+                activation="relax.nn.relu",
             ),
             _check_conv2d,
         ),
