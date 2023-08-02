@@ -63,7 +63,9 @@ class ROCMModuleNode : public runtime::ModuleNode {
   }
 
   const char* type_key() const final { return "hip"; }
-
+  int GetPropertyMask() const final {
+    return ModulePropertyMask::kBinarySerializable | ModulePropertyMask::kRunnable;
+  }
   PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final;
 
   void SaveToFile(const String& file_name, const String& format) final {

@@ -702,8 +702,8 @@ llvm::GlobalVariable* CodeGenLLVM::AllocateSharedMemory(DataType dtype, size_t s
                                                         llvm::GlobalValue::LinkageTypes linkage) {
   llvm::Type* type = llvm::ArrayType::get(DTypeToLLVMType(dtype), size);
   llvm::GlobalVariable* global =
-      new llvm::GlobalVariable(*module_, type, false, linkage, nullptr, "shmem", nullptr,
-                               llvm::GlobalValue::NotThreadLocal, shared_address_space);
+      new llvm::GlobalVariable(*module_, type, false, linkage, llvm::UndefValue::get(type), "shmem",
+                               nullptr, llvm::GlobalValue::NotThreadLocal, shared_address_space);
 #if TVM_LLVM_VERSION >= 100
   global->setAlignment(llvm::Align(alignment));
 #else
