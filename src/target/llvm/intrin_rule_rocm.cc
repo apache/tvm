@@ -22,8 +22,6 @@
  */
 #ifdef TVM_LLVM_VERSION
 
-#include "intrin_rule_llvm.h"
-
 #include <llvm/IR/Intrinsics.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/builtin.h>
@@ -32,6 +30,8 @@
 #include <tvm/tir/op_attr_types.h>
 
 #include <sstream>
+
+#include "intrin_rule_llvm.h"
 
 namespace tvm {
 namespace codegen {
