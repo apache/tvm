@@ -91,7 +91,7 @@ def bind_for_value(self: Parser, node: doc.expr, var_name: str, value: Any) -> A
     res : Any
         The bound value.
     """
-    if isinstance(value, (list, tuple)):
+    if isinstance(value, (list, tuple, tvm.ir.Array)):
         for i, v in enumerate(value):
             bind_for_value(self, node, f"{var_name}_{i}", v)
         return value
@@ -255,7 +255,7 @@ def visit_assign(self: Parser, node: doc.Assign) -> None:
             for index in lhs.slice.elts:
                 indices.append(self.eval_expr(index))
         else:
-            indices = [self.eval_expr(lhs.slice)]
+            indices = self.eval_expr(lhs.slice)
         T.buffer_store(self.eval_expr(lhs.value), rhs, indices)
     else:
         self.eval_assign(target=lhs, source=rhs, bind_value=bind_assign_value)
