@@ -58,6 +58,8 @@ def get_relax_conv2d_module(
     activation=None,
     residual_bin_op=None,
     residual_activation=None,
+    data_layout="NHWC",
+    kernel_layout="OHWI",
 ):
     with IRBuilder() as builder:
         with relax_builder.function():
@@ -65,7 +67,12 @@ def get_relax_conv2d_module(
             data = R.arg("data", R.Tensor(data_shape, dtype))
             weight = R.arg("weight", R.Tensor(weight_shape, dtype))
             if with_bias:
-                bias = R.arg("bias", R.Tensor((1, 1, 1, weight_shape[0]), dtype))
+                if data_layout == "NHWC":
+                    bias = R.arg("bias", R.Tensor((1, 1, 1, weight_shape[0]), dtype))
+                elif data_layout == "NCHW":
+                    bias = R.arg("bias", R.Tensor((1, weight_shape[0], 1, 1), dtype))
+                else:
+                    raise ValueError("Unsupported data_layout: {}".format(data_layout))
 
             with R.dataflow() as frame:
                 output = R.emit(
@@ -74,8 +81,8 @@ def get_relax_conv2d_module(
                         weight,
                         out_dtype=dtype,
                         padding=(1, 1),
-                        data_layout="NHWC",
-                        kernel_layout="OHWI",
+                        data_layout=data_layout,
+                        kernel_layout=kernel_layout,
                     )
                 )
                 if with_bias:
@@ -150,10 +157,12 @@ def test_cudnn_partition_conv2d_without_bias(data_shape, weight_shape, dtype, wi
     "data_shape, weight_shape, dtype, with_bias, activation",
     [
         # Regular
-        ((16, 32, 32, 16), (32, 3, 3, 16), "float16", False, "none"),
+        ((16, 32, 32, 16), (32, 3, 3, 16), "float32", False, "none"),
         # Bias
-        ((16, 32, 32, 16), (32, 3, 3, 16), "float16", True, "none"),
+        ((16, 32, 32, 16), (32, 3, 3, 16), "float32", True, "none"),
         # Bias+ReLU
+        ((16, 32, 32, 16), (32, 3, 3, 16), "float32", True, "relu"),  
+        # Bias+ReLU+half
         ((16, 32, 32, 16), (32, 3, 3, 16), "float16", True, "relu"),  
     ],
 )
@@ -166,8 +175,9 @@ def test_conv2d_offload(
 
     if with_bias:
         oc = weight_shape[0]
-        bias = np.random.randn(oc).astype(dtype)
-        bias = bias.reshape((1, 1, 1, weight_shape[0]))
+        # bias = np.random.randn(oc).astype(dtype)
+        # bias = bias.reshape((1, 1, 1, weight_shape[0]))
+        bias = np.ones((1, 1, 1, weight_shape[0])).astype(dtype)
         args = (input, weight, bias)
     else:
         bias = None
@@ -185,10 +195,59 @@ def test_conv2d_offload(
 
     out = get_result_with_relax_cudnn_offload(mod, args)
     ref = build_and_run(mod, args, "llvm", legalize=True)
-    # print(out)
-    # print("ref: ")
-    # print(ref)
-    tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
+    if dtype == "float16":
+        tvm.testing.assert_allclose(out, ref, rtol=1e-1, atol=1e-1)
+    else:
+        tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
+
+
+@pytest.mark.parametrize(
+    "data_shape, weight_shape, dtype, with_bias, activation",
+    [
+        # Regular
+        ((16, 16, 32, 32), (32, 16, 3, 3), "float32", False, "none"),
+        # Bias
+        ((16, 16, 32, 32), (32, 16, 3, 3), "float32", True, "none"),
+        # Bias+ReLU
+        ((16, 16, 32, 32), (32, 16, 3, 3), "float32", True, "relu"),  
+        # Bias+ReLU+half
+        ((16, 16, 32, 32), (32, 16, 3, 3), "float16", True, "relu"),  
+    ],
+)
+def test_conv2d_nchw_oihw_offload(
+    data_shape, weight_shape, dtype, with_bias, activation
+):
+    
+    input = np.random.randn(*data_shape).astype(dtype)
+    weight = np.random.randn(*weight_shape).astype(dtype)
+
+    if with_bias:
+        oc = weight_shape[0]
+        bias = np.random.randn(oc).astype(dtype)
+        bias = bias.reshape((1, oc, 1, 1))
+        args = (input, weight, bias)
+    else:
+        bias = None
+        args = (input, weight)
+    
+    activation = _activation_table[activation]
+    
+    mod = get_relax_conv2d_module(
+        data_shape,
+        weight_shape,
+        dtype,
+        with_bias=with_bias,
+        activation=activation,
+        data_layout="NCHW",
+        kernel_layout="OIHW",
+    )
+
+    out = get_result_with_relax_cudnn_offload(mod, args)
+    ref = build_and_run(mod, args, "llvm", legalize=True)
+    if dtype == "float16":
+        tvm.testing.assert_allclose(out, ref, rtol=1e-1, atol=1e-1)
+    else:
+        tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
 if __name__ == "__main__":

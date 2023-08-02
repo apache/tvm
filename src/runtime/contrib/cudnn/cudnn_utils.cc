@@ -180,7 +180,7 @@ void SetConvDescriptors(CuDNNThreadEntry* entry_ptr, int format, int dims, int g
       CuDNNDataType::DLTypeToCuDNNType(runtime::String2DLDataType(conv_dtype));
 
   cudnnDataType_t cudnn_data_type = CuDNNDataType::DLTypeToCuDNNType(data_dtype);
-
+  
   // Dims includes N and C
   int full_dims = dims + 2;
 
