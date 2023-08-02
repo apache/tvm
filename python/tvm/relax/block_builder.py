@@ -607,7 +607,19 @@ class BlockBuilder(Object):
         block = self._end_block()
         if len(block.bindings) > 0:
             self._func._blocks.append(block)
-        seqe = self.normalize(rx.SeqExpr(self._func._blocks, output))
+
+        seqe = rx.SeqExpr(self._func._blocks, output)
+
+        # If the parameters were not provided as part of
+        # `bb.function()`, then any variables provided from the params
+        # are not in scope.  Otherwise, TIR variables used in dynamic
+        # inputs are removed as undefined (e.g. Replacing
+        # `R.Tensor(["batch_size"])` with `R.Tensor(ndims=1)`).
+        self.begin_scope(self._func._params)
+        try:
+            seqe = self.normalize(seqe)
+        finally:
+            self.end_scope()
 
         # do not specify ret_struct_info and let constructor deduce
         # from seqe.struct_info
