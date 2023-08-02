@@ -17,7 +17,6 @@
 # pylint: disable=missing-docstring
 
 import tempfile
-import pytest
 
 from tvm import meta_schedule as ms
 from tvm.meta_schedule.testing.local_rpc import LocalRPC
@@ -83,7 +82,7 @@ class Module:
                 matmul[v_i0, v_i1, v_i2, v_i3] = matmul[v_i0, v_i1, v_i2, v_i3] + A[v_i0, v_i1, v_i2, v_k] * B[v_i0, v_i1, v_k, v_i3]
 
     @R.function
-    def test():
+    def test(): # type: ignore
         n = T.int64()
         R.func_attr({"tir_var_upper_bound": {"n": 2048}})
         cls = Module
@@ -170,6 +169,7 @@ def cuda_workload(var_inp0: T.handle, inp1: T.Buffer((T.int64(4096), T.int64(409
 # pylint: enable=no-self-argument,invalid-name,line-too-long,no-method-argument
 
 
+@tvm.testing.requires_cuda
 def test_benchmark_prim_func_rpc():
     with LocalRPC() as rpc:
         rpc_config = ms.runner.RPCConfig(
@@ -197,6 +197,7 @@ def test_benchmark_prim_func_rpc():
         ]
 
 
+@tvm.testing.requires_cuda
 def test_benchmark_prim_func_local():
     input_infos, _, _ = benchmark(
         cuda_workload,
@@ -215,6 +216,7 @@ def test_benchmark_prim_func_local():
     ]
 
 
+@tvm.testing.requires_cuda
 def test_benchmark_prim_func_full_local():
     with tvm.target.Target("nvidia/geforce-rtx-3070"):
         benchmark_prim_func(
@@ -222,6 +224,7 @@ def test_benchmark_prim_func_full_local():
         )
 
 
+@tvm.testing.requires_cuda
 def test_benchmark_prim_func_full_rpc():
     with LocalRPC() as rpc:
         rpc_config = ms.runner.RPCConfig(
@@ -294,11 +297,11 @@ def test_extract_func_info_from_prim_func():
         [((1, "m", 4096), "float32"), ((4096, 4096), "float32"), ((1, "m", 4096), "float32")],
         {"m": "int64"},
     )
-    assert extract_func_info_from_prim_func(Module["full1"]) == (
+    assert extract_func_info_from_prim_func(Module["full1"]) == (  # type: ignore
         [((1, 32, 1, "n"), "float16")],
         {"n": "int64"},
     )
-    assert extract_func_info_from_prim_func(Module["matmul1"]) == (
+    assert extract_func_info_from_prim_func(Module["matmul1"]) == (  # type: ignore
         [
             ((1, 32, 1, "n"), "float16"),
             ((1, 32, "n", 128), "float16"),
@@ -306,11 +309,11 @@ def test_extract_func_info_from_prim_func():
         ],
         {"n": "int64"},
     )
-    assert extract_func_info_from_prim_func(Module["full2"]) == (
+    assert extract_func_info_from_prim_func(Module["full2"]) == (  # type: ignore
         [((1, 32, "n", 128), "float16")],
         {"n": "int64"},
     )
 
 
 if __name__ == "__main__":
-    test_extract_func_info_from_prim_func()
+    tvm.testing.main()
