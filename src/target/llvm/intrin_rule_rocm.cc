@@ -22,6 +22,9 @@
  */
 #ifdef TVM_LLVM_VERSION
 
+#include "intrin_rule_llvm.h"
+
+#include <llvm/IR/Intrinsics.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
@@ -140,8 +143,8 @@ TVM_REGISTER_OP("tir.exp10")
 TVM_REGISTER_OP("tir.erf").set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
                                                      DispatchPureExternOCML);
 
-TVM_REGISTER_OP("tir.fma").set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
-                                                     DispatchPureExternOCML);
+TVM_REGISTER_OP("tir.fma").set_attr<FLowerIntrinsic>(
+    "rocm.FLowerIntrinsic", DispatchLLVMPureIntrin<::llvm::Intrinsic::fmuladd, 3>);
 
 TVM_REGISTER_OP("tir.log").set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
                                                      DispatchPureExternOCML);
