@@ -417,8 +417,8 @@ class MixedPrecisionPass : public MixedModeMutator {
     }
 
     bool is_mixed_precision_applicable =
-        (bool)(final_category == MIXED_PRECISION_ALWAYS &&
-               IsMixedPrecisionApplicableToAttrs(pre_call_node->attrs));
+        static_cast<bool>(final_category == MIXED_PRECISION_ALWAYS &&
+                          IsMixedPrecisionApplicableToAttrs(pre_call_node->attrs));
     // Create the new arguments to the call.
     DataType wanted_arg_dtypes =
         is_mixed_precision_applicable ? mixed_precision_type_ : DataType::Float(32);
