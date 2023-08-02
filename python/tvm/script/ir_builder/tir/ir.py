@@ -1277,6 +1277,9 @@ def buffer_store(
     """
     from tvm.arith import Analyzer  # pylint: disable=import-outside-toplevel
 
+    if not isinstance(indices, (list, tuple, ir.Array)):
+        indices = [indices]
+
     expr_indices = []
     for index in indices:
         if isinstance(index, slice):

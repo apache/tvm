@@ -230,5 +230,67 @@ def test_tir_starred_expression():
     tvm.ir.assert_structural_equal(starred, non_starred)
 
 
+def test_tir_starred_shape_expression():
+    dims = (128, 128)
+
+    @T.prim_func(private=True)
+    def starred(a: T.handle) -> None:
+        A = T.match_buffer(a, [128, *dims], "int32")
+        for i, j, k in T.grid(*A.shape):
+            A[i, j, k] = T.int32(1)
+
+    @T.prim_func(private=True)
+    def non_starred(a: T.handle) -> None:
+        A = T.match_buffer(a, [128, 128, 128], "int32")
+        for i, j, k in T.grid(128, 128, 128):
+            A[i, j, k] = T.int32(1)
+
+    tvm.ir.assert_structural_equal(starred, non_starred)
+
+
+def test_tir_dynamic_for_loop():
+    dims = (128, 128)
+
+    @T.prim_func(private=True)
+    def starred(a: T.handle) -> None:
+        A = T.match_buffer(a, [128, *dims], "int32")
+        for iters in T.grid(*A.shape):
+            A[iters] = T.int32(1)
+
+    @T.prim_func(private=True)
+    def non_starred(a: T.handle) -> None:
+        A = T.match_buffer(a, [128, 128, 128], "int32")
+        for i, j, k in T.grid(128, 128, 128):
+            A[i, j, k] = T.int32(1)
+
+    tvm.ir.assert_structural_equal(starred, non_starred)
+
+
+def test_tir_starred_for_loop():
+    dims = (128, 128)
+
+    @T.prim_func(private=True)
+    def starred(a: T.handle, b: T.handle):
+        A = T.match_buffer(a, [*dims, 128], "int32")
+        B = T.match_buffer(a, dims, "int32")
+        for *spatial, reduction in T.grid(*A.shape):
+            with T.block("reduce"):
+                with T.init():
+                    B[spatial] = T.int32(0)
+                B[spatial] = B[spatial] + A[(*spatial, reduction)]
+
+    @T.prim_func(private=True)
+    def non_starred(a: T.handle, b: T.handle):
+        A = T.match_buffer(a, [128, 128, 128], "int32")
+        B = T.match_buffer(a, [128, 128], "int32")
+        for i, j, k in T.grid(128, 128, 128):
+            with T.block("reduce"):
+                with T.init():
+                    B[i, j] = T.int32(0)
+                B[i, j] = B[i, j] + A[i, j, k]
+
+    tvm.ir.assert_structural_equal(starred, non_starred)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
