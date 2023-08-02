@@ -333,8 +333,8 @@ def test_gather():
     _verify_gather([3, 3], [[0, 2]], [3, 1, 2], 1)
 
 
-@pytest.mark.parametrize("alpha", [None, 0.25])
-@pytest.mark.parametrize("beta", [None, 0.35])
+@pytest.mark.parametrize("alpha", [None, 0.25, 1.0])
+@pytest.mark.parametrize("beta", [None, 0.35, 1.0])
 @pytest.mark.parametrize("useC", [False, True])
 def test_gemm(alpha, beta, useC):
     if useC:
