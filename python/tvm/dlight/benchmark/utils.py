@@ -101,7 +101,11 @@ def populuate_input_shape(
     return results
 
 
-def default_dym_var_sample_func(dym_var_dict: Dict[str, str]) -> Dict[str, int]:
+def default_dym_var_sample_func(
+    dym_var_dict: Dict[str, str],
+    sample_idx: int,  # pylint: disable=unused-argument
+    sample_num: int,  # pylint: disable=unused-argument
+) -> Dict[str, int]:
     """
     Default dynamic shape variable sample function.
     Sample a random value for each dynamic shape variable.
@@ -110,6 +114,11 @@ def default_dym_var_sample_func(dym_var_dict: Dict[str, str]) -> Dict[str, int]:
     ----------
     dym_var_dict : Dict[str, str]
         Dynamic shape variable dictionary, e.g., {"n": "int32", "m": "int32"}
+    sample_idx : int
+        Sample index denotes the index the function is called for the same
+        dynamic shape variable dictionary & function.
+    sample_num : int
+        Sample number denotes the total number of samples.
 
     Returns
     -------

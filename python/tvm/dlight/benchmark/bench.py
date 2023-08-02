@@ -45,7 +45,9 @@ def benchmark(
     mod_or_func: Union[PrimFunc, IRModule],
     *,
     dym_var_sample: Dict[str, int],
-    args: Optional[List[Union[relax.TensorStructInfo, Tuple[Tuple[Union[int, str], ...], str]]]],
+    args: Optional[
+        List[Union[relax.TensorStructInfo, Tuple[Tuple[Union[int, str, tvm.tir.Var], ...], str]]]
+    ],
     target: Optional[Union[str, tvm.target.Target]] = None,
     func_name: Optional[str] = None,
     evaluator_config: Optional["EvaluatorConfig"] = None,
@@ -59,7 +61,9 @@ def benchmark(
         The PrimFunc or IRModule to be benchmarked.
     dym_var_sample : Optional[Dict[str, int]]
         The dynamic shape variable sample, e.g., {"n": 64, "m": 128}.
-    args : Optional[List[Union[relax.TensorStructInfo, Tuple[Tuple[Union[int, str], ...], str]]]]
+    args : Optional[
+        List[Union[relax.TensorStructInfo, Tuple[Tuple[Union[int, str, tvm.tir.Var], ...], str]]]
+    ]
         The input tensor information, including shape and dtype. If none, will use
         the input information from the PrimFunc or IRModule.
     target : Optional[Union[str, tvm.target.Target]]
@@ -132,7 +136,7 @@ def benchmark(
     # run benchmark
     if rpc_config is None:
         profile_result = rt_mod.time_evaluator(
-            func_name if isinstance(func_name, str) else func_name.name_hint,
+            func_name.name_hint if isinstance(func_name, tvm.ir.GlobalVar) else func_name,
             dev=dev,
             number=evaluator_config.number,
             repeat=evaluator_config.repeat,
@@ -156,20 +160,22 @@ def benchmark(
 def benchmark_prim_func(
     mod_or_func: Union[PrimFunc, IRModule],
     *,
-    dym_var_sample_func: Callable[[Dict[str, str]], Dict[str, int]] = default_dym_var_sample_func,
+    dym_var_sample_func: Callable[
+        [Dict[str, str], int, int], Dict[str, int]
+    ] = default_dym_var_sample_func,
     args: Optional[
         List[Union[relax.TensorStructInfo, Tuple[Tuple[Union[int, str], ...], str]]]
     ] = None,
     dym_var_dict: Optional[Dict[str, str]] = None,
-    sample_number: int = 5,
+    sample_num: int = 5,
     target: Optional[Union[str, tvm.target.Target]] = None,
     weight: Optional[int] = 1,
     relax_func_name: Optional[str] = None,
     prim_func_name: Optional[str] = None,
     evaluator_config: Optional["EvaluatorConfig"] = None,
     rpc_config: Optional["RPCConfig"] = None,
-    sort_by: Optional[str] = None,
-    desc: Optional[bool] = True,
+    sort_by: str = "WxTime(ms)",
+    desc: bool = True,
 ):
     """Benchmark a PrimFunc or IRModule with dynamic input shapes and show results.
 
@@ -177,7 +183,7 @@ def benchmark_prim_func(
     ----------
     mod_or_func : Union[PrimFunc, IRModule]
         The PrimFunc or IRModule to be benchmarked.
-    dym_var_sample_func : Callable[[Dict[str, str]], Dict[str, int]]
+    dym_var_sample_func : Callable[[Dict[str, str], int, int], Dict[str, int]]
         The function to sample dynamic shape variables.
     dym_var_dict : Optional[Dict[str, str]]
         Dynamic shape variable dictionary, e.g., {"n": "int32", "m": "int32"}. If none, will use
@@ -185,7 +191,7 @@ def benchmark_prim_func(
     args : Optional[List[Union[relax.TensorStructInfo, Tuple[Tuple[Union[int, str], ...], str]]]]
         The input tensor information, including shape and dtype. If none, will use
         the input information from the PrimFunc or IRModule.
-    sample_number : int
+    sample_num : int
         The number of times to sample dynamic shape variables.
     target: Optional[Union[str, tvm.target.Target]]
         The target to be benchmarked on, if none, will get the target from context.
@@ -201,9 +207,9 @@ def benchmark_prim_func(
     rpc_config : Optional["RPCConfig"]
         The RPC configuration to connect to the remote device.
         If none, will use local mode.
-    sort_by : Optional[str]
+    sort_by : str
         Sort results by this key, if None, no sorting.
-    desc : Optional[bool]
+    desc : bool
         Whether to sort results in descending order.
     """
     results = []
@@ -215,10 +221,10 @@ def benchmark_prim_func(
             assert len(gvs) == 1, "Only support one PrimFunc in IRModule"
             args, dym_var_dict = extract_func_info_from_prim_func(mod_or_func[gvs[0]])
     if dym_var_dict == {}:  # static shape
-        sample_number = 1
-        dym_var_sample_func = lambda _, sample_cnt: {"shape": "static"}
-    for _ in range(sample_number):
-        dym_var_sample = dym_var_sample_func(dym_var_dict, sample_cnt=_)
+        sample_num = 1
+        dym_var_sample_func = lambda dym_var_dict, sample_idx, sample_num: {}
+    for sample_idx in range(sample_num):
+        dym_var_sample = dym_var_sample_func(dym_var_dict, sample_idx, sample_num)
         _, median, std = benchmark(
             mod_or_func,
             args=args,
@@ -246,9 +252,9 @@ def benchmark_prim_func(
 def benchmark_relax_func(
     mod: tvm.ir.IRModule,
     relax_func: Union[tvm.ir.GlobalVar, str],
-    sample_number: int = 2,
+    sample_num: int = 2,
     dym_var_sample_func: Callable[
-        [Dict[str, str]],
+        [Dict[str, str], int, int],
         Dict[str, int],
     ] = default_dym_var_sample_func,
     target: Union[str, tvm.target.Target] = "llvm -num-cores=4",
@@ -263,7 +269,7 @@ def benchmark_relax_func(
         The IRModule to be benchmarked.
     relax_func : Union[tvm.ir.GlobalVar, str]
         The relax function to be benchmarked.
-    sample_number : int
+    sample_num : int
         The number of times to sample dynamic shape variables.
     dym_var_sample_func : Callable[[Dict[str, str]], Dict[str, int]]
         The function to sample dynamic shape variables.
@@ -291,8 +297,8 @@ def benchmark_relax_func(
                 + f"candidates are: {[get_func_name_from_gv(gv) for gv in relax_funcs]}"
             )
     # benchmark
-    for _ in range(sample_number):
-        dym_var_sample = dym_var_sample_func(dynamic_var_dict[relax_func])
+    for sample_idx in range(sample_num):
+        dym_var_sample = dym_var_sample_func(dynamic_var_dict[relax_func], sample_idx, sample_num)
         bench_results = []
         # enumerate all functors
         for functor in relax_funcs[relax_func]:
