@@ -16,10 +16,6 @@
 # under the License.
 
 """Pattern table for cuDNN backend"""
-import operator
-from functools import reduce
-
-import tvm
 from tvm.relax import transform
 from tvm.relax.transform import PatternCheckContext
 

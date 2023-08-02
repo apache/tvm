@@ -105,7 +105,6 @@ def get_relax_conv2d_module(
 
 def get_result_with_relax_cudnn_offload(mod, np_inputs, cuda_graph=False):
     mod = partition_for_cudnn(mod)
-    print(mod)
     mod = relax.transform.RunCodegen()(mod)
     return build_and_run(mod, np_inputs, "cuda", cuda_graph)
 
