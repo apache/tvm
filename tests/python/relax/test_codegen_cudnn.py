@@ -33,6 +33,7 @@ from tvm.script.ir_builder import relax as relax_builder
 def reset_seed():
     np.random.seed(0)
 
+
 has_cudnn = tvm.get_global_func("relax.ext.cudnn", False)
 
 cudnn_enabled = pytest.mark.skipif(
@@ -49,6 +50,7 @@ _activation_table = {
     "gelu": R.nn.gelu,
     "silu": R.nn.silu,
 }
+
 
 def get_relax_conv2d_module(
     data_shape,
@@ -100,11 +102,13 @@ def get_relax_conv2d_module(
     func = builder.get()
     return tvm.IRModule({"main": func})
 
+
 def get_result_with_relax_cudnn_offload(mod, np_inputs, cuda_graph=False):
-    mod = partition_for_cudnn(mod)  
+    mod = partition_for_cudnn(mod)
     print(mod)
     mod = relax.transform.RunCodegen()(mod)
     return build_and_run(mod, np_inputs, "cuda", cuda_graph)
+
 
 def build_and_run(mod, inputs_np, target, legalize=False, cuda_graph=False):
     if legalize:
@@ -132,7 +136,9 @@ def build_and_run(mod, inputs_np, target, legalize=False, cuda_graph=False):
         ((16, 32, 32, 16), (32, 3, 3, 16), "float16", False, "none"),
     ],
 )
-def test_cudnn_partition_conv2d_without_bias(data_shape, weight_shape, dtype, with_bias, activation):
+def test_cudnn_partition_conv2d_without_bias(
+    data_shape, weight_shape, dtype, with_bias, activation
+):
     low, high = -1, 1
     data = np.random.randint(low, high, size=data_shape).astype(dtype)
     weight = np.random.randint(low, high, size=weight_shape).astype(dtype)
@@ -150,7 +156,9 @@ def test_cudnn_partition_conv2d_without_bias(data_shape, weight_shape, dtype, wi
         activation=activation,
     )
     mod = partition_for_cudnn(mod)
-    assert mod["main"].body.blocks[0].bindings[0].value.op.name_hint == 'fused_relax_nn_conv2d_cudnn'
+    assert (
+        mod["main"].body.blocks[0].bindings[0].value.op.name_hint == "fused_relax_nn_conv2d_cudnn"
+    )
 
 
 @pytest.mark.parametrize(
@@ -161,15 +169,12 @@ def test_cudnn_partition_conv2d_without_bias(data_shape, weight_shape, dtype, wi
         # Bias
         ((16, 32, 32, 16), (32, 3, 3, 16), "float32", True, "none"),
         # Bias+ReLU
-        ((16, 32, 32, 16), (32, 3, 3, 16), "float32", True, "relu"),  
+        ((16, 32, 32, 16), (32, 3, 3, 16), "float32", True, "relu"),
         # Bias+ReLU+half
-        ((16, 32, 32, 16), (32, 3, 3, 16), "float16", True, "relu"),  
+        ((16, 32, 32, 16), (32, 3, 3, 16), "float16", True, "relu"),
     ],
 )
-def test_conv2d_offload(
-    data_shape, weight_shape, dtype, with_bias, activation
-):
-    
+def test_conv2d_offload(data_shape, weight_shape, dtype, with_bias, activation):
     input = np.random.randn(*data_shape).astype(dtype)
     weight = np.random.randn(*weight_shape).astype(dtype)
 
@@ -182,9 +187,9 @@ def test_conv2d_offload(
     else:
         bias = None
         args = (input, weight)
-    
+
     activation = _activation_table[activation]
-    
+
     mod = get_relax_conv2d_module(
         data_shape,
         weight_shape,
@@ -209,15 +214,12 @@ def test_conv2d_offload(
         # Bias
         ((16, 16, 32, 32), (32, 16, 3, 3), "float32", True, "none"),
         # Bias+ReLU
-        ((16, 16, 32, 32), (32, 16, 3, 3), "float32", True, "relu"),  
+        ((16, 16, 32, 32), (32, 16, 3, 3), "float32", True, "relu"),
         # Bias+ReLU+half
-        ((16, 16, 32, 32), (32, 16, 3, 3), "float16", True, "relu"),  
+        ((16, 16, 32, 32), (32, 16, 3, 3), "float16", True, "relu"),
     ],
 )
-def test_conv2d_nchw_oihw_offload(
-    data_shape, weight_shape, dtype, with_bias, activation
-):
-    
+def test_conv2d_nchw_oihw_offload(data_shape, weight_shape, dtype, with_bias, activation):
     input = np.random.randn(*data_shape).astype(dtype)
     weight = np.random.randn(*weight_shape).astype(dtype)
 
@@ -229,9 +231,9 @@ def test_conv2d_nchw_oihw_offload(
     else:
         bias = None
         args = (input, weight)
-    
+
     activation = _activation_table[activation]
-    
+
     mod = get_relax_conv2d_module(
         data_shape,
         weight_shape,

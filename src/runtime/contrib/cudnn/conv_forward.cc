@@ -143,10 +143,11 @@ void FindAlgo(int format, int dims, int groups, const int pad[], const int strid
   ret[0] = best_algo;
 }
 
-void CallCudnnConvolutionForward(cudnnHandle_t handle, cudaStream_t stream, int mode, int format, int algo,
-                     int dims, int groups, const int pad[], const int stride[],
-                     const int dilation[], const DLTensor* x, const DLTensor* w, const DLTensor* y,
-                     const std::string& conv_dtype) {
+void CallCudnnConvolutionForward(cudnnHandle_t handle, cudaStream_t stream, int mode, int format,
+                                 int algo, int dims, int groups, const int pad[],
+                                 const int stride[], const int dilation[], const DLTensor* x,
+                                 const DLTensor* w, const DLTensor* y,
+                                 const std::string& conv_dtype) {
   CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal();
 
   // Set Mode
@@ -208,8 +209,10 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d.forward")
 void CallCudnnConvolutionBiasActivationForward(cudnnHandle_t handle, cudaStream_t stream, int mode,
                                                int format, int algo, int dims, int groups, int act,
                                                double coef, const int pad[], const int stride[],
-                                               const int dilation[], const DLTensor* x, const DLTensor* w, const DLTensor* y, 
-                                               const DLTensor* bias, const std::string& conv_dtype) {
+                                               const int dilation[], const DLTensor* x,
+                                               const DLTensor* w, const DLTensor* y,
+                                               const DLTensor* bias,
+                                               const std::string& conv_dtype) {
   CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal();
 
   // Set Mode
@@ -226,7 +229,8 @@ void CallCudnnConvolutionBiasActivationForward(cudnnHandle_t handle, cudaStream_
       CuDNNDataType::DLTypeToCuDNNType(bias->dtype), 1, static_cast<int>(w->shape[0]), 1, 1));
 
   // Set Convolution Descriptors
-  SetConvDescriptors(entry_ptr, format, dims, groups, pad, stride, dilation, x->shape, w->shape, y->shape, x->dtype, conv_dtype);
+  SetConvDescriptors(entry_ptr, format, dims, groups, pad, stride, dilation, x->shape, w->shape,
+                     y->shape, x->dtype, conv_dtype);
 
   // Set Device
   entry_ptr->conv_entry.device = x->device;
@@ -256,7 +260,6 @@ void CallCudnnConvolutionBiasActivationForward(cudnnHandle_t handle, cudaStream_
   // Set the stream to be used by cuDNN
   cudnnSetStream(handle, stream);
 }
-
 
 TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d+bias+act.forward")
     .set_body([](TVMArgs args, TVMRetValue* ret) {

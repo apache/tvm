@@ -86,7 +86,7 @@ class cuDNNJSONSerializer : public JSONSerializer {
 };
 
 Array<runtime::Module> cuDNNCompiler(Array<Function> functions, Map<String, ObjectRef> /*unused*/,
-                                      Map<Constant, String> constant_names) {
+                                     Map<Constant, String> constant_names) {
   Array<runtime::Module> compiled_functions;
 
   for (const auto& func : functions) {

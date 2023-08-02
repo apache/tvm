@@ -26,11 +26,13 @@ from tvm.relax.transform import PatternCheckContext
 from ..pattern_registry import get_patterns_with_prefix, register_patterns
 from ..patterns import make_conv2d_pattern
 
+
 def _is_supported_dtype(lhs_dtype, rhs_dtype):
     """Check if dtypes in the given workload are supported by cuBLAS BYOC."""
     return (lhs_dtype == "float16" and rhs_dtype == "float16") or (
         lhs_dtype == "float32" and rhs_dtype == "float32"
     )
+
 
 def _check_conv2d(context: PatternCheckContext) -> bool:
     # Retrieve the annotated expression from context

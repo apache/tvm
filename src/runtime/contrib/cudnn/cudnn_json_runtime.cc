@@ -41,7 +41,6 @@ namespace contrib {
 using namespace tvm::runtime;
 using namespace tvm::runtime::json;
 
-
 class cuDNNJSONRuntime : public JSONRuntimeBase {
  public:
   cuDNNJSONRuntime(const std::string& symbol_name, const std::string& graph_json,
@@ -87,12 +86,11 @@ class cuDNNJSONRuntime : public JSONRuntimeBase {
           return std::make_tuple(GetInput(node, 0), GetInput(node, 1), bias);
         };
 
-
         auto [a_ptr, b_ptr, bias_ptr] = get_inputs(node, has_bias);
 
-        int mode = CUDNN_CROSS_CORRELATION; // always use cross-correlation
+        int mode = CUDNN_CROSS_CORRELATION;  // always use cross-correlation
         int format = CUDNN_TENSOR_NHWC;
-        int act = CUDNN_ACTIVATION_IDENTITY; // identity activation by default
+        int act = CUDNN_ACTIVATION_IDENTITY;  // identity activation by default
         // todo(leiwang1999): how to add algo selection support in warmup?
         int algo = CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_GEMM;
         int dims = b_ptr->ndim - 2;  // remove O and I dims
@@ -103,33 +101,32 @@ class cuDNNJSONRuntime : public JSONRuntimeBase {
         std::vector<int> dilation = getVecIntAttrFromVecStr(node, "dilation");
         std::string conv_dtype = node.GetAttr<std::vector<std::string>>("out_dtype")[0];
         std::string layout = node.GetAttr<std::vector<std::string>>("out_layout")[0];
-        if(layout == "NCHW")
+        if (layout == "NCHW")
           format = CUDNN_TENSOR_NCHW;
         else if (layout == "NHWC")
           format = CUDNN_TENSOR_NHWC;
         else
           LOG(FATAL) << "Unsupported layout: " << layout;
-        
-        if(attr_in_name(op_name, "relu")){
+
+        if (attr_in_name(op_name, "relu")) {
           act = CUDNN_ACTIVATION_RELU;
-        }else if(attr_in_name(op_name, "relu6")){
+        } else if (attr_in_name(op_name, "relu6")) {
           act = CUDNN_ACTIVATION_CLIPPED_RELU;
           coef = 6.0;
-        }else if(attr_in_name(op_name, "leaky_relu")){
+        } else if (attr_in_name(op_name, "leaky_relu")) {
           act = CUDNN_ACTIVATION_RELU;
           coef = 0.1;
         }
 
-        if (has_bias)
-        {
+        if (has_bias) {
           tvm::contrib::CallCudnnConvolutionBiasActivationForward(
               entry_ptr->handle, stream, mode, format, algo, dims, groups, act, coef,
-              padding.data(), strides.data(), dilation.data(), a_ptr, b_ptr, out_ptr, bias_ptr,conv_dtype);
-        }else
+              padding.data(), strides.data(), dilation.data(), a_ptr, b_ptr, out_ptr, bias_ptr,
+              conv_dtype);
+        } else
           tvm::contrib::CallCudnnConvolutionForward(
               entry_ptr->handle, stream, mode, format, algo, dims, groups, padding.data(),
               strides.data(), dilation.data(), a_ptr, b_ptr, out_ptr, conv_dtype);
-         
       }
     }
   }
@@ -144,7 +141,7 @@ class cuDNNJSONRuntime : public JSONRuntimeBase {
 };
 
 runtime::Module cuDNNJSONRuntimeCreate(String symbol_name, String graph_json,
-                                        const Array<String>& const_names) {
+                                       const Array<String>& const_names) {
   auto n = make_object<cuDNNJSONRuntime>(symbol_name, graph_json, const_names);
   return runtime::Module(n);
 }
