@@ -217,7 +217,7 @@ class Parameter(relax.Var):
         super().__init__(_try_unique_name(name), relax.TensorStructInfo(shape, dtype))
 
 
-class Module:
+class Module(tvm.relax.frontend.nn.SubroutineMixin):
     """Base class for all model modules.
 
     A neural network or a layer can subclass this class.
@@ -264,69 +264,7 @@ class Module:
         raise NotImplementedError()
 
     def __call__(self, *args, **kwargs):
-        if not self.define_subroutine:
-            return self.forward(*args, **kwargs)
-
-        block_builder = relax.BlockBuilder.current()
-        if block_builder is None:
-            return self.forward(*args, **kwargs)
-
-        cls = type(self)
-        if not hasattr(cls, "_gvar"):
-            cls._gvar = {}
-
-        def normalize_expr(arg):
-            if isinstance(arg, tuple):
-                arg = relax.Tuple([normalize_expr(element) for element in arg])
-
-            if getattr(arg, "struct_info_", None) is None:
-                return block_builder.emit(arg)
-            else:
-                return arg
-
-        signature = inspect.signature(self.forward)
-        bindings = signature.bind(*args, **kwargs)
-        func_args = collections.OrderedDict(
-            (name, normalize_expr(arg)) for name, arg in bindings.arguments.items()
-        )
-        model_params = self.parameters()
-
-        arg_sinfo = relax.TupleStructInfo(
-            [arg.struct_info for arg in [*func_args.values(), *model_params]]
-        )
-        is_dataflow = block_builder.current_block_is_dataflow()
-        lookup_key = (tvm.ir.structural_hash(arg_sinfo, map_free_vars=True), is_dataflow)
-
-        if lookup_key in cls._gvar:
-            gvar = cls._gvar[lookup_key]
-        else:
-
-            # Convert CamelCase name of python class to snake_case
-            # name of function.
-            func_name = type(self).__name__
-            func_name = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", func_name)
-            func_name = re.sub("([a-z0-9])([A-Z])", r"\1_\2", func_name)
-            func_name = func_name.lower()
-
-            func_params = [relax.Var(name, value.struct_info) for name, value in func_args.items()]
-
-            with block_builder.function(func_name, [*func_params, *model_params], private=True):
-                with contextlib.ExitStack() as stack:
-                    if is_dataflow:
-                        stack.enter_context(block_builder.dataflow())
-
-                    out = self.forward(*func_params)
-                    out = normalize_expr(out)
-
-                    if is_dataflow:
-                        out = block_builder.emit_output(out)
-                gvar = cls._gvar[lookup_key] = block_builder.emit_func_output(out)
-
-            mod = block_builder.get()
-            mod.update_func(gvar, relax.utils.copy_with_new_vars(mod[gvar]))
-
-        out = gvar(*func_args.values(), *model_params)
-        return block_builder.emit(out)
+        return self.forward(*args, **kwargs)
 
 
 def _unpack_params(value: object) -> List[relax.Var]:
