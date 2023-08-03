@@ -252,12 +252,16 @@ Instruction::~Instruction() {
     case Opcode::GetTag:
     case Opcode::Goto:
     case Opcode::LoadConsti:
-    case Opcode::AllocStorage:
     case Opcode::ShapeOf:
     case Opcode::ReshapeTensor:
     case Opcode::DeviceCopy:
     case Opcode::Fatal:
     case Opcode::KillRegister:
+      return;
+    case Opcode::AllocStorage:
+      if (this->alloc_storage.ndim > 0) {
+        delete[] this->alloc_storage.shape;
+      }
       return;
     case Opcode::AllocTensor:
       delete[] this->alloc_tensor.shape;
