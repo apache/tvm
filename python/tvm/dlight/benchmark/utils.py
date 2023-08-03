@@ -16,7 +16,7 @@
 # under the License.
 """Util functions for benchmarking dynamic shape workloads"""
 
-from typing import Dict, List, Tuple, Union, Any
+from typing import Dict, List, Tuple, Union, Any, Optional
 
 import tvm
 from tvm import relax
@@ -83,11 +83,16 @@ def populuate_input_shape(
         shape = []
         if isinstance(input_info, relax.struct_info.ShapeStructInfo):
             # scalar input
-            results.append(((dym_var_sample[str(input_info.values[0])],), "scalar"))
+            if input_info.values is not None:
+                results.append(((dym_var_sample[str(input_info.values[0])],), "scalar"))
+            else:
+                raise ValueError("Unsupported scalar input", input_info)
         else:
             if isinstance(input_info, relax.TensorStructInfo):
                 tensor_shape = input_info.shape
                 tensor_dtype = input_info.dtype
+                if tensor_shape is None or tensor_dtype is None:
+                    raise ValueError("Unsupported tensor input", input_info)
             else:
                 tensor_shape, tensor_dtype = input_info  # type: ignore
             for dim in tensor_shape:
@@ -137,7 +142,7 @@ def default_dym_var_sample_func(
 
 
 def print_results(
-    bench_results: List[Dict[str, Any]], sort_by: str = "WxTime(ms)", desc: bool = True
+    bench_results: List[Dict[str, Any]], sort_by: Optional[str] = None, desc: bool = True
 ):
     """Print benchmark results.
 

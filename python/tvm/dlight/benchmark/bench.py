@@ -174,8 +174,9 @@ def benchmark_prim_func(
     prim_func_name: Optional[str] = None,
     evaluator_config: Optional["EvaluatorConfig"] = None,
     rpc_config: Optional["RPCConfig"] = None,
-    sort_by: str = "WxTime(ms)",
+    sort_by: Optional[str] = "WxTime(ms)",
     desc: bool = True,
+    drop_cols: Optional[List[str]] = None,
 ):
     """Benchmark a PrimFunc or IRModule with dynamic input shapes and show results.
 
@@ -211,6 +212,8 @@ def benchmark_prim_func(
         Sort results by this key, if None, no sorting.
     desc : bool
         Whether to sort results in descending order.
+    drop_cols : Optional[List[str]]
+        The columns to drop in the results.
     """
     results = []
     if dym_var_dict is None or args is None:
@@ -234,7 +237,9 @@ def benchmark_prim_func(
             rpc_config=rpc_config,
         )
         row = {
-            "InputInfo": ", ".join([f"{k} = {v}" for k, v in dym_var_sample.items()]),
+            "InputInfo": ", ".join([f"{k} = {v}" for k, v in dym_var_sample.items()])
+            if len(dym_var_dict) > 0
+            else "static",
             "Time(us)": median * 1e6,
             "Std(us)": std * 1e6,
         }
@@ -245,7 +250,10 @@ def benchmark_prim_func(
         weight = 1 if weight is None else weight
         row["Weight"] = weight
         row["WxTime(ms)"] = weight * median * 1e3
+        row = {k: v for k, v in row.items() if k not in drop_cols} if drop_cols else row
         results.append(row)
+    if drop_cols is not None and sort_by in drop_cols:
+        sort_by = None
     print_results(results, sort_by=sort_by, desc=desc)
 
 
