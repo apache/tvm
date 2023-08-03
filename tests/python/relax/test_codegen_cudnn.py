@@ -179,9 +179,7 @@ def test_conv2d_offload(data_shape, weight_shape, dtype, with_bias, activation):
 
     if with_bias:
         oc = weight_shape[0]
-        # bias = np.random.randn(oc).astype(dtype)
-        # bias = bias.reshape((1, 1, 1, weight_shape[0]))
-        bias = np.ones((1, 1, 1, weight_shape[0])).astype(dtype)
+        bias = np.random.randn(1, 1, 1, oc).astype(dtype)
         args = (input, weight, bias)
     else:
         bias = None
@@ -224,8 +222,7 @@ def test_conv2d_nchw_oihw_offload(data_shape, weight_shape, dtype, with_bias, ac
 
     if with_bias:
         oc = weight_shape[0]
-        bias = np.random.randn(oc).astype(dtype)
-        bias = bias.reshape((1, oc, 1, 1))
+        bias = np.random.randn(1, oc, 1, 1).astype(dtype)
         args = (input, weight, bias)
     else:
         bias = None
@@ -244,6 +241,49 @@ def test_conv2d_nchw_oihw_offload(data_shape, weight_shape, dtype, with_bias, ac
     )
 
     out = get_result_with_relax_cudnn_offload(mod, args)
+    ref = build_and_run(mod, args, "llvm", legalize=True)
+    if dtype == "float16":
+        tvm.testing.assert_allclose(out, ref, rtol=1e-1, atol=1e-1)
+    else:
+        tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
+
+
+@pytest.mark.parametrize(
+    "data_shape, weight_shape, dtype, with_bias, activation",
+    [
+        # Regular
+        ((16, 32, 32, 16), (32, 3, 3, 16), "float32", False, "none"),
+        # Bias
+        ((16, 32, 32, 16), (32, 3, 3, 16), "float32", True, "none"),
+        # Bias+ReLU
+        ((16, 32, 32, 16), (32, 3, 3, 16), "float32", True, "relu"),
+        # Bias+ReLU+half
+        ((16, 32, 32, 16), (32, 3, 3, 16), "float16", True, "relu"),
+    ],
+)
+def test_conv2d_cuda_graph(data_shape, weight_shape, dtype, with_bias, activation):
+    input = np.random.randn(*data_shape).astype(dtype)
+    weight = np.random.randn(*weight_shape).astype(dtype)
+
+    if with_bias:
+        oc = weight_shape[0]
+        bias = np.random.randn(1, 1, 1, oc).astype(dtype)
+        args = (input, weight, bias)
+    else:
+        bias = None
+        args = (input, weight)
+
+    activation = _activation_table[activation]
+
+    mod = get_relax_conv2d_module(
+        data_shape,
+        weight_shape,
+        dtype,
+        with_bias=with_bias,
+        activation=activation,
+    )
+
+    out = get_result_with_relax_cudnn_offload(mod, args, cuda_graph=True)
     ref = build_and_run(mod, args, "llvm", legalize=True)
     if dtype == "float16":
         tvm.testing.assert_allclose(out, ref, rtol=1e-1, atol=1e-1)

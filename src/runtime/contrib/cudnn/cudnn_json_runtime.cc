@@ -123,7 +123,7 @@ class cuDNNJSONRuntime : public JSONRuntimeBase {
               entry_ptr->handle, stream, mode, format, algo, dims, groups, act, coef,
               padding.data(), strides.data(), dilation.data(), a_ptr, b_ptr, out_ptr, bias_ptr,
               conv_dtype);
-        } else{
+        } else {
           tvm::contrib::CallCudnnConvolutionForward(
               entry_ptr->handle, stream, mode, format, algo, dims, groups, padding.data(),
               strides.data(), dilation.data(), a_ptr, b_ptr, out_ptr, conv_dtype);
