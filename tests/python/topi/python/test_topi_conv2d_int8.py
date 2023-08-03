@@ -57,12 +57,11 @@ devices = [
         topi.arm_cpu.compute_conv2d_NHWC_quantized_native,
         topi.arm_cpu.schedule_conv2d_NHWC_quantized_native,
     ),
-    # TODO(giuseros) We need LLVM-11 in order to compile with +i8mm extension
-    # (
-    # "llvm --device arm_cpu --mtriple aarch64-linux-gnu -mattr=+v8.2a,+i8mm",
-    # topi.arm_cpu.compute_conv2d_NHWC_quantized_interleaved,
-    # topi.arm_cpu.schedule_conv2d_NHWC_quantized_interleaved,
-    # ),
+    (
+        "llvm --device arm_cpu --mtriple aarch64-linux-gnu -mattr=+v8.2a,+i8mm",
+        topi.arm_cpu.compute_conv2d_NHWC_quantized_interleaved,
+        topi.arm_cpu.schedule_conv2d_NHWC_quantized_interleaved,
+    ),
 ]
 
 
