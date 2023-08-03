@@ -16,6 +16,7 @@
 # under the License.
 
 from ..runtime_ctypes import TVMArrayHandle
+from cpython cimport PyCapsule_Destructor
 
 cdef const char* _c_str_dltensor = "dltensor"
 cdef const char* _c_str_used_dltensor = "used_dltensor"
@@ -113,7 +114,7 @@ cdef class NDArrayBase:
         with nogil:
             c_api_ret_code = TVMArrayToDLPack(self.chandle, &dltensor)
         CHECK_CALL(c_api_ret_code)
-        return pycapsule.PyCapsule_New(dltensor, _c_str_dltensor, _c_dlpack_deleter)
+        return pycapsule.PyCapsule_New(dltensor, _c_str_dltensor, <PyCapsule_Destructor>_c_dlpack_deleter)
 
 
 # Import limited object-related function from C++ side to improve the speed
