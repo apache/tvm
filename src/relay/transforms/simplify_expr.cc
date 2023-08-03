@@ -31,8 +31,10 @@
 #include <tvm/runtime/logging.h>
 
 #include <algorithm>
+#include <cmath>
 #include <limits>
 #include <memory>
+#include <stack>
 #include <string>
 #include <utility>
 
@@ -79,113 +81,52 @@ class SimplifyReshape : public DFPatternRewrite {
   DFPattern x_;
 };
 
-/*!
- * \brief SimplifySameCast matches the pattern of cast data to the same dtype.
- */
-class SimplifySameCast : public DFPatternRewrite {
- public:
-  SimplifySameCast() {
-    data_pat_ = IsWildcard();
-    like_pat_ = IsWildcard();
-    pattern_ = IsOp("cast_like")({data_pat_, like_pat_}) || IsOp("cast")({data_pat_});
+double max_value_of_dtype(DataType dtype) {
+  double max_value;
+  if (!(dtype.is_float() || dtype.is_bfloat16() || dtype.is_int() || dtype.is_uint())) {
+    LOG(INFO) << "The max_value of DataType cannot be decided, return "
+                 "std::numeric_limits<double>::max().";
+    return std::numeric_limits<double>::max();
   }
 
-  Expr Callback(const Expr& pre, const Expr& post,
-                const Map<DFPattern, Array<Expr>>& node_map) const override {
-    const CallNode* call = pre.as<CallNode>();
-    const TensorTypeNode* data_ty = call->args[0]->checked_type().as<TensorTypeNode>();
-    const TensorTypeNode* like_ty = pre->checked_type().as<TensorTypeNode>();
-    if (like_ty->dtype == data_ty->dtype) {
-      return node_map[data_pat_][0];
-    }
-    return post;
-  }
-
- protected:
-  DFPattern data_pat_;
-  DFPattern like_pat_;
-};
-
-/*!
- * \brief SimplifyConsecutiveCast matches the pattern of consecutive cast/cast_like ops
- */
-class SimplifyConsecutiveCast : public DFPatternRewrite {
- public:
-  SimplifyConsecutiveCast() {
-    data_ = IsWildcard();
-    cast1_ = IsOp("cast_like")({data_, IsWildcard()}) || IsOp("cast")({data_});
-    pattern_ = IsOp("cast_like")({cast1_, IsWildcard()}) || IsOp("cast")({cast1_});
-  }
-
-  Expr Callback(const Expr& pre, const Expr& post,
-                const Map<DFPattern, Array<Expr>>& node_map) const override {
-    auto data = node_map[data_][0];
-    auto cast1 = Downcast<Call>(node_map[cast1_][0]);
-    auto data_type = Downcast<TensorType>(data->checked_type());
-    DataType cast1_dtype = Downcast<TensorType>(cast1->checked_type())->dtype;
-
-    if (!IsWidenCast(data_type->dtype, cast1_dtype)) {
-      // Cannot remove the narrow cast
-      return post;
-    }
-
-    const CallNode* cast2 = post.as<CallNode>();
-    DataType cast2_dtype = Downcast<TensorType>(cast2->checked_type())->dtype;
-    auto expr = MakeCast(data, cast2_dtype);
-
-    // We need to set the checked type as it may be needed in the next callback
-    expr->checked_type_ = TensorType(data_type->shape, cast2_dtype);
-    return expr;
-  }
-
-  bool IsWidenCast(DataType origin, DataType cast) const {
-    /* Return whether casting from origin to cast results in more or the same precision.*/
-    if (origin.code() == cast.code() && origin.bits() <= cast.bits()) {
-      return true;
-    }
-    if (origin.code() == DataType::kBFloat || cast.code() == DataType::kBFloat) {
-      // BFloat cast cannot be omitted
-      return false;
-    }
-    if (origin.code() < cast.code() && origin.bits() <= cast.bits()) {
-      // Loosely have a hiearchy to datatypes
-      // e.g. int --> uint --> float has increasing range of numbers they can represent
-      return true;
-    }
-    return false;
-  }
-
- protected:
-  DFPattern data_;
-  DFPattern cast1_;
-};
-
-/*! If mode == 0, return true if the interval [min_value, max_value] contains the range of dtype,
- * and return false otherwise. If mode == 1, return true if the interval [min_value, max_value] is
- * contained by the range of dtype, and return false otherwise.*/
-bool CheckDataTypeMaxMinValue(DataType dtype, double min_value, double max_value, int mode = 0) {
-  double lbound{}, ubound{};
-  if (dtype.is_int() || dtype.is_uint()) {
-    ubound = static_cast<double>(Downcast<IntImm>(tvm::max_value(dtype))->value);
-    lbound = static_cast<double>(Downcast<IntImm>(tvm::min_value(dtype))->value);
-  } else if (dtype.is_float() || dtype.is_bfloat16()) {
-    ubound = Downcast<FloatImm>(tvm::max_value(dtype))->value;
-    lbound = Downcast<FloatImm>(tvm::min_value(dtype))->value;
-  }
-  if (mode == 0) {
-    return max_value >= ubound && min_value <= lbound;
-  } else if (mode == 1) {
-    return max_value <= ubound && min_value >= lbound;
+  auto prim_expr = tvm::max_value(dtype);
+  if (prim_expr.as<IntImmNode>()) {
+    max_value = static_cast<double>(prim_expr.as<IntImmNode>()->value);
+  } else if (prim_expr.as<FloatImmNode>()) {
+    max_value = prim_expr.as<FloatImmNode>()->value;
   } else {
-    LOG(FATAL) << "invalid mode " << mode << " in CheckDataTypeMaxMinValue";
-    return false;
+    max_value = std::numeric_limits<double>::max();
   }
+  return max_value;
+}
+
+double min_value_of_dtype(DataType dtype) {
+  double min_value;
+  if (!(dtype.is_float() || dtype.is_bfloat16() || dtype.is_int() || dtype.is_uint())) {
+    LOG(INFO) << "The min_value of DataType cannot be decided, return "
+                 "std::numeric_limits<double>::min().";
+    return std::numeric_limits<double>::min();
+  }
+  auto prim_expr = tvm::min_value(dtype);
+  if (prim_expr.as<IntImmNode>()) {
+    min_value = static_cast<double>(prim_expr.as<IntImmNode>()->value);
+  } else if (prim_expr.as<FloatImmNode>()) {
+    min_value = prim_expr.as<FloatImmNode>()->value;
+  } else {
+    min_value = std::numeric_limits<double>::min();
+  }
+  return min_value;
 }
 
 /*!
- * \brief SimplifyClipAndConsecutiveCast matches the pattern clip->cast->...->cast and remove
- * redundant casts. Analysis of "redundancy" is done based on clip min/max values and min/max values
- * of casted data type.
+ * \brief SimplifyClipAndCast removes redundant Clip and Cast.
+ *
+ * Example:
+ *   %1 = cast(%0, dtype="uint8") [type=uint8]
+ *   %2 = clip(%1, a_min=0f, a_max=255f) [type=int8]
+ *
+ * Optimized to (remove Clip):
+ *   %1 = cast(%0, dtype="uint8") [type=uint8]
  *
  * Example:
  *   %0 == [type=int32]
@@ -196,102 +137,387 @@ bool CheckDataTypeMaxMinValue(DataType dtype, double min_value, double max_value
  * Optimized to (both casts can be removed):
  *   %1 = clip(%0, a_min=0f, a_max=255f) [type=int32]
  */
-class SimplifyClipAndConsecutiveCast : public DFPatternRewrite {
+class SimplifyClipAndCast : public DFPatternRewrite {
  public:
-  SimplifyClipAndConsecutiveCast() {
-    clip_ = IsOp("clip")({IsWildcard()});
-    ObjectPtr<CallPatternNode> pattern_ptr = make_object<CallPatternNode>();
-    pattern_ptr->op = IsOp("cast");
-    pattern_ptr->args.clear();
-    pattern_ = CallPattern(pattern_ptr);
-    AltPattern or_pattern{pattern_, clip_};
-    pattern_ptr->args.push_back(or_pattern);
+  SimplifyClipAndCast() {
+    x_ = IsWildcard();
+
+    round_ = IsOp("round");
+    round_ = round_ || IsOp("floor");
+    round_ = round_ || IsOp("ceil");
+    round_ = round_ || IsOp("trunc");
+    round_pat_ = round_({x_}) || x_;
+
+    add_ = (IsOp("add") || IsOp("subtract"));
+    add_weight_ = IsConstant();
+    add_pat_ = add_({round_pat_, add_weight_}) || round_pat_;
+
+    clip_pat_ = (IsOp("clip") || IsOp("cast"))({add_pat_});
+    clip_pat_ = clip_pat_ || IsOp("cast_like")({add_pat_, IsWildcard()});
+    clip_pat_ = clip_pat_ || IsOp("reshape")({clip_pat_});
+
+    ObjectPtr<AltPatternNode> alt_pat_ptr_ = make_object<AltPatternNode>();
+    alt_pat_ = AltPattern(alt_pat_ptr_);
+    alt_pat_ptr_->right = clip_pat_;
+
+    cast_pat_ = IsOp("cast")({alt_pat_}) || IsOp("cast_like")({alt_pat_, IsWildcard()});
+    cast_pat_ = cast_pat_ || IsOp("reshape")({cast_pat_});
+    alt_pat_ptr_->left = cast_pat_;
+
+    pattern_ = alt_pat_;
   }
+
+  /* In this pass, it is important to distinguish if a tensor is a floating number tensor or an
+   * integer tensor, which we name the SimpleDataType of a tensor. We consider the SimpleDataType
+   * of a tensor in two different senses. One is nominal datatype, that is the datatype annotated
+   * by the computational graph. The other one is essential datatype, a tensor has an integral
+   * essential_datatype iif if can converted integer without loss of precision. For example, 5.0
+   * has floating_point nominal_datatype, and integral essential datatype. In general, a tensor
+   * after "round" OP has integral essential_datatype; a tensor x after x --> cast(int) -->
+   * cast(float) has integral_essential datatype
+   */
+  enum class SimpleDataType : int {
+    floating_point = 0,
+    integral = 1,
+  };
 
   Expr Callback(const Expr& pre, const Expr& post,
                 const Map<DFPattern, Array<Expr>>& node_map) const override {
-    auto clip = Downcast<Call>(node_map[clip_][0]);
-    const CallNode* clip_node = clip.as<CallNode>();
-    const ClipAttrs* clip_attrs = clip_node->attrs.as<ClipAttrs>();
+    auto is_floating_point = [&](Expr expr) {
+      DataType dtype = Downcast<TensorType>(expr->checked_type())->dtype;
+      return dtype.is_float() || dtype.is_bfloat16();
+    };
 
-    std::vector<Expr> remaining_casts{};
-    Expr cast_expr{post};
-    while (cast_expr != clip) {
-      DataType cast_dtype = Downcast<TensorType>(cast_expr->checked_type())->dtype;
-      if (!CheckDataTypeMaxMinValue(cast_dtype, clip_attrs->a_min, clip_attrs->a_max, 1)) {
-        remaining_casts.push_back(cast_expr);
+    Expr x = node_map[x_][0];
+
+    // A sequence of cast operators effectively has the following effects:
+    // 1. convert tensor to the last cast operator's DataType.
+    // 2. set the max_value/min_value of the tensor.
+    // 3. set the essential_datatype of the tensor.
+    // The following code determine the above three effects of the sequence of cast operators.
+    DataType target_datatype = Downcast<TensorType>(post->checked_type())->dtype;
+    std::vector<int> target_shape{};
+    for (size_t i = 0; i < Downcast<TensorType>(post->checked_type())->shape.size(); ++i) {
+      PrimExpr shape_i = Downcast<TensorType>(post->checked_type())->shape[i];
+      if (shape_i.as<AnyNode>()) {
+        target_shape.push_back(-1);
+      } else {
+        ICHECK(shape_i.as<IntImmNode>());
+        target_shape.push_back(shape_i.as<IntImmNode>()->value);
       }
-      cast_expr = cast_expr.as<CallNode>()->args[0];
     }
 
-    Expr last_op = (remaining_casts.size() == 0) ? clip : remaining_casts[0];
-    DataType last_op_dtype = Downcast<TensorType>(last_op->checked_type())->dtype;
-    bool need_additional_cast{false};
-    if (last_op_dtype != Downcast<TensorType>(post->checked_type())->dtype) {
-      need_additional_cast = true;
+    double target_max_value = max_value_of_dtype(target_datatype);
+    double target_min_value = min_value_of_dtype(target_datatype);
+    SimpleDataType target_essential_datatype = SimpleDataType::floating_point;
+
+    std::vector<DataType> all_cast_dtypes{};
+    Expr current_expr = post;
+    while (current_expr != x && current_expr.as<CallNode>() &&
+           (current_expr.as<CallNode>()->op.as<OpNode>()->name == "cast" ||
+            current_expr.as<CallNode>()->op.as<OpNode>()->name == "cast_like" ||
+            current_expr.as<CallNode>()->op.as<OpNode>()->name == "reshape")) {
+      if (current_expr.as<CallNode>()->op.as<OpNode>()->name != "reshape") {
+        DataType current_datatype = Downcast<TensorType>(current_expr->checked_type())->dtype;
+        all_cast_dtypes.push_back(current_datatype);
+        target_max_value = std::min(target_max_value, max_value_of_dtype(current_datatype));
+        target_min_value = std::max(target_min_value, min_value_of_dtype(current_datatype));
+        if (!is_floating_point(current_expr)) {
+          target_essential_datatype = SimpleDataType::integral;
+        }
+      }
+      current_expr = current_expr.as<CallNode>()->args[0];
     }
 
-    Expr res{clip};
-    for (size_t i = remaining_casts.size(); i > 0; --i) {
-      auto attrs = make_object<CastAttrs>();
-      attrs->dtype = remaining_casts[i - 1].as<CallNode>()->attrs.as<CastAttrs>()->dtype;
-      res = Call(Op::Get("cast"), {res}, Attrs(attrs), {});
+    // push all CalllNode before "cast" into a stack
+    std::stack<Expr> expr_stack{};
+    while (current_expr != x) {
+      expr_stack.push(current_expr);
+      if ((Downcast<Op>(current_expr.as<CallNode>()->op) == Op::Get("add") ||
+           Downcast<Op>(current_expr.as<CallNode>()->op) == Op::Get("subtract")) &&
+          current_expr.as<CallNode>()->args[0].as<ConstantNode>() &&
+          !current_expr.as<CallNode>()->args[1].as<ConstantNode>()) {
+        current_expr = current_expr.as<CallNode>()->args[1];
+      } else {
+        current_expr = current_expr.as<CallNode>()->args[0];
+      }
     }
-    if (need_additional_cast) {
-      auto attrs = make_object<CastAttrs>();
-      attrs->dtype = Downcast<TensorType>(post->checked_type())->dtype;
-      res = Call(Op::Get("cast"), {res}, Attrs(attrs), {});
+
+    // the datatype of current_expr.
+    SimpleDataType essential_datatype;
+    // TODO(kfeng123) This InferType is required. But why?
+    DataType x_dtype = Downcast<TensorType>(InferType(x)->checked_type())->dtype;
+    if (x_dtype.is_float() || x_dtype.is_bfloat16()) {
+      essential_datatype = SimpleDataType::floating_point;
+    } else {
+      essential_datatype = SimpleDataType::integral;
     }
-    return res;
+
+    // the min/max possible value of current_expr
+    double max_value{max_value_of_dtype(x_dtype)}, min_value{min_value_of_dtype(x_dtype)};
+
+    // rewrite the OP's before cast
+    current_expr = x;
+    // LOG(WARNING) << "post: " << AsText(post, false);
+    // LOG(WARNING) << "x: " << AsText(x, false);
+    while (!expr_stack.empty()) {
+      Expr the_expr = expr_stack.top();
+      expr_stack.pop();
+      ICHECK(the_expr.as<CallNode>());
+      ICHECK(the_expr.as<CallNode>()->op.as<OpNode>());
+      // LOG(WARNING) << "the_expr: " << AsText(the_expr, false);
+
+      // String op_name = the_expr.as<CallNode>()->op.as<OpNode>()->name;
+
+      Op op = Downcast<Op>(the_expr.as<CallNode>()->op);
+
+      if (op == Op::Get("round") || op == Op::Get("floor") || op == Op::Get("ceil") ||
+          op == Op::Get("trunc")) {
+        if (essential_datatype == SimpleDataType::integral) {
+          // In this case, the op can be removed
+        } else {
+          current_expr = relay::Call(the_expr.as<CallNode>()->op, {current_expr},
+                                     the_expr.as<CallNode>()->attrs);
+        }
+        essential_datatype = SimpleDataType::integral;
+      } else if (op == Op::Get("add") || op == Op::Get("subtract")) {
+        //  true: left matches pattern, right is constant. false: left is constant, right matches
+        //  pattern.
+        LOG(INFO) << "yaya x";
+        bool if_left_matches_pattern;
+        if (the_expr.as<CallNode>()->args[0].as<ConstantNode>() &&
+            !the_expr.as<CallNode>()->args[1].as<ConstantNode>()) {
+          if_left_matches_pattern = false;
+        } else {
+          if_left_matches_pattern = true;
+        }
+        LOG(INFO) << "yaya xx";
+        Expr constant_expr = if_left_matches_pattern ? the_expr.as<CallNode>()->args[1]
+                                                     : the_expr.as<CallNode>()->args[0];
+
+        if (if_left_matches_pattern) {
+          LOG(INFO) << "yaya l";
+          current_expr = relay::Call(the_expr.as<CallNode>()->op, {current_expr, constant_expr},
+                                     the_expr.as<CallNode>()->attrs);
+        } else {
+          LOG(INFO) << "yaya r";
+          current_expr = relay::Call(the_expr.as<CallNode>()->op, {constant_expr, current_expr},
+                                     the_expr.as<CallNode>()->attrs);
+        }
+        if (essential_datatype == SimpleDataType::integral && is_floating_point(constant_expr)) {
+          LOG(INFO) << "yaya r";
+          // in this case, the essential_datatype of current_expr is integral iff args[1] has
+          // integral essential_datatype
+          TensorType const_tensor_type = Downcast<TensorType>(constant_expr->checked_type());
+          DataType dtype = const_tensor_type->dtype;
+          size_t data_size = const_tensor_type->Size().as<tir::IntImmNode>()->value;
+          if (dtype.is_float() && dtype.bits() == 32) {  // float32
+            LOG(INFO) << "yaya r1";
+            void* ptr = constant_expr.as<ConstantNode>()->data->data;
+            float* the_const_ptr = reinterpret_cast<float*>(ptr);
+            if (data_size > 1) {  // Too slow to examine a large tensor
+              essential_datatype = SimpleDataType::floating_point;
+            } else {
+              LOG(INFO) << "yaya r2";
+              for (size_t i = 0; i < data_size; ++i) {
+                if (the_const_ptr[i] != std::round(the_const_ptr[i])) {
+                  essential_datatype = SimpleDataType::floating_point;
+                  break;
+                }
+              }
+            }
+          } else {  // TODO(kfeng123) deal with the essential_datatype in the cases of float16 and
+                    // bfloat16
+            essential_datatype = SimpleDataType::floating_point;
+          }
+        }
+      } else if (op == Op::Get("clip")) {
+        double a_max = the_expr.as<CallNode>()->attrs.as<ClipAttrs>()->a_max;
+        double a_min = the_expr.as<CallNode>()->attrs.as<ClipAttrs>()->a_min;
+        if (a_max < max_value || a_min > min_value) {
+          current_expr = relay::Call(the_expr.as<CallNode>()->op, {current_expr},
+                                     the_expr.as<CallNode>()->attrs);
+          max_value = std::min(max_value, a_max);
+          min_value = std::max(min_value, a_min);
+        }  // else this clip op can be removed
+      }
+    }
+
+    LOG(INFO) << "yaya 1";
+    // rewrite "cast" OPs
+    std::vector<DataType> preserved_casts{};
+
+    if (target_max_value < max_value_of_dtype(target_datatype) && target_max_value < max_value) {
+      for (const DataType& dtype : all_cast_dtypes) {
+        if (target_max_value == max_value_of_dtype(dtype)) {
+          max_value = target_max_value;
+          min_value = std::max(min_value, min_value_of_dtype(dtype));
+          if (dtype.is_int() || dtype.is_uint()) {
+            essential_datatype = SimpleDataType::integral;
+          }
+          preserved_casts.push_back(dtype);
+          break;
+        }
+      }
+    }
+
+    LOG(INFO) << "yaya 2";
+    if (target_min_value > min_value_of_dtype(target_datatype) && target_min_value > min_value) {
+      for (const DataType& dtype : all_cast_dtypes) {
+        if (target_min_value == min_value_of_dtype(dtype)) {
+          min_value = target_min_value;
+          max_value = std::min(max_value, max_value_of_dtype(dtype));
+          if (dtype.is_int() || dtype.is_uint()) {
+            essential_datatype = SimpleDataType::integral;
+          }
+          if (std::find(preserved_casts.begin(), preserved_casts.end(), dtype) ==
+              std::end(preserved_casts)) {  // This if will always be true
+            preserved_casts.push_back(dtype);
+          }
+          break;
+        }
+      }
+    }
+
+    LOG(INFO) << "yaya 3";
+    if (target_datatype.is_int() || target_datatype.is_uint()) {
+      essential_datatype = SimpleDataType::integral;
+    }
+
+    LOG(INFO) << "yaya 4";
+    if (essential_datatype != SimpleDataType::integral &&
+        target_essential_datatype == SimpleDataType::integral) {
+      for (const DataType& dtype : all_cast_dtypes) {
+        if (dtype.is_int() || dtype.is_uint()) {
+          if (std::find(preserved_casts.begin(), preserved_casts.end(), dtype) ==
+              std::end(preserved_casts)) {
+            preserved_casts.push_back(dtype);
+          }
+          break;
+        }
+      }
+    }
+
+    LOG(INFO) << "yaya 5";
+    for (const auto& dtype : preserved_casts) {
+      if (dtype != target_datatype) {
+        auto attrs = make_object<CastAttrs>();
+        attrs->dtype = dtype;
+        current_expr = relay::Call(Op::Get("cast"), {current_expr}, Attrs(attrs));
+      }
+    }
+
+    LOG(INFO) << "yaya 6";
+    TensorType last_tensor_type = Downcast<TensorType>(InferType(current_expr)->checked_type());
+    if (last_tensor_type->dtype != target_datatype) {
+      auto attrs = make_object<CastAttrs>();
+      attrs->dtype = target_datatype;
+      current_expr = relay::Call(Op::Get("cast"), {current_expr}, Attrs(attrs));
+    }
+
+    LOG(INFO) << "yaya 7";
+    std::vector<int> last_shape{};
+    for (size_t i = 0; i < last_tensor_type->shape.size(); ++i) {
+      if (last_tensor_type->shape[i].as<AnyNode>()) {
+        last_shape.push_back(-1);
+      } else {
+        last_shape.push_back(last_tensor_type->shape[i].as<IntImmNode>()->value);
+      }
+    }
+
+    LOG(INFO) << "yaya 8";
+    if (last_shape != target_shape) {
+      auto attrs = make_object<ReshapeAttrs>();
+      for (const auto& shape_item : target_shape) {
+        attrs->newshape.push_back(shape_item);
+      }
+      current_expr = relay::Call(Op::Get("reshape"), {current_expr}, Attrs(attrs));
+    }
+
+    LOG(INFO) << "end";
+    return current_expr;
   }
 
  protected:
-  DFPattern clip_;
+  DFPattern x_, round_, round_pat_, add_, add_weight_, add_pat_, clip_pat_, cast_, cast_pat_,
+      alt_pat_;
 };
 
-/*!
- * \brief SimplifyClip removes redundant Clip based on its a_min/a_max values and the min/max values
- * of the data type.
- *
- * Example:
- *   %1 = cast(%0, dtype="uint8") [type=uint8]
- *   %2 = clip(%1, a_min=0f, a_max=255f) [type=int8]
- *
- * Optimized to (remove Clip):
- *   %1 = cast(%0, dtype="uint8") [type=uint8]
- */
-class SimplifyClip : public DFPatternRewrite {
+class SimplifyCastAndTranspose : public DFPatternRewrite {
  public:
-  SimplifyClip() {
+  SimplifyCastAndTranspose() {
     x_ = IsWildcard();
-    pattern_ = IsOp("clip")({x_});
+    cast_ = IsOp("cast");
+    cast_pat_ = cast_({x_});
+
+    ObjectPtr<AltPatternNode> alt_pat_ptr_ = make_object<AltPatternNode>();
+    alt_pat_ = DFPattern(alt_pat_ptr_);
+    alt_pat_ptr_->left = cast_pat_;
+
+    add_weight_ = IsConstant();
+    uni_pat_ = IsOp("clip")({alt_pat_});
+    uni_pat_ = uni_pat_ || IsOp("add")({alt_pat_, add_weight_});
+    uni_pat_ = uni_pat_ || IsOp("subtract")({alt_pat_, add_weight_});
+
+    alt_pat_ptr_->right = uni_pat_;
+
+    pattern_ = (IsOp("transpose") || IsOp("layout_transform"))({alt_pat_});
   }
 
   Expr Callback(const Expr& pre, const Expr& post,
                 const Map<DFPattern, Array<Expr>>& node_map) const override {
-    DataType cast_dtype = Downcast<TensorType>(pre->checked_type())->dtype;
+    Expr x = node_map[x_][0];
 
-    const CallNode* clip_node = post.as<CallNode>();
-    const ClipAttrs* clip_attrs = clip_node->attrs.as<ClipAttrs>();
+    int input_bits = Downcast<TensorType>(x->checked_type())->dtype.bits();
+    int output_bits = Downcast<TensorType>(post->checked_type())->dtype.bits();
+    if (output_bits <= input_bits) {
+      return post;
+    }
 
-    // TODO(kfeng123): For now, the arg of "clip" is forced to not be "qnn.requantize" and
-    // "qnn.add". This is to avoid destroying the structure required by LegalizeQnnOpForDnnl
-    auto child{post.as<CallNode>()->args[0].as<CallNode>()};
-    if (child && child->op.as<OpNode>()) {
-      String op_name{child->op.as<OpNode>()->name};
-      if (op_name == "qnn.requantize" || op_name == "qnn.add") {
-        return post;
+    Expr current_expr = post;
+    std::stack<Expr> expr_stack{};
+    while (current_expr != x) {
+      expr_stack.push(current_expr);
+      if (node_map.count(add_weight_) != 0 &&
+          std::find(node_map[add_weight_].begin(), node_map[add_weight_].end(),
+                    current_expr.as<CallNode>()->args[0]) != node_map[add_weight_].end()) {
+        current_expr = current_expr.as<CallNode>()->args[1];
+      } else {
+        current_expr = current_expr.as<CallNode>()->args[0];
       }
     }
 
-    if (CheckDataTypeMaxMinValue(cast_dtype, clip_attrs->a_min, clip_attrs->a_max)) {
-      return node_map[x_][0];
+    // rewrite the OP's
+    current_expr = x;
+    current_expr = relay::Call(node_map[pattern_][0].as<CallNode>()->op, {x},
+                               Attrs(node_map[pattern_][0].as<CallNode>()->attrs));
+    while (!expr_stack.empty()) {
+      Expr the_expr = expr_stack.top();
+      expr_stack.pop();
+      Op op = Downcast<Op>(the_expr.as<CallNode>()->op);
+
+      if (op == Op::Get("add") || op == Op::Get("subtract")) {
+        if (std::find(node_map[add_weight_].begin(), node_map[add_weight_].end(),
+                      the_expr.as<CallNode>()->args[0]) != node_map[add_weight_].end()) {
+          current_expr = relay::Call(the_expr.as<CallNode>()->op,
+                                     {the_expr.as<CallNode>()->args[0], current_expr},
+                                     the_expr.as<CallNode>()->attrs);
+        } else {
+          current_expr = relay::Call(the_expr.as<CallNode>()->op,
+                                     {current_expr, the_expr.as<CallNode>()->args[1]},
+                                     the_expr.as<CallNode>()->attrs);
+        }
+      } else if (op != Op::Get("transpose") && op != Op::Get("layout_transform")) {
+        current_expr = relay::Call(the_expr.as<CallNode>()->op, {current_expr},
+                                   the_expr.as<CallNode>()->attrs);
+      }
     }
-    return post;
+
+    return current_expr;
   }
 
  protected:
-  DFPattern x_;
+  DFPattern x_, cast_, cast_pat_, uni_pat_, add_weight_, add_pat_, clip_pat_, alt_pat_;
 };
 
 /*!
@@ -1110,16 +1336,14 @@ Expr SimplifyExpr(const Expr& expr, const IRModule& mod) {
   composer.AddRewrite<SimplifyReshape>();
   composer.AddRewrite<SimplifyTranspose>();
   composer.AddRewrite<SimplifyNoOpTranspose>();
-  composer.AddRewrite<SimplifySameCast>();
-  composer.AddRewrite<SimplifyConsecutiveCast>();
   composer.AddRewrite<FullElementwise>();
   composer.AddRewrite<SwitchAddMultiply>();
   composer.AddRewrite<SimplifyAdjacentMultiplyOrAdd>();
   composer.AddRewrite<SimplifyDQArgMax>();
   composer.AddRewrite<SimplifyDQArgMin>();
   composer.AddRewrite<SimplifyDQArgSort>();
-  composer.AddRewrite<SimplifyClipAndConsecutiveCast>();
-  composer.AddRewrite<SimplifyClip>();
+  composer.AddRewrite<SimplifyClipAndCast>();
+  composer.AddRewrite<SimplifyCastAndTranspose>();
   composer.AddRewrite<SimplifyBinomial>();
   return RewritePatterns(composer.MakeCallbacks(), expr, mod);
 }
@@ -1130,10 +1354,8 @@ Expr SimplifyExprPostAlterOp(const Expr& expr, const IRModule& mod) {
   DFPatternRewriteComposer composer;
   composer.AddRewrite<EliminateIdentityRewrite>();
   composer.AddRewrite<SimplifyReshape>();
-  composer.AddRewrite<SimplifySameCast>();
-  composer.AddRewrite<SimplifyConsecutiveCast>();
-  composer.AddRewrite<SimplifyClipAndConsecutiveCast>();
-  composer.AddRewrite<SimplifyClip>();
+  composer.AddRewrite<SimplifyClipAndCast>();
+  composer.AddRewrite<SimplifyCastAndTranspose>();
   return RewritePatterns(composer.MakeCallbacks(), expr, mod);
 }
 
@@ -1142,7 +1364,8 @@ namespace transform {
 Pass SimplifyExpr() {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
-        return Downcast<Function>(SimplifyExpr(f, m));
+        auto res = Downcast<Function>(SimplifyExpr(f, m));
+        return res;
       };
   return CreateFunctionPass(pass_func, 0, "SimplifyExpr", {"InferType"});
 }
@@ -1150,7 +1373,8 @@ Pass SimplifyExpr() {
 Pass SimplifyExprPostAlterOp() {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
-        return Downcast<Function>(SimplifyExprPostAlterOp(f, m));
+        auto res = Downcast<Function>(SimplifyExprPostAlterOp(f, m));
+        return res;
       };
   return CreateFunctionPass(pass_func, 0, "SimplifyExprPostAlterOp", {"InferType"});
 }
