@@ -350,9 +350,11 @@ Instruction Instruction::AllocStorage(RegName size, Index alignment, DLDataType 
   instr.alloc_storage.dtype_hint = dtype_hint;
   instr.alloc_storage.device_index = device_index;
   instr.alloc_storage.ndim = static_cast<uint32_t>(shape.size());
-  instr.alloc_storage.shape = new int64_t[shape.size()];
-  for (size_t i = 0; i < shape.size(); ++i) {
-    instr.alloc_storage.shape[i] = shape[i];
+  if (instr.alloc_storage.ndim > 0) {
+    instr.alloc_storage.shape = new int64_t[shape.size()];
+    for (size_t i = 0; i < shape.size(); ++i) {
+      instr.alloc_storage.shape[i] = shape[i];
+    }
   }
   return instr;
 }
@@ -626,10 +628,15 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
       break;
     }
     case Opcode::AllocStorage: {
-      os << "alloc_storage $" << instr.dst << " $" << instr.alloc_storage.allocation_size << " "
-         << instr.alloc_storage.alignment << " "
-         << "[" << StrJoin<int64_t>(instr.alloc_storage.shape, 0, instr.alloc_storage.ndim) << "] "
-         << DLDataType2String(instr.alloc_storage.dtype_hint) << " "
+      os << "alloc_storage $" << instr.dst << " ";
+      if (instr.alloc_storage.ndim > 0) {
+        os << "[" << StrJoin<int64_t>(instr.alloc_storage.shape, 0, instr.alloc_storage.ndim)
+           << "] ";
+      } else {
+        os << "$" << instr.alloc_storage.allocation_size << " " << instr.alloc_storage.alignment
+           << " ";
+      }
+      os << DLDataType2String(instr.alloc_storage.dtype_hint) << " "
          << instr.alloc_storage.device_index;
       break;
     }

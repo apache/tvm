@@ -197,16 +197,18 @@ struct Instruction {
       RegName* free_vars;
     };
     struct /* AllocStorage Operands */ {
-      /*! \brief The size of the allocation. */
-      RegName allocation_size;
       /*! \brief The alignment of the allocation. */
       Index alignment;
       /*! \brief The hint of the dtype. */
       DLDataType dtype_hint;
       /*! \brief The number of dimensions. */
       uint32_t ndim;
-      /*! \brief The shape of tensor. */
-      int64_t* shape;
+      union {
+        /*! \brief The shape of tensor. */
+        int64_t* shape;
+        /*! \brief The size of the allocation. */
+        RegName allocation_size;
+      };
       /*! \brief The index of the device on which the allocation will be made. */
       Index device_index;
     } alloc_storage;

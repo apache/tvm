@@ -820,22 +820,35 @@ void VirtualMachine::RunLoop(const std::vector<Index>& output_tensor_reg_indices
       }
       case Opcode::AllocStorage: {
         OpStartHook(instr);
-        auto size = LoadScalarInt(instr.alloc_storage.allocation_size);
-        auto alignment = instr.alloc_storage.alignment;
 
         auto storage_obj = SimpleObjAllocator().make_object<StorageObj>();
         Allocator* allocator = GetAllocator(instr.alloc_storage.device_index);
         ICHECK(allocator) << "Did you forget to init the VirtualMachine with devices?";
-        VLOG(2) << "allocating with allocation_size=" << size << ", alignment=" << alignment
-                << ", dtype_hint=" << DLDataType2String(instr.alloc_storage.dtype_hint)
-                << ", device_index=" << instr.alloc_storage.device_index;
         std::string mem_scope = exec_->virtual_devices[instr.alloc_storage.device_index].second;
 
         if (instr.alloc_storage.ndim > 0) {
+          std::string shape = "[";
+          for (uint32_t i = 0; i < instr.alloc_storage.ndim; ++i) {
+            if (i > 0) {
+              shape += ", ";
+            }
+            shape += std::to_string(instr.alloc_storage.shape[i]);
+          }
+          shape += "]";
+          VLOG(2) << "allocating with ndims=" << instr.alloc_storage.ndim << ", shape=" << shape
+                  << ", dtype_hint=" << DLDataType2String(instr.alloc_storage.dtype_hint)
+                  << ", device_index=" << instr.alloc_storage.device_index
+                  << ", memory_scope=" << mem_scope;
           storage_obj->buffer =
               allocator->Alloc(instr.alloc_storage.ndim, instr.alloc_storage.shape,
                                instr.alloc_storage.dtype_hint, mem_scope);
         } else {
+          auto size = LoadScalarInt(instr.alloc_storage.allocation_size);
+          auto alignment = instr.alloc_storage.alignment;
+          VLOG(2) << "allocating with allocation_size=" << size << ", alignment=" << alignment
+                  << ", dtype_hint=" << DLDataType2String(instr.alloc_storage.dtype_hint)
+                  << ", device_index=" << instr.alloc_storage.device_index
+                  << ", memory_scope=" << mem_scope;
           storage_obj->buffer = allocator->Alloc(size, alignment, instr.alloc_storage.dtype_hint);
         }
         Storage storage(storage_obj);
