@@ -2717,13 +2717,21 @@ def convert_dequantize_linear(g, op, block):
     """Operator converter for dequantize_linear."""
 
     data = g.get_node(op.input("X")[0])
-    scale = g.get_node(op.input("Scale")[0])
+    # paddle_scale = tvm_scale * 127
+    paddle_scale = g.get_node(op.input("Scale")[0])
+    paddle_scale = _op.cast(paddle_scale, "float64")
+    paddle_scale_scale = _expr.const(127, "float64")
+    tvm_scale = paddle_scale / paddle_scale_scale
+
     zp = g.get_node(op.input("ZeroPoint")[0])
     axis = op.attr("quant_axis")
     if axis == -1:
         axis = 0
     out = _qnn.op.dequantize(
-        data=data, input_scale=scale, input_zero_point=_op.cast(zp, "int32"), axis=axis
+        data=data,
+        input_scale=_op.cast(tvm_scale, "float32"),
+        input_zero_point=_op.cast(zp, "int32"),
+        axis=axis,
     )
     g.add_node(op.output("Y")[0], out)
 
@@ -2732,13 +2740,22 @@ def convert_quantize_linear(g, op, block):
     """Operator converter for dequantize_linear."""
 
     data = g.get_node(op.input("X")[0])
-    scale = g.get_node(op.input("Scale")[0])
+
+    # paddle_scale = tvm_scale * 127
+    paddle_scale = g.get_node(op.input("Scale")[0])
+    paddle_scale = _op.cast(paddle_scale, "float64")
+    paddle_scale_scale = _expr.const(127, "float64")
+    tvm_scale = paddle_scale / paddle_scale_scale
+
     zp = g.get_node(op.input("ZeroPoint")[0])
     axis = op.attr("quant_axis")
     if axis == -1:
         axis = 0
     out = _qnn.op.quantize(
-        data=data, output_scale=scale, output_zero_point=_op.cast(zp, "int32"), axis=axis
+        data=data,
+        output_scale=_op.cast(tvm_scale, "float32"),
+        output_zero_point=_op.cast(zp, "int32"),
+        axis=axis,
     )
     g.add_node(op.output("Y")[0], out)
 

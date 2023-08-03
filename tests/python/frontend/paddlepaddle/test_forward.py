@@ -35,6 +35,7 @@ PADDLE_TEST_DATA_ROOT_PATH = Path(Path("~").expanduser(), ".tvm_test_data", "pad
 PADDLE_TEST_DATA_ROOT_PATH.mkdir(parents=True, exist_ok=True)
 cached_program = list()
 
+
 def assert_shapes_match(tru, est):
     if tru.shape != est.shape:
         msg = "Output shapes {} and {} don't match"
@@ -2539,13 +2540,30 @@ def test_forward_pool3d():
 
 
 @tvm.testing.uses_gpu
-def test_forward_quantize_and_dequantized():
+def test_forward_quantize_model():
     os.system("wget https://paddle-slim-models.bj.bcebos.com/act/MobileNetV1_QAT.tar")
     os.system("tar -xf MobileNetV1_QAT.tar")
+    paddle.enable_static()
+    exe = paddle.static.Executor(paddle.GPUPlace())
+    paddle_model = paddle.static.load_inference_model("MobileNetV1_QAT/inference", exe)
+    [inference_program, feed_target_names, fetch_targets] = paddle_model
     input_shape = [1, 3, 224, 224]
-    input_data = paddle.uniform(shape=input_shape, dtype="float32", min=-1, max=1)
-    model = paddle.jit.load("MobileNetV1_QAT/inference")
-    verify_model(model, input_data=input_data)
+    input_data = np.random.uniform(-1, 1, input_shape).astype("float32")
+    results_paddle = exe.run(
+        inference_program, feed={feed_target_names[0]: input_data}, fetch_list=fetch_targets
+    )[0]
+    input_name = feed_target_names[0]
+    input_shape_dict = {input_name: input_shape}
+    mod, params = relay.frontend.from_paddle(inference_program, input_shape_dict)
+    dev = tvm.gpu(0)
+    with tvm.transform.PassContext(opt_level=3):
+        # for target, dev in tvm.testing.enabled_targets():
+        lib = relay.build(mod, target="llvm", params=params)
+        gmod = graph_executor.GraphModule(lib["default"](dev))
+        gmod.set_input(input_name, input_data)
+        gmod.run()
+        compiled_output = gmod.get_output(0).numpy()
+    np.testing.assert_allclose(results_paddle, compiled_output, rtol=0.1, atol=0.1)
 
 
 @tvm.testing.uses_gpu
