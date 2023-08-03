@@ -236,10 +236,9 @@ def test_subroutine_call():
     class mod:
         @T.prim_func
         def main(A: T.Buffer(1, dtype="float32")):
-            T.func_attr({"global_symbol": "main"})
             mod.subroutine(A.data)
 
-        @T.prim_func
+        @T.prim_func(private=True)
         def subroutine(A_data: T.handle("float32")):
             A = T.decl_buffer(1, dtype="float32", data=A_data)
             A[0] = 42.0
