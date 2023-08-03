@@ -51,7 +51,7 @@ class BindingCanonicalizer : public ExprMutator {
     if (!CanCanonicalizeVar(v)) {
       return Downcast<Expr>(v);
     }
-    return ExprMutator::VisitExpr_(LookupBinding(v).as<DataflowVarNode>());
+    return ExprMutator::VisitExpr_(LookupBinding(v).as<VarNode>());
   }
 
   void VisitBinding_(const VarBindingNode* binding) override {
