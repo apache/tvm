@@ -109,6 +109,27 @@ def test_float32_to_uint16():
         verify_output_data=output,
     )
 
+def test_float32_to_int16():
+    data = (
+        np.array([-6553, -6552.8, -6552.6, -6552.4, -6552.2, 6553.2, 6553.4, 6553.6, 6553.8, 6554])
+        .astype("float32")
+        .reshape((2, 5))
+    )
+    output = (
+        np.array([-32766, -32765, -32764, -32763, -32762, 32765, 32766, 32767, 32767, 32767])
+        .astype("int16")
+        .reshape((2, 5))
+    )
+    quant_args = {"out_zero_point": np.int32(-1), "out_scale": np.float32(0.2)}
+    quantize_test_driver(
+        in_dtype="float32",
+        quant_args=quant_args,
+        axis=-1,
+        out_dtype="int16",
+        in_data=data,
+        verify_output_data=output,
+    )
+
 
 def test_scalar_float32_to_int8():
     data = np.array(-63.5).astype("float32")
