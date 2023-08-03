@@ -308,5 +308,22 @@ def test_tir_empty_tuple_index():
     tvm.ir.assert_structural_equal(func_with_empty_tuple, expected)
 
 
+def test_tir_builtin_expression():
+    dims = (128, 128)
+
+    @T.prim_func(private=True)
+    def with_builtin(a: T.handle) -> None:
+        A = T.match_buffer(a, [len(dims), *dims], "int32")
+        for i, j, k in T.grid(*A.shape):
+            A[i, j, k] = T.int32(1 + len(A.shape))
+
+    @T.prim_func(private=True)
+    def evaluated(A: T.Buffer((2, 128, 128), "int32")):
+        for i, j, k in T.grid(2, 128, 128):
+            A[i, j, k] = 4
+
+    tvm.ir.assert_structural_equal(with_builtin, evaluated)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
