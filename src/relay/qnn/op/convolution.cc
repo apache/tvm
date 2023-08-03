@@ -75,13 +75,24 @@ bool QnnConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     ICHECK(axis != std::string::npos) << "Kernel layout attribute is not defined";
     AssignType(types[5], DataType::Float(32), weight->shape[axis], reporter);  // weight_scale
   } else {
-    // Here, total number of output channels depend on depth multiplier.
     size_t o_axis = param->kernel_layout.operator std::string().find('O');
     size_t i_axis = param->kernel_layout.operator std::string().find('I');
+    size_t d_axis = param->data_layout.operator std::string().find('C');
     ICHECK(o_axis != std::string::npos || i_axis != std::string::npos)
         << "Kernel layout attribute is not defined";
-    AssignType(types[5], DataType::Float(32), weight->shape[i_axis] * weight->shape[o_axis],
-               reporter);  // weight_scale
+    ICHECK(d_axis != std::string::npos) << "Data layout attribute is not defined";
+    if (param->channels.defined() &&
+        tvm::tir::ExprDeepEqual()(param->groups, data->shape[d_axis]) &&
+        tvm::tir::ExprDeepEqual()(param->channels, weight->shape[i_axis])) {
+      // This is depthwise convolution
+      // Here, total number of output channels depend on depth multiplier.
+      AssignType(types[5], DataType::Float(32), weight->shape[i_axis] * weight->shape[o_axis],
+                 reporter);  // weight_scale
+    } else {
+      // This is grouped convolution
+      AssignType(types[5], DataType::Float(32), param->channels,
+                 reporter);  // weight_scale
+    }
   }
 
   // Collect the input tensor and output tensor devoid of scale and zero points to reuse Relay
