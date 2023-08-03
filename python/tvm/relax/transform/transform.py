@@ -945,7 +945,7 @@ def ConvertLayout(desired_layouts: Dict[str, List[str]]) -> tvm.ir.transform.Pas
         The desired layout of conv2d ops is a map from the name of the op to the desired layout
         of the desired feature map, weight and output. For example, if we want to convert the
         layout of conv2d from NCHW to NHWC, we can set the desired layout of conv2d to be
-        {"conv2d": ["NHWC", "OHWI"]}.
+        {"relax.nn.conv2d": ["NHWC", "OHWI"]}.
     Returns
     -------
     ret : tvm.transform.Pass
