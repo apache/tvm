@@ -89,7 +89,7 @@ def test_dataflow_block():
     assert_structural_equal(new_mod, Expected)
 
 
-def test_assign_to_output_indataflow_block():
+def test_assign_to_output_in_dataflow_block():
     @tvm.script.ir_module
     class TestDataflowAssignments:
         @R.function
