@@ -282,7 +282,7 @@ class Module(SubroutineMixin):
         ------
         Parameter - The module's parameter
         """
-        for name, param in self.named_parameters():
+        for _, param in self.named_parameters():
             yield param
 
     def state_dict(

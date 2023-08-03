@@ -18,10 +18,6 @@
 """PyTorch-like nn.Module API for constructing workloads."""
 
 
-import collections
-import contextlib
-import inspect
-import re
 import typing
 from typing import List, Any, Callable, Union
 

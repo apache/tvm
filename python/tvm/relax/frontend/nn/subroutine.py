@@ -90,7 +90,8 @@ class SubroutineMixin:
             assert block_builder is not None, (
                 f"Class {type(self)} has cls.define_subroutines = True, "
                 "but is called outsdie of a block_builder environment.  "
-                "relax.BlockBuilder.current() is required to determine where to generate the subroutine."
+                "relax.BlockBuilder.current() is required "
+                "to determine where to generate the subroutine."
             )
 
             func_args = self._normalize_subroutine_args(block_builder, *args, **kwargs)
