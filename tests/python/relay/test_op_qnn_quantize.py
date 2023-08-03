@@ -221,6 +221,7 @@ if __name__ == "__main__":
     test_float32_to_uint8()
     test_float32_to_int8()
     test_float32_to_uint16()
+    test_float32_to_int16()
     test_scalar_float32_to_int8()
     test_channelwise_axis_0()
     test_channelwise_axis_1()
