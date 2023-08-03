@@ -95,7 +95,7 @@ Array<runtime::Module> cuDNNCompiler(Array<Function> functions, Map<String, Obje
     auto graph_json = serializer.GetJSON();
     auto constant_names = serializer.GetConstantNames();
     const auto* pf = runtime::Registry::Get("runtime.cuDNNJSONRuntimeCreate");
-    ICHECK(pf != nullptr) << "Cannot find CUBLAS runtime module create function.";
+    ICHECK(pf != nullptr) << "Cannot find cuDNN runtime module create function.";
     auto func_name = GetExtSymbol(func);
     compiled_functions.push_back((*pf)(func_name, graph_json, constant_names));
   }

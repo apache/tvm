@@ -375,6 +375,7 @@ def conv_forward_find_algo(
     data_dtype,
     conv_dtype,
     groups=1,
+    verbose=True,
 ):
     """Choose the best forward algorithm for the given input.
 
@@ -420,6 +421,7 @@ def conv_forward_find_algo(
         data_dtype,
         conv_dtype,
         groups,
+        verbose,
     )
 
 
@@ -541,7 +543,9 @@ def conv_backward_filter_find_algo(
     )
 
 
-def conv_forward(x, w, pad, stride, dilation, conv_mode, tensor_format, algo, conv_dtype, groups=1):
+def conv_forward(
+    x, w, pad, stride, dilation, conv_mode, tensor_format, algo, conv_dtype, groups=1, verbose=True
+):
     """Create an extern op that compute 2D or 3D convolution with CuDNN
 
     Parameters
@@ -570,6 +574,8 @@ def conv_forward(x, w, pad, stride, dilation, conv_mode, tensor_format, algo, co
         convolution type
     groups: int
         the number of groups
+    verbose: bool
+        whether to the selection trails
 
     Returns
     -------
@@ -614,6 +620,7 @@ def conv_forward(x, w, pad, stride, dilation, conv_mode, tensor_format, algo, co
                     x.dtype,
                     conv_dtype,
                     groups,
+                    verbose,
                 )
     else:
         # The dynamic batch size case, pretend this is a single batch

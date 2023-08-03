@@ -114,6 +114,11 @@ void SetConvDescriptors(CuDNNThreadEntry* entry_ptr, int format, int dims, int g
                         int64_t w_dim[], int64_t y_dim[], DLDataType data_dtype,
                         const std::string& conv_dtype);
 
+void FindAlgo(int format, int dims, int groups, const int pad[], const int stride[],
+              const int dilation[], const int x_dim[], const int w_dim[], const int y_dim[],
+              const std::string& data_dtype, const std::string& conv_dtype, bool verbose,
+              runtime::TVMRetValue* ret);
+
 void CallCudnnConvolutionForward(cudnnHandle_t handle, cudaStream_t stream, int mode, int format,
                                  int algo, int dims, int groups, const int pad[],
                                  const int stride[], const int dilation[], const DLTensor* x,

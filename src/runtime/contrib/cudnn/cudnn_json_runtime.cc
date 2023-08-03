@@ -47,16 +47,15 @@ class cuDNNJSONRuntime : public JSONRuntimeBase {
                    const Array<String> const_names)
       : JSONRuntimeBase(symbol_name, graph_json, const_names) {}
 
-  void Init(const Array<NDArray>& consts) override {}
-
-  const char* type_key() const override { return "cudnn_json"; }  // May be overridden
-
-  void Run() override {
+  void Init(const Array<NDArray>& consts) override {
     auto* entry_ptr = tvm::contrib::CuDNNThreadEntry::ThreadLocal();
-
     auto func = tvm::runtime::Registry::Get("runtime.get_cuda_stream");
     ICHECK(func != nullptr);
-    cudaStream_t stream = static_cast<cudaStream_t>((*func)().operator void*());
+    stream = static_cast<cudaStream_t>((*func)().operator void*());
+
+    auto attr_in_name = [this](const std::string& op_name, const std::string& attr_name) {
+      return std::regex_search(op_name, std::regex(attr_name));
+    };
 
     auto getVecIntAttrFromVecStr = [this](const JSONGraphNode& node, const std::string& attrStr) {
       auto stringToInt = [](const std::string& str) { return std::stoi(str); };
@@ -65,42 +64,35 @@ class cuDNNJSONRuntime : public JSONRuntimeBase {
       std::transform(stringVec.begin(), stringVec.end(), intVec.begin(), stringToInt);
       return intVec;
     };
-
+    // get some config from the graph
     for (size_t i = 0; i < nodes_.size(); ++i) {
       const auto& node = nodes_[i];
       if (node.GetOpType() == "kernel") {
-        auto op_name = node.GetOpName();
-        uint32_t output_eid = EntryID(outputs_[0]);
-        auto out_ptr = data_entry_[output_eid];
-
-        auto attr_in_name = [this](const std::string& op_name, const std::string& attr_name) {
-          return std::regex_search(op_name, std::regex(attr_name));
-        };
-        bool has_bias = attr_in_name(op_name, "bias");
-
-        auto get_inputs = [this](const JSONGraphNode& node, bool has_bias) {
-          const DLTensor* bias = nullptr;
-          if (has_bias) {
-            bias = GetInput(node, 2);
-          }
-          return std::make_tuple(GetInput(node, 0), GetInput(node, 1), bias);
-        };
-
-        auto [a_ptr, b_ptr, bias_ptr] = get_inputs(node, has_bias);
-
-        int mode = CUDNN_CROSS_CORRELATION;  // always use cross-correlation
-        int format = CUDNN_TENSOR_NHWC;
-        int act = CUDNN_ACTIVATION_IDENTITY;  // identity activation by default
-        // todo(leiwang1999): how to add algo selection support in warmup?
-        int algo = CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_GEMM;
-        int dims = b_ptr->ndim - 2;  // remove O and I dims
-        int groups = std::stoi(node.GetAttr<std::vector<std::string>>("groups")[0]);
-        double coef = 1.0;
-        std::vector<int> padding = getVecIntAttrFromVecStr(node, "padding");
-        std::vector<int> strides = getVecIntAttrFromVecStr(node, "strides");
-        std::vector<int> dilation = getVecIntAttrFromVecStr(node, "dilation");
-        std::string conv_dtype = node.GetAttr<std::vector<std::string>>("out_dtype")[0];
+        op_name = node.GetOpName();
+        std::vector<int> input_dims, kernel_dims, output_dims;
+        auto input_node = nodes_[0];
+        auto input_shapes = input_node.GetOpShape()[0];
+        auto kernel_node = nodes_[1];
+        auto kernel_shapes = kernel_node.GetOpShape()[0];
+        auto output_shapes = node.GetOpShape()[0];
+        for (const auto& _i : input_shapes) {
+          input_dims.emplace_back((int)_i);
+        }
+        for (const auto& _i : kernel_shapes) {
+          kernel_dims.emplace_back((int)_i);
+        }
+        for (const auto& _i : output_shapes) {
+          output_dims.emplace_back((int)_i);
+        }
+        has_bias = attr_in_name(op_name, "bias");
+        groups = std::stoi(node.GetAttr<std::vector<std::string>>("groups")[0]);
+        padding = getVecIntAttrFromVecStr(node, "padding");
+        strides = getVecIntAttrFromVecStr(node, "strides");
+        dilation = getVecIntAttrFromVecStr(node, "dilation");
+        conv_dtype = node.GetAttr<std::vector<std::string>>("out_dtype")[0];
         std::string layout = node.GetAttr<std::vector<std::string>>("out_layout")[0];
+        dims = layout.size() - 2;  // remove O and I dims
+
         if (layout == "NCHW")
           format = CUDNN_TENSOR_NCHW;
         else if (layout == "NHWC")
@@ -117,18 +109,46 @@ class cuDNNJSONRuntime : public JSONRuntimeBase {
           act = CUDNN_ACTIVATION_RELU;
           coef = 0.1;
         }
+        this->handle = entry_ptr->handle;
+        this->kernel_node = node;
 
-        if (has_bias) {
-          tvm::contrib::CallCudnnConvolutionBiasActivationForward(
-              entry_ptr->handle, stream, mode, format, algo, dims, groups, act, coef,
-              padding.data(), strides.data(), dilation.data(), a_ptr, b_ptr, out_ptr, bias_ptr,
-              conv_dtype);
-        } else {
-          tvm::contrib::CallCudnnConvolutionForward(
-              entry_ptr->handle, stream, mode, format, algo, dims, groups, padding.data(),
-              strides.data(), dilation.data(), a_ptr, b_ptr, out_ptr, conv_dtype);
-        }
+        // find best algo
+        TVMRetValue best_algo;
+
+        tvm::contrib::FindAlgo(format, dims, groups, padding.data(), strides.data(),
+                               dilation.data(), input_dims.data(), kernel_dims.data(),
+                               output_dims.data(), conv_dtype, conv_dtype, false, &best_algo);
+
+        this->algo = best_algo.operator int();
       }
+    }
+  }
+
+  const char* type_key() const override { return "cudnn_json"; }  // May be overridden
+
+  void Run() override {
+    auto get_inputs = [this](const JSONGraphNode& node, bool has_bias) {
+      const DLTensor* bias = nullptr;
+      if (has_bias) {
+        bias = GetInput(node, 2);
+      }
+      return std::make_tuple(GetInput(node, 0), GetInput(node, 1), bias);
+    };
+
+    auto [a_ptr, b_ptr, bias_ptr] = get_inputs(kernel_node, has_bias);
+    uint32_t output_eid = EntryID(outputs_[0]);
+    auto out_ptr = data_entry_[output_eid];
+
+    if (this->has_bias) {
+      tvm::contrib::CallCudnnConvolutionBiasActivationForward(
+          this->handle, this->stream, this->mode, this->format, this->algo, this->dims,
+          this->groups, this->act, this->coef, this->padding.data(), this->strides.data(),
+          this->dilation.data(), a_ptr, b_ptr, out_ptr, bias_ptr, this->conv_dtype);
+    } else {
+      tvm::contrib::CallCudnnConvolutionForward(
+          this->handle, this->stream, this->mode, this->format, this->algo, this->dims,
+          this->groups, this->padding.data(), this->strides.data(), this->dilation.data(), a_ptr,
+          b_ptr, out_ptr, this->conv_dtype);
     }
   }
 
@@ -139,6 +159,27 @@ class cuDNNJSONRuntime : public JSONRuntimeBase {
     ICHECK(eid < data_entry_.size());
     return data_entry_[eid];
   }
+  /*conv op name*/
+  std::string op_name;
+  /*conv mode: CUDNN_CROSS_CORRELATION by default*/
+  int mode = CUDNN_CROSS_CORRELATION;
+  /*algo: by default we select the implicit gemm algo, will be tuned in the initial pass.*/
+  int algo = CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_GEMM;
+  /*if has bias*/
+  bool has_bias = false;
+  /*args for function call*/
+  int act = CUDNN_ACTIVATION_IDENTITY;
+  double coef = 1.0;
+  int format = CUDNN_TENSOR_NHWC;
+  int dims = 2;
+  int groups = 1;
+  std::vector<int> padding;
+  std::vector<int> strides;
+  std::vector<int> dilation;
+  std::string conv_dtype;
+  cudaStream_t stream;
+  cudnnHandle_t handle;
+  tvm::runtime::json::JSONGraphNode kernel_node;
 };
 
 runtime::Module cuDNNJSONRuntimeCreate(String symbol_name, String graph_json,

@@ -100,7 +100,8 @@ void ConvolutionBiasActivationForward(int mode, int format, int algo, int dims, 
 
 void FindAlgo(int format, int dims, int groups, const int pad[], const int stride[],
               const int dilation[], const int x_dim[], const int w_dim[], const int y_dim[],
-              const std::string& data_dtype, const std::string& conv_dtype, TVMRetValue* ret) {
+              const std::string& data_dtype, const std::string& conv_dtype, bool verbose,
+              TVMRetValue* ret) {
   CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal();
   const int full_dims = dims + 2;
   std::vector<int64_t> x_dim_int64(full_dims);
@@ -132,12 +133,14 @@ void FindAlgo(int format, int dims, int groups, const int pad[], const int strid
                                                 "CUDNN_CONVOLUTION_FWD_ALGO_WINOGRAD_NONFUSED"};
 
   auto best_algo = perf_results[0].algo;
-  LOG(INFO) << "\tCUDNN Found " << returned_algo_count << " fwd algorithms, choosing "
-            << fwd_algo_names[best_algo];
-  for (int i = 0; i < returned_algo_count; ++i) {
-    LOG(INFO) << "\t\t" << i << ") " << fwd_algo_names[perf_results[i].algo]
-              << " - time: " << perf_results[i].time << " ms"
-              << ", Memory: " << perf_results[i].memory;
+  if (verbose) {
+    LOG(INFO) << "\tCUDNN Found " << returned_algo_count << " fwd algorithms, choosing "
+              << fwd_algo_names[best_algo];
+    for (int i = 0; i < returned_algo_count; ++i) {
+      LOG(INFO) << "\t\t" << i << ") " << fwd_algo_names[perf_results[i].algo]
+                << " - time: " << perf_results[i].time << " ms"
+                << ", Memory: " << perf_results[i].memory;
+    }
   }
 
   ret[0] = best_algo;
@@ -319,9 +322,9 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv.forward_find_algo")
       std::string data_dtype = args[8];
       std::string conv_dtype = args[9];
       int groups = args[10];
-
+      bool verbose = args[11];
       FindAlgo(format, dims, groups, pad, stride, dilation, x_dim, w_dim, y_dim, data_dtype,
-               conv_dtype, ret);
+               conv_dtype, verbose, ret);
     });
 
 }  // namespace contrib
