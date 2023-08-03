@@ -2542,10 +2542,10 @@ def test_forward_pool3d():
 @tvm.testing.uses_gpu
 def test_forward_quantize_model():
     os.system("wget https://paddle-slim-models.bj.bcebos.com/act/MobileNetV1_QAT.tar")
-    os.system("tar -xf MobileNetV1_QAT.tar")
+    os.system("tar -xf MobileNetV1_QAT.tar -C paddle_model")
     paddle.enable_static()
     exe = paddle.static.Executor(paddle.GPUPlace())
-    paddle_model = paddle.static.load_inference_model("MobileNetV1_QAT/inference", exe)
+    paddle_model = paddle.static.load_inference_model("paddle_model/MobileNetV1_QAT/inference", exe)
     [inference_program, feed_target_names, fetch_targets] = paddle_model
     input_shape = [1, 3, 224, 224]
     input_data = np.random.uniform(-1, 1, input_shape).astype("float32")
