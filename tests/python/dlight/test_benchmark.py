@@ -169,7 +169,7 @@ def cuda_workload(var_inp0: T.handle, inp1: T.Buffer((T.int64(4096), T.int64(409
 # pylint: enable=no-self-argument,invalid-name,line-too-long,no-method-argument
 
 
-@tvm.testing.requires_cuda
+@tvm.testing.requires_gpu
 def test_benchmark_prim_func_rpc():
     with LocalRPC() as rpc:
         rpc_config = ms.runner.RPCConfig(
@@ -187,7 +187,7 @@ def test_benchmark_prim_func_rpc():
                 ((1, "m", 4096), "float32"),
             ],
             dym_var_sample={"m": 128},
-            target="nvidia/geforce-rtx-3070",
+            target="cuda",
             rpc_config=rpc_config,
         )
         assert input_infos == [
@@ -197,7 +197,7 @@ def test_benchmark_prim_func_rpc():
         ]
 
 
-@tvm.testing.requires_cuda
+@tvm.testing.requires_gpu
 def test_benchmark_prim_func_local():
     input_infos, _, _ = benchmark(
         cuda_workload,
@@ -207,7 +207,7 @@ def test_benchmark_prim_func_local():
             ((1, "m", 4096), "float32"),
         ],
         dym_var_sample={"m": 128},
-        target="nvidia/geforce-rtx-3070",
+        target="cuda",
     )
     assert input_infos == [
         ((1, 128, 4096), "float32"),
@@ -216,15 +216,15 @@ def test_benchmark_prim_func_local():
     ]
 
 
-@tvm.testing.requires_cuda
+@tvm.testing.requires_gpu
 def test_benchmark_prim_func_full_local():
-    with tvm.target.Target("nvidia/geforce-rtx-3070"):
+    with tvm.target.Target("cuda"):
         benchmark_prim_func(
             cuda_workload,
         )
 
 
-@tvm.testing.requires_cuda
+@tvm.testing.requires_gpu
 def test_benchmark_prim_func_full_rpc():
     with LocalRPC() as rpc:
         rpc_config = ms.runner.RPCConfig(
@@ -236,7 +236,7 @@ def test_benchmark_prim_func_full_rpc():
         )
         benchmark_prim_func(
             cuda_workload,
-            target="nvidia/geforce-rtx-3070",
+            target="cuda",
             rpc_config=rpc_config,
             evaluator_config=ms.runner.EvaluatorConfig(
                 number=10,
