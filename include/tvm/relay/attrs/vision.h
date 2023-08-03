@@ -61,6 +61,7 @@ struct MultiBoxTransformLocAttrs : public tvm::AttrsNode<MultiBoxTransformLocAtt
   bool clip;
   double threshold;
   Array<IndexExpr> variances;
+  bool keep_background;
 
   TVM_DECLARE_ATTRS(MultiBoxTransformLocAttrs, "relay.attrs.MultiBoxTransformLocAttrs") {
     TVM_ATTR_FIELD(clip).set_default(true).describe("Clip out-of-boundary boxes.");
@@ -68,6 +69,9 @@ struct MultiBoxTransformLocAttrs : public tvm::AttrsNode<MultiBoxTransformLocAtt
     TVM_ATTR_FIELD(variances)
         .set_default(Array<IndexExpr>({0.1f, 0.1f, 0.2f, 0.2f}))
         .describe("Variances to be decoded from box regression output.");
+    TVM_ATTR_FIELD(keep_background)
+        .set_default(false)
+        .describe("Whether to keep boxes detected as background or not");
   }
 };
 
@@ -126,6 +130,27 @@ struct AllClassNonMaximumSuppressionAttrs
         .describe(
             "Output format, onnx or tensorflow. Returns outputs in a way that can be easily "
             "consumed by each frontend.");
+  }
+};
+
+/*! \brief Attributes used in regular_non_maximum_suppression operator */
+struct RegularNonMaximumSuppressionAttrs
+    : public tvm::AttrsNode<RegularNonMaximumSuppressionAttrs> {
+  int32_t max_detections_per_class;
+  int32_t max_detections;
+  int32_t num_classes;
+  double iou_threshold;
+  double score_threshold;
+
+  TVM_DECLARE_ATTRS(RegularNonMaximumSuppressionAttrs,
+                    "relay.attrs.RegularNonMaximumSuppressionAttrs") {
+    TVM_ATTR_FIELD(max_detections_per_class)
+        .describe("The maxinum number of output selected boxes per class.");
+    TVM_ATTR_FIELD(max_detections).describe("The maxinum number of output selected boxes.");
+    TVM_ATTR_FIELD(num_classes).describe("The number of classes without background.");
+    TVM_ATTR_FIELD(iou_threshold).describe("The IoU threshold for box the overlap test.");
+    TVM_ATTR_FIELD(score_threshold)
+        .describe("Score threshold to filter out low score boxes early.");
   }
 };
 
