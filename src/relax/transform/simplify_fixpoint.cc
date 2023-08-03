@@ -48,13 +48,14 @@ IRModule FixpointSimplification(const IRModule& mod, Array<runtime::String> entr
   transform::Pass dce = transform::DeadCodeElimination(entry_funcs);
   transform::Pass fold_df_output = transform::FoldDataflowBlockOutput();
 
+  uint64_t last_hash = Hash(current_mod);
   while (true) {
-    uint64_t last_hash = Hash(current_mod);
     current_mod = std::move(fold_df_output(cse(canonicalize_bindings(dce(current_mod)))));
     uint64_t current_hash = Hash(current_mod);
     if (current_hash == last_hash) {
       break;
     }
+    last_hash = current_hash;
   }
 
   return current_mod;
