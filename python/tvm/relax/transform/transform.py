@@ -312,6 +312,37 @@ def EliminateCommonSubexpr(call_only=False) -> FunctionPass:
     return _ffi_api.EliminateCommonSubexpr(call_only)  # type: ignore
 
 
+def FixpointSimplification(
+    entry_functions: Optional[List[str]] = None, call_only: bool = False
+) -> tvm.ir.transform.Pass:
+    """
+    Applies multiple simplification passes one after another until reaching
+    fixpoint (i.e., until no function in the module changes anymore).
+
+    Includes the following passes:
+    * DeadCodeElimination
+    * CanonicalizeBindings
+    * EliminateCommonSubexpressions
+    * FoldDataflowBlockOutput
+
+    Parameters
+    ----------
+    entry_functions: List[str]
+      Entry points to the module, for dead code elimination
+
+    call_only: bool
+      Whether to apply common subexpression elimination only to calls
+
+    Returns
+    -------
+    ret: Pass
+      The pass
+    """
+    if entry_functions is None:
+        entry_functions = ["main"]
+    return _ffi_api.FixpointSimplification(entry_functions, call_only)
+
+
 def RewriteDataflowReshape() -> tvm.ir.transform.Pass:
     """Convert all reshape-like call_tir to VM reshape operator call.
     The VM reshape operator calls will be further lowered to a CreateView

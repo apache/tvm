@@ -164,6 +164,22 @@ TVM_DLL Pass Normalize();
 TVM_DLL Pass CanonicalizeBindings();
 
 /*!
+ * \brief Applies multiple simplification passes one after another until reaching
+ * fixpoint (i.e., until no function in the module changes anymore).
+ * 
+ * Includes the following passes:
+ * * DeadCodeElimination
+ * * CanonicalizeBindings
+ * * EliminateCommonSubexpressions
+ * * FoldDataflowBlockOutput
+ *
+ * \param entry_functions Entry points to the module, for dead code elimination
+ * \param call_only Whether to apply common subexpression elimination only to calls
+ * \return The Pass.
+ */
+TVM_DLL Pass FixpointSimplification(Array<runtime::String> entry_functions, bool call_only);
+
+/*!
  * Eliminate common subexpressions within functions.
  * \return The pass that eliminates common subexpressions.
  *
