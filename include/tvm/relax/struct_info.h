@@ -159,7 +159,7 @@ class TensorStructInfoNode : public StructInfoNode {
   /*! \brief The virtual device, indicates where the tensor
    *  is expected to be executed.
    */
-  Optional<String> vdevice;
+  Optional<VDevice> vdevice;
   /*! \brief The content data type, use void to denote the dtype is unknown. */
   DataType dtype;
   /*!
@@ -220,7 +220,8 @@ class TensorStructInfo : public StructInfo {
    *
    * \note shape must already be normalized.
    */
-  TVM_DLL TensorStructInfo(Expr shape, DataType dtype, String vdevice = "", Span span = Span());
+  TVM_DLL TensorStructInfo(Expr shape, DataType dtype, VDevice vdevice = VDevice(),
+                           Span span = Span());
 
   /*!
    * \brief Construction with an unknown shape expression.
@@ -229,7 +230,8 @@ class TensorStructInfo : public StructInfo {
    * \param vdevice The virtual device.
    * \param span The span of the AST.
    */
-  TVM_DLL TensorStructInfo(DataType dtype, int ndim, String vdev = "", Span span = Span());
+  TVM_DLL TensorStructInfo(DataType dtype, int ndim, VDevice vdevice = VDevice(),
+                           Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(TensorStructInfo, StructInfo, TensorStructInfoNode);
 };

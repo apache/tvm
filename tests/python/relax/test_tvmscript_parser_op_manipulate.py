@@ -403,5 +403,20 @@ def test_flip():
     _check(foo, bb.get()["foo"])
 
 
+def test_to_vdevice():
+    @R.function
+    def foo(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+        tensor = R.to_vdevice(x, tvm.ir.VDevice("llvm", 0, "global"))
+        return tensor
+
+    x = relax.Var("x", R.Tensor((), "int32"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", (x,)):
+        tensor = bb.emit(relax.op.to_vdevice(x, tvm.ir.VDevice("llvm", 0, "global")))
+        bb.emit_func_output(tensor)
+
+    _check(foo, bb.get()["foo"])
+
+
 if __name__ == "__main__":
     tvm.testing.main()

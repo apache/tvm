@@ -37,6 +37,7 @@ from tvm.runtime import ObjectGeneric
 from tvm.tir import PrimExpr
 
 from .._core import parse, utils
+from ..ir import lookup_vdevice
 
 FType = TypeVar("FType", bound=_Callable)
 
@@ -103,7 +104,7 @@ def _eval_shape(expr: Union[str, PrimExpr], dict_globals: Optional[Dict[str, Any
 class TensorProxy(StructInfoProxy):
     shape: Optional[List[Union[str, PrimExpr]]]
     dtype: str
-    vdevice: str
+    vdevice: Optional[str]
     ndim: int
 
     def __init__(
@@ -136,10 +137,18 @@ class TensorProxy(StructInfoProxy):
             return {s for s in self.shape if isinstance(s, str) and s.isidentifier()}
 
     def as_struct_info(self, dict_globals: Optional[Dict[str, Any]] = None) -> TensorStructInfo:
+        vdev = self.vdevice
+        if isinstance(self.vdevice, str):
+            if ":" in self.vdevice:
+                split_vdev = self.vdevice.split(":")
+                vdev = lookup_vdevice(split_vdev[0], int(split_vdev[1]))
+            else:
+                vdev = lookup_vdevice(self.vdevice, 0)
+
         if self.shape is None:
-            return TensorStructInfo(None, self.dtype, self.vdevice, self.ndim)
+            return TensorStructInfo(None, self.dtype, vdev, self.ndim)
         elif isinstance(self.shape, (ShapeExpr, Var)):
-            return TensorStructInfo(self.shape, self.dtype, self.vdevice, self.ndim)
+            return TensorStructInfo(self.shape, self.dtype, vdev, self.ndim)
         else:
             if dict_globals is None and any([isinstance(s, str) for s in self.shape]):
                 raise ValueError(
@@ -147,7 +156,7 @@ class TensorProxy(StructInfoProxy):
                     "and return annotations for TVMScript."
                 )
             shape = [_eval_shape(s, dict_globals) for s in self.shape]
-            return TensorStructInfo(shape, self.dtype, self.vdevice, self.ndim)
+            return TensorStructInfo(shape, self.dtype, vdev, self.ndim)
 
 
 def Tensor(

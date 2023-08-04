@@ -303,18 +303,23 @@ def test_module_with_attr_and_global_info():
     _check(TestModule, mod)
 
 
-def test_vdevice():
+def test_global_info_vdevice():
+    vdevices = [
+        VDevice("llvm"),
+        VDevice("cuda", 0),
+        VDevice("cuda -arch=sm_80", 0),
+        VDevice("metal", 0, "global"),
+    ]
+
     @I.ir_module
     class TestModule:
         I.module_attrs({"attr": 10})
-        I.module_global_infos(
-            {
-                "vdevice": [
-                    I.vdevice("llvm", 0, "global"),
-                    I.vdevice("cuda", 0, "global"),
-                ]
-            }
-        )
+        I.module_global_infos({"vdevice": [
+            I.vdevice("llvm"),
+            I.vdevice("cuda", 0),
+            I.vdevice("cuda -arch=sm_80", 0),
+            I.vdevice("metal", 0, "global"),]
+        })
 
         @T.prim_func
         def tir_func(
@@ -339,9 +344,10 @@ def test_vdevice():
         out = bb.emit_te(lambda x: x + 1, x, primfunc_name_hint="tir_func")
         bb.emit_func_output(out)
     mod = bb.get()
-    mod.update_global_info("vdevice", [VDevice("llvm", 0, "global"), VDevice("cuda", 0, "global")])
+    mod.update_global_info("vdevice", vdevices)
     mod = mod.with_attr("attr", tvm.tir.IntImm("int32", 10))
     _check(TestModule, mod)
+
 
 def test_relax_tensor_op():
     @R.function
@@ -752,6 +758,43 @@ def test_tensor_type_without_args():
         bb.emit_func_output(v)
 
     _check(foo, bb.get()["foo"])
+
+
+def test_tensor_with_vdevice():
+    vdevices = [
+        VDevice("llvm"),
+        VDevice("cuda", 0),
+        VDevice("metal", 0, "global"),
+        VDevice("cuda -arch=sm_80", 0),
+    ]
+    @I.ir_module
+    class TestModule:
+        I.module_attrs({"attr": 10})
+        I.module_global_infos({"vdevice": [
+            I.vdevice("llvm"),
+            I.vdevice("cuda", 0),
+            I.vdevice("metal", 0, "global"),
+            I.vdevice("cuda -arch=sm_80", 0), ]
+        })
+        @R.function
+        def foo(a: R.Tensor((128, 128), "float32", "cuda:1"),
+                b: R.Tensor((128, 128), "float32", "llvm"),
+                c: R.Tensor((128, 128), "float32", "vdevice:3")) -> R.Tensor((128, 128), "float32"):
+            s = R.add(a, c)
+            return s
+
+    a = relax.Var("a", R.Tensor((128, 128), "float32", vdevices[3]))
+    b = relax.Var("b", R.Tensor((128, 128), "float32", vdevices[0]))
+    c = relax.Var("c", R.Tensor((128, 128), "float32", vdevices[3]))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", (a, b, c)):
+        out = bb.emit(relax.op.add(a, c))
+        bb.emit_func_output(out)
+    mod = bb.get()
+    mod = mod.with_attr("attr", tvm.tir.IntImm("int32", 10))
+    mod.update_global_info("vdevice", vdevices)
+
+    _check(TestModule, mod)
 
 
 def test_direct_return():
@@ -1606,21 +1649,6 @@ def test_private_function_with_global_symbol_no_module_fail():
 
         # should not execute
         _check(func)
-
-
-def test_to_vdevice():
-    @R.function
-    def foo(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
-        tensor = R.to_vdevice(x, VDevice("llvm", 0, "global"))
-        return tensor
-
-    x = relax.Var("x", R.Tensor((), "int32"))
-    bb = relax.BlockBuilder()
-    with bb.function("foo", (x,)):
-        tensor = bb.emit(relax.op.to_vdevice(x, VDevice("llvm", 0, "global")))
-        bb.emit_func_output(tensor)
-
-    _check(foo, bb.get()["foo"])
 
 
 if __name__ == "__main__":

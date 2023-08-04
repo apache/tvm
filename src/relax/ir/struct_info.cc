@@ -92,7 +92,7 @@ TVM_REGISTER_GLOBAL("relax.ShapeStructInfo")
     });
 
 // Tensor
-TensorStructInfo::TensorStructInfo(Expr shape, DataType dtype, String vdev, Span span) {
+TensorStructInfo::TensorStructInfo(Expr shape, DataType dtype, VDevice vdevice, Span span) {
   ObjectPtr<TensorStructInfoNode> n = make_object<TensorStructInfoNode>();
   // assign ndim before move
   Optional<ShapeStructInfo> sinfo = MatchStructInfo<ShapeStructInfo>(shape);
@@ -104,17 +104,17 @@ TensorStructInfo::TensorStructInfo(Expr shape, DataType dtype, String vdev, Span
   // assign rest of the fields.
   n->shape = std::move(shape);
   n->dtype = dtype;
-  n->vdevice = vdev;
+  n->vdevice = vdevice;
   n->span = span;
   data_ = std::move(n);
 }
 
-TensorStructInfo::TensorStructInfo(DataType dtype, int ndim, String vdev, Span span) {
+TensorStructInfo::TensorStructInfo(DataType dtype, int ndim, VDevice vdevice, Span span) {
   ObjectPtr<TensorStructInfoNode> n = make_object<TensorStructInfoNode>();
   CHECK_GE(ndim, -1) << "ndim of TensorStructInfo must be >= -1, but got " << ndim;
   n->ndim = ndim;
   n->dtype = dtype;
-  n->vdevice = vdev;
+  n->vdevice = vdevice;
   n->span = span;
   data_ = std::move(n);
 }
@@ -122,12 +122,12 @@ TensorStructInfo::TensorStructInfo(DataType dtype, int ndim, String vdev, Span s
 TVM_REGISTER_NODE_TYPE(TensorStructInfoNode);
 
 TVM_REGISTER_GLOBAL("relax.TensorStructInfo")
-    .set_body_typed([](Optional<Expr> shape, DataType dtype, int ndim, String vdev, Span span) {
+    .set_body_typed([](Optional<Expr> shape, DataType dtype, int ndim, VDevice vdevice, Span span) {
       if (shape.defined()) {
         CHECK_EQ(ndim, kUnknownNDim) << "ValueError: Cannot both specify shape and ndim";
-        return TensorStructInfo(shape.value(), dtype, vdev, span);
+        return TensorStructInfo(shape.value(), dtype, vdevice, span);
       } else {
-        return TensorStructInfo(dtype, ndim, vdev, span);
+        return TensorStructInfo(dtype, ndim, vdevice, span);
       }
     });
 

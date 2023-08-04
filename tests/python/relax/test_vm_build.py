@@ -730,12 +730,17 @@ def test_vm_to_device(exec_mode):
     @tvm.script.ir_module
     class TestToVDevice:
         @R.function
-        def main(
+        def foo1(
             x: R.Tensor((2, 3), "float32"),
         ) -> R.Tensor((2, 3), "float32"):
-            # tvm.device
+            copied = R.to_vdevice(x, tvm.ir.VDevice("cuda", 0, "global"))
+            return copied
+
+        @R.function
+        def foo2(
+            x: R.Tensor((2, 3), "float32"),
+        ) -> R.Tensor((2, 3), "float32"):
             copied = R.to_vdevice(x, tvm.ir.VDevice("llvm", 0, "global"))
-            # tvm.target.Target
             return copied
 
     mod = TestToVDevice
@@ -743,8 +748,15 @@ def test_vm_to_device(exec_mode):
     ex = relax.build(mod, target, exec_mode=exec_mode)
     vm = relax.VirtualMachine(ex, tvm.cpu())
     x_inp = tvm.nd.array(np.random.rand(2, 3).astype("float32"))
-    res = check_saved_func(vm, "main", x_inp)
-    tvm.testing.assert_allclose(res.numpy(), x_inp.numpy())
+    res_1 = check_saved_func(vm, "foo1", x_inp)
+    res_2 = check_saved_func(vm, "foo2", x_inp)
+
+    # check the copied tensor's device
+    assert str(res_1.device) == "cuda(0)"
+    assert str(res_2.device) == "cpu(0)"
+
+    tvm.testing.assert_allclose(res_1.numpy(), x_inp.numpy())
+    tvm.testing.assert_allclose(res_2.numpy(), x_inp.numpy())
 
 
 @pytest.mark.parametrize("exec_mode", EXEC_MODE)
