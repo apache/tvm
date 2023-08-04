@@ -750,6 +750,37 @@ def test_not_match_dominator():
     assert not diamond.match(out)
 
 
+def test_not_match_dominator2():
+    # Pattern
+    P = is_op("nn.conv2d")(wildcard(), wildcard())  # 'parent'
+    I = is_op("nn.relu")(wildcard())  # 'intermediate' ('path' in the code)
+    C = is_op("add")(wildcard(), wildcard())  # 'child'
+    pattern = dominates(P, I, C)
+
+    #       n6(P)
+    #      /  \
+    #     n7   \
+    #    /      \
+    #    n8(P)  n9(I)
+    #    \      /
+    #     \    /
+    #      \  /
+    #      n10(C)
+
+    x = relay.var("x")
+    w = relay.var("w")
+    n6 = relay.op.nn.conv2d(x, w)  # matches P
+    n7 = relay.op.tanh(n6)  # does not match I
+    n8 = relay.op.nn.conv2d(n7, w)  # matches P
+    n9 = relay.op.nn.relu(n6)  # matches I
+    n10 = relay.add(n8, n9)  # matches C
+
+    # Does not match: Can't match the parent pattern P at both 8 and 6.
+    # Note that if we did allow P to be used twice the implementation would
+    # need to be changed to not 'jump over' n7.
+    assert not pattern.match(n10)
+
+
 def test_match_typed_dominator():
     # Pattern
     is_conv2d = is_op("nn.conv2d")(wildcard(), wildcard())
