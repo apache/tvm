@@ -166,7 +166,7 @@ TVM_DLL Pass CanonicalizeBindings();
 /*!
  * \brief Applies multiple simplification passes one after another until reaching
  * fixpoint (i.e., until no function in the module changes anymore).
- * 
+ *
  * Includes the following passes:
  * * DeadCodeElimination
  * * CanonicalizeBindings
