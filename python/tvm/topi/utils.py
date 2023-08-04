@@ -24,6 +24,7 @@ import numpy as np
 import tvm
 from tvm import te
 from tvm.tir import Any, SizeVar, bijective_layout, layout
+import tvm.topi
 
 from . import cpp, tag
 
@@ -526,3 +527,26 @@ def is_target(names):
 def is_dynamic_shape(shape):
     """Checks if any part of a shape is dynamic"""
     return any([isinstance(x, (Any, SizeVar)) for x in shape])
+
+
+def conv2d_infer_layout_helper(workload, cfg):
+    """Infers input and output layouts for a conv2d operator
+    scheduled using "tile_ic" and "tile_oc" scheduling configuration knobs which
+    is the case for cpu, arm_cpu and intel_graphics targets."""
+    _, data, kernel, strides, padding, dilation, _, _, _ = workload
+    batch_size, in_channel, in_height, in_width = data[1]
+    out_channel, _, k_height, k_width = kernel[1]
+    idxdiv = tvm.tir.indexdiv
+
+    pt, pl, pb, pr = tvm.topi.nn.get_pad_tuple(padding, (k_height, k_width))
+    hdilation, wdilation = dilation if isinstance(dilation, (tuple, list)) else (dilation, dilation)
+    dilated_kernel_h = (k_height - 1) * hdilation + 1
+    dilated_kernel_w = (k_width - 1) * wdilation + 1
+    out_height = idxdiv(in_height + pt + pb - dilated_kernel_h, strides[0]) + 1
+    out_width = idxdiv(in_width + pl + pr - dilated_kernel_w, strides[1]) + 1
+    tile_ic, tile_oc = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
+    in_shape = (batch_size, idxdiv(in_channel, tile_ic), in_height, in_width, tile_ic)
+    in_layout = f"NCHW{tile_ic}c"
+    out_shape = (batch_size, idxdiv(out_channel, tile_oc), out_height, out_width, tile_oc)
+    out_layout = f"NCHW{tile_oc}c"
+    return ((in_shape, in_layout),), ((out_shape, out_layout),)

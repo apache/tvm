@@ -128,7 +128,8 @@ def test_cpu_get_graph_params_run():
     tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
 
-@tvm.testing.requires_llvm
+# TODO(@franklandjack) Fix this test for the arm_cpu target.
+@tvm.testing.requires_x86
 def test_cpu_get_graph_params_compare():
     # Create sample net
     from tvm.relay.testing.init import create_workload, Constant

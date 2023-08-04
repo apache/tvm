@@ -440,6 +440,19 @@ constexpr const char* kIsExternalCodegen = "is_external_codegen";
  */
 constexpr const char* kRelayToTIR = "RelayToTIR";
 
+/*!
+ * \brief String representation of the host's target architecture.
+ *
+ * Currently this is set to "arm_cpu" on Arm®-based host architectures and "cpu"
+ * (which is synonymous with x86) everywhere else.
+ *
+ * TODO(@FranklandJack) dynamically detect host architecture and generalize for all targets.
+ */
+#if defined(__arm__) || defined(__aarch64__)
+constexpr const char* kHostCPU = "arm_cpu";
+#else
+constexpr const char* kHostCPU = "cpu";
+#endif
 }  // namespace attr
 
 /*!

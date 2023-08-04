@@ -222,7 +222,7 @@ def test_popcount():
                 print("skip because %s is not enabled.." % device)
                 return
             target = tvm.target.Target(device)
-            if "cpu" not in target.keys:
+            if not any(["cpu" in key for key in target.keys]):
                 schedule[placeholder_b].bind(axis1, te.thread_axis("blockIdx.x"))
                 schedule[placeholder_b].bind(axis2, te.thread_axis("threadIdx.x"))
             func = tvm.build(schedule, [placeholder_a, placeholder_b], device)

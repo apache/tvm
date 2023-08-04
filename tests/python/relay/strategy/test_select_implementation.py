@@ -20,13 +20,17 @@ import pytest
 import tvm
 from tvm import relay
 from tvm import te
+from tvm import target
 from tvm.relay.testing import run_infer_type
 import tvm.testing
 
 
+native_arch = target.Target("llvm").keys[0]
+
+
 @pytest.mark.parametrize(
     "target, expected_implementation",
-    [("llvm", "concatenate.cpu"), ("llvm -device=arm_cpu", "concatenate.arm_cpu")],
+    [("llvm", "concatenate." + native_arch), ("llvm -device=arm_cpu", "concatenate.arm_cpu")],
 )
 def test_concatenate(target, expected_implementation):
     target = tvm.target.Target(target)

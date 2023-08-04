@@ -152,6 +152,7 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                 is_winograd_applicable = (
                     "float" in data.dtype
                     and "float" in kernel.dtype
+                    and not data.dtype.count("custom")
                     and kh == 3
                     and kw == 3
                     and stride_h == 1
@@ -284,8 +285,21 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                     name="depthwise_conv2d_nchw.x86",
                 )
         elif layout == "NHWC":
-            assert kernel_layout == "HWOI"
-            if target.features.has_asimd:
+            # TODO(@FranklandJack)
+            # Handle HWOI in arm_cpu schedules/compute definition.
+            if kernel_layout != "HWOI":
+                logger.warning(
+                    """depthwise_conv2d with layout NHWC and HWOI
+                               kernel layout is not optimized for arm_cpu target.
+                               """
+                )
+                strategy.add_implementation(
+                    wrap_compute_conv2d(topi.nn.depthwise_conv2d_nhwc, need_kernel_layout=True),
+                    wrap_topi_schedule(conv2d_generic.schedule_depthwise_conv2d_nhwc),
+                    name="depthwise_conv2d_nhwc.generic",
+                )
+
+            elif target.features.has_asimd:
                 strategy.add_implementation(
                     wrap_compute_conv2d(topi.arm_cpu.compute_depthwise_conv2d_nhwc),
                     wrap_topi_schedule(topi.arm_cpu.schedule_depthwise_conv2d_nhwc),
@@ -304,8 +318,11 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                 and kernel.shape[3] == 1  # channel_multiplier == 1
                 and out_type.dtype == "int32"
                 and (
-                    (data.shape[3] % 4 == 0 and data.dtype == "int8" and target.features.has_dsp)
-                    or (data.shape[3] % 2 == 0 and data.dtype == "int16")
+                    (
+                        (data.shape[3] % 4 == 0 and data.dtype == "int8")
+                        or (data.shape[3] % 2 == 0 and data.dtype == "int16")
+                    )
+                    and target.features.has_dsp
                 )
                 and (padding != "SAME" or data.shape[1] % stride_h == data.shape[2] % stride_w == 0)
                 # Ideally we should check that kernel is a Relay constant, but strategy functions
