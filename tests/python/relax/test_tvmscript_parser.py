@@ -314,12 +314,16 @@ def test_global_info_vdevice():
     @I.ir_module
     class TestModule:
         I.module_attrs({"attr": 10})
-        I.module_global_infos({"vdevice": [
-            I.vdevice("llvm"),
-            I.vdevice("cuda", 0),
-            I.vdevice("cuda -arch=sm_80", 0),
-            I.vdevice("metal", 0, "global"),]
-        })
+        I.module_global_infos(
+            {
+                "vdevice": [
+                    I.vdevice("llvm"),
+                    I.vdevice("cuda", 0),
+                    I.vdevice("cuda -arch=sm_80", 0),
+                    I.vdevice("metal", 0, "global"),
+                ]
+            }
+        )
 
         @T.prim_func
         def tir_func(
@@ -767,19 +771,27 @@ def test_tensor_with_vdevice():
         VDevice("metal", 0, "global"),
         VDevice("cuda -arch=sm_80", 0),
     ]
+
     @I.ir_module
     class TestModule:
         I.module_attrs({"attr": 10})
-        I.module_global_infos({"vdevice": [
-            I.vdevice("llvm"),
-            I.vdevice("cuda", 0),
-            I.vdevice("metal", 0, "global"),
-            I.vdevice("cuda -arch=sm_80", 0), ]
-        })
+        I.module_global_infos(
+            {
+                "vdevice": [
+                    I.vdevice("llvm"),
+                    I.vdevice("cuda", 0),
+                    I.vdevice("metal", 0, "global"),
+                    I.vdevice("cuda -arch=sm_80", 0),
+                ]
+            }
+        )
+
         @R.function
-        def foo(a: R.Tensor((128, 128), "float32", "cuda:1"),
-                b: R.Tensor((128, 128), "float32", "llvm"),
-                c: R.Tensor((128, 128), "float32", "vdevice:3")) -> R.Tensor((128, 128), "float32"):
+        def foo(
+            a: R.Tensor((128, 128), "float32", "cuda:1"),
+            b: R.Tensor((128, 128), "float32", "llvm"),
+            c: R.Tensor((128, 128), "float32", "vdevice:3"),
+        ) -> R.Tensor((128, 128), "float32"):
             s = R.add(a, c)
             return s
 

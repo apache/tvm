@@ -253,7 +253,9 @@ def test_op_to_device():
         @R.function
         def to_dev(x: R.Tensor((3, 4), "float32")):
             z = R.call_pure_packed(
-                "vm.builtin.to_device", x, tvm.device("llvm", 0),
+                "vm.builtin.to_device",
+                x,
+                tvm.device("llvm", 0),
                 sinfo_args=(R.Tensor((3, 4), dtype="float32")),
             )
             return z
