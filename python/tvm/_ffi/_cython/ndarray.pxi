@@ -21,7 +21,7 @@ cdef const char* _c_str_dltensor = "dltensor"
 cdef const char* _c_str_used_dltensor = "used_dltensor"
 
 
-cdef void _c_dlpack_deleter(object pycaps):
+cdef void _c_dlpack_deleter(object pycaps) noexcept:
     cdef DLManagedTensor* dltensor
     if pycapsule.PyCapsule_IsValid(pycaps, _c_str_dltensor):
         dltensor = <DLManagedTensor*>pycapsule.PyCapsule_GetPointer(pycaps, _c_str_dltensor)

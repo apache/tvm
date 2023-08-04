@@ -20,20 +20,22 @@ name: tvm-build
 
 # The conda channels to lookup the dependencies
 channels:
-  - anaconda
   - conda-forge
+  - anaconda
 
 # The packages to install to the environment
 dependencies:
-  - python=3.7 # or 3.8. See https://github.com/apache/tvm/issues/8577 for more details on >= 3.9
-  - conda-build
+  - python=3.11
+  - llvmdev>=15
+  - cmake>=3.24
+  - zlib
+  - zstd
   - git
-  - llvmdev >=11
+  - conda-build
+  - anaconda-client
   - numpy
   - pytest
-  - cython
-  - cmake
   - bzip2
-  - make
   - scipy
-  - pillow
+  - pip
+  - cython

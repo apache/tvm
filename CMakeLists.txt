@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.18)
 project(tvm C CXX)
 
 # Utility functions
+include(cmake/modules/Findzstd.cmake)
 include(cmake/utils/Utils.cmake)
 include(cmake/utils/Summary.cmake)
 include(cmake/utils/Linker.cmake)

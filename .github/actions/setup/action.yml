@@ -16,7 +16,7 @@ runs:
       environment-file: conda/build-environment.yaml
       auto-activate-base: false
       use-only-tar-bz2: true
-      python-version: 3.7
+      python-version: 3.11
       condarc-file: conda/condarc
   - uses: conda-incubator/setup-miniconda@v2
     if: steps.conda1.outcome == 'failure'
@@ -26,7 +26,7 @@ runs:
       environment-file: conda/build-environment.yaml
       auto-activate-base: false
       use-only-tar-bz2: true
-      python-version: 3.7
+      python-version: 3.11
       condarc-file: conda/condarc
   - name: Conda info
     shell: pwsh
