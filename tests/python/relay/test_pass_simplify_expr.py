@@ -746,9 +746,54 @@ def test_simplify_clip_cast():
         clip = relay.clip(x, a_min=0.0, a_max=255.0)
         return relay.Function([x], clip)
 
+    def before3():
+        x = relay.var("x", shape=(4, 8), dtype="int32")
+        clip = relay.clip(x, a_min=0.0, a_max=255.0)
+        cast = relay.cast(clip, "uint8")
+        cast = relay.cast(cast, "int16")
+        cast = relay.cast(cast, "int32")
+        return relay.Function([x], cast)
+
+    def expected3():
+        x = relay.var("x", shape=(4, 8), dtype="int32")
+        clip = relay.clip(x, a_min=0.0, a_max=255.0)
+        return relay.Function([x], clip)
+
+    def before4():
+        x = relay.var("x", shape=(4, 8), dtype="float32")
+        clip = relay.clip(x, a_min=0.0, a_max=255.0)
+        cast = relay.cast(clip, "uint8")
+        cast = relay.cast(cast, "int16")
+        cast = relay.cast(cast, "int32")
+        return relay.Function([x], cast)
+
+    def expected4():
+        x = relay.var("x", shape=(4, 8), dtype="float32")
+        clip = relay.clip(x, a_min=0.0, a_max=255.0)
+        cast = relay.cast(clip, "int32")
+        return relay.Function([x], cast)
+
+    def before5():
+        x = relay.var("x", shape=(4, 8), dtype="float32")
+        clip = relay.clip(x, a_min=0.0, a_max=255.0)
+        cast = relay.cast(clip, "int8")
+        cast = relay.cast(cast, "int16")
+        cast = relay.cast(cast, "int32")
+        return relay.Function([x], cast)
+
+    def expected5():
+        x = relay.var("x", shape=(4, 8), dtype="float32")
+        clip = relay.clip(x, a_min=0.0, a_max=255.0)
+        cast = relay.cast(clip, "int8")
+        cast = relay.cast(cast, "int32")
+        return relay.Function([x], cast)
+
     for before, expected in [
         [before1(), expected1()],
         [before2(), expected2()],
+        [before3(), expected3()],
+        [before4(), expected4()],
+        [before5(), expected5()],
     ]:
         after = run_opt_pass(before, transform.SimplifyExpr())
         expected = run_opt_pass(expected, transform.InferType())

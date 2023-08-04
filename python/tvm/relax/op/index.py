@@ -58,6 +58,7 @@ def strided_slice(
     begin: List[PrimExprLike],
     end: List[PrimExprLike],
     strides: Optional[List[PrimExprLike]] = None,
+    assume_inbound: bool = False,
 ) -> Expr:
     """Strided slice of a tensor.
 
@@ -80,6 +81,9 @@ def strided_slice(
         the input tensor will be reversed in that particular axis.
         If not specified, it by default is an list of ones of the same length as `axes`.
 
+    assume_inbound : bool
+        Whether to assume the indices are in bound. If it is set to false,
+        out of bound indices will be clipped to the bound.
     Returns
     -------
     ret : relax.Expr
@@ -90,7 +94,7 @@ def strided_slice(
     strided_slice require the input `begin`, `end` and `strides` to have the
     same length as `axes`.
     """
-    return _ffi_api.strided_slice(x, axes, begin, end, strides)  # type: ignore
+    return _ffi_api.strided_slice(x, axes, begin, end, strides, assume_inbound)  # type: ignore
 
 
 def dynamic_strided_slice(
@@ -99,7 +103,7 @@ def dynamic_strided_slice(
     end: Expr,
     strides: Expr,
 ) -> Expr:
-    """Dynamic strided slice of a tensor. `begin`, `end`, `strids` can be computed at runtime.
+    """Dynamic strided slice of a tensor. `begin`, `end`, `strides` can be computed at runtime.
 
     Parameters
     ----------

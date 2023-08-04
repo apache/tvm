@@ -102,8 +102,8 @@ export class RPCServer {
     key: string,
     getImports: () => Record<string, unknown>,
     logger: (msg: string) => void = console.log,
-    ndarrayCacheUrl: string = "",
-    ndarrayCacheDevice: string = "cpu",
+    ndarrayCacheUrl = "",
+    ndarrayCacheDevice = "cpu",
     initProgressCallback: runtime.InitProgressCallback | undefined = undefined,
     asyncOnServerLoad: ((inst: runtime.Instance) => Promise<void>) | undefined = undefined,
   ) {

@@ -20,6 +20,7 @@ import tvm.testing
 from tvm.meta_schedule.postproc import RewriteParallelVectorizeUnroll
 from tvm.script import tir as T
 from tvm.tir.schedule import Schedule
+from tvm.tir.schedule.testing import assert_structural_equal_ignore_global_symbol
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument,not-callable,misplaced-comparison-constant
 # fmt: off
@@ -195,14 +196,14 @@ def test_vectorize_inner_loop():
     sch = Schedule(before_matmul_vectorize)
     rule = RewriteParallelVectorizeUnroll()
     assert rule.apply(sch)
-    tvm.ir.assert_structural_equal(sch.mod["main"], after_matmul_vectorize)
+    assert_structural_equal_ignore_global_symbol(sch.mod["main"], after_matmul_vectorize)
 
 
 def test_parallel_vectorize_add():
     sch = Schedule(before_postproc_add)
     rule = RewriteParallelVectorizeUnroll()
     assert rule.apply(sch)
-    tvm.ir.assert_structural_equal(sch.mod["main"], after_postproc_add)
+    assert_structural_equal_ignore_global_symbol(sch.mod["main"], after_postproc_add)
 
 
 def test_no_unroll_for_spatial_block():
@@ -264,7 +265,7 @@ def test_no_unroll_for_spatial_block():
     sch = Schedule(layer_norm)
     assert postproc.apply(sch)
     mod = tvm.tir.transform.Simplify()(sch.mod)
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    assert_structural_equal_ignore_global_symbol(mod["main"], expected)
 
 
 if __name__ == "__main__":

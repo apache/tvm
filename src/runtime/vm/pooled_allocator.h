@@ -28,6 +28,7 @@
 
 #include <atomic>
 #include <mutex>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -69,6 +70,15 @@ class PooledAllocator final : public Allocator {
     used_memory_.fetch_add(size, std::memory_order_relaxed);
     VLOG(1) << "allocate " << size << " B, used memory " << used_memory_ << " B";
     return buf;
+  }
+
+  Buffer Alloc(int ndims, int64_t* shape, DLDataType type_hint,
+               const std::string& mem_scope) override {
+    if (mem_scope.empty() || mem_scope == "global") {
+      return Allocator::Alloc(device_, ndims, shape, type_hint, mem_scope);
+    }
+    LOG(FATAL) << "This alloc should be implemented";
+    return {};
   }
 
   void Free(const Buffer& buffer) override {

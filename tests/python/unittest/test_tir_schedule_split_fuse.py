@@ -21,7 +21,10 @@ import tvm.testing
 from tvm import te, tir
 from tvm.script import tir as T
 from tvm.tir.expr import IntImm
-from tvm.tir.schedule.testing import verify_trace_roundtrip
+from tvm.tir.schedule.testing import (
+    assert_structural_equal_ignore_global_symbol,
+    verify_trace_roundtrip,
+)
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
@@ -359,7 +362,7 @@ def test_fuse():
     block_b = sch.get_block("B")
     i, j, k = sch.get_loops(block_b)
     sch.fuse(i, j, k)
-    tvm.ir.assert_structural_equal(elementwise_fused, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(elementwise_fused, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=elementwise)
 
 
@@ -370,7 +373,7 @@ def test_split():
     sch.split(i, factors=[2, 1, 64])
     sch.split(j, factors=[4, 32])
     sch.split(k, factors=[16, 8])
-    tvm.ir.assert_structural_equal(elementwise_split_case0, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(elementwise_split_case0, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=elementwise)
 
 
@@ -381,7 +384,7 @@ def test_split_with_inferred_factor():
     sch.split(i, factors=[None, 1, 64])
     sch.split(j, factors=[2, None, 64])
     sch.split(k, factors=[2, 1, None])
-    tvm.ir.assert_structural_equal(elementwise_split_case1, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(elementwise_split_case1, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=elementwise)
 
 
@@ -392,7 +395,7 @@ def test_split_with_predicate():
     sch.split(i, factors=[1000, 2, 3])
     sch.split(j, factors=[None, 129])
     sch.split(k, factors=[3, None])
-    tvm.ir.assert_structural_equal(elementwise_split_with_predicate, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(elementwise_split_with_predicate, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=elementwise)
 
 
@@ -429,7 +432,9 @@ def test_fuse_with_opaque_block():
     block_opaque = sch.get_block("opaque")
     i, j, k = sch.get_loops(block_opaque)
     sch.fuse(i, j, k)
-    tvm.ir.assert_structural_equal(elementwise_fuse_with_opaque_block, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(
+        elementwise_fuse_with_opaque_block, sch.mod["main"]
+    )
     verify_trace_roundtrip(sch=sch, mod=elementwise_with_opaque_block)
 
 
@@ -441,7 +446,7 @@ def test_fuse_with_opaque_access():
     block_b = sch.get_block("B")
     i, j = sch.get_loops(block_b)
     sch.fuse(i, j)
-    tvm.ir.assert_structural_equal(opaque_access_fused, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(opaque_access_fused, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=opaque_access)
 
 
@@ -450,7 +455,9 @@ def test_split_with_opaque_block():
     block_opaque = sch.get_block("opaque")
     i, _, _ = sch.get_loops(block_opaque)
     sch.split(i, factors=[None, 16])
-    tvm.ir.assert_structural_equal(elementwise_split_with_opaque_block, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(
+        elementwise_split_with_opaque_block, sch.mod["main"]
+    )
     verify_trace_roundtrip(sch=sch, mod=elementwise_with_opaque_block)
 
 
@@ -462,7 +469,7 @@ def test_split_with_opaque_access():
     block_b = sch.get_block("B")
     _, j = sch.get_loops(block_b)
     sch.split(j, factors=[None, 4])
-    tvm.ir.assert_structural_equal(opaque_access_split, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(opaque_access_split, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=opaque_access)
 
 
@@ -493,7 +500,7 @@ def test_fuse_symbolic():
     block_b = sch.get_block("B")
     i, j, k = sch.get_loops(block_b)
     sch.fuse(i, j, k)
-    tvm.ir.assert_structural_equal(elementwise_symbolic_fused, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(elementwise_symbolic_fused, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=elementwise_symbolic)
 
 
@@ -502,7 +509,7 @@ def test_split_symbolic():
     block_b = sch.get_block("B")
     _, _, k = sch.get_loops(block_b)
     sch.split(k, factors=[10, None])
-    tvm.ir.assert_structural_equal(elementwise_symbolic_split, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(elementwise_symbolic_split, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=elementwise_symbolic)
 
 
@@ -519,7 +526,7 @@ def test_fuse_not_affine():
     block_b = sch.get_block("B")
     _, j, k = sch.get_loops(block_b)
     sch.fuse(j, k)
-    tvm.ir.assert_structural_equal(elementwise_not_affine_fused, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(elementwise_not_affine_fused, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=elementwise_not_affine)
 
 
@@ -548,7 +555,7 @@ def test_add_unit_loop_above_block():
     sch = tir.Schedule(zero_dim, debug_mask="all")
     block = sch.get_block("C")
     sch.add_unit_loop(block)
-    tvm.ir.assert_structural_equal(zero_dim_added, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(zero_dim_added, sch.mod["main"])
 
 
 def test_add_unit_loop_above_loop():
@@ -578,7 +585,7 @@ def test_add_unit_loop_above_loop():
     block = sch.get_block("C")
     (loop,) = sch.get_loops(block)
     sch.add_unit_loop(loop)
-    tvm.ir.assert_structural_equal(zero_dim_added, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(zero_dim_added, sch.mod["main"])
 
 
 @pytest.mark.skip("Pending fix in affine analysis")
@@ -643,7 +650,7 @@ def test_split_int64_factors():
     block_b = sch.get_block("B")
     _, _, k = sch.get_loops(block_b)
     sch.split(k, factors=[IntImm(dtype="int64", value=10), None])
-    tvm.ir.assert_structural_equal(elementwise_symbolic_split, sch.mod["main"])
+    assert_structural_equal_ignore_global_symbol(elementwise_symbolic_split, sch.mod["main"])
 
 
 if __name__ == "__main__":

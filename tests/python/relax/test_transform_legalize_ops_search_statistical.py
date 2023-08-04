@@ -41,7 +41,7 @@ def test_where():
             gv = R.call_tir(Expected.where, (condition, x, y), R.Tensor((3, 2, 3), dtype="float32"))
             return gv
 
-        @T.prim_func
+        @T.prim_func(private=True)
         def where(rxplaceholder: T.Buffer((T.int64(3), T.int64(2), T.int64(1)), "bool"), rxplaceholder_1: T.Buffer((T.int64(2), T.int64(3)), "float32"), rxplaceholder_2: T.Buffer((T.int64(2), T.int64(1)), "float32"), T_where: T.Buffer((T.int64(3), T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tir.noalias": True})
             for i0, i1, i2 in T.grid(T.int64(3), T.int64(2), T.int64(3)):
@@ -78,7 +78,7 @@ def test_where_symbolic():
             gv = R.call_tir(Expected.where, (condition, x, y), R.Tensor((a, b, c), dtype="float32"))
             return gv
 
-        @T.prim_func
+        @T.prim_func(private=True)
         def where(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_rxplaceholder_2: T.handle, var_T_where: T.handle):
             T.func_attr({"tir.noalias": True})
             a = T.int64()
@@ -116,7 +116,7 @@ def test_argmax():
             gv = R.call_tir(Expected.argmax, (x,), out_sinfo=R.Tensor((2, 4, 5), dtype="int64"))
             return gv
 
-        @T.prim_func
+        @T.prim_func(private=True)
         def argmax(rxplaceholder: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), rxplaceholder_red: T.Buffer((T.int64(2), T.int64(4), T.int64(5)), "int64")):
             T.func_attr({"tir.noalias": True})
             rxplaceholder_red_temp_v0 = T.alloc_buffer((T.int64(2), T.int64(4), T.int64(5)), "int64")
@@ -167,7 +167,7 @@ def test_argmax_symbolic():
             gv = R.call_tir(Expected.argmax, (x,), out_sinfo=R.Tensor((a, 1, c, d), dtype="int64"))
             return gv
 
-        @T.prim_func
+        @T.prim_func(private=True)
         def argmax(var_rxplaceholder: T.handle, var_rxplaceholder_red: T.handle):
             T.func_attr({"tir.noalias": True})
             a = T.int64()
@@ -214,7 +214,7 @@ def test_argmin():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(private=True)
         def argmin(rxplaceholder: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), rxplaceholder_red: T.Buffer((), "int64")):
             T.func_attr({"tir.noalias": True})
             rxplaceholder_red_temp_v0 = T.alloc_buffer((), "int64")
@@ -258,7 +258,7 @@ def test_argmin_symbolic():
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(private=True)
         def argmin(var_rxplaceholder: T.handle, rxplaceholder_red: T.Buffer((T.int64(1), T.int64(1), T.int64(1), T.int64(1)), "int64")):
             T.func_attr({"tir.noalias": True})
             a = T.int64()
@@ -316,7 +316,7 @@ def test_max():
             gv = R.call_tir(Expected.max, (x,), R.Tensor((2, 5), dtype="float32"))
             return gv
 
-        @T.prim_func
+        @T.prim_func(private=True)
         def max(rxplaceholder: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), rxplaceholder_red: T.Buffer((T.int64(2), T.int64(5)), "float32")):
             T.func_attr({"tir.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(2), T.int64(5), T.int64(3), T.int64(4)):
@@ -353,7 +353,7 @@ def test_max_symbolic():
             gv = R.call_tir(Expected.max, (x,), R.Tensor((a, d), dtype="float32"))
             return gv
 
-        @T.prim_func
+        @T.prim_func(private=True)
         def max(var_rxplaceholder: T.handle, var_rxplaceholder_red: T.handle):
             T.func_attr({"tir.noalias": True})
             a = T.int64()
@@ -392,7 +392,7 @@ def test_min():
             gv = R.call_tir(Expected.min, (x,), R.Tensor((2, 1, 1, 5), dtype="float32"))
             return gv
 
-        @T.prim_func
+        @T.prim_func(private=True)
         def min(rxplaceholder: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), rxplaceholder_red: T.Buffer((T.int64(2), T.int64(1), T.int64(1), T.int64(5)), "float32")):
             T.func_attr({"tir.noalias": True})
             for i0, i1, i2, i3, i4, i5 in T.grid(T.int64(2), T.int64(1), T.int64(1), T.int64(5), T.int64(3), T.int64(4)):
@@ -429,7 +429,7 @@ def test_min_symbolic():
             gv = R.call_tir(Expected.min, (x,), R.Tensor((a, 1, 1, d), dtype="float32"))
             return gv
 
-        @T.prim_func
+        @T.prim_func(private=True)
         def min(var_rxplaceholder: T.handle, var_rxplaceholder_red: T.handle):
             T.func_attr({"tir.noalias": True})
             a = T.int64()
@@ -468,7 +468,7 @@ def test_sum():
             gv = R.call_tir(Expected.sum, (x,), R.Tensor((), dtype="float32"))
             return gv
 
-        @T.prim_func
+        @T.prim_func(private=True)
         def sum(rxplaceholder: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), rxplaceholder_red: T.Buffer((), "float32")):
             T.func_attr({"tir.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(2), T.int64(3), T.int64(4), T.int64(5)):
@@ -501,7 +501,7 @@ def test_sum_symbolic():
             gv = R.call_tir(Expected.sum, (x,), R.Tensor((), dtype="float32"))
             return gv
 
-        @T.prim_func
+        @T.prim_func(private=True)
         def sum(var_rxplaceholder: T.handle, rxplaceholder_red: T.Buffer((), "float32")):
             T.func_attr({"tir.noalias": True})
             a = T.int64()
@@ -539,7 +539,7 @@ def test_prod():
             gv = R.call_tir(Expected.prod, (x,), R.Tensor((1, 1, 1, 1), dtype="float32"))
             return gv
 
-        @T.prim_func
+        @T.prim_func(private=True)
         def prod(rxplaceholder: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), rxplaceholder_red: T.Buffer((T.int64(1), T.int64(1), T.int64(1), T.int64(1)), "float32")):
             T.func_attr({"tir.noalias": True})
             for i0, i1, i2, i3, i4, i5, i6, i7 in T.grid(T.int64(1), T.int64(1), T.int64(1), T.int64(1), T.int64(2), T.int64(3), T.int64(4), T.int64(5)):
@@ -572,7 +572,7 @@ def test_prod_symbolic():
             gv = R.call_tir(Expected.prod, (x,), R.Tensor((1, 1, 1, 1), dtype="float32"))
             return gv
 
-        @T.prim_func
+        @T.prim_func(private=True)
         def prod(var_rxplaceholder: T.handle, rxplaceholder_red: T.Buffer((T.int64(1), T.int64(1), T.int64(1), T.int64(1)), "float32")):
             T.func_attr({"tir.noalias": True})
             a = T.int64()
@@ -610,7 +610,7 @@ def test_mean():
             gv = R.call_tir(Expected.mean, (x,), R.Tensor((3, 4), dtype="float32"))
             return gv
 
-        @T.prim_func
+        @T.prim_func(private=True)
         def mean(rxplaceholder: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), T_divide: T.Buffer((T.int64(3), T.int64(4)), "float32")):
             T.func_attr({"tir.noalias": True})
             rxplaceholder_red = T.alloc_buffer([T.int64(3), T.int64(4)], dtype="float32")
@@ -654,7 +654,7 @@ def test_mean_symbolic():
             gv = R.call_tir(Expected.mean, (x,), R.Tensor((b, c), dtype="float32"))
             return gv
 
-        @T.prim_func
+        @T.prim_func(private=True)
         def mean(var_rxplaceholder: T.handle, var_T_divide: T.handle):
             T.func_attr({"tir.noalias": True})
             a = T.int64()
@@ -695,7 +695,7 @@ def test_std():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(private=True)
         def std(rxplaceholder: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), compute: T.Buffer((), "float32")):
             T.func_attr({"tir.noalias": True})
             # with T.block("root"):
@@ -772,7 +772,7 @@ def test_std_symbolic():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(private=True)
         def std(var_rxplaceholder: T.handle, compute: T.Buffer((), "float32")):
             T.func_attr({"tir.noalias": True})
             a, b, c, d = T.int64(), T.int64(), T.int64(), T.int64()
@@ -860,7 +860,7 @@ def test_variance():
             gv = R.call_tir(Expected.variance, (x,), R.Tensor((1, 3, 4, 1), dtype="float32"))
             return gv
 
-        @T.prim_func
+        @T.prim_func(private=True)
         def variance(rxplaceholder: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), T_divide: T.Buffer((T.int64(1), T.int64(3), T.int64(4), T.int64(1)), "float32")):
             T.func_attr({"tir.noalias": True})
             rxplaceholder_red = T.alloc_buffer([T.int64(1), T.int64(3), T.int64(4), T.int64(1)], dtype="float32")
@@ -934,7 +934,7 @@ def test_variance_symbolic():
             gv = R.call_tir(Expected.variance, (x,), R.Tensor((1, b, c, 1), dtype="float32"))
             return gv
 
-        @T.prim_func
+        @T.prim_func(private=True)
         def variance(var_rxplaceholder: T.handle, var_T_divide: T.handle):
             T.func_attr({"tir.noalias": True})
             a = T.int64()
@@ -1005,7 +1005,7 @@ def test_variance_no_keepdims():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(private=True)
         def variance(rxplaceholder: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), T_divide: T.Buffer((T.int64(3), T.int64(4)), "float32")):
             T.func_attr({"tir.noalias": True})
             # with T.block("root"):
@@ -1077,7 +1077,7 @@ def test_cumsum():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(private=True)
         def cumsum(var_rxplaceholder: T.handle, out_buf: T.Buffer((T.int64(3), T.int64(2), T.int64(3)), "int32")):
             T.func_attr({"tir.noalias": True})
             rxplaceholder = T.match_buffer(var_rxplaceholder, (T.int64(3), T.int64(2), T.int64(3)), offset_factor=1)
@@ -1111,7 +1111,7 @@ def test_cumsum_symbolic():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(private=True)
         def cumsum(var_rxplaceholder: T.handle, var_cumsum_generic: T.handle):
             T.func_attr({"tir.noalias": True})
             a, b, c = T.int64(), T.int64(), T.int64()

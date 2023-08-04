@@ -103,6 +103,12 @@ def get_lib_path():
                                 candidate_path, "cutlass_fpA_intB_gemm", "cutlass", "media"
                             )
                         )
+                        _remove_path(
+                            os.path.join(candidate_path, "libflash_attn", "cutlass", "docs")
+                        )
+                        _remove_path(
+                            os.path.join(candidate_path, "libflash_attn", "cutlass", "media")
+                        )
                     break
     else:
         libs = None
