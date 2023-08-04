@@ -537,5 +537,54 @@ def test_convert_follow_node_with_integer_arguments(target_precision):
     assert tvm.ir.structural_equal(expected_mod, output_mod)
 
 
+def test_clip(target_precision):
+    data = relay.var("data", shape=[1, 10], dtype="float32")
+    res = relay.clip(data, a_min=-128000, a_max=128000)
+
+    mod = tvm.IRModule.from_expr(res)
+
+    mod_params = {
+        "data": np.random.uniform(-1, 1, size=[1, 10]).astype("float32"),
+    }
+    output_mod = verify_mixed_precision_output_close(
+        mod, mod_params, mixed_precision_dtype=target_precision, atol=0.01, rtol=0.01
+    )
+
+    # Create expected module
+    if target_precision == "bfloat16":
+        data = relay.cast(relay.var("data", shape=[1, 10]), target_precision)
+    res = relay.clip(data, a_min=-128000, a_max=128000)
+    expected_mod = tvm.IRModule.from_expr(res)
+    expected_mod = InferType()(expected_mod)
+    assert tvm.ir.structural_equal(expected_mod, output_mod)
+
+
+def test_clip_with_pre_op(target_precision):
+    data = relay.var("data", shape=[1, 10], dtype="float32")
+    const = relay.const(5, "float32")
+    res = relay.divide(data, const)
+    res = relay.clip(res, a_min=-128000, a_max=128000)
+
+    mod = tvm.IRModule.from_expr(res)
+
+    mod_params = {
+        "data": np.random.uniform(-1, 1, size=[1, 10]).astype("float32"),
+    }
+    output_mod = verify_mixed_precision_output_close(
+        mod, mod_params, mixed_precision_dtype=target_precision, atol=0.01, rtol=0.01
+    )
+
+    # Create expected module
+    data = relay.cast(relay.var("data", shape=[1, 10]), target_precision)
+    const = relay.cast(relay.const(5, "float32"), target_precision)
+    res = relay.divide(data, const)
+    if target_precision == "float16":
+        res = relay.cast(res, "float32")
+    res = relay.clip(res, a_min=-128000, a_max=128000)
+    expected_mod = tvm.IRModule.from_expr(res)
+    expected_mod = InferType()(expected_mod)
+    assert tvm.ir.structural_equal(expected_mod, output_mod)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
