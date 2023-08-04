@@ -751,14 +751,14 @@ def instantiate_template(func_name, annotations, func_args):
             and int(attrs["head_dim"]) <= 256
             and int(attrs["head_dim"]) % 8 == 0
             and int(attrs["head_dim"]) == int(attrs["head_dim_value"])
-            # for now only support non-causal cases, see
-            # https://github.com/Dao-AILab/flash-attention/issues/282
+            # We have not thoroughly validated flash with causal mask yet, so for now we support
+            # only non-causal cases.
             and int(annotations["custom_mask_type"]) == 0
         )
 
         if use_flash:
             headers.append("flash.h")
-            attrs["is_causal"] = int(annotations["custom_mask_type"]) == 2
+            attrs["is_causal"] = int(annotations["custom_mask_type"]) == 0
             code = instantiate_flash_attention_template(attrs)
         else:
             headers.append("kernel_forward.h")
