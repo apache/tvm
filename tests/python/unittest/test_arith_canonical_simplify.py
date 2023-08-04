@@ -459,6 +459,7 @@ def test_simplify_le():
         x1 * 5632 + (((x2 * 8 + ty) * 32 + tx) * 8 + vec) % 5632 < 11008,
         x1 * 22 + (x2 * 8 + ty) % 22 < 43,
     )
+    ck.verify(tx // 2 % 8 + vec < 8, tx % 16 // 2 + vec < 8)
 
 
 if __name__ == "__main__":

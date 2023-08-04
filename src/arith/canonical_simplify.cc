@@ -1416,17 +1416,19 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const LTNode* op) {
     DataType dtype = divisible->dtype;
     ICHECK(extra->dtype == dtype);
     PrimExpr normal_extra = extra->Normalize();
-    // Case 1. -d < xn < d
     if (this->analyzer_->CanProve(normal_extra < make_const(dtype, gcd)) &&
         this->analyzer_->CanProve(normal_extra > make_const(dtype, -gcd))) {
+      // Case 1. -d < xn < d
       divisible.CopyOnWrite()->DivideBy(gcd);
       return Rewriter::VisitExpr(divisible->Normalize() < make_zero(dtype));
-    // Case 2. xn == yn % m, where m % d == 0
-    } else if (extra->args.size() == 1 && extra->args[0]->upper_factor % gcd == 0) {
+    } else if (extra->args.size() == 1 &&
+               extra->args[0]->upper_factor % (gcd * extra->args[0]->lower_factor) == 0) {
+      // Case 2. xn == yn % m, where m % d == 0
       divisible.CopyOnWrite()->DivideBy(gcd);
       const auto split_expr = extra->args[0];
-      PrimExpr extra_expr =
-          floormod(floordiv(split_expr->index, gcd), floordiv(split_expr->upper_factor, gcd));
+      int64_t lower_factor = gcd * extra->args[0]->lower_factor;
+      PrimExpr extra_expr = floormod(floordiv(split_expr->index, lower_factor),
+                                     floordiv(split_expr->upper_factor, lower_factor));
       return Rewriter::VisitExpr(divisible->Normalize() + extra_expr < make_zero(dtype));
     }
   }
