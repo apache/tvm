@@ -21,6 +21,7 @@
  * \file src/target/target.cc
  */
 #include <dmlc/thread_local.h>
+#include <tvm/ir/transform.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/registry.h>
@@ -28,7 +29,6 @@
 #include <tvm/target/target.h>
 #include <tvm/target/target_kind.h>
 #include <tvm/tir/expr.h>
-#include <tvm/ir/transform.h>
 
 #include <algorithm>
 #include <cctype>
@@ -91,18 +91,6 @@ void CheckAndUpdateHostConsistency(Target* target, Target* host) {
   *target = Target(*target, *host);
   *host = (*target)->GetHost().value_or(Target());
 }
-
-/*
-void CheckAndUpdateHostConsistency(Map<Target, tvm::IRModule>* targets, Target* host) {
-  Map<Target, IRModule> new_targets;
-  for (auto& it : *targets) {
-    auto target = it.first;
-    CheckAndUpdateHostConsistency(&target, host);
-    new_targets.Set(target, it.second);
-  }
-  *targets = new_targets;
-}
-*/
 
 static std::vector<String> DeduplicateKeys(const std::vector<String>& keys) {
   std::vector<String> new_keys;
