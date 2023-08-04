@@ -219,19 +219,23 @@ class GEMV(ScheduleRule):
         else:
             len_ty = min(len_s, 4)
 
+        # Use `split_k` to prevent too large shared memory usage
+        split_k: int = 4
+
         _, tx = sch.split(r, [None, len_tx], preserve_unit_iters=True)
         # Schedule the RF block
         rf = sch.rfactor(tx, 0)
         batch, bx, r, tx, _ = sch.get_loops(rf)
         sch.reorder(bx, tx, r)
+        ro, ri = sch.split(r, [split_k, None], preserve_unit_iters=True)
         bx, ty = sch.split(bx, [None, len_ty], preserve_unit_iters=True)
+
         sch.bind(batch, "blockIdx.y")
         sch.bind(bx, "blockIdx.x")
         sch.bind(ty, "threadIdx.y")
         sch.bind(tx, "threadIdx.x")
-        unit = sch.add_unit_loop(r)
-        sch.annotate(unit, "pragma_auto_unroll_max_step", unroll_number)
-        sch.annotate(unit, "pragma_unroll_explicit", 1)
+        sch.annotate(ro, "pragma_auto_unroll_max_step", unroll_number)
+        sch.annotate(ro, "pragma_unroll_explicit", 1)
 
         if target.kind.name == "cuda":
             # Cache read the vector
@@ -239,7 +243,7 @@ class GEMV(ScheduleRule):
                 block: tir.Block = sch.get(rf)
                 type_bytes: int = get_bytes(block.reads[index].buffer.dtype)
                 cache = sch.cache_read(rf, index, "shared")
-                sch.compute_at(cache, unit, preserve_unit_loops=True)
+                sch.compute_at(cache, ro, preserve_unit_loops=True)
                 fused = sch.fuse(*sch.get_loops(cache)[5:])
                 loop: tir.For = sch.get(fused)
                 vec_length = vec_bytes // type_bytes
@@ -256,7 +260,7 @@ class GEMV(ScheduleRule):
                 type_bytes: int = get_bytes(block.reads[index].buffer.dtype)
                 vec_length = vec_bytes // type_bytes
                 cache = sch.cache_read(rf, index, "local")
-                sch.compute_at(cache, r, preserve_unit_loops=True)
+                sch.compute_at(cache, ri, preserve_unit_loops=True)
                 fused = sch.fuse(*sch.get_loops(cache)[6:])
                 loop: tir.For = sch.get(fused)
                 if isinstance(loop.extent, tir.IntImm) and loop.extent.value % vec_length == 0:
@@ -273,7 +277,7 @@ class GEMV(ScheduleRule):
             # TODO: cache scale buffer in Decode-GEMV to shared memory
 
         sch.set_scope(rf, 0, "local")
-        sch.decompose_reduction(rf, r)
+        sch.decompose_reduction(rf, ro)
         # Schedule the write back block
         sch.reverse_compute_at(block, ty, preserve_unit_loops=True)
         _, _, _, tx, *s = sch.get_loops(block)
