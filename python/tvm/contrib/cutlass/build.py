@@ -43,13 +43,14 @@ def has_cutlass():
 
 
 def _get_cutlass_path():
-    tvm_root = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../../../")
-    cutlass_path = os.path.join(tvm_root, "3rdparty/cutlass")
-    assert os.path.exists(cutlass_path), (
-        f"The CUTLASS root directory not found in {cutlass_path}. Currently, using CUTLASS "
-        f"requires building TVM from source."
-    )
-    return cutlass_path
+    invalid_paths = []
+    for rel in ["../../../../", "../../../", "../../"]:
+        tvm_root = os.path.join(os.path.dirname(os.path.realpath(__file__)), rel)
+        cutlass_path = os.path.join(tvm_root, "3rdparty/cutlass")
+        if os.path.exists(cutlass_path):
+            return cutlass_path
+        invalid_paths.append(cutlass_path)
+    raise AssertionError(f"The CUTLASS root directory not found in: {invalid_paths}")
 
 
 def _get_cutlass_compile_options(sm, threads, use_fast_math=False):
