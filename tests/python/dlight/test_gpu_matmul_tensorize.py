@@ -60,13 +60,13 @@ class TestMatmulTensorize(BaseBeforeAfter):
         W_reindex_shared_dyn_wmma_matrix_b = T.alloc_buffer((1, 256, 256), "float16", scope="wmma.matrix_b")
         compute_reindex_shared_dyn = T.alloc_buffer((1, 256, 256), "float16", scope="shared.dyn")
         compute_reindex_shared_dyn_wmma_accumulator = T.alloc_buffer((1, 256, 256), "float16", scope="wmma.accumulator")
-        for ax0 in T.thread_binding(T.int64(1), thread="blockIdx.z"):
+        for ax0 in T.thread_binding(1, thread="blockIdx.z"):
             for ax1_0_0_ax2_0_0_fused in T.thread_binding(2, thread="blockIdx.x"):
                 for ax1_0_1_ax2_0_1_fused in T.thread_binding(2, thread="blockIdx.y"):
                     for ax2_0_2_ax1_0_2_fused in T.thread_binding(16, thread="threadIdx.y"):
                         for ax1_0_3_init, ax2_0_3_init in T.grid(2, 2):
                             with T.block("compute_o_init"):
-                                v0_o = T.axis.spatial(T.int64(1), ax0)
+                                v0_o = T.axis.spatial(1, ax0)
                                 v1_o = T.axis.spatial(16, ax1_0_0_ax2_0_0_fused * 8 + ax2_0_2_ax1_0_2_fused % 4 * 2 + ax1_0_3_init)
                                 v2_o = T.axis.spatial(16, ax1_0_1_ax2_0_1_fused * 8 + ax2_0_2_ax1_0_2_fused // 4 * 2 + ax2_0_3_init)
                                 T.reads()
@@ -128,7 +128,7 @@ class TestMatmulTensorize(BaseBeforeAfter):
                                             T.tvm_load_matrix_sync(C.data, 16, 16, 16, C.elem_offset // C.strides[0] // 16 * (C.strides[0] // 16) + C.elem_offset % C.strides[0] // 16, T.tvm_access_ptr(T.type_annotation("float16"), A.data, A.elem_offset, A.strides[0] * 16, 1), A.strides[0], "col_major")
                                 for ax1_0_3, ax2_0_3 in T.grid(2, 2):
                                     with T.block("compute_o_update"):
-                                        v0_o = T.axis.spatial(T.int64(1), ax0)
+                                        v0_o = T.axis.spatial(1, ax0)
                                         v1_o = T.axis.spatial(16, ax1_0_0_ax2_0_0_fused * 8 + ax2_0_2_ax1_0_2_fused % 4 * 2 + ax1_0_3)
                                         v2_o = T.axis.spatial(16, ax1_0_1_ax2_0_1_fused * 8 + ax2_0_2_ax1_0_2_fused // 4 * 2 + ax2_0_3)
                                         v3_o = T.axis.reduce(16, ax3_0_0 * 4 + ax3_0_1)
@@ -195,11 +195,11 @@ class TestMatmulTensorizeTooSmall(BaseBeforeAfter):
         X = T.match_buffer(var_X, (m, 256), "float16")
         compute = T.match_buffer(var_compute, (m, 15))
         # with T.block("root"):
-        compute_reindex_pad_local = T.alloc_buffer((1, (T.Cast("int32", T.Cast("int64", m)) + 31) // 32 * 32, 64), scope="local")
-        X_reindex_pad_shared = T.alloc_buffer((1, (T.Cast("int32", T.Cast("int64", m)) + 31) // 32 * 32, 256), "float16", scope="shared")
+        compute_reindex_pad_local = T.alloc_buffer((1, (m + 31) // 32 * 32, 64), scope="local")
+        X_reindex_pad_shared = T.alloc_buffer((1, (m + 31) // 32 * 32, 256), "float16", scope="shared")
         W_reindex_pad_shared = T.alloc_buffer((1, 64, 256), "float16", scope="shared")
-        for ax0_ax2_0_fused in T.thread_binding(T.int64(1), thread="blockIdx.y"):
-            for ax1_0 in T.thread_binding((T.Cast("int32", T.Cast("int64", m)) + 31) // 32, thread="blockIdx.x"):
+        for ax0_ax2_0_fused in T.thread_binding(1, thread="blockIdx.y"):
+            for ax1_0 in T.thread_binding((m + 31) // 32, thread="blockIdx.x"):
                 for ax2_1 in T.thread_binding(1, thread="vthread.y"):
                     for ax1_1 in T.thread_binding(1, thread="vthread.x"):
                         for ax2_2 in T.thread_binding(16, thread="threadIdx.y"):
@@ -207,8 +207,8 @@ class TestMatmulTensorizeTooSmall(BaseBeforeAfter):
                                 for ax2_3_init, ax1_3_0_init in T.grid(4, 2):
                                     for ax1_3_1_init in T.vectorized(2):
                                         with T.block("compute_init"):
-                                            v0 = T.axis.spatial(T.int64(1), T.int64(0))
-                                            v1 = T.axis.spatial((T.Cast("int32", T.Cast("int64", m)) + 31) // 32 * 32, ax1_0 * 32 + ax1_1 * 32 + ax1_2 * 4 + ax1_3_0_init * 2 + ax1_3_1_init)
+                                            v0 = T.axis.spatial(1, 0)
+                                            v1 = T.axis.spatial((m + 31) // 32 * 32, ax1_0 * 32 + ax1_1 * 32 + ax1_2 * 4 + ax1_3_0_init * 2 + ax1_3_1_init)
                                             v2 = T.axis.spatial(64, ax2_1 * 64 + ax2_2 * 4 + ax2_3_init)
                                             T.reads()
                                             T.writes(compute_reindex_pad_local[0, v1, v2])
@@ -220,7 +220,7 @@ class TestMatmulTensorizeTooSmall(BaseBeforeAfter):
                                                 for ax0_ax1_ax2_fused_3 in T.vectorized(2):
                                                     with T.block("X_reindex_pad_shared"):
                                                         v0 = T.axis.spatial(1, 0)
-                                                        v1 = T.axis.spatial((T.Cast("int32", T.Cast("int64", m)) + 31) // 32 * 32, ax1_0 * 32 + (ax0_ax1_ax2_fused_0 * 32 + ax0_ax1_ax2_fused_1 * 4 + ax0_ax1_ax2_fused_2 * 2 + ax0_ax1_ax2_fused_3) // 16)
+                                                        v1 = T.axis.spatial((m + 31) // 32 * 32, ax1_0 * 32 + (ax0_ax1_ax2_fused_0 * 32 + ax0_ax1_ax2_fused_1 * 4 + ax0_ax1_ax2_fused_2 * 2 + ax0_ax1_ax2_fused_3) // 16)
                                                         v2 = T.axis.spatial(256, ax3_0 * 16 + (ax0_ax1_ax2_fused_0 * 32 + ax0_ax1_ax2_fused_1 * 4 + ax0_ax1_ax2_fused_2 * 2 + ax0_ax1_ax2_fused_3) % 16)
                                                         T.reads(X[v1, v2])
                                                         T.writes(X_reindex_pad_shared[v0, v1, v2])
@@ -241,8 +241,8 @@ class TestMatmulTensorizeTooSmall(BaseBeforeAfter):
                                     for ax3_1, ax2_3, ax1_3_0 in T.grid(16, 4, 2):
                                         for ax1_3_1 in T.vectorized(2):
                                             with T.block("compute_update"):
-                                                v0 = T.axis.spatial(T.int64(1), T.int64(0))
-                                                v1 = T.axis.spatial((T.Cast("int32", T.Cast("int64", m)) + 31) // 32 * 32, ax1_0 * 32 + ax1_1 * 32 + ax1_2 * 4 + ax1_3_0 * 2 + ax1_3_1)
+                                                v0 = T.axis.spatial(1, 0)
+                                                v1 = T.axis.spatial((m + 31) // 32 * 32, ax1_0 * 32 + ax1_1 * 32 + ax1_2 * 4 + ax1_3_0 * 2 + ax1_3_1)
                                                 v2 = T.axis.spatial(64, ax2_1 * 64 + ax2_2 * 4 + ax2_3)
                                                 v3 = T.axis.reduce(256, ax3_0 * 16 + ax3_1)
                                                 T.reads(compute_reindex_pad_local[0, v1, v2], X_reindex_pad_shared[0, v1, v3], W_reindex_pad_shared[0, v2, v3])
@@ -252,7 +252,7 @@ class TestMatmulTensorizeTooSmall(BaseBeforeAfter):
                                     for ax2_1_1 in T.vectorized(2):
                                         with T.block("compute_reindex_pad_local"):
                                             v0 = T.axis.spatial(1, ax0)
-                                            v1 = T.axis.spatial((T.Cast("int32", T.Cast("int64", m)) + 31) // 32 * 32, ax1_0 * 32 + ax1_2 * 4 + ax1)
+                                            v1 = T.axis.spatial((m + 31) // 32 * 32, ax1_0 * 32 + ax1_2 * 4 + ax1)
                                             v2 = T.axis.spatial(64, ax2_2 * 4 + ax2_0 * 2 + ax2_1_1)
                                             T.reads(compute_reindex_pad_local[v0, v1, v2])
                                             T.writes(compute[v1, v2])
