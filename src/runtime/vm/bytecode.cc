@@ -115,7 +115,15 @@ Instruction::Instruction(const Instruction& instr) {
       this->pc_offset = instr.pc_offset;
       return;
     case Opcode::AllocStorage:
-      this->alloc_storage = instr.alloc_storage;
+      this->alloc_storage.allocation_size = instr.alloc_storage.allocation_size;
+      this->alloc_storage.alignment = instr.alloc_storage.alignment;
+      this->alloc_storage.dtype_hint = instr.alloc_storage.dtype_hint;
+      this->alloc_storage.device_index = instr.alloc_storage.device_index;
+      this->alloc_storage.ndim = instr.alloc_storage.ndim;
+      if (this->alloc_storage.ndim > 0) {
+        this->alloc_storage.shape =
+            Duplicate<int64_t>(instr.alloc_storage.shape, instr.alloc_storage.ndim);
+      }
       return;
     case Opcode::ShapeOf:
       this->shape_of.tensor = instr.shape_of.tensor;
@@ -221,7 +229,15 @@ Instruction& Instruction::operator=(const Instruction& instr) {
       this->pc_offset = instr.pc_offset;
       return *this;
     case Opcode::AllocStorage:
-      this->alloc_storage = instr.alloc_storage;
+      this->alloc_storage.allocation_size = instr.alloc_storage.allocation_size;
+      this->alloc_storage.alignment = instr.alloc_storage.alignment;
+      this->alloc_storage.dtype_hint = instr.alloc_storage.dtype_hint;
+      this->alloc_storage.device_index = instr.alloc_storage.device_index;
+      this->alloc_storage.ndim = instr.alloc_storage.ndim;
+      if (this->alloc_storage.ndim > 0) {
+        this->alloc_storage.shape =
+            Duplicate<int64_t>(instr.alloc_storage.shape, instr.alloc_storage.ndim);
+      }
       return *this;
     case Opcode::ShapeOf:
       this->shape_of.tensor = instr.shape_of.tensor;
