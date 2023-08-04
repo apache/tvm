@@ -414,6 +414,7 @@ def _register_subscription_handling():
                 ctx=from_doc(x.ctx),
             )
         elif isinstance(x.slice, doc.Tuple):
+
             def remap_dim(doc_item: doc.Expr) -> ast.Expr:
                 ast_item = from_doc(doc_item)
                 if isinstance(ast_item, (ast.Index, ast.Slice)):
