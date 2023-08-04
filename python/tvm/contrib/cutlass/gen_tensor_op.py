@@ -754,6 +754,8 @@ def instantiate_template(func_name, annotations, func_args):
             # We have not thoroughly validated flash with causal mask yet, so for now we support
             # only non-causal cases.
             and int(annotations["custom_mask_type"]) == 0
+            # Flash v2 is currently not supported for sm < 80
+            and int(annotations["arch"]) >= 80
         )
 
         if use_flash:
