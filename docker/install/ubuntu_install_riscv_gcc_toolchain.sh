@@ -32,31 +32,29 @@ if [ "$#" -lt 1 -o "$1" == "--help" -o "$1" == "-h" ]; then
     exit 1
 fi
 
+RISCV_TOOLCHAIN_VERSION="2023.07.07"
+SPIKE_VERSION="v1.1.0"
+TMPDIR=$(mktemp -d)
 INSTALLATION_PATH=$1
+export PATH=$INSTALLATION_PATH/bin:$PATH
 shift
+
+# Install the packages required to build the toolchain
+sudo apt-install-and-clear -y --no-install-recommends device-tree-compiler autoconf automake autotools-dev curl libmpc-dev libmpfr-dev libgmp-dev gawk build-essential bison flex texinfo gperf libtool patchutils bc zlib1g-dev libexpat-dev ninja-build git libglib2.0-dev
 
 # Create installation path directory
 mkdir -p "${INSTALLATION_PATH}"
 
-# Download and extract RISC-V gcc
-TMPDIR=$(mktemp -d)
-RISCV_GCC_EXT="tar.gz"
-RLS_TAG="2023.07.07"
-RISCV_GCC_URL="https://github.com/riscv-collab/riscv-gnu-toolchain/releases/download/${RLS_TAG}/riscv64-glibc-ubuntu-22.04-gcc-nightly-${RLS_TAG}-nightly.${RISCV_GCC_EXT}"
-
-DOWNLOAD_PATH="$TMPDIR/${RLS_TAG}.${RISCV_GCC_EXT}"
-
-wget ${RISCV_GCC_URL} -O "${DOWNLOAD_PATH}"
-tar -xf "${DOWNLOAD_PATH}" -C "${INSTALLATION_PATH}" --strip-components=1
-
-export PATH=$INSTALLATION_PATH/bin:$PATH
-
-sudo apt-install-and-clear -y --no-install-recommends device-tree-compiler
+# Install RISC-V GNU toolchain
+cd $TMPDIR
+git clone https://github.com/riscv/riscv-gnu-toolchain -b $RISCV_TOOLCHAIN_VERSION
+pushd riscv-gnu-toolchain
+./configure --prefix=$INSTALLATION_PATH --enable-multilib
+make linux
+popd
 
 # Install spike
-mkdir $TMPDIR/spike
-cd $TMPDIR/spike
-git clone https://github.com/riscv/riscv-isa-sim.git
+git clone https://github.com/riscv/riscv-isa-sim.git -b $SPIKE_VERSION
 pushd riscv-isa-sim
 mkdir build
 cd build
@@ -68,12 +66,23 @@ popd
 # Install pk
 git clone https://github.com/riscv/riscv-pk.git
 pushd riscv-pk
+
+# rv32gc
 mkdir build
 pushd build
-../configure --prefix=`pwd`/install --host=riscv64-unknown-linux-gnu
+../configure --prefix=`pwd`/install --host=riscv64-unknown-linux-gnu --with-arch=rv32gc
 make -j`nproc`
 make install
-cp ./pk $INSTALLATION_PATH/bin/pk
+cp ./pk $INSTALLATION_PATH/riscv64-unknown-linux-gnu/bin/pk
+popd
+
+# rv64gc
+mkdir build64
+pushd build64
+../configure --prefix=`pwd`/install --host=riscv64-unknown-linux-gnu --with-arch=rv64gc
+make -j`nproc`
+make install
+cp ./pk $INSTALLATION_PATH/riscv64-unknown-linux-gnu/bin/pk64
 
 # cleanup
 rm -rf $TMPDIR
