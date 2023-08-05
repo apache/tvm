@@ -292,5 +292,21 @@ def test_tir_starred_for_loop():
     tvm.ir.assert_structural_equal(starred, non_starred)
 
 
+def test_tir_empty_tuple_index():
+    @T.macro
+    def bar(val):
+        T.evaluate(val)
+
+    @T.prim_func(private=True)
+    def func_with_empty_tuple(A: T.Buffer((), "int32"), B: T.Buffer((), "int32")):
+        bar(val=A[()])
+
+    @T.prim_func(private=True)
+    def expected(A: T.Buffer((), "int32"), B: T.Buffer((), "int32")):
+        T.evaluate(A[()])
+
+    tvm.ir.assert_structural_equal(func_with_empty_tuple, expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
