@@ -65,13 +65,16 @@ class ModuleSerializer {
  public:
   explicit ModuleSerializer(runtime::Module mod) : mod_(mod) { Init(); }
 
-  void SerializeModuleToBytes(dmlc::Stream* stream) {
+  void SerializeModuleToBytes(dmlc::Stream* stream, bool export_dso) {
     // Only have one DSO module and it is in the root, then
     // we will not produce import_tree_.
     bool has_import_tree = true;
-    if (mod_->IsDSOExportable() && mod_->imports().empty()) {
-      has_import_tree = false;
+
+    if (mod_->IsDSOExportable()) {
+      ICHECK(export_dso) << "`export_dso` should be enabled for DSOExportable modules";
+      has_import_tree = !mod_->imports().empty();
     }
+
     uint64_t sz = 0;
     if (has_import_tree) {
       // we will append one key for _import_tree
@@ -91,6 +94,7 @@ class ModuleSerializer {
         stream->Write(mod_type_key);
         group[0]->SaveToBinary(stream);
       } else if (group[0]->IsDSOExportable()) {
+        ICHECK(export_dso) << "`export_dso` should be enabled for DSOExportable modules";
         // DSOExportable: do not need binary
         if (has_import_tree) {
           std::string mod_type_key = "_lib";
@@ -235,15 +239,17 @@ class ModuleSerializer {
  * \brief Serialize runtime module including
  *
  * \param mod The runtime module to serialize including its import tree.
+ * \param export_mode By default, allow export of DSOExportable modules. If disabled, an error will
+ * be reaised when encountering DSO.
  */
 namespace {
-std::string SerializeModuleToBytes(const runtime::Module& mod) {
+std::string SerializeModuleToBytes(const runtime::Module& mod, bool export_dso = true) {
   std::string bin;
   dmlc::MemoryStringStream ms(&bin);
   dmlc::Stream* stream = &ms;
 
   ModuleSerializer module_serializer(mod);
-  module_serializer.SerializeModuleToBytes(stream);
+  module_serializer.SerializeModuleToBytes(stream, export_dso);
 
   return bin;
 }
@@ -350,11 +356,11 @@ std::string SerializeModuleToBase64(tvm::runtime::Module module) {
   return (*f_to_str)(module);
 }
 
-tvm::runtime::Module DeserializeModuleFromBase64(std::string state) {
-  auto length = tvm::support::b64strlen(state);
+tvm::runtime::Module DeserializeModuleFromBase64(std::string base64str) {
+  auto length = tvm::support::b64strlen(base64str);
 
   std::vector<u_char> bytes(length);  // bytes stream
-  tvm::support::b64decode(state, bytes.data());
+  tvm::support::b64decode(base64str, bytes.data());
   const std::string name = tmpnam(NULL);
   auto file_name = name + ".so";
   std::unique_ptr<FILE, Deleter> pFile(fopen(file_name.c_str(), "wb"), Deleter(file_name));
