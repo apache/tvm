@@ -76,13 +76,13 @@ class cuDNNJSONRuntime : public JSONRuntimeBase {
         auto kernel_shapes = kernel_node.GetOpShape()[0];
         auto output_shapes = node.GetOpShape()[0];
         for (const auto& _i : input_shapes) {
-          input_dims.emplace_back((int)_i);
+          input_dims.emplace_back(static_cast<int>(_i));
         }
         for (const auto& _i : kernel_shapes) {
-          kernel_dims.emplace_back((int)_i);
+          kernel_dims.emplace_back(static_cast<int>(_i));
         }
         for (const auto& _i : output_shapes) {
-          output_dims.emplace_back((int)_i);
+          output_dims.emplace_back(static_cast<int>(_i));
         }
         has_bias = attr_in_name(op_name, "bias");
         groups = std::stoi(node.GetAttr<std::vector<std::string>>("groups")[0]);
