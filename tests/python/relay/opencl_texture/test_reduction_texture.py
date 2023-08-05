@@ -177,5 +177,23 @@ def test_max_global_pooling_block4(remote, target, dtype):
     build_run_compare(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
 
 
+@tvm.testing.requires_opencl
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+def test_sum_cast(remote, target, dtype):
+    shape = (10,)
+    A = relay.var("A", shape=shape)
+    w = relay.op.sum(A)
+    w = relay.cast(w, "int32")
+    mod = relay.Function([A], w)
+
+    shape_dict = {
+        "A": shape,
+    }
+    dtype_dict = {
+        "A": dtype,
+    }
+    build_run_compare(remote, mod, {}, shape_dict, dtype_dict, target)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

@@ -534,6 +534,22 @@ def clip(x: Expr, min: Expr, max: Expr) -> Expr:
     return _ffi_api.clip(x, min, max)  # type: ignore
 
 
+def erf(x: Expr) -> Expr:
+    """Computes the error function of the input.
+
+    Parameters
+    ----------
+    x : relax.Expr
+        The input data
+
+    Returns
+    -------
+    result : relax.Expr
+        Computed error function for each element.
+    """
+    return _ffi_api.erf(x)  # type: ignore
+
+
 ###################### Check operators ######################
 
 

@@ -174,15 +174,15 @@ def test_sanitize(input_names, expected_names):
         assert param.name_hint == expected_names[i]
 
 
-def verify_unary(op_name, shape, attrs={}, domain=None):
+def verify_unary(op_name, shape, attrs={}, domain=None, dtype=TensorProto.FLOAT):
     test_node = helper.make_node(op_name, ["x"], ["y"], **attrs, domain=domain)
     graph = helper.make_graph(
         [test_node],
         "elemwise_test",
         inputs=[
-            helper.make_tensor_value_info("x", TensorProto.FLOAT, shape),
+            helper.make_tensor_value_info("x", dtype, shape),
         ],
-        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, shape)],
+        outputs=[helper.make_tensor_value_info("y", dtype, shape)],
     )
 
     model = helper.make_model(graph, producer_name="elemwise_test")
@@ -333,8 +333,8 @@ def test_gather():
     _verify_gather([3, 3], [[0, 2]], [3, 1, 2], 1)
 
 
-@pytest.mark.parametrize("alpha", [None, 0.25])
-@pytest.mark.parametrize("beta", [None, 0.35])
+@pytest.mark.parametrize("alpha", [None, 0.25, 1.0])
+@pytest.mark.parametrize("beta", [None, 0.35, 1.0])
 @pytest.mark.parametrize("useC", [False, True])
 def test_gemm(alpha, beta, useC):
     if useC:
@@ -562,7 +562,8 @@ def test_pow():
 
 
 def test_erf():
-    verify_unary("Erf", [32, 32])
+    verify_unary("Erf", [32, 32], dtype=TensorProto.FLOAT)
+    verify_unary("Erf", [32, 32], dtype=TensorProto.FLOAT16)
 
 
 @pytest.mark.parametrize("reverse", [False])

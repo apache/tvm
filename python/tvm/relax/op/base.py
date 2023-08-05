@@ -170,6 +170,78 @@ def call_tir_with_grad(
 
 
 @args_converter.auto
+def call_tir_inplace(
+    gvar: GlobalVar,
+    args: Expr,
+    inplace_indices: Union[int, List[int]],
+    out_sinfo: Union[TensorStructInfo, List[TensorStructInfo]],
+    tir_vars: Optional[Union[ShapeExpr, Tuple[PrimExpr], List[PrimExpr]]] = None,
+) -> Call:
+    """
+    Call a TIR PrimFunc and return the result, doing the specified computations in-place
+    (based on the `inplace_indices` argument; outputs will alias the inputs
+    selected by in-place indices).
+
+    Warning: This operator is considered pure by the type system but actually mutates
+    the arguments specified by `inplace_indices`. This operator should not be used directly,
+    but rather should be inserted by passes that have checked whether it is safe to perform
+    operations in-place (i.e., none of the arguments specified as an output is aliased or is
+    live after calling call_tir_inplace).
+
+    Direct calls to this operator should be done for testing purposes only.
+
+    Parameters
+    ----------
+    gvar : GlobalVar
+        The GlobalVar referring to a TIR PrimFunc.
+
+    args : Expr
+        The input arguments.
+
+    input_indices : Union[int, List[int]]
+        Specify which arguments should be used for in-place computations.
+        If `input_indices` is a single integer, it will be made into a singleton list.
+        Suppose `input_indices[i] = j`, where `j >= 0`. Then the `i`th output
+        will be an alias of `args[j]`.
+        If `input_indices[i] = -1`, then the `i`th output will be a freshly allocated tensor.
+        At least one member of `input_indices` must not be -1.
+
+    out_sinfo : Union[TensorStructInfo, List[TensorStructInfo]]
+        The structure info of the call_tir_inplace output.
+        It should be a single `TensorStructInfo` or a list of `TensorStructInfo`.
+        Each one denotes the structure info of a returned tensor.
+        If a list of `TensorStructInfo` is given, the result will be a tuple of `TensorStructInfo`.
+
+    tir_vars : Optional[Union[ShapeExpr, Tuple[PrimExpr], List[PrimExpr]]]
+        ShapeExpr representing a tuple of integers to unpack when calling func. Is null if not used
+
+    Returns
+    -------
+    ret: Call
+        A call node for the call_tir operator.
+    """
+    if isinstance(args, Expr) and not isinstance(args, RxTuple):  # type: ignore
+        args = RxTuple((args,))
+
+    if not isinstance(inplace_indices, list):
+        inplace_indices = [inplace_indices]
+
+    if not isinstance(out_sinfo, list):
+        out_sinfo = [out_sinfo]
+
+    if isinstance(tir_vars, (list, tuple)):
+        tir_vars = ShapeExpr(tir_vars)
+
+    return _ffi_api.call_tir_inplace(  # type: ignore
+        gvar,
+        args,
+        inplace_indices,
+        out_sinfo,
+        tir_vars,
+    )
+
+
+@args_converter.auto
 def call_dps_packed(
     func: Union[str, Expr],
     args: Expr,

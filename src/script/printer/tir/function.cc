@@ -105,9 +105,25 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       }
       // Step 2. Handle `func->attrs`
       if (func->attrs.defined() && !func->attrs->dict.empty()) {
-        (*f)->stmts.push_back(
-            ExprStmtDoc(TIR(d, "func_attr")  //
-                            ->Call({d->AsDoc<ExprDoc>(func->attrs, p->Attr("attrs"))})));
+        // for global symbol, don't display it if it matches the func name
+        if (func->attrs->dict.count(tvm::attr::kGlobalSymbol) &&
+            Downcast<String>(func->attrs->dict.at(tvm::attr::kGlobalSymbol)) == func_name->name) {
+          Map<String, ObjectRef> new_attrs;
+          for (auto kv : func->attrs->dict) {
+            if (kv.first != tvm::attr::kGlobalSymbol) {
+              new_attrs.Set(kv.first, kv.second);
+            }
+          }
+          if (!new_attrs.empty()) {
+            (*f)->stmts.push_back(ExprStmtDoc(
+                TIR(d, "func_attr")  //
+                    ->Call({d->AsDoc<ExprDoc>(DictAttrs(new_attrs), p->Attr("attrs"))})));
+          }
+        } else {
+          (*f)->stmts.push_back(
+              ExprStmtDoc(TIR(d, "func_attr")  //
+                              ->Call({d->AsDoc<ExprDoc>(func->attrs, p->Attr("attrs"))})));
+        }
       }
       // Step 3. Handle `func->buffer_map`
       for (int i = 0; i < n_args; ++i) {
@@ -169,10 +185,19 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           ret_type = d->AsDoc<ExprDoc>(func->ret_type, p->Attr("ret_type"));
         }
       }
+      // Step 5. Determine if we need to display the private annotation in the decorator
+      ExprDoc decorator = TIR(d, "prim_func");
+      // mark private if there is no global symbol
+      if (!func->attrs.defined() || !func->attrs->dict.count(tvm::attr::kGlobalSymbol)) {
+        Array<ExprDoc> pos_args;
+        decorator = std::move(decorator->Call(pos_args, {"private"},
+                                              {LiteralDoc::Boolean(true, Optional<ObjectPath>())}));
+      }
+
       return HeaderWrapper(d, FunctionDoc(
                                   /*name=*/func_name,
                                   /*args=*/args,
-                                  /*decorators=*/{TIR(d, "prim_func")},
+                                  /*decorators=*/{decorator},
                                   /*return_type=*/ret_type,
                                   /*body=*/(*f)->stmts));
     });

@@ -374,18 +374,18 @@ class Gemm(OnnxOpConverter):
 
         # Compute Y = alpha * A X B + beta * C
 
-        if alpha is not None:
-            A = bb.normalize(relax.op.multiply(A, relax.const(alpha, dtype=dtype)))
+        if alpha is not None and alpha != 1.0:
+            A = relax.op.multiply(A, relax.const(alpha, dtype=dtype))
 
         if transA:
             A = relax.op.permute_dims(A, [1, 0])
         if transB:
             B = relax.op.permute_dims(B, [1, 0])
-        Y = bb.normalize(relax.op.matmul(A, B))
+        Y = relax.op.matmul(A, B)
 
         if C is not None:
-            if beta is not None:
-                C = bb.normalize(relax.op.multiply(C, relax.const(beta, dtype=dtype)))
+            if beta is not None and beta != 1.0:
+                C = relax.op.multiply(C, relax.const(beta, dtype=dtype))
             Y = relax.op.add(Y, C)
 
         return Y
@@ -587,18 +587,7 @@ class Erf(OnnxOpConverter):
 
     @classmethod
     def _impl_v13(cls, bb, inputs, attr, params):
-        x = inputs[0]
-        sqrt2 = relax.const(_np.sqrt(2), x.struct_info.dtype)
-        # TODO: replace with erf operator once it is implemented
-        mul = relax.op.multiply(x, sqrt2)
-        gelu = relax.op.nn.gelu(mul)
-        mul_2 = relax.op.multiply(gelu, sqrt2)
-        return bb.normalize(
-            relax.op.add(
-                relax.op.divide(mul_2, x),
-                relax.const(-1, x.struct_info.dtype),
-            )
-        )
+        return relax.op.erf(inputs[0])
 
 
 class CumSum(OnnxOpConverter):

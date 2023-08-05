@@ -51,13 +51,15 @@ Expr take(Expr x, Expr indices, Optional<Integer> axis);
  * \param strides Specifies the stride values, it can be negative in that case,
  * the input tensor will be reversed in that particular axis.
  * If it is `NullOpt`, it by default is an list of ones of the same length as `axes`.
+ * \param assume_inbound Whether to assume the indices are in bound.
  * \return The sliced result
  */
-Expr strided_slice(Expr x,                 //
-                   Array<Integer> axes,    //
-                   Array<PrimExpr> begin,  //
-                   Array<PrimExpr> end,    //
-                   Optional<Array<PrimExpr>> strides);
+Expr strided_slice(Expr x,                             //
+                   Array<Integer> axes,                //
+                   Array<PrimExpr> begin,              //
+                   Array<PrimExpr> end,                //
+                   Optional<Array<PrimExpr>> strides,  //
+                   bool assume_inbound = false);
 
 }  // namespace relax
 }  // namespace tvm

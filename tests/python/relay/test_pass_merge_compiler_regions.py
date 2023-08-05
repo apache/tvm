@@ -236,7 +236,7 @@ def test_if_else():
     Avoid O1 merge to O2.
     """
 
-    target = "test_if_else"
+    target = "test_if_else_merge"
 
     @tvm.ir.register_op_attr("sigmoid", "target." + target)
     def sigmoid(expr):  # pylint: disable=unused-variable

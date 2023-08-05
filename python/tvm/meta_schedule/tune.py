@@ -108,7 +108,7 @@ def tune_tasks(
     elif not isinstance(database, Database):
         database = Database.create(database, module_equality=module_equality)
     if not isinstance(cost_model, CostModel):
-        cost_model = CostModel.create(cost_model, num_tuning_cores=num_cores)
+        cost_model = CostModel.create(cost_model, num_tuning_cores=num_cores, tree_method="auto")
     if isinstance(measure_callbacks, MeasureCallback):
         measure_callbacks = [measure_callbacks]
     elif measure_callbacks == "default":

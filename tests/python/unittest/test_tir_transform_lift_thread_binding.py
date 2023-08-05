@@ -130,9 +130,9 @@ def test_lift_tx_beyond_local():
                         T.writes(C[blockIdx_x // n, 0, blockIdx_x % n])
                         C[blockIdx_x // n, 0, blockIdx_x % n] = D_local[blockIdx_x // n, 0, blockIdx_x % n] * T.float32(0.088397790055248615)
     # fmt: on
-    mod = tvm.IRModule({"main": before})
+    mod = tvm.IRModule({"main": before.with_attr("global_symbol", "main")})
     after = tir.transform.LiftThreadBinding()(mod)
-    tvm.ir.assert_structural_equal(expected, after["main"])
+    tvm.ir.assert_structural_equal(expected.with_attr("global_symbol", "main"), after["main"])
 
 
 if __name__ == "__main__":

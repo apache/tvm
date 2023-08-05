@@ -20,6 +20,7 @@
  * \file src/relax/transform/call_tir_rewrite.cc
  * \brief Perform explicit tensor allocation for call_tir.
  */
+#include <tvm/relax/attrs/op.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
@@ -33,7 +34,7 @@ namespace relax {
 
 // ==================
 // CallTIRMutator
-// Perform explicit tensor allocation for call_tir or call_dps_packed.
+// Perform explicit tensor allocation for call_tir, call_tir_inplace, or call_dps_packed.
 // Example:
 // lv0: Tensor(n, m) = rx.call_tir(func, (x), (n, m), dtype="float32")
 // -->
@@ -49,23 +50,36 @@ class CallTIRMutator : public ExprMutator {
     call = expr.as<CallNode>();
 
     static const Op& call_tir_op = Op::Get("relax.call_tir");
+    static const Op& call_tir_inplace_op = Op::Get("relax.call_tir_inplace");
     static const Op& call_dps_packed_op = Op::Get("relax.call_dps_packed");
     static const Op& alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
     static const Op& call_tir_dyn_op = Op::Get("relax.vm.call_tir_dyn");
 
-    if (call->op == call_tir_op || call->op == call_dps_packed_op) {
+    if (call->op == call_tir_op || call->op == call_tir_inplace_op ||
+        call->op == call_dps_packed_op) {
+      bool is_inplace = (call->op == call_tir_inplace_op);
+      const auto* inplace_attrs = call->attrs.as<CallTIRInplaceAttrs>();
       Array<Expr> outs;
       if (const auto& _tensor_sinfo = MatchStructInfo<TensorStructInfo>(expr)) {
         // single output case
         const TensorStructInfo& tensor_sinfo = _tensor_sinfo.value();
         ICHECK(tensor_sinfo->shape.defined())
             << "the TensorStructInfo shape of call_tir has not populated";
-        outs.push_back(
-            builder_->Emit(Call(alloc_tensor_op,  //
-                                {Downcast<ShapeExpr>(tensor_sinfo->shape.value()),
-                                 DataTypeImm(tensor_sinfo->dtype), PrimValue::Int64(0)},  //
-                                Attrs()),
-                           "alloc"));
+        if (!is_inplace) {
+          outs.push_back(
+              builder_->Emit(Call(alloc_tensor_op,  //
+                                  {Downcast<ShapeExpr>(tensor_sinfo->shape.value()),
+                                   DataTypeImm(tensor_sinfo->dtype), PrimValue::Int64(0)},  //
+                                  Attrs()),
+                             "alloc"));
+        } else {
+          // if there is only one output, it must be an in-place argument, but check anyway
+          ICHECK(inplace_attrs->inplace_indices[0].IntValue() != -1)
+              << "If calling call_tir_inplace and there is one output, its in-place index must not"
+                 " be -1.";
+          outs.push_back(
+              Downcast<Tuple>(call->args[1])->fields[inplace_attrs->inplace_indices[0].IntValue()]);
+        }
       } else if (const auto& _tuple_sinfo = MatchStructInfo<TupleStructInfo>(expr)) {
         // multiple output case
         const TupleStructInfo& tuple_sinfo = _tuple_sinfo.value();
@@ -79,12 +93,17 @@ class CallTIRMutator : public ExprMutator {
           ICHECK(field_tensor->shape.defined())
               << "call_tir expects all TensorStructInfo has shape, but got " << field_tensor
               << " as an element of TupleStructInfo";
-          outs.push_back(
-              builder_->Emit(Call(alloc_tensor_op,
-                                  {Downcast<ShapeExpr>(field_tensor->shape.value()),
-                                   DataTypeImm(field_tensor->dtype), PrimValue::Int64(0)},
-                                  Attrs()),
-                             "alloc"));
+          if (!is_inplace || inplace_attrs->inplace_indices[i].IntValue() == -1) {
+            outs.push_back(
+                builder_->Emit(Call(alloc_tensor_op,
+                                    {Downcast<ShapeExpr>(field_tensor->shape.value()),
+                                     DataTypeImm(field_tensor->dtype), PrimValue::Int64(0)},
+                                    Attrs()),
+                               "alloc"));
+          } else {
+            outs.push_back(Downcast<Tuple>(call->args[1])
+                               ->fields[inplace_attrs->inplace_indices[i].IntValue()]);
+          }
         }
       } else {
         LOG(FATAL) << "TypeError: The struct info of call_tir expects to be TensorStructInfo or "
@@ -95,7 +114,16 @@ class CallTIRMutator : public ExprMutator {
       Array<Expr> args;
       if (call->args[1].as<TupleNode>()) {
         args = Downcast<Tuple>(call->args[1])->fields;
-        args.insert(args.end(), outs.begin(), outs.end());
+        // for call_tir_inplace, don't reinsert in-place args, only the newly allocated ones
+        if (!is_inplace) {
+          args.insert(args.end(), outs.begin(), outs.end());
+        } else {
+          for (size_t i = 0; i < outs.size(); i++) {
+            if (inplace_attrs->inplace_indices[i].IntValue() == -1) {
+              args.push_back(outs[i]);
+            }
+          }
+        }
 
         if (call->args.size() == 2) {
           builder_->Emit(Call(call->args[0], args), "_");
@@ -105,8 +133,12 @@ class CallTIRMutator : public ExprMutator {
           builder_->Emit(Call(call_tir_dyn_op, {call->args[0], Tuple(args)}), "_");
         }
       } else {
-        args = outs;
-        args.insert(args.begin(), call->args[1]);
+        if (!is_inplace) {
+          args = outs;
+          args.insert(args.begin(), call->args[1]);
+        } else {
+          args.push_back(call->args[1]);
+        }
         builder_->Emit(Call(call->args[0], args), "_");
       }
 

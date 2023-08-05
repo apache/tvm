@@ -456,7 +456,9 @@ def test_basic_cache_index():
     sch = tvm.tir.Schedule(resize, debug_mask="all")
     block = sch.get_block("A")
     sch.cache_index(block, "global")
-    tvm.ir.assert_structural_equal(resize_cache_index, sch.mod["main"])
+    tvm.ir.assert_structural_equal(
+        resize_cache_index, sch.mod["main"].with_attr("global_symbol", "resize_cache_index")
+    )
     verify_trace_roundtrip(sch=sch, mod=resize)
 
 
@@ -464,7 +466,9 @@ def test_resize_bilinear_cache_index():
     sch = tvm.tir.Schedule(bilinear_resize, debug_mask="all")
     block = sch.get_block("resize")
     sch.cache_index(block, "global", 4)
-    tvm.ir.assert_structural_equal(sch.mod["main"], cached_bilinear_resize)
+    tvm.ir.assert_structural_equal(
+        sch.mod["main"], cached_bilinear_resize.with_attr("global_symbol", "bilinear_resize")
+    )
     verify_trace_roundtrip(sch=sch, mod=bilinear_resize)
 
 

@@ -31,7 +31,7 @@ import tvm
 from tvm import autotvm, auto_scheduler
 from tvm import relay
 from tvm.driver.tvmc.registry import generate_registry_args, reconstruct_registry_entity
-from tvm.ir.instrument import PassInstrument
+from tvm.ir.instrument import PassInstrument, PassTimingInstrument
 from tvm.ir.memory_pools import WorkspaceMemoryPools
 from tvm.target import Target
 from tvm.relay.backend import Executor, Runtime
@@ -157,6 +157,11 @@ def add_compile_parser(subparsers, _, json_params):
         default="default",
         help="The output module name. Defaults to 'default'.",
     )
+    parser.add_argument(
+        "--print-pass-times",
+        action="store_true",
+        help="print compilation time per pass",
+    )
     for one_entry in json_params:
         parser.set_defaults(**one_entry)
 
@@ -214,6 +219,7 @@ def drive_compile(args):
         workspace_pools=(
             workspace_pools_recombobulate(args, [workspace_pools_target], extra_targets)
         ),
+        print_pass_times=args.print_pass_times,
         **transform_args,
     )
 
@@ -240,6 +246,7 @@ def compile_model(
     use_vm: bool = False,
     mod_name: Optional[str] = "default",
     workspace_pools: Optional[WorkspaceMemoryPools] = None,
+    print_pass_times: bool = False,
     instruments: Optional[Sequence[PassInstrument]] = None,
     desired_layout: Optional[str] = None,
     desired_layout_ops: Optional[List[str]] = None,
@@ -301,6 +308,8 @@ def compile_model(
     workspace_pools: WorkspaceMemoryPools, optional
         Specification of WorkspacePoolInfo objects to be used as workspace memory in the
         compilation.
+    print_pass_times: bool
+        To enable printing a breakdown of compilation times by pass. Disabled by default.
     instruments: Optional[Sequence[PassInstrument]]
         The list of pass instrument implementations.
     desired_layout: str, optional
@@ -355,6 +364,10 @@ def compile_model(
         partition_opts.append(codegen_from_cli["opts"])
         if codegen["config_key"] is not None:
             config[codegen["config_key"]] = codegen_from_cli["opts"]
+
+    if print_pass_times:
+        timing_inst = PassTimingInstrument()
+        instruments = [timing_inst] if instruments is None else [timing_inst] + instruments
 
     with tvm.transform.PassContext(
         opt_level=opt_level,
@@ -441,6 +454,11 @@ def compile_model(
         # Write dumps to file.
         if dumps:
             save_dumps(package_path, dumps)
+
+        # Print compilation times per pass
+        if print_pass_times:
+            print("Compilation time breakdown by pass:")
+            print(timing_inst.render())
 
         return TVMCPackage(package_path)
 

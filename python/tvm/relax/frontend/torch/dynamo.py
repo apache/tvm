@@ -72,7 +72,17 @@ def relax_dynamo(pipeline: Optional[tvm.transform.Pass] = None):
             return tvm.nd.array(real_tensor.numpy())
 
         device = device_from_inputs(example_inputs)
-        input_info = [(tuple(tensor.shape), str(tensor.dtype)) for tensor in example_inputs]
+
+        input_info = []
+        for tensor in example_inputs:
+            shape = []
+            for s in tensor.shape:
+                if isinstance(s, torch.SymInt):
+                    shape.append(tvm.tir.Var(str(s), "int64"))
+                else:
+                    shape.append(s)
+            input_info.append((shape, tensor.dtype))
+
         mod = from_fx(graph_module, input_info)
 
         if device.type == "cuda":

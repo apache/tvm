@@ -23,10 +23,10 @@ from tvm.script import tir as T
 
 
 def _check(original, transformed):
-    mod = tvm.IRModule.from_expr(original)
+    mod = tvm.IRModule.from_expr(original.with_attr("global_symbol", "main"))
     mod = tvm.tir.transform.LowerMatchBuffer()(mod)
     mod = tvm.tir.transform.Simplify()(mod)
-    tvm.ir.assert_structural_equal(mod["main"], transformed)
+    tvm.ir.assert_structural_equal(mod["main"], transformed.with_attr("global_symbol", "main"))
 
 
 def _check_fail(original):

@@ -53,6 +53,7 @@ def test_op_correctness():
     assert relax.op.tan(x).op == Op.get("relax.tan")
     assert relax.op.tanh(x).op == Op.get("relax.tanh")
     assert relax.op.clip(x, 0, 6).op == Op.get("relax.clip")
+    assert relax.op.erf(x).op == Op.get("relax.erf")
 
     x = relax.Var("x", R.Tensor((2, 3), "int32"))
     assert relax.op.bitwise_not(x).op == Op.get("relax.bitwise_not")

@@ -336,6 +336,10 @@ std::vector<State> MultiLevelTilingTensorCoreNode::MMATileLoopNest(TensorCoreSta
   const BlockRV& block_rv = state->block_rv;
   // Step 1. Assuming trivial binding, pair the loops and their iter-var-types
   Array<LoopRV> loops = sch->GetLoops(block_rv);
+  if (!(loops.size() == 3 || !state->is_mma)) {
+    LOG(DEBUG) << "The MMA tensor core only supports SSR loops now";
+    return {};
+  }
   std::vector<IterVarType> iter_types = GetBlockVarTypes(sch->GetSRef(state->block_rv));
   ICHECK_EQ(loops.size(), iter_types.size());
   // Step 2. For each loop axis, tile it
@@ -344,7 +348,6 @@ std::vector<State> MultiLevelTilingTensorCoreNode::MMATileLoopNest(TensorCoreSta
   state->tile_factors.resize(tiles.size());
   std::vector<Array<tir::ExprRV>> tile_factors;
   tile_factors.resize(tiles.size());
-  ICHECK(loops.size() == 3 || !state->is_mma) << "The MMA tensor core only supports SSR loops now";
   for (int i = 0, n = loops.size(); i < n; ++i) {
     LoopRV loop = loops[i];
     const std::vector<int>* idx = nullptr;

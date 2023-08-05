@@ -35,14 +35,12 @@ def _default_globals() -> Dict[str, Any]:
     return extra_vars
 
 
-def parse_macro(program: Union[Any, str], extra_vars: Dict[str, Any] = None) -> Any:
+def scan_macro(program: Union[Any, str], extra_vars: Dict[str, Any] = None) -> Any:
     """Generate the AST, and the source code for __repr__."""
     # The AST will be converted into TIR at the time of expansion.
     source = Source(program)
-    source_txt = source.source
-    source_ast = source.as_ast()
     closure_vars = extra_vars or _default_globals()
-    return source_ast, source_txt, closure_vars
+    return source, closure_vars
 
 
 def parse(program: Union[doc.AST, Any, str], extra_vars: Dict[str, Any] = None) -> Any:

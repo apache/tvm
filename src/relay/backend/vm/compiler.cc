@@ -1059,6 +1059,13 @@ IRModule VMCompiler::OptimizeModuleImpl(IRModule mod) {
   // Always plan devices so the remaining passes don't need to distinguish homogeneous vs
   // heterogeneous execution.
   pass_seqs.push_back(transform::PlanDevices(config_));
+  if (config_->optional_homogeneous_target.defined()) {
+    // This pass currently only supports the homogeneous case.
+    pass_seqs.push_back(transform::SplitArgs(
+        config_->optional_homogeneous_target->GetAttr<Integer>("max_function_args", 0)
+            .value()
+            .IntValue()));
+  }
 
   pass_seqs.push_back(transform::FuseOps());
 

@@ -1549,24 +1549,22 @@ class PyTorchOpConverter:
     def addmm(self, inputs, input_types):
         input_mat = inputs[0]
         mat1 = inputs[1]
-        data_type = input_types[1]
         mat2 = inputs[2]
-
         beta = inputs[3]
         alpha = inputs[4]
+        data_type = input_types[1]
+
+        transposed_mat2 = _op.transform.transpose(mat2, axes=[1, 0])
+        units = self.infer_shape(transposed_mat2)[0]
+        dense_out = _op.nn.dense(mat1, transposed_mat2, units=units)
 
         if not isinstance(alpha, _expr.Expr) and alpha != 1:
             alpha = _create_typed_const(alpha, data_type)
-            mat1 *= alpha
+            dense_out *= alpha
 
         if not isinstance(beta, _expr.Expr) and beta != 1:
             beta = _create_typed_const(beta, data_type)
-            mat2 *= beta
-
-        transposed_mat2 = _op.transform.transpose(mat2, axes=[1, 0])
-
-        units = self.infer_shape(transposed_mat2)[0]
-        dense_out = _op.nn.dense(mat1, transposed_mat2, units=units)
+            input_mat *= beta
 
         return dense_out + input_mat
 
@@ -1621,6 +1619,18 @@ class PyTorchOpConverter:
                 new_shape[i] = val.numpy().item(0)
 
         return _op.transform.reshape(data, new_shape)
+
+    def view_as(self, inputs, input_types):
+        data = inputs[0]
+        tensors = inputs[1]
+
+        if not isinstance(tensors, (_expr.Call, _expr.Constant, _expr.Var)):
+            msg = f"Data type {type(tensors)} could not be parsed in view_as op"
+            raise AssertionError(msg)
+
+        shape = self.infer_shape(tensors)
+
+        return _op.transform.reshape(data, shape)
 
     def reshape(self, inputs, input_types):
         data = inputs[0]
@@ -3838,6 +3848,7 @@ class PyTorchOpConverter:
             "aten::addmm": self.addmm,
             "aten::size": self.size,
             "aten::view": self.view,
+            "aten::view_as": self.view_as,
             "aten::reshape": self.reshape,
             "aten::reshape_as": self.reshape_as,
             "aten::clone": self.clone,

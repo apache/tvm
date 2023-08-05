@@ -44,6 +44,7 @@ struct StridedSliceAttrs : public tvm::AttrsNode<StridedSliceAttrs> {
   Array<PrimExpr> begin;
   Array<PrimExpr> end;
   Optional<Array<PrimExpr>> strides;
+  bool assume_inbound;
 
   TVM_DECLARE_ATTRS(StridedSliceAttrs, "relax.attrs.StridedSliceAttrs") {
     TVM_ATTR_FIELD(axes).describe("Axes along which slicing is applied.");
@@ -53,6 +54,11 @@ struct StridedSliceAttrs : public tvm::AttrsNode<StridedSliceAttrs> {
         "Specifies the stride values, it can be negative in that case, the input tensor will be "
         "reversed in that particular axis. If not specified, it by default is an list of ones of "
         "the same length as `axes`.");
+    TVM_ATTR_FIELD(assume_inbound)
+        .set_default(true)
+        .describe(
+            "Whether to assume the indices are in bound. If it is set to false, "
+            "out of bound indices will be clipped to the bound.");
   }
 };  // struct StridedSliceAttrs
 
