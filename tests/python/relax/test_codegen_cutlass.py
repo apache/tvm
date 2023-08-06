@@ -1736,9 +1736,6 @@ def test_rms_norm():
     dtype = "float16"
     mod = partition_for_cutlass(Module)
 
-    mod.show()
-    assert 0
-
     # TODO(@tvm-team): This is temporary patch.Currently, the remaining packed function triggers error since it is not scheduled.
     # This is because RunCodegen does not support PrimFunc well yet.
     # i.e., it does remove the global symbol of PrimFunc, which would be no longer used,
