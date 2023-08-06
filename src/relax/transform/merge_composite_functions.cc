@@ -303,8 +303,9 @@ class CompositeInliner : public ExprMutator {
       auto func = Downcast<Function>(mod_->Lookup(gvar));
       if (func->GetAttr<String>(attr::kComposite)) {
         if (!inlined_functions_.count(func)) {
-          auto new_func = WithoutAttr(std::move(func), tvm::relax::attr::kPrimitive);
-          inlined_functions_.Set(func, CopyWithNewVars(new_func));
+          auto new_func = CopyWithNewVars(func);
+          new_func = WithoutAttr(new_func, tvm::relax::attr::kPrimitive);
+          inlined_functions_.Set(func, new_func);
         }
         return Call(inlined_functions_[func], call->args);
       }
@@ -339,7 +340,7 @@ IRModule MergeCompositeFunctions(IRModule mod) {
   }
 
   for (const auto& [gvar, func] : to_update) {
-    new_mod->Update(gvar, Downcast<Function>(ToNonDataflow(func)));
+    new_mod->Update(gvar, Downcast<Function>(func));
   }
   // TODO(@tvm-team): Implicit pass dependency. Revisit when we have a better way to handle this.
   return DeadCodeElimination(new_mod, {"main"});
