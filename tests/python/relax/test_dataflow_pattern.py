@@ -1282,5 +1282,41 @@ def test_combine_transposed_matmul_twice():
         rx.build(mod, target="llvm")
 
 
+def test_commutative_pattern_match():
+    @R.function(private=True)
+    def before(
+        x: R.Tensor((1024,)),
+    ):
+        with R.dataflow():
+            out = R.add(R.const(1.0), x)
+            R.output(out)
+        return out
+
+    @R.function(private=True)
+    def expected(
+        x: R.Tensor((1024,)),
+    ):
+        with R.dataflow():
+            out = R.add(x, R.const(2.0))
+            R.output(out)
+        return out
+
+    pattern_add = is_op("relax.add")
+    pattern_mul = is_op("relax.multiply")
+    pattern_op = pattern_add | pattern_mul
+    pattern_arg = wildcard()
+    pattern_const = is_const()
+
+    pattern = pattern_op(pattern_arg, pattern_const)
+
+    def rewriter(_expr, matches):
+        op = matches[pattern_op]
+        arg = matches[pattern_arg]
+        return rx.Call(op, [arg, rx.const(2.0)])
+
+    after = rewrite_call(pattern, rewriter, before)
+    tvm.ir.assert_structural_equal(after, expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

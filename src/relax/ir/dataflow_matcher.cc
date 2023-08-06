@@ -275,8 +275,8 @@ bool DFPatternMatcher::VisitDFPattern_(const CallPatternNode* op, const Expr& ex
       // Standard case
       if (match_args(op->args, call_node->args.begin(), call_node->args.end())) return true;
 
-      // Commutative Matching
-      if (const OpNode* op_node = get_op_node(op)) {
+      // Commutative Matching.
+      if (const OpNode* op_node = call_node->op.as<OpNode>()) {
         if ((op_node->name == "relax.add") || (op_node->name == "relax.multiply")) {
           if (match_args(op->args, call_node->args.rbegin(), call_node->args.rend())) {
             return true;
