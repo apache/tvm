@@ -1318,5 +1318,53 @@ def test_commutative_pattern_match():
     tvm.ir.assert_structural_equal(after, expected)
 
 
+def test_repeated_pattern_match():
+    """rewrite_call should iterate until convergence"""
+
+    @R.function(private=True)
+    def before(
+        x: R.Tensor((1024,)),
+        y: R.Tensor((1024,)),
+        z: R.Tensor((1024,)),
+    ):
+        with R.dataflow():
+            a = R.add(x, y)
+            b = R.add(a, z)
+            out = R.multiply(b, R.const(5.0))
+            R.output(out)
+        return out
+
+    @R.function(private=True)
+    def expected(
+        x: R.Tensor((1024,)),
+        y: R.Tensor((1024,)),
+        z: R.Tensor((1024,)),
+    ):
+        with R.dataflow():
+            x = R.multiply(x, R.const(5.0))
+            y = R.multiply(y, R.const(5.0))
+            a = R.add(x, y)
+            z = R.multiply(z, R.const(5.0))
+            b = R.add(a, z)
+            R.output(b)
+        return b
+
+    pattern_add_lhs = wildcard()
+    pattern_add_rhs = wildcard()
+    pattern_add = is_op("relax.add")(pattern_add_lhs, pattern_add_rhs)
+
+    mul_const = is_const()
+    pattern_mul = is_op("relax.multiply")(pattern_add, mul_const)
+
+    pattern = pattern_mul
+
+    def rewriter(_expr, matches):
+        const = matches[mul_const]
+        return (matches[pattern_add_lhs] * const) + (matches[pattern_add_rhs] * const)
+
+    after = rewrite_call(pattern, rewriter, before)
+    tvm.ir.assert_structural_equal(after, expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

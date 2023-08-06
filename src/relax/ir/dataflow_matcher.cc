@@ -831,10 +831,19 @@ class PatternRewriter : ExprMutator {
   }
 
   BindingBlock VisitBindingBlock_(const DataflowBlockNode* block_node) final {
-    if (!ctx_) {
-      return ExprMutator::VisitBindingBlock_(block_node);
+    if (ctx_) {
+      return RewriteDataflowBlockFixedPoint(GetRef<DataflowBlock>(block_node));
     }
-    return RewriteDataflowBlockFixedPoint(GetRef<DataflowBlock>(block_node));
+
+    DataflowBlock prev = GetRef<DataflowBlock>(block_node);
+    while (true) {
+      DataflowBlock next = Downcast<DataflowBlock>(ExprMutator::VisitBindingBlock_(prev.get()));
+      if (StructuralEqual()(prev, next)) {
+        return std::move(next);
+      } else {
+        prev = next;
+      }
+    }
   }
 
  private:
