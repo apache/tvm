@@ -1736,10 +1736,13 @@ def test_rms_norm():
     dtype = "float16"
     mod = partition_for_cutlass(Module)
 
-    # TODO(@tvm-team): This is temporary patch.
-    # Currently, the remaining packed function triggers error since it is not scheduled.
-    # DeadCodeElimination should remove this unused primfunc, but it does not at the moment.
-    # Revisit when DeadCodeElimination for PrimFuncs is available.
+    mod.show()
+    assert 0
+
+    # TODO(@tvm-team): This is temporary patch.Currently, the remaining packed function triggers error since it is not scheduled.
+    # This is because RunCodegen does not support PrimFunc well yet.
+    # i.e., it does remove the global symbol of PrimFunc, which would be no longer used,
+    # and thus, the following DCE cannot remove this. Revisit when resolved.
     with tvm.target.Target("cuda"):
         mod = tvm.tir.transform.DefaultGPUSchedule()(mod)
 
