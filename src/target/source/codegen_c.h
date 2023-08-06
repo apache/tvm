@@ -67,7 +67,9 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   void Init(bool output_ssa);
 
   /*!
-   * \brief Add the function to the generated module.
+   * \brief Add the function declaration to the generated module,
+   * without defining it.
+   *
    * \param gvar The GlobalVar representing the function.
    * \param func The function to be compiled.
    * \param whether to append return 0 in the end.
@@ -75,10 +77,11 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   virtual void DeclareFunction(const GlobalVar& gvar, const PrimFunc& func);
 
   /*!
-   * \brief Add the function to the generated module.
+   * \brief Add the function to the generated module, including its
+   * declaration and definition.
+   *
    * \param gvar The GlobalVar representing the function.
    * \param func The function to be compiled.
-   * \param whether to append return 0 in the end.
    */
   virtual void AddFunction(const GlobalVar& gvar, const PrimFunc& func);
 
