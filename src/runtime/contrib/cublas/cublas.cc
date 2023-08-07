@@ -192,6 +192,21 @@ void CallCublasLt(cublasLtHandle_t hdl, cudaStream_t stream, const DLTensor* A, 
   int M = ColumnCount(B, transb, batch_offset_B);
   int N = RowCount(A, transa, batch_offset_A);
   int K = ColumnCount(A, transa, batch_offset_A);
+  bool use_batched_gemm = A->ndim > 2 || B->ndim > 2;
+
+  // If A is batched but B is not, flatten all non-reduction axes of A to use the regular GEMM.
+  // This trick is only applicable if batch axes and the other spatial axis (M or N) are
+  // adjacent in both the input and the output matrix. In particular, if A is of shape (M, K)
+  // and B matrix is of shape (Batch, N, K) with transb = true, the output shape
+  // is (Batch, M, N). Since the Batch and the N axes are not adjacent in the output, we cannot
+  // use the regular GEMM if only B is batched.
+  if (A->ndim > 2 && B->ndim == 2 && transa == false) {
+    N = 1;
+    for (int i = 0; i < A->ndim - 1; ++i) {
+      N *= A->shape[i];
+    }
+    use_batched_gemm = false;
+  }
 
   int lda = transb ? K : M;
   int ldb = transa ? N : K;
@@ -204,7 +219,7 @@ void CallCublasLt(cublasLtHandle_t hdl, cudaStream_t stream, const DLTensor* A, 
       cublasLtMatrixLayoutCreate(&B_desc, ab_type, !transa ? K : N, !transa ? N : K, ldb));
   CHECK_CUBLAS_ERROR(cublasLtMatrixLayoutCreate(&C_desc, c_type, M, N, ldc));
 
-  if (A->ndim != 2 || B->ndim != 2) {
+  if (use_batched_gemm) {
     auto get_batch_count = [](int64_t* shape, int batch_offset) {
       int64_t count = 1;
       for (int i = 0; i < batch_offset; ++i) {
