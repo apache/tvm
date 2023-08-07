@@ -818,16 +818,31 @@ class PatternRewriter : ExprMutator {
     }
   }
 
-  Expr VisitExpr_(const CallNode* call_node) final {
-    auto call = ExprMutator::VisitExpr_(call_node);
-    if (!pattern_) {
-      return call;
-    } else if (auto matches_opt = ExtractMatchedExpr(pattern_.value(), call, bindings_)) {
-      auto rewriten_expr = rewriter_func_(call, matches_opt.value());
-      memo_[call_node] = rewriten_expr;
-      return rewriten_expr;
+  Expr VisitExpr(const Expr& expr) final {
+    auto node = ExprMutator::VisitExpr(expr);
+    if (pattern_) {
+      if (auto matches_opt = ExtractMatchedExpr(pattern_.value(), node, bindings_)) {
+        Expr rewritten_expr = rewriter_func_(node, matches_opt.value());
+        if (!rewritten_expr.same_as(node)) {
+          rewritten_expr = builder_->Normalize(rewritten_expr);
+
+          // If the rewriter returns a variable (e.g. when rewriting
+          // from `R.add(x, R.const(0.0))` to `x`), the variable
+          // should be dereferenced to avoid trivial `var_2 = var_1`
+          // bindings.  This lookup is done using the builder_ instead
+          // of the bindings_, as the previous `builder_->Normalize`
+          // call may have introduced variable bindings.
+          if (auto opt_var = rewritten_expr.as<Var>()) {
+            if (auto binding = builder_->LookupBinding(opt_var.value())) {
+              rewritten_expr = binding.value();
+            }
+          }
+          memo_[expr.get()] = rewritten_expr;
+          return rewritten_expr;
+        }
+      }
     }
-    return call;
+    return node;
   }
 
   BindingBlock VisitBindingBlock_(const DataflowBlockNode* block_node) final {

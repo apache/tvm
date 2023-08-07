@@ -1365,5 +1365,40 @@ def test_repeated_pattern_match():
     tvm.ir.assert_structural_equal(after, expected)
 
 
+def test_rewrite_without_trivial_binding():
+    """rewrite_call should avoid producing trivial "y = x" bindings"""
+
+    @R.function(private=True)
+    def before(x: R.Tensor((1024,))):
+        with R.dataflow():
+            a = R.add(x, x)
+            b = R.reshape(a, (1024,))
+            R.output(b)
+        return b
+
+    @R.function(private=True)
+    def expected(x: R.Tensor((1024,))):
+        with R.dataflow():
+            a = R.add(x, x)
+            R.output(a)
+        return a
+
+    pattern_arg = wildcard()
+    pattern_shape_expr = wildcard()
+    pattern = is_op("relax.reshape")(pattern_arg, pattern_shape_expr)
+
+    def rewriter(expr, matches):
+        arg = matches[pattern_arg]
+        shape_expr = matches[pattern_shape_expr]
+
+        if tvm.ir.structural_equal(arg.struct_info.shape, shape_expr):
+            return arg
+        else:
+            return expr
+
+    after = rewrite_call(pattern, rewriter, before)
+    tvm.ir.assert_structural_equal(after, expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
