@@ -27,27 +27,6 @@ from tvm.contrib.msc.core import _ffi_api
 from tvm.contrib.msc.core import transform as msc_transform
 
 
-class RelayChecker(ExprVisitor):
-    """Check if name as span attribute is setted."""
-
-    def check(self, expr):
-        self._missing_exprs = []
-        super().visit(expr)
-        assert len(self._missing_exprs) == 0, "Missing {} names".format(len(self._missing_exprs))
-
-    def visit_constant(self, expr):
-        super().visit_constant(expr)
-        name = _ffi_api.SpanGetAttr(expr.span, "name")
-        if not name:
-            self._missing_exprs.append(expr)
-
-    def visit_call(self, expr):
-        super().visit_call(expr)
-        name = _ffi_api.SpanGetAttr(expr.span, "name")
-        if not name:
-            self._missing_exprs.append(expr)
-
-
 class RelaxChecker(PyExprVisitor):
     """Check if name as span attribute is setted."""
 
@@ -57,26 +36,19 @@ class RelaxChecker(PyExprVisitor):
             self.visit_expr(expr)
         elif isinstance(expr, tvm.relax.BindingBlock):
             self.visit_binding_block(expr)
-        assert len(self._missing_exprs) == 0, "Missing {} names".format(len(self._missing_exprs))
+        assert len(self._missing_exprs) == 0, "Missing {} layouts".format(len(self._missing_exprs))
 
     def visit_var_binding_(self, binding) -> None:
         super().visit_var_binding_(binding)
-        name = _ffi_api.SpanGetAttr(binding.value.span, "name")
-        if not name:
+        layout = _ffi_api.SpanGetAttr(binding.value.span, "layout")
+        if not layout:
             self._missing_exprs.append(binding.value)
 
     def visit_constant_(self, op) -> None:
         super().visit_constant_(op)
-        name = _ffi_api.SpanGetAttr(op.span, "name")
-        if not name:
+        layout = _ffi_api.SpanGetAttr(op.span, "layout")
+        if not layout:
             self._missing_exprs.append(op)
-
-
-def test_relay():
-    mod, params = testing.resnet.get_workload(num_layers=50, batch_size=1, dtype="float32")
-    mod["main"] = bind_params_by_name(mod["main"], params)
-    mod = msc_transform.SetExprName(as_relax=False)(mod)
-    RelayChecker().check(mod["main"])
 
 
 def test_relax():
@@ -93,7 +65,7 @@ def test_relax():
     input_info = [([1, 3, 224, 224], "float32")]
     with torch.no_grad():
         mod = from_fx(graph_model, input_info)
-    mod = msc_transform.SetExprName()(mod)
+    mod = msc_transform.SetExprLayout()(mod)
     RelaxChecker().check(mod)
 
 
