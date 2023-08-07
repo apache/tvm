@@ -313,7 +313,7 @@ def EliminateCommonSubexpr(call_only=False) -> FunctionPass:
 
 
 def FixpointSimplification(
-    entry_functions: Optional[List[str]] = None, call_only: bool = False
+    iteration_limit=10, entry_functions: Optional[List[str]] = None, call_only: bool = False
 ) -> tvm.ir.transform.Pass:
     """
     Applies multiple simplification passes one after another until reaching
@@ -327,6 +327,9 @@ def FixpointSimplification(
 
     Parameters
     ----------
+    iteration_limit: int
+      Upper bound on number of iterations in case the loop does not converge.
+
     entry_functions: List[str]
       Entry points to the module, for dead code elimination
 
@@ -340,7 +343,7 @@ def FixpointSimplification(
     """
     if entry_functions is None:
         entry_functions = ["main"]
-    return _ffi_api.FixpointSimplification(entry_functions, call_only)
+    return _ffi_api.FixpointSimplification(iteration_limit, entry_functions, call_only)
 
 
 def RewriteDataflowReshape() -> tvm.ir.transform.Pass:

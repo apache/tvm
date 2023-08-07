@@ -173,11 +173,13 @@ TVM_DLL Pass CanonicalizeBindings();
  * * EliminateCommonSubexpressions
  * * FoldDataflowBlockOutput
  *
+ * \param iteration_limit Upper bound on number of iterations in case the loop does not converge
  * \param entry_functions Entry points to the module, for dead code elimination
  * \param call_only Whether to apply common subexpression elimination only to calls
  * \return The Pass.
  */
-TVM_DLL Pass FixpointSimplification(Array<runtime::String> entry_functions, bool call_only);
+TVM_DLL Pass FixpointSimplification(int iteration_limit, Array<runtime::String> entry_functions,
+                                    bool call_only);
 
 /*!
  * Eliminate common subexpressions within functions.

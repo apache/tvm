@@ -39,8 +39,8 @@ namespace relax {
 
 uint64_t Hash(const IRModule& mod) { return SHashHandlerDefault().Hash(mod, true); }
 
-IRModule FixpointSimplification(const IRModule& mod, Array<runtime::String> entry_funcs,
-                                bool call_only) {
+IRModule FixpointSimplification(const IRModule& mod, int iteration_limit,
+                                Array<runtime::String> entry_funcs, bool call_only) {
   // apply passes until it stops changing
   IRModule current_mod = mod;
   transform::Pass cse = transform::EliminateCommonSubexpr(call_only);
@@ -49,13 +49,19 @@ IRModule FixpointSimplification(const IRModule& mod, Array<runtime::String> entr
   transform::Pass fold_df_output = transform::FoldDataflowBlockOutput();
 
   uint64_t last_hash = Hash(current_mod);
-  while (true) {
+  int i = 0;
+  while (i < iteration_limit) {
     current_mod = std::move(fold_df_output(cse(canonicalize_bindings(dce(current_mod)))));
     uint64_t current_hash = Hash(current_mod);
     if (current_hash == last_hash) {
       break;
     }
     last_hash = current_hash;
+    i++;
+  }
+  if (i == iteration_limit) {
+    LOG(WARNING) << "Iteration limit reached, suggesting FixpointSimplification likely did not "
+                    "actually reach a fixpoint.";
   }
 
   return current_mod;
@@ -63,10 +69,11 @@ IRModule FixpointSimplification(const IRModule& mod, Array<runtime::String> entr
 
 namespace transform {
 
-Pass FixpointSimplification(Array<runtime::String> entry_functions, bool call_only) {
+Pass FixpointSimplification(int iteration_limit, Array<runtime::String> entry_functions,
+                            bool call_only) {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule m,
                                                                             PassContext pc) {
-    return relax::FixpointSimplification(m, entry_functions, call_only);
+    return relax::FixpointSimplification(m, iteration_limit, entry_functions, call_only);
   };
   return CreateModulePass(pass_func, 1, "FixpointSimplification", {});
 }
