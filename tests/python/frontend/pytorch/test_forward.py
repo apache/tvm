@@ -5330,6 +5330,19 @@ def test_exporting_renamed_c_graph():
         assert "%aten::_convolution_0" in graph
 
 
+def test_inplace_copy():
+    class InplaceCopy(torch.nn.Module):
+        def __init__(self) -> None:
+            super().__init__()
+
+        def forward(self, x):
+            x[:5, 0] = x[:5, 0] + 1
+            return x
+
+    inputs = torch.randn(10, 10)
+    verify_model(InplaceCopy(), [inputs])
+
+
 class TestSetSpan:
     """test structural equal between translated / hand-crafted relay IR with span tagged."""
 
