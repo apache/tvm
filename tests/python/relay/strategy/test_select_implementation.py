@@ -19,12 +19,14 @@
 
 import pytest
 import numpy as np
+from unittest.mock import MagicMock
 
 import tvm
 from tvm import relay
 from tvm import te
 from tvm.relay.testing import run_infer_type
 import tvm.testing
+from tvm import topi
 
 
 @pytest.mark.parametrize(
@@ -185,6 +187,39 @@ def test_dense(target, expected_valid_impl, expected_impl):
     for impl in valid_impl:
         assert impl.name in expected_valid_impl
     assert selected_impl.name == expected_impl
+
+
+@pytest.mark.parametrize(
+    "target,schedule_func",
+    [
+        ("llvm -device=arm_cpu", topi.x86),
+        ("c -device=arm_cpu -mcpu=cortex-m55", topi.arm_cpu),
+    ],
+)
+def test_pool2d(target, schedule_func, monkeypatch):
+    target = tvm.target.Target(target)
+
+    data_shape = (1, 2, 2, 4)
+    dtype = "float32"
+
+    out = relay.nn.avg_pool2d(relay.var("data", shape=data_shape, dtype=dtype))
+    out = relay.Function(relay.analysis.free_vars(out), out)
+    out = tvm.IRModule.from_expr(out)
+
+    # Since pool does not use OpStrategy to determine the relevant schedule,
+    # we cannot simply check the schedule name that was selected with
+    # `select_implementation`. With this implementation of schedule selection,
+    # "pool.arm_cpu" will always be the schedule name, regardless of what schedule
+    # was selected. Instead, this test checks that the relevant schedule function
+    # is called when building the module.
+    mock_schedule = MagicMock()
+    mock_schedule.side_effect = lambda outs, layout: topi.generic.schedule_pool(outs, layout)
+    monkeypatch.setattr(schedule_func, "schedule_pool", mock_schedule)
+
+    with target:
+        tvm.relay.build(out, target=target)
+
+    mock_schedule.assert_called()
 
 
 if __name__ == "__main__":
