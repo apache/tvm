@@ -54,8 +54,8 @@ def get_type(elem_type: Union[str, int]) -> str:
         return elem_type
 
     try:
-        from onnx.mapping import (
-            TENSOR_TYPE_TO_NP_TYPE,  # pylint: disable=import-outside-toplevel
+        from onnx.mapping import (  # pylint: disable=import-outside-toplevel
+            TENSOR_TYPE_TO_NP_TYPE,
         )
     except ImportError as exception:
         raise ImportError("Unable to import onnx which is required {}".format(exception))
@@ -135,8 +135,8 @@ def get_info(info_proto: onnx.onnx_ml_pb2.ValueInfoProto) -> Tuple[str, List, st
 def get_numpy(tensor_proto: onnx.onnx_ml_pb2.TensorProto) -> _np.ndarray:
     """Grab data in TensorProto and convert to numpy array."""
     try:
-        from onnx.numpy_helper import (
-            to_array,  # pylint: disable=import-outside-toplevel
+        from onnx.numpy_helper import (  # pylint: disable=import-outside-toplevel
+            to_array,
         )
     except ImportError as exception:
         raise ImportError("Unable to import onnx which is required {}".format(exception))

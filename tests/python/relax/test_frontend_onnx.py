@@ -1668,7 +1668,7 @@ def test_symbolic_shape_deduction():
             R.output(gv)
         return gv
 
-    #TODO(siyuan): Enable assertion after fixing the SizeVar roundtrip issue
+    # TODO(siyuan): Enable assertion after fixing the SizeVar roundtrip issue
     # tvm.ir.assert_structural_equal(expected, tvm_model["main"])
 
 
