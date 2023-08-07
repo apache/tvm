@@ -238,7 +238,7 @@ def from_relay(
             cur_bb = relax.BlockBuilder.current()
             gv = cur_bb.emit_output(output_var)
             df_block = cur_bb._end_block()
-            cur_bb._blocks.append(df_block)
+            cur_bb._func._blocks.append(df_block)
             cur_bb.emit_func_output(gv, params)
         elif isinstance(node, tvm.ir.Op):
             pass
