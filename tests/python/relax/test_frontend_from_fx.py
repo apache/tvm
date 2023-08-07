@@ -1866,6 +1866,7 @@ def test_addmm():
                 R.output(gv)
             return gv
 
+    @tvm.script.ir_module
     class expected2:
         @R.function
         def main(
@@ -1878,7 +1879,8 @@ def test_addmm():
                 lv: R.Tensor((10, 10), dtype="float32") = R.matmul(x2, x3, out_dtype="float32")
                 lv1: R.Tensor((10, 10), dtype="float32") = R.multiply(lv, R.const(0.5, "float32"))
                 lv2: R.Tensor((10, 10), dtype="float32") = R.multiply(x1, R.const(0.8, "float32"))
-                gv: R.Tensor((10, 10), dtype="float32") = R.add(lv2, lv1)
+                lv3: R.Tensor((10, 10), dtype="float32") = R.add(lv2, lv1)
+                gv: R.Tensor((10, 10), dtype="float32") = lv3
                 R.output(gv)
             return gv
 

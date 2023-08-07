@@ -479,7 +479,7 @@ class TorchFXImporter:
                 bias = self.block_builder.emit(relax.op.multiply(x, relax.const(beta, dtype)))
             else:
                 bias = x
-            res = bias if res is None else self.block_builder.emit(relax.op.add(res, bias))
+            res = bias if res is None else self.block_builder.emit(relax.op.add(bias, res))
         return res
 
     def _baddbmm(self, node: fx.node.Node) -> relax.Var:
