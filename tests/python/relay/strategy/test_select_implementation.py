@@ -16,7 +16,10 @@
 # under the License.
 
 """ Tests strategy selection for Relay ops """
+
 import pytest
+import numpy as np
+
 import tvm
 from tvm import relay
 from tvm import te
@@ -147,6 +150,41 @@ def test_int8_depthwise_conv2d(target, expected_impl):
         )
 
     assert impl.name == expected_impl
+
+
+@pytest.mark.parametrize(
+    "target,expected_valid_impl,expected_impl",
+    [("llvm -device=arm_cpu", ["dense_pack.x86", "dense_nopack.x86"], "dense_pack.x86")],
+)
+def test_dense(target, expected_valid_impl, expected_impl):
+    target = tvm.target.Target(target)
+
+    data_shape = (30, 40)
+    weight_shape = (30, 40)
+    dtype = "float32"
+
+    out = relay.nn.dense(
+        relay.var("data", shape=data_shape, dtype=dtype),
+        relay.var("weight", shape=weight_shape, dtype=dtype),
+        out_dtype=dtype,
+    )
+    out = run_infer_type(out)
+
+    with target:
+        args = [
+            out.op,
+            out.attrs,
+            [te.placeholder(data_shape, dtype), te.placeholder(weight_shape, dtype)],
+            out.checked_type,
+            target,
+        ]
+        valid_impl = relay.backend.te_compiler.get_valid_implementations(*args)
+        selected_impl, _ = relay.backend.te_compiler.select_implementation(*args, use_autotvm=False)
+
+    assert len(valid_impl) == len(expected_valid_impl)
+    for impl in valid_impl:
+        assert impl.name in expected_valid_impl
+    assert selected_impl.name == expected_impl
 
 
 if __name__ == "__main__":
