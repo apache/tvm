@@ -99,7 +99,6 @@ def test_op_int8(zero_point, scale, compiler_cpu, cpu_flags):
 )
 def test_op_int16(zero_point, scale, compiler_cpu, cpu_flags):
     """Tests int16 QNN Softmax for CMSIS-NN"""
-    print()
     interface_api = "c"
     use_unpacked_api = True
 

@@ -16,6 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+/*!
+ * \file src/relay/backend/contrib/cmsisnn/compute_luts.cc
+ * \brief Creates LUTs for operators in different bit formats for accelerating computations.
+ */
 
 #include "compute_luts.h"
 

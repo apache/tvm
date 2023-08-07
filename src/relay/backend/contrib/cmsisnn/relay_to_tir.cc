@@ -91,19 +91,16 @@ class RelayToTIRVisitor : public MixedModeMutator {
   inline IntImm ToArg(int32_t value) { return IntImm(DataType::Int(32), value); }
 
   //  struct used to allocated const NDArray
-  struct user_const {
+  struct tir_input_constant_buffers {
     tir::Var buffer_var;
-    int num_bits;
-    Array<PrimExpr> extents;
     tvm::runtime::NDArray ndarray;
   };
 
-  void CreatePrimFuncForExtern(const GlobalVar& global_var, Array<tir::Var> func_signature,
-                               const Map<tir::Var, tir::Buffer>& buffer_map,
-                               tvm::Array<PrimExpr> call_extern_args,
-                               PrimExpr context_buffer_var = PrimExpr(),
-                               int context_buffer_size = 0, int num_bits = 8,
-                               std::vector<user_const> context_const_buffer_vars = {}) {
+  void CreatePrimFuncForExtern(
+      const GlobalVar& global_var, Array<tir::Var> func_signature,
+      const Map<tir::Var, tir::Buffer>& buffer_map, tvm::Array<PrimExpr> call_extern_args,
+      PrimExpr context_buffer_var = PrimExpr(), int context_buffer_size = 0, int num_bits = 8,
+      std::vector<tir_input_constant_buffers> context_const_buffer_vars = {}) {
     Map<String, ObjectRef> dict_attrs;
     dict_attrs.Set(tvm::attr::kGlobalSymbol, global_var->name_hint);
     dict_attrs.Set(tvm::attr::kTarget, target_);
@@ -118,10 +115,16 @@ class RelayToTIRVisitor : public MixedModeMutator {
     }
 
     for (int i = 0; i < static_cast<int>(context_const_buffer_vars.size()); i++) {
+      int bits = context_const_buffer_vars[i].ndarray.DataType().bits();
+
+      Array<PrimExpr> extents;
+      for (int shape : context_const_buffer_vars[i].ndarray.Shape()) {
+        extents.push_back(PrimExpr(shape));
+      }
+
       body = tir::AllocateConst(Downcast<tir::Var>(context_const_buffer_vars[i].buffer_var),
-                                DataType::Int(context_const_buffer_vars[i].num_bits),
-                                context_const_buffer_vars[i].extents,
-                                context_const_buffer_vars[i].ndarray, body);
+                                DataType::Int(bits), extents, context_const_buffer_vars[i].ndarray,
+                                body);
     }
 
     tir::PrimFunc replacement_func(func_signature, body, VoidType(), buffer_map,
@@ -537,15 +540,15 @@ class RelayToTIRVisitor : public MixedModeMutator {
     // calculate multiplier and shift for CMSIS-NN softmax API
     // Note: TensorFlow Lite Micro assumptions
     // Output zero point and scale are fixed to -128 and 1 / 256 in the case of an int8 operator
-    // or to 0 and 1 / 32768.
+    // or to 0 and 1 / 32768 in the case of an int16 operator
     // kScaledDiffIntegerBits, kInputBits, kBeta are described on the following github page
-    // https://github.com/tensorflow/tflite-micro/blob/d97cd0908d8cf5021e9d86f05a49888bee28c2a4/tensorflow/lite/exp_zero_pointmicro/kernels/softmax_common.cc#L47
+    // https://github.com/tensorflow/tflite-micro/blob/d97cd0908d8cf5021e9d86f05a49888bee28c2a4/tensorflow/lite/micro/kernels/softmax_common.cc#L47
 
     int32_t mult;
     int32_t shift;
     int32_t diff_min = 0;
 
-    std::vector<user_const> softmax_params(2);
+    std::vector<tir_input_constant_buffers> softmax_params(2);
     Device dev{DLDeviceType::kDLCPU, 0};
 
     if (bit_width == 8) {
@@ -592,8 +595,6 @@ class RelayToTIRVisitor : public MixedModeMutator {
       softmax_params[0].ndarray =
           runtime::NDArray::Empty({kLUTEntries}, DataType::Int(bit_width), dev);
       softmax_params[0].ndarray.CopyFromBytes(softmax_s16_exp_lut, sizeof(int16_t) * kLUTEntries);
-      softmax_params[0].extents = {kLUTEntries};
-      softmax_params[0].num_bits = bit_width;
 
       // second LUT
       softmax_params[1].buffer_var = tir::Var(
@@ -602,8 +603,6 @@ class RelayToTIRVisitor : public MixedModeMutator {
           runtime::NDArray::Empty({kLUTEntries}, DataType::Int(bit_width), dev);
       softmax_params[1].ndarray.CopyFromBytes(softmax_s16_one_by_one_lut,
                                               sizeof(int16_t) * kLUTEntries);
-      softmax_params[1].extents = {kLUTEntries};
-      softmax_params[1].num_bits = bit_width;
     }
 
     BufferCreator buffer_creator;
@@ -638,7 +637,7 @@ class RelayToTIRVisitor : public MixedModeMutator {
       };
 
       CreatePrimFuncForExtern(global_var, buffer_creator.GetPrimFuncParams(),
-                              buffer_creator.GetBufferMap(), args, PrimExpr(), 0, 8,
+                              buffer_creator.GetBufferMap(), args, PrimExpr(), 0, 16,
                               softmax_params);
     }
   }
