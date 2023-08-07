@@ -57,12 +57,12 @@ class cuDNNJSONRuntime : public JSONRuntimeBase {
       return std::regex_search(op_name, std::regex(attr_name));
     };
 
-    auto getVecIntAttrFromVecStr = [this](const JSONGraphNode& node, const std::string& attrStr) {
-      auto stringToInt = [](const std::string& str) { return std::stoi(str); };
-      auto stringVec = node.GetAttr<std::vector<std::string>>(attrStr);
-      std::vector<int> intVec(stringVec.size());
-      std::transform(stringVec.begin(), stringVec.end(), intVec.begin(), stringToInt);
-      return intVec;
+    auto vstr2vint = [this](const JSONGraphNode& node, const std::string& attrStr) {
+      auto string_to_int = [](const std::string& str) { return std::stoi(str); };
+      auto string_vec = node.GetAttr<std::vector<std::string>>(attrStr);
+      std::vector<int> int_vec(string_vec.size());
+      std::transform(string_vec.begin(), string_vec.end(), int_vec.begin(), string_to_int);
+      return int_vec;
     };
     // get some config from the graph
     for (size_t i = 0; i < nodes_.size(); ++i) {
@@ -86,9 +86,9 @@ class cuDNNJSONRuntime : public JSONRuntimeBase {
         }
         has_bias = attr_in_name(op_name, "bias");
         groups = std::stoi(node.GetAttr<std::vector<std::string>>("groups")[0]);
-        padding = getVecIntAttrFromVecStr(node, "padding");
-        strides = getVecIntAttrFromVecStr(node, "strides");
-        dilation = getVecIntAttrFromVecStr(node, "dilation");
+        padding = vstr2vint(node, "padding");
+        strides = vstr2vint(node, "strides");
+        dilation = vstr2vint(node, "dilation");
         conv_dtype = node.GetAttr<std::vector<std::string>>("out_dtype")[0];
         std::string layout = node.GetAttr<std::vector<std::string>>("out_layout")[0];
         dims = layout.size() - 2;  // remove O and I dims

@@ -24,23 +24,33 @@ from ..patterns import make_conv2d_pattern
 
 
 def _is_supported_dtype(lhs_dtype, rhs_dtype):
-    """Check if dtypes in the given workload are supported by cuBLAS BYOC."""
+    """Check if dtypes in the given workload are supported by cuDNN BYOC."""
     return (lhs_dtype == "float16" and rhs_dtype == "float16") or (
         lhs_dtype == "float32" and rhs_dtype == "float32"
     )
 
+def _is_supported_format(data_layout, kernel_layout):
+    """Check if layouts in the given workload are supported by cuDNN BYOC."""
+    return (data_layout == "NHWC" and kernel_layout == "OHWI") or (
+        data_layout == "NCHW" and kernel_layout == "OIHW"
+    )
 
 def _check_conv2d(context: PatternCheckContext) -> bool:
     # Retrieve the annotated expression from context
     input_expr = context.annotated_expr["input"]
     weight_expr = context.annotated_expr["weight"]
 
-    # Check if the data types of input and weights are float32
+    # Check if the data types of input and weights are supported by cuDNN BYOC
     input_dtype = input_expr.struct_info.dtype
     weight_dtype = weight_expr.struct_info.dtype
     if not _is_supported_dtype(input_dtype, weight_dtype):
         return False
-
+    
+    input_format = input_expr.struct_info.data_layout
+    weight_format = weight_expr.struct_info.data_layout
+    if not _is_supported_format(input_format, weight_format):
+        return False
+    
     return True
 
 

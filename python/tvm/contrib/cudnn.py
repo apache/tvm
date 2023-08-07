@@ -467,7 +467,7 @@ def conv_backward_data_find_algo(
     groups: int
         number of groups
     verbose: bool
-        whether to show the selection trails
+        whether to show the selection trials
 
     Returns
     -------
@@ -530,7 +530,7 @@ def conv_backward_filter_find_algo(
     groups: int
         number of groups
     verbose: bool
-        whether to show the selection trails
+        whether to show the selection trials
 
     Returns
     -------
@@ -585,7 +585,7 @@ def conv_forward(
     groups: int
         the number of groups
     verbose: bool
-        whether to show the selection trails
+        whether to show the selection trials
 
     Returns
     -------

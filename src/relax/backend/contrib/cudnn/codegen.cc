@@ -19,7 +19,7 @@
 
 /*!
  * \file src/relax/backend/contrib/cudnn/codegen.cc
- * \brief Implementation of the CUBLAS JSON serializer.
+ * \brief Implementation of the cuDNN JSON serializer.
  */
 #include <tvm/ir/module.h>
 
