@@ -3743,7 +3743,7 @@ class PyTorchOpConverter:
             reci_order,
         )
         return weight_g * (weight_v / norm_v)
-    
+
     def inplace_copy(self, inputs, input_types):
         source = inputs[0]
         slice_and_select_calls = []
@@ -4526,6 +4526,7 @@ def _redirect_inplace_output(graph):
             else:
                 src_value = src_node.output()
             src_value.replaceAllUsesAfterNodeWith(node, node.output())
+
 
 def _get_tensor_and_var(torch_tensor, name):
     tensor = tvm.nd.array(torch_tensor.cpu().numpy())
