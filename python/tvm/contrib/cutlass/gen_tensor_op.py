@@ -532,7 +532,7 @@ def instantiate_template(func_name, annotations, func_args):
         attrs["M"] = annotations["M"]
 
         if not isinstance(attrs["M"], tvm.tir.IntImm):
-            attrs["M"] = get_flattened_batch_dim(func_args[0], int(attrs["batch_rank"]))
+            attrs["M"] = get_flattened_batch_dim(func_args[0], int(annotations["batch_rank"]))
 
         if bias_arg_idx is not None:
             attrs["bias_arg"] = func_args[bias_arg_idx]
