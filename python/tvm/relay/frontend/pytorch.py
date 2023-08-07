@@ -3743,6 +3743,54 @@ class PyTorchOpConverter:
             reci_order,
         )
         return weight_g * (weight_v / norm_v)
+    
+    def inplace_copy(self, inputs, input_types):
+        source = inputs[0]
+        slice_and_select_calls = []
+        while True:
+            if isinstance(source, _expr.Call) and source.op.name in [
+                "strided_slice",
+                "take",
+                "expand_dims",
+            ]:
+                slice_and_select_calls.append(source)
+                source = source.args[0]
+            else:
+                break
+        slice_and_select_calls = slice_and_select_calls[::-1]
+        source_shape = _infer_shape(source)
+        indices = [[j for j in range(source_shape[i])] for i in range(len(source_shape))]
+
+        for call in slice_and_select_calls:
+            if call.op.name == "strided_slice":
+                """
+                spec. of strided_slice:
+                https://tvm.apache.org/docs/reference/api/python/relay/index.html
+                """
+                axes = call.attrs.axes
+                if axes is None:
+                    axes = [i for i in range(len(source_shape))]
+                begins = call.attrs.begin
+                ends = call.attrs.end
+                for axis, begin, end in zip(axes, begins, ends):
+                    if begin < 0:
+                        begin = source_shape[axis] + begin
+                    if end < 0:
+                        end = source_shape[axis] + end
+                    indices[axis] = [v for v in indices[axis] if begin <= v < end]
+            elif call.op.name == "take":
+                axis = call.attrs.axis.value
+                idx = call.args[1]
+                assert isinstance(idx, _expr.Constant)
+                idx = idx.data.numpy().item()
+                indices[axis] = [idx]
+            else:
+                pass
+        indices = tuple([_expr.const(i) for i in indices])
+        return self.index_put(
+            [source, indices, inputs[1], inputs[2]],
+            [input_types[0], "int64", input_types[1], input_types[2]],
+        )
 
     # Operator mappings
     def create_convert_map(self):
@@ -4015,6 +4063,7 @@ class PyTorchOpConverter:
             "aten::__rshift__": self.make_elemwise("right_shift"),
             "aten::multinomial": self.multinomial,
             "aten::_weight_norm": self.weight_norm,
+            "aten::copy_": self.inplace_copy,
         }
 
     def update_convert_map(self, custom_map):
@@ -4458,6 +4507,25 @@ def _run_jit_passes(graph, enable_lower_all_tuples=True):
     if enable_lower_all_tuples:
         torch._C._jit_pass_lower_all_tuples(graph)
 
+
+def _redirect_inplace_output(graph):
+    for node in graph.nodes():
+        if node.kind() == "aten::copy_":
+            node_inputs = list(node.inputs())
+            src_node = node_inputs[0].node()
+            slice_and_select_nodes = []
+            while True:
+                if src_node.kind() in ["aten::slice", "aten::select", "aten::unsqueeze"]:
+                    src_node = list(src_node.inputs())[0].node()
+                    slice_and_select_nodes.append(src_node)
+                else:
+                    break
+            if src_node.kind() == "prim::Param":
+                # First one is "self"
+                src_value = list(src_node.outputs())[1]
+            else:
+                src_value = src_node.output()
+            src_value.replaceAllUsesAfterNodeWith(node, node.output())
 
 def _get_tensor_and_var(torch_tensor, name):
     tensor = tvm.nd.array(torch_tensor.cpu().numpy())
@@ -4960,6 +5028,7 @@ def from_pytorch(
             break
 
     _run_jit_passes(graph, enable_lower_all_tuples)
+    _redirect_inplace_output(graph)
 
     if custom_convert_map:
         converter.update_convert_map(custom_convert_map)
