@@ -292,5 +292,4 @@ def test_conv2d_cuda_graph(data_shape, weight_shape, dtype, with_bias, activatio
 
 
 if __name__ == "__main__":
-    # tvm.testing.main()
-    test_conv2d_cuda_graph(*((16, 32, 32, 16), (32, 3, 3, 16), "float32", True, "relu"))
+    tvm.testing.main()
