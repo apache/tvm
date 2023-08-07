@@ -854,7 +854,7 @@ def stacked_attention_size(request):
 
 def test_stacked_attention_split_offload(stacked_attention_size):
     b, s, n, (h, h_v), bias_shape, scale, single_shape = stacked_attention_size
-    qkv, bias, ref = get_numpy_stacked_attention_ref(b, s, n, h, h_v, bias_shape, scale, "float32")
+    qkv, bias, ref = get_numpy_stacked_attention_ref(b, s, n, h, h_v, bias_shape, scale, "float16")
     if scale == "none":
         mod = get_relax_stacked_attention_module(
             qkv, b, s, n, h, h_v, "split", bias, single_shape=single_shape
