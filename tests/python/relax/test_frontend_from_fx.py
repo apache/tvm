@@ -1848,7 +1848,7 @@ def test_addmm():
             super().__init__()
 
         def forward(self, x1, x2, x3):
-            return torch.addmm(x1, x2, x3, alpha=0.5, beta=0.8)
+            return torch.addmm(x1, x2, x3, beta=0.8, alpha=0.5)
 
     @tvm.script.ir_module
     class expected1:
@@ -1876,8 +1876,8 @@ def test_addmm():
             # block 0
             with R.dataflow():
                 lv: R.Tensor((10, 10), dtype="float32") = R.matmul(x2, x3, out_dtype="float32")
-                lv1: R.Tensor((10, 10), dtype="float32") = R.multiply(lv, R.const(0.8, "float32"))
-                lv2: R.Tensor((10, 10), dtype="float32") = R.multiply(x1, R.const(0.5, "float32"))
+                lv1: R.Tensor((10, 10), dtype="float32") = R.multiply(lv, R.const(0.5, "float32"))
+                lv2: R.Tensor((10, 10), dtype="float32") = R.multiply(x1, R.const(0.8, "float32"))
                 gv: R.Tensor((10, 10), dtype="float32") = R.add(lv2, lv1)
                 R.output(gv)
             return gv
