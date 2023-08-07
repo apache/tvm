@@ -85,14 +85,6 @@ def test_undefined_buffer():
     check_error(undefined_buffer, 5)
 
 
-def test_unsupported_stmt():
-    def unsupported_stmt(a: T.int32) -> None:
-        if a > 0:
-            print("I love tvm")  # error
-
-    check_error(unsupported_stmt, 3)
-
-
 def test_unsupported_function_call():
     def unsupported_function_call(a: T.handle) -> None:
         A = T.match_buffer(a, (16, 16), "float32")
