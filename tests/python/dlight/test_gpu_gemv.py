@@ -457,14 +457,14 @@ def test_decode_gemv3():
             for u_fused_ax0_fused_fused_1 in T.thread_binding(T.int64(16), thread="threadIdx.y"):
                 for ax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0 in T.thread_binding(T.int64(32), thread="threadIdx.x"):
                     for ax0, ax1 in T.grid(T.int64(1), T.int64(1)):
-                        for ax2_0 in T.serial(T.int64(3), annotations={"pragma_unroll_explicit": 256, "pragma_vectorize": 1}):
+                        for ax2_0 in T.serial(T.int64(22), annotations={"pragma_unroll_explicit": 256, "pragma_vectorize": 1}):
                             for ax2_1 in T.thread_binding(T.int64(16), thread="threadIdx.y"):
                                 for ax2_2 in T.thread_binding(T.int64(32), thread="threadIdx.x"):
-                                    for ax2_3 in T.vectorized(T.int64(8)):
+                                    for ax2_3 in T.vectorized(T.int64(1)):
                                         with T.block("lv574_shared"):
                                             v0, v1 = T.axis.remap("SS", [ax0, ax1])
-                                            v2 = T.axis.spatial(T.int64(11008), ax2_0 * T.int64(4096) + ax2_1 * T.int64(256) + ax2_2 * T.int64(8) + ax2_3)
-                                            T.where(((ax2_0 * T.int64(16) + ax2_1) * T.int64(32) + ax2_2) * T.int64(8) + ax2_3 < T.int64(11008))
+                                            v2 = T.axis.spatial(T.int64(11008), ax2_0 * T.int64(512) + ax2_1 * T.int64(32) + ax2_2 + ax2_3)
+                                            T.where((ax2_0 * T.int64(16) + ax2_1) * T.int64(32) + ax2_2 + ax2_3 < T.int64(11008))
                                             T.reads(lv574[v0, v1, v2])
                                             T.writes(lv574_shared[v0, v1, v2])
                                             lv574_shared[v0, v1, v2] = lv574[v0, v1, v2]
@@ -535,6 +535,7 @@ def test_decode_gemv3():
     mod = tvm.IRModule({"main": before})
     with Target("nvidia/geforce-rtx-3090-ti"):
         mod = dl.ApplyDefaultSchedule(dl.gpu.GEMV())(mod)
+    mod.show(black_format=False)
     tvm.ir.assert_structural_equal(mod["main"], expected)
 
 
