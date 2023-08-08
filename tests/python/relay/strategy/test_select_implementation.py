@@ -203,22 +203,18 @@ def test_pool2d(target, schedule_func, monkeypatch):
     dtype = "float32"
 
     out = relay.nn.avg_pool2d(relay.var("data", shape=data_shape, dtype=dtype))
-    out = relay.Function(relay.analysis.free_vars(out), out)
-    out = tvm.IRModule.from_expr(out)
+    placeholders = [te.placeholder(data_shape, dtype)]
+
+    mock_schedule = MagicMock()
+    monkeypatch.setattr(schedule_func, "schedule_pool", mock_schedule)
 
     # Since pool does not use OpStrategy to determine the relevant schedule,
     # we cannot simply check the schedule name that was selected with
     # `select_implementation`. With this implementation of schedule selection,
     # "pool.arm_cpu" will always be the schedule name, regardless of what schedule
     # was selected. Instead, this test checks that the relevant schedule function
-    # is called when building the module.
-    mock_schedule = MagicMock()
-    mock_schedule.side_effect = lambda outs, layout: topi.generic.schedule_pool(outs, layout)
-    monkeypatch.setattr(schedule_func, "schedule_pool", mock_schedule)
-
-    with target:
-        tvm.relay.build(out, target=target)
-
+    # is called when selecting the pooling from schedule from arm_cpu.
+    relay.op.strategy.arm_cpu.schedule_pool_arm_cpu(out.attrs, placeholders, target)
     mock_schedule.assert_called()
 
 
