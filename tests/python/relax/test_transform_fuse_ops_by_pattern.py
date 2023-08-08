@@ -609,7 +609,10 @@ def test_compare_with_merge_composite_path():
                 y_1: R.Tensor((10, 10), dtype="float32"),
             ) -> R.Tensor((10, 10), dtype="float32"):
                 R.func_attr({"Composite": "cutlass.multiply"})
-                gv_1: R.Tensor((10, 10), dtype="float32") = R.multiply(x_1, y_1)
+                with R.dataflow():
+                    gv_1: R.Tensor((10, 10), dtype="float32") = R.multiply(x_1, y_1)
+                    R.output(gv_1)
+
                 return gv_1
 
             gv_1: R.Tensor((10, 10), dtype="float32") = gv(x, y)
