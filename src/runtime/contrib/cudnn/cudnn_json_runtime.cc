@@ -141,14 +141,13 @@ class cuDNNJSONRuntime : public JSONRuntimeBase {
 
     if (this->has_bias) {
       tvm::contrib::ConvolutionBiasActivationForward(
-          this->mode, this->format, this->algo, this->dims,
-          this->groups, this->act, this->coef, this->padding.data(), this->strides.data(),
-          this->dilation.data(), a_ptr, b_ptr, out_ptr, bias_ptr, this->conv_dtype);
+          this->mode, this->format, this->algo, this->dims, this->groups, this->act, this->coef,
+          this->padding.data(), this->strides.data(), this->dilation.data(), a_ptr, b_ptr, out_ptr,
+          bias_ptr, this->conv_dtype);
     } else {
-      tvm::contrib::ConvolutionForward(this->mode, this->format,
-                                       this->algo, this->dims, this->groups, this->padding.data(),
-                                       this->strides.data(), this->dilation.data(), a_ptr, b_ptr,
-                                       out_ptr, this->conv_dtype);
+      tvm::contrib::ConvolutionForward(
+          this->mode, this->format, this->algo, this->dims, this->groups, this->padding.data(),
+          this->strides.data(), this->dilation.data(), a_ptr, b_ptr, out_ptr, this->conv_dtype);
     }
   }
 
