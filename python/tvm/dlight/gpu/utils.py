@@ -51,6 +51,8 @@ def suggest_threads_per_block(
 ) -> List[int]:
     if target.kind.name == "cuda":
         threads = 256
+    elif target.kind.name == "rocm":
+        threads = 256
     else:
         threads = 64
     results: List[Optional[int]] = []
