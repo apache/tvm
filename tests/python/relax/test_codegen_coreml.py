@@ -41,6 +41,7 @@ def _has_xcode():
 @requires_coremltools
 def verify(mod, inputs):
     mod1 = partition_for_coreml(mod)
+    mod1.show()
     mod1 = relax.transform.RunCodegen()(mod1)
     assert relax.analysis.well_formed(mod1)
     assert mod1.attrs, "Should exist if offloaded successfully."
@@ -49,13 +50,15 @@ def verify(mod, inputs):
     assert relax.analysis.well_formed(mod1)
 
     ex1 = relax.build(mod1, target=target)
-    vm1 = relax.VirtualMachine(ex1, dev)
+    vm1 = relax.VirtualMachine(ex1, dev, profile=True)
     out1 = vm1["main"](*inputs)
+    print(vm1.profile("main", *inputs))
 
     mod2 = relax.transform.LegalizeOps()(mod)
     ex2 = relax.build(mod2, target=target)
-    vm2 = relax.VirtualMachine(ex2, dev)
+    vm2 = relax.VirtualMachine(ex2, dev, profile=True)
     out2 = vm2["main"](*inputs)
+    print(vm2.profile("main", *inputs))
 
     tvm.testing.assert_allclose(out1.numpy(), out2.numpy(), rtol=1e-3, atol=1e-3)
 
@@ -273,7 +276,7 @@ def test_global_avg_pool2d():
 
 @tvm.testing.uses_gpu
 @requires_coremltools
-def test_subgraph():
+def test_subgraph1():
     x = relax.Var("x", relax.TensorStructInfo([10, 10], "float32"))
     y = relax.Var("y", relax.TensorStructInfo([10, 10], "float32"))
     bb = relax.BlockBuilder()
@@ -288,6 +291,9 @@ def test_subgraph():
     y_data = tvm.nd.array(np.random.rand(10, 10).astype("float32"), dev)
     verify(mod, [x_data, y_data])
 
+@tvm.testing.uses_gpu
+@requires_coremltools
+def test_subgraph2():
     x = relax.Var("x", relax.TensorStructInfo([10, 10], "float32"))
     y = relax.Var("y", relax.TensorStructInfo([10, 10], "float32"))
     bb = relax.BlockBuilder()
