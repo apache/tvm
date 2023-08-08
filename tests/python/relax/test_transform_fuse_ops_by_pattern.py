@@ -78,7 +78,7 @@ class Conv2dReLU_composite_annotated:
             data2: R.Tensor((1, 64, 56, 56), dtype="float32"),
             weight12: R.Tensor((64, 64, 3, 3), dtype="float32"),
         ) -> R.Tensor((1, 64, 56, 56), dtype="float32"):
-            R.func_attr({"Primitive": 1, "Composite": "dnnl.conv2d_relu"})
+            R.func_attr({"Composite": "dnnl.conv2d_relu"})
             with R.dataflow():
                 lv: R.Tensor((1, 64, 56, 56), dtype="float32") = R.nn.conv2d(
                     data2,
@@ -394,7 +394,7 @@ class Conv2dx2_partitioned:
             data_1: R.Tensor((16, 32, 32, 16), dtype="float16"),
             weight1_1: R.Tensor((16, 3, 3, 16), dtype="float16"),
         ) -> R.Tensor((16, 32, 32, 16), dtype="float16"):
-            R.func_attr({"Composite": "cutlass.conv2d", "Primitive": 1})
+            R.func_attr({"Composite": "cutlass.conv2d"})
             with R.dataflow():
                 gv_2: R.Tensor((16, 32, 32, 16), dtype="float16") = R.nn.conv2d(
                     data_1,
@@ -527,6 +527,108 @@ def test_annotate_codegen():
         Conv2dReLU_composite_annotated,
         annotate_codegen=True,
     )
+
+
+def test_compare_with_merge_composite_path():
+    x = relax.Var("x", relax.TensorStructInfo([10, 10], "float32"))
+    y = relax.Var("y", relax.TensorStructInfo([10, 10], "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("main", [x, y]):
+        with bb.dataflow():
+            lv0 = bb.emit(relax.op.multiply(x, y))
+            gv = bb.emit_output(lv0)
+        bb.emit_func_output(gv)
+    mod = bb.get()
+    mod = relax.transform.FoldDataflowBlockOutput()(mod)
+
+    # Currently, we have two paths for BYOC.
+    # Path1. [FuseOpsByPattern(patterns, annotate_codegen=True), RunCodegen()]
+    # Path2. [FuseOpsByPattern(patterns, annotate_codegen=False), MergeCompositeFunctions(), RunCodegen()]
+    # For consistency, both paths should have same interface with RunCodegen().
+    # As each path has different naming convention due to the difference in the algorithm,
+    # we compare with expected form of each path rather than directly applying structural equality check between two paths.
+    patterns = [("cutlass.multiply", is_op("relax.multiply")(wildcard(), wildcard()))]
+    mod1 = relax.transform.FuseOpsByPattern(patterns, bind_constants=True, annotate_codegen=True)(
+        mod
+    )
+    assert tvm.relax.analysis.well_formed(mod1)
+
+    @I.ir_module
+    class Expected1:
+        @R.function
+        def fused_relax_multiply_cutlass(
+            x: R.Tensor((10, 10), dtype="float32"), y: R.Tensor((10, 10), dtype="float32")
+        ) -> R.Tensor((10, 10), dtype="float32"):
+            R.func_attr({"Codegen": "cutlass"})
+            # from tvm.script import relax as R
+
+            @R.function
+            def gv(
+                x_1: R.Tensor((10, 10), dtype="float32"),
+                y_1: R.Tensor((10, 10), dtype="float32"),
+            ) -> R.Tensor((10, 10), dtype="float32"):
+                R.func_attr({"Composite": "cutlass.multiply"})
+                with R.dataflow():
+                    gv_1: R.Tensor((10, 10), dtype="float32") = R.multiply(x_1, y_1)
+                    R.output(gv_1)
+                return gv_1
+
+            gv1: R.Tensor((10, 10), dtype="float32") = gv(x, y)
+            return gv1
+
+        @R.function
+        def main(
+            x: R.Tensor((10, 10), dtype="float32"), y: R.Tensor((10, 10), dtype="float32")
+        ) -> R.Tensor((10, 10), dtype="float32"):
+            cls = Expected1
+            with R.dataflow():
+                gv: R.Tensor((10, 10), dtype="float32") = cls.fused_relax_multiply_cutlass(x, y)
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod1, Expected1)
+
+    mod2 = relax.transform.FuseOpsByPattern(patterns, bind_constants=True, annotate_codegen=False)(
+        mod
+    )
+    mod2 = relax.transform.MergeCompositeFunctions()(mod2)
+    assert tvm.relax.analysis.well_formed(mod2)
+
+    @I.ir_module
+    class Expected2:
+        @R.function
+        def fused_relax_multiply1(
+            x: R.Tensor((10, 10), dtype="float32"), y: R.Tensor((10, 10), dtype="float32")
+        ) -> R.Tensor((10, 10), dtype="float32"):
+            R.func_attr({"Codegen": "cutlass"})
+            # from tvm.script import relax as R
+
+            @R.function
+            def gv(
+                x_1: R.Tensor((10, 10), dtype="float32"),
+                y_1: R.Tensor((10, 10), dtype="float32"),
+            ) -> R.Tensor((10, 10), dtype="float32"):
+                R.func_attr({"Composite": "cutlass.multiply"})
+                with R.dataflow():
+                    gv_1: R.Tensor((10, 10), dtype="float32") = R.multiply(x_1, y_1)
+                    R.output(gv_1)
+
+                return gv_1
+
+            gv_1: R.Tensor((10, 10), dtype="float32") = gv(x, y)
+            return gv_1
+
+        @R.function
+        def main(
+            x: R.Tensor((10, 10), dtype="float32"), y: R.Tensor((10, 10), dtype="float32")
+        ) -> R.Tensor((10, 10), dtype="float32"):
+            cls = Expected2
+            with R.dataflow():
+                gv: R.Tensor((10, 10), dtype="float32") = cls.fused_relax_multiply1(x, y)
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod2, Expected2)
 
 
 def test_multiple_entries_multiple_calls_same_extern():

@@ -1220,7 +1220,6 @@ def test_attention_rewrite_fp16():
                 R.func_attr(
                     {
                         "Composite": "cutlass.attention_bias",
-                        "Primitive": 1,
                         "WorkspaceSize": T.int64(65536),
                     }
                 )
@@ -1736,6 +1735,13 @@ def test_rms_norm():
     data_shape = (1, 1, 4096)
     dtype = "float16"
     mod = partition_for_cutlass(Module)
+
+    # TODO(@tvm-team): This is temporary patch.Currently, the remaining packed function triggers error since it is not scheduled.
+    # This is because RunCodegen does not support PrimFunc well yet.
+    # i.e., it does remove the global symbol of PrimFunc, which would be no longer used,
+    # and thus, the following DCE cannot remove this. Revisit when resolved.
+    with tvm.target.Target("cuda"):
+        mod = tvm.tir.transform.DefaultGPUSchedule()(mod)
 
     mod = relax.transform.RunCodegen()(mod)
 

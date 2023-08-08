@@ -381,6 +381,13 @@ inline Array<Integer> GetOrderedPositiveAxes(const Array<Integer>& axes, int ndi
   return support::AsArray<int64_t, Integer>(ret);
 }
 
+inline String GetCodegenName(const std::string& composite_name) {
+  auto delim_pos = composite_name.find(".");
+  ICHECK(delim_pos != std::string::npos) << "The pattern name for a composite function should "
+                                            "start with a compiler name followed by period.";
+  return composite_name.substr(0, delim_pos);
+}
+
 }  // namespace relax
 }  // namespace tvm
 

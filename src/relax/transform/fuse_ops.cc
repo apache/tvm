@@ -1199,6 +1199,7 @@ class CompositeFunctionAnnotator : public ExprMutator {
         auto gsymbol = gvar->name_hint + "_" + codegen_name;
         new_func = WithAttrs(new_func,
                              {{attr::kCodegen, codegen_name}, {tvm::attr::kGlobalSymbol, gsymbol}});
+        new_func = WithoutAttr(std::move(new_func), tvm::relax::attr::kPrimitive);
         builder_->GetContextIRModule()->Remove(GetRef<GlobalVar>(gvar));
         auto new_gvar = builder_->AddFunction(new_func, gsymbol);
         gvar_map_[gvar] = new_gvar;
@@ -1209,8 +1210,10 @@ class CompositeFunctionAnnotator : public ExprMutator {
   }
 
   Expr VisitExpr_(const FunctionNode* func_node) final {
-    auto f_inner = ExprMutator::VisitExpr_(func_node);
+    Function f_inner = Downcast<Function>(ExprMutator::VisitExpr_(func_node));
     auto composite_name = func_node->GetAttr<String>(attr::kComposite);
+
+    f_inner = WithoutAttr(std::move(f_inner), tvm::relax::attr::kPrimitive);
     ICHECK(composite_name);
 
     Array<Var> param_vars;
@@ -1224,17 +1227,10 @@ class CompositeFunctionAnnotator : public ExprMutator {
 
     // pure if the inner func is pure (no need to force purity if it's forced for the inner func)
     return Function(param_vars, Call(f_inner, params), func_node->ret_struct_info,
-                    Downcast<Function>(f_inner)->is_pure);
+                    f_inner->is_pure);
   }
 
  private:
-  String GetCodegenName(const std::string& composite_name) {
-    auto delim_pos = composite_name.find(".");
-    ICHECK(delim_pos != std::string::npos) << "The pattern name for a composite function should "
-                                              "start with a compiler name followed by period.";
-    return composite_name.substr(0, delim_pos);
-  }
-
   /*! \brief A map from old global vars to their replacements. */
   std::unordered_map<const GlobalVarNode*, GlobalVar> gvar_map_;
 };

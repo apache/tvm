@@ -39,7 +39,7 @@
  * Correct partitioning:
  *
  *     O         O
- *    / \       /	      \
+ *    / \       /	            \
  *   O   X --> O    +     +    X
  *    \ /             \ /
  *     O               O
@@ -167,13 +167,6 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
   }
 
  private:
-  String GetCodegenName(const std::string& composite_name) {
-    auto delim_pos = composite_name.find(".");
-    ICHECK(delim_pos != std::string::npos) << "The pattern name for a composite function should "
-                                              "start with a compiler name followed by period.";
-    return composite_name.substr(0, delim_pos);
-  }
-
   Optional<String> GetCodegenName(const Expr& callee) {
     auto const* gvar = callee.as<GlobalVarNode>();
     if (!gvar) {
@@ -186,7 +179,7 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
       return NullOpt;
     }
 
-    return GetCodegenName(composite_name_opt.value());
+    return relax::GetCodegenName(composite_name_opt.value());
   }
 
   Optional<String> GetCodegenName(Group* group) {
@@ -298,7 +291,7 @@ class CompositeInliner : public ExprMutator {
 
   Function Run(Function func) {
     inlined_functions_ = Map<Function, Function>();
-    auto new_body = VisitExpr(func->body);
+    auto new_body = VisitExpr(ToNonDataflow(func->body));
     auto new_func = Function(func->params, new_body, func->ret_struct_info, func->is_pure,
                              func->attrs, func->span);
     return new_func;
@@ -308,10 +301,11 @@ class CompositeInliner : public ExprMutator {
     if (call->op->IsInstance<GlobalVarNode>()) {
       auto gvar = Downcast<GlobalVar>(call->op);
       auto func = Downcast<Function>(mod_->Lookup(gvar));
-
       if (func->GetAttr<String>(attr::kComposite)) {
         if (!inlined_functions_.count(func)) {
-          inlined_functions_.Set(func, CopyWithNewVars(func));
+          auto new_func = CopyWithNewVars(func);
+          new_func = WithoutAttr(new_func, tvm::relax::attr::kPrimitive);
+          inlined_functions_.Set(func, new_func);
         }
         return Call(inlined_functions_[func], call->args);
       }
@@ -340,11 +334,13 @@ IRModule MergeCompositeFunctions(IRModule mod) {
     if (func->GetAttr<String>(attr::kCodegen)) {
       auto new_func = inliner.Run(Downcast<Function>(func));
       new_func = WithAttr(new_func, tvm::attr::kGlobalSymbol, gvar->name_hint);
+      new_func = WithoutAttr(std::move(new_func), tvm::relax::attr::kPrimitive);
       to_update.emplace_back(gvar, new_func);
     }
   }
+
   for (const auto& [gvar, func] : to_update) {
-    new_mod->Update(gvar, func);
+    new_mod->Update(gvar, Downcast<Function>(func));
   }
   // TODO(@tvm-team): Implicit pass dependency. Revisit when we have a better way to handle this.
   return DeadCodeElimination(new_mod, {"main"});
