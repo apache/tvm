@@ -377,7 +377,9 @@ def pattern_table():
     """Returns list of triples describing the name, dataflow pattern and predicate for all
     the MSC-supported operators."""
 
-    def make_relay_conv_bias_pattern(op_name, optimized=False) -> relay_pattern.DFPattern:
+    def make_relay_conv_bias_pattern(
+        op_name: str, optimized: bool = False
+    ) -> relay_pattern.DFPattern:
         """A simple utility to create patterns for an operation fused with bias.
 
         Parameters
@@ -419,7 +421,7 @@ def pattern_table():
             return True
         return False
 
-    def make_relay_linear_pattern(optimized=False) -> relay_pattern.DFPattern:
+    def make_relay_linear_pattern(optimized: bool = False) -> relay_pattern.DFPattern:
         """A simple utility to create patterns for linear.
 
         Parameters
@@ -463,7 +465,7 @@ def pattern_table():
 
         return True
 
-    def make_relay_linear_bias_pattern(optimized=False) -> relay_pattern.DFPattern:
+    def make_relay_linear_bias_pattern(optimized: bool = False) -> relay_pattern.DFPattern:
         """A simple utility to create patterns for linear_bias.
 
         Parameters
@@ -489,7 +491,7 @@ def pattern_table():
         """Check if linear_bias pattern is correct."""
         return True
 
-    def make_relay_matmul_pattern(dim=2, optimized=False) -> relay_pattern.DFPattern:
+    def make_relay_matmul_pattern(dim: int = 2, optimized: bool = False) -> relay_pattern.DFPattern:
         """A simple utility to create patterns for matmul.
 
         Parameters
@@ -540,7 +542,7 @@ def pattern_table():
             return trans_b.attrs["axes"] is None or list(trans_b.attrs["axes"]) == [1, 0]
         return True
 
-    def make_relay_embedding_pattern(optimized=False) -> relay_pattern.DFPattern:
+    def make_relay_embedding_pattern(optimized: bool = False) -> relay_pattern.DFPattern:
         """A simple utility to create patterns for 1d embedding.
 
         Returns
@@ -554,7 +556,7 @@ def pattern_table():
         astype = relay_pattern.is_op("cast")(data)
         return relay_pattern.is_op("take")(weight, astype)
 
-    def _check_relay_embedding(call) -> bool:
+    def _check_relay_embedding(call: tvm.relay.Expr) -> bool:
         """Check if embedding pattern is correct.
 
         Returns
@@ -571,7 +573,7 @@ def pattern_table():
             and weight.checked_type.dtype == "float32"
         )
 
-    def make_relay_gelu_pattern(optimized=False) -> relay_pattern.DFPattern:
+    def make_relay_gelu_pattern(optimized: bool = False) -> relay_pattern.DFPattern:
         """A simple utility to create patterns for gelu.
 
         Returns
@@ -590,7 +592,7 @@ def pattern_table():
         add = relay_pattern.is_op("add")(factor_3, mul_2)
         return relay_pattern.is_op("multiply")(data, add)
 
-    def _check_relay_gelu(call) -> bool:
+    def _check_relay_gelu(call: tvm.relay.Expr) -> bool:
         """Check if gelu pattern is correct.
 
         Returns
