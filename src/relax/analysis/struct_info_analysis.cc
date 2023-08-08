@@ -966,12 +966,21 @@ class SymbolicVarCollector : public relax::ExprVisitor,
   // Possible mode of visitor
   enum class VisitMode {
     /*! \brief Check all vars are well-defined. */
-    kDefault,
+    kDefault = 0,
     /*! \brief Match define the vars on first occurrence. */
-    kMatchVarDef,
+    kMatchVarDef = 1,
+    /*! \brief Define any variables, do not visit subexpressions */
+    kProvideDefinitions = 2,
   };
 
   void VisitExpr_(const FunctionNode* op) final {
+    WithMode(VisitMode::kProvideDefinitions, [&]() {
+      ICHECK(mode_ == VisitMode::kProvideDefinitions);
+      for (Var param : op->params) {
+        relax::StructInfoVisitor::VisitStructInfo(GetStructInfo(param));
+      }
+    });
+
     WithMode(VisitMode::kMatchVarDef, [&]() {
       ICHECK(mode_ == VisitMode::kMatchVarDef);
       for (Var param : op->params) {
@@ -994,6 +1003,17 @@ class SymbolicVarCollector : public relax::ExprVisitor,
 
   void VisitStructInfo_(const FuncStructInfoNode* op) final {
     if (op->params.defined()) {
+      // Visit the parameters once to collect bindings, and another
+      // time to collect usages.  Otherwise, a symbolic variable
+      // defined by a later parameter may be treated as undefined when
+      // used by an earlier parameter.
+      WithMode(VisitMode::kProvideDefinitions, [&]() {
+        ICHECK(mode_ == VisitMode::kMatchVarDef);
+        for (StructInfo param : op->params.value()) {
+          this->VisitStructInfo(param);
+        }
+      });
+
       WithMode(VisitMode::kMatchVarDef, [&]() {
         ICHECK(mode_ == VisitMode::kMatchVarDef);
         for (StructInfo param : op->params.value()) {
@@ -1014,14 +1034,14 @@ class SymbolicVarCollector : public relax::ExprVisitor,
   }
 
   void VisitStructInfoExprField(const PrimExpr& expr) final {
-    if (mode_ == VisitMode::kMatchVarDef && expr->IsInstance<tir::VarNode>()) {
-      // populate symbolic var in first occurrence
-      const auto& var = Downcast<tir::Var>(expr);
-      if (defined_symbolic_var_.count(var) == 0) {
-        defined_symbolic_var_.insert(var);
+    if (mode_ >= VisitMode::kMatchVarDef) {
+      if (auto var = expr.as<tir::Var>()) {
+        defined_symbolic_var_.insert(var.value());
       }
     }
-    tir::ExprVisitor::VisitExpr(expr);
+    if (mode_ <= VisitMode::kMatchVarDef) {
+      tir::ExprVisitor::VisitExpr(expr);
+    }
   }
 
   void VisitExpr_(const tir::VarNode* op) final {
