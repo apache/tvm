@@ -119,18 +119,15 @@ void FindAlgo(int format, int dims, int groups, const int pad[], const int strid
               const std::string& data_dtype, const std::string& conv_dtype, bool verbose,
               runtime::TVMRetValue* ret);
 
-void CallCudnnConvolutionForward(cudnnHandle_t handle, cudaStream_t stream, int mode, int format,
-                                 int algo, int dims, int groups, const int pad[],
-                                 const int stride[], const int dilation[], const DLTensor* x,
-                                 const DLTensor* w, const DLTensor* y,
-                                 const std::string& conv_dtype);
+void ConvolutionForward(int mode, int format, int algo, int dims, int groups, const int pad[],
+                        const int stride[], const int dilation[], const DLTensor* x,
+                        const DLTensor* w, const DLTensor* y, const std::string& conv_dtype);
 
-void CallCudnnConvolutionBiasActivationForward(cudnnHandle_t handle, cudaStream_t stream, int mode,
-                                               int format, int algo, int dims, int groups, int act,
-                                               double coef, const int pad[], const int stride[],
-                                               const int dilation[], const DLTensor* x,
-                                               const DLTensor* w, const DLTensor* y,
-                                               const DLTensor* bias, const std::string& conv_dtype);
+void ConvolutionBiasActivationForward(int mode, int format, int algo, int dims, int groups, int act,
+                                      double coef, const int pad[], const int stride[],
+                                      const int dilation[], const DLTensor* x, const DLTensor* w,
+                                      const DLTensor* y, const DLTensor* bias,
+                                      const std::string& conv_dtype);
 
 }  // namespace contrib
 }  // namespace tvm

@@ -32,8 +32,8 @@ namespace contrib {
 using namespace runtime;
 
 void ConvolutionForward(int mode, int format, int algo, int dims, int groups, const int pad[],
-                        const int stride[], const int dilation[], DLTensor* x, DLTensor* w,
-                        DLTensor* y, const std::string& conv_dtype) {
+                        const int stride[], const int dilation[], const DLTensor* x,
+                        const DLTensor* w, const DLTensor* y, const std::string& conv_dtype) {
   CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal();
   // Set Mode
   entry_ptr->conv_entry.mode = static_cast<cudnnConvolutionMode_t>(mode);
@@ -50,7 +50,10 @@ void ConvolutionForward(int mode, int format, int algo, int dims, int groups, co
       entry_ptr->handle, entry_ptr->conv_entry.input_desc, entry_ptr->conv_entry.filter_desc,
       entry_ptr->conv_entry.conv_desc, entry_ptr->conv_entry.output_desc,
       entry_ptr->conv_entry.fwd_algo, &workspace_size));
+
   entry_ptr->conv_entry.UpdateWorkspace(workspace_size);
+
+  // Compute convolution
   CUDNN_CALL(cudnnConvolutionForward(
       entry_ptr->handle, CuDNNDataType::GetConst<1>(entry_ptr->conv_entry.data_type),
       entry_ptr->conv_entry.input_desc, x->data, entry_ptr->conv_entry.filter_desc, w->data,
@@ -62,8 +65,9 @@ void ConvolutionForward(int mode, int format, int algo, int dims, int groups, co
 
 void ConvolutionBiasActivationForward(int mode, int format, int algo, int dims, int groups, int act,
                                       double coef, const int pad[], const int stride[],
-                                      const int dilation[], DLTensor* x, DLTensor* w, DLTensor* y,
-                                      DLTensor* bias, const std::string& conv_dtype) {
+                                      const int dilation[], const DLTensor* x, const DLTensor* w,
+                                      const DLTensor* y, const DLTensor* bias,
+                                      const std::string& conv_dtype) {
   CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal();
   // Set Mode
   entry_ptr->conv_entry.mode = static_cast<cudnnConvolutionMode_t>(mode);
@@ -87,7 +91,10 @@ void ConvolutionBiasActivationForward(int mode, int format, int algo, int dims, 
       entry_ptr->handle, entry_ptr->conv_entry.input_desc, entry_ptr->conv_entry.filter_desc,
       entry_ptr->conv_entry.conv_desc, entry_ptr->conv_entry.output_desc,
       entry_ptr->conv_entry.fwd_algo, &workspace_size));
+
   entry_ptr->conv_entry.UpdateWorkspace(workspace_size);
+
+  // Compute convolution, add bias and apply activation
   CUDNN_CALL(cudnnConvolutionBiasActivationForward(
       entry_ptr->handle, CuDNNDataType::GetConst<1>(entry_ptr->conv_entry.data_type),
       entry_ptr->conv_entry.input_desc, x->data, entry_ptr->conv_entry.filter_desc, w->data,
@@ -146,48 +153,6 @@ void FindAlgo(int format, int dims, int groups, const int pad[], const int strid
   ret[0] = best_algo;
 }
 
-void CallCudnnConvolutionForward(cudnnHandle_t handle, cudaStream_t stream, int mode, int format,
-                                 int algo, int dims, int groups, const int pad[],
-                                 const int stride[], const int dilation[], const DLTensor* x,
-                                 const DLTensor* w, const DLTensor* y,
-                                 const std::string& conv_dtype) {
-  CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal();
-
-  // Set Mode
-  entry_ptr->conv_entry.mode = static_cast<cudnnConvolutionMode_t>(mode);
-
-  // Set Descriptors
-  SetConvDescriptors(entry_ptr, format, dims, groups, pad, stride, dilation, x->shape, w->shape,
-                     y->shape, x->dtype, conv_dtype);
-
-  // Set Device
-  entry_ptr->conv_entry.device = x->device;
-
-  // Set Algo
-  entry_ptr->conv_entry.fwd_algo = static_cast<cudnnConvolutionFwdAlgo_t>(algo);
-
-  // Set workspace
-  size_t workspace_size = 0;
-  CUDNN_CALL(cudnnGetConvolutionForwardWorkspaceSize(
-      handle, entry_ptr->conv_entry.input_desc, entry_ptr->conv_entry.filter_desc,
-      entry_ptr->conv_entry.conv_desc, entry_ptr->conv_entry.output_desc,
-      entry_ptr->conv_entry.fwd_algo, &workspace_size));
-
-  entry_ptr->conv_entry.UpdateWorkspace(workspace_size);
-
-  // Compute convolution
-  CUDNN_CALL(cudnnConvolutionForward(
-      handle, CuDNNDataType::GetConst<1>(entry_ptr->conv_entry.data_type),
-      entry_ptr->conv_entry.input_desc, x->data, entry_ptr->conv_entry.filter_desc, w->data,
-      entry_ptr->conv_entry.conv_desc, entry_ptr->conv_entry.fwd_algo,
-      entry_ptr->conv_entry.workspace, workspace_size,
-      CuDNNDataType::GetConst<0>(entry_ptr->conv_entry.data_type),
-      entry_ptr->conv_entry.output_desc, y->data));
-
-  // Set the stream to be used by cuDNN
-  cudnnSetStream(handle, stream);
-}
-
 TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d.forward")
     .set_body([](TVMArgs args, TVMRetValue* ret) {
       int mode = args[0];
@@ -208,61 +173,6 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d.forward")
       ConvolutionForward(mode, format, algo, 2, groups, pad_v, stride_v, dilation_v, x, w, y,
                          conv_dtype);
     });
-
-void CallCudnnConvolutionBiasActivationForward(cudnnHandle_t handle, cudaStream_t stream, int mode,
-                                               int format, int algo, int dims, int groups, int act,
-                                               double coef, const int pad[], const int stride[],
-                                               const int dilation[], const DLTensor* x,
-                                               const DLTensor* w, const DLTensor* y,
-                                               const DLTensor* bias,
-                                               const std::string& conv_dtype) {
-  CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal();
-
-  // Set Mode
-  entry_ptr->conv_entry.mode = static_cast<cudnnConvolutionMode_t>(mode);
-
-  // Set Activation Descriptor
-  CUDNN_CALL(cudnnSetActivationDescriptor(entry_ptr->conv_entry.activation_desc,
-                                          static_cast<cudnnActivationMode_t>(act),
-                                          cudnnNanPropagation_t::CUDNN_NOT_PROPAGATE_NAN, coef));
-
-  // Set Tensor Descriptor for bias
-  CUDNN_CALL(cudnnSetTensor4dDescriptor(
-      entry_ptr->conv_entry.bias_desc, entry_ptr->conv_entry.tensor_format,
-      CuDNNDataType::DLTypeToCuDNNType(bias->dtype), 1, static_cast<int>(w->shape[0]), 1, 1));
-
-  // Set Convolution Descriptors
-  SetConvDescriptors(entry_ptr, format, dims, groups, pad, stride, dilation, x->shape, w->shape,
-                     y->shape, x->dtype, conv_dtype);
-
-  // Set Device
-  entry_ptr->conv_entry.device = x->device;
-
-  // Set Algo
-  entry_ptr->conv_entry.fwd_algo = static_cast<cudnnConvolutionFwdAlgo_t>(algo);
-
-  // Set workspace
-  size_t workspace_size = 0;
-  CUDNN_CALL(cudnnGetConvolutionForwardWorkspaceSize(
-      handle, entry_ptr->conv_entry.input_desc, entry_ptr->conv_entry.filter_desc,
-      entry_ptr->conv_entry.conv_desc, entry_ptr->conv_entry.output_desc,
-      entry_ptr->conv_entry.fwd_algo, &workspace_size));
-
-  entry_ptr->conv_entry.UpdateWorkspace(workspace_size);
-
-  // Compute convolution, add bias and apply activation
-  CUDNN_CALL(cudnnConvolutionBiasActivationForward(
-      handle, CuDNNDataType::GetConst<1>(entry_ptr->conv_entry.data_type),
-      entry_ptr->conv_entry.input_desc, x->data, entry_ptr->conv_entry.filter_desc, w->data,
-      entry_ptr->conv_entry.conv_desc, entry_ptr->conv_entry.fwd_algo,
-      entry_ptr->conv_entry.workspace, workspace_size,
-      CuDNNDataType::GetConst<0>(entry_ptr->conv_entry.data_type),
-      entry_ptr->conv_entry.output_desc, y->data, entry_ptr->conv_entry.bias_desc, bias->data,
-      entry_ptr->conv_entry.activation_desc, entry_ptr->conv_entry.output_desc, y->data));
-
-  // Set the stream to be used by cuDNN
-  cudnnSetStream(handle, stream);
-}
 
 TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d+bias+act.forward")
     .set_body([](TVMArgs args, TVMRetValue* ret) {
