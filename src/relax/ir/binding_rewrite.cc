@@ -245,7 +245,27 @@ class RemoveUnusedVars : public ExprMutator {
   RemoveUnusedVars(Map<Var, Array<Var>> users, Array<Var> fn_outputs)
       : RemoveUnusedVars(GetUnusedVars(users, fn_outputs)) {}
 
-  BindingBlock VisitBindingBlock_(const DataflowBlockNode* block) {
+  BindingBlock VisitBindingBlock_(const BindingBlockNode* block) override {
+    builder_->BeginBindingBlock();
+    for (Binding binding : block->bindings) {
+      bool can_remove = [&]() -> bool {
+        if (!unused_vars.count(binding->var)) {
+          return false;
+        }
+        auto var_binding = binding.as<VarBindingNode>();
+        if (!var_binding) {
+          return false;
+        }
+        return var_binding->value->IsInstance<FunctionNode>();
+      }();
+      if (!can_remove) {
+        VisitBinding(binding);
+      }
+    }
+    return builder_->EndBlock();
+  }
+
+  BindingBlock VisitBindingBlock_(const DataflowBlockNode* block) override {
     auto prev_dfb = GetRef<DataflowBlock>(block);
     builder_->BeginDataflowBlock();
     for (Binding binding : block->bindings) {
