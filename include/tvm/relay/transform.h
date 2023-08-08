@@ -47,6 +47,18 @@ using PassInfoNode = tvm::transform::PassInfoNode;
 using PassContext = tvm::transform::PassContext;
 using PassContextNode = tvm::transform::PassContextNode;
 using Sequential = tvm::transform::Sequential;
+using FTVMRelayToTIR = tvm::transform::Pass;
+/*!
+ * \brief TIRToRuntime conversion specific to a TargetKind
+ *
+ * This function is responsible for scanning an IRModule for appropriate Target-specific functions
+ and generating a Runtime module representing the compiled output
+ *
+ * \param ir_module Unified IRModule
+ * \param target Target to filter on or retrieve arguments from
+ * \return Runtime Module containing compiled functions
+ */
+using FTVMTIRToRuntime = tvm::runtime::TypedPackedFunc<runtime::Module(IRModule, Target)>;
 
 /*
  * \brief Create a function pass.

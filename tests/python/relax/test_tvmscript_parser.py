@@ -325,7 +325,7 @@ def test_global_info_vdevice():
             }
         )
 
-        @T.prim_func
+        @T.prim_func(private=True)
         def tir_func(
             x: T.Buffer((T.int64(128), T.int64(128)), "float32"),
             y: T.Buffer((T.int64(128), T.int64(128)), "float32"),
