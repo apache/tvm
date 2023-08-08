@@ -145,7 +145,7 @@ DataflowBlock FoldDataflowBlockOutput(const DataflowBlock& block) {
       ExprMutator::VisitBinding_(binding);
     };
 
-    void VisitBinding_(const MatchCastNode* binding) {
+    void VisitBinding_(const MatchCastNode* binding) override {
       // case 1: if the LHS is a DF node in the candidate map, erase the binding
       if (binding->var.as<DataflowVarNode>() &&
           candidate_map_.count(Downcast<DataflowVar>(binding->var))) {
