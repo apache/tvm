@@ -38,6 +38,9 @@
 #include <vector>
 
 namespace tvm {
+
+using FTVMTIRToRuntime = runtime::TypedPackedFunc<runtime::Module(IRModule, Target)>;
+
 namespace codegen {
 
 runtime::Module Build(IRModule mod, Target target) {

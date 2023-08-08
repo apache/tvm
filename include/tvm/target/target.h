@@ -25,7 +25,6 @@
 #define TVM_TARGET_TARGET_H_
 
 #include <tvm/ir/expr.h>
-#include <tvm/ir/module.h>
 #include <tvm/node/node.h>
 #include <tvm/support/with.h>
 #include <tvm/target/target_kind.h>
@@ -283,15 +282,6 @@ class Target : public ObjectRef {
  * \param host The pointer to a Target typed object for target host to be updated
  */
 void CheckAndUpdateHostConsistency(Target* target, Target* host);
-
-/*!
- * \brief Check and update host field of the given legacy heterogeneous targets and
- *  target host.Note that this function is for legacy target api compatibility issue only,
- *  not recommended for other use.
- * \param ir_modules The pointer to a Map objects with keys being Target objects
- * \param host The Target typed object for target host to be updated
- */
-void CheckAndUpdateHostConsistency(Map<Target, IRModule>* ir_modules, Target* host);
 
 }  // namespace tvm
 #endif  // TVM_TARGET_TARGET_H_
