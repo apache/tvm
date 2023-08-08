@@ -585,11 +585,27 @@ Expr ExprMutator::VisitExpr_(const FunctionNode* op) {
 
   Expr body = this->VisitWithNewScope(op->body, params);
 
-  // FuncStructInfo does not depend on Expr
   if (all_params_unchanged && body.same_as(op->body)) {
+    // No changes to the function, return the original object
     return GetRef<Expr>(op);
-  } else {
+  } else if (IsBaseOf(GetStructInfo(body), op->ret_struct_info)) {
+    // If the function was mutated into a form that can no longer
+    // propagate shape information all the way to the return value, we
+    // may keep the return struct info.  This is only allowed when the
+    // body produces a return value that is the same as, or more
+    // specific than, the pre-mutation struct info.  For example, if
+    // the previous return value was `TensorStructInfo(shape=[16,16])`
+    // but the body only produced `TensorStructInfo(ndim=2)`, we can
+    // keep the more specific information.
     return Function(params, body, op->ret_struct_info, op->is_pure, op->attrs);
+  } else {
+    // If the function was mutated such that the body produces an
+    // output that is incompatible with the original return struct
+    // info, the original return struct info should not be used.  For
+    // example, if the previous return value was
+    // `TensorStructInfo(shape=[16,16])`, but the new return value is
+    // `TensorStructInfo(shape=[8,8])`.
+    return Function(params, body, NullOpt, op->is_pure, op->attrs);
   }
 }
 
