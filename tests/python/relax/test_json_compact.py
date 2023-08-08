@@ -32,7 +32,7 @@ def test_vdevice():
                 "ndim": "-1",
                 "shape": "0",
                 "span": "0",
-            }
+            },
         },
     ]
     data = {
@@ -48,4 +48,3 @@ def test_vdevice():
 
 if __name__ == "__main__":
     tvm.testing.main()
-

@@ -885,7 +885,7 @@ RELAY_REGISTER_OP("relax.to_vdevice")
 
 Expr MakeToVDevice(Expr data, VDevice dst_vdevice) {
   static const Op& op = Op::Get("relax.to_vdevice");
-  // TODO (yongwww): replace Attr with TensorStructInfo
+  // TODO(@yongwww): replace Attr with TensorStructInfo
   ObjectPtr<ToVDeviceAttrs> attrs = make_object<ToVDeviceAttrs>();
   attrs->dst_vdevice = dst_vdevice;
 
