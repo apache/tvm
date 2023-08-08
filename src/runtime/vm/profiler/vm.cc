@@ -129,9 +129,21 @@ void VirtualMachineDebug::OpStartHook(Instruction instr) {
           {{"Argument Shapes",
             profiling::ShapeString(shape_tensor, instr.alloc_tensor_reg.dtype)}});
     } else if (instr.op == Opcode::AllocStorage) {
-      auto size = LoadScalarInt(instr.alloc_storage.allocation_size);
       std::ostringstream shape;
-      shape << DLDataType2String(instr.alloc_storage.dtype_hint) << "[" << size << "]";
+      if (instr.alloc_storage.ndim > 0) {
+        std::string shape_str = "[";
+        for (uint32_t i = 0; i < instr.alloc_storage.ndim; ++i) {
+          if (i > 0) {
+            shape_str += ", ";
+          }
+          shape_str += std::to_string(instr.alloc_storage.shape[i]);
+        }
+        shape_str += "]";
+        shape << DLDataType2String(instr.alloc_storage.dtype_hint) << shape_str;
+      } else {
+        auto size = LoadScalarInt(instr.alloc_storage.allocation_size);
+        shape << DLDataType2String(instr.alloc_storage.dtype_hint) << "[" << size << "]";
+      }
       Device dev = GetDevice(instr.alloc_storage.device_index);
       prof_.operator*().StartCall("VM::AllocStorage", dev,
                                   {{"VM::Argument Shapes", String(shape.str())}});

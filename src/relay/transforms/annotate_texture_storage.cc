@@ -407,6 +407,15 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
       if (pattern <= kCommReduce) {
         if (const auto* ttype = call->checked_type().as<TensorTypeNode>()) {
           if (ttype->shape.size() == 5) {
+            auto node0 = ttype->shape[0].as<IntImmNode>();
+            auto node1 = ttype->shape[1].as<IntImmNode>();
+            auto node2 = ttype->shape[2].as<IntImmNode>();
+            auto node3 = ttype->shape[3].as<IntImmNode>();
+            auto node4 = ttype->shape[4].as<IntImmNode>();
+            // if tensor has any dimension then textures are not supported
+            if (!node0 || !node1 || !node2 || !node3 || !node4) {
+              return false;
+            }
             supports_texture_storage = true;
           }
         }
