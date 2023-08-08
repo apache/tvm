@@ -3759,17 +3759,13 @@ class PyTorchOpConverter:
                 break
         slice_and_select_calls = slice_and_select_calls[::-1]
         source_shape = _infer_shape(source)
-        indices = [[j for j in range(source_shape[i])] for i in range(len(source_shape))]
+        indices = [list(range(source_shape[i])) for i in range(len(source_shape))]
 
         for call in slice_and_select_calls:
             if call.op.name == "strided_slice":
-                """
-                spec. of strided_slice:
-                https://tvm.apache.org/docs/reference/api/python/relay/index.html
-                """
                 axes = call.attrs.axes
                 if axes is None:
-                    axes = [i for i in range(len(source_shape))]
+                    axes = list(range(len(source_shape)))
                 begins = call.attrs.begin
                 ends = call.attrs.end
                 for axis, begin, end in zip(axes, begins, ends):
