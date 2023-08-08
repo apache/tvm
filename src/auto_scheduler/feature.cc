@@ -248,14 +248,14 @@ int64_t GetLoopExtent(const ForNode* node, const Analyzer& ana) {
 // Count math ops in an expr
 class MathOpCounter : public StmtExprVisitor {
  public:
-#define VisitBinary(Type, float_ct, int_ct)                        \
-  void VisitExpr_(const Type* op) final {                          \
-    if (op->a.dtype().is_float() || op->a.dtype().is_bfloat16()) { \
-      float_ct += op->a.dtype().lanes();                           \
-    } else {                                                       \
-      int_ct += op->a.dtype().lanes();                             \
-    }                                                              \
-    StmtExprVisitor::VisitExpr_(op);                               \
+#define VisitBinary(Type, float_ct, int_ct)  \
+  void VisitExpr_(const Type* op) final {    \
+    if (op->a.dtype().is_floating_point()) { \
+      float_ct += op->a.dtype().lanes();     \
+    } else {                                 \
+      int_ct += op->a.dtype().lanes();       \
+    }                                        \
+    StmtExprVisitor::VisitExpr_(op);         \
   }
 
   VisitBinary(AddNode, float_addsub, int_addsub);
@@ -301,13 +301,13 @@ class MathOpCounter : public StmtExprVisitor {
         effect_kind == CallEffectKind::kPure || effect_kind == CallEffectKind::kExprAnnotation;
 
     if (is_pure) {
-      if (op->dtype.is_float() || op->dtype.is_bfloat16()) {
+      if (op->dtype.is_floating_point()) {
         float_math_func++;
       } else {
         int_math_func++;
       }
     } else {
-      if (op->dtype.is_float() || op->dtype.is_bfloat16()) {
+      if (op->dtype.is_floating_point()) {
         float_other_func++;
       } else {
         int_other_func++;

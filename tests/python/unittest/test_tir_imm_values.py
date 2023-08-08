@@ -107,7 +107,14 @@ def compare_float_value(value, expect, msg):
     "dtype, literals",
     [
         ["float16", [-65504.0, 3.14, 65504.0, np.inf, np.nan]],
-        ["bfloat16", [-3.38953139e38, 3.38953139e38, 3.14]],
+        [
+            "bfloat16",
+            [
+                -3.3895313892515354759047080037148786688e38,
+                3.3895313892515354759047080037148786688e38,
+                3.14,
+            ],
+        ],
         ["float32", [np.finfo("float32").min, 3.14, np.finfo("float32").max, np.inf, np.nan]],
         ["float64", [np.finfo("float64").min, 3.14, np.finfo("float64").max, np.inf, np.nan]],
     ],

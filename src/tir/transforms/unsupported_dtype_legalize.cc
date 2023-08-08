@@ -30,10 +30,53 @@
 #include <cmath>
 #include <tuple>
 
+#include "../../support/utils.h"
 #include "dtype_conversion.h"
 
 namespace tvm {
 namespace tir {
+
+namespace {
+
+/*!
+ * \brief Return whether target has native BF16 support.
+ */
+bool TargetSupportBF16(const Target& target) {
+  if (target->kind->name == "cuda") {
+    auto cuda_arch = target->GetAttr<String>("arch");
+    if (cuda_arch.defined()) {
+      auto cuda_arch_str = cuda_arch.value();
+      CHECK(support::StartsWith(cuda_arch_str, "sm_"))
+          << "Expect cuda arch to start with \"sm_\", got " << cuda_arch_str << " instead.";
+      if (std::stoi(std::string(cuda_arch_str).substr(3)) >= 80) {
+        // sm_80 or later
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/*!
+ * \brief Return whether target has native FP8 support.
+ */
+bool TargetSupportFP8(const Target& target) {
+  if (target->kind->name == "cuda") {
+    auto cuda_arch = target->GetAttr<String>("arch");
+    if (cuda_arch.defined()) {
+      auto cuda_arch_str = cuda_arch.value();
+      CHECK(support::StartsWith(cuda_arch_str, "sm_"))
+          << "Expect cuda arch to start with \"sm_\", got " << cuda_arch_str << " instead.";
+      if (std::stoi(std::string(cuda_arch_str).substr(3)) >= 89) {
+        // sm_89 or later
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+}  // namespace
 
 // NOTE: do not touch buffer on function boundary
 // remap internal fp8/bf16 buffer to f32 if they meet the following condition
@@ -327,7 +370,8 @@ class ComputeLegalizer : public StmtExprMutator {
         DataType legalized_dtype = new_buf->dtype.with_lanes(index_lanes * buffer_lanes);
         value = CastTargetToDType(value, legalized_dtype);
       }
-      if (value.dtype() != new_buf->dtype) {
+
+      if (value.dtype().element_of() != new_buf->dtype.element_of()) {
         // this happens when buffer get rewritten to f32
         // but values remain as fp8/bf16
         ICHECK(MatchDType(value->dtype));
@@ -695,7 +739,11 @@ namespace transform {
 
 Pass BF16ComputeLegalize() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
-    // TODO(tvm-team): skip if the target supports bf16
+    auto target = f->GetAttr<Target>(tvm::attr::kTarget);
+    if (target.defined() && TargetSupportBF16(target.value())) {
+      // Do not legalize bf16 compute if target has native bf16 support.
+      return f;
+    }
     return BF16ComputeLegalizer().Legalize(f);
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.BF16ComputeLegalize", {});
@@ -705,7 +753,11 @@ TVM_REGISTER_GLOBAL("tir.transform.BF16ComputeLegalize").set_body_typed(BF16Comp
 
 Pass BF16StorageLegalize() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
-    // TODO(tvm-team): skip if the target supports bf16
+    auto target = f->GetAttr<Target>(tvm::attr::kTarget);
+    if (target.defined() && TargetSupportBF16(target.value())) {
+      // Do not legalize bf16 storage if target has native bf16 support.
+      return f;
+    }
     return BF16StorageLegalizer().Legalize(f);
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.BF16StorageLegalize", {});
@@ -715,7 +767,11 @@ TVM_REGISTER_GLOBAL("tir.transform.BF16StorageLegalize").set_body_typed(BF16Stor
 
 Pass FP8ComputeLegalize(String promote_dtype_str) {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
-    // TODO(tvm-team): skip if the target supports fp8
+    auto target = f->GetAttr<Target>(tvm::attr::kTarget);
+    if (target.defined() && TargetSupportFP8(target.value())) {
+      // Do not legalize fp8 compute if target has native fp8 support.
+      return f;
+    }
     return FP8ComputeLegalizer(DataType(String2DLDataType(promote_dtype_str))).Legalize(f);
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.FP8ComputeLegalize", {});
@@ -725,7 +781,11 @@ TVM_REGISTER_GLOBAL("tir.transform.FP8ComputeLegalize").set_body_typed(FP8Comput
 
 Pass FP8StorageLegalize() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
-    // TODO(tvm-team): skip if the target supports fp8
+    auto target = f->GetAttr<Target>(tvm::attr::kTarget);
+    if (target.defined() && TargetSupportFP8(target.value())) {
+      // Do not legalize fp8 storage if target has native fp8 support.
+      return f;
+    }
     return FP8StorageLegalizer().Legalize(f);
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.FP8StorageLegalize", {});

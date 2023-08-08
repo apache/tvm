@@ -104,7 +104,7 @@ def get_tvm_output_with_vm(
         for i, param in enumerate(mod["main"].params):
             if param.type_annotation.dtype == "bfloat16":
                 input_data[i] = tvm.nd.empty(input_data[i].shape, "bfloat16").copyfrom(
-                    input_data[i]
+                    input_data[i].view("bfloat16")
                 )
 
     if validate_structural_equal:
@@ -5566,7 +5566,10 @@ def _load_proto(proto_filename, target_list, model_type_proto):
         elif model_type_proto.HasField("tensor_type"):
             tensor = onnx.TensorProto()
             tensor.ParseFromString(protobuf_content)
-            target_list.append(numpy_helper.to_array(tensor))
+            np_tensor = numpy_helper.to_array(tensor)
+            if model_type_proto.tensor_type.elem_type == TensorProto.BFLOAT16:
+                np_tensor = np_tensor.view("bfloat16")
+            target_list.append(np_tensor)
         elif model_type_proto.HasField("optional_type"):
             optional = onnx.OptionalProto()
             optional.ParseFromString(protobuf_content)
@@ -5603,9 +5606,7 @@ def test_onnx_nodes(target, dev, onnx_test):
         atol = 1e-4
 
     if "to_BFLOAT16" in test_dir:
-        # the tolerance here is for the comparison in uint16 space, but is not as significant
-        # of a delta in bfloat16 space because it's representing the mantissa being off by 1
-        atol = 1
+        atol = 1e-2
 
     if "_sce_" in test_dir:
         # complicated loss functions like SoftmaxCrossEntropy can have minor variations

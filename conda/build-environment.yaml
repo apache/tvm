@@ -37,3 +37,6 @@ dependencies:
   - make
   - scipy
   - pillow
+  - pip
+  - pip:
+    - ml_dtypes

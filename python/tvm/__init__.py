@@ -20,6 +20,7 @@ import multiprocessing
 import sys
 import os
 import traceback
+import ml_dtypes
 
 # top-level alias
 # tvm._ffi

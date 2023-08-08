@@ -568,6 +568,12 @@ llvm::Type* CodeGenLLVM::DTypeToLLVMType(const DataType& dtype) const {
       default:
         LOG(FATAL) << "do not support " << dtype;
     }
+  } else if (dtype.is_bfloat16()) {
+#if TVM_LLVM_VERSION >= 110
+    etype = llvm::Type::getBFloatTy(*ctx);
+#else
+    LOG(FATAL) << "bfloat16 is not supported for your LLVM version " << TVM_LLVM_VERSION << ".";
+#endif
   }
   if (dtype.lanes() != 1) {
 #if TVM_LLVM_VERSION >= 110

@@ -21,10 +21,6 @@ import json
 
 import numpy as np
 
-try:
-    import ml_dtypes
-except ImportError:
-    ml_dtypes = None
 from .base import _LIB, check_call
 
 tvm_shape_index_t = ctypes.c_int64
@@ -96,6 +92,9 @@ class DataType(ctypes.Structure):
         np.dtype(np.float32): "float32",
         np.dtype(np.float64): "float64",
         np.dtype(np.float_): "float64",
+        np.dtype("bfloat16"): "bfloat16",
+        np.dtype("float8_e4m3fn"): "e4m3_float8",
+        np.dtype("float8_e5m2"): "e5m2_float8",
     }
     STR2DTYPE = {
         "void": {"type_code": DataTypeCode.HANDLE, "bits": 0, "lanes": 0},
@@ -110,6 +109,7 @@ class DataType(ctypes.Structure):
         "uint64": {"type_code": DataTypeCode.UINT, "bits": 64, "lanes": 1},
         "e4m3_float8": {"type_code": DataTypeCode.E4M3Float, "bits": 8, "lanes": 1},
         "e5m2_float8": {"type_code": DataTypeCode.E5M2Float, "bits": 8, "lanes": 1},
+        "bfloat16": {"type_code": DataTypeCode.BFLOAT, "bits": 16, "lanes": 1},
         "float16": {"type_code": DataTypeCode.FLOAT, "bits": 16, "lanes": 1},
         "float32": {"type_code": DataTypeCode.FLOAT, "bits": 32, "lanes": 1},
         "float64": {"type_code": DataTypeCode.FLOAT, "bits": 64, "lanes": 1},
@@ -202,11 +202,6 @@ class DataType(ctypes.Structure):
     def __ne__(self, other):
         return not self.__eq__(other)
 
-
-if ml_dtypes is not None:
-    DataType.NUMPY2STR[np.dtype(ml_dtypes.bfloat16)] = "bfloat16"
-    DataType.NUMPY2STR[np.dtype(ml_dtypes.float8_e4m3fn)] = "e4m3_float8"
-    DataType.NUMPY2STR[np.dtype(ml_dtypes.float8_e5m2)] = "e5m2_float8"
 
 RPC_SESS_MASK = 128
 

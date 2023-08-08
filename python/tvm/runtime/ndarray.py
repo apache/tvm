@@ -20,10 +20,6 @@ import ctypes
 import warnings
 import numpy as np
 
-try:
-    import ml_dtypes
-except ImportError:
-    ml_dtypes = None
 import tvm._ffi
 
 from tvm._ffi.base import _LIB, check_call, c_array, string_types, _FFI_MODE
@@ -167,18 +163,19 @@ class NDArray(NDArrayBase):
             raise ValueError(
                 f"array shape do not match the shape of NDArray {source_array.shape} vs {shape}"
             )
+
         numpy_str_map = DataType.NUMPY2STR
         np_dtype_str = (
             numpy_str_map[source_array.dtype]
             if source_array.dtype in numpy_str_map
             else str(source_array.dtype)
         )
-        if (not source_array.flags["C_CONTIGUOUS"]) or (
-            dtype == "bfloat16" or dtype != np_dtype_str
-        ):
-            source_array = np.ascontiguousarray(
-                source_array, dtype="uint16" if dtype == "bfloat16" else dtype
-            )
+        if (not source_array.flags["C_CONTIGUOUS"]) or dtype != np_dtype_str:
+            if dtype == "e4m3_float8":
+                dtype = "float8_e4m3fn"
+            elif dtype == "e5m2_float8":
+                dtype = "float8_e5m2"
+            source_array = np.ascontiguousarray(source_array, dtype)
         assert source_array.flags["C_CONTIGUOUS"]
         data = source_array.ctypes.data_as(ctypes.c_void_p)
         nbytes = ctypes.c_size_t(source_array.size * source_array.dtype.itemsize)
@@ -220,22 +217,6 @@ class NDArray(NDArrayBase):
             dtype = str(t)
         if dtype == "int4":
             dtype = "int8"
-        if dtype == "bfloat16":
-            dtype = "uint16"
-        if dtype == "e4m3_float8":
-            if ml_dtypes is not None:
-                dtype = ml_dtypes.float8_e4m3fn
-            else:
-                raise RuntimeError(
-                    "ml_dtypes is not installed, cannot convert e4m3_float8 array to numpy."
-                )
-        if dtype == "e5m2_float8":
-            if ml_dtypes is not None:
-                dtype = ml_dtypes.float8_e5m2
-            else:
-                raise RuntimeError(
-                    "ml_dtypes is not installed, cannot convert e5m2_float8 array to numpy."
-                )
         np_arr = np.empty(shape, dtype=dtype)
         assert np_arr.flags["C_CONTIGUOUS"]
         data = np_arr.ctypes.data_as(ctypes.c_void_p)

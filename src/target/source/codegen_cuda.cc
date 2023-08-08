@@ -199,6 +199,8 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
         enable_fp16_ = true;
         if (t.is_scalar()) {
           os << "half";
+        } else if (lanes == 2) {
+          os << "half2";
         } else if (lanes <= 8) {
           // Emit CUDA code to access fp16 vector elements.
           //
@@ -249,6 +251,8 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
     enable_bf16_ = true;
     if (t.is_scalar()) {
       os << "nv_bfloat16";
+    } else if (lanes == 2) {
+      os << "nv_bfloat162";
     } else if (lanes <= 8) {
       ICHECK_EQ(lanes % 2, 0) << "only support even lane for half type";
       os << "uint" << lanes / 2;
@@ -478,9 +482,21 @@ void CodeGenCUDA::PrintVecElemLoad(const std::string& vec, DataType t, int i,
       os << "((" << type_name << ")(" << ac << " >> " << i % 4 * 8 << "))";
     }
   } else if (t.is_float16()) {
-    os << "((half2*)(&(" << vec << "." << access[i / 2] << ")))->" << access[i % 2];
+    if (t.lanes() == 2) {
+      // vec (2 * float16) is stored as half2, return vec.x/y directly
+      os << vec << "." << access[i];
+    } else {
+      // vec (4/8 * float16) is stored as uint2/4, return ((half2*)(&(vec.x/y/z/w)))->x/y
+      os << "((half2*)(&(" << vec << "." << access[i / 2] << ")))->" << access[i % 2];
+    }
   } else if (t.is_bfloat16()) {
-    os << "((nv_bfloat162*)(&(" << vec << "." << access[i / 2] << ")))->" << access[i % 2];
+    if (t.lanes() == 2) {
+      // vec (2 * bfloat16) is stored as nv_bfloat162, return vec.x/y directly
+      os << vec << "." << access[i];
+    } else {
+      // vec (4/8 * bfloat16) is stored as uint2/4, return ((nv_bfloat162*)(&(vec.x/y/z/w)))->x/y
+      os << "((nv_bfloat162*)(&(" << vec << "." << access[i / 2] << ")))->" << access[i % 2];
+    }
   } else if (t.lanes() > 4 && t.lanes() <= 8) {
     std::string type_name;
     if (t.bits() == 16) {
@@ -610,12 +626,18 @@ std::string CodeGenCUDA::CastFromTo(std::string value, DataType from, DataType t
   os << "((";
   this->PrintType(target, os);
   os << ")";
-  if (from.is_float16() && (target.is_int() || target.is_uint()) && target.bits() == 8) {
+  if ((from.is_float16() || from.is_bfloat16()) && (target.is_int() || target.is_uint()) &&
+      target.bits() == 8) {
+    // use int/uint as intermediate data type
     os << "(";
     if (target.is_uint()) {
       os << "u";
     }
     os << "int)";
+  } else if ((from.is_bfloat16() && target.is_float16()) ||
+             (from.is_float16() && target.is_bfloat16())) {
+    // use float as intermediate data type
+    os << "(float)";
   }
   os << value << ")";
   return os.str();
@@ -639,12 +661,9 @@ void CodeGenCUDA::VisitExpr_(const CastNode* op, std::ostream& os) {
     std::string src = SSAGetID(PrintExpr(op->value), from_ty);
     for (int i = 0, lanes = from_ty.lanes(); i < lanes; ++i) {
       std::ostringstream val;
-      val << "(";
-      PrintType(target_ty.element_of(), val);
-      val << ")(";
       PrintVecElemLoad(src, from_ty, i, val);
-      val << ")";
-      PrintVecElemStore(sret, target_ty, i, val.str());
+      std::string casted_val = CastFromTo(val.str(), from_ty.element_of(), target_ty.element_of());
+      PrintVecElemStore(sret, target_ty, i, casted_val);
     }
   }
   os << sret;
@@ -1113,27 +1132,35 @@ void CodeGenCUDA::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NO
 
   if (op->dtype.is_float16()) {
     std::string v = PrintExpr(op->value);
-    os << "make_";
-    PrintType(op->dtype, os);
-    os << '(';
-    for (int i = 0; i < op->lanes / 2; ++i) {
-      if (i != 0) os << ", ";
-      os << "__pack_half2(" << v << ", " << v << ")";
+    if (op->lanes == 2) {
+      os << "make_half2(" << v << ", " << v << ")";
+    } else {
+      os << "make_";
+      PrintType(op->dtype, os);
+      os << '(';
+      for (int i = 0; i < op->lanes / 2; ++i) {
+        if (i != 0) os << ", ";
+        os << "__pack_half2(" << v << ", " << v << ")";
+      }
+      os << ')';
     }
-    os << ')';
     return;
   }
 
   if (op->dtype.is_bfloat16()) {
     std::string v = PrintExpr(op->value);
-    os << "make_";
-    PrintType(op->dtype, os);
-    os << '(';
-    for (int i = 0; i < op->lanes / 2; ++i) {
-      if (i != 0) os << ", ";
-      os << "__pack_nv_bfloat162(" << v << ", " << v << ")";
+    if (op->lanes == 2) {
+      os << "make_bfloat162(" << v << ", " << v << ")";
+    } else {
+      os << "make_";
+      PrintType(op->dtype, os);
+      os << "(";
+      for (int i = 0; i < op->lanes / 2; ++i) {
+        if (i != 0) os << ", ";
+        os << "__pack_nv_bfloat162(" << v << ", " << v << ")";
+      }
+      os << ')';
     }
-    os << ')';
     return;
   }
 
@@ -1387,38 +1414,58 @@ void CodeGenCUDA::PrintVecElemLoadExpr(DataType t, int i, const std::string& val
   }
 
   if (t.is_float16()) {
-    if (i == 0) {
-      os << "make_";
-      PrintType(t, os);
-      os << '(';
-    }
-    if (i % 2 == 0) {
-      os << "__pack_half2(" << value;
-    } else {
-      os << "," << value << ")";
-      if (i != t.lanes() - 1) {
-        os << ",";
+    if (t.lanes() == 2) {
+      // result data type is half2
+      if (i == 0) {
+        os << "make_half2(" << value;
       } else {
-        os << ")";
+        os << ", " << value << ")";
+      }
+    } else {
+      // result data type is uint2/4
+      if (i == 0) {
+        os << "make_";
+        PrintType(t, os);
+        os << '(';
+      }
+      if (i % 2 == 0) {
+        os << "__pack_half2(" << value;
+      } else {
+        os << "," << value << ")";
+        if (i != t.lanes() - 1) {
+          os << ",";
+        } else {
+          os << ")";
+        }
       }
     }
     return;
   }
 
   if (t.is_bfloat16()) {
-    if (i == 0) {
-      os << "make_";
-      PrintType(t, os);
-      os << '(';
-    }
-    if (i % 2 == 0) {
-      os << "__pack_bfloat162(" << value;
-    } else {
-      os << "," << value << ")";
-      if (i != t.lanes() - 1) {
-        os << ",";
+    if (t.lanes() == 2) {
+      // result data type is nv_bfloat162
+      if (i == 0) {
+        os << "make_bfloat162(" << value;
       } else {
-        os << ")";
+        os << ", " << value << ")";
+      }
+    } else {
+      // result data type is uint2/4
+      if (i == 0) {
+        os << "make_";
+        PrintType(t, os);
+        os << '(';
+      }
+      if (i % 2 == 0) {
+        os << "__pack_nv_bfloat162(" << value;
+      } else {
+        os << "," << value << ")";
+        if (i != t.lanes() - 1) {
+          os << ",";
+        } else {
+          os << ")";
+        }
       }
     }
     return;
