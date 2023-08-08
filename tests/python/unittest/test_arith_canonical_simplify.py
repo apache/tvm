@@ -422,5 +422,45 @@ def test_floormod_two():
     ck.verify(flm(x * 10 + 1 + y * 2 + 2, 2), 1)
 
 
+def test_simplify_le():
+    ck = CanonicalChecker()
+    # Case 1. Ignore the extra expr if it's small than the division number
+    x, y, z = te.var("x"), te.var("y"), te.var("z")
+    ck.analyzer.bind(y, tvm.ir.Range(0, 8))
+    ck.analyzer.bind(z, tvm.ir.Range(0, 2))
+    ck.verify(x * 8 + y < 16, x < 2)
+    ck.verify(x * 8 + z * 4 < 16, x < 2)
+    ck.verify(x * 8 + z * 4 < 16, x < 2)
+
+    # TODO: Not sure why `-2 < x` will be convert to `x > -2`, use a explicit simplify here.
+    ck.verify(x * -8 + y < 16, ck.analyzer.rewrite_simplify(-2 < x))
+    ck.verify(x * -8 + z * 4 < 16, ck.analyzer.rewrite_simplify(-2 < x))
+
+    ck.verify(x * 8 + y + z < 16, x * 8 + y + z < 16)
+    ck.verify(x * 8 + y - z < 16, x < 2)
+
+    n = te.size_var("n")
+    ck.verify(x * 8 + y < n, x * 8 + y < n)
+
+    # Case 2. Simplify the extra expr
+    x1, x2, ty, tx, vec = (
+        tvm.te.var("x1"),
+        tvm.te.var("x2"),
+        tvm.te.var("ty"),
+        tvm.te.var("tx"),
+        tvm.te.var("vec"),
+    )
+    ck.analyzer.bind(x1, tvm.ir.Range(0, 2))
+    ck.analyzer.bind(x2, tvm.ir.Range(0, 3))
+    ck.analyzer.bind(ty, tvm.ir.Range(0, 8))
+    ck.analyzer.bind(tx, tvm.ir.Range(0, 32))
+    ck.analyzer.bind(vec, tvm.ir.Range(0, 8))
+    ck.verify(
+        x1 * 5632 + (((x2 * 8 + ty) * 32 + tx) * 8 + vec) % 5632 < 11008,
+        x1 * 22 + (x2 * 8 + ty) % 22 < 43,
+    )
+    ck.verify(tx // 2 % 8 + vec < 8, tx % 16 // 2 + vec < 8)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
