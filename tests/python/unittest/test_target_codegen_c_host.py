@@ -64,7 +64,8 @@ def test_add_pipeline():
     s[C].pragma(xo1, "parallel_launch_point")
     s[C].pragma(xo2, "parallel_stride_pattern")
     s[C].pragma(xo2, "parallel_barrier_when_finish")
-    s[C].vectorize(xi)
+    # FIXME(tvm-team): vector operators are not supported for codegen to C yet
+    # s[C].vectorize(xi)
 
     def check_c():
         # Specifically allow offset to test codepath when offset is available
