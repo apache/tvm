@@ -79,6 +79,15 @@ PackedFunc WrapPackedFunc(TVMBackendPackedCFunc faddr, const ObjectPtr<Object>& 
 void InitContextFunctions(std::function<void*(const char*)> fgetsymbol);
 
 /*!
+ * \brief Helper classes to get into internal of a module.
+ */
+class ModuleInternal {
+ public:
+  // Get mutable reference of imports.
+  static std::vector<Module>* GetImportsAddr(ModuleNode* node) { return &(node->imports_); }
+};
+
+/*!
  * \brief Type alias for function to wrap a TVMBackendPackedCFunc.
  * \param The function address imported from a module.
  * \param mptr The module pointer node.

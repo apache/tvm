@@ -363,18 +363,35 @@ TVM_REGISTER_REFLECTION_VTABLE(runtime::ADTObj, ADTObjTrait);
 
 struct ModuleNodeTrait {
   static constexpr const std::nullptr_t VisitAttrs = nullptr;
-  static constexpr std::nullptr_t SHashReduce = nullptr;
-  static constexpr std::nullptr_t SEqualReduce = nullptr;
+  static void SHashReduce(const runtime::ModuleNode* key, SHashReducer hash_reduce) {
+    const auto* rtmod = static_cast<const runtime::ModuleNode*>(key);
+    runtime::String str_key =
+        codegen::SerializeModuleToBytes(GetRef<runtime::Module>(rtmod), /*include_dso*/ false);
+    hash_reduce->SHashReduceHashedValue(
+        runtime::String::StableHashBytes(str_key->data, str_key->size));
+  }
+
+  static bool SEqualReduce(const runtime::ModuleNode* lhs, const runtime::ModuleNode* rhs,
+                           SEqualReducer equal) {
+    if (lhs == rhs) return true;
+    const auto* lhs_mod = static_cast<const runtime::ModuleNode*>(lhs);
+    const auto* rhs_mod = static_cast<const runtime::ModuleNode*>(rhs);
+    runtime::String lhs_str =
+        codegen::SerializeModuleToBytes(GetRef<runtime::Module>(lhs_mod), /*include_dso*/ false);
+    runtime::String rhs_str =
+        codegen::SerializeModuleToBytes(GetRef<runtime::Module>(rhs_mod), /*include_dso*/ false);
+    return lhs_str == rhs_str;
+  }
 };
 
 TVM_REGISTER_REFLECTION_VTABLE(runtime::ModuleNode, ModuleNodeTrait)
     .set_creator([](const std::string& blob) {
-      runtime::Module rtmod = codegen::DeserializeModuleFromBase64(blob);
+      runtime::Module rtmod = codegen::DeserializeModuleFromBytes(blob);
       return RefToObjectPtr::Get(rtmod);
     })
     .set_repr_bytes([](const Object* n) -> std::string {
       const auto* rtmod = static_cast<const runtime::ModuleNode*>(n);
-      return codegen::SerializeModuleToBase64(GetRef<runtime::Module>(rtmod));
+      return codegen::SerializeModuleToBytes(GetRef<runtime::Module>(rtmod), /*include_dso*/ false);
     });
 
 void NDArrayHash(const runtime::NDArray::Container* arr, SHashReducer* hash_reduce,

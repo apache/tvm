@@ -195,14 +195,14 @@ size_t tvm_contrib_torch_graph_executor_module_forward(TVMContribTorchRuntimeMod
 }
 
 char* tvm_contrib_torch_encode(TVMContribTorchRuntimeModule* runtime_module) {
-  std::string std = tvm::codegen::SerializeModuleToBase64(runtime_module->mod);
+  std::string std = tvm::codegen::ExportModuleToBase64(runtime_module->mod);
   char* ret = new char[std.length() + 1];
   snprintf(ret, std.length() + 1, "%s", std.c_str());
   return ret;
 }
 
 TVMContribTorchRuntimeModule* tvm_contrib_torch_decode(const char* state) {
-  tvm::runtime::Module ret = tvm::codegen::DeserializeModuleFromBase64(state);
+  tvm::runtime::Module ret = tvm::codegen::ImportModuleFromBase64(state);
   return new TVMContribTorchRuntimeModule(ret);
 }
 

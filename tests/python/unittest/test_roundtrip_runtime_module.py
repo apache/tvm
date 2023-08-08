@@ -22,8 +22,6 @@ import tvm
 import tvm.testing
 from tvm import TVMError
 from tvm import relay
-import numpy as np
-from tvm.contrib.graph_executor import GraphModule
 
 
 def test_csource_module():
@@ -44,44 +42,65 @@ def test_aot_module():
         tvm.ir.load_json(tvm.ir.save_json(mod))
 
 
-@tvm.testing.requires_cuda
-def test_recursive_imports():
+def get_test_mod():
     x = relay.var("x", shape=(1, 10), dtype="float32")
     y = relay.var("y", shape=(1, 10), dtype="float32")
     z = relay.add(x, y)
     func = relay.Function([x, y], z)
-    mod = relay.build_module._build_module_no_factory(func, target="cuda")
+    return relay.build_module._build_module_no_factory(func, target="cuda")
 
+
+def get_cuda_mod():
+    # Get Cuda module which is binary serializable
+    return get_test_mod().imported_modules[0].imported_modules[0]
+
+
+@tvm.testing.requires_cuda
+def test_cuda_module():
+    mod = get_cuda_mod()
     assert mod.is_binary_serializable
-    # GraphExecutorFactory Module contains LLVM Module and LLVM Module contains cuda Module.
-    assert mod.type_key == "GraphExecutorFactory"
-    assert mod.imported_modules[0].type_key == "llvm"
-    assert mod.imported_modules[0].imported_modules[0].type_key == "cuda"
+    new_mod = tvm.ir.load_json(tvm.ir.save_json(mod))
+    tvm.ir.structural_equal(mod, new_mod)
+
+
+@tvm.testing.requires_cuda
+def test_valid_submodules():
+    mod, mod2, mod3, mod4 = get_cuda_mod(), get_cuda_mod(), get_cuda_mod(), get_cuda_mod()
+
+    # Create the nested cuda module
+    mod.import_module(mod2)
+    mod2.import_module(mod3)
+    mod2.import_module(mod4)
+
+    # Root module and all submodules should be binary serializable since they are cuda module
+    assert mod.is_binary_serializable
+    assert mod.imported_modules[0].is_binary_serializable
+    assert mod.imported_modules[0].imported_modules[0].is_binary_serializable
+    assert mod.imported_modules[0].imported_modules[1].is_binary_serializable
 
     new_mod = tvm.ir.load_json(tvm.ir.save_json(mod))
-    assert new_mod.is_binary_serializable
-    # GraphExecutorFactory Module contains LLVM Module and LLVM Module contains cuda Module.
-    assert new_mod.type_key == "GraphExecutorFactory"
-    # This type key is now `library` rather than llvm.
-    assert new_mod.imported_modules[0].type_key == "library"
-    assert new_mod.imported_modules[0].imported_modules[0].type_key == "cuda"
+    tvm.ir.structural_equal(mod, new_mod)
 
-    dev = tvm.cuda()
-    data_x = tvm.nd.array(np.random.rand(1, 10).astype("float32"), dev)
-    data_y = tvm.nd.array(np.random.rand(1, 10).astype("float32"), dev)
 
-    graph_mod = GraphModule(mod["default"](dev))
-    graph_mod.set_input("x", data_x)
-    graph_mod.set_input("y", data_y)
-    graph_mod.run()
-    expected = graph_mod.get_output(0)
+@tvm.testing.requires_cuda
+def test_invalid_submodules():
+    mod, mod2, mod3 = get_cuda_mod(), get_cuda_mod(), get_cuda_mod()
+    mod4 = tvm.get_global_func("relay.build_module._AOTExecutorCodegen")()
 
-    graph_mod = GraphModule(new_mod["default"](dev))
-    graph_mod.set_input("x", data_x)
-    graph_mod.set_input("y", data_y)
-    graph_mod.run()
-    output = graph_mod.get_output(0)
-    tvm.testing.assert_allclose(output.numpy(), expected.numpy(), atol=1e-5, rtol=1e-5)
+    # Create the nested cuda module
+    mod.import_module(mod2)
+    mod2.import_module(mod3)
+    mod2.import_module(mod4)
+
+    # One of submodules is not binary serializable.
+    assert mod.is_binary_serializable
+    assert mod.imported_modules[0].is_binary_serializable
+    assert mod.imported_modules[0].imported_modules[0].is_binary_serializable
+    assert not mod.imported_modules[0].imported_modules[1].is_binary_serializable
+
+    # Therefore, we cannot roundtrip.
+    with pytest.raises(TVMError):
+        tvm.ir.load_json(tvm.ir.save_json(mod))
 
 
 if __name__ == "__main__":

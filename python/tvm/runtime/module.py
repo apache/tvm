@@ -718,7 +718,7 @@ def num_threads() -> int:
 _set_class_module(Module)
 
 
-@register_func("serialize_runtime_module")
+@register_func("export_runtime_module")
 def save_to_base64(obj) -> bytes:
     with tempfile.NamedTemporaryFile(suffix=".so") as tmpfile:
         obj.export_library(tmpfile.name)

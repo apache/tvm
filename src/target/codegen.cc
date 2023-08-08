@@ -37,6 +37,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include "../runtime/library_module.h"
 #include "../support/base64.h"
 
 namespace tvm {
@@ -65,13 +66,13 @@ class ModuleSerializer {
  public:
   explicit ModuleSerializer(runtime::Module mod) : mod_(mod) { Init(); }
 
-  void SerializeModuleToBytes(dmlc::Stream* stream, bool export_dso) {
+  void SerializeModuleToBytes(dmlc::Stream* stream, bool include_dso) {
     // Only have one DSO module and it is in the root, then
     // we will not produce import_tree_.
     bool has_import_tree = true;
 
     if (mod_->IsDSOExportable()) {
-      ICHECK(export_dso) << "`export_dso` should be enabled for DSOExportable modules";
+      ICHECK(include_dso) << "`include_dso` should be enabled for DSOExportable modules";
       has_import_tree = !mod_->imports().empty();
     }
 
@@ -94,7 +95,7 @@ class ModuleSerializer {
         stream->Write(mod_type_key);
         group[0]->SaveToBinary(stream);
       } else if (group[0]->IsDSOExportable()) {
-        ICHECK(export_dso) << "`export_dso` should be enabled for DSOExportable modules";
+        ICHECK(include_dso) << "`include_dso` should be enabled for DSOExportable modules";
         // DSOExportable: do not need binary
         if (has_import_tree) {
           std::string mod_type_key = "_lib";
@@ -235,25 +236,56 @@ class ModuleSerializer {
   std::vector<uint64_t> import_tree_child_indices_;
 };
 
-/*!
- * \brief Serialize runtime module including
- *
- * \param mod The runtime module to serialize including its import tree.
- * \param export_mode By default, allow export of DSOExportable modules. If disabled, an error will
- * be reaised when encountering DSO.
- */
-namespace {
-std::string SerializeModuleToBytes(const runtime::Module& mod, bool export_dso = true) {
+std::string SerializeModuleToBytes(const runtime::Module& mod, bool include_dso) {
   std::string bin;
   dmlc::MemoryStringStream ms(&bin);
   dmlc::Stream* stream = &ms;
 
   ModuleSerializer module_serializer(mod);
-  module_serializer.SerializeModuleToBytes(stream, export_dso);
-
+  module_serializer.SerializeModuleToBytes(stream, include_dso);
   return bin;
 }
-}  // namespace
+
+runtime::Module DeserializeModuleFromBytes(std::string blob) {
+  dmlc::MemoryStringStream ms(&blob);
+  dmlc::Stream* stream = &ms;
+
+  uint64_t size;
+  ICHECK(stream->Read(&size));
+  std::vector<runtime::Module> modules;
+  std::vector<uint64_t> import_tree_row_ptr;
+  std::vector<uint64_t> import_tree_child_indices;
+
+  for (uint64_t i = 0; i < size; ++i) {
+    std::string tkey;
+    ICHECK(stream->Read(&tkey));
+    // "_lib" serves as a placeholder in the module import tree to indicate where
+    // to place the DSOModule
+    ICHECK(tkey != "_lib") << "Should not contain any placeholder for DSOModule.";
+    if (tkey == "_import_tree") {
+      ICHECK(stream->Read(&import_tree_row_ptr));
+      ICHECK(stream->Read(&import_tree_child_indices));
+    } else {
+      auto m = runtime::LoadModuleFromBinary(tkey, stream);
+      modules.emplace_back(m);
+    }
+  }
+
+  for (size_t i = 0; i < modules.size(); ++i) {
+    for (size_t j = import_tree_row_ptr[i]; j < import_tree_row_ptr[i + 1]; ++j) {
+      auto module_import_addr = runtime::ModuleInternal::GetImportsAddr(modules[i].operator->());
+      auto child_index = import_tree_child_indices[j];
+      ICHECK(child_index < modules.size());
+      module_import_addr->emplace_back(modules[child_index]);
+    }
+  }
+
+  ICHECK(!modules.empty()) << "modules cannot be empty when import tree is present";
+  // invariance: root module is always at location 0.
+  // The module order is collected via DFS
+  runtime::Module root_mod = modules[0];
+  return root_mod;
+}
 
 std::string PackImportsToC(const runtime::Module& mod, bool system_lib,
                            const std::string& c_symbol_prefix) {
@@ -349,20 +381,25 @@ struct Deleter {  // deleter
   std::string file_name;
 };
 
-std::string SerializeModuleToBase64(tvm::runtime::Module module) {
-  static const runtime::PackedFunc* f_to_str = runtime::Registry::Get("serialize_runtime_module");
+std::string ExportModuleToBase64(tvm::runtime::Module module) {
+  static const runtime::PackedFunc* f_to_str = runtime::Registry::Get("export_runtime_module");
   ICHECK(f_to_str) << "IndexError: Cannot find the packed function "
-                      "`serialize_runtime_module` in the global registry";
+                      "`export_runtime_module` in the global registry";
   return (*f_to_str)(module);
 }
 
-tvm::runtime::Module DeserializeModuleFromBase64(std::string base64str) {
+tvm::runtime::Module ImportModuleFromBase64(std::string base64str) {
   auto length = tvm::support::b64strlen(base64str);
 
   std::vector<u_char> bytes(length);  // bytes stream
   tvm::support::b64decode(base64str, bytes.data());
-  const std::string name = tmpnam(NULL);
-  auto file_name = name + ".so";
+
+  auto now = std::chrono::system_clock::now();
+  auto in_time_t = std::chrono::system_clock::to_time_t(now);
+  std::stringstream datetime;
+  datetime << std::put_time(std::localtime(&in_time_t), "%Y-%m-%d-%X");
+  const std::string file_name = "tmp-module-" + datetime.str() + ".so";
+  LOG(INFO) << file_name;
   std::unique_ptr<FILE, Deleter> pFile(fopen(file_name.c_str(), "wb"), Deleter(file_name));
   fwrite(bytes.data(), sizeof(u_char), length, pFile.get());
   fflush(pFile.get());
@@ -373,8 +410,6 @@ tvm::runtime::Module DeserializeModuleFromBase64(std::string base64str) {
                        << " resolved to (" << load_f_name << ") in the global registry."
                        << "Ensure that you have loaded the correct runtime code, and"
                        << "that you are on the correct hardware architecture.";
-
-  LOG(INFO) << "Run " << load_f_name;
   tvm::runtime::Module ret = (*f)(file_name, "");
   return ret;
 }
