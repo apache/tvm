@@ -54,5 +54,76 @@ class TestAnnotateDeviceScope(BaseCompare):
         A[0] = 0.0
 
 
+class TestAnnotateEntireBody(BaseCompare):
+    """Annotation inserted to wrap entire function
+
+    Function is assumed to belong on the device.
+    """
+
+    def before(A: T.Buffer(1, "float32")):
+        T.func_attr({"target": T.target("cuda", host="llvm")})
+        A[0] = 0.0
+
+    def expected(A: T.Buffer(1, "float32")):
+        T.func_attr({"target": T.target("cuda", host="llvm")})
+        T.attr(T.target("cuda"), "target", 0)
+        A[0] = 0.0
+
+
+class TestNoAnnotationForSameHostDevice(BaseCompare):
+    """No annotation is needed if host/device are the same"""
+
+    def before(A: T.Buffer(1, "float32")):
+        T.func_attr({"target": T.target("llvm", host="llvm")})
+        A[0] = 0.0
+
+    expected = before
+
+
+class TestAnnotationAvoidsHostConstructs(BaseCompare):
+    """Device annotation does not contain host-only functions
+
+    Calls that must be on the host side (e.g. T.call_packed) remain on
+    the host.
+    """
+
+    def before(A: T.Buffer(1, "float32")):
+        T.func_attr({"target": T.target("cuda", host="llvm")})
+        T.call_packed("dummy_function", dtype="void")
+        A[0] = 0.0
+        T.call_packed("dummy_function", dtype="void")
+
+    def expected(A: T.Buffer(1, "float32")):
+        T.func_attr({"target": T.target("cuda", host="llvm")})
+        T.call_packed("dummy_function", dtype="void")
+        with T.attr(T.target("cuda"), "target", 0):
+            A[0] = 0.0
+        T.call_packed("dummy_function", dtype="void")
+
+
+class TestAnnotationNoRepetition(BaseCompare):
+    """Device annotation does not contain host-only functions
+
+    When placing everything that isn't a host-specific function into
+    target block, sequential device statements should be in the same
+    block.
+    """
+
+    def before(A: T.Buffer(2, "float32")):
+        T.func_attr({"target": T.target("cuda", host="llvm")})
+        T.call_packed("dummy_function", dtype="void")
+        A[0] = 0.0
+        A[1] = 1.0
+        T.call_packed("dummy_function", dtype="void")
+
+    def expected(A: T.Buffer(2, "float32")):
+        T.func_attr({"target": T.target("cuda", host="llvm")})
+        T.call_packed("dummy_function", dtype="void")
+        with T.attr(T.target("cuda"), "target", 0):
+            A[0] = 0.0
+            A[1] = 1.0
+        T.call_packed("dummy_function", dtype="void")
+
+
 if __name__ == "__main__":
     tvm.testing.main()
