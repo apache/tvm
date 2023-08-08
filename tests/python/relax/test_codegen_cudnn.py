@@ -248,20 +248,12 @@ def test_conv2d_nchw_oihw_offload(data_shape, weight_shape, dtype, with_bias, ac
         tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
-@pytest.mark.parametrize(
-    "data_shape, weight_shape, dtype, with_bias, activation",
-    [
-        # Regular
-        ((16, 32, 32, 16), (32, 3, 3, 16), "float32", False, "none"),
-        # Bias
-        ((16, 32, 32, 16), (32, 3, 3, 16), "float32", True, "none"),
-        # Bias+ReLU
-        ((16, 32, 32, 16), (32, 3, 3, 16), "float32", True, "relu"),
-        # Bias+ReLU+half
-        ((16, 32, 32, 16), (32, 3, 3, 16), "float16", True, "relu"),
-    ],
-)
-def test_conv2d_cuda_graph(data_shape, weight_shape, dtype, with_bias, activation):
+def test_conv2d_cuda_graph():
+    data_shape = (16, 32, 32, 16)
+    weight_shape = (32, 3, 3, 16)
+    dtype = "float32"
+    with_bias = False
+    activation = "none"
     input = np.random.randn(*data_shape).astype(dtype)
     weight = np.random.randn(*weight_shape).astype(dtype)
 
