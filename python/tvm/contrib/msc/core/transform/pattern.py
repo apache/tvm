@@ -17,6 +17,8 @@
 # pylint: disable=unused-argument
 """tvm.contrib.msc.core.transform.pattern"""
 
+from typing import Mapping, Tuple
+
 import tvm
 from tvm.relax.dpl import pattern as relax_pattern
 from tvm.relay import dataflow_pattern as relay_pattern
@@ -26,8 +28,10 @@ from tvm.relax.backend.pattern_registry import register_patterns
 from tvm.relay.op.contrib.register import register_pattern_table
 
 
-def make_relax_conv_bias_pattern(op_name):
-    """A simple utility to create patterns for an operation fused with bias.
+def make_relax_conv_bias_pattern(
+    op_name: str,
+) -> Tuple[relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]]:
+    """A simple utility to create patterns for an conv fused with bias.
 
     Parameters
     ----------
@@ -36,8 +40,13 @@ def make_relax_conv_bias_pattern(op_name):
 
     Returns
     -------
-    pattern: DFPattern
-        The resulting pattern describing a conv_bias operation
+    out: tvm.relax.dpl.pattern.DFPattern
+        The resulting pattern describing a conv_bias operation.
+
+    annotations: Mapping[str, tvm.relax.dpl.pattern.DFPattern]
+        A mapping from name to sub pattern. It can be used to extract
+        important expressions from match result, to power the partition
+        check function and codegen.
     """
 
     data = relax_pattern.wildcard()
@@ -52,20 +61,34 @@ def make_relax_conv_bias_pattern(op_name):
 
 
 def _check_relax_conv_bias(context: PatternCheckContext) -> bool:
-    """Check if conv_bias fuse pattern is correct."""
+    """Check if conv_bias fuse pattern is correct.
+
+    Returns
+    -------
+    pass: bool
+        Whether the pattern is correct.
+    """
+
     bias = context.annotated_expr["bias"]
     reshape = context.annotated_expr["reshape"]
     non_one_dims = len([i for i in reshape.struct_info.shape.values if i > 1])
     return non_one_dims <= 1 and bias.struct_info.ndim == 1
 
 
-def make_relax_linear_pattern():
+def make_relax_linear_pattern() -> Tuple[
+    relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]
+]:
     """A simple utility to create patterns for linear.
 
     Returns
     -------
-    pattern: DFPattern
-        The resulting pattern describing a linear operation
+    out: tvm.relax.dpl.pattern.DFPattern
+        The resulting pattern describing a linear operation.
+
+    annotations: Mapping[str, tvm.relax.dpl.pattern.DFPattern]
+        A mapping from name to sub pattern. It can be used to extract
+        important expressions from match result, to power the partition
+        check function and codegen.
     """
 
     data = relax_pattern.wildcard()
@@ -77,19 +100,34 @@ def make_relax_linear_pattern():
 
 
 def _check_relax_linear(context: PatternCheckContext) -> bool:
-    """Check if linear pattern is correct."""
+    """Check if linear pattern is correct.
+
+    Returns
+    -------
+    pass: bool
+        Whether the pattern is correct.
+    """
+
     weight = context.annotated_expr["weight"]
     permute = context.annotated_expr["permute"]
     return weight.struct_info.ndim == 2 and not permute.attrs["axes"]
 
 
-def make_relax_linear_bias_pattern():
+def make_relax_linear_bias_pattern() -> Tuple[
+    relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]
+]:
     """A simple utility to create patterns for linear with bias.
 
     Returns
     -------
-    pattern: DFPattern
-        The resulting pattern describing a linear_bias operation
+    out: tvm.relax.dpl.pattern.DFPattern
+        The resulting pattern describing a linear_bias operation.
+
+    annotations: Mapping[str, tvm.relax.dpl.pattern.DFPattern]
+        A mapping from name to sub pattern. It can be used to extract
+        important expressions from match result, to power the partition
+        check function and codegen.
+
     """
 
     linear, annotations = make_relax_linear_pattern()
@@ -100,20 +138,34 @@ def make_relax_linear_bias_pattern():
 
 
 def _check_relax_linear_bias(context: PatternCheckContext) -> bool:
-    """Check if linear_bias pattern is correct."""
+    """Check if linear_bias pattern is correct.
+
+    Returns
+    -------
+    pass: bool
+        Whether the pattern is correct.
+    """
+
     if not _check_relax_linear(context):
         return False
     bias = context.annotated_expr["bias"]
     return bias.struct_info.ndim == 1
 
 
-def make_relax_embedding_pattern():
+def make_relax_embedding_pattern() -> Tuple[
+    relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]
+]:
     """A simple utility to create patterns for embedding.
 
     Returns
     -------
-    pattern: DFPattern
-        The resulting pattern describing a embedding operation
+    out: tvm.relax.dpl.pattern.DFPattern
+        The resulting pattern describing a embedding operation.
+
+    annotations: Mapping[str, tvm.relax.dpl.pattern.DFPattern]
+        A mapping from name to sub pattern. It can be used to extract
+        important expressions from match result, to power the partition
+        check function and codegen.
     """
 
     weight = relax_pattern.is_const()
@@ -125,7 +177,14 @@ def make_relax_embedding_pattern():
 
 
 def _check_relax_embedding(context: PatternCheckContext) -> bool:
-    """Check if 1d embedding pattern is correct."""
+    """Check if 1d embedding pattern is correct.
+
+    Returns
+    -------
+    pass: bool
+        Whether the pattern is correct.
+    """
+
     weight = context.annotated_expr["weight"]
     astype = context.annotated_expr["astype"]
     return (
@@ -135,13 +194,20 @@ def _check_relax_embedding(context: PatternCheckContext) -> bool:
     )
 
 
-def make_relax_reshape_embedding_pattern():
+def make_relax_reshape_embedding_pattern() -> Tuple[
+    relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]
+]:
     """A simple utility to create patterns for reshaped embedding.
 
     Returns
     -------
-    pattern: DFPattern
-        The resulting pattern describing a reshaped rembedding operation
+    out: tvm.relax.dpl.pattern.DFPattern
+        The resulting pattern describing a reshape_embedding operation.
+
+    annotations: Mapping[str, tvm.relax.dpl.pattern.DFPattern]
+        A mapping from name to sub pattern. It can be used to extract
+        important expressions from match result, to power the partition
+        check function and codegen.
     """
 
     weight = relax_pattern.is_const()
@@ -157,7 +223,14 @@ def make_relax_reshape_embedding_pattern():
 
 
 def _check_relax_reshape_embedding(context: PatternCheckContext) -> bool:
-    """Check if reshape embedding pattern is correct."""
+    """Check if reshape embedding pattern is correct.
+
+    Returns
+    -------
+    pass: bool
+        Whether the pattern is correct.
+    """
+
     weight = context.annotated_expr["weight"]
     if weight.struct_info.ndim != 2 or weight.struct_info.dtype != "float32":
         return False
@@ -168,13 +241,20 @@ def _check_relax_reshape_embedding(context: PatternCheckContext) -> bool:
     return True
 
 
-def make_relax_attention_pattern():
+def make_relax_attention_pattern() -> Tuple[
+    relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]
+]:
     """A simple utility to create patterns for attention.
 
     Returns
     -------
-    pattern: DFPattern
-        The resulting pattern describing a attention operation
+    out: tvm.relax.dpl.pattern.DFPattern
+        The resulting pattern describing a attention operation.
+
+    annotations: Mapping[str, tvm.relax.dpl.pattern.DFPattern]
+        A mapping from name to sub pattern. It can be used to extract
+        important expressions from match result, to power the partition
+        check function and codegen.
     """
 
     weight_q = relax_pattern.wildcard()
@@ -189,17 +269,31 @@ def make_relax_attention_pattern():
 
 
 def _check_relax_attention(context: PatternCheckContext) -> bool:
-    """Check if attention pattern is correct."""
+    """Check if attention pattern is correct.
+
+    Returns
+    -------
+    pass: bool
+        Whether the pattern is correct.
+    """
+
     return True
 
 
-def make_relax_mask_attention_pattern():
+def make_relax_mask_attention_pattern() -> Tuple[
+    relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]
+]:
     """A simple utility to create patterns for mask_attention.
 
     Returns
     -------
-    pattern: DFPattern
-        The resulting pattern describing a mask_attention operation
+    out: tvm.relax.dpl.pattern.DFPattern
+        The resulting pattern describing a mask_attention operation.
+
+    annotations: Mapping[str, tvm.relax.dpl.pattern.DFPattern]
+        A mapping from name to sub pattern. It can be used to extract
+        important expressions from match result, to power the partition
+        check function and codegen.
     """
 
     weight_q = relax_pattern.wildcard()
@@ -215,7 +309,14 @@ def make_relax_mask_attention_pattern():
 
 
 def _check_relax_mask_attention(context: PatternCheckContext) -> bool:
-    """Check if mask_attention pattern is correct."""
+    """Check if mask_attention pattern is correct.
+
+    Returns
+    -------
+    pass: bool
+        Whether the pattern is correct.
+    """
+
     return True
 
 
@@ -276,7 +377,7 @@ def pattern_table():
     """Returns list of triples describing the name, dataflow pattern and predicate for all
     the MSC-supported operators."""
 
-    def make_relay_conv_bias_pattern(op_name, optimized=False):
+    def make_relay_conv_bias_pattern(op_name, optimized=False) -> relay_pattern.DFPattern:
         """A simple utility to create patterns for an operation fused with bias.
 
         Parameters
@@ -288,7 +389,7 @@ def pattern_table():
 
         Returns
         -------
-        pattern: DFPattern
+        pattern: tvm.relay.dataflow_pattern.DFPattern
             The resulting pattern describing a conv_bias operation
         """
 
@@ -303,7 +404,13 @@ def pattern_table():
         return out
 
     def _check_relay_conv_bias(call: tvm.relay.Expr) -> bool:
-        """Check if conv_bias fuse pattern is correct."""
+        """Check if conv_bias fuse pattern is correct.
+
+        Returns
+        -------
+        pass: bool
+            Whether the pattern is correct.
+        """
 
         if call.op.name == "nn.bias_add":
             bias = call.args[1]
@@ -312,7 +419,7 @@ def pattern_table():
             return True
         return False
 
-    def make_relay_linear_pattern(optimized=False):
+    def make_relay_linear_pattern(optimized=False) -> relay_pattern.DFPattern:
         """A simple utility to create patterns for linear.
 
         Parameters
@@ -322,7 +429,7 @@ def pattern_table():
 
         Returns
         -------
-        pattern: DFPattern
+        pattern: tvm.relay.dataflow_pattern.DFPattern
             The resulting pattern describing a linear operation
         """
 
@@ -346,10 +453,17 @@ def pattern_table():
         return relay_pattern.is_op("squeeze")(reshape_out)
 
     def _check_relay_linear(call: tvm.relay.Expr) -> bool:
-        """Check if linear pattern is correct."""
+        """Check if linear pattern is correct.
+
+        Returns
+        -------
+        pass: bool
+            Whether the pattern is correct.
+        """
+
         return True
 
-    def make_relay_linear_bias_pattern(optimized=False):
+    def make_relay_linear_bias_pattern(optimized=False) -> relay_pattern.DFPattern:
         """A simple utility to create patterns for linear_bias.
 
         Parameters
@@ -375,7 +489,7 @@ def pattern_table():
         """Check if linear_bias pattern is correct."""
         return True
 
-    def make_relay_matmul_pattern(dim=2, optimized=False):
+    def make_relay_matmul_pattern(dim=2, optimized=False) -> relay_pattern.DFPattern:
         """A simple utility to create patterns for matmul.
 
         Parameters
@@ -385,7 +499,7 @@ def pattern_table():
 
         Returns
         -------
-        pattern: DFPattern
+        pattern: tvm.relay.dataflow_pattern.DFPattern
             The resulting pattern describing a matmul operation
         """
 
@@ -409,7 +523,14 @@ def pattern_table():
             raise Exception("matmul pattern only support dim 2 and 3")
 
     def _check_relay_matmul(call: tvm.relay.Expr) -> bool:
-        """Check if matmul pattern is correct."""
+        """Check if matmul pattern is correct.
+
+        Returns
+        -------
+        pass: bool
+            Whether the pattern is correct.
+        """
+
         last_call = call.args[0] if call.op.name == "squeeze" else call
         if last_call.op.name == "nn.dense":
             trans_b = last_call.args[1]
@@ -419,12 +540,12 @@ def pattern_table():
             return trans_b.attrs["axes"] is None or list(trans_b.attrs["axes"]) == [1, 0]
         return True
 
-    def make_relay_embedding_pattern(optimized=False):
+    def make_relay_embedding_pattern(optimized=False) -> relay_pattern.DFPattern:
         """A simple utility to create patterns for 1d embedding.
 
         Returns
         -------
-        pattern: DFPattern
+        pattern: tvm.relay.dataflow_pattern.DFPattern
             The resulting pattern describing a embedding operation
         """
 
@@ -434,7 +555,13 @@ def pattern_table():
         return relay_pattern.is_op("take")(weight, astype)
 
     def _check_relay_embedding(call) -> bool:
-        """Check if embedding pattern is correct."""
+        """Check if embedding pattern is correct.
+
+        Returns
+        -------
+        pass: bool
+            Whether the pattern is correct.
+        """
 
         weight = call.args[0]
         cast = call.args[1]
@@ -444,12 +571,12 @@ def pattern_table():
             and weight.checked_type.dtype == "float32"
         )
 
-    def make_relay_gelu_pattern(optimized=False):
+    def make_relay_gelu_pattern(optimized=False) -> relay_pattern.DFPattern:
         """A simple utility to create patterns for gelu.
 
         Returns
         -------
-        pattern: DFPattern
+        pattern: tvm.relay.dataflow_pattern.DFPattern
             The resulting pattern describing a gelu operation.
         """
 
@@ -464,7 +591,14 @@ def pattern_table():
         return relay_pattern.is_op("multiply")(data, add)
 
     def _check_relay_gelu(call) -> bool:
-        """Check if gelu pattern is correct."""
+        """Check if gelu pattern is correct.
+
+        Returns
+        -------
+        pass: bool
+            Whether the pattern is correct.
+        """
+
         return True
 
     return [
