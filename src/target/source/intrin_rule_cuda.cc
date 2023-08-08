@@ -53,7 +53,13 @@ struct CUDAMath {
           return "";
       }
     } else if (t.is_bfloat16()) {
-      return 'h' + name;
+      if (name == "fabs") {
+        return "habs";
+      } else if (name == "round") {
+        return "hrint";
+      } else {
+        return 'h' + name;
+      }
     }
     return "";
   }
@@ -116,6 +122,22 @@ struct CUDAWarpIntrinsic {
       ICHECK(orig_op.same_as(builtin::tvm_warp_shuffle_down()));
       return Op::Get("tir.cuda.__shfl_down_sync");
     }
+  }
+};
+
+struct CUDAVectorIntrinsic {
+  std::string operator()(DataType t, std::string name) const {
+    if (t.bits() == 16 && t.is_floating_point()) {
+      // half2 and nv_bfloat16 arithmetics
+      // https://docs.nvidia.com/cuda/cuda-math-api/group__CUDA__MATH____HALF2__ARITHMETIC.html#group__CUDA__MATH____HALF2__ARITHMETIC
+      // https://docs.nvidia.com/cuda/cuda-math-api/group__CUDA__MATH____BFLOAT162__ARITHMETIC.html#group__CUDA__MATH____BFLOAT162__ARITHMETIC
+      if (name == "div") {
+        return "__h2div";
+      } else {
+        return "__h" + name + "2";
+      }
+    }   
+    return "";
   }
 };
 

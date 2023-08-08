@@ -40,6 +40,64 @@
 namespace tvm {
 namespace codegen {
 
+void PrintVec2xFloat16ElemLoad(const std::string& vec, DataType t, int i,
+                               std::ostream& os) {  // NOLINT(*)
+  ICHECK(!t.is_scalar()) << "Cannot load half2/nv_bfloat162 from scalar.";
+  ICHECK(t.is_floating_point() && t.bits() == 16)
+      << "Data type not much, PrintVec2xFloat16ElemLoad only supports floating point type with 16 "
+         "bits, got "
+      << t << " instead.";
+
+  static const char access[] = {'x', 'y', 'z', 'w'};
+  if (t.is_float16()) {
+    if (t.lanes() == 2) {
+      // vec (2 * float16) is stored as half2, return itself
+      os << vec;
+    } else {
+      // vec (4/8 * float16) is stored as uint2/4, return (*((half2*)(&(vec.x/y/z/w))))
+      os << "(*((half2*)(&(" << vec << "." << access[i] << "))))";
+    }
+  } else {
+    ICHECK(t.is_bfloat16());
+    if (t.lanes() == 2) {
+      // vec (2 * bfloat16) is stored as nv_bfloat162, return itself
+      os << vec;
+    } else {
+      // vec (4/8 * bfloat16) is stored as uint2/4, return (*((nv_bfloat162*)(&(vec.x))))
+      os << "(*((nv_bfloat162*)(&(" << vec << "." << access[i] << "))))";
+    }
+  }
+}
+
+void PrintVec2xFloat16ElemStore(const std::string& vec, DataType t, int i, const std::string& value,
+                                std::ostream& os) {
+  ICHECK(!t.is_scalar()) << "Cannot store half2/nv_bfloat162 to scalar.";
+  ICHECK(t.is_floating_point() && t.bits() == 16)
+      << "Data type not much, PrintVec2xFloat16ElemStore only supports floating point type with 16 "
+         "bits, got "
+      << t << " instead.";
+
+  static const char access[] = {'x', 'y', 'z', 'w'};
+  if (t.is_float16()) {
+    if (t.lanes() == 2) {
+      // vec (2 * float16) has type half2, return vec = value;
+      os << vec << " = " << value << ";\n";
+    } else {
+      // vec (4/8 * float16) is stored as uint2/4, return *((half2*)(&(vec.x/y/z/w))) = value
+      os << "*((half2*)(&(" << vec << "." << access[i] << "))) = " << value << ";\n";
+    }
+  } else {
+    ICHECK(t.is_bfloat16());
+    if (t.lanes() == 2) {
+      // vec (2 * bfloat16) has type nv_bfloat162, return vec = value;
+      os << vec << " = " << value << ";\n";
+    } else {
+      // vec (4/8 * bfloat16) is stored as uint2/4, return *((nv_bfloat162*)(&(vec.x/y/z/w))) = value
+      os << "*((nv_bfloat162*)(&(" << vec << "." << access[i] << "))) = " << value << ";\n";
+    }
+  }
+}
+
 CodeGenCUDA::CodeGenCUDA() { restrict_keyword_ = "__restrict__"; }
 
 void CodeGenCUDA::Init(bool output_ssa) {
@@ -103,6 +161,7 @@ std::string CodeGenCUDA::Finish() {
     decl_stream << _cuda_half_t_def;
     decl_stream << "#endif\n\n";
     decl_stream << _cuda_half_util;
+    decl_stream << _cuda_half2_util;
   }
 
   if (enable_bf16_) {
@@ -115,6 +174,7 @@ std::string CodeGenCUDA::Finish() {
                 << "{\n  return __hlt(a, b) ? a : b;\n}\n";
     decl_stream << "#endif\n\n";
     decl_stream << _cuda_bfloat16_util;
+    decl_stream << _cuda_bfloat162_util;
   }
 
   if (enable_fp8_) {
@@ -199,6 +259,8 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
         enable_fp16_ = true;
         if (t.is_scalar()) {
           os << "half";
+        } else if (lanes == 2) {
+          os << "half2";
         } else if (lanes <= 8) {
           // Emit CUDA code to access fp16 vector elements.
           //
@@ -249,6 +311,8 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
     enable_bf16_ = true;
     if (t.is_scalar()) {
       os << "nv_bfloat16";
+    } else if (lanes == 2) {
+      os << "nv_bfloat162";
     } else if (lanes <= 8) {
       ICHECK_EQ(lanes % 2, 0) << "only support even lane for half type";
       os << "uint" << lanes / 2;
@@ -425,39 +489,106 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
   LOG(FATAL) << "Cannot convert type " << t << " to CUDA type";
 }
 
+void CodeGenCUDA::PrintVecUnaryOp(const std::string& op, DataType t, PrimExpr operand,
+                                  std::ostream& os) {  // NOLINT(*)
+  if (t.bits() == 16 && t.is_floating_point() && t.lanes() == 2) {
+    // use native half2 and nv_bfloat162 intrinsics.
+    os << op << "(" << PrintExpr(operand) << ")";
+  } else {
+    std::string sret = name_supply_->FreshName("_");
+    this->PrintIndent();
+    this->PrintType(t, stream);
+    stream << ' ' << sret << ";\n";
+    int ssa_scope = BeginScope();
+    {  // begin of ssa_scope
+      std::string voperand = SSAGetID(PrintExpr(operand), operand.dtype());
+      if (t.bits() == 16 && t.is_floating_point() && t.lanes() % 2 == 0) {
+        // load & store at the granularity of 2 elements.
+        for (int i = 0, lanes = t.lanes(); i < lanes / 2; ++i) {
+          std::ostringstream value_temp;
+          value_temp << op << "(";
+          PrintVec2xFloat16ElemLoad(voperand, operand.dtype(), i, value_temp);
+          value_temp << ")";
+          PrintVec2xFloat16ElemStore(sret, t, i, value_temp.str(), stream);
+        }
+      } else {
+        for (int i = 0, lanes = t.lanes(); i < lanes; ++i) {
+          std::ostringstream value_temp;
+          value_temp << op << "(";
+          PrintVecElemLoad(voperand, operand.dtype(), i, value_temp);
+          value_temp << ")";
+          PrintVecElemStore(sret, t, i, value_temp.str());
+        }
+      }
+    }  // end of ssa_scope
+    EndScope(ssa_scope);
+    os << sret;
+  }
+}
+
 void CodeGenCUDA::PrintVecBinaryOp(const std::string& op, DataType t, PrimExpr lhs, PrimExpr rhs,
                                    std::ostream& os) {  // NOLINT(*)
   // Delcare the result.
-  std::string sret = name_supply_->FreshName("_");
-  this->PrintIndent();
-  this->PrintType(t, stream);
-  stream << ' ' << sret << ";\n";
-  int ssa_scope = BeginScope();
-  {
-    // Unpack into individual ops.
-    std::string vlhs = SSAGetID(PrintExpr(lhs), lhs.dtype());
-    std::string vrhs = SSAGetID(PrintExpr(rhs), rhs.dtype());
-
-    for (int i = 0, lanes = t.lanes(); i < lanes; ++i) {
-      std::ostringstream value_temp;
-      if (isalpha(op[0])) {
-        value_temp << op << "(";
-        PrintVecElemLoad(vlhs, lhs.dtype(), i, value_temp);
-        value_temp << ", ";
-        PrintVecElemLoad(vrhs, rhs.dtype(), i, value_temp);
-        value_temp << ")";
-      } else {
-        value_temp << "(";
-        PrintVecElemLoad(vlhs, lhs.dtype(), i, value_temp);
-        value_temp << op;
-        PrintVecElemLoad(vrhs, rhs.dtype(), i, value_temp);
-        value_temp << ")";
-      }
-      PrintVecElemStore(sret, t, i, value_temp.str());
+  if (t.bits() == 16 && t.is_floating_point() && t.lanes() == 2) {
+    // native half2 and nv_bfloat162 intrinsics.
+    if (isalpha(op[0])) {
+      os << op << "(" << PrintExpr(lhs) << ", " << PrintExpr(rhs) << ")";
+    } else {
+      os << "(" << PrintExpr(lhs) << " " << op << " " << PrintExpr(rhs) << ")";
     }
+  } else {
+    std::string sret = name_supply_->FreshName("_");
+    this->PrintIndent();
+    this->PrintType(t, stream);
+    stream << ' ' << sret << ";\n";
+    int ssa_scope = BeginScope();
+    {  // begin of ssa_scope
+      // Unpack into individual ops.
+      std::string vlhs = SSAGetID(PrintExpr(lhs), lhs.dtype());
+      std::string vrhs = SSAGetID(PrintExpr(rhs), rhs.dtype());
+
+      if (t.bits() == 16 && t.is_floating_point() && t.lanes() % 2 == 0) {
+        // load & store at the granularity of 2 elements.
+        for (int i = 0, lanes = t.lanes(); i < lanes / 2; ++i) {
+          std::ostringstream value_temp;
+          if (isalpha(op[0])) {
+            value_temp << op << "(";
+            PrintVec2xFloat16ElemLoad(vlhs, lhs.dtype(), i, value_temp);
+            value_temp << ", ";
+            PrintVec2xFloat16ElemLoad(vrhs, rhs.dtype(), i, value_temp);
+            value_temp << ")";
+          } else {
+            value_temp << "(";
+            PrintVec2xFloat16ElemLoad(vlhs, lhs.dtype(), i, value_temp);
+            value_temp << op;
+            PrintVec2xFloat16ElemLoad(vrhs, rhs.dtype(), i, value_temp);
+            value_temp << ")";
+          }
+          PrintVec2xFloat16ElemStore(sret, t, i, value_temp.str(), stream);
+        }
+      } else {
+        for (int i = 0, lanes = t.lanes(); i < lanes; ++i) {
+          std::ostringstream value_temp;
+          if (isalpha(op[0])) {
+            value_temp << op << "(";
+            PrintVecElemLoad(vlhs, lhs.dtype(), i, value_temp);
+            value_temp << ", ";
+            PrintVecElemLoad(vrhs, rhs.dtype(), i, value_temp);
+            value_temp << ")";
+          } else {
+            value_temp << "(";
+            PrintVecElemLoad(vlhs, lhs.dtype(), i, value_temp);
+            value_temp << op;
+            PrintVecElemLoad(vrhs, rhs.dtype(), i, value_temp);
+            value_temp << ")";
+          }
+          PrintVecElemStore(sret, t, i, value_temp.str());
+        }
+      }
+    }  // end of ssa_scope
+    EndScope(ssa_scope);
+    os << sret;
   }
-  EndScope(ssa_scope);
-  os << sret;
 }
 
 void CodeGenCUDA::PrintVecElemLoad(const std::string& vec, DataType t, int i,
@@ -478,9 +609,21 @@ void CodeGenCUDA::PrintVecElemLoad(const std::string& vec, DataType t, int i,
       os << "((" << type_name << ")(" << ac << " >> " << i % 4 * 8 << "))";
     }
   } else if (t.is_float16()) {
-    os << "((half2*)(&(" << vec << "." << access[i / 2] << ")))->" << access[i % 2];
+    if (t.lanes() == 2) {
+      // vec (2 * float16) is stored as half2, return vec.x/y directly
+      os << vec << "." << access[i];
+    } else {
+      // vec (4/8 * float16) is stored as uint2/4, return ((half2*)(&(vec.x/y/z/w)))->x/y
+      os << "((half2*)(&(" << vec << "." << access[i / 2] << ")))->" << access[i % 2];
+    }
   } else if (t.is_bfloat16()) {
-    os << "((nv_bfloat162*)(&(" << vec << "." << access[i / 2] << ")))->" << access[i % 2];
+    if (t.lanes() == 2) {
+      // vec (2 * bfloat16) is stored as nv_bfloat162, return vec.x/y directly
+      os << vec << "." << access[i];
+    } else {
+      // vec (4/8 * bfloat16) is stored as uint2/4, return ((nv_bfloat162*)(&(vec.x/y/z/w)))->x/y
+      os << "((nv_bfloat162*)(&(" << vec << "." << access[i / 2] << ")))->" << access[i % 2];
+    }
   } else if (t.lanes() > 4 && t.lanes() <= 8) {
     std::string type_name;
     if (t.bits() == 16) {
@@ -610,12 +753,18 @@ std::string CodeGenCUDA::CastFromTo(std::string value, DataType from, DataType t
   os << "((";
   this->PrintType(target, os);
   os << ")";
-  if (from.is_float16() && (target.is_int() || target.is_uint()) && target.bits() == 8) {
+  if ((from.is_float16() || from.is_bfloat16()) && (target.is_int() || target.is_uint()) &&
+      target.bits() == 8) {
+    // use int/uint as intermediate data type
     os << "(";
     if (target.is_uint()) {
       os << "u";
     }
     os << "int)";
+  } else if ((from.is_bfloat16() && target.is_float16()) ||
+             (from.is_float16() && target.is_bfloat16())) {
+    // use float as intermediate data type
+    os << "(float)";
   }
   os << value << ")";
   return os.str();
@@ -639,12 +788,9 @@ void CodeGenCUDA::VisitExpr_(const CastNode* op, std::ostream& os) {
     std::string src = SSAGetID(PrintExpr(op->value), from_ty);
     for (int i = 0, lanes = from_ty.lanes(); i < lanes; ++i) {
       std::ostringstream val;
-      val << "(";
-      PrintType(target_ty.element_of(), val);
-      val << ")(";
       PrintVecElemLoad(src, from_ty, i, val);
-      val << ")";
-      PrintVecElemStore(sret, target_ty, i, val.str());
+      std::string casted_val = CastFromTo(val.str(), from_ty.element_of(), target_ty.element_of());
+      PrintVecElemStore(sret, target_ty, i, casted_val);
     }
   }
   os << sret;
@@ -1113,27 +1259,35 @@ void CodeGenCUDA::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NO
 
   if (op->dtype.is_float16()) {
     std::string v = PrintExpr(op->value);
-    os << "make_";
-    PrintType(op->dtype, os);
-    os << '(';
-    for (int i = 0; i < op->lanes / 2; ++i) {
-      if (i != 0) os << ", ";
-      os << "__pack_half2(" << v << ", " << v << ")";
+    if (op->lanes == 2) {
+      os << "make_half2(" << v << ", " << v << ")";
+    } else {
+      os << "make_";
+      PrintType(op->dtype, os);
+      os << '(';
+      for (int i = 0; i < op->lanes / 2; ++i) {
+        if (i != 0) os << ", ";
+        os << "__pack_half2(" << v << ", " << v << ")";
+      }
+      os << ')';
     }
-    os << ')';
     return;
   }
 
   if (op->dtype.is_bfloat16()) {
     std::string v = PrintExpr(op->value);
-    os << "make_";
-    PrintType(op->dtype, os);
-    os << '(';
-    for (int i = 0; i < op->lanes / 2; ++i) {
-      if (i != 0) os << ", ";
-      os << "__pack_nv_bfloat162(" << v << ", " << v << ")";
+    if (op->lanes == 2) {
+      os << "make_bfloat162(" << v << ", " << v << ")";
+    } else {
+      os << "make_";
+      PrintType(op->dtype, os);
+      os << "(";
+      for (int i = 0; i < op->lanes / 2; ++i) {
+        if (i != 0) os << ", ";
+        os << "__pack_nv_bfloat162(" << v << ", " << v << ")";
+      }
+      os << ')';
     }
-    os << ')';
     return;
   }
 
@@ -1364,6 +1518,7 @@ void CodeGenCUDA::HandleVolatileLoads(const std::string& value, const BufferLoad
   // Cast away volatile qualifier for fp16 types. That is, only loads and
   // stores are volatile. The loaded objects are not marked as volatile.
   //
+  // TODO(Zihao): figure out what it is
   if ((op->dtype.is_float16() || op->dtype.is_bfloat16()) && IsVolatile(op->buffer->data.get())) {
     os << "(";
     PrintType(op->dtype, os);
@@ -1387,38 +1542,58 @@ void CodeGenCUDA::PrintVecElemLoadExpr(DataType t, int i, const std::string& val
   }
 
   if (t.is_float16()) {
-    if (i == 0) {
-      os << "make_";
-      PrintType(t, os);
-      os << '(';
-    }
-    if (i % 2 == 0) {
-      os << "__pack_half2(" << value;
-    } else {
-      os << "," << value << ")";
-      if (i != t.lanes() - 1) {
-        os << ",";
+    if (t.lanes() == 2) {
+      // result data type is half2
+      if (i == 0) {
+        os << "make_half2(" << value;
       } else {
-        os << ")";
+        os << ", " << value << ")";
+      }
+    } else {
+      // result data type is uint2/4
+      if (i == 0) {
+        os << "make_";
+        PrintType(t, os);
+        os << '(';
+      }
+      if (i % 2 == 0) {
+        os << "__pack_half2(" << value;
+      } else {
+        os << "," << value << ")";
+        if (i != t.lanes() - 1) {
+          os << ",";
+        } else {
+          os << ")";
+        }
       }
     }
     return;
   }
 
   if (t.is_bfloat16()) {
-    if (i == 0) {
-      os << "make_";
-      PrintType(t, os);
-      os << '(';
-    }
-    if (i % 2 == 0) {
-      os << "__pack_bfloat162(" << value;
-    } else {
-      os << "," << value << ")";
-      if (i != t.lanes() - 1) {
-        os << ",";
+    if (t.lanes() == 2) {
+      // result data type is nv_bfloat162
+      if (i == 0) {
+        os << "make_bfloat162(" << value;
       } else {
-        os << ")";
+        os << ", " << value << ")";
+      }
+    } else {
+      // result data type is uint2/4
+      if (i == 0) {
+        os << "make_";
+        PrintType(t, os);
+        os << '(';
+      }
+      if (i % 2 == 0) {
+        os << "__pack_nv_bfloat162(" << value;
+      } else {
+        os << "," << value << ")";
+        if (i != t.lanes() - 1) {
+          os << ",";
+        } else {
+          os << ")";
+        }
       }
     }
     return;

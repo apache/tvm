@@ -38,11 +38,8 @@ PrimExpr DTypeConversion(PrimExpr src_value, DataType tgt_dtype, RoundingMode ro
   // The lanes of src dtype and target dtype must match.
   CHECK_EQ(src_dtype.lanes(), tgt_dtype.lanes())
       << "The lanes for data type for source value must matches the target datatype.";
-  auto is_floating_point = [](DataType dtype) {
-    return dtype.is_float() || dtype.is_float8() || dtype.is_bfloat16();
-  };
   // Both source dtype and target dtype should be floating point.
-  CHECK(is_floating_point(src_dtype) && is_floating_point(tgt_dtype));
+  CHECK(src_dtype.is_floating_point() && tgt_dtype.is_floating_point());
   FloatConfig src_fp = FloatConfig::FromDataType(src_value.dtype()),
               tgt_fp = FloatConfig::FromDataType(tgt_dtype);
   int exponent_delta = tgt_fp.exponent - src_fp.exponent;
