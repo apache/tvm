@@ -19,9 +19,6 @@
 
 import os
 import shutil
-
-# from python.tvm.relax.expr import Function
-
 import tvm._ffi
 from ...expr_functor import PyExprVisitor, visitor
 from tvm.contrib import coreml_runtime
@@ -149,7 +146,7 @@ register_patterns(
         *conv2d_patterns(),
         *clip_patterns(),
         *matmul_patterns()
-        # TODO(@tvm-team): enable when it is implemented
+        # TODO(@tvm-team): enable when relax op is implemented
         # ("coreml.nn.batch_flatten", is_op("relax.nn.batch_flatten")(wildcard())),
     ]
 )
@@ -179,8 +176,7 @@ def partition_for_coreml(mod):
     return mod
 
 
-# Codegen for coreml
-# API reference: https://apple.github.io/coremltools/source/coremltools.models.neural_network.html
+# Codegen for coreml API reference: https://apple.github.io/coremltools/source/coremltools.models.neural_network.html
 def _convert_add(builder, name, inputs, outputs, args, attrs):
     builder.add_elementwise(
         name=name, input_names=inputs, output_name=outputs[0], mode="ADD"
@@ -282,7 +278,7 @@ _convert_map = {
     "clip": _convert_clip,
     "expand_dims": _convert_expand_dims,
     "nn.relu": _convert_relu,
-    "nn.batch_flatten": _convert_batch_flatten,
+    # "nn.batch_flatten": _convert_batch_flatten,
     "nn.softmax": _convert_softmax,
     "nn.conv2d": _convert_conv2d,
     "nn.avg_pool2d": _convert_avg_pool2d,
@@ -291,6 +287,9 @@ _convert_map = {
 
 @visitor
 class CallNodeInfoCollector(PyExprVisitor):
+    """
+    Collect PrimValue, Constant and attributes in the inner function
+    """
     def __init__(self, op_name):
         self.primvals = []
         self.attrs = []
@@ -333,9 +332,6 @@ class CodegenCoreML(PyExprVisitor):
         self.var2val = getter(function)
         self.cur_binding_var = None
 
-        # Update inputs and outputs after we visit all the nodes.
-        # Set dummy values for now.
-        # TODO: support multiple outputs
         inputs = [
             (
                 "",
@@ -356,20 +352,6 @@ class CodegenCoreML(PyExprVisitor):
         self.builder = NeuralNetworkBuilder(
             inputs, outputs, disable_rank5_shape_mapping=True
         )
-
-    """
-    def visit_constant_(self, const):
-        output = "buf_" + str(self.buf_idx_)
-        cnst = self.builder.add_load_constant_nd(
-            name=output,
-            output_name=output,
-            constant_value=const.data.numpy(),
-            shape=const.data.shape,
-        )
-        self.buf_idx_ = self.buf_idx_ + 1
-        self.out_map[const] = [output]
-        self.const_map[output] = [cnst]
-    """
 
     def visit_function_(self, op) -> None:
         for var in op.params:
@@ -431,8 +413,6 @@ class CodegenCoreML(PyExprVisitor):
             inputs.append(output)
             args.append(arg)
 
-        print("Visiting...", call.op, " // ", inputs)
-
         layer_name = op_name + "_" + str(self.buf_idx_)
 
         assert op_name in _convert_map, "{} is not supported".format(op_name)
@@ -455,8 +435,6 @@ class CodegenCoreML(PyExprVisitor):
             self.visit_binding_block_(bb)
 
     def serialize(self, func: Function):
-        # TODO:handle params
-        # handle func body
         self.visit_expr(func)
 
     def compile(self, out_dir):
@@ -481,7 +459,6 @@ class CodegenCoreML(PyExprVisitor):
 
         output_dim = [int(n) for n in self.function.struct_info.ret.shape]
 
-        # assert self.function.body in self.out_map
         last_binding_var = self.function.body.blocks[0].bindings[-1].var
         self.builder.set_output(self.out_map[last_binding_var], [output_dim])
 
