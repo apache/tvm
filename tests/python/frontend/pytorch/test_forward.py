@@ -5332,9 +5332,6 @@ def test_exporting_renamed_c_graph():
 
 def test_inplace_copy():
     class InplaceCopy(torch.nn.Module):
-        def __init__(self) -> None:
-            super().__init__()
-
         def forward(self, x):
             x[:5, 0] = x[:5, 0] + 1
             return x
