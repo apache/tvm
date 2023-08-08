@@ -30,6 +30,7 @@
 
 #include <functional>
 #include <string>
+#include <vector>
 
 namespace tvm {
 namespace runtime {
