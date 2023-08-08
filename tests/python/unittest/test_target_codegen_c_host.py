@@ -14,11 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
 import tvm
 import tvm.testing
+
 from tvm import te
-import numpy as np
 from tvm.contrib import utils
+from tvm.script import tir as T, ir as I
+
+import numpy as np
 
 
 def test_add():
@@ -228,11 +232,39 @@ def test_call_packed():
     check_global_packed_func()
 
 
+def test_subroutine_call():
+    @I.ir_module
+    class mod:
+        @T.prim_func
+        def main(A: T.Buffer(1, dtype="float32")):
+            mod.subroutine(A.data)
+
+        @T.prim_func(private=True)
+        def subroutine(A_data: T.handle("float32")):
+            A = T.decl_buffer(1, dtype="float32", data=A_data)
+            A[0] = 42.0
+
+    built = tvm.build(mod, target="c")
+
+    func_names = list(built["get_func_names"]())
+    assert (
+        "main" in func_names
+    ), "Externally exposed functions should be listed in available functions."
+    assert (
+        "subroutine" not in func_names
+    ), "Internal function should not be listed in available functions."
+
+    source = built.get_source()
+    assert (
+        source.count("main(void*") == 2
+    ), "Expected two occurrences, for forward-declaration and definition"
+    assert (
+        source.count("subroutine(float*") == 2
+    ), "Expected two occurrences, for forward-declaration and definition"
+    assert (
+        source.count("subroutine(") == 3
+    ), "Expected three occurrences, for forward-declaration, definition, and call from main."
+
+
 if __name__ == "__main__":
-    test_add()
-    test_add_pipeline()
-    test_reinterpret()
-    test_ceil()
-    test_floor()
-    test_round()
-    test_call_packed()
+    tvm.testing.main()
