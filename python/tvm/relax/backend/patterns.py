@@ -144,9 +144,6 @@ def make_conv2d_pattern(
     activation: str
         The name of an activation Relax op, such as "relax.nn.relu"
 
-    dilation: tuple
-        The dilation rate for the convolution operation. Default is (1, 1)
-
     Returns
     -------
     pattern: DFPattern
