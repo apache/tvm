@@ -284,11 +284,15 @@ class GEMV(ScheduleRule):
                 if isinstance(loop.extent, tir.IntImm):
                     # avoid introducing predicates when vector length is too large
                     vec_length = max(
-                        get_max_factor(
-                            (int)(loop.extent), [TS * TR * 1, TS * TR * 2, TS * TR * 4, TS * TR * 8]
-                        )
-                        // TS
-                        // TR,
+                        min(
+                            get_max_factor(
+                                (int)(loop.extent),
+                                [TS * TR * 1, TS * TR * 2, TS * TR * 4, TS * TR * 8],
+                            )
+                            // TS
+                            // TR,
+                            LOAD_V_VEC,
+                        ),
                         1,
                     )
                 else:
