@@ -595,18 +595,26 @@ runtime::Module BuildOpenCL(IRModule mod, Target target) {
   using tvm::runtime::Registry;
   bool output_ssa = false;
 
-  std::stringstream code;
-  const auto* fpostproc = Registry::Get("tvm_callback_opencl_postproc");
-  for (auto kv : mod->functions) {
-    ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenOpenCL: Can only take PrimFunc";
-    code << "// Function: " << kv.first->name_hint << std::endl;
-    CodeGenOpenCL cg;
-    cg.Init(output_ssa);
-    auto f = Downcast<PrimFunc>(kv.second);
-    auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
+  Map<GlobalVar, PrimFunc> functions;
+  for (auto [gvar, base_func] : mod->functions) {
+    ICHECK(base_func->IsInstance<PrimFuncNode>()) << "CodeGenOpenCL: Can only take PrimFunc";
+    auto prim_func = Downcast<PrimFunc>(base_func);
+    auto calling_conv = prim_func->GetAttr<Integer>(tvm::attr::kCallingConv);
     ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
         << "CodeGenOpenCL: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
-    cg.AddFunction(f);
+    functions.Set(gvar, prim_func);
+  }
+
+  std::stringstream code;
+  const auto* fpostproc = Registry::Get("tvm_callback_opencl_postproc");
+  for (auto [gvar, prim_func] : functions) {
+    code << "// Function: " << gvar->name_hint << std::endl;
+    CodeGenOpenCL cg;
+    cg.Init(output_ssa);
+    for (auto [other_gvar, other_prim_func] : functions) {
+      cg.DeclareFunction(other_gvar, other_prim_func);
+    }
+    cg.AddFunction(gvar, prim_func);
     std::string fsource = cg.Finish();
     if (fpostproc) {
       fsource = (*fpostproc)(fsource, target).operator std::string();
