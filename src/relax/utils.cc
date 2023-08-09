@@ -20,6 +20,7 @@
 #include "transform/utils.h"
 
 #include <tvm/relax/analysis.h>
+#include <tvm/relax/attrs/index.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/tir/stmt_functor.h>
 
@@ -34,6 +35,8 @@ class ExprBinder : public ExprMutator {
       : args_map_(args_map), symbolic_var_map_(symbolic_var_map) {}
 
  private:
+  using ExprMutator::VisitExpr_;
+
   Expr VisitExpr_(const FunctionNode* op) final {
     tvm::Array<Var> params;
     bool all_params_unchanged = true;
@@ -60,6 +63,49 @@ class ExprBinder : public ExprMutator {
       return Function(params, body, VisitExprDepStructInfoField(op->ret_struct_info), op->is_pure,
                       op->attrs);
     }
+  }
+
+  Expr VisitExpr_(const CallNode* op) final {
+    auto call_node = Downcast<Call>(ExprMutator::VisitExpr_(op));
+
+    // Special case for strided_slice
+    //
+    // The strided_slice operator currently stores the begins/ends in
+    // the CallNode::attrs.  Because the CallNode::attrs is only
+    // intended to store static information, any PrimExpr members in
+    // the attributes are not visited by `ExprMutator::VisitPrimExpr`.
+    // Therefore, these must be explicitly visited.
+    //
+    // When the strided_slice operator is updated to store begins/ends
+    // as a tuple of `relax::PrimValue` in the arguments, this special
+    // case can be removed.
+    static auto strided_slice_op = Op::Get("relax.strided_slice");
+    if (call_node->op.same_as(strided_slice_op)) {
+      auto attrs = call_node->attrs.as<StridedSliceAttrs>();
+
+      auto visit_prim_expr = [this](const auto& expr) { return VisitPrimExpr(expr); };
+
+      Array<PrimExpr> begin = attrs->begin.Map(visit_prim_expr);
+      Array<PrimExpr> end = attrs->end.Map(visit_prim_expr);
+      auto strides = attrs->strides;
+      if (strides.defined()) {
+        strides = strides.value().Map(visit_prim_expr);
+      }
+
+      bool all_same = begin.same_as(attrs->begin) && end.same_as(attrs->end) &&
+                      (!strides.defined() || strides.same_as(attrs->strides));
+      if (!all_same) {
+        ObjectPtr<StridedSliceAttrs> new_attrs = make_object<StridedSliceAttrs>();
+        new_attrs->axes = attrs->axes;
+        new_attrs->begin = std::move(begin);
+        new_attrs->end = std::move(end);
+        new_attrs->strides = std::move(strides);
+        new_attrs->assume_inbound = attrs->assume_inbound;
+        call_node.CopyOnWrite()->attrs = Attrs(new_attrs);
+      }
+    }
+
+    return std::move(call_node);
   }
 
   Expr VisitExpr_(const VarNode* op) final {

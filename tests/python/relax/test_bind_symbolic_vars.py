@@ -183,5 +183,23 @@ def test_bind_symbolic_vars_in_shape():
     tvm.ir.assert_structural_equal(expected, after)
 
 
+def test_bind_strided_slice():
+    """relax.op.strided_slice stores PrimExpr attributes"""
+
+    @R.function(private=True)
+    def before(A: R.Tensor(["M", "N"])):
+        N = T.int64()
+        B = R.strided_slice(A, [1], [0], [N // 4])
+        return B
+
+    @R.function(private=True)
+    def expected(A: R.Tensor(["M", 32])):
+        B = R.strided_slice(A, [1], [0], [8])
+        return B
+
+    after = before.bind_symbolic_vars({"N": 32})
+    tvm.ir.assert_structural_equal(expected, after)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
