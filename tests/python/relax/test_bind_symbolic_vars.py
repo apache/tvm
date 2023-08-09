@@ -19,7 +19,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm.script import relax as R
+from tvm.script import relax as R, tir as T
 
 replace_by_tir_var = tvm.testing.parameter(
     by_dict={"replace-by-string": False, "replace-by-tir-var": True}
@@ -160,6 +160,26 @@ def test_replacements_may_produce_new_symbolic_vars():
     outside_var = tvm.tir.Var("outside_var", "int64")
 
     after = before.bind_symbolic_vars({"M": outside_var * 2, "N": outside_var})
+    tvm.ir.assert_structural_equal(expected, after)
+
+
+def test_bind_symbolic_vars_in_shape():
+    """The bound variable should be replaced when appearing in struct info"""
+
+    @R.function(private=True)
+    def before(A: R.Tensor(["M", "N"])):
+        M = T.int64()
+        N = T.int64()
+        B = R.call_dps_packed("dummy_func", [A], out_sinfo=R.Tensor([2 * M * N]))
+        return B
+
+    @R.function(private=True)
+    def expected(A: R.Tensor(["M", 16])):
+        M = T.int64()
+        B = R.call_dps_packed("dummy_func", [A], out_sinfo=R.Tensor([M * 32]))
+        return B
+
+    after = before.bind_symbolic_vars({"N": 16})
     tvm.ir.assert_structural_equal(expected, after)
 
 

@@ -647,6 +647,14 @@ class Function(BaseFunc, Scriptable):
 
             The updated function
         """
+
+        # Relax uses int64 for symbolic variables, but the FFI
+        # converts python integers into int32.
+        param_map = {
+            key: tvm.tir.const(value, "int64") if isinstance(value, int) else value
+            for key, value in param_map.items()
+        }
+
         return _ffi_api.FunctionBindSymbolicVars(self, param_map)  # type: ignore
 
 

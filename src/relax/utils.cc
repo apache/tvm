@@ -21,6 +21,7 @@
 
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
+#include <tvm/tir/stmt_functor.h>
 
 namespace tvm {
 namespace relax {
@@ -72,13 +73,12 @@ class ExprBinder : public ExprMutator {
   }
 
   PrimExpr VisitPrimExpr(const PrimExpr& expr) final {
-    if (const tir::VarNode* var = expr.as<tir::VarNode>()) {
-      auto it = symbolic_var_map_.find(GetRef<tir::Var>(var));
-      if (it != symbolic_var_map_.end()) {
-        return (*it).second;
-      }
+    auto new_expr = tir::Substitute(expr, symbolic_var_map_);
+    if (!expr.same_as(new_expr)) {
+      arith::Analyzer analyzer;
+      new_expr = analyzer.Simplify(new_expr);
     }
-    return ExprMutator::VisitPrimExpr(expr);
+    return new_expr;
   }
 
  private:
