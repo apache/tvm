@@ -760,7 +760,7 @@ def instantiate_template(func_name, annotations, func_args):
 
         if use_flash:
             headers.append("flash.h")
-            attrs["is_causal"] = int(annotations["custom_mask_type"]) == 0
+            attrs["is_causal"] = int(annotations["custom_mask_type"]) > 0
             code = instantiate_flash_attention_template(attrs)
         else:
             headers.append("kernel_forward.h")
