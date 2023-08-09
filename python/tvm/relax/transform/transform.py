@@ -416,6 +416,35 @@ def BindParams(
     return _ffi_api.BindParams(func_name, tvm_params)  # type: ignore
 
 
+def BindSymbolicVars(
+    binding_map: Mapping[Union[str, tvm.tir.Var], tvm.tir.PrimExpr],
+    func_name: Optional[str] = None,
+) -> tvm.ir.transform.Pass:
+    """Bind params of function of the module to constant tensors.
+    Parameters
+    ----------
+    binding_map : Mapping[Union[str, tvm.tir.Var], tvm.tir.PrimExpr]
+
+        The map from symbolic varname to integer.
+
+    func_name: Optional[str]
+
+        The function name to be bound.  If None (default), all
+        functions within the module will be updated.
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+    """
+    # Relax uses int64 for symbolic variables, but the FFI
+    # converts python integers into int32.
+    binding_map = {
+        key: tvm.tir.const(value, "int64") if isinstance(value, int) else value
+        for key, value in binding_map.items()
+    }
+    return _ffi_api.BindSymbolicVars(binding_map, func_name)  # type: ignore
+
+
 def RunCodegen(
     target_options: Optional[dict] = None,
     entry_functions: Optional[List[str]] = None,

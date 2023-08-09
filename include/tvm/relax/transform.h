@@ -183,6 +183,24 @@ TVM_DLL Pass EliminateCommonSubexpr(bool call_only = false);
 TVM_DLL Pass BindParams(String func_name, Map<String, runtime::NDArray> params);
 
 /*!
+ * \brief Bind symbolic vars to constant shape values.
+ *
+ * \param binding_map The dictionary of symbolic variables and their
+ *      constant shape values.  Dictionary keys may be either a
+ *      `tir.Var` or a string name of the variable.  If the variables
+ *      are referred to by name, the name must uniquely identify a
+ *      symbolic variable in each function where it is used.
+ *
+ * \param func_name The name of the function in which to bind shape
+ *      values.  If NullOpt, all functions in the module will be
+ *      updated.
+ *
+ * \return The Pass.
+ */
+TVM_DLL Pass BindSymbolicVars(Map<ObjectRef, PrimExpr> binding_map,
+                              Optional<String> func_name = NullOpt);
+
+/*!
  * \brief Fold constant expressions.
  *
  * \return The Pass.

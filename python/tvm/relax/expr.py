@@ -628,13 +628,13 @@ class Function(BaseFunc, Scriptable):
         return Call(self, args, None, None)
 
     def bind_symbolic_vars(
-        self, param_map: Mapping[Union[str, tvm.tir.Var], PrimExpr]
+        self, binding_map: Mapping[Union[str, tvm.tir.Var], PrimExpr]
     ) -> "Function":
         """Return a new function with updated symbolic variable
 
         Parameters
         ----------
-        param_map: Mapping[Union[str, tvm.tir.Var], PrimExpr]
+        binding_map: Mapping[Union[str, tvm.tir.Var], PrimExpr]
 
             The mapping of values to be replaced.  Keys may be either
             a `tir.Var` or a string name of the variable.  If the
@@ -650,12 +650,12 @@ class Function(BaseFunc, Scriptable):
 
         # Relax uses int64 for symbolic variables, but the FFI
         # converts python integers into int32.
-        param_map = {
+        binding_map = {
             key: tvm.tir.const(value, "int64") if isinstance(value, int) else value
-            for key, value in param_map.items()
+            for key, value in binding_map.items()
         }
 
-        return _ffi_api.FunctionBindSymbolicVars(self, param_map)  # type: ignore
+        return _ffi_api.FunctionBindSymbolicVars(self, binding_map)  # type: ignore
 
 
 @tvm._ffi.register_object("relax.expr.ExternFunc")

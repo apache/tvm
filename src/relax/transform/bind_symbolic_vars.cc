@@ -19,6 +19,7 @@
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/struct_info.h>
+#include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
 
 #include <string>
@@ -30,6 +31,11 @@ namespace tvm {
 namespace relax {
 
 Function FunctionBindSymbolicVars(Function func, Map<ObjectRef, PrimExpr> obj_remap) {
+  // Early bail-out if no updates need to be made.
+  if (obj_remap.empty()) {
+    return func;
+  }
+
   Array<tir::Var> old_symbolic_vars = DefinedSymbolicVars(func);
 
   // Map from string to the variable(s) with that name.
@@ -82,7 +88,90 @@ Function FunctionBindSymbolicVars(Function func, Map<ObjectRef, PrimExpr> obj_re
   return new_func;
 }
 
+namespace {
+IRModule ModuleBindSymbolicVars(IRModule mod, Map<ObjectRef, PrimExpr> binding_map) {
+  std::unordered_set<const Object*> used;
+  IRModule updates;
+  for (const auto& [gvar, base_func] : mod->functions) {
+    if (auto opt = base_func.as<Function>()) {
+      auto func = opt.value();
+
+      // Collect bindings that are used by this function.
+      auto func_binding_map = [&]() -> Map<ObjectRef, PrimExpr> {
+        std::unordered_set<std::string> var_names;
+        std::unordered_set<const tir::VarNode*> vars;
+        for (const auto& var : DefinedSymbolicVars(func)) {
+          var_names.insert(var->name_hint);
+          vars.insert(var.get());
+        }
+
+        Map<ObjectRef, PrimExpr> out;
+        for (const auto& [key, replacement] : binding_map) {
+          bool used_by_function = false;
+          if (auto opt = key.as<String>()) {
+            used_by_function = var_names.count(opt.value());
+          } else if (auto ptr = key.as<tir::VarNode>()) {
+            used_by_function = vars.count(ptr);
+          } else {
+            LOG(FATAL) << "Expected symbolic variable to be a tir::Var "
+                       << "or a string name, but " << key << " was of type " << key->GetTypeKey();
+          }
+          if (used_by_function) {
+            used.insert(key.get());
+            out.Set(key, replacement);
+          }
+        }
+        return out;
+      }();
+      func = FunctionBindSymbolicVars(func, func_binding_map);
+
+      if (!func.same_as(base_func)) {
+        updates->Add(gvar, func);
+      }
+    }
+  }
+
+  Array<ObjectRef> unused;
+  for (const auto& [key, replacement] : binding_map) {
+    if (!used.count(key.get())) {
+      unused.push_back(key);
+    }
+  }
+  CHECK_EQ(unused.size(), 0) << "Binding map contains keys " << unused
+                             << ", which did not correspond to any symbolic variables "
+                             << "in the module.";
+
+  if (updates->functions.size()) {
+    mod.CopyOnWrite()->Update(updates);
+  }
+  return mod;
+}
+}  // namespace
+
 TVM_REGISTER_GLOBAL("relax.FunctionBindSymbolicVars").set_body_typed(FunctionBindSymbolicVars);
 
+namespace transform {
+
+Pass BindSymbolicVars(Map<ObjectRef, PrimExpr> binding_map, Optional<String> func_name) {
+  auto pass_func = [=](IRModule mod, PassContext context) -> IRModule {
+    if (func_name) {
+      auto gvar = mod->GetGlobalVar(func_name.value());
+      auto func = Downcast<Function>(mod->Lookup(gvar));
+      auto new_func = FunctionBindSymbolicVars(func, binding_map);
+      if (!func.same_as(new_func)) {
+        mod.CopyOnWrite()->Update(gvar, new_func);
+      }
+    } else {
+      mod = ModuleBindSymbolicVars(mod, binding_map);
+    }
+    return mod;
+  };
+
+  return tvm::transform::CreateModulePass(pass_func, 1, "relax.BindSymbolicVars", {});
+}
+
+TVM_REGISTER_GLOBAL("relax.transform.BindSymbolicVars").set_body_typed(BindSymbolicVars);
+
+}  // namespace transform
 }  // namespace relax
 }  // namespace tvm
