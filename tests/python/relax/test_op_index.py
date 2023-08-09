@@ -20,7 +20,7 @@ import tvm.testing
 from tvm import relax, tir
 from tvm import TVMError
 from tvm.ir import Op
-from tvm.script import relax as R
+from tvm.script import ir as I, relax as R, tir as T
 
 
 def test_op_correctness():
@@ -930,6 +930,46 @@ def test_dynamic_strided_slice_infer_struct_info_arg_wrong_shape_info():
         bb.normalize(relax.op.strided_slice(x0, b2, e0, s0))
     with pytest.raises(TVMError):
         bb.normalize(relax.op.strided_slice(x0, b3, e0, s0))
+
+
+def test_legalize_dynamic_begin_end():
+    """relax.op.strided_slice FLegalize must support dynamic begin/end"""
+
+    @I.ir_module
+    class before:
+        @R.function
+        def main(A: R.Tensor((16, 16)), B: R.Shape(["index"])):
+            index = T.int64()
+            return R.strided_slice(A, [0], [index], [index + 1], assume_inbound=True)
+
+    @I.ir_module
+    class expected:
+        @R.function
+        def main(A: R.Tensor((16, 16)), B: R.Shape(["index"])) -> R.Tensor((1, 16)):
+            index = T.int64()
+            return R.call_tir(
+                expected.strided_slice,
+                (A,),
+                out_sinfo=R.Tensor((1, 16)),
+                tir_vars=R.shape([index]),
+            )
+
+        @T.prim_func(private=True)
+        def strided_slice(
+            A: T.Buffer((T.int64(16), T.int64(16)), "void"),
+            T_dynamic_strided_slice: T.Buffer((T.int64(1), T.int64(16)), "void"),
+            index: T.int64,
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            for ax0, ax1 in T.grid(T.int64(1), T.int64(16)):
+                with T.block("T_dynamic_strided_slice"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T_dynamic_strided_slice[v_ax0, v_ax1] = A[
+                        T.min(index, T.int64(15)) + v_ax0, v_ax1
+                    ]
+
+    after = tvm.relax.transform.LegalizeOps()(before)
+    tvm.ir.assert_structural_equal(expected, after)
 
 
 if __name__ == "__main__":

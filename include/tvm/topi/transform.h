@@ -660,14 +660,10 @@ inline Tensor dynamic_strided_slice(const Tensor& x, const Array<PrimExpr>& begi
   const size_t num_slice_axes = begin.size();
   Array<PrimExpr> out_shape;
 
+  arith::Analyzer analyzer;
   for (size_t i = 0; i < num_slice_axes; ++i) {
-    auto d = indexdiv(end[i] - begin[i], strides[i]);
-    if (d->IsInstance<tvm::IntImmNode>()) {
-      // Preserve static dimension if possible
-      out_shape.push_back(d);
-    } else {
-      out_shape.push_back(tvm::tir::Var("dim"));
-    }
+    auto d = analyzer.Simplify(indexdiv(end[i] - begin[i], strides[i]));
+    out_shape.push_back(d);
   }
 
   for (size_t i = num_slice_axes; i < src_tensor_dim; ++i) {
