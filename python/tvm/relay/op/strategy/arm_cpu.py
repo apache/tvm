@@ -74,8 +74,7 @@ def schedule_pool_arm_cpu(attrs, outs, target):
             and layout in ("NWC", "NHWC")
         ):
             return topi.arm_cpu.schedule_pool(outs, layout)
-        logger.warning("pool is not optimized for arm cpu.")
-        return topi.generic.schedule_pool(outs, layout)
+        return topi.x86.schedule_pool(outs, layout)
 
 
 def _get_padding_width(padding):
