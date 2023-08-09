@@ -38,7 +38,7 @@ def test_rewrite_cuda_graph():
 
 
         @R.function
-        def main(x: R.Tensor((2, 4), dtype="float32")) -> R.Tensor((10,), dtype="float32"):
+        def main(x: R.Tensor((2, 4), dtype="float32")) -> R.Tensor((2,4), dtype="float32"):
             # force_pure is expected because purity checking should be disabled before this pass
             R.func_attr({"relax.force_pure": True})
             cls = Before
@@ -107,7 +107,7 @@ def test_rewrite_cuda_graph():
             return gv
 
         @R.function
-        def main(x: R.Tensor((2, 4), dtype="float32")) -> R.Tensor((10,), dtype="float32"):
+        def main(x: R.Tensor((2, 4), dtype="float32")) -> R.Tensor((2,4), dtype="float32"):
             # this comes after RemovePurityChecking, so we expect purity to be forced
             R.func_attr({"relax.force_pure": True})
             cls = Expected
@@ -258,7 +258,7 @@ def test_vm_builtin():
 
 
         @R.function
-        def main(x: R.Tensor((2, 4), dtype="float32")) -> R.Tensor((10,), dtype="float32"):
+        def main(x: R.Tensor((2, 4), dtype="float32")) -> R.Tensor((2,4), dtype="float32"):
             # force_pure is expected because purity checking should be disabled before this pass
             R.func_attr({"relax.force_pure": True})
             cls = Before
@@ -314,7 +314,7 @@ def test_vm_builtin():
             return gv
 
         @R.function
-        def main(x: R.Tensor((2, 4), dtype="float32")) -> R.Tensor((10,), dtype="float32"):
+        def main(x: R.Tensor((2, 4), dtype="float32")) -> R.Tensor((2,4), dtype="float32"):
             R.func_attr({"relax.force_pure": True})
             cls = Expected
             gv: R.Tuple(R.Object, R.Object) = R.call_builtin_with_ctx("vm.builtin.cuda_graph.get_cached_alloc", (cls.cuda_graph_alloc, R.prim_value(0)), sinfo_args=(R.Tuple(R.Object, R.Object),))

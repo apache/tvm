@@ -913,14 +913,14 @@ def test_squeeze_no_axis():
     @tvm.script.ir_module
     class Squeeze:
         @R.function
-        def main(x: R.Tensor((2, 1, 3, 1, 1, 4), "float32")) -> R.Tensor((2, 3, 1, 4), "float32"):
+        def main(x: R.Tensor((2, 1, 3, 1, 1, 4), "float32")) :
             gv: R.Tensor((2, 3, 1, 4), "float32") = R.squeeze(x)
             return gv
 
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tensor((2, 1, 3, 1, 1, 4), "float32")) -> R.Tensor((2, 3, 1, 4), "float32"):
+        def main(x: R.Tensor((2, 1, 3, 1, 1, 4), "float32")) :
             gv = R.call_tir(Expected.squeeze, (x,), R.Tensor((2, 3, 4), dtype="float32"))
             return gv
 

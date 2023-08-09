@@ -33,7 +33,7 @@ def test_simple():
             x: R.Tensor((2, 3, 28, 28), dtype="float32"),
             w: R.Tensor((4, 3, 3, 3), dtype="float32"),
             bias: R.Tensor((26, 26), dtype="float32"),
-        ) -> R.Tensor((2, 4, 26, 26), dtype="float32"):
+        ):
             # block 0
             with R.dataflow():
                 gv: R.Tensor((2, 28, 28, 3), dtype="float32") = R.permute_dims(x, axes=[0, 2, 3, 1])
@@ -64,7 +64,7 @@ def test_simple():
             x: R.Tensor((2, 3, 28, 28), dtype="float32"),
             w: R.Tensor((4, 3, 3, 3), dtype="float32"),
             bias: R.Tensor((26, 26), dtype="float32"),
-        ) -> R.Tensor((2, 4, 26, 26), dtype="float32"):
+        ):
             with R.dataflow():
                 gv: R.Tensor((2, 28, 28, 3), dtype="float32") = R.permute_dims(x, axes=[0, 2, 3, 1])
                 gv1: R.Tensor((4, 3, 3, 3), dtype="float32") = R.permute_dims(w, axes=[0, 2, 3, 1])
@@ -94,7 +94,7 @@ def test_2block():
             x: R.Tensor((2, 3, 28, 28), dtype="float32"),
             w: R.Tensor((4, 3, 3, 3), dtype="float32"),
             bias: R.Tensor((26, 26), dtype="float32"),
-        ) -> R.Tensor((2, 4, 26, 26), dtype="float16"):
+        ):
             # block 0
             with R.dataflow():
                 gv: R.Tensor((2, 28, 28, 3), dtype="float32") = R.permute_dims(x, axes=[0, 2, 3, 1])
@@ -126,7 +126,7 @@ def test_2block():
             x: R.Tensor((2, 3, 28, 28), dtype="float32"),
             w: R.Tensor((4, 3, 3, 3), dtype="float32"),
             bias: R.Tensor((26, 26), dtype="float32"),
-        ) -> R.Tensor((2, 4, 26, 26), dtype="float16"):
+        ):
             with R.dataflow():
                 gv: R.Tensor((2, 28, 28, 3), dtype="float32") = R.permute_dims(x, axes=[0, 2, 3, 1])
                 gv1: R.Tensor((4, 3, 3, 3), dtype="float32") = R.permute_dims(w, axes=[0, 2, 3, 1])
@@ -340,7 +340,7 @@ def test_unused_dfb():
         def main(
             x: R.Tensor((2, 3, 28, 28), dtype="float32"),
             w: R.Tensor((4, 3, 3, 3), dtype="float32"),
-        ) -> R.Tensor((2, 4, 26, 26), dtype="float16"):
+        ):
             # block 0
             with R.dataflow():
                 lv0: R.Tensor((2, 28, 28, 3), dtype="float32") = R.permute_dims(
@@ -369,7 +369,7 @@ def test_unused_dfb():
         def main(
             x: R.Tensor((2, 3, 28, 28), dtype="float32"),
             w: R.Tensor((4, 3, 3, 3), dtype="float32"),
-        ) -> R.Tensor((2, 4, 26, 26), dtype="float16"):
+        ):
             # block 0
             with R.dataflow():
                 lv0: R.Tensor((2, 28, 28, 3), dtype="float32") = R.permute_dims(
@@ -394,7 +394,7 @@ def test_unused_dfb2():
         def main(
             x: R.Tensor((2, 3, 28, 28), dtype="float32"),
             w: R.Tensor((4, 3, 3, 3), dtype="float32"),
-        ) -> R.Tensor((2, 4, 26, 26), dtype="float16"):
+        ):
             # dead block
             with R.dataflow():
                 lv0: R.Tensor((2, 28, 28, 3), dtype="float32") = R.permute_dims(
@@ -428,7 +428,7 @@ def test_unused_dfb2():
         def main(
             x: R.Tensor((2, 3, 28, 28), dtype="float32"),
             w: R.Tensor((4, 3, 3, 3), dtype="float32"),
-        ) -> R.Tensor((2, 4, 26, 26), dtype="float16"):
+        ):
             gv_x = R.astype(x, dtype="float16")
             gv_w = R.astype(x, dtype="float16")
 

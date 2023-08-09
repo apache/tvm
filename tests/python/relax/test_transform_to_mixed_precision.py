@@ -625,7 +625,7 @@ def test_conv2d_softmax():
         @R.function
         def main(
             x: R.Tensor((2, 3, 28, 28), dtype="float32"), w: R.Tensor((3, 3, 3, 3), dtype="float32")
-        ) -> R.Tensor((2, 3, 26, 26), dtype="float32"):
+        ) -> R.Tensor((2, 3, 28, 28), dtype="float32"):
             with R.dataflow():
                 lv: R.Tensor((3, 3, 3, 3), dtype="float16") = R.astype(w, dtype="float16")
                 lv1: R.Tensor((2, 3, 28, 28), dtype="float16") = R.astype(x, dtype="float16")
@@ -653,7 +653,7 @@ def test_conv2d_softmax():
         @R.function
         def main(
             x: R.Tensor((2, 3, 28, 28), dtype="float32"), w: R.Tensor((3, 3, 3, 3), dtype="float32")
-        ) -> R.Tensor((2, 3, 26, 26), dtype="float32"):
+        ) -> R.Tensor((2, 3, 28, 28), dtype="float32"):
             with R.dataflow():
                 lv: R.Tensor((3, 3, 3, 3), dtype="float16") = R.astype(w, dtype="float16")
                 lv1: R.Tensor((2, 3, 28, 28), dtype="float16") = R.astype(x, dtype="float16")
@@ -872,7 +872,7 @@ def test_tuple_get():
             x: R.Tensor((1, 4, 64, 64), dtype="float32"),
             w: R.Tensor((512, 4, 3, 3), dtype="float32"),
             bias: R.Tensor((512, 1, 1), dtype="float32"),
-        ) -> R.Tensor((1, 256, 64, 64), dtype="float32"):
+        ):
             with R.dataflow():
                 lv = R.astype(x, dtype="float16")
                 lv1 = R.astype(w, dtype="float16")
@@ -925,7 +925,7 @@ def test_conv2d_bias_fp32():
             x: R.Tensor((1, 4, 64, 64), dtype="float32"),
             w: R.Tensor((512, 4, 3, 3), dtype="float32"),
             bias: R.Tensor((512,), dtype="float32"),
-        ) -> R.Tensor((1, 512, 64, 64), dtype="float32"):
+        ) -> R.Tensor((1, 512, 62, 62), dtype="float32"):
             with R.dataflow():
                 lv: R.Tensor((1, 4, 64, 64), dtype="float16") = R.astype(x, dtype="float16")
                 lv1: R.Tensor((512, 4, 3, 3), dtype="float16") = R.astype(w, dtype="float16")
@@ -952,7 +952,7 @@ def test_conv2d_bias_fp32():
             x: R.Tensor((1, 4, 64, 64), dtype="float32"),
             w: R.Tensor((512, 4, 3, 3), dtype="float32"),
             bias: R.Tensor((512,), dtype="float32"),
-        ) -> R.Tensor((1, 512, 64, 64), dtype="float32"):
+        ) -> R.Tensor((1, 512, 62, 62), dtype="float32"):
             with R.dataflow():
                 lv: R.Tensor((1, 4, 64, 64), dtype="float16") = R.astype(x, dtype="float16")
                 lv1: R.Tensor((512, 4, 3, 3), dtype="float16") = R.astype(w, dtype="float16")
@@ -1020,7 +1020,7 @@ def test_convert_sig():
             x: R.Tensor((1, 4, 64, 64), dtype="float32"),
             w: R.Tensor((512, 4, 3, 3), dtype="float16"),
             bias: R.Tensor((512,), dtype="float16"),
-        ) -> R.Tensor((1, 512, 64, 64), dtype="float32"):
+        ) -> R.Tensor((1, 512, 62, 62), dtype="float32"):
             with R.dataflow():
                 lv = R.astype(x, dtype="float16")
                 lv142 = R.nn.conv2d(

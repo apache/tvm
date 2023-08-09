@@ -1725,7 +1725,7 @@ def test_cross_entropy_with_logits():
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tensor((3,), dtype="float32"), y: R.Tensor((3,), dtype="float32")) -> R.Tensor(dtype="float32", ndim=2):
+        def main(x: R.Tensor((3,), dtype="float32"), y: R.Tensor((3,), dtype="float32")):
             gv = R.call_tir(Expected.cross_entropy_with_logits, (x, y), R.Tensor((), dtype="float32"))
             return gv
 
@@ -1771,7 +1771,7 @@ def test_cross_entropy_with_logits_batch():
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="float32")) -> R.Tensor(dtype="float32", ndim=2):
+        def main(x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="float32")):
             gv = R.call_tir(Expected.cross_entropy_with_logits, (x, y), R.Tensor((), dtype="float32"))
             return gv
 
@@ -1825,7 +1825,7 @@ def test_cross_entropy_with_logits_batch_symbolic():
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tensor(("n", "m"), dtype="float32"), y: R.Tensor(("n", "m"), dtype="float32")) -> R.Tensor(dtype="float32", ndim=2):
+        def main(x: R.Tensor(("n", "m"), dtype="float32"), y: R.Tensor(("n", "m"), dtype="float32")):
             gv = R.call_tir(Expected.cross_entropy_with_logits, (x, y), R.Tensor((), dtype="float32"))
             return gv
 
@@ -2326,7 +2326,7 @@ def test_batch_norm_symbolic():
                     T_add_2[v_ax0] = T_multiply_4[v_ax0] + T_multiply_6[v_ax0]
 
         @R.function
-        def main(x: R.Tensor(("n", "h", "w", "c"), dtype="float32"), gamma: R.Tensor(("c",), dtype="float32"), beta: R.Tensor(("c",), dtype="float32"), moving_mean: R.Tensor(("c",), dtype="float32"), moving_var: R.Tensor(("c",), dtype="float32")) -> R.Tuple(R.Tensor(("n", "h", "w", "c"), dtype="float32"), R.Tensor(("c",), dtype="float32"), R.Tensor(("c",), dtype="float32")):
+        def main(x: R.Tensor(("n", "h", "w", "c"), dtype="float32"), gamma: R.Tensor(("c",), dtype="float32"), beta: R.Tensor(("c",), dtype="float32"), moving_mean: R.Tensor(("c",), dtype="float32"), moving_var: R.Tensor(("c",), dtype="float32")) -> R.Tuple(R.Tensor(("n", "h", "w", "c"), dtype="float32"), R.Tensor(("T.max(c,h)",), dtype="float32"), R.Tensor(("T.max(c,h)",), dtype="float32")):
             n = T.int64()
             h = T.int64()
             w = T.int64()
