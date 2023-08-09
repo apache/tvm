@@ -725,6 +725,7 @@ def test_recursion(exec_mode):
     tvm.testing.assert_allclose(res.numpy(), np.power(2.0, recursion_runs), rtol=1e-7, atol=1e-7)
 
 
+@tvm.testing.requires_gpu
 @pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_vm_to_device(exec_mode):
     @tvm.script.ir_module

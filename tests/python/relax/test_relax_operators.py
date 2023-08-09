@@ -255,7 +255,8 @@ def test_op_to_device():
             z = R.call_pure_packed(
                 "vm.builtin.to_device",
                 x,
-                tvm.device("llvm", 0),
+                1,
+                0,
                 sinfo_args=(R.Tensor((3, 4), dtype="float32")),
             )
             return z
