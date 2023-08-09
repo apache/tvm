@@ -178,6 +178,10 @@ def instantiate_flash_attention_template(attrs):
     int v_batch_stride = v_row_stride * ${num_keys};
     int o_batch_stride = o_row_stride * ${num_queries};
 
+    auto func = tvm::runtime::Registry::Get("runtime.get_cuda_stream");
+    ICHECK(func != nullptr);
+    cudaStream_t stream = static_cast<cudaStream_t>((*func)().operator void*());
+
     flash_attn::flash_attention_forward(
                             static_cast<const cutlass::half_t*>(${query}->data),
     			    static_cast<const cutlass::half_t*>(${key}->data),
@@ -203,7 +207,7 @@ def instantiate_flash_attention_template(attrs):
     			    o_row_stride,
     			    ${scale},
     			    ${is_causal},
-    			    nullptr);
+    			    stream);
     """
 
     template_stacked = """
@@ -224,8 +228,12 @@ def instantiate_flash_attention_template(attrs):
     int v_batch_stride = v_row_stride * ${num_keys};
     int o_batch_stride = o_row_stride * ${num_queries};
 
+    auto func = tvm::runtime::Registry::Get("runtime.get_cuda_stream");
+    ICHECK(func != nullptr);
+    cudaStream_t stream = static_cast<cudaStream_t>((*func)().operator void*());
+
     flash_attn::flash_attention_forward(
-    static_cast<const cutlass::half_t*>(${qkv}->data),
+                            static_cast<const cutlass::half_t*>(${qkv}->data),
     			    static_cast<const cutlass::half_t*>(${qkv}->data) + ${head_dim} * ${num_heads},
     			    static_cast<const cutlass::half_t*>(${qkv}->data) + ${head_dim} * ${num_heads} * 2,
     			    static_cast<cutlass::half_t*>(out0->data),
@@ -249,7 +257,7 @@ def instantiate_flash_attention_template(attrs):
     			    o_row_stride,
     			    ${scale},
     			    ${is_causal},
-    			    nullptr);
+    			    stream);
     """
 
     if "qkv" in attrs:
