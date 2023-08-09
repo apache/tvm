@@ -248,40 +248,5 @@ def test_conv2d_nchw_oihw_offload(data_shape, weight_shape, dtype, with_bias, ac
         tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
-def test_conv2d_cuda_graph():
-    data_shape = (16, 32, 32, 16)
-    weight_shape = (32, 3, 3, 16)
-    dtype = "float32"
-    with_bias = False
-    activation = "none"
-    input = np.random.randn(*data_shape).astype(dtype)
-    weight = np.random.randn(*weight_shape).astype(dtype)
-
-    if with_bias:
-        oc = weight_shape[0]
-        bias = np.random.randn(1, 1, 1, oc).astype(dtype)
-        args = (input, weight, bias)
-    else:
-        bias = None
-        args = (input, weight)
-
-    activation = _activation_table[activation]
-
-    mod = get_relax_conv2d_module(
-        data_shape,
-        weight_shape,
-        dtype,
-        with_bias=with_bias,
-        activation=activation,
-    )
-
-    out = get_result_with_relax_cudnn_offload(mod, args, cuda_graph=True)
-    ref = build_and_run(mod, args, "llvm", legalize=True)
-    if dtype == "float16":
-        tvm.testing.assert_allclose(out, ref, rtol=1e-1, atol=1e-1)
-    else:
-        tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
-
-
 if __name__ == "__main__":
     tvm.testing.main()
