@@ -161,7 +161,7 @@ def test_matmul_offload(
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
-def test_cublass_partition_matmul_without_bias():
+def test_cublas_partition_matmul_without_bias():
     # cuBLAS does not handle 2D bias (residual input)
     mod = get_relax_matmul_module((16, 32), (32, 32), "float16", bias_shape=(16, 32))
     mod = partition_for_cublas(mod)
