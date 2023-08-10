@@ -21,19 +21,20 @@ ONNX testcases
 This file is a test script to test Relax ONNX frontend coverage.
 """
 
-from typing import Optional, Dict
+from typing import Dict, Optional
 
 import numpy as np
+import onnx
+import onnxruntime
 import pytest
+from onnx import ModelProto, TensorProto, helper, mapping
 
 import tvm
 import tvm.testing
 from tvm import relax
 from tvm.relax.frontend.onnx import from_onnx
-
-import onnx
-from onnx import helper, TensorProto, ModelProto, mapping
-import onnxruntime
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 bg = np.random.MT19937(0)
 rg = np.random.Generator(bg)
@@ -1131,11 +1132,12 @@ def test_slice():
     verify_slice(
         [20, 10, 5],
         [19, 3, 2],
-        starts=[20, 10, 4],
+        starts=[20, 10, 4],  # NOTE: the start is out of bounds
         ends=[0, 0, 1],
         steps=[-1, -3, -2],
         axes=[0, 1, 2],
     )
+    verify_slice([20, 10, 5], [10, 5], starts=[0, 0], ends=[3, 10], axes=[1, 2])
     verify_slice([20, 10, 5], [10, 5], starts=[0, 0], ends=[3, 10], axes=[1, 2])
 
     # TODO (gigiblender): Enable this test when we have a way to pass the steps but not axes.
@@ -1622,6 +1624,52 @@ def test_onehot():
 
 def test_reciprocal():
     verify_unary("Reciprocal", [3, 32, 32])
+
+
+def test_symbolic_shape_deduction():
+    index_node = helper.make_node(
+        "Constant",
+        inputs=[],
+        outputs=["indices"],
+        value=helper.make_tensor("indices", TensorProto.INT64, [], [0]),
+    )
+    shape_node = helper.make_node("Shape", ["data"], ["shape_output"])
+    gather_node = helper.make_node("Gather", ["shape_output", "indices"], ["gather_output"])
+    unsqueeze_node = helper.make_node("Unsqueeze", ["gather_output", "axes"], ["unsqueeze_output"])
+    constant_of_shape_node = helper.make_node(
+        "ConstantOfShape",
+        ["unsqueeze_output"],
+        ["output"],
+        value=helper.make_tensor("value", TensorProto.FLOAT, [], [1]),
+    )
+    graph = helper.make_graph(
+        [index_node, shape_node, gather_node, unsqueeze_node, constant_of_shape_node],
+        "test_shape_deduction",
+        inputs=[
+            helper.make_tensor_value_info("data", TensorProto.FLOAT, ["batch", "seq"]),
+        ],
+        initializer=[helper.make_tensor("axes", TensorProto.INT64, [1], vals=[0])],
+        outputs=[helper.make_tensor_value_info("output", TensorProto.INT64, [1])],
+    )
+    model = helper.make_model(graph, producer_name="test_shape_deduction")
+    tvm_model = from_onnx(model, keep_params_in_input=True)
+
+    @R.function
+    def expected(
+        data: R.Tensor(("batch", "seq"), dtype="float32")
+    ) -> R.Tensor(dtype="float32", ndim=1):
+        batch = T.int64()
+        seq = T.int64()
+        R.func_attr({"num_input": 1})
+        with R.dataflow():
+            gv: R.Tensor((batch,), dtype="float32") = R.broadcast_to(
+                R.const(1, "float32"), R.shape([batch])
+            )
+            R.output(gv)
+        return gv
+
+    # TODO(siyuan): Enable assertion after fixing the SizeVar roundtrip issue
+    # tvm.ir.assert_structural_equal(expected, tvm_model["main"])
 
 
 if __name__ == "__main__":
