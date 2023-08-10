@@ -320,10 +320,10 @@ def FixpointSimplification(
     fixpoint (i.e., until no function in the module changes anymore).
 
     Includes the following passes:
-    * DeadCodeElimination
-    * CanonicalizeBindings
-    * EliminateCommonSubexpressions
-    * FoldDataflowBlockOutput
+    - DeadCodeElimination
+    - CanonicalizeBindings
+    - EliminateCommonSubexpressions
+    - FoldDataflowBlockOutput
 
     Parameters
     ----------

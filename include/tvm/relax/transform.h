@@ -168,10 +168,10 @@ TVM_DLL Pass CanonicalizeBindings();
  * fixpoint (i.e., until no function in the module changes anymore).
  *
  * Includes the following passes:
- * * DeadCodeElimination
- * * CanonicalizeBindings
- * * EliminateCommonSubexpressions
- * * FoldDataflowBlockOutput
+ * - DeadCodeElimination
+ * - CanonicalizeBindings
+ * - EliminateCommonSubexpressions
+ * - FoldDataflowBlockOutput
  *
  * \param iteration_limit Upper bound on number of iterations in case the loop does not converge
  * \param entry_functions Entry points to the module, for dead code elimination
