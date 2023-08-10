@@ -938,35 +938,33 @@ def test_legalize_dynamic_begin_end():
     @I.ir_module
     class before:
         @R.function
-        def main(A: R.Tensor((16, 16)), B: R.Shape(["index"])):
+        def main(A: R.Tensor((16, 16), "float32"), B: R.Shape(["index"])) -> R.Tensor((1, 16)):
             index = T.int64()
             return R.strided_slice(A, [0], [index], [index + 1], assume_inbound=True)
 
     @I.ir_module
     class expected:
         @R.function
-        def main(A: R.Tensor((16, 16)), B: R.Shape(["index"])) -> R.Tensor((1, 16)):
+        def main(A: R.Tensor((16, 16), "float32"), B: R.Shape(["index"])) -> R.Tensor((1, 16)):
             index = T.int64()
             return R.call_tir(
                 expected.strided_slice,
                 (A,),
-                out_sinfo=R.Tensor((1, 16)),
+                out_sinfo=R.Tensor((1, 16), "float32"),
                 tir_vars=R.shape([index]),
             )
 
         @T.prim_func(private=True)
         def strided_slice(
-            A: T.Buffer((T.int64(16), T.int64(16)), "void"),
-            T_dynamic_strided_slice: T.Buffer((T.int64(1), T.int64(16)), "void"),
+            A: T.Buffer((T.int64(16), T.int64(16))),
+            B: T.Buffer((T.int64(1), T.int64(16))),
             index: T.int64,
         ):
             T.func_attr({"tir.noalias": T.bool(True)})
-            for ax0, ax1 in T.grid(T.int64(1), T.int64(16)):
+            for iters in T.grid(*B.shape):
                 with T.block("T_dynamic_strided_slice"):
-                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T_dynamic_strided_slice[v_ax0, v_ax1] = A[
-                        T.min(index, T.int64(15)) + v_ax0, v_ax1
-                    ]
+                    i, j = T.axis.remap("SS", iters)
+                    B[i, j] = A[T.min(index, T.int64(15)) + i, j]
 
     after = tvm.relax.transform.LegalizeOps()(before)
     tvm.ir.assert_structural_equal(expected, after)
