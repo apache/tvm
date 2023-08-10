@@ -22,6 +22,8 @@
 
 namespace tvm {
 
+using FTVMTIRToRuntime = tvm::runtime::TypedPackedFunc<runtime::Module(IRModule, Target)>;
+
 namespace relay {
 namespace contrib {
 namespace example_target_hooks {
@@ -35,8 +37,7 @@ TVM_REGISTER_TARGET_KIND("example_target_hook", kDLCPU)
     .set_attr<Bool>("use_device_api", Bool(true))
     .set_attr<relay::transform::FTVMRelayToTIR>(attr::kRelayToTIR,
                                                 relay::contrib::example_target_hooks::RelayToTIR())
-    .set_attr<relay::transform::FTVMTIRToRuntime>(
-        "TIRToRuntime", relay::contrib::example_target_hooks::TIRToRuntime)
+    .set_attr<FTVMTIRToRuntime>("TIRToRuntime", relay::contrib::example_target_hooks::TIRToRuntime)
     .add_attr_option<Integer>("example_attribute", Integer(0));
 
 }  // namespace tvm
