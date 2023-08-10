@@ -1008,7 +1008,7 @@ class SymbolicVarCollector : public relax::ExprVisitor,
       // defined by a later parameter may be treated as undefined when
       // used by an earlier parameter.
       WithMode(VisitMode::kProvideDefinitions, [&]() {
-        ICHECK(mode_ == VisitMode::kMatchVarDef);
+        ICHECK(mode_ == VisitMode::kProvideDefinitions);
         for (StructInfo param : op->params.value()) {
           this->VisitStructInfo(param);
         }
