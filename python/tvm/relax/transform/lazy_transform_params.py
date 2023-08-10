@@ -132,19 +132,33 @@ class LazyTransformParamsMutator(PyExprMutator):
         self.input_tuple_param = func.params[0]
         seq_expr = func.body
         self.out_tuple_var = seq_expr.body
+
         # Step 1. collect out_tuple_map and input_params_set
         forward_collector = ForwardCollector(self.out_tuple_var, self.input_tuple_param)
         forward_collector.visit_expr(func)
         self.out_tuple_map = forward_collector.out_tuple_map
         # input_params_set is the set of binding var for var = params[i]
         self.input_params_set = set(forward_collector.var_tuple_get_item)
+
         # Step 2. liveness analysis and get where to insert kill_object instruction
         liveness = LivenessAnalysis(self.out_tuple_var)
         liveness.visit_expr(func)
         self.memory_free_insertion = liveness.var_liveness_end
+
         # Step 3. rewrite get item and set item
         new_body = self.visit_expr(func.body)
-        return relax.Function([], new_body, relax.ObjectStructInfo(), attrs=func.attrs)
+
+        # Step 4. Find all shape parameters that should be retained as
+        # parameters.
+        params = []
+        symbolic_vars = relax.analysis.defined_symbolic_vars(func)
+        if symbolic_vars:
+            for param in self.input_tuple_param:
+                sinfo = param.struct_info
+                if not isinstance(sinfo, relax.TensorStructInfo):
+                    params.append(relax.Var("symbolic_var_holder", sinfo))
+
+        return relax.Function(params, new_body, relax.ObjectStructInfo(), attrs=func.attrs)
 
     def visit_tuple_getitem_(self, op: relax.TupleGetItem) -> relax.Expr:
         # rewrite get item
