@@ -349,36 +349,33 @@ def test_bias_activation():
 
 
 def test_rhs_batched():
-    @tvm.script.ir_module
-    class four_matmul:
-        @R.function
-        def main(
-            x: R.Tensor((1024, 640), "float32"),
-            w0: R.Tensor((2, 640, 640), "float32"),
-            w1: R.Tensor((640, 640), "float32"),
-            w2: R.Tensor((2, 640, 640), "float32"),
-            w3: R.Tensor((3, 4, 640, 640), "float32"),
-        ) -> R.Tensor:
-            with R.dataflow():
-                lv0 = R.matmul(x, w0)
-                lv1 = R.matmul(x, w1)
-                lv2 = R.matmul(x, w2)
-                lv3 = R.matmul(x, w3)
-                out = (lv0, lv1, lv2, lv3)
-                R.output(out)
-            return out
+    @R.function(private=True)
+    def before(
+        x: R.Tensor((1024, 640), "float32"),
+        w0: R.Tensor((2, 640, 640), "float32"),
+        w1: R.Tensor((640, 640), "float32"),
+        w2: R.Tensor((2, 640, 640), "float32"),
+        w3: R.Tensor((3, 4, 640, 640), "float32"),
+    ):
+        with R.dataflow():
+            lv0 = R.matmul(x, w0)
+            lv1 = R.matmul(x, w1)
+            lv2 = R.matmul(x, w2)
+            lv3 = R.matmul(x, w3)
+            out = (lv0, lv1, lv2, lv3)
+            R.output(out)
+        return out
 
-    mod = CombineParallelMatmul()(four_matmul)
+    after = CombineParallelMatmul()(tvm.IRModule.from_expr(before))["main"]
 
-    @R.function
-    def expected1(
+    @R.function(private=True)
+    def expected(
         x: R.Tensor((1024, 640), dtype="float32"),
         w0: R.Tensor((2, 640, 640), dtype="float32"),
         w1: R.Tensor((640, 640), dtype="float32"),
         w2: R.Tensor((2, 640, 640), dtype="float32"),
         w3: R.Tensor((3, 4, 640, 640), dtype="float32"),
-    ) -> R.Tensor:
-        R.func_attr({"global_symbol": "main"})
+    ):
         with R.dataflow():
             lv = R.concat((w0, w2), axis=2)
             lv1 = R.matmul(x, lv, out_dtype="float32")
@@ -391,7 +388,7 @@ def test_rhs_batched():
             R.output(out)
         return out
 
-    tvm.ir.assert_structural_equal(mod["main"], expected1)
+    tvm.ir.assert_structural_equal(after, expected)
 
     @tvm.script.ir_module
     class four_matmul_incompatible_batches:
@@ -402,7 +399,7 @@ def test_rhs_batched():
             w1: R.Tensor((3, 640, 640), "float32"),
             w2: R.Tensor((2, 640, 640), "float32"),
             w3: R.Tensor((2, 640, 640), "float32"),
-        ) -> R.Tensor:
+        ):
             with R.dataflow():
                 lv0 = R.matmul(x, w0)
                 lv1 = R.matmul(x, w1)
@@ -419,36 +416,34 @@ def test_rhs_batched():
 
 
 def test_multiple_combine():
-    @tvm.script.ir_module
-    class multiple_combine:
-        @R.function
-        def main(
-            x1: R.Tensor((2, 1024, 640), "float32"),
-            x2: R.Tensor((2, 1024, 640), "float32"),
-            w0: R.Tensor((640, 640), "float32"),
-            w1: R.Tensor((640, 640), "float32"),
-            w2: R.Tensor((640, 640), "float32"),
-            w3: R.Tensor((640, 640), "float32"),
-            w4: R.Tensor((640, 640), "float32"),
-            b0: R.Tensor((640,), "float32"),
-            b1: R.Tensor((640,), "float32"),
-        ) -> R.Tensor:
-            with R.dataflow():
-                lv0 = R.matmul(x1, w0)
-                lv3 = R.matmul(x2, w3)
-                lv1 = R.matmul(x1, w1)
-                lv5 = R.add(lv3, b0)
-                lv2 = R.matmul(x1, w2)
-                lv4 = R.matmul(x2, w4)
-                lv6 = R.add(lv4, b1)
-                out = (lv0, lv1, lv2, lv5, lv6)
-                R.output(out)
-            return out
+    @R.function(private=True)
+    def before(
+        x1: R.Tensor((2, 1024, 640), "float32"),
+        x2: R.Tensor((2, 1024, 640), "float32"),
+        w0: R.Tensor((640, 640), "float32"),
+        w1: R.Tensor((640, 640), "float32"),
+        w2: R.Tensor((640, 640), "float32"),
+        w3: R.Tensor((640, 640), "float32"),
+        w4: R.Tensor((640, 640), "float32"),
+        b0: R.Tensor((640,), "float32"),
+        b1: R.Tensor((640,), "float32"),
+    ):
+        with R.dataflow():
+            lv0 = R.matmul(x1, w0)
+            lv3 = R.matmul(x2, w3)
+            lv1 = R.matmul(x1, w1)
+            lv5 = R.add(lv3, b0)
+            lv2 = R.matmul(x1, w2)
+            lv4 = R.matmul(x2, w4)
+            lv6 = R.add(lv4, b1)
+            out = (lv0, lv1, lv2, lv5, lv6)
+            R.output(out)
+        return out
 
-    mod = CombineParallelMatmul()(multiple_combine)
+    after = CombineParallelMatmul()(tvm.IRModule.from_expr(before))["main"]
 
-    @R.function
-    def expected1(
+    @R.function(private=True)
+    def expected(
         x1: R.Tensor((2, 1024, 640), dtype="float32"),
         x2: R.Tensor((2, 1024, 640), dtype="float32"),
         w0: R.Tensor((640, 640), dtype="float32"),
@@ -458,8 +453,7 @@ def test_multiple_combine():
         w4: R.Tensor((640, 640), dtype="float32"),
         b0: R.Tensor((640,), dtype="float32"),
         b1: R.Tensor((640,), dtype="float32"),
-    ) -> R.Tensor:
-        R.func_attr({"global_symbol": "main"})
+    ):
         with R.dataflow():
             lv = R.concat((w0, w1, w2), axis=1)
             lv1 = R.matmul(x1, lv, out_dtype="float32")
@@ -478,36 +472,34 @@ def test_multiple_combine():
             R.output(out)
         return out
 
-    tvm.ir.assert_structural_equal(mod["main"], expected1)
+    tvm.ir.assert_structural_equal(after, expected)
 
 
 def test_check():
-    @tvm.script.ir_module
-    class multiple_combine:
-        @R.function
-        def main(
-            x1: R.Tensor((2, 1024, 640), "float32"),
-            x2: R.Tensor((2, 1024, 640), "float32"),
-            w0: R.Tensor((640, 640), "float32"),
-            w1: R.Tensor((640, 640), "float32"),
-            w2: R.Tensor((640, 640), "float32"),
-            w3: R.Tensor((640, 640), "float32"),
-            w4: R.Tensor((640, 640), "float32"),
-        ) -> R.Tensor:
-            with R.dataflow():
-                lv0 = R.matmul(x1, w0)
-                lv1 = R.matmul(x1, w1)
-                lv2 = R.matmul(x1, w2)
-                lv3 = R.matmul(x2, w3)
-                lv4 = R.matmul(x2, w4)
-                out = (lv0, lv1, lv2, lv3, lv4)
-                R.output(out)
-            return out
+    @R.function(private=True)
+    def before(
+        x1: R.Tensor((2, 1024, 640), "float32"),
+        x2: R.Tensor((2, 1024, 640), "float32"),
+        w0: R.Tensor((640, 640), "float32"),
+        w1: R.Tensor((640, 640), "float32"),
+        w2: R.Tensor((640, 640), "float32"),
+        w3: R.Tensor((640, 640), "float32"),
+        w4: R.Tensor((640, 640), "float32"),
+    ):
+        with R.dataflow():
+            lv0 = R.matmul(x1, w0)
+            lv1 = R.matmul(x1, w1)
+            lv2 = R.matmul(x1, w2)
+            lv3 = R.matmul(x2, w3)
+            lv4 = R.matmul(x2, w4)
+            out = (lv0, lv1, lv2, lv3, lv4)
+            R.output(out)
+        return out
 
     check = lambda *inp: len(inp[1]) > 2  # Ignore branches with two matmuls
-    mod = CombineParallelMatmul(check)(multiple_combine)
+    after = CombineParallelMatmul(check)(tvm.IRModule.from_expr(before))["main"]
 
-    @R.function
+    @R.function(private=True)
     def expected(
         x1: R.Tensor((2, 1024, 640), dtype="float32"),
         x2: R.Tensor((2, 1024, 640), dtype="float32"),
@@ -516,8 +508,7 @@ def test_check():
         w2: R.Tensor((640, 640), dtype="float32"),
         w3: R.Tensor((640, 640), dtype="float32"),
         w4: R.Tensor((640, 640), dtype="float32"),
-    ) -> R.Tensor:
-        R.func_attr({"global_symbol": "main"})
+    ):
         with R.dataflow():
             lv = R.concat((w0, w1, w2), axis=1)
             lv1 = R.matmul(x1, lv, out_dtype="float32")
@@ -531,7 +522,7 @@ def test_check():
             R.output(out)
         return out
 
-    tvm.ir.assert_structural_equal(mod["main"], expected)
+    tvm.ir.assert_structural_equal(after, expected)
 
 
 if __name__ == "__main__":

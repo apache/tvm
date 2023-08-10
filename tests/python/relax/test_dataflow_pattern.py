@@ -1053,7 +1053,7 @@ def get_qkv_proj_rewriter(
 
 
 def test_combine_matmul_twice():
-    @R.function
+    @R.function(private=True)
     def qkv_x2(
         x1: R.Tensor((2, 1024, 640), "float32"),
         x2: R.Tensor((2, 1024, 640), "float32"),
@@ -1063,7 +1063,7 @@ def test_combine_matmul_twice():
         w3: R.Tensor((640, 640), "float32"),
         w4: R.Tensor((640, 640), "float32"),
         w5: R.Tensor((640, 640), "float32"),
-    ) -> R.Tensor:
+    ):
         with R.dataflow():
             lv0 = R.matmul(x1, w0)
             lv1 = R.matmul(x1, w1)
@@ -1075,7 +1075,7 @@ def test_combine_matmul_twice():
             R.output(out)
         return out
 
-    @R.function
+    @R.function(private=True)
     def expected(
         x1: R.Tensor((2, 1024, 640), "float32"),
         x2: R.Tensor((2, 1024, 640), "float32"),
@@ -1085,7 +1085,7 @@ def test_combine_matmul_twice():
         w3: R.Tensor((640, 640), "float32"),
         w4: R.Tensor((640, 640), "float32"),
         w5: R.Tensor((640, 640), "float32"),
-    ) -> R.Tensor:
+    ):
         with R.dataflow():
             lv = R.concat((w0, w1, w2), axis=1)
             lv1 = R.matmul(x1, lv)
@@ -1115,17 +1115,17 @@ def test_combine_matmul_twice():
             inp_pat, Q_weight_pat, K_weight_pat, V_weight_pat, matmul1, matmul2, matmul3
         )
         rewritten = rewrite_bindings(ctx, rewriter, qkv_x2)
-        tvm.ir.assert_structural_equal(rewritten, expected.with_attr("global_symbol", "qkv_x2"))
+        tvm.ir.assert_structural_equal(rewritten, expected)
 
 
 def test_combine_matmul_emit_order():
-    @R.function
+    @R.function(private=True)
     def main(
         x1: R.Tensor((2, 1024, 640), "float32"),
         w0: R.Tensor((640, 640), "float32"),
         w1: R.Tensor((640, 640), "float32"),
         w2: R.Tensor((640, 640), "float32"),
-    ) -> R.Tensor:
+    ):
         with R.dataflow():
             w0_t = R.permute_dims(w0, axes=None)
             lv0 = R.matmul(x1, w0_t)
@@ -1138,13 +1138,13 @@ def test_combine_matmul_emit_order():
             R.output(out)
         return out
 
-    @R.function
+    @R.function(private=True)
     def expected(
         x1: R.Tensor((2, 1024, 640), dtype="float32"),
         w0: R.Tensor((640, 640), dtype="float32"),
         w1: R.Tensor((640, 640), dtype="float32"),
         w2: R.Tensor((640, 640), dtype="float32"),
-    ) -> R.Tensor:
+    ):
         with R.dataflow():
             w0_t = R.permute_dims(w0, axes=None)
             w1_t = R.permute_dims(w1, axes=None)
@@ -1173,7 +1173,7 @@ def test_combine_matmul_emit_order():
             inp_pat, Q_weight_pat, K_weight_pat, V_weight_pat, matmul1, matmul2, matmul3
         )
         rewritten = rewrite_bindings(ctx, rewriter, main)
-        tvm.ir.assert_structural_equal(rewritten, expected.with_attr("global_symbol", "main"))
+        tvm.ir.assert_structural_equal(rewritten, expected)
 
         # make sure it builds
         mod = tvm.IRModule()
@@ -1184,7 +1184,7 @@ def test_combine_matmul_emit_order():
 
 
 def test_combine_transposed_matmul_twice():
-    @R.function
+    @R.function(private=True)
     def main(
         x1: R.Tensor((2, 1024, 640), "float32"),
         x2: R.Tensor((2, 1024, 640), "float32"),
@@ -1192,7 +1192,7 @@ def test_combine_transposed_matmul_twice():
         w1: R.Tensor((640, 640), "float32"),
         w2: R.Tensor((640, 640), "float32"),
         w3: R.Tensor((640, 640), "float32"),
-    ) -> R.Tensor:
+    ):
         with R.dataflow():
             w0_t = R.permute_dims(w0, axes=None)
             lv0 = R.matmul(x1, w0_t)
@@ -1206,7 +1206,7 @@ def test_combine_transposed_matmul_twice():
             R.output(out)
         return out
 
-    @R.function
+    @R.function(private=True)
     def expected(
         x1: R.Tensor((2, 1024, 640), dtype="float32"),
         x2: R.Tensor((2, 1024, 640), dtype="float32"),
@@ -1214,7 +1214,7 @@ def test_combine_transposed_matmul_twice():
         w1: R.Tensor((640, 640), dtype="float32"),
         w2: R.Tensor((640, 640), dtype="float32"),
         w3: R.Tensor((640, 640), dtype="float32"),
-    ) -> R.Tensor:
+    ):
         with R.dataflow():
             lv: R.Tensor((1280, 640), dtype="float32") = R.concat((w0, w1), axis=0)
             lv1: R.Tensor((640, 1280), dtype="float32") = R.permute_dims(lv, axes=None)
@@ -1271,8 +1271,7 @@ def test_combine_transposed_matmul_twice():
             }
 
         rewritten = rewrite_bindings(ctx, rewriter, main)
-        print(rewritten.script())
-        tvm.ir.assert_structural_equal(rewritten, expected.with_attr("global_symbol", "main"))
+        tvm.ir.assert_structural_equal(rewritten, expected)
 
         # make sure it builds
         mod = tvm.IRModule()

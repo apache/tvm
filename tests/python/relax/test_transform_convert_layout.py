@@ -627,9 +627,7 @@ def test_conv2d_sum_negative_dims():
     @I.ir_module
     class Input:
         @R.function
-        def main(
-            x: R.Tensor((2, 3, 28, 28), "float32"), w: R.Tensor((4, 3, 3, 3), "float32")
-        ) -> R.Tensor(None, "float32", ndim=4):
+        def main(x: R.Tensor((2, 3, 28, 28), "float32"), w: R.Tensor((4, 3, 3, 3), "float32")):
             with R.dataflow():
                 gv: R.Tensor((2, 4, 26, 26), "float32") = R.nn.conv2d(x, w, out_dtype="float32")
                 gv2: R.Tensor((2, 4), "float32") = R.sum(gv, axis=[-2, -1])
@@ -641,7 +639,7 @@ def test_conv2d_sum_negative_dims():
         @R.function
         def main(
             x: R.Tensor((2, 3, 28, 28), dtype="float32"), w: R.Tensor((4, 3, 3, 3), dtype="float32")
-        ) -> R.Tensor(None, dtype="float32", ndim=4):
+        ):
             with R.dataflow():
                 lv: R.Tensor((2, 28, 28, 3), dtype="float32") = R.permute_dims(x, axes=[0, 2, 3, 1])
                 lv1: R.Tensor((4, 3, 3, 3), dtype="float32") = R.permute_dims(w, axes=[0, 2, 3, 1])

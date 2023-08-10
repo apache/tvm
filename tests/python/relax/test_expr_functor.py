@@ -832,5 +832,36 @@ def test_call_mutator_super():
     )
 
 
+def test_function_parameter_mutation():
+    @relax.expr_functor.mutator
+    class ParamMutator(PyExprMutator):
+        def __init__(self, shape_replacements):
+            super().__init__()
+            self.shape_replacements = shape_replacements
+
+        def visit_var_def_(self, var):
+            if var.name_hint in self.shape_replacements:
+                new_shape = self.shape_replacements[var.name_hint]
+                new_sinfo = relax.TensorStructInfo(new_shape, dtype=var.struct_info.dtype)
+                return relax.Var(f"{var.name_hint}_with_new_shape", new_sinfo)
+            else:
+                return var
+
+    @R.function(private=True)
+    def before(
+        A: R.Tensor((16, 32), "float32"), B: R.Tensor((32, 64), "float32")
+    ) -> R.Tensor((16, 64), "float32"):
+        return R.matmul(A, B)
+
+    @R.function(private=True)
+    def expected(
+        A: R.Tensor((1, 32), "float32"), B: R.Tensor((32, 64), "float32")
+    ) -> R.Tensor((1, 64), "float32"):
+        return R.matmul(A, B)
+
+    after = ParamMutator({"A": (1, 32)}).visit_expr(before)
+    tvm.ir.assert_structural_equal(expected, after)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
