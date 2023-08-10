@@ -95,7 +95,7 @@ def test_assign_to_output_indataflow_block():
         @R.function
         def main(x: R.Tensor):
             with R.dataflow():
-                y = x # is not a dataflow var
+                y = x  # is not a dataflow var
                 z = y
                 o = z
                 p = o
