@@ -715,9 +715,11 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
             "rhs_arg_idx": arg_idx["w_encoded"],
             "scales_arg_idx": arg_idx["scales"],
             "bias_arg_idx": arg_idx.get("bias"),
-            "batch_offset": len(lhs_shape) - 2,
             "activation": "identity",
         }
+
+        attrs["batch_rank"] = len(lhs_shape[:-1])
+        attrs["M"] = reduce(operator.mul, lhs_shape[:-1], 1)
 
         attrs["bias_stride"] = 0
 

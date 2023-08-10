@@ -516,6 +516,9 @@ def instantiate_template(func_name, annotations, func_args):
         dim2 = func_args[arg1_idx] + f"->shape[{arg1_axis_idx}]"
         return dim1 + " * " + dim2
 
+    def get_flattened_batch_dim(arg_name, batch_rank):
+        return " * ".join(["{}->shape[{}]".format(arg_name, i) for i in range(batch_rank)])
+
     if "decode_matmul" in func_name:
         headers.append("cutlass_kernels/fpA_intB_gemm.h")
         lhs_arg_idx = _get_optional_int_annotation(annotations, "lhs_arg_idx", 0)
@@ -527,9 +530,14 @@ def instantiate_template(func_name, annotations, func_args):
         attrs["A_arg"] = func_args[lhs_arg_idx]
         attrs["B_arg"] = func_args[rhs_arg_idx]
         attrs["scales_arg"] = func_args[scales_arg_idx]
-        attrs["batch_offset"] = _get_optional_int_annotation(annotations, "batch_offset", 0)
         attrs["activation"] = annotations.get("activation", "identity")
         attrs["bias_stride"] = annotations["bias_stride"]
+        attrs["M"] = annotations["M"]
+
+        if not isinstance(attrs["M"], tvm.tir.IntImm):
+            attrs["M"] = get_flattened_batch_dim(
+                func_args[lhs_arg_idx], int(annotations["batch_rank"])
+            )
 
         if bias_arg_idx is not None:
             attrs["bias_arg"] = func_args[bias_arg_idx]
@@ -828,10 +836,8 @@ def instantiate_template(func_name, annotations, func_args):
         attrs = {"input": func_args[0], "gamma": func_args[1], "beta": func_args[2]}
         attrs.update(dict(annotations))
 
-        if isinstance(attrs["M"], tvm.tir.Var):
-            attrs["M"] = " * ".join(
-                ["{}->shape[{}]".format(func_args[0], i) for i in range(int(attrs["batch_rank"]))]
-            )
+        if not isinstance(attrs["M"], tvm.tir.IntImm):
+            attrs["M"] = get_flattened_batch_dim(func_args[0], int(attrs["batch_rank"]))
 
         code = instantiate_layer_norm_template(attrs)
         return CodegenResult(code, headers)
@@ -841,10 +847,8 @@ def instantiate_template(func_name, annotations, func_args):
         attrs = {"input": func_args[0], "weight": func_args[1]}
         attrs.update(dict(annotations))
 
-        if isinstance(attrs["M"], tvm.tir.Var):
-            attrs["M"] = " * ".join(
-                ["{}->shape[{}]".format(func_args[0], i) for i in range(int(attrs["batch_rank"]))]
-            )
+        if not isinstance(attrs["M"], tvm.tir.IntImm):
+            attrs["M"] = get_flattened_batch_dim(func_args[0], int(attrs["batch_rank"]))
 
         code = instantiate_rms_norm_template(attrs)
         return CodegenResult(code, headers)
