@@ -30,6 +30,4 @@ find . -type f -path "*.pyc" | xargs rm -f
 # Rebuild cython
 make cython3
 
-
-echo "Running relay MXNet frontend test..."
 run_pytest cython python-contrib-msc tests/python/contrib/test_msc
