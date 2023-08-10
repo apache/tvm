@@ -89,8 +89,8 @@ inline PrimExpr DispatchShuffle(const PrimExpr& e) {
     index = self + delta;
     index = Select((self & (width - 1)) + delta >= width, self, index);
   }
-  PrimExpr res = Call(var.dtype(), builtin::call_pure_extern(),
-                      {StringImm("llvm.amdgcn.ds.bpermute"), index << 2, var});
+  PrimExpr res = Call(DataType::Int(32), builtin::call_pure_extern(),
+                     {StringImm("llvm.amdgcn.ds.bpermute"), index << 2, cast(DataType::Int(var.dtype().bits()), var)});
   return res;
 }
 
