@@ -53,3 +53,4 @@ echo set\(HIDE_PRIVATE_SYMBOLS ON\) >> config.cmake
 echo set\(USE_PIPELINE_EXECUTOR ON\) >> config.cmake
 echo set\(USE_CUTLASS ON\) >> config.cmake
 echo set\(USE_CMSISNN ON\) >> config.cmake
+echo set\(USE_MSC ON\) >> config.cmake
