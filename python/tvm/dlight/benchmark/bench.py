@@ -16,7 +16,7 @@
 # under the License.
 """Extract self-contained benchmarking scripts for dynamic shape workloads"""
 
-from typing import TYPE_CHECKING, Dict, List, Union, Callable, Tuple, Optional
+from typing import TYPE_CHECKING, Dict, List, Set, Union, Callable, Tuple, Optional
 
 
 import tvm
@@ -31,8 +31,7 @@ from tvm.testing import rpc_run
 from .extract import extract_all_func_info_from_relax, extract_func_info_from_prim_func
 from .utils import (
     populuate_input_shape,
-    default_dym_var_sample_func,
-    get_func_name_from_gv,
+    random_dym_var_sample_func,
     dym_var_sample_str,
     print_results,
 )
@@ -161,12 +160,12 @@ def benchmark_prim_func(
     mod_or_func: Union[PrimFunc, IRModule],
     *,
     dym_var_sample_func: Callable[
-        [Dict[str, str], int, int], Dict[str, int]
-    ] = default_dym_var_sample_func,
+        [Set[str], int, int], Dict[str, int]
+    ] = random_dym_var_sample_func,
     args: Optional[
         List[Union[relax.TensorStructInfo, Tuple[Tuple[Union[int, str], ...], str]]]
     ] = None,
-    dym_var_dict: Optional[Dict[str, str]] = None,
+    dym_vars: Optional[Set[str]] = None,
     sample_num: int = 5,
     target: Optional[Union[str, tvm.target.Target]] = None,
     weight: Optional[int] = 1,
@@ -184,11 +183,11 @@ def benchmark_prim_func(
     ----------
     mod_or_func : Union[PrimFunc, IRModule]
         The PrimFunc or IRModule to be benchmarked.
-    dym_var_sample_func : Callable[[Dict[str, str], int, int], Dict[str, int]]
+    dym_var_sample_func : Callable[[Set[str], int, int], Dict[str, int]]
         The function to sample dynamic shape variables.
-    dym_var_dict : Optional[Dict[str, str]]
-        Dynamic shape variable dictionary, e.g., {"n": "int32", "m": "int32"}. If none, will use
-        the input information from the PrimFunc or IRModule.
+    dym_vars : Optional[Set[str]]
+        The dynamic shape variables, e.g., {"n", "m"}. If none, will use the
+        dynamic shape variables from the PrimFunc or IRModule.
     args : Optional[List[Union[relax.TensorStructInfo, Tuple[Tuple[Union[int, str], ...], str]]]]
         The input tensor information, including shape and dtype. If none, will use
         the input information from the PrimFunc or IRModule.
@@ -216,18 +215,18 @@ def benchmark_prim_func(
         The columns to drop in the results.
     """
     results = []
-    if dym_var_dict is None or args is None:
+    if dym_vars is None or args is None:
         if isinstance(mod_or_func, tvm.tir.PrimFunc):
-            args, dym_var_dict = extract_func_info_from_prim_func(mod_or_func)
+            args, dym_vars = extract_func_info_from_prim_func(mod_or_func)
         else:
             gvs = mod_or_func.get_global_vars()
             assert len(gvs) == 1, "Only support one PrimFunc in IRModule"
-            args, dym_var_dict = extract_func_info_from_prim_func(mod_or_func[gvs[0]])
-    if dym_var_dict == {}:  # static shape
+            args, dym_vars = extract_func_info_from_prim_func(mod_or_func[gvs[0]])
+    if len(dym_vars) == 0:  # static shape
         sample_num = 1
-        dym_var_sample_func = lambda dym_var_dict, sample_idx, sample_num: {}
+        dym_var_sample_func = lambda dym_vars, sample_idx, sample_num: {}
     for sample_idx in range(sample_num):
-        dym_var_sample = dym_var_sample_func(dym_var_dict, sample_idx, sample_num)
+        dym_var_sample = dym_var_sample_func(dym_vars, sample_idx, sample_num)
         _, median, std = benchmark(
             mod_or_func,
             args=args,
@@ -238,7 +237,7 @@ def benchmark_prim_func(
         )
         row = {
             "InputInfo": ", ".join([f"{k} = {v}" for k, v in dym_var_sample.items()])
-            if len(dym_var_dict) > 0
+            if len(dym_vars) > 0
             else "static",
             "Time(us)": median * 1e6,
             "Std(us)": std * 1e6,
@@ -262,9 +261,9 @@ def benchmark_relax_func(
     relax_func: Union[tvm.ir.GlobalVar, str],
     sample_num: int = 2,
     dym_var_sample_func: Callable[
-        [Dict[str, str], int, int],
+        [Set[str], int, int],
         Dict[str, int],
-    ] = default_dym_var_sample_func,
+    ] = random_dym_var_sample_func,
     target: Union[str, tvm.target.Target] = "llvm -num-cores=4",
     evaluator_config: Optional["EvaluatorConfig"] = None,
     rpc_config: Optional["RPCConfig"] = None,
@@ -279,7 +278,7 @@ def benchmark_relax_func(
         The relax function to be benchmarked.
     sample_num : int
         The number of times to sample dynamic shape variables.
-    dym_var_sample_func : Callable[[Dict[str, str]], Dict[str, int]]
+    dym_var_sample_func : Callable[[Set[str], int, int], Dict[str, int]]
         The function to sample dynamic shape variables.
     target : Union[str, tvm.target.Target]
         The target to be benchmarked on.
@@ -296,13 +295,13 @@ def benchmark_relax_func(
     # find the relax function global var
     if isinstance(relax_func, str):
         for gv in relax_funcs:  # pylint: disable=invalid-name
-            if get_func_name_from_gv(gv) == relax_func:
+            if gv.name_hint == relax_func:
                 relax_func = gv
                 break
         if not isinstance(relax_func, tvm.ir.GlobalVar):
             raise ValueError(
                 f"Cannot find relax function with name {relax_func}, "
-                + f"candidates are: {[get_func_name_from_gv(gv) for gv in relax_funcs]}"
+                + f"candidates are: {[gv.name_hint for gv in relax_funcs]}"
             )
     # benchmark
     for sample_idx in range(sample_num):
@@ -321,9 +320,7 @@ def benchmark_relax_func(
                 )
                 bench_results.append(
                     {
-                        f"PrimFuncs in {get_func_name_from_gv(relax_func)}": get_func_name_from_gv(
-                            functor
-                        ),
+                        f"PrimFuncs in {relax_func.name_hint}": functor.name_hint,
                         f"InputInfo({dym_var_sample_str(dym_var_sample)})": ", ".join(
                             [str(w) for w in args]
                         ),

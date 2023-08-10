@@ -16,7 +16,7 @@
 # under the License.
 """Util functions for benchmarking dynamic shape workloads"""
 
-from typing import Dict, List, Tuple, Union, Any, Optional
+from typing import Dict, List, Set, Tuple, Union, Any, Optional
 
 import tvm
 from tvm import relax
@@ -106,39 +106,43 @@ def populuate_input_shape(
     return results
 
 
-def default_dym_var_sample_func(
-    dym_var_dict: Dict[str, str],
+def random_dym_var_sample_func(
+    dym_vars: Set[str],
     sample_idx: int,  # pylint: disable=unused-argument
     sample_num: int,  # pylint: disable=unused-argument
 ) -> Dict[str, int]:
     """
-    Default dynamic shape variable sample function.
+    Random dynamic shape variable sample function.
     Sample a random value for each dynamic shape variable.
 
     Parameters
     ----------
-    dym_var_dict : Dict[str, str]
-        Dynamic shape variable dictionary, e.g., {"n": "int32", "m": "int32"}
+    dym_vars : Set[str]
+        Dynamic shape variables, e.g., {"n", "m"}
     sample_idx : int
         Sample index denotes the index the function is called for the same
         dynamic shape variable dictionary & function.
+
+        Here we ignore this argument since we always sample a random value,
+        but it can be used to sample different values for different sample
+        indices, for example, we can use 2^n for the n-th sample where n is
+        the sample index.
     sample_num : int
         Sample number denotes the total number of samples.
+
+        Here we ignore this argument since we always sample a random value,
+        but it can be used to sample different values for different sample
+        numbers, for example, we can use 2^(n%m) for the n-th sample where n
+        is the sample index and m is the sample number.
 
     Returns
     -------
     result : Dict[str, int]
         Dynamic shape variable sample, e.g., {"n": 64, "m": 128}
     """
-    results = {}
-    for var in dym_var_dict:
-        if dym_var_dict[var] in ["int32", "int64"]:
-            import random  # pylint: disable=import-outside-toplevel
+    import random  # pylint: disable=import-outside-toplevel
 
-            results[var] = random.randint(2, 128)
-        else:
-            raise TypeError("Unsupported dynamic shape variable type: " + dym_var_dict[var])
-    return results
+    return {var: random.randint(2, 128) for var in dym_vars}
 
 
 def print_results(
