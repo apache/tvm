@@ -1,0 +1,54 @@
+#include "{{plugin_name}}.h"
+#include <cuda_runtime.h>
+#include <thread>
+#include <stdio.h>
+#include <nvfunctional>
+#include <chrono>
+
+#define BLOCKSIZE_X 16
+#define BLOCKSIZE_Y 16
+
+using namespace nvinfer1;
+using namespace plugin;
+
+// CUDA Runtime error messages
+#ifdef __DRIVER_TYPES_H__
+static const char *_cudaGetErrorEnum(cudaError_t error)
+{
+  return cudaGetErrorName(error);
+}
+#endif
+
+template <typename T>
+void check(T result, char const *const func, const char *const file,
+           int const line)
+{
+  if (result)
+  {
+    fprintf(stderr, "CUDA error at %s:%d code=%d(%s) \"%s\" \n", file, line,
+            static_cast<unsigned int>(result), _cudaGetErrorEnum(result), func);
+    exit(EXIT_FAILURE);
+  }
+}
+#define checkCudaErrors(val) check((val), #val, __FILE__, __LINE__)
+
+
+{{plugin_kernels_body}}
+
+PluginFieldCollection {{plugin_name}}Creator::mFC{};
+std::vector<PluginField> {{plugin_name}}Creator::mPluginAttributes;
+
+int {{plugin_name}}::enqueue(const nvinfer1::PluginTensorDesc* inputDesc, const nvinfer1::PluginTensorDesc* outputDesc, const void* const* inputs, void* const* outputs, void* workspace, cudaStream_t stream) noexcept {
+    {% for constant in plugin_constant_init %}
+    const {{constant.type}} constant_{{constant.index}}[{{constant.length}}] = { {{constant.value}} };
+    checkCudaErrors(cudaMemcpyAsync({{constant.pos}}, &constant_{{constant.index}}, {{constant.length}} * sizeof({{constant.type}}), cudaMemcpyHostToDevice, stream));
+    {% endfor %}
+    dim3 dimBlock, dimGrid;
+    {% for kernel in plugin_kernels_params %}
+    dimGrid = dim3{{kernel.grid_dim}};
+    dimBlock = dim3{{kernel.block_dim}};
+    {{kernel.name}}<<<dimGrid, dimBlock, 0, stream>>>({{kernel.enqueue_params}});
+    {% endfor %}
+}
+
+REGISTER_TENSORRT_PLUGIN({{plugin_name}}Creator);

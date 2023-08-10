@@ -1,0 +1,135 @@
+/*
+ * Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#include "NvInfer.h"
+#include <iostream>
+#include <cstring>
+#include <vector>
+#include <assert.h>
+
+namespace nvinfer1
+{
+namespace plugin
+{
+
+class {{plugin_name}}: public IPluginV2DynamicExt {
+public:
+    {{plugin_name}}() {}
+    
+    {{plugin_name}}(const void *buffer, size_t length) {
+    }
+
+    virtual size_t getSerializationSize() const noexcept override {
+        return 0;
+    }
+    virtual void serialize(void *buffer) const noexcept override {}
+    
+    //! The combination of kLINEAR + kFLOAT is supported.
+    bool supportsFormatCombination(int pos, const PluginTensorDesc* inOut, int nbInputs, int nbOutputs) noexcept override
+    {
+        bool condition = true;
+        {% for tensor_format in plugin_tensor_format %}if (pos == {{ loop.index0 }}){
+            //std::cout << (inOut[pos].format == nvinfer1::TensorFormat::k{{tensor_format.format}}) << ", " << (inOut[pos].type == nvinfer1::DataType::k{{tensor_format.type}}) << std::endl;
+            condition &= inOut[pos].format == nvinfer1::TensorFormat::k{{tensor_format.format}};
+            condition &= inOut[pos].type == nvinfer1::DataType::k{{tensor_format.type}};
+        }
+        {% endfor %}
+        return condition;
+    }
+
+    nvinfer1::IPluginV2DynamicExt* clone() const noexcept override {
+        return new {{plugin_name}}();
+    }
+    int getNbOutputs() const noexcept override {
+        //std::cout << __FUNCTION__ << std::endl;
+        return {{plugin_output_number}};
+    }
+    nvinfer1::DimsExprs getOutputDimensions(int outputIndex, const nvinfer1::DimsExprs* inputs, int nbInputs, nvinfer1::IExprBuilder& exprBuilder) noexcept override {
+        //std::cout << __FUNCTION__ << std::endl;
+        {% for tensor_dims in plugin_output_shape %}if (outputIndex == {{ loop.index0 }}){
+            nvinfer1::DimsExprs output_shape;
+            output_shape.nbDims = {{tensor_dims.nbdims}};
+            {% for s in tensor_dims.shape %}output_shape.d[{{loop.index0}}] = exprBuilder.constant({{s}});
+            {% endfor %}
+            return output_shape;
+        }
+        {% endfor %}
+    }
+    nvinfer1::DataType getOutputDataType(int index, const nvinfer1::DataType* inputTypes, int nbInputs) const noexcept override{
+        //std::cout << __FUNCTION__ << std::endl;
+        {% for type in plugin_output_type %}if (index == {{ loop.index0 }}){
+            return nvinfer1::DataType::k{{type}};
+        }
+        {% endfor %}
+    }
+    size_t getWorkspaceSize(const nvinfer1::PluginTensorDesc* inputs, int nbInputs, const nvinfer1::PluginTensorDesc* outputs, int nbOutputs) const noexcept override{
+        return {{plugin_workspace_size}};
+    }
+    int enqueue(const nvinfer1::PluginTensorDesc* inputDesc, const nvinfer1::PluginTensorDesc* outputDesc, const void* const* inputs, void* const* outputs, void* workspace, cudaStream_t stream) noexcept override;
+
+    void configurePlugin(const nvinfer1::DynamicPluginTensorDesc* in, int nbInputs, const nvinfer1::DynamicPluginTensorDesc* out, int nbOutputs) noexcept override {}
+    int initialize() noexcept override {return 0;}
+    void terminate() noexcept override {}
+    void destroy() noexcept override { delete this; }
+    void setPluginNamespace(const char* szNamespace) noexcept override {mNamespace = szNamespace;}
+    const char* getPluginNamespace() const noexcept override {return mNamespace.c_str();}
+    const char* getPluginType() const noexcept override {return "{{plugin_name}}";}
+    const char* getPluginVersion() const noexcept override {return "1";}
+    void attachToContext(cudnnContext * /*cudnn*/, cublasContext * /*cublas*/, nvinfer1::IGpuAllocator * /*allocator*/) noexcept {}
+    void detachFromContext() noexcept {}
+
+private:
+    const char* mPluginNamespace;
+    std::string mNamespace;
+};
+
+class {{plugin_name}}Creator: public nvinfer1::IPluginCreator {
+public:
+    {{plugin_name}}Creator(){
+	    mFC.nbFields = mPluginAttributes.size();
+	    mFC.fields = mPluginAttributes.data();
+    }
+    nvinfer1::IPluginV2DynamicExt* deserializePlugin(const char* name, const void* serialData, size_t serialLength) noexcept override {
+        {{plugin_name}}* obj = new {{plugin_name}}{serialData, serialLength};
+        obj->setPluginNamespace(mNamespace.c_str());
+        return obj;
+    }
+    
+    const char* getPluginName() const noexcept override {return "{{plugin_name}}";}
+    const char* getPluginVersion() const noexcept override {return "1";}
+
+    void setPluginNamespace(const char* szNamespace) noexcept override {mNamespace = szNamespace;}
+    const char* getPluginNamespace() const noexcept override {return mNamespace.c_str();}
+    
+    const nvinfer1::PluginFieldCollection* getFieldNames() noexcept override {
+        //std::cout << __FUNCTION__ << std::endl;
+        return &mFC;
+    }
+    nvinfer1::IPluginV2DynamicExt* createPlugin(const char* name, const nvinfer1::PluginFieldCollection* fc) noexcept override {
+        //std::cout << __FUNCTION__ << std::endl;
+        {{plugin_name}}* obj = new {{plugin_name}}{};
+        obj->setPluginNamespace(mNamespace.c_str());
+        return obj;
+    }
+private:
+    std::string mNamespace;
+    static PluginFieldCollection mFC;
+    static std::vector<PluginField> mPluginAttributes;
+};
+
+} // namespace plugin
+
+} // namespace nvinfer1
