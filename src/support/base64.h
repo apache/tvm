@@ -305,7 +305,7 @@ inline size_t b64strlen(const std::string b64str) {
   return length;
 }
 
-inline void b64decode(const std::string b64str, u_char* ret) {
+inline void b64decode(const std::string b64str, uint8_t* ret) {
   size_t index = 0;
   const auto length = b64str.size();
   for (size_t i = 0; i < length; i += 4) {
@@ -313,13 +313,13 @@ inline void b64decode(const std::string b64str, u_char* ret) {
     int8_t ch1 = base64::DecodeTable[(int32_t)b64str[i + 1]];
     int8_t ch2 = base64::DecodeTable[(int32_t)b64str[i + 2]];
     int8_t ch3 = base64::DecodeTable[(int32_t)b64str[i + 3]];
-    u_char st1 = (ch0 << 2) + (ch1 >> 4);
+    uint8_t st1 = (ch0 << 2) + (ch1 >> 4);
     ret[index++] = st1;
     if (b64str[i + 2] != '=') {
-      u_char st2 = ((ch1 & 0b1111) << 4) + (ch2 >> 2);
+      uint8_t st2 = ((ch1 & 0b1111) << 4) + (ch2 >> 2);
       ret[index++] = st2;
       if (b64str[i + 3] != '=') {
-        u_char st3 = ((ch2 & 0b11) << 6) + ch3;
+        uint8_t st3 = ((ch2 & 0b11) << 6) + ch3;
         ret[index++] = st3;
       }
     }

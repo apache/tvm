@@ -391,7 +391,7 @@ std::string ExportModuleToBase64(tvm::runtime::Module module) {
 tvm::runtime::Module ImportModuleFromBase64(std::string base64str) {
   auto length = tvm::support::b64strlen(base64str);
 
-  std::vector<u_char> bytes(length);  // bytes stream
+  std::vector<uint8_t> bytes(length);  // bytes stream
   tvm::support::b64decode(base64str, bytes.data());
 
   auto now = std::chrono::system_clock::now();
@@ -401,7 +401,7 @@ tvm::runtime::Module ImportModuleFromBase64(std::string base64str) {
   const std::string file_name = "tmp-module-" + datetime.str() + ".so";
   LOG(INFO) << file_name;
   std::unique_ptr<FILE, Deleter> pFile(fopen(file_name.c_str(), "wb"), Deleter(file_name));
-  fwrite(bytes.data(), sizeof(u_char), length, pFile.get());
+  fwrite(bytes.data(), sizeof(uint8_t), length, pFile.get());
   fflush(pFile.get());
 
   std::string load_f_name = "runtime.module.loadfile_so";
