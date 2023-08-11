@@ -46,8 +46,13 @@ class FunctionScope(object):
         self._params = params
         self._attrs = attrs
 
+        # Blocks that have been collected within the function
+        self._blocks = []
+        # a boolean flag that tracks if emit_func_output has been called
+        self._is_emit_func_output_called = False
+
     def __enter__(self):
-        self._bb._enter_function_scope(self._name, self._params, self._attrs)
+        self._bb._enter_function_scope(self)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         # __exit__ should properly handle the case where the with block exits with an exception
@@ -65,13 +70,13 @@ class DataflowScope(object):
     def __enter__(self):
         block = self._bb._end_block()
         if len(block.bindings) > 0:
-            self._bb._blocks.append(block)
+            self._bb._func._blocks.append(block)
         self._bb._begin_dataflow_block()
 
     def __exit__(self, ptype, value, trace):
         block = self._bb._end_block()
         if len(block.bindings) > 0:
-            self._bb._blocks.append(block)
+            self._bb._func._blocks.append(block)
         self._bb._begin_binding_block()
 
 
@@ -148,17 +153,19 @@ class BlockBuilder(Object):
         mod = bb.get()
     """
 
-    _current = None
+    _stack = []
 
     @staticmethod
     def current():
         """Returns the current BlockBuilder."""
-        return BlockBuilder._current
+        if BlockBuilder._stack:
+            return BlockBuilder._stack[-1]
+        else:
+            return None
 
     def __init__(self, mod: IRModule = None):
-        self._blocks: List[BindingBlock] = []
-        # a boolean flag that tracks if emit_func_output has been called
-        self._is_emit_func_output_called = False
+        # Which functions are currently being defined
+        self._func_stack: List[FunctionScope] = []
         self.__init_handle_by_constructor__(_ffi_api.BlockBuilderCreate, mod)  # type: ignore
 
     def _begin_dataflow_block(self) -> None:
@@ -170,23 +177,30 @@ class BlockBuilder(Object):
     def _end_block(self) -> BindingBlock:
         return _ffi_api.BlockBuilderEndBlock(self)  # type: ignore
 
-    def _enter_function_scope(self, name, params, attrs):
-        if BlockBuilder.current() is not None:
-            raise RuntimeError("BlockBuilder does not allow nested functions.")
-        BlockBuilder._current = self
-        self._func_name = name
-        self._func_params = params
-        self._func_attrs = attrs
-        self.begin_scope(params)
+    @property
+    def _func(self):
+        if self._func_stack:
+            return self._func_stack[-1]
+        else:
+            raise RuntimeError(
+                "Cannot access BlockBuilder._func when outside a bb._function() block"
+            )
+
+    def _enter_function_scope(self, func_scope):
+        BlockBuilder._stack.append(self)
+        self._func_stack.append(func_scope)
+        self.begin_scope(func_scope._params)
         self._begin_binding_block()
 
     def _exit_function_scope(self, exc_type, exc_val, exc_tb):
         # record
-        is_emit_func_output_called = self._is_emit_func_output_called
+        is_emit_func_output_called = self._func._is_emit_func_output_called
         # recover to default state
-        self._blocks = []
-        self._is_emit_func_output_called = False
-        BlockBuilder._current = None
+        self._func_stack.pop()
+
+        assert BlockBuilder._stack
+        assert BlockBuilder._stack[-1] is self
+        BlockBuilder._stack.pop()
 
         # NOTE: we must raise after we recover the state so future
         # block builder scoping functions correctly
@@ -551,7 +565,7 @@ class BlockBuilder(Object):
         self,
         output: Union[Expr, Tuple, List[Expr]],
         params: Optional[Union[Var, Tuple, List[Var]]] = None,
-    ) -> None:
+    ) -> GlobalVar:
         """Emit output for the function.
 
         Parameters
@@ -562,40 +576,58 @@ class BlockBuilder(Object):
         params : tvm.relax.Var | Tuple | List[tvm.relax.Var], optional
             The parameters of the function to be built.
             If params is None, it means the params have been initialized in the function with scope.
-        """
-        if self._is_emit_func_output_called:
-            raise RuntimeError("emit_func_output must be called exactly once in a relax function.")
-        self._is_emit_func_output_called = True
 
-        if self._func_params is not None and params is not None:
+        Returns
+        -------
+        gvar: tvm.ir.GlobalVar
+
+            A GlobalVar representing the function
+        """
+        if self._func._is_emit_func_output_called:
+            raise RuntimeError("emit_func_output must be called exactly once in a relax function.")
+        self._func._is_emit_func_output_called = True
+
+        if self._func._params is not None and params is not None:
             raise RuntimeError(
                 "function parameters have been initialized in the function with scope."
             )
 
-        if self._func_params is None and params is None:
+        if self._func._params is None and params is None:
             raise RuntimeError("Relax function must have parameter.")
 
-        if self._func_params is None:
-            self._func_params = params
+        if self._func._params is None:
+            self._func._params = params
 
         if BlockBuilder.current() is not self:
-            raise RuntimeError("BlockBuilder._current must be self.")
+            raise RuntimeError("BlockBuilder.current() must be self.")
 
         if isinstance(output, (list, tuple)):
             output = Tuple(output)
 
         block = self._end_block()
         if len(block.bindings) > 0:
-            self._blocks.append(block)
-        seqe = self.normalize(rx.SeqExpr(self._blocks, output))
+            self._func._blocks.append(block)
+
+        seqe = rx.SeqExpr(self._func._blocks, output)
+
+        # If the parameters were not provided as part of
+        # `bb.function()`, then any variables provided from the params
+        # are not in scope.  Otherwise, TIR variables used in dynamic
+        # inputs are removed as undefined (e.g. Replacing
+        # `R.Tensor(["batch_size"])` with `R.Tensor(ndims=1)`).
+        self.begin_scope(self._func._params)
+        try:
+            seqe = self.normalize(seqe)
+        finally:
+            self.end_scope()
 
         # do not specify ret_struct_info and let constructor deduce
         # from seqe.struct_info
-        func = rx.Function(self._func_params, seqe)
-        for key, value in self._func_attrs.items():
+        func = rx.Function(self._func._params, seqe)
+        for key, value in self._func._attrs.items():
             func = func.with_attr(key, value)
         self.end_scope()
-        self.add_func(func, self._func_name)
+        return self.add_func(func, self._func._name)
 
     def normalize(self, expr: Expr) -> Expr:
         """Normalize an Expr to complete its shape and type.

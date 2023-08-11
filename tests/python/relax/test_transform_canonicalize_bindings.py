@@ -89,6 +89,40 @@ def test_dataflow_block():
     assert_structural_equal(new_mod, Expected)
 
 
+def test_assign_to_output_indataflow_block():
+    @tvm.script.ir_module
+    class TestDataflowAssignments:
+        @R.function
+        def main(x: R.Tensor):
+            with R.dataflow():
+                y = x  # is not a dataflow var
+                z = y
+                o = z
+                p = o
+                m = p
+                n = m
+                R.output(n)
+            return n
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor):
+            with R.dataflow():
+                y = x
+                z = x
+                o = x
+                p = x
+                m = x
+                # we can't get rid of n because it leaves the block
+                n = x
+                R.output(n)
+            return x
+
+    new_mod = relax.transform.CanonicalizeBindings()(TestDataflowAssignments)
+    assert_structural_equal(new_mod, Expected)
+
+
 def test_ops():
     @tvm.script.ir_module
     class TestOps:

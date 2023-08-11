@@ -132,14 +132,14 @@ def test_strided_slice_no_strides():
     @tvm.script.ir_module
     class StridedSlice:
         @R.function
-        def main(x: R.Tensor((8, 9, 10, 10), "float32")) -> R.Tensor((4, 9, 10, 3), "float32"):
+        def main(x: R.Tensor((8, 9, 10, 10), "float32")) :
             gv: R.Tensor((4, 9, 10, 3), "float32") = R.strided_slice(x, axes=[0, 1, 3], begin=[1, 0, 2], end=[8, 9, 4])
             return gv
 
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tensor((8, 9, 10, 10), dtype="float32")) -> R.Tensor((4, 9, 10, 3), dtype="float32"):
+        def main(x: R.Tensor((8, 9, 10, 10), dtype="float32")):
             gv = R.call_tir(Expected.strided_slice, (x,), out_sinfo=R.Tensor((7, 9, 10, 2), dtype="float32"))
             return gv
 

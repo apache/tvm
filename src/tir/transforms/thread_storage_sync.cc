@@ -50,11 +50,27 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
   }
   // Plan the sync
   std::vector<AccessEntry> Summarize(std::vector<StmtEntry> seq, const ForNode* loop) final {
+    // Redirect all "shared.dyn" buffer access to the same buffer var
+    // so that the accesses can be planned together.
+    Var shared_dyn_buf;
+    for (StmtEntry& entry : seq) {
+      for (AccessEntry& access : entry.access) {
+        if (access.scope.rank == StorageRank::kShared && access.scope.tag == ".dyn" &&
+            access.buffer.defined()) {
+          if (!shared_dyn_buf.defined()) {
+            shared_dyn_buf = access.buffer;
+          } else {
+            access.buffer = shared_dyn_buf;
+          }
+        }
+      }
+    }
+
     // Unsynced reads and writes
     std::vector<AccessEntry> reads;
     std::vector<AccessEntry> writes;
     // if it is a loop, rotate two times to consider effect of loop.
-    // simulation based approach to find dependenceies
+    // simulation based approach to find dependencies
     for (size_t i = 0; i < seq.size(); ++i) {
       const StmtEntry& s = seq[i];
       // check if sync before statement is needed.

@@ -63,7 +63,7 @@ void ConvolutionBackwardData(int mode, int format, int algo, int dims, int group
 void BackwardDataFindAlgo(int format, int dims, int groups, const int pad[], const int stride[],
                           const int dilation[], const int dy_dim[], const int w_dim[],
                           const int dx_dim[], const std::string& data_dtype,
-                          const std::string& conv_dtype, TVMRetValue* ret) {
+                          const std::string& conv_dtype, bool verbose, TVMRetValue* ret) {
   CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal();
   const int full_dims = dims + 2;
   std::vector<int64_t> dy_dim_int64(full_dims);
@@ -95,14 +95,15 @@ void BackwardDataFindAlgo(int format, int dims, int groups, const int pad[], con
       "CUDNN_CONVOLUTION_BWD_DATA_ALGO_WINOGRAD_NONFUSED"};
 
   auto best_algo = perf_results[0].algo;
-  LOG(INFO) << "\tCUDNN Found " << returned_algo_count << " bwd data algorithms, choosing "
-            << bwd_data_algo_names[best_algo];
-  for (int i = 0; i < returned_algo_count; ++i) {
-    LOG(INFO) << "\t\t" << i << ") " << bwd_data_algo_names[perf_results[i].algo]
-              << " - time: " << perf_results[i].time << " ms"
-              << ", Memory: " << perf_results[i].memory;
+  if (verbose) {
+    LOG(INFO) << "\tCUDNN Found " << returned_algo_count << " bwd data algorithms, choosing "
+              << bwd_data_algo_names[best_algo];
+    for (int i = 0; i < returned_algo_count; ++i) {
+      LOG(INFO) << "\t\t" << i << ") " << bwd_data_algo_names[perf_results[i].algo]
+                << " - time: " << perf_results[i].time << " ms"
+                << ", Memory: " << perf_results[i].memory;
+    }
   }
-
   ret[0] = best_algo;
 }
 
@@ -139,7 +140,7 @@ void ConvolutionBackwardFilter(int mode, int format, int algo, int dims, int gro
 void BackwardFilterFindAlgo(int format, int dims, int groups, const int pad[], const int stride[],
                             const int dilation[], const int dy_dim[], const int x_dim[],
                             const int dw_dim[], const std::string& data_dtype,
-                            const std::string& conv_dtype, TVMRetValue* ret) {
+                            const std::string& conv_dtype, bool verbose, TVMRetValue* ret) {
   CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal();
   const int full_dims = dims + 2;
   std::vector<int64_t> x_dim_int64(full_dims);
@@ -172,14 +173,15 @@ void BackwardFilterFindAlgo(int format, int dims, int groups, const int pad[], c
   };
 
   auto best_algo = perf_results[0].algo;
-  LOG(INFO) << "\tCUDNN Found " << returned_algo_count << " bwd filter algorithms, choosing "
-            << bwd_filter_algo_names[best_algo];
-  for (int i = 0; i < returned_algo_count; ++i) {
-    LOG(INFO) << "\t\t" << i << ") " << bwd_filter_algo_names[perf_results[i].algo]
-              << " - time: " << perf_results[i].time << " ms"
-              << ", Memory: " << perf_results[i].memory;
+  if (verbose) {
+    LOG(INFO) << "\tCUDNN Found " << returned_algo_count << " bwd filter algorithms, choosing "
+              << bwd_filter_algo_names[best_algo];
+    for (int i = 0; i < returned_algo_count; ++i) {
+      LOG(INFO) << "\t\t" << i << ") " << bwd_filter_algo_names[perf_results[i].algo]
+                << " - time: " << perf_results[i].time << " ms"
+                << ", Memory: " << perf_results[i].memory;
+    }
   }
-
   ret[0] = best_algo;
 }
 
@@ -217,9 +219,10 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv.backward_data_find_algo")
       std::string data_dtype = args[8];
       std::string conv_dtype = args[9];
       int groups = args[10];
+      bool verbose = args[11];
 
       BackwardDataFindAlgo(format, dims, groups, pad, stride, dilation, dy_dim, w_dim, dx_dim,
-                           data_dtype, conv_dtype, ret);
+                           data_dtype, conv_dtype, verbose, ret);
     });
 
 TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d.backward_filter")
@@ -256,9 +259,10 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv.backward_filter_find_algo")
       std::string data_dtype = args[8];
       std::string conv_dtype = args[9];
       int groups = args[10];
+      bool verbose = args[11];
 
       BackwardFilterFindAlgo(format, dims, groups, pad, stride, dilation, dy_dim, x_dim, dw_dim,
-                             data_dtype, conv_dtype, ret);
+                             data_dtype, conv_dtype, verbose, ret);
     });
 
 }  // namespace contrib

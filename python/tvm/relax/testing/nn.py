@@ -18,8 +18,9 @@
 """PyTorch-like nn.Module API for constructing workloads."""
 
 
-from typing import List, Any, Callable, Union
 import typing
+from typing import List, Any, Callable, Union
+
 import numpy as np  # type: ignore
 
 import tvm
@@ -212,10 +213,17 @@ class Parameter(relax.Var):
         super().__init__(_try_unique_name(name), relax.TensorStructInfo(shape, dtype))
 
 
-class Module:
+class Module(tvm.relax.frontend.nn.SubroutineMixin):
     """Base class for all model modules.
 
     A neural network or a layer can subclass this class.
+
+    By default, calls into this module will generate the `relax.Expr`
+    representing the output within the current function body.  Setting
+    the variable "define_subrouine" to True; either at the
+    `nn.Module`, subclass, or instance level; will instead produce a
+    subroutine within the same module, which is then called within the
+    current function body.
 
     Example
     -------
@@ -240,6 +248,8 @@ class Module:
                     y = emit_te(topi.add, y, self.bias)
                 return y
     """
+
+    define_subroutine: bool = False
 
     def parameters(self) -> List[Parameter]:
         """Return the list of parameters in the module."""

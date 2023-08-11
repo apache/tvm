@@ -271,11 +271,19 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
     Var old_loop_var = old_loop->loop_var;
     Var new_loop_var = old_loop_var.copy_with_suffix("_init");
     loop_var_map[old_loop_var] = new_loop_var;
+    Optional<IterVar> opt_thread_binding = old_loop->thread_binding;
+    if (opt_thread_binding) {
+      auto thread_binding = opt_thread_binding.value();
+      auto new_var = thread_binding->var.copy_with_suffix("");
+      thread_binding.CopyOnWrite()->var = new_var;
+      opt_thread_binding = thread_binding;
+    }
     body = For(/*loop_var=*/new_loop_var,
                /*min=*/old_loop->min,
                /*extent=*/old_loop->extent,
                /*kind=*/old_loop->kind,
-               /*body=*/body);
+               /*body=*/body,
+               /*thread_binding=*/opt_thread_binding);
   }
   body = Substitute(body, loop_var_map);
   // Step 6. Mutate IR

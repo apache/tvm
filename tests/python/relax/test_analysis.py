@@ -117,6 +117,53 @@ def test_binding_block_remove_all_unused():
     tvm.ir.assert_structural_equal(optimized, GroundTruth["main"])
 
 
+def test_binding_block_remove_all_unused_without_dataflow():
+    @tvm.script.ir_module
+    class IdentityUnused:
+        @R.function
+        def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
+            lv0 = x
+            unused0 = R.call_dps_packed("my_sigmoid", (x,), R.Tensor((32, 32), dtype="float32"))
+            unused1 = R.call_dps_packed(
+                "my_dps_func", (unused0,), R.Tensor((32, 32), dtype="float32")
+            )
+            z = R.call_packed("vm.builtin.copy", lv0, sinfo_args=(R.Tensor((32, 32), "float32")))
+            return z
+
+    optimized = remove_all_unused(IdentityUnused["main"])
+
+    GroundTruth = IdentityUnused
+
+    tvm.ir.assert_structural_equal(optimized, GroundTruth["main"])
+
+
+def test_binding_block_remove_all_unused_func_without_dataflow():
+    @tvm.script.ir_module
+    class IdentityUnused:
+        @R.function
+        def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
+            lv0 = x
+
+            @R.function
+            def internal_unused_func(A: R.Tensor((32, 32), "float32")) -> R.Tensor:
+                return A
+
+            z = R.call_packed("vm.builtin.copy", lv0, sinfo_args=(R.Tensor((32, 32), "float32")))
+            return z
+
+    optimized = remove_all_unused(IdentityUnused["main"])
+
+    @tvm.script.ir_module
+    class GroundTruth:
+        @R.function
+        def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
+            lv0 = x
+            z = R.call_packed("vm.builtin.copy", lv0, sinfo_args=(R.Tensor((32, 32), "float32")))
+            return z
+
+    tvm.ir.assert_structural_equal(optimized, GroundTruth["main"])
+
+
 def test_binding_block_fake_unused_remove_all_unused():
     @tvm.script.ir_module
     class IdentityUnused:

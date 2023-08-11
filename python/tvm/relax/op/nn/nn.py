@@ -220,6 +220,97 @@ def conv2d(
     )
 
 
+def conv1d_transpose(
+    data: Expr,
+    weight: Expr,
+    strides: Union[int, Tuple[int]] = 1,
+    padding: Union[int, Tuple[int, ...]] = 0,
+    output_padding: Union[int, Tuple[int]] = 0,
+    dilation: Union[int, Tuple[int]] = 1,
+    groups: int = 1,
+    data_layout: str = "NCW",
+    kernel_layout: str = "IOW",
+    out_layout: Optional[str] = None,
+    out_dtype: Optional[Union[str, DataType]] = None,
+) -> Expr:
+    r"""1D transposed convolution operator.
+
+    This operator can be seen as the gradient operator of conv1d.
+
+    The output shape can be explained in the simple case when `data_layout == "NCW"` and
+    `kernel_layout == "IOW"`. Suppose `data` has shape `(N, in_channel, in_w)`, `weight` has
+    shape `(in_channel, out_channel, weight_w)`, we need to assure that `in_channel % groups == 0`.
+    The shape of the output will be `(N, out_channel * groups, out_w)`, where
+
+    - `out_w = ((in_w - 1) * strides[0] + weight_w - 2 * padding[0] + output_padding[0])`
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input data to the operator.
+
+    weight : relax.Expr
+        The weight expressions.
+
+    strides : Union[int, Tuple[int]]
+        The strides of convolution. It is required to have length 1.
+
+    padding : Union[int, Tuple[int, ...]]
+        The padding of convolution on both sides of inputs before convolution.
+        It is required to have length either 1 or 2.
+
+    output_padding : Union[int, Tuple[int, ...]], optional
+        Used to disambiguate the output shape.
+
+    dilation : Union[int, Tuple[int]]
+        Specifies the dilation rate to be used for dilated convolution.
+        It is required to have length either 1.
+
+    groups : int
+        Number of groups to split the input into for grouped convolution.
+        The number of input and output channels should be divisible by the number of groups.
+
+    data_layout : str
+        Layout of the input.
+
+    kernel_layout : str
+        Layout of the weight.
+
+    out_layout : Optional[str]
+        Layout of the output. If not specified, it is the same as data_layout
+
+    out_dtype : Optional[Union[str, DataType]]
+        Specifies the output data type for mixed precision conv2d.
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    if isinstance(strides, int):
+        strides = (strides,)
+    if isinstance(dilation, int):
+        dilation = (dilation,)
+    if isinstance(padding, int):
+        padding = (padding, padding)
+    if isinstance(output_padding, int):
+        output_padding = (output_padding,)
+
+    return _ffi_api.conv1d_transpose(  # type: ignore
+        data,
+        weight,
+        strides,
+        padding,
+        output_padding,
+        dilation,
+        groups,
+        data_layout,
+        kernel_layout,
+        out_layout,
+        out_dtype,
+    )
+
+
 def conv2d_transpose(
     data: Expr,
     weight: Expr,

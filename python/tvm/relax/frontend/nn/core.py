@@ -49,6 +49,7 @@ from ... import expr as rx
 from ...block_builder import BlockBuilder
 from ...struct_info import ShapeStructInfo, TensorStructInfo
 from ._tensor_op import _TensorOp
+from .subroutine import SubroutineMixin
 
 if TYPE_CHECKING:
     from . import spec as _spec
@@ -252,7 +253,7 @@ class Effect:
         """Convert the effect to specific dtype. Usually it is no-op for most of the effects"""
 
 
-class Module:
+class Module(SubroutineMixin):
     """Base class for neural network components. Subclass it to build your models.
     Modules can nest within each other in a tree structure using regular attribute assignment."""
 
@@ -272,6 +273,17 @@ class Module:
         yield from _attribute_finder(
             self, prefix, condition_yield=lambda x: isinstance(x, Parameter)
         )
+
+    def parameters(self) -> Iterator[Parameter]:
+        """This method provides an iterator over module parameters,
+        yielding only the Parameter value.
+
+        Yields
+        ------
+        Parameter - The module's parameter
+        """
+        for _, param in self.named_parameters():
+            yield param
 
     def state_dict(
         self, *, prefix: str = "", destination: Optional[Dict[str, Parameter]] = None

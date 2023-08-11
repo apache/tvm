@@ -173,5 +173,87 @@ def test_regression_py_print():
     assert py_print == print
 
 
+def test_function_subroutine_before_main():
+    """The block builder can generate subroutines, and calls into subroutines"""
+
+    from tvm.script import ir as I, relax as R
+
+    # create with TVMScript
+    @I.ir_module
+    class expected:
+        @R.function
+        def main(
+            A: R.Tensor((128, 128), "float32"), B: R.Tensor((128, 128), "float32")
+        ) -> R.Tensor((128, 128), "float32"):
+            out = expected.subroutine(A, B)
+            return out
+
+        @R.function
+        def subroutine(
+            A: R.Tensor((128, 128), "float32"), B: R.Tensor((128, 128), "float32")
+        ) -> R.Tensor((128, 128), "float32"):
+            out = R.add(A, B)
+            return out
+
+    # create with BlockBuilder
+    bb = relax.BlockBuilder()
+
+    A_sub = relax.Var("A", relax.TensorStructInfo((128, 128), "float32"))
+    B_sub = relax.Var("B", relax.TensorStructInfo((128, 128), "float32"))
+    with bb.function("subroutine", (A_sub, B_sub)):
+        out = bb.emit(R.add(A_sub, B_sub))
+        subroutine = bb.emit_func_output(out)
+
+    A = relax.Var("A", relax.TensorStructInfo((128, 128), "float32"))
+    B = relax.Var("B", relax.TensorStructInfo((128, 128), "float32"))
+    with bb.function("main", (A, B)):
+        out = bb.emit(subroutine(A, B))
+        bb.emit_func_output(out)
+    actual = bb.get()
+
+    tvm.ir.assert_structural_equal(expected, actual)
+
+
+def test_function_subroutine_during_main():
+    """Subroutines may be generated as needed, pausing the main function collection"""
+
+    from tvm.script import ir as I, relax as R
+
+    # create with TVMScript
+    @I.ir_module
+    class expected:
+        @R.function
+        def main(
+            A: R.Tensor((128, 128), "float32"), B: R.Tensor((128, 128), "float32")
+        ) -> R.Tensor((128, 128), "float32"):
+            out = expected.subroutine(A, B)
+            return out
+
+        @R.function
+        def subroutine(
+            A: R.Tensor((128, 128), "float32"), B: R.Tensor((128, 128), "float32")
+        ) -> R.Tensor((128, 128), "float32"):
+            out = R.add(A, B)
+            return out
+
+    # create with BlockBuilder
+    bb = relax.BlockBuilder()
+
+    A = relax.Var("A", relax.TensorStructInfo((128, 128), "float32"))
+    B = relax.Var("B", relax.TensorStructInfo((128, 128), "float32"))
+    with bb.function("main", (A, B)):
+        A_sub = relax.Var("A", relax.TensorStructInfo((128, 128), "float32"))
+        B_sub = relax.Var("B", relax.TensorStructInfo((128, 128), "float32"))
+        with bb.function("subroutine", (A_sub, B_sub)):
+            out = bb.emit(R.add(A_sub, B_sub))
+            subroutine = bb.emit_func_output(out)
+
+        out = bb.emit(subroutine(A, B))
+        bb.emit_func_output(out)
+    actual = bb.get()
+
+    tvm.ir.assert_structural_equal(expected, actual)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

@@ -43,13 +43,14 @@ def has_cutlass():
 
 
 def _get_cutlass_path():
-    tvm_root = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../../../")
-    cutlass_path = os.path.join(tvm_root, "3rdparty/cutlass")
-    assert os.path.exists(cutlass_path), (
-        f"The CUTLASS root directory not found in {cutlass_path}. Currently, using CUTLASS "
-        f"requires building TVM from source."
-    )
-    return cutlass_path
+    invalid_paths = []
+    for rel in ["../../../../", "../../../", "../../"]:
+        tvm_root = os.path.join(os.path.dirname(os.path.realpath(__file__)), rel)
+        cutlass_path = os.path.join(tvm_root, "3rdparty/cutlass")
+        if os.path.exists(cutlass_path):
+            return cutlass_path
+        invalid_paths.append(cutlass_path)
+    raise AssertionError(f"The CUTLASS root directory not found in: {invalid_paths}")
 
 
 def _get_cutlass_compile_options(sm, threads, use_fast_math=False):
@@ -58,6 +59,7 @@ def _get_cutlass_compile_options(sm, threads, use_fast_math=False):
     cutlass_util_include = os.path.join(cutlass_root, "tools/util/include")
     cutlass_attention_include = os.path.join(cutlass_root, "examples/41_fused_multi_head_attention")
     cutlass_fpA_intB_gemm_include = os.path.join(cutlass_root, "../cutlass_fpA_intB_gemm")
+    flash_attn_include = os.path.join(cutlass_root, "../libflash_attn/include")
 
     kwargs = {}
     kwargs["cc"] = "nvcc"
@@ -76,6 +78,7 @@ def _get_cutlass_compile_options(sm, threads, use_fast_math=False):
         f"-I{cutlass_util_include}",
         f"-I{cutlass_attention_include}",
         f"-I{cutlass_fpA_intB_gemm_include}",
+        f"-I{flash_attn_include}",
     ]
     if use_fast_math:
         kwargs["options"].append("-DCUTLASS_USE_TANH_FOR_SIGMOID")
@@ -712,9 +715,11 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
             "rhs_arg_idx": arg_idx["w_encoded"],
             "scales_arg_idx": arg_idx["scales"],
             "bias_arg_idx": arg_idx.get("bias"),
-            "batch_offset": len(lhs_shape) - 2,
             "activation": "identity",
         }
+
+        attrs["batch_rank"] = len(lhs_shape[:-1])
+        attrs["M"] = reduce(operator.mul, lhs_shape[:-1], 1)
 
         attrs["bias_stride"] = 0
 

@@ -129,6 +129,42 @@ def make_residual_block_pattern(
     return output, {**arg_patterns, "residual": residual_input}
 
 
+def make_conv2d_pattern(
+    with_bias: bool = False,
+    activation: str = None,
+) -> Tuple[DFPattern, Mapping[str, DFPattern]]:
+    """
+    Create pattern for 2D convolution.
+
+    Parameters
+    ----------
+    with_bias: bool
+        Whether or not to include bias addition
+
+    activation: str
+        The name of an activation Relax op, such as "relax.nn.relu"
+
+    Returns
+    -------
+    pattern: DFPattern
+        The resulting pattern describing a 2D convolution.
+
+    annotations: Mapping[str, DFPattern]
+        A mapping from name to sub pattern. It can be used to extract
+        important expressions from match result, to power the partition
+        check function and codegen.
+    """
+
+    input_tensor = wildcard()
+    kernel = wildcard()
+    annotations = {"input": input_tensor, "weight": kernel}
+
+    conv2d = is_op("relax.nn.conv2d")(input_tensor, kernel)
+    annotations["root"] = conv2d
+
+    return _with_bias_activation_pattern(conv2d, annotations, with_bias, activation)
+
+
 def make_matmul_pattern(
     with_bias: bool = False,
     activation: str = None,

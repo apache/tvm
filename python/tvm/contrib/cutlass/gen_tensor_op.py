@@ -29,7 +29,10 @@ from tvm.runtime import Object
 from tvm.tir import IntImm
 
 from . import _ffi_api as ffi
-from .attention_operation import instantiate_attention_template
+from .attention_operation import (
+    instantiate_attention_template,
+    instantiate_flash_attention_template,
+)
 from .conv2d_operation import instantiate_conv2d_template
 from .gemm_operation import instantiate_gemm_template, emit_fp16A_intB_matmul
 from .layer_norm_operation import instantiate_layer_norm_template
@@ -513,6 +516,9 @@ def instantiate_template(func_name, annotations, func_args):
         dim2 = func_args[arg1_idx] + f"->shape[{arg1_axis_idx}]"
         return dim1 + " * " + dim2
 
+    def get_flattened_batch_dim(arg_name, batch_rank):
+        return " * ".join(["{}->shape[{}]".format(arg_name, i) for i in range(batch_rank)])
+
     if "decode_matmul" in func_name:
         headers.append("cutlass_kernels/fpA_intB_gemm.h")
         lhs_arg_idx = _get_optional_int_annotation(annotations, "lhs_arg_idx", 0)
@@ -524,9 +530,14 @@ def instantiate_template(func_name, annotations, func_args):
         attrs["A_arg"] = func_args[lhs_arg_idx]
         attrs["B_arg"] = func_args[rhs_arg_idx]
         attrs["scales_arg"] = func_args[scales_arg_idx]
-        attrs["batch_offset"] = _get_optional_int_annotation(annotations, "batch_offset", 0)
         attrs["activation"] = annotations.get("activation", "identity")
         attrs["bias_stride"] = annotations["bias_stride"]
+        attrs["M"] = annotations["M"]
+
+        if not isinstance(attrs["M"], tvm.tir.IntImm):
+            attrs["M"] = get_flattened_batch_dim(
+                func_args[lhs_arg_idx], int(annotations["batch_rank"])
+            )
 
         if bias_arg_idx is not None:
             attrs["bias_arg"] = func_args[bias_arg_idx]
@@ -712,7 +723,6 @@ def instantiate_template(func_name, annotations, func_args):
         return CodegenResult(code, headers)
 
     elif "attention" in func_name:
-        headers.append("kernel_forward.h")
         data_type = dtype_map[annotations["arg0_dtype"]]
 
         attrs["qkv_layout"] = annotations["qkv_layout"]
@@ -739,62 +749,86 @@ def instantiate_template(func_name, annotations, func_args):
         attrs["head_dim"] = h = annotations["head_dim"]
         attrs["head_dim_value"] = h_v = annotations["head_dim_value"]
         attrs["kMaxK"] = max(int(attrs["head_dim"]), int(attrs["head_dim_value"]))
-
-        data_type_size = DataTypeSize[data_type]
-        if (data_type_size * h // 8) % 16 == 0 and (data_type_size * h_v // 8) % 16 == 0:
-            attrs["kIsAligned"] = True
-        elif (h % 4 == 0) and (h_v % 4 == 0):
-            attrs["kIsAligned"] = False
-        else:
-            raise NotImplementedError()
-        if h_v > 64:
-            attrs["kQueriesPerBlock"] = 32
-            attrs["kKeysPerBlock"] = 128
-            attrs["kSingleValueIteration"] = h_v <= 128
-        else:
-            attrs["kQueriesPerBlock"] = 64
-            attrs["kKeysPerBlock"] = 64
-            attrs["kSingleValueIteration"] = True
-        attrs["output_size"] = f"{b} * {s} * {n} * {h_v}"
         attrs["scale"] = (
             float(1 / math.sqrt(h.value)) if annotations["scale"] is None else annotations["scale"]
         )
-        attrs["custom_mask_type"] = annotations["custom_mask_type"]
 
-        assert (
-            attrs["scale"] > 0 or attrs["scale"] < 0
-        ), "Cutlass may generate nan occasionally when scale == 0.0"
-        attrs["arch"] = "cutlass::arch::Sm{}".format(annotations["arch"])
-        attrs["kSupportsDropout"] = False
+        use_flash = (
+            annotations["ret_dtype"] == "float16"
+            and "bias" not in attrs
+            and int(attrs["head_dim"]) <= 256
+            and int(attrs["head_dim"]) % 8 == 0
+            and int(attrs["head_dim"]) == int(attrs["head_dim_value"])
+            # We have not thoroughly validated flash with causal mask yet, so for now we support
+            # only non-causal cases.
+            and int(annotations["custom_mask_type"]) == 0
+            # Flash v2 is currently not supported for sm < 80
+            and int(annotations["arch"]) >= 80
+        )
 
-        for arg in func_args:
-            if "workspace" in arg:
-                attrs["workspace"] = arg
-        if "bias" in attrs:
-            attrs["kSupportsBias"] = True
-            if len(annotations["bias_shape"]) == 4:
-                strides = "p.num_keys"
-                if annotations["bias_shape"][2] == 1:
-                    attrs["bias_strideM"] = 0
-                else:
-                    attrs["bias_strideM"] = strides
-                    strides = f"p.num_queries * {strides}"
-                if annotations["bias_shape"][1] == 1:
-                    attrs["bias_strideH"] = 0
-                else:
-                    attrs["bias_strideH"] = strides
-                    strides = f"p.num_heads * {strides}"
-                if annotations["bias_shape"][0] == 1:
-                    attrs["bias_strideB"] = 0
-                else:
-                    attrs["bias_strideB"] = strides
+        if use_flash:
+            headers.append("flash.h")
+            attrs["is_causal"] = int(annotations["custom_mask_type"]) > 0
+            code = instantiate_flash_attention_template(attrs)
+        else:
+            headers.append("kernel_forward.h")
+
+            data_type_size = DataTypeSize[data_type]
+            if (data_type_size * h // 8) % 16 == 0 and (data_type_size * h_v // 8) % 16 == 0:
+                attrs["kIsAligned"] = True
+            elif (h % 4 == 0) and (h_v % 4 == 0):
+                attrs["kIsAligned"] = False
             else:
                 raise NotImplementedError()
-        else:
-            # To support negative scale in current Cutlass implementation,
-            # kSupportsBias should be set true, or there are nan's as result.
-            attrs["kSupportsBias"] = attrs["scale"] < 0
-        code = instantiate_attention_template(attrs)
+            if h_v > 64:
+                attrs["kQueriesPerBlock"] = 32
+                attrs["kKeysPerBlock"] = 128
+                attrs["kSingleValueIteration"] = h_v <= 128
+            else:
+                attrs["kQueriesPerBlock"] = 64
+                attrs["kKeysPerBlock"] = 64
+                attrs["kSingleValueIteration"] = True
+
+            assert (
+                attrs["scale"] > 0 or attrs["scale"] < 0
+            ), "Cutlass may generate nan occasionally when scale == 0.0"
+            attrs["arch"] = "cutlass::arch::Sm{}".format(annotations["arch"])
+            attrs["kSupportsDropout"] = False
+
+            attrs["output_size"] = f"{b} * {s} * {n} * {h_v}"
+
+            attrs["custom_mask_type"] = annotations["custom_mask_type"]
+
+            for arg in func_args:
+                if "workspace" in arg:
+                    attrs["workspace"] = arg
+            if "bias" in attrs:
+                attrs["kSupportsBias"] = True
+                if len(annotations["bias_shape"]) == 4:
+                    strides = "p.num_keys"
+                    if annotations["bias_shape"][2] == 1:
+                        attrs["bias_strideM"] = 0
+                    else:
+                        attrs["bias_strideM"] = strides
+                        strides = f"p.num_queries * {strides}"
+                    if annotations["bias_shape"][1] == 1:
+                        attrs["bias_strideH"] = 0
+                    else:
+                        attrs["bias_strideH"] = strides
+                        strides = f"p.num_heads * {strides}"
+                    if annotations["bias_shape"][0] == 1:
+                        attrs["bias_strideB"] = 0
+                    else:
+                        attrs["bias_strideB"] = strides
+                else:
+                    raise NotImplementedError()
+            else:
+                # To support negative scale in current Cutlass implementation,
+                # kSupportsBias should be set true, or there are nan's as result.
+                attrs["kSupportsBias"] = attrs["scale"] < 0
+
+            code = instantiate_attention_template(attrs)
+
         return CodegenResult(code, headers)
     elif "layer_norm" in func_name:
         headers.append("cutlass/util/device_layernorm.h")
@@ -802,10 +836,8 @@ def instantiate_template(func_name, annotations, func_args):
         attrs = {"input": func_args[0], "gamma": func_args[1], "beta": func_args[2]}
         attrs.update(dict(annotations))
 
-        if isinstance(attrs["M"], tvm.tir.Var):
-            attrs["M"] = " * ".join(
-                ["{}->shape[{}]".format(func_args[0], i) for i in range(int(attrs["batch_rank"]))]
-            )
+        if not isinstance(attrs["M"], tvm.tir.IntImm):
+            attrs["M"] = get_flattened_batch_dim(func_args[0], int(attrs["batch_rank"]))
 
         code = instantiate_layer_norm_template(attrs)
         return CodegenResult(code, headers)
@@ -815,10 +847,8 @@ def instantiate_template(func_name, annotations, func_args):
         attrs = {"input": func_args[0], "weight": func_args[1]}
         attrs.update(dict(annotations))
 
-        if isinstance(attrs["M"], tvm.tir.Var):
-            attrs["M"] = " * ".join(
-                ["{}->shape[{}]".format(func_args[0], i) for i in range(int(attrs["batch_rank"]))]
-            )
+        if not isinstance(attrs["M"], tvm.tir.IntImm):
+            attrs["M"] = get_flattened_batch_dim(func_args[0], int(attrs["batch_rank"]))
 
         code = instantiate_rms_norm_template(attrs)
         return CodegenResult(code, headers)

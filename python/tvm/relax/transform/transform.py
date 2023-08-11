@@ -453,6 +453,21 @@ def FoldConstant() -> tvm.ir.transform.Pass:
     return _ffi_api.FoldConstant()  # type: ignore
 
 
+def FoldDataflowBlockOutput() -> tvm.ir.transform.Pass:
+    """If a dataflow var is used only in a binding to the dataflow block
+    output var (i.e., a non-dataflow var), this removes the dataflow var
+    and replaces the output var's binding with the dataflow var's direct definition.
+
+    This "cleans up" a situation that commonly arises when using `CanonicalizeBindings`
+    and `DeadCodeElimination`.
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+    """
+    return _ffi_api.FoldDataflowBlockOutput()  # type: ignore
+
+
 def AnnotateTIROpPattern() -> tvm.ir.transform.Pass:
     """Annotate Op Pattern Kind for TIR functions
 
@@ -945,7 +960,7 @@ def ConvertLayout(desired_layouts: Dict[str, List[str]]) -> tvm.ir.transform.Pas
         The desired layout of conv2d ops is a map from the name of the op to the desired layout
         of the desired feature map, weight and output. For example, if we want to convert the
         layout of conv2d from NCHW to NHWC, we can set the desired layout of conv2d to be
-        {"conv2d": ["NHWC", "OHWI"]}.
+        {"relax.nn.conv2d": ["NHWC", "OHWI"]}.
     Returns
     -------
     ret : tvm.transform.Pass

@@ -63,12 +63,13 @@ def _check_matmul(context: PatternCheckContext) -> bool:
 
     # cuBLASLt does not seem to support batched GEMM with one of matrices having
     # one batch (with batch_stride 0). So for batched GEMM, the two batch counts
-    # must be equal.
+    # must be equal. If lhs is batched but rhs is not, we can use the regular GEMM by
+    # flattening all batch axes into the M axis.
     return (
-        (lhs_batches == 1 and rhs_batches == 1)
-        or isinstance(lhs_batches, tvm.tir.Var)
+        isinstance(lhs_batches, tvm.tir.Var)
         or isinstance(rhs_batches, tvm.tir.Var)
         or (int(lhs_batches) == int(rhs_batches))
+        or (lhs_batches >= 1 and rhs_batches == 1)
     )
 
 

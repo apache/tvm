@@ -470,6 +470,8 @@ class Parser(doc.NodeVisitor):
             return vars
         elif isinstance(target, doc.Name):
             return {target.id}
+        elif isinstance(target, doc.Starred):
+            return self._duplicate_lhs_check(target.value)
         else:
             self.report_error(target, "Invalid type in assign statement")
             raise NotImplementedError
