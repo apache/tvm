@@ -447,6 +447,12 @@ class GEMV(ScheduleRule):
                     TS, TR = 4, 32
                 else:
                     TS, TR = 16, 32
+        elif target.kind.name == "opencl" and "mali" in str(target.attrs):
+            VEC_C = 8
+            LOAD_V_SHARED = False
+            LOAD_V_VEC = -1
+            UNROLL = 64
+            TS, TR = 1, 64
         else:
             VEC_C = 1
             LOAD_V_SHARED = False
