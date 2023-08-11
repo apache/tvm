@@ -200,12 +200,10 @@ class GraphExecutorFactoryModule(ExecutorFactoryModule):
         self.iter_cnt = 0
         self.function_metadata = function_metadata
 
-        print("SELF MODULE :::", dir(self.module))
-
         self.constant_params = constant_params
-        self.device_funcs_list_func = get_global_func("tir.transform.retrieve_device_funcs_list")
-        self.device_memory_size_func = get_global_func("tir.transform.retrieve_device_memory_size")
-        self.grid_block_thread_config_func = get_global_func("runtime.module.retrieve_grid_block_thread_config")
+        self.device_function_list = get_global_func("tir.transform.retrieve_device_function_list")
+        self.device_function_thread_config = get_global_func("runtime.module.retrieve_device_function_thread_config")
+        self.device_memory_size = get_global_func("tir.transform.retrieve_device_memory_size")
 
 
     def export_library(self, file_name, fcompile=None, addons=None, **kwargs):
@@ -230,10 +228,10 @@ class GraphExecutorFactoryModule(ExecutorFactoryModule):
         return self.constant_params
 
     def get_device_function_list(self):
-        return self.device_funcs_list_func()
+        return self.device_function_list()
 
     def get_grid_block_thread_config(self):
-        return self.grid_block_thread_config_func()
+        return self.device_function_thread_config()
 
     def get_device_memory_size(self):
-        return self.device_memory_size_func()
+        return self.device_memory_size()

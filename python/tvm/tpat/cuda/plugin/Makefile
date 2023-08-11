@@ -14,9 +14,15 @@
 # limitations under the License.
 #
 
-CUDA_PATH   = /path/to/cuda
-CUDNN_PATH = /path/to/cudnn
-TRT_PATH = /path/to/TensorRT
+# Variables need to be defined by Users
+# CUDA_PATH   = /path/to/cuda
+# CUDNN_PATH = /path/to/cudnn
+# TRT_PATH = /path/to/TensorRT
+CUDA_PATH   = /home/huangzhe1/anaconda3/envs/tvm_tunning
+CUDNN_PATH = /home/huangzhe1/husen/cudnn-linux-x86_64-8.9.3.28_cuda11-archive
+TRT_PATH = /home/huangzhe1/husen/TensorRT-8.6.1.6
+ARCH = sm_86
+########################################
 
 CUDA_INC_PATH = $(CUDA_PATH)/include
 CUDA_LIB_PATH  = $(CUDA_PATH)/lib
@@ -28,13 +34,9 @@ CUDNN_LIB_PATH = $(CUDNN_PATH)/lib
 TRT_INC_PATH   = $(TRT_PATH)/include
 TRT_LIB_PATH = $(TRT_PATH)/lib
 
-
-ARCH = sm_86
 GCC = g++
 NVCC = $(CUDA_PATH)/bin/nvcc
-# CCFLAGS = -g -std=c++11 -DNDEBUG
 CCFLAGS = -w -std=c++11
-# CCFLAGS+= -DDEBUG_ME
 INCLUDES := -I. -I$(CUDA_COM_PATH) -I$(CUDA_INC_PATH) -I$(CUDNN_INC_PATH) -I$(TRT_INC_PATH) -I/usr/include
 
 LDFLAGS := -L$(CUDA_LIB_PATH) -L$(CUDNN_LIB_PATH) -L$(TRT_LIB_PATH)

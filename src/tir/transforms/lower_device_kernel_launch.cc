@@ -36,7 +36,7 @@
 
 namespace tvm {
 namespace tir {
-extern std::unordered_map<std::string, std::vector<PrimExpr> > host_name_to_param;
+extern std::unordered_map<std::string, std::vector<PrimExpr>> host_function_name_to_params;
 extern std::unordered_map<std::string, std::string> name_to_prefix;
 std::vector<String> device_funcs;
 std::vector<String> device_memory_size;
@@ -337,13 +337,13 @@ class DeviceKernelMutator : public StmtExprMutator {
     ss << name_hint << " ";
     for (auto arg : args) {
       bool find_param_in_host = false;
-      for (int i = 0; i < host_name_to_param[name_to_prefix[name_hint]].size(); ++i) {
-        if (arg.same_as(host_name_to_param[name_to_prefix[name_hint]][i])) {
+      auto params = host_function_name_to_params[name_to_prefix[name_hint]];
+      for (int i = 0; i < params.size(); ++i) {
+        if (arg.same_as(params[i])) {
           ss << i << " ";
           find_param_in_host = true;
         }
       }
-      std::cout << std::endl;
       if (!find_param_in_host) {
         ss << arg.get() << " ";
       }
@@ -359,7 +359,7 @@ class DeviceKernelMutator : public StmtExprMutator {
 };
 
 namespace transform {
-String GetDeviceFuncsList() {
+String GetDeviceFunctionList() {
   String ret = "";
   for (auto func : device_funcs) {
     ret = ret + func;
@@ -431,8 +431,8 @@ Pass LowerDeviceKernelLaunch() {
 TVM_REGISTER_GLOBAL("tir.transform.LowerDeviceKernelLaunch")
     .set_body_typed(LowerDeviceKernelLaunch);
 
-TVM_REGISTER_GLOBAL("tir.transform.retrieve_device_funcs_list")
-    .set_body([](TVMArgs args, TVMRetValue* rv) { *rv = GetDeviceFuncsList(); });
+TVM_REGISTER_GLOBAL("tir.transform.retrieve_device_function_list")
+    .set_body([](TVMArgs args, TVMRetValue* rv) { *rv = GetDeviceFunctionList(); });
 
 TVM_REGISTER_GLOBAL("tir.transform.retrieve_device_memory_size")
     .set_body([](TVMArgs args, TVMRetValue* rv) { *rv = GetDeviceMemorySize(); });

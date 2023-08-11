@@ -796,7 +796,7 @@ PackedFunc GraphExecutor::GetFunction(const String& name, const ObjectPtr<Object
   } else if (name == "get_workspace_size") {
     return PackedFunc(
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetWorkspaceSize(); });
-  } else if (name == "get_func_inorder") {
+  } else if (name == "get_func_list") {
     return PackedFunc(
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetFuncList(); });
   } else if (name == "get_storageid") {

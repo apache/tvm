@@ -59,7 +59,7 @@ def _extract_target_onnx_node(model, tunning_node):
 
 
 def pipeline(
-    onnx_file: str, node_names: list[str], enable_tunning: bool, work_dir: str, output_onnx: str
+    onnx_file: str, node_names: list[str], enable_tunning: bool, tunning_option: object, output_onnx: str
 ) -> Tuple[str, list[str]]:
     """Generate plugins for specified nodes in an ONNX model.
 
@@ -73,8 +73,8 @@ def pipeline(
         Names of the nodes to be generated as TensorRT plugins.
     enable_tunning : bool
         Flag indicating whether tunning is enabled.
-    work_dir : str
-        Path to the tunning log file where the records will be saved.
+    tunning_option : object
+        Tunning option provided for ms.relay_integration.tune_relay, you don't need to specify mod, params and target.
     output_onnx : str
         Path to the output ONNX file where the modified model will be saved.
 
@@ -106,7 +106,7 @@ def pipeline(
 
         subgraph, submodel, shapes = _extract_target_onnx_node(inferred_model, node)
 
-        kernel = Kernel(plugin_name, submodel, shapes, enable_tunning, work_dir)
+        kernel = Kernel(plugin_name, submodel, shapes, enable_tunning, tunning_option)
         kernel.run()
 
         ## 3.1 fill in template

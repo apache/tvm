@@ -94,7 +94,11 @@ def verify_tf_with_trt_result(in_data, in_name, out_name, op_name):
     ops_name = [op_name]
 
     _, trt_plugin_names = tpat.cuda.pipeline(
-        INPUT_MODEL_FILE, ops_name, False, "./log_db", OUTPUT_MODEL_FILE
+        INPUT_MODEL_FILE,
+        ops_name,
+        False,
+        {"work_dir": "./log_db", "max_trials_per_task": 500},
+        OUTPUT_MODEL_FILE,
     )
 
     load_plugin(trt_plugin_names)
@@ -197,7 +201,11 @@ def verify_with_ort_with_trt(
     ops_name = [op_name]
 
     _, trt_plugin_names = tpat.cuda.pipeline(
-        INPUT_MODEL_FILE, ops_name, False, "./log_db", OUTPUT_MODEL_FILE
+        INPUT_MODEL_FILE,
+        ops_name,
+        False,
+        {"work_dir": "./log_db", "max_trials_per_task": 500},
+        OUTPUT_MODEL_FILE,
     )
 
     load_plugin(trt_plugin_names)
