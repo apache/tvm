@@ -97,6 +97,22 @@ Array<StmtDoc> PrintSeqExpr(const relax::SeqExpr& n, const ObjectPath& n_p, cons
 
 ExprDoc PrintShapeVar(const PrimExpr& e, const ObjectPath& e_p, const IRDocsifier& d);
 
+inline int FindVDeviceIndexByTargetKind(const VDevice& vdevice, const IRDocsifier& d) {
+  Array<GlobalInfo> vdevices = d->global_infos["vdevice"];
+  int kind_index = 0;
+  for (size_t i = 0; i < vdevices.size(); ++i) {
+    auto vdev = Downcast<VDevice>(vdevices[i]);
+    if (vdev.same_as(vdevice)) {
+      return kind_index;
+    }
+    if (vdev->target->kind->name == vdevice->target->kind->name) {
+      kind_index++;
+    }
+  }
+  LOG(WARNING) << "The VDevice was not found in the global_infos map: " << vdevice;
+  return -1;
+}
+
 }  // namespace printer
 }  // namespace script
 }  // namespace tvm

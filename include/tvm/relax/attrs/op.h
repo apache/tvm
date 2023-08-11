@@ -57,6 +57,14 @@ struct CallTIRInplaceAttrs : public tvm::AttrsNode<CallTIRInplaceAttrs> {
   }
 };  // struct CallTIRInplaceAttrs
 
+/*! \brief Attributes used in to_vdevice */
+struct ToVDeviceAttrs : public tvm::AttrsNode<ToVDeviceAttrs> {
+  VDevice dst_vdevice;
+  TVM_DECLARE_ATTRS(ToVDeviceAttrs, "relax.attrs.ToVDeviceAttrs") {
+    TVM_ATTR_FIELD(dst_vdevice).describe("The destination device where the data is copied to.");
+  }
+};  // struct ToVDeviceAttrs
+
 }  // namespace relax
 }  // namespace tvm
 

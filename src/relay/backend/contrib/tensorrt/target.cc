@@ -39,7 +39,7 @@ namespace tensorrt {
  */
 TVM_REGISTER_TARGET_KIND("tensorrt", kDLCUDA)
     .set_attr<Bool>(tvm::attr::kIsExternalCodegen, Bool(true))
-    .set_attr<FTVMRelayToTIR>("RelayToTIR", CompileForTensorRT())
+    .set_attr<tvm::transform::Pass>("RelayToTIR", CompileForTensorRT())
     // A array of three integers given the major, minor, and patch numbers for the supported
     // TensorRT compiler version. If empty will be auto-detected from linked library. Default empty.
     .add_attr_option<Array<Integer>>("tensorrt_version", Array<Integer>())

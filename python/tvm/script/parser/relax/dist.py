@@ -78,7 +78,11 @@ def DTensor(
         raise ValueError(f"shape must be a list or tuple, but got: {shape}")
     if isinstance(device_mesh, str):
         if not IRBuilder.is_in_scope():
-            return (DTensorProxy(TensorProxy(shape, dtype, ndim), DeviceMesh([], Range(0, 1)), ""),)
+            return (
+                DTensorProxy(
+                    TensorProxy(shape, dtype, None, ndim), DeviceMesh([], Range(0, 1)), ""
+                ),
+            )
         name, index = device_mesh.split("[")
         index = int(index[:-1])
         frames = IRBuilder.current().frames
@@ -89,7 +93,7 @@ def DTensor(
         assert isinstance(device_mesh, DeviceMesh)
     if isinstance(placement, str):
         placement = Placement.from_text(placement)
-    return DTensorProxy(TensorProxy(shape, dtype, ndim), device_mesh, placement)
+    return DTensorProxy(TensorProxy(shape, dtype, None, ndim), device_mesh, placement)
 
 
 __all__ = ["DTensor", "device_mesh"]

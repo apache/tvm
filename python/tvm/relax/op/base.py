@@ -690,3 +690,24 @@ def invoke_pure_closure(
         sinfo_args = [sinfo_args]
 
     return _ffi_api.invoke_pure_closure(closure, args, sinfo_args)  # type: ignore
+
+
+def to_vdevice(data, dst_vdevice) -> Expr:
+    """Copy data to the destination device. This
+    operator helps data transferring between difference devices for
+    heterogeneous execution.
+
+    Parameters
+    ----------
+    data : Expr
+        The tensor to be copied.
+
+    dst_device : Union[:py:class:`Device`, str]
+        The destination device where the data is copied to.
+
+    Returns
+    -------
+    result : Expr
+        The copied result.
+    """
+    return _ffi_api.to_vdevice(data, dst_vdevice)  # type: ignore

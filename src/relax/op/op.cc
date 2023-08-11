@@ -866,5 +866,33 @@ Expr MakeStopLiftParams(Expr x) {
 
 TVM_REGISTER_GLOBAL("relax.op.builtin.stop_lift_params").set_body_typed(MakeStopLiftParams);
 
+// to_vdevice
+TVM_REGISTER_NODE_TYPE(ToVDeviceAttrs);
+
+StructInfo InferToVDeviceStructInfo(const Call& call, const BlockBuilder& ctx) {
+  ICHECK(call->args.size() == 1);
+  ICHECK(call->args[0]->struct_info_.defined());
+  TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
+  return data_sinfo;
+}
+
+RELAY_REGISTER_OP("relax.to_vdevice")
+    .set_num_inputs(1)
+    .set_attrs_type<ToVDeviceAttrs>()
+    .add_argument("data", "Expr", "The input expression to be copied")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferToVDeviceStructInfo)
+    .set_attr<Bool>("FPurity", Bool(true));
+
+Expr MakeToVDevice(Expr data, VDevice dst_vdevice) {
+  static const Op& op = Op::Get("relax.to_vdevice");
+  // TODO(@yongwww): replace Attr with TensorStructInfo
+  ObjectPtr<ToVDeviceAttrs> attrs = make_object<ToVDeviceAttrs>();
+  attrs->dst_vdevice = dst_vdevice;
+
+  return Call(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.to_vdevice").set_body_typed(MakeToVDevice);
+
 }  // namespace relax
 }  // namespace tvm

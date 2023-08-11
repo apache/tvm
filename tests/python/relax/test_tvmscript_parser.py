@@ -22,7 +22,7 @@ import tvm
 import tvm.script
 import tvm.testing
 from tvm import IRModule, relax, tir, topi
-from tvm.ir import DummyGlobalInfo
+from tvm.ir import VDevice, DummyGlobalInfo
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
 from tvm.script.parser import tir as T
@@ -299,6 +299,56 @@ def test_module_with_attr_and_global_info():
         bb.emit_func_output(out)
     mod = bb.get()
     mod.update_global_info("dummy", [DummyGlobalInfo(), DummyGlobalInfo()])
+    mod = mod.with_attr("attr", tvm.tir.IntImm("int32", 10))
+    _check(TestModule, mod)
+
+
+def test_global_info_vdevice():
+    vdevices = [
+        VDevice("llvm"),
+        VDevice("cuda", 0),
+        VDevice("cuda -arch=sm_80", 0),
+        VDevice("metal", 0, "global"),
+    ]
+
+    @I.ir_module
+    class TestModule:
+        I.module_attrs({"attr": 10})
+        I.module_global_infos(
+            {
+                "vdevice": [
+                    I.vdevice("llvm"),
+                    I.vdevice("cuda", 0),
+                    I.vdevice("cuda -arch=sm_80", 0),
+                    I.vdevice("metal", 0, "global"),
+                ]
+            }
+        )
+
+        @T.prim_func(private=True)
+        def tir_func(
+            x: T.Buffer((T.int64(128), T.int64(128)), "float32"),
+            y: T.Buffer((T.int64(128), T.int64(128)), "float32"),
+        ):
+            T.func_attr({"tir.noalias": True})
+            for i, j in T.grid(T.int64(128), T.int64(128)):
+                with T.block():
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    y[vi, vj] = x[vi, vj] + 1.0
+
+        @R.function
+        def foo(x: R.Tensor((128, 128), "float32")) -> R.Tensor((128, 128), "float32"):
+            cls = TestModule
+            gv0 = R.call_tir(cls.tir_func, x, R.Tensor((128, 128), dtype="float32"))
+            return gv0
+
+    x = relax.Var("x", R.Tensor((128, 128), "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", (x,)):
+        out = bb.emit_te(lambda x: x + 1, x, primfunc_name_hint="tir_func")
+        bb.emit_func_output(out)
+    mod = bb.get()
+    mod.update_global_info("vdevice", vdevices)
     mod = mod.with_attr("attr", tvm.tir.IntImm("int32", 10))
     _check(TestModule, mod)
 
@@ -712,6 +762,51 @@ def test_tensor_type_without_args():
         bb.emit_func_output(v)
 
     _check(foo, bb.get()["foo"])
+
+
+def test_tensor_with_vdevice():
+    vdevices = [
+        VDevice("llvm"),
+        VDevice("cuda", 0),
+        VDevice("metal", 0, "global"),
+        VDevice("cuda -arch=sm_80", 0),
+    ]
+
+    @I.ir_module
+    class TestModule:
+        I.module_attrs({"attr": 10})
+        I.module_global_infos(
+            {
+                "vdevice": [
+                    I.vdevice("llvm"),
+                    I.vdevice("cuda", 0),
+                    I.vdevice("metal", 0, "global"),
+                    I.vdevice("cuda -arch=sm_80", 0),
+                ]
+            }
+        )
+
+        @R.function
+        def foo(
+            a: R.Tensor((128, 128), "float32", "cuda:1"),  # noqa: F722
+            b: R.Tensor((128, 128), "float32", "llvm"),
+            c: R.Tensor((128, 128), "float32", "vdevice:3"),  # noqa: F722
+        ) -> R.Tensor((128, 128), "float32"):
+            s = R.add(a, c)
+            return s
+
+    a = relax.Var("a", R.Tensor((128, 128), "float32", vdevices[3]))
+    b = relax.Var("b", R.Tensor((128, 128), "float32", vdevices[0]))
+    c = relax.Var("c", R.Tensor((128, 128), "float32", vdevices[3]))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", (a, b, c)):
+        out = bb.emit(relax.op.add(a, c))
+        bb.emit_func_output(out)
+    mod = bb.get()
+    mod = mod.with_attr("attr", tvm.tir.IntImm("int32", 10))
+    mod.update_global_info("vdevice", vdevices)
+
+    _check(TestModule, mod)
 
 
 def test_direct_return():

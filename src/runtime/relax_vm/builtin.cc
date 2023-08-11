@@ -327,6 +327,12 @@ TVM_REGISTER_GLOBAL("vm.builtin.null_value").set_body([](TVMArgs args, TVMRetVal
   *rv = nullptr;
 });
 
+TVM_REGISTER_GLOBAL("vm.builtin.to_device")
+    .set_body_typed([](NDArray data, int dev_type, int dev_id) {
+      Device dst_device = {(DLDeviceType)dev_type, dev_id};
+      return data.CopyTo(dst_device);
+    });
+
 /*!
  * \brief Load the scalar value in cond and return the result value.
  * \param cond The condition

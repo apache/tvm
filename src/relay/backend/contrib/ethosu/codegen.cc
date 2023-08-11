@@ -320,8 +320,8 @@ runtime::Module TIRToRuntime(IRModule mod, Target target) {
 
 TVM_REGISTER_TARGET_KIND("ethos-u", kDLCPU)
     .set_attr<Bool>("use_device_api", Bool(true))
-    .set_attr<FTVMRelayToTIR>(tvm::attr::kRelayToTIR, RelayToTIR())
-    .set_attr<FTVMTIRToRuntime>("TIRToRuntime", TIRToRuntime);
+    .set_attr<relay::transform::FTVMRelayToTIR>(tvm::attr::kRelayToTIR, RelayToTIR())
+    .set_attr<relay::transform::FTVMTIRToRuntime>("TIRToRuntime", TIRToRuntime);
 
 }  // namespace ethosu
 }  // namespace contrib

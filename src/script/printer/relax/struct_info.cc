@@ -111,6 +111,13 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             kwargs_keys.push_back("ndim");
             kwargs_values.push_back(LiteralDoc::Int(n->ndim, n_p->Attr("ndim")));
           }
+          if (n->vdevice.defined()) {
+            kwargs_keys.push_back("vdevice");
+            std::string dev_kind = n->vdevice.value()->target->kind->name;
+            int dev_index = FindVDeviceIndexByTargetKind(n->vdevice.value(), d);
+            kwargs_values.push_back(
+                LiteralDoc::Str(dev_kind + ":" + std::to_string(dev_index), n_p->Attr("vdevice")));
+          }
           if (args.empty() && kwargs_keys.empty()) {
             return Relax(d, "Tensor");
           }

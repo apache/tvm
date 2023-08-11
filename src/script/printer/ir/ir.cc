@@ -119,6 +119,16 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
+    .set_dispatch<VDevice>("", [](VDevice vdev, ObjectPath p, IRDocsifier d) -> Doc {
+      d->AddGlobalInfo("vdevice", vdev);
+      Map<String, ObjectRef> config = vdev->target->Export();
+      return IR(d, "vdevice")
+          ->Call({d->AsDoc<ExprDoc>(config, p),
+                  LiteralDoc::Int(vdev->vdevice_id, p->Attr("vdevice_id")),
+                  LiteralDoc::Str(vdev->memory_scope, p->Attr("memory_scope"))});
+    });
+
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<Op>("", [](Op op, ObjectPath p, IRDocsifier d) -> Doc {
       return IR(d, "Op")->Call({LiteralDoc::Str(op->name, p->Attr("name"))});
     });

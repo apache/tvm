@@ -22,5 +22,7 @@ from .ir import (
     ir_module,
     module_attrs,
     module_global_infos,
+    lookup_vdevice,
+    vdevice,
     dummy_global_info,
 )

@@ -63,6 +63,12 @@ ExprDoc IRDocsifierNode::AddMetadata(const ObjectRef& obj) {
   return IdDoc("metadata")[{LiteralDoc::Str(key, NullOpt)}][{LiteralDoc::Int(index, NullOpt)}];
 }
 
+void IRDocsifierNode::AddGlobalInfo(const String& name, const GlobalInfo& ginfo) {
+  ICHECK(ginfo.defined()) << "TypeError: Cannot add nullptr to global_infos";
+  Array<GlobalInfo>& array = global_infos[name];
+  array.push_back(ginfo);
+}
+
 bool IRDocsifierNode::IsVarDefined(const ObjectRef& obj) const { return obj2info.count(obj); }
 
 void IRDocsifierNode::RemoveVar(const ObjectRef& obj) {

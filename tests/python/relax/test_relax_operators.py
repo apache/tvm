@@ -247,5 +247,35 @@ def test_op_call_pure_packed():
     assert (copy_found.numpy() == arr).all()
 
 
+def test_op_to_device():
+    @tvm.script.ir_module
+    class CallToDevice:
+        @R.function
+        def to_dev(x: R.Tensor((3, 4), "float32")):
+            z = R.call_pure_packed(
+                "vm.builtin.to_device",
+                x,
+                1,
+                0,
+                sinfo_args=(R.Tensor((3, 4), dtype="float32")),
+            )
+            return z
+
+    np.random.seed(0)  # to avoid flakiness
+    arr = np.random.rand(3, 4).astype("float32")
+    copy_found = run_cpu(CallToDevice, "to_dev", tvm.nd.array(arr))
+    assert (copy_found.numpy() == arr).all()
+
+
+def test_op_to_vdevice():
+    @tvm.script.ir_module
+    class ToVDevice:
+        @R.function
+        def to_vdev(x: R.Tensor((3, 4), "float32")):
+            dst_vdev = tvm.ir.VDevice("llvm", 0, "global")
+            ret = R.to_vdevice(x, dst_vdev)
+            return ret
+
+
 if __name__ == "__main__":
     tvm.testing.main()

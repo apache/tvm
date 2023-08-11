@@ -110,11 +110,41 @@ void ModuleGlobalInfos(Map<String, Array<GlobalInfo>> global_infos) {
   }
 }
 
+VDevice LookupVDevice(String target_kind, int device_index) {
+  if (IRBuilder::IsInScope()) {
+    IRModuleFrame frame = FindModuleFrame();
+    if (frame->global_infos.empty()) {
+      LOG(FATAL) << "ValueError: The GlobalInfos in the IRModule is not defined.";
+    }
+    Array<GlobalInfo> vdevices = frame->global_infos["vdevice"];
+    if (vdevices.empty() || device_index < 0 ||
+        static_cast<size_t>(device_index) >= vdevices.size()) {
+      LOG(FATAL) << "ValueError: The target VDevice in the GlobalInfos was not found.";
+    }
+    if (target_kind == "vdevice") {
+      return Downcast<VDevice>(vdevices[device_index]);
+    }
+    int count = 0;
+    for (auto vdevice : vdevices) {
+      auto vdev = Downcast<VDevice>(vdevice);
+      if (vdev->target->kind->name == target_kind) {
+        if (count == device_index) {
+          return vdev;
+        }
+        count++;
+      }
+    }
+  }
+  LOG(WARNING) << "The annotated device was not found, please check your vdevice list.";
+  return VDevice();
+}
+
 TVM_REGISTER_GLOBAL("script.ir_builder.ir.IRModule").set_body_typed(IRModule);
 TVM_REGISTER_GLOBAL("script.ir_builder.ir.DeclFunction").set_body_typed(DeclFunction);
 TVM_REGISTER_GLOBAL("script.ir_builder.ir.DefFunction").set_body_typed(DefFunction);
 TVM_REGISTER_GLOBAL("script.ir_builder.ir.ModuleAttrs").set_body_typed(ModuleAttrs);
 TVM_REGISTER_GLOBAL("script.ir_builder.ir.ModuleGlobalInfos").set_body_typed(ModuleGlobalInfos);
+TVM_REGISTER_GLOBAL("script.ir_builder.ir.LookupVDevice").set_body_typed(LookupVDevice);
 
 }  // namespace ir
 }  // namespace ir_builder

@@ -267,7 +267,11 @@ class LayoutConvertMutator : public ExprMutator {
         new_shape.push_back(
             shape->values[from.LeafValue()->layout.IndexOf(to.LeafValue()->layout[i])]);
       }
-      return TensorStructInfo(ShapeExpr(new_shape), tsinfo->dtype, tsinfo->span);
+      VDevice vdev = VDevice();
+      if (tsinfo->vdevice.defined()) {
+        vdev = tsinfo->vdevice.value();
+      }
+      return TensorStructInfo(ShapeExpr(new_shape), tsinfo->dtype, vdev, tsinfo->span);
     };
     StructInfo new_struct_info = TransformTupleLeaf<LayoutDecision>(
         binding->struct_info, std::array<NLayout, 2>({from_layout, input_layout}), fvisitleaf);
