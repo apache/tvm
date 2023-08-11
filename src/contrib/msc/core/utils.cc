@@ -152,7 +152,7 @@ const String StringUtils::ToString(const runtime::ObjectRef& obj) {
 }
 
 bool StringUtils::CompareArrays(const Array<String>& left, const Array<String>& right, int size) {
-  if (left.size() == right.size() == 0) {
+  if (left.size() == right.size() && left.size() == 0) {
     return true;
   }
   if (size == -1 && left.size() != right.size()) {
@@ -163,10 +163,10 @@ bool StringUtils::CompareArrays(const Array<String>& left, const Array<String>& 
   }
   size = left.size();
   ICHECK_GT(size, 0) << "Positive size should be given, get " << size;
-  if (size > left.size() || size > right.size()) {
+  if (size > static_cast<int>(left.size()) || size > static_cast<int>(right.size())) {
     return false;
   }
-  for (size_t i = 0; i < size; i++) {
+  for (size_t i = 0; i < static_cast<size_t>(size); i++) {
     if (left[i] != right[i]) {
       return false;
     }

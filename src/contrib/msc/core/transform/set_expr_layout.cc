@@ -35,7 +35,7 @@ namespace relax {
 using namespace tvm::contrib::msc;
 
 NLayout InferNLayout(const Expr& expr, const VarLayoutMap& var_layout_map) {
-  if (expr.as<VarNode>() && var_layout_map.count(Downcast<Var>(expr))) {
+  if (expr->IsInstance<VarNode>() && var_layout_map.count(Downcast<Var>(expr))) {
     return GetNLayout(var_layout_map, expr);
   }
   return LayoutUtils::GetNLayout(expr);
@@ -83,10 +83,12 @@ std::tuple<int64_t, int64_t> AccumulateMatch(const std::vector<int64_t>& in_shap
   }
   // append tailed 1s
   if (in_pos >= 0) {
-    while (in_pos < in_shape.size() - 1 && in_shape[in_pos + 1] == 1) {
+    int64_t in_size = static_cast<int64_t>(in_shape.size());
+    int64_t out_size = static_cast<int64_t>(out_shape.size());
+    while (in_pos < in_size - 1 && in_shape[in_pos + 1] == 1) {
       in_pos++;
     }
-    while (out_pos < out_shape.size() - 1 && out_shape[out_pos + 1] == 1) {
+    while (out_pos < out_size - 1 && out_shape[out_pos + 1] == 1) {
       out_pos++;
     }
   }
@@ -115,7 +117,7 @@ std::vector<size_t> InferReduceAxes(const Array<PrimExpr>& input_shape,
       if (in_pos == -1) {
         return std::vector<size_t>();
       }
-      for (size_t i = out_start; i < out_pos + 1; i++) {
+      for (size_t i = out_start; i < static_cast<size_t>(out_pos) + 1; i++) {
         out_axes.push_back(i + 1);
       }
       start = in_pos + 1;
@@ -225,7 +227,7 @@ InferLayoutOutput ForwardInferLayoutCommon(const Call& call,
   }
   std::vector<NLayout> output_layouts;
   const auto& sinfo = GetStructInfo(call);
-  if (sinfo.as<TensorStructInfoNode>()) {
+  if (sinfo->IsInstance<TensorStructInfoNode>()) {
     output_layouts.push_back(layout_hint);
   } else if (const auto* tuple_sinfo = sinfo.as<TupleStructInfoNode>()) {
     for (size_t i = 0; i < tuple_sinfo->fields.size(); i++) {
@@ -955,19 +957,19 @@ class LayoutInfer : public ExprVisitor {
   void BackwardInfer() {
     for (size_t e_idx = ordered_exprs_.size(); e_idx > 0; e_idx--) {
       const Expr& expr = ordered_exprs_[e_idx - 1];
-      if (const auto* t_node = expr.as<TupleNode>()) {
+      if (expr->IsInstance<TupleNode>()) {
         continue;
       }
-      if (const auto* t_node = expr.as<TupleGetItemNode>()) {
+      if (expr->IsInstance<TupleGetItemNode>()) {
         continue;
       }
-      if (!expr.as<CallNode>()) {
+      if (!expr->IsInstance<CallNode>()) {
         continue;
       }
       const Call& call = Downcast<Call>(expr);
       size_t infered_num = 0;
       for (const auto& arg : call->args) {
-        if (arg.as<VarNode>() && var_map_.count(Downcast<Var>(arg))) {
+        if (arg->IsInstance<VarNode>() && var_map_.count(Downcast<Var>(arg))) {
           if (LayoutUtils::LayoutInfered(var_map_[Downcast<Var>(arg)]) > 0) {
             infered_num++;
           }
@@ -975,8 +977,8 @@ class LayoutInfer : public ExprVisitor {
           infered_num++;
         }
       }
-      if (call->args.size() == 0 || infered_num == call->args.size() || !call->op.as<OpNode>() ||
-          LayoutUtils::HasUnknownDimTensor(call->args)) {
+      if (call->args.size() == 0 || infered_num == call->args.size() ||
+          !call->op->IsInstance<OpNode>() || LayoutUtils::HasUnknownDimTensor(call->args)) {
         continue;
       }
       const OpNode* op_node = call->op.as<OpNode>();
@@ -1013,7 +1015,7 @@ class LayoutInfer : public ExprVisitor {
   void SetInputLayouts(const Array<NLayout>& input_layouts, const Call& call) {
     if (input_layouts.size() == call->args.size()) {
       for (size_t i = 0; i < input_layouts.size(); i++) {
-        if (call->args[i].as<VarNode>()) {
+        if (call->args[i]->IsInstance<VarNode>()) {
           const auto& var = Downcast<Var>(call->args[i]);
           var_layout_map_[var] = input_layouts[i];
           if (var_map_.count(var)) {
@@ -1058,7 +1060,7 @@ class LayoutInfer : public ExprVisitor {
       if (LayoutUtils::LayoutInfered(call)) {
         infer_outputs = false;
       }
-      if (call->args.size() == 0 || !call->op.as<OpNode>() ||
+      if (call->args.size() == 0 || !call->op->IsInstance<OpNode>() ||
           LayoutUtils::HasUnknownDimTensor(call->args)) {
         infer_outputs = false;
       }
