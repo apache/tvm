@@ -32,8 +32,6 @@
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
-#include <sstream>
-#include <string>
 #include <unordered_map>
 
 #include "../../runtime/thread_storage_scope.h"
@@ -43,8 +41,7 @@
 namespace tvm {
 namespace tir {
 
-extern std::unordered_map<std::string, std::vector<PrimExpr> > host_name_to_param;
-std::unordered_map<std::string, std::string> curr2prev;
+std::unordered_map<std::string, std::string> name_to_prefix;
 
 class HostDeviceSplitter : public StmtMutator {
  public:
@@ -98,7 +95,7 @@ class HostDeviceSplitter : public StmtMutator {
 
     GlobalVar kernel_symbol_global = var_supply_();
 
-    curr2prev[kernel_symbol_global->name_hint] = name_prefix_;
+    name_to_prefix[kernel_symbol_global->name_hint] = name_prefix_;
 
     PrimFunc device_func(params, body, kernel_ret_type);
     device_func = WithAttrs(std::move(device_func), {{tvm::attr::kTarget, device_target},
@@ -107,15 +104,6 @@ class HostDeviceSplitter : public StmtMutator {
 
     (*device_mod_)->Add(kernel_symbol_global, device_func);
     Array<PrimExpr> args = params.Map([](const Var& var) -> PrimExpr { return var; });
-
-    // std::cout << "1. IN SPLIT HOST DEVICE: " << '\n';
-    // for (auto& entry : host_name_to_param) {
-    //   std::cout << ">>> NAME HINT: " << entry.first << " : " << '\n';
-    //   for (auto& item : entry.second) {
-    //     std::cout << ">>> " << item << ", ";
-    //   }
-    // }
-    // std::cout << "=========================\n\n\n";
 
     if (can_propagate_errors) {
       Var kernel_error_code("kernel_error_code", success->dtype);
@@ -134,6 +122,7 @@ class HostDeviceSplitter : public StmtMutator {
   IRModule* device_mod_;
   // Generate new GlobalVar for the kernel
   std::function<GlobalVar()> var_supply_;
+  // name prefix of function
   std::string name_prefix_;
 };
 
@@ -157,7 +146,7 @@ Pass SplitHostDevice() {
     IRModule device_mod = IRModule(Map<GlobalVar, BaseFunc>({}));
     IRModule updates = IRModule(Map<GlobalVar, BaseFunc>({}));
 
-    curr2prev.clear();
+    name_to_prefix.clear();
 
     for (const auto& [gvar, base_func] : mod->functions) {
       if (auto opt = base_func.as<PrimFunc>()) {

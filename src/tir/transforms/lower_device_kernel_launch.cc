@@ -28,6 +28,7 @@
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
+
 #include <sstream>
 
 #include "../../runtime/thread_storage_scope.h"
@@ -36,7 +37,7 @@
 namespace tvm {
 namespace tir {
 extern std::unordered_map<std::string, std::vector<PrimExpr> > host_name_to_param;
-extern std::unordered_map<std::string, std::string> curr2prev;
+extern std::unordered_map<std::string, std::string> name_to_prefix;
 std::vector<String> device_funcs;
 std::vector<String> device_memory_size;
 
@@ -125,13 +126,7 @@ class DeviceInfoCollector : public StmtVisitor {
   }
 
   void VisitStmt_(const AllocateNode* op) final {
-    std::ostringstream os;
-    os << op->buffer_var.get() << " " << op->dtype << " ";
-    for (auto extent : op->extents) {
-      os << extent << " ";
-    }
-    os << "\n";
-    device_memory_size.push_back(os.str());
+    ResolveDeviceMemorySize(op);
 
     auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(op->buffer_var));
     if (storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn") {
@@ -147,6 +142,16 @@ class DeviceInfoCollector : public StmtVisitor {
       dyn_shmem_size = dyn_size;
     }
     StmtVisitor::VisitStmt_(op);
+  }
+
+  void ResolveDeviceMemorySize(const AllocateNode* op) {
+    std::stringstream ss;
+    ss << op->buffer_var.get() << " " << op->dtype << " ";
+    for (auto extent : op->extents) {
+      ss << extent << " ";
+    }
+    ss << "\n";
+    device_memory_size.push_back(ss.str());
   }
 
   // The collected results
@@ -311,23 +316,30 @@ class DeviceKernelMutator : public StmtExprMutator {
     device_kernel_launch_.insert(gvar);
 
     Array<PrimExpr> call_args;
-    Array<PrimExpr> cuda_kernel_args;
 
     call_args.push_back(StringImm(dev_info.global_symbol));
     for (PrimExpr arg : node->args) {
       call_args.push_back(arg);
-      cuda_kernel_args.push_back(arg);
     }
     for (const auto& launch_arg : dev_info.launch_args) {
       call_args.push_back(Substitute(launch_arg, param_map));
     }
+
+    ResolveDeviceFuncs(gvar->name_hint, node->args);
+
+    auto dtype = node->dtype.is_void() ? DataType::Int(32) : node->dtype;
+
+    return Call(dtype, builtin::tvm_call_packed(), call_args);
+  }
+
+  void ResolveDeviceFuncs(const String& name_hint, const Array<PrimExpr>& args) {
     std::stringstream ss;
-    ss << gvar->name_hint << " ";
-    for (auto arg : cuda_kernel_args) {
+    ss << name_hint << " ";
+    for (auto arg : args) {
       bool find_param_in_host = false;
-      for (int i = 0; i < host_name_to_param[curr2prev[gvar->name_hint]].size(); ++i) {
-        if (arg.same_as(host_name_to_param[curr2prev[gvar->name_hint]][i])) {
-          ss <<  i << " ";
+      for (int i = 0; i < host_name_to_param[name_to_prefix[name_hint]].size(); ++i) {
+        if (arg.same_as(host_name_to_param[name_to_prefix[name_hint]][i])) {
+          ss << i << " ";
           find_param_in_host = true;
         }
       }
@@ -338,16 +350,6 @@ class DeviceKernelMutator : public StmtExprMutator {
     }
     ss << "\n";
     device_funcs.push_back(ss.str());
-
-    // std::cout << "3. Lower device kernel" << '\n';
-    // for (auto& item: device_funcs) {
-    //   std::cout << item << ", ";
-    // }
-    // std::cout << '\n';
-
-    auto dtype = node->dtype.is_void() ? DataType::Int(32) : node->dtype;
-
-    return Call(dtype, builtin::tvm_call_packed(), call_args);
   }
 
   Optional<Target> current_target_;
@@ -428,7 +430,6 @@ Pass LowerDeviceKernelLaunch() {
 
 TVM_REGISTER_GLOBAL("tir.transform.LowerDeviceKernelLaunch")
     .set_body_typed(LowerDeviceKernelLaunch);
-
 
 TVM_REGISTER_GLOBAL("tir.transform.retrieve_device_funcs_list")
     .set_body([](TVMArgs args, TVMRetValue* rv) { *rv = GetDeviceFuncsList(); });

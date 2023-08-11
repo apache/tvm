@@ -601,8 +601,6 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
   }
 
   mixed_pass_list.push_back(tir::transform::AnnotateDeviceRegions());
-
-  // std::cout << "@1. SplitHostDevice" << '\n';
   mixed_pass_list.push_back(tir::transform::SplitHostDevice());
 
   bool unpacked_api = mixed_mod->GetAttr<relay::Executor>(tvm::attr::kExecutor)
@@ -610,16 +608,13 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
                           ->GetAttr<Bool>("unpacked-api")
                           .value_or(Bool(false));
   if (unpacked_api) {
-    // std::cout << "@2.1 UNMakePackedAPI" << '\n';
     mixed_pass_list.push_back(tir::transform::MakeUnpackedAPI());
   } else {
-    // std::cout << "@2.2 MakePackedAPI" << '\n';
     mixed_pass_list.push_back(tir::transform::MakePackedAPI());
   }
   mixed_pass_list.push_back(tir::transform::FP8StorageLegalize());
   mixed_pass_list.push_back(tir::transform::BF16StorageLegalize());
 
-  // std::cout << "@3. LowerDevice" << '\n';
   mixed_pass_list.push_back(tir::transform::LowerDeviceKernelLaunch());
 
   return transform::Sequential(mixed_pass_list);

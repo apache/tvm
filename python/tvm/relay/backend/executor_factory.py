@@ -200,6 +200,8 @@ class GraphExecutorFactoryModule(ExecutorFactoryModule):
         self.iter_cnt = 0
         self.function_metadata = function_metadata
 
+        print("SELF MODULE :::", dir(self.module))
+
         self.constant_params = constant_params
         self.device_funcs_list_func = get_global_func("tir.transform.retrieve_device_funcs_list")
         self.device_memory_size_func = get_global_func("tir.transform.retrieve_device_memory_size")

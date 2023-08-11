@@ -321,12 +321,6 @@ PrimFunc MakePackedAPI(PrimFunc func) {
 
   host_name_to_param[name_hint] = cur_func_param;
 
-  // std::cout << "2.2. IN MAKE_PACKED_API, NAME HINT: " << name_hint << " : " << '\n';
-  // for (auto& item: cur_func_param) {
-  //   std::cout << ">>> " << item << ", ";
-  // }
-  // std::cout << "=====================\n\n\n";
-
   Array<Var> args{v_packed_args,     buf_packed_arg_type_ids->data,
                   v_num_packed_args, v_out_ret_value,
                   v_out_ret_tcode,   v_resource_handle};
@@ -397,6 +391,8 @@ namespace transform {
 
 Pass MakePackedAPI() {
   auto pass_func = [](IRModule mod, PassContext ctx) {
+    host_name_to_param.clear();
+
     Map<GlobalVar, String> packed_func_methods;
     for (const auto& [gvar, base_func] : mod->functions) {
       if (auto opt = base_func.as<PrimFunc>()) {
@@ -409,7 +405,6 @@ Pass MakePackedAPI() {
 
     IRModuleNode* mptr = mod.CopyOnWrite();
     IRModule updates;
-    host_name_to_param.clear();
 
     for (const auto& [gvar, base_func] : mptr->functions) {
       if (auto opt = base_func.as<PrimFunc>()) {

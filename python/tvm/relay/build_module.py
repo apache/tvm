@@ -70,7 +70,7 @@ class BuildModule(object):
         self._get_executor_codegen_metadata = self.mod["get_executor_codegen_metadata"]
         self._get_devices = self.mod["get_devices"]
         self._get_irmodule = self.mod["get_irmodule"]
-        self._get_constant_params_func = self.mod["get_constant_params"]
+        self._get_constant_params = self.mod["get_constant_params"]
 
     def build(
         self,
@@ -251,7 +251,8 @@ class BuildModule(object):
         return ret
 
     def get_constant_params(self):
-        params = self._get_constant_params_func()
+        """Return the constant params."""
+        params = self._get_constant_params()
         ret = {}
         for key, value in params.items():
             ret[key] = value.data.asnumpy()
