@@ -16,12 +16,36 @@
 # under the License.
 """Util functions for benchmarking dynamic shape workloads"""
 
-from typing import Dict, List, Set, Tuple, Union, Any, Optional
+from typing import Dict, List, Set, Any, Tuple, Union, Optional, NamedTuple
 
 import tvm
 from tvm import relax
 
 INPUT_SHAPE_TYPE = List[Tuple[Tuple[int, ...], str]]  # pylint: disable=invalid-name
+
+
+class DisplayConfig(NamedTuple):
+    """Display configuration.
+
+    Parameters
+    ----------
+    print_out : bool
+        Whether to print out the results.
+    desc : bool
+        Whether to sort results in descending order.
+    sort_by : Optional[str]
+        Sort results by this key, if None, no sorting.
+    hidden_cols : Optional[List[str]]
+        Hidden columns, will not be displayed.
+    display_cols : Optional[List[str]]
+        Display columns only, will not display other columns or hidden columns.
+    """
+
+    print_out: bool = False
+    desc: bool = True
+    sort_by: Optional[str] = None
+    hidden_cols: Optional[List[str]] = None
+    display_cols: Optional[List[str]] = None
 
 
 def get_func_name_from_gv(gv: tvm.ir.GlobalVar) -> str:  # pylint: disable=invalid-name
@@ -145,8 +169,8 @@ def random_dym_var_sample_func(
     return {var: random.randint(2, 128) for var in dym_vars}
 
 
-def print_results(
-    bench_results: List[Dict[str, Any]], sort_by: Optional[str] = None, desc: bool = True
+def display_results(
+    bench_results: List[Dict[str, Any]], display_config: Optional[DisplayConfig] = None
 ):
     """Print benchmark results.
 
@@ -160,6 +184,8 @@ def print_results(
         Whether to sort results in descending order.
     """
     # pylint: disable=invalid-name, import-outside-toplevel
+    if display_config is None:
+        display_config = DisplayConfig()
     try:
         import pandas as pd
 
@@ -169,10 +195,23 @@ def print_results(
                 [df, pd.DataFrame(record, index=[0])],
                 ignore_index=True,
             )
-        if sort_by is not None:
-            if sort_by not in df.columns:
-                raise ValueError(f"sort_by key {sort_by} not in benchmark results")
-            df = df.sort_values(sort_by, ascending=not desc).reset_index().drop("index", axis=1)
+        # filter columns
+        if display_config.display_cols is not None:
+            for col in df.columns:
+                if col not in display_config.display_cols:
+                    df = df.drop(col, axis=1)
+        if display_config.hidden_cols is not None:
+            for col in display_config.hidden_cols:
+                if col in df.columns:
+                    df = df.drop(col, axis=1)
+        if display_config.sort_by is not None:
+            if display_config.sort_by not in df.columns:
+                raise ValueError(f"sort_by key {display_config.sort_by} not in benchmark results")
+            df = (
+                df.sort_values(display_config.sort_by, ascending=not display_config.desc)
+                .reset_index()
+                .drop("index", axis=1)
+            )
         print(df)
     except ModuleNotFoundError:
         print("Pandas not found, printing results in raw format.")

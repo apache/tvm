@@ -16,7 +16,7 @@
 # under the License.
 """Extract self-contained benchmarking scripts for dynamic shape workloads"""
 
-from typing import TYPE_CHECKING, Dict, List, Set, Union, Callable, Tuple, Optional
+from typing import TYPE_CHECKING, Dict, List, Set, Any, Union, Callable, Tuple, Optional
 
 
 import tvm
@@ -33,7 +33,8 @@ from .utils import (
     populuate_input_shape,
     random_dym_var_sample_func,
     dym_var_sample_str,
-    print_results,
+    display_results,
+    DisplayConfig,
 )
 
 if TYPE_CHECKING:
@@ -179,10 +180,8 @@ def benchmark_prim_func(
     prim_func_name: Optional[str] = None,
     evaluator_config: Optional["EvaluatorConfig"] = None,
     rpc_config: Optional["RPCConfig"] = None,
-    sort_by: Optional[str] = "WxTime(ms)",
-    desc: bool = True,
-    drop_cols: Optional[List[str]] = None,
-):
+    display_config: Optional["DisplayConfig"] = None,
+) -> List[Dict[str, Any]]:
     """Benchmark a PrimFunc or IRModule with dynamic input shapes and show results.
 
     Parameters
@@ -213,13 +212,12 @@ def benchmark_prim_func(
     rpc_config : Optional["RPCConfig"]
         The RPC configuration to connect to the remote device.
         If none, will use local mode.
-    sort_by : str
-        Sort results by this key, if None, no sorting.
-    desc : bool
-        Whether to sort results in descending order.
-    drop_cols : Optional[List[str]]
-        The columns to drop in the results.
+    display_config : Optional[DisplayConfig]
+        The display configuration to use.
+        If none, will use default display configuration.
     """
+    if display_config is None:
+        display_config = DisplayConfig()
     results = []
     if dym_vars is None or args is None:
         if isinstance(mod_or_func, tvm.tir.PrimFunc):
@@ -257,11 +255,9 @@ def benchmark_prim_func(
         weight = 1 if weight is None else weight
         row["Weight"] = weight
         row["WxTime(ms)"] = weight * median * 1e3
-        row = {k: v for k, v in row.items() if k not in drop_cols} if drop_cols else row
         results.append(row)
-    if drop_cols is not None and sort_by in drop_cols:
-        sort_by = None
-    print_results(results, sort_by=sort_by, desc=desc)
+    display_results(results, display_config=display_config)
+    return results
 
 
 def benchmark_relax_func(
@@ -338,4 +334,4 @@ def benchmark_relax_func(
                         "WxTime(ms)": median * weight * 1e3,
                     }
                 )
-        print_results(bench_results)
+        display_results(bench_results)
