@@ -281,7 +281,7 @@ TVM_DLL size_t CalculateWorkspaceBytes(const PrimFunc& func,
 
 /*!
  * \brief Calculate the allocated memory per scope in bytes needed inside the TIR PrimFunc
- * \param func The TIR PrimFunc for which the the allocated memory size to be calculated
+ * \param func The TIR PrimFunc for which the allocated memory size to be calculated
  * \return Allocated memory size per scope in bytes inside the PrimFunc returned as a Map with
  * key "main" and a Map of allocated sizes as values.
  */
@@ -289,7 +289,7 @@ TVM_DLL tvm::Map<String, tvm::Map<String, Integer>> CalculateAllocatedBytes(cons
 
 /*!
  * \brief Calculate the allocated memory per scope in bytes for each function inside the module
- * \param mod The IRModule for which the the allocated memory size has to be calculated
+ * \param mod The IRModule for which the allocated memory size has to be calculated
  * \return Allocated memory size per scope in bytes for each function in the IRModule returned as a
            Map with function names as keys and a Map of allocated sizes as values.
  */

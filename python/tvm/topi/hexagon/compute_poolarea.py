@@ -114,7 +114,7 @@ def compute_PoolArea(i, j, ih, iw, kh, kw, sh, sw, dh, dw, pad_top, pad_left):
     # data boundary, we should move the edge to the right untill we get to the first dilated kernel
     # point inside the input data boundary.
     # The third row of figures shows how this row adjustment can solve the problem.
-    # So the problem is reduced to finding the the first dilated kernel point inside the data
+    # So the problem is reduced to finding the first dilated kernel point inside the data
     # boundary.# For that, we can find the number of dialted points which are mapped to the padded
     # area and find the location of the next one which should be inside the input data:
     #    num_of_prev_points = (pad_top - i * sh - 1) // dh

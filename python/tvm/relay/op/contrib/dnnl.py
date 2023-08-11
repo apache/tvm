@@ -1165,7 +1165,7 @@ class ResNetV1Rewrite(DFPatternCallback):
 
 
 def rewrite_resnetv1(mod):
-    """Rewrite the the ResNetV1 downsize block to reduce the computation complexity."""
+    """Rewrite the ResNetV1 downsize block to reduce the computation complexity."""
     mod["main"] = rewrite(ResNetV1Rewrite(), mod["main"])
     return mod
 

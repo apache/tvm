@@ -492,7 +492,7 @@ TVM_DLL Pass SimplifyExprPostAlterOp();
  * A typical custom pass will:
  *  - Find calls to "Compiler" attributes functions with matching compiler name.
  *  - Lower those function to TIR PrimFuncs.
- *  - Bind those functions into the IRModule under the the functions' "global_symbol" attribute.
+ *  - Bind those functions into the IRModule under the functions' "global_symbol" attribute.
  *  - Replace all calls to those functions with 'call_lowered' to the matching global.
  * Care should be taken to handle multiple calls to the same function.
  * See src/relay/backend/contrib/example_target_hooks/relay_to_tir.cc for an example custom pass.
