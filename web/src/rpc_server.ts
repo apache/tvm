@@ -282,7 +282,7 @@ export class RPCServer {
           this.log("Cannot find WebGPU device in the env");
         }
       } catch (err) {
-        this.log("Cannnot initialize WebGPU, " + err.toString());
+        this.log("Cannot initialize WebGPU, " + err.toString());
       }
 
       this.inst = inst;
@@ -292,7 +292,7 @@ export class RPCServer {
         this.inst.registerInitProgressCallback(this.initProgressCallback);
       }
 
-      if (this.ndarrayCacheUrl.length != 0) {
+      if (this.ndarrayCacheUrl.length !== 0) {
         if (this.ndarrayCacheDevice == "cpu") {
           await this.inst.fetchNDArrayCache(this.ndarrayCacheUrl, this.inst.cpu());
         } else {

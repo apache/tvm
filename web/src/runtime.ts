@@ -1012,7 +1012,6 @@ export class ArtifactCache {
     return this.cache.keys()
       .then(requests => requests.map(request => request.url))
       .then(cacheKeys => keys.every(key => cacheKeys.indexOf(key) !== -1))
-      .catch(err => false);
   }
 }
 
@@ -1455,7 +1454,7 @@ export class Instance implements Disposable {
     }
     await this.fetchNDArrayCacheInternal(
       ndarrayCacheUrl,
-      list["records"] as Array<NDArrayShardEntry>, device, artifactCache);
+      list["records"] as NDArrayShardEntry[], device, artifactCache);
     this.cacheMetadata = { ...this.cacheMetadata, ...(list["metadata"] as Record<string, any>) };
   }
 

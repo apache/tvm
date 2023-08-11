@@ -154,7 +154,7 @@ class CanvasRenderManager implements Disposable {
 
   constructor(device: GPUDevice, canvas: HTMLCanvasElement) {
     this.device = device;
-    const ctx = canvas.getContext("webgpu");
+    const ctx = canvas.getContext("webgpu") as unknown as  GPUCanvasContext;
     if (ctx == null) {
       throw Error("Cannot bind WebGPU context");
     }
