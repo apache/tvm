@@ -66,7 +66,7 @@ class Module:
                 T_full[v_ax0, v_ax1, v_ax2, v_ax3] = T.float16(1.0)
 
     @T.prim_func
-    def matmul1(var_A: T.handle, var_B: T.handle, matmul: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16")):
+    def matmul1(var_A: T.handle, var_B: T.handle, matmul: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16")): # type: ignore
         T.func_attr({"op_pattern": 4, "tir.noalias": T.bool(True)})
         n = T.int64()
         A = T.match_buffer(var_A, (T.int64(1), T.int64(32), T.int64(1), n), "float16")
@@ -97,7 +97,7 @@ class Module:
         return lv3
 
 @T.prim_func
-def cuda_workload(var_inp0: T.handle, inp1: T.Buffer((T.int64(4096), T.int64(4096)), "float32"), var_matmul: T.handle):
+def cuda_workload(var_inp0: T.handle, inp1: T.Buffer((T.int64(4096), T.int64(4096)), "float32"), var_matmul: T.handle): # type: ignore
     T.func_attr({"tir.is_scheduled": 1})
     m = T.int64()
     inp0 = T.match_buffer(var_inp0, (T.int64(1), m, T.int64(4096)))
@@ -190,11 +190,14 @@ def test_benchmark_prim_func_rpc():
             target="cuda",
             rpc_config=rpc_config,
         )
-        assert input_infos == [
-            ((1, 128, 4096), "float32"),
-            ((4096, 4096), "float32"),
-            ((1, 128, 4096), "float32"),
-        ]
+        assert input_infos == (
+            [
+                ((1, 128, 4096), "float32"),
+                ((4096, 4096), "float32"),
+                ((1, 128, 4096), "float32"),
+            ],
+            71303168,
+        )
 
 
 @tvm.testing.requires_gpu
@@ -209,11 +212,14 @@ def test_benchmark_prim_func_local():
         dym_var_sample={"m": 128},
         target="cuda",
     )
-    assert input_infos == [
-        ((1, 128, 4096), "float32"),
-        ((4096, 4096), "float32"),
-        ((1, 128, 4096), "float32"),
-    ]
+    assert input_infos == (
+        [
+            ((1, 128, 4096), "float32"),
+            ((4096, 4096), "float32"),
+            ((1, 128, 4096), "float32"),
+        ],
+        71303168,
+    )
 
 
 @tvm.testing.requires_gpu

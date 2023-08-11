@@ -51,7 +51,7 @@ def benchmark(
     func_name: Optional[str] = None,
     evaluator_config: Optional["EvaluatorConfig"] = None,
     rpc_config: Optional["RPCConfig"] = None,
-) -> Tuple[List[Tuple[Tuple[int, ...], str]], float, float]:
+) -> Tuple[Tuple[List[Tuple[Tuple[int, ...], str]], int], float, float]:
     """Benchmark a PrimFunc or IRModule with dynamic input shapes.
 
     Parameters
@@ -78,8 +78,10 @@ def benchmark(
 
     Returns
     -------
-    input_infos : List[Tuple[Tuple[int, ...], str]]
-        The input tensor information, including shape and dtype.
+    input_infos : Tuple[List[Tuple[Tuple[int, ...], str]], int]
+        The input tensor information, including shape and dtype, and the total input bytes.
+        E.g., [((1, 32, 1, 64), "float16"), ((1, 32, 64, 128), "float16")], 528384
+        where 528384 = 1 * 32 * 1 * 64 * 2 + 1 * 32 * 64 * 128 * 2
     median : float
         The median of the benchmarking results.
     std : float
@@ -114,6 +116,7 @@ def benchmark(
     # scalars are appended to the end of the list due to parsing order
     input_tensors: List[Union[tvm.nd.NDArray, int]] = []
     scalar_input_tensors: List[int] = []
+    total_input_bytes = 0
     for input_shape, input_dtype in input_infos:
         if input_dtype == "scalar":
             # special case like [n], generate int value
@@ -121,9 +124,10 @@ def benchmark(
             scalar_input_tensors.append(input_shape[0])
         else:
             # normal case like [1, n, 128], generate random tensor
-            input_tensors.append(
-                tvm.nd.array(generate_input_data(list(input_shape), input_dtype), device=dev)
-            )
+            tensor = generate_input_data(list(input_shape), input_dtype)
+            total_input_bytes += tensor.itemsize * tensor.size
+            input_tensors.append(tvm.nd.array(tensor, device=dev))
+
     # append scalar input tensors for rotary embedding
     input_tensors.extend(scalar_input_tensors)
     # build locally
@@ -134,6 +138,7 @@ def benchmark(
     )
     # run benchmark
     if rpc_config is None:
+        dev.sync()
         profile_result = rt_mod.time_evaluator(
             func_name.name_hint if isinstance(func_name, tvm.ir.GlobalVar) else func_name,
             dev=dev,
@@ -144,6 +149,7 @@ def benchmark(
             if evaluator_config.enable_cpu_cache_flush
             else "",
         )(*input_tensors)
+        dev.sync()
     else:
         _, profile_result = rpc_run(
             rt_mod,
@@ -153,7 +159,7 @@ def benchmark(
             evaluator_config=evaluator_config,
         )
     # return input infos, median, std
-    return input_infos, profile_result.median, profile_result.std
+    return (input_infos, total_input_bytes), profile_result.median, profile_result.std
 
 
 def benchmark_prim_func(
@@ -227,7 +233,7 @@ def benchmark_prim_func(
         dym_var_sample_func = lambda dym_vars, sample_idx, sample_num: {}
     for sample_idx in range(sample_num):
         dym_var_sample = dym_var_sample_func(dym_vars, sample_idx, sample_num)
-        _, median, std = benchmark(
+        inputs_infos, median, std = benchmark(
             mod_or_func,
             args=args,
             dym_var_sample=dym_var_sample,
@@ -235,12 +241,14 @@ def benchmark_prim_func(
             evaluator_config=evaluator_config,
             rpc_config=rpc_config,
         )
+        _, total_input_bytes = inputs_infos
         row = {
             "InputInfo": ", ".join([f"{k} = {v}" for k, v in dym_var_sample.items()])
             if len(dym_vars) > 0
             else "static",
             "Time(us)": median * 1e6,
             "Std(us)": std * 1e6,
+            "Memory(GB/s)": total_input_bytes / median / 1024**3,
         }
         if relax_func_name is not None:
             row["RelaxFunc"] = relax_func_name
