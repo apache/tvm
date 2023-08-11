@@ -48,6 +48,18 @@ using PassContext = tvm::transform::PassContext;
 using PassContextNode = tvm::transform::PassContextNode;
 using Sequential = tvm::transform::Sequential;
 
+/*!
+ * \brief RelayToTIR tvm::transform::Pass specific to a TargetKind
+ *
+ * Called before the default lowering passes.
+ *
+ * \param mod The module that an optimization pass runs on.
+ * \param pass_ctx The pass context that can provide information for the optimization.
+ *
+ * \return The transformed module.
+ */
+using FTVMRelayToTIR = tvm::transform::Pass;
+
 /*
  * \brief Create a function pass.
  *
