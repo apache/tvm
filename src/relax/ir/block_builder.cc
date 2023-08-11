@@ -75,13 +75,11 @@ class BlockBuilderImpl : public BlockBuilderNode {
   GlobalVar AddFunction(const BaseFunc& func, String func_name_hint) final {
     LazyInitCtxFuncDedupMap();
     auto it = ctx_func_dedup_map_->find(func);
-    LOG(INFO) << "AddFunc";
     if (it == ctx_func_dedup_map_->end()) {
       
       context_mod_.CopyOnWrite();
 
       String func_name = GetUniqueName(func_name_hint);
-      LOG(INFO) << "-- add... " << func_name; 
       while (context_mod_->ContainGlobalVar(func_name)) {
         func_name = GetUniqueName(func_name_hint);
       }
