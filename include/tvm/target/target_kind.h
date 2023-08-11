@@ -24,7 +24,6 @@
 #ifndef TVM_TARGET_TARGET_KIND_H_
 #define TVM_TARGET_TARGET_KIND_H_
 
-#include <tvm/ir/transform.h>
 #include <tvm/node/attr_registry_map.h>
 #include <tvm/node/node.h>
 
@@ -50,31 +49,7 @@ using TargetFeatures = Map<String, ObjectRef>;
  * \return The transformed Target JSON object.
  */
 using TargetJSON = Map<String, ObjectRef>;
-using FTVMTargetParser = TypedPackedFunc<TargetJSON(TargetJSON)>;
-
-/*!
- * \brief RelayToTIR tvm::transform::Pass specific to a TargetKind
- *
- * Called before the default lowering passes.
- *
- * \param mod The module that an optimization pass runs on.
- * \param pass_ctx The pass context that can provide information for the optimization.
- *
- * \return The transformed module.
- */
-using FTVMRelayToTIR = transform::Pass;
-
-/*!
- * \brief TIRToRuntime conversion specific to a TargetKind
- *
- * This function is responsible for scanning an IRModule for appropriate Target-specific functions
- and generating a Runtime module representing the compiled output
- *
- * \param ir_module Unified IRModule
- * \param target Target to filter on or retrieve arguments from
- * \return Runtime Module containing compiled functions
- */
-using FTVMTIRToRuntime = runtime::TypedPackedFunc<runtime::Module(IRModule, Target)>;
+using FTVMTargetParser = tvm::runtime::TypedPackedFunc<TargetJSON(TargetJSON)>;
 
 namespace detail {
 template <typename, typename, typename>
