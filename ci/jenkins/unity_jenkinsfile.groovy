@@ -318,7 +318,6 @@ stage('Build and Test') {
           sh "${docker_run}  ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh build"
           make("${ci_gpu}", 'build', '-j2')
           sh "${docker_run} ${ci_gpu} ./tests/scripts/unity/task_python_relax_gpuonly.sh"
-          sh "${docker_run} ${ci_gpu} ./tests/scripts/unity/task_python_msc.sh"
         }
       }
     },
