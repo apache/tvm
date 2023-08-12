@@ -119,7 +119,13 @@ def extract_dynamic_var(
         dym_var_dict[gv] = {}
         for functor in func_dict[gv]:
             for arg_list, _ in func_dict[gv][functor]:
+                flattened_arg_list = []
                 for arg in arg_list:
+                    if isinstance(arg, relax.TupleStructInfo):
+                        flattened_arg_list.extend(arg.fields)
+                    else:
+                        flattened_arg_list.append(arg)
+                for arg in flattened_arg_list:
                     if isinstance(arg, relax.TensorStructInfo):
                         for val in arg.shape.values:
                             if isinstance(val, tvm.tir.Var):
