@@ -457,9 +457,8 @@ def test_add_lhs_is_none_annotate():
         ):
             qmod = relay.quantize.quantize(mod, dataset=calibrate_data)
     print(qmod)
-    # ensure partitioned and unpartitioned results agree
+    
     params = [gen_rand_tvm(param.type_annotation, 0, 1) for param in mod["main"].params]
-    # a = 1
 
     def _eval_mod(mod):
         return relay.create_executor("vm", device=tvm.cpu(0), target="llvm", mod=mod).evaluate()(
@@ -489,9 +488,8 @@ def test_add_lhs_rhs_is_input_annotate():
         ):
             qmod = relay.quantize.quantize(mod, dataset=calibrate_data)
     print(qmod)
-    # ensure partitioned and unpartitioned results agree
+    
     params = [gen_rand_tvm(param.type_annotation, 0, 1) for param in mod["main"].params]
-    # a = 1
 
     def _eval_mod(mod):
         return relay.create_executor("vm", device=tvm.cpu(0), target="llvm", mod=mod).evaluate()(
