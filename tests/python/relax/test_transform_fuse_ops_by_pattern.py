@@ -597,7 +597,7 @@ def test_compare_with_merge_composite_path():
     @I.ir_module
     class Expected2:
         @R.function
-        def fused_relax_multiply1(
+        def fused_relax_multiply1_cutlass(
             x: R.Tensor((10, 10), dtype="float32"), y: R.Tensor((10, 10), dtype="float32")
         ) -> R.Tensor((10, 10), dtype="float32"):
             R.func_attr({"Codegen": "cutlass"})
@@ -624,7 +624,7 @@ def test_compare_with_merge_composite_path():
         ) -> R.Tensor((10, 10), dtype="float32"):
             cls = Expected2
             with R.dataflow():
-                gv: R.Tensor((10, 10), dtype="float32") = cls.fused_relax_multiply1(x, y)
+                gv: R.Tensor((10, 10), dtype="float32") = cls.fused_relax_multiply1_cutlass(x, y)
                 R.output(gv)
             return gv
 

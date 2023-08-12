@@ -319,6 +319,66 @@ class CompositeInliner : public ExprMutator {
   Map<Function, Function> inlined_functions_;
 };
 
+/*!
+ * \brief Wrap each created composite function with another function, whose body consists
+ * only of a call to the composite function, and annotate the outer function with kCodegen
+ * and kGlobalSymbol attributes.
+ */
+class CompositeFunctionAnnotator : public ExprMutator {
+ public:
+  explicit CompositeFunctionAnnotator(IRModule mod, IRModule new_mod)
+      : ExprMutator(new_mod), mod_(new_mod), inliner(mod) {
+    mod_.CopyOnWrite();
+  }
+  using ExprMutator::VisitExpr_;
+
+  IRModule update() {
+    auto gvar = mod_->GetGlobalVar("main");
+    auto func = Downcast<Function>(mod_->Lookup(gvar));
+    builder_->UpdateFunction(gvar, Downcast<Function>(VisitExpr(func)));
+    return builder_->GetContextIRModule();
+  }
+
+  Expr VisitExpr_(const CallNode* call) {
+    if (call->op->IsInstance<GlobalVarNode>()) {
+      GlobalVar cur_var = Downcast<GlobalVar>(call->op);
+      auto func = Downcast<Function>(mod_->Lookup(cur_var));
+      if (auto codegen_name = func->GetAttr<String>(attr::kCodegen)) {
+        GlobalVar new_var;
+        if (var_map_.count(cur_var) > 0) {
+          // if we visited before, we don't need to create the new function,
+          // use the one we stored.
+          new_var = var_map_[cur_var];
+        } else {
+          // if it is first time, create the new function with a new name.
+          // remove old function from the irmoulde under construction.
+          auto old_var = builder_->GetContextIRModule()->GetGlobalVar(cur_var->name_hint);
+          builder_->GetContextIRModule()->Remove(old_var);
+
+          // rename the function.
+          String new_func_name = cur_var->name_hint + "_" + codegen_name.value();
+          Function new_func = inliner.Run(Downcast<Function>(func));
+          new_func = WithAttr(new_func, tvm::attr::kGlobalSymbol, new_func_name);
+          new_func = WithoutAttr(std::move(new_func), tvm::relax::attr::kPrimitive);
+          // add a function with a new name.
+          new_var = builder_->AddFunction(new_func, new_func_name);
+          var_map_[cur_var] = new_var;
+        }
+        // we call new var instead of the old one.
+        // we don't have to update args since we are just updating the function to call,
+        // without any change in the arguments.
+        return Call(new_var, call->args);
+      }
+    }
+    return GetRef<Call>(call);
+  }
+
+ private:
+  IRModule mod_;
+  CompositeInliner inliner;
+  std::unordered_map<GlobalVar, GlobalVar, ObjectPtrHash, ObjectPtrEqual> var_map_;
+};
+
 }  // namespace
 
 IRModule MergeCompositeFunctions(IRModule mod) {
@@ -327,21 +387,8 @@ IRModule MergeCompositeFunctions(IRModule mod) {
   support::Arena arena;
   auto group_map = CompositeGroupsBuilder(mod, &arena).Run(func);
   auto new_mod = MakeGroupedFunctions(mod, group_map);
+  new_mod = CompositeFunctionAnnotator(mod, new_mod).update();
 
-  CompositeInliner inliner(mod);
-  std::vector<std::pair<GlobalVar, BaseFunc>> to_update;
-  for (const auto& [gvar, func] : new_mod->functions) {
-    if (func->GetAttr<String>(attr::kCodegen)) {
-      auto new_func = inliner.Run(Downcast<Function>(func));
-      new_func = WithAttr(new_func, tvm::attr::kGlobalSymbol, gvar->name_hint);
-      new_func = WithoutAttr(std::move(new_func), tvm::relax::attr::kPrimitive);
-      to_update.emplace_back(gvar, new_func);
-    }
-  }
-
-  for (const auto& [gvar, func] : to_update) {
-    new_mod->Update(gvar, Downcast<Function>(func));
-  }
   // TODO(@tvm-team): Implicit pass dependency. Revisit when we have a better way to handle this.
   return DeadCodeElimination(new_mod, {"main"});
 }
@@ -351,9 +398,9 @@ namespace transform {
 Pass MergeCompositeFunctions() {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =  //
       [=](IRModule mod, PassContext pc) { return relax::MergeCompositeFunctions(mod); };
-  return CreateModulePass(/*pass_function=*/pass_func,       //
-                          /*opt_level=*/0,                   //
-                          /*pass_name=*/"FuseOpsByPattern",  //
+  return CreateModulePass(/*pass_function=*/pass_func,              //
+                          /*opt_level=*/0,                          //
+                          /*pass_name=*/"MergeCompositeFunctions",  //
                           /*required=*/{});
 }
 
