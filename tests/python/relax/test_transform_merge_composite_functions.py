@@ -293,7 +293,9 @@ class Diamond_merged:
         with R.dataflow():
             gv5: R.Tensor(
                 (1, 64, 54, 54), dtype="float32"
-            ) = cls.fused_relax_nn_conv2d_relax_nn_relu_relax_nn_gelu_relax_add_compiler_A(data2, weight2)
+            ) = cls.fused_relax_nn_conv2d_relax_nn_relu_relax_nn_gelu_relax_add_compiler_A(
+                data2, weight2
+            )
             R.output(gv5)
         return gv5
 
@@ -378,8 +380,12 @@ class Diamond_cyclic_dep_merged:
             ) = cls.fused_relax_nn_conv2d_relax_nn_relu_compiler_A(data2, weight2)
             lv12: R.Tensor((1, 64, 54, 54), dtype="float32") = lv4[0]
             lv22: R.Tensor((1, 64, 54, 54), dtype="float32") = lv4[1]
-            lv31: R.Tensor((1, 64, 54, 54), dtype="float32") = cls.fused_relax_nn_gelu1_compiler_B(lv12)
-            gv5: R.Tensor((1, 64, 54, 54), dtype="float32") = cls.fused_relax_add1_compiler_A(lv22, lv31)
+            lv31: R.Tensor((1, 64, 54, 54), dtype="float32") = cls.fused_relax_nn_gelu1_compiler_B(
+                lv12
+            )
+            gv5: R.Tensor((1, 64, 54, 54), dtype="float32") = cls.fused_relax_add1_compiler_A(
+                lv22, lv31
+            )
             R.output(gv5)
         return gv5
 
@@ -629,7 +635,9 @@ class MultipleProducersCyclic_merged:
         with R.dataflow():
             lv: R.Tensor((10,), dtype="float32") = cls.fused_relax_nn_relu1_compiler_A(x1)
             lv2: R.Tensor((10,), dtype="float32") = R.nn.relu(lv)
-            gv: R.Tensor((10,), dtype="float32") = cls.fused_relax_nn_gelu_relax_add_compiler_A(lv2, lv)
+            gv: R.Tensor((10,), dtype="float32") = cls.fused_relax_nn_gelu_relax_add_compiler_A(
+                lv2, lv
+            )
             R.output(gv)
         return gv
 
@@ -838,7 +846,9 @@ class MergeCompilerRegionsExampleRef:
             lv23: R.Tensor((10,), dtype="float32") = lv13[0]
             lv32: R.Tensor((10,), dtype="float32") = lv13[1]
             lv41: R.Tensor((10,), dtype="float32") = cls.fused_relax_nn_gelu1_compiler_B(lv23)
-            gv6: R.Tensor((10,), dtype="float32") = cls.fused_relax_add_relax_nn_relu_compiler_A(lv41, lv32)
+            gv6: R.Tensor((10,), dtype="float32") = cls.fused_relax_add_relax_nn_relu_compiler_A(
+                lv41, lv32
+            )
             R.output(gv6)
         return gv6
 
@@ -1088,9 +1098,9 @@ def test_reshape():
                 lv1: R.Tensor((784, 512), dtype="float32") = R.permute_dims(
                     linear_relu_stack_0_weight, axes=None
                 )
-                gv: R.Tensor((1, 512), dtype="float32") = cls.fused_relax_reshape_relax_matmul_tensorrt(
-                    inp_0, R.shape([1, 784]), lv1
-                )
+                gv: R.Tensor(
+                    (1, 512), dtype="float32"
+                ) = cls.fused_relax_reshape_relax_matmul_tensorrt(inp_0, R.shape([1, 784]), lv1)
                 R.output(gv)
             return gv
 

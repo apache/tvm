@@ -599,7 +599,7 @@ def test_compare_with_merge_composite_path():
         @R.function
         def fused_relax_multiply1_cutlass(
             x: R.Tensor((10, 10), dtype="float32"), y: R.Tensor((10, 10), dtype="float32")
-) -> R.Tensor((10, 10), dtype="float32"):
+        ) -> R.Tensor((10, 10), dtype="float32"):
             R.func_attr({"Codegen": "cutlass"})
             # from tvm.script import relax as R
 
@@ -610,7 +610,7 @@ def test_compare_with_merge_composite_path():
             ) -> R.Tensor((10, 10), dtype="float32"):
                 R.func_attr({"Composite": "cutlass.multiply"})
                 with R.dataflow():
-                    gv_1: R.Tensor((10, 10), dtype="float32") = R.multiply(x_1, y_1) 
+                    gv_1: R.Tensor((10, 10), dtype="float32") = R.multiply(x_1, y_1)
                     R.output(gv_1)
 
                 return gv_1
