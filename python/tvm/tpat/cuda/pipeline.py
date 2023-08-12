@@ -15,13 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import os
 from typing import Tuple
 
-import numpy as np
 import onnx
 import onnx_graphsurgeon as gs
-import onnxruntime as ort
 from onnx import shape_inference
 
 from tvm.tpat.cuda.kernel import Kernel
@@ -29,7 +26,6 @@ from tvm.tpat.cuda.template import StaticBatchPluginTemplate
 from tvm.tpat.cuda.template_params import PluginTemplateParams
 
 from .rewrite import rewrite
-import copy
 
 
 def _extract_target_onnx_node(model, tunning_node):
@@ -39,23 +35,23 @@ def _extract_target_onnx_node(model, tunning_node):
     graph = gs.import_onnx(model)
     tensors = graph.tensors()
 
-    tuning_node_inputs = [
+    subgraph_inputs = [
         tensors[inp.name].to_variable(dtype=inp.dtype, shape=inp.shape)
         for inp in tunning_node.inputs
         if (inp.__class__ == gs.Variable and not inp.is_empty())
     ]
-    tuning_node_outputs = [
+    subgraph_outputs = [
         tensors[oup.name].to_variable(dtype=oup.dtype, shape=oup.shape)
         for oup in tunning_node.outputs
     ]
-    tuning_input_shapes = [(inp.name, inp.shape, inp.dtype.name) for inp in graph.inputs]
+    input_shapes = [(inp.name, inp.shape, inp.dtype.name) for inp in subgraph_inputs]
 
-    graph.inputs = tuning_node_inputs
-    graph.outputs = tuning_node_outputs
+    graph.inputs = subgraph_inputs
+    graph.outputs = subgraph_outputs
     graph.cleanup()
     submodel = gs.export_onnx(graph)
 
-    return graph, submodel, tuning_input_shapes
+    return graph, submodel, input_shapes
 
 
 def pipeline(

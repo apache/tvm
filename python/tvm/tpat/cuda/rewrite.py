@@ -87,7 +87,7 @@ def _remove_unnecessary_cast_nodes(graph):
     ]
     for node in cast_nodes:
         if (
-            node.attrs["to"] == 13
+            node.attrs["to"] == 13 # uint64
             and len(node.inputs[0].inputs) <= 1
             and len(node.outputs[0].outputs) <= 1
         ):
@@ -101,12 +101,15 @@ def _compute_tensor_type(graph, tunning_nodes):
 
     for tunning_node in tunning_nodes:
         for inp in tunning_node.inputs:
-            if inp.__class__ == gs.Constant or not inp.is_empty():
-                onnx_original_tensor_type[inp.name] = inp.dtype.name
-        [
-            onnx_original_tensor_type.update({oup.name: oup.dtype.name})
-            for oup in tunning_node.outputs
-        ]
+            if inp.is_empty():
+                continue
+            onnx_original_tensor_type[inp.name] = inp.dtype.name
+
+        for oup in tunning_node.outputs:
+            if oup.is_empty():
+                continue
+            onnx_original_tensor_type[oup.name] = oup.dtype.name
+
     return onnx_original_tensor_type
 
 
