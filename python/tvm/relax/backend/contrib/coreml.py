@@ -481,6 +481,9 @@ def coreml_compiler(funcs, options, constant_names):
     for func in funcs:
         assert isinstance(func, tvm.relax.Function)
         model_dir = os.getcwd() + "/tmp/"
+        if not os.path.exists(model_dir):
+            os.mkdir(model_dir)
+
         name = str(func.attrs.global_symbol)
         builder = CodegenCoreML(name, func)
         builder.serialize(func)
