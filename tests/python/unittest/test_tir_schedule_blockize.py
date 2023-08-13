@@ -529,7 +529,9 @@ def test_blockize_blocks_v1():
     blocks = [s.get_block("auto_0"), s.get_block("pre_blockize_0"), s.get_block("auto_1")]
     s.blockize(blocks, preserve_unit_iters=False)
     expected = after_blocks_blockize
-    tvm.ir.assert_structural_equal(s.mod["main"], expected)
+    tvm.ir.assert_structural_equal(
+        s.mod["main"], expected.with_attr("global_symbol", "blocks_func")
+    )
     verify_trace_roundtrip(sch=s, mod=blocks_func)
 
 
