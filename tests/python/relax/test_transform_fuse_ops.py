@@ -1398,6 +1398,24 @@ def test_shape_expr_arg():
     _check(Before, Expected)
 
 
+def test_skipping_match_cast():
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(A: R.Tensor((10, 20), dtype="float32")) -> R.Tensor(dtype="float32", ndim=2):
+            m = T.int64()
+            n = T.int64()
+            with R.dataflow():
+                lv: R.Tensor((m, n), dtype="float32") = R.match_cast(
+                    A, R.Tensor((m, n), dtype="float32")
+                )
+                gv: R.Tensor((m, n), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    _check(Module, Module)
+
+
 def test_skipping_primvalue():
     @I.ir_module
     class Module:
