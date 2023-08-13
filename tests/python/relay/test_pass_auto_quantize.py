@@ -475,14 +475,14 @@ def test_add_lhs_rhs_is_input_annotate():
         data_conv_r,
         relay.const(np.random.random((16, 16, 3, 3))),
         padding=(1, 1),
-        kernel_size=(3,3)
+        kernel_size=(3, 3)
     )
     data_conv_l = relay.var("data_conv_l", shape=(1, 16, 64, 64))
     conv2d_l = relay.nn.conv2d(
         data_conv_l,
         relay.const(np.random.random((16, 16, 3, 3))),
         padding=(1, 1),
-        kernel_size=(3,3)
+        kernel_size=(3, 3)
     )
     add = relay.add(conv2d_l, conv2d_r)
     global_avg_pool2d = relay.nn.global_avg_pool2d(add)
