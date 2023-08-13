@@ -15,9 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import ctypes
 import os
-import sys
 
 import numpy as np
 import onnx
@@ -32,20 +30,25 @@ from onnx.backend.test.case.node import _extract_value_info
 
 from tvm import tpat
 
-from .trt import allocate_buffers, build_engine, do_inference, load_plugin
+from .trt import (
+    allocate_buffers,
+    build_engine,
+    do_inference,
+    load_plugin,
+    remove_plugin,
+)
 
 tf.disable_v2_behavior()
 
-I_GPU = 0
-os.environ["CUDA_VISIBLE_DEVICES"] = str(I_GPU)
-np.random.seed(0)
-ITERATIONS = 10
 INPUT_MODEL_FILE = "test_op_plugin.onnx"
 OUTPUT_MODEL_FILE = "test_op_trt.onnx"
 
 TRT_LOGGER = trt.Logger(trt.Logger.VERBOSE)
-BATCH_SIZE = 1
 
+# set gpu device for tensorflow
+gpu_devices = tf.config.experimental.list_physical_devices("GPU")
+for device in gpu_devices:
+    tf.config.experimental.set_memory_growth(device, True)
 
 # Simple helper data class that's a little nicer to use than a 2-tuple.
 
@@ -208,7 +211,7 @@ def verify_with_ort_with_trt(
         OUTPUT_MODEL_FILE,
     )
 
-    load_plugin(trt_plugin_names)
+    libs = load_plugin(trt_plugin_names)
     engine = build_engine(OUTPUT_MODEL_FILE, trt_engine_datatype=trt.DataType.HALF)
 
     inputs, outputs, bindings, stream = allocate_buffers(engine)
@@ -225,11 +228,12 @@ def verify_with_ort_with_trt(
             stream=stream,
         )
 
+    remove_plugin(libs)
+
     ret = True
     if len(trt_result) == 1:
         ret = compare_tf_trt_result(ort_result, trt_result)
     else:
-        # ret &= compare_tf_trt_result(ort_result[0], trt_result[0])
         for i in range(len(trt_result)):
             ret &= compare_tf_trt_result(ort_result[i], trt_result[i])
     assert ret, "result check False"
@@ -2734,7 +2738,6 @@ def _test_forward_one_hot(indices_shape, depth, on_value, off_value, axis, out_d
         out = tf.one_hot(in1, depth, on_value, off_value, axis, dtype=out_dtype, name=op_name)
         out = tf.identity(out, "output")
         verify_tf_with_trt_result([inp_array1], ["input:0"], ["output:0"], op_name)
-        # compare_tf_with_tvm(inp_array1, in1.name, out.name)
 
 
 def test_forward_one_hot():
@@ -3435,7 +3438,7 @@ def test_logical():
     _test_logical("is_nan", "test_logical_nan")
 
 
-@pytest.mark.skip(reason="TensorRT segmentfault")
+@pytest.mark.skip(reason="TensorFlow segmentfault")
 def test_scatternd():
     batch_size = 32
     op_name = "scatternd"

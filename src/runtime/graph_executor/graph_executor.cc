@@ -392,7 +392,7 @@ String GraphExecutor::GetWorkspaceSize() {
   return os.str();
 }
 
-String GraphExecutor::GetFuncList() {
+String GraphExecutor::GetFunctionList() {
   std::ostringstream os;
   for (auto funcs : exec_func_) {
     for (auto func : funcs) {
@@ -553,20 +553,20 @@ void GraphExecutor::SetupOpExecs() {
     const auto& inode = nodes_[nid];
     if (inode.op_type == "null") continue;
     std::vector<DLTensor*> args;
-    std::vector<uint32_t> indexes;
+    std::vector<uint32_t> eids;
     std::vector<String> funcs;
     for (const auto& e : inode.inputs) {
       uint32_t eid = this->entry_id(e);
       args.push_back(const_cast<DLTensor*>(data_entry_[eid].operator->()));
-      indexes.push_back(eid);
+      eids.push_back(eid); // entry id of inputs
     }
     for (uint32_t index = 0; index < inode.param.num_outputs; ++index) {
       uint32_t eid = this->entry_id(nid, index);
       args.push_back(const_cast<DLTensor*>(data_entry_[eid].operator->()));
-      indexes.push_back(eid);
+      eids.push_back(eid); // entry id of outputs
     }
     funcs.push_back(inode.param.func_name);
-    for (auto eid : indexes) {
+    for (auto eid : eids) {
       funcs.push_back(std::to_string(eid));
     }
     exec_func_.push_back(funcs);
@@ -796,9 +796,9 @@ PackedFunc GraphExecutor::GetFunction(const String& name, const ObjectPtr<Object
   } else if (name == "get_workspace_size") {
     return PackedFunc(
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetWorkspaceSize(); });
-  } else if (name == "get_func_list") {
+  } else if (name == "get_function_list") {
     return PackedFunc(
-        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetFuncList(); });
+        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetFunctionList(); });
   } else if (name == "get_storageid") {
     return PackedFunc(
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetStorageId(); });

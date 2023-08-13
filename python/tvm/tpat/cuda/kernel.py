@@ -32,7 +32,7 @@ class Config(object):
         if target == "gpu":
             self.target = self._detect_cuda_target()
 
-    def tune_option(self):
+    def _tune_option(self):
         default = {
             "target": self.target,
             "builder": ms.builder.LocalBuilder(),
@@ -81,7 +81,7 @@ class Kernel(object):
 
         # 2. Tune it
         if self._enable_tunning:
-            tunning_option = self._config.tune_option()
+            tunning_option = self._config._tune_option()
             ms.relay_integration.tune_relay(mod=mod, params=params, **tunning_option)
 
         # 3. Compiling
@@ -212,7 +212,7 @@ class Kernel(object):
     @property
     def host_function_list(self):
         """Get host function list."""
-        return self._module.get_func_inorder() if self._module else None
+        return self._module.get_function_list() if self._module else None
 
     @property
     def storageid(self):

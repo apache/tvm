@@ -215,7 +215,6 @@ PrimFunc MakePackedAPI(PrimFunc func) {
     return func;
   }
   std::string name_hint = global_symbol.value();
-  std::cout << "NAME HINT ===> " << name_hint << '\n';
 
   Target target = [&]() {
     auto opt = func->GetAttr<Target>(tvm::attr::kTarget);

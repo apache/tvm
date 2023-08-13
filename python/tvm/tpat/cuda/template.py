@@ -49,32 +49,22 @@ class PluginTemplate(object):
 
         self._plugin_name = template_params.plugin_name
         self._plugin_device_function_configuration = template_params.device_function_configuration
-        self._plugin_output_number = template_params.output_num
-        self._plugin_output_type = template_params.output_type
-        self._plugin_workspace_size = template_params.workspace_size
-        self._plugin_total_workspace_size = template_params.total_workspace_size
-        self._plugin_variable_input_index = template_params.onnx_variable_input_index
+        self._plugin_output_number = template_params.num_outputs
+        self._plugin_output_type = template_params.output_dtype
+        self._plugin_workspace_size = template_params.total_workspace_size
         self._plugin_kernels_body = template_params.cuda_source_code
-        self._onnx_input_python_type = template_params.onnx_input_python_type
-        self._onnx_output_python_type = template_params.onnx_output_python_type
-        self._input_workspace_size = template_params.input_workspace_size
-        self._output_workspace_size = template_params.output_workspace_size
 
         onnx_output_shape = template_params.output_shape
-        self._plugin_output_shape = self.parse_plugin_output_shape(onnx_output_shape)
-
-        onnx_input_shape = template_params.input_shape
-        self._plugin_input_shape = self.parse_plugin_input_shape(onnx_input_shape)
-
+        self._plugin_output_shape = self._parse_plugin_output_shape(onnx_output_shape)
 
         onnx_tensor_type = template_params.tensor_type
-        self._plugin_tensor_format = self.parse_plugin_tensor_format(onnx_tensor_type)
+        self._plugin_tensor_format = self._parse_plugin_tensor_format(onnx_tensor_type)
 
         kernel_order = template_params.device_function_order
-        self._plugin_kernels_params = self.parse_plugin_kernels_params(kernel_order)
+        self._plugin_kernels_params = self._parse_plugin_kernels_params(kernel_order)
 
         workspace_constant = template_params.workspace_constant
-        self._plugin_constant_init = self.parse_plugin_workspace_constant(workspace_constant)
+        self._plugin_constant_init = self._parse_plugin_workspace_constant(workspace_constant)
 
 
     class TensorDims:
@@ -154,7 +144,7 @@ class PluginTemplate(object):
             self.size = size
             self.dtype = dtype
 
-    def parse_plugin_input_shape(self, onnx_input_shape):
+    def _parse_plugin_input_shape(self, onnx_input_shape):
         plugin_input_shape = []
         for s in onnx_input_shape:
             nbdims = len(s)
@@ -162,7 +152,7 @@ class PluginTemplate(object):
             plugin_input_shape.append(self.TensorDims(nbdims, shape))
         return plugin_input_shape
 
-    def parse_plugin_output_shape(self, onnx_output_shape):
+    def _parse_plugin_output_shape(self, onnx_output_shape):
         plugin_output_shape = []
         for s in onnx_output_shape:
             nbdims = len(s)
@@ -170,13 +160,13 @@ class PluginTemplate(object):
             plugin_output_shape.append(self.TensorDims(nbdims, shape))
         return plugin_output_shape
 
-    def parse_plugin_tensor_format(self, onnx_tensor_type):
+    def _parse_plugin_tensor_format(self, onnx_tensor_type):
         plugin_tensor_format = []
         for dtype in onnx_tensor_type:
             plugin_tensor_format.append(self.TensorFormat("LINEAR", dtype))
         return plugin_tensor_format
 
-    def parse_plugin_kernels_params(self, kernel_order):
+    def _parse_plugin_kernels_params(self, kernel_order):
         kernel_call = {}
         plugin_kernels_params = []
         for func_name in kernel_order:
@@ -196,7 +186,7 @@ class PluginTemplate(object):
             )
         return plugin_kernels_params
 
-    def parse_plugin_workspace_constant(self, workspace_constant):
+    def _parse_plugin_workspace_constant(self, workspace_constant):
         plugin_constant_init = []
         for init_constant in workspace_constant.items():
             value_str = ", ".join(str(ele) for ele in init_constant[1][0])
@@ -229,11 +219,11 @@ class PluginTemplate(object):
         with pushd(os.path.normpath(os.path.dirname(__file__))):
             self.generate_header_file()
             self.generate_source_file()
-            self.build_plugin()
+            self._build_plugin()
 
         return f"{os.path.dirname(os.path.abspath(__file__))}/plugin/lib/{self._plugin_name}.so"
 
-    def build_plugin(self):
+    def _build_plugin(self):
         os.chdir("./plugin")
 
         os.system(f"make clean plugin_name={self._plugin_name}")

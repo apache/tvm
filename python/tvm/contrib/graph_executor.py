@@ -180,7 +180,7 @@ class GraphModule(object):
 
         self._get_workspace_dtype = module["get_workspace_dtype"]
         self._get_workspace_size = module["get_workspace_size"]
-        self._get_func_list = module["get_func_list"]
+        self._get_function_list = module["get_function_list"]
         self._get_storageid = module["get_storageid"]
         self._get_output_eid = module["get_output_eid"]
 
@@ -539,7 +539,7 @@ class GraphModule(object):
         """
         return self._get_workspace_size()
 
-    def get_func_inorder(self):
+    def get_function_list(self):
         """Get the Host Function execute order
 
         Returns
@@ -547,7 +547,7 @@ class GraphModule(object):
         dtype : str
             The Host function execute order
         """
-        return self._get_func_list()
+        return self._get_function_list()
 
     def get_storageid(self):
         return self._get_storageid()

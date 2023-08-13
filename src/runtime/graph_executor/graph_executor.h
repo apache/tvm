@@ -421,7 +421,7 @@ class TVM_DLL GraphExecutor : public ModuleNode {
   /*! \brief get the storage size */
   String GetWorkspaceSize();
   /*! \brief get the exec func in order*/
-  String GetFuncList();
+  String GetFunctionList();
   /*! \brief get storage ids*/
   String GetStorageId();
   int GetOutputEid(int index) const;
