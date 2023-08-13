@@ -220,7 +220,8 @@ class TensorStructInfo : public StructInfo {
    *
    * \note shape must already be normalized.
    */
-  TVM_DLL TensorStructInfo(Expr shape, DataType dtype, VDevice vdevice = VDevice(),
+  TVM_DLL TensorStructInfo(Expr shape, DataType dtype,
+                           VDevice vdevice = VDevice(/*tgt*/ {}, /*dev_id*/ -1, /*mem_scope*/ {}),
                            Span span = Span());
 
   /*!
@@ -230,7 +231,8 @@ class TensorStructInfo : public StructInfo {
    * \param vdevice The virtual device.
    * \param span The span of the AST.
    */
-  TVM_DLL TensorStructInfo(DataType dtype, int ndim, VDevice vdevice = VDevice(),
+  TVM_DLL TensorStructInfo(DataType dtype, int ndim,
+                           VDevice vdevice = VDevice(/*tgt*/ {}, /*dev_id*/ -1, /*mem_scope*/ {}),
                            Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(TensorStructInfo, StructInfo, TensorStructInfoNode);

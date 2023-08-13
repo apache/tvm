@@ -149,7 +149,7 @@ class WellDefinedEraser : public StructInfoMutator,
       std::swap(has_undefined_, has_undefined);
     }
 
-    VDevice vdev = VDevice();
+    VDevice vdev = VDevice(/*tgt*/ {}, /*dev_id*/ -1, /*mem_scope*/ {});
     if (op->vdevice.defined()) {
       vdev = op->vdevice.value();
     }
@@ -772,7 +772,7 @@ class StructInfoLCAFinder
     // find the target dtype and ndim.
     DataType dtype = lhs->dtype == rhs->dtype ? lhs->dtype : DataType::Void();
     int ndim = lhs->ndim == rhs->ndim ? lhs->ndim : kUnknownNDim;
-    VDevice vdev = VDevice();
+    VDevice vdev = VDevice(/*tgt*/ {}, /*dev_id*/ -1, /*mem_scope*/ {});
     if (lhs->vdevice.defined() && rhs->vdevice.defined()) {
       if (lhs->vdevice.value().same_as(lhs->vdevice.value())) {
         vdev = lhs->vdevice.value();

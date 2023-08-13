@@ -267,7 +267,7 @@ class LayoutConvertMutator : public ExprMutator {
         new_shape.push_back(
             shape->values[from.LeafValue()->layout.IndexOf(to.LeafValue()->layout[i])]);
       }
-      VDevice vdev = VDevice();
+      VDevice vdev = VDevice(/*tgt*/ {}, /*dev_id*/ -1, /*mem_scope*/ {});
       if (tsinfo->vdevice.defined()) {
         vdev = tsinfo->vdevice.value();
       }

@@ -30,7 +30,7 @@ TVM_REGISTER_GLOBAL("ir.DummyGlobalInfo").set_body_typed([]() {
   return n;
 });
 
-VDevice::VDevice(Target tgt = {}, int dev_id = -1, MemoryScope mem_scope = {}) {
+VDevice::VDevice(Target tgt, int dev_id, MemoryScope mem_scope) {
   ObjectPtr<VDeviceNode> n = make_object<VDeviceNode>();
   n->target = std::move(tgt);
   n->vdevice_id = std::move(dev_id);
