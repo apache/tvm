@@ -73,6 +73,9 @@ def test_reshape_infer_struct_info():
     )
     _check_inference(bb, relax.op.reshape(x0, (-1,)), relax.TensorStructInfo((120,), "float32"))
     _check_inference(
+        bb, relax.op.reshape(x0, relax.ShapeExpr([-1])), relax.TensorStructInfo((120,), "float32")
+    )
+    _check_inference(
         bb, relax.op.reshape(x1, (3, 8, 5)), relax.TensorStructInfo((3, 8, 5), "float32")
     )
     _check_inference(
