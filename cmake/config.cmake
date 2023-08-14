@@ -281,6 +281,9 @@ set(USE_VITIS_AI OFF)
 # Build Verilator codegen and runtime
 set(USE_VERILATOR OFF)
 
+# Whether to use the Multi-System Compiler
+set(USE_MSC OFF)
+
 #Whether to use CLML codegen
 set(USE_CLML OFF)
 # USE_CLML_GRAPH_EXECUTOR - CLML SDK PATH or ON or OFF
