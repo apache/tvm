@@ -1001,7 +1001,13 @@ def test_forward_l2_pool2d():
 
 
 def _test_tflite2_quantized_convolution(
-    input_shape, kernel_shape, filters, padding="valid", data_format=None, int_quant_dtype=tf.int8
+    input_shape,
+    kernel_shape,
+    filters,
+    padding="valid",
+    data_format=None,
+    int_quant_dtype=tf.int8,
+    groups=1,
 ):
     """One iteration of TFLite2 quantized convolution with given shapes and attributes"""
     data_format = "channels_last" if data_format == "NHWC" else "channels_first"
@@ -1015,6 +1021,7 @@ def _test_tflite2_quantized_convolution(
         activation=tf.nn.relu,
         padding=padding,
         data_format=data_format,
+        groups=groups,
     )(data_in)
     keras_model = tf.keras.models.Model(data_in, conv)
 
@@ -1074,6 +1081,32 @@ def test_forward_quantized_convolution():
             12,
             data_format="NCWH",
             int_quant_dtype=int_quant_dtype,
+        )
+
+        _test_tflite2_quantized_convolution(
+            (64, 2, 28, 28),
+            (1, 1),
+            12,
+            data_format="NCWH",
+            int_quant_dtype=int_quant_dtype,
+        )
+
+        _test_tflite2_quantized_convolution(
+            (1, 16, 10, 10),
+            (3, 3),
+            2,
+            data_format="NCWH",
+            int_quant_dtype=int_quant_dtype,
+            groups=2,
+        )
+
+        _test_tflite2_quantized_convolution(
+            (2, 32, 28, 28),
+            (1, 1),
+            16,
+            data_format="NCWH",
+            int_quant_dtype=int_quant_dtype,
+            groups=8,
         )
 
 
