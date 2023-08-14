@@ -66,13 +66,13 @@ class ModuleSerializer {
  public:
   explicit ModuleSerializer(runtime::Module mod) : mod_(mod) { Init(); }
 
-  void SerializeModuleToBytes(dmlc::Stream* stream, bool include_dso) {
+  void SerializeModuleToBytes(dmlc::Stream* stream, bool export_dso) {
     // Only have one DSO module and it is in the root, then
     // we will not produce import_tree_.
     bool has_import_tree = true;
 
     if (mod_->IsDSOExportable()) {
-      ICHECK(include_dso) << "`include_dso` should be enabled for DSOExportable modules";
+      ICHECK(export_dso) << "`export_dso` should be enabled for DSOExportable modules";
       has_import_tree = !mod_->imports().empty();
     }
 
@@ -89,20 +89,26 @@ class ModuleSerializer {
 
     for (const auto& group : mod_group_vec_) {
       ICHECK_NE(group.size(), 0) << "Every allocated group must have at least one module";
-      if (group[0]->IsBinarySerializable()) {
+      // we prioritize export dso when a module is both serializable and exportable
+      if (export_dso) {
+        if (group[0]->IsDSOExportable()) {
+          if (has_import_tree) {
+            std::string mod_type_key = "_lib";
+            stream->Write(mod_type_key);
+          }
+        } else if (group[0]->IsBinarySerializable()) {
+          ICHECK_EQ(group.size(), 1U) << "Non DSO module is never merged";
+          std::string mod_type_key = group[0]->type_key();
+          stream->Write(mod_type_key);
+          group[0]->SaveToBinary(stream);
+        }
+      } else {
+        ICHECK(group[0]->IsBinarySerializable())
+            << group[0]->type_key() << " is not binary serializable.";
         ICHECK_EQ(group.size(), 1U) << "Non DSO module is never merged";
         std::string mod_type_key = group[0]->type_key();
         stream->Write(mod_type_key);
         group[0]->SaveToBinary(stream);
-      } else if (group[0]->IsDSOExportable()) {
-        ICHECK(include_dso) << "`include_dso` should be enabled for DSOExportable modules";
-        // DSOExportable: do not need binary
-        if (has_import_tree) {
-          std::string mod_type_key = "_lib";
-          stream->Write(mod_type_key);
-        }
-      } else {
-        ICHECK(0) << group[0]->type_key() << " is not exportable.";
       }
     }
 
@@ -236,13 +242,13 @@ class ModuleSerializer {
   std::vector<uint64_t> import_tree_child_indices_;
 };
 
-std::string SerializeModuleToBytes(const runtime::Module& mod, bool include_dso) {
+std::string SerializeModuleToBytes(const runtime::Module& mod, bool export_dso) {
   std::string bin;
   dmlc::MemoryStringStream ms(&bin);
   dmlc::Stream* stream = &ms;
 
   ModuleSerializer module_serializer(mod);
-  module_serializer.SerializeModuleToBytes(stream, include_dso);
+  module_serializer.SerializeModuleToBytes(stream, export_dso);
   return bin;
 }
 
@@ -369,49 +375,6 @@ runtime::Module PackImportsToLLVM(const runtime::Module& mod, bool system_lib,
   const PackedFunc* codegen_f = runtime::Registry::Get(codegen_f_name);
   ICHECK(codegen_f != nullptr) << "codegen.codegen_blob is not presented.";
   return (*codegen_f)(blob_byte_array, system_lib, llvm_target_string, c_symbol_prefix);
-}
-
-struct Deleter {  // deleter
-  explicit Deleter(std::string file_name) { this->file_name = file_name; }
-  void operator()(FILE* p) const {
-    fclose(p);
-    ICHECK(remove(file_name.c_str()) == 0)
-        << "remove temporary file (" << file_name << ") unsuccessfully";
-  }
-  std::string file_name;
-};
-
-std::string ExportModuleToBase64(tvm::runtime::Module module) {
-  static const runtime::PackedFunc* f_to_str = runtime::Registry::Get("export_runtime_module");
-  ICHECK(f_to_str) << "IndexError: Cannot find the packed function "
-                      "`export_runtime_module` in the global registry";
-  return (*f_to_str)(module);
-}
-
-tvm::runtime::Module ImportModuleFromBase64(std::string base64str) {
-  auto length = tvm::support::b64strlen(base64str);
-
-  std::vector<uint8_t> bytes(length);  // bytes stream
-  tvm::support::b64decode(base64str, bytes.data());
-
-  auto now = std::chrono::system_clock::now();
-  auto in_time_t = std::chrono::system_clock::to_time_t(now);
-  std::stringstream datetime;
-  datetime << std::put_time(std::localtime(&in_time_t), "%Y-%m-%d-%X");
-  const std::string file_name = "tmp-module-" + datetime.str() + ".so";
-  LOG(INFO) << file_name;
-  std::unique_ptr<FILE, Deleter> pFile(fopen(file_name.c_str(), "wb"), Deleter(file_name));
-  fwrite(bytes.data(), sizeof(uint8_t), length, pFile.get());
-  fflush(pFile.get());
-
-  std::string load_f_name = "runtime.module.loadfile_so";
-  const PackedFunc* f = runtime::Registry::Get(load_f_name);
-  ICHECK(f != nullptr) << "Loader for `.so` files is not registered,"
-                       << " resolved to (" << load_f_name << ") in the global registry."
-                       << "Ensure that you have loaded the correct runtime code, and"
-                       << "that you are on the correct hardware architecture.";
-  tvm::runtime::Module ret = (*f)(file_name, "");
-  return ret;
 }
 
 TVM_REGISTER_GLOBAL("target.Build").set_body_typed(Build);

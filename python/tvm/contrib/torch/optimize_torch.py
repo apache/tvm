@@ -29,10 +29,13 @@ and returns a custom TorchScript operator
 import contextlib
 import tempfile
 from typing import Optional, Tuple, Union
-
+import base64
+import tempfile
 import torch
 import torch.utils.dlpack
 import tvm
+import tvm._ffi
+from tvm._ffi import register_func
 from tvm import meta_schedule as ms
 from tvm import relay
 from tvm._ffi import get_global_func
@@ -165,3 +168,11 @@ def optimize_torch(
     save_runtime_mod(executor_factory.module)
 
     return GraphExecutorFactoryWrapper(torch.classes.tvm_torch.GraphExecutorFactoryWrapper())
+
+
+@register_func("export_runtime_module")
+def save_to_base64(obj) -> bytes:
+    with tempfile.NamedTemporaryFile(suffix=".so") as tmpfile:
+        obj.export_library(tmpfile.name)
+        with open(tmpfile.name, "rb") as temp_file:
+            return base64.b64encode(temp_file.read())

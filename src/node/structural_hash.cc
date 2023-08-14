@@ -366,7 +366,7 @@ struct ModuleNodeTrait {
   static void SHashReduce(const runtime::ModuleNode* key, SHashReducer hash_reduce) {
     const auto* rtmod = static_cast<const runtime::ModuleNode*>(key);
     runtime::String str_key =
-        codegen::SerializeModuleToBytes(GetRef<runtime::Module>(rtmod), /*include_dso*/ false);
+        codegen::SerializeModuleToBytes(GetRef<runtime::Module>(rtmod), /*export_dso*/ false);
     hash_reduce->SHashReduceHashedValue(
         runtime::String::StableHashBytes(str_key->data, str_key->size));
   }
@@ -377,9 +377,9 @@ struct ModuleNodeTrait {
     const auto* lhs_mod = static_cast<const runtime::ModuleNode*>(lhs);
     const auto* rhs_mod = static_cast<const runtime::ModuleNode*>(rhs);
     runtime::String lhs_str =
-        codegen::SerializeModuleToBytes(GetRef<runtime::Module>(lhs_mod), /*include_dso*/ false);
+        codegen::SerializeModuleToBytes(GetRef<runtime::Module>(lhs_mod), /*export_dso*/ false);
     runtime::String rhs_str =
-        codegen::SerializeModuleToBytes(GetRef<runtime::Module>(rhs_mod), /*include_dso*/ false);
+        codegen::SerializeModuleToBytes(GetRef<runtime::Module>(rhs_mod), /*export_dso*/ false);
     return lhs_str == rhs_str;
   }
 };
@@ -391,7 +391,7 @@ TVM_REGISTER_REFLECTION_VTABLE(runtime::ModuleNode, ModuleNodeTrait)
     })
     .set_repr_bytes([](const Object* n) -> std::string {
       const auto* rtmod = static_cast<const runtime::ModuleNode*>(n);
-      return codegen::SerializeModuleToBytes(GetRef<runtime::Module>(rtmod), /*include_dso*/ false);
+      return codegen::SerializeModuleToBytes(GetRef<runtime::Module>(rtmod), /*export_dso*/ false);
     });
 
 void NDArrayHash(const runtime::NDArray::Container* arr, SHashReducer* hash_reduce,
