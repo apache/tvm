@@ -33,10 +33,10 @@
 #include <tvm/tir/transform.h>
 
 #include <map>
-#include <numeric>
 #include <unordered_map>
 #include <unordered_set>
 
+#include "../../arith/int_operator.h"
 #include "../../runtime/thread_storage_scope.h"
 #include "../ir/buffer_common.h"
 #include "ir_utils.h"
@@ -1067,10 +1067,16 @@ struct BufferVarInfo {
   // packing in StorageRewrite) or in number of lanes (e.g. float16*
   // cast to float16x4*).
   std::unordered_set<DataType> access_dtype;
+  // Data types used for scalar reads. This is used to record vectorized read dtypes that can be
+  // shuffled for scalar reads when rewrite_scalar_read_to_vector_shuffle is enabled.
+  std::unordered_set<DataType> scalar_read_dtype;
 
   DataType get_preferred_dtype() const {
     std::unordered_set<DataType> base_access_dtype;
     for (auto dtype : access_dtype) {
+      base_access_dtype.insert(dtype.element_of());
+    }
+    for (auto dtype : scalar_read_dtype) {
       base_access_dtype.insert(dtype.element_of());
     }
     // If the array is accessed as multiple base types within a
@@ -1082,13 +1088,21 @@ struct BufferVarInfo {
       return element_dtype;
     }
 
+    // When there are scalar reads and no writes, access_dtype can be empty and we should avoid
+    // rewriting.
+    if (access_dtype.empty()) {
+      return element_dtype;
+    }
     DataType preferred_base_type = *base_access_dtype.begin();
 
     int preferred_lanes = element_dtype.lanes();
     if (element_dtype.lanes() == 1) {
       int lanes = access_dtype.begin()->lanes();
       for (auto dtype : access_dtype) {
-        lanes = std::gcd(lanes, dtype.lanes());
+        lanes = arith::ZeroAwareGCD(lanes, dtype.lanes());
+      }
+      for (auto dtype : scalar_read_dtype) {
+        lanes = arith::ZeroAwareGCD(lanes, dtype.lanes());
       }
       arith::Analyzer analyzer_;
       arith::ModularSet me = analyzer_.modular_set(extent);
@@ -1311,11 +1325,7 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
       const PrimExpr last_dim_index = indices[indices.size() - 1];
       if (last_dim_index.dtype().lanes() == 1) {
         arith::ModularSet me = analyzer_.modular_set(last_dim_index);
-        if (me->coeff > 0) {
-          // When coeff == 0, the index is constant and doesn't need to be recorded since it can
-          // always be rewritten to shuffle.
-          var_info.access_dtype.insert(access_dtype.with_lanes(me->coeff));
-        }
+        var_info.scalar_read_dtype.emplace(access_dtype.with_lanes(me->coeff));
         return;
       }
     }

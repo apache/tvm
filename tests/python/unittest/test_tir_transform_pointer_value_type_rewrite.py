@@ -62,3 +62,12 @@ class TestAddressOf(BaseCompare):
         for i in range(4):
             T.evaluate(T.address_of(A[i * 4]))
             B[T.Div(i * 4, 4)] = A[i * 4 : i * 4 + 4]
+
+
+class TestScalarReadWithoutWrite(BaseCompare):
+    @T.prim_func
+    def before(A: T.Buffer((16,), "float32")):
+        for i in range(4):
+            T.evaluate(A[i * 4])
+
+    expected = before
