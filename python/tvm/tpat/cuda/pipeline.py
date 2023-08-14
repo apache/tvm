@@ -98,12 +98,16 @@ def pipeline(
     plugin_path = []
     for node in node_to_be_tunned:
         name = node.name
+        print(f"Processing ---- {name}")
         plugin_name = "tpat_{}".format(name.replace("/", "_").replace(".", "_"))
 
         subgraph, submodel, shapes = _extract_target_onnx_node(inferred_model, node)
 
         kernel = Kernel(plugin_name, submodel, shapes, enable_tunning, tunning_option)
         kernel.run()
+        if not kernel.cuda_source_code:
+            print(f"Skip {name}, because cuda source code is None")
+            continue
 
         ## 3.1 fill in template
         params = PluginTemplateParams(kernel, submodel, subgraph, node, name)

@@ -15,12 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import os
-
 import onnx
 import onnx_graphsurgeon as gs
-from loguru import logger
-from onnx import shape_inference
 from .type_mapping import onnx_type_mapping
 
 
@@ -87,7 +83,7 @@ def _remove_unnecessary_cast_nodes(graph):
     ]
     for node in cast_nodes:
         if (
-            node.attrs["to"] == 13 # uint64
+            node.attrs["to"] == 13  # uint64
             and len(node.inputs[0].inputs) <= 1
             and len(node.outputs[0].outputs) <= 1
         ):

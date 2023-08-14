@@ -15,15 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import copy
-import os
 import re
 
-import numpy as np
-import onnx
-import onnx_graphsurgeon as gs
-import onnxruntime as ort
-from onnx import shape_inference
 from .type_mapping import plugin_type_size, python_to_trt_type_mapping, tvm_to_c_type_mapping
 
 
@@ -41,12 +34,16 @@ class PluginTemplateParams(object):
 
         self._input_dict = {}
 
+        self._cuda_source_code = None
+
         self._workspace_size = []  # eid -> workspace size
         self._workspace_dtype = []  # eid -> workspace dtype
         self._total_workspace_size = 0  # total workspace size need by plugin
 
         # Kernel related params
-        self._device_function_list = {}  # kernel -> index for params of host function
+        self._device_function_list = (
+            {}
+        )  # kernel -> index for params of host function or address based on address
         self._device_thread_config = {}  # kernel -> thread dim
         self._device_function_order = []  # kernel invoke order
         self._device_allocate_memory_size = {}  # address -> (dtype, extent)
@@ -74,6 +71,7 @@ class PluginTemplateParams(object):
 
     def _describe(self):
         """Use for debug."""
+        print(f"Cuda source code >>> {self._cuda_source_code}")
         print(f"Constant params >>> {self._constant_params}")
         print(f"Device Function List >>> {self._device_function_list}")
         print(f"Device Thread Config >>> {self._device_thread_config}")
@@ -86,7 +84,6 @@ class PluginTemplateParams(object):
         print(f"Host Function Order >>> {self._host_function_order}")
         print(f"Storage Id >>> {self._storage_id}")
         print(f"Device Memory Size >>> {self._device_allocate_memory_size}")
-        # print(f"Cuda Source Code >>> {self._cuda_source_code}")
 
     # Parse Constant.
     def _parse_constant_params(self, constant_params):
@@ -179,6 +176,7 @@ class PluginTemplateParams(object):
         return host_executor_order, host_func_order
 
     def _parse_kernel_params(self):
+        self._cuda_source_code = self._kernel.cuda_source_code
         self._constant_params = self._parse_constant_params(self._kernel.constant_params)
         self._device_function_list = self._parse_device_function_list(
             self._kernel.device_function_list
@@ -198,9 +196,6 @@ class PluginTemplateParams(object):
             self._kernel.host_function_list
         )
         self._storage_id = self._parse_storageid(self._kernel.storageid)
-        self._cuda_source_code = self._kernel.cuda_source_code
-
-        self._describe()
 
     def _parse_shape_and_type(self):
         """

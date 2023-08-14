@@ -19,11 +19,7 @@ import contextlib
 import os
 import re
 
-import onnx
-import onnx_graphsurgeon as gs
 from jinja2 import Environment, FileSystemLoader
-from loguru import logger
-from onnx import shape_inference
 
 
 @contextlib.contextmanager
@@ -36,15 +32,10 @@ def pushd(new_dir):
         os.chdir(pre_dir)
 
 
-def rm_part_define(source_code):
-    m = re.search('extern "C"', source_code.strip())
-    return source_code[m.start() :]
-
-
 class PluginTemplate(object):
     def __init__(self, template_params):
         with pushd(os.path.normpath(os.path.dirname(__file__))):
-            template_loader = FileSystemLoader(searchpath='./')
+            template_loader = FileSystemLoader(searchpath="./")
         self._template_env = Environment(loader=template_loader)
 
         self._plugin_name = template_params.plugin_name
@@ -65,7 +56,6 @@ class PluginTemplate(object):
 
         workspace_constant = template_params.workspace_constant
         self._plugin_constant_init = self._parse_plugin_workspace_constant(workspace_constant)
-
 
     class TensorDims:
         def __init__(self, nbdims, shape):

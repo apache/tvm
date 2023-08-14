@@ -139,6 +139,7 @@ class Kernel(object):
 
         try:
             source_code = self._lib.get_lib().imported_modules[0].get_source()
+            # consistent type
             source_code = source_code.replace("signed char*", "int*")
             source_code = source_code.replace("uint64_t*", "int*")
             source_code = source_code.replace("long long", "int")
