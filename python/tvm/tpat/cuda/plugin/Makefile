@@ -15,12 +15,9 @@
 #
 
 # Variables need to be defined by Users
-# CUDA_PATH   = /path/to/cuda
-# CUDNN_PATH = /path/to/cudnn
-# TRT_PATH = /path/to/TensorRT
-CUDA_PATH   = /home/huangzhe1/anaconda3/envs/tvm_tunning
-CUDNN_PATH = /home/huangzhe1/husen/cudnn-linux-x86_64-8.9.3.28_cuda11-archive
-TRT_PATH = /home/huangzhe1/husen/TensorRT-8.6.1.6
+CUDA_PATH   = /path/to/cuda
+CUDNN_PATH = /path/to/cudnn
+TRT_PATH = /path/to/TensorRT
 ARCH = sm_86
 ########################################
 
