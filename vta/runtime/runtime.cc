@@ -76,9 +76,9 @@ class AlignmentAllocator : public std::allocator<T> {
 
   inline const_pointer address(const_reference r) const { return &r; }
 
-  inline pointer allocate(size_type n) { return (pointer)memalign(N, n * sizeof(value_type)); }
+  inline pointer allocate(size_type n) { return (pointer) std::aligned_alloc(N, n * sizeof(value_type)); }
 
-  inline void deallocate(pointer p, size_type) { free(p); }
+  inline void deallocate(pointer p, size_type) { std::free(p); }
 
   inline void construct(pointer p, const value_type& wert) { new (p) value_type(wert); }
 
@@ -528,7 +528,7 @@ class UopQueue : public BaseQueue<VTAUop> {
       total_size += ksize;
     }
 
-    char* lbuf = (char*)memalign(ALLOC_ALIGNMENT, total_size);
+    char* lbuf = (char *) std::aligned_alloc(ALLOC_ALIGNMENT, total_size);
     uint32_t offset = 0;
     for (uint32_t i = 0; i < cache_.size(); ++i) {
       uint32_t ksize = cache_[i]->size() * kElemBytes;
@@ -536,7 +536,7 @@ class UopQueue : public BaseQueue<VTAUop> {
       offset += ksize;
     }
     VTAMemCopyFromHost(static_cast<char*>(fpga_buff_), lbuf, total_size);
-    free(lbuf);
+    std::free(lbuf);
 
     // Flush if we're using a shared memory system
     // and if interface is non-coherent
