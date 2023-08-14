@@ -350,10 +350,11 @@ class MixedPrecisionPass : public MixedModeMutator {
 
     // TODO(AndrewZhaoLuo): Support ADTs
     // Relay's algebraic data types are not supported yet.
-    ICHECK(!cur_op.as<GlobalVarNode>()       // used to declare functions for recursion
-           && !cur_op.as<ConstructorNode>()  // constructing ADT types
-           && !cur_op.as<VarNode>())         // used for calling recursive functions
-        << "Algebraic Data Types (ADT) are not supported yet for mixed precision pass.";
+    bool isADT = (cur_op.as<GlobalVarNode>()       // used to declare functions for recursion
+                  || cur_op.as<ConstructorNode>()  // constructing ADT types
+                  || cur_op.as<LetNode>()          // used for binding lambdas
+                  || cur_op.as<VarNode>());        // used for calling recursive functions
+    if (isADT) return post;
 
     // Get info on the operation being called:
     // conversion category (int), accumulation dtype (str), output dtype (str)
