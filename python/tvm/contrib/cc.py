@@ -280,7 +280,7 @@ def _linux_compile(output, objects, options, compile_cmd, compile_shared=False):
             cmd += ["-c"]
     else:
         if compile_shared or output.endswith(".so") or output.endswith(".dylib"):
-            cmd += ["--shared"]
+            cmd += ["-shared"]
     cmd += ["-o", output]
     if isinstance(objects, str):
         cmd += [objects]
