@@ -319,7 +319,7 @@ Array<Var> Remap(String kinds, Array<PrimExpr> bindings, DataType dtype) {
     PrimExpr extent = arith::Analyzer().Simplify(stop - start);                                   \
     ObjectPtr<ForFrameNode> n = make_object<ForFrameNode>();                                      \
     int bits = std::max(min.dtype().bits(), extent.dtype().bits());                               \
-    n->vars = {Var("v", DataType::Int(bits))};                                                    \
+    n->vars = {Var("v", DataType(min.dtype().code(), bits, 1))};                                  \
     n->doms = {Range::FromMinExtent(min, extent)};                                                \
     n->f_make_for_loop = [annotations](Array<Var> vars, Array<Range> doms, tvm::tir::Stmt body) { \
       ICHECK_EQ(vars.size(), 1);                                                                  \
@@ -344,7 +344,7 @@ ForFrame ThreadBinding(PrimExpr start, PrimExpr stop, String thread,
   PrimExpr extent = arith::Analyzer().Simplify(stop - start);
   ObjectPtr<ForFrameNode> n = make_object<ForFrameNode>();
   int bits = std::max(min.dtype().bits(), extent.dtype().bits());
-  n->vars = {Var("v", DataType::Int(bits))};
+  n->vars = {Var("v", DataType(min.dtype().code(), bits, 1))};
   n->doms = {Range::FromMinExtent(min, extent)};
   n->f_make_for_loop = [annotations, thread](Array<Var> vars, Array<Range> doms, Stmt body) -> For {
     ICHECK_EQ(vars.size(), 1);
