@@ -43,7 +43,7 @@ class PluginTemplateParams(object):
         # Kernel related params
         self._device_function_list = (
             {}
-        )  # kernel -> index for params of host function or address based on address
+        )  # kernel -> index for params of host function or address based on workspace
         self._device_thread_config = {}  # kernel -> thread dim
         self._device_function_order = []  # kernel invoke order
         self._device_allocate_memory_size = {}  # address -> (dtype, extent)
@@ -66,8 +66,8 @@ class PluginTemplateParams(object):
 
         self._parse_shape_and_type()
         self._parse_kernel_params()
-        self._parse_device_function_inputs()
-        self._parse_device_function_config()
+        self._prepare_input_dict()
+        self._prepare_device_function_config()
 
     def _describe(self):
         """Use for debug."""
@@ -211,7 +211,7 @@ class PluginTemplateParams(object):
 
         self._output_shape = [oup.shape for oup in tunning_node.outputs]
 
-    def _parse_device_function_inputs(self):
+    def _prepare_input_dict(self):
         """
         The memory address used by functions params.
         """
@@ -229,7 +229,7 @@ class PluginTemplateParams(object):
             input_slot_dict[sid] = f"outputs[{i}]"
 
         # 2. for inputs, including variable and constants
-        storage_id_to_allocate_size = {}
+        storage_id_to_allocate_size = {}  # different entry id may map to same storage id
         for eid in range(len(self._workspace_size)):
             sid = int(self._storage_id[eid])
             if sid not in storage_id_to_allocate_size.keys():
@@ -279,7 +279,7 @@ class PluginTemplateParams(object):
 
         self._total_workspace_size = workspace_size
 
-    def _parse_device_function_config(self):
+    def _prepare_device_function_config(self):
         """
         Grid, Block Layout, etc.
         """
