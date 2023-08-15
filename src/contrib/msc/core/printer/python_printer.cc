@@ -1,0 +1,176 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+/*!
+ * \file src/contrib/msc/core/printer/python_printer.cc
+ */
+
+#include "python_printer.h"
+
+namespace tvm {
+namespace contrib {
+namespace msc {
+
+void PythonPrinter::PrintTypedDoc(const LiteralDoc& doc) {
+  const ObjectRef& value = doc->value;
+  bool defined = false;
+  if (!value.defined()) {
+    output_ << "None";
+    defined = true;
+  } else if (const auto* int_imm = value.as<IntImmNode>()) {
+    if (int_imm->dtype.is_bool()) {
+      output_ << (int_imm->value ? "True" : "False");
+      defined = true;
+    }
+  }
+  if (!defined) {
+    MSCBasePrinter::PrintTypedDoc(doc);
+  }
+}
+
+void PythonPrinter::PrintTypedDoc(const AttrAccessDoc& doc) {
+  PrintDoc(doc->value, false);
+  output_ << "." << doc->name;
+}
+
+void PythonPrinter::PrintTypedDoc(const CallDoc& doc) {
+  PrintDoc(doc->callee, false);
+  output_ << "(";
+  PrintJoinedDocs(doc->args);
+  ICHECK_EQ(doc->kwargs_keys.size(), doc->kwargs_values.size())
+      << "CallDoc should have equal number of elements in kwargs_keys and kwargs_values.";
+  if (doc->args.size() > 0 && doc->kwargs_keys.size() > 0) {
+    output_ << ", ";
+  }
+  for (size_t i = 0; i < doc->kwargs_keys.size(); i++) {
+    output_ << doc->kwargs_keys[i] << "=";
+    PrintDoc(doc->kwargs_values[i], false);
+    output_ << (i == doc->kwargs_keys.size() - 1 ? "" : ", ");
+  }
+  output_ << ")";
+}
+
+void PythonPrinter::PrintTypedDoc(const AssignDoc& doc) {
+  if (const auto* tuple_doc = doc->lhs.as<TupleDocNode>()) {
+    PrintJoinedDocs(tuple_doc->elements, ", ");
+  } else {
+    PrintDoc(doc->lhs, false);
+  }
+
+  if (doc->annotation) {
+    output_ << ": ";
+    PrintDoc(doc->annotation.value(), false);
+  }
+  if (doc->rhs) {
+    output_ << " = ";
+    if (const auto* tuple_doc = doc->rhs.as<TupleDocNode>()) {
+      if (tuple_doc->elements.size() > 1) {
+        PrintJoinedDocs(tuple_doc->elements, ", ");
+      } else {
+        PrintDoc(doc->rhs.value(), false);
+      }
+    } else {
+      PrintDoc(doc->rhs.value(), false);
+    }
+  }
+  MaybePrintComment(doc);
+}
+
+void PythonPrinter::PrintTypedDoc(const IfDoc& doc) {
+  MaybePrintComment(doc, true);
+  output_ << "if ";
+  PrintDoc(doc->predicate, false);
+  output_ << ":";
+
+  PrintIndentedBlock(doc->then_branch);
+
+  if (!doc->else_branch.empty()) {
+    NewLine();
+    output_ << "else:";
+    PrintIndentedBlock(doc->else_branch);
+  }
+}
+
+void PythonPrinter::PrintTypedDoc(const ScopeDoc& doc) {
+  MaybePrintComment(doc, true);
+  output_ << "with ";
+  PrintDoc(doc->rhs, false);
+  if (doc->lhs != nullptr) {
+    output_ << " as ";
+    PrintDoc(doc->lhs.value(), false);
+  }
+  output_ << ":";
+
+  PrintIndentedBlock(doc->body);
+}
+
+void PythonPrinter::PrintTypedDoc(const FunctionDoc& doc) {
+  for (const AssignDoc& arg_doc : doc->args) {
+    ICHECK(arg_doc->comment == nullptr) << "Function arg cannot have comment attached to them.";
+  }
+
+  PrintDecorators(doc->decorators);
+
+  output_ << "def ";
+  PrintDoc(doc->name, false);
+
+  output_ << "(";
+  PrintJoinedDocs(doc->args, ", ");
+  output_ << ")";
+
+  if (doc->return_type.defined()) {
+    output_ << " -> ";
+    PrintDoc(doc->return_type.value(), false);
+  }
+
+  output_ << ":";
+
+  MaybePrintComment(doc, true);
+  PrintIndentedBlock(doc->body);
+  NewLine(false);
+}
+
+void PythonPrinter::PrintTypedDoc(const CommentDoc& doc) {
+  if (doc->comment.defined()) {
+    output_ << "# " << doc->comment.value();
+  }
+}
+
+void PythonPrinter::PrintIndentedBlock(const Array<StmtDoc>& docs) {
+  IncreaseIndent();
+  for (const StmtDoc& d : docs) {
+    PrintDoc(d);
+  }
+  if (docs.empty()) {
+    NewLine() << "pass";
+  }
+  DecreaseIndent();
+}
+
+void PythonPrinter::PrintDecorators(const Array<ExprDoc>& decorators) {
+  for (const ExprDoc& decorator : decorators) {
+    output_ << "@";
+    PrintDoc(decorator);
+    NewLine();
+  }
+}
+
+}  // namespace msc
+}  // namespace contrib
+}  // namespace tvm
