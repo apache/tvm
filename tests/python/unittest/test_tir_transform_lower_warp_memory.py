@@ -18,7 +18,7 @@ import numpy as np
 import pytest
 import tvm
 import tvm.testing
-from tvm import te
+from tvm import te, tir
 from tvm.contrib.nvcc import have_fp16
 
 
@@ -55,9 +55,13 @@ def test_lower_warp_memory_local_scope():
 
     mod = _run_passes(mod)
     fdevice = mod["f_kernel"]
-    allocate = fdevice.body.body
+
+    allocate = fdevice
+    while not isinstance(allocate, tir.Allocate):
+        allocate = allocate.body
+
     assert allocate.buffer_var.type_annotation.storage_scope == "local"
-    assert fdevice.body.body.extents[0].value == 2
+    assert allocate.extents[0].value == 2
 
 
 @tvm.testing.requires_cuda
