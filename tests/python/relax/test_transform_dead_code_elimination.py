@@ -188,10 +188,13 @@ def test_unused_relax_func():
     assert not check_if_func_exists(new_mod, "unused_func")
 
 
-def test_unused_relax_func_custom_entry_func():
+provide_entry_func_name = tvm.testing.parameter(True, False)
+
+
+def test_unused_relax_func_custom_entry_func(provide_entry_func_name):
     @tvm.script.ir_module
     class InputModule:
-        @T.prim_func
+        @T.prim_func(private=True)
         def tir_add(
             x: T.Buffer((16, 16), "float32"),
             y: T.Buffer((16, 16), "float32"),
@@ -217,8 +220,54 @@ def test_unused_relax_func_custom_entry_func():
     mod = InputModule
     assert mod
 
+    if provide_entry_func_name:
+        entry_functions = ["foo"]
+    else:
+        entry_functions = None
+
     # Test entry function other than "main".
-    new_mod = DeadCodeElimination(entry_functions=["foo"])(mod)
+    new_mod = DeadCodeElimination(entry_functions=entry_functions)(mod)
+    assert check_if_func_exists(new_mod, "foo")
+    assert check_if_func_exists(new_mod, "tir_add")
+    assert not check_if_func_exists(new_mod, "unused_func")
+
+
+def test_tracking_through_externally_exposed_func(provide_entry_func_name):
+    @tvm.script.ir_module
+    class InputModule:
+        @T.prim_func(private=True)
+        def tir_add(
+            x: T.Buffer((16, 16), "float32"),
+            y: T.Buffer((16, 16), "float32"),
+            z: T.Buffer((16, 16), "float32"),
+        ) -> None:
+            for i, j in T.grid(16, 16):
+                with T.block("add"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    z[vi, vj] = x[vi, vj] + y[vi, vj]
+
+        @R.function(private=True)
+        def unused_func(x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")):
+            gv0 = R.add(x, w)
+            return gv0
+
+        @R.function
+        def foo(
+            x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")
+        ) -> R.Tensor((16, 16), "float32"):
+            gv0 = R.call_tir(InputModule.tir_add, (x, w), R.Tensor((16, 16), dtype="float32"))
+            return gv0
+
+        @R.function
+        def main(x: R.Tensor((16, 16), "float32")) -> R.Tensor((16, 16), "float32"):
+            return x
+
+    mod = InputModule
+    assert mod
+
+    # Test tracking of usage through externally-exposed function
+    new_mod = DeadCodeElimination(entry_functions=["main"])(mod)
+    assert check_if_func_exists(new_mod, "main")
     assert check_if_func_exists(new_mod, "foo")
     assert check_if_func_exists(new_mod, "tir_add")
     assert not check_if_func_exists(new_mod, "unused_func")

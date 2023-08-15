@@ -43,9 +43,9 @@ namespace relax {
 /**
  * \brief Detects all the functions that can be possibly called by entry function.
  */
-class CallTracer : ExprVisitor {
+class CallTracer : public ExprVisitor {
  public:
-  explicit CallTracer(IRModule mod_) : mod_{mod_}, called_funcs_{}, visiting_{} {}
+  explicit CallTracer(IRModule mod) : mod_{mod}, called_funcs_{}, visiting_{} {}
 
   void VisitExpr_(const GlobalVarNode* op) final {
     called_funcs_.insert(GetRef<GlobalVar>(op));
@@ -87,34 +87,71 @@ class CallTracer : ExprVisitor {
   std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> visiting_;
 };
 
-IRModule RemoveUnusedFunctions(IRModule mod_, Array<runtime::String> entry_funcs) {
-  auto tracer = CallTracer(mod_);
-  for (auto entry : entry_funcs) {
-    tracer.Trace(entry);
+IRModule RemoveUnusedFunctions(
+    IRModule mod, const std::unordered_set<GlobalVar, ObjectPtrHash, ObjectPtrEqual>& entry_funcs) {
+  CallTracer tracer(mod);
+  for (const auto& gvar : entry_funcs) {
+    tracer.VisitExpr(gvar);
   }
-  auto existing_functions = mod_->functions;
-  for (auto f : existing_functions) {
-    // If a function has an external linkage type, we do not remove it.
-    // Otherwise, we check the function and remove it if it is not used anywhere.
-    if (f.second->GetLinkageType() == LinkageType::kInternal && !tracer.check_if_called(f.first)) {
-      mod_->Remove(f.first);
+
+  std::vector<GlobalVar> to_remove;
+  for (const auto& kv : mod->functions) {
+    // The tracer contains all user-provided entry functions, all
+    // externally-callable functions, and anything that is directly or
+    // indirectly accessible from an entry function.
+    if (!tracer.check_if_called(kv.first)) {
+      to_remove.push_back(kv.first);
     }
   }
-  return mod_;
+
+  if (to_remove.size()) {
+    auto write_ptr = mod.CopyOnWrite();
+    for (const auto& gvar : to_remove) {
+      write_ptr->Remove(gvar);
+    }
+  }
+
+  return mod;
 }
 
-IRModule DeadCodeElimination(const IRModule& mod, Array<runtime::String> entry_functions) {
-  // S1: remove unused functions to reduce the number of functions to be analyzed.
-  IRModule tmp_mod = RemoveUnusedFunctions(mod, entry_functions);
-  // S2: remove unused variables in each function.
-  for (const auto& gv : tmp_mod->GetGlobalVars()) {
-    auto func = tmp_mod->Lookup(gv);
-    if (func->IsInstance<FunctionNode>()) {
-      tmp_mod->Update(gv, RemoveAllUnused(Downcast<Function>(func)));
+IRModule DeadCodeElimination(const IRModule& arg_mod, Array<runtime::String> entry_function_names) {
+  IRModule mod = arg_mod;
+
+  // S0: Make a list of all user-specified entry functions and
+  // externally-visible entry functions.
+  std::unordered_set<GlobalVar, ObjectPtrHash, ObjectPtrEqual> entry_functions;
+  for (const auto& name : entry_function_names) {
+    entry_functions.insert(mod->GetGlobalVar(name));
+  }
+  for (const auto& [gv, func] : mod->functions) {
+    if (func->GetLinkageType() == LinkageType::kExternal) {
+      entry_functions.insert(gv);
     }
   }
+
+  // S1: remove unused functions to reduce the number of functions to be analyzed.
+  mod = RemoveUnusedFunctions(mod, entry_functions);
+
+  // S2: remove unused variables in each function.
+  {
+    IRModule updates;
+    for (const auto& [gvar, base_func] : mod->functions) {
+      if (auto opt = base_func.as<Function>()) {
+        auto new_func = RemoveAllUnused(opt.value());
+        if (!new_func.same_as(base_func)) {
+          updates->Add(gvar, new_func);
+        }
+      }
+    }
+    if (updates->functions.size()) {
+      mod.CopyOnWrite()->Update(updates);
+    }
+  }
+
   // S3: remove unused functions again as some callers may be removed in S2.
-  return RemoveUnusedFunctions(tmp_mod, entry_functions);
+  mod = RemoveUnusedFunctions(mod, entry_functions);
+
+  return mod;
 }
 
 namespace transform {

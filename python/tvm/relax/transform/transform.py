@@ -992,7 +992,7 @@ def DeadCodeElimination(entry_functions: Optional[List[str]] = None) -> tvm.ir.t
         The registered pass.
     """
     if entry_functions is None:
-        entry_functions = ["main"]
+        entry_functions = []
     return _ffi_api.DeadCodeElimination(entry_functions)  # type: ignore
 
 
