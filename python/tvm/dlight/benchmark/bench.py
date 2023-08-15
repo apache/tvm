@@ -81,7 +81,7 @@ def benchmark(
     -------
     input_infos : Tuple[List[Tuple[Tuple[int, ...], str]], int]
         The input tensor information, including shape and dtype, and the total input bytes.
-        E.g., [((1, 32, 1, 64), "float16"), ((1, 32, 64, 128), "float16")], 528384
+        E.g., ([((1, 32, 1, 64), "float16"), ((1, 32, 64, 128), "float16")], 528384)
         where 528384 = 1 * 32 * 1 * 64 * 2 + 1 * 32 * 64 * 128 * 2
     median : float
         The median of the benchmarking results.
