@@ -111,9 +111,10 @@ Optional<ExprDoc> SpecialScalar(const runtime::NDArray& n, const ObjectPath& p) 
     } else if (exponent == 0 && fraction == 0) {
       value = 0.0;
     } else if (exponent == 0) {
-      value = std::pow(2.0, -24) * double(fraction);
+      value = std::pow(2.0, -24) * static_cast<double>(fraction);
     } else {
-      value = std::pow(2.0, double(exponent) - 25) * double(fraction | (1 << 10));
+      value = std::pow(2.0, static_cast<double>(exponent) - 25) *
+              static_cast<double>(fraction | (1 << 10));
     }
     if (sign_bit) {
       value *= -1.0;
