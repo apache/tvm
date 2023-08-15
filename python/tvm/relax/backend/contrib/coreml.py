@@ -170,24 +170,18 @@ def partition_for_coreml(mod):
 
     patterns = get_patterns_with_prefix("coreml")
     mod = transform.FoldDataflowBlockOutput()(mod)
-    mod = transform.FuseOpsByPattern(
-        patterns, bind_constants=True, annotate_codegen=False
-    )(mod)
+    mod = transform.FuseOpsByPattern(patterns, bind_constants=True, annotate_codegen=False)(mod)
     mod = transform.MergeCompositeFunctions()(mod)
     return mod
 
 
 # Codegen for coreml API reference: https://apple.github.io/coremltools/source/coremltools.models.neural_network.html
 def _convert_add(builder, name, inputs, outputs, args, attrs):
-    builder.add_elementwise(
-        name=name, input_names=inputs, output_name=outputs[0], mode="ADD"
-    )
+    builder.add_elementwise(name=name, input_names=inputs, output_name=outputs[0], mode="ADD")
 
 
 def _convert_multiply(builder, name, inputs, outputs, args, attrs):
-    builder.add_elementwise(
-        name=name, input_names=inputs, output_name=outputs[0], mode="MULTIPLY"
-    )
+    builder.add_elementwise(name=name, input_names=inputs, output_name=outputs[0], mode="MULTIPLY")
 
 
 def _convert_matmul(builder, name, inputs, outputs, args, attrs):
@@ -214,9 +208,7 @@ def _convert_batch_flatten(builder, name, inputs, outputs, args, attrs):
 
 def _convert_expand_dims(builder, name, inputs, outputs, args, attrs):
     axes = [int(v) for v in attrs["axis"]]
-    builder.add_expand_dims(
-        name=name, input_name=inputs[0], output_name=outputs[0], axes=axes
-    )
+    builder.add_expand_dims(name=name, input_name=inputs[0], output_name=outputs[0], axes=axes)
 
 
 def _convert_relu(builder, name, inputs, outputs, args, attrs):
@@ -291,6 +283,7 @@ class CallNodeInfoCollector(PyExprVisitor):
     """
     Collect PrimValue, Constant and attributes in the inner function
     """
+
     def __init__(self, op_name):
         self.primvals = []
         self.attrs = []
@@ -350,9 +343,7 @@ class CodegenCoreML(PyExprVisitor):
                 ),
             )
         ]
-        self.builder = NeuralNetworkBuilder(
-            inputs, outputs, disable_rank5_shape_mapping=True
-        )
+        self.builder = NeuralNetworkBuilder(inputs, outputs, disable_rank5_shape_mapping=True)
 
     def visit_function_(self, op) -> None:
         for var in op.params:

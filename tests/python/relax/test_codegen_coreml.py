@@ -288,6 +288,7 @@ def test_subgraph1():
     y_data = tvm.nd.array(np.random.rand(10, 10).astype("float32"), dev)
     verify(mod, [x_data, y_data])
 
+
 @tvm.testing.uses_gpu
 @requires_coremltools
 def test_subgraph2():
