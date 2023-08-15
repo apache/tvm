@@ -17,3 +17,4 @@
 """tvm.contrib.msc.core.utils"""
 
 from .expr import *
+from .info import *
