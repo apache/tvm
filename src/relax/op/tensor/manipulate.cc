@@ -604,11 +604,17 @@ TVM_REGISTER_OP("relax.permute_dims")
 
 /* relax.reshape */
 Expr ConvertNewShapeToExpr(const Expr& data, const ObjectRef& shape) {
-  if (const auto* e = shape.as<ExprNode>()) {
+  const ArrayNode* array;
+  // Treat shape expressions as constant arrays to handle special values.
+  if (const auto* e = shape.as<ShapeExprNode>()) {
+    array = e->values.as<ArrayNode>();
+    // Other non-shape expressions are used directly.
+  } else if (const auto* e = shape.as<ExprNode>()) {
     return GetRef<Expr>(e);
+    // Process special values in constants and produce an expression.
+  } else {
+    array = shape.as<ArrayNode>();
   }
-
-  const auto* array = shape.as<ArrayNode>();
   CHECK(array != nullptr) << "Reshape only expects the input new shape to be either an Expr or an "
                              "Array of PrimExprs. However, the given new shape is "
                           << shape;

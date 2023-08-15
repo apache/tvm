@@ -150,7 +150,7 @@ def get_prim_expr_list(
 
     Parameters
     ----------
-    inputs : Union[relax.Constant, relax.ShapeExpr]
+    inputs : Union[relax.Constant, relax.ShapeExpr, relax.PrimValue]
         The input value to try to convert to a list of PrimExpr.
 
     Returns
@@ -165,6 +165,8 @@ def get_prim_expr_list(
         return np_value.tolist()
     elif isinstance(inputs, relax.ShapeExpr):
         return inputs.values
+    elif isinstance(inputs, relax.PrimValue):
+        return [inputs.value.value]
     else:
         raise ValueError("Cannot cast {} to list of PrimExpr".format(type(inputs)))
 
@@ -233,6 +235,19 @@ class Div(OnnxOpConverter):
         if all([isinstance(inp, relax.Constant) for inp in inputs]):
             output = inputs[0].data.numpy() / inputs[1].data.numpy()
             return relax.const(output, inputs[0].struct_info.dtype)
+        if any([isinstance(inp, relax.PrimValue) for inp in inputs]):
+            x = (
+                int(inputs[0].value)
+                if isinstance(inputs[0], relax.PrimValue)
+                else inputs[0].data.numpy()
+            )
+            y = (
+                int(inputs[1].value)
+                if isinstance(inputs[1], relax.PrimValue)
+                else inputs[1].data.numpy()
+            )
+            return relax.PrimValue(int(x / y))
+
         return relax.op.divide(inputs[0], inputs[1])
 
 
@@ -359,6 +374,19 @@ class Add(OnnxOpConverter):
         if all([isinstance(inp, relax.Constant) for inp in inputs]):
             output = inputs[0].data.numpy() + inputs[1].data.numpy()
             return relax.const(output, output.dtype)
+        # If primvalues are involved, handle them directly.
+        if any([isinstance(inp, relax.PrimValue) for inp in inputs]):
+            x = (
+                int(inputs[0].value)
+                if isinstance(inputs[0], relax.PrimValue)
+                else inputs[0].data.numpy()
+            )
+            y = (
+                int(inputs[1].value)
+                if isinstance(inputs[1], relax.PrimValue)
+                else inputs[1].data.numpy()
+            )
+            return relax.PrimValue(int(x + y))
         return relax.op.add(inputs[0], inputs[1])
 
 
@@ -367,9 +395,24 @@ class Mul(OnnxOpConverter):
 
     @classmethod
     def _impl_v13(cls, bb, inputs, attr, params):
+        # When all inputs are constant, directly multiply.
         if all([isinstance(inp, relax.Constant) for inp in inputs]):
             output = inputs[0].data.numpy() * inputs[1].data.numpy()
             return relax.const(output, output.dtype)
+        # If primvalues are involved, handle them directly.
+        if any([isinstance(inp, relax.PrimValue) for inp in inputs]):
+            x = (
+                int(inputs[0].value)
+                if isinstance(inputs[0], relax.PrimValue)
+                else inputs[0].data.numpy()
+            )
+            y = (
+                int(inputs[1].value)
+                if isinstance(inputs[1], relax.PrimValue)
+                else inputs[1].data.numpy()
+            )
+            return relax.PrimValue(int(x * y))
+
         return relax.op.multiply(inputs[0], inputs[1])
 
 
@@ -382,6 +425,8 @@ class Cast(OnnxOpConverter):
         if isinstance(inputs[0], relax.Constant):
             output = inputs[0].data.numpy().astype(to_type)
             return relax.const(output, to_type)
+        if isinstance(inputs[0], relax.PrimValue):
+            return relax.PrimValue(inputs[0].value.astype(to_type))
         return relax.op.astype(inputs[0], to_type)
 
 
