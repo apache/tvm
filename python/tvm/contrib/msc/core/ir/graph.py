@@ -46,8 +46,8 @@ class MSCTensor(Object):
     def __init__(
         self,
         name: str,
-        dtype: str,
-        layout: Union[str, np.dtype, tvm.DataType],
+        dtype: Union[str, np.dtype, tvm.DataType],
+        layout: str,
         shape: List[int],
         alias: Optional[str] = None,
     ):
@@ -95,8 +95,8 @@ class MSCTensor(Object):
 
         Returns
         -------
-        abstract: dict
-            The tensor abstract in json format.
+        tensor_des: dict
+            The tensor description in json format.
         """
 
         return {"name": self.alias, "shape": self.get_shape(), "dtype": self.dtype_name}
@@ -231,7 +231,7 @@ class MSCJoint(BaseJoint):
         return _ffi_api.MSCJointGetAttrs(self)
 
     def get_attr(self, key: str, default: Optional[Any] = None) -> str:
-        """Get all the attribute from node
+        """Get the attribute of key from node
 
         Parameters
         -------
@@ -511,22 +511,22 @@ class MSCGraph(BaseGraph):
 
         Returns
         -------
-        abstract: dict
-            The graph abstract in json format.
+        graph_des: dict
+            The graph description in json format.
         """
 
-        graph_abs = {
+        graph_des = {
             "inputs": [i.inspect() for i in self.get_inputs()],
             "outputs": [o.inspect() for o in self.get_outputs()],
             "nodes": {"total": 0},
         }
         for node in self.get_nodes():
-            graph_abs["nodes"]["total"] += 1
-            if node.optype not in graph_abs["nodes"]:
-                graph_abs["nodes"][node.optype] = 1
+            graph_des["nodes"]["total"] += 1
+            if node.optype not in graph_des["nodes"]:
+                graph_des["nodes"][node.optype] = 1
             else:
-                graph_abs["nodes"][node.optype] += 1
-        return graph_abs
+                graph_des["nodes"][node.optype] += 1
+        return graph_des
 
     @classmethod
     def from_json(cls, json_str: str) -> BaseGraph:
