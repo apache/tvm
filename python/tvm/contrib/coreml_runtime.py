@@ -42,6 +42,7 @@ def create(symbol, compiled_model_path, device):
         fcreate = device._rpc_sess.get_function(runtime_func)
     else:
         fcreate = tvm._ffi.get_global_func(runtime_func)
+        assert fcreate, "Cannot find `tvm.coreml_runtime.create` function."
 
     return CoreMLModule(fcreate(symbol, compiled_model_path))
 

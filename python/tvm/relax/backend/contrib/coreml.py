@@ -20,16 +20,14 @@
 import os
 import shutil
 import tvm._ffi
-from ...expr_functor import PyExprVisitor, visitor
 from tvm.contrib import coreml_runtime
 from tvm.contrib.xcode import compile_coreml
+
 import tvm
 from tvm.relax import transform
 from tvm.relax.struct_info import TensorStructInfo, PrimStructInfo
 from tvm.relax.expr import (
-    Binding,
     BindingBlock,
-    Expr,
     Call,
     Function,
     PrimValue,
@@ -42,6 +40,7 @@ from tvm.relax.dpl.pattern import is_op, wildcard
 from tvm.relax.transform import PatternCheckContext
 from ..pattern_registry import get_patterns_with_prefix, register_patterns
 from ..patterns import make_matmul_pattern
+from ...expr_functor import PyExprVisitor, visitor
 
 
 def _check_default(context: PatternCheckContext) -> bool:
@@ -175,7 +174,8 @@ def partition_for_coreml(mod):
     return mod
 
 
-# Codegen for coreml API reference: https://apple.github.io/coremltools/source/coremltools.models.neural_network.html
+# Codegen for coreml API reference:
+# https://apple.github.io/coremltools/source/coremltools.models.neural_network.html
 def _convert_add(builder, name, inputs, outputs, args, attrs):
     builder.add_elementwise(name=name, input_names=inputs, output_name=outputs[0], mode="ADD")
 
@@ -485,11 +485,6 @@ def coreml_compiler(funcs, options, constant_names):
             shutil.rmtree(mlmodelc_path)
 
         builder.compile(model_dir)
-
         dev = tvm.cpu(0)
-        coreml_runtime.create(name, mlmodelc_path, dev).module
-
-        creator = tvm.get_global_func("tvm.coreml_runtime.create")
-        assert creator, "Cannot find `tvm.coreml_runtime.create` function."
-        compiled_funcs.append(creator(name, mlmodelc_path))
+        compiled_funcs.append(coreml_runtime.create(name, mlmodelc_path, dev))
     return compiled_funcs
