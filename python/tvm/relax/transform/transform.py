@@ -249,7 +249,7 @@ def RemovePurityChecking() -> tvm.ir.transform.Pass:
     return _ffi_api.RemovePurityChecking()  # type: ignore
 
 
-def LambdaLift():
+def LambdaLift() -> tvm.ir.transform.Pass:
     """A pass that lifts local functions into global.
 
     Returns
@@ -310,6 +310,24 @@ def EliminateCommonSubexpr(call_only=False) -> FunctionPass:
         The registered pass that eliminates common subexpressions.
     """
     return _ffi_api.EliminateCommonSubexpr(call_only)  # type: ignore
+
+
+def UpdateVDevice(new_vdevice: tvm.ir.VDevice, index: int) -> tvm.ir.transform.Pass:
+    """Update virtual device.
+
+    Parameters
+    ----------
+    new_vdevice : tvm.ir.VDevice
+        The new virtual device.
+    index : int
+        The device index indicates the device on which the update will be performed.
+
+    Returns
+    -------
+    ret : tvm.ir.transform.Pass
+        The registered pass that modifies the virtual device.
+    """
+    return _ffi_api.UpdateVDevice(new_vdevice, index)  # type: ignore
 
 
 def RewriteDataflowReshape() -> tvm.ir.transform.Pass:

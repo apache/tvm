@@ -39,6 +39,10 @@ StructInfo InferStructInfoBroadcast(const Call& call, const BlockBuilder& ctx,
   // DateType
   DataType output_dtype = f_compute_out_dtype(call, ctx, x1_sinfo, x2_sinfo);
 
+  // VDevice
+  // todo(yongwww): ignore if vdevice is null
+  VDevice vdevice = InferBinaryArithOpOutVDevice(call, ctx, x1_sinfo, x2_sinfo);
+
   // ndims
   int output_ndim;
   if (x1_sinfo->IsUnknownNdim() || x2_sinfo->IsUnknownNdim()) {
@@ -55,15 +59,15 @@ StructInfo InferStructInfoBroadcast(const Call& call, const BlockBuilder& ctx,
     Optional<Array<PrimExpr>> output_shape =
         InferBinaryBroadcastShape(call, ctx, x1_shape->values, x2_shape->values);
     if (!output_shape.defined()) {
-      return TensorStructInfo(output_dtype, /*ndim=*/output_ndim);
+      return TensorStructInfo(output_dtype, /*ndim=*/output_ndim, vdevice);
     } else {
       ICHECK_EQ(static_cast<int>(output_shape.value().size()), output_ndim);
-      return TensorStructInfo(ShapeExpr(output_shape.value()), output_dtype);
+      return TensorStructInfo(ShapeExpr(output_shape.value()), output_dtype, vdevice);
     }
   } else if (x1_sinfo->shape.defined() && x1_sinfo->shape.same_as(x2_sinfo->shape)) {
-    return TensorStructInfo(x1_sinfo->shape.value(), output_dtype);
+    return TensorStructInfo(x1_sinfo->shape.value(), output_dtype, vdevice);
   } else {
-    return TensorStructInfo(output_dtype, /*ndim=*/output_ndim);
+    return TensorStructInfo(output_dtype, /*ndim=*/output_ndim, vdevice);
   }
 }
 

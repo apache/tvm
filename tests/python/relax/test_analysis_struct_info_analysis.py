@@ -602,3 +602,4 @@ def test_symbolic_var_collector():
 
 if __name__ == "__main__":
     tvm.testing.main()
+    # todo(yongwww): update test cases for TensorStructInfo

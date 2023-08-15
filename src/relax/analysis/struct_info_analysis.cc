@@ -149,10 +149,7 @@ class WellDefinedEraser : public StructInfoMutator,
       std::swap(has_undefined_, has_undefined);
     }
 
-    VDevice vdev = VDevice(/*tgt*/ {}, /*dev_id*/ 0, /*mem_scope*/ "global");
-    if (op->vdevice.defined()) {
-      vdev = op->vdevice.value();
-    }
+    VDevice vdev = op->vdevice.value_or(VDevice(/*tgt*/ {}, /*dev_id*/ 0, /*mem_scope*/ "global"));
 
     // erase symbolic shape if we have undefined.
     if (!has_undefined) {
@@ -346,6 +343,28 @@ class StructInfoBaseChecker
       if (rhs->IsUnknownNdim()) return BaseCheckResult::kFailL1;
       return BaseCheckResult::kFailL0;
     }
+
+    // vdevice mismatch
+    if (lhs->vdevice.defined() && !rhs->vdevice.defined()) return BaseCheckResult::kFailL1;
+    if (lhs->vdevice.defined() && rhs->vdevice.defined()) {
+      VDevice lhs_vdevice = lhs->vdevice.value();
+      VDevice rhs_vdevice = rhs->vdevice.value();
+      // target mismatch
+      if (lhs_vdevice->target.defined() && !rhs_vdevice->target.defined())
+        return BaseCheckResult::kFailL1;
+      // mismatch in either the target, vdevice_id, or memory_scope
+      if (lhs_vdevice->target != rhs_vdevice->target ||
+          lhs_vdevice->vdevice_id != rhs_vdevice->vdevice_id ||
+          lhs_vdevice->memory_scope != rhs_vdevice->memory_scope) {
+        return BaseCheckResult::kFailL0;
+      }
+    }
+
+    if (!lhs->vdevice.defined() && lhs->dtype != rhs->dtype) {
+      if (rhs->IsUnknownDtype()) return BaseCheckResult::kFailL1;
+      return BaseCheckResult::kFailL0;
+    }
+
     // lhs does not have defined shape and everything else matches
     if (!lhs->shape.defined()) return BaseCheckResult::kPass;
     // rhs does not have symbolic value but lhs don't
