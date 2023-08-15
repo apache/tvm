@@ -78,8 +78,16 @@ def test_valid_submodules():
     assert mod.imported_modules[0].imported_modules[0].is_binary_serializable
     assert mod.imported_modules[0].imported_modules[1].is_binary_serializable
 
+    # The roundtripped mod should have the same structure
     new_mod = tvm.ir.load_json(tvm.ir.save_json(mod))
-    tvm.ir.structural_equal(mod, new_mod)
+    assert new_mod.type_key == "cuda"
+    assert new_mod.is_binary_serializable
+    assert new_mod.imported_modules[0].type_key == "cuda"
+    assert new_mod.imported_modules[0].is_binary_serializable
+    assert new_mod.imported_modules[0].imported_modules[0].type_key == "cuda"
+    assert new_mod.imported_modules[0].imported_modules[1].type_key == "cuda"
+    assert new_mod.imported_modules[0].imported_modules[0].is_binary_serializable
+    assert new_mod.imported_modules[0].imported_modules[1].is_binary_serializable
 
 
 @tvm.testing.requires_cuda
