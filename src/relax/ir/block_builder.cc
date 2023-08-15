@@ -76,7 +76,6 @@ class BlockBuilderImpl : public BlockBuilderNode {
     LazyInitCtxFuncDedupMap();
     auto it = ctx_func_dedup_map_->find(func);
     if (it == ctx_func_dedup_map_->end()) {
-      
       context_mod_.CopyOnWrite();
 
       String func_name = GetUniqueName(func_name_hint);
