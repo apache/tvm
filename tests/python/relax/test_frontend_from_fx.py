@@ -195,7 +195,7 @@ def test_conv1d_transpose():
     model = ConvTranspose1d2()
     binding = {"w1": model.conv.weight.detach().numpy()}
     verify_model(model, input_info, binding, expected2)
-    
+
 
 def test_conv2d():
     class Conv2D1(Module):
@@ -1271,6 +1271,10 @@ def test_softmax():
         def forward(self, input):
             return self.sm(input)
 
+    class Softmax2(Module):
+        def forward(self, input):
+            return torch.nn.functional.softmax(input, dim=1)
+
     @tvm.script.ir_module
     class expected1:
         @R.function
@@ -1285,6 +1289,39 @@ def test_softmax():
             return gv
 
     verify_model(Softmax(), input_info, {}, expected1)
+    verify_model(Softmax2(), input_info, {}, expected1)
+
+
+def test_logsoftmax():
+    input_info = [([1, 3, 10, 10], "float32")]
+
+    class LogSoftmax(Module):
+        def __init__(self):
+            super().__init__()
+            self.lsm = torch.nn.LogSoftmax(dim=1)
+
+        def forward(self, input):
+            return self.lsm(input)
+
+    class LogSoftmax2(Module):
+        def forward(self, input):
+            return torch.nn.functional.log_softmax(input, dim=1)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.log_softmax(input_1, axis=1)
+                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(LogSoftmax(), input_info, {}, expected1)
+    verify_model(LogSoftmax2(), input_info, {}, expected1)
 
 
 def test_binary():
@@ -1826,7 +1863,7 @@ def test_unary():
 
         def forward(self, input):
             return self.sigmoid(input)
-        
+
     class Sigmoid2(Module):
         def forward(self, input):
             return torch.sigmoid(input)
@@ -1878,7 +1915,7 @@ def test_gelu():
 
         def forward(self, input):
             return self.gelu(input)
-        
+
     class Gelu2(Module):
         def forward(self, input):
             return torch.nn.functional.gelu(input)
