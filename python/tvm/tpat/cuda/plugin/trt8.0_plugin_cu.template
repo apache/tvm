@@ -33,18 +33,18 @@ void check(T result, char const *const func, const char *const file,
 #define checkCudaErrors(val) check((val), #val, __FILE__, __LINE__)
 
 
-{{plugin_kernels_body}}
+{{plugin_source_code}}
 
 PluginFieldCollection {{plugin_name}}Creator::mFC{};
 std::vector<PluginField> {{plugin_name}}Creator::mPluginAttributes;
 
 int {{plugin_name}}::enqueue(const nvinfer1::PluginTensorDesc* inputDesc, const nvinfer1::PluginTensorDesc* outputDesc, const void* const* inputs, void* const* outputs, void* workspace, cudaStream_t stream) noexcept {
-    {% for constant in plugin_constant_init %}
+    {% for constant in plugin_workspace_constant %}
     const {{constant.type}} constant_{{constant.index}}[{{constant.length}}] = { {{constant.value}} };
     checkCudaErrors(cudaMemcpyAsync({{constant.pos}}, &constant_{{constant.index}}, {{constant.length}} * sizeof({{constant.type}}), cudaMemcpyHostToDevice, stream));
     {% endfor %}
     dim3 dimBlock, dimGrid;
-    {% for kernel in plugin_kernels_params %}
+    {% for kernel in plugin_device_function_configuration %}
     dimGrid = dim3{{kernel.grid_dim}};
     dimBlock = dim3{{kernel.block_dim}};
     {{kernel.name}}<<<dimGrid, dimBlock, 0, stream>>>({{kernel.enqueue_params}});

@@ -17,7 +17,6 @@
 
 import contextlib
 import os
-import re
 
 from jinja2 import Environment, FileSystemLoader
 
@@ -39,23 +38,20 @@ class PluginTemplate(object):
         self._template_env = Environment(loader=template_loader)
 
         self._plugin_name = template_params.plugin_name
-        self._plugin_device_function_configuration = template_params.device_function_configuration
         self._plugin_output_number = template_params.num_outputs
-        self._plugin_output_type = template_params.output_dtype
+        self._plugin_output_dtype = template_params.output_dtype
         self._plugin_workspace_size = template_params.total_workspace_size
-        self._plugin_kernels_body = template_params.cuda_source_code
-
-        onnx_output_shape = template_params.output_shape
-        self._plugin_output_shape = self._parse_plugin_output_shape(onnx_output_shape)
-
-        onnx_tensor_type = template_params.tensor_type
-        self._plugin_tensor_format = self._parse_plugin_tensor_format(onnx_tensor_type)
-
-        kernel_order = template_params.device_function_order
-        self._plugin_kernels_params = self._parse_plugin_kernels_params(kernel_order)
-
-        workspace_constant = template_params.workspace_constant
-        self._plugin_constant_init = self._parse_plugin_workspace_constant(workspace_constant)
+        self._plugin_source_code = template_params.cuda_source_code
+        self._plugin_output_shape = self._parse_plugin_output_shape(template_params.output_shape)
+        self._plugin_tensor_format = self._parse_plugin_tensor_format(template_params.tensor_type)
+        self._plugin_device_function_configuration = (
+            self._parse_plugin_device_function_configuration(
+                template_params.device_function_configuration, template_params.device_function_list
+            )
+        )
+        self._plugin_workspace_constant = self._parse_plugin_workspace_constant(
+            template_params.workspace_constant
+        )
 
     class TensorDims:
         def __init__(self, nbdims, shape):
@@ -134,47 +130,42 @@ class PluginTemplate(object):
             self.size = size
             self.dtype = dtype
 
-    def _parse_plugin_input_shape(self, onnx_input_shape):
-        plugin_input_shape = []
-        for s in onnx_input_shape:
-            nbdims = len(s)
-            shape = s
-            plugin_input_shape.append(self.TensorDims(nbdims, shape))
-        return plugin_input_shape
-
-    def _parse_plugin_output_shape(self, onnx_output_shape):
+    def _parse_plugin_output_shape(self, output_shape):
         plugin_output_shape = []
-        for s in onnx_output_shape:
+        for s in output_shape:
             nbdims = len(s)
             shape = s
             plugin_output_shape.append(self.TensorDims(nbdims, shape))
         return plugin_output_shape
 
-    def _parse_plugin_tensor_format(self, onnx_tensor_type):
+    def _parse_plugin_tensor_format(self, tensor_type):
         plugin_tensor_format = []
-        for dtype in onnx_tensor_type:
+        for dtype in tensor_type:
             plugin_tensor_format.append(self.TensorFormat("LINEAR", dtype))
         return plugin_tensor_format
 
-    def _parse_plugin_kernels_params(self, kernel_order):
-        kernel_call = {}
-        plugin_kernels_params = []
-        for func_name in kernel_order:
-            if func_name not in kernel_call.keys():
-                kernel_call[func_name] = 0
+    def _parse_plugin_device_function_configuration(
+        self, device_function_configuration, device_function_list
+    ):
+        frequency = {}
+        kernel_configuration = []
+        for func_name in device_function_list:
+            if func_name not in frequency.keys():
+                frequency[func_name] = 0
                 key_name = func_name
             else:
-                kernel_call[func_name] += 1
-                key_name = func_name + "_" + str(kernel_call[func_name])
-            plugin_kernels_params.append(
+                frequency[func_name] += 1
+                key_name = f"{func_name}_{frequency[func_name]}"
+
+            kernel_configuration.append(
                 self.Kernel(
                     func_name,
-                    self._plugin_device_function_configuration[key_name]["grid_dim"],
-                    self._plugin_device_function_configuration[key_name]["block_dim"],
-                    self._plugin_device_function_configuration[key_name]["enqueue_params"],
+                    device_function_configuration[key_name]["grid_dim"],
+                    device_function_configuration[key_name]["block_dim"],
+                    device_function_configuration[key_name]["enqueue_params"],
                 )
             )
-        return plugin_kernels_params
+        return kernel_configuration
 
     def _parse_plugin_workspace_constant(self, workspace_constant):
         plugin_constant_init = []
@@ -245,7 +236,7 @@ class StaticBatchPluginTemplate(PluginTemplate):
             plugin_name=self._plugin_name,
             plugin_output_number=self._plugin_output_number,
             plugin_output_shape=self._plugin_output_shape,
-            plugin_output_type=self._plugin_output_type,
+            plugin_output_dtype=self._plugin_output_dtype,
             plugin_workspace_size=self._plugin_workspace_size,
             plugin_tensor_format=self._plugin_tensor_format,
         )
@@ -256,9 +247,9 @@ class StaticBatchPluginTemplate(PluginTemplate):
         template = self._template_env.get_template(self._template_source_file)
         output_text = template.render(
             plugin_name=self._plugin_name,
-            plugin_kernels_params=self._plugin_kernels_params,
-            plugin_kernels_body=self._plugin_kernels_body,
-            plugin_constant_init=self._plugin_constant_init,
+            plugin_device_function_configuration=self._plugin_device_function_configuration,
+            plugin_source_code=self._plugin_source_code,
+            plugin_workspace_constant=self._plugin_workspace_constant,
         )
         with open("./plugin/src/{}.cu".format(self._plugin_name), "w") as f:
             f.write(output_text)

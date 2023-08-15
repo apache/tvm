@@ -28,7 +28,7 @@ namespace plugin
 class {{plugin_name}}: public IPluginV2DynamicExt {
 public:
     {{plugin_name}}() {}
-    
+
     {{plugin_name}}(const void *buffer, size_t length) {
     }
 
@@ -36,7 +36,7 @@ public:
         return 0;
     }
     virtual void serialize(void *buffer) const noexcept override {}
-    
+
     //! The combination of kLINEAR + kFLOAT is supported.
     bool supportsFormatCombination(int pos, const PluginTensorDesc* inOut, int nbInputs, int nbOutputs) noexcept override
     {
@@ -70,7 +70,7 @@ public:
     }
     nvinfer1::DataType getOutputDataType(int index, const nvinfer1::DataType* inputTypes, int nbInputs) const noexcept override{
         //std::cout << __FUNCTION__ << std::endl;
-        {% for type in plugin_output_type %}if (index == {{ loop.index0 }}){
+        {% for type in plugin_output_dtype %}if (index == {{ loop.index0 }}){
             return nvinfer1::DataType::k{{type}};
         }
         {% endfor %}
@@ -107,13 +107,13 @@ public:
         obj->setPluginNamespace(mNamespace.c_str());
         return obj;
     }
-    
+
     const char* getPluginName() const noexcept override {return "{{plugin_name}}";}
     const char* getPluginVersion() const noexcept override {return "1";}
 
     void setPluginNamespace(const char* szNamespace) noexcept override {mNamespace = szNamespace;}
     const char* getPluginNamespace() const noexcept override {return mNamespace.c_str();}
-    
+
     const nvinfer1::PluginFieldCollection* getFieldNames() noexcept override {
         //std::cout << __FUNCTION__ << std::endl;
         return &mFC;
