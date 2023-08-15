@@ -486,5 +486,5 @@ def coreml_compiler(funcs, options, constant_names):
 
         builder.compile(model_dir)
         dev = tvm.cpu(0)
-        compiled_funcs.append(coreml_runtime.create(name, mlmodelc_path, dev))
+        compiled_funcs.append(coreml_runtime.create(name, mlmodelc_path, dev).module)
     return compiled_funcs
