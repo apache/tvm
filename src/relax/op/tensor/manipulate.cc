@@ -129,17 +129,32 @@ Optional<Array<PrimExpr>> CheckConcatOutputShape(const Call& call, const BlockBu
                                                  int axis) {
   bool shape_unknown = false;
   arith::Analyzer* analyzer = ctx->GetAnalyzer();
-  PrimExpr concat_sum = IntImm(DataType::Int(64), 0);
-  for (int d = 0; d < static_cast<int>(shape_values[0].size()); ++d) {
+  PrimExpr concat_sum = [&]() {
     // For the specified axis, we compute the sum of shape value over each tensor.
-    if (d == axis) {
-      for (Array<PrimExpr> shape_value : shape_values) {
-        concat_sum += shape_value[d];
-      }
-      continue;
+
+    // Special case, if all concatenated values have the same shape
+    StructuralEqual structural_equal;
+    PrimExpr first_concat_dim = shape_values[0][axis];
+    bool all_same = std::all_of(shape_values.begin(), shape_values.end(), [&](const auto& a) {
+      return structural_equal(a[axis], first_concat_dim);
+    });
+    if (all_same) {
+      return first_concat_dim * IntImm(DataType::Int(64), shape_values.size());
     }
 
-    // For other axes, we check the equality of all tensors' shape values, to ensure safety.
+    // General case, add up the dimensions along the specified axis.
+    PrimExpr concat_sum = IntImm(DataType::Int(64), 0);
+    for (Array<PrimExpr> shape_value : shape_values) {
+      concat_sum += shape_value[axis];
+    }
+    return concat_sum;
+  }();
+
+  // For other axes, we check the equality of all tensors' shape values, to ensure safety.
+  for (int d = 0; d < static_cast<int>(shape_values[0].size()); ++d) {
+    if (d == axis) {
+      continue;
+    }
     for (int i = 1; i < static_cast<int>(shape_values.size()); ++i) {
       if (analyzer->CanProve(shape_values[i][d] != shape_values[0][d])) {
         ctx->ReportFatal(Diagnostic::Error(call)
