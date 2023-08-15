@@ -149,7 +149,11 @@ class GraphCreator : public ExprVisitor {
     // We skip ordinary binding blocks since they might be impure (with side effect or control flow)
   }
 
-  // TODO(tvm-team): how to deal with MatchCast binding here
+  void VisitBinding_(const MatchCastNode* binding) final {
+    IndexedForwardGraph::Node* node = CreateNode(binding->var.get());
+    SetNodePattern(node, OpPatternKind::kOpaque);
+    AddToPostDFSOrder(node, binding->var.get());
+  }
 
   void VisitBinding_(const VarBindingNode* binding) final {
     IndexedForwardGraph::Node* node = CreateNode(binding->var.get());
