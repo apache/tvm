@@ -77,7 +77,11 @@ StructInfo InferStructInfoConv1d(const Call& call, const BlockBuilder& ctx) {
   DataType out_dtype = attrs->out_dtype.is_void()
                            ? InferBinaryArithOpOutDtype(call, ctx, data_sinfo, weight_sinfo)
                            : attrs->out_dtype;
+  Optional<VDevice> vdevice = InferBinaryArithOpOutVDevice(call, ctx, data_sinfo, weight_sinfo);
   if (!data_shape.defined() || !weight_shape.defined()) {
+    if (vdevice.defined()) {
+      return TensorStructInfo(out_dtype, out_layout.ndim(), vdevice.value());
+    }
     return TensorStructInfo(out_dtype, out_layout.ndim());
   }
 
@@ -121,6 +125,9 @@ StructInfo InferStructInfoConv1d(const Call& call, const BlockBuilder& ctx) {
   out_NCW_shape[2] = analyzer->Simplify(floordiv(numerator_w, attrs->strides[0]) + 1);
 
   Array<PrimExpr> out_shape = out2NCW.BackwardShape(out_NCW_shape);
+  if (vdevice.defined()) {
+    return TensorStructInfo(ShapeExpr(out_shape), out_dtype, vdevice.value());
+  }
   return TensorStructInfo(ShapeExpr(out_shape), out_dtype);
 }
 
@@ -239,7 +246,11 @@ StructInfo InferStructInfoConv2d(const Call& call, const BlockBuilder& ctx) {
   DataType out_dtype = attrs->out_dtype.is_void()
                            ? InferBinaryArithOpOutDtype(call, ctx, data_sinfo, weight_sinfo)
                            : attrs->out_dtype;
+  Optional<VDevice> vdevice = InferBinaryArithOpOutVDevice(call, ctx, data_sinfo, weight_sinfo);
   if (!data_shape.defined() || !weight_shape.defined()) {
+    if (vdevice.defined()) {
+      return TensorStructInfo(out_dtype, out_layout.ndim(), vdevice.value());
+    }
     return TensorStructInfo(out_dtype, out_layout.ndim());
   }
 
@@ -288,6 +299,9 @@ StructInfo InferStructInfoConv2d(const Call& call, const BlockBuilder& ctx) {
   out_NCHW_shape[3] = analyzer->Simplify(floordiv(numerator_w, attrs->strides[1]) + 1);
 
   Array<PrimExpr> out_shape = out2NCHW.BackwardShape(out_NCHW_shape);
+  if (vdevice.defined()) {
+    return TensorStructInfo(ShapeExpr(out_shape), out_dtype, vdevice.value());
+  }
   return TensorStructInfo(ShapeExpr(out_shape), out_dtype);
 }
 
@@ -411,7 +425,11 @@ StructInfo InferStructInfoConv1dTranspose(const Call& call, const BlockBuilder& 
   DataType out_dtype = attrs->out_dtype.is_void()
                            ? InferBinaryArithOpOutDtype(call, ctx, data_sinfo, weight_sinfo)
                            : attrs->out_dtype;
+  Optional<VDevice> vdevice = InferBinaryArithOpOutVDevice(call, ctx, data_sinfo, weight_sinfo);
   if (!data_shape.defined() || !weight_shape.defined()) {
+    if (vdevice.defined()) {
+      return TensorStructInfo(out_dtype, out_layout.ndim(), vdevice.value());
+    }
     return TensorStructInfo(out_dtype, out_layout.ndim());
   }
 
@@ -465,6 +483,9 @@ StructInfo InferStructInfoConv1dTranspose(const Call& call, const BlockBuilder& 
   out_NCW_shape[2] = analyzer->Simplify(out_w);
 
   Array<PrimExpr> out_shape = out2NCW.BackwardShape(out_NCW_shape);
+  if (vdevice.defined()) {
+    return TensorStructInfo(ShapeExpr(out_shape), out_dtype, vdevice.value());
+  }
   return TensorStructInfo(ShapeExpr(out_shape), out_dtype);
 }
 
@@ -548,7 +569,11 @@ StructInfo InferStructInfoConv2dTranspose(const Call& call, const BlockBuilder& 
   DataType out_dtype = attrs->out_dtype.is_void()
                            ? InferBinaryArithOpOutDtype(call, ctx, data_sinfo, weight_sinfo)
                            : attrs->out_dtype;
+  Optional<VDevice> vdevice = InferBinaryArithOpOutVDevice(call, ctx, data_sinfo, weight_sinfo);
   if (!data_shape.defined() || !weight_shape.defined()) {
+    if (vdevice.defined()) {
+      return TensorStructInfo(out_dtype, out_layout.ndim(), vdevice.value());
+    }
     return TensorStructInfo(out_dtype, out_layout.ndim());
   }
 
@@ -610,6 +635,9 @@ StructInfo InferStructInfoConv2dTranspose(const Call& call, const BlockBuilder& 
   out_NCHW_shape[3] = analyzer->Simplify(out_w);
 
   Array<PrimExpr> out_shape = out2NCHW.BackwardShape(out_NCHW_shape);
+  if (vdevice.defined()) {
+    return TensorStructInfo(ShapeExpr(out_shape), out_dtype, vdevice.value());
+  }
   return TensorStructInfo(ShapeExpr(out_shape), out_dtype);
 }
 

@@ -65,6 +65,21 @@ StructInfo InferStructInfoEwiseFMA(const Call& call, const BlockBuilder& ctx) {
     output_dtype = t1->dtype;
   }
 
+  VDevice vdev = VDevice();
+  for (int i = 0; i < 3; ++i) {
+    if (input_sinfo[i]->vdevice.defined()) {
+      if (!vdev.defined()) {
+        vdev = input_sinfo[i]->vdevice.value();
+      } else if (input_sinfo[i]->vdevice.value()->target.defined()) {
+        // mismatch
+        if (input_sinfo[i]->vdevice.value() != vdev) {
+          vdev = VDevice();
+          break;
+        }
+      }
+    }
+  }
+
   auto* s1 = t1->shape.as<ShapeExprNode>();
   auto* s2 = t2->shape.as<ShapeExprNode>();
   auto* s3 = t3->shape.as<ShapeExprNode>();
@@ -82,11 +97,19 @@ StructInfo InferStructInfoEwiseFMA(const Call& call, const BlockBuilder& ctx) {
                          << "The 3 arguments of EwiseFMA must have the same shape");
       }
     }
+    if (vdev.defined()) {
+      return TensorStructInfo(ShapeExpr(output_shape), output_dtype, vdev);
+    }
     return TensorStructInfo(ShapeExpr(output_shape), output_dtype);
   } else if (t1->shape.defined() && t1->shape.same_as(t2->shape) && t1->shape.same_as(t3->shape)) {
+    if (vdev.defined()) {
+      return TensorStructInfo(t1->shape.value(), output_dtype, vdev);
+    }
     return TensorStructInfo(t1->shape.value(), output_dtype);
   }
-
+  if (vdev.defined()) {
+    return TensorStructInfo(output_dtype, ndim, vdev);
+  }
   return TensorStructInfo(output_dtype, ndim);
 }
 

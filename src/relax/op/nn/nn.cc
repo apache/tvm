@@ -220,6 +220,12 @@ StructInfo InferStructInfoBatchNorm(const Call& call, const BlockBuilder& ctx) {
 
   DataType dtype = input_sinfo[0]->dtype;
   if (unknown_shape) {
+    if (input_sinfo[0]->vdevice.defined()) {
+      VDevice vdev = input_sinfo[0]->vdevice.value();
+      return TupleStructInfo({TensorStructInfo(dtype, input_sinfo[0]->ndim, vdev),
+                              TensorStructInfo(dtype, /*ndim=*/1, vdev),
+                              TensorStructInfo(dtype, /*ndim=*/1, vdev)});
+    }
     return TupleStructInfo({TensorStructInfo(dtype, input_sinfo[0]->ndim),
                             TensorStructInfo(dtype, /*ndim=*/1),
                             TensorStructInfo(dtype, /*ndim=*/1)});
@@ -285,6 +291,11 @@ StructInfo InferStructInfoLayerNorm(const Call& call, const BlockBuilder& ctx) {
   const auto* attrs = call->attrs.as<LayerNormAttrs>();
   bool unknown_shape = NormCheckDtypeAndShape(call, ctx, input_sinfo, attrs->axes);
 
+  if (input_sinfo[0]->vdevice.defined()) {
+    return unknown_shape ? TensorStructInfo(input_sinfo[0]->dtype, input_sinfo[0]->ndim,
+                                            input_sinfo[0]->vdevice.value())
+                         : input_sinfo[0];
+  }
   return unknown_shape ? TensorStructInfo(input_sinfo[0]->dtype, input_sinfo[0]->ndim)
                        : input_sinfo[0];
 }
@@ -457,6 +468,11 @@ StructInfo InferStructInfoRMSNorm(const Call& call, const BlockBuilder& ctx) {
   const auto* attrs = call->attrs.as<RMSNormAttrs>();
   bool unknown_shape = NormCheckDtypeAndShape(call, ctx, input_sinfo, attrs->axes);
 
+  if (input_sinfo[0]->vdevice.defined()) {
+    return unknown_shape ? TensorStructInfo(input_sinfo[0]->dtype, input_sinfo[0]->ndim,
+                                            input_sinfo[0]->vdevice.value())
+                         : input_sinfo[0];
+  }
   return unknown_shape ? TensorStructInfo(input_sinfo[0]->dtype, input_sinfo[0]->ndim)
                        : input_sinfo[0];
 }
@@ -532,6 +548,9 @@ StructInfo InferStructInfoCrossEntropy(const Call& call, const BlockBuilder& ctx
   // infer dtype
   DataType dtype = InferBinaryArithOpOutDtype(call, ctx, pred_sinfo, label_sinfo);
 
+  // infer vdevice
+  Optional<VDevice> vdevice = InferBinaryArithOpOutVDevice(call, ctx, pred_sinfo, label_sinfo);
+
   // infer ndim
   if (!pred_sinfo->IsUnknownNdim() && !label_sinfo->IsUnknownNdim() &&
       pred_sinfo->ndim != label_sinfo->ndim) {
@@ -563,6 +582,9 @@ StructInfo InferStructInfoCrossEntropy(const Call& call, const BlockBuilder& ctx
                          << label_shape_value.value()[i]);
       }
     }
+  }
+  if (vdevice.defined()) {
+    return TensorStructInfo(ShapeExpr(Array<PrimExpr>()), dtype, vdevice.value());
   }
   return TensorStructInfo(ShapeExpr(Array<PrimExpr>()), dtype);
 }
@@ -639,13 +661,17 @@ StructInfo InferStructInfoNLLLoss(const Call& call, const BlockBuilder& ctx) {
         << call->args[1]->struct_info_->GetTypeKey());
   }
 
-  // infer dtype
+  // infer dtype, vdevice
   DataType output_dtype;
+  Optional<VDevice> vdevice;
   if (wgt_sinfo != nullptr) {
     output_dtype = InferBinaryArithOpOutDtype(call, ctx, GetRef<TensorStructInfo>(pred_sinfo),
                                               GetRef<TensorStructInfo>(wgt_sinfo));
+    vdevice = InferBinaryArithOpOutVDevice(call, ctx, GetRef<TensorStructInfo>(pred_sinfo),
+                                           GetRef<TensorStructInfo>(wgt_sinfo));
   } else {
     output_dtype = pred_sinfo->dtype;
+    vdevice = pred_sinfo->vdevice;
   }
 
   // the type of targets must be int/uint.
@@ -788,13 +814,23 @@ StructInfo InferStructInfoNLLLoss(const Call& call, const BlockBuilder& ctx) {
   if (reduction == "none") {
     // () or (N,) or (N, d1, d2, ..., dk)
     if (pred_sinfo->shape.as<ShapeExprNode>()) {
+      if (vdevice.defined()) {
+        return TensorStructInfo(ShapeExpr(output_shape), output_dtype, vdevice.value());
+      }
       return TensorStructInfo(ShapeExpr(output_shape), output_dtype);
     } else {
       int output_ndim = pred_sinfo->ndim == kUnknownNDim ? kUnknownNDim : pred_sinfo->ndim - 1;
+      if (vdevice.defined()) {
+        return TensorStructInfo(output_dtype, /*ndim=*/output_ndim, vdevice.value());
+      }
       return TensorStructInfo(output_dtype, /*ndim=*/output_ndim);
     }
   } else {
     // sum or mean. output is scalar
+    if (vdevice.defined()) {
+      return TensorStructInfo(/*shape=*/ShapeExpr(Array<PrimExpr>()), output_dtype,
+                              vdevice.value());
+    }
     return TensorStructInfo(/*shape=*/ShapeExpr(Array<PrimExpr>()), output_dtype);
   }
 }

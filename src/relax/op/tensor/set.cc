@@ -86,21 +86,45 @@ StructInfo InferStructInfoUnique(const Call& call, const BlockBuilder& ctx) {
 
   // unique values
   if (data_sinfo->ndim == 0) {
-    output_sinfo.push_back(
-        TensorStructInfo(ShapeExpr({IntImm(DataType::Int(64), /*value=*/1)}), data_sinfo->dtype));
+    if (data_sinfo->vdevice.defined()) {
+      output_sinfo.push_back(TensorStructInfo(ShapeExpr({IntImm(DataType::Int(64), /*value=*/1)}),
+                                              data_sinfo->dtype, data_sinfo->vdevice.value()));
+    } else {
+      output_sinfo.push_back(
+          TensorStructInfo(ShapeExpr({IntImm(DataType::Int(64), /*value=*/1)}), data_sinfo->dtype));
+    }
   } else if (axis.defined()) {
-    output_sinfo.push_back(TensorStructInfo(data_sinfo->dtype, data_sinfo->ndim));
+    if (data_sinfo->vdevice.defined()) {
+      output_sinfo.push_back(
+          TensorStructInfo(data_sinfo->dtype, data_sinfo->ndim, data_sinfo->vdevice.value()));
+    } else {
+      output_sinfo.push_back(TensorStructInfo(data_sinfo->dtype, data_sinfo->ndim));
+    }
   } else {
-    output_sinfo.push_back(TensorStructInfo(data_sinfo->dtype, /*ndim=*/1));
+    if (data_sinfo->vdevice.defined()) {
+      output_sinfo.push_back(
+          TensorStructInfo(data_sinfo->dtype, /*ndim=*/1, data_sinfo->vdevice.value()));
+    } else {
+      output_sinfo.push_back(TensorStructInfo(data_sinfo->dtype, /*ndim=*/1));
+    }
   }
 
   // index, reverse and counts
   TensorStructInfo int_return{nullptr};
   if (data_sinfo->ndim == 0) {
-    int_return =
-        TensorStructInfo(ShapeExpr({IntImm(DataType::Int(64), /*value=*/1)}), DataType::Int(64));
+    if (data_sinfo->vdevice.defined()) {
+      int_return = TensorStructInfo(ShapeExpr({IntImm(DataType::Int(64), /*value=*/1)}),
+                                    DataType::Int(64), data_sinfo->vdevice.value());
+    } else {
+      int_return =
+          TensorStructInfo(ShapeExpr({IntImm(DataType::Int(64), /*value=*/1)}), DataType::Int(64));
+    }
   } else {
-    int_return = TensorStructInfo(DataType::Int(64), /*ndim=*/1);
+    if (data_sinfo->vdevice.defined()) {
+      int_return = TensorStructInfo(DataType::Int(64), /*ndim=*/1, data_sinfo->vdevice.value());
+    } else {
+      int_return = TensorStructInfo(DataType::Int(64), /*ndim=*/1);
+    }
   }
   for (int i = 0; i < n_int_return; ++i) {
     output_sinfo.push_back(int_return);

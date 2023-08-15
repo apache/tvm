@@ -267,10 +267,7 @@ class LayoutConvertMutator : public ExprMutator {
         new_shape.push_back(
             shape->values[from.LeafValue()->layout.IndexOf(to.LeafValue()->layout[i])]);
       }
-      VDevice vdev = VDevice(/*tgt*/ {}, /*dev_id*/ 0, /*mem_scope*/ "global");
-      if (tsinfo->vdevice.defined()) {
-        vdev = tsinfo->vdevice.value();
-      }
+      VDevice vdev = tsinfo->vdevice.value_or(VDevice());
       return TensorStructInfo(ShapeExpr(new_shape), tsinfo->dtype, vdev, tsinfo->span);
     };
     StructInfo new_struct_info = TransformTupleLeaf<LayoutDecision>(

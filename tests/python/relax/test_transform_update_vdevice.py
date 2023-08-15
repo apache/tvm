@@ -116,8 +116,8 @@ def test_update():
         def main(
             a: R.Tensor((128, 128), "float32", "llvm:1"),  # noqa: F722
             c: R.Tensor((128, 128), "float32", "llvm:1"),  # noqa: F722
-        ) -> R.Tensor((128, 128), "float32"):
-            s = R.add(a, c)
+        ) -> R.Tensor((128, 128), "float32", "llvm:1"):
+            s: R.Tensor((128, 128), "float32", "llvm:1") = R.add(a, c)
             return s
 
     verify(Input1, vdevices[4], 3, Expect1)

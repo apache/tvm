@@ -149,7 +149,7 @@ class WellDefinedEraser : public StructInfoMutator,
       std::swap(has_undefined_, has_undefined);
     }
 
-    VDevice vdev = op->vdevice.value_or(VDevice(/*tgt*/ {}, /*dev_id*/ 0, /*mem_scope*/ "global"));
+    VDevice vdev = op->vdevice.value_or(VDevice());
 
     // erase symbolic shape if we have undefined.
     if (!has_undefined) {
@@ -358,11 +358,6 @@ class StructInfoBaseChecker
           lhs_vdevice->memory_scope != rhs_vdevice->memory_scope) {
         return BaseCheckResult::kFailL0;
       }
-    }
-
-    if (!lhs->vdevice.defined() && lhs->dtype != rhs->dtype) {
-      if (rhs->IsUnknownDtype()) return BaseCheckResult::kFailL1;
-      return BaseCheckResult::kFailL0;
     }
 
     // lhs does not have defined shape and everything else matches
@@ -791,9 +786,9 @@ class StructInfoLCAFinder
     // find the target dtype and ndim.
     DataType dtype = lhs->dtype == rhs->dtype ? lhs->dtype : DataType::Void();
     int ndim = lhs->ndim == rhs->ndim ? lhs->ndim : kUnknownNDim;
-    VDevice vdev = VDevice(/*tgt*/ {}, /*dev_id*/ 0, /*mem_scope*/ "global");
+    VDevice vdev = VDevice();
     if (lhs->vdevice.defined() && rhs->vdevice.defined()) {
-      if (lhs->vdevice.value().same_as(lhs->vdevice.value())) {
+      if (lhs->vdevice.value() == lhs->vdevice.value()) {
         vdev = lhs->vdevice.value();
       }
     } else if (lhs->vdevice.defined()) {
