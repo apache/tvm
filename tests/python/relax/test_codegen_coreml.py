@@ -25,20 +25,21 @@ from tvm.relax.backend.contrib.coreml import partition_for_coreml
 requires_coremltools = tvm.testing.requires_package("coremltools")
 target, dev = "llvm", tvm.cpu()
 
-
 def _has_xcode():
     try:
         tvm.contrib.xcode.xcrun([])
         return True
     except FileNotFoundError:
         pass
-
     return False
 
+coreml_enabled = pytest.mark.skipif(
+    not (requires_coremltools and _has_xcode),
+    reason="coreml is not enabled.",
+)
+pytestmark = [coreml_enabled]
 
-@pytest.mark.skipif(not _has_xcode(), reason="Xcode is not available")
-@tvm.testing.uses_gpu
-@requires_coremltools
+
 def verify(mod, inputs):
     mod1 = partition_for_coreml(mod)
     mod1 = relax.transform.RunCodegen()(mod1)
@@ -60,8 +61,6 @@ def verify(mod, inputs):
     tvm.testing.assert_allclose(out1.numpy(), out2.numpy(), rtol=1e-3, atol=1e-3)
 
 
-@tvm.testing.uses_gpu
-@requires_coremltools
 def test_add():
     x = relax.Var("x", relax.TensorStructInfo([10, 10], "float32"))
     y = relax.Var("y", relax.TensorStructInfo([10, 10], "float32"))
@@ -77,8 +76,6 @@ def test_add():
     verify(mod, [x_data, y_data])
 
 
-@tvm.testing.uses_gpu
-@requires_coremltools
 def test_add_const():
     x = relax.Var("x", relax.TensorStructInfo([10, 10], "float32"))
     y = relax.const(np.ones([10, 10]), "float32")
@@ -93,8 +90,6 @@ def test_add_const():
     verify(mod, [x_data])
 
 
-@tvm.testing.uses_gpu
-@requires_coremltools
 def test_multiply():
     x = relax.Var("x", relax.TensorStructInfo([10, 10], "float32"))
     y = relax.Var("y", relax.TensorStructInfo([10, 10], "float32"))
@@ -111,8 +106,6 @@ def test_multiply():
     verify(mod, [x_data, y_data])
 
 
-@tvm.testing.uses_gpu
-@requires_coremltools
 def test_matmul():
     x = relax.Var("x", relax.TensorStructInfo([8, 10], "float32"))
     y = relax.Constant(tvm.nd.array(np.random.rand(10, 8).astype("float32"), dev))
@@ -142,8 +135,6 @@ def test_matmul():
     verify(mod, [x_data, y_data])
 
 
-@tvm.testing.uses_gpu
-@requires_coremltools
 def test_clip():
     x = relax.Var("x", relax.TensorStructInfo([10, 10], "float32"))
     bb = relax.BlockBuilder()
@@ -173,8 +164,7 @@ def test_clip():
     verify(mod, [x_data])
 
 
-@tvm.testing.uses_gpu
-@requires_coremltools
+
 def test_expand_dims():
     def get_mod(axis):
         x = relax.Var("x", relax.TensorStructInfo([10, 10], "float32"))
@@ -191,8 +181,7 @@ def test_expand_dims():
     verify(get_mod(axis=1), [x_data])
 
 
-@tvm.testing.uses_gpu
-@requires_coremltools
+
 def test_relu():
     x = relax.Var("x", relax.TensorStructInfo([10, 10], "float32"))
     bb = relax.BlockBuilder()
@@ -208,8 +197,6 @@ def test_relu():
 
 
 @pytest.mark.skip("`batch_flatten` is not implemented yet.")
-@tvm.testing.uses_gpu
-@requires_coremltools
 def test_batch_flatten():
     x = relax.Var("x", relax.TensorStructInfo([10, 10, 10], "float32"))
     bb = relax.BlockBuilder()
@@ -224,7 +211,6 @@ def test_batch_flatten():
     verify(mod, [x_data])
 
 
-@tvm.testing.uses_gpu
 @requires_coremltools
 def test_softmax():
     x = relax.Var("x", relax.TensorStructInfo([10, 10], "float32"))
@@ -240,8 +226,6 @@ def test_softmax():
     verify(mod, [x_data])
 
 
-@tvm.testing.uses_gpu
-@requires_coremltools
 def test_conv2d():
     x = relax.Var("x", relax.TensorStructInfo([1, 3, 224, 224], "float32"))
     w = relax.const(np.zeros((16, 3, 3, 3), dtype="float32"))
@@ -256,8 +240,6 @@ def test_conv2d():
     verify(mod, [x_data])
 
 
-@tvm.testing.uses_gpu
-@requires_coremltools
 def test_global_avg_pool2d():
     x = relax.Var("x", relax.TensorStructInfo([1, 1, 10, 10], "float32"))
     bb = relax.BlockBuilder()
@@ -271,8 +253,6 @@ def test_global_avg_pool2d():
     verify(mod, [x_data])
 
 
-@tvm.testing.uses_gpu
-@requires_coremltools
 def test_subgraph1():
     x = relax.Var("x", relax.TensorStructInfo([10, 10], "float32"))
     y = relax.Var("y", relax.TensorStructInfo([10, 10], "float32"))
@@ -289,8 +269,6 @@ def test_subgraph1():
     verify(mod, [x_data, y_data])
 
 
-@tvm.testing.uses_gpu
-@requires_coremltools
 def test_subgraph2():
     x = relax.Var("x", relax.TensorStructInfo([10, 10], "float32"))
     y = relax.Var("y", relax.TensorStructInfo([10, 10], "float32"))
