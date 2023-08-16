@@ -288,15 +288,19 @@ class CutlassGemmProfiler:
             accumlator_dtype=out_dtype,
         )
 
-        if not find_first_valid:
-            self.engine.compile_all(ops, use_multiprocessing)
+        if all(isinstance(s, int) for s in [M, K, N]):
+            if not find_first_valid:
+                self.engine.compile_all(ops, use_multiprocessing)
 
-        for op in ops:
-            out = self.engine.evaluate(op, [M, N, K])
-            op["runtime"] = out
-            if out < float("inf") and find_first_valid:
-                self.cache[(M, N, K)] = op
-                return op
+            for op in ops:
+                out = self.engine.evaluate(op, [M, N, K])
+                op["runtime"] = out
+                if out < float("inf") and find_first_valid:
+                    self.cache[(M, N, K)] = op
+                    return op
+        else:
+            for op in ops:
+                op["runtime"] = float("inf")
 
         op = min(ops, key=lambda i: i["runtime"])
         self.cache[(M, N, K)] = op
