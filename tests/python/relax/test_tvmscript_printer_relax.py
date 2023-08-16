@@ -205,6 +205,7 @@ def test_func_struct_info():
             relax.PrimStructInfo("float32"),
             relax.ObjectStructInfo(),
             relax.ShapeStructInfo([1, tir.Var("a", "int64"), 3]),
+            relax.PrimStructInfo(value=tir.Var("b", "int64")),
         ],
         ret=relax.TensorStructInfo(
             shape=relax.ShapeExpr([1, 2, 3]),
@@ -214,7 +215,8 @@ def test_func_struct_info():
     _assert_print(
         obj,
         "a = T.int64()\n"
-        'R.Callable((R.Prim("float32"), R.Object, R.Shape([1, a, 3])), '
+        "b = T.int64()\n"
+        'R.Callable((R.Prim("float32"), R.Object, R.Shape([1, a, 3]), R.Prim(value=b)), '
         'R.Tensor((1, 2, 3), dtype="float32"), True)',
     )
 

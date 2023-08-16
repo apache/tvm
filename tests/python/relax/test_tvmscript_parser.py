@@ -1257,6 +1257,26 @@ def test_symbolic_vars_in_shape():
     _check(baz, bb.get()["baz"])
 
 
+def test_symbolic_vars_in_prim_value():
+    """Symbolic variable may be defined in R.Prim"""
+
+    @R.function
+    def baz(x: R.Prim(value="m"), y: R.Tensor(("m * 2",), "float32")):
+        m = T.int64()
+        z = R.call_dps_packed("test_intrin", y, R.Tensor((m * 2,), dtype="float32"))
+        return z
+
+    m = tir.Var("m", "int64")
+    x = relax.Var("x", relax.PrimStructInfo(value=m))
+    y = relax.Var("y", relax.TensorStructInfo([m * 2], "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("baz", (x, y)):
+        z = bb.emit(relax.call_dps_packed("test_intrin", (y), R.Tensor((m * 2,), dtype="float32")))
+        bb.emit_func_output(z)
+
+    _check(baz, bb.get()["baz"])
+
+
 def test_undefined_symbolic_var_raises_error():
     """An undefined symbolic variable in an error
 
