@@ -20,7 +20,6 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import relax
-from tvm.relax.backend.contrib.coreml import partition_for_coreml
 
 requires_coremltools = tvm.testing.requires_package("coremltools")
 target, dev = "llvm", tvm.cpu()
@@ -43,6 +42,7 @@ pytestmark = [coreml_enabled]
 
 
 def verify(mod, inputs):
+    from tvm.relax.backend.contrib.coreml import partition_for_coreml
     mod1 = partition_for_coreml(mod)
     mod1 = relax.transform.RunCodegen()(mod1)
     assert relax.analysis.well_formed(mod1)
