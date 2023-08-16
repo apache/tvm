@@ -44,11 +44,11 @@ export async function detectGPUDevice(): Promise<GPUDeviceDetectOutput | undefin
     }
 
     // more detailed error message
-    const requitedMaxBufferSize = 1 << 30;
-    if (requitedMaxBufferSize > adapter.limits.maxBufferSize) {
+    const requiredMaxBufferSize = 1 << 30;
+    if (requiredMaxBufferSize > adapter.limits.maxBufferSize) {
       throw Error(
         `Cannot initialize runtime because of requested maxBufferSize ` +
-        `exceeds limit. requested=${computeMB(requitedMaxBufferSize)}, ` +
+        `exceeds limit. requested=${computeMB(requiredMaxBufferSize)}, ` +
         `limit=${computeMB(adapter.limits.maxBufferSize)}. ` +
         `This error may be caused by an older version of the browser (e.g. Chrome 112). ` +
         `You can try to upgrade your browser to Chrome 113 or later.`
@@ -82,7 +82,7 @@ export async function detectGPUDevice(): Promise<GPUDeviceDetectOutput | undefin
     const adapterInfo = await adapter.requestAdapterInfo();
     const device = await adapter.requestDevice({
       requiredLimits: {
-        maxBufferSize: requitedMaxBufferSize,
+        maxBufferSize: requiredMaxBufferSize,
         maxStorageBufferBindingSize: requiredMaxStorageBufferBindingSize,
         maxComputeWorkgroupStorageSize: requiredMaxComputeWorkgroupStorageSize,
       },
@@ -158,7 +158,8 @@ class CanvasRenderManager implements Disposable {
     if (ctx == null) {
       throw Error("Cannot bind WebGPU context");
     }
-    this.canvasContext = ctx;
+    // avoid possible ts complain
+    this.canvasContext = ctx as any;
     this.canvasTextureFormat = navigator.gpu.getPreferredCanvasFormat();
     this.canvasContext.configure({
       device: this.device,

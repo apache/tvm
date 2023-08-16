@@ -2,7 +2,6 @@
     "compilerOptions": {
 		"target": "es6",
 		"outDir": "lib",
-		"lib": ["ESNext", "DOM"],
 		"types": ["node", "@webgpu/types"],
 		"rootDir": "src",
 		"declaration": true,
