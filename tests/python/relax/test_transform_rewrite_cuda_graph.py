@@ -21,6 +21,10 @@ from tvm.script import tir as T, relax as R, ir as I
 import tvm.testing
 
 
+class BaseCompare(tvm.testing.CompareBeforeAfter):
+    transform = relax.transform.RewriteCUDAGraph()
+
+
 def test_rewrite_cuda_graph():
     # fmt: off
     @I.ir_module
@@ -659,6 +663,18 @@ def test_capture_fixed_inputs():
     mod["main"] = mod["main"].with_attr({"num_input": 1})
     after = relax.transform.RewriteCUDAGraph()(mod)
     tvm.ir.assert_structural_equal(after, after)
+
+
+class TestNullValue(BaseCompare):
+    class before:
+        @R.function
+        def main() -> R.Tuple(R.Object):
+            _io: R.Object = R.null_value()
+            lv: R.Tuple(R.Object) = (_io,)
+            gv: R.Tuple(R.Object) = lv
+            return gv
+
+    expected = before
 
 
 if __name__ == "__main__":

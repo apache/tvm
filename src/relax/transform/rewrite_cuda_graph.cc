@@ -181,11 +181,11 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
     };
 
     for (auto* region : alloc_storages_) {
-      plans.push_back(region_to_plan(region, true));
+      plans.push_back(region_to_plan(region, /*is_alloc=*/true));
     }
 
     for (auto* region : captured_regions_) {
-      plans.push_back(region_to_plan(region, false));
+      plans.push_back(region_to_plan(region, /*is_alloc=*/false));
     }
     return plans;
   }
@@ -258,6 +258,8 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
 
     if (is_all_static) {
       bool is_kernel_launch = [&]() {
+        static const auto& null_value_op = Op::Get("relax.null_value");
+
         if (call_prim_func) {
           return true;
         }
@@ -267,6 +269,7 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
         if (const auto* op = call->op.as<OpNode>()) {
           return !support::StartsWith(op->name, "relax.memory") &&
                  !support::StartsWith(op->name, "relax.builtin") && op->name != "relax.reshape" &&
+                 !GetRef<Op>(op).same_as(null_value_op) &&
                  !GetRef<Op>(op).same_as(call_builtin_with_ctx_op);
         }
         return false;
