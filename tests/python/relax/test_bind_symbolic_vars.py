@@ -163,7 +163,7 @@ def test_replacements_may_produce_new_symbolic_vars():
     tvm.ir.assert_structural_equal(expected, after)
 
 
-def test_bind_symbolic_vars_in_shape():
+def test_bind_symbolic_vars_in_tensor_shape():
     """The bound variable should be replaced when appearing in struct info"""
 
     @R.function(private=True)
@@ -176,6 +176,44 @@ def test_bind_symbolic_vars_in_shape():
     @R.function(private=True)
     def expected(A: R.Tensor(["M", 16])):
         M = T.int64()
+        B = R.call_dps_packed("dummy_func", [A], out_sinfo=R.Tensor([M * 32]))
+        return B
+
+    after = before.bind_symbolic_vars({"N": 16})
+    tvm.ir.assert_structural_equal(expected, after)
+
+
+def test_bind_symbolic_vars_in_shape_expr():
+    """The bound variable should be replaced when appearing in R.Shape"""
+
+    @R.function(private=True)
+    def before(A: R.Tensor(["M * N"]), x: R.Shape(["M", "N"])):
+        M = T.int64()
+        N = T.int64()
+        B = R.call_dps_packed("dummy_func", [A], out_sinfo=R.Tensor([2 * M * N]))
+        return B
+
+    @R.function(private=True)
+    def expected(A: R.Tensor(["M * 16"]), x: R.Shape(["M", 16])):
+        B = R.call_dps_packed("dummy_func", [A], out_sinfo=R.Tensor([M * 32]))
+        return B
+
+    after = before.bind_symbolic_vars({"N": 16})
+    tvm.ir.assert_structural_equal(expected, after)
+
+
+def test_bind_symbolic_vars_in_prim_value():
+    """The bound variable should be replaced when appearing in R.Prim"""
+
+    @R.function(private=True)
+    def before(A: R.Tensor(["M * N"]), x: R.Prim(value="M"), y: R.Prim(value="N")):
+        M = T.int64()
+        N = T.int64()
+        B = R.call_dps_packed("dummy_func", [A], out_sinfo=R.Tensor([2 * M * N]))
+        return B
+
+    @R.function(private=True)
+    def expected(A: R.Tensor(["M * 16"]), x: R.Prim(value="M"), y: R.Prim(value=16)):
         B = R.call_dps_packed("dummy_func", [A], out_sinfo=R.Tensor([M * 32]))
         return B
 
