@@ -90,9 +90,9 @@ class PluginTemplateParams(object):
             tvm_constant[key] = value.flatten()
         return tvm_constant
 
-    def _parse_device_function_list(self, device_function_list):
+    def _parse_device_function_list(self, device_function_thread_config):
         function_list = []
-        for item in device_function_list.split("\n"):
+        for item in device_function_thread_config.split("\n"):
             if len(item) == 0:
                 continue
             item = item.split()
@@ -207,7 +207,7 @@ class PluginTemplateParams(object):
             self._kernel.device_function_list
         )
         self._device_function_list = self._parse_device_function_list(
-            self._kernel.device_function_list
+            self._kernel.device_function_thread_config
         )
         self._device_thread_config = self._parse_device_function_thread_config(
             self._kernel.device_function_thread_config

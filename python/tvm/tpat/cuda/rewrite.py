@@ -71,7 +71,11 @@ def _handle_trt_not_support_type(
     assert count == len(node_name_to_plugin_name)
     if insert_cast_nodes:
         _remove_unnecessary_cast_nodes(graph)
-    onnx.save(gs.export_onnx(graph), output_model_path)
+
+    try:
+        onnx.save(gs.export_onnx(graph), output_model_path)
+    except:
+        onnx.save(gs.export_onnx(graph), output_model_path, save_as_external_data=True)
 
 
 def _remove_unnecessary_cast_nodes(graph):
@@ -110,7 +114,7 @@ def _compute_tensor_type(graph, tunning_nodes):
 
 
 def rewrite(
-    inferred_model,
+    graph,
     tunning_nodes,
     node_name_to_plugin_name,
     output_model_path,
@@ -120,7 +124,6 @@ def rewrite(
     Modify operator type in onnx model for tensorRT can run plugin.
     """
 
-    graph = gs.import_onnx(inferred_model)
     _onnx_original_tensor_type = _compute_tensor_type(graph, tunning_nodes)
 
     _handle_trt_not_support_type(

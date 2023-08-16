@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import os
 from typing import Tuple
 
 import onnx
@@ -55,7 +56,11 @@ def _extract_target_onnx_node(model, tunning_node):
 
 
 def pipeline(
-    onnx_file: str, node_names: list[str], enable_tunning: bool, tunning_option: object, output_onnx: str
+    onnx_file: str,
+    node_names: list[str],
+    enable_tunning: bool,
+    tunning_option: object,
+    output_onnx: str,
 ) -> Tuple[str, list[str]]:
     """Generate plugins for specified nodes in an ONNX model.
 
@@ -80,9 +85,16 @@ def pipeline(
     A tuple containing the path to the output ONNX file and a list of generated plugin paths.
     """
 
-    # 1. load onnx
-    onnx_model = onnx.load(onnx_file)
-    inferred_model = shape_inference.infer_shapes(onnx_model)
+    # 1. load onnx and inference shapes
+    try:
+        onnx_model = onnx.load(onnx_file)
+        inferred_model = shape_inference.infer_shapes(onnx_model)
+    except:
+        dummy_file = "tensor_shape_inference.onnx"
+        shape_inference.infer_shapes_path(onnx_file, output_path=dummy_file)
+        inferred_model = onnx.load(dummy_file)
+        os.remove(dummy_file)
+
     graph = gs.import_onnx(inferred_model)
 
     # 2. retrieve all node which need to transform to plugins
@@ -103,22 +115,23 @@ def pipeline(
 
         subgraph, submodel, shapes = _extract_target_onnx_node(inferred_model, node)
 
-        kernel = Kernel(plugin_name, submodel, shapes, enable_tunning, tunning_option)
-        kernel.run()
-        if not kernel.cuda_source_code:
-            print(f"Skip {name}, because cuda source code is None")
+        try:
+            kernel = Kernel(plugin_name, submodel, shapes, enable_tunning, tunning_option)
+            kernel.run()
+
+            ## 3.1 fill in template
+            params = PluginTemplateParams(kernel, submodel, subgraph, node, name)
+            template = StaticBatchPluginTemplate(params)
+            lib = template.fill()
+
+            plugin_path.append(lib)
+
+            node_name_to_plugin_name[name] = plugin_name
+        except Exception as e:
+            print(f"Skip {name}, ERROR:: {e}")
             continue
 
-        ## 3.1 fill in template
-        params = PluginTemplateParams(kernel, submodel, subgraph, node, name)
-        template = StaticBatchPluginTemplate(params)
-        lib = template.fill()
-
-        plugin_path.append(lib)
-
-        node_name_to_plugin_name[name] = plugin_name
-
     # 4. generate the modified onnx
-    rewrite(inferred_model, node_to_be_tunned, node_name_to_plugin_name, output_onnx)
+    rewrite(graph, node_to_be_tunned, node_name_to_plugin_name, output_onnx)
 
     return output_onnx, plugin_path

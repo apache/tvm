@@ -23,11 +23,17 @@ from tvm import meta_schedule as ms
 
 
 class Config(object):
-    def __init__(self, onnx_model, input_shapes, target, tunning_option) -> None:
+    def __init__(self, name, onnx_model, input_shapes, target, tunning_option) -> None:
+        self.name = name
         self.onnx_model = onnx_model
         self.input_shapes = input_shapes
         self.tunning_option = tunning_option
-        self.work_dir = tunning_option["work_dir"] if tunning_option["work_dir"] else "./log_db"
+        self.work_dir = (
+            f"{tunning_option['work_dir']}/{name}"
+            if tunning_option["work_dir"]
+            else f"./log_db/{name}"
+        )
+        print("WORK DIR:::", self.work_dir)
 
         if target == "gpu":
             self.target = self._detect_cuda_target()
@@ -39,10 +45,11 @@ class Config(object):
             "runner": ms.runner.LocalRunner(),
             "max_trials_global": 1000,
             "max_trials_per_task": 100,
-            "work_dir": self.work_dir,
         }
 
         default.update(self.tunning_option)
+        default["work_dir"] = self.work_dir
+
         return default
 
     def _detect_cuda_target(self):
@@ -66,7 +73,7 @@ class Kernel(object):
     def __init__(self, name, onnx_model, input_shapes, enable_tunning, tunning_option):
         self._name = name
         self._enable_tunning = enable_tunning
-        self._config = Config(onnx_model, input_shapes, "gpu", tunning_option)
+        self._config = Config(name, onnx_model, input_shapes, "gpu", tunning_option)
 
         self._lib = None
         self._module = None
