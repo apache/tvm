@@ -85,7 +85,7 @@ struct TResult {
 
 class FlopEstimator : private ExprFunctor<TResult(const PrimExpr& n)>,
                       private StmtFunctor<TResult(const Stmt& n)> {
- arith::Analyzer ana;
+  arith::Analyzer ana;
  public:
   TResult VisitExpr(const PrimExpr& expr) override { return ExprFunctor::VisitExpr(expr); }
   TResult VisitStmt(const Stmt& stmt) override { return StmtFunctor::VisitStmt(stmt); }
