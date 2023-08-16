@@ -118,6 +118,85 @@ def test_conv1d():
     verify_model(model, input_info, binding, expected2)
 
 
+def test_conv1d_transpose():
+    class ConvTranspose1d1(Module):
+        def __init__(self):
+            super().__init__()
+            self.conv = torch.nn.ConvTranspose1d(6, 6, 3, bias=True)
+
+        def forward(self, input):
+            return self.conv(input)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 6, 4), dtype="float32"),
+            w1: R.Tensor((6, 6, 3), dtype="float32"),
+            w2: R.Tensor((6,), dtype="float32"),
+        ) -> R.Tensor((1, 6, 6), dtype="float32"):
+            # block 0
+            with R.dataflow():
+                lv1: R.Tensor((1, 6, 6), dtype="float32") = R.nn.conv1d_transpose(
+                    input_1,
+                    w1,
+                    strides=[1],
+                    padding=[0, 0],
+                    dilation=[1],
+                    data_layout="NCW",
+                    kernel_layout="OIW",
+                    out_layout="NCW",
+                    out_dtype="float32",
+                )
+                lv2: R.Tensor((1, 6, 1)) = R.reshape(w2, [1, 6, 1])
+                lv3: R.Tensor((1, 6, 6), dtype="float32") = R.add(lv1, lv2)
+                gv: R.Tensor((1, 6, 6), dtype="float32") = lv3
+                R.output(gv)
+            return gv
+
+    class ConvTranspose1d2(Module):
+        def __init__(self):
+            super().__init__()
+            self.conv = torch.nn.ConvTranspose1d(6, 6, 3, bias=False)
+
+        def forward(self, input):
+            return self.conv(input)
+
+    @tvm.script.ir_module
+    class expected2:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 6, 4), dtype="float32"),
+            w1: R.Tensor((6, 6, 3), dtype="float32"),
+        ) -> R.Tensor((1, 6, 6), dtype="float32"):
+            # block 0
+            with R.dataflow():
+                lv1: R.Tensor((1, 6, 6), dtype="float32") = R.nn.conv1d_transpose(
+                    input_1,
+                    w1,
+                    strides=[1],
+                    padding=[0, 0],
+                    dilation=[1],
+                    data_layout="NCW",
+                    kernel_layout="OIW",
+                    out_layout="NCW",
+                    out_dtype="float32",
+                )
+                gv: R.Tensor((1, 6, 6), dtype="float32") = lv1
+                R.output(gv)
+            return gv
+
+    input_info = [([1, 6, 4], "float32")]
+
+    model = ConvTranspose1d1()
+    binding = {"w1": model.conv.weight.detach().numpy(), "w2": model.conv.bias.detach().numpy()}
+    verify_model(model, input_info, binding, expected1)
+
+    model = ConvTranspose1d2()
+    binding = {"w1": model.conv.weight.detach().numpy()}
+    verify_model(model, input_info, binding, expected2)
+
+
 def test_conv2d():
     class Conv2D1(Module):
         def __init__(self):
@@ -193,6 +272,85 @@ def test_conv2d():
     verify_model(model, input_info, binding, expected1)
 
     model = Conv2D2()
+    binding = {"w1": model.conv.weight.detach().numpy()}
+    verify_model(model, input_info, binding, expected2)
+
+
+def test_conv2d_transpose():
+    class ConvTranspose2d1(Module):
+        def __init__(self):
+            super().__init__()
+            self.conv = torch.nn.ConvTranspose2d(3, 3, 7, bias=True)
+
+        def forward(self, input):
+            return self.conv(input)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            w1: R.Tensor((3, 3, 7, 7), dtype="float32"),
+            w2: R.Tensor((3,), dtype="float32"),
+        ) -> R.Tensor((1, 3, 16, 16), dtype="float32"):
+            # block 0
+            with R.dataflow():
+                lv1: R.Tensor((1, 3, 16, 16), dtype="float32") = R.nn.conv2d_transpose(
+                    input_1,
+                    w1,
+                    strides=[1, 1],
+                    padding=[0, 0, 0, 0],
+                    dilation=[1, 1],
+                    data_layout="NCHW",
+                    kernel_layout="OIHW",
+                    out_layout="NCHW",
+                    out_dtype="float32",
+                )
+                lv2: R.Tensor((1, 3, 1, 1)) = R.reshape(w2, [1, 3, 1, 1])
+                lv3: R.Tensor((1, 3, 16, 16), dtype="float32") = R.add(lv1, lv2)
+                gv: R.Tensor((1, 3, 16, 16), dtype="float32") = lv3
+                R.output(gv)
+            return gv
+
+    class ConvTranspose2d2(Module):
+        def __init__(self):
+            super().__init__()
+            self.conv = torch.nn.ConvTranspose2d(3, 3, 7, bias=False)
+
+        def forward(self, input):
+            return self.conv(input)
+
+    @tvm.script.ir_module
+    class expected2:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            w1: R.Tensor((3, 3, 7, 7), dtype="float32"),
+        ) -> R.Tensor((1, 3, 16, 16), dtype="float32"):
+            # block 0
+            with R.dataflow():
+                lv1: R.Tensor((1, 3, 16, 16), dtype="float32") = R.nn.conv2d_transpose(
+                    input_1,
+                    w1,
+                    strides=[1, 1],
+                    padding=[0, 0, 0, 0],
+                    dilation=[1, 1],
+                    data_layout="NCHW",
+                    kernel_layout="OIHW",
+                    out_layout="NCHW",
+                    out_dtype="float32",
+                )
+                gv: R.Tensor((1, 3, 16, 16), dtype="float32") = lv1
+                R.output(gv)
+            return gv
+
+    input_info = [([1, 3, 10, 10], "float32")]
+
+    model = ConvTranspose2d1()
+    binding = {"w1": model.conv.weight.detach().numpy(), "w2": model.conv.bias.detach().numpy()}
+    verify_model(model, input_info, binding, expected1)
+
+    model = ConvTranspose2d2()
     binding = {"w1": model.conv.weight.detach().numpy()}
     verify_model(model, input_info, binding, expected2)
 
@@ -1113,6 +1271,10 @@ def test_softmax():
         def forward(self, input):
             return self.sm(input)
 
+    class Softmax2(Module):
+        def forward(self, input):
+            return torch.nn.functional.softmax(input, dim=1)
+
     @tvm.script.ir_module
     class expected1:
         @R.function
@@ -1127,6 +1289,39 @@ def test_softmax():
             return gv
 
     verify_model(Softmax(), input_info, {}, expected1)
+    verify_model(Softmax2(), input_info, {}, expected1)
+
+
+def test_logsoftmax():
+    input_info = [([1, 3, 10, 10], "float32")]
+
+    class LogSoftmax(Module):
+        def __init__(self):
+            super().__init__()
+            self.lsm = torch.nn.LogSoftmax(dim=1)
+
+        def forward(self, input):
+            return self.lsm(input)
+
+    class LogSoftmax2(Module):
+        def forward(self, input):
+            return torch.nn.functional.log_softmax(input, dim=1)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.log_softmax(input_1, axis=1)
+                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(LogSoftmax(), input_info, {}, expected1)
+    verify_model(LogSoftmax2(), input_info, {}, expected1)
 
 
 def test_binary():
@@ -1662,6 +1857,14 @@ def test_unary():
 
     # sigmoid
     class Sigmoid(Module):
+        def __init__(self):
+            super().__init__()
+            self.sigmoid = torch.nn.Sigmoid()
+
+        def forward(self, input):
+            return self.sigmoid(input)
+
+    class Sigmoid2(Module):
         def forward(self, input):
             return torch.sigmoid(input)
 
@@ -1679,6 +1882,7 @@ def test_unary():
             return gv
 
     verify_model(Sigmoid(), input_info, {}, expected4)
+    verify_model(Sigmoid2(), input_info, {}, expected4)
 
     # round
     class Round(Module):
@@ -1705,6 +1909,14 @@ def test_gelu():
     input_info = [([1, 3, 10, 10], "float32")]
 
     class Gelu(Module):
+        def __init__(self):
+            super().__init__()
+            self.gelu = torch.nn.GELU()
+
+        def forward(self, input):
+            return self.gelu(input)
+
+    class Gelu2(Module):
         def forward(self, input):
             return torch.nn.functional.gelu(input)
 
@@ -1722,12 +1934,21 @@ def test_gelu():
             return gv
 
     verify_model(Gelu(), input_info, {}, expected1)
+    verify_model(Gelu2(), input_info, {}, expected1)
 
 
 def test_tanh():
     input_info = [([1, 3, 10, 10], "float32")]
 
     class Tanh(Module):
+        def __init__(self):
+            super().__init__()
+            self.tanh = torch.nn.Tanh()
+
+        def forward(self, input):
+            return self.tanh(input)
+
+    class Tanh2(Module):
         def forward(self, input):
             return torch.tanh(input)
 
@@ -1745,6 +1966,7 @@ def test_tanh():
             return gv
 
     verify_model(Tanh(), input_info, {}, expected1)
+    verify_model(Tanh2(), input_info, {}, expected1)
 
 
 def test_clamp():
