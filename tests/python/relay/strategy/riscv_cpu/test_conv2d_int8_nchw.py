@@ -15,13 +15,29 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import pathlib
+
 import numpy as np
-import re
+
 import tvm
 import tvm.testing
 from tvm import relay
-from tvm.testing.aot import AOTTestModel, compile_and_run, generate_ref_data
-from tvm.micro.testing.aot_test_utils import AOTTestRunner
+from tvm.relay.backend import Executor, Runtime
+from tvm.testing.aot import generate_ref_data
+
+
+def _make_session(temp_dir, mod):
+    template_project_dir = pathlib.Path(tvm.micro.get_microtvm_template_projects("riscv"))
+    options = {
+        "toolchain_path": "/opt/riscv",
+        "target": "riscv64-unknown-linux-gnu",
+        "march": "rv64gcv",
+        "verbose": 1,
+    }
+    project = tvm.micro.generate_project(template_project_dir, mod, temp_dir / "project", options)
+    project.build()
+    project.flash()
+    return tvm.micro.Session(project.transport())
 
 
 class RISCVConv2dInt8:
@@ -36,7 +52,6 @@ class RISCVConv2dInt8:
         padding,
         dtype,
         wtype,
-        schedule_name,
     ):
         weight_shape = (num_filter, data_shape[1], *kernel_size)
 
@@ -89,33 +104,32 @@ class RISCVConv2dInt8:
         mod = relay.Function(relay.analysis.free_vars(func), func)
         mod = tvm.IRModule.from_expr(mod)
 
-        target_opts = {
-            "-keys": "riscv_cpu",
-            "-march": "rv64gcv",
-        }
+        temp_dir = tvm.contrib.utils.tempdir()
+        target = "c -keys=riscv_cpu -march=rv64gcv"
+        target = tvm.target.Target(target, host="c")
+        runtime = Runtime("crt", {"system-lib": True})
+        executor = Executor("aot")
+        with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+            factory = tvm.relay.build(mod, target=target, runtime=runtime, executor=executor)
 
-        def checker(base_path: str) -> bool:
-            def read_file(path):
-                with open(path) as f:
-                    return f.read()
+        def do_test():
+            aot_executor = tvm.micro.create_local_aot_executor(sess)
+            aot_executor.get_input("input").copyfrom(inputs["input"])
+            aot_executor.run()
 
-            default_lib1 = read_file(base_path + "/codegen/host/src/default_lib1.c")
-            regex = r"(?s)dot_uint8_int8_int32_update(.*?)"
-            return re.search(regex, default_lib1) is not None
+            out = aot_executor.get_output(0)
+            assert (out.numpy() == output_list["output"]).all()
 
-        assert compile_and_run(
-            AOTTestModel(module=mod, inputs=inputs, outputs=output_list),
-            runner=AOTTestRunner(makefile="riscv"),
-            interface_api="c",
-            use_unpacked_api=True,
-            target_opts=target_opts,
-            schedule_name=schedule_name,
-            checker=checker,
-        )
+        with _make_session(temp_dir, factory) as sess:
+            do_test()
 
 
 class TestConv2d_NCHW(RISCVConv2dInt8):
-    (data_shape, kernel_size, num_filter,) = tvm.testing.parameters(
+    (
+        data_shape,
+        kernel_size,
+        num_filter,
+    ) = tvm.testing.parameters(
         ((1, 128, 14, 14), (3, 3), 128),
         ((1, 128, 14, 14), (1, 1), 256),
         ((1, 256, 7, 7), (1, 1), 512),
@@ -127,7 +141,6 @@ class TestConv2d_NCHW(RISCVConv2dInt8):
     kernel_layout = tvm.testing.parameter("OIHW")
     dtype = tvm.testing.parameter("uint8")
     wtype = tvm.testing.parameter("int8")
-    schedule_name = tvm.testing.parameter("conv2d_int8_NCHW.riscv_cpu")
 
 
 if __name__ == "__main__":
