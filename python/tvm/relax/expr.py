@@ -19,7 +19,7 @@
 """The expression nodes of Relax."""
 import typing
 from numbers import Number
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union, Mapping
 
 import numpy as _np  # type: ignore
 
@@ -626,6 +626,36 @@ class Function(BaseFunc, Scriptable):
             Arguments.
         """
         return Call(self, args, None, None)
+
+    def bind_symbolic_vars(
+        self, binding_map: Mapping[Union[str, tvm.tir.Var], PrimExpr]
+    ) -> "Function":
+        """Return a new function with updated symbolic variable
+
+        Parameters
+        ----------
+        binding_map: Mapping[Union[str, tvm.tir.Var], PrimExpr]
+
+            The mapping of values to be replaced.  Keys may be either
+            a `tir.Var` or a string name of the variable.  If the
+            variables are referred to by name, the name must uniquely
+            identify a symbolic variable in the function.
+
+        Returns
+        -------
+        func: Function
+
+            The updated function
+        """
+
+        # Relax uses int64 for symbolic variables, but the FFI
+        # converts python integers into int32.
+        binding_map = {
+            key: tvm.tir.const(value, "int64") if isinstance(value, int) else value
+            for key, value in binding_map.items()
+        }
+
+        return _ffi_api.FunctionBindSymbolicVars(self, binding_map)  # type: ignore
 
 
 @tvm._ffi.register_object("relax.expr.ExternFunc")

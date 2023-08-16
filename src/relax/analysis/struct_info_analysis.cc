@@ -978,17 +978,34 @@ class SymbolicVarCollector : public relax::ExprVisitor,
   using tir::ExprVisitor::VisitExpr;
   using tir::ExprVisitor::VisitExpr_;
 
-  // Possible mode of visitor
-  enum class VisitMode {
-    /*! \brief Check all vars are well-defined. */
-    kDefault,
-    /*! \brief Match define the vars on first occurrence. */
-    kMatchVarDef,
+  // Possible mode of visitor, used as bit-flags
+  enum VisitMode {
+    /*! \brief Do nothing on encountering a symbolic variable */
+    kNone = 0,
+
+    /*! \brief Provide a variable definition on first occurrence.
+     *
+     * If a symbolic variable occurs at a site where a definition can
+     * be provided, mark the variable as having a definition.
+     */
+    kProvideDefinition = 1,
+
+    /*! \brief Require a variable definition on occurrence.
+     *
+     * If a symbolic variable occurs, and has not previously been
+     * defined, mark the variable as being free/undefined.
+     */
+    kRequireDefinition = 2,
   };
 
   void VisitExpr_(const FunctionNode* op) final {
-    WithMode(VisitMode::kMatchVarDef, [&]() {
-      ICHECK(mode_ == VisitMode::kMatchVarDef);
+    WithMode(VisitMode::kProvideDefinition, [&]() {
+      for (Var param : op->params) {
+        relax::StructInfoVisitor::VisitStructInfo(GetStructInfo(param));
+      }
+    });
+
+    WithMode(VisitMode::kRequireDefinition, [&]() {
       for (Var param : op->params) {
         relax::StructInfoVisitor::VisitStructInfo(GetStructInfo(param));
       }
@@ -998,7 +1015,8 @@ class SymbolicVarCollector : public relax::ExprVisitor,
   }
 
   void VisitBinding_(const MatchCastNode* binding) final {
-    WithMode(VisitMode::kMatchVarDef, [&]() { this->VisitStructInfo(binding->struct_info); });
+    WithMode(VisitMode(VisitMode::kProvideDefinition | VisitMode::kRequireDefinition),
+             [&]() { this->VisitStructInfo(binding->struct_info); });
 
     relax::ExprVisitor::VisitBinding_(binding);
   }
@@ -1009,8 +1027,17 @@ class SymbolicVarCollector : public relax::ExprVisitor,
 
   void VisitStructInfo_(const FuncStructInfoNode* op) final {
     if (op->params.defined()) {
-      WithMode(VisitMode::kMatchVarDef, [&]() {
-        ICHECK(mode_ == VisitMode::kMatchVarDef);
+      // Visit the parameters once to collect bindings, and another
+      // time to collect usages.  Otherwise, a symbolic variable
+      // defined by a later parameter may be treated as undefined when
+      // used by an earlier parameter.
+      WithMode(VisitMode::kProvideDefinition, [&]() {
+        for (StructInfo param : op->params.value()) {
+          this->VisitStructInfo(param);
+        }
+      });
+
+      WithMode(VisitMode::kRequireDefinition, [&]() {
         for (StructInfo param : op->params.value()) {
           this->VisitStructInfo(param);
         }
@@ -1029,14 +1056,14 @@ class SymbolicVarCollector : public relax::ExprVisitor,
   }
 
   void VisitStructInfoExprField(const PrimExpr& expr) final {
-    if (mode_ == VisitMode::kMatchVarDef && expr->IsInstance<tir::VarNode>()) {
-      // populate symbolic var in first occurrence
-      const auto& var = Downcast<tir::Var>(expr);
-      if (defined_symbolic_var_.count(var) == 0) {
-        defined_symbolic_var_.insert(var);
+    if (mode_ & VisitMode::kProvideDefinition) {
+      if (auto var = expr.as<tir::Var>()) {
+        defined_symbolic_var_.insert(var.value());
       }
     }
-    tir::ExprVisitor::VisitExpr(expr);
+    if (mode_ & VisitMode::kRequireDefinition) {
+      tir::ExprVisitor::VisitExpr(expr);
+    }
   }
 
   void VisitExpr_(const tir::VarNode* op) final {
@@ -1056,7 +1083,7 @@ class SymbolicVarCollector : public relax::ExprVisitor,
   }
 
   /*! \brief The current visit mode. */
-  VisitMode mode_ = VisitMode::kDefault;
+  VisitMode mode_ = VisitMode::kRequireDefinition;
   /*! \brief The set of defined symbolic vars. */
   std::unordered_set<tir::Var, ObjectPtrHash, ObjectPtrEqual> defined_symbolic_var_;
   /*! \brief The set of free/undefined symbolic vars. */
