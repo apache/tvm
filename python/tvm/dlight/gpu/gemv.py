@@ -125,8 +125,9 @@ def normalize(
             if c_loops:
                 return None
             loop, c_loop = sch.split(loop, factors=[None, split_expr.lower_factor])
-            # we expect the inner most dim to be grouped atm
-            assert not (is_reduction ^ is_inner_reduction)
+            # we only support the inner most dim being grouped atm
+            if is_reduction ^ is_inner_reduction:
+                return None
             c_loops.append(c_loop)
         if is_reduction:
             r_loops.append(loop)
