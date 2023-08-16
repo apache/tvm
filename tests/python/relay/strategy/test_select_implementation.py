@@ -107,6 +107,53 @@ def test_int8_conv2d(target, expected_impl):
 @pytest.mark.parametrize(
     "target,expected_impl",
     [
+        (
+            "c -keys=riscv_cpu -march=rv32gcv",
+            "conv2d_nchw_int8.riscv",
+        ),
+        (
+            "c -keys=riscv_cpu -march=rv64gcv",
+            "conv2d_nchw_int8.riscv",
+        ),
+    ],
+)
+def test_riscv_conv2d(target, expected_impl):
+    target = tvm.target.Target(target)
+
+    data_type = "uint8"
+    weight_type = "int8"
+    data_shape = (1, 128, 1, 1)
+    weight_shape = (128, 128, 1, 1)
+    data_layout = "NCHW"
+    kernel_layout = "OIHW"
+    channels = 128
+    kernel_size = (1, 1)
+
+    out = relay.nn.conv2d(
+        relay.var("data", shape=data_shape, dtype=data_type),
+        relay.var("weight", shape=weight_shape, dtype=weight_type),
+        kernel_size=kernel_size,
+        channels=channels,
+        data_layout=data_layout,
+        kernel_layout=kernel_layout,
+    )
+    out = run_infer_type(out)
+
+    with target:
+        impl, _ = relay.backend.te_compiler.select_implementation(
+            out.op,
+            out.attrs,
+            [te.placeholder(data_shape, data_type), te.placeholder(weight_shape, weight_type)],
+            out.checked_type,
+            target,
+        )
+
+    assert impl.name == expected_impl
+
+
+@pytest.mark.parametrize(
+    "target,expected_impl",
+    [
         ("llvm -device=arm_cpu", "depthwise_conv2d_nhwc.generic"),
         (
             "llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+neon",
