@@ -1192,8 +1192,9 @@ def test_empty_tuple():
     _check(foo, bb.get()["foo"])
 
 
-def test_symbolic_shape_computing():
-    # Tensor Case 1
+def test_symbolic_vars_in_tensor_shape_with_usage_first():
+    """First param may use symbolic variable defined in second param"""
+
     @R.function
     def foo(x: R.Tensor(("m + 1",), "float32"), y: R.Tensor(("m", 1), "float32")):
         z = R.add(x, y)
@@ -1209,7 +1210,10 @@ def test_symbolic_shape_computing():
 
     _check(foo, bb.get()["foo"])
 
-    # Tensor Case 2
+
+def test_symbolic_vars_in_tensor_shape_with_definition_first():
+    """Second param may use symbolic variable defined in first param"""
+
     @R.function
     def bar(
         x: R.Tensor(("m",), "float32"), y: R.Tensor(("T.max(m, 20)",), "float32")
@@ -1232,7 +1236,10 @@ def test_symbolic_shape_computing():
 
     _check(bar, bb.get()["bar"])
 
-    # Shape Case
+
+def test_symbolic_vars_in_shape():
+    """Symbolic variable may be defined in R.Shape"""
+
     @R.function
     def baz(x: R.Shape(("m",)), y: R.Tensor(("m * 2",), "float32")):
         m = T.int64()
@@ -1249,7 +1256,16 @@ def test_symbolic_shape_computing():
 
     _check(baz, bb.get()["baz"])
 
-    # Error Case
+
+def test_undefined_symbolic_var_raises_error():
+    """An undefined symbolic variable in an error
+
+    A symbolic variables is defined at the first site where it appears
+    as a shape parameter without any modification.  TVMScript does not
+    support solving for a symbolic variable in terms of the argument
+    shape.  That is, this test case raises an error, and will not
+    attempt to define `m` as either `x.shape[0]-1` or `x.shape[1]//2`.
+    """
     with pytest.raises(tvm.error.DiagnosticError):
 
         @R.function
