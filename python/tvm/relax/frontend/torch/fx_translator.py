@@ -54,7 +54,8 @@ class TorchFXImporter:
                 )
             attr_itr = getattr(attr_itr, atom)
         if isinstance(attr_itr, torch.Tensor):
-            # Its possible for the resulting tensor to be a parameter. If so, return the parameter instead.
+            # Its possible for the resulting tensor to be a parameter. 
+            # If so, return the parameter instead.
             if attr_itr in self.params:
                 return self.params[attr_itr]
             return TorchFXImporter._convert_torch_tensor_to_relax(attr_itr)
