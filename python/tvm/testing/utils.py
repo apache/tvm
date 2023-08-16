@@ -1953,6 +1953,10 @@ class CompareBeforeAfter:
     """
 
     def __init_subclass__(cls):
+        assert (hasattr(cls, "before") and hasattr(cls, "Expected")) or (
+            hasattr(cls, "Before") and hasattr(cls, "Expected")
+        ), "The subclass of CompareBeforeAfter should have either 'before' and 'expected', or "
+        "'Before' and 'Expected' defined."
         for name in ["before", "Before"]:
             if hasattr(cls, name):
                 cls.before = cls._normalize_before(getattr(cls, name))
