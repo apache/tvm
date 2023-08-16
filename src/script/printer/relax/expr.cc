@@ -19,6 +19,8 @@
 
 #include <tvm/relax/distributed/struct_info.h>
 
+#include <limits>
+
 #include "./utils.h"
 
 namespace tvm {
@@ -83,10 +85,42 @@ Optional<ExprDoc> SpecialScalar(const runtime::NDArray& n, const ObjectPath& p) 
   if (n->ndim != 0 || n->device.device_type != kDLCPU) {
     return NullOpt;
   }
-  if (dtype == DataType::Int(32)) {
+
+  if (dtype == DataType::Int(8)) {
+    return LiteralDoc::Int(*reinterpret_cast<const int8_t*>(data), p);
+  } else if (dtype == DataType::Int(16)) {
+    return LiteralDoc::Int(*reinterpret_cast<const int16_t*>(data), p);
+  } else if (dtype == DataType::Int(32)) {
     return LiteralDoc::Int(*reinterpret_cast<const int32_t*>(data), p);
   } else if (dtype == DataType::Int(64)) {
     return LiteralDoc::Int(*reinterpret_cast<const int64_t*>(data), p);
+  } else if (dtype == DataType::Float(16)) {
+    // From IEEE-754 float16 definition
+    //
+    // Ref: https://en.wikipedia.org/wiki/Half-precision_floating-point_format
+    uint16_t bits = *reinterpret_cast<const uint16_t*>(data);
+    uint16_t sign_bit = (bits & 0b1000'0000'0000'0000) >> 15;
+    uint16_t exponent = (bits & 0b0111'1100'0000'0000) >> 10;
+    uint16_t fraction = (bits & 0b0000'0011'1111'1111) >> 0;
+
+    double value;
+    if (exponent == 0b1'1111 && fraction == 0) {
+      value = std::numeric_limits<double>::infinity();
+    } else if (exponent == 0b1'1111) {
+      value = std::numeric_limits<double>::quiet_NaN();
+    } else if (exponent == 0 && fraction == 0) {
+      value = 0.0;
+    } else if (exponent == 0) {
+      value = std::pow(2.0, -24) * static_cast<double>(fraction);
+    } else {
+      value = std::pow(2.0, static_cast<double>(exponent) - 25) *
+              static_cast<double>(fraction | (1 << 10));
+    }
+    if (sign_bit) {
+      value *= -1.0;
+    }
+
+    return LiteralDoc::Float(value, p);
   } else if (dtype == DataType::Float(32)) {
     return LiteralDoc::Float(*reinterpret_cast<const float*>(data), p);
   } else if (dtype == DataType::Float(64)) {
