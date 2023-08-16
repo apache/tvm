@@ -25,6 +25,7 @@ from tvm.relax.backend.contrib.coreml import partition_for_coreml
 requires_coremltools = tvm.testing.requires_package("coremltools")
 target, dev = "llvm", tvm.cpu()
 
+
 def _has_xcode():
     try:
         tvm.contrib.xcode.xcrun([])
@@ -32,6 +33,7 @@ def _has_xcode():
     except FileNotFoundError:
         pass
     return False
+
 
 coreml_enabled = pytest.mark.skipif(
     not (requires_coremltools and _has_xcode),
@@ -164,7 +166,6 @@ def test_clip():
     verify(mod, [x_data])
 
 
-
 def test_expand_dims():
     def get_mod(axis):
         x = relax.Var("x", relax.TensorStructInfo([10, 10], "float32"))
@@ -179,7 +180,6 @@ def test_expand_dims():
     x_data = tvm.nd.array(np.random.rand(10, 10).astype("float32"), dev)
     verify(get_mod(axis=0), [x_data])
     verify(get_mod(axis=1), [x_data])
-
 
 
 def test_relu():

@@ -86,7 +86,9 @@ class CodeGenRunner : ExprMutator {
       };
 
       if (auto it = extern_funcs_.find(gvar_node); it != extern_funcs_.end()) {
-        return create_call_dps_packed(it->second.first, it->second.second);
+        auto call = create_call_dps_packed(it->second.first, it->second.second);
+        LOG(INFO) << call;
+        return call;
       } else {
         // TODO(@sunggg): Is there any better way to get this func?
         Function func = Downcast<Function>(builder_->GetContextIRModule()->Lookup(gvar));
@@ -94,6 +96,7 @@ class CodeGenRunner : ExprMutator {
 
         if (new_func->IsInstance<ExternFuncNode>()) {
           auto ret_sinfo = GetStructInfo(call);
+          LOG(INFO) << ret_sinfo;
           extern_funcs_[gvar_node] = {new_func, ret_sinfo};
           // Remove the global symbol and codegen attributes from the function so that it can be
           // removed the module.
