@@ -42,8 +42,7 @@ class TorchFXImporter:
         self.create_convert_map()
 
     ########## Utilities ##########
-    @staticmethod
-    def _fetch_attr(model, target: str):
+    def _fetch_attr(self, model, target: str):
         import torch  # type: ignore
 
         target_atoms = target.split(".")
@@ -55,6 +54,9 @@ class TorchFXImporter:
                 )
             attr_itr = getattr(attr_itr, atom)
         if isinstance(attr_itr, torch.Tensor):
+            # Its possible for the resulting tensor to be a parameter. If so, return the parameter instead.
+            if attr_itr in self.params:
+                return self.params[attr_itr]
             return TorchFXImporter._convert_torch_tensor_to_relax(attr_itr)
         return attr_itr
 
@@ -1443,7 +1445,7 @@ class TorchFXImporter:
                             output = self.block_builder.emit_output(args[0])
                         break
                     elif node.op == "get_attr":
-                        self.env[node] = TorchFXImporter._fetch_attr(model, node.target)
+                        self.env[node] = self._fetch_attr(model, node.target)
                     elif node.op == "call_module":
                         module = self.named_modules[node.target]
                         assert (
