@@ -53,11 +53,11 @@ class cuDNNJSONRuntime : public JSONRuntimeBase {
     ICHECK(func != nullptr);
     stream = static_cast<cudaStream_t>((*func)().operator void*());
 
-    auto attr_in_name = [this](const std::string& op_name, const std::string& attr_name) {
+    auto attr_in_name = [](const std::string& op_name, const std::string& attr_name) {
       return std::regex_search(op_name, std::regex(attr_name));
     };
 
-    auto vstr2vint = [this](const JSONGraphNode& node, const std::string& attrStr) {
+    auto vstr2vint = [](const JSONGraphNode& node, const std::string& attrStr) {
       auto string_to_int = [](const std::string& str) { return std::stoi(str); };
       auto string_vec = node.GetAttr<std::vector<std::string>>(attrStr);
       std::vector<int> int_vec(string_vec.size());
