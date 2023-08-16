@@ -225,6 +225,9 @@ void ExprVisitor::VisitExpr_(const SeqExprNode* op) {
 
 void ExprVisitor::VisitExpr_(const PrimValueNode* op) {
   this->VisitPrimExpr(op->value);
+  if (auto* sinfo = op->struct_info_.as<StructInfoNode>()) {
+    this->VisitExprDepStructInfoField(GetRef<StructInfo>(sinfo));
+  }
   this->VisitSpan(op->span);
 }
 

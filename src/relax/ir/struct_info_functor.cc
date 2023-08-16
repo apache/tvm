@@ -28,7 +28,11 @@ namespace relax {
 
 void StructInfoVisitor::VisitStructInfo_(const ObjectStructInfoNode* op) {}
 
-void StructInfoVisitor::VisitStructInfo_(const PrimStructInfoNode* op) {}
+void StructInfoVisitor::VisitStructInfo_(const PrimStructInfoNode* op) {
+  if (op->value.defined()) {
+    this->VisitStructInfoExprField(op->value.value());
+  }
+}
 
 void StructInfoVisitor::VisitStructInfo_(const ShapeStructInfoNode* op) {
   if (op->values.defined()) {
@@ -68,7 +72,16 @@ StructInfo StructInfoMutator::VisitStructInfo_(const ObjectStructInfoNode* op) {
 }
 
 StructInfo StructInfoMutator::VisitStructInfo_(const PrimStructInfoNode* op) {
-  return GetRef<StructInfo>(op);
+  if (!op->value.defined()) {
+    return GetRef<StructInfo>(op);
+  }
+
+  auto new_expr = VisitStructInfoExprField(op->value.value());
+  if (new_expr.same_as(op->value)) {
+    return GetRef<StructInfo>(op);
+  } else {
+    return PrimStructInfo(new_expr);
+  }
 }
 
 StructInfo StructInfoMutator::VisitStructInfo_(const ShapeStructInfoNode* op) {
