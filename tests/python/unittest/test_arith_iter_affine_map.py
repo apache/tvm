@@ -236,6 +236,7 @@ def test_compound_floormod_two_regression():
 def test_predicate():
     x = tvm.tir.Var("x", "int32")
     y = tvm.tir.Var("y", "int32")
+    z = tvm.tir.Var("z", "int32")
 
     # available contraints
     # upper bound only
@@ -267,6 +268,12 @@ def test_predicate():
         {x * 10 + y: (122, 6)},
         var_dom([(x, 13), (y, 10)]),
         predicate=tvm.tir.And(x * 10 + y >= 6, x * 10 + y <= 127),
+    )
+
+    assert_iter_sum_pattern(
+        {x * 64 + y * 4 + z: (16, 16)},
+        var_dom([(x, 16), (y, 16), (z, 4)]),
+        predicate=tvm.tir.And(x * 64 + y * 4 + z < 32, 4 <= x * 16 + y),
     )
 
     # constraint on one fused iter
