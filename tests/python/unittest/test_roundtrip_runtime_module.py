@@ -58,9 +58,11 @@ def get_cuda_mod():
 @tvm.testing.requires_cuda
 def test_cuda_module():
     mod = get_cuda_mod()
+    assert mod.type_key == "cuda"
     assert mod.is_binary_serializable
     new_mod = tvm.ir.load_json(tvm.ir.save_json(mod))
-    tvm.ir.structural_equal(mod, new_mod)
+    assert new_mod.type_key == "cuda"
+    assert new_mod.is_binary_serializable
 
 
 @tvm.testing.requires_cuda
@@ -73,8 +75,12 @@ def test_valid_submodules():
     mod2.import_module(mod4)
 
     # Root module and all submodules should be binary serializable since they are cuda module
+    assert mod.type_key == "cuda"
     assert mod.is_binary_serializable
+    assert mod.imported_modules[0].type_key == "cuda"
     assert mod.imported_modules[0].is_binary_serializable
+    assert mod.imported_modules[0].imported_modules[0].type_key == "cuda"
+    assert mod.imported_modules[0].imported_modules[1].type_key == "cuda"
     assert mod.imported_modules[0].imported_modules[0].is_binary_serializable
     assert mod.imported_modules[0].imported_modules[1].is_binary_serializable
 
