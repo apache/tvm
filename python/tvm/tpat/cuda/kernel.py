@@ -33,7 +33,6 @@ class Config(object):
             if tunning_option["work_dir"]
             else f"./log_db/{name}"
         )
-        print("WORK DIR:::", self.work_dir)
 
         if target == "gpu":
             self.target = self._detect_cuda_target()

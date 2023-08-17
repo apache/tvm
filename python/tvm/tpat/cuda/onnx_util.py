@@ -15,9 +15,26 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import os
+
 import onnx
 import onnx_graphsurgeon as gs
+from onnx import shape_inference
+
 from .type_mapping import onnx_type_mapping
+
+
+def load_model(onnx_file):
+    try:
+        onnx_model = onnx.load(onnx_file)
+        inferred_model = shape_inference.infer_shapes(onnx_model)
+    except:
+        dummy_file = "tensor_shape_inference.onnx"
+        shape_inference.infer_shapes_path(onnx_file, output_path=dummy_file)
+        inferred_model = onnx.load(dummy_file)
+        os.remove(dummy_file)
+
+    return inferred_model
 
 
 def _handle_trt_not_support_type(
@@ -114,7 +131,7 @@ def _compute_tensor_type(graph, tunning_nodes):
 
 
 def rewrite(
-    graph,
+    model,
     tunning_nodes,
     node_name_to_plugin_name,
     output_model_path,
@@ -123,6 +140,8 @@ def rewrite(
     Insert cast operator for operators which inputs or outputs has bool type.
     Modify operator type in onnx model for tensorRT can run plugin.
     """
+
+    graph = gs.import_onnx(model)
 
     _onnx_original_tensor_type = _compute_tensor_type(graph, tunning_nodes)
 

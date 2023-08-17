@@ -25,10 +25,9 @@ class PluginTemplateParams(object):
     Generate useable params for TensorRT plugin.
     """
 
-    def __init__(self, kernel, model, graph, tunning_node, name):
+    def __init__(self, kernel, model, output_shapes, tunning_node, name):
         self._kernel = kernel
         self._model = model
-        self._graph = graph
         self._tunning_name = name
         self._tunning_node = tunning_node
 
@@ -54,7 +53,7 @@ class PluginTemplateParams(object):
         self._nums_inputs = 0  # number of inputs
         self._nums_outputs = 0  # number of outputs
         self._output_dtype = []  # dtype of outputs
-        self._output_shape = []  # shape of outputs
+        self._output_shape = output_shapes  # shape of outputs
         self._constant_params = {}  # constant params, storage_id -> data
         self._trt_workspace_constant = {}
 
@@ -63,7 +62,7 @@ class PluginTemplateParams(object):
         self._storage_id = []  # eid -> storage id
         self._device_function_configuration = None
 
-        self._parse_shape_and_type()
+        self._parse_tensor_type()
         self._parse_kernel_params()
         self._prepare_input_dict()
         self._prepare_device_function_config()
@@ -226,7 +225,7 @@ class PluginTemplateParams(object):
 
         self._describe()
 
-    def _parse_shape_and_type(self):
+    def _parse_tensor_type(self):
         """
         Infer for input and output shape.
         """
@@ -237,8 +236,6 @@ class PluginTemplateParams(object):
 
         for oup in tunning_node.outputs:
             self._tensor_type.append(python_to_trt_type_mapping[oup.dtype.name])
-
-        self._output_shape = [oup.shape for oup in tunning_node.outputs]
 
     def _prepare_input_dict(self):
         """

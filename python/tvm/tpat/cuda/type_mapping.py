@@ -24,6 +24,7 @@ tvm_to_c_type_mapping = {
     "uint8": "uchar",
     "uint32": "int",
     "uint64": "int",
+    "float16": "half",
     "float32": "float",
     "float64": "float",
 }
@@ -35,6 +36,7 @@ python_to_trt_type_mapping = {
     "int64": "INT32",
     "uint64": "INT32",
     "uint8": "INT8",
+    "float16": "FLOAT",
     "float32": "FLOAT",
     "float64": "FLOAT",
 }
@@ -48,6 +50,7 @@ plugin_type_size = {
     "uint8": 1,
     "uint32": 4,
     "uint64": 4,
+    "float16": 4,
     "float32": 4,
     "float64": 4,
 }

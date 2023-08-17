@@ -42,11 +42,16 @@ class PluginTemplate(object):
         self._plugin_output_dtype = template_params.output_dtype
         self._plugin_workspace_size = template_params.total_workspace_size
         self._plugin_source_code = template_params.cuda_source_code
-        self._plugin_output_shape = self._parse_plugin_output_shape(template_params.output_shape)
-        self._plugin_tensor_format = self._parse_plugin_tensor_format(template_params.tensor_type)
+        self._plugin_output_shape = self._parse_plugin_output_shape(
+            template_params.output_shape
+        )
+        self._plugin_tensor_format = self._parse_plugin_tensor_format(
+            template_params.tensor_type
+        )
         self._plugin_device_function_configuration = (
             self._parse_plugin_device_function_configuration(
-                template_params.device_function_configuration, template_params.device_function_list
+                template_params.device_function_configuration,
+                template_params.device_function_list,
             )
         )
         self._plugin_workspace_constant = self._parse_plugin_workspace_constant(
@@ -122,8 +127,12 @@ class PluginTemplate(object):
         ):
             self.batch_size = batch_size
             self.plugin_template = plugin_template
-            self.dy_plugin_input_size_type_without_bs = dy_plugin_input_size_type_without_bs
-            self.dy_plugin_output_size_type_without_bs = dy_plugin_output_size_type_without_bs
+            self.dy_plugin_input_size_type_without_bs = (
+                dy_plugin_input_size_type_without_bs
+            )
+            self.dy_plugin_output_size_type_without_bs = (
+                dy_plugin_output_size_type_without_bs
+            )
 
     class Shape:
         def __init__(self, size, dtype):
@@ -200,9 +209,12 @@ class PluginTemplate(object):
         with pushd(os.path.normpath(os.path.dirname(__file__))):
             self.generate_header_file()
             self.generate_source_file()
-            self._build_plugin()
+            result = self._build_plugin()
 
-        return f"{os.path.dirname(os.path.abspath(__file__))}/plugin/lib/{self._plugin_name}.so"
+        if result:
+            return f"{os.path.dirname(os.path.abspath(__file__))}/plugin/lib/{self._plugin_name}.so"
+        else:
+            return False
 
     def _build_plugin(self):
         os.chdir("./plugin")
@@ -211,6 +223,7 @@ class PluginTemplate(object):
         os.system(f"make plugin_name={self._plugin_name}")
 
         os.chdir("../")
+        return True
 
 
 class StaticBatchPluginTemplate(PluginTemplate):

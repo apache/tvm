@@ -15,25 +15,59 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import gc
 import os
 from typing import Tuple
 
+import numpy as np
 import onnx
 import onnx_graphsurgeon as gs
-from onnx import shape_inference
+import onnxruntime as ort
 
 from tvm.tpat.cuda.kernel import Kernel
 from tvm.tpat.cuda.template import StaticBatchPluginTemplate
 from tvm.tpat.cuda.template_params import PluginTemplateParams
 
-from .rewrite import rewrite
+from tvm.tpat.cuda.onnx_util import rewrite, load_model
+
+
+def _enhance_onnx_shape(graph, inputs, outputs):
+    graph.outputs = []
+    graph.outputs.extend(inputs)
+    graph.outputs.extend(outputs)
+
+    graph.cleanup()
+
+    half_model = gs.export_onnx(graph)
+    half_model_path = "half_model.onnx"
+    onnx.save(half_model, half_model_path)
+
+    EP_list = ["CPUExecutionProvider", "CUDAExecutionProvider"]
+    session = ort.InferenceSession(half_model_path, providers=EP_list)
+    outname = [output.name for output in session.get_outputs()]
+    dummy_input = {}
+    for gi in graph.inputs:
+        dummy_input[gi.name] = (1 + np.random.random([int(i) for i in gi.shape])).astype(gi.dtype)
+    dummy_output = session.run(outname, dummy_input)
+
+    tensor_shapes = []
+    for i in range(len(inputs)):
+        assert inputs[i].name == outname[i]
+        tensor_shapes.append(dummy_output[i].shape)
+    for i in range(len(outputs)):
+        assert outputs[i].name == outname[len(inputs) + i]
+        tensor_shapes.append(dummy_output[len(inputs) + i].shape)
+    os.remove(half_model_path)
+    return tensor_shapes
 
 
 def _extract_target_onnx_node(model, tunning_node):
     """
     Extract target node from onnx graph
     """
+
     graph = gs.import_onnx(model)
+
     tensors = graph.tensors()
 
     subgraph_inputs = [
@@ -45,14 +79,39 @@ def _extract_target_onnx_node(model, tunning_node):
         tensors[oup.name].to_variable(dtype=oup.dtype, shape=oup.shape)
         for oup in tunning_node.outputs
     ]
+
+    computed_tensor_shapes = _enhance_onnx_shape(graph, subgraph_inputs, subgraph_outputs)
+
+    for i in range(len(subgraph_inputs)):
+        subgraph_inputs[i].shape = computed_tensor_shapes[i]
+    for i in range(len(subgraph_outputs)):
+        subgraph_outputs[i].shape = computed_tensor_shapes[len(subgraph_inputs) + i]
+
     input_shapes = [(inp.name, inp.shape, inp.dtype.name) for inp in subgraph_inputs]
+    output_shapes = [oup.shape for oup in subgraph_outputs]
 
     graph.inputs = subgraph_inputs
     graph.outputs = subgraph_outputs
     graph.cleanup()
     submodel = gs.export_onnx(graph)
 
-    return graph, submodel, input_shapes
+    return submodel, input_shapes, output_shapes
+
+
+def _get_node_to_be_tunned(model, node_names):
+    graph = gs.import_onnx(model)
+
+    # 2. retrieve all node which need to transform to plugins
+    if node_names is None or len(node_names) == 0:
+        return []
+
+    node_to_be_tunned = [node for node in graph.nodes if node.name in node_names]
+
+    del graph
+    del model
+    gc.collect()
+
+    return node_to_be_tunned
 
 
 def pipeline(
@@ -86,22 +145,10 @@ def pipeline(
     """
 
     # 1. load onnx and inference shapes
-    try:
-        onnx_model = onnx.load(onnx_file)
-        inferred_model = shape_inference.infer_shapes(onnx_model)
-    except:
-        dummy_file = "tensor_shape_inference.onnx"
-        shape_inference.infer_shapes_path(onnx_file, output_path=dummy_file)
-        inferred_model = onnx.load(dummy_file)
-        os.remove(dummy_file)
-
-    graph = gs.import_onnx(inferred_model)
+    model = load_model(onnx_file)
 
     # 2. retrieve all node which need to transform to plugins
-    if node_names is None or len(node_names) == 0:
-        return
-
-    node_to_be_tunned = [node for node in graph.nodes if node.name in node_names]
+    node_to_be_tunned = _get_node_to_be_tunned(model, node_names)
 
     assert len(node_to_be_tunned) > 0, "The number of nodes to be tunned should larger than zero"
 
@@ -113,25 +160,25 @@ def pipeline(
         print(f"Processing ---- {name}")
         plugin_name = "tpat_{}".format(name.replace("/", "_").replace(".", "_"))
 
-        subgraph, submodel, shapes = _extract_target_onnx_node(inferred_model, node)
+        submodel, input_shapes, output_shapes = _extract_target_onnx_node(model, node)
 
         try:
-            kernel = Kernel(plugin_name, submodel, shapes, enable_tunning, tunning_option)
+            kernel = Kernel(plugin_name, submodel, input_shapes, enable_tunning, tunning_option)
             kernel.run()
 
             ## 3.1 fill in template
-            params = PluginTemplateParams(kernel, submodel, subgraph, node, name)
+            params = PluginTemplateParams(kernel, submodel, output_shapes, node, name)
             template = StaticBatchPluginTemplate(params)
             lib = template.fill()
 
-            plugin_path.append(lib)
-
-            node_name_to_plugin_name[name] = plugin_name
+            if lib:
+                plugin_path.append(lib)
+                node_name_to_plugin_name[name] = plugin_name
         except Exception as e:
             print(f"Skip {name}, ERROR:: {e}")
             continue
 
     # 4. generate the modified onnx
-    rewrite(graph, node_to_be_tunned, node_name_to_plugin_name, output_onnx)
+    rewrite(model, node_to_be_tunned, node_name_to_plugin_name, output_onnx)
 
     return output_onnx, plugin_path
