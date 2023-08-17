@@ -43,7 +43,7 @@ pytestmark = [coreml_enabled]
 
 def verify(mod, inputs):
     from tvm.relax.backend.contrib.coreml import partition_for_coreml
-    
+
     mod1 = partition_for_coreml(mod)
     mod1 = relax.transform.RunCodegen()(mod1)
     assert relax.analysis.well_formed(mod1)
