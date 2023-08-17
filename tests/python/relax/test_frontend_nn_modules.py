@@ -70,8 +70,6 @@ def test_conv2d():
         spec={
             "forward": {
                 "x": spec.Tensor([1, 3, 32, 32], "float32"),
-                "weight": spec.Tensor([32, 3, 3, 3], "float32"),
-                "bias": spec.Tensor([32], "float32"),
             }
         }
     )
