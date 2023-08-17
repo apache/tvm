@@ -18,7 +18,7 @@
 Python bindings for the dataflow analysis framework
 """
 
-from typing import List
+from typing import Any, Callable, List, Tuple
 import tvm
 from tvm.ir.base import Node
 from tvm.relax.expr import Expr, SeqExpr, Function, Var
@@ -131,3 +131,51 @@ def ExtractCFG(func: Function) -> ControlFlowGraph:
         Control flow graph corresponding to the function.
     """
     return _ffi_api.ExtractCFG(func)  # type: ignore
+
+
+def DataflowAnalysis(
+    cfg: ControlFlowGraph,
+    init: Any,
+    transfer_func: Callable[[BasicBlock, Any], Any],
+    merge_func: Callable[[Any, Any], Any],
+    forward: bool = True,
+) -> Tuple[List[Any], List[Any]]:
+    """
+    Generic dataflow analysis framework, based on Adrian Sampson's course notes:
+    https://www.cs.cornell.edu/courses/cs6120/2020fa/lesson/4/
+
+    The analysis creates input and output maps (mapping basic block indices to a domain),
+    sets the initial input and output for each basic block to the init value, and then
+    performs a traversal of the CFG (BFS in this implementation, since unlike the general case,
+    we do not have loops) and uses the transfer and merge function to update the inputs and
+    outputs. The analysis can proceed forwards (from block 0 onwards) or backwards (from the last
+    block back), flipping the roles of the input and output maps in the cases.
+
+    Parameters
+    ----------
+    cfg: ControlFlowGraph
+        The input control flow graph
+
+    init: Any
+        The initial value in the analysis domain to which all blocks should be initialized.
+
+    transfer_func: Callable[[BasicBlock, Any], Any]
+        Given a basic block and the input domain, compute the new output domain.
+
+    merge_func: Callable[[Any, Any], Any]
+        When two output domains are fed into a single block (i.e., after an If branch),
+        the merge function is used to combine them into a single domain.
+
+    forward: bool
+        If true, the analysis proceeds forwards (starting from block 0 and going onwards).
+        If false, the analysis proceeds backwards (starting from the last block and going back).
+        The input and output maps play the opposite roles in forward and backward analyses.
+        I.e., in a backward analysis, the "final output" is the input map entry for block 0
+        and the initial input is the output map entry for the last block.
+
+    Returns
+    -------
+    ret: Tuple[List[Any], List[Any]]
+        A pair of the final input and output maps
+    """
+    return _ffi_api.DataflowAnalysis(forward, cfg, init, transfer_func, merge_func)  # type: ignore

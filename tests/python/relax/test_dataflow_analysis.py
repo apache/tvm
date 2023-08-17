@@ -14,10 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from typing import List, Optional
+from typing import Any, Callable, List, Optional
 import tvm
 from tvm import relax
-from tvm.relax.analysis.dataflow_analysis import ControlFlowGraph, BasicBlock, ExtractCFG
+from tvm.relax.analysis.dataflow_analysis import (
+    ControlFlowGraph,
+    BasicBlock,
+    ExtractCFG,
+    DataflowAnalysis,
+)
 from tvm.script import ir as I, relax as R
 import tvm.testing
 
@@ -424,6 +429,104 @@ def test_nested_branches():
     assert graph.blocks[9].ret.name_hint == "z"
     assert graph.blocks[9].start_block_idx == 1
     assert graph.blocks[9].end_block_idx == 1
+
+
+def test_simple_analysis():
+    @I.ir_module
+    class TrivialFunc:
+        @R.function
+        def main() -> R.Tensor((), "int32"):
+            return R.const(1, dtype="int32")
+
+    # only one basic block to consider here
+    init = {"a": 1}
+
+    def transfer_func(_, domain):
+        # the input domain will be converted into an immutable TVM Map,
+        # so we have to create a new domain
+        new_domain = {}
+        for k, v in domain.items():
+            new_domain[k] = v
+        new_domain["b"] = 2
+        return new_domain
+
+    # there will not be a merge here
+    merge_func = lambda domain1, _: domain1
+
+    def check_expected_maps(in_map, out_map):
+        # we expect the in map to be the init value and the out map to have the key b
+        assert len(in_map[0]) == 1
+        assert in_map[0]["a"] == 1
+        assert len(out_map[0]) == 2
+        assert out_map[0]["a"] == 1
+        assert out_map[0]["b"] == 2
+
+    cfg = ExtractCFG(TrivialFunc["main"])
+    in_map, out_map = DataflowAnalysis(cfg, init, transfer_func, merge_func, forward=True)
+    check_expected_maps(in_map, out_map)
+    # backward will just flip in and out
+    in_map, out_map = DataflowAnalysis(cfg, init, transfer_func, merge_func, forward=False)
+    check_expected_maps(out_map, in_map)
+
+
+def test_simple_analysis_with_merge():
+    @I.ir_module
+    class SimpleBranch:
+        @R.function
+        def main(cond: R.Tensor((), "bool")) -> R.Tensor((), "int32"):
+            if cond:
+                x = R.const(1, dtype="int32")
+                y = R.add(x, x)
+                z = R.multiply(y, y)
+            else:
+                x = R.const(2, dtype="int32")
+                y = R.add(x, x)
+                z = R.multiply(y, y)
+            return z
+
+    init = {"a": 1}
+
+    def transfer_func(_, domain):
+        new_domain = {}
+        for k, v in domain.items():
+            new_domain[k] = v + 1
+        return new_domain
+
+    def merge_func(domain1, domain2):
+        new_domain = {}
+        for k, v in domain1.items():
+            new_domain[k] = v
+        for k, v in domain2.items():
+            if k not in new_domain or (k in new_domain and new_domain[k] < v):
+                new_domain[k] = v
+        if "merge" not in new_domain:
+            new_domain["merge"] = 1
+        return new_domain
+
+    def check_expected_maps(in_map, out_map, forward=True):
+        # merge will happen in the last block only
+        i = 0 if forward else 3
+        assert len(in_map[i]) == 1 and len(out_map[i]) == 1
+        assert in_map[i]["a"] == 1
+        assert out_map[i]["a"] == 2
+
+        for j in (1, 2):
+            assert len(in_map[j]) == 1 and len(out_map[j]) == 1
+            assert in_map[j]["a"] == 2
+            assert out_map[j]["a"] == 3
+
+        i = 3 if forward else 0
+        assert len(in_map[i]) == 2 and len(out_map[i]) == 2
+        assert in_map[i]["a"] == 3
+        assert in_map[i]["merge"] == 1
+        assert out_map[i]["a"] == 4
+        assert out_map[i]["merge"] == 2
+
+    cfg = ExtractCFG(SimpleBranch["main"])
+    in_map, out_map = DataflowAnalysis(cfg, init, transfer_func, merge_func, forward=True)
+    check_expected_maps(in_map, out_map, forward=True)
+    in_map, out_map = DataflowAnalysis(cfg, init, transfer_func, merge_func, forward=False)
+    check_expected_maps(out_map, in_map, forward=False)
 
 
 if __name__ == "__main__":

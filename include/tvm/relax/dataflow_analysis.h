@@ -171,6 +171,34 @@ class ControlFlowGraph : public ObjectRef {
  */
 ControlFlowGraph ExtractCFG(const Function& func);
 
+/*!
+ * \brief Generic implementation of dataflow analysis, based on
+ *   Adrian Sampson's course material:
+ *   https://www.cs.cornell.edu/courses/cs6120/2020fa/lesson/4/
+ *
+ *  The analysis creates input and output maps (mapping basic block indices to a domain),
+ *  sets the initial input and output for each basic block to the init value, and then
+ *  performs a traversal of the CFG (BFS in this implementation, since unlike the general case,
+ *  we do not have loops) and uses the transfer and merge function to update the inputs and
+ *  outputs. The analysis can proceed forwards (from block 0 onwards) or backwards (from the last
+ *  block back), flipping the roles of the input and output maps in the cases.
+ *
+ * \param forward Whether to perform a forward or backward analysis
+ * \param cfg The input control flow graph
+ * \param init The value corresponding to an initial domain
+ * \param transfer_func Given an input domain and a basic block, determine the resulting domain
+ * \param merge_func Given a set of domains, combine them to form a single new domain
+ *   (note: in Relax, a basic block can never have more than two predecessors/successors)
+ *
+ * \return Two arrays, the first being the "input map" (domain being passed *into*
+ *   each basic block in the CFG) and the second being the "output map" (the domain
+ *   being passed *out of* the corresponding basic block)
+ */
+std::pair<Array<ObjectRef>, Array<ObjectRef>> DataflowAnalysis(
+    const ControlFlowGraph& cfg, const ObjectRef& init,
+    std::function<ObjectRef(const BasicBlock&, const ObjectRef&)> transfer_func,
+    std::function<ObjectRef(const ObjectRef&, const ObjectRef&)> merge_func, bool forward = true);
+
 }  // namespace relax
 }  // namespace tvm
 #endif

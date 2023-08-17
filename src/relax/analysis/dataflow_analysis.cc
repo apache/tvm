@@ -24,6 +24,8 @@
 #include <tvm/relax/dataflow_analysis.h>
 #include <tvm/runtime/memory.h>
 
+#include <queue>
+
 namespace tvm {
 namespace relax {
 
@@ -175,6 +177,49 @@ ControlFlowGraph ExtractCFG(const Function& func) {
   return ControlFlowGraph::Create(Array<BasicBlock>(blocks), pred_arr, succ_arr);
 }
 
+std::pair<Array<ObjectRef>, Array<ObjectRef>> DataflowAnalysis(
+    const ControlFlowGraph& cfg, const ObjectRef& init,
+    std::function<ObjectRef(const BasicBlock&, const ObjectRef&)> transfer_func,
+    std::function<ObjectRef(const ObjectRef&, const ObjectRef&)> merge_func, bool forward) {
+  std::vector<ObjectRef> in_map;
+  std::vector<ObjectRef> out_map;
+  for (size_t i = 0; i < cfg->blocks.size(); i++) {
+    in_map.push_back(init);
+    out_map.push_back(init);
+  }
+
+  // Modification from Adrian Sampson's version:
+  // Since there are no loops in our AST, one traversal through the CFG suffices.
+  // We will do BFS
+  std::queue<size_t> worklist;
+  worklist.push((forward) ? 0 : cfg->blocks.size() - 1);
+  while (!worklist.empty()) {
+    size_t idx = worklist.front();
+    worklist.pop();
+    Array<Integer> prev = (forward) ? cfg->preds[idx] : cfg->succs[idx];
+    Array<Integer> next = (forward) ? cfg->succs[idx] : cfg->preds[idx];
+    std::vector<ObjectRef>* results = (forward) ? &out_map : &in_map;
+    std::vector<ObjectRef>* inputs = (forward) ? &in_map : &out_map;
+
+    // Cases (for forward analysis):
+    // 0 predecessors: The first block in the function
+    // 1 predecessor: A branch in an If node (no merge needed)
+    // 2 predecessors: The merge block after an If node (merge needed)
+    // (Analogous for successors in backward analysis)
+    inputs->operator[](idx) = (prev.size() == 0)   ? init
+                              : (prev.size() == 1) ? results->at(prev[0].IntValue())
+                                                   : merge_func(results->at(prev[0].IntValue()),
+                                                                results->at(prev[1].IntValue()));
+    results->operator[](idx) = transfer_func(cfg->blocks[idx], inputs->at(idx));
+
+    for (Integer next_idx : next) {
+      worklist.push(next_idx.IntValue());
+    }
+  }
+
+  return {Array<ObjectRef>(in_map), Array<ObjectRef>(out_map)};
+}
+
 TVM_REGISTER_GLOBAL("relax.analysis.BasicBlock")
     .set_body_typed([](const SeqExpr& seq, const Array<Var>& args, const Expr& ret,
                        size_t start_block_idx, size_t start_binding_idx, size_t end_block_idx,
@@ -190,6 +235,13 @@ TVM_REGISTER_GLOBAL("relax.analysis.ControlFlowGraph")
     });
 
 TVM_REGISTER_GLOBAL("relax.analysis.ExtractCFG").set_body_typed(ExtractCFG);
+
+TVM_REGISTER_GLOBAL("relax.analysis.DataflowAnalysis")
+    .set_body_typed([](const ControlFlowGraph& cfg, const ObjectRef& init, PackedFunc transfer_func,
+                       PackedFunc merge_func, bool forward) {
+      auto ret = DataflowAnalysis(cfg, init, transfer_func, merge_func, forward);
+      return Array<ObjectRef>({ret.first, ret.second});
+    });
 
 }  // namespace relax
 }  // namespace tvm
