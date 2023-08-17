@@ -29,7 +29,7 @@
 #include <vector>
 
 #include "../../../runtime/graph_executor/graph_executor_factory.h"
-#include "../base64.h"
+#include "../../support/base64.h"
 #include "runtime_bridge.h"
 
 namespace tvm {
@@ -194,6 +194,39 @@ size_t tvm_contrib_torch_graph_executor_module_forward(TVMContribTorchRuntimeMod
   return output_length;
 }
 
+inline size_t b64strlen(const std::string b64str) {
+  ICHECK(b64str.size() % 4 == 0) << "invalid base64 encoding";
+  size_t length = b64str.size() / 4 * 3;
+  if (b64str[b64str.size() - 2] == '=') {
+    length -= 2;
+  } else if (b64str[b64str.size() - 1] == '=') {
+    length -= 1;
+  }
+  return length;
+}
+
+inline void b64decode(const std::string b64str, uint8_t* ret) {
+  size_t index = 0;
+  const auto length = b64str.size();
+  for (size_t i = 0; i < length; i += 4) {
+    int8_t ch0 = base64::DecodeTable[(int32_t)b64str[i]];
+    int8_t ch1 = base64::DecodeTable[(int32_t)b64str[i + 1]];
+    int8_t ch2 = base64::DecodeTable[(int32_t)b64str[i + 2]];
+    int8_t ch3 = base64::DecodeTable[(int32_t)b64str[i + 3]];
+    uint8_t st1 = (ch0 << 2) + (ch1 >> 4);
+    ret[index++] = st1;
+    if (b64str[i + 2] != '=') {
+      uint8_t st2 = ((ch1 & 0b1111) << 4) + (ch2 >> 2);
+      ret[index++] = st2;
+      if (b64str[i + 3] != '=') {
+        uint8_t st3 = ((ch2 & 0b11) << 6) + ch3;
+        ret[index++] = st3;
+      }
+    }
+  }
+  ICHECK(b64strlen(b64str) == index) << "base64 decoding fails";
+}
+
 /*!
  * \brief Export TVM runtime module to base64 stream including its submodules.
  * Note that this targets modules that are binary serializable and DSOExportable.
@@ -225,10 +258,10 @@ struct Deleter {  // deleter
  * \return runtime::Module runtime module constructed from the given stream
  */
 tvm::runtime::Module ImportModuleFromBase64(std::string base64str) {
-  auto length = tvm::support::b64strlen(base64str);
+  auto length = b64strlen(base64str);
 
   std::vector<uint8_t> bytes(length);  // bytes stream
-  tvm::support::b64decode(base64str, bytes.data());
+  b64decode(base64str, bytes.data());
 
   auto now = std::chrono::system_clock::now();
   auto in_time_t = std::chrono::system_clock::to_time_t(now);
