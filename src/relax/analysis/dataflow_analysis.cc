@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file tvm/relax/dataflow_analysis.cc
+ * \file tvm/relax/analysis/dataflow_analysis.cc
  * \brief Implementation of functionality in dataflow_analysis.h
  */
 #include <tvm/relax/dataflow_analysis.h>
