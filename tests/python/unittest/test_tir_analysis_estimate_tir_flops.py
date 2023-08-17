@@ -122,22 +122,22 @@ def test_estimate_flops_with_decl_buffer():
 @T.prim_func
 def flops_with_nonint_extent(a: T.Buffer(16, "float32")):
     for i in range(4 + 4):
-        a[i] = a[i]
+        a[i] = 2*a[i]
 
 
 def test_flops_with_nonint_extent():
-    estimate_tir_flops(IRModule({"main": flops_with_nonint_extent}))
+    assert estimate_tir_flops(IRModule({"main": flops_with_nonint_extent}))==8
 
 
 @T.prim_func
 def flops_with_variable_extent(a: T.Buffer(16, "float32")):
     for i in range(4 + 4):
         for j in range(i + 8):
-            a[j] = a[i]
+            a[j] = 2*a[i]
 
 
 def test_flops_with_variable_extent():
-    estimate_tir_flops(IRModule({"main": flops_with_variable_extent}))
+    assert estimate_tir_flops(IRModule({"main": flops_with_variable_extent}))==120
 
 
 if __name__ == "__main__":
