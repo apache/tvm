@@ -213,8 +213,9 @@ def generate_sm80_tensor_op_16816(
 
     def get_default_tile_descriptions(block_k_factor):
         return [
-            ([256, 128, int(32 * block_k_factor)], 3, [4, 2, 1], min_cc, max_cc),
             ([128, 256, int(32 * block_k_factor)], 3, [2, 4, 1], min_cc, max_cc),
+            ([256, 128, int(32 * block_k_factor)], 3, [4, 2, 1], min_cc, max_cc),
+            ([256, 64, int(32 * block_k_factor)], 3, [4, 1, 1], min_cc, max_cc),
             ([256, 64, int(32 * block_k_factor)], 4, [4, 1, 1], min_cc, max_cc),
             ([64, 256, int(32 * block_k_factor)], 4, [1, 4, 1], min_cc, max_cc),
             ([128, 128, int(32 * block_k_factor)], 3, [2, 2, 1], min_cc, max_cc),
@@ -228,6 +229,9 @@ def generate_sm80_tensor_op_16816(
             ([256, 64, int(64 * block_k_factor)], 4, [4, 1, 1], min_cc, max_cc_smem_limited),
             ([64, 256, int(64 * block_k_factor)], 4, [1, 4, 1], min_cc, max_cc_smem_limited),
             ([128, 128, int(64 * block_k_factor)], 4, [2, 2, 1], min_cc, max_cc),
+            ([256, 64, int(64 * block_k_factor)], 3, [4, 1, 1], min_cc, max_cc),
+            ([64, 256, int(64 * block_k_factor)], 3, [1, 4, 1], min_cc, max_cc),
+            ([128, 128, int(64 * block_k_factor)], 3, [2, 2, 1], min_cc, max_cc),
             ([128, 64, int(64 * block_k_factor)], 3, [2, 2, 1], min_cc, max_cc),
             ([64, 128, int(64 * block_k_factor)], 3, [2, 2, 1], min_cc, max_cc),
             ([64, 64, int(64 * block_k_factor)], 5, [2, 2, 1], min_cc, max_cc),
