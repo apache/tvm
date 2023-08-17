@@ -19,10 +19,12 @@ import numpy as np
 import pytest
 import tvm
 from tvm import te
+from tvm import tir
 from tvm import topi
 from tvm import relay
 import tvm.topi.testing
 from tvm.contrib.nvcc import have_fp16
+from tvm.script import tir as T
 
 import tvm.testing
 
@@ -892,7 +894,49 @@ def test_strided_slice():
     verify_strided_slice((3, 4, 3), [1, 1, 0], [4, 4, 3])
     verify_strided_slice((3, 4, 3), [0, 2, 0], [1, 2, 3])
     verify_strided_slice((3, 4, 3), [0, 0, 0], [None, None, None])
-    verify_strided_slice((3, 4, 3), [0], [2], None, axes=[1])
+
+
+def test_strided_slice_with_dynamic_bounds():
+    """The begin/end of strided_slice can be a PrimExpr
+
+    Where topi.dynamic_strided_slice uses begin/end values provided at
+    runtime, strided_slice takes begin/end values at compile-time.
+    However, these begin/end values may depend on dynamic variables.
+    Previously, these resulted in dispatch to
+    `tvm::topi::dynamic_strided_slice`, ignoring the `axes` argument.
+    """
+    A = te.placeholder(shape=[16, 32, 64], name="A")
+    begins = [tir.Var("begin1", "int32"), tir.Var("begin2", "int32")]
+    ends = [tir.Var("end1", "int32"), tir.Var("end2", "int32")]
+    strides = [1, 1]
+    axes = [2, 1]
+
+    # Dummy tensor to provide begin/end variables in PrimFunc scope.
+    # Outside of a test case, these would typically be provided
+    # through another means, or bound to a static value at a later
+    # point.
+    Dummy = te.placeholder(shape=[*begins, *ends], name="Dummy")
+
+    B = topi.strided_slice(A, begins, ends, strides, axes)
+
+    func = te.create_prim_func([A, Dummy, B]).without_attr("global_symbol")
+
+    @T.prim_func(private=True)
+    def expected(
+        A: T.Buffer((16, 32, 64), "float32"),
+        var_Dummy: T.handle,
+        B_handle: T.handle,
+    ):
+        T.func_attr({"tir.noalias": T.bool(True)})
+        begin1, begin2, end1, end2 = T.int32(), T.int32(), T.int32(), T.int32()
+        Dummy = T.match_buffer(var_Dummy, (begin1, begin2, end1, end2))
+        B = T.match_buffer(B_handle, (16, end2 - begin2, end1 - begin1))
+        for iters in T.grid(*B.shape):
+            with T.block("T_dynamic_strided_slice_with_axes"):
+                i, j, k = T.axis.remap("SSS", iters)
+                B[i, j, k] = A[i, j + begin2, k + begin1]
+
+    tvm.ir.assert_structural_equal(expected, func)
 
 
 @tvm.testing.uses_gpu

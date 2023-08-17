@@ -641,6 +641,60 @@ inline Array<Tensor> split(const Tensor& x, Array<PrimExpr> split_indices, int a
  * \param end Indices indicating end of the slice
  * \param strides Specifies the stride values, it can be negative
  * in that case, the input tensor will be reversed in that particular axis
+ * \param axes Specifies which axes will be updated.
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return A Tensor whose op member is the dynamic_strided_slice operation
+ */
+inline Tensor dynamic_strided_slice_with_axes(
+    const Tensor& x, const Array<PrimExpr>& begin, const Array<PrimExpr>& end,
+    const Array<PrimExpr>& strides, const Array<Integer>& axes,
+    std::string name = "T_dynamic_strided_slice_with_axes", std::string tag = kInjective) {
+  const size_t src_tensor_dim = x->shape.size();
+  ICHECK_EQ(begin.size(), end.size());
+  ICHECK_EQ(begin.size(), strides.size());
+  ICHECK_EQ(begin.size(), axes.size());
+  ICHECK_LE(begin.size(), src_tensor_dim);
+
+  for (const auto& axis_imm : axes) {
+    int axis = axis_imm->value;
+    ICHECK_LT(axis, src_tensor_dim);
+  }
+
+  arith::Analyzer analyzer;
+
+  Array<PrimExpr> out_shape = x->shape;
+  for (size_t i = 0; i < begin.size(); i++) {
+    int axis = axes[i]->value;
+    PrimExpr new_shape = analyzer.Simplify(indexdiv(end[i] - begin[i], strides[i]));
+    out_shape.Set(axis, new_shape);
+  }
+
+  return te::compute(
+      out_shape,
+      [&](const Array<tvm::tir::Var>& indices) {
+        Array<PrimExpr> real_indices = indices.Map([](const auto& var) -> PrimExpr { return var; });
+
+        for (size_t i = 0; i < begin.size(); i++) {
+          int axis = axes[i]->value;
+          PrimExpr new_index = indices[axis] * strides[i] + begin[i];
+          real_indices.Set(axis, new_index);
+        }
+
+        return x(real_indices);
+      },
+      name, tag);
+}
+
+/*!
+ * \brief strided_slice of a tensor where begin/end/stride can be mixed static and dynamic
+ *
+ * \param x The input tensor
+ * \param begin The indices to begin with in the slicing
+ * \param end Indices indicating end of the slice
+ * \param strides Specifies the stride values, it can be negative
+ * in that case, the input tensor will be reversed in that particular axis
  * \param name The name of the operation
  * \param tag The tag to mark the operation
  *

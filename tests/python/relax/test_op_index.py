@@ -964,7 +964,7 @@ def test_legalize_dynamic_begin_end():
             for iters in T.grid(*B.shape):
                 with T.block("T_dynamic_strided_slice"):
                     i, j = T.axis.remap("SS", iters)
-                    B[i, j] = A[T.min(index, T.int64(15)) + i, j]
+                    B[i, j] = A[i + index, j]
 
     after = tvm.relax.transform.LegalizeOps()(before)
     tvm.ir.assert_structural_equal(expected, after)
