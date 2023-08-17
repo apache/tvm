@@ -1458,8 +1458,7 @@ class VectorTypeRewriter : public StmtExprMutator {
       if (ramp_index->lanes != info.factor()) {
         ICHECK(info.factor() && ramp_index->lanes % info.factor() == 0);
         int new_lanes = ramp_index->lanes / info.factor();
-        new_index = Ramp(new_index * new_lanes, ramp_index->stride, new_lanes,
-                         ramp_index->span);
+        new_index = Ramp(new_index * new_lanes, ramp_index->stride, new_lanes, ramp_index->span);
       }
       indices.Set(indices.size() - 1, new_index);
     } else if (last_dim_index.dtype().lanes() == 1 && info.factor() > 1) {
