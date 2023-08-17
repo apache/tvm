@@ -79,7 +79,7 @@ def interleave_transpose_weights(inputs, data, kernel, interleave_A):
         pad_N = tile_rows_B - (N % tile_rows_B)
 
     # Tensorize will later make use of 4 tiles at once across the columns so make sure we pad such
-    # that the columns is multiple of 4    
+    # that the columns is multiple of 4
     column_multiplier = 4
     tile_cols_multiplied = tile_cols_B * column_multiplier
     K_misalignment = K % tile_cols_multiplied

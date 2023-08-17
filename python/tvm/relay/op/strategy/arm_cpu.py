@@ -477,20 +477,20 @@ def conv2d_gemm_without_weight_transform_strategy_arm_cpu(attrs, inputs, out_typ
     if layout == "NHWC" and data.dtype in ["int8", "uint8"]:
         if has_dot_prod:
             strategy.add_implementation(
-            wrap_compute_conv2d_gemm(native_compute),
-            wrap_topi_schedule(
-                topi.arm_cpu.schedule_conv2d_NHWC_quantized_native_without_transform
-            ),
-            name="conv2d_NHWC_quantized_native_without_transform.arm_cpu",
-        )
+                wrap_compute_conv2d_gemm(native_compute),
+                wrap_topi_schedule(
+                    topi.arm_cpu.schedule_conv2d_NHWC_quantized_native_without_transform
+                ),
+                name="conv2d_NHWC_quantized_native_without_transform.arm_cpu",
+            )
         if is_aarch64 and has_asimd:
             strategy.add_implementation(
-            wrap_compute_conv2d_gemm(interleaved_compute),
-            wrap_topi_schedule(
-                topi.arm_cpu.schedule_conv2d_NHWC_quantized_interleaved_without_transform
-            ),
-            name="conv2d_NHWC_quantized_interleaved_without_transform.arm_cpu",
-        )
+                wrap_compute_conv2d_gemm(interleaved_compute),
+                wrap_topi_schedule(
+                    topi.arm_cpu.schedule_conv2d_NHWC_quantized_interleaved_without_transform
+                ),
+                name="conv2d_NHWC_quantized_interleaved_without_transform.arm_cpu",
+            )
     else:
         raise RuntimeError(
             f"Unsupported conv2d_NHWC_quantized_without_transform layout {layout}"
