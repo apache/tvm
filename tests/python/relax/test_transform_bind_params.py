@@ -123,5 +123,57 @@ def test_bind_params_symbolic_vars():
     )
 
 
+param_specification = tvm.testing.parameter("by_string", "by_var")
+
+
+def test_bind_params_by_var_obj(param_specification):
+    @tvm.script.ir_module
+    class Before:
+        @R.function
+        def main(A: R.Tensor([16], "float32")):
+            return A
+
+    np_data = np.arange(16).astype("float32")
+    inlined_relax_const = relax.const(np_data)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main():
+            return inlined_relax_const
+
+    if param_specification == "by_string":
+        var = "A"
+    elif param_specification == "by_var":
+        var = Before["main"].params[0]
+    else:
+        raise ValueError("Unknown param_specification: {param_specification}")
+
+    After = relax.transform.BindParams("main", {var: np_data})(Before)
+
+    tvm.ir.assert_structural_equal(Expected, After)
+
+
+def test_bind_params_by_var_name():
+    @tvm.script.ir_module
+    class Before:
+        @R.function
+        def main(A: R.Tensor([16], "float32")):
+            return A
+
+    np_data = np.arange(16).astype("float32")
+    inlined_relax_const = relax.const(np_data)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main():
+            return inlined_relax_const
+
+    After = relax.transform.BindParams("main", {"A": np_data})(Before)
+
+    tvm.ir.assert_structural_equal(Expected, After)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

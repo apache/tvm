@@ -24,7 +24,9 @@
 #ifndef TVM_RELAX_UTILS_H_
 #define TVM_RELAX_UTILS_H_
 
+#include <tvm/arith/analyzer.h>
 #include <tvm/ir/module.h>
+#include <tvm/relax/expr.h>
 #include <tvm/runtime/logging.h>
 
 namespace tvm {
@@ -47,6 +49,26 @@ namespace relax {
  */
 TVM_DLL Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& binds,
                   const tvm::Map<tir::Var, PrimExpr>& symbolic_var_map = {});
+
+/*!
+ * \brief Infer a binding map for symbolic variables
+ *
+ * If a set of relax variables are replaced within an expression, this
+ * may result in removal of the definition site of a symbolic
+ * variable.  This utility function determines the symbolic variable
+ * replacements that can be inferred based on the replaced relax
+ * variables, and can be used alongside the `Bind` utility function to
+ * replace both the relax variables and the implied symbolic
+ * variables.
+ *
+ * \param binds A map of relax variables to relax expressions
+ *
+ * \param analyzer The analyzer to use for simplifications
+ *
+ * \return A map of TIR variables to TIR expressions
+ */
+TVM_DLL tvm::Map<tir::Var, PrimExpr> InferSymbolicVarMap(
+    const tvm::Map<relax::Var, relax::Expr>& binds, arith::Analyzer* analyzer);
 
 /*!
  * \brief Check if the given StructInfo is for a boolean scalar (tensor of rank 0 with a boolean

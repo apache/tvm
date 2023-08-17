@@ -25,6 +25,7 @@
 #include <tvm/relax/type.h>
 #include <tvm/tir/op.h>
 
+#include <tuple>
 #include <utility>
 
 namespace tvm {
@@ -81,45 +82,88 @@ void MatchSymbolicVar(const Expr& arg, const Expr& constant,
   }
 }
 
+std::tuple<Map<Var, Expr>, Map<tir::Var, PrimExpr>> NormalizeBindings(
+    const Function& func, const Map<ObjectRef, ObjectRef>& untyped_params) {
+  ICHECK(func.defined());
+  ICHECK(untyped_params.defined());
+
+  // Map from string to the variable(s) with that name.
+  std::unordered_map<std::string, Array<relax::Var>> string_lookup;
+  std::unordered_set<const relax::VarNode*> var_set;
+  for (const auto& param : func->params) {
+    string_lookup[param->name_hint()].push_back(param);
+    var_set.insert(param.get());
+  }
+
+  Map<relax::Var, relax::Expr> relax_var_remap;
+
+  auto normalize_key = [&](ObjectRef obj) -> relax::Var {
+    if (auto opt_str = obj.as<String>()) {
+      std::string str = opt_str.value();
+      auto it = string_lookup.find(str);
+      CHECK(it != string_lookup.end())
+          << "Function does not have parameter with name \"" << str << "\".  "
+          << "Function parameters are named "
+          << func->params.Map([](const auto& param) { return param->name_hint(); });
+      CHECK_EQ(it->second.size(), 1)
+          << "Function contains multiple parameters with name \"" << str << "\".  "
+          << "The Relax variables " << it->second << " are all named \"" << str << "\"";
+      auto var = it->second[0];
+      CHECK(!relax_var_remap.count(var))
+          << "Remap of variable " << var << " was defined multiple times";
+
+      return var;
+    } else if (auto opt_var = obj.as<relax::Var>()) {
+      auto var = opt_var.value();
+      CHECK(!relax_var_remap.count(var))
+          << "Remap of variable " << var << " was defined multiple times";
+      CHECK(var_set.count(var.get()))
+          << "Function does not use Relax variable " << var << " as a parameter.  "
+          << "Function parameters are " << func->params;
+      return var;
+    } else {
+      LOG(FATAL)
+          << "Expected bound parameter to be a relax::Var, "
+          << " or a string that uniquely identifies a relax::Var param within the function.  "
+          << "However, received object " << obj << " of type " << obj->GetTypeKey();
+    }
+  };
+  auto normalize_value = [&](ObjectRef obj) -> relax::Expr {
+    if (auto opt = obj.as<relax::Expr>()) {
+      return opt.value();
+    } else if (auto opt = obj.as<runtime::NDArray>()) {
+      return Constant(opt.value());
+    } else {
+      LOG(FATAL) << "Cannot coerce object of type " << obj->GetTypeKey()
+                 << " into relax expression";
+    }
+  };
+
+  for (const auto& [key, value] : untyped_params) {
+    relax_var_remap.Set(normalize_key(key), normalize_value(value));
+  }
+
+  arith::Analyzer analyzer;
+  Map<tir::Var, PrimExpr> symbolic_var_map = InferSymbolicVarMap(relax_var_remap, &analyzer);
+
+  // for (const auto& [bind_param, bind_expr] : relax_var_remap) {
+  //   MatchSymbolicVar(bind_param, bind_expr, &symbolic_var_map, &analyzer);
+  // }
+
+  return {relax_var_remap, symbolic_var_map};
+}
+
 /*!
  * \brief Bind params to function by using name
  * \param func Relax function
  * \param params params dict
  * \return Function
  */
-inline Function BindParamsByName(Function func, const Map<String, runtime::NDArray>& params) {
-  std::unordered_map<std::string, Var> name_dict;
-  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> repeat_var;
-  for (auto arg : func->params) {
-    const auto& name = arg->name_hint();
-    if (name_dict.count(name)) {
-      repeat_var.insert(name_dict[name]);
-    } else {
-      name_dict[name] = arg;
-    }
-  }
+Function FunctionBindParams(Function func, const Map<ObjectRef, ObjectRef>& untyped_params) {
+  auto [bind_dict, symbolic_var_map] = NormalizeBindings(func, untyped_params);
 
-  arith::Analyzer analyzer;
-  Map<Var, Expr> bind_dict;
-  Map<tir::Var, PrimExpr> symbolic_var_map;
-
-  for (auto& kv : params) {
-    if (name_dict.count(kv.first) == 0) {
-      continue;
-    }
-    const Var& arg = name_dict.at(kv.first);
-    if (repeat_var.count(arg)) {
-      LOG(FATAL) << "ValueError: Multiple args in the function have name " << kv.first;
-    }
-    Expr const_expr = Constant(kv.second);
-    bind_dict.Set(arg, const_expr);
-    MatchSymbolicVar(arg, const_expr, &symbolic_var_map, &analyzer);
-  }
   Expr bound_expr = Bind(func, bind_dict, symbolic_var_map);
-  Function ret = Downcast<Function>(bound_expr);
-  ICHECK(ret.defined()) << "The returning type is expected to be a Relax Function."
-                        << "\n";
-  return ret;
+  return Downcast<Function>(bound_expr);
 }
 
 /*!
@@ -129,7 +173,7 @@ inline Function BindParamsByName(Function func, const Map<String, runtime::NDArr
  * \param param The param dict
  * \return The module after binding params.
  */
-IRModule BindParam(IRModule m, String func_name, Map<String, runtime::NDArray> param) {
+IRModule BindParam(IRModule m, String func_name, Map<ObjectRef, ObjectRef> bind_params) {
   IRModuleNode* new_module = m.CopyOnWrite();
   Map<GlobalVar, BaseFunc> functions = m->functions;
   for (const auto& func_pr : functions) {
@@ -138,13 +182,13 @@ IRModule BindParam(IRModule m, String func_name, Map<String, runtime::NDArray> p
         // Use global_symbol if it's external linkage
         Optional<String> gsymbol = relax_f->GetAttr<String>(tvm::attr::kGlobalSymbol);
         if (gsymbol.defined() && gsymbol.value() == func_name) {
-          Function f_after_bind = BindParamsByName(GetRef<Function>(relax_f), param);
+          Function f_after_bind = FunctionBindParams(GetRef<Function>(relax_f), bind_params);
           new_module->Update(func_pr.first, f_after_bind);
         }
       } else {
         // Use global var's name_hint if it's internal linkage
         if (func_pr.first->name_hint == func_name) {
-          Function f_after_bind = BindParamsByName(GetRef<Function>(relax_f), param);
+          Function f_after_bind = FunctionBindParams(GetRef<Function>(relax_f), bind_params);
           new_module->Update(func_pr.first, f_after_bind);
         }
       }
@@ -153,9 +197,11 @@ IRModule BindParam(IRModule m, String func_name, Map<String, runtime::NDArray> p
   return GetRef<IRModule>(new_module);
 }
 
+TVM_REGISTER_GLOBAL("relax.FunctionBindParams").set_body_typed(FunctionBindParams);
+
 namespace transform {
 
-Pass BindParams(String func_name, Map<String, runtime::NDArray> params) {
+Pass BindParams(String func_name, Map<ObjectRef, ObjectRef> params) {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
       [=](IRModule mod, PassContext pc) { return BindParam(std::move(mod), func_name, params); };
   return CreateModulePass(pass_func, 0, "BindParams", {});
