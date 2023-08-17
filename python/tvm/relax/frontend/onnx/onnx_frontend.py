@@ -987,7 +987,10 @@ class Slice(OnnxOpConverter):
         steps = get_constant(inputs[4], params)
         if not all(
             [
-                (isinstance(param, (relax.Constant, relax.ShapeExpr)) or param is None)
+                (
+                    isinstance(param, (relax.Constant, relax.ShapeExpr, relax.PrimValue))
+                    or param is None
+                )
                 for param in [starts, ends, axes, steps]
             ]
         ):
