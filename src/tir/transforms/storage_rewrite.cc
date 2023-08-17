@@ -1088,21 +1088,23 @@ struct BufferVarInfo {
       return element_dtype;
     }
 
-    // When there are scalar reads and no writes, access_dtype can be empty and we should avoid
-    // rewriting.
-    if (access_dtype.empty()) {
-      return element_dtype;
-    }
     DataType preferred_base_type = *base_access_dtype.begin();
 
+    // If there is only one vectorizable size used to access the
+    // buffer, and if that access size is compatible with the array
+    // size, then the buffer is vectorizable.  In the future, this
+    // could be improved to allow vectorized buffer access of size
+    // GCD(*lanes_used), if necessary.
+    // When there are scalar reads and no writes, access_dtype can be empty and we should avoid
+    // rewriting.
     int preferred_lanes = element_dtype.lanes();
-    if (element_dtype.lanes() == 1) {
+    if (element_dtype.lanes() == 1 && (access_dtype.size() == 1)) {
       int lanes = access_dtype.begin()->lanes();
-      for (auto dtype : access_dtype) {
-        lanes = arith::ZeroAwareGCD(lanes, dtype.lanes());
-      }
+      // Check the scalar read dtypes are compatible with the vectorized access dtype.
       for (auto dtype : scalar_read_dtype) {
-        lanes = arith::ZeroAwareGCD(lanes, dtype.lanes());
+        if (dtype.lanes() % lanes != 0) {
+          return element_dtype;
+        }
       }
       arith::Analyzer analyzer_;
       arith::ModularSet me = analyzer_.modular_set(extent);
@@ -1454,7 +1456,9 @@ class VectorTypeRewriter : public StmtExprMutator {
       PrimExpr new_index =
           ramp_index->base / make_const(ramp_index->base.dtype(), ramp_index->lanes);
       if (ramp_index->lanes != info.factor()) {
-        new_index = Ramp(new_index, ramp_index->stride, ramp_index->lanes / info.factor(),
+        ICHECK(info.factor() && ramp_index->lanes % info.factor() == 0);
+        int new_lanes = ramp_index->lanes / info.factor();
+        new_index = Ramp(new_index * new_lanes, ramp_index->stride, new_lanes,
                          ramp_index->span);
       }
       indices.Set(indices.size() - 1, new_index);
