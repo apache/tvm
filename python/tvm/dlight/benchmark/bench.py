@@ -25,8 +25,6 @@ from tvm.ir import IRModule
 from tvm.tir import PrimFunc
 from tvm.meta_schedule.runner import EvaluatorConfig
 from tvm.meta_schedule.testing.tune_utils import generate_input_data
-from tvm.testing import rpc_run
-
 
 from .extract import extract_all_func_info_from_relax, extract_func_info_from_prim_func
 from .utils import (
@@ -140,6 +138,8 @@ def benchmark(
             else "",
         )(*input_tensors)
     else:
+        from tvm.testing import rpc_run  # pylint: disable=import-outside-toplevel
+
         _, profile_result = rpc_run(
             rt_mod,
             device_type=dev.MASK2STR[dev.device_type],
