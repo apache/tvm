@@ -73,7 +73,7 @@ const PrimFuncNode* GetRootPrimFunc(const IRModule& mod, const StmtNode* root_bl
 StmtSRef GetSRefTreeRoot(const StmtSRef& sref);
 
 /*!
- * \brief Given an arbitrary sref, bind the shape var info of the PrimFunc it belongs to to the
+ * \brief Given an arbitrary sref, bind the shape var info of the PrimFunc it belongs to the
  * given analyzer
  * \param state The schedule state
  * \param sref The given sref
