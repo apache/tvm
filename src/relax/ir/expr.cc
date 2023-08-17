@@ -292,8 +292,7 @@ Constant::Constant(runtime::NDArray data, Optional<StructInfo> struct_info_annot
     n->struct_info_ = struct_info_annotation.value();
     n->checked_type_ = GetStaticType(struct_info_annotation.value());
   } else {
-    TensorStructInfo tinfo(ShapeExpr(values), n->data.DataType(),
-                           VDevice(/*tgt*/ {}, /*dev_id*/ 0, /*mem_scope*/ "global"), span);
+    TensorStructInfo tinfo(ShapeExpr(values), n->data.DataType(), VDevice(), span);
     n->struct_info_ = tinfo;
     n->checked_type_ = DynTensorType(tinfo->ndim, tinfo->dtype);
   }

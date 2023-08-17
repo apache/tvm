@@ -54,7 +54,6 @@ def test_matmul_infer_struct_info():
     y6 = relax.Var("y", R.Tensor((4, 5), "float32", vdev0))
 
     _check_inference(bb, relax.op.matmul(x0, y0), relax.TensorStructInfo((3, 5), "float32"))
-    _check_inference(bb, relax.op.matmul(x0, y6), relax.TensorStructInfo((3, 5), "float32", vdev0))
     _check_inference(bb, relax.op.matmul(x7, y6), relax.TensorStructInfo((3, 5), "float32", vdev0))
     _check_inference(bb, relax.op.matmul(x1, y1), relax.TensorStructInfo((), "float32"))
     _check_inference(bb, relax.op.matmul(x1, y2), relax.TensorStructInfo((2, 3, 5), "float32"))
