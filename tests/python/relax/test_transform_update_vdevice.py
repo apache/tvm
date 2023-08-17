@@ -74,10 +74,10 @@ def test_update():
 
         @R.function
         def main(
-            a: R.Tensor((128, 128), dtype="float32", vdevice="metal:1"),
-            c: R.Tensor((128, 128), dtype="float32", vdevice="metal:1"),
-        ) -> R.Tensor((128, 128), dtype="float32", vdevice="metal:1"):
-            s: R.Tensor((128, 128), dtype="float32", vdevice="metal:1") = R.add(a, c)
+            a: R.Tensor((128, 128), dtype="float32", vdevice="metal:1"),  # noqa: F722
+            c: R.Tensor((128, 128), dtype="float32", vdevice="metal:1"),  # noqa: F722
+        ) -> R.Tensor((128, 128), dtype="float32", vdevice="metal:1"):  # noqa: F722
+            s: R.Tensor((128, 128), dtype="float32", vdevice="metal:1") = R.add(a, c)  # noqa: F722
             return s
 
     @I.ir_module
@@ -116,8 +116,8 @@ def test_update():
         def main(
             a: R.Tensor((128, 128), "float32", "llvm:1"),  # noqa: F722
             c: R.Tensor((128, 128), "float32", "llvm:1"),  # noqa: F722
-        ) -> R.Tensor((128, 128), "float32", "llvm:1"):
-            s: R.Tensor((128, 128), "float32", "llvm:1") = R.add(a, c)
+        ) -> R.Tensor((128, 128), "float32", "llvm:1"):  # noqa: F722
+            s: R.Tensor((128, 128), "float32", "llvm:1") = R.add(a, c)  # noqa: F722
             return s
 
     verify(Input1, vdevices[4], 3, Expect1)

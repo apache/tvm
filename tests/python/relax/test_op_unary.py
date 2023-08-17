@@ -20,7 +20,7 @@ import tvm
 import tvm.testing
 from tvm import relax, tir
 from tvm import TVMError
-from tvm.ir import Op
+from tvm.ir import Op, VDevice
 from tvm.script import relax as R
 
 
@@ -97,13 +97,16 @@ unary_arith_op, require_float_dtype = tvm.testing.parameters(
 
 def test_unary_arith_infer_struct_info(unary_arith_op: Callable):
     bb = relax.BlockBuilder()
+    vdev0 = VDevice("llvm")
     x0 = relax.Var("x", R.Tensor((2, 3), "float32"))
     x1 = relax.Var("x", R.Tensor("float32", ndim=3))
     x2 = relax.Var("x", R.Tensor("float32", ndim=-1))
     x3 = relax.Var("x", R.Tensor((2, 3)))
     x4 = relax.Var("x", R.Tensor())
+    x5 = relax.Var("x", R.Tensor((2, 3), "float32", vdev0))
 
     _check_inference(bb, unary_arith_op(x0), relax.TensorStructInfo((2, 3), "float32"))
+    _check_inference(bb, unary_arith_op(x5), relax.TensorStructInfo((2, 3), "float32", vdev0))
     _check_inference(bb, unary_arith_op(x1), relax.TensorStructInfo(dtype="float32", ndim=3))
     _check_inference(bb, unary_arith_op(x2), relax.TensorStructInfo(dtype="float32"))
     _check_inference(bb, unary_arith_op(x3), relax.TensorStructInfo((2, 3), dtype=""))
@@ -186,13 +189,16 @@ def test_unary_arith_infer_struct_info_wrong_input_type(unary_arith_op: Callable
 
 def test_clip_infer_struct_info():
     bb = relax.BlockBuilder()
+    vdev0 = VDevice("llvm")
     x0 = relax.Var("x", R.Tensor((2, 3), "float32"))
     x1 = relax.Var("x", R.Tensor("float32", ndim=3))
     x2 = relax.Var("x", R.Tensor("float32", ndim=-1))
     x3 = relax.Var("x", R.Tensor((2, 3)))
     x4 = relax.Var("x", R.Tensor())
+    x5 = relax.Var("x", R.Tensor((2, 3), "float32", vdev0))
 
     _check_inference(bb, relax.op.clip(x0, 0, 6), relax.TensorStructInfo((2, 3), "float32"))
+    _check_inference(bb, relax.op.clip(x5, 0, 6), relax.TensorStructInfo((2, 3), "float32", vdev0))
     _check_inference(bb, relax.op.clip(x1, 0, 6), relax.TensorStructInfo(dtype="float32", ndim=3))
     _check_inference(bb, relax.op.clip(x2, 0, 6), relax.TensorStructInfo(dtype="float32"))
     _check_inference(bb, relax.op.clip(x3, 0, 6), relax.TensorStructInfo((2, 3), dtype=""))

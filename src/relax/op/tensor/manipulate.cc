@@ -1481,8 +1481,9 @@ StructInfo InferStructInfoTile(const Call& call, const BlockBuilder& ctx) {
           analyzer->Simplify(data_shape->values[i - ndim_delta] * attrs->repeats[i - l_delta]));
     }
   }
+
   if (data_sinfo->vdevice.defined()) {
-    TensorStructInfo(ShapeExpr(out_shape), data_sinfo->dtype, data_sinfo->vdevice.value());
+    return TensorStructInfo(ShapeExpr(out_shape), data_sinfo->dtype, data_sinfo->vdevice.value());
   }
   return TensorStructInfo(ShapeExpr(out_shape), data_sinfo->dtype);
 }
