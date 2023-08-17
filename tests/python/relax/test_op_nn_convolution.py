@@ -60,7 +60,9 @@ def test_conv1d_infer_struct_info():
     w5 = relax.Var("w", R.Tensor((4, 3, 3), "float32", vdev0))
 
     _check_inference(bb, relax.op.nn.conv1d(x0, w0), relax.TensorStructInfo((2, 4, 26), "float32"))
-    _check_inference(bb, relax.op.nn.conv1d(x6, w5), relax.TensorStructInfo((2, 4, 26), "float32", vdev0))
+    _check_inference(
+        bb, relax.op.nn.conv1d(x6, w5), relax.TensorStructInfo((2, 4, 26), "float32", vdev0)
+    )
     _check_inference(
         bb,
         relax.op.nn.conv1d(x0, w0, out_dtype="float16"),
@@ -437,7 +439,9 @@ def test_conv1d_transpose_infer_struct_info():
         bb, relax.op.nn.conv1d_transpose(x0, w0), relax.TensorStructInfo((2, 4, 30), "float32")
     )
     _check_inference(
-        bb, relax.op.nn.conv1d_transpose(x6, w5), relax.TensorStructInfo((2, 4, 30), "float32", vdev0)
+        bb,
+        relax.op.nn.conv1d_transpose(x6, w5),
+        relax.TensorStructInfo((2, 4, 30), "float32", vdev0),
     )
     _check_inference(
         bb,
@@ -1190,7 +1194,9 @@ def test_conv2d_transpose_infer_struct_info():
         bb, relax.op.nn.conv2d_transpose(x0, w0), relax.TensorStructInfo((2, 4, 30, 30), "float32")
     )
     _check_inference(
-        bb, relax.op.nn.conv2d_transpose(x6, w5), relax.TensorStructInfo((2, 4, 30, 30), "float32", vdev0)
+        bb,
+        relax.op.nn.conv2d_transpose(x6, w5),
+        relax.TensorStructInfo((2, 4, 30, 30), "float32", vdev0),
     )
     _check_inference(
         bb,

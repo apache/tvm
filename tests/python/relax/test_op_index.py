@@ -63,7 +63,9 @@ def test_take_infer_struct_info():
     idx8 = relax.Var("idx", R.Tensor((6,), "int64", vdev0))
 
     _check_inference(bb, relax.op.take(x0, idx0, axis=1), relax.TensorStructInfo((4, 6), "float32"))
-    _check_inference(bb, relax.op.take(x6, idx8, axis=1), relax.TensorStructInfo((4, 6), "float32", vdev0))
+    _check_inference(
+        bb, relax.op.take(x6, idx8, axis=1), relax.TensorStructInfo((4, 6), "float32", vdev0)
+    )
     _check_inference(
         bb, relax.op.take(x0, idx0, axis=-1), relax.TensorStructInfo((4, 6), "float32")
     )

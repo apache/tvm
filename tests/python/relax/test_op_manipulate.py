@@ -339,7 +339,9 @@ def test_permute_dims_infer_struct_info():
         bb, relax.op.permute_dims(x0, [2, 3, 1, 0]), relax.TensorStructInfo((3, 4, 2, 1), "float32")
     )
     _check_inference(
-        bb, relax.op.permute_dims(x8, [2, 3, 1, 0]), relax.TensorStructInfo((3, 4, 2, 1), "float32", vdev0)
+        bb,
+        relax.op.permute_dims(x8, [2, 3, 1, 0]),
+        relax.TensorStructInfo((3, 4, 2, 1), "float32", vdev0),
     )
     _check_inference(
         bb, relax.op.permute_dims(x0, axes=None), relax.TensorStructInfo((4, 3, 2, 1), "float32")
@@ -552,7 +554,9 @@ def test_expand_dims_infer_struct_info():
         bb, relax.op.expand_dims(x0, [1, 3]), relax.TensorStructInfo((2, 1, 3, 1, 4), "float32")
     )
     _check_inference(
-        bb, relax.op.expand_dims(x6, [1, 3]), relax.TensorStructInfo((2, 1, 3, 1, 4), "float32", vdev0)
+        bb,
+        relax.op.expand_dims(x6, [1, 3]),
+        relax.TensorStructInfo((2, 1, 3, 1, 4), "float32", vdev0),
     )
     _check_inference(
         bb,
@@ -1140,10 +1144,14 @@ def test_concat_infer_struct_info_with_axis():
         bb, relax.op.concat([x0, y0, z0], axis=1), relax.TensorStructInfo((2, 12, 4), "float32")
     )
     _check_inference(
-        bb, relax.op.concat([x6, y6, z6], axis=1), relax.TensorStructInfo((2, 12, 4), "float32", vdev0)
+        bb,
+        relax.op.concat([x6, y6, z6], axis=1),
+        relax.TensorStructInfo((2, 12, 4), "float32", vdev0),
     )
     _check_inference(
-        bb, relax.op.concat([x6, y0, z0], axis=1), relax.TensorStructInfo((2, 12, 4), "float32", vdev0)
+        bb,
+        relax.op.concat([x6, y0, z0], axis=1),
+        relax.TensorStructInfo((2, 12, 4), "float32", vdev0),
     )
     _check_inference(
         bb, relax.op.concat([x0, y0, z0], axis=-2), relax.TensorStructInfo((2, 12, 4), "float32")
@@ -2236,7 +2244,9 @@ def test_broadcast_to_infer_struct_info():
         bb, relax.op.broadcast_to(x0, (4, 2, 5, 3)), relax.TensorStructInfo((4, 2, 5, 3), "float32")
     )
     _check_inference(
-        bb, relax.op.broadcast_to(x6, (4, 2, 5, 3)), relax.TensorStructInfo((4, 2, 5, 3), "float32", vdev0)
+        bb,
+        relax.op.broadcast_to(x6, (4, 2, 5, 3)),
+        relax.TensorStructInfo((4, 2, 5, 3), "float32", vdev0),
     )
     _check_inference(
         bb, relax.op.broadcast_to(x1, (4, 2, 5, 3)), relax.TensorStructInfo((4, 2, 5, 3), "float32")
@@ -3051,7 +3061,9 @@ def test_flip_infer_struct_info():
     x5 = relax.Var("x", R.Tensor((2, 10, 4), "float32", vdev0))
 
     _check_inference(bb, relax.op.flip(x0, axis=1), relax.TensorStructInfo((2, 10, 4), "float32"))
-    _check_inference(bb, relax.op.flip(x5, axis=1), relax.TensorStructInfo((2, 10, 4), "float32", vdev0))
+    _check_inference(
+        bb, relax.op.flip(x5, axis=1), relax.TensorStructInfo((2, 10, 4), "float32", vdev0)
+    )
     _check_inference(bb, relax.op.flip(x1, axis=0), R.Tensor("float16", ndim=3))
     _check_inference(bb, relax.op.flip(x2, axis=0), R.Tensor("int32"))
     _check_inference(bb, relax.op.flip(x3, axis=2), R.Tensor((2, 10, 4)))

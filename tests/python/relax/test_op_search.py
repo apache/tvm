@@ -298,7 +298,9 @@ def test_argmax_argmin_infer_struct_info(argmax_argmin_op: Callable):
     x4 = relax.Var("x", R.Tensor((2, 3, 4, 5), "float32", vdev0))
 
     _check_inference(bb, argmax_argmin_op(x0, axis=1), relax.TensorStructInfo((2, 4, 5), "int64"))
-    _check_inference(bb, argmax_argmin_op(x4, axis=1), relax.TensorStructInfo((2, 4, 5), "int64", vdev0))
+    _check_inference(
+        bb, argmax_argmin_op(x4, axis=1), relax.TensorStructInfo((2, 4, 5), "int64", vdev0)
+    )
     _check_inference(
         bb,
         argmax_argmin_op(x0, axis=1, keepdims=True),

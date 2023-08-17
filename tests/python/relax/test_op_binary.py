@@ -100,9 +100,19 @@ def test_binary_arith_infer_struct_info(binary_arith_op: Callable):
     _check_inference(bb, binary_arith_op(x4, y2), relax.TensorStructInfo(dtype="float32", ndim=2))
     _check_inference(bb, binary_arith_op(x4, y3), relax.TensorStructInfo(dtype="float32", ndim=-1))
     _check_inference(bb, binary_arith_op(x5, y0), relax.TensorStructInfo(dtype="", ndim=-1))
-    _check_inference(bb, binary_arith_op(x6, y5), relax.TensorStructInfo(dtype="float32", ndim=2, vdevice=vdevice0))
-    _check_inference(bb, binary_arith_op(x6, y2), relax.TensorStructInfo(dtype="float32", ndim=2, vdevice=vdevice0))
-    _check_inference(bb, binary_arith_op(x7, y4), relax.TensorStructInfo((2, 3), "float32", vdevice0))
+    _check_inference(
+        bb,
+        binary_arith_op(x6, y5),
+        relax.TensorStructInfo(dtype="float32", ndim=2, vdevice=vdevice0),
+    )
+    _check_inference(
+        bb,
+        binary_arith_op(x6, y2),
+        relax.TensorStructInfo(dtype="float32", ndim=2, vdevice=vdevice0),
+    )
+    _check_inference(
+        bb, binary_arith_op(x7, y4), relax.TensorStructInfo((2, 3), "float32", vdevice0)
+    )
 
 
 (binary_cmp_op,) = tvm.testing.parameters(

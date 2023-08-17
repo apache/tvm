@@ -49,7 +49,9 @@ def test_ewise_fma_infer_struct_info():
     z2 = relax.Var("z", R.Tensor((2, 3), "float32", vdev0))
 
     _check_inference(bb, relax.op.ewise_fma(x0, y0, z0), relax.TensorStructInfo((2, 3), "float32"))
-    _check_inference(bb, relax.op.ewise_fma(x2, y2, z2), relax.TensorStructInfo((2, 3), "float32", vdev0))
+    _check_inference(
+        bb, relax.op.ewise_fma(x2, y2, z2), relax.TensorStructInfo((2, 3), "float32", vdev0)
+    )
     _check_inference(
         bb, relax.op.ewise_fma(x0, y1, z0), relax.TensorStructInfo(dtype="float32", ndim=2)
     )

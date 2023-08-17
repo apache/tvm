@@ -511,7 +511,9 @@ def test_adaptive_avg_pool2d_infer_struct_info():
         bb, relax.op.nn.adaptive_avg_pool2d(x0), relax.TensorStructInfo((2, 3, 32, 32), "float32")
     )
     _check_inference(
-        bb, relax.op.nn.adaptive_avg_pool2d(x7), relax.TensorStructInfo((2, 3, 32, 32), "float32", vdev0)
+        bb,
+        relax.op.nn.adaptive_avg_pool2d(x7),
+        relax.TensorStructInfo((2, 3, 32, 32), "float32", vdev0),
     )
     _check_inference(
         bb,

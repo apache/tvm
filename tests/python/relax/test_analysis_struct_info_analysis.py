@@ -416,6 +416,7 @@ def test_derive_call_ret_struct_info():
 
         # Tensor with vdevice
         vdev = ir.VDevice("llvm")
+
         def func1(c):
             n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
             x = rx.TensorStructInfo([n, m], "float32", vdev)
@@ -540,7 +541,6 @@ def test_struct_info_lca():
     tensor8 = rx.TensorStructInfo(ndim=2, dtype="float32", vdevice=vdevice1)
     tensor9 = rx.TensorStructInfo([n, m, 2], "int32", vdevice0)
     tensor10 = rx.TensorStructInfo([n, m, 2], "int32", vdevice1)
-
 
     # obj
     _check_lca(obj0, prim0, obj0)

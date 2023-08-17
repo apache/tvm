@@ -49,7 +49,9 @@ def test_statistical_infer_struct_info():
     x4 = relax.Var("x", R.Tensor((2, 3, 4, 5), "float32", vdev0))
 
     _check_inference(bb, relax.op.sum(x0, axis=[1, 2]), relax.TensorStructInfo((2, 5), "float32"))
-    _check_inference(bb, relax.op.sum(x4, axis=[1, 2]), relax.TensorStructInfo((2, 5), "float32", vdev0))
+    _check_inference(
+        bb, relax.op.sum(x4, axis=[1, 2]), relax.TensorStructInfo((2, 5), "float32", vdev0)
+    )
     _check_inference(
         bb,
         relax.op.sum(x0, axis=[1, 2], keepdims=True),
@@ -215,7 +217,9 @@ def test_cumsum_infer_struct_info():
     x6 = relax.Var("x", R.Tensor((2, 10, 4), "float32", vdev0))
 
     _check_inference(bb, relax.op.cumsum(x0, axis=1), relax.TensorStructInfo((2, 10, 4), "float32"))
-    _check_inference(bb, relax.op.cumsum(x6, axis=1), relax.TensorStructInfo((2, 10, 4), "float32", vdev0))
+    _check_inference(
+        bb, relax.op.cumsum(x6, axis=1), relax.TensorStructInfo((2, 10, 4), "float32", vdev0)
+    )
     _check_inference(
         bb, relax.op.cumsum(x1, axis=1), relax.TensorStructInfo(dtype="float32", ndim=3)
     )

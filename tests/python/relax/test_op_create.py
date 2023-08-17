@@ -330,7 +330,9 @@ def test_full_like_infer_struct_info_shape_var():
     _check_inference(bb, relax.op.full_like(x2, v2), relax.TensorStructInfo(s2, "float32"))
     _check_inference(bb, relax.op.full_like(x3, v0), relax.TensorStructInfo((2, 3), "float32"))
     _check_inference(bb, relax.op.full_like(x3, v1), relax.TensorStructInfo((2, 3), "float32"))
-    _check_inference(bb, relax.op.full_like(x4, v3), relax.TensorStructInfo((2, 3), "float32", vdev0))
+    _check_inference(
+        bb, relax.op.full_like(x4, v3), relax.TensorStructInfo((2, 3), "float32", vdev0)
+    )
 
 
 def test_full_like_infer_struct_info_more_input_dtype():

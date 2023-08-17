@@ -1120,7 +1120,10 @@ def test_dropout_infer_struct_info():
         bb,
         relax.op.nn.dropout(x5),
         relax.TupleStructInfo(
-            [relax.TensorStructInfo((2, 3), "float32", vdev0), relax.TensorStructInfo((2, 3), "float32", vdev0)]
+            [
+                relax.TensorStructInfo((2, 3), "float32", vdev0),
+                relax.TensorStructInfo((2, 3), "float32", vdev0),
+            ]
         ),
     )
     _check_inference(

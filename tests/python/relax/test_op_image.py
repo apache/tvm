@@ -50,7 +50,9 @@ def test_resize2d_infer_struct_info():
         bb, relax.op.image.resize2d(x0, (28, 28)), relax.TensorStructInfo((2, 3, 28, 28), "float32")
     )
     _check_inference(
-        bb, relax.op.image.resize2d(x8, (28, 28)), relax.TensorStructInfo((2, 3, 28, 28), "float32", vdev0)
+        bb,
+        relax.op.image.resize2d(x8, (28, 28)),
+        relax.TensorStructInfo((2, 3, 28, 28), "float32", vdev0),
     )
     _check_inference(
         bb,
