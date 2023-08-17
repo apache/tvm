@@ -285,6 +285,11 @@ class CutlassConv2DProfiler:
                 raise ValueError("Unsupported data type: %s" % dtype)
             return alignments
 
+        alignments_c = [align for align in alignments(out_dtype) if OC % align == 0]
+
+        if not profile_all_alignments:
+            alignments_c = [alignments_c[0]]
+
         ops = GENERATOR_FUNC_TABLE[self.sm](
             out_dtype,
             data_dtype,
@@ -294,7 +299,7 @@ class CutlassConv2DProfiler:
                 conv_kind,
                 stride_support,
                 split_k_slices,
-                [align for align in alignments(out_dtype) if OC % align == 0],
+                alignments_c,
             ),
             lambda align: all([dim % align == 0 for dim in [IC]]),
             use_3xtf32,
