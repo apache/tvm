@@ -610,6 +610,17 @@ void CodeGenSPIRV::Scalarize(const PrimExpr& e, std::function<void(int i, spirv:
   }
 }
 
+spirv::Value CodeGenSPIRV::VisitExpr_(const ShuffleNode* op) {
+  ICHECK(op->vectors.size() == 1 && op->indices.size() == 1)
+      << "SPIR-V codegen only supports shuffle "
+      << "of one vector with one index";
+  spirv::Value vector = MakeValue(op->vectors[0]);
+  int index = Downcast<Integer>(op->indices[0])->value;
+  spirv::SType etype = builder_->GetSType(op->dtype);
+  spirv::Value element = builder_->MakeValue(spv::OpCompositeExtract, etype, vector, index);
+  return element;
+}
+
 void CodeGenSPIRV::VisitStmt_(const BufferStoreNode* op) {
   ICHECK_EQ(op->indices.size(), 1) << "SPIR-V codegen expects flat memory buffers";
   Var buffer_var = op->buffer->data;
