@@ -527,6 +527,59 @@ def rms_norm(
     return _wrap_nested(_op.nn.rms_norm(x._expr, weight._expr, axes, epsilon), name)
 
 
+def group_norm(
+    x: Tensor,
+    num_groups: int,
+    weight: Optional[Tensor],
+    bias: Optional[Tensor],
+    eps: float = 1e-5,
+    name: str = "group_norm",
+) -> Tensor:
+    r"""
+    Applies Group Normalization over a mini-batch of inputs as described in
+    the paper `Group Normalization <https://arxiv.org/abs/1803.08494>`__
+
+    .. math::
+        y = \frac{x - \mathrm{E}[x]}{ \sqrt{\mathrm{Var}[x] + \epsilon}} * \gamma + \beta
+
+    Parameters
+    ----------
+    x : Tensor
+        Input to which rms_norm will be applied.
+
+    num_groups : int
+        Number of groups to separate the channels into.
+
+    weight : Tensor
+        The gamma scale factor.
+
+    bias : Tensor
+        The beta offset factor.
+
+    epsilon : float
+        Small float added to square mean to avoid dividing by zero.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+    """
+    if weight is not None:
+        weight = weight._expr
+    if bias is not None:
+        bias = bias._expr
+    dim = len(x._expr.struct_info.shape)
+    return _wrap_nested(
+        _op.nn.group_norm(
+            x._expr, weight, bias, num_groups, channel_axis=1, axes=list(range(2, dim)), epsilon=eps
+        ),
+        name,
+    )
+
+
 def triu(x: Tensor, diagonal: int = 0, name: str = "triu") -> Tensor:
     """Return the upper triangular part of a matrix or a batch of matrices.
 
