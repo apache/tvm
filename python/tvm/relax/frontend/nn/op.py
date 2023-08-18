@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=too-many-lines,invalid-name,protected-access,redefined-builtin
+# pylint: disable=too-many-lines,invalid-name,protected-access
 """nn.Tensor operators."""
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
@@ -180,7 +180,7 @@ def matmul(a: Tensor, b: Tensor, out_dtype: Optional[str] = None, name: str = "m
 
 
 def conv2d(
-    input: Tensor,
+    x: Tensor,
     weight: Tensor,
     bias: Optional[Tensor] = None,
     stride: Optional[Union[int, Tuple]] = 1,
@@ -193,7 +193,7 @@ def conv2d(
 
     Parameters
     ----------
-    input : Tensor
+    x : Tensor
         Input tensor of shape [B, N, H, W]
 
     weight : Tensor
@@ -224,7 +224,7 @@ def conv2d(
         The computed result with shape [B, O, oH, oW].
     """
     conv_out = _op.nn.conv2d(
-        data=input._expr,
+        data=x._expr,
         weight=weight._expr,
         strides=stride,
         padding=padding,
