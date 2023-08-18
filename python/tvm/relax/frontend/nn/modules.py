@@ -147,6 +147,19 @@ class Conv1d(Module):
             self.bias = None
 
     def forward(self, x: Tensor) -> Tensor:
+        """
+        Forward method for conv1d layer.
+
+        Parameters
+        ----------
+        x : Tensor
+            The input tensor.
+
+        Returns
+        -------
+        ret : Tensor
+            The output tensor for the conv1d layer.
+        """
         return op.conv1d(
             x, self.weight, self.bias, self.stride, self.padding, self.dilation, self.groups
         )
@@ -172,7 +185,7 @@ class LayerNorm(Module):
 
     def forward(self, x: Tensor) -> Tensor:
         """
-        Forward method for rms norm layer.
+        Forward method for layer normalization layer.
 
         Parameters
         ----------
@@ -182,7 +195,7 @@ class LayerNorm(Module):
         Returns
         -------
         ret : Tensor
-            The output tensor for the rms norm layer.
+            The output tensor for the layer normalization layer.
         """
         out = op.layer_norm(x, weight=self.weight, bias=self.bias, axes=self.axes, epsilon=self.eps)
         return out
