@@ -165,7 +165,7 @@ class RuntimeContext implements Disposable {
   }
 
   endScope() : void {
-    if (this.autoDisposeScope.length == 0) {
+    if (this.autoDisposeScope.length === 0) {
       throw Error("tvm.endScope called when the stack is empty.");
     }
     // automatically dispose all the tracked values in the current scope.
@@ -187,7 +187,7 @@ class RuntimeContext implements Disposable {
    *       The return value of PackedFunc will be automatically tracked.
    */
   attachToCurrentScope<T extends Disposable>(obj: T): T {
-    if (this.autoDisposeScope.length == 0) {
+    if (this.autoDisposeScope.length === 0) {
       throw Error("Must call beginScope to use functions that returns TVM objects");
     }
     const currScope = this.autoDisposeScope[this.autoDisposeScope.length - 1];
@@ -300,12 +300,12 @@ export class DLDevice {
 
   constructor(deviceType: number | string, deviceId: number, lib: FFILibrary) {
     const tp = typeof deviceType;
-    if (tp == "string") {
+    if (tp === "string") {
       this.deviceType = DeviceStrToEnum[deviceType];
       if (this.deviceType == undefined) {
         throw new Error("Cannot recogonize deviceType " + deviceType);
       }
-    } else if (tp == "number") {
+    } else if (tp === "number") {
       this.deviceType = deviceType as number;
     } else {
       throw new Error("Cannot take type " + tp + " as deviceType");
@@ -318,7 +318,7 @@ export class DLDevice {
    * Synchronize the device
    */
   async sync(): Promise<void> {
-    if (this.deviceType == DeviceStrToEnum.webgpu) {
+    if (this.deviceType === DeviceStrToEnum.webgpu) {
       assert(this.lib.webGPUContext !== undefined);
       await this.lib.webGPUContext.sync();
     }
@@ -500,15 +500,15 @@ export class NDArray implements Disposable {
         );
       }
       let buffer: ArrayBuffer;
-      if (this.dtype == "float32") {
+      if (this.dtype === "float32") {
         buffer = Float32Array.from(data).buffer;
-      } else if (this.dtype == "float64") {
+      } else if (this.dtype === "float64") {
         buffer = Float64Array.from(data).buffer;
-      } else if (this.dtype == "int32") {
+      } else if (this.dtype === "int32") {
         buffer = Int32Array.from(data).buffer;
-      } else if (this.dtype == "int8") {
+      } else if (this.dtype === "int8") {
         buffer = Int8Array.from(data).buffer;
-      } else if (this.dtype == "uint8") {
+      } else if (this.dtype === "uint8") {
         buffer = Uint8Array.from(data).buffer;
       } else {
         throw new Error("Unsupported data type " + this.dtype);
@@ -1155,16 +1155,16 @@ export class Instance implements Disposable {
       let code,
         bits = 32,
         lanes = 1;
-      if (pattern.substring(0, 5) == "float") {
+      if (pattern.substring(0, 5) === "float") {
         pattern = pattern.substring(5, pattern.length);
         code = DLDataTypeCode.Float;
-      } else if (pattern.substring(0, 3) == "int") {
+      } else if (pattern.substring(0, 3) === "int") {
         pattern = pattern.substring(3, pattern.length);
         code = DLDataTypeCode.Int;
-      } else if (pattern.substring(0, 4) == "uint") {
+      } else if (pattern.substring(0, 4) === "uint") {
         pattern = pattern.substring(4, pattern.length);
         code = DLDataTypeCode.UInt;
-      } else if (pattern.substring(0, 6) == "handle") {
+      } else if (pattern.substring(0, 6) === "handle") {
         pattern = pattern.substring(5, pattern.length);
         code = DLDataTypeCode.OpaqueHandle;
         bits = 64;
@@ -1238,7 +1238,7 @@ export class Instance implements Disposable {
     dev: DLDevice = this.device("cpu", 0)
   ): NDArray {
     dtype = this.toDLDataType(dtype);
-    shape = typeof shape == "number" ? [shape] : shape;
+    shape = typeof shape === "number" ? [shape] : shape;
 
     const stack = this.lib.getOrAllocCallStack();
     const shapeOffset = stack.allocRawBytes(shape.length * SizeOf.I64);
@@ -1510,7 +1510,7 @@ export class Instance implements Disposable {
           stack.storeF64(valueOffset, val.value);
           stack.storeI32(codeOffset, ArgTypeCode.Float);
         } else {
-          assert(val.dtype == "handle", "Expect handle");
+          assert(val.dtype === "handle", "Expect handle");
           stack.storePtr(valueOffset, val.value);
           stack.storeI32(codeOffset, ArgTypeCode.TVMOpaqueHandle);
         }
@@ -1518,17 +1518,17 @@ export class Instance implements Disposable {
         stack.storeI32(valueOffset, val.deviceType);
         stack.storeI32(valueOffset + SizeOf.I32, val.deviceType);
         stack.storeI32(codeOffset, ArgTypeCode.DLDevice);
-      } else if (tp == "number") {
+      } else if (tp === "number") {
         stack.storeF64(valueOffset, val);
         stack.storeI32(codeOffset, ArgTypeCode.Float);
         // eslint-disable-next-line no-prototype-builtins
-      } else if (tp == "function" && val.hasOwnProperty("_tvmPackedCell")) {
+      } else if (tp === "function" && val.hasOwnProperty("_tvmPackedCell")) {
         stack.storePtr(valueOffset, val._tvmPackedCell.getHandle());
         stack.storeI32(codeOffset, ArgTypeCode.TVMPackedFuncHandle);
-      } else if (val === null || val == undefined) {
+      } else if (val === null || val === undefined) {
         stack.storePtr(valueOffset, 0);
         stack.storeI32(codeOffset, ArgTypeCode.Null);
-      } else if (tp == "string") {
+      } else if (tp === "string") {
         stack.allocThenSetArgString(valueOffset, val);
         stack.storeI32(codeOffset, ArgTypeCode.TVMStr);
       } else if (val instanceof Uint8Array) {
@@ -1570,11 +1570,11 @@ export class Instance implements Disposable {
         let tcode = lib.memory.loadI32(codePtr);
 
         if (
-          tcode == ArgTypeCode.TVMObjectHandle ||
-          tcode == ArgTypeCode.TVMObjectRValueRefArg ||
-          tcode == ArgTypeCode.TVMPackedFuncHandle ||
-          tcode == ArgTypeCode.TVMNDArrayHandle ||
-          tcode == ArgTypeCode.TVMModuleHandle
+          tcode === ArgTypeCode.TVMObjectHandle ||
+          tcode === ArgTypeCode.TVMObjectRValueRefArg ||
+          tcode === ArgTypeCode.TVMPackedFuncHandle ||
+          tcode === ArgTypeCode.TVMNDArrayHandle ||
+          tcode === ArgTypeCode.TVMModuleHandle
         ) {
           lib.checkCall(
             (lib.exports.TVMCbArgToReturn as ctypes.FTVMCbArgToReturn)(
