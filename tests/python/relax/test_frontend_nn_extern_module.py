@@ -1,86 +1,55 @@
-# Licensed to the Apache Software Foundation (ASF) under one
-# or more contributor license agreements.  See the NOTICE file
-# distributed with this work for additional information
-# regarding copyright ownership.  The ASF licenses this file
-# to you under the Apache License, Version 2.0 (the
-# "License"); you may not use this file except in compliance
-# with the License.  You may obtain a copy of the License at
-#
-#   http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-# KIND, either express or implied.  See the License for the
-# specific language governing permissions and limitations
-# under the License.
-import numpy as np
+import os
+import tempfile
+
 import pytest
 
 import tvm
-from tvm import relax
-from tvm.relax.backend.contrib.cutlass import partition_for_cutlass
-from tvm.script import ir as I
-from tvm.script import relax as R
-from tvm.script import tir as T
-from tvm.tir import Var
+from tvm.script import ir as I, tir as T, relax as R
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import spec
-from tvm.relax.testing import get_relax_matmul_module
 
 
-has_cutlass = tvm.get_global_func("relax.ext.cutlass", True)
+def _gen_extern_module(mod_dir, file):
+    src = """#include <dlpack/dlpack.h>
+    #include <tvm/runtime/packed_func.h>
 
-cutlass_enabled = pytest.mark.skipif(
-    not has_cutlass,
-    reason="CUTLASS not enabled.",
-)
+    int f_matmul(DLTensor* a, DLTensor* b, DLTensor* c) { return 0; }
 
-pytestmark = [cutlass_enabled]
-
-
-@pytest.fixture(autouse=True)
-def reset_seed():
-    np.random.seed(0)
-
-
-@pytest.mark.parametrize(
-    "shape_a, shape_b, shape_out, dtype, value_table, var_table",
-    [
-        (("n", 4, 16), ("n", 16, 8), ("n", 4, 8), "float16", {"n": 16}, {"n": Var("n", "int64")}),
-    ],
-)
-def test_extern_module(shape_a, shape_b, shape_out, dtype, value_table, var_table):
-    def shape_converter(shape, table):
-        out_shape = []
-        for value in shape:
-            if isinstance(value, str):
-                out_shape.append(table[value])
-            else:
-                out_shape.append(value)
-        return tuple(out_shape)
-
-    Module = get_relax_matmul_module(
-        shape_converter(shape_a, var_table),
-        shape_converter(shape_b, var_table),
-        dtype,
+    TVM_DLL_EXPORT_TYPED_FUNC(matmul, f_matmul)"""
+    with open(f"{mod_dir}/{file}.cc", "w") as cc_file:
+        cc_file.write(src)
+    cur_dir = os.path.dirname(os.path.abspath(__file__))
+    os.system(
+        f"gcc -c {mod_dir}/{file}.cc "
+        f"-o {mod_dir}/{file}.o "
+        f"-I{cur_dir}/../../../include "
+        f"-I{cur_dir}/../../../3rdparty/dlpack/include "
+        f"-I{cur_dir}/../../../3rdparty/dmlc-core/include"
     )
+    return f"{mod_dir}/{file}.o"
 
-    mod = partition_for_cutlass(Module, True)
-    codegen_pass = relax.transform.RunCodegen({"cutlass": {"sm": 80, "find_first_valid": True}})
-    mod = codegen_pass(mod)
 
-    cutlass_matmul_mod = nn.ExternModule(
+def test_extern_module():
+    shape_a = ("a", "b", "c", "d", 1, 2, 3, 4)
+    shape_b = ("c", "d", "e", "f", 5, 6, 7, 8)
+    shape_c = ("a", "b", "c", "d", "e", "f", 9, 10)
+    dtype = "float32"
+    tmp_dir = tempfile.mkdtemp()
+    obj_file = _gen_extern_module(tmp_dir, "test")
+    func_name = "matmul"
+    os.system(f"ls {tmp_dir}")
+
+    ext_mod = nn.ExternModule(
         module_spec=spec.ExternModuleSpec(
-            filename="./tmp/cutlass.o",
+            filename=obj_file,
             functions=[
                 spec.ExternFunctionSpec(
-                    symbol="fused_relax_matmul_cutlass",
+                    symbol=func_name,
                     args=[
                         spec.Tensor(shape_a, dtype),
                         spec.Tensor(shape_b, dtype),
                     ],
-                    ret=spec.Tensor(shape_out, dtype),
+                    ret=spec.Tensor(shape_c, dtype),
                 )
             ],
         )
@@ -88,10 +57,10 @@ def test_extern_module(shape_a, shape_b, shape_out, dtype, value_table, var_tabl
 
     class MatmulModule(nn.Module):
         def __init__(self) -> None:
-            self.Matmul = cutlass_matmul_mod
+            self.Matmul = ext_mod
 
         def forward(self, a: nn.Tensor, b: nn.Tensor):
-            return self.Matmul.get_extern_func("fused_relax_matmul_cutlass")(a, b)
+            return self.Matmul.get_extern_func(func_name)(a, b)
 
     matmul_mod = MatmulModule()
     ir_module, _ = matmul_mod.export_tvm(
@@ -102,20 +71,34 @@ def test_extern_module(shape_a, shape_b, shape_out, dtype, value_table, var_tabl
             }
         }
     )
-    ex = relax.build(ir_module, "cuda")
 
-    dev = tvm.device("cuda", 0)
-    vm = relax.VirtualMachine(ex, dev)
-    f_init = vm["_initialize_effect"]
-    f_forward = vm["forward"]
+    @R.function
+    def forward(
+        a_1: R.Tensor(("a", "b", "c", "d", 1, 2, 3, 4), dtype="float32"),
+        b_1: R.Tensor(("c", "d", "e", "f", 5, 6, 7, 8), dtype="float32"),
+        _io: R.Object,
+    ) -> R.Tuple(
+        R.Tensor(("a", "b", "c", "d", "e", "f", 9, 10), dtype="float32"), R.Tuple(R.Object)
+    ):
+        a = T.int64()
+        b = T.int64()
+        c = T.int64()
+        d = T.int64()
+        e = T.int64()
+        f = T.int64()
+        with R.dataflow():
+            matmul = R.call_dps_packed(
+                "matmul",
+                (a_1, b_1),
+                out_sinfo=R.Tensor((a, b, c, d, e, f, 9, 10), dtype="float32"),
+            )
+            gv1: R.Tuple(
+                R.Tensor((a, b, c, d, e, f, 9, 10), dtype="float32"), R.Tuple(R.Object)
+            ) = matmul, (_io,)
+            R.output(gv1)
+        return gv1
 
-    io_state = f_init()[0]
-    a_np = np.random.randn(*shape_converter(shape_a, value_table)).astype(dtype)
-    b_np = np.random.randn(*shape_converter(shape_b, value_table)).astype(dtype)
-    inputs = [tvm.nd.array(a_np, dev), tvm.nd.array(b_np, dev), io_state]
-    out = f_forward(*inputs)[0].numpy()
-    ref = np.matmul(a_np, b_np)
-    tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
+    tvm.ir.assert_structural_equal(ir_module["forward"], forward)
 
 
 if __name__ == "__main__":

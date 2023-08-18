@@ -450,6 +450,8 @@ class ExternModule(Module):
                         if isinstance(value_spec, int):
                             out_shape.append(value_spec)
                         elif isinstance(value_spec, str):
+                            if not value_spec in spec2var:
+                                raise ValueError(f"Undefined var {value_spec} in {function_spec}")
                             out_shape.append(spec2var[value_spec])
                     out_sinfo = TensorStructInfo(out_shape, function_spec.ret.dtype)
                     return _wrap_nested(

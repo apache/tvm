@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Compilation specifications, for example, dynamic shape inputs."""
+from collections import defaultdict
 import inspect
 import threading
 from typing import Any, Callable, Dict, List, Sequence, Tuple, Union
@@ -307,17 +308,15 @@ class SpecBuilder:
             return result
 
         def _extern_modules() -> List[Tuple[str, List[str]]]:
-            mod2func = {}
+            mod2func = defaultdict(set)
             for _, extern_module in core._attribute_finder(
                 spec.module, "", condition_yield=lambda x: isinstance(x, core.ExternModule)
             ):
                 module_spec = extern_module.module_spec
-                if not module_spec.filename in mod2func:
-                    mod2func[module_spec.filename] = set()
                 mod2func[module_spec.filename].update(
                     [function_spec.symbol for function_spec in module_spec.functions]
                 )
-            return [(mod, list(mod2func[mod])) for mod in mod2func]
+            return [(mod, list(funcs)) for mod, funcs in mod2func.items()]
 
         # pylint: enable=protected-access
 
@@ -341,7 +340,7 @@ class SpecBuilder:
         if extern_modules:
             original_external_mods = mod.get_attr("external_mods")
             if original_external_mods is not None:
-                external_mods.extend(original_external_mods)
+                external_mods = original_external_mods + extern_modules
             mod = mod.with_attr("external_mods", external_mods)
         return mod, params
 
