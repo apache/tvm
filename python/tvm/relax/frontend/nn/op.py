@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=too-many-lines,invalid-name,protected-access
+# pylint: disable=too-many-lines,invalid-name,protected-access,redefined-builtin
 """nn.Tensor operators."""
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
