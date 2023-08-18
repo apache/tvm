@@ -590,6 +590,7 @@ if(USE_MICRO)
   add_dependencies(tvm_runtime arduino)
   add_dependencies(tvm_runtime crt)
   add_dependencies(tvm_runtime host_standalone_crt)
+  add_dependencies(tvm_runtime riscv)
   add_dependencies(tvm_runtime zephyr)
 endif()
 
