@@ -34,11 +34,10 @@ def _has_xcode():
     return False
 
 
-coreml_enabled = pytest.mark.skipif(
-    not (requires_coremltools and _has_xcode),
+pytestmark = pytest.mark.skipif(
+    not (requires_coremltools and _has_xcode()),
     reason="coreml is not enabled.",
 )
-pytestmark = [coreml_enabled]
 
 
 def verify(mod, inputs):
