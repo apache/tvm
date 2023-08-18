@@ -485,6 +485,61 @@ def softmax(x: Tensor, axis: int = -1, name: str = "softmax") -> Tensor:
     return _wrap_nested(_op.nn.softmax(x._expr, axis), name)
 
 
+def layer_norm(
+    x: Tensor,
+    weight: Tensor,
+    bias: Tensor,
+    axes: Union[int, List[int]],
+    epsilon: float = 1e-5,
+    name: str = "layer_norm",
+) -> Tensor:
+    r"""
+    Layer normalization (Lei Ba and et al., 2016).
+    Applies layer normalization to the n-dimensional input array.
+    This operator takes an n-dimensional input array and normalizes
+    the input using the given axis:
+
+    .. math::
+
+        out = \frac{data - mean(data, axis)}{\sqrt{var(data, axis)+\epsilon}}
+            * gamma + beta
+
+    Unlike batch normalization, the mean and var are computed along the channel dimension.
+
+    Assume the input has size k on axis 1, then both gamma and beta have shape (k,).
+
+    .. note::
+
+        This operator can be optimized away for inference.
+
+    Parameters
+    ----------
+    data : Tensor
+        Input to which layer_norm will be applied.
+
+    gamma : Tensor
+        The gamma scale factor.
+
+    beta : Tensor
+        The beta offset factor.
+
+    axes : Union[int, List[int]]
+        The axes that along which the normalization is applied.
+
+    epsilon : float
+        Small float added to variance to avoid dividing by zero.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+    """
+    return _wrap_nested(_op.nn.layer_norm(x._expr, weight._expr, bias._expr, axes, epsilon), name)
+
+
 def rms_norm(
     x: Tensor,
     weight: Tensor,

@@ -107,6 +107,42 @@ class Linear(Module):
         return x
 
 
+class LayerNorm(Module):
+    """
+    Module for Layer Normalization
+    """
+
+    def __init__(
+        self,
+        normalized_shape: int,
+        axes: Union[int, List[int]],
+        eps: Optional[float] = 1e-5,
+        dtype: Optional[str] = None,
+    ) -> None:
+        super().__init__()
+        self.eps = eps
+        self.axes = axes
+        self.weight = Parameter((normalized_shape,), dtype=dtype)
+        self.bias = Parameter((normalized_shape,), dtype=dtype)
+
+    def forward(self, x: Tensor) -> Tensor:
+        """
+        Forward method for rms norm layer.
+
+        Parameters
+        ----------
+        x : Tensor
+            The input tensor.
+
+        Returns
+        -------
+        ret : Tensor
+            The output tensor for the rms norm layer.
+        """
+        out = op.layer_norm(x, weight=self.weight, bias=self.bias, axes=self.axes, epsilon=self.eps)
+        return out
+
+
 class RMSNorm(Module):
     """
     Module for rms norm layer.
