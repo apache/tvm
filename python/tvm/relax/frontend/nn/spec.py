@@ -21,6 +21,7 @@ from typing import Any, Callable, Dict, List, Sequence, Tuple, Union
 
 from tvm import tir
 from tvm.ir import IRModule
+from tvm.runtime import load_static_library
 
 from ... import expr as rx
 from ...block_builder import BlockBuilder
@@ -219,6 +220,43 @@ class ModuleSpec:
         )
 
 
+class ExternFunctionSpec:
+    """A spec for a compiled external function."""
+
+    symbol: str
+    args: List[Tensor]
+    ret: Union[Tensor, List[Tensor]]
+
+    def __init__(self, symbol: str, args: List[Tensor], ret: Union[Tensor, List[Tensor]]) -> None:
+        self.symbol = symbol
+        self.args = args
+        self.ret = ret
+
+    def __repr__(self) -> str:
+        arg_repr = ", ".join(arg.__repr__() for arg in self.args)
+        if isinstance(self.ret, list):
+            ret_repr = "(" + ", ".join(ret.__repr__() for ret in self.ret) + ")"
+        else:
+            ret_repr = self.ret.__repr__()
+        return f"ExternFunctionSpec: {self.symbol}({arg_repr}) -> {ret_repr}"
+
+
+class ExternModuleSpec:
+    """A spec for a compiled external Module."""
+
+    filename: str
+    functions: List[ExternFunctionSpec]
+
+    def __init__(self, filename: str, functions: List[ExternFunctionSpec]) -> None:
+        self.filename = filename
+        self.functions = functions
+
+    def __repr__(self) -> str:
+        return f"ExternModuleSpec(path={self.filename}):\n" + "\n".join(
+            f"  {func.__repr__()}" for func in self.functions
+        )
+
+
 class SpecBuilder:
     """Builder of ModuleSpec, which exports an nn.Module to TVM IRModule."""
 
@@ -268,10 +306,24 @@ class SpecBuilder:
                 result.append((name, effect))
             return result
 
+        def _extern_modules() -> List[Tuple[str, List[str]]]:
+            mod2func = {}
+            for _, extern_module in core._attribute_finder(
+                spec.module, "", condition_yield=lambda x: isinstance(x, core.ExternModule)
+            ):
+                module_spec = extern_module.module_spec
+                if not module_spec.filename in mod2func:
+                    mod2func[module_spec.filename] = set()
+                mod2func[module_spec.filename].update(
+                    [function_spec.symbol for function_spec in module_spec.functions]
+                )
+            return [(mod, list(mod2func[mod])) for mod in mod2func]
+
         # pylint: enable=protected-access
 
         params = _params()
         effects = _effects()
+        extern_modules = _extern_modules()
         with self:
             with self.builder.function("_initialize_effect"):
                 with self.builder.dataflow():
@@ -282,7 +334,16 @@ class SpecBuilder:
                     with self.builder.dataflow():
                         outputs, inputs = _emit_method(self.builder, method_spec, params, effects)
                     self.builder.emit_func_output(outputs, inputs)
-        return self.builder.get(), params
+        external_mods = []
+        for lib_path, func_names in extern_modules:
+            external_mods.append(load_static_library(path=lib_path, func_names=func_names))
+        mod = self.builder.get()
+        if extern_modules:
+            original_external_mods = mod.get_attr("external_mods")
+            if original_external_mods is not None:
+                external_mods.extend(original_external_mods)
+            mod = mod.with_attr("external_mods", external_mods)
+        return mod, params
 
 
 def _emit_effect_init(
