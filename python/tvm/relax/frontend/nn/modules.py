@@ -107,6 +107,51 @@ class Linear(Module):
         return x
 
 
+class Conv1d(Module):
+    """
+    Module for conv1d layer.
+    """
+
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: int,
+        stride: int = 1,
+        padding: int = 0,
+        dilation: int = 1,
+        groups: int = 1,
+        bias: bool = True,
+        dtype: Optional[str] = None,
+    ) -> None:
+        super().__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.kernel_size = kernel_size
+        self.stride = stride
+        self.padding = padding
+        self.dilation = dilation
+        self.groups = groups
+
+        self.weight = Parameter(
+            (
+                self.out_channels,
+                int(self.in_channels // self.groups),
+                self.kernel_size,
+            ),
+            dtype,
+        )
+        if bias:
+            self.bias = Parameter((self.out_channels,), dtype)
+        else:
+            self.bias = None
+
+    def forward(self, x: Tensor) -> Tensor:
+        return op.conv1d(
+            x, self.weight, self.bias, self.stride, self.padding, self.dilation, self.groups
+        )
+
+
 class LayerNorm(Module):
     """
     Module for Layer Normalization

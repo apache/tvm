@@ -179,6 +179,89 @@ def matmul(a: Tensor, b: Tensor, out_dtype: Optional[str] = None, name: str = "m
     return _wrap_nested(_op.matmul(a._expr, b._expr, out_dtype=out_dtype), name)
 
 
+def conv1d(
+    input: Tensor,
+    weight: Tensor,
+    bias: Optional[Tensor] = None,
+    stride: Optional[Union[int, Tuple]] = 1,
+    padding: Optional[Union[int, Tuple, str]] = 0,
+    dilation: Optional[Union[int, Tuple]] = 1,
+    groups: Optional[int] = 1,
+    name: str = "conv1d",
+) -> Tensor:
+    r"""1D convolution.
+
+    This operator takes the weight as the 1D convolution kernel
+    and convolves it with data to produce an output.
+
+
+    In the default case, where the data_layout is `NCW`
+    and kernel_layout is `OIW`, conv1d takes in
+    a data Tensor with shape `(batch_size, in_channels, width)`,
+    and a weight Tensor with shape `(channels, in_channels, kernel_w)`,
+    where `kernel_w` is the length of the `W` kernel dimension,
+    to produce an output Tensor with the following rule:
+
+    .. math::
+
+        \mbox{out}[b, c, x] = \sum_{dx, k}
+           \mbox{data}[b, k, \mbox{strides} * x + dx] *
+           \mbox{weight}[c, k, dx]
+
+    Padding and dilation are applied to data and weight respectively before the computation.
+    This operator accepts data layout specification.
+    Semantically, the operator will convert the layout to the canonical layout
+    (`NCW` for data and `OIW` for weight), perform the computation,
+    then convert to the out_layout.
+
+    Parameters
+    ----------
+    data : Tensor
+        The input data to the operator.
+
+    weight : Tensor
+        The weight expressions.
+
+    bias : Optional[Tensor]
+        Optional bias tensor of shape [O].
+
+    strides : Optional[Union[int, Tuple]]
+        The strides of convolution. It is required to have length 1.
+
+    padding : Optional[Union[int, Tuple, str]]
+        The padding of convolution on both sides of inputs before convolution.
+        It is required to have length either 1 or 2.
+
+    dilation : Optional[Union[int, Tuple]]
+        Specifies the dilation rate to be used for dilated convolution.
+        It is required to have length 1.
+
+    groups : Optional[int]
+        Number of groups to split the input into for grouped convolution.
+        The number of input and output channels should be divisible by the number of groups.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+    """
+    conv_out = _op.nn.conv1d(
+        data=input._expr,
+        weight=weight._expr,
+        strides=stride,
+        padding=padding,
+        dilation=dilation,
+        groups=groups,
+    )
+    if bias is not None:
+        conv_out = _op.add(conv_out, _op.reshape(bias._expr, [1, -1, 1]))
+
+    return _wrap_nested(conv_out, name)
+
+
 def maximum(x1: Tensor, x2: Tensor, name: str = "maximum"):
     """Element-wise maximum
 
