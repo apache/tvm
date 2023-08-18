@@ -88,7 +88,6 @@ def test_group_norm():
 
     mod = modules.GroupNorm(num_groups=2, num_channels=4)
     tvm_mod, _ = mod.export_tvm(spec={"forward": {"x": spec.Tensor((2, 4, 8), "float32")}})
-    tvm_mod.show()
     assert_structural_equal(tvm_mod["forward"], forward, True)
 
 
