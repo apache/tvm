@@ -159,7 +159,7 @@ class Conv2D(Module):
         Returns
         -------
         ret : Tensor
-            The output tensor for the linear layer.
+            The output tensor for the conv2d layer.
         """
         return op.conv2d(
             x, self.weight, self.bias, self.stride, self.padding, self.dilation, self.groups
