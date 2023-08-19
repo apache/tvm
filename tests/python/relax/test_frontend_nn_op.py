@@ -137,25 +137,36 @@ def test_datatype():
 
 def test_nn():
     class Model(Module):
-        def test(self, x: Tensor, weight: Tensor):
+        def test(self, x: Tensor, weight: Tensor, bias: Tensor):
             silu_out = op.silu(x)
             softmax_out = op.softmax(x, axis=2)
             rms_norm_out = op.rms_norm(x, weight, axes=[-2, -1])
             rms_norm_with_bias_out = op.rms_norm(x, weight, axes=[-2, -1])
+            group_norm_out = op.group_norm(x, num_groups=1, weight=bias, bias=bias)
             return x
 
-    # fmt: off
     @R.function
-    def test(x: R.Tensor((2, 3, 4, 5), dtype="float32"), weight: R.Tensor((4, 5), dtype="float32"), _io: R.Object) -> R.Tuple(R.Tensor((2, 3, 4, 5), dtype="float32"), R.Tuple(R.Object)):
+    def test(
+        x: R.Tensor((2, 3, 4, 5), dtype="float32"),
+        weight: R.Tensor((4, 5), dtype="float32"),
+        bias: R.Tensor((3,), dtype="float32"),
+        _io: R.Object,
+    ) -> R.Tuple(R.Tensor((2, 3, 4, 5), dtype="float32"), R.Tuple(R.Object)):
         with R.dataflow():
             silu: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.silu(x)
             softmax: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.softmax(x, axis=2)
-            rms_norm: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.rms_norm(x, weight, axes=[-2, -1], epsilon=1.0000000000000001e-05)
-            rms_norm1: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.rms_norm(x, weight, axes=[-2, -1], epsilon=1.0000000000000001e-05)
+            rms_norm: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.rms_norm(
+                x, weight, axes=[-2, -1], epsilon=1.0000000000000001e-05
+            )
+            rms_norm1: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.rms_norm(
+                x, weight, axes=[-2, -1], epsilon=1.0000000000000001e-05
+            )
+            group_norm: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.group_norm(
+                x, bias, bias, num_groups=1, channel_axis=1, axes=[2, 3]
+            )
             gv1: R.Tuple(R.Tensor((2, 3, 4, 5), dtype="float32"), R.Tuple(R.Object)) = x, (_io,)
             R.output(gv1)
         return gv1
-    # fmt: on
 
     m = Model()
     irmodule, params = m.export_tvm(
@@ -163,7 +174,7 @@ def test_nn():
             "test": {
                 "x": spec.Tensor([2, 3, 4, 5], "float32"),
                 "weight": spec.Tensor([4, 5], "float32"),
-                "bias": spec.Tensor([4, 5], "float32"),
+                "bias": spec.Tensor([3], "float32"),
             }
         }
     )

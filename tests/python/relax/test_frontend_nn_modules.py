@@ -68,6 +68,29 @@ def test_rms_norm():
     assert_structural_equal(tvm_mod["forward"], forward, True)
 
 
+def test_group_norm():
+    @R.function
+    def forward(
+        x: R.Tensor((2, 4, 8), dtype="float32"),
+        weight: R.Tensor((4,), dtype="float32"),
+        bias: R.Tensor((4,), dtype="float32"),
+        _io: R.Object,
+    ) -> R.Tuple(R.Tensor((2, 4, 8), dtype="float32"), R.Tuple(R.Object)):
+        with R.dataflow():
+            group_norm: R.Tensor((2, 4, 8), dtype="float32") = R.nn.group_norm(
+                x, weight, bias, num_groups=2, channel_axis=1, axes=[2]
+            )
+            gv1: R.Tuple(R.Tensor((2, 4, 8), dtype="float32"), R.Tuple(R.Object)) = group_norm, (
+                _io,
+            )
+            R.output(gv1)
+        return gv1
+
+    mod = modules.GroupNorm(num_groups=2, num_channels=4)
+    tvm_mod, _ = mod.export_tvm(spec={"forward": {"x": spec.Tensor((2, 4, 8), "float32")}})
+    assert_structural_equal(tvm_mod["forward"], forward, True)
+
+
 def test_embedding():
     @R.function
     def forward(

@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=too-many-arguments,invalid-name,protected-access
 """Builtin Modules."""
 from typing import List, Optional, Sequence, Union
 
@@ -65,7 +66,7 @@ class Linear(Module):
     Module for linear layer.
     """
 
-    def __init__(  # pylint: disable=too-many-arguments
+    def __init__(
         self,
         in_features: int,
         out_features: int,
@@ -83,7 +84,7 @@ class Linear(Module):
         else:
             self.bias = None
 
-    def forward(self, x: Tensor) -> Tensor:  # pylint: disable=invalid-name
+    def forward(self, x: Tensor) -> Tensor:
         """
         Forward method for linear layer.
 
@@ -99,7 +100,7 @@ class Linear(Module):
         """
         # x: [*B, in_features]
         # w: [in_features, out_features]
-        w = op.permute_dims(self.weight)  # pylint: disable=invalid-name
+        w = op.permute_dims(self.weight)
         # x: [*B, out_features]
         x = op.matmul(x, w, out_dtype=self.out_dtype)
         if self.bias is not None:
@@ -129,7 +130,6 @@ class RMSNorm(Module):
         else:
             self.bias = None
 
-    # pylint: disable=invalid-name
     def forward(self, x: Tensor):
         """
         Forward method for rms norm layer.
@@ -149,7 +149,46 @@ class RMSNorm(Module):
             out = op.add(out, self.bias)
         return out
 
-    # pylint: enable=invalid-name
+
+class GroupNorm(Module):
+    """
+    Module for group norm layer.
+    """
+
+    def __init__(
+        self,
+        num_groups: int,
+        num_channels: int,
+        eps: float = 1e-5,
+        affine: bool = True,
+        dtype: Optional[str] = None,
+    ):
+        super().__init__()
+        self.num_groups = num_groups
+        self.num_channels = num_channels
+        self.eps = eps
+        if affine:
+            self.weight = Parameter((num_channels,), dtype=dtype)
+            self.bias = Parameter((num_channels,), dtype=dtype)
+        else:
+            self.weight = None
+            self.bias = None
+
+    def forward(self, x: Tensor):
+        """
+        Forward method for group norm layer.
+
+        Parameters
+        ----------
+        x : Tensor
+            The input tensor.
+
+        Returns
+        -------
+        ret : Tensor
+            The output tensor for the group norm layer.
+        """
+        return op.group_norm(x, self.num_groups, self.weight, self.bias, self.eps)
 
 
 class KVCache(Effect):
@@ -284,7 +323,7 @@ class KVCache(Effect):
         self.cache = rx.BlockBuilder.current().emit(
             rx.Call(
                 rx.extern("vm.builtin.attention_kv_cache_append"),
-                args=[self.cache, new_element._expr],  # pylint: disable=protected-access
+                args=[self.cache, new_element._expr],
                 sinfo_args=[rx.ObjectStructInfo()],
             )
         )
@@ -300,7 +339,7 @@ class Embedding(Module):
         self.dim = dim
         self.weight = Parameter((num, dim), dtype=dtype)
 
-    def forward(self, x: Tensor):  # pylint: disable=invalid-name
+    def forward(self, x: Tensor):
         """
         Forward method for embedding layer.
 
