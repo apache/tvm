@@ -455,6 +455,34 @@ def silu(x: Tensor, name: str = "silu") -> Tensor:
     return _wrap_nested(_op.nn.silu(x._expr), name)
 
 
+def gelu(x: Tensor, name: str = "gelu") -> Tensor:
+    r"""Applies the Gaussian Error Linear Units function
+
+    .. math::
+        \text{GeLU}(x) = 0.5 * x * (1 + \text{erf}(x * 0.5**0.5))
+
+    where :math:`erf` is the Gauss Error function.
+
+    Parameters
+    ----------
+    x : Tensor
+        The input data
+
+    naem : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+
+    Note
+    ----
+    The input tensor is required to have float dtype
+    """
+    return _wrap_nested(_op.nn.gelu(x._expr), name)
+
+
 def softmax(x: Tensor, axis: int = -1, name: str = "softmax") -> Tensor:
     r"""Computes softmax.
 
