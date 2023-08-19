@@ -817,7 +817,7 @@ def test_variable_with_cpp_address():
     # The test function has all named objects suffixed with "_name",
     # to avoid spurious replacement when generating the expected
     # regex.
-    @T.prim_func(private=True)
+    @T.prim_func
     def func(a_name: T.handle):
         N_name = T.int64()
         A_name = T.match_buffer(a_name, N_name, "float32")
@@ -828,7 +828,7 @@ def test_variable_with_cpp_address():
     script = func.script(show_object_address=True)
 
     expected_regex = re.escape(without_address)
-    for name in ["main", "a_name", "A_name", "N_name", "i_name"]:
+    for name in ["a_name", "A_name", "N_name", "i_name"]:
         # Replace all occurrences with a backref to an earlier match
         expected_regex = expected_regex.replace(name, rf"(?P={name})")
         # Then replace the first such backref with a capturing group.
