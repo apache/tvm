@@ -473,7 +473,7 @@ def gelu(x: Tensor, name: str = "gelu") -> Tensor:
 
     Returns
     -------
-    result : relax.Expr
+    result : Tensor
         The computed result.
 
     Note
