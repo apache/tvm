@@ -26,6 +26,9 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 
+#include <mutex>
+#include <unordered_map>
+
 #include "library_module.h"
 
 #if defined(_WIN32)
@@ -90,13 +93,48 @@ class DSOLibrary final : public Library {
   // \brief Linux library handle
   void* lib_handle_{nullptr};
 #endif
+  std::string lib_name_;
+};
+
+class DSOLibraryCache {
+ public:
+  ObjectPtr<Library> Open(const std::string& library_path) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto& lib = cache_[library_path];
+    if (lib == nullptr) {
+      ObjectPtr<DSOLibrary> n = make_object<DSOLibrary>();
+      n->Init(library_path);
+      lib = n.get();
+      return n;
+    }
+    return GetObjectPtr<Library>(lib);
+  }
+
+  void Remove(const std::string& name) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    cache_.erase(name);
+  }
+
+  static DSOLibraryCache* Global() {
+    static DSOLibraryCache inst;
+    return &inst;
+  }
+
+  std::unordered_map<std::string, Library*> cache_;
+  std::mutex mutex_;
 };
 
 DSOLibrary::~DSOLibrary() {
-  if (lib_handle_) Unload();
+  if (lib_handle_) {
+    Unload();
+    DSOLibraryCache::Global()->Remove(this->lib_name_);
+  }
 }
 
-void DSOLibrary::Init(const std::string& name) { Load(name); }
+void DSOLibrary::Init(const std::string& name) {
+  Load(name);
+  this->lib_name_ = name;
+}
 
 void* DSOLibrary::GetSymbol(const char* name) { return GetSymbol_(name); }
 
@@ -144,9 +182,7 @@ void DSOLibrary::Unload() {
 #endif
 
 ObjectPtr<Library> CreateDSOLibraryObject(std::string library_path) {
-  auto n = make_object<DSOLibrary>();
-  n->Init(library_path);
-  return n;
+  return DSOLibraryCache::Global()->Open(library_path);
 }
 
 TVM_REGISTER_GLOBAL("runtime.module.loadfile_so").set_body([](TVMArgs args, TVMRetValue* rv) {
