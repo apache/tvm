@@ -15,12 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 """Test runtime error handling"""
+
+import traceback
+
 import tvm
-from tvm import te
 import tvm.testing
 
 
-def test_op_translation():
+def test_op_translation_to_not_implemented():
     ferror = tvm.testing.test_raise_error_callback("OpNotImplemented: myop")
     try:
         ferror()
@@ -30,6 +32,8 @@ def test_op_translation():
         assert isinstance(e, NotImplementedError)
         assert msg.find("ffi_testing.cc") != -1
 
+
+def test_op_translation_to_internal_error():
     fchk_eq = tvm.testing.test_check_eq_callback("InternalError: myop")
     try:
         fchk_eq(0, 1)
@@ -38,6 +42,8 @@ def test_op_translation():
         msg = str(e)
         assert msg.find("ffi_testing.cc") != -1
 
+
+def test_op_translation_to_value_error():
     try:
         tvm.testing.ErrorTest(0, 1)
         assert False
@@ -47,6 +53,18 @@ def test_op_translation():
 
 
 def test_deep_callback():
+    """Propagate python errors through API calls
+
+    If a Python exception is raised, and that exception is caught in
+    Python, the original exception should be propagated so that the
+    traceback contains all intermediate python frames.
+
+    Stack
+    - test_deep_callback
+    - test
+
+    """
+
     def error_callback():
         raise ValueError("callback error")
 
@@ -65,14 +83,12 @@ def test_deep_callback():
     try:
         wrap3()
         assert False
-    except ValueError as e:
-        msg = str(e)
-        idx2 = msg.find("in flevel2")
-        idx3 = msg.find("in flevel3")
-        assert idx2 != -1 and idx3 != -1
-        assert idx2 > idx3
+    except ValueError as err:
+        frames = traceback.extract_tb(err.__traceback__)
+
+    local_frames = [frame.name for frame in frames if frame.filename == __file__]
+    assert local_frames == ["test_deep_callback", "flevel3", "flevel2", "error_callback"]
 
 
 if __name__ == "__main__":
-    test_op_translation()
-    test_deep_callback()
+    tvm.testing.main()

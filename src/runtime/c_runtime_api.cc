@@ -35,6 +35,7 @@
 #include <cstdlib>
 #include <sstream>
 #include <string>
+#include <tuple>
 
 #include "object_internal.h"
 #include "runtime_base.h"
@@ -368,19 +369,63 @@ std::string NormalizeError(std::string err_msg) {
 
 using namespace tvm::runtime;
 
+struct WrappedPythonError : Error {
+  WrappedPythonError() : Error("") {}
+  WrappedPythonError(WrappedPythonObject obj, std::string cpp_backtrace)
+      : Error(""), obj(std::move(obj)), cpp_backtrace(std::move(cpp_backtrace)) {}
+
+  WrappedPythonObject obj;
+  std::string cpp_backtrace;
+};
+
 struct TVMRuntimeEntry {
   std::string ret_str;
   std::string last_error;
   TVMByteArray ret_bytes;
+  WrappedPythonError last_python_error;
 };
 
 typedef dmlc::ThreadLocalStore<TVMRuntimeEntry> TVMAPIRuntimeStore;
 
 const char* TVMGetLastError() { return TVMAPIRuntimeStore::Get()->last_error.c_str(); }
 
+extern "C" void* TVMGetLastPythonError() {
+  return TVMAPIRuntimeStore::Get()->last_python_error.obj.raw_pointer();
+}
+
+extern "C" const char* TVMGetLastBacktrace() {
+  return TVMAPIRuntimeStore::Get()->last_python_error.cpp_backtrace.data();
+}
+
+extern "C" void TVMDropLastPythonError() {
+  TVMAPIRuntimeStore::Get()->last_python_error = WrappedPythonError();
+}
+
 int TVMAPIHandleException(const std::exception& e) {
+  if (const auto* wrapped = dynamic_cast<const WrappedPythonError*>(&e)) {
+    auto& err = TVMAPIRuntimeStore::Get()->last_python_error;
+    err.obj = wrapped->obj;
+    err.cpp_backtrace = wrapped->cpp_backtrace;
+  }
   TVMAPISetLastError(NormalizeError(e.what()).c_str());
   return -1;
+}
+
+extern "C" void TVMAPISetLastPythonError(void* obj) {
+  WrappedPythonObject py_obj(obj);
+  auto* store = TVMAPIRuntimeStore::Get();
+  store->last_python_error = WrappedPythonError(std::move(py_obj), tvm::runtime::Backtrace());
+}
+
+void ThrowLastError() {
+  auto& last_python_error = TVMAPIRuntimeStore::Get()->last_python_error;
+  if (last_python_error.obj) {
+    WrappedPythonError wrapped_err;
+    std::swap(wrapped_err, last_python_error);
+    throw wrapped_err;
+  } else {
+    throw tvm::Error(TVMGetLastError() + tvm::runtime::Backtrace());
+  }
 }
 
 void TVMAPISetLastError(const char* msg) { TVMAPIRuntimeStore::Get()->last_error = msg; }
@@ -515,7 +560,7 @@ int TVMFuncCreateFromCFunc(TVMPackedCFunc func, void* resource_handle, TVMPacked
       int ret = func(const_cast<TVMValue*>(args.values), const_cast<int*>(args.type_codes),
                      args.num_args, rv, resource_handle);
       if (ret != 0) {
-        throw tvm::Error(TVMGetLastError() + tvm::runtime::Backtrace());
+        ThrowLastError();
       }
     });
     TVMValue val;
@@ -531,7 +576,7 @@ int TVMFuncCreateFromCFunc(TVMPackedCFunc func, void* resource_handle, TVMPacked
       int ret = func(const_cast<TVMValue*>(args.values), const_cast<int*>(args.type_codes),
                      args.num_args, rv, rpack.get());
       if (ret != 0) {
-        throw tvm::Error(TVMGetLastError() + tvm::runtime::Backtrace());
+        ThrowLastError();
       }
     });
     TVMValue val;

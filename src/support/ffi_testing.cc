@@ -63,6 +63,18 @@ TVM_REGISTER_GLOBAL("testing.test_wrap_callback").set_body([](TVMArgs args, TVMR
   *ret = runtime::TypedPackedFunc<void()>([pf]() { pf(); });
 });
 
+TVM_REGISTER_GLOBAL("testing.test_wrap_callback_suppress_err")
+    .set_body([](TVMArgs args, TVMRetValue* ret) {
+      PackedFunc pf = args[0];
+      auto result = runtime::TypedPackedFunc<void()>([pf]() {
+        try {
+          pf();
+        } catch (std::exception& err) {
+        }
+      });
+      *ret = result;
+    });
+
 TVM_REGISTER_GLOBAL("testing.test_raise_error_callback")
     .set_body([](TVMArgs args, TVMRetValue* ret) {
       std::string msg = args[0];

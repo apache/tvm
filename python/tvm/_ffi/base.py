@@ -333,6 +333,46 @@ def get_last_ffi_error():
     return ERROR_TYPE.get(err_type, TVMError)(py_err_msg)
 
 
+def raise_last_ffi_error():
+    """Raise the previous error from FFI
+
+    This should be used instead of `raise get_last_ffi_error()`, as it
+    handle propagation of errors across an FFI boundary.  For example,
+    if Python passes a callback to a C++ function, and the callback
+    raises an exception, the re-thrown exception should contain the
+    full stack trace, not just the stack frames that are above the
+    outermost FFI call.
+    """
+
+    _LIB.TVMGetLastPythonError.restype = ctypes.c_void_p
+    _LIB.TVMGetLastBacktrace.restype = ctypes.c_char_p
+    py_err = _LIB.TVMGetLastPythonError()
+    if py_err is not None:
+        # TVMGetLastPythonError returns a PyObject*, with NULL when
+        # there is no such value.  If we annotated the restype as
+        # ctypes.py_object, we would need to return Py_None from the
+        # C++ implementation.  This would require introducing a
+        # dependency on libpython that we want to avoid when not in a
+        # Python environment.  Therefore, casting the resulting void*
+        # pointer to PyObject* using ctypes.
+        py_err = ctypes.cast(ctypes.c_void_p(py_err), ctypes.py_object).value
+        # The exception PyObject may contain a large amount of state,
+        # including all stack frames that may be inspected in a later
+        # PDB post-mortem.  Therefore, we must make sure to remove the
+        # underlying PyObject* from the C++ side after we retrieve it.
+        _LIB.TVMDropLastPythonError()
+
+        raise py_err
+
+    c_err_msg = py_str(_LIB.TVMGetLastError())
+    py_err_msg, err_type = c2pyerror(c_err_msg)
+    if err_type is not None and err_type.startswith("tvm.error."):
+        err_type = err_type[10:]
+    err = ERROR_TYPE.get(err_type, TVMError)(py_err_msg)
+
+    raise err
+
+
 def check_call(ret):
     """Check the return value of C API call
 
@@ -345,4 +385,4 @@ def check_call(ret):
         return value from API calls
     """
     if ret != 0:
-        raise get_last_ffi_error()
+        raise_last_ffi_error()
