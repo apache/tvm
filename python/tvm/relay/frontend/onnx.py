@@ -6959,6 +6959,7 @@ class GraphProto:
                 op = fold_constant(op)
             else:
                 op = _expr.TupleWrapper(fold_constant(op.astuple()), len(op))
+
             op = set_span(op, node_source_name)
 
             if outputs_num > 1:
