@@ -1287,7 +1287,8 @@ def test_commutative_pattern_match():
         x: R.Tensor((1024,)),
     ):
         with R.dataflow():
-            out = R.add(R.const(1.0), x)
+            y = R.add(x, x)
+            out = R.add(R.const(1.0), y)
             R.output(out)
         return out
 
@@ -1296,8 +1297,10 @@ def test_commutative_pattern_match():
         x: R.Tensor((1024,)),
     ):
         with R.dataflow():
-            out = R.add(x, R.const(2.0))
+            y = R.add(x, x)
+            out = R.add(y, R.const(2.0))
             R.output(out)
+
         return out
 
     pattern_add = is_op("relax.add")
@@ -1308,10 +1311,14 @@ def test_commutative_pattern_match():
 
     pattern = pattern_op(pattern_arg, pattern_const)
 
-    def rewriter(_expr, matches):
+    def rewriter(expr, matches):
         op = matches[pattern_op]
         arg = matches[pattern_arg]
-        return rx.Call(op, [arg, rx.const(2.0)])
+        const = matches[pattern_const].data.numpy()
+        if const.shape == tuple() and const[()] == 1.0:
+            return rx.Call(op, [arg, rx.const(2.0)])
+        else:
+            return expr
 
     after = rewrite_call(pattern, rewriter, before)
     tvm.ir.assert_structural_equal(after, expected)
@@ -1360,6 +1367,41 @@ def test_repeated_pattern_match():
     def rewriter(_expr, matches):
         const = matches[mul_const]
         return (matches[pattern_add_lhs] * const) + (matches[pattern_add_rhs] * const)
+
+    after = rewrite_call(pattern, rewriter, before)
+    tvm.ir.assert_structural_equal(after, expected)
+
+
+def test_rewrite_without_trivial_binding():
+    """rewrite_call should avoid producing trivial "y = x" bindings"""
+
+    @R.function(private=True)
+    def before(x: R.Tensor((1024,))):
+        with R.dataflow():
+            a = R.add(x, x)
+            b = R.reshape(a, (1024,))
+            R.output(b)
+        return b
+
+    @R.function(private=True)
+    def expected(x: R.Tensor((1024,))):
+        with R.dataflow():
+            a = R.add(x, x)
+            R.output(a)
+        return a
+
+    pattern_arg = wildcard()
+    pattern_shape_expr = wildcard()
+    pattern = is_op("relax.reshape")(pattern_arg, pattern_shape_expr)
+
+    def rewriter(expr, matches):
+        arg = matches[pattern_arg]
+        shape_expr = matches[pattern_shape_expr]
+
+        if tvm.ir.structural_equal(arg.struct_info.shape, shape_expr):
+            return arg
+        else:
+            return expr
 
     after = rewrite_call(pattern, rewriter, before)
     tvm.ir.assert_structural_equal(after, expected)

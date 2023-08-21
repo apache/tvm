@@ -402,6 +402,72 @@ class Module(SubroutineMixin):
         raise ValueError(f"Unknown out_format: {out_format}")
 
 
+class ExternModule(Module):
+    """Base class for external module. Subclass it to import your external models.
+    Modules can nest within each other in a tree structure using regular attribute assignment."""
+
+    module_spec: "_spec.ExternModuleSpec"
+
+    def __init__(self, module_spec: "_spec.ExternModuleSpec") -> None:
+        super().__init__()
+        self.module_spec = module_spec
+
+    def get_extern_func(self, func_name: str) -> Callable:
+        """This method helps get the external funciton in external module by function name.
+        It will wrap the functions as other prebuilt operators.
+
+        Parameters
+        ----------
+        func_name : str
+            The name of the function to get.
+
+        Returns
+        ------
+        ret_func: Callable
+            The callable function to call.
+        """
+        for function_spec in self.module_spec.functions:
+            if function_spec.symbol == func_name:
+                # pylint: disable=cell-var-from-loop, import-outside-toplevel, protected-access
+                from .op import _wrap_nested
+                from tvm.relax import call_dps_packed, Tuple as RxTuple
+
+                def extern_func(*args: Tensor) -> Tensor:
+                    spec2var = {}
+                    for arg, arg_spec in zip(args, function_spec.args):
+                        for value, value_spec in zip(arg.shape, arg_spec.shape):
+                            if isinstance(value_spec, str):
+                                if not value_spec in spec2var:
+                                    spec2var[value_spec] = value
+                                else:
+                                    if not spec2var[value_spec] == value:
+                                        raise ValueError(
+                                            f"Confilict vars {spec2var[value_spec]} and {value} "
+                                            f"for {value_spec} in {function_spec}"
+                                        )
+                    out_shape = []
+                    for value_spec in function_spec.ret.shape:
+                        if isinstance(value_spec, int):
+                            out_shape.append(value_spec)
+                        elif isinstance(value_spec, str):
+                            if not value_spec in spec2var:
+                                raise ValueError(f"Undefined var {value_spec} in {function_spec}")
+                            out_shape.append(spec2var[value_spec])
+                    out_sinfo = TensorStructInfo(out_shape, function_spec.ret.dtype)
+                    return _wrap_nested(
+                        call_dps_packed(
+                            func_name,
+                            args=RxTuple([tensor._expr for tensor in args]),
+                            out_sinfo=out_sinfo,
+                        ),
+                        func_name,
+                    )
+
+                return extern_func
+
+        raise ValueError(f"Unknown function {func_name} in {self.module_spec.filename}")
+
+
 class ModuleList(Module):
     """Holds submodules in a list."""
 

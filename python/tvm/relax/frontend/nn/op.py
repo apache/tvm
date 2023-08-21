@@ -262,6 +262,64 @@ def conv1d(
     return _wrap_nested(conv_out, name)
 
 
+def conv2d(
+    x: Tensor,
+    weight: Tensor,
+    bias: Optional[Tensor] = None,
+    stride: Optional[Union[int, Tuple]] = 1,
+    padding: Optional[Union[int, Tuple, str]] = 0,
+    dilation: Optional[Union[int, Tuple]] = 1,
+    groups: Optional[int] = 1,
+    name: str = "conv2d",
+) -> Tensor:
+    """Applies a 2D convolution over an input image composed of sevaral input planes
+
+    Parameters
+    ----------
+    x : Tensor
+        Input tensor of shape [B, N, H, W]
+
+    weight : Tensor
+        Filters of shape [O, N/groups, kH, kW]
+
+    bias : Optional[Tensor]
+        Optional bias tensor of shape [O].
+
+    stride : Optional[Union[int, Tuple]]
+        The stride of the convolving kernel. Can be a single number
+        or tuple of (sH, sW).
+
+    padding : Optional[[Union[int, Tuple]]]
+        Implicit paddings on both sides of the input.
+
+    dilation : Optional[Union[int, Tuple]]
+        The spacing between kernel elements. Can be a single number of tuple (dH, dW).
+
+    groups : Optional[int]
+        Split input into a number of groups.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result with shape [B, O, oH, oW].
+    """
+    conv_out = _op.nn.conv2d(
+        data=x._expr,
+        weight=weight._expr,
+        strides=stride,
+        padding=padding,
+        dilation=dilation,
+        groups=groups,
+    )
+    if bias is not None:
+        conv_out = _op.add(conv_out, _op.reshape(bias._expr, [1, -1, 1, 1]))
+
+    return _wrap_nested(conv_out, name)
+
+
 def maximum(x1: Tensor, x2: Tensor, name: str = "maximum"):
     """Element-wise maximum
 
@@ -538,6 +596,34 @@ def silu(x: Tensor, name: str = "silu") -> Tensor:
     return _wrap_nested(_op.nn.silu(x._expr), name)
 
 
+def gelu(x: Tensor, name: str = "gelu") -> Tensor:
+    r"""Applies the Gaussian Error Linear Units function
+
+    .. math::
+        \text{GeLU}(x) = 0.5 * x * (1 + \text{erf}(x * 0.5**0.5))
+
+    where :math:`erf` is the Gauss Error function.
+
+    Parameters
+    ----------
+    x : Tensor
+        The input data
+
+    naem : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+
+    Note
+    ----
+    The input tensor is required to have float dtype
+    """
+    return _wrap_nested(_op.nn.gelu(x._expr), name)
+
+
 def softmax(x: Tensor, axis: int = -1, name: str = "softmax") -> Tensor:
     r"""Computes softmax.
 
@@ -663,6 +749,59 @@ def rms_norm(
         The computed result.
     """
     return _wrap_nested(_op.nn.rms_norm(x._expr, weight._expr, axes, epsilon), name)
+
+
+def group_norm(
+    x: Tensor,
+    num_groups: int,
+    weight: Optional[Tensor],
+    bias: Optional[Tensor],
+    eps: float = 1e-5,
+    name: str = "group_norm",
+) -> Tensor:
+    r"""
+    Applies Group Normalization over a mini-batch of inputs as described in
+    the paper `Group Normalization <https://arxiv.org/abs/1803.08494>`__
+
+    .. math::
+        y = \frac{x - \mathrm{E}[x]}{ \sqrt{\mathrm{Var}[x] + \epsilon}} * \gamma + \beta
+
+    Parameters
+    ----------
+    x : Tensor
+        Input to which rms_norm will be applied.
+
+    num_groups : int
+        Number of groups to separate the channels into.
+
+    weight : Tensor
+        The gamma scale factor.
+
+    bias : Tensor
+        The beta offset factor.
+
+    epsilon : float
+        Small float added to square mean to avoid dividing by zero.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+    """
+    if weight is not None:
+        weight = weight._expr
+    if bias is not None:
+        bias = bias._expr
+    dim = len(x._expr.struct_info.shape)
+    return _wrap_nested(
+        _op.nn.group_norm(
+            x._expr, weight, bias, num_groups, channel_axis=1, axes=list(range(2, dim)), epsilon=eps
+        ),
+        name,
+    )
 
 
 def triu(x: Tensor, diagonal: int = 0, name: str = "triu") -> Tensor:
