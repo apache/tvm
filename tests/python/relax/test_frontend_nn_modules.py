@@ -111,6 +111,40 @@ def test_embedding():
     assert_structural_equal(tvm_mod["forward"], forward, True)
 
 
+def test_timesteps():
+    @R.function
+    def forward(
+        x: R.Tensor((3,), dtype="float32"), _io: R.Object
+    ) -> R.Tuple(R.Tensor((3, 10), dtype="float32"), R.Tuple(R.Object)):
+        with R.dataflow():
+            lv1: R.Tensor((3,), dtype="float32") = R.astype(x, dtype="float32")
+            lv2: R.Tensor((3, 1), dtype="float32") = R.expand_dims(lv1, axis=[1])
+            lv3: R.Tensor((5,), dtype="float32") = R.arange(
+                R.prim_value(0), R.prim_value(5), R.prim_value(1), dtype="float32"
+            )
+            lv4: R.Tensor((5,), dtype="float32") = R.multiply(
+                R.const(-9.2103404998779297, "float32"), lv3
+            )
+            lv5: R.Tensor((5,), dtype="float32") = R.divide(lv4, R.const(4, "float32"))
+            lv6: R.Tensor((5,), dtype="float32") = R.exp(lv5)
+            lv7: R.Tensor((1, 5), dtype="float32") = R.expand_dims(lv6, axis=[0])
+            lv8: R.Tensor((3, 5), dtype="float32") = R.multiply(lv2, lv7)
+            lv9: R.Tensor((3, 5), dtype="float32") = R.sin(lv8)
+            lv10: R.Tensor((3, 5), dtype="float32") = R.cos(lv8)
+            get_timestep_embedding: R.Tensor((3, 10), dtype="float32") = R.concat(
+                (lv9, lv10), axis=-1
+            )
+            gv1: R.Tuple(
+                R.Tensor((3, 10), dtype="float32"), R.Tuple(R.Object)
+            ) = get_timestep_embedding, (_io,)
+            R.output(gv1)
+        return gv1
+
+    mod = modules.Timesteps(10)
+    tvm_mod, _ = mod.export_tvm(spec={"forward": {"x": spec.Tensor((3,), "float32")}})
+    assert_structural_equal(tvm_mod["forward"], forward, True)
+
+
 def test_kv_cache():
     @I.ir_module
     class Module:

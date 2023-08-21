@@ -370,10 +370,17 @@ class Timesteps(Module):
     Module for HF timesteps layer.
     """
 
-    def __init__(self, num_channels: int, flip_sin_to_cos: bool, downscale_freq_shift: float):
+    def __init__(
+        self, num_channels: int, flip_sin_to_cos: bool = False, downscale_freq_shift: float = 1
+    ):
         self.num_channels = num_channels
         self.flip_sin_to_cos = flip_sin_to_cos
         self.downscale_freq_shift = downscale_freq_shift
 
     def forward(self, x: Tensor):
-        return
+        return op.get_timestep_embedding(
+            x,
+            embedding_dim=self.num_channels,
+            flip_sin_to_cos=self.flip_sin_to_cos,
+            downscale_freq_shift=self.downscale_freq_shift,
+        )
