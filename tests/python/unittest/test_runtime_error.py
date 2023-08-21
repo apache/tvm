@@ -90,5 +90,21 @@ def test_deep_callback():
     assert local_frames == ["test_deep_callback", "flevel3", "flevel2", "error_callback"]
 
 
+def test_cpp_frames_in_stack_trace():
+    def error_callback():
+        raise ValueError("callback error")
+
+    wrapped = tvm.testing.test_wrap_callback(error_callback)
+
+    try:
+        wrapped()
+        assert False
+    except ValueError as err:
+        frames = traceback.extract_tb(err.__traceback__)
+
+    cpp_frames = [frame for frame in frames if frame.filename.endswith(".cc")]
+    assert len(cpp_frames) >= 1
+
+
 if __name__ == "__main__":
     tvm.testing.main()

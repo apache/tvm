@@ -17,10 +17,14 @@
 # coding: utf-8
 # pylint: disable=invalid-name, import-outside-toplevel
 """Base library for TVM FFI."""
-import sys
-import os
 import ctypes
+import os
+import re
+import sys
+import types
+
 import numpy as np
+
 from . import libinfo
 
 # ----------------------------
@@ -333,6 +337,31 @@ def get_last_ffi_error():
     return ERROR_TYPE.get(err_type, TVMError)(py_err_msg)
 
 
+def _append_traceback_frame(tb, func_name, filepath, lineno):
+    """Append a dummy frame to appear in the Python traceback"""
+
+    code = compile(
+        "{}def dummy_func(): raise RuntimeError()".format("\n" * (lineno - 1)), filepath, "exec"
+    )
+    # Replacing the name by updating the bytecode allows the function
+    # name to be values that would normally be forbidden by python
+    # syntax.  For example, "operator()".
+    code = code.replace(co_consts=(code.co_consts[0].replace(co_name=func_name), func_name, None))
+    namespace = {}
+    exec(code, namespace)
+    dummy_func = namespace["dummy_func"]
+
+    # Execute the dummy function in order to generate a stack frame.
+    try:
+        dummy_func()
+    except RuntimeError as err:
+        dummy_tb = err.__traceback__
+
+    # Insert the dummy function into the stack trace.
+    new_frame = dummy_tb.tb_next
+    return types.TracebackType(tb, new_frame.tb_frame, new_frame.tb_lasti, new_frame.tb_lineno)
+
+
 def raise_last_ffi_error():
     """Raise the previous error from FFI
 
@@ -356,6 +385,23 @@ def raise_last_ffi_error():
         # Python environment.  Therefore, casting the resulting void*
         # pointer to PyObject* using ctypes.
         py_err = ctypes.cast(ctypes.c_void_p(py_err), ctypes.py_object).value
+        tb = py_err.__traceback__
+
+        backtrace = py_str(_LIB.TVMGetLastBacktrace())
+        frames = re.split(r"\n\W+\d+:\W+", backtrace)
+        frames = frames[1:]  # Skip "Stack trace: "
+
+        for frame in frames:
+            if " at " in frame:
+                name, frame = frame.split(" at ", 1)
+                filename, lineno = frame.rsplit(":", 1)
+                name = name.strip()
+                filename = filename.strip()
+                lineno = int(lineno.strip())
+
+                tb = _append_traceback_frame(tb, name, filename, lineno)
+        py_err = py_err.with_traceback(tb)
+
         # The exception PyObject may contain a large amount of state,
         # including all stack frames that may be inspected in a later
         # PDB post-mortem.  Therefore, we must make sure to remove the
