@@ -135,6 +135,42 @@ def test_datatype():
     tvm.ir.assert_structural_equal(irmodule["test"], test)
 
 
+def test_image():
+    class Model(Module):
+        def test(self, x: Tensor, weight: Tensor, bias: Tensor):
+            conv2d_out = op.conv2d(x, weight, bias)
+            return conv2d_out
+
+    @R.function
+    def test(
+        x: R.Tensor((1, 3, 32, 32), dtype="float32"),
+        weight: R.Tensor((32, 3, 3, 3), dtype="float32"),
+        bias: R.Tensor((32,), dtype="float32"),
+        _io: R.Object,
+    ) -> R.Tuple(R.Tensor((1, 32, 30, 30), dtype="float32"), R.Tuple(R.Object)):
+        with R.dataflow():
+            lv1: R.Tensor((1, 32, 30, 30), dtype="float32") = R.nn.conv2d(x, weight)
+            lv2: R.Tensor((1, 32, 1, 1), dtype="float32") = R.reshape(bias, R.shape([1, 32, 1, 1]))
+            conv2d: R.Tensor((1, 32, 30, 30), dtype="float32") = R.add(lv1, lv2)
+            gv1: R.Tuple(R.Tensor((1, 32, 30, 30), dtype="float32"), R.Tuple(R.Object)) = conv2d, (
+                _io,
+            )
+            R.output(gv1)
+        return gv1
+
+    m = Model()
+    irmodule, params = m.export_tvm(
+        spec={
+            "test": {
+                "x": spec.Tensor([1, 3, 32, 32], "float32"),
+                "weight": spec.Tensor([32, 3, 3, 3], "float32"),
+                "bias": spec.Tensor([32], "float32"),
+            }
+        }
+    )
+    tvm.ir.assert_structural_equal(irmodule["test"], test)
+
+
 def test_nn():
     class Model(Module):
         def test(self, x: Tensor, weight: Tensor, bias: Tensor):

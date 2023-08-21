@@ -179,6 +179,64 @@ def matmul(a: Tensor, b: Tensor, out_dtype: Optional[str] = None, name: str = "m
     return _wrap_nested(_op.matmul(a._expr, b._expr, out_dtype=out_dtype), name)
 
 
+def conv2d(
+    x: Tensor,
+    weight: Tensor,
+    bias: Optional[Tensor] = None,
+    stride: Optional[Union[int, Tuple]] = 1,
+    padding: Optional[Union[int, Tuple, str]] = 0,
+    dilation: Optional[Union[int, Tuple]] = 1,
+    groups: Optional[int] = 1,
+    name: str = "conv2d",
+) -> Tensor:
+    """Applies a 2D convolution over an input image composed of sevaral input planes
+
+    Parameters
+    ----------
+    x : Tensor
+        Input tensor of shape [B, N, H, W]
+
+    weight : Tensor
+        Filters of shape [O, N/groups, kH, kW]
+
+    bias : Optional[Tensor]
+        Optional bias tensor of shape [O].
+
+    stride : Optional[Union[int, Tuple]]
+        The stride of the convolving kernel. Can be a single number
+        or tuple of (sH, sW).
+
+    padding : Optional[[Union[int, Tuple]]]
+        Implicit paddings on both sides of the input.
+
+    dilation : Optional[Union[int, Tuple]]
+        The spacing between kernel elements. Can be a single number of tuple (dH, dW).
+
+    groups : Optional[int]
+        Split input into a number of groups.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result with shape [B, O, oH, oW].
+    """
+    conv_out = _op.nn.conv2d(
+        data=x._expr,
+        weight=weight._expr,
+        strides=stride,
+        padding=padding,
+        dilation=dilation,
+        groups=groups,
+    )
+    if bias is not None:
+        conv_out = _op.add(conv_out, _op.reshape(bias._expr, [1, -1, 1, 1]))
+
+    return _wrap_nested(conv_out, name)
+
+
 def maximum(x1: Tensor, x2: Tensor, name: str = "maximum"):
     """Element-wise maximum
 

@@ -108,6 +108,65 @@ class Linear(Module):
         return x
 
 
+class Conv2D(Module):
+    """
+    Module for conv2d layer.
+    """
+
+    def __init__(  # pylint: disable=too-many-arguments
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: int,
+        stride: int = 1,
+        padding: int = 0,
+        dilation: int = 1,
+        groups: int = 1,
+        bias: bool = True,
+        dtype: Optional[str] = None,
+    ):
+        super().__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.kernel_size = kernel_size
+        self.stride = stride
+        self.padding = padding
+        self.dilation = dilation
+        self.groups = groups
+
+        self.weight = Parameter(
+            (
+                self.out_channels,
+                int(self.in_channels / self.groups),
+                self.kernel_size,
+                self.kernel_size,
+            ),
+            dtype,
+        )
+        if bias:
+            self.bias = Parameter((self.out_channels,), dtype)
+        else:
+            self.bias = None
+
+    def forward(self, x: Tensor) -> Tensor:  # pylint: disable=invalid-name
+        """
+        Forward method for conv2d layer.
+
+        Parameters
+        ----------
+        x : Tensor
+            The input tensor.
+
+        Returns
+        -------
+        ret : Tensor
+            The output tensor for the conv2d layer.
+        """
+        return op.conv2d(
+            x, self.weight, self.bias, self.stride, self.padding, self.dilation, self.groups
+        )
+
+
 class RMSNorm(Module):
     """
     Module for rms norm layer.
