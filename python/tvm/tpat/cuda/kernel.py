@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import os
+
 import tvm
 import tvm.contrib.graph_executor as runtime
 import tvm.relay as relay
@@ -86,7 +88,7 @@ class Kernel(object):
         mod, params = relay.frontend.from_onnx(self._config.onnx_model)
 
         # 2. Tune it
-        if self._enable_tunning:
+        if self._enable_tunning and not os.path.exists(self._config.work_dir):
             tunning_option = self._config._tune_option()
             ms.relay_integration.tune_relay(mod=mod, params=params, **tunning_option)
 

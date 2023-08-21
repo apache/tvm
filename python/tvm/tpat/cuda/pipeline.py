@@ -119,7 +119,7 @@ def pipeline(
     node_names: list[str],
     enable_tunning: bool,
     tunning_option: object,
-    output_onnx: str,
+    output_onnx: object,
 ) -> Tuple[str, list[str]]:
     """Generate plugins for specified nodes in an ONNX model.
 
@@ -135,8 +135,11 @@ def pipeline(
         Flag indicating whether tunning is enabled.
     tunning_option : object
         Tunning option provided for ms.relay_integration.tune_relay, you don't need to specify mod, params and target.
-    output_onnx : str
+    output_onnx : object
+        { "name": xx, "weights": xx }
         Path to the output ONNX file where the modified model will be saved.
+        It will firstly try to save without weights, if it fails, it will then
+        save it with weights.
 
     Returns
     -------

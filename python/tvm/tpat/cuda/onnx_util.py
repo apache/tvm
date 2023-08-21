@@ -90,9 +90,14 @@ def _handle_trt_not_support_type(
         _remove_unnecessary_cast_nodes(graph)
 
     try:
-        onnx.save(gs.export_onnx(graph), output_model_path)
+        onnx.save(gs.export_onnx(graph), output_model_path["name"])
     except:
-        onnx.save(gs.export_onnx(graph), output_model_path, save_as_external_data=True)
+        onnx.save(
+            gs.export_onnx(graph),
+            output_model_path["name"],
+            save_as_external_data=True,
+            location=output_model_path["weights"],
+        )
 
 
 def _remove_unnecessary_cast_nodes(graph):
