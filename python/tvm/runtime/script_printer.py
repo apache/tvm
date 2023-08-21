@@ -40,6 +40,7 @@ class PrinterConfig(Object):
     print_line_numbers: bool
     num_context_lines: int
     syntax_sugar: bool
+    show_object_address: bool
     path_to_underline: Optional[List[ObjectPath]]
     path_to_annotate: Optional[Dict[ObjectPath, str]]
     obj_to_underline: Optional[List[Object]]
@@ -60,6 +61,7 @@ class PrinterConfig(Object):
         print_line_numbers: bool = False,
         num_context_lines: Optional[int] = None,
         syntax_sugar: bool = True,
+        show_object_address: bool = True,
         path_to_underline: Optional[List[ObjectPath]] = None,
         path_to_annotate: Optional[Dict[ObjectPath, str]] = None,
         obj_to_underline: Optional[List[Object]] = None,
@@ -79,6 +81,7 @@ class PrinterConfig(Object):
             "print_line_numbers": print_line_numbers,
             "num_context_lines": num_context_lines,
             "syntax_sugar": syntax_sugar,
+            "show_object_address": show_object_address,
             "path_to_underline": path_to_underline,
             "path_to_annotate": path_to_annotate,
             "obj_to_underline": obj_to_underline,
@@ -119,6 +122,7 @@ class Scriptable:
         print_line_numbers: bool = False,
         num_context_lines: int = -1,
         syntax_sugar: bool = True,
+        show_object_address: bool = False,
         path_to_underline: Optional[List[ObjectPath]] = None,
         path_to_annotate: Optional[Dict[ObjectPath, str]] = None,
         obj_to_underline: Optional[List[Object]] = None,
@@ -153,6 +157,8 @@ class Scriptable:
             The number of lines of context to print before and after the line to underline.
         syntax_sugar: bool = True
              Whether to output with syntax sugar, set false for complete printing.
+        show_object_address: bool = False
+             Whether to include the object's adddress as part of the TVMScript name
         path_to_underline : Optional[List[ObjectPath]] = None
             Object path to be underlined
         path_to_annotate : Optional[Dict[ObjectPath, str]] = None
@@ -182,6 +188,7 @@ class Scriptable:
                 print_line_numbers=print_line_numbers,
                 num_context_lines=num_context_lines,
                 syntax_sugar=syntax_sugar,
+                show_object_address=show_object_address,
                 path_to_underline=path_to_underline,
                 path_to_annotate=path_to_annotate,
                 obj_to_underline=obj_to_underline,
@@ -206,6 +213,7 @@ class Scriptable:
         print_line_numbers: bool = False,
         num_context_lines: int = -1,
         syntax_sugar: bool = True,
+        show_object_address: bool = True,
         path_to_underline: Optional[List[ObjectPath]] = None,
         path_to_annotate: Optional[Dict[ObjectPath, str]] = None,
         obj_to_underline: Optional[List[Object]] = None,
@@ -245,6 +253,8 @@ class Scriptable:
             The number of lines of context to print before and after the line to underline.
         syntax_sugar: bool = True
              Whether to output with syntax sugar, set false for complete printing.
+        show_object_address: bool = False
+             Whether to include the object's adddress as part of the TVMScript name
         path_to_underline : Optional[List[ObjectPath]] = None
             Object path to be underlined
         path_to_annotate : Optional[Dict[ObjectPath, str]] = None
@@ -272,6 +282,7 @@ class Scriptable:
                 print_line_numbers=print_line_numbers,
                 num_context_lines=num_context_lines,
                 syntax_sugar=syntax_sugar,
+                show_object_address=show_object_address,
                 path_to_underline=path_to_underline,
                 path_to_annotate=path_to_annotate,
                 obj_to_underline=obj_to_underline,
