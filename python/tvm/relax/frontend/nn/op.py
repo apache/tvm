@@ -738,9 +738,7 @@ def get_timestep_embedding(
     exponent = rx.const(-math.log(max_period), "float32") * _op.arange(
         start=0, end=half_dim, dtype="float32"
     )
-    exponent = exponent / (
-        rx.const(half_dim - downscale_freq_shift, "float32")
-    )
+    exponent = exponent / (rx.const(half_dim - downscale_freq_shift, "float32"))
 
     emb = _op.exp(exponent)
     emb = _op.expand_dims(timesteps, 1) * _op.expand_dims(emb, 0)
