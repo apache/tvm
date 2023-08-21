@@ -18,11 +18,12 @@
 # pylint: disable=too-many-nested-blocks, unused-variable
 """Relay to Relax translator."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 
 import tvm
 from tvm import relax, relay
 from tvm.ir.module import IRModule
+from tvm.ir.instrument import PassInstrument
 from tvm.relax.testing import nn
 from tvm.relay.backend.te_compiler import select_implementation
 from tvm.runtime import NDArray
@@ -37,6 +38,7 @@ def from_relay(
     *,
     opt_level: int = 3,
     pass_config: Optional[Dict[str, Any]] = None,
+    instruments: Optional[Sequence[PassInstrument]] = None,
     disabled_pass: Optional[List[str]] = None,
     translate_op_with_tir: Optional[Dict[str, tvm.tir.PrimFunc]] = None,
     append_op_attrs: bool = False,
@@ -59,6 +61,10 @@ def from_relay(
 
     pass_config: Optional[Dict[str, Any]]
         Pass configuration.
+
+    instruments : Optional[Sequence[PassInstrument]]
+        The list of pass instrument implementations to be passed onto relay
+        while calling relay passes
 
     disabled_pass: Optional[List[str]]
         Passes to disable.
@@ -255,6 +261,7 @@ def from_relay(
         opt_level=opt_level,
         config=pass_config,
         disabled_pass=disabled_pass,
+        instruments=instruments,
     ):
         mod = tvm.IRModule.from_expr(func)
         mod = seq(mod)
