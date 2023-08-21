@@ -141,7 +141,7 @@ StructInfo InferStructInfoPad(const Call& call, const BlockBuilder& ctx) {
   const auto* attrs = call->attrs.as<PadAttrs>();
   int ndim = input_sinfo[0]->ndim;
   Array<Integer> pad_width = attrs->pad_width;
-  ICHECK(((int) pad_width.size()) == 2 * ndim) << "Illegal pad_width";
+  ICHECK(((int)pad_width.size()) == 2 * ndim) << "Illegal pad_width";
 
   Array<PrimExpr> out_shape;
   if (input_sinfo[0]->shape.defined()) {
@@ -149,7 +149,7 @@ StructInfo InferStructInfoPad(const Call& call, const BlockBuilder& ctx) {
     const auto* data_shape = input_sinfo[0]->shape.as<ShapeExprNode>();
     for (int i = 0; i < ndim; i++) {
       // Sum pad width for this axis.
-      PrimExpr added_width = pad_width[2*i] + pad_width[(2*i) + 1];
+      PrimExpr added_width = pad_width[2 * i] + pad_width[(2 * i) + 1];
       const PrimExpr current_width = data_shape->values[i];
       out_shape.push_back(current_width + added_width);
     }
