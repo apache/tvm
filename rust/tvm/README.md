@@ -18,7 +18,8 @@
 # TVM
 
 This crate provides an idiomatic Rust API for [Apache TVM](https://github.com/apache/tvm).
-The code works on **Stable Rust** and is tested against `rustc 1.47`.
+The code works on **Stable Rust** and is tested against the current
+[Stable Rust release](https://releases.rs/). The MSRV is 1.60.
 
 You can find the API Documentation [here](https://tvm.apache.org/docs/api/rust/tvm/index.html).
 
