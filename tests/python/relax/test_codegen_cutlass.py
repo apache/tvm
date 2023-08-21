@@ -32,6 +32,30 @@ from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import relax as relax_builder
 
 
+@relax.expr_functor.mutator
+class mark_best_tuned(relax.PyExprMutator):
+    def __init__(self, mod, best_tuned):
+        super().__init__(mod)
+        self.best_tuned = best_tuned
+
+    def visit_function_(self, f):
+        if "Composite" not in f.attrs:
+            body = super().visit_expr(f.body)
+            return relax.Function(f.params, body, f.ret_struct_info, f.is_pure, f.attrs, f.span)
+
+        return f.with_attr("tir_var_best_tuned", self.best_tuned)
+
+
+def mark_mod_best_tuned(mod, best_tuned):
+    if best_tuned is None:
+        return
+    for gv in mod.functions:
+        func = mod[gv]
+        if isinstance(func, relax.Function):
+            annotator = mark_best_tuned(tvm.IRModule.from_expr(func), best_tuned)
+            mod[gv] = annotator.visit_expr(func)
+
+
 @pytest.fixture(autouse=True)
 def reset_seed():
     np.random.seed(0)
@@ -106,9 +130,10 @@ def build_and_run(mod, inputs_np, target, legalize=True, cuda_graph=False):
 
 
 def get_result_with_relax_cutlass_offload(
-    mod, *args, assert_all_bindings_fused=True, num_final_bindings=1
+    mod, *args, assert_all_bindings_fused=True, num_final_bindings=1, best_tuned=None
 ):
     mod = partition_for_cutlass(mod)
+    mark_mod_best_tuned(mod, best_tuned)
 
     if assert_all_bindings_fused:
         assert len(mod["main"].body.blocks[0].bindings) == num_final_bindings
@@ -191,9 +216,9 @@ def _to_concrete_shape(symbolic_shape, var_table=None):
             result.append(dim)
             continue
 
-        if dim not in var_table:
-            var_table[dim] = np.random.randint(10, 50)
-        result.append(var_table[dim])
+        if dim.name not in var_table:
+            var_table[dim.name] = np.random.randint(10, 50)
+        result.append(var_table[dim.name])
 
     return tuple(result)
 
@@ -230,6 +255,7 @@ _residual_block_table = {
         ((40, 128, 50, 16), (16, 2, 2, 16), "float16", "bias", "none"),
         ((3, 64, 64, 128), (32, 1, 1, 128), "float16", "relu", "none"),
         ((12, 32, 32, 16), (45, 5, 5, 16), "float16", "silu", "none"),
+        ((1, _vars["a"], _vars["b"], 32), (32, 3, 3, 32), "float32", "none", "none"),
         # residual block
         ((3, 64, 64, 16), (16, 3, 3, 16), "float16", "relu", "add"),
         ((16, 32, 32, 16), (16, 3, 3, 16), "float16", "relu", "mul_relu"),
@@ -239,7 +265,11 @@ _residual_block_table = {
 )
 def test_conv2d_offload(data_shape, weight_shape, dtype, epilogue, residual_block):
     low, high = -1, 1
-    data = np.random.randint(low, high, size=data_shape).astype(dtype)
+    # tune performance with a=200, b=200
+    best_tuned = {"a": 200, "b": 200}
+
+    concrete_data_shape = _to_concrete_shape(data_shape, best_tuned)
+    data = np.random.randint(low, high, size=concrete_data_shape).astype(dtype)
     weight = np.random.randint(low, high, size=weight_shape).astype(dtype)
     bias = np.random.randint(low, high, size=(1, 1, 1, weight_shape[0])).astype(dtype)
 
@@ -260,7 +290,7 @@ def test_conv2d_offload(data_shape, weight_shape, dtype, epilogue, residual_bloc
         residual_bin_op=residual_bin_op,
         residual_activation=residual_activation,
     )
-    out = get_result_with_relax_cutlass_offload(mod, *args)
+    out = get_result_with_relax_cutlass_offload(mod, *args, best_tuned=best_tuned)
 
     ref = build_and_run(mod, args, "llvm")
 
@@ -387,7 +417,9 @@ def test_matmul_offload(
         residual_bin_op=residual_bin_op,
         residual_activation=residual_activation,
     )
-    out = get_result_with_relax_cutlass_offload(mod, *args)
+    # tune performance with a=10, b=10
+    best_tuned = {"a": 10, "b": 10}
+    out = get_result_with_relax_cutlass_offload(mod, *args, best_tuned=best_tuned)
     ref = build_and_run(mod, args, "llvm")
 
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)

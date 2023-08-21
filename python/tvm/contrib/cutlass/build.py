@@ -37,6 +37,52 @@ from .library import ConvKind, LayoutType
 logger = logging.getLogger("cutlass")
 
 
+def replace_with_best_tuned(s, best_tuned):
+    if isinstance(s, tuple) or isinstance(s, list):
+        replace = []
+        for i in range(len(s)):
+            t = s[i]
+            if isinstance(t, tvm.tir.Var):
+                for k in best_tuned.keys():
+                    if t.name == k:
+                        t = int(best_tuned[k])
+                        break
+            replace.append(t)
+
+        if isinstance(s, tuple):
+            return tuple(replace)
+        else:
+            replace
+    elif isinstance(s, tvm.tir.Var):
+        for k in best_tuned.keys():
+            if s.name == k:
+                s = int(best_tuned[k])
+                return s
+
+    return s
+
+
+def assert_no_var(s):
+    if isinstance(s, tvm.tir.Var):
+        raise AssertionError("{} shall not be var".format(s.name))
+
+    if isinstance(s, tuple) or isinstance(s, list):
+        for i in s:
+            if isinstance(s, tvm.tir.Var):
+                raise AssertionError("{} shall not be var".format(i.name))
+
+
+def get_best_tuned(f):
+    best_tuned = {}
+
+    if "tir_var_best_tuned" in f.attrs:
+        best_tuned = f.attrs["tir_var_best_tuned"]
+    elif "tir_var_upper_bound" in f.attrs:
+        best_tuned = f.attrs["tir_var_upper_bound"]
+
+    return best_tuned
+
+
 def has_cutlass():
     """Returns true if the CUTLASS custom codegen is available"""
     return tvm.get_global_func("relay.ext.cutlass.create_c_source_module", True) is not None
@@ -651,6 +697,11 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
         use_multiprocessing = self.options.get("use_multiprocessing", True)
         split_k_slices = self.options.get("split_k_slices", [1])
 
+        # replace var in d_shape with specified best_tuned number
+        best_tuned = get_best_tuned(f)
+        d_shape = replace_with_best_tuned(d_shape, best_tuned)
+        assert_no_var(w_shape)
+
         op_name, op_def, _ = self.conv2d_profiler.profile(
             op_type,
             d_shape,
@@ -821,6 +872,11 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
         use_3xtf32 = self.options.get("use_3xtf32", False)
         find_first_valid = self.options.get("find_first_valid", True)
         use_multiprocessing = self.options.get("use_multiprocessing", True)
+
+        # replace var in MM with specified best_tuned number
+        best_tuned = get_best_tuned(f)
+        MM = replace_with_best_tuned(MM, best_tuned)
+        assert_no_var(NN)
 
         op_name, op_def, _ = self.gemm_profiler.profile(
             op_type,
