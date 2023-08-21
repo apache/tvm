@@ -733,27 +733,26 @@ def get_timestep_embedding(
         [N x dim] Tensor of positional embeddings.
     """
     timesteps = _op.astype(x._expr, "float32")
-    # Timesteps input must be a 1-d array.
-    assert len(timesteps.struct_info.shape) == 1, "Timesteps must be a 1D array"
 
     half_dim = embedding_dim // 2
     exponent = rx.const(-math.log(max_period), "float32") * _op.arange(
         start=0, end=half_dim, dtype="float32"
     )
     exponent = exponent / (
-        rx.const(half_dim, "float32") - rx.const(downscale_freq_shift, "float32")
+        rx.const(half_dim - downscale_freq_shift, "float32")
     )
 
     emb = _op.exp(exponent)
     emb = _op.expand_dims(timesteps, 1) * _op.expand_dims(emb, 0)
     # Scale embeddings
-    emb = rx.const(scale, "float32") * emb
+    if scale != 1:
+        emb = rx.const(scale, "float32") * emb
 
     # Concat sine and cosine embeddings.
     if flip_sin_to_cos:
-        emb = _op.concat([_op.cos(emb), _op.sin(emb)], dim=-1)
+        emb = _op.concat([_op.cos(emb), _op.sin(emb)], axis=-1)
     else:
-        emb = _op.concat([_op.sin(emb), _op.cos(emb)], dim=-1)
+        emb = _op.concat([_op.sin(emb), _op.cos(emb)], axis=-1)
 
     # Zero pad
     if embedding_dim % 2 == 1:
