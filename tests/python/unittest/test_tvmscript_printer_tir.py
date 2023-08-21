@@ -15,6 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-docstring
+
+import re
+
 import tvm.testing
 from tvm import ir, tir
 from tvm.ir import Range
@@ -839,6 +842,44 @@ def func(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32"))
     T.evaluate(0)
     """
     _assert_print(main, expected_output)
+
+
+def test_variable_with_cpp_address():
+    """The show_object_address option displays the C++ addressess
+
+    Because the C++ address may vary with each execution, the output
+    produced with this option cannot be compared to a fixed string.
+    Instead, this test uses the normal script output to generate a
+    regular expression against with the test output must match.  The
+    regular expression validates that all names have been appended
+    with "_0x" followed by a hexadecimal number, and that the address
+    is the same for each variable.
+    """
+    from tvm.script import tir as T
+
+    # The test function has all named objects suffixed with "_name",
+    # to avoid spurious replacement when generating the expected
+    # regex.
+    @T.prim_func
+    def func(a_name: T.handle):
+        N_name = T.int64()
+        A_name = T.match_buffer(a_name, N_name, "float32")
+        for i_name in range(N_name):
+            A_name[i_name] = A_name[i_name] + 1.0
+
+    without_address = func.script(show_object_address=False)
+    script = func.script(show_object_address=True)
+
+    expected_regex = re.escape(without_address)
+    for name in ["a_name", "A_name", "N_name", "i_name"]:
+        # Replace all occurrences with a backref to an earlier match
+        expected_regex = expected_regex.replace(name, rf"(?P={name})")
+        # Then replace the first such backref with a capturing group.
+        expected_regex = expected_regex.replace(
+            rf"(?P={name})", rf"(?P<{name}>{name}_0x[A-Fa-f0-9]+)", 1
+        )
+
+    assert re.match(expected_regex, script)
 
 
 if __name__ == "__main__":
