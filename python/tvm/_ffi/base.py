@@ -18,10 +18,13 @@
 # pylint: disable=invalid-name, import-outside-toplevel
 """Base library for TVM FFI."""
 import ctypes
+import functools
 import os
 import re
 import sys
 import types
+
+from typing import Callable, Sequence
 
 import numpy as np
 
@@ -340,9 +343,14 @@ def get_last_ffi_error():
 def _append_traceback_frame(tb, func_name, filepath, lineno):
     """Append a dummy frame to appear in the Python traceback"""
 
+    # Compile a dummy function to Python bytecode, so that with the
+    # filepath that we want to appear in the traceback.  Any external
+    # debugger (e.g. pdb) that catches the exception will use the
+    # filepath to show code snippets from that FFI file.
     code = compile(
         "{}def dummy_func(): raise RuntimeError()".format("\n" * (lineno - 1)), filepath, "exec"
     )
+
     # Replacing the name by updating the bytecode allows the function
     # name to be values that would normally be forbidden by python
     # syntax.  For example, "operator()".
@@ -360,6 +368,34 @@ def _append_traceback_frame(tb, func_name, filepath, lineno):
     # Insert the dummy function into the stack trace.
     new_frame = dummy_tb.tb_next
     return types.TracebackType(tb, new_frame.tb_frame, new_frame.tb_lasti, new_frame.tb_lineno)
+
+
+def _filter_traceback_frames(tb, filter_funcs: Sequence[Callable[[types.CodeType], bool]]):
+    orig = tb
+    filtered_at_least_one = False
+    temp_all_frames = []
+    filtered_frames = []
+
+    while tb is not None:
+        frame_code = tb.tb_frame.f_code
+        should_remove = any(filter_func(frame_code) for filter_func in filter_funcs)
+        if not should_remove:
+            filtered_at_least_one = True
+            filtered_frames.append(tb)
+        temp_all_frames.append(tb)
+        tb = tb.tb_next
+
+    if not filtered_at_least_one:
+        return orig
+
+    def _append_frame(tb, next_tb_frame):
+        return types.TracebackType(
+            tb, next_tb_frame.tb_frame, next_tb_frame.tb_lasti, next_tb_frame.tb_lineno
+        )
+
+    new_tb = functools.reduce(_append_frame, reversed(filtered_frames))
+
+    return new_tb
 
 
 def raise_last_ffi_error():
@@ -387,19 +423,36 @@ def raise_last_ffi_error():
         py_err = ctypes.cast(ctypes.c_void_p(py_err), ctypes.py_object).value
         tb = py_err.__traceback__
 
+        # The py_err.__traceback__ only goes from the location thrown
+        # up to the next FFI handoff.  To have the stacktrace also
+        # include the C++ side, we need to adjust the __traceback__
+        # before re-throwing.
         backtrace = py_str(_LIB.TVMGetLastBacktrace())
         frames = re.split(r"\n\W+\d+:\W+", backtrace)
         frames = frames[1:]  # Skip "Stack trace: "
 
         for frame in frames:
             if " at " in frame:
-                name, frame = frame.split(" at ", 1)
+                func_name, frame = frame.split(" at ", 1)
                 filename, lineno = frame.rsplit(":", 1)
-                name = name.strip()
+                func_name = func_name.strip()
                 filename = filename.strip()
                 lineno = int(lineno.strip())
 
-                tb = _append_traceback_frame(tb, name, filename, lineno)
+                tb = _append_traceback_frame(tb, func_name, filename, lineno)
+
+        # Remove stack frames that provide little benefit to
+        # debugging.  These are only removed from the stack frames
+        # contained within the exception we are re-raising, and not to
+        # the stack frames that it will continue to collect.
+        # Therefore, there may still be a single instance of these
+        # frames in the outermost Python-to-FFI call.
+        filter_funcs = [
+            lambda code: "tvm/_ffi/_ctypes/packed_func.py" in code.co_filename,
+            lambda code: "tvm/_ffi/base.py" in code.co_filename,
+        ]
+        tb = _filter_traceback_frames(tb, filter_funcs)
+
         py_err = py_err.with_traceback(tb)
 
         # The exception PyObject may contain a large amount of state,
