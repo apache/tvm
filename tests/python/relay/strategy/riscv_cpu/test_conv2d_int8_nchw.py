@@ -125,11 +125,7 @@ class RISCVConv2dInt8:
 
 
 class TestConv2d_NCHW(RISCVConv2dInt8):
-    (
-        data_shape,
-        kernel_size,
-        num_filter,
-    ) = tvm.testing.parameters(
+    (data_shape, kernel_size, num_filter,) = tvm.testing.parameters(
         ((1, 128, 14, 14), (3, 3), 128),
         ((1, 128, 14, 14), (1, 1), 256),
         ((1, 256, 7, 7), (1, 1), 512),

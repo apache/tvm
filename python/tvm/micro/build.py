@@ -40,7 +40,6 @@ class MicroTVMTemplateProject(enum.Enum):
     ZEPHYR = "zephyr"
     ARDUINO = "arduino"
     CRT = "crt"
-    RISCV = "riscv"
 
     @classmethod
     def list(cls):
