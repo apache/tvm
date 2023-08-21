@@ -32,6 +32,7 @@ def test_op_correctness():
     assert relax.op.nn.softmax(x).op == Op.get("relax.nn.softmax")
     assert relax.op.nn.log_softmax(x).op == Op.get("relax.nn.log_softmax")
     assert relax.op.nn.dropout(x).op == Op.get("relax.nn.dropout")
+    assert relax.op.nn.pad(x, (1, 1, 1, 1)).op == Op.get("relax.nn.pad")
 
     x = relax.Var("x", R.Tensor((2, 3, 32, 32), "float32"))
     gamma = relax.Var("gamma", R.Tensor((3,), "float32"))
@@ -1761,6 +1762,31 @@ def test_nll_loss_infer_struct_info_wrong_reduction():
 
     with pytest.raises(TVMError):
         bb.normalize(relax.op.nn.nll_loss(x, y, w, reduction="foo"))
+
+
+def test_pad_infer_struct_info():
+    bb = relax.BlockBuilder()
+    x = relax.Var("x", R.Tensor((2, 3), "float32"))
+    x1 = relax.Var("x", R.Tensor("float32", ndim=2))
+
+    pad_width0 = (0, 0, 0, 0)
+    pad_width1 = (1, 1, 1, 1)
+    pad_width2 = (0, 1, 1, 0)
+
+    _check_inference(bb, relax.op.nn.pad(x, pad_width0), relax.TensorStructInfo((2, 3), "float32"))
+    _check_inference(
+        bb,
+        relax.op.nn.pad(x, pad_width1),
+        relax.TensorStructInfo((4, 5), dtype="float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.pad(x, pad_width2),
+        relax.TensorStructInfo((3, 4), dtype="float32"),
+    )
+    _check_inference(
+        bb, relax.op.nn.pad(x1, pad_width1), relax.TensorStructInfo(dtype="float32", ndim=2)
+    )
 
 
 if __name__ == "__main__":
