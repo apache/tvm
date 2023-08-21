@@ -363,3 +363,17 @@ class Embedding(Module):
             ),
             shape=[*x.shape, self.dim],  # TODO(@junrushao): revisit and remove self.dim
         )
+
+
+class Timesteps(Module):
+    """
+    Module for HF timesteps layer.
+    """
+
+    def __init__(self, num_channels: int, flip_sin_to_cos: bool, downscale_freq_shift: float):
+        self.num_channels = num_channels
+        self.flip_sin_to_cos = flip_sin_to_cos
+        self.downscale_freq_shift = downscale_freq_shift
+
+    def forward(self, x: Tensor):
+        return

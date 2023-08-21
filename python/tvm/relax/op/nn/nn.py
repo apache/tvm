@@ -20,7 +20,7 @@ from typing import List, Optional, Tuple, Union
 from tvm import DataType
 from tvm.tir import FloatImm
 
-from ...expr import Expr
+from ...expr import Expr, const
 from . import _ffi_api
 
 
@@ -411,6 +411,35 @@ def conv2d_transpose(
         out_layout,
         out_dtype,
     )
+
+
+def pad(data, pad_width, pad_value=0, pad_mode="constant"):
+    r"""Padding
+
+    This operator takes in a tensor and pads each axis by the specified
+    widths using the specified value.
+
+    Parameters
+    ----------
+    data: relax.Expr
+        The input data to the operator
+    pad_width: tuple of <tuple of <int>>, required
+        Number of values padded to the edges of each axis, in the format
+        of ((before_1, after_1), ..., (before_N, after_N))
+    pad_value: float
+        The value used for padding
+    pad_mode: 'constant', 'edge', 'reflect'
+        'constant' pads with constant_value pad_value
+        'edge' pads using the edge values of the input array
+        'reflect' pads by reflecting values with respect to the edge
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    if not isinstance(pad_value, Expr):
+        pad_value = const(pad_value)
+    return _ffi_api.pad(data, pad_width, pad_value, pad_mode)
 
 
 def max_pool2d(

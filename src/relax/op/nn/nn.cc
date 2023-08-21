@@ -123,6 +123,52 @@ TVM_REGISTER_OP("relax.nn.log_softmax")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoSoftmax)
     .set_attr<Bool>("FPurity", Bool(true));
 
+/* relax.nn.pad */
+TVM_REGISTER_NODE_TYPE(PadAttrs);
+
+Expr pad(Expr data, Array<Integer> pad_width, Expr pad_value, String pad_mode) {
+  auto attrs = make_object<PadAttrs>();
+  attrs->pad_width = std::move(pad_width);
+  attrs->pad_mode = std::move(pad_mode);
+  static const Op& op = Op::Get("relax.nn.pad");
+  return Call(op, {data, pad_value}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.nn.pad").set_body_typed(pad);
+
+StructInfo InferStructInfoPad(const Call& call, const BlockBuilder& ctx) {
+  Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
+  const auto* attrs = call->attrs.as<PadAttrs>();
+  int ndim = input_sinfo[0]->ndim;
+  Array<Integer> pad_width = attrs->pad_width;
+  ICHECK(((int) pad_width.size()) == 2 * ndim) << "Illegal pad_width";
+
+  Array<PrimExpr> out_shape;
+  if (input_sinfo[0]->shape.defined()) {
+    // Compute output shape by adding corresponding pad width to each axis.
+    const auto* data_shape = input_sinfo[0]->shape.as<ShapeExprNode>();
+    for (int i = 0; i < ndim; i++) {
+      // Sum pad width for this axis.
+      PrimExpr added_width = pad_width[2*i] + pad_width[(2*i) + 1];
+      const PrimExpr current_width = data_shape->values[i];
+      out_shape.push_back(current_width + added_width);
+    }
+  } else {
+    // Shape isnt defined, best we can do is return ndim and dtype.
+    return TensorStructInfo(input_sinfo[0]->dtype, ndim);
+  }
+  return TensorStructInfo(ShapeExpr(out_shape), input_sinfo[0]->dtype);
+}
+
+TVM_REGISTER_OP("relax.nn.pad")
+    .set_num_inputs(2)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("pad_value", "Tensor", "The value to fill in padded area with.")
+    .set_attrs_type<PadAttrs>()
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoPad)
+    .set_attr<Bool>("FPurity", Bool(true));
+
+/* relax.nn.batchnorm */
 bool NormCheckDtypeAndShape(const Call& call, const BlockBuilder& ctx,
                             const Array<TensorStructInfo>& input_sinfo, Array<Integer> axes) {
   Op op = Downcast<Op>(call->op);
