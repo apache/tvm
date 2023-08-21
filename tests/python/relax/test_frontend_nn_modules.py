@@ -60,7 +60,7 @@ def test_conv1d():
         return gv1
     # fmt: on
 
-    mod = modules.Conv1d(3, 32, 3, bias=True)
+    mod = modules.Conv1D(3, 32, 3, bias=True)
     tvm_mod, _ = mod.export_tvm(
         spec={
             "forward": {

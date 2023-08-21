@@ -108,7 +108,7 @@ class Linear(Module):
         return x
 
 
-class Conv1d(Module):
+class Conv1D(Module):
     """
     Module for conv1d layer.
     """
