@@ -348,7 +348,9 @@ def _append_traceback_frame(tb, func_name, filepath, lineno):
     # debugger (e.g. pdb) that catches the exception will use the
     # filepath to show code snippets from that FFI file.
     code = compile(
-        "{}def dummy_func(): raise RuntimeError()".format("\n" * (lineno - 1)), filepath, "exec"
+        "{}def dummy_func(): raise NotImplementedError()".format("\n" * (lineno - 1)),
+        filepath,
+        "exec",
     )
 
     # Replacing the name by updating the bytecode allows the function
@@ -356,13 +358,14 @@ def _append_traceback_frame(tb, func_name, filepath, lineno):
     # syntax.  For example, "operator()".
     code = code.replace(co_consts=(code.co_consts[0].replace(co_name=func_name), func_name, None))
     namespace = {}
-    exec(code, namespace)
+    exec(code, namespace)  # pylint: disable=exec-used
     dummy_func = namespace["dummy_func"]
 
     # Execute the dummy function in order to generate a stack frame.
+    dummy_tb = None
     try:
         dummy_func()
-    except RuntimeError as err:
+    except NotImplementedError as err:
         dummy_tb = err.__traceback__
 
     # Insert the dummy function into the stack trace.
