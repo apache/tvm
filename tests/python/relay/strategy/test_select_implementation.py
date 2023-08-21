@@ -114,7 +114,7 @@ def test_int8_conv2d(target, expected_impl):
             [te.placeholder(data_shape, dtype), te.placeholder(weight_shape, dtype)],
             out.checked_type,
             target,
-            use_autotvm=False
+            use_autotvm=False,
         )
 
     assert impl.name == expected_impl
