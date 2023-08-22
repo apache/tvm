@@ -101,13 +101,11 @@ def test_int8_conv2d(target, expected_impl):
         channels=channels,
         data_layout=data_layout,
         kernel_layout=kernel_layout,
+        out_dtype=dtype,
     )
 
     with target:
-        if expected_impl == "conv2d_nhwc_spatial_pack.arm_cpu":
-            out = run_infer_type(out)
-        else:
-            out = run_opt_pass(out, relay.transform.AlterOpLayout())
+        out = run_opt_pass(out, relay.transform.AlterOpLayout())
         impl, _ = relay.backend.te_compiler.select_implementation(
             out.op,
             out.attrs,
