@@ -1844,6 +1844,10 @@ tvm_warp_shuffle_down = _tir_op.tvm_warp_shuffle_down
 tvm_warp_activemask = _tir_op.tvm_warp_activemask
 ptx_wait_group = _op_wrapper(_tir_op.ptx_wait_group)
 ptx_commit_group = _op_wrapper(_tir_op.ptx_commit_group)
+ptx_cp_async_barrier = _op_wrapper(_tir_op.ptx_cp_async_barrier)
+ptx_init_barrier_thread_count = _op_wrapper(_tir_op.ptx_init_barrier_thread_count)
+ptx_arrive_barrier = _op_wrapper(_tir_op.ptx_arrive_barrier)
+ptx_wait_barrier = _op_wrapper(_tir_op.ptx_wait_barrier)
 assume = _op_wrapper(_tir_op.assume)
 undef = _op_wrapper(_tir_op.undef)
 TVMBackendAllocWorkspace = _op_wrapper(_tir_op.TVMBackendAllocWorkspace)
@@ -2113,6 +2117,10 @@ __all__ = [
     "ptx_cp_async",
     "ptx_wait_group",
     "ptx_commit_group",
+    "ptx_cp_async_barrier",
+    "ptx_init_barrier_thread_count",
+    "ptx_arrive_barrier",
+    "ptx_wait_barrier",
     "mma_store",
     "mma_fill",
     "vectorlow",
