@@ -330,10 +330,12 @@ def test_instruments_support():
             self.events.append("run after " + info.name)
 
     my_test = SampleRunBeforeAfterInstrument()
-    with tvm.transform.PassContext(instruments=[my_test]):
-        mod = relay.transform.InferType()(mod)
+    relax_mod_with_attrs = relay_translator.from_relay(
+        mod["main"], target="llvm", instruments=[my_test]
+    )
 
-    assert "run before InferType" "run after InferType" == "".join(my_test.events)
+    assert "run after " in "".join(my_test.events)
+    assert "run before " in "".join(my_test.events)
 
 
 if __name__ == "__main__":
