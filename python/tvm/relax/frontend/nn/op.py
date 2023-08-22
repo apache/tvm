@@ -955,6 +955,45 @@ def get_timestep_embedding(
     return _wrap_nested(emb, name)
 
 
+def scaled_dot_product_attention(
+    query: Tensor,
+    key: Tensor,
+    value: Tensor,
+    attn_mask: Optional[Tensor] = None,
+    is_causal: Optional[bool] = False,
+    scale: Optional[float] = None,
+    name: str = "scaled_dot_product_attention",
+):
+    """
+    Computes a scaled dot product attention on provided attention
+    query, key, and values. Compliant with the functional torch implementation.
+
+    Parameters
+    ----------
+    query : Tensor
+        Tensor representing current attention lookup.
+    key : Tensor
+        Tensor representing cross attention mapping.
+    value : Tensor
+        Tensor representing embedded attention values.
+    attn_mask : Optional[Tensor]
+        Optional mask for attention, not yet supported.
+    is_causal : Optional[bool]
+        If set, uses a causal attention mask.
+    scale : Optional[float]
+        Optional extra scaling argument applied to attention.
+    name : str
+        Name hint for this function.
+    """
+    assert attn_mask is None, "attn_mask not yet supported."
+    causal_mask = "TopLeft" if is_causal else None
+
+    attn = _op.nn.attention(
+        query._expr, key._expr, value._expr, causal_mask=causal_mask, scale=scale
+    )
+    return _wrap_nested(attn, name)
+
+
 def tensor_expr_op(
     tensor_expr_func: Callable,
     name_hint: str,

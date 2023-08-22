@@ -106,16 +106,17 @@ class MethodSpec:
         arg_names = list(method_signature.parameters.keys())
         arg_specs = []
         for arg_name in arg_names:
-            arg_spec = spec[arg_name]
-            if arg_spec is Int or arg_spec is int:
-                arg_spec = Int()
-            elif isinstance(arg_spec, str) and arg_spec == "int":
-                arg_spec = Int()
-            elif isinstance(arg_spec, (Int, Tensor)):
-                pass
-            else:
-                raise TypeError(f"Invalid spec for argument {arg_name}: {arg_spec}")
-            arg_specs.append(arg_spec)
+            if arg_name in spec:
+                arg_spec = spec[arg_name]
+                if arg_spec is Int or arg_spec is int:
+                    arg_spec = Int()
+                elif isinstance(arg_spec, str) and arg_spec == "int":
+                    arg_spec = Int()
+                elif isinstance(arg_spec, (Int, Tensor)):
+                    pass
+                else:
+                    raise TypeError(f"Invalid spec for argument {arg_name}: {arg_spec}")
+                arg_specs.append(arg_spec)
         return MethodSpec(method, arg_names, arg_specs)
 
     @staticmethod
