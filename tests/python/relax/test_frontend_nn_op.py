@@ -308,24 +308,38 @@ def test_tensor_expr_op():
 
 
 def test_print():
-    sys.stdout = io.StringIO()
-
     class Model(Module):
         def test(self, x: Tensor):
             z = op.add(x, x)
             op.print_(z)
             return x
 
+    # fmt: off
+    @I.ir_module
+    class Expected:
+        @R.function
+        def _initialize_effect() -> R.Tuple(R.Object):
+            with R.dataflow():
+                _io: R.Object = R.null_value()
+                lv: R.Tuple(R.Object) = (_io,)
+                gv: R.Tuple(R.Object) = lv
+                R.output(gv)
+            return gv
+
+        @R.function
+        def test(x: R.Tensor((10, 10), dtype="float32"), _io: R.Object) -> R.Tuple(R.Tensor((10, 10), dtype="float32"), R.Tuple(R.Object)):
+            with R.dataflow():
+                add: R.Tensor((10, 10), dtype="float32") = R.add(x, x)
+                _io1: R.Object = R.call_pure_packed("effect.print", _io, add, sinfo_args=(R.Object(),))
+                gv1: R.Tuple(R.Tensor((10, 10), dtype="float32"), R.Tuple(R.Object)) = x, (_io1,)
+                R.output(gv1)
+            return gv1
+    # fmt: on
+
     m = Model()
-    model = m.jit(spec={"test": {"x": spec.Tensor([2, 2], "float32")}})
-    x = torch.tensor([[1, 2], [3, 4]], dtype=torch.float32)
-    model["test"](x)
-    output_str = sys.stdout.getvalue()
-    assert (
-        output_str
-        == f"effect.print: shape = {(2,2)}, dtype = float32, data =\n{tvm.nd.array(x.numpy() * 2)}\n"
-    )
-    sys.stdout = sys.__stdout__
+    irmodule, params = m.export_tvm(spec={"test": {"x": spec.Tensor([10, 10], "float32")}})
+
+    tvm.ir.assert_structural_equal(irmodule["test"], Expected["test"])
 
 
 if __name__ == "__main__":
