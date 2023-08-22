@@ -15,6 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 import pytest
+import torch
+import sys
+import io
 
 import tvm
 import tvm.testing
@@ -302,6 +305,27 @@ def test_tensor_expr_op():
     irmodule, params = m.export_tvm(spec={"test": {"x": spec.Tensor([10, 10], "float32")}})
 
     tvm.ir.assert_structural_equal(irmodule, Expected)
+
+
+def test_print():
+    sys.stdout = io.StringIO()
+
+    class Model(Module):
+        def test(self, x: Tensor):
+            z = op.add(x, x)
+            op.print_(z)
+            return x
+
+    m = Model()
+    model = m.jit(spec={"test": {"x": spec.Tensor([2, 2], "float32")}})
+    x = torch.tensor([[1, 2], [3, 4]], dtype=torch.float32)
+    model["test"](x)
+    output_str = sys.stdout.getvalue()
+    assert (
+        output_str
+        == f"effect.print: shape = {(2,2)}, dtype = float32, data =\n{tvm.nd.array(x.numpy() * 2)}\n"
+    )
+    sys.stdout = sys.__stdout__
 
 
 if __name__ == "__main__":
