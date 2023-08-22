@@ -5157,7 +5157,7 @@ def test_graph_input_use_in_if(target, dev):
         input_tensor = helper.make_tensor_value_info("graph_input", TensorProto.FLOAT, [1])
         output_tensor = helper.make_tensor_value_info("graph_output", TensorProto.FLOAT, [1])
         constant_node = make_constant_node("const_val", TensorProto.FLOAT, [1], [-1])
-        cond_tensor = helper.make_tensor_value_info("cond", TensorProto.BOOL, [])
+        cond_tensor = helper.make_tensor_value_info("cond", TensorProto.BOOL, [1])
         inner_if_node = None
         for i in range(num_nested):
             identity_node = helper.make_node(
@@ -5200,7 +5200,12 @@ def test_graph_input_use_in_if(target, dev):
                 inner_if_node = if_node
             else:
                 then_branch = helper.make_graph(
-                    [inner_if_node], f"then{i}_body", [], [f"if_output{i-1}"]
+                    [inner_if_node],
+                    f"then{i}_body",
+                    inputs=[],
+                    outputs=[
+                        helper.make_tensor_value_info(f"if_output{i-1}", TensorProto.FLOAT, [1])
+                    ],
                 )
                 if_node = helper.make_node(
                     "If",
@@ -5222,10 +5227,12 @@ def test_graph_input_use_in_if(target, dev):
 
         verify_with_ort_with_inputs(
             model,
-            [np.array([3.0], dtype="float32"), [cond]],
+            [np.array([3.0], dtype="float32"), np.array([cond])],
             dtype="float32",
             use_vm=True,
             opset=14,
+            target=target,
+            dev=dev,
         )
 
     # Confirm that if works with cond as an array or scalar.
