@@ -24,7 +24,7 @@ from unittest.mock import MagicMock
 import tvm
 from tvm import relay
 from tvm import te
-from tvm.relay.testing import run_infer_type
+from tvm.relay.testing import run_infer_type, run_opt_pass
 import tvm.testing
 from tvm import topi
 
@@ -63,11 +63,23 @@ def test_concatenate(target, expected_implementation):
         ("llvm -device=arm_cpu", "conv2d_nhwc_spatial_pack.arm_cpu"),
         (
             "llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+neon",
-            "conv2d_NHWC_quantized_interleaved.arm_cpu",
+            "conv2d_NHWC_quantized_interleaved_without_transform.arm_cpu",
         ),
         (
             "llvm -device=arm_cpu -mtriple=armv8l-linux-gnu -mattr=+neon",
             "conv2d_nhwc_spatial_pack.arm_cpu",
+        ),
+        (
+            "llvm -device=arm_cpu -mtriple=aarch64-linux-gnu",
+            "conv2d_NHWC_quantized_interleaved_without_transform.arm_cpu",
+        ),
+        (
+            "llvm --device=arm_cpu --mtriple=aarch64-linux-gnu -mattr=+v8.2a,+dotprod",
+            "conv2d_NHWC_quantized_native_without_transform.arm_cpu",
+        ),
+        (
+            "llvm --device=arm_cpu --mtriple=aarch64-linux-gnu -mattr=+v8.2a,+i8mm",
+            "conv2d_NHWC_quantized_interleaved_without_transform.arm_cpu",
         ),
     ],
 )
@@ -89,16 +101,18 @@ def test_int8_conv2d(target, expected_impl):
         channels=channels,
         data_layout=data_layout,
         kernel_layout=kernel_layout,
+        out_dtype=dtype,
     )
-    out = run_infer_type(out)
 
     with target:
+        out = run_opt_pass(out, relay.transform.AlterOpLayout())
         impl, _ = relay.backend.te_compiler.select_implementation(
             out.op,
             out.attrs,
             [te.placeholder(data_shape, dtype), te.placeholder(weight_shape, dtype)],
             out.checked_type,
             target,
+            use_autotvm=False,
         )
 
     assert impl.name == expected_impl

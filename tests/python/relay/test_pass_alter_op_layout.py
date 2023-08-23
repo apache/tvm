@@ -1230,7 +1230,7 @@ def test_alter_layout_nhwc_int8_aarch64():
     """Check that AlterOplayout does not alter NHWC data layout."""
     from tvm import autotvm
 
-    expected_workload_shape = (20, 42, 4, 16)
+    expected_workload_shape = (20, 44, 4, 16)
 
     # We use Int8Fallback  to disable the fallback flag
     # and to test the new workload produced during the pass
