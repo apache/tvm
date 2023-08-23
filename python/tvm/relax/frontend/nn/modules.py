@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=too-many-arguments,invalid-name,protected-access
+# pylint: disable=too-many-arguments,invalid-name,protected-access,unused-argument
 """Builtin Modules."""
 from typing import List, Optional, Sequence, Union
 
@@ -639,7 +639,8 @@ class Attention(Module):
         query_dim : int
             The number of channels in the query.
         cross_attention_dim : Optional[int]
-            The number of channels in the encoder_hidden_states. If not given, defaults to `query_dim`.
+            The number of channels in the encoder_hidden_states.
+            If not given, defaults to `query_dim`.
         heads : int
             The number of heads to use for multi-head attention.
         dim_head : int
@@ -697,6 +698,23 @@ class Attention(Module):
         attention_mask: Optional[Tensor] = None,
         **cross_attention_kwargs,
     ):
+        """
+        Forward method for Attention layer.
+
+        Parameters
+        ----------
+        hidden_states : Tensor
+            The input sample tensor.
+        encoder_hidden_states : Optional[Tensor]
+            Previous hidden step hidden states.
+        attention_mask : Optional[Tensor]
+            Mask tensor for attention, currently not supported.
+
+        Returns
+        -------
+        ret : Tensor
+            The output tensor for the embedding layer.
+        """
         # This implementation assumes use of torch 2.0 scaled_dot_product attention.
         assert attention_mask is None, "Attention mask not yet supported."
 
