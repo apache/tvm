@@ -224,7 +224,7 @@ if not CONDA_BUILD:
 
             if os.path.isdir(path):
                 _, libname = os.path.split(path)
-                shutil.copytree(path, os.path.join(CURRENT_DIR, "tvm", libname))
+                shutil.copytree(path, os.path.join(CURRENT_DIR, "tvm", libname), dirs_exist_ok=True)
                 fo.write(f"recursive-include tvm/{libname} *\n")
 
     setup_kwargs = {"include_package_data": True}
