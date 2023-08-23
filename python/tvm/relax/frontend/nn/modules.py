@@ -344,7 +344,7 @@ class GroupNorm(Module):
             self.weight = None
             self.bias = None
 
-    def forward(self, x: Tensor):
+    def forward(self, x: Tensor, channel_axis: int = 1, axes: Optional[List[int]] = None):
         """
         Forward method for group norm layer.
 
@@ -352,13 +352,20 @@ class GroupNorm(Module):
         ----------
         x : Tensor
             The input tensor.
+        channel_axis : int
+            Channel axis of the input data.
+        axes : Optional[List[int]]
+            Optional list of axes to compute norm over, if not specified,
+            assumes that the first two axes should be left alone.
 
         Returns
         -------
         ret : Tensor
             The output tensor for the group norm layer.
         """
-        return op.group_norm(x, self.num_groups, self.weight, self.bias, self.eps)
+        return op.group_norm(
+            x, self.num_groups, self.weight, self.bias, self.eps, channel_axis, axes
+        )
 
 
 class KVCache(Effect):
@@ -694,9 +701,7 @@ class Attention(Module):
         assert attention_mask is None, "Attention mask not yet supported."
 
         if self.group_norm is not None:
-            hidden_states = op.permute_dims(
-                self.group_norm(op.permute_dims(hidden_states, [0, 2, 1])), [0, 2, 1]
-            )
+            hidden_states = self.group_norm(hidden_states, channel_axis=2, axes=[1])
 
         query = self.to_q(hidden_states)
         if encoder_hidden_states is None:

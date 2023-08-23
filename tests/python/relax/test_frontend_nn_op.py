@@ -298,6 +298,42 @@ def test_timestep_embedding():
     tvm.ir.assert_structural_equal(irmodule["test"], test)
 
 
+def test_scaled_dot_product_attention():
+    class Model(Module):
+        def test(self, query: Tensor, key: Tensor, value: Tensor):
+            scaled_dot_product_attention = op.scaled_dot_product_attention(query, key, value)
+            return scaled_dot_product_attention
+
+    @R.function
+    def test(
+        query: R.Tensor((1, 32, 32, 32), dtype="float32"),
+        key: R.Tensor((1, 32, 32, 32), dtype="float32"),
+        value: R.Tensor((1, 32, 32, 32), dtype="float32"),
+        _io: R.Object,
+    ) -> R.Tuple(R.Tensor((1, 32, 32, 32), dtype="float32"), R.Tuple(R.Object)):
+        with R.dataflow():
+            scaled_dot_product_attention: R.Tensor(
+                (1, 32, 32, 32), dtype="float32"
+            ) = R.nn.attention(query, key, value, scale=None, causal_mask=None)
+            gv1: R.Tuple(
+                R.Tensor((1, 32, 32, 32), dtype="float32"), R.Tuple(R.Object)
+            ) = scaled_dot_product_attention, (_io,)
+            R.output(gv1)
+        return gv1
+
+    m = Model()
+    irmodule, _ = m.export_tvm(
+        spec={
+            "test": {
+                "query": spec.Tensor([1, 32, 32, 32], "float32"),
+                "key": spec.Tensor([1, 32, 32, 32], "float32"),
+                "value": spec.Tensor([1, 32, 32, 32], "float32"),
+            }
+        }
+    )
+    tvm.ir.assert_structural_equal(irmodule["test"], test)
+
+
 def test_tensor_expr_op():
     class Model(Module):
         def test(self, x: Tensor):

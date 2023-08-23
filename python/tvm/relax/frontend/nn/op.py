@@ -759,6 +759,8 @@ def group_norm(
     weight: Optional[Tensor],
     bias: Optional[Tensor],
     eps: float = 1e-5,
+    channel_axis: int = 1,
+    axes: Optional[List[int]] = None,
     name: str = "group_norm",
 ) -> Tensor:
     r"""
@@ -785,6 +787,13 @@ def group_norm(
     epsilon : float
         Small float added to square mean to avoid dividing by zero.
 
+    channel_axis: int
+        The channel axis of the data.
+
+    axes : Optional[int]
+        Which axes to compute the groupnorm over. If None, assumes first
+        two channels should be ignored.
+
     name : str
         Name hint.
 
@@ -798,9 +807,11 @@ def group_norm(
     if bias is not None:
         bias = bias._expr
     dim = len(x._expr.struct_info.shape)
+    if axes is None:
+        axes = list(range(2, dim))
     return _wrap_nested(
         _op.nn.group_norm(
-            x._expr, weight, bias, num_groups, channel_axis=1, axes=list(range(2, dim)), epsilon=eps
+            x._expr, weight, bias, num_groups, channel_axis=channel_axis, axes=axes, epsilon=eps
         ),
         name,
     )
