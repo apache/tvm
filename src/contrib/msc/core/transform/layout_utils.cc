@@ -22,6 +22,7 @@
  */
 #include "layout_utils.h"
 
+#include <algorithm>
 #include <set>
 #include <string>
 
