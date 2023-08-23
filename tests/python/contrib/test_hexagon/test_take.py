@@ -398,6 +398,5 @@ def test_structural():
     ]
     for mod in Modules:
         after = generate_take_op.PassReplaceWithTakeOpPrimFuncs()(mod)
-        print(after)
         assert not tvm.ir.structural_equal(after["main"], mod["main"])
     print("Passed Structural")
