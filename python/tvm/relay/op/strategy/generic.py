@@ -1184,7 +1184,10 @@ def wrap_compute_multibox_transform_loc(topi_compute):
         clip = bool(get_const_int(attrs.clip))
         threshold = get_const_float(attrs.threshold)
         variances = get_float_tuple(attrs.variances)
-        return topi_compute(inputs[0], inputs[1], inputs[2], clip, threshold, variances)
+        keep_background = bool(get_const_int(attrs.keep_background))
+        return topi_compute(
+            inputs[0], inputs[1], inputs[2], clip, threshold, variances, keep_background
+        )
 
     return _compute_multibox_transform_loc
 
@@ -1312,6 +1315,35 @@ def all_class_nms_strategy(attrs, inputs, out_type, target):
         wrap_compute_all_class_nms(topi.vision.all_class_non_max_suppression),
         wrap_topi_schedule(topi.generic.schedule_nms),
         name="all_class_nms.generic",
+    )
+    return strategy
+
+
+def wrap_compute_regular_nms(topi_compute):
+    """wrap regular nms topi compute"""
+
+    def _compute_nms(attrs, inputs, out_type):
+        return topi_compute(
+            inputs[0],
+            inputs[1],
+            attrs.max_detections_per_class,
+            attrs.max_detections,
+            attrs.num_classes,
+            attrs.iou_threshold,
+            attrs.score_threshold,
+        )
+
+    return _compute_nms
+
+
+@override_native_generic_func("regular_non_max_suppression_strategy")
+def regular_nms_strategy(attrs, inputs, out_type, target):
+    """regular nms generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_regular_nms(topi.vision.regular_non_max_suppression),
+        wrap_topi_schedule(topi.generic.schedule_nms),
+        name="regular_nms.generic",
     )
     return strategy
 

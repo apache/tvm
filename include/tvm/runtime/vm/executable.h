@@ -34,6 +34,7 @@
 #include <map>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace tvm {
@@ -262,9 +263,9 @@ class TVM_DLL Executable : public ModuleNode {
 
   /*!
    * \brief The (compile-time, virtual) devices corresponding to each device index.
-   * Currently we only support at most one device per device type.
+   * This vector contains a pair Device and its memory_scope.
    */
-  std::vector<Device> virtual_devices;
+  std::vector<std::pair<Device, std::string>> virtual_devices;
   /*!
    * \brief The device index corresponding to the 'host' device. That will hold and evaluate
    * shape-related data and code.

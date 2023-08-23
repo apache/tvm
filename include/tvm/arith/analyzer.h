@@ -649,9 +649,9 @@ class TVM_DLL Analyzer {
   void Bind(const Var& var, const PrimExpr& expr, bool allow_override = false);
   /*!
    * \brief Notify all the sub-analyzers that var
-   *        is created and binded to a range.
+   *        is created and bound to a range.
    *
-   *  Each var can only be binded once.
+   *  Each var can only be bound once.
    *
    * \param var The variable.
    * \param range The range we bind to.

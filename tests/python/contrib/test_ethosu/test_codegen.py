@@ -1170,6 +1170,24 @@ def test_tflite_concat(shapes, axis, accel_type):
     infra.compare_tvm_with_tflite(concat_func, shapes, accel_type, enable_cascader=False)
 
 
+def test_tflite_concat_with_reused_args():
+    np.random.seed(0)
+    shapes = [(1, 1, 24, 1), (1, 1, 24, 1), (1, 1, 10, 1), (1, 1, 68, 1)]
+    axis = 2
+    accel_type = "ethos-u55-256"
+
+    @tf.function
+    def concat_func(*inputs):
+        op = tf.add(inputs[0], inputs[1])
+        op2 = tf.concat((inputs[0], inputs[2], op), axis)
+        op = tf.concat((inputs[0], inputs[3], op), axis)
+        op = tf.nn.max_pool2d(op, (1, 1), (1, 2), "SAME")
+        op = tf.add(op, op2)
+        return op
+
+    infra.compare_tvm_with_tflite(concat_func, shapes, accel_type, enable_cascader=False)
+
+
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
 def test_tflite_sigmoid(accel_type):
     np.random.seed(0)

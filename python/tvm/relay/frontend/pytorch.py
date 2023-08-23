@@ -55,7 +55,7 @@ __all__ = ["from_pytorch"]
 # nodes to the extracted graph's nodes.
 # As Python objects are not round-trippable through C++, and
 # our type annotations only live in Python, we need to map
-# the we need to map the nodes we get in visiting to the nodes
+# the nodes we get in visiting to the nodes
 # we used to construct the graph (they are the same in C++,
 # match each other in dictionary lookups, but are not the same
 # in Python) by using the hint dictionary filled as

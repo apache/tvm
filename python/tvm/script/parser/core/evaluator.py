@@ -58,6 +58,17 @@ DEFAULT_OP: Dict[Type, Callable[..., Any]] = {
 }
 
 
+def _get_builtin_or_none(name: str):
+    builtins = globals().get("__builtins__")
+    if not builtins:
+        return None
+    if not isinstance(builtins, dict) and hasattr(builtins, "__dict__"):
+        builtins = builtins.__dict__
+    if isinstance(builtins, dict):
+        return builtins.get(name)
+    return None
+
+
 class ExprEvaluator:
     """Expression evaluator for TVMScript parser.
 
@@ -106,9 +117,13 @@ class ExprEvaluator:
         self = ExprEvaluator(parser, value_table)
         result = self._visit(node)  # pylint: disable=protected-access
         if isinstance(result, doc.Name):
-            if result.id not in self.value_table:
+            if result.id in self.value_table:
+                return self.value_table[result.id]
+            else:
+                builtin = _get_builtin_or_none(result.id)
+                if builtin:
+                    return builtin
                 raise ParserError(result, f"Undefined variable: {result.id}")
-            return self.value_table[result.id]
         if isinstance(result, doc.Constant):
             return result.value
         raise TypeError(f"Unexpected result type: {type(result)}")
@@ -202,7 +217,7 @@ class ExprEvaluator:
             return tuple(self._visit(n) for n in node)
         assert isinstance(node, doc.AST)
         if isinstance(node, doc.Name):
-            if node.id not in self.value_table:
+            if node.id not in self.value_table and not _get_builtin_or_none(node.id):
                 raise ParserError(node, f"Undefined variable: {node.id}")
             return node
         if isinstance(

@@ -722,6 +722,19 @@ class WildcardPattern(DFPattern):
     def __init__(self):
         self.__init_handle_by_constructor__(ffi.WildcardPattern)
 
+    def redirect_to(
+        self,
+        pat: "DFPattern",
+    ):
+        """Redirect the WildcardPattern to another pattern
+
+        Parameters
+        ----------
+        pat: relay.dataflow_pattern.DFPattern
+            The pattern that wildcard is redirected to.
+        """
+        ffi.WildcardPattern_redirect_to(self, pat)
+
 
 @register_df_node
 class TypePattern(DFPattern):

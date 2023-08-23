@@ -1040,7 +1040,7 @@ class TransformationPaddingExpressionError : public ScheduleError {
 
   String FastErrorString() const final {
     std::ostringstream ss;
-    ss << "ScheduleError: Pad value may not contain load load from " << illegal_load_->buffer->name;
+    ss << "ScheduleError: Pad value may not contain load from " << illegal_load_->buffer->name;
     return ss.str();
   }
 

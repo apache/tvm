@@ -65,7 +65,7 @@ decorator = "==5.1.1"
 numpy = "==1.22"
 psutil = "==5.9.4"
 scipy = "==1.7.3"
-tornado = "==6.2"
+tornado = "==6.3.3"
 typed-ast = "^1.5.4"
 
 # AutoTVM

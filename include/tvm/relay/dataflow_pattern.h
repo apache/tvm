@@ -362,6 +362,10 @@ class WildcardPatternNode : public DFPatternNode {
  public:
   void VisitAttrs(tvm::AttrVisitor* v) {}
 
+  /*! \brief If the wildcard is redirected, then pattern is not nullptr, and the wildcard
+   * redirects to the pattern. */
+  Optional<DFPattern> pattern{nullptr};
+
   static constexpr const char* _type_key = "relay.dataflow_pattern.WildcardPattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(WildcardPatternNode, DFPatternNode);
 };
@@ -372,6 +376,8 @@ class WildcardPatternNode : public DFPatternNode {
 class WildcardPattern : public DFPattern {
  public:
   TVM_DEFINE_OBJECT_REF_METHODS(WildcardPattern, DFPattern, WildcardPatternNode);
+
+  void redirect_to(DFPattern pat) const;
 };
 
 class TypePattern;

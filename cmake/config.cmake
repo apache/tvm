@@ -144,6 +144,10 @@ set(USE_MICRO_STANDALONE_RUNTIME OFF)
 # - /path/to/llvm-config: enable specific LLVM when multiple llvm-dev is available.
 set(USE_LLVM OFF)
 
+# Whether use MLIR to help analyze, requires USE_LLVM is enabled
+# Possible values: ON/OFF
+set(USE_MLIR OFF)
+
 #---------------------------------------------
 # Contrib libraries
 #---------------------------------------------

@@ -344,7 +344,17 @@ TVM_STATIC_IR_FUNCTOR(DFPatternPrinter, vtable)
                        << ")";
     });
 
+void WildcardPattern::redirect_to(DFPattern pat) const {
+  WildcardPatternNode* ptr = static_cast<WildcardPatternNode*>(get_mutable());
+  ptr->pattern = pat;
+}
+
 TVM_REGISTER_NODE_TYPE(WildcardPatternNode);
+
+TVM_REGISTER_GLOBAL("relay.dataflow_pattern.WildcardPattern_redirect_to")
+    .set_body_typed([](WildcardPattern wildcard, DFPattern pat) {
+      return wildcard.redirect_to(pat);
+    });
 
 TVM_REGISTER_GLOBAL("relay.dataflow_pattern.WildcardPattern").set_body_typed([]() {
   auto w = WildcardPattern(make_object<WildcardPatternNode>());

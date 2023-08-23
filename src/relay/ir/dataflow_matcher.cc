@@ -302,12 +302,12 @@ bool DFPatternMatcher::VisitDFPattern_(const CallPatternNode* op, const Expr& ex
 bool DFPatternMatcher::MatchesPath(const DominatorPatternNode* op, const Expr& expr) {
   auto call_node = expr.as<CallNode>();
   auto index_node = expr_to_node(expr);
+  size_t arg_counter{0};
   for (auto node : index_node->inputs_) {
     if (!(call_node && node->ref() == call_node->op)) {
+      arg_counter += 1;
       memoize_ = true;
-      if (VisitDFPattern(op->parent, node->ref())) {
-        return true;
-      } else {
+      if (!VisitDFPattern(op->parent, node->ref())) {
         memoize_ = false;
         if (!VisitDFPattern(op->path, node->ref())) {
           return false;
@@ -317,6 +317,9 @@ bool DFPatternMatcher::MatchesPath(const DominatorPatternNode* op, const Expr& e
         }
       }
     }
+  }
+  if (!arg_counter) {
+    return false;
   }
   return true;
 }
@@ -485,7 +488,11 @@ bool DFPatternMatcher::VisitDFPattern_(const ConstantPatternNode* op, const Expr
 }
 
 bool DFPatternMatcher::VisitDFPattern_(const WildcardPatternNode* op, const Expr& expr) {
-  return true;
+  if (op->pattern) {
+    return VisitDFPattern(op->pattern.value(), expr);
+  } else {
+    return true;
+  }
 }
 
 bool MatchPattern(DFPattern pattern, Expr expr) {
@@ -605,8 +612,10 @@ void PatternGrouper::CreateGroup(const Expr& expr) {
     // Don't treat fuzzy Dominator patterns input variables for partition
     if (auto op = node->ref().as<DominatorPatternNode>()) {
       for (auto fuzzy_op : {op->parent, op->path}) {
-        for (auto match : node_map[fuzzy_op]) {
-          fuzzy_matches.insert(match);
+        if (node_map.count(fuzzy_op)) {
+          for (auto match : node_map[fuzzy_op]) {
+            fuzzy_matches.insert(match);
+          }
         }
       }
     }
