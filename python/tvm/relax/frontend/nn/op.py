@@ -708,7 +708,7 @@ def get_timestep_embedding(
     name: str = "get_timestep_embedding",
 ) -> Tensor:
     """
-    This matches the implementation in Denoising Diffusion Probabilistic Models: Create sinusoidal timestep embeddings.
+    Timestep calculation as described in Denoising Diffusion Probabilistic Models.
 
     Parameters
     ----------
