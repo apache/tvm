@@ -138,14 +138,8 @@ class TorchFXImporter:
 
     ########## Arithmetic ##########
 
-    def _cos(self, node: fx.node.Node) -> relax.Var:
-        return self.block_builder.emit(relax.op.cos(self.env[node.args[0]]))
-
     def _exp(self, node: fx.node.Node) -> relax.Var:
         return self.block_builder.emit(relax.op.exp(self.env[node.args[0]]))
-
-    def _sin(self, node: fx.node.Node) -> relax.Var:
-        return self.block_builder.emit(relax.op.sin(self.env[node.args[0]]))
 
     def _sigmoid(self, node: fx.node.Node) -> relax.Var:
         return self.block_builder.emit(relax.op.sigmoid(self.env[node.args[0]]))
@@ -1291,9 +1285,19 @@ class TorchFXImporter:
             nn.modules.sparse.Embedding: self._embedding,
             nn.CrossEntropyLoss: self._cross_entropy,
             # call_function and call_method
-            "cos": self._cos,
+            "sin": lambda node: self.block_builder.emit(relax.op.sin(self.env[node.args[0]])),
+            "cos": lambda node: self.block_builder.emit(relax.op.cos(self.env[node.args[0]])),
+            "tan": lambda node: self.block_builder.emit(relax.op.tan(self.env[node.args[0]])),
+            "asin": lambda node: self.block_builder.emit(relax.op.asin(self.env[node.args[0]])),
+            "acos": lambda node: self.block_builder.emit(relax.op.acos(self.env[node.args[0]])),
+            "atan": lambda node: self.block_builder.emit(relax.op.atan(self.env[node.args[0]])),
+            "sinh": lambda node: self.block_builder.emit(relax.op.sinh(self.env[node.args[0]])),
+            "cosh": lambda node: self.block_builder.emit(relax.op.cosh(self.env[node.args[0]])),
+            "tanh": lambda node: self.block_builder.emit(relax.op.tanh(self.env[node.args[0]])),
+            "asinh": lambda node: self.block_builder.emit(relax.op.asinh(self.env[node.args[0]])),
+            "acosh": lambda node: self.block_builder.emit(relax.op.acosh(self.env[node.args[0]])),
+            "atanh": lambda node: self.block_builder.emit(relax.op.atanh(self.env[node.args[0]])),
             "exp": self._exp,
-            "sin": self._sin,
             "iadd": self._add,
             "add": self._add,
             "floordiv": self._floordiv,
@@ -1350,7 +1354,6 @@ class TorchFXImporter:
             "leaky_relu": self._leakyrelu,
             "gelu": self._gelu,
             "silu": lambda node: self.block_builder.emit(relax.op.nn.silu(self.env[node.args[0]])),
-            "tanh": lambda node: self.block_builder.emit(relax.op.tanh(self.env[node.args[0]])),
             "interpolate": self._interpolate,
             "size": self._size,
             "getattr": self._getattr,
