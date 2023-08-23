@@ -282,6 +282,15 @@ def test_all_vars():
     assert var_names == {"_", "x", "y", "z", "p", "q", "r", "s"}
 
 
+def test_all_vars_from_expr_using_dataflow():
+    """all_vars() should return all Var, including DataflowVar"""
+    func = VarExample["main"]
+    cls_func_q = func.body.blocks[1].bindings[1].value
+
+    var_names = var_name_set(all_vars(cls_func_q))
+    assert var_names == {"q"}
+
+
 def test_bound_vars():
     vars = bound_vars(VarExample["func"])
     assert len(vars) == 2

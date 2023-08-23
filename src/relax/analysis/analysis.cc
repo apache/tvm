@@ -94,6 +94,8 @@ class VarVisitor : protected ExprVisitor {
 
   void VisitExpr_(const VarNode* var) final { vars_.Insert(GetRef<Var>(var)); }
 
+  void VisitExpr_(const DataflowVarNode* var) final { vars_.Insert(GetRef<Var>(var)); }
+
   void VisitExpr_(const FunctionNode* op) final {
     for (const auto& param : op->params) {
       MarkBounded(param);
