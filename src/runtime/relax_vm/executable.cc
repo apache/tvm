@@ -45,6 +45,7 @@ enum ConstantType : int {
   kShapeTuple = 2,
   kString = 3,
   kInt = 4,
+  kFloat = 5,
 };
 
 #define STREAM_CHECK(val, section)                                          \
@@ -312,6 +313,9 @@ void Executable::SaveConstantSection(dmlc::Stream* strm) {
     } else if (it.type_code() == kDLInt) {
       strm->Write(ConstantType::kInt);
       strm->Write(it.value());
+    } else if (it.type_code() == kDLFloat) {
+      strm->Write(ConstantType::kFloat);
+      strm->Write(it.value());
     } else {
       try {
         strm->Write(ConstantType::kDLDataType);
@@ -381,6 +385,12 @@ void Executable::LoadConstantSection(dmlc::Stream* strm) {
       this->constants.push_back(cell);
     } else if (constant_type == ConstantType::kInt) {
       int64_t value;
+      strm->Read(&value);
+      TVMRetValue cell;
+      cell = value;
+      this->constants.push_back(cell);
+    } else if (constant_type == ConstantType::kFloat) {
+      double value;
       strm->Read(&value);
       TVMRetValue cell;
       cell = value;
