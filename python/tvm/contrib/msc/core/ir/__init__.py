@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""tvm.contrib.msc.core.utils"""
+"""tvm.contrib.msc.core.ir"""
 
-from .expr import *
-from .info import *
+from .graph import *
