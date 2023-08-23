@@ -1118,28 +1118,27 @@ class LayoutInfer : public ExprVisitor {
 
   void VisitBinding_(const VarBindingNode* binding, const TupleNode* val) final {
     ExprVisitor::VisitBinding_(binding, val);
-    std::vector<NLayout> input_layout;
-    for (const auto& field : val->fields) {
-      if (binding->var->IsInstance<DataflowVarNode>()) {
-        // Df var: Use the current realized layout to group the tuple;
-        input_layout.push_back(GetNLayout(var_layout_map_, field));
-      } else {
-        // Global var: Use the initial layout to group the tuple;
-        input_layout.push_back(InitialNLayout(field));
-      }
-    }
     if (IsNestedTensor(binding->var)) {
-      var_layout_map_[binding->var] = input_layout;
+      Array<NLayout> input_layouts;
+      for (const auto& field : val->fields) {
+        input_layouts.push_back(InferLayoutDecision(field, var_layout_map_));
+      }
+      var_layout_map_[binding->var] = input_layouts;
+      if (LayoutUtils::SetLayout(GetRef<Tuple>(val), NLayout(input_layouts))) {
+        infered_ = true;
+      }
     }
     RecordExpr(binding->var, GetRef<Tuple>(val));
   }
 
   void VisitBinding_(const VarBindingNode* binding, const TupleGetItemNode* val) final {
     ExprVisitor::VisitBinding_(binding, val);
-    NLayout input_layout = binding->var->IsInstance<DataflowVarNode>()
-                               ? GetNLayout(var_layout_map_, val->tuple)
-                               : InitialNLayout(val->tuple);
-    var_layout_map_[binding->var] = input_layout.NestedArray()[val->index];
+    const auto& out_layout =
+        InferLayoutDecisionAt(GetRef<TupleGetItem>(val)->tuple, var_layout_map_, val->index);
+    var_layout_map_[binding->var] = out_layout;
+    if (LayoutUtils::SetLayout(GetRef<TupleGetItem>(val), out_layout)) {
+      infered_ = true;
+    }
     RecordExpr(binding->var, GetRef<TupleGetItem>(val));
   }
 

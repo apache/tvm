@@ -99,7 +99,9 @@ class MSCTensor(Object):
             The tensor description in json format.
         """
 
-        return {"name": self.alias, "shape": self.get_shape(), "dtype": self.dtype_name}
+        tensor_des = {"name": self.alias, "shape": self.get_shape(), "dtype": self.dtype_name}
+        tensor_des["layout"] = self.layout.name if self.layout else ""
+        return tensor_des
 
     @property
     def dtype_name(self) -> str:
