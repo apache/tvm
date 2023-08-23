@@ -141,7 +141,7 @@ StructInfo InferStructInfoPad(const Call& call, const BlockBuilder& ctx) {
   const auto* attrs = call->attrs.as<PadAttrs>();
   int ndim = input_sinfo[0]->ndim;
   Array<Integer> pad_width = attrs->pad_width;
-  ICHECK(((int)pad_width.size()) == 2 * ndim) << "Illegal pad_width";
+  ICHECK(static_cast<int>(pad_width.size()) == 2 * ndim) << "Illegal pad_width";
 
   Array<PrimExpr> out_shape;
   if (input_sinfo[0]->shape.defined()) {
