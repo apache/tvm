@@ -61,6 +61,15 @@ def _print(_, array: NDArray) -> None:
     print(f"effect.print: shape = {array.shape}, dtype = {array.dtype}, data =\n{array}")
 
 
+class SiLU(Module):
+    """
+    Module for SiLU activation layer.
+    """
+
+    def forward(self, x: Tensor):
+        return op.silu(x)
+
+
 class Linear(Module):
     """
     Module for linear layer.
@@ -363,6 +372,58 @@ class Embedding(Module):
             ),
             shape=[*x.shape, self.dim],  # TODO(@junrushao): revisit and remove self.dim
         )
+
+
+class TimestepEmbedding(Module):
+    """
+    Module for HF TimestepEmbedding layer.
+    """
+
+    def __init__(
+        self,
+        in_channels: int,
+        time_embed_dim: int,
+        act_fn: str = "silu",
+        out_dim: int = None,
+        post_act_fn: Optional[str] = None,
+        cond_proj_dim: Optional[int] = None,
+    ):
+        self.linear_1 = Linear(in_channels, time_embed_dim)
+
+        if cond_proj_dim is not None:
+            self.cond_proj = Linear(cond_proj_dim, in_channels, bias=False)
+        else:
+            self.cond_proj = None
+
+        assert act_fn == "silu", "Only SiLU activations are supported."
+        self.act = SiLU()
+
+        if out_dim is not None:
+            time_embed_dim_out = out_dim
+        else:
+            time_embed_dim_out = time_embed_dim
+
+        self.linear_2 = Linear(time_embed_dim, time_embed_dim_out)
+
+        if post_act_fn is None:
+            self.post_act = None
+        else:
+            assert self.post_act == "silu", "Only SiLU post-activation supported."
+            self.post_act = SiLU()
+
+    def forward(self, sample: Tensor, condition: Optional[Tensor] = None):
+        if condition is not None:
+            sample = sample + self.cond_proj(condition)
+        sample = self.linear_1(sample)
+
+        if self.act is not None:
+            sample = self.act(sample)
+
+        sample = self.linear_2(sample)
+
+        if self.post_act is not None:
+            sample = self.post_act(sample)
+        return sample
 
 
 class Timesteps(Module):
