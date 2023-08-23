@@ -218,70 +218,60 @@ class LiftTransformParamsPlanner : public ExprVisitor {
  *\brief The rewriter that lifts the transform params of a function and updates the original
  * function.
  */
-class TransformParamsLifter : public ExprMutator {
+class TransformParamsLifter : ExprMutator {
  public:
   explicit TransformParamsLifter(const IRModule& module) : ExprMutator(module) {}
 
-  IRModule Lift() {
-    auto mod = builder_->GetContextIRModule();
-    for (const auto& [gv, base_func] : mod->functions) {
-      // Skip non-Relax functions.
-      const auto* func_ = base_func.as<FunctionNode>();
-      if (func_ == nullptr) {
-        continue;
-      }
-      // Skip functions that do not have the `num_input` attribute.
-      Optional<Integer> opt_num_input = func_->attrs.GetAttr<Integer>(attr_num_input_);
-      if (!opt_num_input.defined()) {
-        continue;
-      }
-      Function func = RewriteFunc(GetRef<Function>(func_), opt_num_input.value()->value,
-                                  gv->name_hint + "_transform_params");
-      builder_->UpdateFunction(gv, func);
-    }
-
-    return builder_->GetContextIRModule();
+  Function VisitFunction(GlobalVar gvar, Function func) {
+    current_gvar_ = gvar;
+    auto out = Downcast<Function>(VisitExpr(std::move(func)));
+    current_gvar_ = NullOpt;
+    return out;
   }
 
+  Map<GlobalVar, Function> GetTransformParamFunctions() const { return transform_param_funcs_; }
+
  private:
-  Function RewriteFunc(const Function& func, int num_input, String new_func_name) {
+  Expr VisitExpr_(const FunctionNode* op) override {
+    auto func = GetRef<Function>(op);
+    Optional<Integer> opt_num_input = func->attrs.GetAttr<Integer>(attr_num_input_);
+    if (!opt_num_input) {
+      return func;
+    }
+    auto signed_num_input = opt_num_input.value()->value;
+    ICHECK_GE(signed_num_input, 0);
+    ICHECK_LE(signed_num_input, func->params.size());
+    size_t num_input = signed_num_input;
+
     LiftTransformParamsPlanner planner;
 
     // Step 1: Create the plan of lifting transform params
     lift_plan_ = planner.Plan(func, num_input);
 
-    // Step 2: Add the lifted function to the module
-    // (The lifted function should be public so we add a global symbol to it)
-    auto lift_func =
-        WithAttr(lift_plan_.f_transform_params, tvm::attr::kGlobalSymbol, new_func_name);
-    builder_->AddFunction(lift_func, new_func_name);
+    // Step 2: Stash the lifted function to add to the module
+    transform_param_funcs_.Set(current_gvar_.value(), lift_plan_.f_transform_params);
 
     // Step 3: Update the current function.
 
     // Step 3.1: Update the function signature
-    Var params("params", lift_plan_.f_transform_params->ret_struct_info);
-    Array<Var> new_params;
-    for (int i = 0; i < num_input; ++i) {
-      new_params.push_back(func->params[i]);
+    Array<StructInfo> param_fields =
+        Downcast<TupleStructInfo>(lift_plan_.f_transform_params->ret_struct_info)->fields;
+    Array<Var> new_params(func->params.begin(), func->params.begin() + num_input);
+    for (size_t i = 0; i < param_fields.size(); i++) {
+      std::stringstream name;
+      name << "transformed_param_" << i;
+      Var param(name.str(), param_fields[i]);
+      new_params.push_back(param);
     }
-    new_params.push_back(params);
 
     // Step 3.2: Update the function body
     for (const auto& [var, index] : lift_plan_.output_to_index) {
-      param_remap_[var] = TupleGetItem(params, index);
+      ICHECK_LT(num_input + index, new_params.size());
+      param_remap_[var] = new_params[num_input + index];
     }
     auto new_body = VisitWithNewScope(func->body, new_params);
 
-    // Step 3.3: Remove function attributes that are not needed
-    auto new_attrs = func->attrs;
-    auto* new_attrs_node = new_attrs.CopyOnWrite();
-    new_attrs_node->dict.erase(attr_num_input_);
-    if (new_attrs->dict.empty()) {
-      new_attrs = NullValue<DictAttrs>();
-    }
-
-    Function new_func(new_params, new_body, func->ret_struct_info, func->is_pure, new_attrs);
-    return new_func;
+    return Function(new_params, new_body, func->ret_struct_info, func->is_pure, func->attrs);
   }
 
   void VisitBinding_(const VarBindingNode* binding) final {
@@ -315,12 +305,40 @@ class TransformParamsLifter : public ExprMutator {
   std::unordered_map<Var, Expr, ObjectPtrHash, ObjectPtrEqual> param_remap_;
   // The plan of lifting the transform params
   LiftTransformParamsInfoPlan lift_plan_;
+
+  Map<GlobalVar, Function> transform_param_funcs_;
+  Optional<GlobalVar> current_gvar_;
 };
 
 namespace transform {
 Pass LiftTransformParams() {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule m, PassContext pc) { return TransformParamsLifter(m).Lift(); };
+  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule mod,
+                                                                            PassContext pc) {
+    TransformParamsLifter mutator(mod);
+
+    IRModule updates;
+    for (const auto& [gvar, func] : mod->functions) {
+      if (auto opt = func.as<relax::Function>()) {
+        auto new_func = mutator.VisitFunction(gvar, opt.value());
+        if (!new_func.same_as(func)) {
+          updates->Add(gvar, new_func);
+        }
+      }
+    }
+    for (const auto& [gvar, transform_func] : mutator.GetTransformParamFunctions()) {
+      String name = gvar->name_hint + "_transform_params";
+      GlobalVar new_gvar(name);
+      new_gvar->struct_info_ = transform_func->struct_info_;
+
+      updates->Add(new_gvar, WithAttr(transform_func, tvm::attr::kGlobalSymbol, name));
+    }
+
+    if (updates->functions.size()) {
+      mod.CopyOnWrite()->Update(updates);
+    }
+
+    return mod;
+  };
   return CreateModulePass(pass_func, 1, "LiftTransformParams", {});
 }
 
