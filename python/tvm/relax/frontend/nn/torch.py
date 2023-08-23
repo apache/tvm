@@ -43,11 +43,14 @@ class TorchModule:  # pylint: disable=too-few-public-methods
         vm: VirtualMachine,
         params: List[NDArray],
     ):
-        effects = vm["_initialize_effect"]()
+        try:
+            self.effects = vm["_initialize_effect"]()
+        except AttributeError:
+            self.effects = None
+
         self.spec = spec
         self.vm = vm
         self.params = params
-        self.effects = effects
 
     def __getitem__(self, method_name: str) -> Callable:
         def _find_method(method_name):
@@ -62,7 +65,7 @@ class TorchModule:  # pylint: disable=too-few-public-methods
         def _closure(*args):
             if len(args) != len(method_spec.arg_names):
                 raise TypeError(
-                    f"Argument length mismatch. Expected {len(method_spec.args)} arguments, "
+                    f"Argument length mismatch. Expected {len(method_spec.arg_names)} arguments, "
                     f"but got {len(args)} arguments. The spec is: {method_spec}"
                 )
             args = [
@@ -71,14 +74,16 @@ class TorchModule:  # pylint: disable=too-few-public-methods
                     method_spec.arg_names, method_spec.arg_specs, args
                 )
             ]
-            outputs, self.effects = method(*args, *self.params, *self.effects)
+            if self.effects is not None:
+                outputs, self.effects = method(*args, *self.effects, *self.params)
+            else:
+                outputs = method(*args, *self.params)
             return _tvm_to_torch(outputs)
 
         _closure.__name__ = method_name
         return _closure
 
 
-@staticmethod
 def _tvm_to_torch(arg):
     if isinstance(arg, (list, tuple, Array)):
         return [_tvm_to_torch(i) for i in arg]
@@ -103,6 +108,11 @@ def _torch_to_tvm(arg_name, arg_spec, arg_torch):
                 f"Expected argument `{arg_name}` to be `int`, but got {type(arg_torch)}"
             )
         return ShapeTuple([arg_torch])
+    if isinstance(arg_spec, _spec.Tuple):
+        return [
+            _torch_to_tvm(f"{arg_name}[{i}]", x, arg_torch[i])
+            for i, x in enumerate(arg_spec.elements)
+        ]
     raise TypeError(f"Unsupported spec item type: {type(arg_spec)}")
 
 
