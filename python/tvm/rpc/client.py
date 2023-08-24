@@ -145,6 +145,23 @@ class RPCSession(object):
             self._remote_funcs["remove"] = self.get_function("tvm.rpc.server.remove")
         self._remote_funcs["remove"](path)
 
+    def listdir(self, path):
+        """ls files from remote temp folder.
+
+        Parameters
+        ----------
+        path: str
+            The relative location to remote temp folder.
+
+        Returns
+        -------
+        dirs: str
+            The files in the given directory with split token ','.
+        """
+        if "listdir" not in self._remote_funcs:
+            self._remote_funcs["listdir"] = self.get_function("tvm.rpc.server.listdir")
+        return self._remote_funcs["listdir"](path)
+
     def load_module(self, path):
         """Load a remote module, the file need to be uploaded first.
 
