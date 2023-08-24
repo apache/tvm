@@ -53,7 +53,15 @@ class IOEffect(Effect):
 
     def print_(self, tensor: Tensor) -> None:
         """Encloses the side effect of NDArray printing"""
-        raise NotImplementedError
+        self.effect = rx.BlockBuilder.current().emit(
+            rx.call_pure_packed(
+                rx.extern("effect.print"),
+                self.effect,
+                tensor._expr,  # pylint: disable=protected-access
+                sinfo_args=[rx.ObjectStructInfo()],
+            ),
+            name_hint=self.effect.name_hint,
+        )
 
 
 @register_func("effect.print")

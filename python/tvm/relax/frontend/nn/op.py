@@ -25,6 +25,7 @@ from ... import op as _op
 from ...block_builder import BlockBuilder
 from ...struct_info import TensorStructInfo, TupleStructInfo
 from .core import Tensor
+from .spec import SpecBuilder
 
 IntExpr = Union[int, _tir.PrimExpr]
 
@@ -938,3 +939,7 @@ def tensor_expr_op(
         ),
         name=name_hint,
     )
+
+
+def print_(array: Tensor):
+    SpecBuilder.current().io_effect.print_(array)
