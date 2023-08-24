@@ -282,6 +282,22 @@ class VirtualMachineImpl : public VirtualMachine {
    * \brief Initialize function pool.
    */
   void InitFuncPool();
+
+  /*!
+   * \brief A RAII wrapper that pushes and pops VM frames.
+   */
+  class FrameGuard {
+   public:
+    VirtualMachineImpl* vm;
+    explicit FrameGuard(VirtualMachineImpl* vm, std::unique_ptr<VMFrame> frame) : vm(vm) {
+      vm->frames_.emplace_back(std::move(frame));
+    }
+    ~FrameGuard() {
+      ICHECK_GT(vm->frames_.size(), 0);
+      vm->pc_ = vm->frames_.back()->return_pc;
+      vm->frames_.pop_back();
+    }
+  };
   //-------------------------------------------------
   // Instruction interpretations.
   //-------------------------------------------------
@@ -289,17 +305,10 @@ class VirtualMachineImpl : public VirtualMachine {
    * \brief Push a call frame onto the call stack.
    * \param ret_pc The program counter to return to.
    * \param vm_func The function to be pushed to the call stack.
+   * \return A RAII wrapper that pops the frame when going out of scope.
    */
-  void PushFrame(Index ret_pc, const VMFuncInfo& vm_func) {
-    frames_.emplace_back(std::make_unique<VMFrame>(ret_pc, vm_func.register_file_size));
-  }
-  /*!
-   * \brief Pop a frame off the call stack.
-   */
-  void PopFrame() {
-    ICHECK_GT(frames_.size(), 0);
-    pc_ = frames_.back()->return_pc;
-    frames_.pop_back();
+  FrameGuard PushFrame(Index ret_pc, const VMFuncInfo& vm_func) {
+    return FrameGuard(this, std::make_unique<VMFrame>(ret_pc, vm_func.register_file_size));
   }
   /*!
    * \brief Write to a VM register.
@@ -733,7 +742,7 @@ RegType VirtualMachineImpl::InvokeBytecode(Index gf_idx, const std::vector<RegTy
 
   // Get the curr instr which might be a potential caller.
   Instruction curr_instr = exec_->GetInstruction(pc_);
-  PushFrame(this->pc_, gfunc);
+  auto guard = PushFrame(this->pc_, gfunc);
   // Get new frame and set the caller info.
   VMFrame* curr_frame = frames_.back().get();
   if (curr_instr.op == Opcode::Call) {
@@ -883,14 +892,13 @@ void VirtualMachineImpl::RunLoop() {
         // the dispatch loop.
         return_value_ = ReadRegister(curr_frame, instr.result);
         RegName caller_return_register = curr_frame->caller_return_register;
-        PopFrame();
-        if (frames_.size() == 0) {
-          // directly return if no frame in the call stack.
+        if (frames_.size() <= 1) {
+          // directly return if no other frame in the call stack.
         } else {
           // return from a local call.
           // Update the current frame to be the parent frame.
-          curr_frame = frames_.back().get();
-          WriteRegister(curr_frame, caller_return_register, return_value_);
+          VMFrame* parent_frame = frames_.end()[-2].get();
+          WriteRegister(parent_frame, caller_return_register, return_value_);
         }
         return;
       }

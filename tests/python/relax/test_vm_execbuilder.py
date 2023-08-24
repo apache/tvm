@@ -15,11 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 """Lowest level testing VM. Test execbuilder and execution."""
-import tvm
-import pytest
 import numpy as np
-from tvm import relax, TVMError
+import pytest
+
+import tvm
+from tvm import TVMError, relax
 from tvm.relax.testing.vm import check_saved_func
+from tvm.script import relax as R
 
 
 def test_vm_execute():
@@ -262,6 +264,33 @@ def test_vm_invoke_closure():
     tvm.testing.assert_allclose(
         res.numpy(), w_inp.numpy() + x_inp.numpy() + y_inp.numpy() + z_inp.numpy()
     )
+
+
+def test_vm_stack_restore_after_failure():
+    @tvm.script.ir_module
+    class Module:
+        @R.function
+        def main(inp: R.Tensor((10, 10), dtype="float32")) -> R.Tensor((10, 10), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((10, 10), dtype="float32") = R.multiply(inp, R.const(2, "float32"))
+                gv: R.Tensor((10, 10), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    mod = relax.transform.LegalizeOps()(Module)
+    ex = relax.build(mod, "llvm")
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+
+    correct_input = tvm.nd.array(np.random.normal(size=(10, 10)).astype("float32"))
+    incorrect_input = tvm.nd.array(np.random.normal(size=(12, 10)).astype("float32"))
+
+    try:
+        vm["main"](incorrect_input)
+    except RuntimeError:
+        pass
+
+    # VM should executes correctly after encountered incorrect shape in previous invocation
+    vm["main"](correct_input)
 
 
 if __name__ == "__main__":
