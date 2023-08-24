@@ -22,6 +22,7 @@
  * \brief The dataflow pattern matcher for Relax.
  */
 
+#include <tvm/arith/analyzer.h>
 #include <tvm/node/structural_equal.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/dataflow_matcher.h>
@@ -443,6 +444,92 @@ bool DFPatternMatcher::VisitDFPattern_(const ShapePatternNode* op, const Expr& e
   return false;
 }
 
+Optional<Bool> SameShapeConstraintNode::IsConstraintSatisfied(
+    std::function<Optional<Var>(const DFPatternNode*)> match_state,
+    arith::Analyzer* analyzer) const {
+  Optional<Array<PrimExpr>> expected_shape;
+  bool all_shapes_defined = true;
+
+  // The expression that must be true in order
+  PrimExpr all_dimensions_equal = Bool(true);
+
+  for (const auto& arg : args) {
+    if (auto opt_var = match_state(arg.get())) {
+      auto var = opt_var.value();
+      auto opt_var_shape = [&]() -> Optional<Array<PrimExpr>> {
+        auto sinfo = GetStructInfo(var);
+        if (auto tensor = sinfo.as<TensorStructInfoNode>()) {
+          return tensor->GetShape();
+        } else if (auto shape_expr = sinfo.as<ShapeStructInfoNode>()) {
+          return shape_expr->values;
+        } else {
+          return NullOpt;
+        }
+      }();
+
+      if (!opt_var_shape.defined()) {
+        // The pattern has matched to something without a shape.
+        // Therefore, it cannot have the same shape as something else.
+        return Bool(false);
+      }
+      auto var_shape = opt_var_shape.value();
+
+      if (expected_shape.defined()) {
+        auto prev_shape = expected_shape.value();
+        if (prev_shape.size() == var_shape.size()) {
+          // The dimensionalities match, so build up the expression
+          // that must be true for the shapes to be equivalent.
+          for (size_t i = 0; i < prev_shape.size(); i++) {
+            all_dimensions_equal = all_dimensions_equal && (var_shape[i] == prev_shape[i]);
+          }
+
+        } else {
+          // The shapes have different dimensionality.  No need to
+          // perform potentially-expensive simplifications, because
+          // the dimensions do not match.
+          return Bool(false);
+        }
+
+      } else {
+        // This is the first pattern with a known match.  Store the
+        // shape so it can be compared against later shapes.
+        expected_shape = var_shape;
+      }
+
+    } else {
+      // Missing an argument, so the constraint will either return
+      // NullOpt or false at this point.  However, delay the return of
+      // NullOpt until the end of the function, because we'd rather
+      // return "false" if it possible to do so.
+      all_shapes_defined = false;
+    }
+  }
+
+  // We check for a false result first, because that can be applied
+  // even if some shapes are still unknown
+  // (e.g. SameShapeConstraint(A,B,C) can return false if A and B have
+  // different shapes, even if C is unknown).  The passing constraint
+  // is only valid if all of the shapes are known.
+  if (all_shapes_defined) {
+    // If all shapes are known and have the same dimentionality, then
+    // we just need to prove that the sizes of each dimension match.
+    // If we cannot prove it at this point, we won't get more
+    // information later.
+    return Bool(analyzer->CanProve(all_dimensions_equal));
+  } else if (analyzer->CanProve(!all_dimensions_equal)) {
+    // Even if we don't have all the shapes, we may have some shape
+    // conflicts.  If we can prove that the shapes seen so far are
+    // incompatible with each other, then the pattern matcher can
+    // start backtracking earlier.
+    return Bool(false);
+  } else {
+    // Even if the shapes so far are all consistent, the remaining
+    // unknown shapes may be inconsistent, so we return an ambiguous
+    // result.
+    return NullOpt;
+  }
+}
+
 bool DFPatternMatcher::VisitDFPattern_(const PrimArrPatternNode* op, const Expr& expr0) {
   auto expr = TryGetValOfVar(expr0, var2val_);
   if (const ShapeExprNode* shape_expr = expr.as<ShapeExprNode>())
@@ -579,9 +666,12 @@ struct MatchState {
     match_r_p[r] = p;
   }
 
+  void add(const DFConstraintNode* constraint) { validated_constraints_.insert(constraint); }
+
   void add(MatchState&& other) {
     match_p_r.merge(std::move(other.match_p_r));
     match_r_p.merge(std::move(other.match_r_p));
+    validated_constraints_.merge(other.validated_constraints_);
   }
 
   const VarNode* matched(const PNode* p) const {
@@ -601,9 +691,14 @@ struct MatchState {
   const VarNode* matched(const PNode& p) const { return matched(&p); }
   const DFPatternNode* matched(const RNode& r) const { return matched(&r); }
 
+  bool is_validated(const DFConstraintNode* constraint) const {
+    return validated_constraints_.count(constraint);
+  }
+
  private:
   std::unordered_map<const PNode*, const RNode*> match_p_r;
   std::unordered_map<const RNode*, const PNode*> match_r_p;
+  std::unordered_set<const DFConstraintNode*> validated_constraints_;
 };
 
 /**
@@ -663,11 +758,51 @@ static std::optional<MatchState> TryMatch(const PNode& p, const RNode& r,
   return new_match;
 }
 
+static std::optional<MatchState> TryValidate(
+    const MatchState& current_match,
+    const std::unordered_map<const DFPatternNode*, PNode>& pattern2node,
+    const std::vector<DFConstraint>& validation_constraints,
+
+    arith::Analyzer* analyzer) {
+  MatchState new_match;
+
+  std::function<Optional<Var>(const DFPatternNode*)> query_match_state =
+      [&pattern2node, &current_match](const DFPatternNode* pattern) -> Optional<Var> {
+    auto it = pattern2node.find(pattern);
+    ICHECK(it != pattern2node.end())
+        << "DFConstraint attempted to access DFPattern " << GetRef<DFPattern>(pattern)
+        << ", which does not appear in the PatternContext";
+    const auto& p_node = it->second;
+    if (auto ptr = current_match.matched(p_node)) {
+      return GetRef<Var>(ptr);
+    } else {
+      return NullOpt;
+    }
+  };
+
+  for (const auto& constraint : validation_constraints) {
+    if (!current_match.is_validated(constraint.get())) {
+      auto opt_result = constraint->IsConstraintSatisfied(query_match_state, analyzer);
+      if (opt_result.defined()) {
+        bool result = opt_result.value()->value;
+        if (result) {
+          new_match.add(constraint.get());
+        } else {
+          return std::nullopt;
+        }
+      }
+    }
+  }
+
+  return new_match;
+}
+
 static std::optional<MatchState> MatchTree(
     const MatchState& current_match, size_t current_root_idx,
     const std::unordered_map<const DFPatternNode*, PNode>& pattern2node,
     const std::unordered_map<const VarNode*, RNode>& var2node, DFPatternMatcher* matcher,
-    const std::vector<DFPattern>& roots, const MatcherUseDefAnalysis& ud_analysis) {
+    const std::vector<DFPattern>& roots, const std::vector<DFConstraint>& validation_constraints,
+    const MatcherUseDefAnalysis& ud_analysis, arith::Analyzer* analyzer) {
   auto get_next_root = [&](size_t root_idx) -> const PNode* {
     // Look for the next unmatched root node.
     for (; root_idx < roots.size(); ++root_idx) {
@@ -692,12 +827,17 @@ static std::optional<MatchState> MatchTree(
     const RNode& r_node = var2node.at(var);
     if (new_match.matched(r_node)) continue;
     if (auto match = TryMatch(*root, r_node, new_match, matcher, ud_analysis)) {
-      // Recursivly try to match the next subtree.
+      // Recursively try to match the next subtree.
       new_match.add(std::move(*match));
-      if (auto match_rec = MatchTree(new_match, current_root_idx + 1, pattern2node, var2node,
-                                     matcher, roots, ud_analysis)) {
-        new_match.add(std::move(*match_rec));
-        return new_match;
+      if (auto validation =
+              TryValidate(new_match, pattern2node, validation_constraints, analyzer)) {
+        new_match.add(std::move(*validation));
+        if (auto match_rec =
+                MatchTree(new_match, current_root_idx + 1, pattern2node, var2node, matcher, roots,
+                          validation_constraints, ud_analysis, analyzer)) {
+          new_match.add(std::move(*match_rec));
+          return new_match;
+        }
       }
       // Recursive matching has failed, backtrack.
       new_match = current_match;
@@ -734,11 +874,11 @@ Optional<Map<DFPattern, Var>> MatchGraph(const PatternContext& ctx, const Datafl
   }
 
   std::unordered_map<const DFPatternNode*, PNode> pattern2node;
-  pattern2node.reserve(ctx->constraints.size());
+  pattern2node.reserve(ctx->edge_constraints.size());
 
   for (const auto& def_pattern : ctx->src_ordered) {
     PNode& def_node = pattern2node[def_pattern.get()];
-    const auto& uses = ctx->constraints.at(def_pattern);
+    const auto& uses = ctx->edge_constraints.at(def_pattern);
     def_node.ptr = def_pattern.get();
     def_node.children.reserve(uses.size());
     for (const auto& [use_pattern, cons] : uses) {
@@ -760,16 +900,19 @@ Optional<Map<DFPattern, Var>> MatchGraph(const PatternContext& ctx, const Datafl
     return NullOpt;
   }
 
-  if (auto match = MatchTree({}, 0, pattern2node, var2node, &matcher, roots, ud_analysis)) {
-    Map<DFPattern, Var> ret;
-    for (const auto& [pat, p_node] : pattern2node) {
-      ICHECK(match->matched(p_node));
-      ret.Set(GetRef<DFPattern>(pat), GetRef<Var>(match->matched(p_node)));
-    }
-    return ret;
+  arith::Analyzer analyzer;
+  auto match = MatchTree({}, 0, pattern2node, var2node, &matcher, roots,
+                         ctx->validation_constraints, ud_analysis, &analyzer);
+  if (!match) {
+    return NullOpt;
   }
 
-  return NullOpt;
+  Map<DFPattern, Var> ret;
+  for (const auto& [pat, p_node] : pattern2node) {
+    ICHECK(match->matched(p_node));
+    ret.Set(GetRef<DFPattern>(pat), GetRef<Var>(match->matched(p_node)));
+  }
+  return ret;
 }
 
 Optional<Map<DFPattern, Var>> MatchGraph(const PatternContext& ctx, const DataflowBlock& dfb) {

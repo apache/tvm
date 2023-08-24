@@ -289,6 +289,26 @@ class DFPattern(Node):
         for v in args:
             self ^ v
 
+    def same_shape_as(self, *args: List["DFPattern"]) -> "SameShapeConstraint":
+        """
+        The current pattern with the same shape as another pattern (sequence)
+
+        Parameters
+        ----------
+        other : List[DFPattern]
+            The other pattern (sequence)
+
+        Returns
+        -------
+        result: PatternSeq
+            A chained pattern sequence
+        """
+        return SameShapeConstraint(self, *args)
+
+
+class DFConstraint(Node):
+    """Base class of all constraints."""
+
 
 @register_df_node
 class ExprPattern(DFPattern):
@@ -604,6 +624,20 @@ class ShapePattern(DFPattern):
 
     def __init__(self, pattern: "DFPattern", shape: List[tvm.ir.PrimExpr]):
         self.__init_handle_by_constructor__(ffi.ShapePattern, pattern, shape)  # type: ignore
+
+
+@register_df_node
+class SameShapeConstraint(DFConstraint):
+    """A pattern that requires a set of patterns to have the same shape
+
+    Parameters
+    ----------
+    args: List[DFPattern]
+        A set of patterns which must all provide the same shape.
+    """
+
+    def __init__(self, *args: List[DFPattern]):
+        self.__init_handle_by_constructor__(ffi.SameShapeConstraint, args)  # type: ignore
 
 
 @register_df_node

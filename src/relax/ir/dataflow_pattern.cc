@@ -276,6 +276,30 @@ RELAX_PATTERN_PRINTER_DEF(ShapePatternNode, [](auto p, auto node) {
   p->stream << "ShapePattern(" << node->pattern << " has shape " << node->shape << ")";
 });
 
+TVM_REGISTER_NODE_TYPE(SameShapeConstraintNode);
+SameShapeConstraint::SameShapeConstraint(Array<DFPattern> args) {
+  ObjectPtr<SameShapeConstraintNode> n = make_object<SameShapeConstraintNode>();
+  n->args = std::move(args);
+  data_ = std::move(n);
+
+  if (auto ctx = PatternContext::Current()) {
+    ctx.value().add_constraint(*this);
+  }
+}
+TVM_REGISTER_GLOBAL("relax.dpl.SameShapeConstraint").set_body_typed([](Array<DFPattern> args) {
+  return SameShapeConstraint(args);
+});
+RELAX_PATTERN_PRINTER_DEF(SameShapeConstraintNode, [](auto p, auto node) {
+  p->stream << "SameShapeConstraint(";
+  for (size_t i = 0; i < node->args.size(); i++) {
+    if (i) {
+      p->stream << ", ";
+    }
+    p->stream << node->args;
+  }
+  p->stream << ")";
+});
+
 TVM_REGISTER_NODE_TYPE(DataTypePatternNode);
 DataTypePattern::DataTypePattern(DFPattern pattern, DataType dtype) {
   ObjectPtr<DataTypePatternNode> n = make_object<DataTypePatternNode>();
@@ -405,7 +429,7 @@ PatternContext::PatternContext(bool incremental) {
     ICHECK(!pattern_ctx_stack().empty())
         << "Incremental context needs to be built inside a existing context.";
     n->allow_extern_use = pattern_ctx_stack().top()->allow_extern_use;
-    n->constraints = pattern_ctx_stack().top()->constraints;
+    n->edge_constraints = pattern_ctx_stack().top()->edge_constraints;
     n->src_ordered = pattern_ctx_stack().top()->src_ordered;
   }
 
