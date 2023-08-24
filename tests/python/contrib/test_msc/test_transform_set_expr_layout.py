@@ -15,11 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import tvm.testing
-from tvm.relay import testing
-from tvm.relay.expr_functor import ExprVisitor
-from tvm.relay.build_module import bind_params_by_name
+""" Test SetExprLayout Pass. """
 
+import tvm.testing
 from tvm.relax.frontend.torch import from_fx
 from tvm.relax import PyExprVisitor
 
@@ -52,11 +50,14 @@ class RelaxChecker(PyExprVisitor):
 
 
 def test_relax():
+    """Test SetExprLayout for relax"""
+
+    # pylint: disable=import-outside-toplevel
     try:
         import torch
         import torchvision
         from torch import fx
-    except:
+    except:  # pylint: disable=bare-except
         print("please install pytorch python package")
         return
 

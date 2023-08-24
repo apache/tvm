@@ -14,6 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
+""" Test graph builder && graph. """
+
 import torch
 from torch import fx
 from torch.nn import Module
@@ -36,13 +39,15 @@ def verify_model(torch_model, input_info, expected):
 
 
 def test_conv1d():
+    """test graph builder for conv1d"""
+
     class Conv1D1(Module):
         def __init__(self):
             super().__init__()
             self.conv = torch.nn.Conv1d(3, 6, 7, bias=True)
 
-        def forward(self, input):
-            return self.conv(input)
+        def forward(self, data):
+            return self.conv(data)
 
     expected1 = {
         "inputs": [{"name": "inp_0", "shape": [1, 3, 10], "dtype": "float32", "layout": "NCW"}],
@@ -57,8 +62,8 @@ def test_conv1d():
             super().__init__()
             self.conv = torch.nn.Conv1d(3, 6, 7, bias=False)
 
-        def forward(self, input):
-            return self.conv(input)
+        def forward(self, data):
+            return self.conv(data)
 
     expected2 = {
         "inputs": [{"name": "inp_0", "shape": [1, 3, 10], "dtype": "float32", "layout": "NCW"}],
@@ -72,13 +77,15 @@ def test_conv1d():
 
 
 def test_conv2d():
+    """test graph builder for conv2d"""
+
     class Conv2D1(Module):
         def __init__(self):
             super().__init__()
             self.conv = torch.nn.Conv2d(3, 6, 7, bias=True)
 
-        def forward(self, input):
-            return self.conv(input)
+        def forward(self, data):
+            return self.conv(data)
 
     expected1 = {
         "inputs": [
@@ -100,8 +107,8 @@ def test_conv2d():
             super().__init__()
             self.conv = torch.nn.Conv2d(3, 6, 7, bias=False)
 
-        def forward(self, input):
-            return self.conv(input)
+        def forward(self, data):
+            return self.conv(data)
 
     expected2 = {
         "inputs": [
@@ -118,13 +125,15 @@ def test_conv2d():
 
 
 def test_linear():
+    """test graph builder for linear"""
+
     class Dense1(Module):
         def __init__(self):
             super().__init__()
             self.linear = torch.nn.Linear(10, 7, bias=True)
 
-        def forward(self, input):
-            return self.linear(input)
+        def forward(self, data):
+            return self.linear(data)
 
     expected1 = {
         "inputs": [
@@ -146,8 +155,8 @@ def test_linear():
             super().__init__()
             self.linear = torch.nn.Linear(10, 7, bias=False)
 
-        def forward(self, input):
-            return self.linear(input)
+        def forward(self, data):
+            return self.linear(data)
 
     expected2 = {
         "inputs": [
@@ -182,6 +191,8 @@ def test_linear():
 
 
 def test_bmm():
+    """test graph builder for bmm"""
+
     class BMM(Module):
         def __init__(self):
             super().__init__()
@@ -205,6 +216,8 @@ def test_bmm():
 
 
 def test_baddbmm():
+    """test graph builder for baddbmm"""
+
     class BAddBMM1(Module):
         def __init__(self):
             super().__init__()
@@ -251,17 +264,19 @@ def test_baddbmm():
 
 
 def test_relu():
+    """test graph builder for relu"""
+
     class ReLU(Module):
         def __init__(self):
             super().__init__()
             self.relu = torch.nn.ReLU()
 
-        def forward(self, input):
-            return self.relu(input)
+        def forward(self, data):
+            return self.relu(data)
 
     class ReLU1(Module):
-        def forward(self, input):
-            return torch.nn.functional.relu(input)
+        def forward(self, data):
+            return torch.nn.functional.relu(data)
 
     expected = {
         "inputs": [{"name": "inp_0", "shape": [10, 10], "dtype": "float32", "layout": "AB"}],
@@ -275,13 +290,15 @@ def test_relu():
 
 
 def test_relu6():
+    """test graph builder for relu6"""
+
     class ReLU6(Module):
         def __init__(self):
             super().__init__()
             self.relu6 = torch.nn.ReLU6()
 
-        def forward(self, input):
-            return self.relu6(input)
+        def forward(self, data):
+            return self.relu6(data)
 
     expected = {
         "inputs": [{"name": "inp_0", "shape": [10, 10], "dtype": "float32", "layout": ""}],
@@ -293,13 +310,15 @@ def test_relu6():
 
 
 def test_maxpool2d():
+    """test graph builder for maxpool2d"""
+
     class MaxPool2d(Module):
         def __init__(self):
             super().__init__()
             self.pool = torch.nn.MaxPool2d(kernel_size=[1, 1])
 
-        def forward(self, input):
-            return self.pool(input)
+        def forward(self, data):
+            return self.pool(data)
 
     expected1 = {
         "inputs": [
@@ -316,8 +335,8 @@ def test_maxpool2d():
             super().__init__()
             self.pool = torch.nn.MaxPool2d(kernel_size=[2, 2], dilation=[2, 3])
 
-        def forward(self, input):
-            return self.pool(input)
+        def forward(self, data):
+            return self.pool(data)
 
     expected2 = {
         "inputs": [
@@ -334,8 +353,8 @@ def test_maxpool2d():
             super().__init__()
             self.pool = torch.nn.MaxPool2d(kernel_size=[4, 4], padding=2, stride=2)
 
-        def forward(self, input):
-            return self.pool(input)
+        def forward(self, data):
+            return self.pool(data)
 
     expected3 = {
         "inputs": [
@@ -354,13 +373,15 @@ def test_maxpool2d():
 
 
 def test_avgpool2d():
+    """test graph builder for avgpool2d"""
+
     class AvgPool2d(Module):
         def __init__(self):
             super().__init__()
             self.pool = torch.nn.AvgPool2d(kernel_size=[1, 1])
 
-        def forward(self, input):
-            return self.pool(input)
+        def forward(self, data):
+            return self.pool(data)
 
     expected1 = {
         "inputs": [
@@ -377,8 +398,8 @@ def test_avgpool2d():
             super().__init__()
             self.pool = torch.nn.AvgPool2d(kernel_size=[4, 4], stride=2, padding=2, ceil_mode=True)
 
-        def forward(self, input):
-            return self.pool(input)
+        def forward(self, data):
+            return self.pool(data)
 
     expected2 = {
         "inputs": [
@@ -396,13 +417,15 @@ def test_avgpool2d():
 
 
 def test_adaptive_avgpool2d():
+    """test graph builder for adaptive_avgpool2d"""
+
     class AdaptiveAvgPool2d0(Module):
         def __init__(self):
             super().__init__()
             self.pool = torch.nn.AdaptiveAvgPool2d([10, 10])
 
-        def forward(self, input):
-            return self.pool(input)
+        def forward(self, data):
+            return self.pool(data)
 
     expected = {
         "inputs": [
@@ -424,13 +447,15 @@ def test_adaptive_avgpool2d():
 
 
 def test_flatten():
+    """test graph builder for flatten"""
+
     class Flatten(Module):
         def __init__(self):
             super().__init__()
             self.f = torch.nn.Flatten(2, -1)
 
-        def forward(self, input):
-            return self.f(input)
+        def forward(self, data):
+            return self.f(data)
 
     expected = {
         "inputs": [{"name": "inp_0", "shape": [1, 3, 10, 10], "dtype": "float32", "layout": ""}],
@@ -444,13 +469,15 @@ def test_flatten():
 
 
 def test_batchnorm2d():
+    """test graph builder for batchnorm2d"""
+
     class BatchNorm2d(Module):
         def __init__(self):
             super().__init__()
-            self.bn = torch.nn.BatchNorm2d(3)
+            self.batchnorm = torch.nn.BatchNorm2d(3)
 
-        def forward(self, input):
-            return self.bn(input)
+        def forward(self, data):
+            return self.batchnorm(data)
 
     expected = {
         "inputs": [
@@ -472,13 +499,15 @@ def test_batchnorm2d():
 
 
 def test_embedding():
+    """test graph builder for embedding"""
+
     class Embedding(Module):
         def __init__(self):
             super().__init__()
             self.embedding = torch.nn.Embedding(10, 3)
 
-        def forward(self, input):
-            return self.embedding(input)
+        def forward(self, data):
+            return self.embedding(data)
 
     expected1 = {
         "inputs": [{"name": "inp_0", "shape": [4], "dtype": "int64", "layout": "A"}],
@@ -499,17 +528,19 @@ def test_embedding():
 
 
 def test_dropout():
+    """test graph builder for dropout"""
+
     class Dropout1(Module):
         def __init__(self):
             super().__init__()
             self.dropout = torch.nn.Dropout(0.5)
 
-        def forward(self, input):
-            return self.dropout(input)
+        def forward(self, data):
+            return self.dropout(data)
 
     class Dropout2(Module):
-        def forward(self, input):
-            return torch.dropout(input, 0.5, train=True)
+        def forward(self, data):
+            return torch.dropout(data, 0.5, train=True)
 
     expected = {
         "inputs": [{"name": "inp_0", "shape": [1, 3, 10, 10], "dtype": "float32", "layout": ""}],
@@ -523,13 +554,15 @@ def test_dropout():
 
 
 def test_layernorm():
+    """test graph builder for layernorm"""
+
     class LayerNorm(Module):
         def __init__(self):
             super().__init__()
-            self.ln = torch.nn.LayerNorm((10, 10))
+            self.layernorm = torch.nn.LayerNorm((10, 10))
 
-        def forward(self, input):
-            return self.ln(input)
+        def forward(self, data):
+            return self.layernorm(data)
 
     expected = {
         "inputs": [
@@ -546,15 +579,17 @@ def test_layernorm():
 
 
 def test_functional_layernorm():
+    """test graph builder for functional_layernorm"""
+
     class LayerNorm(Module):
         def __init__(self, shape):
             super().__init__()
             self.weight = torch.nn.Parameter(torch.ones(shape))
             self.bias = torch.nn.Parameter(torch.zeros(shape))
 
-        def forward(self, input):
+        def forward(self, data):
             return torch.nn.functional.layer_norm(
-                input, self.weight.shape, self.weight, self.bias, 1e-5
+                data, self.weight.shape, self.weight, self.bias, 1e-5
             )
 
     expected = {
@@ -572,6 +607,8 @@ def test_functional_layernorm():
 
 
 def test_cross_entropy():
+    """test graph builder for cross_entropy"""
+
     class CrossEntropy1(Module):
         def __init__(self):
             super().__init__()
@@ -631,6 +668,8 @@ def test_cross_entropy():
 
 
 def test_functional_cross_entropy():
+    """test graph builder for functional_cross_entropy"""
+
     class CrossEntropy(Module):
         def forward(self, logits, targets):
             return torch.nn.functional.cross_entropy(logits, targets)
@@ -649,17 +688,19 @@ def test_functional_cross_entropy():
 
 
 def test_silu():
+    """test graph builder for silu"""
+
     class SiLU(Module):
         def __init__(self):
             super().__init__()
             self.silu = torch.nn.SiLU()
 
-        def forward(self, input):
-            return self.silu(input)
+        def forward(self, data):
+            return self.silu(data)
 
     class SiLU2(Module):
-        def forward(self, input):
-            return torch.nn.functional.silu(input)
+        def forward(self, data):
+            return torch.nn.functional.silu(data)
 
     expected = {
         "inputs": [
@@ -677,13 +718,15 @@ def test_silu():
 
 
 def test_groupnorm():
+    """test graph builder for groupnorm"""
+
     class GroupNorm(Module):
         def __init__(self):
             super().__init__()
-            self.gn = torch.nn.GroupNorm(3, 3)
+            self.groupnorm = torch.nn.GroupNorm(3, 3)
 
-        def forward(self, input):
-            return self.gn(input)
+        def forward(self, data):
+            return self.groupnorm(data)
 
     expected = {
         "inputs": [
@@ -700,13 +743,15 @@ def test_groupnorm():
 
 
 def test_softmax():
+    """test graph builder for softmax"""
+
     class Softmax(Module):
         def __init__(self):
             super().__init__()
-            self.sm = torch.nn.Softmax(dim=1)
+            self.softmax = torch.nn.Softmax(dim=1)
 
-        def forward(self, input):
-            return self.sm(input)
+        def forward(self, data):
+            return self.softmax(data)
 
     expected = {
         "inputs": [
@@ -723,6 +768,8 @@ def test_softmax():
 
 
 def test_binary():
+    """test graph builder for binary"""
+
     input_info1 = [([1, 3, 10, 10], "float32"), ([1, 3, 10, 10], "float32")]
     input_info2 = [([1, 3, 10, 10], "float32")]
 
@@ -961,9 +1008,11 @@ def test_binary():
 
 
 def test_size():
+    """test graph builder for size"""
+
     class Size(Module):
-        def forward(self, input):
-            return input.size()
+        def forward(self, data):
+            return data.size()
 
     expected = {
         "inputs": [{"name": "inp_0", "shape": [1, 3, 10, 10], "dtype": "float32", "layout": ""}],
@@ -976,9 +1025,11 @@ def test_size():
 
 
 def test_squeeze():
+    """test graph builder for squeeze"""
+
     class Squeeze1(Module):
-        def forward(self, input):
-            return input.squeeze(1)
+        def forward(self, data):
+            return data.squeeze(1)
 
     expected1 = {
         "inputs": [{"name": "inp_0", "shape": [3, 1, 4, 1], "dtype": "float32", "layout": "ANBC"}],
@@ -987,8 +1038,8 @@ def test_squeeze():
     }
 
     class Squeeze2(Module):
-        def forward(self, input):
-            return input.squeeze()
+        def forward(self, data):
+            return data.squeeze()
 
     expected2 = {
         "inputs": [{"name": "inp_0", "shape": [3, 1, 4, 1], "dtype": "float32", "layout": "ANBC"}],
@@ -1002,9 +1053,11 @@ def test_squeeze():
 
 
 def test_unsqueeze():
+    """test graph builder for unsqueeze"""
+
     class Unsqueeze1(Module):
-        def forward(self, input):
-            return input.unsqueeze(1)
+        def forward(self, data):
+            return data.unsqueeze(1)
 
     expected1 = {
         "inputs": [
@@ -1022,8 +1075,8 @@ def test_unsqueeze():
     }
 
     class Unsqueeze2(Module):
-        def forward(self, input):
-            return input.unsqueeze(-1)
+        def forward(self, data):
+            return data.unsqueeze(-1)
 
     expected2 = {
         "inputs": [
@@ -1046,9 +1099,11 @@ def test_unsqueeze():
 
 
 def test_getattr():
+    """test graph builder for getattr"""
+
     class GetAttr1(Module):
-        def forward(self, input):
-            return input.shape
+        def forward(self, data):
+            return data.shape
 
     expected = {
         "inputs": [{"name": "inp_0", "shape": [1, 3, 10, 10], "dtype": "float32", "layout": ""}],
@@ -1061,6 +1116,8 @@ def test_getattr():
 
 
 def test_getitem():
+    """test graph builder for getitem"""
+
     class Slice1(Module):
         def forward(self, x):
             return x[0, 1::2, :, :3]
@@ -1092,12 +1149,14 @@ def test_getitem():
 
 
 def test_unary():
+    """test graph builder for unary"""
+
     input_info = [([1, 3, 10, 10], "float32")]
 
     # sin
     class Sin(Module):
-        def forward(self, input):
-            return torch.sin(input)
+        def forward(self, data):
+            return torch.sin(data)
 
     expected_sin = {
         "inputs": [
@@ -1111,8 +1170,8 @@ def test_unary():
 
     # cos
     class Cos(Module):
-        def forward(self, input):
-            return torch.cos(input)
+        def forward(self, data):
+            return torch.cos(data)
 
     expected_cos = {
         "inputs": [
@@ -1126,8 +1185,8 @@ def test_unary():
 
     # exp
     class Exp(Module):
-        def forward(self, input):
-            return torch.exp(input)
+        def forward(self, data):
+            return torch.exp(data)
 
     expected_exp = {
         "inputs": [
@@ -1141,8 +1200,8 @@ def test_unary():
 
     # sqrt
     class Sqrt(Module):
-        def forward(self, input):
-            return torch.sqrt(input)
+        def forward(self, data):
+            return torch.sqrt(data)
 
     expected_sqrt = {
         "inputs": [
@@ -1158,8 +1217,8 @@ def test_unary():
 
     # sigmoid
     class Sigmoid(Module):
-        def forward(self, input):
-            return torch.sigmoid(input)
+        def forward(self, data):
+            return torch.sigmoid(data)
 
     expected_sigmoid = {
         "inputs": [
@@ -1175,8 +1234,8 @@ def test_unary():
 
     # round
     class Round(Module):
-        def forward(self, input):
-            return torch.round(input)
+        def forward(self, data):
+            return torch.round(data)
 
     expected_round = {
         "inputs": [
@@ -1192,9 +1251,11 @@ def test_unary():
 
 
 def test_gelu():
+    """test graph builder for gelu"""
+
     class Gelu(Module):
-        def forward(self, input):
-            return torch.nn.functional.gelu(input)
+        def forward(self, data):
+            return torch.nn.functional.gelu(data)
 
     expected = {
         "inputs": [
@@ -1211,9 +1272,11 @@ def test_gelu():
 
 
 def test_tanh():
+    """test graph builder for tanh"""
+
     class Tanh(Module):
-        def forward(self, input):
-            return torch.tanh(input)
+        def forward(self, data):
+            return torch.tanh(data)
 
     expected = {
         "inputs": [
@@ -1230,9 +1293,11 @@ def test_tanh():
 
 
 def test_clamp():
+    """test graph builder for clamp"""
+
     class Clamp(Module):
-        def forward(self, input):
-            return torch.clamp(input, min=0.1, max=0.5)
+        def forward(self, data):
+            return torch.clamp(data, min=0.1, max=0.5)
 
     expected = {
         "inputs": [{"name": "inp_0", "shape": [1, 3, 10, 10], "dtype": "float32", "layout": ""}],
@@ -1245,9 +1310,11 @@ def test_clamp():
 
 
 def test_interpolate():
+    """test graph builder for interpolate"""
+
     class Interpolate(Module):
-        def forward(self, input):
-            return torch.nn.functional.interpolate(input, (5, 5))
+        def forward(self, data):
+            return torch.nn.functional.interpolate(data, (5, 5))
 
     expected = {
         "inputs": [
@@ -1264,9 +1331,11 @@ def test_interpolate():
 
 
 def test_addmm():
+    """test graph builder for addmm"""
+
     class Addmm(Module):
-        def forward(self, x1, x2, x3):
-            return torch.addmm(x1, x2, x3)
+        def forward(self, x_1, x_2, x_3):
+            return torch.addmm(x_1, x_2, x_3)
 
     expected = {
         "inputs": [
@@ -1287,9 +1356,11 @@ def test_addmm():
 
 
 def test_split():
+    """test graph builder for split"""
+
     class Split(Module):
-        def forward(self, input):
-            return torch.split(input, 1, dim=1)
+        def forward(self, data):
+            return torch.split(data, 1, dim=1)
 
     expected = {
         "inputs": [
@@ -1308,9 +1379,11 @@ def test_split():
 
 
 def test_cumsum():
+    """test graph builder for cumsum"""
+
     class Cumsum(Module):
-        def forward(self, input):
-            return torch.cumsum(input, dim=1, dtype=torch.int32)
+        def forward(self, data):
+            return torch.cumsum(data, dim=1, dtype=torch.int32)
 
     expected = {
         "inputs": [{"name": "inp_0", "shape": [1, 2, 3, 4], "dtype": "float32", "layout": ""}],
@@ -1323,9 +1396,11 @@ def test_cumsum():
 
 
 def test_chunk():
+    """test graph builder for chunk"""
+
     class Chunk(Module):
-        def forward(self, input):
-            return torch.chunk(input, 3, dim=1)
+        def forward(self, data):
+            return torch.chunk(data, 3, dim=1)
 
     expected = {
         "inputs": [
@@ -1344,10 +1419,12 @@ def test_chunk():
 
 
 def test_inplace_fill():
+    """test graph builder for inplace_fill"""
+
     class InplaceFill(Module):
-        def forward(self, input):
-            input.fill_(1.5)
-            return input
+        def forward(self, data):
+            data.fill_(1.5)
+            return data
 
     expected = {
         "inputs": [{"name": "inp_0", "shape": [10, 10], "dtype": "float32", "layout": ""}],
@@ -1359,8 +1436,10 @@ def test_inplace_fill():
 
 
 def test_arange():
+    """test graph builder for arange"""
+
     class Arange(Module):
-        def forward(self, input):
+        def forward(self):
             return torch.arange(0, 20, dtype=torch.int32)
 
     expected = {
@@ -1373,8 +1452,10 @@ def test_arange():
 
 
 def test_empty():
+    """test graph builder for empty"""
+
     class Empty(Module):
-        def forward(self, input):
+        def forward(self):
             return torch.empty((10, 10), dtype=torch.float32)
 
     expected = {
@@ -1387,8 +1468,10 @@ def test_empty():
 
 
 def test_tensor():
+    """test graph builder for tensor"""
+
     class Empty1(Module):
-        def forward(self, input):
+        def forward(self):
             return torch.tensor(3, dtype=torch.float32)
 
     expected1 = {
@@ -1398,7 +1481,7 @@ def test_tensor():
     }
 
     class Empty2(Module):
-        def forward(self, input):
+        def forward(self):
             return torch.tensor(3)
 
     expected2 = {
@@ -1412,14 +1495,16 @@ def test_tensor():
 
 
 def test_tril():
+    """test graph builder for tril"""
+
     class Tril(Module):
-        def forward(self, input):
-            return torch.tril(input, 1)
+        def forward(self, data):
+            return torch.tril(data, 1)
 
     class InplaceTril(Module):
-        def forward(self, input):
-            input.tril_(1)
-            return input
+        def forward(self, data):
+            data.tril_(1)
+            return data
 
     expected = {
         "inputs": [{"name": "inp_0", "shape": [10, 10], "dtype": "float32", "layout": ""}],
@@ -1433,14 +1518,16 @@ def test_tril():
 
 
 def test_triu():
+    """test graph builder for triu"""
+
     class Triu(Module):
-        def forward(self, input):
-            return torch.triu(input, 1)
+        def forward(self, data):
+            return torch.triu(data, 1)
 
     class InplaceTriu(Module):
-        def forward(self, input):
-            input.triu_(1)
-            return input
+        def forward(self, data):
+            data.triu_(1)
+            return data
 
     expected = {
         "inputs": [{"name": "inp_0", "shape": [10, 10], "dtype": "float32", "layout": ""}],
@@ -1454,6 +1541,8 @@ def test_triu():
 
 
 def test_new_ones():
+    """test graph builder for new_ones"""
+
     class NewOnes(Module):
         def forward(self, x):
             return x.new_ones(1, 2, 3)
@@ -1469,6 +1558,8 @@ def test_new_ones():
 
 
 def test_expand():
+    """test graph builder for expand"""
+
     class Expand(Module):
         def forward(self, x):
             return x.expand(4, 2, 3, 4)
@@ -1486,6 +1577,8 @@ def test_expand():
 
 
 def test_reduce():
+    """test graph builder for reduce"""
+
     # sum
     class Sum(Module):
         def forward(self, x):
@@ -1502,6 +1595,8 @@ def test_reduce():
 
 
 def test_datatype():
+    """test graph builder for datatype"""
+
     input_info = [([1, 2, 3, 4], "float32")]
 
     # float
@@ -1579,6 +1674,8 @@ def test_datatype():
 
 
 def test_permute():
+    """test graph builder for permute"""
+
     class Permute(Module):
         def forward(self, x):
             return x.permute(0, 3, 2, 1)
@@ -1596,6 +1693,8 @@ def test_permute():
 
 
 def test_reshape():
+    """test graph builder for reshape"""
+
     class Reshape(Module):
         def forward(self, x):
             return x.reshape(2, 12)
@@ -1611,6 +1710,8 @@ def test_reshape():
 
 
 def test_transpose():
+    """test graph builder for transpose"""
+
     class Transpose(Module):
         def forward(self, x):
             return x.transpose(1, 3)
@@ -1628,6 +1729,8 @@ def test_transpose():
 
 
 def test_view():
+    """test graph builder for view"""
+
     class View(Module):
         def forward(self, x):
             return x.view(2, 12)
@@ -1643,13 +1746,15 @@ def test_view():
 
 
 def test_keep_params():
+    """test graph builder for keep_params"""
+
     class Conv2D1(Module):
         def __init__(self):
             super().__init__()
             self.conv = torch.nn.Conv2d(3, 6, 7, bias=True)
 
-        def forward(self, input):
-            return self.conv(input)
+        def forward(self, data):
+            return self.conv(data)
 
     expected = {
         "inputs": [
@@ -1670,6 +1775,8 @@ def test_keep_params():
 
 
 def test_unwrap_unit_return_tuple():
+    """test graph builder for unwrap_unit_return_tuple"""
+
     class Identity(Module):
         def __init__(self):
             super().__init__()
@@ -1687,6 +1794,8 @@ def test_unwrap_unit_return_tuple():
 
 
 def test_no_bind_return_tuple():
+    """test graph builder for no_bind_return_tuple"""
+
     class Identity(Module):
         def __init__(self):
             super().__init__()
@@ -1711,12 +1820,14 @@ def test_no_bind_return_tuple():
 
 
 def test_argmax():
+    """test graph builder for argmax"""
+
     class Argmax1(Module):
         def __init__(self) -> None:
             super().__init__()
 
-        def forward(self, input):
-            return torch.argmax(input, dim=-1)
+        def forward(self, data):
+            return torch.argmax(data, dim=-1)
 
     expected1 = {
         "inputs": [{"name": "inp_0", "shape": [256, 256], "dtype": "float32", "layout": ""}],
@@ -1728,8 +1839,8 @@ def test_argmax():
         def __init__(self) -> None:
             super().__init__()
 
-        def forward(self, input):
-            return torch.argmax(input, dim=-1, keepdim=True)
+        def forward(self, data):
+            return torch.argmax(data, dim=-1, keepdim=True)
 
     expected2 = {
         "inputs": [{"name": "inp_0", "shape": [256, 256], "dtype": "float32", "layout": ""}],
@@ -1742,12 +1853,14 @@ def test_argmax():
 
 
 def test_argmin():
+    """test graph builder for argmin"""
+
     class Argmin1(Module):
         def __init__(self) -> None:
             super().__init__()
 
-        def forward(self, input):
-            return torch.argmin(input)
+        def forward(self, data):
+            return torch.argmin(data)
 
     expected1 = {
         "inputs": [{"name": "inp_0", "shape": [256, 256], "dtype": "float32", "layout": ""}],
@@ -1759,8 +1872,8 @@ def test_argmin():
         def __init__(self) -> None:
             super().__init__()
 
-        def forward(self, input):
-            return torch.argmin(input, keepdim=True)
+        def forward(self, data):
+            return torch.argmin(data, keepdim=True)
 
     expected2 = {
         "inputs": [{"name": "inp_0", "shape": [256, 256], "dtype": "float32", "layout": ""}],
@@ -1773,9 +1886,11 @@ def test_argmin():
 
 
 def test_to():
+    """test graph builder for to"""
+
     class To1(Module):
-        def forward(self, input):
-            return input.to(torch.float16)
+        def forward(self, data):
+            return data.to(torch.float16)
 
     expected1 = {
         "inputs": [{"name": "inp_0", "shape": [256, 256], "dtype": "float32", "layout": "AB"}],
@@ -1784,8 +1899,8 @@ def test_to():
     }
 
     class To2(Module):
-        def forward(self, input):
-            return input.to("cpu")
+        def forward(self, data):
+            return data.to("cpu")
 
     expected2 = {
         "inputs": [{"name": "inp_0", "shape": [256, 256], "dtype": "float32", "layout": ""}],
@@ -1798,9 +1913,11 @@ def test_to():
 
 
 def test_mean():
+    """test graph builder for mean"""
+
     class Mean(Module):
-        def forward(self, input):
-            return input.mean(-1)
+        def forward(self, data):
+            return data.mean(-1)
 
     expected1 = {
         "inputs": [{"name": "inp_0", "shape": [256, 256], "dtype": "float32", "layout": "AN"}],
@@ -1809,8 +1926,8 @@ def test_mean():
     }
 
     class MeanKeepDim(Module):
-        def forward(self, input):
-            return input.mean(-1, keepdim=True)
+        def forward(self, data):
+            return data.mean(-1, keepdim=True)
 
     expected2 = {
         "inputs": [{"name": "inp_0", "shape": [256, 256], "dtype": "float32", "layout": "AB"}],
@@ -1823,9 +1940,11 @@ def test_mean():
 
 
 def test_rsqrt():
+    """test graph builder for rsqrt"""
+
     class Rsqrt(Module):
-        def forward(self, input):
-            return torch.rsqrt(input)
+        def forward(self, data):
+            return torch.rsqrt(data)
 
     expected = {
         "inputs": [{"name": "inp_0", "shape": [256, 256], "dtype": "float32", "layout": "AB"}],
@@ -1837,9 +1956,11 @@ def test_rsqrt():
 
 
 def test_neg():
+    """test graph builder for neg"""
+
     class Neg(Module):
-        def forward(self, input):
-            return -input
+        def forward(self, data):
+            return -data
 
     expected = {
         "inputs": [{"name": "inp_0", "shape": [256, 256], "dtype": "float32", "layout": "AB"}],
@@ -1851,6 +1972,8 @@ def test_neg():
 
 
 def test_max():
+    """test graph builder for max"""
+
     class Max(Module):
         def forward(self, x, y):
             return torch.max(x, y)
@@ -1868,15 +1991,18 @@ def test_max():
 
 
 def test_attention():
+    """test graph builder for attention"""
+
+    # pylint: disable=import-outside-toplevel
     import torch.nn.functional as F
 
     class Attention1(Module):
-        def forward(self, q, k, v):
-            return F.scaled_dot_product_attention(q, k, v)
+        def forward(self, q_data, k_data, v_data):
+            return F.scaled_dot_product_attention(q_data, k_data, v_data)
 
     class Attention2(Module):
-        def forward(self, q, k, v):
-            return F.scaled_dot_product_attention(q, k, v, is_causal=True)
+        def forward(self, q_data, k_data, v_data):
+            return F.scaled_dot_product_attention(q_data, k_data, v_data, is_causal=True)
 
     expected1 = {
         "inputs": [
@@ -1903,9 +2029,9 @@ def test_attention():
     verify_model(Attention1(), input_info, expected1)
     verify_model(Attention2(), input_info, expected1)
 
-    class Attention2(Module):
-        def forward(self, q, k, v, mask):
-            return F.scaled_dot_product_attention(q, k, v, mask)
+    class Attention3(Module):
+        def forward(self, q_data, k_data, v_data, mask):
+            return F.scaled_dot_product_attention(q_data, k_data, v_data, mask)
 
     expected2 = {
         "inputs": [
@@ -1926,7 +2052,7 @@ def test_attention():
     }
 
     verify_model(
-        Attention2(),
+        Attention3(),
         [
             ([32, 8, 128, 64], "float32"),
             ([32, 8, 128, 64], "float32"),
