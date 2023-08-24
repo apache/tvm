@@ -169,9 +169,6 @@ def test_linear():
     }
 
     class MatMul1(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, x, y):
             return torch.matmul(x, y)
 
@@ -194,9 +191,6 @@ def test_bmm():
     """test graph builder for bmm"""
 
     class BMM(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, x, y):
             return torch.bmm(x, y)
 
@@ -219,9 +213,6 @@ def test_baddbmm():
     """test graph builder for baddbmm"""
 
     class BAddBMM1(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, c, x, y):
             return torch.baddbmm(c, x, y)
 
@@ -236,9 +227,6 @@ def test_baddbmm():
     }
 
     class BAddBMM2(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, c, x, y):
             return torch.baddbmm(c, x, y, alpha=2, beta=0)
 
@@ -1778,9 +1766,6 @@ def test_unwrap_unit_return_tuple():
     """test graph builder for unwrap_unit_return_tuple"""
 
     class Identity(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, x):
             return (x,)
 
@@ -1797,9 +1782,6 @@ def test_no_bind_return_tuple():
     """test graph builder for no_bind_return_tuple"""
 
     class Identity(Module):
-        def __init__(self):
-            super().__init__()
-
         def forward(self, x, y):
             return (x, y)
 
@@ -1823,9 +1805,6 @@ def test_argmax():
     """test graph builder for argmax"""
 
     class Argmax1(Module):
-        def __init__(self) -> None:
-            super().__init__()
-
         def forward(self, data):
             return torch.argmax(data, dim=-1)
 
@@ -1836,9 +1815,6 @@ def test_argmax():
     }
 
     class Argmax2(Module):
-        def __init__(self) -> None:
-            super().__init__()
-
         def forward(self, data):
             return torch.argmax(data, dim=-1, keepdim=True)
 
@@ -1856,9 +1832,6 @@ def test_argmin():
     """test graph builder for argmin"""
 
     class Argmin1(Module):
-        def __init__(self) -> None:
-            super().__init__()
-
         def forward(self, data):
             return torch.argmin(data)
 
@@ -1869,9 +1842,6 @@ def test_argmin():
     }
 
     class Argmin2(Module):
-        def __init__(self) -> None:
-            super().__init__()
-
         def forward(self, data):
             return torch.argmin(data, keepdim=True)
 
