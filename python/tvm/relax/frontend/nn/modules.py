@@ -412,6 +412,21 @@ class TimestepEmbedding(Module):
             self.post_act = SiLU()
 
     def forward(self, sample: Tensor, condition: Optional[Tensor] = None):
+        """
+        Forward method for TimestepEmbedding layer.
+
+        Parameters
+        ----------
+        sample : Tensor
+            The input timestep that should be looked up.
+        condition : Optional[Tensor]
+            Optional additional projection matrix.
+
+        Returns
+        -------
+        ret : Tensor
+            The resulting embedding lookup for the input sample.
+        """
         if condition is not None:
             sample = sample + self.cond_proj(condition)
         sample = self.linear_1(sample)
