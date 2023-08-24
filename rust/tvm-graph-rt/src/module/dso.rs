@@ -64,7 +64,7 @@ impl<'a> DsoModule<'a> {
 
         init_context_func!(
             lib,
-            (TVMAPISetLastError, unsafe extern "C" fn(*const i8)),
+            (TVMAPISetLastError, unsafe extern "C" fn(*const u8)),
             (
                 TVMBackendAllocWorkspace,
                 unsafe extern "C" fn(c_int, c_int, u64, c_int, c_int) -> *mut c_void
