@@ -244,6 +244,26 @@ def test_op_ptx_wait_group():
     assert expr.op.name == "tir.ptx_wait_group"
 
 
+def test_op_ptx_cp_async_barrier():
+    expr = tir.ptx_cp_async_barrier("barrier", 0)
+    assert expr.op.name == "tir.ptx_cp_async_barrier"
+
+
+def ptx_init_barrier_thread_count():
+    expr = tir.ptx_init_barrier_thread_count("barrier", 0, 32)
+    assert expr.op.name == "tir.ptx_init_barrier_thread_count"
+
+
+def ptx_arrive_barrier():
+    expr = tir.ptx_arrive_barrier("barrier", 0)
+    assert expr.op.name == "tir.ptx_arrive_barrier"
+
+
+def ptx_wait_barrier():
+    expr = tir.ptx_wait_barrier("barrier", 0)
+    assert expr.op.name == "tir.ptx_wait_barrier"
+
+
 def test_tir_op_vectorlow():
     buffer = tir.decl_buffer((4, 4), "int8", offset_factor=1)
     vec = buffer.vload([0, 0], dtype="int8x16")

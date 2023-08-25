@@ -1001,7 +1001,13 @@ def test_forward_l2_pool2d():
 
 
 def _test_tflite2_quantized_convolution(
-    input_shape, kernel_shape, filters, padding="valid", data_format=None, int_quant_dtype=tf.int8
+    input_shape,
+    kernel_shape,
+    filters,
+    padding="valid",
+    data_format=None,
+    int_quant_dtype=tf.int8,
+    groups=1,
 ):
     """One iteration of TFLite2 quantized convolution with given shapes and attributes"""
     data_format = "channels_last" if data_format == "NHWC" else "channels_first"
@@ -1015,6 +1021,7 @@ def _test_tflite2_quantized_convolution(
         activation=tf.nn.relu,
         padding=padding,
         data_format=data_format,
+        groups=groups,
     )(data_in)
     keras_model = tf.keras.models.Model(data_in, conv)
 
@@ -1074,6 +1081,32 @@ def test_forward_quantized_convolution():
             12,
             data_format="NCWH",
             int_quant_dtype=int_quant_dtype,
+        )
+
+        _test_tflite2_quantized_convolution(
+            (64, 2, 28, 28),
+            (1, 1),
+            12,
+            data_format="NCWH",
+            int_quant_dtype=int_quant_dtype,
+        )
+
+        _test_tflite2_quantized_convolution(
+            (1, 16, 10, 10),
+            (3, 3),
+            2,
+            data_format="NCWH",
+            int_quant_dtype=int_quant_dtype,
+            groups=2,
+        )
+
+        _test_tflite2_quantized_convolution(
+            (2, 32, 28, 28),
+            (1, 1),
+            16,
+            data_format="NCWH",
+            int_quant_dtype=int_quant_dtype,
+            groups=8,
         )
 
 
@@ -4566,6 +4599,8 @@ def _test_detection_postprocess(tf_model_file, box_encodings_size, class_predict
 
 def test_detection_postprocess():
     """Detection PostProcess"""
+
+    # Fast-NMS
     box_encodings_size = (1, 1917, 4)
     class_predictions_size = (1, 1917, 91)
     tf_model_file = tf_testing.get_workload_official(
@@ -4575,11 +4610,24 @@ def test_detection_postprocess():
     )
     _test_detection_postprocess(tf_model_file, box_encodings_size, class_predictions_size)
 
+    # Fast-NMS
     box_encodings_size = (1, 2034, 4)
     class_predictions_size = (1, 2034, 91)
     tf_model_file = download_testdata(
         "https://github.com/czh978/models_for_tvm_test/raw/main/tflite_graph_with_postprocess.pb",
         "tflite_graph_with_postprocess.pb",
+    )
+    _test_detection_postprocess(tf_model_file, box_encodings_size, class_predictions_size)
+
+    # Regular NMS
+    box_encodings_size = (1, 1917, 4)
+    class_predictions_size = (1, 1917, 91)
+    tf_model_file = download_testdata(
+        (
+            "https://github.com/Grovety/ModelZoo/raw/52fb82156ae8c8e3f62c7d7caf6867b25261dda4/"
+            "models/object_detection/ssd_mobilenet_v1/tflite_int8/tflite_graph_with_regular_nms.pb"
+        ),
+        "tflite_graph_with_regular_nms.pb",
     )
     _test_detection_postprocess(tf_model_file, box_encodings_size, class_predictions_size)
 

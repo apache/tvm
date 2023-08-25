@@ -353,5 +353,38 @@ def test_decompose_reduction_nested_block():
     verify_trace_roundtrip(sch, mod=nested_block)
 
 
+class TestDecomposeReductionWithThreadBinding(tvm.testing.CompareBeforeAfter):
+    def transform(self):
+        def func(mod):
+            sch = tir.Schedule(mod)
+            t, _ = sch.get_loops("B")
+            sch.decompose_reduction("B", t)
+            return sch.mod
+
+        return func
+
+    @T.prim_func
+    def before(A: T.Buffer((32, 16), "float32"), B: T.Buffer((32,), "float32")):
+        for t in T.thread_binding(0, 32, thread="threadIdx.x"):
+            for r in T.serial(16):
+                with T.block("B"):
+                    vi, vr = T.axis.remap("SR", [t, r])
+                    with T.init():
+                        B[vi] = T.float32(0)
+                    B[vi] += A[vi, vr]
+
+    @T.prim_func
+    def expected(A: T.Buffer((32, 16), "float32"), B: T.Buffer((32,), "float32")):
+        for t_init in T.thread_binding(0, 32, thread="threadIdx.x"):
+            with T.block("B_init"):
+                vi = T.axis.remap("S", [t_init])
+                B[vi] = T.float32(0)
+        for t in T.thread_binding(0, 32, thread="threadIdx.x"):
+            for r in T.serial(16):
+                with T.block("B"):
+                    vi, vr = T.axis.remap("SR", [t, r])
+                    B[vi] += A[vi, vr]
+
+
 if __name__ == "__main__":
     tvm.testing.main()

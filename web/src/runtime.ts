@@ -1314,7 +1314,7 @@ export class Instance implements Disposable {
   /**
    * Register an object constructor.
    * @param typeKey The name of the function.
-   * @param func function to be registered.
+   * @param func Function to be registered.
    * @param override Whether overwrite function in existing registry.
    */
   registerObjectConstructor(

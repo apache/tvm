@@ -31,6 +31,7 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -43,6 +44,8 @@ struct Buffer {
   void* data{nullptr};
   /*! \brief The size of the block. */
   size_t size{0};
+  /*! \brief The shape of the tensor. */
+  std::vector<int64_t> shape;
   /*! \brief The context of the allocated buffers. */
   Device device;
 };
@@ -72,6 +75,15 @@ class Allocator {
    *  \return A sized allocation in the form of a buffer.
    */
   virtual Buffer Alloc(size_t nbytes, size_t alignment, DLDataType type_hint) = 0;
+  /*! \brief Allocate a buffer given a shape and type.
+   *  \param ndims The rank of the tensor.
+   *  \param shape The shape of the tensor.
+   *  \param type_hint A type hint to the allocator.
+   *  \param mem_scope A memory scope of the buffer.
+   *  \return A sized allocation in the form of a buffer.
+   */
+  virtual Buffer Alloc(int ndims, int64_t* shape, DLDataType type_hint,
+                       const std::string& mem_scope = "") = 0;
   /*! \brief Free a buffer allocated by the allocator.
    *  \param buffer The buffer to free.
    */
@@ -80,6 +92,10 @@ class Allocator {
    *  \return The amount of memory currently allocated.
    */
   virtual size_t UsedMemory() const = 0;
+
+ protected:
+  virtual Buffer Alloc(Device dev, int ndims, int64_t* shape, DLDataType type_hint,
+                       const std::string& mem_scope);
 
  private:
   AllocatorType type_;
@@ -105,7 +121,7 @@ class MemoryManager {
  private:
   MemoryManager() {}
 
- private:
+ protected:
   std::mutex mu_;
   std::unordered_map<Device, std::unique_ptr<Allocator>> allocators_;
 };

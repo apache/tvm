@@ -73,6 +73,13 @@ namespace runtime {
 void CleanDir(const std::string& dirname);
 
 /*!
+ * \brief ListDir get the list of files in a directory
+ * \param dirname The root directory name
+ * \return vector Files in directory.
+ */
+std::vector<std::string> ListDir(const std::string& dirname);
+
+/*!
  * \brief buld a shared library if necessary
  *
  *        This function will automatically call
@@ -121,6 +128,15 @@ RPCEnv::RPCEnv(const std::string& wd) {
 
   TVM_REGISTER_GLOBAL("tvm.rpc.server.workpath").set_body([this](TVMArgs args, TVMRetValue* rv) {
     *rv = this->GetPath(args[0]);
+  });
+
+  TVM_REGISTER_GLOBAL("tvm.rpc.server.listdir").set_body([this](TVMArgs args, TVMRetValue* rv) {
+    std::string dir = this->GetPath(args[0]);
+    std::ostringstream os;
+    for (auto d : ListDir(dir)) {
+      os << d << ",";
+    }
+    *rv = os.str();
   });
 
   TVM_REGISTER_GLOBAL("tvm.rpc.server.load_module").set_body([this](TVMArgs args, TVMRetValue* rv) {

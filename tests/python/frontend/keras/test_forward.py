@@ -66,7 +66,7 @@ def pytest_generate_tests(metafunc):
 # Scenarios:
 # - classic keras, using keras from "import keras"
 # - tensorflow keras, using keras from "from tensorflow import keras as tf_keras"
-USING_CALSSIC_KERAS = ("keras", {"keras_mod": keras})
+USING_CLASSIC_KERAS = ("keras", {"keras_mod": keras})
 USING_TENSORFLOW_KERAS = ("tf_keras", {"keras_mod": tf_keras})
 
 
@@ -134,7 +134,7 @@ def get_mobilenet(keras_mod):
 class TestKeras:
     """Keras test"""
 
-    scenarios = [USING_CALSSIC_KERAS, USING_TENSORFLOW_KERAS]
+    scenarios = [USING_CLASSIC_KERAS, USING_TENSORFLOW_KERAS]
 
     def test_forward_merge(self, keras_mod):
         """test_forward_merge"""
@@ -213,6 +213,7 @@ class TestKeras:
             keras_mod.layers.Activation("tanh"),
             keras_mod.layers.Activation("linear"),
             keras_mod.layers.Activation("selu"),
+            keras_mod.layers.Activation("swish"),
             keras_mod.layers.ReLU(),
             keras_mod.layers.ReLU(max_value=6.0),
             keras_mod.layers.ReLU(max_value=6.0, threshold=0.0),

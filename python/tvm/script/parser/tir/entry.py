@@ -16,13 +16,14 @@
 # under the License.
 """The entry point of TVM parser for tir."""
 import inspect
-from typing import Any, Callable, Dict, Optional, Union
+from typing import Callable, Optional, Union
 
 from tvm.ir.base import deprecated
 from tvm.tir import Buffer, PrimFunc
 
 from ...ir_builder.tir import buffer, ptr
-from .._core import doc, parse, parse_macro, utils
+from .._core import parse, scan_macro, utils
+from ..core.parser import Parser, ScriptMacro
 
 
 def prim_func(func: Optional[Callable] = None, private: bool = False) -> Union[PrimFunc, Callable]:
@@ -86,25 +87,12 @@ setattr(prim_func, "dispatch_token", "tir")
 #   inserted at the point where the call to the macro is located.
 
 
-class TIRMacro:
-    """Representation of T.macro."""
+class TIRMacro(ScriptMacro):
+    """Specialization of the ScriptMacro class for TIR."""
 
-    def __init__(
-        self,
-        source_ast: doc.AST,
-        source_txt: str,
-        closure_vars: Dict[str, Any],
-        func: Callable,
-        hygienic: bool,
-    ) -> None:
-        self.source_ast = source_ast
-        self.source_txt = source_txt
-        self.closure_vars = closure_vars
-        self.func = func
-        self.hygienic = hygienic
-
-    def __repr__(self):
-        return self.source_txt
+    def parse_macro(self, parser: Parser) -> None:
+        macro_def = self.get_macro_def()
+        parser.visit_body(macro_def.body)
 
 
 def macro(*args, hygienic: bool = True) -> Callable:
@@ -147,15 +135,9 @@ def macro(*args, hygienic: bool = True) -> Callable:
     """
 
     def _decorator(func: Callable) -> TIRMacro:
-        source_ast, source_txt, closure_vars = parse_macro(
-            func, utils.inspect_function_capture(func)
-        )
-        obj = TIRMacro(source_ast, source_txt, closure_vars, func, hygienic)
+        source, closure_vars = scan_macro(func, utils.inspect_function_capture(func))
+        obj = TIRMacro(source, closure_vars, func, hygienic)
         obj.__name__ = func.__name__
-        # We don't need to explicitly store the return value anywhere.
-        # This function is a decorator, so the return value will replace
-        # the function definition (to which the decorator it is applied)
-        # in that function's name space.
         return obj
 
     if len(args) == 0:
@@ -166,9 +148,6 @@ def macro(*args, hygienic: bool = True) -> Callable:
     raise ValueError(
         "Invalid use of T.macro. Usage: @T.macro, @T.macro(), @T.macro(hygienic=[True|False])"
     )
-
-
-# There is no dispatch_token for macro, because macro doesn't invoke parser.
 
 
 class BufferProxy:

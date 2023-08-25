@@ -53,7 +53,13 @@ def multibox_prior(
 
 
 def multibox_transform_loc(
-    cls_prob, loc_pred, anchor, clip=True, threshold=0.01, variances=(0.1, 0.1, 0.2, 0.2)
+    cls_prob,
+    loc_pred,
+    anchor,
+    clip=True,
+    threshold=0.01,
+    variances=(0.1, 0.1, 0.2, 0.2),
+    keep_background=False,
 ):
     """Location transformation for multibox detection
 
@@ -77,10 +83,22 @@ def multibox_transform_loc(
     variances : Tuple of float, optional
         variances to be decoded from box regression output.
 
+    keep_background : boolean, optional
+        Whether to keep boxes detected as background or not.
+
     Returns
     -------
     ret : tuple of tvm.relay.Expr
     """
     return expr.TupleWrapper(
-        _make.multibox_transform_loc(cls_prob, loc_pred, anchor, clip, threshold, variances), 2
+        _make.multibox_transform_loc(
+            cls_prob,
+            loc_pred,
+            anchor,
+            clip,
+            threshold,
+            variances,
+            keep_background,
+        ),
+        2,
     )

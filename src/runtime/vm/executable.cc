@@ -183,7 +183,7 @@ std::string Executable::GetConstants() const {
     const auto& constant = constants[i];
     auto ndarray = Downcast<NDArray>(constant);
     oss << "VM Const[" << i
-        << "]: " << RuntimeObject2String(ndarray, virtual_devices[host_device_index])
+        << "]: " << RuntimeObject2String(ndarray, virtual_devices[host_device_index].first)
         << " on device index " << const_device_indexes[i] << std::endl;
   }
   return oss.str();
@@ -192,9 +192,9 @@ std::string Executable::GetConstants() const {
 std::string Executable::GetVirtualDevices() const {
   std::ostringstream oss;
   for (size_t i = 0; i < virtual_devices.size(); ++i) {
-    const auto& device = virtual_devices[i];
-    oss << "VM VirtualDevice[" << i << "]: device type " << device.device_type << " and id "
-        << device.device_id << std::endl;
+    const auto& [device, scope] = virtual_devices[i];
+    oss << "VM VirtualDevice[" << i << "]: device type " << device.device_type << ", id "
+        << device.device_id << " and mem_scope " << scope << std::endl;
   }
   return oss.str();
 }
@@ -596,7 +596,13 @@ VMInstructionSerializer SerializeInstruction(const Instruction& instr) {
       fields.push_back(dtype.bits);
       fields.push_back(dtype.lanes);
       fields.push_back(instr.alloc_storage.device_index);
+      fields.push_back(instr.alloc_storage.ndim);
       fields.push_back(instr.dst);
+
+      // Save the shape of the tensor.
+      // Note that this field is rotated to the end of the list.
+      fields.insert(fields.end(), instr.alloc_storage.shape,
+                    instr.alloc_storage.shape + instr.alloc_storage.ndim);
       break;
     }
     case Opcode::AllocADT: {
@@ -639,8 +645,8 @@ VMInstructionSerializer SerializeInstruction(const Instruction& instr) {
       break;
     }
     case Opcode::LoadConst: {
-      // Number of fields = 2
-      fields.assign({instr.const_index, instr.dst});
+      // Number of fields = 3
+      fields.assign({instr.const_index, instr.device_index, instr.dst});
       break;
     }
     case Opcode::LoadConsti: {
@@ -910,8 +916,8 @@ Instruction DeserializeInstruction(const VMInstructionSerializer& instr) {
       return Instruction::AllocClosure(clo_index, num_freevar, free_vars, dst);
     }
     case Opcode::AllocStorage: {
-      // Number of fields = 7
-      DCHECK_GE(instr.fields.size(), 7U);
+      // Number of fields = 9
+      DCHECK_GE(instr.fields.size(), 9U);
       Index allocation_size = instr.fields[0];
       Index alignment = instr.fields[1];
 
@@ -921,9 +927,11 @@ Instruction DeserializeInstruction(const VMInstructionSerializer& instr) {
       dtype.lanes = instr.fields[4];
 
       Index device_type = instr.fields[5];
-      RegName dst = instr.fields[6];
+      Index ndim = instr.fields[6];
+      RegName dst = instr.fields[7];
+      std::vector<Index> shape = ExtractFields(instr.fields, 8, ndim);
 
-      return Instruction::AllocStorage(allocation_size, alignment, dtype, device_type, dst);
+      return Instruction::AllocStorage(allocation_size, alignment, dtype, device_type, shape, dst);
     }
     case Opcode::If: {
       // Number of fields = 4
@@ -960,9 +968,9 @@ Instruction DeserializeInstruction(const VMInstructionSerializer& instr) {
       return Instruction::InvokeClosure(closure, args, dst);
     }
     case Opcode::LoadConst: {
-      // Number of fields = 2
-      DCHECK_EQ(instr.fields.size(), 2U);
-      return Instruction::LoadConst(instr.fields[0], instr.fields[1]);
+      // Number of fields = 3
+      DCHECK_EQ(instr.fields.size(), 3U);
+      return Instruction::LoadConst(instr.fields[0], instr.fields[1], instr.fields[2]);
     }
     case Opcode::LoadConsti: {
       // Number of fields = 2

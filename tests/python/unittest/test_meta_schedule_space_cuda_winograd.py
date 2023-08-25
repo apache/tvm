@@ -458,7 +458,7 @@ def test_cuda_nchw_add_relu():
                                 ci = T.axis.spatial(2048, (i2_i3_fused_0 * 262144 + i2_i3_fused_1 * 1024 + i2_i3_fused_2) // 1900 + ax0)
                                 p = T.axis.spatial(1900, (i2_i3_fused_0 * 262144 + i2_i3_fused_1 * 1024 + i2_i3_fused_2) % 1900 + ax1)
                                 eps, nu = T.axis.remap("SS", [ax2, ax3])
-                                T.where(i2_i3_fused_0 * 262144 + i2_i3_fused_1 * 1024 + i2_i3_fused_2 < 3891200)
+                                T.where(i2_i3_fused_0 * 256 + i2_i3_fused_1 < 3800)
                                 T.reads(p0[p // 950, ci, p % 950 // 38 * 2 + eps - 1, p % 38 * 2 + nu - 1])
                                 T.writes(input_tile_local[ci, p, eps, nu])
                                 T.block_attr({"schedule_rule": "None"})
@@ -484,7 +484,7 @@ def test_cuda_nchw_add_relu():
                                 v0, v1 = T.axis.remap("SS", [ax0, ax1])
                                 v2 = T.axis.spatial(2048, (i2_i3_fused_0 * 262144 + i2_i3_fused_1 * 1024 + i2_i3_fused_2) // 1900 + ax2)
                                 v3 = T.axis.spatial(1900, (i2_i3_fused_0 * 262144 + i2_i3_fused_1 * 1024 + i2_i3_fused_2) % 1900 + ax3)
-                                T.where(i2_i3_fused_0 * 262144 + i2_i3_fused_1 * 1024 + i2_i3_fused_2 < 3891200)
+                                T.where(i2_i3_fused_0 * 256 + i2_i3_fused_1 < 3800)
                                 T.reads(data_pack_local[v0, v1, v2, v3])
                                 T.writes(data_pack[v0, v1, v2, v3])
                                 data_pack[v0, v1, v2, v3] = data_pack_local[v0, v1, v2, v3]

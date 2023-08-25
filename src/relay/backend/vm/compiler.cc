@@ -352,19 +352,6 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
       return 0;
     }
 
-    // However, otherwise we allow at most one VirtualDevice per device type.
-    // TODO(mbs): This will eventually need to account for memory scopes somehow so device_copy
-    // instructions can do the right thing.
-    itr = std::find_if(context_->virtual_devices_.begin() + 1, context_->virtual_devices_.end(),
-                       [&virtual_device](const VirtualDevice& existing_virtual_device) {
-                         return existing_virtual_device->device_type() ==
-                                virtual_device->device_type();
-                       });
-    CHECK(itr == context_->virtual_devices_.end())
-        << "The VM does not currently support using more than one device with the same device type "
-           "for primitives, however the program is using the distinct scopes "
-        << virtual_device << " and " << *itr << " of device type " << virtual_device->device_type();
-
     ICHECK(virtual_device != host_virtual_device_);
     Index index = context_->virtual_devices_.size();
     VLOG(2) << "virtual_device[" << index << "] = " << virtual_device;
@@ -384,7 +371,7 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
     VLOG(2) << "constant[" << const_index << "] on device[" << device_index << "]";
     context_->const_device_indexes.push_back(device_index);
     context_->constants.push_back(const_node->data);
-    Emit(Instruction::LoadConst(const_index, NewRegister()));
+    Emit(Instruction::LoadConst(const_index, device_index, NewRegister()));
   }
 
   void VisitExpr_(const VarNode* var_node) final {
@@ -602,13 +589,21 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
                  })
           .Match("memory.alloc_storage",
                  [this](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
-                   ICHECK_EQ(args.size(), 2);
+                   ICHECK_EQ(args.size(), 3);
                    // Compute the size of the allocation.
                    this->VisitExpr(args[0]);
                    auto size_register = last_register_;
 
-                   ICHECK(args[1].as<ConstantNode>());  // Always a literal.
-                   NDArray alignment_arr = args[1].as<ConstantNode>()->data;
+                   auto const_shape = AsIgnoringOnDevice<ConstantNode>(args[1]);
+                   std::vector<int64_t> raw_shape;
+                   if (const_shape) {
+                     NDArray shape = const_shape->data;
+                     // TODO(@jroesch): we need to get an RFC done to standarize shape dtype
+                     raw_shape = ToAllocTensorShape(shape);
+                   }
+
+                   ICHECK(args[2].as<ConstantNode>());  // Always a literal.
+                   NDArray alignment_arr = args[2].as<ConstantNode>()->data;
                    ICHECK_EQ(alignment_arr->dtype.code, 0U)
                        << "The dtype of constant shape must be int32 or int64, but got "
                        << DLDataType2String(alignment_arr->dtype);
@@ -622,7 +617,7 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
 
                    Emit(Instruction::AllocStorage(size_register, alignment, dtype,
                                                   GetDeviceIndex(alloc_attrs->virtual_device),
-                                                  NewRegister()));
+                                                  raw_shape, NewRegister()));
                  })
           .Match("vm.shape_of",
                  [this](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
@@ -739,7 +734,7 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
 
   /*!
    * \brief Compile a match value
-   * Generate byte code that compute the value specificed in val
+   * Generate byte code that compute the value specified in val
    *
    * \return The register number assigned for the final value
    */
@@ -946,9 +941,10 @@ void VMCompiler::LowerImpl(IRModule mod) {
   for (const auto& virtual_device : context_.virtual_devices_) {
     ICHECK(!virtual_device->IsFullyUnconstrained());
     ICHECK_GT(virtual_device->device_type(), 0);
-    // TODO(mbs): We forget the memory scope.
-    exec_->virtual_devices.push_back(Device{/*device_type=*/virtual_device->device_type(),
-                                            /*device_id=*/virtual_device->virtual_device_id});
+    exec_->virtual_devices.push_back(
+        std::make_pair(Device{/*device_type=*/virtual_device->device_type(),
+                              /*device_id=*/virtual_device->virtual_device_id},
+                       virtual_device->memory_scope));
   }
   exec_->host_device_index = kHostDeviceIndex;
 
@@ -1068,6 +1064,7 @@ IRModule VMCompiler::OptimizeModuleImpl(IRModule mod) {
   }
 
   pass_seqs.push_back(transform::FuseOps());
+  pass_seqs.push_back(transform::AnnotateMemoryScope());
 
   // Do layout rewrite for auto-scheduler.
   transform::PassContext pass_ctx = PassContext::Current();

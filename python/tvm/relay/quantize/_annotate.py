@@ -276,7 +276,7 @@ def add_rewrite(ref_call, new_args, ctx):
         assert rhs_kind in [QAnnotateKind.INPUT, QAnnotateKind.ACTIVATION]
         lhs_expr = attach_simulated_quantize(lhs_expr, QAnnotateKind.INPUT)
         expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
-        return QAnnotateExpr(expr, QAnnotateKind.INPUT)
+        return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
 
     if lhs_kind is not None and rhs_kind is None:
         if _analysis.check_constant(rhs_expr):
@@ -290,7 +290,7 @@ def add_rewrite(ref_call, new_args, ctx):
     if lhs_kind is not None and rhs_kind is not None:
         if lhs_kind == QAnnotateKind.INPUT and rhs_kind == QAnnotateKind.INPUT:
             expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
-            return QAnnotateExpr(expr, QAnnotateKind.INPUT)
+            return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
         if lhs_kind == QAnnotateKind.ACTIVATION and rhs_kind == QAnnotateKind.ACTIVATION:
             rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.INPUT)
             expr = _forward_op(ref_call, [lhs_expr, rhs_expr])

@@ -108,6 +108,32 @@ std::string PrintPredicatedCpAsyncAssembly(const std::string& shared_ptr,
                                            const std::string& bytes,
                                            const std::string& predicate_value);
 
+/*!
+ * \brief Print ptx async copy barrier using cp.async.mbarrier.arrive
+ * \param barrier: The barrier in shared memory in the form barrier_array[barrier_index]
+ */
+std::string PrintCpAsyncBarrierAsm(const std::string& barrier);
+
+/*!
+ * \brief Print ptx barrier initialization of thread count using mbarrier.init
+ * \param barrier: The barrier in shared memory in the form barrier_array[barrier_index]
+ * \param thread_count: The number of threads expected to arrive at the barrier
+ */
+std::string PrintInitBarrierThreadCountAsm(const std::string& barrier,
+                                           const std::string& thread_count);
+
+/*!
+ * \brief Print ptx barrier arrival using mbarrier.arrive
+ * \param barrier: The barrier in shared memory in the form barrier_array[barrier_index]
+ */
+std::string PrintArriveBarrierAsm(const std::string& barrier);
+
+/*!
+ * \brief Print ptx barrier wait using mbarrier.try_wait
+ * \param barrier: The barrier in shared memory in the form barrier_array[barrier_index]
+ */
+std::string PrintWaitBarrierAsm(const std::string& barrier);
+
 }  // namespace codegen
 }  // namespace tvm
 
