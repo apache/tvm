@@ -94,10 +94,7 @@ StructInfo StructInfoMutator::VisitStructInfo_(const TensorStructInfoNode* op) {
     shape = this->VisitStructInfoExprField(op->shape.value());
   }
 
-  VDevice vdev = VDevice(/*tgt*/ {}, /*dev_id*/ 0, /*mem_scope*/ "global");
-  if (op->vdevice.defined()) {
-    vdev = op->vdevice.value();
-  }
+  VDevice vdev = op->vdevice.value_or(VDevice());
 
   if (shape.same_as(op->shape)) {
     return GetRef<StructInfo>(op);

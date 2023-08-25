@@ -120,8 +120,6 @@ class TensorStructInfo(StructInfo):
     ) -> None:
         if isinstance(shape, (list, tuple, Array)):
             shape = ShapeExpr(shape)
-        if vdevice is None:
-            vdevice = VDevice(None, 0, "global")
         self.__init_handle_by_constructor__(
             _ffi_api.TensorStructInfo, shape, dtype, ndim, vdevice, span  # type: ignore
         )

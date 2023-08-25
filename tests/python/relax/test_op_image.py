@@ -19,7 +19,7 @@ import tvm
 import tvm.testing
 from tvm import relax, tir
 from tvm import TVMError
-from tvm.ir import Op
+from tvm.ir import Op, VDevice
 from tvm.script import relax as R
 
 
@@ -35,6 +35,7 @@ def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_sinfo: r
 
 def test_resize2d_infer_struct_info():
     bb = relax.BlockBuilder()
+    vdev0 = VDevice("llvm")
     x0 = relax.Var("x", R.Tensor((2, 3, 32, 32), "float32"))
     x1 = relax.Var("x", R.Tensor((2, 32, 32, 3), "float32"))
     x2 = relax.Var("x", R.Tensor((2, 4, 32, 32, 16), "float32"))
@@ -43,9 +44,15 @@ def test_resize2d_infer_struct_info():
     x5 = relax.Var("x", R.Tensor("float32"))
     x6 = relax.Var("x", R.Tensor(ndim=4))
     x7 = relax.Var("x", R.Tensor())
+    x8 = relax.Var("x", R.Tensor((2, 3, 32, 32), "float32", vdev0))
 
     _check_inference(
         bb, relax.op.image.resize2d(x0, (28, 28)), relax.TensorStructInfo((2, 3, 28, 28), "float32")
+    )
+    _check_inference(
+        bb,
+        relax.op.image.resize2d(x8, (28, 28)),
+        relax.TensorStructInfo((2, 3, 28, 28), "float32", vdev0),
     )
     _check_inference(
         bb,

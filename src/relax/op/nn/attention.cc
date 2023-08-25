@@ -108,6 +108,9 @@ StructInfo InferStructInfoAttention(const Call& call, const BlockBuilder& ctx) {
   }
 
   Array<PrimExpr> output_shape = {num_batches, num_queries, num_heads, head_dim_value};
+  if (q_sinfo->vdevice.defined()) {
+    return TensorStructInfo(ShapeExpr(output_shape), q_sinfo->dtype, q_sinfo->vdevice.value());
+  }
   return TensorStructInfo(ShapeExpr(output_shape), q_sinfo->dtype);
 }
 

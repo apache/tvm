@@ -90,6 +90,9 @@ StructInfo InferStructInfoResize2D(const Call& call, const BlockBuilder& ctx) {
   Optional<ShapeExpr> data_shape =
       CheckNdimPerLayoutAndGetShape(call, ctx, GetRef<TensorStructInfo>(data_sinfo), data_layout);
   if (!data_shape.defined() || size_value == nullptr) {
+    if (data_sinfo->vdevice.defined()) {
+      return TensorStructInfo(out_dtype, data_layout.ndim(), data_sinfo->vdevice.value());
+    }
     return TensorStructInfo(out_dtype, data_layout.ndim());
   }
 
@@ -99,6 +102,9 @@ StructInfo InferStructInfoResize2D(const Call& call, const BlockBuilder& ctx) {
   out_NCHW_shape.Set(3, size_value->values[1]);
 
   Array<PrimExpr> out_shape = data2NCHW.BackwardShape(out_NCHW_shape);
+  if (data_sinfo->vdevice.defined()) {
+    return TensorStructInfo(ShapeExpr(out_shape), out_dtype, data_sinfo->vdevice.value());
+  }
   return TensorStructInfo(ShapeExpr(out_shape), out_dtype);
 }
 

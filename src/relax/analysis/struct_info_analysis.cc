@@ -149,10 +149,7 @@ class WellDefinedEraser : public StructInfoMutator,
       std::swap(has_undefined_, has_undefined);
     }
 
-    VDevice vdev = VDevice(/*tgt*/ {}, /*dev_id*/ 0, /*mem_scope*/ "global");
-    if (op->vdevice.defined()) {
-      vdev = op->vdevice.value();
-    }
+    VDevice vdev = op->vdevice.value_or(VDevice());
 
     // erase symbolic shape if we have undefined.
     if (!has_undefined) {
@@ -346,6 +343,22 @@ class StructInfoBaseChecker
       if (rhs->IsUnknownNdim()) return BaseCheckResult::kFailL1;
       return BaseCheckResult::kFailL0;
     }
+
+    // vdevice mismatch
+    if (lhs->vdevice.defined() && !rhs->vdevice.defined()) return BaseCheckResult::kFailL1;
+    if (lhs->vdevice.defined() && rhs->vdevice.defined()) {
+      VDevice lhs_vdevice = lhs->vdevice.value();
+      VDevice rhs_vdevice = rhs->vdevice.value();
+      if (lhs_vdevice->target.defined() && !rhs_vdevice->target.defined())
+        return BaseCheckResult::kFailL1;
+      // mismatch in either the target, vdevice_id, or memory_scope
+      if ((lhs_vdevice->target.defined() && rhs_vdevice->target.defined()) &&
+          (lhs_vdevice->target != rhs_vdevice->target ||
+           lhs_vdevice->vdevice_id != rhs_vdevice->vdevice_id ||
+           lhs_vdevice->memory_scope != rhs_vdevice->memory_scope))
+        return BaseCheckResult::kFailL0;
+    }
+
     // lhs does not have defined shape and everything else matches
     if (!lhs->shape.defined()) return BaseCheckResult::kPass;
     // rhs does not have symbolic value but lhs don't
@@ -769,32 +782,28 @@ class StructInfoLCAFinder
     auto* rhs = other.as<TensorStructInfoNode>();
     if (rhs == nullptr) return ObjectStructInfo(lhs->span);
 
-    // find the target dtype and ndim.
+    // find the target dtype, ndim, and vdevice.
     DataType dtype = lhs->dtype == rhs->dtype ? lhs->dtype : DataType::Void();
     int ndim = lhs->ndim == rhs->ndim ? lhs->ndim : kUnknownNDim;
-    VDevice vdev = VDevice(/*tgt*/ {}, /*dev_id*/ 0, /*mem_scope*/ "global");
-    if (lhs->vdevice.defined() && rhs->vdevice.defined()) {
-      if (lhs->vdevice.value().same_as(lhs->vdevice.value())) {
-        vdev = lhs->vdevice.value();
-      }
-    } else if (lhs->vdevice.defined()) {
+    VDevice vdev = VDevice();
+    if (lhs->vdevice.defined() && rhs->vdevice.defined() &&
+        lhs->vdevice.value() == rhs->vdevice.value()) {
       vdev = lhs->vdevice.value();
-    } else if (rhs->vdevice.defined()) {
-      vdev = rhs->vdevice.value();
     }
     // if ndim mismatch or one side of shape is missing
     // then we cannot keep in symbolic shape
     if (lhs->ndim != rhs->ndim || !lhs->shape.defined() || !rhs->shape.defined() ||
         !CanProveShapeEqual(lhs->shape.value(), rhs->shape.value(), analyzer_)) {
       // reuse lhs when possible
-      if (!lhs->shape.defined() && lhs->dtype == dtype && lhs->ndim == ndim) {
+      if (!lhs->shape.defined() && lhs->dtype == dtype && lhs->ndim == ndim &&
+          (!lhs->vdevice.defined() || vdev.defined())) {
         return GetRef<StructInfo>(lhs);
       } else {
         return TensorStructInfo(dtype, ndim, vdev, lhs->span);
       }
     }
-    // symbolic shape match but dtype mismatch
-    if (lhs->dtype != dtype) {
+    // symbolic shape and vdevice match but dtype mismatch
+    if (lhs->dtype != dtype || (lhs->vdevice.defined() && !vdev.defined())) {
       return TensorStructInfo(lhs->shape.value(), dtype, vdev, lhs->span);
     } else {
       return GetRef<StructInfo>(lhs);

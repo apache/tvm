@@ -791,7 +791,7 @@ def test_tensor_with_vdevice():
             a: R.Tensor((128, 128), "float32", "cuda:1"),  # noqa: F722
             b: R.Tensor((128, 128), "float32", "llvm"),
             c: R.Tensor((128, 128), "float32", "vdevice:3"),  # noqa: F722
-        ) -> R.Tensor((128, 128), "float32"):
+        ) -> R.Tensor((128, 128), "float32", "cuda:1"):  # noqa: F722
             s = R.add(a, c)
             return s
 

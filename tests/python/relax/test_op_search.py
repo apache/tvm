@@ -21,7 +21,7 @@ import tvm
 import tvm.testing
 from tvm import relax, tir
 from tvm import TVMError
-from tvm.ir import Op
+from tvm.ir import Op, VDevice
 from tvm.script import relax as R
 
 
@@ -41,24 +41,31 @@ def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_sinfo: r
 
 def test_where_infer_struct_info():
     bb = relax.BlockBuilder()
+    vdev0 = VDevice("llvm")
     cond0 = relax.Var("cond", R.Tensor((6, 5, 1, 3, 1), "bool"))
     cond1 = relax.Var("cond", R.Tensor("bool", ndim=5))
     cond2 = relax.Var("cond", R.Tensor("bool"))
+    cond3 = relax.Var("cond", R.Tensor((6, 5, 1, 3, 1), "bool", vdev0))
     x0 = relax.Var("x", R.Tensor((5, 1, 3, 2), "float32"))
     x1 = relax.Var("x", R.Tensor("float32", ndim=4))
     x2 = relax.Var("x", R.Tensor("float32"))
     x3 = relax.Var("x", R.Tensor((5, 1, 3, 2)))
     x4 = relax.Var("x", R.Tensor(ndim=4))
     x5 = relax.Var("x", R.Tensor())
+    x6 = relax.Var("x", R.Tensor((5, 1, 3, 2), "float32", vdev0))
     y0 = relax.Var("y", R.Tensor((4, 3, 1), "float32"))
     y1 = relax.Var("y", R.Tensor("float32", ndim=3))
     y2 = relax.Var("y", R.Tensor("float32"))
     y3 = relax.Var("y", R.Tensor((4, 3, 1)))
     y4 = relax.Var("y", R.Tensor(ndim=3))
     y5 = relax.Var("y", R.Tensor())
+    y6 = relax.Var("y", R.Tensor((4, 3, 1), "float32", vdev0))
 
     _check_inference(
         bb, relax.op.where(cond0, x0, y0), relax.TensorStructInfo((6, 5, 4, 3, 2), "float32")
+    )
+    _check_inference(
+        bb, relax.op.where(cond3, x6, y6), relax.TensorStructInfo((6, 5, 4, 3, 2), "float32", vdev0)
     )
     _check_inference(
         bb, relax.op.where(cond0, x1, y0), relax.TensorStructInfo(dtype="float32", ndim=5)
@@ -283,12 +290,17 @@ def test_where_infer_struct_info_wrong_input_type():
 
 def test_argmax_argmin_infer_struct_info(argmax_argmin_op: Callable):
     bb = relax.BlockBuilder()
+    vdev0 = VDevice("llvm")
     x0 = relax.Var("x", R.Tensor((2, 3, 4, 5), "float32"))
     x1 = relax.Var("x", R.Tensor("float32", ndim=4))
     x2 = relax.Var("x", R.Tensor("float32"))
     x3 = relax.Var("x", R.Tensor((2, 3, 4, 5)))
+    x4 = relax.Var("x", R.Tensor((2, 3, 4, 5), "float32", vdev0))
 
     _check_inference(bb, argmax_argmin_op(x0, axis=1), relax.TensorStructInfo((2, 4, 5), "int64"))
+    _check_inference(
+        bb, argmax_argmin_op(x4, axis=1), relax.TensorStructInfo((2, 4, 5), "int64", vdev0)
+    )
     _check_inference(
         bb,
         argmax_argmin_op(x0, axis=1, keepdims=True),

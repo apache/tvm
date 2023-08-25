@@ -23,7 +23,7 @@ import tvm
 import tvm.testing
 from tvm import TVMError
 from tvm import relax as rx
-from tvm import tir
+from tvm import tir, ir
 
 
 def test_get_static_type_basic():
@@ -218,6 +218,12 @@ def test_base_check():
     shape3 = rx.ShapeStructInfo([1, 2, 3])
     shape4 = rx.ShapeStructInfo([1, n, 3])
 
+    vdevice0 = ir.VDevice()
+    vdevice1 = ir.VDevice("llvm")
+    vdevice2 = ir.VDevice("cuda", 0)
+    vdevice3 = ir.VDevice("cuda", 2)
+    vdevice4 = ir.VDevice("cuda", 0, "")
+
     tensor0 = rx.TensorStructInfo(ndim=-1, dtype="int32")
     tensor1 = rx.TensorStructInfo(ndim=-1, dtype="float32")
     tensor2 = rx.TensorStructInfo(ndim=2, dtype="int32")
@@ -225,6 +231,16 @@ def test_base_check():
     tensor4 = rx.TensorStructInfo([n, m], "int32")
     tensor5 = rx.TensorStructInfo([n, m, 1], "int32")
     tensor6 = rx.TensorStructInfo([n, m, 2], "int32")
+    tensor7 = rx.TensorStructInfo(ndim=2, dtype="float32", vdevice=vdevice0)
+    tensor8 = rx.TensorStructInfo(ndim=2, dtype="float32", vdevice=vdevice1)
+    tensor9 = rx.TensorStructInfo(ndim=2, dtype="float32", vdevice=vdevice2)
+    tensor10 = rx.TensorStructInfo(ndim=2, dtype="float32", vdevice=vdevice3)
+    tensor11 = rx.TensorStructInfo(ndim=2, dtype="float32", vdevice=vdevice4)
+    tensor12 = rx.TensorStructInfo([n, m, 2], "int32", vdevice0)
+    tensor13 = rx.TensorStructInfo([n, m, 2], "int32", vdevice1)
+    tensor14 = rx.TensorStructInfo([n, m, 2], "int32", vdevice2)
+    tensor15 = rx.TensorStructInfo([n, m, 2], "int32", vdevice3)
+    tensor16 = rx.TensorStructInfo([n, m, 2], "int32", vdevice4)
 
     # obj
     assert bcheck(obj0, prim0) == BR.PASS
@@ -271,6 +287,14 @@ def test_base_check():
     assert bcheck(tensor3, tensor4) == BR.FAIL_L0
     assert bcheck(tensor1, tensor2) == BR.FAIL_L0
 
+    # vdevice mismatch
+    assert bcheck(tensor8, tensor9) == BR.FAIL_L0
+    assert bcheck(tensor9, tensor10) == BR.FAIL_L0
+    assert bcheck(tensor10, tensor11) == BR.FAIL_L0
+    assert bcheck(tensor13, tensor14) == BR.FAIL_L0
+    assert bcheck(tensor14, tensor15) == BR.FAIL_L0
+    assert bcheck(tensor15, tensor16) == BR.FAIL_L0
+
     # ndim mismatch
     assert bcheck(tensor2, tensor5) == BR.FAIL_L0
 
@@ -284,6 +308,10 @@ def test_base_check():
     assert tensor0.is_base_of(tensor5)
     assert tensor0.is_base_of(tensor6)
     assert tensor2.is_base_of(tensor4)
+    assert tensor3.is_base_of(tensor7)
+    assert tensor3.is_base_of(tensor8)
+    assert tensor6.is_base_of(tensor12)
+    assert tensor6.is_base_of(tensor13)
     assert tensor4.is_base_of(rx.TensorStructInfo([n, m], dtype="int32"))
 
     # tuple
@@ -386,6 +414,22 @@ def test_derive_call_ret_struct_info():
         with pytest.raises(TVMError):
             _check_derive(bb, func0(2), [obj0], obj0)
 
+        # Tensor with vdevice
+        vdev = ir.VDevice("llvm")
+
+        def func1(c):
+            n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
+            x = rx.TensorStructInfo([n, m], "float32", vdev)
+            z = rx.TensorStructInfo([m + c, n], "float32", vdev)
+            return rx.FuncStructInfo([x], z)
+
+        _check_derive(
+            bb,
+            func1(1),
+            [rx.TensorStructInfo([10, 11], "float32", vdev)],
+            rx.TensorStructInfo([12, 10], "float32", vdev),
+        )
+
         # opaque derivation
         fopaque0 = lambda: rx.FuncStructInfo.opaque_func()
         fopaque1 = lambda: rx.FuncStructInfo.opaque_func(ret=prim0)
@@ -477,6 +521,9 @@ def test_struct_info_lca():
     prim0 = rx.PrimStructInfo("int32")
     prim1 = rx.PrimStructInfo("float32")
 
+    vdevice0 = ir.VDevice("llvm")
+    vdevice1 = ir.VDevice("cuda", 0)
+
     shape0 = rx.ShapeStructInfo(ndim=-1)
     shape1 = rx.ShapeStructInfo(ndim=2)
     shape2 = rx.ShapeStructInfo(ndim=3)
@@ -490,6 +537,10 @@ def test_struct_info_lca():
     tensor4 = rx.TensorStructInfo([n, m], "int32")
     tensor5 = rx.TensorStructInfo([n, m, 1], "int32")
     tensor6 = rx.TensorStructInfo([n, m, 2], "int32")
+    tensor7 = rx.TensorStructInfo(ndim=2, dtype="float32", vdevice=vdevice0)
+    tensor8 = rx.TensorStructInfo(ndim=2, dtype="float32", vdevice=vdevice1)
+    tensor9 = rx.TensorStructInfo([n, m, 2], "int32", vdevice0)
+    tensor10 = rx.TensorStructInfo([n, m, 2], "int32", vdevice1)
 
     # obj
     _check_lca(obj0, prim0, obj0)
@@ -510,6 +561,13 @@ def test_struct_info_lca():
     _check_lca(tensor0, tensor1, rx.TensorStructInfo(ndim=-1, dtype=None))
     _check_lca(tensor0, tensor2, tensor0)
     _check_lca(tensor0, tensor4, tensor0)
+    _check_lca(tensor0, tensor4, tensor0)
+    _check_lca(tensor1, tensor3, tensor1)
+    _check_lca(tensor3, tensor7, tensor3)
+    _check_lca(tensor3, tensor8, tensor3)
+    _check_lca(tensor1, tensor8, tensor1)
+    _check_lca(tensor6, tensor9, tensor6)
+    _check_lca(tensor6, tensor10, tensor6)
 
     _check_lca(tensor2, tensor4, tensor2)
     _check_lca(tensor5, tensor6, rx.TensorStructInfo(ndim=3, dtype="int32"))

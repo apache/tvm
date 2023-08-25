@@ -77,6 +77,9 @@ StructInfo InferStructInfoFull(const Call& call, const BlockBuilder& ctx) {
 
   const auto* attrs = call->attrs.as<InitAttrs>();
   DataType out_dtype = attrs->dtype.is_void() ? fill_value_sinfo->dtype : attrs->dtype;
+  if (fill_value_sinfo->vdevice.defined()) {
+    return TensorStructInfo(/*shape=*/call->args[0], out_dtype, fill_value_sinfo->vdevice.value());
+  }
   return TensorStructInfo(/*shape=*/call->args[0], out_dtype);
 }
 

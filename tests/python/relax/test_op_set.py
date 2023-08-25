@@ -19,7 +19,7 @@ import tvm
 import tvm.testing
 from tvm import relax, tir
 from tvm import TVMError
-from tvm.ir import Op
+from tvm.ir import Op, VDevice
 from tvm.script import relax as R
 
 
@@ -35,10 +35,12 @@ def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_sinfo: r
 
 def test_unique_infer_struct_info():
     bb = relax.BlockBuilder()
+    vdev0 = VDevice("llvm")
     x0 = relax.Var("x", R.Tensor((2, 3, 4), "float32"))
     x1 = relax.Var("x", R.Tensor("float32", ndim=3))
     x2 = relax.Var("x", R.Tensor("float32"))
     x3 = relax.Var("x", R.Tensor((2, 3, 4)))
+    x4 = relax.Var("x", R.Tensor((2, 3, 4), "float32", vdev0))
 
     _check_inference(
         bb,
@@ -46,6 +48,13 @@ def test_unique_infer_struct_info():
             x0, return_index=False, return_inverse=False, return_counts=False, axis=None
         ),
         relax.TensorStructInfo(dtype="float32", ndim=1),
+    )
+    _check_inference(
+        bb,
+        relax.op.unique(
+            x4, return_index=False, return_inverse=False, return_counts=False, axis=None
+        ),
+        relax.TensorStructInfo(dtype="float32", ndim=1, vdevice=vdev0),
     )
     _check_inference(
         bb,

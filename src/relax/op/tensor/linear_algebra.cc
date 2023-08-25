@@ -51,12 +51,26 @@ StructInfo InferStructInfoMatmul(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo x1_sinfo = input_sinfo[0];
   TensorStructInfo x2_sinfo = input_sinfo[1];
 
+  VDevice vdev = VDevice();
+  if (x1_sinfo->vdevice.defined() && x2_sinfo->vdevice.defined()) {
+    if (x1_sinfo->vdevice.value() == x2_sinfo->vdevice.value()) {
+      vdev = x1_sinfo->vdevice.value();
+    }
+  } else if (x1_sinfo->vdevice.defined()) {
+    vdev = x1_sinfo->vdevice.value();
+  } else if (x2_sinfo->vdevice.defined()) {
+    vdev = x2_sinfo->vdevice.value();
+  }
+
   const auto* attrs = call->attrs.as<MatmulAttrs>();
   DataType out_dtype = attrs->out_dtype.is_void()
                            ? InferBinaryArithOpOutDtype(call, ctx, x1_sinfo, x2_sinfo)
                            : attrs->out_dtype;
 
   if (x1_sinfo->IsUnknownNdim() || x2_sinfo->IsUnknownNdim()) {
+    if (vdev.defined()) {
+      return TensorStructInfo(out_dtype, kUnknownNDim, vdev);
+    }
     return TensorStructInfo(out_dtype, kUnknownNDim);
   }
   int x1_ndim = x1_sinfo->ndim;
@@ -82,6 +96,9 @@ StructInfo InferStructInfoMatmul(const Call& call, const BlockBuilder& ctx) {
   const auto* x1_shape = x1_sinfo->shape.as<ShapeExprNode>();
   const auto* x2_shape = x2_sinfo->shape.as<ShapeExprNode>();
   if (x1_shape == nullptr || x2_shape == nullptr) {
+    if (vdev.defined()) {
+      return TensorStructInfo(out_dtype, output_ndim, vdev);
+    }
     return TensorStructInfo(out_dtype, output_ndim);
   }
 
@@ -92,6 +109,9 @@ StructInfo InferStructInfoMatmul(const Call& call, const BlockBuilder& ctx) {
   Optional<Array<PrimExpr>> output_shape_prefix =
       InferBinaryBroadcastShape(call, ctx, x1_shape_prefix, x2_shape_prefix);
   if (!output_shape_prefix.defined()) {
+    if (vdev.defined()) {
+      return TensorStructInfo(out_dtype, output_ndim, vdev);
+    }
     return TensorStructInfo(out_dtype, output_ndim);
   }
 
@@ -113,6 +133,9 @@ StructInfo InferStructInfoMatmul(const Call& call, const BlockBuilder& ctx) {
     output_shape.push_back(x2_shape->values[x2_ndim - 1]);
   }
   ICHECK_EQ(static_cast<int>(output_shape.size()), output_ndim);
+  if (vdev.defined()) {
+    return TensorStructInfo(ShapeExpr(output_shape), out_dtype, vdev);
+  }
   return TensorStructInfo(ShapeExpr(output_shape), out_dtype);
 }
 
@@ -156,6 +179,23 @@ StructInfo InferStructInfoEinsum(const Call& call, const BlockBuilder& ctx) {
 
   const auto* attrs = call->attrs.as<EinsumAttrs>();
 
+  bool vdevice_unknown = false;
+  VDevice vdev = VDevice();
+  for (TensorStructInfo sinfo : operands_tensor_sinfo) {
+    if (!vdevice_unknown) {
+      if (sinfo->vdevice.defined()) {
+        if (!vdev.defined()) {
+          vdev = sinfo->vdevice.value();
+        } else if (sinfo->vdevice.value()->target.defined()) {
+          // mismatch
+          if (sinfo->vdevice.value() != vdev) {
+            vdevice_unknown = true;
+          }
+        }
+      }
+    }
+  }
+
   String subscripts = attrs->subscripts;
 
   DataType operand_dtype = operands_tensor_sinfo[0]->dtype;
@@ -176,12 +216,18 @@ StructInfo InferStructInfoEinsum(const Call& call, const BlockBuilder& ctx) {
     if (shape_expr != nullptr) {
       input_shapes.push_back(shape_expr->values);
     } else {
+      if (!vdevice_unknown) {
+        return TensorStructInfo(operand_dtype, tensor_sinfo->ndim, vdev);
+      }
       return TensorStructInfo(operand_dtype, tensor_sinfo->ndim);
     }
   }
   // Calculate output shape using InferEinsumShape in topi
   Array<PrimExpr> oshape = topi::InferEinsumShape(subscripts, input_shapes);
 
+  if (!vdevice_unknown) {
+    return TensorStructInfo(ShapeExpr(oshape), operand_dtype, vdev);
+  }
   return TensorStructInfo(ShapeExpr(oshape), operand_dtype);
 }
 

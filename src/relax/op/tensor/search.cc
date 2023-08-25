@@ -44,6 +44,21 @@ StructInfo InferStructInfoWhere(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo x1_sinfo = input_sinfo[1];
   TensorStructInfo x2_sinfo = input_sinfo[2];
 
+  VDevice vdev = VDevice();
+  for (int i = 0; i < 3; ++i) {
+    if (input_sinfo[i]->vdevice.defined()) {
+      if (!vdev.defined()) {
+        vdev = input_sinfo[i]->vdevice.value();
+      } else if (input_sinfo[i]->vdevice.value()->target.defined()) {
+        // mismatch
+        if (input_sinfo[i]->vdevice.value() != vdev) {
+          vdev = VDevice();
+          break;
+        }
+      }
+    }
+  }
+
   if (!cond_sinfo->dtype.is_bool()) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "Where requires the input condition tensor to have boolean dtype. However, "
@@ -67,23 +82,38 @@ StructInfo InferStructInfoWhere(const Call& call, const BlockBuilder& ctx) {
     Optional<Array<PrimExpr>> broadcasted_shape =
         InferBinaryBroadcastShape(call, ctx, x1_shape->values, x2_shape->values);
     if (!broadcasted_shape.defined()) {
+      if (vdev.defined()) {
+        return TensorStructInfo(output_dtype, output_ndim, vdev);
+      }
       return TensorStructInfo(output_dtype, output_ndim);
     }
     // Step 2. Compute the broadcasted shape of cond's and the previous broadcasted shape.
     broadcasted_shape =
         InferBinaryBroadcastShape(call, ctx, cond_shape->values, broadcasted_shape.value());
     if (!broadcasted_shape.defined()) {
+      if (vdev.defined()) {
+        return TensorStructInfo(output_dtype, output_ndim, vdev);
+      }
       return TensorStructInfo(output_dtype, output_ndim);
     }
     ICHECK_EQ(static_cast<int>(broadcasted_shape.value().size()), output_ndim);
+    if (vdev.defined()) {
+      return TensorStructInfo(ShapeExpr(broadcasted_shape.value()), output_dtype, vdev);
+    }
     return TensorStructInfo(ShapeExpr(broadcasted_shape.value()), output_dtype);
   } else if (cond_sinfo->shape.defined() &&                 //
              x1_sinfo->shape.defined() &&                   //
              x2_sinfo->shape.defined() &&                   //
              cond_sinfo->shape.same_as(x1_sinfo->shape) &&  //
              cond_sinfo->shape.same_as(x2_sinfo->shape)) {
+    if (vdev.defined()) {
+      return TensorStructInfo(cond_sinfo->shape.value(), output_dtype, vdev);
+    }
     return TensorStructInfo(cond_sinfo->shape.value(), output_dtype);
   } else {
+    if (vdev.defined()) {
+      return TensorStructInfo(output_dtype, output_ndim, vdev);
+    }
     return TensorStructInfo(output_dtype, output_ndim);
   }
 }
@@ -131,9 +161,19 @@ StructInfo InferStructInfoArgmaxArgmin(const Call& call, const BlockBuilder& ctx
   const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
   if (data_shape == nullptr) {
     if (!attrs->axis.defined() && attrs->keepdims && out_ndim != kUnknownNDim) {
+      if (data_sinfo->vdevice.defined()) {
+        return TensorStructInfo(
+            ShapeExpr(Array<PrimExpr>(out_ndim, IntImm(out_dtype, /*value=*/1))), out_dtype,
+            data_sinfo->vdevice.value());
+      }
       return TensorStructInfo(ShapeExpr(Array<PrimExpr>(out_ndim, IntImm(out_dtype, /*value=*/1))),
                               out_dtype);
     } else {
+      if (data_sinfo->vdevice.defined()) {
+        return out_ndim == 0 ? TensorStructInfo(ShapeExpr(Array<PrimExpr>()), out_dtype,
+                                                data_sinfo->vdevice.value())
+                             : TensorStructInfo(out_dtype, out_ndim, data_sinfo->vdevice.value());
+      }
       return out_ndim == 0 ? TensorStructInfo(ShapeExpr(Array<PrimExpr>()), out_dtype)
                            : TensorStructInfo(out_dtype, out_ndim);
     }
@@ -153,6 +193,9 @@ StructInfo InferStructInfoArgmaxArgmin(const Call& call, const BlockBuilder& ctx
     }
   }
   ICHECK_EQ(static_cast<int>(out_shape.size()), out_ndim);
+  if (data_sinfo->vdevice.defined()) {
+    return TensorStructInfo(ShapeExpr(out_shape), out_dtype, data_sinfo->vdevice.value());
+  }
   return TensorStructInfo(ShapeExpr(out_shape), out_dtype);
 }
 

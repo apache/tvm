@@ -259,6 +259,14 @@ TVM_DLL Pass LegalizeOps(Optional<Map<String, PackedFunc>> cmap, bool enable_war
 TVM_DLL Pass LiftTransformParams();
 
 /*!
+ * \brief Update virtual device.
+ * \param new_vdevice The new virtual device.
+ * \param index The device index indicates the device on which the update will be performed.
+ * \return The Pass.
+ */
+TVM_DLL Pass UpdateVDevice(VDevice new_vdevice, int64_t index);
+
+/*!
  * \brief Annotate Op Pattern Kind for TIR functions, which is used in FuseOps.
  * \note It is an auto-detect pass for "unscheduled prim_funcs", the op_pattern will be
  *       "opaque" of we can't detect it. Users can manually annotate the attr `op_pattern`

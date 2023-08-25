@@ -19,7 +19,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import TVMError, relax, tir
-from tvm.ir import Op
+from tvm.ir import Op, VDevice
 from tvm.script import relax as R
 from tvm.script import tir as T
 
@@ -45,10 +45,12 @@ def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_sinfo: r
 
 def test_full_infer_struct_info():
     bb = relax.BlockBuilder()
+    vdev0 = VDevice("llvm")
     v0 = relax.Var("v", R.Tensor((), "float32"))
     v1 = relax.Var("v", R.Tensor("float32", ndim=0))
     v2 = relax.Var("v", R.Tensor(()))
     v3 = relax.Var("v", R.Tensor(ndim=0))
+    v4 = relax.Var("v", R.Tensor((), "float32", vdev0))
     s0 = relax.ShapeExpr((2, 3))
     s1 = relax.Var("s", relax.ShapeStructInfo((2, 3)))
     s2 = relax.Var("s", relax.ShapeStructInfo(ndim=2))
@@ -62,6 +64,7 @@ def test_full_infer_struct_info():
         bb, relax.op.full(s0, v0, "float16"), relax.TensorStructInfo((2, 3), "float16")
     )
     _check_inference(bb, relax.op.full(s0, v0), relax.TensorStructInfo((2, 3), "float32"))
+    _check_inference(bb, relax.op.full(s0, v4), relax.TensorStructInfo((2, 3), "float32", vdev0))
     _check_inference(bb, relax.op.full(s1, v0, "float16"), relax.TensorStructInfo(s1, "float16"))
     _check_inference(bb, relax.op.full(s1, v0), relax.TensorStructInfo(s1, "float32"))
     _check_inference(bb, relax.op.full(s2, v0, "float16"), relax.TensorStructInfo(s2, "float16"))
@@ -300,6 +303,7 @@ def test_full_like_infer_struct_info_shape_symbolic():
 
 def test_full_like_infer_struct_info_shape_var():
     bb = relax.BlockBuilder()
+    vdev0 = VDevice("llvm")
     s0 = relax.Var("s", relax.ShapeStructInfo((2, 3)))
     s1 = relax.Var("s", relax.ShapeStructInfo(ndim=2))
     s2 = relax.Var("s", relax.ShapeStructInfo())
@@ -307,11 +311,13 @@ def test_full_like_infer_struct_info_shape_var():
     x1 = relax.Var("x", relax.TensorStructInfo(s1, "float32"))
     x2 = relax.Var("x", relax.TensorStructInfo(s2, "float32"))
     x3 = relax.Var("x", R.Tensor((2, 3), "float32"))
+    x4 = relax.Var("x", R.Tensor((2, 3), "float32", vdev0))
     sv0 = relax.Var("sv", relax.ShapeStructInfo(()))
     sv1 = relax.Var("sv", relax.ShapeStructInfo(ndim=0))
     v0 = relax.Var("v", relax.TensorStructInfo(sv0, "float16"))
     v1 = relax.Var("v", relax.TensorStructInfo(sv1, "float16"))
     v2 = relax.Var("v", R.Tensor((), "float16"))
+    v3 = relax.Var("v", relax.TensorStructInfo(sv1, "float16", vdev0))
 
     _check_inference(bb, relax.op.full_like(x0, v0), relax.TensorStructInfo(s0, "float32"))
     _check_inference(bb, relax.op.full_like(x0, v1), relax.TensorStructInfo(s0, "float32"))
@@ -324,6 +330,9 @@ def test_full_like_infer_struct_info_shape_var():
     _check_inference(bb, relax.op.full_like(x2, v2), relax.TensorStructInfo(s2, "float32"))
     _check_inference(bb, relax.op.full_like(x3, v0), relax.TensorStructInfo((2, 3), "float32"))
     _check_inference(bb, relax.op.full_like(x3, v1), relax.TensorStructInfo((2, 3), "float32"))
+    _check_inference(
+        bb, relax.op.full_like(x4, v3), relax.TensorStructInfo((2, 3), "float32", vdev0)
+    )
 
 
 def test_full_like_infer_struct_info_more_input_dtype():
@@ -605,12 +614,14 @@ def test_arange_infer_struct_info_shape_var():
 
 def test_tril_triu_infer_struct_info():
     bb = relax.BlockBuilder()
+    vdev0 = VDevice("llvm")
     x0 = relax.Var("x", R.Tensor((2, 3, 4), "float32"))
     x1 = relax.Var("x", R.Tensor("float32", ndim=3))
     x2 = relax.Var("x", R.Tensor("float32"))
     x3 = relax.Var("x", R.Tensor((2, 3, 4)))
     x4 = relax.Var("x", R.Tensor(ndim=3))
     x5 = relax.Var("x", R.Tensor())
+    x6 = relax.Var("x", R.Tensor((2, 3, 4), "float32", vdev0))
 
     _check_inference(bb, relax.op.tril(x0, k=1), relax.TensorStructInfo((2, 3, 4), "float32"))
     _check_inference(bb, relax.op.triu(x0, k=0), relax.TensorStructInfo((2, 3, 4), "float32"))
@@ -620,18 +631,22 @@ def test_tril_triu_infer_struct_info():
     _check_inference(bb, relax.op.triu(x3), relax.TensorStructInfo((2, 3, 4), dtype=""))
     _check_inference(bb, relax.op.tril(x4), relax.TensorStructInfo(dtype="", ndim=3))
     _check_inference(bb, relax.op.triu(x5), relax.TensorStructInfo(dtype=""))
+    _check_inference(bb, relax.op.tril(x6), relax.TensorStructInfo((2, 3, 4), "float32", vdev0))
 
 
 def test_tril_triu_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
+    vdev0 = VDevice("llvm")
     a = tir.Var("a", "int64")
     b = tir.Var("b", "int64")
     c = tir.Var("c", "int64")
     x0 = relax.Var("x", R.Tensor((a, b, c), "float32"))
     x1 = relax.Var("x", R.Tensor((a, b, c)))
+    x2 = relax.Var("x", R.Tensor((a, b, c), "float32", vdev0))
 
     _check_inference(bb, relax.op.tril(x0), relax.TensorStructInfo((a, b, c), "float32"))
     _check_inference(bb, relax.op.triu(x1), relax.TensorStructInfo((a, b, c), dtype=""))
+    _check_inference(bb, relax.op.tril(x2), relax.TensorStructInfo((a, b, c), "float32", vdev0))
 
 
 def test_tril_triu_infer_struct_info_shape_var():

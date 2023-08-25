@@ -20,7 +20,7 @@ import tvm
 import tvm.testing
 from tvm import relax, tir
 from tvm import TVMError
-from tvm.ir import Op
+from tvm.ir import Op, VDevice
 from tvm.script import relax as R
 
 
@@ -73,16 +73,22 @@ def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_sinfo: r
 
 def test_binary_arith_infer_struct_info(binary_arith_op: Callable):
     bb = relax.BlockBuilder()
+    vdevice0 = VDevice("llvm")
+    vdevice1 = VDevice("cuda", 0)
     x0 = relax.Var("x", R.Tensor((2, 3), "float32"))
     x1 = relax.Var("x", R.Tensor((1, 3), "float32"))
     x2 = relax.Var("x", R.Tensor((3, 2, 3), "float32"))
     x3 = relax.Var("x", R.Tensor((3, 1, 3), "float32"))
     x4 = relax.Var("x", R.Tensor("float32", ndim=2))
     x5 = relax.Var("x", R.Tensor())
+    x6 = relax.Var("x", R.Tensor("float32", ndim=2, vdevice=vdevice0))
+    x7 = relax.Var("x", R.Tensor((2, 3), "float32", vdevice0))
     y0 = relax.Var("y", R.Tensor((2, 3), "float32"))
     y1 = relax.Var("y", R.Tensor((4, 3, 2, 1), "float32"))
     y2 = relax.Var("y", R.Tensor("float32", ndim=2))
     y3 = relax.Var("y", R.Tensor("float32", ndim=-1))
+    y4 = relax.Var("y", R.Tensor((2, 3), "float32", vdevice0))
+    y5 = relax.Var("y", R.Tensor("float32", ndim=2, vdevice=vdevice0))
 
     _check_inference(bb, binary_arith_op(x0, y0), relax.TensorStructInfo((2, 3), "float32"))
     _check_inference(bb, binary_arith_op(x1, y0), relax.TensorStructInfo((2, 3), "float32"))
@@ -94,6 +100,19 @@ def test_binary_arith_infer_struct_info(binary_arith_op: Callable):
     _check_inference(bb, binary_arith_op(x4, y2), relax.TensorStructInfo(dtype="float32", ndim=2))
     _check_inference(bb, binary_arith_op(x4, y3), relax.TensorStructInfo(dtype="float32", ndim=-1))
     _check_inference(bb, binary_arith_op(x5, y0), relax.TensorStructInfo(dtype="", ndim=-1))
+    _check_inference(
+        bb,
+        binary_arith_op(x6, y5),
+        relax.TensorStructInfo(dtype="float32", ndim=2, vdevice=vdevice0),
+    )
+    _check_inference(
+        bb,
+        binary_arith_op(x6, y2),
+        relax.TensorStructInfo(dtype="float32", ndim=2, vdevice=vdevice0),
+    )
+    _check_inference(
+        bb, binary_arith_op(x7, y4), relax.TensorStructInfo((2, 3), "float32", vdevice0)
+    )
 
 
 (binary_cmp_op,) = tvm.testing.parameters(
@@ -108,15 +127,18 @@ def test_binary_arith_infer_struct_info(binary_arith_op: Callable):
 
 def test_binary_cmp_infer_struct_info(binary_cmp_op: Callable):
     bb = relax.BlockBuilder()
+    vdev0 = VDevice("llvm")
     x = relax.Var("x", R.Tensor((2, 3), "float32"))
     y0 = relax.Var("y", R.Tensor((2, 3), "float32"))
     y1 = relax.Var("y", R.Tensor((2, 3), "int32"))
+    y2 = relax.Var("y", R.Tensor((2, 3), "float32", vdev0))
     _check_inference(bb, binary_cmp_op(x, y0), relax.TensorStructInfo((2, 3), "bool"))
     _check_inference(bb, binary_cmp_op(x, y1), relax.TensorStructInfo((2, 3), "bool"))
     _check_inference(bb, binary_cmp_op(x, y0), relax.TensorStructInfo((2, 3), "bool"))
     _check_inference(bb, binary_cmp_op(x, y1), relax.TensorStructInfo((2, 3), "bool"))
     _check_inference(bb, binary_cmp_op(x, y0), relax.TensorStructInfo((2, 3), "bool"))
     _check_inference(bb, binary_cmp_op(x, y1), relax.TensorStructInfo((2, 3), "bool"))
+    _check_inference(bb, binary_cmp_op(x, y2), relax.TensorStructInfo((2, 3), "bool", vdev0))
 
 
 def test_binary_infer_struct_info_shape_symbolic(binary_arith_op: Callable):
@@ -194,6 +216,14 @@ def test_binary_arith_infer_struct_info_dtype_mismatch(binary_arith_op: Callable
     bb = relax.BlockBuilder()
     x = relax.Var("x", R.Tensor((2, 3), "float32"))
     y = relax.Var("y", R.Tensor((2, 3), "int32"))
+    with pytest.raises(TVMError):
+        bb.normalize(binary_arith_op(x, y))
+
+
+def test_binary_arith_infer_struct_info_vdevice_mismatch(binary_arith_op: Callable):
+    bb = relax.BlockBuilder()
+    x = relax.Var("x", R.Tensor((2, 3), "float32", VDevice("llvm")))
+    y = relax.Var("y", R.Tensor((2, 3), "int32", VDevice("cuda")))
     with pytest.raises(TVMError):
         bb.normalize(binary_arith_op(x, y))
 

@@ -19,7 +19,7 @@ import tvm
 import tvm.testing
 from tvm import relax, tir
 from tvm import TVMError
-from tvm.ir import Op
+from tvm.ir import Op, VDevice
 from tvm.script import relax as R
 
 
@@ -41,12 +41,17 @@ def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_sinfo: r
 
 def test_statistical_infer_struct_info():
     bb = relax.BlockBuilder()
+    vdev0 = VDevice("llvm")
     x0 = relax.Var("x", R.Tensor((2, 3, 4, 5), "float32"))
     x1 = relax.Var("x", R.Tensor("float32", ndim=4))
     x2 = relax.Var("x", R.Tensor("float32"))
     x3 = relax.Var("x", R.Tensor((2, 3, 4, 5)))
+    x4 = relax.Var("x", R.Tensor((2, 3, 4, 5), "float32", vdev0))
 
     _check_inference(bb, relax.op.sum(x0, axis=[1, 2]), relax.TensorStructInfo((2, 5), "float32"))
+    _check_inference(
+        bb, relax.op.sum(x4, axis=[1, 2]), relax.TensorStructInfo((2, 5), "float32", vdev0)
+    )
     _check_inference(
         bb,
         relax.op.sum(x0, axis=[1, 2], keepdims=True),
@@ -202,14 +207,19 @@ def test_statistical_infer_struct_info_wrong_input_type():
 
 def test_cumsum_infer_struct_info():
     bb = relax.BlockBuilder()
+    vdev0 = VDevice("llvm")
     x0 = relax.Var("x", R.Tensor((2, 10, 4), "float32"))
     x1 = relax.Var("x", R.Tensor("float32", ndim=3))
     x2 = relax.Var("x", R.Tensor("float32"))
     x3 = relax.Var("x", R.Tensor((2, 10, 4)))
     x4 = relax.Var("x", R.Tensor(ndim=3))
     x5 = relax.Var("x", R.Tensor())
+    x6 = relax.Var("x", R.Tensor((2, 10, 4), "float32", vdev0))
 
     _check_inference(bb, relax.op.cumsum(x0, axis=1), relax.TensorStructInfo((2, 10, 4), "float32"))
+    _check_inference(
+        bb, relax.op.cumsum(x6, axis=1), relax.TensorStructInfo((2, 10, 4), "float32", vdev0)
+    )
     _check_inference(
         bb, relax.op.cumsum(x1, axis=1), relax.TensorStructInfo(dtype="float32", ndim=3)
     )

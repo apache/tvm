@@ -264,6 +264,10 @@ class AlterOpImplMutator : public ExprMutator {
     auto shape = GetShapeFromTensorStructInfo(tensor_sinfo);
     arith::Analyzer analyzer;
     auto new_shape = transform->MapShape(shape, &analyzer);
+    if (tensor_sinfo->vdevice.defined()) {
+      return TensorStructInfo(ShapeExpr(new_shape), tensor_sinfo->dtype,
+                              tensor_sinfo->vdevice.value());
+    }
     return TensorStructInfo(ShapeExpr(new_shape), tensor_sinfo->dtype);
   }
 

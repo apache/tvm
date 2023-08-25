@@ -19,7 +19,7 @@ import tvm
 import tvm.testing
 from tvm import relax, tir
 from tvm import TVMError
-from tvm.ir import Op
+from tvm.ir import Op, VDevice
 from tvm.script import relax as R
 
 
@@ -36,6 +36,7 @@ def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_sinfo: r
 
 def test_matmul_infer_struct_info():
     bb = relax.BlockBuilder()
+    vdev0 = VDevice("llvm")
     x0 = relax.Var("x", R.Tensor((3, 4), "float32"))
     x1 = relax.Var("x", R.Tensor((4,), "float32"))
     x2 = relax.Var("x", R.Tensor((2, 3, 5, 4), "float32"))
@@ -43,14 +44,17 @@ def test_matmul_infer_struct_info():
     x4 = relax.Var("x", R.Tensor((2, 1, 4, 5)))
     x5 = relax.Var("x", R.Tensor("float32"))
     x6 = relax.Var("x", R.Tensor((2, 1, 4, 5), "float16"))
+    x7 = relax.Var("x", R.Tensor((3, 4), "float32", vdev0))
     y0 = relax.Var("y", R.Tensor((4, 5), "float32"))
     y1 = relax.Var("y", R.Tensor((4,), "float32"))
     y2 = relax.Var("y", R.Tensor((2, 3, 4, 5), "float32"))
     y3 = relax.Var("y", R.Tensor((6, 1, 3, 5, 7), "float32"))
     y4 = relax.Var("y", R.Tensor("float32", ndim=5))
     y5 = relax.Var("y", R.Tensor())
+    y6 = relax.Var("y", R.Tensor((4, 5), "float32", vdev0))
 
     _check_inference(bb, relax.op.matmul(x0, y0), relax.TensorStructInfo((3, 5), "float32"))
+    _check_inference(bb, relax.op.matmul(x7, y6), relax.TensorStructInfo((3, 5), "float32", vdev0))
     _check_inference(bb, relax.op.matmul(x1, y1), relax.TensorStructInfo((), "float32"))
     _check_inference(bb, relax.op.matmul(x1, y2), relax.TensorStructInfo((2, 3, 5), "float32"))
     _check_inference(bb, relax.op.matmul(x2, y1), relax.TensorStructInfo((2, 3, 5), "float32"))
@@ -208,18 +212,25 @@ def test_linear():
     # Since linear is only a sugar for transpose + matmul + add,
     # we only have brief tests here.
     bb = relax.BlockBuilder()
+    vdev0 = VDevice("llvm")
     x1 = relax.Var("x", R.Tensor((2, 3, 4), "float32"))
     x2 = relax.Var("x", R.Tensor("float32"))
+    x3 = relax.Var("x", R.Tensor((2, 3, 4), "float32", vdev0))
     w1 = relax.Var("w", R.Tensor((5, 4), "float32"))
     w2 = relax.Var("w", R.Tensor((4,), "float32"))
     w3 = relax.Var("w", R.Tensor("float32"))
+    w4 = relax.Var("w", R.Tensor((5, 4), "float32", vdev0))
     b1 = relax.Var("b", R.Tensor((5,), "float32"))
     b2 = relax.Var("b", R.Tensor((), "float32"))
+    b3 = relax.Var("b", R.Tensor((5,), "float32", vdev0))
 
     # Need a scope to normalize non-leaf nodes
     with bb.function("func", [x1]):
         _check_inference(
             bb, relax.op.linear(x1, w1, b1), relax.TensorStructInfo((2, 3, 5), "float32")
+        )
+        _check_inference(
+            bb, relax.op.linear(x3, w4, b3), relax.TensorStructInfo((2, 3, 5), "float32", vdev0)
         )
         _check_inference(
             bb, relax.op.linear(x1, w1, b2), relax.TensorStructInfo((2, 3, 5), "float32")
@@ -242,6 +253,7 @@ def test_linear():
 
 def test_einsum_infer_struct_info():
     bb = relax.BlockBuilder()
+    vdev0 = VDevice("llvm")
     x0 = relax.Var("x0", R.Tensor((), "float32"))
     x1 = relax.Var("x1", R.Tensor((5,), "int32"))
     x2 = relax.Var("x2", R.Tensor((5, 5), "int32"))
@@ -258,8 +270,10 @@ def test_einsum_infer_struct_info():
     x13 = relax.Var("x13", R.Tensor((1, 1, 1, 3), "float16"))
     x14 = relax.Var("x14", R.Tensor((1, 5, 3, 8, 4), "float32"))
     x15 = relax.Var("x15", R.Tensor((2, 5, 3, 6, 4), "float32"))
+    x16 = relax.Var("x16", R.Tensor((5, 5), "int32", vdev0))
 
     _check_inference(bb, relax.op.einsum((x2,), "ii"), relax.TensorStructInfo((), "int32"))
+    _check_inference(bb, relax.op.einsum((x16,), "ii"), relax.TensorStructInfo((), "int32", vdev0))
     _check_inference(bb, relax.op.einsum((x2,), "ii->i"), relax.TensorStructInfo((5,), "int32"))
     _check_inference(bb, relax.op.einsum([x2], "...j->..."), relax.TensorStructInfo((5,), "int32"))
     _check_inference(

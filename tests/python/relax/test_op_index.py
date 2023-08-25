@@ -19,7 +19,7 @@ import tvm
 import tvm.testing
 from tvm import relax, tir
 from tvm import TVMError
-from tvm.ir import Op
+from tvm.ir import Op, VDevice
 from tvm.script import ir as I, relax as R, tir as T
 
 
@@ -40,12 +40,14 @@ def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_sinfo: r
 
 def test_take_infer_struct_info():
     bb = relax.BlockBuilder()
+    vdev0 = VDevice("llvm")
     x0 = relax.Var("x", R.Tensor((4, 10), "float32"))
     x1 = relax.Var("x", R.Tensor("float32", ndim=2))
     x2 = relax.Var("x", R.Tensor("float32"))
     x3 = relax.Var("x", R.Tensor((4, 10)))
     x4 = relax.Var("x", R.Tensor(ndim=2))
     x5 = relax.Var("x", R.Tensor())
+    x6 = relax.Var("x", R.Tensor((4, 10), "float32", vdev0))
     y0 = relax.Var("y", R.Tensor((10,), "float32"))
     y1 = relax.Var("y", R.Tensor("float32", ndim=1))
     y2 = relax.Var("y", R.Tensor((10,)))
@@ -58,8 +60,12 @@ def test_take_infer_struct_info():
     idx5 = relax.Var("idx", R.Tensor("int64", ndim=2))
     idx6 = relax.Var("idx", R.Tensor((6, 4)))
     idx7 = relax.Var("idx", R.Tensor(ndim=2))
+    idx8 = relax.Var("idx", R.Tensor((6,), "int64", vdev0))
 
     _check_inference(bb, relax.op.take(x0, idx0, axis=1), relax.TensorStructInfo((4, 6), "float32"))
+    _check_inference(
+        bb, relax.op.take(x6, idx8, axis=1), relax.TensorStructInfo((4, 6), "float32", vdev0)
+    )
     _check_inference(
         bb, relax.op.take(x0, idx0, axis=-1), relax.TensorStructInfo((4, 6), "float32")
     )
@@ -355,12 +361,14 @@ def test_take_infer_struct_info_wrong_input_type():
 
 def test_strided_slice_infer_struct_info():
     bb = relax.BlockBuilder()
+    vdev0 = VDevice("llvm")
     x0 = relax.Var("x", R.Tensor((8, 9, 10, 10), "float32"))
     x1 = relax.Var("x", R.Tensor("float32", ndim=4))
     x2 = relax.Var("x", R.Tensor("float32"))
     x3 = relax.Var("x", R.Tensor((8, 9, 10, 10)))
     x4 = relax.Var("x", R.Tensor(ndim=4))
     x5 = relax.Var("x", R.Tensor())
+    x6 = relax.Var("x", R.Tensor((8, 9, 10, 10), "float32", vdev0))
 
     _check_inference(
         bb,
@@ -368,6 +376,13 @@ def test_strided_slice_infer_struct_info():
             x0, axes=[0, 1, 3], begin=[1, 0, 8], end=[8, 9, 0], strides=[2, 1, -3]
         ),
         relax.TensorStructInfo((4, 9, 10, 3), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.strided_slice(
+            x6, axes=[0, 1, 3], begin=[1, 0, 8], end=[8, 9, 0], strides=[2, 1, -3]
+        ),
+        relax.TensorStructInfo((4, 9, 10, 3), "float32", vdev0),
     )
     _check_inference(
         bb,

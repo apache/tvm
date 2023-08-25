@@ -202,6 +202,32 @@ inline DataType InferBinaryArithOpOutDtype(const Call& call, const BlockBuilder&
 }
 
 /*!
+ * \brief Infer the output virtual device for binary arithmetic operators.
+ * \param call The context Call to the operator.
+ * \param ctx The error reporting context.
+ * \param x1_sinfo The struct info of the first operand
+ * \param x2_sinfo The struct info of the second operand
+ * \return The inferred output vdevice.
+ * \throw Throw exception if the vdevice of two input TensorStructInfo don’t match
+ */
+inline Optional<VDevice> InferBinaryArithOpOutVDevice(const Call& call, const BlockBuilder& ctx,
+                                                      const TensorStructInfo& x1_sinfo,
+                                                      const TensorStructInfo& x2_sinfo) {
+  if (!x1_sinfo->vdevice.defined() || !x1_sinfo->vdevice.value()->target.defined()) {
+    return x2_sinfo->vdevice;
+  }
+  if (!x2_sinfo->vdevice.defined() || !x2_sinfo->vdevice.value()->target.defined()) {
+    return x1_sinfo->vdevice;
+  }
+  if (x1_sinfo->vdevice.value() != x2_sinfo->vdevice.value()) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "VDevice " << x1_sinfo->vdevice.value() << " and "
+                     << x2_sinfo->vdevice.value() << " must be equal for binary operators");
+  }
+  return x1_sinfo->vdevice;
+}
+
+/*!
  * \brief Infer the output shape for binary broadcast operators.
  * \param call The context Call to the operator.
  * \param ctx The error reporting context.

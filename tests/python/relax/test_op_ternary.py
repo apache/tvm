@@ -19,7 +19,7 @@ import tvm
 import tvm.testing
 from tvm import relax, tir
 from tvm import TVMError
-from tvm.ir import Op
+from tvm.ir import Op, VDevice
 from tvm.script import relax as R
 
 
@@ -37,14 +37,21 @@ def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_sinfo: r
 
 def test_ewise_fma_infer_struct_info():
     bb = relax.BlockBuilder()
+    vdev0 = VDevice("llvm")
     x0 = relax.Var("x", R.Tensor((2, 3), "float32"))
     x1 = relax.Var("x", R.Tensor((2, 3)))
+    x2 = relax.Var("x", R.Tensor((2, 3), "float32", vdev0))
     y0 = relax.Var("y", R.Tensor((2, 3), "float32"))
     y1 = relax.Var("y", R.Tensor(dtype="float32", ndim=2))
+    y2 = relax.Var("y", R.Tensor((2, 3), "float32", vdev0))
     z0 = relax.Var("z", R.Tensor((2, 3), "float32"))
     z1 = relax.Var("z", R.Tensor("float32"))
+    z2 = relax.Var("z", R.Tensor((2, 3), "float32", vdev0))
 
     _check_inference(bb, relax.op.ewise_fma(x0, y0, z0), relax.TensorStructInfo((2, 3), "float32"))
+    _check_inference(
+        bb, relax.op.ewise_fma(x2, y2, z2), relax.TensorStructInfo((2, 3), "float32", vdev0)
+    )
     _check_inference(
         bb, relax.op.ewise_fma(x0, y1, z0), relax.TensorStructInfo(dtype="float32", ndim=2)
     )
