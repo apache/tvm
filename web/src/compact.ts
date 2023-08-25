@@ -24,7 +24,7 @@ import EmccWASI from "./tvmjs_runtime_wasi";
  * Get performance measurement.
  */
 export function getPerformance(): Performance {
-  if (typeof performance == "undefined") {
+  if (typeof performance === "undefined") {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const performanceNode = require("perf_hooks");
     return performanceNode.performance as Performance;
@@ -38,7 +38,7 @@ export function getPerformance(): Performance {
  * @param url The url.
  */
 export function createWebSocket(url: string): WebSocket {
-  if (typeof WebSocket == "undefined") {
+  if (typeof WebSocket === "undefined") {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const WebSocket = require("ws");
     return new WebSocket(url);
