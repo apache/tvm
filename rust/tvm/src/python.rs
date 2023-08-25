@@ -27,22 +27,22 @@ use pyo3::prelude::*;
 /// For example registered TVM functions can now be
 /// obtained via `Function::get`.
 pub fn load() -> Result<String, ()> {
-    let gil = Python::acquire_gil();
-    let py = gil.python();
-    // let main_mod = initialize();
-    //let main_mod = main_mod.as_ref(py);
-    load_python_tvm_(py).map_err(|e| {
-        // We can't display Python exceptions via std::fmt::Display,
-        // so print the error here manually.
-        e.print_and_set_sys_last_vars(py);
+    
+
+    Python::with_gil(|py| {
+        load_python_tvm_(py).map_err(|e| {
+            // We can't display Python exceptions via std::fmt::Display,
+            // so print the error here manually.
+            e.print_and_set_sys_last_vars(py);
+        })
     })
 }
 
 pub fn import(mod_to_import: &str) -> PyResult<()> {
-    let gil = Python::acquire_gil();
-    let py = gil.python();
-    import_python(py, mod_to_import)?;
-    Ok(())
+    Python::with_gil(|py| {
+        import_python(py, mod_to_import)?;
+        Ok(())
+    })
 }
 
 fn import_python<'p, 'b: 'p>(py: Python<'p>, to_import: &'b str) -> PyResult<&'p PyModule> {
@@ -52,7 +52,7 @@ fn import_python<'p, 'b: 'p>(py: Python<'p>, to_import: &'b str) -> PyResult<&'p
 
 fn load_python_tvm_(py: Python) -> PyResult<String> {
     let imported_mod = import_python(py, "tvm")?;
-    let version: String = imported_mod.get("__version__")?.extract()?;
+    let version: String = imported_mod.getattr("__version__")?.extract()?;
     Ok(version)
 }
 
