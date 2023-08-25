@@ -136,7 +136,7 @@ VDevice LookupVDevice(String target_kind, int device_index) {
     }
   }
   LOG(WARNING) << "The annotated device was not found, please check your vdevice list.";
-  return VDevice(/*tgt*/ {}, /*dev_id*/ 0, /*mem_scope*/ "global");
+  return VDevice();
 }
 
 TVM_REGISTER_GLOBAL("script.ir_builder.ir.IRModule").set_body_typed(IRModule);
