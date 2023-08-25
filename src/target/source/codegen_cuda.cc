@@ -141,6 +141,18 @@ std::string CodeGenCUDA::Finish() {
     decl_stream << "#include <mma.h>\n";
   }
 
+  if (need_cast_smem_ptr_to_int_) {
+    decl_stream << "__forceinline__ __device__ unsigned int\n";
+    decl_stream << "cast_smem_ptr_to_int(const void* const smem_ptr)\n";
+    decl_stream << "{\n";
+    decl_stream << "  unsigned int smem_int;\n";
+    decl_stream << "  asm volatile (\"{ .reg .u64 smem_int; cvta.to.shared.u64 smem_int, %1; "
+                   "cvt.u32.u64 %0, smem_int; }\"\n";
+    decl_stream << "    : \"=r\"(smem_int) : \"l\"(smem_ptr));\n";
+    decl_stream << "  return smem_int;\n";
+    decl_stream << "}\n";
+  }
+
   decl_stream << "\n#if (((__CUDACC_VER_MAJOR__ == 11) && (__CUDACC_VER_MINOR__ >= 4)) || \\\n";
   decl_stream << "     (__CUDACC_VER_MAJOR__ > 11))\n";
   decl_stream << "#define TVM_ENABLE_L2_PREFETCH 1\n";
@@ -873,6 +885,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
       os << "}\n";
     } else {
       std::string smem_elem_offset = this->PrintExpr(op->args[6]);
+      need_cast_smem_ptr_to_int_ = true;
       this->stream << PrintLoadMatrixAssembly(trans, num, type, local_ptr, local_elem_offset,
                                               smem_ptr, smem_elem_offset);
     }
@@ -941,6 +954,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     std::string src_offset = this->PrintExpr(op->args[3]);
     std::string size = this->PrintExpr(op->args[4]);
     // use size of argument list to indicate whether or not to use predicated cp.async
+    need_cast_smem_ptr_to_int_ = true;
     if (op->args.size() == 5) {
       this->stream << PrintCpAsyncAssembly(dst, dst_offset, src, src_offset, size);
     } else {
@@ -952,6 +966,31 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
   } else if (op->op.same_as(builtin::ptx_wait_group())) {
     int n = Downcast<IntImm>(op->args[0])->value;
     this->stream << "__asm__ __volatile__(\"cp.async.wait_group " << n << ";\");\n\n";
+  } else if (op->op.same_as(builtin::ptx_cp_async_barrier())) {
+    need_cast_smem_ptr_to_int_ = true;
+    std::string barriers_arr = Downcast<StringImm>(op->args[0])->value;
+    std::string barrier_id = this->PrintExpr(op->args[1]);
+    std::string barrier = barriers_arr + "[" + barrier_id + "]";
+    this->stream << PrintCpAsyncBarrierAsm(barrier);
+  } else if (op->op.same_as(builtin::ptx_init_barrier_thread_count())) {
+    need_cast_smem_ptr_to_int_ = true;
+    std::string barriers_arr = Downcast<StringImm>(op->args[0])->value;
+    std::string barrier_id = this->PrintExpr(op->args[1]);
+    std::string barrier = barriers_arr + "[" + barrier_id + "]";
+    std::string thread_count = this->PrintExpr(op->args[2]);
+    this->stream << PrintInitBarrierThreadCountAsm(barrier, thread_count);
+  } else if (op->op.same_as(builtin::ptx_arrive_barrier())) {
+    need_cast_smem_ptr_to_int_ = true;
+    std::string barriers_arr = Downcast<StringImm>(op->args[0])->value;
+    std::string barrier_id = this->PrintExpr(op->args[1]);
+    std::string barrier = barriers_arr + "[" + barrier_id + "]";
+    this->stream << PrintArriveBarrierAsm(barrier);
+  } else if (op->op.same_as(builtin::ptx_wait_barrier())) {
+    need_cast_smem_ptr_to_int_ = true;
+    std::string barriers_arr = Downcast<StringImm>(op->args[0])->value;
+    std::string barrier_id = this->PrintExpr(op->args[1]);
+    std::string barrier = barriers_arr + "[" + barrier_id + "]";
+    this->stream << PrintWaitBarrierAsm(barrier);
   } else if (op->op.same_as(builtin::ptx_ldg32())) {
     /*
     asm volatile (

@@ -1397,6 +1397,86 @@ def ptx_wait_group(num):
     return call_intrin("", "tir.ptx_wait_group", num)
 
 
+def ptx_cp_async_barrier(barrier_arr, barrier_id):
+    """TVM intrinsic for ptx async copy barrier using cp.async.mbarrier.arrive
+    https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#parallel-synchronization-and-communication-instructions-cp-async-mbarrier-arrive
+
+    Parameters
+    ----------
+    barrier_arr : string
+        The name of the barrier array in shared memory
+    barrier_id : int
+        Index into the barrier array
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("", "tir.ptx_cp_async_barrier", barrier_arr, barrier_id)
+
+
+def ptx_init_barrier_thread_count(barrier_arr, barrier_id, thread_count):
+    """TVM intrinsic for ptx barrier initialization of thread count using mbarrier.init
+    https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#parallel-synchronization-and-communication-instructions-mbarrier-init
+
+    Parameters
+    ----------
+    barrier_arr : string
+        The name of the barrier array in shared memory
+    barrier_id : int
+        Index into the barrier array
+    thread_count : int
+        Number of threads expected to arrive at the barrier
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin(
+        "", "tir.ptx_init_barrier_thread_count", barrier_arr, barrier_id, thread_count
+    )
+
+
+def ptx_arrive_barrier(barrier_arr, barrier_id):
+    """TVM intrinsic for ptx barrier arrival using mbarrier.arrive
+    https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#parallel-synchronization-and-communication-instructions-mbarrier-arrive
+
+    Parameters
+    ----------
+    barrier_arr : string
+        The name of the barrier array in shared memory
+    barrier_id : int
+        Index into the barrier array
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("", "tir.ptx_arrive_barrier", barrier_arr, barrier_id)
+
+
+def ptx_wait_barrier(barrier_arr, barrier_id):
+    """TVM intrinsic for ptx barrier wait using mbarrier.try_wait
+    https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#parallel-synchronization-and-communication-instructions-mbarrier-test-wait-mbarrier-try-wait
+
+    Parameters
+    ----------
+    barrier_arr : string
+        The name of the barrier array in shared memory
+    barrier_id : int
+        Index into the barrier array
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("", "tir.ptx_wait_barrier", barrier_arr, barrier_id)
+
+
 def vectorlow(dtype, vec):
     """Get the low level half of the vector
 
