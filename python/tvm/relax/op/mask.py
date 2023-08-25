@@ -16,7 +16,6 @@
 # under the License.
 """Operators with mask."""
 from . import _ffi_api
-from .create import full_like
 from ..expr import Expr
 
 
