@@ -250,15 +250,20 @@ class LayerNorm(Module):
     def __init__(
         self,
         normalized_shape: int,
-        axes: Union[int, List[int]],
         eps: Optional[float] = 1e-5,
+        elementwise_affine: bool = True,
         dtype: Optional[str] = None,
     ) -> None:
         super().__init__()
+        self.normalized_shape = normalized_shape
         self.eps = eps
-        self.axes = axes
-        self.weight = Parameter((normalized_shape,), dtype=dtype)
-        self.bias = Parameter((normalized_shape,), dtype=dtype)
+        self.elementwise_affine = elementwise_affine
+        if self.elementwise_affine:
+            self.weight = Parameter((normalized_shape,), dtype=dtype)
+            self.bias = Parameter((normalized_shape,), dtype=dtype)
+        else:
+            self.weight = None
+            self.bias = None
 
     def forward(self, x: Tensor) -> Tensor:
         """
@@ -274,8 +279,13 @@ class LayerNorm(Module):
         ret : Tensor
             The output tensor for the layer normalization layer.
         """
-        out = op.layer_norm(x, weight=self.weight, bias=self.bias, axes=self.axes, epsilon=self.eps)
-        return out
+        return op.layer_norm(
+            x,
+            normalized_shape=self.normalized_shape,
+            weight=self.weight,
+            bias=self.bias,
+            eps=self.eps,
+        )
 
 
 class RMSNorm(Module):

@@ -19,6 +19,7 @@
 import math
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
+import numpy as np
 from tvm import tir as _tir
 
 from ... import expr as rx
@@ -658,10 +659,10 @@ def softmax(x: Tensor, axis: int = -1, name: str = "softmax") -> Tensor:
 
 def layer_norm(
     x: Tensor,
-    weight: Tensor,
-    bias: Tensor,
-    axes: Union[int, List[int]],
-    epsilon: float = 1e-5,
+    normalized_shape: Union[int, List[int]],
+    weight: Optional[Tensor] = None,
+    bias: Optional[Tensor] = None,
+    eps: float = 1e-5,
     name: str = "layer_norm",
 ) -> Tensor:
     r"""
@@ -685,19 +686,21 @@ def layer_norm(
 
     Parameters
     ----------
-    data : Tensor
+    x : Tensor
         Input to which layer_norm will be applied.
 
-    gamma : Tensor
+    normalized_shape: Union[int, List[int]]
+        The shape of axes to normalize. If a single integer
+        is used, it is treated as a singleton list and this
+        module will normalize over the last dimension.
+
+    weight: Tensor
         The gamma scale factor.
 
-    beta : Tensor
+    bias: Tensor
         The beta offset factor.
 
-    axes : Union[int, List[int]]
-        The axes that along which the normalization is applied.
-
-    epsilon : float
+    eps: float
         Small float added to variance to avoid dividing by zero.
 
     name : str
@@ -708,7 +711,31 @@ def layer_norm(
     result : Tensor
         The computed result.
     """
-    return _wrap_nested(_op.nn.layer_norm(x._expr, weight._expr, bias._expr, axes, epsilon), name)
+    if isinstance(normalized_shape, int):
+        normalized_shape = [normalized_shape]
+    dim_num = len(normalized_shape)
+    axes = list(range(-dim_num, 0))
+    dtype = x._expr.struct_info.dtype
+
+    if weight is not None:
+        weight = weight._expr
+    else:
+        weight = rx.const(np.ones(normalized_shape), dtype=dtype)
+    if bias is not None:
+        bias = bias._expr
+    else:
+        bias = rx.const(np.zeros(normalized_shape), dtype=dtype)
+
+    return _wrap_nested(
+        _op.nn.layer_norm(
+            x._expr,
+            gamma=weight,
+            beta=bias,
+            axes=axes,
+            epsilon=eps,
+        ),
+        name=name,
+    )
 
 
 def rms_norm(
@@ -904,6 +931,39 @@ def zeros(
         The result tensor.
     """
     return _wrap_nested(_op.zeros(shape, dtype), name)
+
+
+def pad(
+    x: Tensor,
+    pad: List[int],
+    mode: str = "constant",
+    value: int = 0,
+    name: str = "pad",
+) -> Tensor:
+    """
+    Apply spatial padding to the input tensor.
+
+    Parameters
+    ----------
+    x : Tensor
+        Input tensor to be padded.
+    pad : List[int]
+        List in the format of [before_0, after_0, before_1, after_1, ...]
+        indicating how much to pad each axis of x.
+    mod : str
+        Padding mode to use, constant implies padded elements will use
+        value argument.
+    value : int
+        What to pad with in constant mode.
+    name : str
+        Name hint for this operator.
+
+    Returns
+    -------
+    result : Tensor
+        Padded output tensor.
+    """
+    return _wrap_nested(_op.nn.pad(x, pad_width=pad, pad_value=value, pad_mode=mode), name)
 
 
 def get_timestep_embedding(
