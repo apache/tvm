@@ -664,6 +664,38 @@ TVM_DLL const Op& ptx_commit_group();
 TVM_DLL const Op& ptx_wait_group();
 
 /*!
+ * \brief tvm intrinsics for ptx async copy barrier using cp.async.mbarrier.arrive
+ *
+ * ptx_cp_async_barrier(barrier_array, barrier_id)
+ *
+ */
+TVM_DLL const Op& ptx_cp_async_barrier();
+
+/*!
+ * \brief tvm intrinsics for ptx barrier initialization of thread count using mbarrier.init
+ *
+ * ptx_init_barrier_thread_count(barrier_array, barrier_id, thread_count)
+ *
+ */
+TVM_DLL const Op& ptx_init_barrier_thread_count();
+
+/*!
+ * \brief tvm intrinsics for ptx barrier arrival using mbarrier.arrive
+ *
+ * ptx_arrive_barrier(barrier_array, barrier_id)
+ *
+ */
+TVM_DLL const Op& ptx_arrive_barrier();
+
+/*!
+ * \brief tvm intrinsics for ptx barrier wait using mbarrier.try_wait
+ *
+ * ptx_wait_barrier(barrier_array, barrier_id)
+ *
+ */
+TVM_DLL const Op& ptx_wait_barrier();
+
+/*!
  * \brief tvm intrinsic for storing the result of PTX MMA into a destination pointer.
  *        For example, if each thread in a warp of size 32 has 4 elements from the result of
  *        m16xn8xk16 MMA in its registers, this intrinsic can be used to store the result in a
