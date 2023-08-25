@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=too-many-lines,invalid-name,protected-access
 """nn.Tensor operators."""
+import math
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 from tvm import tir as _tir
@@ -859,12 +860,10 @@ def full(
     result : Tensor
         The result tensor.
     """
-    from tvm import relax  # pylint: disable=import-outside-toplevel
-
     if isinstance(fill_value, (_tir.FloatImm, _tir.IntImm)):
-        fill_value = relax.const(fill_value.value, dtype=dtype)
+        fill_value = rx.const(fill_value.value, dtype=dtype)
     elif isinstance(fill_value, (int, float)):
-        fill_value = relax.const(fill_value, dtype=dtype)
+        fill_value = rx.const(fill_value, dtype=dtype)
     else:
         fill_value = fill_value._expr
     return _wrap_nested(_op.full(shape, fill_value, dtype), name)
@@ -894,6 +893,66 @@ def zeros(
         The result tensor.
     """
     return _wrap_nested(_op.zeros(shape, dtype), name)
+
+
+def get_timestep_embedding(
+    x: Tensor,
+    embedding_dim: int,
+    flip_sin_to_cos: bool = False,
+    downscale_freq_shift: float = 1,
+    scale: float = 1,
+    max_period: int = 10000,
+    name: str = "get_timestep_embedding",
+) -> Tensor:
+    """
+    Timestep calculation as described in Denoising Diffusion Probabilistic Models.
+
+    Parameters
+    ----------
+    x : Tensor
+        A 1-D Tensor of N indices.
+    embedding_dim : int
+        The dimension of the output.
+    flip_sin_to_cos : bool
+        If True, change the order of sine and cosine embeddings.
+    downscale_freq_shift : float
+        Adjusts the frequency of the sinusoidal sampling.
+    scale : float
+        Weight adjustment for embedding magnitude.
+    max_period : int
+        Controls the minimum frequency of the embeddings.
+    name : str
+        The name to label this operator with.
+
+    Returns
+    -------
+    result : Tensor
+        [N x dim] Tensor of positional embeddings.
+    """
+    timesteps = _op.astype(x._expr, "float32")
+
+    half_dim = embedding_dim // 2
+    exponent = rx.const(-math.log(max_period), "float32") * _op.arange(
+        start=0, end=half_dim, dtype="float32"
+    )
+    exponent = exponent / (rx.const(half_dim - downscale_freq_shift, "float32"))
+
+    emb = _op.exp(exponent)
+    emb = _op.expand_dims(timesteps, 1) * _op.expand_dims(emb, 0)
+    # Scale embeddings
+    if scale != 1:
+        emb = rx.const(scale, "float32") * emb
+
+    # Concat sine and cosine embeddings.
+    if flip_sin_to_cos:
+        emb = _op.concat([_op.cos(emb), _op.sin(emb)], axis=-1)
+    else:
+        emb = _op.concat([_op.sin(emb), _op.cos(emb)], axis=-1)
+
+    # Zero pad
+    if embedding_dim % 2 == 1:
+        emb = _op.nn.pad(emb, (0, 1, 0, 0))
+    return _wrap_nested(emb, name)
 
 
 def tensor_expr_op(

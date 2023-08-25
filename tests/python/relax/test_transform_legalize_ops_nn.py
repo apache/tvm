@@ -3508,5 +3508,47 @@ def test_nll_loss_symbolic():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_pad():
+    @tvm.script.ir_module
+    class Pad:
+        @R.function
+        def main(x: R.Tensor((2, 128, 28), "float32")) -> R.Tensor((2, 130, 30), "float32"):
+            gv: R.Tensor((2, 130, 30), "float32") = R.nn.pad(x, (0, 0, 1, 1, 1, 1))
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((2, 128, 28), dtype="float32")
+        ) -> R.Tensor((2, 130, 30), dtype="float32"):
+            gv = R.call_tir(Expected.pad, (x), out_sinfo=R.Tensor((2, 130, 30), dtype="float32"))
+            return gv
+
+        @T.prim_func(private=True)
+        def pad(
+            A: T.Buffer((T.int64(2), T.int64(128), T.int64(28)), "float32"),
+            PadInput: T.Buffer((T.int64(2), T.int64(130), T.int64(30)), "float32"),
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            # with T.block("root"):
+            for i0, i1, i2 in T.grid(T.int64(2), T.int64(130), T.int64(30)):
+                with T.block("PadInput"):
+                    v_i0, v_i1, v_i2 = T.axis.remap("SSS", [i0, i1, i2])
+                    T.reads(A[v_i0, v_i1 - T.int64(1), v_i2 - T.int64(1)])
+                    T.writes(PadInput[v_i0, v_i1, v_i2])
+                    PadInput[v_i0, v_i1, v_i2] = T.if_then_else(
+                        T.int64(1) <= v_i1
+                        and v_i1 < T.int64(129)
+                        and T.int64(1) <= v_i2
+                        and v_i2 < T.int64(29),
+                        A[v_i0, v_i1 - T.int64(1), v_i2 - T.int64(1)],
+                        T.float32(0),
+                    )
+
+    mod = LegalizeOps()(Pad)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

@@ -184,6 +184,22 @@ def _nn_conv2d_transpose(bb: BlockBuilder, call: Call) -> Expr:
     )
 
 
+@register_legalize("relax.nn.pad")
+def _nn_pad(bb: BlockBuilder, call: Call) -> Expr:
+    # Unpack pad_width into two separate lists for topi.
+    pad_widths = call.attrs.pad_width
+    pad_before = pad_widths[::2]
+    pad_after = pad_widths[1::2]
+    return bb.call_te(
+        topi.nn.pad,
+        call.args[0],
+        pad_before=pad_before,
+        pad_after=pad_after,
+        pad_value=float(call.args[1].data.numpy()),
+        primfunc_name_hint="pad",
+    )
+
+
 @register_legalize("relax.nn.max_pool2d")
 def _nn_max_pool2d(bb: BlockBuilder, call: Call) -> Expr:
     if call.attrs.out_layout != call.attrs.layout:

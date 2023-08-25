@@ -375,7 +375,7 @@ struct DropoutAttrs : public tvm::AttrsNode<DropoutAttrs> {
   }
 };  // struct DropoutAttrs
 
-/*! \brief Attributes used in dropout operator */
+/*! \brief Attributes used in Attention operator */
 struct AttentionAttrs : public tvm::AttrsNode<AttentionAttrs> {
   Optional<FloatImm> scale;
   Optional<String> causal_mask;
@@ -387,6 +387,24 @@ struct AttentionAttrs : public tvm::AttrsNode<AttentionAttrs> {
         .describe("The type of the causal mask, i.e. 'TopLeft' and 'BottomRight'.");
   }
 };  // struct AttentionAttrs
+
+/*! \brief Attributes used for the padding operator */
+struct PadAttrs : public tvm::AttrsNode<PadAttrs> {
+  Array<Integer> pad_width;
+  tvm::String pad_mode;
+
+  TVM_DECLARE_ATTRS(PadAttrs, "relay.attrs.PadAttrs") {
+    TVM_ATTR_FIELD(pad_width).describe(
+        "Number of values padded to the edges of each axis, "
+        "in the format of (before_1, after_1, ..., before_N, after_N)");
+    TVM_ATTR_FIELD(pad_mode)
+        .set_default("constant")
+        .describe(
+            "Padding type to use. \"constant\" pads with constant_value, "
+            "\"edge\" pads using the edge values of the input array, "
+            "\"reflect\" pads by reflecting values with respect to the edges.");
+  }
+};
 
 }  // namespace relax
 }  // namespace tvm

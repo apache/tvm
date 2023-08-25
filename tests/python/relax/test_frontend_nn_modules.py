@@ -26,6 +26,23 @@ from tvm.script import ir as I
 from tvm.script import relax as R
 
 
+def test_silu():
+    @R.function
+    def forward(
+        x: R.Tensor((3, 3), dtype="float32"),
+        _io: R.Object,
+    ) -> R.Tuple(R.Tensor((3, 3), dtype="float32"), R.Tuple(R.Object)):
+        with R.dataflow():
+            silu: R.Tensor((3, 3), dtype="float32") = R.nn.silu(x)
+            gv1: R.Tuple(R.Tensor((3, 3), dtype="float32"), R.Tuple(R.Object)) = silu, (_io,)
+            R.output(gv1)
+        return gv1
+
+    mod = modules.SiLU()
+    tvm_mod, _ = mod.export_tvm(spec={"forward": {"x": spec.Tensor((3, 3), "float32")}})
+    assert_structural_equal(tvm_mod["forward"], forward, True)
+
+
 def test_linear():
     @R.function
     def forward(
@@ -176,6 +193,91 @@ def test_embedding():
 
     mod = modules.Embedding(4, 8, "float32")
     tvm_mod, _ = mod.export_tvm(spec={"forward": {"x": spec.Tensor((1, 4), "int32")}})
+    assert_structural_equal(tvm_mod["forward"], forward, True)
+
+
+def test_timestep_embedding():
+    @R.function
+    def forward(
+        sample: R.Tensor((32, 32), dtype="float32"),
+        condition: R.Tensor((32, 16), dtype="float32"),
+        linear_1_weight: R.Tensor((32, 32), dtype="float32"),
+        linear_1_bias: R.Tensor((32,), dtype="float32"),
+        cond_proj_weight: R.Tensor((32, 16), dtype="float32"),
+        linear_2_weight: R.Tensor((32, 32), dtype="float32"),
+        linear_2_bias: R.Tensor((32,), dtype="float32"),
+        _io: R.Object,
+    ) -> R.Tuple(R.Tensor((32, 32), dtype="float32"), R.Tuple(R.Object)):
+        with R.dataflow():
+            permute_dims: R.Tensor((16, 32), dtype="float32") = R.permute_dims(
+                cond_proj_weight, axes=None
+            )
+            matmul: R.Tensor((32, 32), dtype="float32") = R.matmul(
+                condition, permute_dims, out_dtype="void"
+            )
+            add: R.Tensor((32, 32), dtype="float32") = R.add(sample, matmul)
+            permute_dims1: R.Tensor((32, 32), dtype="float32") = R.permute_dims(
+                linear_1_weight, axes=None
+            )
+            matmul1: R.Tensor((32, 32), dtype="float32") = R.matmul(
+                add, permute_dims1, out_dtype="void"
+            )
+            add1: R.Tensor((32, 32), dtype="float32") = R.add(matmul1, linear_1_bias)
+            silu: R.Tensor((32, 32), dtype="float32") = R.nn.silu(add1)
+            permute_dims2: R.Tensor((32, 32), dtype="float32") = R.permute_dims(
+                linear_2_weight, axes=None
+            )
+            matmul2: R.Tensor((32, 32), dtype="float32") = R.matmul(
+                silu, permute_dims2, out_dtype="void"
+            )
+            add2: R.Tensor((32, 32), dtype="float32") = R.add(matmul2, linear_2_bias)
+            gv1: R.Tuple(R.Tensor((32, 32), dtype="float32"), R.Tuple(R.Object)) = add2, (_io,)
+            R.output(gv1)
+        return gv1
+
+    mod = modules.TimestepEmbedding(32, 32, cond_proj_dim=16)
+    tvm_mod, _ = mod.export_tvm(
+        spec={
+            "forward": {
+                "sample": spec.Tensor((32, 32), "float32"),
+                "condition": spec.Tensor((32, 16), "float32"),
+            }
+        }
+    )
+    assert_structural_equal(tvm_mod["forward"], forward, True)
+
+
+def test_timesteps():
+    @R.function
+    def forward(
+        x: R.Tensor((3,), dtype="float32"), _io: R.Object
+    ) -> R.Tuple(R.Tensor((3, 10), dtype="float32"), R.Tuple(R.Object)):
+        with R.dataflow():
+            lv1: R.Tensor((3,), dtype="float32") = R.astype(x, dtype="float32")
+            lv2: R.Tensor((3, 1), dtype="float32") = R.expand_dims(lv1, axis=[1])
+            lv3: R.Tensor((5,), dtype="float32") = R.arange(
+                R.prim_value(0), R.prim_value(5), R.prim_value(1), dtype="float32"
+            )
+            lv4: R.Tensor((5,), dtype="float32") = R.multiply(
+                R.const(-9.2103404998779297, "float32"), lv3
+            )
+            lv5: R.Tensor((5,), dtype="float32") = R.divide(lv4, R.const(4, "float32"))
+            lv6: R.Tensor((5,), dtype="float32") = R.exp(lv5)
+            lv7: R.Tensor((1, 5), dtype="float32") = R.expand_dims(lv6, axis=[0])
+            lv8: R.Tensor((3, 5), dtype="float32") = R.multiply(lv2, lv7)
+            lv9: R.Tensor((3, 5), dtype="float32") = R.sin(lv8)
+            lv10: R.Tensor((3, 5), dtype="float32") = R.cos(lv8)
+            get_timestep_embedding: R.Tensor((3, 10), dtype="float32") = R.concat(
+                (lv9, lv10), axis=-1
+            )
+            gv1: R.Tuple(
+                R.Tensor((3, 10), dtype="float32"), R.Tuple(R.Object)
+            ) = get_timestep_embedding, (_io,)
+            R.output(gv1)
+        return gv1
+
+    mod = modules.Timesteps(10)
+    tvm_mod, _ = mod.export_tvm(spec={"forward": {"x": spec.Tensor((3,), "float32")}})
     assert_structural_equal(tvm_mod["forward"], forward, True)
 
 

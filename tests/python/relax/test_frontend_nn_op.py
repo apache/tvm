@@ -259,6 +259,45 @@ def test_create():
     tvm.ir.assert_structural_equal(irmodule["test"], test)
 
 
+def test_timestep_embedding():
+    class Model(Module):
+        def test(self, x: Tensor):
+            get_timestep_out = op.get_timestep_embedding(x, 10)
+            return get_timestep_out
+
+    @R.function
+    def test(
+        x: R.Tensor((3,), dtype="float32"), _io: R.Object
+    ) -> R.Tuple(R.Tensor((3, 10), dtype="float32"), R.Tuple(R.Object)):
+        with R.dataflow():
+            lv1: R.Tensor((3,), dtype="float32") = R.astype(x, dtype="float32")
+            lv2: R.Tensor((3, 1), dtype="float32") = R.expand_dims(lv1, axis=[1])
+            lv3: R.Tensor((5,), dtype="float32") = R.arange(
+                R.prim_value(0), R.prim_value(5), R.prim_value(1), dtype="float32"
+            )
+            lv4: R.Tensor((5,), dtype="float32") = R.multiply(
+                R.const(-9.2103404998779297, "float32"), lv3
+            )
+            lv5: R.Tensor((5,), dtype="float32") = R.divide(lv4, R.const(4, "float32"))
+            lv6: R.Tensor((5,), dtype="float32") = R.exp(lv5)
+            lv7: R.Tensor((1, 5), dtype="float32") = R.expand_dims(lv6, axis=[0])
+            lv8: R.Tensor((3, 5), dtype="float32") = R.multiply(lv2, lv7)
+            lv9: R.Tensor((3, 5), dtype="float32") = R.sin(lv8)
+            lv10: R.Tensor((3, 5), dtype="float32") = R.cos(lv8)
+            get_timestep_embedding: R.Tensor((3, 10), dtype="float32") = R.concat(
+                (lv9, lv10), axis=-1
+            )
+            gv1: R.Tuple(
+                R.Tensor((3, 10), dtype="float32"), R.Tuple(R.Object)
+            ) = get_timestep_embedding, (_io,)
+            R.output(gv1)
+        return gv1
+
+    m = Model()
+    irmodule, _ = m.export_tvm(spec={"test": {"x": spec.Tensor([3], "float32")}})
+    tvm.ir.assert_structural_equal(irmodule["test"], test)
+
+
 def test_tensor_expr_op():
     class Model(Module):
         def test(self, x: Tensor):
