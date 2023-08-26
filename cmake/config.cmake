@@ -62,6 +62,12 @@ set(USE_NCCL OFF)
 # - /path/to/rocm: use specific path to rocm
 set(USE_ROCM OFF)
 
+# Whether to enable RCCL support:
+# - ON: enable RCCL with cmake's auto search
+# - OFF: disable RCCL
+# - /path/to/rccl: use specific path to rccl
+set(USE_RCCL OFF)
+
 # Whether enable SDAccel runtime
 set(USE_SDACCEL OFF)
 
