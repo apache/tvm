@@ -759,6 +759,8 @@ def group_norm(
     weight: Optional[Tensor],
     bias: Optional[Tensor],
     eps: float = 1e-5,
+    channel_axis: int = 1,
+    axes: Optional[List[int]] = None,
     name: str = "group_norm",
 ) -> Tensor:
     r"""
@@ -785,6 +787,13 @@ def group_norm(
     epsilon : float
         Small float added to square mean to avoid dividing by zero.
 
+    channel_axis: int
+        The channel axis of the data.
+
+    axes : Optional[int]
+        Which axes to compute the groupnorm over. If None, assumes first
+        two channels should be ignored.
+
     name : str
         Name hint.
 
@@ -798,9 +807,11 @@ def group_norm(
     if bias is not None:
         bias = bias._expr
     dim = len(x._expr.struct_info.shape)
+    if axes is None:
+        axes = list(range(2, dim))
     return _wrap_nested(
         _op.nn.group_norm(
-            x._expr, weight, bias, num_groups, channel_axis=1, axes=list(range(2, dim)), epsilon=eps
+            x._expr, weight, bias, num_groups, channel_axis=channel_axis, axes=axes, epsilon=eps
         ),
         name,
     )
@@ -953,6 +964,45 @@ def get_timestep_embedding(
     if embedding_dim % 2 == 1:
         emb = _op.nn.pad(emb, (0, 1, 0, 0))
     return _wrap_nested(emb, name)
+
+
+def scaled_dot_product_attention(
+    query: Tensor,
+    key: Tensor,
+    value: Tensor,
+    attn_mask: Optional[Tensor] = None,
+    is_causal: Optional[bool] = False,
+    scale: Optional[float] = None,
+    name: str = "scaled_dot_product_attention",
+):
+    """
+    Computes a scaled dot product attention on provided attention
+    query, key, and values. Compliant with the functional torch implementation.
+
+    Parameters
+    ----------
+    query : Tensor
+        Tensor representing current attention lookup.
+    key : Tensor
+        Tensor representing cross attention mapping.
+    value : Tensor
+        Tensor representing embedded attention values.
+    attn_mask : Optional[Tensor]
+        Optional mask for attention, not yet supported.
+    is_causal : Optional[bool]
+        If set, uses a causal attention mask.
+    scale : Optional[float]
+        Optional extra scaling argument applied to attention.
+    name : str
+        Name hint for this function.
+    """
+    assert attn_mask is None, "attn_mask not yet supported."
+    causal_mask = "TopLeft" if is_causal else None
+
+    attn = _op.nn.attention(
+        query._expr, key._expr, value._expr, causal_mask=causal_mask, scale=scale
+    )
+    return _wrap_nested(attn, name)
 
 
 def tensor_expr_op(

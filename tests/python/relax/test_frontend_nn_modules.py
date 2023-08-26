@@ -335,5 +335,87 @@ def test_kv_cache():
     assert_structural_equal(tvm_mod, Module, True)
 
 
+def test_attention():
+    @R.function
+    def forward(
+        hidden_states: R.Tensor((2, 4096, 640), dtype="float32"),
+        encoder_hidden_states: R.Tensor((2, 77, 2048), dtype="float32"),
+        to_q_weight: R.Tensor((640, 640), dtype="float32"),
+        to_k_weight: R.Tensor((640, 2048), dtype="float32"),
+        to_v_weight: R.Tensor((640, 2048), dtype="float32"),
+        group_norm_weight: R.Tensor((640,), dtype="float32"),
+        group_norm_bias: R.Tensor((640,), dtype="float32"),
+        to_out_0_weight: R.Tensor((640, 640), dtype="float32"),
+        to_out_0_bias: R.Tensor((640,), dtype="float32"),
+        _io: R.Object,
+    ) -> R.Tuple(R.Tensor((2, 4096, 640), dtype="float32"), R.Tuple(R.Object)):
+        with R.dataflow():
+            group_norm: R.Tensor((2, 4096, 640), dtype="float32") = R.nn.group_norm(
+                hidden_states,
+                group_norm_weight,
+                group_norm_bias,
+                num_groups=8,
+                channel_axis=2,
+                axes=[1],
+                epsilon=1.0000000000000001e-05,
+                center=True,
+                scale=True,
+            )
+            permute_dims: R.Tensor((640, 640), dtype="float32") = R.permute_dims(
+                to_q_weight, axes=None
+            )
+            matmul: R.Tensor((2, 4096, 640), dtype="float32") = R.matmul(
+                group_norm, permute_dims, out_dtype="void"
+            )
+            permute_dims1: R.Tensor((2048, 640), dtype="float32") = R.permute_dims(
+                to_k_weight, axes=None
+            )
+            matmul1: R.Tensor((2, 77, 640), dtype="float32") = R.matmul(
+                encoder_hidden_states, permute_dims1, out_dtype="void"
+            )
+            permute_dims2: R.Tensor((2048, 640), dtype="float32") = R.permute_dims(
+                to_v_weight, axes=None
+            )
+            matmul2: R.Tensor((2, 77, 640), dtype="float32") = R.matmul(
+                encoder_hidden_states, permute_dims2, out_dtype="void"
+            )
+            reshape: R.Tensor((2, 4096, 10, 64), dtype="float32") = R.reshape(
+                matmul, R.shape([2, 4096, 10, 64])
+            )
+            reshape1: R.Tensor((2, 77, 10, 64), dtype="float32") = R.reshape(
+                matmul1, R.shape([2, 77, 10, 64])
+            )
+            reshape2: R.Tensor((2, 77, 10, 64), dtype="float32") = R.reshape(
+                matmul2, R.shape([2, 77, 10, 64])
+            )
+            scaled_dot_product_attention: R.Tensor(
+                (2, 4096, 10, 64), dtype="float32"
+            ) = R.nn.attention(reshape, reshape1, reshape2, scale=None, causal_mask=None)
+            reshape3: R.Tensor((2, 4096, 640), dtype="float32") = R.reshape(
+                scaled_dot_product_attention, R.shape([2, 4096, 640])
+            )
+            permute_dims3: R.Tensor((640, 640), dtype="float32") = R.permute_dims(
+                to_out_0_weight, axes=None
+            )
+            matmul3: R.Tensor((2, 4096, 640), dtype="float32") = R.matmul(
+                reshape3, permute_dims3, out_dtype="void"
+            )
+            add: R.Tensor((2, 4096, 640), dtype="float32") = R.add(matmul3, to_out_0_bias)
+            gv1: R.Tuple(R.Tensor((2, 4096, 640), dtype="float32"), R.Tuple(R.Object)) = add, (_io,)
+            R.output(gv1)
+        return gv1
+
+    mod = modules.Attention(query_dim=640, cross_attention_dim=2048, heads=10, norm_num_groups=8)
+    tvm_mod, _ = mod.export_tvm(
+        spec={
+            "forward": {
+                "hidden_states": spec.Tensor((2, 4096, 640), "float32"),
+                "encoder_hidden_states": spec.Tensor((2, 77, 2048), "float32"),
+            }
+        }
+    )
+    assert_structural_equal(tvm_mod["forward"], forward, True)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

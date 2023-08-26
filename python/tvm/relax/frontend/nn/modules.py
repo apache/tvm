@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=too-many-arguments,invalid-name,protected-access
+# pylint: disable=too-many-arguments,invalid-name,protected-access,unused-argument
 """Builtin Modules."""
 from typing import List, Optional, Sequence, Union
 
@@ -24,7 +24,7 @@ from tvm._ffi import register_func
 from tvm.runtime import NDArray
 
 from . import op
-from .core import Effect, Module, Parameter, Tensor, get_default_dtype
+from .core import Effect, Module, Parameter, Tensor, get_default_dtype, ModuleList
 
 
 class IOEffect(Effect):
@@ -344,7 +344,7 @@ class GroupNorm(Module):
             self.weight = None
             self.bias = None
 
-    def forward(self, x: Tensor):
+    def forward(self, x: Tensor, channel_axis: int = 1, axes: Optional[List[int]] = None):
         """
         Forward method for group norm layer.
 
@@ -352,13 +352,20 @@ class GroupNorm(Module):
         ----------
         x : Tensor
             The input tensor.
+        channel_axis : int
+            Channel axis of the input data.
+        axes : Optional[List[int]]
+            Optional list of axes to compute norm over, if not specified,
+            assumes that the first two axes should be left alone.
 
         Returns
         -------
         ret : Tensor
             The output tensor for the group norm layer.
         """
-        return op.group_norm(x, self.num_groups, self.weight, self.bias, self.eps)
+        return op.group_norm(
+            x, self.num_groups, self.weight, self.bias, self.eps, channel_axis, axes
+        )
 
 
 class KVCache(Effect):
@@ -621,3 +628,117 @@ class Timesteps(Module):
             flip_sin_to_cos=self.flip_sin_to_cos,
             downscale_freq_shift=self.downscale_freq_shift,
         )
+
+
+class Attention(Module):
+    """
+    A cross attention layer.
+
+    Parameters
+    ----------
+        query_dim : int
+            The number of channels in the query.
+        cross_attention_dim : Optional[int]
+            The number of channels in the encoder_hidden_states.
+            If not given, defaults to `query_dim`.
+        heads : int
+            The number of heads to use for multi-head attention.
+        dim_head : int
+            The number of channels in each head.
+        bias : bool
+            Set to `True` for the query, key, and value linear layers to contain a bias parameter.
+        norm_num_groups : Optional[int]
+            When set, group norm is applied to the input using this number of groups.
+        out_bias : bool
+            Set to `True` to apply a bias to the output linear layer.
+        scale_qk : bool
+            Whether to apply scaling to query and key tensors.
+    """
+
+    def __init__(
+        self,
+        query_dim: int,
+        cross_attention_dim: Optional[int] = None,
+        heads: int = 8,
+        dim_head: int = 64,
+        bias: bool = False,
+        norm_num_groups: Optional[int] = None,
+        out_bias: bool = True,
+        scale_qk: bool = True,
+    ):
+        self.query_dim = query_dim
+        self.cross_attention_dim = cross_attention_dim if cross_attention_dim else query_dim
+        self.heads = heads
+        self.dim_head = dim_head
+        self.bias = bias
+        self.norm_num_groups = norm_num_groups
+        self.out_bias = out_bias
+        self.scale_qk = scale_qk
+
+        self.scale = dim_head**-0.5 if self.scale_qk else 1.0
+        self.inner_dim = dim_head * heads
+
+        self.to_q = Linear(self.query_dim, self.inner_dim, bias=self.bias)
+        self.to_k = Linear(self.cross_attention_dim, self.inner_dim, bias=self.bias)
+        self.to_v = Linear(self.cross_attention_dim, self.inner_dim, bias=self.bias)
+
+        if self.norm_num_groups is not None:
+            self.group_norm = GroupNorm(
+                num_channels=self.query_dim, num_groups=self.norm_num_groups, affine=True
+            )
+        else:
+            self.group_norm = None
+
+        self.to_out = ModuleList([Linear(self.inner_dim, self.query_dim, bias=self.out_bias)])
+
+    def forward(
+        self,
+        hidden_states: Tensor,
+        encoder_hidden_states: Optional[Tensor] = None,
+        attention_mask: Optional[Tensor] = None,
+        **cross_attention_kwargs,
+    ):
+        """
+        Forward method for Attention layer.
+
+        Parameters
+        ----------
+        hidden_states : Tensor
+            The input sample tensor.
+        encoder_hidden_states : Optional[Tensor]
+            Previous hidden step hidden states.
+        attention_mask : Optional[Tensor]
+            Mask tensor for attention, currently not supported.
+
+        Returns
+        -------
+        ret : Tensor
+            The output tensor for the embedding layer.
+        """
+        # This implementation assumes use of torch 2.0 scaled_dot_product attention.
+        assert attention_mask is None, "Attention mask not yet supported."
+
+        if self.group_norm is not None:
+            hidden_states = self.group_norm(hidden_states, channel_axis=2, axes=[1])
+
+        query = self.to_q(hidden_states)
+        if encoder_hidden_states is None:
+            encoder_hidden_states = hidden_states
+
+        key = self.to_k(encoder_hidden_states)
+        value = self.to_v(encoder_hidden_states)
+        head_dim = int(self.inner_dim // self.heads)
+
+        query = op.reshape(query, [0, -1, self.heads, head_dim])
+        key = op.reshape(key, [0, -1, self.heads, head_dim])
+        value = op.reshape(value, [0, -1, self.heads, head_dim])
+
+        hidden_states = op.scaled_dot_product_attention(query, key, value, is_causal=False)
+
+        # Return to proper shape.
+        hidden_states = op.reshape(hidden_states, (0, -1, self.heads * head_dim))
+
+        # Linear projection
+        hidden_states = self.to_out[0](hidden_states)
+
+        return hidden_states

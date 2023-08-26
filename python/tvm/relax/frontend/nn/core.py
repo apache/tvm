@@ -486,6 +486,9 @@ class ModuleList(Module):
     def __len__(self):
         return len(self.modules)
 
+    def append(self, module):
+        self.modules.append(module)
+
     def to(self, dtype: Optional[str] = None) -> None:  # pylint: disable=invalid-name
         for module in self.modules:
             module.to(dtype=dtype)
