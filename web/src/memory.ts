@@ -251,7 +251,7 @@ export class CachedCallStack implements Disposable {
    */
   reset(): void {
     this.stackTop = 0;
-    assert(this.addressToSetTargetValue.length == 0);
+    assert(this.addressToSetTargetValue.length === 0);
     while (this.tempArgs.length != 0) {
       (this.tempArgs.pop() as Disposable).dispose();
     }
