@@ -4510,14 +4510,19 @@ class If(OnnxOpConverter):
         # Add constants from both branches to parent graph.
         graph_scope._params.update(then_graph._params)
         graph_scope._nodes.update(then_graph._nodes)
+        graph_scope._params.update(else_graph._params)
+        graph_scope._nodes.update(else_graph._nodes)
+
         then_free_vars = analysis.free_vars(then_expr)
         for var in then_free_vars:
             graph_scope._nodes.update({var.name_hint: var})
-        graph_scope._params.update(else_graph._params)
-        graph_scope._nodes.update(else_graph._nodes)
+            if var.name_hint in graph_scope._inputs:
+                graph_scope._inputs.update({var.name_hint: var})
         else_free_vars = analysis.free_vars(else_expr)
         for var in else_free_vars:
             graph_scope._nodes.update({var.name_hint: var})
+            if var.name_hint in graph_scope._inputs:
+                graph_scope._inputs.update({var.name_hint: var})
 
         # Sometimes pytorch to onnx will insert silly if statements that produce dynamic ranks.
         # Often these dont contribute anything. If we see a dynamic rank output, try to unify
