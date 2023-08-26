@@ -101,7 +101,7 @@ TVM_DLL void EnvCheckSignals();
 class WrappedPythonObject {
  public:
   /*! \brief Construct a wrapper that doesn't own anything */
-  explicit WrappedPythonObject() : python_obj_(nullptr) {}
+  WrappedPythonObject() : python_obj_(nullptr) {}
 
   /*! \brief Conversion constructor from nullptr */
   explicit WrappedPythonObject(std::nullptr_t) : python_obj_(nullptr) {}
