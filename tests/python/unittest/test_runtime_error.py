@@ -102,7 +102,9 @@ def test_cpp_frames_in_stack_trace():
     except ValueError as err:
         frames = traceback.extract_tb(err.__traceback__)
 
-    cpp_frames = [frame for frame in frames if frame.filename.endswith(".cc")]
+    cpp_frames = [
+        frame for frame in frames if frame.filename.endswith(".cc") or frame.filename.endswith(".c")
+    ]
     assert len(cpp_frames) >= 1
 
 
