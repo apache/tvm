@@ -16,7 +16,6 @@
 # under the License.
 """Operators with mask."""
 from . import _ffi_api
-from .create import full_like
 from ..expr import Expr
 
 
@@ -35,5 +34,5 @@ def masked_fill(x: Expr, mask: Expr, value: Expr):
     result : relax.Expr
         The filled tensor.
     """
-    values = full_like(x, value)  # type: ignore
+    values = _ffi_api.full_like(x, value, value.struct_info.dtype)  # type: ignore
     return _ffi_api.where(mask, values, x)  # type: ignore
