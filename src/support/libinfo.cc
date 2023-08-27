@@ -71,6 +71,10 @@
 #define TVM_INFO_ROCM_PATH "NOT-FOUND"
 #endif
 
+#ifndef TVM_INFO_USE_RCCL
+#define TVM_INFO_USE_RCCL "NOT-FOUND"
+#endif
+
 #ifndef TVM_INFO_USE_HEXAGON
 #define TVM_INFO_USE_HEXAGON "NOT-FOUND"
 #endif
@@ -325,6 +329,7 @@ TVM_DLL Map<String, String> GetLibInfo() {
       {"USE_RELAY_DEBUG", TVM_INFO_USE_RELAY_DEBUG},
       {"USE_ROCBLAS", TVM_INFO_USE_ROCBLAS},
       {"USE_ROCM", TVM_INFO_USE_ROCM},
+      {"USE_RCCL", TVM_INFO_USE_RCCL},
       {"USE_RPC", TVM_INFO_USE_RPC},
       {"USE_RTTI", TVM_INFO_USE_RTTI},
       {"USE_RUST_EXT", TVM_INFO_USE_RUST_EXT},
