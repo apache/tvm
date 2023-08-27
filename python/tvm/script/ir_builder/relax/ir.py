@@ -150,6 +150,7 @@ from tvm.relax.op import (
     zeros,
     zeros_like,
     nn,
+    ccl,
 )
 from tvm.relax.op.builtin import stop_lift_params
 from tvm.relax.struct_info import StructInfo
@@ -706,5 +707,6 @@ __all__ = [
     "zeros",
     "zeros_like",
     "nn",
+    "ccl",
     "erf",
 ]
