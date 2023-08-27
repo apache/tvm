@@ -72,6 +72,8 @@ struct TypeIndex {
     kRuntimeShapeTuple = 6,
     /*! \brief runtime::PackedFunc. */
     kRuntimePackedFunc = 7,
+    /*! \brief runtime::DRef */
+    kRuntimeDiscoDRef = 8,
     // static assignments that may subject to change.
     kRuntimeClosure,
     kRuntimeADT,
