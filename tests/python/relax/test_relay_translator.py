@@ -312,5 +312,31 @@ def test_append_op_attrs():
     assert "op_attrs" not in relax_mod_wo_attrs["concatenate"].attrs
 
 
+def test_instruments_support():
+    x = relay.var("x", shape=(10, 16))
+    y = relay.var("y", shape=(10, 16))
+    out = relay.add(x, y)
+    mod = tvm.IRModule.from_expr(out)
+
+    @tvm.instrument.pass_instrument
+    class SampleRunBeforeAfterInstrument:
+        def __init__(self):
+            self.events = []
+
+        def run_before_pass(self, mod, info):
+            self.events.append("run before " + info.name)
+
+        def run_after_pass(self, mod, info):
+            self.events.append("run after " + info.name)
+
+    my_test = SampleRunBeforeAfterInstrument()
+    relax_mod_with_attrs = relay_translator.from_relay(
+        mod["main"], target="llvm", instruments=[my_test]
+    )
+
+    assert "run after " in "".join(my_test.events)
+    assert "run before " in "".join(my_test.events)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
