@@ -105,7 +105,10 @@ def test_cpp_frames_in_stack_trace():
     cpp_frames = [
         frame for frame in frames if frame.filename.endswith(".cc") or frame.filename.endswith(".c")
     ]
-    assert len(cpp_frames) >= 1
+    assert len(cpp_frames) >= 1, (
+        f"Traceback through files '{[frame.filename for frame in frames]}'"
+        f" expected to contain C/C++ frames"
+    )
 
 
 if __name__ == "__main__":
