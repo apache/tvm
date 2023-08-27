@@ -203,9 +203,8 @@ def test_erase_to_well_defined_func():
     tvm.ir.assert_structural_equal(rx.analysis.erase_to_well_defined(f0), f0)
 
 
-def test_base_check():
+def generate_base_check_test_cases():
     BR = rx.analysis.BaseCheckResult
-    bcheck = rx.analysis.struct_info_base_check
 
     n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
     obj0 = rx.ObjectStructInfo()
@@ -243,76 +242,73 @@ def test_base_check():
     tensor16 = rx.TensorStructInfo([n, m, 2], "int32", vdevice4)
 
     # obj
-    assert bcheck(obj0, prim0) == BR.PASS
-    assert bcheck(obj0, shape1) == BR.PASS
-    assert bcheck(obj0, tensor2) == BR.PASS
-    assert obj0.is_base_of(tensor2)
+    yield (obj0, prim0, BR.PASS)
+    yield (obj0, shape1, BR.PASS)
+    yield (obj0, tensor2, BR.PASS)
 
     # prim
-    assert prim0.is_base_of(prim0)
-    assert not prim0.is_base_of(prim1)
-    assert bcheck(prim0, obj0) == BR.FAIL_L1
-    assert bcheck(prim0, prim0) == BR.PASS
-    assert bcheck(prim0, prim1) == BR.FAIL_L0
+    yield (prim0, obj0, BR.FAIL_L1)
+    yield (prim0, prim0, BR.PASS)
+    yield (prim0, prim1, BR.FAIL_L0)
 
     # shape
-    assert bcheck(shape0, obj0) == BR.FAIL_L1
-    assert bcheck(shape0, prim0) == BR.FAIL_L0
+    yield (shape0, obj0, BR.FAIL_L1)
+    yield (shape0, prim0, BR.FAIL_L0)
 
     # unknown dim
-    assert bcheck(shape0, shape1) == BR.PASS
-    assert bcheck(shape1, shape0) == BR.FAIL_L1
+    yield (shape0, shape1, BR.PASS)
+    yield (shape1, shape0, BR.FAIL_L1)
 
     # ndim mismatch
-    assert bcheck(shape1, shape2) == BR.FAIL_L0
+    yield (shape1, shape2, BR.FAIL_L0)
 
     # lhs do not have symbolic value but ndim match
-    assert bcheck(shape2, shape3) == BR.PASS
+    yield (shape2, shape3, BR.PASS)
 
     # rhs do not symbolic but lhs do
-    assert bcheck(shape3, shape2) == BR.FAIL_L2
+    yield (shape3, shape2, BR.FAIL_L2)
 
     # shape mismatch
-    assert bcheck(shape3, shape4) == BR.FAIL_L2
-    assert shape4.is_base_of(rx.ShapeStructInfo([1, n, 3]))
+    yield (shape3, shape4, BR.FAIL_L2)
+    yield (shape4, rx.ShapeStructInfo([1, n, 3]), BR.PASS)
 
     # tensor
-    assert bcheck(tensor0, obj0) == BR.FAIL_L1
-    assert bcheck(tensor0, prim0) == BR.FAIL_L0
-    assert bcheck(tensor0, shape0) == BR.FAIL_L0
+    yield (tensor0, obj0, BR.FAIL_L1)
+    yield (tensor0, prim0, BR.FAIL_L0)
+    yield (tensor0, shape0, BR.FAIL_L0)
 
     # dtype mismatch
-    assert bcheck(tensor0, tensor1) == BR.FAIL_L0
-    assert bcheck(tensor0, tensor3) == BR.FAIL_L0
-    assert bcheck(tensor3, tensor4) == BR.FAIL_L0
-    assert bcheck(tensor1, tensor2) == BR.FAIL_L0
+    yield (tensor0, tensor1, BR.FAIL_L0)
+    yield (tensor0, tensor3, BR.FAIL_L0)
+    yield (tensor3, tensor4, BR.FAIL_L0)
+    yield (tensor1, tensor2, BR.FAIL_L0)
 
     # vdevice mismatch
-    assert bcheck(tensor8, tensor9) == BR.FAIL_L0
-    assert bcheck(tensor9, tensor10) == BR.FAIL_L0
-    assert bcheck(tensor10, tensor11) == BR.FAIL_L0
-    assert bcheck(tensor13, tensor14) == BR.FAIL_L0
-    assert bcheck(tensor14, tensor15) == BR.FAIL_L0
-    assert bcheck(tensor15, tensor16) == BR.FAIL_L0
+    yield (tensor8, tensor9, BR.FAIL_L0)
+    yield (tensor9, tensor10, BR.FAIL_L0)
+    yield (tensor10, tensor11, BR.FAIL_L0)
+    yield (tensor13, tensor14, BR.FAIL_L0)
+    yield (tensor14, tensor15, BR.FAIL_L0)
+    yield (tensor15, tensor16, BR.FAIL_L0)
 
     # ndim mismatch
-    assert bcheck(tensor2, tensor5) == BR.FAIL_L0
+    yield (tensor2, tensor5, BR.FAIL_L0)
 
     # static shape mismatch
-    assert bcheck(tensor5, tensor6) == BR.FAIL_L0
+    yield (tensor5, tensor6, BR.FAIL_L0)
 
     # match
-    assert tensor0.is_base_of(rx.TensorStructInfo(ndim=-1, dtype="int32"))
-    assert tensor0.is_base_of(tensor2)
-    assert tensor0.is_base_of(tensor4)
-    assert tensor0.is_base_of(tensor5)
-    assert tensor0.is_base_of(tensor6)
-    assert tensor2.is_base_of(tensor4)
-    assert tensor3.is_base_of(tensor7)
-    assert tensor3.is_base_of(tensor8)
-    assert tensor6.is_base_of(tensor12)
-    assert tensor6.is_base_of(tensor13)
-    assert tensor4.is_base_of(rx.TensorStructInfo([n, m], dtype="int32"))
+    yield (tensor0, rx.TensorStructInfo(ndim=-1, dtype="int32"), BR.PASS)
+    yield (tensor0, tensor2, BR.PASS)
+    yield (tensor0, tensor4, BR.PASS)
+    yield (tensor0, tensor5, BR.PASS)
+    yield (tensor0, tensor6, BR.PASS)
+    yield (tensor2, tensor4, BR.PASS)
+    yield (tensor3, tensor7, BR.PASS)
+    yield (tensor3, tensor8, BR.PASS)
+    yield (tensor6, tensor12, BR.PASS)
+    yield (tensor6, tensor13, BR.PASS)
+    yield (tensor4, rx.TensorStructInfo([n, m], dtype="int32"), BR.PASS)
 
     # tuple
     t0 = rx.TupleStructInfo([obj0, tensor0])
@@ -320,13 +316,12 @@ def test_base_check():
     t2 = rx.TupleStructInfo([obj0, tensor0, obj0])
     t3 = rx.TupleStructInfo([tensor0, obj0])
 
-    assert t0.is_base_of(t1)
+    yield (t0, t1, BR.PASS)
+    yield (t0, t2, BR.FAIL_L0)
+    yield (t0, t3, BR.FAIL_L1)
 
-    assert bcheck(t0, t2) == BR.FAIL_L0
-    assert bcheck(t0, t3) == BR.FAIL_L1
-
-    assert rx.TupleStructInfo([t0, t1]).is_base_of(rx.TupleStructInfo([t1, t1]))
-    assert bcheck(rx.TupleStructInfo([t0, t1]), rx.TupleStructInfo([t1, t0])) == BR.FAIL_L1
+    yield (rx.TupleStructInfo([t0, t1]), rx.TupleStructInfo([t1, t1]), BR.PASS)
+    yield (rx.TupleStructInfo([t0, t1]), rx.TupleStructInfo([t1, t0]), BR.FAIL_L1)
 
     def fn_info_shape(c):
         n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
@@ -341,12 +336,31 @@ def test_base_check():
         z = rx.TensorStructInfo(ndim=2, dtype="float32")
         return rx.FuncStructInfo([x, y], z)
 
-    assert fn_info_shape(1).is_base_of(fn_info_shape(1))
-    assert fn_info_erased().is_base_of(fn_info_shape(1))
-    assert bcheck(fn_info_shape(1), fn_info_erased()) == BR.FAIL_L2
+    yield (fn_info_shape(1), fn_info_shape(1), BR.PASS)
+    yield (fn_info_erased(), fn_info_shape(1), BR.PASS)
+    yield (fn_info_shape(1), fn_info_erased(), BR.FAIL_L2)
 
     fopaque = rx.FuncStructInfo.opaque_func()
-    assert fopaque.is_base_of(fn_info_shape(1))
+    yield (fopaque, fn_info_shape(1), BR.PASS)
+
+
+base_check_test_case = tvm.testing.parameter(*generate_base_check_test_cases())
+
+
+def test_base_check(base_check_test_case):
+    base, derived, expected_result = base_check_test_case
+
+    actual_result = rx.analysis.BaseCheckResult(rx.analysis.struct_info_base_check(base, derived))
+    assert actual_result == expected_result, (
+        f"When checking if {base} is a superset of {derived}, "
+        f"expected the result to be {str(expected_result)}, "
+        f"but received {str(actual_result)}"
+    )
+
+    if expected_result == rx.analysis.BaseCheckResult.PASS:
+        assert base.is_base_of(
+            derived
+        ), f"Expected {base} to be recognized as  a superset of {derived}"
 
 
 def _check_derive(ctx, finfo, args_sinfo, ret):
