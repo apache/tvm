@@ -119,14 +119,12 @@ Allocator* MemoryManager::GetOrCreateAllocator(Device dev, AllocatorType type) {
     std::unique_ptr<Allocator> alloc;
     switch (type) {
       case kNaive: {
-        VLOG(1) << "New naive allocator for " << DeviceName(dev.device_type) << "(" << dev.device_id
-                << ")";
+        VLOG(1) << "New naive allocator for " << dev;
         alloc.reset(new NaiveAllocator(dev));
         break;
       }
       case kPooled: {
-        VLOG(1) << "New pooled allocator for " << DeviceName(dev.device_type) << "("
-                << dev.device_id << ")";
+        VLOG(1) << "New pooled allocator for " << dev;
         alloc.reset(new PooledAllocator(dev));
         break;
       }
@@ -139,9 +137,9 @@ Allocator* MemoryManager::GetOrCreateAllocator(Device dev, AllocatorType type) {
   }
   auto alloc = m->allocators_.at(dev).get();
   if (alloc->type() != type) {
-    LOG(WARNING) << "The type of existing allocator for " << DeviceName(dev.device_type) << "("
-                 << dev.device_id << ") is different from the request type (" << alloc->type()
-                 << " vs " << type << ")";
+    LOG(WARNING) << "The type of existing allocator for " << dev
+                 << " is different from the request type (" << alloc->type() << " vs " << type
+                 << ")";
   }
   return alloc;
 }
@@ -151,8 +149,7 @@ Allocator* MemoryManager::GetAllocator(Device dev) {
   std::lock_guard<std::mutex> lock(m->mu_);
   auto it = m->allocators_.find(dev);
   if (it == m->allocators_.end()) {
-    LOG(FATAL) << "Allocator for " << DeviceName(dev.device_type) << "(" << dev.device_id
-               << ") has not been created yet.";
+    LOG(FATAL) << "Allocator for " << dev << " has not been created yet.";
   }
   return it->second.get();
 }
