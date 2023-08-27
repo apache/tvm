@@ -114,7 +114,7 @@ class DeviceAPIManager {
       if (api_[type] != nullptr) return api_[type];
       std::lock_guard<std::mutex> lock(mutex_);
       if (api_[type] != nullptr) return api_[type];
-      api_[type] = GetAPI(DeviceName(type), allow_missing);
+      api_[type] = GetAPI(DLDeviceType2Str(type), allow_missing);
       return api_[type];
     } else {
       if (rpc_api_ != nullptr) return rpc_api_;

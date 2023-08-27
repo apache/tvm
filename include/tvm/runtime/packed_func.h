@@ -418,6 +418,8 @@ class TVMArgs {
  */
 inline const char* ArgTypeCode2Str(int type_code);
 
+inline std::ostream& operator<<(std::ostream& os, DLDevice dev);  // NOLINT(*)
+
 // macro to check type code.
 #define TVM_CHECK_TYPE_CODE(CODE, T) \
   ICHECK_EQ(CODE, T) << "expected " << ArgTypeCode2Str(T) << " but got " << ArgTypeCode2Str(CODE)
@@ -1257,6 +1259,56 @@ inline const char* ArgTypeCode2Str(int type_code) {
     default:
       LOG(FATAL) << "unknown type_code=" << static_cast<int>(type_code);
   }
+  throw;
+}
+
+/*!
+ * \brief The name of DLDeviceType.
+ * \param type The device type.
+ * \return the device name.
+ */
+inline const char* DLDeviceType2Str(int type) {
+  switch (type) {
+    case kDLCPU:
+      return "cpu";
+    case kDLCUDA:
+      return "cuda";
+    case kDLCUDAHost:
+      return "cuda_host";
+    case kDLCUDAManaged:
+      return "cuda_managed";
+    case kDLOpenCL:
+      return "opencl";
+    case kDLSDAccel:
+      return "sdaccel";
+    case kDLAOCL:
+      return "aocl";
+    case kDLVulkan:
+      return "vulkan";
+    case kDLMetal:
+      return "metal";
+    case kDLVPI:
+      return "vpi";
+    case kDLROCM:
+      return "rocm";
+    case kDLROCMHost:
+      return "rocm_host";
+    case kDLExtDev:
+      return "ext_dev";
+    case kDLOneAPI:
+      return "oneapi";
+    case kDLWebGPU:
+      return "webgpu";
+    case kDLHexagon:
+      return "hexagon";
+    case kOpenGL:
+      return "opengl";
+    case kDLMicroDev:
+      return "microdev";
+    default:
+      LOG(FATAL) << "unknown type = " << type;
+  }
+  throw;
 }
 
 namespace detail {
@@ -1284,13 +1336,27 @@ namespace parameter_pack {
 
 template <typename... EnumArgs>
 struct EnumeratedParamPack {
-  struct Invoke {
-    template <template <size_t i, typename TArgument> class Functor, typename... ExtraParams>
-    static void F(ExtraParams&&... extra_params) {
+  struct InvokeWithoutArg {
+    template <template <size_t i, typename TArgument> class Functor, typename ExtraParams>
+    static void F(ExtraParams&& extra_params) {
       using TExpander = int[];
       (void)TExpander{
           0,
-          (Functor<EnumArgs::i, typename EnumArgs::T>::F(extra_params...), 0)...,
+          (Functor<EnumArgs::i, typename EnumArgs::T>::F(std::forward<ExtraParams>(extra_params)),
+           0)...,
+      };
+    }
+  };
+  struct InvokeWithArg {
+    template <template <size_t i, typename TArgument> class Functor, typename ExtraParams,
+              typename... Params>
+    static void F(ExtraParams&& extra_params, Params&&... params) {
+      using TExpander = int[];
+      (void)TExpander{
+          0,
+          (Functor<EnumArgs::i, typename EnumArgs::T>::F(std::forward<ExtraParams>(extra_params),
+                                                         std::forward<Params>(params)),
+           0)...,
       };
     }
   };
@@ -1310,22 +1376,27 @@ struct EnumerateImpl {
 
   template <std::size_t... id>
   struct Zipper<std::integer_sequence<std::size_t, id...>> {
-    using T = EnumeratedParamPack<Item<id, Args>...>;
+    using WithoutArg = typename EnumeratedParamPack<Item<id, Args>...>::InvokeWithoutArg;
+    using WithArg = typename EnumeratedParamPack<Item<id, Args>...>::InvokeWithArg;
   };
 
  public:
-  using T = typename Zipper<std::index_sequence_for<Args...>>::T;
+  using WithoutArg = typename Zipper<std::index_sequence_for<Args...>>::WithoutArg;
+  using WithArg = typename Zipper<std::index_sequence_for<Args...>>::WithArg;
 };
 
 template <typename... Args>
-using Enumerate = typename EnumerateImpl<Args...>::T;
+using EnumerateWithoutArg = typename EnumerateImpl<Args...>::WithoutArg;
+
+template <typename... Args>
+using EnumerateWithArg = typename EnumerateImpl<Args...>::WithArg;
 
 template <typename... Args>
 struct ParamPack {
-  template <template <size_t i, typename TArgument> class Functor, typename... ExtraParams>
-  static void InvokeWithoutArg(ExtraParams&&... extra_params) {
-    Enumerate<Args...>::Invoke::template F<Functor, ExtraParams...>(
-        std::forward<ExtraParams>(extra_params)...);
+  template <template <size_t i, typename TArgument> class Functor, typename ExtraParams>
+  static void InvokeWithoutArg(ExtraParams&& extra_params) {
+    EnumerateWithoutArg<Args...>::template F<Functor, ExtraParams>(
+        std::forward<ExtraParams>(extra_params));
   }
 };
 
@@ -1620,6 +1691,20 @@ inline TVMRetValue PackedFunc::operator()(Args&&... args) const {
   (static_cast<PackedFuncObj*>(data_.get()))
       ->CallPacked(TVMArgs(values, type_codes, kNumArgs), &rv);
   return rv;
+}
+
+template <int i, typename T>
+struct TVMArgsSetterApply {
+  static TVM_ALWAYS_INLINE void F(TVMArgsSetter* setter, T&& value) {
+    (*setter)(i, std::forward<T>(value));
+  }
+};
+
+template <typename... Args>
+void TVM_ALWAYS_INLINE PackArgs(TVMValue* values, int* type_codes, Args&&... args) {
+  TVMArgsSetter setter(values, type_codes);
+  detail::parameter_pack::EnumerateWithArg<Args...>::template F<TVMArgsSetterApply>(
+      &setter, std::forward<Args>(args)...);
 }
 
 namespace detail {
