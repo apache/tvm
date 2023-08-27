@@ -343,6 +343,22 @@ def generate_base_check_test_cases():
     fopaque = rx.FuncStructInfo.opaque_func()
     yield (fopaque, fn_info_shape(1), BR.PASS)
 
+    # Symbolic var tests
+    static_shape = rx.ShapeStructInfo([1, 2, 4])
+    compatible_symbolic_shape = rx.ShapeStructInfo([1, n, n * n])
+    incompatible_symbolic_shape = rx.ShapeStructInfo([1, n, n + 1])
+
+    # Symbolic shapes may occur in multiple locations.  Incompatible
+    # shapes may fail at L0, even if each use of the symbolic variable
+    # would only have failed at L2.
+    yield (rx.ShapeStructInfo([n, n]), rx.ShapeStructInfo([16, 32]), BR.FAIL_L0)
+
+    # If `n==2`, then the shapes are compatible.
+    yield (compatible_symbolic_shape, static_shape, BR.FAIL_L2)
+
+    # There is no value of `n` for which `n==2 and n+1==4`
+    yield (incompatible_symbolic_shape, static_shape, BR.FAIL_L0)
+
 
 base_check_test_case = tvm.testing.parameter(*generate_base_check_test_cases())
 

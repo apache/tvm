@@ -453,6 +453,11 @@ class StructInfoBaseChecker
   // struct equal checker
   StructuralEqual struct_equal_;
 
+  // Saved condition that must be true for a weaker L2 failure If
+  // this condition is provably false, then the condition is
+  // downgraded to L0.
+  PrimExpr upgrade_L2_fail_to_L0_{Bool(false)};
+
   // customizable functions.
   /*!
    * \brief Check symbolic shape value equivalence.
@@ -461,17 +466,35 @@ class StructInfoBaseChecker
    * \return CheckResult.
    */
   virtual BaseCheckResult PrimValueMatchCheck(const PrimExpr& lhs, const PrimExpr& rhs) {
-    // get static shape checking right.
-    auto* int_lhs = lhs.as<IntImmNode>();
-    auto* int_rhs = rhs.as<IntImmNode>();
-    if (int_lhs && int_rhs) {
-      if (int_lhs->value == int_rhs->value) {
-        return BaseCheckResult::kPass;
-      } else {
-        return BaseCheckResult::kFailL0;
-      }
+    PrimExpr is_same = analyzer_->Simplify(lhs == rhs);
+
+    if (analyzer_->CanProve(is_same)) {
+      // Sames are provably the same (e.g. same static shapes, or same
+      // symbolic variable).
+      return BaseCheckResult::kPass;
+    } else if (analyzer_->CanProve(!is_same)) {
+      // Sames are provably the same (e.g. different static shapes).
+      return BaseCheckResult::kFailL0;
     }
-    return analyzer_->CanProveEqual(lhs, rhs) ? BaseCheckResult::kPass : BaseCheckResult::kFailL2;
+
+    // By combining the required match conditions across the entire
+    // comparison, a match may be recognized as illegal, even though
+    // each component would have been legal.  For example, if matching
+    // shape [n, n+1] to [16, 32], the conditions `n==16` and
+    // `n+1==32` cannot be proven false when considered separately.
+    // However, their joint condition `(n==16) && (n+1==32)` can be
+    // proven false.
+    upgrade_L2_fail_to_L0_ = analyzer_->Simplify(upgrade_L2_fail_to_L0_ || !is_same);
+    if (analyzer_->CanProve(upgrade_L2_fail_to_L0_)) {
+      // This match condition is incompatible with a previous match
+      // condition, so the entire check can return L0 failure.
+      return BaseCheckResult::kFailL0;
+    } else {
+      // Nothing is incompatible so far.  The `is_same` expression has
+      // been cached as part of `upgrade_L2_fail_to_L0_`, in case it
+      // can be used to provide L0 failure at a later point.
+      return BaseCheckResult::kFailL2;
+    }
   }
   /*!
    * \brief CheckShape value.
