@@ -110,6 +110,9 @@ class DiscoThreadedMessageQueue : public dmlc::Stream {
   uint64_t GetObjectBytes(Object* obj) {
     if (obj->IsInstance<DRefObj>()) {
       return sizeof(uint32_t) + sizeof(int64_t);
+    } else if (obj->IsInstance<StringObj>()) {
+      uint64_t size = static_cast<StringObj*>(obj)->size;
+      return sizeof(uint32_t) + sizeof(uint64_t) + size * sizeof(char);
     } else if (obj->IsInstance<ShapeTupleObj>()) {
       uint64_t ndim = static_cast<ShapeTupleObj*>(obj)->size;
       return sizeof(uint32_t) + sizeof(uint64_t) + ndim * sizeof(ShapeTupleObj::index_type);
@@ -124,13 +127,16 @@ class DiscoThreadedMessageQueue : public dmlc::Stream {
       int64_t reg_id = static_cast<DRefObj*>(obj)->reg_id;
       this->Write<uint32_t>(TypeIndex::kRuntimeDiscoDRef);
       this->Write<int64_t>(reg_id);
+    } else if (obj->IsInstance<StringObj>()) {
+      StringObj* str = static_cast<StringObj*>(obj);
+      this->Write<uint32_t>(TypeIndex::kRuntimeString);
+      this->Write<uint64_t>(str->size);
+      this->WriteArray<char>(str->data, str->size);
     } else if (obj->IsInstance<ShapeTupleObj>()) {
       ShapeTupleObj* shape = static_cast<ShapeTupleObj*>(obj);
       this->Write<uint32_t>(TypeIndex::kRuntimeShapeTuple);
       this->Write<uint64_t>(shape->size);
-      for (uint64_t i = 0; i < shape->size; ++i) {
-        this->Write<ShapeTupleObj::index_type>(shape->data[i]);
-      }
+      this->WriteArray<ShapeTupleObj::index_type>(shape->data, shape->size);
     } else {
       LOG(FATAL) << "ValueError: Object type is not supported in Disco calling convention: "
                  << obj->GetTypeKey() << " (type_index = " << obj->type_index() << ")";
@@ -146,13 +152,17 @@ class DiscoThreadedMessageQueue : public dmlc::Stream {
       this->Read<int64_t>(&dref->reg_id);
       dref->session = Session{nullptr};
       result = ObjectRef(std::move(dref));
+    } else if (type_index == TypeIndex::kRuntimeString) {
+      uint64_t size = 0;
+      this->Read<uint64_t>(&size);
+      std::string data(size, '\0');
+      this->ReadArray<char>(data.data(), size);
+      result = String(std::move(data));
     } else if (type_index == TypeIndex::kRuntimeShapeTuple) {
       uint64_t ndim = 0;
       this->Read<uint64_t>(&ndim);
       std::vector<ShapeTupleObj::index_type> data(ndim);
-      for (ShapeTupleObj::index_type& i : data) {
-        this->Read<ShapeTupleObj::index_type>(&i);
-      }
+      this->ReadArray<ShapeTupleObj::index_type>(data.data(), ndim);
       result = ShapeTuple(std::move(data));
     } else {
       LOG(FATAL) << "ValueError: Object type is not supported in Disco calling convention: "
