@@ -243,6 +243,12 @@ TVM_DLL Pass FoldDataflowBlockOutput();
 TVM_DLL Pass LegalizeOps(Optional<Map<String, PackedFunc>> cmap, bool enable_warning = false);
 
 /*!
+ * \brief Propagate virtual device information.
+ * \return The Pass.
+ */
+TVM_DLL Pass RealizeVDevice();
+
+/*!
  * \brief Lift transformation of the parameters of a function.
  *
  * When some inputs of the function is marked as 'parameters' (the model weights), this pass

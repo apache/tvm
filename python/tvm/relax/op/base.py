@@ -702,7 +702,7 @@ def to_vdevice(data, dst_vdevice) -> Expr:
     data : Expr
         The tensor to be copied.
 
-    dst_device : Union[:py:class:`Device`, str]
+    dst_device : VDevice
         The destination device where the data is copied to.
 
     Returns
@@ -711,3 +711,23 @@ def to_vdevice(data, dst_vdevice) -> Expr:
         The copied result.
     """
     return _ffi_api.to_vdevice(data, dst_vdevice)  # type: ignore
+
+
+def hint_on_device(data, dst_vdevice) -> Expr:
+    """It provides a hint specifying the device on which the input data should be executed.
+    This hint is utilized by RealizeVDevice to propagate the virtual device."
+
+    Parameters
+    ----------
+    data : Expr
+        The tensor to be copied.
+
+    dst_device : VDevice
+        The destination device where the data is supposed to be executed.
+
+    Returns
+    -------
+    result : Expr
+        The result.
+    """
+    return _ffi_api.hint_on_device(data, dst_vdevice)  # type: ignore

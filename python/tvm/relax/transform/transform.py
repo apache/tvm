@@ -829,6 +829,39 @@ def LegalizeOps(
     return _ffi_api.LegalizeOps(customize_legalize_map, enable_warning)  # type: ignore
 
 
+def RealizeVDevice() -> tvm.ir.transform.Pass:
+    """Propagate virtual device information.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered pass
+
+    Examples
+    --------
+    The following code shows how to use this pass:
+
+    .. code-block:: python
+
+        # Define the pass input IRModule
+        @tvm.script.ir_module
+        class Module:
+
+        # Apply the pass to the module.
+        mod = RealizeVDevice()(Module)
+
+    Print out the result by `mod.show()`, we can see the IRModule after
+    RealizeVDevice becomes
+
+    .. code-block:: python
+
+        @tvm.script.ir_module
+        class Module:
+    """
+
+    return _ffi_api.RealizeVDevice()  # type: ignore
+
+
 def MetaScheduleApplyDatabase(
     work_dir: Optional[str] = None, enable_warning: bool = False
 ) -> tvm.ir.transform.Pass:

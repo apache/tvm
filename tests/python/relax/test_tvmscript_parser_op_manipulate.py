@@ -21,7 +21,7 @@ import tvm
 import tvm.script
 import tvm.testing
 from tvm import IRModule, relax
-from tvm.script import relax as R
+from tvm.script import relax as R, ir as I
 
 
 def _check(
@@ -404,18 +404,41 @@ def test_flip():
 
 
 def test_to_vdevice():
-    @R.function
-    def foo(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
-        tensor = R.to_vdevice(x, tvm.ir.VDevice("llvm", 0, "global"))
-        return tensor
+    @I.ir_module
+    class ToVDevice:
+        I.module_global_infos({"vdevice": [I.vdevice("llvm")]})
+
+        @R.function
+        def foo(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+            tensor = R.to_vdevice(x, R.Tensor((), "int32", "llvm"))
+            return tensor
 
     x = relax.Var("x", R.Tensor((), "int32"))
     bb = relax.BlockBuilder()
     with bb.function("foo", (x,)):
-        tensor = bb.emit(relax.op.to_vdevice(x, tvm.ir.VDevice("llvm", 0, "global")))
+        tensor = bb.emit(relax.op.to_vdevice(x, R.Tensor((), "int32", "llvm")))
+        bb.emit_func_output(tensor)
+    bb.get().update_global_info("vdevice", I.vdevice("llvm"))
+
+    _check(ToVDevice["foo"], bb.get()["foo"])
+
+
+def test_hint_on_device():
+    @R.function
+    def foo(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+        r = R.hint_on_device(x, tvm.cpu())
+        return r
+
+    foo.show()
+    x = relax.Var("x", R.Tensor((), "int32"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", (x,)):
+        tensor = bb.emit(relax.op.hint_on_device(x, tvm.cpu()))
         bb.emit_func_output(tensor)
 
-    _check(foo, bb.get()["foo"])
+    tvm.ir.assert_structural_equal(foo, bb.get()["foo"])
+    # todo(yongwww): fix roundtrip in printer
+    # _check(foo, bb.get()["foo"])
 
 
 if __name__ == "__main__":
