@@ -6,6 +6,7 @@ include(cmake/utils/Utils.cmake)
 include(cmake/utils/Summary.cmake)
 include(cmake/utils/Linker.cmake)
 include(cmake/utils/FindCUDA.cmake)
+include(cmake/utils/FindNCCL.cmake)
 include(cmake/utils/FindOpenCL.cmake)
 include(cmake/utils/FindVulkan.cmake)
 include(cmake/utils/FindLLVM.cmake)
@@ -25,6 +26,7 @@ endif()
 # and add set(OPTION VALUE) to override these build options.
 # Alernatively, use cmake -DOPTION=VALUE through command-line.
 tvm_option(USE_CUDA "Build with CUDA" OFF)
+tvm_option(USE_NCCL "Build with NCCL" OFF)
 tvm_option(USE_OPENCL "Build with OpenCL" OFF)
 tvm_option(USE_OPENCL_ENABLE_HOST_PTR "Enable OpenCL memory object access to host" OFF)
 tvm_option(USE_OPENCL_GTEST "Path to OpenCL specific gtest version for runtime cpp tests." /path/to/opencl/gtest)
@@ -350,6 +352,7 @@ list(APPEND COMPILER_SRCS "src/target/datatype/myfloat/myfloat.cc")
 tvm_file_glob(GLOB RUNTIME_SRCS
   src/runtime/*.cc
   src/runtime/vm/*.cc
+  src/runtime/disco/*.cc
   src/runtime/minrpc/*.cc
   src/runtime/relax_vm/*.cc
 )
@@ -433,6 +436,13 @@ if(USE_PROFILER)
   tvm_file_glob(GLOB RUNTIME_VM_PROFILER_SRCS src/runtime/vm/profiler/*.cc)
   list(APPEND RUNTIME_SRCS ${RUNTIME_VM_PROFILER_SRCS})
 endif(USE_PROFILER)
+
+if(USE_CUDA AND USE_NCCL)
+  message(STATUS "Build with NCCL...")
+  find_nccl(${USE_NCCL})
+  tvm_file_glob(GLOB RUNTIME_NCCL_SRC src/runtime/disco/nccl/*.cc)
+  list(APPEND RUNTIME_SRCS ${RUNTIME_NCCL_SRC})
+endif()
 
 if(USE_AOT_EXECUTOR)
   message(STATUS "Build with AOT Executor support...")
@@ -849,4 +859,9 @@ if(USE_CUDA AND USE_CUTLASS)
   install(TARGETS flash_attn EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
   target_link_libraries(tvm PRIVATE -Wl,--no-as-needed flash_attn)
   target_link_libraries(tvm_runtime PRIVATE -Wl,--no-as-needed flash_attn)
+endif()
+
+if(USE_CUDA AND USE_NCCL)
+  target_link_libraries(tvm_runtime PRIVATE nccl)
+  target_link_libraries(tvm PRIVATE nccl)
 endif()
