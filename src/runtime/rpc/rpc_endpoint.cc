@@ -219,6 +219,16 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
     this->Write(cdata);
   }
 
+  void WriteObject(void* obj) { this->ThrowError(RPCServerStatus::kUnknownTypeCode); }
+  uint64_t GetObjectBytes(void* obj) {
+    this->ThrowError(RPCServerStatus::kUnknownTypeCode);
+    return 0;
+  }
+
+  void ReadObject(int* tcode, TVMValue* value) {
+    this->ThrowError(RPCServerStatus::kUnknownTypeCode);
+  }
+
   void MessageDone() {
     // Unused here, implemented for microTVM framing layer.
   }
