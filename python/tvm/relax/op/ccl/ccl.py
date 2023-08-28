@@ -17,6 +17,8 @@
 """Relax Collective Communications Library (CCL) operators"""
 from . import _ffi_api
 
+from ...expr import Expr
+
 
 def allreduce(x, op_type: str = "sum"):  # pylint: disable=invalid-name
     """Allreduce operator
@@ -40,3 +42,19 @@ def allreduce(x, op_type: str = "sum"):  # pylint: disable=invalid-name
         f"including {supported_op_types}, but got {op_type}."
     )
     return _ffi_api.allreduce(x, op_type)  # type: ignore # pylint: disable=no-member
+
+
+def broadcast_from_worker0(x: Expr) -> Expr:
+    """Broadcast data from worker-0 to all other workers.
+
+    Parameters
+    ----------
+    x : relax.Expr
+      The tensor to be broadcast.
+
+    Returns
+    -------
+    result : relax.Expr
+      The same tensor, which has been broadcast to all other workers.
+    """
+    return _ffi_api.broadcast_from_worker0(x)

@@ -51,5 +51,26 @@ def test_allreduce():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_broadcast_from_zero():
+    # fmt: off
+    @tvm.script.ir_module
+    class BroadcastFromZero:
+        @R.function
+        def main(x: R.Tensor((10, 10), "float32"))  -> R.Tensor((10, 10), "float32"):
+            gv0: R.Tensor((10, 10), "float32") = R.ccl.broadcast_from_worker0(x)
+            return x
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((10, 10), dtype="float32")) -> R.Tensor((10, 10), dtype="float32"):
+            gv0: R.Tensor((10, 10), dtype="float32") = R.call_pure_packed("runtime.disco.broadcast_from_worker0", x, sinfo_args=R.Tensor((10, 10), dtype="float32"))
+            return x
+    # fmt: on
+
+    mod = LegalizeOps()(BroadcastFromZero)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

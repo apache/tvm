@@ -43,3 +43,12 @@ def _allreduce(_bb: BlockBuilder, call: Call) -> Expr:
         ShapeExpr([op_type_map[op_type_str]]),
         sinfo_args=call.args[0].struct_info,
     )
+
+
+@register_legalize("relax.ccl.broadcast_from_worker0")
+def broadcast_from_worker0(_bb: BlockBuilder, call: Call) -> Expr:
+    return call_pure_packed(
+        "runtime.disco.broadcast_from_worker0",
+        call.args[0],
+        sinfo_args=call.args[0].struct_info,
+    )

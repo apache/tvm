@@ -267,7 +267,7 @@ class Session(Object):
         func = self.get_global_func(f"runtime.disco.{api}.init")
         func(*args)
 
-    def broadcast_from_worker0(self, array: DRef) -> None:
+    def broadcast_from_worker0(self, array: DRef) -> DRef:
         """Broadcast an array from worker-0 to all other workers.
 
         Parameters

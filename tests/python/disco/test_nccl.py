@@ -60,7 +60,7 @@ def test_allreduce():
         np.testing.assert_equal(result, expected)
 
 
-def test_broadcast_from_zero():
+def test_broadcast_from_worker0():
     num_workers = 2
     devices = [1, 2]
     array = np.arange(12, dtype="float32").reshape(3, 4)
@@ -105,7 +105,8 @@ def test_mlp():  # pylint: disable=too-many-locals
         ) -> R.Tensor((128, 128), "float32"):
             R.func_attr({"global_symbol": "main"})
             with R.dataflow():
-                lv0: R.Tensor((128, 64), "float32") = R.matmul(x, W1)
+                broadcast_x: R.Tensor((128, 128), "float32") = R.ccl.broadcast_from_worker0(x)
+                lv0: R.Tensor((128, 64), "float32") = R.matmul(broadcast_x, W1)
                 lv1: R.Tensor((128, 64), "float32") = R.nn.gelu(lv0)
                 lv2: R.Tensor((128, 128), "float32") = R.matmul(lv1, W2)
                 lv3: R.Tensor((128, 128), "float32") = R.ccl.allreduce(lv2, "sum")
@@ -159,7 +160,6 @@ def test_mlp():  # pylint: disable=too-many-locals
         d_W2 = sess.empty((64, 128), "float32")
 
         d_X.debug_copy_from(0, X)
-        d_X.debug_copy_from(1, X)
         d_W1.debug_copy_from(0, W1[:, :64])
         d_W1.debug_copy_from(1, W1[:, 64:])
         d_W2.debug_copy_from(0, W2[:64, :])
@@ -230,16 +230,17 @@ def test_attention():  # pylint: disable=too-many-locals
         ) -> R.Tensor((128, 128), "float32"):
             R.func_attr({"global_symbol": "main"})
             with R.dataflow():
+                broadcast_x: R.Tensor((1, 10, 128), "float32") = R.ccl.broadcast_from_worker0(x)
                 # q
-                lv0: R.Tensor((1, 10, 256), "float32") = R.matmul(x, Wq)
+                lv0: R.Tensor((1, 10, 256), "float32") = R.matmul(broadcast_x, Wq)
                 lv1: R.Tensor((1, 10, 4, 64), "float32") = R.reshape(lv0, [1, 10, 4, 64])
                 lv2: R.Tensor((1, 4, 10, 64), "float32") = R.permute_dims(lv1, [0, 2, 1, 3])
                 # k
-                lv3: R.Tensor((1, 10, 256), "float32") = R.matmul(x, Wk)
+                lv3: R.Tensor((1, 10, 256), "float32") = R.matmul(broadcast_x, Wk)
                 lv4: R.Tensor((1, 10, 4, 64), "float32") = R.reshape(lv3, [1, 10, 4, 64])
                 lv5: R.Tensor((1, 4, 10, 64), "float32") = R.permute_dims(lv4, [0, 2, 1, 3])
                 # v
-                lv6: R.Tensor((1, 10, 256), "float32") = R.matmul(x, Wv)
+                lv6: R.Tensor((1, 10, 256), "float32") = R.matmul(broadcast_x, Wv)
                 lv7: R.Tensor((1, 10, 4, 64), "float32") = R.reshape(lv6, [1, 10, 4, 64])
                 lv8: R.Tensor((1, 4, 10, 64), "float32") = R.permute_dims(lv7, [0, 2, 1, 3])
                 # softmax(q @ k / sqrt(dk))
@@ -312,7 +313,6 @@ def test_attention():  # pylint: disable=too-many-locals
         d_Wo = sess.empty((256, 128), "float32")
 
         d_X.debug_copy_from(0, X)
-        d_X.debug_copy_from(1, X)
         d_Wq.debug_copy_from(0, Wq[:, :256])
         d_Wq.debug_copy_from(1, Wq[:, 256:])
         d_Wk.debug_copy_from(0, Wk[:, :256])
@@ -332,7 +332,7 @@ def test_attention():  # pylint: disable=too-many-locals
 
 if __name__ == "__main__":
     test_init()
-    test_broadcast_from_zero()
+    test_broadcast_from_worker0()
     test_allreduce()
     test_mlp()
     test_attention()

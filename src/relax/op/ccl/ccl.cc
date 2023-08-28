@@ -50,5 +50,25 @@ TVM_REGISTER_OP("relax.ccl.allreduce")
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
     .set_attr<Bool>("FPurity", Bool(true));
 
+/* relax.ccl.broadcast_from_worker0 */
+Expr broadcast_from_worker0(Expr x) {
+  static const Op& op = Op::Get("relax.ccl.broadcast_from_worker0");
+  return Call(op, {std::move(x)}, {}, {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.ccl.broadcast_from_worker0").set_body_typed(broadcast_from_worker0);
+
+StructInfo InferStructInfoBroadcastFromZero(const Call& call, const BlockBuilder& ctx) {
+  TensorStructInfo input_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
+  return input_sinfo;
+}
+
+TVM_REGISTER_OP("relax.ccl.broadcast_from_worker0")
+    .set_num_inputs(1)
+    .add_argument("x", "Tensor", "Input to be broadcast.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoBroadcastFromZero)
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
+    .set_attr<Bool>("FPurity", Bool(true));
+
 }  // namespace relax
 }  // namespace tvm

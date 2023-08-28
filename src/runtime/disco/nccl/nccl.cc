@@ -109,13 +109,14 @@ NDArray AllReduce(NDArray send, ReduceKind reduce_kind) {
   return recv;
 }
 
-void BroadcastFromZero(NDArray buffer) {
+NDArray BroadcastFromZero(NDArray buffer) {
   ShapeTuple shape = buffer.Shape();
   int64_t numel = GetNumel(shape);
   NCCL_CALL(ncclBroadcast(buffer->data, buffer->data, numel,
                           /*datatype=*/AsNCCLDataType(DataType(buffer->dtype)),  //
                           /*root=*/0, NCCLGlobalContext::ThreadLocalCommunicator(),
                           NCCLGlobalContext::ThreadLocalStream()));
+  return buffer;
 }
 
 TVM_REGISTER_GLOBAL("runtime.disco.nccl.init").set_body([](TVMArgs args, TVMRetValue* rv) -> void {
