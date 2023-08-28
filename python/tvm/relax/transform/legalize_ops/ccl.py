@@ -45,8 +45,8 @@ def _allreduce(_bb: BlockBuilder, call: Call) -> Expr:
     )
 
 
-@register_legalize("relax.ccl.broadcast_from_zero")
-def _broadcast_from_zero(_bb: BlockBuilder, call: Call) -> Expr:
+@register_legalize("relax.ccl.broadcast_from_worker0")
+def broadcast_from_worker0(_bb: BlockBuilder, call: Call) -> Expr:
     return call_pure_packed(
         "runtime.disco.broadcast_from_worker0",
         call.args[0],

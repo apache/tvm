@@ -26,7 +26,7 @@ from tvm.script import relax as R
 def test_op_correctness():
     x = relax.Var("x", R.Tensor((2, 3), "float32"))
     assert relax.op.ccl.allreduce(x).op == Op.get("relax.ccl.allreduce")
-    assert relax.op.ccl.broadcast_from_zero(x).op == Op.get("relax.ccl.broadcast_from_zero")
+    assert relax.op.ccl.broadcast_from_worker0(x).op == Op.get("relax.ccl.broadcast_from_worker0")
 
 
 def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_sinfo: relax.StructInfo):
@@ -86,7 +86,7 @@ def test_allreduce_infer_struct_info_more_input_dtype():
     _check_inference(bb, relax.op.ccl.allreduce(x2), relax.TensorStructInfo((2, 3), "int64"))
 
 
-def test_broadcast_from_zero_infer_struct_info():
+def test_broadcast_from_worker0_infer_struct_info():
     bb = relax.BlockBuilder()
     x0 = relax.Var("x", R.Tensor((2, 3), "float32"))
     x1 = relax.Var("x", R.Tensor("float32", ndim=3))
@@ -96,24 +96,24 @@ def test_broadcast_from_zero_infer_struct_info():
     x5 = relax.Var("x", R.Tensor((3, 4)))
 
     _check_inference(
-        bb, relax.op.ccl.broadcast_from_zero(x0), relax.TensorStructInfo((2, 3), "float32")
+        bb, relax.op.ccl.broadcast_from_worker0(x0), relax.TensorStructInfo((2, 3), "float32")
     )
     _check_inference(
-        bb, relax.op.ccl.broadcast_from_zero(x1), relax.TensorStructInfo(dtype="float32", ndim=3)
+        bb, relax.op.ccl.broadcast_from_worker0(x1), relax.TensorStructInfo(dtype="float32", ndim=3)
     )
     _check_inference(
-        bb, relax.op.ccl.broadcast_from_zero(x2), relax.TensorStructInfo(dtype="float32")
+        bb, relax.op.ccl.broadcast_from_worker0(x2), relax.TensorStructInfo(dtype="float32")
     )
     _check_inference(
-        bb, relax.op.ccl.broadcast_from_zero(x3), relax.TensorStructInfo((2, 3), dtype="")
+        bb, relax.op.ccl.broadcast_from_worker0(x3), relax.TensorStructInfo((2, 3), dtype="")
     )
-    _check_inference(bb, relax.op.ccl.broadcast_from_zero(x4), relax.TensorStructInfo(dtype=""))
+    _check_inference(bb, relax.op.ccl.broadcast_from_worker0(x4), relax.TensorStructInfo(dtype=""))
     _check_inference(
-        bb, relax.op.ccl.broadcast_from_zero(x5), relax.TensorStructInfo((3, 4), dtype="")
+        bb, relax.op.ccl.broadcast_from_worker0(x5), relax.TensorStructInfo((3, 4), dtype="")
     )
 
 
-def test_broadcast_from_zero_infer_struct_info_shape_symbolic():
+def test_broadcast_from_worker0_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
     m = tir.Var("m", "int64")
     n = tir.Var("n", "int64")
@@ -121,14 +121,14 @@ def test_broadcast_from_zero_infer_struct_info_shape_symbolic():
     x1 = relax.Var("x", R.Tensor((4, n), "float32"))
 
     _check_inference(
-        bb, relax.op.ccl.broadcast_from_zero(x0), relax.TensorStructInfo((m, n), "float32")
+        bb, relax.op.ccl.broadcast_from_worker0(x0), relax.TensorStructInfo((m, n), "float32")
     )
     _check_inference(
-        bb, relax.op.ccl.broadcast_from_zero(x1), relax.TensorStructInfo((4, n), "float32")
+        bb, relax.op.ccl.broadcast_from_worker0(x1), relax.TensorStructInfo((4, n), "float32")
     )
 
 
-def test_broadcast_from_zero_infer_struct_info_shape_var():
+def test_broadcast_from_worker0_infer_struct_info_shape_var():
     bb = relax.BlockBuilder()
     s0 = relax.Var("s", relax.ShapeStructInfo(ndim=2))
     s1 = relax.Var("s", relax.ShapeStructInfo())
@@ -136,27 +136,27 @@ def test_broadcast_from_zero_infer_struct_info_shape_var():
     x1 = relax.Var("x", relax.TensorStructInfo(s1, "float32"))
 
     _check_inference(
-        bb, relax.op.ccl.broadcast_from_zero(x0), relax.TensorStructInfo(s0, "float32")
+        bb, relax.op.ccl.broadcast_from_worker0(x0), relax.TensorStructInfo(s0, "float32")
     )
     _check_inference(
-        bb, relax.op.ccl.broadcast_from_zero(x1), relax.TensorStructInfo(s1, "float32")
+        bb, relax.op.ccl.broadcast_from_worker0(x1), relax.TensorStructInfo(s1, "float32")
     )
 
 
-def test_broadcast_from_zero_infer_struct_info_more_input_dtype():
+def test_broadcast_from_worker0_infer_struct_info_more_input_dtype():
     bb = relax.BlockBuilder()
     x0 = relax.Var("x", R.Tensor((2, 3), "float64"))
     x1 = relax.Var("x", R.Tensor((2, 3), "int8"))
     x2 = relax.Var("x", R.Tensor((2, 3), "int64"))
 
     _check_inference(
-        bb, relax.op.ccl.broadcast_from_zero(x0), relax.TensorStructInfo((2, 3), "float64")
+        bb, relax.op.ccl.broadcast_from_worker0(x0), relax.TensorStructInfo((2, 3), "float64")
     )
     _check_inference(
-        bb, relax.op.ccl.broadcast_from_zero(x1), relax.TensorStructInfo((2, 3), "int8")
+        bb, relax.op.ccl.broadcast_from_worker0(x1), relax.TensorStructInfo((2, 3), "int8")
     )
     _check_inference(
-        bb, relax.op.ccl.broadcast_from_zero(x2), relax.TensorStructInfo((2, 3), "int64")
+        bb, relax.op.ccl.broadcast_from_worker0(x2), relax.TensorStructInfo((2, 3), "int64")
     )
 
 

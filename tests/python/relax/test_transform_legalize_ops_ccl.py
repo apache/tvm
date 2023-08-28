@@ -57,7 +57,7 @@ def test_broadcast_from_zero():
     class BroadcastFromZero:
         @R.function
         def main(x: R.Tensor((10, 10), "float32"))  -> R.Tensor((10, 10), "float32"):
-            gv0: R.Tensor((10, 10), "float32") = R.ccl.broadcast_from_zero(x)
+            gv0: R.Tensor((10, 10), "float32") = R.ccl.broadcast_from_worker0(x)
             return x
 
     @I.ir_module

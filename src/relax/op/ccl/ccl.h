@@ -36,7 +36,7 @@ namespace relax {
 Expr allreduce(Expr data, String op_type);
 
 /*! \brief Broadcast data from worker-0 to all other workers. */
-Expr broadcast_from_zero(Expr data);
+Expr broadcast_from_worker0(Expr data);
 
 }  // namespace relax
 }  // namespace tvm

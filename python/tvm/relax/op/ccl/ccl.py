@@ -44,7 +44,7 @@ def allreduce(x, op_type: str = "sum"):  # pylint: disable=invalid-name
     return _ffi_api.allreduce(x, op_type)  # type: ignore # pylint: disable=no-member
 
 
-def broadcast_from_zero(x: Expr) -> Expr:
+def broadcast_from_worker0(x: Expr) -> Expr:
     """Broadcast data from worker-0 to all other workers.
 
     Parameters
@@ -57,4 +57,4 @@ def broadcast_from_zero(x: Expr) -> Expr:
     result : relax.Expr
       The same tensor, which has been broadcast to all other workers.
     """
-    return _ffi_api.broadcast_from_zero(x)
+    return _ffi_api.broadcast_from_worker0(x)

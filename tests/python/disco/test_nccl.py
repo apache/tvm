@@ -30,7 +30,7 @@ from tvm.script import relax as R
 
 def test_init():
     num_workers = 2
-    devices = [1, 2]
+    devices = [0, 1]
 
     sess = di.ThreadedSession(num_workers=num_workers)
     sess.init_ccl("nccl", *devices)
@@ -38,7 +38,7 @@ def test_init():
 
 def test_allreduce():
     num_workers = 2
-    devices = [1, 2]
+    devices = [0, 1]
     array_1 = np.arange(12, dtype="float32").reshape(3, 4)
     array_2 = np.arange(start=1, stop=-11, step=-1, dtype="float32").reshape(3, 4)
 
@@ -60,9 +60,9 @@ def test_allreduce():
         np.testing.assert_equal(result, expected)
 
 
-def test_broadcast_from_zero():
+def test_broadcast_from_worker0():
     num_workers = 2
-    devices = [1, 2]
+    devices = [0, 1]
     array = np.arange(12, dtype="float32").reshape(3, 4)
 
     sess = di.ThreadedSession(num_workers=num_workers)
@@ -76,7 +76,7 @@ def test_broadcast_from_zero():
 
 def test_mlp():  # pylint: disable=too-many-locals
     num_workers = 2
-    devices = [1, 2]
+    devices = [0, 1]
 
     # pylint: disable=invalid-name
     @tvm.script.ir_module
@@ -105,7 +105,7 @@ def test_mlp():  # pylint: disable=too-many-locals
         ) -> R.Tensor((128, 128), "float32"):
             R.func_attr({"global_symbol": "main"})
             with R.dataflow():
-                broadcast_x: R.Tensor((128, 128), "float32") = R.ccl.broadcast_from_zero(x)
+                broadcast_x: R.Tensor((128, 128), "float32") = R.ccl.broadcast_from_worker0(x)
                 lv0: R.Tensor((128, 64), "float32") = R.matmul(broadcast_x, W1)
                 lv1: R.Tensor((128, 64), "float32") = R.nn.gelu(lv0)
                 lv2: R.Tensor((128, 128), "float32") = R.matmul(lv1, W2)
@@ -332,7 +332,7 @@ def test_attention():  # pylint: disable=too-many-locals
 
 if __name__ == "__main__":
     test_init()
-    test_broadcast_from_zero()
+    test_broadcast_from_worker0()
     test_allreduce()
     test_mlp()
     test_attention()
