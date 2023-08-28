@@ -949,6 +949,7 @@ inline PrimExpr MakeConstScalar(DataType t, ValueType value, Span span = Span())
     return FloatImm(t, static_cast<double>(value), span);
   }
   LOG(FATAL) << "cannot make const for type " << t;
+  throw;
 }
 
 template <>
