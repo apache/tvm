@@ -23,6 +23,7 @@
 #include <tvm/runtime/disco/session.h>
 
 #include <string>
+#include <vector>
 
 #include "./worker.h"
 
@@ -72,6 +73,25 @@ inline std::string ReduceKind2String(ReduceKind kind) {
 inline int64_t IntegerFromShapeTuple(const ShapeTuple& shape) {
   CHECK_EQ(shape.size(), 1) << "ValueError: shape tuple must be 1-d to be converted to integer.";
   return shape[0];
+}
+
+/*!
+ * \brief Get the shape of a result tensor if it is scattered along a given axis.
+ * \param shape The shape of the input tensor.
+ * \param dim The axis along which the tensor is scattered.
+ * \param num_shards The number of shards.
+ * \return The shape of the result tensor.
+ */
+inline ShapeTuple ShardShape(const ShapeTuple& shape, int dim, int num_shards) {
+  CHECK(0 <= dim && dim < static_cast<int>(shape.size()))
+      << "ValueError: Cannot scatter at dim " << dim << ", because "
+      << "shape is " << shape << ".";
+  CHECK_EQ(shape[dim] % num_shards, 0)
+      << "ValueError: The shape " << shape << " cannot be scattered at dim " << dim << " into "
+      << num_shards << " shards.";
+  std::vector<ShapeTupleObj::index_type> result{shape.begin(), shape.end()};
+  result[dim] /= num_shards;
+  return ShapeTuple(result);
 }
 
 }  // namespace runtime

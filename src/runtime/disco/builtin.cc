@@ -16,15 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include "./builtin.h"
+
+#include <dlpack/dlpack.h>
 #include <tvm/runtime/container/shape_tuple.h>
-#include <tvm/runtime/data_type.h>
 #include <tvm/runtime/disco/session.h>
-#include <tvm/runtime/module.h>
-#include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/object.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/runtime/relax_vm/executable.h>
 #include <tvm/runtime/relax_vm/vm.h>
 
 #include <sstream>
@@ -72,38 +70,48 @@ Module LoadVMModule(std::string path, Device device) {
   return mod;
 }
 
-TVM_REGISTER_GLOBAL("runtime.disco.load_vm_module").set_body_typed(LoadVMModule);
+NDArray DiscoEmptyNDArray(ShapeTuple shape, DataType dtype, Device device) {
+  return NDArray::Empty(shape, dtype, UseDefaultDeviceIfNone(device));
+}
 
-TVM_REGISTER_GLOBAL("runtime.disco.empty").set_body([](TVMArgs args, TVMRetValue* rv) -> void {
-  runtime::DataType dtype = args[args.num_args - 2];
-  Device device = args[args.num_args - 1];
-  int ndim = args.num_args - 2;
-  std::vector<ShapeTuple::index_type> shape;
-  for (int i = 0; i < ndim; ++i) {
-    shape.push_back(args[i].operator int64_t());
-  }
-  device = UseDefaultDeviceIfNone(device);
-  *rv = NDArray::Empty(ShapeTuple(shape), dtype, device);
-});
-
-TVM_REGISTER_GLOBAL("runtime.disco.allreduce").set_body([](TVMArgs args, TVMRetValue* rv) -> void {
+const PackedFunc& GetCCLFunc(const char* name) {
   std::string ccl = DiscoWorker::ThreadLocal()->ccl;
-  std::string pf_name = "runtime.disco." + ccl + ".allreduce";
+  std::string pf_name = "runtime.disco." + ccl + "." + name;
   const PackedFunc* pf = tvm::runtime::Registry::Get(pf_name);
-  CHECK(pf != nullptr) << "ValueError: Cannot find the allreduce function for " << ccl << " via `"
-                       << pf_name << "`";
-  pf->CallPacked(args, rv);
-});
+  CHECK(pf != nullptr) << "ValueError: Cannot find the `" << name << "` function for `" << ccl
+                       << "` via `" << pf_name << "`";
+  return *pf;
+}
 
-TVM_REGISTER_GLOBAL("runtime.disco.broadcast_from_worker0")
-    .set_body([](TVMArgs args, TVMRetValue* rv) -> void {
-      std::string ccl = DiscoWorker::ThreadLocal()->ccl;
-      std::string pf_name = "runtime.disco." + ccl + ".broadcast_from_worker0";
-      const PackedFunc* pf = tvm::runtime::Registry::Get(pf_name);
-      CHECK(pf != nullptr) << "ValueError: Cannot find the broadcast function for " << ccl
-                           << " via `" << pf_name << "`";
-      pf->CallPacked(args, rv);
+NDArray AllReduce(NDArray send, ReduceKind reduce_kind) {
+  return GetCCLFunc("allreduce")(send, static_cast<int>(reduce_kind));
+}
+
+NDArray BroadcastFromWorker0(NDArray buffer) {
+  return GetCCLFunc("broadcast_from_worker0")(buffer);
+}
+
+void ScatterFromWorker0(const Array<NDArray>& buffers) {
+  GetCCLFunc("scatter_from_worker0")(buffers);
+}
+
+void RecvFromWorker0(NDArray buffer) { GetCCLFunc("recv_from_worker0")(buffer); }
+
+int WorkerId() { return DiscoWorker::ThreadLocal()->worker_id; }
+
+TVM_REGISTER_GLOBAL("runtime.disco.load_vm_module").set_body_typed(LoadVMModule);
+TVM_REGISTER_GLOBAL("runtime.disco.empty").set_body_typed(DiscoEmptyNDArray);
+TVM_REGISTER_GLOBAL("runtime.disco.allreduce")
+    .set_body_typed([](NDArray send, ShapeTuple reduce_kind) {
+      int kind = IntegerFromShapeTuple(reduce_kind);
+      CHECK(0 <= kind && kind <= 4) << "ValueError: Unknown ReduceKind: " << kind;
+      return AllReduce(send, static_cast<ReduceKind>(kind));
     });
+TVM_REGISTER_GLOBAL("runtime.disco.broadcast_from_worker0").set_body_typed(BroadcastFromWorker0);
+TVM_REGISTER_GLOBAL("runtime.disco.recv_from_worker0").set_body_typed(RecvFromWorker0);
+TVM_REGISTER_GLOBAL("runtime.disco.worker_id").set_body_typed([]() -> ShapeTuple {
+  return ShapeTuple({WorkerId()});
+});
 
 }  // namespace runtime
 }  // namespace tvm
