@@ -951,6 +951,7 @@ class TestLogical(BaseCompare):
         TestCase(tvm.tir.And(x <= 1, 2 <= x), tvm.tir.const(False, "bool")),
         TestCase(tvm.tir.And(2 <= x, x <= 1), tvm.tir.const(False, "bool")),
         TestCase(tvm.tir.And(x == 1, x != 2), x == 1),
+        TestCase(tvm.tir.And(x == 1, x == 2), tvm.tir.const(False, "bool")),
         TestCase(tvm.tir.Or(tvm.tir.EQ(x, y), tvm.tir.NE(x, y)), tvm.tir.const(True, "bool")),
         TestCase(tvm.tir.Or(tvm.tir.NE(x, y), tvm.tir.EQ(x, y)), tvm.tir.const(True, "bool")),
         TestCase(tvm.tir.Or(x > y, tvm.tir.Not(x > y)), tvm.tir.const(True, "bool")),
@@ -965,6 +966,7 @@ class TestLogical(BaseCompare):
         TestCase(tvm.tir.Or(x <= 1, 2 <= x), tvm.tir.const(True, "bool")),
         TestCase(tvm.tir.Or(2 <= x, x <= 1), tvm.tir.const(True, "bool")),
         TestCase(tvm.tir.Or(x != 1, x == 2), x != 1),
+        TestCase(tvm.tir.Or(x != 1, x != 2), tvm.tir.const(True, "bool")),
         TestCase(
             tvm.tir.Or(x == 1, tvm.tir.Or(y == 1, z == 1)),
             tvm.tir.Or(tvm.tir.Or(x == 1, y == 1), z == 1),
