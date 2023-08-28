@@ -56,7 +56,7 @@ class HostDeviceSplitter : public StmtMutator {
 
  private:
   Stmt SplitDeviceFunc(Stmt body, Target device_target) {
-    Array<Var> params = [&]() {
+    auto [params, buffers_to_declare] = [&]() -> std::tuple<Array<Var>, Array<Buffer>> {
       VarUseDefAnalyzer use_def(/*defined_vars=*/{}, /*visit_thread_extent=*/false);
       use_def(body);
 
@@ -71,7 +71,7 @@ class HostDeviceSplitter : public StmtMutator {
         };
         return sort_key(a) < sort_key(b);
       });
-      return params;
+      return {params, use_def.undefined_buffers_};
     }();
 
     // CodeGenCPU is used for some device-side targets, such as
@@ -91,12 +91,15 @@ class HostDeviceSplitter : public StmtMutator {
       kernel_ret_type = VoidType();
     }
 
-    GlobalVar kernel_symbol_global = var_supply_();
+    for (Buffer buf : buffers_to_declare) {
+      body = DeclBuffer(buf, std::move(body));
+    }
     PrimFunc device_func(params, body, kernel_ret_type);
     device_func = WithAttrs(std::move(device_func), {{tvm::attr::kTarget, device_target},
                                                      {tir::attr::kNoAlias, Bool(true)},
                                                      {tir::attr::kIsGlobalFunc, Bool(true)}});
 
+    GlobalVar kernel_symbol_global = var_supply_();
     (*device_mod_)->Add(kernel_symbol_global, device_func);
     Array<PrimExpr> args = params.Map([](const Var& var) -> PrimExpr { return var; });
 
