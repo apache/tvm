@@ -59,7 +59,7 @@ def test_broadcast_from_zero():
         def main(x: R.Tensor((10, 10), "float32"))  -> R.Tensor((10, 10), "float32"):
             gv0: R.Tensor((10, 10), "float32") = R.ccl.broadcast_from_zero(x)
             return x
-    
+
     @I.ir_module
     class Expected:
         @R.function
