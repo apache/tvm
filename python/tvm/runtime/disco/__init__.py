@@ -14,17 +14,5 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Legalize high-level operator calls in Relax functions to call_tir."""
-from . import binary
-from . import ccl
-from . import create
-from . import datatype
-from . import grad
-from . import image
-from . import index
-from . import linear_algebra
-from . import manipulate
-from . import nn
-from . import search
-from . import statistical
-from . import unary
+"""TVM distributed runtime API."""
+from .session import DModule, DPackedFunc, DRef, Session, ThreadedSession

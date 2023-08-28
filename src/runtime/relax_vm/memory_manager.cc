@@ -21,6 +21,8 @@
  * \file tvm/runtime/relax_vm/memory_manager.cc
  * \brief Allocate and manage memory for the Relay VM.
  */
+#include <tvm/runtime/device_api.h>
+#include <tvm/runtime/memory.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/relax_vm/memory_manager.h>
 
@@ -29,7 +31,6 @@
 
 #include "naive_allocator.h"
 #include "pooled_allocator.h"
-#include "tvm/runtime/memory.h"
 
 namespace tvm {
 namespace runtime {
@@ -132,14 +133,12 @@ Allocator* MemoryManager::GetOrCreateAllocator(Device dev, AllocatorType type) {
     std::unique_ptr<Allocator> alloc;
     switch (type) {
       case kNaive: {
-        DLOG(INFO) << "New naive allocator for " << runtime::DeviceName(dev.device_type) << "("
-                   << dev.device_id << ")";
+        DLOG(INFO) << "New naive allocator for " << dev;
         alloc.reset(new NaiveAllocator(dev));
         break;
       }
       case kPooled: {
-        DLOG(INFO) << "New pooled allocator for " << runtime::DeviceName(dev.device_type) << "("
-                   << dev.device_id << ")";
+        DLOG(INFO) << "New pooled allocator for " << dev;
         alloc.reset(new PooledAllocator(dev));
         break;
       }
@@ -152,9 +151,9 @@ Allocator* MemoryManager::GetOrCreateAllocator(Device dev, AllocatorType type) {
   }
   auto alloc = m->allocators_.at(dev).get();
   if (alloc->type() != type) {
-    LOG(WARNING) << "The type of existing allocator for " << runtime::DeviceName(dev.device_type)
-                 << "(" << dev.device_id << ") is different from the request type ("
-                 << alloc->type() << " vs " << type << ")";
+    LOG(WARNING) << "The type of existing allocator for " << dev
+                 << " is different from the request type (" << alloc->type() << " vs " << type
+                 << ")";
   }
   return alloc;
 }
@@ -164,8 +163,7 @@ Allocator* MemoryManager::GetAllocator(Device dev) {
   std::lock_guard<std::mutex> lock(m->mutex_);
   auto it = m->allocators_.find(dev);
   if (it == m->allocators_.end()) {
-    LOG(FATAL) << "Allocator for " << runtime::DeviceName(dev.device_type) << "(" << dev.device_id
-               << ") has not been created yet.";
+    LOG(FATAL) << "Allocator for " << dev << " has not been created yet.";
   }
   return it->second.get();
 }

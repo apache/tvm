@@ -48,6 +48,12 @@
 # - /path/to/cuda: use specific path to cuda toolkit
 set(USE_CUDA OFF)
 
+# Whether to enable NCCL support:
+# - ON: enable NCCL with cmake's auto search
+# - OFF: disable NCCL
+# - /path/to/nccl: use specific path to nccl
+set(USE_NCCL OFF)
+
 # Whether enable ROCM runtime
 #
 # Possible values:

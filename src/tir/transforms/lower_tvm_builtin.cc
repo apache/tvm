@@ -360,7 +360,7 @@ class BuiltinLower : public StmtExprMutator {
                   << "but was instead the expression " << device_type_ << " with type "
                   << device_type_.value()->GetTypeKey();
 
-    String device_name = runtime::DeviceName(as_int->value);
+    String device_name = runtime::DLDeviceType2Str(as_int->value);
     return StringImm("device_api." + device_name + "." + method_name);
   }
 
@@ -602,7 +602,7 @@ class BuiltinLower : public StmtExprMutator {
         let->var->type_annotation.as<PointerTypeNode>()->element_type.as<PrimTypeNode>()->dtype;
 
     std::string fdevapi_prefix = "device_api.";
-    fdevapi_prefix += runtime::DeviceName(device_type_.as<IntImmNode>()->value);
+    fdevapi_prefix += runtime::DLDeviceType2Str(device_type_.as<IntImmNode>()->value);
 
     Array<PrimExpr> args = {
         GetDeviceMethodName("alloc_nd"),
