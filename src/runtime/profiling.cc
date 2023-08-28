@@ -93,13 +93,13 @@ std::set<DLDeviceType> seen_devices;
 std::mutex seen_devices_lock;
 
 Timer Timer::Start(Device dev) {
-  auto f = Registry::Get(std::string("profiling.timer.") + DeviceName(dev.device_type));
+  auto f = Registry::Get(std::string("profiling.timer.") + DLDeviceType2Str(dev.device_type));
   if (f == nullptr) {
     {
       std::lock_guard<std::mutex> lock(seen_devices_lock);
       if (seen_devices.find(dev.device_type) == seen_devices.end()) {
         LOG(WARNING)
-            << "No timer implementation for " << DeviceName(dev.device_type)
+            << "No timer implementation for " << DLDeviceType2Str(dev.device_type)
             << ", using default timer instead. It may be inaccurate or have extra overhead.";
         seen_devices.insert(dev.device_type);
       }
@@ -652,7 +652,7 @@ String ReportNode::AsTable(bool sort, bool aggregate, bool compute_col_sums) con
 }
 
 std::string DeviceString(Device dev) {
-  return DeviceName(dev.device_type) + std::to_string(dev.device_id);
+  return DLDeviceType2Str(dev.device_type) + std::to_string(dev.device_id);
 }
 
 Report Profiler::Report() {
