@@ -78,6 +78,24 @@ class SiLU(Module):
         return op.silu(x)
 
 
+class Identity(Module):
+    """Module that does nothing, sometimes useful for naming purposes."""
+
+    def forward(self, x: Tensor):
+        """Forward method for identity.
+
+        Parameters
+        ----------
+        x : Tensor
+            The input tensor.
+        Returns
+        -------
+        Result : Tensor
+            The unchanged input tensor.
+        """
+        return x
+
+
 class Linear(Module):
     """
     Module for linear layer.

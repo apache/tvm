@@ -127,8 +127,13 @@ class DataflowReshapeRewriter : public ExprMutator {
       return false;
     }
     auto product = [](Array<PrimExpr> args) -> PrimExpr {
-      ICHECK(!args.empty());
-      PrimExpr p = args[0];
+      PrimExpr p;
+      if (args.empty()) {
+        // Scalar tensors may be empty indicating a single element.
+        p = 1;
+      } else {
+        p = args[0];
+      }
       for (int i = 1, e = args.size(); i < e; ++i) p *= args[i];
       return p;
     };

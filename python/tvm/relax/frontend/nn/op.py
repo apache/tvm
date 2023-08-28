@@ -58,9 +58,75 @@ def _wrap_nested(expr: rx.Expr, name: str) -> Union[Tensor, Tuple[Tensor]]:
                 rx.TupleGetItem(expr, i),
                 name=f"{name}.{i}",
             )
-            for i in range(expr.struct_info_.fields)
+            for i in range(len(expr.struct_info_.fields))
         )
     raise TypeError(f"Unsupported return type: {expr.struct_info_}")
+
+
+def cast(x: Tensor, dtype: str, name: str = "cast") -> Tensor:
+    """Cast a tensor to a different datatype
+
+    Parameters
+    ----------
+    x : Tensor
+        Tensor to cast.
+    dtype : str
+        Desired output datatype.
+    name : str
+        Name hint for this operator.
+
+    Returns
+    -------
+    result : Tensor
+        Input tensor recast to dtype.
+    """
+    # If requesting the current type of x, skip this op.
+    current_dtype = x._expr.struct_info.dtype
+    if current_dtype == dtype:
+        return x
+    return _wrap_nested(_op.astype(x, dtype), name)
+
+
+def unsqueeze(x: Tensor, dim: int, name: str = "unsqueeze") -> Tensor:
+    """Add a new axis to a tensor
+
+    Parameters
+    ----------
+    x : Tensor
+        Input tensor to expand.
+    dim : int
+        Dimension to expand.
+    name : str
+        Name hint for this operator.
+
+    Returns
+    -------
+    result : Tensor
+        Expanded result.
+    """
+    return _wrap_nested(_op.expand_dims(x, dim), name)
+
+
+def concat(x: List[Tensor], dim: int, name: str = "concat") -> Tensor:
+    """Concatenate a list of tensors along an axis.
+
+    Parameters
+    ----------
+    x : List[Tensor]
+        List of tensors to concatenate.
+    dim : int
+        Dimension to concatenate upon.
+    name : str
+        Name hint for this operator.
+
+    Returns
+    -------
+    result : Tensor
+        Expanded result.
+    """
+    # Convert tensors to expressions.
+    x = [t._expr for t in x]
+    return _wrap_nested(_op.concat(x, dim), name)
 
 
 def add(a: Tensor, b: Tensor, name: str = "add") -> Tensor:
@@ -89,6 +155,34 @@ def add(a: Tensor, b: Tensor, name: str = "add") -> Tensor:
         c = add(a, b)
     """
     return _wrap_nested(_op.add(a._expr, b._expr), name)
+
+
+def subtract(a: Tensor, b: Tensor, name: str = "subtract") -> Tensor:
+    """Subtraction with numpy-style broadcasting.
+
+    Parameters
+    ----------
+    a : Tensor
+        The first input tensor.
+
+    b : Tensor
+        The second input tensor.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+
+    Examples
+    --------
+    .. code:: python
+
+        c = subtract(a, b)
+    """
+    return _wrap_nested(_op.subtract(a._expr, b._expr), name)
 
 
 def multiply(a: Tensor, b: Tensor, name: str = "mul") -> Tensor:
@@ -145,6 +239,29 @@ def divide(a: Tensor, b: Tensor, name: str = "divide") -> Tensor:
         c = divide(a, b)
     """
     return _wrap_nested(_op.divide(a._expr, b._expr), name)
+
+
+def chunk(x: Tensor, chunks: int, dim: int = 0, name: str = "chunk") -> Tensor:
+    """Split a tensor along dim into the specified number of chunks.
+
+    Parameters
+    ----------
+    x : Tensor
+        Input tensor to be split.
+    chunks : int
+        Number of pieces to slice x into.
+    dim : int
+        Which dimension to split x.
+    name : str
+        Name hint for this operation.
+
+    Returns
+    -------
+    result : Tuple[Tensor]
+        A tuple with chunks elements containing slices of x.
+    """
+    test = _op.split(x._expr, chunks, dim)
+    return _wrap_nested(_op.split(x._expr, chunks, dim), name)
 
 
 def matmul(a: Tensor, b: Tensor, out_dtype: Optional[str] = None, name: str = "matmul") -> Tensor:
@@ -599,7 +716,7 @@ def silu(x: Tensor, name: str = "silu") -> Tensor:
     return _wrap_nested(_op.nn.silu(x._expr), name)
 
 
-def gelu(x: Tensor, name: str = "gelu") -> Tensor:
+def gelu(x: Tensor, approximate: Optional[str] = None, name: str = "gelu") -> Tensor:
     r"""Applies the Gaussian Error Linear Units function
 
     .. math::
@@ -612,7 +729,10 @@ def gelu(x: Tensor, name: str = "gelu") -> Tensor:
     x : Tensor
         The input data
 
-    naem : str
+    approximate : Optional[str]
+        If set to tanh, use an approximation when calculating CDF.
+
+    name : str
         Name hint.
 
     Returns
@@ -624,7 +744,20 @@ def gelu(x: Tensor, name: str = "gelu") -> Tensor:
     ----
     The input tensor is required to have float dtype
     """
-    return _wrap_nested(_op.nn.gelu(x._expr), name)
+    dtype = x._expr.struct_info.dtype
+    if approximate == "tanh":
+        tanh_const = rx.const(1 + np.tanh(np.sqrt(2 / np.pi)), dtype=dtype)
+        gelu_out = (
+            rx.const(0.5, dtype)
+            * x._expr
+            * (
+                tanh_const
+                * (x._expr + (rx.const(0.044715, dtype) * _op.power(x._expr, rx.const(3, "int32"))))
+            )
+        )
+    else:
+        gelu_out = _op.nn.gelu(x._expr)
+    return _wrap_nested(gelu_out, name)
 
 
 def softmax(x: Tensor, axis: int = -1, name: str = "softmax") -> Tensor:
@@ -1063,6 +1196,73 @@ def scaled_dot_product_attention(
         query._expr, key._expr, value._expr, causal_mask=causal_mask, scale=scale
     )
     return _wrap_nested(attn, name)
+
+
+def interpolate(
+    x: Tensor,
+    size: Optional[Union[int, Tuple[int]]] = None,
+    scale_factor: Optional[Union[float, Tuple[float]]] = None,
+    mode: str = "nearest",
+    align_corners: Optional[bool] = None,
+    recompute_scale_factor: Optional[bool] = None,
+    antialias: Optional[bool] = None,
+    name: str = "interpolate",
+):
+    """Resize a tensor using the specified mode.
+
+    Parameters
+    ----------
+    x : Tensor
+        Input tensor to be resized.
+    size : Optional[Union[int, Tuple[int]]]
+        Requested output size, only one of size and scale_factor may
+        be specified.
+    scale_factor : Optional[Union[float, Tuple[float]]]
+        Multiplier for spatial size.
+    mode : str
+        Algorithm used for sampling.
+    align_corners : Optional[bool]
+        How to map pixels before and after sampling.
+    recompute_scale_factor : Optional[bool]
+        Recompute the scale_factor for use in interpolation.
+    antialias : Optional[bool]
+        Apply antialiasing to output.
+    name : str
+        Name hint for this operation.
+
+    Returns
+    -------
+    result : Tensor
+        Output tensor with requested shape.
+    """
+    assert recompute_scale_factor is None, "recompute_scale_factor is not supported."
+    assert antialias is None, "antialias is not supported."
+
+    if size is None:
+        shape = x.shape
+        if isinstance(scale_factor, (list, tuple)):
+            size = tuple(int(shape[i] * scale_factor[i]) for i in range(2, len(shape)))
+        else:
+            size = tuple(int(shape[i] * scale_factor) for i in range(2, len(shape)))
+
+    if mode.startswith("nearest"):
+        mode = "nearest_neighbor"
+    elif mode[0:2] == "bi":
+        mode = mode[2:]
+
+    if mode == "nearest_neighbor":
+        coord_trans = "asymmetric"
+    elif align_corners:
+        coord_trans = "align_corners"
+    else:
+        coord_trans = "half_pixel"
+
+    return _wrap_nested(
+        _op.image.resize2d(
+            x._expr, size, layout="NCHW", method=mode, coordinate_transformation_mode=coord_trans
+        ),
+        name,
+    )
 
 
 def tensor_expr_op(
