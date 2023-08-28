@@ -105,7 +105,8 @@ def test_mlp():  # pylint: disable=too-many-locals
         ) -> R.Tensor((128, 128), "float32"):
             R.func_attr({"global_symbol": "main"})
             with R.dataflow():
-                lv0: R.Tensor((128, 64), "float32") = R.matmul(x, W1)
+                broadcast_x: R.Tensor((128, 128), "float32") = R.ccl.broadcast_from_zero(x)
+                lv0: R.Tensor((128, 64), "float32") = R.matmul(broadcast_x, W1)
                 lv1: R.Tensor((128, 64), "float32") = R.nn.gelu(lv0)
                 lv2: R.Tensor((128, 128), "float32") = R.matmul(lv1, W2)
                 lv3: R.Tensor((128, 128), "float32") = R.ccl.allreduce(lv2, "sum")
@@ -159,7 +160,6 @@ def test_mlp():  # pylint: disable=too-many-locals
         d_W2 = sess.empty((64, 128), "float32")
 
         d_X.debug_copy_from(0, X)
-        d_X.debug_copy_from(1, X)
         d_W1.debug_copy_from(0, W1[:, :64])
         d_W1.debug_copy_from(1, W1[:, 64:])
         d_W2.debug_copy_from(0, W2[:64, :])
