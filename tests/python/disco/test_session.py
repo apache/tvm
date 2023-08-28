@@ -23,6 +23,7 @@ import numpy as np
 import tvm
 from tvm import relax as rx
 from tvm._ffi import register_func
+from tvm.runtime import ShapeTuple, String
 from tvm.runtime import disco as di
 from tvm.script import ir as I
 from tvm.script import relax as R
@@ -104,6 +105,42 @@ def test_string():
 
     for i in range(num_workers):
         assert result.debug_get_from_remote(i) == "hello_suffix"
+
+
+def test_string_obj():
+    num_workers = 4
+
+    @register_func("tests.disco.str_obj", override=True)
+    def my_str_func(x: String):  # pylint: disable=invalid-name
+        assert isinstance(x, String)
+        return String(x + "_suffix")
+
+    sess = di.ThreadedSession(num_workers=num_workers)
+    func: di.DPackedFunc = sess.get_global_func("tests.disco.str_obj")
+    result: di.DRef = func(String("hello"))
+
+    for i in range(num_workers):
+        value = result.debug_get_from_remote(i)
+        assert isinstance(value, String)
+        assert value == "hello_suffix"
+
+
+def test_shape_tuple():
+    num_workers = 4
+
+    @register_func("tests.disco.shape_tuple", override=True)
+    def my_str_func(x: ShapeTuple):  # pylint: disable=invalid-name
+        assert isinstance(x, ShapeTuple)
+        return ShapeTuple(list(x) + [4, 5])
+
+    sess = di.ThreadedSession(num_workers=num_workers)
+    func: di.DPackedFunc = sess.get_global_func("tests.disco.shape_tuple")
+    result: di.DRef = func(ShapeTuple([1, 2, 3]))
+
+    for i in range(num_workers):
+        value = result.debug_get_from_remote(i)
+        assert isinstance(value, ShapeTuple)
+        assert list(value) == [1, 2, 3, 4, 5]
 
 
 def test_vm_module():
@@ -210,6 +247,8 @@ if __name__ == "__main__":
     test_int()
     test_float()
     test_string()
+    test_string_obj()
+    test_shape_tuple()
     test_ndarray()
     test_vm_module()
     test_vm_multi_func()
