@@ -1693,7 +1693,7 @@ inline TVMRetValue PackedFunc::operator()(Args&&... args) const {
   return rv;
 }
 
-template <int i, typename T>
+template <size_t i, typename T>
 struct TVMArgsSetterApply {
   static TVM_ALWAYS_INLINE void F(TVMArgsSetter* setter, T&& value) {
     (*setter)(i, std::forward<T>(value));
