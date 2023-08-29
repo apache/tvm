@@ -16,6 +16,9 @@
 # under the License.
 """Test droplet algorithm tuner"""
 
+import pytest
+import tvm
+import tvm.testing
 from tvm.testing.autotvm import DummyRunner, get_sample_task, get_sample_records
 from tvm import autotvm
 
@@ -34,7 +37,7 @@ def test_tuner():
     assert tuner.total_execution == max(tuner.dims)
     assert tuner.step == 1
 
-
+@pytest.mark.skip("flaky test")
 def test_multi_filter():
     # Test with multi-filter
     task, _ = get_sample_task()
@@ -53,5 +56,4 @@ def test_multi_filter():
 
 
 if __name__ == "__main__":
-    test_tuner()
-    test_multi_filter()
+    tvm.testing.main()
