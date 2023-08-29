@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import gc
 import os
 from typing import Tuple
 
@@ -106,10 +105,6 @@ def _get_node_to_be_tunned(model, node_names):
         return []
 
     node_to_be_tunned = [node for node in graph.nodes if node.name in node_names]
-
-    del graph
-    del model
-    gc.collect()
 
     return node_to_be_tunned
 
