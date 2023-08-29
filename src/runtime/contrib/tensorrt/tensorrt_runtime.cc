@@ -73,7 +73,9 @@ class TensorRTRuntime : public JSONRuntimeBase {
         max_workspace_size_(size_t(1) << 30),
         max_batch_size_(-1),
         multi_engine_mode_(false),
-        use_fp16_(false) {
+        use_fp16_(false),
+        nvdla_(-1),
+        allow_gpu_fallback_(false) {
     const bool use_int8 = dmlc::GetEnv("TVM_TENSORRT_USE_INT8", false);
     multi_engine_mode_ = dmlc::GetEnv("TVM_TENSORRT_MULTI_ENGINE", false);
     num_calibration_batches_remaining_ = dmlc::GetEnv("TENSORRT_NUM_CALI_INT8", 0);
@@ -135,6 +137,15 @@ class TensorRTRuntime : public JSONRuntimeBase {
       }
       if (nodes_[i].HasAttr("use_fp16")) {
         use_fp16_ = std::stoi(nodes_[i].GetAttr<std::vector<std::string>>("use_fp16")[0]);
+      }
+      if (nodes_[i].HasAttr("nvdla")) {
+        
+        nvdla_ = std::stoi(nodes_[i].GetAttr<std::vector<std::string>>("nvdla")[0]);
+        //std::cout << "nvdla_ = " << nvdla_ << std::endl;
+      }
+      if (nodes_[i].HasAttr("allow_gpu_fallback")) {
+        allow_gpu_fallback_ = std::stoi(nodes_[i].GetAttr<std::vector<std::string>>("allow_gpu_fallback")[0]);
+        //std::cout << "allow_gpu_fallback_ = " << allow_gpu_fallback_ << std::endl;
       }
     }
   }
@@ -324,7 +335,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
   void BuildEngineFromJson(int batch_size) {
     const bool use_fp16 = dmlc::GetEnv("TVM_TENSORRT_USE_FP16", false) || use_fp16_;
     TensorRTBuilder builder(&logger_, data_entry_, max_workspace_size_, use_implicit_batch_,
-                            use_fp16, batch_size, calibrator_.get());
+                            use_fp16, batch_size, nvdla_, allow_gpu_fallback_, calibrator_.get());
     for (size_t i = 0; i < input_nodes_.size(); ++i) {
       auto nid = input_nodes_[i];
       const auto& node = nodes_[nid];
@@ -516,6 +527,12 @@ class TensorRTRuntime : public JSONRuntimeBase {
 
   /*! \brief Use auto-conversion to fp16 */
   bool use_fp16_;
+
+  /*! \brief NVDLA core to use */
+  int nvdla_;
+
+  /*! \brief Allow GPU fallback */
+  bool allow_gpu_fallback_;
 };
 
 runtime::Module TensorRTRuntimeCreate(const String& symbol_name, const String& graph_json,
