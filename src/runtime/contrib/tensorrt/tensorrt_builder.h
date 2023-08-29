@@ -70,9 +70,12 @@ class TensorRTBuilder {
    * \param use_implicit_batch Whether to use implicit batch mode (default)
    * \param use_fp16 Whether to automatically convert a model to fp16
    * \param batch_size If use_implicit_batch,
+   * \param id of nvdla to use
+   * \param allow_gpu_fallback Whether to allow GPU fallback if DLA is not available
    */
   TensorRTBuilder(TensorRTLogger* logger, const std::vector<const DLTensor*>& data_entry,
                   size_t max_workspace_size, bool use_implicit_batch, bool use_fp16, int batch_size,
+                  int dla_core, bool allow_gpu_fallback,
                   nvinfer1::IInt8Calibrator* calibrator = nullptr);
 
   /*!
@@ -158,6 +161,12 @@ class TensorRTBuilder {
 
   /*! \brief Batch size to optimize for. */
   int batch_size_;
+
+  /*! \brief id of nvdla to use */
+  int nvdla_;
+
+  /*! \brief Whether to allow GPU fallback if DLA is not available */
+  int allow_gpu_fallback_;
 
   /*! \brief Input names. */
   std::vector<std::string> network_input_names_;
