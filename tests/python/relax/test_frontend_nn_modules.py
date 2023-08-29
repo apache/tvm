@@ -43,6 +43,22 @@ def test_silu():
     assert_structural_equal(tvm_mod["forward"], forward, True)
 
 
+def test_identity():
+    @R.function
+    def forward(
+        x: R.Tensor((3, 3), dtype="float32"),
+        _io: R.Object,
+    ) -> R.Tuple(R.Tensor((3, 3), dtype="float32"), R.Tuple(R.Object)):
+        with R.dataflow():
+            gv1: R.Tuple(R.Tensor((3, 3), dtype="float32"), R.Tuple(R.Object)) = x, (_io,)
+            R.output(gv1)
+        return gv1
+
+    mod = modules.Identity()
+    tvm_mod, _ = mod.export_tvm(spec={"forward": {"x": spec.Tensor((3, 3), "float32")}})
+    assert_structural_equal(tvm_mod["forward"], forward, True)
+
+
 def test_linear():
     @R.function
     def forward(

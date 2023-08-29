@@ -63,30 +63,6 @@ def _wrap_nested(expr: rx.Expr, name: str) -> Union[Tensor, Tuple[Tensor]]:
     raise TypeError(f"Unsupported return type: {expr.struct_info_}")
 
 
-def cast(x: Tensor, dtype: str, name: str = "cast") -> Tensor:
-    """Cast a tensor to a different datatype
-
-    Parameters
-    ----------
-    x : Tensor
-        Tensor to cast.
-    dtype : str
-        Desired output datatype.
-    name : str
-        Name hint for this operator.
-
-    Returns
-    -------
-    result : Tensor
-        Input tensor recast to dtype.
-    """
-    # If requesting the current type of x, skip this op.
-    current_dtype = x._expr.struct_info.dtype
-    if current_dtype == dtype:
-        return x
-    return _wrap_nested(_op.astype(x, dtype), name)
-
-
 def unsqueeze(x: Tensor, dim: int, name: str = "unsqueeze") -> Tensor:
     """Add a new axis to a tensor
 
@@ -104,7 +80,7 @@ def unsqueeze(x: Tensor, dim: int, name: str = "unsqueeze") -> Tensor:
     result : Tensor
         Expanded result.
     """
-    return _wrap_nested(_op.expand_dims(x, dim), name)
+    return _wrap_nested(_op.expand_dims(x._expr, dim), name)
 
 
 def concat(x: List[Tensor], dim: int, name: str = "concat") -> Tensor:
@@ -687,6 +663,9 @@ def astype(x: Tensor, dtype: str, name: str = "astype") -> Tensor:
     result : Tensor
         The casted result.
     """
+    # If trying to cast to same dtype as x, skip casting.
+    if x.dtype == dtype:
+        return x
     return _wrap_nested(_op.astype(x._expr, dtype), name)
 
 
