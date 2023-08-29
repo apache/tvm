@@ -146,7 +146,8 @@ def test_datatype():
 def test_image():
     class Model(Module):
         def test(self, x: Tensor, weight: Tensor, bias: Tensor):
-            conv2d = op.conv2d(x, weight, bias)
+            padded = op.pad(x, [0, 0, 0, 0, 1, 1, 1, 1])
+            conv2d = op.conv2d(padded, weight, bias)
             interpolate = op.interpolate(x, size=[40, 40])
             return (conv2d, interpolate)
 
@@ -158,13 +159,14 @@ def test_image():
         _io: R.Object,
     ) -> R.Tuple(
         R.Tuple(
-            R.Tensor((1, 32, 30, 30), dtype="float32"), R.Tensor((1, 3, 40, 40), dtype="float32")
+            R.Tensor((1, 32, 32, 32), dtype="float32"), R.Tensor((1, 3, 40, 40), dtype="float32")
         ),
         R.Tuple(R.Object),
     ):
         with R.dataflow():
-            lv1: R.Tensor((1, 32, 30, 30), dtype="float32") = R.nn.conv2d(
-                x,
+            lv0: R.Tensor((1, 3, 34, 34), dtype="float32") = R.nn.pad(x, (0, 0, 0, 0, 1, 1, 1, 1))
+            lv1: R.Tensor((1, 32, 32, 32), dtype="float32") = R.nn.conv2d(
+                lv0,
                 weight,
                 strides=[1, 1],
                 padding=[0, 0, 0, 0],
@@ -176,7 +178,7 @@ def test_image():
                 out_dtype="void",
             )
             lv2: R.Tensor((1, 32, 1, 1), dtype="float32") = R.reshape(bias, R.shape([1, 32, 1, 1]))
-            conv2d: R.Tensor((1, 32, 30, 30), dtype="float32") = R.add(lv1, lv2)
+            conv2d: R.Tensor((1, 32, 32, 32), dtype="float32") = R.add(lv1, lv2)
             interpolate: R.Tensor((1, 3, 40, 40), dtype="float32") = R.image.resize2d(
                 x,
                 R.shape([40, 40]),
@@ -192,7 +194,7 @@ def test_image():
             )
             gv1: R.Tuple(
                 R.Tuple(
-                    R.Tensor((1, 32, 30, 30), dtype="float32"),
+                    R.Tensor((1, 32, 32, 32), dtype="float32"),
                     R.Tensor((1, 3, 40, 40), dtype="float32"),
                 ),
                 R.Tuple(R.Object),

@@ -26,7 +26,7 @@ from ... import expr as rx
 from ... import op as _op
 from ...block_builder import BlockBuilder
 from ...struct_info import TensorStructInfo, TupleStructInfo
-from .core import Tensor
+from .core import Tensor, get_default_dtype
 from .spec import SpecBuilder
 
 IntExpr = Union[int, _tir.PrimExpr]
@@ -1074,7 +1074,7 @@ def pad(
     result : Tensor
         Padded output tensor.
     """
-    return _wrap_nested(_op.nn.pad(x, pad_width=pad, pad_value=value, pad_mode=mode), name)
+    return _wrap_nested(_op.nn.pad(x._expr, pad_width=pad, pad_value=value, pad_mode=mode), name)
 
 
 def get_timestep_embedding(
@@ -1111,19 +1111,20 @@ def get_timestep_embedding(
     result : Tensor
         [N x dim] Tensor of positional embeddings.
     """
-    timesteps = _op.astype(x._expr, "float32")
+    dtype = get_default_dtype()
+    timesteps = _op.astype(x._expr, dtype)
 
     half_dim = embedding_dim // 2
-    exponent = rx.const(-math.log(max_period), "float32") * _op.arange(
-        start=0, end=half_dim, dtype="float32"
+    exponent = rx.const(-math.log(max_period), dtype) * _op.arange(
+        start=0, end=half_dim, dtype=dtype
     )
-    exponent = exponent / (rx.const(half_dim - downscale_freq_shift, "float32"))
+    exponent = exponent / (rx.const(half_dim - downscale_freq_shift, dtype))
 
     emb = _op.exp(exponent)
     emb = _op.expand_dims(timesteps, 1) * _op.expand_dims(emb, 0)
     # Scale embeddings
     if scale != 1:
-        emb = rx.const(scale, "float32") * emb
+        emb = rx.const(scale, dtype) * emb
 
     # Concat sine and cosine embeddings.
     if flip_sin_to_cos:
