@@ -463,6 +463,13 @@ class GEMV(ScheduleRule):
 
         if not isinstance(len_S, int):
             TS, TR = 1, 64
+
+        while TS * TR > target.max_num_threads:
+            if TS > 1:
+                TS //= 2
+            else:
+                TR //= 2
+
         TILE_S, TILE_R = (
             1,
             len_c
