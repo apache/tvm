@@ -18,7 +18,7 @@
 from collections import defaultdict
 import inspect
 import threading
-from typing import Any, Callable, Dict, List, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, List, Sequence, Tuple, Union, Optional
 
 from tvm import tir
 from tvm.ir import IRModule
@@ -288,7 +288,9 @@ class SpecBuilder:
         assert hasattr(SpecBuilder._tls, "current")
         delattr(SpecBuilder._tls, "current")
 
-    def build(self, spec: ModuleSpec) -> Tuple[IRModule, List[Tuple[str, core.Parameter]]]:
+    def build(
+        self, spec: ModuleSpec, debug: bool = False
+    ) -> Tuple[IRModule, List[Tuple[str, core.Parameter]]]:
         """Build the ModuleSpec to TVM IRModule. Returns the IRModule and the parameters."""
 
         # pylint: disable=protected-access
@@ -322,15 +324,18 @@ class SpecBuilder:
         # pylint: enable=protected-access
 
         params = _params()
-        effects = _effects()
+        effects = _effects() if debug else None
         extern_modules = _extern_modules()
         with self:
-            with self.builder.function("_initialize_effect"):
-                with self.builder.dataflow():
-                    outputs = _emit_effect_init(self.builder, effects)
-                self.builder.emit_func_output(outputs, params=[])
+            if debug:
+                with self.builder.function("_initialize_effect"):
+                    with self.builder.dataflow():
+                        outputs = _emit_effect_init(self.builder, effects)
+                    self.builder.emit_func_output(outputs, params=[])
             for method_name, method_spec in zip(spec.method_names, spec.method_specs):
-                with self.builder.function(method_name):
+                with self.builder.function(
+                    method_name, attrs={"num_input": len(method_spec.arg_specs)}
+                ):
                     with self.builder.dataflow():
                         outputs, inputs = _emit_method(self.builder, method_spec, params, effects)
                     self.builder.emit_func_output(outputs, inputs)
@@ -363,7 +368,7 @@ def _emit_method(
     builder: BlockBuilder,
     spec: MethodSpec,
     params: List[Tuple[str, core.Parameter]],
-    effects: List[Tuple[str, core.Effect]],
+    effects: Optional[List[Tuple[str, core.Effect]]],
 ):
     # pylint: disable=protected-access
     def _unwrap_ret(expr: Any) -> Any:
@@ -389,13 +394,17 @@ def _emit_method(
     for name, param in params:
         param._expr = core._tensor_placeholder(name, param.shape, param.dtype)._expr
         inputs.append(param._expr)
-    for name, effect in effects:
-        inputs.extend(effect.create(name))
+    if effects is not None:
+        for name, effect in effects:
+            inputs.extend(effect.create(name))
     # pylint: enable=protected-access
 
     outputs = spec.method(*explicit_inputs)
-    effect_outputs = []
-    for _, effect in effects:
-        effect_outputs.extend(effect.finalize())
-    outputs = builder.emit_output(rx.Tuple([_unwrap_ret(outputs), rx.Tuple(effect_outputs)]))
+    if effects is not None:
+        effect_outputs = []
+        for _, effect in effects:
+            effect_outputs.extend(effect.finalize())
+        outputs = builder.emit_output(rx.Tuple([_unwrap_ret(outputs), rx.Tuple(effect_outputs)]))
+    else:
+        outputs = builder.emit_output(_unwrap_ret(outputs))
     return outputs, inputs
