@@ -107,7 +107,7 @@ def resize2d(
 
     if isinstance(size, (int, PrimExpr)):
         size = (size, size)
-    if isinstance(size, tuple):
+    if isinstance(size, (tuple, list)):
         if len(size) == 1:
             size = ShapeExpr([size[0], size[0]])
         else:

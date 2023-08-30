@@ -14,18 +14,19 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=too-many-lines,invalid-name,protected-access
+# pylint: disable=too-many-lines,invalid-name,protected-access,redefined-outer-name
 """nn.Tensor operators."""
 import math
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
+import numpy as np
 from tvm import tir as _tir
 
 from ... import expr as rx
 from ... import op as _op
 from ...block_builder import BlockBuilder
 from ...struct_info import TensorStructInfo, TupleStructInfo
-from .core import Tensor
+from .core import Tensor, get_default_dtype
 from .spec import SpecBuilder
 
 IntExpr = Union[int, _tir.PrimExpr]
@@ -57,9 +58,51 @@ def _wrap_nested(expr: rx.Expr, name: str) -> Union[Tensor, Tuple[Tensor]]:
                 rx.TupleGetItem(expr, i),
                 name=f"{name}.{i}",
             )
-            for i in range(expr.struct_info_.fields)
+            for i in range(len(expr.struct_info_.fields))
         )
     raise TypeError(f"Unsupported return type: {expr.struct_info_}")
+
+
+def unsqueeze(x: Tensor, dim: int, name: str = "unsqueeze") -> Tensor:
+    """Add a new axis to a tensor
+
+    Parameters
+    ----------
+    x : Tensor
+        Input tensor to expand.
+    dim : int
+        Dimension to expand.
+    name : str
+        Name hint for this operator.
+
+    Returns
+    -------
+    result : Tensor
+        Expanded result.
+    """
+    return _wrap_nested(_op.expand_dims(x._expr, dim), name)
+
+
+def concat(x: List[Tensor], dim: int, name: str = "concat") -> Tensor:
+    """Concatenate a list of tensors along an axis.
+
+    Parameters
+    ----------
+    x : List[Tensor]
+        List of tensors to concatenate.
+    dim : int
+        Dimension to concatenate upon.
+    name : str
+        Name hint for this operator.
+
+    Returns
+    -------
+    result : Tensor
+        Expanded result.
+    """
+    # Convert tensors to expressions.
+    x = [t._expr for t in x]
+    return _wrap_nested(_op.concat(x, dim), name)
 
 
 def add(a: Tensor, b: Tensor, name: str = "add") -> Tensor:
@@ -88,6 +131,34 @@ def add(a: Tensor, b: Tensor, name: str = "add") -> Tensor:
         c = add(a, b)
     """
     return _wrap_nested(_op.add(a._expr, b._expr), name)
+
+
+def subtract(a: Tensor, b: Tensor, name: str = "subtract") -> Tensor:
+    """Subtraction with numpy-style broadcasting.
+
+    Parameters
+    ----------
+    a : Tensor
+        The first input tensor.
+
+    b : Tensor
+        The second input tensor.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+
+    Examples
+    --------
+    .. code:: python
+
+        c = subtract(a, b)
+    """
+    return _wrap_nested(_op.subtract(a._expr, b._expr), name)
 
 
 def multiply(a: Tensor, b: Tensor, name: str = "mul") -> Tensor:
@@ -144,6 +215,28 @@ def divide(a: Tensor, b: Tensor, name: str = "divide") -> Tensor:
         c = divide(a, b)
     """
     return _wrap_nested(_op.divide(a._expr, b._expr), name)
+
+
+def chunk(x: Tensor, chunks: int, dim: int = 0, name: str = "chunk") -> Tensor:
+    """Split a tensor along dim into the specified number of chunks.
+
+    Parameters
+    ----------
+    x : Tensor
+        Input tensor to be split.
+    chunks : int
+        Number of pieces to slice x into.
+    dim : int
+        Which dimension to split x.
+    name : str
+        Name hint for this operation.
+
+    Returns
+    -------
+    result : Tuple[Tensor]
+        A tuple with chunks elements containing slices of x.
+    """
+    return _wrap_nested(_op.split(x._expr, chunks, dim), name)
 
 
 def matmul(a: Tensor, b: Tensor, out_dtype: Optional[str] = None, name: str = "matmul") -> Tensor:
@@ -569,6 +662,9 @@ def astype(x: Tensor, dtype: str, name: str = "astype") -> Tensor:
     result : Tensor
         The casted result.
     """
+    # If trying to cast to same dtype as x, skip casting.
+    if x.dtype == dtype:
+        return x
     return _wrap_nested(_op.astype(x._expr, dtype), name)
 
 
@@ -598,7 +694,7 @@ def silu(x: Tensor, name: str = "silu") -> Tensor:
     return _wrap_nested(_op.nn.silu(x._expr), name)
 
 
-def gelu(x: Tensor, name: str = "gelu") -> Tensor:
+def gelu(x: Tensor, approximate: Optional[str] = None, name: str = "gelu") -> Tensor:
     r"""Applies the Gaussian Error Linear Units function
 
     .. math::
@@ -611,7 +707,10 @@ def gelu(x: Tensor, name: str = "gelu") -> Tensor:
     x : Tensor
         The input data
 
-    naem : str
+    approximate : Optional[str]
+        If set to tanh, use an approximation when calculating CDF.
+
+    name : str
         Name hint.
 
     Returns
@@ -623,7 +722,20 @@ def gelu(x: Tensor, name: str = "gelu") -> Tensor:
     ----
     The input tensor is required to have float dtype
     """
-    return _wrap_nested(_op.nn.gelu(x._expr), name)
+    dtype = x._expr.struct_info.dtype
+    if approximate == "tanh":
+        tanh_const = rx.const(1 + np.tanh(np.sqrt(2 / np.pi)), dtype=dtype)
+        gelu_out = (
+            rx.const(0.5, dtype)
+            * x._expr
+            * (
+                tanh_const
+                * (x._expr + (rx.const(0.044715, dtype) * _op.power(x._expr, rx.const(3, "int32"))))
+            )
+        )
+    else:
+        gelu_out = _op.nn.gelu(x._expr)
+    return _wrap_nested(gelu_out, name)
 
 
 def softmax(x: Tensor, axis: int = -1, name: str = "softmax") -> Tensor:
@@ -658,10 +770,10 @@ def softmax(x: Tensor, axis: int = -1, name: str = "softmax") -> Tensor:
 
 def layer_norm(
     x: Tensor,
-    weight: Tensor,
-    bias: Tensor,
-    axes: Union[int, List[int]],
-    epsilon: float = 1e-5,
+    normalized_shape: Union[int, List[int]],
+    weight: Optional[Tensor] = None,
+    bias: Optional[Tensor] = None,
+    eps: float = 1e-5,
     name: str = "layer_norm",
 ) -> Tensor:
     r"""
@@ -685,19 +797,21 @@ def layer_norm(
 
     Parameters
     ----------
-    data : Tensor
+    x : Tensor
         Input to which layer_norm will be applied.
 
-    gamma : Tensor
+    normalized_shape: Union[int, List[int]]
+        The shape of axes to normalize. If a single integer
+        is used, it is treated as a singleton list and this
+        module will normalize over the last dimension.
+
+    weight: Tensor
         The gamma scale factor.
 
-    beta : Tensor
+    bias: Tensor
         The beta offset factor.
 
-    axes : Union[int, List[int]]
-        The axes that along which the normalization is applied.
-
-    epsilon : float
+    eps: float
         Small float added to variance to avoid dividing by zero.
 
     name : str
@@ -708,7 +822,31 @@ def layer_norm(
     result : Tensor
         The computed result.
     """
-    return _wrap_nested(_op.nn.layer_norm(x._expr, weight._expr, bias._expr, axes, epsilon), name)
+    if isinstance(normalized_shape, int):
+        normalized_shape = [normalized_shape]
+    dim_num = len(normalized_shape)
+    axes = list(range(-dim_num, 0))
+    dtype = x._expr.struct_info.dtype
+
+    if weight is not None:
+        weight = weight._expr
+    else:
+        weight = rx.const(np.ones(normalized_shape), dtype=dtype)
+    if bias is not None:
+        bias = bias._expr
+    else:
+        bias = rx.const(np.zeros(normalized_shape), dtype=dtype)
+
+    return _wrap_nested(
+        _op.nn.layer_norm(
+            x._expr,
+            gamma=weight,
+            beta=bias,
+            axes=axes,
+            epsilon=eps,
+        ),
+        name=name,
+    )
 
 
 def rms_norm(
@@ -906,6 +1044,39 @@ def zeros(
     return _wrap_nested(_op.zeros(shape, dtype), name)
 
 
+def pad(
+    x: Tensor,
+    pad: List[int],
+    mode: str = "constant",
+    value: int = 0,
+    name: str = "pad",
+) -> Tensor:
+    """
+    Apply spatial padding to the input tensor.
+
+    Parameters
+    ----------
+    x : Tensor
+        Input tensor to be padded.
+    pad : List[int]
+        List in the format of [before_0, after_0, before_1, after_1, ...]
+        indicating how much to pad each axis of x.
+    mod : str
+        Padding mode to use, constant implies padded elements will use
+        value argument.
+    value : int
+        What to pad with in constant mode.
+    name : str
+        Name hint for this operator.
+
+    Returns
+    -------
+    result : Tensor
+        Padded output tensor.
+    """
+    return _wrap_nested(_op.nn.pad(x._expr, pad_width=pad, pad_value=value, pad_mode=mode), name)
+
+
 def get_timestep_embedding(
     x: Tensor,
     embedding_dim: int,
@@ -940,19 +1111,20 @@ def get_timestep_embedding(
     result : Tensor
         [N x dim] Tensor of positional embeddings.
     """
-    timesteps = _op.astype(x._expr, "float32")
+    dtype = get_default_dtype()
+    timesteps = _op.astype(x._expr, dtype)
 
     half_dim = embedding_dim // 2
-    exponent = rx.const(-math.log(max_period), "float32") * _op.arange(
-        start=0, end=half_dim, dtype="float32"
+    exponent = rx.const(-math.log(max_period), dtype) * _op.arange(
+        start=0, end=half_dim, dtype=dtype
     )
-    exponent = exponent / (rx.const(half_dim - downscale_freq_shift, "float32"))
+    exponent = exponent / (rx.const(half_dim - downscale_freq_shift, dtype))
 
     emb = _op.exp(exponent)
     emb = _op.expand_dims(timesteps, 1) * _op.expand_dims(emb, 0)
     # Scale embeddings
     if scale != 1:
-        emb = rx.const(scale, "float32") * emb
+        emb = rx.const(scale, dtype) * emb
 
     # Concat sine and cosine embeddings.
     if flip_sin_to_cos:
@@ -1003,6 +1175,73 @@ def scaled_dot_product_attention(
         query._expr, key._expr, value._expr, causal_mask=causal_mask, scale=scale
     )
     return _wrap_nested(attn, name)
+
+
+def interpolate(
+    x: Tensor,
+    size: Optional[Union[int, Tuple[int]]] = None,
+    scale_factor: Optional[Union[float, Tuple[float]]] = None,
+    mode: str = "nearest",
+    align_corners: Optional[bool] = None,
+    recompute_scale_factor: Optional[bool] = None,
+    antialias: Optional[bool] = None,
+    name: str = "interpolate",
+):
+    """Resize a tensor using the specified mode.
+
+    Parameters
+    ----------
+    x : Tensor
+        Input tensor to be resized.
+    size : Optional[Union[int, Tuple[int]]]
+        Requested output size, only one of size and scale_factor may
+        be specified.
+    scale_factor : Optional[Union[float, Tuple[float]]]
+        Multiplier for spatial size.
+    mode : str
+        Algorithm used for sampling.
+    align_corners : Optional[bool]
+        How to map pixels before and after sampling.
+    recompute_scale_factor : Optional[bool]
+        Recompute the scale_factor for use in interpolation.
+    antialias : Optional[bool]
+        Apply antialiasing to output.
+    name : str
+        Name hint for this operation.
+
+    Returns
+    -------
+    result : Tensor
+        Output tensor with requested shape.
+    """
+    assert recompute_scale_factor is None, "recompute_scale_factor is not supported."
+    assert antialias is None, "antialias is not supported."
+
+    if size is None:
+        shape = x.shape
+        if isinstance(scale_factor, (list, tuple)):
+            size = tuple(int(shape[i] * scale_factor[i]) for i in range(2, len(shape)))
+        else:
+            size = tuple(int(shape[i] * scale_factor) for i in range(2, len(shape)))
+
+    if mode.startswith("nearest"):
+        mode = "nearest_neighbor"
+    elif mode[0:2] == "bi":
+        mode = mode[2:]
+
+    if mode == "nearest_neighbor":
+        coord_trans = "asymmetric"
+    elif align_corners:
+        coord_trans = "align_corners"
+    else:
+        coord_trans = "half_pixel"
+
+    return _wrap_nested(
+        _op.image.resize2d(
+            x._expr, size, layout="NCHW", method=mode, coordinate_transformation_mode=coord_trans
+        ),
+        name,
+    )
 
 
 def tensor_expr_op(

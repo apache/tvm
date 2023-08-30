@@ -244,8 +244,6 @@ def test_resize2d_infer_struct_info_wrong_input_type():
         bb.normalize(relax.op.image.resize2d(x1, size=32))
     with pytest.raises(TVMError):
         bb.normalize(relax.op.image.resize2d(x2, s0))
-    with pytest.raises(TVMError):
-        relax.op.image.resize2d(x2, [30, 30])
 
 
 if __name__ == "__main__":

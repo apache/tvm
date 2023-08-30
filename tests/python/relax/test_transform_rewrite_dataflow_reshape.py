@@ -446,5 +446,59 @@ def test_reshape_detect_nop():
     tvm.ir.assert_structural_equal(rewritten, Module)
 
 
+def test_reshape_scalar():
+    @tvm.script.ir_module
+    class Module:
+        @R.function
+        def main(x: R.Tensor((), dtype="float32")) -> R.Tensor((1,), dtype="float32"):
+            with R.dataflow():
+                lv1: R.Tensor((1,), dtype="float32") = R.reshape(x, [1])
+                lv2: R.Tensor((1,), dtype="float32") = R.add(lv1, lv1)
+                R.output(lv2)
+            return lv2
+
+    @tvm.script.ir_module
+    class Expected:
+        @T.prim_func(private=True)
+        def add(
+            A: T.Buffer((T.int64(1),), "float32"),
+            B: T.Buffer((T.int64(1),), "float32"),
+            T_add: T.Buffer((T.int64(1),), "float32"),
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            # with T.block("root"):
+            for ax0 in range(T.int64(1)):
+                with T.block("T_add"):
+                    v_ax0 = T.axis.spatial(T.int64(1), ax0)
+                    T.reads(A[v_ax0], B[v_ax0])
+                    T.writes(T_add[v_ax0])
+                    T_add[v_ax0] = A[v_ax0] + B[v_ax0]
+
+        @T.prim_func(private=True)
+        def reshape(A: T.Buffer((), "float32"), T_reshape: T.Buffer((T.int64(1),), "float32")):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            # with T.block("root"):
+            for ax0 in range(T.int64(1)):
+                with T.block("T_reshape"):
+                    v_ax0 = T.axis.spatial(T.int64(1), ax0)
+                    T.reads(A[()])
+                    T.writes(T_reshape[v_ax0])
+                    T_reshape[v_ax0] = A[()]
+
+        @R.function
+        def main(x: R.Tensor((), dtype="float32")) -> R.Tensor((1,), dtype="float32"):
+            cls = Expected
+            with R.dataflow():
+                lv1: R.Tensor((1,), dtype="float32") = R.reshape(x, R.shape([1]))
+                lv2 = R.call_tir(cls.add, (lv1, lv1), out_sinfo=R.Tensor((1,), dtype="float32"))
+                R.output(lv2)
+            return lv2
+
+    mod = Module
+    mod = relax.transform.LegalizeOps()(mod)
+    rewritten = relax.transform.RewriteDataflowReshape()(mod)
+    tvm.ir.assert_structural_equal(rewritten, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

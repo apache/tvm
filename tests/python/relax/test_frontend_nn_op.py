@@ -37,11 +37,12 @@ def test_binary():
             z3 = op.matmul(x, y)
             z4 = op.maximum(x, y)
             z5 = op.minimum(x, y)
-            return (z0, z1, z2, z3, z4, z5)
+            z6 = op.subtract(x, y)
+            return (z0, z1, z2, z3, z4, z5, z6)
 
     # fmt: off
     @R.function
-    def test(x: R.Tensor((1, 10), dtype="float32"), y: R.Tensor((10, 1), dtype="float32"), _io: R.Object) -> R.Tuple(R.Tuple(R.Tensor((10, 10), dtype="float32"), R.Tensor((10, 10), dtype="float32"), R.Tensor((10, 10), dtype="float32"), R.Tensor((1, 1), dtype="float32"), R.Tensor((10, 10), dtype="float32"), R.Tensor((10, 10), dtype="float32")), R.Tuple(R.Object)):
+    def test(x: R.Tensor((1, 10), dtype="float32"), y: R.Tensor((10, 1), dtype="float32"), _io: R.Object) -> R.Tuple(R.Tuple(R.Tensor((10, 10), dtype="float32"), R.Tensor((10, 10), dtype="float32"), R.Tensor((10, 10), dtype="float32"), R.Tensor((1, 1), dtype="float32"), R.Tensor((10, 10), dtype="float32"), R.Tensor((10, 10), dtype="float32"), R.Tensor((10, 10), dtype="float32")), R.Tuple(R.Object)):
         with R.dataflow():
             add: R.Tensor((10, 10), dtype="float32") = R.add(x, y)
             mul: R.Tensor((10, 10), dtype="float32") = R.multiply(x, y)
@@ -49,7 +50,8 @@ def test_binary():
             matmul: R.Tensor((1, 1), dtype="float32") = R.matmul(x, y, out_dtype="void")
             maximum: R.Tensor((10, 10), dtype="float32") = R.maximum(x, y)
             minimum: R.Tensor((10, 10), dtype="float32") = R.minimum(x, y)
-            gv1: R.Tuple(R.Tuple(R.Tensor((10, 10), dtype="float32"), R.Tensor((10, 10), dtype="float32"), R.Tensor((10, 10), dtype="float32"), R.Tensor((1, 1), dtype="float32"), R.Tensor((10, 10), dtype="float32"), R.Tensor((10, 10), dtype="float32")), R.Tuple(R.Object)) = (add, mul, divide, matmul, maximum, minimum), (_io,)
+            subtract: R.Tensor((10, 10), dtype="float32") = R.subtract(x, y)
+            gv1: R.Tuple(R.Tuple(R.Tensor((10, 10), dtype="float32"), R.Tensor((10, 10), dtype="float32"), R.Tensor((10, 10), dtype="float32"), R.Tensor((1, 1), dtype="float32"), R.Tensor((10, 10), dtype="float32"), R.Tensor((10, 10), dtype="float32"), R.Tensor((10, 10), dtype="float32")), R.Tuple(R.Object)) = (add, mul, divide, matmul, maximum, minimum, subtract), (_io,)
             R.output(gv1)
         return gv1
     # fmt: on
@@ -58,7 +60,6 @@ def test_binary():
     irmodule, _ = m.export_tvm(
         spec={"test": {"x": spec.Tensor([1, 10], "float32"), "y": spec.Tensor([10, 1], "float32")}}
     )
-
     tvm.ir.assert_structural_equal(irmodule["test"], test)
 
 
@@ -70,24 +71,28 @@ def test_manipulate():
             z2 = op.reshape(x, [1, 10])
             z3 = op.repeat(x, repeats=2, axis=1)
             z4 = op.squeeze(x, 0)
-            return (z0, z1, z2, z3, z4)
+            z5 = op.unsqueeze(x, 0)
+            z6 = op.concat([x, x], dim=0)
+            return (z0, z1, z2, z3, z4, z5, z6)
 
     # fmt: off
     @R.function
-    def test(x: R.Tensor((1, 5, 2), dtype="float32"), _io: R.Object) -> R.Tuple(R.Tuple(R.Tensor((2, 5, 2), dtype="float32"), R.Tensor((2, 5, 1), dtype="float32"), R.Tensor((1, 10), dtype="float32"), R.Tensor((1, 10, 2), dtype="float32"), R.Tensor((5, 2), dtype="float32")), R.Tuple(R.Object)):
+    def test(x: R.Tensor((1, 5, 2), dtype="float32"), _io: R.Object) -> R.Tuple(R.Tuple(R.Tensor((2, 5, 2), dtype="float32"), R.Tensor((2, 5, 1), dtype="float32"), R.Tensor((1, 10), dtype="float32"), R.Tensor((1, 10, 2), dtype="float32"), R.Tensor((5, 2), dtype="float32"), R.Tensor((1, 1, 5, 2), dtype="float32"), R.Tensor((2, 5, 2), dtype="float32")), R.Tuple(R.Object)):
         with R.dataflow():
             broadcast_to: R.Tensor((2, 5, 2), dtype="float32") = R.broadcast_to(x, R.shape([2, 5, 2]))
             permute_dims: R.Tensor((2, 5, 1), dtype="float32") = R.permute_dims(x, axes=[2, 1, 0])
             reshape: R.Tensor((1, 10), dtype="float32") = R.reshape(x, R.shape([1, 10]))
             repeat: R.Tensor((1, 10, 2), dtype="float32") = R.repeat(x, repeats=2, axis=1)
             squeeze: R.Tensor((5, 2), dtype="float32") = R.squeeze(x, axis=[0])
-            gv1: R.Tuple(R.Tuple(R.Tensor((2, 5, 2), dtype="float32"), R.Tensor((2, 5, 1), dtype="float32"), R.Tensor((1, 10), dtype="float32"), R.Tensor((1, 10, 2), dtype="float32"), R.Tensor((5, 2), dtype="float32")), R.Tuple(R.Object)) = (broadcast_to, permute_dims, reshape, repeat, squeeze), (_io,)
+            unsqueeze: R.Tensor((1, 1, 5, 2), dtype="float32") = R.expand_dims(x, axis=0)
+            concat: R.Tensor((2, 5, 2), dtype="float32") = R.concat([x, x], axis=0)
+            gv1: R.Tuple(R.Tuple(R.Tensor((2, 5, 2), dtype="float32"), R.Tensor((2, 5, 1), dtype="float32"), R.Tensor((1, 10), dtype="float32"), R.Tensor((1, 10, 2), dtype="float32"), R.Tensor((5, 2), dtype="float32"), R.Tensor((1, 1, 5, 2), dtype="float32"), R.Tensor((2, 5, 2), dtype="float32")), R.Tuple(R.Object)) = (broadcast_to, permute_dims, reshape, repeat, squeeze, unsqueeze, concat), (_io,)
             R.output(gv1)
         return gv1
     # fmt: on
 
     m = Model()
-    irmodule, params = m.export_tvm(spec={"test": {"x": spec.Tensor([1, 5, 2], "float32")}})
+    irmodule, _ = m.export_tvm(spec={"test": {"x": spec.Tensor([1, 5, 2], "float32")}})
 
     tvm.ir.assert_structural_equal(irmodule["test"], test)
 
@@ -141,8 +146,10 @@ def test_datatype():
 def test_image():
     class Model(Module):
         def test(self, x: Tensor, weight: Tensor, bias: Tensor):
-            conv2d_out = op.conv2d(x, weight, bias)
-            return conv2d_out
+            padded = op.pad(x, [0, 0, 0, 0, 1, 1, 1, 1])
+            conv2d = op.conv2d(padded, weight, bias)
+            interpolate = op.interpolate(x, size=[40, 40])
+            return (conv2d, interpolate)
 
     @R.function
     def test(
@@ -150,19 +157,53 @@ def test_image():
         weight: R.Tensor((32, 3, 3, 3), dtype="float32"),
         bias: R.Tensor((32,), dtype="float32"),
         _io: R.Object,
-    ) -> R.Tuple(R.Tensor((1, 32, 30, 30), dtype="float32"), R.Tuple(R.Object)):
+    ) -> R.Tuple(
+        R.Tuple(
+            R.Tensor((1, 32, 32, 32), dtype="float32"), R.Tensor((1, 3, 40, 40), dtype="float32")
+        ),
+        R.Tuple(R.Object),
+    ):
         with R.dataflow():
-            lv1: R.Tensor((1, 32, 30, 30), dtype="float32") = R.nn.conv2d(x, weight)
-            lv2: R.Tensor((1, 32, 1, 1), dtype="float32") = R.reshape(bias, R.shape([1, 32, 1, 1]))
-            conv2d: R.Tensor((1, 32, 30, 30), dtype="float32") = R.add(lv1, lv2)
-            gv1: R.Tuple(R.Tensor((1, 32, 30, 30), dtype="float32"), R.Tuple(R.Object)) = conv2d, (
-                _io,
+            lv0: R.Tensor((1, 3, 34, 34), dtype="float32") = R.nn.pad(x, (0, 0, 0, 0, 1, 1, 1, 1))
+            lv1: R.Tensor((1, 32, 32, 32), dtype="float32") = R.nn.conv2d(
+                lv0,
+                weight,
+                strides=[1, 1],
+                padding=[0, 0, 0, 0],
+                dilation=[1, 1],
+                groups=1,
+                data_layout="NCHW",
+                kernel_layout="OIHW",
+                out_layout="NCHW",
+                out_dtype="void",
             )
+            lv2: R.Tensor((1, 32, 1, 1), dtype="float32") = R.reshape(bias, R.shape([1, 32, 1, 1]))
+            conv2d: R.Tensor((1, 32, 32, 32), dtype="float32") = R.add(lv1, lv2)
+            interpolate: R.Tensor((1, 3, 40, 40), dtype="float32") = R.image.resize2d(
+                x,
+                R.shape([40, 40]),
+                roi=[T.float32(0), T.float32(0), T.float32(0), T.float32(0)],
+                layout="NCHW",
+                method="nearest_neighbor",
+                coordinate_transformation_mode="asymmetric",
+                rounding_method="round",
+                cubic_alpha=-0.5,
+                cubic_exclude=0,
+                extrapolation_value=0,
+                out_dtype="void",
+            )
+            gv1: R.Tuple(
+                R.Tuple(
+                    R.Tensor((1, 32, 32, 32), dtype="float32"),
+                    R.Tensor((1, 3, 40, 40), dtype="float32"),
+                ),
+                R.Tuple(R.Object),
+            ) = (conv2d, interpolate), (_io,)
             R.output(gv1)
         return gv1
 
     m = Model()
-    irmodule, params = m.export_tvm(
+    irmodule, _ = m.export_tvm(
         spec={
             "test": {
                 "x": spec.Tensor([1, 3, 32, 32], "float32"),
@@ -171,6 +212,52 @@ def test_image():
             }
         }
     )
+    tvm.ir.assert_structural_equal(irmodule["test"], test)
+
+
+def test_chunk():
+    class Model(Module):
+        def test(self, x: Tensor):
+            chunk = op.chunk(x, chunks=4)
+            return chunk
+
+    @R.function
+    def test(
+        x: R.Tensor((8,), dtype="float32"), _io: R.Object
+    ) -> R.Tuple(
+        R.Tuple(
+            R.Tensor((2,), dtype="float32"),
+            R.Tensor((2,), dtype="float32"),
+            R.Tensor((2,), dtype="float32"),
+            R.Tensor((2,), dtype="float32"),
+        ),
+        R.Tuple(R.Object),
+    ):
+        with R.dataflow():
+            chunk: R.Tuple(
+                R.Tensor((2,), dtype="float32"),
+                R.Tensor((2,), dtype="float32"),
+                R.Tensor((2,), dtype="float32"),
+                R.Tensor((2,), dtype="float32"),
+            ) = R.split(x, indices_or_sections=4, axis=0)
+            chunk_0: R.Tensor((2,), dtype="float32") = chunk[0]
+            chunk_1: R.Tensor((2,), dtype="float32") = chunk[1]
+            chunk_2: R.Tensor((2,), dtype="float32") = chunk[2]
+            chunk_3: R.Tensor((2,), dtype="float32") = chunk[3]
+            gv1: R.Tuple(
+                R.Tuple(
+                    R.Tensor((2,), dtype="float32"),
+                    R.Tensor((2,), dtype="float32"),
+                    R.Tensor((2,), dtype="float32"),
+                    R.Tensor((2,), dtype="float32"),
+                ),
+                R.Tuple(R.Object),
+            ) = (chunk_0, chunk_1, chunk_2, chunk_3), (_io,)
+            R.output(gv1)
+        return gv1
+
+    m = Model()
+    irmodule, _ = m.export_tvm(spec={"test": {"x": spec.Tensor([8], "float32")}})
     tvm.ir.assert_structural_equal(irmodule["test"], test)
 
 

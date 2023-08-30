@@ -43,6 +43,22 @@ def test_silu():
     assert_structural_equal(tvm_mod["forward"], forward, True)
 
 
+def test_identity():
+    @R.function
+    def forward(
+        x: R.Tensor((3, 3), dtype="float32"),
+        _io: R.Object,
+    ) -> R.Tuple(R.Tensor((3, 3), dtype="float32"), R.Tuple(R.Object)):
+        with R.dataflow():
+            gv1: R.Tuple(R.Tensor((3, 3), dtype="float32"), R.Tuple(R.Object)) = x, (_io,)
+            R.output(gv1)
+        return gv1
+
+    mod = modules.Identity()
+    tvm_mod, _ = mod.export_tvm(spec={"forward": {"x": spec.Tensor((3, 3), "float32")}})
+    assert_structural_equal(tvm_mod["forward"], forward, True)
+
+
 def test_linear():
     @R.function
     def forward(
@@ -93,13 +109,13 @@ def test_layer_norm():
     @R.function
     def forward(x: R.Tensor((2, 4, 8), dtype="float32"), weight: R.Tensor((8,), dtype="float32"), bias: R.Tensor((8,), dtype="float32"), _io: R.Object) -> R.Tuple(R.Tensor((2, 4, 8), dtype="float32"), R.Tuple(R.Object)):
         with R.dataflow():
-            layer_norm: R.Tensor((2, 4, 8), dtype="float32") = R.nn.layer_norm(x, weight, bias, axes=[2], epsilon=1.0000000000000001e-05, center=True, scale=True)
+            layer_norm: R.Tensor((2, 4, 8), dtype="float32") = R.nn.layer_norm(x, weight, bias, axes=[-1], epsilon=1.0000000000000001e-05, center=True, scale=True)
             gv1: R.Tuple(R.Tensor((2, 4, 8), dtype="float32"), R.Tuple(R.Object)) = layer_norm, (_io,)
             R.output(gv1)
         return gv1
     # fmt: on
 
-    mod = modules.LayerNorm(8, [2])
+    mod = modules.LayerNorm(8)
     tvm_mod, _ = mod.export_tvm(spec={"forward": {"x": spec.Tensor((2, 4, 8), "float32")}})
     assert_structural_equal(tvm_mod["forward"], forward, True)
 
