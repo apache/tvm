@@ -17,3 +17,4 @@
 """tvm.contrib.msc.core.ir"""
 
 from .graph import *
+from .translate import *

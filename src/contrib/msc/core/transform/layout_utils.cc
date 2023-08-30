@@ -22,6 +22,7 @@
  */
 #include "layout_utils.h"
 
+#include <algorithm>
 #include <set>
 #include <string>
 
@@ -118,12 +119,15 @@ const LayoutDecision LayoutUtils::ExpandLayout(const LayoutDecision& src_layout,
   if (!src_layout->layout.defined()) {
     return src_layout;
   }
+  // sort expand axes
+  std::vector<size_t> axes = expand_axes;
+  std::sort(std::begin(axes), std::end(axes));
   std::string new_layout = src_layout.name();
   ICHECK_EQ(new_layout.size(), src_layout->layout.ndim())
       << "Only support normal layout, get " << src_layout->layout;
   std::vector<std::string> priority_dims{"N", "C", "H", "W", "D", "G", "T"};
-  size_t left_size = expand_axes.size();
-  for (const auto& a : expand_axes) {
+  size_t left_size = axes.size();
+  for (const auto& a : axes) {
     std::string target = "U";
     if (new_layout.find("H") && !new_layout.find("W")) {
       target = "W";

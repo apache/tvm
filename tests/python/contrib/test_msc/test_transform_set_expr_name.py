@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+""" Test SetExprName Pass. """
+
 import tvm.testing
 from tvm.relay import testing
 from tvm.relay.expr_functor import ExprVisitor
@@ -73,6 +75,8 @@ class RelaxChecker(PyExprVisitor):
 
 
 def test_relay():
+    """Test SetExprName for relay"""
+
     mod, params = testing.resnet.get_workload(num_layers=50, batch_size=1, dtype="float32")
     mod["main"] = bind_params_by_name(mod["main"], params)
     mod = msc_transform.SetExprName(as_relax=False)(mod)
@@ -80,11 +84,14 @@ def test_relay():
 
 
 def test_relax():
+    """Test SetExprName for relax"""
+
+    # pylint: disable=import-outside-toplevel
     try:
         import torch
         import torchvision
         from torch import fx
-    except:
+    except:  # pylint: disable=bare-except
         print("please install pytorch python package")
         return
 
