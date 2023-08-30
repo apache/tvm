@@ -57,7 +57,7 @@ def test_thread_storage_sync():
     func = tvm.te.schedule.SchedulePostProcToPrimFunc([A, A2], stmt, None)
     mod = run_passes(func)
     f = mod["test_kernel"]
-    body_list = tvm.tir.stmt_list(f.body.body.body)
+    body_list = tvm.tir.stmt_list(f.body.body.body.body.body.body)
     assert body_list[1].value.op.same_as(tvm.ir.Op.get("tir.tvm_storage_sync"))
 
 

@@ -418,6 +418,8 @@ class TVMArgs {
  */
 inline const char* ArgTypeCode2Str(int type_code);
 
+inline std::ostream& operator<<(std::ostream& os, DLDevice dev);  // NOLINT(*)
+
 // macro to check type code.
 #define TVM_CHECK_TYPE_CODE(CODE, T) \
   ICHECK_EQ(CODE, T) << "expected " << ArgTypeCode2Str(T) << " but got " << ArgTypeCode2Str(CODE)
@@ -1257,6 +1259,56 @@ inline const char* ArgTypeCode2Str(int type_code) {
     default:
       LOG(FATAL) << "unknown type_code=" << static_cast<int>(type_code);
   }
+  throw;
+}
+
+/*!
+ * \brief The name of DLDeviceType.
+ * \param type The device type.
+ * \return the device name.
+ */
+inline const char* DLDeviceType2Str(int type) {
+  switch (type) {
+    case kDLCPU:
+      return "cpu";
+    case kDLCUDA:
+      return "cuda";
+    case kDLCUDAHost:
+      return "cuda_host";
+    case kDLCUDAManaged:
+      return "cuda_managed";
+    case kDLOpenCL:
+      return "opencl";
+    case kDLSDAccel:
+      return "sdaccel";
+    case kDLAOCL:
+      return "aocl";
+    case kDLVulkan:
+      return "vulkan";
+    case kDLMetal:
+      return "metal";
+    case kDLVPI:
+      return "vpi";
+    case kDLROCM:
+      return "rocm";
+    case kDLROCMHost:
+      return "rocm_host";
+    case kDLExtDev:
+      return "ext_dev";
+    case kDLOneAPI:
+      return "oneapi";
+    case kDLWebGPU:
+      return "webgpu";
+    case kDLHexagon:
+      return "hexagon";
+    case kOpenGL:
+      return "opengl";
+    case kDLMicroDev:
+      return "microdev";
+    default:
+      LOG(FATAL) << "unknown type = " << type;
+  }
+  throw;
 }
 
 namespace detail {
@@ -1641,7 +1693,7 @@ inline TVMRetValue PackedFunc::operator()(Args&&... args) const {
   return rv;
 }
 
-template <int i, typename T>
+template <size_t i, typename T>
 struct TVMArgsSetterApply {
   static TVM_ALWAYS_INLINE void F(TVMArgsSetter* setter, T&& value) {
     (*setter)(i, std::forward<T>(value));
