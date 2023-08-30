@@ -14,9 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-import numpy as np
-
+"""Pass to replace unary ops with Look Up Table and take op"""
 import tvm
 import tvm.testing
 from tvm import relax
@@ -24,6 +22,7 @@ from tvm.contrib.hexagon import hexagon_unary_ops
 
 
 def op_replace(call_node):
+    """Checks if the op in the graph matched the list of unary ops which can be replaced"""
     def is_op(op_name: str, call_node: relax.Call) -> bool:
         if not isinstance(call_node, relax.Call):
             return False
@@ -42,12 +41,13 @@ def op_replace(call_node):
 
 @relax.expr_functor.mutator
 class Tanh2TakeReplace(tvm.relax.PyExprMutator):
+    """Pass which iterated over the nodes, checks for unary ops and replaces them with LUT and take op"""
     def __init__(self, mod: tvm.IRModule) -> None:
         super().__init__(mod)
         self.mod_ = mod
 
     def transform(self) -> tvm.IRModule:
-        # Iterate over all the nodes to check for the node replaceable
+        """Iterates over all the nodes"""
         for global_var, func in self.mod_.functions.items():
             # Skip non-relax functions
             if not isinstance(func, relax.Function):
@@ -61,9 +61,9 @@ class Tanh2TakeReplace(tvm.relax.PyExprMutator):
     def visit_call_(self, call_node: relax.Call) -> relax.Call:
         if call_node.args[1][0].struct_info.dtype == "uint8":
             if op_replace(call_node):
-                inp, inp_scale, inp_zp, out_scale, out_zp = [x for x in call_node.args[1]]
+                inp, inp_scale, inp_zp, out_scale, out_zp = list(call_node.args[1])
                 # LUT node creation
-                LUT = hexagon_unary_ops.LUT_generation(
+                lut = hexagon_unary_ops.lut_generation(
                     inp_scale, inp_zp, out_scale, out_zp, call_node.args[0].name_hint
                 )
                 # Take operation node creation
@@ -72,7 +72,7 @@ class Tanh2TakeReplace(tvm.relax.PyExprMutator):
                 take_node = relax.call_tir(
                     take_func_gv,
                     relax.expr.Tuple(
-                        [call_node.args[1][0], relax.expr.Constant(tvm.nd.array(LUT))]
+                        [call_node.args[1][0], relax.expr.Constant(tvm.nd.array(lut))]
                     ),
                     call_node.struct_info,
                 )
@@ -80,7 +80,7 @@ class Tanh2TakeReplace(tvm.relax.PyExprMutator):
         return call_node
 
 
-@tvm.ir.transform.module_pass(opt_level=2, name="replace_tanh_take")
+@tvm.ir.transform.module_pass(opt_level=2, name="replace_unaryop_take")
 class PassReplaceWithTakeOpPrimFuncs:
     def transform_module(self, mod, ctx):
         return Tanh2TakeReplace(mod).transform()

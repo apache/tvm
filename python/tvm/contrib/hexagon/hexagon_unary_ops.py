@@ -14,17 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+"""Primitive Function for lut and Take Op"""
 import numpy as np
 from scipy import special
-
+from typing import List
 from tvm import te
-from tvm.script import tir as T
-
-######################################################################
-#################### PRIMFUNC FOR LUT and Take Op ####################
-######################################################################
-
+from tvm.tir.function import PrimFunc
 
 def saturate(x: te.Tensor, dtype: str):
     """Saturate value for the specified data type"""
@@ -32,13 +27,15 @@ def saturate(x: te.Tensor, dtype: str):
 
 
 def hardswish_func(x):
-    x2 = np.add(x, 3.0)
-    x2 = np.clip(x2, 0.0, 6.0)
-    return x * x2 / 6.0
+    """Hardswich Function"""
+    x_2 = np.add(x, 3.0)
+    x_2 = np.clip(x_2, 0.0, 6.0)
+    return x * x_2 / 6.0
 
 
-def LUT_generation(inp_scale, inp_zp, out_scale, out_zp, op_name) -> None:
-    LUT = []
+def lut_generation(inp_scale, inp_zp, out_scale, out_zp, op_name) -> List[np.uint8]:
+    """Generating the Look Up Table for unary ops"""
+    lut = []
     for i in range(256):
         i = np.int32(i)
         # converting the constants to the numpy value
@@ -73,21 +70,35 @@ def LUT_generation(inp_scale, inp_zp, out_scale, out_zp, op_name) -> None:
         # Quantizing the value generated and appending in the Look Up Table
         quant = np.round((op_val) / o_scale) + o_zp
         val = np.maximum(0, np.minimum(quant, 255)).astype(np.uint8)
-        LUT.append(val)
-    return LUT
+        lut.append(val)
+    return lut
 
 
-def generate_take_primfunc(inp, struct_info):
-    # Generating the take op
-    N, H, W, C = inp.struct_info.shape
-    data = te.placeholder((N, H, W, C), dtype=struct_info.dtype, name="data")
-    LUT_func = te.placeholder((256,), dtype="uint8", name="LUT")
+def generate_take_primfunc(inp, struct_info) -> PrimFunc:
+    """Generating the take op
+
+    Parameters
+    ----------
+    inp : expr.Var 
+        The input to be searched in the lut and whose take op needs to be returned
+    
+    struct_info : TensorStructInfo
+        The struct info of the input data
+    
+    Returns
+    ----------
+    mod : PrimFunc
+        The take op primitive function
+    """
+    n, h, w, c = inp.struct_info.shape
+    data = te.placeholder((n, h, w, c), dtype=struct_info.dtype, name="data")
+    lut_func = te.placeholder((256,), dtype="uint8", name="lut")
     take = te.compute(
         struct_info.shape,
         lambda *indices: saturate(
-            (LUT_func[data[indices].astype("uint8")]), struct_info.dtype
+            (lut_func[data[indices].astype("uint8")]), struct_info.dtype
         ).astype(struct_info.dtype),
         name="take_op",
     )
-    mod = te.create_prim_func([data, LUT_func, take])
+    mod = te.create_prim_func([data, lut_func, take])
     return mod
