@@ -72,18 +72,18 @@ const MSCGraph RelaxGraphBuilder::Build(const relax::Function& func) {
   }
   const auto& graph = MSCGraph(name_, valid_nodes, input_names, output_names);
   // set inputs and outputs alias
-  if (config_.input_aliass.size() == input_names.size()) {
+  if (config_.input_aliases.size() == input_names.size()) {
     for (size_t i = 0; i < input_names.size(); i++) {
-      graph->FindTensor(input_names[i])->alias = config_.input_aliass[i];
+      graph->FindTensor(input_names[i])->alias = config_.input_aliases[i];
     }
   } else {
     for (size_t i = 0; i < input_names.size(); i++) {
       graph->FindTensor(input_names[i])->alias = graph->FindProducer(input_names[i])->name;
     }
   }
-  if (config_.output_aliass.size() == output_names.size()) {
+  if (config_.output_aliases.size() == output_names.size()) {
     for (size_t i = 0; i < output_names.size(); i++) {
-      graph->FindTensor(output_names[i])->alias = config_.output_aliass[i];
+      graph->FindTensor(output_names[i])->alias = config_.output_aliases[i];
     }
   } else {
     for (size_t i = 0; i < output_names.size(); i++) {
@@ -389,18 +389,18 @@ MSCGraph RelayGraphBuilder::Build(const relay::Function& func) {
   }
   const auto& graph = MSCGraph(name_, valid_nodes, input_names, output_names);
   // set inputs and outputs alias
-  if (config_.input_aliass.size() == input_names.size()) {
+  if (config_.input_aliases.size() == input_names.size()) {
     for (size_t i = 0; i < input_names.size(); i++) {
-      graph->FindTensor(input_names[i])->alias = config_.input_aliass[i];
+      graph->FindTensor(input_names[i])->alias = config_.input_aliases[i];
     }
   } else {
     for (size_t i = 0; i < input_names.size(); i++) {
       graph->FindTensor(input_names[i])->alias = graph->FindProducer(input_names[i])->name;
     }
   }
-  if (config_.output_aliass.size() == output_names.size()) {
+  if (config_.output_aliases.size() == output_names.size()) {
     for (size_t i = 0; i < output_names.size(); i++) {
-      graph->FindTensor(output_names[i])->alias = config_.output_aliass[i];
+      graph->FindTensor(output_names[i])->alias = config_.output_aliases[i];
     }
   } else {
     for (size_t i = 0; i < output_names.size(); i++) {
