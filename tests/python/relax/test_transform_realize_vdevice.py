@@ -81,9 +81,9 @@ def test_dataflow_binding():
 
         @R.function
         def foo(
-            x: R.Tensor((2, 3), "float32", "llvm"),  # noqa: F722
+            x: R.Tensor((2, 3), "float32", "llvm"),
             y: R.Tensor((2, 3), "float32", "llvm"),
-            z: R.Tensor((2, 3), "float32", "llvm"),  # noqa: F722
+            z: R.Tensor((2, 3), "float32", "llvm"),
         ) -> R.Tensor((2, 3), "float32", "llvm"):
             with R.dataflow():
                 x1: R.Tensor((2, 3), "float32", "llvm") = x
@@ -120,7 +120,7 @@ def test_binding():
             y1 = y
             x2 = x1
             y2 = y1
-            s: R.Tensor((2, 3), dtype="float32", vdevice="llvm:0") = R.add(x2, y2)
+            s: R.Tensor((2, 3), "float32", "llvm") = R.add(x2, y2)
             m = R.multiply(s, z)
             return m
 
@@ -281,7 +281,7 @@ def test_insert_to_vdevice():
 
         @R.function
         def foo(
-            x: R.Tensor((2, 3), "float32", "llvm"),
+            x: R.Tensor((2, 3), "float32"),
             y: R.Tensor((2, 3), "float32"),
             z: R.Tensor((2, 3), "float32"),
         ) -> R.Tensor((2, 3), "float32"):
@@ -314,12 +314,16 @@ def test_insert_to_vdevice():
             x: R.Tensor((2, 3), "float32", "llvm"),
             y: R.Tensor((2, 3), "float32", "llvm"),
             z: R.Tensor((2, 3), "float32", "cuda"),
-        ) -> R.Tensor((2, 3), "float32"):
+        ) -> R.Tensor((2, 3), "float32", "cuda"):
             with R.dataflow():
-                lv1 = R.add(x, y)
-                lv2 = R.to_vdevice(lv1, R.Tensor((2, 3), "float32", "cuda"))
-                lv3 = R.add(lv2, lv2)
-                gv = R.multiply(lv3, z)
+                lv0: R.Tensor((2, 3), "float32", "llvm") = y
+                lv1: R.Tensor((2, 3), "float32", "llvm") = R.add(x, lv0)
+                lv2: R.Tensor((2, 3), "float32", "cuda") = R.to_vdevice(
+                    lv1, R.Tensor((2, 3), "float32", "cuda")
+                )
+                lv3: R.Tensor((2, 3), "float32", "cuda") = R.add(lv2, lv2)
+                lv4: R.Tensor((2, 3), "float32", "cuda") = z
+                gv: R.Tensor((2, 3), "float32", "cuda") = R.multiply(lv3, lv4)
                 R.output(gv)
             return gv
 
