@@ -334,7 +334,7 @@ class SpecBuilder:
                     self.builder.emit_func_output(outputs, params=[])
             for method_name, method_spec in zip(spec.method_names, spec.method_specs):
                 with self.builder.function(
-                    method_name, attrs={"num_input": len(method_spec.arg_specs)}
+                    method_name, attrs={"num_input": len(method_spec.arg_specs) + int(debug)}
                 ):
                     with self.builder.dataflow():
                         outputs, inputs = _emit_method(self.builder, method_spec, params, effects)
@@ -391,13 +391,13 @@ def _emit_method(
     inputs = []
     for arg in explicit_inputs:
         inputs.append(_convert_input(arg))
-    for name, param in params:
-        param._expr = core._tensor_placeholder(name, param.shape, param.dtype)._expr
-        inputs.append(param._expr)
     if effects is not None:
         for name, effect in effects:
             inputs.extend(effect.create(name))
-    # pylint: enable=protected-access
+    for name, param in params:
+        param._expr = core._tensor_placeholder(name, param.shape, param.dtype)._expr
+        inputs.append(param._expr)
+        # pylint: enable=protected-access
 
     outputs = spec.method(*explicit_inputs)
     if effects is not None:

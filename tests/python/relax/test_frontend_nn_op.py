@@ -490,6 +490,7 @@ def test_print():
 
         @R.function
         def test(x: R.Tensor((10, 10), dtype="float32"), _io: R.Object) -> R.Tuple(R.Tensor((10, 10), dtype="float32"), R.Tuple(R.Object)):
+            R.func_attr({"num_input": 2})
             with R.dataflow():
                 add: R.Tensor((10, 10), dtype="float32") = R.add(x, x)
                 _io1: R.Object = R.call_pure_packed("effect.print", _io, add, sinfo_args=(R.Object(),))
@@ -499,7 +500,9 @@ def test_print():
     # fmt: on
 
     m = Model()
-    irmodule, params = m.export_tvm(spec={"test": {"x": spec.Tensor([10, 10], "float32")}})
+    irmodule, params = m.export_tvm(
+        spec={"test": {"x": spec.Tensor([10, 10], "float32")}}, debug=True
+    )
 
     tvm.ir.assert_structural_equal(irmodule["test"], Expected["test"])
 

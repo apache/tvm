@@ -92,25 +92,21 @@ def test_extern_module():
     def forward(
         a_1: R.Tensor(("a", "b", "c", "d", 1, 2, 3, 4), dtype="float32"),
         b_1: R.Tensor(("c", "d", "e", "f", 5, 6, 7, 8), dtype="float32"),
-        _io: R.Object,
-    ) -> R.Tuple(
-        R.Tensor(("a", "b", "c", "d", "e", "f", 9, 10), dtype="float32"), R.Tuple(R.Object)
-    ):
+    ) -> R.Tensor(("a", "b", "c", "d", "e", "f", 9, 10), dtype="float32"):
         a = T.int64()
         b = T.int64()
         c = T.int64()
         d = T.int64()
         e = T.int64()
         f = T.int64()
+        R.func_attr({"num_input": 2})
         with R.dataflow():
             matmul = R.call_dps_packed(
                 "matmul",
                 (a_1, b_1),
                 out_sinfo=R.Tensor((a, b, c, d, e, f, 9, 10), dtype="float32"),
             )
-            gv1: R.Tuple(
-                R.Tensor((a, b, c, d, e, f, 9, 10), dtype="float32"), R.Tuple(R.Object)
-            ) = matmul, (_io,)
+            gv1: R.Tensor((a, b, c, d, e, f, 9, 10), dtype="float32") = matmul
             R.output(gv1)
         return gv1
 
