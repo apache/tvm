@@ -517,7 +517,8 @@ def _conv2d_legalize(attrs, inputs, arg_types):
         target,
     )
     workload = autotvm.task.get_workload(outs)
-    topi_tmpl = workload[0]
+    if workload is not None:
+        topi_tmpl = workload[0]
 
     # ARM vector instructions operate on the same dtype for data and kernel, we
     # provide those here and conv2d_alter_int8_common will convert to the
