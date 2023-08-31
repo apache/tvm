@@ -21,6 +21,7 @@ from typing import List
 from tvm import te
 from tvm.tir.function import PrimFunc
 
+
 def saturate(x: te.Tensor, dtype: str):
     """Saturate value for the specified data type"""
     return te.max(te.min_value(dtype), te.min(x, te.max_value(dtype)))
@@ -79,12 +80,12 @@ def generate_take_primfunc(inp, struct_info) -> PrimFunc:
 
     Parameters
     ----------
-    inp : expr.Var 
+    inp : expr.Var
         The input to be searched in the lut and whose take op needs to be returned
-    
+
     struct_info : TensorStructInfo
         The struct info of the input data
-    
+
     Returns
     ----------
     mod : PrimFunc

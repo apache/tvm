@@ -23,6 +23,7 @@ from tvm.contrib.hexagon import hexagon_unary_ops
 
 def op_replace(call_node):
     """Checks if the op in the graph matched the list of unary ops which can be replaced"""
+
     def is_op(op_name: str, call_node: relax.Call) -> bool:
         if not isinstance(call_node, relax.Call):
             return False
@@ -42,6 +43,7 @@ def op_replace(call_node):
 @relax.expr_functor.mutator
 class Tanh2TakeReplace(tvm.relax.PyExprMutator):
     """Pass which iterated over the nodes, checks for unary ops and replaces them with LUT and take op"""
+
     def __init__(self, mod: tvm.IRModule) -> None:
         super().__init__(mod)
         self.mod_ = mod
