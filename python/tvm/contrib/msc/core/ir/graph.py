@@ -126,8 +126,8 @@ class MSCJoint(BaseJoint):
         The index of the node.
     name: string
         The name of the node.
-    master: string
-        The master of the node.
+    master_name: string
+        The master name of the node.
     optype: string
         The optype of the node.
     attrs: dict<string, string>
@@ -144,7 +144,7 @@ class MSCJoint(BaseJoint):
         self,
         index: int,
         name: str,
-        master: str,
+        master_name: str,
         optype: str,
         attrs: Dict[str, str],
         inputs: List[Tuple[BaseJoint, int]],
@@ -158,7 +158,7 @@ class MSCJoint(BaseJoint):
             _ffi_api.MSCJoint,
             index,
             name,
-            master,
+            master_name,
             optype,
             attrs,
             parents,
@@ -289,8 +289,8 @@ class WeightJoint(BaseJoint):
         The index of the node.
     name: string
         The name of the node.
-    master: string
-        The master of the node.
+    master_name: string
+        The master name of the node.
     optype: string
         The optype of the node.
     wtype: string
@@ -309,7 +309,7 @@ class WeightJoint(BaseJoint):
         self,
         index: int,
         name: str,
-        master: str,
+        master_name: str,
         optype: str,
         wtype: str,
         attrs: Dict[str, str],
@@ -322,7 +322,7 @@ class WeightJoint(BaseJoint):
             _ffi_api.WeightJoint,
             index,
             name,
-            master,
+            master_name,
             optype,
             wtype,
             attrs,

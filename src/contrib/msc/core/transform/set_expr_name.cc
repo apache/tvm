@@ -130,7 +130,7 @@ class RelaxExprNameSetter : public ExprVisitor {
     if (unique_name != SpanUtils::GetAttr(val->span, "name")) {
       val->span = SpanUtils::SetAttr(val->span, "name", unique_name);
     }
-    // set constant consumer && master
+    // set constant consumer && master_name
     Array<String> input_types;
     try {
       input_types = ExprUtils::GetInputTypes(optype, val->args.size(), true);
@@ -145,7 +145,7 @@ class RelaxExprNameSetter : public ExprVisitor {
       if (const auto* c_node = val->args[i].as<ConstantNode>()) {
         const String& const_name = SpanUtils::GetAttr(c_node->span, "name");
         if (constant_consumers_.count(const_name)) {
-          val->span = SpanUtils::SetAttr(val->span, "master", constant_consumers_[const_name]);
+          val->span = SpanUtils::SetAttr(val->span, "master_name", constant_consumers_[const_name]);
         } else {
           constant_consumers_.Set(const_name, unique_name);
         }
@@ -272,7 +272,7 @@ class RelayExprNameSetter : public ExprVisitor {
     if (unique_name != SpanUtils::GetAttr(op->span, "name")) {
       op->span = SpanUtils::SetAttr(op->span, "name", unique_name);
     }
-    // set constant consumer && master
+    // set constant consumer && master_name
     Array<String> input_types;
     try {
       input_types = ExprUtils::GetInputTypes(optype, op->args.size(), false);
@@ -287,7 +287,7 @@ class RelayExprNameSetter : public ExprVisitor {
       if (const auto* c_node = op->args[i].as<ConstantNode>()) {
         const String& const_name = SpanUtils::GetAttr(c_node->span, "name");
         if (constant_consumers_.count(const_name)) {
-          op->span = SpanUtils::SetAttr(op->span, "master", constant_consumers_[const_name]);
+          op->span = SpanUtils::SetAttr(op->span, "master_name", constant_consumers_[const_name]);
         } else {
           constant_consumers_.Set(const_name, unique_name);
         }

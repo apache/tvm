@@ -103,7 +103,7 @@ const MSCGraph RelaxGraphBuilder::Build(const relax::Function& func) {
 const MSCJoint RelaxGraphBuilder::AddNode(const Expr& expr, const Optional<Expr>& binding_var,
                                           const String& name) {
   const auto& node_name = name.size() > 0 ? name : SpanUtils::GetAttr(expr->span, "name");
-  const auto& master_name = SpanUtils::GetAttr(expr->span, "master");
+  const auto& master_name = SpanUtils::GetAttr(expr->span, "master_name");
   String optype;
   if (expr->IsInstance<relax::VarNode>()) {
     optype = "input";
@@ -419,7 +419,7 @@ MSCGraph RelayGraphBuilder::Build(const relay::Function& func) {
 
 MSCJoint RelayGraphBuilder::AddNode(const Expr& expr, const String& name) {
   const auto& node_name = name.size() > 0 ? name : SpanUtils::GetAttr(expr->span, "name");
-  const auto& master_name = SpanUtils::GetAttr(expr->span, "master");
+  const auto& master_name = SpanUtils::GetAttr(expr->span, "master_name");
   String optype;
   if (expr->IsInstance<relay::VarNode>()) {
     optype = "input";

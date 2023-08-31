@@ -175,7 +175,7 @@ class RelaxBiasAddCodeGen : public RelaxOpCode {
     int axis = node()->GetTypeAttr<int>("axis");
     Array<Integer> expand_shape;
     for (size_t i = 0; i < node()->InputAt(0)->Ndim(); i++) {
-      if (i == axis) {
+      if (i == static_cast<size_t>(axis)) {
         expand_shape.push_back(node()->InputAt(0)->DimAt(i));
       } else {
         expand_shape.push_back(Integer(1));
