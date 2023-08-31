@@ -522,7 +522,7 @@ def _conv2d_legalize(attrs, inputs, arg_types):
     # ARM vector instructions operate on the same dtype for data and kernel, we
     # provide those here and conv2d_alter_int8_common will convert to the
     # correct datatype.
-    if is_int8_hw_support(data_dtype, kernel_dtype):
+    if is_int8_hw_support(kernel_dtype, kernel_dtype):
         # ARM intrinsics need the datatypes of data and kernel to be the same
         if (
             attrs["data_layout"] == "NHWC"
