@@ -35,110 +35,92 @@
 namespace tvm {
 namespace relax {
 
-/*! \brief For dataflow analysis, we need to have a graph of basic blocks
- *  (i.e., a control flow graph).
- *  The trouble is that Relax's BindingBlocks are not necessarily basic blocks:
- *  A BindingBlock followed by a DataflowBlock followed by a BindingBlock
- *  is potentially a single basic blocks, whereas a single BindingBlock that
- *  contains an If expression may actually comprise multiple basic blocks.
- *  This representation is a lightweight way of representing basic blocks on top
- *  of Relax's AST
+/*! \brief For dataflow analysis, we need to have a control flow graph.
+ *  We will organize this graphs by bindings, which allows analyses to
+ *  state their results for each binding in a SeqExpr.
+ *
+ *  There are a few cases that have to be handled:
+ *  1. A normal binding (most common)ICHECK
+ *  2. The condition expression in an If node (a "split" point)
+ *  3. A merge point (the variable to which an If node is bound: it is a "merge" between
+ *     the SeqExprs in the true and false branches)
+ *  4. The body expression in a SeqExpr (not actually bound)
  */
-class BasicBlockNode : public Object {
+enum BindingNodeKind : int {
+  kBinding = 0,
+  kIfCond = 1,
+  kIfMerge = 2,
+  kSeqBody = 3
+};
+
+class GraphBindingNode : public Object {
  public:
-  /*! \brief The SeqExpr the basic block resides in.
-   *  (In normal form, basic blocks cannot span multiple SeqExprs). */
+  /*! \brief The SeqExpr the binding resides in. */
   SeqExpr seq;
 
-  /*! \brief The arguments to the basic block.
-   *  If the basic block is the first in the function, args is the function arguments.
-   *  The basic blocks corresponding to If branches have no arguments.
-   *  The basic block corresponding to the merge point after the If
-   *  will have one argument (corresponding to the merge of the value returned;
-   *  this will be the variable that the If expression is bound to). */
+  /*! \brief The arguments to the binding. Only the first binding in the graph has arguments
+   * (i.e., the function arguments). */
   Array<Var> args;
 
-  /*! \brief The final expression evaluated in the basic block.
-   *  If the basic block ends with an If expression, the ret is the If *condition*.
-   *  Otherwise, it will be the value returned by the SeqExpr
-   *  (all other basic blocks will end where the SeqExpr ends).*/
-  Expr ret;
+  /*! \brief Index of the binding block in the SeqExpr where the binding is found.
+   *  Convention: We put the SeqExpr body at one block past the final block. */
+  size_t block_idx;
 
-  /*! \brief Index of the BindingBlock in the SeqExpr where the basic block starts
-   *  (Convention: If the start_block_idx is past the final index of the SeqExpr,
-   *  that means the basic block contains no bindings.) */
-  size_t start_block_idx;
+  /*! \brief Index of the binding within the binding block corresponding to this binding.
+   *  Convention: Both the If condition and merge are mapped to the same index.
+   *  We use the kind to distinguish. */
+  size_t binding_idx;
 
-  /*! \brief Index of the binding in the BindingBlock where the basic block starts
-   *  (convention: If the basic block is a merge point, use the index of the binding
-   *  after the If node. Also, if the start_binding_idx is past the final index
-   *  of the block, that means the basic block contains no bindings) */
-  size_t start_binding_idx;
-
-  /*! \brief Index of the BindingBlock in the SeqExpr where the basic block ends.
-   *  (convention: If the basic block goes until the end of the SeqExpr,
-   *   end_block_idx will be one _past_ the last index, i.e., seq->blocks.size()) */
-  size_t end_block_idx;
-
-  /*! \brief Index of the binding in the BindingBlock where the basic block ends
-   *  (convention: If the end of the basic block is the end of the SeqExpr,
-   *   end_binding_idx will be one _past_ the last idex, i.e., block->bindings.size()) */
-  size_t end_binding_idx;
+  /*! \brief The kind of binding this is. */
+  BindingNodeKind kind;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("seq", &seq);
     v->Visit("args", &args);
-    v->Visit("ret", &ret);
-    v->Visit("start_block_idx", &start_block_idx);
-    v->Visit("start_binding_idx", &start_binding_idx);
-    v->Visit("end_block_idx", &end_block_idx);
-    v->Visit("end_binding_idx", &end_binding_idx);
+    v->Visit("block_idx", &block_idx);
+    v->Visit("binding_idx", &binding_idx);
+    v->Visit("kind", &kind);
   }
 
   static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
-  static constexpr const char* _type_key = "relax.analysis.BasicBlock";
-  TVM_DECLARE_BASE_OBJECT_INFO(BasicBlockNode, Object);
+  static constexpr const char* _type_key = "relax.analysis.GraphBinding";
+  TVM_DECLARE_BASE_OBJECT_INFO(GraphBindingNode, Object);
 };
 
-/* Representation of a basic block on top of Relax's AST.
- */
-class BasicBlock : public ObjectRef {
+/*! \brief Representation of a binding in the control flow graph */
+class GraphBinding : public ObjectRef {
  public:
   /*!
-   * \brief Create a BasicBlock. See the docs on BasicBlockNode for further details.
+   * \brief Create a GraphBinding. See the docs on GraphBindingNode for further details.
    *
-   * \param seq: The SeqExpr in which the basic block resides.
-   * \param args: The arguments to the basic block.
-   * \param ret: The final expression in the basic block.
-   * \param start_block_idx: The index of the BindingBlock in the SeqExpr
-   *   where the basic block starts.
-   * \param start_binding_idx: The index of the binding in the BindingBlock where the
-   *   basic block starts.
-   * \param end_block_idx: The index of the BindingBlock in the SeqExpr
-   *   where the basic block ends.
-   * \param end_binding_idx: The index of the binding in the BindingBlock where the
-   *   basic block ends.
+   * \param seq: The SeqExpr in which the binding resides.
+   * \param args: The arguments to the binding (only nonempty for the first binding:
+   *   these will be the function arguments)
+   * \param block_idx: The index of the BindingBlock in the SeqExpr
+   *   where the binding resides (for the return expression, use one past the final block).
+   * \param binding_idx: The index of the binding in the BindingBlock corresponding to the binding.
+   * \param kind: The kind of binding this is. (Used especially to distinguish If node conditions
+   * from the merge after the If)
    */
-  TVM_DLL static BasicBlock Create(const SeqExpr& seq, const Array<Var>& args, const Expr& ret,
-                                   size_t start_block_idx, size_t start_binding_idx,
-                                   size_t end_block_idx, size_t end_binding_idx);
+  TVM_DLL static GraphBinding Create(const SeqExpr& seq, const Array<Var>& args, size_t block_idx,
+                                     size_t binding_idx, BindingNodeKind kind);
 
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(BasicBlock, ObjectRef, BasicBlockNode);
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(GraphBinding, ObjectRef, GraphBindingNode);
 };
 
 /* A control flow graph corresponding to a function.
  */
 class ControlFlowGraphNode : public Object {
  public:
-  /*! \brief The basic blocks in the graph. 0 is the entry point. */
-  Array<BasicBlock> blocks;
-  /*! \brief The ith member is the list of predecessors (indices) to block i in blocks. */
+  /*! \brief The bindings in the graph. 0 is the entry point. */
+  Array<GraphBinding> bindings;
+  /*! \brief The ith member is the list of predecessors (indices) to binding i in bindings. */
   Array<Array<Integer>> preds;
-  /*! \brief The ith member is the list of successors (indices) to block i in blocks. */
+  /*! \brief The ith member is the list of successors (indices) to binding i in bindings. */
   Array<Array<Integer>> succs;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("blocks", &blocks);
+    v->Visit("bindings", &bindings);
     v->Visit("preds", &preds);
     v->Visit("succs", &succs);
   }
@@ -153,11 +135,11 @@ class ControlFlowGraph : public ObjectRef {
   /*!
    * \brief Create a ControlFlowGraph.
    *
-   * \param blocks: The basic blocks corresponding to the graph nodes
-   * \param preds: List of lists of predecessors to each basic block.
-   * \param succs: List of lists of successors to each basic block.
+   * \param bindings: The bindings in the graph
+   * \param preds: List of lists of predecessors to each binding.
+   * \param succs: List of lists of successors to each binding.
    */
-  TVM_DLL static ControlFlowGraph Create(const Array<BasicBlock>& blocks,
+  TVM_DLL static ControlFlowGraph Create(const Array<GraphBinding>& bindings,
                                          const Array<Array<Integer>>& preds,
                                          const Array<Array<Integer>>& succs);
 
@@ -173,30 +155,31 @@ ControlFlowGraph ExtractCFG(const Function& func);
 
 /*!
  * \brief Generic implementation of dataflow analysis, based on
- *   Adrian Sampson's course material:
+ *   Adrian Sampson's course material, except binding by binding
+ *   instead of basic block by basic block:
  *   https://www.cs.cornell.edu/courses/cs6120/2020fa/lesson/4/
  *
- *  The analysis creates input and output maps (mapping basic block indices to a domain),
- *  sets the initial input and output for each basic block to the init value, and then
+ *  The analysis creates input and output maps (mapping binding indices to a domain),
+ *  sets the initial input and output for each binding to the init value, and then
  *  performs a traversal of the CFG (BFS in this implementation, since unlike the general case,
  *  we do not have loops) and uses the transfer and merge function to update the inputs and
- *  outputs. The analysis can proceed forwards (from block 0 onwards) or backwards (from the last
- *  block back), flipping the roles of the input and output maps in the cases.
+ *  outputs. The analysis can proceed forwards (from binding 0 onwards) or backwards (from the
+ *  last binding back), flipping the roles of the input and output maps in the cases.
  *
  * \param forward Whether to perform a forward or backward analysis
  * \param cfg The input control flow graph
  * \param init The value corresponding to an initial domain
- * \param transfer_func Given an input domain and a basic block, determine the resulting domain
+ * \param transfer_func Given an input domain and a binding, determine the resulting domain
  * \param merge_func Given a set of domains, combine them to form a single new domain
- *   (note: in Relax, a basic block can never have more than two predecessors/successors)
+ *   (note: in Relax, a binding can never have more than two predecessors/successors)
  *
  * \return Two arrays, the first being the "input map" (domain being passed *into*
- *   each basic block in the CFG) and the second being the "output map" (the domain
- *   being passed *out of* the corresponding basic block)
+ *   each binding in the CFG) and the second being the "output map" (the domain
+ *   being passed *out of* the corresponding binding)
  */
 std::pair<Array<ObjectRef>, Array<ObjectRef>> DataflowAnalysis(
     const ControlFlowGraph& cfg, const ObjectRef& init,
-    std::function<ObjectRef(const BasicBlock&, const ObjectRef&)> transfer_func,
+    std::function<ObjectRef(const GraphBinding&, const ObjectRef&)> transfer_func,
     std::function<ObjectRef(const ObjectRef&, const ObjectRef&)> merge_func, bool forward = true);
 
 }  // namespace relax

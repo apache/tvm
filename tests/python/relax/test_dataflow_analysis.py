@@ -19,9 +19,9 @@ import tvm
 from tvm import relax
 from tvm.relax.analysis.dataflow_analysis import (
     ControlFlowGraph,
-    BasicBlock,
     ExtractCFG,
     DataflowAnalysis,
+    BindingNodeKind,
 )
 from tvm.script import ir as I, relax as R
 import tvm.testing
@@ -44,45 +44,34 @@ def assert_pred_succ_lists(graph: ControlFlowGraph, expected_preds: List[List[in
     )
 
 
-# common pattern in normalization that we can check for:
-# if condition:
-#    ...
-#    z = value1
-# else:
-#    ...
-#    z = value2
-#
-# results in:
-#
-# VarBinding(
-#     z,
-#     If(
-#         condition,
-#         SeqExpr([..., BindingBlock([..., VarBinding(new_var1, value1)])], body=new_var1),
-#         SeqExpr([..., BindingBlock([..., VarBinding(new_var2, value2)])], body=new_var2)
-#     )
-# )
-# This function can be used for checking the SeqExprs inside the branches
-def assert_ret_is_final_binding_in_seq(block: BasicBlock, check_op: Optional[str] = None):
-    seq_body = block.seq.body
-    final_binding = block.seq.blocks[-1].bindings[-1]
-    assert seq_body == final_binding.var
-    assert block.ret == seq_body
-    if check_op is not None:
-        assert isinstance(final_binding.value, relax.Call)
-        assert final_binding.value.op.name == check_op
+def assert_binding_fields(
+    graph: ControlFlowGraph,
+    idx: int,
+    block_idx: int,
+    binding_idx: int,
+    kind: BindingNodeKind = BindingNodeKind.kBinding,
+    args: Optional[List[relax.Var]] = None,
+):
+    binding = graph.bindings[idx]
+    assert binding.block_idx == block_idx
+    assert binding.binding_idx == binding_idx
+    assert binding.kind == kind.value
+    if args is not None:
+        assert len(binding.args) == len(args)
+        for i in range(len(args)):
+            assert binding.args[i] == args[i]
 
 
-# ensure that the exprs in each list match each other and that they do not match those in the other lists
-def assert_distinct(*groups: List[relax.Expr]):
+# assert that the SeqExprs for each bindings match within groups and do not match other groups
+def assert_distinct_seqs(cfg: ControlFlowGraph, *groups: List[int]):
     for i, group in enumerate(groups):
         if len(group) == 0:
             continue
-        for item in group[1:]:
-            assert item == group[0]
+        for idx in group[1:]:
+            assert cfg.bindings[idx].seq == cfg.bindings[group[0]].seq
         for other_group in groups[i + 1 :]:
-            for item in other_group:
-                assert group[0] != item
+            for idx in other_group:
+                assert cfg.bindings[group[0]].seq != cfg.bindings[idx].seq
 
 
 def test_trivial_CFG():
@@ -93,12 +82,9 @@ def test_trivial_CFG():
             return R.const(1, dtype="int32")
 
     graph = ExtractCFG(TrivialFunc["main"])
-    assert len(graph.blocks) == 1
+    assert len(graph.bindings) == 1
     assert_pred_succ_lists(graph, [[]])
-    assert graph.blocks[0].ret == TrivialFunc["main"].body.body
-    assert graph.blocks[0].start_block_idx == 0
-    assert graph.blocks[0].start_binding_idx == 0
-    assert graph.blocks[0].end_block_idx == 0
+    assert_binding_fields(graph, 0, 0, 0, kind=BindingNodeKind.kSeqBody)
 
 
 def test_sequence_of_bindings():
@@ -112,13 +98,12 @@ def test_sequence_of_bindings():
             return q
 
     graph = ExtractCFG(FuncWithBindings["main"])
-    assert len(graph.blocks) == 1
-    assert_pred_succ_lists(graph, [[]])
-    assert graph.blocks[0].ret == FuncWithBindings["main"].body.body
-    assert graph.blocks[0].args == FuncWithBindings["main"].params
-    assert graph.blocks[0].start_block_idx == 0
-    assert graph.blocks[0].start_binding_idx == 0
-    assert graph.blocks[0].end_block_idx == 1
+    assert len(graph.bindings) == 4
+    assert_pred_succ_lists(graph, [[], [0], [1], [2]])
+    assert_binding_fields(graph, 0, 0, 0, args=[FuncWithBindings["main"].params[0]])
+    assert_binding_fields(graph, 1, 0, 1)
+    assert_binding_fields(graph, 2, 0, 2)
+    assert_binding_fields(graph, 3, 1, 0, kind=BindingNodeKind.kSeqBody)
 
 
 def test_dataflow_block():
@@ -140,14 +125,16 @@ def test_dataflow_block():
             return u
 
     graph = ExtractCFG(FuncWithDataflow["main"])
-    assert len(graph.blocks) == 1
-    assert_pred_succ_lists(graph, [[]])
-    assert graph.blocks[0].ret == FuncWithDataflow["main"].body.body
-    assert graph.blocks[0].args == FuncWithDataflow["main"].params
-    assert graph.blocks[0].start_block_idx == 0
-    assert graph.blocks[0].start_binding_idx == 0
-    # there are four binding blocks but they form one basic block
-    assert graph.blocks[0].end_block_idx == 4
+    assert len(graph.bindings) == 8
+    assert_pred_succ_lists(graph, [[], [0], [1], [2], [3], [4], [5], [6]])
+    assert_binding_fields(graph, 0, 0, 0, args=FuncWithDataflow["main"].params)
+    assert_binding_fields(graph, 1, 0, 1)
+    assert_binding_fields(graph, 2, 1, 0)
+    assert_binding_fields(graph, 3, 1, 1)
+    assert_binding_fields(graph, 4, 2, 0)
+    assert_binding_fields(graph, 5, 3, 0)
+    assert_binding_fields(graph, 6, 3, 1)
+    assert_binding_fields(graph, 7, 4, 0, kind=BindingNodeKind.kSeqBody)
 
 
 def test_simple_branch():
@@ -165,44 +152,27 @@ def test_simple_branch():
                 z = R.multiply(y, y)
             return z
 
-    # basic blocks:
-    # 1. the starting block (no bindings) whose return is the branch condition
-    # 2. the true branch body (return: R.multiply(y, y))
-    # 3. the false branch body (return: R.multiply(y, y))
-    # 4. the merge block (no bindings, argument is z) whose return is z
     graph = ExtractCFG(SimpleBranch["main"])
-    assert len(graph.blocks) == 4
-    assert_pred_succ_lists(graph, [[], [0], [0], [1, 2]])
 
-    assert graph.blocks[0].args == SimpleBranch["main"].params
-    assert graph.blocks[0].ret == SimpleBranch["main"].params[0]
-    assert graph.blocks[0].start_block_idx == 0
-    assert graph.blocks[0].start_binding_idx == 0
-    assert graph.blocks[0].end_block_idx == 0
-    assert graph.blocks[0].end_binding_idx == 0
+    # cond binding + 3 bindings in true branch + true branch end
+    #   + 3 bindings in false branch + false branch end + merge + seq body
+    assert len(graph.bindings) == 11
+    assert_pred_succ_lists(graph, [[], [0], [1], [2], [3], [0], [5], [6], [7], [4, 8], [9]])
 
-    assert len(graph.blocks[1].args) == 0
-    assert_ret_is_final_binding_in_seq(graph.blocks[1], "relax.multiply")
-    assert graph.blocks[1].start_block_idx == 0
-    assert graph.blocks[1].start_binding_idx == 0
-    assert graph.blocks[1].end_block_idx == 1
-
-    assert len(graph.blocks[2].args) == 0
-    assert_ret_is_final_binding_in_seq(graph.blocks[2], "relax.multiply")
-    assert graph.blocks[2].start_block_idx == 0
-    assert graph.blocks[2].start_binding_idx == 0
-    assert graph.blocks[2].end_block_idx == 1
-
-    assert len(graph.blocks[3].args) == 1
-    assert graph.blocks[3].args[0].name_hint == "z"
-    assert graph.blocks[3].ret == SimpleBranch["main"].body.body
-    # the if was the last binding in the block, so we're past the end
-    assert graph.blocks[3].start_block_idx == 1
-    assert graph.blocks[3].end_block_idx == 1
-
-    assert_distinct(
-        [graph.blocks[0].seq, graph.blocks[3].seq], [graph.blocks[1]], [graph.blocks[2]]
+    assert_binding_fields(
+        graph, 0, 0, 0, kind=BindingNodeKind.kIfCond, args=SimpleBranch["main"].params
     )
+    assert_binding_fields(graph, 1, 0, 0)
+    assert_binding_fields(graph, 2, 0, 1)
+    assert_binding_fields(graph, 3, 0, 2)
+    assert_binding_fields(graph, 4, 1, 0, kind=BindingNodeKind.kSeqBody)
+    assert_binding_fields(graph, 5, 0, 0)
+    assert_binding_fields(graph, 6, 0, 1)
+    assert_binding_fields(graph, 7, 0, 2)
+    assert_binding_fields(graph, 8, 1, 0, kind=BindingNodeKind.kSeqBody)
+    assert_binding_fields(graph, 9, 0, 0, kind=BindingNodeKind.kIfMerge)
+    assert_binding_fields(graph, 10, 1, 0, kind=BindingNodeKind.kSeqBody)
+    assert_distinct_seqs(graph, [0, 9], [1, 4], [5, 8])
 
 
 def test_bindings_after_branch():
@@ -220,42 +190,19 @@ def test_bindings_after_branch():
             return q
 
     graph = ExtractCFG(BranchAndBind["main"])
-    assert len(graph.blocks) == 4
-    assert_pred_succ_lists(graph, [[], [0], [0], [1, 2]])
-
-    # same as above example, except there are bindings preceding the if (included in block 0)
-    # and after the if (included in block 3)
-
-    assert graph.blocks[0].args == BranchAndBind["main"].params
-    assert graph.blocks[0].ret == BranchAndBind["main"].params[0]
-    assert graph.blocks[0].start_block_idx == 0
-    assert graph.blocks[0].start_binding_idx == 0
-    assert graph.blocks[0].end_block_idx == 0
-    assert graph.blocks[0].end_binding_idx == 2
-
-    assert len(graph.blocks[1].args) == 0
-    assert_ret_is_final_binding_in_seq(graph.blocks[1], "relax.multiply")
-    assert graph.blocks[1].start_block_idx == 0
-    assert graph.blocks[1].start_binding_idx == 0
-    assert graph.blocks[1].end_block_idx == 1
-
-    assert len(graph.blocks[2].args) == 0
-    assert_ret_is_final_binding_in_seq(graph.blocks[2], "relax.add")
-    assert graph.blocks[2].start_block_idx == 0
-    assert graph.blocks[2].start_binding_idx == 0
-    assert graph.blocks[2].end_block_idx == 1
-
-    assert len(graph.blocks[3].args) == 1
-    assert graph.blocks[3].args[0].name_hint == "z"
-    assert graph.blocks[3].ret.name_hint == "q"
-    assert graph.blocks[3].start_block_idx == 0
-    assert graph.blocks[3].start_binding_idx == 3
-    assert graph.blocks[3].end_block_idx == 1
-    assert graph.blocks[3].end_binding_idx == 0
-
-    assert_distinct(
-        [graph.blocks[0].seq, graph.blocks[3].seq], [graph.blocks[1]], [graph.blocks[2]]
-    )
+    assert len(graph.bindings) == 10
+    assert_pred_succ_lists(graph, [[], [0], [1], [2], [3], [2], [5], [4, 6], [7], [8]])
+    assert_binding_fields(graph, 0, 0, 0, args=BranchAndBind["main"].params)
+    assert_binding_fields(graph, 1, 0, 1)
+    assert_binding_fields(graph, 2, 0, 2, kind=BindingNodeKind.kIfCond)
+    assert_binding_fields(graph, 3, 0, 0)
+    assert_binding_fields(graph, 4, 1, 0, kind=BindingNodeKind.kSeqBody)
+    assert_binding_fields(graph, 5, 0, 0)
+    assert_binding_fields(graph, 6, 1, 0, kind=BindingNodeKind.kSeqBody)
+    assert_binding_fields(graph, 7, 0, 2, kind=BindingNodeKind.kIfMerge)
+    assert_binding_fields(graph, 8, 0, 3)
+    assert_binding_fields(graph, 9, 1, 0, kind=BindingNodeKind.kSeqBody)
+    assert_distinct_seqs(graph, [0, 2, 7, 9], [3, 4], [5, 6])
 
 
 def test_branch_with_multiple_blocks():
@@ -287,38 +234,54 @@ def test_branch_with_multiple_blocks():
 
     graph = ExtractCFG(LongBranches["main"])
     # empty entry block, one block for each branch, and an empty exit block
-    assert len(graph.blocks) == 4
-    assert_pred_succ_lists(graph, [[], [0], [0], [1, 2]])
-
-    assert graph.blocks[0].args == LongBranches["main"].params
-    assert graph.blocks[0].ret == LongBranches["main"].params[0]
-    assert graph.blocks[0].start_block_idx == 0
-    assert graph.blocks[0].start_binding_idx == 0
-    assert graph.blocks[0].end_block_idx == 0
-    assert graph.blocks[0].end_binding_idx == 0
-
-    # there are 3 binding blocks included in each branch
-    assert len(graph.blocks[1].args) == 0
-    assert_ret_is_final_binding_in_seq(graph.blocks[1], "relax.multiply")
-    assert graph.blocks[1].start_block_idx == 0
-    assert graph.blocks[1].start_binding_idx == 0
-    assert graph.blocks[1].end_block_idx == 3
-
-    assert len(graph.blocks[2].args) == 0
-    assert_ret_is_final_binding_in_seq(graph.blocks[2], "relax.add")
-    assert graph.blocks[2].start_block_idx == 0
-    assert graph.blocks[2].start_binding_idx == 0
-    assert graph.blocks[2].end_block_idx == 3
-
-    assert len(graph.blocks[3].args) == 1
-    assert graph.blocks[3].args[0].name_hint == "r"
-    assert graph.blocks[3].ret.name_hint == "r"
-    assert graph.blocks[3].start_block_idx == 1
-    assert graph.blocks[3].end_block_idx == 1
-
-    assert_distinct(
-        [graph.blocks[0].seq, graph.blocks[3].seq], [graph.blocks[1]], [graph.blocks[2]]
+    assert len(graph.bindings) == 19
+    assert_pred_succ_lists(
+        graph,
+        [
+            [],
+            [0],
+            [1],
+            [2],
+            [3],
+            [4],
+            [5],
+            [6],
+            [7],
+            [0],
+            [9],
+            [10],
+            [11],
+            [12],
+            [13],
+            [14],
+            [15],
+            [8, 16],
+            [17],
+        ],
     )
+
+    assert_binding_fields(
+        graph, 0, 0, 0, kind=BindingNodeKind.kIfCond, args=LongBranches["main"].params
+    )
+    assert_binding_fields(graph, 1, 0, 0)
+    assert_binding_fields(graph, 2, 0, 1)
+    assert_binding_fields(graph, 3, 1, 0)
+    assert_binding_fields(graph, 4, 1, 1)
+    assert_binding_fields(graph, 5, 1, 2)
+    assert_binding_fields(graph, 6, 2, 0)
+    assert_binding_fields(graph, 7, 2, 1)
+    assert_binding_fields(graph, 8, 3, 0, kind=BindingNodeKind.kSeqBody)
+    assert_binding_fields(graph, 9, 0, 0)
+    assert_binding_fields(graph, 10, 0, 1)
+    assert_binding_fields(graph, 11, 1, 0)
+    assert_binding_fields(graph, 12, 1, 1)
+    assert_binding_fields(graph, 13, 1, 2)
+    assert_binding_fields(graph, 14, 2, 0)
+    assert_binding_fields(graph, 15, 2, 1)
+    assert_binding_fields(graph, 16, 3, 0, kind=BindingNodeKind.kSeqBody)
+    assert_binding_fields(graph, 17, 0, 0, kind=BindingNodeKind.kIfMerge)
+    assert_binding_fields(graph, 18, 1, 0, kind=BindingNodeKind.kSeqBody)
+    assert_distinct_seqs(graph, [0, 17, 18], [1, 8], [9, 16])
 
 
 def test_nested_branches():
@@ -344,91 +307,68 @@ def test_nested_branches():
             return z
 
     graph = ExtractCFG(NestedBranches["main"])
-    # basic blocks: entry block to func, entry block to true branch, true branch in true branch,
-    #   false branch in true branch, merge block in true branch,
-    #   entry to false branch, true branch in false branch, false branch in false branch,
-    #   merge block in false branch, merge block in outer function
-    assert len(graph.blocks) == 10
+    assert len(graph.bindings) == 22
     assert_pred_succ_lists(
         graph,
         [
-            [],  # function entry
-            [0],  # true branch entry
-            [1],  # true branch's true branch
-            [1],  # true branch's false branch
-            [2, 3],  # true branch's exit
-            [0],  # false branch entry
-            [5],  # false branch's true branch
-            [5],  # false branch's false branch
-            [6, 7],  # false branch exit
-            [4, 8],  # function exit
+            [],  # first binding
+            [0],  # branch cond
+            [1],  # first binding in true branch
+            [2],  # mested if condition
+            [3],  # binding inside nested true branch
+            [4],  # end of nested true branch
+            [3],  # binding inside nested false branch
+            [6],  # end of nested false branch
+            [5, 7],  # merge for nested if
+            [8],  # binding after nested if
+            [9],  # end of outer true branch
+            [1],  # first binding in false branch
+            [11],  # nested if condition,
+            [12],  # binding inside nested true branch
+            [13],  # end of nested true branch
+            [12],  # binding inside nested false branch
+            [15],  # end of nested false branch
+            [14, 16],  # merge after nested if
+            [17],  # binding after nested if
+            [18],  # end of outer false branch
+            [10, 19],  # merge after outer if
+            [20],  # end of body
         ],
     )
 
-    assert graph.blocks[0].args == NestedBranches["main"].params
-    assert graph.blocks[0].ret.name_hint == "cond1"
-    assert graph.blocks[0].start_block_idx == 0
-    assert graph.blocks[0].start_binding_idx == 0
-    assert graph.blocks[0].end_block_idx == 0
-    assert graph.blocks[0].end_binding_idx == 1
+    assert_binding_fields(graph, 0, 0, 0, args=NestedBranches["main"].params)
+    assert_binding_fields(graph, 1, 0, 1, kind=BindingNodeKind.kIfCond)
+    assert_binding_fields(graph, 2, 0, 0)
+    assert_binding_fields(graph, 3, 0, 1, kind=BindingNodeKind.kIfCond)
+    assert_binding_fields(graph, 4, 0, 0)
+    assert_binding_fields(graph, 5, 1, 0, kind=BindingNodeKind.kSeqBody)
+    assert_binding_fields(graph, 6, 0, 0)
+    assert_binding_fields(graph, 7, 1, 0, kind=BindingNodeKind.kSeqBody)
+    assert_binding_fields(graph, 8, 0, 1, kind=BindingNodeKind.kIfMerge)
+    assert_binding_fields(graph, 9, 0, 2)
+    assert_binding_fields(graph, 10, 1, 0, kind=BindingNodeKind.kSeqBody)
+    assert_binding_fields(graph, 11, 0, 0)
+    assert_binding_fields(graph, 12, 0, 1, kind=BindingNodeKind.kIfCond)
+    assert_binding_fields(graph, 13, 0, 0)
+    assert_binding_fields(graph, 14, 1, 0, kind=BindingNodeKind.kSeqBody)
+    assert_binding_fields(graph, 15, 0, 0)
+    assert_binding_fields(graph, 16, 1, 0, kind=BindingNodeKind.kSeqBody)
+    assert_binding_fields(graph, 17, 0, 1, kind=BindingNodeKind.kIfMerge)
+    assert_binding_fields(graph, 18, 0, 2)
+    assert_binding_fields(graph, 19, 1, 0, kind=BindingNodeKind.kSeqBody)
+    assert_binding_fields(graph, 20, 0, 1, kind=BindingNodeKind.kIfMerge)
+    assert_binding_fields(graph, 21, 1, 0, kind=BindingNodeKind.kSeqBody)
 
-    assert len(graph.blocks[1].args) == 0
-    assert graph.blocks[1].ret.name_hint == "cond2"
-    assert graph.blocks[1].start_block_idx == 0
-    assert graph.blocks[1].start_binding_idx == 0
-    assert graph.blocks[1].end_block_idx == 0
-    assert graph.blocks[1].end_binding_idx == 1
-
-    assert len(graph.blocks[2].args) == 0
-    assert_ret_is_final_binding_in_seq(graph.blocks[2], "relax.add")
-    assert graph.blocks[2].start_block_idx == 0
-    assert graph.blocks[2].start_binding_idx == 0
-    assert graph.blocks[2].end_block_idx == 1
-
-    assert len(graph.blocks[3].args) == 0
-    assert_ret_is_final_binding_in_seq(graph.blocks[3], "relax.multiply")
-    assert graph.blocks[3].start_block_idx == 0
-    assert graph.blocks[3].start_binding_idx == 0
-    assert graph.blocks[3].end_block_idx == 1
-
-    assert len(graph.blocks[4].args) == 1
-    assert graph.blocks[4].args[0].name_hint == "y"
-    assert_ret_is_final_binding_in_seq(graph.blocks[4], "relax.add")
-    assert graph.blocks[4].start_block_idx == 0
-    assert graph.blocks[4].start_binding_idx == 2
-    assert graph.blocks[4].end_block_idx == 1
-
-    assert len(graph.blocks[5].args) == 0
-    assert graph.blocks[5].ret.name_hint == "cond3"
-    assert graph.blocks[5].start_block_idx == 0
-    assert graph.blocks[5].start_binding_idx == 0
-    assert graph.blocks[5].end_block_idx == 0
-    assert graph.blocks[5].end_binding_idx == 1
-
-    assert len(graph.blocks[6].args) == 0
-    assert_ret_is_final_binding_in_seq(graph.blocks[6], "relax.multiply")
-    assert graph.blocks[6].start_block_idx == 0
-    assert graph.blocks[6].start_binding_idx == 0
-    assert graph.blocks[6].end_block_idx == 1
-
-    assert len(graph.blocks[7].args) == 0
-    assert_ret_is_final_binding_in_seq(graph.blocks[7], "relax.add")
-    assert graph.blocks[7].start_block_idx == 0
-    assert graph.blocks[7].start_binding_idx == 0
-    assert graph.blocks[7].end_block_idx == 1
-
-    assert len(graph.blocks[8].args) == 1
-    assert graph.blocks[8].args[0].name_hint == "y"
-    assert_ret_is_final_binding_in_seq(graph.blocks[8], "relax.multiply")
-    assert graph.blocks[8].start_block_idx == 0
-    assert graph.blocks[8].start_binding_idx == 2
-    assert graph.blocks[8].end_block_idx == 1
-
-    assert len(graph.blocks[9].args) == 1
-    assert graph.blocks[9].args[0].name_hint == "z"
-    assert graph.blocks[9].ret.name_hint == "z"
-    assert graph.blocks[9].start_block_idx == 1
-    assert graph.blocks[9].end_block_idx == 1
+    assert_distinct_seqs(
+        graph,
+        [0, 1, 20, 21],
+        [2, 3, 8, 9, 10],
+        [4, 5],
+        [6, 7],
+        [11, 12, 17, 18, 19],
+        [13, 14],
+        [15, 16],
+    )
 
 
 def test_simple_analysis():
@@ -438,7 +378,7 @@ def test_simple_analysis():
         def main() -> R.Tensor((), "int32"):
             return R.const(1, dtype="int32")
 
-    # only one basic block to consider here
+    # only one binding to consider here
     init = {"a": 1}
 
     def transfer_func(_, domain):
@@ -503,30 +443,42 @@ def test_simple_analysis_with_merge():
             new_domain["merge"] = 1
         return new_domain
 
-    def check_expected_maps(in_map, out_map, forward=True):
-        # merge will happen in the last block only
-        i = 0 if forward else 3
-        assert len(in_map[i]) == 1 and len(out_map[i]) == 1
-        assert in_map[i]["a"] == 1
-        assert out_map[i]["a"] == 2
-
-        for j in (1, 2):
-            assert len(in_map[j]) == 1 and len(out_map[j]) == 1
-            assert in_map[j]["a"] == 2
-            assert out_map[j]["a"] == 3
-
-        i = 3 if forward else 0
-        assert len(in_map[i]) == 2 and len(out_map[i]) == 2
-        assert in_map[i]["a"] == 3
-        assert in_map[i]["merge"] == 1
-        assert out_map[i]["a"] == 4
-        assert out_map[i]["merge"] == 2
-
     cfg = ExtractCFG(SimpleBranch["main"])
     in_map, out_map = DataflowAnalysis(cfg, init, transfer_func, merge_func, forward=True)
-    check_expected_maps(in_map, out_map, forward=True)
+    # start and true branch
+    for i in range(5):
+        assert in_map[i]["a"] == i + 1
+        assert out_map[i]["a"] == i + 2
+    # false branch
+    for i in range(5, 9):
+        assert in_map[i]["a"] == i - 3
+        assert out_map[i]["a"] == i - 2
+    # index 9 is the merge
+    assert in_map[9]["a"] == 6
+    assert in_map[9]["merge"] == 1
+    assert out_map[9]["a"] == 7
+    assert out_map[9]["merge"] == 2
+    # index 10 is the last
+    assert in_map[10]["a"] == 7
+    assert in_map[10]["merge"] == 2
+    assert out_map[10]["a"] == 8
+    assert out_map[10]["merge"] == 3
+
     in_map, out_map = DataflowAnalysis(cfg, init, transfer_func, merge_func, forward=False)
-    check_expected_maps(out_map, in_map, forward=False)
+    # backward direction: start with index 10
+    # end of seq through false branch
+    for i in range(6):
+        assert out_map[10 - i]["a"] == i + 1
+        assert in_map[10 - i]["a"] == i + 2
+    # true branch
+    for i in range(4):
+        assert out_map[4 - i]["a"] == i + 3
+        assert in_map[4 - i]["a"] == i + 4
+    # the if condition is the merge
+    assert out_map[0]["a"] == 7
+    assert out_map[0]["merge"] == 1
+    assert in_map[0]["a"] == 8
+    assert in_map[0]["merge"] == 2
 
 
 if __name__ == "__main__":

@@ -17,7 +17,7 @@
 """
 Python bindings for the dataflow analysis framework
 """
-
+from enum import Enum
 from typing import Any, Callable, List, Tuple
 import tvm
 from tvm.ir.base import Node
@@ -25,65 +25,62 @@ from tvm.relax.expr import Expr, SeqExpr, Function, Var
 from . import _ffi_api
 
 
-@tvm._ffi.register_object("relax.analysis.BasicBlock")
-class BasicBlock(Node):
-    """Representation of a basic block on top of Relax's AST (SeqExprs)"""
+class BindingNodeKind(Enum):
+    kBinding = 0
+    kIfCond = 1
+    kIfMerge = 2
+    kSeqBody = 3
+
+
+@tvm._ffi.register_object("relax.analysis.GraphBinding")
+class GraphBinding(Node):
+    """Representation of a binding in a control flow graph"""
 
     seq: SeqExpr
     args: List[Var]
-    ret: Expr
-    start_block_idx: int
-    start_binding_idx: int
-    end_block_idx: int
-    end_binding_idx: int
+    block_idx: int
+    binding_idx: int
+    kind: BindingNodeKind
 
     def __init__(
         self,
         seq: SeqExpr,
         args: List[Var],
-        ret: Expr,
-        start_block_idx: int,
-        start_binding_idx: int,
-        end_block_idx: int,
-        end_binding_idx: int,
+        block_idx: int,
+        binding_idx: int,
+        kind: BindingNodeKind,
     ):
         """
-        Create a basic block
+        Create a graph binding
 
         Parameters
         ----------
         seq: SeqExpr
-            The SeqExpr that contains the basic block
-            (in normal form, no basic block can span across SeqExprs)
+            The SeqExpr that contains the binding
 
         args: List[Var]
-            The values passed into the block.
-            The starting block of a function takes in the function args.
-            Merge blocks (those after an If branch) take the variable
-            the If expression is bound to.
+            Arguments taken by the binding (only used for the entry binding:
+            these will be the function arguments. Otherwise, this array should be empty.)
 
-        ret: Expr
-            The expression corresponding to the final value produced by a block.
-            For blocks ending in a branch, the final value is the branch condition.
-            Otherwise, it is the `body` field of the SeqExpr.
+        block_idx: int
+            The index of the block in the SeqExpr's block list where the binding resides
+            (convention: for the SeqExpr body, we will use one past the final block)
 
-        start_block_idx: int
-            The index of the block in the SeqExpr's block list where the basic block starts
+        binding_idx: int
+            The index of the binding in the binding block corresponding to this binding.
 
-        start_binding_idx: int
-            The index of the binding in the starting binding block where the basic block
-            starts (convention: if the basic block is a merge point,
-            use the index of the binding after the If node).
+        kind: BindingNodeKind
+            The kind of binding. We distinguish between ordinary bindings,
+            If conditions, If merges (the var bound to the result of the If node),
+            and the body of the SeqExpr.
         """
         return self.__init_handle_by_constructor__(
-            _ffi_api.BasicBlock,
+            _ffi_api.GraphBinding,
             seq,
             args,
-            ret,
-            start_block_idx,
-            start_binding_idx,
-            end_block_idx,
-            end_binding_idx,
+            block_idx,
+            binding_idx,
+            kind,
         )  # type: ignore
 
 
@@ -92,26 +89,28 @@ class ControlFlowGraph(Node):
     """Representation of a control flow graph, marking the successors
     and predecessors to all basic blocks"""
 
-    def __init__(self, blocks: List[BasicBlock], preds: List[List[int]], succs: List[List[int]]):
+    def __init__(
+        self, bindings: List[GraphBinding], preds: List[List[int]], succs: List[List[int]]
+    ):
         """
         Instantiate a control flow graph
 
         Parameters
         ----------
-        blocks: List[BasicBlock]
-            List of basic blocks in the graph
+        bindings: List[GraphBnding]
+            List of bindings in the graph
 
         preds: List[List[int]]
-            The ith member is the list of predecessors to blocks[i] (given as indices in blocks)
+            The ith member is the list of predecessors to bindings[i] (given as indices in bindings)
 
         succs: List[List[int]]
-            The ith member is the list of successors to blocks[i] (given as indices in blocks)
+            The ith member is the list of successors to bindings[i] (given as indices in bindings)
         """
-        if len(blocks) != len(preds) or len(blocks) != len(succs):
+        if len(bindings) != len(preds) or len(bindings) != len(succs):
             raise ValueError("The lengths of blocks, preds, and succs must all match.")
 
         return self.__init_handle_by_constructor__(
-            _ffi_api.ControlFlowGraph, blocks, preds, succs
+            _ffi_api.ControlFlowGraph, bindings, preds, succs
         )  # type: ignore
 
 
@@ -136,20 +135,21 @@ def ExtractCFG(func: Function) -> ControlFlowGraph:
 def DataflowAnalysis(
     cfg: ControlFlowGraph,
     init: Any,
-    transfer_func: Callable[[BasicBlock, Any], Any],
+    transfer_func: Callable[[GraphBinding, Any], Any],
     merge_func: Callable[[Any, Any], Any],
     forward: bool = True,
 ) -> Tuple[List[Any], List[Any]]:
     """
-    Generic dataflow analysis framework, based on Adrian Sampson's course notes:
+    Generic dataflow analysis framework, based on Adrian Sampson's course notes,
+    except binding by binding instead of basic block by basic block:
     https://www.cs.cornell.edu/courses/cs6120/2020fa/lesson/4/
 
-    The analysis creates input and output maps (mapping basic block indices to a domain),
-    sets the initial input and output for each basic block to the init value, and then
+    The analysis creates input and output maps (mapping binding indices to a domain),
+    sets the initial input and output for each binding to the init value, and then
     performs a traversal of the CFG (BFS in this implementation, since unlike the general case,
     we do not have loops) and uses the transfer and merge function to update the inputs and
-    outputs. The analysis can proceed forwards (from block 0 onwards) or backwards (from the last
-    block back), flipping the roles of the input and output maps in the cases.
+    outputs. The analysis can proceed forwards (from binding 0 onwards) or backwards (from the last
+    binding back), flipping the roles of the input and output maps in the cases.
 
     Parameters
     ----------
@@ -159,23 +159,23 @@ def DataflowAnalysis(
     init: Any
         The initial value in the analysis domain to which all blocks should be initialized.
 
-    transfer_func: Callable[[BasicBlock, Any], Any]
-        Given a basic block and the input domain, compute the new output domain.
+    transfer_func: Callable[[GraphBinding, Any], Any]
+        Given a binding and the input domain, compute the new output domain.
 
     merge_func: Callable[[Any, Any], Any]
         When two output domains are fed into a single block (i.e., after an If branch),
         the merge function is used to combine them into a single domain.
 
     forward: bool
-        If true, the analysis proceeds forwards (starting from block 0 and going onwards).
-        If false, the analysis proceeds backwards (starting from the last block and going back).
+        If true, the analysis proceeds forwards (starting from binding 0 and going onwards).
+        If false, the analysis proceeds backwards (starting from the last binding and going back).
         The input and output maps play the opposite roles in forward and backward analyses.
-        I.e., in a backward analysis, the "final output" is the input map entry for block 0
-        and the initial input is the output map entry for the last block.
+        I.e., in a backward analysis, the "final output" is the input map entry for binding 0
+        and the initial input is the output map entry for the last binding.
 
     Returns
     -------
     ret: Tuple[List[Any], List[Any]]
         A pair of the final input and output maps
     """
-    return _ffi_api.DataflowAnalysis(forward, cfg, init, transfer_func, merge_func)  # type: ignore
+    return _ffi_api.DataflowAnalysis(cfg, init, transfer_func, merge_func, forward)  # type: ignore
