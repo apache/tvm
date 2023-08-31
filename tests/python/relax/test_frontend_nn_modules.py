@@ -364,7 +364,7 @@ def test_kv_cache():
         def forward(
             x: R.Tensor((2, 4), dtype="float32"), _io: R.Object, cache: R.Object
         ) -> R.Tuple(R.Tensor((4, 2, 4), dtype="float32"), R.Tuple(R.Object, R.Object)):
-            R.func_attr({"num_input": 2})
+            R.func_attr({"num_input": 3})
             with R.dataflow():
                 lv2: R.Object = R.call_packed(
                     "vm.builtin.attention_kv_cache_append", cache, x, sinfo_args=(R.Object,)

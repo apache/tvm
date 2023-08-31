@@ -303,7 +303,9 @@ class SpecBuilder:
             return params
 
         def _effects() -> List[Tuple[str, core.Effect]]:
-            result = [("", self.io_effect)]
+            result = []
+            if self.io_effect is not None:
+                result.append(("", self.io_effect))
             for name, effect in core._attribute_finder(
                 spec.module, "", condition_yield=lambda x: isinstance(x, core.Effect)
             ):
@@ -323,18 +325,21 @@ class SpecBuilder:
 
         # pylint: enable=protected-access
 
+        # Disable IO effects if not in debug mode.
+        if not debug:
+            self.io_effect = None
         params = _params()
-        effects = _effects() if debug else None
+        effects = _effects()
         extern_modules = _extern_modules()
         with self:
-            if debug:
+            if effects:
                 with self.builder.function("_initialize_effect"):
                     with self.builder.dataflow():
                         outputs = _emit_effect_init(self.builder, effects)
                     self.builder.emit_func_output(outputs, params=[])
             for method_name, method_spec in zip(spec.method_names, spec.method_specs):
                 with self.builder.function(
-                    method_name, attrs={"num_input": len(method_spec.arg_specs) + int(debug)}
+                    method_name, attrs={"num_input": len(method_spec.arg_specs) + len(effects)}
                 ):
                     with self.builder.dataflow():
                         outputs, inputs = _emit_method(self.builder, method_spec, params, effects)
@@ -391,19 +396,18 @@ def _emit_method(
     inputs = []
     for arg in explicit_inputs:
         inputs.append(_convert_input(arg))
-    if effects is not None:
-        for name, effect in effects:
-            inputs.extend(effect.create(name))
+    for name, effect in effects:
+        inputs.extend(effect.create(name))
     for name, param in params:
         param._expr = core._tensor_placeholder(name, param.shape, param.dtype)._expr
         inputs.append(param._expr)
         # pylint: enable=protected-access
 
     outputs = spec.method(*explicit_inputs)
-    if effects is not None:
-        effect_outputs = []
-        for _, effect in effects:
-            effect_outputs.extend(effect.finalize())
+    effect_outputs = []
+    for _, effect in effects:
+        effect_outputs.extend(effect.finalize())
+    if effect_outputs:
         outputs = builder.emit_output(rx.Tuple([_unwrap_ret(outputs), rx.Tuple(effect_outputs)]))
     else:
         outputs = builder.emit_output(_unwrap_ret(outputs))

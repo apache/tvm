@@ -1290,4 +1290,6 @@ def tensor_expr_op(
 
 
 def print_(array: Tensor):
+    if SpecBuilder.current().io_effect is None:
+        raise RuntimeError("Printing is only supported when debug mode is on.")
     SpecBuilder.current().io_effect.print_(array)
