@@ -40,8 +40,7 @@ namespace contrib {
 TensorRTBuilder::TensorRTBuilder(TensorRTLogger* logger,
                                  const std::vector<const DLTensor*>& data_entry,
                                  size_t max_workspace_size, bool use_implicit_batch, bool use_fp16,
-                                 int batch_size,
-                                 int nvdla, bool allow_gpu_fallback,
+                                 int batch_size, int nvdla, bool allow_gpu_fallback,
                                  nvinfer1::IInt8Calibrator* calibrator)
     : data_entry_(data_entry),
       max_workspace_size_(max_workspace_size),
@@ -66,14 +65,14 @@ TensorRTBuilder::TensorRTBuilder(TensorRTLogger* logger,
   if (calibrator_ != nullptr) {
     use_int8_ = true;
   }
-  
+
   network_ = builder_->createNetworkV2(flags);
 #else
   builder_->setMaxBatchSize(batch_size_);
   builder_->setMaxWorkspaceSize(max_workspace_size_);
   builder_->setFp16Mode(use_fp16_);
   network_ = builder_->createNetwork();
-#endif  
+#endif
 }
 
 nvinfer1::DataType DLDataType2NVDataType(DLDataType data_type) {
@@ -209,22 +208,22 @@ TensorRTEngineAndContext TensorRTBuilder::BuildEngine() {
     config_->addOptimizationProfile(profile);
   }
 
-  if (nvdla_ >= 0){
-    if(!use_int8_){
+  if (nvdla_ >= 0) {
+    if (!use_int8_) {
       config_->setFlag(nvinfer1::BuilderFlag::kFP16);
-    } 
+    }
     std::cout << "Using DLA core " << nvdla_ << std::endl;
     std::cout << "Using GPU fallback " << allow_gpu_fallback_ << std::endl;
     if (allow_gpu_fallback_) {
       config_->setFlag(nvinfer1::BuilderFlag::kGPU_FALLBACK);
-    }else{ 
+    } else {
       config_->clearFlag(nvinfer1::BuilderFlag::kGPU_FALLBACK);
     }
-    std::cout << "fallbach flag = " << config_->getFlag(nvinfer1::BuilderFlag::kGPU_FALLBACK) << std::endl;
+    std::cout << "fallbach flag = " << config_->getFlag(nvinfer1::BuilderFlag::kGPU_FALLBACK)
+              << std::endl;
     config_->setDefaultDeviceType(nvinfer1::DeviceType::kDLA);
     config_->setDLACore(nvdla_);
   }
-
 
   nvinfer1::ICudaEngine* engine = builder_->buildEngineWithConfig(*network_, *config_);
 #else

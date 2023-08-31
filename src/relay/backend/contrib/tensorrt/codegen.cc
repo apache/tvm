@@ -324,8 +324,6 @@ class TensorRTJSONSerializer : public JSONSerializer {
       Bool target_attr = target_->GetAttr<Bool>("allow_gpu_fallback").value();
       SetAttr(node, "allow_gpu_fallback", {std::to_string(target_attr->value)});
     }
-
-
   }
 
   /*! \brief The "tensorrt" Target guiding compilation. */

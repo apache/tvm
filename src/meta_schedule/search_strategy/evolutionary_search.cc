@@ -748,14 +748,14 @@ size_t EvolutionarySearchNode::State::ModuleHash(const IRModule& mod) const {
   return database_->GetModuleEquality().Hash(mod);
 }
 
-SearchStrategy SearchStrategy::EvolutionarySearch(int population_size,         //
-                                                  int num_empty_iters_before_early_stop, //
-                                                  double init_measured_ratio,  //
-                                                  int init_min_unmeasured,     //
-                                                  int max_fail_count,          //
-                                                  int genetic_num_iters,       //
-                                                  double genetic_mutate_prob,  //
-                                                  int genetic_max_fail_count,  //
+SearchStrategy SearchStrategy::EvolutionarySearch(int population_size,                    //
+                                                  int num_empty_iters_before_early_stop,  //
+                                                  double init_measured_ratio,             //
+                                                  int init_min_unmeasured,                //
+                                                  int max_fail_count,                     //
+                                                  int genetic_num_iters,                  //
+                                                  double genetic_mutate_prob,             //
+                                                  int genetic_max_fail_count,             //
                                                   double eps_greedy) {
   TVM_META_SCHEDULE_CHECK_PROB_RANGE(init_measured_ratio, "Initial measured ratio");
   TVM_META_SCHEDULE_CHECK_PROB_RANGE(genetic_mutate_prob, "Mutation probability");

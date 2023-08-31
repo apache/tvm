@@ -139,13 +139,13 @@ class TensorRTRuntime : public JSONRuntimeBase {
         use_fp16_ = std::stoi(nodes_[i].GetAttr<std::vector<std::string>>("use_fp16")[0]);
       }
       if (nodes_[i].HasAttr("nvdla")) {
-        
         nvdla_ = std::stoi(nodes_[i].GetAttr<std::vector<std::string>>("nvdla")[0]);
-        //std::cout << "nvdla_ = " << nvdla_ << std::endl;
+        // std::cout << "nvdla_ = " << nvdla_ << std::endl;
       }
       if (nodes_[i].HasAttr("allow_gpu_fallback")) {
-        allow_gpu_fallback_ = std::stoi(nodes_[i].GetAttr<std::vector<std::string>>("allow_gpu_fallback")[0]);
-        //std::cout << "allow_gpu_fallback_ = " << allow_gpu_fallback_ << std::endl;
+        allow_gpu_fallback_ =
+            std::stoi(nodes_[i].GetAttr<std::vector<std::string>>("allow_gpu_fallback")[0]);
+        // std::cout << "allow_gpu_fallback_ = " << allow_gpu_fallback_ << std::endl;
       }
     }
   }

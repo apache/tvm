@@ -275,7 +275,6 @@ on some platforms.
                                    BinaryConvInferCorrectLayout<BinaryConv2DAttrs>)
     .set_attr<TOpPattern>("TOpPattern", kOutEWiseFusable);
 
-
 // relay.nn.bitserial_dense
 TVM_REGISTER_NODE_TYPE(BinaryDenseAttrs);
 

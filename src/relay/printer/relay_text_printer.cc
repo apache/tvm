@@ -842,7 +842,6 @@ class RelayTextPrinter::AttrPrinter : public AttrVisitor {
 
 void RelayTextPrinter::AppendGenericAttrs(std::vector<Doc>* docs, const Attrs& attrs,
                                           bool include_type_key) {
-
   if (!attrs.defined()) {
     return;
   }
