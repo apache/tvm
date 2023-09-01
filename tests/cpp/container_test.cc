@@ -23,6 +23,7 @@
 #include <tvm/runtime/container/array.h>
 #include <tvm/runtime/container/map.h>
 #include <tvm/runtime/container/string.h>
+#include <tvm/runtime/container/variant.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
 
@@ -852,4 +853,24 @@ TEST(Optional, PackedCall) {
   test_ffi(Optional<String>(s), static_cast<int>(kTVMObjectRValueRefArg));
   test_ffi(s, static_cast<int>(kTVMObjectHandle));
   test_ffi(String(s), static_cast<int>(kTVMObjectRValueRefArg));
+}
+
+TEST(Variant, Construct) {
+  Variant<PrimExpr, String> variant;
+  variant = PrimExpr(1);
+  ICHECK(variant.as<PrimExpr>());
+  ICHECK(!variant.as<String>());
+
+  variant = String("hello");
+  ICHECK(variant.as<String>());
+  ICHECK(!variant.as<PrimExpr>());
+}
+
+TEST(Variant, InvalidTypeThrowsError) {
+  auto expected_to_throw = []() {
+    ObjectPtr<Object> node = make_object<Object>();
+    Variant<PrimExpr, String> variant(node);
+  };
+
+  EXPECT_THROW(expected_to_throw(), InternalError);
 }
