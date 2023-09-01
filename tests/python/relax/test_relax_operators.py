@@ -274,7 +274,7 @@ def test_op_to_vdevice():
         @R.function
         def to_vdev(x: R.Tensor((3, 4), "float32")):
             dst_vdev = tvm.ir.VDevice("llvm", 0, "global")
-            ret = R.to_vdevice(x, R.Tensor((3, 4), "float32", "llvm"))
+            ret = R.to_vdevice(x, "llvm")
             return ret
 
     np.random.seed(0)
