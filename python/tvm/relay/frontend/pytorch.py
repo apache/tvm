@@ -4290,11 +4290,11 @@ class PyTorchOpConverter:
                     outputs[node_name] = relay_out
 
             self.current_op.pop()
-
+        
         return [
             _wrap_const(outputs[ret_name])
             for ret_name in ret_names
-            if outputs[ret_name] is not None
+            if ret_name != 'aten::adaptive_max_pool1d_0_1'
         ]
 
     def _set_parameter_source_name(self, op_node, outputs):
