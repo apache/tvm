@@ -24,6 +24,7 @@
 #ifndef TVM_RUNTIME_CONTAINER_SHAPE_TUPLE_H_
 #define TVM_RUNTIME_CONTAINER_SHAPE_TUPLE_H_
 
+#include <ostream>
 #include <utility>
 #include <vector>
 
@@ -41,6 +42,9 @@ class ShapeTupleObj : public Object {
   index_type* data;
   /*! \brief The size of the shape tuple object. */
   uint64_t size;
+
+  /*! \brief Get "numel", meaning the number of elements of an array if the array has this shape */
+  index_type Product() const;
 
   static constexpr const uint32_t _type_index = runtime::TypeIndex::kRuntimeShapeTuple;
   static constexpr const char* _type_key = "runtime.ShapeTuple";
@@ -168,6 +172,26 @@ inline ShapeTuple::ShapeTuple(std::vector<index_type> shape) {
   ptr->size = ptr->data_container.size();
   ptr->data = ptr->data_container.data();
   data_ = std::move(ptr);
+}
+
+inline ShapeTupleObj::index_type ShapeTupleObj::Product() const {
+  index_type numel = 1;
+  for (int i = 0, n = this->size; i < n; ++i) {
+    numel *= this->data[i];
+  }
+  return numel;
+}
+
+inline std::ostream& operator<<(std::ostream& os, const ShapeTuple& shape) {
+  os << '[';
+  for (size_t i = 0; i < shape->size; ++i) {
+    if (i != 0) {
+      os << ", ";
+    }
+    os << shape->data[i];
+  }
+  os << ']';
+  return os;
 }
 
 }  // namespace runtime
