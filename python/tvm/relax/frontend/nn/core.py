@@ -394,6 +394,7 @@ class Module(SubroutineMixin):
         device: str = "cpu",
         pipeline: str = "zero",
         out_format: str = "torch",
+        debug: bool = False,
     ) -> Callable:
         """Just-in-time compilation of a nn.model to an executable"""
         from tvm import relax  # pylint: disable=import-outside-toplevel
@@ -402,7 +403,7 @@ class Module(SubroutineMixin):
 
         # Convert nn.Module to IRModule
         spec = _spec.ModuleSpec.from_raw(spec, self)
-        mod, params = _spec.SpecBuilder().build(spec)
+        mod, params = _spec.SpecBuilder().build(spec, debug=debug)
 
         # Convert parameters
         device = _str_to_device(device)
