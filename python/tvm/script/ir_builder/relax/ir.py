@@ -184,7 +184,7 @@ from tvm.runtime.ndarray import (
 )
 
 
-def to_vdevice(data: Expr, dst_vdevice: Union[str, VDevice]) -> Expr:
+def to_vdevice(data: Expr, dst_vdevice: Union[py_str, VDevice]) -> Expr:
     """Copy data to the destination device.
 
     Parameters
@@ -192,7 +192,7 @@ def to_vdevice(data: Expr, dst_vdevice: Union[str, VDevice]) -> Expr:
     data : Expr
         The tensor to be copied.
 
-    dst_device : Union[str, VDevice]
+    dst_device : Union[py_str, VDevice]
         The destination device where the data is copied to.
 
     Returns
