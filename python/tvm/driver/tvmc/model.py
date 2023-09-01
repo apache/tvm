@@ -263,11 +263,12 @@ class TVMCModel(object):
         else:
             if not cross_options:
                 executor_factory.get_lib().export_library(
-                    path_lib, tvm.contrib.cc.cross_compiler(cross)
+                    path_lib, fcompile=tvm.contrib.cc.cross_compiler(cross)
                 )
             else:
                 executor_factory.get_lib().export_library(
-                    path_lib, tvm.contrib.cc.cross_compiler(cross, options=cross_options.split(" "))
+                    path_lib,
+                    fcompile=tvm.contrib.cc.cross_compiler(cross, options=cross_options.split(" ")),
                 )
         self.lib_path = path_lib
 

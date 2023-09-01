@@ -420,7 +420,7 @@ temp = utils.tempdir()
 dso_binary = "dev_lib_cl.so"
 dso_binary_path = temp.relpath(dso_binary)
 fcompile = ndk.create_shared if not local_demo else None
-lib.export_library(dso_binary_path, fcompile)
+lib.export_library(dso_binary_path, fcompile=fcompile)
 remote_path = "/data/local/tmp/" + dso_binary
 remote.upload(dso_binary_path)
 rlib = remote.load_module(dso_binary)

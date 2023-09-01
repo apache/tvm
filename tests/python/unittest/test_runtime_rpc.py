@@ -294,7 +294,7 @@ def test_rpc_remote_module():
         runtime = Runtime("cpp", {"system-lib": True})
         f = tvm.build(s, [A, B], "llvm", name="myadd", runtime=runtime)
         path_minrpc = temp.relpath("dev_lib.minrpc")
-        f.export_library(path_minrpc, rpc.with_minrpc(cc.create_executable))
+        f.export_library(path_minrpc, fcompile=rpc.with_minrpc(cc.create_executable))
 
         with pytest.raises(RuntimeError):
             rpc.PopenSession("filenotexist")
