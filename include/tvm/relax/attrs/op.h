@@ -70,8 +70,7 @@ struct HintOnDeviceAttrs : public tvm::AttrsNode<HintOnDeviceAttrs> {
   int32_t dev_type;
   int32_t dev_id;
   TVM_DECLARE_ATTRS(HintOnDeviceAttrs, "relax.attrs.HintOnDeviceAttrs") {
-    TVM_ATTR_FIELD(dev_type)
-        .describe("The device type where the data is supposed to be executed.");
+    TVM_ATTR_FIELD(dev_type).describe("The device type where the data is supposed to be executed.");
     TVM_ATTR_FIELD(dev_id).describe("The device id.");
   }
 };  // struct HintOnDeviceAttrs
