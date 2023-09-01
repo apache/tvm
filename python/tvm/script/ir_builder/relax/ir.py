@@ -152,6 +152,22 @@ from tvm.relax.op import (
     nn,
     ccl,
 )
+
+from tvm.runtime.ndarray import (
+    cpu,
+    cuda,
+    device,
+    gpu,
+    rocm,
+    opencl,
+    metal,
+    vpi,
+    vulkan,
+    ext_dev,
+    hexagon,
+    webgpu,
+)
+
 from tvm.relax.op.builtin import stop_lift_params
 from tvm.relax.struct_info import StructInfo
 from tvm.relax.utils import args_converter
@@ -168,20 +184,6 @@ py_str = str
 
 
 ################################ Device ################################
-from tvm.runtime.ndarray import (
-    cpu,
-    cuda,
-    device,
-    gpu,
-    rocm,
-    opencl,
-    metal,
-    vpi,
-    vulkan,
-    ext_dev,
-    hexagon,
-    webgpu,
-)
 
 
 def to_vdevice(data: Expr, dst_vdevice: Union[py_str, VDevice]) -> Expr:
