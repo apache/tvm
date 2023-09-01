@@ -415,7 +415,14 @@ def raise_last_ffi_error():
     _LIB.TVMGetLastPythonError.restype = ctypes.c_void_p
     _LIB.TVMGetLastBacktrace.restype = ctypes.c_char_p
     py_err = _LIB.TVMGetLastPythonError()
-    if py_err is not None:
+    if py_err is None:
+        c_err_msg = py_str(_LIB.TVMGetLastError())
+        py_err_msg, err_type = c2pyerror(c_err_msg)
+        if err_type is not None and err_type.startswith("tvm.error."):
+            err_type = err_type[10:]
+        py_err = ERROR_TYPE.get(err_type, TVMError)(py_err_msg)
+
+    else:
         # TVMGetLastPythonError returns a PyObject*, with NULL when
         # there is no such value.  If we annotated the restype as
         # ctypes.py_object, we would need to return Py_None from the
@@ -424,55 +431,48 @@ def raise_last_ffi_error():
         # Python environment.  Therefore, casting the resulting void*
         # pointer to PyObject* using ctypes.
         py_err = ctypes.cast(ctypes.c_void_p(py_err), ctypes.py_object).value
-        tb = py_err.__traceback__
 
-        # The py_err.__traceback__ only goes from the location thrown
-        # up to the next FFI handoff.  To have the stacktrace also
-        # include the C++ side, we need to adjust the __traceback__
-        # before re-throwing.
-        backtrace = py_str(_LIB.TVMGetLastBacktrace())
-        frames = re.split(r"\n\W+\d+:\W+", backtrace)
-        frames = frames[1:]  # Skip "Stack trace: "
+    tb = py_err.__traceback__
 
-        for frame in frames:
-            if " at " in frame:
-                func_name, frame = frame.split(" at ", 1)
-                filename, lineno = frame.rsplit(":", 1)
-                func_name = func_name.strip()
-                filename = filename.strip()
-                lineno = int(lineno.strip())
+    # The py_err.__traceback__ only goes from the location thrown
+    # up to the next FFI handoff.  To have the stacktrace also
+    # include the C++ side, we need to adjust the __traceback__
+    # before re-throwing.
+    backtrace = py_str(_LIB.TVMGetLastBacktrace())
+    frames = re.split(r"\n\W+\d+:\W+", backtrace)
+    frames = frames[1:]  # Skip "Stack trace: "
 
-                tb = _append_traceback_frame(tb, func_name, filename, lineno)
+    for frame in frames:
+        if " at " in frame:
+            func_name, frame = frame.split(" at ", 1)
+            filename, lineno = frame.rsplit(":", 1)
+            func_name = func_name.strip()
+            filename = filename.strip()
+            lineno = int(lineno.strip())
 
-        # Remove stack frames that provide little benefit to
-        # debugging.  These are only removed from the stack frames
-        # contained within the exception we are re-raising, and not to
-        # the stack frames that it will continue to collect.
-        # Therefore, there may still be a single instance of these
-        # frames in the outermost Python-to-FFI call.
-        filter_funcs = [
-            lambda code: "tvm/_ffi/_ctypes/packed_func.py" in code.co_filename,
-            lambda code: "tvm/_ffi/base.py" in code.co_filename,
-        ]
-        tb = _filter_traceback_frames(tb, filter_funcs)
+            tb = _append_traceback_frame(tb, func_name, filename, lineno)
 
-        py_err = py_err.with_traceback(tb)
+    # Remove stack frames that provide little benefit to
+    # debugging.  These are only removed from the stack frames
+    # contained within the exception we are re-raising, and not to
+    # the stack frames that it will continue to collect.
+    # Therefore, there may still be a single instance of these
+    # frames in the outermost Python-to-FFI call.
+    filter_funcs = [
+        lambda code: "tvm/_ffi/_ctypes/packed_func.py" in code.co_filename,
+        lambda code: "tvm/_ffi/base.py" in code.co_filename,
+    ]
+    tb = _filter_traceback_frames(tb, filter_funcs)
 
-        # The exception PyObject may contain a large amount of state,
-        # including all stack frames that may be inspected in a later
-        # PDB post-mortem.  Therefore, we must make sure to remove the
-        # underlying PyObject* from the C++ side after we retrieve it.
-        _LIB.TVMDropLastPythonError()
+    py_err = py_err.with_traceback(tb)
 
-        raise py_err
+    # The exception PyObject may contain a large amount of state,
+    # including all stack frames that may be inspected in a later
+    # PDB post-mortem.  Therefore, we must make sure to remove the
+    # underlying PyObject* from the C++ side after we retrieve it.
+    _LIB.TVMDropLastPythonError()
 
-    c_err_msg = py_str(_LIB.TVMGetLastError())
-    py_err_msg, err_type = c2pyerror(c_err_msg)
-    if err_type is not None and err_type.startswith("tvm.error."):
-        err_type = err_type[10:]
-    err = ERROR_TYPE.get(err_type, TVMError)(py_err_msg)
-
-    raise err
+    raise py_err
 
 
 def check_call(ret):

@@ -57,7 +57,6 @@ cdef int tvm_callback(TVMValue* args,
     except Exception as err:
         msg = traceback.format_exc()
         msg = py2cerror(msg)
-        TVMAPISetLastError(c_str(msg))
         TVMAPISetLastPythonError(<void*>err)
 
         return -1

@@ -90,7 +90,9 @@ def test_deep_callback():
     assert local_frames == ["test_deep_callback", "flevel3", "flevel2", "error_callback"]
 
 
-def test_cpp_frames_in_stack_trace():
+def test_cpp_frames_in_stack_trace_from_python_error():
+    """A python exception crossing C++ boundaries should have C++ stack frames"""
+
     def error_callback():
         raise ValueError("callback error")
 
@@ -98,6 +100,23 @@ def test_cpp_frames_in_stack_trace():
 
     try:
         wrapped()
+        assert False
+    except ValueError as err:
+        frames = traceback.extract_tb(err.__traceback__)
+
+    cpp_frames = [
+        frame for frame in frames if frame.filename.endswith(".cc") or frame.filename.endswith(".c")
+    ]
+    assert len(cpp_frames) >= 1, (
+        f"Traceback through files '{[frame.filename for frame in frames]}'"
+        f" expected to contain C/C++ frames"
+    )
+
+
+def test_stack_trace_from_cpp_error():
+    """A python exception originating in C++ should have C++ stack frames"""
+    try:
+        tvm.testing.ErrorTest(0, 1)
         assert False
     except ValueError as err:
         frames = traceback.extract_tb(err.__traceback__)
