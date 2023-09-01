@@ -126,10 +126,14 @@ def test_verify_e2e_translation_gpu(layout, batch_size, image_shape):
 def verify_extracted_tasks(target_str, layout, batch_size, image_shape, module_equality):
     target = Target(target_str)
     relay_mod, params = get_resnet(batch_size, "float32", layout, image_shape)
+    # Parameters can be bound either as part of the `from_relay`
+    # conversion, or as part of the `extract_tasks` method.  However,
+    # they shouldn't be used in both locations, because
+    # `relax.BindParams` validates that there exists an unbound
+    # parameter of the specified name.
     relax_mod = relay_translator.from_relay(
         relay_mod["main"],
         target,
-        params,
         pass_config={
             "relay.backend.use_meta_schedule": True,
             "relay.FuseOps.max_depth": 1,  # Disable relay fusion
