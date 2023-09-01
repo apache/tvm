@@ -225,7 +225,7 @@ def test_multi_device():
         ) -> R.Tensor((2, 3), "float32", "cuda"):
             with R.dataflow():
                 lv0: R.Tensor((2, 3), "float32", "llvm") = R.add(x, y)
-                lv1 = R.to_vdevice(lv0, R.Tensor((2, 3), "float32", "cuda"))
+                lv1 = R.to_vdevice(lv0, "cuda")
                 lv2 = R.add(z, z)
                 gv: R.Tensor((2, 3), "float32", "cuda") = R.multiply(lv1, lv2)
                 R.output(gv)
@@ -253,9 +253,7 @@ def test_multi_device():
         ) -> R.Tensor((2, 3), "float32", "cuda"):
             with R.dataflow():
                 lv0: R.Tensor((2, 3), "float32", "llvm") = R.add(x, y)
-                lv1: R.Tensor((2, 3), "float32", "cuda") = R.to_vdevice(
-                    lv0, R.Tensor((2, 3), "float32", "cuda")
-                )
+                lv1: R.Tensor((2, 3), "float32", "cuda") = R.to_vdevice(lv0, "cuda")
                 lv2: R.Tensor((2, 3), "float32", "cuda") = R.add(z, z)
                 gv: R.Tensor((2, 3), "float32", "cuda") = R.multiply(lv1, lv2)
                 R.output(gv)
@@ -318,9 +316,7 @@ def test_insert_to_vdevice():
             with R.dataflow():
                 lv0: R.Tensor((2, 3), "float32", "llvm") = y
                 lv1: R.Tensor((2, 3), "float32", "llvm") = R.add(x, lv0)
-                lv2: R.Tensor((2, 3), "float32", "cuda") = R.to_vdevice(
-                    lv1, R.Tensor((2, 3), "float32", "cuda")
-                )
+                lv2: R.Tensor((2, 3), "float32", "cuda") = R.to_vdevice(lv1, "cuda")
                 lv3: R.Tensor((2, 3), "float32", "cuda") = R.add(lv2, lv2)
                 lv4: R.Tensor((2, 3), "float32", "cuda") = z
                 gv: R.Tensor((2, 3), "float32", "cuda") = R.multiply(lv3, lv4)

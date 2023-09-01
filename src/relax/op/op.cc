@@ -888,12 +888,10 @@ RELAY_REGISTER_OP("relax.to_vdevice")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferToVDeviceStructInfo)
     .set_attr<Bool>("FPurity", Bool(true));
 
-Expr MakeToVDevice(Expr data, TensorStructInfo dst_tsinfo) {
+Expr MakeToVDevice(Expr data, VDevice dst_vdev) {
   static const Op& op = Op::Get("relax.to_vdevice");
-  // TODO(@yongwww): replace Attr with TensorStructInfo
   ObjectPtr<ToVDeviceAttrs> attrs = make_object<ToVDeviceAttrs>();
-  ICHECK(dst_tsinfo->vdevice.defined());
-  attrs->dst_vdevice = dst_tsinfo->vdevice.value();
+  attrs->dst_vdevice = dst_vdev;
   return Call(op, {data}, Attrs(attrs), {});
 }
 
@@ -919,8 +917,8 @@ RELAY_REGISTER_OP("relax.hint_on_device")
 Expr MakeHintOnDevice(Expr data, Device device) {
   static const Op& op = Op::Get("relax.hint_on_device");
   ObjectPtr<HintOnDeviceAttrs> attrs = make_object<HintOnDeviceAttrs>();
-  attrs->device_type = static_cast<int32_t>(device.device_type);
-  attrs->device_id = device.device_id;
+  attrs->dev_type = static_cast<int32_t>(device.device_type);
+  attrs->dev_id = device.device_id;
   return Call(op, {data}, Attrs(attrs), {});
 }
 

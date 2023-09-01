@@ -239,8 +239,8 @@ class HintOnDeviceRemover : public ExprMutator {
       // Find out the vdevice from global_infos
       Expr data = call->args[0];
       auto attrs = call->attrs.as<HintOnDeviceAttrs>();
-      int32_t device_type = attrs->device_type;
-      int32_t device_id = attrs->device_id;
+      int32_t device_type = attrs->dev_type;
+      int32_t device_id = attrs->dev_id;
       VDevice dst_vdev = LookupVDevice(device_type, device_id);
       // Insert to_vdevice if input are on different device
       auto* tinfo = GetStructInfoAs<TensorStructInfoNode>(data);

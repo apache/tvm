@@ -24,8 +24,8 @@ from typing import Any, Dict, List, Optional, Tuple, Union, Callable
 
 import tvm
 from tvm import DataType, relax
-from tvm.ir import PrimExpr
-from ..ir import decl_function
+from tvm.ir import PrimExpr, VDevice
+from ..ir import decl_function, lookup_vdevice
 from tvm.relax import Call, Expr, ExternFunc, TupleGetItem, ShapeExpr, Var, VarBinding, const
 from tvm.relax.utils import gen_call_tir_inputs
 
@@ -141,7 +141,6 @@ from tvm.relax.op import (
     tanh,
     erf,
     tile,
-    to_vdevice,
     tril,
     triu,
     unique,
@@ -166,6 +165,48 @@ from . import _ffi_api, frame
 py_print = builtins.print
 py_tuple = tuple
 py_str = str
+
+
+################################ Device ################################
+from tvm.runtime.ndarray import (
+    cpu,
+    cuda,
+    device,
+    gpu,
+    rocm,
+    opencl,
+    metal,
+    vpi,
+    vulkan,
+    ext_dev,
+    hexagon,
+    webgpu,
+)
+
+def to_vdevice(data: Expr, dst_vdevice: Union[str, VDevice]) -> Expr:
+    """Copy data to the destination device.
+
+    Parameters
+    ----------
+    data : Expr
+        The tensor to be copied.
+
+    dst_device : Union[str, VDevice]
+        The destination device where the data is copied to.
+
+    Returns
+    -------
+    result : Expr
+        The copied result.
+    """
+    if isinstance(dst_vdevice, py_str):
+        if ":" in dst_vdevice:
+            split_vdev = dst_vdevice.split(":")
+            dst_vdevice = lookup_vdevice(split_vdev[0], int(split_vdev[1]))
+        else:
+            dst_vdevice = lookup_vdevice(dst_vdevice, 0)
+
+    return tvm.relax.op.to_vdevice(data, dst_vdevice)
 
 
 ############################### Function ################################
@@ -604,10 +645,13 @@ __all__ = [
     "cos",
     "cosh",
     "const",
+    "cpu",
+    "cuda",
     "cumsum",
     "einsum",
     "scatter_elements",
     "dataflow",
+    "device",
     "divide",
     "dtype",
     "emit",
@@ -618,6 +662,7 @@ __all__ = [
     "ewise_fma",
     "exp",
     "expand_dims",
+    "ext_dev",
     "flatten",
     "flip",
     "floor",
@@ -629,9 +674,11 @@ __all__ = [
     "func_ret_struct_info",
     "func_ret_value",
     "function",
+    "gpu",
     "grad",
     "greater",
     "greater_equal",
+    "hexagon",
     "hint_on_device",
     "image",
     "invoke_closure",
@@ -654,6 +701,7 @@ __all__ = [
     "maximum",
     "mean",
     "memory",
+    "metal",
     "min",
     "minimum",
     "multiply",
@@ -662,6 +710,7 @@ __all__ = [
     "null_value",
     "ones",
     "ones_like",
+    "opencl",
     "output",
     "permute_dims",
     "power",
@@ -672,6 +721,7 @@ __all__ = [
     "reshape",
     "tensor_to_shape",
     "shape_to_tensor",
+    "rocm",
     "round",
     "rsqrt",
     "shape",
@@ -704,6 +754,9 @@ __all__ = [
     "unique",
     "variance",
     "vm",
+    "vpi",
+    "vulkan",
+    "webgpu",
     "where",
     "wrap_param",
     "zeros",
