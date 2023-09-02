@@ -93,28 +93,23 @@ NDArrayCacheMetadata JSONAsNDArrayCacheMetadata(const picojson::object& json) {
   return result;
 }
 
-NDArrayCacheMetadata NDArrayCacheMetadata::LoadFromFile(const std::filesystem::path& path) {
-  std::string json_str;
-  LoadBinaryFromFile(path, &json_str);
+NDArrayCacheMetadata NDArrayCacheMetadata::LoadFromStr(const std::string& json_str,
+                                                       const std::string& path) {
   picojson::value json_info;
   picojson::parse(json_info, json_str);
   NDArrayCacheMetadata result = JSONAsNDArrayCacheMetadata(json_info.get<picojson::object>());
-  for (auto& file : result.records) {
-    file.data_path = path.parent_path() / file.data_path;
-  }
+  result.path = path;
   return result;
 }
 
-std::unordered_map<std::string, int> LoadShardInfoFromFile(const std::filesystem::path& path) {
-  std::string json_str;
-  LoadBinaryFromFile(path, &json_str);
+std::unordered_map<std::string, int> LoadShardInfoFromStr(const std::string& json_str) {
   picojson::value json_info;
   picojson::parse(json_info, json_str);
+  picojson::object json_obj = json_info.get<picojson::object>();
   std::unordered_map<std::string, int> result;
-  for (const auto& item : json_info.get<picojson::array>()) {
-    picojson::object kv_pair = item.get<picojson::object>();
-    std::string name = kv_pair["name"].get<std::string>();
-    int shard_dim = kv_pair["shard_dim"].get<int64_t>();
+  for (const auto& kv : json_obj) {
+    std::string name = kv.first;
+    int64_t shard_dim = kv.second.get<int64_t>();
     result[name] = shard_dim;
   }
   return result;
@@ -183,9 +178,9 @@ class NDArrayCache {
    */
   static void Load(const std::string& cache_path, int device_type, int device_id) {
     DLDevice device{static_cast<DLDeviceType>(device_type), device_id};
-    NDArrayCacheMetadata metadata =
-        NDArrayCacheMetadata::LoadFromFile(cache_path + "/ndarray-cache.json");
-
+    std::string json_str;
+    LoadBinaryFromFile(cache_path + "/ndarray-cache.json", &json_str);
+    NDArrayCacheMetadata metadata = NDArrayCacheMetadata::LoadFromStr(json_str, cache_path);
     Optional<NDArray> staging_buffer;
     auto fcopy_param_from_bytes = [&](NDArray param, const void* data, size_t nbytes) {
       if (device_type != kDLOpenCL) {
@@ -216,7 +211,7 @@ class NDArrayCache {
     Map<String, NDArray> result;
     std::string raw_data;
     for (const auto& shard_rec : metadata.records) {
-      LoadBinaryFromFile(shard_rec.data_path, &raw_data);
+      LoadBinaryFromFile(cache_path + "/" + shard_rec.data_path, &raw_data);
       CHECK_EQ(shard_rec.format, "raw-shard") << "ValueError: Only `raw-shard` format is supported";
       CHECK_EQ(shard_rec.nbytes, raw_data.length())
           << "ValueError: Parameters are not loaded properly. Please check your parameter shards "
