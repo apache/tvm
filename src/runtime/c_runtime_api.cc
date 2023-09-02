@@ -372,7 +372,7 @@ using namespace tvm::runtime;
 
 struct WrappedPythonError : Error {
   WrappedPythonError() : Error("") {}
-  WrappedPythonError(WrappedPythonObject obj)
+  explicit WrappedPythonError(WrappedPythonObject obj)
       : Error(""), obj(std::move(obj)), cpp_backtrace(tvm::runtime::Backtrace()) {}
 
   WrappedPythonObject obj;
