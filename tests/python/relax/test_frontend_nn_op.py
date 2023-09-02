@@ -43,6 +43,7 @@ def test_binary():
     # fmt: off
     @R.function
     def test(x: R.Tensor((1, 10), dtype="float32"), y: R.Tensor((10, 1), dtype="float32"), _io: R.Object) -> R.Tuple(R.Tuple(R.Tensor((10, 10), dtype="float32"), R.Tensor((10, 10), dtype="float32"), R.Tensor((10, 10), dtype="float32"), R.Tensor((1, 1), dtype="float32"), R.Tensor((10, 10), dtype="float32"), R.Tensor((10, 10), dtype="float32"), R.Tensor((10, 10), dtype="float32")), R.Tuple(R.Object)):
+        R.func_attr({"num_input": 3})
         with R.dataflow():
             add: R.Tensor((10, 10), dtype="float32") = R.add(x, y)
             mul: R.Tensor((10, 10), dtype="float32") = R.multiply(x, y)
@@ -58,7 +59,8 @@ def test_binary():
 
     m = Model()
     irmodule, _ = m.export_tvm(
-        spec={"test": {"x": spec.Tensor([1, 10], "float32"), "y": spec.Tensor([10, 1], "float32")}}
+        spec={"test": {"x": spec.Tensor([1, 10], "float32"), "y": spec.Tensor([10, 1], "float32")}},
+        debug=True,
     )
     tvm.ir.assert_structural_equal(irmodule["test"], test)
 
@@ -78,6 +80,7 @@ def test_manipulate():
     # fmt: off
     @R.function
     def test(x: R.Tensor((1, 5, 2), dtype="float32"), _io: R.Object) -> R.Tuple(R.Tuple(R.Tensor((2, 5, 2), dtype="float32"), R.Tensor((2, 5, 1), dtype="float32"), R.Tensor((1, 10), dtype="float32"), R.Tensor((1, 10, 2), dtype="float32"), R.Tensor((5, 2), dtype="float32"), R.Tensor((1, 1, 5, 2), dtype="float32"), R.Tensor((2, 5, 2), dtype="float32")), R.Tuple(R.Object)):
+        R.func_attr({"num_input": 2})
         with R.dataflow():
             broadcast_to: R.Tensor((2, 5, 2), dtype="float32") = R.broadcast_to(x, R.shape([2, 5, 2]))
             permute_dims: R.Tensor((2, 5, 1), dtype="float32") = R.permute_dims(x, axes=[2, 1, 0])
@@ -92,7 +95,7 @@ def test_manipulate():
     # fmt: on
 
     m = Model()
-    irmodule, _ = m.export_tvm(spec={"test": {"x": spec.Tensor([1, 5, 2], "float32")}})
+    irmodule, _ = m.export_tvm(spec={"test": {"x": spec.Tensor([1, 5, 2], "float32")}}, debug=True)
 
     tvm.ir.assert_structural_equal(irmodule["test"], test)
 
@@ -106,6 +109,7 @@ def test_index():
     # fmt: off
     @R.function
     def test(x: R.Tensor((2, 1, 10), dtype="float32"), y: R.Tensor((5,), dtype="int32"), _io: R.Object) -> R.Tuple(R.Tensor((2, 1, 5), dtype="float32"), R.Tuple(R.Object)):
+        R.func_attr({"num_input": 3})
         with R.dataflow():
             take: R.Tensor((2, 1, 5), dtype="float32") = R.take(x, y, axis=2)
             gv1: R.Tuple(R.Tensor((2, 1, 5), dtype="float32"), R.Tuple(R.Object)) = take, (_io,)
@@ -115,7 +119,8 @@ def test_index():
 
     m = Model()
     irmodule, params = m.export_tvm(
-        spec={"test": {"x": spec.Tensor([2, 1, 10], "float32"), "y": spec.Tensor([5], "int32")}}
+        spec={"test": {"x": spec.Tensor([2, 1, 10], "float32"), "y": spec.Tensor([5], "int32")}},
+        debug=True,
     )
 
     tvm.ir.assert_structural_equal(irmodule["test"], test)
@@ -130,6 +135,7 @@ def test_datatype():
     # fmt: off
     @R.function
     def test(x: R.Tensor((2, 1, 10), dtype="float32"), _io: R.Object) -> R.Tuple(R.Tensor((2, 1, 10), dtype="float16"), R.Tuple(R.Object)):
+        R.func_attr({"num_input": 2})
         with R.dataflow():
             astype: R.Tensor((2, 1, 10), dtype="float16") = R.astype(x, dtype="float16")
             gv1: R.Tuple(R.Tensor((2, 1, 10), dtype="float16"), R.Tuple(R.Object)) = astype, (_io,)
@@ -138,7 +144,7 @@ def test_datatype():
     # fmt: on
 
     m = Model()
-    irmodule, params = m.export_tvm(spec={"test": {"x": spec.Tensor([2, 1, 10], "float32")}})
+    irmodule, _ = m.export_tvm(spec={"test": {"x": spec.Tensor([2, 1, 10], "float32")}}, debug=True)
 
     tvm.ir.assert_structural_equal(irmodule["test"], test)
 
@@ -163,6 +169,7 @@ def test_image():
         ),
         R.Tuple(R.Object),
     ):
+        R.func_attr({"num_input": 4})
         with R.dataflow():
             lv0: R.Tensor((1, 3, 34, 34), dtype="float32") = R.nn.pad(x, (0, 0, 0, 0, 1, 1, 1, 1))
             lv1: R.Tensor((1, 32, 32, 32), dtype="float32") = R.nn.conv2d(
@@ -210,7 +217,8 @@ def test_image():
                 "weight": spec.Tensor([32, 3, 3, 3], "float32"),
                 "bias": spec.Tensor([32], "float32"),
             }
-        }
+        },
+        debug=True,
     )
     tvm.ir.assert_structural_equal(irmodule["test"], test)
 
@@ -233,6 +241,7 @@ def test_chunk():
         ),
         R.Tuple(R.Object),
     ):
+        R.func_attr({"num_input": 2})
         with R.dataflow():
             chunk: R.Tuple(
                 R.Tensor((2,), dtype="float32"),
@@ -257,7 +266,7 @@ def test_chunk():
         return gv1
 
     m = Model()
-    irmodule, _ = m.export_tvm(spec={"test": {"x": spec.Tensor([8], "float32")}})
+    irmodule, _ = m.export_tvm(spec={"test": {"x": spec.Tensor([8], "float32")}}, debug=True)
     tvm.ir.assert_structural_equal(irmodule["test"], test)
 
 
@@ -279,6 +288,7 @@ def test_nn():
         bias: R.Tensor((3,), dtype="float32"),
         _io: R.Object,
     ) -> R.Tuple(R.Tensor((2, 3, 4, 5), dtype="float32"), R.Tuple(R.Object)):
+        R.func_attr({"num_input": 4})
         with R.dataflow():
             silu: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.silu(x)
             gelu: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.gelu(x)
@@ -304,7 +314,8 @@ def test_nn():
                 "weight": spec.Tensor([4, 5], "float32"),
                 "bias": spec.Tensor([3], "float32"),
             }
-        }
+        },
+        debug=True,
     )
 
     tvm.ir.assert_structural_equal(irmodule["test"], test)
@@ -328,6 +339,7 @@ def test_create():
     # fmt: off
     @R.function
     def test(x: R.Tensor((10, 10), dtype="float32"), _io: R.Object) -> R.Tuple(R.Tensor((10, 10), dtype="float32"), R.Tuple(R.Object)):
+        R.func_attr({"num_input": 2})
         with R.dataflow():
             triu: R.Tensor((10, 10), dtype="float32") = R.triu(x, k=0)
             full: R.Tensor((10, 10), dtype="float32") = R.full(R.shape([10, 10]), R.const(10, "float32"), dtype="float32")
@@ -341,7 +353,9 @@ def test_create():
     # fmt: on
 
     m = Model()
-    irmodule, params = m.export_tvm(spec={"test": {"x": spec.Tensor([10, 10], "float32")}})
+    irmodule, params = m.export_tvm(
+        spec={"test": {"x": spec.Tensor([10, 10], "float32")}}, debug=True
+    )
 
     tvm.ir.assert_structural_equal(irmodule["test"], test)
 
@@ -356,6 +370,7 @@ def test_timestep_embedding():
     def test(
         x: R.Tensor((3,), dtype="float32"), _io: R.Object
     ) -> R.Tuple(R.Tensor((3, 10), dtype="float32"), R.Tuple(R.Object)):
+        R.func_attr({"num_input": 2})
         with R.dataflow():
             lv1: R.Tensor((3,), dtype="float32") = R.astype(x, dtype="float32")
             lv2: R.Tensor((3, 1), dtype="float32") = R.expand_dims(lv1, axis=[1])
@@ -381,7 +396,7 @@ def test_timestep_embedding():
         return gv1
 
     m = Model()
-    irmodule, _ = m.export_tvm(spec={"test": {"x": spec.Tensor([3], "float32")}})
+    irmodule, _ = m.export_tvm(spec={"test": {"x": spec.Tensor([3], "float32")}}, debug=True)
     tvm.ir.assert_structural_equal(irmodule["test"], test)
 
 
@@ -398,6 +413,7 @@ def test_scaled_dot_product_attention():
         value: R.Tensor((1, 32, 32, 32), dtype="float32"),
         _io: R.Object,
     ) -> R.Tuple(R.Tensor((1, 32, 32, 32), dtype="float32"), R.Tuple(R.Object)):
+        R.func_attr({"num_input": 4})
         with R.dataflow():
             scaled_dot_product_attention: R.Tensor(
                 (1, 32, 32, 32), dtype="float32"
@@ -416,7 +432,8 @@ def test_scaled_dot_product_attention():
                 "key": spec.Tensor([1, 32, 32, 32], "float32"),
                 "value": spec.Tensor([1, 32, 32, 32], "float32"),
             }
-        }
+        },
+        debug=True,
     )
     tvm.ir.assert_structural_equal(irmodule["test"], test)
 
@@ -455,6 +472,7 @@ def test_tensor_expr_op():
         @R.function
         def test(x: R.Tensor((10, 10), dtype="float32"), _io: R.Object) -> R.Tuple(R.Tensor((10, 10), dtype="float32"), R.Tuple(R.Object)):
             cls = Expected
+            R.func_attr({"num_input": 2})
             with R.dataflow():
                 lv1 = R.call_tir(cls.add_one, (x,), out_sinfo=R.Tensor((10, 10), dtype="float32"))
                 add_one1: R.Tensor((10, 10), dtype="float32") = lv1
@@ -464,7 +482,7 @@ def test_tensor_expr_op():
     # fmt: on
 
     m = Model()
-    irmodule, params = m.export_tvm(spec={"test": {"x": spec.Tensor([10, 10], "float32")}})
+    irmodule, _ = m.export_tvm(spec={"test": {"x": spec.Tensor([10, 10], "float32")}}, debug=True)
 
     tvm.ir.assert_structural_equal(irmodule, Expected)
 
@@ -490,6 +508,7 @@ def test_print():
 
         @R.function
         def test(x: R.Tensor((10, 10), dtype="float32"), _io: R.Object) -> R.Tuple(R.Tensor((10, 10), dtype="float32"), R.Tuple(R.Object)):
+            R.func_attr({"num_input": 2})
             with R.dataflow():
                 add: R.Tensor((10, 10), dtype="float32") = R.add(x, x)
                 _io1: R.Object = R.call_pure_packed("effect.print", _io, add, sinfo_args=(R.Object(),))
@@ -499,7 +518,7 @@ def test_print():
     # fmt: on
 
     m = Model()
-    irmodule, params = m.export_tvm(spec={"test": {"x": spec.Tensor([10, 10], "float32")}})
+    irmodule, _ = m.export_tvm(spec={"test": {"x": spec.Tensor([10, 10], "float32")}}, debug=True)
 
     tvm.ir.assert_structural_equal(irmodule["test"], Expected["test"])
 

@@ -47,9 +47,10 @@ def test_linear():
         @R.function
         def forward(
             state: R.Tensor(("batch_size", 64), dtype="float32"),
-            weights: R.Tensor((64, 32), dtype="float32"),
             _io: R.Object,
+            weights: R.Tensor((64, 32), dtype="float32"),
         ) -> R.Tuple(R.Tensor(("batch_size", 32), dtype="float32"), R.Tuple(R.Object)):
+            R.func_attr({"num_input": 2})
             with R.dataflow():
                 state = Expected.layer(state, weights)
                 dataflow_output = (state, (_io,))
@@ -91,7 +92,7 @@ def test_linear():
     mod = Layer(64, 32)
     batch_size = tvm.tir.Var("batch_size", "int64")
     tvm_mod, _ = mod.export_tvm(
-        spec={"forward": {"input": nn.spec.Tensor((batch_size, 64), "float32")}}
+        spec={"forward": {"input": nn.spec.Tensor((batch_size, 64), "float32")}}, debug=True
     )
     assert_structural_equal(Expected, tvm_mod, True)
 

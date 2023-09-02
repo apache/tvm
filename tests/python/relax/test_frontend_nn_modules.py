@@ -32,6 +32,7 @@ def test_silu():
         x: R.Tensor((3, 3), dtype="float32"),
         _io: R.Object,
     ) -> R.Tuple(R.Tensor((3, 3), dtype="float32"), R.Tuple(R.Object)):
+        R.func_attr({"num_input": 2})
         with R.dataflow():
             silu: R.Tensor((3, 3), dtype="float32") = R.nn.silu(x)
             gv1: R.Tuple(R.Tensor((3, 3), dtype="float32"), R.Tuple(R.Object)) = silu, (_io,)
@@ -39,7 +40,7 @@ def test_silu():
         return gv1
 
     mod = modules.SiLU()
-    tvm_mod, _ = mod.export_tvm(spec={"forward": {"x": spec.Tensor((3, 3), "float32")}})
+    tvm_mod, _ = mod.export_tvm(spec={"forward": {"x": spec.Tensor((3, 3), "float32")}}, debug=True)
     assert_structural_equal(tvm_mod["forward"], forward, True)
 
 
@@ -49,13 +50,14 @@ def test_identity():
         x: R.Tensor((3, 3), dtype="float32"),
         _io: R.Object,
     ) -> R.Tuple(R.Tensor((3, 3), dtype="float32"), R.Tuple(R.Object)):
+        R.func_attr({"num_input": 2})
         with R.dataflow():
             gv1: R.Tuple(R.Tensor((3, 3), dtype="float32"), R.Tuple(R.Object)) = x, (_io,)
             R.output(gv1)
         return gv1
 
     mod = modules.Identity()
-    tvm_mod, _ = mod.export_tvm(spec={"forward": {"x": spec.Tensor((3, 3), "float32")}})
+    tvm_mod, _ = mod.export_tvm(spec={"forward": {"x": spec.Tensor((3, 3), "float32")}}, debug=True)
     assert_structural_equal(tvm_mod["forward"], forward, True)
 
 
@@ -63,10 +65,11 @@ def test_linear():
     @R.function
     def forward(
         x: R.Tensor((1, 4), dtype="float32"),
+        _io: R.Object,
         weight: R.Tensor((8, 4), dtype="float32"),
         bias: R.Tensor((8,), dtype="float32"),
-        _io: R.Object,
     ) -> R.Tuple(R.Tensor((1, 8), dtype="float32"), R.Tuple(R.Object)):
+        R.func_attr({"num_input": 2})
         with R.dataflow():
             permute_dims: R.Tensor((4, 8), dtype="float32") = R.permute_dims(weight, axes=None)
             matmul: R.Tensor((1, 8), dtype="float32") = R.matmul(x, permute_dims, out_dtype="void")
@@ -76,22 +79,37 @@ def test_linear():
         return gv1
 
     mod = modules.Linear(4, 8)
-    tvm_mod, _ = mod.export_tvm(spec={"forward": {"x": spec.Tensor((1, 4), "float32")}})
+    tvm_mod, _ = mod.export_tvm(spec={"forward": {"x": spec.Tensor((1, 4), "float32")}}, debug=True)
     assert_structural_equal(tvm_mod["forward"], forward, True)
 
 
 def test_conv1d():
-    # fmt: off
     @R.function
-    def forward(x: R.Tensor((1, 3, 32), dtype="float32"), weight: R.Tensor((32, 3, 3), dtype="float32"), bias: R.Tensor((32,), dtype="float32"), _io: R.Object) -> R.Tuple(R.Tensor((1, 32, 30), dtype="float32"), R.Tuple(R.Object)):
+    def forward(
+        x: R.Tensor((1, 3, 32), dtype="float32"),
+        _io: R.Object,
+        weight: R.Tensor((32, 3, 3), dtype="float32"),
+        bias: R.Tensor((32,), dtype="float32"),
+    ) -> R.Tuple(R.Tensor((1, 32, 30), dtype="float32"), R.Tuple(R.Object)):
+        R.func_attr({"num_input": 2})
         with R.dataflow():
-            lv1: R.Tensor((1, 32, 30), dtype="float32") = R.nn.conv1d(x, weight, strides=[1], padding=[0, 0], dilation=[1], groups=1, data_layout="NCW", kernel_layout="OIW", out_layout="NCW", out_dtype="void")
+            lv1: R.Tensor((1, 32, 30), dtype="float32") = R.nn.conv1d(
+                x,
+                weight,
+                strides=[1],
+                padding=[0, 0],
+                dilation=[1],
+                groups=1,
+                data_layout="NCW",
+                kernel_layout="OIW",
+                out_layout="NCW",
+                out_dtype="void",
+            )
             lv2: R.Tensor((1, 32, 1), dtype="float32") = R.reshape(bias, R.shape([1, 32, 1]))
             conv1d: R.Tensor((1, 32, 30), dtype="float32") = R.add(lv1, lv2)
             gv1: R.Tuple(R.Tensor((1, 32, 30), dtype="float32"), R.Tuple(R.Object)) = conv1d, (_io,)
             R.output(gv1)
         return gv1
-    # fmt: on
 
     mod = modules.Conv1D(3, 32, 3, bias=True)
     tvm_mod, _ = mod.export_tvm(
@@ -99,24 +117,35 @@ def test_conv1d():
             "forward": {
                 "x": spec.Tensor([1, 3, 32], "float32"),
             }
-        }
+        },
+        debug=True,
     )
     assert_structural_equal(tvm_mod["forward"], forward, True)
 
 
 def test_layer_norm():
-    # fmt: off
     @R.function
-    def forward(x: R.Tensor((2, 4, 8), dtype="float32"), weight: R.Tensor((8,), dtype="float32"), bias: R.Tensor((8,), dtype="float32"), _io: R.Object) -> R.Tuple(R.Tensor((2, 4, 8), dtype="float32"), R.Tuple(R.Object)):
+    def forward(
+        x: R.Tensor((2, 4, 8), dtype="float32"),
+        _io: R.Object,
+        weight: R.Tensor((8,), dtype="float32"),
+        bias: R.Tensor((8,), dtype="float32"),
+    ) -> R.Tuple(R.Tensor((2, 4, 8), dtype="float32"), R.Tuple(R.Object)):
+        R.func_attr({"num_input": 2})
         with R.dataflow():
-            layer_norm: R.Tensor((2, 4, 8), dtype="float32") = R.nn.layer_norm(x, weight, bias, axes=[-1], epsilon=1.0000000000000001e-05, center=True, scale=True)
-            gv1: R.Tuple(R.Tensor((2, 4, 8), dtype="float32"), R.Tuple(R.Object)) = layer_norm, (_io,)
+            layer_norm: R.Tensor((2, 4, 8), dtype="float32") = R.nn.layer_norm(
+                x, weight, bias, axes=[-1], epsilon=1.0000000000000001e-05, center=True, scale=True
+            )
+            gv1: R.Tuple(R.Tensor((2, 4, 8), dtype="float32"), R.Tuple(R.Object)) = layer_norm, (
+                _io,
+            )
             R.output(gv1)
         return gv1
-    # fmt: on
 
     mod = modules.LayerNorm(8)
-    tvm_mod, _ = mod.export_tvm(spec={"forward": {"x": spec.Tensor((2, 4, 8), "float32")}})
+    tvm_mod, _ = mod.export_tvm(
+        spec={"forward": {"x": spec.Tensor((2, 4, 8), "float32")}}, debug=True
+    )
     assert_structural_equal(tvm_mod["forward"], forward, True)
 
 
@@ -124,10 +153,11 @@ def test_conv2d():
     @R.function
     def forward(
         x: R.Tensor((1, 3, 32, 32), dtype="float32"),
+        _io: R.Object,
         weight: R.Tensor((32, 3, 3, 3), dtype="float32"),
         bias: R.Tensor((32,), dtype="float32"),
-        _io: R.Object,
     ) -> R.Tuple(R.Tensor((1, 32, 30, 30), dtype="float32"), R.Tuple(R.Object)):
+        R.func_attr({"num_input": 2})
         with R.dataflow():
             lv1: R.Tensor((1, 32, 30, 30), dtype="float32") = R.nn.conv2d(x, weight)
             lv2: R.Tensor((1, 32, 1, 1), dtype="float32") = R.reshape(bias, R.shape([1, 32, 1, 1]))
@@ -144,7 +174,8 @@ def test_conv2d():
             "forward": {
                 "x": spec.Tensor([1, 3, 32, 32], "float32"),
             }
-        }
+        },
+        debug=True,
     )
     assert_structural_equal(tvm_mod["forward"], forward, True)
 
@@ -153,9 +184,10 @@ def test_rms_norm():
     @R.function
     def forward(
         x: R.Tensor((2, 4, 8), dtype="float32"),
-        weight: R.Tensor((8,), dtype="float32"),
         _io: R.Object,
+        weight: R.Tensor((8,), dtype="float32"),
     ) -> R.Tuple(R.Tensor((2, 4, 8), dtype="float32"), R.Tuple(R.Object)):
+        R.func_attr({"num_input": 2})
         with R.dataflow():
             rms_norm: R.Tensor((2, 4, 8), dtype="float32") = R.nn.rms_norm(
                 x, weight, axes=[2], epsilon=1.0000000000000001e-05
@@ -165,7 +197,9 @@ def test_rms_norm():
         return gv1
 
     mod = modules.RMSNorm(8, [2], bias=False)
-    tvm_mod, _ = mod.export_tvm(spec={"forward": {"x": spec.Tensor((2, 4, 8), "float32")}})
+    tvm_mod, _ = mod.export_tvm(
+        spec={"forward": {"x": spec.Tensor((2, 4, 8), "float32")}}, debug=True
+    )
     assert_structural_equal(tvm_mod["forward"], forward, True)
 
 
@@ -173,10 +207,11 @@ def test_group_norm():
     @R.function
     def forward(
         x: R.Tensor((2, 4, 8), dtype="float32"),
+        _io: R.Object,
         weight: R.Tensor((4,), dtype="float32"),
         bias: R.Tensor((4,), dtype="float32"),
-        _io: R.Object,
     ) -> R.Tuple(R.Tensor((2, 4, 8), dtype="float32"), R.Tuple(R.Object)):
+        R.func_attr({"num_input": 2})
         with R.dataflow():
             group_norm: R.Tensor((2, 4, 8), dtype="float32") = R.nn.group_norm(
                 x, weight, bias, num_groups=2, channel_axis=1, axes=[2]
@@ -188,7 +223,9 @@ def test_group_norm():
         return gv1
 
     mod = modules.GroupNorm(num_groups=2, num_channels=4)
-    tvm_mod, _ = mod.export_tvm(spec={"forward": {"x": spec.Tensor((2, 4, 8), "float32")}})
+    tvm_mod, _ = mod.export_tvm(
+        spec={"forward": {"x": spec.Tensor((2, 4, 8), "float32")}}, debug=True
+    )
     assert_structural_equal(tvm_mod["forward"], forward, True)
 
 
@@ -196,9 +233,10 @@ def test_embedding():
     @R.function
     def forward(
         x: R.Tensor((1, 4), dtype="int32"),
-        weight: R.Tensor((4, 8), dtype="float32"),
         _io: R.Object,
+        weight: R.Tensor((4, 8), dtype="float32"),
     ) -> R.Tuple(R.Tensor((1, 4, 8), dtype="float32"), R.Tuple(R.Object)):
+        R.func_attr({"num_input": 2})
         with R.dataflow():
             reshape: R.Tensor((4,), dtype="int32") = R.reshape(x, R.shape([4]))
             take: R.Tensor((4, 8), dtype="float32") = R.take(weight, reshape, axis=0)
@@ -208,7 +246,7 @@ def test_embedding():
         return gv1
 
     mod = modules.Embedding(4, 8, "float32")
-    tvm_mod, _ = mod.export_tvm(spec={"forward": {"x": spec.Tensor((1, 4), "int32")}})
+    tvm_mod, _ = mod.export_tvm(spec={"forward": {"x": spec.Tensor((1, 4), "int32")}}, debug=True)
     assert_structural_equal(tvm_mod["forward"], forward, True)
 
 
@@ -217,13 +255,14 @@ def test_timestep_embedding():
     def forward(
         sample: R.Tensor((32, 32), dtype="float32"),
         condition: R.Tensor((32, 16), dtype="float32"),
+        _io: R.Object,
         linear_1_weight: R.Tensor((32, 32), dtype="float32"),
         linear_1_bias: R.Tensor((32,), dtype="float32"),
         cond_proj_weight: R.Tensor((32, 16), dtype="float32"),
         linear_2_weight: R.Tensor((32, 32), dtype="float32"),
         linear_2_bias: R.Tensor((32,), dtype="float32"),
-        _io: R.Object,
     ) -> R.Tuple(R.Tensor((32, 32), dtype="float32"), R.Tuple(R.Object)):
+        R.func_attr({"num_input": 3})
         with R.dataflow():
             permute_dims: R.Tensor((16, 32), dtype="float32") = R.permute_dims(
                 cond_proj_weight, axes=None
@@ -258,7 +297,8 @@ def test_timestep_embedding():
                 "sample": spec.Tensor((32, 32), "float32"),
                 "condition": spec.Tensor((32, 16), "float32"),
             }
-        }
+        },
+        debug=True,
     )
     assert_structural_equal(tvm_mod["forward"], forward, True)
 
@@ -268,6 +308,7 @@ def test_timesteps():
     def forward(
         x: R.Tensor((3,), dtype="float32"), _io: R.Object
     ) -> R.Tuple(R.Tensor((3, 10), dtype="float32"), R.Tuple(R.Object)):
+        R.func_attr({"num_input": 2})
         with R.dataflow():
             lv1: R.Tensor((3,), dtype="float32") = R.astype(x, dtype="float32")
             lv2: R.Tensor((3, 1), dtype="float32") = R.expand_dims(lv1, axis=[1])
@@ -293,7 +334,7 @@ def test_timesteps():
         return gv1
 
     mod = modules.Timesteps(10)
-    tvm_mod, _ = mod.export_tvm(spec={"forward": {"x": spec.Tensor((3,), "float32")}})
+    tvm_mod, _ = mod.export_tvm(spec={"forward": {"x": spec.Tensor((3,), "float32")}}, debug=True)
     assert_structural_equal(tvm_mod["forward"], forward, True)
 
 
@@ -323,6 +364,7 @@ def test_kv_cache():
         def forward(
             x: R.Tensor((2, 4), dtype="float32"), _io: R.Object, cache: R.Object
         ) -> R.Tuple(R.Tensor((4, 2, 4), dtype="float32"), R.Tuple(R.Object, R.Object)):
+            R.func_attr({"num_input": 3})
             with R.dataflow():
                 lv2: R.Object = R.call_packed(
                     "vm.builtin.attention_kv_cache_append", cache, x, sinfo_args=(R.Object,)
@@ -347,7 +389,9 @@ def test_kv_cache():
             self.cache.append(x)
             return self.cache.view(4)
 
-    tvm_mod, _ = KVCacheTest().export_tvm(spec={"forward": {"x": spec.Tensor((2, 4), "float32")}})
+    tvm_mod, _ = KVCacheTest().export_tvm(
+        spec={"forward": {"x": spec.Tensor((2, 4), "float32")}}, debug=True
+    )
     assert_structural_equal(tvm_mod, Module, True)
 
 
@@ -356,6 +400,7 @@ def test_attention():
     def forward(
         hidden_states: R.Tensor((2, 4096, 640), dtype="float32"),
         encoder_hidden_states: R.Tensor((2, 77, 2048), dtype="float32"),
+        _io: R.Object,
         to_q_weight: R.Tensor((640, 640), dtype="float32"),
         to_k_weight: R.Tensor((640, 2048), dtype="float32"),
         to_v_weight: R.Tensor((640, 2048), dtype="float32"),
@@ -363,8 +408,8 @@ def test_attention():
         group_norm_bias: R.Tensor((640,), dtype="float32"),
         to_out_0_weight: R.Tensor((640, 640), dtype="float32"),
         to_out_0_bias: R.Tensor((640,), dtype="float32"),
-        _io: R.Object,
     ) -> R.Tuple(R.Tensor((2, 4096, 640), dtype="float32"), R.Tuple(R.Object)):
+        R.func_attr({"num_input": 3})
         with R.dataflow():
             group_norm: R.Tensor((2, 4096, 640), dtype="float32") = R.nn.group_norm(
                 hidden_states,
@@ -428,7 +473,8 @@ def test_attention():
                 "hidden_states": spec.Tensor((2, 4096, 640), "float32"),
                 "encoder_hidden_states": spec.Tensor((2, 77, 2048), "float32"),
             }
-        }
+        },
+        debug=True,
     )
     assert_structural_equal(tvm_mod["forward"], forward, True)
 

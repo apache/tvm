@@ -360,12 +360,31 @@ class Module(SubroutineMixin):
     def export_tvm(
         self,
         spec: "_spec.ModuleSpecType",
+        debug: bool = False,
     ) -> Tuple[IRModule, List[Tuple[str, Parameter]]]:
-        """Export the module to TVM IRModule and parameters"""
+        """Export the module to TVM IRModule and parameters
+
+        Parameters
+        ----------
+        spec : _spec.ModuleSpecType
+            A dictionary mapping each input name to a specification
+            that defines the inputs shape and dtype.
+        debug : bool
+            If set to True, then the exported module will support
+            effects. This enables things like printing in the graph.
+
+        Returns
+        -------
+        irmodule : tvm.ir.IRModule
+            The converted tvm IR representation of the model.
+        params : Dict[str, tvm.nd.array]
+            A dictionary of parameters corresponding to the weights of
+            the model.
+        """
         from . import spec as _spec  # pylint: disable=import-outside-toplevel
 
         spec = _spec.ModuleSpec.from_raw(spec, self)
-        mod, params = _spec.SpecBuilder().build(spec)
+        mod, params = _spec.SpecBuilder().build(spec, debug=debug)
         return mod, params
 
     def jit(  # pylint: disable=too-many-arguments
@@ -375,6 +394,7 @@ class Module(SubroutineMixin):
         device: str = "cpu",
         pipeline: str = "zero",
         out_format: str = "torch",
+        debug: bool = False,
     ) -> Callable:
         """Just-in-time compilation of a nn.model to an executable"""
         from tvm import relax  # pylint: disable=import-outside-toplevel
@@ -383,7 +403,7 @@ class Module(SubroutineMixin):
 
         # Convert nn.Module to IRModule
         spec = _spec.ModuleSpec.from_raw(spec, self)
-        mod, params = _spec.SpecBuilder().build(spec)
+        mod, params = _spec.SpecBuilder().build(spec, debug=debug)
 
         # Convert parameters
         device = _str_to_device(device)
