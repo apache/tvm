@@ -438,19 +438,20 @@ def raise_last_ffi_error():
     # up to the next FFI handoff.  To have the stacktrace also
     # include the C++ side, we need to adjust the __traceback__
     # before re-throwing.
-    backtrace = py_str(_LIB.TVMGetLastBacktrace())
-    frames = re.split(r"\n\W+\d+:\W+", backtrace)
-    frames = frames[1:]  # Skip "Stack trace: "
+    backtrace = _LIB.TVMGetLastBacktrace()
+    if backtrace:
+        frames = re.split(r"\n\W+\d+:\W+", py_str(backtrace))
+        frames = frames[1:]  # Skip "Stack trace: "
 
-    for frame in frames:
-        if " at " in frame:
-            func_name, frame = frame.split(" at ", 1)
-            filename, lineno = frame.rsplit(":", 1)
-            func_name = func_name.strip()
-            filename = filename.strip()
-            lineno = int(lineno.strip())
+        for frame in frames:
+            if " at " in frame:
+                func_name, frame = frame.split(" at ", 1)
+                filename, lineno = frame.rsplit(":", 1)
+                func_name = func_name.strip()
+                filename = filename.strip()
+                lineno = int(lineno.strip())
 
-            tb = _append_traceback_frame(tb, func_name, filename, lineno)
+                tb = _append_traceback_frame(tb, func_name, filename, lineno)
 
     # Remove stack frames that provide little benefit to
     # debugging.  These are only removed from the stack frames
