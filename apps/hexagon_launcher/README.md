@@ -186,7 +186,7 @@ lowered = tvm.relay.build(
     executor=Executor("aot", {"unpacked-api": False, "interface-api": "packed"}),
 )
 
-lowered.export_library("model-aot.so", tvm.contrib.hexagon.link_shared)
+lowered.export_library("model-aot.so", fcompile=tvm.contrib.hexagon.link_shared)
 ```
 
 

@@ -64,7 +64,7 @@ def test_rpc_module():
     s[B].pragma(xi, "parallel_barrier_when_finish")
     f = tvm.build(s, [A, B], target, name="myadd_cpu")
     path_dso_cpu = temp.relpath("cpu_lib.so")
-    f.export_library(path_dso_cpu, ndk.create_shared)
+    f.export_library(path_dso_cpu, fcompile=ndk.create_shared)
 
     # Execute the portable graph on cpu target
     print("Run CPU test ...")
@@ -88,7 +88,7 @@ def test_rpc_module():
         # If we don't want to do metal and only use cpu, just set target to be target
         f = tvm.build(s, [A, B], tvm.target.Target("opencl", host=target), name="myadd")
         path_dso_cl = temp.relpath("dev_lib_cl.so")
-        f.export_library(path_dso_cl, ndk.create_shared)
+        f.export_library(path_dso_cl, fcompile=ndk.create_shared)
 
         print("Run GPU(OpenCL Flavor) test ...")
         dev = remote.cl(0)
@@ -111,7 +111,7 @@ def test_rpc_module():
         # If we don't want to do metal and only use cpu, just set target to be target
         f = tvm.build(s, [A, B], tvm.target.Target("vulkan", host=target), name="myadd")
         path_dso_vulkan = temp.relpath("dev_lib_vulkan.so")
-        f.export_library(path_dso_vulkan, ndk.create_shared)
+        f.export_library(path_dso_vulkan, fcompile=ndk.create_shared)
 
         print("Run GPU(Vulkan Flavor) test ...")
         dev = remote.vulkan(0)

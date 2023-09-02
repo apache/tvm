@@ -98,7 +98,7 @@ def test_mobilenet(host, port, key, mode):
                 mod, target=tvm.target.Target(target, host=target_host), params=params
             )
         path_dso = temp.relpath("deploy.dylib")
-        lib.export_library(path_dso, xcode.create_dylib, arch=arch, sdk=sdk)
+        lib.export_library(path_dso, fcompile=xcode.create_dylib, arch=arch, sdk=sdk)
 
         # connect to the proxy
         if mode == "tracker":

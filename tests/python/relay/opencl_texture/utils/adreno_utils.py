@@ -103,7 +103,7 @@ def build_run_compare(
         dso_binary = "dev_lib_cl.so"
         dso_binary_path = temp.relpath(dso_binary)
         ctx = remote.cl(0)
-        lib.export_library(dso_binary_path, ndk.create_shared)
+        lib.export_library(dso_binary_path, fcompile=ndk.create_shared)
         remote.upload(dso_binary_path)
         rlib = remote.load_module(dso_binary)
         m = graph_runtime.create(graph, rlib, ctx)
@@ -183,7 +183,7 @@ def build_run_compare_vm(
         dso_binary = "dev_lib_cl.so"
         dso_binary_path = temp.relpath(dso_binary)
         dev = remote.cl(0)
-        vmc.mod.export_library(dso_binary_path, ndk.create_shared)
+        vmc.mod.export_library(dso_binary_path, fcompile=ndk.create_shared)
         remote.upload(dso_binary_path)
         rlib = remote.load_module(dso_binary)
         vm = VirtualMachine(rlib, dev, "naive")
