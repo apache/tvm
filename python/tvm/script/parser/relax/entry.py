@@ -22,6 +22,7 @@ from typing import Dict, List, Optional, Set, TypeVar, Union
 
 from tvm.relax import (
     Expr,
+    SeqExpr,
     ShapeExpr,
     FuncStructInfo,
     Function,
@@ -36,8 +37,11 @@ from tvm.relax.expr import Var
 from tvm.runtime import ObjectGeneric
 from tvm.tir import PrimExpr
 
-from .._core import parse, utils
+from .._core import doc, parse, utils
+from ..core.entry import scan_macro
+from ..core.parser import Parser, ScriptMacro
 from ..ir import lookup_vdevice
+from ...ir_builder import relax as R
 
 FType = TypeVar("FType", bound=_Callable)
 
@@ -74,6 +78,65 @@ def function(
 
 
 setattr(function, "dispatch_token", "relax")
+
+
+############################## R.macro ##############################
+
+
+class RelaxMacro(ScriptMacro):
+    """Specialization of the ScriptMacro class for Relax."""
+
+    def parse_macro(self, parser: Parser) -> Expr:
+        macro_def = self.get_macro_def()
+        ret_value = None
+
+        with R.SeqExpr() as seq:
+            for idx, stmt in enumerate(macro_def.body):
+                # Normally, a "return" statement is only allowed in a R.function. We don't
+                # want to parse the macro's body as if it was a body of a function, because
+                # the latter imposes some constraints that we want to avoid.
+                # At the same time, we want to use "return" to indicate the value of the
+                # macro (since in Relax everything is an expression), so add special handling
+                # of "return".
+                if isinstance(stmt, doc.Return):
+                    ret_value = parser.eval_expr(stmt.value)
+                    if idx + 1 != len(macro_def.body):
+                        parser.report_error(macro_def, "'return' should be the last statement")
+                    break
+                parser.visit(stmt)
+
+        if ret_value is None:
+            parser.report_error(macro_def, "Macros must end with a return statement")
+
+        return SeqExpr(seq.binding_blocks, ret_value)
+
+
+def macro(*args, hygienic: bool = True) -> _Callable:
+    """Decorator for macro definitions.
+
+    Parameters
+    ----------
+    hygienic: bool
+        Specifies whether the macro is hygienic or not.
+        A macro is hygienic if all symbols used in the macro's body are resolved
+        to values from the location of the macro definition. A non-hygienic macro
+        will have its symbols resolved to values at the time of the macro's use.
+    """
+
+    def _decorator(func: _Callable) -> ScriptMacro:
+        source, closure_vars = scan_macro(func, utils.inspect_function_capture(func))
+        obj = RelaxMacro(source, closure_vars, func, hygienic)
+        obj.__name__ = func.__name__
+        return obj
+
+    if len(args) == 0:
+        return _decorator
+    if len(args) == 1 and inspect.isfunction(args[0]):
+        return _decorator(args[0])
+
+    raise ValueError(
+        "Invalid use of R.macro. Usage: @R.macro, @R.macro(), @R.macro(hygienic=[True|False])"
+    )
 
 
 ############################# Struct Info ##############################

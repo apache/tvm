@@ -221,6 +221,15 @@ TVM_REGISTER_GLOBAL("script.ir_builder.relax.Emit").set_body_typed(Emit);
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.EmitMatchCast").set_body_typed(EmitMatchCast);
 TVM_REGISTER_GLOBAL("script.ir_builder.relax.EmitVarBinding").set_body_typed(EmitVarBinding);
 
+/////////////////////////////// SeqExpr ///////////////////////////////
+
+SeqExprFrame SeqExpr() {
+  ObjectPtr<SeqExprFrameNode> n = make_object<SeqExprFrameNode>();
+  return SeqExprFrame(n);
+}
+
+TVM_REGISTER_GLOBAL("script.ir_builder.relax.SeqExpr").set_body_typed(SeqExpr);
+
 ///////////////////////////// If Then Else /////////////////////////////
 
 IfFrame If(tvm::relax::Expr condition) {

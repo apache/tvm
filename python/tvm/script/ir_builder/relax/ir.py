@@ -441,6 +441,19 @@ def emit_var_binding(value: VarBinding) -> Var:
     return _ffi_api.EmitVarBinding(value)  # type: ignore
 
 
+############################### SeqExpr ###############################
+
+
+def SeqExpr() -> frame.SeqExprFrame:  # pylint: disable=invalid-name
+    """Create a SeqExpr frame.
+    Returns
+    -------
+    res : frame.SeqExprFrame
+        The result SeqExprFrame
+    """
+    return _ffi_api.SeqExpr()  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
 ############################# If Then Else #############################
 
 
@@ -566,6 +579,7 @@ def dtype(value: Union[py_str, DataType]) -> Expr:
 __all__ = [
     "Else",
     "If",
+    "SeqExpr",
     "Then",
     "TupleGetItem",
     "abs",
