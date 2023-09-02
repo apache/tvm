@@ -16,7 +16,11 @@
 # under the License.
 """Test runtime error handling"""
 
+import functools
+import subprocess
 import traceback
+
+import pytest
 
 import tvm
 import tvm.testing
@@ -90,6 +94,14 @@ def test_deep_callback():
     assert local_frames == ["test_deep_callback", "flevel3", "flevel2", "error_callback"]
 
 
+@functools.lru_cache()
+def _has_debug_symbols():
+    lib = tvm._ffi.base._LIB
+    headers = subprocess.check_output(["objdump", "--section-headers", lib._name], encoding="utf-8")
+    return ".debug" in headers
+
+
+@pytest.mark.skipif(not _has_debug_symbols(), reason="C++ stack frames require debug symbols")
 def test_cpp_frames_in_stack_trace_from_python_error():
     """A python exception crossing C++ boundaries should have C++ stack frames"""
 
@@ -113,6 +125,7 @@ def test_cpp_frames_in_stack_trace_from_python_error():
     )
 
 
+@pytest.mark.skipif(not _has_debug_symbols(), reason="C++ stack frames require debug symbols")
 def test_stack_trace_from_cpp_error():
     """A python exception originating in C++ should have C++ stack frames"""
     try:
