@@ -139,7 +139,7 @@ class Session(Object):
         if device is None:
             device = Device(device_type=0, device_id=0)
         func = self._get_cached_method("runtime.disco.empty")
-        return func(*shape, dtype, device)
+        return func(ShapeTuple(shape), dtype, device)
 
     def get_global_func(self, name: str) -> DRef:
         """Get a global function on workers.
@@ -264,7 +264,7 @@ class Session(Object):
             The arguments to be passed to the initialization function of the communication
         """
         assert api in ("nccl", "rccl"), f"Unsupported CCL backend: {api}"
-        func = self.get_global_func(f"runtime.disco.{api}.init")
+        func = self.get_global_func(f"runtime.disco.{api}.init_ccl")
         func(*args)
 
     def broadcast_from_worker0(self, array: DRef) -> DRef:
@@ -277,6 +277,19 @@ class Session(Object):
         """
         func = self._get_cached_method("runtime.disco.broadcast_from_worker0")
         return func(array)
+
+    def scatter_from_worker0(self, from_array: DRef, to_array: DRef) -> None:
+        """Scatter an array from worker-0 to all other workers.
+
+        Parameters
+        ----------
+        from_array : DRef
+            The array to be scattered from.
+        to_array : DRef
+            The array to be scattered to.
+        """
+        func = self._get_cached_method("runtime.disco.scatter_from_worker0")
+        func(from_array, to_array)
 
     def allreduce(
         self,
