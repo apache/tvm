@@ -22,7 +22,6 @@
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/registry.h>
 
-#include <filesystem>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -63,7 +62,7 @@ struct NDArrayCacheMetadata {
     };
 
     /*! \brief Relative path to the bin file */
-    std::filesystem::path data_path;
+    std::string data_path;
     /*! \brief Format of the file */
     std::string format;
     /*! \brief Size of the file */
@@ -73,9 +72,11 @@ struct NDArrayCacheMetadata {
   };
   /*! \brief The files in the NDArray cache */
   std::vector<FileRecord> records;
+  /*! \brief The path to the `ndarray-cache.json` file */
+  std::string path;
 
   /*! \brief Load the metadata from a specific path */
-  static NDArrayCacheMetadata LoadFromFile(const std::filesystem::path& path);
+  static NDArrayCacheMetadata LoadFromStr(const std::string& json_str, const std::string& path);
 };
 
 /*!
@@ -83,7 +84,7 @@ struct NDArrayCacheMetadata {
  * \param path Path to the file to be loaded
  * \return Mapping from parameter name to its shard dim
  */
-std::unordered_map<std::string, int> LoadShardInfoFromFile(const std::filesystem::path& path);
+std::unordered_map<std::string, int> LoadShardInfoFromStr(const std::string& json_str);
 
 }  // namespace relax_vm
 }  // namespace runtime
