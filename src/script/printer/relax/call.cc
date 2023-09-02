@@ -196,7 +196,7 @@ Optional<ExprDoc> PrintHintOnDevice(const relax::Call& n, const ObjectPath& n_p,
   Array<String> kwargs_keys;
   Array<ExprDoc> kwargs_values;
   ICHECK(n->attrs.defined());
-  if (const auto* attrs = n->attrs.as<relax::HintOnDeviceAttrs>()) {
+  if (n->attrs.as<relax::HintOnDeviceAttrs>()) {
     AttrPrinter printer(n_p->Attr("attrs"), d, &kwargs_keys, &kwargs_values);
     const_cast<BaseAttrsNode*>(n->attrs.get())->VisitAttrs(&printer);
     args.push_back(Relax(d, "device")->Call({}, kwargs_keys, kwargs_values));
