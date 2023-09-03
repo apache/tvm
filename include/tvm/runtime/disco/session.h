@@ -185,13 +185,13 @@ class SessionObj : public Object {
   /*! \brief Get a global functions on workers. */
   virtual DRef GetGlobalFunc(const std::string& name) = 0;
   /*!
-   * \brief Copy the controler-side NDArray to worker-0
+   * \brief Copy an NDArray from worker-0 to the controler-side NDArray
    * \param host_array The array to be copied to worker-0
    * \param remote_array The NDArray on worker-0
    */
   virtual void CopyFromWorker0(const NDArray& host_array, const DRef& remote_array) = 0;
   /*!
-   * \brief Copy an NDArray from worker-0 to the controler-side NDArray
+   * \brief Copy the controler-side NDArray to worker-0
    * \param host_array The array to be copied to worker-0
    * \param remote_array The NDArray on worker-0
    */
