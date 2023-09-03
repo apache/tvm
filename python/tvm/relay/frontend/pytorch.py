@@ -4291,8 +4291,10 @@ class PyTorchOpConverter:
 
             self.current_op.pop()
 
+
         # TODO(@haoyang9804): outputs[ret_name] could be None and cause some issue 
         # revealed by https://github.com/apache/tvm/issues/15004
+
         # Now only adaptive_max_pool1d is considered. Maybe other ops could also 
         # trigger this problem.
         return [
