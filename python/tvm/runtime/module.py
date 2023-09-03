@@ -438,7 +438,9 @@ class Module(object):
     def _collect_dso_modules(self):
         return self._collect_from_import_tree(lambda m: m.is_dso_exportable)
 
-    def export_library(self, file_name, fcompile=None, addons=None, workspace_dir=None, **kwargs):
+    def export_library(
+        self, file_name, *, fcompile=None, addons=None, workspace_dir=None, **kwargs
+    ):
         """
         Export the module and all imported modules into a single device library.
 

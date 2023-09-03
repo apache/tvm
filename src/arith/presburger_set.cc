@@ -126,38 +126,54 @@ PrimExpr PresburgerSetNode::GenerateConstraint() const {
   for (const IntegerRelation& disjunct : disjuncts) {
     PrimExpr union_entry = Bool(1);
     for (unsigned i = 0, e = disjunct.getNumEqualities(); i < e; ++i) {
-      PrimExpr linear_eq = IntImm(DataType::Int(32), 0);
+      PrimExpr linear_eq = IntImm(DataType::Int(64), 0);
       if (disjunct.getNumCols() > 1) {
         for (unsigned j = 0, f = disjunct.getNumCols() - 1; j < f; ++j) {
+#if TVM_MLIR_VERSION >= 160
+          auto coeff = int64_t(disjunct.atEq(i, j));
+#else
           auto coeff = disjunct.atEq(i, j);
+#endif
           if (coeff >= 0 || is_zero(linear_eq)) {
-            linear_eq = linear_eq + IntImm(DataType::Int(32), coeff) * vars[j];
+            linear_eq = linear_eq + IntImm(DataType::Int(64), coeff) * vars[j];
           } else {
-            linear_eq = linear_eq - IntImm(DataType::Int(32), -coeff) * vars[j];
+            linear_eq = linear_eq - IntImm(DataType::Int(64), -coeff) * vars[j];
           }
         }
       }
+#if TVM_MLIR_VERSION >= 160
+      auto c0 = int64_t(disjunct.atEq(i, disjunct.getNumCols() - 1));
+#else
       auto c0 = disjunct.atEq(i, disjunct.getNumCols() - 1);
-      linear_eq = linear_eq + IntImm(DataType::Int(32), c0);
+#endif
+      linear_eq = linear_eq + IntImm(DataType::Int(64), c0);
       union_entry = (union_entry && (linear_eq == 0));
     }
     for (unsigned i = 0, e = disjunct.getNumInequalities(); i < e; ++i) {
-      PrimExpr linear_eq = IntImm(DataType::Int(32), 0);
+      PrimExpr linear_eq = IntImm(DataType::Int(64), 0);
       if (disjunct.getNumCols() > 1) {
         for (unsigned j = 0, f = disjunct.getNumCols() - 1; j < f; ++j) {
+#if TVM_MLIR_VERSION >= 160
+          auto coeff = int64_t(disjunct.atIneq(i, j));
+#else
           auto coeff = disjunct.atIneq(i, j);
+#endif
           if (coeff >= 0 || is_zero(linear_eq)) {
-            linear_eq = linear_eq + IntImm(DataType::Int(32), coeff) * vars[j];
+            linear_eq = linear_eq + IntImm(DataType::Int(64), coeff) * vars[j];
           } else {
-            linear_eq = linear_eq - IntImm(DataType::Int(32), -coeff) * vars[j];
+            linear_eq = linear_eq - IntImm(DataType::Int(64), -coeff) * vars[j];
           }
         }
       }
+#if TVM_MLIR_VERSION >= 160
+      auto c0 = int64_t(disjunct.atIneq(i, disjunct.getNumCols() - 1));
+#else
       auto c0 = disjunct.atIneq(i, disjunct.getNumCols() - 1);
+#endif
       if (c0 >= 0) {
-        linear_eq = linear_eq + IntImm(DataType::Int(32), c0);
+        linear_eq = linear_eq + IntImm(DataType::Int(64), c0);
       } else {
-        linear_eq = linear_eq - IntImm(DataType::Int(32), -c0);
+        linear_eq = linear_eq - IntImm(DataType::Int(64), -c0);
       }
       union_entry = (union_entry && (linear_eq >= 0));
     }
@@ -199,10 +215,19 @@ PresburgerSet Intersect(const Array<PresburgerSet>& sets) {
 
 IntSet EvalSet(const PrimExpr& e, const PresburgerSet& set) {
   Array<PrimExpr> tvm_coeffs = DetectLinearEquation(e, set->GetVars());
+#if TVM_MLIR_VERSION >= 160
+  SmallVector<mlir::presburger::MPInt> coeffs;
+#else
   SmallVector<int64_t> coeffs;
+#endif
+
   coeffs.reserve(tvm_coeffs.size());
   for (const PrimExpr& it : tvm_coeffs) {
+#if TVM_MLIR_VERSION >= 160
+    coeffs.push_back(mlir::presburger::MPInt(*as_const_int(it)));
+#else
     coeffs.push_back(*as_const_int(it));
+#endif
   }
 
   IntSet result = IntSet().Nothing();
@@ -211,9 +236,17 @@ IntSet EvalSet(const PrimExpr& e, const PresburgerSet& set) {
     auto range = simplex.computeIntegerBounds(coeffs);
     auto maxRoundedDown(simplex.computeOptimum(Simplex::Direction::Up, coeffs));
     auto opt = range.first.getOptimumIfBounded();
+#if TVM_MLIR_VERSION >= 160
+    auto min = opt.has_value() ? IntImm(DataType::Int(64), int64_t(opt.value())) : neg_inf();
+#else
     auto min = opt.hasValue() ? IntImm(DataType::Int(64), opt.getValue()) : neg_inf();
+#endif
     opt = range.second.getOptimumIfBounded();
+#if TVM_MLIR_VERSION >= 160
+    auto max = opt.has_value() ? IntImm(DataType::Int(64), int64_t(opt.value())) : pos_inf();
+#else
     auto max = opt.hasValue() ? IntImm(DataType::Int(64), opt.getValue()) : pos_inf();
+#endif
     auto interval = IntervalSet(min, max);
     result = Union({result, interval});
   }
