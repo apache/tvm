@@ -20,6 +20,7 @@ import math
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
+
 from tvm import tir as _tir
 
 from ... import expr as rx
@@ -32,7 +33,7 @@ from .spec import SpecBuilder
 IntExpr = Union[int, _tir.PrimExpr]
 
 
-def _wrap_nested(expr: rx.Expr, name: str) -> Union[Tensor, Tuple[Tensor]]:
+def _wrap_nested(expr: rx.Expr, name: str) -> Union[Tensor, Tuple[Tensor, ...]]:
     """Wrap the given relax.Expr, emit it using the current BlockBuilder,
     and automatically handle nested cases if the expr represents a Tuple.
 
@@ -1042,6 +1043,33 @@ def zeros(
         The result tensor.
     """
     return _wrap_nested(_op.zeros(shape, dtype), name)
+
+
+def split(
+    ary: Tensor,
+    indices_or_sections: Union[int, Sequence[int]],
+    axis: int = 0,
+    name: str = "split",
+) -> Tuple[Tensor, ...]:
+    """Split an array into multiple sub-arrays.
+
+    Parameters
+    ----------
+    ary : Tensor
+        Input tensor to be split.
+    indices_or_sections : Union[int, Sequence[int]]
+        Indices or sections to split into.
+    axis : int = 0
+        The axis along which to split, default is 0.
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tuple[Tensor, ...]
+        A list of sub-arrays as the outcome of splitting.
+    """
+    return _wrap_nested(_op.split(ary._expr, indices_or_sections, axis), name)
 
 
 def pad(

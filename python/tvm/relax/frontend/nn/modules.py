@@ -18,13 +18,15 @@
 """Builtin Modules."""
 from typing import List, Optional, Sequence, Union
 
+import numpy as np
+
 from tvm import relax as rx
 from tvm import tir
 from tvm._ffi import register_func
 from tvm.runtime import NDArray
 
 from . import op
-from .core import Effect, Module, Parameter, Tensor, get_default_dtype, ModuleList
+from .core import Effect, Module, ModuleList, Parameter, Tensor, get_default_dtype
 
 
 class IOEffect(Effect):
@@ -141,6 +143,56 @@ class Linear(Module):
         if self.bias is not None:
             x = x + self.bias
         return x
+
+
+class MultiLinear(Module):
+    """A layer that applies multiple linear transformations to the input."""
+
+    def __init__(
+        self,
+        in_features: int,
+        out_features: Sequence[int],
+        bias: bool = True,
+        dtype: Optional[str] = None,
+        out_dtype: Optional[str] = None,
+    ):
+        assert len(out_features) > 0
+        total_out_features = sum(out_features)
+
+        super().__init__()
+        self.in_features = in_features
+        self.out_features = out_features
+        self.out_dtype = out_dtype
+        self.weight = Parameter((total_out_features, in_features), dtype)
+        if bias:
+            self.bias = Parameter((total_out_features,), dtype)
+        else:
+            self.bias = None
+
+    def forward(self, x: Tensor) -> Tensor:
+        """
+        Forward method for linear layer.
+
+        Parameters
+        ----------
+        x : Tensor
+            The input tensor.
+
+        Returns
+        -------
+        ret : Tensor
+            The output tensor for the linear layer.
+        """
+        sections = list(np.cumsum(self.out_features)[:-1])
+        # x: [*B, in_features]
+        # w: [in_features, out_features]
+        w = op.permute_dims(self.weight)
+        # x: [*B, out_features]
+        x = op.matmul(x, w, out_dtype=self.out_dtype)
+        if self.bias is not None:
+            x = x + self.bias
+        results = op.split(x, sections, axis=-1)
+        return results
 
 
 class Conv1D(Module):
