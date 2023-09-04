@@ -3440,6 +3440,16 @@ def test_forward_full():
 
 
 @tvm.testing.uses_gpu
+def test_forward_adaptive_max_pool1d():
+    """test_forward_adaptive_max_pool1d"""
+    torch.set_grad_enabled(False)
+    input_data = [torch.randn([2, 2, 4], dtype=torch.float32)]
+    m = torch.nn.AdaptiveMaxPool1d(3)
+
+    verify_model(m.float().eval(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
 def test_forward_full_like():
     """test_forward_full_like"""
     torch.set_grad_enabled(False)
