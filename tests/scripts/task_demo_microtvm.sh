@@ -20,6 +20,12 @@ set -euxo pipefail
 
 source tests/scripts/setup-pytest-env.sh
 
+cleanup()
+{
+    rm -f out.log
+}
+trap cleanup 0
+
 pushd apps/microtvm/cmsisnn
  timeout 5m ./run_demo.sh
 popd
@@ -34,6 +40,18 @@ FVP_PATH="/opt/arm/FVP_Corstone_SSE-300_Ethos-U55"
 CMAKE_PATH="/opt/arm/cmake/bin/cmake"
 FREERTOS_PATH="/opt/freertos/FreeRTOSv202112.00"
 
- timeout 5m ./run_demo.sh --fvp_path $FVP_PATH --cmake_path $CMAKE_PATH
- timeout 5m ./run_demo.sh --fvp_path $FVP_PATH --cmake_path $CMAKE_PATH --freertos_path $FREERTOS_PATH
+timeout 5m ./run_demo.sh --fvp_path $FVP_PATH --cmake_path $CMAKE_PATH > out.log
+cat out.log
+if ! grep -q "The image has been classified as 'tabby'" out.log; then
+    echo "The demo returned the wrong result"
+    exit 1
+fi
+
+timeout 5m ./run_demo.sh --fvp_path $FVP_PATH --cmake_path $CMAKE_PATH --freertos_path $FREERTOS_PATH > out.log
+cat out.log
+if ! grep -q "The image has been classified as 'tabby'" out.log; then
+    echo "The demo returned the wrong result"
+    exit 1
+fi
+
 popd
