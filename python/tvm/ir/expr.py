@@ -177,3 +177,9 @@ class Range(Node, Scriptable):
             The constructed range.
         """
         return _ffi_api.Range_from_min_extent(min_value, extent, span)
+
+    def __eq__(self, other):
+        return tvm.ir.structural_equal(self, other)
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
