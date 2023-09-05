@@ -269,6 +269,20 @@ TVM_DLL StructInfo StructInfoLCA(const StructInfo& lhs, const StructInfo& rhs,
 TVM_DLL Array<tir::Var> TIRVarsInStructInfo(const StructInfo& sinfo);
 
 /*!
+ * \brief Get the TIR variables that appear in the input struct info.
+ *
+ * Returns all symbolic variables that are definable based on, and
+ * used within, the StructInfo.
+ *
+ * \param sinfo The struct info object to be analyzed.
+ *
+ * \return A tuple of (definable,used) TIR variables.  Both lists are
+ *   deduplicated, each TIR variable will appear at most once, and in
+ *   order of occurrence.
+ */
+TVM_DLL Array<tir::Var> DefinableTIRVarsInStructInfo(const StructInfo& sinfo);
+
+/*!
  * \brief Get the TIR variables that defined in the input function.
  * The returned list is deduplicated - each TIR variable will appear at most once.
  * \param func The function object to be analyzed.
