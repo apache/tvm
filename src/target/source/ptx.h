@@ -109,30 +109,66 @@ std::string PrintPredicatedCpAsyncAssembly(const std::string& shared_ptr,
                                            const std::string& predicate_value);
 
 /*!
- * \brief Print ptx async copy barrier using cp.async.mbarrier.arrive
- * \param barrier: The barrier in shared memory in the form barrier_array[barrier_index]
+ * \brief Print ptx async copy from global to shared memory using cp.async.bulk
+ * \param shared_ptr: The pointer to the destination shared memory.
+ * \param shared_elem_offset: The offset into the shared memory.
+ * \param global_ptr: The pointer to the global memory.
+ * \param global_elem_offset: The offset into the global memory.
+ * \param bytes: The number of bytes to copy.
+ * \param barrier_ptr: The pointer to the barrier in shared memory.
+ * \param barrier_elem_offset: The offset to the barrier in shared memory.
  */
-std::string PrintCpAsyncBarrierAsm(const std::string& barrier);
+std::string PrintCpAsyncBulkAsm(const std::string& shared_ptr,
+                                const std::string& shared_elem_offset,
+                                const std::string& global_ptr,
+                                const std::string& global_elem_offset, const std::string& bytes,
+                                const std::string& barrier_ptr,
+                                const std::string& barrier_elem_offset);
+
+/*!
+ * \brief Print ptx async copy barrier using cp.async.mbarrier.arrive
+ * \param barrier_ptr: The pointer to the barrier in shared memory.
+ * \param barrier_elem_offset: The offset to the barrier in shared memory.
+ */
+std::string PrintCpAsyncBarrierAsm(const std::string& barrier_ptr,
+                                   const std::string& barrier_elem_offset);
 
 /*!
  * \brief Print ptx barrier initialization of thread count using mbarrier.init
- * \param barrier: The barrier in shared memory in the form barrier_array[barrier_index]
- * \param thread_count: The number of threads expected to arrive at the barrier
+ * \param barrier_ptr: The pointer to the barrier in shared memory.
+ * \param barrier_elem_offset: The offset to the barrier in shared memory.
+ * \param thread_count: The number of threads expected to arrive at the barrier.
  */
-std::string PrintInitBarrierThreadCountAsm(const std::string& barrier,
+std::string PrintInitBarrierThreadCountAsm(const std::string& barrier_ptr,
+                                           const std::string& barrier_elem_offset,
                                            const std::string& thread_count);
 
 /*!
  * \brief Print ptx barrier arrival using mbarrier.arrive
- * \param barrier: The barrier in shared memory in the form barrier_array[barrier_index]
+ * \param barrier_ptr: The pointer to the barrier in shared memory.
+ * \param barrier_elem_offset: The offset to the barrier in shared memory.
  */
-std::string PrintArriveBarrierAsm(const std::string& barrier);
+std::string PrintArriveBarrierAsm(const std::string& barrier_ptr,
+                                  const std::string& barrier_elem_offset);
+
+/*!
+ * \brief Print ptx barrier arrival with expect tx operation using mbarrier.arrive.expect_tx
+ * \param barrier_ptr: The pointer to the barrier in shared memory.
+ * \param barrier_elem_offset: The offset to the barrier in shared memory.
+ * \param byte_count: Increases the the tx count of the mbarrier object to track completion of
+ * addtional async transactions.
+ */
+std::string PrintArriveBarrierExpectTxAsm(const std::string& barrier_ptr,
+                                          const std::string& barrier_elem_offset,
+                                          const std::string& byte_count);
 
 /*!
  * \brief Print ptx barrier wait using mbarrier.try_wait
- * \param barrier: The barrier in shared memory in the form barrier_array[barrier_index]
+ * \param barrier_ptr: The pointer to the barrier in shared memory.
+ * \param barrier_elem_offset: The offset to the barrier in shared memory.
  */
-std::string PrintWaitBarrierAsm(const std::string& barrier);
+std::string PrintWaitBarrierAsm(const std::string& barrier_ptr,
+                                const std::string& barrier_elem_offset);
 
 }  // namespace codegen
 }  // namespace tvm
