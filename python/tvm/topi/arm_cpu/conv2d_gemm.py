@@ -328,12 +328,7 @@ def schedule_conv2d_gemm_interleaved(cfg, s, out, final_out):
 
     b, m, n = data_im2col.op.axis
     if data_im2col.op.name == "data_im2col":
-        n_size = data_im2col.shape[2]
-        if n_size % 16 == 0:
-            split_factor = 16
-        else:
-            split_factor = 8
-        n_outer, n_inner = s[data_im2col].split(n, split_factor)
+        n_outer, n_inner = s[data_im2col].split(n, 16)
         s[data_im2col].unroll(n_outer)
         s[data_im2col].vectorize(n_inner)
         b_m_fused = s[data_im2col].fuse(b, m)
@@ -418,7 +413,8 @@ def schedule_conv2d_gemm_native(cfg, s, out, final_out):
     b, x, y = C.op.axis
     (k,) = C.op.reduce_axis
     k_outer, k_inner = s[C].split(k, 16)
-    x_outer, y_outer, x_inner, y_inner = s[C].tile(x, y, x_factor=4, y_factor=16)
+    y_tile_size = 16
+    x_outer, y_outer, x_inner, y_inner = s[C].tile(x, y, x_factor=4, y_factor=y_tile_size)
     s[C].reorder(b, x_outer, y_outer, k_outer, x_inner, y_inner, k_inner)
     gemm_acc = gemm_acc_nx16_int8_int8_int32(in_type, rows=1)
     s[C].unroll(x_inner)
@@ -435,12 +431,15 @@ def schedule_conv2d_gemm_native(cfg, s, out, final_out):
 
     b, m, n = data_im2col.op.axis
     if data_im2col.op.name == "data_im2col":
+        # Either only pad_K or both pad_K and pad_M applied
         if A.op.name == "A_padded_K":
             s[data_im2col].compute_at(s[A], A.op.axis[1])
             s[A].parallel(A.op.axis[1])
+        # Only pad_M applied
         elif A.op.name == "A_padded_M":
             s[data_im2col].parallel(m)
             s[A].parallel(A.op.axis[1])
+        # No padding
         else:
             s[data_im2col].parallel(m)
 
@@ -456,7 +455,7 @@ def schedule_conv2d_gemm_native(cfg, s, out, final_out):
         s[data_im2col].vectorize(n_inner)
     elif padding_A:
         s[data_im2col].compute_inline()
-        _, n_inner = s[A].split(A.op.axis[2], 16)
+        _, n_inner = s[A].split(A.op.axis[2], y_tile_size)
         s[A].vectorize(n_inner)
         s[A].compute_at(s[C], x_inner)
     else:
