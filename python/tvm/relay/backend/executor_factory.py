@@ -180,6 +180,7 @@ class GraphExecutorFactoryModule(ExecutorFactoryModule):
         libmod_name,
         params,
         function_metadata,
+        constant_params = None
     ):
         assert isinstance(graph_json_str, string_types)
         fcreate = get_global_func("tvm.graph_executor_factory.create")
@@ -199,6 +200,12 @@ class GraphExecutorFactoryModule(ExecutorFactoryModule):
         self.iter_cnt = 0
         self.function_metadata = function_metadata
 
+        self.constant_params = constant_params
+        self.device_function_list = get_global_func("tir.transform.retrieve_device_function_list")
+        self.device_function_thread_config = get_global_func("runtime.module.retrieve_device_function_thread_config")
+        self.device_memory_size = get_global_func("tir.transform.retrieve_device_memory_size")
+
+
     def export_library(self, file_name, fcompile=None, addons=None, **kwargs):
         return self.module.export_library(file_name, fcompile, addons, **kwargs)
 
@@ -216,3 +223,15 @@ class GraphExecutorFactoryModule(ExecutorFactoryModule):
 
     def get_lib(self):
         return self.lib
+
+    def get_constant_params(self):
+        return self.constant_params
+
+    def get_device_function_list(self):
+        return self.device_function_list()
+
+    def get_grid_block_thread_config(self):
+        return self.device_function_thread_config()
+
+    def get_device_memory_size(self):
+        return self.device_memory_size()

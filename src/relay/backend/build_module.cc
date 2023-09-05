@@ -86,6 +86,17 @@ struct ExecutorCodegen {
     return ret;
   }
 
+  std::unordered_map<std::string, int64_t> GetParamIds() {
+    std::unordered_map<std::string, int64_t> ret;
+    auto names = CallFunc<Array<runtime::String>>("list_params_name", nullptr);
+    for (const auto& expr : names) {
+      // Implicit cast from runtime::String to std::string
+      std::string key = expr;
+      ret[key] = CallFunc<int64_t>("get_param_id", key);
+    }
+    return ret;
+  }
+
   Array<tvm::runtime::Module> GetExternalModules() {
     return CallFunc<Array<tvm::runtime::Module>>("get_external_modules", nullptr);
   }
@@ -222,6 +233,9 @@ class RelayBuildModule : public runtime::ModuleNode {
         ICHECK_EQ(args.num_args, 2);
         *rv = this->Optimize(args[0], args[1]);
       });
+    } else if (name == "get_constant_params") {
+      return PackedFunc(
+          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetConstantParams(); });
     } else {
       LOG(FATAL) << "Unknown packed function: " << name;
       return PackedFunc([sptr_to_self, name](TVMArgs args, TVMRetValue* rv) {});
@@ -264,6 +278,21 @@ class RelayBuildModule : public runtime::ModuleNode {
     Map<String, Constant> ret;
     for (const auto& kv : ret_.params) {
       ret.Set(kv.first, Constant(kv.second));
+    }
+    return ret;
+  }
+
+  /*!
+   * \brief Get params dictionary, but key is ParamIdx
+   *
+   * \return Map<String, Constant> params dictionary
+   */
+  Map<String, Constant> GetConstantParams() {
+    Map<String, Constant> ret;
+    auto param_ids = this->executor_codegen_->GetParamIds();
+
+    for (const auto& kv : ret_.params) {
+      ret.Set(std::to_string(param_ids[kv.first]), Constant(kv.second));
     }
     return ret;
   }

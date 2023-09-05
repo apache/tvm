@@ -1228,6 +1228,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
 
     // Collect any constants extracted by external codegen.
     ret.params = std::unordered_map<std::string, tvm::runtime::NDArray>();
+
     Map<String, runtime::NDArray> const_name_to_constant =
         lowered_mod->GetAttr<Map<String, runtime::NDArray>>(tvm::attr::kConstNameToConstant)
             .value_or({});

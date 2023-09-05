@@ -304,6 +304,7 @@ struct LoweredOutput {
    * to the constant's value.
    */
   std::unordered_map<std::string, tvm::runtime::NDArray> params;
+
   ExecutorCodegenMetadata metadata;
 };
 

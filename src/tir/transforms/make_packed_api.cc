@@ -41,6 +41,7 @@ namespace tvm {
 namespace tir {
 
 static constexpr const char* kDeviceContextVar = "device_api_context";
+std::unordered_map<std::string, std::vector<PrimExpr>> host_function_name_to_params;
 
 namespace {
 class ReturnRewriter : public StmtMutator {
@@ -278,6 +279,8 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   std::vector<std::pair<PrimExpr, Var>> var_def;
   std::vector<std::pair<Var, Buffer>> buffer_def;
 
+  std::vector<PrimExpr> params_of_function;
+
   for (int i = 0; i < static_cast<int>(func_ptr->params.size()); ++i) {
     Var param = func_ptr->params[i];
 
@@ -290,6 +293,7 @@ PrimFunc MakePackedAPI(PrimFunc func) {
 
     var_def.emplace_back(f_arg_value(param.dtype(), i), param);
     if (func_ptr->buffer_map.count(param)) {
+      params_of_function.push_back(func_ptr->buffer_map[param]->data);
       buffer_def.emplace_back(param, func_ptr->buffer_map[param]);
     }
 
@@ -315,6 +319,8 @@ PrimFunc MakePackedAPI(PrimFunc func) {
       seq_check.emplace_back(AssertStmt(tcode == kDLFloat, tvm::tir::StringImm(msg.str()), nop));
     }
   }
+
+  host_function_name_to_params[name_hint] = params_of_function;
 
   Array<Var> args{v_packed_args,     buf_packed_arg_type_ids->data,
                   v_num_packed_args, v_out_ret_value,
@@ -386,6 +392,8 @@ namespace transform {
 
 Pass MakePackedAPI() {
   auto pass_func = [](IRModule mod, PassContext ctx) {
+    host_function_name_to_params.clear();
+
     Map<GlobalVar, String> packed_func_methods;
     for (const auto& [gvar, base_func] : mod->functions) {
       if (auto opt = base_func.as<PrimFunc>()) {

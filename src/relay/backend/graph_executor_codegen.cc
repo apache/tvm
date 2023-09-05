@@ -266,6 +266,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
 
     // Collect any constants extracted by external codegen.
     ret.params = std::unordered_map<std::string, tvm::runtime::NDArray>();
+
     Map<String, runtime::NDArray> const_name_to_constant =
         lowered_mod->GetAttr<Map<String, runtime::NDArray>>(tvm::attr::kConstNameToConstant)
             .value_or({});
@@ -290,6 +291,10 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
                                 runtime::kTvmExecutorGraph /* executor */, mod_name_ /* mod_name */,
                                 "packed" /* interface_api */, Bool(false) /* unpacked_api */);
     return ret;
+  }
+
+  std::unordered_map<std::string, int64_t> param_storage_ids() {
+    return param_storage_ids_;
   }
 
  protected:
@@ -662,6 +667,14 @@ class GraphExecutorCodegenModule : public runtime::ModuleNode {
         auto it = this->output_.params.find(key);
         CHECK(it != this->output_.params.end()) << "no such parameter " << key;
         *rv = (*it).second;
+      });
+    } else if (name == "get_param_id") {
+      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        String key = args[0];
+        auto it = this->output_.params.find(key);
+        CHECK(it != this->output_.params.end()) << "no such parameter " << key;
+        auto storage_ids = this->codegen_->param_storage_ids();
+        *rv = static_cast<int>(storage_ids[(*it).first]);
       });
     } else if (name == "get_irmodule") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
