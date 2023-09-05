@@ -21,7 +21,7 @@ import tvm
 import tvm.script
 import tvm.testing
 from tvm import IRModule, relax
-from tvm.script import relax as R
+from tvm.script import relax as R, ir as I
 
 
 def _check(
@@ -404,15 +404,36 @@ def test_flip():
 
 
 def test_to_vdevice():
+    @I.ir_module
+    class ToVDevice:
+        I.module_global_infos({"vdevice": [I.vdevice("llvm")]})
+
+        @R.function
+        def foo(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+            tensor = R.to_vdevice(x, "llvm")
+            return tensor
+
+    x = relax.Var("x", R.Tensor((), "int32"))
+    bb = relax.BlockBuilder()
+    vdev = I.vdevice("llvm")
+    with bb.function("foo", (x,)):
+        tensor = bb.emit(relax.op.to_vdevice(x, vdev))
+        bb.emit_func_output(tensor)
+    bb.get().update_global_info("vdevice", [vdev])
+
+    _check(ToVDevice, bb.get())
+
+
+def test_hint_on_device():
     @R.function
     def foo(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
-        tensor = R.to_vdevice(x, tvm.ir.VDevice("llvm", 0, "global"))
-        return tensor
+        r = R.hint_on_device(x, R.device(1, 0))
+        return r
 
     x = relax.Var("x", R.Tensor((), "int32"))
     bb = relax.BlockBuilder()
     with bb.function("foo", (x,)):
-        tensor = bb.emit(relax.op.to_vdevice(x, tvm.ir.VDevice("llvm", 0, "global")))
+        tensor = bb.emit(relax.op.hint_on_device(x, R.cpu()))
         bb.emit_func_output(tensor)
 
     _check(foo, bb.get()["foo"])

@@ -184,6 +184,49 @@ Optional<ExprDoc> PrintAssertOp(const relax::Call& n, const ObjectPath& n_p, con
   return Relax(d, "assert_op")->Call(args, {"format"}, {second_arg});
 }
 
+Optional<ExprDoc> PrintHintOnDevice(const relax::Call& n, const ObjectPath& n_p,
+                                    const IRDocsifier& d) {
+  static const Op& hint_on_device_op = Op::Get("relax.hint_on_device");
+  if (!n->op.same_as(hint_on_device_op)) {
+    return NullOpt;
+  }
+  Array<ExprDoc> args;
+
+  args.push_back(PrintCallee(n->args[0], n_p->Attr("args")->ArrayIndex(0), d));
+  Array<String> kwargs_keys;
+  Array<ExprDoc> kwargs_values;
+  ICHECK(n->attrs.defined());
+  if (n->attrs.as<relax::HintOnDeviceAttrs>()) {
+    AttrPrinter printer(n_p->Attr("attrs"), d, &kwargs_keys, &kwargs_values);
+    const_cast<BaseAttrsNode*>(n->attrs.get())->VisitAttrs(&printer);
+    args.push_back(Relax(d, "device")->Call({}, kwargs_keys, kwargs_values));
+  }
+  return Relax(d, "hint_on_device")->Call(args);
+}
+
+Optional<ExprDoc> PrintToVDevice(const relax::Call& n, const ObjectPath& n_p,
+                                 const IRDocsifier& d) {
+  static const Op& to_vdevice_op = Op::Get("relax.to_vdevice");
+  if (!n->op.same_as(to_vdevice_op)) {
+    return NullOpt;
+  }
+  Array<ExprDoc> args;
+
+  args.push_back(PrintCallee(n->args[0], n_p->Attr("args")->ArrayIndex(0), d));
+  Array<String> kwargs_keys;
+  Array<ExprDoc> kwargs_values;
+  ICHECK(n->attrs.defined());
+  if (const auto* attrs = n->attrs.as<relax::ToVDeviceAttrs>()) {
+    VDevice vdev = attrs->dst_vdevice;
+    std::string dev_kind = vdev->target->kind->name;
+    int dev_index = FindVDeviceIndexByTargetKind(vdev, d);
+    kwargs_keys.push_back("dst_vdevice");
+    kwargs_values.push_back(
+        LiteralDoc::Str(dev_kind + ":" + std::to_string(dev_index), n_p->Attr("dst_vdevice")));
+  }
+  return Relax(d, "to_vdevice")->Call(args, kwargs_keys, kwargs_values);
+}
+
 Optional<ExprDoc> PrintRelaxPrint(const relax::Call& n, const ObjectPath& n_p,
                                   const IRDocsifier& d) {
   static const Op& print_op = Op::Get("relax.print");
@@ -212,6 +255,14 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           }
           // Special case: assert_op
           if (Optional<ExprDoc> doc = PrintAssertOp(n, n_p, d)) {
+            return doc.value();
+          }
+          // Special case: hint_on_device
+          if (Optional<ExprDoc> doc = PrintHintOnDevice(n, n_p, d)) {
+            return doc.value();
+          }
+          // Special case: to_vdevice
+          if (Optional<ExprDoc> doc = PrintToVDevice(n, n_p, d)) {
             return doc.value();
           }
           // Special case: print

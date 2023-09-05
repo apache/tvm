@@ -829,6 +829,18 @@ def LegalizeOps(
     return _ffi_api.LegalizeOps(customize_legalize_map, enable_warning)  # type: ignore
 
 
+def RealizeVDevice() -> tvm.ir.transform.Pass:
+    """Propagate virtual device information.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered pass
+    """
+
+    return _ffi_api.RealizeVDevice()  # type: ignore
+
+
 def MetaScheduleApplyDatabase(
     work_dir: Optional[str] = None, enable_warning: bool = False
 ) -> tvm.ir.transform.Pass:

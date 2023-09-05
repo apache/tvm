@@ -873,7 +873,12 @@ StructInfo InferToVDeviceStructInfo(const Call& call, const BlockBuilder& ctx) {
   ICHECK(call->args.size() == 1);
   ICHECK(call->args[0]->struct_info_.defined());
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
-  return data_sinfo;
+  auto attrs = call->attrs.as<ToVDeviceAttrs>();
+  VDevice vdev = attrs->dst_vdevice;
+  if (data_sinfo->shape.defined()) {
+    return TensorStructInfo(data_sinfo->shape.value(), data_sinfo->dtype, vdev, data_sinfo->span);
+  }
+  return TensorStructInfo(data_sinfo->dtype, data_sinfo->ndim, vdev, data_sinfo->span);
 }
 
 RELAY_REGISTER_OP("relax.to_vdevice")
@@ -883,16 +888,41 @@ RELAY_REGISTER_OP("relax.to_vdevice")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferToVDeviceStructInfo)
     .set_attr<Bool>("FPurity", Bool(true));
 
-Expr MakeToVDevice(Expr data, VDevice dst_vdevice) {
+Expr MakeToVDevice(Expr data, VDevice dst_vdev) {
   static const Op& op = Op::Get("relax.to_vdevice");
-  // TODO(@yongwww): replace Attr with TensorStructInfo
   ObjectPtr<ToVDeviceAttrs> attrs = make_object<ToVDeviceAttrs>();
-  attrs->dst_vdevice = dst_vdevice;
-
+  attrs->dst_vdevice = dst_vdev;
   return Call(op, {data}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relax.op.to_vdevice").set_body_typed(MakeToVDevice);
+
+// hint_on_device
+TVM_REGISTER_NODE_TYPE(HintOnDeviceAttrs);
+
+StructInfo InferHintOnDeviceStructInfo(const Call& call, const BlockBuilder& ctx) {
+  ICHECK(call->args.size() == 1);
+  ICHECK(call->args[0]->struct_info_.defined());
+  TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
+  return data_sinfo;
+}
+
+RELAY_REGISTER_OP("relax.hint_on_device")
+    .set_num_inputs(1)
+    .set_attrs_type<HintOnDeviceAttrs>()
+    .add_argument("data", "Expr", "The input expression")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferHintOnDeviceStructInfo)
+    .set_attr<Bool>("FPurity", Bool(true));
+
+Expr MakeHintOnDevice(Expr data, Device device) {
+  static const Op& op = Op::Get("relax.hint_on_device");
+  ObjectPtr<HintOnDeviceAttrs> attrs = make_object<HintOnDeviceAttrs>();
+  attrs->dev_type = static_cast<int32_t>(device.device_type);
+  attrs->dev_id = device.device_id;
+  return Call(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.hint_on_device").set_body_typed(MakeHintOnDevice);
 
 }  // namespace relax
 }  // namespace tvm

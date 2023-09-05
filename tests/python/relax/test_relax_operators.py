@@ -23,7 +23,7 @@ import tvm
 import tvm.testing
 from tvm import relax
 from tvm._ffi.base import TVMError
-from tvm.script import relax as R, tir as T
+from tvm.script import ir as I, relax as R, tir as T
 
 
 @tvm.script.ir_module
@@ -43,7 +43,6 @@ def run_cpu(mod, func_name, *input):
 
 
 def test_unique():
-
     # TODO(prakalp): also add test for compiling and running on cuda device.
     data_numpy = np.random.randint(0, 16, (16, 16))
     data = tvm.nd.array(data_numpy)
@@ -270,11 +269,18 @@ def test_op_to_device():
 def test_op_to_vdevice():
     @tvm.script.ir_module
     class ToVDevice:
+        I.module_global_infos({"vdevice": [I.vdevice("llvm")]})
+
         @R.function
         def to_vdev(x: R.Tensor((3, 4), "float32")):
             dst_vdev = tvm.ir.VDevice("llvm", 0, "global")
-            ret = R.to_vdevice(x, dst_vdev)
+            ret = R.to_vdevice(x, "llvm")
             return ret
+
+    np.random.seed(0)
+    arr = np.random.rand(3, 4).astype("float32")
+    copy_found = run_cpu(ToVDevice, "to_vdev", tvm.nd.array(arr))
+    assert (copy_found.numpy() == arr).all()
 
 
 if __name__ == "__main__":
