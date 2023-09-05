@@ -237,8 +237,9 @@ def test_op_ptx_cp_async():
 def test_op_ptx_cp_async_bulk():
     buffer_shared = tir.decl_buffer([16, 16], "float16", scope="shared")
     buffer_local = tir.decl_buffer([8], "float16", scope="local")
+    barrier = tir.decl_buffer([1], "uint64", scope="shared")
     expr = tir.ptx_cp_async_bulk(
-        "float16", buffer_shared.data, 0, buffer_local.data, 0, 16, "barrier", 0
+        "float16", buffer_shared.data, 0, buffer_local.data, 0, 16, barrier.data, 0
     )
     assert expr.op.name == "tir.ptx_cp_async_bulk"
 

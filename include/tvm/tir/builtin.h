@@ -663,8 +663,8 @@ TVM_DLL const Op& ptx_cp_async();
  *                   Var global_ptr,
  *                   Expr global_offset,
  *                   size_t bytes,
- *                   string barrier_arr,
- *                   int barrier_id);
+ *                   Var barrier_ptr,
+ *                   Expr barrier_offset);
  */
 TVM_DLL const Op& ptx_cp_async_bulk();
 
@@ -681,7 +681,7 @@ TVM_DLL const Op& ptx_wait_group();
 /*!
  * \brief tvm intrinsics for ptx async copy barrier using cp.async.mbarrier.arrive
  *
- * ptx_cp_async_barrier(string barrier_arr, int barrier_id)
+ * ptx_cp_async_barrier(Var barrier_ptr, Expr barrier_offset)
  *
  */
 TVM_DLL const Op& ptx_cp_async_barrier();
@@ -689,7 +689,7 @@ TVM_DLL const Op& ptx_cp_async_barrier();
 /*!
  * \brief tvm intrinsics for ptx barrier initialization of thread count using mbarrier.init
  *
- * ptx_init_barrier_thread_count(string barrier_arr, int barrier_id, int thread_count)
+ * ptx_init_barrier_thread_count(Var barrier_ptr, Expr barrier_offset, int thread_count)
  *
  */
 TVM_DLL const Op& ptx_init_barrier_thread_count();
@@ -697,7 +697,7 @@ TVM_DLL const Op& ptx_init_barrier_thread_count();
 /*!
  * \brief tvm intrinsics for ptx barrier arrival using mbarrier.arrive
  *
- * ptx_arrive_barrier(string barrier_arr, int barrier_id)
+ * ptx_arrive_barrier(Var barrier_ptr, Expr barrier_offset)
  *
  */
 TVM_DLL const Op& ptx_arrive_barrier();
@@ -705,7 +705,7 @@ TVM_DLL const Op& ptx_arrive_barrier();
 /*!
  * \brief tvm intrinsic for ptx barrier arrival with expect tx using mbarrier.arrive.expect_tx
  *
- * ptx_arrive_barrier_expect_tx(string barrier_arr, int barrier_id, int byte_count)
+ * ptx_arrive_barrier_expect_tx(Var barrier_ptr, Expr barrier_offset, int byte_count)
  *
  */
 TVM_DLL const Op& ptx_arrive_barrier_expect_tx();
@@ -713,7 +713,7 @@ TVM_DLL const Op& ptx_arrive_barrier_expect_tx();
 /*!
  * \brief tvm intrinsics for ptx barrier wait using mbarrier.try_wait
  *
- * ptx_wait_barrier(string barrier_arr, int barrier_id)
+ * ptx_wait_barrier(Var barrier_ptr, Expr barrier_offset)
  *
  */
 TVM_DLL const Op& ptx_wait_barrier();

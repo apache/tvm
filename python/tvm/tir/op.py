@@ -1369,7 +1369,7 @@ def ptx_cp_async(dtype, shared_ptr, shared_offset, global_ptr, global_offset, by
 
 
 def ptx_cp_async_bulk(
-    dtype, shared_ptr, shared_offset, global_ptr, global_offset, bytes, barrier_arr, barrier_id
+    dtype, shared_ptr, shared_offset, global_ptr, global_offset, bytes, barrier_ptr, barrier_offset
 ):
     """TVM intrinsic for ptx async copy from global to shared memory using cp.async.bulk
     https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#data-movement-and-conversion-instructions-cp-async-bulk
@@ -1394,11 +1394,11 @@ def ptx_cp_async_bulk(
     bytes : int
         The data size to copy.
 
-    barrier_arr : string
-        The name of the barrier array in shared memory.
+    barrier_ptr : Var
+        The barrier shared memory pointer variable.
 
     barrier_id : int
-        Index into the barrier array.
+        The offset of the barrier shared memory pointer.
 
     Returns
     -------
@@ -1413,8 +1413,8 @@ def ptx_cp_async_bulk(
         global_ptr,
         global_offset,
         bytes,
-        barrier_arr,
-        barrier_id,
+        barrier_ptr,
+        barrier_offset,
     )
 
 
@@ -1447,37 +1447,37 @@ def ptx_wait_group(num):
     return call_intrin("", "tir.ptx_wait_group", num)
 
 
-def ptx_cp_async_barrier(barrier_arr, barrier_id):
+def ptx_cp_async_barrier(barrier_ptr, barrier_offset):
     """TVM intrinsic for ptx async copy barrier using cp.async.mbarrier.arrive
     https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#parallel-synchronization-and-communication-instructions-cp-async-mbarrier-arrive
 
     Parameters
     ----------
-    barrier_arr : string
-        The name of the barrier array in shared memory.
+    barrier_ptr : Var
+        The barrier shared memory pointer variable.
 
     barrier_id : int
-        Index into the barrier array.
+        The offset of the barrier shared memory pointer.
 
     Returns
     -------
     call : PrimExpr
         The call expression.
     """
-    return call_intrin("", "tir.ptx_cp_async_barrier", barrier_arr, barrier_id)
+    return call_intrin("", "tir.ptx_cp_async_barrier", barrier_ptr, barrier_offset)
 
 
-def ptx_init_barrier_thread_count(barrier_arr, barrier_id, thread_count):
+def ptx_init_barrier_thread_count(barrier_ptr, barrier_offset, thread_count):
     """TVM intrinsic for ptx barrier initialization of thread count using mbarrier.init
     https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#parallel-synchronization-and-communication-instructions-mbarrier-init
 
     Parameters
     ----------
-    barrier_arr : string
-        The name of the barrier array in shared memory.
+    barrier_ptr : Var
+        The barrier shared memory pointer variable.
 
     barrier_id : int
-        Index into the barrier array.
+        The offset of the barrier shared memory pointer.
 
     thread_count : int
         Number of threads expected to arrive at the barrier.
@@ -1488,45 +1488,45 @@ def ptx_init_barrier_thread_count(barrier_arr, barrier_id, thread_count):
         The call expression.
     """
     return call_intrin(
-        "", "tir.ptx_init_barrier_thread_count", barrier_arr, barrier_id, thread_count
+        "", "tir.ptx_init_barrier_thread_count", barrier_ptr, barrier_offset, thread_count
     )
 
 
-def ptx_arrive_barrier(barrier_arr, barrier_id):
+def ptx_arrive_barrier(barrier_ptr, barrier_offset):
     """TVM intrinsic for ptx barrier arrival using mbarrier.arrive
     https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#parallel-synchronization-and-communication-instructions-mbarrier-arrive
 
     Parameters
     ----------
-    barrier_arr : string
-        The name of the barrier array in shared memory.
+    barrier_ptr : Var
+        The barrier shared memory pointer variable.
 
     barrier_id : int
-        Index into the barrier array.
+        The offset of the barrier shared memory pointer.
 
     Returns
     -------
     call : PrimExpr
         The call expression.
     """
-    return call_intrin("", "tir.ptx_arrive_barrier", barrier_arr, barrier_id)
+    return call_intrin("", "tir.ptx_arrive_barrier", barrier_ptr, barrier_offset)
 
 
-def ptx_arrive_barrier_expect_tx(barrier_arr, barrier_id, byte_count):
+def ptx_arrive_barrier_expect_tx(barrier_ptr, barrier_offset, byte_count):
     """TVM intrinsic for ptx barrier arrival with expect tx using mbarrier.arrive.expect_tx
     https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#parallel-synchronization-and-communication-instructions-mbarrier-arrive
     https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#parallel-synchronization-and-communication-instructions-mbarrier-expect-tx-operation
 
     Parameters
     ----------
-    barrier_arr : string
-        The name of the barrier array in shared memory.
+    barrier_ptr : Var
+        The barrier shared memory pointer variable.
 
     barrier_id : int
-        Index into the barrier array.
+        The offset of the barrier shared memory pointer.
 
     byte_count : int
-        Increases the the tx count of the mbarrier object to track completion of
+        Increases the tx count of the mbarrier object to track completion of
         addtional async transactions.
 
     Returns
@@ -1534,27 +1534,29 @@ def ptx_arrive_barrier_expect_tx(barrier_arr, barrier_id, byte_count):
     call : PrimExpr
         The call expression.
     """
-    return call_intrin("", "tir.ptx_arrive_barrier_expect_tx", barrier_arr, barrier_id, byte_count)
+    return call_intrin(
+        "", "tir.ptx_arrive_barrier_expect_tx", barrier_ptr, barrier_offset, byte_count
+    )
 
 
-def ptx_wait_barrier(barrier_arr, barrier_id):
+def ptx_wait_barrier(barrier_ptr, barrier_offset):
     """TVM intrinsic for ptx barrier wait using mbarrier.try_wait
     https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#parallel-synchronization-and-communication-instructions-mbarrier-test-wait-mbarrier-try-wait
 
     Parameters
     ----------
-    barrier_arr : string
-        The name of the barrier array in shared memory.
+    barrier_ptr : Var
+        The barrier shared memory pointer variable.
 
     barrier_id : int
-        Index into the barrier array.
+        The offset of the barrier shared memory pointer.
 
     Returns
     -------
     call : PrimExpr
         The call expression.
     """
-    return call_intrin("", "tir.ptx_wait_barrier", barrier_arr, barrier_id)
+    return call_intrin("", "tir.ptx_wait_barrier", barrier_ptr, barrier_offset)
 
 
 def vectorlow(dtype, vec):
