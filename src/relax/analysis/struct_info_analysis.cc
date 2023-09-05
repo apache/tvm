@@ -993,16 +993,16 @@ class SymbolicVarCollector : public relax::ExprVisitor,
                              public relax::StructInfoVisitor,
                              public tir::ExprVisitor {
  public:
-  static Array<tir::Var> Free(const Function& func) {
+  static Array<tir::Var> Free(const Expr& expr) {
     SymbolicVarCollector collector;
-    collector.VisitExpr(func);
+    collector.VisitExpr(expr);
     Array<tir::Var> ret{collector.free_symbolic_var_.begin(), collector.free_symbolic_var_.end()};
     return ret;
   }
 
-  static Array<tir::Var> Defined(const Function& func) {
+  static Array<tir::Var> Defined(const Expr& expr) {
     SymbolicVarCollector collector;
-    collector.VisitExpr(func);
+    collector.VisitExpr(expr);
     Array<tir::Var> ret{collector.defined_symbolic_var_.begin(),
                         collector.defined_symbolic_var_.end()};
     return ret;
@@ -1129,10 +1129,10 @@ class SymbolicVarCollector : public relax::ExprVisitor,
   std::unordered_set<tir::Var, ObjectPtrHash, ObjectPtrEqual> free_symbolic_var_;
 };
 
-Array<tir::Var> DefinedSymbolicVars(const Function& func) {
-  return SymbolicVarCollector::Defined(func);
+Array<tir::Var> DefinedSymbolicVars(const Expr& expr) {
+  return SymbolicVarCollector::Defined(expr);
 }
-Array<tir::Var> FreeSymbolicVars(const Function& func) { return SymbolicVarCollector::Free(func); }
+Array<tir::Var> FreeSymbolicVars(const Expr& expr) { return SymbolicVarCollector::Free(expr); }
 
 TVM_REGISTER_GLOBAL("relax.analysis.DefinedSymbolicVars").set_body_typed(DefinedSymbolicVars);
 
