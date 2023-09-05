@@ -116,13 +116,16 @@ def test_cpp_frames_in_stack_trace_from_python_error():
     except ValueError as err:
         frames = traceback.extract_tb(err.__traceback__)
 
-    cpp_frames = [
-        frame for frame in frames if frame.filename.endswith(".cc") or frame.filename.endswith(".c")
-    ]
-    assert len(cpp_frames) >= 1, (
-        f"Traceback through files '{[frame.filename for frame in frames]}'"
-        f" expected to contain C/C++ frames"
-    )
+        cpp_frames = [
+            frame
+            for frame in frames
+            if frame.filename.endswith(".cc") or frame.filename.endswith(".c")
+        ]
+        assert len(cpp_frames) >= 1, (
+            f"Traceback through files '{[frame.filename for frame in frames]}'"
+            f" expected to contain C/C++ frames, "
+            f" but instead caught exception {err}"
+        )
 
 
 @pytest.mark.skipif(not _has_debug_symbols(), reason="C++ stack frames require debug symbols")
@@ -134,13 +137,16 @@ def test_stack_trace_from_cpp_error():
     except ValueError as err:
         frames = traceback.extract_tb(err.__traceback__)
 
-    cpp_frames = [
-        frame for frame in frames if frame.filename.endswith(".cc") or frame.filename.endswith(".c")
-    ]
-    assert len(cpp_frames) >= 1, (
-        f"Traceback through files '{[frame.filename for frame in frames]}'"
-        f" expected to contain C/C++ frames"
-    )
+        cpp_frames = [
+            frame
+            for frame in frames
+            if frame.filename.endswith(".cc") or frame.filename.endswith(".c")
+        ]
+        assert len(cpp_frames) >= 1, (
+            f"Traceback through files '{[frame.filename for frame in frames]}'"
+            f" expected to contain C/C++ frames, "
+            f" but instead caught exception {err}"
+        )
 
 
 if __name__ == "__main__":
