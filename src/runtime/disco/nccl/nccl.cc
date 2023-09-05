@@ -162,7 +162,7 @@ struct CCLThreadLocalContext {
 
 void InitCCL(Session sess, IntTuple device_ids) {
   DRef func = sess->GetGlobalFunc("runtime.disco." TVM_DISCO_CCL_NAME ".init_ccl_per_worker");
-  LOG(INFO) << "Initializing " TVM_DISCO_CCL_NAME " with devices: " << device_ids;
+  // LOG(INFO) << "Initializing " TVM_DISCO_CCL_NAME " with devices: " << device_ids;
   ncclUniqueId id;
   TVMByteArray array;
   NCCL_CALL(ncclGetUniqueId(&id));
