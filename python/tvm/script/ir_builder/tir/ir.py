@@ -1847,6 +1847,7 @@ ptx_commit_group = _op_wrapper(_tir_op.ptx_commit_group)
 ptx_cp_async_barrier = _op_wrapper(_tir_op.ptx_cp_async_barrier)
 ptx_init_barrier_thread_count = _op_wrapper(_tir_op.ptx_init_barrier_thread_count)
 ptx_arrive_barrier = _op_wrapper(_tir_op.ptx_arrive_barrier)
+ptx_arrive_barrier_expect_tx = _op_wrapper(_tir_op.ptx_arrive_barrier_expect_tx)
 ptx_wait_barrier = _op_wrapper(_tir_op.ptx_wait_barrier)
 assume = _op_wrapper(_tir_op.assume)
 undef = _op_wrapper(_tir_op.undef)
@@ -1876,6 +1877,7 @@ ptx_mma = _dtype_forward(_tir_op.ptx_mma)
 ptx_mma_sp = _dtype_forward(_tir_op.ptx_mma_sp)
 ptx_ldmatrix = _dtype_forward(_tir_op.ptx_ldmatrix)
 ptx_cp_async = _dtype_forward(_tir_op.ptx_cp_async)
+ptx_cp_async_bulk = _dtype_forward(_tir_op.ptx_cp_async_bulk)
 mma_store = _dtype_forward(_tir_op.mma_store)
 mma_fill = _dtype_forward(_tir_op.mma_fill)
 vectorlow = _dtype_forward(_tir_op.vectorlow)
@@ -2115,11 +2117,13 @@ __all__ = [
     "ptx_mma_sp",
     "ptx_ldmatrix",
     "ptx_cp_async",
+    "ptx_cp_async_bulk",
     "ptx_wait_group",
     "ptx_commit_group",
     "ptx_cp_async_barrier",
     "ptx_init_barrier_thread_count",
     "ptx_arrive_barrier",
+    "ptx_arrive_barrier_expect_tx",
     "ptx_wait_barrier",
     "mma_store",
     "mma_fill",
