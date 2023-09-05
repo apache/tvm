@@ -349,9 +349,9 @@ def pack_imports(
     assert hexagon_toolchain, "Please set HEXAGON_TOOLCHAIN variable"
     version = toolchain_version(hexagon_toolchain)
     assert (
-        version[0] == 8 and version[1] >= 6
-    ), "Please use Hexagon toolchain version 8.6.x or later"
-    if version[1] == 6:
+        version[0] == 8 and version[1] >= 5
+    ), "Please use Hexagon toolchain version 8.5.x or later"
+    if version[1] <= 6:
         path_o = os.path.join(workspace_dir, f"{c_symbol_prefix}devc.o")
         subprocess.run(
             [
