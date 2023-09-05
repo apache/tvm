@@ -21,6 +21,7 @@ import tempfile
 
 import numpy as np
 
+import tvm
 from tvm import dlight as dl
 from tvm import relax as rx
 from tvm._ffi import register_func
@@ -30,6 +31,7 @@ from tvm.runtime import disco as di
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.target import Target
+from tvm.contrib import tvmjs
 
 
 @register_func("tests.disco.shard_with_numpy", override=True)
@@ -47,6 +49,38 @@ def _create_loader(sess, path, param_dict, shard_info):
     loader_create = sess.get_global_func("runtime.disco.ShardLoader")
     loader = loader_create(path_ndarray_cache, ndarray_cache, shard_info, shard_with_numpy)
     return loader
+
+
+def _simulate_presharded_weights(base_path, param_dict, num_shards, shard_info):
+    """Create fake weights to simulate those produced from LiftTransformParams"""
+
+    sharded_params = {}
+
+    for key, ndarray in param_dict.items():
+        src = tvm.nd.array(ndarray)
+        assert key in shard_info, f"ShardInfo lacks shard info about param: {key}"
+        shard_dim = shard_info[key]
+        before_dims = np.prod(src.shape[:shard_dim]).astype("int32")
+        shard_size = src.shape[shard_dim] // num_shards
+        after_dims = np.prod(src.shape[shard_dim + 1 :]).astype("int32")
+
+        reshaped_src = src.asnumpy().reshape(before_dims, shard_size * num_shards, after_dims)
+        tgt_shape = (num_shards, before_dims, shard_size, after_dims)
+        tgt = tvm.nd.empty(tgt_shape, src.dtype)
+        _shard_with_numpy(tvm.nd.array(reshaped_src), num_shards, tgt)
+
+        for shard in range(num_shards):
+            sharded_shape = list(src.shape)
+            sharded_shape[shard_dim] //= num_shards
+            sharded_params[f"{key}_{shard+1}_{num_shards}"] = tvm.nd.array(
+                tgt.asnumpy()[shard].reshape(*sharded_shape)
+            )
+
+    tvmjs.dump_ndarray_cache(
+        sharded_params,
+        base_path,
+        encode_format="raw",
+    )
 
 
 def test_load_shard():
@@ -68,6 +102,57 @@ def test_load_shard():
         loader_load = sess.get_global_func("runtime.disco.ShardLoaderLoad")
         d_0 = loader_load(loader, ShapeTuple([0]))
         d_1 = loader_load(loader, ShapeTuple([1]))
+        np.testing.assert_equal(
+            param_dict["x_0"][:, 0:64],
+            d_0.debug_get_from_remote(0).numpy(),
+        )
+        np.testing.assert_equal(
+            param_dict["x_0"][:, 64:128],
+            d_0.debug_get_from_remote(1).numpy(),
+        )
+        np.testing.assert_equal(
+            param_dict["x_1"][0:16, :],
+            d_1.debug_get_from_remote(0).numpy(),
+        )
+        np.testing.assert_equal(
+            param_dict["x_1"][16:32, :],
+            d_1.debug_get_from_remote(1).numpy(),
+        )
+
+
+def _create_presharded_loader(sess, path):
+    path_ndarray_cache = path + "/ndarray-cache.json"
+    with open(path_ndarray_cache, "r", encoding="utf-8") as i_f:
+        ndarray_cache = i_f.read()
+    shard_with_numpy = sess.get_global_func("tests.disco.shard_with_numpy")
+    loader_create = sess.get_global_func("runtime.disco.ShardLoader")
+    loader = loader_create(path_ndarray_cache, ndarray_cache, json.dumps({}), shard_with_numpy)
+    return loader
+
+
+def test_load_presharded():
+    devices = [0, 1]
+    param_dict = {
+        "x_0": np.random.uniform(size=[64, 128]).astype("float16"),
+        "x_1": np.random.uniform(size=[32, 128]).astype("float32"),
+    }
+    shard_info = {
+        "x_0": 1,
+        "x_1": 0,
+    }
+
+    with tempfile.TemporaryDirectory() as path:
+        print(path)
+        _simulate_presharded_weights(path, param_dict, len(devices), shard_info)
+        sess = di.ThreadedSession(num_workers=len(devices))
+        sess.init_ccl("nccl", *devices)
+
+        loader = _create_presharded_loader(sess, path)
+        loader_load = sess.get_global_func("runtime.disco.ShardLoaderLoadPresharded")
+
+        d_0 = loader_load(loader, ShapeTuple([0]))
+        d_1 = loader_load(loader, ShapeTuple([1]))
+
         np.testing.assert_equal(
             param_dict["x_0"][:, 0:64],
             d_0.debug_get_from_remote(0).numpy(),
@@ -176,3 +261,4 @@ def test_load_shard_in_relax():
 if __name__ == "__main__":
     test_load_shard()
     test_load_shard_in_relax()
+    test_load_presharded()
