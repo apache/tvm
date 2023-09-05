@@ -29,20 +29,18 @@ from tvm.script import relax as R
 
 
 def test_init():
-    num_workers = 2
-    devices = [1, 2]
+    devices = [0, 1]
 
-    sess = di.ThreadedSession(num_workers=num_workers)
+    sess = di.ThreadedSession(num_workers=len(devices))
     sess.init_ccl("nccl", *devices)
 
 
 def test_allreduce():
-    num_workers = 2
-    devices = [1, 2]
+    devices = [0, 1]
     array_1 = np.arange(12, dtype="float32").reshape(3, 4)
     array_2 = np.arange(start=1, stop=-11, step=-1, dtype="float32").reshape(3, 4)
 
-    sess = di.ThreadedSession(num_workers=num_workers)
+    sess = di.ThreadedSession(num_workers=len(devices))
     sess.init_ccl("nccl", *devices)
     d_array = sess.empty((3, 4), "float32")
     d_array.debug_copy_from(0, array_1)
@@ -61,11 +59,10 @@ def test_allreduce():
 
 
 def test_broadcast_from_worker0():
-    num_workers = 2
-    devices = [1, 2]
+    devices = [0, 1]
     array = np.arange(12, dtype="float32").reshape(3, 4)
 
-    sess = di.ThreadedSession(num_workers=num_workers)
+    sess = di.ThreadedSession(num_workers=len(devices))
     sess.init_ccl("nccl", *devices)
     d_array = sess.empty((3, 4), "float32")
     d_array.debug_copy_from(0, array)
@@ -75,11 +72,10 @@ def test_broadcast_from_worker0():
 
 
 def test_scatter():
-    num_workers = 2
-    devices = [1, 2]
+    devices = [0, 1]
     array = np.arange(36, dtype="float32").reshape(3, 4, 3)
 
-    sess = di.ThreadedSession(num_workers=num_workers)
+    sess = di.ThreadedSession(num_workers=len(devices))
     sess.init_ccl("nccl", *devices)
     d_src = sess.empty((3, 4, 3), "float32")
     d_dst = sess.empty((3, 3, 2), "float32")
@@ -119,8 +115,7 @@ def test_gather():
 
 
 def test_mlp():  # pylint: disable=too-many-locals
-    num_workers = 2
-    devices = [1, 2]
+    devices = [0, 1]
 
     # pylint: disable=invalid-name
     @tvm.script.ir_module
@@ -195,7 +190,7 @@ def test_mlp():  # pylint: disable=too-many-locals
         path = tmpdir + "/test.so"
         relax_build(ShardedMLP, target).export_library(path)
 
-        sess = di.ThreadedSession(num_workers=num_workers)
+        sess = di.ThreadedSession(num_workers=len(devices))
         sess.init_ccl("nccl", *devices)
         mod = sess.load_vm_module(path)
 
@@ -217,15 +212,14 @@ def test_mlp():  # pylint: disable=too-many-locals
     np.testing.assert_allclose(Y_result, Y_expected, rtol=1e-4, atol=1e-4)
 
 
-def test_attention():  # pylint: disable=too-many-locals
-    num_workers = 2
-    devices = [1, 2]
+def test_attention():  # pylint: disable=too-many-locals,too-many-statements
+    devices = [0, 1]
 
     # pylint: disable=invalid-name
     @tvm.script.ir_module
     class Attention:  # pylint: disable=too-few-public-methods
         @R.function
-        def main(
+        def main(  # pylint: disable=too-many-locals
             x: R.Tensor((1, 10, 128), "float32"),
             Wq: R.Tensor((128, 512), "float32"),
             Wk: R.Tensor((128, 512), "float32"),
@@ -265,7 +259,7 @@ def test_attention():  # pylint: disable=too-many-locals
     @tvm.script.ir_module
     class ShardedAttention:  # pylint: disable=too-few-public-methods
         @R.function
-        def main(
+        def main(  # pylint: disable=too-many-locals
             x: R.Tensor((1, 10, 128), "float32"),
             Wq: R.Tensor((128, 256), "float32"),  # shard along axis 1
             Wk: R.Tensor((128, 256), "float32"),  # shard along axis 1
@@ -346,7 +340,7 @@ def test_attention():  # pylint: disable=too-many-locals
         path = tmpdir + "/test.so"
         relax_build(ShardedAttention, target).export_library(path)
 
-        sess = di.ThreadedSession(num_workers=num_workers)
+        sess = di.ThreadedSession(num_workers=len(devices))
         sess.init_ccl("nccl", *devices)
         mod = sess.load_vm_module(path)
 
