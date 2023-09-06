@@ -692,7 +692,6 @@ def test_residual_block(remote, target, executor_type, dtype):
             {"data": input_shape},
             {"data": dtype},
             target,
-            static_memory_scope,
         )
 
 
@@ -790,11 +789,12 @@ def test_concat(remote, target, executor_type, dtype):
 
     static_memory_scope = [
         "",
+        "global.texture",
         "global",
         "global.texture-weight",
-        "global.texture-weight",
         "global",
-        "global.texture-weight",
+        "global.texture-nhwc",
+        "global",
         "global.texture-weight",
         "",
         "",
@@ -802,8 +802,6 @@ def test_concat(remote, target, executor_type, dtype):
         "",
         "",
     ]
-
-    static_memory_scope = []
 
     if executor_type == "ge":
         build_run_compare(
@@ -823,7 +821,6 @@ def test_concat(remote, target, executor_type, dtype):
             {"data": input_shape},
             {"data": dtype},
             target,
-            static_memory_scope,
         )
 
 
@@ -968,7 +965,6 @@ def test_pooling_branching_texture_params(remote, target, executor_type, dtype):
             {"data": input_shape},
             {"data": dtype},
             target,
-            static_memory_scope,
         )
 
 
@@ -1111,7 +1107,6 @@ def test_branching_texture_params(remote, target, executor_type, dtype):
             {"data": input_shape},
             {"data": dtype},
             target,
-            static_memory_scope,
         )
 
 
@@ -1212,7 +1207,6 @@ def test_conv2d_different_lowering_same_op(remote, target, executor_type, dtype)
             {"data": input_shape},
             {"data": dtype},
             target,
-            static_memory_scope,
         )
 
 
@@ -1380,7 +1374,6 @@ def test_injective_nwo_inputs1(remote, target, executor_type, dtype):
             {"data": input_shape},
             {"data": dtype},
             target,
-            static_memory_scope,
         )
 
 
@@ -1495,7 +1488,6 @@ def test_injective_nwo_inputs2(remote, target, executor_type, dtype):
             {"data": input_shape},
             {"data": dtype},
             target,
-            static_memory_scope,
         )
 
 
@@ -1531,6 +1523,69 @@ def test_conv2d_to_3_channels(remote, target, executor_type, dtype):
     else:
         build_run_compare_vm(
             remote, mod, params1, {"data": input_shape}, {"data": dtype}, target, []
+        )
+
+
+@tvm.testing.requires_opencl
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+def test_conv2d_weight_on_buffers(remote, target, executor_type, dtype):
+    target = "opencl -device=adreno"
+    input_shape = (1, 64, 75, 75)
+    filter_shape = (64, 64, 3, 3)
+    bias_shape = (64,)
+    A = relay.var("data", shape=input_shape, dtype=dtype)
+    W = relay.var("weight", shape=filter_shape, dtype=dtype)
+    BS = relay.var("bias", shape=bias_shape, dtype=dtype)
+    conv = relay.nn.conv2d(A, W, padding=[1, 1, 1, 1], channels=64, kernel_size=(3, 3))
+    conv = relay.nn.bias_add(conv, BS)
+    conv = relay.op.nn.relu(conv)
+
+    mod = relay.Function([A, W, BS], conv)
+    np.random.seed(0)
+    initializer = relay.testing.init.Xavier()
+    filter_data = np.zeros(filter_shape).astype(dtype)
+    bias_data = np.zeros(bias_shape).astype(dtype)
+    initializer("weight", filter_data)
+    initializer("bias", bias_data)
+    params1 = {
+        "weight": tvm.nd.array(filter_data),
+        "bias": tvm.nd.array(bias_data),
+    }
+
+    if executor_type == "ge":
+        static_memory_scope = [
+            "",
+            "global.texture",
+            "global",
+            "global.texture-weight",
+            "",
+            "",
+        ]
+        build_run_compare(
+            remote,
+            mod,
+            params1,
+            {"data": input_shape},
+            {"data": dtype},
+            target,
+            static_memory_scope,
+        )
+    else:
+        static_memory_scope = """
+        VM VirtualDevice[0]: device type 1, id 0 and mem_scope
+        VM VirtualDevice[1]: device type 4, id 0 and mem_scope
+        VM VirtualDevice[2]: device type 4, id 0 and mem_scope global.texture
+        VM VirtualDevice[3]: device type 4, id 0 and mem_scope global
+        VM VirtualDevice[4]: device type 4, id 0 and mem_scope global.texture-weight
+        """
+        build_run_compare_vm(
+            remote,
+            mod,
+            params1,
+            {"data": input_shape},
+            {"data": dtype},
+            target,
+            static_memory_scope,
         )
 
 

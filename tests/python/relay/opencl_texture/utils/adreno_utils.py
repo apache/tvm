@@ -161,19 +161,11 @@ def build_run_compare_vm(
                 tvm_mod_nchwc, target=target, target_host=target_host, params=params1
             )
 
-    # TODO(echuraev): enable scope checking
-    ## verification that storage_scope has expected textures scopes
-    # graph_json = json.loads(graph)
-    # if "storage_scope" in graph_json["attrs"]:
-    #    assert (
-    #        len(static_mem_scopes) == len(graph_json["attrs"]["storage_scope"][1])
-    #        or len(static_mem_scopes) == 0
-    #    )
-    # else:
-    #    assert len(static_mem_scopes) == 0
-
-    # for i in range(0, len(static_mem_scopes)):
-    #    assert static_mem_scopes[i] == graph_json["attrs"]["storage_scope"][1][i]
+    if len(static_mem_scopes) > 0:
+        mem_scopes_lines = static_mem_scopes.strip().split("\n")
+        vm_lines = vmc._get_virtual_devices().strip().split("\n")
+        for i in range(0, len(mem_scopes_lines)):
+            assert mem_scopes_lines[i].strip() == vm_lines[i].strip()
 
     if remote is None:
         dev = tvm.opencl()

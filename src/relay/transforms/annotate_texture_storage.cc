@@ -174,8 +174,11 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
             for (const auto& ttype : FlattenTupleType(fn->params[i]->checked_type())) {
               std::string scope = Scope(ttype->shape, GetVirtualDevice(GetRef<Expr>(call)));
               if (expr_attrib.as<Conv2DAttrs>() || expr_attrib.as<Conv2DWinogradAttrs>()) {
+                String kernel_layout = expr_attrib.as<Conv2DAttrs>()
+                                           ? expr_attrib.as<Conv2DAttrs>()->kernel_layout
+                                           : expr_attrib.as<Conv2DWinogradAttrs>()->kernel_layout;
                 if ((i == weights_pos) && !ttype->dtype.is_float16() &&
-                    CanUseBuffers(call->args[i], ttype->shape, fn->attrs)) {
+                    CanUseBuffers(call->args[i], ttype->shape, kernel_layout)) {
                   buffers_params.insert(fn->params[i]);
                   buffers_args.insert(call->args[i]);
                   scope = "global";
@@ -426,10 +429,9 @@ class StorageInfo : private transform::DeviceAwareExprVisitor {
   }
 
   bool CanUseBuffers(const Expr param, const Array<PrimExpr> shape,
-                     const tvm::DictAttrs param_attrs) const {
+                     const String kernel_layout) const {
     bool use_buffer = false;
     if (param.as<ConstantNode>() && shape.size() == 5) {
-      auto kernel_layout = param_attrs.GetAttr<String>("kernel_layout");
       if (kernel_layout == "HWOI4o" || kernel_layout == "HWIO4o") {
         int a0 = shape[0].as<IntImmNode>()->value;
         int a1 = shape[1].as<IntImmNode>()->value;
