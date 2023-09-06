@@ -458,6 +458,18 @@ struct VarUsageInfo {
 VarUsageInfo CollectVarUsage(const Expr& expr);
 
 /*!
+ * \brief Perform a liveness analysis on the function, indicating which variables
+ * are live at which location in the function.
+ *
+ * \param fn The function to be analyzed.
+ * \return An array of arrays of live variables per binding in the function.
+ *   The array is indexed based on the corresponding control flow graph,
+ *   so use `ExtractCFG` and `GetBindingIndex` to match locations in `fn`
+ *   to indices in the result.
+ */
+Array<Array<Var>> LivenessAnalysis(const Function& fn);
+
+/*!
  * \brief Remove unused statements inside DataflowBlocks.
  *
  * \param expr The expression (typically a relax::Function) from which
