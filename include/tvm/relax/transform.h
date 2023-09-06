@@ -180,7 +180,7 @@ TVM_DLL Pass EliminateCommonSubexpr(bool call_only = false);
  *
  * \return The Pass.
  */
-TVM_DLL Pass BindParams(String func_name, Map<String, runtime::NDArray> params);
+TVM_DLL Pass BindParams(String func_name, Map<ObjectRef, ObjectRef> params);
 
 /*!
  * \brief Bind symbolic vars to constant shape values.

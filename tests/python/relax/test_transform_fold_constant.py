@@ -378,8 +378,7 @@ def test_fold_multiple_relax_ops_with_data_dependent_reshape():
     before = gen_mod(Module, "before", {"c0": c0_np, "c1": c1_np})
     assert relax.analysis.well_formed(before)
 
-    c2_np = np.multiply(np.add(c0_np, c0_np), c1_np)
-    expected = gen_mod(Module, "expected", {"c2": c2_np})
+    expected = gen_mod(Module, "expected", {})
 
     after = relax.transform.FoldConstant()(before)
     tvm.ir.assert_structural_equal(after, expected)

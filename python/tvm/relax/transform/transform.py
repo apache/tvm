@@ -405,7 +405,7 @@ def AttachGlobalSymbol() -> tvm.ir.transform.Pass:
 
 def BindParams(
     func_name: str,
-    params: Dict[str, Union[tvm.runtime.NDArray, np.ndarray]],
+    params: Dict[Union[str, Var], Union[tvm.runtime.NDArray, np.ndarray]],
 ) -> tvm.ir.transform.Pass:
     """Bind params of function of the module to constant tensors.
 
@@ -415,8 +415,13 @@ def BindParams(
     func_name: str
         The function name to be bound
 
-    params : Dict[str, Union[tvm.runtime.NDArray, np.ndarray]]
-        The map from param name to constant tensors.
+    params : Dict[
+                Union[str,relax.Var],
+                Union[tvm.runtime.NDArray, np.ndarray],
+             ]
+
+        The map from parameter or parameter name name to constant
+        tensors.
 
     Returns
     -------
