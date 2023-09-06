@@ -789,11 +789,12 @@ def test_concat(remote, target, executor_type, dtype):
 
     static_memory_scope = [
         "",
+        "global.texture",
         "global",
         "global.texture-weight",
-        "global.texture-weight",
         "global",
-        "global.texture-weight",
+        "global.texture-nhwc",
+        "global",
         "global.texture-weight",
         "",
         "",

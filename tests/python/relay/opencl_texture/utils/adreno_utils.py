@@ -162,8 +162,8 @@ def build_run_compare_vm(
             )
 
     if len(static_mem_scopes) > 0:
-        mem_scopes_lines = static_mem_scopes.strip().split('\n')
-        vm_lines = vmc._get_virtual_devices().strip().split('\n')
+        mem_scopes_lines = static_mem_scopes.strip().split("\n")
+        vm_lines = vmc._get_virtual_devices().strip().split("\n")
         for i in range(0, len(mem_scopes_lines)):
             assert mem_scopes_lines[i].strip() == vm_lines[i].strip()
 
