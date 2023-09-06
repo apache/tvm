@@ -72,5 +72,26 @@ def test_broadcast_from_zero():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_scatter_from_worker0():
+    # fmt: off
+    @tvm.script.ir_module
+    class ScatterFromWorker0:
+        @R.function
+        def main(x: R.Tensor((10, 10), "float32"))  -> R.Tensor((5, 10), "float32"):
+            gv0: R.Tensor((5, 10), "float32") = R.ccl.scatter_from_worker0(x, 2)
+            return gv0
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((10, 10), dtype="float32")) -> R.Tensor((5, 10), dtype="float32"):
+            gv0: R.Tensor((5, 10), dtype="float32") = R.call_pure_packed("runtime.disco.scatter_from_worker0", x, sinfo_args=R.Tensor((5, 10), dtype="float32"))
+            return gv0
+    # fmt: on
+
+    mod = LegalizeOps()(ScatterFromWorker0)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

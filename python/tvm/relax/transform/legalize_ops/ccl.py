@@ -16,9 +16,12 @@
 # under the License.
 # pylint: disable=invalid-name
 """Default legalization function for ccl operators."""
+
+from tvm import tir
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr, ShapeExpr
-from ...op import call_pure_packed
+from ...op import call_pure_packed, call_dps_packed
+from ...struct_info import TensorStructInfo
 from .common import register_legalize
 
 
@@ -46,9 +49,28 @@ def _allreduce(_bb: BlockBuilder, call: Call) -> Expr:
 
 
 @register_legalize("relax.ccl.broadcast_from_worker0")
-def broadcast_from_worker0(_bb: BlockBuilder, call: Call) -> Expr:
+def _broadcast_from_worker0(_bb: BlockBuilder, call: Call) -> Expr:
     return call_pure_packed(
         "runtime.disco.broadcast_from_worker0",
         call.args[0],
         sinfo_args=call.args[0].struct_info,
+    )
+
+
+@register_legalize("relax.ccl.scatter_from_worker0")
+def _scatter_from_worker0(_bb: BlockBuilder, call: Call) -> Expr:
+    output_shape = []
+    for i, v in enumerate(call.args[0].struct_info.shape.values):
+        if i == 0:
+            output_shape.append(tir.div(v, call.attrs.num_workers))
+        else:
+            output_shape.append(v)
+    return call_pure_packed(
+        "runtime.disco.scatter_from_worker0",
+        call.args[0],
+        sinfo_args=TensorStructInfo(
+            shape=output_shape,
+            dtype=call.args[0].struct_info.dtype,
+            vdevice=call.args[0].struct_info.vdevice,
+        ),
     )
