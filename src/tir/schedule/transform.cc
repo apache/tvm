@@ -472,7 +472,11 @@ Optional<ObjectRef> NormalizePrimFunc(Schedule sch) {
     if (index_map_outputs.empty() || !has_spatial_iter) {
       index_map_outputs.insert(index_map_outputs.begin(), tir::make_const(DataType::Int(64), 0));
     }
-    sch->TransformBlockLayout(block, IndexMap(index_map_inputs, index_map_outputs));
+    try {
+      sch->TransformBlockLayout(block, IndexMap(index_map_inputs, index_map_outputs));
+    } catch (tvm::runtime::Error& e) {
+      // Skip layout transformation when not transformable.
+    }
     block_loops.push_back(sch->GetLoops(block));
     block_iters.push_back(sch->Get(block)->iter_vars);
     bool is_reduction = IsReductionBlock(sch->state(),         //
