@@ -223,6 +223,6 @@ def _remove_pad(bb: BlockBuilder, call: Call) -> Expr:
         """
         Returns a new compute that restrict the original expression to the shape of orig_shape
         """
-        return te.compute(orig_shape, lambda *idx: data(*idx), name="te_remove_pad")
+        return te.compute(orig_shape, data, name="te_remove_pad")
 
     return bb.call_te(te_remove_pad, call.args[0])
