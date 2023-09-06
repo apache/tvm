@@ -720,6 +720,23 @@ def LiftTransformParams() -> tvm.ir.transform.Pass:
     return _ffi_api.LiftTransformParams()  # type: ignore
 
 
+def BundleModelParams() -> tvm.ir.transform.Pass:
+    """Bundle several model parameters into a single tuple paramters
+
+    For each function, if the function has the attribute "num_input",
+    separate between run-time parameters and compile-time weights.
+    Run-time parameters (e.g. activations) are the first `num_input`
+    parameters, and the remainder are compile-time weights.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered pass for lifting transformation of parameters.
+
+    """
+    return _ffi_api.BundleModelParams()  # type: ignore
+
+
 def LegalizeOps(
     customize_legalize_map: Optional[Dict[str, LegalizeFunc]] = None, enable_warning: bool = False
 ):

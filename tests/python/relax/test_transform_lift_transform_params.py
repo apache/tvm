@@ -62,15 +62,15 @@ def test_basic():
         @R.function
         def main(
             x: R.Tensor((1, 3, 224, 224), dtype="float32"),
-            params: R.Tuple(
-                R.Tensor((16, 16, 3, 3), dtype="float32"), R.Tensor((16, 3, 3, 3), dtype="float32")
-            ),
+            param0: R.Tensor((16, 16, 3, 3), dtype="float32"),
+            param1: R.Tensor((16, 3, 3, 3), dtype="float32"),
         ) -> R.Tensor((1, 16, 224, 224), dtype="float32"):
+            R.func_attr({"num_input": 1})
             with R.dataflow():
-                lv: R.Tensor((16, 3, 3, 3), dtype="float32") = params[1]
+                param1 = param1
                 conv1: R.Tensor((1, 16, 224, 224), dtype="float32") = R.nn.conv2d(
                     x,
-                    lv,
+                    param1,
                     strides=[1, 1],
                     padding=[1, 1, 1, 1],
                     dilation=[1, 1],
@@ -80,10 +80,10 @@ def test_basic():
                     out_layout="NCHW",
                     out_dtype="void",
                 )
-                lv1: R.Tensor((16, 16, 3, 3), dtype="float32") = params[0]
+                param0 = param0
                 conv2: R.Tensor((1, 16, 224, 224), dtype="float32") = R.nn.conv2d(
                     conv1,
-                    lv1,
+                    param0,
                     strides=[1, 1],
                     padding=[1, 1, 1, 1],
                     dilation=[1, 1],
@@ -161,12 +161,12 @@ def test_tuple():
         @R.function
         def main(
             x: R.Tensor((1, 16, 224, 224), dtype="float32"),
-            params: R.Tuple(
-                R.Tensor((16, 16, 3, 3), dtype="float32"), R.Tensor((16, 16, 3, 3), dtype="float32")
-            ),
+            param0: R.Tensor((16, 16, 3, 3), dtype="float32"),
+            param1: R.Tensor((16, 16, 3, 3), dtype="float32"),
         ) -> R.Tensor((1, 16, 224, 224), dtype="float32"):
+            R.func_attr({"num_input": 1})
             with R.dataflow():
-                lv: R.Tensor((16, 16, 3, 3), dtype="float32") = params[1]
+                lv: R.Tensor((16, 16, 3, 3), dtype="float32") = param1
                 conv1: R.Tensor((1, 16, 224, 224), dtype="float32") = R.nn.conv2d(
                     x,
                     lv,
@@ -179,7 +179,7 @@ def test_tuple():
                     out_layout="NCHW",
                     out_dtype="void",
                 )
-                lv1: R.Tensor((16, 16, 3, 3), dtype="float32") = params[0]
+                lv1: R.Tensor((16, 16, 3, 3), dtype="float32") = param0
                 conv2: R.Tensor((1, 16, 224, 224), dtype="float32") = R.nn.conv2d(
                     conv1,
                     lv1,
@@ -271,18 +271,17 @@ def test_condition():
         @R.function
         def main(
             x: R.Tensor((1, 16, 224, 224), "float32"),
-            params: R.Tuple(
-                R.Tensor((16, 16, 3, 3), dtype="float32"),
-                R.Tensor((16, 16, 3, 3), dtype="float32"),
-                R.Tensor((), dtype="bool"),
-            ),
+            param0: R.Tensor((16, 16, 3, 3), dtype="float32"),
+            param1: R.Tensor((16, 16, 3, 3), dtype="float32"),
+            param2: R.Tensor((), dtype="bool"),
         ) -> R.Tensor((1, 16, 224, 224), "float32"):
-            gv: R.Tensor((), dtype="bool") = params[2]
+            R.func_attr({"num_input": 1})
+            gv: R.Tensor((), dtype="bool") = param2
             if gv:
-                gv1: R.Tensor((16, 16, 3, 3), dtype="float32") = params[0]
+                gv1: R.Tensor((16, 16, 3, 3), dtype="float32") = param0
                 w: R.Tensor((16, 16, 3, 3), dtype="float32") = gv1
             else:
-                gv2: R.Tensor((16, 16, 3, 3), dtype="float32") = params[1]
+                gv2: R.Tensor((16, 16, 3, 3), dtype="float32") = param1
                 w: R.Tensor((16, 16, 3, 3), dtype="float32") = gv2
             with R.dataflow():
                 conv1 = R.nn.conv2d(x, w, padding=(1, 1), data_layout="NCHW", kernel_layout="OIHW")
@@ -337,10 +336,11 @@ def test_multiple_functions():
         @R.function
         def func1(
             x: R.Tensor((256, 256), dtype="float32"),
-            params: R.Tuple(R.Tensor((256, 256), dtype="float32")),
+            param0: R.Tensor((256, 256), dtype="float32"),
         ) -> R.Tensor((256, 256), dtype="float32"):
+            R.func_attr({"num_input": 1})
             with R.dataflow():
-                lv: R.Tensor((256, 256), dtype="float32") = params[0]
+                lv: R.Tensor((256, 256), dtype="float32") = param0
                 y: R.Tensor((256, 256), dtype="float32") = R.matmul(x, lv, out_dtype="void")
                 R.output(y)
             return y
@@ -359,10 +359,11 @@ def test_multiple_functions():
         @R.function
         def func2(
             x: R.Tensor((256, 256), dtype="float32"),
-            params: R.Tuple(R.Tensor((256, 128), dtype="float32")),
+            param0: R.Tensor((256, 128), dtype="float32"),
         ) -> R.Tensor((256, 128), dtype="float32"):
+            R.func_attr({"num_input": 1})
             with R.dataflow():
-                lv1: R.Tensor((256, 128), dtype="float32") = params[0]
+                lv1: R.Tensor((256, 128), dtype="float32") = param0
                 y: R.Tensor((256, 128), dtype="float32") = R.matmul(x, lv1, out_dtype="void")
                 R.output(y)
             return y
@@ -415,10 +416,11 @@ def test_stop_lifting():
         @R.function
         def func1(
             x: R.Tensor((256, 256), dtype="float32"),
-            params: R.Tuple(R.Tensor((256, 256), dtype="float32")),
+            param0: R.Tensor((256, 256), dtype="float32"),
         ) -> R.Tensor((256, 256), dtype="float32"):
+            R.func_attr({"num_input": 1})
             with R.dataflow():
-                lv: R.Tensor((256, 256), dtype="float32") = params[0]
+                lv: R.Tensor((256, 256), dtype="float32") = param0
                 w1_add: R.Tensor((256, 256), dtype="float32") = R.add(lv, R.const(1, "float32"))
                 y: R.Tensor((256, 256), dtype="float32") = R.matmul(x, w1_add, out_dtype="void")
                 R.output(y)
@@ -440,9 +442,9 @@ def test_stop_lifting():
     tvm.ir.assert_structural_equal(after, Expected)
 
 
-def test_symbolic_var():
+def test_symbolic_var_1():
     @tvm.script.ir_module
-    class Before1:
+    class Before:
         @R.function
         def main(shape: R.Shape(["n"])):
             R.func_attr({"num_input": 1})
@@ -452,7 +454,7 @@ def test_symbolic_var():
             return shape
 
     @I.ir_module
-    class Expected1:
+    class Expected:
         @R.function
         def main_transform_params(params: R.Tuple) -> R.Tuple:
             with R.dataflow():
@@ -461,15 +463,22 @@ def test_symbolic_var():
             return gv
 
         @R.function
-        def main(shape: R.Shape(["n"]), params: R.Tuple) -> R.Shape(["n"]):
+        def main(shape: R.Shape(["n"])) -> R.Shape(["n"]):
+            R.func_attr({"num_input": 1})
             n = T.int64()
             with R.dataflow():
                 zeros: R.Tensor((n, n), dtype="float32") = R.zeros(R.shape([n, n]), dtype="float32")
                 R.output()
             return shape
 
+    mod = Before
+    after = relax.transform.LiftTransformParams()(mod)
+    tvm.ir.assert_structural_equal(after, Expected)
+
+
+def test_symbolic_var_2():
     @I.ir_module
-    class Before2:
+    class Before:
         @T.prim_func
         def zeros(var_T_full: T.handle):
             T.func_attr({"tir.noalias": T.bool(True)})
@@ -484,9 +493,9 @@ def test_symbolic_var():
 
         @R.function
         def main(shape: R.Shape(["n"])) -> R.Shape(["n"]):
-            n = T.int64()
             R.func_attr({"num_input": 1})
-            cls = Before2
+            n = T.int64()
+            cls = Before
             with R.dataflow():
                 zeros = R.call_tir(
                     cls.zeros, R.tuple(), out_sinfo=R.Tensor((n, n), dtype="float32")
@@ -495,7 +504,7 @@ def test_symbolic_var():
             return shape
 
     @I.ir_module
-    class Expected2:
+    class Expected:
         @T.prim_func
         def zeros(var_T_full: T.handle):
             T.func_attr({"tir.noalias": T.bool(True)})
@@ -517,9 +526,10 @@ def test_symbolic_var():
             return gv
 
         @R.function
-        def main(shape: R.Shape(["n"]), params: R.Tuple) -> R.Shape(["n"]):
+        def main(shape: R.Shape(["n"])) -> R.Shape(["n"]):
+            R.func_attr({"num_input": 1})
             n = T.int64()
-            cls = Expected2
+            cls = Expected
             with R.dataflow():
                 zeros = R.call_tir(
                     cls.zeros, R.tuple(), out_sinfo=R.Tensor((n, n), dtype="float32")
@@ -527,13 +537,9 @@ def test_symbolic_var():
                 R.output()
             return shape
 
-    mod = Before1
+    mod = Before
     after = relax.transform.LiftTransformParams()(mod)
-    tvm.ir.assert_structural_equal(after, Expected1)
-
-    mod = Before2
-    after = relax.transform.LiftTransformParams()(mod)
-    tvm.ir.assert_structural_equal(after, Expected2)
+    tvm.ir.assert_structural_equal(after, Expected)
 
 
 if __name__ == "__main__":
