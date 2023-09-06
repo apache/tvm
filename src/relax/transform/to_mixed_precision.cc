@@ -190,8 +190,6 @@ class DTypeDecisionCollector : public ExprVisitor {
 
   void VisitExpr_(const VarNode* op) final { VisitVars_(op); }
 
-  void VisitExpr_(const DataflowVarNode* op) final { VisitVars_(op); }
-
   void VisitBinding_(const VarBindingNode* binding, const CallNode* call_node) final {
     auto policy = GetMixedPrecisionInfo(call_node);
     if (policy == -1) {
@@ -450,13 +448,6 @@ class ToMixedPrecisionRewriter : public ExprMutator {
   }
 
   Var VisitVarDef(const Var& var) { return GetRemapped(var); }
-
-  Expr VisitExpr_(const DataflowVarNode* op) final {
-    if (!builder_->CurrentBlockIsDataFlow()) {
-      return ExprMutator::VisitExpr_(op);
-    }
-    return VisitVar_(GetRef<Var>(op));
-  }
 
   void VisitBinding(const Binding& binding) {
     ExprMutator::VisitBinding(binding);

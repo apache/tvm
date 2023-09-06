@@ -233,9 +233,6 @@ class CheckpointGenerator : private ExprMutator {
   // Visit the use-site of a defined Var
   Expr VisitExpr_(const VarNode* op) final { return VisitVar(GetRef<Var>(op)); }
 
-  // Visit the use-site of a defined DataflowVar
-  Expr VisitExpr_(const DataflowVarNode* op) final { return VisitVar(GetRef<Var>(op)); }
-
   Expr VisitVar(const Var& var) {
     auto it = checkpoint_map_.find(var);
     if (it != checkpoint_map_.end()) {

@@ -305,15 +305,6 @@ class ConstantFolder : public ExprMutator {
     return std::move(post_call);
   }
 
-  Expr VisitExpr_(const DataflowVarNode* op) final {
-    Optional<Expr> opt = LookupBinding(GetRef<Var>(op));
-    // `as` check checks if opt is not null and is instance of constant
-    if (opt.as<relax::ConstantNode>()) {
-      return opt.value();
-    }
-    return ExprMutator::VisitExpr_(op);
-  }
-
   Expr VisitExpr_(const VarNode* op) final {
     Optional<Expr> opt = LookupBinding(GetRef<Var>(op));
     // `as` check checks if opt is not null and is instance of constant

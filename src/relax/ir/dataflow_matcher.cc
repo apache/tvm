@@ -619,10 +619,6 @@ class MatcherUseDefAnalysis : public relax::ExprVisitor {
 
     caller2callees[cur_user_].push_back(op);
   }
-
-  void VisitExpr_(const DataflowVarNode* op) override {
-    VisitExpr_(static_cast<const VarNode*>(op));
-  }
 };
 
 struct PNode {

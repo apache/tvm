@@ -56,10 +56,6 @@ class UDChain : public relax::ExprVisitor {
     cur_user_ = nullptr;
     ExprVisitor::VisitExpr_(op);
   }
-
-  void VisitExpr_(const DataflowVarNode* op) override {
-    VisitExpr_(static_cast<const VarNode*>(op));
-  }
 };
 
 std::pair<runtime::Map<Var, runtime::Array<Var>>, runtime::Array<Var>> FunctionUseDef(
