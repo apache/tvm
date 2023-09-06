@@ -58,8 +58,8 @@ struct MSCRBuildConfig {
   bool prune_graph{false};
   int float_precision = 6;
   std::string sort_by;
-  std::vector<std::string> input_aliass;
-  std::vector<std::string> output_aliass;
+  std::vector<std::string> input_aliases;
+  std::vector<std::string> output_aliases;
   std::unordered_map<std::string, std::vector<std::string>> input_types;
 
   void LoadInputTypes(dmlc::JSONReader* reader) {
@@ -82,10 +82,10 @@ struct MSCRBuildConfig {
         reader->Read(&float_precision);
       } else if (key == "sort_by") {
         reader->Read(&sort_by);
-      } else if (key == "input_aliass") {
-        reader->Read(&input_aliass);
-      } else if (key == "output_aliass") {
-        reader->Read(&output_aliass);
+      } else if (key == "input_aliases") {
+        reader->Read(&input_aliases);
+      } else if (key == "output_aliases") {
+        reader->Read(&output_aliases);
       } else if (key == "input_types") {
         this->LoadInputTypes(reader);
       }

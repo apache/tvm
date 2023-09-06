@@ -124,7 +124,7 @@ def from_relay(
     Parameters
     ----------
     mod: IRModule
-        The IRModule of relax.
+        The IRModule of relay.
     params: dict of <string:tvm.ndarray>
         The parameters of the IRModule.
     trans_config: dict

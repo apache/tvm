@@ -91,7 +91,7 @@ struct JsonMSCTensor {
 struct JsonMSCJoint {
   size_t index;
   std::string name;
-  std::string master;
+  std::string master_name;
   std::string optype;
   std::vector<std::string> scope;
   std::vector<std::string> parents;
@@ -104,7 +104,7 @@ struct JsonMSCJoint {
     writer->BeginObject();
     writer->WriteObjectKeyValue("index", index);
     writer->WriteObjectKeyValue("name", name);
-    writer->WriteObjectKeyValue("master", master);
+    writer->WriteObjectKeyValue("master_name", master_name);
     writer->WriteObjectKeyValue("optype", optype);
     writer->WriteObjectKeyValue("parents", parents);
     writer->WriteObjectKeyValue("inputs", inputs);
@@ -125,8 +125,8 @@ struct JsonMSCJoint {
       } else if (key == "name") {
         reader->Read(&name);
         bitmask |= 2;
-      } else if (key == "master") {
-        reader->Read(&master);
+      } else if (key == "master_name") {
+        reader->Read(&master_name);
       } else if (key == "optype") {
         reader->Read(&optype);
         bitmask |= 4;
@@ -288,8 +288,8 @@ class BaseJointNode : public Object {
   mutable int index;
   /*! \brief The name of node. */
   String name;
-  /*! \brief The master of node, can be changed. */
-  String master;
+  /*! \brief The master_name of node, can be changed. */
+  String master_name;
   /*! \brief The op type of node. */
   String optype;
   /*! \brief The attributes of node. */
@@ -332,7 +332,7 @@ class BaseJointNode : public Object {
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("index", &index);
     v->Visit("name", &name);
-    v->Visit("master", &master);
+    v->Visit("master_name", &master_name);
     v->Visit("optype", &optype);
     v->Visit("attrs", &attrs);
     v->Visit("parents", &parents);
@@ -341,14 +341,14 @@ class BaseJointNode : public Object {
 
   bool SEqualReduce(const BaseJointNode* other, SEqualReducer equal) const {
     return equal(name, other->name) &&
-           equal(master, other->master) & equal(optype, other->optype) &&
+           equal(master_name, other->master_name) & equal(optype, other->optype) &&
            equal(attrs, other->attrs) && equal(parents, other->parents) &&
            equal(children, other->children);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
     hash_reduce(name);
-    hash_reduce(master);
+    hash_reduce(master_name);
     hash_reduce(optype);
     hash_reduce(attrs);
     hash_reduce(parents);
@@ -450,14 +450,14 @@ class MSCJoint : public BaseJoint {
    * \brief The constructor.
    * \param index The index of the node.
    * \param name The name of the node.
-   * \param master The master of the node.
+   * \param master_name The master_name of the node.
    * \param optype The op type the node.
    * \param attrs The attributes of the node.
    * \param inputs The inputs of the node.
    * \param outputs The outputs of the node.
    * \param weights The weights of the node.
    */
-  TVM_DLL MSCJoint(int index, const String& name, const String& master, const String& optype,
+  TVM_DLL MSCJoint(int index, const String& name, const String& master_name, const String& optype,
                    const Map<String, String>& attrs, const Array<String>& scope,
                    const std::vector<std::pair<BaseJoint, size_t>>& inputs,
                    const Array<MSCTensor>& outputs, const Map<String, MSCTensor>& weights);
@@ -531,7 +531,7 @@ class WeightJoint : public BaseJoint {
    * \brief The constructor.
    * \param index The index of the node.
    * \param name The name of the node.
-   * \param master The master of the node.
+   * \param master_name The master_name of the node.
    * \param optype The optype of the node.
    * \param wtype The weight type of the node.
    * \param attrs The attributes of the node.
@@ -539,8 +539,8 @@ class WeightJoint : public BaseJoint {
    * \param parents The parents of the node.
    * \param friends The friends of the node.
    */
-  TVM_DLL WeightJoint(int index, const String& name, const String& master, const String& optype,
-                      const String& wtype, const Map<String, String>& attrs,
+  TVM_DLL WeightJoint(int index, const String& name, const String& master_name,
+                      const String& optype, const String& wtype, const Map<String, String>& attrs,
                       const MSCTensor& weight, const Array<BaseJoint> parents,
                       const Array<BaseJoint>& friends);
 
