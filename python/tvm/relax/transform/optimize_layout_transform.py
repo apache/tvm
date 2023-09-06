@@ -1,4 +1,3 @@
-
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,18 +14,19 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name, unused-argument
 """Relax Optimize Layout Transform pass."""
+from typing import Union
 import tvm
 from tvm import IRModule, relax
 from tvm.ir.transform import module_pass
 from tvm.relax.analysis import remove_all_unused
 from tvm.relax.expr_functor import mutator, PyExprMutator
-from typing import Union
+
 
 @mutator
 class OptimizeLayoutTranformMutator(PyExprMutator):
-    '''
+    """
     Mutator to iterate over relax functions to
     remove redundant transform layout operators
     introduced by AlterOpImpl pass.
@@ -36,25 +36,30 @@ class OptimizeLayoutTranformMutator(PyExprMutator):
     mod: IRModule
         The ir module
 
-    '''
+    """
 
     def __init__(self, mod: IRModule) -> None:
         super().__init__(mod)
         self.mod_ = mod
-        self.patterns = [
-            [
-                "relax.layout_transform",
-                "relax.layout_transform"
-            ]
-        ]
+        self.patterns = [["relax.layout_transform", "relax.layout_transform"]]
 
+    def update_args(self, call_node: relax.Call) -> Union[None, relax.Tuple]:
+        """
+        Matches the call_node against the pattern
+        layout_transform -> layout_transform. Based on the pattern matching,
+        returns the updated arguments for call_node.
 
-    # Matches the call_node against the pattern layout_transform -> layout_transform.
-    # Based on the pattern matching, returns the updated arguments for call_node.
-    def update_args(self, call_node) -> Union[None, relax.Tuple]:
-        # Helper function to check if the called TIR function is matching
-        # the relax operator name.
+        Parameters
+        ----------
+        call_node: relax.Call
+           Relax call node for which args need to be updated.
+        """
+
         def check_op_type(call_node: relax.Call, op_name: str) -> bool:
+            """
+            Helper function to check if the called TIR function is matching
+            the relax operator name.
+            """
             if not isinstance(call_node, relax.Call):
                 return False
             if call_node.op != tvm.ir.Op.get(op_name):
@@ -62,10 +67,8 @@ class OptimizeLayoutTranformMutator(PyExprMutator):
             return True
 
         new_call_args = []
-
-        # Update args of call_node be checking the pattern 
+        # Update args of call_node
         for arg in call_node.args[1]:
-            is_pattern_match = False
             if not isinstance(arg, relax.expr.Var):
                 new_call_args.append(arg)
                 continue
@@ -74,7 +77,7 @@ class OptimizeLayoutTranformMutator(PyExprMutator):
                 is_pattern_found = True
                 value = arg
                 for pat in pattern:
-                    if value == None:
+                    if value is None:
                         break
                     value = self.lookup_binding(value)
                     if not check_op_type(value, pat):
@@ -83,7 +86,9 @@ class OptimizeLayoutTranformMutator(PyExprMutator):
                     value = value.args[0]
 
                 # Check if the shape of value matches the shape of arg to replace
-                if value != None and list(value.struct_info.shape) != list(arg.struct_info.shape):
+                if value is not None and list(value.struct_info.shape) != list(
+                    arg.struct_info.shape
+                ):
                     is_pattern_found = False
                 if is_pattern_found:
                     arg_to_update = value
@@ -97,7 +102,9 @@ class OptimizeLayoutTranformMutator(PyExprMutator):
         return new_call_args
 
     def transform(self) -> IRModule:
-        # Iterate over all the functions in the IRModule
+        """
+        Iterate over all the functions in the IRModule
+        """
         for global_var, func in self.mod_.functions.items():
             # Skip non-relax functions
             if not isinstance(func, relax.Function):
@@ -136,5 +143,5 @@ class OptimizeLayoutTranformMutator(PyExprMutator):
 class OptimizeLayoutTransform:
     """The wrapper for the optimization of layout transform pass."""
 
-    def transform_module(self, mod, ctx):
+    def transform_module(self, mod: IRModule, ctx: tvm.transform.PassContext):
         return OptimizeLayoutTranformMutator(mod).transform()
