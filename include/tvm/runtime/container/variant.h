@@ -58,10 +58,10 @@ constexpr bool parent_is_base_of_any<Parent, std::tuple<Child...>> =
  * semantic interpretations.
  */
 template <typename ParentTuple, typename ChildTuple>
-constexpr bool any_parent_is_base_of_any_child = false;
+static constexpr bool any_parent_is_base_of_any_child = false;
 
 template <typename ChildTuple, typename... Parent>
-constexpr bool any_parent_is_base_of_any_child<std::tuple<Parent...>, ChildTuple> =
+static constexpr bool any_parent_is_base_of_any_child<std::tuple<Parent...>, ChildTuple> =
     (parent_is_base_of_any<Parent, ChildTuple> || ...);
 }  // namespace detail
 
@@ -89,7 +89,7 @@ class Variant : public ObjectRef {
   using enable_if_variant = std::enable_if_t<is_variant<T>>;
 
   template <typename T, typename = enable_if_variant<T>>
-  explicit Variant(T value) : ObjectRef(std::move(value)) {}
+  Variant(T value) : ObjectRef(std::move(value)) {}  // NOLINT(*)
 
   template <typename T, typename = enable_if_variant<T>>
   Variant& operator=(T value) {
