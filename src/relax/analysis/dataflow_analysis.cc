@@ -72,14 +72,7 @@ size_t ExtractCFGHelper(const SeqExpr& seq, const Array<Var>& args, size_t block
   }
 
   Binding binding = seq->blocks[block_idx]->bindings[binding_idx];
-  Expr binding_value;
-  if (auto* var_binding = binding.as<VarBindingNode>()) {
-    binding_value = var_binding->value;
-  } else if (auto* match_binding = binding.as<MatchCastNode>()) {
-    binding_value = match_binding->value;
-  } else {
-    CHECK(false) << "Invalid binding (should never happen)";
-  }
+  Expr binding_value = GetBoundValue(binding);
 
   // case 2: Ordinary binding
   if (!binding_value.as<IfNode>()) {
