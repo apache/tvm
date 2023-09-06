@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Legalize high-level operator calls in Relax functions to call_tir."""
+from . import annotate
 from . import binary
 from . import ccl
 from . import create

@@ -18,6 +18,7 @@
 """Relax core operators."""
 
 # Operators
+from .annotate import *
 from .base import *
 from .binary import *
 from .create import *
