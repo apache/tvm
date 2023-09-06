@@ -31,6 +31,7 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
 #include <tvm/tir/transform.h>
+
 #include "../op/tensor/manipulate.h"
 namespace tvm {
 namespace relax {
@@ -164,7 +165,7 @@ class AlterOpImplMutator : public ExprMutator {
   }
 
   bool IsScalarConstant(const Expr& expr) {
-    if(expr->IsInstance<ConstantNode>() && expr.as<ConstantNode>()->is_scalar()){
+    if (expr->IsInstance<ConstantNode>() && expr.as<ConstantNode>()->is_scalar()) {
       return true;
     }
     return false;
@@ -172,7 +173,7 @@ class AlterOpImplMutator : public ExprMutator {
 
   Expr TransformLayout(const Expr& expr, const IndexMap& index_map,
                        const Array<IntImm>& axis_separators) {
-    if(IsScalarConstant(expr) || index_map.get() == nullptr){
+    if (IsScalarConstant(expr) || index_map.get() == nullptr) {
       return expr;
     }
     ObjectPtr<LayoutTransformAttrs> attrs = make_object<LayoutTransformAttrs>();
@@ -187,7 +188,7 @@ class AlterOpImplMutator : public ExprMutator {
   Expr TransformLayoutInverse(const Expr& expr, const IndexMap& index_map,
                               const TensorStructInfo& old_tensor_sinfo,
                               const Array<IntImm>& axis_separator) {
-    if(IsScalarConstant(expr) || index_map.get() == nullptr){
+    if (IsScalarConstant(expr) || index_map.get() == nullptr) {
       return expr;
     }
     Array<PrimExpr> old_shape = GetShapeFromTensorStructInfo(old_tensor_sinfo);
