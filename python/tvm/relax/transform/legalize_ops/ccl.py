@@ -60,11 +60,11 @@ def _broadcast_from_worker0(_bb: BlockBuilder, call: Call) -> Expr:
 @register_legalize("relax.ccl.scatter_from_worker0")
 def _scatter_from_worker0(_bb: BlockBuilder, call: Call) -> Expr:
     output_shape = []
-    for i, v in enumerate(call.args[0].struct_info.shape.values):
+    for i, shape_value in enumerate(call.args[0].struct_info.shape.values):
         if i == 0:
-            output_shape.append(tir.div(v, call.attrs.num_workers))
+            output_shape.append(tir.div(shape_value, call.attrs.num_workers))
         else:
-            output_shape.append(v)
+            output_shape.append(shape_value)
     return call_pure_packed(
         "runtime.disco.scatter_from_worker0",
         call.args[0],
