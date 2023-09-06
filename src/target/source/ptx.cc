@@ -713,8 +713,7 @@ std::string PrintCpAsyncBulkAsm(const std::string& shared_ptr,
                                 const std::string& shared_elem_offset,
                                 const std::string& global_ptr,
                                 const std::string& global_elem_offset, const std::string& bytes,
-                                const std::string& barrier_ptr,
-                                const std::string& barrier_elem_offset) {
+                                const std::string& barrier) {
   std::string asm_code = R"(
   {
     unsigned int smem_addr_int = cast_smem_ptr_to_int({smem_addr});
@@ -731,13 +730,12 @@ std::string PrintCpAsyncBulkAsm(const std::string& shared_ptr,
   replacer.register_rule("{smem_addr}", shared_ptr + " + " + shared_elem_offset);
   replacer.register_rule("{global_ptr}", global_ptr + " + " + global_elem_offset);
   replacer.register_rule("{bytes}", bytes);
-  replacer.register_rule("{barrier}", barrier_ptr + " + " + barrier_elem_offset);
+  replacer.register_rule("{barrier}", "&" + barrier);
   asm_code = replacer.rewrite(asm_code);
   return asm_code;
 }
 
-std::string PrintCpAsyncBarrierAsm(const std::string& barrier_ptr,
-                                   const std::string& barrier_elem_offset) {
+std::string PrintCpAsyncBarrierAsm(const std::string& barrier) {
   std::string predicated_asm_code = R"(
   {
     unsigned int barrier_addr_int = cast_smem_ptr_to_int({barrier});
@@ -749,13 +747,12 @@ std::string PrintCpAsyncBarrierAsm(const std::string& barrier_ptr,
 )";
 
   Replacer replacer;
-  replacer.register_rule("{barrier}", barrier_ptr + " + " + barrier_elem_offset);
+  replacer.register_rule("{barrier}", "&" + barrier);
   predicated_asm_code = replacer.rewrite(predicated_asm_code);
   return predicated_asm_code;
 }
 
-std::string PrintInitBarrierThreadCountAsm(const std::string& barrier_ptr,
-                                           const std::string& barrier_elem_offset,
+std::string PrintInitBarrierThreadCountAsm(const std::string& barrier,
                                            const std::string& thread_count) {
   std::string predicated_asm_code = R"(
   {
@@ -769,14 +766,13 @@ std::string PrintInitBarrierThreadCountAsm(const std::string& barrier_ptr,
 )";
 
   Replacer replacer;
-  replacer.register_rule("{barrier}", barrier_ptr + " + " + barrier_elem_offset);
+  replacer.register_rule("{barrier}", "&" + barrier);
   replacer.register_rule("{thread_count}", thread_count);
   predicated_asm_code = replacer.rewrite(predicated_asm_code);
   return predicated_asm_code;
 }
 
-std::string PrintArriveBarrierAsm(const std::string& barrier_ptr,
-                                  const std::string& barrier_elem_offset) {
+std::string PrintArriveBarrierAsm(const std::string& barrier) {
   std::string predicated_asm_code = R"(
   {
     unsigned int barrier_addr_int = cast_smem_ptr_to_int({barrier});
@@ -788,13 +784,12 @@ std::string PrintArriveBarrierAsm(const std::string& barrier_ptr,
 )";
 
   Replacer replacer;
-  replacer.register_rule("{barrier}", barrier_ptr + " + " + barrier_elem_offset);
+  replacer.register_rule("{barrier}", "&" + barrier);
   predicated_asm_code = replacer.rewrite(predicated_asm_code);
   return predicated_asm_code;
 }
 
-std::string PrintArriveBarrierExpectTxAsm(const std::string& barrier_ptr,
-                                          const std::string& barrier_elem_offset,
+std::string PrintArriveBarrierExpectTxAsm(const std::string& barrier,
                                           const std::string& byte_count) {
   std::string predicated_asm_code = R"(
   {
@@ -808,14 +803,13 @@ std::string PrintArriveBarrierExpectTxAsm(const std::string& barrier_ptr,
 )";
 
   Replacer replacer;
-  replacer.register_rule("{barrier}", barrier_ptr + " + " + barrier_elem_offset);
+  replacer.register_rule("{barrier}", "&" + barrier);
   replacer.register_rule("{byte_count}", byte_count);
   predicated_asm_code = replacer.rewrite(predicated_asm_code);
   return predicated_asm_code;
 }
 
-std::string PrintWaitBarrierAsm(const std::string& barrier_ptr,
-                                const std::string& barrier_elem_offset) {
+std::string PrintWaitBarrierAsm(const std::string& barrier) {
   std::string predicated_asm_code = R"(
   {
     unsigned int barrier_addr_int = cast_smem_ptr_to_int({barrier});
@@ -828,7 +822,7 @@ std::string PrintWaitBarrierAsm(const std::string& barrier_ptr,
 )";
 
   Replacer replacer;
-  replacer.register_rule("{barrier}", barrier_ptr + " + " + barrier_elem_offset);
+  replacer.register_rule("{barrier}", "&" + barrier);
   predicated_asm_code = replacer.rewrite(predicated_asm_code);
   return predicated_asm_code;
 }

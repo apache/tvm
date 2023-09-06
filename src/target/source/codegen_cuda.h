@@ -109,6 +109,11 @@ class CodeGenCUDA final : public CodeGenC {
   // Op attribute map
   OpAttrMap<bool> op_need_warp_shuffle_ = Op::GetAttrMap<bool>("cuda.need_warp_shuffle");
 
+  // The name of the barrier array in shared memory
+  const std::string barrier_name_ = "barrier";
+  // The size of the barrier array in shared memory
+  int barrier_count_ = -1;
+
   std::unordered_map<const VarNode*, std::string> fragment_shapes;
   std::unordered_map<const VarNode*, std::string> fragment_layouts;
   friend void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenCUDA* p);
