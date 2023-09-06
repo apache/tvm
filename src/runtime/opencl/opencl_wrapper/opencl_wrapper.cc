@@ -36,6 +36,7 @@
 #define DMLC_USE_LOGGING_LIBRARY <tvm/runtime/logging.h>
 #include <tvm/runtime/logging.h>
 
+#include <cstring>
 #include <vector>
 
 namespace {
@@ -45,6 +46,7 @@ static const std::vector<const char*> default_so_paths = {
 #elif defined(__ANDROID__)
 static const std::vector<const char*> default_so_paths = {
     "libOpenCL.so",
+    "libOpenCL-pixel.so",
     "/system/lib64/libOpenCL.so",
     "/system/vendor/lib64/libOpenCL.so",
     "/system/vendor/lib64/egl/libGLES_mali.so",
@@ -66,6 +68,9 @@ static const std::vector<const char*> default_so_paths = {"libOpenCL.so",
                                                           "/usr/lib32/libOpenCL.so"};
 #endif
 
+typedef void (*enableOpenCL_t)();
+typedef void* (*loadOpenCLPointer_t)(const char* name);
+
 class LibOpenCLWrapper {
  public:
   static LibOpenCLWrapper& getInstance() {
@@ -79,7 +84,11 @@ class LibOpenCLWrapper {
 #if defined(_WIN32)
     return GetProcAddress(m_libHandler, funcName);
 #else
-    return dlsym(m_libHandler, funcName);
+    if (loadOpenCLPointer != nullptr) {
+      return loadOpenCLPointer(funcName);
+    } else {
+      return dlsym(m_libHandler, funcName);
+    }
 #endif
   }
 
@@ -98,6 +107,21 @@ class LibOpenCLWrapper {
       m_libHandler = LoadLibrary(it);
 #else
       m_libHandler = dlopen(it, RTLD_LAZY);
+
+      if (std::strcmp(it, "libOpenCL-pixel.so") == 0) {
+        enableOpenCL_t enableOpenCL =
+            reinterpret_cast<enableOpenCL_t>(dlsym(m_libHandler, "enableOpenCL"));
+        if (enableOpenCL == nullptr) {
+          continue;
+        }
+        enableOpenCL();
+        loadOpenCLPointer =
+            reinterpret_cast<loadOpenCLPointer_t>(dlsym(m_libHandler, "loadOpenCLPointer"));
+        if (loadOpenCLPointer == nullptr) {
+          continue;
+        }
+      }
+
 #endif
       if (m_libHandler != nullptr) return;
     }
@@ -109,6 +133,8 @@ class LibOpenCLWrapper {
   HMODULE m_libHandler = nullptr;
 #else
   void* m_libHandler = nullptr;
+  loadOpenCLPointer_t loadOpenCLPointer;
+
 #endif
 };
 
