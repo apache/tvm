@@ -132,6 +132,42 @@ def ExtractCFG(func: Function) -> ControlFlowGraph:
     return _ffi_api.ExtractCFG(func)  # type: ignore
 
 
+def GetBindingIndex(
+    cfg: ControlFlowGraph, seq: SeqExpr, block_idx: int, binding_idx: int, match_cond: bool = False
+) -> int:
+    """
+    Helper function. Given a control flow graph and a seq expression with a block index and binding index,
+    return the index of the corresponding GraphBinding in the CFG
+
+    Parameters
+    ----------
+    cfg: ControlFlowGraph
+        The control flow graph.
+
+    seq: SeqExpr
+        The target SeqExpr.
+
+    block_idx: int
+        The index of the target block in seq.
+        Convention: If the target is `seq.body`, block_idx should be one past the last block
+        (i.e., it should be equal to `len(seq.blocks)`).
+
+    binding_idx: int
+        The index of the target binding in the target block.
+
+    match_cond: bool
+        If true and the target binding in seq is an IfNode, then this function will return
+        the binding index corresponding to the If condition.
+        If false, then this function will return the binding index corresponding to the If merge.
+
+    Returns
+    -------
+    idx: int
+        The index of the corresponding GraphBindindg in `cfg.bindings`.
+    """
+    return _ffi_api.GetBindingIndex(cfg, seq, block_idx, binding_idx, match_cond)  # type: ignore
+
+
 def DataflowAnalysis(
     cfg: ControlFlowGraph,
     init: Any,

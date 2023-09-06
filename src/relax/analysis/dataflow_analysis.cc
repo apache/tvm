@@ -188,6 +188,34 @@ std::pair<Array<ObjectRef>, Array<ObjectRef>> DataflowAnalysis(
   return {Array<ObjectRef>(in_map), Array<ObjectRef>(out_map)};
 }
 
+size_t GetBindingIndex(const ControlFlowGraph& cfg, const SeqExpr& seq, size_t block_idx,
+                       size_t binding_idx, bool match_cond) {
+  bool is_body = (block_idx == seq->blocks.size());
+  bool is_if =
+      (!is_body && (GetBoundValue(seq->blocks[block_idx]->bindings[binding_idx]).as<IfNode>()));
+
+  // This is an inefficient linear scan; it could be improved by keeping a map of
+  // SeqExprs to indices in the CFG data structure.
+  // That should be considered if this function poses performance issues (unlikely).
+  for (size_t i = 0; i < cfg->bindings.size(); i++) {
+    auto binding = cfg->bindings[i];
+    if (binding->seq != seq) {
+      continue;
+    }
+    if (is_body && binding->kind == BindingNodeKind::kSeqBody) {
+      return i;
+    }
+    if (binding->block_idx == block_idx && binding->binding_idx == binding_idx) {
+      if (!is_if || (match_cond && binding->kind == BindingNodeKind::kIfCond) ||
+          (!match_cond && binding->kind == BindingNodeKind::kIfMerge)) {
+        return i;
+      }
+    }
+  }
+  CHECK(false) << "Target binding does not appear in the given CFG";
+  return cfg->bindings.size();
+}
+
 TVM_REGISTER_GLOBAL("relax.analysis.GraphBinding")
     .set_body_typed([](const SeqExpr& seq, const Array<Var>& args, size_t block_idx,
                        size_t binding_idx, int kind) {
@@ -208,6 +236,13 @@ TVM_REGISTER_GLOBAL("relax.analysis.DataflowAnalysis")
                        PackedFunc merge_func, bool forward) {
       auto ret = DataflowAnalysis(cfg, init, transfer_func, merge_func, forward);
       return Array<ObjectRef>({ret.first, ret.second});
+    });
+
+// need to turn the size_t's into ints in order to cross the C++<->Python boundary
+TVM_REGISTER_GLOBAL("relax.analysis.GetBindingIndex")
+    .set_body_typed([](const ControlFlowGraph& cfg, const SeqExpr& seq, int block_idx,
+                       int binding_idx, bool match_cond) -> int {
+      return GetBindingIndex(cfg, seq, block_idx, binding_idx, match_cond);
     });
 
 }  // namespace relax

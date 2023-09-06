@@ -22,6 +22,7 @@ from tvm.relax.analysis.dataflow_analysis import (
     ExtractCFG,
     DataflowAnalysis,
     BindingNodeKind,
+    GetBindingIndex,
 )
 from tvm.script import ir as I, relax as R
 import tvm.testing
@@ -479,6 +480,37 @@ def test_simple_analysis_with_merge():
     assert out_map[0]["merge"] == 1
     assert in_map[0]["a"] == 8
     assert in_map[0]["merge"] == 2
+
+
+def test_get_binding_index():
+    @I.ir_module
+    class BranchAndBind:
+        @R.function
+        def main(cond: R.Tensor((), "bool")) -> R.Tensor((), "int32"):
+            x = R.const(1, dtype="int32")
+            y = R.add(x, x)
+            if cond:
+                z = R.multiply(y, y)
+            else:
+                z = R.add(y, y)
+            q = R.add(z, z)
+            return q
+
+    graph = ExtractCFG(BranchAndBind["main"])
+    outer_seq = BranchAndBind["main"].body
+    true_seq = BranchAndBind["main"].body.blocks[0].bindings[2].value.true_branch
+    false_seq = BranchAndBind["main"].body.blocks[0].bindings[2].value.false_branch
+
+    assert GetBindingIndex(graph, outer_seq, 0, 0) == 0
+    assert GetBindingIndex(graph, outer_seq, 0, 1) == 1
+    assert GetBindingIndex(graph, outer_seq, 0, 2, match_cond=True) == 2
+    assert GetBindingIndex(graph, true_seq, 0, 0) == 3
+    assert GetBindingIndex(graph, true_seq, 1, 0) == 4
+    assert GetBindingIndex(graph, false_seq, 0, 0) == 5
+    assert GetBindingIndex(graph, false_seq, 1, 0) == 6
+    assert GetBindingIndex(graph, outer_seq, 0, 2) == 7  # the merge
+    assert GetBindingIndex(graph, outer_seq, 0, 3) == 8
+    assert GetBindingIndex(graph, outer_seq, 1, 0) == 9
 
 
 if __name__ == "__main__":

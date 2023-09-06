@@ -46,12 +46,7 @@ namespace relax {
  *     the SeqExprs in the true and false branches)
  *  4. The body expression in a SeqExpr (not actually bound)
  */
-enum BindingNodeKind : int {
-  kBinding = 0,
-  kIfCond = 1,
-  kIfMerge = 2,
-  kSeqBody = 3
-};
+enum BindingNodeKind : int { kBinding = 0, kIfCond = 1, kIfMerge = 2, kSeqBody = 3 };
 
 class GraphBindingNode : public Object {
  public:
@@ -181,6 +176,20 @@ std::pair<Array<ObjectRef>, Array<ObjectRef>> DataflowAnalysis(
     const ControlFlowGraph& cfg, const ObjectRef& init,
     std::function<ObjectRef(const GraphBinding&, const ObjectRef&)> transfer_func,
     std::function<ObjectRef(const ObjectRef&, const ObjectRef&)> merge_func, bool forward = true);
+
+/*! \brief A helper function. Given an index into a SeqExpr, give the index of the GraphBinding
+ *  in the CFG.
+ *
+ * \param cfg The control flow graph.
+ * \param seq The target SeqExpr.
+ * \param block_idx The target block in the SeqExpr.
+ *   Convention: Use one past the last block to indicate the SeqExpr body.
+ * \param binding_idx The target binding in the target block.
+ * \param match_cond If the RHS of the target binding is an IfExpr, then if match_cond is true,
+ *   the returned index will be for the condition node; otherwise it will be for the merge node.
+ */
+size_t GetBindingIndex(const ControlFlowGraph& cfg, const SeqExpr& seq, size_t block_idx,
+                       size_t binding_idx, bool match_cond);
 
 }  // namespace relax
 }  // namespace tvm
