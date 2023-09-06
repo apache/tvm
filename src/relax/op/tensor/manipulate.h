@@ -80,15 +80,6 @@ Expr layout_transform(Expr x, tir::IndexMap index_map, Optional<PrimValue> pad_v
  */
 Expr permute_dims(Expr x, Optional<Array<Integer>> axes);
 
-
-/*!
- * \brief Removes the padded entries by copying non-padded entries from padded buffer.
- * \param x The input data to the operator.
- * \param orig_shape The original non-padded shape corresponding to the output buffer.
- * \return The buffer without padding.
- */
-Expr remove_pad(Expr x, Array<PrimExpr> orig_shape);
-
 /*!
  * \brief Reshape the input array, supporting `-1` inference in the new
  * shape when the new shape is given as an Array of PrimExpr.

@@ -1673,35 +1673,5 @@ TVM_REGISTER_OP("relax.scatter_elements")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoScatterElements)
     .set_attr<Bool>("FPurity", Bool(true));
 
-/* relax.remove_pad */
-TVM_REGISTER_NODE_TYPE(RemovePadAttrs);
-
-Expr remove_pad(Expr x, Array<PrimExpr> orig_shape) {
-  ObjectPtr<RemovePadAttrs> attrs = make_object<RemovePadAttrs>();
-  attrs->orig_shape = std::move(orig_shape);
-
-  static const Op& op = Op::Get("relax.remove_pad");
-  return Call(op, {std::move(x)}, Attrs{attrs}, {});
-}
-
-TVM_REGISTER_GLOBAL("relax.op.remove_pad").set_body_typed(remove_pad);
-
-StructInfo InferStructInfoRemovePad(const Call& call, const BlockBuilder& ctx) {
-  TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
-
-  const auto* attrs = call->attrs.as<RemovePadAttrs>();
-  Array<PrimExpr> output_shape = attrs->orig_shape;
-
-  return TensorStructInfo(ShapeExpr(output_shape), data_sinfo->dtype);
-}
-
-TVM_REGISTER_OP("relax.remove_pad")
-    .set_attrs_type<RemovePadAttrs>()
-    .set_num_inputs(1)
-    .add_argument("x", "Tensor", "The input tensor.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoRemovePad)
-    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<Bool>("FPurity", Bool(true));
-
 }  // namespace relax
 }  // namespace tvm

@@ -156,15 +156,6 @@ struct ScatterElementsAttrs : public tvm::AttrsNode<ScatterElementsAttrs> {
         "either \"update\", \"add\", \"mul\", \"mean\", \"min\" or \"max\".");
   }
 };  // struct ScatterElementsAttrs
-
-/*! \brief Attributes used in remove_pad operator */
-struct RemovePadAttrs : public tvm::AttrsNode<RemovePadAttrs> {
-  Array<PrimExpr> orig_shape;
-
-  TVM_DECLARE_ATTRS(RemovePadAttrs, "relax.attrs.RemovePadAttrs") {
-    TVM_ATTR_FIELD(orig_shape).describe("The original shape.");
-  }
-};  // struct RemovePadAttrs
 }  // namespace relax
 }  // namespace tvm
 

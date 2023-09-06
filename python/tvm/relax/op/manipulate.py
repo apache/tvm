@@ -496,23 +496,3 @@ def scatter_elements(
 
     """
     return _ffi_api.scatter_elements(data, indices, updates, axis, reduction)  # type: ignore
-
-
-def remove_pad(x: Expr, orig_shape: Union[Tuple[PrimExprLike], Expr]) -> Expr:
-    """
-    Returns an Expr whose values are copied from 'x', and dimension is equal to 'orig_shape'
-
-    Parameters
-    ----------
-    x : relax.Expr
-        The input data to the operator.
-
-    orig_shape : Optional[List[int]]
-        The original non-padded buffer dimensions.
-
-    Returns
-    -------
-    result : relax.Expr
-        The non-padded buffer.
-    """
-    return _ffi_api.remove_pad(x, orig_shape)
