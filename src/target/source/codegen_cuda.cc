@@ -987,8 +987,8 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     need_cast_smem_ptr_to_int_ = true;
     int barrier_id = Downcast<IntImm>(op->args[0])->value;
     ICHECK(barrier_id < barrier_count_);
-    std::string thread_count = this->PrintExpr(op->args[1]);
     std::string barrier = barrier_name_ + "[" + std::to_string(barrier_id) + "]";
+    std::string thread_count = this->PrintExpr(op->args[1]);
     this->stream << PrintInitBarrierThreadCountAsm(barrier, thread_count);
   } else if (op->op.same_as(builtin::ptx_arrive_barrier())) {
     need_cast_smem_ptr_to_int_ = true;
@@ -1000,8 +1000,8 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     need_cast_smem_ptr_to_int_ = true;
     int barrier_id = Downcast<IntImm>(op->args[0])->value;
     ICHECK(barrier_id < barrier_count_);
-    std::string byte_count = this->PrintExpr(op->args[1]);
     std::string barrier = barrier_name_ + "[" + std::to_string(barrier_id) + "]";
+    std::string byte_count = this->PrintExpr(op->args[1]);
     this->stream << PrintArriveBarrierExpectTxAsm(barrier, byte_count);
   } else if (op->op.same_as(builtin::ptx_wait_barrier())) {
     need_cast_smem_ptr_to_int_ = true;
@@ -1012,8 +1012,15 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
   } else if (op->op.same_as(builtin::create_barriers())) {
     ICHECK(barrier_count_ == -1);
     int barrier_count = Downcast<IntImm>(op->args[0])->value;
+    // pad barrier alignment to avoid runtime alignment errors
+    ICHECK(barrier_alignment_bytes_ % sizeof(uint64_t) == 0);
+    int barrier_alignment_count = barrier_alignment_bytes_ / sizeof(uint64_t);
+    if (barrier_count % barrier_alignment_count != 0) {
+      barrier_count = ((barrier_count / barrier_alignment_count) + 1) * barrier_alignment_count;
+    }
     barrier_count_ = barrier_count;
-    this->stream << "__shared__ uint64_t " << barrier_name_ << "[" << barrier_count << "];\n";
+    this->stream << "__shared__ __align__(" << barrier_alignment_bytes_ << ") uint64_t "
+                 << barrier_name_ << "[" << barrier_count << "];\n";
     this->stream << "for (int i = 0; i < " << barrier_count << "; ++i) { " << barrier_name_
                  << "[i] = 0; }\n";
   } else if (op->op.same_as(builtin::ptx_ldg32())) {
