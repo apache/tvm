@@ -3450,6 +3450,20 @@ def test_forward_adaptive_max_pool1d():
 
 
 @tvm.testing.uses_gpu
+def test_forward_instance_norm():
+    """test_forward_instance_norm"""
+
+    class instance_norm(Module):
+        def forward(self, *args):
+            return torch.nn.functional.instance_norm(args[0], use_input_stats=True)
+
+    m = instance_norm().float().eval()
+    input_data = torch.randn([1, 1, 1, 2], dtype=torch.float64)
+
+    verify_model(m.float().eval(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
 def test_forward_full_like():
     """test_forward_full_like"""
     torch.set_grad_enabled(False)
