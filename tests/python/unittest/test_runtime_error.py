@@ -17,6 +17,7 @@
 """Test runtime error handling"""
 
 import functools
+import platform
 import subprocess
 import traceback
 
@@ -101,7 +102,10 @@ def _has_debug_symbols():
     return ".debug" in headers
 
 
-@pytest.mark.skipif(not _has_debug_symbols(), reason="C++ stack frames require debug symbols")
+@pytest.mark.skipif(
+    not _has_debug_symbols() or platform.machine != "x86_64",
+    reason="C++ stack frames require debug symbols, only implemented for x86",
+)
 def test_cpp_frames_in_stack_trace_from_python_error():
     """A python exception crossing C++ boundaries should have C++ stack frames"""
 
@@ -128,7 +132,10 @@ def test_cpp_frames_in_stack_trace_from_python_error():
         )
 
 
-@pytest.mark.skipif(not _has_debug_symbols(), reason="C++ stack frames require debug symbols")
+@pytest.mark.skipif(
+    not _has_debug_symbols() or platform.machine != "x86_64",
+    reason="C++ stack frames require debug symbols, only implemented for x86",
+)
 def test_stack_trace_from_cpp_error():
     """A python exception originating in C++ should have C++ stack frames"""
     try:
