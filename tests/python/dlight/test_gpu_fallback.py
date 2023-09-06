@@ -109,5 +109,75 @@ def test_fallback_reduction():
     assert_structural_equal(mod, Expected)
 
 
+def test_fallback_irregular_spatial():
+    @T.prim_func(private=True)
+    def func(
+        var_pages: T.handle,
+        var_page_table_indptr: T.handle,
+        var_page_table_values: T.handle,
+        var_values: T.handle,
+        seq_id: T.int32,
+    ):
+        nhead = T.int32()
+        nlayer = T.int32()
+        seqlen = T.int32()
+        npage = T.int32()
+        page_size = T.int32()
+        num_total_pages = T.int32()
+        num_total_seqs_plus_1 = T.int32()
+
+        pages = T.match_buffer(var_pages, (num_total_pages, nlayer, nhead, page_size), "float16")
+        page_table_indptr = T.match_buffer(var_page_table_indptr, (num_total_seqs_plus_1,), "int32")
+        page_table_values = T.match_buffer(var_page_table_values, (npage,), "int32")
+        values = T.match_buffer(var_values, (nlayer, nhead, seqlen), "float16")
+
+        for l, h, pos in T.grid(nlayer, nhead, seqlen):
+            with T.block("block"):
+                vl, vh, vp = T.axis.remap("SSS", [l, h, pos])
+                values[vl, vh, vp] = pages[
+                    page_table_values[page_table_indptr[seq_id] + T.floordiv(vp, page_size)],
+                    vl,
+                    vh,
+                    T.floormod(vp, page_size),
+                ]
+
+    # fmt: off
+    @T.prim_func(private=True)
+    def expected(var_pages: T.handle, var_page_table_indptr: T.handle, var_page_table_values: T.handle, var_values: T.handle, seq_id: T.int32):
+        T.func_attr({"tir.is_scheduled": 1})
+        nhead = T.int32()
+        nlayer = T.int32()
+        seqlen = T.int32()
+        npage = T.int32()
+        page_size = T.int32()
+        num_total_pages = T.int32()
+        num_total_seqs_plus_1 = T.int32()
+
+        pages = T.match_buffer(var_pages, (num_total_pages, nlayer, nhead, page_size), "float16")
+        page_table_indptr = T.match_buffer(var_page_table_indptr, (num_total_seqs_plus_1,), "int32")
+        page_table_values = T.match_buffer(var_page_table_values, (npage,), "int32")
+        values = T.match_buffer(var_values, (nlayer, nhead, seqlen), "float16")
+
+        for ax0_ax1_ax2_fused_0 in T.thread_binding((nlayer * nhead * seqlen + 1023) // 1024, thread="blockIdx.x"):
+            for ax0_ax1_ax2_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
+                with T.block("block"):
+                    v0 = T.axis.spatial(nlayer, (ax0_ax1_ax2_fused_0 * 1024 + ax0_ax1_ax2_fused_1) % (seqlen * nhead * nlayer) // (seqlen * nhead))
+                    v1 = T.axis.spatial(nhead, (ax0_ax1_ax2_fused_0 * 1024 + ax0_ax1_ax2_fused_1) % (seqlen * nhead) // seqlen)
+                    v2 = T.axis.spatial(seqlen, (ax0_ax1_ax2_fused_0 * 1024 + ax0_ax1_ax2_fused_1) % seqlen)
+                    T.where(ax0_ax1_ax2_fused_0 * 1024 + ax0_ax1_ax2_fused_1 < nlayer * nhead * seqlen)
+                    T.reads(pages[page_table_values[page_table_indptr[seq_id] + v2 // page_size], v0, v1, v2 % page_size], page_table_values[page_table_indptr[seq_id] + v2 // page_size], page_table_indptr[seq_id])
+                    T.writes(values[v0, v1, v2])
+                    values[v0, v1, v2] = pages[page_table_values[page_table_indptr[seq_id] + v2 // page_size], v0, v1, v2 % page_size]
+    # fmt: on
+
+    target = Target("nvidia/geforce-rtx-3090-ti")
+    with target:
+        mod = tvm.IRModule({"main": func})
+        mod = dl.ApplyDefaultSchedule(  # pylint: disable=not-callable
+            dl.gpu.Fallback(),
+        )(mod)
+    assert_structural_equal(mod["main"], expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

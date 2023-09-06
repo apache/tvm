@@ -40,7 +40,12 @@ class Fallback(ScheduleRule):
         max_threads_per_block = utils.max_threads_per_block(target)
 
         sch = tir.Schedule(func)
-        block_infos = try_inline(sch, normalize_prim_func(sch))
+        block_infos = normalize_prim_func(sch)
+
+        if block_infos is None:
+            return None
+
+        block_infos = try_inline(sch, block_infos)
         reduction_blocks: List[Tuple[tir.schedule.BlockRV, tir.schedule.LoopRV]] = []
         for block in block_infos:
             s_loops: List[tir.schedule.LoopRV] = []
@@ -48,6 +53,12 @@ class Fallback(ScheduleRule):
             o_loops: List[tir.schedule.LoopRV] = []
             dom_kind = block.dom_kind()
             block = block.block_rv
+
+            if any(
+                [sch.get(loop_rv).thread_binding is not None for loop_rv in sch.get_loops(block)]
+            ):
+                continue
+
             for loop, iter_type in zip(sch.get_loops(block), dom_kind):
                 {"S": s_loops, "R": r_loops, "O": o_loops}[iter_type].append(loop)
 
