@@ -114,7 +114,7 @@ class ControlFlowGraph(Node):
         )  # type: ignore
 
 
-def ExtractCFG(func: Function) -> ControlFlowGraph:
+def extract_cfg(func: Function) -> ControlFlowGraph:
     """
     Given a Relax function, produces the corresponding control flow graph.
     The function is expected to have been normalized.
@@ -132,7 +132,7 @@ def ExtractCFG(func: Function) -> ControlFlowGraph:
     return _ffi_api.ExtractCFG(func)  # type: ignore
 
 
-def GetBindingIndex(
+def get_binding_index(
     cfg: ControlFlowGraph, seq: SeqExpr, block_idx: int, binding_idx: int, match_cond: bool = False
 ) -> int:
     """
@@ -168,7 +168,7 @@ def GetBindingIndex(
     return _ffi_api.GetBindingIndex(cfg, seq, block_idx, binding_idx, match_cond)  # type: ignore
 
 
-def DataflowAnalysis(
+def dataflow_analysis(
     cfg: ControlFlowGraph,
     init: Any,
     transfer_func: Callable[[GraphBinding, Any], Any],

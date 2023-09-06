@@ -19,10 +19,10 @@ import tvm
 from tvm import relax
 from tvm.relax.analysis.dataflow_analysis import (
     ControlFlowGraph,
-    ExtractCFG,
-    DataflowAnalysis,
+    extract_cfg,
+    dataflow_analysis,
     BindingNodeKind,
-    GetBindingIndex,
+    get_binding_index,
 )
 from tvm.script import ir as I, relax as R
 import tvm.testing
@@ -82,7 +82,7 @@ def test_trivial_CFG():
         def main() -> R.Tensor((), "int32"):
             return R.const(1, dtype="int32")
 
-    graph = ExtractCFG(TrivialFunc["main"])
+    graph = extract_cfg(TrivialFunc["main"])
     assert len(graph.bindings) == 1
     assert_pred_succ_lists(graph, [[]])
     assert_binding_fields(graph, 0, 0, 0, kind=BindingNodeKind.kSeqBody)
@@ -98,7 +98,7 @@ def test_sequence_of_bindings():
             q = R.multiply(z, x)
             return q
 
-    graph = ExtractCFG(FuncWithBindings["main"])
+    graph = extract_cfg(FuncWithBindings["main"])
     assert len(graph.bindings) == 4
     assert_pred_succ_lists(graph, [[], [0], [1], [2]])
     assert_binding_fields(graph, 0, 0, 0, args=[FuncWithBindings["main"].params[0]])
@@ -125,7 +125,7 @@ def test_dataflow_block():
                 R.output(u)
             return u
 
-    graph = ExtractCFG(FuncWithDataflow["main"])
+    graph = extract_cfg(FuncWithDataflow["main"])
     assert len(graph.bindings) == 8
     assert_pred_succ_lists(graph, [[], [0], [1], [2], [3], [4], [5], [6]])
     assert_binding_fields(graph, 0, 0, 0, args=FuncWithDataflow["main"].params)
@@ -153,7 +153,7 @@ def test_simple_branch():
                 z = R.multiply(y, y)
             return z
 
-    graph = ExtractCFG(SimpleBranch["main"])
+    graph = extract_cfg(SimpleBranch["main"])
 
     # cond binding + 3 bindings in true branch + true branch end
     #   + 3 bindings in false branch + false branch end + merge + seq body
@@ -190,7 +190,7 @@ def test_bindings_after_branch():
             q = R.add(z, z)
             return q
 
-    graph = ExtractCFG(BranchAndBind["main"])
+    graph = extract_cfg(BranchAndBind["main"])
     assert len(graph.bindings) == 10
     assert_pred_succ_lists(graph, [[], [0], [1], [2], [3], [2], [5], [4, 6], [7], [8]])
     assert_binding_fields(graph, 0, 0, 0, args=BranchAndBind["main"].params)
@@ -233,7 +233,7 @@ def test_branch_with_multiple_blocks():
                 r = R.add(q, q)
             return r
 
-    graph = ExtractCFG(LongBranches["main"])
+    graph = extract_cfg(LongBranches["main"])
     # empty entry block, one block for each branch, and an empty exit block
     assert len(graph.bindings) == 19
     assert_pred_succ_lists(
@@ -307,7 +307,7 @@ def test_nested_branches():
                 z = R.multiply(y, y)
             return z
 
-    graph = ExtractCFG(NestedBranches["main"])
+    graph = extract_cfg(NestedBranches["main"])
     assert len(graph.bindings) == 22
     assert_pred_succ_lists(
         graph,
@@ -402,11 +402,11 @@ def test_simple_analysis():
         assert out_map[0]["a"] == 1
         assert out_map[0]["b"] == 2
 
-    cfg = ExtractCFG(TrivialFunc["main"])
-    in_map, out_map = DataflowAnalysis(cfg, init, transfer_func, merge_func, forward=True)
+    cfg = extract_cfg(TrivialFunc["main"])
+    in_map, out_map = dataflow_analysis(cfg, init, transfer_func, merge_func, forward=True)
     check_expected_maps(in_map, out_map)
     # backward will just flip in and out
-    in_map, out_map = DataflowAnalysis(cfg, init, transfer_func, merge_func, forward=False)
+    in_map, out_map = dataflow_analysis(cfg, init, transfer_func, merge_func, forward=False)
     check_expected_maps(out_map, in_map)
 
 
@@ -444,8 +444,8 @@ def test_simple_analysis_with_merge():
             new_domain["merge"] = 1
         return new_domain
 
-    cfg = ExtractCFG(SimpleBranch["main"])
-    in_map, out_map = DataflowAnalysis(cfg, init, transfer_func, merge_func, forward=True)
+    cfg = extract_cfg(SimpleBranch["main"])
+    in_map, out_map = dataflow_analysis(cfg, init, transfer_func, merge_func, forward=True)
     # start and true branch
     for i in range(5):
         assert in_map[i]["a"] == i + 1
@@ -465,7 +465,7 @@ def test_simple_analysis_with_merge():
     assert out_map[10]["a"] == 8
     assert out_map[10]["merge"] == 3
 
-    in_map, out_map = DataflowAnalysis(cfg, init, transfer_func, merge_func, forward=False)
+    in_map, out_map = dataflow_analysis(cfg, init, transfer_func, merge_func, forward=False)
     # backward direction: start with index 10
     # end of seq through false branch
     for i in range(6):
@@ -496,21 +496,21 @@ def test_get_binding_index():
             q = R.add(z, z)
             return q
 
-    graph = ExtractCFG(BranchAndBind["main"])
+    graph = extract_cfg(BranchAndBind["main"])
     outer_seq = BranchAndBind["main"].body
     true_seq = BranchAndBind["main"].body.blocks[0].bindings[2].value.true_branch
     false_seq = BranchAndBind["main"].body.blocks[0].bindings[2].value.false_branch
 
-    assert GetBindingIndex(graph, outer_seq, 0, 0) == 0
-    assert GetBindingIndex(graph, outer_seq, 0, 1) == 1
-    assert GetBindingIndex(graph, outer_seq, 0, 2, match_cond=True) == 2
-    assert GetBindingIndex(graph, true_seq, 0, 0) == 3
-    assert GetBindingIndex(graph, true_seq, 1, 0) == 4
-    assert GetBindingIndex(graph, false_seq, 0, 0) == 5
-    assert GetBindingIndex(graph, false_seq, 1, 0) == 6
-    assert GetBindingIndex(graph, outer_seq, 0, 2) == 7  # the merge
-    assert GetBindingIndex(graph, outer_seq, 0, 3) == 8
-    assert GetBindingIndex(graph, outer_seq, 1, 0) == 9
+    assert get_binding_index(graph, outer_seq, 0, 0) == 0
+    assert get_binding_index(graph, outer_seq, 0, 1) == 1
+    assert get_binding_index(graph, outer_seq, 0, 2, match_cond=True) == 2
+    assert get_binding_index(graph, true_seq, 0, 0) == 3
+    assert get_binding_index(graph, true_seq, 1, 0) == 4
+    assert get_binding_index(graph, false_seq, 0, 0) == 5
+    assert get_binding_index(graph, false_seq, 1, 0) == 6
+    assert get_binding_index(graph, outer_seq, 0, 2) == 7  # the merge
+    assert get_binding_index(graph, outer_seq, 0, 3) == 8
+    assert get_binding_index(graph, outer_seq, 1, 0) == 9
 
 
 if __name__ == "__main__":
