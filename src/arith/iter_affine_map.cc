@@ -322,6 +322,7 @@ class IterMapRewriter : public ExprMutator {
       ErrorLogger(this) << "IterMapExpr or subclasses should only result from calls in "
                         << "IterMapRewriter using DirectMutate.  "
                         << "Indirect return occurred in " << input_expr;
+      return input_expr;
     }
     return expr;
   }

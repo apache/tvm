@@ -19,7 +19,9 @@
 
 import os
 import pathlib
-from typing import Union
+import re
+from typing import List, Union
+import subprocess
 import sys
 import tarfile
 import io
@@ -79,6 +81,37 @@ def hexagon_clang_plus() -> str:
     return str(HEXAGON_CLANG_PLUS)
 
 
+def toolchain_version(toolchain=None) -> List[int]:
+    """Return the version of the Hexagon toolchain.
+
+    Parameters
+    ----------
+    toolchain: str, optional
+        Path to the Hexagon toolchain. If not provided, the environment
+        variable HEXAGON_TOOLCHAIN is used.
+
+    Returns
+    -------
+    version: List[int]
+        List of numerical components of the version number. E.g. for version
+        "8.5.06" it will be [8, 5, 6].
+    """
+
+    if toolchain is None:
+        toolchain = HEXAGON_TOOLCHAIN
+    assert toolchain is not None, "Please specify toolchain, or set HEXAGON_TOOLCHAIN variable"
+    result = subprocess.run(
+        [f"{toolchain}/bin/hexagon-clang", "-v"], capture_output=True, check=True
+    )
+    output = result.stderr.decode()
+    for line in output.splitlines():
+        m = re.match(r".* [Cc]lang version ([0-9\.]+)", line)
+        if m:
+            assert len(m.groups()) == 1
+            return [int(v) for v in m.group(1).split(".")]
+    raise RuntimeError("Cannot establish toolchain version")
+
+
 @register_func("tvm.contrib.hexagon.link_shared")
 def link_shared(so_name, objs, extra_args=None):
     """Link shared library on Hexagon using the registered Hexagon linker.
@@ -98,6 +131,7 @@ def link_shared(so_name, objs, extra_args=None):
     ret_val : int
         This function returns 0 at the moment.
     """
+
     # The list of object files can be passed as built-in Python strings,
     # or as tvm.tir.StringImm's.
     def to_str(s):
@@ -168,6 +202,7 @@ def link_shared_macos(so_name, objs, extra_args=None):
     ret_val : int
         This function returns 0 at the moment.
     """
+
     # The list of object files can be passed as built-in Python strings,
     # or as tvm.tir.StringImm's.
     def to_str(s):
@@ -271,6 +306,99 @@ def create_aot_shared(so_name: Union[str, pathlib.Path], files, hexagon_arch: st
     cross_compile.output_format = "o"
     c_files = [str(file) for file in files]
     cross_compile(str(so_name), c_files, options=compile_options + options)
+
+
+def pack_imports(
+    module: tvm.runtime.Module,
+    is_system_lib: bool,  # pylint: disable=unused-argument
+    c_symbol_prefix: str,
+    workspace_dir: str,
+):
+    """Create an ELF object file that contains the binary data for the modules
+    imported in `module`. This is a callback function for use as `fpack_imports`
+    in `export_library`.
+
+    Parameters
+    ----------
+    module: tvm.runtime.Module
+        Module whose imported modules need to be serialized.
+    is_system_lib: bool
+        Flag whether the exported module will be used as a system library.
+    c_symbol_prefix: str
+        Prefix to prepend to the blob symbol.
+    workspace_dir: str
+        Location for created files.
+
+    Returns
+    -------
+    file_name: str
+        The name of the created object file.
+    """
+
+    path_bin = os.path.join(workspace_dir, "imports.bin")
+    pack_to_bin_f_name = "runtime.ModulePackImportsToNDArray"
+    fpack_to_bin = tvm.get_global_func(pack_to_bin_f_name)
+    assert fpack_to_bin, f"Expecting {pack_to_bin_f_name} in registry"
+
+    fpack_to_bin(module).numpy().tofile(path_bin)
+
+    mblob_symbol = c_symbol_prefix + tvm.get_global_func("runtime.ModuleImportsBlobName")()
+
+    binary_size = os.path.getsize(path_bin)
+    hexagon_toolchain = os.environ.get("HEXAGON_TOOLCHAIN")
+    assert hexagon_toolchain, "Please set HEXAGON_TOOLCHAIN variable"
+    version = toolchain_version(hexagon_toolchain)
+    assert (
+        version[0] == 8 and version[1] >= 5
+    ), "Please use Hexagon toolchain version 8.5.x or later"
+    if version[1] <= 6:
+        path_o = os.path.join(workspace_dir, f"{c_symbol_prefix}devc.o")
+        subprocess.run(
+            [
+                f"{hexagon_toolchain}/bin/hexagon-clang",
+                "-x",
+                "c",
+                "-c",
+                "/dev/null",
+                "-o",
+                path_o,
+            ],
+            check=True,
+        )
+        subprocess.run(
+            [
+                f"{hexagon_toolchain}/bin/hexagon-llvm-objcopy",
+                path_o,
+                "--add-section",
+                f".rodata={path_bin}",
+                "--add-symbol",
+                f"{mblob_symbol}=.rodata:0,object",
+            ],
+            check=True,
+        )
+        return path_o
+
+    else:  # 8.6.07+
+        path_c = os.path.join(workspace_dir, f"{c_symbol_prefix}devc.c")
+        path_o = os.path.join(workspace_dir, f"{c_symbol_prefix}devc.o")
+        with open(path_c, "w") as f:
+            f.write(
+                f"const unsigned char {mblob_symbol}[{binary_size}] "
+                f'__attribute__((section(".rodata"))) = {{0x1}};'
+            )
+        subprocess.run(
+            [f"{hexagon_toolchain}/bin/hexagon-clang", "-c", path_c, "-o", path_o], check=True
+        )
+        subprocess.run(
+            [
+                f"{hexagon_toolchain}/bin/hexagon-llvm-objcopy",
+                path_o,
+                "--update-section",
+                f".rodata={path_bin}",
+            ],
+            check=True,
+        )
+        return path_o
 
 
 def export_module(module, out_dir, binary_name="test_binary.so"):

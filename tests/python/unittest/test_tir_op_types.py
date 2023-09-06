@@ -234,6 +234,16 @@ def test_op_ptx_cp_async():
     assert expr.op.name == "tir.ptx_cp_async"
 
 
+def test_op_ptx_cp_async_bulk():
+    buffer_shared = tir.decl_buffer([16, 16], "float16", scope="shared")
+    buffer_local = tir.decl_buffer([8], "float16", scope="local")
+    barrier = tir.decl_buffer([1], "uint64", scope="shared")
+    expr = tir.ptx_cp_async_bulk(
+        "float16", buffer_shared.data, 0, buffer_local.data, 0, 16, barrier.data, 0
+    )
+    assert expr.op.name == "tir.ptx_cp_async_bulk"
+
+
 def test_op_ptx_commit_group():
     expr = tir.ptx_commit_group()
     assert expr.op.name == "tir.ptx_commit_group"
@@ -249,17 +259,22 @@ def test_op_ptx_cp_async_barrier():
     assert expr.op.name == "tir.ptx_cp_async_barrier"
 
 
-def ptx_init_barrier_thread_count():
+def test_op_ptx_init_barrier_thread_count():
     expr = tir.ptx_init_barrier_thread_count("barrier", 0, 32)
     assert expr.op.name == "tir.ptx_init_barrier_thread_count"
 
 
-def ptx_arrive_barrier():
+def test_op_ptx_arrive_barrier():
     expr = tir.ptx_arrive_barrier("barrier", 0)
     assert expr.op.name == "tir.ptx_arrive_barrier"
 
 
-def ptx_wait_barrier():
+def test_op_ptx_arrive_barrier_expect_tx():
+    expr = tir.ptx_arrive_barrier_expect_tx("barrier", 0, 32)
+    assert expr.op.name == "tir.ptx_arrive_barrier_expect_tx"
+
+
+def test_op_ptx_wait_barrier():
     expr = tir.ptx_wait_barrier("barrier", 0)
     assert expr.op.name == "tir.ptx_wait_barrier"
 

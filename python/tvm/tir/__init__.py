@@ -63,11 +63,13 @@ from .op import ptx_mma, ptx_mma_sp, mma_store, mma_fill
 from .op import (
     ptx_ldmatrix,
     ptx_cp_async,
+    ptx_cp_async_bulk,
     ptx_commit_group,
     ptx_wait_group,
     ptx_cp_async_barrier,
     ptx_init_barrier_thread_count,
     ptx_arrive_barrier,
+    ptx_arrive_barrier_expect_tx,
     ptx_wait_barrier,
 )
 from .op import vectorlow, vectorhigh, vectorcombine
