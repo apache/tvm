@@ -122,6 +122,98 @@ class TestMatmul(BaseBeforeAfter):
     # fmt: on
 
 
+def test_matmul_int32():
+    # fmt: off
+    @T.prim_func(private=True)
+    def func(var_inp0: T.handle, inp1: T.Buffer((4096, 4096), "float32"), var_matmul: T.handle):
+        m = T.int32()
+        inp0 = T.match_buffer(var_inp0, (1, m, 4096))
+        matmul = T.match_buffer(var_matmul, (1, m, 4096))
+        for i0, i1, i2, k in T.grid(1, m, 4096, 4096):
+            with T.block("matmul"):
+                v_i0, v_i1, v_i2, v_k = T.axis.remap("SSSR", [i0, i1, i2, k])
+                with T.init():
+                    matmul[v_i0, v_i1, v_i2] = T.float32(0)
+                matmul[v_i0, v_i1, v_i2] = matmul[v_i0, v_i1, v_i2] + inp0[v_i0, v_i1, v_k] * inp1[v_k, v_i2]
+
+    @T.prim_func(private=True)
+    def expected(var_inp0: T.handle, inp1: T.Buffer((4096, 4096), "float32"), var_matmul: T.handle):
+        T.func_attr({"tir.is_scheduled": 1})
+        m = T.int32()
+        inp0 = T.match_buffer(var_inp0, (1, m, 4096))
+        matmul = T.match_buffer(var_matmul, (1, m, 4096))
+        # with T.block("root"):
+        matmul_reindex_pad_local = T.alloc_buffer((1, (m + 31) // 32 * 32, 4096), scope="local")
+        inp0_reindex_pad_shared = T.alloc_buffer((1, (m + 31) // 32 * 32, 4096), scope="shared")
+        inp1_reindex_shared = T.alloc_buffer((1, 4096, 4096), scope="shared")
+        for ax0_ax2_0_fused in T.thread_binding(64, thread="blockIdx.y"):
+            for ax1_0 in T.thread_binding((m + 31) // 32, thread="blockIdx.x"):
+                for ax2_1 in T.thread_binding(1, thread="vthread.y"):
+                    for ax1_1 in T.thread_binding(1, thread="vthread.x"):
+                        for ax2_2 in T.thread_binding(16, thread="threadIdx.y"):
+                            for ax1_2 in T.thread_binding(8, thread="threadIdx.x", annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
+                                for ax2_3_init, ax1_3_0_init in T.grid(4, 2):
+                                    for ax1_3_1_init in T.vectorized(2):
+                                        with T.block("matmul_init"):
+                                            v0 = T.axis.spatial(1, 0)
+                                            v1 = T.axis.spatial((m + 31) // 32 * 32, ax1_0 * 32 + ax1_1 * 32 + ax1_2 * 4 + ax1_3_0_init * 2 + ax1_3_1_init)
+                                            v2 = T.axis.spatial(4096, ax0_ax2_0_fused * 64 + ax2_1 * 64 + ax2_2 * 4 + ax2_3_init)
+                                            T.reads()
+                                            T.writes(matmul_reindex_pad_local[0, v1, v2])
+                                            matmul_reindex_pad_local[0, v1, v2] = T.float32(0)
+                                for ax3_0 in range(256):
+                                    for ax0_ax1_ax2_fused_0 in T.thread_binding(16, thread="threadIdx.y"):
+                                        for ax0_ax1_ax2_fused_1 in T.thread_binding(8, thread="threadIdx.x"):
+                                            for ax0_ax1_ax2_fused_2 in range(2):
+                                                for ax0_ax1_ax2_fused_3 in T.vectorized(2):
+                                                    with T.block("inp0_reindex_pad_shared"):
+                                                        v0 = T.axis.spatial(1, 0)
+                                                        v1 = T.axis.spatial((m + 31) // 32 * 32, ax1_0 * 32 + (ax0_ax1_ax2_fused_0 * 32 + ax0_ax1_ax2_fused_1 * 4 + ax0_ax1_ax2_fused_2 * 2 + ax0_ax1_ax2_fused_3) // 16)
+                                                        v2 = T.axis.spatial(4096, ax3_0 * 16 + (ax0_ax1_ax2_fused_0 * 32 + ax0_ax1_ax2_fused_1 * 4 + ax0_ax1_ax2_fused_2 * 2 + ax0_ax1_ax2_fused_3) % 16)
+                                                        T.reads(inp0[v0, v1, v2])
+                                                        T.writes(inp0_reindex_pad_shared[v0, v1, v2])
+                                                        T.block_attr({"buffer_dim_align": [[0, 1, 8, 2]]})
+                                                        inp0_reindex_pad_shared[v0, v1, v2] = T.if_then_else(v1 < m, inp0[v0, v1, v2], T.float32(0))
+                                    for ax0_ax1_ax2_fused_0 in T.thread_binding(16, thread="threadIdx.y"):
+                                        for ax0_ax1_ax2_fused_1 in T.thread_binding(8, thread="threadIdx.x"):
+                                            for ax0_ax1_ax2_fused_2 in range(4):
+                                                for ax0_ax1_ax2_fused_3 in T.vectorized(2):
+                                                    with T.block("inp1_reindex_shared"):
+                                                        v0 = T.axis.spatial(1, 0)
+                                                        v1 = T.axis.spatial(4096, ax0_ax2_0_fused * 64 + (ax0_ax1_ax2_fused_0 * 64 + ax0_ax1_ax2_fused_1 * 8 + ax0_ax1_ax2_fused_2 * 2 + ax0_ax1_ax2_fused_3) // 16)
+                                                        v2 = T.axis.spatial(4096, ax3_0 * 16 + (ax0_ax1_ax2_fused_0 * 64 + ax0_ax1_ax2_fused_1 * 8 + ax0_ax1_ax2_fused_2 * 2 + ax0_ax1_ax2_fused_3) % 16)
+                                                        T.reads(inp1[v2, v1])
+                                                        T.writes(inp1_reindex_shared[v0, v1, v2])
+                                                        T.block_attr({"buffer_dim_align": [[0, 1, 8, 2]]})
+                                                        inp1_reindex_shared[v0, v1, v2] = inp1[v2, v1]
+                                    for ax3_1, ax2_3, ax1_3_0 in T.grid(16, 4, 2):
+                                        for ax1_3_1 in T.vectorized(2):
+                                            with T.block("matmul_update"):
+                                                v0 = T.axis.spatial(1, 0)
+                                                v1 = T.axis.spatial((m + 31) // 32 * 32, ax1_0 * 32 + ax1_1 * 32 + ax1_2 * 4 + ax1_3_0 * 2 + ax1_3_1)
+                                                v2 = T.axis.spatial(4096, ax0_ax2_0_fused * 64 + ax2_1 * 64 + ax2_2 * 4 + ax2_3)
+                                                v3 = T.axis.reduce(4096, ax3_0 * 16 + ax3_1)
+                                                T.reads(matmul_reindex_pad_local[0, v1, v2], inp0_reindex_pad_shared[0, v1, v3], inp1_reindex_shared[0, v2, v3])
+                                                T.writes(matmul_reindex_pad_local[0, v1, v2])
+                                                matmul_reindex_pad_local[0, v1, v2] = matmul_reindex_pad_local[0, v1, v2] + inp0_reindex_pad_shared[0, v1, v3] * inp1_reindex_shared[0, v2, v3]
+                                for ax0, ax1, ax2_0 in T.grid(1, 4, 2):
+                                    for ax2_1_1 in T.vectorized(2):
+                                        with T.block("matmul_reindex_pad_local"):
+                                            v0 = T.axis.spatial(1, ax0)
+                                            v1 = T.axis.spatial((m + 31) // 32 * 32, ax1_0 * 32 + ax1_2 * 4 + ax1)
+                                            v2 = T.axis.spatial(4096, ax0_ax2_0_fused * 64 + ax2_2 * 4 + ax2_0 * 2 + ax2_1_1)
+                                            T.reads(matmul_reindex_pad_local[v0, v1, v2])
+                                            T.writes(matmul[0, v1, v2])
+                                            if v1 < m:
+                                                matmul[0, v1, v2] = matmul_reindex_pad_local[v0, v1, v2]
+    # fmt: on
+
+    mod = tvm.IRModule({"main": func})
+    with Target("nvidia/geforce-gtx-1080-ti"):
+        mod = dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod)
+    tvm.ir.assert_structural_equal(mod["main"], expected)
+
+
 class TestFusedMatmul(BaseBeforeAfter):
     # fmt: off
 
