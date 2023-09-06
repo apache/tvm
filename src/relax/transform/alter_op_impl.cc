@@ -31,6 +31,7 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
 #include <tvm/tir/transform.h>
+#include "../op/tensor/manipulate.h"
 namespace tvm {
 namespace relax {
 
@@ -162,8 +163,18 @@ class AlterOpImplMutator : public ExprMutator {
     return arr_tensor_sinfo;
   }
 
+  bool IsScalarConstant(const Expr& expr) {
+    if(expr->IsInstance<ConstantNode>() && expr.as<ConstantNode>()->is_scalar()){
+      return true;
+    }
+    return false;
+  }
+
   Expr TransformLayout(const Expr& expr, const IndexMap& index_map,
-                       const Array<IntImm> axis_separators) {
+                       const Array<IntImm>& axis_separators) {
+    if(IsScalarConstant(expr) || index_map.get() == nullptr){
+      return expr;
+    }
     ObjectPtr<LayoutTransformAttrs> attrs = make_object<LayoutTransformAttrs>();
     // We want to avoid two layout_transform ops to share the same index map even if they are
     // identical. The scope of vars used in index map initial indices is local to the op. Not doing
@@ -176,16 +187,21 @@ class AlterOpImplMutator : public ExprMutator {
   Expr TransformLayoutInverse(const Expr& expr, const IndexMap& index_map,
                               const TensorStructInfo& old_tensor_sinfo,
                               const Array<IntImm>& axis_separator) {
+    if(IsScalarConstant(expr) || index_map.get() == nullptr){
+      return expr;
+    }
     Array<PrimExpr> old_shape = GetShapeFromTensorStructInfo(old_tensor_sinfo);
     Array<Range> initial_ranges = ConstructRangeFromShape(old_shape);
     arith::Analyzer analyzer;
     auto [inverse_index_map, padding_predicate] =
         index_map.NonSurjectiveInverse(initial_ranges, &analyzer);
-    ICHECK(tir::is_zero(padding_predicate))
-        << "Only bijective transformations on input/output buffers are supported, but found "
-           "padding predicate "
-        << padding_predicate << " on initial range " << initial_ranges;
-    return TransformLayout(expr, inverse_index_map, axis_separator);
+
+    tvm::Array<tvm::IntImm> empty_axis_sep;
+    if (tir::is_zero(padding_predicate)) {
+      return TransformLayout(expr, inverse_index_map, empty_axis_sep);
+    } else {
+      return remove_pad(TransformLayout(expr, inverse_index_map, empty_axis_sep), old_shape);
+    }
   }
 
   /*!
@@ -223,8 +239,6 @@ class AlterOpImplMutator : public ExprMutator {
         axis_separator = axis_separators_value[index];
       }
       auto transform = transforms[index++];
-      ICHECK(IsTransformBijective(input, transform))
-          << "Non bijective transforms on input and output buffers are not supported.";
       updated_inputs.push_back(TransformLayout(input, transform, axis_separator));
     }
     return Tuple(updated_inputs);
@@ -323,6 +337,7 @@ class AlterOpImplMutator : public ExprMutator {
 
   const Op& call_tir_op_ = Op::Get("relax.call_tir");
   const Op& layout_transform_op_ = Op::Get("relax.layout_transform");
+  const Op& remove_pad_op_ = Op::Get("relax.remove_pad");
 };
 
 namespace transform {

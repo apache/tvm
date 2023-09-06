@@ -182,7 +182,15 @@ def _layout_transform(bb: BlockBuilder, call: Call) -> Expr:
         )
 
     index_map: tvm.tir.IndexMap = call.attrs.index_map
-    pad_value = call.attrs.pad_value.value
+    pad_value = call.attrs.pad_value
+    if pad_value is not None:
+        pad_value = pad_value.value
+    else:
+        if "int" in call.args[0].struct_info.dtype:
+            pad_value = int(pad_value)
+        else:
+            pad_value = float(0.0)
+
     axis_separators: tvm.tir.IndexMap.AXIS_SEPARATOR = call.attrs.axis_separators
     # Convert to list from array
     axis_separators = list(map(lambda x: x.value, axis_separators))
@@ -205,3 +213,16 @@ def _layout_transform(bb: BlockBuilder, call: Call) -> Expr:
     output_dtype = call_args[0].struct_info.dtype
     output_sinfo = [TensorStructInfo(output_shape, output_dtype)]
     return call_tir(gvar, call_args, output_sinfo, tir_vars)
+
+
+@register_legalize("relax.remove_pad")
+def _remove_pad(bb: BlockBuilder, call: Call) -> Expr:
+    orig_shape = call.attrs.orig_shape
+
+    def te_remove_pad(data):
+        """
+        Returns a new compute that restrict the original expression to the shape of orig_shape
+        """
+        return te.compute(orig_shape, lambda *idx: data(*idx), name="te_remove_pad")
+
+    return bb.call_te(te_remove_pad, call.args[0])
