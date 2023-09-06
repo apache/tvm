@@ -100,6 +100,9 @@ PrinterConfig::PrinterConfig(Map<String, ObjectRef> config_dict) {
   if (auto v = config_dict.Get("syntax_sugar")) {
     n->syntax_sugar = Downcast<IntImm>(v)->value;
   }
+  if (auto v = config_dict.Get("show_object_address")) {
+    n->show_object_address = Downcast<IntImm>(v)->value;
+  }
 
   // Checking prefixes if they are valid Python identifiers.
   CHECK(IsIdentifier(n->ir_prefix)) << "Invalid `ir_prefix`: " << n->ir_prefix;

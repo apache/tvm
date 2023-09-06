@@ -47,7 +47,7 @@ class CodeGenCUDA final : public CodeGenC {
   }
   // override behavior
   void PrintFuncPrefix(std::ostream& os) final;
-  void PrintExtraAttrs(const PrimFunc& f) final;
+  void PrintExtraAttrs(const PrimFunc& f, std::ostream& os) final;  // NOLINT(*)
   void VisitStmt_(const ForNode* op) final;
   void PrintStorageSync(const CallNode* op) final;
   void PrintStorageScope(const std::string& scope, std::ostream& os) final;  // NOLINT(*)
@@ -104,6 +104,8 @@ class CodeGenCUDA final : public CodeGenC {
   bool need_math_constants_h_{false};
   // whether need mma.h
   bool need_mma_h_{false};
+  // whether need cast_smem_ptr_to_int helper function
+  bool need_cast_smem_ptr_to_int_{false};
   // Op attribute map
   OpAttrMap<bool> op_need_warp_shuffle_ = Op::GetAttrMap<bool>("cuda.need_warp_shuffle");
 

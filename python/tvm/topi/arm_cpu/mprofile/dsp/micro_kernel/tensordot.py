@@ -390,8 +390,13 @@ def tensordot_int16_impl(
         #define {function_name.upper()}_EXISTS
         #include <arm_acle.h>
         __attribute__((always_inline)) static inline int32_t {function_name}(
-            int32_t *output, int32_t *tensor, int32_t *kernel, int32_t *bias, int32_t *scale
+            int16_t *output_arg, int16_t *tensor_arg, int16_t *kernel_arg,
+            int32_t *bias, int32_t *scale
         ) {{
+          int32_t *output = output_arg;
+          int32_t *tensor = tensor_arg;
+          int32_t *kernel = kernel_arg;
+
           {_init_biased_accumulators(num_outputs)}
 
           {insert_lines(load_tensor_lines)}

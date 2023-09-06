@@ -125,7 +125,7 @@ def test_device_module_dump():
 
         path_dso = temp.relpath("dev_lib.so")
         # test cross compiler function
-        f.export_library(path_dso, cc.cross_compiler("g++"))
+        f.export_library(path_dso, fcompile=cc.cross_compiler("g++"))
 
         def popen_check():
             import tvm

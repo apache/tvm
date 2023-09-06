@@ -28,6 +28,7 @@
 #include <tvm/runtime/container/adt.h>
 #include <tvm/runtime/profiling.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/target/codegen.h>
 
 #include <algorithm>
 #include <unordered_map>
@@ -369,6 +370,22 @@ struct ADTObjTrait {
 };
 
 TVM_REGISTER_REFLECTION_VTABLE(runtime::ADTObj, ADTObjTrait);
+
+struct ModuleNodeTrait {
+  static constexpr const std::nullptr_t VisitAttrs = nullptr;
+  static constexpr const std::nullptr_t SHashReduce = nullptr;
+  static constexpr const std::nullptr_t SEqualReduce = nullptr;
+};
+
+TVM_REGISTER_REFLECTION_VTABLE(runtime::ModuleNode, ModuleNodeTrait)
+    .set_creator([](const std::string& blob) {
+      runtime::Module rtmod = codegen::DeserializeModuleFromBytes(blob);
+      return RefToObjectPtr::Get(rtmod);
+    })
+    .set_repr_bytes([](const Object* n) -> std::string {
+      const auto* rtmod = static_cast<const runtime::ModuleNode*>(n);
+      return codegen::SerializeModuleToBytes(GetRef<runtime::Module>(rtmod), /*export_dso*/ false);
+    });
 
 void NDArrayHash(const runtime::NDArray::Container* arr, SHashReducer* hash_reduce,
                  bool hash_data) {

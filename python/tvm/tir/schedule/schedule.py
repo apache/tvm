@@ -1617,7 +1617,7 @@ class Schedule(Object):
         storage_scope: str,
     ) -> List[BlockRV]:
         """Create blocks that reads & write a buffer region into a cache block.
-        It requires the the target block both read & write the target buffer.
+        It requires the target block both read & write the target buffer.
         Mainly for inplace operation.
 
         Parameters

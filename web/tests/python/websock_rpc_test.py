@@ -48,7 +48,7 @@ def test_rpc():
     temp = utils.tempdir()
 
     wasm_path = temp.relpath("addone.wasm")
-    fadd.export_library(wasm_path, tvmjs.create_tvmjs_wasm)
+    fadd.export_library(wasm_path, fcompile=emcc.create_tvmjs_wasm)
 
     wasm_binary = open(wasm_path, "rb").read()
 

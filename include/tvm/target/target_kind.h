@@ -49,7 +49,7 @@ using TargetFeatures = Map<String, ObjectRef>;
  * \return The transformed Target JSON object.
  */
 using TargetJSON = Map<String, ObjectRef>;
-using FTVMTargetParser = tvm::runtime::TypedPackedFunc<TargetJSON(TargetJSON)>;
+using FTVMTargetParser = runtime::TypedPackedFunc<TargetJSON(TargetJSON)>;
 
 namespace detail {
 template <typename, typename, typename>

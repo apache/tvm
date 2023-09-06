@@ -236,6 +236,7 @@ def test_compound_floormod_two_regression():
 def test_predicate():
     x = tvm.tir.Var("x", "int32")
     y = tvm.tir.Var("y", "int32")
+    z = tvm.tir.Var("z", "int32")
 
     # available contraints
     # upper bound only
@@ -267,6 +268,12 @@ def test_predicate():
         {x * 10 + y: (122, 6)},
         var_dom([(x, 13), (y, 10)]),
         predicate=tvm.tir.And(x * 10 + y >= 6, x * 10 + y <= 127),
+    )
+
+    assert_iter_sum_pattern(
+        {x * 64 + y * 4 + z: (16, 16)},
+        var_dom([(x, 16), (y, 16), (z, 4)]),
+        predicate=tvm.tir.And(x * 64 + y * 4 + z < 32, 4 <= x * 16 + y),
     )
 
     # constraint on one fused iter
@@ -1283,6 +1290,26 @@ def test_normalize_to_iter_sum():
         [(y, 6), (z, 2), (x, 1)],
         0,
     )
+
+
+def test_detect_iter_map_with_bufferload_recursion():
+    n = tvm.tir.Var("n", "int32")
+    m = tvm.tir.Var("m", "int32")
+    divisor = tvm.tir.Var("divisor", "int32")
+
+    i = tvm.tir.Var("i", "int32")
+    j = tvm.tir.Var("j", "int32")
+
+    buffer = tvm.tir.decl_buffer((n,), "int32", name="seqlen")
+
+    indices = [(buffer[i] + j) // divisor]
+    iter_vars = {
+        i: tvm.ir.Range(tvm.tir.const(0, "int32"), n),
+        j: tvm.ir.Range(tvm.tir.const(0, "int32"), m),
+    }
+
+    result = tvm.arith.detect_iter_map(indices, iter_vars)
+    assert len(result.indices) == 0
 
 
 if __name__ == "__main__":

@@ -70,6 +70,8 @@ class PrinterConfigNode : public Object {
   int num_context_lines = -1;
   /*! \brief Whether to output with syntax sugar, set false for complete printing. */
   bool syntax_sugar = true;
+  /*! \brief Whether variable names should include the object's address */
+  bool show_object_address = false;
   /* \brief Object path to be underlined */
   Array<ObjectPath> path_to_underline = Array<ObjectPath>();
   /*! \brief Object path to be annotated. */
@@ -94,6 +96,7 @@ class PrinterConfigNode : public Object {
     v->Visit("print_line_numbers", &print_line_numbers);
     v->Visit("num_context_lines", &num_context_lines);
     v->Visit("syntax_sugar", &syntax_sugar);
+    v->Visit("show_object_address", &show_object_address);
     v->Visit("path_to_underline", &path_to_underline);
     v->Visit("path_to_annotate", &path_to_annotate);
     v->Visit("obj_to_underline", &obj_to_underline);

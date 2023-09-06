@@ -30,6 +30,7 @@
 
 #include <functional>
 #include <string>
+#include <vector>
 
 namespace tvm {
 namespace runtime {
@@ -77,6 +78,15 @@ PackedFunc WrapPackedFunc(TVMBackendPackedCFunc faddr, const ObjectPtr<Object>& 
  * \param fgetsymbol A symbol lookup function.
  */
 void InitContextFunctions(std::function<void*(const char*)> fgetsymbol);
+
+/*!
+ * \brief Helper classes to get into internal of a module.
+ */
+class ModuleInternal {
+ public:
+  // Get mutable reference of imports.
+  static std::vector<Module>* GetImportsAddr(ModuleNode* node) { return &(node->imports_); }
+};
 
 /*!
  * \brief Type alias for function to wrap a TVMBackendPackedCFunc.

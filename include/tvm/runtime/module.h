@@ -236,6 +236,11 @@ class TVM_DLL ModuleNode : public Object {
     return (GetPropertyMask() & ModulePropertyMask::kDSOExportable) != 0;
   }
 
+  /*! \brief Returns true if this module is 'Binary Serializable'. */
+  bool IsBinarySerializable() const {
+    return (GetPropertyMask() & ModulePropertyMask::kBinarySerializable) != 0;
+  }
+
   /*!
    * \brief Returns true if this module has a definition for a function of \p name. If
    * \p query_imports is true, also search in any imported modules.

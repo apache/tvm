@@ -458,7 +458,8 @@ TVM_REGISTER_TARGET_KIND("test_external_codegen_2", kDLMetal)
     .set_attr<Bool>(tvm::attr::kIsExternalCodegen, Bool(true));
 
 TVM_REGISTER_TARGET_KIND("test_external_codegen_3", kDLCPU)
-    .set_attr<tvm::transform::Pass>(tvm::attr::kRelayToTIR, tvm::relay::transform::InferType());
+    .set_attr<tvm::relay::transform::FTVMRelayToTIR>(tvm::attr::kRelayToTIR,
+                                                     tvm::relay::transform::InferType());
 
 TEST(Target, ExternalCodegen) {
   Target regular("cuda");

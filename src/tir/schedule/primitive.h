@@ -374,7 +374,7 @@ TVM_DLL StmtSRef ReindexCacheWrite(ScheduleState self, const StmtSRef& block_sre
 /*!
  *!
  * \brief Create 2 blocks that read&write a buffer region into a read/write cache.
- * It requires the the target block both read & write the target buffer.
+ * It requires the target block both read & write the target buffer.
  * \param self The state of the schedule
  * \param block_sref The target block operates on the target buffer.
  * \param read_buffer_index The index of the buffer in block's read region.

@@ -62,6 +62,12 @@ set(USE_NCCL OFF)
 # - /path/to/rocm: use specific path to rocm
 set(USE_ROCM OFF)
 
+# Whether to enable RCCL support:
+# - ON: enable RCCL with cmake's auto search
+# - OFF: disable RCCL
+# - /path/to/rccl: use specific path to rccl
+set(USE_RCCL OFF)
+
 # Whether enable SDAccel runtime
 set(USE_SDACCEL OFF)
 
@@ -149,6 +155,10 @@ set(USE_MICRO_STANDALONE_RUNTIME OFF)
 #        which is needed for most cases
 # - /path/to/llvm-config: enable specific LLVM when multiple llvm-dev is available.
 set(USE_LLVM OFF)
+
+# Whether use MLIR to help analyze, requires USE_LLVM is enabled
+# Possible values: ON/OFF
+set(USE_MLIR OFF)
 
 #---------------------------------------------
 # Contrib libraries

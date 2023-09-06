@@ -11,6 +11,7 @@ include(cmake/utils/FindOpenCL.cmake)
 include(cmake/utils/FindVulkan.cmake)
 include(cmake/utils/FindLLVM.cmake)
 include(cmake/utils/FindROCM.cmake)
+include(cmake/utils/FindRCCL.cmake)
 include(cmake/utils/FindEthosN.cmake)
 
 if(EXISTS ${CMAKE_BINARY_DIR}/config.cmake)
@@ -43,6 +44,7 @@ tvm_option(USE_KHRONOS_SPIRV "Whether to use spirv-tools.and SPIRV-Headers from 
 tvm_option(USE_SPIRV_KHR_INTEGER_DOT_PRODUCT "whether enable SPIRV_KHR_DOT_PRODUCT" OFF)
 tvm_option(USE_METAL "Build with Metal" OFF)
 tvm_option(USE_ROCM "Build with ROCM" OFF)
+tvm_option(USE_RCCL "Build with RCCL" OFF)
 tvm_option(ROCM_PATH "The path to rocm" /opt/rocm)
 tvm_option(USE_HEXAGON "Build with Hexagon support" OFF)
 tvm_option(USE_HEXAGON_SDK "Path to the Hexagon SDK root (required for Hexagon support)" /path/to/sdk)
@@ -52,6 +54,7 @@ tvm_option(USE_HEXAGON_EXTERNAL_LIBS "Path to git repo containing external Hexag
 tvm_option(USE_RPC "Build with RPC" ON)
 tvm_option(USE_THREADS "Build with thread support" ON)
 tvm_option(USE_LLVM "Build with LLVM, can be set to specific llvm-config path" OFF)
+tvm_option(USE_MLIR "Build with MLIR support" OFF)
 tvm_option(USE_STACKVM_RUNTIME "Include stackvm into the runtime" OFF)
 tvm_option(USE_GRAPH_EXECUTOR "Build with tiny graph executor" ON)
 tvm_option(USE_GRAPH_EXECUTOR_CUDA_GRAPH "Build with tiny graph executor with CUDA Graph for GPUs" OFF)
@@ -444,6 +447,13 @@ if(USE_CUDA AND USE_NCCL)
   list(APPEND RUNTIME_SRCS ${RUNTIME_NCCL_SRC})
 endif()
 
+if(USE_ROCM AND USE_RCCL)
+  message(STATUS "Build with RCCL...")
+  find_rccl(${USE_RCCL})
+  tvm_file_glob(GLOB RUNTIME_RCCL_SRC src/runtime/disco/rccl/*.cc)
+  list(APPEND RUNTIME_SRCS ${RUNTIME_RCCL_SRC})
+endif()
+
 if(USE_AOT_EXECUTOR)
   message(STATUS "Build with AOT Executor support...")
   file(GLOB RUNTIME_AOT_EXECUTOR_SRCS src/runtime/aot_executor/*.cc)
@@ -718,7 +728,23 @@ if(GTEST_FOUND)
   # include runtime files for unit testing
   target_link_libraries(cpptest PRIVATE ${TVM_TEST_LIBRARY_NAME} GTest::GTest GTest::Main GTest::gmock pthread dl)
   if(DEFINED LLVM_LIBS)
-    target_link_libraries(cpptest PRIVATE ${LLVM_LIBS})
+    # The TVM library is linked with LLVM libraries. If the LLVM libraries are
+    # static and the symbols are not hidden, then don't link them again into
+    # cpptest since cpptest is itself linked against the TVM library. If static
+    # LLVM libraries are linked in twice, it can cause issues with global
+    # variable initialization (cl::opt).
+    # If the LLVM libraries are dynamic, we have to link them again, since the
+    # TVM library will not contain any LLVM definitions.
+    unset(LLVM_SO)
+    foreach(L IN LISTS LLVM_LIBS)
+      if(L MATCHES "libLLVM.*\.so")
+        set(LLVM_SO TRUE)
+        break()
+      endif()
+    endforeach()
+    if(DEFINED LLVM_SO OR HIDE_PRIVATE_SYMBOLS)
+      target_link_libraries(cpptest PRIVATE ${LLVM_LIBS})
+    endif()
   endif()
   if(DEFINED ETHOSN_RUNTIME_LIBRARY)
     target_link_libraries(cpptest PRIVATE ${ETHOSN_RUNTIME_LIBRARY})
@@ -864,4 +890,14 @@ endif()
 if(USE_CUDA AND USE_NCCL)
   target_link_libraries(tvm_runtime PRIVATE nccl)
   target_link_libraries(tvm PRIVATE nccl)
+endif()
+
+if(USE_CUDA AND USE_NCCL)
+  target_link_libraries(tvm PRIVATE nccl)
+  target_link_libraries(tvm_runtime PRIVATE nccl)
+endif()
+
+if(USE_ROCM AND USE_RCCL)
+  target_link_libraries(tvm PRIVATE rccl)
+  target_link_libraries(tvm_runtime PRIVATE rccl)
 endif()

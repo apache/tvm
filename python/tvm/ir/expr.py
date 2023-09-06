@@ -197,6 +197,12 @@ class Range(Node, Scriptable):
         """
         return _ffi_api.Range_from_min_extent(min_value, extent, span)
 
+    def __eq__(self, other):
+        return tvm.ir.structural_equal(self, other)
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
 
 # TODO(@relax-team): remove when we have a RelaxExpr base class
 def is_relax_expr(expr: RelayExpr) -> bool:

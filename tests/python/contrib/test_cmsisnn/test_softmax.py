@@ -91,6 +91,49 @@ def test_op_int8(zero_point, scale, compiler_cpu, cpu_flags):
     )
 
 
+@skip_if_no_reference_system
+@tvm.testing.requires_cmsisnn
+@pytest.mark.parametrize(["zero_point", "scale"], [[0, 1.0 / 32768]])
+@pytest.mark.parametrize(
+    "compiler_cpu, cpu_flags", [("cortex-m55", "+nomve"), ("cortex-m55", ""), ("cortex-m7", "")]
+)
+def test_op_int16(zero_point, scale, compiler_cpu, cpu_flags):
+    """Tests int16 QNN Softmax for CMSIS-NN"""
+    interface_api = "c"
+    use_unpacked_api = True
+
+    dtype = "int16"
+    shape = [1, 16, 16, 3]
+
+    # output scale and zero_point must be fixed
+    model = make_model(shape, dtype, dtype, zero_point, scale, 0, 1.0 / 32768)
+    orig_mod = make_module(model)
+    cmsisnn_mod = cmsisnn.partition_for_cmsisnn(orig_mod)
+
+    # validate pattern matching
+    assert_partitioned_function(orig_mod, cmsisnn_mod)
+
+    # validate the output
+    in_min, in_max = get_dtype_range(dtype)
+    np.random.seed(0)
+    input_data = np.random.randint(in_min, high=in_max, size=shape, dtype=dtype)
+    inputs = {"in0": input_data}
+    params = {}
+    output_list = generate_ref_data(orig_mod["main"], inputs, params)
+    compile_and_run(
+        AOTTestModel(
+            module=cmsisnn_mod,
+            inputs=inputs,
+            outputs=output_list,
+            params=params,
+            output_tolerance=2,
+        ),
+        create_test_runner(compiler_cpu, cpu_flags),
+        interface_api,
+        use_unpacked_api,
+    )
+
+
 def parameterize_for_invalid_model(test):
     """Generates parameters for non int8 input and output of Softmax"""
     in_dtype = ["uint8", "int8"]

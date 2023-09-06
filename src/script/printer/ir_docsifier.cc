@@ -21,6 +21,8 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/script/printer/ir_docsifier.h>
 
+#include <sstream>
+
 #include "./utils.h"
 
 namespace tvm {
@@ -29,7 +31,13 @@ namespace printer {
 
 IdDoc IRDocsifierNode::Define(const ObjectRef& obj, const Frame& frame, const String& name_hint) {
   ICHECK(obj2info.find(obj) == obj2info.end()) << "Duplicated object: " << obj;
-  String name = GenerateUniqueName(name_hint, this->defined_names);
+  String name = name_hint;
+  if (cfg->show_object_address) {
+    std::stringstream stream;
+    stream << name << "_" << obj.get();
+    name = stream.str();
+  }
+  name = GenerateUniqueName(name, this->defined_names);
   this->defined_names.insert(name);
   DocCreator doc_factory = [name]() { return IdDoc(name); };
   obj2info.insert({obj, VariableInfo{std::move(doc_factory), name}});

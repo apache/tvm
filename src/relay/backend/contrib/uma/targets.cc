@@ -28,6 +28,8 @@
 
 namespace tvm {
 
+using FTVMTIRToRuntime = tvm::runtime::TypedPackedFunc<runtime::Module(IRModule, Target)>;
+
 namespace relay {
 namespace contrib {
 namespace uma {
@@ -46,20 +48,20 @@ TVM_REGISTER_GLOBAL("relay.backend.contrib.uma.RegisterTarget")
         }
       }
 
-      auto target_kind = TargetKindRegEntry::RegisterOrGet(target_name)
-                             .set_name()
-                             .set_default_device_type(kDLCPU)
-                             .add_attr_option<Array<String>>("keys")
-                             .add_attr_option<String>("tag")
-                             .add_attr_option<String>("device")
-                             .add_attr_option<String>("model")
-                             .add_attr_option<Array<String>>("libs")
-                             .add_attr_option<Target>("host")
-                             .add_attr_option<Integer>("from_device")
-                             .set_attr<relay::transform::FTVMRelayToTIR>(
-                                 attr::kRelayToTIR, relay::contrib::uma::RelayToTIR(target_name))
-                             .set_attr<relay::transform::FTVMTIRToRuntime>(
-                                 "TIRToRuntime", relay::contrib::uma::TIRToRuntime);
+      auto target_kind =
+          TargetKindRegEntry::RegisterOrGet(target_name)
+              .set_name()
+              .set_default_device_type(kDLCPU)
+              .add_attr_option<Array<String>>("keys")
+              .add_attr_option<String>("tag")
+              .add_attr_option<String>("device")
+              .add_attr_option<String>("model")
+              .add_attr_option<Array<String>>("libs")
+              .add_attr_option<Target>("host")
+              .add_attr_option<Integer>("from_device")
+              .set_attr<relay::transform::FTVMRelayToTIR>(
+                  attr::kRelayToTIR, relay::contrib::uma::RelayToTIR(target_name))
+              .set_attr<FTVMTIRToRuntime>("TIRToRuntime", relay::contrib::uma::TIRToRuntime);
 
       // target kind attrs inventory
       auto kind = TargetKind::Get(target_name).value();

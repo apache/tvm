@@ -146,7 +146,7 @@ def export_library(factory, directory_path):
         # Get the graph, lib, and parameters from GraphExecutorFactoryModule.
         lib = factory.pipeline_mods[lib_index]["lib"]
         # Export the lib, graph, and parameters to disk.
-        lib.export_library(mconfig["lib_name"], fcompile)
+        lib.export_library(mconfig["lib_name"], fcompile=fcompile)
         with open(mconfig["json_name"], "w") as file_handle:
             file_handle.write(lib.graph_json)
         with open(mconfig["params_name"], "wb") as file_handle:

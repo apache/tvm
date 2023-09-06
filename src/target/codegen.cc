@@ -37,11 +37,23 @@
 #include <unordered_set>
 #include <vector>
 
+#include "../runtime/library_module.h"
+#include "../support/base64.h"
+
 namespace tvm {
-
-using FTVMTIRToRuntime = runtime::TypedPackedFunc<runtime::Module(IRModule, Target)>;
-
 namespace codegen {
+
+/*!
+ * \brief TIRToRuntime conversion specific to a TargetKind
+ *
+ * This function is responsible for scanning an IRModule for appropriate Target-specific functions
+ and generating a Runtime module representing the compiled output
+ *
+ * \param ir_module Unified IRModule
+ * \param target Target to filter on or retrieve arguments from
+ * \return Runtime Module containing compiled functions
+ */
+using FTVMTIRToRuntime = tvm::runtime::TypedPackedFunc<runtime::Module(IRModule, Target)>;
 
 runtime::Module Build(IRModule mod, Target target) {
   if (transform::PassContext::Current()
@@ -66,13 +78,16 @@ class ModuleSerializer {
  public:
   explicit ModuleSerializer(runtime::Module mod) : mod_(mod) { Init(); }
 
-  void SerializeModule(dmlc::Stream* stream) {
+  void SerializeModuleToBytes(dmlc::Stream* stream, bool export_dso) {
     // Only have one DSO module and it is in the root, then
     // we will not produce import_tree_.
     bool has_import_tree = true;
-    if (mod_->IsDSOExportable() && mod_->imports().empty()) {
-      has_import_tree = false;
+
+    if (mod_->IsDSOExportable()) {
+      ICHECK(export_dso) << "`export_dso` should be enabled for DSOExportable modules";
+      has_import_tree = !mod_->imports().empty();
     }
+
     uint64_t sz = 0;
     if (has_import_tree) {
       // we will append one key for _import_tree
@@ -86,17 +101,26 @@ class ModuleSerializer {
 
     for (const auto& group : mod_group_vec_) {
       ICHECK_NE(group.size(), 0) << "Every allocated group must have at least one module";
-      if (!group[0]->IsDSOExportable()) {
+      // we prioritize export dso when a module is both serializable and exportable
+      if (export_dso) {
+        if (group[0]->IsDSOExportable()) {
+          if (has_import_tree) {
+            std::string mod_type_key = "_lib";
+            stream->Write(mod_type_key);
+          }
+        } else if (group[0]->IsBinarySerializable()) {
+          ICHECK_EQ(group.size(), 1U) << "Non DSO module is never merged";
+          std::string mod_type_key = group[0]->type_key();
+          stream->Write(mod_type_key);
+          group[0]->SaveToBinary(stream);
+        }
+      } else {
+        ICHECK(group[0]->IsBinarySerializable())
+            << group[0]->type_key() << " is not binary serializable.";
         ICHECK_EQ(group.size(), 1U) << "Non DSO module is never merged";
         std::string mod_type_key = group[0]->type_key();
         stream->Write(mod_type_key);
         group[0]->SaveToBinary(stream);
-      } else {
-        // DSOExportable: do not need binary
-        if (has_import_tree) {
-          std::string mod_type_key = "_lib";
-          stream->Write(mod_type_key);
-        }
       }
     }
 
@@ -230,22 +254,60 @@ class ModuleSerializer {
   std::vector<uint64_t> import_tree_child_indices_;
 };
 
-namespace {
-std::string SerializeModule(const runtime::Module& mod) {
+std::string SerializeModuleToBytes(const runtime::Module& mod, bool export_dso) {
   std::string bin;
   dmlc::MemoryStringStream ms(&bin);
   dmlc::Stream* stream = &ms;
 
   ModuleSerializer module_serializer(mod);
-  module_serializer.SerializeModule(stream);
-
+  module_serializer.SerializeModuleToBytes(stream, export_dso);
   return bin;
 }
-}  // namespace
+
+runtime::Module DeserializeModuleFromBytes(std::string blob) {
+  dmlc::MemoryStringStream ms(&blob);
+  dmlc::Stream* stream = &ms;
+
+  uint64_t size;
+  ICHECK(stream->Read(&size));
+  std::vector<runtime::Module> modules;
+  std::vector<uint64_t> import_tree_row_ptr;
+  std::vector<uint64_t> import_tree_child_indices;
+
+  for (uint64_t i = 0; i < size; ++i) {
+    std::string tkey;
+    ICHECK(stream->Read(&tkey));
+    // "_lib" serves as a placeholder in the module import tree to indicate where
+    // to place the DSOModule
+    ICHECK(tkey != "_lib") << "Should not contain any placeholder for DSOModule.";
+    if (tkey == "_import_tree") {
+      ICHECK(stream->Read(&import_tree_row_ptr));
+      ICHECK(stream->Read(&import_tree_child_indices));
+    } else {
+      auto m = runtime::LoadModuleFromBinary(tkey, stream);
+      modules.emplace_back(m);
+    }
+  }
+
+  for (size_t i = 0; i < modules.size(); ++i) {
+    for (size_t j = import_tree_row_ptr[i]; j < import_tree_row_ptr[i + 1]; ++j) {
+      auto module_import_addr = runtime::ModuleInternal::GetImportsAddr(modules[i].operator->());
+      auto child_index = import_tree_child_indices[j];
+      ICHECK(child_index < modules.size());
+      module_import_addr->emplace_back(modules[child_index]);
+    }
+  }
+
+  ICHECK(!modules.empty()) << "modules cannot be empty when import tree is present";
+  // invariance: root module is always at location 0.
+  // The module order is collected via DFS
+  runtime::Module root_mod = modules[0];
+  return root_mod;
+}
 
 std::string PackImportsToC(const runtime::Module& mod, bool system_lib,
                            const std::string& c_symbol_prefix) {
-  std::string bin = SerializeModule(mod);
+  std::string bin = SerializeModuleToBytes(mod);
   std::string mdev_blob_name = c_symbol_prefix + runtime::symbol::tvm_dev_mblob;
 
   if (c_symbol_prefix.length() != 0) {
@@ -307,7 +369,7 @@ runtime::Module PackImportsToLLVM(const runtime::Module& mod, bool system_lib,
         << "c_symbol_prefix advanced option should be used in conjuction with system-lib";
   }
 
-  std::string bin = SerializeModule(mod);
+  std::string bin = SerializeModuleToBytes(mod);
 
   uint64_t nbytes = bin.length();
   std::string header;

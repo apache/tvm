@@ -23,7 +23,6 @@ import struct
 from typing import Sequence
 import numpy as np
 
-import tvm._ffi
 from tvm._ffi.base import _LIB, check_call, c_str, string_types, _RUNTIME_ONLY
 from tvm._ffi.libinfo import find_include_path
 from .packed_func import PackedFunc, PackedFuncHandle, _set_class_module
@@ -443,7 +442,9 @@ class Module(object):
     def _collect_dso_modules(self):
         return self._collect_from_import_tree(lambda m: m.is_dso_exportable)
 
-    def export_library(self, file_name, fcompile=None, addons=None, workspace_dir=None, **kwargs):
+    def export_library(
+        self, file_name, *, fcompile=None, addons=None, workspace_dir=None, **kwargs
+    ):
         """
         Export the module and all imported modules into a single device library.
 

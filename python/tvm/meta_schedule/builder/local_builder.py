@@ -278,7 +278,7 @@ def default_export(mod: Module) -> str:
     from tvm.contrib.tar import tar  # pylint: disable=import-outside-toplevel
 
     artifact_path = os.path.join(tempfile.mkdtemp(), "tvm_tmp_mod." + tar.output_format)
-    mod.export_library(artifact_path, tar)
+    mod.export_library(artifact_path, fcompile=tar)
     return artifact_path
 
 

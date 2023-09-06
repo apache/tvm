@@ -761,14 +761,18 @@ def test_shape_of():
 
 
 def test_alloc_storage():
-    metatable = {"VirtualDevice": [HOST, GPU]}
+    shape = np.array([3, 2])
+    metatable = {
+        "VirtualDevice": [HOST, GPU],
+        "relay.Constant": [relay.const(shape, dtype="int64")],
+    }
 
     def input():
         return tvm.relay.parse(
             """
             #[version = "0.0.5"]
             def @main(%size: int64, %alignment: int64) {
-              memory.alloc_storage(%size, %alignment, virtual_device=meta[VirtualDevice][1])
+              memory.alloc_storage(%size, meta[relay.Constant][0], %alignment, virtual_device=meta[VirtualDevice][1])
             }
         """,
             "from_string",
@@ -782,7 +786,8 @@ def test_alloc_storage():
             #[version = "0.0.5"]
             def @main(%size {virtual_device=meta[VirtualDevice][0]}: int64, %alignment {virtual_device=meta[VirtualDevice][0]}: int64,
                       virtual_device=meta[VirtualDevice][1]) {
-              memory.alloc_storage(%size, %alignment, virtual_device=meta[VirtualDevice][1])
+              %0 = on_device(meta[relay.Constant][0], virtual_device=meta[VirtualDevice][0], constrain_result=True);
+              memory.alloc_storage(%size, %0, %alignment, virtual_device=meta[VirtualDevice][1])
             }
         """,
             "from_string",
