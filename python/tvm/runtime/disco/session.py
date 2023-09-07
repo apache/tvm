@@ -292,7 +292,7 @@ class Session(Object):
         func(from_array, to_array)
 
     def gather_to_worker0(self, from_array: DRef, to_array: DRef) -> None:
-        """Scatter an array from all other workers to worker-0.
+        """Gather an array from all other workers to worker-0.
 
         Parameters
         ----------
