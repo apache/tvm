@@ -291,6 +291,19 @@ class Session(Object):
         func = self._get_cached_method("runtime.disco.scatter_from_worker0")
         func(from_array, to_array)
 
+    def gather_to_worker0(self, from_array: DRef, to_array: DRef) -> None:
+        """Gather an array from all other workers to worker-0.
+
+        Parameters
+        ----------
+        from_array : DRef
+            The array to be gathered from.
+        to_array : DRef
+            The array to be gathered to.
+        """
+        func = self._get_cached_method("runtime.disco.gather_to_worker0")
+        func(from_array, to_array)
+
     def allreduce(
         self,
         array: DRef,
