@@ -528,3 +528,23 @@ def detect_recursion(mod: tvm.IRModule) -> List[List[GlobalVar]]:
         with any other, it will be a singleton in this list.
     """
     return _ffi_api.detect_recursion(mod)  # type: ignore
+
+
+def get_prim_func_device(mod: tvm.IRModule) -> Dict[int, List[GlobalVar]]:
+    """
+    Retrieve the target device for the execution of the primfuncs.
+
+    This function returns a mapping where each global variable of representing primfunc
+    points to the device type. A device type of -1 signifies the undefined device.
+
+    Parameters
+    ----------
+    mod: The module
+
+    Returns
+    -------
+    ret: Dict[int, List[GlobalVar]
+        The key represents the global variable of prim func.
+        The value is the device type.
+    """
+    return _ffi_api.get_prim_func_device(mod)  # type: ignore

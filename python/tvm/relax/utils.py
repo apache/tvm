@@ -28,7 +28,7 @@ from . import _ffi_api
 from .expr import Tuple as rx_Tuple
 from .expr import Expr, ShapeExpr, Function, PrimValue, StringImm, te_tensor
 from ..te import Tensor as te_Tensor, create_prim_func
-from ..ir import Array, Attrs, Type, Map
+from ..ir import Array, Attrs, Type, Map, VDevice
 from .struct_info import PrimStructInfo, ShapeStructInfo, TensorStructInfo
 
 
@@ -418,6 +418,24 @@ def gen_call_tir_inputs(
         diff = used_vars - bound_vars
         return list(diff)
 
+    def _get_vdevice(arg: Any) -> Optional[VDevice]:
+        """get the virtual device from arguments."""
+        vdevice = None
+        if isinstance(arg, Expr):  # type: ignore
+            if isinstance(arg.struct_info, TensorStructInfo):
+                vdevice = arg.struct_info.vdevice
+        elif isinstance(arg, (list, Array, tuple)):
+            for x in arg:
+                vdevice = _get_vdevice(x)
+                if vdevice is not None:
+                    return vdevice
+        elif isinstance(arg, (dict, Map)):
+            for k in arg:
+                vdevice = _get_vdevice(arg[k])
+                if vdevice is not None:
+                    return vdevice
+        return vdevice
+
     def _shape_with_old_tir_var(
         shape_values: List[tir.PrimExpr], tir_var_inverse_map: Dict[tir.Var, tir.PrimExpr]
     ):
@@ -455,8 +473,14 @@ def gen_call_tir_inputs(
     # with old set of variables.
     tir_var_inverse_map = {v: k for k, v in tir_var_map.items()}
 
+    vdevice = _get_vdevice(args)
+
     output_sinfo = [
-        TensorStructInfo(_shape_with_old_tir_var(out.shape, tir_var_inverse_map), out.dtype)
+        TensorStructInfo(
+            _shape_with_old_tir_var(out.shape, tir_var_inverse_map),
+            out.dtype,
+            vdevice,
+        )
         for out in outs
     ]
 

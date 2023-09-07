@@ -17,6 +17,8 @@
  * under the License.
  */
 
+#include <tvm/relax/analysis.h>
+
 #include "../../meta_schedule/utils.h"
 
 namespace tvm {
@@ -101,6 +103,16 @@ IRModule MarkScheduled(const IRModule& mod) {
                   mod->attrs);            // attrs);
 }
 
+bool IsScheduledOnGPU(const GlobalVar& gvar, const Map<GlobalVar, Integer>& dev_gvars) {
+  auto it = dev_gvars.find(gvar);
+  if (it == dev_gvars.end()) return false;
+  auto dev_type = (*it).second;
+  if (dev_type == kDLCUDA || dev_type == -1) {
+    return true;
+  }
+  return false;
+}
+
 Pass DefaultGPUSchedule() {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =  //
       [=](IRModule m, PassContext pc) {
@@ -114,8 +126,10 @@ Pass DefaultGPUSchedule() {
         int64_t max_thread_per_block = opt_max_thread_per_block.value().IntValue();
         tir::Schedule sch = tir::Schedule::Traced(m, /*seed=*/-1, /*debug_mask=*/0,
                                                   tir::ScheduleErrorRenderLevel::kDetail);
+        Map<GlobalVar, Integer> dev_gvars = relax::GetPrimFuncDevice(m);
         for (const auto& [gv, func] : m->functions) {
-          if (func->IsInstance<tir::PrimFuncNode>() && !func->HasNonzeroAttr(attr::kIsScheduled)) {
+          if (func->IsInstance<tir::PrimFuncNode>() && !func->HasNonzeroAttr(attr::kIsScheduled) &&
+              IsScheduledOnGPU(gv, dev_gvars)) {
             sch->WorkOn(gv->name_hint);
             Array<tir::BlockRV> blocks = meta_schedule::BlockCollector::Collect(sch);
             for (const tir::BlockRV& block : blocks) {
