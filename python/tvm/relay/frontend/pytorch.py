@@ -4426,7 +4426,7 @@ def _create_typed_const(data, dtype):
     if dtype == "float64":
         typed_data = np.float64(data)
         if np.isscalar(typed_data):
-            typed_data = _expr.const(np.array([typed_data]), dtype=dtype)
+            typed_data = _expr.const(np.asarray(data, dtype="float64"), dtype=dtype)
         else:
             typed_data = _expr.const(typed_data, dtype=dtype)
     elif dtype == "float32":
