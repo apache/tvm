@@ -190,6 +190,16 @@ def test_scatter_from_worker0_infer_struct_info_shape_symbolic():
     )
 
 
+def test_scatter_from_worker0_infer_struct_info_shape_var():
+    bb = relax.BlockBuilder()
+    s0 = relax.Var("s", relax.ShapeStructInfo((2, 4, 8)))
+    x0 = relax.Var("x", relax.TensorStructInfo(s0, "float32"))
+
+    _check_inference(
+        bb, relax.op.ccl.scatter_from_worker0(x0, 2), relax.TensorStructInfo((1, 4, 8), "float32")
+    )
+
+
 def test_scatter_from_worker0_infer_struct_info_more_input_dtype():
     bb = relax.BlockBuilder()
     x0 = relax.Var("x", R.Tensor((2, 3), "float64"))

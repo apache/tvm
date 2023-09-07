@@ -91,20 +91,18 @@ StructInfo InferStructInfoScatterFromWorker0(const Call& call, const BlockBuilde
   int num_workers = attrs->num_workers;
 
   arith::Analyzer* analyzer = ctx->GetAnalyzer();
-  const auto* input_shape = input_sinfo->shape.as<ShapeExprNode>();
-  input_sinfo->shape.as<VarNode>();
-  CHECK(input_shape != nullptr)
-      << "input tensor of scatter_from_worker0 should have defined ShapeExpr as shape";
+  auto input_shape = input_sinfo->GetShape();
+  CHECK(input_shape.defined()) << "input tensor of scatter_from_worker0 should have defined shape.";
 
-  if (analyzer->CanProve(floormod(input_shape->values[0], PrimExpr(num_workers))) != 0) {
+  if (analyzer->CanProve(floormod(input_shape.value()[0], PrimExpr(num_workers))) != 0) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "scatter_from_worker0 expects the size of axis 0 of input tensor to be "
                         "divisible by the "
                         "num_workers. However, the axis 0 of input tensor is "
-                     << input_shape->values[0] << " while num_workers is " << num_workers);
+                     << input_shape.value() << " while num_workers is " << num_workers);
   }
 
-  Array<PrimExpr> output_shape = input_shape->values;
+  Array<PrimExpr> output_shape = input_shape.value();
   output_shape.Set(0, div(output_shape[0], num_workers));
   if (input_sinfo->vdevice.defined()) {
     return TensorStructInfo(ShapeExpr(output_shape), output_dtype, input_sinfo->vdevice.value());

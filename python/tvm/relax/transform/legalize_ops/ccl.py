@@ -20,7 +20,7 @@ from tvm import tir, arith
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr, ShapeExpr
 from ...op import call_pure_packed
-from ...struct_info import TensorStructInfo
+from ...struct_info import TensorStructInfo, ShapeStructInfo
 from .common import register_legalize
 
 
@@ -59,7 +59,12 @@ def _broadcast_from_worker0(_bb: BlockBuilder, call: Call) -> Expr:
 @register_legalize("relax.ccl.scatter_from_worker0")
 def _scatter_from_worker0(_bb: BlockBuilder, call: Call) -> Expr:
     output_shape = []
-    for i, shape_value in enumerate(call.args[0].struct_info.shape.values):
+    assert isinstance(
+        call.args[0].struct_info, TensorStructInfo
+    ), "The input struct info of scatter_from_worker0 should be TensorStructInfo."
+    assert isinstance(call.args[0].struct_info.shape.struct_info, ShapeStructInfo)
+    arg_shape = call.args[0].struct_info.shape.struct_info
+    for i, shape_value in enumerate(arg_shape.values):
         if i == 0:
             modulo = arith.Analyzer().simplify(shape_value % call.attrs.num_workers)
             assert modulo == 0, (
