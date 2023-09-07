@@ -127,7 +127,7 @@ class MSCJoint(BaseJoint):
     name: string
         The name of the node.
     shared_ref: string
-        The master name of the node.
+        The share reference of the node.
     optype: string
         The optype of the node.
     attrs: dict<string, string>
@@ -290,7 +290,7 @@ class WeightJoint(BaseJoint):
     name: string
         The name of the node.
     shared_ref: string
-        The master name of the node.
+        The share reference of the node.
     optype: string
         The optype of the node.
     wtype: string
