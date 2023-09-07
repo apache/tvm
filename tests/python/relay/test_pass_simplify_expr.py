@@ -347,14 +347,12 @@ def test_simplify_full_elementwise():
             for full in full_ops:
                 z = before_left(x, op, full)
                 zz = run_opt_pass(z, transform.SimplifyExpr())
-                after = run_opt_pass(after_left(
-                    x, op, value), transform.InferType())
+                after = run_opt_pass(after_left(x, op, value), transform.InferType())
                 assert tvm.ir.structural_equal(zz, after)
 
                 z = before_right(x, op, full)
                 zz = run_opt_pass(z, transform.SimplifyExpr())
-                after = run_opt_pass(after_right(
-                    x, op, value), transform.InferType())
+                after = run_opt_pass(after_right(x, op, value), transform.InferType())
                 assert tvm.ir.structural_equal(zz, after)
 
         # Test the case in which x is broadcast to full's shape
@@ -369,14 +367,12 @@ def test_simplify_full_elementwise():
             for full in full_ops:
                 z = before_left(x, op, full)
                 zz = run_opt_pass(z, transform.SimplifyExpr())
-                after = run_opt_pass(before_left(
-                    x, op, full), transform.InferType())
+                after = run_opt_pass(before_left(x, op, full), transform.InferType())
                 assert tvm.ir.structural_equal(zz, after)
 
                 z = before_right(x, op, full)
                 zz = run_opt_pass(z, transform.SimplifyExpr())
-                after = run_opt_pass(before_right(
-                    x, op, full), transform.InferType())
+                after = run_opt_pass(before_right(x, op, full), transform.InferType())
                 assert tvm.ir.structural_equal(zz, after)
 
     for shape in [[10], [10, 10], [10, 10, 10]]:
@@ -654,8 +650,7 @@ def test_simplify_mul_add():
         c3 * (c2 + x * c1),
         c3 * (c2 + c1 * x),
     ]
-    expect_expr = x * relay.const(c1_val * c3_val) + \
-        relay.const(c2_val * c3_val)
+    expect_expr = x * relay.const(c1_val * c3_val) + relay.const(c2_val * c3_val)
     check_simple_fold(origin_exprs, expect_expr)
 
 
@@ -739,8 +734,11 @@ def test_simplify_clip_cast_clip():
         return relay.clip(cast, a_min=a_min_2, a_max=a_max_2)
 
     def expected():
-        clip = relay.clip(x, a_min=a_min_1 if a_min_1 > a_min_2 else a_min_2,
-                          a_max=a_max_1 if a_max_1 < a_max_1 else a_max_2)
+        clip = relay.clip(
+            x,
+            a_min=a_min_1 if a_min_1 > a_min_2 else a_min_2,
+            a_max=a_max_1 if a_max_1 < a_max_1 else a_max_2,
+        )
         return relay.cast(clip, "uint8")
 
     opt = run_opt_pass(before(), transform.SimplifyExpr())
@@ -918,10 +916,8 @@ def test_binomials():
         q_val = (b - sqrt(det)) / (2 * a)
         p = relay.const(p_val, dtype=dtype)
         q = relay.const(q_val, dtype=dtype)
-        first_exp = [x + y, y + x] if p_val == 1 else [x +
-                                                       p * y, p * y + x, x + y * p, y * p + x]
-        second_exp = [x + y, y + x] if q_val == 1 else [x +
-                                                        q * y, q * y + x, x + y * q, y * q + x]
+        first_exp = [x + y, y + x] if p_val == 1 else [x + p * y, p * y + x, x + y * p, y * p + x]
+        second_exp = [x + y, y + x] if q_val == 1 else [x + q * y, q * y + x, x + y * q, y * q + x]
         final_exp = []
         for f in first_exp:
             for s in second_exp:
