@@ -32,6 +32,8 @@
 #include <tvm/relax/expr.h>
 #include <tvm/runtime/object.h>
 
+#include <utility>
+
 namespace tvm {
 namespace relax {
 
@@ -193,4 +195,4 @@ size_t GetBindingIndex(const ControlFlowGraph& cfg, const SeqExpr& seq, size_t b
 
 }  // namespace relax
 }  // namespace tvm
-#endif
+#endif  // TVM_RELAX_DATAFLOW_ANALYSIS_H_
