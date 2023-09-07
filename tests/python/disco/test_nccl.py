@@ -110,7 +110,7 @@ def test_gather():
     d_src.debug_copy_from(0, array[:18])
     d_src.debug_copy_from(1, array[18:])
 
-    sess.scatter_from_worker0(d_src, d_dst)
+    sess.gather_to_worker0(d_src, d_dst)
 
     np.testing.assert_equal(
         d_dst.debug_get_from_remote(0).numpy(),
