@@ -114,7 +114,8 @@ class CodeGenCUDA final : public CodeGenC {
   // The size of the barrier array in shared memory
   int barrier_count_ = -1;
   // The alignment of the barrier array in shared memory
-  const int barrier_alignment_bytes_ = 64;
+  // Set to 16 to maintain minimum alignment requirements for async bulk copy
+  const int barrier_alignment_bytes_ = 16;
 
   std::unordered_map<const VarNode*, std::string> fragment_shapes;
   std::unordered_map<const VarNode*, std::string> fragment_layouts;
