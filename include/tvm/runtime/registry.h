@@ -99,8 +99,8 @@ TVM_DLL void EnvCheckSignals();
 
 /*! \brief A class that wraps a Python object and preserves its ownership.
 
- * This class is used to wrap a PyObject* from the Python API and preserve its ownership. 
- * Allows for the creation of strong references to Python objects, which prevent them from being 
+ * This class is used to wrap a PyObject* from the Python API and preserve its ownership.
+ * Allows for the creation of strong references to Python objects, which prevent them from being
  * garbage-collected as long as the wrapper object exists.
  */
 class WrappedPythonObject {
