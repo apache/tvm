@@ -44,7 +44,7 @@ def create_aot_module():
 def test_property():
     checker(
         create_csource_module(),
-        expected={"is_binary_serializable": False, "is_runnable": False, "is_dso_exportable": True},
+        expected={"is_binary_serializable": True, "is_runnable": False, "is_dso_exportable": True},
     )
 
     checker(

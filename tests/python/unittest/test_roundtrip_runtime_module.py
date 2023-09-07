@@ -25,12 +25,12 @@ from tvm import relay
 
 
 def test_csource_module():
-    mod = tvm.runtime._ffi_api.CSourceModuleCreate("", "cc", [], None)
-    # source module that is not binary serializable.
-    # Thus, it would raise an error.
-    assert not mod.is_binary_serializable
-    with pytest.raises(TVMError):
-        tvm.ir.load_json(tvm.ir.save_json(mod))
+    mod = tvm.runtime._ffi_api.CSourceModuleCreate("", "cc", [], [])
+    assert mod.type_key == "c"
+    assert mod.is_binary_serializable
+    new_mod = tvm.ir.load_json(tvm.ir.save_json(mod))
+    assert new_mod.type_key == "c"
+    assert new_mod.is_binary_serializable
 
 
 def test_aot_module():
