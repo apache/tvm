@@ -248,14 +248,14 @@ bool BaseJointNode::GetAttr(const String& key, std::vector<float>* val) const {
   return false;
 }
 
-MSCJoint::MSCJoint(int index, const String& name, const String& master_name, const String& optype,
+MSCJoint::MSCJoint(int index, const String& name, const String& shared_ref, const String& optype,
                    const Map<String, String>& attrs, const Array<String>& scope,
                    const std::vector<std::pair<BaseJoint, size_t>>& inputs,
                    const Array<MSCTensor>& outputs, const Map<String, MSCTensor>& weights) {
   ObjectPtr<MSCJointNode> n = make_object<MSCJointNode>();
   n->index = index;
   n->name = std::move(name);
-  n->master_name = std::move(master_name);
+  n->shared_ref = std::move(shared_ref);
   n->optype = std::move(optype);
   n->attrs = std::move(attrs);
   n->scope = std::move(scope);
@@ -301,15 +301,15 @@ MSCJoint::MSCJoint(const std::string& json_str, const Map<String, BaseJoint>& no
 
 const MSCJoint MSCJoint::Clone(const MSCJoint& node,
                                const std::vector<std::pair<BaseJoint, size_t>>& inputs) {
-  return MSCJoint(node->index, node->name, node->master_name, node->optype, node->attrs,
-                  node->scope, inputs, node->outputs, node->weights);
+  return MSCJoint(node->index, node->name, node->shared_ref, node->optype, node->attrs, node->scope,
+                  inputs, node->outputs, node->weights);
 }
 
 const JsonMSCJoint MSCJointNode::ToJson() const {
   JsonMSCJoint j_joint;
   j_joint.index = index;
   j_joint.name = name;
-  j_joint.master_name = master_name;
+  j_joint.shared_ref = shared_ref;
   j_joint.optype = optype;
   for (const auto& pair : attrs) {
     j_joint.attrs[pair.first] = pair.second;
@@ -335,7 +335,7 @@ const JsonMSCJoint MSCJointNode::ToJson() const {
 void MSCJointNode::FromJson(const JsonMSCJoint& j_joint, const Map<String, BaseJoint>& nodes) {
   index = j_joint.index;
   name = j_joint.name;
-  master_name = j_joint.master_name;
+  shared_ref = j_joint.shared_ref;
   optype = j_joint.optype;
   for (const auto& pair : j_joint.attrs) {
     attrs.Set(pair.first, pair.second);
@@ -453,14 +453,14 @@ const std::pair<MSCJoint, size_t> MSCJointNode::ProducerAndIdxOf(const MSCTensor
   return ProducerAndIdxOf(input->name);
 }
 
-WeightJoint::WeightJoint(int index, const String& name, const String& master_name,
+WeightJoint::WeightJoint(int index, const String& name, const String& shared_ref,
                          const String& optype, const String& wtype,
                          const Map<String, String>& attrs, const MSCTensor& weight,
                          const Array<BaseJoint> parents, const Array<BaseJoint>& friends) {
   ObjectPtr<WeightJointNode> n = make_object<WeightJointNode>();
   n->index = index;
   n->name = std::move(name);
-  n->master_name = std::move(master_name);
+  n->shared_ref = std::move(shared_ref);
   n->optype = std::move(optype);
   n->wtype = std::move(wtype);
   n->attrs = std::move(attrs);
@@ -823,8 +823,8 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 #define MSC_NODE_BASE_HEAD(Stream, Joint)                                                \
   Stream << "ID_" << Joint->index << " " << Joint->name;                                 \
-  if (Joint->master_name.size() > 0) {                                                   \
-    Stream << "(M: " << Joint->master_name << ")";                                       \
+  if (Joint->shared_ref.size() > 0) {                                                    \
+    Stream << "(M: " << Joint->shared_ref << ")";                                        \
   }                                                                                      \
   Stream << " <PARENTS: ";                                                               \
   if (Joint->parents.size() > 0) {                                                       \
@@ -946,7 +946,7 @@ TVM_REGISTER_GLOBAL("msc.core.MSCTensor")
     });
 
 TVM_REGISTER_GLOBAL("msc.core.MSCJoint")
-    .set_body_typed([](Integer index, const String& name, const String& master_name,
+    .set_body_typed([](Integer index, const String& name, const String& shared_ref,
                        const String& optype, const Map<String, String>& attrs,
                        const Array<String>& scope, const Array<MSCJoint>& parents,
                        const Array<Integer> out_indices, const Array<MSCTensor>& outputs,
@@ -955,12 +955,12 @@ TVM_REGISTER_GLOBAL("msc.core.MSCJoint")
       for (size_t i = 0; i < parents.size(); i++) {
         inputs.push_back(std::make_pair(parents[i], out_indices[i]->value));
       }
-      return MSCJoint(index->value, name, master_name, optype, attrs, scope, inputs, outputs,
+      return MSCJoint(index->value, name, shared_ref, optype, attrs, scope, inputs, outputs,
                       weights);
     });
 
 TVM_REGISTER_GLOBAL("msc.core.WeightJoint")
-    .set_body_typed([](Integer index, const String& name, const String& master_name,
+    .set_body_typed([](Integer index, const String& name, const String& shared_ref,
                        const String& optype, const String& wtype, const Map<String, String>& attrs,
                        const MSCTensor& weight, const Array<WeightJoint> parents,
                        const Array<WeightJoint>& friends) -> WeightJoint {
@@ -971,7 +971,7 @@ TVM_REGISTER_GLOBAL("msc.core.WeightJoint")
       for (const auto& f : friends) {
         b_friends.push_back(f);
       }
-      return WeightJoint(index->value, name, master_name, optype, wtype, attrs, weight, b_parents,
+      return WeightJoint(index->value, name, shared_ref, optype, wtype, attrs, weight, b_parents,
                          b_friends);
     });
 
