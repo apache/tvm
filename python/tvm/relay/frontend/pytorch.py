@@ -4424,10 +4424,11 @@ def _create_typed_const(data, dtype):
     dtype should be a TVM dtype"""
 
     if dtype == "float64":
-        if len(data) == 1:
-            typed_data = _expr.const(np.array([np.float64(data)]), dtype=dtype)
+        typed_data = np.float64(data)
+        if np.isscalar(typed_data):
+            typed_data = _expr.const(np.array([typed_data]), dtype=dtype)
         else:
-            typed_data = _expr.const(np.float64(data), dtype=dtype)
+            typed_data = _expr.const(typed_data, dtype=dtype)
     elif dtype == "float32":
         typed_data = _expr.const(np.float32(data), dtype=dtype)
     elif dtype == "float16":
