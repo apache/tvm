@@ -165,6 +165,20 @@ class ShapeTuple : public ObjectRef {
   const index_type* end() const { return (get()->data + size()); }
 
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(ShapeTuple, ObjectRef, ShapeTupleObj);
+
+  friend std::ostream& operator<<(std::ostream& os, const ShapeTuple& shape) {
+    os << "[";
+    bool is_first = true;
+    for (const auto& value : shape) {
+      if (is_first) {
+        is_first = false;
+      } else {
+        os << ", ";
+      }
+      os << value;
+    }
+    return os << "]";
+  }
 };
 
 inline ShapeTuple::ShapeTuple(std::vector<index_type> shape) {
