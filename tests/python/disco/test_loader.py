@@ -124,9 +124,8 @@ def _create_presharded_loader(sess, path):
     path_ndarray_cache = path + "/ndarray-cache.json"
     with open(path_ndarray_cache, "r", encoding="utf-8") as i_f:
         ndarray_cache = i_f.read()
-    shard_with_numpy = sess.get_global_func("tests.disco.shard_with_numpy")
     loader_create = sess.get_global_func("runtime.disco.ShardLoader")
-    loader = loader_create(path_ndarray_cache, ndarray_cache, json.dumps({}), shard_with_numpy)
+    loader = loader_create(path_ndarray_cache, ndarray_cache, json.dumps({}), None)
     return loader
 
 
