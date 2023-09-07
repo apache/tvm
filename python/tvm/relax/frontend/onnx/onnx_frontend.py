@@ -44,6 +44,7 @@ import tvm
 from tvm import relax, tir, topi
 from tvm.ir import IRModule
 from tvm.ir.supply import NameSupply
+from tvm.tir.generic import cast
 
 
 def get_type(elem_type: Union[str, int]) -> str:
@@ -1302,8 +1303,11 @@ class Resize(OnnxOpConverter):
         if scales is not None:
             assert isinstance(scales, relax.Constant), "Only constant scales currently supported."
             scales = scales.data.numpy()
-            sizes_shape = [dim.value for dim in x.struct_info.shape]
-            sizes = (sizes_shape * scales)[2:].astype("int64").tolist()
+            sizes = []
+
+            for i, dim in enumerate(x.struct_info.shape):
+                sizes.append(cast(scales[i] * dim, "int64"))
+            sizes = sizes[2:]
         else:
             assert isinstance(
                 sizes, relax.Constant
