@@ -904,8 +904,8 @@ def test_multi_systemlib(exec_mode):
     pathA = temp.relpath("libA.a")
     pathB = temp.relpath("libB.a")
     path_dso = temp.relpath("mylibAll.so")
-    libA.export_library(pathA, cc.create_staticlib)
-    libB.export_library(pathB, cc.create_staticlib)
+    libA.export_library(pathA, fcompile=cc.create_staticlib)
+    libB.export_library(pathB, fcompile=cc.create_staticlib)
 
     # package two static libs together
     # check that they do not interfere with each other

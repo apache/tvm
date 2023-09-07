@@ -58,7 +58,7 @@ def test_rpc():
 
     mod = get_model()
     ex = relax.build(mod, target)
-    ex.export_library(wasm_path, tvmjs.create_tvmjs_wasm)
+    ex.export_library(wasm_path, fcompile=tvmjs.create_tvmjs_wasm)
     wasm_binary = open(wasm_path, "rb").read()
 
     remote = rpc.connect(
