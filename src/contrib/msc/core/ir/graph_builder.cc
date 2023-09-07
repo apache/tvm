@@ -103,7 +103,7 @@ const MSCGraph RelaxGraphBuilder::Build(const relax::Function& func) {
 const MSCJoint RelaxGraphBuilder::AddNode(const Expr& expr, const Optional<Expr>& binding_var,
                                           const String& name) {
   const auto& node_name = name.size() > 0 ? name : SpanUtils::GetAttr(expr->span, "name");
-  const auto& master_name = SpanUtils::GetAttr(expr->span, "master_name");
+  const auto& shared_ref = SpanUtils::GetAttr(expr->span, "shared_ref");
   String optype;
   if (expr->IsInstance<relax::VarNode>()) {
     optype = "input";
@@ -256,7 +256,7 @@ const MSCJoint RelaxGraphBuilder::AddNode(const Expr& expr, const Optional<Expr>
     LOG(FATAL) << "Unexpected struct info (" << sinfo->GetTypeKey() << ")" << sinfo;
   }
   // Build node
-  const auto& node = MSCJoint(nodes_.size(), node_name, master_name, optype, attrs, scope, inputs,
+  const auto& node = MSCJoint(nodes_.size(), node_name, shared_ref, optype, attrs, scope, inputs,
                               outputs, node_weights);
   Array<String> output_names;
   for (size_t i = 0; i < outputs.size(); i++) {
@@ -419,7 +419,7 @@ MSCGraph RelayGraphBuilder::Build(const relay::Function& func) {
 
 MSCJoint RelayGraphBuilder::AddNode(const Expr& expr, const String& name) {
   const auto& node_name = name.size() > 0 ? name : SpanUtils::GetAttr(expr->span, "name");
-  const auto& master_name = SpanUtils::GetAttr(expr->span, "master_name");
+  const auto& shared_ref = SpanUtils::GetAttr(expr->span, "shared_ref");
   String optype;
   if (expr->IsInstance<relay::VarNode>()) {
     optype = "input";
@@ -570,7 +570,7 @@ MSCJoint RelayGraphBuilder::AddNode(const Expr& expr, const String& name) {
   }
 
   // Build node
-  const auto& node = MSCJoint(nodes_.size(), node_name, master_name, optype, attrs, scope, inputs,
+  const auto& node = MSCJoint(nodes_.size(), node_name, shared_ref, optype, attrs, scope, inputs,
                               outputs, node_weights);
   Array<String> output_names;
   for (size_t i = 0; i < outputs.size(); i++) {
