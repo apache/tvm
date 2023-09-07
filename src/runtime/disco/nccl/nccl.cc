@@ -158,6 +158,46 @@ void ScatterFromWorker0(Optional<NDArray> send, NDArray recv) {
   NCCL_CALL(ncclGroupEnd());
 }
 
+void GatherToWorker0(NDArray send, Optional<NDArray> recv) {
+  CHECK(send.defined()) << "ValueError: buffer `send` must not be None";
+  NCCLThreadLocalContext* ctx = NCCLThreadLocalContext::Get();
+  int worker_id = ctx->worker->worker_id;
+  int num_workers = ctx->worker->num_workers;
+  if (worker_id == 0) {
+    CHECK(recv.defined()) << "ValueError: buffer `recv` must be provided when worker_id == 0.";
+    NDArray buffer = recv.value();
+    int64_t numel = buffer.Shape()->Product();
+    CHECK_EQ(numel % num_workers, 0)
+        << "ValueError: Gathering evenly requires that the number of elements in the buffer to be "
+           "divisible by the number of workers, but got numel = "
+        << numel << " and " << num_workers << " workers.";
+    DataType dtype(buffer->dtype);
+    int64_t numel_per_shard = numel / num_workers;
+    int64_t bytes_per_shard = numel_per_shard * dtype.bytes();
+    CHECK_EQ(numel_per_shard, send.Shape()->Product())
+        << "ValueError: The number of elements in buffer `send` must be the same as each shard of "
+           "buffer `recv`. `recv.size` is "
+        << numel << ", but `send.size` is " << send.Shape()->Product() << ".";
+    NCCL_CALL(ncclGroupStart());
+    uint8_t* data = static_cast<uint8_t*>(buffer->data);
+    for (int i = 0; i < num_workers; ++i) {
+      NCCL_CALL(ncclRecv(data, numel_per_shard, AsNCCLDataType(dtype), i, ctx->comm, ctx->stream));
+      data += bytes_per_shard;
+    }
+  } else {
+    if (recv.defined()) {
+      LOG(WARNING) << "ValueError: buffer `recv` must be None when worker_id != 0. However, got "
+                      "recv = "
+                   << recv.get() << ". This will be ignored.";
+    }
+    NCCL_CALL(ncclGroupStart());
+  }
+  int64_t numel = send.Shape()->Product();
+  DataType dtype(send->dtype);
+  NCCL_CALL(ncclSend(send->data, numel, AsNCCLDataType(dtype), 0, ctx->comm, ctx->stream));
+  NCCL_CALL(ncclGroupEnd());
+}
+
 void RecvFromWorker0(NDArray buffer) {
   NCCLThreadLocalContext* ctx = NCCLThreadLocalContext::Get();
   CHECK_NE(ctx->worker->worker_id, 0)
@@ -183,6 +223,7 @@ TVM_REGISTER_GLOBAL("runtime.disco.nccl.allreduce").set_body_typed([](NDArray se
 TVM_REGISTER_GLOBAL("runtime.disco.nccl.broadcast_from_worker0")
     .set_body_typed(BroadcastFromWorker0);
 TVM_REGISTER_GLOBAL("runtime.disco.nccl.scatter_from_worker0").set_body_typed(ScatterFromWorker0);
+TVM_REGISTER_GLOBAL("runtime.disco.nccl.gather_to_worker0").set_body_typed(GatherToWorker0);
 TVM_REGISTER_GLOBAL("runtime.disco.nccl.recv_from_worker0").set_body_typed(RecvFromWorker0);
 
 }  // namespace nccl

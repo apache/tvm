@@ -66,6 +66,13 @@ NDArray BroadcastFromWorker0(NDArray buffer);
  */
 void ScatterFromWorker0(Optional<NDArray> send, NDArray recv);
 /*!
+ * \brief Perform a gather operation to worker-0.
+ * \param send The sending buffer, which must not be None.
+ * \param recv For worker-0, it must be provided, and otherwise, the buffer must be None. The
+ * receiving buffer will be divided into equal parts and receive from each worker accordingly.
+ */
+void GatherToWorker0(NDArray send, Optional<NDArray> recv);
+/*!
  * \brief Receive a buffer from worker-0. No-op if the current worker is worker-0.
  * \param buffer The buffer to be received
  */
