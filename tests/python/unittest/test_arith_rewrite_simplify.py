@@ -605,6 +605,23 @@ class TestFloorModTwo(BaseCompare):
     )
 
 
+class TestFloorModPadded(BaseCompare):
+    """Special-case simplifications for divisibility proof
+    such that (x - x % k) must be divisible by k
+    """
+
+    x, y = te.var("x"), te.var("y")
+    test_case = tvm.testing.parameter(
+        TestCase(flm(x - flm(x, 9), 9), 0),
+        TestCase(flm(x - flm(x, -9), 9), 0),
+        TestCase(flm(x + flm(-x, 9), 9), 0),
+        TestCase(flm(x + flm(8 * x, 9), 9), 0),
+        TestCase(flm(x - flm(x, y), y), 0),
+        TestCase(flm(x - flm(x, -y), y), 0),
+        TestCase(flm(x + flm(-x, y), y), 0),
+    )
+
+
 class TestMinIndex(BaseCompare):
     x, y, z = te.var("x"), te.var("y"), te.var("z")
     test_case = tvm.testing.parameter(
