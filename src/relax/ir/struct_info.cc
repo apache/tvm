@@ -42,17 +42,30 @@ TVM_REGISTER_GLOBAL("relax.ObjectStructInfo").set_body_typed([](Span span) {
 });
 
 // Prim
+PrimStructInfo::PrimStructInfo(PrimExpr value, Span span) {
+  ObjectPtr<PrimStructInfoNode> n = make_object<PrimStructInfoNode>();
+  n->dtype = value->dtype;
+  n->value = std::move(value);
+  n->span = span;
+  data_ = std::move(n);
+}
+
 PrimStructInfo::PrimStructInfo(DataType dtype, Span span) {
   ObjectPtr<PrimStructInfoNode> n = make_object<PrimStructInfoNode>();
   n->dtype = dtype;
+  n->value = NullOpt;
   n->span = span;
   data_ = std::move(n);
 }
 
 TVM_REGISTER_NODE_TYPE(PrimStructInfoNode);
 
-TVM_REGISTER_GLOBAL("relax.PrimStructInfo").set_body_typed([](DataType dtype, Span span) {
+TVM_REGISTER_GLOBAL("relax.PrimStructInfoFromDtype").set_body_typed([](DataType dtype, Span span) {
   return PrimStructInfo(dtype, span);
+});
+
+TVM_REGISTER_GLOBAL("relax.PrimStructInfoFromValue").set_body_typed([](PrimExpr value, Span span) {
+  return PrimStructInfo(value, span);
 });
 
 // Shape

@@ -636,7 +636,7 @@ def test_tir_vars_in_struct_info():
     tvm.ir.assert_structural_equal(rx.analysis.tir_vars_in_struct_info(func), [n, m])
 
 
-def test_symbolic_var_collector():
+def test_collect_symbolic_var_from_tensor_shape():
     n, m, k, q, p = (
         tir.Var("n", "int64"),
         tir.Var("m", "int64"),
@@ -656,6 +656,47 @@ def test_symbolic_var_collector():
     free_vars = set(rx.analysis.free_symbolic_vars(func))
     assert defined_vars == {m, k}
     assert free_vars == {n, p, q}
+
+
+param_type = tvm.testing.parameter("shape_expr", "prim_value")
+param_order = tvm.testing.parameter("definition_first", "usage_first")
+
+
+def test_collect_symbolic_var_from_non_tensor_params(param_type, param_order):
+    tir_n = tir.Var("n", "int64")
+    tir_m = tir.Var("m", "int64")
+
+    bb = rx.BlockBuilder()
+    arg = rx.Var("arg", rx.TensorStructInfo([tir_n * tir_m]))
+
+    if param_type == "shape_expr":
+        extra_params = [
+            rx.Var("shape_expr", rx.ShapeStructInfo([tir_n, tir_m])),
+        ]
+    elif param_type == "prim_value":
+        extra_params = [
+            rx.Var("n", rx.PrimStructInfo(value=tir_n)),
+            rx.Var("m", rx.PrimStructInfo(value=tir_m)),
+        ]
+    else:
+        raise ValueError(f"Unknown param_type: {param_type}")
+
+    if param_order == "definition_first":
+        params = [*extra_params, arg]
+    elif param_order == "usage_first":
+        params = [arg, *extra_params]
+    else:
+        raise ValueError(f"Unknown param_order: {param_order}")
+
+    with bb.function("main", params=params):
+        out = rx.op.reshape(arg, [tir_n, tir_m])
+        bb.emit_func_output(out)
+    func = bb.get()["main"]
+
+    defined_vars = set(rx.analysis.defined_symbolic_vars(func))
+    free_vars = set(rx.analysis.free_symbolic_vars(func))
+    assert defined_vars == {tir_n, tir_m}
+    assert free_vars == set()
 
 
 if __name__ == "__main__":

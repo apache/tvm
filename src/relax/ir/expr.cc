@@ -311,7 +311,7 @@ TVM_REGISTER_GLOBAL("relax.Constant")
 PrimValue::PrimValue(PrimExpr value, Span span) {
   ObjectPtr<PrimValueNode> n = make_object<PrimValueNode>();
   n->checked_type_ = PrimType(value.dtype());
-  n->struct_info_ = PrimStructInfo(value.dtype());
+  n->struct_info_ = PrimStructInfo(value);
   n->value = std::move(value);
   n->span = std::move(span);
   data_ = std::move(n);

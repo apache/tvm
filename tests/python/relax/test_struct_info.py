@@ -86,7 +86,23 @@ def test_prim_struct_info():
 
     # wrong API constructors
     with pytest.raises(TVMError):
-        rx.PrimStructInfo(1)
+        rx.PrimStructInfo([1])
+
+
+def test_prim_struct_info_with_expr():
+    n = tir.Var("n", "int64")
+    sinfo = rx.PrimStructInfo(value=n + 1)
+
+    _check_equal(sinfo, rx.PrimStructInfo(value=n + 1))
+    assert not tvm.ir.structural_equal(sinfo, rx.PrimStructInfo(dtype=n.dtype))
+
+    # can turn into str
+    str(sinfo)
+
+    assert isinstance(sinfo, rx.PrimStructInfo)
+    _check_json_roundtrip(sinfo)
+
+    assert sinfo.dtype == "int64"
 
 
 def test_shape_struct_info():

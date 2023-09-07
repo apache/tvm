@@ -1062,6 +1062,9 @@ class SymbolicVarCollector : public relax::ExprVisitor,
         this->VisitStructInfoExprField(val);
       }
     }
+    if (auto prim_value = expr.as<relax::PrimValue>()) {
+      this->VisitStructInfoExprField(prim_value.value()->value);
+    }
   }
 
   void VisitStructInfoExprField(const PrimExpr& expr) final {

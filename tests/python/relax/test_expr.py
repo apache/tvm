@@ -238,6 +238,23 @@ def test_prim_value():
     _check_json_roundtrip(pv)
 
 
+def test_prim_value_with_var():
+    n = tir.Var("n", "int64")
+    pv = rx.PrimValue(n)
+    assert pv.value.same_as(n)
+    tvm.ir.assert_structural_equal(pv.struct_info, rx.PrimStructInfo(value=n))
+    _check_equal(pv, rx.PrimValue(n))
+    _check_json_roundtrip(pv)
+
+
+def test_prim_value_with_expr():
+    n = tir.Var("n", "int64")
+    pv = rx.PrimValue(n + 1)
+    tvm.ir.assert_structural_equal(pv.struct_info, rx.PrimStructInfo(value=n + 1))
+    _check_equal(pv, rx.PrimValue(n + 1))
+    _check_json_roundtrip(pv)
+
+
 def test_string_imm():
     s0 = rx.StringImm("hello")
     s1 = rx.StringImm("hello")

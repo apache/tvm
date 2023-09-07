@@ -163,7 +163,7 @@ def test_replacements_may_produce_new_symbolic_vars():
     tvm.ir.assert_structural_equal(expected, after)
 
 
-def test_bind_symbolic_vars_in_shape():
+def test_bind_symbolic_vars_in_tensor_shape():
     """The bound variable should be replaced when appearing in struct info"""
 
     @R.function(private=True)
@@ -180,6 +180,91 @@ def test_bind_symbolic_vars_in_shape():
         return B
 
     after = before.bind_symbolic_vars({"N": 16})
+    tvm.ir.assert_structural_equal(expected, after)
+
+
+def test_bind_symbolic_vars_in_shape_expr():
+    """The bound variable should be replaced when appearing in R.Shape"""
+
+    @R.function(private=True)
+    def before(A: R.Tensor(["M * N"]), x: R.Shape(["M", "N"])):
+        M = T.int64()
+        N = T.int64()
+        B = R.call_dps_packed("dummy_func", [A], out_sinfo=R.Tensor([2 * M * N]))
+        return B
+
+    @R.function(private=True)
+    def expected(A: R.Tensor(["M * 16"]), x: R.Shape(["M", 16])):
+        B = R.call_dps_packed("dummy_func", [A], out_sinfo=R.Tensor([M * 32]))
+        return B
+
+    after = before.bind_symbolic_vars({"N": 16})
+    tvm.ir.assert_structural_equal(expected, after)
+
+
+def test_bind_defining_of_symbolic_vars_in_prim_value():
+    """R.Prim may define symbolic variables
+
+    This case is a bit odd, because it always results in a
+    fully-constrained parameter at the relax level.  After binding in
+    this test case, we have a function that accepts three parameters,
+    and the third parameter must always be the number 16.
+
+    However, this provides the most consistent behavior with other
+    uses of `relax.Function.bind_symbolic_vars`, which restricts the
+    allowed values for each parameter, but does not alter the number
+    of parameters.  This is in contrast to the `BindParams` pass,
+    which provides a known value for relax parameters, removing them
+    from the function signature.
+
+    This convention also prevents surprise changes to the function
+    signature, such as shown in
+    `test_bind_symbolic_vars_with_expr_in_prim_value`.
+    """
+
+    @R.function(private=True)
+    def before(A: R.Tensor(["M * N"]), x: R.Prim(value="M"), y: R.Prim(value="N")):
+        M = T.int64()
+        N = T.int64()
+        B = R.call_dps_packed("dummy_func", [A], out_sinfo=R.Tensor([2 * M * N]))
+        return B
+
+    @R.function(private=True)
+    def expected(A: R.Tensor(["M * 16"]), x: R.Prim(value="M"), y: R.Prim(value=16)):
+        B = R.call_dps_packed("dummy_func", [A], out_sinfo=R.Tensor([M * 32]))
+        return B
+
+    after = before.bind_symbolic_vars({"N": 16})
+    tvm.ir.assert_structural_equal(expected, after)
+
+
+def test_bind_usage_of_symbolic_vars_in_prim_value():
+    """R.Prim may use symbolic variables defined by other parameters
+
+    Like test_bind_defining_of_symbolic_vars_in_prim_value, but with
+    R.Prim using a symbolic variable rather than defining it.
+
+    This also demonstrates why we should not remove fully-constrained
+    R.Prim function parameters.  In this case, we have a function that
+    accepts two parameters, and we have specialized the shape of the
+    first parameter.  It would be unexpected for specialization of the
+    first parameter to result in removal of a different parameter
+    altogether.
+    """
+
+    @R.function(private=True)
+    def before(A: R.Tensor(["M", "N"]), x: R.Prim(value="M*N")):
+        M = T.int64()
+        N = T.int64()
+        B = R.call_dps_packed("dummy_func", [A], out_sinfo=R.Tensor([2 * M * N]))
+        return B
+
+    @R.function(private=True)
+    def expected(A: R.Tensor([16, 16]), x: R.Prim(value=256)):
+        B = R.call_dps_packed("dummy_func", [A], out_sinfo=R.Tensor([512]))
+        return B
+
+    after = before.bind_symbolic_vars({"M": 16, "N": 16})
     tvm.ir.assert_structural_equal(expected, after)
 
 

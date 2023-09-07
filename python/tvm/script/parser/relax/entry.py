@@ -359,7 +359,7 @@ class ShapeProxy(StructInfoProxy):
 
     def get_symbolic_vars(self) -> Set[str]:
         if self.values is None:
-            return {}
+            return set()
         else:
             return {v for v in self.values if isinstance(v, str) and v.isidentifier()}
 
@@ -405,27 +405,52 @@ def Object() -> ObjectProxy:
 
 
 class PrimProxy(StructInfoProxy):
-    dtype: str
-    """The type of shape values.
+    dtype: Optional[str]
+    value: Optional[Union[int, float, str, PrimExpr]]
+
+    """The type of TIR-representable values.
 
     Parameters
     ----------
-    dtype : str
+    dtype : Optional[str]
        The data type.
+
+    value: Optional[Union[int, float, str, PrimExpr]]
+       The known value
     """
 
-    def __init__(self, dtype: str) -> None:
+    def __init__(
+        self,
+        dtype: Optional[str] = None,
+        value: Optional[Union[int, float, str, PrimExpr]] = None,
+    ) -> None:
+        if dtype is None and value is None:
+            raise TypeError(
+                "R.Prim missing required argument.  " "Must provide either 'dtype' or 'value'"
+            )
+
         self.dtype = dtype
+        self.value = value
 
     def get_symbolic_vars(self) -> Set[str]:
-        return set()
+        if isinstance(self.value, str) and self.value.isidentifier():
+            return {self.value}
+        else:
+            return set()
 
     def as_struct_info(self, dict_globals: Optional[Dict[str, Any]] = None) -> ShapeStructInfo:
-        return PrimStructInfo(self.dtype)
+        if self.value is None:
+            return PrimStructInfo(dtype=self.dtype)
+        else:
+            value = _eval_shape(self.value, dict_globals)
+            return PrimStructInfo(dtype=self.dtype, value=value)
 
 
-def Prim(dtype: str) -> PrimProxy:
-    return PrimProxy(dtype)
+def Prim(
+    dtype: Optional[str] = None,
+    value: Optional[Union[int, float, str, PrimExpr]] = None,
+) -> PrimProxy:
+    return PrimProxy(dtype, value)
 
 
 ############################ R.match_cast #############################

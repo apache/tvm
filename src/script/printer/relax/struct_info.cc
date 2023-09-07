@@ -30,12 +30,6 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           return Relax(d, "Object");
         });
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<relax::PrimStructInfo>(
-        "", [](relax::PrimStructInfo n, ObjectPath n_p, IRDocsifier d) -> Doc {
-          return Relax(d, "Prim")->Call({LiteralDoc::DataType(n->dtype, n_p->Attr("dtype"))});
-        });
-
 ExprDoc PrintShapeVar(const PrimExpr& e, const ObjectPath& e_p, const IRDocsifier& d) {
   ExprDoc expr_doc = d->AsDoc<ExprDoc>(e, e_p);
   // Step 1. Find if `func_vars` are being collected
@@ -65,6 +59,23 @@ ExprDoc PrintShapeVar(const PrimExpr& e, const ObjectPath& e_p, const IRDocsifie
   }
   return expr_doc;
 }
+
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
+    .set_dispatch<relax::PrimStructInfo>(
+        "", [](relax::PrimStructInfo n, ObjectPath n_p, IRDocsifier d) -> Doc {
+          Array<ExprDoc, void> args;
+          Array<String> kwargs_keys;
+          Array<ExprDoc, void> kwargs_values;
+
+          if (n->value.defined()) {
+            kwargs_keys.push_back("value");
+            kwargs_values.push_back(PrintShapeVar(n->value.value(), n_p->Attr("value"), d));
+          } else {
+            args.push_back(LiteralDoc::DataType(n->dtype, n_p->Attr("dtype")));
+          }
+
+          return Relax(d, "Prim")->Call(args, kwargs_keys, kwargs_values);
+        });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::ShapeStructInfo>(

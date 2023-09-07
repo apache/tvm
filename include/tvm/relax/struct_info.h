@@ -60,19 +60,26 @@ class ObjectStructInfo : public StructInfo {
  */
 class PrimStructInfoNode : public StructInfoNode {
  public:
+  /*! \brief Underlying primitive value, if known */
+  Optional<PrimExpr> value;
+
   /*! \brief Underlying data type of the primitive value */
   DataType dtype;
 
   void VisitAttrs(AttrVisitor* v) {
+    v->Visit("value", &value);
     v->Visit("dtype", &dtype);
     v->Visit("span", &span);
   }
 
   bool SEqualReduce(const PrimStructInfoNode* other, SEqualReducer equal) const {
-    return equal(dtype, other->dtype);
+    return equal(value, other->value) && equal(dtype, other->dtype);
   }
 
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(dtype); }
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(value);
+    hash_reduce(dtype);
+  }
 
   static constexpr const char* _type_key = "relax.PrimStructInfo";
   TVM_DECLARE_FINAL_OBJECT_INFO(PrimStructInfoNode, StructInfoNode);
@@ -84,7 +91,11 @@ class PrimStructInfoNode : public StructInfoNode {
  */
 class PrimStructInfo : public StructInfo {
  public:
+  /* Construct a PrimStructInfo with a known dtype, but unknown value */
   TVM_DLL PrimStructInfo(DataType dtype, Span span = Span());
+
+  /* Construct a PrimStructInfo with a known value */
+  TVM_DLL PrimStructInfo(PrimExpr value, Span span = Span());
 
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(PrimStructInfo, StructInfo, PrimStructInfoNode);
 };

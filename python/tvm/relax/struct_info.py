@@ -23,6 +23,7 @@ import tvm
 
 from tvm.ir import Span, EnvFunc, Array, VDevice
 from tvm.tir import PrimExpr
+from tvm.runtime import DataType
 from .expr import StructInfo, Expr, ShapeExpr
 
 from . import _ffi_api, ty, expr
@@ -42,14 +43,68 @@ class PrimStructInfo(StructInfo):
 
     Parameters
     ----------
-    dtype : str
-       The data type of the prim value.
+    dtype_or_expr : Union[str, DataType, PrimExpr]
+
+       The data type of the prim value, or a known expression for the prim
+       value.
     """
 
+    value: Optional[PrimExpr]
     dtype: str
 
-    def __init__(self, dtype: str, span: Span = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.PrimStructInfo, dtype, span)  # type: ignore
+    def __init__(
+        self,
+        dtype: Optional[Union[str, DataType]] = None,
+        value: Optional[Union[int, float, PrimExpr]] = None,
+        span: Span = None,
+    ) -> None:
+        # Guard against incorrect usage.  For backwards compatibility,
+        # the dtype and value are in the opposite order from most
+        # usages.  While PrimStructInfo could take a single positional
+        # argument and check the type, this would require an API
+        # difference from TVMScript's PrimProxy, which cannot.
+        # (PrimProxy uses string arguments for datatype, and also for
+        # inline variable definitions when used in a function
+        # signature, and requires separate arguments to distinguish
+        # the two cases.)
+        if isinstance(dtype, (PrimExpr, int, float)):
+            raise TypeError(
+                f"The first positional argument of PrimStructInfo must be the datatype, "
+                f", but received {type(dtype)}.  "
+                f"The value can be specified as a keyword argument "
+                f"without needing specifying the dtype: "
+                f"PrimStructInfo(value=arg)."
+            )
+
+        if dtype is None and value is None:
+            raise TypeError(
+                "PrimStructInfo.__init__ missing required argument.  "
+                "Must provide either 'dtype' or 'value'"
+            )
+
+        if dtype is not None:
+            if isinstance(value, PrimExpr):
+                assert value.dtype == dtype, (
+                    "When providing both 'value' and 'dtype' to PrimStructInfo.__init__, "
+                    "they must be consistent with each other.  "
+                    "However, the value {value} has dtype {value.dtype}, "
+                    "but the specified dtype was {dtype}."
+                )
+            elif isinstance(value, (int, float)):
+                value = tvm.tir.const(value, dtype)
+
+        # Use relax's default integer type if not otherwise specified.
+        if isinstance(value, int):
+            value = tvm.tir.IntImm("int64", value)
+
+        if value is None:
+            self.__init_handle_by_constructor__(
+                _ffi_api.PrimStructInfoFromDtype, dtype, span
+            )  # type: ignore
+        else:
+            self.__init_handle_by_constructor__(
+                _ffi_api.PrimStructInfoFromValue, value, span
+            )  # type: ignore
 
 
 @tvm._ffi.register_object("relax.ShapeStructInfo")
