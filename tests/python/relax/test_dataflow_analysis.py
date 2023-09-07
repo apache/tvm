@@ -50,7 +50,7 @@ def assert_binding_fields(
     idx: int,
     block_idx: int,
     binding_idx: int,
-    kind: BindingNodeKind = BindingNodeKind.kBinding,
+    kind: BindingNodeKind = BindingNodeKind.Binding,
     args: Optional[List[relax.Var]] = None,
 ):
     binding = graph.bindings[idx]
@@ -85,7 +85,7 @@ def test_trivial_CFG():
     graph = extract_cfg(TrivialFunc["main"])
     assert len(graph.bindings) == 1
     assert_pred_succ_lists(graph, [[]])
-    assert_binding_fields(graph, 0, 0, 0, kind=BindingNodeKind.kSeqBody)
+    assert_binding_fields(graph, 0, 0, 0, kind=BindingNodeKind.SeqBody)
 
 
 def test_sequence_of_bindings():
@@ -104,7 +104,7 @@ def test_sequence_of_bindings():
     assert_binding_fields(graph, 0, 0, 0, args=[FuncWithBindings["main"].params[0]])
     assert_binding_fields(graph, 1, 0, 1)
     assert_binding_fields(graph, 2, 0, 2)
-    assert_binding_fields(graph, 3, 1, 0, kind=BindingNodeKind.kSeqBody)
+    assert_binding_fields(graph, 3, 1, 0, kind=BindingNodeKind.SeqBody)
 
 
 def test_dataflow_block():
@@ -135,7 +135,7 @@ def test_dataflow_block():
     assert_binding_fields(graph, 4, 2, 0)
     assert_binding_fields(graph, 5, 3, 0)
     assert_binding_fields(graph, 6, 3, 1)
-    assert_binding_fields(graph, 7, 4, 0, kind=BindingNodeKind.kSeqBody)
+    assert_binding_fields(graph, 7, 4, 0, kind=BindingNodeKind.SeqBody)
 
 
 def test_simple_branch():
@@ -161,18 +161,18 @@ def test_simple_branch():
     assert_pred_succ_lists(graph, [[], [0], [1], [2], [3], [0], [5], [6], [7], [4, 8], [9]])
 
     assert_binding_fields(
-        graph, 0, 0, 0, kind=BindingNodeKind.kIfCond, args=SimpleBranch["main"].params
+        graph, 0, 0, 0, kind=BindingNodeKind.IfCond, args=SimpleBranch["main"].params
     )
     assert_binding_fields(graph, 1, 0, 0)
     assert_binding_fields(graph, 2, 0, 1)
     assert_binding_fields(graph, 3, 0, 2)
-    assert_binding_fields(graph, 4, 1, 0, kind=BindingNodeKind.kSeqBody)
+    assert_binding_fields(graph, 4, 1, 0, kind=BindingNodeKind.SeqBody)
     assert_binding_fields(graph, 5, 0, 0)
     assert_binding_fields(graph, 6, 0, 1)
     assert_binding_fields(graph, 7, 0, 2)
-    assert_binding_fields(graph, 8, 1, 0, kind=BindingNodeKind.kSeqBody)
-    assert_binding_fields(graph, 9, 0, 0, kind=BindingNodeKind.kIfMerge)
-    assert_binding_fields(graph, 10, 1, 0, kind=BindingNodeKind.kSeqBody)
+    assert_binding_fields(graph, 8, 1, 0, kind=BindingNodeKind.SeqBody)
+    assert_binding_fields(graph, 9, 0, 0, kind=BindingNodeKind.IfMerge)
+    assert_binding_fields(graph, 10, 1, 0, kind=BindingNodeKind.SeqBody)
     assert_distinct_seqs(graph, [0, 9], [1, 4], [5, 8])
 
 
@@ -195,14 +195,14 @@ def test_bindings_after_branch():
     assert_pred_succ_lists(graph, [[], [0], [1], [2], [3], [2], [5], [4, 6], [7], [8]])
     assert_binding_fields(graph, 0, 0, 0, args=BranchAndBind["main"].params)
     assert_binding_fields(graph, 1, 0, 1)
-    assert_binding_fields(graph, 2, 0, 2, kind=BindingNodeKind.kIfCond)
+    assert_binding_fields(graph, 2, 0, 2, kind=BindingNodeKind.IfCond)
     assert_binding_fields(graph, 3, 0, 0)
-    assert_binding_fields(graph, 4, 1, 0, kind=BindingNodeKind.kSeqBody)
+    assert_binding_fields(graph, 4, 1, 0, kind=BindingNodeKind.SeqBody)
     assert_binding_fields(graph, 5, 0, 0)
-    assert_binding_fields(graph, 6, 1, 0, kind=BindingNodeKind.kSeqBody)
-    assert_binding_fields(graph, 7, 0, 2, kind=BindingNodeKind.kIfMerge)
+    assert_binding_fields(graph, 6, 1, 0, kind=BindingNodeKind.SeqBody)
+    assert_binding_fields(graph, 7, 0, 2, kind=BindingNodeKind.IfMerge)
     assert_binding_fields(graph, 8, 0, 3)
-    assert_binding_fields(graph, 9, 1, 0, kind=BindingNodeKind.kSeqBody)
+    assert_binding_fields(graph, 9, 1, 0, kind=BindingNodeKind.SeqBody)
     assert_distinct_seqs(graph, [0, 2, 7, 9], [3, 4], [5, 6])
 
 
@@ -262,7 +262,7 @@ def test_branch_with_multiple_blocks():
     )
 
     assert_binding_fields(
-        graph, 0, 0, 0, kind=BindingNodeKind.kIfCond, args=LongBranches["main"].params
+        graph, 0, 0, 0, kind=BindingNodeKind.IfCond, args=LongBranches["main"].params
     )
     assert_binding_fields(graph, 1, 0, 0)
     assert_binding_fields(graph, 2, 0, 1)
@@ -271,7 +271,7 @@ def test_branch_with_multiple_blocks():
     assert_binding_fields(graph, 5, 1, 2)
     assert_binding_fields(graph, 6, 2, 0)
     assert_binding_fields(graph, 7, 2, 1)
-    assert_binding_fields(graph, 8, 3, 0, kind=BindingNodeKind.kSeqBody)
+    assert_binding_fields(graph, 8, 3, 0, kind=BindingNodeKind.SeqBody)
     assert_binding_fields(graph, 9, 0, 0)
     assert_binding_fields(graph, 10, 0, 1)
     assert_binding_fields(graph, 11, 1, 0)
@@ -279,9 +279,9 @@ def test_branch_with_multiple_blocks():
     assert_binding_fields(graph, 13, 1, 2)
     assert_binding_fields(graph, 14, 2, 0)
     assert_binding_fields(graph, 15, 2, 1)
-    assert_binding_fields(graph, 16, 3, 0, kind=BindingNodeKind.kSeqBody)
-    assert_binding_fields(graph, 17, 0, 0, kind=BindingNodeKind.kIfMerge)
-    assert_binding_fields(graph, 18, 1, 0, kind=BindingNodeKind.kSeqBody)
+    assert_binding_fields(graph, 16, 3, 0, kind=BindingNodeKind.SeqBody)
+    assert_binding_fields(graph, 17, 0, 0, kind=BindingNodeKind.IfMerge)
+    assert_binding_fields(graph, 18, 1, 0, kind=BindingNodeKind.SeqBody)
     assert_distinct_seqs(graph, [0, 17, 18], [1, 8], [9, 16])
 
 
@@ -338,27 +338,27 @@ def test_nested_branches():
     )
 
     assert_binding_fields(graph, 0, 0, 0, args=NestedBranches["main"].params)
-    assert_binding_fields(graph, 1, 0, 1, kind=BindingNodeKind.kIfCond)
+    assert_binding_fields(graph, 1, 0, 1, kind=BindingNodeKind.IfCond)
     assert_binding_fields(graph, 2, 0, 0)
-    assert_binding_fields(graph, 3, 0, 1, kind=BindingNodeKind.kIfCond)
+    assert_binding_fields(graph, 3, 0, 1, kind=BindingNodeKind.IfCond)
     assert_binding_fields(graph, 4, 0, 0)
-    assert_binding_fields(graph, 5, 1, 0, kind=BindingNodeKind.kSeqBody)
+    assert_binding_fields(graph, 5, 1, 0, kind=BindingNodeKind.SeqBody)
     assert_binding_fields(graph, 6, 0, 0)
-    assert_binding_fields(graph, 7, 1, 0, kind=BindingNodeKind.kSeqBody)
-    assert_binding_fields(graph, 8, 0, 1, kind=BindingNodeKind.kIfMerge)
+    assert_binding_fields(graph, 7, 1, 0, kind=BindingNodeKind.SeqBody)
+    assert_binding_fields(graph, 8, 0, 1, kind=BindingNodeKind.IfMerge)
     assert_binding_fields(graph, 9, 0, 2)
-    assert_binding_fields(graph, 10, 1, 0, kind=BindingNodeKind.kSeqBody)
+    assert_binding_fields(graph, 10, 1, 0, kind=BindingNodeKind.SeqBody)
     assert_binding_fields(graph, 11, 0, 0)
-    assert_binding_fields(graph, 12, 0, 1, kind=BindingNodeKind.kIfCond)
+    assert_binding_fields(graph, 12, 0, 1, kind=BindingNodeKind.IfCond)
     assert_binding_fields(graph, 13, 0, 0)
-    assert_binding_fields(graph, 14, 1, 0, kind=BindingNodeKind.kSeqBody)
+    assert_binding_fields(graph, 14, 1, 0, kind=BindingNodeKind.SeqBody)
     assert_binding_fields(graph, 15, 0, 0)
-    assert_binding_fields(graph, 16, 1, 0, kind=BindingNodeKind.kSeqBody)
-    assert_binding_fields(graph, 17, 0, 1, kind=BindingNodeKind.kIfMerge)
+    assert_binding_fields(graph, 16, 1, 0, kind=BindingNodeKind.SeqBody)
+    assert_binding_fields(graph, 17, 0, 1, kind=BindingNodeKind.IfMerge)
     assert_binding_fields(graph, 18, 0, 2)
-    assert_binding_fields(graph, 19, 1, 0, kind=BindingNodeKind.kSeqBody)
-    assert_binding_fields(graph, 20, 0, 1, kind=BindingNodeKind.kIfMerge)
-    assert_binding_fields(graph, 21, 1, 0, kind=BindingNodeKind.kSeqBody)
+    assert_binding_fields(graph, 19, 1, 0, kind=BindingNodeKind.SeqBody)
+    assert_binding_fields(graph, 20, 0, 1, kind=BindingNodeKind.IfMerge)
+    assert_binding_fields(graph, 21, 1, 0, kind=BindingNodeKind.SeqBody)
 
     assert_distinct_seqs(
         graph,

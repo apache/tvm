@@ -21,15 +21,15 @@ from enum import Enum
 from typing import Any, Callable, List, Tuple
 import tvm
 from tvm.ir.base import Node
-from tvm.relax.expr import Expr, SeqExpr, Function, Var
+from tvm.relax.expr import SeqExpr, Function, Var
 from . import _ffi_api
 
 
 class BindingNodeKind(Enum):
-    kBinding = 0
-    kIfCond = 1
-    kIfMerge = 2
-    kSeqBody = 3
+    Binding = 0
+    IfCond = 1
+    IfMerge = 2
+    SeqBody = 3
 
 
 @tvm._ffi.register_object("relax.analysis.GraphBinding")
@@ -74,7 +74,7 @@ class GraphBinding(Node):
             If conditions, If merges (the var bound to the result of the If node),
             and the body of the SeqExpr.
         """
-        return self.__init_handle_by_constructor__(
+        self.__init_handle_by_constructor__(
             _ffi_api.GraphBinding,
             seq,
             args,
@@ -109,7 +109,7 @@ class ControlFlowGraph(Node):
         if len(bindings) != len(preds) or len(bindings) != len(succs):
             raise ValueError("The lengths of blocks, preds, and succs must all match.")
 
-        return self.__init_handle_by_constructor__(
+        self.__init_handle_by_constructor__(
             _ffi_api.ControlFlowGraph, bindings, preds, succs
         )  # type: ignore
 
@@ -136,8 +136,8 @@ def get_binding_index(
     cfg: ControlFlowGraph, seq: SeqExpr, block_idx: int, binding_idx: int, match_cond: bool = False
 ) -> int:
     """
-    Helper function. Given a control flow graph and a seq expression with a block index and binding index,
-    return the index of the corresponding GraphBinding in the CFG
+    Helper function. Given a control flow graph and a seq expression with a block index
+    and binding index, return the index of the corresponding GraphBinding in the CFG
 
     Parameters
     ----------
