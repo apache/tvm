@@ -19,7 +19,7 @@
 from tvm import tir, arith
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr, ShapeExpr
-from ...op import call_pure_packed, call_dps_packed
+from ...op import call_pure_packed
 from ...struct_info import TensorStructInfo
 from .common import register_legalize
 
@@ -63,8 +63,9 @@ def _scatter_from_worker0(_bb: BlockBuilder, call: Call) -> Expr:
         if i == 0:
             modulo = arith.Analyzer().simplify(shape_value % call.attrs.num_workers)
             assert modulo == 0, (
-                "scatter_from_worker0 expects the size of axis 0 of input tensor to be divisible by num_workers. "
-                f"However, the axis 0 of input tensor is {shape_value} while num_workers is {call.attrs.num_workers}"
+                "scatter_from_worker0 expects the size of axis 0 of input tensor "
+                "to be divisible by num_workers. However, the axis 0 of input tensor "
+                f"is {shape_value} while num_workers is {call.attrs.num_workers}"
             )
             output_shape.append(tir.div(shape_value, call.attrs.num_workers))
         else:
