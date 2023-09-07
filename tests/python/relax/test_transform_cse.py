@@ -261,5 +261,20 @@ def test_do_not_eliminate_impure():
     verify(Before, Expected)
 
 
+def test_do_not_eliminate_shape_expr():
+    @I.ir_module
+    class Before:
+        @R.function
+        def foo(x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((2, 3), dtype="float32")):
+            x = R.reshape(x, [6])
+            y = R.reshape(y, [6])
+            z = R.add(x, y)
+            return z
+
+    Expected = Before
+
+    verify(Before, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
