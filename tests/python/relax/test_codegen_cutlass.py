@@ -1513,15 +1513,15 @@ def test_fp16A_int4B_gemm():
 
     x_nd = tvm.nd.array(x, dev)
     residual_nd = tvm.nd.array(residual, dev)
-    params = (packed_weight.copyto(dev), scales.copyto(dev), bias_trans.copyto(dev))
+    params = [packed_weight.copyto(dev), scales.copyto(dev), bias_trans.copyto(dev)]
 
     for f_name in ["main_bias", "main_cast_bias", "main_residual"]:
         with_residual = "residual" in f_name
 
         if with_residual:
-            inp = [x_nd, residual_nd, params]
+            inp = [x_nd, residual_nd] + params
         else:
-            inp = [x_nd, params]
+            inp = [x_nd] + params
 
         out = vm[f_name](*inp).numpy()
 
@@ -1665,8 +1665,7 @@ def test_fp16A_int8B_gemm():
     vm = relax.vm.VirtualMachine(ex, dev)
 
     x_nd = tvm.nd.array(x, dev)
-    params = (packed_weight.copyto(dev), scales.copyto(dev), bias_trans.copyto(dev))
-    inp = [x_nd, params]
+    inp = [x_nd, packed_weight.copyto(dev), scales.copyto(dev), bias_trans.copyto(dev)]
     out = vm["main"](*inp).numpy()
 
     def gelu_fp16(x):
@@ -1940,8 +1939,7 @@ def test_fp16A_int8B_gemm_batched():
     vm = relax.vm.VirtualMachine(ex, dev)
 
     x_nd = tvm.nd.array(x, dev)
-    params = (packed_weight.copyto(dev), scales.copyto(dev))
-    inp = [x_nd, params]
+    inp = [x_nd, packed_weight.copyto(dev), scales.copyto(dev)]
     out = vm["main"](*inp).numpy()
     ref = np.dot(x, y.transpose())
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
