@@ -336,7 +336,7 @@ static std::vector<int> GetTransposeAxisOrder(const Call& call, int ndim) {
  *   %3 = clip(%2, a_min=20f, a_max=66f) [type=uint8]
  *
  * Optimized to (fuse Clips):
- *   %1 = clip(%0, a_min=20f, a_max=66f) [type=uint8]
+ *   %1 = clip(%0, a_min=20f, a_max=66f) [type=int32]
  *   %2 = cast(%1, dtype="uint8") [type=uint8]
  */
 class SimplifyClipCastClip : public DFPatternRewrite {
