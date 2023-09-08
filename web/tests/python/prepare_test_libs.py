@@ -40,7 +40,7 @@ def prepare_relax_lib(base_path):
     mod = pipeline(Mod)
     ex = relax.build(mod, target)
     wasm_path = os.path.join(base_path, "test_relax.wasm")
-    ex.export_library(wasm_path, tvmjs.create_tvmjs_wasm)
+    ex.export_library(wasm_path, fcompile=tvmjs.create_tvmjs_wasm)
 
 
 def prepare_tir_lib(base_path):
