@@ -199,7 +199,7 @@ class Scriptable:
     def show(
         self,
         style: Optional[str] = None,
-        black_format: bool = True,
+        black_format: bool = False,
         *,
         name: Optional[str] = None,
         show_meta: bool = False,
@@ -227,7 +227,7 @@ class Scriptable:
             Pygmentize printing style, auto-detected if None.  See
             `tvm.script.highlight.cprint` for more details.
         black_format: bool
-            If true (default), use the formatter Black to format the TVMScript
+            If true, use the formatter Black to format the TVMScript
         name : Optional[str] = None
             The name of the object
         show_meta : bool = False
