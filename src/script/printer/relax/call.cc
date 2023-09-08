@@ -86,7 +86,12 @@ class AttrPrinter : public tvm::AttrVisitor {
 };
 
 ExprDoc PrintCallee(const relax::Expr& n, const ObjectPath& n_p, const IRDocsifier& d) {
-  return d->AsDoc<ExprDoc>(n, n_p);
+  // TODO(@junrushao): handle callee better
+  if (const auto* ext = n.as<relax::ExternFuncNode>()) {
+    return LiteralDoc::Str(ext->global_symbol, n_p);
+  } else {
+    return d->AsDoc<ExprDoc>(n, n_p);
+  }
 }
 
 Optional<ExprDoc> PrintCallTIRDPSPacked(const relax::Call& n, const ObjectPath& n_p,
