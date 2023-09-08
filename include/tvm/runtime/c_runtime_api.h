@@ -245,6 +245,13 @@ typedef void* TVMObjectHandle;
 TVM_DLL void TVMAPISetLastError(const char* msg);
 
 /*!
+ * \brief Used for implementing C API function.
+ *  Set last exception before return.
+ * \param py_object The python exception to be set
+ */
+TVM_DLL void TVMAPISetLastPythonError(void* py_object);
+
+/*!
  * \brief return str message of the last error
  *  all function in this file will return 0 when success
  *  and nonzero when an error occurred,
