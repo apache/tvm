@@ -1010,10 +1010,10 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     std::string barrier = barrier_name_ + "[" + std::to_string(barrier_id) + "]";
     this->stream << PrintWaitBarrierAsm(barrier);
   } else if (op->op.same_as(builtin::create_barriers())) {
-    CHECK_EQ(barrier_count_ == -1);
+    CHECK_EQ(barrier_count_, -1);
     int barrier_count = Downcast<IntImm>(op->args[0])->value;
     // pad barrier alignment to avoid runtime alignment errors
-    CHECK_EQ(barrier_alignment_bytes_ % sizeof(uint64_t) == 0);
+    CHECK_EQ(barrier_alignment_bytes_ % sizeof(uint64_t), 0);
     int barrier_alignment_count = barrier_alignment_bytes_ / sizeof(uint64_t);
     if (barrier_count % barrier_alignment_count != 0) {
       barrier_count = ((barrier_count / barrier_alignment_count) + 1) * barrier_alignment_count;
