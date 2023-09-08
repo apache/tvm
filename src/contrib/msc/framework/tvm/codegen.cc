@@ -107,19 +107,19 @@ void RelaxCodeGen::CodeGenGraph() {
 
 void RelaxCodeGen::CodeGenInference() {
   for (const auto& i : graph()->GetInputs()) {
-    const auto& pair = graph()->FindProducerAndIdx(i);
+    const auto& producer = graph()->FindProducer(i);
     stack_.call_start("relax.Var")
         .call_str_arg(i->alias)
         .call_inplace_start("relax.TensorStructInfo")
         .call_list_arg(i->shape)
         .call_str_arg(i->DTypeName())
         .call_inplace_end()
-        .call_end(IdxNode(pair.first));
+        .call_end(IdxNode(producer));
   }
   stack_.comment("Build Module").call_start(graph()->name);
   for (const auto& i : graph()->GetInputs()) {
-    const auto& pair = graph()->FindProducerAndIdx(i);
-    stack_.call_arg(IdxNode(pair.first));
+    const auto& producer = graph()->FindProducer(i);
+    stack_.call_arg(IdxNode(producer));
   }
   stack_.call_end("mod");
   String target, device;

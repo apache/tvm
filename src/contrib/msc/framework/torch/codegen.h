@@ -18,32 +18,32 @@
  */
 
 /*!
- * \file src/contrib/msc/framework/tvm/codegen.h
- * \brief Relax codegen for MSCGraph.
+ * \file src/contrib/msc/framework/torch/codegen.h
+ * \brief Torch codegen for MSCGraph.
  */
-#ifndef TVM_CONTRIB_MSC_FRAMEWORK_TVM_CODEGEN_H_
-#define TVM_CONTRIB_MSC_FRAMEWORK_TVM_CODEGEN_H_
+#ifndef TVM_CONTRIB_MSC_FRAMEWORK_TORCH_CODEGEN_H_
+#define TVM_CONTRIB_MSC_FRAMEWORK_TORCH_CODEGEN_H_
 
 #include <string>
 
 #include "../../core/codegen/base_codegen.h"
 #include "../../core/codegen/py_codegen.h"
 #include "config.h"
-#include "relax_opcode.h"
+#include "torch_opcode.h"
 
 namespace tvm {
 namespace contrib {
 namespace msc {
 
-class RelaxCodeGen : public PyCodeGen<RelaxCodeGenConfig> {
+class TorchCodeGen : public PyCodeGen<TorchCodeGenConfig> {
  public:
   /*!
-   * \brief The constructor of RelaxCodeGen
+   * \brief The constructor of TorchCodeGen
    * \param graph the graph to be generated.
    * \param config the options for codegen.
    */
-  explicit RelaxCodeGen(const MSCGraph& graph, const std::string& config = "")
-      : PyCodeGen<RelaxCodeGenConfig>(graph, config) {}
+  explicit TorchCodeGen(const MSCGraph& graph, const std::string& config = "")
+      : PyCodeGen<TorchCodeGenConfig>(graph, config) {}
 
  protected:
   /*! \brief Stack the docs for the header*/
@@ -59,11 +59,14 @@ class RelaxCodeGen : public PyCodeGen<RelaxCodeGenConfig> {
   const Array<Doc> GetOpCodes(const MSCJoint& node) final;
 
   /*! \brief Get tensor type of the framework*/
-  const String TensorType() const final { return "relax.Expr"; }
+  const String TensorType() const final { return "torch.Tensor"; }
+
+ private:
+  bool is_init_;
 };
 
 }  // namespace msc
 }  // namespace contrib
 }  // namespace tvm
 
-#endif  // TVM_CONTRIB_MSC_FRAMEWORK_TVM_CODEGEN_H_
+#endif  // TVM_CONTRIB_MSC_FRAMEWORK_TORCH_CODEGEN_H_

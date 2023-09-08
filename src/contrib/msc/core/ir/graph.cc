@@ -653,6 +653,9 @@ const MSCTensor MSCGraphNode::FindTensor(const String& name) const {
 }
 
 const MSCJoint MSCGraphNode::FindProducer(const String& name) const {
+  if (weight_holders.count(name)) {
+    return FindNode(weight_holders[name][0]);
+  }
   const auto& pair = FindProducerAndIdx(name);
   return pair.first;
 }
@@ -662,7 +665,7 @@ const MSCJoint MSCGraphNode::FindProducer(const MSCTensor& tensor) const {
 }
 
 const std::pair<MSCJoint, size_t> MSCGraphNode::FindProducerAndIdx(const String& name) const {
-  ICHECK(!weight_holders.count(name)) << "Weight has no producer";
+  ICHECK(!weight_holders.count(name)) << "Weight " << name << " has no producer with index";
   const String& tensor_name = tensor_alias.count(name) ? tensor_alias[name] : name;
   String host, index;
   std::tie(host, index) = StringUtils::SplitOnce(tensor_name, ":");
@@ -1038,6 +1041,9 @@ TVM_REGISTER_GLOBAL("msc.core.MSCGraphFromJson")
 TVM_REGISTER_GLOBAL("msc.core.MSCGraphToPrototxt")
     .set_body_typed([](const MSCGraph& graph) -> String { return graph->ToPrototxt(); });
 
+TVM_REGISTER_GLOBAL("msc.core.WeightGraphToPrototxt")
+    .set_body_typed([](const WeightGraph& graph) -> String { return graph->ToPrototxt(); });
+
 TVM_REGISTER_GLOBAL("msc.core.MSCJointInputAt")
     .set_body_typed([](const MSCJoint& node, int index) -> MSCTensor {
       return node->InputAt(index);
@@ -1054,6 +1060,14 @@ TVM_REGISTER_GLOBAL("msc.core.MSCJointGetInputs")
 TVM_REGISTER_GLOBAL("msc.core.MSCJointGetOutputs")
     .set_body_typed([](const MSCJoint& node) -> Array<MSCTensor> { return node->GetOutputs(); });
 
+TVM_REGISTER_GLOBAL("msc.core.MSCJointGetWeights")
+    .set_body_typed([](const MSCJoint& node) -> Map<String, MSCTensor> { return node->weights; });
+
+TVM_REGISTER_GLOBAL("msc.core.MSCJointHasAttr")
+    .set_body_typed([](const MSCJoint& node, const String& key) -> Bool {
+      return Bool(node->HasAttr(key));
+    });
+
 TVM_REGISTER_GLOBAL("msc.core.MSCJointGetAttrs")
     .set_body_typed([](const MSCJoint& node) -> Map<String, String> { return node->attrs; });
 
@@ -1068,8 +1082,10 @@ TVM_REGISTER_GLOBAL("msc.core.MSCTensorDimAt")
 TVM_REGISTER_GLOBAL("msc.core.MSCTensorGetSize")
     .set_body_typed([](const MSCTensor& tensor) -> Integer { return tensor->GetSize(); });
 
-TVM_REGISTER_GLOBAL("msc.core.WeightGraphToPrototxt")
-    .set_body_typed([](const WeightGraph& graph) -> String { return graph->ToPrototxt(); });
+TVM_REGISTER_GLOBAL("msc.core.MSCTensorSetAlias")
+    .set_body_typed([](const MSCTensor& tensor, const String& alias) {
+      return tensor->alias = alias;
+    });
 
 }  // namespace msc
 }  // namespace contrib

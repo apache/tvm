@@ -85,6 +85,9 @@ class BaseOpCode {
   /*! \brief Get func_name for the default node*/
   const String func_name() { return func_name_; }
 
+  /*! \brief Get valid func name for the default node*/
+  virtual const String callee_name() { return func_name(); }
+
   /*! \brief Get the default node*/
   const MSCJoint node() { return node_; }
 

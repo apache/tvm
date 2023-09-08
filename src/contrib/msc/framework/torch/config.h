@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file src/contrib/msc/framework/tvm/config.h
- * \brief Relax config for codegen.
+ * \file src/contrib/msc/framework/torch/config.h
+ * \brief Torch config for codegen.
  */
-#ifndef TVM_CONTRIB_MSC_FRAMEWORK_TVM_CONFIG_H_
-#define TVM_CONTRIB_MSC_FRAMEWORK_TVM_CONFIG_H_
+#ifndef TVM_CONTRIB_MSC_FRAMEWORK_TORCH_CONFIG_H_
+#define TVM_CONTRIB_MSC_FRAMEWORK_TORCH_CONFIG_H_
 
 #include <string>
 
@@ -33,20 +33,17 @@ namespace contrib {
 namespace msc {
 
 /*!
- * \brief CodeGen config for tvm codegen
+ * \brief CodeGen config for torch codegen
  */
-struct RelaxCodeGenConfig {
-  bool explicit_name{true};
-  bool from_relay{false};
+struct TorchCodeGenConfig {
+  bool is_training{false};
   CODEGEN_CONFIG_MEMBERS
   void Load(dmlc::JSONReader* reader) {
     std::string key;
     reader->BeginObject();
     while (reader->NextObjectItem(&key)) {
-      if (key == "explicit_name") {
-        reader->Read(&explicit_name);
-      } else if (key == "from_relay") {
-        reader->Read(&from_relay);
+      if (key == "is_training") {
+        reader->Read(&is_training);
       } else {
         CODEGEN_CONFIG_PARSE
       }
@@ -57,4 +54,4 @@ struct RelaxCodeGenConfig {
 }  // namespace msc
 }  // namespace contrib
 }  // namespace tvm
-#endif  // TVM_CONTRIB_MSC_FRAMEWORK_TVM_CONFIG_H_
+#endif  // TVM_CONTRIB_MSC_FRAMEWORK_TORCH_CONFIG_H_

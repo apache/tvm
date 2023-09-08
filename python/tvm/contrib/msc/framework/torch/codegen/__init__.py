@@ -14,8 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""tvm.contrib.msc.framework.tvm._ffi_api"""
+"""tvm.contrib.msc.framework.torch.codegen"""
 
-import tvm._ffi
-
-tvm._ffi._init_api("msc.framework.tvm", __name__)
+from .codegen import *

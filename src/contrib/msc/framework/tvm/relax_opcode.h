@@ -55,6 +55,8 @@ class RelaxOpCode : public BaseOpCode<RelaxCodeGenConfig> {
   const Array<Doc> GetDocs() final;
 
  protected:
+  RelaxOpCodeStack stack_;
+
   /*! \brief Convert op build*/
   virtual void CodeGenBuild() = 0;
 
@@ -66,8 +68,6 @@ class RelaxOpCode : public BaseOpCode<RelaxCodeGenConfig> {
 
   /*! \brief Get the axes attribute*/
   const std::vector<int> GetAxes(const String& key = "axes");
-
-  RelaxOpCodeStack stack_;
 };
 
 /*!

@@ -56,24 +56,37 @@ class DocUtils {
   TVM_DLL static const ExprDoc ToDoc(bool val);
   TVM_DLL static const ExprDoc ToStrDoc(const String& val);
   /*!
+   * \brief Change object to List of Docs.
+   * \return The List of Docs.
+   */
+  template <typename T>
+  TVM_DLL static const Array<ExprDoc> ToDocList(const std::vector<T>& values) {
+    Array<ExprDoc> elements;
+    for (const auto& v : values) {
+      elements.push_back(ToDoc(v));
+    }
+    return elements;
+  }
+  template <typename T>
+  TVM_DLL static const Array<ExprDoc> ToDocList(const Array<T>& values) {
+    Array<ExprDoc> elements;
+    for (const auto& v : values) {
+      elements.push_back(ToDoc(v));
+    }
+    return elements;
+  }
+
+  /*!
    * \brief Change object to ListDoc.
    * \return The ListDoc.
    */
   template <typename T>
   TVM_DLL static const ListDoc ToListDoc(const std::vector<T>& values) {
-    Array<ExprDoc> elements;
-    for (const auto& v : values) {
-      elements.push_back(ToDoc(v));
-    }
-    return ListDoc(elements);
+    return ListDoc(ToDocList(values));
   }
   template <typename T>
   TVM_DLL static const ListDoc ToListDoc(const Array<T>& values) {
-    Array<ExprDoc> elements;
-    for (const auto& v : values) {
-      elements.push_back(ToDoc(v));
-    }
-    return ListDoc(elements);
+    return ListDoc(ToDocList(values));
   }
 
   /*!

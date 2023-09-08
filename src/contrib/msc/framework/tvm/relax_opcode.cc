@@ -629,30 +629,30 @@ const std::shared_ptr<std::unordered_map<String, std::shared_ptr<RelaxOpCode>>> 
   map->emplace("prod", std::make_shared<RelaxReduceAxisCodeGen>("relax.op.prod", true));
   map->emplace("std", std::make_shared<RelaxReduceAxisCodeGen>("relax.op.std", true));
 
-  // axis ops
+  // axis && axes ops
   map->emplace("nn.log_softmax", std::make_shared<RelaxAxisCodeGen>("relax.op.nn.log_softmax"));
   map->emplace("nn.softmax", std::make_shared<RelaxAxisCodeGen>("relax.op.nn.softmax"));
+  map->emplace("expand_dims", std::make_shared<RelaxAxesCodeGen>("relax.op.expand_dims"));
+  map->emplace("permute_dims", std::make_shared<RelaxAxesCodeGen>("relax.op.permute_dims"));
+  map->emplace("squeeze", std::make_shared<RelaxAxesCodeGen>("relax.op.squeeze"));
+  map->emplace("transpose", std::make_shared<RelaxAxesCodeGen>("relax.op.permute_dims"));
 
   // math ops
   map->emplace("astype", std::make_shared<RelaxAstypeCodeGen>("relax.op.astype"));
   map->emplace("broadcast_to", std::make_shared<RelaxBroadcastToCodeGen>("relax.op.broadcast_to"));
   map->emplace("cast", std::make_shared<RelaxAstypeCodeGen>("relax.op.astype"));
   map->emplace("clip", std::make_shared<RelaxClipCodeGen>("relax.op.clip"));
-  map->emplace("constant", std::make_shared<RelaxConstantCodeGen>("relax.Var"));
   map->emplace("cumsum", std::make_shared<RelaxCumsumCodeGen>("relax.op.cumsum"));
-  map->emplace("strided_slice",
-               std::make_shared<RelaxStridedSliceCodeGen>("relax.op.strided_slice"));
-  map->emplace("expand_dims", std::make_shared<RelaxAxesCodeGen>("relax.op.expand_dims"));
   map->emplace("matmul", std::make_shared<RelaxMatmulCodeGen>("relax.op.linear_algebra.matmul"));
-  map->emplace("permute_dims", std::make_shared<RelaxAxesCodeGen>("relax.op.permute_dims"));
   map->emplace("repeat", std::make_shared<RelaxRepeatCodeGen>("relax.op.repeat"));
   map->emplace("reshape", std::make_shared<RelaxReshapeCodeGen>("relax.op.reshape"));
   map->emplace("split", std::make_shared<RelaxSplitCodeGen>("relax.op.split"));
-  map->emplace("squeeze", std::make_shared<RelaxAxesCodeGen>("relax.op.squeeze"));
+  map->emplace("strided_slice",
+               std::make_shared<RelaxStridedSliceCodeGen>("relax.op.strided_slice"));
   map->emplace("take", std::make_shared<RelaxTakeCodeGen>("relax.op.take"));
-  map->emplace("transpose", std::make_shared<RelaxAxesCodeGen>("relax.op.permute_dims"));
 
   // create ops
+  map->emplace("constant", std::make_shared<RelaxConstantCodeGen>("relax.Var"));
   map->emplace("full", std::make_shared<RelaxFullCodeGen>("relax.op.full"));
   map->emplace("ones", std::make_shared<RelaxCreateCodeGen>("relax.op.ones"));
   map->emplace("tril", std::make_shared<RelaxTriCodeGen>("relax.op.tril"));
@@ -682,9 +682,9 @@ const std::shared_ptr<std::unordered_map<String, std::shared_ptr<RelaxOpCode>>> 
   map->emplace("image.resize2d", std::make_shared<RelaxResize2dCodeGen>("relax.op.image.resize2d"));
 
   // special op
+  map->emplace("get_item", std::make_shared<RelaxGetItemCodeGen>("relax.TupleGetItem"));
   map->emplace("shape", std::make_shared<RelaxShapeCodeGen>("relax.ShapeExpr"));
   map->emplace("tuple", std::make_shared<RelaxTupleCodeGen>("relax.Tuple"));
-  map->emplace("get_item", std::make_shared<RelaxGetItemCodeGen>("relax.TupleGetItem"));
 
   // msc ops
   map->emplace("msc.attention", std::make_shared<RelaxAttentionCodeGen>("relax.op.nn.attention"));

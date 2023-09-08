@@ -17,7 +17,11 @@
 """tvm.contrib.msc.core.codegen.codegen"""
 
 from typing import Dict, List, Optional, Any, Callable
+
+import tvm
+from tvm.relax.transform import BindParams
 from tvm.contrib.msc.core.ir import MSCGraph
+from tvm.contrib.msc.core.ir.translate import from_relay
 from tvm.contrib.msc.core import utils as msc_utils
 
 
@@ -83,3 +87,53 @@ class CodeGen(object):
             if weights_binder:
                 obj = weights_binder(obj, folder)
         return obj
+
+
+def relay_to_relax(
+    relay_mod: tvm.IRModule,
+    params: Optional[Dict[str, tvm.nd.array]] = None,
+    trans_config: Optional[Dict[str, str]] = None,
+    build_config: Optional[Dict[str, str]] = None,
+    opt_config: Optional[Dict[str, str]] = None,
+) -> tvm.IRModule:
+    """Change IRModule to MSCGraph.
+
+    Parameters
+    ----------
+    relay_mod: IRModule
+        The IRModule of relay.
+    params: dict of <string:tvm.ndarray>
+        The parameters of the IRModule.
+    trans_config: dict
+        The config for transfrorm IRModule.
+    build_config: dict
+        The config for build MSCGraph.
+    opt_config: dict
+        The config for optimize the relay before translate.
+
+    Returns
+    -------
+    relax_mod: IRModule
+        The IRModule of relax.
+    """
+
+    graph, weights = from_relay(
+        relay_mod,
+        params,
+        trans_config=trans_config,
+        build_config=build_config,
+        opt_config=opt_config,
+    )
+    source_getter = tvm.get_global_func("msc.framework.tvm.GetRelaxSources")
+    codegen_config = {"from_relay": True}
+    codegen = CodeGen(graph, source_getter, codegen_config)
+    inputs = [
+        tvm.relax.Var(i.alias, tvm.relax.TensorStructInfo(i.get_shape(), i.dtype_name))
+        for i in graph.get_inputs()
+    ]
+
+    # pylint: disable=unused-argument
+    def _bind_weights(mod: tvm.IRModule, folder: msc_utils.MSCDirectory) -> tvm.IRModule:
+        return BindParams("main", weights)(mod)
+
+    return codegen.load(inputs, _bind_weights)
