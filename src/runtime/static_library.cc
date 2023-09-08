@@ -56,15 +56,39 @@ class StaticLibraryNode final : public runtime::ModuleNode {
     }
   }
 
+  void SaveToBinary(dmlc::Stream* stream) final {
+    stream->Write(data_);
+    std::vector<std::string> func_names;
+    for (const auto func_name : func_names_) func_names.push_back(func_name);
+    stream->Write(func_names);
+  }
+
+  static Module LoadFromBinary(void* strm) {
+    dmlc::Stream* stream = static_cast<dmlc::Stream*>(strm);
+    auto n = make_object<StaticLibraryNode>();
+    // load data
+    std::string data;
+    ICHECK(stream->Read(&data)) << "Loading data failed";
+    n->data_ = std::move(data);
+
+    // load func names
+    std::vector<std::string> func_names;
+    ICHECK(stream->Read(&func_names)) << "Loading func names failed";
+    for (auto func_name : func_names) n->func_names_.push_back(String(func_name));
+
+    return Module(n);
+  }
+
   void SaveToFile(const String& file_name, const String& format) final {
     VLOG(0) << "Saving static library of " << data_.size() << " bytes implementing " << FuncNames()
             << " to '" << file_name << "'";
     SaveBinaryToFile(file_name, data_);
   }
 
-  // TODO(tvm-team): Make this module serializable
   /*! \brief Get the property of the runtime module .*/
-  int GetPropertyMask() const override { return ModulePropertyMask::kDSOExportable; }
+  int GetPropertyMask() const override {
+    return runtime::ModulePropertyMask::kBinarySerializable | ModulePropertyMask::kDSOExportable;
+  }
 
   bool ImplementsFunction(const String& name, bool query_imports) final {
     return std::find(func_names_.begin(), func_names_.end(), name) != func_names_.end();
@@ -103,6 +127,8 @@ Module LoadStaticLibrary(const std::string& filename, Array<String> func_names) 
 }
 
 TVM_REGISTER_GLOBAL("runtime.ModuleLoadStaticLibrary").set_body_typed(LoadStaticLibrary);
+TVM_REGISTER_GLOBAL("runtime.module.loadbinary_static_library")
+    .set_body_typed(StaticLibraryNode::LoadFromBinary);
 
 }  // namespace runtime
 }  // namespace tvm
