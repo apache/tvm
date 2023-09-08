@@ -74,9 +74,8 @@ def test_lazy_transform_params():
                     T.writes(out[o, i, h, w])
                     out[o, i, h, w] = w1[i, o, h, w]
 
-        @R.function
+        @R.function(pure=False)
         def main_transform_params() -> R.Tuple:
-            R.func_attr({"relax.force_pure": True})
             cls = Expected
             lv: R.Object = R.call_packed("get_item", R.prim_value(1), sinfo_args=(R.Object,))
             _: R.Object = R.call_packed("set_item", R.prim_value(0), lv, sinfo_args=(R.Object,))
@@ -137,10 +136,8 @@ def test_lazy_transform_params_with_symbolic_vars():
 
     @I.ir_module
     class Expected:
-        @R.function
+        @R.function(pure=False)
         def main_transform_params(slice_shape_expr: R.Shape(["slice_index"])):
-            # we expect ToNonDataflow and RemovePurityTracking to be invoked first
-            R.func_attr({"relax.force_pure": True})
             cls = Expected
 
             slice_index = T.int64()

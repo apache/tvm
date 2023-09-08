@@ -164,7 +164,7 @@ class LazyTransformParamsMutator(PyExprMutator):
             relax.ObjectStructInfo(),
             attrs=func.attrs,
             is_pure=False,
-        )
+        ).without_attr("relax.force_pure")
 
     def visit_tuple_getitem_(self, op: relax.TupleGetItem) -> relax.Expr:
         # rewrite get item
