@@ -4424,7 +4424,7 @@ def _create_typed_const(data, dtype):
     dtype should be a TVM dtype"""
 
     if dtype == "float64":
-        typed_data = _expr.const(np.float64(data), dtype=dtype)
+        typed_data = _expr.const(np.asarray(data, dtype="float64"), dtype=dtype)
     elif dtype == "float32":
         typed_data = _expr.const(np.float32(data), dtype=dtype)
     elif dtype == "float16":
