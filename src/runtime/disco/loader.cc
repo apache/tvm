@@ -46,6 +46,8 @@ class ShardLoaderObj : public Object {
                           TypedPackedFunc<void(DLTensor*, int, DLTensor*)> f_shard);
   /*! \brief Load the i-th parameter */
   NDArray Load(int weight_index) const;
+  /*! \brief Load all the parameters */
+  Array<NDArray> LoadAll() const;
   /*! \brief Slice the given tensor at a specific dimension */
   NDArray Shard(NDArray source, int dim, int num_slices) const;
 
@@ -63,6 +65,8 @@ class ShardLoaderObj : public Object {
   NDArrayCacheMetadata metadata_;
   /*! \brief Sharding information for each weight */
   std::vector<ShardInfo> shard_info_;
+  /*! \brief Maps the name of a shard to its index */
+  std::unordered_map<std::string, int> param_name_to_index_;
   /*! \brief A method to slice a 3-D tensor */
   TypedPackedFunc<void(DLTensor*, int, DLTensor*)> f_shard_;
   /*! \brief The current file opened to load weights in it */
@@ -106,6 +110,7 @@ ObjectRef ShardLoaderObj::Create(const std::string& path_to_metadata, const std:
     for (const ParamRecord& param_record : file_record.records) {
       const std::string& name = param_record.name;
       int shard_id = shards.count(name) ? shards[name] : -1;
+      n->param_name_to_index_[name] = n->shard_info_.size();
       n->shard_info_.push_back(ShardInfo{&file_record, &param_record, shard_id});
     }
   }
@@ -124,7 +129,7 @@ NDArray ShardLoaderObj::Load(int weight_index) const {
   DiscoWorker* worker = DiscoWorker::ThreadLocal();
   int shard_idx = worker->worker_id;
   Device device = worker->default_device;
-  const auto& shard_info = shard_info_[weight_index];
+  const auto& shard_info = shard_info_.at(weight_index);
   const ParamRecord* param = shard_info.param;
   const FileRecord* file = shard_info.file;
   int shard_dim = shard_info.shard_dim;
@@ -139,13 +144,39 @@ NDArray ShardLoaderObj::Load(int weight_index) const {
     auto f_load = [](NDArray param, const void* data, size_t nbytes) {
       param.CopyFromBytes(data, nbytes);
     };
-    send = this->Shard(param->Load(device, &this->current_file_stream_, f_load), shard_dim,
-                       num_shards);
+    if (shard_dim != -1) {
+      send = this->Shard(param->Load(device, &this->current_file_stream_, f_load), shard_dim,
+                         num_shards);
+    } else {
+      send = param->Load(device, &this->current_file_stream_, f_load);
+    }
   }
-  NDArray recv =
-      NDArray::Empty(ShardShape(param->shape, shard_dim, num_shards), param->dtype, device);
-  ScatterFromWorker0(send, recv);
-  return recv;
+  if (shard_dim != -1) {
+    NDArray recv =
+        NDArray::Empty(ShardShape(param->shape, shard_dim, num_shards), param->dtype, device);
+    ScatterFromWorker0(send, recv);
+    return recv;
+  } else {
+    NDArray recv;
+    if (send.defined()) {
+      recv = NDArray(send.value());
+    } else {
+      recv = NDArray::Empty(param->shape, param->dtype, device);
+    }
+    return BroadcastFromWorker0(recv);
+  }
+}
+
+Array<NDArray> ShardLoaderObj::LoadAll() const {
+  int n = static_cast<int>(shard_info_.size());
+  Array<NDArray> shards;
+  shards.reserve(n);
+  for (int i = 0; i < n; ++i) {
+    std::string param_name = "param_" + std::to_string(i);
+    int shard_id = this->param_name_to_index_.at(param_name);
+    shards.push_back(this->Load(shard_id));
+  }
+  return shards;
 }
 
 NDArray ShardLoaderObj::Shard(NDArray source, int dim, int num_slices) const {
@@ -186,6 +217,13 @@ TVM_REGISTER_GLOBAL("runtime.disco.ShardLoaderLoad")
                                << loader_obj->GetTypeKey();
       return loader->Load(IntegerFromShapeTuple(weight_index));
     });
+
+TVM_REGISTER_GLOBAL("runtime.disco.ShardLoaderLoadAll").set_body_typed([](ObjectRef loader_obj) {
+  const auto* loader = loader_obj.as<ShardLoaderObj>();
+  CHECK(loader != nullptr) << "TypeError: Expected ShardLoaderObj, but gets: "
+                           << loader_obj->GetTypeKey();
+  return loader->LoadAll();
+});
 
 }  // namespace runtime
 }  // namespace tvm
