@@ -160,5 +160,62 @@ def test_broadcast_from_worker0_infer_struct_info_more_input_dtype():
     )
 
 
+def test_scatter_from_worker0_infer_struct_info():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", R.Tensor((2, 3), "float32"))
+    x1 = relax.Var("x", R.Tensor((3, 4, 5)))
+
+    _check_inference(
+        bb, relax.op.ccl.scatter_from_worker0(x0, 2), relax.TensorStructInfo((1, 3), "float32")
+    )
+    _check_inference(
+        bb, relax.op.ccl.scatter_from_worker0(x1, 3), relax.TensorStructInfo((1, 4, 5), dtype="")
+    )
+
+
+def test_scatter_from_worker0_infer_struct_info_shape_symbolic():
+    bb = relax.BlockBuilder()
+    m = tir.Var("m", "int64")
+    n = tir.Var("n", "int64")
+    x0 = relax.Var("x", R.Tensor((m, n), "float32"))
+    x1 = relax.Var("x", R.Tensor((4, n), "float32"))
+
+    _check_inference(
+        bb,
+        relax.op.ccl.scatter_from_worker0(x0, 2),
+        relax.TensorStructInfo((tir.div(m, 2), n), "float32"),
+    )
+    _check_inference(
+        bb, relax.op.ccl.scatter_from_worker0(x1, 2), relax.TensorStructInfo((2, n), "float32")
+    )
+
+
+def test_scatter_from_worker0_infer_struct_info_shape_var():
+    bb = relax.BlockBuilder()
+    s0 = relax.Var("s", relax.ShapeStructInfo((2, 4, 8)))
+    x0 = relax.Var("x", relax.TensorStructInfo(s0, "float32"))
+
+    _check_inference(
+        bb, relax.op.ccl.scatter_from_worker0(x0, 2), relax.TensorStructInfo((1, 4, 8), "float32")
+    )
+
+
+def test_scatter_from_worker0_infer_struct_info_more_input_dtype():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", R.Tensor((2, 3), "float64"))
+    x1 = relax.Var("x", R.Tensor((2, 3), "int8"))
+    x2 = relax.Var("x", R.Tensor((2, 3), "int64"))
+
+    _check_inference(
+        bb, relax.op.ccl.scatter_from_worker0(x0, 2), relax.TensorStructInfo((1, 3), "float64")
+    )
+    _check_inference(
+        bb, relax.op.ccl.scatter_from_worker0(x1, 2), relax.TensorStructInfo((1, 3), "int8")
+    )
+    _check_inference(
+        bb, relax.op.ccl.scatter_from_worker0(x2, 2), relax.TensorStructInfo((1, 3), "int64")
+    )
+
+
 if __name__ == "__main__":
     tvm.testing.main()

@@ -38,6 +38,9 @@ Expr allreduce(Expr data, String op_type);
 /*! \brief Broadcast data from worker-0 to all other workers. */
 Expr broadcast_from_worker0(Expr data);
 
+/*! \brief Perform a scatter operation from worker-0, chunking the given buffer into equal parts. */
+Expr scatter_from_worker0(Expr data, int num_workers);
+
 }  // namespace relax
 }  // namespace tvm
 

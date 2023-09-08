@@ -40,6 +40,18 @@ struct AllReduceAttrs : public tvm::AttrsNode<AllReduceAttrs> {
   }
 };  // struct AllReduceAttrs
 
+/*! \brief Attributes used in scatter_from_worker0 operators */
+struct ScatterFromWorker0Attrs : public tvm::AttrsNode<ScatterFromWorker0Attrs> {
+  int num_workers;
+
+  TVM_DECLARE_ATTRS(ScatterFromWorker0Attrs, "relax.attrs.ScatterFromWorker0Attrs") {
+    TVM_ATTR_FIELD(num_workers)
+        .describe(
+            "The number of workers, also the number of parts the given buffer should be chunked "
+            "into.");
+  }
+};  // struct ScatterFromWorker0Attrs
+
 }  // namespace relax
 }  // namespace tvm
 
