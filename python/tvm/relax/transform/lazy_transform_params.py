@@ -164,12 +164,15 @@ class LazyTransformParamsMutator(PyExprMutator):
         # rewrite get item
         tuple_get_item = super().visit_tuple_getitem_(op)
         if tuple_get_item.tuple_value == self.input_tuple_param:
-            return relax.Call(
-                relax.ExternFunc("get_item"),
-                [relax.PrimValue(tuple_get_item.index)],
-                None,
-                [relax.ObjectStructInfo()],
+            get_item_result = self.builder_.emit(
+                relax.Call(
+                    relax.ExternFunc("get_item"),
+                    [relax.PrimValue(tuple_get_item.index)],
+                    None,
+                    [relax.ObjectStructInfo()],
+                )
             )
+            return self.builder_.match_cast(get_item_result, op.struct_info)
         else:
             return tuple_get_item
 
