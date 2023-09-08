@@ -84,8 +84,7 @@ class ModuleSerializer {
     // we will not produce import_tree_.
     bool has_import_tree = true;
 
-    if (mod_->IsDSOExportable()) {
-      ICHECK(export_dso) << "`export_dso` should be enabled for DSOExportable modules";
+    if (export_dso) {
       has_import_tree = !mod_->imports().empty();
     }
 
