@@ -709,7 +709,14 @@ BindingBlock ExprMutator::VisitBindingBlock_(const DataflowBlockNode* block) {
 }
 
 Var ExprMutator::VisitVarDef_(const DataflowVarNode* var) {
-  return VisitVarDef_(static_cast<const VarNode*>(var));
+  Var output = VisitVarDef_(static_cast<const VarNode*>(var));
+  // Because we delegate from DataflowVar visitor to Var visitor to
+  // provide default behavior in subclasses, we may produce a Var
+  // where we should produce a DataflowVar.
+  if (!output->IsInstance<DataflowVarNode>()) {
+    output = DataflowVar(output->vid, GetStructInfo(output), output->span);
+  }
+  return output;
 }
 
 Var ExprMutator::VisitVarDef_(const VarNode* var) {

@@ -530,6 +530,8 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
 
   Expr VisitExpr_(const VarNode* var) final { return VisitVar_<Var>(var); }
 
+  Expr VisitExpr_(const DataflowVarNode* var) final { return VisitVar_<DataflowVar>(var); }
+
   Expr VisitExpr(const Expr& expr) final {
     // lookup normalize map
     if (!block_stack_.empty()) {
