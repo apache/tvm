@@ -111,25 +111,23 @@ void InitCCL(const std::vector<int>& device_ids) {
   DeviceAPI::Get(device)->SetStream(device, ctx->stream);
 }
 
-NDArray AllReduce(NDArray send, ReduceKind reduce_kind) {
+void AllReduce(NDArray send, ReduceKind reduce_kind, NDArray recv) {
   NCCLThreadLocalContext* ctx = NCCLThreadLocalContext::Get();
   ShapeTuple shape = send.Shape();
   int64_t numel = shape->Product();
-  NDArray recv = NDArray::Empty(shape, send->dtype, send->device);
   NCCL_CALL(ncclAllReduce(send->data, recv->data, numel,
                           /*datatype=*/AsNCCLDataType(DataType(send->dtype)),
                           /*op=*/AsNCCLRedOp(reduce_kind), ctx->comm, ctx->stream));
-  return recv;
 }
 
-NDArray BroadcastFromWorker0(NDArray buffer) {
+void BroadcastFromWorker0(NDArray send, NDArray recv) {
   NCCLThreadLocalContext* ctx = NCCLThreadLocalContext::Get();
-  ShapeTuple shape = buffer.Shape();
+  ICHECK(send.Shape()->Product() == recv.Shape()->Product());
+  ShapeTuple shape = send.Shape();
   int64_t numel = shape->Product();
-  NCCL_CALL(ncclBroadcast(buffer->data, buffer->data, numel,
-                          /*datatype=*/AsNCCLDataType(DataType(buffer->dtype)),
+  NCCL_CALL(ncclBroadcast(send->data, recv->data, numel,
+                          /*datatype=*/AsNCCLDataType(DataType(send->dtype)),
                           /*root=*/0, ctx->comm, ctx->stream));
-  return buffer;
 }
 
 void ScatterFromWorker0(Optional<NDArray> send, NDArray recv) {
@@ -235,9 +233,9 @@ TVM_REGISTER_GLOBAL("runtime.disco.nccl.init_ccl")
       }
       InitCCL(device_ids);
     });
-TVM_REGISTER_GLOBAL("runtime.disco.nccl.allreduce").set_body_typed([](NDArray send, int kind) {
+TVM_REGISTER_GLOBAL("runtime.disco.nccl.allreduce").set_body_typed([](NDArray send, int kind, NDArray recv) {
   CHECK(0 <= kind && kind <= 4) << "ValueError: Unknown ReduceKind: " << kind;
-  return AllReduce(send, static_cast<ReduceKind>(kind));
+  AllReduce(send, static_cast<ReduceKind>(kind), recv);
 });
 TVM_REGISTER_GLOBAL("runtime.disco.nccl.broadcast_from_worker0")
     .set_body_typed(BroadcastFromWorker0);

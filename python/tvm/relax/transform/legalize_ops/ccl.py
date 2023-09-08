@@ -19,7 +19,7 @@
 from tvm import tir, arith
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr, ShapeExpr
-from ...op import call_pure_packed
+from ...op import call_pure_packed, call_dps_packed
 from ...struct_info import TensorStructInfo, ShapeStructInfo
 from .common import register_legalize
 
@@ -39,20 +39,19 @@ def _allreduce(_bb: BlockBuilder, call: Call) -> Expr:
             f"Unsupported reduction operation: {op_type_str}. "
             f"Supported operations are {op_type_map.keys()}."
         )
-    return call_pure_packed(
+    return call_dps_packed(
         "runtime.disco.allreduce",
-        call.args[0],
-        ShapeExpr([op_type_map[op_type_str]]),
-        sinfo_args=call.args[0].struct_info,
+        [call.args[0], ShapeExpr([op_type_map[op_type_str]])],
+        out_sinfo=call.args[0].struct_info,
     )
 
 
 @register_legalize("relax.ccl.broadcast_from_worker0")
 def _broadcast_from_worker0(_bb: BlockBuilder, call: Call) -> Expr:
-    return call_pure_packed(
+    return call_dps_packed(
         "runtime.disco.broadcast_from_worker0",
         call.args[0],
-        sinfo_args=call.args[0].struct_info,
+        out_sinfo=call.args[0].struct_info,
     )
 
 
