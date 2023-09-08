@@ -22,6 +22,7 @@ from tvm.ir import assert_structural_equal
 from tvm.relax.testing.runtime_builtin import MakeShapeCode, MatchShapeCode
 from tvm.script import relax as R
 from tvm.script import tir as T
+from tvm.script import ir as I
 
 # note: we expected RemovePurityChecking to be run first, so we force purity in most test cases
 
@@ -444,6 +445,108 @@ def test_return_match_check():
             )
 
             return y
+
+    before = Before
+    expected = Expected
+    after = relax.transform.VMShapeLower(emit_err_ctx=False)(before)
+    assert_structural_equal(after, expected)
+
+
+def test_symbolic_shape_multiple_function():
+    MS = MatchShapeCode
+    MK = MakeShapeCode
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def fn1(A: R.Tensor(("m", "n"), dtype="float32")):
+            R.func_attr({"relax.force_pure": True})
+            m = T.int64()
+            n = T.int64()
+            return A
+
+        @R.function
+        def fn2(A: R.Tensor(("n", "m"), dtype="float32")):
+            R.func_attr({"relax.force_pure": True})
+            n = T.int64()
+            m = T.int64()
+            return A
+
+    # slot assignment:
+    sindex_fn1 = {
+        "m": 0,
+        "n": 1,
+    }
+    sindex_fn2 = {
+        "n": 0,
+        "m": 1,
+    }
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def fn1(A: R.Tensor(("m", "n"), dtype="float32")) -> R.Tensor(("m", "n"), dtype="float32"):
+            R.func_attr({"relax.force_pure": True})
+            m = T.int64()
+            n = T.int64()
+            shape_heap: R.Tensor(dtype="int64", ndim=1) = R.call_builtin_with_ctx(
+                "vm.builtin.alloc_shape_heap",
+                (R.prim_value(2),),
+                sinfo_args=(R.Tensor(dtype="int64", ndim=1),),
+            )
+            _: R.Tuple = R.call_packed(
+                "vm.builtin.check_tensor_info",
+                A,
+                R.prim_value(2),
+                R.dtype("float32"),
+                R.str(""),
+                sinfo_args=(R.Tuple,),
+            )
+            _1: R.Tuple = R.call_packed(
+                "vm.builtin.match_shape",
+                A,
+                shape_heap,
+                R.prim_value(2),
+                MS.STORE_TO_HEAP,
+                sindex_fn1["m"],
+                MS.STORE_TO_HEAP,
+                sindex_fn1["n"],
+                R.str(""),
+                sinfo_args=(R.Tuple,),
+            )
+            return A
+
+        @R.function
+        def fn2(A: R.Tensor(("n", "m"), dtype="float32")) -> R.Tensor(("n", "m"), dtype="float32"):
+            R.func_attr({"relax.force_pure": True})
+            n = T.int64()
+            m = T.int64()
+            shape_heap: R.Tensor(dtype="int64", ndim=1) = R.call_builtin_with_ctx(
+                "vm.builtin.alloc_shape_heap",
+                (R.prim_value(2),),
+                sinfo_args=(R.Tensor(dtype="int64", ndim=1),),
+            )
+            _2: R.Tuple = R.call_packed(
+                "vm.builtin.check_tensor_info",
+                A,
+                R.prim_value(2),
+                R.dtype("float32"),
+                R.str(""),
+                sinfo_args=(R.Tuple,),
+            )
+            _3: R.Tuple = R.call_packed(
+                "vm.builtin.match_shape",
+                A,
+                shape_heap,
+                R.prim_value(2),
+                MS.STORE_TO_HEAP,
+                sindex_fn2["n"],
+                MS.STORE_TO_HEAP,
+                sindex_fn2["m"],
+                R.str(""),
+                sinfo_args=(R.Tuple,),
+            )
+            return A
 
     before = Before
     expected = Expected

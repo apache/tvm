@@ -222,6 +222,8 @@ class VMShapeLowerMutator
   // Unit rewrite function per function.
   Function Rewrite(GlobalVar gvar, Function func) {
     // prepare mapping and heap var
+    slot_vec_.clear();
+    slot_map_.clear();
     PrimExprSlotCollector::Collect(func, &slot_vec_, &slot_map_);
     heap_size_ = IntImm(ShapeDType(), static_cast<int64_t>(slot_vec_.size()));
     VarBinding shape_heap_binding = this->AllocShapeHeapBinding(heap_size_);
