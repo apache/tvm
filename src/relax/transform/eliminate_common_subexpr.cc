@@ -82,9 +82,11 @@ class SubexprCounter : public ExprVisitor {
     // 3. PrimValue nodes (not much benefit from binding to a var)
     // 4. StringImm nodes (not much benefit from binding to a var)
     // 5. Scalar constants (not much benefit from binding to a var)
+    // 6. Shape expressions (exist to hold several PrimValue objects)
     if (!(e->IsInstance<VarNode>() || e->IsInstance<DataflowVarNode>() ||
           e->IsInstance<GlobalVarNode>() || e->IsInstance<tvm::OpNode>() ||
           e->IsInstance<PrimValueNode>() || e->IsInstance<StringImmNode>() ||
+          e->IsInstance<ShapeExprNode>() ||
           (e.as<ConstantNode>() && (e.as<ConstantNode>()->is_scalar())))) {
       // also if e has an impure subexpression, we will not deduplicate it
       if (!impurity_detector_.Detect(e)) {
