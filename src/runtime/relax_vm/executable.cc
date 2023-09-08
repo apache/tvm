@@ -75,6 +75,10 @@ PackedFunc Executable::GetFunction(const String& name, const ObjectPtr<Object>& 
       vm->LoadExecutable(GetObjectPtr<Executable>(this));
       *rv = Module(vm);
     });
+  } else if (name == "has_function") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      *rv = static_cast<bool>(this->func_map.count(args[0]));
+    });
   }
   return nullptr;
 }
