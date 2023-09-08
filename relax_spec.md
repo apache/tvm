@@ -65,7 +65,7 @@ DataType ::= Int(bits: int, lanes: int)
 
 StructInfo ::= TensorStructInfo(shape: Expr?, dtype: DataType, ndim: int)
              | ShapeStructInfo(values: [PrimExpr]?, ndim: int)
-             | PrimStructInfo(dtype: DataType)
+             | PrimStructInfo(dtype: DataType, value: PrimExpr?)
              | ObjectStructInfo()
              | TupleStructInfo(fields: [StructInfo])
              | FuncStructInfo(params: [StructInfo]?, ret: StructInfo, purity: bool, derive_func: EnvFunc?*)
@@ -286,26 +286,29 @@ The following criteria apply to all programs (including before normalization):
 3. A `Var` of any kind may not appear before it is bound. Namely, if a `Var` is bound in a `BindingBlock` in a `SeqExpr`, that `Var` may not appear in bindings that precede the one where it appears on the LHS.
 4. «A return structural annotation for a function is not allowed to use any shape variables that are not in scope at the function definition. That is, the only shape variables that can appear on the return structural annotation are those defined in the outer scope or those introduced in the argument structural annotations.»
 5. In each function, `PrimExpr` variables (shape variables) similarly may not appear in `ShapeExpr`s or shape annotations before the shape variables are bound (either in function signatures or `MatchCast` bindings). A shape variable is bound only when it appears in a dimension by itself (for example, a dimension consisting of `x` will bind `x`; however, `2*x` is not a binding and is considered an error if `x` has not yet been bound) in a `MatchCast` node or a function argument shape annotation.
-6. The following constructs are not permitted to occur inside `DataflowBlock`s, which must be side effect– and control flow–free: 
+6. In a function signature, every shape variable must appear in a binding position at least once; however, (for convenience) we do not enforce any ordering amongst the function arguments—for example, it is permitted to have a shape `x * y` in the first argument and have `x` and `y` appear in binding positions in later arguments. In such a case, the dimensions corresponding to the binding positions will be checked first, allowing the variables to be bound. Then the other dimensions will be checked.
+7. The following constructs are not permitted to occur inside `DataflowBlock`s, which must be side effect– and control flow–free: 
     1. Recursive calls to the current function
     2. Calls to a global function that is mutually recursive with the current function
     3. `If` nodes
     
     Calls to Relax functions, `ExternFuncs`, or `Op`s that are not pure are also not permitted, but this must be detected during `StructInfo` checking.
     
-7. «For functions that contain recursive calls to themselves or mutually recursive global functions (i.e., those where function `a` calls function `b` and function `b` calls function `a`), a return structural annotation is *required*.»
-8. `Op` nodes may appear only as the `op` argument to `Call` nodes. 
-9. If a variable has a `StructInfo` annotation, the `ndim` of any `TensorStructInfo` and `ShapeStructInfo`s must match the number of dimensions in their `shape` and `values` fields, respectively.
-10. A function definition inside a `DataflowBlock` may not use `DataflowVar`s from the outer scope in its body. We do not define closure capturing for `DataflowVar`s.
-11. «At least one global function in the `IRModule` must be externally linked (have a `global_symbol` attribute) in order to serve as a program entry point.»
-12. «If a global function has a defined `global_symbol` attribute, the `global_symbol` name must be the same as the `GlobalVar`'s name hint.»
-13. If the `shape` field of a `TensorStructInfo` in any structural annotation is given, the only permissible expressions are `Var` (the variable must be in scope at the location of the annotation) or `ShapeExpr` (in which any shape variables used must already be in scope, unless the `TensorStructInfo` is the `struct_info` field of a `MatchCast`, in which case a new shape variable is allowed to appear in a dimension by itself). Additionally, if the `shape` field is a `ShapeExpr`, the number of dimensions must match the `ndim` field.
-14. If the `values` field of a `ShapeStructInfo` in any structural annotation is given, any shape variables used in it must already be in scope, unless the `ShapeStructInfo` is the `struct_info` field of a `MatchCast`, in which case a new shape variable is allowed to appear by itself as a member of `values`. Additionally, the `ndim` field must match the length of `values`.
-15. The `params` and `derive_func` field may not be simultaneously defined in a `FuncStructInfo` annotation; that is, if one is defined, the other must not be defined. Additionally, at least one of `params` and `derive_func` _must_ be defined for each `FuncStructInfo` in an annotation.
-16. `PrimValue` nodes are intended only to be used with `value`s consisting of TIR `IntImm`s and `FloatImm`s (with `lanes` set to 1).
-17. `PrimStructInfo` annotations should use only the `Int`, `UInt`, or `Float` datatypes for their `dtype` fields.
-18. Per [the notes on `DataType`](#notes-on-datatype-and-related-terminology), any `DataType` annotation must have a `lanes` value of 1 for the `Int`, `UInt`, or `Float` datatypes and a `lanes` value of 0 for the `Handle` (`Void`) datatype. Additionally, `bits` must be 64 for `Void`. The supported bitwidths for `Int` and `UInt` are 1, 8, 16, 32, and 64; the supported bitwidths for `Float` are 16, 32, and 64.
-19. If a `Function` `f` has an `attrs` field that includes the attribute `relax.force_pure`, `f`'s `is_pure` field must be set to `True`.
+8. «For functions that contain recursive calls to themselves or mutually recursive global functions (i.e., those where function `a` calls function `b` and function `b` calls function `a`), a return structural annotation is *required*.»
+9. `Op` nodes may appear only as the `op` argument to `Call` nodes. 
+10. If a variable has a `StructInfo` annotation, the `ndim` of any `TensorStructInfo` and `ShapeStructInfo`s must match the number of dimensions in their `shape` and `values` fields, respectively.
+11. A function definition inside a `DataflowBlock` may not use `DataflowVar`s from the outer scope in its body. We do not define closure capturing for `DataflowVar`s.
+12. «At least one global function in the `IRModule` must be externally linked (have a `global_symbol` attribute) in order to serve as a program entry point.»
+13. «If a global function has a defined `global_symbol` attribute, the `global_symbol` name must be the same as the `GlobalVar`'s name hint.»
+14. If the `shape` field of a `TensorStructInfo` in any structural annotation is given, the only permissible expressions are `Var` (the variable must be in scope at the location of the annotation) or `ShapeExpr` (in which any shape variables used must already be in scope, unless the `TensorStructInfo` is the `struct_info` field of a `MatchCast`, in which case a new shape variable is allowed to appear in a dimension by itself). Additionally, if the `shape` field is a `ShapeExpr`, the number of dimensions must match the `ndim` field.
+15. If the `values` field of a `ShapeStructInfo` in any structural annotation is given, any shape variables used in it must already be in scope, unless the `ShapeStructInfo` is the `struct_info` field of a `MatchCast`, in which case a new shape variable is allowed to appear by itself as a member of `values`. Additionally, the `ndim` field must match the length of `values`. 
+16. Similarly, if the `value` field of `PrimStructInfo` is defined, any shape variables used in it must already be in scope, unless the `PrimStructInfo` is the `struct_info` field of a `MatchCast`, in which case a new shape variable is allowed to appear by itself as `value`.
+17. The `params` and `derive_func` field may not be simultaneously defined in a `FuncStructInfo` annotation; that is, if one is defined, the other must not be defined. Additionally, at least one of `params` and `derive_func` _must_ be defined for each `FuncStructInfo` in an annotation.
+18. `PrimValue` nodes are intended only to be used with `value`s consisting of TIR `IntImm`s and `FloatImm`s (with `lanes` set to 1).
+19. `PrimStructInfo` annotations should use only the `Int`, `UInt`, or `Float` datatypes for their `dtype` fields.
+20. Per [the notes on `DataType`](#notes-on-datatype-and-related-terminology), any `DataType` annotation must have a `lanes` value of 1 for the `Int`, `UInt`, or `Float` datatypes and a `lanes` value of 0 for the `Handle` (`Void`) datatype. Additionally, `bits` must be 64 for `Void`. The supported bitwidths for `Int` and `UInt` are 1, 8, 16, 32, and 64; the supported bitwidths for `Float` are 16, 32, and 64.
+21. If a `Function` `f` has an `attrs` field that includes the attribute `relax.force_pure`, `f`'s `is_pure` field must be set to `True`.
+22. For `PrimStructInfo`, if the `value` field is defined, the TIR `dtype` for the `PrimExpr` must match the `PrimStructInfo`'s `dtype` field (i.e., the datatypes must be consistent).
 
 Additionally, the criteria for normal form listed in [the previous section](#normal-form) must apply to any program that has been normalized.
 
@@ -354,7 +357,7 @@ This section describes the run-time checking performed by `MatchCast(var, value,
     2. If `shape` is a `ShapeExpr`, then compare the fields of the `ShapeExpr` to the concrete shape of `value`, dimension by dimension (comparing the `i`th field of the `ShapeExpr` to the `i`th dimension of the shape of `value`). Give an error if the number of the dimensions does not match the number of fields in the `ShapeExpr`.
         1. If a field of the `ShapeExpr` consists of only an unbound shape variable, then bind that variable to the value of the dimension.
         2. Otherwise, evaluate the field of the `ShapeExpr` and ensure that it matches the concrete value of the dimension.
-3. If `struct_info` is `PrimStructInfo(dtype)`, then check that `value` is a `PrimValue` and that the underlying scalar has datatype `dtype` in TIR (according to TIR's type-checking rules).
+3. If `struct_info` is `PrimStructInfo(dtype, v)`, then check that `value` is a `PrimValue` and that the underlying scalar has datatype `dtype` in TIR (according to TIR's type-checking rules). If `v` is defined, then check that `value` and `v` match numerically.
 4. If `struct_info` is `ShapeStructInfo(ndim, values)`, then check that `value` is a shape value, that it has `ndim` dimensions (if `ndim` is not -1). If `values` is defined, then compare it to the concrete shape value (comparing the `i`th member of `values` to the `i`th field of the shape value):
     1. If the `i`th member of `values` consists of only an unbound shape variable, then bind that variable to the `i`th field of the the concrete shape value.
     2. Otherwise, evaluate the `i`th member of `values` and check that it is equal to teh `i`th field of the concrete shape value.
@@ -363,14 +366,23 @@ This section describes the run-time checking performed by `MatchCast(var, value,
 
 ### Checking Structural Information at the Start and End of a Function
 
-«Shape variables are bound at the start and end of a function or in `MatchCast` bindings. We can describe the behavior at the start and end of a function in terms of the semantics of `MatchCast`, as the shape annotations in function arguments and return types are treated as "syntactic sugar" for `MatchCast` bindings. Suppose a function has the following signature, where the `Si` are structural annotations:
+«Shape variables are bound at the start and end of a function or in `MatchCast` bindings. This checking is done similarly to `MatchCast`, though with a slight difference: per rule #6 in under the [well-formedness criteria](#well-formedness-criteria), we allow shape variables to appear in arguments in any order so long as shape variables appear in a binding position at least once. This requires us to check the shapes of arguments dimension by dimension in a specific order.
+
+Suppose a function has the following signature, where the `Si` are structural annotations:
 
 ```python
 def f(arg1 : S1, arg2 : S2, ..., argn : Sn) -> Sr: 
     return body
 ```
 
-This can be treated as a macro that expands to
+The dimensions corresponding to variables in binding positions are checked first. A binding position is when a shape variable appears by itself in a dimension (a field in `values` in `ShapeStructInfo`, the `value` field of `PrimStructInfo`, or a field in `shape` for `TensorStructInfo`). For each variable in a binding position that appears among the `Si`, we check the corresponding field of the concrete value in order to assign to it a value (recursing down the structure if necessary).
+
+1. For `PrimStructInfo`, we compare `value` to the concrete primitive value.
+2. For `ShapeStructInfo`, we compare the field within `values` to the corresponding member of the shape.
+3. For `TensorStructInfo`, we compare the field of `shape` to the length of the corresponding dimension of the tensor.
+4. For other `StructInfo`, it may be necessary to match values recursively. In the case of a closure, the runtime shape information will be needed.
+
+Having found a value, that value is bound to the shape variable. The rest of the tensor shapes and the return value can then be checked from left to right per the following macro:
 
 ```python
 def f(arg1, arg2, ..., argn):
@@ -382,6 +394,10 @@ def f(arg1, arg2, ..., argn):
     MatchCast(ret_var, Sr)
     return ret_var
 ```
+
+For a concrete example, suppose that the function has a signature
+`def f(x: R.Tensor([M * N]), y: R.Tensor([M, N])) -> R.Tensor([N * N, M * M]): ...`.
+In this case, `M` would first be bound by checking dimension 0 of the value of `y`, `N` would then be bound by checking dimension 1 of the value of `y`. Next, the shape of `x` would then be compared against `M * N` using the bound values, then the shape of `y` would be compared against `(M, N)` using the bound values. At the end of the function, the shape of the return value would be compared against `(N * M, M * M)` using the bound values.
 »
 
 ### Invariants for `TensorStructInfo`
@@ -416,7 +432,10 @@ Note that judging subtyping requires potentially reasoning about arbitrary `Shap
     2. Given an arbitrary `ndim` `n` and an arbitrary set of values `v` (not undefined), `ShapeStructInfo(ndim=n, values=v) <: ShapeStructInfo(ndim=n, values=undefined)`.
     3. Given an arbitrary `ndim` `n` and two arbitrary sets of values `v1` and `v2` (both defined), `ShapeStructInfo(ndim=n, values=v1) <: ShapeStructInfo(ndim=n, values=v2)` if, for all valid `i`, `v1[i]` and `v2[i]` can be proven to be _definitely_ statically equal. We say that `ShapeStructInfo(ndim=n, values=v1) <: ShapeStructInfo(ndim=n, values=v2)` _possibly_ holds if `v1` and `v2` are _possibly_ statically equal.
 6. Given two lists of `StructInfo` `fields1` and `fields2`, `TupleStructInfo(fields=fields1) <: TupleStructInfo(fields=fields2)` if `fields1` and `fields2` are the same length and for all `i`, `fields1[i] <: fields2[i]`. We consider the subtyping relationship to _possibly_ hold if any of the subtyping relationships for the fields only possibly holds.
-7. For `PrimStructInfo`, `PrimStructInfo(dt1) <: PrimStructInfo(dt2)` holds if `dt1` and `dt2` are the same. That is, we do not have subtyping for TIR datatypes or `PrimStructInfo`.
+7. For `PrimStructInfo`:
+    1. `PrimStructInfo(dtype=dt1) <: PrimStructInfo(dtype=dt2)` (where the `value` field is undefined for both) holds if `dt1` and `dt2` are the same. That is, we do not have subtyping for TIR datatypes.
+    2. Let `dt` be a datatype. `PrimStructInfo(dtype=dt, value=v) <: PrimStructInfo(dtype=dt)` for any `PrimExpr` `v`; that is, if the `value` field is undefined for a `PrimStructInfo`, then it is a supertype to a `PrimStructInfo` with a defined `value` field.
+    3. Let `dt` be a datatype. `PrimStructInfo(dtype=dt, value=v1) <: PrimStructInfo(dtype=dt, value=v2)` _definitely_ holds if `v1` and `v2` can be proven to be statically equal. The relation _possibly_ holds if `v1` and `v2` are _possibly_ statically equal.
 8. For `FuncStructInfo`:
     1. Given an arbitrary derivation function `derive_func`, `FuncStructInfo(ret=ObjectStructInfo(), derive_func=derive_func) <: FuncStructInfo(ret=ObjectStructInfo(), derive_func=empty_derive)`.
     2. Corollary, following from reflexivity: For two `FuncStructInfo` `F1` and `F2` with undefined `params`, `F1 <: F2` only if `F1.derive_func` and `F2.derive_func` are identical.
@@ -436,9 +455,14 @@ def unify_struct_info(S1: StructInfo, S2: StructInfo) -> StructInfo:
     if S1 and S2 do not match types (e.g., not both TensorStructInfo, etc):
         return ObjectStructInfo()
     if S1 and S2 are both PrimStructInfo:
-        if S1.dtype == S2.dtype:
+        if S1.dtype != S2.dtype:
+            return ObjectStructInfo()
+        if S1.value or S2.value is undefined:
+            return PrimStructInfo(dtype=S1.dtype, value=undefined)
+        if S1.value can be statically proven to match S2.value:
             return S1
-        return ObjectStructInfo()
+        # values either proven not to match or unknown
+        return PrimStructInfo(dtype=S1.dtype, value=undefined)
     if S1 and S2 are both ShapeStructInfo:
         if S1.ndim == -1:
             return S1
@@ -658,14 +682,19 @@ We can check if some structural information `S1` is accepted where structural in
     3. If `values` is not defined for `S2`, then they are compatible.
     4. If `values` is defined for `S2` but not defined for `S1`, then they are possibly compatible.
     5. If `values` is defined for both `S1` and `S2`, then the two are incompatible if `S1.values[i]` can be proven to be _not_ equal to `S2.values[i]` for some `i`. If all members can be proven to be equal, then they are compatible. Otherwise, if at least one pair of values cannot be proven to be either equal or unequal, then they are possibly compatible.
-5. If `S1` and `S2` are both `TensorStructInfo`:
+5. If `S1` and `S2` are both `PrimStructInfo`:
+    1. If `S1.dtype` and `S2.dtype` do not match, then they are incompatible.
+    2. If `value` is not defined for `S2`, then they are compatible.
+    3. If `value` is defined for `S2` but not for `S1`, then they are possibly compatible.
+    4. If `value` is defined for both `S1` and `S2`, then they are compatible if `S1.value` can be statically proven to be equal to `S2.value`. They are possibly compatible if `S1.value` is possibly statically equal to `S2.value` but it cannot be proven. They are incompatible if `S1.value` can be proven to _not_ be statically equal to `S2.value`.
+6. If `S1` and `S2` are both `TensorStructInfo`:
     1. If `S2.dtype` is not `Void` and does not match `S1.dtype`, then they are incompatible.
     2. If  `S2.ndim` is not -1 and does not match `S1.ndim`, then they are incompatible.
     3. If `S2.shape` is not defined, then they are compatible.
     4. If `S2.shape` is defined and `S1.shape` is not defined, then they are possibly compatible.
     5. Otherwise, if both `shape` fields are given and either is a `Var`, then consider `S1` and `S2` compatible if the compiler can statically prove that the `Var` holds the same value as the other `shape` field, consider them possibly compatible if the compiler cannot draw a conclusion one way or the other, and consider them incompatible if the `Var` definitely has a different value from the other `shape`.
     6. If both `shape` fields are given and they are both `ShapeExpr` nodes, then `S1` and `S2` are incompatible if the compiler can prove that some dimension of `S1.shape` is _not_ equal to the corresponding dimension of `S2.shape`. Otherwise, if the all dimensions can be proven to be equal, then consider them compatible. If at least one pair of dimensions cannot be proven to be equal or unequal, consider them possibly compatible.
-6. If `S1` and `S2` are both `FuncStructInfo`:
+7. If `S1` and `S2` are both `FuncStructInfo`:
     1. If `S1` and `S2` don't both have defined `params` or both have undefined `params`, consider them incompatible.
     2. If both `S1` and `S2` have undefined `params`, consider them compatible if they have an identical `derive_func` and consider them possibly compatible if they have different `derive_func`s (as they is no further way to introspect the `derive_func` and draw static conslusions about `PackedFunc`s).
     3. If `params` is defined for both `S1` and `S2`:
