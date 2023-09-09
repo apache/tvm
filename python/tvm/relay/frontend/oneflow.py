@@ -1031,10 +1031,10 @@ class Threshold(OneFlowOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attrs, params):
         threshold = float(attrs.get("threshold_val", 1.0))
-        threshold_tensor = _op.full_like(inputs[0], fill_value=_expr.const(alpha))
+        threshold_tensor = _op.full_like(inputs[0], fill_value=_expr.const(threshold))
         value = float(attrs.get("value"))
         value_tensor = _op.full_like(inputs[0], fill_value=_expr.const(value))
-        mask = _op.greater(inputs[0], alpha_tensor).astype("float32")
+        mask = _op.greater(inputs[0], threshold_tensor).astype("float32")
         return _op.where(mask, inputs[0], value_tensor)
 
 
