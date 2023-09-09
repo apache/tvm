@@ -23,7 +23,7 @@ import numpy as np
 import tvm
 from tvm.runtime import ndarray as nd
 from tvm import relay, testing
-from tvm.relay.transform.SimplifyMulAdd import simplify_mul_add
+from tvm.relay.transform.simplify_mul_add import simplify_mul_add
 from tvm.topi.utils import get_const_tuple
 from tvm.relay.backend import Executor, Runtime
 
