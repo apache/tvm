@@ -26,7 +26,7 @@ from typing import Any, Optional, Union
 def cprint(
     printable: Union[Any, str],
     style: Optional[str] = None,
-    black_format: bool = True,
+    black_format: bool = False,
 ) -> None:
     """Print TVMScript string with Pygments highlight and Black auto-formatting.
 
@@ -42,7 +42,7 @@ def cprint(
 
     black_format: bool
 
-        If true (default), use the formatter Black to format the TVMScript
+        If true, use the formatter Black to format the TVMScript
 
     Notes
     -----
