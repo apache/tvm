@@ -702,6 +702,15 @@ def test_activation():
             x = x.softmax(dim=-1)
             return x
 
+    class Threshold(flow.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.active = flow.nn.Threshold()
+
+        def forward(self, x):
+            x = self.active(x)
+            return x
+
     if os.path.exists(MODEL_HOME):
         rmdir(MODEL_HOME)
 
@@ -718,6 +727,7 @@ def test_activation():
     model11 = GELU().eval()
     model12 = HardTanh().eval()
     model13 = TensorSoftmax().eval()
+    model14 = Threshold().eval()
 
     for device in ["llvm"]:
         verify_activation(model1, device=device)
@@ -737,6 +747,7 @@ def test_activation():
             device=device,
             inputs=flow.tensor(np.random.rand(1, 12, 197, 197).astype(np.float32)),
         )
+        verify_activation(model14, device=device)
 
 
 @tvm.testing.uses_gpu
