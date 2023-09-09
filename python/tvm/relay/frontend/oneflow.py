@@ -1119,8 +1119,8 @@ class Softplus(OneFlowOpConverter):
     def _impl_v1(cls, inputs, attrs, params):
         data = inputs[0]
         data_dtype = infer_type(data).checked_type.dtype
-        beta = _expr.const(int(inputs[1]), dtype=data_dtype)
-        threshold = int(inputs[2]) if inputs[2] else 20
+        beta = _expr.const(float(attrs.get("beta", 1.0)))
+        threshold = float(attrs.get("threshold", 20.0))
         threshold_ = _op.full_like(data, fill_value=_expr.const(threshold))
         softplus_value = _op.log(_op.exp(data * beta) + _expr.const(1.0, dtype=data_dtype)) / beta
         return _op.where(_op.greater(data * beta, threshold_), data, softplus_value)
