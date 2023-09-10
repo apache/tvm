@@ -721,7 +721,7 @@ def test_activation():
 
     for device in ["llvm"]:
         verify_activation(model1, device=device)
-        # verify_activation(model2, device=device) # NO PASS
+        verify_activation(model2, device=device)
         verify_activation(model3, device=device)
         verify_activation(model4, device=device)
         verify_activation(model5, device=device)
