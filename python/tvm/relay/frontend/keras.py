@@ -1053,22 +1053,30 @@ def _convert_simple_rnn(
     in_data = inexpr[0]
     prev_op = inexpr[1]
     weightList = keras_layer.get_weights()
-    kernel_weight = etab.new_const(weightList[0].transpose([1, 0]))
+    weightList0 = weightList[0].transpose([1, 0])
+    assert len(in_data.type_annotation.shape) == 3
+    for i in range(in_data.type_annotation.shape[1].value - 1):
+        weightList0 = np.hstack((weightList0, weightList[0].transpose([1, 0])))
+    kernel_weight = etab.new_const(weightList0)
     recurrent_weight = etab.new_const(weightList[1].transpose([1, 0]))
     if keras_layer.use_bias:
         in_bias = etab.new_const(weightList[2])
     units = list(weightList[0].shape)[1]
     assert units > 0, "The value of units must be a positive integer"
+    dim = weightList0.shape[0]
     in_data = _op.nn.batch_flatten(in_data)
     ixh = _op.nn.dense(in_data, kernel_weight, units=units)
     if keras_layer.use_bias:
         ixh = _op.nn.bias_add(ixh, bias=in_bias)
+    split_list = []
+    for i in range(1, dim):
+        split_list.append(i)
+    ixh_tuple = _op.split(ixh, split_list, 1)
     prev_op = _op.nn.batch_flatten(prev_op)
-    ixh2 = _op.nn.dense(prev_op, recurrent_weight, units=units)
-    output = ixh + ixh2
-    output = _convert_activation(output, keras_layer, etab, data_layout)
-    out_shape = tuple(dim if dim else 1 for dim in _as_list(keras_layer.output_shape)[0])
-    output = _op.reshape(output, newshape=out_shape)
+    for i in range(dim):
+        ixh2 = _op.nn.dense(prev_op, recurrent_weight, units=units)
+        prev_op = ixh_tuple[0] + ixh2
+    output = prev_op
     return [output, output]
 
 
