@@ -100,6 +100,8 @@ void RecvFromWorker0(NDArray buffer) { GetCCLFunc("recv_from_worker0")(buffer); 
 
 int WorkerId() { return DiscoWorker::ThreadLocal()->worker_id; }
 
+void SyncWorker() { GetCCLFunc("sync_worker")(); }
+
 TVM_REGISTER_GLOBAL("runtime.disco.load_vm_module").set_body_typed(LoadVMModule);
 TVM_REGISTER_GLOBAL("runtime.disco.empty").set_body_typed(DiscoEmptyNDArray);
 TVM_REGISTER_GLOBAL("runtime.disco.allreduce")

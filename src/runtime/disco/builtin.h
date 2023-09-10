@@ -77,9 +77,14 @@ void GatherToWorker0(NDArray send, Optional<NDArray> recv);
  * \param buffer The buffer to be received
  */
 void RecvFromWorker0(NDArray buffer);
-
 /*! \brief Get the local worker id */
 int WorkerId();
+/*!
+ * \brief Called by the worker thread. Waiting until the worker completes all its tasks.
+ * As a specific example, on a CUDA worker, it blocks until all kernels are launched and
+ * cudaStreamSynchronize is complete.
+ */
+void SyncWorker();
 
 }  // namespace runtime
 }  // namespace tvm
