@@ -202,7 +202,7 @@ def test_invalid_mod():
         [pred_sinfo, pred_sinfo],
     )
 
-    with pytest.raises(TVMError):
+    with pytest.raises((TVMError, ValueError)):
         SetupTrainer(
             MSELoss(reduction="sum"),
             SGD(0.001),
