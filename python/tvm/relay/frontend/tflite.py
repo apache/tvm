@@ -2686,11 +2686,7 @@ class OperatorConverter(object):
 
     def convert_floor_div(self, op):
         """Convert TFLite FLOOR_DIV"""
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                "TFlite quantized FLOOR DIV operator is not supported yet."
-            )
-        return self._convert_elemwise(_op.floor_divide, op)
+        return self._convert_elemwise(_op.floor_divide, op, self.is_quantized(op))
 
     def convert_floor_mod(self, op):
         """Convert TFLite FLOOR_MOD"""
