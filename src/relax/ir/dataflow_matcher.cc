@@ -761,9 +761,7 @@ static std::optional<MatchState> TryMatch(const PNode& p, const RNode& r,
 static std::optional<MatchState> TryValidate(
     const MatchState& current_match,
     const std::unordered_map<const DFPatternNode*, PNode>& pattern2node,
-    const std::vector<DFConstraint>& validation_constraints,
-
-    arith::Analyzer* analyzer) {
+    const std::vector<DFConstraint>& validation_constraints, arith::Analyzer* analyzer) {
   MatchState new_match;
 
   std::function<Optional<Var>(const DFPatternNode*)> query_match_state =
