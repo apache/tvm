@@ -83,8 +83,7 @@ class ModuleSerializer {
     // we will not produce import_tree_.
     bool has_import_tree = true;
 
-    if (mod_->IsDSOExportable()) {
-      ICHECK(export_dso) << "`export_dso` should be enabled for DSOExportable modules";
+    if (export_dso) {
       has_import_tree = !mod_->imports().empty();
     }
 
@@ -305,15 +304,26 @@ runtime::Module DeserializeModuleFromBytes(std::string blob) {
   return root_mod;
 }
 
+std::string PackImportsToBytes(const runtime::Module& mod) {
+  std::string bin = SerializeModuleToBytes(mod);
+
+  uint64_t nbytes = bin.length();
+  std::string header;
+  for (size_t i = 0; i < sizeof(nbytes); ++i) {
+    header.push_back(((nbytes >> (i * 8)) & 0xffUL));
+  }
+  return header + bin;
+}
+
 std::string PackImportsToC(const runtime::Module& mod, bool system_lib,
                            const std::string& c_symbol_prefix) {
-  std::string bin = SerializeModuleToBytes(mod);
-  std::string mdev_blob_name = c_symbol_prefix + runtime::symbol::tvm_dev_mblob;
-
   if (c_symbol_prefix.length() != 0) {
     CHECK(system_lib)
         << "c_symbol_prefix advanced option should be used in conjuction with system-lib";
   }
+
+  std::string mdev_blob_name = c_symbol_prefix + runtime::symbol::tvm_dev_mblob;
+  std::string blob = PackImportsToBytes(mod);
 
   // translate to C program
   std::ostringstream os;
@@ -326,27 +336,15 @@ std::string PackImportsToC(const runtime::Module& mod, bool system_lib,
      << "extern \"C\" {\n"
      << "#endif\n";
   os << "TVM_EXPORT extern const unsigned char " << mdev_blob_name << "[];\n";
-  uint64_t nbytes = bin.length();
-  os << "const unsigned char " << mdev_blob_name << "[" << bin.length() + sizeof(nbytes)
-     << "] = {\n  ";
+  os << "const unsigned char " << mdev_blob_name << "[" << blob.length() << "] = {";
   os << std::hex;
-  size_t nunit = 80 / 4;
-  for (size_t i = 0; i < sizeof(nbytes); ++i) {
-    // sperators
-    if (i != 0) {
-      os << ",";
+  size_t nunit = 100 / 5;  // 100 columns, 5 chars per "0xab,"
+  for (size_t i = 0; i < blob.length(); ++i) {
+    if (i % nunit == 0) {
+      os << "\n  ";
     }
-    os << "0x" << ((nbytes >> (i * 8)) & 0xffUL);
-  }
-  for (size_t i = 0; i < bin.length(); ++i) {
-    // sperators
-    if ((i + sizeof(nbytes)) % nunit == 0) {
-      os << ",\n  ";
-    } else {
-      os << ",";
-    }
-    int c = bin[i];
-    os << "0x" << (c & 0xff);
+    int c = blob[i];
+    os << "0x" << std::setw(2) << std::setfill('0') << (c & 0xff) << ',';
   }
   os << "\n};\n";
   if (system_lib) {
@@ -369,14 +367,7 @@ runtime::Module PackImportsToLLVM(const runtime::Module& mod, bool system_lib,
         << "c_symbol_prefix advanced option should be used in conjuction with system-lib";
   }
 
-  std::string bin = SerializeModuleToBytes(mod);
-
-  uint64_t nbytes = bin.length();
-  std::string header;
-  for (size_t i = 0; i < sizeof(nbytes); ++i) {
-    header.push_back(((nbytes >> (i * 8)) & 0xffUL));
-  }
-  std::string blob = header + bin;
+  std::string blob = PackImportsToBytes(mod);
   TVMByteArray blob_byte_array;
   blob_byte_array.size = blob.length();
   blob_byte_array.data = blob.data();
@@ -391,9 +382,28 @@ runtime::Module PackImportsToLLVM(const runtime::Module& mod, bool system_lib,
 
 TVM_REGISTER_GLOBAL("target.Build").set_body_typed(Build);
 
-// Export two auxiliary function to the runtime namespace.
-TVM_REGISTER_GLOBAL("runtime.ModulePackImportsToC").set_body_typed(PackImportsToC);
+// Export a few auxiliary function to the runtime namespace.
+TVM_REGISTER_GLOBAL("runtime.ModuleImportsBlobName").set_body_typed([]() -> std::string {
+  return runtime::symbol::tvm_dev_mblob;
+});
 
+TVM_REGISTER_GLOBAL("runtime.ModulePackImportsToNDArray")
+    .set_body_typed([](const runtime::Module& mod) {
+      std::string buffer = PackImportsToBytes(mod);
+      ShapeTuple::index_type size = buffer.size();
+      DLDataType uchar;
+      uchar.code = kDLUInt;
+      uchar.bits = 8;
+      uchar.lanes = 1;
+      DLDevice dev;
+      dev.device_type = kDLCPU;
+      dev.device_id = 0;
+      auto array = runtime::NDArray::Empty({size}, uchar, dev);
+      array.CopyFromBytes(buffer.data(), size);
+      return array;
+    });
+
+TVM_REGISTER_GLOBAL("runtime.ModulePackImportsToC").set_body_typed(PackImportsToC);
 TVM_REGISTER_GLOBAL("runtime.ModulePackImportsToLLVM").set_body_typed(PackImportsToLLVM);
 
 }  // namespace codegen

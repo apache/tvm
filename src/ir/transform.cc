@@ -183,44 +183,78 @@ Map<String, Map<String, String>> PassContext::ListConfigs() {
 
 PassContext PassContext::Create() { return PassContext(make_object<PassContextNode>()); }
 
+namespace {
+struct ClearOnError {
+  Array<instrument::PassInstrument>* instruments{nullptr};
+
+  ~ClearOnError() {
+    if (instruments) {
+      LOG(INFO) << "Pass instrumentation enter/exti failed.";
+      LOG(INFO) << "Disabling pass instrumentation.";
+      instruments->clear();
+    }
+  }
+};
+struct ExitContextOnError {
+  std::vector<instrument::PassInstrument> successes;
+
+  ~ExitContextOnError() {
+    for (auto it = successes.rbegin(); it != successes.rend(); it++) {
+      LOG(INFO) << (*it)->name << " exiting PassContext ...";
+      (*it)->ExitPassContext();
+      LOG(INFO) << (*it)->name << " exited PassContext.";
+    }
+  }
+};
+}  // namespace
+
 void PassContext::InstrumentEnterPassContext() {
   auto pass_ctx_node = this->operator->();
   if (pass_ctx_node->instruments.defined()) {
-    Array<instrument::PassInstrument> enter_successes;
-    try {
-      for (instrument::PassInstrument pi : pass_ctx_node->instruments) {
-        pi->EnterPassContext();
-        enter_successes.push_back(pi);
-      }
-    } catch (const Error& e) {
-      LOG(INFO) << "Pass instrumentation entering pass context failed.";
-      LOG(INFO) << "Disable pass instrumentation.";
-      pass_ctx_node->instruments.clear();
-
-      for (instrument::PassInstrument pi : enter_successes) {
-        LOG(INFO) << pi->name << " exiting PassContext ...";
-        pi->ExitPassContext();
-        LOG(INFO) << pi->name << " exited PassContext.";
-      }
-      enter_successes.clear();
-
-      throw e;
+    ClearOnError clear_context{&pass_ctx_node->instruments};
+    ExitContextOnError exit_context;
+    for (instrument::PassInstrument pi : pass_ctx_node->instruments) {
+      pi->EnterPassContext();
+      exit_context.successes.push_back(pi);
     }
+    exit_context.successes.clear();
+    clear_context.instruments = nullptr;
   }
 }
+
+namespace {
+
+struct ExitPassSuccesses {
+  ~ExitPassSuccesses() {
+    if (all_initialized) {
+      return;
+    }
+
+    LOG(INFO) << "Pass instrumentation entering pass context failed.";
+    LOG(INFO) << "Disable pass instrumentation.";
+    instruments->clear();
+
+    for (auto it = successes.rbegin(); it != successes.rend(); it++) {
+      LOG(INFO) << (*it)->name << " exiting PassContext ...";
+      (*it)->ExitPassContext();
+      LOG(INFO) << (*it)->name << " exited PassContext.";
+    }
+  }
+
+  bool all_initialized{false};
+  std::vector<instrument::PassInstrument> successes;
+  Array<instrument::PassInstrument>* instruments{nullptr};
+};
+}  // namespace
 
 void PassContext::InstrumentExitPassContext() {
   auto pass_ctx_node = this->operator->();
   if (pass_ctx_node->instruments.defined()) {
-    try {
-      for (instrument::PassInstrument pi : pass_ctx_node->instruments) {
-        pi->ExitPassContext();
-      }
-    } catch (const Error& e) {
-      LOG(INFO) << "Pass instrumentation exiting pass context failed.";
-      pass_ctx_node->instruments.clear();
-      throw e;
+    ClearOnError clear_context{&pass_ctx_node->instruments};
+    for (instrument::PassInstrument pi : pass_ctx_node->instruments) {
+      pi->ExitPassContext();
     }
+    clear_context.instruments = nullptr;
   }
 }
 

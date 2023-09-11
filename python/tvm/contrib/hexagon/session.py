@@ -432,12 +432,14 @@ class Session:
                 module.export_library(
                     str(binary_path),
                     fcompile=hexagon.create_aot_shared,
+                    fpack_imports=hexagon.pack_imports,
                     hexagon_arch=hexagon_arch,
                 )
             elif target_type == "llvm":
                 module.export_library(
                     str(binary_path),
                     fcompile=hexagon.create_shared,
+                    fpack_imports=hexagon.pack_imports,
                     cc=hexagon.hexagon_clang_plus(),
                 )
             else:

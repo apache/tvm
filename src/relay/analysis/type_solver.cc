@@ -639,8 +639,6 @@ bool TypeSolver::Solve() {
     } catch (const CompileError& err) {
       this->Emit(Diagnostic::Error(rnode->span) << err.what());
       rnode->resolved = false;
-    } catch (const Error& e) {
-      ICHECK(false) << e.what();
     }
 
     // Mark inqueue as false after the function call

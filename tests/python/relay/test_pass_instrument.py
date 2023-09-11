@@ -226,7 +226,7 @@ def test_enter_pass_ctx_exception():
             raise RuntimeError("Just a dummy error")
 
     pass_ctx = tvm.transform.PassContext(instruments=[PI("%1"), PIBroken("%2"), PI("%3")])
-    with pytest.raises(tvm.error.TVMError) as cm:
+    with pytest.raises(RuntimeError) as cm:
         with pass_ctx:
             pass
         assert "Just a dummy error" in str(cm.execption)
@@ -246,7 +246,7 @@ def test_enter_pass_ctx_exception_global():
             raise RuntimeError("Just a dummy error")
 
     cur_pass_ctx = tvm.transform.PassContext.current()
-    with pytest.raises(tvm.error.TVMError) as cm:
+    with pytest.raises(RuntimeError) as cm:
         cur_pass_ctx.override_instruments([PIBroken()])
         assert "Just a dummy error" in str(cm.exception)
     assert not cur_pass_ctx.instruments
@@ -273,7 +273,7 @@ def test_exit_pass_ctx_exception():
             raise RuntimeError("Just a dummy error")
 
     pass_ctx = tvm.transform.PassContext(instruments=[PI("%1"), PIBroken("%2"), PI("%3")])
-    with pytest.raises(tvm.error.TVMError) as cm:
+    with pytest.raises(RuntimeError) as cm:
         with pass_ctx:
             pass
         assert "Just a dummy error" in str(cm.exception)
@@ -293,7 +293,7 @@ def test_exit_pass_ctx_exception_global():
             raise RuntimeError("Just a dummy error")
 
     cur_pass_ctx = tvm.transform.PassContext.current()
-    with pytest.raises(tvm.error.TVMError) as cm:
+    with pytest.raises(RuntimeError) as cm:
         cur_pass_ctx.override_instruments([PIBroken()])
         cur_pass_ctx.override_instruments([PIBroken()])
         assert "Just a dummy error" in str(cm.exception)
@@ -328,7 +328,7 @@ def test_pass_exception():
         return mod
 
     mod = get_test_model()
-    with pytest.raises(tvm.error.TVMError) as cm:
+    with pytest.raises(RuntimeError) as cm:
         with tvm.transform.PassContext(instruments=[PI()]):
             mod = transform(mod)
         assert "Just a dummy error" in str(cm.exception)
@@ -373,7 +373,7 @@ def test_should_run_exception():
         return mod
 
     mod = get_test_model()
-    with pytest.raises(tvm.error.TVMError) as cm:
+    with pytest.raises(RuntimeError) as cm:
         with tvm.transform.PassContext(instruments=[PI("%1"), PI("%2")]):
             mod = transform(mod)
         assert "Just a dummy error" in str(cm.exception)
@@ -418,7 +418,7 @@ def test_run_before_exception():
         return mod
 
     mod = get_test_model()
-    with pytest.raises(tvm.error.TVMError) as cm:
+    with pytest.raises(RuntimeError) as cm:
         with tvm.transform.PassContext(instruments=[PI("%1"), PI("%2")]):
             mod = transform(mod)
         assert "Just a dummy error" in str(cm.exception)
@@ -467,7 +467,7 @@ def test_run_after_exception():
     x, y = [tvm.relay.var(c, shape=(3, 4), dtype="float32") for c in "xy"]
     mod = tvm.IRModule.from_expr(tvm.relay.add(x, y))
 
-    with pytest.raises(tvm.error.TVMError) as cm:
+    with pytest.raises(RuntimeError) as cm:
         with tvm.transform.PassContext(instruments=[PI("%1"), PI("%2")]):
             mod = transform(mod)
         assert "Just a dummy error" in str(cm.exception)

@@ -94,64 +94,115 @@ void BacktraceSyminfoCallback(void* data, uintptr_t pc, const char* symname, uin
 
 int BacktraceFullCallback(void* data, uintptr_t pc, const char* filename, int lineno,
                           const char* symbol) {
-  if (filename != nullptr) {
-    if (strstr(filename, "include/tvm/runtime/packed_func.h") != nullptr ||
-        strstr(filename, "include/tvm/runtime/registry.h") != nullptr ||
-        strstr(filename, "include/tvm/node/functor.h") != nullptr ||
-        strstr(filename, "include/tvm/relax/expr_functor.h") != nullptr ||
-        strstr(filename, "include/tvm/tir/stmt_functor.h") != nullptr ||
-        strstr(filename, "include/tvm/tir/expr_functor.h") != nullptr ||
-        strstr(filename, "include/tvm/node/reflection.h") != nullptr ||
-        strstr(filename, "src/node/structural_equal.cc") != nullptr ||
-        strstr(filename, "src/ir/transform.cc") != nullptr ||
-        strstr(filename, "src/tir/ir/stmt_functor.cc") != nullptr ||
-        strstr(filename, "src/tir/ir/expr_functor.cc") != nullptr ||
-        strstr(filename, "src/relax/ir/expr_functor.cc") != nullptr ||
-        strstr(filename, "src/relax/ir/py_expr_functor.cc") != nullptr ||
-        strstr(filename, "src/runtime/c_runtime_api.cc") != nullptr ||
-        strstr(filename, "/python-") != nullptr ||  //
-        strstr(filename, "include/c++/") != nullptr) {
-      return 0;
-    }
-  }
-  if (symbol != nullptr) {
-    if (strstr(symbol, "__libc_") != nullptr) {
-      return 0;
-    }
-  }
   auto stack_trace = reinterpret_cast<BacktraceInfo*>(data);
-  std::stringstream s;
 
   std::unique_ptr<std::string> symbol_str = std::make_unique<std::string>("<unknown>");
-  if (symbol != nullptr) {
+  if (symbol) {
     *symbol_str = DemangleName(symbol);
   } else {
     // see if syminfo gives anything
     backtrace_syminfo(_bt_state, pc, BacktraceSyminfoCallback, BacktraceErrorCallback,
                       symbol_str.get());
   }
-  if (filename == nullptr && strstr(symbol_str.get()->data(), "ffi_call_")) {
-    return 0;
-  }
-  s << *symbol_str;
+  symbol = symbol_str->data();
 
-  if (filename != nullptr) {
-    s << std::endl << "        at " << filename;
-    if (lineno != 0) {
-      s << ":" << lineno;
-    }
-  }
-  // Skip tvm::backtrace and tvm::LogFatal::~LogFatal at the beginning of the trace as they don't
-  // add anything useful to the backtrace.
-  if (!(stack_trace->lines.size() == 0 &&
-        (symbol_str->find("tvm::runtime::Backtrace", 0) == 0 ||
-         symbol_str->find("tvm::runtime::detail::LogFatal", 0) == 0))) {
-    stack_trace->lines.push_back(s.str());
-  }
-  // TVMFuncCall denotes the API boundary so we stop there. Exceptions should be caught there.
-  if (*symbol_str == "TVMFuncCall" || stack_trace->lines.size() >= stack_trace->max_size) {
+  // TVMFuncCall denotes the API boundary so we stop there. Exceptions
+  // should be caught there.  This is before any frame suppressions,
+  // as it would otherwise be suppressed.
+  bool should_stop_collecting =
+      (*symbol_str == "TVMFuncCall" || stack_trace->lines.size() >= stack_trace->max_size);
+  if (should_stop_collecting) {
     return 1;
   }
+
+  // Exclude frames that contain little useful information for most
+  // debugging purposes
+  bool should_exclude = [&]() -> bool {
+    if (filename) {
+      // Stack frames for TVM FFI
+      if (strstr(filename, "include/tvm/runtime/packed_func.h") ||
+          strstr(filename, "include/tvm/runtime/registry.h") ||
+          strstr(filename, "src/runtime/c_runtime_api.cc")) {
+        return true;
+      }
+      // Stack frames for nested tree recursion.
+      // tir/ir/stmt_functor.cc and tir/ir/expr_functor.cc define
+      // Expr/Stmt Visitor/Mutator, which should be suppressed, but
+      // also Substitute which should not be suppressed.  Therefore,
+      // they are suppressed based on the symbol name.
+      if (strstr(filename, "include/tvm/node/functor.h") ||        //
+          strstr(filename, "include/tvm/relax/expr_functor.h") ||  //
+          strstr(filename, "include/tvm/tir/stmt_functor.h") ||    //
+          strstr(filename, "include/tvm/tir/expr_functor.h") ||    //
+          strstr(filename, "include/tvm/node/reflection.h") ||     //
+          strstr(filename, "src/node/structural_equal.cc") ||      //
+          strstr(filename, "src/ir/transform.cc") ||               //
+          strstr(filename, "src/relax/ir/expr_functor.cc") ||      //
+          strstr(filename, "src/relax/ir/py_expr_functor.cc")) {
+        return true;
+      }
+      // Python interpreter stack frames
+      if (strstr(filename, "/python-") || strstr(filename, "/Python/ceval.c") ||
+          strstr(filename, "/Modules/_ctypes")) {
+        return true;
+      }
+      // C++ stdlib frames
+      if (strstr(filename, "include/c++/")) {
+        return true;
+      }
+    }
+    if (symbol) {
+      // C++ stdlib frames
+      if (strstr(symbol, "__libc_")) {
+        return true;
+      }
+      // Stack frames for nested tree visiting
+      if (strstr(symbol, "tvm::tir::StmtMutator::VisitStmt_") ||
+          strstr(symbol, "tvm::tir::ExprMutator::VisitExpr_") ||
+          strstr(symbol, "tvm::tir::IRTransformer::VisitExpr") ||
+          strstr(symbol, "tvm::tir::IRTransformer::VisitStmt") ||
+          strstr(symbol, "tvm::tir::IRTransformer::BaseVisitExpr") ||
+          strstr(symbol, "tvm::tir::IRTransformer::BaseVisitStmt")) {
+        return true;
+      }
+      // Python interpreter stack frames
+      if (strstr(symbol, "_Py") == symbol || strstr(symbol, "PyObject")) {
+        return true;
+      }
+    }
+
+    // libffi.so stack frames.  These may also show up as numeric
+    // addresses with no symbol name.  This could be improved in the
+    // future by using dladdr() to check whether an address is contained
+    // in libffi.so
+    if (filename == nullptr && strstr(symbol, "ffi_call_")) {
+      return true;
+    }
+
+    // Skip tvm::backtrace and tvm::LogFatal::~LogFatal at the beginning
+    // of the trace as they don't add anything useful to the backtrace.
+    if (stack_trace->lines.size() == 0 && (strstr(symbol, "tvm::runtime::Backtrace") ||
+                                           strstr(symbol, "tvm::runtime::detail::LogFatal"))) {
+      return true;
+    }
+
+    return false;
+  }();
+  if (should_exclude) {
+    return 0;
+  }
+
+  std::stringstream frame_str;
+  frame_str << *symbol_str;
+
+  if (filename) {
+    frame_str << std::endl << "        at " << filename;
+    if (lineno != 0) {
+      frame_str << ":" << lineno;
+    }
+  }
+  stack_trace->lines.push_back(frame_str.str());
+
   return 0;
 }
 

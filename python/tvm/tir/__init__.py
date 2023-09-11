@@ -71,6 +71,7 @@ from .op import (
     ptx_arrive_barrier,
     ptx_arrive_barrier_expect_tx,
     ptx_wait_barrier,
+    create_barriers,
 )
 from .op import vectorlow, vectorhigh, vectorcombine
 from .op import infinity, reinterpret
