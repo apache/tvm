@@ -81,6 +81,14 @@ def test_concatenate(target, expected_implementation):
             "llvm --device=arm_cpu --mtriple=aarch64-linux-gnu -mattr=+v8.2a,+i8mm",
             "conv2d_NHWC_quantized_interleaved_without_transform.arm_cpu",
         ),
+        (
+            "llvm --device=arm_cpu --mtriple=aarch64-linux-gnu -mattr=+v8.2a,+dotprod,+i8mm",
+            "conv2d_NHWC_quantized_interleaved_without_transform.arm_cpu",
+        ),
+        (
+            "llvm --device=arm_cpu --mtriple=aarch64-linux-gnu -mattr=+v9a",
+            "conv2d_NHWC_quantized_interleaved_without_transform.arm_cpu",
+        ),
     ],
 )
 def test_int8_conv2d(target, expected_impl):
