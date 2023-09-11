@@ -16,132 +16,57 @@
 # under the License.
 # pylint: disable=invalid-name, unused-argument
 """Relax Optimize Layout Transform pass."""
-from typing import Union
 import tvm
-from tvm import IRModule, relax
-from tvm.ir.transform import module_pass
-from tvm.relax.analysis import remove_all_unused
-from tvm.relax.expr_functor import mutator, PyExprMutator
+from tvm.ir.module import IRModule
+from tvm.ir.transform import PassContext
+from tvm.relax import Expr, Function
+from tvm.relax.dpl import *
+from . import function_pass
 
 
-@mutator
-class OptimizeLayoutTranformMutator(PyExprMutator):
+@function_pass(opt_level=0)
+class OptimizeLayoutTransform:
     """
-    Mutator to iterate over relax functions to
-    remove redundant transform layout operators
+    Pass to remove redundant transform layout operators
     introduced by AlterOpImpl pass.
 
     Parameters
     ----------
+    func: Expr
+        The relax function to be optimized
+
     mod: IRModule
         The ir module
 
+    ctx: PassContext
+        Relax pass context
+
     """
 
-    def __init__(self, mod: IRModule) -> None:
-        super().__init__(mod)
-        self.mod_ = mod
-        self.patterns = [["relax.layout_transform", "relax.layout_transform"]]
+    def __init__(self):
+        self.input = wildcard()
+        pattern_transform_layout = is_op("relax.layout_transform")(self.input)
+        pattern_1 = is_op("relax.layout_transform")(pattern_transform_layout)
 
-    def update_args(self, call_node: relax.Call) -> Union[None, relax.Tuple]:
-        """
-        Matches the call_node against the pattern
-        layout_transform -> layout_transform. Based on the pattern matching,
-        returns the updated arguments for call_node.
+        self.pattern = pattern_1
 
-        Parameters
-        ----------
-        call_node: relax.Call
-           Relax call node for which args need to be updated.
-        """
+    def transform_function(self, func: Expr, mod: IRModule, ctx: PassContext) -> IRModule:
 
-        def check_op_type(call_node: relax.Call, op_name: str) -> bool:
-            """
-            Helper function to check if the called TIR function is matching
-            the relax operator name.
-            """
-            if not isinstance(call_node, relax.Call):
-                return False
-            if call_node.op != tvm.ir.Op.get(op_name):
-                return False
-            return True
-
-        new_call_args = []
-        # Update args of call_node
-        for arg in call_node.args[1]:
-            if not isinstance(arg, relax.expr.Var):
-                new_call_args.append(arg)
-                continue
-
-            for pattern in self.patterns:
-                is_pattern_found = True
-                value = arg
-                for pat in pattern:
-                    if value is None:
-                        break
-                    value = self.lookup_binding(value)
-                    if not check_op_type(value, pat):
-                        is_pattern_found = False
-                        break
-                    value = value.args[0]
-
-                # Check if the shape of value matches the shape of arg to replace
-                if value is not None and list(value.struct_info.shape) != list(
-                    arg.struct_info.shape
-                ):
-                    is_pattern_found = False
-                if is_pattern_found:
-                    arg_to_update = value
-                    break
-
-            if is_pattern_found:
-                new_call_args.append(arg_to_update)
-            else:
-                new_call_args.append(arg)
-
-        return new_call_args
-
-    def transform(self) -> IRModule:
-        """
-        Iterate over all the functions in the IRModule
-        """
-        for global_var, func in self.mod_.functions.items():
+        updated_func = func
+        for global_var, func in mod.functions.items():
             # Skip non-relax functions
-            if not isinstance(func, relax.Function):
+            if not isinstance(func, Function):
                 continue
             # Skip primitive functions
             if "Primitive" in func.attrs.keys() and func.attrs["Primitive"] != 0:
                 continue
-            # Update the non-primitive Relax function
-            updated_func = self.visit_expr(func)
-            # Remove any unused bindings in the updated function
-            updated_func = remove_all_unused(updated_func)
-            self.builder_.update_func(global_var, updated_func)
 
-        # At the end of the transformation we return the updated IRModule from the BlockBuilder.
-        return self.builder_.get()
+            def rewriter(expr, matches):
+                arg1 = matches[self.pattern]
+                arg2 = matches[self.input]
+                if list(arg1.struct_info.shape) == list(arg2.struct_info.shape):
+                    return arg2
 
-    # We only need to override Call node mutator.
-    # Find out about pattern of interest and if the pattern matches, then
-    # create a new call_node with updated args.
-    def visit_call_(self, call_node: relax.Call) -> relax.Call:
-        # Check if the call node matches our expected pattern
-        if call_node.op != tvm.ir.Op.get("relax.call_tir"):
-            return call_node
+            updated_func = rewrite_call(self.pattern, rewriter, func)
 
-        new_args = self.update_args(call_node)
-
-        # Check if new_args are different from original args
-        if new_args == list(call_node.args[1]):
-            return call_node
-
-        # Construct a call to the primitive function
-        return relax.call_tir(call_node.args[0], new_args, call_node.struct_info)
-
-
-@module_pass(opt_level=0, name="OptimizeLayoutTransform")
-class OptimizeLayoutTransform:
-    """The wrapper for the optimization of layout transform pass."""
-
-    def transform_module(self, mod: IRModule, ctx: tvm.transform.PassContext):
-        return OptimizeLayoutTranformMutator(mod).transform()
+        return updated_func

@@ -21,7 +21,7 @@ import pytest
 import tvm.testing
 from tvm import relax
 from tvm.ir.base import assert_structural_equal
-from tvm.relax.transform import OptimizeLayoutTransform
+from tvm.relax.transform import DeadCodeElimination, FuseTIR, OptimizeLayoutTransform
 from tvm.script import ir as I, tir as T, relax as R
 
 
@@ -30,7 +30,11 @@ def _run_pass_compare_output(Before, Expected):
     if not relax.analysis.well_formed(fused_mod):
         print("IRModule is not well-formed")
 
-    fused_mod = relax.transform.FuseTIR()(fused_mod)
+    fused_mode = DeadCodeElimination()(fused_mod)
+    if not relax.analysis.well_formed(fused_mod):
+        print("IRModule is not well-formed")
+
+    fused_mod = FuseTIR()(fused_mod)
     if not relax.analysis.well_formed(fused_mod):
         print("IRModule is not well-formed")
 
