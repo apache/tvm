@@ -193,21 +193,21 @@ def ptx_global_to_shared_copy_fp32x1_barrier(
     T.launch_thread(bx, 1)
     T.launch_thread(tx, 32)
     with T.block():
-        barrier = T.alloc_buffer([1], "uint64", scope="shared")
         A_shared = T.alloc_buffer([32, 128], "float32", scope="shared")
-        T.reads(A[0:32, 0:128])
-        T.writes(B[0:32, 0:128], barrier[0:1])
 
-        barrier[0] = 0
-        T.evaluate(T.ptx_init_barrier_thread_count(barrier.data, 0, 32, dtype=""))
+        T.reads(A[0:32, 0:128])
+        T.writes(B[0:32, 0:128])
+
+        T.evaluate(T.create_barriers(1, dtype=""))
+        T.evaluate(T.ptx_init_barrier_thread_count(0, 32, dtype=""))
 
         T.attr("default", "async_scope", 1)
         for i in T.serial(128):
             A_shared[tx, i] = A[tx, i]
 
-        T.evaluate(T.ptx_cp_async_barrier(barrier.data, 0, dtype=""))
-        T.evaluate(T.ptx_arrive_barrier(barrier.data, 0, dtype=""))
-        T.evaluate(T.ptx_wait_barrier(barrier.data, 0, dtype=""))
+        T.evaluate(T.ptx_cp_async_barrier(0, dtype=""))
+        T.evaluate(T.ptx_arrive_barrier(0, dtype=""))
+        T.evaluate(T.ptx_wait_barrier(0, dtype=""))
 
         for i in range(128):
             B[tx, i] = A_shared[tx, i]
