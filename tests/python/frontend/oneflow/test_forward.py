@@ -705,7 +705,7 @@ def test_activation():
     class Threshold(flow.nn.Module):
         def __init__(self):
             super().__init__()
-            self.active = flow.nn.Threshold()
+            self.active = flow.nn.Threshold(0.5, 0.2)
 
         def forward(self, x):
             x = self.active(x)
