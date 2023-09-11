@@ -85,7 +85,7 @@ def test_scatter_from_worker0():
     class Expected:
         @R.function
         def main(x: R.Tensor((10, 10), dtype="float32")) -> R.Tensor((5, 10), dtype="float32"):
-            gv0: R.Tensor((5, 10), dtype="float32") = R.call_pure_packed("runtime.disco.scatter_from_worker0", x, sinfo_args=R.Tensor((5, 10), dtype="float32"))
+            gv0: R.Tensor((5, 10), dtype="float32") = R.call_dps_packed("runtime.disco.scatter_from_worker0", x, out_sinfo=R.Tensor((5, 10), dtype="float32"))
             return gv0
     # fmt: on
 

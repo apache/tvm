@@ -74,10 +74,10 @@ def _scatter_from_worker0(_bb: BlockBuilder, call: Call) -> Expr:
             output_shape.append(tir.div(shape_value, call.attrs.num_workers))
         else:
             output_shape.append(shape_value)
-    return call_pure_packed(
+    return call_dps_packed(
         "runtime.disco.scatter_from_worker0",
         call.args[0],
-        sinfo_args=TensorStructInfo(
+        out_sinfo=TensorStructInfo(
             shape=output_shape,
             dtype=call.args[0].struct_info.dtype,
             vdevice=call.args[0].struct_info.vdevice,
