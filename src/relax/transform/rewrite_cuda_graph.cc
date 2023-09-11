@@ -153,9 +153,8 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
       if (pair.second->IsInstance<FunctionNode>()) {
         // If a function has the num_input attribute, the last func->params.size() - num_inputs
         // inputs are assumed to be fixed and thus they can be captured into a cuda graph.
-        static const char* attr_num_input = "num_input";
         const auto& func = Downcast<Function>(pair.second);
-        if (auto num_input = func->attrs.GetAttr<Integer>(attr_num_input)) {
+        if (auto num_input = func->attrs.GetAttr<Integer>(attr::kNumInput)) {
           for (size_t i = num_input.value().IntValue(); i < func->params.size(); ++i) {
             static_vars_.insert(func->params[i].get());
           }

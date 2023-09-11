@@ -234,7 +234,7 @@ class TransformParamsLifter : ExprMutator {
  private:
   Expr VisitExpr_(const FunctionNode* op) override {
     auto func = GetRef<Function>(op);
-    Optional<Integer> opt_num_input = func->attrs.GetAttr<Integer>(attr_num_input_);
+    Optional<Integer> opt_num_input = func->attrs.GetAttr<Integer>(attr::kNumInput);
     if (!opt_num_input) {
       return func;
     }
@@ -300,7 +300,6 @@ class TransformParamsLifter : ExprMutator {
     return VisitExpr_(static_cast<const VarNode*>(var));
   }
 
-  const char* attr_num_input_ = "num_input";
   // Remap the original parameters to TupleGetItem from the packed tuple of transformed parameters.
   std::unordered_map<Var, Expr, ObjectPtrHash, ObjectPtrEqual> param_remap_;
   // The plan of lifting the transform params

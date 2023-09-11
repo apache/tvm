@@ -554,5 +554,94 @@ def test_symbolic_shape_multiple_function():
     assert_structural_equal(after, expected)
 
 
+def test_check_lifted_weights():
+    MS = MatchShapeCode
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main_transform_params(
+            params: R.Tuple(R.Tensor((16, 16), dtype="float32"))
+        ) -> R.Tuple(R.Tensor((16, 16), dtype="float32")):
+            R.func_attr({"relax.force_pure": 1})
+            return params
+
+        @R.function
+        def main(x: R.Tensor((16, 16), "float32"), param_0: R.Tensor((16, 16), dtype="float32")):
+            R.func_attr({"relax.force_pure": 1, "num_input": 1})
+            return (x, param_0)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main_transform_params(
+            params: R.Tuple(R.Tensor((16, 16), dtype="float32"))
+        ) -> R.Tuple(R.Tensor((16, 16), dtype="float32")):
+            R.func_attr({"relax.force_pure": 1})
+            shape_heap: R.Object = R.null_value()
+            _: R.Tuple = R.call_packed(
+                "vm.builtin.check_tuple_info",
+                params,
+                R.prim_value(1),
+                R.str(""),
+                sinfo_args=(R.Tuple,),
+            )
+            gv: R.Tensor((16, 16), dtype="float32") = params[0]
+            _1: R.Tuple = R.call_packed(
+                "vm.builtin.check_tensor_info",
+                gv,
+                R.prim_value(2),
+                R.dtype("float32"),
+                R.str(""),
+                sinfo_args=(R.Tuple,),
+            )
+            _2: R.Tuple = R.call_packed(
+                "vm.builtin.match_shape",
+                gv,
+                shape_heap,
+                R.prim_value(2),
+                MS.ASSERT_EQUAL_TO_IMM,
+                R.prim_value(16),
+                MS.ASSERT_EQUAL_TO_IMM,
+                R.prim_value(16),
+                R.str(""),
+                sinfo_args=(R.Tuple,),
+            )
+            return params
+
+        @R.function
+        def main(
+            x: R.Tensor((16, 16), dtype="float32"), param_0: R.Tensor((16, 16), dtype="float32")
+        ) -> R.Tuple(R.Tensor((16, 16), dtype="float32"), R.Tensor((16, 16), dtype="float32")):
+            R.func_attr({"num_input": 1, "relax.force_pure": 1})
+            shape_heap: R.Object = R.null_value()
+            _: R.Tuple = R.call_packed(
+                "vm.builtin.check_tensor_info",
+                x,
+                R.prim_value(2),
+                R.dtype("float32"),
+                R.str(""),
+                sinfo_args=(R.Tuple,),
+            )
+            _1: R.Tuple = R.call_packed(
+                "vm.builtin.match_shape",
+                x,
+                shape_heap,
+                R.prim_value(2),
+                MS.ASSERT_EQUAL_TO_IMM,
+                R.prim_value(16),
+                MS.ASSERT_EQUAL_TO_IMM,
+                R.prim_value(16),
+                R.str(""),
+                sinfo_args=(R.Tuple,),
+            )
+            return (x, param_0)
+
+    before = Before
+    after = relax.transform.VMShapeLower(emit_err_ctx=False)(before)
+    expected = Expected
+    assert_structural_equal(after, expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

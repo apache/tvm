@@ -241,7 +241,13 @@ class VMShapeLowerMutator
       builder_->BeginBindingBlock();
       this->builder_->EmitNormalized(shape_heap_binding);
       std::vector<MatchShapeTodoItem> match_todos;
-      for (size_t i = 0; i < func->params.size(); ++i) {
+      size_t num_input = func->params.size();
+      if (auto opt_num_input = func->attrs.GetAttr<Integer>(attr::kNumInput)) {
+        // If the function has the attribute 'num_input', do shape checking on for the real inputs
+        // and skip weights.
+        num_input = static_cast<size_t>(opt_num_input.value()->value);
+      }
+      for (size_t i = 0; i < num_input; ++i) {
         StructInfo sinfo = GetStructInfo(func->params[i]);
         std::ostringstream err_ctx;
         err_ctx << "ErrorContext(fn=" << gvar->name_hint << ", loc=param[" << i
