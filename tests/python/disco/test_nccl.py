@@ -373,4 +373,3 @@ def test_attention():  # pylint: disable=too-many-locals,too-many-statements
 
 if __name__ == "__main__":
     tvm.testing.main()
-

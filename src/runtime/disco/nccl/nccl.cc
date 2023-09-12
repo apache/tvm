@@ -233,10 +233,11 @@ TVM_REGISTER_GLOBAL("runtime.disco.nccl.init_ccl")
       }
       InitCCL(device_ids);
     });
-TVM_REGISTER_GLOBAL("runtime.disco.nccl.allreduce").set_body_typed([](NDArray send, int kind, NDArray recv) {
-  CHECK(0 <= kind && kind <= 4) << "ValueError: Unknown ReduceKind: " << kind;
-  AllReduce(send, static_cast<ReduceKind>(kind), recv);
-});
+TVM_REGISTER_GLOBAL("runtime.disco.nccl.allreduce")
+    .set_body_typed([](NDArray send, int kind, NDArray recv) {
+      CHECK(0 <= kind && kind <= 4) << "ValueError: Unknown ReduceKind: " << kind;
+      AllReduce(send, static_cast<ReduceKind>(kind), recv);
+    });
 TVM_REGISTER_GLOBAL("runtime.disco.nccl.broadcast_from_worker0")
     .set_body_typed(BroadcastFromWorker0);
 TVM_REGISTER_GLOBAL("runtime.disco.nccl.scatter_from_worker0").set_body_typed(ScatterFromWorker0);
