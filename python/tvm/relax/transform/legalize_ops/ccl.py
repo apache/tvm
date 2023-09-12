@@ -19,7 +19,7 @@
 from tvm import tir, arith
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr, ShapeExpr
-from ...op import call_pure_packed, call_dps_packed
+from ...op import call_dps_packed
 from ...struct_info import TensorStructInfo, ShapeStructInfo
 from .common import register_legalize
 
