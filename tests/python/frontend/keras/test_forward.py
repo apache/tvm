@@ -832,7 +832,7 @@ class TestKeras:
         layer = keras_mod.layers.SimpleRNN(units=4)
         y = layer(x)
         model = keras_mod.models.Model(x, y)
-        mod, _ = relay.frontend.from_keras(model, {"input_1": input_shape})
+        mod, _ = relay.frontend.from_keras(model, {model.input_names[0]: input_shape})
         relay.transform.InferType()(mod)
 
 

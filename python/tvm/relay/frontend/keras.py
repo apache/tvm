@@ -1052,31 +1052,26 @@ def _convert_simple_rnn(
         inexpr = [inexpr, prev_op]
     in_data = inexpr[0]
     prev_op = inexpr[1]
+    prev_op = _op.nn.batch_flatten(prev_op)
     weightList = keras_layer.get_weights()
-    weightList0 = weightList[0].transpose([1, 0])
-    assert len(in_data.type_annotation.shape) == 3
-    for i in range(in_data.type_annotation.shape[1].value - 1):
-        weightList0 = np.hstack((weightList0, weightList[0].transpose([1, 0])))
-    kernel_weight = etab.new_const(weightList0)
+    kernel_weight = etab.new_const(weightList[0].transpose([1, 0]))
     recurrent_weight = etab.new_const(weightList[1].transpose([1, 0]))
-    if keras_layer.use_bias:
-        in_bias = etab.new_const(weightList[2])
     units = list(weightList[0].shape)[1]
     assert units > 0, "The value of units must be a positive integer"
-    dim = weightList0.shape[0]
-    in_data = _op.nn.batch_flatten(in_data)
-    ixh = _op.nn.dense(in_data, kernel_weight, units=units)
     if keras_layer.use_bias:
-        ixh = _op.nn.bias_add(ixh, bias=in_bias)
-    split_list = []
-    for i in range(1, dim):
-        split_list.append(i)
-    ixh_tuple = _op.split(ixh, split_list, 1)
-    prev_op = _op.nn.batch_flatten(prev_op)
-    for i in range(dim):
+        in_bias = etab.new_const(weightList[2])
+    assert len(in_data.type_annotation.shape) == 3
+    timeDim = in_data.type_annotation.shape[1].value
+    in_data_split = _op.split(in_data, indices_or_sections=timeDim, axis=1)
+    for i in range(len(in_data_split)):
+        in_data_split_i = _op.nn.batch_flatten(in_data_split[i])
+        ixh = _op.nn.dense(in_data_split_i, kernel_weight, units=units)
+        if keras_layer.use_bias:
+            ixh = _op.nn.bias_add(ixh, bias=in_bias)
         ixh2 = _op.nn.dense(prev_op, recurrent_weight, units=units)
-        prev_op = ixh_tuple[0] + ixh2
-    output = prev_op
+        output = ixh + ixh2
+        output = _convert_activation(output, keras_layer, etab, data_layout)
+        prev_op = output
     return [output, output]
 
 
