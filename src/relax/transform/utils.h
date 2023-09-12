@@ -388,6 +388,20 @@ inline String GetCodegenName(const std::string& composite_name) {
   return composite_name.substr(0, delim_pos);
 }
 
+/* \brief Eliminate common subexpressions
+ *
+ * Utility for simplifying relax expressions by removing common
+ * subexpressions.
+ *
+ * \param expr The expression to be updated
+ *
+ * \param call_only If true, only eliminate relax::Call nodes.  If
+ * false, eliminate any common subexpressions.
+ *
+ * \ret The updated expression
+ */
+Expr EliminateCommonSubexpr(const Expr& expr, bool call_only = false);
+
 }  // namespace relax
 }  // namespace tvm
 
