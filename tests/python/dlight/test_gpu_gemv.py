@@ -683,5 +683,144 @@ def test_autogptq_decode_gemv():
     tvm.ir.assert_structural_equal(mod["main"], func)
 
 
+def test_outer_reduction_adreno():
+    @T.prim_func(private=True)
+    def before(
+        lv575: T.Buffer((1376, 4096), "uint32"),
+        lv576: T.Buffer((344, 4096), "float16"),
+        lv574: T.Buffer((1, 1, 11008), "float16"),
+        lv570: T.Buffer((1, 1, 4096), "float16"),
+        p_output0_intermediate: T.Buffer((1, 1, 4096), "float16"),
+    ):
+        T.func_attr({"tir.noalias": T.bool(True)})
+        # with T.block("root"):
+        p_output0_intermediate_1 = T.alloc_buffer((11008, 4096), "float16")
+        var_matmul_intermediate = T.alloc_buffer((1, 1, 4096), "float16")
+        for i, j in T.grid(11008, 4096):
+            with T.block("decode"):
+                v_i, v_j = T.axis.remap("SS", [i, j])
+                T.reads(lv575[v_i // 8, v_j], lv576[v_i // 32, v_j])
+                T.writes(p_output0_intermediate_1[v_i, v_j])
+                p_output0_intermediate_1[v_i, v_j] = (
+                    T.Cast(
+                        "float16",
+                        T.bitwise_and(
+                            T.shift_right(
+                                lv575[v_i // 8, v_j], T.Cast("uint32", v_i % 8) * T.uint32(4)
+                            ),
+                            T.uint32(15),
+                        ),
+                    )
+                    - T.float16(7)
+                ) * lv576[v_i // 32, v_j]
+        for i0, i1, i2, k in T.grid(1, 1, 4096, 11008):
+            with T.block("matmul"):
+                v_i0, v_i1, v_i2, v_k = T.axis.remap("SSSR", [i0, i1, i2, k])
+                T.reads(lv574[v_i0, v_i1, v_k], p_output0_intermediate_1[v_k, v_i2])
+                T.writes(var_matmul_intermediate[v_i0, v_i1, v_i2])
+                with T.init():
+                    var_matmul_intermediate[v_i0, v_i1, v_i2] = T.float16(0)
+                var_matmul_intermediate[v_i0, v_i1, v_i2] = (
+                    var_matmul_intermediate[v_i0, v_i1, v_i2]
+                    + lv574[v_i0, v_i1, v_k] * p_output0_intermediate_1[v_k, v_i2]
+                )
+        for ax0, ax1, ax2 in T.grid(1, 1, 4096):
+            with T.block("T_add"):
+                v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                T.reads(lv570[v_ax0, v_ax1, v_ax2], var_matmul_intermediate[v_ax0, v_ax1, v_ax2])
+                T.writes(p_output0_intermediate[v_ax0, v_ax1, v_ax2])
+                p_output0_intermediate[v_ax0, v_ax1, v_ax2] = (
+                    lv570[v_ax0, v_ax1, v_ax2] + var_matmul_intermediate[v_ax0, v_ax1, v_ax2]
+                )
+
+    @T.prim_func(private=True)
+    def expected(
+        lv575: T.Buffer((1376, 4096), "uint32"),
+        lv576: T.Buffer((344, 4096), "float16"),
+        lv574: T.Buffer((1, 1, 11008), "float16"),
+        lv570: T.Buffer((1, 1, 4096), "float16"),
+        p_output0_intermediate: T.Buffer((1, 1, 4096), "float16"),
+    ):
+        T.func_attr({"tir.is_scheduled": 1, "tir.noalias": T.bool(True)})
+        # with T.block("root"):
+        var_matmul_intermediate_local = T.alloc_buffer((1, 1, 4096), "float16", scope="local")
+        lv574_local = T.alloc_buffer((1, 1, 11008), "float16", scope="local")
+        for u_fused in T.thread_binding(1, thread="blockIdx.y"):
+            for ax0_fused_0 in T.thread_binding(32, thread="blockIdx.x"):
+                for ax0_fused_1 in T.thread_binding(
+                    64,
+                    thread="threadIdx.x",
+                    annotations={"pragma_auto_unroll_max_step": 8, "pragma_unroll_explicit": 1},
+                ):
+                    for ax0_fused_2_init in T.vectorized(2):
+                        with T.block("matmul_init"):
+                            v0 = T.axis.spatial(
+                                4096, ax0_fused_0 * 128 + ax0_fused_1 * 2 + ax0_fused_2_init
+                            )
+                            T.reads()
+                            T.writes(var_matmul_intermediate_local[0, 0, v0])
+                            var_matmul_intermediate_local[0, 0, v0] = T.float16(0)
+                    for ax1_0_fused_0, ax1_0_fused_1 in T.grid(344, 4):
+                        for ax0, ax1 in T.grid(1, 1):
+                            for ax2 in T.vectorized(8):
+                                with T.block("lv574_local"):
+                                    v0, v1 = T.axis.remap("SS", [ax0, ax1])
+                                    v2 = T.axis.spatial(
+                                        11008, ax1_0_fused_0 * 32 + ax1_0_fused_1 * 8 + ax2
+                                    )
+                                    T.reads(lv574[v0, v1, v2])
+                                    T.writes(lv574_local[v0, v1, v2])
+                                    lv574_local[v0, v1, v2] = lv574[v0, v1, v2]
+                        for ax1_1 in range(8):
+                            for ax0_fused_2 in T.vectorized(2):
+                                with T.block("matmul_update"):
+                                    v0 = T.axis.spatial(
+                                        4096, ax0_fused_0 * 128 + ax0_fused_1 * 2 + ax0_fused_2
+                                    )
+                                    v1 = T.axis.reduce(
+                                        11008, ax1_0_fused_0 * 32 + ax1_0_fused_1 * 8 + ax1_1
+                                    )
+                                    T.reads(
+                                        var_matmul_intermediate_local[0, 0, v0],
+                                        lv574_local[0, 0, v1],
+                                        lv575[v1 // 8, v0],
+                                        lv576[v1 // 32, v0],
+                                    )
+                                    T.writes(var_matmul_intermediate_local[0, 0, v0])
+                                    var_matmul_intermediate_local[
+                                        0, 0, v0
+                                    ] = var_matmul_intermediate_local[0, 0, v0] + lv574_local[
+                                        0, 0, v1
+                                    ] * (
+                                        (
+                                            T.Cast(
+                                                "float16",
+                                                T.bitwise_and(
+                                                    T.shift_right(
+                                                        lv575[v1 // 8, v0],
+                                                        T.Cast("uint32", v1 % 8) * T.uint32(4),
+                                                    ),
+                                                    T.uint32(15),
+                                                ),
+                                            )
+                                            - T.float16(7)
+                                        )
+                                        * lv576[v1 // 32, v0]
+                                    )
+                    for ax0 in range(2):
+                        with T.block("T_add"):
+                            v0 = T.axis.spatial(4096, ax0_fused_0 * 128 + ax0_fused_1 * 2 + ax0)
+                            T.reads(lv570[0, 0, v0], var_matmul_intermediate_local[0, 0, v0])
+                            T.writes(p_output0_intermediate[0, 0, v0])
+                            p_output0_intermediate[0, 0, v0] = (
+                                lv570[0, 0, v0] + var_matmul_intermediate_local[0, 0, v0]
+                            )
+
+    mod = tvm.IRModule({"main": before})
+    with Target("opencl", host="llvm -mtriple=aarch64-linux-android"):
+        mod = dl.ApplyDefaultSchedule(dl.gpu.GEMV())(mod)
+    tvm.ir.assert_structural_equal(mod["main"], expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
