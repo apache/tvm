@@ -186,10 +186,10 @@ class DFConstraintNode : public Object {
    *    variable matched by that pattern, or NullOpt if the pattern
    *    has not yet been matched.
    *
-   * \ret A tuple of `PrimExpr` and `bool`.  The first element is a
-   * necessary condition for the constraint to be satisfied.  The
-   * second tuple element indicates whether the condition is also
-   * sufficient for the constraint to be satisfied.
+   * \return A tuple of `PrimExpr` and `bool`.  The first element is a
+   *    necessary condition for the constraint to be satisfied.  The
+   *    second tuple element indicates whether the condition is also
+   *    sufficient for the constraint to be satisfied.
    */
   virtual std::tuple<PrimExpr, bool> AsPrimExpr(
       std::function<Optional<Var>(const DFPatternNode*)> match_state) const = 0;
