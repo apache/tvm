@@ -859,9 +859,24 @@ class TorchFXImporter:
         else:
             nargs = len(node.args)
             kernel = node.args[1] if nargs > 1 else node.kwargs["kernel_size"]
-            stride = node.args[2] if nargs > 2 else node.kwargs["stride"]
-            padding = node.args[3] if nargs > 3 else node.kwargs["padding"]
-            ceil_mode = node.args[4] if nargs > 4 else node.kwargs["ceil_mode"]
+            if nargs > 2:
+                stride = node.args[2]
+            elif "stride" in node.kwargs.keys():
+                stride = node.kwargs["stride"]
+            else:
+                stride = None
+            if nargs > 3:
+                padding = node.args[3]
+            elif "padding" in node.kwargs.keys():
+                padding = node.kwargs["padding"]
+            else:
+                padding = 0
+            if nargs > 4:
+                ceil_mode = node.args[4]
+            elif "ceil_mode" in node.kwargs.keys():
+                ceil_mode = node.kwargs["ceil_mode"]
+            else:
+                ceil_mode = False
 
         stride = kernel if stride is None else stride
 
