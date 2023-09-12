@@ -1429,9 +1429,7 @@ class OperatorConverter(object):
     def convert_div(self, op):
         """Convert TFLite DIV"""
         # Check if the input tensor is quantized, call QNN op
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented("TFlite quantized DIV operator is not supported yet.")
-        return self._convert_elemwise(_op.divide, op)
+        return self._convert_elemwise(_op.divide, op, self.is_quantized(op))
 
     def convert_pow(self, op):
         """Convert TFLite POW"""

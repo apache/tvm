@@ -2610,9 +2610,16 @@ def _test_mul(data, fused_activation_function=None, quantized=False, qnn_op=None
 # ------
 
 
-def _test_div(data, fused_activation_function=None):
+def _test_div(data, fused_activation_function=None, quantized=False, qnn_op=None):
     """One iteration of divide"""
-    return _test_elemwise(math_ops.divide, data, fused_activation_function)
+    return _test_elemwise(
+        math_ops.divide,
+        data,
+        fused_activation_function,
+        quantized,
+        qnn_op,
+        same_qnn_params=True,
+    )
 
 
 #######################################################################
@@ -2810,6 +2817,7 @@ def _test_elemwise_qnn_out_range(qnn_op):
         _test_add: (-150, 150),
         _test_sub: (-150, 150),
         _test_mul: (-5e3, 5e3),
+        _test_div: (-150, 150),
         _test_maximum: (-112, 111),
         _test_minimum: (-128, 127),
         _test_equal: (-150, 150),
@@ -2840,6 +2848,7 @@ def test_all_elemwise():
     _test_forward_elemwise(_test_div)
     _test_forward_elemwise(partial(_test_div, fused_activation_function="RELU"))
     _test_forward_elemwise(partial(_test_div, fused_activation_function="RELU6"))
+    _test_forward_elemwise_quantized(_test_div)
     _test_forward_elemwise(_test_pow)
     _test_forward_elemwise(_test_maximum)
     _test_forward_elemwise_quantized(_test_maximum)
