@@ -29,7 +29,7 @@
 #include <vector>
 
 #include "../../../runtime/graph_executor/graph_executor_factory.h"
-#include "../../support/base64.h"
+#include "../../../support/base64.h"
 #include "runtime_bridge.h"
 
 namespace tvm {
@@ -209,10 +209,10 @@ inline void b64decode(const std::string b64str, uint8_t* ret) {
   size_t index = 0;
   const auto length = b64str.size();
   for (size_t i = 0; i < length; i += 4) {
-    int8_t ch0 = base64::DecodeTable[(int32_t)b64str[i]];
-    int8_t ch1 = base64::DecodeTable[(int32_t)b64str[i + 1]];
-    int8_t ch2 = base64::DecodeTable[(int32_t)b64str[i + 2]];
-    int8_t ch3 = base64::DecodeTable[(int32_t)b64str[i + 3]];
+    int8_t ch0 = tvm::support::base64::DecodeTable[(int32_t)b64str[i]];
+    int8_t ch1 = tvm::support::base64::DecodeTable[(int32_t)b64str[i + 1]];
+    int8_t ch2 = tvm::support::base64::DecodeTable[(int32_t)b64str[i + 2]];
+    int8_t ch3 = tvm::support::base64::DecodeTable[(int32_t)b64str[i + 3]];
     uint8_t st1 = (ch0 << 2) + (ch1 >> 4);
     ret[index++] = st1;
     if (b64str[i + 2] != '=') {
