@@ -226,6 +226,70 @@ def test_edge_binding_block_fake_unused_remove_all_unused2():
     tvm.ir.assert_structural_equal(optimized, IdentityUnused["main"])
 
 
+def test_remove_all_unused_from_dataflow_block():
+    """Like test_chained_remove_all_unused, but on a SeqExpr"""
+
+    @R.function
+    def before(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
+        with R.dataflow():
+            lv0 = x
+            unused0 = R.call_dps_packed("my_sigmoid", (x,), R.Tensor((32, 32), dtype="float32"))
+            unused1 = R.call_dps_packed(
+                "my_dps_func", (unused0,), R.Tensor((32, 32), dtype="float32")
+            )
+            R.output(lv0)
+        return lv0
+
+    @R.function
+    def expected(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
+        with R.dataflow():
+            lv0 = x
+            R.output(lv0)
+        return lv0
+
+    after = remove_all_unused(before.body)
+    tvm.ir.assert_structural_equal(expected.body, after, map_free_vars=True)
+
+
+def test_remove_all_unused_from_binding_block():
+    """Like test_chained_remove_all_unused, but on a SeqExpr"""
+
+    @R.function
+    def before(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
+        lv0 = x
+        unused0 = R.call_dps_packed("my_sigmoid", (x,), R.Tensor((32, 32), dtype="float32"))
+        unused1 = R.call_dps_packed("my_dps_func", (unused0,), R.Tensor((32, 32), dtype="float32"))
+        return lv0
+
+    @R.function
+    def expected(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
+        lv0 = x
+        return lv0
+
+    after = remove_all_unused(before.body)
+    tvm.ir.assert_structural_equal(expected.body, after, map_free_vars=True)
+
+
+def test_retain_impure_calls_unused_in_binding_block():
+    """An impure call may have side effects, and must be kept"""
+
+    @R.function
+    def before(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
+        lv0 = x
+        unused0 = R.call_packed("my_impure_call", x, sinfo_args=R.Tensor((32, 32), dtype="float32"))
+        unused1 = R.call_dps_packed("my_unused_call", (lv0,), R.Tensor((32, 32), dtype="float32"))
+        return lv0
+
+    @R.function
+    def expected(x: R.Tensor((32, 32), "float32")) -> R.Tensor:
+        lv0 = x
+        unused0 = R.call_packed("my_impure_call", x, sinfo_args=R.Tensor((32, 32), dtype="float32"))
+        return lv0
+
+    after = remove_all_unused(before.body)
+    tvm.ir.assert_structural_equal(expected.body, after, map_free_vars=True)
+
+
 def test_name_to_binding_var_shadowing():
     @R.function
     def main(x: R.Tensor((32, 32), "float32")) -> R.Tensor:

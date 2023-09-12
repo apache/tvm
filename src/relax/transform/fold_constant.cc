@@ -34,7 +34,7 @@ class ConstantFolder : public ExprMutator {
  public:
   static Function Fold(Function func, IRModule ctx_module) {
     ConstantFolder folder(std::move(ctx_module));
-    func = RemoveAllUnused(Downcast<Function>(folder(func)));
+    func = Downcast<Function>(RemoveAllUnused(folder(func)));
     return func;
   }
 
