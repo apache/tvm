@@ -33,6 +33,7 @@
 #include <memory>
 #include <mutex>
 #include <queue>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -81,6 +82,8 @@ class DiscoWorker {
   void MainLoop();
   /*! \brief Get the worker instance on the current thread */
   static DiscoWorker* ThreadLocal();
+  /*! \brief Set the specific register to a specific value */
+  void SetRegister(int reg_id, TVMArgValue value);
 
   /*! \brief The id of the worker.*/
   int worker_id;
@@ -106,6 +109,46 @@ class DiscoWorker {
 
   struct Impl;
   friend struct DiscoWorker::Impl;
+};
+
+/*!
+ * \brief A worker thread in Disco, which upon creation, launches a new thread to run the
+ * DiscoWorker.
+ * \sa DiscoWorker
+ */
+class DiscoWorkerThread {
+ public:
+  /*!
+   * \brief Construct a worker thread.
+   * \param worker_id The id of the worker.
+   * \param num_workers The total number of workers.
+   * \param worker_zero_data_ The data shared between worker-0 and the controler. It's a nullptr if
+   * the worker is not worker-0.
+   */
+  explicit DiscoWorkerThread(int worker_id, int num_workers, WorkerZeroData* worker_zero_data_);
+
+  /*! \brief Move constructor. */
+  explicit DiscoWorkerThread(DiscoWorkerThread&& other)
+      : channel(std::move(other.channel)),
+        worker(std::move(other.worker)),
+        thread(std::move(other.thread)) {}
+
+  /*! \brief Copy constructor is disabled */
+  DiscoWorkerThread(const DiscoWorkerThread& other) = delete;
+
+  /*! \brief Destructor that joins the thread before destruction */
+  ~DiscoWorkerThread() {
+    if (this->thread != nullptr) {
+      this->thread->join();
+    }
+  }
+
+  /*! \brief The communication channel between the controler and the worker */
+  std::unique_ptr<DiscoChannel> channel;
+  /*! \brief The worker whose internal state is visible to the controler */
+  std::unique_ptr<DiscoWorker> worker;
+  /*! \brief The thread that runs the worker's main loop. */
+  std::unique_ptr<std::thread> thread;
 };
 
 }  // namespace runtime

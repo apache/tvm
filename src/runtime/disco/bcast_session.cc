@@ -68,6 +68,13 @@ void BcastSessionObj::Shutdown() {
   BcastSessionObj::Internal::BroadcastUnpacked(this, DiscoAction::kShutDown, 0);
 }
 
+void BcastSessionObj::InitCCL(String ccl, ShapeTuple device_ids) {
+  const auto* pf = runtime::Registry::Get("runtime.disco." + ccl + ".init_ccl");
+  CHECK(pf) << "ValueError: Cannot initialize CCL `" << ccl
+            << "`, because cannot find function: runtime.disco." << ccl << ".init_ccl";
+  (*pf)(GetRef<Session>(this), device_ids);
+}
+
 void BcastSessionObj::SyncWorker(int worker_id) {
   BcastSessionObj::Internal::BroadcastUnpacked(this, DiscoAction::kSyncWorker, worker_id);
   TVMArgs args = this->RecvReplyPacked(worker_id);

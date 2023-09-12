@@ -17,8 +17,7 @@
 
 # pylint: disable=redefined-builtin, wildcard-import
 """Utility Python functions for TVM testing"""
-
-from . import auto_scheduler, autotvm
+from . import auto_scheduler, autotvm, disco
 from ._ffi_api import (
     ErrorTest,
     FrontendTestModule,
