@@ -36,8 +36,6 @@ namespace codegen {
 
 void CodeGenMetal::InitFuncState(const PrimFunc& f) {
   CodeGenC::InitFuncState(f);
-  // skip the first underscore, so SSA variable starts from _1
-  name_supply_->FreshName("v_");
   // analyze the data;
   for (Var arg : f->params) {
     if (arg.dtype().is_handle()) {
@@ -54,33 +52,37 @@ CodeGenMetal::CodeGenMetal(Target target) : target_(target) {
               << "};\n\n";
 }
 
-void CodeGenMetal::PrintFunctionSignature(const String& function_name, const PrimFunc& func,
-                                          std::ostream& os) {
+void CodeGenMetal::AddFunction(const PrimFunc& f) {
+  // clear previous generated state.
+  this->InitFuncState(f);
+  // skip the first underscore, so SSA variable starts from _1
+  name_supply_->FreshName("v_");
+
   // add to alloc buffer type.
-  auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
+  auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
   ICHECK(global_symbol.defined())
       << "CodeGenC: Expect PrimFunc to have the global_symbol attribute";
 
   // Function header.
-  os << "kernel void " << static_cast<std::string>(global_symbol.value()) << "(";
+  this->stream << "kernel void " << static_cast<std::string>(global_symbol.value()) << "(";
 
   // Buffer arguments
   size_t num_buffer = 0;
   size_t limit = target_->GetAttr<Integer>("max_function_args").value().IntValue();
-  if (func->params.size() > limit) {
+  if (f->params.size() > limit) {
     LOG(WARNING) << "Probably you won't be able to execute your kernel due to high number of "
                     "buffers in the kernel";
   }
-  for (size_t i = 0; i < func->params.size(); ++i, ++num_buffer) {
-    Var v = func->params[i];
+  for (size_t i = 0; i < f->params.size(); ++i, ++num_buffer) {
+    Var v = f->params[i];
     if (!v.dtype().is_handle()) break;
-    os << "  ";
+    stream << "  ";
     std::string vid = AllocVarID(v.get());
     auto it = alloc_storage_scope_.find(v.get());
     if (it != alloc_storage_scope_.end()) {
-      PrintStorageScope(it->second, os);
+      PrintStorageScope(it->second, stream);
     }
-    PrintType(GetType(v), os);
+    PrintType(GetType(v), stream);
     // Register handle data type
     // TODO(tvm-team): consider simply keep type info in the
     // type annotation(via a normalizing rewriting).
@@ -89,18 +91,19 @@ void CodeGenMetal::PrintFunctionSignature(const String& function_name, const Pri
         RegisterHandleType(v.get(), prim->dtype);
       }
     }
-    os << ' ' << vid << " [[ buffer(" << i << ") ]],\n";
+    stream << ' ' << vid << " [[ buffer(" << i << ") ]],\n";
   }
   // Setup normal arguments.
-  size_t nargs = func->params.size() - num_buffer;
+  size_t nargs = f->params.size() - num_buffer;
   std::string varg = name_supply_->FreshName("arg");
   if (nargs != 0) {
     std::string arg_buf_type = static_cast<std::string>(global_symbol.value()) + "_args_t";
-    os << "  constant " << arg_buf_type << "& " << varg << " [[ buffer(" << num_buffer << ") ]],\n";
+    stream << "  constant " << arg_buf_type << "& " << varg << " [[ buffer(" << num_buffer
+           << ") ]],\n";
     // declare the struct
     decl_stream << "struct " << arg_buf_type << " {\n";
-    for (size_t i = num_buffer; i < func->params.size(); ++i) {
-      Var v = func->params[i];
+    for (size_t i = num_buffer; i < f->params.size(); ++i) {
+      Var v = f->params[i];
       ICHECK(!v.dtype().is_handle());
       std::string vid = AllocVarID(v.get());
       std::ostringstream vref;
@@ -128,7 +131,7 @@ void CodeGenMetal::PrintFunctionSignature(const String& function_name, const Pri
   ICHECK_EQ(name_supply_->FreshName("threadIdx"), "threadIdx");
   ICHECK_EQ(name_supply_->FreshName("blockIdx"), "blockIdx");
   int work_dim = 0;
-  auto launch_params = func->GetAttr<Array<String>>(tir::attr::kKernelLaunchParams).value();
+  auto launch_params = f->GetAttr<Array<String>>(tir::attr::kKernelLaunchParams).value();
   for (const auto& tag : launch_params) {
     if (tag != runtime::launch_param::kUseDynamicSharedMemoryTag) {
       runtime::ThreadScope scope = runtime::ThreadScope::Create(tag);
@@ -147,7 +150,13 @@ void CodeGenMetal::PrintFunctionSignature(const String& function_name, const Pri
   }
   thread_work_dim_ = work_dim;
 
-  stream << ")";
+  // the function scope.
+  stream << ") {\n";
+  int func_scope = this->BeginScope();
+  this->PrintStmt(f->body);
+  this->EndScope(func_scope);
+  this->PrintIndent();
+  this->stream << "}\n\n";
 }
 
 void CodeGenMetal::BindThreadIndex(const IterVar& iv) {
@@ -333,33 +342,27 @@ runtime::Module BuildMetal(IRModule mod, Target target) {
   const auto* fmetal_compile = Registry::Get("tvm_callback_metal_compile");
   std::string fmt = fmetal_compile ? "metallib" : "metal";
 
-  Map<GlobalVar, PrimFunc> functions;
-  for (auto [gvar, base_func] : mod->functions) {
-    ICHECK(base_func->IsInstance<PrimFuncNode>()) << "CodeGenMetal: Can only take PrimFunc";
-    auto calling_conv = base_func->GetAttr<Integer>(tvm::attr::kCallingConv);
+  for (auto kv : mod->functions) {
+    ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenMetal: Can only take PrimFunc";
+    auto global_symbol = kv.second->GetAttr<String>(tvm::attr::kGlobalSymbol);
+    ICHECK(global_symbol.defined());
+    std::string func_name = global_symbol.value();
+
+    source_maker << "// Function: " << func_name << "\n";
+    CodeGenMetal cg(target);
+    cg.Init(output_ssa);
+    auto f = Downcast<PrimFunc>(kv.second);
+    auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
     ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
         << "CodeGenMetal: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
 
-    auto prim_func = Downcast<PrimFunc>(base_func);
-    functions.Set(gvar, prim_func);
-  }
-
-  for (auto [gvar, prim_func] : functions) {
-    source_maker << "// Function: " << gvar->name_hint << "\n";
-    CodeGenMetal cg(target);
-    cg.Init(output_ssa);
-
-    for (auto [other_gvar, other_prim_func] : functions) {
-      cg.DeclareFunction(other_gvar, other_prim_func);
-    }
-    cg.AddFunction(gvar, prim_func);
-
+    cg.AddFunction(f);
     std::string fsource = cg.Finish();
     source_maker << fsource << "\n";
     if (fmetal_compile) {
       fsource = (*fmetal_compile)(fsource, target).operator std::string();
     }
-    smap[cg.GetFunctionName(gvar)] = fsource;
+    smap[func_name] = fsource;
   }
 
   return MetalModuleCreate(smap, ExtractFuncInfo(mod), fmt, source_maker.str());
