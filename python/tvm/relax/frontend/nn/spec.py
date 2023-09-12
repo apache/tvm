@@ -18,7 +18,7 @@
 from collections import defaultdict
 import inspect
 import threading
-from typing import Any, Callable, Dict, List, Sequence, Tuple, Union, Optional
+import typing
 
 from tvm import tir
 from tvm.ir import IRModule
@@ -26,12 +26,13 @@ from tvm.runtime import load_static_library
 
 from ... import expr as rx
 from ...block_builder import BlockBuilder
-from ...struct_info import ShapeStructInfo
+from ...struct_info import ShapeStructInfo, TupleStructInfo
 from . import core
 
-ArgSpecType = Union["Int", "Tensor"]
-MethodSpecType = Union["MethodSpec", Dict[str, ArgSpecType]]
-ModuleSpecType = Union["ModuleSpec", Dict[str, MethodSpecType]]
+ArgSpecType = typing.Union["Int", "Tensor"]
+MethodSpecType = typing.Union["MethodSpec", typing.Dict[str, ArgSpecType]]
+ModuleSpecType = typing.Union["ModuleSpec", typing.Dict[str, MethodSpecType]]
+SpecAny = typing.Union["Int", "Tensor", "Tuple"]
 
 
 class Int:  # pylint: disable=too-few-public-methods
@@ -47,10 +48,10 @@ class Int:  # pylint: disable=too-few-public-methods
 class Tensor:  # pylint: disable=too-few-public-methods
     """A tensor input with static ndim and dtype, but can have symbolic shapes."""
 
-    shape: List[Union[int, str]]
+    shape: typing.List[typing.Union[int, str]]
     dtype: str
 
-    def __init__(self, shape: Sequence[Union[int, str]], dtype: str) -> None:
+    def __init__(self, shape: typing.Sequence[typing.Union[int, str]], dtype: str) -> None:
         self.shape = list(shape)
         self.dtype = dtype
 
@@ -59,14 +60,38 @@ class Tensor:  # pylint: disable=too-few-public-methods
         return f"Tensor([{shape}], '{self.dtype}')"
 
 
+class Tuple:
+    """A tuple input or a list input"""
+
+    name: str
+    elements: typing.Union[typing.List[SpecAny], typing.Tuple[SpecAny, ...]]
+
+    def __init__(
+        self,
+        name: str,
+        elements: typing.Union[typing.List[SpecAny], typing.Tuple[SpecAny, ...]],
+    ) -> None:
+        assert isinstance(elements, (tuple, list)), f"Unsupported container type: {type(elements)}"
+        self.name = name
+        self.elements = elements
+
+    def __repr__(self) -> str:
+        return self.elements.__repr__()
+
+
 class MethodSpec:
     """A spec for a compiled method"""
 
-    method: Callable
-    arg_names: List[str]
-    arg_specs: List[ArgSpecType]
+    method: typing.Callable
+    arg_names: typing.List[str]
+    arg_specs: typing.List[ArgSpecType]
 
-    def __init__(self, method: Callable, arg_names: List[str], arg_specs: List[ArgSpecType]):
+    def __init__(
+        self,
+        method: typing.Callable,
+        arg_names: typing.List[str],
+        arg_specs: typing.List[ArgSpecType],
+    ):
         self.method = method
         self.arg_names = arg_names
         self.arg_specs = arg_specs
@@ -85,7 +110,7 @@ class MethodSpec:
         return self._repr(name="MethodSpec")
 
     @staticmethod
-    def from_raw(spec: MethodSpecType, method: Callable) -> "MethodSpec":
+    def from_raw(spec: MethodSpecType, method: typing.Callable) -> "MethodSpec":
         """Create MethodSpec from raw python dictionaries.
 
         Examples
@@ -105,22 +130,37 @@ class MethodSpec:
         method_signature = inspect.signature(method)
         arg_names = list(method_signature.parameters.keys())
         arg_specs = []
+
+        def _convert_arg_spec(arg_spec, arg_name):
+            if arg_spec is Int or arg_spec is int:
+                return Int()
+            elif isinstance(arg_spec, str) and arg_spec == "int":
+                return Int()
+            elif isinstance(arg_spec, (Int, Tensor)):
+                return arg_spec
+            elif isinstance(arg_spec, (tuple, list, Tuple)):
+                return Tuple(
+                    arg_name,
+                    elements=type(arg_spec)(
+                        [
+                            _convert_arg_spec(arg_spec_i, f"{arg_name}_{i}")
+                            for i, arg_spec_i in enumerate(arg_spec)
+                        ]
+                    ),
+                )
+
+            else:
+                raise TypeError(f"Invalid spec for argument {arg_name}: {arg_spec}")
+
         for arg_name in arg_names:
             if arg_name in spec:
                 arg_spec = spec[arg_name]
-                if arg_spec is Int or arg_spec is int:
-                    arg_spec = Int()
-                elif isinstance(arg_spec, str) and arg_spec == "int":
-                    arg_spec = Int()
-                elif isinstance(arg_spec, (Int, Tensor)):
-                    pass
-                else:
-                    raise TypeError(f"Invalid spec for argument {arg_name}: {arg_spec}")
+                arg_spec = _convert_arg_spec(arg_spec, arg_name)
                 arg_specs.append(arg_spec)
         return MethodSpec(method, arg_names, arg_specs)
 
     @staticmethod
-    def from_torch(args: List[Any], method: Callable) -> "MethodSpec":
+    def from_torch(args: typing.List[typing.Any], method: typing.Callable) -> "MethodSpec":
         """Converts a list of torch tensors to MethodSpec."""
         from .torch import (  # pylint: disable=import-outside-toplevel
             _method_spec_from_torch,
@@ -128,9 +168,9 @@ class MethodSpec:
 
         return _method_spec_from_torch(args, method)
 
-    def as_inputs(self) -> List[Union[tir.Var, core.Tensor]]:
+    def as_inputs(self) -> typing.List[typing.Union[tir.Var, core.Tensor]]:
         """Convert the MethodSpec to a list of inputs to Module's method."""
-        str2var: Dict[str, tir.Var] = {}
+        str2var: typing.Dict[str, tir.Var] = {}
 
         def _get_var(name: str) -> tir.Var:
             if name in str2var:
@@ -139,8 +179,7 @@ class MethodSpec:
             str2var[name] = var
             return var
 
-        args = []
-        for arg_name, arg_spec in zip(self.arg_names, self.arg_specs):
+        def _convert_input(arg_name, arg_spec):
             if isinstance(arg_spec, Int):
                 arg = _get_var(arg_name)
             elif isinstance(arg_spec, Tensor):
@@ -149,8 +188,26 @@ class MethodSpec:
                     shape=[_get_var(x) if isinstance(x, str) else x for x in arg_spec.shape],
                     dtype=arg_spec.dtype,
                 )
+            elif isinstance(arg_spec, Tuple):
+                elements = type(arg_spec.elements)(
+                    [
+                        _convert_input(
+                            arg_name=arg_name + f"_tmp{i}", arg_spec=arg_spec.elements[i]
+                        )
+                        for i in range(len(arg_spec.elements))
+                    ]
+                )
+                arg = Tuple(
+                    name=arg_name,
+                    elements=elements,
+                )
             else:
                 raise TypeError(f"Invalid spec for argument {arg_name}: {arg_spec}")
+            return arg
+
+        args = []
+        for arg_name, arg_spec in zip(self.arg_names, self.arg_specs):
+            arg = _convert_input(arg_name=arg_name, arg_spec=arg_spec)
             args.append(arg)
         return args
 
@@ -159,14 +216,14 @@ class ModuleSpec:
     """A spec for a compiled nn.Module"""
 
     module: core.Module
-    method_names: List[str]
-    method_specs: List[MethodSpecType]
+    method_names: typing.List[str]
+    method_specs: typing.List[MethodSpecType]
 
     def __init__(
         self,
         module: core.Module,
-        method_names: List[str],
-        method_specs: List[MethodSpecType],
+        method_names: typing.List[str],
+        method_specs: typing.List[MethodSpecType],
     ) -> None:
         self.module = module
         self.method_names = method_names
@@ -226,10 +283,12 @@ class ExternFunctionSpec:
     """A spec for a compiled external function."""
 
     symbol: str
-    args: List[Tensor]
-    ret: Union[Tensor, List[Tensor]]
+    args: typing.List[Tensor]
+    ret: typing.Union[Tensor, typing.List[Tensor]]
 
-    def __init__(self, symbol: str, args: List[Tensor], ret: Union[Tensor, List[Tensor]]) -> None:
+    def __init__(
+        self, symbol: str, args: typing.List[Tensor], ret: typing.Union[Tensor, typing.List[Tensor]]
+    ) -> None:
         self.symbol = symbol
         self.args = args
         self.ret = ret
@@ -247,9 +306,9 @@ class ExternModuleSpec:
     """A spec for a compiled external Module."""
 
     filename: str
-    functions: List[ExternFunctionSpec]
+    functions: typing.List[ExternFunctionSpec]
 
-    def __init__(self, filename: str, functions: List[ExternFunctionSpec]) -> None:
+    def __init__(self, filename: str, functions: typing.List[ExternFunctionSpec]) -> None:
         self.filename = filename
         self.functions = functions
 
@@ -290,11 +349,11 @@ class SpecBuilder:
 
     def build(
         self, spec: ModuleSpec, debug: bool = False
-    ) -> Tuple[IRModule, List[Tuple[str, core.Parameter]]]:
+    ) -> typing.Tuple[IRModule, typing.List[typing.Tuple[str, core.Parameter]]]:
         """Build the ModuleSpec to TVM IRModule. Returns the IRModule and the parameters."""
 
         # pylint: disable=protected-access
-        def _params() -> List[Tuple[str, core.Parameter]]:
+        def _params() -> typing.List[typing.Tuple[str, core.Parameter]]:
             params = []
             for name, param in core._attribute_finder(
                 spec.module, prefix="", condition_yield=lambda x: isinstance(x, core.Parameter)
@@ -302,7 +361,7 @@ class SpecBuilder:
                 params.append((name, param))
             return params
 
-        def _effects() -> List[Tuple[str, core.Effect]]:
+        def _effects() -> typing.List[typing.Tuple[str, core.Effect]]:
             result = []
             if self.io_effect is not None:
                 result.append(("", self.io_effect))
@@ -312,7 +371,7 @@ class SpecBuilder:
                 result.append((name, effect))
             return result
 
-        def _extern_modules() -> List[Tuple[str, List[str]]]:
+        def _extern_modules() -> typing.List[typing.Tuple[str, typing.List[str]]]:
             mod2func = defaultdict(set)
             for _, extern_module in core._attribute_finder(
                 spec.module, "", condition_yield=lambda x: isinstance(x, core.ExternModule)
@@ -358,7 +417,7 @@ class SpecBuilder:
 
 def _emit_effect_init(
     builder: BlockBuilder,
-    effects: List[Tuple[str, core.Effect]],
+    effects: typing.List[typing.Tuple[str, core.Effect]],
 ):
     outputs = []
     for prefix, effect in effects:
@@ -372,11 +431,11 @@ def _emit_effect_init(
 def _emit_method(
     builder: BlockBuilder,
     spec: MethodSpec,
-    params: List[Tuple[str, core.Parameter]],
-    effects: Optional[List[Tuple[str, core.Effect]]],
+    params: typing.List[typing.Tuple[str, core.Parameter]],
+    effects: typing.Optional[typing.List[typing.Tuple[str, core.Effect]]],
 ):
     # pylint: disable=protected-access
-    def _unwrap_ret(expr: Any) -> Any:
+    def _unwrap_ret(expr: typing.Any) -> typing.Any:
         if isinstance(expr, core.Tensor):
             return expr._expr  # pylint: disable=protected-access
         if isinstance(expr, tuple):
@@ -390,6 +449,13 @@ def _emit_method(
             return rx.Var(arg.name, struct_info=ShapeStructInfo(values=[arg]))
         if isinstance(arg, core.Tensor):
             return arg._expr  # pylint: disable=protected-access
+        if isinstance(arg, Tuple):
+            return rx.Var(
+                arg.name,
+                struct_info=TupleStructInfo(
+                    [_convert_input(arg_i).struct_info for arg_i in arg.elements]
+                ),
+            )
         raise TypeError(f"Unsupported input type: {type(arg)}")
 
     explicit_inputs = spec.as_inputs()
@@ -402,6 +468,24 @@ def _emit_method(
         param._expr = core._tensor_placeholder(name, param.shape, param.dtype)._expr
         inputs.append(param._expr)
         # pylint: enable=protected-access
+
+    def _detuple(arg, var: rx.Var, builder: BlockBuilder):
+        if isinstance(arg, Tuple):
+            ret = []
+            for i in range(len(arg.elements)):
+                field = builder.emit(rx.TupleGetItem(var, i), name_hint=f"{arg.name}_{i}")
+                ret.append(_detuple(arg.elements[i], field, builder))
+            return type(arg.elements)(ret)
+        elif isinstance(arg, core.Tensor):
+            return core.Tensor(_expr=var)
+        elif isinstance(arg, tir.Var):
+            return arg
+        else:
+            raise TypeError(f"Unsupported input type: {type(arg)}")
+
+    for arg_idx, (arg, var) in enumerate(zip(explicit_inputs, inputs)):
+        if isinstance(arg, Tuple):
+            explicit_inputs[arg_idx] = _detuple(arg, var, builder)
 
     outputs = spec.method(*explicit_inputs)
     effect_outputs = []

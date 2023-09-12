@@ -16,12 +16,14 @@
 # under the License.
 import numpy as np
 import pytest
+from typing import Tuple, List
 
 import tvm
 import tvm.testing
 from tvm import relax
 from tvm.ir import assert_structural_equal
 from tvm.relax.frontend.nn import core, modules, spec
+from tvm.relax.frontend import nn
 from tvm.script import ir as I
 from tvm.script import relax as R
 
@@ -527,6 +529,84 @@ def test_attention():
         debug=True,
     )
     assert_structural_equal(tvm_mod["forward"], forward, True)
+
+
+def test_nn_module_tuple_input():
+    class Layer(nn.Module):
+        def __init__(self):
+            pass
+
+        def forward(self, x: Tuple[nn.Tensor, nn.Tensor]):
+            x0 = x[0]
+            x1 = x[1]
+            y0 = nn.add(x0, x1)
+            y1 = nn.subtract(x0, x1)
+            return (y0, y1)
+
+    # fmt: off
+    @R.function
+    def forward(x: R.Tuple(R.Tensor((10, 5), dtype="float32"), R.Tensor((10, 5), dtype="float32")), _io: R.Object) -> R.Tuple(R.Tuple(R.Tensor((10, 5), dtype="float32"), R.Tensor((10, 5), dtype="float32")), R.Tuple(R.Object)):
+        R.func_attr({"num_input": 2})
+        with R.dataflow():
+            lv1: R.Tensor((10, 5), dtype="float32") = x[0]
+            lv2: R.Tensor((10, 5), dtype="float32") = x[1]
+            add: R.Tensor((10, 5), dtype="float32") = R.add(lv1, lv2)
+            subtract: R.Tensor((10, 5), dtype="float32") = R.subtract(lv1, lv2)
+            gv1: R.Tuple(R.Tuple(R.Tensor((10, 5), dtype="float32"), R.Tensor((10, 5), dtype="float32")), R.Tuple(R.Object)) = (add, subtract), (_io,)
+            R.output(gv1)
+        return gv1
+    # fmt: on
+
+    mod = Layer()
+    tvm_mod, _ = mod.export_tvm(
+        spec={
+            "forward": {
+                "x": (spec.Tensor([10, 5], dtype="float32"), spec.Tensor([10, 5], dtype="float32"))
+            }
+        },
+        debug=True,
+    )
+
+    assert_structural_equal(tvm_mod["forward"], forward)
+
+
+def test_nn_module_list_input():
+    class Layer(nn.Module):
+        def __init__(self):
+            pass
+
+        def forward(self, x: List[nn.Tensor]):
+            x0 = x[0]
+            x1 = x[1]
+            y0 = nn.add(x0, x1)
+            y1 = nn.subtract(x0, x1)
+            return [y0, y1]
+
+    # fmt: off
+    @R.function
+    def forward(x: R.Tuple(R.Tensor((10, 5), dtype="float32"), R.Tensor((10, 5), dtype="float32")), _io: R.Object) -> R.Tuple(R.Tuple(R.Tensor((10, 5), dtype="float32"), R.Tensor((10, 5), dtype="float32")), R.Tuple(R.Object)):
+        R.func_attr({"num_input": 2})
+        with R.dataflow():
+            lv1: R.Tensor((10, 5), dtype="float32") = x[0]
+            lv2: R.Tensor((10, 5), dtype="float32") = x[1]
+            add: R.Tensor((10, 5), dtype="float32") = R.add(lv1, lv2)
+            subtract: R.Tensor((10, 5), dtype="float32") = R.subtract(lv1, lv2)
+            gv1: R.Tuple(R.Tuple(R.Tensor((10, 5), dtype="float32"), R.Tensor((10, 5), dtype="float32")), R.Tuple(R.Object)) = (add, subtract), (_io,)
+            R.output(gv1)
+        return gv1
+    # fmt: on
+
+    mod = Layer()
+    tvm_mod, _ = mod.export_tvm(
+        spec={
+            "forward": {
+                "x": [spec.Tensor([10, 5], dtype="float32"), spec.Tensor([10, 5], dtype="float32")]
+            }
+        },
+        debug=True,
+    )
+
+    assert_structural_equal(tvm_mod["forward"], forward)
 
 
 if __name__ == "__main__":
