@@ -874,3 +874,29 @@ TEST(Variant, InvalidTypeThrowsError) {
 
   EXPECT_THROW(expected_to_throw(), InternalError);
 }
+
+TEST(Variant, ReferenceIdentifyPreservedThroughAssignment) {
+  Variant<PrimExpr, String> variant;
+  ICHECK(!variant.defined());
+
+  String string_obj = "dummy_test";
+  variant = string_obj;
+  ICHECK(variant.defined());
+  ICHECK(variant.same_as(string_obj));
+  ICHECK(string_obj.same_as(variant));
+
+  String out_string_obj = Downcast<String>(variant);
+  ICHECK(string_obj.same_as(out_string_obj));
+}
+
+TEST(Variant, ExtractValueFromAssignment) {
+  Variant<PrimExpr, String> variant = String("hello");
+  ICHECK_EQ(variant.as<String>().value(), "hello");
+}
+
+TEST(Variant, AssignmentFromVariant) {
+  Variant<PrimExpr, String> variant = String("hello");
+  auto variant2 = variant;
+  ICHECK(variant2.as<String>());
+  ICHECK_EQ(variant2.as<String>().value(), "hello");
+}
