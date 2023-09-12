@@ -24,6 +24,7 @@ import tvm
 import tvm.testing
 import tvm.topi.testing
 from tvm import relay
+from packaging import version as package_version
 
 MODEL_HOME = "test_model"
 
@@ -702,6 +703,15 @@ def test_activation():
             x = x.softmax(dim=-1)
             return x
 
+    class Threshold(flow.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.active = flow.nn.Threshold(0.5, 0.2)
+
+        def forward(self, x):
+            x = self.active(x)
+            return x
+
     if os.path.exists(MODEL_HOME):
         rmdir(MODEL_HOME)
 
@@ -737,6 +747,11 @@ def test_activation():
             device=device,
             inputs=flow.tensor(np.random.rand(1, 12, 197, 197).astype(np.float32)),
         )
+
+    # Threshold was introduced in the version 0.8.0 of oneflow
+    if package_version.parse(flow.__version__) >= package_version.parse("0.8.0"):
+        model14 = Threshold().eval()
+        verify_activation(model14, device="llvm")
 
 
 @tvm.testing.uses_gpu
