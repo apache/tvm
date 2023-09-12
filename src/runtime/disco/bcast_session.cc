@@ -22,6 +22,8 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 
+#include <sstream>
+
 namespace tvm {
 namespace runtime {
 
@@ -87,6 +89,24 @@ DRef BcastSessionObj::CallWithPacked(const TVMArgs& args) {
     setter(0, static_cast<int>(DiscoAction::kCallPacked));
     setter(1, reg_id);
     setter(2, func->reg_id);
+  }
+  {
+    std::ostringstream os;
+    int cnt = 0;
+    for (int i = 3; i < num_args; ++i) {
+      int type_code = type_codes[i];
+      if (type_code != kDLInt && type_code != kDLUInt && type_code != kDLFloat &&
+          type_code != kTVMDataType && type_code != kDLDevice && type_code != kTVMOpaqueHandle &&
+          type_code != kTVMStr && type_code != kTVMNullptr && type_code != kTVMBytes &&
+          type_code != kTVMObjectHandle) {
+        os << "\n  Argument #" << i << " has unsupported type code: " << type_code << " ("
+           << ArgTypeCode2Str(type_code) << ")";
+        cnt += 1;
+      }
+    }
+    if (cnt > 0) {
+      LOG(FATAL) << "CallWithPacked() does not support " << cnt << " argument(s):" << os.str();
+    }
   }
   this->BroadcastPacked(TVMArgs(values, type_codes, num_args));
   return BcastSessionObj::Internal::MakeDRef(reg_id, GetRef<Session>(this));

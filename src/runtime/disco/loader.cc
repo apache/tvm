@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/runtime/data_type.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 
@@ -42,8 +43,7 @@ class ShardLoaderObj : public Object {
  public:
   /*! \brief Create a shard loader. */
   static ObjectRef Create(const std::string& path_to_metadata, const std::string& metadata,
-                          const std::string& shard_info,
-                          TypedPackedFunc<void(DLTensor*, int, DLTensor*)> f_shard);
+                          const std::string& shard_info, Module mod);
   /*! \brief Load the i-th parameter */
   NDArray Load(int weight_index) const;
   /*! \brief Load all the parameters */
@@ -68,7 +68,9 @@ class ShardLoaderObj : public Object {
   /*! \brief Maps the name of a shard to its index */
   std::unordered_map<std::string, int> param_name_to_index_;
   /*! \brief A method to slice a 3-D tensor */
-  TypedPackedFunc<void(DLTensor*, int, DLTensor*)> f_shard_;
+  TypedPackedFunc<void(DLTensor*, int, DLTensor*)> f_shard3d_fp16_;
+  TypedPackedFunc<void(DLTensor*, int, DLTensor*)> f_shard3d_fp32_;
+  TypedPackedFunc<void(DLTensor*, int, DLTensor*)> f_shard3d_uint32_;
   /*! \brief The current file opened to load weights in it */
   mutable const FileRecord* current_file_;
   /*! \brief The context of the current file to be loaded from */
@@ -98,10 +100,14 @@ inline std::vector<ShapeTuple::index_type> ShardShape(const ShapeTuple& shape, i
 }
 
 ObjectRef ShardLoaderObj::Create(const std::string& path_to_metadata, const std::string& metadata,
-                                 const std::string& shard_info,
-                                 TypedPackedFunc<void(DLTensor*, int, DLTensor*)> f_shard) {
+                                 const std::string& shard_info, Module mod) {
   ObjectPtr<ShardLoaderObj> n = make_object<ShardLoaderObj>();
-  n->f_shard_ = f_shard;
+  n->f_shard3d_fp16_ = mod->GetFunction("shard3d_fp16", true);
+  n->f_shard3d_fp32_ = mod->GetFunction("shard3d_fp32", true);
+  n->f_shard3d_uint32_ = mod->GetFunction("shard3d_uint32", true);
+  CHECK(n->f_shard3d_fp16_ != nullptr) << "ValueError: Cannot find the function: shard3d_fp16";
+  CHECK(n->f_shard3d_fp32_ != nullptr) << "ValueError: Cannot find the function: shard3d_fp32";
+  CHECK(n->f_shard3d_uint32_ != nullptr) << "ValueError: Cannot find the function: shard3d_uint32";
   n->metadata_ = NDArrayCacheMetadata::LoadFromStr(metadata, path_to_metadata);
   n->current_file_ = nullptr;
   n->shard_info_.clear();
@@ -205,7 +211,15 @@ NDArray ShardLoaderObj::Shard(NDArray source, int dim, int num_slices) const {
   dst_tensor.ndim = 4;
   dst_tensor.shape = dst_flat;
   // Copy slices using the API
-  this->f_shard_(&src_tensor, num_slices, &dst_tensor);
+  if (source.DataType() == DataType::Float(32)) {
+    this->f_shard3d_fp32_(&src_tensor, num_slices, &dst_tensor);
+  } else if (source.DataType() == DataType::Float(16)) {
+    this->f_shard3d_fp16_(&src_tensor, num_slices, &dst_tensor);
+  } else if (source.DataType() == DataType::UInt(32)) {
+    this->f_shard3d_uint32_(&src_tensor, num_slices, &dst_tensor);
+  } else {
+    LOG(FATAL) << "ValueError: Unsupported data type: " << source.DataType();
+  }
   return destination;
 }
 

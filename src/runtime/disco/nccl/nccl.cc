@@ -23,6 +23,7 @@
 #include <tvm/runtime/registry.h>
 
 #include <mutex>
+#include <sstream>
 #include <vector>
 
 #include "../../cuda/cuda_common.h"
@@ -41,6 +42,19 @@ struct NCCLGlobalContext {
   }
 
   void Initialize(const std::vector<int>& device_ids) {
+    {
+      std::ostringstream os;
+      bool is_first = true;
+      for (int device_id : device_ids) {
+        if (!is_first) {
+          os << ",";
+        } else {
+          is_first = false;
+        }
+        os << device_id;
+      }
+      LOG(INFO) << "Initializing NCCL with devices: " << os.str() << ".";
+    }
     // TODO(@junrushao): support more flexible communicator pattern for generic SPMD usecases
     DiscoWorker* worker = DiscoWorker::ThreadLocal();
     int num_workers = worker->num_workers;
@@ -208,6 +222,11 @@ void RecvFromWorker0(NDArray buffer) {
   NCCL_CALL(ncclGroupEnd());
 }
 
+void SyncWorker() {
+  NCCLThreadLocalContext* ctx = NCCLThreadLocalContext::Get();
+  CUDA_CALL(cudaStreamSynchronize(ctx->stream));
+}
+
 TVM_REGISTER_GLOBAL("runtime.disco.nccl.init_ccl")
     .set_body([](TVMArgs args, TVMRetValue* rv) -> void {
       std::vector<int> device_ids;
@@ -225,6 +244,7 @@ TVM_REGISTER_GLOBAL("runtime.disco.nccl.broadcast_from_worker0")
 TVM_REGISTER_GLOBAL("runtime.disco.nccl.scatter_from_worker0").set_body_typed(ScatterFromWorker0);
 TVM_REGISTER_GLOBAL("runtime.disco.nccl.gather_to_worker0").set_body_typed(GatherToWorker0);
 TVM_REGISTER_GLOBAL("runtime.disco.nccl.recv_from_worker0").set_body_typed(RecvFromWorker0);
+TVM_REGISTER_GLOBAL("runtime.disco.nccl.sync_worker").set_body_typed(SyncWorker);
 
 }  // namespace nccl
 }  // namespace runtime

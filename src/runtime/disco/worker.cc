@@ -18,9 +18,12 @@
  */
 #include "./worker.h"
 
+#include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/registry.h>
 
 #include <thread>
+
+#include "./builtin.h"
 
 namespace tvm {
 namespace runtime {
@@ -34,7 +37,11 @@ struct ThreadLocalDiscoWorker {
   }
 };
 
-DiscoWorker* DiscoWorker::ThreadLocal() { return ThreadLocalDiscoWorker::Get()->worker; }
+DiscoWorker* DiscoWorker::ThreadLocal() {
+  DiscoWorker* ret = ThreadLocalDiscoWorker::Get()->worker;
+  CHECK(ret) << "ValueError: The current thread is not a DiscoWorker thread";
+  return ret;
+}
 
 struct DiscoWorker::Impl {
   static void MainLoop(DiscoWorker* self) {
@@ -116,6 +123,7 @@ struct DiscoWorker::Impl {
 
   static void SyncWorker(DiscoWorker* self, int worker_id) {
     if (worker_id == self->worker_id) {
+      ::tvm::runtime::SyncWorker();
       TVMValue values[2];
       int type_codes[2];
       PackArgs(values, type_codes, static_cast<int>(DiscoAction::kSyncWorker), worker_id);

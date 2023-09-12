@@ -182,6 +182,13 @@ class SessionObj : public Object {
    */
   template <typename... Args>
   DRef TVM_ALWAYS_INLINE CallPacked(const DRef& func, Args&&... args);
+  /*!
+   * \brief Call packed function on each worker using a packed sequence. The calling convention:
+   * The first element must be DiscoAction::kCallPacked,
+   * The second element must be 0, which will later be updated by the session to return reg_id
+   * The thirtd element is the function to be called.
+   */
+  virtual DRef CallWithPacked(const TVMArgs& args) = 0;
   /*! \brief Get a global functions on workers. */
   virtual DRef GetGlobalFunc(const std::string& name) = 0;
   /*!
@@ -224,8 +231,6 @@ class SessionObj : public Object {
  protected:
   /*! \brief Deallocate a register id, kill it on all workers, and append it to `free_regs_`. */
   virtual void DeallocReg(int reg_id) = 0;
-  /*! \brief Call packed function on each worker using a packed sequence */
-  virtual DRef CallWithPacked(const TVMArgs& args) = 0;
 };
 
 /*!
