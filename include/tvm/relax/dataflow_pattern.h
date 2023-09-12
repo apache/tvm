@@ -164,18 +164,21 @@ class DFConstraintNode : public Object {
   /*! \brief Return the patterns on which the constraint depends */
   virtual Array<DFPattern> GetDependentPatterns() const = 0;
 
-  /*! \brief Validate the constraint
+  /*! \brief Convert the constraint to a PrimExpr
    *
-   * If the constraint passes, should return true.  The constraint
-   * will not be checked again unless the pattern matcher backtracks
-   * to a state prior to the validation.
+   * If the returned boolean parameter is true, then the returned
+   * expression is a necessary-and-sufficient condition for evaluating
+   * the constraint.  In this case, the matcher may either mark the
+   * constraint as satisfied (no need to re-check later), or as failed
+   * (need to back-track).
    *
-   * If the constraint fails, should return false.  The pattern
-   * matcher will backtrack as a result.
-   *
-   * If a constraint cannot yet be determined, return NullOpt.  This
-   * is typically because the pattern matcher has not yet determined
-   * an expression for one or more of the dependent patterns.
+   * If the returned boolean parameter is false, then the returned
+   * expression is a necessary-but-not-sufficient condition for
+   * evaluating the constraint.  In this case, the matcher may start
+   * backtracking as a result of a failed condition, but may not mark
+   * the constraint as satisfied.  This typically occurs when the
+   * constraint involves a parameter that the matcher has not yet
+   * filled.
    *
    * \param match_state A function that can be called to check the
    *    current state of the match.  The function takes as argument a
@@ -183,11 +186,13 @@ class DFConstraintNode : public Object {
    *    variable matched by that pattern, or NullOpt if the pattern
    *    has not yet been matched.
    *
-   * \param analyzer The analyzer with which to check the constraint.
+   * \ret A tuple of `PrimExpr` and `bool`.  The first element is a
+   * necessary condition for the constraint to be satisfied.  The
+   * second tuple element indicates whether the condition is also
+   * sufficient for the constraint to be satisfied.
    */
-  virtual Optional<Bool> IsConstraintSatisfied(
-      std::function<Optional<Var>(const DFPatternNode*)> match_state,
-      arith::Analyzer* analyzer) const = 0;
+  virtual std::tuple<PrimExpr, bool> AsPrimExpr(
+      std::function<Optional<Var>(const DFPatternNode*)> match_state) const = 0;
 
   static constexpr const char* _type_key = "DFConstraintNode";
   static constexpr const uint32_t _type_child_slots = 1;
@@ -790,9 +795,8 @@ class SameShapeConstraintNode : public DFConstraintNode {
 
   Array<DFPattern> GetDependentPatterns() const override { return args; }
 
-  Optional<Bool> IsConstraintSatisfied(
-      std::function<Optional<Var>(const DFPatternNode*)> match_state,
-      arith::Analyzer* analyzer) const override;
+  std::tuple<PrimExpr, bool> AsPrimExpr(
+      std::function<Optional<Var>(const DFPatternNode*)> match_state) const override;
 
   void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("args", &args); }
 

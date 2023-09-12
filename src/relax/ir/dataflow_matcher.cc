@@ -444,9 +444,8 @@ bool DFPatternMatcher::VisitDFPattern_(const ShapePatternNode* op, const Expr& e
   return false;
 }
 
-Optional<Bool> SameShapeConstraintNode::IsConstraintSatisfied(
-    std::function<Optional<Var>(const DFPatternNode*)> match_state,
-    arith::Analyzer* analyzer) const {
+std::tuple<PrimExpr, bool> SameShapeConstraintNode::AsPrimExpr(
+    std::function<Optional<Var>(const DFPatternNode*)> match_state) const {
   Optional<Array<PrimExpr>> expected_shape;
   bool all_shapes_defined = true;
 
@@ -470,7 +469,7 @@ Optional<Bool> SameShapeConstraintNode::IsConstraintSatisfied(
       if (!opt_var_shape.defined()) {
         // The pattern has matched to something without a shape.
         // Therefore, it cannot have the same shape as something else.
-        return Bool(false);
+        return {PrimExpr(Bool(false)), true};
       }
       auto var_shape = opt_var_shape.value();
 
@@ -487,7 +486,7 @@ Optional<Bool> SameShapeConstraintNode::IsConstraintSatisfied(
           // The shapes have different dimensionality.  No need to
           // perform potentially-expensive simplifications, because
           // the dimensions do not match.
-          return Bool(false);
+          return {PrimExpr(Bool(false)), true};
         }
 
       } else {
@@ -505,29 +504,7 @@ Optional<Bool> SameShapeConstraintNode::IsConstraintSatisfied(
     }
   }
 
-  // We check for a false result first, because that can be applied
-  // even if some shapes are still unknown
-  // (e.g. SameShapeConstraint(A,B,C) can return false if A and B have
-  // different shapes, even if C is unknown).  The passing constraint
-  // is only valid if all of the shapes are known.
-  if (all_shapes_defined) {
-    // If all shapes are known and have the same dimentionality, then
-    // we just need to prove that the sizes of each dimension match.
-    // If we cannot prove it at this point, we won't get more
-    // information later.
-    return Bool(analyzer->CanProve(all_dimensions_equal));
-  } else if (analyzer->CanProve(!all_dimensions_equal)) {
-    // Even if we don't have all the shapes, we may have some shape
-    // conflicts.  If we can prove that the shapes seen so far are
-    // incompatible with each other, then the pattern matcher can
-    // start backtracking earlier.
-    return Bool(false);
-  } else {
-    // Even if the shapes so far are all consistent, the remaining
-    // unknown shapes may be inconsistent, so we return an ambiguous
-    // result.
-    return NullOpt;
-  }
+  return {all_dimensions_equal, all_shapes_defined};
 }
 
 bool DFPatternMatcher::VisitDFPattern_(const PrimArrPatternNode* op, const Expr& expr0) {
@@ -780,14 +757,29 @@ static std::optional<MatchState> TryValidate(
 
   for (const auto& constraint : validation_constraints) {
     if (!current_match.is_validated(constraint.get())) {
-      auto opt_result = constraint->IsConstraintSatisfied(query_match_state, analyzer);
-      if (opt_result.defined()) {
-        bool result = opt_result.value()->value;
-        if (result) {
-          new_match.add(constraint.get());
-        } else {
-          return std::nullopt;
-        }
+      auto [necessary_condition, is_sufficient] = constraint->AsPrimExpr(query_match_state);
+
+      necessary_condition = analyzer->Simplify(necessary_condition);
+      const auto* known = tir::as_const_int(necessary_condition);
+
+      if (known && *known && is_sufficient) {
+        // The condition passes, and the expression provided is both
+        // necessary and sufficient for the constraint to pass.  Mark
+        // the constraint as passing, to avoid re-checking it unless
+        // we backtrack.
+        new_match.add(constraint.get());
+      } else if (known && !*known) {
+        // The condition fails.  Even if additional information would
+        // be required to pass a constraint, it may bail out early as
+        // a failure (e.g. shape mismatch in the first two items out
+        // of N shapes that must all match).
+        return std::nullopt;
+      } else if (is_sufficient) {
+        // The condition depends on dynamic parameters.  In the
+        // future, this may be exposed to the user as a condition for
+        // optimization, or can be combined with the conditions
+        // provided from other constraints.
+        return std::nullopt;
       }
     }
   }
