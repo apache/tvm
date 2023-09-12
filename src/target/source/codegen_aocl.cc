@@ -40,22 +40,13 @@ runtime::Module BuildAOCL(IRModule mod, Target target, bool emulation) {
   CodeGenOpenCL cg;
   cg.Init(output_ssa);
 
-  Map<GlobalVar, PrimFunc> functions;
-  for (auto [gvar, base_func] : mod->functions) {
-    ICHECK(base_func->IsInstance<PrimFuncNode>()) << "CodegenOpenCL: Can only take PrimFunc";
-    auto prim_func = Downcast<PrimFunc>(base_func);
-    auto calling_conv = prim_func->GetAttr<Integer>(tvm::attr::kCallingConv);
+  for (auto kv : mod->functions) {
+    ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodegenOpenCL: Can only take PrimFunc";
+    auto f = Downcast<PrimFunc>(kv.second);
+    auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
     ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
         << "CodegenOpenCL: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
-    functions.Set(gvar, prim_func);
-  }
-
-  for (auto [gvar, prim_func] : functions) {
-    cg.DeclareFunction(gvar, prim_func);
-  }
-
-  for (auto [gvar, prim_func] : functions) {
-    cg.AddFunction(gvar, prim_func);
+    cg.AddFunction(f);
   }
 
   std::string code = cg.Finish();
