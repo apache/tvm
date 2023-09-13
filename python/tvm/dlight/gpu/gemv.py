@@ -49,6 +49,11 @@ def _get_reduction_expr(block: tir.Block) -> Optional[tir.PrimExpr]:
     return buffer_store.value.b
 
 
+def get_extent(sch: tir.Schedule, loop_rv: tir.schedule.LoopRV):
+    loop: tir.For = sch.get(loop_rv)
+    return loop.extent.value if isinstance(loop.extent, tir.IntImm) else loop.extent
+
+
 def get_bytes(dtype: Union[DataType, str]) -> int:
     num = re.findall(r"\d+", dtype)
     if len(num) != 1:
@@ -125,8 +130,8 @@ def normalize(
             if c_loops:
                 return None
             loop, c_loop = sch.split(loop, factors=[None, split_expr.lower_factor])
-            # we only support the inner most dim being grouped atm
-            if is_reduction ^ is_inner_reduction:
+            # we only support the reduction dim being grouped atm
+            if not is_reduction:
                 return None
             c_loops.append(c_loop)
         if is_reduction:
@@ -186,12 +191,13 @@ class GEMV(ScheduleRule):
         is_inner_reduction = normalize(sch, block_info)
 
         # Step 2. Do the scheduling
-        if is_inner_reduction:
+        if is_inner_reduction is None:
+            return None
+        elif is_inner_reduction:
             self.sch_inner_reduction(sch, target, block, vector_input_buffers, epilogue)
             return sch
         else:
-            # TODO: Need to handle GEMV with KN layout
-            return None
+            return self.sch_outer_reduction(sch, target, block, vector_input_buffers, epilogue)
 
     def sch_inner_reduction(  # pylint: disable=too-many-arguments, invalid-name, unused-argument
         self,
@@ -389,17 +395,13 @@ class GEMV(ScheduleRule):
             # pylint: enable=invalid-name
             return sch
 
-        def get_extent(loop_rv: tir.schedule.LoopRV):
-            loop: tir.For = sch.get(loop_rv)
-            return loop.extent.value if isinstance(loop.extent, tir.IntImm) else loop.extent
-
         # Specify the `len_tx` and `len_ty` according to the loop extent
         batch, s, r, c = sch.get_loops(block=block)
         len_batch, len_s, len_r, len_c = (
-            get_extent(batch),
-            get_extent(s),
-            get_extent(r),
-            get_extent(c),
+            get_extent(sch, batch),
+            get_extent(sch, s),
+            get_extent(sch, r),
+            get_extent(sch, c),
         )
         len_S = len_batch * len_s
         len_R = len_r * len_c
@@ -494,3 +496,49 @@ class GEMV(ScheduleRule):
             LOAD_V_VEC=LOAD_V_VEC,
             UNROLL=UNROLL,
         )
+
+    def sch_outer_reduction(  # pylint: disable=too-many-arguments, invalid-name, unused-argument
+        self,
+        sch: tir.Schedule,
+        target: Target,
+        block: tir.schedule.BlockRV,
+        vector_input_buffers: List[tir.Buffer],
+        epilogue_info: Optional[BlockInfo],
+    ):
+        """Schedule the outer reduction block."""
+        # NOTE: Only Android is supported so far
+        if not (target.kind.name == "opencl" and "android" in str(target.host)):
+            return None
+        batch, s, r, c = sch.get_loops(block)
+        len_s = get_extent(sch, s)
+
+        # The config is designed for Adreno
+        tx_len = 64
+        vec_len = 4 if len_s > 4096 else 2
+        inner_r = 4
+
+        bx, tx, vec = sch.split(s, factors=[None, tx_len, vec_len])
+        r0, r1 = sch.split(r, factors=[None, inner_r])
+        sch.bind(batch, "blockIdx.y")
+        sch.bind(bx, "blockIdx.x")
+        sch.bind(tx, "threadIdx.x")
+        sch.reorder(bx, tx, r0, r1, c, vec)
+
+        sch.annotate(tx, ann_key="pragma_auto_unroll_max_step", ann_val=8)
+        sch.annotate(tx, ann_key="pragma_unroll_explicit", ann_val=1)
+
+        cache_v = sch.cache_read(block, vector_input_buffers[0], "local")
+        sch.compute_at(cache_v, r1, preserve_unit_loops=True)
+        sch.vectorize(sch.get_loops(cache_v)[-1])
+
+        sch.vectorize(vec)
+
+        # Schedule epilogue
+        if epilogue_info is not None:
+            sch.reverse_compute_at(epilogue_info.block_rv, tx)
+
+            sch.set_scope(block, 0, "local")
+
+        sch.decompose_reduction(block, r0)
+
+        return sch
