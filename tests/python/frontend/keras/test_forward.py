@@ -825,6 +825,16 @@ class TestKeras:
         )
         verify_keras_frontend(dense_model, need_transpose=False)
 
+    def test_simplernn_with_infertype(self, keras_mod):
+        """This test case is from https://github.com/apache/tvm/issues/14868"""
+        input_shape = (2, 2, 2)
+        x = keras_mod.layers.Input(shape=input_shape[1:], dtype="float32")
+        layer = keras_mod.layers.SimpleRNN(units=4)
+        y = layer(x)
+        model = keras_mod.models.Model(x, y)
+        mod, _ = relay.frontend.from_keras(model, {model.input_names[0]: input_shape})
+        relay.transform.InferType()(mod)
+
 
 if __name__ == "__main__":
     for k in [keras, tf_keras]:
@@ -867,3 +877,4 @@ if __name__ == "__main__":
         sut.test_forward_repeat_vector(keras_mod=k)
         sut.test_forward_l2_normalize(keras_mod=k)
         sut.test_forward_time_distributed(keras_mod=k)
+        sut.test_simplernn_with_infertype(keras_mod=k)
