@@ -32,13 +32,20 @@
 #include <tvm/support/with.h>
 
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <memory>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
 namespace tvm {
+
+namespace arith {
+class Analyzer;
+}
+
 namespace relax {
 
 class PatternSeq;
@@ -50,6 +57,7 @@ class ShapePattern;
 class TypePattern;
 class DataTypePattern;
 class AttrPattern;
+class SameShapeConstraint;
 
 /*!
  * \brief Create used-by relationship between lhs[-1] and rhs[0], with [*lhs, *rhs] returned.
@@ -112,6 +120,8 @@ class DFPattern : public ObjectRef {
   TVM_DLL DataTypePattern HasDtype(const std::string& dtype) const;
   /*! \brief Syntatic Sugar for creating a ShapePattern */
   TVM_DLL ShapePattern HasShape(const Array<PrimExpr>& shape) const;
+  /*! \brief Syntatic Sugar for creating a ShapePattern */
+  TVM_DLL SameShapeConstraint HasSameShapeAs(const DFPattern& other) const;
   /*! \brief Syntatic Sugar for duplicating the current pattern */
   TVM_DLL DFPattern dup() const;
 
@@ -141,6 +151,58 @@ struct PairCons {
   bool operator==(const PairCons& other) const {
     return type == other.type && index == other.index;
   }
+};
+
+/*! \brief Additional constraints on the graph
+ *
+ * Unlike PairCons, these may relate nodes that are not directly
+ * connected by a DFPattern edge from producer to consumer.  For
+ * example, constraining the two branches of an elementwise operation
+ * to have the same shape.
+ */
+class DFConstraintNode : public Object {
+ public:
+  /*! \brief Return the patterns on which the constraint depends */
+  virtual Array<DFPattern> GetDependentPatterns() const = 0;
+
+  /*! \brief Convert the constraint to a PrimExpr
+   *
+   * If the returned boolean parameter is true, then the returned
+   * expression is a necessary-and-sufficient condition for evaluating
+   * the constraint.  In this case, the matcher may either mark the
+   * constraint as satisfied (no need to re-check later), or as failed
+   * (need to back-track).
+   *
+   * If the returned boolean parameter is false, then the returned
+   * expression is a necessary-but-not-sufficient condition for
+   * evaluating the constraint.  In this case, the matcher may start
+   * backtracking as a result of a failed condition, but may not mark
+   * the constraint as satisfied.  This typically occurs when the
+   * constraint involves a parameter that the matcher has not yet
+   * filled.
+   *
+   * \param match_state A function that can be called to check the
+   *    current state of the match.  The function takes as argument a
+   *    pattern on which the constraint depends, and returns the relax
+   *    variable matched by that pattern, or NullOpt if the pattern
+   *    has not yet been matched.
+   *
+   * \return A tuple of `PrimExpr` and `bool`.  The first element is a
+   *    necessary condition for the constraint to be satisfied.  The
+   *    second tuple element indicates whether the condition is also
+   *    sufficient for the constraint to be satisfied.
+   */
+  virtual std::tuple<PrimExpr, bool> AsPrimExpr(
+      std::function<Optional<Var>(const DFPatternNode*)> match_state) const = 0;
+
+  static constexpr const char* _type_key = "DFConstraintNode";
+  static constexpr const uint32_t _type_child_slots = 1;
+  TVM_DECLARE_BASE_OBJECT_INFO(DFConstraintNode, Object);
+};
+
+class DFConstraint : public ObjectRef {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(DFConstraint, ObjectRef, DFConstraintNode);
 };
 
 /*!
@@ -190,11 +252,17 @@ class PatternContextNode : public Object {
     kMay,     /*!< No constraints */
     kMustNot, /*!< All nodes except outputs only have internal depedencies in the matched graph. */
   } allow_extern_use = kMay;
+
   // src node -> <dst node, constraint type> constraints.
   // Dst nodes are kept in a vector to keep them ordered.
-  std::map<DFPattern, std::vector<std::pair<DFPattern, std::vector<PairCons>>>> constraints;
-  // Keep a separate vector of patterns to process constraints in a fixed order.
+  std::map<DFPattern, std::vector<std::pair<DFPattern, std::vector<PairCons>>>> edge_constraints;
+
+  // Underlying DFPattern nodes which the edge constraints may reference
+  // Kept as a separate vector of patterns to process constraints in a fixed order.
   std::vector<DFPattern> src_ordered;
+
+  // Non-edge constraints
+  std::vector<DFConstraint> validation_constraints;
 
   static constexpr const char* _type_key = "relax.dpl.PatternContext";
   TVM_DECLARE_FINAL_OBJECT_INFO(PatternContextNode, Object);
@@ -227,7 +295,7 @@ class PatternContext : public ObjectRef {
    * \param cons The constraint type. \sa PairCons
    */
   void add_constraint(DFPattern producer, DFPattern consumer, PairCons cons) {
-    auto& pairs = (*this)->constraints[producer];
+    auto& pairs = (*this)->edge_constraints[producer];
     auto it = std::find_if(pairs.begin(), pairs.end(),
                            [consumer](auto p) { return p.first == consumer; });
     if (it == pairs.end()) {
@@ -243,6 +311,15 @@ class PatternContext : public ObjectRef {
     if (std::find(patterns.begin(), patterns.end(), producer) == patterns.end()) {
       patterns.push_back(producer);
     }
+  }
+
+  /*!
+   * \brief Add a validation constraint
+   *
+   * \param constraint The new constraint
+   */
+  void add_constraint(DFConstraint constraint) {
+    (*this)->validation_constraints.push_back(constraint);
   }
 
   /*! \brief Get the constraint context object on the top of the stack */
@@ -707,6 +784,35 @@ class ShapePattern : public DFPattern {
  public:
   TVM_DLL ShapePattern(DFPattern pattern, Array<PrimExpr> type);
   TVM_DEFINE_OBJECT_REF_METHODS(ShapePattern, DFPattern, ShapePatternNode);
+};
+
+/*!
+ * \brief A pattern that asserting multiple root patterns have the same shape
+ * \sa SameShapePattern
+ */
+class SameShapeConstraintNode : public DFConstraintNode {
+ public:
+  Array<DFPattern> args; /*!< The patterns with matching shapes */
+
+  Array<DFPattern> GetDependentPatterns() const override { return args; }
+
+  std::tuple<PrimExpr, bool> AsPrimExpr(
+      std::function<Optional<Var>(const DFPatternNode*)> match_state) const override;
+
+  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("args", &args); }
+
+  static constexpr const char* _type_key = "relax.dpl.SameShapeConstraint";
+  TVM_DECLARE_FINAL_OBJECT_INFO(SameShapeConstraintNode, DFConstraintNode);
+};
+
+/*!
+ * \brief Managed reference to SameShapePatternNode.
+ * \sa SameShapePatternNode
+ */
+class SameShapeConstraint : public DFConstraint {
+ public:
+  TVM_DLL SameShapeConstraint(Array<DFPattern> args);
+  TVM_DEFINE_OBJECT_REF_METHODS(SameShapeConstraint, DFConstraint, SameShapeConstraintNode);
 };
 
 /*!
