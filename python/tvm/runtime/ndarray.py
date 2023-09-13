@@ -324,11 +324,26 @@ def device(dev_type, dev_id=0):
       assert tvm.device("cpu", 1) == tvm.cpu(1)
       assert tvm.device("cuda", 0) == tvm.cuda(0)
     """
+    if not isinstance(dev_id, int):
+        raise ValueError(f"Invalid device id: {dev_id}")
+
     if isinstance(dev_type, string_types):
         dev_type = dev_type.split()[0]
+        if dev_type.count(":") == 0:
+            pass
+        elif dev_type.count(":") == 1:
+            # It will override the dev_id passed by the user.
+            dev_type, dev_id = dev_type.split(":")
+            if not dev_id.isdigit():
+                raise ValueError(f"Invalid device id: {dev_id}")
+            dev_id = int(dev_id)
+        else:
+            raise ValueError(f"Invalid device string: {dev_type}")
+
         if dev_type not in Device.STR2MASK:
-            raise ValueError(f"Unknown device type {dev_type}")
-        dev_type = Device.STR2MASK[dev_type]
+            raise ValueError(f"Unknown device type: {dev_type}")
+
+        return Device(Device.STR2MASK[dev_type], dev_id)
     return Device(dev_type, dev_id)
 
 
