@@ -822,7 +822,7 @@ def test_avgpool2d():
                 gv = lv
                 R.output(gv)
             return gv
-    
+
     class AvgPool2d4(Module):
         def forward(self, input):
             return torch.nn.functional.avg_pool2d(
@@ -852,6 +852,7 @@ def test_avgpool2d():
     verify_model(AvgPool2d2(), input_info, {}, expected2)
     verify_model(AvgPool2d3(), input_info, {}, expected2)
     verify_model(AvgPool2d4(), input_info, {}, expected3)
+
 
 def test_adaptive_avgpool2d():
     input_info = [([1, 3, 10, 10], "float32")]
