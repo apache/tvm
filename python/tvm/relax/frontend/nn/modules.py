@@ -312,6 +312,73 @@ class Conv2D(Module):
         )
 
 
+class ConvTranspose1D(Module):
+    """
+    Module for ConvTranspose1D layer.
+    """
+
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: int,
+        stride: int = 1,
+        padding: int = 0,
+        output_padding: int = 0,
+        dilation: int = 1,
+        groups: int = 1,
+        bias: bool = True,
+        dtype: Optional[str] = None,
+    ) -> None:
+        super().__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.kernel_size = kernel_size
+        self.stride = stride
+        self.padding = padding
+        self.output_padding = output_padding
+        self.dilation = dilation
+        self.groups = groups
+
+        self.weight = Parameter(
+            (
+                self.in_channels,
+                int(self.out_channels // self.groups),
+                self.kernel_size,
+            ),
+            dtype,
+        )
+        if bias:
+            self.bias = Parameter((self.out_channels,), dtype)
+        else:
+            self.bias = None
+
+    def forward(self, x: Tensor) -> Tensor:
+        """
+        Forward method for convtranspose1d layer.
+
+        Parameters
+        ----------
+        x : Tensor
+            The input tensor.
+
+        Returns
+        -------
+        ret : Tensor
+            The output tensor for the convtranspose1d layer.
+        """
+        return op.conv1d_transpose(
+            x,
+            self.weight,
+            self.bias,
+            self.stride,
+            self.padding,
+            self.output_padding,
+            self.dilation,
+            self.groups,
+        )
+
+
 class LayerNorm(Module):
     """
     Module for Layer Normalization
