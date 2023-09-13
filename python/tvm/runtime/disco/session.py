@@ -267,7 +267,7 @@ class Session(Object):
         func = self.get_global_func(f"runtime.disco.{api}.init_ccl")
         func(*args)
 
-    def broadcast_from_worker0(self, array: DRef) -> DRef:
+    def broadcast_from_worker0(self, src: DRef, dst: DRef) -> DRef:
         """Broadcast an array from worker-0 to all other workers.
 
         Parameters
@@ -276,7 +276,7 @@ class Session(Object):
             The array to be broadcasted in-place
         """
         func = self._get_cached_method("runtime.disco.broadcast_from_worker0")
-        return func(array)
+        func(src, dst)
 
     def scatter_from_worker0(self, from_array: DRef, to_array: DRef) -> None:
         """Scatter an array from worker-0 to all other workers.
@@ -306,7 +306,8 @@ class Session(Object):
 
     def allreduce(
         self,
-        array: DRef,
+        src: DRef,
+        dst: DRef,
         op: str = "sum",  # pylint: disable=invalid-name
     ) -> DRef:
         """Perform an allreduce operation on an array.
@@ -327,7 +328,7 @@ class Session(Object):
             raise ValueError(f"Unsupported reduce op: {op}. Available ops are: {REDUCE_OPS.keys()}")
         op = ShapeTuple([REDUCE_OPS[op]])
         func = self._get_cached_method("runtime.disco.allreduce")
-        return func(array, op)
+        func(src, op, dst)
 
 
 @register_object("runtime.disco.ThreadedSession")

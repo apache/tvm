@@ -169,7 +169,8 @@ NDArray ShardLoaderObj::Load(int weight_index) const {
     } else {
       recv = NDArray::Empty(param->shape, param->dtype, device);
     }
-    return BroadcastFromWorker0(recv);
+    BroadcastFromWorker0(recv, recv);
+    return recv;
   }
 }
 

@@ -51,13 +51,13 @@ NDArray DiscoEmptyNDArray(ShapeTuple shape, DataType dtype, Device device);
  * \param reduce_kind The kind of reduction operation (e.g. sum, avg, min, max)
  * \return The outcome of allreduce
  */
-NDArray AllReduce(NDArray send, ReduceKind reduce_kind);
+void AllReduce(NDArray send, ReduceKind reduce_kind, NDArray recv);
 /*!
  * \brief Perform a broadcast operation from worker-0
  * \param buffer The buffer to be broadcasted
  * \return The result buffer
  */
-NDArray BroadcastFromWorker0(NDArray buffer);
+void BroadcastFromWorker0(NDArray send, NDArray recv);
 /*!
  * \brief Perform a scatter operation from worker-0, chunking the given buffer into equal parts.
  * \param send For worker-0, it must be provided, and otherwise, the buffer must be None.
