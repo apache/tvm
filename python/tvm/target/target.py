@@ -18,9 +18,11 @@
 import json
 import re
 import warnings
+from typing import Union
 
 import tvm._ffi
 from tvm._ffi import register_func as _register_func
+from tvm._ffi.runtime_ctypes import Device
 from tvm.runtime import Object, convert
 from tvm.runtime.container import String
 from tvm.ir.container import Map, Array
@@ -147,6 +149,28 @@ class Target(Object):
 
     def with_host(self, host=None):
         return _ffi_api.WithHost(self, Target(host))
+
+    @staticmethod
+    def from_device(device: Union[str, Device]) -> "Target":
+        """Detects Target associated with the given device. If the device does not exist,
+        there will be an Error.
+
+        Parameters
+        ----------
+        dev : Union[str, Device]
+            The device to detect the target for.
+            Supported device types: ["cuda", "metal", "rocm", "vulkan", "opencl", "cpu"]
+
+        Returns
+        -------
+        target : Target
+            The detected target.
+        """
+        from .detect_target import (  # pylint: disable=import-outside-toplevel
+            detect_target_from_device,
+        )
+
+        return detect_target_from_device(device)
 
     @staticmethod
     def current(allow_none=True):
