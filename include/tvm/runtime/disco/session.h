@@ -72,6 +72,7 @@
 #ifndef TVM_RUNTIME_DISCO_SESSION_H_
 #define TVM_RUNTIME_DISCO_SESSION_H_
 
+#include <tvm/runtime/container/shape_tuple.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/packed_func.h>
 
@@ -92,6 +93,8 @@ enum class DiscoAction : int32_t {
   kSyncWorker = 4,
   kCopyFromWorker0 = 5,
   kCopyToWorker0 = 6,
+  kDebugGetFromRemote = 7,
+  kDebugSetRegister = 8,
 };
 
 /*! \brief Converts the enum class `DiscoAction` to string */
@@ -111,6 +114,10 @@ inline std::string DiscoAction2String(DiscoAction action) {
       return "kCopyFromWorker0";
     case DiscoAction::kCopyToWorker0:
       return "kCopyToWorker0";
+    case DiscoAction::kDebugGetFromRemote:
+      return "kDebugGetFromRemote";
+    case DiscoAction::kDebugSetRegister:
+      return "kDebugSetRegister";
   }
   LOG(FATAL) << "ValueError: Unknown DiscoAction: " << static_cast<int>(action);
 }
@@ -136,7 +143,7 @@ class DRefObj : public Object {
    * \param worker_id The id of the worker to be copied to.
    * \param source The NDArray to be copied.
    */
-  void DebugCopyFrom(int worker_id, NDArray source);
+  inline void DebugCopyFrom(int worker_id, TVMArgValue source);
 
   static constexpr const char* _type_key = "runtime.disco.DRef";
   static constexpr const uint32_t _type_index = TypeIndex::kRuntimeDiscoDRef;
@@ -214,19 +221,31 @@ class SessionObj : public Object {
   /*! \brief Signal all the workers to shutdown */
   virtual void Shutdown() = 0;
   /*!
+   * \brief Initialize the data plane between workers.
+   * \param ccl The name of the communication backend, e.g., nccl, rccl, mpi.
+   * \param device_ids The device ids of the workers.
+   */
+  virtual void InitCCL(String ccl, ShapeTuple device_ids) = 0;
+  /*!
    * \brief Get the value of a register from a remote worker.
    * \param reg_id The id of the register to be fetched.
    * \param worker_id The id of the worker to be fetched from.
    * \return The value of the register.
    */
   virtual TVMRetValue DebugGetFromRemote(int64_t reg_id, int worker_id) = 0;
-
-  static constexpr const char* _type_key = "runtime.disco.Session";
-  TVM_DECLARE_BASE_OBJECT_INFO(SessionObj, Object);
+  /*!
+   * \brief Set the value of a register on a remote worker.
+   * \param reg_id The id of the register to be set.
+   * \param value The value to be set.
+   * \param worker_id The id of the worker to be set.
+   */
+  virtual void DebugSetRegister(int64_t reg_id, TVMArgValue value, int worker_id) = 0;
 
   struct FFI;
   friend struct SessionObj::FFI;
   friend class DRefObj;
+  static constexpr const char* _type_key = "runtime.disco.Session";
+  TVM_DECLARE_BASE_OBJECT_INFO(SessionObj, Object);
 
  protected:
   /*! \brief Deallocate a register id, kill it on all workers, and append it to `free_regs_`. */
@@ -239,8 +258,22 @@ class SessionObj : public Object {
  */
 class Session : public ObjectRef {
  public:
-  /*! \brief Create a session backed by a thread pool of workers */
-  static Session ThreadedSession(int num_workers);
+  /*!
+   * \brief Create a session backed by a thread pool of workers
+   * \param num_workers The number of workers.
+   */
+  TVM_DLL static Session ThreadedSession(int num_workers);
+  /*!
+   * \brief Create a session backed by pipe-based multiprocessing
+   * \param num_workers The number of workers.
+   * \param process_pool_creator The name of a global function that takes `num_workers` as an input,
+   * and returns a PackedFunc, which takes an integer `worker_id` as the input and returns None.
+   * When `worker-id` is 0, it shuts down the process pool; Otherwise, it retursn a tuple
+   * (read_fd, writefd) used to communicate with the corresponding worker.
+   * \note Worker-0 is always co-located with the controler as a separate thread, and therefore
+   * worker-0 does not exist in the process pool.
+   */
+  TVM_DLL static Session ProcessSession(int num_workers, String process_pool_creator);
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(Session, ObjectRef, SessionObj);
 };
 
@@ -250,6 +283,7 @@ class Session : public ObjectRef {
  */
 class DiscoChannel {
  public:
+  virtual ~DiscoChannel() = default;
   /*! \brief Send a packed sequence to the receiver */
   virtual void Send(const TVMArgs& args) = 0;
   /*! \brief Receive a packed sequence from worker */
@@ -270,6 +304,10 @@ DRefObj::~DRefObj() {
 
 TVMRetValue DRefObj::DebugGetFromRemote(int worker_id) {
   return Downcast<Session>(this->session)->DebugGetFromRemote(this->reg_id, worker_id);
+}
+
+void DRefObj::DebugCopyFrom(int worker_id, TVMArgValue value) {
+  return Downcast<Session>(this->session)->DebugSetRegister(this->reg_id, value, worker_id);
 }
 
 template <typename... Args>

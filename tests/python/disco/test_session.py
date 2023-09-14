@@ -19,15 +19,16 @@
 import tempfile
 
 import numpy as np
+import pytest
 
 import tvm
 from tvm import relax as rx
-from tvm._ffi import register_func
 from tvm.runtime import ShapeTuple, String
 from tvm.runtime import disco as di
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tir as T
+from tvm.testing import disco as _
 
 
 def _numpy_to_worker_0(sess: di.Session, np_array: np.array, device):
@@ -44,29 +45,23 @@ def _numpy_from_worker_0(sess: di.Session, remote_array, shape, dtype):
     return host_array.numpy()
 
 
-def test_int():
+_all_session_kinds = [di.ThreadedSession, di.ProcessSession]
+
+
+@pytest.mark.parametrize("session_kind", _all_session_kinds)
+def test_int(session_kind):  # pylint: disable=invalid-name
     num_workers = 4
-
-    @register_func("tests.disco.add_one", override=True)
-    def add_one(x: int) -> int:  # pylint: disable=invalid-name
-        return x + 1
-
-    sess = di.ThreadedSession(num_workers=num_workers)
+    sess = session_kind(num_workers=num_workers)
     func: di.DPackedFunc = sess.get_global_func("tests.disco.add_one")
     result: di.DRef = func(1)
-
     for i in range(num_workers):
         assert result.debug_get_from_remote(i) == 2
 
 
-def test_float():
+@pytest.mark.parametrize("session_kind", _all_session_kinds)
+def test_float(session_kind):
     num_workers = 4
-
-    @register_func("tests.disco.add_one_float", override=True)
-    def add_one(x: float):  # pylint: disable=invalid-name
-        return x + 0.5
-
-    sess = di.ThreadedSession(num_workers=num_workers)
+    sess = session_kind(num_workers=num_workers)
     func: di.DPackedFunc = sess.get_global_func("tests.disco.add_one_float")
     result: di.DRef = func(1.5)
 
@@ -74,32 +69,23 @@ def test_float():
         assert result.debug_get_from_remote(i) == 2.0
 
 
-def test_ndarray():
+@pytest.mark.parametrize("session_kind", _all_session_kinds)
+def test_ndarray(session_kind):
     num_workers = 4
-
-    @register_func("tests.disco.add_one_ndarray", override=True)
-    def add_one(x: tvm.runtime.NDArray) -> tvm.runtime.NDArray:  # pylint: disable=invalid-name
-        return tvm.nd.array(x.numpy() + 1)
-
+    sess = session_kind(num_workers=num_workers)
     device = tvm.cpu(0)
     x_np = np.arange(6).astype("float32").reshape([2, 3])
     y_np = np.arange(6).astype("float32").reshape([2, 3]) + 1
-
-    sess = di.ThreadedSession(num_workers=num_workers)
     x_disc = _numpy_to_worker_0(sess, x_np, device=device)
     y_disc = sess.get_global_func("tests.disco.add_one_ndarray")(x_disc)
     y_nd = _numpy_from_worker_0(sess, y_disc, shape=y_np.shape, dtype=y_np.dtype)
     np.testing.assert_equal(y_nd, y_np)
 
 
-def test_string():
+@pytest.mark.parametrize("session_kind", _all_session_kinds)
+def test_string(session_kind):
     num_workers = 4
-
-    @register_func("tests.disco.str", override=True)
-    def my_str_func(x: str):  # pylint: disable=invalid-name
-        return x + "_suffix"
-
-    sess = di.ThreadedSession(num_workers=num_workers)
+    sess = session_kind(num_workers=num_workers)
     func: di.DPackedFunc = sess.get_global_func("tests.disco.str")
     result: di.DRef = func("hello")
 
@@ -107,15 +93,10 @@ def test_string():
         assert result.debug_get_from_remote(i) == "hello_suffix"
 
 
-def test_string_obj():
+@pytest.mark.parametrize("session_kind", _all_session_kinds)
+def test_string_obj(session_kind):
     num_workers = 4
-
-    @register_func("tests.disco.str_obj", override=True)
-    def my_str_func(x: String):  # pylint: disable=invalid-name
-        assert isinstance(x, String)
-        return String(x + "_suffix")
-
-    sess = di.ThreadedSession(num_workers=num_workers)
+    sess = session_kind(num_workers=num_workers)
     func: di.DPackedFunc = sess.get_global_func("tests.disco.str_obj")
     result: di.DRef = func(String("hello"))
 
@@ -125,26 +106,22 @@ def test_string_obj():
         assert value == "hello_suffix"
 
 
-def test_shape_tuple():
+@pytest.mark.parametrize("session_kind", _all_session_kinds)
+def test_shape_tuple(session_kind):
     num_workers = 4
-
-    @register_func("tests.disco.shape_tuple", override=True)
-    def my_str_func(x: ShapeTuple):  # pylint: disable=invalid-name
-        assert isinstance(x, ShapeTuple)
-        return ShapeTuple(list(x) + [4, 5])
-
-    sess = di.ThreadedSession(num_workers=num_workers)
+    sess = session_kind(num_workers=num_workers)
     func: di.DPackedFunc = sess.get_global_func("tests.disco.shape_tuple")
     result: di.DRef = func(ShapeTuple([1, 2, 3]))
-
     for i in range(num_workers):
         value = result.debug_get_from_remote(i)
         assert isinstance(value, ShapeTuple)
         assert list(value) == [1, 2, 3, 4, 5]
 
 
-def test_vm_module():
+@pytest.mark.parametrize("session_kind", _all_session_kinds)
+def test_vm_module(session_kind):
     num_workers = 4
+    sess = session_kind(num_workers=num_workers)
 
     # pylint: disable=invalid-name
     @I.ir_module
@@ -172,7 +149,6 @@ def test_vm_module():
         y_np = x_np.transpose()
 
         rx.build(TestMod, target="llvm").export_library(path)
-        sess = di.ThreadedSession(num_workers=num_workers)
         mod = sess.load_vm_module(path, device=device)
 
         x_disc = _numpy_to_worker_0(sess, x_np, device=device)
@@ -181,8 +157,10 @@ def test_vm_module():
         np.testing.assert_equal(y_nd, y_np)
 
 
-def test_vm_multi_func():
+@pytest.mark.parametrize("session_kind", _all_session_kinds)
+def test_vm_multi_func(session_kind):
     num_workers = 4
+    sess = session_kind(num_workers=num_workers)
 
     # pylint: disable=invalid-name
     @I.ir_module
@@ -231,7 +209,6 @@ def test_vm_multi_func():
         y_np = x_np.transpose()
 
         rx.build(TestMod, target="llvm").export_library(path)
-        sess = di.ThreadedSession(num_workers=num_workers)
         mod = sess.load_vm_module(path, device=device)
 
         x_disc = _numpy_to_worker_0(sess, x_np, device=device)
@@ -244,11 +221,11 @@ def test_vm_multi_func():
 
 
 if __name__ == "__main__":
-    test_int()
-    test_float()
-    test_string()
-    test_string_obj()
-    test_shape_tuple()
-    test_ndarray()
-    test_vm_module()
-    test_vm_multi_func()
+    test_int(di.ProcessSession)
+    test_float(di.ProcessSession)
+    test_string(di.ProcessSession)
+    test_string_obj(di.ProcessSession)
+    test_shape_tuple(di.ProcessSession)
+    test_ndarray(di.ProcessSession)
+    test_vm_module(di.ProcessSession)
+    test_vm_multi_func(di.ProcessSession)

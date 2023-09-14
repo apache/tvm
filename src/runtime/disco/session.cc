@@ -31,15 +31,6 @@ struct SessionObj::FFI {
   }
 };
 
-void DRefObj::DebugCopyFrom(int worker_id, NDArray source) {
-  TVMRetValue target_array = this->DebugGetFromRemote(worker_id);
-  CHECK(target_array.type_code() == kTVMNDArrayHandle)
-      << "ValueError: The DRef on the remote is not an NDArray, instead, its type code is: "
-      << ArgTypeCode2Str(target_array.type_code());
-  NDArray target = target_array.operator NDArray();
-  target.CopyFrom(source);
-}
-
 TVM_REGISTER_OBJECT_TYPE(DRefObj);
 TVM_REGISTER_OBJECT_TYPE(SessionObj);
 TVM_REGISTER_GLOBAL("runtime.disco.SessionThreaded").set_body_typed(Session::ThreadedSession);
@@ -58,6 +49,8 @@ TVM_REGISTER_GLOBAL("runtime.disco.SessionCopyToWorker0")
     .set_body_method<Session>(&SessionObj::CopyToWorker0);
 TVM_REGISTER_GLOBAL("runtime.disco.SessionSyncWorker")
     .set_body_method<Session>(&SessionObj::SyncWorker);
+TVM_REGISTER_GLOBAL("runtime.disco.SessionInitCCL")  //
+    .set_body_method<Session>(&SessionObj::InitCCL);
 TVM_REGISTER_GLOBAL("runtime.disco.SessionCallPacked").set_body([](TVMArgs args, TVMRetValue* rv) {
   Session self = args[0];
   *rv = SessionObj::FFI::CallWithPacked(

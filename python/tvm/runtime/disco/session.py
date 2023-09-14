@@ -27,7 +27,7 @@ from ..container import ShapeTuple
 from ..ndarray import NDArray
 from ..ndarray import array as _as_NDArray
 from ..object import Object
-from . import _ffi_api
+from . import _ffi_api, process_pool  # pylint: disable=unused-import
 
 
 @register_object("runtime.disco.DRef")
@@ -250,22 +250,21 @@ class Session(Object):
         func = self._get_cached_method("runtime.disco.load_vm_module")
         return DModule(func(path, device))
 
-    def init_ccl(self, api: str, *args):
+    def init_ccl(self, ccl: str, *device_ids):
         """Initialize the underlying communication collective library.
 
         Parameters
         ----------
-        api : str
+        ccl : str
             The name of the communication collective library. Currently supported libraries are:
             - nccl
             - rccl
             - mpi
-        *args : various types
-            The arguments to be passed to the initialization function of the communication
+        *device_ids : int
+            The device IDs to be used by the underlying communication library.
         """
-        assert api in ("nccl", "rccl"), f"Unsupported CCL backend: {api}"
-        func = self.get_global_func(f"runtime.disco.{api}.init_ccl")
-        func(*args)
+        assert ccl in ("nccl", "rccl"), f"Unsupported CCL backend: {ccl}"
+        return _ffi_api.SessionInitCCL(self, ccl, ShapeTuple(device_ids))  # type: ignore # pylint: disable=no-member
 
     def broadcast_from_worker0(self, src: DRef, dst: DRef) -> DRef:
         """Broadcast an array from worker-0 to all other workers.
@@ -340,6 +339,18 @@ class ThreadedSession(Session):
         self.__init_handle_by_constructor__(
             _ffi_api.SessionThreaded,  # type: ignore # pylint: disable=no-member
             num_workers,
+        )
+
+
+@register_object("runtime.disco.ProcessSession")
+class ProcessSession(Session):
+    """A Disco session backed by pipe-based multi-processing."""
+
+    def __init__(self, num_workers: int) -> None:
+        self.__init_handle_by_constructor__(
+            _ffi_api.SessionProcess,  # type: ignore # pylint: disable=no-member
+            num_workers,
+            "runtime.disco.create_process_pool",
         )
 
 

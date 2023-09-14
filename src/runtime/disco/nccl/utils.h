@@ -69,6 +69,7 @@ inline ncclDataType_t AsNCCLDataType(runtime::DataType dtype) {
     return ncclBfloat16;
   }
   LOG(FATAL) << "ValueError: Unsupported data type " << dtype;
+  throw;
 }
 
 inline ncclRedOp_t AsNCCLRedOp(ReduceKind kind) {
@@ -85,6 +86,7 @@ inline ncclRedOp_t AsNCCLRedOp(ReduceKind kind) {
       return ncclAvg;
   }
   LOG(FATAL) << "ValueError: Unknown ReduceKind: " << static_cast<int>(kind);
+  throw;
 }
 
 }  // namespace nccl

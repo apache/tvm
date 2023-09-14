@@ -19,11 +19,15 @@
 #include "./worker.h"
 
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/disco/session.h>
+#include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 
 #include <thread>
 
+#include "../../support/process_id.h"
 #include "./builtin.h"
+#include "./protocol.h"
 
 namespace tvm {
 namespace runtime {
@@ -43,11 +47,23 @@ DiscoWorker* DiscoWorker::ThreadLocal() {
   return ret;
 }
 
+void DiscoWorker::SetRegister(int reg_id, TVMArgValue value) {
+  ICHECK(0 <= reg_id && reg_id < static_cast<int>(register_file.size()));
+  TVMRetValue& rv = register_file.at(reg_id);
+  if (rv.type_code() == kTVMNDArrayHandle && value.type_code() == kTVMNDArrayHandle) {
+    NDArray dst = rv;
+    NDArray src = value;
+    dst.CopyFrom(src);
+  } else {
+    rv = value;
+  }
+}
+
 struct DiscoWorker::Impl {
   static void MainLoop(DiscoWorker* self) {
     ThreadLocalDiscoWorker::Get()->worker = self;
-    LOG(INFO) << "[Thread " << std::this_thread::get_id() << "] Worker #" << self->worker_id
-              << " Launched";
+    LOG(INFO) << "[Worker #" << self->worker_id << "] " << support::GetProcessIdAndThreadIdHeader()
+              << " started";
     while (true) {
       TVMArgs args = self->channel->Recv();
       DiscoAction action = static_cast<DiscoAction>(args[0].operator int());
@@ -82,6 +98,17 @@ struct DiscoWorker::Impl {
         }
         case DiscoAction::kSyncWorker: {
           SyncWorker(self, reg_id);
+          break;
+        }
+        case DiscoAction::kDebugGetFromRemote: {
+          int worker_id = args[2];
+          DebugGetFromRemote(self, reg_id, worker_id);
+          break;
+        }
+        case DiscoAction::kDebugSetRegister: {
+          int worker_id = args[2];
+          TVMArgValue value = args[3];
+          DebugSetRegister(self, reg_id, worker_id, value);
           break;
         }
       }
@@ -128,6 +155,30 @@ struct DiscoWorker::Impl {
       int type_codes[2];
       PackArgs(values, type_codes, static_cast<int>(DiscoAction::kSyncWorker), worker_id);
       self->channel->Reply(TVMArgs(values, type_codes, 2));
+    }
+  }
+
+  static void DebugGetFromRemote(DiscoWorker* self, int reg_id, int worker_id) {
+    if (worker_id == self->worker_id) {
+      TVMRetValue rv = GetReg(self, reg_id);
+      if (rv.type_code() == kTVMNDArrayHandle || rv.type_code() == kTVMObjectHandle) {
+        rv = DiscoDebugObject::Wrap(rv);
+      }
+      TVMValue values[2];
+      int type_codes[2];
+      PackArgs(values, type_codes, static_cast<int>(DiscoAction::kDebugGetFromRemote), rv);
+      self->channel->Reply(TVMArgs(values, type_codes, 2));
+    }
+  }
+
+  static void DebugSetRegister(DiscoWorker* self, int reg_id, int worker_id, TVMArgValue value) {
+    if (worker_id == self->worker_id) {
+      ::tvm::runtime::SyncWorker();
+      self->SetRegister(reg_id, value);
+      TVMValue values[1];
+      int type_codes[1];
+      PackArgs(values, type_codes, static_cast<int>(DiscoAction::kDebugSetRegister));
+      self->channel->Reply(TVMArgs(values, type_codes, 1));
     }
   }
 

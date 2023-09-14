@@ -19,30 +19,33 @@
 import tempfile
 
 import numpy as np
+import pytest
 
 import tvm
-import tvm.testing
 from tvm import dlight as dl
 from tvm import relax as rx
 from tvm.runtime import disco as di
 from tvm.runtime.relax_vm import VirtualMachine
 from tvm.script import relax as R
 
+_all_session_kinds = [di.ThreadedSession, di.ProcessSession]
 
-def test_init():
+
+@pytest.mark.parametrize("session_kind", _all_session_kinds)
+def test_init(session_kind):
     devices = [0, 1]
-
-    sess = di.ThreadedSession(num_workers=len(devices))
+    sess = session_kind(num_workers=len(devices))
     sess.init_ccl("nccl", *devices)
 
 
-def test_allreduce():
+@pytest.mark.parametrize("session_kind", _all_session_kinds)
+def test_allreduce(session_kind):
     devices = [0, 1]
+    sess = session_kind(num_workers=len(devices))
+    sess.init_ccl("nccl", *devices)
+
     array_1 = np.arange(12, dtype="float32").reshape(3, 4)
     array_2 = np.arange(start=1, stop=-11, step=-1, dtype="float32").reshape(3, 4)
-
-    sess = di.ThreadedSession(num_workers=len(devices))
-    sess.init_ccl("nccl", *devices)
     d_array = sess.empty((3, 4), "float32")
     d_array.debug_copy_from(0, array_1)
     d_array.debug_copy_from(1, array_2)
@@ -60,12 +63,13 @@ def test_allreduce():
         np.testing.assert_equal(result, expected)
 
 
-def test_broadcast_from_worker0():
+@pytest.mark.parametrize("session_kind", _all_session_kinds)
+def test_broadcast_from_worker0(session_kind):
     devices = [0, 1]
-    array = np.arange(12, dtype="float32").reshape(3, 4)
-
-    sess = di.ThreadedSession(num_workers=len(devices))
+    sess = session_kind(num_workers=len(devices))
     sess.init_ccl("nccl", *devices)
+
+    array = np.arange(12, dtype="float32").reshape(3, 4)
     d_array = sess.empty((3, 4), "float32")
     d_array.debug_copy_from(0, array)
     dst_array = sess.empty((3, 4), "float32")
@@ -74,12 +78,13 @@ def test_broadcast_from_worker0():
     np.testing.assert_equal(result, array)
 
 
-def test_scatter():
+@pytest.mark.parametrize("session_kind", _all_session_kinds)
+def test_scatter(session_kind):
     devices = [0, 1]
-    array = np.arange(36, dtype="float32").reshape(3, 4, 3)
-
-    sess = di.ThreadedSession(num_workers=len(devices))
+    sess = session_kind(num_workers=len(devices))
     sess.init_ccl("nccl", *devices)
+
+    array = np.arange(36, dtype="float32").reshape(3, 4, 3)
     d_src = sess.empty((3, 4, 3), "float32")
     d_dst = sess.empty((3, 3, 2), "float32")
 
@@ -96,29 +101,29 @@ def test_scatter():
     )
 
 
-# def test_gather():
-#     num_workers = 2
-#     devices = [1, 2]
-#     array = np.arange(36, dtype="float32")
+@pytest.mark.parametrize("session_kind", _all_session_kinds)
+def test_gather(session_kind):
+    devices = [1, 2]
+    sess = session_kind(num_workers=len(devices))
+    sess.init_ccl("nccl", *devices)
 
-#     sess = di.ThreadedSession(num_workers=num_workers)
-#     sess.init_ccl("nccl", *devices)
-#     d_src = sess.empty((3, 3, 2), "float32")
-#     d_dst = sess.empty((3, 4, 3), "float32")
-
-#     d_src.debug_copy_from(0, array[:18])
-#     d_src.debug_copy_from(1, array[18:])
-
-#     sess.gather_to_worker0(d_src, d_dst)
-
-#     np.testing.assert_equal(
-#         d_dst.debug_get_from_remote(0).numpy(),
-#         array.reshape(3, 4, 3),
-#     )
+    array = np.arange(36, dtype="float32")
+    d_src = sess.empty((3, 3, 2), "float32")
+    d_dst = sess.empty((3, 4, 3), "float32")
+    d_src.debug_copy_from(0, array[:18])
+    d_src.debug_copy_from(1, array[18:])
+    sess.gather_to_worker0(d_src, d_dst)
+    np.testing.assert_equal(
+        d_dst.debug_get_from_remote(0).numpy(),
+        array.reshape(3, 4, 3),
+    )
 
 
-def test_mlp():  # pylint: disable=too-many-locals
+@pytest.mark.parametrize("session_kind", _all_session_kinds)
+def test_mlp(session_kind):  # pylint: disable=too-many-locals
     devices = [0, 1]
+    sess = session_kind(num_workers=len(devices))
+    sess.init_ccl("nccl", *devices)
 
     # pylint: disable=invalid-name
     @tvm.script.ir_module
@@ -193,8 +198,6 @@ def test_mlp():  # pylint: disable=too-many-locals
         path = tmpdir + "/test.so"
         relax_build(ShardedMLP, target).export_library(path)
 
-        sess = di.ThreadedSession(num_workers=len(devices))
-        sess.init_ccl("nccl", *devices)
         mod = sess.load_vm_module(path)
 
         d_X = sess.empty((128, 128), "float32")
@@ -215,8 +218,11 @@ def test_mlp():  # pylint: disable=too-many-locals
     np.testing.assert_allclose(Y_result, Y_expected, rtol=1e-4, atol=1e-4)
 
 
-def test_attention():  # pylint: disable=too-many-locals,too-many-statements
+@pytest.mark.parametrize("session_kind", _all_session_kinds)
+def test_attention(session_kind):  # pylint: disable=too-many-locals,too-many-statements
     devices = [0, 1]
+    sess = session_kind(num_workers=len(devices))
+    sess.init_ccl("nccl", *devices)
 
     # pylint: disable=invalid-name
     @tvm.script.ir_module
@@ -343,8 +349,6 @@ def test_attention():  # pylint: disable=too-many-locals,too-many-statements
         path = tmpdir + "/test.so"
         relax_build(ShardedAttention, target).export_library(path)
 
-        sess = di.ThreadedSession(num_workers=len(devices))
-        sess.init_ccl("nccl", *devices)
         mod = sess.load_vm_module(path)
 
         d_X = sess.empty((1, 10, 128), "float32")
@@ -372,4 +376,10 @@ def test_attention():  # pylint: disable=too-many-locals,too-many-statements
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    test_init(di.ProcessSession)
+    test_allreduce(di.ProcessSession)
+    test_broadcast_from_worker0(di.ProcessSession)
+    test_scatter(di.ProcessSession)
+    test_gather(di.ProcessSession)
+    test_mlp(di.ProcessSession)
+    test_attention(di.ProcessSession)
