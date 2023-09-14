@@ -39,6 +39,14 @@ size_t CommonUtils::GetIndex(int index, size_t max_size) {
   return v_index;
 }
 
+std::vector<size_t> CommonUtils::GetIndices(const std::vector<int>& indices, size_t max_size) {
+  std::vector<size_t> v_indices;
+  for (const auto& i : indices) {
+    v_indices.push_back(GetIndex(i, max_size));
+  }
+  return v_indices;
+}
+
 const Array<String> StringUtils::Split(const String& src_string, const String& sep) {
   Array<String> sub_strings;
   if (src_string.size() == 0) {

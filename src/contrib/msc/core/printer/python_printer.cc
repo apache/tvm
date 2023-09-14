@@ -49,6 +49,17 @@ void PythonPrinter::PrintTypedDoc(const AttrAccessDoc& doc) {
   output_ << "." << doc->name;
 }
 
+void PythonPrinter::PrintTypedDoc(const IndexDoc& doc) {
+  PrintDoc(doc->value, false);
+  if (doc->indices.size() == 0) {
+    output_ << "[()]";
+  } else {
+    output_ << "[";
+    PrintJoinedDocs(doc->indices, ", ");
+    output_ << "]";
+  }
+}
+
 void PythonPrinter::PrintTypedDoc(const CallDoc& doc) {
   PrintDoc(doc->callee, false);
   output_ << "(";
@@ -144,6 +155,17 @@ void PythonPrinter::PrintTypedDoc(const FunctionDoc& doc) {
   MaybePrintComment(doc, true);
   PrintIndentedBlock(doc->body);
   NewLine(false);
+}
+
+void PythonPrinter::PrintTypedDoc(const ClassDoc& doc) {
+  PrintDecorators(doc->decorators);
+
+  output_ << "class ";
+  PrintDoc(doc->name, false);
+  output_ << ":";
+
+  MaybePrintComment(doc, true);
+  PrintIndentedBlock(doc->body);
 }
 
 void PythonPrinter::PrintTypedDoc(const CommentDoc& doc) {

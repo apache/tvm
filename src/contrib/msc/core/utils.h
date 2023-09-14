@@ -46,6 +46,12 @@ class CommonUtils {
    * \return The valid index.
    */
   TVM_DLL static size_t GetIndex(int index, size_t max_size);
+
+  /*!
+   * \brief Check if the index is in range.
+   * \return The valid indices.
+   */
+  TVM_DLL static std::vector<size_t> GetIndices(const std::vector<int>& indices, size_t max_size);
 };
 
 /*!
