@@ -71,6 +71,38 @@ def llvm_get_intrinsic_name(intrin_id: int) -> str:
     return _ffi_api.llvm_get_intrinsic_name(intrin_id)
 
 
+def llvm_x86_get_archlist(only64bit=False):
+    """Get X86 CPU name list.
+
+    Parameters
+    ----------
+    only64bit : bool
+        Filter 64bit architectures.
+
+    Returns
+    -------
+    features : list[str]
+        String list of X86 architectures.
+    """
+    return _ffi_api.llvm_x86_get_archlist(only64bit)
+
+
+def llvm_x86_get_features(cpu_name):
+    """Get X86 CPU features.
+
+    Parameters
+    ----------
+    cpu_name : string
+        X86 CPU name (e.g. "skylake").
+
+    Returns
+    -------
+    features : list[str]
+        String list of X86 CPU features.
+    """
+    return _ffi_api.llvm_x86_get_features(cpu_name)
+
+
 def llvm_version_major(allow_none=False):
     """Get the major LLVM version.
 
