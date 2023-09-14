@@ -21,7 +21,7 @@ import tvm
 import tvm.testing
 from tvm import relax, tir
 import numpy as np
-from tvm.script import relax as R
+from tvm.script import relax as R, ir as I, tir as T
 from tvm.relax.testing import transform
 import tempfile
 from tvm.relax.transform.tuning_api import Trace
@@ -246,6 +246,81 @@ class Conv2dx2_after:
 def test_multiple_calls_same_extern():
     mod = relax.transform.RunCodegen()(Conv2dx2)
     tvm.ir.assert_structural_equal(mod["main"], Conv2dx2_after["main"])
+
+
+def test_dynamic_shape():
+    import tvm.relax.backend.contrib.cublas
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            x: R.Tensor((1, 4096), dtype="float16"),
+            w1: R.Tensor((4096, "r1"), dtype="float16"),
+            w2: R.Tensor((4096, "r2"), dtype="float16"),
+        ) -> R.Tuple(R.Tensor((1, "r1"), dtype="float16"), R.Tensor((1, "r2"), dtype="float16")):
+            r1 = T.int64()
+            r2 = T.int64()
+            cls = Before
+            with R.dataflow():
+                lv: R.Tensor((1, r1), dtype="float16") = cls.fused_relax_matmul_cublas(x, w1)
+                lv1: R.Tensor((1, r2), dtype="float16") = cls.fused_relax_matmul_cublas(x, w2)
+                gv: R.Tuple(
+                    R.Tensor((1, r1), dtype="float16"), R.Tensor((1, r2), dtype="float16")
+                ) = (lv, lv1)
+                R.output(gv)
+            return gv
+
+        @R.function
+        def fused_relax_matmul_cublas(
+            x: R.Tensor((1, 4096), dtype="float16"), w1: R.Tensor((4096, "r1"), dtype="float16")
+        ) -> R.Tensor((1, "r1"), dtype="float16"):
+            r1 = T.int64()
+            R.func_attr({"Codegen": "cublas"})
+
+            @R.function
+            def gv(
+                x_1: R.Tensor((1, 4096), dtype="float16"),
+                w1_1: R.Tensor((4096, r1), dtype="float16"),
+            ) -> R.Tensor((1, r1), dtype="float16"):
+                R.func_attr({"Composite": "cublas.matmul"})
+                with R.dataflow():
+                    gv_1: R.Tensor((1, r1), dtype="float16") = R.matmul(x_1, w1_1, out_dtype="void")
+                    R.output(gv_1)
+                return gv_1
+
+            gv1: R.Tensor((1, r1), dtype="float16") = gv(x, w1)
+            return gv1
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((1, 4096), dtype="float16"),
+            w1: R.Tensor((4096, "r1"), dtype="float16"),
+            w2: R.Tensor((4096, "r2"), dtype="float16"),
+        ) -> R.Tuple(R.Tensor((1, "r1"), dtype="float16"), R.Tensor((1, "r2"), dtype="float16")):
+            r1 = T.int64()
+            r2 = T.int64()
+            with R.dataflow():
+                lv = R.call_dps_packed(
+                    "fused_relax_matmul_cublas",
+                    (x, w1),
+                    out_sinfo=R.Tensor((1, r1), dtype="float16"),
+                )
+                lv1 = R.call_dps_packed(
+                    "fused_relax_matmul_cublas",
+                    (x, w2),
+                    out_sinfo=R.Tensor((1, r2), dtype="float16"),
+                )
+                gv: R.Tuple(
+                    R.Tensor((1, r1), dtype="float16"), R.Tensor((1, r2), dtype="float16")
+                ) = (lv, lv1)
+                R.output(gv)
+            return gv
+
+    after = relax.transform.RunCodegen()(Before)
+    tvm.ir.assert_structural_equal(after["main"], Expected["main"])
 
 
 # TODO(@sunggg):  test with more complex patterns (e.g., multiple annots, mixed codegens, different ops, const binding)
