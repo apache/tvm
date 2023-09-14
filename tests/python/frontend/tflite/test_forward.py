@@ -2682,7 +2682,7 @@ def _test_greater_equal(data):
 # ----
 
 
-def _test_less(data):
+def _test_less(data, fused_activation_function=None, quantized=False, qnn_op=None):
     """One iteration of less"""
     return _test_elemwise(
         math_ops.less,
