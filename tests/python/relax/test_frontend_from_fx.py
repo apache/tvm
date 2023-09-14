@@ -823,9 +823,33 @@ def test_avgpool2d():
                 R.output(gv)
             return gv
 
+    class AvgPool2d4(Module):
+        def forward(self, input):
+            return torch.nn.functional.avg_pool2d(input, kernel_size=[2, 1], divisor_override=2)
+
+    @tvm.script.ir_module
+    class expected3:
+        @R.function
+        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")):
+            with R.dataflow():
+                lv = R.nn.avg_pool2d(
+                    input_1,
+                    pool_size=[2, 1],
+                    strides=[2, 1],
+                    dilation=[1, 1],
+                    padding=[0, 0, 0, 0],
+                    ceil_mode=False,
+                    layout="NCHW",
+                    out_layout="NCHW",
+                )
+                gv = lv
+                R.output(gv)
+            return gv
+
     verify_model(AvgPool2d(), input_info, {}, expected1)
     verify_model(AvgPool2d2(), input_info, {}, expected2)
     verify_model(AvgPool2d3(), input_info, {}, expected2)
+    verify_model(AvgPool2d4(), input_info, {}, expected3)
 
 
 def test_adaptive_avgpool2d():
