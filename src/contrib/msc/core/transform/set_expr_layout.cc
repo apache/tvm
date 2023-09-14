@@ -252,6 +252,9 @@ InferLayoutOutput ForwardInferLayoutBinary(const Call& call,
     if (const auto* t_info = sinfo.as<TensorStructInfoNode>()) {
       if (t_info->ndim == 0) {
         input_layouts.push_back(LayoutDecision(""));
+      } else if (t_info->ndim == 1) {
+        const auto& ref_layout = output->output_layouts[0].LeafValue()->layout;
+        input_layouts.push_back(LayoutDecision(ref_layout[ref_layout.ndim() - 1].name()));
       } else {
         input_layouts.push_back(output->input_layouts[i]);
       }
@@ -266,6 +269,32 @@ InferLayoutOutput ForwardInferLayoutInplace(const Call& call,
                                             const Map<String, Array<String>>& desired_layouts,
                                             const VarLayoutMap& var_layout_map) {
   return ForwardInferLayoutCommon(call, desired_layouts, var_layout_map);
+}
+
+InferLayoutOutput ForwardInferLayoutArgMaxMin(const Call& call,
+                                              const Map<String, Array<String>>& desired_layouts,
+                                              const VarLayoutMap& var_layout_map) {
+  LayoutDecision input_layout = InferLayoutDecision(call->args[0], var_layout_map);
+  if (!input_layout->layout.defined()) {
+    return InferLayoutOutput();
+  }
+  const auto* attrs = call->attrs.as<ArgmaxArgminAttrs>();
+  if (attrs->keepdims) {
+    return InferLayoutOutput({input_layout}, {input_layout}, Attrs());
+  }
+  if (!attrs->axis.defined()) {
+    return InferLayoutOutput({input_layout}, {LayoutDecision("")}, Attrs());
+  }
+  Array<PrimExpr> empty;
+  const auto& input_shape =
+      Downcast<TensorStructInfo>(GetStructInfo(call->args[0]))->GetShape().value_or(empty);
+  if (input_shape.size() == 0) {
+    return InferLayoutOutput();
+  }
+  std::vector<size_t> axes;
+  axes.push_back(CommonUtils::GetIndex(Downcast<Integer>(attrs->axis)->value, input_shape.size()));
+  LayoutDecision output_layout = LayoutUtils::ReduceLayout(input_layout, axes);
+  return InferLayoutOutput({input_layout}, {output_layout}, Attrs());
 }
 
 InferLayoutOutput ForwardInferLayoutBatchNorm(const Call& call,
@@ -504,9 +533,9 @@ TVM_REGISTER_OP("relax.nn.adaptive_avg_pool2d")
     .set_attr<FRelaxInferLayout>("FMSCForwardInferLayout", MSCInferLayoutPool2d);
 // reduce axis ops
 TVM_REGISTER_OP("relax.argmax")
-    .set_attr<FRelaxInferLayout>("FMSCForwardInferLayout", ForwardInferLayoutReduceAxis);
+    .set_attr<FRelaxInferLayout>("FMSCForwardInferLayout", ForwardInferLayoutArgMaxMin);
 TVM_REGISTER_OP("relax.argmin")
-    .set_attr<FRelaxInferLayout>("FMSCForwardInferLayout", ForwardInferLayoutReduceAxis);
+    .set_attr<FRelaxInferLayout>("FMSCForwardInferLayout", ForwardInferLayoutArgMaxMin);
 TVM_REGISTER_OP("relax.max")
     .set_attr<FRelaxInferLayout>("FMSCForwardInferLayout", ForwardInferLayoutReduceAxis);
 TVM_REGISTER_OP("relax.min")
@@ -624,6 +653,9 @@ InferLayoutOutput BackwardInferLayoutBinary(const Call& call,
     if (const auto* t_info = sinfo.as<TensorStructInfoNode>()) {
       if (t_info->ndim == 0) {
         input_layouts.push_back(LayoutDecision(""));
+      } else if (t_info->ndim == 1) {
+        const auto& ref_layout = output->output_layouts[0].LeafValue()->layout;
+        input_layouts.push_back(LayoutDecision(ref_layout[ref_layout.ndim() - 1].name()));
       } else {
         input_layouts.push_back(output->input_layouts[i]);
       }
@@ -638,6 +670,29 @@ InferLayoutOutput BackwardInferLayoutInplace(const Call& call,
                                              const Map<String, Array<String>>& desired_layouts,
                                              const VarLayoutMap& var_layout_map) {
   return BackwardInferLayoutCommon(call, desired_layouts, var_layout_map);
+}
+
+InferLayoutOutput BackwardInferLayoutArgMaxMin(const Call& call,
+                                               const Map<String, Array<String>>& desired_layouts,
+                                               const VarLayoutMap& var_layout_map) {
+  LayoutDecision output_layout = InferLayoutDecision(call, var_layout_map);
+  if (!output_layout->layout.defined()) {
+    return InferLayoutOutput();
+  }
+  const auto* attrs = call->attrs.as<ArgmaxArgminAttrs>();
+  if (attrs->keepdims) {
+    return InferLayoutOutput({output_layout}, {output_layout}, Attrs());
+  }
+  Array<PrimExpr> empty;
+  const auto& input_shape =
+      Downcast<TensorStructInfo>(GetStructInfo(call->args[0]))->GetShape().value_or(empty);
+  if (input_shape.size() == 0) {
+    return InferLayoutOutput();
+  }
+  std::vector<size_t> axes;
+  axes.push_back(CommonUtils::GetIndex(Downcast<Integer>(attrs->axis)->value, input_shape.size()));
+  LayoutDecision input_layout = LayoutUtils::ExpandLayout(output_layout, axes);
+  return InferLayoutOutput({input_layout}, {output_layout}, Attrs());
 }
 
 InferLayoutOutput BackwardInferLayoutBatchNorm(const Call& call,
@@ -853,9 +908,9 @@ TVM_REGISTER_OP("relax.nn.adaptive_avg_pool2d")
     .set_attr<FRelaxInferLayout>("FMSCBackwardInferLayout", MSCInferLayoutPool2d);
 // reduce axis ops
 TVM_REGISTER_OP("relax.argmax")
-    .set_attr<FRelaxInferLayout>("FMSCBackwardInferLayout", BackwardInferLayoutReduceAxis);
+    .set_attr<FRelaxInferLayout>("FMSCBackwardInferLayout", BackwardInferLayoutArgMaxMin);
 TVM_REGISTER_OP("relax.argmin")
-    .set_attr<FRelaxInferLayout>("FMSCBackwardInferLayout", BackwardInferLayoutReduceAxis);
+    .set_attr<FRelaxInferLayout>("FMSCBackwardInferLayout", BackwardInferLayoutArgMaxMin);
 TVM_REGISTER_OP("relax.max")
     .set_attr<FRelaxInferLayout>("FMSCBackwardInferLayout", BackwardInferLayoutReduceAxis);
 TVM_REGISTER_OP("relax.min")
@@ -969,11 +1024,7 @@ class LayoutInfer : public ExprVisitor {
       const Call& call = Downcast<Call>(expr);
       size_t infered_num = 0;
       for (const auto& arg : call->args) {
-        if (arg->IsInstance<VarNode>() && var_map_.count(Downcast<Var>(arg))) {
-          if (LayoutUtils::LayoutInfered(var_map_[Downcast<Var>(arg)]) > 0) {
-            infered_num++;
-          }
-        } else if (LayoutUtils::LayoutInfered(arg)) {
+        if (IsArgInfered(arg)) {
           infered_num++;
         }
       }
@@ -1008,26 +1059,6 @@ class LayoutInfer : public ExprVisitor {
       } catch (runtime::InternalError& err) {
         LOG(WARNING) << "Failed to backward set inputs layout for " << call << " : "
                      << err.message();
-      }
-    }
-  }
-
-  void SetInputLayouts(const Array<NLayout>& input_layouts, const Call& call) {
-    if (input_layouts.size() == call->args.size()) {
-      for (size_t i = 0; i < input_layouts.size(); i++) {
-        if (call->args[i]->IsInstance<VarNode>()) {
-          const auto& var = Downcast<Var>(call->args[i]);
-          var_layout_map_[var] = input_layouts[i];
-          if (var_map_.count(var)) {
-            if (LayoutUtils::SetLayout(var_map_[var], input_layouts[i])) {
-              infered_ = true;
-            }
-          } else if (LayoutUtils::SetLayout(var, input_layouts[i])) {
-            infered_ = true;
-          }
-        } else if (LayoutUtils::SetLayout(call->args[i], input_layouts[i])) {
-          infered_ = true;
-        }
       }
     }
   }
@@ -1154,6 +1185,44 @@ class LayoutInfer : public ExprVisitor {
   bool infered() { return infered_; }
 
  private:
+  bool IsArgInfered(const Expr& arg) {
+    if (arg->IsInstance<VarNode>() && var_map_.count(Downcast<Var>(arg))) {
+      if (LayoutUtils::LayoutInfered(var_map_[Downcast<Var>(arg)]) > 0) {
+        return true;
+      }
+    } else if (const auto* tuple_node = arg.as<TupleNode>()) {
+      for (const auto& field : tuple_node->fields) {
+        if (!IsArgInfered(field)) {
+          return false;
+        }
+      }
+      return true;
+    } else if (LayoutUtils::LayoutInfered(arg)) {
+      return true;
+    }
+    return false;
+  }
+
+  void SetInputLayouts(const Array<NLayout>& input_layouts, const Call& call) {
+    if (input_layouts.size() == call->args.size()) {
+      for (size_t i = 0; i < input_layouts.size(); i++) {
+        if (call->args[i]->IsInstance<VarNode>()) {
+          const auto& var = Downcast<Var>(call->args[i]);
+          var_layout_map_[var] = input_layouts[i];
+          if (var_map_.count(var)) {
+            if (LayoutUtils::SetLayout(var_map_[var], input_layouts[i])) {
+              infered_ = true;
+            }
+          } else if (LayoutUtils::SetLayout(var, input_layouts[i])) {
+            infered_ = true;
+          }
+        } else if (LayoutUtils::SetLayout(call->args[i], input_layouts[i])) {
+          infered_ = true;
+        }
+      }
+    }
+  }
+
   IRModule ref_module_;
   bool infered_;
   Map<Var, Expr> var_map_;

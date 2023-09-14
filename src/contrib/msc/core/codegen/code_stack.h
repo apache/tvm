@@ -152,15 +152,32 @@ class BaseStack {
   /*! \brief Push inplace call or/and assign Doc*/
   void InplaceEnd();
 
-  /*! \brief Cache call argument*/
+  /*! \brief Cache call base argument*/
   void CallArgBase(const ExprDoc& value, const String& key = "");
 
+  /*! \brief Cache call normal argument*/
   template <typename T>
   inline void CallArg(T value, const String& key = "") {
     CallArgBase(DocUtils::ToDoc(value), key);
   }
 
+  /*! \brief Cache call string argument*/
   void CallStrArg(const String& value, const String& key = "");
+
+  /*! \brief Cache call index argument*/
+  void CallIndexArgBase(const ExprDoc& value, const Array<ExprDoc>& indices,
+                        const String& key = "");
+
+  template <typename T>
+  inline void CallIndexArg(const String& value, const std::vector<T>& indices,
+                           const String& key = "") {
+    CallIndexArgBase(IdDoc(value), DocUtils::ToDocList(indices), key);
+  }
+
+  template <typename T>
+  inline void CallIndexArg(const String& value, const Array<T>& indices, const String& key = "") {
+    CallIndexArgBase(IdDoc(value), DocUtils::ToDocList(indices), key);
+  }
 
   /*! \brief Cache call list argument*/
   void CallListArgBase(const Array<ExprDoc>& values, const String& key = "",
@@ -362,6 +379,17 @@ class BaseStack {
     CallStrArg(value, key);                                                                      \
     return *this;                                                                                \
   }                                                                                              \
+  template <typename T>                                                                          \
+  Stack& call_index_arg(const String& value, const std::vector<T>& indices,                      \
+                        const String& key = "") {                                                \
+    CallIndexArg(value, indices, key);                                                           \
+    return *this;                                                                                \
+  }                                                                                              \
+  template <typename T>                                                                          \
+  Stack& call_index_arg(const String& value, const Array<T>& indices, const String& key = "") {  \
+    CallIndexArg(value, indices, key);                                                           \
+    return *this;                                                                                \
+  }                                                                                              \
   Stack& call_list_arg(const Array<ExprDoc>& values, const String& key = "",                     \
                        bool allow_empty = false, bool as_list = true) {                          \
     CallListArg(values, key, allow_empty, as_list);                                              \
@@ -508,6 +536,12 @@ class OpCodeStack : public BaseStack {
     if (codegen_->node()->weights.count(wtype)) {
       return call_arg(codegen_->IdxWeight(wtype, false), key);
     }
+    return *this;
+  }
+
+  /*! \brief Cache name as argument*/
+  OpCodeStack<OpCodeGenType>& op_name_arg(const String& key = "name") {
+    return call_str_arg(codegen_->node()->name, key);
     return *this;
   }
 

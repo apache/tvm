@@ -16,12 +16,14 @@
 # under the License.
 """tvm.contrib.msc.core.ir.translate"""
 
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, List
 
 import tvm
 from tvm.relax.transform import BindParams
 from tvm.relax.backend.pattern_registry import get_patterns_with_prefix
+from tvm.relay.expr_functor import ExprVisitor
 from tvm.relay.build_module import bind_params_by_name
+from tvm.relay import dataflow_pattern as relay_pattern
 from tvm.contrib.msc.core import transform as msc_transform
 from tvm.contrib.msc.core import _ffi_api
 from tvm.contrib.msc.core import utils as msc_utils
@@ -112,6 +114,58 @@ def from_relax(
     return graph, normalize_weights(t_weights, graph)
 
 
+def get_relay_patterns(
+    mod: tvm.IRModule,
+    entry_name: str = "main",
+) -> List[Tuple[str, relay_pattern.DFPattern, callable]]:
+    """Filter relay patterns based on mod.
+
+    Parameters
+    ----------
+    mod: IRModule
+        The IRModule of relay.
+    entry_name: str
+        The entry name.
+
+    Returns
+    -------
+    patterns: list
+        The useful patterns for relay
+    """
+
+    class OpExtractor(ExprVisitor):
+        """Extract ops from expr."""
+
+        def extract(self, expr):
+            self._optypes = set()
+            super().visit(expr)
+            return self._optypes
+
+        def visit_call(self, expr):
+            super().visit_call(expr)
+            if isinstance(expr.op, tvm.ir.Op):
+                self._optypes.add(expr.op.name)
+
+    op_names = OpExtractor().extract(mod[entry_name])
+    skip_tags, patterns = set(), list(tvm.relay.op.contrib.get_pattern_table("msc"))
+    if "nn.conv1d" not in op_names or "add" not in op_names:
+        skip_tags.add("msc.conv1d_bias")
+    if "nn.conv2d" not in op_names or "add" not in op_names:
+        skip_tags.add("msc.conv2d_bias")
+    if "nn.batch_matmul" not in op_names or "add" not in op_names:
+        skip_tags.add("msc.linear_bias")
+    if "nn.batch_matmul" not in op_names:
+        skip_tags |= set(p[0] for p in patterns if p[0].startswith("msc.linear"))
+        if "nn.dense" not in op_names:
+            skip_tags |= set(p[0] for p in patterns if p[0].startswith("msc.matmul"))
+    if "take" not in op_names:
+        skip_tags |= set(p[0] for p in patterns if p[0].startswith("msc.embedding"))
+    if "erf" not in op_names:
+        skip_tags |= set(p[0] for p in patterns if p[0].startswith("msc.gelu"))
+    valid_patterns = [p for p in patterns if p[0] not in skip_tags]
+    return valid_patterns
+
+
 def from_relay(
     mod: tvm.IRModule,
     params: Optional[Dict[str, tvm.nd.array]] = None,
@@ -160,7 +214,7 @@ def from_relay(
         ]
         with tvm.transform.PassContext(opt_level=opt_level, disabled_pass=disabled_pass):
             mod, params = tvm.relay.optimize(mod, target=target, params=params)
-    patterns = tvm.relay.op.contrib.get_pattern_table("msc")
+    patterns = get_relay_patterns(mod)
     passes = [
         tvm.relay.transform.InferType(),
         tvm.relay.transform.MergeComposite(patterns),

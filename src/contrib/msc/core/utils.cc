@@ -47,6 +47,20 @@ std::vector<size_t> CommonUtils::GetIndices(const std::vector<int>& indices, siz
   return v_indices;
 }
 
+bool StringUtils::Contains(const String& src_string, const String& sub_string) {
+  if (src_string.size() == 0) {
+    return false;
+  }
+  if (sub_string.size() == 0) {
+    return false;
+  }
+
+  const std::string src_cstring = src_string;
+  const std::string& sub_cstring = sub_string;
+  int pos = src_cstring.find(sub_cstring);
+  return pos >= 0;
+}
+
 const Array<String> StringUtils::Split(const String& src_string, const String& sep) {
   Array<String> sub_strings;
   if (src_string.size() == 0) {
@@ -192,7 +206,8 @@ const Span SpanUtils::SetAttr(const Span& span, const String& key, const String&
     const String& source_str = span->source_name->name;
     String left = std::get<0>(StringUtils::SplitOnce(source_str, tokens[0]));
     String right = std::get<1>(StringUtils::SplitOnce(source_str, tokens[1]));
-    if (left.size() > 0) {
+    if (StringUtils::Contains(source_str, tokens[0]) &&
+        StringUtils::Contains(source_str, tokens[1])) {
       new_source = left + tokens[0] + value + tokens[1] + right;
     } else {
       new_source = source_str + tokens[0] + value + tokens[1];

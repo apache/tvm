@@ -49,7 +49,7 @@ bool LayoutUtils::SetLayout(const Expr& expr, const NLayout& layout) {
     }
     expr->span = SpanUtils::SetAttr(expr->span, "layout", l_layout.name());
   } else if (sinfo.as<TupleStructInfoNode>()) {
-    ICHECK(!layout.IsLeaf()) << "Expr has tupple struct, but find non-nested layout " << expr;
+    ICHECK(!layout.IsLeaf()) << "Expr has tuple struct, but find non-nested layout " << expr;
     String layout_str;
     Array<NLayout> nested_layouts = layout.NestedArray();
     for (size_t i = 0; i < nested_layouts.size(); i++) {

@@ -70,6 +70,8 @@ const std::vector<int> TorchOpCode::GetPadding(const String& key) {
     } else {
       LOG_FATAL << "nn.conv2d/pool2d with unexpected padding " << node();
     }
+  } else {
+    LOG_FATAL << "Unexpected padding node" << node();
   }
   return padding;
 }
@@ -402,6 +404,21 @@ class TorchPoolCodeGen : public TorchOpCode {
   }
 };
 
+class TorchPermuteDimsCodeGen : public TorchOpCode {
+  TORCH_OP_CODEGEN_METHODS(TorchPermuteDimsCodeGen)
+
+ protected:
+  void CodeGenForward() final {
+    std::vector<int> axes;
+    if (!node()->GetAttr("axes", &axes)) {
+      for (size_t i = node()->InputAt(0)->Ndim(); i > 0; i--) {
+        axes.push_back(i - 1);
+      }
+    }
+    stack_.op_start().op_input_arg().call_list_arg(axes).op_end();
+  }
+};
+
 class TorchReduceAxisCodeGen : public TorchOpCode {
  public:
   TorchReduceAxisCodeGen(const String& module_name, const String& func_name, bool as_list)
@@ -623,7 +640,6 @@ const std::shared_ptr<std::unordered_map<String, std::shared_ptr<TorchOpCode>>> 
                std::make_shared<TorchAxisCodeGen>("nn.LogSoftmax", "functional.log_softmax"));
   map->emplace("nn.softmax",
                std::make_shared<TorchAxisCodeGen>("nn.Softmax", "functional.softmax"));
-  map->emplace("permute_dims", std::make_shared<TorchAxesCodeGen>("", "torch.permute"));
   map->emplace("squeeze", std::make_shared<TorchAxesCodeGen>("", "torch.squeeze"));
 
   // math ops
@@ -632,6 +648,7 @@ const std::shared_ptr<std::unordered_map<String, std::shared_ptr<TorchOpCode>>> 
   map->emplace("clip", std::make_shared<TorchClipCodeGen>("", "torch.clamp"));
   map->emplace("cumsum", std::make_shared<TorchCumsumCodeGen>("", "torch.cumsum"));
   map->emplace("expand_dims", std::make_shared<TorchExpandDimsCodeGen>("", "torch.unsqueeze"));
+  map->emplace("permute_dims", std::make_shared<TorchPermuteDimsCodeGen>("", "torch.permute"));
   map->emplace("repeat", std::make_shared<TorchRepeatCodeGen>("", "repeat"));
   map->emplace("reshape", std::make_shared<TorchReshapeCodeGen>("", "torch.reshape"));
   map->emplace("split", std::make_shared<TorchSplitCodeGen>("", "torch.split"));

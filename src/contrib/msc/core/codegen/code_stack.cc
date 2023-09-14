@@ -198,6 +198,15 @@ void BaseStack::CallArgBase(const ExprDoc& value, const String& key) {
   }
 }
 
+void BaseStack::CallIndexArgBase(const ExprDoc& value, const Array<ExprDoc>& indices,
+                                 const String& key) {
+  Array<Doc> doc_indices;
+  for (const auto& i : indices) {
+    doc_indices.push_back(i);
+  }
+  CallArgBase(IndexDoc(value, doc_indices), key);
+}
+
 void BaseStack::CallStrArg(const String& value, const String& key) {
   if (value.size() > 0) {
     CallArgBase(DocUtils::ToStrDoc(value), key);

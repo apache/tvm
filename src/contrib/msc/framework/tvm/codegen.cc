@@ -146,6 +146,10 @@ void RelaxCodeGen::CodeGenInference() {
       .call_start("tvm.target.Target")
       .call_str_arg(target)
       .call_end("target")
+      .call_start("tvm.relax.transform.LegalizeOps()")
+      .call_arg("mod")
+      .call_end("mod")
+      .scope_start("tvm.transform.PassContext(opt_level=3)")
       .call_start("relax.build")
       .call_arg("mod")
       .call_arg("target")
@@ -154,6 +158,7 @@ void RelaxCodeGen::CodeGenInference() {
       .call_arg("ex")
       .call_arg(device)
       .call_end("vm")
+      .scope_end()
       .call_start("vm[\"main\"]");
   for (const auto& i : graph()->GetInputs()) {
     stack_.call_arg("inputs[\"" + i->alias + "\"]");

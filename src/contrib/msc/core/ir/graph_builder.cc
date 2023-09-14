@@ -179,9 +179,19 @@ const MSCJoint RelaxGraphBuilder::AddNode(const Expr& expr, const Optional<Expr>
         attrs.Set(input_types[i], StringUtils::ToString(s_node->value));
         continue;
       }
-      ICHECK(expr_tensor_map_.count(arg)) << "Missing argument " << arg;
+      Array<String> arg_names;
+      if (expr_tensor_map_.count(arg)) {
+        arg_names = expr_tensor_map_[arg];
+      } else if (const auto* tuple_node = arg.as<relax::TupleNode>()) {
+        for (const auto& f : tuple_node->fields) {
+          ICHECK(expr_tensor_map_.count(f)) << "Can not find tuple field " << f;
+          for (const auto& in_name : expr_tensor_map_[f]) {
+            arg_names.push_back(in_name);
+          }
+        }
+      }
       if (input_types[i] != "input" && arg->IsInstance<relax::ConstantNode>()) {
-        const auto& t_name = expr_tensor_map_[arg][0];
+        const auto& t_name = arg_names[0];
         const auto& w_name = SpanUtils::GetAttr(arg->span, "name");
         const auto& pair = tensor_input_map_[t_name];
         const auto& producer = Downcast<MSCJoint>(pair.first);
@@ -195,7 +205,7 @@ const MSCJoint RelaxGraphBuilder::AddNode(const Expr& expr, const Optional<Expr>
         }
         node_weights.Set(input_types[i], weights_[w_name]);
       } else {
-        for (const auto& in_name : expr_tensor_map_[arg]) {
+        for (const auto& in_name : arg_names) {
           input_names.push_back(in_name);
         }
       }
@@ -280,19 +290,22 @@ void RelaxGraphBuilder::VisitExpr_(const relax::ConstantNode* op) {
 
 void RelaxGraphBuilder::VisitBinding_(const relax::VarBindingNode* binding,
                                       const relax::ConstantNode* val) {
-  AddNode(GetRef<relax::Constant>(val), binding->var);
+  const String& name = config_.use_var_name ? binding->var->name_hint() : "";
+  AddNode(GetRef<relax::Constant>(val), binding->var, name);
 }
 
 void RelaxGraphBuilder::VisitBinding_(const relax::VarBindingNode* binding,
                                       const relax::ShapeExprNode* val) {
-  AddNode(GetRef<relax::ShapeExpr>(val), binding->var);
+  const String& name = config_.use_var_name ? binding->var->name_hint() : "";
+  AddNode(GetRef<relax::ShapeExpr>(val), binding->var, name);
 }
 
 void RelaxGraphBuilder::VisitBinding_(const relax::VarBindingNode* binding,
                                       const relax::CallNode* call_node) {
   RelaxExprVisitor::VisitBinding_(binding, call_node);
+  const String& name = config_.use_var_name ? binding->var->name_hint() : "";
   try {
-    AddNode(GetRef<relax::Call>(call_node), binding->var);
+    AddNode(GetRef<relax::Call>(call_node), binding->var, name);
   } catch (runtime::InternalError& err) {
     LOG(WARNING) << "Failed to add node from " << binding->var << " : " << binding->value
                  << ", reason: " << err.message();
@@ -303,13 +316,15 @@ void RelaxGraphBuilder::VisitBinding_(const relax::VarBindingNode* binding,
 void RelaxGraphBuilder::VisitBinding_(const relax::VarBindingNode* binding,
                                       const relax::TupleNode* val) {
   RelaxExprVisitor::VisitBinding_(binding, val);
-  AddNode(GetRef<relax::Tuple>(val), binding->var);
+  const String& name = config_.use_var_name ? binding->var->name_hint() : "";
+  AddNode(GetRef<relax::Tuple>(val), binding->var, name);
 }
 
 void RelaxGraphBuilder::VisitBinding_(const relax::VarBindingNode* binding,
                                       const relax::TupleGetItemNode* val) {
   RelaxExprVisitor::VisitBinding_(binding, val);
-  AddNode(GetRef<relax::TupleGetItem>(val), binding->var);
+  const String& name = config_.use_var_name ? binding->var->name_hint() : "";
+  AddNode(GetRef<relax::TupleGetItem>(val), binding->var, name);
 }
 
 void RelaxGraphBuilder::VisitBinding_(const relax::VarBindingNode* binding,
@@ -606,6 +621,9 @@ void RelayGraphBuilder::VisitExpr_(const relay::CallNode* op) {
     const auto& name_opt = f_node->GetAttr<runtime::String>(relay::attr::kComposite);
     if (name_opt.defined()) {
       for (size_t i = 0; i < op->args.size(); i++) {
+        if (!expr_tensor_map_.count(op->args[i])) {
+          RelayExprVisitor::VisitExpr(op->args[i]);
+        }
         ICHECK(expr_tensor_map_.count(op->args[i]))
             << "Can not find argument " << relay::PrettyPrint(op->args[i]);
         expr_tensor_map_.Set(f_node->params[i], expr_tensor_map_[op->args[i]]);

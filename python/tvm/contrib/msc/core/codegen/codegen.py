@@ -125,8 +125,7 @@ def relay_to_relax(
         opt_config=opt_config,
     )
     source_getter = tvm.get_global_func("msc.framework.tvm.GetRelaxSources")
-    codegen_config = {"from_relay": True}
-    codegen = CodeGen(graph, source_getter, codegen_config)
+    codegen = CodeGen(graph, source_getter, codegen_config={"from_relay": True})
     inputs = [
         tvm.relax.Var(i.alias, tvm.relax.TensorStructInfo(i.get_shape(), i.dtype_name))
         for i in graph.get_inputs()
