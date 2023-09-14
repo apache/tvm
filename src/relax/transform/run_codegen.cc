@@ -85,16 +85,16 @@ class CodeGenRunner : ExprMutator {
         return Call(call_op, new_args, tvm::Attrs(), {ret_struct_info});
       };
 
+      auto ret_sinfo = GetStructInfo(call);
       if (auto it = extern_funcs_.find(gvar_node); it != extern_funcs_.end()) {
-        return create_call_dps_packed(it->second.first, it->second.second);
+        return create_call_dps_packed(it->second, ret_sinfo);
       } else {
         // TODO(@sunggg): Is there any better way to get this func?
         Function func = Downcast<Function>(builder_->GetContextIRModule()->Lookup(gvar));
         Expr new_func = VisitExpr(func);
 
         if (new_func->IsInstance<ExternFuncNode>()) {
-          auto ret_sinfo = GetStructInfo(call);
-          extern_funcs_[gvar_node] = {new_func, ret_sinfo};
+          extern_funcs_[gvar_node] = new_func;
           // Remove the global symbol and codegen attributes from the function so that it can be
           // removed the module.
           static const runtime::PackedFunc* RemoveFuncAttrFunc =
@@ -173,8 +173,8 @@ class CodeGenRunner : ExprMutator {
 
   /*! \brief The names of all constants in the original module. */
   Map<Constant, String> constant_names;
-  /*! \brief Extern funcs and their return struct infos for each global variable.  */
-  std::unordered_map<const GlobalVarNode*, std::pair<Expr, StructInfo>> extern_funcs_;
+  /*! \brief Extern funcs for each global variable.  */
+  std::unordered_map<const GlobalVarNode*, Expr> extern_funcs_;
 };
 
 }  // namespace relax
