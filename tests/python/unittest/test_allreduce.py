@@ -58,7 +58,7 @@ dims = tvm.testing.parameter(*generate_param_sets())
 
 
 @tvm.testing.parametrize_targets("cuda", "metal")
-def test_allreduce_cuda_sum(target, dims):
+def test_allreduce_sum(dims, target, dev):
     d1, d2, d3 = dims
     _, _, _d1, _d2, _d3 = reduce.params
     mod = reduce.specialize({_d1: d1, _d2: d2, _d3: d3})
@@ -74,8 +74,8 @@ def test_allreduce_cuda_sum(target, dims):
     # prepare input and output array
     a_np = np.random.rand(1, d1, d2, d3).astype("float32")
     b_np = a_np.sum(axis=-1).astype("float32")
-    a = tvm.nd.array(a_np, tvm.cuda(0))
-    b = tvm.nd.array(np.zeros_like(b_np), tvm.cuda(0))
+    a = tvm.nd.array(a_np, dev)
+    b = tvm.nd.array(np.zeros_like(b_np), dev)
 
     # launch kernel
     f(a, b)
@@ -83,7 +83,7 @@ def test_allreduce_cuda_sum(target, dims):
 
 
 @tvm.testing.parametrize_targets("cuda", "metal")
-def test_allreduce_cuda_max(target, dims):
+def test_allreduce_max(dims, target, dev):
     d1, d2, d3 = dims
     _, _, _d1, _d2, _d3 = reduce_max.params
     mod = reduce_max.specialize({_d1: d1, _d2: d2, _d3: d3})
@@ -99,8 +99,8 @@ def test_allreduce_cuda_max(target, dims):
     # prepare input and output array
     a_np = -np.random.rand(1, d1, d2, d3).astype("float32")
     b_np = a_np.max(axis=-1).astype("float32")
-    a = tvm.nd.array(a_np, tvm.cuda(0))
-    b = tvm.nd.array(np.zeros_like(b_np), tvm.cuda(0))
+    a = tvm.nd.array(a_np, dev)
+    b = tvm.nd.array(np.zeros_like(b_np), dev)
 
     # launch kernel
     f(a, b)
