@@ -35,6 +35,9 @@
  * runtime builtin provide as in this file.
  */
 #define PICOJSON_USE_INT64
+#ifndef __STDC_FORMAT_MACROS
+#define __STDC_FORMAT_MACROS
+#endif
 #include "./ndarray_cache_support.h"
 
 #include <picojson.h>
