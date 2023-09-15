@@ -374,7 +374,7 @@ class RelayExprNameBinder : public ExprVisitor {
       expr->span = Span(SourceName::Get(""), expr->span->line, expr->span->end_line,
                         expr->span->column, expr->span->end_column);
     } else {
-      const auto& right = std::get<1>(StringUtils::SplitOnce(name, name_key_));
+      const String& right = std::get<1>(StringUtils::SplitOnce(name, name_key_));
       if (right.size() > 0) {
         valid_name = std::get<0>(StringUtils::SplitOnce(name, seperator_));
         if (valid_name.size() > 0) {
