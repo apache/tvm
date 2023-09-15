@@ -81,6 +81,14 @@ if(USE_CUDA)
     list(APPEND RUNTIME_SRCS ${CONTRIB_CURAND_SRC_CU})
   endif(USE_CURAND)
 
+  if(USE_NVTX)
+    message(STATUS "Build with NVTX support")
+    message(STATUS "${CUDA_NVTX_LIBRARY}")
+    cmake_minimum_required(VERSION 3.13) # to compile CUDA code
+    enable_language(CUDA)
+    list(APPEND TVM_RUNTIME_LINKER_LIBS ${CUDA_NVTX_LIBRARY})
+  endif(USE_NVTX)
+
   if(USE_GRAPH_EXECUTOR_CUDA_GRAPH)
     if(NOT USE_GRAPH_EXECUTOR)
       message(FATAL_ERROR "CUDA Graph is only supported by graph executor, please set USE_GRAPH_EXECUTOR=ON")
