@@ -47,9 +47,12 @@ if(USE_ROCM)
 
   if(USE_ROCBLAS)
     message(STATUS "Build with RocBLAS support")
+    tvm_file_glob(GLOB ROCBLAS_CONTRIB_SRC src/relax/backend/contrib/rocblas/*.cc)
+    list(APPEND COMPILER_SRCS ${ROCBLAS_CONTRIB_SRC})
     tvm_file_glob(GLOB ROCBLAS_CONTRIB_SRCS src/runtime/contrib/rocblas/*.cc)
     list(APPEND RUNTIME_SRCS ${ROCBLAS_CONTRIB_SRCS})
     list(APPEND TVM_RUNTIME_LINKER_LIBS ${ROCM_ROCBLAS_LIBRARY})
+    list(APPEND TVM_RUNTIME_LINKER_LIBS ${ROCM_HIPBLASLT_LIBRARY})
   endif(USE_ROCBLAS)
 
   if(USE_THRUST)
