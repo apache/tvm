@@ -22,6 +22,7 @@ import numpy as np
 import pytest
 
 import tvm
+import tvm.testing
 from tvm import dlight as dl
 from tvm import relax as rx
 from tvm.runtime import disco as di
@@ -103,7 +104,7 @@ def test_scatter(session_kind):
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
 def test_gather(session_kind):
-    devices = [1, 2]
+    devices = [0, 1]
     sess = session_kind(num_workers=len(devices))
     sess.init_ccl("nccl", *devices)
 
@@ -376,10 +377,4 @@ def test_attention(session_kind):  # pylint: disable=too-many-locals,too-many-st
 
 
 if __name__ == "__main__":
-    test_init(di.ProcessSession)
-    test_allreduce(di.ProcessSession)
-    test_broadcast_from_worker0(di.ProcessSession)
-    test_scatter(di.ProcessSession)
-    test_gather(di.ProcessSession)
-    test_mlp(di.ProcessSession)
-    test_attention(di.ProcessSession)
+    tvm.testing.main()
