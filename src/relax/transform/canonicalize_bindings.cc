@@ -36,6 +36,8 @@ class BindingCanonicalizer : public ExprMutator {
  public:
   BindingCanonicalizer() {}
 
+  using ExprMutator::VisitExpr_;
+
   Expr VisitExpr_(const VarNode* op) override {
     // remap first
     Var v = Downcast<Var>(ExprMutator::VisitExpr_(op));
@@ -52,6 +54,23 @@ class BindingCanonicalizer : public ExprMutator {
       return Downcast<Expr>(v);
     }
     return ExprMutator::VisitExpr_(LookupBinding(v).as<VarNode>());
+  }
+
+  Expr VisitExpr_(const TupleGetItemNode* tuple_get_item) override {
+    if (auto tuple_var = tuple_get_item->tuple.as<Var>()) {
+      if (auto tuple_value = LookupBinding(tuple_var.value())) {
+        if (auto explicit_tuple = tuple_value.as<TupleNode>()) {
+          CHECK_GE(tuple_get_item->index, 0)
+              << "Tuple " << tuple_value << " is accessed at index " << tuple_get_item->index
+              << ", but negative indices are not supported in this context.";
+          CHECK_LT(tuple_get_item->index, explicit_tuple->fields.size())
+              << "Tuple " << tuple_value << " is accessed at index " << tuple_get_item->index
+              << ", but the tuple size is only " << explicit_tuple->fields.size();
+          return VisitExpr(explicit_tuple->fields[tuple_get_item->index]);
+        }
+      }
+    }
+    return ExprMutator::VisitExpr_(tuple_get_item);
   }
 
   void VisitBinding_(const VarBindingNode* binding) override {

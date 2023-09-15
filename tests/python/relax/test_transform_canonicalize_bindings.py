@@ -254,5 +254,30 @@ def test_change_shape():
     assert_structural_equal(new_mod, Expected)
 
 
+def test_unwrap_tuple():
+    @tvm.script.ir_module
+    class Before:
+        @R.function
+        def main(x: R.Tensor, y: R.Tensor):
+            tuple_var = (x, y)
+            w = tuple_var[0]
+            q = tuple_var[1]
+            z = R.add(w, q)
+            return R.add(q, z)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor, y: R.Tensor):
+            tuple_var = (x, y)
+            w = x
+            q = y
+            z = R.add(x, y)
+            return R.add(y, z)
+
+    after = relax.transform.CanonicalizeBindings()(Before)
+    assert_structural_equal(Expected, after)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
