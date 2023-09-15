@@ -137,7 +137,8 @@ void ScatterFromWorker0(Optional<NDArray> send, NDArray recv) {
     NCCL_CALL(ncclGroupStart());
     uint8_t* data = static_cast<uint8_t*>(buffer->data);
     for (int i = 0; i < num_workers; ++i) {
-      NCCL_CALL(ncclSend(data, numel_per_shard, AsNCCLDataType(dtype), i, ctx->comm, ctx->comm_stream));
+      NCCL_CALL(
+          ncclSend(data, numel_per_shard, AsNCCLDataType(dtype), i, ctx->comm, ctx->comm_stream));
       data += bytes_per_shard;
     }
   } else {
@@ -180,7 +181,8 @@ void GatherToWorker0(NDArray send, Optional<NDArray> recv) {
     NCCL_CALL(ncclGroupStart());
     uint8_t* data = static_cast<uint8_t*>(buffer->data);
     for (int i = 0; i < num_workers; ++i) {
-      NCCL_CALL(ncclRecv(data, numel_per_shard, AsNCCLDataType(dtype), i, ctx->comm, ctx->comm_stream));
+      NCCL_CALL(
+          ncclRecv(data, numel_per_shard, AsNCCLDataType(dtype), i, ctx->comm, ctx->comm_stream));
       data += bytes_per_shard;
     }
   } else {
