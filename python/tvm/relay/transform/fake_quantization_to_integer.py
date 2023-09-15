@@ -119,6 +119,37 @@ def avgpool2d(expr, type_map):
     t = type_map[arg]
     out_t = type_map[expr]
 
+    # dq > nn.avg_pool2d > q
+    # Use the same input quantization parameters for output if the pattern is not the above.
+    # Type_map is a map of graphs and their Tensoraffinetypes
+    # Find the current "nn.avg_pool2d" op after checking for the "qnn.quantize" op in the graph.
+    # Structure for .. dq > op > q will be q [op [dq ..
+    def check(y, expr):
+        if isinstance(y, type(expr)):
+            if y.op.name != "nn.avg_pool2d":
+                return True
+            # check if this is the expr avg_pool
+            if y.attrs != expr.attrs:
+                return True
+        return False
+
+    for x in type_map.items():
+        if isinstance(x[0], type(expr)):
+            if x[0].op.name == "qnn.quantize":
+                prev = x[0]
+                y = prev.args[0]
+                while check(y, expr):
+                    prev = y
+                    y = prev.args[0]
+                if (
+                    isinstance(y, type(expr))
+                    and y.op.name == "nn.avg_pool2d"
+                    and y.attrs == expr.attrs
+                ):
+                    if prev.op.name != "qnn.quantize":
+                        out_t = t
+                    break
+
     out = relay.qnn.op.avg_pool2d(
         arg,
         t.scale,
