@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-docstring
-"""Tests for NCCL"""
+"""Tests for NCCL/RCCL"""
 import tempfile
 
 import numpy as np
@@ -28,22 +28,35 @@ from tvm import relax as rx
 from tvm.runtime import disco as di
 from tvm.runtime.relax_vm import VirtualMachine
 from tvm.script import relax as R
+from tvm import get_global_func
 
 _all_session_kinds = [di.ThreadedSession, di.ProcessSession]
+_ccl = [get_global_func("runtime.disco.compiled_ccl")()]
+
+
+def create_device_target(ccl):
+    if ccl == "nccl":
+        dev = tvm.cuda(0)
+    else:
+        dev = tvm.rocm(0)
+    target = tvm.target.Target.from_device(dev)
+    return (dev, target)
 
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
-def test_init(session_kind):
+@pytest.mark.parametrize("ccl", _ccl)
+def test_init(session_kind, ccl):
     devices = [0, 1]
     sess = session_kind(num_workers=len(devices))
-    sess.init_ccl("nccl", *devices)
+    sess.init_ccl(ccl, *devices)
 
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
-def test_allreduce(session_kind):
+@pytest.mark.parametrize("ccl", _ccl)
+def test_allreduce(session_kind, ccl):
     devices = [0, 1]
     sess = session_kind(num_workers=len(devices))
-    sess.init_ccl("nccl", *devices)
+    sess.init_ccl(ccl, *devices)
 
     array_1 = np.arange(12, dtype="float32").reshape(3, 4)
     array_2 = np.arange(start=1, stop=-11, step=-1, dtype="float32").reshape(3, 4)
@@ -65,10 +78,11 @@ def test_allreduce(session_kind):
 
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
-def test_broadcast_from_worker0(session_kind):
+@pytest.mark.parametrize("ccl", _ccl)
+def test_broadcast_from_worker0(session_kind, ccl):
     devices = [0, 1]
     sess = session_kind(num_workers=len(devices))
-    sess.init_ccl("nccl", *devices)
+    sess.init_ccl(ccl, *devices)
 
     array = np.arange(12, dtype="float32").reshape(3, 4)
     d_array = sess.empty((3, 4), "float32")
@@ -80,10 +94,11 @@ def test_broadcast_from_worker0(session_kind):
 
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
-def test_scatter(session_kind):
+@pytest.mark.parametrize("ccl", _ccl)
+def test_scatter(session_kind, ccl):
     devices = [0, 1]
     sess = session_kind(num_workers=len(devices))
-    sess.init_ccl("nccl", *devices)
+    sess.init_ccl(ccl, *devices)
 
     array = np.arange(36, dtype="float32").reshape(3, 4, 3)
     d_src = sess.empty((3, 4, 3), "float32")
@@ -103,10 +118,11 @@ def test_scatter(session_kind):
 
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
-def test_gather(session_kind):
+@pytest.mark.parametrize("ccl", _ccl)
+def test_gather(session_kind, ccl):
     devices = [0, 1]
     sess = session_kind(num_workers=len(devices))
-    sess.init_ccl("nccl", *devices)
+    sess.init_ccl(ccl, *devices)
 
     array = np.arange(36, dtype="float32")
     d_src = sess.empty((3, 3, 2), "float32")
@@ -121,10 +137,11 @@ def test_gather(session_kind):
 
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
-def test_mlp(session_kind):  # pylint: disable=too-many-locals
+@pytest.mark.parametrize("ccl", _ccl)
+def test_mlp(session_kind, ccl):  # pylint: disable=too-many-locals
     devices = [0, 1]
     sess = session_kind(num_workers=len(devices))
-    sess.init_ccl("nccl", *devices)
+    sess.init_ccl(ccl, *devices)
 
     # pylint: disable=invalid-name
     @tvm.script.ir_module
@@ -162,16 +179,7 @@ def test_mlp(session_kind):  # pylint: disable=too-many-locals
             return lv3
 
     # pylint: enable=invalid-name
-    target = tvm.target.Target(
-        {
-            "kind": "cuda",
-            "max_shared_memory_per_block": 49152,
-            "max_threads_per_block": 1024,
-            "thread_warp_size": 32,
-            "registers_per_block": 65536,
-            "arch": "sm_80",
-        }
-    )
+    dev, target = create_device_target(ccl)
 
     def relax_build(mod, target):
         with target:
@@ -183,16 +191,16 @@ def test_mlp(session_kind):  # pylint: disable=too-many-locals
                 dl.gpu.GeneralReduction(),
                 dl.gpu.Fallback(),
             )(mod)
-            return rx.build(mod, target="cuda")
+            return rx.build(mod, target=target)
 
     # pylint: disable=invalid-name
     X = np.random.randn(128, 128).astype("float32")
     W1 = np.random.randn(128, 128).astype("float32")
     W2 = np.random.randn(128, 128).astype("float32")
-    Y_expected = VirtualMachine(relax_build(MLP, target), device=tvm.cuda(0))["main"](
-        tvm.nd.array(X, device=tvm.cuda(0)),
-        tvm.nd.array(W1, device=tvm.cuda(0)),
-        tvm.nd.array(W2, device=tvm.cuda(0)),
+    Y_expected = VirtualMachine(relax_build(MLP, target), device=dev)["main"](
+        tvm.nd.array(X, device=dev),
+        tvm.nd.array(W1, device=dev),
+        tvm.nd.array(W2, device=dev),
     ).numpy()
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -211,7 +219,7 @@ def test_mlp(session_kind):  # pylint: disable=too-many-locals
         d_W2.debug_copy_from(0, W2[:64, :])
         d_W2.debug_copy_from(1, W2[64:, :])
         d_Y = mod["main"](d_X, d_W1, d_W2)
-        Y_result = tvm.nd.empty((128, 128), "float32", device=tvm.cuda(0))
+        Y_result = tvm.nd.empty((128, 128), "float32", device=dev)
         sess.copy_from_worker_0(Y_result, d_Y)
         sess.sync_worker_0()
         Y_result = Y_result.numpy()
@@ -220,10 +228,11 @@ def test_mlp(session_kind):  # pylint: disable=too-many-locals
 
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
-def test_attention(session_kind):  # pylint: disable=too-many-locals,too-many-statements
+@pytest.mark.parametrize("ccl", _ccl)
+def test_attention(session_kind, ccl):  # pylint: disable=too-many-locals,too-many-statements
     devices = [0, 1]
     sess = session_kind(num_workers=len(devices))
-    sess.init_ccl("nccl", *devices)
+    sess.init_ccl(ccl, *devices)
 
     # pylint: disable=invalid-name
     @tvm.script.ir_module
@@ -309,16 +318,7 @@ def test_attention(session_kind):  # pylint: disable=too-many-locals,too-many-st
             return lv17
 
     # pylint: enable=invalid-name
-    target = tvm.target.Target(
-        {
-            "kind": "cuda",
-            "max_shared_memory_per_block": 49152,
-            "max_threads_per_block": 1024,
-            "thread_warp_size": 32,
-            "registers_per_block": 65536,
-            "arch": "sm_80",
-        }
-    )
+    dev, target = create_device_target(ccl)
 
     def relax_build(mod, target):
         with target:
@@ -330,7 +330,7 @@ def test_attention(session_kind):  # pylint: disable=too-many-locals,too-many-st
                 dl.gpu.GeneralReduction(),
                 dl.gpu.Fallback(),
             )(mod)
-            return rx.build(mod, target="cuda")
+            return rx.build(mod, target=target)
 
     # pylint: disable=invalid-name
     X = np.random.randn(1, 10, 128).astype("float32")
@@ -338,12 +338,12 @@ def test_attention(session_kind):  # pylint: disable=too-many-locals,too-many-st
     Wk = np.random.randn(128, 512).astype("float32")
     Wv = np.random.randn(128, 512).astype("float32")
     Wo = np.random.randn(512, 128).astype("float32")
-    Y_expected = VirtualMachine(relax_build(Attention, target), device=tvm.cuda(0))["main"](
-        tvm.nd.array(X, device=tvm.cuda(0)),
-        tvm.nd.array(Wq, device=tvm.cuda(0)),
-        tvm.nd.array(Wk, device=tvm.cuda(0)),
-        tvm.nd.array(Wv, device=tvm.cuda(0)),
-        tvm.nd.array(Wo, device=tvm.cuda(0)),
+    Y_expected = VirtualMachine(relax_build(Attention, target), device=dev)["main"](
+        tvm.nd.array(X, device=dev),
+        tvm.nd.array(Wq, device=dev),
+        tvm.nd.array(Wk, device=dev),
+        tvm.nd.array(Wv, device=dev),
+        tvm.nd.array(Wo, device=dev),
     ).numpy()
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -368,7 +368,7 @@ def test_attention(session_kind):  # pylint: disable=too-many-locals,too-many-st
         d_Wo.debug_copy_from(0, Wo[:256, :])
         d_Wo.debug_copy_from(1, Wo[256:, :])
         d_Y = mod["main"](d_X, d_Wq, d_Wk, d_Wv, d_Wo)
-        Y_result = tvm.nd.empty((1, 10, 128), "float32", device=tvm.cuda(0))
+        Y_result = tvm.nd.empty((1, 10, 128), "float32", device=dev)
         sess.copy_from_worker_0(Y_result, d_Y)
         sess.sync_worker_0()
         Y_result = Y_result.numpy()

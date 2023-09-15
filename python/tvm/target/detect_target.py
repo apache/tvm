@@ -50,7 +50,7 @@ def _detect_rocm(dev: Device) -> Target:
     return Target(
         {
             "kind": "rocm",
-            "mtriple": "amdgcn-and-amdhsa-hcc",
+            "mtriple": "amdgcn-amd-amdhsa-hcc",
             "max_shared_memory_per_block": dev.max_shared_memory_per_block,
             "max_threads_per_block": dev.max_threads_per_block,
             "thread_warp_size": dev.warp_size,
