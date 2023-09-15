@@ -46,6 +46,15 @@ def _allreduce(_bb: BlockBuilder, call: Call) -> Expr:
     )
 
 
+@register_legalize("relax.ccl.allgather")
+def _allgather(_bb: BlockBuilder, call: Call) -> Expr:
+    return call_dps_packed(
+        "runtime.disco.allgather",
+        call.args[0],
+        out_sinfo=call.args[0].struct_info,
+    )
+
+
 @register_legalize("relax.ccl.broadcast_from_worker0")
 def _broadcast_from_worker0(_bb: BlockBuilder, call: Call) -> Expr:
     return call_dps_packed(

@@ -50,6 +50,31 @@ TVM_REGISTER_OP("relax.ccl.allreduce")
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
     .set_attr<Bool>("FPurity", Bool(true));
 
+/* relax.ccl.allgather */
+TVM_REGISTER_NODE_TYPE(AllGatherAttrs);
+
+Expr allgather(Expr x) {
+  ObjectPtr<AllGatherAttrs> attrs = make_object<AllGatherAttrs>();
+
+  static const Op& op = Op::Get("relax.ccl.allgather");
+  return Call(op, {std::move(x)}, Attrs{attrs}, {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.ccl.allgather").set_body_typed(allgather);
+
+StructInfo InferStructInfoAllGather(const Call& call, const BlockBuilder& ctx) {
+  TensorStructInfo input_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
+  return input_sinfo;
+}
+
+TVM_REGISTER_OP("relax.ccl.allgather")
+    .set_attrs_type<AllGatherAttrs>()
+    .set_num_inputs(1)
+    .add_argument("x", "Tensor", "Input to which allgather will be applied.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAllGather)
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
+    .set_attr<Bool>("FPurity", Bool(true));
+
 /* relax.ccl.broadcast_from_worker0 */
 Expr broadcast_from_worker0(Expr x) {
   static const Op& op = Op::Get("relax.ccl.broadcast_from_worker0");

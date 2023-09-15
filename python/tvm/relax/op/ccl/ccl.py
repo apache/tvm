@@ -44,6 +44,22 @@ def allreduce(x, op_type: str = "sum"):  # pylint: disable=invalid-name
     return _ffi_api.allreduce(x, op_type)  # type: ignore # pylint: disable=no-member
 
 
+def allgather(x):  # pylint: disable=invalid-name
+    """AllGather operator
+
+    Parameters
+    ----------
+    x : relax.Expr
+      The input tensor.
+
+    Returns
+    -------
+    result : relax.Expr
+      The result of allgather.
+    """
+    return _ffi_api.allgather(x)  # type: ignore # pylint: disable=no-member
+
+
 def broadcast_from_worker0(x: Expr) -> Expr:
     """Broadcast data from worker-0 to all other workers.
 

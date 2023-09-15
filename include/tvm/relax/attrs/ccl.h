@@ -40,6 +40,14 @@ struct AllReduceAttrs : public tvm::AttrsNode<AllReduceAttrs> {
   }
 };  // struct AllReduceAttrs
 
+/*! \brief Attributes used in allgather operators */
+struct AllGatherAttrs : public tvm::AttrsNode<AllGatherAttrs> {
+  TVM_DECLARE_ATTRS(AllGatherAttrs, "relax.attrs.AllGatherAttrs") {
+    // You can add any additional attributes needed for the AllGather operation here.
+    // For example, if there are no additional attributes, you can leave this empty.
+  }
+};  // struct AllGatherAttrs
+
 /*! \brief Attributes used in scatter_from_worker0 operators */
 struct ScatterFromWorker0Attrs : public tvm::AttrsNode<ScatterFromWorker0Attrs> {
   int num_workers;

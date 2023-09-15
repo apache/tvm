@@ -99,6 +99,18 @@ void AllReduce(NDArray send, ReduceKind reduce_kind, NDArray recv) {
   DeviceAPI::Get(device)->SyncStreamFromTo(device, ctx->comm_stream, ctx->compute_stream);
 }
 
+void AllGather(NDArray send, NDArray recv) {
+  NCCLThreadLocalContext* ctx = NCCLThreadLocalContext::Get();
+  ShapeTuple shape = send.Shape();
+  int64_t numel = shape->Product();
+  Device device = ctx->worker->default_device;
+  DeviceAPI::Get(device)->SyncStreamFromTo(device, ctx->compute_stream, ctx->comm_stream);
+  NCCL_CALL(ncclAllGather(send->data, recv->data, numel,
+                          /*datatype=*/AsNCCLDataType(DataType(send->dtype)),
+                          ctx->comm, ctx->comm_stream));
+  DeviceAPI::Get(device)->SyncStreamFromTo(device, ctx->comm_stream, ctx->compute_stream);
+}
+
 void BroadcastFromWorker0(NDArray send, NDArray recv) {
   NCCLThreadLocalContext* ctx = NCCLThreadLocalContext::Get();
   ICHECK(send.Shape()->Product() == recv.Shape()->Product());
@@ -226,6 +238,10 @@ TVM_REGISTER_GLOBAL("runtime.disco.nccl.allreduce")
       CHECK(0 <= kind && kind <= 4) << "ValueError: Unknown ReduceKind: " << kind;
       AllReduce(send, static_cast<ReduceKind>(kind), recv);
     });
+TVM_REGISTER_GLOBAL("runtime.disco.nccl.allgather")
+  .set_body_typed([](NDArray send, NDArray recv) {
+    AllGather(send, recv);
+  });
 TVM_REGISTER_GLOBAL("runtime.disco.nccl.broadcast_from_worker0")
     .set_body_typed(BroadcastFromWorker0);
 TVM_REGISTER_GLOBAL("runtime.disco.nccl.scatter_from_worker0").set_body_typed(ScatterFromWorker0);
