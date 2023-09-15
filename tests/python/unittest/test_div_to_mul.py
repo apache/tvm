@@ -14,10 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import numpy as np
+import pytest
+
 import tvm
 from tvm import relay
-import pytest
-import numpy as np
 
 
 @pytest.mark.parametrize("dtype, rtol", [("float16", 1e-3), ("float32", 1e-7), ("float64", 1e-12)])
@@ -27,5 +28,31 @@ def test_div_to_mul(dtype, rtol):
     z = x / y
     mod = tvm.IRModule.from_expr(z)
     transformed = relay.transform.DivToMul()(mod)
+    transformed = relay.transform.FoldConstant()(transformed)
     assert transformed["main"].body.op.name == "multiply"
     np.testing.assert_allclose(transformed["main"].body.args[1].data.numpy()[0], 1 / 1.5, rtol=rtol)
+
+
+@pytest.mark.parametrize("dtype, rtol", [("float16", 1e-3), ("float32", 1e-7), ("float64", 1e-12)])
+def test_div_to_mul_vector(dtype, rtol):
+    x = relay.var("x", relay.TensorType([5], dtype))
+    y = relay.Constant(tvm.nd.array(np.array([2, 2, 2, 4, 5]).astype(dtype)))
+    z = x / y
+    mod = tvm.IRModule.from_expr(z)
+    transformed = relay.transform.DivToMul()(mod)
+    transformed = relay.transform.FoldConstant()(transformed)
+    assert transformed["main"].body.op.name == "multiply"
+    np.testing.assert_allclose(
+        transformed["main"].body.args[1].data.numpy(), [0.5, 0.5, 0.5, 0.25, 0.2], rtol=rtol
+    )
+
+
+@pytest.mark.parametrize("dtype", [("float16"), ("float32"), ("float64")])
+def test_do_not_simplify_zero_div(dtype):
+    x = relay.var("x", relay.TensorType([5], dtype))
+    y = relay.Constant(tvm.nd.array(np.array([2, 2, 2, 4, 0]).astype(dtype)))
+    z = x / y
+    mod = tvm.IRModule.from_expr(z)
+    transformed = relay.transform.DivToMul()(mod)
+    transformed = relay.transform.FoldConstant()(transformed)
+    assert transformed["main"].body.op.name == "divide"
