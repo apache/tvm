@@ -40,12 +40,13 @@ struct NCCLThreadLocalContext {
   DiscoWorker* worker;
   int device_id;
   cudaStream_t comm_stream;
-  cudaStream_t compute_stream = nullptr;
+  cudaStream_t compute_stream;
   ncclComm_t comm;
 
   void Clear() {
     NCCL_CALL(ncclCommDestroy(comm));
     CUDA_CALL(cudaStreamDestroy(comm_stream));
+    CUDA_CALL(cudaStreamDestroy(compute_stream));
   }
 
   static NCCLThreadLocalContext* Get() {
@@ -76,6 +77,7 @@ void InitCCLPerWorker(ShapeTuple device_ids, std::string unique_id_bytes) {
   int device_id = device_ids[worker->worker_id];
   CUDA_CALL(cudaSetDevice(device_id));
   CUDA_CALL(cudaStreamCreate(&ctx->comm_stream));
+  CUDA_CALL(cudaStreamCreate(&ctx->compute_stream));
   Device device{DLDeviceType::kDLCUDA, device_id};
   worker->default_device = device;
   worker->ccl = "nccl";
@@ -217,6 +219,7 @@ void SyncWorker() {
   NCCLThreadLocalContext* ctx = NCCLThreadLocalContext::Get();
   ICHECK(ctx->worker != nullptr);
   CUDA_CALL(cudaStreamSynchronize(ctx->compute_stream));
+  CUDA_CALL(cudaStreamSynchronize(ctx->comm_stream));
 }
 
 TVM_REGISTER_GLOBAL("runtime.disco.nccl.init_ccl").set_body_typed(InitCCL);
