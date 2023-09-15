@@ -69,6 +69,10 @@ jobs:
         shell: bash -l {0}
         run: >-
           python -m pytest -v tests/python/all-platform-minimal-test
+      - name: Minimal Metal Functionality
+        shell: bash -l {0}
+        run: >-
+          python -m pytest -v -s 'tests/python/unittest/test_allreduce.py::test_allreduce_sum[dims0-metal]'
       - name: Test iOS RPC
         shell: bash -l {0}
         run: >-
