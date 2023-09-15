@@ -16,11 +16,14 @@
 # under the License.
 """Specialized applications of trace"""
 from ..tir.schedule import Schedule, Trace
+from ..ir.module import IRModule
 from ..target import Target
 from . import _ffi_api
 
 
-def schedule_using_anchor_trace(sch: Schedule, anchor_trace: Trace, target: Target) -> None:
+def schedule_using_anchor_trace(
+    sch: Schedule, anchor_trace: Trace, record_mod: IRModule, target: Target
+) -> None:
     """Apply the trace from a TIR module whose anchor block is the same but fused elemewise op
     blocks differ. This function can be used for transferring a trace tuned on a conv2d -> add
     subgraph to other subgraphs having the same conv2d workload, for example. We call such trace
@@ -33,7 +36,9 @@ def schedule_using_anchor_trace(sch: Schedule, anchor_trace: Trace, target: Targ
         The target schedule
     anchor_trace: Trace
         The trace generated for other TIR module having the same anchor block
+    record_mod : IRModule
+        The IR Module where anchor trace is tuned on
     target : tvm.target.Target
         The compilation target
     """
-    _ffi_api.ScheduleUsingAnchorTrace(sch, anchor_trace, target)  # type: ignore
+    _ffi_api.ScheduleUsingAnchorTrace(sch, anchor_trace, record_mod, target)  # type: ignore

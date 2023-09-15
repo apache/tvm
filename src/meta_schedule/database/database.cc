@@ -17,6 +17,7 @@
  * under the License.
  */
 #include "../module_equality.h"
+#include "../trace_apply.h"
 #include "../utils.h"
 
 namespace tvm {
@@ -192,9 +193,14 @@ Optional<tir::Schedule> DatabaseNode::QuerySchedule(const IRModule& mod, const T
   if (Optional<TuningRecord> opt_record = this->QueryTuningRecord(mod, target, workload_name)) {
     TuningRecord record = opt_record.value();
     tir::Schedule sch =
-        tir::Schedule::Traced(record->workload->mod, /*seed=*/-1, /*debug_mask=*/0,
+        tir::Schedule::Traced(mod, /*seed=*/-1, /*debug_mask=*/0,
                               /*error_render_level=*/tir::ScheduleErrorRenderLevel::kDetail);
-    record->trace->ApplyToSchedule(sch, false);
+    auto mod_eq_structural = meta_schedule::ModuleEquality::Create("ignore-ndarray");
+    if (!mod_eq_structural->Equal(mod, record->workload->mod)) {
+      meta_schedule::ScheduleUsingAnchorTrace(sch, record->trace, record->workload->mod, target);
+    } else {
+      record->trace->ApplyToSchedule(sch, false);
+    }
     return sch;
   } else {
     return NullOpt;
