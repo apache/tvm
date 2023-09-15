@@ -2772,9 +2772,16 @@ def _test_floor_divide(data, fused_activation_function=None, quantized=False, qn
 # ---------
 
 
-def _test_floor_mod(data):
+def _test_floor_mod(data, fused_activation_function=None, quantized=False, qnn_op=None):
     """One iteration of floor_mod"""
-    return _test_elemwise(math_ops.floormod, data)
+    return _test_elemwise(
+        math_ops.floormod,
+        data,
+        fused_activation_function,
+        quantized,
+        qnn_op,
+        same_qnn_params=True,
+    )
 
 
 def _test_forward_elemwise(testop):
@@ -2825,6 +2832,7 @@ def _test_elemwise_qnn_out_range(qnn_op):
         _test_squared_difference: (0, 65025),
         _test_floor_divide: (-150, 150),
         _test_less: (-150, 150),
+        _test_floor_mod: (-150, 150),
     }
 
     return qnn_out_range[qnn_op]
@@ -2869,6 +2877,7 @@ def test_all_elemwise():
         _test_forward_elemwise(_test_floor_divide)
         _test_forward_elemwise_quantized(_test_floor_divide)
         _test_forward_elemwise(_test_floor_mod)
+        _test_forward_elemwise_quantized(_test_floor_mod)
 
 
 #######################################################################
