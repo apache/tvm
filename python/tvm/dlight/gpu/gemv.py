@@ -514,7 +514,7 @@ class GEMV(ScheduleRule):
 
         # The config is designed for Adreno
         tx_len = 64
-        vec_len = 4 if len_s > 4096 else 2
+        vec_len = (4 if len_s > 4096 else 2) if isinstance(len_s, int) else 1
         inner_r = 4
 
         bx, tx, vec = sch.split(s, factors=[None, tx_len, vec_len])
