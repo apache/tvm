@@ -22,12 +22,12 @@ Test hexagon relay transform - qnn.concat optimization
 import numpy as np
 import tvm
 from tvm.runtime import ndarray as nd
-from tvm.relay.backend import Executor
 from tvm import relay, testing
 from tvm.contrib.hexagon.transform import simplify_conv_pat
 from tvm.topi.utils import get_const_tuple
 from tvm.contrib.hexagon.session import Session
 from tvm.contrib.hexagon.pytest_plugin import HEXAGON_AOT_LLVM_TARGET
+from .infrastructure import build_module, run_module
 
 
 def get_test_module_relay_exprs(isConstScalarMultiplier=True):
@@ -121,27 +121,6 @@ def get_expected_output_module(
 
     out_func = relay.Function(relay.analysis.free_vars(graph), graph)
     return tvm.IRModule.from_expr(out_func)
-
-
-def build_module(relay_mod, target):
-    """builds a relay module for a specified target"""
-    params = {}
-    executor = Executor("aot", {"link-params": True})
-    lowered = tvm.relay.build(
-        relay_mod,
-        tvm.target.Target(target, host=target),
-        executor=executor,
-        params=params,
-    )
-    return lowered
-
-
-def run_module(mod, inputs):
-    """invokes run function of specified module with inputs provided"""
-    mod.set_input(**inputs)
-    mod.run()
-    output = mod.get_output(0).numpy()
-    return output
 
 
 def get_test_modules():
