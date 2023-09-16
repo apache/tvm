@@ -2682,9 +2682,17 @@ def _test_greater_equal(data):
 # ----
 
 
-def _test_less(data):
+def _test_less(data, fused_activation_function=None, quantized=False, qnn_op=None):
     """One iteration of less"""
-    return _test_elemwise(math_ops.less, data)
+    return _test_elemwise(
+        math_ops.less,
+        data,
+        fused_activation_function,
+        quantized,
+        qnn_op,
+        same_qnn_params=True,
+        comparison_op=True,
+    )
 
 
 #######################################################################
@@ -2823,6 +2831,7 @@ def _test_elemwise_qnn_out_range(qnn_op):
         _test_greater: (-150, 150),
         _test_squared_difference: (0, 65025),
         _test_floor_divide: (-150, 150),
+        _test_less: (-150, 150),
         _test_floor_mod: (-150, 150),
     }
 
@@ -2859,6 +2868,7 @@ def test_all_elemwise():
     _test_forward_elemwise_quantized(_test_squared_difference, np.int8)
     _test_forward_elemwise(_test_greater_equal)
     _test_forward_elemwise(_test_less)
+    _test_forward_elemwise_quantized(_test_less)
     _test_forward_elemwise(_test_less_equal)
     _test_forward_elemwise(_test_equal)
     _test_forward_elemwise_quantized(_test_equal)
