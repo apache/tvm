@@ -1500,10 +1500,6 @@ class OperatorConverter(object):
 
     def convert_not_equal(self, op):
         """Convert TFLite NOT_EQUAL"""
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                "TFlite quantized NOT_EQUAL operator is not supported yet."
-            )
         return self._convert_elemwise(_op.not_equal, op)
 
     def _convert_logical_binary(self, relay_op, op):
