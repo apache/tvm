@@ -3150,10 +3150,16 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
         if isinstance(axis, (tvm.tir.IterVar, list, tuple)):
             assert not args
             return _make_reduce(expr, axis, where, init)
+
         if where is None:
             assert not args
+            assert init is None
             return _reduce_directly(expr, axis)
-        return _reduce_directly(expr, axis, where, *args)
+        elif init is None:
+            assert not args
+            return _reduce_directly(expr, axis, where)
+        else:
+            return _reduce_directly(expr, axis, where, init, *args)
 
     doc_str = """Create a {0} expression over axis.
 
