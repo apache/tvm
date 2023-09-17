@@ -23,8 +23,12 @@ if(USE_LIBTORCH)
 
   file(GLOB LIBTORCH_RELAY_CONTRIB_SRC
     src/relay/backend/contrib/libtorch/libtorch_codegen.cc
-    src/runtime/contrib/libtorch/libtorch_runtime.cc
     )
   list(APPEND COMPILER_SRCS ${LIBTORCH_RELAY_CONTRIB_SRC})
+
+  file(GLOB LIBTORCH_RUNTIME_CONTRIB_SRC
+    src/runtime/contrib/libtorch/libtorch_runtime.cc
+    )
+  list(APPEND RUNTIME_SRCS ${LIBTORCH_RUNTIME_CONTRIB_SRC})
 
 endif(USE_LIBTORCH)
