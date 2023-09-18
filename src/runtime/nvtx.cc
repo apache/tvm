@@ -22,7 +22,7 @@
 #endif
 
 #if TVM_NVTX_ENABLED
-#include <nvToolsExt.h>
+#include <nvtx3/nvToolsExt.h>
 #endif  // TVM_NVTX_ENABLED
 
 #include <tvm/runtime/nvtx.h>
@@ -33,12 +33,10 @@ namespace runtime {
 #if TVM_NVTX_ENABLED
 NVTXScopedRange::NVTXScopedRange(const char* name) { nvtxRangePush(name); }
 NVTXScopedRange::~NVTXScopedRange() { nvtxRangePop(); }
-#endif  // TVM_NVTX_ENABLED
-
-#if !TVM_NVTX_ENABLED
+#else
 NVTXScopedRange::NVTXScopedRange(const char* name) {}
 NVTXScopedRange::~NVTXScopedRange() {}
-#endif  // TVM_NVTX_ENABLED == 0
+#endif  // TVM_NVTX_ENABLED
 
 }  // namespace runtime
 }  // namespace tvm
