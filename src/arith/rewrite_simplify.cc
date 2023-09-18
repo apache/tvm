@@ -1053,6 +1053,16 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
 
     TVM_TRY_REWRITE(matches_one_of(floormod(x * y, y), floormod(y * x, y)), ZeroWithTypeLike(y));
 
+    // x = ay + b, then (ay + b + (ny - ay - b) % y) % y -> (b + (-b) % y) % y -> 0
+    TVM_TRY_REWRITE_IF(
+        matches_one_of(floormod(x + floormod(z, y), y), floormod(floormod(z, y) + x, y)),
+        ZeroWithTypeLike(x), CanProveEqual(floormod(x.Eval() + z.Eval(), y.Eval()), 0));
+    // x = ay + b, then (ay + b - (ay + b) % +-y) % y -> (b - b % +-y) % y -> 0
+    TVM_TRY_REWRITE_IF(
+        matches_one_of(floormod(x - floormod(x, z), y), floormod(floormod(x, z) - x, y)),
+        ZeroWithTypeLike(x),
+        CanProveEqual(y.Eval() - z.Eval(), 0) || CanProveEqual(y.Eval() + z.Eval(), 0));
+
     if (floormod(x, c1).Match(ret)) {
       int64_t c1val = c1.Eval()->value;
       if (c1val > 0) {
