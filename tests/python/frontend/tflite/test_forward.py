@@ -2735,9 +2735,17 @@ def _test_equal(data, fused_activation_function=None, quantized=False, qnn_op=No
 # ---------
 
 
-def _test_not_equal(data):
+def _test_not_equal(data, fused_activation_function=None, quantized=False, qnn_op=None):
     """One iteration of not_equal"""
-    return _test_elemwise(math_ops.not_equal, data)
+    return _test_elemwise(
+        math_ops.not_equal,
+        data,
+        fused_activation_function,
+        quantized,
+        qnn_op,
+        same_qnn_params=True,
+        comparison_op=True,
+    )
 
 
 #######################################################################
@@ -2841,6 +2849,7 @@ def _test_elemwise_qnn_out_range(qnn_op):
         _test_floor_divide: (-150, 150),
         _test_less: (-150, 150),
         _test_floor_mod: (-150, 150),
+        _test_not_equal: (-150, 150),
     }
 
     return qnn_out_range[qnn_op]
@@ -2882,6 +2891,7 @@ def test_all_elemwise():
     _test_forward_elemwise(_test_equal)
     _test_forward_elemwise_quantized(_test_equal)
     _test_forward_elemwise(_test_not_equal)
+    _test_forward_elemwise_quantized(_test_not_equal)
     if package_version.parse(tf.VERSION) >= package_version.parse("1.14.0"):
         _test_forward_elemwise(_test_floor_divide)
         _test_forward_elemwise_quantized(_test_floor_divide)
