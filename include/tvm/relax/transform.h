@@ -562,6 +562,13 @@ TVM_DLL Pass RewriteCUDAGraph();
  */
 TVM_DLL Pass FewShotTuning(int valid_count, bool benchmark);
 
+/*!
+ * \brief This Pass lower QNN operation into the chain of simple ops.
+ *
+ * \return The Pass.
+ */
+TVM_DLL Pass QnnCanonicalize();
+
 }  // namespace transform
 }  // namespace relax
 }  // namespace tvm

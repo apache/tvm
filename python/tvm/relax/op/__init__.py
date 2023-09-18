@@ -39,6 +39,7 @@ from . import image
 from . import memory
 from . import nn
 from . import ccl
+from . import qnn
 
 # Register operator gradient functions
 from . import _op_gradient

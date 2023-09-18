@@ -35,19 +35,6 @@ TensorStructInfo MatchTensorStructInfo(Expr data) {
   return _sinfo.value();
 }
 
-Expr ExpandToMatchInput(Expr data, int ndim, Array<Integer> axes) {
-  axes = GetOrderedPositiveAxes(axes, ndim);
-  Array<Integer> expand_axes;
-  for (int i = 0, j = 0; i < ndim; ++i) {
-    if (j < static_cast<int>(axes.size()) && i == axes[j]->value) {
-      ++j;
-    } else {
-      expand_axes.push_back(i);
-    }
-  }
-  return expand_dims(data, expand_axes);
-}
-
 Tuple SimplifyBatchNormInference(const Call& call) {
   auto attrs = call->attrs.as<BatchNormAttrs>();
   ICHECK_NOTNULL(attrs);

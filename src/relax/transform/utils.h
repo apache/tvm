@@ -388,6 +388,8 @@ inline String GetCodegenName(const std::string& composite_name) {
   return composite_name.substr(0, delim_pos);
 }
 
+Expr ExpandToMatchInput(Expr data, int ndim, Array<Integer> axes);
+
 }  // namespace relax
 }  // namespace tvm
 

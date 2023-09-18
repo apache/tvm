@@ -41,5 +41,18 @@ bool IsNestedTensor(const StructInfo& sinfo) {
 
 bool IsNestedTensor(const Expr& expr) { return IsNestedTensor(GetStructInfo(expr)); }
 
+Expr ExpandToMatchInput(Expr data, int ndim, Array<Integer> axes) {
+  axes = GetOrderedPositiveAxes(axes, ndim);
+  Array<Integer> expand_axes;
+  for (int i = 0, j = 0; i < ndim; ++i) {
+    if (j < static_cast<int>(axes.size()) && i == axes[j]->value) {
+      ++j;
+    } else {
+      expand_axes.push_back(i);
+    }
+  }
+  return expand_dims(data, expand_axes);
+}
+
 }  // namespace relax
 }  // namespace tvm

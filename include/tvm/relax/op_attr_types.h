@@ -59,6 +59,13 @@ using FCallPacked = String;
 using FLegalize = runtime::TypedPackedFunc<Expr(const BlockBuilder& bb, const Call& call)>;
 
 /*!
+ * \brief The function type of a QNN canonicalization function, which takes a
+ * BlockBuilder and the Call to be lowered, and outputs the lowered Expr.
+ * \param call The call to be lowered.
+ */
+using FQnnLower = runtime::TypedPackedFunc<Expr(const Call& call)>;
+
+/*!
  * \brief Gradient for a specific op.
  *
  * \param orig_var the original var corresponding to orig_call.

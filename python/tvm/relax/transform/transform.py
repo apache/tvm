@@ -1466,3 +1466,14 @@ def dataflowblock_pass(
     if pass_func:
         return create_dataflowblock_pass(pass_func)
     return create_dataflowblock_pass
+
+
+def QnnCanonicalize() -> tvm.ir.transform.Pass:
+    """Lower QNN operations into equivalent chain of operations.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered pass for QNN lowering.
+    """
+    return _ffi_api.QnnCanonicalize()  # type: ignore
