@@ -999,7 +999,7 @@ class TestDependentBufferIndicesOfPackedMatmul(BaseCompactTest):
     ) -> None:
         for i0, i1 in T.grid(4, 1):
             with T.block():
-                C_local2 = T.alloc_buffer([1, 1, 15, 1000, 16], dtype="float32", scope="local")
+                C_local2 = T.alloc_buffer([1, 1, 16, 1000, 16], dtype="float32", scope="local")
                 C_local1 = T.alloc_buffer([255, 1000], dtype="float32", scope="local")
                 for ax0, ax1, ax2 in T.grid(255, 1000, 64):
                     with T.block("matmul"):
