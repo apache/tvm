@@ -1051,6 +1051,8 @@ class TestPadding:
         # original extent is smaller than the divident
         # it is not surjective wrt to the region [0, 16)
         ({x: 3}, {flm(x, 16)}),
+        # (x % c1) // c2 is not proved as surjective if c1 % c2 != 0
+        ({x: 255}, {fld(flm(x, 255), 16)}),
     )
 
     def test_padding(self, positive_test_case):
