@@ -175,6 +175,32 @@ def test_conv1d():
     assert_structural_equal(tvm_mod["forward"], forward, True)
 
 
+def test_conv1d_transpose():
+    # fmt: off
+    @R.function
+    def forward(x: R.Tensor((1, 3, 30), dtype="float32"), _io: R.Object, weight: R.Tensor((3, 32, 3), dtype="float32"), bias: R.Tensor((32,), dtype="float32")) -> R.Tuple(R.Tensor((1, 32, 32), dtype="float32"), R.Tuple(R.Object)):
+        R.func_attr({"num_input": 2})
+        with R.dataflow():
+            lv1: R.Tensor((1, 32, 32), dtype="float32") = R.nn.conv1d_transpose(x, weight, strides=[1], padding=[0, 0], output_padding=[0], dilation=[1], groups=1, data_layout="NCW", kernel_layout="IOW", out_layout="NCW", out_dtype="void")
+            lv2: R.Tensor((1, 32, 1), dtype="float32") = R.reshape(bias, R.shape([1, 32, 1]))
+            conv1d_transpose: R.Tensor((1, 32, 32), dtype="float32") = R.add(lv1, lv2)
+            gv1: R.Tuple(R.Tensor((1, 32, 32), dtype="float32"), R.Tuple(R.Object)) = conv1d_transpose, (_io,)
+            R.output(gv1)
+        return gv1
+    # fmt: on
+
+    mod = modules.ConvTranspose1D(3, 32, 3, bias=True)
+    tvm_mod, _ = mod.export_tvm(
+        spec={
+            "forward": {
+                "x": spec.Tensor([1, 3, 30], "float32"),
+            }
+        },
+        debug=True,
+    )
+    assert_structural_equal(tvm_mod["forward"], forward, True)
+
+
 def test_layer_norm():
     @R.function
     def forward(

@@ -100,6 +100,13 @@ macro(find_cuda use_cuda use_cudnn)
         PATHS ${CUDA_TOOLKIT_ROOT_DIR}
         PATH_SUFFIXES lib lib64 targets/x86_64-linux/lib targets/x86_64-linux/lib/stubs lib64/stubs lib/x86_64-linux-gnu
         NO_DEFAULT_PATH)
+      find_library(CUDA_NVTX_LIBRARY
+        NAMES nvToolsExt nvTools nvtoolsext nvtools nvtx NVTX
+        PATHS "${CUDA_CUDART_LIBRARY_DIR}" "${CUDA_TOOLKIT_ROOT_DIR}" ENV LD_LIBRARY_PATH
+        PATH_SUFFIXES "lib64" "common/lib64" "common/lib" "lib"
+        DOC "Location of the CUDA Toolkit Extension (NVTX) library"
+        NO_DEFAULT_PATH
+      )
       # search default path if cannot find cublaslt in non-default
       find_library(CUDA_CUBLASLT_LIBRARY NAMES cublaslt cublasLt)
     endif(MSVC)
@@ -139,5 +146,7 @@ macro(find_cuda use_cuda use_cudnn)
     message(STATUS "Found CUDA_CUBLAS_LIBRARY=" ${CUDA_CUBLAS_LIBRARY})
     message(STATUS "Found CUDA_CURAND_LIBRARY=" ${CUDA_CURAND_LIBRARY})
     message(STATUS "Found CUDA_CUBLASLT_LIBRARY=" ${CUDA_CUBLASLT_LIBRARY})
+    message(STATUS "Found CUDA_NVTX_LIBRARY=" ${CUDA_NVTX_LIBRARY})
+    message(STATUS "Found CUDA_nvToolsExt_LIBRARY=" ${CUDA_nvToolsExt_LIBRARY})
   endif(CUDA_FOUND)
 endmacro(find_cuda)
