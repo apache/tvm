@@ -109,8 +109,7 @@ void AllGather(NDArray send, NDArray recv) {
   int64_t numel = shape->Product();
   cudaStream_t stream = ctx->GetDefaultStream();
   NCCL_CALL(ncclAllGather(send->data, recv->data, numel,
-                          /*datatype=*/AsNCCLDataType(DataType(send->dtype)),
-                          ctx->comm, stream));
+                          /*datatype=*/AsNCCLDataType(DataType(send->dtype)), ctx->comm, stream));
 }
 
 void BroadcastFromWorker0(NDArray send, NDArray recv) {
@@ -231,10 +230,9 @@ TVM_REGISTER_GLOBAL("runtime.disco.nccl.allreduce")
       CHECK(0 <= kind && kind <= 4) << "ValueError: Unknown ReduceKind: " << kind;
       AllReduce(send, static_cast<ReduceKind>(kind), recv);
     });
-TVM_REGISTER_GLOBAL("runtime.disco.nccl.allgather")
-  .set_body_typed([](NDArray send, NDArray recv) {
-    AllGather(send, recv);
-  });
+TVM_REGISTER_GLOBAL("runtime.disco.nccl.allgather").set_body_typed([](NDArray send, NDArray recv) {
+  AllGather(send, recv);
+});
 TVM_REGISTER_GLOBAL("runtime.disco.nccl.broadcast_from_worker0")
     .set_body_typed(BroadcastFromWorker0);
 TVM_REGISTER_GLOBAL("runtime.disco.nccl.scatter_from_worker0").set_body_typed(ScatterFromWorker0);

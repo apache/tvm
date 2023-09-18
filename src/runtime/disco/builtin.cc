@@ -84,9 +84,7 @@ void AllReduce(NDArray send, ReduceKind reduce_kind, NDArray recv) {
   GetCCLFunc("allreduce")(send, static_cast<int>(reduce_kind), recv);
 }
 
-void AllGathere(NDArray send, NDArray recv) {
-  GetCCLFunc("allgather")(send, recv);
-}
+void AllGathere(NDArray send, NDArray recv) { GetCCLFunc("allgather")(send, recv); }
 
 void BroadcastFromWorker0(NDArray send, NDArray recv) {
   GetCCLFunc("broadcast_from_worker0")(send, recv);
