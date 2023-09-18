@@ -107,12 +107,10 @@ void AllGather(NDArray send, NDArray recv) {
   NCCLThreadLocalContext* ctx = NCCLThreadLocalContext::Get();
   ShapeTuple shape = send.Shape();
   int64_t numel = shape->Product();
-  Device device = ctx->worker->default_device;
-  DeviceAPI::Get(device)->SyncStreamFromTo(device, ctx->compute_stream, ctx->comm_stream);
+  cudaStream_t stream = ctx->GetDefaultStream();
   NCCL_CALL(ncclAllGather(send->data, recv->data, numel,
                           /*datatype=*/AsNCCLDataType(DataType(send->dtype)),
-                          ctx->comm, ctx->comm_stream));
-  DeviceAPI::Get(device)->SyncStreamFromTo(device, ctx->comm_stream, ctx->compute_stream);
+                          ctx->comm, stream));
 }
 
 void BroadcastFromWorker0(NDArray send, NDArray recv) {
