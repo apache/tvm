@@ -33,7 +33,6 @@ def prepare_test_libs(base_path):
     fadd_dylib.export_library(dylib_path)
 
     # Compile library in system library mode
-    
     fadd_syslib = tvm.build(s, 
                             [A, B], 
                             "llvm", 
