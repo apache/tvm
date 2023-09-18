@@ -145,21 +145,13 @@ runtime::Module BuildSDAccel(IRModule mod, Target target) {
   // Generate source code for get_source().
   cg.Init(output_ssa);
 
-  Map<GlobalVar, PrimFunc> functions;
-  for (auto [gvar, base_func] : mod->functions) {
-    ICHECK(base_func->IsInstance<PrimFuncNode>()) << "CodeGenVHLS: Can only take PrimFunc";
-    auto prim_func = Downcast<PrimFunc>(base_func);
-    auto calling_conv = prim_func->GetAttr<Integer>(tvm::attr::kCallingConv);
+  for (auto kv : mod->functions) {
+    ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenVHLS: Can only take PrimFunc";
+    auto f = Downcast<PrimFunc>(kv.second);
+    auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
     ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
         << "CodeGenVLHS: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
-    functions.Set(gvar, prim_func);
-  }
-
-  for (auto [gvar, prim_func] : functions) {
-    cg.DeclareFunction(gvar, prim_func);
-  }
-  for (auto [gvar, prim_func] : functions) {
-    cg.AddFunction(gvar, prim_func);
+    cg.AddFunction(f);
   }
 
   std::string whole_code = cg.Finish();
@@ -167,21 +159,21 @@ runtime::Module BuildSDAccel(IRModule mod, Target target) {
   // Generate source code for compilation.
   Array<Array<runtime::String>> kernel_info;
 
-  for (auto [gvar, prim_func] : functions) {
+  for (auto kv : mod->functions) {
+    ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenOpenCL: Can only take PrimFunc";
+    auto f = Downcast<PrimFunc>(kv.second);
     CodeGenVivadoHLS cg;
     cg.Init(output_ssa);
-
-    for (auto [other_gvar, other_prim_func] : functions) {
-      cg.DeclareFunction(other_gvar, other_prim_func);
-    }
-    cg.AddFunction(gvar, prim_func);
+    cg.AddFunction(f);
     std::string code = cg.Finish();
     if (const auto* f = runtime::Registry::Get("tvm_callback_vhls_postproc")) {
       code = (*f)(code, target).operator std::string();
     }
 
-    auto function_name = cg.GetFunctionName(gvar);
-    kernel_info.push_back({function_name, code});
+    auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
+    ICHECK(global_symbol.defined())
+        << "CodeGenC: Expect PrimFunc to have the global_symbol attribute";
+    kernel_info.push_back({global_symbol.value(), code});
   }
 
   std::string xclbin;

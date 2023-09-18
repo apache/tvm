@@ -429,6 +429,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     // Fix all local allocations as all statements are built.
     Stmt body = SeqStmt::Flatten(seq);
     for (Buffer buf : new_alloc_bufs) {
+      body = DeclBuffer(buf, body);
       body = Allocate(buf->data, buf->dtype, buf->shape, const_true(buf->dtype.lanes()), body);
     }
 

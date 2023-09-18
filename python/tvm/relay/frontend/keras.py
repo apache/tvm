@@ -1052,23 +1052,26 @@ def _convert_simple_rnn(
         inexpr = [inexpr, prev_op]
     in_data = inexpr[0]
     prev_op = inexpr[1]
+    prev_op = _op.nn.batch_flatten(prev_op)
     weightList = keras_layer.get_weights()
     kernel_weight = etab.new_const(weightList[0].transpose([1, 0]))
     recurrent_weight = etab.new_const(weightList[1].transpose([1, 0]))
-    if keras_layer.use_bias:
-        in_bias = etab.new_const(weightList[2])
     units = list(weightList[0].shape)[1]
     assert units > 0, "The value of units must be a positive integer"
-    in_data = _op.nn.batch_flatten(in_data)
-    ixh = _op.nn.dense(in_data, kernel_weight, units=units)
     if keras_layer.use_bias:
-        ixh = _op.nn.bias_add(ixh, bias=in_bias)
-    prev_op = _op.nn.batch_flatten(prev_op)
-    ixh2 = _op.nn.dense(prev_op, recurrent_weight, units=units)
-    output = ixh + ixh2
-    output = _convert_activation(output, keras_layer, etab, data_layout)
-    out_shape = tuple(dim if dim else 1 for dim in _as_list(keras_layer.output_shape)[0])
-    output = _op.reshape(output, newshape=out_shape)
+        in_bias = etab.new_const(weightList[2])
+    assert len(in_data.type_annotation.shape) == 3
+    timeDim = in_data.type_annotation.shape[1].value
+    in_data_split = _op.split(in_data, indices_or_sections=timeDim, axis=1)
+    for i in range(len(in_data_split)):
+        in_data_split_i = _op.nn.batch_flatten(in_data_split[i])
+        ixh = _op.nn.dense(in_data_split_i, kernel_weight, units=units)
+        if keras_layer.use_bias:
+            ixh = _op.nn.bias_add(ixh, bias=in_bias)
+        ixh2 = _op.nn.dense(prev_op, recurrent_weight, units=units)
+        output = ixh + ixh2
+        output = _convert_activation(output, keras_layer, etab, data_layout)
+        prev_op = output
     return [output, output]
 
 

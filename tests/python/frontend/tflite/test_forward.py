@@ -2610,9 +2610,16 @@ def _test_mul(data, fused_activation_function=None, quantized=False, qnn_op=None
 # ------
 
 
-def _test_div(data, fused_activation_function=None):
+def _test_div(data, fused_activation_function=None, quantized=False, qnn_op=None):
     """One iteration of divide"""
-    return _test_elemwise(math_ops.divide, data, fused_activation_function)
+    return _test_elemwise(
+        math_ops.divide,
+        data,
+        fused_activation_function,
+        quantized,
+        qnn_op,
+        same_qnn_params=True,
+    )
 
 
 #######################################################################
@@ -2682,9 +2689,17 @@ def _test_greater_equal(data):
 # ----
 
 
-def _test_less(data):
+def _test_less(data, fused_activation_function=None, quantized=False, qnn_op=None):
     """One iteration of less"""
-    return _test_elemwise(math_ops.less, data)
+    return _test_elemwise(
+        math_ops.less,
+        data,
+        fused_activation_function,
+        quantized,
+        qnn_op,
+        same_qnn_params=True,
+        comparison_op=True,
+    )
 
 
 #######################################################################
@@ -2720,9 +2735,17 @@ def _test_equal(data, fused_activation_function=None, quantized=False, qnn_op=No
 # ---------
 
 
-def _test_not_equal(data):
+def _test_not_equal(data, fused_activation_function=None, quantized=False, qnn_op=None):
     """One iteration of not_equal"""
-    return _test_elemwise(math_ops.not_equal, data)
+    return _test_elemwise(
+        math_ops.not_equal,
+        data,
+        fused_activation_function,
+        quantized,
+        qnn_op,
+        same_qnn_params=True,
+        comparison_op=True,
+    )
 
 
 #######################################################################
@@ -2747,9 +2770,16 @@ def _test_squared_difference(data, fused_activation_function=None, quantized=Fal
 # ------------
 
 
-def _test_floor_divide(data):
+def _test_floor_divide(data, fused_activation_function=None, quantized=False, qnn_op=None):
     """One iteration of floor_div"""
-    return _test_elemwise(math_ops.floordiv, data)
+    return _test_elemwise(
+        math_ops.floordiv,
+        data,
+        fused_activation_function,
+        quantized,
+        qnn_op,
+        same_qnn_params=True,
+    )
 
 
 #######################################################################
@@ -2757,9 +2787,16 @@ def _test_floor_divide(data):
 # ---------
 
 
-def _test_floor_mod(data):
+def _test_floor_mod(data, fused_activation_function=None, quantized=False, qnn_op=None):
     """One iteration of floor_mod"""
-    return _test_elemwise(math_ops.floormod, data)
+    return _test_elemwise(
+        math_ops.floormod,
+        data,
+        fused_activation_function,
+        quantized,
+        qnn_op,
+        same_qnn_params=True,
+    )
 
 
 def _test_forward_elemwise(testop):
@@ -2803,11 +2840,16 @@ def _test_elemwise_qnn_out_range(qnn_op):
         _test_add: (-150, 150),
         _test_sub: (-150, 150),
         _test_mul: (-5e3, 5e3),
+        _test_div: (-150, 150),
         _test_maximum: (-112, 111),
         _test_minimum: (-128, 127),
         _test_equal: (-150, 150),
         _test_greater: (-150, 150),
         _test_squared_difference: (0, 65025),
+        _test_floor_divide: (-150, 150),
+        _test_less: (-150, 150),
+        _test_floor_mod: (-150, 150),
+        _test_not_equal: (-150, 150),
     }
 
     return qnn_out_range[qnn_op]
@@ -2832,6 +2874,7 @@ def test_all_elemwise():
     _test_forward_elemwise(_test_div)
     _test_forward_elemwise(partial(_test_div, fused_activation_function="RELU"))
     _test_forward_elemwise(partial(_test_div, fused_activation_function="RELU6"))
+    _test_forward_elemwise_quantized(_test_div)
     _test_forward_elemwise(_test_pow)
     _test_forward_elemwise(_test_maximum)
     _test_forward_elemwise_quantized(_test_maximum)
@@ -2843,13 +2886,17 @@ def test_all_elemwise():
     _test_forward_elemwise_quantized(_test_squared_difference, np.int8)
     _test_forward_elemwise(_test_greater_equal)
     _test_forward_elemwise(_test_less)
+    _test_forward_elemwise_quantized(_test_less)
     _test_forward_elemwise(_test_less_equal)
     _test_forward_elemwise(_test_equal)
     _test_forward_elemwise_quantized(_test_equal)
     _test_forward_elemwise(_test_not_equal)
+    _test_forward_elemwise_quantized(_test_not_equal)
     if package_version.parse(tf.VERSION) >= package_version.parse("1.14.0"):
         _test_forward_elemwise(_test_floor_divide)
+        _test_forward_elemwise_quantized(_test_floor_divide)
         _test_forward_elemwise(_test_floor_mod)
+        _test_forward_elemwise_quantized(_test_floor_mod)
 
 
 #######################################################################

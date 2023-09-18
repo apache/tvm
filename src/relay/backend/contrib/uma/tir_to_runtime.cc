@@ -49,6 +49,13 @@ class UMACodegen : public codegen::CodeGenCHost {
     CodeGenCHost::Init(output_ssa, emit_asserts, emit_fwd_func_decl, target_str_, devices);
   }
 
+  /*!
+   * \brief Emit code that offloads a subgraph to the UMA target
+   *
+   * \return string of code that offloads a subgraph to the UMA target
+   */
+  void AddFunction(const PrimFunc& prim_func) { CodeGenC::AddFunction(prim_func); }
+
  private:
   String target_str_;
 };
@@ -56,30 +63,17 @@ class UMACodegen : public codegen::CodeGenCHost {
 runtime::Module TIRToRuntime(IRModule mod, Target target) {
   bool output_ssa = false;
   bool emit_asserts = false;
-  bool emit_fwd_func_decl = true;
+  bool emit_fwd_func_decl = false;
   UMACodegen codegen(target->kind->name);
-  codegen.Init(output_ssa, emit_asserts, emit_fwd_func_decl);
-
-  Map<GlobalVar, PrimFunc> functions;
-  for (auto [gvar, base_func] : mod->functions) {
-    auto prim_func = Downcast<PrimFunc>(base_func);
-    functions.Set(gvar, prim_func);
-  }
-
-  for (auto [gvar, prim_func] : functions) {
-    codegen.DeclareFunction(gvar, prim_func);
-  }
-  for (auto [gvar, prim_func] : functions) {
-    codegen.AddFunction(gvar, prim_func, emit_fwd_func_decl);
-  }
-
-  std::string code = codegen.Finish();
-
   Array<String> function_names;
-  for (auto [gvar, prim_func] : functions) {
-    function_names.push_back(codegen.GetFunctionName(gvar));
+  codegen.Init(output_ssa, emit_asserts, emit_fwd_func_decl);
+  for (auto kv : mod->functions) {
+    auto prim_func = Downcast<PrimFunc>(kv.second);
+    auto global_symbol = prim_func->GetAttr<String>(tvm::attr::kGlobalSymbol);
+    function_names.push_back(global_symbol.value());
+    codegen.AddFunction(prim_func);
   }
-
+  std::string code = codegen.Finish();
   return codegen::CSourceModuleCreate(code, "c", function_names);
 }
 
