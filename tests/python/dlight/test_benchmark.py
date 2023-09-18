@@ -17,7 +17,6 @@
 # pylint: disable=missing-docstring
 
 import tempfile
-import pytest
 
 from tvm import meta_schedule as ms
 from tvm.meta_schedule.testing.local_rpc import LocalRPC
@@ -67,7 +66,7 @@ class Module:
                 T_full[v_ax0, v_ax1, v_ax2, v_ax3] = T.float16(1.0)
 
     @T.prim_func
-    def matmul1(var_A: T.handle, var_B: T.handle, matmul: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16")):
+    def matmul1(var_A: T.handle, var_B: T.handle, matmul: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16")): # type: ignore
         T.func_attr({"op_pattern": 4, "tir.noalias": T.bool(True)})
         n = T.int64()
         A = T.match_buffer(var_A, (T.int64(1), T.int64(32), T.int64(1), n), "float16")
@@ -83,7 +82,7 @@ class Module:
                 matmul[v_i0, v_i1, v_i2, v_i3] = matmul[v_i0, v_i1, v_i2, v_i3] + A[v_i0, v_i1, v_i2, v_k] * B[v_i0, v_i1, v_k, v_i3]
 
     @R.function
-    def test():
+    def test(): # type: ignore
         n = T.int64()
         R.func_attr({"tir_var_upper_bound": {"n": 2048}})
         cls = Module
@@ -98,7 +97,7 @@ class Module:
         return lv3
 
 @T.prim_func
-def cuda_workload(var_inp0: T.handle, inp1: T.Buffer((T.int64(4096), T.int64(4096)), "float32"), var_matmul: T.handle):
+def cuda_workload(var_inp0: T.handle, inp1: T.Buffer((T.int64(4096), T.int64(4096)), "float32"), var_matmul: T.handle): # type: ignore
     T.func_attr({"tir.is_scheduled": 1})
     m = T.int64()
     inp0 = T.match_buffer(var_inp0, (T.int64(1), m, T.int64(4096)))
@@ -170,7 +169,7 @@ def cuda_workload(var_inp0: T.handle, inp1: T.Buffer((T.int64(4096), T.int64(409
 # pylint: enable=no-self-argument,invalid-name,line-too-long,no-method-argument
 
 
-@pytest.mark.skip("requires CUDA")
+@tvm.testing.requires_gpu
 def test_benchmark_prim_func_rpc():
     with LocalRPC() as rpc:
         rpc_config = ms.runner.RPCConfig(
@@ -188,17 +187,20 @@ def test_benchmark_prim_func_rpc():
                 ((1, "m", 4096), "float32"),
             ],
             dym_var_sample={"m": 128},
-            target="nvidia/geforce-rtx-3070",
+            target="cuda",
             rpc_config=rpc_config,
         )
-        assert input_infos == [
-            ((1, 128, 4096), "float32"),
-            ((4096, 4096), "float32"),
-            ((1, 128, 4096), "float32"),
-        ]
+        assert input_infos == (
+            [
+                ((1, 128, 4096), "float32"),
+                ((4096, 4096), "float32"),
+                ((1, 128, 4096), "float32"),
+            ],
+            71303168,
+        )
 
 
-@pytest.mark.skip("requires CUDA")
+@tvm.testing.requires_gpu
 def test_benchmark_prim_func_local():
     input_infos, _, _ = benchmark(
         cuda_workload,
@@ -208,24 +210,27 @@ def test_benchmark_prim_func_local():
             ((1, "m", 4096), "float32"),
         ],
         dym_var_sample={"m": 128},
-        target="nvidia/geforce-rtx-3070",
+        target="cuda",
     )
-    assert input_infos == [
-        ((1, 128, 4096), "float32"),
-        ((4096, 4096), "float32"),
-        ((1, 128, 4096), "float32"),
-    ]
+    assert input_infos == (
+        [
+            ((1, 128, 4096), "float32"),
+            ((4096, 4096), "float32"),
+            ((1, 128, 4096), "float32"),
+        ],
+        71303168,
+    )
 
 
-@pytest.mark.skip("requires CUDA")
+@tvm.testing.requires_gpu
 def test_benchmark_prim_func_full_local():
-    with tvm.target.Target("nvidia/geforce-rtx-3070"):
+    with tvm.target.Target("cuda"):
         benchmark_prim_func(
             cuda_workload,
         )
 
 
-@pytest.mark.skip("requires CUDA")
+@tvm.testing.requires_gpu
 def test_benchmark_prim_func_full_rpc():
     with LocalRPC() as rpc:
         rpc_config = ms.runner.RPCConfig(
@@ -237,7 +242,7 @@ def test_benchmark_prim_func_full_rpc():
         )
         benchmark_prim_func(
             cuda_workload,
-            target="nvidia/geforce-rtx-3070",
+            target="cuda",
             rpc_config=rpc_config,
             evaluator_config=ms.runner.EvaluatorConfig(
                 number=10,
@@ -261,9 +266,9 @@ def test_extract_prim_func_full1():
             prim_func_name="full1",
             func=Module["full1"],  # type: ignore
             func_args=[((1, 32, 1, "n"), "float16")],
-            dym_var_dict={"n": "int32"},
+            dym_vars={"n"},
             weight=2,
-            sample_number=10,
+            sample_num=10,
             target="llvm -num-cores=4",
         )
     )
@@ -277,7 +282,7 @@ def test_extract_prim_func_matmul1():
             prim_func_name="matmul1",
             func=Module["matmul1"],  # type: ignore
             weight=2,
-            sample_number=10,
+            sample_num=10,
             target="llvm -num-cores=4",
         )
     )
@@ -294,21 +299,25 @@ def test_extract_from_relax():
 
 
 def test_extract_func_info_from_prim_func():
-    assert (
-        str(extract_func_info_from_prim_func(cuda_workload))
-        == "([((1, m, 4096), 'float32'), ((4096, 4096), 'float32'), ((1, m, 4096), 'float32')], {'m': 'int64'})"
+    assert extract_func_info_from_prim_func(cuda_workload) == (
+        [((1, "m", 4096), "float32"), ((4096, 4096), "float32"), ((1, "m", 4096), "float32")],
+        {"m"},
     )
-    assert (
-        str(extract_func_info_from_prim_func(Module["full1"]))
-        == "([((1, 32, 1, n), 'float16')], {'n': 'int64'})"
+    assert extract_func_info_from_prim_func(Module["full1"]) == (  # type: ignore
+        [((1, 32, 1, "n"), "float16")],
+        {"n"},
     )
-    assert (
-        str(extract_func_info_from_prim_func(Module["matmul1"]))
-        == "([((1, 32, 1, n), 'float16'), ((1, 32, n, 128), 'float16'), ((1, 32, 1, 128), 'float16')], {'n': 'int64'})"
+    assert extract_func_info_from_prim_func(Module["matmul1"]) == (  # type: ignore
+        [
+            ((1, 32, 1, "n"), "float16"),
+            ((1, 32, "n", 128), "float16"),
+            ((1, 32, 1, 128), "float16"),
+        ],
+        {"n"},
     )
-    assert (
-        str(extract_func_info_from_prim_func(Module["full2"]))
-        == "([((1, 32, n, 128), 'float16')], {'n': 'int64'})"
+    assert extract_func_info_from_prim_func(Module["full2"]) == (  # type: ignore
+        [((1, 32, "n", 128), "float16")],
+        {"n"},
     )
 
 

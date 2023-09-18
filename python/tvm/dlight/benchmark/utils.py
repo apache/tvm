@@ -16,12 +16,36 @@
 # under the License.
 """Util functions for benchmarking dynamic shape workloads"""
 
-from typing import Dict, List, Tuple, Union, Any
+from typing import Dict, List, Set, Any, Tuple, Union, Optional, NamedTuple
 
 import tvm
 from tvm import relax
 
 INPUT_SHAPE_TYPE = List[Tuple[Tuple[int, ...], str]]  # pylint: disable=invalid-name
+
+
+class DisplayConfig(NamedTuple):
+    """Display configuration.
+
+    Parameters
+    ----------
+    print_out : bool
+        Whether to print out the results.
+    desc : bool
+        Whether to sort results in descending order.
+    sort_by : Optional[str]
+        Sort results by this key, if None, no sorting.
+    hidden_cols : Optional[List[str]]
+        Hidden columns, will not be displayed.
+    display_cols : Optional[List[str]]
+        Display columns only, will not display other columns or hidden columns.
+    """
+
+    print_out: bool = False
+    desc: bool = True
+    sort_by: Optional[str] = None
+    hidden_cols: Optional[List[str]] = None
+    display_cols: Optional[List[str]] = None
 
 
 def get_func_name_from_gv(gv: tvm.ir.GlobalVar) -> str:  # pylint: disable=invalid-name
@@ -83,11 +107,16 @@ def populuate_input_shape(
         shape = []
         if isinstance(input_info, relax.struct_info.ShapeStructInfo):
             # scalar input
-            results.append(((dym_var_sample[str(input_info.values[0])],), "scalar"))
+            if input_info.values is not None:
+                results.append(((dym_var_sample[str(input_info.values[0])],), "scalar"))
+            else:
+                raise ValueError("Unsupported scalar input", input_info)
         else:
             if isinstance(input_info, relax.TensorStructInfo):
                 tensor_shape = input_info.shape
                 tensor_dtype = input_info.dtype
+                if tensor_shape is None or tensor_dtype is None:
+                    raise ValueError("Unsupported tensor input", input_info)
             else:
                 tensor_shape, tensor_dtype = input_info  # type: ignore
             for dim in tensor_shape:
@@ -101,34 +130,47 @@ def populuate_input_shape(
     return results
 
 
-def default_dym_var_sample_func(dym_var_dict: Dict[str, str]) -> Dict[str, int]:
+def random_dym_var_sample_func(
+    dym_vars: Set[str],
+    sample_idx: int,  # pylint: disable=unused-argument
+    sample_num: int,  # pylint: disable=unused-argument
+) -> Dict[str, int]:
     """
-    Default dynamic shape variable sample function.
+    Random dynamic shape variable sample function.
     Sample a random value for each dynamic shape variable.
 
     Parameters
     ----------
-    dym_var_dict : Dict[str, str]
-        Dynamic shape variable dictionary, e.g., {"n": "int32", "m": "int32"}
+    dym_vars : Set[str]
+        Dynamic shape variables, e.g., {"n", "m"}
+    sample_idx : int
+        Sample index denotes the index the function is called for the same
+        dynamic shape variable dictionary & function.
+
+        Here we ignore this argument since we always sample a random value,
+        but it can be used to sample different values for different sample
+        indices, for example, we can use 2^n for the n-th sample where n is
+        the sample index.
+    sample_num : int
+        Sample number denotes the total number of samples.
+
+        Here we ignore this argument since we always sample a random value,
+        but it can be used to sample different values for different sample
+        numbers, for example, we can use 2^(n%m) for the n-th sample where n
+        is the sample index and m is the sample number.
 
     Returns
     -------
     result : Dict[str, int]
         Dynamic shape variable sample, e.g., {"n": 64, "m": 128}
     """
-    results = {}
-    for var in dym_var_dict:
-        if dym_var_dict[var] in ["int32", "int64"]:
-            import random  # pylint: disable=import-outside-toplevel
+    import random  # pylint: disable=import-outside-toplevel
 
-            results[var] = random.randint(2, 128)
-        else:
-            raise TypeError("Unsupported dynamic shape variable type: " + dym_var_dict[var])
-    return results
+    return {var: random.randint(2, 128) for var in dym_vars}
 
 
-def print_results(
-    bench_results: List[Dict[str, Any]], sort_by: str = "WxTime(ms)", desc: bool = True
+def display_results(
+    bench_results: List[Dict[str, Any]], display_config: Optional[DisplayConfig] = None
 ):
     """Print benchmark results.
 
@@ -142,6 +184,8 @@ def print_results(
         Whether to sort results in descending order.
     """
     # pylint: disable=invalid-name, import-outside-toplevel
+    if display_config is None:
+        display_config = DisplayConfig()
     try:
         import pandas as pd
 
@@ -151,10 +195,23 @@ def print_results(
                 [df, pd.DataFrame(record, index=[0])],
                 ignore_index=True,
             )
-        if sort_by is not None:
-            if sort_by not in df.columns:
-                raise ValueError(f"sort_by key {sort_by} not in benchmark results")
-            df = df.sort_values(sort_by, ascending=not desc).reset_index().drop("index", axis=1)
+        # filter columns
+        if display_config.display_cols is not None:
+            for col in df.columns:
+                if col not in display_config.display_cols:
+                    df = df.drop(col, axis=1)
+        if display_config.hidden_cols is not None:
+            for col in display_config.hidden_cols:
+                if col in df.columns:
+                    df = df.drop(col, axis=1)
+        if display_config.sort_by is not None:
+            if display_config.sort_by not in df.columns:
+                raise ValueError(f"sort_by key {display_config.sort_by} not in benchmark results")
+            df = (
+                df.sort_values(display_config.sort_by, ascending=not display_config.desc)
+                .reset_index()
+                .drop("index", axis=1)
+            )
         print(df)
     except ModuleNotFoundError:
         print("Pandas not found, printing results in raw format.")
