@@ -20,12 +20,13 @@
 /*!
  * \file src/runtime/relax_vm/vm.cc
  */
-
+#include <tvm/runtime/nvtx.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/profiling.h>
 #include <tvm/runtime/relax_vm/vm.h>
 
 #include <optional>
+#include <thread>
 
 namespace tvm {
 namespace runtime {
@@ -628,7 +629,10 @@ void VirtualMachineImpl::InvokeClosurePacked(const ObjectRef& closure_or_packedf
   setter(0, static_cast<void*>(static_cast<VirtualMachine*>(this)));
   std::copy(args.values, args.values + args.size(), values.begin() + 1);
   std::copy(args.type_codes, args.type_codes + args.size(), tcodes.begin() + 1);
-  clo->impl.CallPacked(TVMArgs(values.data(), tcodes.data(), args.size() + 1), rv);
+  {
+    NVTXScopedRange scope("RelaxVM: " + clo->func_name);
+    clo->impl.CallPacked(TVMArgs(values.data(), tcodes.data(), args.size() + 1), rv);
+  }
 }
 
 // internal variant version of invoke closurepacked
