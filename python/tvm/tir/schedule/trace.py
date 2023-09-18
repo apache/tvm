@@ -285,6 +285,6 @@ class Trace(Object):
 
         if black_format is None:
             env = os.environ.get("TVM_BLACK_FORMAT")
-            black_format = env and int(env)
+            black_format = bool(env and int(env))
 
         cprint(str(self), style=style, black_format=black_format)
