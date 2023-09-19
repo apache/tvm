@@ -1198,5 +1198,13 @@ def test_tuple_input_unused_field():
     _check(Module, Expected)
 
 
+def test_extern_func():
+    bb = relax.BlockBuilder()
+    bb.add_func(relax.extern("extern_func"), "extern_func")
+    mod = bb.get()
+    # FuseTIR should keep the ExternFunc in the IRModule.
+    _check(mod, mod)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
