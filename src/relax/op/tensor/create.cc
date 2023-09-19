@@ -286,27 +286,26 @@ TVM_REGISTER_OP("relax.arange")
 /* relax.tril & relax.triu */
 TVM_REGISTER_NODE_TYPE(TriluAttrs);
 
-Expr tril(Expr x, int k) {
-  ObjectPtr<TriluAttrs> attrs = make_object<TriluAttrs>();
-  attrs->k = k;
-
+Expr tril(Expr x, Expr k) {
   static const Op& op = Op::Get("relax.tril");
-  return Call(op, {std::move(x)}, Attrs(attrs), {});
+  return Call(op, {x, k});
 }
 
-Expr triu(Expr x, int k) {
-  ObjectPtr<TriluAttrs> attrs = make_object<TriluAttrs>();
-  attrs->k = k;
+Expr tril(Expr x, int k) { return tril(x, relax::PrimValue::Int64(k)); }
 
+Expr triu(Expr x, Expr k) {
   static const Op& op = Op::Get("relax.triu");
-  return Call(op, {std::move(x)}, Attrs(attrs), {});
+  return Call(op, {x, k});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.tril").set_body_typed(tril);
-TVM_REGISTER_GLOBAL("relax.op.triu").set_body_typed(triu);
+Expr triu(Expr x, int k) { return triu(x, relax::PrimValue::Int64(k)); }
+
+TVM_REGISTER_GLOBAL("relax.op.tril").set_body_typed(static_cast<Expr (*)(Expr, Expr)>(tril));
+TVM_REGISTER_GLOBAL("relax.op.triu").set_body_typed(static_cast<Expr (*)(Expr, Expr)>(triu));
 
 StructInfo InferStructInfoTrilTriu(const Call& call, const BlockBuilder& ctx) {
-  TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
+  auto [data_sinfo, offset] = GetArgStructInfo<TensorStructInfo, PrimStructInfo>(call, ctx);
+
   if (!data_sinfo->IsUnknownNdim() && data_sinfo->ndim < 2) {
     ctx->ReportFatal(Diagnostic::Error(call) << call->op
                                              << " requires the input tensor to have at least two "
@@ -317,16 +316,16 @@ StructInfo InferStructInfoTrilTriu(const Call& call, const BlockBuilder& ctx) {
 }
 
 TVM_REGISTER_OP("relax.tril")
-    .set_attrs_type<TriluAttrs>()
-    .set_num_inputs(1)
+    .set_num_inputs(2)
     .add_argument("x", "Tensor", "The input tensor.")
+    .add_argument("k", "PrimValue", "The offset of the diagonal.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTrilTriu)
     .set_attr<Bool>("FPurity", Bool(true));
 
 TVM_REGISTER_OP("relax.triu")
-    .set_attrs_type<TriluAttrs>()
-    .set_num_inputs(1)
+    .set_num_inputs(2)
     .add_argument("x", "Tensor", "The input tensor.")
+    .add_argument("k", "PrimValue", "The offset of the diagonal.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoTrilTriu)
     .set_attr<Bool>("FPurity", Bool(true));
 

@@ -215,7 +215,7 @@ def arange(
     return _ffi_api.arange(start, end, step, dtype)  # type: ignore
 
 
-def tril(x: Expr, k: int = 0) -> Expr:
+def tril(x: Expr, k: Union[int, PrimExpr, Expr] = 0) -> Expr:
     """Return the lower triangular part of a matrix or a batch of matrices.
 
     Parameters
@@ -235,10 +235,13 @@ def tril(x: Expr, k: int = 0) -> Expr:
     ret : relax.Expr
         The result tensor.
     """
+    if not isinstance(k, Expr):
+        k = PrimValue(k)
+
     return _ffi_api.tril(x, k)  # type: ignore
 
 
-def triu(x: Expr, k: int = 0) -> Expr:
+def triu(x: Expr, k: [int, PrimExpr, Expr] = 0) -> Expr:
     """Return the upper triangular part of a matrix or a batch of matrices.
 
     Parameters
@@ -258,4 +261,7 @@ def triu(x: Expr, k: int = 0) -> Expr:
     ret : relax.Expr
         The result tensor.
     """
+    if not isinstance(k, Expr):
+        k = PrimValue(k)
+
     return _ffi_api.triu(x, k)  # type: ignore

@@ -31,6 +31,7 @@
 #include <tvm/relay/op.h>
 #include <tvm/tir/data_layout.h>
 
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -74,6 +75,74 @@ inline TensorStructInfo GetUnaryInputTensorStructInfo(const Call& call, const Bl
  */
 Array<TensorStructInfo> GetTensorStructInfoFromTuple(const Call& call, const BlockBuilder& ctx,
                                                      const Expr& tup);
+
+/*!
+ * \brief Get the arg struct info as an expected type
+ *
+ * In contrast to GetStructInfoAs, GetArgStructInfo reports errors
+ * through the BlockBuilder context.
+ *
+ * \tparam The expected type of the argument's struct info (e.g. TensorStructInfo).
+ * \param call The context Call to the operator.
+ * \param ctx The error reporting context.
+ * \param index The index of the argument
+ * \return The tensor struct infos of tuple input.
+ * \throw Throw exception if input expression is not a tuple.
+ */
+template <typename ArgType>
+ArgType GetArgStructInfo(const Call& call, const BlockBuilder& ctx, size_t index) {
+  Op op = Downcast<Op>(call->op);
+  size_t n_input = op->arguments.size();
+  if (call->args.size() != n_input) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << op << " op should have " << n_input << " arguments");
+  }
+
+  if (!call->args[index]->struct_info_.defined()) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << op << " op should have arguments with defined StructInfo.  "
+                     << "However, args[" << index << "] has undefined struct info.");
+  }
+
+  auto sinfo = GetStructInfo(call->args[index]);
+  auto typed_sinfo = sinfo.as<ArgType>();
+
+  if (!typed_sinfo.defined()) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << op << " requires that args[" << index << "] be a "
+                     << ArgType::ContainerType::_type_key << ", but was instead " << sinfo
+                     << " of type " << sinfo->GetTypeKey());
+  }
+
+  return typed_sinfo.value();
+}
+
+/*!
+ * \brief Get all arg struct infos as expected types
+ *
+ * \tparam ArgTypes The expected types of arguments, in the order they appear.
+ * \param call The context Call to the operator.
+ * \param ctx The error reporting context.
+ * \return The tensor struct infos of tuple input.
+ * \throw Throw exception if input expression is not a tuple.
+ */
+template <typename... ArgTypes>
+std::tuple<ArgTypes...> GetArgStructInfo(const Call& call, const BlockBuilder& ctx) {
+  Op op = Downcast<Op>(call->op);
+  size_t n_input = op->arguments.size();
+
+  // Unfortunately, because the `.add_argument()` calls in
+  // TVM_REGISTER_OP occur during initialization of globals and are
+  // not available at compile-time, this cannot be a static_assert.
+  ICHECK_EQ(n_input, sizeof...(ArgTypes))
+      << "Internal error: " << op << " op defines " << n_input
+      << " arguments in its TVM_REGISTER_OP() call, "
+      << "but GetArgStructInfo was given " << sizeof...(ArgTypes) << " template arguments.";
+
+  // Unpack in an initializer list, which has ensured left-to-right evaluation.
+  size_t index = 0;
+  return {GetArgStructInfo<ArgTypes>(call, ctx, index++)...};
+}
 
 /************ Op registration macro ************/
 

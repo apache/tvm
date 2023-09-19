@@ -643,10 +643,18 @@ def test_tril_triu_infer_struct_info_shape_symbolic():
     x0 = relax.Var("x", R.Tensor((a, b, c), "float32"))
     x1 = relax.Var("x", R.Tensor((a, b, c)))
     x2 = relax.Var("x", R.Tensor((a, b, c), "float32", vdev0))
+    x3 = relax.Var("x", R.Tensor((16, 32, 64)))
 
+    # Dynamic tensor, static offset
     _check_inference(bb, relax.op.tril(x0), relax.TensorStructInfo((a, b, c), "float32"))
     _check_inference(bb, relax.op.triu(x1), relax.TensorStructInfo((a, b, c), dtype=""))
     _check_inference(bb, relax.op.tril(x2), relax.TensorStructInfo((a, b, c), "float32", vdev0))
+
+    # Static tensor, dynamic offset
+    _check_inference(bb, relax.op.tril(x3, a), relax.TensorStructInfo((16, 32, 64), dtype=""))
+
+    # Dynamic tensor, dynamic offset
+    _check_inference(bb, relax.op.tril(x0, a), relax.TensorStructInfo((a, b, c), "float32"))
 
 
 def test_tril_triu_infer_struct_info_shape_var():
