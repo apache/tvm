@@ -482,8 +482,23 @@ class MatmulTensorization(ScheduleRule):
                 tensorize_success = True
             except:  # pylint: disable=bare-except
                 return None
-
         auto_inline_consumers(sch, accumulator_shared_to_global)
+        
+        remaining_consumers = sch.get_consumers(accumulator_shared_to_global)
+
+        if len(remaining_consumers) != 0:
+            # Some blocks have failed to be inlined to the producer cache-write stage.
+            # This could be due to another producer block that has not been scheduled.
+            for c in remaining_consumers:
+                for p in sch.get_producers(c):
+                    if sch.get(p) != sch.get(accumulator_shared_to_global):
+                        sch.compute_inline(p)
+
+            # Try inlining into the cache-write stage again, this time it should succeed.
+            auto_inline_consumers(sch, accumulator_shared_to_global)
+
+        msg = "There are some consumers of the cache-write stage that are not properly inlined."
+        assert len(sch.get_consumers(accumulator_shared_to_global)) == 0, msg
 
         fused = sch.fuse(*sch.get_loops(accumulator_shared_to_global)[-2:])
         _, f1, f2 = sch.split(fused, factors=[None, warp_size, vector_size])
