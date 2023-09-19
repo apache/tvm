@@ -1003,6 +1003,13 @@ constexpr const char* kWorkspaceSize = "WorkspaceSize";
 /*! \brief Override checking purity for this function and treat as pure
  * (is_pure must be set to true) */
 constexpr const char* kForcePure = "relax.force_pure";
+
+/*!
+ * \brief The number of inputs of a function.
+ * If a function has the num_input attribute, the last func->params.size() - num_inputs
+ * arguments are assumed to be weights that are fixed across invocations.
+ */
+constexpr const char* kNumInput = "num_input";
 }  // namespace attr
 
 /*! \brief The extern function, which can represent packed function. */
