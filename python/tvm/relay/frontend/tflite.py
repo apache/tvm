@@ -1474,7 +1474,7 @@ class OperatorConverter(object):
 
     def convert_greater_equal(self, op):
         """Convert TFLite GREATER_EQUAL"""
-        return self._convert_elemwise(_op.greater_equal, op)
+        return self._convert_elemwise(_op.greater_equal, op, self.is_quantized(op), comparison_op=True)
 
     def convert_less(self, op):
         """Convert TFLite LESS"""
