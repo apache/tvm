@@ -66,7 +66,6 @@ class ModelParamBundler : public ExprMutator {
       var_to_expr_.Set(func->params[i], TupleGetItem(var_param_tuple, i - num_input));
     }
 
-    func = WithoutAttr(func, attr::kNumInput);
     func.CopyOnWrite()->params = params;
 
     return ExprMutator::VisitExpr_(func.get());

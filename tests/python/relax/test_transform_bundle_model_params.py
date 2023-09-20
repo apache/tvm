@@ -46,6 +46,7 @@ def test_basic():
             a: R.Tensor([16], "float32"),
             params: R.Tuple(R.Tensor([16], "float32"), R.Tensor([16], "float32")),
         ) -> R.Tensor([16], "float32"):
+            R.func_attr({"num_input": 1})
             expr = a
             b = params[0]
             expr = R.add(expr, b)
@@ -90,6 +91,7 @@ def test_no_model_params():
             c: R.Tensor([16], "float32"),
             params: R.Tuple(),
         ) -> R.Tensor([16], "float32"):
+            R.func_attr({"num_input": 3})
             expr = a
             expr = R.add(expr, b)
             expr = R.add(expr, c)
