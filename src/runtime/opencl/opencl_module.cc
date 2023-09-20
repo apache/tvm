@@ -215,6 +215,7 @@ bool OpenCLModuleNode::IsProgramCreated(const std::string& func_name, int device
   auto dev_size = GetGlobalWorkspace()->devices.size();
   ICHECK(device_id < static_cast<int>(dev_size))
       << "Device id " << device_id << " is bigger than number of available devices";
+  // zero initialize cl_program pointers for each device kernel
   if (size == 0) programs_[func_name].resize(dev_size, nullptr);
   return false;
 }
@@ -273,6 +274,7 @@ cl_kernel OpenCLModuleNode::InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThre
 }
 
 void OpenCLModuleNode::SetPreCompiledPrograms(const std::string& bytes) {
+  workspace_->Init();
   std::string data = bytes;
   dmlc::MemoryStringStream reader(&data);
   dmlc::Stream* strm = &reader;
@@ -315,6 +317,7 @@ void OpenCLModuleNode::SetPreCompiledPrograms(const std::string& bytes) {
 }
 
 std::string OpenCLModuleNode::GetPreCompiledPrograms() {
+  workspace_->Init();
   std::string data;
   dmlc::MemoryStringStream writer(&data);
   dmlc::Stream* strm = &writer;
