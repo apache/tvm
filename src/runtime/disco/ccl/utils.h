@@ -16,10 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef TVM_RUNTIME_DISCO_NCCL_UTILS_H_
-#define TVM_RUNTIME_DISCO_NCCL_UTILS_H_
+#ifndef TVM_RUNTIME_DISCO_CCL_UTILS_H_
+#define TVM_RUNTIME_DISCO_CCL_UTILS_H_
 
-#include <nccl.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/disco/session.h>
 
@@ -27,14 +26,14 @@
 
 namespace tvm {
 namespace runtime {
-namespace nccl {
+namespace ccl {
 
-#define NCCL_CALL(cmd)                                       \
-  do {                                                       \
-    ncclResult_t r = cmd;                                    \
-    if (r != ncclSuccess) {                                  \
-      LOG(FATAL) << "NCCLErrror: " << ncclGetErrorString(r); \
-    }                                                        \
+#define NCCL_CALL(cmd)                                                      \
+  do {                                                                      \
+    ncclResult_t r = cmd;                                                   \
+    if (r != ncclSuccess) {                                                 \
+      LOG(FATAL) << TVM_DISCO_CCL_NAME "Errror: " << ncclGetErrorString(r); \
+    }                                                                       \
   } while (0)
 
 inline ncclDataType_t AsNCCLDataType(runtime::DataType dtype) {
@@ -89,7 +88,7 @@ inline ncclRedOp_t AsNCCLRedOp(ReduceKind kind) {
   throw;
 }
 
-}  // namespace nccl
+}  // namespace ccl
 }  // namespace runtime
 }  // namespace tvm
-#endif  // TVM_RUNTIME_DISCO_NCCL_UTILS_H_
+#endif  // TVM_RUNTIME_DISCO_CCL_UTILS_H_

@@ -16,9 +16,48 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#ifndef TVM_NCCL_RCCL_SWITCH
+#define TVM_NCCL_RCCL_SWITCH 0  // 0: NCCL, 1: RCCL
+#endif
+
+#if TVM_NCCL_RCCL_SWITCH == 0
 #include <cuda_runtime_api.h>
-#include <dlpack/dlpack.h>
 #include <nccl.h>
+
+#include "../../cuda/cuda_common.h"
+
+using runtimeStream_t = cudaStream_t;
+
+#define TVM_DISCO_DEVICE_CALL CUDA_CALL
+#define TVM_DISCO_DEVICE_SET_DEVICE cudaSetDevice
+#define TVM_DISCO_DEVICE_STREAM_CREATE cudaStreamCreate
+#define TVM_DISCO_DEVICE_STREAM_SYNC cudaStreamSynchronize
+#define TVM_DISCO_DEVICE_STREAM_DESTROY cudaStreamDestroy
+#define TVM_DISCO_DEVICE_NAME "cuda"
+#define TVM_DISCO_CCL_DESTROY ncclCommDestroy
+#define TVM_DISCO_CCL_NAME "nccl"
+const constexpr DLDeviceType TVM_DISCO_DEVICE_TYPE = DLDeviceType::kDLCUDA;
+#else
+#include <hip/hip_runtime_api.h>
+#include <hip/hip_version.h>
+#include <rccl/rccl.h>
+
+#include "../../rocm/rocm_common.h"
+
+using runtimeStream_t = hipStream_t;
+
+#define TVM_DISCO_DEVICE_CALL ROCM_CALL
+#define TVM_DISCO_DEVICE_SET_DEVICE hipSetDevice
+#define TVM_DISCO_DEVICE_STREAM_CREATE hipStreamCreate
+#define TVM_DISCO_DEVICE_STREAM_SYNC hipStreamSynchronize
+#define TVM_DISCO_DEVICE_STREAM_DESTROY hipStreamDestroy
+#define TVM_DISCO_DEVICE_NAME "rocm"
+#define TVM_DISCO_CCL_DESTROY ncclCommDestroy
+#define TVM_DISCO_CCL_NAME "rccl"
+const constexpr DLDeviceType TVM_DISCO_DEVICE_TYPE = DLDeviceType::kDLROCM;
+#endif
+
+#include <dlpack/dlpack.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/disco/session.h>
 #include <tvm/runtime/registry.h>
@@ -29,40 +68,39 @@
 #include <vector>
 
 #include "../../../support/process_id.h"
-#include "../../cuda/cuda_common.h"
 #include "./utils.h"
 
 namespace tvm {
 namespace runtime {
-namespace nccl {
+namespace ccl {
 
-struct NCCLThreadLocalContext {
+struct CCLThreadLocalContext {
   DiscoWorker* worker;
   int device_id;
-  cudaStream_t default_stream;
+  runtimeStream_t default_stream;
   ncclComm_t comm;
 
   void Clear() {
-    NCCL_CALL(ncclCommDestroy(comm));
-    CUDA_CALL(cudaStreamDestroy(default_stream));
+    NCCL_CALL(TVM_DISCO_CCL_DESTROY(comm));
+    TVM_DISCO_DEVICE_CALL(TVM_DISCO_DEVICE_STREAM_DESTROY(default_stream));
   }
 
-  cudaStream_t GetDefaultStream() {
-    const auto* func = tvm::runtime::Registry::Get("runtime.get_cuda_stream");
+  runtimeStream_t GetDefaultStream() {
+    const auto* func = tvm::runtime::Registry::Get("runtime.get_" TVM_DISCO_DEVICE_NAME "_stream");
     ICHECK(func != nullptr);
-    cudaStream_t stream = static_cast<cudaStream_t>((*func)().operator void*());
+    runtimeStream_t stream = static_cast<runtimeStream_t>((*func)().operator void*());
     return stream == nullptr ? default_stream : stream;
   }
 
-  static NCCLThreadLocalContext* Get() {
-    thread_local static NCCLThreadLocalContext ctx;
+  static CCLThreadLocalContext* Get() {
+    thread_local static CCLThreadLocalContext ctx;
     return &ctx;
   }
 };
 
 void InitCCL(Session sess, ShapeTuple device_ids) {
-  DRef func = sess->GetGlobalFunc("runtime.disco.nccl.init_ccl_per_worker");
-  LOG(INFO) << "Initializing NCCL with devices: " << device_ids;
+  DRef func = sess->GetGlobalFunc("runtime.disco." TVM_DISCO_CCL_NAME ".init_ccl_per_worker");
+  LOG(INFO) << "Initializing " TVM_DISCO_CCL_NAME " with devices: " << device_ids;
   ncclUniqueId id;
   TVMByteArray array;
   NCCL_CALL(ncclGetUniqueId(&id));
@@ -72,7 +110,7 @@ void InitCCL(Session sess, ShapeTuple device_ids) {
 }
 
 void InitCCLPerWorker(ShapeTuple device_ids, std::string unique_id_bytes) {
-  NCCLThreadLocalContext* ctx = NCCLThreadLocalContext::Get();
+  CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
   DiscoWorker* worker = DiscoWorker::ThreadLocal();
   ICHECK(worker != nullptr);
   CHECK_EQ(unique_id_bytes.size(), NCCL_UNIQUE_ID_BYTES)
@@ -80,11 +118,11 @@ void InitCCLPerWorker(ShapeTuple device_ids, std::string unique_id_bytes) {
       << unique_id_bytes.size() << ".";
   // Step up local context of NCCL
   int device_id = device_ids[worker->worker_id];
-  CUDA_CALL(cudaSetDevice(device_id));
-  CUDA_CALL(cudaStreamCreate(&ctx->default_stream));
-  Device device{DLDeviceType::kDLCUDA, device_id};
+  TVM_DISCO_DEVICE_CALL(TVM_DISCO_DEVICE_SET_DEVICE(device_id));
+  TVM_DISCO_DEVICE_CALL(TVM_DISCO_DEVICE_STREAM_CREATE(&ctx->default_stream));
+  Device device{TVM_DISCO_DEVICE_TYPE, device_id};
   worker->default_device = device;
-  worker->ccl = "nccl";
+  worker->ccl = TVM_DISCO_CCL_NAME;
   ctx->worker = worker;
   ctx->device_id = device_id;
   // Initialize the communicator
@@ -94,21 +132,21 @@ void InitCCLPerWorker(ShapeTuple device_ids, std::string unique_id_bytes) {
 }
 
 void AllReduce(NDArray send, ReduceKind reduce_kind, NDArray recv) {
-  NCCLThreadLocalContext* ctx = NCCLThreadLocalContext::Get();
+  CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
   ShapeTuple shape = send.Shape();
   int64_t numel = shape->Product();
-  cudaStream_t stream = ctx->GetDefaultStream();
+  runtimeStream_t stream = ctx->GetDefaultStream();
   NCCL_CALL(ncclAllReduce(send->data, recv->data, numel,
                           /*datatype=*/AsNCCLDataType(DataType(send->dtype)),
                           /*op=*/AsNCCLRedOp(reduce_kind), ctx->comm, stream));
 }
 
 void BroadcastFromWorker0(NDArray send, NDArray recv) {
-  NCCLThreadLocalContext* ctx = NCCLThreadLocalContext::Get();
+  CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
   ICHECK(send.Shape()->Product() == recv.Shape()->Product());
   ShapeTuple shape = send.Shape();
   int64_t numel = shape->Product();
-  cudaStream_t stream = ctx->GetDefaultStream();
+  runtimeStream_t stream = ctx->GetDefaultStream();
   NCCL_CALL(ncclBroadcast(send->data, recv->data, numel,
                           /*datatype=*/AsNCCLDataType(DataType(send->dtype)),
                           /*root=*/0, ctx->comm, stream));
@@ -116,10 +154,10 @@ void BroadcastFromWorker0(NDArray send, NDArray recv) {
 
 void ScatterFromWorker0(Optional<NDArray> send, NDArray recv) {
   CHECK(recv.defined()) << "ValueError: buffer `recv` must not be None";
-  NCCLThreadLocalContext* ctx = NCCLThreadLocalContext::Get();
+  CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
   int worker_id = ctx->worker->worker_id;
   int num_workers = ctx->worker->num_workers;
-  cudaStream_t stream = ctx->GetDefaultStream();
+  runtimeStream_t stream = ctx->GetDefaultStream();
   if (worker_id == 0) {
     CHECK(send.defined()) << "ValueError: buffer `send` must be provided when worker_id == 0.";
     NDArray buffer = send.value();
@@ -157,10 +195,10 @@ void ScatterFromWorker0(Optional<NDArray> send, NDArray recv) {
 
 void GatherToWorker0(NDArray send, Optional<NDArray> recv) {
   CHECK(send.defined()) << "ValueError: buffer `send` must not be None";
-  NCCLThreadLocalContext* ctx = NCCLThreadLocalContext::Get();
+  CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
   int worker_id = ctx->worker->worker_id;
   int num_workers = ctx->worker->num_workers;
-  cudaStream_t stream = ctx->GetDefaultStream();
+  runtimeStream_t stream = ctx->GetDefaultStream();
   if (worker_id == 0) {
     CHECK(recv.defined()) << "ValueError: buffer `recv` must be provided when worker_id == 0.";
     NDArray buffer = recv.value();
@@ -197,8 +235,8 @@ void GatherToWorker0(NDArray send, Optional<NDArray> recv) {
 }
 
 void RecvFromWorker0(NDArray buffer) {
-  NCCLThreadLocalContext* ctx = NCCLThreadLocalContext::Get();
-  cudaStream_t stream = ctx->GetDefaultStream();
+  CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
+  runtimeStream_t stream = ctx->GetDefaultStream();
   CHECK_NE(ctx->worker->worker_id, 0)
       << "ValueError: Worker 0 is not allowed to call RecvFromWorker0.";
   NCCL_CALL(ncclGroupStart());
@@ -208,26 +246,33 @@ void RecvFromWorker0(NDArray buffer) {
 }
 
 void SyncWorker() {
-  NCCLThreadLocalContext* ctx = NCCLThreadLocalContext::Get();
+  CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
   ICHECK(ctx->worker != nullptr);
-  cudaStream_t stream = ctx->GetDefaultStream();
-  CUDA_CALL(cudaStreamSynchronize(stream));
+  runtimeStream_t stream = ctx->GetDefaultStream();
+  TVM_DISCO_DEVICE_CALL(TVM_DISCO_DEVICE_STREAM_SYNC(stream));
 }
 
-TVM_REGISTER_GLOBAL("runtime.disco.nccl.init_ccl").set_body_typed(InitCCL);
-TVM_REGISTER_GLOBAL("runtime.disco.nccl.init_ccl_per_worker").set_body_typed(InitCCLPerWorker);
-TVM_REGISTER_GLOBAL("runtime.disco.nccl.allreduce")
+TVM_REGISTER_GLOBAL("runtime.disco.compiled_ccl").set_body_typed([]() -> String {
+  return TVM_DISCO_CCL_NAME;
+});
+TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".init_ccl").set_body_typed(InitCCL);
+TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".init_ccl_per_worker")
+    .set_body_typed(InitCCLPerWorker);
+TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".allreduce")
     .set_body_typed([](NDArray send, int kind, NDArray recv) {
       CHECK(0 <= kind && kind <= 4) << "ValueError: Unknown ReduceKind: " << kind;
       AllReduce(send, static_cast<ReduceKind>(kind), recv);
     });
-TVM_REGISTER_GLOBAL("runtime.disco.nccl.broadcast_from_worker0")
+TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".broadcast_from_worker0")
     .set_body_typed(BroadcastFromWorker0);
-TVM_REGISTER_GLOBAL("runtime.disco.nccl.scatter_from_worker0").set_body_typed(ScatterFromWorker0);
-TVM_REGISTER_GLOBAL("runtime.disco.nccl.gather_to_worker0").set_body_typed(GatherToWorker0);
-TVM_REGISTER_GLOBAL("runtime.disco.nccl.recv_from_worker0").set_body_typed(RecvFromWorker0);
-TVM_REGISTER_GLOBAL("runtime.disco.nccl.sync_worker").set_body_typed(SyncWorker);
+TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".scatter_from_worker0")
+    .set_body_typed(ScatterFromWorker0);
+TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".gather_to_worker0")
+    .set_body_typed(GatherToWorker0);
+TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".recv_from_worker0")
+    .set_body_typed(RecvFromWorker0);
+TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".sync_worker").set_body_typed(SyncWorker);
 
-}  // namespace nccl
+}  // namespace ccl
 }  // namespace runtime
 }  // namespace tvm
