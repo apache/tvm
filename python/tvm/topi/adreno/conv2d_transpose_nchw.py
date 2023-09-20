@@ -36,7 +36,9 @@ from .utils import (
 
 
 @autotvm.register_topi_compute("conv2d_transpose_nchwc.image2d")
-def conv2d_transpose_nchwc(cfg, Input, Filter, stride, padding, out_dtype, output_padding, groups=1):
+def conv2d_transpose_nchwc(
+    cfg, Input, Filter, stride, padding, out_dtype, output_padding, groups=1
+):
     """
     Transposed Convolution operator in NCHWc layout.
     Algo:
@@ -108,11 +110,11 @@ def conv2d_transpose_nchwc(cfg, Input, Filter, stride, padding, out_dtype, outpu
 
     cfg.stride = stride
 
-    pad_top, pad_left, pad_bottom, pad_right = nn.get_pad_tuple(
-        padding, (kernel_h, kernel_w)
-    )
+    pad_top, pad_left, pad_bottom, pad_right = nn.get_pad_tuple(padding, (kernel_h, kernel_w))
 
-    out_width_orig = out_width = (in_width - 1) * stride_w + kernel_w - pad_left - pad_right + outpad_width
+    out_width_orig = out_width = (
+        (in_width - 1) * stride_w + kernel_w - pad_left - pad_right + outpad_width
+    )
     pad_left = kernel_w - 1 - pad_left
     pad_right = kernel_w - 1 - pad_right + outpad_width
     dilated_width = stride_w * (in_width - 1) + 1
@@ -172,9 +174,9 @@ def conv2d_transpose_nchwc(cfg, Input, Filter, stride, padding, out_dtype, outpu
     conv = te.compute(
         (batch, out_channel_chunks, out_height, out_width, out_channel_block),
         lambda b, c, h, w, cb: te.sum(
-            temp[b, c // out_channel_chunks * (in_channel_chunks) + dcc, h + dh, w + dw, dcb].astype(
-                out_dtype
-            )
+            temp[
+                b, c // out_channel_chunks * (in_channel_chunks) + dcc, h + dh, w + dw, dcb
+            ].astype(out_dtype )
             * Filter[
                 dcc * in_channel_block + dcb,
                 c % out_channel_chunks,
@@ -186,7 +188,6 @@ def conv2d_transpose_nchwc(cfg, Input, Filter, stride, padding, out_dtype, outpu
         ),
         tag="conv2d_transpose_nchwc",
     )
-
 
     if convert_from4d and not autotvm.GLOBAL_SCOPE.in_tuning:
         dummy_cast = te.compute(
@@ -206,6 +207,7 @@ def conv2d_transpose_nchwc(cfg, Input, Filter, stride, padding, out_dtype, outpu
             tag="adreno_conv2d_transpose_latest_op",
         )
 
+
 @autotvm.register_topi_schedule("conv2d_transpose_nchwc.image2d")
 def schedule_conv2d_transpose_nchwc(cfg, outs):
     """Create the schedule for conv2d_nchw"""
@@ -218,6 +220,7 @@ def schedule_conv2d_transpose_nchwc(cfg, outs):
 
     traverse_inline(s, outs[0].op, _callback)
     return s
+
 
 def schedule_conv2d_transpose_NCHWc(cfg, s, output):
     """
@@ -386,5 +389,3 @@ def schedule_conv2d_transpose_NCHWc(cfg, s, output):
 
     if isinstance(N, int):
         cfg.add_flop(2 * N * OH * OW * OCC * OCB * ICKHKW)
-
-

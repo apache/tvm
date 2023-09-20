@@ -214,6 +214,7 @@ def conv2d_winograd_without_weight_transform_strategy_adreno(attrs, inputs, out_
         raise RuntimeError(f"Unsupported conv2d_winograd_without_weight_transform layout {layout}")
     return strategy
 
+
 @conv2d_transpose_strategy.register("adreno")
 def conv2d_transpose_strategy_adreno(attrs, inputs, out_type, target):
     """conv2d_transpose adreno strategy"""
@@ -226,12 +227,10 @@ def conv2d_transpose_strategy_adreno(attrs, inputs, out_type, target):
     kernel_layout = attrs.kernel_layout
     assert dilation == (1, 1), "not support dilate now"
 
-    if (
-        (groups == 1) and (
-            (data_layout == "NCHW" and kernel_layout == "IOHW")
-            or (data_layout == "NCHW4c" and kernel_layout == "IOHW4o")
-            or (data_layout == "NCHW" and kernel_layout == "IOHW4o")
-        )
+    if (groups == 1) and (
+        (data_layout == "NCHW" and kernel_layout == "IOHW")
+        or (data_layout == "NCHW4c" and kernel_layout == "IOHW4o")
+        or (data_layout == "NCHW" and kernel_layout == "IOHW4o")
     ):
         if len(kernel.shape) == 4:
             oc, _, kh, kw = get_const_tuple(kernel.shape)

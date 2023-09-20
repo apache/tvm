@@ -27,6 +27,7 @@ import pytest
 executor_type = tvm.testing.parameter("ge")
 dtype = tvm.testing.parameter("float32")
 
+
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
 def test_conv2d_transpose_adreno(remote, target, executor_type, dtype):
