@@ -224,7 +224,7 @@ def conv2d_transpose_strategy_adreno(attrs, inputs, out_type, target):
     groups = attrs.groups
     data_layout = attrs.data_layout
     kernel_layout = attrs.kernel_layout
-    assert dilation == (1, 1), "not support dilate now"    
+    assert dilation == (1, 1), "not support dilate now"
 
     if (
         (groups == 1) and (
