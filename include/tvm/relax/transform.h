@@ -159,6 +159,10 @@ TVM_DLL Pass Normalize();
  * May include other forms of expression simplification in the future.
  * Best used alongside constant folding and eliminating unused bindings.
  *
+ * \note If a dataflow var is used only in a binding to the dataflow block
+ * output var (i.e., a non-dataflow var), this pass will also remove the dataflow var
+ * and replaces the output var's binding with the dataflow var's direct definition.
+ *
  * \return The Pass.
  */
 TVM_DLL Pass CanonicalizeBindings();
@@ -206,16 +210,6 @@ TVM_DLL Pass BindSymbolicVars(Map<ObjectRef, PrimExpr> binding_map,
  * \return The Pass.
  */
 TVM_DLL Pass FoldConstant();
-
-/*!
- * \brief If a dataflow var is used only in a binding to the dataflow block
- * output var (i.e., a non-dataflow var), this removes the dataflow var
- * and replaces the output var's binding with the dataflow var's direct definition.
- *
- * This "cleans up" a situation that commonly arises when using `CanonicalizeBindings`
- * and `DeadCodeElimination`.
- **/
-TVM_DLL Pass FoldDataflowBlockOutput();
 
 /*!
  * \brief Legalize high-level operator calls in Relax functions to call_tir

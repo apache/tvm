@@ -24,6 +24,7 @@
  *        Ideally should be used before constant folding and eliminating unused bindings.
  */
 
+#include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info.h>
@@ -56,8 +57,8 @@ class BindingCanonicalizer : public ExprMutator {
   }
 
   void VisitBinding_(const VarBindingNode* binding) override {
-    // Unlike default visitor, we do not permit the checked type to change
-    // if the new value's checked type is different (this preserves user annotations)
+    // Unlike default visitor, we do not permit the struct info to change
+    // if the new value's struct info is different (this preserves user annotations)
     Expr new_value = this->VisitExpr(binding->value);
     Var new_var = this->VisitVarDef(binding->var);
 
@@ -72,7 +73,7 @@ class BindingCanonicalizer : public ExprMutator {
   }
 
   void VisitBinding_(const MatchCastNode* binding) override {
-    // If we have a trivial shape check (the shape_ of LHS and RHS is the same),
+    // If we have a trivial shape check (the struct_info_ of LHS and RHS is the same),
     // we can canonicalize to a var binding
     Expr new_value = this->VisitExpr(binding->value);
 
@@ -96,6 +97,101 @@ class BindingCanonicalizer : public ExprMutator {
     }
   }
 
+  // Special case: for dataflow blocks, we will check for dataflow vars that solely exist
+  // to be bound to the output. In this case, we will get rid of those bindings and
+  // use the dataflow var's definition directly
+  BindingBlock VisitBindingBlock_(const DataflowBlockNode* block) override {
+    auto new_block = Downcast<DataflowBlock>(ExprMutator::VisitBindingBlock_(block));
+    std::unordered_map<DataflowVar, Expr, ObjectPtrHash, ObjectPtrEqual> binding_map_;
+    std::unordered_set<DataflowVar, ObjectPtrHash, ObjectPtrEqual> disqualified_set_;
+    std::unordered_set<DataflowVar, ObjectPtrHash, ObjectPtrEqual> output_vars_;
+
+    for (auto binding : new_block->bindings) {
+      auto var = binding->var;
+      auto value = GetBoundValue(binding);
+
+      if (var->IsInstance<DataflowVarNode>()) {
+        binding_map_[Downcast<DataflowVar>(var)] = value;
+
+        // disqualify any vars that appear in the RHS
+        // (for a function literal, consider only free vars)
+        Array<Var> rhs_vars;
+        if (value->IsInstance<FunctionNode>()) {
+          rhs_vars = FreeVars(value);
+        } else {
+          rhs_vars = AllVars(value);
+        }
+
+        for (auto rhs_var : rhs_vars) {
+          if (rhs_var->IsInstance<DataflowVarNode>()) {
+            disqualified_set_.insert(Downcast<DataflowVar>(rhs_var));
+          }
+        }
+      } else {
+        // The LHS is an output binding.
+        // We are looking for cases where the RHS is a single dataflow var;
+        // disqualify if the RHS is not a single dataflow var
+        // or if the var has been output before
+        if (const auto* rhs_var = value.as<DataflowVarNode>()) {
+          if (output_vars_.count(GetRef<DataflowVar>(rhs_var))) {
+            disqualified_set_.insert(GetRef<DataflowVar>(rhs_var));
+          }
+          output_vars_.insert(GetRef<DataflowVar>(rhs_var));
+        } else {
+          auto disqualified = AllVars(value);
+          for (auto rhs_var : disqualified) {
+            if (rhs_var->IsInstance<DataflowVarNode>()) {
+              disqualified_set_.insert(Downcast<DataflowVar>(rhs_var));
+            }
+          }
+        }
+      }
+    }
+
+    // final candidates: those in the output set that are not disqualified
+    std::unordered_map<DataflowVar, Expr, ObjectPtrHash, ObjectPtrEqual> candidates;
+    for (auto var : output_vars_) {
+      if (!disqualified_set_.count(var)) {
+        candidates[var] = binding_map_.at(var);
+      }
+    }
+
+    // second pass: for each binding where the RHS is a candidate, remove the binding.
+    // If the LHS is a candidate, replace it with the definition
+    Array<Binding> new_bindings;
+    bool changed = false;
+    for (auto binding : new_block->bindings) {
+      if (binding->var->IsInstance<DataflowVarNode>() &&
+          candidates.count(Downcast<DataflowVar>(binding->var))) {
+        changed = true;
+        continue;
+      } else if (!binding->var->IsInstance<DataflowVarNode>() &&
+                 GetBoundValue(binding)->IsInstance<DataflowVarNode>() &&
+                 candidates.count(Downcast<DataflowVar>(GetBoundValue(binding)))) {
+        changed = true;
+        if (auto* match_binding = binding.as<MatchCastNode>()) {
+          auto new_binding =
+              MatchCast(binding->var, candidates.at(Downcast<DataflowVar>(match_binding->value)),
+                        match_binding->struct_info);
+          new_bindings.push_back(new_binding);
+        } else if (auto* var_binding = binding.as<VarBindingNode>()) {
+          auto new_binding =
+              VarBinding(binding->var, candidates.at(Downcast<DataflowVar>(var_binding->value)));
+          new_bindings.push_back(new_binding);
+        } else {
+          CHECK(false) << "Invalid binding";  // never happens
+        }
+      } else {
+        new_bindings.push_back(binding);
+      }
+    }
+
+    if (!changed) {
+      return new_block;
+    }
+    return DataflowBlock(new_bindings);
+  }
+
  private:
   bool AnnotationsDiffer(const ObjectRef& obj1, const ObjectRef& obj2,
                          std::function<bool(const ObjectRef&, const ObjectRef&)> check_eq) {
@@ -108,7 +204,7 @@ class BindingCanonicalizer : public ExprMutator {
 
   bool CanCanonicalizeVar(Var var, Var parent_var) {
     // Cases when we conservatively do not unify:
-    // 1. checked_type_ or shape_ of the child differs from that of the parent
+    // 1. The struct_info_ of the child differs from that of the parent
     //    In this case, we could be overriding user annotations.
     // 2. If the child is a Var and the parent is a DataflowVar.
     //    That could result in a DataflowVar leaving the current DataflowBlock.
