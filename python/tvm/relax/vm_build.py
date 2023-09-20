@@ -310,6 +310,7 @@ def build(
     passes.append(relax.transform.RemovePurityChecking())
     passes.append(relax.transform.CallTIRRewrite())
     passes.append(relax.transform.StaticPlanBlockMemory())
+    passes.append(relax.transform.KillAfterLastUse())
 
     if tvm.transform.PassContext.current().config.get("relax.backend.use_cuda_graph", False):
         passes.append(relax.transform.RewriteCUDAGraph())
