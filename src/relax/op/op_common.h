@@ -76,28 +76,11 @@ inline TensorStructInfo GetUnaryInputTensorStructInfo(const Call& call, const Bl
 Array<TensorStructInfo> GetTensorStructInfoFromTuple(const Call& call, const BlockBuilder& ctx,
                                                      const Expr& tup);
 
-/*!
- * \brief Get the arg struct info as an expected type
- *
- * In contrast to GetStructInfoAs, GetArgStructInfo reports errors
- * through the BlockBuilder context.
- *
- * \tparam The expected type of the argument's struct info (e.g. TensorStructInfo).
- * \param call The context Call to the operator.
- * \param ctx The error reporting context.
- * \param index The index of the argument
- * \return The tensor struct infos of tuple input.
- * \throw Throw exception if input expression is not a tuple.
- */
+namespace detail {
+/*! \brief Implementation helper for GetArgStructInfo */
 template <typename ArgType>
-ArgType GetArgStructInfo(const Call& call, const BlockBuilder& ctx, size_t index) {
-  Op op = Downcast<Op>(call->op);
-  size_t n_input = op->arguments.size();
-  if (call->args.size() != n_input) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << op << " op should have " << n_input << " arguments");
-  }
-
+ArgType GetArgStructInfoByIndex(const Call& call, const Op& op, const BlockBuilder& ctx,
+                                size_t index) {
   if (!call->args[index]->struct_info_.defined()) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << op << " op should have arguments with defined StructInfo.  "
@@ -116,6 +99,15 @@ ArgType GetArgStructInfo(const Call& call, const BlockBuilder& ctx, size_t index
 
   return typed_sinfo.value();
 }
+
+/*! \brief Implementation helper for GetArgStructInfo */
+template <typename... ArgTypes, size_t... Indices>
+std::tuple<ArgTypes...> GetArgStructInfoHelper(const Call& call, const Op& op,
+                                               const BlockBuilder& ctx,
+                                               std::index_sequence<Indices...>) {
+  return std::tuple<ArgTypes...>{GetArgStructInfoByIndex<ArgTypes>(call, op, ctx, Indices)...};
+}
+}  // namespace detail
 
 /*!
  * \brief Get all arg struct infos as expected types
@@ -139,9 +131,8 @@ std::tuple<ArgTypes...> GetArgStructInfo(const Call& call, const BlockBuilder& c
       << " arguments in its TVM_REGISTER_OP() call, "
       << "but GetArgStructInfo was given " << sizeof...(ArgTypes) << " template arguments.";
 
-  // Unpack in an initializer list, which has ensured left-to-right evaluation.
-  size_t index = 0;
-  return {GetArgStructInfo<ArgTypes>(call, ctx, index++)...};
+  return detail::GetArgStructInfoHelper<ArgTypes...>(
+      call, op, ctx, std::make_index_sequence<sizeof...(ArgTypes)>());
 }
 
 /************ Op registration macro ************/
