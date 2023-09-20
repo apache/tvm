@@ -16,15 +16,16 @@
 # under the License.
 """A PyTorch-like API to build IRModules."""
 from . import op, spec
-from .core import Effect, Module, ModuleList, Parameter, Tensor, ExternModule
+from .core import Effect, ExternModule, Module, ModuleList, Parameter, Tensor
 from .modules import (
+    Conv1D,
+    ConvTranspose1D,
     Embedding,
     IOEffect,
     KVCache,
-    Linear,
-    Conv1D,
-    ConvTranspose1D,
     LayerNorm,
+    Linear,
+    MultiLinear,
     RMSNorm,
 )
 from .op import *
