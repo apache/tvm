@@ -88,6 +88,7 @@ def benchmark(
         mod = mod_or_func
         # assume only one global function
         (func_name,) = mod.get_global_vars()
+        func_name = func_name.name_hint
     # produce input shapes
     if args is None:
         args, _ = extract_func_info_from_prim_func(mod[func_name])
