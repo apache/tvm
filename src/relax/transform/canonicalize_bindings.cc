@@ -116,7 +116,7 @@ class BindingCanonicalizer : public ExprMutator {
         // disqualify any vars that appear in the RHS
         // (for a function literal, consider only free vars)
         Array<Var> rhs_vars;
-        if (value->IsInstance<FunctionNode>()) {
+        if (!value->IsInstance<FunctionNode>()) {
           rhs_vars = FreeVars(value);
         } else {
           rhs_vars = AllVars(value);
@@ -163,8 +163,8 @@ class BindingCanonicalizer : public ExprMutator {
       }
     }
 
-    // second pass: for each binding where the RHS is a candidate, remove the binding.
-    // If the LHS is a candidate, replace it with the definition
+    // second pass: for each binding where the LHS is a candidate, remove the binding.
+    // If the RHS is a candidate, replace it with the definition
     Array<Binding> new_bindings;
     bool changed = false;
     for (auto binding : new_block->bindings) {
