@@ -54,7 +54,10 @@ class VMBuiltinLowerMutator : public ExprMutator {
     } else if (call->op == invoke_closure_op_) {
       return InvokeClosure(call);
     } else if (call->op == alloc_tensor_op_) {
-      return MakeAllocTensor(call);
+      LOG(FATAL) << "VMBuiltinLower encountered " << call->op << " in expression "
+                 << GetRef<Call>(call_node) << ".  "
+                 << "This operation should have been lowered earlier "
+                 << "using the 'relax.transform.LowerAllocTensor' pass.";
     } else if (call->op == mem_alloc_storage_op_) {
       return MakeMemAllocStorage(call);
     } else if (call->op == mem_alloc_tensor_op_) {
@@ -64,38 +67,6 @@ class VMBuiltinLowerMutator : public ExprMutator {
     } else {
       return call;
     }
-  }
-
-  Expr ComputeStorageSize(const Expr& shape, const DataType& dtype) const {
-    // Question: what if the dtype of tensor_type is unknown?
-    // Symbolic/static shape case
-    if (auto* shape_expr = shape.as<ShapeExprNode>()) {
-      int64_t elem_bytes = runtime::GetVectorBytes(dtype);
-      PrimExpr ret = IntImm(DataType::Int(64), elem_bytes);
-      for (PrimExpr dim : shape_expr->values) {
-        ret = ret * dim;
-      }
-      return ShapeExpr({ret});
-    } else {
-      return Call(builtin_compute_alloc_shape_, {shape, DataTypeImm(dtype)}, Attrs(),
-                  {GetStructInfo(shape)});
-    }
-  }
-
-  Expr MakeAllocTensor(const Call& call) {
-    ShapeExpr output_shape = Downcast<ShapeExpr>(call->args[0]);
-    DataTypeImm output_dtype = Downcast<DataTypeImm>(call->args[1]);
-    DataType dtype = output_dtype->value;
-    Expr storage_size = ComputeStorageSize(output_shape, dtype);
-    PrimValue runtime_device_index = Downcast<PrimValue>(call->args[2]);
-    Var storage = builder_->Emit(Call(vm_alloc_storage_op_,
-                                      {storage_size, runtime_device_index,
-                                       DataTypeImm(DataType::UInt(8)), StringImm("global")},
-                                      Attrs()),
-                                 "storage");
-    Expr shape = call->args[0];
-    PrimValue offset = PrimValue::Int64(0);
-    return Call(vm_alloc_tensor_op_, {storage, offset, shape, DataTypeImm(dtype)}, Attrs());
   }
 
   Expr MakeMemAllocStorage(const Call& call) {
