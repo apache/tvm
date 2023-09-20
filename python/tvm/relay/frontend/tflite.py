@@ -1448,7 +1448,9 @@ class OperatorConverter(object):
 
     def convert_greater(self, op):
         """Convert TFLite GREATER"""
-        return self._convert_elemwise(_op.greater, op, self.is_quantized(op), comparison_op=True)
+        return self._convert_elemwise(
+            _op.greater_equal, op, self.is_quantized(op), comparison_op=True
+        )
 
     def convert_squared_difference(self, op):
         """Convert TFLite SQUARED DIFFERENCE"""
@@ -1472,7 +1474,7 @@ class OperatorConverter(object):
         out = _op.power(difference, relay.const(2, exp_type))
         return out
 
-    def convert_greater_equal(self, op):
+    def convert_(self, op):
         """Convert TFLite GREATER_EQUAL"""
         return self._convert_elemwise(_op.greater_equal, op, self.is_quantized(op), comparison_op=True)
 
