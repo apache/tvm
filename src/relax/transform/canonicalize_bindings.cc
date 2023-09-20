@@ -102,16 +102,16 @@ class BindingCanonicalizer : public ExprMutator {
   // use the dataflow var's definition directly
   BindingBlock VisitBindingBlock_(const DataflowBlockNode* block) override {
     auto new_block = Downcast<DataflowBlock>(ExprMutator::VisitBindingBlock_(block));
-    std::unordered_map<DataflowVar, Expr, ObjectPtrHash, ObjectPtrEqual> binding_map_;
-    std::unordered_set<DataflowVar, ObjectPtrHash, ObjectPtrEqual> disqualified_set_;
-    std::unordered_set<DataflowVar, ObjectPtrHash, ObjectPtrEqual> output_vars_;
+    std::unordered_map<DataflowVar, Expr, ObjectPtrHash, ObjectPtrEqual> binding_map;
+    std::unordered_set<DataflowVar, ObjectPtrHash, ObjectPtrEqual> disqualified_set;
+    std::unordered_set<DataflowVar, ObjectPtrHash, ObjectPtrEqual> output_vars;
 
     for (auto binding : new_block->bindings) {
       auto var = binding->var;
       auto value = GetBoundValue(binding);
 
       if (var->IsInstance<DataflowVarNode>()) {
-        binding_map_[Downcast<DataflowVar>(var)] = value;
+        binding_map[Downcast<DataflowVar>(var)] = value;
 
         // disqualify any vars that appear in the RHS
         // (for a function literal, consider only free vars)
@@ -124,7 +124,7 @@ class BindingCanonicalizer : public ExprMutator {
 
         for (auto rhs_var : rhs_vars) {
           if (rhs_var->IsInstance<DataflowVarNode>()) {
-            disqualified_set_.insert(Downcast<DataflowVar>(rhs_var));
+            disqualified_set.insert(Downcast<DataflowVar>(rhs_var));
           }
         }
       } else {
@@ -133,15 +133,22 @@ class BindingCanonicalizer : public ExprMutator {
         // disqualify if the RHS is not a single dataflow var
         // or if the var has been output before
         if (const auto* rhs_var = value.as<DataflowVarNode>()) {
-          if (output_vars_.count(GetRef<DataflowVar>(rhs_var))) {
-            disqualified_set_.insert(GetRef<DataflowVar>(rhs_var));
+          if (output_vars.count(GetRef<DataflowVar>(rhs_var))) {
+            disqualified_set.insert(GetRef<DataflowVar>(rhs_var));
           }
-          output_vars_.insert(GetRef<DataflowVar>(rhs_var));
+          output_vars.insert(GetRef<DataflowVar>(rhs_var));
         } else {
-          auto disqualified = AllVars(value);
+          Array<Var> disqualified;
+          // for function literal, consider only free vars
+          if (value->IsInstance<FunctionNode>()) {
+            disqualified = FreeVars(value);
+          } else {
+            disqualified = AllVars(value);
+          }
+
           for (auto rhs_var : disqualified) {
             if (rhs_var->IsInstance<DataflowVarNode>()) {
-              disqualified_set_.insert(Downcast<DataflowVar>(rhs_var));
+              disqualified_set.insert(Downcast<DataflowVar>(rhs_var));
             }
           }
         }
@@ -150,9 +157,9 @@ class BindingCanonicalizer : public ExprMutator {
 
     // final candidates: those in the output set that are not disqualified
     std::unordered_map<DataflowVar, Expr, ObjectPtrHash, ObjectPtrEqual> candidates;
-    for (auto var : output_vars_) {
-      if (!disqualified_set_.count(var)) {
-        candidates[var] = binding_map_.at(var);
+    for (auto var : output_vars) {
+      if (!disqualified_set.count(var)) {
+        candidates[var] = binding_map.at(var);
       }
     }
 
