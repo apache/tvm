@@ -102,12 +102,6 @@ def conv2d_transpose_nchwc(
     else:
         in_filter_channels, out_channel_chunks, kernel_h, kernel_w, out_channel_block = Filter.shape
 
-    """
-    assert (
-        in_channels % groups == 0
-    ), f"input channels {inp_channels} must divide group size {groups}":
-    """
-
     cfg.stride = stride
 
     pad_top, pad_left, pad_bottom, pad_right = nn.get_pad_tuple(padding, (kernel_h, kernel_w))
@@ -176,7 +170,7 @@ def conv2d_transpose_nchwc(
         lambda b, c, h, w, cb: te.sum(
             temp[
                 b, c // out_channel_chunks * (in_channel_chunks) + dcc, h + dh, w + dw, dcb
-            ].astype(out_dtype )
+            ].astype(out_dtype)
             * Filter[
                 dcc * in_channel_block + dcb,
                 c % out_channel_chunks,
