@@ -48,10 +48,25 @@ def _allreduce(_bb: BlockBuilder, call: Call) -> Expr:
 
 @register_legalize("relax.ccl.allgather")
 def _allgather(_bb: BlockBuilder, call: Call) -> Expr:
+    output_shape = []
+    assert isinstance(
+        call.args[0].struct_info, TensorStructInfo
+    ), "The input struct info of allgather should be TensorStructInfo."
+    assert isinstance(call.args[0].struct_info.shape.struct_info, ShapeStructInfo)
+    arg_shape = call.args[0].struct_info.shape.struct_info
+    for i, shape_value in enumerate(arg_shape.values):
+        if i == 0:
+            output_shape.append(tir.multiply(shape_value, call.attrs.num_workers))
+        else:
+            output_shape.append(shape_value)
     return call_dps_packed(
         "runtime.disco.allgather",
         call.args[0],
-        out_sinfo=call.args[0].struct_info,
+        out_sinfo=TensorStructInfo(
+            shape=output_shape,
+            dtype=call.args[0].struct_info.dtype,
+            vdevice=call.args[0].struct_info.vdevice,
+        ),
     )
 
 

@@ -44,7 +44,7 @@ def allreduce(x, op_type: str = "sum"):  # pylint: disable=invalid-name
     return _ffi_api.allreduce(x, op_type)  # type: ignore # pylint: disable=no-member
 
 
-def allgather(x):  # pylint: disable=invalid-name
+def allgather(x, num_workers: int):  # pylint: disable=invalid-name
     """AllGather operator
 
     Parameters
@@ -52,12 +52,15 @@ def allgather(x):  # pylint: disable=invalid-name
     x : relax.Expr
       The input tensor.
 
+    num_worker : int
+      The number of workers, i.e. the number of parts the given buffer should be chunked into.
+
     Returns
     -------
     result : relax.Expr
       The result of allgather.
     """
-    return _ffi_api.allgather(x)  # type: ignore # pylint: disable=no-member
+    return _ffi_api.allgather(x, num_workers)  # type: ignore # pylint: disable=no-member
 
 
 def broadcast_from_worker0(x: Expr) -> Expr:

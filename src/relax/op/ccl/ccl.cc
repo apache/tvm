@@ -53,9 +53,9 @@ TVM_REGISTER_OP("relax.ccl.allreduce")
 /* relax.ccl.allgather */
 TVM_REGISTER_NODE_TYPE(AllGatherAttrs);
 
-Expr allgather(Expr x) {
+Expr allgather(Expr x, int num_workers) {
   ObjectPtr<AllGatherAttrs> attrs = make_object<AllGatherAttrs>();
-
+  attrs->num_workers = std::move(num_workers);
   static const Op& op = Op::Get("relax.ccl.allgather");
   return Call(op, {std::move(x)}, Attrs{attrs}, {});
 }
@@ -64,7 +64,20 @@ TVM_REGISTER_GLOBAL("relax.op.ccl.allgather").set_body_typed(allgather);
 
 StructInfo InferStructInfoAllGather(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo input_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
-  return input_sinfo;
+  DataType output_dtype = input_sinfo->dtype;
+
+  const auto* attrs = call->attrs.as<AllGatherAttrs>();
+  int num_workers = attrs->num_workers;
+  auto input_shape = input_sinfo->GetShape();
+  if (!input_shape.defined()) {
+    return input_sinfo;
+  }
+  Array<PrimExpr> output_shape = input_shape.value();
+  output_shape.Set(0, floor(output_shape[0] * num_workers));
+  if (input_sinfo->vdevice.defined()) {
+    return TensorStructInfo(ShapeExpr(output_shape), output_dtype, input_sinfo->vdevice.value());
+  }
+  return TensorStructInfo(ShapeExpr(output_shape), output_dtype);
 }
 
 TVM_REGISTER_OP("relax.ccl.allgather")

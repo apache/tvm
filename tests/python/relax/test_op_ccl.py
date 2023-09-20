@@ -27,7 +27,7 @@ def test_op_correctness():
     x = relax.Var("x", R.Tensor((2, 3), "float32"))
     assert relax.op.ccl.allreduce(x).op == Op.get("relax.ccl.allreduce")
     assert relax.op.ccl.broadcast_from_worker0(x).op == Op.get("relax.ccl.broadcast_from_worker0")
-    assert relax.op.ccl.allgather(x).op == Op.get("relax.ccl.allgather")
+    assert relax.op.ccl.allgather(x, 2).op == Op.get("relax.ccl.allgather")
 
 
 def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_sinfo: relax.StructInfo):
@@ -96,14 +96,14 @@ def test_allgather_infer_struct_info():
     x4 = relax.Var("x", R.Tensor())
     x5 = relax.Var("x", R.Tensor((3, 4)))
 
-    _check_inference(bb, relax.op.ccl.allgather(x0), relax.TensorStructInfo((2, 3), "float32"))
+    _check_inference(bb, relax.op.ccl.allgather(x0, 2), relax.TensorStructInfo((4, 3), "float32"))
     _check_inference(
-        bb, relax.op.ccl.allgather(x1), relax.TensorStructInfo(dtype="float32", ndim=3)
+        bb, relax.op.ccl.allgather(x1, 2), relax.TensorStructInfo(dtype="float32", ndim=3)
     )
-    _check_inference(bb, relax.op.ccl.allgather(x2), relax.TensorStructInfo(dtype="float32"))
-    _check_inference(bb, relax.op.ccl.allgather(x3), relax.TensorStructInfo((2, 3), dtype=""))
-    _check_inference(bb, relax.op.ccl.allgather(x4), relax.TensorStructInfo(dtype=""))
-    _check_inference(bb, relax.op.ccl.allgather(x5), relax.TensorStructInfo((3, 4), dtype=""))
+    _check_inference(bb, relax.op.ccl.allgather(x2, 2), relax.TensorStructInfo(dtype="float32"))
+    _check_inference(bb, relax.op.ccl.allgather(x3, 2), relax.TensorStructInfo((4, 3), dtype=""))
+    _check_inference(bb, relax.op.ccl.allgather(x4, 2), relax.TensorStructInfo(dtype=""))
+    _check_inference(bb, relax.op.ccl.allgather(x5, 2), relax.TensorStructInfo((6, 4), dtype=""))
 
 
 def test_allgather_infer_struct_info_shape_symbolic():
@@ -113,8 +113,10 @@ def test_allgather_infer_struct_info_shape_symbolic():
     x0 = relax.Var("x", R.Tensor((m, n), "float32"))
     x1 = relax.Var("x", R.Tensor((4, n), "float32"))
 
-    _check_inference(bb, relax.op.ccl.allgather(x0), relax.TensorStructInfo((m, n), "float32"))
-    _check_inference(bb, relax.op.ccl.allgather(x1), relax.TensorStructInfo((4, n), "float32"))
+    _check_inference(
+        bb, relax.op.ccl.allgather(x0, 2), relax.TensorStructInfo((m * 2, n), "float32")
+    )
+    _check_inference(bb, relax.op.ccl.allgather(x1, 2), relax.TensorStructInfo((8, n), "float32"))
 
 
 def test_allgather_infer_struct_info_shape_var():
@@ -124,8 +126,8 @@ def test_allgather_infer_struct_info_shape_var():
     x0 = relax.Var("x", relax.TensorStructInfo(s0, "float32"))
     x1 = relax.Var("x", relax.TensorStructInfo(s1, "float32"))
 
-    _check_inference(bb, relax.op.ccl.allgather(x0), relax.TensorStructInfo(s0, "float32"))
-    _check_inference(bb, relax.op.ccl.allgather(x1), relax.TensorStructInfo(s1, "float32"))
+    _check_inference(bb, relax.op.ccl.allgather(x0, 2), relax.TensorStructInfo(s0, "float32"))
+    _check_inference(bb, relax.op.ccl.allgather(x1, 2), relax.TensorStructInfo(s1, "float32"))
 
 
 def test_allgather_infer_struct_info_more_input_dtype():
@@ -134,9 +136,9 @@ def test_allgather_infer_struct_info_more_input_dtype():
     x1 = relax.Var("x", R.Tensor((2, 3), "int8"))
     x2 = relax.Var("x", R.Tensor((2, 3), "int64"))
 
-    _check_inference(bb, relax.op.ccl.allgather(x0), relax.TensorStructInfo((2, 3), "float64"))
-    _check_inference(bb, relax.op.ccl.allgather(x1), relax.TensorStructInfo((2, 3), "int8"))
-    _check_inference(bb, relax.op.ccl.allgather(x2), relax.TensorStructInfo((2, 3), "int64"))
+    _check_inference(bb, relax.op.ccl.allgather(x0, 2), relax.TensorStructInfo((4, 3), "float64"))
+    _check_inference(bb, relax.op.ccl.allgather(x1, 2), relax.TensorStructInfo((4, 3), "int8"))
+    _check_inference(bb, relax.op.ccl.allgather(x2, 2), relax.TensorStructInfo((4, 3), "int64"))
 
 
 def test_broadcast_from_worker0_infer_struct_info():
