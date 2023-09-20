@@ -848,12 +848,16 @@ std::vector<size_t> GetTupleAccessedIndices(const FunctionNode* func, const Var&
 class TIRFuseMutator : public ExprMutator {
  public:
   static IRModule Transform(const IRModule& mod) {
-    Map<String, BaseFunc> tir_funcs;
+    Map<GlobalVar, BaseFunc> funcs_to_keep;
     for (const auto& [gv, func] : mod->functions) {
+      // 1. If a TIR function has global symbol, we keep the function.
+      // 2. Always keep ExternFunc.
       if (const auto* prim_func = func.as<tir::PrimFuncNode>()) {
         if (prim_func->GetAttr<String>("global_symbol").defined()) {
-          tir_funcs.Set(gv->name_hint, func);
+          funcs_to_keep.Set(gv, func);
         }
+      } else if (func->IsInstance<ExternFuncNode>()) {
+        funcs_to_keep.Set(gv, func);
       }
     }
     // Since TIRFuseMutator will delete bunch of PrimFunc, we create an empty block builder.
@@ -876,13 +880,15 @@ class TIRFuseMutator : public ExprMutator {
       }
     }
 
-    // Step 3. Recover all primitive TIR functions if they have global symbol
-    for (const auto& [name, func] : tir_funcs) {
-      mutator.builder_->AddFunction(func, name);
+    // Step 3. Add all functions that need to be kept.
+    auto modified_mod = mutator.builder_->GetContextIRModule();
+    for (const auto& [gv, func] : funcs_to_keep) {
+      if (!modified_mod->ContainGlobalVar(gv->name_hint)) {
+        modified_mod->Add(gv, func);
+      }
     }
 
     // Step 4. Copy over module attributes and return.
-    auto modified_mod = mutator.builder_->GetContextIRModule();
     if (mod->attrs.defined()) modified_mod = WithAttrs(modified_mod, mod->attrs->dict);
     return modified_mod;
   }
