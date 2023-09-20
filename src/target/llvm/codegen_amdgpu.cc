@@ -187,7 +187,8 @@ class CodeGenAMDGPU : public CodeGenLLVM {
       }
     }
     llvm::Function* f = llvm::Intrinsic::getDeclaration(module_.get(), intrin_id);
-    return builder_->CreateCall(f, {});
+    llvm::Value* result = builder_->CreateCall(f, {});
+    return this->CreateCast(DataType::Int(32), iv->var->dtype, result);
   }
 
   llvm::Value* CreateStorageSync(const CallNode* op) final {
