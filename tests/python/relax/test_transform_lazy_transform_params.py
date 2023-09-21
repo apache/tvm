@@ -239,9 +239,8 @@ def test_param_shape_symbolic():
                     T.writes(out[o, i, h, w])
                     out[o, i, h, w] = w1[i, o, h, w]
 
-        @R.function
+        @R.function(pure=False)
         def main_transform_params() -> R.Tuple:
-            R.func_attr({"relax.force_pure": True})
             ic = T.int64()
             cls = Expected
             gv: R.Object = R.call_packed("get_item", R.prim_value(1), sinfo_args=(R.Object,))
@@ -302,9 +301,8 @@ def test_output_with_use_site():
                 T.writes(y[()])
                 y[()] = x[()]
 
-        @R.function
+        @R.function(pure=False)
         def main_transform_params() -> R.Tuple:
-            R.func_attr({"relax.force_pure": True})
             cls = Expected
             x: R.Object = R.call_packed("get_item", R.prim_value(0), sinfo_args=(R.Object,))
             gv: R.Tensor((), dtype="float32") = R.match_cast(x, R.Tensor((), dtype="float32"))
