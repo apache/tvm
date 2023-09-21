@@ -115,8 +115,6 @@ def test_allreduce_sum_compile(optional_metal_compile_callback):
     # Disable the parametrization over dims, at least for now
     dims = (1, 1, 2)
     target = "metal"
-    print(f"Executing on target {target}")
-    assert target != "metal", "Deliberate failure to check that CI is executing the test"
 
     d1, d2, d3 = dims
     _, _, _d1, _d2, _d3 = reduce.params

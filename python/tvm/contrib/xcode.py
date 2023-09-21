@@ -165,6 +165,9 @@ def compile_metal(code, path_target=None, sdk="macosx", min_os_version=None):
         libbin = None
     else:
         libbin = bytearray(open(file_target, "rb").read())
+
+
+    assert False, "Deliberate failure after metal compilation, to ensure the CI reached this step"
     return libbin
 
 
