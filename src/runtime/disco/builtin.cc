@@ -84,7 +84,7 @@ void AllReduce(NDArray send, ReduceKind reduce_kind, NDArray recv) {
   GetCCLFunc("allreduce")(send, static_cast<int>(reduce_kind), recv);
 }
 
-void AllGathere(NDArray send, NDArray recv) { GetCCLFunc("allgather")(send, recv); }
+void AllGather(NDArray send, NDArray recv) { GetCCLFunc("allgather")(send, recv); }
 
 void BroadcastFromWorker0(NDArray send, NDArray recv) {
   GetCCLFunc("broadcast_from_worker0")(send, recv);
@@ -116,7 +116,7 @@ TVM_REGISTER_GLOBAL("runtime.disco.allreduce")
       CHECK(0 <= kind && kind <= 4) << "ValueError: Unknown ReduceKind: " << kind;
       AllReduce(send, static_cast<ReduceKind>(kind), recv);
     });
-TVM_REGISTER_GLOBAL("runtime.disco.allgather").set_body_typed(AllGathere);
+TVM_REGISTER_GLOBAL("runtime.disco.allgather").set_body_typed(AllGather);
 TVM_REGISTER_GLOBAL("runtime.disco.broadcast_from_worker0").set_body_typed(BroadcastFromWorker0);
 TVM_REGISTER_GLOBAL("runtime.disco.scatter_from_worker0").set_body_typed(ScatterFromWorker0);
 TVM_REGISTER_GLOBAL("runtime.disco.gather_to_worker0").set_body_typed(GatherToWorker0);

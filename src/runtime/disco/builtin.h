@@ -57,7 +57,7 @@ void AllReduce(NDArray send, ReduceKind reduce_kind, NDArray recv);
  * \param send The array send to perform allgather on
  * \return The outcome of allgather
  */
-void AllGather(NDArray send, Optional<NDArray> recv);
+void AllGather(NDArray send, NDArray recv);
 /*!
  * \brief Perform a broadcast operation from worker-0
  * \param buffer The buffer to be broadcasted
