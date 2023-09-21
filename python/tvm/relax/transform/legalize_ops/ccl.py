@@ -56,7 +56,7 @@ def _allgather(_bb: BlockBuilder, call: Call) -> Expr:
     arg_shape = call.args[0].struct_info.shape.struct_info
     for i, shape_value in enumerate(arg_shape.values):
         if i == 0:
-            output_shape.append(tir.multiply(shape_value, call.attrs.num_workers))
+            output_shape.append(tir.multiply(shape_value, call.args[1].value))
         else:
             output_shape.append(shape_value)
     return call_dps_packed(

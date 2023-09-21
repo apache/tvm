@@ -42,12 +42,9 @@ struct AllReduceAttrs : public tvm::AttrsNode<AllReduceAttrs> {
 
 /*! \brief Attributes used in allgather operators */
 struct AllGatherAttrs : public tvm::AttrsNode<AllGatherAttrs> {
-  int num_workers;
-
   TVM_DECLARE_ATTRS(AllGatherAttrs, "relax.attrs.AllGatherAttrs") {
     // You can add any additional attributes needed for the AllGather operation here.
     // For example, if there are no additional attributes, you can leave this empty.
-    TVM_ATTR_FIELD(num_workers).describe("The number of workers");
   }
 };  // struct AllGatherAttrs
 

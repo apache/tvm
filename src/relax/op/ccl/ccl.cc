@@ -53,35 +53,35 @@ TVM_REGISTER_OP("relax.ccl.allreduce")
 /* relax.ccl.allgather */
 TVM_REGISTER_NODE_TYPE(AllGatherAttrs);
 
-Expr allgather(Expr x, int num_workers) {
-  ObjectPtr<AllGatherAttrs> attrs = make_object<AllGatherAttrs>();
-  attrs->num_workers = std::move(num_workers);
+Expr allgather(Expr x, Expr num_workers) {
   static const Op& op = Op::Get("relax.ccl.allgather");
-  return Call(op, {std::move(x)}, Attrs{attrs}, {});
+  return Call(op, {std::move(x), std::move(num_workers)});
 }
 
 TVM_REGISTER_GLOBAL("relax.op.ccl.allgather").set_body_typed(allgather);
 
 StructInfo InferStructInfoAllGather(const Call& call, const BlockBuilder& ctx) {
-  TensorStructInfo input_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
-  DataType output_dtype = input_sinfo->dtype;
+  CHECK_EQ(call->args.size(), 2);
+  auto input_sinfo = Downcast<TensorStructInfo>(call->args[0]->struct_info_);
+  auto num_workers_sinfo = Downcast<PrimStructInfo>(call->args[1]->struct_info_);
 
-  const auto* attrs = call->attrs.as<AllGatherAttrs>();
-  int num_workers = attrs->num_workers;
+  auto num_workers = num_workers_sinfo->value;
+
+  DataType output_dtype = input_sinfo->dtype;
   auto input_shape = input_sinfo->GetShape();
   if (!input_shape.defined()) {
     return input_sinfo;
   }
   Array<PrimExpr> output_shape = input_shape.value();
-  output_shape.Set(0, floor(output_shape[0] * num_workers));
+  output_shape.Set(0, floor(output_shape[0] * num_workers.value()));
+  VDevice vdevice;
   if (input_sinfo->vdevice.defined()) {
-    return TensorStructInfo(ShapeExpr(output_shape), output_dtype, input_sinfo->vdevice.value());
+    vdevice = input_sinfo->vdevice.value();
   }
-  return TensorStructInfo(ShapeExpr(output_shape), output_dtype);
+  return TensorStructInfo(ShapeExpr(output_shape), output_dtype, vdevice);
 }
 
 TVM_REGISTER_OP("relax.ccl.allgather")
-    .set_attrs_type<AllGatherAttrs>()
     .set_num_inputs(1)
     .add_argument("x", "Tensor", "Input to which allgather will be applied.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAllGather)
