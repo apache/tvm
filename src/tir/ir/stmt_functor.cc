@@ -245,7 +245,8 @@ class StmtMutator::Internal {
 
   static Array<MatchBufferRegion> Mutate(StmtMutator* self, const Array<MatchBufferRegion>& arr) {
     auto fmutate = [self](const MatchBufferRegion& match_buffer_region) {
-      const Buffer& buffer = match_buffer_region->buffer;
+      Buffer buffer = match_buffer_region->buffer;
+      buffer.CopyOnWrite();
       Array<Range> region = Mutate(self, match_buffer_region->source->region);
       PrimExpr elem_offset = self->VisitExpr(buffer->elem_offset);
       Array<PrimExpr> strides = Mutate(self, buffer->strides);
