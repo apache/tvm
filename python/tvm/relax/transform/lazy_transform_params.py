@@ -158,7 +158,13 @@ class LazyTransformParamsMutator(PyExprMutator):
                 if not isinstance(sinfo, relax.TensorStructInfo):
                     params.append(relax.Var("symbolic_var_holder", sinfo))
 
-        return relax.Function(params, new_body, relax.ObjectStructInfo(), attrs=func.attrs)
+        return relax.Function(
+            params,
+            new_body,
+            relax.ObjectStructInfo(),
+            attrs=func.attrs,
+            is_pure=False,
+        ).without_attr("relax.force_pure")
 
     def visit_tuple_getitem_(self, op: relax.TupleGetItem) -> relax.Expr:
         # rewrite get item

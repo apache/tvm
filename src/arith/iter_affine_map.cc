@@ -1898,10 +1898,18 @@ PrimExpr IterMapRewriter::SplitFloorDivConst(IterSplitExpr lhs, PrimExpr base, P
   // = floormod(sc2+t, c2)
   // = floormod(floordiv(y, c1), c2)
   // = floormod(floordiv(iter, lower_factor*c1), c2), where c1=rhs, c2=extent/rhs
-  IterSplitExpr new_split(padded->source,
-                          /* lower_factor = */ padded->lower_factor * rhs,
-                          /* extent = */ analyzer_->Simplify(floordiv(padded->extent, rhs)),
-                          /* scale = */ padded->scale);
+  IterSplitExpr new_split;
+  if (CanProveDivisible(padded->extent, rhs)) {
+    new_split = IterSplitExpr(padded->source,
+                              /* lower_factor = */ padded->lower_factor * rhs,
+                              /* extent = */ analyzer_->Simplify(floordiv(padded->extent, rhs)),
+                              /* scale = */ padded->scale);
+  } else {
+    new_split = IterSplitExpr(IterMark(padded, padded->extent),
+                              /* lower_factor = */ rhs,
+                              /* extent = */ analyzer_->Simplify(ceildiv(padded->extent, rhs)),
+                              /* scale = */ make_const(rhs->dtype, 1));
+  }
 
   auto new_base = analyzer_->Simplify(floordiv(base - left_pad, rhs), 6);
   if (is_zero(new_base)) {

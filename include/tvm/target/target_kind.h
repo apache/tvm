@@ -130,10 +130,10 @@ class TargetKind : public ObjectRef {
    */
   TVM_DLL static Optional<TargetKind> Get(const String& target_kind_name);
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(TargetKind, ObjectRef, TargetKindNode);
-
- private:
   /*! \brief Mutable access to the container class  */
   TargetKindNode* operator->() { return static_cast<TargetKindNode*>(data_.get()); }
+
+ private:
   TVM_DLL static const AttrRegistryMapContainerMap<TargetKind>& GetAttrMapContainer(
       const String& attr_name);
   friend class TargetKindRegEntry;

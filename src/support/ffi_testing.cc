@@ -23,6 +23,7 @@
  */
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/env_func.h>
+#include <tvm/runtime/container/variant.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/te/tensor.h>
@@ -176,5 +177,16 @@ TVM_REGISTER_GLOBAL("testing.sleep_in_ffi").set_body_typed([](double timeout) {
   std::chrono::duration<int64_t, std::nano> duration(static_cast<int64_t>(timeout * 1e9));
   std::this_thread::sleep_for(duration);
 });
+
+TVM_REGISTER_GLOBAL("testing.ReturnsVariant").set_body_typed([](int x) -> Variant<String, IntImm> {
+  if (x % 2 == 0) {
+    return IntImm(DataType::Int(64), x / 2);
+  } else {
+    return String("argument was odd");
+  }
+});
+
+TVM_REGISTER_GLOBAL("testing.AcceptsVariant")
+    .set_body_typed([](Variant<String, Integer> arg) -> String { return arg->GetTypeKey(); });
 
 }  // namespace tvm

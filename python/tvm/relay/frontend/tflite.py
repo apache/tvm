@@ -1429,9 +1429,7 @@ class OperatorConverter(object):
     def convert_div(self, op):
         """Convert TFLite DIV"""
         # Check if the input tensor is quantized, call QNN op
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented("TFlite quantized DIV operator is not supported yet.")
-        return self._convert_elemwise(_op.divide, op)
+        return self._convert_elemwise(_op.divide, op, self.is_quantized(op))
 
     def convert_pow(self, op):
         """Convert TFLite POW"""
@@ -1484,9 +1482,7 @@ class OperatorConverter(object):
 
     def convert_less(self, op):
         """Convert TFLite LESS"""
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented("TFlite quantized LESS operator is not supported yet.")
-        return self._convert_elemwise(_op.less, op)
+        return self._convert_elemwise(_op.less, op, self.is_quantized(op), comparison_op=True)
 
     def convert_less_equal(self, op):
         """Convert TFLite LESS_EQUAL"""
@@ -1502,11 +1498,7 @@ class OperatorConverter(object):
 
     def convert_not_equal(self, op):
         """Convert TFLite NOT_EQUAL"""
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                "TFlite quantized NOT_EQUAL operator is not supported yet."
-            )
-        return self._convert_elemwise(_op.not_equal, op)
+        return self._convert_elemwise(_op.not_equal, op, self.is_quantized(op), comparison_op=True)
 
     def _convert_logical_binary(self, relay_op, op):
         """Generic method to convert logical binary ops"""
@@ -2686,19 +2678,11 @@ class OperatorConverter(object):
 
     def convert_floor_div(self, op):
         """Convert TFLite FLOOR_DIV"""
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                "TFlite quantized FLOOR DIV operator is not supported yet."
-            )
-        return self._convert_elemwise(_op.floor_divide, op)
+        return self._convert_elemwise(_op.floor_divide, op, self.is_quantized(op))
 
     def convert_floor_mod(self, op):
         """Convert TFLite FLOOR_MOD"""
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                "TFlite quantized FLOOR MOD operator is not supported yet."
-            )
-        return self._convert_elemwise(_op.floor_mod, op)
+        return self._convert_elemwise(_op.floor_mod, op, self.is_quantized(op))
 
     def convert_mirror_pad(self, op):
         """Convert TFLite MIRROR_PAD"""

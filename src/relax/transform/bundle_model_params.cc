@@ -33,15 +33,13 @@
 namespace tvm {
 namespace relax {
 
-static const auto kAttrNumInput = "num_input";
-
 class ModelParamBundler : public ExprMutator {
  public:
   ModelParamBundler() {}
 
   Expr VisitExpr_(const FunctionNode* op) override {
     Function func = GetRef<Function>(op);
-    auto opt_num_input = func->attrs.GetAttr<Integer>(kAttrNumInput);
+    auto opt_num_input = func->attrs.GetAttr<Integer>(attr::kNumInput);
     if (!opt_num_input) return func;
     auto signed_num_input = opt_num_input.value()->value;
 
@@ -68,7 +66,6 @@ class ModelParamBundler : public ExprMutator {
       var_to_expr_.Set(func->params[i], TupleGetItem(var_param_tuple, i - num_input));
     }
 
-    func = WithoutAttr(func, kAttrNumInput);
     func.CopyOnWrite()->params = params;
 
     return ExprMutator::VisitExpr_(func.get());

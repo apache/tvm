@@ -2977,7 +2977,10 @@ class PyTorchOpConverter:
     def flip(self, inputs, input_types):
         data = inputs[0]
         axis = inputs[1]
-        return _op.transform.reverse(data, axis=axis[0])
+        out = data
+        for ax in axis:
+            out = _op.reverse(out, ax)
+        return out
 
     def bidir_rnn_cell(self, input_seqs, weights_dicts, act=_op.tanh):
         """
