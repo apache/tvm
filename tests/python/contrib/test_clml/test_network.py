@@ -36,136 +36,100 @@ def _build_and_run_network(mod, params, inputs, data, device, atol, rtol, tvm_lo
     return outputs
 
 
-def _get_keras_model(keras_model, inputs_dict, data):
-    """Convert Keras graph to relay."""
-    inputs = {}
-    for name, (shape, _) in inputs_dict.items():
-        inputs[keras_model.input_names[0]] = shape
+def get_network(name, batch_size, dtype="float32"):
+    """Get the symbol definition and random weight of a network
 
-    from tensorflow.keras.layers import Input
-    from tensorflow.keras.models import Model
+    Parameters
+    ----------
+    name: str
+        The name of the network, can be 'resnet-18', 'resnet-50', 'vgg-16', 'inception_v3', 'mobilenet', ...
+    batch_size: int
+        batch size
+    dtype: str
+        Data type
 
-    def get_bottom_top_model(model, layer_name):
-        layer = model.get_layer(layer_name)
-        bottom_input = model.layers[0].input
-        bottom_output = layer.output
-        bottom_model = Model(bottom_input, bottom_output)
-        return bottom_model
+    Returns
+    -------
+    net: tvm.IRModule
+        The relay function of network definition
+    params: dict
+        The random parameters for benchmark
+    input_shape: tuple
+        The shape of input tensor
+    output_shape: tuple
+        The shape of output tensor
+    """
+    input_shape = (batch_size, 3, 224, 224)
+    output_shape = (batch_size, 1000)
 
-    keras_model = get_bottom_top_model(keras_model, "predictions")
-    ref_output = keras_model.predict(data["input_1"].transpose(0, 2, 3, 1))
-
-    mod, params = relay.frontend.from_keras(keras_model, inputs, layout="NCHW")
-    return mod, params, ref_output
-
-
-@pytest.mark.parametrize("dtype", ["float16"])
-@tvm.testing.requires_openclml
-def test_mobilenet(device, dtype):
-    def get_model():
-        from tensorflow.keras.applications import MobileNet
-        import tensorflow as tf
-
-        tf.keras.backend.clear_session()
-
-        mobilenet = MobileNet(
-            include_top=True, weights=None, input_shape=(224, 224, 3), classes=1000
+    if name == "mobilenet":
+        net, params = testing.mobilenet.get_workload(batch_size=batch_size, dtype=dtype)
+    elif name == "inception_v3":
+        input_shape = (batch_size, 3, 299, 299)
+        net, params = testing.inception_v3.get_workload(batch_size=batch_size, dtype=dtype)
+    elif "resnet" in name:
+        n_layer = int(name.split("-")[1])
+        net, params = testing.resnet.get_workload(
+            num_layers=n_layer, batch_size=batch_size, dtype=dtype
         )
-        inputs = {mobilenet.input_names[0]: ((1, 3, 224, 224), "float32")}
-
-        data = {}
-        np.random.seed(0)
-
-        for name, (shape, dtype) in inputs.items():
-            if dtype == "uint8":
-                low, high = 0, 1
-            else:
-                low, high = -1, 1
-            data[name] = np.random.uniform(low, high, shape).astype(dtype)
-
-        mod, params, ref_outputs = _get_keras_model(mobilenet, inputs, data)
-        return mod, params, inputs, data, ref_outputs
-
-    mod, params, inputs, input_data, ref_outputs = get_model()
-    outputs = _build_and_run_network(
-        mod, params, inputs, input_data, device=device, atol=1e-5, rtol=1e-5
-    )
-
-    opencl_sort = np.argsort(outputs[1].asnumpy()).flatten()
-    clml_sort = np.argsort(outputs[0].asnumpy()).flatten()
-    tvm.testing.assert_allclose(opencl_sort[:10], clml_sort[:10], rtol=1e-5, atol=1e-5)
-
-
-@pytest.mark.parametrize("dtype", ["float16"])
-@tvm.testing.requires_openclml
-def test_inception_v3(device, dtype):
-    def get_model():
-        from tensorflow.keras.applications import InceptionV3
-        import tensorflow as tf
-
-        tf.keras.backend.clear_session()
-
-        inceptionV3 = InceptionV3(
-            include_top=True, weights=None, input_shape=(299, 299, 3), classes=1000
+    elif "vgg" in name:
+        n_layer = int(name.split("-")[1])
+        net, params = testing.vgg.get_workload(
+            num_layers=n_layer, batch_size=batch_size, dtype=dtype
         )
-        inputs = {inceptionV3.input_names[0]: ((1, 3, 299, 299), "float16")}
+    elif "densenet" in name:
+        n_layer = int(name.split("-")[1])
+        net, params = testing.densenet.get_workload(
+            densenet_size=n_layer, batch_size=batch_size, dtype=dtype
+        )
+    elif "squeezenet" in name:
+        version = name.split("_v")[1]
+        net, params = testing.squeezenet.get_workload(
+            batch_size=batch_size, version=version, dtype=dtype
+        )
+    elif name == "mxnet":
+        # an example for mxnet model
+        from mxnet.gluon.model_zoo.vision import get_model
 
-        data = {}
-        np.random.seed(0)
-        for name, (shape, dtype) in inputs.items():
-            if dtype == "uint8":
-                low, high = 0, 1
-            else:
-                low, high = -2, 1
-            data[name] = np.random.uniform(low, high, shape).astype(dtype)
+        block = get_model("resnet18_v1", pretrained=True)
+        net, params = relay.frontend.from_mxnet(block, shape={"data": input_shape}, dtype=dtype)
+        net = net["main"]
+        net = relay.Function(
+            net.params, relay.nn.softmax(net.body), None, net.type_params, net.attrs
+        )
+        net = tvm.IRModule.from_expr(net)
+    else:
+        raise ValueError("Unsupported network: " + name)
 
-        mod, params, ref_outputs = _get_keras_model(inceptionV3, inputs, data)
-        return mod, params, inputs, data, ref_outputs
+    return net, params, {"data": (input_shape, dtype)}, output_shape
 
-    mod, params, inputs, input_data, ref_outputs = get_model()
-    outputs = _build_and_run_network(
-        mod, params, inputs, input_data, device=device, atol=1e-5, rtol=1e-5
-    )
-
-    opencl_sort = np.argsort(outputs[1].asnumpy()).flatten()
-    clml_sort = np.argsort(outputs[0].asnumpy()).flatten()
-    tvm.testing.assert_allclose(opencl_sort[:5], clml_sort[:5], rtol=1e-5, atol=1e-5)
-
-
-@pytest.mark.parametrize("dtype", ["float16"])
+@pytest.mark.parametrize("dtype", ["float32", "float16"])
+@pytest.mark.parametrize("name", [
+                                "resnet-18",
+                                "resnet-34",
+                                "resnet-50",
+                                # "vgg-16",
+                                # "vgg-19",
+                                "densenet-121",
+                                "inception_v3",
+                                "mobilenet",
+                                "squeezenet_v1.0",
+                                "squeezenet_v1.1",
+])
 @tvm.testing.requires_openclml
-def test_resnet50v2(device, dtype):
-    def get_model():
-        from tensorflow.keras.applications import ResNet50V2
-        import tensorflow as tf
-
-        tf.keras.backend.clear_session()
-
-        model = ResNet50V2(include_top=True, weights=None, input_shape=(224, 224, 3), classes=1000)
-        inputs_dict = {model.input_names[0]: ((1, 3, 224, 224), "float32")}
-
-        data = {}
-        np.random.seed(0)
-
-        for name, (shape, dtype) in inputs_dict.items():
-            if dtype == "uint8":
-                low, high = 0, 1
-            else:
-                low, high = -1, 1
-            data[name] = np.random.uniform(low, high, shape).astype(dtype)
-
-        """Convert Keras graph to relay."""
-        inputs = {}
-        for name, (shape, _) in inputs_dict.items():
-            inputs[model.input_names[0]] = shape
-
-        ref_outputs = model.predict(data["input_1"].transpose(0, 2, 3, 1))
-
-        mod, params = relay.frontend.from_keras(model, inputs, layout="NCHW")
-
-        return mod, params, inputs, data, ref_outputs
-
-    mod, params, inputs, input_data, ref_outputs = get_model()
+def test_network(device, name, dtype):
+    print("Network evaluating .. " + name + " " + dtype)
+    if device == None:
+        device = Device()
+    mod, params, inputs, _ = get_network(name, 1, dtype=dtype)
+    input_data = {}
+    np.random.seed(0)
+    for name, (shape, dtype) in inputs.items():
+        if dtype == "uint8":
+            low, high = 0, 1
+        else:
+            low, high = -2, 1
+        input_data[name] = np.random.uniform(low, high, shape).astype(dtype)
     outputs = _build_and_run_network(
         mod, params, inputs, input_data, device=device, atol=1e-5, rtol=1e-5
     )
@@ -176,4 +140,20 @@ def test_resnet50v2(device, dtype):
 
 
 if __name__ == "__main__":
+    #networks = [
+    #        "resnet-18",
+    #        "resnet-34",
+    #        "resnet-50",
+    #        # "vgg-16",
+    #        # "vgg-19",
+    #        "densenet-121",
+    #        "inception_v3",
+    #        "mobilenet",
+    #        "squeezenet_v1.0",
+    #        "squeezenet_v1.1",
+    #    ]
+    #device = Device()
+    #for name in networks:
+    #    test_network(device, name, "float32")
+    #    test_network(device, name, "float16")
     tvm.testing.main()

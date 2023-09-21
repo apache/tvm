@@ -964,7 +964,7 @@ def _convert_concat(
     axis = keras_layer.axis
     dims = len(input_shape[0])
     if data_layout == "NCHW":  # need_transpose
-        if axis == -1:
+        if axis == -1 or axis == 3:
             axis = 1
         else:
             axis = axis + 1 if axis < dims else 1

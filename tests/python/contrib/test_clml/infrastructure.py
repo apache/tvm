@@ -75,8 +75,8 @@ class Device:
     connection_type = "tracker"
     host = os.getenv("TVM_TRACKER_HOST", "localhost")
     port = int(os.getenv("TVM_TRACKER_PORT", 9090))
-    target = "opencl"
-    target_host = "llvm -mtriple=aarch64-linux-gnu"
+    target = "opencl -device=adreno"
+    target_host = "llvm -mtriple=arm64-linux-android"
     device_key = os.getenv("RPC_DEVICE_KEY", "android")
     cross_compile = os.getenv("TVM_NDK_CC", "aarch64-linux-android-g++")
 
@@ -152,9 +152,8 @@ def build_module(mod, target, target_host, params=None, enable_clml=True, tune_l
         mod = tvm.IRModule.from_expr(mod)
 
     with autotvm.apply_history_best(tune_log):
-        with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
+        with tvm.transform.PassContext(opt_level=3):
             if enable_clml:
-                mod = clml.preprocess_module(mod)
                 mod = clml.partition_for_clml(mod, params)
             relay.backend.te_compiler.get().clear()
             return relay.build(mod, target=target, target_host=target_host, params=params)
@@ -229,8 +228,7 @@ def verify_codegen(
     """Check clml codegen against a known good output."""
     if isinstance(mod, tvm.relay.expr.Call):
         mod = tvm.IRModule.from_expr(mod)
-    with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
-        mod = clml.preprocess_module(mod)
+    with tvm.transform.PassContext(opt_level=3):
         mod = clml.partition_for_clml(mod, params)
         tvm_op_count = get_cpu_op_count(mod)
         assert tvm_op_count == tvm_ops, "Got {} TVM operators, expected {}".format(
