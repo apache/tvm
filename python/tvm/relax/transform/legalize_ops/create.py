@@ -48,10 +48,11 @@ def _full(is_like: bool, fill_value: Optional[float], primfunc_name: str) -> Leg
 
 def _tril_triu(is_upper: bool, primfunc_name: str) -> LegalizeFunc:
     def tril_triu_call_te(bb: BlockBuilder, call: Call) -> Expr:
+        data, k = call.args
         return bb.call_te(
             topi.trilu,
-            call.args[0],
-            tir.const(call.attrs.k, "int32"),
+            data,
+            k,
             upper=is_upper,
             primfunc_name_hint=primfunc_name,
         )

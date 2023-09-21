@@ -433,7 +433,7 @@ def triu_grad(
     Backward:
         Returns `[triu(y_grad, k)]`.
     """
-    k = orig_call.attrs.k
+    k = orig_call.args[1]
     return [triu(output_grad, k)]
 
 
