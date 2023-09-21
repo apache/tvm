@@ -67,7 +67,6 @@ inline void SetDevice(int device_id) { CUDA_CALL(cudaSetDevice(device_id)); }
 inline void StreamSynchronize(deviceStream_t stream) { CUDA_CALL(cudaStreamSynchronize(stream)); }
 inline void StreamCreate(deviceStream_t* stream) { CUDA_CALL(cudaStreamCreate(stream)); }
 inline void StreamDestroy(deviceStream_t stream) { CUDA_CALL(cudaStreamDestroy(stream)); }
-inline void SetDevice(int device_id) { CUDA_CALL(cudaSetDevice(device_id)); }
 
 #else
 
