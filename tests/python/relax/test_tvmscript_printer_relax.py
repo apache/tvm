@@ -88,7 +88,7 @@ def test_extern_func():
 
 @I.ir_module
 class Module:
-    "my_ext"
+    my_ext = R.ExternFunc("my_ext")
     @R.function
     def func(a: R.Tensor((10, 10))) -> R.Tensor((10, 10)):
         return a

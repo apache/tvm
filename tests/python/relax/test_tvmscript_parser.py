@@ -1795,5 +1795,25 @@ def test_reused_extern_func():
     _check(parsed, expected)
 
 
+def test_extern_func_in_module():
+    """Module-level parsing may produce function bindings"""
+
+    @I.ir_module
+    class parsed_module:
+        my_ext = R.ExternFunc("my_ext")
+
+        @R.function
+        def func(a: R.Tensor((10, 10))) -> R.Tensor((10, 10)):
+            return a
+
+    @R.function
+    def func(a: R.Tensor((10, 10))) -> R.Tensor((10, 10)):
+        return a
+
+    expected = tvm.IRModule({"my_ext": relax.ExternFunc("my_ext"), "func": func})
+
+    _check(parsed_module, expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
