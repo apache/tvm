@@ -1484,11 +1484,7 @@ class OperatorConverter(object):
 
     def convert_less_equal(self, op):
         """Convert TFLite LESS_EQUAL"""
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                "TFlite quantized LESS_EQUAL operator is not supported yet."
-            )
-        return self._convert_elemwise(_op.less_equal, op)
+        return self._convert_elemwise(_op.less_equal, op, self.is_quantized(op), comparison_op=True)
 
     def convert_equal(self, op):
         """Convert TFLite EQUAL"""
