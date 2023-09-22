@@ -260,7 +260,10 @@ class TestMatmulTensorizeTooSmall(BaseBeforeAfter):
                                                 compute[v1, v2] = compute_reindex_pad_local[v0, v1, v2]
     # fmt: on
 
+
 class TestMatmulTensorizeEpilogue(BaseBeforeAfter):
+    # fmt: off
+    
     @T.prim_func
     def before(lv686: T.Buffer((T.int32(4096), T.int32(256)), "uint32"), lv687: T.Buffer((T.int32(4096), T.int32(64)), "float16"), p_lv42: T.handle, p_lv3: T.handle, p_output0: T.handle):
         T.func_attr({"tir.noalias": T.bool(True)})
@@ -419,6 +422,8 @@ class TestMatmulTensorizeEpilogue(BaseBeforeAfter):
                                         T.block_attr({"buffer_dim_align": [[0, 1, 16, 4]]})
                                         if v1 < n:
                                             p_output0_intermediate[0, v1, v2] = lv3[0, v1, v2] * T.float16(0.5) + var_NT_matmul_intermediate_reindex_pad_shared_dyn[v0, v1, v2]
+    # fmt: on
+
 
 if __name__ == "__main__":
     tvm.testing.main()

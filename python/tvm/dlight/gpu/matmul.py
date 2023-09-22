@@ -85,6 +85,7 @@ def auto_inline_consumers(
         if inlined_cnt == 0:
             return
 
+
 def auto_inline_consumer_chain(
     sch: tir.Schedule,
     block: tir.schedule.BlockRV,
@@ -102,9 +103,10 @@ def auto_inline_consumer_chain(
 
         # Try inlining into the cache-write stage again, this time it should succeed.
         auto_inline_consumers(sch, block)
-    
+
     msg = "There are some consumers of the cache-write stage that are not properly inlined."
     assert len(sch.get_consumers(block)) == 0, msg
+
 
 class IterKind(Enum):
     """Iter kinds for GEMM-liked programs.
