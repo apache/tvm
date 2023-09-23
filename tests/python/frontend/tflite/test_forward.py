@@ -2916,7 +2916,11 @@ def test_all_elemwise():
         _test_forward_elemwise(_test_floor_divide)
         _test_forward_elemwise_quantized(_test_floor_divide)
         _test_forward_elemwise(_test_floor_mod)
-        _test_forward_elemwise_quantized(_test_floor_mod)
+        # This test of quantized floor mod is currently disabled due
+        # to flaky CI failures in main, failing approximately 45% of
+        # the time.
+        #
+        # _test_forward_elemwise_quantized(_test_floor_mod)
 
 
 #######################################################################
