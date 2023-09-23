@@ -2722,9 +2722,17 @@ def _test_less(data, fused_activation_function=None, quantized=False, qnn_op=Non
 # ----------
 
 
-def _test_less_equal(data):
+def _test_less_equal(data, fused_activation_function=None, quantized=False, qnn_op=None):
     """One iteration of less_equal"""
-    return _test_elemwise(math_ops.less_equal, data)
+    return _test_elemwise(
+        math_ops.less_equal,
+        data,
+        fused_activation_function,
+        quantized,
+        qnn_op,
+        same_qnn_params=True,
+        comparison_op=True,
+    )
 
 
 #######################################################################
@@ -2865,7 +2873,8 @@ def _test_elemwise_qnn_out_range(qnn_op):
         _test_less: (-150, 150),
         _test_floor_mod: (-150, 150),
         _test_not_equal: (-150, 150),
-        _test_pow: (-5e3, 5e3),
+        _test_pow: (-8, 8),
+        _test_less_equal: (-150, 150),
         _test_greater_equal: (-150, 150),
     }
 
@@ -2907,6 +2916,7 @@ def test_all_elemwise():
     _test_forward_elemwise(_test_less)
     _test_forward_elemwise_quantized(_test_less)
     _test_forward_elemwise(_test_less_equal)
+    _test_forward_elemwise_quantized(_test_less_equal)
     _test_forward_elemwise(_test_equal)
     _test_forward_elemwise_quantized(_test_equal)
     _test_forward_elemwise(_test_not_equal)
@@ -2915,7 +2925,11 @@ def test_all_elemwise():
         _test_forward_elemwise(_test_floor_divide)
         _test_forward_elemwise_quantized(_test_floor_divide)
         _test_forward_elemwise(_test_floor_mod)
-        _test_forward_elemwise_quantized(_test_floor_mod)
+        # This test of quantized floor mod is currently disabled due
+        # to flaky CI failures in main, failing approximately 45% of
+        # the time.
+        #
+        # _test_forward_elemwise_quantized(_test_floor_mod)
 
 
 #######################################################################
