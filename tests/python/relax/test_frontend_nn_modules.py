@@ -402,8 +402,9 @@ def test_timesteps():
             lv8: R.Tensor((3, 5), dtype="float32") = R.multiply(lv2, lv7)
             lv9: R.Tensor((3, 5), dtype="float32") = R.sin(lv8)
             lv10: R.Tensor((3, 5), dtype="float32") = R.cos(lv8)
-            get_timestep_embedding: R.Tensor((3, 10), dtype="float32") = R.concat(
-                (lv9, lv10), axis=-1
+            lv11: R.Tensor((3, 10), dtype="float32") = R.concat((lv9, lv10), axis=-1)
+            get_timestep_embedding: R.Tensor((3, 10), dtype="float32") = R.astype(
+                lv11, dtype="float32"
             )
             gv1: R.Tuple(
                 R.Tensor((3, 10), dtype="float32"), R.Tuple(R.Object)
