@@ -19,7 +19,6 @@ import pytest
 import tvm
 from tvm import relax
 from tvm.ir import structural_equal
-from tvm.ir.base import assert_structural_equal
 
 import tvm.script
 from tvm.script import tir as T, relax as R
@@ -485,41 +484,5 @@ def test_call_tir_inplace_all_new():
             return gv0
 
 
-def test_vm_builtin_lower():
-    @tvm.script.ir_module
-    class TestVMBuiltinLower:
-        @R.function
-        def foo(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor:
-            # we expected RemovePurityChecking to have been called first
-            R.func_attr({"relax.force_pure": True})
-            m, n = T.int64(), T.int64()
-            alloc = R.builtin.alloc_tensor(R.shape([m, n]), runtime_device_index=0, dtype="float32")
-            _ = R.call_packed(
-                "test.op.identity", x, alloc, sinfo_args=(R.Tensor(ndim=2, dtype="float32"))
-            )
-            gv0 = alloc
-            return gv0
-
-    mod = TestVMBuiltinLower
-
-    # after vm builtin lowering
-    new_mod = relax.transform.VMBuiltinLower()(mod)
-    func = new_mod["foo"]
-
-    assert isinstance(new_mod, tvm.IRModule)
-    assert isinstance(func, tvm.relax.expr.Function)
-
-    block = func.body.blocks[0]
-    s1 = block.bindings[0].value
-    assert isinstance(s1, relax.Call)
-    assert s1.op.name == "relax.vm.alloc_storage"
-    s2 = block.bindings[1].value
-    assert isinstance(s2, relax.Call)
-    s3 = block.bindings[2].value
-    assert isinstance(s3, relax.Call)
-    assert isinstance(s3.op, relax.ExternFunc)
-    assert s3.op.global_symbol == "test.op.identity"
-
-
 if __name__ == "__main__":
-    pytest.main([__file__])
+    tvm.testing.main()

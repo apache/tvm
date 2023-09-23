@@ -190,6 +190,7 @@ def test_basic():
 
     mod = relax.transform.StaticPlanBlockMemory()(Module)
     tvm.ir.assert_structural_equal(mod, Expected)
+    mod = relax.transform.LowerAllocTensor()(mod)
     mod = relax.transform.VMBuiltinLower()(mod)
     tvm.ir.assert_structural_equal(mod, ExpectedLowered)
 
