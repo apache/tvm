@@ -326,13 +326,6 @@ class RelaxCreateLikeCodeGen : public RelaxOpCode {
   void CodeGenBuild() final { stack_.op_call().op_input_arg().op_str_arg("dtype"); }
 };
 
-class RelaxCreateLikeCodeGen : public RelaxOpCode {
-  RELAX_OP_CODEGEN_METHODS(RelaxCreateLikeCodeGen)
-
- protected:
-  void CodeGenBuild() final { stack_.op_start().op_input_arg().op_str_arg("dtype").op_end(); }
-};
-
 class RelaxCumsumCodeGen : public RelaxOpCode {
   RELAX_OP_CODEGEN_METHODS(RelaxCumsumCodeGen)
 
@@ -356,23 +349,6 @@ class RelaxEinsumCodeGen : public RelaxOpCode {
       stack_.op_inputs_arg();
     }
     stack_.op_str_arg(key, "subscripts");
-  }
-};
-
-class RelaxEinsumCodeGen : public RelaxOpCode {
-  RELAX_OP_CODEGEN_METHODS(RelaxEinsumCodeGen)
-
- protected:
-  void CodeGenBuild() final {
-    const String& key = config()->from_relay ? "equation" : "subscripts";
-    const auto& producer = node()->ProducerOf(0);
-    stack_.op_start();
-    if (node()->inputs.size() == 1 && producer->optype == "tuple") {
-      stack_.op_input_arg();
-    } else {
-      stack_.op_inputs_arg();
-    }
-    stack_.op_str_arg(key, "subscripts").op_end();
   }
 };
 
@@ -532,28 +508,6 @@ class RelaxPadCodeGen : public RelaxOpCode {
   }
 };
 
-class RelaxPadCodeGen : public RelaxOpCode {
-  RELAX_OP_CODEGEN_METHODS(RelaxPadCodeGen)
-
- protected:
-  void CodeGenBuild() final {
-    Array<String> pad_width;
-    const auto& attr_pad_width = node()->GetTypeArrayAttr<int>("pad_width");
-    ICHECK(attr_pad_width.size() % 2 == 0) << "pad_width should be multiple of 2, get " << node();
-    for (size_t i = 0; i < attr_pad_width.size(); i += 2) {
-      const String& cur_pad = "[" + std::to_string(attr_pad_width[i]) + ", " +
-                              std::to_string(attr_pad_width[i + 1]) + "]";
-      pad_width.push_back(cur_pad);
-    }
-    stack_.op_start()
-        .op_input_arg()
-        .op_list_arg<int>("pad_width")
-        .op_input_arg(1, "pad_value")
-        .op_str_arg("pad_mode")
-        .op_end();
-  }
-};
-
 class RelaxPool2dCodeGen : public RelaxOpCode {
   RELAX_OP_CODEGEN_METHODS(RelaxPool2dCodeGen)
 
@@ -583,21 +537,6 @@ class RelaxPermuteDimsCodeGen : public RelaxOpCode {
       }
     }
     stack_.op_call().op_input_arg().call_arg(DocUtils::ToListDoc(axes), "axes");
-  }
-};
-
-class RelaxPermuteDimsCodeGen : public RelaxOpCode {
-  RELAX_OP_CODEGEN_METHODS(RelaxPermuteDimsCodeGen)
-
- protected:
-  void CodeGenBuild() final {
-    std::vector<int> axes;
-    if (!node()->GetAttr("axes", &axes)) {
-      for (size_t i = node()->InputAt(0)->Ndim(); i > 0; i--) {
-        axes.push_back(i - 1);
-      }
-    }
-    stack_.op_start().op_input_arg().call_list_arg(axes, "axes").op_end();
   }
 };
 
@@ -717,16 +656,6 @@ class RelaxTileCodeGen : public RelaxOpCode {
   void CodeGenBuild() final {
     const String& key = config()->from_relay ? "reps" : "repeats";
     stack_.op_call().op_input_arg().op_list_arg<int>(key, "repeats");
-  }
-};
-
-class RelaxTileCodeGen : public RelaxOpCode {
-  RELAX_OP_CODEGEN_METHODS(RelaxTileCodeGen)
-
- protected:
-  void CodeGenBuild() final {
-    const String& key = config()->from_relay ? "reps" : "repeats";
-    stack_.op_start().op_input_arg().op_list_arg<int>(key, "repeats").op_end();
   }
 };
 

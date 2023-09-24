@@ -395,21 +395,6 @@ class TorchPermuteDimsCodeGen : public TorchOpCode {
   }
 };
 
-class TorchPermuteDimsCodeGen : public TorchOpCode {
-  TORCH_OP_CODEGEN_METHODS(TorchPermuteDimsCodeGen)
-
- protected:
-  void CodeGenForward() final {
-    std::vector<int> axes;
-    if (!node()->GetAttr("axes", &axes)) {
-      for (size_t i = node()->InputAt(0)->Ndim(); i > 0; i--) {
-        axes.push_back(i - 1);
-      }
-    }
-    stack_.op_start().op_input_arg().call_list_arg(axes).op_end();
-  }
-};
-
 class TorchReduceAxisCodeGen : public TorchOpCode {
  public:
   TorchReduceAxisCodeGen(const String& module_name, const String& func_name, bool as_list)
