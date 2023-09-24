@@ -17,3 +17,4 @@
 """tvm.contrib.msc.core.codegen"""
 
 from .codegen import *
+from .sources import *

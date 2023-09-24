@@ -30,6 +30,7 @@
 #include <string>
 
 #include "../../../../../src/support/str_escape.h"
+#include "msc_doc.h"
 
 namespace tvm {
 namespace contrib {
@@ -41,7 +42,6 @@ using namespace tvm::script::printer;
  * \brief MSCPrinterConfig is base for config class in MSC
  * \sa Doc
  */
-
 struct MSCPrinterConfig {
   size_t indent{0};
   size_t float_precision{6};
@@ -109,9 +109,6 @@ class MSCBasePrinter {
   /*! \brief Virtual method to print an IdDoc*/
   virtual void PrintTypedDoc(const IdDoc& doc);
 
-  /*! \brief Virtual method to print an IndexDoc*/
-  virtual void PrintTypedDoc(const IndexDoc& doc);
-
   /*! \brief Virtual method to print a ListDoc*/
   virtual void PrintTypedDoc(const ListDoc& doc);
 
@@ -126,6 +123,9 @@ class MSCBasePrinter {
 
   /*! \brief Virtual method to print a ExprStmtDoc*/
   virtual void PrintTypedDoc(const ExprStmtDoc& doc);
+
+  /*! \brief Virtual method to print an IndexDoc*/
+  virtual void PrintTypedDoc(const IndexDoc& doc) { LOG(FATAL) << "Index is not implemented"; }
 
   /*! \brief Virtual method to print a CallDoc*/
   virtual void PrintTypedDoc(const CallDoc& doc) { LOG(FATAL) << "Call is not implemented"; }
@@ -169,6 +169,19 @@ class MSCBasePrinter {
 
   /*! \brief Virtual method to print a CommentDoc*/
   virtual void PrintTypedDoc(const CommentDoc& doc) { LOG(FATAL) << "Comment is not implemented"; }
+
+  /*! \brief Virtual method to print a DeclareDoc*/
+  virtual void PrintTypedDoc(const DeclareDoc& doc) { LOG(FATAL) << "Declare is not implemented"; }
+
+  /*! \brief Virtual method to print a StrictListDoc*/
+  virtual void PrintTypedDoc(const StrictListDoc& doc) {
+    LOG(FATAL) << "StrictList is not implemented";
+  }
+
+  /*! \brief Virtual method to print a PointerDoc*/
+  virtual void PrintTypedDoc(const PointerDoc& doc) {
+    LOG(FATAL) << "PointerDoc is not implemented";
+  }
 
   /*! \brief Print docs to joined doc */
   template <typename DocType>

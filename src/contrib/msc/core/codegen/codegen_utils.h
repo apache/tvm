@@ -28,6 +28,7 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "../ir/graph.h"
 #include "../utils.h"
@@ -49,7 +50,7 @@ using namespace tvm::script::printer;
   std::string test_device{"cpu"};          \
   std::string prefix{"res_"};              \
   std::string baseline_folder{"baseline"}; \
-  std::string version;
+  std::vector<size_t> version{0, 0, 0};
 
 #define CODEGEN_CONFIG_PARSE                    \
   if (key == "is_train") {                      \
@@ -80,34 +81,34 @@ using namespace tvm::script::printer;
     LOG(FATAL) << "Do not support key " << key; \
   }
 
-#define CODEGEN_MEMBERS                                                                            \
- public:                                                                                           \
-  virtual const Array<Doc> GetDocs() = 0;                                                          \
-                                                                                                   \
- protected:                                                                                        \
-  const std::shared_ptr<ConfigType> config() { return config_; }                                   \
-  const String GetSuffix(bool as_raw = false) {                                                    \
-    const String& suffix = as_raw && config()->need_process ? "_raw" : "";                         \
-    return suffix;                                                                                 \
-  }                                                                                                \
-  virtual const String IdxNode(const MSCJoint& node, bool as_raw = true) {                         \
-    return CodeGenUtils::IdxNode(node, config()->prefix, GetSuffix(as_raw));                       \
-  }                                                                                                \
-  virtual const String IdxInput(const MSCJoint& node, int idx = 0, bool as_raw = false) {          \
-    return CodeGenUtils::IdxInput(node, config()->prefix, idx, GetSuffix(as_raw));                 \
-  }                                                                                                \
-  virtual const String IdxOutput(const MSCJoint& node, int idx = 0, bool as_raw = false) {         \
-    return CodeGenUtils::IdxOutput(node, config()->prefix, idx, GetSuffix(as_raw));                \
-  }                                                                                                \
-  virtual const String IdxWeight(const MSCJoint& node, const String& wtype, bool as_raw = false) { \
-    return CodeGenUtils::IdxWeight(node, wtype, GetSuffix(as_raw));                                \
-  }                                                                                                \
-  virtual const String DType(const DataType& dtype) { return runtime::DLDataType2String(dtype); }  \
-  virtual const String Comment(const MSCJoint& node) {                                             \
-    return CodeGenUtils::CommentNode(node, config()->prefix);                                      \
-  }                                                                                                \
-                                                                                                   \
- private:                                                                                          \
+#define CODEGEN_MEMBERS                                                                           \
+ public:                                                                                          \
+  virtual const String DType(const DataType& dtype) { return runtime::DLDataType2String(dtype); } \
+                                                                                                  \
+ protected:                                                                                       \
+  const std::shared_ptr<ConfigType> config() { return config_; }                                  \
+  const String GetSuffix(bool as_raw = false) {                                                   \
+    const String& suffix = as_raw && config()->need_process ? "_raw" : "";                        \
+    return suffix;                                                                                \
+  }                                                                                               \
+  virtual const String IdxNodeBase(const MSCJoint& node, bool as_raw = true) {                    \
+    return CodeGenUtils::IdxNode(node, config()->prefix, GetSuffix(as_raw));                      \
+  }                                                                                               \
+  virtual const String IdxInputBase(const MSCJoint& node, int idx = 0, bool as_raw = false) {     \
+    return CodeGenUtils::IdxInput(node, config()->prefix, idx, GetSuffix(as_raw));                \
+  }                                                                                               \
+  virtual const String IdxOutputBase(const MSCJoint& node, int idx = 0, bool as_raw = false) {    \
+    return CodeGenUtils::IdxOutput(node, config()->prefix, idx, GetSuffix(as_raw));               \
+  }                                                                                               \
+  virtual const String IdxWeightBase(const MSCJoint& node, const String& wtype,                   \
+                                     bool as_raw = false) {                                       \
+    return CodeGenUtils::IdxWeight(node, wtype, GetSuffix(as_raw));                               \
+  }                                                                                               \
+  virtual const String Comment(const MSCJoint& node) {                                            \
+    return CodeGenUtils::CommentNode(node, config()->prefix);                                     \
+  }                                                                                               \
+                                                                                                  \
+ private:                                                                                         \
   std::shared_ptr<ConfigType> config_;
 
 /*!

@@ -50,7 +50,31 @@ const ExprDoc DocUtils::ToDoc(const String& val) { return IdDoc(val); }
 
 const ExprDoc DocUtils::ToDoc(bool val) { return LiteralDoc::Boolean(val, NullOpt); }
 
+const ExprDoc DocUtils::ToDoc(const ExprDoc& val) { return val; }
+
 const ExprDoc DocUtils::ToStrDoc(const String& val) { return LiteralDoc::Str(val, NullOpt); }
+
+const PointerDoc DocUtils::ToPtrDoc(const String& val) { return PointerDoc(val); }
+
+const DeclareDoc DocUtils::ToDeclareDoc(const String& type, const String& variable, size_t len,
+                                        bool use_constructor) {
+  Optional<ExprDoc> type_doc;
+  if (type.size() == 0) {
+    type_doc = NullOpt;
+  } else {
+    type_doc = IdDoc(type);
+  }
+  if (len == 0) {
+    return DeclareDoc(type_doc, IdDoc(variable), Array<ExprDoc>(), use_constructor);
+  }
+  Array<Doc> doc_indices{DocUtils::ToDoc(len)};
+  return DeclareDoc(type_doc, IndexDoc(IdDoc(variable), doc_indices), Array<ExprDoc>(),
+                    use_constructor);
+}
+
+const AttrAccessDoc DocUtils::ToAttrAccessDoc(const String& value, const String& name) {
+  return AttrAccessDoc(IdDoc(value), name);
+}
 
 const Array<StmtDoc> DocUtils::ToStmts(const Array<Doc>& docs) {
   Array<StmtDoc> stmts;

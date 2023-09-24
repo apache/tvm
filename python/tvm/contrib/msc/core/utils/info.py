@@ -18,6 +18,11 @@
 
 import os
 import json
+from typing import List
+from distutils.version import LooseVersion
+
+import tvm
+from .namespace import MSCFramework
 
 
 def load_dict(str_dict: str, flavor: str = "json") -> dict:
@@ -96,3 +101,38 @@ def dict_equal(dict_a: dict, dict_b: dict) -> bool:
         if v != dict_b[k]:
             return False
     return True
+
+
+def get_version(framework: str) -> List[int]:
+    """Get the version list of framework.
+
+    Parameters
+    ----------
+    framework: string
+        Should be from MSCFramework.
+
+    Returns
+    -------
+    version: list<int>
+        The version in <major,minor,patch>.
+    """
+
+    try:
+        if framework in (MSCFramework.MSC, MSCFramework.TVM):
+            raw_version = tvm.__version__
+        elif framework == MSCFramework.TORCH:
+            import torch  # pylint: disable=import-outside-toplevel
+
+            raw_version = torch.__version__
+        elif framework == MSCFramework.TENSORFLOW:
+            import tensorflow  # pylint: disable=import-outside-toplevel
+
+            raw_version = tensorflow.__version
+        if framework == MSCFramework.TENSORRT:
+            raw_version = ".".join(tvm.get_global_func("relax.get_tensorrt_version")())
+        else:
+            raw_version = "1.0.0"
+    except:  # pylint: disable=bare-except
+        raw_version = "1.0.0"
+
+    return LooseVersion(raw_version).version

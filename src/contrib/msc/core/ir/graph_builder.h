@@ -32,6 +32,7 @@
 #include <tvm/runtime/ndarray.h>
 #include <tvm/tir/data_layout.h>
 
+#include <set>
 #include <stack>
 #include <string>
 #include <unordered_map>
@@ -56,8 +57,11 @@ using namespace tvm::runtime;
  */
 struct MSCRBuildConfig {
   bool prune_graph{false};
+  bool use_var_name{false};
   int float_precision = 6;
   std::string sort_by;
+  std::string target = "";
+  std::string graph_name = "";
   std::vector<std::string> input_aliases;
   std::vector<std::string> output_aliases;
   std::unordered_map<std::string, std::vector<std::string>> input_types;
@@ -78,10 +82,16 @@ struct MSCRBuildConfig {
     while (reader->NextObjectItem(&key)) {
       if (key == "prune_graph") {
         reader->Read(&prune_graph);
+      } else if (key == "use_var_name") {
+        reader->Read(&use_var_name);
       } else if (key == "float_precision") {
         reader->Read(&float_precision);
       } else if (key == "sort_by") {
         reader->Read(&sort_by);
+      } else if (key == "target") {
+        reader->Read(&target);
+      } else if (key == "graph_name") {
+        reader->Read(&graph_name);
       } else if (key == "input_aliases") {
         reader->Read(&input_aliases);
       } else if (key == "output_aliases") {
@@ -147,6 +157,32 @@ class RelaxFuncAttrGetter : public RelaxExprVisitor {
   Map<String, String> attrs_;
 };
 
+class RelaxFuncParamsFinder : public RelaxExprVisitor {
+ public:
+  /*!
+   * \brief The constructor of RelaxGraphBuilder
+   * \param ref_module the reference module.
+   */
+  explicit RelaxFuncParamsFinder(const IRModule& ref_module) : RelaxExprVisitor() {
+    ref_module_ = ref_module;
+  }
+
+  /*! \brief Find the func params and bind with arguments*/
+  Map<Expr, Expr> FindParams(const Expr& expr) {
+    RelaxExprVisitor::VisitExpr(expr);
+    return params_;
+  }
+
+  void VisitBinding_(const relax::VarBindingNode* binding, const relax::FunctionNode* val) final;
+
+  void VisitExpr_(const relax::CallNode* op) final;
+
+ private:
+  IRModule ref_module_;
+  Map<Expr, Expr> params_;
+  Map<Expr, relax::Function> local_funcs_;
+};
+
 class RelaxGraphBuilder : public RelaxExprVisitor {
  public:
   /*!
@@ -158,12 +194,15 @@ class RelaxGraphBuilder : public RelaxExprVisitor {
   explicit RelaxGraphBuilder(const IRModule& ref_module, const String& name,
                              const std::string& options = "")
       : RelaxExprVisitor() {
-    name_ = name;
     ref_module_ = ref_module;
     if (options.size() > 0) {
       std::istringstream is(options);
       dmlc::JSONReader reader(&is);
       reader.Read(&config_);
+    }
+    name_ = config_.graph_name.size() > 0 ? String(config_.graph_name) : name;
+    if (name != "main") {
+      func_params_ = RelaxFuncParamsFinder(ref_module).FindParams(ref_module->Lookup("main"));
     }
   }
 
@@ -193,6 +232,8 @@ class RelaxGraphBuilder : public RelaxExprVisitor {
 
   void VisitBinding_(const relax::VarBindingNode* binding, const relax::DataflowVarNode* val) final;
 
+  void VisitBinding_(const relax::VarBindingNode* binding, const relax::FunctionNode* val) final;
+
  private:
   String name_;
   String scope_name_;
@@ -202,6 +243,10 @@ class RelaxGraphBuilder : public RelaxExprVisitor {
   Map<String, MSCTensor> weights_;
   Map<Expr, Array<String>> expr_tensor_map_;
   std::unordered_map<String, std::pair<BaseJoint, size_t>> tensor_input_map_;
+  std::set<String> ignore_nodes_;
+  // BYOC maps
+  Map<Expr, relax::Function> target_funcs_;
+  Map<Expr, Expr> func_params_;
 };
 
 class RelaxWeightsExtractor : public RelaxExprVisitor {
@@ -259,7 +304,6 @@ class RelayGraphBuilder : public RelayExprVisitor {
   explicit RelayGraphBuilder(const IRModule& ref_module, const String& name,
                              const std::string& options = "")
       : RelayExprVisitor() {
-    name_ = name;
     ref_module_ = ref_module;
     if (options.size() > 0) {
       std::istringstream is(options);
@@ -269,6 +313,7 @@ class RelayGraphBuilder : public RelayExprVisitor {
     while (!func_scopes_.empty()) {
       func_scopes_.pop();
     }
+    name_ = config_.graph_name.size() > 0 ? String(config_.graph_name) : name;
   }
 
   /*! \brief Build MSCGraph from relax function*/
