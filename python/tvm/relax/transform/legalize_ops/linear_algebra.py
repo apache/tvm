@@ -89,6 +89,14 @@ def _matmul(bb: BlockBuilder, call: Call) -> Expr:
             name="matmul",
         )
 
+    lhs, rhs = call.args
+    lhs_sinfo = call.args[0].struct_info
+    rhs_sinfo = call.args[1].struct_info
+    assert lhs_sinfo.dtype and rhs_sinfo.dtype, (
+        f"To legalize R.matmul into R.call_tir, the dtype of both operands must be known.  "
+        f"However, the LHS {lhs} has struct info {lhs_sinfo} (dtype='{lhs_sinfo.dtype}') "
+        f"and the RHS {rhs} has struct info {rhs_sinfo} (dtype='{rhs_sinfo.dtype}')."
+    )
     return bb.call_te(te_matmul, call.args[0], call.args[1], primfunc_name_hint="matmul")
 
 
