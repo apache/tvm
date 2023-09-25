@@ -51,8 +51,6 @@ TVM_REGISTER_OP("relax.ccl.allreduce")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.ccl.allgather */
-TVM_REGISTER_NODE_TYPE(AllGatherAttrs);
-
 Expr allgather(Expr x, Expr num_workers) {
   static const Op& op = Op::Get("relax.ccl.allgather");
   return Call(op, {std::move(x), std::move(num_workers)});
