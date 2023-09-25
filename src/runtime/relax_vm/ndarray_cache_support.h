@@ -80,11 +80,28 @@ struct NDArrayCacheMetadata {
 };
 
 /*!
+ * \brief Information of sharding function,
+ * including the shard function name and extra parameters.
+ */
+struct ShardInfo {
+  struct TensorInfo {
+    ShapeTuple shape;
+    DataType dtype;
+  };
+  struct ShardFunc {
+    std::string name;
+    TensorInfo output_info;
+    std::vector<int64_t> params;
+  };
+  std::vector<ShardFunc> funcs;
+};
+
+/*!
  * \brief Load the shard information from dist
  * \param path Path to the file to be loaded
  * \return Mapping from parameter name to its shard dim
  */
-std::unordered_map<std::string, int> LoadShardInfoFromStr(const std::string& json_str);
+std::unordered_map<std::string, ShardInfo> LoadShardInfoFromStr(const std::string& json_str);
 
 }  // namespace relax_vm
 }  // namespace runtime

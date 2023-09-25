@@ -54,44 +54,56 @@ namespace tvm {
 namespace runtime {
 namespace relax_vm {
 
+template <typename ExpectedType>
+ExpectedType AsType(const picojson::value& json) {
+  ICHECK(json.is<ExpectedType>());
+  return json.get<ExpectedType>();
+}
+
+template <typename ValueType>
+ValueType GetValue(const picojson::object& json, const std::string& key) {
+  return AsType<ValueType>(json.at(key));
+}
+
 NDArrayCacheMetadata::FileRecord::ParamRecord JSONAsParamRecord(const picojson::object& json) {
   std::vector<ShapeTuple::index_type> shape;
   {
-    picojson::array shape_json = json.at("shape").get<picojson::array>();
+    picojson::array shape_json = GetValue<picojson::array>(json, "shape");
     shape.reserve(shape_json.size());
     for (const picojson::value& d : shape_json) {
-      shape.push_back(d.get<int64_t>());
+      shape.push_back(AsType<int64_t>(d));
     }
   }
   NDArrayCacheMetadata::FileRecord::ParamRecord result;
-  result.name = json.at("name").get<std::string>();
-  result.dtype = DataType(String2DLDataType(json.at("dtype").get<std::string>()));
-  result.format = json.at("format").get<std::string>();
-  result.nbytes = json.at("nbytes").get<int64_t>();
-  result.byte_offset = json.at("byteOffset").get<int64_t>();
+  std::string dtype = GetValue<std::string>(json, "dtype");
+  result.name = GetValue<std::string>(json, "name");
+  result.dtype = DataType(String2DLDataType(dtype));
+  result.format = GetValue<std::string>(json, "format");
+  result.nbytes = GetValue<int64_t>(json, "nbytes");
+  result.byte_offset = GetValue<int64_t>(json, "byteOffset");
   result.shape = ShapeTuple(std::move(shape));
   return result;
 }
 
 NDArrayCacheMetadata::FileRecord JSONAsFileRecord(const picojson::object& json) {
-  picojson::array records = json.at("records").get<picojson::array>();
+  picojson::array records = GetValue<picojson::array>(json, "records");
   NDArrayCacheMetadata::FileRecord result;
-  result.data_path = json.at("dataPath").get<std::string>();
-  result.format = json.at("format").get<std::string>();
-  result.nbytes = json.at("nbytes").get<int64_t>();
+  result.data_path = GetValue<std::string>(json, "dataPath");
+  result.format = GetValue<std::string>(json, "format");
+  result.nbytes = GetValue<int64_t>(json, "nbytes");
   result.records.reserve(records.size());
   for (const picojson::value& item : records) {
-    result.records.push_back(JSONAsParamRecord(item.get<picojson::object>()));
+    result.records.push_back(JSONAsParamRecord(AsType<picojson::object>(item)));
   }
   return result;
 }
 
 NDArrayCacheMetadata JSONAsNDArrayCacheMetadata(const picojson::object& json) {
-  picojson::array records = json.at("records").get<picojson::array>();
+  picojson::array records = GetValue<picojson::array>(json, "records");
   NDArrayCacheMetadata result;
   result.records.reserve(records.size());
   for (const picojson::value& item : records) {
-    result.records.push_back(JSONAsFileRecord(item.get<picojson::object>()));
+    result.records.push_back(JSONAsFileRecord(AsType<picojson::object>(item)));
   }
   return result;
 }
@@ -100,20 +112,51 @@ NDArrayCacheMetadata NDArrayCacheMetadata::LoadFromStr(const std::string& json_s
                                                        const std::string& path) {
   picojson::value json_info;
   picojson::parse(json_info, json_str);
-  NDArrayCacheMetadata result = JSONAsNDArrayCacheMetadata(json_info.get<picojson::object>());
+  NDArrayCacheMetadata result = JSONAsNDArrayCacheMetadata(AsType<picojson::object>(json_info));
   result.path = path;
   return result;
 }
 
-std::unordered_map<std::string, int> LoadShardInfoFromStr(const std::string& json_str) {
+ShardInfo::TensorInfo LoadTensorInfoFromJSON(const picojson::array& json_tensor_info) {
+  CHECK_EQ(json_tensor_info.size(), 2) << "ValueError: Invalid tensor info JSON";
+  picojson::array shape_json = AsType<picojson::array>(json_tensor_info[0]);
+  int ndim = shape_json.size();
+  std::vector<int64_t> shape;
+  shape.reserve(ndim);
+  for (int i = 0; i < ndim; ++i) {
+    shape.push_back(AsType<int64_t>(shape_json[i]));
+  }
+  std::string dtype = AsType<std::string>(json_tensor_info[1]);
+  return ShardInfo::TensorInfo{ShapeTuple(std::move(shape)), DataType(String2DLDataType(dtype))};
+}
+
+ShardInfo::ShardFunc LoadShardFuncFromJSON(const picojson::array& json_shard_func) {
+  int n = json_shard_func.size();
+  ShardInfo::ShardFunc shard_info;
+  shard_info.name = AsType<std::string>(json_shard_func[0]);
+  shard_info.output_info = LoadTensorInfoFromJSON(AsType<picojson::array>(json_shard_func[1]));
+  shard_info.params.reserve(n - 2);
+  for (int i = 2; i < n; ++i) {
+    shard_info.params.push_back(AsType<int64_t>(json_shard_func[i]));
+  }
+  return shard_info;
+}
+
+std::unordered_map<std::string, ShardInfo> LoadShardInfoFromStr(const std::string& json_str) {
   picojson::value json_info;
   picojson::parse(json_info, json_str);
-  picojson::object json_obj = json_info.get<picojson::object>();
-  std::unordered_map<std::string, int> result;
-  for (const auto& kv : json_obj) {
+  picojson::object json_obj = AsType<picojson::object>(json_info);
+  std::unordered_map<std::string, ShardInfo> result;
+  for (auto kv : json_obj) {
     std::string name = kv.first;
-    int64_t shard_dim = kv.second.get<int64_t>();
-    result[name] = shard_dim;
+    picojson::array json_shard_funcs = AsType<picojson::array>(kv.second);
+    ShardInfo info;
+    std::vector<ShardInfo::ShardFunc>& shard_funcs = info.funcs;
+    shard_funcs.reserve(json_shard_funcs.size());
+    for (const picojson::value& json_shard_func : json_shard_funcs) {
+      shard_funcs.push_back(LoadShardFuncFromJSON(AsType<picojson::array>(json_shard_func)));
+    }
+    result[name] = info;
   }
   return result;
 }
