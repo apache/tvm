@@ -20,15 +20,13 @@ import tvm
 from tvm import te
 from tvm import autotvm
 from .. import nn
-from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
+
 
 from ..utils import get_const_tuple, traverse_inline
 from .utils import (
     split_to_chunks,
     pack_input,
     pack_filter,
-    expand_spatial_dimensions,
-    add_pad,
     bind_data_copy,
     get_default_conv2d_config,
     get_texture_storage,

@@ -219,9 +219,8 @@ def conv2d_winograd_without_weight_transform_strategy_adreno(attrs, inputs, out_
 def conv2d_transpose_strategy_adreno(attrs, inputs, out_type, target):
     """conv2d_transpose adreno strategy"""
     strategy = _op.OpStrategy()
-    data, kernel = inputs
+    _, kernel = inputs
     dilation = attrs.get_int_tuple("dilation")
-    stride_h, stride_w = attrs.get_int_tuple("strides")
     groups = attrs.groups
     data_layout = attrs.data_layout
     kernel_layout = attrs.kernel_layout
@@ -233,9 +232,9 @@ def conv2d_transpose_strategy_adreno(attrs, inputs, out_type, target):
         or (data_layout == "NCHW" and kernel_layout == "IOHW4o")
     ):
         if len(kernel.shape) == 4:
-            oc, _, kh, kw = get_const_tuple(kernel.shape)
+            oc, _, _, _ = get_const_tuple(kernel.shape)
         else:
-            oc, _, kh, kw, _ = get_const_tuple(kernel.shape)
+            oc, _, _, _, _ = get_const_tuple(kernel.shape)
         # We cannot use textures for case than number of channels is less than 4.
         # So, we use compute functions from cuda.
         if len(kernel.shape) == 4 and oc < 4:
