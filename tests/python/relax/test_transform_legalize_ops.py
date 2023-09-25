@@ -24,6 +24,8 @@ from tvm.relax.transform.legalize_ops.common import register_legalize
 from tvm.script import relax as R, tir as T, ir as I
 import tvm.testing
 
+import pytest
+
 
 def test_customize_legalize():
     # fmt: off
@@ -280,6 +282,78 @@ def test_matmul_legalization_requires_known_dtype():
     # user-friendly error.
     err_message = err.value.args[0]
     assert err_message.startswith("To legalize R.matmul")
+
+
+emit_legalization_through_builder = tvm.testing.parameter(
+    by_dict={
+        "return_relax_expr": False,
+        "return_relax_var": True,
+    }
+)
+
+
+@pytest.fixture
+def custom_op(emit_legalization_through_builder):
+    op_name = "custom_op.matmul_bias_add"
+
+    def infer_struct_info(call: relax.Call, context):
+        activations, weight, bias = call.args
+
+        matmul_call = relax.op.matmul(activations, weight)
+        matmul_sinfo = tvm.ir.Op.get("relax.matmul").get_attr("FInferStructInfo")(
+            matmul_call, context
+        )
+
+        matmul_var = relax.Var("dummy_var", matmul_sinfo)
+        add_call = matmul_var + bias
+        add_sinfo = tvm.ir.Op.get("relax.add").get_attr("FInferStructInfo")(add_call, context)
+
+        return add_sinfo
+
+    def legalize(bb: relax.BlockBuilder, call: relax.Call):
+        activations, weight, bias = call.args
+        legalized = relax.op.matmul(activations, weight) + bias
+        if emit_legalization_through_builder:
+            legalized = bb.emit(legalized)
+        return legalized
+
+    op_attrs = {
+        "FInferStructInfo": infer_struct_info,
+        "FLegalize": legalize,
+        "FPurity": True,
+    }
+
+    for key, value in op_attrs.items():
+        tvm.ir.register_op_attr(op_name, key, value)
+
+    op = tvm.ir.Op.get(op_name)
+    yield op
+
+    for key in op_attrs:
+        op.reset_attr(key)
+
+
+def test_recursive_legalization(custom_op):
+    """Legalization of an operator may produce new operators requiring legalization"""
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            A: R.Tensor([16, 32, 64], "float32"),
+            Weight: R.Tensor([64, 128], "float32"),
+            Bias: R.Tensor([16, 32, 128], "float32"),
+        ):
+            return relax.Call(custom_op, [A, Weight, Bias])
+
+    AfterFirstIter = LegalizeOps()(Before)
+    AfterSecondIter = LegalizeOps()(AfterFirstIter)
+
+    # After LegalizeOps, the custom operation should be replaced by
+    # `R.matmul` and `R.add`, which should in turn be replaced with
+    # TIR implementations.  Therefore, the second application of
+    # LegalizeOps() should be a no-op.
+    tvm.ir.assert_structural_equal(AfterFirstIter, AfterSecondIter)
 
 
 if __name__ == "__main__":
