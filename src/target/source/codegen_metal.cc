@@ -172,11 +172,6 @@ void CodeGenMetal::BindThreadIndex(const IterVar& iv) {
 }
 
 void CodeGenMetal::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
-  os << "\n"
-     << "Deliberate insertion of code "
-     << "that should flagrantly fail to compile, "
-     << "and whose failure should be caught in CI"
-     << "\n";
   int lanes = t.lanes();
   if (t.is_handle()) {
     ICHECK_EQ(lanes, 1) << "do not yet support vector types";

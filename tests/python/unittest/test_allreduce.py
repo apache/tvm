@@ -61,9 +61,6 @@ dims = tvm.testing.parameter(*generate_param_sets())
 
 @tvm.testing.parametrize_targets("cuda", "metal")
 def test_allreduce_sum(dims, target, dev):
-    print(f"Executing on target {target}")
-    assert target != "metal", "Deliberate failure to check that CI is executing the test"
-
     d1, d2, d3 = dims
     _, _, _d1, _d2, _d3 = reduce.params
     mod = reduce.specialize({_d1: d1, _d2: d2, _d3: d3})
