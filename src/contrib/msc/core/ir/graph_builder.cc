@@ -57,7 +57,7 @@ void RelaxFuncParamsFinder::VisitExpr_(const relax::CallNode* call_node) {
   relax::Function func;
   if (const auto* v_node = call_node->op.as<GlobalVarNode>()) {
     func = Downcast<relax::Function>(ref_module_->Lookup(v_node->name_hint));
-  } else if (const auto* v_node = call_node->op.as<relax::VarNode>()) {
+  } else if (call_node->op.as<relax::VarNode>()) {
     ICHECK(local_funcs_.count(call_node->op)) << "Can not find local func " << call_node->op;
     func = local_funcs_[call_node->op];
   }
@@ -160,7 +160,7 @@ const MSCJoint RelaxGraphBuilder::AddNode(const Expr& expr, const Optional<Expr>
       const auto& name_opt = func->GetAttr<runtime::String>(relax::attr::kComposite);
       ICHECK(name_opt.defined()) << "Unexpected global func without composite";
       optype = name_opt.value();
-    } else if (const auto* v_node = call_node->op.as<relax::VarNode>()) {
+    } else if (call_node->op.as<relax::VarNode>()) {
       ICHECK(target_funcs_.count(call_node->op)) << "Can not find target func: " << call_node->op;
       const auto& func = target_funcs_[call_node->op];
       const auto& name_opt = func->GetAttr<runtime::String>(relax::attr::kComposite);
