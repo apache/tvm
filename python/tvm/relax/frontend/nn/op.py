@@ -1220,19 +1220,21 @@ def get_timestep_embedding(
         [N x dim] Tensor of positional embeddings.
     """
     dtype = get_default_dtype()
-    timesteps = _op.astype(x._expr, dtype)
+
+    # Arithmetic should be done in float for precision.
+    timesteps = _op.astype(x._expr, "float32")
 
     half_dim = embedding_dim // 2
-    exponent = rx.const(-math.log(max_period), dtype) * _op.arange(
-        start=0, end=half_dim, dtype=dtype
+    exponent = rx.const(-math.log(max_period), "float32") * _op.arange(
+        start=0, end=half_dim, dtype="float32"
     )
-    exponent = exponent / (rx.const(half_dim - downscale_freq_shift, dtype))
+    exponent = exponent / (rx.const(half_dim - downscale_freq_shift, "float32"))
 
     emb = _op.exp(exponent)
     emb = _op.expand_dims(timesteps, 1) * _op.expand_dims(emb, 0)
     # Scale embeddings
     if scale != 1:
-        emb = rx.const(scale, dtype) * emb
+        emb = rx.const(scale, "float32") * emb
 
     # Concat sine and cosine embeddings.
     if flip_sin_to_cos:
@@ -1243,6 +1245,9 @@ def get_timestep_embedding(
     # Zero pad
     if embedding_dim % 2 == 1:
         emb = _op.nn.pad(emb, (0, 1, 0, 0))
+
+    # Cast to proper output type
+    emb = _op.astype(emb, dtype)
     return _wrap_nested(emb, name)
 
 
