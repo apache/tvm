@@ -61,10 +61,10 @@ class RequantizeConfigNode : public Object {
     // For the x86 architecture, the float32 computation is expected to give significant speedup,
     // with little loss in the accuracy of the requantize operation.
     auto target = Target::Current(true);
-    auto llvm_x86_has_feature_fn_ptr = tvm::runtime::Registry::Get("target.llvm_x86_has_feature");
-    ICHECK(llvm_x86_has_feature_fn_ptr) << "Function target.llvm_x86_has_feature not found";
+    auto target_has_feature_fn_ptr = tvm::runtime::Registry::Get("target.target_has_feature");
+    ICHECK(target_has_feature_fn_ptr) << "Function target.target_has_feature not found";
     if (target.defined() && target->kind->name == "llvm") {
-      if ((*llvm_x86_has_feature_fn_ptr)("sse4.1", target)) {
+      if ((*target_has_feature_fn_ptr)("sse4.1", target)) {
         return "float32";
       }
     }
