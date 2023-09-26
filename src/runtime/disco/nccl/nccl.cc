@@ -137,20 +137,12 @@ inline ncclRedOp_t AsNCCLRedOp(ReduceKind kind) {
 struct CCLThreadLocalContext {
   DiscoWorker* worker;
   int device_id;
-  deviceStream_t default_stream;
+  deviceStream_t default_stream = nullptr;
   ncclComm_t comm;
 
-  void Clear() {
-    NCCL_CALL(ncclCommDestroy(comm));
-    StreamDestroy(default_stream);
-  }
+  void Clear() { NCCL_CALL(ncclCommDestroy(comm)); }
 
-  deviceStream_t GetDefaultStream() {
-    const auto* func = tvm::runtime::Registry::Get("runtime.get_" TVM_DISCO_DEVICE_NAME "_stream");
-    ICHECK(func != nullptr);
-    deviceStream_t stream = static_cast<deviceStream_t>((*func)().operator void*());
-    return stream == nullptr ? default_stream : stream;
-  }
+  deviceStream_t GetDefaultStream() { return nullptr; }
 
   static CCLThreadLocalContext* Get() {
     thread_local static CCLThreadLocalContext ctx;
@@ -179,7 +171,6 @@ void InitCCLPerWorker(ShapeTuple device_ids, std::string unique_id_bytes) {
   // Step up local context of NCCL
   int device_id = device_ids[worker->worker_id];
   SetDevice(device_id);
-  StreamCreate(&ctx->default_stream);
   Device device{TVM_DISCO_DEVICE_TYPE, device_id};
   worker->default_device = device;
   worker->ccl = TVM_DISCO_CCL_NAME;
